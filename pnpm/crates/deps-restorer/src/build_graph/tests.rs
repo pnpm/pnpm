@@ -29,8 +29,10 @@ fn requires<const LEN: usize>(entries: [(PackageKey, bool); LEN]) -> HashMap<Pac
 }
 
 fn snap(deps: &[(&str, &str)]) -> SnapshotEntry {
-    let map: HashMap<PkgName, SnapshotDepRef> =
-        deps.iter().map(|(n, v)| (name(n), SnapshotDepRef::Plain(ver(v)))).collect();
+    let map: HashMap<PkgName, SnapshotDepRef> = deps
+        .iter()
+        .map(|(n, v)| (name(n), SnapshotDepRef::Plain(ver(v))))
+        .collect();
     SnapshotEntry {
         id: None,
         dependencies: (!map.is_empty()).then_some(map),
@@ -58,6 +60,7 @@ fn importer(deps: &[(&str, &str)]) -> ProjectSnapshot {
         dev_dependencies: None,
         dependencies_meta: None,
         publish_directory: None,
+        link_directory: None,
     }
 }
 
@@ -66,9 +69,18 @@ fn root_importers(deps: &[(&str, &str)]) -> HashMap<String, ProjectSnapshot> {
 }
 
 fn order(graph: &indexmap::IndexMap<PackageKey, Vec<PackageKey>>) -> Vec<PackageKey> {
-    let edges: HashMap<PackageKey, Vec<PackageKey>> =
-        graph.iter().map(|(key, dependencies)| (key.clone(), dependencies.clone())).collect();
-    graph_sequencer(&edges, &graph.keys().cloned().collect::<Vec<_>>()).order
+    let edges: HashMap<PackageKey, Vec<PackageKey>> = graph
+        .iter()
+        .map(|(key, dependencies)| (key.clone(), dependencies.clone()))
+        .collect();
+    graph_sequencer(
+        &edges,
+        &graph
+            .keys()
+            .cloned()
+            .collect::<Vec<_>>(),
+    )
+    .order
 }
 
 #[test]
@@ -224,8 +236,7 @@ fn non_builder_importer_with_shared_builder_child_is_trimmed() {
 /// through it. The gate makes the exclusion correct-by-construction.
 #[test]
 fn skipped_patched_snapshot_does_not_enter_build_queue() {
-    use std::collections::HashSet;
-    use std::path::PathBuf;
+    use std::{collections::HashSet, path::PathBuf};
 
     let a_key = key("a", "1.0.0");
     let snapshots = HashMap::from([(a_key.clone(), snap(&[]))]);

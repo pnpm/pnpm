@@ -7,12 +7,12 @@
 //! in place. `syncInjectedDepsAfterScripts` names the scripts that
 //! should trigger it.
 
-mod dir_patcher;
-
 pub use dir_patcher::{
     Change, DirDiff, DirPatcher, FileId, InodeMap, PatchError, Value, apply_patch, diff_dir,
     extend_files_map,
 };
+
+mod dir_patcher;
 
 use derive_more::{Display, Error};
 use miette::Diagnostic;
@@ -56,7 +56,6 @@ pub enum SyncInjectedDepsError {
         error: FindWorkspaceProjectsError,
     },
 
-    #[display("{_0}")]
     #[diagnostic(transparent)]
     Patch(PatchError),
 
@@ -68,7 +67,6 @@ pub enum SyncInjectedDepsError {
         error: std::io::Error,
     },
 
-    #[display("{_0}")]
     #[diagnostic(transparent)]
     LinkBins(LinkBinsError),
 }
@@ -110,11 +108,19 @@ pub fn sync_injected_deps(opts: &SyncInjectedDeps<'_>) -> Result<(), SyncInjecte
         return Ok(());
     };
 
+    sync_workspace_injected_deps(opts, workspace_dir)
+}
+
+fn sync_workspace_injected_deps(
+    opts: &SyncInjectedDeps<'_>,
+    workspace_dir: &Path,
+) -> Result<(), SyncInjectedDepsError> {
     let pkg_root_dir = workspace_dir.join(opts.pkg_root_dir);
     let modules =
         read_modules_manifest::<pnpm_modules_yaml::Host>(&workspace_dir.join("node_modules"))
             .map_err(|error| SyncInjectedDepsError::ReadModules { error })?;
-    let Some(injected_deps) = modules.as_ref().and_then(|modules| modules.injected_deps.as_ref())
+    let Some(injected_deps) =
+        modules.as_ref().and_then(|modules| modules.injected_deps.as_ref())
     else {
         tracing::debug!(
             target: "pacquet::sync_injected_deps",
@@ -123,8 +129,9 @@ pub fn sync_injected_deps(opts: &SyncInjectedDeps<'_>) -> Result<(), SyncInjecte
         return Ok(());
     };
 
-    let injected_dep_key = injected_dep_key(workspace_dir, &pkg_root_dir);
-    let Some(target_dirs) = injected_deps.get(&injected_dep_key).filter(|dirs| !dirs.is_empty())
+    let Some(target_dirs) = injected_deps
+        .get(&injected_dep_key(workspace_dir, &pkg_root_dir))
+        .filter(|dirs| !dirs.is_empty())
     else {
         tracing::debug!(
             target: "pacquet::sync_injected_deps",
@@ -134,24 +141,17 @@ pub fn sync_injected_deps(opts: &SyncInjectedDeps<'_>) -> Result<(), SyncInjecte
         return Ok(());
     };
 
-    let resolved_targets: Vec<PathBuf> =
-        target_dirs.iter().map(|target_dir| workspace_dir.join(target_dir)).collect();
-    for patcher in DirPatcher::from_multiple_targets(&pkg_root_dir, &resolved_targets)
-        .map_err(SyncInjectedDepsError::Patch)?
-    {
-        patcher.apply().map_err(SyncInjectedDepsError::Patch)?;
-    }
+    let resolved_targets: Vec<PathBuf> = target_dirs
+        .iter()
+        .map(|target_dir| workspace_dir.join(target_dir))
+        .collect();
+    patch_targets(&pkg_root_dir, &resolved_targets)?;
 
     let previous_bin_names = opts.manifest_before_scripts.map_or_else(Vec::new, |manifest| {
-        get_bins_from_package_manifest::<pnpm_cmd_shim::Host>(manifest, &pkg_root_dir)
-            .into_iter()
-            .map(|command| command.name)
-            .collect()
+        bin_names(manifest, &pkg_root_dir)
     });
     // The install hoists bins into the virtual store's own `.bin` as well.
-    let hoisted_bin_dir = modules.as_ref().map(|modules| {
-        workspace_dir.join(&modules.virtual_store_dir).join("node_modules").join(".bin")
-    });
+    let hoisted_bin_dir = hoisted_bin_path(workspace_dir, modules.as_ref());
     sync_bin_links(&SyncBinLinks {
         pkg_root_dir: &pkg_root_dir,
         resolved_targets: &resolved_targets,
@@ -159,6 +159,37 @@ pub fn sync_injected_deps(opts: &SyncInjectedDeps<'_>) -> Result<(), SyncInjecte
         previous_bin_names: &previous_bin_names,
         hoisted_bin_dir: hoisted_bin_dir.as_deref(),
     })
+}
+
+fn hoisted_bin_path(
+    workspace_dir: &Path,
+    modules: Option<&pnpm_modules_yaml::Modules>,
+) -> Option<PathBuf> {
+    modules.map(|modules| {
+        workspace_dir
+            .join(&modules.virtual_store_dir)
+            .join("node_modules")
+            .join(".bin")
+    })
+}
+
+fn patch_targets(
+    pkg_root_dir: &Path,
+    resolved_targets: &[PathBuf],
+) -> Result<(), SyncInjectedDepsError> {
+    for patcher in DirPatcher::from_multiple_targets(pkg_root_dir, resolved_targets)
+        .map_err(SyncInjectedDepsError::Patch)?
+    {
+        patcher.apply().map_err(SyncInjectedDepsError::Patch)?;
+    }
+    Ok(())
+}
+
+fn bin_names(manifest: &serde_json::Value, pkg_root_dir: &Path) -> Vec<String> {
+    get_bins_from_package_manifest::<pnpm_cmd_shim::Host>(manifest, pkg_root_dir)
+        .into_iter()
+        .map(|command| command.name)
+        .collect()
 }
 
 /// The key `.modules.yaml` files an injected dependency under: the
@@ -179,17 +210,21 @@ struct SyncBinLinks<'a> {
     hoisted_bin_dir: Option<&'a Path>,
 }
 
+/// Where one injected target's dropped bins have to be cleared from.
+#[derive(Clone, Copy)]
+struct RemoveStaleBins<'a> {
+    target_dir: &'a Path,
+    parent_modules_dir: &'a Path,
+    hoisted_bin_dir: Option<&'a Path>,
+    stale_bin_names: &'a [&'a String],
+}
+
 fn sync_bin_links(opts: &SyncBinLinks<'_>) -> Result<(), SyncInjectedDepsError> {
-    let SyncBinLinks {
-        pkg_root_dir,
-        resolved_targets,
-        workspace_dir,
-        previous_bin_names,
-        hoisted_bin_dir,
-    } = *opts;
-    let manifest = safe_read_package_json_from_dir(pkg_root_dir).map_err(|error| {
-        SyncInjectedDepsError::ReadManifest { dir: pkg_root_dir.to_path_buf(), error }
-    })?;
+    let manifest = safe_read_package_json_from_dir(opts.pkg_root_dir)
+        .map_err(|error| SyncInjectedDepsError::ReadManifest {
+            dir: opts.pkg_root_dir.to_path_buf(),
+            error,
+        })?;
     let Some(manifest) = manifest.filter(|manifest| manifest.get("name").is_some()) else {
         return Ok(());
     };
@@ -197,33 +232,25 @@ fn sync_bin_links(opts: &SyncBinLinks<'_>) -> Result<(), SyncInjectedDepsError> 
     // `link_bins` only ever creates shims, so a bin the script dropped keeps
     // its shim, pointing at a command that is no longer there.
     let current_bin_names: HashSet<String> =
-        get_bins_from_package_manifest::<pnpm_cmd_shim::Host>(&manifest, pkg_root_dir)
-            .into_iter()
-            .map(|command| command.name)
-            .collect();
-    let stale_bin_names: Vec<&String> =
-        previous_bin_names.iter().filter(|name| !current_bin_names.contains(*name)).collect();
+        bin_names(&manifest, opts.pkg_root_dir).into_iter().collect();
+    let stale_bin_names: Vec<&String> = opts.previous_bin_names
+        .iter()
+        .filter(|name| !current_bin_names.contains(*name))
+        .collect();
 
     let has_bins = manifest.get("bin").is_some();
     let manifest = Arc::new(manifest);
 
-    for target_dir in resolved_targets {
+    for target_dir in opts.resolved_targets {
         let Some(parent_modules_dir) = target_dir.parent() else {
             continue;
         };
-        // The installer writes an injected package's own bins inside the
-        // copy, while this function writes them beside it. A dropped bin has
-        // to be cleared from both, or the one this function never wrote
-        // survives.
-        let bin_dirs =
-            [parent_modules_dir.join(".bin"), target_dir.join("node_modules").join(".bin")];
-        for bin_dir in bin_dirs.iter().map(PathBuf::as_path).chain(hoisted_bin_dir) {
-            for name in &stale_bin_names {
-                remove_bin(&bin_dir.join(name.as_str())).map_err(|error| {
-                    SyncInjectedDepsError::RemoveBin { path: bin_dir.join(name.as_str()), error }
-                })?;
-            }
-        }
+        remove_stale_bins(RemoveStaleBins {
+            target_dir,
+            parent_modules_dir,
+            hoisted_bin_dir: opts.hoisted_bin_dir,
+            stale_bin_names: &stale_bin_names,
+        })?;
 
         if !has_bins {
             continue;
@@ -237,9 +264,16 @@ fn sync_bin_links(opts: &SyncBinLinks<'_>) -> Result<(), SyncInjectedDepsError> 
         .map_err(SyncInjectedDepsError::LinkBins)?;
     }
 
-    // Any project in the workspace may consume the injected package, so
-    // every project's bin directory is refreshed rather than only the
-    // ones this sync touched.
+    relink_project_bins(opts.workspace_dir, &stale_bin_names)
+}
+
+/// Any project in the workspace may consume the injected package, so
+/// every project's bin directory is refreshed rather than only the
+/// ones this sync touched.
+fn relink_project_bins(
+    workspace_dir: &Path,
+    stale_bin_names: &[&String],
+) -> Result<(), SyncInjectedDepsError> {
     let projects =
         find_workspace_projects_no_check(workspace_dir, &FindWorkspaceProjectsOpts::default())
             .map_err(|error| SyncInjectedDepsError::FindProjects { error })?;
@@ -249,13 +283,12 @@ fn sync_bin_links(opts: &SyncBinLinks<'_>) -> Result<(), SyncInjectedDepsError> 
         // relink below, so removing first costs nothing and catches the shim
         // this package left behind.
         let project_bin_dir = project_modules_dir.join(".bin");
-        for name in &stale_bin_names {
-            remove_bin(&project_bin_dir.join(name.as_str())).map_err(|error| {
-                SyncInjectedDepsError::RemoveBin {
+        for name in stale_bin_names {
+            remove_bin(&project_bin_dir.join(name.as_str()))
+                .map_err(|error| SyncInjectedDepsError::RemoveBin {
                     path: project_bin_dir.join(name.as_str()),
                     error,
-                }
-            })?;
+                })?;
         }
         link_bins::<pnpm_cmd_shim::Host>(
             &project_modules_dir,
@@ -263,6 +296,32 @@ fn sync_bin_links(opts: &SyncBinLinks<'_>) -> Result<(), SyncInjectedDepsError> 
             &pnpm_cmd_shim::LinkBinsOptions::default(),
         )
         .map_err(SyncInjectedDepsError::LinkBins)?;
+    }
+    Ok(())
+}
+
+/// Clear the shims of bins the package no longer declares.
+///
+/// The installer writes an injected package's own bins inside the copy, while
+/// the syncer writes them beside it. A dropped bin has to be cleared from
+/// both, or the one the syncer never wrote survives.
+fn remove_stale_bins(remove: RemoveStaleBins<'_>) -> Result<(), SyncInjectedDepsError> {
+    let bin_dirs = [
+        remove.parent_modules_dir.join(".bin"),
+        remove.target_dir.join("node_modules").join(".bin"),
+    ];
+    for bin_dir in bin_dirs
+        .iter()
+        .map(PathBuf::as_path)
+        .chain(remove.hoisted_bin_dir)
+    {
+        for name in remove.stale_bin_names {
+            remove_bin(&bin_dir.join(name.as_str()))
+                .map_err(|error| SyncInjectedDepsError::RemoveBin {
+                    path: bin_dir.join(name.as_str()),
+                    error,
+                })?;
+        }
     }
     Ok(())
 }

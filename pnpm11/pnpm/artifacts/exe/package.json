@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/exe",
-  "version": "11.25.0",
+  "version": "11.27.0",
   "description": "Fast, disk space efficient package manager",
   "keywords": [
     "pnpm",
@@ -49,9 +49,9 @@
   },
   "devDependencies": {
     "@jest/globals": "catalog:",
+    "@pnpm/bins.cmd-shim": "workspace:*",
     "@pnpm/exe": "workspace:*",
     "@pnpm/jest-config": "workspace:*",
-    "@zkochan/cmd-shim": "catalog:",
     "execa": "catalog:"
   },
   "jest": {

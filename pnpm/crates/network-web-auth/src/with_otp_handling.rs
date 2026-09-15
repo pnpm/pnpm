@@ -39,6 +39,28 @@ pub trait OtpError {
     fn as_otp_challenge(&self) -> Option<OtpChallenge>;
 }
 
+/// The challenge a `401` response body carries, or `None` when the body is
+/// a plain authentication failure: a JSON body with both `authUrl` and
+/// `doneUrl` is the web-based flow, a body mentioning `one-time pass` (npm's
+/// classic wording) is a classic OTP challenge.
+#[must_use]
+pub fn otp_challenge_from_unauthorized_body(body: &[u8]) -> Option<OtpChallenge> {
+    if let Ok(Value::Object(map)) = serde_json::from_slice::<Value>(body)
+        && let (Some(auth_url), Some(done_url)) = (map.get("authUrl"), map.get("doneUrl"))
+    {
+        return Some(OtpChallenge {
+            body: Some(OtpErrorBody {
+                auth_url: auth_url.as_str().map(str::to_owned),
+                done_url: done_url.as_str().map(str::to_owned),
+            }),
+        });
+    }
+    if String::from_utf8_lossy(body).to_ascii_lowercase().contains("one-time pass") {
+        return Some(OtpChallenge { body: None });
+    }
+    None
+}
+
 /// Synthetic EOTP error meant to be thrown by an operation passed to
 /// [`with_otp_handling`] and caught by it — never to propagate elsewhere.
 #[derive(Debug, derive_more::Display, derive_more::Error, Clone)]
@@ -179,23 +201,18 @@ pub struct OtpSecondChallengeError;
 /// errors.
 #[derive(Debug, derive_more::Display, derive_more::Error, Diagnostic)]
 pub enum WithOtpError<Error: Diagnostic + 'static> {
-    #[display("{_0}")]
     #[diagnostic(transparent)]
     Operation(Error),
 
-    #[display("{_0}")]
     #[diagnostic(transparent)]
     NonInteractive(OtpNonInteractiveError),
 
-    #[display("{_0}")]
     #[diagnostic(transparent)]
     SecondChallenge(OtpSecondChallengeError),
 
-    #[display("{_0}")]
     #[diagnostic(transparent)]
     Timeout(WebAuthTimeoutError),
 
-    #[display("{_0}")]
     Prompt(PromptError),
 }
 
@@ -293,9 +310,10 @@ where
     }
 
     let web_auth_urls = match &challenge.body {
-        Some(OtpErrorBody { auth_url: Some(auth_url), done_url: Some(done_url) }) => {
-            canonical_http_url(auth_url).zip(canonical_http_url(done_url))
-        }
+        Some(OtpErrorBody {
+            auth_url: Some(auth_url),
+            done_url: Some(done_url),
+        }) => canonical_http_url(auth_url).zip(canonical_http_url(done_url)),
         _ => None,
     };
 
@@ -307,8 +325,7 @@ where
                 fetch_options,
                 timeout_ms: None,
             });
-            prompt_browser_open::<Sys, Reporter, _, _>(&auth_url, poll)
-                .await
+            prompt_browser_open::<Sys, Reporter, _, _>(&auth_url, poll).await
                 .map(Some)
                 .map_err(WithOtpError::Timeout)
         }
@@ -359,7 +376,9 @@ where
     Operation: FnMut(Option<String>) -> Fut,
     Fut: Future<Output = Result<Token, Error>>,
 {
-    OtpSession::new(fetch_options)
-        .run::<Sys, Reporter, Token, Error, Operation, Fut>(operation)
+    OtpSession::new(fetch_options).run::<Sys, Reporter, Token, Error, Operation, Fut>(operation)
         .await
 }
+
+#[cfg(test)]
+mod tests;

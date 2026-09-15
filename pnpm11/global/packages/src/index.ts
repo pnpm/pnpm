@@ -9,6 +9,7 @@ export {
   findGlobalPackage,
   getGlobalPackageDetails,
   getInstalledBinNames,
+  type GlobalPackageBinSnapshot,
   type GlobalPackageInfo,
   type InstalledGlobalPackage,
   isValidGlobalDependencyAlias,

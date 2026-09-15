@@ -8,14 +8,15 @@
 //! resolved via a named registry would 404 or, worse, hit a stale
 //! mirror under the default registry.
 
+pub use pnpm_lockfile::pick_registry_for_package;
+
+pub use pnpm_config::BUILTIN_REGISTRIES_BY_PREFIX;
+
 use std::collections::HashMap;
 
 use derive_more::{Display, Error};
 use miette::Diagnostic;
-pub use pnpm_lockfile::pick_registry_for_package;
 use reqwest::Url;
-
-pub use pnpm_config::BUILTIN_REGISTRIES_BY_PREFIX;
 
 /// Failure from [`merge_named_registries`], surfaced with the
 /// `ERR_PNPM_INVALID_NAMED_REGISTRY_URL` code.
@@ -117,7 +118,11 @@ pub fn named_registry_tarball_prefixes(
             format!("{}{}", parsed.origin().ascii_serialization(), pathname)
         })
         .collect();
-    prefixes.sort_by(|a, b| b.len().cmp(&a.len()).then_with(|| a.cmp(b)));
+    prefixes.sort_by(|a, b| {
+        b.len()
+            .cmp(&a.len())
+            .then_with(|| a.cmp(b))
+    });
     prefixes
 }
 

@@ -12,8 +12,9 @@ fn catalogs(entries: &[(&str, &[(&str, &str)])]) -> Catalogs {
     entries
         .iter()
         .map(|(name, deps)| {
-            let catalog =
-                deps.iter().map(|(alias, spec)| ((*alias).to_string(), (*spec).to_string()));
+            let catalog = deps
+                .iter()
+                .map(|(alias, spec)| ((*alias).to_string(), (*spec).to_string()));
             ((*name).to_string(), catalog.collect())
         })
         .collect()
@@ -52,7 +53,9 @@ fn strict_errors_on_a_concrete_version_mismatch() {
         },
     );
     assert_eq!(
-        err.code().expect("error carries a diagnostic code").to_string(),
+        err.code()
+            .expect("error carries a diagnostic code")
+            .to_string(),
         "ERR_PNPM_CATALOG_VERSION_MISMATCH",
     );
 }
@@ -143,6 +146,45 @@ fn strict_skips_runtime_specifiers() {
     let catalogs = catalogs(&[("default", &[("node", "1.0.0")])]);
     let decision = decide(CatalogMode::Strict, &catalogs, &dep("node", "runtime:22.0.0")).unwrap();
     assert_eq!(decision, CatalogDecision::KeepDirect, "a runtime: specifier is never cataloged");
+}
+
+#[test]
+fn project_relative_paths_are_never_cataloged() {
+    let catalogs = Catalogs::new();
+    for specifier in [
+        "./localpkg",
+        "file:./localpkg",
+        "link:../lib",
+        "../deps/pkg-1.0.0.tgz",
+        "workspace:../lib",
+        "workspace:./lib",
+    ] {
+        let decision = decide(CatalogMode::Prefer, &catalogs, &dep("localpkg", specifier)).unwrap();
+        assert_eq!(
+            decision,
+            CatalogDecision::KeepDirect,
+            "{specifier:?} resolves against the declaring project, so a catalog entry cannot \
+             mean the same directory for every consumer",
+        );
+    }
+}
+
+/// A `workspace:` range names a package, not a directory, so it stays
+/// catalogable — only the path forms are held back.
+#[test]
+fn a_workspace_range_is_still_cataloged() {
+    let catalogs = Catalogs::new();
+    let decision = decide(CatalogMode::Prefer, &catalogs, &dep("lib", "workspace:^")).unwrap();
+    assert_eq!(
+        decision,
+        CatalogDecision::Catalog {
+            manifest_specifier: "catalog:".to_string(),
+            updated_entry: Some(CatalogEntry {
+                catalog_name: "default".to_string(),
+                specifier: "workspace:^".to_string(),
+            }),
+        },
+    );
 }
 
 #[test]
@@ -239,7 +281,10 @@ fn prefer_warns_and_keeps_the_direct_version_on_mismatch() {
     struct RecordingReporter;
     impl Reporter for RecordingReporter {
         fn emit(event: &LogEvent) {
-            EVENTS.lock().unwrap().push(event.clone());
+            EVENTS
+                .lock()
+                .unwrap()
+                .push(event.clone());
         }
     }
     // The reporter sink is a process-global `static`; clear it so a prior

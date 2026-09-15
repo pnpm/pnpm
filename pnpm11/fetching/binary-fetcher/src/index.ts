@@ -209,13 +209,33 @@ async function extractZipToTarget (
   ignoreEntry?: RegExp
 ): Promise<void> {
   const zip = new AdmZip(zipPath)
-  const nodeDir = basename === '' ? targetDir : path.dirname(targetDir)
+  // The extraction directory must not be guessable: AdmZip opens each destination with
+  // `fs.openSync(path, 'w')`, which resolves symlinks (GHSA-vwc7-r8mq-g2x9, unpatched),
+  // so a symlink planted at a known path redirects the write out of the store.
+  const extractionRoot = basename === ''
+    ? targetDir
+    : await fsPromises.mkdtemp(path.join(path.dirname(targetDir), '_unzip_'))
 
-  // Validate basename/prefix doesn't escape the target directory
-  if (basename !== '') {
-    validatePathSecurity(nodeDir, basename)
+  try {
+    if (basename !== '') {
+      validatePathSecurity(extractionRoot, basename)
+    }
+    extractEntries(zip, { extractionRoot, basename, ignoreEntry })
+    await renameOverwrite(path.join(extractionRoot, basename), targetDir)
+  } finally {
+    if (extractionRoot !== targetDir) {
+      await fsPromises.rm(extractionRoot, { recursive: true, force: true })
+    }
   }
+}
 
+interface ExtractEntriesOptions {
+  extractionRoot: string
+  basename: string
+  ignoreEntry?: RegExp
+}
+
+function extractEntries (zip: AdmZip, { extractionRoot, basename, ignoreEntry }: ExtractEntriesOptions): void {
   const basenamePrefix = basename === '' ? '' : `${basename}/`
   // Normalize `ignoreEntry` to a stateless regex. `.test()` on a `/g` or `/y` regex
   // advances `lastIndex` between calls, which would cause inconsistent skips across
@@ -232,18 +252,15 @@ async function extractZipToTarget (
   for (const entry of zip.getEntries()) {
     if (entry.isDirectory) continue
     const entryPath = entry.entryName
-    validatePathSecurity(nodeDir, entryPath)
+    validatePathSecurity(extractionRoot, entryPath)
     if (testEntry) {
       const relative = basenamePrefix && entryPath.startsWith(basenamePrefix)
         ? entryPath.slice(basenamePrefix.length)
         : entryPath
       if (testEntry(relative)) continue
     }
-    zip.extractEntryTo(entry, nodeDir, true, true)
+    zip.extractEntryTo(entry, extractionRoot, true, true)
   }
-
-  const extractedDir = path.join(nodeDir, basename)
-  await renameOverwrite(extractedDir, targetDir)
 }
 
 function toStatelessTester (regex: RegExp | undefined): ((input: string) => boolean) | undefined {

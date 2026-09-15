@@ -100,14 +100,8 @@ impl PatchRemoveArgs {
                 PatchRemovalTarget::new(patch, patch_file, &ctx)
             })
             .collect::<Result<Vec<_>, _>>()?;
-        let removed_patches: HashSet<&String> = patches_to_remove.iter().collect();
-        let remaining_patch_files = patched_dependencies
-            .iter()
-            .filter(|(patch, _)| !removed_patches.contains(patch))
-            .map(|(patch, patch_file)| {
-                PatchRemovalTarget::new(patch, patch_file, &ctx).map(|target| target.target_path)
-            })
-            .collect::<Result<HashSet<_>, _>>()?;
+        let remaining_patch_files =
+            remaining_patch_files(&patched_dependencies, &patches_to_remove, &ctx)?;
 
         for target in &targets {
             if !remaining_patch_files.contains(&target.target_path) {
@@ -140,10 +134,19 @@ fn patches_to_remove(
     if patched_dependencies.is_empty() {
         return Err(PatchRemoveError::NoPatchesToRemove);
     }
-    let all_patches: Vec<String> = patched_dependencies.keys().cloned().collect();
-    prompt.select_patches(&all_patches).and_then(|selected| {
-        if selected.is_empty() { Err(PatchRemoveError::NoPatchesToRemove) } else { Ok(selected) }
-    })
+    let all_patches: Vec<String> = patched_dependencies
+        .keys()
+        .cloned()
+        .collect();
+    prompt
+        .select_patches(&all_patches)
+        .and_then(|selected| {
+            if selected.is_empty() {
+                Err(PatchRemoveError::NoPatchesToRemove)
+            } else {
+                Ok(selected)
+            }
+        })
 }
 
 trait PatchRemovePrompt {
@@ -175,7 +178,10 @@ fn select_patches_from_indices(
 }
 
 fn patches_from_selected_indices(patches: &[String], selected_indices: Vec<usize>) -> Vec<String> {
-    selected_indices.into_iter().map(|index| patches[index].clone()).collect()
+    selected_indices
+        .into_iter()
+        .map(|index| patches[index].clone())
+        .collect()
 }
 
 struct PatchRemovalContext {
@@ -196,7 +202,10 @@ impl PatchRemovalContext {
             });
         }
         let real_patches_dir = realpath_if_exists(&patches_dir);
-        if real_patches_dir.as_ref().is_some_and(|real| !is_subdir(&real_project_root, real)) {
+        if real_patches_dir
+            .as_ref()
+            .is_some_and(|real| !is_subdir(&real_project_root, real))
+        {
             return Err(PatchRemoveError::PatchesDirOutsideProject {
                 patches_dir: patches_dir_setting.to_string(),
             });
@@ -347,3 +356,18 @@ impl PatchRemoveFs for RealPatchRemoveFs {
 
 #[cfg(test)]
 mod tests;
+
+fn remaining_patch_files(
+    patched_dependencies: &IndexMap<String, String>,
+    patches_to_remove: &[String],
+    ctx: &PatchRemovalContext,
+) -> Result<HashSet<PathBuf>, PatchRemoveError> {
+    let removed_patches: HashSet<&String> = patches_to_remove.iter().collect();
+    patched_dependencies
+        .iter()
+        .filter(|(patch, _)| !removed_patches.contains(patch))
+        .map(|(patch, patch_file)| {
+            PatchRemovalTarget::new(patch, patch_file, ctx).map(|target| target.target_path)
+        })
+        .collect::<Result<HashSet<_>, _>>()
+}

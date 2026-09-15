@@ -17,32 +17,35 @@
 //! (a verifier needs [`pnpm_lockfile::LockfileResolution`]; a
 //! resolver result *also* carries one).
 
-mod errors;
-mod peer_range;
-mod publish_time;
-mod resolve;
-mod semver_range;
-mod verifier;
-
 pub use errors::{
     GitResolveError, NoMatchingVersionError, RegistryResponseError, RegistryResponseErrorOptions,
 };
 pub use peer_range::{get_peer_version_range, is_acceptable_peer_spec, is_valid_peer_range};
+pub use pnpm_config::LinkWorkspacePackages;
 pub use publish_time::parse_packument_timestamp;
 pub use resolve::{
     CurrentPkg, DIRECT_DEP_SELECTOR_WEIGHT, DependencyManifest, EXISTING_VERSION_SELECTOR_WEIGHT,
-    LatestInfo, LatestQuery, PackageVersionGuard, PackageVersionGuardDecision,
-    PackageVersionGuardError, PackageVersionGuardFuture, PkgResolutionId, PreferredVersions,
-    PreferredVersionsOverlay, ResolveError, ResolveFuture, ResolveLatestFuture, ResolveOptions,
-    ResolveResult, Resolver, SharedDependencyManifest, UpdateBehavior, VersionSelectorEntry,
+    GuardExhaustionPolicy, LatestInfo, LatestQuery, PackageVersionGuard,
+    PackageVersionGuardDecision, PackageVersionGuardError, PackageVersionGuardFuture,
+    PkgResolutionId, PreferredVersions, PreferredVersionsOverlay, ResolutionPolicyOptions,
+    ResolutionRefreshOptions, ResolveError, ResolveFuture, ResolveLatestFuture, ResolveOptions,
+    ResolveResult, ResolvedPackageInfo, Resolver, ResolverProjectOptions, ResolverSpecifierOptions,
+    SharedDependencyManifest, UpdateBehavior, VersionSelectionOptions, VersionSelectorEntry,
     VersionSelectorType, VersionSelectorWithWeight, VersionSelectors, WantedDependency,
-    WorkspacePackage, WorkspacePackages, WorkspacePackagesByVersion,
+    WorkspacePackage, WorkspacePackages, WorkspacePackagesByVersion, resolve_package_version,
 };
 pub use semver_range::{ANY_VERSION_RANGE, is_any_version_range, is_valid_semver_range};
 pub use verifier::{
     PlannedCanonicalFetches, ResolutionPolicyViolation, ResolutionVerification, ResolutionVerifier,
     VerifyCtx, VerifyFuture,
 };
+
+mod errors;
+mod peer_range;
+mod publish_time;
+mod resolve;
+mod semver_range;
+mod verifier;
 
 #[cfg(test)]
 mod tests;

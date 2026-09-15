@@ -175,7 +175,10 @@ fn rejects_oversized_envelope_fields_without_decoding_them() {
         payload: "A".repeat(crate::MAX_ENCODED_SIGNED_PAYLOAD_SIZE + 1),
         signature: BASE64.encode([0; 8]),
     };
-    let error = oversized_payload.decode_payload().unwrap_err().to_string();
+    let error = oversized_payload
+        .decode_payload()
+        .unwrap_err()
+        .to_string();
     assert!(error.contains("signed payload exceeds"), "{error}");
 
     let payload_bytes = serde_json::to_vec(&payload(integrity(b"addon"))).unwrap();
@@ -185,7 +188,10 @@ fn rejects_oversized_envelope_fields_without_decoding_them() {
         payload: BASE64.encode(&payload_bytes),
         signature: "A".repeat(crate::MAX_ENCODED_SIGNATURE_SIZE + 1),
     };
-    let error = oversized_signature.digest().unwrap_err().to_string();
+    let error = oversized_signature
+        .digest()
+        .unwrap_err()
+        .to_string();
     assert!(error.contains("DER-encoded P-256 signature"), "{error}");
 }
 
@@ -440,7 +446,10 @@ fn windows_compatibility_uses_kernel_version_floors() {
 #[test]
 fn scopes_name_the_machines_constraints_reach() {
     let tagged = |tags: &[&str]| CompatibilityConstraints::Tagged {
-        tags: tags.iter().map(|tag| (*tag).to_string()).collect(),
+        tags: tags
+            .iter()
+            .map(|tag| (*tag).to_string())
+            .collect(),
     };
     let scopes = |tags: &[&str]| match compatibility_scopes(&tagged(tags)) {
         CompatibilityScopes::These(scopes) => scopes,

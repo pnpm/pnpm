@@ -88,7 +88,10 @@ fn the_shims_are_executable() {
     let wanted = WantedPm { pm: PreferredPm::Npm, version_spec: None, pinned: false };
     write_pm_shims(dir.path(), &wanted, Path::new("/opt/pnpm")).expect("write the shims");
 
-    let mode = fs::metadata(dir.path().join("npm")).unwrap().permissions().mode();
+    let mode = fs::metadata(dir.path().join("npm"))
+        .unwrap()
+        .permissions()
+        .mode();
     assert_eq!(mode & 0o111, 0o111, "mode was {mode:o}");
 }
 
@@ -132,7 +135,9 @@ fn a_hostile_version_spec_is_dropped() {
 #[test]
 fn a_planted_entry_is_replaced() {
     let dir = tempdir().unwrap();
-    let planted = dir.path().join(if cfg!(windows) { "npm.cmd" } else { "npm" });
+    let planted = dir
+        .path()
+        .join(if cfg!(windows) { "npm.cmd" } else { "npm" });
     let elsewhere = dir.path().join("elsewhere");
     fs::write(&elsewhere, "original\n").unwrap();
     #[cfg(unix)]

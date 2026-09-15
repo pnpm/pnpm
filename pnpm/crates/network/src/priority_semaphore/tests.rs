@@ -82,8 +82,7 @@ async fn cancelled_waiter_passes_its_grant_to_the_next_waiter() {
     assert!(abort_result.unwrap_err().is_cancelled());
 
     drop(holder);
-    tokio::time::timeout(Duration::from_secs(5), survivor)
-        .await
+    tokio::time::timeout(Duration::from_secs(5), survivor).await
         .expect("the freed permit should reach the surviving waiter")
         .unwrap();
     assert_eq!(*order.lock().unwrap(), vec!["survivor"]);

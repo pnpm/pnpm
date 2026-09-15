@@ -52,7 +52,7 @@ import {
   writeCurrentLockfile,
   writeLockfiles,
 } from '@pnpm/lockfile.fs'
-import { PACKAGE_MAP_FILENAME, writePackageMap, writePackageMapFromDependenciesGraph, writePnpFile } from '@pnpm/lockfile.to-pnp'
+import { PACKAGE_MAP_FILENAME, removePackageMap, writePackageMap, writePackageMapFromDependenciesGraph, writePnpFile } from '@pnpm/lockfile.to-pnp'
 import {
   nameVerFromPkgSnapshot,
 } from '@pnpm/lockfile.utils'
@@ -586,7 +586,8 @@ export async function headlessInstall (opts: HeadlessOptions): Promise<Installat
     }
   }
 
-  const shouldWritePackageMap = opts.enableModulesDir !== false && opts.nodeLinker !== 'pnp' && !opts.virtualStoreOnly
+  // See the matching gate in `deps-installer`.
+  const shouldWritePackageMap = opts.nodeExperimentalPackageMap === true && opts.enableModulesDir !== false && opts.nodeLinker !== 'pnp' && !opts.virtualStoreOnly
   if (shouldWritePackageMap) {
     // Omit the importer self-mapping when a project has no name: the map keys
     // dependencies by package name, so falling back to the importer id (`.` or
@@ -618,6 +619,8 @@ export async function headlessInstall (opts: HeadlessOptions): Promise<Installat
         virtualStoreDirMaxLength: opts.virtualStoreDirMaxLength,
       })
     }
+  } else if (opts.enableModulesDir !== false && !opts.virtualStoreOnly) {
+    await removePackageMap(rootModulesDir)
   }
 
   // Reconcile in every mode, not only when scripts are ignored: an entry

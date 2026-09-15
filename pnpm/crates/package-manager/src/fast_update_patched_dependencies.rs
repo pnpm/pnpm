@@ -75,7 +75,8 @@ pub(crate) fn apply_patched_update(
         return false;
     };
     apply_rekeys(candidate, &rekeys);
-    candidate.patched_dependencies = (!plan.current.is_empty()).then(|| plan.current.clone());
+    candidate.patched_dependencies =
+        (!plan.current.is_empty()).then(|| plan.current.clone());
     true
 }
 
@@ -94,43 +95,77 @@ fn plan_rekeys(lockfile: &Lockfile, groups: &PatchGroupRecord) -> Option<Rekeys>
     };
     let mut rekeys = Rekeys::new();
     for key in snapshots.keys() {
-        let rendered = key.to_string();
-        let suffix = index_of_dep_path_suffix(&rendered);
-        let base = remove_suffix(&rendered);
-        let peers = suffix.peers_index.map_or("", |index| &rendered[index..]);
-        let (name, version) = pnpm_deps_restorer::parse_name_version_from_key(base);
-        let patch = get_patch_info(Some(groups), &name, &version).ok()?;
-        // The resolver matches patches against a package's plain semver
-        // version, while this reads the version out of the key, where a
-        // named registry (`name@registry:version`) or a git / tarball
-        // reference occupies the same slot. The two only agree on plain
-        // semver, so anything else is left to the resolver rather than
-        // guessed at — as long as it needs no rekey at all.
-        if key.suffix.version_semver().is_none() {
-            // Matching cannot be reproduced here, so the question is only
-            // whether it could matter: any configured patch naming this
-            // package, or a patch hash already on the key, hands the
-            // decision back to the resolver.
-            if groups.contains_key(name.as_str()) || suffix.patch_hash_index.is_some() {
-                return None;
+        match rekeyed_snapshot_key(key, groups) {
+            Rekey::Unsupported => return None,
+            Rekey::Unchanged => {}
+            Rekey::Moved(moved) => {
+                rekeys.insert(key.clone(), moved);
             }
-            continue;
-        }
-        let segment = match patch {
-            Some(patch) => format!("(patch_hash={})", patch.hash),
-            None => String::new(),
-        };
-        let moved = format!("{base}{segment}{peers}");
-        if moved != rendered {
-            rekeys.insert(key.clone(), moved.parse().ok()?);
         }
     }
     if rekeys.is_empty() {
         return Some(rekeys);
     }
+    peer_suffixes_survive_rekeys(snapshots, &rekeys).then_some(rekeys)
+}
 
-    let moved_bases: Vec<String> =
-        rekeys.keys().map(|key| remove_suffix(&key.to_string()).to_string()).collect();
+/// What the configured patches do to one snapshot key.
+enum Rekey {
+    Unchanged,
+    Moved(PackageKey),
+    /// A key only a resolution can settle.
+    Unsupported,
+}
+
+fn rekeyed_snapshot_key(key: &PackageKey, groups: &PatchGroupRecord) -> Rekey {
+    let rendered = key.to_string();
+    let suffix = index_of_dep_path_suffix(&rendered);
+    let base = remove_suffix(&rendered);
+    let peers = suffix.peers_index.map_or("", |index| &rendered[index..]);
+    let (name, version) = pnpm_deps_restorer::parse_name_version_from_key(base);
+    let Ok(patch) = get_patch_info(Some(groups), &name, &version) else {
+        return Rekey::Unsupported;
+    };
+    // The resolver matches patches against a package's plain semver
+    // version, while this reads the version out of the key, where a
+    // named registry (`name@registry:version`) or a git / tarball
+    // reference occupies the same slot. The two only agree on plain
+    // semver, so anything else is left to the resolver rather than
+    // guessed at — as long as it needs no rekey at all.
+    if key.suffix.version_semver().is_none() {
+        // Matching cannot be reproduced here, so the question is only
+        // whether it could matter: any configured patch naming this
+        // package, or a patch hash already on the key, hands the
+        // decision back to the resolver.
+        if groups.contains_key(name.as_str()) || suffix.patch_hash_index.is_some() {
+            return Rekey::Unsupported;
+        }
+        return Rekey::Unchanged;
+    }
+    let segment = match patch {
+        Some(patch) => format!("(patch_hash={})", patch.hash),
+        None => String::new(),
+    };
+    let moved = format!("{base}{segment}{peers}");
+    if moved == rendered {
+        return Rekey::Unchanged;
+    }
+    match moved.parse() {
+        Ok(moved) => Rekey::Moved(moved),
+        Err(_) => Rekey::Unsupported,
+    }
+}
+
+/// Whether no surviving peer suffix names a package the rekeys move. One that
+/// does would have to be rewritten too, which only a resolution can do.
+fn peer_suffixes_survive_rekeys(
+    snapshots: &HashMap<PackageKey, pnpm_lockfile::SnapshotEntry>,
+    rekeys: &Rekeys,
+) -> bool {
+    let moved_bases: Vec<String> = rekeys
+        .keys()
+        .map(|key| remove_suffix(&key.to_string()).to_string())
+        .collect();
     for key in snapshots.keys() {
         let rendered = key.to_string();
         let Some(index) = index_of_dep_path_suffix(&rendered).peers_index else {
@@ -138,12 +173,14 @@ fn plan_rekeys(lockfile: &Lockfile, groups: &PatchGroupRecord) -> Option<Rekeys>
         };
         let peers = &rendered[index..];
         if peer_suffix_is_opaque(peers)
-            || moved_bases.iter().any(|base| peers.contains(base.as_str()))
+            || moved_bases
+                .iter()
+                .any(|base| peers.contains(base.as_str()))
         {
-            return None;
+            return false;
         }
     }
-    Some(rekeys)
+    true
 }
 
 /// Whether `peers` is the short hash pnpm substitutes once the joined
@@ -186,7 +223,10 @@ fn rewrite_snapshot_dependencies(
         return;
     };
     for (alias, reference) in dependencies.iter_mut() {
-        let Some(moved) = reference.resolve(alias).and_then(|target| rekeys.get(&target)).cloned()
+        let Some(moved) = reference
+            .resolve(alias)
+            .and_then(|target| rekeys.get(&target))
+            .cloned()
         else {
             continue;
         };
@@ -279,7 +319,10 @@ pub(crate) fn unused_patches(
     let hashes = hashes.filter(|hashes| !hashes.is_empty())?;
     let groups = groups_from_hashes(hashes)?;
     let applied = applied_patch_keys(lockfile, &groups)?;
-    let applied = applied.into_iter().map(str::to_string).collect();
+    let applied = applied
+        .into_iter()
+        .map(str::to_string)
+        .collect();
     pnpm_patching::verify_patches(&groups, &applied, true).ok().flatten()
 }
 
@@ -294,9 +337,11 @@ pub(crate) fn unused_patches(
 /// range, leaving `ERR_PNPM_PATCH_NON_SEMVER_RANGE` to the resolver.
 fn groups_from_hashes(hashes: &BTreeMap<String, String>) -> Option<PatchGroupRecord> {
     group_patched_dependencies(
-        hashes.iter().map(|(key, hash)| {
-            (key.clone(), PatchInput { hash: hash.clone(), patch_file_path: None })
-        }),
+        hashes
+            .iter()
+            .map(|(key, hash)| {
+                (key.clone(), PatchInput { hash: hash.clone(), patch_file_path: None })
+            }),
     )
     .ok()
 }

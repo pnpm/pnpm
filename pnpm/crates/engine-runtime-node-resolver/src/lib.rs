@@ -21,13 +21,6 @@
 //!   impl that ties the parser, mirror config, and asset-list fetch
 //!   into the dispatcher chain.
 
-mod get_node_artifact_address;
-mod get_node_mirror;
-mod node_resolver;
-mod normalize_arch;
-mod parse_node_specifier;
-mod resolve_node_version;
-
 pub use get_node_artifact_address::{
     GetNodeArtifactAddressOptions, NodeArtifactAddress, get_node_artifact_address,
 };
@@ -41,3 +34,10 @@ pub use resolve_node_version::{
     NODE_EXTRAS_IGNORE_PATTERN, ResolveNodeVersionError, resolve_node_version,
     resolve_node_version_with_auth, resolve_node_versions, resolve_node_versions_with_auth,
 };
+
+mod get_node_artifact_address;
+mod get_node_mirror;
+mod node_resolver;
+mod normalize_arch;
+mod parse_node_specifier;
+mod resolve_node_version;

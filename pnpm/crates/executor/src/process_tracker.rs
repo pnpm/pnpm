@@ -49,8 +49,13 @@ impl RunningExecution {
 }
 
 impl ProcessTracker {
-    /// Track foreground children without moving them out of the terminal's
-    /// process group, so terminal signals continue to reach them directly.
+    /// Track children without giving them a process group of their own.
+    /// On Unix they stay in the terminal's foreground group, so terminal
+    /// signals reach them directly and a child reading the terminal is
+    /// not stopped as a background job; cancellation in exchange reaches
+    /// each child and its scanned descendants, not a group at once. Only
+    /// Unix spawns into a separate group, so on other platforms this
+    /// matches [`ProcessTracker::default`].
     #[must_use]
     pub fn foreground() -> Self {
         Self { state: Mutex::new(TrackerState::default()), separate_process_groups: false }
@@ -65,7 +70,10 @@ impl ProcessTracker {
                 return false;
             }
             state.cancelled = true;
-            state.executions.values().cloned().collect::<Vec<_>>()
+            state.executions
+                .values()
+                .cloned()
+                .collect::<Vec<_>>()
         };
         #[cfg(unix)]
         let descendants = descendant_processes(std::process::id());
@@ -107,26 +115,36 @@ impl ProcessTracker {
 /// Spawn a child and optionally register it for cancellation. The default
 /// tracker gives each Unix child its own process group; a foreground tracker
 /// preserves the caller's process group and discovers descendants at cancel.
+///
+/// Every child also joins the interrupt relay for as long as the returned
+/// handle lives, so a terminal signal reaches it and pnpm waits for it.
 pub fn spawn_child<'tracker>(
     command: &mut Command,
     process_tracker: Option<&'tracker ProcessTracker>,
 ) -> io::Result<SpawnedChild<'tracker>> {
-    if process_tracker.is_some_and(|tracker| tracker.separate_process_groups) {
+    let separate_process_group =
+        process_tracker.is_some_and(|tracker| tracker.separate_process_groups);
+    if separate_process_group {
         prepare_command(command);
     }
     let child = command.spawn()?;
+    crate::job_control::assign_child(&child);
+    // Only Unix gives a child a process group of its own, and only then
+    // must a relayed signal address that group rather than the child.
+    let relay = crate::interrupt::relay_to_child(child.id(), cfg!(unix) && separate_process_group);
     let registration = process_tracker.map(|tracker| {
         tracker.register(RunningExecution::Process {
             pid: child.id(),
             separate_process_group: tracker.separate_process_groups,
         })
     });
-    Ok(SpawnedChild { child, _registration: registration })
+    Ok(SpawnedChild { child, _registration: registration, _relay: relay })
 }
 
 pub struct SpawnedChild<'tracker> {
     child: Child,
     _registration: Option<Registration<'tracker>>,
+    _relay: crate::interrupt::SignalRelay,
 }
 
 impl SpawnedChild<'_> {
@@ -158,8 +176,7 @@ struct Registration<'tracker> {
 impl Drop for Registration<'_> {
     fn drop(&mut self) {
         let Some(id) = self.id else { return };
-        self.tracker
-            .state
+        self.tracker.state
             .lock()
             .expect("process tracker lock is not poisoned")
             .executions
@@ -198,40 +215,67 @@ fn terminate_descendant(pid: i32) {
 
 #[cfg(unix)]
 fn descendant_processes(root: u32) -> Vec<i32> {
+    let Some(listing) = process_listing() else {
+        return Vec::new();
+    };
+    let children = parse_parent_child_pids(&listing);
+    let mut descendants = Vec::new();
+    let mut stack = vec![root];
+    while let Some(parent) = stack.pop() {
+        for &pid in children
+            .get(&parent)
+            .into_iter()
+            .flatten()
+        {
+            stack.push(pid);
+            if let Ok(pid) = i32::try_from(pid) {
+                descendants.push(pid);
+            }
+        }
+    }
+    descendants
+}
+
+/// Run `ps` and read its whole listing, giving up on anything that does not
+/// finish promptly. A `ps` that hangs is killed and its output discarded: a
+/// partial listing would name the wrong parents.
+#[cfg(unix)]
+fn process_listing() -> Option<String> {
     let mut command = Command::new("/bin/ps");
-    command.args(["-A", "-o", "pid=", "-o", "ppid="]).stdout(Stdio::piped());
-    let Ok(mut child) = command.spawn() else {
-        return Vec::new();
-    };
-    let Some(mut stdout) = child.stdout.take() else {
-        return Vec::new();
-    };
+    command
+        .args(["-A", "-o", "pid=", "-o", "ppid="])
+        .stdout(Stdio::piped());
+    let mut child = command.spawn().ok()?;
+    let mut stdout = child.stdout.take()?;
     let output = std::thread::spawn(move || {
         let mut listing = String::new();
         stdout.read_to_string(&mut listing).map(|_| listing)
     });
-    let mut completed = false;
-    for _ in 0..50 {
-        match child.try_wait() {
-            Ok(Some(_)) => {
-                completed = true;
-                break;
-            }
-            Ok(None) => std::thread::sleep(Duration::from_millis(10)),
-            Err(_) => break,
-        }
-    }
+    let completed = wait_briefly(&mut child);
     if !completed {
         let _ = child.kill();
         let _ = child.wait();
     }
-    let Ok(Ok(listing)) = output.join() else {
-        return Vec::new();
-    };
-    if !completed {
-        return Vec::new();
-    }
+    let listing = output.join().ok()?.ok()?;
+    completed.then_some(listing)
+}
 
+/// Poll a child for up to half a second, reporting whether it exited.
+#[cfg(unix)]
+fn wait_briefly(child: &mut std::process::Child) -> bool {
+    for _ in 0..50 {
+        match child.try_wait() {
+            Ok(Some(_)) => return true,
+            Ok(None) => std::thread::sleep(Duration::from_millis(10)),
+            Err(_) => return false,
+        }
+    }
+    false
+}
+
+/// The child pids of every parent named in a `pid ppid` listing.
+#[cfg(unix)]
+fn parse_parent_child_pids(listing: &str) -> HashMap<u32, Vec<u32>> {
     let mut children: HashMap<u32, Vec<u32>> = HashMap::new();
     for line in listing.lines() {
         let mut fields = line.split_whitespace();
@@ -241,19 +285,12 @@ fn descendant_processes(root: u32) -> Vec<i32> {
         let (Ok(pid), Ok(parent)) = (pid.parse(), parent.parse()) else {
             continue;
         };
-        children.entry(parent).or_default().push(pid);
+        children
+            .entry(parent)
+            .or_default()
+            .push(pid);
     }
-    let mut descendants = Vec::new();
-    let mut stack = vec![root];
-    while let Some(parent) = stack.pop() {
-        for &pid in children.get(&parent).into_iter().flatten() {
-            stack.push(pid);
-            if let Ok(pid) = i32::try_from(pid) {
-                descendants.push(pid);
-            }
-        }
-    }
-    descendants
+    children
 }
 
 #[cfg(windows)]

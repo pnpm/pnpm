@@ -34,6 +34,9 @@
       "path": "../../workspace/project-manifest-reader"
     },
     {
+      "path": "../cmd-shim"
+    },
+    {
       "path": "../resolver"
     }
   ]

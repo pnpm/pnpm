@@ -40,7 +40,9 @@ fn make_workspace(pkgs: &[FixturePkg<'_>]) -> Workspace {
     let projects = pkgs
         .iter()
         .map(|(name, version, deps)| {
-            let root_dir = dir.path().join(name.replace(['@', '/'], "_"));
+            let root_dir = dir
+                .path()
+                .join(name.replace(['@', '/'], "_"));
             fs::create_dir_all(&root_dir).expect("create package dir");
             let dependencies: serde_json::Map<String, serde_json::Value> = deps
                 .iter()
@@ -81,7 +83,10 @@ fn manifest_version(root_dir: &Path) -> String {
     let manifest: serde_json::Value =
         serde_json::from_str(&fs::read_to_string(root_dir.join("package.json")).expect("read"))
             .expect("parse");
-    manifest["version"].as_str().expect("version is a string").to_string()
+    manifest["version"]
+        .as_str()
+        .expect("version is a string")
+        .to_string()
 }
 
 #[test]
@@ -112,8 +117,10 @@ fn apply_bumps_manifests_writes_changelogs_records_the_ledger_and_deletes_consum
         &HashSet::new(),
     )
     .expect("plan applies");
-    let mut applied_names: Vec<String> =
-        applied.iter().map(|release| format!("{}@{}", release.name, release.new_version)).collect();
+    let mut applied_names: Vec<String> = applied
+        .iter()
+        .map(|release| format!("{}@{}", release.name, release.new_version))
+        .collect();
     applied_names.sort();
     assert_eq!(applied_names, ["cli@2.0.1", "lib@1.1.0"]);
 
@@ -134,7 +141,10 @@ fn apply_bumps_manifests_writes_changelogs_records_the_ledger_and_deletes_consum
     assert!(cli_changelog.contains("  - lib@1.1.0"));
 
     let ledger = read_ledger(workspace.dir.path()).expect("ledger reads");
-    let keys: Vec<&str> = ledger.keys().map(String::as_str).collect();
+    let keys: Vec<&str> = ledger
+        .keys()
+        .map(String::as_str)
+        .collect();
     assert_eq!(keys, ["lib@1.1.0"]);
 
     assert_eq!(read_change_intents(workspace.dir.path()).expect("intents read").len(), 0);
@@ -162,7 +172,7 @@ fn intent_files_consumed_only_by_lane_prereleases_survive_until_graduation() {
         &AssembleReleasePlanOptions::default(),
     )
     .expect("plan assembles");
-    assert_eq!(prerelease_plan.releases[0].new_version, "2.1.0-alpha.0");
+    assert_eq!(prerelease_plan.releases[0].version.next, "2.1.0-alpha.0");
     apply_release_plan(
         &prerelease_plan,
         workspace.dir.path(),
@@ -195,7 +205,7 @@ fn intent_files_consumed_only_by_lane_prereleases_survive_until_graduation() {
         &AssembleReleasePlanOptions::default(),
     )
     .expect("plan assembles");
-    assert_eq!(graduation_plan.releases[0].new_version, "2.1.0");
+    assert_eq!(graduation_plan.releases[0].version.next, "2.1.0");
     apply_release_plan(
         &graduation_plan,
         workspace.dir.path(),
@@ -371,7 +381,13 @@ fn registry_storage_collects_a_dependency_only_release_section_when_confirmed() 
             .is_some(),
     );
     let ledger = read_ledger(workspace.dir.path()).expect("ledger reads");
-    assert_eq!(ledger.keys().map(String::as_str).collect::<Vec<_>>(), ["lib@1.1.0"]);
+    assert_eq!(
+        ledger
+            .keys()
+            .map(String::as_str)
+            .collect::<Vec<_>>(),
+        ["lib@1.1.0"],
+    );
 
     // A later run confirms both published versions (the CLI derives this set
     // from the parked files; here it is passed directly).

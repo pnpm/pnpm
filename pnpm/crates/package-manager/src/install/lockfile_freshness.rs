@@ -1,8 +1,13 @@
+pub(super) mod manifest;
+pub(crate) use manifest::check_importer_satisfies;
+pub(super) use manifest::manifest_has_effective_dependencies;
+
+use rayon::prelude::*;
+
 use super::{
-    Arc, Catalogs, Config, DependencyGroup, Diagnostic, Display, Error, InstallError,
-    InstallWithFreshLockfileError, Lockfile, PackageManifest, Path, PathBuf, PnpmfileChecksumCheck,
-    StalenessReason, build_project_manifests_list, configured_or_discovered_workspace_dir,
-    satisfies_package_manifest,
+    Arc, Catalogs, Config, Diagnostic, Display, Error, InstallError, InstallWithFreshLockfileError,
+    Lockfile, PackageManifest, Path, PathBuf, PnpmfileChecksumCheck, StalenessReason,
+    build_project_manifests_list, configured_or_discovered_workspace_dir,
 };
 
 /// Inputs for [`wanted_lockfile_satisfies_workspace`].
@@ -36,83 +41,97 @@ pub struct WantedLockfileSatisfactionCheck<'a> {
 pub async fn wanted_lockfile_satisfies_workspace(
     check: &WantedLockfileSatisfactionCheck<'_>,
 ) -> bool {
-    let WantedLockfileSatisfactionCheck {
-        config,
-        manifest,
-        catalogs,
-        lockfile,
-        ignore_manifest_check,
-    } = *check;
-    if lockfile.is_empty() {
+    if check.lockfile.is_empty() {
         return false;
     }
-    if config.config_dependencies.as_ref().is_some_and(|deps| !deps.is_empty()) {
+    if check.config.config_dependencies
+        .as_ref()
+        .is_some_and(|deps| !deps.is_empty())
+    {
         return false;
     }
-    let Some(manifest_dir) = manifest.path().parent() else {
+    let Some(manifest_dir) = check.manifest.path().parent() else {
         return false;
     };
-    let Ok(workspace_dir_opt) = configured_or_discovered_workspace_dir(config, manifest_dir) else {
+    let Ok(workspace_dir_opt) = configured_or_discovered_workspace_dir(check.config, manifest_dir)
+    else {
         return false;
     };
     let workspace_root = workspace_dir_opt.clone().unwrap_or_else(|| manifest_dir.to_path_buf());
     // The importer ids below name projects relative to the directory the
-    // lockfile sits in, which `lockfileDir` can move away from the
+    // check.lockfile sits in, which `lockfileDir` can move away from the
     // workspace root — deriving them from the workspace instead would
-    // classify every importer the lockfile records as missing.
+    // classify every importer the check.lockfile records as missing.
     let lockfile_root =
-        super::lockfile_root_for(config, workspace_dir_opt.as_deref(), manifest_dir);
-    if !config.ignore_pnpmfile
-        && !pnpm_hooks::finder::find_pnpmfiles(&workspace_root, crate::pnpmfile_selection(config))
-            .is_empty()
+        super::lockfile_root_for(check.config, workspace_dir_opt.as_deref(), manifest_dir);
+    if !check.config.ignore_pnpmfile
+        && !pnpm_hooks::finder::find_pnpmfiles(
+            &workspace_root,
+            crate::pnpmfile_selection(check.config),
+        )
+        .is_empty()
     {
         return false;
     }
-    let Ok(workspace_manifest) = pnpm_workspace::read_workspace_manifest(&workspace_root) else {
+    workspace_manifests_satisfy(check, &workspace_root, &lockfile_root).await
+}
+
+async fn workspace_manifests_satisfy(
+    check: &WantedLockfileSatisfactionCheck<'_>,
+    workspace_root: &Path,
+    lockfile_root: &Path,
+) -> bool {
+    let Ok(workspace_manifest) = pnpm_workspace::read_workspace_manifest(workspace_root) else {
         return false;
     };
     let Ok(workspace_projects) =
-        super::load_workspace_projects(&workspace_root, workspace_manifest.as_ref())
+        super::load_workspace_projects(workspace_root, workspace_manifest.as_ref())
     else {
         return false;
     };
-    let project_manifests = build_project_manifests_list(manifest, workspace_projects.as_deref());
+    let project_manifests =
+        build_project_manifests_list(check.manifest, workspace_projects.as_deref());
     let manifest_freshness_inputs: Vec<(String, &PackageManifest)> = project_manifests
         .iter()
-        .map(|(project_dir, manifest)| {
-            (pnpm_workspace::importer_id_from_root_dir(&lockfile_root, project_dir), *manifest)
+        .map(|(project_dir, project_manifest)| {
+            (
+                pnpm_workspace::importer_id_from_root_dir(lockfile_root, project_dir),
+                *project_manifest,
+            )
         })
         .collect();
     check_lockfile_freshness(
-        lockfile,
-        &manifest_freshness_inputs,
-        config,
-        catalogs,
-        None,
-        FreshnessScope {
-            ignore_manifest_check,
-            // Both stricter than the auto-frozen dispatch: the verdict
-            // must imply the explicit-frozen gates pass, and a stale
-            // importer needs the resolving path to prune it.
-            allow_missing_dependency_free_importers: false,
-            prune_stale_importers: true,
+        check.lockfile,
+        &LockfileFreshnessInputs {
+            lockfile_dir: lockfile_root,
+            manifests: &manifest_freshness_inputs,
+            config: check.config,
+            catalogs: check.catalogs,
+            pnpmfile_hook: None,
+            scope: FreshnessScope {
+                ignore_manifest_check: check.ignore_manifest_check,
+                allow_missing_dependency_free_importers: false,
+                prune_stale_importers: true,
+            },
         },
     )
     .await
     .is_ok()
 }
 
-pub(super) struct FastUpdateLockfileOptions<'a, 'manifest> {
-    pub(super) lockfile: Option<&'a Lockfile>,
+pub(super) struct LockfileFreshnessInputs<'a, 'manifest> {
+    pub(super) lockfile_dir: &'a Path,
     pub(super) manifests: &'a [(String, &'manifest PackageManifest)],
-    pub(super) project_manifests: &'a [(PathBuf, &'manifest PackageManifest)],
     pub(super) config: &'a Config,
     pub(super) catalogs: &'a Catalogs,
     pub(super) pnpmfile_hook: Option<&'a Arc<dyn pnpm_hooks::PnpmfileHooks>>,
-    pub(super) ignore_manifest_check: bool,
-    /// Whether this run sees the complete project list, so an importer
-    /// no project claims may be dropped rather than kept.
-    pub(super) prune_stale_importers: bool,
+    pub(super) scope: FreshnessScope,
+}
+
+pub(super) struct FastUpdateLockfileOptions<'a, 'manifest> {
+    pub(super) lockfile: Option<&'a Lockfile>,
+    pub(super) project_manifests: &'a [(PathBuf, &'manifest PackageManifest)],
+    pub(super) freshness: LockfileFreshnessInputs<'a, 'manifest>,
 }
 
 /// Rewrite the loaded lockfile in place of a full resolution for the
@@ -131,31 +150,18 @@ pub(super) async fn try_fast_update_lockfile<Reporter: pnpm_reporter::Reporter>(
     // snapshot, and reading the patch files is the only I/O any of them do.
     // `Err` is a patch file that cannot be read or hashed, which the
     // resolver reports — not the same as having none configured.
-    let Ok(patch_hashes) = opts.config.patched_dependency_hashes() else {
+    let Ok(patch_hashes) = opts.freshness.config.patched_dependency_hashes() else {
         return None;
     };
     let candidate = crate::fast_update_compose::try_compose_fast_updates(
         lockfile,
-        opts.manifests,
+        opts.freshness.manifests,
         opts.project_manifests,
-        opts.config,
+        opts.freshness.config,
         patch_hashes.as_ref(),
-        opts.prune_stale_importers,
+        opts.freshness.scope.prune_stale_importers,
     )?;
-    check_lockfile_freshness(
-        &candidate,
-        opts.manifests,
-        opts.config,
-        opts.catalogs,
-        opts.pnpmfile_hook,
-        FreshnessScope {
-            ignore_manifest_check: opts.ignore_manifest_check,
-            allow_missing_dependency_free_importers: true,
-            prune_stale_importers: opts.prune_stale_importers,
-        },
-    )
-    .await
-    .ok()?;
+    check_lockfile_freshness(&candidate, &opts.freshness).await.ok()?;
     // Only the committed candidate is worth reporting on: a rewrite the
     // freshness gates reject is followed by the resolution, which reports it
     // itself.
@@ -190,10 +196,13 @@ pub(super) fn removed_importer_id<'a>(
     lockfile: &'a Lockfile,
     manifest_freshness_inputs: &[(String, &PackageManifest)],
 ) -> Option<&'a str> {
-    lockfile
-        .importers
+    let manifest_ids: std::collections::HashSet<&str> = manifest_freshness_inputs
+        .iter()
+        .map(|(id, _)| id.as_str())
+        .collect();
+    lockfile.importers
         .keys()
-        .find(|importer_id| !manifest_freshness_inputs.iter().any(|(id, _)| id == *importer_id))
+        .find(|importer_id| !manifest_ids.contains(importer_id.as_str()))
         .map(String::as_str)
 }
 
@@ -226,17 +235,16 @@ pub(super) fn removed_importer_id<'a>(
 /// [`pnpm_hooks::current_pnpmfile_checksum`]).
 pub(super) async fn check_lockfile_freshness(
     lockfile: &Lockfile,
-    manifest_freshness_inputs: &[(String, &PackageManifest)],
-    config: &Config,
-    catalogs: &Catalogs,
-    pnpmfile_hook: Option<&Arc<dyn pnpm_hooks::PnpmfileHooks>>,
-    scope: FreshnessScope,
+    inputs: &LockfileFreshnessInputs<'_, '_>,
 ) -> Result<(), FreshnessCheckError> {
-    let FreshnessScope {
-        ignore_manifest_check,
-        allow_missing_dependency_free_importers,
-        prune_stale_importers,
-    } = scope;
+    let LockfileFreshnessInputs {
+        lockfile_dir,
+        manifests: manifest_freshness_inputs,
+        config,
+        catalogs,
+        pnpmfile_hook,
+        scope,
+    } = *inputs;
     let parsed_overrides_opt = parse_config_overrides(config, catalogs)?;
     let pnpmfile_checksum =
         pnpm_hooks::current_pnpmfile_checksum(pnpmfile_hook, lockfile.pnpmfile_checksum.as_deref())
@@ -252,7 +260,7 @@ pub(super) async fn check_lockfile_freshness(
         },
     )?;
 
-    if ignore_manifest_check {
+    if scope.ignore_manifest_check {
         return Ok(());
     }
 
@@ -260,7 +268,7 @@ pub(super) async fn check_lockfile_freshness(
     // than the workspace, and it is a root in every reachability walk, so
     // it also keeps that project's dependencies alive. Only an unfiltered
     // install sees the whole project list, so only it may conclude this.
-    if prune_stale_importers
+    if scope.prune_stale_importers
         && let Some(importer_id) = removed_importer_id(lockfile, manifest_freshness_inputs)
     {
         return Err(FreshnessCheckError::Stale(StalenessReason::RemovedImporter {
@@ -268,24 +276,54 @@ pub(super) async fn check_lockfile_freshness(
         }));
     }
 
-    let ignored_optional_matcher = pnpm_config::matcher::create_matcher(
+    check_importer_freshness(
+        lockfile,
+        lockfile_dir,
+        manifest_freshness_inputs,
+        config,
+        parsed_overrides_opt.as_deref(),
+        scope.allow_missing_dependency_free_importers,
+    )
+}
+
+// Parallel checks settle before the serial fold reports the first error in importer order.
+fn check_importer_freshness(
+    lockfile: &Lockfile,
+    lockfile_dir: &Path,
+    manifest_freshness_inputs: &[(String, &PackageManifest)],
+    config: &Config,
+    parsed_overrides: Option<&[pnpm_config_parse_overrides::VersionOverride]>,
+    allow_missing_dependency_free_importers: bool,
+) -> Result<(), FreshnessCheckError> {
+    let ignored_optional_matcher = pnpm_matcher::create_matcher(
         config.ignored_optional_dependencies.as_deref().unwrap_or_default(),
     );
-    for (importer_id, manifest) in manifest_freshness_inputs {
-        if allow_missing_dependency_free_importers
-            && !lockfile.importers.contains_key(importer_id)
-            && !manifest_has_effective_dependencies(manifest, &ignored_optional_matcher)
-        {
-            continue;
-        }
-        check_importer_satisfies(
-            lockfile,
-            manifest,
-            importer_id,
-            config,
-            &ignored_optional_matcher,
-            parsed_overrides_opt.as_deref(),
-        )?;
+    // Each importer's check reads only shared references, so a
+    // workspace-scale importer list fans out across the rayon pool; the
+    // serial fold keeps the first error in importer order, like the
+    // loop it replaces.
+    let results: Vec<Result<(), FreshnessCheckError>> = manifest_freshness_inputs
+        .par_iter()
+        .map(|(importer_id, manifest)| {
+            if allow_missing_dependency_free_importers
+                && !lockfile.importers.contains_key(importer_id)
+                && !manifest_has_effective_dependencies(manifest, &ignored_optional_matcher)
+            {
+                return Ok(());
+            }
+            check_importer_satisfies(
+                lockfile,
+                lockfile_dir,
+                manifest,
+                importer_id,
+                config,
+                &ignored_optional_matcher,
+                parsed_overrides,
+            )
+        })
+        .collect();
+    for result in results {
+        result?;
     }
     Ok(())
 }
@@ -330,8 +368,11 @@ pub(crate) fn check_lockfile_settings_drift(
     catalogs: &Catalogs,
     opts: CheckLockfileSettingsDriftOptions<'_>,
 ) -> Result<(), FreshnessCheckError> {
-    let CheckLockfileSettingsDriftOptions { parsed_overrides, pnpmfile_checksum, dedupe_peers } =
-        opts;
+    let CheckLockfileSettingsDriftOptions {
+        parsed_overrides,
+        pnpmfile_checksum,
+        dedupe_peers,
+    } = opts;
     let overrides_map: Option<std::collections::HashMap<String, String>> =
         parsed_overrides.map(pnpm_config_parse_overrides::create_overrides_map_from_parsed);
     let package_extensions_checksum =
@@ -350,140 +391,17 @@ pub(crate) fn check_lockfile_settings_drift(
             package_extensions_checksum: package_extensions_checksum.as_deref(),
             ignored_optional_dependencies: config.ignored_optional_dependencies.as_deref(),
             patched_dependencies: patched_dependency_hashes.as_ref(),
-            auto_install_peers: config.auto_install_peers,
-            dedupe_peers,
-            exclude_links_from_lockfile: config.exclude_links_from_lockfile,
-            inject_workspace_packages: config.inject_workspace_packages,
-            peers_suffix_max_length: config.peers_suffix_max_length,
-            pnpmfile_checksum,
+            resolution: pnpm_lockfile::ResolutionSettingsCheck {
+                auto_install_peers: config.auto_install_peers,
+                dedupe_peers,
+                exclude_links_from_lockfile: config.exclude_links_from_lockfile,
+                inject_workspace_packages: config.inject_workspace_packages,
+                peers_suffix_max_length: config.peers_suffix_max_length,
+                pnpmfile_checksum,
+            },
         },
     )
     .map_err(FreshnessCheckError::Stale)
-}
-
-/// Per-importer slice of the freshness gate: the manifest of the
-/// project at `importer_id` must still be satisfied by the lockfile's
-/// importer snapshot.
-pub(crate) fn check_importer_satisfies(
-    lockfile: &Lockfile,
-    manifest: &PackageManifest,
-    importer_id: &str,
-    config: &Config,
-    ignored_optional_matcher: &pnpm_config::matcher::Matcher,
-    parsed_overrides: Option<&[pnpm_config_parse_overrides::VersionOverride]>,
-) -> Result<(), FreshnessCheckError> {
-    let importer = lockfile
-        .importers
-        .get(importer_id)
-        .ok_or_else(|| FreshnessCheckError::NoImporter { importer_id: importer_id.to_string() })?;
-
-    // Apply `pnpm.overrides` to a *cloned* manifest before the
-    // per-importer specifier check so the lockfile's specifiers —
-    // written with overrides already applied — match the on-disk
-    // manifest's deps. The caller's manifest stays pristine since the
-    // override pass conceptually returns a new manifest
-    // from the perspective of every consumer downstream of the
-    // resolver.
-    // `auto_install_peers` is folded into `satisfies_package_manifest`
-    // itself, so the manifest is cloned here only for the two mutations the
-    // comparison needs done up front: applying `pnpm.overrides` and dropping
-    // `link:` deps under `exclude_links_from_lockfile`.
-    let normalized_manifest_holder;
-    let manifest_for_freshness: &PackageManifest = if parsed_overrides.is_some()
-        || config.exclude_links_from_lockfile
-    {
-        let root_dir = manifest.path().parent().unwrap_or_else(|| Path::new("."));
-        normalized_manifest_holder = {
-            let mut cloned: PackageManifest = manifest.clone();
-            if let Some(parsed) = parsed_overrides {
-                crate::VersionsOverrider::new(parsed, root_dir).apply(&mut cloned, Some(root_dir));
-            }
-            if config.exclude_links_from_lockfile {
-                exclude_linked_dependencies(&mut cloned);
-            }
-            cloned
-        };
-        &normalized_manifest_holder
-    } else {
-        manifest
-    };
-
-    // Build the `ignoredOptionalDependencies` filter set: iterate
-    // `manifest.optionalDependencies` and delete matches from BOTH the
-    // `optional` and `dependencies` maps. A name only present in
-    // `dependencies` that happens to match the
-    // pattern is NOT removed — set-based ("name was in
-    // optionalDependencies AND matched") rather than pure pattern
-    // matching. `devDependencies` is untouched on purpose; the group
-    // gate inside `satisfies_package_manifest` enforces that.
-    let ignored_set =
-        ignored_optional_dependency_names(manifest_for_freshness, ignored_optional_matcher);
-    let is_ignored_optional: &dyn Fn(&str) -> bool = &|name: &str| ignored_set.contains(name);
-
-    satisfies_package_manifest(
-        importer,
-        manifest_for_freshness,
-        config.auto_install_peers,
-        is_ignored_optional,
-    )
-    .map_err(|reason| {
-        // Stamp the importer onto a specifier diff so the workspace-wide
-        // freshness report names the drifted project, not only the dep.
-        let reason = match reason {
-            StalenessReason::SpecifiersDiffer(mut diff) => {
-                diff.importer_id = Some(importer_id.to_string());
-                StalenessReason::SpecifiersDiffer(diff)
-            }
-            other => other,
-        };
-        FreshnessCheckError::Stale(reason)
-    })
-}
-
-pub(super) fn ignored_optional_dependency_names(
-    manifest: &PackageManifest,
-    matcher: &pnpm_config::matcher::Matcher,
-) -> std::collections::HashSet<String> {
-    manifest
-        .dependencies([pnpm_package_manifest::DependencyGroup::Optional])
-        .filter(|(name, _)| matcher.matches(name))
-        .map(|(name, _)| name.to_string())
-        .collect()
-}
-
-pub(super) fn manifest_has_effective_dependencies(
-    manifest: &PackageManifest,
-    ignored_optional_matcher: &pnpm_config::matcher::Matcher,
-) -> bool {
-    if manifest.dependencies([pnpm_package_manifest::DependencyGroup::Dev]).next().is_some() {
-        return true;
-    }
-    let ignored = ignored_optional_dependency_names(manifest, ignored_optional_matcher);
-    manifest
-        .dependencies([
-            pnpm_package_manifest::DependencyGroup::Prod,
-            pnpm_package_manifest::DependencyGroup::Optional,
-        ])
-        .any(|(name, _)| !ignored.contains(name))
-}
-
-pub(super) fn exclude_linked_dependencies(manifest: &mut PackageManifest) {
-    let Some(manifest) = manifest.value_mut().as_object_mut() else {
-        return;
-    };
-    for group in [DependencyGroup::Dev, DependencyGroup::Prod, DependencyGroup::Optional] {
-        let group: &str = group.into();
-        if let Some(dependencies) =
-            manifest.get_mut(group).and_then(serde_json::Value::as_object_mut)
-        {
-            dependencies.retain(|_, specifier| {
-                let Some(specifier) = specifier.as_str() else {
-                    return true;
-                };
-                !specifier.starts_with("link:")
-            });
-        }
-    }
 }
 
 /// Outcome of [`check_lockfile_freshness`]. Splits "user
@@ -511,7 +429,6 @@ pub(crate) enum FreshnessCheckError {
 
     /// `pnpm-lock.yaml` doesn't match the on-disk `package.json` /
     /// current settings.
-    #[display("{_0}")]
     Stale(#[error(not(source))] StalenessReason),
 }
 
@@ -532,3 +449,6 @@ impl From<FreshnessCheckError> for InstallError {
         }
     }
 }
+
+#[cfg(test)]
+mod tests;

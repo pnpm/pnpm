@@ -10,6 +10,7 @@ use axum::{
     response::{IntoResponse, Response},
 };
 
+use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64_STANDARD};
 use pnpr_auth::TokenRecord;
 use pnpr_error::RegistryError;
 use pnpr_policy::{Identity, PackageRules};
@@ -53,11 +54,58 @@ impl<RouterState: Send + Sync> FromRequestParts<RouterState> for AuthedCaller {
     ) -> Result<Self, Self::Rejection> {
         // The middleware runs on every route, so the context is always
         // present; a miss means a wiring bug, surfaced as a 5xx.
-        parts.extensions.get::<AuthedCaller>().cloned().ok_or_else(|| {
-            RegistryError::Internal { reason: "authentication middleware did not run".to_string() }
+        parts.extensions
+            .get::<AuthedCaller>()
+            .cloned()
+            .ok_or_else(|| {
+                RegistryError::Internal {
+                    reason: "authentication middleware did not run".to_string(),
+                }
                 .into_response()
-        })
+            })
     }
+}
+
+pub(super) async fn authenticate(
+    State(state): State<AppState>,
+    mut request: Request,
+    next: Next,
+) -> Response {
+    // Copy what resolution needs out of the request before mutating its
+    // extensions below — the header and method borrows can't outlive the
+    // `extensions_mut` call.
+    let header = match single_authorization_header(request.headers()) {
+        Ok(header) => header.map(str::to_owned),
+        Err(err) => return err.into_response(),
+    };
+    let method = request.method().clone();
+    let path = request.uri().path().to_owned();
+    let peer = request
+        .extensions()
+        .get::<ConnectInfo<PeerAddr>>()
+        .map(|info| info.0.0);
+
+    if let Some(raw) = header.as_deref().and_then(token_credentials) {
+        match bearer_token_identity(&state, &raw, &method, &path, peer).await {
+            Ok(Some(identity)) => {
+                request
+                    .extensions_mut()
+                    .insert(AuthedCaller(identity));
+                return next.run(request).await;
+            }
+            Ok(None) => {}
+            Err(response) => return response,
+        }
+    }
+
+    let identity = match resolve_caller(&state, header.as_deref(), &method, &path, peer).await {
+        Ok(identity) => identity,
+        Err(err) => return err.into_response(),
+    };
+    request
+        .extensions_mut()
+        .insert(AuthedCaller(identity));
+    next.run(request).await
 }
 
 /// Authenticate every request once, up front, and stash the resolved
@@ -73,54 +121,111 @@ impl<RouterState: Send + Sync> FromRequestParts<RouterState> for AuthedCaller {
 /// used from any network. Basic-auth and anonymous requests carry no
 /// restriction and are still subject to the per-package access policy in
 /// the handlers; an unknown or revoked bearer token resolves to anonymous.
-pub(super) async fn authenticate(
-    State(state): State<AppState>,
-    mut request: Request,
-    next: Next,
-) -> Response {
-    // Copy what resolution needs out of the request before mutating its
-    // extensions below — the header and method borrows can't outlive the
-    // `extensions_mut` call.
-    let header = match single_authorization_header(request.headers()) {
-        Ok(header) => header.map(str::to_owned),
-        Err(err) => return err.into_response(),
+/// The identity an OCI bearer token carries, or `None` when the credential is
+/// not one of pnpr's own bearer tokens and the ordinary backend lookup should
+/// decide instead.
+async fn bearer_token_identity(
+    state: &AppState,
+    raw: &str,
+    method: &Method,
+    path: &str,
+    peer: Option<SocketAddr>,
+) -> Result<Option<Identity>, Response> {
+    let claims = match super::oci::tokens::decode(state, raw) {
+        Ok(Some(claims)) => claims,
+        Ok(None) => return Ok(None),
+        Err(RegistryError::Unauthenticated { .. }) => {
+            return Err(super::oci::tokens::rejected(state, path, method));
+        }
+        Err(err) => return Err(err.into_response()),
     };
-    let method = request.method().clone();
-    let peer = request.extensions().get::<ConnectInfo<PeerAddr>>().map(|info| info.0.0);
-
-    let identity = match resolve_caller(&state, header.as_deref(), &method, peer).await {
-        Ok(identity) => identity,
-        Err(err) => return err.into_response(),
+    if !claims.permits(path, method) {
+        return Err(super::oci::tokens::rejected(state, path, method));
+    }
+    let Some(parent) = claims.parent.as_ref() else {
+        return Ok(Some(Identity::Anonymous));
     };
-    request.extensions_mut().insert(AuthedCaller(identity));
-    next.run(request).await
+    match state.inner.identity.auth.tokens.find_by_key(parent).await {
+        Ok(Some(record)) => {
+            check_token_restrictions(&record, method, path, peer)
+                .map_err(axum::response::IntoResponse::into_response)?;
+            Ok(Some(Identity::user(record.username)))
+        }
+        Ok(None) => Err(super::oci::tokens::rejected(state, path, method)),
+        Err(err) => Err(err.into_response()),
+    }
 }
 
 /// Resolve the `Authorization` header to an [`Identity`], hitting the auth
-/// backend exactly once. A bearer token is looked up as a full record so
-/// its read-only / CIDR restrictions can be enforced here (a violation is
-/// a `Forbidden` error); an unknown bearer token, a non-`Bearer` scheme
-/// (e.g. legacy `Basic`), and a missing header all resolve to
-/// [`Identity::Anonymous`]. `Err` is a backing-store failure, surfaced as a
-/// 5xx so an outage isn't mistaken for "not authenticated".
+/// backend at most once. Browser sessions and prefixed workload credentials
+/// skip the persistent backend. Invalid OIDC
+/// credentials are rejected even on public routes.
+/// A pnpr token — however the client carried it, see
+/// [`token_credentials`] — is looked up as a full record so its read-only /
+/// CIDR restrictions can be enforced here (a violation is a `Forbidden`
+/// error); an unknown token, any other credential shape, and a missing
+/// header all resolve to [`Identity::Anonymous`]. `Err` is a backing-store
+/// failure, surfaced as a 5xx so an outage isn't mistaken for "not
+/// authenticated".
 async fn resolve_caller(
     state: &AppState,
     header: Option<&str>,
     method: &Method,
+    path: &str,
     peer: Option<SocketAddr>,
 ) -> Result<Identity, RegistryError> {
-    if let Some(raw_token) = header.and_then(bearer_credentials) {
-        let Some(record) = state.inner.auth.tokens.lookup_record(raw_token).await? else {
-            return Ok(Identity::Anonymous);
-        };
-        check_token_restrictions(&record, method, peer)?;
-        return Ok(Identity::user(record.username));
+    if let Some(raw_token) = header.and_then(token_credentials) {
+        if let Some(username) = state.inner.identity.oidc.session(&raw_token)? {
+            return Ok(Identity::user(username));
+        }
+        if let Some(jwt) = raw_token.strip_prefix("pnpr_workload_") {
+            let workload = state.inner.identity.oidc
+                .workload(jwt)
+                .await?
+                .ok_or_else(|| RegistryError::Unauthenticated {
+                    resource: "OIDC workload credentials".to_string(),
+                })?;
+            super::oidc::check_workload_request(&state.inner.config, &workload, method, path)?;
+            return Ok(Identity::user(workload.identity.username));
+        }
+        if let Some(record) = state.inner.identity.auth.tokens.lookup_record(&raw_token).await? {
+            check_token_restrictions(&record, method, path, peer)?;
+            return Ok(Identity::user(record.username));
+        }
     }
-    // Anything that is not a bearer token — Basic, another scheme, or no
-    // credentials — carries no request identity. Going through `identify`
-    // here would re-run the bearer lookup and bypass the restriction checks
-    // above, so resolve straight to anonymous.
+    // Anything that is not a pnpr token — a user:password Basic pair, another
+    // scheme, or no credentials — carries no request identity. Going through
+    // `identify` here would re-run the token lookup and bypass the
+    // restriction checks above, so resolve straight to anonymous.
     Ok(Identity::Anonymous)
+}
+
+/// The pnpr token an `Authorization` header carries, in any of the shapes
+/// the supported clients send: `Bearer <token>` (npm, pnpm), the bare
+/// `<token>` with no scheme (`cargo`, which sends registry tokens raw), or
+/// `Basic` with the token as the password (`twine` and `pip` pair it with
+/// pypi.org's `__token__` pseudo-user, `docker` and `podman` with whatever
+/// name the user typed at login).
+///
+/// The password is the whole credential: the `Basic` username is not checked
+/// against the token's owner, so a caller authenticates as whoever the token
+/// belongs to. That is what every registry taking a personal access token as
+/// a password does, and what its clients expect.
+pub(super) fn token_credentials(header_value: &str) -> Option<String> {
+    let value = header_value.trim();
+    if let Some(bearer) = bearer_credentials(value) {
+        return Some(bearer.to_string());
+    }
+    let Some((scheme, credentials)) = value.split_once(' ') else {
+        return (!value.is_empty()).then(|| value.to_string());
+    };
+    if !scheme.eq_ignore_ascii_case("Basic") {
+        return None;
+    }
+    let decoded = BASE64_STANDARD.decode(credentials.trim()).ok()?;
+    let decoded = String::from_utf8(decoded).ok()?;
+    let (_, password) = decoded.split_once(':')?;
+    (!password.is_empty()).then(|| password.to_string())
 }
 
 /// Enforce a bearer token's own restrictions. A read-only token may not
@@ -130,9 +235,10 @@ async fn resolve_caller(
 fn check_token_restrictions(
     record: &TokenRecord,
     method: &Method,
+    path: &str,
     peer: Option<SocketAddr>,
 ) -> Result<(), RegistryError> {
-    if record.readonly && is_write_method(method) {
+    if record.readonly && is_write_request(method, path) {
         return Err(RegistryError::Forbidden {
             user: record.username.clone(),
             action: "write with",
@@ -164,10 +270,10 @@ fn source_rules<'a>(state: &'a AppState, source: &RegistrySource) -> &'a Package
     static SAFE_DEFAULTS: LazyLock<PackageRules> = LazyLock::new(PackageRules::default);
     match source {
         RegistrySource::Hosted(name) => {
-            state.inner.config.hosted.get(name).map(|hosted| &hosted.rules)
+            state.inner.config.routing.hosted.get(name).map(|hosted| &hosted.rules)
         }
         RegistrySource::Upstream(name) => {
-            state.inner.config.upstreams.get(name).map(|upstream| &upstream.rules)
+            state.inner.config.routing.upstreams.get(name).map(|upstream| &upstream.rules)
         }
         RegistrySource::Unclaimed | RegistrySource::NotFound => None,
     }
@@ -219,12 +325,40 @@ pub(super) fn bearer_credentials(header_value: &str) -> Option<&str> {
     scheme.eq_ignore_ascii_case("Bearer").then(|| credentials.trim())
 }
 
-/// Whether `method` mutates registry state. Every write surface (publish,
-/// unpublish, dist-tag add/remove, adduser, logout, token revoke) is a
-/// PUT or DELETE; reads and the resolver POSTs are not. A read-only token
-/// is confined to the non-mutating methods.
-pub(super) fn is_write_method(method: &Method) -> bool {
+/// Whether a request mutates registry state. Every npm and Cargo write
+/// surface (publish, unpublish, dist-tag add/remove, yank, adduser, logout,
+/// token revoke) is a PUT or DELETE; reads and the resolver POSTs are not.
+/// The mutating POSTs are the Python legacy upload API and the start of an
+/// image blob upload, both recognized by their path. A read-only token is
+/// confined to the non-mutating requests.
+pub(super) fn is_write_request(method: &Method, path: &str) -> bool {
     matches!(*method, Method::PUT | Method::DELETE | Method::PATCH)
+        || (*method == Method::POST && (is_python_upload_path(path) || is_image_upload_path(path)))
+}
+
+/// `POST <v2 base>/<name>/blobs/uploads/` starts a blob upload. The
+/// repository name is many segments, so the tail is what identifies it.
+fn is_image_upload_path(path: &str) -> bool {
+    let Some(rest) = path.trim_end_matches('/').strip_suffix("/blobs/uploads") else {
+        return false;
+    };
+    rest.split('/')
+        .any(|segment| segment == pnpr_oci::API_SEGMENT)
+}
+
+fn is_python_upload_path(path: &str) -> bool {
+    // `/pypi/legacy` or `/pypi/~<name>/legacy`.
+    let mut segments = path.trim_matches('/').split('/');
+    if segments.next() != Some(pnpr_registry::Ecosystem::Pypi.as_str()) {
+        return false;
+    }
+    match (segments.next(), segments.next(), segments.next()) {
+        (Some(upload), None, None) => upload == pnpr_pypi::UPLOAD_PATH,
+        (Some(registry), Some(upload), None) => {
+            super::tilde_registry(registry).is_some() && upload == pnpr_pypi::UPLOAD_PATH
+        }
+        _ => false,
+    }
 }
 
 /// Whether `peer` falls inside any range of a token's CIDR whitelist. An
@@ -237,7 +371,9 @@ pub(super) fn cidr_whitelist_allows(whitelist: &[String], peer: SocketAddr) -> b
 
 pub(super) fn canonical_ip(addr: IpAddr) -> IpAddr {
     match addr {
-        IpAddr::V6(v6) => v6.to_ipv4_mapped().map_or(IpAddr::V6(v6), IpAddr::V4),
+        IpAddr::V6(v6) => v6
+            .to_ipv4_mapped()
+            .map_or(IpAddr::V6(v6), IpAddr::V4),
         v4 @ IpAddr::V4(_) => v4,
     }
 }

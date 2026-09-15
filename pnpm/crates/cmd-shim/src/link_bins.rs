@@ -1,13 +1,15 @@
+pub use discovery::collect_packages_in_modules_dir;
+pub use shim_writer::remove_bin;
+
 use crate::{
     bin_resolver::{Command, get_bins_from_package_manifest, pkg_owns_bin},
     capabilities::{
-        FsCreateDirAll, FsEnsureExecutableBits, FsReadDir, FsReadFile, FsReadHead, FsReadToString,
-        FsSetExecutable, FsWalkFiles, FsWrite,
+        DirCreation, FsCreateDirAll, FsEnsureExecutableBits, FsReadDir, FsReadFile, FsReadHead,
+        FsReadToString, FsSetExecutable, FsWalkFiles, FsWrite,
     },
     shim::{
-        ShimStyle, generate_cmd_shim, generate_pwsh_shim, generate_sh_shim,
-        generate_virtual_cmd_shim, generate_virtual_pwsh_shim, generate_virtual_sh_shim,
-        is_context_aware_shim, is_shim_pointing_at, search_script_runtime,
+        ScriptRuntime, generate_cmd_shim, generate_pwsh_shim, generate_sh_shim,
+        is_sh_shim_hardened, is_shim_pointing_at, search_script_runtime,
     },
 };
 use derive_more::{Display, Error};
@@ -17,10 +19,10 @@ use pnpm_package_manifest::parse_manifest_bytes;
 use rayon::prelude::*;
 use serde_json::Value;
 use std::{
-    collections::HashMap,
+    collections::{HashMap, HashSet},
     io,
     path::{Path, PathBuf},
-    sync::Arc,
+    sync::{Arc, Mutex},
 };
 
 /// One package known to be installed at `location`, with its parsed
@@ -197,6 +199,73 @@ pub enum LinkBinsError {
     },
 }
 
+/// Memo of per-target probe work shared across [`link_bins_of_packages_cached`]
+/// calls: the script-runtime (shebang) probe and the executable-bit fix-up,
+/// both keyed by the target's symlink-resolved path. Many importers linking
+/// the same virtual-store package repeat both against one underlying file,
+/// so a caller that links several `node_modules/.bin` dirs in one pass
+/// shares a cache and pays each probe once.
+///
+/// The memo assumes the targets' contents and permissions do not change
+/// while it is alive. Scope a cache to a single linking pass — in
+/// particular, do not carry one across a lifecycle-script (build) phase,
+/// which may rewrite target files.
+#[derive(Debug, Default, Clone)]
+pub struct ShimTargetCache(Arc<ShimTargetCacheState>);
+
+#[derive(Debug, Default)]
+struct ShimTargetCacheState {
+    runtimes: Mutex<HashMap<PathBuf, Option<ScriptRuntime>>>,
+    executable_ensured: Mutex<HashSet<PathBuf>>,
+}
+
+impl ShimTargetCache {
+    /// [`search_script_runtime`] with the result memoized under
+    /// `probe_path`. Errors are not cached, so a transient failure does
+    /// not poison later lookups.
+    ///
+    /// Concurrency note: the lock is not held across the probe, so two
+    /// workers racing on one key may both probe. That's benign — the
+    /// probe is idempotent and the memo converges — and it keeps a slow
+    /// read from serializing every other target's probe behind it. Same
+    /// trade as the store's `verifiedFilesCache`.
+    fn runtime_for<Sys: FsReadHead>(&self, probe_path: &Path) -> io::Result<Option<ScriptRuntime>> {
+        if let Some(runtime) = self.0.runtimes
+            .lock()
+            .expect("runtime memo lock")
+            .get(probe_path)
+        {
+            return Ok(runtime.clone());
+        }
+        let runtime = search_script_runtime::<Sys>(probe_path)?;
+        self.0.runtimes
+            .lock()
+            .expect("runtime memo lock")
+            .insert(probe_path.to_path_buf(), runtime.clone());
+        Ok(runtime)
+    }
+
+    /// [`ensure_target_executable`] at most once per `probe_path`.
+    fn ensure_target_executable_once<Sys: FsEnsureExecutableBits>(
+        &self,
+        probe_path: &Path,
+    ) -> Result<(), LinkBinsError> {
+        if self.0.executable_ensured
+            .lock()
+            .expect("executable memo lock")
+            .contains(probe_path)
+        {
+            return Ok(());
+        }
+        ensure_target_executable::<Sys>(probe_path)?;
+        self.0.executable_ensured
+            .lock()
+            .expect("executable memo lock")
+            .insert(probe_path.to_path_buf());
+        Ok(())
+    }
+}
+
 /// Options shared by every bin one linking call writes — pnpm's
 /// `LinkBinOptions`.
 #[derive(Debug, Default, Clone)]
@@ -233,95 +302,6 @@ where
     link_bins_of_packages::<Sys>(&packages, bins_dir, options)
 }
 
-/// Read the installed packages directly under `modules_dir`, including
-/// scoped packages one directory deeper.
-pub fn collect_packages_in_modules_dir<Sys>(
-    modules_dir: &Path,
-) -> Result<Vec<PackageBinSource>, LinkBinsError>
-where
-    Sys: FsReadDir + FsReadFile,
-{
-    let mut packages = Vec::new();
-
-    let entries = match Sys::read_dir(modules_dir) {
-        Ok(entries) => entries,
-        Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(packages),
-        Err(error) => {
-            return Err(LinkBinsError::ReadModulesDir { dir: modules_dir.to_path_buf(), error });
-        }
-    };
-
-    for path in entries {
-        let Some(name) = path.file_name() else {
-            continue;
-        };
-        let name_str = name.to_string_lossy();
-        if name_str.starts_with('.') {
-            continue;
-        }
-
-        if name_str.starts_with('@') {
-            // Scoped: walk one level deeper. Only `NotFound` is
-            // plausibly skippable (a concurrent scope-dir delete);
-            // other errors — `PermissionDenied`, `EIO`, AppArmor
-            // deny — would silently drop every bin under this
-            // scope, so surface them as `ReadModulesDir`. Matches
-            // the policy the per-`modules_dir` read above already
-            // uses.
-            let scope_entries = match Sys::read_dir(&path) {
-                Ok(entries) => entries,
-                // Same reasoning as `read_package`: a `@`-prefixed file
-                // is not a scope directory, so it holds no packages.
-                Err(error)
-                    if matches!(
-                        error.kind(),
-                        io::ErrorKind::NotFound | io::ErrorKind::NotADirectory,
-                    ) =>
-                {
-                    continue;
-                }
-                Err(error) => {
-                    return Err(LinkBinsError::ReadModulesDir { dir: path.clone(), error });
-                }
-            };
-            for sub_path in scope_entries {
-                if let Some(pkg) = read_package::<Sys>(&sub_path)? {
-                    packages.push(pkg);
-                }
-            }
-            continue;
-        }
-
-        if let Some(pkg) = read_package::<Sys>(&path)? {
-            packages.push(pkg);
-        }
-    }
-
-    Ok(packages)
-}
-
-fn read_package<Sys: FsReadFile>(
-    location: &Path,
-) -> Result<Option<PackageBinSource>, LinkBinsError> {
-    let manifest_path = location.join("package.json");
-    let bytes = match Sys::read_file(&manifest_path) {
-        Ok(bytes) => bytes,
-        // A missing manifest and a non-directory entry both mean the
-        // same thing: this is not a package. Users do drop stray files
-        // into `node_modules`, and one of them must not fail the
-        // install.
-        Err(error)
-            if matches!(error.kind(), io::ErrorKind::NotFound | io::ErrorKind::NotADirectory) =>
-        {
-            return Ok(None);
-        }
-        Err(error) => return Err(LinkBinsError::ReadManifest { path: manifest_path, error }),
-    };
-    let manifest: Value = parse_manifest_bytes(&bytes)
-        .map_err(|error| LinkBinsError::ParseManifest { path: manifest_path, error })?;
-    Ok(Some(PackageBinSource::new(location.to_path_buf(), Arc::new(manifest))))
-}
-
 /// Link every bin declared by `packages` into `bins_dir`, applying conflict
 /// resolution between bins of the same name.
 ///
@@ -344,12 +324,28 @@ where
         + FsSetExecutable
         + FsEnsureExecutableBits,
 {
-    link_bins_of_packages_with_excludes::<Sys>(
-        packages,
-        bins_dir,
-        &std::collections::HashSet::new(),
-        options,
-    )
+    link_bins_of_packages_with_excludes::<Sys>(packages, bins_dir, &HashSet::new(), options)
+}
+
+/// [`link_bins_of_packages`] with a caller-scoped [`ShimTargetCache`],
+/// for callers that link many `node_modules/.bin` dirs against the
+/// same underlying packages in one pass.
+pub fn link_bins_of_packages_cached<Sys>(
+    packages: &[PackageBinSource],
+    bins_dir: &Path,
+    options: &LinkBinsOptions,
+    cache: &ShimTargetCache,
+) -> Result<(), LinkBinsError>
+where
+    Sys: FsReadToString
+        + FsReadHead
+        + FsCreateDirAll
+        + FsWalkFiles
+        + FsWrite
+        + FsSetExecutable
+        + FsEnsureExecutableBits,
+{
+    link_bins_impl::<Sys>(packages, bins_dir, &HashSet::new(), options, cache)
 }
 
 /// Like [`link_bins_of_packages`] but skips any bin whose name is in
@@ -358,7 +354,7 @@ where
 pub fn link_bins_of_packages_with_excludes<Sys>(
     packages: &[PackageBinSource],
     bins_dir: &Path,
-    exclude_bins: &std::collections::HashSet<String>,
+    exclude_bins: &HashSet<String>,
     options: &LinkBinsOptions,
 ) -> Result<(), LinkBinsError>
 where
@@ -370,42 +366,15 @@ where
         + FsSetExecutable
         + FsEnsureExecutableBits,
 {
-    link_bins_impl::<Sys>(packages, bins_dir, exclude_bins, options, ShimStyle::Direct)
-}
-
-/// Like [`link_bins_of_packages_with_excludes`] but writes
-/// [`ShimStyle::ContextAware`] shims — the global bin dir's format (see
-/// [`ShimStyle`]). Global shims never carry `NODE_PATH`, so there is no
-/// `extra_node_paths` parameter.
-pub fn link_bins_of_packages_context_aware<Sys>(
-    packages: &[PackageBinSource],
-    bins_dir: &Path,
-    exclude_bins: &std::collections::HashSet<String>,
-) -> Result<(), LinkBinsError>
-where
-    Sys: FsReadToString
-        + FsReadHead
-        + FsCreateDirAll
-        + FsWalkFiles
-        + FsWrite
-        + FsSetExecutable
-        + FsEnsureExecutableBits,
-{
-    link_bins_impl::<Sys>(
-        packages,
-        bins_dir,
-        exclude_bins,
-        &LinkBinsOptions::default(),
-        ShimStyle::ContextAware,
-    )
+    link_bins_impl::<Sys>(packages, bins_dir, exclude_bins, options, &ShimTargetCache::default())
 }
 
 fn link_bins_impl<Sys>(
     packages: &[PackageBinSource],
     bins_dir: &Path,
-    exclude_bins: &std::collections::HashSet<String>,
+    exclude_bins: &HashSet<String>,
     options: &LinkBinsOptions,
-    style: ShimStyle,
+    cache: &ShimTargetCache,
 ) -> Result<(), LinkBinsError>
 where
     Sys: FsReadToString
@@ -416,60 +385,84 @@ where
         + FsSetExecutable
         + FsEnsureExecutableBits,
 {
-    let mut chosen: HashMap<String, (Command, &PackageBinSource)> = HashMap::new();
-
-    for pkg in packages {
-        let commands = get_bins_from_package_manifest::<Sys>(&pkg.manifest, &pkg.location);
-        for command in commands {
-            match chosen.get(&command.name) {
-                None => {
-                    chosen.insert(command.name.clone(), (command, pkg));
-                }
-                Some((_, existing)) => {
-                    if pick_winner(&command.name, existing, pkg) {
-                        chosen.insert(command.name.clone(), (command, pkg));
-                    }
-                }
-            }
-        }
-    }
-
-    for excluded in exclude_bins {
-        chosen.remove(excluded);
-    }
-
+    let chosen = choose_bins::<Sys>(packages, exclude_bins);
     if chosen.is_empty() {
         return Ok(());
     }
 
-    Sys::create_dir_all(bins_dir)
+    let bin_dir = Sys::create_dir_all_reporting(bins_dir)
         .map_err(|error| LinkBinsError::CreateBinDir { dir: bins_dir.to_path_buf(), error })?;
 
     // Each shim's read-shebang + write-file + chmod sequence is independent
     // across bin names. There is no shared state, so drive them on rayon.
     // The hot path is per-package-bin; without parallelism the per-shim
     // file I/O serialised across the whole `chosen` map.
-    chosen.par_iter().try_for_each(|(bin_name, (command, pkg))| {
-        // On Unix the symlink branch never writes a shim, so no bin
-        // needs a NODE_PATH — skip `shim_node_path`'s per-package
-        // canonicalize entirely.
-        let node_path = if options.prefer_symlinked_executables && cfg!(unix) {
-            Vec::new()
-        } else {
-            shim_node_path(pkg, &options.extra_node_paths)
-        };
-        let pkg_name = package_name(pkg);
-        write_shim::<Sys>(
-            &command.path,
-            &bins_dir.join(bin_name),
-            &node_path,
-            options.prefer_symlinked_executables,
-            style,
-            wants_powershell_shim(pkg_name),
-        )
-    })?;
+    chosen
+        .par_iter()
+        .try_for_each(|(command, pkg)| {
+            // On Unix the symlink branch never writes a shim, so no bin
+            // needs a NODE_PATH — skip `shim_node_path`'s per-package
+            // canonicalize entirely.
+            let node_path = if options.prefer_symlinked_executables && cfg!(unix) {
+                Vec::new()
+            } else {
+                shim_node_path(pkg, &options.extra_node_paths)
+            };
+            let pkg_name = package_name(pkg);
+            // The target's symlink-resolved path doubles as the memo key
+            // for the per-target probes: importers that reach one
+            // virtual-store file through different symlinks share it.
+            // Without a resolved location, the literal path still dedupes
+            // within whatever scope the caller gave the cache.
+            let probe_path = pkg.resolved_location
+                .as_ref()
+                .and_then(|resolved| {
+                    command.path
+                        .strip_prefix(&pkg.location)
+                        .ok()
+                        .map(|bin_rel_path| resolved.join(bin_rel_path))
+                })
+                .unwrap_or_else(|| command.path.clone());
+            write_shim::<Sys>(
+                ShimSpec {
+                    target_path: &command.path,
+                    probe_path: &probe_path,
+                    shim_path: &bins_dir.join(&command.name),
+                    node_path: &node_path,
+                    prefer_symlinked_executables: options.prefer_symlinked_executables,
+                    make_powershell_shim: wants_powershell_shim(pkg_name),
+                    bin_dir,
+                },
+                cache,
+            )
+        })?;
 
     Ok(())
+}
+
+/// The bins `packages` provide, minus `exclude_bins`, each paired with the
+/// package providing it. A name several packages provide goes to the one
+/// that owns it, else to the first by name and highest version.
+#[must_use]
+pub fn choose_bins<'packages, Sys: FsWalkFiles>(
+    packages: &'packages [PackageBinSource],
+    exclude_bins: &std::collections::HashSet<String>,
+) -> Vec<(Command, &'packages PackageBinSource)> {
+    let mut chosen: HashMap<String, (Command, &PackageBinSource)> = HashMap::new();
+    for pkg in packages {
+        for command in get_bins_from_package_manifest::<Sys>(&pkg.manifest, &pkg.location) {
+            let wins = chosen
+                .get(&command.name)
+                .is_none_or(|(_, existing)| pick_winner(&command.name, existing, pkg));
+            if wins {
+                chosen.insert(command.name.clone(), (command, pkg));
+            }
+        }
+    }
+    for excluded in exclude_bins {
+        chosen.remove(excluded);
+    }
+    chosen.into_values().collect()
 }
 
 /// The `NODE_PATH` entries for one package's shims: the target's own
@@ -491,7 +484,8 @@ fn shim_node_path(pkg: &PackageBinSource, extra_node_paths: &[String]) -> Vec<St
     let mut merged = if let Some(resolved) = &pkg.resolved_location {
         bin_node_paths(resolved)
     } else {
-        let dir = dunce::canonicalize(&pkg.location).unwrap_or_else(|_| pkg.location.clone());
+        let dir =
+            dunce::canonicalize(&pkg.location).unwrap_or_else(|_| pkg.location.clone());
         bin_node_paths(&dir)
     };
     for extra in extra_node_paths {
@@ -537,7 +531,10 @@ fn pick_winner(bin_name: &str, existing: &PackageBinSource, candidate: &PackageB
 }
 
 fn package_name(pkg: &PackageBinSource) -> &str {
-    pkg.manifest.get("name").and_then(Value::as_str).unwrap_or("")
+    pkg.manifest
+        .get("name")
+        .and_then(Value::as_str)
+        .unwrap_or("")
 }
 
 fn package_version(pkg: &PackageBinSource) -> Option<Version> {
@@ -547,577 +544,16 @@ fn package_version(pkg: &PackageBinSource) -> Option<Version> {
         .and_then(|version| Version::parse(version).ok())
 }
 
-/// Write the canonical bin shim for `target_path` at `shim_path`,
-/// plus the `.cmd` and `.ps1` Windows-style siblings *when the host
-/// is Windows*. Idempotent on warm reinstalls via
-/// [`is_shim_pointing_at`].
-///
-/// `make_powershell_shim` (see [`wants_powershell_shim`]) drops the
-/// `.ps1` sibling, and deletes any that an earlier install left
-/// behind.
-///
-/// The chmod step (`set_executable` for the canonical shim and
-/// `ensure_executable_bits` for the target binary) is wired through the
-/// [`FsSetExecutable`] / [`FsEnsureExecutableBits`] capability traits.
-/// On Unix the production impls run the actual `chmod`; on Windows
-/// they are no-ops (Windows has no equivalent permission concept), so
-/// the call sites stay portable and don't need their own
-/// `#[cfg(unix)]` gating.
-fn write_shim<Sys>(
-    target_path: &Path,
-    shim_path: &Path,
-    node_path: &[String],
-    prefer_symlinked_executables: bool,
-    style: ShimStyle,
-    make_powershell_shim: bool,
-) -> Result<(), LinkBinsError>
-where
-    Sys: FsReadToString + FsReadHead + FsWrite + FsSetExecutable + FsEnsureExecutableBits,
-{
-    // Not writing a `.ps1` is not enough to keep one out of the bin
-    // dir: an install that did want one leaves it there, and
-    // PowerShell keeps preferring it over the `.cmd` sibling. Delete
-    // it up front, above the short-circuits below — they all return
-    // without touching the Windows siblings.
-    if !make_powershell_shim {
-        remove_stale_bin(&with_extension_appended(shim_path, "ps1"))?;
-    }
-
-    // pnpm's warm-install short-circuit: an existing symlink that
-    // already resolves to the target is correct as-is — regardless of
-    // `preferSymlinkedExecutables` — so a relink pass that doesn't
-    // carry the setting (the injected-deps syncer's workspace-wide
-    // relink, for one) leaves symlinked bins alone instead of
-    // rewriting them into shims. Context-aware global shims are
-    // exempt: replacing a plain symlink with the dispatch shim is
-    // that style's whole job.
-    if style == ShimStyle::Direct && symlink_already_points_at(shim_path, target_path) {
-        return ensure_target_executable::<Sys>(target_path);
-    }
-
-    // The node runtime binary is special: never wrap it in a shell
-    // shim. The binary is symlinked on Unix and `node.exe` is
-    // hardlinked on Windows.
-    //
-    // Two reasons this matters:
-    //
-    // 1. Parity. pnpm install in the same workspace symlinks `.bin/node`
-    //    to the runtime binary; pacquet must do the same so the
-    //    `same_global_virtual_store_layout_*` checks see the same
-    //    dirent shape.
-    // 2. Robustness against accidental shim-wrapping. The node binary
-    //    itself has no shebang, but a prior bad install may leave a
-    //    cmd-shim text file with `#!/bin/sh` at `<pkg>/bin/node`. If
-    //    pacquet then cmd-shims that file, `search_script_runtime`
-    //    parses the shebang as `prog: "/bin/sh"` and emits a shim
-    //    whose target resolves to a non-existent path
-    //    (`$basedir/../node/bin/../node/bin/node` — the `node` segment
-    //    appears twice). A direct symlink / hardlink bypasses the
-    //    parser entirely.
-    //
-    // A context-aware `node` is the exception on Unix: the whole point of
-    // the global bin dir's shims is that bare `node` can defer to a
-    // project-local version, which a symlink cannot do, so the global
-    // `node` gets a dispatch shim like every other bin. This low-level linker
-    // keeps the Windows hardlink because replacing `node.exe` with a script
-    // would break tools that spawn it without a shell; the global CLI linker
-    // subsequently replaces it with the native dispatcher after recording
-    // the original executable as its fallback target.
-    if is_node_bin_name(shim_path)
-        && (style == ShimStyle::Direct || cfg!(windows))
-        && link_node_bin(target_path, shim_path)?
-    {
-        return Ok(());
-    }
-
-    // pnpm's `preferSymlinkedExecutables`: link the bin file directly
-    // instead of wrapping it in a shell shim. Unix only — the Windows
-    // half returns `false` so bins keep their shims there, like pnpm.
-    // Stays below the node-runtime special case, which links `node`
-    // regardless of the setting.
-    if prefer_symlinked_executables && link_symlinked_executable::<Sys>(target_path, shim_path)? {
-        return Ok(());
-    }
-
-    let runtime = search_script_runtime::<Sys>(target_path).map_err(|error| {
-        LinkBinsError::ProbeShimSource { path: target_path.to_path_buf(), error }
-    })?;
-
-    let sh_body = generate_sh_shim(target_path, shim_path, runtime.as_ref(), node_path, style);
-    // Windows siblings are off on Unix to match pnpm. The bodies
-    // themselves still get computed inside the `cfg!(windows)` branch
-    // below — moving the `generate_*` calls there keeps Unix builds
-    // off the `relative_target_windows` allocation path entirely.
-    let windows_shims = cfg!(windows).then(|| {
-        let cmd_path = with_extension_appended(shim_path, "cmd");
-        let cmd_body =
-            generate_cmd_shim(target_path, &cmd_path, runtime.as_ref(), node_path, style);
-        let powershell_shim = make_powershell_shim.then(|| {
-            let ps1_path = with_extension_appended(shim_path, "ps1");
-            let ps1_body =
-                generate_pwsh_shim(target_path, &ps1_path, runtime.as_ref(), node_path, style);
-            (ps1_path, ps1_body)
-        });
-        (cmd_path, cmd_body, powershell_shim)
-    });
-
-    // Idempotent skip fires only when every flavor that *should* be
-    // present is present and pointing at the right target. The `.sh`
-    // flavor carries a `# cmd-shim-target=<path>` trailer that
-    // [`is_shim_pointing_at`] reads; the `.cmd` and `.ps1` flavors
-    // don't, so we compare them byte-for-byte against the freshly
-    // generated body. That catches stale/corrupted siblings that an
-    // existence-only check would let slip through: a manually-edited
-    // `.cmd` pointing at a stale target, or a pacquet write with a
-    // different relative path. Generated bodies are stable across
-    // pacquet versions (only the `<target>` segment moves), so byte
-    // equality is a sound equivalence check.
-    //
-    // When a `NODE_PATH` block is expected, the marker alone can't
-    // prove the shim carries the right (or any) block, so require
-    // byte equality; the marker-only branch additionally rejects a
-    // stale `NODE_PATH` block when none is expected. The probe looks
-    // for the exact export the block opens with, so a target path
-    // that merely mentions `NODE_PATH` can't force a rewrite.
-    let sh_marker_ok = match Sys::read_to_string(shim_path) {
-        Ok(existing) if !node_path.is_empty() => existing == sh_body,
-        Ok(existing) => {
-            is_shim_pointing_at(&existing, target_path)
-                && !existing.contains("export NODE_PATH=")
-                && is_context_aware_shim(&existing) == (style == ShimStyle::ContextAware)
-        }
-        Err(_) => false,
-    };
-    let windows_ok = match &windows_shims {
-        None => true,
-        Some((cmd_path, cmd_body, powershell_shim)) => {
-            let cmd_ok = matches!(
-                Sys::read_to_string(cmd_path),
-                Ok(existing) if &existing == cmd_body,
-            );
-            // A suppressed `.ps1` is already gone, so there is nothing
-            // left for this check to compare.
-            let ps1_ok = powershell_shim.as_ref().is_none_or(|(ps1_path, ps1_body)| {
-                matches!(
-                    Sys::read_to_string(ps1_path),
-                    Ok(existing) if &existing == ps1_body,
-                )
-            });
-            cmd_ok && ps1_ok
-        }
-    };
-    let already_correct = sh_marker_ok && windows_ok;
-
-    if !already_correct {
-        // Unlink any pre-existing entry before writing. `Sys::write` opens
-        // through a symlink, so without this a symlink planted at the bin
-        // path (e.g. in a shared/writable global bin dir) would redirect the
-        // write and clobber an arbitrary target. Removing first guarantees we
-        // create a fresh regular file.
-        remove_stale_bin(shim_path)?;
-        Sys::write(shim_path, sh_body.as_bytes())
-            .map_err(|error| LinkBinsError::WriteShim { path: shim_path.to_path_buf(), error })?;
-        if let Some((cmd_path, cmd_body, powershell_shim)) = &windows_shims {
-            remove_stale_bin(cmd_path)?;
-            Sys::write(cmd_path, cmd_body.as_bytes())
-                .map_err(|error| LinkBinsError::WriteShim { path: cmd_path.clone(), error })?;
-            if let Some((ps1_path, ps1_body)) = powershell_shim {
-                remove_stale_bin(ps1_path)?;
-                Sys::write(ps1_path, ps1_body.as_bytes())
-                    .map_err(|error| LinkBinsError::WriteShim { path: ps1_path.clone(), error })?;
-            }
-        }
-    }
-
-    chmod_tolerating_removal(shim_path, Sys::set_executable)?;
-    ensure_target_executable::<Sys>(target_path)?;
-
-    Ok(())
-}
-
-/// Make the underlying script executable: apply a minimum mode of
-/// 0o755 without rewriting CRLF shebangs. Targets shipped by npm
-/// already use LF in practice, so a chmod alone suffices.
-fn ensure_target_executable<Sys>(target_path: &Path) -> Result<(), LinkBinsError>
-where
-    Sys: FsEnsureExecutableBits,
-{
-    chmod_tolerating_removal(target_path, Sys::ensure_executable_bits)
-}
-
-/// Apply `chmod` to `path`, treating a path that has vanished as success.
-///
-/// Nothing serializes bin linking across processes: independent installs
-/// sharing a global virtual store materialize the same shim, and an
-/// unrelated process can remove a package between extraction and bin
-/// linking. Whoever unlinked the path writes an equivalent one and chmods
-/// it in turn, so `NotFound` means another writer finished the job rather
-/// than that this one failed. Every other error still surfaces.
-fn chmod_tolerating_removal(
-    path: &Path,
-    chmod: impl FnOnce(&Path) -> io::Result<()>,
-) -> Result<(), LinkBinsError> {
-    match chmod(path) {
-        Ok(()) => Ok(()),
-        Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(()),
-        Err(error) => Err(LinkBinsError::Chmod { path: path.to_path_buf(), error }),
-    }
-}
-
-/// The `node_modules` directories relevant to a bin package in the
-/// virtual-store layout — pnpm's `getBinNodePaths`. For a package at
-/// `.pnpm/pkg@ver/node_modules/pkg` this returns the package's own
-/// `node_modules` (bundled deps) followed by the slot's
-/// `node_modules` (sibling deps), so tools that resolve from CWD
-/// (`import-local` in jest, eslint, ...) find the correct versions.
-/// `dir` must already be symlink-free — [`shim_node_path`] passes the
-/// caller-resolved location or a canonicalized fallback.
-fn bin_node_paths(dir: &Path) -> Vec<String> {
-    let Some(node_modules_dir) = dir.ancestors().find(|ancestor| {
-        ancestor.file_name().is_some_and(|name| name == "node_modules")
-            && ancestor
-                .parent()
-                .and_then(Path::file_name)
-                .is_none_or(|parent_name| parent_name != "node_modules")
-    }) else {
-        return Vec::new();
-    };
-    let mut result = Vec::new();
-    if let Ok(rel) = dir.strip_prefix(node_modules_dir)
-        && let Some(first) = rel.components().next()
-    {
-        let first_name = first.as_os_str().to_string_lossy();
-        let pkg_dir = if first_name.starts_with('@') {
-            match rel.components().nth(1) {
-                Some(second) => node_modules_dir.join(first).join(second.as_os_str()),
-                None => node_modules_dir.join(first),
-            }
-        } else {
-            node_modules_dir.join(first)
-        };
-        result.push(pkg_dir.join("node_modules").to_string_lossy().into_owned());
-    }
-    result.push(node_modules_dir.to_string_lossy().into_owned());
-    result
-}
-
-/// Whether `shim_path`'s file name is exactly `node` — the trigger for the
-/// node-runtime short-circuit in [`write_shim`]. Lifted out so the check
-/// is unit-testable and the call site reads as a predicate.
-fn is_node_bin_name(shim_path: &Path) -> bool {
-    matches!(shim_path.file_name().and_then(|s| s.to_str()), Some("node"))
-}
-
-/// Link the node runtime binary `target_path` into the bin slot
-/// `shim_path` directly, without a cmd-shim wrapper. Returns `Ok(true)`
-/// when the special case took effect (the caller must skip the regular
-/// shim-writing path) and `Ok(false)` when it didn't apply and the
-/// caller should fall through (Windows non-`.exe` source).
-///
-/// Two halves, by platform:
-///
-/// - **Unix** symlinks `shim_path` → absolute `target_path`. The
-///   existing dirent (if any) is removed first because `fs::symlink`
-///   rejects with `AlreadyExists` and we don't want to silently leave
-///   a stale shim in place.
-/// - **Windows** hardlinks `target_path` to `<shim_path>.exe`, falling
-///   back to `fs::copy` on hardlink failure (cross-device, ACL deny,
-///   ...). The source must end in `.exe`; otherwise the caller falls
-///   through to the cmd-shim path.
-///
-/// `remove_file` rather than `Sys::write`-style truncation is
-/// load-bearing on both platforms: if `shim_path` is currently a
-/// regular file hardlinked to the source binary, truncating through
-/// the hardlink would corrupt the binary itself. Removing the dirent
-/// leaves the hardlinked content intact.
-#[cfg(unix)]
-fn link_node_bin(target_path: &Path, shim_path: &Path) -> Result<bool, LinkBinsError> {
-    use std::os::unix::fs::symlink;
-    remove_stale_bin(shim_path)?;
-    symlink(target_path, shim_path).map_err(|error| LinkBinsError::LinkNodeBin {
-        src: target_path.to_path_buf(),
-        dst: shim_path.to_path_buf(),
-        error,
-    })?;
-    Ok(true)
-}
-
-#[cfg(windows)]
-fn link_node_bin(target_path: &Path, shim_path: &Path) -> Result<bool, LinkBinsError> {
-    use std::fs;
-    let is_exe = target_path
-        .extension()
-        .and_then(|s| s.to_str())
-        .is_some_and(|ext| ext.eq_ignore_ascii_case("exe"));
-    if !is_exe {
-        return Ok(false);
-    }
-    let exe_path = with_extension_appended(shim_path, "exe");
-    // Skip the remove + relink churn on warm installs when `node.exe`
-    // already refers to the source binary.
-    if is_same_file(&exe_path, target_path) {
-        return Ok(true);
-    }
-    remove_stale_bin(&exe_path)?;
-    if fs::hard_link(target_path, &exe_path).is_err() {
-        fs::copy(target_path, &exe_path).map_err(|error| LinkBinsError::LinkNodeBin {
-            src: target_path.to_path_buf(),
-            dst: exe_path,
-            error,
-        })?;
-    }
-    Ok(true)
-}
-
-/// pnpm's `preferSymlinkedExecutables` bin materialization: a relative
-/// symlink from the `.bin` entry to the target file, matching pnpm's
-/// `symlink-dir` call (relative so a moved project keeps working; the
-/// node runtime handled by [`link_node_bin`] keeps its absolute link,
-/// also like pnpm). The target file — not the link — gets its
-/// executable bits raised, and a dangling target is tolerated: the
-/// symlink is created anyway with a warning, pnpm's
-/// warn-and-continue.
-///
-/// Returns `Ok(true)` when the symlink path handled the bin, `Ok(false)`
-/// when the caller must fall through to the shim path (Windows, where
-/// the setting is inert — pnpm gates on `!isWindows()` the same way).
-#[cfg(unix)]
-fn link_symlinked_executable<Sys>(
-    target_path: &Path,
-    shim_path: &Path,
-) -> Result<bool, LinkBinsError>
-where
-    Sys: FsReadToString + FsEnsureExecutableBits,
-{
-    use std::os::unix::fs::symlink;
-    // pnpm's warm-install short-circuit also accepts an existing shim
-    // that points at the target, so enabling the setting rewrites no
-    // valid shims — only bins that are missing or wrong get the
-    // symlink form. (Symlinks already pointing at the target were
-    // accepted before this branch was reached.)
-    if matches!(
-        Sys::read_to_string(shim_path),
-        Ok(existing) if is_shim_pointing_at(&existing, target_path),
-    ) {
-        ensure_target_executable::<Sys>(target_path)?;
-        return Ok(true);
-    }
-    let link_target = shim_path.parent().map_or_else(
-        || target_path.to_path_buf(),
-        |bins_dir| pnpm_fs::relative_path(bins_dir, target_path),
-    );
-    remove_stale_bin(shim_path)?;
-    symlink(&link_target, shim_path).map_err(|error| LinkBinsError::SymlinkBin {
-        src: target_path.to_path_buf(),
-        dst: shim_path.to_path_buf(),
-        error,
-    })?;
-    match Sys::ensure_executable_bits(target_path) {
-        Ok(()) => {}
-        Err(error) if error.kind() == io::ErrorKind::NotFound => {
-            // pnpm's `Failed to create bin at ...` globalWarn: the
-            // symlink dangles until a later step materializes the
-            // target, which is worth telling the user about but not
-            // worth failing the install over.
-            let shim_path = shim_path.display();
-            let target_path = target_path.display();
-            tracing::warn!(
-                "Failed to create bin at {shim_path}. The target {target_path} does not exist",
-            );
-        }
-        Err(error) => {
-            return Err(LinkBinsError::Chmod { path: target_path.to_path_buf(), error });
-        }
-    }
-    Ok(true)
-}
-
-#[cfg(windows)]
-fn link_symlinked_executable<Sys>(
-    _target_path: &Path,
-    _shim_path: &Path,
-) -> Result<bool, LinkBinsError>
-where
-    Sys: FsReadToString + FsEnsureExecutableBits,
-{
-    Ok(false)
-}
-
-/// Whether the dirent at `shim_path` is a symlink that already resolves
-/// to `target_path` — raw, or resolved against the bin dir — pnpm's
-/// warm-install short-circuit arm for symlinked bins.
-fn symlink_already_points_at(shim_path: &Path, target_path: &Path) -> bool {
-    let Ok(existing) = std::fs::read_link(shim_path) else {
-        return false;
-    };
-    if existing == target_path {
-        return true;
-    }
-    let Some(bins_dir) = shim_path.parent() else {
-        return false;
-    };
-    pnpm_fs::lexical_normalize(&bins_dir.join(&existing)) == pnpm_fs::lexical_normalize(target_path)
-}
-
-/// Whether `a` and `b` are the same file. [`same_file::Handle`] proves a hard
-/// link cheaply via the OS file identity (device + inode on Unix, file index +
-/// volume serial on Windows). When that identity can't be obtained — a missing
-/// file, or a filesystem that doesn't expose a stable index — we fall back to
-/// comparing the file contents after a quick size check, which also treats a
-/// byte-identical copy as the same file.
-#[cfg(windows)]
-fn is_same_file(a: &Path, b: &Path) -> bool {
-    if let (Ok(handle_a), Ok(handle_b)) =
-        (same_file::Handle::from_path(a), same_file::Handle::from_path(b))
-        && handle_a == handle_b
-    {
-        return true;
-    }
-    match (std::fs::metadata(a), std::fs::metadata(b)) {
-        (Ok(meta_a), Ok(meta_b)) => meta_a.len() == meta_b.len() && have_equal_contents(a, b),
-        _ => false,
-    }
-}
-
-/// Compare two equally-sized files chunk by chunk, so an executable is never
-/// fully buffered in memory and a mismatch returns as early as possible.
-#[cfg(windows)]
-fn have_equal_contents(a: &Path, b: &Path) -> bool {
-    const CHUNK_SIZE: usize = 64 * 1024;
-    let (Ok(mut file_a), Ok(mut file_b)) = (std::fs::File::open(a), std::fs::File::open(b)) else {
-        return false;
-    };
-    let mut buf_a = vec![0u8; CHUNK_SIZE];
-    let mut buf_b = vec![0u8; CHUNK_SIZE];
-    loop {
-        let (Ok(read_a), Ok(read_b)) =
-            (read_chunk(&mut file_a, &mut buf_a), read_chunk(&mut file_b, &mut buf_b))
-        else {
-            return false;
-        };
-        if read_a != read_b {
-            return false;
-        }
-        if read_a == 0 {
-            return true;
-        }
-        if buf_a[..read_a] != buf_b[..read_b] {
-            return false;
-        }
-    }
-}
-
-/// Read up to `buf.len()` bytes, looping over short reads so a full chunk is
-/// only short at end of file. Like [`std::io::Read::read_exact`] but tolerant
-/// of EOF.
-#[cfg(windows)]
-fn read_chunk(reader: &mut impl std::io::Read, buf: &mut [u8]) -> io::Result<usize> {
-    let mut filled = 0;
-    while filled < buf.len() {
-        match reader.read(&mut buf[filled..]) {
-            Ok(0) => break,
-            Ok(n) => filled += n,
-            Err(error) if error.kind() == io::ErrorKind::Interrupted => {}
-            Err(error) => return Err(error),
-        }
-    }
-    Ok(filled)
-}
-
-/// Remove an existing dirent at `path`, swallowing `NotFound`. Used by
-/// [`link_node_bin`] to clear any prior shim / symlink / hardlink
-/// before laying down the new one. Any other IO error (`PermissionDenied`,
-/// EROFS, `AppArmor` deny, ...) surfaces as [`LinkBinsError::RemoveStaleBin`]
-/// so a real failure isn't hidden behind a silent skip.
-fn remove_stale_bin(path: &Path) -> Result<(), LinkBinsError> {
-    match std::fs::remove_file(path) {
-        Ok(()) => Ok(()),
-        Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(()),
-        Err(error) => Err(LinkBinsError::RemoveStaleBin { path: path.to_path_buf(), error }),
-    }
-}
-
-/// Append `<ext>` to `path` as a *new* extension segment (`foo` becomes
-/// `foo.cmd`), regardless of any existing extension. `Path::with_extension`
-/// would *replace* the existing extension, which is wrong for our case.
-/// The bin name `tsc` keeps its own `tsc` and gains a sibling `tsc.cmd`,
-/// rather than turning into `tsc.cmd` and losing the original `.sh` flavor.
-fn with_extension_appended(path: &Path, ext: &str) -> PathBuf {
-    let mut result = path.as_os_str().to_owned();
-    result.push(".");
-    result.push(ext);
-    result.into()
-}
-
-/// Write the target-less shims for `package`'s `bins` into `bins_dir`.
-///
-/// Unlike [`link_bins_of_packages_context_aware`], nothing is installed
-/// behind these: the package is not in the global bin dir, and only the
-/// project a shim runs in can say what to execute. Returns the shim paths
-/// that now exist, in the order they were written.
-pub fn link_virtual_shims<Sys>(
-    package: &str,
-    bins: &[&str],
-    bins_dir: &Path,
-) -> Result<Vec<PathBuf>, LinkBinsError>
-where
-    Sys: FsCreateDirAll + FsWrite + FsSetExecutable,
-{
-    Sys::create_dir_all(bins_dir)
-        .map_err(|error| LinkBinsError::CreateBinDir { dir: bins_dir.to_path_buf(), error })?;
-    let mut written = Vec::new();
-    for bin in bins {
-        let shim_path = bins_dir.join(bin);
-        if cfg!(windows) {
-            remove_stale_bin(&with_extension_appended(&shim_path, "exe"))?;
-        }
-        let mut flavors = vec![(shim_path.clone(), generate_virtual_sh_shim(package, &shim_path))];
-        if cfg!(windows) {
-            let cmd_path = with_extension_appended(&shim_path, "cmd");
-            let ps1_path = with_extension_appended(&shim_path, "ps1");
-            flavors.push((cmd_path.clone(), generate_virtual_cmd_shim(package, &cmd_path)));
-            flavors.push((ps1_path.clone(), generate_virtual_pwsh_shim(package, &ps1_path)));
-        }
-        for (path, body) in flavors {
-            // Unlink first for the same reason [`write_shim`] does: a
-            // symlink planted at the bin path would otherwise redirect
-            // the write.
-            remove_stale_bin(&path)?;
-            Sys::write(&path, body.as_bytes())
-                .map_err(|error| LinkBinsError::WriteShim { path: path.clone(), error })?;
-            written.push(path);
-        }
-        Sys::set_executable(&shim_path)
-            .map_err(|error| LinkBinsError::Chmod { path: shim_path.clone(), error })?;
-    }
-    Ok(written)
-}
-
-/// Remove a bin shim previously written by [`link_bins_of_packages`].
-///
-/// Deletes `<name>`, plus the `<name>.ps1`, `<name>.cmd`, and `<name>.exe`
-/// flavors on Windows; just `<name>` elsewhere. The `<name>.exe` flavor
-/// matters because the `node` runtime bin is linked as `<name>.exe` by the
-/// linker's node special-case, so without this a `node.exe` would survive
-/// `remove -g` / `update -g` and stay reachable on `PATH`. A missing file is
-/// not an error (rimraf-style).
-pub fn remove_bin(bin_path: &Path) -> io::Result<()> {
-    remove_if_exists(bin_path)?;
-    if cfg!(windows) {
-        remove_if_exists(&with_extension_appended(bin_path, "ps1"))?;
-        remove_if_exists(&with_extension_appended(bin_path, "cmd"))?;
-        remove_if_exists(&with_extension_appended(bin_path, "exe"))?;
-    }
-    Ok(())
-}
-
-fn remove_if_exists(path: &Path) -> io::Result<()> {
-    match std::fs::remove_file(path) {
-        Ok(()) => Ok(()),
-        Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(()),
-        Err(error) => Err(error),
-    }
-}
-
 #[cfg(test)]
 mod tests;
+
+mod shim_writer;
+use shim_writer::{ShimSpec, remove_stale_bin, write_shim};
+
+mod executable;
+use executable::{
+    bin_node_paths, chmod_tolerating_removal, ensure_target_executable, is_node_bin_name,
+    link_node_bin, link_symlinked_executable, symlink_already_points_at,
+};
+
+mod discovery;

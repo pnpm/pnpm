@@ -17,6 +17,10 @@
 //! at each level, and `import_indexed_dir` itself is internally
 //! rayon-parallel over CAS entries.
 
+pub use dir_clone::HoistedDirCloneCache;
+
+mod dir_clone;
+
 use crate::{
     DepHierarchy, DependenciesGraph, DependenciesGraphNode, ImportIndexedDirError,
     ImportIndexedDirOpts, import_indexed_dir, link_direct_dep_bins,
@@ -24,7 +28,6 @@ use crate::{
 use derive_more::{Display, Error};
 use miette::Diagnostic;
 use pnpm_cmd_shim::{Host, LinkBinsError, LinkBinsOptions, link_bins};
-use pnpm_config::PackageImportMethod;
 use pnpm_lockfile::PkgIdWithPatchHash;
 use pnpm_reporter::{
     LogEvent, LogLevel, ProgressLog, ProgressMessage, Reporter, StatsLog, StatsMessage,
@@ -34,10 +37,10 @@ use std::{
     collections::HashMap,
     fs, io,
     path::{Path, PathBuf},
-    sync::atomic::AtomicU8,
+    sync::Arc,
 };
 
-/// Per-package CAS index. Keyed by [`DependenciesGraphNode::pkg_id_with_patch_hash`],
+/// Per-package CAS index. Keyed by [`crate::HoistedPackageMetadata::pkg_id_with_patch_hash`],
 /// each entry maps a relative file path (the tarball's archive
 /// path, e.g. `package/lib/index.js`) to its absolute location
 /// inside the CAS. The hoisted linker accepts the same shape the
@@ -48,13 +51,15 @@ use std::{
 /// directories (version conflict → some dirs nest under siblings)
 /// and the CAS contents are the same regardless of where they're
 /// extracted to.
-pub type CasPathsByPkgId = HashMap<PkgIdWithPatchHash, HashMap<String, PathBuf>>;
+pub type CasPathsByPkgId = HashMap<PkgIdWithPatchHash, Arc<HashMap<String, PathBuf>>>;
 
 /// Inputs the linker reads from. Borrows everything so callers
 /// can keep ownership of the graph / CAS state — the linker
 /// doesn't mutate anything but the on-disk tree.
 #[derive(Debug)]
 pub struct LinkHoistedModulesOpts<'a> {
+    pub import: crate::PackageImportOptions<'a>,
+    pub dir_clone_cache: Option<&'a HoistedDirCloneCache<'a>>,
     pub graph: &'a DependenciesGraph,
     /// Diffed against `graph` to compute orphans. `None` for a
     /// fresh install (no prior lockfile) — no orphans to remove.
@@ -65,16 +70,6 @@ pub struct LinkHoistedModulesOpts<'a> {
     pub hierarchy: &'a std::collections::BTreeMap<PathBuf, DepHierarchy>,
     /// Pre-fetched CAS file index per package.
     pub cas_paths_by_pkg_id: &'a CasPathsByPkgId,
-    pub import_method: PackageImportMethod,
-    /// Install-scoped dedupe state for `pnpm:package-import-method`.
-    /// Same value pacquet's isolated path passes; see the
-    /// [`crate::import_indexed_dir()`] doc-comment for why it's
-    /// install-scoped rather than module-static.
-    pub logged_methods: &'a AtomicU8,
-    /// Install root, threaded into `pnpm:progress` `imported`'s
-    /// `requester`. Same value as the `prefix` in
-    /// [`pnpm_reporter::StageLog`].
-    pub requester: &'a str,
     /// Containment root for orphan removal: an orphan directory that
     /// does not sit lexically inside this root is skipped, never
     /// deleted. The walker builds every graph dir through
@@ -127,8 +122,9 @@ pub enum LinkHoistedModulesError {
 ///    itself when a directory name is reused for a different
 ///    package version.
 /// 2. **Per-node import.** The hierarchy is walked top-down,
-///    parallel at each level. For every node the linker calls
-///    [`import_indexed_dir()`] with `force: true,
+///    parallel at each level. For every node the previous install did
+///    not already leave in place ([`DependenciesGraphNode::present`])
+///    the linker calls [`import_indexed_dir()`] with `force: true,
 ///    keep_modules_dir: true`.
 /// 3. **Per-`node_modules` bin link.** After a level's children
 ///    are all done, `<parent>/node_modules/.bin` is populated
@@ -137,25 +133,36 @@ pub fn link_hoisted_modules<Reporter: self::Reporter>(
     opts: &LinkHoistedModulesOpts<'_>,
 ) -> Result<(), LinkHoistedModulesError> {
     let removed = remove_orphans(opts.graph, opts.prev_graph, opts.confine_root);
-    // The hoisted linker owns the install's `pnpm:stats` `removed`
-    // emission — pnpm emits it from `linkHoistedModules` with the
-    // orphan-directory count, and the isolated linker's count comes
-    // from `PruneStaleModules` at the installer layer instead.
-    Reporter::emit(&LogEvent::Stats(StatsLog {
-        level: LogLevel::Debug,
-        message: StatsMessage::Removed { prefix: opts.requester.to_owned(), removed },
-    }));
 
     // Drive each importer's hierarchy in parallel — workspace
     // installs (Slice 9) will have multiple importers; the
     // single-importer case has one and rayon's overhead is
     // negligible.
-    opts.hierarchy
+    let added: u64 = opts.hierarchy
         .par_iter()
         .map(|(parent_dir, deps_hierarchy)| {
             link_all_pkgs_in_order::<Reporter>(deps_hierarchy, parent_dir, opts)
         })
-        .collect::<Result<Vec<_>, _>>()?;
+        .collect::<Result<Vec<u64>, _>>()?
+        .into_iter()
+        .sum();
+
+    // The hoisted linker owns both of the install's `pnpm:stats`
+    // emissions: pnpm emits `removed` from `linkHoistedModules` and the
+    // isolated linker takes its own pair from `CreateVirtualStore` and
+    // `PruneStaleModules`, neither of which emits here. `added` counts
+    // the packages this install imported rather than every node in the
+    // graph, as pnpm's `depNodes.filter(({ fetching }) => fetching)`
+    // does. `added` goes out first, the order both pnpm and the
+    // isolated linker emit the pair in.
+    Reporter::emit(&LogEvent::Stats(StatsLog {
+        level: LogLevel::Debug,
+        message: StatsMessage::Added { prefix: opts.import.requester.to_owned(), added },
+    }));
+    Reporter::emit(&LogEvent::Stats(StatsLog {
+        level: LogLevel::Debug,
+        message: StatsMessage::Removed { prefix: opts.import.requester.to_owned(), removed },
+    }));
 
     Ok(())
 }
@@ -178,7 +185,9 @@ fn remove_orphans(
         .filter(|dir| !graph.contains_key(*dir))
         .filter(|dir| {
             let confined = dir.starts_with(confine_root)
-                && dir.components().all(|part| !matches!(part, std::path::Component::ParentDir));
+                && dir
+                    .components()
+                    .all(|part| !matches!(part, std::path::Component::ParentDir));
             if !confined {
                 tracing::warn!(
                     ?dir,
@@ -189,9 +198,11 @@ fn remove_orphans(
             confined
         })
         .collect();
-    orphan_dirs.par_iter().for_each(|dir| {
-        let _ = try_remove_dir(dir);
-    });
+    orphan_dirs
+        .par_iter()
+        .for_each(|dir| {
+            let _ = try_remove_dir(dir);
+        });
     orphan_dirs.len() as u64
 }
 
@@ -223,31 +234,37 @@ fn link_all_pkgs_in_order<Reporter: self::Reporter>(
     hierarchy: &DepHierarchy,
     parent_dir: &Path,
     opts: &LinkHoistedModulesOpts<'_>,
-) -> Result<(), LinkHoistedModulesError> {
+) -> Result<u64, LinkHoistedModulesError> {
     // Phase 2: import this level's packages + recurse into each
     // one's children. `par_iter` is sufficient — the side effects
-    // are on disk and target disjoint directories.
-    hierarchy
-        .0
+    // are on disk and target disjoint directories. Returns how many
+    // packages this subtree imported.
+    let imported: u64 = hierarchy.0
         .par_iter()
         .map(|(dir, sub_hierarchy)| {
-            let node = opts
-                .graph
+            let node = opts.graph
                 .get(dir)
                 .ok_or_else(|| LinkHoistedModulesError::MissingGraphNode { dir: dir.clone() })?;
-            import_node::<Reporter>(node, opts)?;
-            link_all_pkgs_in_order::<Reporter>(sub_hierarchy, dir, opts)
+            let here = u64::from(import_node::<Reporter>(node, opts)?);
+            Ok(here + link_all_pkgs_in_order::<Reporter>(sub_hierarchy, dir, opts)?)
         })
-        .collect::<Result<Vec<_>, _>>()?;
+        .collect::<Result<Vec<u64>, LinkHoistedModulesError>>()?
+        .into_iter()
+        .sum();
 
-    // Phase 3: link bins of every immediate child under
-    // `parent_dir/node_modules`. The keys of `hierarchy.0` are
-    // absolute child directories; bin linking needs the alias
-    // names, which come from each child's graph-node `alias`
-    // (matches the directory's basename for hoisted layouts).
+    link_hierarchy_bins(hierarchy, parent_dir, opts)?;
+
+    Ok(imported)
+}
+
+// Bundled packages are absent from the graph, so their bins need a separate filesystem pass.
+fn link_hierarchy_bins(
+    hierarchy: &DepHierarchy,
+    parent_dir: &Path,
+    opts: &LinkHoistedModulesOpts<'_>,
+) -> Result<(), LinkHoistedModulesError> {
     let modules_dir = parent_dir.join("node_modules");
-    let dep_names: Vec<String> = hierarchy
-        .0
+    let dep_names: Vec<String> = hierarchy.0
         .keys()
         .filter_map(|child_dir| opts.graph.get(child_dir))
         .filter_map(|node| node.alias.clone())
@@ -261,7 +278,8 @@ fn link_all_pkgs_in_order<Reporter: self::Reporter>(
     // nodes, so the pass above never sees them; their bins are reachable
     // only from inside the bundling package.
     for child_dir in hierarchy.0.keys() {
-        let bundles = opts.graph.get(child_dir).is_some_and(|node| node.has_bundled_dependencies);
+        let bundles =
+            opts.graph.get(child_dir).is_some_and(|node| node.package.has_bundled_dependencies);
         if !bundles {
             continue;
         }
@@ -274,33 +292,45 @@ fn link_all_pkgs_in_order<Reporter: self::Reporter>(
     Ok(())
 }
 
-/// Import one graph node into its target `dir`.
+/// Import one graph node into its target `dir`. `Ok(false)` when
+/// nothing was written: the package is already in place, or it is an
+/// optional package with no files to import.
 fn import_node<Reporter: self::Reporter>(
     node: &DependenciesGraphNode,
     opts: &LinkHoistedModulesOpts<'_>,
-) -> Result<(), LinkHoistedModulesError> {
-    let Some(cas_paths) = opts.cas_paths_by_pkg_id.get(&node.pkg_id_with_patch_hash) else {
+) -> Result<bool, LinkHoistedModulesError> {
+    // The previous install put this package here and the directory
+    // still holds a `package.json` of the recorded version; importing
+    // it again would stage-and-swap the whole directory for nothing.
+    if node.present {
+        return Ok(false);
+    }
+    let Some(cas_paths) = opts.cas_paths_by_pkg_id.get(&node.package.pkg_id_with_patch_hash) else {
         if node.optional {
-            return Ok(());
+            return Ok(false);
         }
         return Err(LinkHoistedModulesError::MissingCasPaths {
-            pkg_id_with_patch_hash: node.pkg_id_with_patch_hash.clone(),
+            pkg_id_with_patch_hash: node.package.pkg_id_with_patch_hash.clone(),
             dir: node.dir.clone(),
         });
     };
 
-    import_indexed_dir::<Reporter>(
-        opts.logged_methods,
-        opts.import_method,
-        &node.dir,
-        cas_paths,
-        ImportIndexedDirOpts {
-            force: true,
-            keep_modules_dir: true,
-            ..ImportIndexedDirOpts::default()
-        },
-    )
-    .map_err(LinkHoistedModulesError::ImportIndexedDir)?;
+    if !opts.dir_clone_cache.is_some_and(|cache| {
+        cache.try_import::<Reporter>(node, opts.import, cas_paths)
+    }) {
+        import_indexed_dir::<Reporter>(
+            opts.import.logged_methods,
+            opts.import.method,
+            &node.dir,
+            cas_paths,
+            ImportIndexedDirOpts {
+                force: true,
+                keep_modules_dir: true,
+                ..ImportIndexedDirOpts::default()
+            },
+        )
+        .map_err(LinkHoistedModulesError::ImportIndexedDir)?;
+    }
 
     // `pnpm:progress imported` — see the matching emit in
     // `create_virtual_dir_by_snapshot::run` for the rationale on the
@@ -310,13 +340,13 @@ fn import_node<Reporter: self::Reporter>(
     Reporter::emit(&LogEvent::Progress(ProgressLog {
         level: LogLevel::Debug,
         message: ProgressMessage::Imported {
-            method: crate::optimistic_wire_method(opts.import_method),
-            requester: opts.requester.to_owned(),
+            method: crate::optimistic_wire_method(opts.import.method),
+            requester: opts.import.requester.to_owned(),
             to: node.dir.to_string_lossy().into_owned(),
         },
     }));
 
-    Ok(())
+    Ok(true)
 }
 
 #[cfg(test)]

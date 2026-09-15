@@ -1,3 +1,7 @@
+pub use redact_url::redact_url_credentials;
+
+mod redact_url;
+
 use axum::{
     http::StatusCode,
     response::{IntoResponse, Response},
@@ -14,12 +18,27 @@ pub enum RegistryError {
         source: reqwest::Error,
     },
 
+    #[display("Upstream response body from {url} failed: {source}")]
+    UpstreamBody {
+        url: String,
+        #[error(source)]
+        source: std::io::Error,
+    },
+
     #[display("Upstream returned status {status} for {url}")]
     UpstreamStatus {
         url: String,
         status: u16,
         #[error(not(source))]
         body: String,
+    },
+
+    #[display("Invalid response from upstream {url}: {reason}")]
+    #[from(skip)]
+    UpstreamResponse {
+        #[error(not(source))]
+        url: String,
+        reason: String,
     },
 
     /// The upstream's circuit breaker is open: it reached `max_fails`
@@ -47,6 +66,16 @@ pub enum RegistryError {
     InvalidPackageName {
         #[error(not(source))]
         name: String,
+    },
+
+    #[display("Package name {name:?} is not valid for {ecosystem}: {reason}")]
+    InvalidEcosystemPackageName {
+        #[error(not(source))]
+        name: String,
+        #[error(not(source))]
+        ecosystem: String,
+        #[error(not(source))]
+        reason: String,
     },
 
     #[display("Tarball filename {filename:?} is not valid for package {package:?}")]
@@ -152,11 +181,40 @@ pub enum RegistryError {
         entry: String,
     },
 
-    #[display("Hosted packument for package {package:?} changed while writing")]
+    /// A publish transaction committed, but another writer already owned
+    /// what one of its packages tried to publish, so that package's entry
+    /// was left out of the document rather than pointed at bytes that are
+    /// not the ones it uploaded.
+    #[display("Publish transaction could not record: {packages}")]
     #[from(skip)]
-    PackumentWriteConflict {
+    PublishNotRecorded {
+        #[error(not(source))]
+        packages: String,
+    },
+
+    #[display("Upload {id:?} changed; query its offset before retrying")]
+    #[from(skip)]
+    BlobUploadConflict {
+        #[error(not(source))]
+        id: String,
+    },
+
+    #[display("Hosted document for package {package:?} changed while writing")]
+    #[from(skip)]
+    DocumentWriteConflict {
         #[error(not(source))]
         package: String,
+    },
+
+    /// Another request is already approving this staged publish. A staged
+    /// record is approved exactly once: the approving request claims it with
+    /// a conditional write, and a second one is refused rather than
+    /// publishing the held document twice.
+    #[display("Staged publish {stage_id:?} is already being approved")]
+    #[from(skip)]
+    StagedApprovalInFlight {
+        #[error(not(source))]
+        stage_id: String,
     },
 
     #[display("Hosted revision digest already has the maximum of {limit} references")]
@@ -275,7 +333,9 @@ impl RegistryError {
     #[must_use]
     pub fn is_transient_upstream_error(&self) -> bool {
         match self {
-            RegistryError::Upstream { .. } | RegistryError::UpstreamUnavailable { .. } => true,
+            RegistryError::Upstream { .. }
+            | RegistryError::UpstreamBody { .. }
+            | RegistryError::UpstreamUnavailable { .. } => true,
             RegistryError::UpstreamStatus { status, .. } => *status >= 500,
             _ => false,
         }
@@ -284,11 +344,13 @@ impl RegistryError {
     #[must_use]
     pub fn log_kind(&self) -> &'static str {
         match self {
-            RegistryError::Upstream { .. } => "upstream",
+            RegistryError::Upstream { .. } | RegistryError::UpstreamBody { .. } => "upstream",
             RegistryError::UpstreamStatus { .. } => "upstream_status",
+            RegistryError::UpstreamResponse { .. } => "upstream_response",
             RegistryError::UpstreamUnavailable { .. } => "upstream_unavailable",
             RegistryError::TarballIntegrity { .. } => "tarball_integrity",
             RegistryError::InvalidPackageName { .. } => "invalid_package_name",
+            RegistryError::InvalidEcosystemPackageName { .. } => "invalid_package_name",
             RegistryError::InvalidTarballName { .. } => "invalid_tarball_name",
             RegistryError::InvalidConfig { .. } => "invalid_config",
             RegistryError::NotFound => "not_found",
@@ -299,7 +361,10 @@ impl RegistryError {
             RegistryError::BadRequest { .. } => "bad_request",
             RegistryError::VersionAlreadyPublished { .. } => "version_already_published",
             RegistryError::ArtifactAlreadyPublished { .. } => "artifact_already_published",
-            RegistryError::PackumentWriteConflict { .. } => "packument_write_conflict",
+            RegistryError::PublishNotRecorded { .. } => "publish_not_recorded",
+            RegistryError::BlobUploadConflict { .. } => "blob_upload_conflict",
+            RegistryError::DocumentWriteConflict { .. } => "document_write_conflict",
+            RegistryError::StagedApprovalInFlight { .. } => "staged_approval_in_flight",
             RegistryError::RevisionReferenceLimit { .. } => "revision_reference_limit",
             RegistryError::RevisionReferenceWriteConflict { .. } => {
                 "revision_reference_write_conflict"
@@ -307,6 +372,12 @@ impl RegistryError {
             RegistryError::OsvVulnerability { .. } => "osv_vulnerability",
             RegistryError::RegistrationDisabled => "registration_disabled",
             RegistryError::TooManyUsers { .. } => "too_many_users",
+            _ => self.storage_log_kind(),
+        }
+    }
+
+    fn storage_log_kind(&self) -> &'static str {
+        match self {
             RegistryError::Internal { .. } => "internal",
             RegistryError::InvalidHtpasswdFile { .. } => "invalid_htpasswd_file",
             RegistryError::Bcrypt(_) => "bcrypt",
@@ -325,6 +396,31 @@ impl RegistryError {
             RegistryError::Io(_) => "io",
             RegistryError::ObjectStore(_) => "object_store",
             RegistryError::Json(_) => "json",
+            _ => unreachable!("non-storage errors are classified by log_kind"),
+        }
+    }
+
+    fn storage_status_code(&self) -> StatusCode {
+        match self {
+            RegistryError::Internal { .. }
+            | RegistryError::InvalidHtpasswdFile { .. }
+            | RegistryError::Bcrypt(_)
+            | RegistryError::Sqlite(_)
+            | RegistryError::JoinError(_) => StatusCode::INTERNAL_SERVER_ERROR,
+            #[cfg(feature = "backend-libsql")]
+            RegistryError::Libsql(_) => StatusCode::INTERNAL_SERVER_ERROR,
+            #[cfg(any(feature = "backend-postgres", feature = "backend-mysql"))]
+            RegistryError::Sqlx(_) => StatusCode::INTERNAL_SERVER_ERROR,
+            #[cfg(any(
+                feature = "backend-libsql",
+                feature = "backend-postgres",
+                feature = "backend-mysql"
+            ))]
+            RegistryError::AuthDatabaseTimeout => StatusCode::GATEWAY_TIMEOUT,
+            RegistryError::Io(_) | RegistryError::ObjectStore(_) | RegistryError::Json(_) => {
+                StatusCode::BAD_GATEWAY
+            }
+            _ => unreachable!("non-storage errors are classified by status_code"),
         }
     }
 
@@ -337,7 +433,10 @@ impl RegistryError {
     pub fn public_message(&self) -> String {
         let status = self.status_code();
         if status.is_server_error() {
-            return status.canonical_reason().unwrap_or("Internal Server Error").to_string();
+            return status
+                .canonical_reason()
+                .unwrap_or("Internal Server Error")
+                .to_string();
         }
         self.to_string()
     }
@@ -359,262 +458,36 @@ impl RegistryError {
     #[must_use]
     pub fn status_code(&self) -> StatusCode {
         match self {
-            RegistryError::Upstream { source, .. } => {
-                if source.is_timeout() {
-                    StatusCode::GATEWAY_TIMEOUT
-                } else if source.is_connect() {
-                    StatusCode::SERVICE_UNAVAILABLE
-                } else {
-                    StatusCode::BAD_GATEWAY
-                }
-            }
-            RegistryError::UpstreamStatus { .. } | RegistryError::TarballIntegrity { .. } => {
-                StatusCode::BAD_GATEWAY
-            }
+            RegistryError::Upstream { source, .. } => upstream_status_code(source),
+            RegistryError::UpstreamBody { source, .. } => upstream_body_status_code(source),
+            RegistryError::UpstreamStatus { .. }
+            | RegistryError::UpstreamResponse { .. }
+            | RegistryError::TarballIntegrity { .. } => StatusCode::BAD_GATEWAY,
             RegistryError::UpstreamUnavailable { .. } => StatusCode::SERVICE_UNAVAILABLE,
             RegistryError::InvalidPackageName { .. }
+            | RegistryError::InvalidEcosystemPackageName { .. }
             | RegistryError::InvalidTarballName { .. }
             | RegistryError::InvalidConfig { .. }
             | RegistryError::InvalidAttachment { .. }
             | RegistryError::BadRequest { .. } => StatusCode::BAD_REQUEST,
             RegistryError::VersionAlreadyPublished { .. }
             | RegistryError::ArtifactAlreadyPublished { .. }
-            | RegistryError::PackumentWriteConflict { .. }
+            | RegistryError::PublishNotRecorded { .. }
+            | RegistryError::BlobUploadConflict { .. }
+            | RegistryError::DocumentWriteConflict { .. }
+            | RegistryError::StagedApprovalInFlight { .. }
             | RegistryError::RevisionReferenceLimit { .. }
             | RegistryError::RevisionReferenceWriteConflict { .. } => StatusCode::CONFLICT,
             RegistryError::NotFound => StatusCode::NOT_FOUND,
             RegistryError::Unauthenticated { .. } => StatusCode::UNAUTHORIZED,
-            RegistryError::Forbidden { .. } => StatusCode::FORBIDDEN,
-            RegistryError::TeamsConfigManaged { .. } => StatusCode::FORBIDDEN,
-            RegistryError::OsvVulnerability { .. } => StatusCode::FORBIDDEN,
-            RegistryError::RegistrationDisabled | RegistryError::TooManyUsers { .. } => {
-                StatusCode::FORBIDDEN
-            }
-            RegistryError::Internal { .. }
-            | RegistryError::InvalidHtpasswdFile { .. }
-            | RegistryError::Bcrypt(_)
-            | RegistryError::Sqlite(_)
-            | RegistryError::JoinError(_) => StatusCode::INTERNAL_SERVER_ERROR,
-            #[cfg(feature = "backend-libsql")]
-            RegistryError::Libsql(_) => StatusCode::INTERNAL_SERVER_ERROR,
-            #[cfg(any(feature = "backend-postgres", feature = "backend-mysql"))]
-            RegistryError::Sqlx(_) => StatusCode::INTERNAL_SERVER_ERROR,
-            #[cfg(any(
-                feature = "backend-libsql",
-                feature = "backend-postgres",
-                feature = "backend-mysql"
-            ))]
-            RegistryError::AuthDatabaseTimeout => StatusCode::GATEWAY_TIMEOUT,
-            RegistryError::Io(_) | RegistryError::ObjectStore(_) | RegistryError::Json(_) => {
-                StatusCode::BAD_GATEWAY
-            }
+            RegistryError::Forbidden { .. }
+            | RegistryError::TeamsConfigManaged { .. }
+            | RegistryError::OsvVulnerability { .. }
+            | RegistryError::RegistrationDisabled
+            | RegistryError::TooManyUsers { .. } => StatusCode::FORBIDDEN,
+            _ => self.storage_status_code(),
         }
     }
-}
-
-/// Rewrite every URL in `message` so its `user:pass@` userinfo and any
-/// sensitive query parameter render as `<redacted>`. Shared with the config
-/// layer, whose operator-supplied endpoints can carry either.
-#[must_use]
-pub fn redact_url_credentials(message: &str) -> String {
-    let mut redacted = String::with_capacity(message.len());
-    let mut cursor = 0;
-    while let Some(relative_scheme_end) = message[cursor..].find("://") {
-        let scheme_end = cursor + relative_scheme_end;
-        let scheme_start = find_scheme_start(message, scheme_end);
-        if scheme_start == scheme_end || !is_valid_scheme(&message[scheme_start..scheme_end]) {
-            redacted.push_str(&message[cursor..scheme_end + 3]);
-            cursor = scheme_end + 3;
-            continue;
-        }
-
-        let url_end = find_url_end(message, scheme_end + 3);
-        let (candidate, suffix) = split_trailing_punctuation(&message[scheme_start..url_end]);
-        let Some(safe_url) = redact_url_candidate(candidate) else {
-            redacted.push_str(&message[cursor..url_end]);
-            cursor = url_end;
-            continue;
-        };
-
-        redacted.push_str(&message[cursor..scheme_start]);
-        redacted.push_str(&safe_url);
-        redacted.push_str(suffix);
-        cursor = url_end;
-    }
-    redacted.push_str(&message[cursor..]);
-    redacted
-}
-
-fn find_scheme_start(message: &str, scheme_end: usize) -> usize {
-    let bytes = message.as_bytes();
-    let mut start = scheme_end;
-    while start > 0 {
-        let byte = bytes[start - 1];
-        if !byte.is_ascii_alphanumeric() && byte != b'+' && byte != b'.' && byte != b'-' {
-            break;
-        }
-        start -= 1;
-    }
-    start
-}
-
-fn is_valid_scheme(scheme: &str) -> bool {
-    let mut chars = scheme.bytes();
-    let Some(first) = chars.next() else {
-        return false;
-    };
-    first.is_ascii_alphabetic()
-        && chars.all(|byte| {
-            byte.is_ascii_alphanumeric() || byte == b'+' || byte == b'.' || byte == b'-'
-        })
-}
-
-fn find_url_end(message: &str, url_start: usize) -> usize {
-    message[url_start..]
-        .char_indices()
-        .find_map(|(offset, ch)| is_url_delimiter(ch).then_some(url_start + offset))
-        .unwrap_or(message.len())
-}
-
-fn is_url_delimiter(ch: char) -> bool {
-    ch.is_whitespace() || matches!(ch, '"' | '\'' | '`' | '<' | '>' | '(' | ')' | '{' | '}')
-}
-
-fn split_trailing_punctuation(candidate: &str) -> (&str, &str) {
-    let mut end = candidate.len();
-    while let Some(ch) = candidate[..end].chars().next_back() {
-        if !matches!(ch, '.' | ',' | ';' | '!') {
-            break;
-        }
-        end -= ch.len_utf8();
-    }
-    (&candidate[..end], &candidate[end..])
-}
-
-fn redact_url_candidate(candidate: &str) -> Option<String> {
-    redact_parseable_url_candidate(candidate).or_else(|| redact_unparsable_url_candidate(candidate))
-}
-
-fn redact_parseable_url_candidate(candidate: &str) -> Option<String> {
-    let mut url = url::Url::parse(candidate).ok()?;
-    let mut changed = false;
-    if !url.username().is_empty() || url.password().is_some() {
-        if url.set_username("redacted").is_ok() {
-            changed = true;
-        }
-        if url.set_password(None).is_ok() {
-            changed = true;
-        }
-    }
-
-    if url.query().is_some() {
-        let pairs = url
-            .query_pairs()
-            .map(|(key, value)| {
-                if is_sensitive_query_key(&key) {
-                    changed = true;
-                    (key.into_owned(), "redacted".to_string())
-                } else {
-                    (key.into_owned(), value.into_owned())
-                }
-            })
-            .collect::<Vec<_>>();
-        if changed {
-            url.query_pairs_mut()
-                .clear()
-                .extend_pairs(pairs.iter().map(|(key, value)| (&**key, &**value)));
-        }
-    }
-
-    if url.fragment().is_some() {
-        url.set_fragment(None);
-        changed = true;
-    }
-
-    changed.then(|| url.to_string())
-}
-
-fn redact_unparsable_url_candidate(candidate: &str) -> Option<String> {
-    let mut redacted = candidate.to_string();
-    let mut changed = false;
-    if let Some(safe_url) = redact_unparsable_url_userinfo(&redacted) {
-        redacted = safe_url;
-        changed = true;
-    }
-    if let Some(safe_url) = redact_sensitive_query_values(&redacted) {
-        redacted = safe_url;
-        changed = true;
-    }
-    if let Some(safe_url) = redact_fragment(&redacted) {
-        redacted = safe_url;
-        changed = true;
-    }
-    changed.then_some(redacted)
-}
-
-fn redact_unparsable_url_userinfo(candidate: &str) -> Option<String> {
-    let authority_start = candidate.find("://")? + 3;
-    let scan_end = candidate[authority_start..]
-        .find('?')
-        .map_or(candidate.len(), |offset| authority_start + offset);
-    let userinfo_end = candidate[authority_start..scan_end].rfind('@')? + authority_start;
-    let mut redacted = String::with_capacity(candidate.len());
-    redacted.push_str(&candidate[..authority_start]);
-    redacted.push_str("redacted@");
-    redacted.push_str(&candidate[userinfo_end + 1..]);
-    Some(redacted)
-}
-
-fn redact_sensitive_query_values(candidate: &str) -> Option<String> {
-    let query_start = candidate.find('?')?;
-    let fragment_start = candidate[query_start + 1..]
-        .find('#')
-        .map_or(candidate.len(), |offset| query_start + 1 + offset);
-    let query = &candidate[query_start + 1..fragment_start];
-    let mut redacted = String::with_capacity(candidate.len());
-    redacted.push_str(&candidate[..=query_start]);
-    let mut changed = false;
-    for segment in query.split_inclusive('&') {
-        let (pair, separator) = segment.strip_suffix('&').map_or((segment, ""), |pair| (pair, "&"));
-        if let Some(value_start) = pair.find('=') {
-            let key = &pair[..value_start];
-            if is_sensitive_query_key(key) {
-                redacted.push_str(key);
-                redacted.push_str("=redacted");
-                redacted.push_str(separator);
-                changed = true;
-                continue;
-            }
-        }
-        redacted.push_str(segment);
-    }
-    redacted.push_str(&candidate[fragment_start..]);
-    changed.then_some(redacted)
-}
-
-fn redact_fragment(candidate: &str) -> Option<String> {
-    let fragment_start = candidate.find('#')?;
-    Some(candidate[..fragment_start].to_string())
-}
-
-fn is_sensitive_query_key(key: &str) -> bool {
-    let normalized = key
-        .chars()
-        .filter(|ch| *ch != '-' && *ch != '_')
-        .map(|ch| ch.to_ascii_lowercase())
-        .collect::<String>();
-    matches!(
-        normalized.as_str(),
-        "auth"
-            | "authtoken"
-            | "password"
-            | "passwd"
-            | "pwd"
-            | "secret"
-            | "token"
-            | "accesstoken"
-            | "apikey",
-    )
 }
 
 /// Only server faults need [`Self::log_message`]'s redaction: every variant
@@ -644,3 +517,26 @@ pub type Result<Value, Error = RegistryError> = std::result::Result<Value, Error
 
 #[cfg(test)]
 mod tests;
+
+fn upstream_status_code(source: &reqwest::Error) -> StatusCode {
+    if source.is_timeout() {
+        StatusCode::GATEWAY_TIMEOUT
+    } else if source.is_connect() {
+        StatusCode::SERVICE_UNAVAILABLE
+    } else {
+        StatusCode::BAD_GATEWAY
+    }
+}
+
+fn upstream_body_status_code(source: &std::io::Error) -> StatusCode {
+    if source.kind() == std::io::ErrorKind::TimedOut
+        || source
+            .get_ref()
+            .and_then(|source| source.downcast_ref::<reqwest::Error>())
+            .is_some_and(reqwest::Error::is_timeout)
+    {
+        StatusCode::GATEWAY_TIMEOUT
+    } else {
+        StatusCode::BAD_GATEWAY
+    }
+}

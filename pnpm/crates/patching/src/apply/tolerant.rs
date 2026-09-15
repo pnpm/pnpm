@@ -33,17 +33,7 @@ const MAX_FUZZING_OFFSET: isize = 20;
 pub(super) fn apply(original: &str, patch: &Patch<'_, str>) -> Result<String, String> {
     let mut lines: Vec<&str> = original.split('\n').collect();
 
-    let mut modifications = Vec::new();
-    for (index, hunk) in patch.hunks().iter().enumerate() {
-        let parts = split_into_parts(hunk.lines());
-        let start = to_isize(hunk.old_range().start());
-        let matched = fuzzing_offsets()
-            .find_map(|offset| {
-                evaluate_hunk(&parts, &lines, start - 1 + offset, hunk.old_range().len())
-            })
-            .ok_or_else(|| format!("error applying hunk #{}", index + 1))?;
-        modifications.extend(matched);
-    }
+    let modifications = plan_modifications(patch, &lines)?;
 
     let mut offset = 0_isize;
     for modification in modifications {
@@ -66,6 +56,25 @@ pub(super) fn apply(original: &str, patch: &Patch<'_, str>) -> Result<String, St
     }
 
     Ok(lines.join("\n"))
+}
+
+/// Where each hunk lands in `lines`, allowing the fuzz offsets.
+fn plan_modifications<'a>(
+    patch: &'a Patch<'_, str>,
+    lines: &[&str],
+) -> Result<Vec<Modification<'a>>, String> {
+    let mut modifications = Vec::new();
+    for (index, hunk) in patch.hunks().iter().enumerate() {
+        let parts = split_into_parts(hunk.lines());
+        let old_range = hunk.old_range();
+        // Empty ranges name the gap after the line; nonempty ranges are one-based.
+        let start = to_isize(old_range.start()) - isize::from(!old_range.is_empty());
+        let matched = fuzzing_offsets()
+            .find_map(|offset| evaluate_hunk(&parts, lines, start + offset, old_range.len()))
+            .ok_or_else(|| format!("error applying hunk #{}", index + 1))?;
+        modifications.extend(matched);
+    }
+    Ok(modifications)
 }
 
 /// The positions a hunk is tried at, relative to its recorded one:
@@ -143,39 +152,49 @@ fn evaluate_hunk<'a>(
     for part in parts {
         match part.kind {
             Kind::Context | Kind::Delete => {
-                for line in &part.lines {
-                    if !lines_are_equal(lines.get(index)?, line) {
-                        return None;
-                    }
-                    index += 1;
-                }
+                index = match_pre_image(part, lines, index)?;
                 if part.kind == Kind::Delete {
-                    modifications.push(Modification::Splice {
-                        index: index - part.lines.len(),
-                        delete: part.lines.len(),
-                        insert: Vec::new(),
-                    });
-                    // The deleted run ended the pre-image without a
-                    // newline; unless an insertion says otherwise, the
-                    // post-image gets one.
-                    if part.ends_file {
-                        modifications.push(Modification::Push);
-                    }
+                    push_deletion(&mut modifications, part, index);
                 }
             }
-            Kind::Insert => {
-                modifications.push(Modification::Splice {
-                    index,
-                    delete: 0,
-                    insert: part.lines.clone(),
-                });
-                if part.ends_file {
-                    modifications.push(Modification::Pop);
-                }
-            }
+            Kind::Insert => push_insertion(&mut modifications, part, index),
         }
     }
     Some(modifications)
+}
+
+/// Walk the pre-image lines of one part past `index`, returning where it
+/// ends, or `None` when the file does not carry them there.
+fn match_pre_image(part: &Part<'_>, lines: &[&str], mut index: usize) -> Option<usize> {
+    for line in &part.lines {
+        if !lines_are_equal(lines.get(index)?, line) {
+            return None;
+        }
+        index += 1;
+    }
+    Some(index)
+}
+
+/// `end` is where the deleted run ends, so the splice starts that many
+/// lines back.
+fn push_deletion<'a>(modifications: &mut Vec<Modification<'a>>, part: &Part<'a>, end: usize) {
+    modifications.push(Modification::Splice {
+        index: end - part.lines.len(),
+        delete: part.lines.len(),
+        insert: Vec::new(),
+    });
+    // The deleted run ended the pre-image without a newline; unless an
+    // insertion says otherwise, the post-image gets one.
+    if part.ends_file {
+        modifications.push(Modification::Push);
+    }
+}
+
+fn push_insertion<'a>(modifications: &mut Vec<Modification<'a>>, part: &Part<'a>, index: usize) {
+    modifications.push(Modification::Splice { index, delete: 0, insert: part.lines.clone() });
+    if part.ends_file {
+        modifications.push(Modification::Pop);
+    }
 }
 
 /// Trailing whitespace is ignored, which is what lets an LF patch match

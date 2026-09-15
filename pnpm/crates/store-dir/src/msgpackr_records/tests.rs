@@ -1,6 +1,7 @@
 use super::{
-    DecodeError, EncodeError, EncodeState, FIRST_INNER_SLOT, PKG_FILES_INDEX_SLOT,
-    RECORD_DEF_EXT_TYPE, SLOT_HI, encode_package_files_index, transcode_to_plain_msgpack,
+    DecodeError, EncodeError, RECORD_DEF_EXT_TYPE, SLOT_HI, encode_package_files_index,
+    encoding::{EncodeState, FIRST_INNER_SLOT, PKG_FILES_INDEX_SLOT},
+    transcode_to_plain_msgpack,
 };
 use crate::{CafsFileInfo, PackageFilesIndex, RemoteSideEffectsOrigin, SideEffectsDiff};
 use pnpm_shared_artifact_protocol::{BuilderProfile, OwnerScope, SignedArtifactEnvelope};
@@ -320,8 +321,10 @@ fn encode_roundtrips_many_files_sharing_one_slot() {
         remote_side_effects_quarantine: None,
     };
     let bytes = encode_package_files_index(&original).unwrap();
-    let record_def_headers =
-        bytes.windows(2).filter(|window| *window == [0xd4, RECORD_DEF_EXT_TYPE]).count();
+    let record_def_headers = bytes
+        .windows(2)
+        .filter(|window| *window == [0xd4, RECORD_DEF_EXT_TYPE])
+        .count();
     assert_eq!(
         record_def_headers, 2,
         "expected one def per distinct shape, got bytes {bytes:02x?}",
@@ -368,7 +371,9 @@ fn encode_omits_checked_at_when_none() {
     let bytes = encode_package_files_index(&original).unwrap();
     let needle = b"checkedAt";
     assert!(
-        bytes.windows(needle.len()).all(|window| window != needle),
+        bytes
+            .windows(needle.len())
+            .all(|window| window != needle),
         "checkedAt leaked into output when the field was None: {bytes:02x?}",
     );
     assert_eq!(roundtrip(&original).files.get("f").unwrap().checked_at, None);
@@ -390,8 +395,10 @@ fn encode_allocates_separate_slots_for_distinct_cafs_shapes() {
         remote_side_effects_quarantine: None,
     };
     let bytes = encode_package_files_index(&original).unwrap();
-    let record_def_headers =
-        bytes.windows(2).filter(|window| *window == [0xd4, RECORD_DEF_EXT_TYPE]).count();
+    let record_def_headers = bytes
+        .windows(2)
+        .filter(|window| *window == [0xd4, RECORD_DEF_EXT_TYPE])
+        .count();
     assert_eq!(
         record_def_headers, 3,
         "expected three defs (outer + two CafsFileInfo shapes), got bytes {bytes:02x?}",
@@ -483,7 +490,9 @@ fn encode_omits_requires_build_when_none() {
     let bytes = encode_package_files_index(&idx).unwrap();
     let needle = b"requiresBuild";
     assert!(
-        bytes.windows(needle.len()).all(|window| window != needle),
+        bytes
+            .windows(needle.len())
+            .all(|window| window != needle),
         "requiresBuild leaked into output when the field was None: {bytes:02x?}",
     );
 }
@@ -574,7 +583,9 @@ fn encode_side_effects_with_only_added_omits_deleted_field() {
     };
     let bytes = encode_package_files_index(&original).unwrap();
     assert!(
-        bytes.windows(7).all(|window| window != b"deleted"),
+        bytes
+            .windows(7)
+            .all(|window| window != b"deleted"),
         "`deleted` field name appeared in output when the field was None: {bytes:02x?}",
     );
     assert_eq!(roundtrip(&original), original);
@@ -607,8 +618,10 @@ fn encode_allocates_separate_slots_for_distinct_side_effects_shapes() {
         remote_side_effects_quarantine: None,
     };
     let bytes = encode_package_files_index(&original).unwrap();
-    let record_def_headers =
-        bytes.windows(2).filter(|window| *window == [0xd4, RECORD_DEF_EXT_TYPE]).count();
+    let record_def_headers = bytes
+        .windows(2)
+        .filter(|window| *window == [0xd4, RECORD_DEF_EXT_TYPE])
+        .count();
     assert_eq!(
         record_def_headers, 4,
         "expected defs for outer + two distinct side-effects shapes + CafsFileInfo, got bytes {bytes:02x?}",
@@ -680,8 +693,10 @@ fn encode_record_encodes_nested_objects_in_manifest() {
     };
     let bytes = encode_package_files_index(&idx).unwrap();
 
-    let record_defs =
-        bytes.windows(2).filter(|window| *window == [0xd4, RECORD_DEF_EXT_TYPE]).count();
+    let record_defs = bytes
+        .windows(2)
+        .filter(|window| *window == [0xd4, RECORD_DEF_EXT_TYPE])
+        .count();
     assert_eq!(
         record_defs, 4,
         "expected 4 record defs (outer + manifest + bin + directories), got bytes {bytes:02x?}",
@@ -712,8 +727,10 @@ fn encode_shares_slot_for_same_shaped_nested_objects() {
         remote_side_effects_quarantine: None,
     };
     let bytes = encode_package_files_index(&idx).unwrap();
-    let record_defs =
-        bytes.windows(2).filter(|window| *window == [0xd4, RECORD_DEF_EXT_TYPE]).count();
+    let record_defs = bytes
+        .windows(2)
+        .filter(|window| *window == [0xd4, RECORD_DEF_EXT_TYPE])
+        .count();
     assert_eq!(
         record_defs, 3,
         "expected slot reuse for same-shape objects, got bytes {bytes:02x?}",

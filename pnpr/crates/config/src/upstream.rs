@@ -29,24 +29,17 @@ pub struct UpstreamConfig {
     pub headers: HeaderMap,
     /// Per-upstream packument freshness window (verdaccio's `maxage`).
     /// `None` when the YAML omits it — the proxy then falls back to the
-    /// global [`super::Config::packument_ttl`], so the existing
+    /// global [`super::HttpConfig::packument_ttl`], so the existing
     /// `--packument-ttl-secs` flag still governs upstreams that don't set
     /// their own.
     pub maxage: Option<Duration>,
-    /// Per-request deadline for every fetch to this upstream (verdaccio's
-    /// `timeout`). Defaults to [`Self::DEFAULT_TIMEOUT`].
-    pub timeout: Duration,
-    /// Consecutive failures before the upstream is treated as down
-    /// (verdaccio's `max_fails`). Defaults to [`Self::DEFAULT_MAX_FAILS`].
-    pub max_fails: u32,
-    /// How long a down upstream stays down before pnpr retries it
-    /// (verdaccio's `fail_timeout`). Defaults to
-    /// [`Self::DEFAULT_FAIL_TIMEOUT`].
-    pub fail_timeout: Duration,
     /// Whether tarballs fetched from this upstream are written to the local
     /// mirror (verdaccio's `cache`). `false` streams them through
     /// uncached. Defaults to `true`.
     pub cache: bool,
+    /// Whether browser-facing discovery endpoints may query this upstream.
+    /// Disabled by default to preserve local-only search behavior.
+    pub search: bool,
     /// Which pnpr callers may select this upstream as a proxied private-route
     /// credential, and reach it through its `/~<name>/` registry endpoint.
     /// `None` means the upstream is registry-proxy only and is never offered as
@@ -59,6 +52,20 @@ pub struct UpstreamConfig {
     /// gate ([`Self::access`], or `$all` for a public upstream) is the default
     /// an entry's omitted `access` falls back to.
     pub rules: PackageRules,
+    pub requests: UpstreamRequestPolicy,
+}
+#[derive(Debug, Clone)]
+pub struct UpstreamRequestPolicy {
+    /// Per-request deadline for every fetch to this upstream (verdaccio's
+    /// `timeout`). Defaults to [`UpstreamConfig::DEFAULT_TIMEOUT`].
+    pub timeout: Duration,
+    /// Consecutive failures before the upstream is treated as down
+    /// (verdaccio's `max_fails`). Defaults to [`UpstreamConfig::DEFAULT_MAX_FAILS`].
+    pub max_fails: u32,
+    /// How long a down upstream stays down before pnpr retries it
+    /// (verdaccio's `fail_timeout`). Defaults to
+    /// [`UpstreamConfig::DEFAULT_FAIL_TIMEOUT`].
+    pub fail_timeout: Duration,
 }
 
 impl UpstreamConfig {
@@ -78,10 +85,13 @@ impl UpstreamConfig {
             url,
             headers,
             maxage: None,
-            timeout: Self::DEFAULT_TIMEOUT,
-            max_fails: Self::DEFAULT_MAX_FAILS,
-            fail_timeout: Self::DEFAULT_FAIL_TIMEOUT,
+            requests: UpstreamRequestPolicy {
+                timeout: Self::DEFAULT_TIMEOUT,
+                max_fails: Self::DEFAULT_MAX_FAILS,
+                fail_timeout: Self::DEFAULT_FAIL_TIMEOUT,
+            },
             cache: true,
+            search: false,
             access: None,
             rules: PackageRules::default(),
         }
@@ -94,10 +104,11 @@ impl fmt::Debug for UpstreamConfig {
             .field("url", &self.url)
             .field("headers", &RedactedHeaders(&self.headers))
             .field("maxage", &self.maxage)
-            .field("timeout", &self.timeout)
-            .field("max_fails", &self.max_fails)
-            .field("fail_timeout", &self.fail_timeout)
+            .field("timeout", &self.requests.timeout)
+            .field("max_fails", &self.requests.max_fails)
+            .field("fail_timeout", &self.requests.fail_timeout)
             .field("cache", &self.cache)
+            .field("search", &self.search)
             .field("access", &self.access)
             .field("rules", &self.rules)
             .finish()
@@ -112,16 +123,29 @@ pub struct RedactedHeaders<'a>(pub &'a HeaderMap);
 
 impl fmt::Debug for RedactedHeaders<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_map().entries(self.0.keys().map(|name| (name.as_str(), "<redacted>"))).finish()
+        f.debug_map()
+            .entries(
+                self.0
+                    .keys()
+                    .map(|name| (name.as_str(), "<redacted>")),
+            )
+            .finish()
     }
 }
 
 /// The serving knobs of an upstream registry, in verdaccio's upstream shape for
 /// the subset pnpr implements: `url`, an `auth:` block, and a free-form
 /// `headers:` map. Built from an `upstream:` registry entry
-/// ([`super::resolve_upstream_registry`]) and resolved into [`UpstreamConfig`] by
+/// ([`super::resolve_upstream_registry`](crate::registry_graph::resolve_upstream_registry)) and resolved into [`UpstreamConfig`] by
 /// [`resolve_upstream_config`].
 #[derive(Debug, Deserialize)]
+#[cfg_attr(
+    dylint_lib = "perfectionist",
+    expect(
+        perfectionist::too_many_struct_fields,
+        reason = "Verdaccio upstream YAML configuration format is flat"
+    )
+)]
 pub(super) struct UpstreamConfigFile {
     pub(super) url: String,
     #[serde(default)]
@@ -142,6 +166,8 @@ pub(super) struct UpstreamConfigFile {
     pub(super) fail_timeout: Option<Interval>,
     #[serde(default)]
     pub(super) cache: Option<bool>,
+    #[serde(default)]
+    pub(super) search: bool,
     /// Which pnpr callers may select this upstream as a proxied private-route
     /// credential. Its presence is what promotes a plain proxy upstream into a
     /// resolver private-route credential exposed at `/~<name>/`.
@@ -248,10 +274,65 @@ pub(super) fn resolve_upstream_config<Sys: EnvVar>(
     file: UpstreamConfigFile,
     teams: &Teams,
 ) -> Result<UpstreamConfig, RegistryError> {
+    let headers = upstream_headers::<Sys>(name, &file)?;
+
+    // Parse the verdaccio interval knobs, turning a typo'd value into a
+    // config error (named for the offending field) rather than silently
+    // falling back to the default.
+    let parse_field =
+        |field: &str, raw: &Option<Interval>| -> Result<Option<Duration>, RegistryError> {
+            raw.as_ref()
+                .map(|Interval(value)| {
+                    parse_interval(value)
+                        .ok_or_else(|| RegistryError::InvalidConfig {
+                            reason: format!(
+                                "upstream {name:?} has an invalid {field} interval {value:?}",
+                            ),
+                        })
+                })
+                .transpose()
+        };
+    let maxage = parse_field("maxage", &file.maxage)?;
+    let timeout = parse_field("timeout", &file.timeout)?.unwrap_or(UpstreamConfig::DEFAULT_TIMEOUT);
+    let fail_timeout = parse_field("fail_timeout", &file.fail_timeout)?
+        .unwrap_or(UpstreamConfig::DEFAULT_FAIL_TIMEOUT);
+    let access = file.access
+        .as_ref()
+        .map(|spec| spec.to_access_list(teams))
+        .transpose()
+        .map_err(|reason| RegistryError::InvalidConfig {
+            reason: format!("upstream {name:?} has an invalid `access` list: {reason}"),
+        })?;
+
+    Ok(UpstreamConfig {
+        url: file.url,
+        headers,
+        maxage,
+        requests: UpstreamRequestPolicy {
+            timeout,
+            max_fails: file.max_fails.unwrap_or(UpstreamConfig::DEFAULT_MAX_FAILS),
+            fail_timeout,
+        },
+        cache: file.cache.unwrap_or(true),
+        search: file.search,
+        access,
+        // The `packages:` rules are attached by the caller
+        // (`build_registries`) — this resolver only handles the serving
+        // knobs shared with programmatic construction.
+        rules: PackageRules::default(),
+    })
+}
+
+/// The upstream's request headers: the resolved auth header, then the
+/// declared ones.
+fn upstream_headers<Sys: EnvVar>(
+    name: &str,
+    file: &UpstreamConfigFile,
+) -> Result<HeaderMap, RegistryError> {
     let mut headers = HeaderMap::new();
     if let Some(auth) = &file.auth {
-        let token =
-            resolve_upstream_token::<Sys>(auth).ok_or_else(|| RegistryError::InvalidConfig {
+        let token = resolve_upstream_token::<Sys>(auth)
+            .ok_or_else(|| RegistryError::InvalidConfig {
                 reason: format!(
                     "upstream {name:?} has an auth block but no token could be resolved \
                      (set auth.token or point auth.token_env at a set env var)",
@@ -261,62 +342,24 @@ pub(super) fn resolve_upstream_config<Sys: EnvVar>(
             UpstreamAuthType::Bearer => format!("Bearer {token}"),
             UpstreamAuthType::Basic => format!("Basic {token}"),
         };
-        let value = HeaderValue::from_str(&value).map_err(|_| RegistryError::InvalidConfig {
-            reason: format!("upstream {name:?} auth token is not a valid header value"),
-        })?;
+        let value = HeaderValue::from_str(&value)
+            .map_err(|_| RegistryError::InvalidConfig {
+                reason: format!("upstream {name:?} auth token is not a valid header value"),
+            })?;
         headers.insert(AUTHORIZATION, value);
     }
     for (raw_name, raw_value) in &file.headers {
-        let header_name = HeaderName::from_bytes(raw_name.as_bytes()).map_err(|_| {
-            RegistryError::InvalidConfig {
+        let header_name = HeaderName::from_bytes(raw_name.as_bytes())
+            .map_err(|_| RegistryError::InvalidConfig {
                 reason: format!("upstream {name:?} has an invalid header name {raw_name:?}"),
-            }
-        })?;
-        let header_value =
-            HeaderValue::from_str(raw_value).map_err(|_| RegistryError::InvalidConfig {
+            })?;
+        let header_value = HeaderValue::from_str(raw_value)
+            .map_err(|_| RegistryError::InvalidConfig {
                 reason: format!("upstream {name:?} header {raw_name:?} has an invalid value"),
             })?;
         headers.insert(header_name, header_value);
     }
-
-    // Parse the verdaccio interval knobs, turning a typo'd value into a
-    // config error (named for the offending field) rather than silently
-    // falling back to the default.
-    let parse_field = |field: &str,
-                       raw: &Option<Interval>|
-     -> Result<Option<Duration>, RegistryError> {
-        raw.as_ref()
-            .map(|Interval(value)| {
-                parse_interval(value).ok_or_else(|| RegistryError::InvalidConfig {
-                    reason: format!("upstream {name:?} has an invalid {field} interval {value:?}"),
-                })
-            })
-            .transpose()
-    };
-    let maxage = parse_field("maxage", &file.maxage)?;
-    let timeout = parse_field("timeout", &file.timeout)?.unwrap_or(UpstreamConfig::DEFAULT_TIMEOUT);
-    let fail_timeout = parse_field("fail_timeout", &file.fail_timeout)?
-        .unwrap_or(UpstreamConfig::DEFAULT_FAIL_TIMEOUT);
-    let access = file.access.as_ref().map(|spec| spec.to_access_list(teams)).transpose().map_err(
-        |reason| RegistryError::InvalidConfig {
-            reason: format!("upstream {name:?} has an invalid `access` list: {reason}"),
-        },
-    )?;
-
-    Ok(UpstreamConfig {
-        url: file.url,
-        headers,
-        maxage,
-        timeout,
-        max_fails: file.max_fails.unwrap_or(UpstreamConfig::DEFAULT_MAX_FAILS),
-        fail_timeout,
-        cache: file.cache.unwrap_or(true),
-        access,
-        // The `packages:` rules are attached by the caller
-        // (`build_registries`) — this resolver only handles the serving
-        // knobs shared with programmatic construction.
-        rules: PackageRules::default(),
-    })
+    Ok(headers)
 }
 
 /// Parse a verdaccio-style interval string into a [`Duration`].
@@ -340,39 +383,45 @@ pub(super) fn parse_interval(raw: &str) -> Option<Duration> {
         return Duration::try_from_secs_f64(seconds).ok();
     }
     let mut total_seconds = 0f64;
-    let bytes = raw.as_bytes();
-    let mut index = 0;
-    while index < bytes.len() {
-        if bytes[index].is_ascii_whitespace() {
-            index += 1;
-            continue;
-        }
-        let number_start = index;
-        while index < bytes.len() && (bytes[index].is_ascii_digit() || bytes[index] == b'.') {
-            index += 1;
-        }
-        if index == number_start {
-            return None;
-        }
-        let number: f64 = raw[number_start..index].parse().ok()?;
-        let unit_start = index;
-        while index < bytes.len() && bytes[index].is_ascii_alphabetic() {
-            index += 1;
-        }
-        let seconds = match &raw[unit_start..index] {
-            "ms" => number / 1000.0,
-            "s" | "" => number,
-            "m" => number * 60.0,
-            "h" => number * 3600.0,
-            "d" => number * 86_400.0,
-            "w" => number * 604_800.0,
-            _ => return None,
-        };
+    let mut rest = raw;
+    while !rest.is_empty() {
+        let (seconds, tail) = parse_interval_term(rest)?;
         total_seconds += seconds;
+        rest = tail;
     }
     // Fallible conversion so an overflowing compound (`"999999999999w"`)
     // is rejected as unparsable rather than panicking.
     Duration::try_from_secs_f64(total_seconds).ok()
+}
+
+/// One `<number><unit>` term of a compound interval and whatever follows it.
+/// Leading whitespace is skipped and a missing unit means seconds, so `"90"`
+/// and `"1m 30s"` both parse.
+fn parse_interval_term(raw: &str) -> Option<(f64, &str)> {
+    let raw = raw.trim_start();
+    let number_end = raw
+        .bytes()
+        .position(|byte| !(byte.is_ascii_digit() || byte == b'.'))
+        .unwrap_or(raw.len());
+    if number_end == 0 {
+        return None;
+    }
+    let number: f64 = raw[..number_end].parse().ok()?;
+    let rest = &raw[number_end..];
+    let unit_end = rest
+        .bytes()
+        .position(|byte| !byte.is_ascii_alphabetic())
+        .unwrap_or(rest.len());
+    let seconds = match &rest[..unit_end] {
+        "ms" => number / 1000.0,
+        "s" | "" => number,
+        "m" => number * 60.0,
+        "h" => number * 3600.0,
+        "d" => number * 86_400.0,
+        "w" => number * 604_800.0,
+        _ => return None,
+    };
+    Some((seconds, &rest[unit_end..]))
 }
 
 /// Pick the credential for an upstream's `auth:` block: an explicit

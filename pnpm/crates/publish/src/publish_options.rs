@@ -112,11 +112,9 @@ pub struct OidcTokenProvenance {
 /// skippable OIDC miss.
 #[derive(Debug, derive_more::Display, derive_more::Error, Diagnostic)]
 pub enum FetchTokenAndProvenanceError {
-    #[display("{_0}")]
     #[diagnostic(transparent)]
     IdToken(GetIdTokenError),
 
-    #[display("{_0}")]
     #[diagnostic(transparent)]
     Provenance(DetermineProvenanceError),
 }
@@ -203,6 +201,13 @@ pub struct ResolvedPublishOptions {
     pub auth_token_override: Option<String>,
 }
 
+pub(crate) fn manifest_registry(manifest: &Value) -> Option<&str> {
+    manifest
+        .get("publishConfig")
+        .and_then(|config| config.get("registry"))
+        .and_then(Value::as_str)
+}
+
 /// Build the registry / auth / access options for publishing `manifest`. When
 /// `oidc_enabled` is `false` the per-package OIDC exchange is skipped (batch
 /// publish sends many packages a package-scoped token cannot authorize).
@@ -215,11 +220,11 @@ where
     Sys: EnvVar + Clock + OidcFetch,
     Reporter: self::Reporter,
 {
-    let publish_config_registry = manifest
-        .get("publishConfig")
-        .and_then(|config| config.get("registry"))
-        .and_then(Value::as_str);
-    let name = manifest.get("name").and_then(Value::as_str).unwrap_or_default();
+    let publish_config_registry = manifest_registry(manifest);
+    let name = manifest
+        .get("name")
+        .and_then(Value::as_str)
+        .unwrap_or_default();
     let registry = find_registry_info(
         name,
         input.default_registry,
@@ -260,11 +265,9 @@ where
 /// Failure surface of [`create_publish_options`].
 #[derive(Debug, derive_more::Display, derive_more::Error, Diagnostic)]
 pub enum CreatePublishOptionsError {
-    #[display("{_0}")]
     #[diagnostic(transparent)]
     UnsupportedProtocol(PublishUnsupportedRegistryProtocolError),
 
-    #[display("{_0}")]
     #[diagnostic(transparent)]
     Oidc(FetchTokenAndProvenanceError),
 }

@@ -5,13 +5,15 @@
 //! publishes the rest in dependency order, optionally
 //! writing `pnpm-publish-summary.json`.
 
-use std::{
-    collections::HashSet,
-    path::{Path, PathBuf},
-    sync::{Arc, Mutex},
-    time::Duration,
+use super::PublishArgs;
+use crate::cli_args::{
+    changelog::published_name,
+    recursive::{
+        AutoExcludeRoot, discover_workspace_projects, filtered_projects_dependencies,
+        select_recursive_projects,
+    },
+    registry_client::build_registry_client,
 };
-
 use miette::{Context, IntoDiagnostic};
 use pipe_trait::Pipe;
 use pnpm_config::Config;
@@ -29,21 +31,113 @@ use pnpm_workspace_task_scheduler::{
     ScheduleGraphAsyncOptions, TaskCompletion, graph_sequencer, schedule_graph_async,
 };
 use serde_json::Value;
-
-use super::PublishArgs;
-use crate::cli_args::{
-    changelog::published_name,
-    recursive::{
-        AutoExcludeRoot, discover_workspace_projects, filtered_projects_dependencies,
-        select_recursive_projects,
-    },
-    registry_client::build_registry_client,
+use std::{
+    collections::HashSet,
+    path::{Path, PathBuf},
+    sync::{Arc, Mutex},
+    time::Duration,
 };
 
 impl PublishArgs {
-    /// Publish every package the `--filter` selectors select, in dependency
-    /// order. Git checks have already run once for the workspace in
-    /// [`PublishArgs::run`]; each per-package publish runs with git checks off.
+    /// Pack every project in dependency order, then publish the archives
+    /// as one batch.
+    async fn publish_batch<Reporter: self::Reporter>(
+        &self,
+        config: &Config,
+        opts: &pnpm_publish::PublishPackedPkgOptions,
+        network: &PublishNetwork<'_>,
+        before_packing_hooks: &[Arc<dyn PnpmfileHooks>],
+        to_publish: &HashSet<PathBuf>,
+        project_dependencies: &indexmap::IndexMap<PathBuf, Vec<PathBuf>>,
+    ) -> miette::Result<Vec<PublishSummary>> {
+        let mut packed = Vec::with_capacity(to_publish.len());
+        let edges = project_dependencies
+            .iter()
+            .map(|(root, dependencies)| (root.clone(), dependencies.clone()))
+            .collect();
+        let order = graph_sequencer(
+            &edges,
+            &project_dependencies
+                .keys()
+                .cloned()
+                .collect::<Vec<_>>(),
+        )
+        .order;
+        for root in order
+            .into_iter()
+            .filter(|root| to_publish.contains(root))
+        {
+            packed.push(
+                self.pack_directory::<Reporter>(&root, config, before_packing_hooks).await?,
+            );
+        }
+        let packages = packed
+            .iter()
+            .map(|package| package.packed_pkg())
+            .collect::<Vec<_>>();
+        batch_publish_packed_pkgs::<Reporter, _, miette::Report>(
+            &packages,
+            opts,
+            network,
+            |package_indexes| {
+                for &package_index in package_indexes {
+                    self.run_post_publish_scripts::<Reporter>(&packed[package_index], config)?;
+                }
+                Ok(())
+            },
+        )
+        .await
+    }
+
+    async fn publish_selected<Reporter: self::Reporter>(
+        &self,
+        config: &Config,
+        opts: &pnpm_publish::PublishPackedPkgOptions,
+        network: &PublishNetwork<'_>,
+        before_packing_hooks: &[Arc<dyn PnpmfileHooks>],
+        to_publish: &HashSet<PathBuf>,
+        project_dependencies: &indexmap::IndexMap<PathBuf, Vec<PathBuf>>,
+    ) -> miette::Result<Vec<PublishSummary>> {
+        if self.flags.batch {
+            self.publish_batch::<Reporter>(
+                config,
+                opts,
+                network,
+                before_packing_hooks,
+                to_publish,
+                project_dependencies,
+            )
+            .await
+        } else {
+            self.publish_one_by_one::<Reporter>(
+                config,
+                opts,
+                network,
+                before_packing_hooks,
+                to_publish,
+                project_dependencies,
+            )
+            .await
+        }
+    }
+
+    fn checked_recursive_publish_options(
+        &self,
+        config: &Config,
+        stage: bool,
+    ) -> miette::Result<pnpm_publish::PublishPackedPkgOptions> {
+        let opts = self.publish_options(
+            config,
+            resolve_otp_from_env::<Host>(self.flags.registry.otp.clone()),
+            stage,
+        );
+        if self.flags.batch {
+            validate_batch_publish_options(&opts)?;
+        }
+
+        Ok(opts)
+    }
+
     pub(super) async fn run_recursive<Reporter: self::Reporter>(
         &self,
         dir: &Path,
@@ -70,149 +164,138 @@ impl PublishArgs {
 
         let http_client = build_registry_client(config)?;
         let network = PublishNetwork { client: &http_client, auth_headers: &config.auth_headers };
-        let otp = resolve_otp_from_env::<Host>(self.flags.otp.clone());
-        let opts = self.publish_options(config, otp, stage);
-        if self.flags.batch {
-            validate_batch_publish_options(&opts)?;
-        }
-        let retry_opts = retry_opts_from_config(config);
+        let opts = self.checked_recursive_publish_options(config, stage)?;
 
         // Filter the selected graph: keep only packages that have a name and
         // version, are not private, and — unless `--force` — are not already on
         // their registry. The already-published probes are independent registry
         // reads, so run them concurrently rather than one round-trip at a time
         // (the `ThrottledClient` still bounds the actual in-flight fan-out).
-        let http_client_ref = &http_client;
-        let probes = graph.iter().filter_map(|(root, node)| {
-            let manifest = node.package.project.manifest.value();
-            let (name, version) = publish_eligible(manifest)?;
-            Some(async move {
-                let already = !self.flags.force
-                    && is_already_published(
-                        name,
-                        version,
-                        manifest,
-                        config,
-                        http_client_ref,
-                        retry_opts,
-                    )
-                    .await;
-                (root, already)
-            })
-        });
-        let to_publish: HashSet<PathBuf> = futures_util::future::join_all(probes)
-            .await
-            .into_iter()
-            .filter(|(_, already)| !already)
-            .map(|(root, _)| root.clone())
-            .collect();
+        let to_publish =
+            self.projects_to_publish(graph, config, &http_client, retry_opts_from_config(config))
+                .await;
 
         if to_publish.is_empty() {
             emit_info::<Reporter>("There are no new packages that should be published", dir);
-            if self.flags.report_summary {
-                write_publish_summary(workspace_root, &[])?;
-            }
+            self.write_summary(workspace_root, &[])?;
             return Ok(Vec::new());
         }
 
-        // Publishing cannot run
-        // concurrently: an OTP challenge is interactive and per-process.
         let project_dependencies = filtered_projects_dependencies(
             graph,
             selection.full_graph(),
             selection.prod_all.as_ref(),
             &selection.prod_only_selected,
         );
-        if self.flags.batch {
-            let mut packed = Vec::with_capacity(to_publish.len());
-            let edges = project_dependencies
-                .iter()
-                .map(|(root, dependencies)| (root.clone(), dependencies.clone()))
-                .collect();
-            for root in
-                graph_sequencer(&edges, &project_dependencies.keys().cloned().collect::<Vec<_>>())
-                    .order
-            {
-                if to_publish.contains(&root) {
-                    packed.push(
-                        self.pack_directory::<Reporter>(&root, config, before_packing_hooks)
-                            .await?,
-                    );
-                }
-            }
-            let packages = packed.iter().map(|package| package.packed_pkg()).collect::<Vec<_>>();
-            let published = batch_publish_packed_pkgs::<Reporter, _, miette::Report>(
-                &packages,
-                &opts,
-                &network,
-                |package_indexes| {
-                    for &package_index in package_indexes {
-                        self.run_post_publish_scripts::<Reporter>(&packed[package_index], config)?;
-                    }
-                    Ok(())
-                },
-            )
-            .await?;
-            if self.flags.report_summary {
-                write_publish_summary(workspace_root, &published)?;
-            }
-            return Ok(published);
-        }
+        let published = self.publish_selected::<Reporter>(
+            config,
+            &opts,
+            &network,
+            before_packing_hooks,
+            &to_publish,
+            &project_dependencies,
+        )
+        .await?;
+        self.write_summary(workspace_root, &published)?;
+        Ok(published)
+    }
+
+    /// Publish in dependency order, one project at a time: an OTP challenge
+    /// is interactive and per-process.
+    async fn publish_one_by_one<Reporter: self::Reporter>(
+        &self,
+        config: &Config,
+        opts: &pnpm_publish::PublishPackedPkgOptions,
+        network: &PublishNetwork<'_>,
+        before_packing_hooks: &[Arc<dyn PnpmfileHooks>],
+        to_publish: &HashSet<PathBuf>,
+        project_dependencies: &indexmap::IndexMap<PathBuf, Vec<PathBuf>>,
+    ) -> miette::Result<Vec<PublishSummary>> {
         let published: Mutex<Vec<PublishSummary>> = Mutex::new(Vec::new());
         let first_error: Mutex<Option<miette::Report>> = Mutex::new(None);
         let run_node = |root: PathBuf| {
-            let command = self;
-            let to_publish = &to_publish;
-            let opts = &opts;
-            let network = &network;
             let published = &published;
             let first_error = &first_error;
             async move {
                 if !to_publish.contains(&root) {
                     return TaskCompletion::Passed;
                 }
-                match command
-                    .publish_directory::<Reporter>(
-                        &root,
-                        config,
-                        opts,
-                        network,
-                        before_packing_hooks,
-                    )
-                    .await
-                {
-                    Ok(summary) => {
-                        published
-                            .lock()
-                            .expect("publish results lock is not poisoned")
-                            .push(summary);
-                        TaskCompletion::Passed
-                    }
-                    Err(error) => {
-                        first_error
-                            .lock()
-                            .expect("publish error lock is not poisoned")
-                            .get_or_insert(error);
-                        TaskCompletion::Failed
-                    }
-                }
+                let result = self.publish_directory::<Reporter>(
+                    &root,
+                    config,
+                    opts,
+                    network,
+                    before_packing_hooks,
+                )
+                .await;
+                record_publish_outcome(published, first_error, result)
             }
         };
         let on_node_skipped: fn(&PathBuf) = |_| {};
         schedule_graph_async(
-            &project_dependencies,
+            project_dependencies,
             &ScheduleGraphAsyncOptions::new(1, true, &run_node, &on_node_skipped),
         )
         .await;
         if let Some(error) = first_error.into_inner().expect("publish error lock is not poisoned") {
             return Err(error);
         }
-        let published = published.into_inner().expect("publish results lock is not poisoned");
+        Ok(published.into_inner().expect("publish results lock is not poisoned"))
+    }
+    /// The selected projects that should be published: those with a name
+    /// and version, not private, and — unless `--force` — not already on
+    /// their registry.
+    ///
+    /// The already-published probes are independent registry reads, so
+    /// they run concurrently rather than one round trip at a time (the
+    /// `ThrottledClient` still bounds the actual in-flight fan-out).
+    async fn projects_to_publish(
+        &self,
+        graph: &pnpm_workspace_projects_filter::ProjectGraph<pnpm_workspace::GraphPkg<'_>>,
+        config: &Config,
+        http_client: &pnpm_network::ThrottledClient,
+        retry_opts: pnpm_network::RetryOpts,
+    ) -> HashSet<PathBuf> {
+        let probes = graph
+            .iter()
+            .filter_map(|(root, node)| {
+                let manifest = node.package.project.manifest.value();
+                let (name, version) = publish_eligible(manifest)?;
+                Some(async move {
+                    let already = !self.flags.force
+                        && is_already_published(
+                            name,
+                            version,
+                            manifest,
+                            config,
+                            http_client,
+                            retry_opts,
+                        )
+                        .await;
+                    (root, already)
+                })
+            });
+        futures_util::future::join_all(probes).await
+            .into_iter()
+            .filter(|(_, already)| !already)
+            .map(|(root, _)| root.clone())
+            .collect()
+    }
 
-        if self.flags.report_summary {
-            write_publish_summary(workspace_root, &published)?;
+    /// Publish every package the `--filter` selectors select, in dependency
+    /// order. Git checks have already run once for the workspace in
+    /// [`PublishArgs::run`]; each per-package publish runs with git checks off.
+    /// `--report-summary` writes what the run published to the workspace
+    /// root.
+    fn write_summary(
+        &self,
+        workspace_root: &Path,
+        published: &[PublishSummary],
+    ) -> miette::Result<()> {
+        if !self.flags.output.report_summary {
+            return Ok(());
         }
-        Ok(published)
+        write_publish_summary(workspace_root, published)
     }
 }
 
@@ -222,7 +305,11 @@ impl PublishArgs {
 /// the one the registry knows — the `publishConfig.name` rename, when the
 /// project has one — since it is only used to address the registry.
 fn publish_eligible(manifest: &Value) -> Option<(&str, &str)> {
-    if manifest.get("private").and_then(Value::as_bool).unwrap_or(false) {
+    if manifest
+        .get("private")
+        .and_then(Value::as_bool)
+        .unwrap_or(false)
+    {
         return None;
     }
     let name = manifest.get("name").and_then(Value::as_str)?;
@@ -258,12 +345,14 @@ async fn is_already_published(
         name,
         &FetchFullMetadataOptions {
             registry: registry.as_str(),
-            http_client,
-            auth_headers: &config.auth_headers,
             full_metadata: false,
             etag: None,
             modified: None,
-            retry_opts,
+            http: pnpm_resolving_npm_resolver::MetadataHttpClient {
+                http_client,
+                auth_headers: &config.auth_headers,
+                retry_opts,
+            },
         },
     )
     .await;
@@ -306,3 +395,28 @@ fn emit_info<Reporter: self::Reporter>(message: &str, prefix: &Path) {
 
 #[cfg(test)]
 mod tests;
+
+/// Record one project's publish. The run does not bail, so a failure
+/// only fails that project; the first error is the one reported.
+fn record_publish_outcome(
+    published: &Mutex<Vec<PublishSummary>>,
+    first_error: &Mutex<Option<miette::Report>>,
+    result: miette::Result<PublishSummary>,
+) -> TaskCompletion {
+    match result {
+        Ok(summary) => {
+            published
+                .lock()
+                .expect("publish results lock is not poisoned")
+                .push(summary);
+            TaskCompletion::Passed
+        }
+        Err(error) => {
+            first_error
+                .lock()
+                .expect("publish error lock is not poisoned")
+                .get_or_insert(error);
+            TaskCompletion::Failed
+        }
+    }
+}

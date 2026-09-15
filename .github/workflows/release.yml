@@ -268,10 +268,14 @@ jobs:
       - uses: garnet-org/action@3d47f4a9004f7356c980a0e8d420ef5984750e3c # v2.2.0
         with:
           api_token: ${{ secrets.GARNET_API_TOKEN }}
+      - name: Initialize Rust before dependency installation
+        uses: $/.github/actions/rustup
+        with:
+          restore-cache: false
       - name: Install pnpm and Node
         uses: pnpm/setup@703c52620218391530e48b9e8870d5c0082e1b9b # v2.1.0
         with:
-          runtime: node@26.8.1
+          runtime: node@26.8.2
       - name: Build TypeScript executable artifacts
         run: pn --filter=@pnpm/exe run build-artifacts
 
@@ -422,10 +426,14 @@ jobs:
       - uses: garnet-org/action@3d47f4a9004f7356c980a0e8d420ef5984750e3c # v2.2.0
         with:
           api_token: ${{ secrets.GARNET_API_TOKEN }}
+      - name: Initialize Rust before dependency installation
+        uses: $/.github/actions/rustup
+        with:
+          restore-cache: false
       - name: Install pnpm and Node
         uses: pnpm/setup@703c52620218391530e48b9e8870d5c0082e1b9b # v2.1.0
         with:
-          runtime: node@26.8.1
+          runtime: node@26.8.2
       # Internal workspace packages still publish with the static token. `@pnpm/exe`
       # and `pnpm` use stage-only OIDC. CI stages both packages but cannot approve
       # or publish them; a maintainer does that later with interactive 2FA. Keeping
@@ -530,6 +538,11 @@ jobs:
         with:
           persist-credentials: false
 
+      - name: Initialize Rust before dependency installation
+        uses: $/.github/actions/rustup
+        with:
+          restore-cache: false
+
       - name: Install pnpm and Node
         uses: pnpm/setup@703c52620218391530e48b9e8870d5c0082e1b9b # v2.1.0
         with:
@@ -595,6 +608,30 @@ jobs:
             target: aarch64-unknown-linux-musl
             code-target: linux-arm64-musl
 
+          - os: blacksmith-8vcpu-ubuntu-2404
+            target: riscv64gc-unknown-linux-gnu
+            code-target: linux-riscv64
+
+          - os: blacksmith-8vcpu-ubuntu-2404
+            target: powerpc64le-unknown-linux-gnu
+            code-target: linux-ppc64
+
+          - os: blacksmith-8vcpu-ubuntu-2404
+            target: s390x-unknown-linux-gnu
+            code-target: linux-s390x
+
+          - os: blacksmith-8vcpu-ubuntu-2404
+            target: x86_64-unknown-freebsd
+            code-target: freebsd-x64
+
+          - os: blacksmith-8vcpu-ubuntu-2404
+            target: aarch64-linux-android
+            code-target: android-arm64
+
+          - os: blacksmith-8vcpu-ubuntu-2404
+            target: x86_64-linux-android
+            code-target: android-x64
+
           - os: blacksmith-12vcpu-macos-latest
             target: x86_64-apple-darwin
             code-target: darwin-x64
@@ -611,13 +648,21 @@ jobs:
           persist-credentials: false
 
       - name: Prepare the release target
-        uses: ./.github/actions/rust-release-target
+        uses: $/.github/actions/rust-release-target
         with:
           target: ${{ matrix.target }}
           version: ${{ needs.plan.outputs.rust_version }}
 
+      - name: Install crates
+        uses: $/.github/actions/install-crates
+        with:
+          container-build: 'true'
+
       - name: Build with cross
-        run: cross build --locked -p pnpm-cli --bin pnpm --release --target=${{ matrix.target }}
+        shell: bash
+        env:
+          TARGET: ${{ matrix.target }}
+        run: .github/scripts/cross-build.sh --locked -p pnpm-cli --bin pnpm --release --target="$TARGET"
 
       - name: Download node-gyp payload
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
@@ -708,6 +753,30 @@ jobs:
             target: aarch64-unknown-linux-musl
             code-target: linux-arm64-musl
 
+          - os: blacksmith-8vcpu-ubuntu-2404
+            target: riscv64gc-unknown-linux-gnu
+            code-target: linux-riscv64
+
+          - os: blacksmith-8vcpu-ubuntu-2404
+            target: powerpc64le-unknown-linux-gnu
+            code-target: linux-ppc64
+
+          - os: blacksmith-8vcpu-ubuntu-2404
+            target: s390x-unknown-linux-gnu
+            code-target: linux-s390x
+
+          - os: blacksmith-8vcpu-ubuntu-2404
+            target: x86_64-unknown-freebsd
+            code-target: freebsd-x64
+
+          - os: blacksmith-8vcpu-ubuntu-2404
+            target: aarch64-linux-android
+            code-target: android-arm64
+
+          - os: blacksmith-8vcpu-ubuntu-2404
+            target: x86_64-linux-android
+            code-target: android-x64
+
           - os: blacksmith-12vcpu-macos-latest
             target: x86_64-apple-darwin
             code-target: darwin-x64
@@ -724,10 +793,15 @@ jobs:
           persist-credentials: false
 
       - name: Prepare the release target
-        uses: ./.github/actions/rust-release-target
+        uses: $/.github/actions/rust-release-target
         with:
           target: ${{ matrix.target }}
           version: ${{ needs.plan.outputs.rust_version }}
+
+      - name: Install crates
+        uses: $/.github/actions/install-crates
+        with:
+          container-build: 'true'
 
       - name: Build NAPI addon with cross
         # musl targets enable `crt-static` by default, but a `cdylib` (the
@@ -747,7 +821,7 @@ jobs:
           if [[ "$TARGET" == *musl* ]]; then
             export RUSTFLAGS="-C target-feature=-crt-static"
           fi
-          cross build --locked -p pnpm-napi --profile napi-release --target="$TARGET"
+          .github/scripts/cross-build.sh --locked -p pnpm-napi --profile napi-release --target="$TARGET"
 
       - name: Prepare NAPI addon
         shell: bash
@@ -910,7 +984,8 @@ jobs:
           tar -xzf "$wrapper_tarball" \
             -C "$smoke_dir/node_modules/pnpm" --strip-components=1
           node "$smoke_dir/node_modules/pnpm/install.js"
-          "$smoke_dir/node_modules/pnpm/pnpm" --version
+          wrapper_bin=$(node -p 'require(process.argv[1]).bin.pnpm' "$smoke_dir/node_modules/pnpm/package.json")
+          "$smoke_dir/node_modules/pnpm/$wrapper_bin" --version
           # Corepack's entry point into the same tarball; it never runs
           # install.js, so its only job here is to prove it was published and
           # can reach the binary.
@@ -1142,7 +1217,7 @@ jobs:
           persist-credentials: false
 
       - name: Install cross
-        uses: taiki-e/install-action@1ed6d7be6168f6c9046541087ff549b6bc581fdf # v2.87.2
+        uses: taiki-e/install-action@3f74d7c16a4242f1c95561e98edc25d36adb4375 # v2.87.12
         with:
           tool: cross
 
@@ -1200,8 +1275,16 @@ jobs:
           VERSION: ${{ needs.plan.outputs.pnpr_version }}
         run: grep -E "^version\s*=\s*\"$VERSION\"" pnpr/crates/pnpr/Cargo.toml
 
+      - name: Install crates
+        uses: $/.github/actions/install-crates
+        with:
+          container-build: 'true'
+
       - name: Build with cross
-        run: cross build --locked -p pnpr --bin pnpr --release --target=${{ matrix.target }}
+        shell: bash
+        env:
+          TARGET: ${{ matrix.target }}
+        run: .github/scripts/cross-build.sh --locked -p pnpr --bin pnpr --release --target="$TARGET"
 
       # The binary is zipped to fix permission loss https://github.com/actions/upload-artifact#permission-loss
       # Rename the binary to include the target triple so the archive
@@ -1493,10 +1576,10 @@ jobs:
           } >> "$GITHUB_OUTPUT"
 
       - name: Set up QEMU
-        uses: docker/setup-qemu-action@96fe6ef7f33517b61c61be40b68a1882f3264fb8 # v4.2.0
+        uses: docker/setup-qemu-action@99012661954931238ded8c8b007157a8430204e1 # v4.4.0
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@37fe631027851001ddb9b187196cc803df7f5f0e # v4.3.0
+        uses: docker/setup-buildx-action@594f3bf4285d9ea8dc53c9a0c9c4092420091003 # v4.4.0
 
       - name: Login to GHCR
         uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
@@ -1506,7 +1589,7 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Build and push
-        uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7.3.0
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
         with:
           context: ./pnpr/docker
           platforms: linux/amd64,linux/arm64

@@ -57,6 +57,31 @@ packages:
   - '!**/test/**'
   - '!pnpm11/resolving/local-resolver/example-package/**'
 
+# Every `ci:*` script lives in the root manifest only, so the workflows run
+# these pipelines with `--include-workspace-root --full`; the test runners do
+# their own package selection and file sharding. The workflows also pass
+# `--no-cache`: no task declares `outputs`, so none is cacheable today, and the
+# flag keeps a check from being skipped if one ever does.
+pipelines:
+  ts-check: [ci:compile, ci:lint]
+  # Named after the scripts they run: the test workflow passes one value as both
+  # the pipeline name and the `TEST_SCRIPT` the chunk runner re-runs.
+  ci:test-all: [ci:test-all]
+  ci:test-branch: [ci:test-branch]
+  ts-test-chunk: [ci:test-chunk]
+  rust-test: [ci:rust-test]
+  pnpr-test: [ci:pnpr-test]
+  rust-clippy: [ci:rust-clippy]
+  rust-doc: [ci:rust-doc]
+  rust-deny: [ci:rust-deny]
+  rust-format: [ci:rust-fmt, ci:toml-fmt]
+  rust-dylint: [ci:rust-dylint]
+  build-pnpr: [ci:build-pnpr]
+
+tasks:
+  ci:lint:
+    dependsOn: [ci:compile]
+
 # Native workspace release management (consumed by `pnpm change` / `pnpm version -r`).
 # The Rust CLI wrapper is the workspace package `pacquet` (published to npm as
 # `pnpm`); generate-packages.mjs rewrites the name at pack time.
@@ -69,10 +94,27 @@ versioning:
   # freeze @pnpm/logger from the automated release: it is bumped out of band.
   ignore:
     - '@pnpm/logger'
-  # The Rust CLI wrapper and its NAPI addon always release in lockstep at one
-  # shared version.
+  # Groups that always release together at one shared version:
+  #   - the Rust CLI wrapper and its NAPI addon;
+  #   - the pnpm CLI with its prebuilt executable (@pnpm/exe) and the
+  #     per-platform binary packages under pnpm11/pnpm/artifacts/. Those ship the
+  #     same build and must carry the CLI's exact version.
   fixed:
     - [ 'pacquet', '@pnpm/napi' ]
+    - [ 'pnpm', '@pnpm/exe', '@pnpm/macos-arm64', '@pnpm/linux-arm64', '@pnpm/linuxstatic-arm64', '@pnpm/linux-x64', '@pnpm/linuxstatic-x64', '@pnpm/win-arm64', '@pnpm/win-x64' ]
+  # The TypeScript CLI (`pnpm`) leads an epic that bands every library package
+  # under pnpm11/ to the CLI's major: while `pnpm` is on major 11 the libraries
+  # live in majors 1100-1199. Members move independently inside the band (patch,
+  # minor, and an in-band major); the release engine rejects a bump that would
+  # carry one past the band ceiling, and re-bases every member to the next band
+  # floor when the CLI crosses to a new stable major. The built release
+  # artifacts under pnpm11/pnpm/artifacts/ are excluded from the band — they ride
+  # the CLI's exact version through the fixed group above.
+  epics:
+    - lead: pnpm
+      packages:
+        - './pnpm11/**'
+        - '!./pnpm11/pnpm/artifacts/**'
   lanes:
     '@pnpm/pnpr': alpha
 
@@ -92,10 +134,18 @@ auditConfig:
     - GHSA-ffrw-9mx8-89p8
     - GHSA-mh29-5h37-fv8m
     - GHSA-w5hq-g745-h8pq
+    # GHSA-vwc7-r8mq-g2x9: adm-zip follows pre-existing destination symlinks during
+    # extraction. No patched adm-zip release exists. @pnpm/fetching.binary-fetcher
+    # extracts into a freshly created randomly named directory, so there is no
+    # predictable path at which a symlink can be planted.
+    - GHSA-vwc7-r8mq-g2x9
     # GHSA-h67p-54hq-rp68: js-yaml quadratic-complexity DoS in merge key handling.
     # Patched only in >=4.1.2 with no v3 fix; @yarnpkg/parsers requires the js-yaml 3
     # API (yaml.safeLoad), so its transitive js-yaml cannot be upgraded.
     - GHSA-h67p-54hq-rp68
+
+cargo:
+  enabled: true
 
 catalog:
   # @babel/core 8.x (and its plugins) require Node.js ^22.18.0 || >=24.11.0,
@@ -107,7 +157,7 @@ catalog:
   '@commitlint/prompt-cli': ^21.2.2
   '@cyclonedx/cyclonedx-library': 10.2.0
   '@eslint/js': ^10.0.1
-  '@inquirer/prompts': ^8.7.0
+  '@inquirer/prompts': ^8.7.2
   # Jest 30.5.0 breaks ESM package imports in the Jest runtime.
   '@jest/globals': 30.4.1
   '@npm/types': ^2.1.0
@@ -127,7 +177,7 @@ catalog:
   '@pnpm/tabtab': ^0.5.4
   '@pnpm/tgz-fixtures': 0.0.0
   '@reflink/reflink': 0.1.19
-  '@rushstack/worker-pool': 0.7.25
+  '@rushstack/worker-pool': 0.7.26
   '@stylistic/eslint-plugin': ^5.10.0
   '@types/adm-zip': ^0.5.8
   '@types/archy': 0.0.36
@@ -168,18 +218,17 @@ catalog:
   '@types/write-file-atomic': ^4.0.3
   '@types/yarnpkg__lockfile': ^1.1.9
   '@types/zkochan__table': npm:@types/table@6.3.2
-  '@typescript-eslint/utils': ^8.68.0
+  '@typescript-eslint/utils': ^8.70.0
   '@typescript/native-preview': 7.0.0-dev.20260707.2
   '@yarnpkg/core': 4.9.1
   '@yarnpkg/extensions': 2.0.7
   '@yarnpkg/lockfile': ^1.1.0
   '@yarnpkg/nm': 4.1.1
   '@yarnpkg/pnp': ^4.1.7
-  '@zkochan/cmd-shim': ^9.0.7
   '@zkochan/retry': ^0.2.0
   '@zkochan/rimraf': ^4.0.0
   '@zkochan/table': ^2.0.1
-  adm-zip: ^0.6.0
+  adm-zip: ^0.6.1
   amaro: ^1.1.11
   ansi-diff: ^1.2.0
   archy: ^1.0.0
@@ -217,12 +266,11 @@ catalog:
   dint: ^5.1.0
   dir-is-case-sensitive: ^3.0.0
   empathic: ^2.0.1
-  encode-registry: ^3.0.1
   esbuild: ^0.28.2
   escape-string-regexp: ^5.0.0
-  eslint: ^10.9.1
+  eslint: ^10.10.0
   eslint-plugin-import-x: ^4.17.1
-  eslint-plugin-jest: ^29.16.5
+  eslint-plugin-jest: ^29.16.6
   eslint-plugin-n: ^18.3.0
   eslint-plugin-promise: ^7.3.0
   eslint-plugin-regexp: ^3.1.1
@@ -235,7 +283,7 @@ catalog:
   fuse-native: ^2.2.6
   # Bundled into the pnpm 12 wrapper's dist/ payload, where the Corepack entry
   # point loads it from; see pnpm/npm/pnpm/bin/pnpm.mjs.
-  get-pnpm: ^0.0.3
+  get-pnpm: ^0.0.5
   get-port: ^7.2.0
   ghooks: 2.0.4
   graceful-fs: ^4.2.11
@@ -269,6 +317,7 @@ catalog:
   lru-cache: ^11.5.2
   make-empty-dir: ^4.0.0
   mdast-util-to-string: ^4.0.0
+  memfs: ^4.78.0
   memoize: ^11.0.0
   micromatch: ^4.0.8
   msgpackr: 2.1.0
@@ -289,13 +338,13 @@ catalog:
   # above pnpm's supported floor of Node.js >=22.13.
   npm-registry-fetch: ^19.0.0
   object-hash: 3.0.0
-  open: ^11.0.2
+  open: ^11.0.3
   openpgp: ^6.3.1
   '@openpgp/web-stream-tools': 0.3.1
   p-defer: ^4.0.1
   p-every: ^2.0.0
   p-filter: ^4.1.0
-  p-limit: ^7.3.1
+  p-limit: ^7.3.2
   p-queue: ^9.3.3
   parse-json: ^8.3.0
   parse-npm-tarball-url: ^5.0.0
@@ -305,7 +354,7 @@ catalog:
   path-temp: ^3.0.0
   pidtree: ^1.0.0
   preferred-pm: ^5.0.0
-  pretty-bytes: ^7.1.2
+  pretty-bytes: ^7.1.3
   pretty-ms: ^9.3.1
   promise-share: ^2.0.1
   proxyquire: ^2.1.3
@@ -332,7 +381,7 @@ catalog:
   semver-utils: ^1.1.4
   shlex: ^3.0.0
   shx: ^0.4.0
-  socks: ^2.8.9
+  socks: ^2.8.10
   sort-keys: ^6.0.1
   split-cmd: ^1.1.0
   split2: ^4.2.0
@@ -360,7 +409,7 @@ catalog:
   # yet (https://github.com/typescript-eslint/typescript-eslint/issues/10940); the
   # 7.x compiler ships separately as @typescript/native-preview (tsgo).
   typescript: 6.0.3
-  typescript-eslint: ^8.68.0
+  typescript-eslint: ^8.70.0
   # undici 8.x requires Node.js >=22.19.0, above pnpm's supported floor of
   # Node.js >=22.13.
   undici: ^7.29.0
@@ -379,7 +428,7 @@ catalog:
   write-json5-file: ^4.0.0
   write-package: 7.2.0
   write-yaml-file: ^6.0.0
-  yaml: ^2.9.0
+  yaml: ^2.9.1
   yaml-tag: 1.1.0
 
 catalogMode: strict
@@ -433,7 +482,6 @@ minimumReleaseAgeExclude:
   - write-json5-file
   - write-yaml-file
   - http-proxy-middleware@3.0.7
-  - get-pnpm@0.0.3
 
 minimumReleaseAgeExcludePrune: true
 
@@ -526,11 +574,11 @@ trustPolicy: no-downgrade
 trustPolicyExclude:
   - '@pnpm/*'
   - '@yarnpkg/libzip@3.2.2'
-  - fastq@1.20.2
   - pnpm
   - rxjs@7.8.2
-  - tinyexec@1.2.2
   - undici-types@6.21.0
+
+trustPolicyExcludePrune: true
 
 trustPolicyIgnoreAfter: 10080 # 1 week
 

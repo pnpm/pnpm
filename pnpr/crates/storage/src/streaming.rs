@@ -1,4 +1,4 @@
-//! Streaming helpers for the tarball path.
+//! Streaming helpers for the blob path.
 //!
 //! Three flows live here:
 //!
@@ -9,16 +9,17 @@
 //!   temp file for mirror-less pass-through.
 //! * [`stream_file`] yields an already verified file to the response.
 
-use crate::TarballWrite;
+use crate::BlobWrite;
 use axum::body::{Body, Bytes};
 use futures_util::{Stream, StreamExt, stream};
+use pnpm_network::ThrottledResponse;
 use ssri::{Integrity, IntegrityChecker};
 use std::{io, path::PathBuf, pin::Pin};
 use tokio::{fs::File, io::AsyncReadExt};
 
 /// Chunk size for reading from a cached file. 64 KiB keeps syscall
 /// overhead low without buffering a meaningful fraction of a
-/// multi-MB tarball.
+/// multi-MB blob.
 const READ_CHUNK: usize = 64 * 1024;
 
 pub fn parse_integrity(value: &str) -> Result<Integrity, ssri::Error> {
@@ -42,8 +43,8 @@ pub fn integrity_checker(integrity: &Integrity) -> Result<IntegrityChecker, ssri
 }
 
 #[derive(Debug)]
-pub enum TarballStreamError {
-    Upstream { url: String, source: reqwest::Error },
+pub enum BlobStreamError {
+    Upstream { url: String, source: io::Error },
     Io(io::Error),
     Integrity(ssri::Error),
     TooLarge { limit: u64, received: u64 },
@@ -54,28 +55,24 @@ pub enum TarballStreamError {
 /// wait for the whole download to land and verify first — and the cache entry
 /// is promoted only once the declared SRI matches the full body.
 ///
-/// SRI can only be checked after the last byte, by which point the body has
-/// already been streamed, so a mismatch can't be turned into an error
-/// response. The guarantees that remain are the ones that matter: a
-/// mismatched (or truncated, or oversize) body is never promoted to the cache,
-/// so it can't poison a future client, and every install client re-verifies
-/// what it received against its own expected integrity and rejects bad bytes.
-/// On any such failure — or a dropped client connection — the temp file is
-/// abandoned (and [`TarballWrite`]'s `Drop` removes it as a backstop).
+/// Integrity failures terminate the body with a stream error and abandon the
+/// temporary cache file. Headers and earlier chunks may already have reached
+/// the client, so clients must still verify the received bytes. Dropping the
+/// connection also abandons the temporary file through [`BlobWrite`]'s `Drop`.
 pub fn stream_verified_to_cache(
-    response: reqwest::Response,
-    write: TarballWrite,
+    response: ThrottledResponse,
+    write: BlobWrite,
     integrity: &Integrity,
     max_bytes: u64,
-) -> Result<Body, TarballStreamError> {
+) -> Result<Body, BlobStreamError> {
     // Reject an upstream that already declares an oversize body up front, so it
     // surfaces as an error response instead of a failure mid-stream.
     if let Some(received) = response.content_length()
         && received > max_bytes
     {
-        return Err(TarballStreamError::TooLarge { limit: max_bytes, received });
+        return Err(BlobStreamError::TooLarge { limit: max_bytes, received });
     }
-    let checker = integrity_checker(integrity).map_err(TarballStreamError::Integrity)?;
+    let checker = integrity_checker(integrity).map_err(BlobStreamError::Integrity)?;
     let state = TeeState {
         url: redact_url(response.url()),
         upstream: Box::pin(response.bytes_stream()),
@@ -84,74 +81,88 @@ pub fn stream_verified_to_cache(
         written: 0,
         max_bytes,
     };
-    let body = stream::unfold(Some(state), |state| async move {
-        let mut state = state?;
-        match state.upstream.next().await {
-            Some(Ok(chunk)) => {
-                let received = state.written.saturating_add(chunk.len() as u64);
-                if received > state.max_bytes {
-                    let limit = state.max_bytes;
-                    tracing::warn!(
-                        url = %state.url,
-                        received,
-                        limit,
-                        "proxied tarball exceeded the size limit mid-stream",
-                    );
-                    abandon(state.write.take()).await;
-                    return Some((
-                        Err(io::Error::other(format!("tarball exceeds {limit} bytes"))),
-                        None,
-                    ));
-                }
-                if let Some(mut write) = state.write.take() {
-                    // The cache is best-effort: if the temp write fails, stop
-                    // caching but keep streaming to the client.
-                    match write.write_all(&chunk).await {
-                        Ok(()) => state.write = Some(write),
-                        Err(err) => {
-                            tracing::warn!(
-                                ?err,
-                                "tarball cache write failed; serving without caching",
-                            );
-                            write.abandon().await;
-                        }
-                    }
-                }
-                state.checker.input(&chunk);
-                state.written = received;
-                Some((Ok(chunk), Some(state)))
-            }
-            Some(Err(source)) => {
-                tracing::warn!(url = %state.url, ?source, "upstream tarball stream failed mid-download");
-                abandon(state.write.take()).await;
-                Some((Err(io::Error::other(source)), None))
-            }
-            None => {
-                match state.checker.result() {
-                    Ok(_) => finalize(state.write.take()).await,
-                    Err(err) => {
-                        tracing::warn!(url = %state.url, ?err, "proxied tarball failed integrity; not caching it");
-                        abandon(state.write.take()).await;
-                    }
-                }
-                None
-            }
-        }
-    });
+    let body = stream::unfold(Some(state), |state| async move { next_tee_chunk(state?).await });
     Ok(Body::from_stream(body))
 }
 
-/// Promote a fully-streamed, SRI-matched tarball to the cache, logging (not
-/// failing — the client already has the bytes) if the rename can't complete.
-async fn finalize(write: Option<TarballWrite>) {
-    if let Some(write) = write
-        && let Err(err) = write.finalize().await
-    {
-        tracing::warn!(?err, "promoting verified tarball to cache failed");
+/// Advance the tee by one upstream chunk.
+async fn next_tee_chunk(mut state: TeeState) -> Option<(io::Result<Bytes>, Option<TeeState>)> {
+    match state.upstream.next().await {
+        Some(Ok(chunk)) => forward_chunk(state, chunk).await,
+        Some(Err(source)) => {
+            tracing::warn!(url = %state.url, ?source, "upstream blob stream failed mid-download");
+            abandon(state.write.take()).await;
+            Some((Err(io::Error::other(source)), None))
+        }
+        None => finish_tee(state).await,
     }
 }
 
-async fn abandon(write: Option<TarballWrite>) {
+/// Forward one chunk to the client, cache it best-effort, and count it against
+/// the size limit.
+async fn forward_chunk(
+    mut state: TeeState,
+    chunk: Bytes,
+) -> Option<(io::Result<Bytes>, Option<TeeState>)> {
+    let received = state.written.saturating_add(chunk.len() as u64);
+    if received > state.max_bytes {
+        let limit = state.max_bytes;
+        tracing::warn!(
+            url = %state.url,
+            received,
+            limit,
+            "proxied blob exceeded the size limit mid-stream",
+        );
+        abandon(state.write.take()).await;
+        return Some((Err(io::Error::other(format!("blob exceeds {limit} bytes"))), None));
+    }
+    state.write = cache_chunk(state.write.take(), &chunk).await;
+    state.checker.input(&chunk);
+    state.written = received;
+    Some((Ok(chunk), Some(state)))
+}
+
+/// Write one chunk to the cache. The cache is best-effort: if the temp write
+/// fails, stop caching but keep streaming to the client.
+async fn cache_chunk(write: Option<BlobWrite>, chunk: &[u8]) -> Option<BlobWrite> {
+    let mut write = write?;
+    match write.write_all(chunk).await {
+        Ok(()) => Some(write),
+        Err(err) => {
+            tracing::warn!(?err, "blob cache write failed; serving without caching");
+            write.abandon().await;
+            None
+        }
+    }
+}
+
+/// The upstream ended: promote the blob to the cache only if it matched the
+/// integrity it was fetched under.
+async fn finish_tee(mut state: TeeState) -> Option<(io::Result<Bytes>, Option<TeeState>)> {
+    match state.checker.result() {
+        Ok(_) => {
+            finalize(state.write.take()).await;
+            None
+        }
+        Err(err) => {
+            tracing::warn!(url = %state.url, ?err, "proxied blob failed integrity; not caching it");
+            abandon(state.write.take()).await;
+            Some((Err(io::Error::other(err)), None))
+        }
+    }
+}
+
+/// Promote a fully-streamed, SRI-matched blob to the cache, logging (not
+/// failing — the client already has the bytes) if the rename can't complete.
+async fn finalize(write: Option<BlobWrite>) {
+    if let Some(write) = write
+        && let Err(err) = write.finalize().await
+    {
+        tracing::warn!(?err, "promoting verified blob to cache failed");
+    }
+}
+
+async fn abandon(write: Option<BlobWrite>) {
     if let Some(write) = write {
         write.abandon().await;
     }
@@ -172,68 +183,68 @@ fn redact_url(url: &reqwest::Url) -> String {
 /// stream, the cache writer (dropped once caching is abandoned), the running
 /// SRI checker, and the size budget.
 struct TeeState {
-    /// The upstream tarball URL, kept only to tag failure logs.
+    /// The upstream blob URL, kept only to tag failure logs.
     url: String,
-    upstream: Pin<Box<dyn Stream<Item = reqwest::Result<Bytes>> + Send>>,
-    write: Option<TarballWrite>,
+    upstream: Pin<Box<dyn Stream<Item = io::Result<Bytes>> + Send>>,
+    write: Option<BlobWrite>,
     checker: IntegrityChecker,
     written: u64,
     max_bytes: u64,
 }
 
 pub async fn download_verified_to_temp(
-    response: reqwest::Response,
-    mut write: TarballWrite,
+    response: ThrottledResponse,
+    mut write: BlobWrite,
     integrity: &Integrity,
     max_bytes: u64,
-) -> Result<(File, u64, PathBuf), TarballStreamError> {
+) -> Result<(File, u64, PathBuf), BlobStreamError> {
     if let Err(err) = download_verified(response, &mut write, integrity, max_bytes).await {
         write.abandon().await;
         return Err(err);
     }
-    write.into_temp_file().await.map_err(TarballStreamError::Io)
+    write.into_temp_file().await.map_err(BlobStreamError::Io)
 }
 
 async fn download_verified(
-    response: reqwest::Response,
-    write: &mut TarballWrite,
+    response: ThrottledResponse,
+    write: &mut BlobWrite,
     integrity: &Integrity,
     max_bytes: u64,
-) -> Result<u64, TarballStreamError> {
+) -> Result<u64, BlobStreamError> {
     let url = response.url().to_string();
     if let Some(received) = response.content_length()
         && received > max_bytes
     {
-        return Err(TarballStreamError::TooLarge { limit: max_bytes, received });
+        return Err(BlobStreamError::TooLarge { limit: max_bytes, received });
     }
-    let mut upstream = response.bytes_stream();
-    let mut checker = integrity_checker(integrity).map_err(TarballStreamError::Integrity)?;
+    let mut upstream = Box::pin(response.bytes_stream());
+    let mut checker = integrity_checker(integrity).map_err(BlobStreamError::Integrity)?;
     let mut written = 0u64;
     while let Some(chunk_result) = upstream.next().await {
         let chunk = match chunk_result {
             Ok(chunk) => chunk,
-            Err(source) => return Err(TarballStreamError::Upstream { url, source }),
+            Err(source) => return Err(BlobStreamError::Upstream { url, source }),
         };
         let received = written.saturating_add(chunk.len() as u64);
         if received > max_bytes {
-            return Err(TarballStreamError::TooLarge { limit: max_bytes, received });
+            return Err(BlobStreamError::TooLarge { limit: max_bytes, received });
         }
         if let Err(err) = write.write_all(&chunk).await {
-            return Err(TarballStreamError::Io(err));
+            return Err(BlobStreamError::Io(err));
         }
         checker.input(&chunk);
         written = received;
     }
 
     if let Err(err) = checker.result() {
-        return Err(TarballStreamError::Integrity(err));
+        return Err(BlobStreamError::Integrity(err));
     }
     Ok(written)
 }
 
 /// Stream a cached file as a response body. Caller is responsible for
 /// setting `Content-Length` (from the file metadata it already read).
-pub fn stream_file(file: File) -> Body {
+pub fn stream_file(file: impl tokio::io::AsyncRead + Unpin + Send + 'static) -> Body {
     // Carry the `File` through the unfold *state* (not as a closure
     // capture) so each step owns it, reads, and hands it back. An
     // `FnMut` closure can't move the file across iterations on its
@@ -289,7 +300,7 @@ impl Drop for RemoveOnDropFile {
             Ok(()) => {}
             Err(err) if err.kind() == io::ErrorKind::NotFound => {}
             Err(err) => {
-                tracing::warn!(?err, path = %path.display(), "temporary tarball cleanup failed");
+                tracing::warn!(?err, path = %path.display(), "temporary blob cleanup failed");
             }
         }
     }

@@ -1,3 +1,4 @@
+import fs from 'node:fs'
 import path from 'node:path'
 
 import { describe, expect, jest, test } from '@jest/globals'
@@ -5,11 +6,14 @@ import { createPeerDepGraphHash } from '@pnpm/deps.path'
 import type { MutatedProject, MutateModulesOptions, ProjectOptions } from '@pnpm/installing.deps-installer'
 import type { CatalogSnapshots } from '@pnpm/lockfile.types'
 import { prepareEmpty } from '@pnpm/prepare'
+import { fixtures } from '@pnpm/test-fixtures'
 import { addDistTag } from '@pnpm/testing.registry-mock'
 import type { ProjectId, ProjectManifest, ProjectRootDir } from '@pnpm/types'
 import { loadJsonFileSync } from 'load-json-file'
 
 import { testDefaults } from './utils/index.js'
+
+const f = fixtures(import.meta.dirname)
 
 const originalModule = await import('@pnpm/logger')
 jest.unstable_mockModule('@pnpm/logger', () => {
@@ -1480,6 +1484,80 @@ describe('add', () => {
       importers: { project1: { dependencies: { 'is-positive': { specifier: 'catalog:', version: '1.0.0' } } } },
       packages: { 'is-positive@1.0.0': expect.any(Object) },
     })
+  })
+
+  test('adding a local directory with catalogMode: prefer keeps it out of the catalog', async () => {
+    const { options, projects, readLockfile } = preparePackagesAndReturnObjects([{
+      name: 'project1',
+      dependencies: {},
+    }])
+    const projectDir = path.join(options.lockfileDir, 'project1')
+    for (const name of ['bare-pkg', 'file-pkg']) {
+      fs.mkdirSync(path.join(projectDir, name), { recursive: true })
+      fs.writeFileSync(
+        path.join(projectDir, name, 'package.json'),
+        JSON.stringify({ name, version: '1.0.0' })
+      )
+    }
+
+    // The bare path and the explicit `file:` protocol take different branches
+    // of the shape test, so both are pinned here.
+    const { updatedManifest } = await addDependenciesToPackage(
+      projects['project1' as ProjectId],
+      ['./bare-pkg', 'file:./file-pkg'],
+      {
+        ...options,
+        dir: projectDir,
+        lockfileOnly: true,
+        allowNew: true,
+        catalogs: {
+          default: {},
+        },
+        catalogMode: 'prefer',
+      })
+
+    // A catalog entry is read by every project referencing it, so it cannot
+    // hold a path that resolves against the project declaring it — the catalog
+    // resolver refuses a `link:` / `file:` entry outright.
+    expect(updatedManifest).toEqual({
+      name: 'project1',
+      dependencies: {
+        'bare-pkg': 'link:bare-pkg',
+        'file-pkg': 'file:file-pkg',
+      },
+    })
+    expect(readLockfile().catalogs).toBeUndefined()
+  })
+
+  test('adding a local tarball with catalogMode: prefer keeps it out of the catalog', async () => {
+    const { options, projects, readLockfile } = preparePackagesAndReturnObjects([{
+      name: 'project1',
+      dependencies: {},
+    }])
+    const projectDir = path.join(options.lockfileDir, 'project1')
+    f.copy('pkg-with-bundled-dependencies-1.0.0.tgz', path.join(projectDir, 'local-pkg-1.0.0.tgz'))
+
+    const { updatedManifest } = await addDependenciesToPackage(
+      projects['project1' as ProjectId],
+      ['./local-pkg-1.0.0.tgz'],
+      {
+        ...options,
+        dir: projectDir,
+        lockfileOnly: true,
+        allowNew: true,
+        catalogs: {
+          default: {},
+        },
+        catalogMode: 'prefer',
+      })
+
+    expect(updatedManifest).toEqual({
+      name: 'project1',
+      dependencies: {
+        '@pnpm.e2e/pkg-with-bundled-dependencies': 'file:local-pkg-1.0.0.tgz',
+      },
+    })
+    expect(readLockfile().catalogs).toBeUndefined()
   })
 
   test('adding mismatched version with catalogMode: strict will error', async () => {

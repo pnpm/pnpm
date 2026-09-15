@@ -1,6 +1,6 @@
 use super::{
-    dispatch::{CommandFuture, RunCtx},
-    exec::ExecArgs,
+    dispatch::{CommandFuture, RunCtx, apply_update_config},
+    exec::{ExecArgs, ExecDirs},
     init::InitArgs,
     pkg::PkgArgs,
     restart::RestartArgs,
@@ -16,8 +16,9 @@ use pnpm_package_manifest::{InitAuthor, InitOptions, PackageManifest};
 // manifest-only commands here it dispatches a real future rather than a
 // ready one.
 pub(super) fn init<'a>(ctx: &RunCtx<'a>, args: &InitArgs) -> miette::Result<CommandFuture<'a>> {
-    let config: &Config = (ctx.config)()?;
+    let config: &Config = (ctx.loaders.config)()?;
     let es_module = args.effective_init_type(config) == InitType::Module;
+    let manifest_path = ctx.locations.cli_dir.join("package.json");
     // `config_self_update`, so a repo-controlled `pnpm-workspace.yaml` cannot
     // relax the release-age and trust policies governing the version pnpm
     // ends up downloading. A manifest that is already there skips the lookup
@@ -25,12 +26,11 @@ pub(super) fn init<'a>(ctx: &RunCtx<'a>, args: &InitArgs) -> miette::Result<Comm
     // `pnpm init` should not wait on a registry to report an error it can
     // already see.
     let pin_config: Option<&Config> =
-        if args.pins_pnpm(config, ctx.dir) && !ctx.manifest_path.exists() {
-            Some((ctx.config_self_update)()?)
+        if args.pins_pnpm(config, ctx.locations.cli_dir) && !manifest_path.exists() {
+            Some((ctx.loaders.config_self_update)()?)
         } else {
             None
         };
-    let manifest_path = ctx.manifest_path;
     Ok(Box::pin(async move {
         let pinned_pnpm_version = match pin_config {
             Some(pin_config) => Some(super::init::version_to_pin(pin_config).await),
@@ -47,7 +47,7 @@ pub(super) fn init<'a>(ctx: &RunCtx<'a>, args: &InitArgs) -> miette::Result<Comm
             license: config.init_license.as_deref(),
             version: config.init_version.as_deref(),
         };
-        PackageManifest::init(manifest_path, options).wrap_err("initialize package.json")
+        PackageManifest::init(&manifest_path, options).wrap_err("initialize package.json")
     }))
 }
 
@@ -58,15 +58,15 @@ pub(super) fn set_script<'a>(
     ctx: &RunCtx<'a>,
     args: SetScriptArgs,
 ) -> miette::Result<CommandFuture<'a>> {
-    let result = args.run(ctx.manifest_path);
+    let result = args.run(ctx.locations.manifest_path);
     Ok(Box::pin(std::future::ready(result)))
 }
 
 pub(super) fn pkg<'a>(ctx: &RunCtx<'a>, args: PkgArgs) -> miette::Result<CommandFuture<'a>> {
-    let result = if ctx.recursive {
-        args.run_recursive((ctx.config)()?, ctx.dir)
+    let result = if ctx.workspace.recursive {
+        args.run_recursive((ctx.loaders.config)()?, ctx.locations.dir)
     } else {
-        args.run(ctx.manifest_path)
+        args.run(ctx.locations.manifest_path)
     };
     Ok(Box::pin(std::future::ready(result)))
 }
@@ -79,14 +79,21 @@ pub(super) fn test<'a>(
 }
 
 pub(super) fn run<'a>(ctx: &RunCtx<'a>, args: RunArgs) -> miette::Result<CommandFuture<'a>> {
-    let config = (ctx.config)()?;
-    let args = with_recursive_run_options(ctx, args, config);
-    if ctx.recursive {
-        args.run_recursive(config, ctx.dir, ctx.reporter)?;
-    } else {
-        args.run(ctx.dir, config, ctx.reporter)?;
-    }
-    Ok(Box::pin(std::future::ready(Ok(()))))
+    let config = (ctx.loaders.config)()?;
+    let cli_options = RecursiveCliOptions::from_ctx(ctx);
+    let dir = ctx.locations.dir;
+    let reporter = ctx.reporter;
+    let recursive = ctx.workspace.recursive;
+    Ok(Box::pin(async move {
+        apply_update_config(config, dir, reporter).await?;
+        let config: &'static Config = config;
+        let args = with_recursive_run_options(cli_options, args, config);
+        if recursive {
+            args.run_recursive(config, dir, reporter)
+        } else {
+            args.run(dir, config, reporter)
+        }
+    }))
 }
 
 pub(super) fn fallback<'a>(
@@ -96,57 +103,104 @@ pub(super) fn fallback<'a>(
     let args = RunArgs {
         script: command,
         if_present: false,
-        resume_from: None,
-        report_summary: false,
-        no_bail: false,
-        sort: true,
-        reverse: false,
-        parallel: false,
         sequential: false,
         dry_run: false,
         json: false,
+        workspace: crate::cli_args::recursive::RecursiveExecutionArgs {
+            resume_from: None,
+            report_summary: false,
+            no_bail: false,
+            sort: true,
+            reverse: false,
+            parallel: false,
+        },
     };
-    let config = (ctx.config)()?;
-    let args = with_recursive_run_options(ctx, args, config);
-    if ctx.recursive {
-        args.run_recursive(config, ctx.dir, ctx.reporter)?;
-    } else {
-        args.run_fallback(ctx.dir, config, ctx.reporter)?;
-    }
-    Ok(Box::pin(std::future::ready(Ok(()))))
+    let config = (ctx.loaders.config)()?;
+    let cli_options = RecursiveCliOptions::from_ctx(ctx);
+    let dir = ctx.locations.dir;
+    let cli_dir = ctx.locations.cli_dir;
+    let reporter = ctx.reporter;
+    let recursive = ctx.workspace.recursive;
+    Ok(Box::pin(async move {
+        apply_update_config(config, dir, reporter).await?;
+        let config: &'static Config = config;
+        let args = with_recursive_run_options(cli_options, args, config);
+        if recursive {
+            args.run_recursive(config, dir, reporter)
+        } else {
+            args.run_fallback(ExecDirs { run: cli_dir, project: dir }, config, reporter)
+        }
+    }))
 }
 
 pub(super) fn exec<'a>(ctx: &RunCtx<'a>, args: ExecArgs) -> miette::Result<CommandFuture<'a>> {
-    let config: &'static Config = (ctx.config)()?;
-    let args = with_recursive_exec_options(ctx, args, config);
-    if ctx.recursive {
-        let dir = ctx.dir;
-        let reporter = ctx.reporter;
-        Ok(Box::pin(async move { args.run_recursive(config, dir, reporter).await }))
-    } else {
-        args.run(ctx.dir, config, ctx.reporter)?;
-        Ok(Box::pin(std::future::ready(Ok(()))))
+    let config = (ctx.loaders.config)()?;
+    let cli_options = RecursiveCliOptions::from_ctx(ctx);
+    let dir = ctx.locations.dir;
+    let cli_dir = ctx.locations.cli_dir;
+    let reporter = ctx.reporter;
+    let recursive = ctx.workspace.recursive;
+    Ok(Box::pin(async move {
+        apply_update_config(config, dir, reporter).await?;
+        let config: &'static Config = config;
+        let args = with_recursive_exec_options(cli_options, args, config);
+        if recursive {
+            args.run_recursive(config, dir, reporter).await
+        } else {
+            args.run(ExecDirs { run: cli_dir, project: dir }, config, reporter)
+        }
+    }))
+}
+
+/// The top-level recursive flags of a `run` / `exec` invocation, copied out
+/// of [`RunCtx`] so the handler's future can merge them with `bail`, `sort`
+/// and `reverse` only after `updateConfig` has had its say on those settings.
+#[derive(Clone, Copy)]
+struct RecursiveCliOptions<'a> {
+    resume_from: Option<&'a str>,
+    report_summary: bool,
+    parallel: bool,
+    if_present: bool,
+}
+
+impl<'a> RecursiveCliOptions<'a> {
+    fn execution_args(self, config: &Config) -> super::recursive::RecursiveExecutionArgs {
+        super::recursive::RecursiveExecutionArgs {
+            resume_from: self.resume_from.map(str::to_string),
+            report_summary: self.report_summary,
+            no_bail: !config.bail,
+            sort: config.sort,
+            reverse: config.reverse,
+            parallel: self.parallel,
+        }
+    }
+
+    fn from_ctx(ctx: &RunCtx<'a>) -> Self {
+        Self {
+            resume_from: ctx.workspace.resume_from,
+            report_summary: ctx.workspace.report_summary,
+            parallel: ctx.workspace.parallel,
+            if_present: ctx.workspace.if_present,
+        }
     }
 }
 
-fn with_recursive_run_options(ctx: &RunCtx<'_>, mut args: RunArgs, config: &Config) -> RunArgs {
-    args.resume_from = ctx.recursive_resume_from.map(str::to_string);
-    args.report_summary = ctx.recursive_report_summary;
-    args.no_bail = !config.bail;
-    args.sort = config.sort;
-    args.reverse = config.reverse;
-    args.parallel = ctx.recursive_parallel;
-    args.if_present |= ctx.if_present;
+fn with_recursive_run_options(
+    cli_options: RecursiveCliOptions<'_>,
+    mut args: RunArgs,
+    config: &Config,
+) -> RunArgs {
+    args.workspace = cli_options.execution_args(config);
+    args.if_present |= cli_options.if_present;
     args
 }
 
-fn with_recursive_exec_options(ctx: &RunCtx<'_>, mut args: ExecArgs, config: &Config) -> ExecArgs {
-    args.resume_from = ctx.recursive_resume_from.map(str::to_string);
-    args.report_summary = ctx.recursive_report_summary;
-    args.no_bail = !config.bail;
-    args.sort = config.sort;
-    args.reverse = config.reverse;
-    args.parallel = ctx.recursive_parallel;
+fn with_recursive_exec_options(
+    cli_options: RecursiveCliOptions<'_>,
+    mut args: ExecArgs,
+    config: &Config,
+) -> ExecArgs {
+    args.workspace = cli_options.execution_args(config);
     args
 }
 
@@ -154,18 +208,24 @@ pub(super) fn start<'a>(
     ctx: &RunCtx<'a>,
     args: ScriptShortcutArgs,
 ) -> miette::Result<CommandFuture<'a>> {
-    run(ctx, args.into_run_args("start", ctx.if_present))
+    run(ctx, args.into_run_args("start", ctx.workspace.if_present))
 }
 
 pub(super) fn stop<'a>(
     ctx: &RunCtx<'a>,
     args: ScriptShortcutArgs,
 ) -> miette::Result<CommandFuture<'a>> {
-    if ctx.recursive {
-        run(ctx, args.into_run_args("stop", ctx.if_present))
+    if ctx.workspace.recursive {
+        run(ctx, args.into_run_args("stop", ctx.workspace.if_present))
     } else {
-        args.run("stop", ctx.if_present, ctx.dir, (ctx.config)()?, ctx.reporter)?;
-        Ok(Box::pin(std::future::ready(Ok(()))))
+        let config = (ctx.loaders.config)()?;
+        let dir = ctx.locations.dir;
+        let reporter = ctx.reporter;
+        let if_present = ctx.workspace.if_present;
+        Ok(Box::pin(async move {
+            apply_update_config(config, dir, reporter).await?;
+            args.run("stop", if_present, dir, config, reporter)
+        }))
     }
 }
 
@@ -173,7 +233,12 @@ pub(super) fn restart<'a>(
     ctx: &RunCtx<'a>,
     mut args: RestartArgs,
 ) -> miette::Result<CommandFuture<'a>> {
-    args.if_present |= ctx.if_present;
-    args.run(ctx.dir, (ctx.config)()?, ctx.reporter)?;
-    Ok(Box::pin(std::future::ready(Ok(()))))
+    args.if_present |= ctx.workspace.if_present;
+    let config = (ctx.loaders.config)()?;
+    let dir = ctx.locations.dir;
+    let reporter = ctx.reporter;
+    Ok(Box::pin(async move {
+        apply_update_config(config, dir, reporter).await?;
+        args.run(dir, config, reporter)
+    }))
 }

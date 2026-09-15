@@ -1,6 +1,6 @@
 use super::{
     VerifiedFileIntegrity, VerifiedFilesCache, build_file_maps_from_index,
-    check_pkg_files_integrity, package_dir_matches_index,
+    check_pkg_files_integrity, defer_pkg_files_integrity, package_dir_matches_index,
 };
 use crate::{CafsFileInfo, PackageFilesIndex, SideEffectsDiff, StoreDir};
 use pretty_assertions::assert_eq;
@@ -31,7 +31,10 @@ fn sha512_hex(bytes: &[u8]) -> String {
 }
 
 fn now_ms() -> u64 {
-    SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_millis() as u64
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap()
+        .as_millis() as u64
 }
 
 fn index_with(algo: &str, info: Vec<(&str, CafsFileInfo)>) -> PackageFilesIndex {
@@ -40,7 +43,10 @@ fn index_with(algo: &str, info: Vec<(&str, CafsFileInfo)>) -> PackageFilesIndex 
         requires_build: None,
         requires_prepare: None,
         algo: algo.to_string(),
-        files: info.into_iter().map(|(k, v)| (k.to_string(), v)).collect(),
+        files: info
+            .into_iter()
+            .map(|(k, v)| (k.to_string(), v))
+            .collect(),
         side_effects: None,
         remote_side_effects_quarantine: None,
     }
@@ -62,6 +68,33 @@ fn fast_path_skips_filesystem_checks() {
     let path = result.files_map.get("index.js").expect("path inserted");
     eprintln!("path={path:?} exists={}", path.exists());
     assert!(!path.exists(), "no file was planted — fast path didn't care");
+}
+
+#[test]
+fn deferred_check_builds_the_maps_first_and_stats_only_when_run() {
+    let _guard = TALLY.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+    let tmp = tempdir().unwrap();
+    let store_dir = StoreDir::new(tmp.path());
+    let content = b"deferred";
+    let digest = sha512_hex(content);
+    // No `checked_at`, so a run of the check has to hash the file.
+    let entry =
+        index_with("sha512", vec![("index.js", info(&digest, content.len() as u64, 0o644, None))]);
+    let (result, pending) = defer_pkg_files_integrity(&store_dir, entry);
+    dbg!(&result);
+    assert!(result.passed, "a well-formed row passes before its files are checked");
+    let path = result.files_map.get("index.js").expect("path inserted");
+    let cache = VerifiedFilesCache::new();
+    assert!(!pending.verify(&store_dir, &cache), "the file was never planted");
+    assert!(cache.is_empty(), "a failed file is not cached as verified");
+
+    plant_cafs_file(&store_dir, &digest, 0o644, content);
+    let (_, pending) = defer_pkg_files_integrity(
+        &store_dir,
+        index_with("sha512", vec![("index.js", info(&digest, content.len() as u64, 0o644, None))]),
+    );
+    assert!(pending.verify(&store_dir, &cache), "the planted file verifies");
+    assert!(cache.contains(path), "a verified file is cached for later rows");
 }
 
 /// We can't easily set `mtime` from the standard library, but
@@ -100,7 +133,7 @@ fn careful_path_fails_on_missing_cafs_file() {
 /// `checked_at = 0` makes the mtime-slack delta "definitely > 100 ms",
 /// forcing a re-hash.
 #[test]
-fn careful_path_removes_file_whose_content_hash_mismatches() {
+fn careful_path_fails_but_keeps_file_whose_content_hash_mismatches() {
     let _guard = TALLY.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
     let tmp = tempdir().unwrap();
     let store_dir = StoreDir::new(tmp.path());
@@ -115,13 +148,17 @@ fn careful_path_removes_file_whose_content_hash_mismatches() {
     dbg!(&result);
     assert!(!result.passed, "bad hash → fail");
     eprintln!("path={path:?} exists={}", path.exists());
-    assert!(!path.exists(), "mismatched file is removed so the next call re-fetches");
+    assert!(
+        path.exists(),
+        "the mismatched file stays: the re-fetch replaces it atomically, and a concurrent \
+         install sharing the store may be importing from this path right now",
+    );
 }
 
 /// `checked_at = 0` puts us firmly in the "modified" branch (mtime now
 /// > 100 ms past 0), so the size check runs.
 #[test]
-fn careful_path_removes_file_whose_size_mismatches_after_touch() {
+fn careful_path_fails_but_keeps_file_whose_size_mismatches_after_touch() {
     let tmp = tempdir().unwrap();
     let store_dir = StoreDir::new(tmp.path());
     let content = b"actual content";
@@ -132,7 +169,11 @@ fn careful_path_removes_file_whose_size_mismatches_after_touch() {
     dbg!(&result);
     assert!(!result.passed);
     eprintln!("path={path:?} exists={}", path.exists());
-    assert!(!path.exists(), "size mismatch removes the file so a re-fetch starts clean");
+    assert!(
+        path.exists(),
+        "the mismatched file stays: the re-fetch replaces it atomically, and a concurrent \
+         install sharing the store may be importing from this path right now",
+    );
 }
 
 #[test]
@@ -239,7 +280,61 @@ fn careful_path_fails_unknown_algo_as_verification_failure() {
     dbg!(&result);
     assert!(!result.passed);
     eprintln!("path={path:?} exists={}", path.exists());
-    assert!(!path.exists(), "unknown algo → treated as corrupt → removed");
+    assert!(
+        path.exists(),
+        "an unverifiable file is no evidence of corruption; it stays for the re-fetch to replace",
+    );
+}
+
+/// A symlink at a blob path fails verification (its target's bytes are
+/// not the store's), but only a *directory* may be scrubbed — the
+/// symlink itself must survive, like every other non-directory dirent.
+#[test]
+#[cfg(unix)]
+fn careful_path_fails_but_keeps_symlink_at_cafs_path() {
+    let tmp = tempdir().unwrap();
+    let store_dir = StoreDir::new(tmp.path());
+    let content = b"claimed content";
+    let digest = sha512_hex(content);
+    let target = tmp.path().join("elsewhere");
+    fs::write(&target, b"other bytes!!!!").unwrap();
+    let link = store_dir.cas_file_path_by_mode(&digest, 0o644).unwrap();
+    fs::create_dir_all(link.parent().unwrap()).unwrap();
+    std::os::unix::fs::symlink(&target, &link).unwrap();
+    let entry =
+        index_with("sha512", vec![("x", info(&digest, content.len() as u64, 0o644, Some(0)))]);
+    let result = check_pkg_files_integrity(&store_dir, entry, &VerifiedFilesCache::new());
+    dbg!(&result);
+    assert!(!result.passed);
+    assert!(
+        fs::symlink_metadata(&link).is_ok(),
+        "a symlink at the blob path is not a directory and must not be scrubbed",
+    );
+}
+
+/// A blob the verifier cannot open reports a miss like a mismatch
+/// would, and the failure may be transient — so the file must survive
+/// for the concurrent installs that may be importing from it.
+#[test]
+#[cfg(unix)]
+fn careful_path_fails_but_keeps_unreadable_file() {
+    use std::os::unix::fs::PermissionsExt;
+    let tmp = tempdir().unwrap();
+    let store_dir = StoreDir::new(tmp.path());
+    let content = b"guarded content";
+    let digest = sha512_hex(content);
+    let path = plant_cafs_file(&store_dir, &digest, 0o644, content);
+    fs::set_permissions(&path, fs::Permissions::from_mode(0o000)).unwrap();
+    let entry =
+        index_with("sha512", vec![("x", info(&digest, content.len() as u64, 0o644, Some(0)))]);
+    let result = check_pkg_files_integrity(&store_dir, entry, &VerifiedFilesCache::new());
+    fs::set_permissions(&path, fs::Permissions::from_mode(0o644)).unwrap();
+    dbg!(&result);
+    assert!(!result.passed, "an unreadable blob is a verification miss");
+    assert!(
+        path.exists(),
+        "a read failure is no evidence of corruption; the blob must survive for concurrent readers",
+    );
 }
 
 /// The tally is process-wide, so a test measuring a delta across it has
@@ -316,8 +411,9 @@ fn the_tally_covers_hashing_only() {
 }
 
 /// Plants a directory where a CAFS blob belongs (store corruption —
-/// stray `mkdir -p` or interrupted write) to exercise the dirent-type
-/// fallback in `remove_stale_cafs_entry`.
+/// stray `mkdir -p` or interrupted write) to exercise
+/// `scrub_directory_at_cafs_path`: a directory is the one dirent the
+/// re-fetch's rename cannot replace, so the verifier removes it.
 #[test]
 fn careful_path_removes_directory_at_cafs_path() {
     let tmp = tempdir().unwrap();
@@ -374,6 +470,67 @@ fn no_side_effects_yields_none() {
     let entry = index_with("sha512", vec![("a", info(&digest, 1, 0o644, None))]);
     let result = build_file_maps_from_index(&store_dir, entry);
     assert!(result.side_effects_maps.is_none());
+}
+
+/// An empty row is a build whose whole effect landed outside the package
+/// directory. See `overlay_for` for why it must not count as a cache hit.
+///
+/// Regression for <https://github.com/pnpm/pnpm/issues/14717>.
+#[test]
+fn side_effects_overlay_with_nothing_to_restore_drops_cache_key_entry() {
+    let tmp = tempdir().unwrap();
+    let store_dir = StoreDir::new(tmp.path());
+    let base_digest = sha512_hex(b"base");
+    let entry = PackageFilesIndex {
+        manifest: None,
+        requires_build: None,
+        requires_prepare: None,
+        algo: "sha512".into(),
+        files: HashMap::from([("a.js".to_string(), info(&base_digest, 4, 0o644, None))]),
+        side_effects: Some(HashMap::from([(
+            "k1".to_string(),
+            SideEffectsDiff { added: None, deleted: None, remote_origin: None },
+        )])),
+        remote_side_effects_quarantine: None,
+    };
+    let result = build_file_maps_from_index(&store_dir, entry);
+    let maps = result.side_effects_maps.expect("a configured cache stays `Some`");
+    assert!(!maps.contains_key("k1"), "an empty row is not a build to restore: {maps:?}");
+}
+
+/// The empty-row drop keys off having nothing to restore, not off `added`
+/// alone: a build that only removes files is still reproducible from its row.
+#[test]
+fn side_effects_overlay_with_only_deletions_keeps_cache_key_entry() {
+    let tmp = tempdir().unwrap();
+    let store_dir = StoreDir::new(tmp.path());
+    let base_digest = sha512_hex(b"base");
+    let entry = PackageFilesIndex {
+        manifest: None,
+        requires_build: None,
+        requires_prepare: None,
+        algo: "sha512".into(),
+        files: HashMap::from([
+            ("a.js".to_string(), info(&base_digest, 4, 0o644, None)),
+            ("gone.js".to_string(), info(&base_digest, 4, 0o644, None)),
+        ]),
+        side_effects: Some(HashMap::from([(
+            "k1".to_string(),
+            SideEffectsDiff {
+                added: None,
+                deleted: Some(vec!["gone.js".to_string()]),
+                remote_origin: None,
+            },
+        )])),
+        remote_side_effects_quarantine: None,
+    };
+    let result = build_file_maps_from_index(&store_dir, entry);
+    let overlay = result.side_effects_maps
+        .unwrap()
+        .remove("k1")
+        .expect("entry survives");
+    assert!(overlay.contains_key("a.js"), "base survives: {overlay:?}");
+    assert!(!overlay.contains_key("gone.js"), "deleted drops: {overlay:?}");
 }
 
 #[test]
@@ -437,7 +594,10 @@ fn side_effects_overlay_added_shadows_base_on_collision() {
         remote_side_effects_quarantine: None,
     };
     let result = build_file_maps_from_index(&store_dir, entry);
-    let overlay = result.side_effects_maps.unwrap().remove("k1").unwrap();
+    let overlay = result.side_effects_maps
+        .unwrap()
+        .remove("k1")
+        .unwrap();
     let path = overlay.get("collide.js").expect("collide.js present");
     // CAFS layout splits the digest as `<2-char prefix>/<rest>`, so the
     // path won't contain the digest as a single contiguous substring.

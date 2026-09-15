@@ -21,6 +21,7 @@ export {
   type PackageMapOptions,
   type PackageMapPackage,
   type PackageMapType,
+  removePackageMap,
   writePackageMap,
   writePackageMapFromDependenciesGraph,
 } from './packageMap.js'

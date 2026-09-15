@@ -35,6 +35,32 @@ by default. Point a client at it with:
 pnpm config set registry http://127.0.0.1:7677/
 ```
 
+### Install accelerator
+
+pnpr also resolves dependencies on a client's behalf. Point pnpm at it
+with `pnprServer` and pnpm sends its manifests instead of resolving
+locally:
+
+```sh
+pnpm config set pnprServer http://127.0.0.1:7677/
+```
+
+npm, Cargo and Python dependencies all resolve this way.
+
+For Cargo, pnpr walks the crates.io sparse index and answers with the
+`Cargo.lock`, so a workspace resolves without the client fetching one
+index file per crate.
+
+For Python, pnpr reads the index and answers with the `pylock.toml`.
+Reading what a distribution requires means reading a wheel's `METADATA`,
+so a client resolving alone downloads whole wheels for versions it then
+rejects; pnpr reads the metadata file the index publishes beside each
+wheel instead. When an index publishes no such file, pnpr downloads the
+wheel itself and keeps the metadata it holds, so only the first client
+pays for that download.
+
+Everything pnpr reads is cached for every client that follows.
+
 ## CLI flags
 
 | Flag | Description |
@@ -45,6 +71,19 @@ pnpm config set registry http://127.0.0.1:7677/
 | `--cache <path>` | Override the disposable proxy-cache directory (the mirror of upstream registries plus the resolver cache). Defaults to a `.pnpr-cache` subdirectory of `--storage`. |
 | `--public-url <url>` | URL clients should use to reach the server, used when rewriting `dist.tarball` in served packuments. Defaults to `http://<listen>`. |
 | `--packument-ttl-secs <n>` | Seconds before a cached packument is considered stale and refetched. |
+| `--osv` | Enable local OSV npm vulnerability checks. Requires a local OSV npm database at `--osv-db` or `<cache>/osv/npm/all.zip`. |
+| `--osv-db <path>` | Path to the local OSV npm database zip or extracted JSON directory. |
+| `--disable-registry` | Disable the npm-registry surface (packument and tarball reads, publish, unpublish, dist-tag, search). |
+| `--disable-resolver` | Disable the install-accelerator surface (`/-/pnpr/v0/resolve` for npm, Cargo and Python, `/-/pnpr/v0/verify-lockfile`). |
+| `--disable-artifacts` | Disable the signed shared-artifact surface. |
+
+Every flag can also be set through an environment variable named after
+it: `PNPR_` followed by the flag name in upper case with dashes replaced
+by underscores. `--public-url` becomes `PNPR_PUBLIC_URL` and
+`--packument-ttl-secs` becomes `PNPR_PACKUMENT_TTL_SECS`. A flag given on
+the command line wins over its environment variable. Boolean flags such
+as `--disable-registry` accept `true`, `1`, `yes`, `on`, `false`, `0`,
+`no`, and `off`.
 
 Log level is controlled via the standard `RUST_LOG` environment
 variable (e.g. `RUST_LOG=debug pnpr`).
@@ -271,6 +310,40 @@ feature, for example `cargo build -p pnpr --features backend-postgres`.
 When the `backend:` block is absent, auth stays on local disk and the
 `auth.htpasswd` / `auth.tokens` settings apply as before. The
 `auth.htpasswd.max_users` registration cap is honored either way.
+
+### Running several replicas
+
+Several `pnpr` processes can serve one registry behind a load balancer once
+they share their state. Give every replica the same `s3:` bucket for hosted
+packages and the same `backend:` database for users and tokens, and give each
+its own `storage` path for what stays local.
+
+Requests need no affinity. Every write into the shared bucket is conditional:
+a publish, a `dist-tag` change, a partial unpublish, and the approval of a
+staged publish each rewrite the package document under the `ETag` they read it
+at, and a replica that loses the race re-reads and merges on top of what the
+other one wrote. A published tarball is written only if its key is still free,
+so two replicas publishing one version can never overwrite each other's bytes:
+the one whose bytes did not land is told so with a `409` instead of
+advertising an integrity the store no longer serves. A staged publish is
+approved once, whichever replica the approval reaches.
+
+This needs an object store that honors the `If-Match` and `If-None-Match`
+preconditions. AWS S3, Cloudflare R2 and MinIO do.
+
+What stays local to each replica:
+
+- the proxy cache of upstream registries, and the resolver cache
+- publish staging scratch and the commit journal that rolls an interrupted
+  publish forward, so keep each replica's `storage` path on a volume that
+  outlives its restarts
+- blob upload sessions of the image registry when hosted packages are on
+  local disk, which is why `docker push` needs sticky sessions there; with
+  `s3:` an upload continues on any replica
+- accounts and tokens, unless a `backend:` database is configured
+
+Pipeline run records are shared: a run submitted through one replica is listed
+and served by every other, and a run id stays append-only across all of them.
 
 ## License
 

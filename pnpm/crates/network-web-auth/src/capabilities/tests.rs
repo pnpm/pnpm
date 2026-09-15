@@ -157,7 +157,8 @@ fn enter_handle_stays_ready_once_completed() {
     };
 
     assert_eq!(poll_handle(&mut handle), Poll::Pending);
-    tx.send(()).expect("the receiver is alive");
+    tx.send(())
+        .expect("the receiver is alive");
     assert_eq!(poll_handle(&mut handle), Poll::Ready(()));
     // Re-polls resolve from the terminal state without touching the spent
     // oneshot receiver.

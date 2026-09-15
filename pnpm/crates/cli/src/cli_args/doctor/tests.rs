@@ -66,7 +66,9 @@ fn probe_reports_the_links_a_normal_filesystem_supports() {
     let capabilities = probe_link_capabilities(dir.path()).expect("probe links");
     dbg!(&capabilities);
     let supported = |name: &str| {
-        capabilities.iter().any(|(candidate, supported)| *candidate == name && *supported)
+        capabilities
+            .iter()
+            .any(|(candidate, supported)| *candidate == name && *supported)
     };
     assert!(supported("hardlink"), "a temp dir must support hardlinks");
     assert!(supported("symlink"), "a temp dir must support symlinks");

@@ -399,6 +399,9 @@ export async function getConfig (opts: {
     // reached only through a stored credential is reached the same way when
     // pnpm downloads itself as when it installs.
     ...npmrcResult.jsonAuth.fallbackRegistries,
+    // A `registry=` in a trusted `.npmrc` declares the default registry as
+    // plainly as a yaml does, so it holds the file fallback back here too.
+    ...npmrcResult.trustedDeclaredRegistries,
     ...trustedNetworkConfigs.registries,
     // `_auth` routes apply here too so bootstrap (self-download / version
     // switching) resolves the same way as regular installs.
@@ -516,13 +519,23 @@ export async function getConfig (opts: {
       if (ignoredPnpmFieldKeys.length > 0) {
         warnings.push(`The "pnpm" field in package.json is no longer read by pnpm. The following keys were ignored: ${quoteAndJoin(ignoredPnpmFieldKeys.map(k => `pnpm.${k}`))}. See https://pnpm.io/settings for the new home of each setting.`)
       }
-      const wantedPmResult = getWantedPackageManager(pnpmConfig.rootProjectManifest)
+    }
+
+    // `lockfileDir` moves `rootProjectManifestDir` off the workspace root,
+    // and the engine pins stay with the workspace the contributor works in.
+    // Re-read only when the two directories differ.
+    const enginePinManifestDir = pnpmConfig.workspaceDir ?? pnpmConfig.dir
+    pnpmConfig.enginePinManifest = enginePinManifestDir === pnpmConfig.rootProjectManifestDir
+      ? pnpmConfig.rootProjectManifest
+      : await safeReadProjectManifestOnly(enginePinManifestDir) ?? undefined
+    if (pnpmConfig.enginePinManifest != null) {
+      const wantedPmResult = getWantedPackageManager(pnpmConfig.enginePinManifest)
       if (wantedPmResult.pm) {
         pnpmConfig.wantedPackageManager = wantedPmResult.pm
       }
       warnings.push(...wantedPmResult.warnings)
       if (pnpmConfig.nodeVersion == null) {
-        pnpmConfig.nodeVersion = getNodeVersionFromEnginesRuntime(pnpmConfig.rootProjectManifest)
+        pnpmConfig.nodeVersion = getNodeVersionFromEnginesRuntime(pnpmConfig.enginePinManifest)
       }
     }
 
@@ -587,7 +600,7 @@ export async function getConfig (opts: {
     }
   }
 
-  // Precedence: builtin < .npmrc < `_auth` file < yaml < `_auth` env < CLI. CLI
+  // Precedence: builtin < `_auth` file < .npmrc < yaml < `_auth` env < CLI. CLI
   // `--@scope:registry` / `--registry` already entered `registriesFromNpmrc`
   // via `authConfig`, so they're re-applied last here to avoid being buried
   // by yaml. `cliScopedRegistries` iterates raw `cliOptions` because
@@ -605,8 +618,11 @@ export async function getConfig (opts: {
     ...registriesFromNpmrc,
     // The global config file's `_auth` only fills in what nothing declares:
     // it is where a `pnpm login` stores a credential, and holding one is not
-    // a statement about where packages come from.
+    // a statement about where packages come from. `registriesFromNpmrc`
+    // carries the builtin default as well as what the `.npmrc` files
+    // declared, so only the latter are restated above the fallback.
     ...npmrcResult.jsonAuth.fallbackRegistries,
+    ...npmrcResult.declaredRegistries,
     ...globalYamlRegistries,
     ...workspaceManifestRegistries,
     ...declaredDefault,
@@ -960,7 +976,7 @@ export async function getConfig (opts: {
   const {
     hooks, finders,
     allProjects, selectedProjectsGraph, allProjectsGraph, prodAllProjectsGraph, prodOnlySelectedProjectDirs,
-    rootProjectManifest, rootProjectManifestDir,
+    rootProjectManifest, rootProjectManifestDir, enginePinManifest,
     cliOptions: ctxCliOptions,
     explicitlySetKeys: ctxExplicitlySetKeys,
     packageManager: ctxPackageManager, wantedPackageManager,
@@ -969,7 +985,7 @@ export async function getConfig (opts: {
   const context: ConfigContext = {
     hooks, finders,
     allProjects, selectedProjectsGraph, allProjectsGraph, prodAllProjectsGraph, prodOnlySelectedProjectDirs,
-    rootProjectManifest, rootProjectManifestDir,
+    rootProjectManifest, rootProjectManifestDir, enginePinManifest,
     cliOptions: ctxCliOptions,
     explicitlySetKeys: ctxExplicitlySetKeys,
     packageManager: ctxPackageManager, wantedPackageManager,
@@ -1556,6 +1572,7 @@ const CONFIG_CONTEXT_KEYS = [
   'prodOnlySelectedProjectDirs',
   'rootProjectManifest',
   'rootProjectManifestDir',
+  'enginePinManifest',
   'cliOptions',
   'explicitlySetKeys',
   'packageManager',

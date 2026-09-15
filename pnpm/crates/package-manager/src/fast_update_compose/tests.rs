@@ -61,8 +61,12 @@ fn manifest_from(value: Value) -> PackageManifest {
 }
 
 fn snapshot_keys(lockfile: &Lockfile) -> Vec<String> {
-    let mut keys: Vec<_> =
-        lockfile.snapshots.as_ref().expect("snapshots").keys().map(ToString::to_string).collect();
+    let mut keys: Vec<_> = lockfile.snapshots
+        .as_ref()
+        .expect("snapshots")
+        .keys()
+        .map(ToString::to_string)
+        .collect();
     keys.sort();
     keys
 }
@@ -101,8 +105,7 @@ fn absorbs_a_removal_and_a_widened_ignore_list_in_one_pass() {
     let importer = &updated.importers["."];
     assert!(importer.optional_dependencies.is_none());
     assert!(
-        !importer
-            .dependencies
+        !importer.dependencies
             .as_ref()
             .expect("dependencies")
             .contains_key(&"foo".parse().expect("alias")),
@@ -133,8 +136,7 @@ fn absorbs_a_group_move_and_a_settings_change_in_one_pass() {
 
     let importer = &updated.importers["."];
     assert!(
-        importer
-            .dev_dependencies
+        importer.dev_dependencies
             .as_ref()
             .is_some_and(|deps| deps.contains_key(&"foo".parse().expect("alias"))),
     );
@@ -212,11 +214,15 @@ fn rekeys_a_patched_survivor_alongside_a_removal() {
     .expect("the removal and the patch rekey compose");
 
     assert!(
-        snapshot_keys(&updated).iter().any(|key| key.starts_with("bar@2.0.0(patch_hash=")),
+        snapshot_keys(&updated)
+            .iter()
+            .any(|key| key.starts_with("bar@2.0.0(patch_hash=")),
         "the surviving patched package carries its hash segment",
     );
     assert!(
-        !snapshot_keys(&updated).iter().any(|key| key.starts_with("foo@")),
+        !snapshot_keys(&updated)
+            .iter()
+            .any(|key| key.starts_with("foo@")),
         "while the removed dependency is pruned",
     );
 }
@@ -282,18 +288,24 @@ fn absorbs_a_removal_that_orphans_a_patch_under_allow_unused_patches() {
         false,
     )
     .expect("an unused patch is only a warning here");
-    assert!(!snapshot_keys(&updated).iter().any(|key| key.starts_with("bar@")));
+    assert!(
+        !snapshot_keys(&updated)
+            .iter()
+            .any(|key| key.starts_with("bar@")),
+    );
 }
 
 #[test]
 fn falls_back_when_an_ignored_optional_is_embedded_in_a_peer_suffix() {
     let mut subject = lockfile();
-    subject.snapshots.as_mut().expect("snapshots").insert(
-        "baz@4.0.0(opt@5.0.0)".parse().expect("snapshot key"),
-        serde_saphyr::from_str("dependencies:\n  opt: 5.0.0").expect("snapshot"),
-    );
-    subject
-        .importers
+    subject.snapshots
+        .as_mut()
+        .expect("snapshots")
+        .insert(
+            "baz@4.0.0(opt@5.0.0)".parse().expect("snapshot key"),
+            serde_saphyr::from_str("dependencies:\n  opt: 5.0.0").expect("snapshot"),
+        );
+    subject.importers
         .get_mut(".")
         .expect("importer")
         .dependencies
@@ -352,19 +364,16 @@ fn recomputes_optional_flags_for_an_ignored_optional_removal() {
     };
     let mut subject = lockfile();
     let importer = subject.importers.get_mut(".").expect("importer");
-    let moved = importer
-        .dependencies
+    let moved = importer.dependencies
         .as_mut()
         .expect("dependencies")
         .remove(&"bar".parse().expect("alias"))
         .expect("bar");
-    importer
-        .optional_dependencies
+    importer.optional_dependencies
         .as_mut()
         .expect("optionalDependencies")
         .insert("bar".parse().expect("alias"), moved);
-    subject
-        .snapshots
+    subject.snapshots
         .as_mut()
         .expect("snapshots")
         .get_mut(&"bar@2.0.0".parse().expect("key"))
@@ -397,7 +406,10 @@ fn workspace(patches: &[&str]) -> TempDir {
     let dir = tempfile::tempdir().expect("create workspace dir");
     fs::create_dir_all(dir.path().join("patches")).expect("create patches dir");
     for patch in patches {
-        let path = dir.path().join("patches").join(patch_file_name(patch));
+        let path = dir
+            .path()
+            .join("patches")
+            .join(patch_file_name(patch));
         fs::write(path, "--- a\n+++ b\n").expect("write patch file");
     }
     dir
@@ -425,8 +437,7 @@ fn absorbs_a_peer_setting_once_the_removal_drops_the_last_peer_dependent() {
     let mut subject = lockfile();
     subject.settings =
         Some(crate::fast_update_settings::lockfile_settings_from_config(&Config::default()));
-    subject
-        .importers
+    subject.importers
         .get_mut(".")
         .expect("importer")
         .dependencies
@@ -436,17 +447,23 @@ fn absorbs_a_peer_setting_once_the_removal_drops_the_last_peer_dependent() {
             "has-peer".parse().expect("alias"),
             serde_saphyr::from_str("{specifier: ^6.0.0, version: 6.0.0}").expect("dependency"),
         );
-    subject.packages.as_mut().expect("packages").insert(
-        "has-peer@6.0.0".parse().expect("package key"),
-        serde_saphyr::from_str(
-            "resolution:\n  integrity: sha512-has-peer\npeerDependencies:\n  foo: ^1.0.0",
-        )
-        .expect("package"),
-    );
-    subject.snapshots.as_mut().expect("snapshots").insert(
-        "has-peer@6.0.0".parse().expect("snapshot key"),
-        serde_saphyr::from_str("{}").expect("snapshot"),
-    );
+    subject.packages
+        .as_mut()
+        .expect("packages")
+        .insert(
+            "has-peer@6.0.0".parse().expect("package key"),
+            serde_saphyr::from_str(
+                "resolution:\n  integrity: sha512-has-peer\npeerDependencies:\n  foo: ^1.0.0",
+            )
+            .expect("package"),
+        );
+    subject.snapshots
+        .as_mut()
+        .expect("snapshots")
+        .insert(
+            "has-peer@6.0.0".parse().expect("snapshot key"),
+            serde_saphyr::from_str("{}").expect("snapshot"),
+        );
     let manifest = manifest_from(json!({
         "dependencies": { "foo": "^1.0.0", "bar": "^2.0.0" },
         "optionalDependencies": { "opt": "^5.0.0" },
@@ -465,7 +482,9 @@ fn absorbs_a_peer_setting_once_the_removal_drops_the_last_peer_dependent() {
 
     assert!(!updated.settings.as_ref().expect("settings").auto_install_peers);
     assert!(
-        !snapshot_keys(&updated).iter().any(|key| key.starts_with("has-peer@")),
+        !snapshot_keys(&updated)
+            .iter()
+            .any(|key| key.starts_with("has-peer@")),
         "the peer-declaring package went with the removal",
     );
 }

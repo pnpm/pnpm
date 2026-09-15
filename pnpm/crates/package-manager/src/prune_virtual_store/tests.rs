@@ -100,12 +100,24 @@ fn sweep_keeps_needed_removes_surplus_and_skipped() {
     let removed = prune_virtual_store(vsdir, keys.iter(), &skipped, max);
 
     assert_eq!(removed, Some(2));
-    assert!(vsdir.join(keep.to_virtual_store_name(max)).exists());
-    assert!(vsdir.join(keep_peer.to_virtual_store_name(max)).exists());
+    assert!(
+        vsdir
+            .join(keep.to_virtual_store_name(max))
+            .exists(),
+    );
+    assert!(
+        vsdir
+            .join(keep_peer.to_virtual_store_name(max))
+            .exists(),
+    );
     assert!(vsdir.join("node_modules").exists());
     assert!(vsdir.join("lock.yaml").exists());
     assert!(!vsdir.join("surplus@9.9.9").exists());
-    assert!(!vsdir.join(skipped_key.to_virtual_store_name(max)).exists());
+    assert!(
+        !vsdir
+            .join(skipped_key.to_virtual_store_name(max))
+            .exists(),
+    );
 }
 
 #[test]

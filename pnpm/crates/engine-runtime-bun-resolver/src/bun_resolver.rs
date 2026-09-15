@@ -9,7 +9,7 @@ use pnpm_network::ThrottledClient;
 use pnpm_resolving_npm_resolver::MINIMUM_RELEASE_AGE_VIOLATION_CODE;
 use pnpm_resolving_resolver_base::{
     LatestInfo, LatestQuery, ResolveError, ResolveFuture, ResolveLatestFuture, ResolveOptions,
-    ResolveResult, Resolver, UpdateBehavior, WantedDependency,
+    ResolveResult, Resolver, UpdateBehavior, WantedDependency, resolve_package_version,
 };
 
 use crate::read_bun_assets::{ReadBunAssetsError, read_bun_assets};
@@ -76,27 +76,22 @@ impl BunResolver {
         };
         let version_spec = normalize_runtime_spec(version_spec);
 
-        let npm_result = self
-            .npm_resolver
-            .resolve(
-                &WantedDependency {
-                    alias: wanted_dependency.alias.clone(),
-                    bare_specifier: Some(version_spec.to_string()),
-                    ..wanted_dependency.clone()
-                },
-                &ResolveOptions::default(),
-            )
-            .await?;
-        let version = npm_result
-            .as_ref()
-            .and_then(|result| result.name_ver.as_ref().map(|name_ver| name_ver.suffix.to_string()))
-            .ok_or_else(|| {
-                Box::new(BunResolverError::ResolutionFailure { spec: version_spec.to_string() })
-                    as ResolveError
-            })?;
+        let version = resolve_package_version(
+            self.npm_resolver.as_ref(),
+            &WantedDependency {
+                alias: wanted_dependency.alias.clone(),
+                bare_specifier: Some(version_spec.to_string()),
+                ..wanted_dependency.clone()
+            },
+            &ResolveOptions::default(),
+        )
+        .await?
+        .ok_or_else(|| {
+            Box::new(BunResolverError::ResolutionFailure { spec: version_spec.to_string() })
+                as ResolveError
+        })?;
 
-        let variants = read_bun_assets(&self.http_client, &version)
-            .await
+        let variants = read_bun_assets(&self.http_client, &version).await
             .map_err(|err| Box::new(BunResolverError::ReadAssets(err)) as ResolveError)?;
         let resolution = LockfileResolution::Variations(VariationsResolution { variants });
         let manifest = serde_json::json!({
@@ -106,15 +101,15 @@ impl BunResolver {
         });
         Ok(Some(ResolveResult {
             id: format!("bun@runtime:{version}").into(),
-            name_ver: None,
-            latest: None,
-            published_at: None,
-            manifest: Some(std::sync::Arc::new(manifest)),
             resolution,
             resolved_via: RESOLVED_VIA.to_string(),
             normalized_bare_specifier: Some(format!("runtime:{version_spec}")),
             alias: wanted_dependency.alias.clone(),
             policy_violation: None,
+            package: pnpm_resolving_resolver_base::ResolvedPackageInfo {
+                manifest: Some(std::sync::Arc::new(manifest)),
+                ..Default::default()
+            },
         }))
     }
 
@@ -131,30 +126,27 @@ impl BunResolver {
                 .to_string();
         let mut resolve_opts = opts.clone();
         if !query.compatible {
-            resolve_opts.update = UpdateBehavior::Latest;
+            resolve_opts.refresh.update = UpdateBehavior::Latest;
         }
-        let npm_result = self
-            .npm_resolver
-            .resolve(
-                &WantedDependency {
-                    alias: Some("bun".to_string()),
-                    bare_specifier: Some(version_spec),
-                    ..WantedDependency::default()
-                },
-                &resolve_opts,
-            )
-            .await?;
+        let npm_result = self.npm_resolver.resolve(
+            &WantedDependency {
+                alias: Some("bun".to_string()),
+                bare_specifier: Some(version_spec),
+                ..WantedDependency::default()
+            },
+            &resolve_opts,
+        )
+        .await?;
         let Some(npm_result) = npm_result else {
             return Ok(Some(LatestInfo::default()));
         };
-        if npm_result
-            .policy_violation
+        if npm_result.policy_violation
             .as_ref()
             .is_some_and(|violation| violation.code == MINIMUM_RELEASE_AGE_VIOLATION_CODE)
         {
             return Ok(Some(LatestInfo::default()));
         }
-        let Some(name_ver) = npm_result.name_ver else {
+        let Some(name_ver) = npm_result.package.name_ver else {
             return Ok(Some(LatestInfo::default()));
         };
         Ok(Some(LatestInfo {
@@ -170,7 +162,9 @@ fn bare_runtime_spec<'a>(wanted: &'a WantedDependency, expected_alias: &str) -> 
     if wanted.alias.as_deref() != Some(expected_alias) {
         return None;
     }
-    wanted.bare_specifier.as_deref().and_then(|spec| spec.strip_prefix(BARE_SPEC_PREFIX))
+    wanted.bare_specifier
+        .as_deref()
+        .and_then(|spec| spec.strip_prefix(BARE_SPEC_PREFIX))
 }
 
 fn normalize_runtime_spec(version_spec: &str) -> &str {

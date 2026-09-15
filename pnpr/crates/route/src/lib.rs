@@ -21,6 +21,24 @@
 //! route into a [`Footprint`]. The footprint's [`Footprint::digest`] is
 //! the per-resolution private key the cache layer will gate on.
 
+pub use url_credentials::{
+    sanitize_registry_tarball_url, strip_url_credentials, url_has_inline_credentials,
+};
+
+pub use route_hook::RouteHook;
+
+pub use footprint::{
+    Footprint, PrivateAccessDescriptor, credential_digest, headers_credential_digest,
+    upstream_cache_digest,
+};
+
+mod url_credentials;
+use url_credentials::{addressed_registry_segment, contains_dot_segment, nerf_prefix, scheme_of};
+
+mod route_hook;
+
+mod footprint;
+
 use std::{
     collections::BTreeSet,
     fmt,
@@ -35,7 +53,7 @@ use wax::{Glob, Program};
 
 use pnpr_config::{Config, PublicRoute, UpstreamConfig};
 use pnpr_policy::{AccessList, Identity, PackageRules};
-use pnpr_registry::{ConcreteKind, Registries, Resolved};
+use pnpr_registry::{ConcreteKind, Ecosystem, Registries, Resolved};
 
 /// The classification of a single fetch route.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -53,158 +71,6 @@ pub enum RouteClass {
     /// of the upstream's `Authorization`, so rotating the credential changes it
     /// (see [`credential_digest`]).
     Proxied { alias: String, credential_digest: String },
-}
-
-/// The cache-namespace identity of a private route: a key input plus
-/// (for the cache layer) an authorization gate. The key input is what
-/// gets HMAC'd into the cache key; identical inputs from different
-/// callers who share the same access collapse to one shared entry.
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
-pub enum PrivateAccessDescriptor {
-    /// Proxied route via a pnpr-managed upstream alias. [`credential_digest`]
-    /// hashes the upstream's `Authorization`, so rotating the credential moves
-    /// future hits to a new namespace — no manual epoch counter to bump.
-    /// `package` is set only when the upstream's rules **explicitly refine**
-    /// this name's `access`: the descriptor then re-checks that per-package
-    /// gate on cache replay, so a caller the refinement denies cannot obtain
-    /// through the cache what a fresh resolve refuses them. Unrefined names
-    /// share the plain registry-scoped descriptor (`package: None`).
-    Alias { alias: String, credential_digest: String, package: Option<String> },
-    /// pnpr-hosted route, gated by re-running the named package access
-    /// policy for the caller.
-    Hosted { policy_id: String },
-}
-
-impl PrivateAccessDescriptor {
-    /// The stable, collision-resistant bytes that go into the cache-key
-    /// HMAC. `\0` separates fields so distinct shapes can't alias (an
-    /// alias literally named `hosted` can't collide with a hosted
-    /// policy of the same text).
-    fn key_input(&self) -> String {
-        match self {
-            PrivateAccessDescriptor::Alias { alias, credential_digest, package: None } => {
-                format!("alias\0{alias}\0{credential_digest}")
-            }
-            PrivateAccessDescriptor::Alias { alias, credential_digest, package: Some(package) } => {
-                format!("alias\0{alias}\0{credential_digest}\0{package}")
-            }
-            PrivateAccessDescriptor::Hosted { policy_id } => format!("hosted\0{policy_id}"),
-        }
-    }
-
-    /// The metadata-namespace id for this single descriptor: an HMAC over
-    /// its [`Self::key_input`] keyed with the server `secret`, so the
-    /// on-disk private-metadata mirror path is not correlatable offline.
-    /// Distinct from [`Footprint::digest`], which combines *all* of a
-    /// resolution's descriptors — metadata is fetched one route at a time,
-    /// so each fetch keys on its own descriptor.
-    fn digest_id(&self, secret: &[u8]) -> String {
-        hex(&hmac_sha256(secret, self.key_input().as_bytes()))
-    }
-}
-
-/// The HMAC digest namespacing an upstream's private cache (packuments and
-/// tarballs), identical to the metadata-mirror descriptor id for the same
-/// `(upstream, credential)`. Keyed by the server `secret` so the on-disk path
-/// reveals neither the upstream name nor its credential, and so a path-unsafe
-/// upstream name (`..`, `/`) can never escape the cache root — the digest is
-/// hex. The digest passed here is a [`headers_credential_digest`] over the
-/// upstream's attached headers, so rotating any credential moves to a fresh
-/// namespace.
-#[must_use]
-pub fn upstream_cache_digest(upstream: &str, credential_digest: String, secret: &[u8]) -> String {
-    PrivateAccessDescriptor::Alias { alias: upstream.to_string(), credential_digest, package: None }
-        .digest_id(secret)
-}
-
-/// A hash of an upstream's `Authorization` header value, used as the credential
-/// epoch in [`PrivateAccessDescriptor::Alias`]. Rotating the upstream
-/// credential changes this automatically, re-keying every private cache the
-/// upstream owns — so a rotation invalidates old-credential content with no
-/// manual step to forget. The raw token never appears: it's a one-way SHA-256
-/// (then HMAC-keyed with the server secret by `PrivateAccessDescriptor::digest_id`
-/// before it reaches disk).
-#[must_use]
-pub fn credential_digest(authorization: &str) -> String {
-    hex(&Sha256::digest(authorization.as_bytes()))
-}
-
-/// A hash of an upstream's *effective credential material* — every request header
-/// it attaches upstream, not just `Authorization` — used as the credential epoch
-/// in [`PrivateAccessDescriptor::Alias`]. pnpr supports credentials carried in
-/// custom headers, so rotating any of them must re-key the upstream's private
-/// cache; keying on `Authorization` alone would keep serving old-credential
-/// content after such a rotation.
-///
-/// Stable across runs and independent of map iteration order: the (name, value)
-/// pairs are sorted and length-prefixed before hashing, so the encoding of a
-/// header set is unambiguous and distinct sets can only collide by a SHA-256
-/// collision. The raw values never reach disk — this is a one-way SHA-256,
-/// then HMAC-keyed with the server secret by
-/// `PrivateAccessDescriptor::digest_id`.
-#[must_use]
-pub fn headers_credential_digest(headers: &HeaderMap) -> String {
-    let mut entries: Vec<(&[u8], &[u8])> =
-        headers.iter().map(|(name, value)| (name.as_str().as_bytes(), value.as_bytes())).collect();
-    entries.sort_unstable();
-    let mut hasher = Sha256::new();
-    for (name, value) in entries {
-        hasher.update((name.len() as u64).to_le_bytes());
-        hasher.update(name);
-        hasher.update((value.len() as u64).to_le_bytes());
-        hasher.update(value);
-    }
-    hex(&hasher.finalize())
-}
-
-/// The set of private routes a single resolve actually touched, paired
-/// with the descriptor selected for each. Accumulated during resolution
-/// through the [`RouteHook`]; consumed afterwards to decide how the
-/// resolution may be cached.
-///
-/// An empty footprint means the resolution is fully public and shareable
-/// globally; a non-empty one is keyed by its private access descriptors.
-#[derive(Debug, Default, Clone)]
-pub struct Footprint {
-    descriptors: BTreeSet<PrivateAccessDescriptor>,
-}
-
-impl Footprint {
-    pub fn add(&mut self, descriptor: PrivateAccessDescriptor) {
-        self.descriptors.insert(descriptor);
-    }
-
-    /// Whether the resolution touched no private data and may be cached
-    /// under the global, auth-excluded key.
-    #[must_use]
-    pub fn is_public(&self) -> bool {
-        self.descriptors.is_empty()
-    }
-
-    /// The private-key component for this footprint: an HMAC over the
-    /// sorted union of its descriptors, keyed with the server `secret`
-    /// so the key is not correlatable offline. `None` for a public
-    /// footprint (no private descriptors), in which case the cache uses
-    /// the global auth-excluded key.
-    #[must_use]
-    pub fn digest(&self, secret: &[u8]) -> Option<String> {
-        if self.descriptors.is_empty() {
-            return None;
-        }
-        let mut message = String::new();
-        for descriptor in &self.descriptors {
-            message.push_str(&descriptor.key_input());
-            message.push('\n');
-        }
-        Some(hex(&hmac_sha256(secret, message.as_bytes())))
-    }
-
-    /// Whether every private descriptor in this footprint is still
-    /// authorized for `identity` under the current route context.
-    #[must_use]
-    pub fn allows(&self, context: &RouteContext, identity: &Identity) -> bool {
-        self.descriptors.iter().all(|descriptor| context.allows_descriptor(identity, descriptor))
-    }
 }
 
 /// Everything [`RouteContext::classify`] needs, resolved once from the server
@@ -250,6 +116,10 @@ struct RouteMatcher {
     /// any registry.
     origin: Option<String>,
     package: Option<Glob<'static>>,
+    /// Whether the route allowlists `https` fetches only. Set on the built-in
+    /// routes, whose hosts are public and serve TLS — see
+    /// [`RouteContext::allows_registry`].
+    https_only: bool,
 }
 
 #[derive(Clone)]
@@ -295,30 +165,36 @@ impl RouteContext {
     /// Resolve route-classification inputs from the server config.
     #[must_use]
     pub fn from_config(config: &Config) -> Self {
-        let hosted_origin = nerf_prefix(&config.public_url);
-        // The official npm registry is a built-in public route, so it is both
-        // allowlisted and classified public without any operator config (and
-        // ahead of any upstream credential for the same origin — public wins).
-        let public_routes = std::iter::once(RouteMatcher::npmjs())
-            .chain(config.route_policy.public.iter().filter_map(RouteMatcher::from_public_route))
+        let routing = &config.routing;
+        let hosted_origin = nerf_prefix(&config.http.public_url);
+        let mut registries = routing.registries.clone();
+        for name in routing.upstreams.keys() {
+            registries.ensure_upstream(name);
+        }
+        // The registries pnpm itself routes to without configuration are
+        // built-in public routes, so they are both allowlisted and classified
+        // public without any operator config (and ahead of any upstream
+        // credential for the same origin — public wins).
+        let public_routes = [RouteMatcher::npmjs(), RouteMatcher::jsr()]
+            .into_iter()
+            .chain(routing.route_policy.public.iter().filter_map(RouteMatcher::from_public_route))
             .collect();
         // Proxied-route credentials come from `upstreams:` entries that declare
         // an `access:` policy. They are matched by registry origin and exposed
         // to clients at `/~<name>/`.
-        let aliases = config
-            .upstreams
+        let aliases = routing.upstreams
             .iter()
             .filter_map(|(name, upstream)| ResolvedAlias::from_upstream(name, upstream))
             .collect();
-        let upstream_origins =
-            config.upstreams.values().filter_map(|upstream| nerf_prefix(&upstream.url)).collect();
-        let hosted_rules = config
-            .hosted
+        let upstream_origins = routing.upstreams
+            .values()
+            .filter_map(|upstream| nerf_prefix(&upstream.url))
+            .collect();
+        let hosted_rules = routing.hosted
             .iter()
             .map(|(name, hosted)| (name.clone(), hosted.rules.clone()))
             .collect();
-        let upstream_rules = config
-            .upstreams
+        let upstream_rules = routing.upstreams
             .iter()
             .map(|(name, upstream)| (name.clone(), upstream.rules.clone()))
             .collect();
@@ -327,10 +203,21 @@ impl RouteContext {
             public_routes,
             aliases,
             upstream_origins,
-            registries: config.registries.clone(),
+            registries,
             hosted_rules,
             upstream_rules,
         }
+    }
+
+    #[must_use]
+    pub fn is_only_ecosystem(&self, ecosystem: Ecosystem) -> bool {
+        self.registries.is_only_ecosystem(ecosystem)
+    }
+
+    /// See [`Registries::base_path`].
+    #[must_use]
+    pub fn base_path(&self, ecosystem: Ecosystem) -> String {
+        self.registries.base_path(ecosystem)
     }
 
     /// Whether the upstream registry's effective per-package access admits
@@ -378,75 +265,7 @@ impl RouteContext {
         if let Some(hosted) = self.hosted_origin.as_deref()
             && fetch.starts_with(hosted)
         {
-            // A fetch to pnpr's own `/~<name>/` endpoint addresses that
-            // registry directly (a package name can never begin with `~`):
-            // an access-bearing upstream resolves through its alias for
-            // authorized callers, a hosted registry through its own rules.
-            // Everyone else — and an unknown name — gets an anonymous fetch
-            // the endpoint itself rejects, rather than falling through to
-            // another registry's policy.
-            if let Some(rest) = fetch.strip_prefix(hosted)
-                && let Some(registry) =
-                    rest.strip_prefix('~').and_then(|rest| rest.split('/').next())
-                && !registry.is_empty()
-            {
-                if let Some(alias) = self
-                    .aliases
-                    .iter()
-                    .find(|alias| alias.name == registry && alias.access.allows(identity))
-                {
-                    // Per-package refinement: a name the upstream's rules
-                    // deny this caller gets no credential — the anonymous
-                    // fetch fails closed at the endpoint, matching serving.
-                    if self.upstream_admits(&alias.name, identity, package) {
-                        return RouteClass::Proxied {
-                            alias: alias.name.clone(),
-                            credential_digest: alias.credential_digest.clone(),
-                        };
-                    }
-                    return RouteClass::Public;
-                }
-                if self.hosted_rules.contains_key(registry) {
-                    return self.classify_hosted(identity, registry, package);
-                }
-                return RouteClass::Public;
-            }
-            // A path-less fetch resolves through the graph's default
-            // registry — the same dispatch the serving endpoints use — to
-            // the one concrete registry that serves this package.
-            let Some(package) = package else {
-                // A non-package fetch against pnpr itself carries no private
-                // package data to key.
-                return RouteClass::Public;
-            };
-            return match self.registries.resolve_default(package) {
-                Resolved::Concrete { registry, kind: ConcreteKind::Hosted } => {
-                    self.classify_hosted(identity, registry, Some(package))
-                }
-                Resolved::Concrete { registry, kind: ConcreteKind::Upstream } => {
-                    match self
-                        .aliases
-                        .iter()
-                        .find(|alias| alias.name == registry && alias.access.allows(identity))
-                        .filter(|alias| {
-                            // Per-package refinement — see the `/~<name>/`
-                            // branch above.
-                            self.upstream_admits(&alias.name, identity, Some(package))
-                        }) {
-                        Some(alias) => RouteClass::Proxied {
-                            alias: alias.name.clone(),
-                            credential_digest: alias.credential_digest.clone(),
-                        },
-                        // A public upstream source (no alias) is an anonymous
-                        // public fetch; an unauthorized caller falls through
-                        // to one the endpoint fails closed on.
-                        None => RouteClass::Public,
-                    }
-                }
-                // Unclaimed or no default registry: the endpoint answers
-                // not-found, so there is no private content to key.
-                Resolved::Unclaimed | Resolved::UnknownRegistry => RouteClass::Public,
-            };
+            return self.classify_own_origin(identity, &fetch, hosted, package);
         }
 
         if let Some(alias) = self.select_alias(identity, &fetch, package)
@@ -466,17 +285,127 @@ impl RouteContext {
         RouteClass::Public
     }
 
+    /// Classify a fetch aimed at pnpr's own origin.
+    ///
+    /// A fetch to pnpr's own `/~<name>/` endpoint addresses that registry
+    /// directly (a package name can never begin with `~`): an access-bearing
+    /// upstream resolves through its alias for authorized callers, a hosted
+    /// registry through its own rules. Everyone else — and an unknown name —
+    /// gets an anonymous fetch the endpoint itself rejects, rather than
+    /// falling through to another registry's policy.
+    fn classify_own_origin(
+        &self,
+        identity: &Identity,
+        fetch: &str,
+        hosted: &str,
+        package: Option<&str>,
+    ) -> RouteClass {
+        // Spelled out rather than built from `base_path`: this wants a path
+        // segment with a trailing slash, not the `/<ecosystem>` prefix that
+        // URL building uses.
+        let npm_endpoint = if self.registries.is_only_ecosystem(Ecosystem::Npm) {
+            hosted.to_string()
+        } else {
+            format!("{hosted}npm/")
+        };
+        if let Some(registry) = addressed_registry_segment(fetch, &npm_endpoint) {
+            return self.classify_addressed(identity, registry, package);
+        }
+
+        // A path-less fetch resolves through the graph's default registry —
+        // the same dispatch the serving endpoints use — to the one concrete
+        // registry that serves this package.
+        let Some(package) = package else {
+            // A non-package fetch against pnpr itself carries no private
+            // package data to key.
+            return RouteClass::Public;
+        };
+        match self.registries.resolve_default(pnpr_registry::Ecosystem::Npm, package) {
+            Resolved::Concrete {
+                registry,
+                kind: ConcreteKind::Hosted,
+            } => self.classify_hosted(identity, registry, Some(package)),
+            Resolved::Concrete {
+                registry,
+                kind: ConcreteKind::Upstream,
+            } => self.classify_upstream(identity, registry, package),
+            // Unclaimed or no default registry: the endpoint answers
+            // not-found, so there is no private content to key.
+            Resolved::Unclaimed | Resolved::UnknownRegistry => RouteClass::Public,
+        }
+    }
+
+    /// Classify a fetch that names its registry through `/~<name>/`.
+    fn classify_addressed(
+        &self,
+        identity: &Identity,
+        registry: &str,
+        package: Option<&str>,
+    ) -> RouteClass {
+        let Some(registry) = self.registries.addressed(registry, Ecosystem::Npm) else {
+            return RouteClass::Public;
+        };
+        if let Some(alias) = self.authorized_alias(identity, registry) {
+            // Per-package refinement: a name the upstream's rules deny this
+            // caller gets no credential — the anonymous fetch fails closed at
+            // the endpoint, matching serving.
+            if self.upstream_admits(&alias.name, identity, package) {
+                return RouteClass::Proxied {
+                    alias: alias.name.clone(),
+                    credential_digest: alias.credential_digest.clone(),
+                };
+            }
+            return RouteClass::Public;
+        }
+        if self.hosted_rules.contains_key(registry) {
+            return self.classify_hosted(identity, registry, package);
+        }
+        RouteClass::Public
+    }
+
+    /// Classify a package served by an upstream registry reached as the
+    /// default. A public upstream source (no alias) is an anonymous public
+    /// fetch; an unauthorized caller falls through to one the endpoint fails
+    /// closed on.
+    fn classify_upstream(&self, identity: &Identity, registry: &str, package: &str) -> RouteClass {
+        // Per-package refinement — see `classify_addressed`.
+        let admitted = self
+            .authorized_alias(identity, registry)
+            .filter(|alias| self.upstream_admits(&alias.name, identity, Some(package)));
+        match admitted {
+            Some(alias) => RouteClass::Proxied {
+                alias: alias.name.clone(),
+                credential_digest: alias.credential_digest.clone(),
+            },
+            None => RouteClass::Public,
+        }
+    }
+
+    fn authorized_alias(&self, identity: &Identity, registry: &str) -> Option<&ResolvedAlias> {
+        self.aliases
+            .iter()
+            .find(|alias| alias.name == registry && alias.access.allows(identity))
+    }
+
     fn is_public_route(&self, fetch: &str, package: Option<&str>) -> bool {
-        self.public_routes.iter().any(|route| route.matches(fetch, package))
+        self.public_routes
+            .iter()
+            .any(|route| route.matches(fetch, package))
     }
 
     /// Whether pnpr is permitted to fetch from `url`'s registry at all. The
-    /// allowlist is the union of every configured route: the built-in npm
-    /// host, operator-declared public routes, configured upstream origins, and
+    /// allowlist is the union of every configured route: the built-in public
+    /// hosts, operator-declared public routes, configured upstream origins, and
     /// pnpr's own origin (which serves its hosted packages and `/~<name>/`
     /// endpoints). A client `registry`/`namedRegistries` matching none of
     /// these is rejected before any server-side fetch — the resolver's SSRF
     /// boundary — so there is no "unknown registry" to resolve anonymously.
+    ///
+    /// Every hop of a redirect is re-checked here too, so a route that admits
+    /// cleartext admits a downgrade to it. The built-in hosts therefore
+    /// allowlist `https` alone; an operator's own routes and upstreams keep
+    /// whatever scheme they are declared with, which on an internal network is
+    /// legitimately plain HTTP.
     #[must_use]
     pub fn allows_registry(&self, url: &str) -> bool {
         let fetch = nerf_dart(url);
@@ -490,17 +419,21 @@ impl RouteContext {
         if contains_dot_segment(&fetch) {
             return false;
         }
-        if self.hosted_origin.as_deref().is_some_and(|hosted| fetch.starts_with(hosted)) {
-            return true;
-        }
-        if self
-            .public_routes
-            .iter()
-            .any(|route| route.origin.as_deref().is_some_and(|origin| fetch.starts_with(origin)))
+        if self.hosted_origin
+            .as_deref()
+            .is_some_and(|hosted| fetch.starts_with(hosted))
         {
             return true;
         }
-        self.upstream_origins.iter().any(|origin| fetch.starts_with(origin))
+        if self.public_routes
+            .iter()
+            .any(|route| route.allowlists(&fetch, scheme_of(url)))
+        {
+            return true;
+        }
+        self.upstream_origins
+            .iter()
+            .any(|origin| fetch.starts_with(origin))
     }
 
     /// A pnpr-hosted route is public when the hosted registry's effective
@@ -549,11 +482,13 @@ impl RouteContext {
         fetch: &str,
         package: Option<&str>,
     ) -> Option<&ResolvedAlias> {
-        self.aliases.iter().find(|alias| {
-            fetch.starts_with(&alias.origin)
-                && alias.access.allows(identity)
-                && self.upstream_admits(&alias.name, identity, package)
-        })
+        self.aliases
+            .iter()
+            .find(|alias| {
+                fetch.starts_with(&alias.origin)
+                    && alias.access.allows(identity)
+                    && self.upstream_admits(&alias.name, identity, package)
+            })
     }
 
     pub(crate) fn allows_descriptor(
@@ -579,23 +514,23 @@ impl RouteContext {
                 // strict as a fresh resolve; unqualified descriptors gate at
                 // the registry level, shared among the callers the upstream's
                 // `access:` admits.
-                self.aliases.iter().find(|candidate| candidate.name == alias.as_str()).is_some_and(
-                    |candidate| {
+                self.aliases
+                    .iter()
+                    .find(|candidate| candidate.name == alias.as_str())
+                    .is_some_and(|candidate| {
                         self.select_alias(identity, &candidate.origin, package.as_deref())
                             .is_some_and(|selected| {
                                 selected.name == alias.as_str()
                                     && selected.credential_digest == *credential_digest
                             })
-                    },
-                )
+                    })
             }
             PrivateAccessDescriptor::Hosted { policy_id } => {
                 // The id is registry-qualified (see `hosted_policy_id`); a
                 // descriptor that doesn't parse — including one written by a
                 // pre-registry-scoped build — fails closed and re-resolves.
                 match policy_id.split_once('\0') {
-                    Some((registry, package)) => self
-                        .hosted_rules
+                    Some((registry, package)) => self.hosted_rules
                         .get(registry)
                         .is_some_and(|rules| rules.for_package(package).access.allows(identity)),
                     None => false,
@@ -624,8 +559,12 @@ fn hosted_policy_id(registry: &str, package: &str) -> String {
     format!("{registry}\0{package}")
 }
 
-/// Nerf-darted origin of the official npm registry, the built-in public route.
+/// Nerf-darted origin of the official npm registry, a built-in public route.
 const NPMJS_ORIGIN: &str = "//registry.npmjs.org/";
+
+/// Nerf-darted origin of the JSR registry's npm compatibility layer, the
+/// registry pnpm's built-in `@jsr` scope route points at.
+const JSR_ORIGIN: &str = "//npm.jsr.io/";
 
 impl RouteMatcher {
     /// The built-in public route: the official npm registry, host-level (no
@@ -636,7 +575,15 @@ impl RouteMatcher {
     /// [`RouteContext::from_config`], so it is allowlisted and public without
     /// any config, and ahead of any upstream credential for the same origin.
     fn npmjs() -> Self {
-        Self { origin: Some(NPMJS_ORIGIN.to_string()), package: None }
+        Self { origin: Some(NPMJS_ORIGIN.to_string()), package: None, https_only: true }
+    }
+
+    /// The other built-in public route: JSR, which every pnpm client routes
+    /// the `@jsr` scope to without configuring anything, so a graph holding a
+    /// JSR dependency resolves through a default server. It hosts no private
+    /// content, so the reasoning in [`Self::npmjs`] applies unchanged.
+    fn jsr() -> Self {
+        Self { origin: Some(JSR_ORIGIN.to_string()), package: None, https_only: true }
     }
 
     /// Build a matcher from an operator-declared public route, failing
@@ -650,206 +597,53 @@ impl RouteMatcher {
     fn from_public_route(route: &PublicRoute) -> Option<Self> {
         let origin = match route.registry.as_deref() {
             None => None,
-            Some(registry) => Some(nerf_prefix(registry).or_else(|| {
-                tracing::warn!(registry, "ignoring public route with an unparsable registry URL");
-                None
-            })?),
+            Some(registry) => Some(
+                nerf_prefix(registry)
+                    .or_else(|| {
+                        tracing::warn!(
+                            registry,
+                            "ignoring public route with an unparsable registry URL",
+                        );
+                        None
+                    })?,
+            ),
         };
         let package = match route.package.as_deref() {
             None => None,
-            Some(pattern) => Some(compile_glob(pattern).or_else(|| {
-                tracing::warn!(pattern, "ignoring public route with an invalid package glob");
-                None
-            })?),
+            Some(pattern) => Some(
+                compile_glob(pattern)
+                    .or_else(|| {
+                        tracing::warn!(
+                            pattern,
+                            "ignoring public route with an invalid package glob",
+                        );
+                        None
+                    })?,
+            ),
         };
-        Some(Self { origin, package })
+        Some(Self { origin, package, https_only: false })
+    }
+
+    /// Whether this route puts `fetch` (nerf-darted, so scheme-less) on the
+    /// allowlist when reached over `scheme`. A package-scoped route with no
+    /// registry allowlists nothing: it narrows an origin another rule already
+    /// admits.
+    fn allowlists(&self, fetch: &str, scheme: Option<&str>) -> bool {
+        self.origin
+            .as_deref()
+            .is_some_and(|origin| fetch.starts_with(origin))
+            && (!self.https_only
+                || scheme.is_some_and(|scheme| scheme.eq_ignore_ascii_case("https")))
     }
 
     fn matches(&self, fetch: &str, package: Option<&str>) -> bool {
-        let origin_ok = self.origin.as_deref().is_none_or(|origin| fetch.starts_with(origin));
-        let package_ok = self
-            .package
+        let origin_ok = self.origin
+            .as_deref()
+            .is_none_or(|origin| fetch.starts_with(origin));
+        let package_ok = self.package
             .as_ref()
             .is_none_or(|glob| package.is_some_and(|name| glob.is_match(name)));
         origin_ok && package_ok
-    }
-}
-
-impl ResolvedAlias {
-    /// Build a proxied-route alias from a `upstreams:` entry. An upstream
-    /// participates in route classification only when it declares both an
-    /// `access:` policy and a resolved `Authorization` credential; routing is
-    /// by registry origin, so no package glob is attached.
-    fn from_upstream(name: &str, upstream: &UpstreamConfig) -> Option<Self> {
-        let access = upstream.access.clone()?;
-        let authorization =
-            upstream.headers.get(AUTHORIZATION).and_then(|value| value.to_str().ok())?.to_string();
-        Some(Self {
-            name: name.to_string(),
-            credential_digest: credential_digest(&authorization),
-            registry: upstream.url.clone(),
-            origin: nerf_prefix(&upstream.url)?,
-            scheme: scheme_of(&upstream.url)?.to_string(),
-            authorization,
-            access,
-        })
-    }
-}
-
-/// The [`UpstreamRouteHook`] pnpr installs on a resolve's
-/// [`AuthHeaders`](pnpm_network::AuthHeaders). Every metadata/tarball
-/// fetch routes through [`UpstreamRouteHook::authorize`], which classifies
-/// the route, records it into the shared [`Footprint`], and returns the
-/// pnpr-managed credential (never a client-forwarded one).
-pub struct RouteHook {
-    context: Arc<RouteContext>,
-    identity: Identity,
-    footprint: Arc<Mutex<Footprint>>,
-    /// HMAC secret keying the per-descriptor metadata namespace
-    /// ([`MetadataCacheScope::Private`]); the same server secret the
-    /// resolution cache keys private footprints with.
-    secret: Arc<[u8]>,
-}
-
-impl fmt::Debug for RouteHook {
-    /// Redacts `Self::secret` — the descriptor-HMAC key must never reach a
-    /// log line or panic dump, or the private namespace becomes correlatable.
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("RouteHook")
-            .field("context", &self.context)
-            .field("identity", &self.identity)
-            .field("footprint", &self.footprint)
-            .field("secret", &"<redacted>")
-            .finish()
-    }
-}
-
-impl RouteHook {
-    #[must_use]
-    pub fn new(
-        context: Arc<RouteContext>,
-        identity: Identity,
-        footprint: Arc<Mutex<Footprint>>,
-        secret: Arc<[u8]>,
-    ) -> Self {
-        Self { context, identity, footprint, secret }
-    }
-}
-
-impl UpstreamRouteHook for RouteHook {
-    fn authorize(&self, url: &str, package: Option<&str>) -> Option<String> {
-        match self.context.classify(&self.identity, url, package) {
-            RouteClass::Public => None,
-            RouteClass::Hosted { policy_id } => {
-                self.record(PrivateAccessDescriptor::Hosted { policy_id });
-                // Hosted packages are served by pnpr itself; no upstream
-                // credential is involved.
-                None
-            }
-            RouteClass::Proxied { alias, credential_digest } => {
-                let authorization = self
-                    .context
-                    .aliases
-                    .iter()
-                    .find(|candidate| candidate.name == alias)
-                    .map(|candidate| candidate.authorization.clone());
-                // Package-qualified only when the upstream's rules explicitly
-                // refine this name, so replay re-checks the refinement.
-                let package = self.context.alias_package_qualifier(&alias, package);
-                self.record(PrivateAccessDescriptor::Alias { alias, credential_digest, package });
-                authorization
-            }
-        }
-    }
-
-    fn allows_fetch(&self, url: &str) -> bool {
-        self.context.allows_registry(url)
-    }
-
-    fn metadata_scope(&self, url: &str, package: Option<&str>) -> MetadataCacheScope {
-        // Read-only classification — this must not record into the
-        // footprint (`authorize` already does, at the real fetch point).
-        match self.context.classify(&self.identity, url, package) {
-            RouteClass::Public => MetadataCacheScope::Public,
-            RouteClass::Hosted { policy_id } => MetadataCacheScope::Private {
-                descriptor_id: PrivateAccessDescriptor::Hosted { policy_id }
-                    .digest_id(&self.secret),
-            },
-            RouteClass::Proxied { alias, credential_digest } => MetadataCacheScope::Private {
-                descriptor_id: {
-                    let package = self.context.alias_package_qualifier(&alias, package);
-                    PrivateAccessDescriptor::Alias { alias, credential_digest, package }
-                        .digest_id(&self.secret)
-                },
-            },
-        }
-    }
-}
-
-impl RouteHook {
-    fn record(&self, descriptor: PrivateAccessDescriptor) {
-        self.footprint.lock().expect("footprint poisoned").add(descriptor);
-    }
-}
-
-/// Whether a registry/dependency/tarball spec carries inline
-/// `user:pass@host` (or `user@host`) credentials. Such URLs must be
-/// rejected before any fetch: pnpr must not turn a client-embedded
-/// credential into upstream Basic auth, treat it as a cache identity, or
-/// store it in a shared cache. An ssh remote's bare username
-/// (`git+ssh://git@host/...`) is transport addressing with no secret — the
-/// same login the scp form `git@host:path` spells — so on ssh schemes only
-/// a `user:pass@` userinfo counts. Specs without a `scheme://` (a semver
-/// range, a scoped name, `npm:`/`workspace:` aliases) never match.
-#[must_use]
-pub fn url_has_inline_credentials(spec: &str) -> bool {
-    let Some((scheme, after_scheme)) = spec.split_once("://") else {
-        return false;
-    };
-    let authority = after_scheme.split(['/', '?', '#']).next().unwrap_or(after_scheme);
-    let Some((userinfo, _)) = authority.rsplit_once('@') else {
-        return false;
-    };
-    if scheme.eq_ignore_ascii_case("ssh") || scheme.eq_ignore_ascii_case("git+ssh") {
-        return userinfo.contains(':');
-    }
-    !userinfo.is_empty()
-}
-
-/// Strip an inline `user:pass@`/`user@` userinfo from a `scheme://` URL,
-/// returning the credential-free form. A tarball URL taken from an untrusted
-/// upstream `dist.tarball` must never be emitted to a client or written to a
-/// shared cache with embedded credentials; a genuinely public tarball is
-/// anonymously fetchable, so the stripped URL still works. Returns the input
-/// unchanged when there is no `scheme://` authority or no userinfo.
-#[must_use]
-pub fn strip_url_credentials(url: &str) -> String {
-    let Some((scheme, after)) = url.split_once("://") else {
-        return url.to_string();
-    };
-    let authority_end = after.find(['/', '?', '#']).unwrap_or(after.len());
-    let (authority, rest) = after.split_at(authority_end);
-    match authority.rsplit_once('@') {
-        Some((_, host)) => format!("{scheme}://{host}{rest}"),
-        None => url.to_string(),
-    }
-}
-
-/// Sanitize an upstream `dist.tarball` URL for public emission: drop inline
-/// userinfo (via [`strip_url_credentials`]) **and** any query string or
-/// fragment, where a registry could carry a signed-URL / tokenized credential
-/// (`?X-Amz-Signature=…`, `?token=…`). A genuinely public tarball is fetched by
-/// its bare path and verified by SRI regardless, so the sanitized URL still
-/// works; one that truly needed a token was never a public route and must be
-/// configured as an upstream (whose tarballs route through `/~<name>/`, keeping
-/// the token server-side). Unlike a client-supplied direct-tarball spec — whose
-/// query is the caller's own intent — this is untrusted upstream metadata.
-#[must_use]
-pub fn sanitize_registry_tarball_url(url: &str) -> String {
-    let no_creds = strip_url_credentials(url);
-    match no_creds.split_once(['?', '#']) {
-        Some((base, _)) => base.to_string(),
-        None => no_creds,
     }
 }
 
@@ -859,69 +653,6 @@ pub fn sanitize_registry_tarball_url(url: &str) -> String {
 /// narrows matching instead of opening a private route up.
 fn compile_glob(pattern: &str) -> Option<Glob<'static>> {
     Glob::new(pattern).ok().map(Glob::into_owned)
-}
-
-/// Nerf-dart a registry URL down to its host-only origin
-/// (`//host[:port]/`), the prefix every fetch under it shares. `None`
-/// for an unparsable URL.
-/// The nerf-darted registry prefix used to match fetches to a hosted, public,
-/// or proxied-upstream route. Path-preserving (`//host/base/`), unlike a bare
-/// host: a pnpr served under a path prefix (`https://host/pnpr/`) still
-/// recognizes its own `/pnpr/~<name>/` endpoints, and a public/upstream route
-/// declared for `https://host/base/` does not also match a sibling
-/// `https://host/other/` path on the same host.
-fn nerf_prefix(url: &str) -> Option<String> {
-    let nerfed = nerf_dart(url);
-    if nerfed.is_empty() { None } else { Some(nerfed) }
-}
-
-/// The URL scheme (`https`, `http`, ...), i.e. the segment before `://`. `None`
-/// for a value with no scheme.
-fn scheme_of(url: &str) -> Option<&str> {
-    url.split_once("://").map(|(scheme, _)| scheme)
-}
-
-/// Whether a nerf-darted key (`//host/path/`) has a `.` or `..` path segment,
-/// which could escape a path-scoped prefix match in [`RouteContext::allows_registry`].
-fn contains_dot_segment(nerfed: &str) -> bool {
-    nerfed.split('/').any(|segment| segment == "." || segment == "..")
-}
-
-/// HMAC-SHA256 (RFC 2104) over the workspace's audited `sha2`, so the
-/// descriptor digest needs no extra crypto dependency. Verified against
-/// the RFC 4231 test vectors in the unit tests.
-fn hmac_sha256(key: &[u8], message: &[u8]) -> [u8; 32] {
-    const BLOCK: usize = 64;
-    let mut block_key = [0u8; BLOCK];
-    if key.len() > BLOCK {
-        let digest = Sha256::digest(key);
-        block_key[..digest.len()].copy_from_slice(&digest);
-    } else {
-        block_key[..key.len()].copy_from_slice(key);
-    }
-    let mut inner = Sha256::new();
-    let mut outer = Sha256::new();
-    let mut inner_pad = [0u8; BLOCK];
-    let mut outer_pad = [0u8; BLOCK];
-    for index in 0..BLOCK {
-        inner_pad[index] = block_key[index] ^ 0x36;
-        outer_pad[index] = block_key[index] ^ 0x5c;
-    }
-    inner.update(inner_pad);
-    inner.update(message);
-    outer.update(outer_pad);
-    outer.update(inner.finalize());
-    outer.finalize().into()
-}
-
-fn hex(bytes: &[u8]) -> String {
-    const HEX: &[u8; 16] = b"0123456789abcdef";
-    let mut out = String::with_capacity(bytes.len() * 2);
-    for byte in bytes {
-        out.push(HEX[(byte >> 4) as usize] as char);
-        out.push(HEX[(byte & 0x0f) as usize] as char);
-    }
-    out
 }
 
 #[cfg(test)]

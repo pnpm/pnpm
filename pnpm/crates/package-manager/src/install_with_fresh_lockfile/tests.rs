@@ -1,8 +1,11 @@
 use super::{
     ImporterUpdateSeedPolicy, UpdateSeedPolicy, compute_package_extensions_checksum,
-    full_resolution_required, importers_consuming_linked_peers,
-    include_transitive_optional_dependencies, is_partial_workspace_selection, update_reuse_scopes,
-    verify_merged_repair,
+    importers_consuming_linked_peers, include_transitive_optional_dependencies,
+    is_partial_workspace_selection,
+};
+use crate::install_with_fresh_lockfile::{
+    persist::verify_merged_repair,
+    seed_policy::{full_resolution_required, update_reuse_scopes},
 };
 use pnpm_config::{Config, PackageExtension};
 use pnpm_lockfile::Lockfile;
@@ -55,8 +58,7 @@ async fn filtered_repair_verifies_the_merged_lockfile() {
     )
     .expect("parse lockfile");
 
-    let error = verify_merged_repair::<SilentReporter>(&lockfile, &[])
-        .await
+    let error = verify_merged_repair::<SilentReporter>(&lockfile, &[]).await
         .expect_err("the merged lockfile must pass structural verification");
     assert!(matches!(
         error,
@@ -186,7 +188,10 @@ fn workspace_manifests(
 
 fn linked_peer_consumers(projects: &[(&str, serde_json::Value)]) -> Vec<String> {
     let owned = workspace_manifests(projects);
-    let borrowed = owned.iter().map(|(id, manifest)| (id.clone(), manifest)).collect();
+    let borrowed = owned
+        .iter()
+        .map(|(id, manifest)| (id.clone(), manifest))
+        .collect();
     let mut consumers: Vec<String> =
         importers_consuming_linked_peers(&borrowed, std::path::Path::new("/repo"))
             .into_iter()

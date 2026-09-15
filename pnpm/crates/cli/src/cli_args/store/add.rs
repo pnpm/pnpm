@@ -11,9 +11,9 @@ use pnpm_network::ThrottledClient;
 use pnpm_reporter::{GlobalLog, LogEvent, LogLevel, Reporter, emit_global_warning};
 use pnpm_resolving_default_resolver::standalone::{StandaloneChainOptions, build_standalone_chain};
 use pnpm_resolving_parse_wanted_dependency::parse_wanted_dependency;
-use pnpm_resolving_resolver_base::{ResolveOptions, WantedDependency};
+use pnpm_resolving_resolver_base::{ResolveOptions, ResolveResult, WantedDependency};
 use pnpm_store_dir::{SharedVerifiedFilesCache, StoreIndex, StoreIndexWriter};
-use pnpm_tarball::DownloadTarballToStore;
+use pnpm_tarball::IngestTarballToStore;
 use ssri::Integrity;
 use std::{path::Path, sync::Arc};
 
@@ -87,18 +87,13 @@ pub(super) async fn run<Reporter: self::Reporter>(
         return Ok(());
     }
     let http_client = Arc::new(build_registry_client(config)?);
-    let resolver = build_standalone_chain(&StandaloneChainOptions {
-        config,
-        http_client: &http_client,
-        // The store only needs the tarball URL and its integrity, both of
-        // which the abbreviated document carries.
-        full_metadata: false,
-        filter_metadata: false,
-    })
-    .map_err(miette::Report::new)?;
+    let resolver = store_resolver(config, &http_client)?;
     let resolve_options = ResolveOptions {
-        project_dir: dir.to_path_buf(),
-        lockfile_dir: dir.to_path_buf(),
+        project: pnpm_resolving_resolver_base::ResolverProjectOptions {
+            project_dir: dir.to_path_buf(),
+            lockfile_dir: dir.to_path_buf(),
+            ..Default::default()
+        },
         ..ResolveOptions::default()
     };
 
@@ -112,41 +107,53 @@ pub(super) async fn run<Reporter: self::Reporter>(
 
     let mut has_failures = false;
     for package in packages {
-        let outcome = add_one::<Reporter>(AddOne {
-            config,
-            http_client: &http_client,
-            resolver: &resolver,
-            resolve_options: &resolve_options,
-            store_index: store_index.clone(),
-            store_index_writer: &store_index_writer,
-            verified_files_cache: SharedVerifiedFilesCache::clone(&verified_files_cache),
-            requester: &requester,
-            package,
-        })
-        .await;
-        match outcome {
-            Ok(package_id) => {
-                Reporter::emit(&LogEvent::Global(GlobalLog {
-                    level: LogLevel::Info,
-                    message: format!("+ {package_id}"),
-                }));
-            }
-            // The command keeps going so one bad specifier doesn't strand
-            // the rest, which leaves this line as the only place the cause
-            // is reported — so it carries the code the top-level handler
-            // would otherwise have printed.
-            Err(error) => {
-                has_failures = true;
-                let code = error.code().map_or_else(String::new, |code| format!("{code}: "));
-                emit_global_warning::<Reporter>(&format!("{code}{error}"));
-            }
-        }
+        has_failures |= report_add_outcome::<Reporter>(
+            add_one::<Reporter>(AddOne {
+                config,
+                http_client: &http_client,
+                resolver: &resolver,
+                resolve_options: &resolve_options,
+                requester: &requester,
+                package,
+                store: StoreAddIndex {
+                    index: store_index.clone(),
+                    index_writer: &store_index_writer,
+                    verified_files_cache: SharedVerifiedFilesCache::clone(&verified_files_cache),
+                },
+            })
+            .await,
+        );
     }
 
     drop(store_index_writer);
     StoreIndexWriter::drain(writer_task, "; some rows may not be persisted").await;
 
     if has_failures { Err(StoreAddFailureError.into()) } else { Ok(()) }
+}
+
+/// Report one specifier's outcome; `true` when it failed.
+///
+/// The command keeps going so one bad specifier doesn't strand
+/// the rest, which leaves this line as the only place the cause
+/// is reported — so it carries the code the top-level handler
+/// would otherwise have printed.
+fn report_add_outcome<Reporter: self::Reporter>(outcome: miette::Result<String>) -> bool {
+    match outcome {
+        Ok(package_id) => {
+            Reporter::emit(&LogEvent::Global(GlobalLog {
+                level: LogLevel::Info,
+                message: format!("+ {package_id}"),
+            }));
+            false
+        }
+        Err(error) => {
+            let code = error
+                .code()
+                .map_or_else(String::new, |code| format!("{code}: "));
+            emit_global_warning::<Reporter>(&format!("{code}{error}"));
+            true
+        }
+    }
 }
 
 /// Everything one specifier's resolve-and-fetch needs. Grouped so the
@@ -156,78 +163,104 @@ struct AddOne<'a> {
     http_client: &'a Arc<ThrottledClient>,
     resolver: &'a pnpm_resolving_default_resolver::DefaultResolver,
     resolve_options: &'a ResolveOptions,
-    store_index: Option<pnpm_store_dir::SharedReadonlyStoreIndex>,
-    store_index_writer: &'a Arc<StoreIndexWriter>,
-    verified_files_cache: SharedVerifiedFilesCache,
     requester: &'a str,
     package: &'a str,
+    store: StoreAddIndex<'a>,
+}
+
+pub(crate) struct StoreAddIndex<'a> {
+    index: Option<pnpm_store_dir::SharedReadonlyStoreIndex>,
+    index_writer: &'a Arc<StoreIndexWriter>,
+    verified_files_cache: SharedVerifiedFilesCache,
 }
 
 /// Resolve one specifier and pull its tarball into the store, returning
 /// the package id pnpm reports it under.
 async fn add_one<Reporter: self::Reporter>(args: AddOne<'_>) -> miette::Result<String> {
-    let AddOne {
-        config,
-        http_client,
-        resolver,
-        resolve_options,
-        store_index,
-        store_index_writer,
-        verified_files_cache,
-        requester,
-        package,
-    } = args;
-    let parsed = parse_wanted_dependency(package);
-    let wanted_dependency = WantedDependency {
-        alias: parsed.alias,
-        bare_specifier: parsed.bare_specifier.filter(|spec| !spec.trim().is_empty()),
-        injected: None,
-        prev_specifier: None,
-        optional: None,
-    };
-    let resolved = resolver
-        .resolve(&wanted_dependency, resolve_options)
-        .await
-        .map_err(|error| miette::miette!("{package}: {error}"))?;
+    let resolved = args.resolve().await?;
     let package_id = resolved.id.to_string();
     let Some((package_url, integrity)) = archive_to_fetch(&resolved.resolution) else {
         return Err(UnsupportedSpecError {
-            package: package.to_owned(),
+            package: args.package.to_owned(),
             resolved_via: resolved.resolved_via,
         }
         .into());
     };
 
-    DownloadTarballToStore {
-        http_client,
-        store_dir: &config.store_dir,
-        store_index,
-        store_index_writer: Some(Arc::clone(store_index_writer)),
-        verify_store_integrity: config.verify_store_integrity,
-        strict_store_pkg_content_check: config.strict_store_pkg_content_check,
-        verified_files_cache,
-        package_integrity: integrity.as_ref(),
-        package_unpacked_size: manifest_unpacked_size(resolved.manifest.as_deref()),
-        package_file_count: manifest_file_count(resolved.manifest.as_deref()),
-        package_url,
-        package_id: &package_id,
-        auth_headers: &config.auth_headers,
-        requester,
-        prefetched_cas_paths: None,
-        retry_opts: pnpm_network::RetryOpts {
-            retries: config.fetch_retries,
-            factor: config.fetch_retry_factor,
-            min_timeout: std::time::Duration::from_millis(config.fetch_retry_mintimeout),
-            max_timeout: std::time::Duration::from_millis(config.fetch_retry_maxtimeout),
+    IngestTarballToStore {
+        fetching: args.archive_options(),
+        package: pnpm_tarball::TarballPackage {
+            integrity: integrity.as_ref(),
+            unpacked_size: manifest_unpacked_size(resolved.package.manifest.as_deref()),
+            file_count: manifest_file_count(resolved.package.manifest.as_deref()),
+            url: package_url,
+            id: &package_id,
         },
+        store: pnpm_tarball::ArchiveStoreContext {
+            dir: &args.config.store_dir,
+            index: args.store.index,
+            index_writer: Some(Arc::clone(args.store.index_writer)),
+            verify_integrity: args.config.verify_store_integrity,
+            strict_pkg_content_check: args.config.strict_store_pkg_content_check,
+            verified_files_cache: args.store.verified_files_cache,
+            prefetched_cas_paths: None,
+        },
+
+        requester: args.requester,
+
         ignore_file_pattern: None,
-        offline: config.offline,
+
         progress_reported: None,
-        append_manifest: None,
+        store_projection: pnpm_tarball::ArchiveStoreProjection::Package { append_manifest: None },
     }
     .run_without_mem_cache::<Reporter>()
     .await
     .map_err(miette::Report::new)?;
 
     Ok(package_id)
+}
+
+fn store_wanted_dependency(package: &str) -> WantedDependency {
+    let parsed = parse_wanted_dependency(package);
+    WantedDependency {
+        alias: parsed.alias,
+        bare_specifier: parsed.bare_specifier.filter(|spec| !spec.trim().is_empty()),
+        injected: None,
+        prev_specifier: None,
+        optional: None,
+    }
+}
+
+fn store_resolver(
+    config: &'static Config,
+    http_client: &Arc<ThrottledClient>,
+) -> miette::Result<pnpm_resolving_default_resolver::DefaultResolver> {
+    build_standalone_chain(&StandaloneChainOptions {
+        config,
+        http_client,
+        // The store only needs the tarball URL and its integrity, both of
+        // which the abbreviated document carries.
+        full_metadata: false,
+        filter_metadata: false,
+    })
+    .map_err(miette::Report::new)
+}
+
+impl<'a> AddOne<'a> {
+    fn archive_options(&self) -> pnpm_tarball::ArchiveFetchOptions<'a> {
+        pnpm_tarball::ArchiveFetchOptions {
+            http_client: self.http_client,
+            auth_headers: &self.config.auth_headers,
+            retry_opts: self.config.retry_opts(),
+            offline: self.config.offline,
+        }
+    }
+
+    async fn resolve(&self) -> miette::Result<ResolveResult> {
+        let wanted = store_wanted_dependency(self.package);
+        self.resolver
+            .resolve(&wanted, self.resolve_options)
+            .await
+            .map_err(|error| miette::miette!("{}: {error}", self.package))
+    }
 }

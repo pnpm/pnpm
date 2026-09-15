@@ -119,7 +119,7 @@ export function createDownloader (
             maxRetries: downloadRetryOpts.retries,
             method: 'GET',
             timeout,
-            url,
+            url: redactUrlForDisplay(url),
           })
         }
       })

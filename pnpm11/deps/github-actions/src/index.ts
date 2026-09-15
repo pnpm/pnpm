@@ -1,8 +1,9 @@
 import fs from 'node:fs/promises'
+import { isIP } from 'node:net'
 import path from 'node:path'
 import util from 'node:util'
 
-import { PnpmError, redactAndSanitize } from '@pnpm/error'
+import { PnpmError, redactAndSanitize, redactUrlForDisplay } from '@pnpm/error'
 import { globalWarn } from '@pnpm/logger'
 import { getRepoRefs } from '@pnpm/resolving.git-resolver'
 import { isSubdir } from 'is-subdir'
@@ -53,7 +54,6 @@ interface ActionReference {
 
 interface ActionFile {
   path: string
-  source: string
 }
 
 interface RepoVersion {
@@ -111,7 +111,7 @@ export async function findOutdatedGitHubActions (
       latest: target(plan).version.version,
       name: plan.action.name,
       wanted: plan.wanted.version.version,
-      homepage: `${serverUrl}/${plan.action.repo}`,
+      homepage: redactUrlForDisplay(`${serverUrl}/${plan.action.repo}`),
     })))
 }
 
@@ -124,18 +124,29 @@ export async function updateGitHubActions (
     return semver.lte(plan.current.version, target.version) &&
       (plan.action.ref !== target.commit || plan.action.commentVersion !== target.tag)
   })
-  const edits = new Map<ActionFile, Array<{ range: readonly [number, number], value: string }>>()
+  const edits = new Map<ActionFile, Array<{ originalValue: string, range: readonly [number, number], value: string }>>()
   for (const plan of updates) {
     const target = opts.latest ? plan.latest : plan.wanted
     const replacements = edits.get(plan.action.file) ?? []
     replacements.push({
+      originalValue: plan.action.originalValue,
       range: plan.action.range,
       value: renderTargetValue(plan.action, target),
     })
     edits.set(plan.action.file, replacements)
   }
   await Promise.all([...edits].map(async ([file, replacements]) => {
-    let source = file.source
+    let source: string
+    try {
+      source = await fs.readFile(file.path, 'utf8')
+    } catch (err: unknown) {
+      throw workflowError('READ', file.path, err)
+    }
+    for (const { originalValue, range: [start, end] } of replacements) {
+      if (start < 0 || start > end || end > source.length || source.slice(start, end) !== originalValue) {
+        throw new PnpmError('GITHUB_ACTIONS_WORKFLOW_CHANGED', `GitHub Actions workflow ${file.path} changed while resolving updates; retry the command`)
+      }
+    }
     replacements.sort((left, right) => right.range[0] - left.range[0])
     for (const replacement of replacements) {
       source = source.slice(0, replacement.range[0]) + replacement.value + source.slice(replacement.range[1])
@@ -154,7 +165,7 @@ export async function updateGitHubActions (
       latest: target.version.version,
       name: plan.action.name,
       wanted: plan.wanted.version.version,
-      homepage: `${serverUrl}/${plan.action.repo}`,
+      homepage: redactUrlForDisplay(`${serverUrl}/${plan.action.repo}`),
     }
   }))
 }
@@ -237,12 +248,13 @@ async function discoverActions (dir: string): Promise<ActionReference[]> {
     }
     const document = YAML.parseDocument(source)
     if (document.errors.length > 0) throw workflowError('PARSE', realFilePath, document.errors[0])
-    const file = { path: realFilePath, source }
+    const file = { path: realFilePath }
     const localReferences: string[] = []
     for (const node of findUsesScalars(document.contents)) {
       const value = node.value
-      if (value.startsWith('./')) {
-        localReferences.push(value)
+      const localReference = parseLocalReference(value)
+      if (localReference != null) {
+        localReferences.push(localReference)
         continue
       }
       const parsed = parseActionReference(value)
@@ -301,6 +313,17 @@ function findMapValue (node: Node, key: string): Node | null {
 function findStringScalar (node: Node, key: string): Scalar<string> | null {
   const value = findMapValue(node, key)
   return isScalar(value) && typeof value.value === 'string' ? value as Scalar<string> : null
+}
+
+/**
+ * Returns the repository-relative path of a `uses:` value that points into the
+ * same repository, either the workspace-relative `./` form or GitHub's
+ * self-repository `$/` form. Returns `null` for every other value, such as an
+ * `owner/repo@ref` or `docker://` reference, which is left to
+ * `parseActionReference`.
+ */
+function parseLocalReference (value: string): string | null {
+  return value.startsWith('./') || value.startsWith('$/') ? value.slice(2) : null
 }
 
 async function resolveLocalReference (rootDir: string, reference: string): Promise<string | null> {
@@ -419,12 +442,12 @@ function dedupeOutdated (actions: OutdatedGitHubAction[]): OutdatedGitHubAction[
 }
 
 function resolveServerUrl (serverUrl: string | undefined): string {
-  let url = serverUrl || process.env.GITHUB_SERVER_URL || 'https://github.com'
-  // Only allow http(s) so the value cannot select another git transport
-  // (e.g. `ext::`, which executes an arbitrary command).
-  if (!url.startsWith('https://') && !url.startsWith('http://')) {
-    throw new PnpmError('GITHUB_ACTIONS_SERVER_PROTOCOL', `The GitHub Actions server URL must use the "https://" or "http://" protocol, but got ${JSON.stringify(url)}`)
+  const parsed = URL.parse(serverUrl || process.env.GITHUB_SERVER_URL || 'https://github.com')
+  const loopback = parsed != null && (parsed.hostname === 'localhost' || parsed.hostname === '[::1]' || (isIP(parsed.hostname) === 4 && parsed.hostname.startsWith('127.')))
+  if (parsed == null || (parsed.protocol !== 'https:' && !(parsed.protocol === 'http:' && loopback))) {
+    throw new PnpmError('GITHUB_ACTIONS_SERVER_PROTOCOL', 'The GitHub Actions server URL must use HTTPS, except for HTTP on loopback hosts')
   }
+  let url = parsed.href
   while (url.endsWith('/')) url = url.slice(0, -1)
   return url
 }

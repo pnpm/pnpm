@@ -10,7 +10,7 @@ use std::{
 
 use super::{
     DependencyNode, TreeNodeId,
-    graph::DependencyGraph,
+    graph::{DependencyGraph, GraphEdge},
     pkg_info::{EdgeContext, PkgInfoEnv, get_pkg_info},
     search::Searcher,
 };
@@ -72,6 +72,7 @@ pub struct GetTreeOptions<'a> {
     pub rewrite_link_version_dir: PathBuf,
 }
 
+#[derive(Default)]
 struct MaterializationResult {
     nodes: Vec<DependencyNode>,
     count: u64,
@@ -111,183 +112,260 @@ fn materialize_children(
     parent_dir: Option<&Path>,
     guard_depth: usize,
 ) -> MaterializationResult {
-    let empty = || MaterializationResult {
-        nodes: Vec::new(),
-        count: 0,
-        has_search_match: false,
-        search_messages: Vec::new(),
-    };
     if max_depth.is_exhausted() || guard_depth >= super::MAX_WALK_DEPTH {
-        return empty();
+        return MaterializationResult::default();
     }
     let Some(graph_node) = opts.graph.nodes.get(parent_id) else {
-        return empty();
+        return MaterializationResult::default();
     };
 
-    let child_tree_max_depth = max_depth.decrement();
     let linked_path_base_dir = match parent_id {
         TreeNodeId::Importer(importer_id) => {
-            super::build::safe_importer_dir(&opts.env.lockfile_dir, importer_id)
-                .unwrap_or_else(|| opts.env.lockfile_dir.clone())
+            super::build::safe_importer_dir(&opts.env.layout.lockfile_dir, importer_id)
+                .unwrap_or_else(|| opts.env.layout.lockfile_dir.clone())
         }
-        TreeNodeId::Package(_) => opts.env.lockfile_dir.clone(),
+        TreeNodeId::Package(_) => opts.env.layout.lockfile_dir.clone(),
     };
-
-    let mut result_dependencies: Vec<DependencyNode> = Vec::new();
-    let mut result_count: u64 = 0;
-    let mut result_has_search_match = false;
-    let mut result_search_messages: Vec<String> = Vec::new();
 
     // Sort edges by alias so that deduplication is deterministic: the
     // alphabetically-first dependency always gets fully expanded.
     let mut sorted_edges: Vec<_> = graph_node.edges.iter().collect();
     sorted_edges.sort_by(|a, b| a.alias.cmp(&b.alias));
 
+    let mut result = MaterializationResult::default();
     for edge in sorted_edges {
         if opts.only_projects && !matches!(edge.target, Some(TreeNodeId::Importer(_))) {
             continue;
         }
-
-        let edge_ctx = EdgeContext {
-            peers: Some(&graph_node.peers),
-            linked_path_base_dir: linked_path_base_dir.clone(),
-            rewrite_link_version_dir: Some(opts.rewrite_link_version_dir.clone()),
-            parent_dir: parent_dir.map(Path::to_path_buf),
-        };
-        let (package_info, _manifest) = get_pkg_info(opts.env, edge, &edge_ctx);
-
-        let search_match = opts.search.map(|search| {
-            search.matches(
-                &edge.alias,
-                &package_info.name,
-                &package_info.version,
-                edge.target.as_ref(),
-            )
+        materialize_edge(MaterializeEdge {
+            opts,
+            edge,
+            peers: &graph_node.peers,
+            linked_path_base_dir: &linked_path_base_dir,
+            parent_dir,
+            result: &mut result,
+            traversal: TraversalState {
+                cache,
+                ancestors,
+                max_depth: max_depth.decrement(),
+                guard_depth,
+            },
         });
-        let searching = opts.search.is_some();
-        let matched = search_match.as_ref().is_some_and(super::search::SearchMatch::is_match);
+    }
+    result
+}
 
-        let mut new_entry: DependencyNode;
-        let mut child_count: u64 = 0;
-        let mut deduped_has_search_match = false;
-        let mut deduped_search_messages: Vec<String> = Vec::new();
+/// One edge of the node being materialized, and where its output goes.
+struct MaterializeEdge<'a> {
+    opts: &'a GetTreeOptions<'a>,
+    edge: &'a GraphEdge,
+    peers: &'a HashSet<String>,
+    linked_path_base_dir: &'a Path,
+    parent_dir: Option<&'a Path>,
+    result: &'a mut MaterializationResult,
+    traversal: TraversalState<'a>,
+}
 
-        match &edge.target {
-            None => {
-                // External link or unresolvable — no traversal possible.
-                if !searching || matched {
-                    new_entry = package_info;
-                } else {
-                    continue;
-                }
-            }
-            Some(target) => {
-                let mut dependencies: Vec<DependencyNode>;
-                let mut deduped_count: Option<u64> = None;
-                let circular = ancestors.contains(target);
+struct TraversalState<'a> {
+    cache: &'a mut MaterializationCache,
+    ancestors: &'a mut HashSet<TreeNodeId>,
+    /// Depth budget for the edge's own subtree.
+    max_depth: MaxDepth,
+    guard_depth: usize,
+}
 
-                if circular {
-                    dependencies = Vec::new();
-                } else {
-                    let cache_key = (target.clone(), child_tree_max_depth.cache_depth());
-                    if let Some(CachedSubtreeOpaque(cached)) = cache.get(&cache_key) {
-                        // Subtree already emitted elsewhere in the
-                        // output — elide it to avoid repeating nodes.
-                        dependencies = Vec::new();
-                        if cached.count > 0 {
-                            deduped_count = Some(cached.count);
-                        }
-                        if opts.show_deduped_search_matches {
-                            deduped_has_search_match = cached.has_search_match;
-                            deduped_search_messages.clone_from(&cached.search_messages);
-                        }
-                    } else {
-                        ancestors.insert(target.clone());
-                        let child_result = materialize_children(
-                            opts,
-                            cache,
-                            ancestors,
-                            target,
-                            child_tree_max_depth,
-                            Some(Path::new(&package_info.path)),
-                            guard_depth + 1,
-                        );
-                        ancestors.remove(target);
+fn materialize_edge(inputs: MaterializeEdge<'_>) {
+    let MaterializeEdge { opts, edge, result, .. } = inputs;
+    let edge_ctx = EdgeContext {
+        peers: Some(inputs.peers),
+        linked_path_base_dir: inputs.linked_path_base_dir.to_path_buf(),
+        rewrite_link_version_dir: Some(opts.rewrite_link_version_dir.clone()),
+        parent_dir: inputs.parent_dir.map(Path::to_path_buf),
+    };
+    let (package_info, _) = get_pkg_info(opts.env, edge, &edge_ctx);
+    let search_match = opts.search.map(|search| {
+        search.matches(
+            &edge.alias,
+            &package_info.package.name,
+            &package_info.package.version,
+            edge.target.as_ref(),
+        )
+    });
 
-                        dependencies = child_result.nodes;
-                        child_count = child_result.count;
+    // An edge with no target is an external link or an unresolvable
+    // reference: there is nothing to traverse into.
+    let subtree = match &edge.target {
+        None => Subtree::default(),
+        Some(target) => materialize_subtree(SubtreeWalk {
+            opts,
+            target,
+            package_path: &package_info.package.path,
+            traversal: inputs.traversal,
+        }),
+    };
+    result.has_search_match |= subtree.walked_has_search_match || subtree.deduped_has_search_match;
+    result.search_messages.extend(subtree.walked_search_messages.iter().cloned());
+    result.search_messages.extend(subtree.deduped_search_messages.iter().cloned());
 
-                        cache.insert(
-                            cache_key,
-                            CachedSubtreeOpaque(CachedSubtree {
-                                count: child_count,
-                                has_search_match: child_result.has_search_match,
-                                search_messages: child_result.search_messages.clone(),
-                            }),
-                        );
-                        if child_result.has_search_match {
-                            result_has_search_match = true;
-                        }
-                        if opts.show_deduped_search_matches {
-                            result_search_messages.extend(child_result.search_messages);
-                        }
-                    }
-                    if deduped_has_search_match {
-                        result_has_search_match = true;
-                        result_search_messages.extend(deduped_search_messages.iter().cloned());
-                    }
-                }
-
-                if !dependencies.is_empty() {
-                    new_entry = package_info;
-                    new_entry.dependencies = std::mem::take(&mut dependencies);
-                } else if !searching || matched || deduped_has_search_match {
-                    new_entry = package_info;
-                } else {
-                    continue;
-                }
-
-                if let Some(count) = deduped_count {
-                    new_entry.deduped = true;
-                    new_entry.deduped_dependencies_count = Some(count);
-                }
-            }
-        }
-
-        match &search_match {
-            Some(search_match) if search_match.is_match() => {
-                new_entry.searched = true;
-                result_has_search_match = true;
-                if let Some(message) = search_match.message() {
-                    new_entry.search_message = Some(message.to_string());
-                    result_search_messages.push(message.to_string());
-                }
-            }
-            _ => {
-                if deduped_has_search_match {
-                    new_entry.searched = true;
-                    if !deduped_search_messages.is_empty() {
-                        new_entry.search_message = Some(deduped_search_messages.join("\n"));
-                    }
-                }
-            }
-        }
-
-        if !new_entry.is_peer
-            || !opts.exclude_peer_dependencies
-            || !new_entry.dependencies.is_empty()
-        {
-            let has_children = !new_entry.dependencies.is_empty();
-            result_count += 1 + if has_children { child_count } else { 0 };
-            result_dependencies.push(new_entry);
-        }
+    // An entry is kept when it has children to show, when it matched the
+    // search itself, or when it stands in for an elided subtree that did.
+    let keep = !subtree.dependencies.is_empty()
+        || opts.search.is_none()
+        || search_match.as_ref().is_some_and(super::search::SearchMatch::is_match)
+        || subtree.deduped_has_search_match;
+    if !keep {
+        return;
     }
 
-    MaterializationResult {
-        nodes: result_dependencies,
-        count: result_count,
-        has_search_match: result_has_search_match,
-        search_messages: result_search_messages,
+    record_materialized_edge(package_info, subtree, search_match.as_ref(), opts, result);
+}
+
+fn record_materialized_edge(
+    mut entry: DependencyNode,
+    mut subtree: Subtree,
+    search_match: Option<&super::search::SearchMatch>,
+    opts: &GetTreeOptions<'_>,
+    result: &mut MaterializationResult,
+) {
+    entry.dependencies = std::mem::take(&mut subtree.dependencies);
+    if let Some(count) = subtree.deduped_count {
+        entry.status.deduped = true;
+        entry.status.deduped_dependencies_count = Some(count);
+    }
+    annotate_search(&mut entry, search_match, &subtree, result);
+
+    if entry.status.is_peer
+        && opts.exclude_peer_dependencies
+        && entry.dependencies.is_empty()
+    {
+        return;
+    }
+    result.count += 1 + if entry.dependencies.is_empty() { 0 } else { subtree.count };
+    result.nodes.push(entry);
+}
+
+/// What materializing one edge's target produced.
+#[derive(Default)]
+struct Subtree {
+    dependencies: Vec<DependencyNode>,
+    /// Nodes below this edge, for the parent's running total.
+    count: u64,
+    /// Set when the subtree was elided as a duplicate, carrying the node
+    /// count of the copy that is shown instead.
+    deduped_count: Option<u64>,
+    /// Search state of an elided duplicate. The copy that carries the
+    /// matches is elsewhere in the output, so this entry reports them.
+    deduped_has_search_match: bool,
+    deduped_search_messages: Vec<String>,
+    /// Search state of a freshly walked subtree, already carried by the
+    /// nodes in `dependencies`.
+    walked_has_search_match: bool,
+    walked_search_messages: Vec<String>,
+}
+
+struct SubtreeWalk<'a> {
+    opts: &'a GetTreeOptions<'a>,
+    target: &'a TreeNodeId,
+    /// Resolved path of the edge's package, the parent directory of the
+    /// subtree's own resolution.
+    package_path: &'a str,
+    traversal: TraversalState<'a>,
+}
+
+fn materialize_subtree(walk: SubtreeWalk<'_>) -> Subtree {
+    let opts = walk.opts;
+    let target = walk.target;
+    let TraversalState {
+        cache,
+        ancestors,
+        max_depth,
+        guard_depth,
+    } = walk.traversal;
+
+    // A back-edge to an ancestor is truncated here; `fix_circular_refs`
+    // flags it in a post-pass.
+    if ancestors.contains(target) {
+        return Subtree::default();
+    }
+
+    let cache_key = (target.clone(), max_depth.cache_depth());
+    if let Some(CachedSubtreeOpaque(cached)) = cache.get(&cache_key) {
+        return deduped_subtree(cached, opts.show_deduped_search_matches);
+    }
+
+    ancestors.insert(target.clone());
+    let child_result = materialize_children(
+        opts,
+        cache,
+        ancestors,
+        target,
+        max_depth,
+        Some(Path::new(walk.package_path)),
+        guard_depth + 1,
+    );
+    ancestors.remove(target);
+
+    cache.insert(
+        cache_key,
+        CachedSubtreeOpaque(CachedSubtree {
+            count: child_result.count,
+            has_search_match: child_result.has_search_match,
+            search_messages: child_result.search_messages.clone(),
+        }),
+    );
+    expanded_subtree(child_result, opts.show_deduped_search_matches)
+}
+
+fn expanded_subtree(child_result: MaterializationResult, show_matches: bool) -> Subtree {
+    Subtree {
+        dependencies: child_result.nodes,
+        count: child_result.count,
+        walked_has_search_match: child_result.has_search_match,
+        walked_search_messages: if show_matches {
+            child_result.search_messages
+        } else {
+            Vec::new()
+        },
+        ..Subtree::default()
+    }
+}
+
+/// Represent a subtree already emitted elsewhere, optionally retaining its search hits.
+fn deduped_subtree(cached: &CachedSubtree, show_matches: bool) -> Subtree {
+    Subtree {
+        deduped_count: (cached.count > 0).then_some(cached.count),
+        deduped_has_search_match: show_matches && cached.has_search_match,
+        deduped_search_messages: if show_matches {
+            cached.search_messages.clone()
+        } else {
+            Vec::new()
+        },
+        ..Subtree::default()
+    }
+}
+
+/// Flag the entry as a search hit, from its own match or from the elided
+/// duplicate it stands in for.
+fn annotate_search(
+    entry: &mut DependencyNode,
+    search_match: Option<&super::search::SearchMatch>,
+    subtree: &Subtree,
+    result: &mut MaterializationResult,
+) {
+    if let Some(search_match) = search_match.filter(|search_match| search_match.is_match()) {
+        entry.search.matched = true;
+        result.has_search_match = true;
+        if let Some(message) = search_match.message() {
+            entry.search.message = Some(message.to_string());
+            result.search_messages.push(message.to_string());
+        }
+        return;
+    }
+    if subtree.deduped_has_search_match {
+        entry.search.matched = true;
+        if !subtree.deduped_search_messages.is_empty() {
+            entry.search.message = Some(subtree.deduped_search_messages.join("\n"));
+        }
     }
 }
 
@@ -301,20 +379,20 @@ fn fix_circular_refs(
     nodes
         .into_iter()
         .map(|mut node| {
-            if !node.path.is_empty() && ancestors.contains(&node.path) {
-                node.circular = true;
+            if !node.package.path.is_empty() && ancestors.contains(&node.package.path) {
+                node.status.circular = true;
                 node.dependencies = Vec::new();
-                node.deduped = false;
-                node.deduped_dependencies_count = None;
+                node.status.deduped = false;
+                node.status.deduped_dependencies_count = None;
                 return node;
             }
             if node.dependencies.is_empty() {
                 return node;
             }
-            ancestors.insert(node.path.clone());
+            ancestors.insert(node.package.path.clone());
             node.dependencies =
                 fix_circular_refs(std::mem::take(&mut node.dependencies), ancestors);
-            ancestors.remove(&node.path);
+            ancestors.remove(&node.package.path);
             node
         })
         .collect()

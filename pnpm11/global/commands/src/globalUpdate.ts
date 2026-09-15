@@ -1,4 +1,3 @@
-import fs from 'node:fs'
 import path from 'node:path'
 
 import type { CommandHandlerMap } from '@pnpm/cli.command'
@@ -14,8 +13,9 @@ import {
 import type { CreateStoreControllerOptions } from '@pnpm/store.connection-manager'
 import semver from 'semver'
 
-import { getBinNamesOfOtherGroups } from './binOwnership.js'
+import { getGlobalBinOwnership } from './binOwnership.js'
 import { checkGlobalBinConflicts } from './checkGlobalBinConflicts.js'
+import { cleanupFailedGlobalInstall } from './cleanupFailedGlobalInstall.js'
 import { activateGlobalInstall, cleanupReplacedGlobalInstalls } from './globalActivation.js'
 import {
   installGlobalPackages,
@@ -114,11 +114,15 @@ async function updateGlobalPackageGroup (
       shouldSkip: (existingPkg) => existingPkg.hash === pkg.hash,
     })
   } catch (err) {
-    await fs.promises.rm(installDir, { recursive: true, force: true })
-    throw err
+    return cleanupFailedGlobalInstall(installDir, err)
   }
 
-  const protectedBins = await getBinNamesOfOtherGroups(globalDir, new Set([pkg.hash]))
+  let ownership: Awaited<ReturnType<typeof getGlobalBinOwnership>>
+  try {
+    ownership = await getGlobalBinOwnership(globalDir, [pkg])
+  } catch (err) {
+    return cleanupFailedGlobalInstall(installDir, err)
+  }
   const hashLink = getHashLink(globalDir, pkg.hash)
   const activatedBins = await activateGlobalInstall({
     installDir,
@@ -128,12 +132,12 @@ async function updateGlobalPackageGroup (
     binsToSkip,
   })
   await cleanupReplacedGlobalInstalls({
-    groups: [pkg],
+    groups: ownership.groups,
     globalDir,
     globalBinDir,
     activeHash: pkg.hash,
     activatedBins,
-    protectedBins,
+    protectedBins: ownership.protectedBins,
   })
   await opts.updateResolutionPolicyManifest?.(resolutionPolicyViolations, globalDir)
 }

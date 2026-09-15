@@ -11,6 +11,7 @@ use std::{
     env, fs,
     io::{self, ErrorKind},
     path::{Path, PathBuf},
+    sync::Arc,
 };
 
 const DEFAULT_YAML_MAX_EVENTS: usize = 1_000_000;
@@ -132,7 +133,8 @@ impl Lockfile {
         dir: &Path,
         selection: &WantedLockfileSelection,
     ) -> Result<Option<Self>, LoadLockfileError> {
-        Ok(Self::load_wanted_detailed(dir, selection)?.lockfile)
+        Ok(Self::load_wanted_detailed(dir, selection)?.lockfile
+            .map(|lockfile| Arc::try_unwrap(lockfile).unwrap_or_else(|shared| (*shared).clone())))
     }
 
     /// [`Self::load_wanted`] keeping the importers the fold started from.
@@ -147,11 +149,14 @@ impl Lockfile {
                 let pre_merge_importers = lockfile.importers.clone();
                 let merged = merge_git_branch_lockfiles(lockfile, dir)?;
                 Ok(LoadedWantedLockfile {
-                    lockfile: Some(merged),
+                    lockfile: Some(Arc::new(merged)),
                     pre_merge_importers: Some(pre_merge_importers),
                 })
             } else {
-                Ok(LoadedWantedLockfile { lockfile: Some(lockfile), pre_merge_importers: None })
+                Ok(LoadedWantedLockfile {
+                    lockfile: Some(Arc::new(lockfile)),
+                    pre_merge_importers: None,
+                })
             };
         }
         Ok(LoadedWantedLockfile::default())
@@ -288,7 +293,11 @@ mod tests;
 /// manifests. `pre_merge_importers` is `None` when no fold was attempted.
 #[derive(Debug, Default, Clone)]
 pub struct LoadedWantedLockfile {
-    pub lockfile: Option<Lockfile>,
+    /// Behind an `Arc` so a consumer that seeds long-lived machinery
+    /// (the resolver's lockfile-reuse pass above all) can share the
+    /// parsed document instead of deep-copying a workspace-scale
+    /// lockfile.
+    pub lockfile: Option<Arc<Lockfile>>,
     pub pre_merge_importers: Option<HashMap<String, ProjectSnapshot>>,
 }
 
@@ -311,6 +320,7 @@ impl LoadedRepairLockfile {
     /// reads.
     pub(crate) fn from_loaded(loaded: LoadedWantedLockfile) -> Self {
         let views = loaded.lockfile.map(|merge| {
+            let merge = Arc::try_unwrap(merge).unwrap_or_else(|shared| (*shared).clone());
             let mut seed = merge.clone();
             seed.prepare_for_fix();
             RepairLockfileViews { seed, merge }
@@ -367,7 +377,9 @@ impl WantedLockfileSelection {
     /// The file names to try, most specific first.
     fn read_order(&self) -> impl Iterator<Item = &str> {
         let branch_file = (self.file_name != Lockfile::FILE_NAME).then_some(&*self.file_name);
-        branch_file.into_iter().chain([Lockfile::FILE_NAME])
+        branch_file
+            .into_iter()
+            .chain([Lockfile::FILE_NAME])
     }
 }
 
@@ -415,40 +427,49 @@ fn prepare_value_for_fix(value: &mut serde_json::Value) {
         discard_invalid_generated_field(root, key);
     }
     if let Some(packages) = root.get_mut("packages").and_then(serde_json::Value::as_object_mut) {
-        packages.retain(|_, metadata| {
-            if serde_json::from_value::<crate::PackageMetadata>(metadata.clone()).is_ok() {
-                return true;
-            }
-            let Some(resolution) = metadata.get("resolution").cloned() else { return false };
-            if serde_json::from_value::<LockfileResolution>(resolution.clone()).is_err() {
-                return false;
-            }
-            *metadata = serde_json::json!({ "resolution": resolution });
-            true
-        });
+        packages.retain(|_, metadata| reduce_package_metadata(metadata));
     }
     if let Some(snapshots) = root.get_mut("snapshots").and_then(serde_json::Value::as_object_mut) {
         for snapshot in snapshots.values_mut() {
-            if serde_json::from_value::<SnapshotEntry>(snapshot.clone()).is_ok() {
-                continue;
-            }
-            let dependencies = snapshot.get("dependencies").cloned();
-            let optional_dependencies = snapshot.get("optionalDependencies").cloned();
-            let mut retained = serde_json::Map::new();
-            if let Some(dependencies) = dependencies {
-                retained.insert("dependencies".to_string(), dependencies);
-            }
-            if let Some(optional_dependencies) = optional_dependencies {
-                retained.insert("optionalDependencies".to_string(), optional_dependencies);
-            }
-            let candidate = serde_json::Value::Object(retained);
-            *snapshot = if serde_json::from_value::<SnapshotEntry>(candidate.clone()).is_ok() {
-                candidate
-            } else {
-                serde_json::json!({})
-            };
+            reduce_snapshot(snapshot);
         }
     }
+}
+
+/// Keep a `packages:` entry that already decodes, or narrow it to the
+/// resolution alone. An entry with no decodable resolution names nothing and
+/// is dropped.
+fn reduce_package_metadata(metadata: &mut serde_json::Value) -> bool {
+    if serde_json::from_value::<crate::PackageMetadata>(metadata.clone()).is_ok() {
+        return true;
+    }
+    let Some(resolution) = metadata.get("resolution").cloned() else { return false };
+    if serde_json::from_value::<LockfileResolution>(resolution.clone()).is_err() {
+        return false;
+    }
+    *metadata = serde_json::json!({ "resolution": resolution });
+    true
+}
+
+/// Keep a `snapshots:` entry that already decodes, or narrow it to its
+/// dependency edges. An entry whose edges do not decode either is emptied
+/// rather than dropped: the key still names a package the graph reaches.
+fn reduce_snapshot(snapshot: &mut serde_json::Value) {
+    if serde_json::from_value::<SnapshotEntry>(snapshot.clone()).is_ok() {
+        return;
+    }
+    let mut retained = serde_json::Map::new();
+    for key in ["dependencies", "optionalDependencies"] {
+        if let Some(value) = snapshot.get(key).cloned() {
+            retained.insert(key.to_string(), value);
+        }
+    }
+    let candidate = serde_json::Value::Object(retained);
+    *snapshot = if serde_json::from_value::<SnapshotEntry>(candidate.clone()).is_ok() {
+        candidate
+    } else {
+        serde_json::json!({})
+    };
 }
 
 fn discard_invalid_generated_field(

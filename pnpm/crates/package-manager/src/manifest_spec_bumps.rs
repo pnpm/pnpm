@@ -13,6 +13,7 @@ use pnpm_registry::RangeSpecStyle;
 use pnpm_resolving_npm_resolver::{calc_version_range, infer_range_spec_style};
 use pnpm_resolving_resolver_base::VersionSelectorType;
 use std::{
+    borrow::Cow,
     collections::{BTreeMap, HashMap, HashSet},
     sync::Mutex,
 };
@@ -95,53 +96,137 @@ pub(crate) fn apply_manifest_spec_bumps(
     bumps: &ManifestSpecBumps,
     overridden: Option<&OverriddenDeclarations<'_>>,
 ) {
-    let mut manifests: BTreeMap<String, HashMap<PkgName, (DependencyGroupIndex, String)>> =
-        BTreeMap::new();
-    let mut cataloged: HashSet<(String, PkgName)> = HashSet::new();
+    let (manifests, cataloged) = collect_importer_bumps(lockfile, bumps, overridden);
+    let catalogs = collect_catalog_bumps(lockfile, &cataloged, bumps.range_spec_style);
+    apply_importer_bumps(lockfile, &manifests);
+    apply_catalog_bumps(lockfile, &catalogs);
 
+    let mut applied = bumps.applied.lock().expect("the spec-bump sink is never poisoned");
+    applied.manifests =
+        render_aliases(manifests, |(group, specifier)| (IMPORTER_GROUPS[group], specifier));
+    applied.catalogs = render_aliases(catalogs, |specifier| specifier);
+}
+
+/// The ranges every importer's declarations move to, plus the catalog entries
+/// a `catalog:` declaration defers the move to.
+fn collect_importer_bumps(
+    lockfile: &Lockfile,
+    bumps: &ManifestSpecBumps,
+    overridden: Option<&OverriddenDeclarations<'_>>,
+) -> (ImporterBumps, HashSet<(String, PkgName)>) {
+    let mut manifests: ImporterBumps = BTreeMap::new();
+    let mut cataloged: HashSet<(String, PkgName)> = HashSet::new();
     for (importer_id, targets) in &bumps.targets {
         let Some(importer) = lockfile.importers.get(importer_id) else { continue };
         let override_matcher =
             overridden.and_then(|overridden| overridden.matcher_for(importer_id));
         for (alias, (manifest_group, manifest_specifier)) in targets {
-            // An override — or another manifest hook — governs this entry, so
-            // the version the run resolved answers the override rather than
-            // the declaration. Leaving the lockfile entry and `package.json`
-            // alone keeps the two agreeing and keeps the declaration, a
-            // `catalog:` reference included (pnpm/pnpm#12115). An override
-            // that repeats the declaration verbatim rewrites nothing, which
-            // is why the text comparison below cannot stand in for this
-            // (pnpm/pnpm#14224).
-            if override_matcher
-                .as_ref()
-                .is_some_and(|matcher| matcher.matches(alias, manifest_specifier))
-            {
-                continue;
-            }
-            let Ok(alias) = PkgName::parse(alias.as_str()) else { continue };
-            let Some((group, declared)) = declared_dependency(importer, &alias, *manifest_group)
-            else {
-                continue;
+            let target = SpecBumpTarget {
+                importer,
+                override_matcher: override_matcher.as_ref(),
+                alias,
+                manifest_group: *manifest_group,
+                manifest_specifier,
+                range_spec_style: bumps.range_spec_style,
             };
-            if declared.specifier != *manifest_specifier {
-                continue;
-            }
-            if let Some(catalog_name) = parse_catalog_protocol(&declared.specifier) {
-                cataloged.insert((catalog_name.to_string(), alias));
-                continue;
-            }
-            if let Some(bumped) =
-                bumped_range(&declared.specifier, &declared.version, bumps.range_spec_style)
-            {
-                manifests.entry(importer_id.clone()).or_default().insert(alias, (group, bumped));
-            }
+            record_spec_bump(&mut manifests, &mut cataloged, importer_id, spec_bump(&target));
         }
     }
+    (manifests, cataloged)
+}
 
+fn record_spec_bump(
+    manifests: &mut ImporterBumps,
+    cataloged: &mut HashSet<(String, PkgName)>,
+    importer_id: &str,
+    bump: SpecBump,
+) {
+    match bump {
+        SpecBump::Skip => {}
+        SpecBump::Cataloged { catalog_name, alias } => {
+            cataloged.insert((catalog_name, alias));
+        }
+        SpecBump::Manifest { alias, group, bumped } => {
+            manifests
+                .entry(importer_id.to_string())
+                .or_default()
+                .insert(alias, (group, bumped));
+        }
+    }
+}
+
+/// Per importer id, the bumped range of each declaration and the group it is
+/// declared under.
+type ImporterBumps = BTreeMap<String, HashMap<PkgName, (DependencyGroupIndex, String)>>;
+
+/// One targeted declaration and what decides whether its range may move.
+struct SpecBumpTarget<'a> {
+    importer: &'a ProjectSnapshot,
+    override_matcher: Option<&'a OverriddenDependencyMatcher<'a>>,
+    alias: &'a str,
+    manifest_group: DependencyGroup,
+    manifest_specifier: &'a str,
+    range_spec_style: RangeSpecStyle,
+}
+
+/// Where one declaration's bumped range is written.
+enum SpecBump {
+    /// The declaration keeps its text.
+    Skip,
+    /// The declaration is a `catalog:` reference, so the catalog entry moves.
+    Cataloged {
+        catalog_name: String,
+        alias: PkgName,
+    },
+    Manifest {
+        alias: PkgName,
+        group: DependencyGroupIndex,
+        bumped: String,
+    },
+}
+
+fn spec_bump(target: &SpecBumpTarget<'_>) -> SpecBump {
+    // An override — or another manifest hook — governs this entry, so
+    // the version the run resolved answers the override rather than
+    // the declaration. Leaving the lockfile entry and `package.json`
+    // alone keeps the two agreeing and keeps the declaration, a
+    // `catalog:` reference included (pnpm/pnpm#12115). An override
+    // that repeats the declaration verbatim rewrites nothing, which
+    // is why the text comparison below cannot stand in for this
+    // (pnpm/pnpm#14224).
+    if target.override_matcher.is_some_and(|matcher| {
+        matcher.matches(target.alias, target.manifest_specifier)
+    }) {
+        return SpecBump::Skip;
+    }
+    let Ok(alias) = PkgName::parse(target.alias) else { return SpecBump::Skip };
+    let Some((group, declared)) =
+        declared_dependency(target.importer, &alias, target.manifest_group)
+    else {
+        return SpecBump::Skip;
+    };
+    if declared.specifier != target.manifest_specifier {
+        return SpecBump::Skip;
+    }
+    if let Some(catalog_name) = parse_catalog_protocol(&declared.specifier) {
+        return SpecBump::Cataloged { catalog_name: catalog_name.to_string(), alias };
+    }
+    let Some(bumped) =
+        bumped_range(&declared.specifier, &declared.version, target.range_spec_style)
+    else {
+        return SpecBump::Skip;
+    };
+    SpecBump::Manifest { alias, group, bumped }
+}
+
+fn collect_catalog_bumps(
+    lockfile: &Lockfile,
+    cataloged: &HashSet<(String, PkgName)>,
+    range_spec_style: RangeSpecStyle,
+) -> BTreeMap<String, HashMap<PkgName, String>> {
     let mut catalogs: BTreeMap<String, HashMap<PkgName, String>> = BTreeMap::new();
-    for (catalog_name, alias) in &cataloged {
-        let Some(entry) = lockfile
-            .catalogs
+    for (catalog_name, alias) in cataloged {
+        let Some(entry) = lockfile.catalogs
             .as_ref()
             .and_then(|catalogs| catalogs.get(catalog_name))
             .and_then(|catalog| catalog.get(&alias.to_string()))
@@ -149,24 +234,40 @@ pub(crate) fn apply_manifest_spec_bumps(
             continue;
         };
         let Ok(version) = entry.version.parse::<ImporterDepVersion>() else { continue };
-        let Some(bumped) = bumped_range(&entry.specifier, &version, bumps.range_spec_style) else {
+        let Some(bumped) = bumped_range(&entry.specifier, &version, range_spec_style) else {
             continue;
         };
-        catalogs.entry(catalog_name.clone()).or_default().insert(alias.clone(), bumped);
+        catalogs
+            .entry(catalog_name.clone())
+            .or_default()
+            .insert(alias.clone(), bumped);
     }
+    catalogs
+}
 
-    for (importer_id, bumped) in &manifests {
+fn apply_importer_bumps(lockfile: &mut Lockfile, manifests: &ImporterBumps) {
+    for (importer_id, bumped) in manifests {
         let Some(importer) = lockfile.importers.get_mut(importer_id) else { continue };
         let mut groups = dependency_maps_mut(importer);
         for (alias, (group, specifier)) in bumped {
-            if let Some(declared) = groups[*group].as_mut().and_then(|map| map.get_mut(alias)) {
+            if let Some(declared) = groups[*group]
+                .as_mut()
+                .and_then(|map| map.get_mut(alias))
+            {
                 declared.specifier.clone_from(specifier);
             }
         }
     }
-    for (catalog_name, bumped) in &catalogs {
-        let Some(catalog) =
-            lockfile.catalogs.as_mut().and_then(|catalogs| catalogs.get_mut(catalog_name))
+}
+
+fn apply_catalog_bumps(
+    lockfile: &mut Lockfile,
+    catalogs: &BTreeMap<String, HashMap<PkgName, String>>,
+) {
+    for (catalog_name, bumped) in catalogs {
+        let Some(catalog) = lockfile.catalogs
+            .as_mut()
+            .and_then(|catalogs| catalogs.get_mut(catalog_name))
         else {
             continue;
         };
@@ -176,11 +277,6 @@ pub(crate) fn apply_manifest_spec_bumps(
             }
         }
     }
-
-    let mut applied = bumps.applied.lock().expect("the spec-bump sink is never poisoned");
-    applied.manifests =
-        render_aliases(manifests, |(group, specifier)| (IMPORTER_GROUPS[group], specifier));
-    applied.catalogs = render_aliases(catalogs, |specifier| specifier);
 }
 
 fn render_aliases<Bumped, Rendered>(
@@ -209,10 +305,14 @@ fn bumped_range(
     version: &ImporterDepVersion,
     default_style: RangeSpecStyle,
 ) -> Option<String> {
-    let (prefix, declared_range) = split_npm_alias(declared)?;
+    let (prefix, declared_range) = split_registry_alias(declared)?;
     // A dist-tag names no version of its own, so the version behind it
-    // moving leaves the declaration saying exactly what was asked for.
-    if get_version_selector_type(declared_range) == Some(VersionSelectorType::Tag) {
+    // moving leaves the declaration saying exactly what was asked for. A
+    // declaration naming only the package tracks the default tag the same
+    // way.
+    if declared_range.is_empty()
+        || get_version_selector_type(declared_range) == Some(VersionSelectorType::Tag)
+    {
         return None;
     }
     let resolved = match version {
@@ -227,21 +327,38 @@ fn bumped_range(
     (bumped != declared).then_some(bumped)
 }
 
-/// A declared specifier split into the `npm:<name>@` prefix it keeps and the
-/// range behind it. `None` for any other protocol — a `workspace:`, `link:`,
-/// `file:`, git, tarball or named-registry dependency declares no registry
-/// range to move.
-fn split_npm_alias(declared: &str) -> Option<(&str, &str)> {
-    let Some(rest) = declared.strip_prefix("npm:") else {
-        return (!declared.contains(':')).then_some(("", declared));
+/// A declared specifier split into the `npm:<name>@` or `jsr:<name>@`
+/// prefix it keeps and the range behind it. A declaration naming only the
+/// package (`jsr:@scope/pkg`, `npm:foo`) keeps the whole name as its prefix
+/// and declares an empty range. `None` for any other protocol — a
+/// `workspace:`, `link:`, `file:`, git, tarball or named-registry
+/// dependency declares no registry range to move.
+pub(crate) fn split_registry_alias(declared: &str) -> Option<(Cow<'_, str>, &str)> {
+    let Some((protocol, rest)) = ["npm:", "jsr:"]
+        .into_iter()
+        .find_map(|protocol| {
+            declared
+                .strip_prefix(protocol)
+                .map(|rest| (protocol, rest))
+        })
+    else {
+        return (!declared.contains(':')).then_some((Cow::Borrowed(""), declared));
     };
-    // A bare `npm:<range>` names no other package, so it round-trips as one.
+    // A bare `npm:<range>` or `jsr:<range>` names no other package, so it
+    // round-trips as one.
     if rest.parse::<Range>().is_ok() {
-        return Some(("npm:", rest));
+        return Some((Cow::Borrowed(protocol), rest));
     }
-    let at = rest.rfind('@').filter(|index| *index >= 1)?;
-    let prefix_len = declared.len() - rest.len() + at + 1;
-    Some((&declared[..prefix_len], &declared[prefix_len..]))
+    match rest
+        .rfind('@')
+        .filter(|index| *index >= 1)
+    {
+        Some(at) => {
+            let prefix_len = protocol.len() + at + 1;
+            Some((Cow::Borrowed(&declared[..prefix_len]), &declared[prefix_len..]))
+        }
+        None => Some((Cow::Owned(format!("{declared}@")), "")),
+    }
 }
 
 /// Index into an importer's dependency maps, in the order
@@ -264,7 +381,9 @@ fn declared_dependency<'a>(
     alias: &PkgName,
     group: DependencyGroup,
 ) -> Option<(DependencyGroupIndex, &'a ResolvedDependencySpec)> {
-    let index = IMPORTER_GROUPS.iter().position(|candidate| *candidate == group)?;
+    let index = IMPORTER_GROUPS
+        .iter()
+        .position(|candidate| *candidate == group)?;
     let maps =
         [&importer.dependencies, &importer.dev_dependencies, &importer.optional_dependencies];
     Some((index, maps[index].as_ref()?.get(alias)?))

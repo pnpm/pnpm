@@ -118,47 +118,17 @@ pub fn fail_if_trust_downgraded(
     version: &str,
     opts: &TrustCheckOptions<'_>,
 ) -> Result<(), TrustViolation> {
-    // Exclude policy short-circuit.
-    if let Some(exclude) = opts.trust_policy_exclude {
-        match exclude.matches(&meta.name) {
-            PolicyMatch::AnyVersion => return Ok(()),
-            PolicyMatch::ExactVersions(versions) => {
-                if versions.iter().any(|exact| exact == version) {
-                    return Ok(());
-                }
-            }
-            PolicyMatch::No => {}
-        }
+    if is_trust_excluded(meta, version, opts.trust_policy_exclude) {
+        return Ok(());
     }
 
     if meta.time.is_none() {
-        if opts.ignore_missing_time_field {
-            warn_missing_time_once(&meta.name, SkippedTimeCheck::TrustPolicy);
-            return Ok(());
-        }
-        return Err(TrustViolation::TrustCheckFailed {
-            reason: format!(
-                r#"The metadata of {name} is missing the "time" field"#,
-                name = meta.name,
-            ),
-        });
+        return missing_trust_time(meta, opts.ignore_missing_time_field);
     }
 
-    let published_at =
-        meta.published_at(version).ok_or_else(|| TrustViolation::TrustCheckFailed {
-            reason: format!(
-                "missing time for version {version} of {name} in metadata",
-                name = meta.name,
-            ),
-        })?;
-    let version_date = parse_packument_timestamp(published_at).ok_or_else(|| {
-        TrustViolation::TrustCheckFailed {
-            reason: "publish timestamp is not a valid date".to_string(),
-        }
-    })?;
+    let version_date = trust_version_date(meta, version)?;
 
-    // Ignore-after cutoff: a version old enough to be "settled"
-    // gets a pass.
+    // Ignore-after cutoff: a version old enough to be "settled" gets a pass.
     if let Some(ignore_after_minutes) = opts.trust_policy_ignore_after_minutes {
         let now = opts.now.unwrap_or_else(Utc::now);
         let minutes_since_publish = (now - version_date).num_seconds().max(0) as u64 / 60;
@@ -167,12 +137,14 @@ pub fn fail_if_trust_downgraded(
         }
     }
 
-    let manifest = meta.versions.get(version).ok_or_else(|| TrustViolation::TrustCheckFailed {
-        reason: format!(
-            "missing version object for version {version} of {name} in metadata",
-            name = meta.name,
-        ),
-    })?;
+    let manifest = meta.versions
+        .get(version)
+        .ok_or_else(|| TrustViolation::TrustCheckFailed {
+            reason: format!(
+                "missing version object for version {version} of {name} in metadata",
+                name = meta.name,
+            ),
+        })?;
 
     let exclude_prerelease = !is_prerelease(version);
     let Some(strongest_prior) =
@@ -193,6 +165,21 @@ pub fn fail_if_trust_downgraded(
         });
     }
     Ok(())
+}
+
+/// Whether `trustPolicyExclude` waives the check for this version.
+fn is_trust_excluded(
+    meta: &Package,
+    version: &str,
+    exclude: Option<&PackageVersionPolicy>,
+) -> bool {
+    match exclude.map(|exclude| exclude.matches(&meta.name)) {
+        Some(PolicyMatch::AnyVersion) => true,
+        Some(PolicyMatch::ExactVersions(versions)) => versions
+            .iter()
+            .any(|exact| exact == version),
+        Some(PolicyMatch::No) | None => false,
+    }
 }
 
 /// Map a [`TrustEvidence`] rank to its numeric weight. "No evidence"
@@ -229,24 +216,21 @@ fn detect_strongest_trust_evidence_before(
     exclude_prerelease: bool,
 ) -> Result<Option<TrustEvidence>, TrustViolation> {
     let mut best: Option<TrustEvidence> = None;
-    for version in meta.versions.keys() {
-        if exclude_prerelease && is_prerelease(version) {
-            continue;
-        }
-        // Skip individual versions that lack a publish timestamp
-        // rather than aborting the entire history walk: a single
-        // prior version with no `time` entry would otherwise mask
-        // every earlier version's evidence and allow a downgrade
-        // to slip through. Each timestamp is checked in isolation.
-        let Some(ts) = meta.published_at(version) else {
-            continue;
-        };
-        let Some(parsed) = parse_packument_timestamp(ts) else {
-            continue;
-        };
-        if parsed >= before_date {
-            continue;
-        }
+    // Skip individual versions that lack a publish timestamp rather than
+    // aborting the entire history walk: a single prior version with no
+    // `time` entry would otherwise mask every earlier version's evidence and
+    // allow a downgrade to slip through. Each timestamp is checked in
+    // isolation.
+    let earlier = meta.versions
+        .keys()
+        .filter(|version| {
+            !(exclude_prerelease && is_prerelease(version))
+                && meta
+                    .published_at(version)
+                    .and_then(parse_packument_timestamp)
+                    .is_some_and(|parsed| parsed < before_date)
+        });
+    for version in earlier {
         let Some(manifest) = meta.versions.get(version) else {
             return Err(TrustViolation::TrustCheckFailed {
                 reason: format!(
@@ -277,14 +261,21 @@ fn detect_strongest_trust_evidence_before(
 /// exposes.
 #[must_use]
 pub fn get_trust_evidence(version: &PackageVersion) -> Option<TrustEvidence> {
-    let has_approver = version.npm_user.as_ref().and_then(|user| user.approver.as_ref()).is_some();
+    let has_approver = version.npm_user
+        .as_ref()
+        .and_then(|user| user.approver.as_ref())
+        .is_some();
     if has_approver {
         return Some(TrustEvidence::StagedPublish);
     }
-    let has_provenance =
-        version.dist.attestations.as_ref().and_then(|att| att.provenance.as_ref()).is_some();
-    let has_trusted_publisher =
-        version.npm_user.as_ref().and_then(|user| user.trusted_publisher.as_ref()).is_some();
+    let has_provenance = version.dist.attestations
+        .as_ref()
+        .and_then(|att| att.provenance.as_ref())
+        .is_some();
+    let has_trusted_publisher = version.npm_user
+        .as_ref()
+        .and_then(|user| user.trusted_publisher.as_ref())
+        .is_some();
     if has_trusted_publisher && has_provenance {
         return Some(TrustEvidence::TrustedPublisher);
     }
@@ -300,3 +291,33 @@ fn is_prerelease(version: &str) -> bool {
 
 #[cfg(test)]
 mod tests;
+
+fn trust_version_date(meta: &Package, version: &str) -> Result<DateTime<Utc>, TrustViolation> {
+    let published_at = meta
+        .published_at(version)
+        .ok_or_else(|| TrustViolation::TrustCheckFailed {
+            reason: format!(
+                "missing time for version {version} of {name} in metadata",
+                name = meta.name,
+            ),
+        })?;
+    let version_date = parse_packument_timestamp(published_at)
+        .ok_or_else(|| TrustViolation::TrustCheckFailed {
+            reason: "publish timestamp is not a valid date".to_string(),
+        })?;
+
+    Ok(version_date)
+}
+
+fn missing_trust_time(
+    meta: &Package,
+    ignore_missing_time_field: bool,
+) -> Result<(), TrustViolation> {
+    if ignore_missing_time_field {
+        warn_missing_time_once(&meta.name, SkippedTimeCheck::TrustPolicy);
+        return Ok(());
+    }
+    Err(TrustViolation::TrustCheckFailed {
+        reason: format!(r#"The metadata of {name} is missing the "time" field"#, name = meta.name),
+    })
+}

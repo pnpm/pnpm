@@ -201,10 +201,10 @@ fn wanted_local(wanted_dependency: &WantedDependency) -> Option<WantedLocalDepen
 
 fn local_options(opts: &ResolveOptions) -> LocalResolverOptions {
     LocalResolverOptions {
-        project_dir: opts.project_dir.clone(),
-        lockfile_dir: Some(opts.lockfile_dir.clone()),
+        project_dir: opts.project.project_dir.clone(),
+        lockfile_dir: Some(opts.project.lockfile_dir.clone()),
         current_pkg: None,
-        update: match opts.update {
+        update: match opts.refresh.update {
             UpdateBehavior::Compatible | UpdateBehavior::Latest => LocalResolverUpdate::On,
             UpdateBehavior::Off | UpdateBehavior::Patches => LocalResolverUpdate::Off,
         },

@@ -9,8 +9,10 @@ import { type Config, type ConfigContext, types as allTypes } from '@pnpm/config
 import { WANTED_LOCKFILE } from '@pnpm/constants'
 import { isSpdxLicenseExpression, resolveLicenseFromDir } from '@pnpm/deps.compliance.license-resolver'
 import {
+  authorNameFromField,
   bugsUrlFromField,
   collectSbomComponents,
+  repositoryFromField,
   resolveWorkspaceDeps,
   type SbomComponentType,
   type SbomFormat,
@@ -468,10 +470,17 @@ async function generateSbomForProject (
   const rootLicense = singleProject
     ? (await resolveRootLicense(manifest, projectDir) ?? cachedRootLicense)
     : cachedRootLicense
-  const rootAuthor = extractAuthor(manifest)
-    ?? (singleProject ? extractAuthor(rootManifest) : undefined)
-  const rootRepository = extractRepository(manifest)
-    ?? (singleProject ? extractRepository(rootManifest) : undefined)
+  // Only a project that declares no `author` at all inherits the workspace
+  // root's. A declared name that is blank names nobody, and putting someone
+  // else's name there would attribute the package to the wrong person.
+  const rootAuthor = authorNameFromField(
+    manifest.author ?? (singleProject ? rootManifest.author : undefined)
+  )
+  // The fallback is on the raw field, as for `author` above: a declared value
+  // that cannot be published is dropped, not replaced by the workspace root's.
+  const rootRepository = repositoryFromField(
+    manifest.repository ?? (singleProject ? rootManifest.repository : undefined)
+  )
   const rootDescription = manifest.description
     ?? (singleProject ? rootManifest.description : undefined)
   const rootBugsUrl = bugsUrlFromField(manifest.bugs)
@@ -592,16 +601,6 @@ async function resolveRootLicense (manifest: Parameters<typeof resolveLicenseFro
   return undefined
 }
 
-function extractAuthor (manifest: { author?: string | { name?: string } }): string | undefined {
-  if (typeof manifest.author === 'string') return manifest.author
-  return manifest.author?.name
-}
-
-function extractRepository (manifest: { repository?: string | { url?: string } }): string | undefined {
-  if (typeof manifest.repository === 'string') return manifest.repository
-  return manifest.repository?.url
-}
-
 const WORKSPACE_MANIFEST_READ_CONCURRENCY = 8
 
 async function buildWorkspacePackagesMap (
@@ -628,8 +627,8 @@ async function buildWorkspacePackagesMap (
         version: manifest.version ?? '0.0.0',
         license: typeof manifest.license === 'string' ? manifest.license : undefined,
         description: manifest.description,
-        author: extractAuthor(manifest),
-        repository: extractRepository(manifest),
+        author: authorNameFromField(manifest.author),
+        repository: repositoryFromField(manifest.repository),
       }]
     }))
   )

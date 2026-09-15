@@ -232,6 +232,22 @@ impl PackageVersions {
         self.slot(version).is_some()
     }
 
+    /// Why `version`'s fragment failed to decode, or `None` when the
+    /// version is absent or decodes fine.
+    ///
+    /// [`Self::get`] answers "absent" for both a version the packument
+    /// never listed and one whose manifest pnpm couldn't parse. The two
+    /// need different reporting — the second is a registry serving a
+    /// field in a shape pnpm doesn't model, and the caller can only say
+    /// so if it can recover the parse error. Re-parses the fragment, so
+    /// this belongs on error paths only.
+    #[must_use]
+    pub fn decode_error(&self, version: &str) -> Option<String> {
+        let slot = self.slot(version)?;
+        let json = slot.source.json()?;
+        serde_json::from_str::<PackageVersion>(&json).err().map(|error| error.to_string())
+    }
+
     /// Whether `version` is marked deprecated, equivalent to
     /// `get(version).is_some_and(|manifest| manifest.deprecated.is_some())`
     /// but without hydrating the full manifest: an unhydrated fragment
@@ -253,7 +269,8 @@ impl PackageVersions {
         if !json.contains(r#""deprecated""#) {
             return false;
         }
-        serde_json::from_str::<DeprecatedProbe>(&json).is_ok_and(|probe| probe.deprecated.is_some())
+        serde_json::from_str::<DeprecatedProbe>(&json)
+            .is_ok_and(|probe| probe.deprecated.is_some())
     }
 
     /// Version strings in lexical order. Never hydrates.
@@ -276,7 +293,9 @@ impl PackageVersions {
     /// representation, so this belongs only on cold paths (the trust
     /// verifier's history scan, tests).
     pub fn iter(&self) -> impl Iterator<Item = (&String, Arc<PackageVersion>)> {
-        self.slots.iter().filter_map(|(version, slot)| Some((version, slot.hydrate(version)?)))
+        self.slots
+            .iter()
+            .filter_map(|(version, slot)| Some((version, slot.hydrate(version)?)))
     }
 
     /// Filtered copy keeping only the versions `keep` accepts. Slots
@@ -286,8 +305,7 @@ impl PackageVersions {
     #[must_use]
     pub fn filtered(&self, mut keep: impl FnMut(&str) -> bool) -> PackageVersions {
         PackageVersions {
-            slots: self
-                .slots
+            slots: self.slots
                 .iter()
                 .filter(|(version, _)| keep(version))
                 .map(|(version, slot)| (version.clone(), slot.clone()))
@@ -296,8 +314,9 @@ impl PackageVersions {
     }
 
     fn slot(&self, version: &str) -> Option<&VersionSlot> {
-        let index =
-            self.slots.binary_search_by(|(candidate, _)| candidate.as_str().cmp(version)).ok()?;
+        let index = self.slots
+            .binary_search_by(|(candidate, _)| candidate.as_str().cmp(version))
+            .ok()?;
         Some(&self.slots[index].1)
     }
 
@@ -378,25 +397,27 @@ impl PackageVersions {
     /// version, which reads back as "absent" (the same contract as an
     /// undecodable fragment).
     pub fn fragments(&self) -> impl Iterator<Item = (&String, Cow<'_, str>)> {
-        self.slots.iter().filter_map(|(version, slot)| {
-            if let Some(json) = slot.source.json() {
-                return Some((version, json));
-            }
-            if let Some(Some(parsed)) = slot.parsed.get() {
-                match serde_json::to_string(parsed.as_ref()) {
-                    Ok(json) => return Some((version, Cow::Owned(json))),
-                    Err(error) => {
-                        tracing::warn!(
-                            target: "pnpm_registry",
-                            %error,
-                            version,
-                            "failed to re-serialize a typed manifest for the metadata mirror",
-                        );
+        self.slots
+            .iter()
+            .filter_map(|(version, slot)| {
+                if let Some(json) = slot.source.json() {
+                    return Some((version, json));
+                }
+                if let Some(Some(parsed)) = slot.parsed.get() {
+                    match serde_json::to_string(parsed.as_ref()) {
+                        Ok(json) => return Some((version, Cow::Owned(json))),
+                        Err(error) => {
+                            tracing::warn!(
+                                target: "pnpm_registry",
+                                %error,
+                                version,
+                                "failed to re-serialize a typed manifest for the metadata mirror",
+                            );
+                        }
                     }
                 }
-            }
-            None
-        })
+                None
+            })
     }
 }
 
@@ -413,7 +434,9 @@ impl From<HashMap<String, PackageVersion>> for PackageVersions {
 
 impl FromIterator<(String, PackageVersion)> for PackageVersions {
     fn from_iter<Iter: IntoIterator<Item = (String, PackageVersion)>>(iter: Iter) -> Self {
-        iter.into_iter().collect::<HashMap<_, _>>().into()
+        iter.into_iter()
+            .collect::<HashMap<_, _>>()
+            .into()
     }
 }
 

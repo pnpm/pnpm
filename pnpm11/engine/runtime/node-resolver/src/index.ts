@@ -1,6 +1,6 @@
 import { isIP } from 'node:net'
 
-import { fetchShasumsFileCached, fetchVerifiedNodeShasumsFileCached } from '@pnpm/crypto.shasums-file'
+import { fetchShasumsFileCached, FetchShasumsFileError, fetchVerifiedNodeShasumsFileCached } from '@pnpm/crypto.shasums-file'
 import { PnpmError } from '@pnpm/error'
 import type { FetchFromRegistry, GetAuthHeader } from '@pnpm/fetching.types'
 import type {
@@ -189,8 +189,13 @@ async function readNodeAssets (
     try {
       const muslAssets = await readNodeAssetsFromMirror(fetch, { nodeMirrorBaseUrl: UNOFFICIAL_NODE_MIRROR_BASE_URL, version, muslOnly: true, verifySignature: false, cacheDir, getAuthHeader })
       assets.push(...muslAssets)
-    } catch {
-      // Musl variants may not be available for all Node.js versions (e.g. very old ones)
+    } catch (err: unknown) {
+      // 404 is how unofficial-builds reports a release it never built, which
+      // is the case for very old Node.js versions. Every other failure aborts
+      // the resolve: an unreachable or blocked mirror must not silently drop
+      // the musl assets, because that writes a lockfile that differs from the
+      // one the same command produces elsewhere.
+      if (!(err instanceof FetchShasumsFileError) || err.status !== 404) throw err
     }
   }
 

@@ -2,12 +2,11 @@
 // (`install.js`), which links it over the placeholder bins, and by the Corepack
 // entry (`bin/pnpm.mjs`), which spawns it.
 import fs from 'node:fs'
-import { createRequire } from 'node:module'
+import os from 'node:os'
 import path from 'node:path'
 import process from 'node:process'
 import { fileURLToPath } from 'node:url'
 
-const require = createRequire(import.meta.url)
 const { platform, arch } = process
 
 /** Directory of the published wrapper; the native binary lives next to it. */
@@ -31,13 +30,35 @@ const PLATFORMS = {
       glibc: '@pnpm/exe.linux-arm64/pnpm',
       musl: '@pnpm/exe.linux-arm64-musl/pnpm',
     },
+    // Only a glibc build is released for these three.
+    riscv64: {
+      glibc: '@pnpm/exe.linux-riscv64/pnpm',
+    },
+    ppc64: {
+      glibc: '@pnpm/exe.linux-ppc64/pnpm',
+    },
+    s390x: {
+      glibc: '@pnpm/exe.linux-s390x/pnpm',
+    },
   },
+  freebsd: {
+    x64: '@pnpm/exe.freebsd-x64/pnpm',
+  },
+  // Android is bionic, which is neither of the two libcs the linux entries
+  // above are keyed on, so it takes a bare specifier of its own.
+  android: {
+    arm64: '@pnpm/exe.android-arm64/pnpm',
+    x64: '@pnpm/exe.android-x64/pnpm',
+  },
+  // Android is bionic, which is neither of the two libcs the linux entries
+  // above are keyed on, so it takes a bare specifier of its own.
 }
 
 /**
- * Native binary specifiers to try, most-preferred first; empty when the host is
- * unsupported. The linux glibc/musl pair is ordered by detected libc, which
- * only decides the winner when both are installed (e.g. `npm install --force`).
+ * Native binary specifiers to try, most-preferred first; empty when no released
+ * binary runs on the host. The linux glibc/musl pair is ordered by detected
+ * libc, which only decides the winner when both are installed (e.g.
+ * `npm install --force`).
  *
  * @returns {string[]}
  */
@@ -47,12 +68,36 @@ export function getBinCandidates () {
   if (platformEntry == null) {
     return []
   }
+  // Node reports both POWER endiannesses as `ppc64` and npm's `cpu` field
+  // cannot tell them apart, so a big-endian host installs the little-endian
+  // package it cannot run. Only the little-endian build is released.
+  if (arch === 'ppc64' && os.endianness() !== 'LE') {
+    return []
+  }
   if (typeof platformEntry === 'string') {
     return [platformEntry]
   }
 
-  const order = detectLinuxLibc() === 'musl' ? ['musl', 'glibc'] : ['glibc', 'musl']
-  return order.map((libc) => platformEntry[libc])
+  // An unprobeable libc (`detectLinuxLibc` returns null) counts as glibc.
+  const detected = detectLinuxLibc() === 'musl' ? 'musl' : 'glibc'
+  const preferred = platformEntry[detected]
+  // An architecture released for one libc only has no entry for the other, and
+  // the binary it does ship cannot run there, so it offers no candidate.
+  if (preferred == null) {
+    return []
+  }
+  const alternate = platformEntry[detected === 'musl' ? 'glibc' : 'musl']
+  return alternate == null ? [preferred] : [preferred, alternate]
+}
+
+/**
+ * How the host names itself in messages, spelled like the targets pnpm releases
+ * binaries for: `linux-x64-musl`, `darwin-arm64`.
+ *
+ * @returns {string}
+ */
+export function hostTarget () {
+  return `${platform}-${arch}${detectLinuxLibc() === 'musl' ? '-musl' : ''}`
 }
 
 /**
@@ -69,7 +114,14 @@ export function splitBinSpecifier (specifier) {
 
 /**
  * Path to the native binary of whichever platform package the package manager
- * installed, or `null` when none is present (Corepack, `--no-optional`).
+ * installed with this wrapper, or `null` when none is present (Corepack,
+ * `--no-optional`).
+ *
+ * Only the wrapper's own `node_modules` and the one it was installed into are
+ * searched, which is where every package manager puts an optional dependency
+ * of the wrapper. A `require` walk would also reach the ancestors' `node_modules`,
+ * which belong to whatever project the wrapper sits under and are not to be
+ * run in its name.
  *
  * @returns {string | null}
  */
@@ -77,11 +129,32 @@ export function resolveInstalledBinary () {
   // Use whichever platform package the package manager installed: it already
   // filtered by `os`/`cpu`/`libc`, more reliable than re-deriving the host.
   for (const specifier of getBinCandidates()) {
-    try {
-      return require.resolve(specifier)
-    } catch {}
+    const { packageName, binFile } = splitBinSpecifier(specifier)
+    for (const modulesDir of installedModulesDirs()) {
+      const candidate = path.join(modulesDir, ...packageName.split('/'), binFile)
+      if (fs.statSync(candidate, { throwIfNoEntry: false })?.isFile() === true) {
+        return candidate
+      }
+    }
   }
   return null
+}
+
+/**
+ * Where a platform package installed for this wrapper can be: the `node_modules`
+ * nested in the wrapper, then the one the wrapper was installed into (two levels
+ * up for the scoped `@pnpm/exe`). Neither need exist. Throws only when the
+ * wrapper's manifest is unreadable, see {@link readWrapperManifest}.
+ *
+ * @returns {string[]}
+ */
+function installedModulesDirs () {
+  const { name } = readWrapperManifest()
+  const segments = typeof name === 'string' ? name.split('/').length : 1
+  return [
+    path.join(wrapperDir, 'node_modules'),
+    path.resolve(wrapperDir, ...Array(segments).fill('..')),
+  ]
 }
 
 // A successful read with no optionalDependencies is the dev checkout (there is

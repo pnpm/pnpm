@@ -7,6 +7,13 @@ storage: ./storage
 # to a `.pnpr-cache` subdirectory of `storage`; point it at a separate,
 # ephemeral volume to keep cached upstream content off the durable disk.
 #cache: ./cache
+# Cross-origin browser access is disabled unless exact origins are listed.
+# This is enough to let a separately hosted registry UI read metadata, search,
+# organization listings, and tarballs without opening pnpr to every website.
+#cors:
+#  allowedOrigins:
+#    - https://npmx.dev
+#    - http://localhost:3000
 # Store the hosted (published) packages and enabled shared artifacts in an
 # S3-compatible object store instead of local directories. Works with AWS S3 (omit
 # `endpoint`), Cloudflare R2 (`region: auto` + the account endpoint),
@@ -48,8 +55,12 @@ storage: ./storage
 # always served.)
 #resolver:           # install accelerator: /-/pnpr, /-/pnpr/v0/resolve,
 #  enabled: true     # and /-/pnpr/v0/verify-lockfile
-#artifacts:          # organization-scoped shared-artifact PoC endpoints
+#artifacts:          # experimental shared artifacts and compiler caches
 #  enabled: false
+#  compilerCaches:  # sccache WebDAV caches, with pnpr account access rules
+#    acme:
+#      access: [ci-builder, alice]
+#      publish: ci-builder
 secret: pnpm-registry-mock-secret-key-32
 
 auth:
@@ -185,6 +196,9 @@ registries:
     type: upstream
     url: https://registry.npmjs.org/
     public: true
+    # Opt in to upstream search and organization discovery for browser UIs.
+    # Omit this to retain pnpr's local-only search behavior.
+    #search: true
   # One URL routing each package to the first listed source whose declared
   # packages claim it. The fixture names are authoritative-local; everything
   # else is npm. A router refuses to start on an unreachable source, so the
@@ -192,6 +206,8 @@ registries:
   main:
     type: router
     sources: [local, npmjs]
+
+  # See ../pnpr/README.md for Cargo and Python registry examples.
 
 # The path-less base URL (`https://<pnpr>/`) aliases this registry.
 defaultRegistry: main

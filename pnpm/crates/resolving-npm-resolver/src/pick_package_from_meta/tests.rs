@@ -48,8 +48,10 @@ fn make_package(
             (version.to_string(), make_pkg_version(name, version, *deprecated))
         })
         .collect();
-    let dist_tags_map =
-        dist_tags.iter().map(|(tag, version)| (tag.to_string(), version.to_string())).collect();
+    let dist_tags_map = dist_tags
+        .iter()
+        .map(|(tag, version)| (tag.to_string(), version.to_string()))
+        .collect();
     Package {
         name: name.to_string(),
         dist_tags: dist_tags_map,
@@ -131,8 +133,8 @@ fn version_range_lte_partial_allows_entire_major() {
 
 #[test]
 fn partial_lte_upper_bound_returns_none_on_overflow() {
-    assert_eq!(super::partial_lte_upper_bound(&u64::MAX.to_string()), None);
-    assert_eq!(super::partial_lte_upper_bound(&format!("1.{}", u64::MAX)), None);
+    assert_eq!(super::semver_range::partial_lte_upper_bound(&u64::MAX.to_string()), None);
+    assert_eq!(super::semver_range::partial_lte_upper_bound(&format!("1.{}", u64::MAX)), None);
 }
 
 #[test]

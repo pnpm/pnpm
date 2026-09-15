@@ -3,8 +3,9 @@
 //! translate to pacquet (the interactive `prompt` flow needs a PTY and
 //! is exercised only through its non-interactive error branch).
 
-use crate::_utils;
 pub use _utils::*;
+
+use crate::_utils;
 
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
@@ -53,7 +54,10 @@ fn default_install_action_installs_before_running_the_script() {
     let marker = workspace.join("marker.txt");
     write_manifest(&workspace, &marker);
 
-    pacquet.with_args(["run", "hello"]).assert().success();
+    pacquet
+        .with_args(["run", "hello"])
+        .assert()
+        .success();
     assert!(marker.exists(), "the script must run after the spawned install");
     assert!(workspace.join("node_modules").exists(), "the gate must have spawned an install first");
 
@@ -67,8 +71,13 @@ fn default_install_action_installs_before_running_the_script() {
 #[cfg(unix)]
 #[test]
 fn install_action_reruns_a_production_only_install() {
-    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
-        CommandTempCwd::init().add_mocked_registry();
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
     let marker = workspace.join("marker.txt");
     let write_project = |foo_version: &str| {
@@ -87,7 +96,10 @@ fn install_action_reruns_a_production_only_install() {
     };
 
     write_project("100.0.0");
-    pacquet.with_args(["install", "--prod"]).assert().success();
+    pacquet
+        .with_args(["install", "--prod"])
+        .assert()
+        .success();
     assert!(
         !workspace.join("node_modules/@pnpm.e2e/bar").exists(),
         "a production-only install must skip devDependencies",
@@ -96,7 +108,10 @@ fn install_action_reruns_a_production_only_install() {
     write_project("100.1.0");
     bump_mtime(&workspace.join("package.json"));
 
-    pacquet_in(&workspace).with_args(["run", "hello"]).assert().success();
+    pacquet_in(&workspace)
+        .with_args(["run", "hello"])
+        .assert()
+        .success();
     assert!(marker.exists(), "the script must run after the spawned install");
     let installed: serde_json::Value = serde_json::from_str(
         &fs::read_to_string(workspace.join("node_modules/@pnpm.e2e/foo/package.json"))
@@ -117,8 +132,13 @@ fn install_action_reruns_a_production_only_install() {
 
 #[test]
 fn dedupe_peers_lockfile_regeneration_installs_before_running_the_script() {
-    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
-        CommandTempCwd::init().add_mocked_registry();
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
     append_workspace_yaml_key(&workspace, "dedupePeers", true);
     fs::write(
@@ -138,14 +158,20 @@ fn dedupe_peers_lockfile_regeneration_installs_before_running_the_script() {
     )
     .expect("write package.json");
 
-    pacquet.with_arg("install").assert().success();
+    pacquet
+        .with_arg("install")
+        .assert()
+        .success();
     assert_eq!(
         fs::read_to_string(workspace.join("postinstall.log")).expect("read postinstall log"),
         "x",
     );
 
     fs::remove_file(workspace.join("pnpm-lock.yaml")).expect("remove pnpm-lock.yaml");
-    pacquet_in(&workspace).with_args(["install", "--lockfile-only"]).assert().success();
+    pacquet_in(&workspace)
+        .with_args(["install", "--lockfile-only"])
+        .assert()
+        .success();
     bump_mtime(&workspace.join("pnpm-lock.yaml"));
     let regenerated_lockfile =
         fs::read_to_string(workspace.join("pnpm-lock.yaml")).expect("read regenerated lockfile");
@@ -184,7 +210,10 @@ fn dedupe_peers_lockfile_regeneration_installs_before_running_the_script() {
         "xxh",
     );
 
-    pacquet_in(&workspace).with_args(["run", "hello"]).assert().success();
+    pacquet_in(&workspace)
+        .with_args(["run", "hello"])
+        .assert()
+        .success();
     assert_eq!(
         fs::read_to_string(workspace.join("postinstall.log")).expect("read postinstall log"),
         "xxhh",
@@ -213,7 +242,10 @@ fn error_action_follows_the_dependency_state() {
     );
     assert!(!marker.exists(), "the script must not run");
 
-    pacquet_in(&workspace).with_arg("install").assert().success();
+    pacquet_in(&workspace)
+        .with_arg("install")
+        .assert()
+        .success();
     pacquet_in(&workspace)
         .with_args(["--config.verify-deps-before-run=error", "run", "hello"])
         .assert()
@@ -249,7 +281,10 @@ fn error_action_follows_the_dependency_state() {
         !workspace.join("pnpm-lock.yaml").exists(),
         "the pre-run check must not write pnpm-lock.yaml",
     );
-    pacquet_in(&workspace).with_arg("install").assert().success();
+    pacquet_in(&workspace)
+        .with_arg("install")
+        .assert()
+        .success();
     assert!(workspace.join("pnpm-lock.yaml").exists(), "install must restore the lockfile");
 
     // A manifest that no longer matches the lockfile must fail again.
@@ -271,6 +306,133 @@ fn error_action_follows_the_dependency_state() {
         stderr.contains("ERR_PNPM_VERIFY_DEPS_BEFORE_RUN"),
         "expected the verify-deps error:\n{stderr}",
     );
+
+    drop(root);
+}
+
+/// Dedicated workspace lockfiles record one project in each workspace
+/// state file. The pre-run check must validate the project being run,
+/// rather than comparing that state to every workspace package.
+#[cfg(unix)]
+#[test]
+fn separate_lockfiles_check_only_the_active_workspace_project() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    let root_marker = workspace.join("root-marker.txt");
+    write_manifest(&workspace, &root_marker);
+    fs::write(
+        workspace.join("pnpm-workspace.yaml"),
+        "verifyDepsBeforeRun: error\nsharedWorkspaceLockfile: false\npackages:\n  - packages/*\n",
+    )
+    .expect("write pnpm-workspace.yaml");
+
+    let project = workspace.join("packages/project");
+    fs::create_dir_all(&project).expect("create workspace project");
+    let project_marker = project.join("project-marker.txt");
+    write_manifest(&project, &project_marker);
+
+    pacquet
+        .with_arg("install")
+        .assert()
+        .success();
+    pacquet_in(&workspace)
+        .with_args(["run", "hello"])
+        .assert()
+        .success();
+    pacquet_in(&project)
+        .with_args(["run", "hello"])
+        .assert()
+        .success();
+    assert!(root_marker.exists(), "the root script must run");
+    assert!(project_marker.exists(), "the workspace script must run");
+
+    // The check is scoped to the active project, not skipped: a
+    // dependency the project's own lockfile does not carry still fails.
+    write_manifest_with_dependency_groups(
+        &project,
+        &project_marker,
+        json!({ "dependencies": { "@pnpm.e2e/foo": "100.0.0" } }),
+    );
+    bump_mtime(&project.join("package.json"));
+    let output = pacquet_in(&project)
+        .with_args(["run", "hello"])
+        .output()
+        .expect("spawn pacquet run");
+    assert!(!output.status.success(), "an out-of-sync project must fail");
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        stderr.contains("ERR_PNPM_VERIFY_DEPS_BEFORE_RUN"),
+        "expected the verify-deps error:\n{stderr}",
+    );
+
+    drop(root);
+}
+
+/// A workspace root needs no package manifest of its own. With dedicated
+/// lockfiles the gate reads the manifest of the nested project that owns
+/// the lockfile and the state.
+#[cfg(unix)]
+#[test]
+fn separate_lockfiles_allow_a_nested_project_without_a_root_manifest() {
+    let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
+    fs::write(
+        workspace.join("pnpm-workspace.yaml"),
+        "verifyDepsBeforeRun: error\nsharedWorkspaceLockfile: false\npackages:\n  - packages/*\n",
+    )
+    .expect("write pnpm-workspace.yaml");
+
+    let project = workspace.join("packages/project");
+    fs::create_dir_all(&project).expect("create workspace project");
+    let marker = project.join("project-marker.txt");
+    write_manifest(&project, &marker);
+
+    pacquet_in(&project)
+        .with_arg("install")
+        .assert()
+        .success();
+    pacquet_in(&project)
+        .with_args(["run", "hello"])
+        .assert()
+        .success();
+    assert!(marker.exists(), "the nested workspace script must run");
+
+    drop(root);
+}
+
+/// One shared lockfile covers every project, so a command run from a
+/// directory that has no manifest of its own is still checked against
+/// the workspace root's state.
+#[cfg(unix)]
+#[test]
+fn a_shared_lockfile_is_checked_from_a_directory_without_a_manifest() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    write_manifest(&workspace, &workspace.join("marker.txt"));
+    fs::write(
+        workspace.join("pnpm-workspace.yaml"),
+        "verifyDepsBeforeRun: error\npackages:\n  - packages/*\n",
+    )
+    .expect("write pnpm-workspace.yaml");
+    let tools = workspace.join("tools");
+    fs::create_dir_all(&tools).expect("create the directory without a manifest");
+
+    let output = pacquet_in(&tools)
+        .with_args(["exec", "true"])
+        .output()
+        .expect("spawn pacquet exec");
+    assert!(!output.status.success(), "exec before any install must fail");
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        stderr.contains("ERR_PNPM_VERIFY_DEPS_BEFORE_RUN"),
+        "expected the verify-deps error:\n{stderr}",
+    );
+
+    pacquet
+        .with_arg("install")
+        .assert()
+        .success();
+    pacquet_in(&tools)
+        .with_args(["exec", "true"])
+        .assert()
+        .success();
 
     drop(root);
 }
@@ -313,11 +475,15 @@ fn prompt_action_errors_when_not_interactive() {
     assert!(!output.status.success(), "prompt mode must fail without a TTY");
     let stderr = String::from_utf8_lossy(&output.stderr);
     // miette wraps the help text, so collapse whitespace before matching.
-    let stderr_flat = stderr.split_whitespace().collect::<Vec<_>>().join(" ");
+    let stderr_flat = stderr
+        .split_whitespace()
+        .collect::<Vec<_>>()
+        .join(" ");
     assert!(
         stderr.contains("ERR_PNPM_VERIFY_DEPS_BEFORE_RUN")
-            && stderr_flat
-                .contains("cannot prompt for confirmation in non-interactive environments"),
+            && stderr_flat.contains(
+                "cannot prompt for confirmation in non-interactive environments"
+            ),
         "expected the non-interactive prompt error:\n{stderr}",
     );
 
@@ -333,7 +499,10 @@ fn false_disables_the_gate() {
     let marker = workspace.join("marker.txt");
     write_manifest(&workspace, &marker);
 
-    pacquet.with_args(["--config.verify-deps-before-run=false", "run", "hello"]).assert().success();
+    pacquet
+        .with_args(["--config.verify-deps-before-run=false", "run", "hello"])
+        .assert()
+        .success();
     assert!(marker.exists(), "the script must run");
     assert!(!workspace.join("node_modules").exists(), "no install may be spawned");
 
@@ -357,7 +526,10 @@ fn scripts_get_the_check_disabled_through_their_env() {
     .to_string();
     fs::write(workspace.join("package.json"), manifest).expect("write package.json");
 
-    pacquet.with_args(["run", "checkEnv"]).assert().success();
+    pacquet
+        .with_args(["run", "checkEnv"])
+        .assert()
+        .success();
 
     drop(root);
 }
@@ -464,7 +636,10 @@ fn exec_runs_the_gate_too() {
         "expected the verify-deps error:\n{stderr}",
     );
 
-    pacquet_in(&workspace).with_arg("install").assert().success();
+    pacquet_in(&workspace)
+        .with_arg("install")
+        .assert()
+        .success();
     pacquet_in(&workspace)
         .with_args(["--config.verify-deps-before-run=error", "exec", "true"])
         .assert()
@@ -613,4 +788,112 @@ fn silent_recursive_run_suppresses_verifier_output() {
     assert!(marker.exists(), "the script must run after the verifier install");
 
     drop(root);
+}
+
+#[test]
+fn unreachable_lockfile_snapshots_do_not_trigger_reinstall_loop() {
+    const PREPARE_MARKER: &str = "prepare-ran.txt";
+    const ORPHANED: &str = "@pnpm.e2e/pkg-with-1-dep";
+    const ORPHANED_HOISTED_LINK: &str =
+        "node_modules/.pnpm/node_modules/@pnpm.e2e/dep-of-pkg-with-1-dep";
+
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    let marker = workspace.join(PREPARE_MARKER);
+    let write_project = |dependencies: serde_json::Value| {
+        fs::write(
+            workspace.join("package.json"),
+            json!({
+                "name": "unreachable-snapshots-project",
+                "version": "0.0.0",
+                "scripts": {
+                    "prepare": format!(
+                        r#"node -e "require('fs').writeFileSync('{PREPARE_MARKER}', '')""#,
+                    ),
+                },
+                "dependencies": dependencies,
+            })
+            .to_string(),
+        )
+        .expect("write the project manifest");
+    };
+
+    write_project(json!({
+        "@pnpm.e2e/foo": "100.0.0",
+        ORPHANED: "100.0.0",
+    }));
+    pacquet
+        .with_arg("install")
+        .assert()
+        .success();
+
+    // Drop the dependency from the manifest and from the lockfile's importer
+    // without regenerating the lockfile, which is the state the issue reports:
+    // the snapshots only that importer entry reached stay in `pnpm-lock.yaml`
+    // with nothing referencing them.
+    write_project(json!({ "@pnpm.e2e/foo": "100.0.0" }));
+    let mut wanted = pnpm_lockfile::Lockfile::load_wanted_from_dir(&workspace)
+        .expect("read the wanted lockfile")
+        .expect("the install wrote a wanted lockfile");
+    let importer = wanted.importers.get_mut(".").expect("the root importer is in the lockfile");
+    let orphaned = ORPHANED.parse().expect("the dependency name is valid");
+    importer.dependencies
+        .as_mut()
+        .expect("the root importer has dependencies")
+        .remove(&orphaned);
+    wanted
+        .save_to_path(&workspace.join("pnpm-lock.yaml"))
+        .expect("save the wanted lockfile");
+    bump_mtime(&workspace.join("package.json"));
+
+    // The frozen install settles the tree on what the importers reach: it
+    // materializes only that graph, and records the same graph as the current
+    // lockfile.
+    pacquet_in(&workspace)
+        .with_args(["install", "--frozen-lockfile"])
+        .assert()
+        .success();
+    assert!(
+        !workspace
+            .join("node_modules")
+            .join(ORPHANED)
+            .exists(),
+        "the frozen install must unlink the dependency the importer no longer declares",
+    );
+    assert!(
+        !workspace.join(ORPHANED_HOISTED_LINK).exists(),
+        "the frozen install must unhoist a package only the unreachable snapshot reached",
+    );
+    let current = fs::read_to_string(workspace.join("node_modules/.pnpm/lock.yaml"))
+        .expect("read the current lockfile");
+    assert!(
+        !current.contains(ORPHANED),
+        "the current lockfile must record only what the importers reach, got:\n{current}",
+    );
+
+    // The wanted lockfile still carries the unreachable snapshots, so a second
+    // frozen install faces the same input as the first. It has nothing left to
+    // do: no re-import, and no lifecycle script rerun.
+    fs::remove_file(&marker).expect("clear the prepare marker");
+    pacquet_in(&workspace)
+        .with_args(["install", "--frozen-lockfile"])
+        .assert()
+        .success();
+    assert!(
+        !marker.exists(),
+        "a repeated frozen install must not re-materialize the tree and rerun `prepare`",
+    );
+
+    pacquet_in(&workspace)
+        .with_args(["--config.verify-deps-before-run=error", "exec", "node", "-e", "0"])
+        .assert()
+        .success();
+
+    drop((root, mock_instance));
 }

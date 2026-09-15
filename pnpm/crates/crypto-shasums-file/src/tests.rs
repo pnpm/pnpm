@@ -568,7 +568,11 @@ async fn seeded_verified_cache_without_valid_signature_is_refetched() {
         .expect("genuine pair now serves from the cache");
 
     assert_eq!(refetched, cached);
-    assert!(refetched.iter().any(|item| item.file_name == "node-v22.11.0-linux-x64.tar.gz"));
+    assert!(
+        refetched
+            .iter()
+            .any(|item| item.file_name == "node-v22.11.0-linux-x64.tar.gz"),
+    );
     shasums.assert_async().await;
     signature.assert_async().await;
 }

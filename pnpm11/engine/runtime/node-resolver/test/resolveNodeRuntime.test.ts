@@ -4,8 +4,9 @@ import path from 'node:path'
 
 import { expect, test } from '@jest/globals'
 import type { FetchFromRegistry } from '@pnpm/fetching.types'
+import type { PlatformAssetResolution } from '@pnpm/resolving.resolver-base'
 
-import { resolveNodeRuntime, resolveNodeVersion } from '../lib/index.js'
+import { DEFAULT_NODE_MIRROR_BASE_URL, resolveNodeRuntime, resolveNodeVersion, UNOFFICIAL_NODE_MIRROR_BASE_URL } from '../lib/index.js'
 
 const MIRROR = 'https://node.example/download/rc/'
 
@@ -214,3 +215,63 @@ function countingFetch (responses: Record<string, () => Response>): { fetch: Fet
   }) as unknown as FetchFromRegistry
   return { fetch: countedFetch, calls }
 }
+
+const OFFICIAL_INDEX_URL = `${DEFAULT_NODE_MIRROR_BASE_URL}index.json`
+const OFFICIAL_SHASUMS_URL = `${DEFAULT_NODE_MIRROR_BASE_URL}v22.11.0/SHASUMS256.txt`
+const UNOFFICIAL_SHASUMS_URL = `${UNOFFICIAL_NODE_MIRROR_BASE_URL}v22.11.0/SHASUMS256.txt`
+
+test('resolveNodeRuntime() skips the musl assets of a release unofficial-builds never built', async () => {
+  const variants = await resolveMuslVariants(async () => new Response(null, { status: 404 }))
+
+  expect(variants.map(({ targets }) => targets[0].libc)).toStrictEqual([undefined])
+})
+
+test('resolveNodeRuntime() reads the musl assets unofficial-builds publishes', async () => {
+  const variants = await resolveMuslVariants(async () => new Response(MUSL_SHASUMS))
+
+  expect(variants.map(({ targets }) => targets[0].libc)).toStrictEqual([undefined, 'musl'])
+})
+
+test.each([
+  403,
+  500,
+])('resolveNodeRuntime() fails when unofficial-builds answers %i', async (status) => {
+  await expect(resolveMuslVariants(async () => new Response(null, { status })))
+    .rejects.toThrow(`Failed to fetch integrity file: ${UNOFFICIAL_SHASUMS_URL} (status: ${status})`)
+})
+
+test('resolveNodeRuntime() fails when unofficial-builds cannot be reached', async () => {
+  await expect(resolveMuslVariants(() => Promise.reject(new Error('getaddrinfo ENOTFOUND unofficial-builds.nodejs.org'))))
+    .rejects.toThrow('getaddrinfo ENOTFOUND unofficial-builds.nodejs.org')
+})
+
+/**
+ * The musl request is only made when the picked mirror is the default one, and
+ * pointing the `rc` channel at it keeps that mirror's own SHASUMS file
+ * unsigned, so no release signature has to be minted for the official half.
+ */
+async function resolveMuslVariants (respondToMuslRequest: () => Promise<Response>): Promise<PlatformAssetResolution[]> {
+  const fetch: FetchFromRegistry = async (url) => {
+    switch (url) {
+      case OFFICIAL_INDEX_URL:
+        return new Response(JSON.stringify([{ version: 'v22.11.0', lts: false }]))
+      case OFFICIAL_SHASUMS_URL:
+        return new Response(GLIBC_SHASUMS)
+      case UNOFFICIAL_SHASUMS_URL:
+        return respondToMuslRequest()
+      default:
+        throw new Error(`Unexpected URL: ${url}`)
+    }
+  }
+  const resolution = await resolveNodeRuntime({
+    fetchFromRegistry: fetch,
+    nodeDownloadMirrors: { rc: DEFAULT_NODE_MIRROR_BASE_URL },
+  }, {
+    alias: 'node',
+    bareSpecifier: 'runtime:rc/22.11.0',
+  })
+  return resolution!.resolution.variants
+}
+
+const GLIBC_SHASUMS = 'ed52239294ad517fbe91a268146d5d2aa8a17d2d62d64873e43219078ba71c4e  node-v22.11.0-linux-x64.tar.gz\n'
+const MUSL_SHASUMS = '696cb00a4b9d0e4dd2eb95e5fe32e8ff1ac2c3dfe54c7a2a5f03f7f9e6f0b1c2  node-v22.11.0-linux-x64-musl.tar.gz\n'

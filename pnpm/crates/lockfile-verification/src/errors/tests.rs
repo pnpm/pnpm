@@ -90,7 +90,10 @@ fn over_cap_adds_and_n_more_summary() {
     };
     assert_eq!(count, n);
     assert!(breakdown.contains("…and 5 more"), "got: {breakdown}");
-    let visible_lines = breakdown.lines().filter(|line| !line.starts_with("  …and")).count();
+    let visible_lines = breakdown
+        .lines()
+        .filter(|line| !line.starts_with("  …and"))
+        .count();
     assert_eq!(visible_lines, MAX_VIOLATIONS_TO_PRINT);
 }
 

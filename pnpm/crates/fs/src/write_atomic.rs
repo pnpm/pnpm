@@ -40,7 +40,9 @@ enum InheritMode {
 }
 
 fn write_tmp_over(path: &Path, bytes: &[u8], inherit: InheritMode) -> io::Result<()> {
-    let dir = path.parent().filter(|parent| !parent.as_os_str().is_empty());
+    let dir = path
+        .parent()
+        .filter(|parent| !parent.as_os_str().is_empty());
     if let Some(parent) = dir {
         fs::create_dir_all(parent)?;
     }
@@ -62,11 +64,22 @@ fn write_tmp_over(path: &Path, bytes: &[u8], inherit: InheritMode) -> io::Result
     {
         use std::os::unix::fs::PermissionsExt as _;
         let mode = metadata.permissions().mode();
-        tmp.as_file().set_permissions(std::fs::Permissions::from_mode(mode))?;
+        tmp.as_file()
+            .set_permissions(std::fs::Permissions::from_mode(mode))?;
     }
     #[cfg(not(unix))]
     let _ = inherit;
-    tmp.persist(path).map_err(|err| err.error)?;
+    let mut pending = Some(tmp.into_temp_path());
+    crate::retry::retry_transient_file_locks(|| {
+        let temporary = pending.take().expect("temporary path retained after a failed persist");
+        match temporary.persist(path) {
+            Ok(()) => Ok(()),
+            Err(error) => {
+                pending = Some(error.path);
+                Err(error.error)
+            }
+        }
+    })?;
     Ok(())
 }
 

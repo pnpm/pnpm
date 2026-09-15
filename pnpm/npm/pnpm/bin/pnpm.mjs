@@ -3,14 +3,17 @@
 // `./bin/pnpx.mjs` for every pnpm >=11 (see its `config.json`) and loads them
 // into its own Node.js process, which a native executable cannot be loaded into.
 //
-// Nothing else runs this file: `package.json#bin` still points at the native
-// binary, so an ordinary `npm install -g pnpm` never pays for a Node.js startup.
+// The `pnpm` placeholder bin runs it too, on Unix, when the install script that
+// replaces it with the native binary did not (build scripts blocked). An
+// ordinary `npm install -g pnpm` never pays for a Node.js startup:
+// `package.json#bin` points at the native binary.
 //
 // Corepack installs no dependencies and runs no lifecycle scripts, so the
 // `@pnpm/exe.<target>` package that carries the binary is absent and
 // `install.js` never ran. The binary is therefore downloaded on first use and
 // kept next to this wrapper — where the native binary also finds the `dist/`
-// payload it ships node-gyp in.
+// payload it ships node-gyp in. The placeholder's installs usually do carry
+// that package, and the binary is taken from there.
 //
 // The download itself is `get-pnpm`, the package behind https://get.pnpm.io,
 // which already knows how to verify one; it travels in that same `dist/`

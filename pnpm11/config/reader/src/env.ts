@@ -11,6 +11,7 @@ export type ValueConstructor =
   | ArrayConstructor
   | BooleanConstructor
   | NumberConstructor
+  | ObjectConstructor
   | StringConstructor
 
 export type ModuleSchema =
@@ -127,6 +128,11 @@ function parseValueByConstructor (schema: ValueConstructor, envVar: string): unk
     return isNaN(value) ? undefined : value
   }
 
+  if (schema === Object) {
+    const value = tryParseObjectOrArray(envVar)
+    return isStringRecord(value) ? value : undefined
+  }
+
   if (schema === String) {
     return envVar
   }
@@ -171,6 +177,12 @@ function tryParseObjectOrArray (envVar: string): object | unknown[] | undefined 
   return result == null || typeof result !== 'object'
     ? undefined
     : result
+}
+
+function isStringRecord (value: object | unknown[] | undefined): value is Record<string, string> {
+  return value != null &&
+    !Array.isArray(value) &&
+    Object.values(value).every(item => typeof item === 'string')
 }
 
 /**

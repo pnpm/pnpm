@@ -26,6 +26,18 @@
 //! only its SHA-256 hash hits storage, so a leak of the database
 //! doesn't grant access on its own.
 
+pub mod oidc;
+
+pub use token_store::{TokenRecord, TokenStore};
+
+mod htpasswd;
+use htpasswd::{
+    hash_bcrypt, parse_htpasswd, serialize_htpasswd, verify_returning_user, write_atomic,
+};
+
+mod token_store;
+use token_store::{fresh_secret, sha256_hex};
+
 use async_trait::async_trait;
 #[cfg(feature = "backend-libsql")]
 use libsql_backend::LibsqlAuth;
@@ -39,7 +51,6 @@ use sqlx_backend::mysql::MysqlAuth;
 use sqlx_backend::postgres::PostgresAuth;
 use std::{
     collections::HashMap,
-    fmt::Write as _,
     path::{Path, PathBuf},
     sync::{
         Arc, Mutex,
@@ -78,48 +89,34 @@ pub(crate) fn validate_username(username: &str) -> Result<()> {
     if username.is_empty() {
         return Err(RegistryError::BadRequest { reason: "username must not be empty".to_string() });
     }
-
-    let mut chars = 0;
-    let mut starts_with_whitespace = false;
-    let mut ends_with_whitespace = false;
-    let mut contains_colon = false;
-    let mut contains_control = false;
-    for ch in username.chars() {
-        chars += 1;
-        if chars > MAX_USERNAME_CHARS {
-            return Err(RegistryError::BadRequest {
-                reason: format!("username must be at most {MAX_USERNAME_CHARS} characters"),
-            });
-        }
-        if chars == 1 {
-            starts_with_whitespace = ch.is_whitespace();
-        }
-        ends_with_whitespace = ch.is_whitespace();
-        contains_colon |= ch == ':';
-        contains_control |= ch.is_control();
-    }
-
-    if starts_with_whitespace || ends_with_whitespace {
+    if username.chars().count() > MAX_USERNAME_CHARS {
         return Err(RegistryError::BadRequest {
-            reason: "username must not start or end with whitespace".to_string(),
+            reason: format!("username must be at most {MAX_USERNAME_CHARS} characters"),
         });
+    }
+    let reason = rejected_username_reason(username);
+    match reason {
+        Some(reason) => Err(RegistryError::BadRequest { reason: reason.to_string() }),
+        None => Ok(()),
+    }
+}
+
+/// Why a username of an acceptable length is still not one pnpr will store.
+fn rejected_username_reason(username: &str) -> Option<&'static str> {
+    let trimmed = username.trim_matches(char::is_whitespace);
+    if trimmed.len() != username.len() {
+        return Some("username must not start or end with whitespace");
     }
     if username.starts_with('#') {
-        return Err(RegistryError::BadRequest {
-            reason: "username must not start with '#'".to_string(),
-        });
+        return Some("username must not start with '#'");
     }
-    if contains_colon {
-        return Err(RegistryError::BadRequest {
-            reason: "username must not contain ':'".to_string(),
-        });
+    if username.contains(':') {
+        return Some("username must not contain ':'");
     }
-    if contains_control {
-        return Err(RegistryError::BadRequest {
-            reason: "username must not contain control characters".to_string(),
-        });
+    if username.chars().any(char::is_control) {
+        return Some("username must not contain control characters");
     }
-    Ok(())
+    None
 }
 
 pub(crate) fn token_timestamp_from_sql(timestamp: i64) -> u64 {
@@ -174,51 +171,73 @@ impl AuthState {
         match backend {
             BackendConfig::Local => {}
             BackendConfig::Libsql(settings) => {
-                #[cfg(feature = "backend-libsql")]
-                {
-                    let shared =
-                        Arc::new(LibsqlAuth::connect(settings, auth.htpasswd.max_users).await?);
-                    let users: Arc<dyn UserBackend> = Arc::clone(&shared) as Arc<dyn UserBackend>;
-                    let tokens: Arc<dyn TokenBackend> = shared;
-                    return Ok(Self { users, tokens });
-                }
-                #[cfg(not(feature = "backend-libsql"))]
-                {
-                    let _ = settings;
-                    return Err(backend_not_enabled("libsql", "backend-libsql"));
-                }
+                return Self::load_libsql(auth, settings).await;
             }
             BackendConfig::Postgres(settings) => {
-                #[cfg(feature = "backend-postgres")]
-                {
-                    let shared =
-                        Arc::new(PostgresAuth::connect(settings, auth.htpasswd.max_users).await?);
-                    let users: Arc<dyn UserBackend> = Arc::clone(&shared) as Arc<dyn UserBackend>;
-                    let tokens: Arc<dyn TokenBackend> = shared;
-                    return Ok(Self { users, tokens });
-                }
-                #[cfg(not(feature = "backend-postgres"))]
-                {
-                    let _ = settings;
-                    return Err(backend_not_enabled("postgres", "backend-postgres"));
-                }
+                return Self::load_postgres(auth, settings).await;
             }
             BackendConfig::Mysql(settings) => {
-                #[cfg(feature = "backend-mysql")]
-                {
-                    let shared =
-                        Arc::new(MysqlAuth::connect(settings, auth.htpasswd.max_users).await?);
-                    let users: Arc<dyn UserBackend> = Arc::clone(&shared) as Arc<dyn UserBackend>;
-                    let tokens: Arc<dyn TokenBackend> = shared;
-                    return Ok(Self { users, tokens });
-                }
-                #[cfg(not(feature = "backend-mysql"))]
-                {
-                    let _ = settings;
-                    return Err(backend_not_enabled("mysql", "backend-mysql"));
-                }
+                return Self::load_mysql(auth, settings).await;
             }
         }
+        Self::load_local(auth)
+    }
+
+    async fn load_libsql(
+        auth: &AuthConfig,
+        settings: &pnpr_config::LibsqlSettings,
+    ) -> Result<Self> {
+        #[cfg(feature = "backend-libsql")]
+        {
+            let shared = Arc::new(LibsqlAuth::connect(settings, auth.htpasswd.max_users).await?);
+            let users: Arc<dyn UserBackend> = Arc::clone(&shared) as Arc<dyn UserBackend>;
+            let tokens: Arc<dyn TokenBackend> = shared;
+            Ok(Self { users, tokens })
+        }
+        #[cfg(not(feature = "backend-libsql"))]
+        {
+            let _ = (auth, settings);
+            Err(backend_not_enabled("libsql", "backend-libsql"))
+        }
+    }
+
+    async fn load_postgres(
+        auth: &AuthConfig,
+        settings: &pnpr_config::SqlBackendSettings,
+    ) -> Result<Self> {
+        #[cfg(feature = "backend-postgres")]
+        {
+            let shared = Arc::new(PostgresAuth::connect(settings, auth.htpasswd.max_users).await?);
+            let users: Arc<dyn UserBackend> = Arc::clone(&shared) as Arc<dyn UserBackend>;
+            let tokens: Arc<dyn TokenBackend> = shared;
+            Ok(Self { users, tokens })
+        }
+        #[cfg(not(feature = "backend-postgres"))]
+        {
+            let _ = (auth, settings);
+            Err(backend_not_enabled("postgres", "backend-postgres"))
+        }
+    }
+
+    async fn load_mysql(
+        auth: &AuthConfig,
+        settings: &pnpr_config::SqlBackendSettings,
+    ) -> Result<Self> {
+        #[cfg(feature = "backend-mysql")]
+        {
+            let shared = Arc::new(MysqlAuth::connect(settings, auth.htpasswd.max_users).await?);
+            let users: Arc<dyn UserBackend> = Arc::clone(&shared) as Arc<dyn UserBackend>;
+            let tokens: Arc<dyn TokenBackend> = shared;
+            Ok(Self { users, tokens })
+        }
+        #[cfg(not(feature = "backend-mysql"))]
+        {
+            let _ = (auth, settings);
+            Err(backend_not_enabled("mysql", "backend-mysql"))
+        }
+    }
+
+    fn load_local(auth: &AuthConfig) -> Result<Self> {
         let users: Arc<dyn UserBackend> = match auth.htpasswd.file.clone() {
             Some(path) => Arc::new(UserStore::open(path, auth.htpasswd.max_users)?),
             None => Arc::new(UserStore::in_memory_with_max_users(auth.htpasswd.max_users)),
@@ -355,13 +374,33 @@ impl UserStore {
     /// by tests that want sub-100ms hashing.
     pub fn open_with_cost(path: PathBuf, max_users: MaxUsers, bcrypt_cost: u32) -> Result<Self> {
         let users = match std::fs::read_to_string(&path) {
-            Ok(raw) => parse_htpasswd(&raw).map_err(|reason| {
-                RegistryError::InvalidHtpasswdFile { path: path.display().to_string(), reason }
-            })?,
+            Ok(raw) => parse_htpasswd(&raw)
+                .map_err(|reason| RegistryError::InvalidHtpasswdFile {
+                    path: path.display().to_string(),
+                    reason,
+                })?,
             Err(err) if err.kind() == std::io::ErrorKind::NotFound => HashMap::new(),
             Err(err) => return Err(err.into()),
         };
         Ok(Self { users: Mutex::new(users), path: Some(path), max_users, bcrypt_cost })
+    }
+
+    /// Reject registration before spending time hashing a new password.
+    fn check_registration_capacity(&self) -> Result<()> {
+        match self.max_users {
+            MaxUsers::Disabled => return Err(RegistryError::RegistrationDisabled),
+            MaxUsers::Limited(max) => {
+                let current = self.users
+                    .lock()
+                    .expect("UserStore mutex poisoned")
+                    .len() as u64;
+                if current >= max {
+                    return Err(RegistryError::TooManyUsers { max });
+                }
+            }
+            MaxUsers::Unlimited => {}
+        }
+        Ok(())
     }
 
     async fn persist(&self, body: String) -> Result<()> {
@@ -396,18 +435,7 @@ impl UserBackend for UserStore {
             return verify_returning_user(username, password, stored).await;
         }
 
-        // Brand-new user — check the registration cap before doing
-        // the (expensive) bcrypt hash.
-        match self.max_users {
-            MaxUsers::Disabled => return Err(RegistryError::RegistrationDisabled),
-            MaxUsers::Limited(max) => {
-                let current = self.users.lock().expect("UserStore mutex poisoned").len() as u64;
-                if current >= max {
-                    return Err(RegistryError::TooManyUsers { max });
-                }
-            }
-            MaxUsers::Unlimited => {}
-        }
+        self.check_registration_capacity()?;
 
         let hash = hash_bcrypt(password.to_string(), self.bcrypt_cost).await?;
         enum NextStep {
@@ -416,20 +444,17 @@ impl UserBackend for UserStore {
         }
         let next_step = {
             let mut users = self.users.lock().expect("UserStore mutex poisoned");
-            if let Some(stored) = users.get(username).cloned() {
-                NextStep::VerifyExisting(stored)
-            } else {
-                // Re-check the cap under the lock to make the limit hold
-                // under concurrent adduser bursts. A second writer that
-                // raced in while we were hashing could otherwise push
-                // past the cap.
-                if let MaxUsers::Limited(max) = self.max_users
-                    && (users.len() as u64) >= max
-                {
+            match (users.get(username).cloned(), self.max_users) {
+                (Some(stored), _) => NextStep::VerifyExisting(stored),
+                // Re-check under the lock because another registration may
+                // have filled the store while we were hashing.
+                (None, MaxUsers::Limited(max)) if users.len() as u64 >= max => {
                     return Err(RegistryError::TooManyUsers { max });
                 }
-                users.insert(username.to_string(), hash);
-                NextStep::Persist(serialize_htpasswd(&users))
+                (None, _) => {
+                    users.insert(username.to_string(), hash);
+                    NextStep::Persist(serialize_htpasswd(&users))
+                }
             }
         };
         match next_step {
@@ -450,169 +475,6 @@ pub enum UpsertOutcome {
     Created,
     /// The user existed and the password matched.
     LoggedIn,
-}
-
-/// SHA-256-hashed (`token_hash` → username) map, optionally backed by
-/// a `SQLite` database for cross-restart durability.
-///
-/// Token records carry the verdaccio shape (`created_at`, `last_used_at`,
-/// readonly, `cidr_whitelist`) so they can be surfaced by future
-/// `/-/npm/v1/tokens` endpoints without a schema migration.
-#[derive(Debug)]
-pub struct TokenStore {
-    inner: Mutex<TokenInner>,
-    persist: Option<PathBuf>,
-    secret: [u8; 32],
-    counter: AtomicU64,
-}
-
-#[derive(Debug)]
-struct TokenInner {
-    /// hex-encoded SHA-256 of the raw token → record.
-    tokens: HashMap<String, TokenRecord>,
-}
-
-#[derive(Debug, Clone)]
-pub struct TokenRecord {
-    pub username: String,
-    pub created_at: u64,
-    pub last_used_at: u64,
-    pub readonly: bool,
-    pub cidr_whitelist: Vec<String>,
-}
-
-impl TokenStore {
-    /// Pure in-memory store. Tokens vanish on restart.
-    #[must_use]
-    pub fn in_memory() -> Self {
-        Self {
-            inner: Mutex::new(TokenInner { tokens: HashMap::new() }),
-            persist: None,
-            secret: fresh_secret(),
-            counter: AtomicU64::new(0),
-        }
-    }
-
-    /// SQLite-backed store. Creates the file (and the `tokens`
-    /// table) if missing; loads existing records into memory on
-    /// startup so the hot lookup path doesn't touch disk.
-    pub fn open(path: PathBuf) -> Result<Self> {
-        if let Some(parent) = path.parent()
-            && !parent.as_os_str().is_empty()
-        {
-            std::fs::create_dir_all(parent)?;
-        }
-        let conn = Connection::open(&path)?;
-        init_tokens_schema(&conn)?;
-        let tokens = load_all_tokens(&conn)?;
-        drop(conn);
-        Ok(Self {
-            inner: Mutex::new(TokenInner { tokens }),
-            persist: Some(path),
-            secret: fresh_secret(),
-            counter: AtomicU64::new(0),
-        })
-    }
-}
-
-#[async_trait]
-impl TokenBackend for TokenStore {
-    async fn issue(&self, username: &str) -> Result<String> {
-        let nonce = self.counter.fetch_add(1, Ordering::Relaxed);
-        let raw = mint_token(&self.secret, nonce, username);
-        let token_hash = sha256_hex(raw.as_bytes());
-        let record = TokenRecord {
-            username: username.to_string(),
-            created_at: unix_seconds(),
-            last_used_at: unix_seconds(),
-            readonly: false,
-            cidr_whitelist: Vec::new(),
-        };
-        {
-            let mut inner = self.inner.lock().expect("TokenStore mutex poisoned");
-            inner.tokens.insert(token_hash.clone(), record.clone());
-        }
-        if let Some(path) = self.persist.clone() {
-            let hash_for_db = token_hash.clone();
-            let result = tokio::task::spawn_blocking(move || -> Result<()> {
-                let conn = Connection::open(&path)?;
-                insert_token(&conn, &hash_for_db, &record)?;
-                Ok(())
-            })
-            .await;
-            match result {
-                Ok(Ok(())) => {}
-                Ok(Err(err)) => {
-                    let mut inner = self.inner.lock().expect("TokenStore mutex poisoned");
-                    inner.tokens.remove(&token_hash);
-                    return Err(err);
-                }
-                Err(err) => {
-                    let mut inner = self.inner.lock().expect("TokenStore mutex poisoned");
-                    inner.tokens.remove(&token_hash);
-                    return Err(err.into());
-                }
-            }
-        }
-        Ok(raw)
-    }
-
-    /// Resolves entirely in memory — the on-disk mirror is loaded once
-    /// at startup, so this never touches the database and never fails.
-    async fn lookup(&self, raw: &str) -> Result<Option<String>> {
-        let token_hash = sha256_hex(raw.as_bytes());
-        let inner = self.inner.lock().expect("TokenStore mutex poisoned");
-        Ok(inner.tokens.get(&token_hash).map(|record| record.username.clone()))
-    }
-
-    async fn find_by_key(&self, key: &str) -> Result<Option<TokenRecord>> {
-        let inner = self.inner.lock().expect("TokenStore mutex poisoned");
-        Ok(inner.tokens.get(key).cloned())
-    }
-
-    async fn list_for_user(&self, username: &str) -> Result<Vec<(String, TokenRecord)>> {
-        let inner = self.inner.lock().expect("TokenStore mutex poisoned");
-        Ok(inner
-            .tokens
-            .iter()
-            .filter(|(_, record)| record.username == username)
-            .map(|(hash, record)| (hash.clone(), record.clone()))
-            .collect())
-    }
-
-    /// `SQLite` gets the `DELETE` *before* the in-memory map is mutated.
-    /// If the disk write fails, both views still hold the token and
-    /// the caller sees a 5xx — the opposite ordering would leave a
-    /// "revoked in memory but resurrected on restart" hole.
-    async fn revoke_by_key(&self, key: &str) -> Result<Option<TokenRecord>> {
-        let snapshot = {
-            let inner = self.inner.lock().expect("TokenStore mutex poisoned");
-            inner.tokens.get(key).cloned()
-        };
-        let Some(record) = snapshot else {
-            return Ok(None);
-        };
-        if let Some(path) = self.persist.clone() {
-            let key = key.to_string();
-            tokio::task::spawn_blocking(move || -> Result<()> {
-                let conn = Connection::open(&path)?;
-                delete_token(&conn, &key)?;
-                Ok(())
-            })
-            .await??;
-        }
-        {
-            let mut inner = self.inner.lock().expect("TokenStore mutex poisoned");
-            inner.tokens.remove(key);
-        }
-        Ok(Some(record))
-    }
-}
-
-impl Default for TokenStore {
-    fn default() -> Self {
-        Self::in_memory()
-    }
 }
 
 impl Default for UserStore {
@@ -658,157 +520,6 @@ pub async fn identify(
     Ok(None)
 }
 
-// ---------------------------------------------------------------
-// htpasswd I/O
-// ---------------------------------------------------------------
-
-/// Parse an Apache-shaped htpasswd file. Each non-empty, non-comment
-/// line is `username:hash`; we accept any bcrypt variant (`$2a$`,
-/// `$2b$`, `$2y$`) but reject everything else so a config file
-/// holding `crypt(3)` or plaintext entries can't masquerade as
-/// passing without the password actually being verifiable.
-fn parse_htpasswd(raw: &str) -> std::result::Result<HashMap<String, String>, String> {
-    let mut out = HashMap::new();
-    for (line_no, line) in raw.lines().enumerate() {
-        let line = line.trim_end_matches(['\r']);
-        if line.is_empty() || line.starts_with('#') {
-            continue;
-        }
-        let Some((user, hash)) = line.split_once(':') else {
-            return Err(format!("line {}: missing ':' separator", line_no + 1));
-        };
-        let user = user.trim();
-        let hash = hash.trim();
-        if user.is_empty() {
-            return Err(format!("line {}: empty username", line_no + 1));
-        }
-        if let Err(err) = validate_username(user) {
-            let reason = match err {
-                RegistryError::BadRequest { reason } => reason,
-                err => err.to_string(),
-            };
-            return Err(format!("line {}: invalid username {user:?}: {reason}", line_no + 1));
-        }
-        if !is_supported_hash(hash) {
-            return Err(format!(
-                "line {}: unsupported hash format for user {user:?} (only bcrypt is accepted)",
-                line_no + 1,
-            ));
-        }
-        out.insert(user.to_string(), hash.to_string());
-    }
-    Ok(out)
-}
-
-/// True for any bcrypt variant. We don't accept `{SHA}`, `$apr1$`,
-/// crypt(3), or plaintext — every supported entry must go through
-/// `bcrypt::verify` cleanly.
-fn is_supported_hash(hash: &str) -> bool {
-    hash.starts_with("$2a$") || hash.starts_with("$2b$") || hash.starts_with("$2y$")
-}
-
-/// Serialize the user map back to htpasswd shape. Sorted output so
-/// the file is stable under `git diff` and easier to eyeball.
-fn serialize_htpasswd(users: &HashMap<String, String>) -> String {
-    let mut entries: Vec<(&String, &String)> = users.iter().collect();
-    entries.sort_by(|left, right| left.0.cmp(right.0));
-    let mut out = String::new();
-    for (user, hash) in entries {
-        out.push_str(user);
-        out.push(':');
-        out.push_str(hash);
-        out.push('\n');
-    }
-    out
-}
-
-fn write_atomic(path: &Path, bytes: &[u8]) -> Result<()> {
-    use std::io::Write as _;
-
-    if let Some(parent) = path.parent()
-        && !parent.as_os_str().is_empty()
-    {
-        std::fs::create_dir_all(parent)?;
-    }
-    let tmp = unique_tmp_path(path);
-    {
-        let mut file = std::fs::File::create(&tmp)?;
-        file.write_all(bytes)?;
-        file.sync_all()?;
-    }
-    std::fs::rename(&tmp, path)?;
-    Ok(())
-}
-
-fn unique_tmp_path(base: &Path) -> PathBuf {
-    static COUNTER: AtomicU64 = AtomicU64::new(0);
-    let counter = COUNTER.fetch_add(1, Ordering::Relaxed);
-    let pid = std::process::id();
-    let mut name = base.file_name().map(std::ffi::OsStr::to_os_string).unwrap_or_default();
-    name.push(format!(".tmp.{pid}.{counter}"));
-    match base.parent() {
-        Some(parent) => parent.join(name),
-        None => PathBuf::from(name),
-    }
-}
-
-// ---------------------------------------------------------------
-// bcrypt helpers
-// ---------------------------------------------------------------
-
-/// Hash a password off the reactor — bcrypt at cost 10 takes
-/// ~50–100 ms and stalls every other async task on the same thread
-/// if run inline.
-async fn hash_bcrypt(password: String, cost: u32) -> Result<String> {
-    tokio::task::spawn_blocking(move || {
-        let parts = bcrypt::hash_with_result(&password, cost)?;
-        // Format as $2y$ for maximum cross-tool compatibility —
-        // Apache's `htpasswd -B` writes $2y$, GNU coreutils tools
-        // accept it, and bcrypt::verify reads any of $2a/$2b/$2y.
-        Ok(parts.format_for_version(bcrypt::Version::TwoY))
-    })
-    .await?
-}
-
-async fn verify_bcrypt(password: String, hash: String) -> Result<bool> {
-    tokio::task::spawn_blocking(move || {
-        bcrypt::verify(&password, &hash).map_err(RegistryError::from)
-    })
-    .await?
-}
-
-/// Verify `password` against an existing user's `stored` hash,
-/// mapping the result to the login outcome a returning user expects:
-/// `LoggedIn` on a match, `Unauthenticated` otherwise.
-async fn verify_returning_user(
-    username: &str,
-    password: &str,
-    stored: String,
-) -> Result<(UpsertOutcome, String)> {
-    if verify_bcrypt(password.to_string(), stored).await? {
-        Ok((UpsertOutcome::LoggedIn, username.to_string()))
-    } else {
-        Err(RegistryError::Unauthenticated { resource: format!("user {username:?}") })
-    }
-}
-
-// ---------------------------------------------------------------
-// SQLite-backed token store
-// ---------------------------------------------------------------
-
-/// `tokens` table DDL — shared by every SQL-backed auth store so the
-/// backends store the same shape and records can be moved between them.
-const TOKENS_TABLE_SQL: &str = "CREATE TABLE IF NOT EXISTS tokens (
-    token_hash      CHAR(64) PRIMARY KEY,
-    username        VARCHAR(255) NOT NULL,
-    created_at      BIGINT NOT NULL,
-    last_used_at    BIGINT NOT NULL,
-    readonly        SMALLINT NOT NULL DEFAULT 0,
-    cidr_whitelist  VARCHAR(4096) NOT NULL DEFAULT '[]'
-)";
-
-const TOKENS_INDEX_SQL: &str = "CREATE INDEX IF NOT EXISTS tokens_username ON tokens(username)";
-
 /// `users` table DDL — only shared-database backends need it, since
 /// the local backend keeps users in an htpasswd file. One bcrypt hash
 /// per username, the same `$2y$...` string the htpasswd file would hold.
@@ -823,112 +534,6 @@ const AUTH_COUNTERS_TABLE_SQL: &str = "CREATE TABLE IF NOT EXISTS auth_counters 
     name   VARCHAR(64) PRIMARY KEY,
     value  BIGINT NOT NULL
 )";
-
-fn init_tokens_schema(conn: &Connection) -> Result<()> {
-    conn.execute(TOKENS_TABLE_SQL, [])?;
-    conn.execute(TOKENS_INDEX_SQL, [])?;
-    Ok(())
-}
-
-fn load_all_tokens(conn: &Connection) -> Result<HashMap<String, TokenRecord>> {
-    let mut stmt = conn.prepare(
-        "SELECT token_hash, username, created_at, last_used_at, readonly, cidr_whitelist
-         FROM tokens",
-    )?;
-    let mut rows = stmt.query([])?;
-    let mut out = HashMap::new();
-    while let Some(row) = rows.next()? {
-        let hash: String = row.get(0)?;
-        let username: String = row.get(1)?;
-        let created_at: i64 = row.get(2)?;
-        let last_used_at: i64 = row.get(3)?;
-        let readonly: i64 = row.get(4)?;
-        let cidr_json: String = row.get(5)?;
-        let cidr_whitelist: Vec<String> =
-            serde_json::from_str(&cidr_json).map_err(|err| RegistryError::Internal {
-                reason: format!("token {hash} has an unreadable cidr_whitelist: {err}"),
-            })?;
-        out.insert(
-            hash,
-            TokenRecord {
-                username,
-                created_at: token_timestamp_from_sql(created_at),
-                last_used_at: token_timestamp_from_sql(last_used_at),
-                readonly: readonly != 0,
-                cidr_whitelist,
-            },
-        );
-    }
-    Ok(out)
-}
-
-fn delete_token(conn: &Connection, token_hash: &str) -> Result<()> {
-    conn.execute("DELETE FROM tokens WHERE token_hash = ?1", rusqlite::params![token_hash])?;
-    Ok(())
-}
-
-fn insert_token(conn: &Connection, token_hash: &str, record: &TokenRecord) -> Result<()> {
-    let cidr_json = serde_json::to_string(&record.cidr_whitelist)
-        .expect("Vec<String> always serializes to JSON");
-    conn.execute(
-        "INSERT INTO tokens (token_hash, username, created_at, last_used_at, readonly, cidr_whitelist)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
-        rusqlite::params![
-            token_hash,
-            record.username,
-            token_timestamp_to_sql(record.created_at),
-            token_timestamp_to_sql(record.last_used_at),
-            i64::from(record.readonly),
-            cidr_json,
-        ],
-    )?;
-    Ok(())
-}
-
-// ---------------------------------------------------------------
-// crypto helpers
-// ---------------------------------------------------------------
-
-/// Build a freshly-randomized secret for [`TokenStore::issue`].
-/// Pulls 32 bytes from the OS CSPRNG (`getrandom` → `/dev/urandom`
-/// on Linux, `BCryptGenRandom` on Windows, `getentropy` on macOS).
-/// We refuse to start the server if the OS RNG is unavailable
-/// rather than fall back to weaker entropy — token unguessability
-/// is the whole reason this exists.
-fn fresh_secret() -> [u8; 32] {
-    let mut secret = [0u8; 32];
-    getrandom::fill(&mut secret).expect("OS CSPRNG must be available");
-    secret
-}
-
-fn mint_token(secret: &[u8; 32], nonce: u64, username: &str) -> String {
-    let mut hasher = Sha256::new();
-    hasher.update(secret);
-    hasher.update(nonce.to_le_bytes());
-    hasher.update(username.as_bytes());
-    let digest = hasher.finalize();
-    // 16 bytes of hash → 32 hex chars. Long enough to be
-    // unguessable, short enough to keep test logs readable.
-    hex_encode(&digest[..16])
-}
-
-fn sha256_hex(bytes: &[u8]) -> String {
-    let mut hasher = Sha256::new();
-    hasher.update(bytes);
-    hex_encode(&hasher.finalize())
-}
-
-fn hex_encode(bytes: &[u8]) -> String {
-    let mut out = String::with_capacity(bytes.len() * 2);
-    for byte in bytes {
-        write!(out, "{byte:02x}").unwrap();
-    }
-    out
-}
-
-fn unix_seconds() -> u64 {
-    SystemTime::now().duration_since(UNIX_EPOCH).map_or(0, |duration| duration.as_secs())
-}
 
 #[cfg(test)]
 mod tests;

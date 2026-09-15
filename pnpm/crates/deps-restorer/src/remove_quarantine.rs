@@ -62,9 +62,14 @@ pub fn remove_quarantine_from_native_binaries(
 
 #[cfg(target_os = "macos")]
 fn is_native_binary(entry: &str) -> bool {
-    Path::new(entry).extension().and_then(OsStr::to_str).is_some_and(|ext| {
-        NATIVE_BINARY_EXTENSIONS.iter().any(|known| known.eq_ignore_ascii_case(ext))
-    })
+    Path::new(entry)
+        .extension()
+        .and_then(OsStr::to_str)
+        .is_some_and(|ext| {
+            NATIVE_BINARY_EXTENSIONS
+                .iter()
+                .any(|known| known.eq_ignore_ascii_case(ext))
+        })
 }
 
 /// Remove `com.apple.quarantine` from the given files, split into chunks that
@@ -81,8 +86,11 @@ fn remove_quarantine(file_paths: &[PathBuf]) {
 
 #[cfg(target_os = "macos")]
 fn remove_quarantine_from_chunk(file_paths: &[&Path]) {
-    let output =
-        Command::new("/usr/bin/xattr").arg("-d").arg(QUARANTINE_ATTR).args(file_paths).output();
+    let output = Command::new("/usr/bin/xattr")
+        .arg("-d")
+        .arg(QUARANTINE_ATTR)
+        .args(file_paths)
+        .output();
     match output {
         Ok(output) if output.status.success() => {}
         Ok(output) => {

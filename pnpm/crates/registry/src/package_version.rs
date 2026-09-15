@@ -8,6 +8,13 @@ use crate::{NetworkError, PackageTag, RegistryError, package_distribution::Packa
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+#[cfg_attr(
+    dylint_lib = "perfectionist",
+    expect(
+        perfectionist::too_many_struct_fields,
+        reason = "The fields mirror npm registry version metadata."
+    )
+)]
 pub struct PackageVersion {
     pub name: String,
     pub version: node_semver::Version,
@@ -36,7 +43,11 @@ pub struct PackageVersion {
         skip_serializing_if = "Option::is_none"
     )]
     pub optional_dependencies: Option<HashMap<String, String>>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(
+        default,
+        deserialize_with = "crate::wire_tolerance::deserialize_record_map",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub peer_dependencies_meta: Option<HashMap<String, PeerDependencyMeta>>,
 
     /// npm registry's per-version publisher metadata. When
@@ -53,6 +64,7 @@ pub struct PackageVersion {
     #[serde(
         default,
         rename = "_npmUser",
+        deserialize_with = "crate::wire_tolerance::deserialize_record_or_absent",
         skip_serializing_if = "Option::is_none",
         alias = "_npm_user"
     )]
@@ -183,27 +195,48 @@ where
 /// `peerDependenciesMeta[name]` shape from the npm registry. Only the
 /// `optional` flag is consumed by the resolver; other fields the
 /// registry may serve are ignored.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Default, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct PeerDependencyMeta {
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(
+        default,
+        deserialize_with = "crate::wire_tolerance::deserialize_strict_flag",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub optional: Option<bool>,
 }
 
 /// `_npmUser` field on a per-version manifest. The verifier reads
 /// `approver` and `trusted_publisher` to assign the trust rank
 /// (`stagedPublish` > `trustedPublisher` > `provenance` > none).
-/// `name` / `email` are kept for round-trip parity.
+/// `name` / `email` are kept for round-trip parity, and are decoded
+/// leniently so neither can cost the version its trust rank.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct NpmUser {
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(
+        default,
+        deserialize_with = "crate::wire_tolerance::deserialize_text_or_absent",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub name: Option<String>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(
+        default,
+        deserialize_with = "crate::wire_tolerance::deserialize_text_or_absent",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub email: Option<String>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(
+        default,
+        deserialize_with = "crate::wire_tolerance::deserialize_presence_marker",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub approver: Option<Approver>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(
+        default,
+        deserialize_with = "crate::wire_tolerance::deserialize_presence_marker",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub trusted_publisher: Option<TrustedPublisher>,
 }
 
@@ -211,7 +244,7 @@ pub struct NpmUser {
 /// marks a staged publish — one that required a 2FA publish approval,
 /// the strongest trust signal. The verifier only checks for the
 /// field's presence; `name` / `email` are kept for round-trip parity.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Default, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Approver {
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -222,12 +255,15 @@ pub struct Approver {
 
 /// OIDC trusted-publisher record on `_npmUser.trustedPublisher`.
 /// The verifier only checks for the field's presence; the inner
-/// values are kept for round-trip parity.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+/// values are kept for round-trip parity, and stay `None` for a
+/// registry that marks the publisher without describing it.
+#[derive(Debug, Default, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct TrustedPublisher {
-    pub id: String,
-    pub oidc_config_id: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub id: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub oidc_config_id: Option<String>,
 }
 
 impl PartialEq for PackageVersion {
@@ -255,10 +291,12 @@ impl PackageVersion {
         // socket-bound stays effective under concurrent fan-out. See the
         // doc comment on `ThrottledClientGuard`.
         let guard = http_client.acquire_for_url(&url).await;
-        let mut request = guard.get(&url).header(
-            "accept",
-            "application/vnd.npm.install-v1+json; q=1.0, application/json; q=0.8, */*",
-        );
+        let mut request = guard
+            .get(&url)
+            .header(
+                "accept",
+                "application/vnd.npm.install-v1+json; q=1.0, application/json; q=0.8, */*",
+            );
         if let Some(value) = auth_headers.for_url_with_package(&url, Some(name)) {
             request = request.header("authorization", value);
         }

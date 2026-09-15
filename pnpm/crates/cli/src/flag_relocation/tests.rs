@@ -6,18 +6,32 @@ use std::ffi::OsString;
 
 fn relocate(tokens: &[&str]) -> Vec<String> {
     let cmd = with_boolean_negations(CliArgs::command());
-    relocate_pre_subcommand_flags(&cmd, tokens.iter().map(OsString::from).collect())
-        .into_iter()
-        .map(|token| token.into_string().expect("test tokens are UTF-8"))
-        .collect()
+    relocate_pre_subcommand_flags(
+        &cmd,
+        tokens
+            .iter()
+            .map(OsString::from)
+            .collect(),
+    )
+    .into_iter()
+    .map(|token| token.into_string().expect("test tokens are UTF-8"))
+    .collect()
 }
 
 fn parse(tokens: &[&str]) -> CliArgs {
+    try_parse(tokens).expect("parses after relocation")
+}
+
+fn try_parse(tokens: &[&str]) -> Result<CliArgs, clap::Error> {
     let cmd = with_boolean_negations(CliArgs::command());
-    let argv = relocate_pre_subcommand_flags(&cmd, tokens.iter().map(OsString::from).collect());
-    cmd.try_get_matches_from(argv)
-        .and_then(|matches| CliArgs::from_arg_matches(&matches))
-        .expect("parses after relocation")
+    let argv = relocate_pre_subcommand_flags(
+        &cmd,
+        tokens
+            .iter()
+            .map(OsString::from)
+            .collect(),
+    );
+    cmd.try_get_matches_from(argv).and_then(|matches| CliArgs::from_arg_matches(&matches))
 }
 
 #[test]
@@ -50,12 +64,12 @@ fn relocated_deploy_invocation_parses_with_the_flags_applied() {
         "deploy",
         "temp-deploy",
     ]);
-    assert_eq!(args.filter, ["pnpm"]);
+    assert_eq!(args.workspace.selection.filter, ["pnpm"]);
     let crate::cli_args::cli_command::CliCommand::Deploy(deploy) = args.command else {
         panic!("expected deploy");
     };
-    assert!(deploy.install_args.force);
-    assert!(deploy.install_args.ignore_scripts);
+    assert!(deploy.install_args.materialization.force);
+    assert!(deploy.install_args.scripts.ignore);
     assert_eq!(deploy.target_dirs, [std::path::PathBuf::from("temp-deploy")]);
 }
 
@@ -95,8 +109,80 @@ fn short_subcommand_flag_moves() {
 }
 
 #[test]
+fn mixed_short_cluster_moves_with_its_value() {
+    assert_eq!(
+        relocate(&["pnpm", "-ro", "dist", "pack-app"]),
+        ["pnpm", "pack-app", "-ro", "dist"],
+        "the global -r rides along so clap sees pack-app's -o after the subcommand",
+    );
+    assert_eq!(
+        relocate(&["pnpm", "-rodist", "pack-app"]),
+        ["pnpm", "pack-app", "-rodist"],
+        "an attached value keeps the cluster a single token",
+    );
+}
+
+#[test]
+fn relocated_mixed_short_cluster_parses_with_both_options_applied() {
+    let args = parse(&["pnpm", "-ro", "dist", "pack-app"]);
+    assert!(args.workspace.recursive);
+    let crate::cli_args::cli_command::CliCommand::PackApp(pack_app) = args.command else {
+        panic!("expected pack-app");
+    };
+    assert_eq!(pack_app.output_dir.as_deref(), Some("dist"));
+}
+
+#[test]
+fn global_short_cluster_stays_in_place() {
+    let argv = ["pnpm", "-rC", "project", "install"];
+    assert_eq!(relocate(&argv), argv, "every short in the cluster is top-level grammar already");
+}
+
+#[test]
 fn subcommand_alias_is_recognized() {
     assert_eq!(relocate(&["pnpm", "--prod", "i"]), ["pnpm", "i", "--prod"]);
+}
+
+#[test]
+fn unknown_options_before_a_subcommand_stay_in_place() {
+    for argv in [
+        ["pnpm", "-z", "exec", "echo"],
+        ["pnpm", "--zzz", "exec", "echo"],
+        ["pnpm", "-rz", "exec", "echo"],
+        ["pnpm", "-zP", "exec", "echo"],
+    ] {
+        assert_eq!(
+            relocate(&argv),
+            argv,
+            "an option no grammar defines must reach clap as a top-level error, not as exec's command",
+        );
+        assert!(
+            try_parse(&argv).is_err(),
+            "clap must reject the unknown option instead of exec running it: {argv:?}",
+        );
+    }
+}
+
+#[test]
+fn options_another_command_owns_stay_in_place() {
+    for argv in [
+        ["pnpm", "-P", "exec", "echo"],
+        ["pnpm", "-rP", "exec", "echo"],
+        ["pnpm", "--node-linker=hoisted", "exec", "echo"],
+    ] {
+        assert_eq!(
+            relocate(&argv),
+            argv,
+            "`exec` does not declare the option, so it must not travel into its command vector",
+        );
+        assert!(
+            try_parse(&argv).is_err(),
+            "clap must reject the option `exec` does not declare: {argv:?}",
+        );
+    }
+    let argv = ["pnpm", "--tag", "next-11", "exec", "echo"];
+    assert_eq!(relocate(&argv), argv, "a value-taking option of another command stays whole");
+    assert!(try_parse(&argv).is_err(), "clap must reject --tag against exec");
 }
 
 #[test]

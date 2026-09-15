@@ -12,7 +12,10 @@ use std::fs;
 fn logout_revokes_token_and_removes_it_from_auth_ini() {
     const TOKEN: &str = "secret-token";
     let mut server = mockito::Server::new();
-    let mock = server.mock("DELETE", "/-/user/token/secret-token").with_status(200).create();
+    let mock = server
+        .mock("DELETE", "/-/user/token/secret-token")
+        .with_status(200)
+        .create();
     let registry = server.url();
     let host = registry.strip_prefix("http://").expect("mockito serves http");
     let token_key = format!("//{host}/:_authToken");
@@ -65,7 +68,10 @@ fn logout_errors_when_not_logged_in() {
 fn logout_removes_the_token_from_config_yaml() {
     const TOKEN: &str = "config-yaml-token";
     let mut server = mockito::Server::new();
-    let mock = server.mock("DELETE", &*format!("/-/user/token/{TOKEN}")).with_status(200).create();
+    let mock = server
+        .mock("DELETE", &*format!("/-/user/token/{TOKEN}"))
+        .with_status(200)
+        .create();
     let registry = server.url();
 
     let CommandTempCwd { pacquet, root, .. } = CommandTempCwd::init();
@@ -105,7 +111,10 @@ fn logout_removes_the_token_from_config_yaml() {
 fn logout_matches_the_registry_however_the_url_is_spelled() {
     const TOKEN: &str = "spelling-token";
     let mut server = mockito::Server::new();
-    let mock = server.mock("DELETE", &*format!("/-/user/token/{TOKEN}")).with_status(200).create();
+    let mock = server
+        .mock("DELETE", &*format!("/-/user/token/{TOKEN}"))
+        .with_status(200)
+        .create();
     let registry = server.url();
     let host = registry.strip_prefix("http://").expect("mockito serves http");
 

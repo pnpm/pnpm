@@ -395,7 +395,13 @@ fn append_only_log_records_each_call() {
         );
     }
     let contents = fs::read_to_string(dir.path().join(CACHE_FILE_NAME)).expect("read cache");
-    assert_eq!(contents.lines().filter(|line| !line.is_empty()).count(), 3);
+    assert_eq!(
+        contents
+            .lines()
+            .filter(|line| !line.is_empty())
+            .count(),
+        3,
+    );
 }
 
 #[test]
@@ -439,7 +445,10 @@ fn compaction_dedupes_by_path_and_hash() {
     );
 
     let contents = fs::read_to_string(&cache_path).expect("read post-compact");
-    let lines: Vec<&str> = contents.lines().filter(|line| !line.is_empty()).collect();
+    let lines: Vec<&str> = contents
+        .lines()
+        .filter(|line| !line.is_empty())
+        .collect();
     assert!(lines.len() <= MAX_CACHE_ENTRIES + 1, "trimmed past cap: {}", lines.len());
     assert!(lines.len() <= 2, "duplicates collapsed: got {} lines", lines.len());
 }

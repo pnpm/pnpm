@@ -11,6 +11,8 @@ import type { PackageMeta } from '@pnpm/resolving.registry.types'
 import { lt, rsort, valid } from 'semver'
 import tar from 'tar-stream'
 
+import { readResponseBodyCapped } from '../tarball/readResponseBodyCapped.js'
+
 export type PreviousChangelogOptions = CreateFetchFromRegistryOptions & Pick<Config,
 | 'registriesByScope'
 | 'fetchRetries'
@@ -140,41 +142,9 @@ async function downloadTarballChangelog (client: RegistryClient, pkgName: string
   if (!response.ok) {
     throw new PnpmError('CHANGELOG_TARBALL_FETCH_FAILED', `Failed to download ${pkgName}@${version} tarball (${response.status}) to compose the changelog: ${tarballUrl}`)
   }
-  const tarballData = await readCapped(response, MAX_TARBALL_BYTES)
+  const tarballData = await readResponseBodyCapped(response, MAX_TARBALL_BYTES)
   if (tarballData == null) return undefined
   return extractTarballEntry(tarballData, CHANGELOG_ENTRY)
-}
-
-/**
- * Reads a response body into a buffer, stopping (and returning `undefined`) as
- * soon as it exceeds `maxBytes` — bounding the actual download rather than
- * trusting a `content-length` header, which may be absent or lie.
- */
-async function readCapped (response: Response, maxBytes: number): Promise<Buffer | undefined> {
-  const reader = response.body?.getReader()
-  if (reader == null) {
-    const buffer = Buffer.from(await response.arrayBuffer())
-    return buffer.byteLength > maxBytes ? undefined : buffer
-  }
-  const chunks: Buffer[] = []
-  let total = 0
-  for (;;) {
-    // Streaming a body is inherently sequential — each read must await the
-    // previous chunk — so the successive awaits here are intentional.
-    // eslint-disable-next-line no-await-in-loop
-    const { done, value } = await reader.read()
-    if (done) break
-    total += value.byteLength
-    if (total > maxBytes) {
-      // Best-effort cleanup: a cancel failure must not turn the over-cap path
-      // into a hard error — the caller just gets no changelog either way.
-      // eslint-disable-next-line no-await-in-loop
-      await reader.cancel().catch(() => {})
-      return undefined
-    }
-    chunks.push(Buffer.from(value))
-  }
-  return Buffer.concat(chunks)
 }
 
 /**

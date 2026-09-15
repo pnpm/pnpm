@@ -34,27 +34,26 @@ fn confined_all_files_fetcher_rewrites_symlink_sources_to_real_paths() {
 
 #[cfg(any(unix, windows))]
 #[test]
-fn confined_package_files_fetcher_rejects_linked_root() {
+fn confined_package_files_fetcher_packs_a_linked_root() {
     let dir = tempdir().unwrap();
-    let outside = dir.path().join("outside");
-    fs::create_dir_all(&outside).unwrap();
-    fs::write(outside.join("package.json"), r#"{ "name": "x", "version": "0.0.0" }"#).unwrap();
-    fs::write(outside.join("index.js"), "content").unwrap();
+    let real_root = dir.path().join("real-root");
+    fs::create_dir_all(&real_root).unwrap();
+    fs::write(real_root.join("package.json"), r#"{ "name": "x", "version": "0.0.0" }"#).unwrap();
+    fs::write(real_root.join("index.js"), "content").unwrap();
     let root_link = dir.path().join("root-link");
-    pnpm_fs::symlink_dir(&outside, &root_link).unwrap();
+    pnpm_fs::symlink_dir(&real_root, &root_link).unwrap();
 
-    let Err(err) = (DirectoryFetcher {
+    let output = DirectoryFetcher {
         directory: root_link,
         include_only_package_files: true,
         resolve_symlinks: false,
         allow_path_escape: false,
-    })
-    .run() else {
-        panic!("linked root should be rejected before packlist walks it");
-    };
+    }
+    .run()
+    .unwrap();
 
-    assert!(
-        err.to_string().contains("resolves outside source directory"),
-        "unexpected error: {err}",
+    assert_eq!(
+        output.files_map.get("index.js"),
+        Some(&fs::canonicalize(real_root.join("index.js")).unwrap()),
     );
 }

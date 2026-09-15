@@ -1,6 +1,49 @@
-use std::{collections::BTreeMap, path::Path};
+use std::{
+    collections::{BTreeMap, HashSet},
+    path::Path,
+    sync::{Arc, Barrier},
+    thread,
+};
 
-use super::{ConfigOverlay, cache_key, overlay_default_registry, pin_unkeyed_header};
+use super::{
+    ConfigOverlay, build_config, cache_key, config_cache, intern_config, overlay_default_registry,
+    pin_unkeyed_header,
+};
+
+#[test]
+fn concurrent_publication_retains_one_interned_config() {
+    const CALLER_COUNT: usize = 32;
+    let temp_dir = tempfile::tempdir().expect("create temporary config directory");
+    let overlay = ConfigOverlay::default();
+    let key = cache_key(temp_dir.path(), &overlay);
+    assert!(!config_cache().contains_key(&key));
+
+    let configs = (0..CALLER_COUNT)
+        .map(|_| build_config(temp_dir.path(), &overlay).expect("build config"))
+        .collect::<Vec<_>>();
+    let publish = Arc::new(Barrier::new(CALLER_COUNT));
+
+    let mut handles = Vec::with_capacity(CALLER_COUNT);
+    for config in configs {
+        let publish = Arc::clone(&publish);
+        handles.push(thread::spawn(move || {
+            publish.wait();
+            std::ptr::from_ref(intern_config(key, config)).addr()
+        }));
+    }
+
+    let config_addresses = handles
+        .into_iter()
+        .map(|handle| handle.join().expect("config thread should not panic"))
+        .collect::<HashSet<_>>();
+
+    assert_eq!(config_addresses.len(), 1);
+    let cached_address = config_cache()
+        .get(&key)
+        .map(|config| std::ptr::from_ref(*config).addr())
+        .expect("config should be retained in cache");
+    assert_eq!(config_addresses.iter().next().copied(), Some(cached_address));
+}
 
 /// Two independently constructed overlays with identical map contents must
 /// produce the same cache key. If the map fields were `HashMap` (random

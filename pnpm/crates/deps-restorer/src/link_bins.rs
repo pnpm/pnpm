@@ -1,279 +1,31 @@
+pub use direct::{
+    PrefetchedBinLookup, PrefetchedDepBin, link_direct_dep_bins,
+    link_direct_dep_bins_from_locations, link_direct_dep_bins_prefetched,
+    link_direct_dep_bins_resolved, link_project_bins, link_top_level_bins,
+    resolve_hoisted_bin_deps, shim_link_options,
+};
+
+mod scan;
+use scan::{read_package, run_with_readdir};
+
+mod direct;
+
 use crate::{PackageManifests, SkippedSnapshots};
 use derive_more::{Display, Error};
 use miette::Diagnostic;
 use pnpm_cmd_shim::{
-    BinOrigin, FsCreateDirAll, FsEnsureExecutableBits, FsReadDir, FsReadFile, FsReadHead,
-    FsReadToString, FsSetExecutable, FsWalkFiles, FsWrite, Host, LinkBinsError, LinkBinsOptions,
-    PackageBinSource, collect_packages_in_modules_dir, link_bins_of_packages,
+    FsCreateDirAll, FsEnsureExecutableBits, FsReadDir, FsReadFile, FsReadHead, FsReadToString,
+    FsSetExecutable, FsWalkFiles, FsWrite, Host, LinkBinsError, LinkBinsOptions, PackageBinSource,
+    collect_packages_in_modules_dir, link_bins_of_packages,
 };
-use pnpm_config::{Config, NodeLinker};
 use pnpm_lockfile::{LockfileResolution, PackageKey, PackageMetadata, PkgName, SnapshotEntry};
-use pnpm_package_manifest::parse_manifest_bytes;
 use rayon::prelude::*;
 use std::{
     collections::{HashMap, HashSet},
-    fs, io,
+    io,
     path::{Path, PathBuf},
     sync::Arc,
 };
-
-/// The config-derived options for every bin an install links.
-///
-/// `extra_node_paths` is pnpm's `getExtraNodePaths`: under the isolated
-/// linker with a hoist pattern, every shim written by the install
-/// carries the hidden hoisted modules dir
-/// (`<virtual-store-dir>/node_modules`) on `NODE_PATH`, unless
-/// `extendNodePath: false`. Everything else — the hoisted linker, a
-/// disabled hoist pass — gets no `NODE_PATH` at all.
-#[must_use]
-pub fn shim_link_options(config: &Config, node_linker: NodeLinker) -> LinkBinsOptions {
-    let has_hoist_pattern =
-        config.hoist_pattern.as_ref().is_some_and(|patterns| !patterns.is_empty());
-    let extra_node_paths = if config.extend_node_path
-        && matches!(node_linker, NodeLinker::Isolated)
-        && has_hoist_pattern
-    {
-        vec![config.virtual_store_dir.join("node_modules").to_string_lossy().into_owned()]
-    } else {
-        Vec::new()
-    };
-    LinkBinsOptions {
-        extra_node_paths,
-        prefer_symlinked_executables: config.prefer_symlinked_executables.unwrap_or(false),
-    }
-}
-
-/// Read the `package.json` of every direct dependency under `modules_dir`
-/// and link its bins into `<modules_dir>/.bin`.
-///
-/// `dep_names` is the list of direct-dependency keys as they appear in
-/// `package.json`, the same names already symlinked under `<modules_dir>/`
-/// by [`crate::SymlinkDirectDependencies`]. We resolve `package.json` via
-/// the symlink (`fs::read` follows it transparently) so the read targets
-/// the real package contents in the virtual store.
-///
-/// Driven on rayon because each location's read+parse is independent.
-pub fn link_direct_dep_bins(
-    modules_dir: &Path,
-    dep_names: &[String],
-    link_options: &LinkBinsOptions,
-) -> Result<(), LinkBinsError> {
-    let deps: Vec<(&str, Option<&Path>)> =
-        dep_names.iter().map(|name| (name.as_str(), None)).collect();
-    link_named_dep_bins(modules_dir, &deps, link_options)
-}
-
-/// Resolve the hoist pass's `(alias, snapshot key)` bin list into the
-/// `(alias, slot package dir)` pairs [`link_direct_dep_bins_resolved`]
-/// takes — the same slot derivation `symlink_hoisted_dependencies`
-/// used to create the aliases.
-#[must_use]
-pub fn resolve_hoisted_bin_deps(
-    layout: &crate::VirtualStoreLayout,
-    aliases: &[(String, PackageKey)],
-) -> Vec<(String, PathBuf)> {
-    aliases
-        .iter()
-        .map(|(alias, key)| {
-            (alias.clone(), pkg_dir_under(&layout.slot_dir(key).join("node_modules"), &key.name))
-        })
-        .collect()
-}
-
-/// [`link_direct_dep_bins`] for callers that also know each symlink's
-/// destination (the virtual-store slot the alias points at): threading
-/// it through as [`PackageBinSource::resolved_location`] keeps the
-/// shim `NODE_PATH` derivation syscall-free.
-pub fn link_direct_dep_bins_resolved(
-    modules_dir: &Path,
-    deps: &[(String, PathBuf)],
-    link_options: &LinkBinsOptions,
-) -> Result<(), LinkBinsError> {
-    let deps: Vec<(&str, Option<&Path>)> =
-        deps.iter().map(|(name, target)| (name.as_str(), Some(target.as_path()))).collect();
-    link_named_dep_bins(modules_dir, &deps, link_options)
-}
-
-fn link_named_dep_bins(
-    modules_dir: &Path,
-    deps: &[(&str, Option<&Path>)],
-    link_options: &LinkBinsOptions,
-) -> Result<(), LinkBinsError> {
-    // Swallow only `NotFound`: a direct-dep symlink target can
-    // legitimately be missing right after a partial pacquet run, or
-    // be an in-progress install. Every other IO error (permission
-    // denied, EIO, etc.) and every JSON parse error must surface as
-    // `LinkBinsError::{ReadManifest, ParseManifest}` so the failure
-    // is diagnosable rather than hiding behind a missing `.bin`
-    // entry. Matches the read-side error policy in
-    // `pnpm_cmd_shim::link_bins`.
-    let bin_sources: Vec<PackageBinSource> = deps
-        .par_iter()
-        .filter_map(|(name, resolved)| {
-            let location = modules_dir.join(name);
-            let manifest_path = location.join("package.json");
-            let bytes = match fs::read(&manifest_path) {
-                Ok(bytes) => bytes,
-                Err(error) if error.kind() == io::ErrorKind::NotFound => return None,
-                Err(error) => {
-                    return Some(Err(LinkBinsError::ReadManifest { path: manifest_path, error }));
-                }
-            };
-            let manifest: serde_json::Value = match parse_manifest_bytes(&bytes) {
-                Ok(manifest) => manifest,
-                Err(error) => {
-                    return Some(Err(LinkBinsError::ParseManifest { path: manifest_path, error }));
-                }
-            };
-            let mut source = PackageBinSource::new(location, Arc::new(manifest));
-            if let Some(resolved) = resolved {
-                source = source.with_resolved_location(resolved.to_path_buf());
-            }
-            Some(Ok(source))
-        })
-        .collect::<Result<_, _>>()?;
-    if bin_sources.is_empty() {
-        return Ok(());
-    }
-    link_bins_of_packages::<Host>(&bin_sources, &modules_dir.join(".bin"), link_options)
-}
-
-/// Link bins from resolved direct-dependency locations without requiring
-/// importer symlinks. This is the `symlink: false` counterpart of
-/// [`link_direct_dep_bins`]: `PnP` still exposes dependency executables in
-/// `<modules_dir>/.bin` even though `<modules_dir>/<name>` is absent.
-pub fn link_direct_dep_bins_from_locations(
-    modules_dir: &Path,
-    locations: &[PathBuf],
-    link_options: &LinkBinsOptions,
-) -> Result<(), LinkBinsError> {
-    let bin_sources = locations
-        .par_iter()
-        .filter_map(|location| match read_package::<Host>(location) {
-            // The locations are already the symlink-resolved package
-            // dirs, so they double as `resolved_location`.
-            Ok(Some(source)) => Some(Ok(source.with_resolved_location(location.clone()))),
-            Ok(None) => None,
-            Err(error) => Some(Err(error)),
-        })
-        .collect::<Result<Vec<_>, _>>()?;
-    if bin_sources.is_empty() {
-        return Ok(());
-    }
-    link_bins_of_packages::<Host>(&bin_sources, &modules_dir.join(".bin"), link_options)
-}
-
-/// Top-level bin link that mixes direct-dep candidates and hoisted
-/// (`publicly_hoisted_aliases_with_bins`) candidates in a single
-/// [`link_bins_of_packages`] call so `pnpm_cmd_shim::pick_winner` (private)
-/// can apply [`BinOrigin::Direct`] precedence over
-/// [`BinOrigin::Hoisted`] — a hoisted (transitive) dep's bin must
-/// never shadow a direct dep's bin with the same name.
-///
-/// Two-list shape (rather than a single tagged list) keeps the call
-/// site cheap: callers already have these names in separate
-/// collections — direct deps come from the importer's
-/// `dependencies` / `devDependencies` / `optionalDependencies`,
-/// hoisted aliases come from the hoist-result's
-/// `publicly_hoisted_aliases_with_bins`. Joining them upthread
-/// would force every caller to allocate a tagged `Vec`.
-///
-/// Lifecycle-script-created bins must pick up the post-install
-/// state of `package.json` (a `postinstall` script can write a
-/// binary that didn't exist at extract time and pacquet must shim
-/// it). The caller schedules this pass *after* `BuildModules` runs
-/// so the manifests-on-disk reflect the post-script state.
-pub fn link_top_level_bins(
-    modules_dir: &Path,
-    direct_dep_names: &[String],
-    hoisted_dep_names: &[String],
-    link_options: &LinkBinsOptions,
-) -> Result<(), LinkBinsError> {
-    let mut bin_sources: Vec<PackageBinSource> = Vec::new();
-    // Tag direct deps as `Direct` and hoisted as `Hoisted` so the
-    // single downstream `pick_winner` call resolves conflicts via
-    // the new [`BinOrigin`] tier.
-    for source in read_bin_sources(modules_dir, direct_dep_names)? {
-        bin_sources.push(source.with_origin(BinOrigin::Direct));
-    }
-    // Skip hoisted aliases that already appear under a direct
-    // name. Reading the same `package.json` twice wouldn't change
-    // the outcome — `pick_winner` would pick the Direct copy
-    // anyway — but the work is wasted, so de-duplicate here by
-    // filtering out hoisted candidates whose name already appears
-    // in the direct set.
-    let direct_set: HashSet<&str> = direct_dep_names.iter().map(String::as_str).collect();
-    let hoisted_only: Vec<String> = hoisted_dep_names
-        .iter()
-        .filter(|name| !direct_set.contains(name.as_str()))
-        .cloned()
-        .collect();
-    for source in read_bin_sources(modules_dir, &hoisted_only)? {
-        bin_sources.push(source.with_origin(BinOrigin::Hoisted));
-    }
-    if bin_sources.is_empty() {
-        return Ok(());
-    }
-    link_bins_of_packages::<Host>(&bin_sources, &modules_dir.join(".bin"), link_options)
-}
-
-/// Link a project's top-level bins while preserving direct-dependency
-/// precedence over every other package present in its `node_modules`.
-pub fn link_project_bins(
-    modules_dir: &Path,
-    direct_dep_names: &[String],
-    link_options: &LinkBinsOptions,
-) -> Result<(), LinkBinsError> {
-    let direct_locations =
-        direct_dep_names.iter().map(|name| modules_dir.join(name)).collect::<HashSet<_>>();
-    let sources = collect_packages_in_modules_dir::<Host>(modules_dir)?
-        .into_iter()
-        .map(|source| {
-            let origin = if direct_locations.contains(&source.location) {
-                BinOrigin::Direct
-            } else {
-                BinOrigin::Hoisted
-            };
-            source.with_origin(origin)
-        })
-        .collect::<Vec<_>>();
-    if sources.is_empty() {
-        return Ok(());
-    }
-    link_bins_of_packages::<Host>(&sources, &modules_dir.join(".bin"), link_options)
-}
-
-/// Read each `<modules_dir>/<name>/package.json` and assemble the
-/// list of [`PackageBinSource`]s. Same `NotFound`-tolerant /
-/// other-IO-fatal policy as [`link_direct_dep_bins`]; factored out
-/// so [`link_top_level_bins`] can reuse the read pass for both
-/// direct and hoisted candidate lists.
-fn read_bin_sources(
-    modules_dir: &Path,
-    dep_names: &[String],
-) -> Result<Vec<PackageBinSource>, LinkBinsError> {
-    let locations: Vec<PathBuf> = dep_names.iter().map(|name| modules_dir.join(name)).collect();
-    locations
-        .par_iter()
-        .filter_map(|location| {
-            let manifest_path = location.join("package.json");
-            let bytes = match fs::read(&manifest_path) {
-                Ok(bytes) => bytes,
-                Err(error) if error.kind() == io::ErrorKind::NotFound => return None,
-                Err(error) => {
-                    return Some(Err(LinkBinsError::ReadManifest { path: manifest_path, error }));
-                }
-            };
-            let manifest: serde_json::Value = match parse_manifest_bytes(&bytes) {
-                Ok(manifest) => manifest,
-                Err(error) => {
-                    return Some(Err(LinkBinsError::ParseManifest { path: manifest_path, error }));
-                }
-            };
-            Some(Ok(PackageBinSource::new(location.clone(), Arc::new(manifest))))
-        })
-        .collect()
-}
 
 /// Error type of [`LinkVirtualStoreBins`].
 #[derive(Debug, Display, Error, Diagnostic)]
@@ -512,7 +264,6 @@ where
         + FsSetExecutable
         + FsEnsureExecutableBits,
 {
-    let BinSlotSets { has_bin: has_bin_set, bundling: bundling_set } = sets;
     // `has_bin_set` is `Some` exactly when the lockfile's `packages:`
     // section was present at install start — in which case the set
     // is authoritative and every slot is filtered through it (an
@@ -540,147 +291,195 @@ where
         .iter()
         .filter(|(slot_key, _)| {
             !skipped.contains(slot_key)
-                && selected_snapshots.as_ref().is_none_or(|keys| keys.contains(slot_key))
+                && selected_snapshots
+                    .as_ref()
+                    .is_none_or(|keys| keys.contains(slot_key))
         })
         .collect();
-    slot_entries.par_iter().try_for_each(|(slot_key, snapshot)| {
-        let children = snapshot
-            .dependencies
-            .iter()
-            .flatten()
-            .chain(snapshot.optional_dependencies.iter().flatten());
+    slot_entries
+        .par_iter()
+        .try_for_each(|(slot_key, snapshot)| {
+            link_slot_bins::<Sys>(
+                &SlotBinContext { layout, sets, package_manifests, link_options },
+                slot_key,
+                snapshot,
+            )
+        })
+}
 
-        // First pass: figure out which packages contribute a bin to
-        // this slot's `node_modules/.bin`. Two kinds:
-        //
-        // 1. Every child whose manifest declares `bin`. Cheap to
-        //    detect via `has_bin_set` (pre-built from the lockfile's
-        //    `packages:` rows). Without a child or a self-bin the
-        //    slot needs no `.bin` directory at all, so the early
-        //    return below skips ~95% of slots on a real-world
-        //    lockfile (measured on the integrated-benchmark
-        //    fixture).
-        //
-        // 2. The slot's own package, when it carries a bin. The
-        //    slot's own package is appended to the bin-source list
-        //    unconditionally and the inner reader's manifest check
-        //    drops self when there's nothing to write — so for a
-        //    package like `hello-world-js-bin` (no deps, one bin)
-        //    this writes
-        //    `<slot>/node_modules/<pkg>/node_modules/.bin/<pkg>`
-        //    as a self-shim.
-        let with_bin: Vec<(&PkgName, PackageKey, PackageKey)> = children
-            .filter_map(|(alias, dep_ref)| {
-                // `link:` deps live outside the virtual store and
-                // expose their bins via the workspace project's
-                // own `package.json`, not through a snapshot — skip
-                // them here.
-                let child_key = dep_ref.resolve(alias)?;
-                let metadata_key = child_key.without_peer();
-                let keep = match has_bin_set {
-                    Some(set) => set.contains(&metadata_key),
-                    None => true,
-                };
-                keep.then_some((alias, child_key, metadata_key))
-            })
-            .collect();
-        let self_metadata_key = slot_key.without_peer();
-        let self_has_bin = match has_bin_set {
-            Some(set) => set.contains(&self_metadata_key),
-            // No `has_bin_set` — fall back to the conservative
-            // include-self path. The downstream manifest read in
-            // `link_bins_of_packages` filters out a self with no
-            // actual `bin` field, so an over-inclusion at this gate
-            // costs at most one `package.json` read.
-            None => true,
-        };
-        let self_bundles = bundling_set.contains(&self_metadata_key);
-        if with_bin.is_empty() && !self_has_bin && !self_bundles {
-            return Ok(());
+/// The inputs [`link_slot_bins`] shares across every slot of one pass.
+struct SlotBinContext<'a> {
+    layout: &'a crate::VirtualStoreLayout,
+    sets: BinSlotSets<'a>,
+    package_manifests: &'a PackageManifests,
+    link_options: &'a LinkBinsOptions,
+}
+
+/// Link one virtual-store slot's `node_modules/.bin`.
+///
+/// Two kinds of package contribute a bin:
+///
+/// 1. Every child whose manifest declares `bin`. Cheap to detect via
+///    `sets.has_bin` (pre-built from the lockfile's `packages:` rows).
+///    Without a child or a self-bin the slot needs no `.bin` directory
+///    at all, so the early return below skips ~95% of slots on a
+///    real-world lockfile (measured on the integrated-benchmark
+///    fixture).
+/// 2. The slot's own package, when it carries a bin. It is appended
+///    unconditionally and the reader's manifest check drops it when
+///    there is nothing to write — so for a package like
+///    `hello-world-js-bin` (no deps, one bin) this writes
+///    `<slot>/node_modules/<pkg>/node_modules/.bin/<pkg>` as a
+///    self-shim.
+fn link_slot_bins<Sys>(
+    context: &SlotBinContext<'_>,
+    slot_key: &PackageKey,
+    snapshot: &SnapshotEntry,
+) -> Result<(), LinkVirtualStoreBinsError>
+where
+    Sys: FsReadDir
+        + FsReadFile
+        + FsReadToString
+        + FsReadHead
+        + FsCreateDirAll
+        + FsWalkFiles
+        + FsWrite
+        + FsSetExecutable
+        + FsEnsureExecutableBits,
+{
+    let with_bin = children_with_bins(snapshot, context.sets.has_bin);
+    let self_metadata_key = slot_key.without_peer();
+    let self_has_bin = declares_bin(context.sets.has_bin, &self_metadata_key);
+    let self_bundles = context.sets.bundling.contains(&self_metadata_key);
+    if with_bin.is_empty() && !self_has_bin && !self_bundles {
+        return Ok(());
+    }
+
+    let modules_dir = context.layout.slot_dir(slot_key).join("node_modules");
+    let self_pkg_dir = slot_own_pkg_dir(&modules_dir, slot_key);
+    let bins_dir = self_pkg_dir.join("node_modules/.bin");
+
+    let mut bin_sources: Vec<PackageBinSource> =
+        Vec::with_capacity(with_bin.len() + usize::from(self_has_bin));
+    push_child_bin_sources::<Sys>(&mut bin_sources, context, &modules_dir, with_bin)?;
+
+    // Packages the tarball ships in its own `node_modules` are not
+    // lockfile children, so nothing above sees them; their bins are
+    // reachable only from inside the bundling package and have to be
+    // shimmed straight from disk.
+    if self_bundles {
+        bin_sources.extend(
+            collect_packages_in_modules_dir::<Sys>(&self_pkg_dir.join("node_modules"))
+                .map_err(LinkVirtualStoreBinsError::LinkBins)?,
+        );
+    }
+
+    // The slot's own package dir is a real directory already, so it
+    // doubles as its own resolved location.
+    if self_has_bin {
+        push_bin_source::<Sys>(
+            &mut bin_sources,
+            context.package_manifests,
+            &self_metadata_key,
+            self_pkg_dir.clone(),
+            self_pkg_dir,
+        )?;
+    }
+
+    if bin_sources.is_empty() {
+        return Ok(());
+    }
+    link_bins_of_packages::<Sys>(&bin_sources, &bins_dir, context.link_options)
+        .map_err(LinkVirtualStoreBinsError::LinkBins)
+}
+
+fn push_child_bin_sources<Sys: FsReadFile>(
+    bin_sources: &mut Vec<PackageBinSource>,
+    context: &SlotBinContext<'_>,
+    modules_dir: &Path,
+    with_bin: Vec<(&PkgName, PackageKey, PackageKey)>,
+) -> Result<(), LinkVirtualStoreBinsError> {
+    for (alias, child_key, metadata_key) in with_bin {
+        push_bin_source::<Sys>(
+            bin_sources,
+            context.package_manifests,
+            &metadata_key,
+            pkg_dir_under(modules_dir, alias),
+            // The child location reaches the child through the slot's
+            // alias symlink; the layout knows the symlink's destination
+            // without touching the filesystem, so the shim `NODE_PATH`
+            // derivation never has to `realpath`.
+            pkg_dir_under(
+                &context.layout.slot_dir(&child_key).join("node_modules"),
+                &child_key.name,
+            ),
+        )?;
+    }
+    Ok(())
+}
+
+/// Whether the lockfile says this package declares a bin. No
+/// `has_bin_set` means the lockfile had no `packages:` section, so
+/// every package stays a candidate and the downstream manifest read
+/// decides — an over-inclusion costs at most one `package.json` read.
+fn declares_bin(has_bin_set: Option<&HashSet<PackageKey>>, metadata_key: &PackageKey) -> bool {
+    has_bin_set.is_none_or(|set| set.contains(metadata_key))
+}
+
+/// The snapshot's children that may contribute a bin, as
+/// `(alias, child key, metadata key)`. `link:` deps live outside the
+/// virtual store and expose their bins through the workspace project's
+/// own `package.json`, not through a snapshot, so they are dropped.
+fn children_with_bins<'a>(
+    snapshot: &'a SnapshotEntry,
+    has_bin_set: Option<&HashSet<PackageKey>>,
+) -> Vec<(&'a PkgName, PackageKey, PackageKey)> {
+    snapshot.dependencies
+        .iter()
+        .flatten()
+        .chain(snapshot.optional_dependencies.iter().flatten())
+        .filter_map(|(alias, dep_ref)| {
+            let child_key = dep_ref.resolve(alias)?;
+            let metadata_key = child_key.without_peer();
+            declares_bin(has_bin_set, &metadata_key).then_some((alias, child_key, metadata_key))
+        })
+        .collect()
+}
+
+/// Add the bin source of the package at `location`: the parsed manifest
+/// the warm-cache prefetch already holds, or — for a cold-batch package
+/// downloaded during this run, whose row isn't in the prefetched map — a
+/// disk read on the same code path the non-lockfile install takes (see
+/// [`run_with_readdir`]).
+///
+/// Both the prefetch map and [`PackageBinSource`] hold the manifest via
+/// [`Arc`], so the warm path is a refcount bump rather than a deep clone
+/// of the JSON tree.
+fn push_bin_source<Sys>(
+    bin_sources: &mut Vec<PackageBinSource>,
+    package_manifests: &PackageManifests,
+    metadata_key: &PackageKey,
+    location: PathBuf,
+    resolved_location: PathBuf,
+) -> Result<(), LinkVirtualStoreBinsError>
+where
+    Sys: FsReadFile,
+{
+    if let Some(manifest) = package_manifests.get(metadata_key) {
+        bin_sources.push(
+            PackageBinSource::new(location, Arc::clone(manifest))
+                .with_resolved_location(resolved_location),
+        );
+        return Ok(());
+    }
+    match read_package::<Sys>(&location) {
+        Ok(Some(pkg)) => {
+            bin_sources.push(pkg.with_resolved_location(resolved_location));
+            Ok(())
         }
-
-        let slot_dir = layout.slot_dir(slot_key);
-        let modules_dir = slot_dir.join("node_modules");
-        let self_pkg_dir = slot_own_pkg_dir(&modules_dir, slot_key);
-        let bins_dir = self_pkg_dir.join("node_modules/.bin");
-
-        let mut bin_sources: Vec<PackageBinSource> =
-            Vec::with_capacity(with_bin.len() + usize::from(self_has_bin));
-        for (alias, child_key, metadata_key) in with_bin {
-            let child_location = pkg_dir_under(&modules_dir, alias);
-            // `child_location` reaches the child through the slot's
-            // alias symlink; the layout knows the symlink's
-            // destination without touching the filesystem, so the
-            // shim `NODE_PATH` derivation never has to `realpath`.
-            let resolved_location =
-                pkg_dir_under(&layout.slot_dir(&child_key).join("node_modules"), &child_key.name);
-            if let Some(manifest) = package_manifests.get(&metadata_key) {
-                // Hot path: parsed manifest already in memory from
-                // the warm-cache prefetch. Both the prefetch map
-                // and `PackageBinSource` hold the manifest via
-                // [`Arc`], so this is a refcount bump rather than a
-                // deep clone of the JSON tree.
-                bin_sources.push(
-                    PackageBinSource::new(child_location, Arc::clone(manifest))
-                        .with_resolved_location(resolved_location),
-                );
-            } else {
-                // Cold-batch fallback: package was downloaded
-                // earlier in the run, so its row isn't in the
-                // prefetched manifest map yet. Reading from disk
-                // here is the same code path as the non-lockfile
-                // install — see [`run_with_readdir`].
-                match read_package::<Sys>(&child_location) {
-                    Ok(Some(pkg)) => {
-                        bin_sources.push(pkg.with_resolved_location(resolved_location));
-                    }
-                    Ok(None) => {}
-                    Err(error) => return Err(LinkVirtualStoreBinsError::LinkBins(error)),
-                }
-            }
-        }
-
-        // Packages the tarball ships in its own `node_modules` are not
-        // lockfile children, so nothing above sees them; their bins are
-        // reachable only from inside the bundling package and have to be
-        // shimmed straight from disk.
-        if self_bundles {
-            bin_sources.extend(
-                collect_packages_in_modules_dir::<Sys>(&self_pkg_dir.join("node_modules"))
-                    .map_err(LinkVirtualStoreBinsError::LinkBins)?,
-            );
-        }
-
-        // Self-bin source (slot's own package), when its lockfile row
-        // declared a bin. Same warm-vs-cold dispatch as the children
-        // above. `self_pkg_dir` is an invariant of
-        // [`crate::create_virtual_dir_by_snapshot`], so the cold
-        // fallback is the same `read_package` used elsewhere. The
-        // slot's own package dir is a real directory already, so it
-        // doubles as its own resolved location.
-        if self_has_bin {
-            if let Some(manifest) = package_manifests.get(&self_metadata_key) {
-                bin_sources.push(
-                    PackageBinSource::new(self_pkg_dir.clone(), Arc::clone(manifest))
-                        .with_resolved_location(self_pkg_dir),
-                );
-            } else {
-                match read_package::<Sys>(&self_pkg_dir) {
-                    Ok(Some(pkg)) => {
-                        bin_sources.push(pkg.with_resolved_location(self_pkg_dir));
-                    }
-                    Ok(None) => {}
-                    Err(error) => return Err(LinkVirtualStoreBinsError::LinkBins(error)),
-                }
-            }
-        }
-
-        if bin_sources.is_empty() {
-            return Ok(());
-        }
-        link_bins_of_packages::<Sys>(&bin_sources, &bins_dir, link_options)
-            .map_err(LinkVirtualStoreBinsError::LinkBins)
-    })
+        Ok(None) => Ok(()),
+        Err(error) => Err(LinkVirtualStoreBinsError::LinkBins(error)),
+    }
 }
 
 /// Compute `<slot>/node_modules/<pkg-or-@scope/pkg>` for the slot's
@@ -700,208 +499,11 @@ fn slot_own_pkg_dir(modules_dir: &Path, slot_key: &PackageKey) -> PathBuf {
 /// represents `@types/node`, **not** `@types+node`.
 fn pkg_dir_under(modules_dir: &Path, name: &PkgName) -> PathBuf {
     match &name.scope {
-        Some(scope) => modules_dir.join(format!("@{scope}")).join(&name.bare),
+        Some(scope) => modules_dir
+            .join(format!("@{scope}"))
+            .join(&name.bare),
         None => modules_dir.join(&name.bare),
     }
-}
-
-/// Fallback (non-lockfile) path: enumerate slots via `read_dir`,
-/// then walk each slot's `node_modules` to discover children. Used
-/// only by the fresh-lockfile installer today; the lockfile
-/// path bypasses every directory enumeration in here.
-fn run_with_readdir<Sys>(
-    virtual_store_dir: &Path,
-    link_options: &LinkBinsOptions,
-) -> Result<(), LinkVirtualStoreBinsError>
-where
-    Sys: FsReadDir
-        + FsReadFile
-        + FsReadToString
-        + FsReadHead
-        + FsCreateDirAll
-        + FsWalkFiles
-        + FsWrite
-        + FsSetExecutable
-        + FsEnsureExecutableBits,
-{
-    let slots = match Sys::read_dir(virtual_store_dir) {
-        Ok(slots) => slots,
-        Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(()),
-        Err(error) => {
-            return Err(LinkVirtualStoreBinsError::ReadVirtualStore {
-                dir: virtual_store_dir.to_path_buf(),
-                error,
-            });
-        }
-    };
-    let slots: Vec<PathBuf> = slots.collect();
-    slots.par_iter().try_for_each(|slot_dir| {
-        let modules_dir = slot_dir.join("node_modules");
-        let Some(self_pkg_dir) = find_slot_own_package_dir(slot_dir, &modules_dir) else {
-            return Ok(());
-        };
-        // Probe the slot's own package directory before walking its
-        // children. Without the probe, an incomplete slot whose
-        // `node_modules/<pkg>` is missing but whose sibling deps are
-        // still present would have `link_bins_excluding` collect the
-        // siblings and `create_dir_all` the missing `<pkg>` chain to
-        // hold the shims, leaving an orphan package directory on
-        // disk. This path runs only for [`crate::InstallWithFreshLockfile`]
-        // and visits ~direct-deps slots (small N), so the probe cost
-        // is trivial; the lockfile-driven path bypasses this by
-        // treating the slot's own pkg dir as an invariant of
-        // [`crate::create_virtual_dir_by_snapshot`].
-        if Sys::read_dir(&self_pkg_dir).is_err() {
-            return Ok(());
-        }
-        let bins_dir = self_pkg_dir.join("node_modules/.bin");
-        link_bins_excluding::<Sys>(&modules_dir, &bins_dir, &self_pkg_dir, link_options)
-            .map_err(LinkVirtualStoreBinsError::LinkBins)
-    })
-}
-
-/// Locate the slot's own package directory inside `<slot>/node_modules`.
-///
-/// The slot directory's name encodes the package name as
-/// `<scope>+<name>@<version>` for the simple case (see
-/// [`pnpm_lockfile::PkgNameVerPeer::to_virtual_store_name`]). For
-/// peer-resolved slots the version segment itself contains additional
-/// `@`-separated peer specs joined by `_`, e.g.
-/// `ts-node@10.9.1_@types+node@18.7.19_typescript@5.1.6`. The `@` after
-/// `typescript` is part of a peer's version, not the package-name
-/// boundary. Parsing from the right (`rfind('@')`) would split there
-/// and silently break peer-resolved slots; parse from the left
-/// instead, skipping a leading `@` that belongs to a scoped package.
-///
-/// Returns `None` only when the slot name fails to parse — there's no
-/// filesystem probe for the resolved candidate. The slot's own package
-/// directory is an invariant of [`crate::create_virtual_dir_by_snapshot`];
-/// the downstream [`link_bins_excluding`] handles `NotFound` from its own
-/// `read_dir` of `<slot>/node_modules` cleanly when the invariant
-/// ever does break, so a probe here would be pure overhead.
-fn find_slot_own_package_dir(slot_dir: &Path, modules_dir: &Path) -> Option<PathBuf> {
-    let slot_name = slot_dir.file_name()?.to_str()?;
-
-    // The package-name half is everything before the **first** `@`,
-    // ignoring a single leading `@` that belongs to a scoped name
-    // (`@scope+pkg@...` → start the `@` search at offset 1).
-    // After `to_virtual_store_name`, `/` in scoped names becomes `+`,
-    // so the package-name half can never contain `@` itself.
-    let scoped = slot_name.starts_with('@');
-    let search_start = usize::from(scoped);
-    let at = search_start + slot_name[search_start..].find('@')?;
-    let name_part = &slot_name[..at];
-
-    // `+` separates `<scope>+<name>` for scoped packages, and *only*
-    // for scoped packages. Gating on `scoped` avoids misparsing a
-    // hypothetical unscoped name that contains `+`: `PkgName::parse`
-    // does not reject non-URL-safe characters (only npm's
-    // `validate-npm-package-name` warns about them), so an unscoped
-    // name like `foo+bar` could in principle reach here and would
-    // otherwise be split into `foo` / `bar`.
-    let pkg_dir = match scoped.then(|| name_part.split_once('+')).flatten() {
-        Some((scope, name)) => modules_dir.join(scope).join(name),
-        None => modules_dir.join(name_part),
-    };
-    Some(pkg_dir)
-}
-
-/// Like [`pnpm_cmd_shim::link_bins`] but skipping the slot's own package
-/// from the candidate set.
-fn link_bins_excluding<Sys>(
-    modules_dir: &Path,
-    bins_dir: &Path,
-    exclude: &Path,
-    link_options: &LinkBinsOptions,
-) -> Result<(), LinkBinsError>
-where
-    Sys: FsReadDir
-        + FsReadFile
-        + FsReadToString
-        + FsReadHead
-        + FsCreateDirAll
-        + FsWalkFiles
-        + FsWrite
-        + FsSetExecutable
-        + FsEnsureExecutableBits,
-{
-    let mut packages: Vec<PackageBinSource> = Vec::new();
-
-    let entries = match Sys::read_dir(modules_dir) {
-        Ok(entries) => entries,
-        Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(()),
-        Err(error) => {
-            return Err(LinkBinsError::ReadModulesDir { dir: modules_dir.to_path_buf(), error });
-        }
-    };
-
-    for path in entries {
-        let Some(name) = path.file_name() else {
-            continue;
-        };
-        let name_str = name.to_string_lossy();
-        if name_str.starts_with('.') {
-            continue;
-        }
-
-        if name_str.starts_with('@') {
-            // Only `NotFound` is plausibly skippable here (a
-            // concurrent scope-dir delete). Other errors —
-            // permission denied, EIO, AppArmor deny — would mean
-            // the bins for every package under this scope silently
-            // disappear, so surface them instead of letting them
-            // hide.
-            let scope_entries = match Sys::read_dir(&path) {
-                Ok(entries) => entries,
-                Err(error) if error.kind() == io::ErrorKind::NotFound => continue,
-                Err(error) => {
-                    return Err(LinkBinsError::ReadModulesDir { dir: path.clone(), error });
-                }
-            };
-            for sub_path in scope_entries {
-                if paths_eq(&sub_path, exclude) {
-                    continue;
-                }
-                if let Some(pkg) = read_package::<Sys>(&sub_path)? {
-                    packages.push(pkg);
-                }
-            }
-            continue;
-        }
-
-        if paths_eq(&path, exclude) {
-            continue;
-        }
-        if let Some(pkg) = read_package::<Sys>(&path)? {
-            packages.push(pkg);
-        }
-    }
-
-    if packages.is_empty() {
-        return Ok(());
-    }
-
-    link_bins_of_packages::<Sys>(&packages, bins_dir, link_options)
-}
-
-fn read_package<Sys: FsReadFile>(
-    location: &Path,
-) -> Result<Option<PackageBinSource>, LinkBinsError> {
-    let manifest_path = location.join("package.json");
-    let bytes = match Sys::read_file(&manifest_path) {
-        Ok(bytes) => bytes,
-        Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(None),
-        Err(error) => return Err(LinkBinsError::ReadManifest { path: manifest_path, error }),
-    };
-    let manifest: serde_json::Value = parse_manifest_bytes(&bytes)
-        .map_err(|error| LinkBinsError::ParseManifest { path: manifest_path, error })?;
-    Ok(Some(PackageBinSource::new(location.to_path_buf(), Arc::new(manifest))))
-}
-
-fn paths_eq(lhs: &Path, rhs: &Path) -> bool {
-    // Lexical comparison is enough; both paths come from the same
-    // `node_modules` walk and don't go through canonicalisation.
-    lhs == rhs
 }
 
 #[cfg(test)]

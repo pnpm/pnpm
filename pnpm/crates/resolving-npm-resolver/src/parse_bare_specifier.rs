@@ -16,8 +16,9 @@ use std::collections::HashSet;
 use derive_more::{Display, Error};
 use miette::Diagnostic;
 use node_semver::{Range, Version};
+use pnpm_network::percent_decode_str;
+use pnpm_package_name::is_valid_old_npm_package_name;
 use pnpm_resolving_jsr_specifier_parser::{ParseJsrSpecifierError, parse_jsr_specifier};
-use pnpm_resolving_parse_wanted_dependency::is_valid_old_npm_package_name;
 use pnpm_resolving_resolver_base::{
     ANY_VERSION_RANGE, is_any_version_range, is_valid_semver_range,
 };
@@ -45,34 +46,10 @@ pub fn parse_bare_specifier(
     default_tag: &str,
     registry: &str,
 ) -> Option<RegistryPackageSpec> {
-    let mut name: Option<String> = alias.map(str::to_string);
-    let mut bare = bare_specifier.to_string();
-
-    if let Some(rest) = bare.strip_prefix("npm:") {
-        bare = rest.to_string();
-
-        let alias_str = alias;
-        if let Some(a) = alias_str
-            && !a.is_empty()
-            && is_valid_semver_range(&bare)
-        {
-            name = Some(a.to_string());
-        } else {
-            // Last `@` discriminates `name@version`.
-            let last_at =
-                bare.bytes().enumerate().rev().find_map(|(i, b)| (b == b'@').then_some(i));
-            match last_at {
-                Some(idx) if idx >= 1 => {
-                    name = Some(bare[..idx].to_string());
-                    bare = bare[idx + 1..].to_string();
-                }
-                _ => {
-                    name = Some(bare.clone());
-                    bare = default_tag.to_string();
-                }
-            }
-        }
-    }
+    let (name, bare) = match bare_specifier.strip_prefix("npm:") {
+        Some(aliased) => split_npm_alias(aliased, alias, default_tag),
+        None => (alias.map(str::to_string), bare_specifier.to_string()),
+    };
 
     if let Some(name) = name.as_ref()
         && !name.is_empty()
@@ -100,6 +77,28 @@ pub fn parse_bare_specifier(
     }
 
     None
+}
+
+/// The name and range an `npm:` specifier carries. A specifier that is a
+/// bare range keeps the caller's alias as the name; otherwise the last `@`
+/// discriminates `name@version`, and a specifier with no version takes the
+/// default tag.
+fn split_npm_alias(
+    aliased: &str,
+    alias: Option<&str>,
+    default_tag: &str,
+) -> (Option<String>, String) {
+    if let Some(alias) = alias.filter(|alias| !alias.is_empty())
+        && is_valid_semver_range(aliased)
+    {
+        return (Some(alias.to_string()), aliased.to_string());
+    }
+    match aliased.rfind('@') {
+        Some(index) if index >= 1 => {
+            (Some(aliased[..index].to_string()), aliased[index + 1..].to_string())
+        }
+        _ => (Some(aliased.to_string()), default_tag.to_string()),
+    }
 }
 
 /// JSR-specifier counterpart of [`RegistryPackageSpec`]. Carries the
@@ -212,44 +211,9 @@ pub fn parse_named_registry_specifier_to_registry_package_spec(
     }
 
     let body = &raw_specifier[colon + 1..];
-    let pkg_name: String;
-    let version_selector: Option<String>;
-
-    if is_valid_semver_range(body) {
-        let Some(alias) = package_alias.filter(|alias| !alias.is_empty()) else {
-            return Ok(None);
-        };
-        pkg_name = alias.to_string();
-        version_selector = Some(body.to_string());
-    } else if body.starts_with('@') {
-        // `<alias>:@<owner>/<name>[@<version_selector>]` — scoped package.
-        let last_at = body.rfind('@').expect("body starts with '@'");
-        let (name_part, ver_part) = if last_at == 0 {
-            (body, None)
-        } else {
-            (&body[..last_at], Some(body[last_at + 1..].to_string()))
-        };
-        pkg_name = name_part.to_string();
-        version_selector = ver_part;
-    } else if package_alias.is_some_and(|alias| alias.starts_with('@')) {
-        // `<alias>:<tag>` paired with a scoped alias — body is a
-        // version selector (tag/dist-tag). Mirrors GitHub Packages,
-        // where the package is always scoped and a bare body is a tag.
-        pkg_name = package_alias.expect("checked above").to_string();
-        version_selector = Some(body.to_string());
-    } else {
-        // `<alias>:<name>[@<version_selector>]` — unscoped package in body.
-        let last_at = body.bytes().enumerate().rev().find_map(|(i, b)| (b == b'@').then_some(i));
-        let (name_part, ver_part) = match last_at {
-            Some(idx) if idx >= 1 => (&body[..idx], Some(body[idx + 1..].to_string())),
-            _ => (body, None),
-        };
-        if name_part.is_empty() {
-            return Ok(None);
-        }
-        pkg_name = name_part.to_string();
-        version_selector = ver_part;
-    }
+    let Some((pkg_name, version_selector)) = split_named_registry_body(body, package_alias) else {
+        return Ok(None);
+    };
 
     // The name is used in registry URLs and metadata cache file paths, so
     // anything that is not a valid npm package name must never make it
@@ -276,6 +240,41 @@ pub fn parse_named_registry_specifier_to_registry_package_spec(
         },
         registry_name: registry_name.to_string(),
     }))
+}
+
+/// The package name and version selector a named-registry specifier's body
+/// carries.
+fn split_named_registry_body(
+    body: &str,
+    package_alias: Option<&str>,
+) -> Option<(String, Option<String>)> {
+    // A bare range names no package of its own, so the alias must.
+    if is_valid_semver_range(body) {
+        let alias = package_alias.filter(|alias| !alias.is_empty())?;
+        return Some((alias.to_string(), Some(body.to_string())));
+    }
+    // `<alias>:@<owner>/<name>[@<version_selector>]` — scoped package.
+    if body.starts_with('@') {
+        let last_at = body.rfind('@').expect("body starts with '@'");
+        if last_at == 0 {
+            return Some((body.to_string(), None));
+        }
+        return Some((body[..last_at].to_string(), Some(body[last_at + 1..].to_string())));
+    }
+    // `<alias>:<tag>` paired with a scoped alias — body is a version
+    // selector (tag/dist-tag). Mirrors GitHub Packages, where the package is
+    // always scoped and a bare body is a tag.
+    if let Some(alias) = package_alias.filter(|alias| alias.starts_with('@')) {
+        return Some((alias.to_string(), Some(body.to_string())));
+    }
+    // `<alias>:<name>[@<version_selector>]` — unscoped package in body.
+    match body.rfind('@') {
+        Some(index) if index >= 1 => {
+            Some((body[..index].to_string(), Some(body[index + 1..].to_string())))
+        }
+        _ if body.is_empty() => None,
+        _ => Some((body.to_string(), None)),
+    }
 }
 
 /// Discriminate between an exact version, a semver range, and a
@@ -347,13 +346,15 @@ fn parse_revision_selector(
 /// `/`, `:`, spaces) bumps the candidate out of the tag bucket so
 /// protocol-prefixed specifiers fall through to the next resolver.
 fn is_valid_dist_tag(selector: &str) -> bool {
-    selector.bytes().all(|byte| {
-        matches!(byte,
+    selector
+        .bytes()
+        .all(|byte| {
+            matches!(byte,
             b'A'..=b'Z'
             | b'a'..=b'z'
             | b'0'..=b'9'
             | b'-' | b'_' | b'.' | b'!' | b'~' | b'*' | b'\'' | b'(' | b')')
-    })
+        })
 }
 
 struct NpmTarballUrl {
@@ -376,7 +377,9 @@ fn parse_npm_tarball_url(url: &str) -> Option<NpmTarballUrl> {
     if parts.len() != 2 {
         return None;
     }
-    let raw_name = parts[0].strip_prefix('/').unwrap_or(parts[0]);
+    let raw_name = parts[0]
+        .strip_prefix('/')
+        .unwrap_or(parts[0]);
     if raw_name.is_empty() {
         return None;
     }
@@ -384,39 +387,22 @@ fn parse_npm_tarball_url(url: &str) -> Option<NpmTarballUrl> {
     if name.is_empty() {
         return None;
     }
-    let path_with_no_ext = parts[1].strip_suffix(".tgz").unwrap_or(parts[1]);
+    let path_with_no_ext = parts[1]
+        .strip_suffix(".tgz")
+        .unwrap_or(parts[1]);
     // The tarball filename always starts with the scopeless name
     // followed by `-`. Anchor on that prefix instead of slicing by
     // length so a registry that returns `foo/-/bar-1.0.0.tgz` (name
     // mismatch) doesn't get accepted and mapped to the wrong package.
-    let scopeless_name = name.rsplit('/').next().unwrap_or(name.as_str());
-    let version =
-        path_with_no_ext.strip_prefix(scopeless_name).and_then(|rest| rest.strip_prefix('-'))?;
+    let scopeless_name = name
+        .rsplit('/')
+        .next()
+        .unwrap_or(name.as_str());
+    let version = path_with_no_ext
+        .strip_prefix(scopeless_name)
+        .and_then(|rest| rest.strip_prefix('-'))?;
     Version::parse(version).ok()?;
     Some(NpmTarballUrl { name, version: version.to_string() })
-}
-
-/// Percent-decode a URL path segment. Matches JS's `decodeURIComponent`
-/// for the byte ranges that show up in npm tarball URLs (the only
-/// caller). Invalid escapes pass through unchanged, mirroring the
-/// [`percent_decode_str`] helper in `pnpm-network`'s proxy module.
-fn percent_decode_str(text: &str) -> String {
-    let bytes = text.as_bytes();
-    let mut out = Vec::with_capacity(bytes.len());
-    let mut idx = 0;
-    while idx < bytes.len() {
-        if bytes[idx] == b'%' && idx + 2 < bytes.len() {
-            let hex = std::str::from_utf8(&bytes[idx + 1..idx + 3]).ok();
-            if let Some(byte) = hex.and_then(|hex_digits| u8::from_str_radix(hex_digits, 16).ok()) {
-                out.push(byte);
-                idx += 3;
-                continue;
-            }
-        }
-        out.push(bytes[idx]);
-        idx += 1;
-    }
-    String::from_utf8_lossy(&out).into_owned()
 }
 
 #[cfg(test)]

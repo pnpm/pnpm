@@ -91,6 +91,21 @@ pub fn safe_read_project_manifest_only(
     Ok(try_read_project_manifest(project_dir)?.map(|(_, m)| m))
 }
 
+/// The `name` the project at `project_dir` declares, if any.
+///
+/// A missing, unreadable, or nameless manifest all answer `None`:
+/// callers want a key to address the project by, not a reason the read
+/// failed, and every one of them has a defined answer for a project
+/// that has no name.
+pub fn read_project_name(project_dir: &Path) -> Option<String> {
+    safe_read_project_manifest_only(project_dir)
+        .ok()??
+        .value()
+        .get("name")?
+        .as_str()
+        .map(str::to_string)
+}
+
 /// Read a manifest from an explicit path, probing the basename to pick
 /// a parser.
 pub fn read_exact_project_manifest(
@@ -109,13 +124,16 @@ pub fn read_exact_project_manifest(
 }
 
 fn read_package_yaml(path: &Path) -> Result<PackageManifest, ReadProjectManifestError> {
-    let text = fs::read_to_string(path).map_err(|source| ReadProjectManifestError::ReadFile {
-        path: path.to_path_buf(),
-        source,
-    })?;
-    let value = serde_saphyr::from_str(&text).map_err(|source| {
-        ReadProjectManifestError::ParseYaml { path: path.to_path_buf(), source: Box::new(source) }
-    })?;
+    let text = fs::read_to_string(path)
+        .map_err(|source| ReadProjectManifestError::ReadFile {
+            path: path.to_path_buf(),
+            source,
+        })?;
+    let value = serde_saphyr::from_str(&text)
+        .map_err(|source| ReadProjectManifestError::ParseYaml {
+            path: path.to_path_buf(),
+            source: Box::new(source),
+        })?;
     Ok(PackageManifest::from_value(path.to_path_buf(), value))
 }
 

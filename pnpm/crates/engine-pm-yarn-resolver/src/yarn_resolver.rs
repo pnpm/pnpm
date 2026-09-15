@@ -36,6 +36,11 @@ pub enum YarnResolverError {
 /// nothing here goes through a registry.
 pub struct YarnResolver {
     pub http_client: Arc<ThrottledClient>,
+    /// Whether the release fetch may carry a GitHub token. Turned off when
+    /// the project relaxed certificate verification: `strict-ssl` is aimed at
+    /// the registry it installs from, and spending it on a credential for
+    /// GitHub would take the setting somewhere it was never pointed.
+    pub authenticate: bool,
     /// The release list, fetched at most once per resolver. One command
     /// can resolve Yarn more than once — a resolve and a latest probe, or
     /// several importers pinning it — and the list is one unconditional
@@ -45,14 +50,14 @@ pub struct YarnResolver {
 }
 
 impl YarnResolver {
-    pub fn new(http_client: Arc<ThrottledClient>) -> Self {
-        Self { http_client, releases: tokio::sync::OnceCell::new() }
+    pub fn new(http_client: Arc<ThrottledClient>, authenticate: bool) -> Self {
+        Self { http_client, authenticate, releases: tokio::sync::OnceCell::new() }
     }
 
     async fn releases(&self) -> Result<&[YarnRelease], ReadYarnReleasesError> {
         self.releases
             .get_or_try_init(|| async {
-                fetch_yarn_releases(&self.http_client).await.map(Arc::new)
+                fetch_yarn_releases(&self.http_client, self.authenticate).await.map(Arc::new)
             })
             .await
             .map(|releases| releases.as_slice())
@@ -90,12 +95,13 @@ impl YarnResolver {
             .releases()
             .await
             .map_err(|error| Box::new(YarnResolverError::ReadReleases(error)) as ResolveError)?;
-        let release = pick_release(releases, version_spec).ok_or_else(|| {
-            // The specifier comes from a manifest, so it can carry
-            // credentials — the message a user sees must not.
-            let spec = redact_and_sanitize(version_spec);
-            Box::new(YarnResolverError::ResolutionFailure { spec }) as ResolveError
-        })?;
+        let release = pick_release(releases, version_spec)
+            .ok_or_else(|| {
+                // The specifier comes from a manifest, so it can carry
+                // credentials — the message a user sees must not.
+                let spec = redact_and_sanitize(version_spec);
+                Box::new(YarnResolverError::ResolutionFailure { spec }) as ResolveError
+            })?;
         let variants = asset_variants(release)
             .map_err(|error| Box::new(YarnResolverError::ReadReleases(error)) as ResolveError)?;
 
@@ -107,15 +113,17 @@ impl YarnResolver {
         });
         Ok(Some(ResolveResult {
             id: format!("yarn@runtime:{version}").into(),
-            name_ver: None,
-            latest: None,
-            published_at: None,
-            manifest: Some(Arc::new(manifest)),
             resolution: LockfileResolution::Variations(VariationsResolution { variants }),
             resolved_via: RESOLVED_VIA.to_string(),
             normalized_bare_specifier: Some(format!("runtime:{version_spec}")),
             alias: wanted_dependency.alias.clone(),
             policy_violation: None,
+            package: pnpm_resolving_resolver_base::ResolvedPackageInfo {
+                name_ver: None,
+                latest: None,
+                published_at: None,
+                manifest: Some(Arc::new(manifest)),
+            },
         }))
     }
 
@@ -150,12 +158,15 @@ impl YarnResolver {
 pub async fn resolve_yarn_version(
     http_client: &ThrottledClient,
     version_spec: &str,
+    authenticate: bool,
 ) -> Result<String, YarnResolverError> {
-    let releases =
-        fetch_yarn_releases(http_client).await.map_err(YarnResolverError::ReadReleases)?;
-    pick_release(&releases, version_spec).map(|release| release.version.clone()).ok_or_else(|| {
-        YarnResolverError::ResolutionFailure { spec: redact_and_sanitize(version_spec) }
-    })
+    let releases = fetch_yarn_releases(http_client, authenticate).await
+        .map_err(YarnResolverError::ReadReleases)?;
+    pick_release(&releases, version_spec)
+        .map(|release| release.version.clone())
+        .ok_or_else(|| YarnResolverError::ResolutionFailure {
+            spec: redact_and_sanitize(version_spec),
+        })
 }
 
 /// The newest release satisfying `version_spec`.
@@ -184,7 +195,9 @@ pub(crate) fn pick_release<'a>(
         .iter()
         .find(|(version, _)| version.satisfies(&range))
         .or_else(|| {
-            candidates.iter().find(|(version, _)| without_prerelease(version).satisfies(&range))
+            candidates
+                .iter()
+                .find(|(version, _)| without_prerelease(version).satisfies(&range))
         })
         .map(|(_, release)| *release)
 }
@@ -203,7 +216,9 @@ fn bare_runtime_spec(wanted: &WantedDependency) -> Option<&str> {
     if wanted.alias.as_deref() != Some("yarn") {
         return None;
     }
-    wanted.bare_specifier.as_deref().and_then(|spec| spec.strip_prefix(BARE_SPEC_PREFIX))
+    wanted.bare_specifier
+        .as_deref()
+        .and_then(|spec| spec.strip_prefix(BARE_SPEC_PREFIX))
 }
 
 /// The archive member the manifest advertises as the engine's bin. See

@@ -29,8 +29,10 @@ fn empty_lockfile() -> Lockfile {
 }
 
 fn lockfile_with_packages(keys: &[&str]) -> Lockfile {
-    let packages =
-        keys.iter().map(|key| (key.parse::<PackageKey>().unwrap(), registry_metadata())).collect();
+    let packages = keys
+        .iter()
+        .map(|key| (key.parse::<PackageKey>().unwrap(), registry_metadata()))
+        .collect();
     Lockfile { packages: Some(packages), ..empty_lockfile() }
 }
 

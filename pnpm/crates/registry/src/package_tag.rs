@@ -10,10 +10,8 @@ pub enum PackageTag {
     #[display("latest")]
     Latest,
     /// Pinned version.
-    #[display("{}", _0)]
     Version(Version),
     /// A custom tag (e.g. `beta`, `next`).
-    #[display("{}", _0)]
     Tag(String),
 }
 

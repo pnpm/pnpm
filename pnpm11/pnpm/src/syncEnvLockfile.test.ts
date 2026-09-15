@@ -80,6 +80,15 @@ test('no-op when shouldPersistLockfile is false (legacy packageManager < v12)', 
   expect(resolvePackageManagerIntegrities).not.toHaveBeenCalled()
 })
 
+test('no-op when lockfile is disabled (#14728)', async () => {
+  const dir = tempDir()
+  await syncEnvLockfile({ ...baseConfig, useLockfile: false }, makeContext(dir, {
+    wantedPackageManager: { name: 'pnpm', version: packageManager.version, fromDevEngines: true, onFail: 'download' },
+  }))
+  expect(resolvePackageManagerIntegrities).not.toHaveBeenCalled()
+  expect(fs.existsSync(path.join(dir, 'pnpm-lock.yaml'))).toBe(false)
+})
+
 test('no-op when running pnpm does not satisfy wanted range', async () => {
   const dir = tempDir()
   writeStaleEnvLockfile(dir, '9.0.0')

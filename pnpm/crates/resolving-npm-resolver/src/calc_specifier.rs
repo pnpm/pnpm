@@ -43,23 +43,25 @@ pub fn calc_version_range(
 /// declares `bare_specifier` under the install name `alias`.
 ///
 /// Keeps the range operator the dependency already declared — `^` stays
-/// `^`, `~` stays `~`, an exact pin stays exact — and falls back to
-/// `default_pin` when it declares none. An npm alias is re-wrapped so the
-/// entry keeps pointing at the same real package.
+/// `^`, `~` stays `~`, an exact pin stays exact — preferring
+/// `prev_specifier` over `bare_specifier`, and falling back to
+/// `default_pin` when neither declares a recoverable pin. An npm alias is
+/// re-wrapped so the entry keeps pointing at the same real package.
 ///
 /// Mirrors the TypeScript resolver's `unwrapPackageName` / `calcSpecifier`
 /// pair.
 #[must_use]
 pub fn calc_specifier(
     bare_specifier: &str,
+    prev_specifier: Option<&str>,
     alias: Option<&str>,
     picked: &PackageVersion,
     default_pin: RangeSpecStyle,
 ) -> String {
     let range = calc_version_range(
         &picked.version,
+        prev_specifier.and_then(infer_range_spec_style),
         infer_range_spec_style(bare_specifier),
-        None,
         default_pin,
     );
     match npm_alias_target(bare_specifier, alias) {
@@ -84,14 +86,15 @@ pub fn calc_prefixed_specifier(
     prefix: &str,
     pkg_name: &str,
     bare_specifier: &str,
+    prev_specifier: Option<&str>,
     alias: Option<&str>,
     picked: &PackageVersion,
     default_pin: RangeSpecStyle,
 ) -> String {
     let range = calc_version_range(
         &picked.version,
+        prev_specifier.and_then(infer_range_spec_style),
         infer_range_spec_style(bare_specifier),
-        None,
         default_pin,
     );
     match alias {

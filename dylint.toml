@@ -8,7 +8,7 @@
 # or via the `just dylint` recipe.
 [workspace.metadata.dylint]
 libraries = [
-    { git = "https://github.com/KSXGitHub/perfectionist", tag = "0.0.0-rc.22" },
+    { git = "https://github.com/KSXGitHub/perfectionist", rev = "0c35544246129aa500668ace4f7f1edc5d07c0c9" },
 ]
 
 # Project-local DSL / test macros that perfectionist's exactly-once
@@ -41,10 +41,8 @@ ignore = [
 ]
 
 [perfectionist]
-enable = ["unordered_derives"]
-disable = [
-    "needless_borrowed_parameters",
-]
+enable = ["unordered_derives", "core_instead_of_std", "overly_long_method_chain"]
+disable = ["needless_borrowed_parameters"]
 
 # Code spans read fine in `--help` and stay useful as `cargo doc` docs, so
 # keep them; links and HTML remain forbidden and are cleaned from help text.
@@ -101,3 +99,36 @@ prefix = [
     "Serialize",
     "Deserialize",
 ]
+
+["perfectionist::excessive_cognitive_complexity"]
+max_complexity = 10
+
+# A test binds its fixtures by nature, and splitting that setup into
+# helpers hides what the assertions read. The cap is for production
+# bodies that grew into several unmarked steps.
+["perfectionist::too_many_local_bindings"]
+max_bindings = 12
+exempt_tests = true
+
+["perfectionist::overly_long_function"]
+max_lines = 40
+exempt_tests = true
+
+["perfectionist::excessive_nesting"]
+max_depth = 3
+exempt_tests = false
+
+# A test file holds one scenario per test, so it grows with the number
+# of scenarios rather than with the number of concerns; the guide caps
+# it at 800 lines on its own.
+["perfectionist::overly_long_file"]
+max_lines = 400
+exempt_tests = true
+
+["perfectionist::too_many_struct_fields"]
+max_fields = 8
+exempt_tests = false
+
+["perfectionist::overly_long_method_chain"]
+max_calls = 9
+exempt_tests = true

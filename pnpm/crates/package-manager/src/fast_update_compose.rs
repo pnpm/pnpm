@@ -41,68 +41,25 @@ pub(crate) fn try_compose_fast_updates(
         config.ignored_optional_dependencies.as_deref().unwrap_or_default();
     let settings = crate::fast_update_settings::lockfile_settings_from_config(config);
 
-    let importers = match crate::fast_update_importers::detect_importers_drift(
+    let FastUpdateDrift {
+        importers,
+        ignored,
+        patched,
+        settings: settings_drift,
+    } = detect_fast_update_drift(&DriftInputs {
         lockfile,
         manifests,
         project_manifests,
         prune_stale_importers,
-        config.resolution_mode.picks_lowest_direct(),
-    ) {
-        Drift::Resolve => return None,
-        drift => drift,
-    };
-    let ignored =
-        match crate::fast_update_ignored_optional_dependencies::detect_ignored_optional_drift(
-            lockfile,
-            ignored_optional_dependencies,
-        ) {
-            Drift::Resolve => return None,
-            drift => drift,
-        };
-    let patched =
-        match crate::fast_update_patched_dependencies::detect_patched_drift(lockfile, patch_hashes)
-        {
-            Drift::Resolve => return None,
-            drift => drift,
-        };
-    let settings_drift =
-        match crate::fast_update_settings::detect_settings_drift(lockfile, &settings) {
-            Drift::Resolve => return None,
-            drift => drift,
-        };
-    if matches!(
-        (&importers, &ignored, &patched, &settings_drift),
-        (Drift::Clean, Drift::Clean, Drift::Clean, Drift::Clean),
-    ) {
-        return None;
-    }
+        resolution_picks_lowest: config.resolution_mode.picks_lowest_direct(),
+        ignored_optional_dependencies,
+        patch_hashes,
+        settings: &settings,
+    })?;
 
     let mut candidate = lockfile.clone();
-    let mut edits = GraphEdits::default();
-    if let Drift::Absorb(plan) = &importers
-        && !crate::fast_update_importers::apply_importers_update(&mut candidate, plan, &mut edits)
-    {
-        return None;
-    }
-    if matches!(ignored, Drift::Absorb(())) {
-        crate::fast_update_ignored_optional_dependencies::apply_ignored_optional_update(
-            &mut candidate,
-            ignored_optional_dependencies,
-            &mut edits,
-        );
-    }
-    if !crate::fast_update_lockfile::finish_graph_edits(&mut candidate, &edits) {
-        return None;
-    }
-    if let Drift::Absorb(plan) = &patched
-        && !crate::fast_update_patched_dependencies::apply_patched_update(
-            &mut candidate,
-            plan,
-            config.allow_unused_patches,
-        )
-    {
-        return None;
-    }
+    apply_graph_drift(&mut candidate, &importers, &ignored, ignored_optional_dependencies)?;
+    apply_patch_drift(&mut candidate, &patched, config.allow_unused_patches)?;
     if matches!(settings_drift, Drift::Absorb(()))
         && !crate::fast_update_settings::apply_settings_update(
             &mut candidate,
@@ -120,6 +77,114 @@ pub(crate) fn try_compose_fast_updates(
         return None;
     }
     Some(candidate)
+}
+
+fn apply_patch_drift(
+    candidate: &mut Lockfile,
+    patched: &Drift<crate::fast_update_patched_dependencies::PatchedPlan>,
+    allow_unused_patches: bool,
+) -> Option<()> {
+    if let Drift::Absorb(plan) = patched
+        && !crate::fast_update_patched_dependencies::apply_patched_update(
+            candidate,
+            plan,
+            allow_unused_patches,
+        )
+    {
+        return None;
+    }
+    Some(())
+}
+
+fn apply_graph_drift(
+    candidate: &mut Lockfile,
+    importers: &Drift<crate::fast_update_importers::ImportersPlan<'_, '_>>,
+    ignored: &Drift<()>,
+    ignored_optional_dependencies: &[String],
+) -> Option<()> {
+    let mut edits = GraphEdits::default();
+    if let Drift::Absorb(plan) = importers
+        && !crate::fast_update_importers::apply_importers_update(candidate, plan, &mut edits)
+    {
+        return None;
+    }
+    if matches!(ignored, Drift::Absorb(())) {
+        crate::fast_update_ignored_optional_dependencies::apply_ignored_optional_update(
+            candidate,
+            ignored_optional_dependencies,
+            &mut edits,
+        );
+    }
+    if !crate::fast_update_lockfile::finish_graph_edits(candidate, &edits) {
+        return None;
+    }
+    Some(())
+}
+
+/// The inputs every drift detector reads.
+struct DriftInputs<'a, 'manifest> {
+    lockfile: &'a Lockfile,
+    manifests: &'a [(String, &'manifest PackageManifest)],
+    project_manifests: &'a [(PathBuf, &'a PackageManifest)],
+    prune_stale_importers: bool,
+    resolution_picks_lowest: bool,
+    ignored_optional_dependencies: &'a [String],
+    patch_hashes: Option<&'a BTreeMap<String, String>>,
+    settings: &'a pnpm_lockfile::LockfileSettings,
+}
+
+/// What each half of the lockfile drifted by, once every detector agrees the
+/// drift can be absorbed without a resolution.
+struct FastUpdateDrift<'a, 'manifest> {
+    importers: Drift<crate::fast_update_importers::ImportersPlan<'a, 'manifest>>,
+    ignored: Drift<()>,
+    patched: Drift<crate::fast_update_patched_dependencies::PatchedPlan>,
+    settings: Drift<()>,
+}
+
+/// `None` when any half needs a resolution, or when nothing drifted at all.
+fn detect_fast_update_drift<'a, 'manifest>(
+    inputs: &DriftInputs<'a, 'manifest>,
+) -> Option<FastUpdateDrift<'a, 'manifest>> {
+    let importers = match crate::fast_update_importers::detect_importers_drift(
+        inputs.lockfile,
+        inputs.manifests,
+        inputs.project_manifests,
+        inputs.prune_stale_importers,
+        inputs.resolution_picks_lowest,
+    ) {
+        Drift::Resolve => return None,
+        drift => drift,
+    };
+    let ignored =
+        match crate::fast_update_ignored_optional_dependencies::detect_ignored_optional_drift(
+            inputs.lockfile,
+            inputs.ignored_optional_dependencies,
+        ) {
+            Drift::Resolve => return None,
+            drift => drift,
+        };
+    let patched = match crate::fast_update_patched_dependencies::detect_patched_drift(
+        inputs.lockfile,
+        inputs.patch_hashes,
+    ) {
+        Drift::Resolve => return None,
+        drift => drift,
+    };
+    let settings = match crate::fast_update_settings::detect_settings_drift(
+        inputs.lockfile,
+        inputs.settings,
+    ) {
+        Drift::Resolve => return None,
+        drift => drift,
+    };
+    if matches!(
+        (&importers, &ignored, &patched, &settings),
+        (Drift::Clean, Drift::Clean, Drift::Clean, Drift::Clean),
+    ) {
+        return None;
+    }
+    Some(FastUpdateDrift { importers, ignored, patched, settings })
 }
 
 #[cfg(test)]

@@ -42,8 +42,24 @@
 //! so private dependencies resolve via a pnpr-managed upstream credential or
 //! fail closed.
 
+pub(crate) use verify_lockfile::handle_verify_lockfile;
+
+mod streaming;
+use streaming::{StreamedResolveInputs, stream_resolve_response};
+
+mod verify_lockfile;
+use verify_lockfile::{VerifyFailure, verify_input_lockfile};
+
+mod config_cache;
+use config_cache::{
+    MAX_CONFIG_KEY_BYTES, MAX_INTERNED_CONFIGS, TOO_MANY_CONFIGS_MESSAGE, intern_config,
+};
+
 mod cache;
+mod cargo;
+mod package_route;
 mod protocol;
+mod pypi;
 mod request_validation;
 mod resolve;
 mod verdict_cache;
@@ -59,6 +75,7 @@ use std::{
 use pnpr_config::Config as RegistryConfig;
 use pnpr_osv::OsvIndex;
 use pnpr_policy::Identity;
+use pnpr_registry::Ecosystem;
 use pnpr_route::{Footprint, RouteContext, RouteHook};
 
 use axum::{
@@ -80,7 +97,7 @@ use pnpm_store_dir::StoreDir;
 
 use self::{
     cache::{CachedResolution, cached_resolution, resolution_cache_key, store_resolution},
-    protocol::ResolveRequest,
+    protocol::{EcosystemProbe, ResolveRequest},
     request_validation::{
         reject_inline_url_auth, reject_invalid_patch_hashes, reject_invalid_registries,
         reject_off_allowlist_fetches,
@@ -106,22 +123,12 @@ use self::{
 /// a multi-server test process keeps its own store.
 pub(crate) struct Resolver {
     store_dir: StoreDir,
-    cache_dir: PathBuf,
     client: Arc<ThrottledClient>,
-    /// Held behind an [`Arc`] so the detached streaming-resolve task can
-    /// own a clone and record its result after the response body has
-    /// already started flowing to the client.
-    resolution_cache: Arc<Mutex<HashMap<String, Vec<CachedResolution>>>>,
-    resolution_cache_ttl: Duration,
     /// One leaked `Config` per distinct client registry configuration,
     /// keyed by its canonical JSON. Capped at [`MAX_INTERNED_CONFIGS`] so a
     /// caller varying its registry/policy fields can't grow the leak
     /// without bound; see [`intern_config`].
     configs: Mutex<HashMap<String, &'static PacquetConfig>>,
-    /// SQLite-backed whole-lockfile verification verdict cache. `None`
-    /// only if the database couldn't be opened — verification then runs
-    /// every time (uncached) rather than failing the server.
-    verdict_cache: Option<VerdictCache>,
     osv_index: Option<Arc<OsvIndex>>,
     /// Route-classification inputs (public/private rules, pnpr-managed
     /// upstream credentials, hosted origin, package policy), resolved once
@@ -131,10 +138,59 @@ pub(crate) struct Resolver {
     /// Public URL clients use for pnpr-hosted and `/~<name>/` endpoint
     /// tarball URLs.
     public_url: String,
+    cache: ResolverCache,
+    index: IndexCache,
+}
+struct ResolverCache {
+    dir: PathBuf,
+    /// Held behind an [`Arc`] so the detached streaming-resolve task can
+    /// own a clone and record its result after the response body has
+    /// already started flowing to the client.
+    entries: Arc<Mutex<HashMap<String, Vec<CachedResolution>>>>,
+    ttl: Duration,
+    /// SQLite-backed whole-lockfile verification verdict cache. `None`
+    /// only if the database couldn't be opened — verification then runs
+    /// every time (uncached) rather than failing the server.
+    verdicts: Option<VerdictCache>,
     /// HMAC secret namespacing a private footprint's cache descriptor.
     /// Part 1 uses it only to label each resolve's cache class in the
     /// operator debug log; Part 2 keys private cache entries by it.
-    resolution_cache_secret: Arc<[u8]>,
+    secret: Arc<[u8]>,
+}
+
+struct IndexCache {
+    /// How long a cached Cargo sparse-index file stays fresh: the
+    /// server's `packument_ttl`, so index metadata ages out on the same
+    /// schedule npm packuments do.
+    ttl: Duration,
+    /// Serializes the fetch of one Cargo sparse-index file, so concurrent
+    /// resolves of the same cold graph fetch each entry once.
+    cargo_locks: Arc<crate::server::StripedLocks>,
+    /// The same, for a Python index's project pages and metadata files.
+    python_locks: Arc<crate::server::StripedLocks>,
+}
+
+impl ResolverCache {
+    fn new(cache_dir: PathBuf, config: &RegistryConfig) -> Self {
+        let verdict_cache = VerdictCache::open(&cache_dir.join("lockfile-verdicts.sqlite")).ok();
+        Self {
+            dir: cache_dir,
+            entries: Arc::new(Mutex::new(HashMap::new())),
+            ttl: config.http.packument_ttl,
+            verdicts: verdict_cache,
+            secret: Arc::clone(&config.resolution_cache_secret),
+        }
+    }
+}
+
+impl IndexCache {
+    fn new(cargo_index_ttl: Duration) -> Self {
+        Self {
+            ttl: cargo_index_ttl,
+            cargo_locks: Arc::new(crate::server::StripedLocks::new()),
+            python_locks: Arc::new(crate::server::StripedLocks::new()),
+        }
+    }
 }
 
 impl Resolver {
@@ -147,14 +203,13 @@ impl Resolver {
     }
 
     fn build(config: &RegistryConfig, osv_index: Option<Arc<OsvIndex>>) -> Resolver {
-        let store_dir = config.cache_storage.join("pnpr-store");
-        let cache_dir = config.cache_storage.join("pnpr-cache");
+        let store_dir = config.storage.cache_dir.join("pnpr-store");
+        let cache_dir = config.storage.cache_dir.join("pnpr-cache");
         // Best-effort: a real failure here (e.g. a permission problem)
         // resurfaces with a precise error on the first store/cache write
         // during resolution, so there's nothing actionable to report yet.
         let _ = std::fs::create_dir_all(&store_dir);
         let _ = std::fs::create_dir_all(&cache_dir);
-        let verdict_cache = VerdictCache::open(&cache_dir.join("lockfile-verdicts.sqlite")).ok();
         let route_context = Arc::new(RouteContext::from_config(config));
         // Re-validate every redirect hop against the same fetch allowlist the
         // request boundary uses, so an allowlisted registry that redirects to
@@ -165,16 +220,13 @@ impl Resolver {
         }));
         Resolver {
             store_dir: StoreDir::new(store_dir),
-            cache_dir,
             client,
-            resolution_cache: Arc::new(Mutex::new(HashMap::new())),
-            resolution_cache_ttl: config.packument_ttl,
             configs: Mutex::new(HashMap::new()),
-            verdict_cache,
             osv_index,
             route_context,
-            public_url: config.public_url.clone(),
-            resolution_cache_secret: Arc::clone(&config.resolution_cache_secret),
+            public_url: config.http.public_url.clone(),
+            cache: ResolverCache::new(cache_dir, config),
+            index: IndexCache::new(config.http.packument_ttl),
         }
     }
 
@@ -194,14 +246,33 @@ impl Resolver {
             Arc::clone(&self.route_context),
             identity.clone(),
             Arc::clone(footprint),
-            Arc::clone(&self.resolution_cache_secret),
+            Arc::clone(&self.cache.secret),
         ));
         Arc::new(AuthHeaders::from_by_scope(request.auth_headers.clone()).with_route_hook(hook))
     }
 
+    /// Where `registry`'s Cargo sparse-index files are cached. The origin
+    /// is hashed into the path so two registries serving the same crate
+    /// name never share an entry; the caller's route scope adds the last
+    /// namespace segment at fetch time.
+    fn cargo_index_cache_dir(&self, registry: &str) -> PathBuf {
+        self.cache.dir
+            .join("cargo-index")
+            .join(pnpm_crypto_hash::create_hex_hash(registry))
+    }
+
+    /// Where `index`'s Python documents are cached. As with Cargo, the
+    /// origin is hashed into the path so two indexes serving the same
+    /// project never share an entry.
+    fn python_index_cache_dir(&self, index: &str) -> PathBuf {
+        self.cache.dir
+            .join("python-index")
+            .join(pnpm_crypto_hash::create_hex_hash(index))
+    }
+
     /// Resolve (or build + intern) the `&'static Config` for a request's
     /// registry configuration. Pacquet's install path resolves against
-    /// `config.registry` / `registries_by_prefix` / `overrides`, so a request
+    /// `config.features.registry` / `registries_by_prefix` / `overrides`, so a request
     /// from a client with a different registry setup gets its own Config.
     ///
     /// `None` once [`MAX_INTERNED_CONFIGS`] distinct configurations have
@@ -210,7 +281,7 @@ impl Resolver {
         intern_config(
             &self.configs,
             &self.store_dir,
-            &self.cache_dir,
+            &self.cache.dir,
             request,
             MAX_INTERNED_CONFIGS,
             MAX_CONFIG_KEY_BYTES,
@@ -218,191 +289,177 @@ impl Resolver {
     }
 }
 
-/// Hard cap on how many distinct client configurations the server will
-/// intern. Each interned [`PacquetConfig`] is leaked (the install path
-/// requires a `&'static Config`), so without a cap an authenticated
-/// caller could exhaust memory by varying its registry/policy fields on
-/// every request. `1024` is far above the handful of distinct setups a
-/// real fleet produces (typically one), matching
-/// [`cache::MAX_RESOLUTION_CACHE_ENTRIES`].
-const MAX_INTERNED_CONFIGS: usize = 1024;
-
-/// Returned (as a `503`) when [`MAX_INTERNED_CONFIGS`] is reached. The
-/// limit resets on restart and a real client reuses one configuration, so
-/// a legitimate caller never sees it.
-const TOO_MANY_CONFIGS_MESSAGE: &str = "too many distinct registry configurations";
-
-/// Hard cap on the byte size of a single interned config's canonical key,
-/// which carries its attacker-controlled `registry` / `namedRegistries` /
-/// `overrides` content. [`MAX_INTERNED_CONFIGS`] bounds only the *count* of
-/// leaked configs; without this a caller could pad each distinct config with
-/// a giant overrides/package-extensions/registry map and still amplify the per-request
-/// leak (the whole request body is allowed up to the publish-sized limit).
-/// `128 KiB` is far above any real resolver configuration.
-const MAX_CONFIG_KEY_BYTES: usize = 128 * 1024;
-
-/// The settings a request resolves under, and the only part of an input
-/// lockfile's `settings` block the interning key carries. Keying on the whole
-/// block would let a caller mint an unbounded number of distinct configs out
-/// of the fields the config never reads (`peersSuffixMaxLength` alone is a
-/// `u64`) and exhaust [`MAX_INTERNED_CONFIGS`], after which no caller gets a
-/// config at all.
-#[derive(serde::Serialize)]
-#[serde(rename_all = "camelCase")]
-struct EffectiveResolverSettings {
-    auto_install_peers: bool,
-    dedupe_peers: bool,
-    exclude_links_from_lockfile: bool,
+/// Whether `/-/pnpr/v0/resolve` resolves this ecosystem.
+///
+/// The handshake advertises what this admits and [`handle_resolve`] dispatches
+/// on it, so the two cannot drift: a list kept beside the dispatch could
+/// advertise an ecosystem the dispatch turns away, and both are exhaustive
+/// matches, so a new ecosystem stops here for a decision.
+pub(crate) const fn resolves(ecosystem: Ecosystem) -> bool {
+    match ecosystem {
+        Ecosystem::Npm | Ecosystem::Cargo | Ecosystem::Pypi => true,
+        // An image has no dependency graph to resolve.
+        Ecosystem::Oci => false,
+    }
 }
 
-impl EffectiveResolverSettings {
-    /// The client's own values whenever it sends them. A client that sends
-    /// none (one older than
-    /// [pnpm/pnpm#13389](https://github.com/pnpm/pnpm/issues/13389)) falls
-    /// back to the input lockfile on a frozen request — nothing is
-    /// re-resolved there, the freshness gate compares these three against the
-    /// config, and the server's defaults would call a lockfile that is valid
-    /// for its owner stale. On an update-capable request it falls back to the
-    /// server's defaults instead: the lockfile records what the *last* install
-    /// used, which is stale exactly when the client has just changed one of
-    /// these.
-    fn for_request(request: &ResolveRequest) -> Self {
-        static DEFAULTS: LazyLock<PacquetConfig> = LazyLock::new(PacquetConfig::new);
+fn refuse_unresolvable(ecosystem: Ecosystem) -> Response {
+    json_error(
+        StatusCode::BAD_REQUEST,
+        &format!("{ecosystem} projects have no dependency graph for this endpoint to resolve"),
+    )
+}
 
-        let lockfile_settings =
-            request.frozen_lockfile.then(|| request.lockfile.as_ref()?.settings.as_ref()).flatten();
+/// The ecosystems the handshake advertises, in the enum's own order.
+pub(crate) fn resolved_ecosystems() -> impl Iterator<Item = Ecosystem> {
+    Ecosystem::all().filter(|ecosystem| resolves(*ecosystem))
+}
 
-        EffectiveResolverSettings {
-            auto_install_peers: request
-                .auto_install_peers
-                .or_else(|| lockfile_settings.map(|settings| settings.auto_install_peers))
-                .unwrap_or(DEFAULTS.auto_install_peers),
-            dedupe_peers: request
-                .dedupe_peers
-                .or_else(|| lockfile_settings.and_then(|settings| settings.dedupe_peers))
-                .unwrap_or(DEFAULTS.dedupe_peers),
-            exclude_links_from_lockfile: request
-                .exclude_links_from_lockfile
-                .or_else(|| lockfile_settings.map(|settings| settings.exclude_links_from_lockfile))
-                .unwrap_or(DEFAULTS.exclude_links_from_lockfile),
+/// Handle `POST /-/pnpr/v0/resolve`. One address serves every ecosystem;
+/// the body's `ecosystem` field selects which resolver reads it, and a
+/// body without one means npm.
+pub(crate) async fn handle_resolve(
+    runtime: &Resolver,
+    identity: Identity,
+    body: Bytes,
+) -> Response {
+    let probe: EcosystemProbe = match serde_json::from_slice(&body) {
+        Ok(probe) => probe,
+        Err(err) => return json_error(StatusCode::BAD_REQUEST, &err.to_string()),
+    };
+    if !resolves(probe.ecosystem) {
+        return refuse_unresolvable(probe.ecosystem);
+    }
+    match probe.ecosystem {
+        Ecosystem::Npm => handle_npm_resolve(runtime, identity, &body).await,
+        Ecosystem::Cargo => cargo::handle_resolve(runtime, identity, &body).await,
+        // Listed rather than caught, so an ecosystem added to the shared
+        // enum stops here for a decision instead of being refused silently.
+        Ecosystem::Pypi => pypi::handle_resolve(runtime, identity, &body).await,
+        // An arm rather than a catch-all so an ecosystem added to the shared
+        // enum has to decide here too, even though `resolves` turns this one
+        // away before the dispatch runs.
+        Ecosystem::Oci => refuse_unresolvable(probe.ecosystem),
+    }
+}
+
+async fn handle_npm_resolve(runtime: &Resolver, identity: Identity, body: &[u8]) -> Response {
+    let request: ResolveRequest = match serde_json::from_slice(body) {
+        Ok(request) => request,
+        Err(err) => return json_error(StatusCode::BAD_REQUEST, &err.to_string()),
+    };
+
+    resolve_npm_request(runtime, identity, request).await
+}
+
+async fn resolve_npm_request(
+    runtime: &Resolver,
+    identity: Identity,
+    request: ResolveRequest,
+) -> Response {
+    if let Some(response) = reject_unusable_resolve(&request, &runtime.route_context) {
+        return response;
+    }
+
+    // Resolve against the client's registries, not the server's own.
+    let Some(config) = runtime.config_for(&request) else {
+        return json_error(StatusCode::SERVICE_UNAVAILABLE, TOO_MANY_CONFIGS_MESSAGE);
+    };
+    // Auth is selected by this server's route policy for the caller, not
+    // forwarded from the client. Every metadata/tarball fetch the
+    // resolve+verify performs records its route into `footprint`, which
+    // then decides whether the resolution may populate the shared cache.
+    let footprint = Arc::new(Mutex::new(Footprint::default()));
+    let request_auth = runtime.hooked_auth(&request, &identity, &footprint);
+    let tarball_router = request_tarball_router(runtime, &identity, config);
+
+    // Verify the *input* lockfile under the client's policy before any
+    // package is streamed ([pnpm/pnpm#12139](https://github.com/pnpm/pnpm/issues/12139)).
+    // The client skips its own `verifyLockfileResolutions` whenever a
+    // pnpr server is configured, so this is the only place the
+    // committed/reused entries get checked. A true first install sends
+    // no lockfile — nothing to verify. `trustLockfile` is the client's
+    // opt-out (mirrors the local path's `--trust-lockfile`). Freshly-
+    // resolved entries are held to the same policy by the resolver's
+    // pick-time gate (the policy is wired into `config`).
+    let verified_dist_stats =
+        match verify_request_lockfile(runtime, config, &request, &request_auth, &tarball_router)
+            .await
+        {
+            Ok(stats) => stats,
+            Err(response) => return response,
+        };
+
+    // Short-circuit paths that produce the whole lockfile without an
+    // incremental tree walk. A verified frozen lockfile still announces
+    // its tarballs as `package` frames when the verification fan-out
+    // just fetched their metadata — the sizes let the client start the
+    // largest downloads first. On a verdict-cache hit no metadata was
+    // fetched, so there's nothing to add and the response is the bare
+    // `done` frame.
+    if let Some(response) =
+        frozen_lockfile_response(runtime, config, &request, &tarball_router, verified_dist_stats)
+    {
+        return response;
+    }
+    // The base key is auth-excluded and shared by every candidate for the
+    // same resolution inputs. Candidate footprints decide which callers
+    // may reuse a stored lockfile.
+    let resolution_cache_key = resolution_cache_key(config, &request);
+    if let Some(response) =
+        cached_resolution_response(runtime, &identity, resolution_cache_key.as_ref())
+    {
+        return response;
+    }
+
+    stream_resolve_response(
+        runtime,
+        StreamedResolveInputs {
+            config,
+            request,
+            request_auth,
+            tarball_router,
+            footprint,
+            cache_key: resolution_cache_key,
+        },
+    )
+}
+
+/// Verify the *input* lockfile under the client's policy before any package is
+/// streamed ([pnpm/pnpm#12139](https://github.com/pnpm/pnpm/issues/12139)).
+///
+/// The client skips its own `verifyLockfileResolutions` whenever a pnpr server
+/// is configured, so this is the only place the committed/reused entries get
+/// checked. A true first install sends no lockfile — nothing to verify.
+/// `trustLockfile` is the client's opt-out (mirrors the local path's
+/// `--trust-lockfile`). Freshly-resolved entries are held to the same policy by
+/// the resolver's pick-time gate (the policy is wired into `config`).
+async fn verify_request_lockfile(
+    runtime: &Resolver,
+    config: &'static PacquetConfig,
+    request: &ResolveRequest,
+    request_auth: &Arc<AuthHeaders>,
+    tarball_router: &TarballRouter,
+) -> Result<Option<ObservedDistStats>, Response> {
+    if request.trust_lockfile {
+        return Ok(None);
+    }
+    let Some(input_lockfile) = request.lockfile.as_ref() else {
+        return Ok(None);
+    };
+    let input_lockfile = tarball_router.verification_lockfile(input_lockfile);
+    match verify_input_lockfile(runtime, config, request_auth, &input_lockfile).await {
+        Ok(stats) => Ok(stats),
+        Err(VerifyFailure::Internal(response)) => Err(response),
+        Err(VerifyFailure::Violations(violations)) => {
+            Err(ndjson_single_frame(&violations_frame(&violations)))
         }
     }
 }
 
-/// Build + leak a `&'static Config` for a request's registry
-/// configuration, interned by its canonical JSON so repeat requests reuse
-/// it. Returns `None` when the config can't be safely interned:
-///
-/// * once `max_interned` distinct configurations have been interned — a
-///   leaked config can never be reclaimed, so refusing to leak more is the
-///   only real bound on the per-request leak (eviction would just let the
-///   same key be re-leaked); or
-/// * when a single config's canonical key exceeds `max_key_bytes`, which
-///   bounds the *size* of each leaked config so a caller can't amplify the
-///   leak with a giant `overrides`, `packageExtensions`, or registry map.
-///
-/// Both caps are generous enough that legitimate clients (which reuse one
-/// small configuration) never hit them.
-fn intern_config(
-    configs: &Mutex<HashMap<String, &'static PacquetConfig>>,
-    store_dir: &StoreDir,
-    cache_dir: &Path,
-    request: &ResolveRequest,
-    max_interned: usize,
-    max_key_bytes: usize,
-) -> Option<&'static PacquetConfig> {
-    let registry =
-        request.registry.clone().unwrap_or_else(|| "https://registry.npmjs.org/".to_string());
-    let registry = if registry.ends_with('/') { registry } else { format!("{registry}/") };
-    let overrides: Option<IndexMap<String, String>> =
-        request.overrides.as_ref().and_then(|value| serde_json::from_value(value.clone()).ok());
-    // Key on a sorted view of `overrides`: serde_json preserves insertion order
-    // and `IndexMap` is insertion-ordered, so the same overrides sent with a
-    // different key order would otherwise hash to distinct cache keys and intern
-    // duplicate leaked configs — defeating dedup and burning the cap faster.
-    let overrides_key: Option<std::collections::BTreeMap<&str, &str>> = overrides
-        .as_ref()
-        .map(|overrides| overrides.iter().map(|(k, v)| (k.as_str(), v.as_str())).collect());
-
-    let resolver_settings = EffectiveResolverSettings::for_request(request);
-
-    let key = serde_json::json!({
-        "registry": registry,
-        "resolverSettings": resolver_settings,
-        "registries": &request.registries,
-        "overrides": overrides_key,
-        "patchedDependencies": &request.patched_dependencies,
-        "packageExtensions": &request.package_extensions,
-        "allowUnusedPatches": request.allow_unused_patches,
-        "resolutionMode": request.resolution_mode,
-        "minimumReleaseAge": request.minimum_release_age,
-        "minimumReleaseAgeExclude": request.minimum_release_age_exclude,
-        "minimumReleaseAgeIgnoreMissingTime": request.minimum_release_age_ignore_missing_time,
-        "trustPolicy": request.trust_policy,
-        "trustPolicyExclude": request.trust_policy_exclude,
-        "trustPolicyIgnoreAfter": request.trust_policy_ignore_after,
-    })
-    .to_string();
-    if key.len() > max_key_bytes {
-        return None;
-    }
-
-    let mut configs = configs.lock().expect("config cache poisoned");
-    if let Some(config) = configs.get(&key) {
-        return Some(config);
-    }
-    if configs.len() >= max_interned {
-        return None;
-    }
-
-    let mut config = PacquetConfig::new();
-    config.store_dir = store_dir.clone();
-    config.cache_dir = cache_dir.to_path_buf();
-    config.registry = registry;
-    // The client's declarations go through the same inversion the config
-    // reader runs on the `registries` setting, so the server routes scopes
-    // and prefixes exactly as the client would.
-    let lookups = pnpm_config::registries::declarations_into_lookups(request.registries.clone());
-    if request.registry.is_none()
-        && let Some(default_registry) = lookups.default_registry
-    {
-        config.registry = default_registry;
-    }
-    config.registries_by_scope = lookups.registries_by_scope;
-    config.registries_by_prefix = lookups.registries_by_prefix;
-    config.registry_options_by_url = lookups.registry_options_by_url;
-    config.overrides = overrides;
-    config.patched_dependency_hashes_override.clone_from(&request.patched_dependencies);
-    config.package_extensions.clone_from(&request.package_extensions);
-    config.allow_unused_patches = request.allow_unused_patches;
-    config.modules_dir = PathBuf::from("node_modules");
-    config.lockfile = true;
-    config.verify_store_integrity = true;
-    // The client's resolution and verification policies drive both the
-    // input-lockfile verifier and the resolver's pick-time
-    // `minimumReleaseAge` / `trustPolicy` checks, so a newly-resolved
-    // entry is picked the way the client would have picked it and held
-    // to the same policy as the reused ones.
-    config.resolution_mode = request.resolution_mode;
-    config.minimum_release_age = request.minimum_release_age;
-    config.minimum_release_age_exclude.clone_from(&request.minimum_release_age_exclude);
-    if let Some(ignore_missing_time) = request.minimum_release_age_ignore_missing_time {
-        config.minimum_release_age_ignore_missing_time = ignore_missing_time;
-    }
-    config.trust_policy = request.trust_policy;
-    config.trust_policy_exclude.clone_from(&request.trust_policy_exclude);
-    config.trust_policy_ignore_after = request.trust_policy_ignore_after;
-    config.auto_install_peers = resolver_settings.auto_install_peers;
-    config.dedupe_peers = resolver_settings.dedupe_peers;
-    config.exclude_links_from_lockfile = resolver_settings.exclude_links_from_lockfile;
-    let config: &'static PacquetConfig = config.leak();
-    configs.insert(key, config);
-    Some(config)
-}
-
-/// Handle `POST /-/pnpr/v0/resolve`: verify the client's input lockfile under
-/// the client's policy, resolve against the client's registries, and
-/// stream the result back as NDJSON.
+/// Resolve an npm project: verify the client's input lockfile under the
+/// client's policy, resolve against the client's registries, and stream
+/// the result back as NDJSON.
 ///
 /// The response is `application/x-ndjson`: one `package` frame per
 /// resolved tarball as the server's tree walk yields it (so the client
@@ -414,342 +471,108 @@ fn intern_config(
 /// short-circuit paths (frozen reuse, cache hit) emit only the terminal
 /// `done` frame. A private proxied tarball is announced through its
 /// upstream's `/~<name>/` registry endpoint rather than its upstream URL.
-pub(crate) async fn handle_resolve(
-    runtime: &Resolver,
-    identity: Identity,
-    body: Bytes,
-) -> Response {
-    let request: ResolveRequest = match serde_json::from_slice(&body) {
-        Ok(request) => request,
-        Err(err) => return json_error(StatusCode::BAD_REQUEST, &err.to_string()),
-    };
-
-    if let Some(response) = reject_invalid_registries(&request) {
-        return response;
-    }
-    if let Some(response) = reject_invalid_patch_hashes(&request) {
-        return response;
-    }
-    if let Some(response) = reject_inline_url_auth(&request) {
-        return response;
-    }
-
-    if let Some(response) = reject_off_allowlist_fetches(&request, &runtime.route_context) {
-        return response;
-    }
-
-    // Resolve against the client's registries, not the server's own.
-    let Some(config) = runtime.config_for(&request) else {
-        return json_error(StatusCode::SERVICE_UNAVAILABLE, TOO_MANY_CONFIGS_MESSAGE);
-    };
-    let package_version_guard =
-        runtime.osv_index.as_ref().map(|index| Arc::clone(index) as Arc<dyn PackageVersionGuard>);
-
-    // Auth is selected by this server's route policy for the caller, not
-    // forwarded from the client. Every metadata/tarball fetch the
-    // resolve+verify performs records its route into `footprint`, which
-    // then decides whether the resolution may populate the shared cache.
-    let footprint = Arc::new(Mutex::new(Footprint::default()));
-    let request_auth = runtime.hooked_auth(&request, &identity, &footprint);
-    let tarball_router = TarballRouter::new(
-        Arc::clone(&runtime.route_context),
-        identity.clone(),
-        runtime.public_url.clone(),
-        config.resolved_registries().into_iter().collect(),
-    );
-
-    // Verify the *input* lockfile under the client's policy before any
-    // package is streamed ([pnpm/pnpm#12139](https://github.com/pnpm/pnpm/issues/12139)).
-    // The client skips its own `verifyLockfileResolutions` whenever a
-    // pnpr server is configured, so this is the only place the
-    // committed/reused entries get checked. A true first install sends
-    // no lockfile — nothing to verify. `trustLockfile` is the client's
-    // opt-out (mirrors the local path's `--trust-lockfile`). Freshly-
-    // resolved entries are held to the same policy by the resolver's
-    // pick-time gate (the policy is wired into `config`).
-    let mut verified_dist_stats = None;
-    if !request.trust_lockfile
-        && let Some(input_lockfile) = request.lockfile.as_ref()
-    {
-        let input_lockfile = tarball_router.verification_lockfile(input_lockfile);
-        match verify_input_lockfile(runtime, config, &request_auth, &input_lockfile).await {
-            Ok(stats) => verified_dist_stats = stats,
-            Err(VerifyFailure::Internal(response)) => return response,
-            Err(VerifyFailure::Violations(violations)) => {
-                return ndjson_single_frame(&violations_frame(&violations));
-            }
-        }
-    }
-
-    // Short-circuit paths that produce the whole lockfile without an
-    // incremental tree walk. A verified frozen lockfile still announces
-    // its tarballs as `package` frames when the verification fan-out
-    // just fetched their metadata — the sizes let the client start the
-    // largest downloads first. On a verdict-cache hit no metadata was
-    // fetched, so there's nothing to add and the response is the bare
-    // `done` frame.
-    if let Some(lockfile) = resolve::fresh_frozen_input_lockfile(config, &request) {
-        let lockfile = tarball_router.verification_lockfile(&lockfile);
-        let lockfile = tarball_router.route_lockfile(config, &lockfile);
-        if let Some(osv_index) = runtime.osv_index.as_ref() {
-            let violations = osv_violations_for_lockfile(osv_index, &lockfile);
-            if !violations.is_empty() {
-                return ndjson_single_frame(&violations_frame(&violations));
-            }
-        }
-        let mut frames = verified_dist_stats
-            .map(|sizes| frozen_package_frames(config, &tarball_router, &lockfile, &sizes))
-            .unwrap_or_default();
-        frames.push(done_frame(&lockfile));
-        return ndjson_frames(&frames);
-    }
-    // The base key is auth-excluded and shared by every candidate for the
-    // same resolution inputs. Candidate footprints decide which callers
-    // may reuse a stored lockfile.
-    let resolution_cache_key = resolution_cache_key(config, &request);
-    if let Some(key) = resolution_cache_key.as_ref()
-        && let Some(lockfile) = cached_resolution(
-            &runtime.resolution_cache,
-            runtime.resolution_cache_ttl,
-            key,
-            &runtime.route_context,
-            &identity,
-        )
-    {
-        // The OSV index is immutable for this resolver instance and a lockfile
-        // is only stored after passing the OSV check, so a cache hit is already
-        // OSV-clean — no per-package re-scan needed on this warm path.
-        return ndjson_single_frame(&done_frame(&lockfile));
-    }
-
-    // Streaming resolve. Run it in a detached task that pushes one
-    // `package` frame per resolved tarball into the channel via the
-    // observer, then a terminal `done` / `error` frame. The response
-    // body drains the channel as frames arrive.
-    let (tx, rx) = tokio::sync::mpsc::unbounded_channel::<Vec<u8>>();
-    let observer: Arc<dyn pnpm_package_manager::ResolutionObserver> = Arc::new(StreamObserver {
-        tx: tx.clone(),
-        package_version_guard: package_version_guard.clone(),
-        tarball_router: tarball_router.clone(),
-    });
-    let client = Arc::clone(&runtime.client);
-    let cache = Arc::clone(&runtime.resolution_cache);
-    let cache_ttl = runtime.resolution_cache_ttl;
-    let final_osv_index = runtime.osv_index.clone();
-    let footprint_for_store = Arc::clone(&footprint);
-    let cache_secret = Arc::clone(&runtime.resolution_cache_secret);
-    tokio::spawn(async move {
-        match Box::pin(resolve::resolve(config, &client, &request, &request_auth, Some(observer)))
-            .await
-        {
-            Ok(lockfile) => {
-                let lockfile = tarball_router.route_lockfile(config, &lockfile);
-                if let Some(osv_index) = final_osv_index.as_ref() {
-                    let violations = osv_violations_for_lockfile(osv_index, &lockfile);
-                    if !violations.is_empty() {
-                        let _ = tx.send(violations_frame(&violations));
-                        return;
-                    }
-                }
-                if let Some(key) = resolution_cache_key {
-                    let footprint = footprint_for_store.lock().expect("footprint poisoned").clone();
-                    let descriptor = footprint.digest(&cache_secret);
-                    let cached = store_resolution(
-                        &cache,
-                        cache_ttl,
-                        key,
-                        footprint.clone(),
-                        &cache_secret,
-                        &lockfile,
-                    );
-                    if !footprint.is_public() {
-                        tracing::debug!(
-                            cached,
-                            descriptor = descriptor.as_deref().unwrap_or("none"),
-                            "private resolution cache candidate evaluated",
-                        );
-                    }
-                }
-                let _ = tx.send(done_frame(&lockfile));
-            }
-            Err(err) => {
-                let _ = tx.send(error_frame(&err.to_string()));
-            }
-        }
-    });
-    ndjson_stream_response(rx)
+/// The request-level refusals a resolve is held to before any fetch.
+fn reject_unusable_resolve(request: &ResolveRequest, context: &RouteContext) -> Option<Response> {
+    reject_invalid_registries(request)
+        .or_else(|| reject_invalid_patch_hashes(request))
+        .or_else(|| reject_inline_url_auth(request))
+        .or_else(|| reject_off_allowlist_fetches(request, context))
 }
 
-/// Handle `POST /-/pnpr/v0/verify-lockfile`: verify the client's input
-/// lockfile under the client's policy, returning only a terminal NDJSON
-/// verdict frame. The client already knows the lockfile is fresh for
-/// the current manifests, so this endpoint deliberately does not
-/// resolve or echo the lockfile back.
-pub(crate) async fn handle_verify_lockfile(
-    runtime: &Resolver,
-    identity: Identity,
-    body: Bytes,
-) -> Response {
-    let request: ResolveRequest = match serde_json::from_slice(&body) {
-        Ok(request) => request,
-        Err(err) => return json_error(StatusCode::BAD_REQUEST, &err.to_string()),
-    };
-
-    if let Some(response) = reject_invalid_registries(&request) {
-        return response;
-    }
-    if let Some(response) = reject_inline_url_auth(&request) {
-        return response;
-    }
-
-    if let Some(response) = reject_off_allowlist_fetches(&request, &runtime.route_context) {
-        return response;
-    }
-
-    let Some(input_lockfile) = request.lockfile.as_ref() else {
-        return json_error(StatusCode::BAD_REQUEST, "`lockfile` is required");
-    };
-
-    if request.trust_lockfile {
-        return verify_done_or_osv_violations(runtime.osv_index.as_ref(), input_lockfile);
-    }
-
-    let Some(config) = runtime.config_for(&request) else {
-        return json_error(StatusCode::SERVICE_UNAVAILABLE, TOO_MANY_CONFIGS_MESSAGE);
-    };
-    // Verifier packument fetches run under the same route hook, so they
-    // select the same pnpr-managed credentials and are recorded in the
-    // same footprint as a resolve would be — a verifier can't read or
-    // populate a cache scope a resolve wouldn't.
-    let footprint = Arc::new(Mutex::new(Footprint::default()));
-    let request_auth = runtime.hooked_auth(&request, &identity, &footprint);
-    let tarball_router = TarballRouter::new(
-        Arc::clone(&runtime.route_context),
-        identity.clone(),
-        runtime.public_url.clone(),
-        config.resolved_registries().into_iter().collect(),
-    );
-    let input_lockfile = tarball_router.verification_lockfile(input_lockfile);
-
-    match verify_input_lockfile(runtime, config, &request_auth, &input_lockfile).await {
-        // The dist stats the verifier observed feed `/-/pnpr/v0/resolve`'s sized
-        // `package` frames; this endpoint's client prefetches from its own
-        // lockfile before the verdict arrives, so only the verdict is sent.
-        Ok(_) => verify_done_or_osv_violations(runtime.osv_index.as_ref(), &input_lockfile),
-        Err(VerifyFailure::Internal(response)) => response,
-        Err(VerifyFailure::Violations(violations)) => {
-            ndjson_single_frame(&violations_frame(&violations))
-        }
-    }
-}
-
-/// Why [`verify_input_lockfile`] failed: either the lockfile violated
-/// the client's policy (carry the rendered violations so the caller can
-/// shape them for the client's protocol) or the verifiers couldn't be
-/// built at all (a ready-made error response).
-enum VerifyFailure {
-    Violations(Vec<serde_json::Value>),
-    Internal(Response),
-}
-
-/// Verify the client's input lockfile under the client's policy. On a
-/// clean pass returns the [`ObservedDistStats`] the verifier
-/// collected — `None` when the whole-lockfile verdict cache satisfied
-/// the check without a fan-out (no metadata was fetched, so no sizes
-/// exist). On a policy violation returns the rendered violations so
-/// the caller can deliver them to the client. A build-verifiers
-/// failure (e.g. an invalid exclude pattern) returns a ready-made 500.
-async fn verify_input_lockfile(
+/// A verified frozen lockfile is the whole answer: no incremental tree walk
+/// runs. Its tarballs are still announced as `package` frames when the
+/// verification fan-out just fetched their metadata — the sizes let the client
+/// start the largest downloads first. On a verdict-cache hit no metadata was
+/// fetched, so there is nothing to add and the response is the bare `done`
+/// frame.
+fn frozen_lockfile_response(
     runtime: &Resolver,
     config: &'static PacquetConfig,
-    auth_headers: &Arc<AuthHeaders>,
-    lockfile: &Lockfile,
-) -> Result<Option<ObservedDistStats>, VerifyFailure> {
-    // A fresh per-request packument cache shared with the verifier; the
-    // on-disk metadata mirror under `<cache_dir>/v11/metadata-full` is
-    // warm across requests and is the real verification cache.
-    let meta_cache = Arc::new(InMemoryPackageMetaCache::default());
-    let dist_stats = observed_dist_stats_sink();
-    let verifiers = build_resolution_verifiers(
-        config,
-        Arc::clone(&runtime.client),
-        Some(meta_cache as Arc<dyn PackageMetaCache>),
-        Some(Arc::clone(auth_headers)),
-        Some(Arc::clone(&dist_stats)),
-        None,
-    )
-    .map_err(|err| {
-        VerifyFailure::Internal(json_error(StatusCode::INTERNAL_SERVER_ERROR, &err.to_string()))
-    })?;
-
-    // Whole-lockfile verdict cache: an O(1) hit when this exact lockfile
-    // already passed under a policy we still trust skips the whole fan-out
-    // (the dominant win for a shared pnpr — CI re-runs, a fleet building
-    // the same repo).
-    let hash = hash_lockfile(lockfile);
-    if let Some(cache) = runtime.verdict_cache.as_ref()
-        && cache.is_verified(&hash, |policy| {
-            verifiers.iter().all(|verifier| verifier.can_trust_past_check(policy))
-                && runtime.osv_index.as_ref().is_none_or(|index| index.can_trust_policy(policy))
-        })
-    {
-        return Ok(None);
-    }
-
-    // A transport failure verifying an entry (the upstream registry couldn't be
-    // reached/authorized) is a gateway error, not a policy violation — surface
-    // the registry's own (credential-redacted) message to the client.
-    let violations = match collect_resolution_policy_violations(lockfile, &verifiers, None).await {
-        Ok(violations) => violations,
-        Err(message) => {
-            return Err(VerifyFailure::Internal(json_error(StatusCode::BAD_GATEWAY, &message)));
+    request: &ResolveRequest,
+    tarball_router: &TarballRouter,
+    verified_dist_stats: Option<ObservedDistStats>,
+) -> Option<Response> {
+    let lockfile = resolve::fresh_frozen_input_lockfile(config, request)?;
+    let lockfile = tarball_router.verification_lockfile(&lockfile);
+    let lockfile = tarball_router.route_lockfile(config, &lockfile);
+    if let Some(osv_index) = runtime.osv_index.as_ref() {
+        let violations = osv_violations_for_lockfile(osv_index, &lockfile);
+        if !violations.is_empty() {
+            return Some(ndjson_single_frame(&violations_frame(&violations)));
         }
-    };
-    let osv_violations = runtime
-        .osv_index
-        .as_ref()
-        .map_or_else(Vec::new, |index| osv_violations_for_lockfile(index, lockfile));
-    if violations.is_empty() && osv_violations.is_empty() {
-        if let Some(cache) = runtime.verdict_cache.as_ref() {
-            cache.record(&hash, &merge_policies(&verifiers, runtime.osv_index.as_ref()));
-        }
-        return Ok(Some(dist_stats));
     }
-
-    let mut rendered: Vec<serde_json::Value> = violations
-        .iter()
-        .map(|violation| {
-            serde_json::json!({
-                "name": violation.name.to_string(),
-                "version": violation.version,
-                "code": violation.code,
-                "reason": violation.reason,
-            })
-        })
-        .collect();
-    rendered.extend(osv_violations);
-    Err(VerifyFailure::Violations(rendered))
+    let mut frames = verified_dist_stats
+        .map(|sizes| frozen_package_frames(config, tarball_router, &lockfile, &sizes))
+        .unwrap_or_default();
+    frames.push(done_frame(&lockfile));
+    Some(ndjson_frames(&frames))
 }
 
-/// Merge every active verifier's policy snapshot into one bag, the key
-/// the verdict cache stores alongside the lockfile hash. Later verifiers
-/// overwrite earlier ones on a shared key — mirrors the local cache's
-/// [`merge_policies`] so a verdict recorded here is comparable to one the
-/// client's own cache would write.
-fn merge_policies(
-    verifiers: &[Arc<dyn ResolutionVerifier>],
-    osv_index: Option<&Arc<OsvIndex>>,
-) -> serde_json::Map<String, serde_json::Value> {
-    let mut merged = serde_json::Map::new();
-    for verifier in verifiers {
-        for (key, value) in verifier.policy() {
-            merged.insert(key.clone(), value.clone());
-        }
+/// A stored lockfile this caller may reuse.
+///
+/// The OSV index is immutable for this resolver instance and a lockfile is only
+/// stored after passing the OSV check, so a cache hit is already OSV-clean — no
+/// per-package re-scan is needed on this warm path.
+fn cached_resolution_response(
+    runtime: &Resolver,
+    identity: &Identity,
+    key: Option<&String>,
+) -> Option<Response> {
+    let lockfile = cached_resolution(
+        &runtime.cache.entries,
+        runtime.cache.ttl,
+        key?,
+        &runtime.route_context,
+        identity,
+    )?;
+    Some(ndjson_single_frame(&done_frame(&lockfile)))
+}
+
+/// What a finished resolution offers the resolution cache.
+struct StoreCandidate<'a> {
+    cache: &'a Mutex<HashMap<String, Vec<CachedResolution>>>,
+    cache_ttl: Duration,
+    key: String,
+    footprint: &'a Mutex<Footprint>,
+    cache_secret: &'a [u8],
+    lockfile: &'a Lockfile,
+}
+
+/// Offer a finished resolution to the cache, logging what a private one was
+/// judged on.
+fn store_resolution_candidate(candidate: StoreCandidate<'_>) {
+    let footprint = candidate.footprint
+        .lock()
+        .expect("footprint poisoned")
+        .clone();
+    let descriptor = footprint.digest(candidate.cache_secret);
+    let cached = store_resolution(
+        candidate.cache,
+        candidate.cache_ttl,
+        candidate.key,
+        footprint.clone(),
+        candidate.cache_secret,
+        candidate.lockfile,
+    );
+    if footprint.is_public() {
+        return;
     }
-    if let Some(osv_index) = osv_index {
-        merged.extend(osv_index.policy());
-    }
-    merged
+    tracing::debug!(
+        cached,
+        descriptor = descriptor.as_deref().unwrap_or("none"),
+        "private resolution cache candidate evaluated",
+    );
+}
+
+/// A diagnostic's message and its causes on one line. A resolve failure
+/// rides an NDJSON frame, where miette's rendered report would arrive as
+/// an unreadable block of escaped newlines.
+fn report_message(report: &miette::Report) -> String {
+    report
+        .chain()
+        .map(ToString::to_string)
+        .collect::<Vec<_>>()
+        .join(": ")
 }
 
 fn json_error(status: StatusCode, message: &str) -> Response {
@@ -763,3 +586,19 @@ fn json_error(status: StatusCode, message: &str) -> Response {
 
 #[cfg(test)]
 mod tests;
+
+fn request_tarball_router(
+    runtime: &Resolver,
+    identity: &Identity,
+    config: &PacquetConfig,
+) -> TarballRouter {
+    TarballRouter::new(
+        Arc::clone(&runtime.route_context),
+        identity.clone(),
+        runtime.public_url.clone(),
+        config
+            .resolved_registries()
+            .into_iter()
+            .collect(),
+    )
+}

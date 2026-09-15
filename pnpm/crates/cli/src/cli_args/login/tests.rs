@@ -1,13 +1,11 @@
+use super::LoginArgs;
+use pnpm_config::Config;
+use pnpm_network_web_auth_testing::{ok_token, web_auth_fake};
+use pnpm_reporter::SilentReporter;
 use std::{
     cell::RefCell,
     path::{Path, PathBuf},
 };
-
-use pnpm_config::Config;
-use pnpm_network_web_auth_testing::{ok_token, web_auth_fake};
-use pnpm_reporter::SilentReporter;
-
-use super::LoginArgs;
 
 /// Add the login-specific capability impls to the `web_auth_fake!`-generated
 /// `FakeHost` so it satisfies `LoginHost`. The web-login path these tests drive
@@ -150,7 +148,12 @@ async fn web_login_server(server: &mut mockito::Server) -> String {
         "doneUrl": "https://example.org/auth/done",
     })
     .to_string();
-    server.mock("POST", "/-/v1/login").with_status(200).with_body(body).create_async().await;
+    server
+        .mock("POST", "/-/v1/login")
+        .with_status(200)
+        .with_body(body)
+        .create_async()
+        .await;
     server.url()
 }
 
@@ -224,7 +227,10 @@ async fn the_scope_flag_beats_a_config_scope_in_the_persisted_config_yaml() {
         document["registries"][&normalized],
         serde_json::json!({ "scopes": ["@from-flag"] }),
     );
-    let written = writes.iter().map(|(_, text)| text.as_str()).collect::<String>();
+    let written = writes
+        .iter()
+        .map(|(_, text)| text.as_str())
+        .collect::<String>();
     assert!(!written.contains("@from-config"), "the config scope must not be written: {written}");
 }
 

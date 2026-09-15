@@ -9,13 +9,16 @@
 //! it inside [`tokio::task::spawn_blocking`] without blocking the
 //! async runtime, and so these helpers stay easy to unit-test.
 
-use crate::streaming::{integrity_checker, parse_integrity};
+use crate::{
+    journal::DocumentMerge,
+    streaming::{integrity_checker, parse_integrity},
+};
 use base64::{Engine, engine::general_purpose::STANDARD as BASE64, read::DecoderReader};
-use pnpr_error::RegistryError;
+use pnpr_error::{RegistryError, Result};
 use serde_json::{Map, Value};
-use ssri::{Algorithm, IntegrityOpts};
+use ssri::{Algorithm, Integrity, IntegrityChecker, IntegrityOpts};
 use std::{
-    collections::BTreeMap,
+    collections::{BTreeMap, HashSet},
     fmt::Write as FmtWrite,
     fs::File,
     io::{Cursor, Read, Write},
@@ -99,28 +102,96 @@ pub fn stream_decode_verify_and_write(
     dist: Option<&Value>,
     dest: &Path,
 ) -> Result<u64, RegistryError> {
-    let invalid = |reason: String| RegistryError::InvalidAttachment {
-        filename: filename.to_string(),
-        reason,
-    };
-    let dist = dist.ok_or_else(|| {
-        invalid(
-            "EINTEGRITY: packument has no matching versions[v].dist entry for this attachment"
-                .to_string(),
-        )
-    })?;
-    let declared_integrity = dist
-        .get("integrity")
-        .and_then(Value::as_str)
-        .ok_or_else(|| invalid("EINTEGRITY: dist.integrity is required".to_string()))?;
-    let integrity = parse_integrity(declared_integrity)
-        .map_err(|err| invalid(format!("EINTEGRITY: malformed dist.integrity: {err}")))?;
-    let declared_shasum = dist.get("shasum").and_then(Value::as_str);
+    let expected = ExpectedAttachment::from_dist(filename, dist, declared_length)?;
+    let written = decode_and_write(base64_data, dest, &expected);
+    if written.is_err() {
+        // A partial or mismatched decode leaves nothing publishable behind.
+        let _ = std::fs::remove_file(dest);
+    }
+    written
+}
 
-    let mut checker = integrity_checker(&integrity)
-        .map_err(|err| invalid(format!("EINTEGRITY: malformed dist.integrity: {err}")))?;
-    let mut shasum_hasher =
-        declared_shasum.is_some().then(|| IntegrityOpts::new().algorithm(Algorithm::Sha1));
+/// What the packument says an attachment must decode to.
+struct ExpectedAttachment<'a> {
+    filename: &'a str,
+    integrity: Integrity,
+    shasum: Option<&'a str>,
+    length: Option<u64>,
+}
+
+impl<'a> ExpectedAttachment<'a> {
+    fn from_dist(
+        filename: &'a str,
+        dist: Option<&'a Value>,
+        length: Option<u64>,
+    ) -> Result<Self, RegistryError> {
+        let invalid = |reason: String| RegistryError::InvalidAttachment {
+            filename: filename.to_string(),
+            reason,
+        };
+        let dist = dist.ok_or_else(|| {
+            invalid(
+                "EINTEGRITY: packument has no matching versions[v].dist entry for this attachment"
+                    .to_string(),
+            )
+        })?;
+        let declared_integrity = dist
+            .get("integrity")
+            .and_then(Value::as_str)
+            .ok_or_else(|| invalid("EINTEGRITY: dist.integrity is required".to_string()))?;
+        let integrity = parse_integrity(declared_integrity)
+            .map_err(|err| invalid(format!("EINTEGRITY: malformed dist.integrity: {err}")))?;
+        let shasum = dist.get("shasum").and_then(Value::as_str);
+        Ok(Self { filename, integrity, shasum, length })
+    }
+
+    /// Check the decoded bytes against every digest and length the packument
+    /// declared.
+    fn verify(
+        &self,
+        total: u64,
+        checker: IntegrityChecker,
+        shasum_hasher: Option<IntegrityOpts>,
+    ) -> Result<(), RegistryError> {
+        if let Some(expected) = self.length
+            && expected != total
+        {
+            return Err(self.invalid(format!(
+                "EINTEGRITY: length mismatch: header says {expected}, decoded {total}",
+            )));
+        }
+        checker
+            .result()
+            .map_err(|err| self.invalid(format!("EINTEGRITY: integrity mismatch: {err}")))?;
+        let Some(declared) = self.shasum else {
+            return Ok(());
+        };
+        let hasher = shasum_hasher.expect("shasum_hasher initialized when declared_shasum present");
+        let computed = sha1_hex_from_integrity_opts(hasher);
+        if computed.eq_ignore_ascii_case(declared) {
+            return Ok(());
+        }
+        Err(self.invalid(format!(
+            "EINTEGRITY: shasum mismatch: declared {declared:?}, computed {computed:?}",
+        )))
+    }
+    fn invalid(&self, reason: String) -> RegistryError {
+        RegistryError::InvalidAttachment { filename: self.filename.to_string(), reason }
+    }
+}
+
+/// Decode the base64 attachment straight to `dest`, hashing as it goes, and
+/// verify what landed. The bytes are never held in memory whole.
+fn decode_and_write(
+    base64_data: &str,
+    dest: &Path,
+    expected: &ExpectedAttachment<'_>,
+) -> Result<u64, RegistryError> {
+    let mut checker = integrity_checker(&expected.integrity)
+        .map_err(|err| expected.invalid(format!("EINTEGRITY: malformed dist.integrity: {err}")))?;
+    let mut shasum_hasher = expected.shasum
+        .is_some()
+        .then(|| IntegrityOpts::new().algorithm(Algorithm::Sha1));
 
     let mut decoder = DecoderReader::new(Cursor::new(base64_data.as_bytes()), &BASE64);
     let mut file = File::create(dest).map_err(RegistryError::Io)?;
@@ -128,19 +199,14 @@ pub fn stream_decode_verify_and_write(
     let mut buf = vec![0u8; CHUNK_BYTES];
     let mut total: u64 = 0;
     loop {
-        let bytes_read = match decoder.read(&mut buf) {
-            Ok(0) => break,
-            Ok(bytes_read) => bytes_read,
-            Err(err) => {
-                let _ = std::fs::remove_file(dest);
-                return Err(invalid(format!("EINTEGRITY: base64 decode failed: {err}")));
-            }
-        };
-        let chunk = &buf[..bytes_read];
-        if let Err(err) = file.write_all(chunk) {
-            let _ = std::fs::remove_file(dest);
-            return Err(RegistryError::Io(err));
+        let bytes_read = decoder
+            .read(&mut buf)
+            .map_err(|err| expected.invalid(format!("EINTEGRITY: base64 decode failed: {err}")))?;
+        if bytes_read == 0 {
+            break;
         }
+        let chunk = &buf[..bytes_read];
+        file.write_all(chunk).map_err(RegistryError::Io)?;
         checker.input(chunk);
         if let Some(hasher) = shasum_hasher.as_mut() {
             hasher.input(chunk);
@@ -148,34 +214,8 @@ pub fn stream_decode_verify_and_write(
         total += bytes_read as u64;
     }
 
-    if let Some(expected) = declared_length
-        && expected != total
-    {
-        let _ = std::fs::remove_file(dest);
-        return Err(invalid(format!(
-            "EINTEGRITY: length mismatch: header says {expected}, decoded {total}",
-        )));
-    }
-
-    if let Err(err) = checker.result() {
-        let _ = std::fs::remove_file(dest);
-        return Err(invalid(format!("EINTEGRITY: integrity mismatch: {err}")));
-    }
-    if let Some(declared) = declared_shasum {
-        let hasher = shasum_hasher.expect("shasum_hasher initialized when declared_shasum present");
-        let computed = sha1_hex_from_integrity_opts(hasher);
-        if !computed.eq_ignore_ascii_case(declared) {
-            let _ = std::fs::remove_file(dest);
-            return Err(invalid(format!(
-                "EINTEGRITY: shasum mismatch: declared {declared:?}, computed {computed:?}",
-            )));
-        }
-    }
-
-    if let Err(err) = file.sync_all() {
-        let _ = std::fs::remove_file(dest);
-        return Err(RegistryError::Io(err));
-    }
+    expected.verify(total, checker, shasum_hasher)?;
+    file.sync_all().map_err(RegistryError::Io)?;
     Ok(total)
 }
 
@@ -185,8 +225,7 @@ pub fn stream_decode_verify_and_write(
 /// we decode and re-encode as hex for the comparison.
 fn sha1_hex_from_integrity_opts(opts: IntegrityOpts) -> String {
     let integrity = opts.result();
-    let digest_base64 = integrity
-        .hashes
+    let digest_base64 = integrity.hashes
         .first()
         .expect("ssri produces a Sha1 hash entry when requested")
         .digest
@@ -231,47 +270,11 @@ pub fn merge_manifest(
 
     if let Some(incoming_obj) = incoming.as_object() {
         for (key, value) in incoming_obj {
-            match key.as_str() {
-                "versions" => {
-                    let merged = merge_versions(out.get(key), value, hosted);
-                    out.insert(key.clone(), merged);
-                }
-                "dist-tags" => {
-                    let merged = merge_objects(out.get(key), value);
-                    out.insert(key.clone(), merged);
-                }
-                "time" => {
-                    let merged = merge_objects(out.get(key), value);
-                    out.insert(key.clone(), merged);
-                }
-                "_attachments" => {
-                    // Already stripped by extract_attachments; if it
-                    // slips through somehow, drop it so we don't
-                    // persist base64 blobs alongside the packument.
-                }
-                _ => {
-                    out.insert(key.clone(), value.clone());
-                }
-            }
+            merge_manifest_field(&mut out, key, value, hosted);
         }
     }
 
-    // Synthesize time entries for any new version that didn't get
-    // one supplied by the client. pnpm reads `time.modified` for
-    // freshness checks, so it must always be present.
-    let version_ids: Vec<String> = out
-        .get("versions")
-        .and_then(Value::as_object)
-        .map(|versions| versions.keys().cloned().collect())
-        .unwrap_or_default();
-    let time_entry = out.entry("time".to_string()).or_insert_with(|| Value::Object(Map::new()));
-    if let Some(time_obj) = time_entry.as_object_mut() {
-        time_obj.insert("modified".to_string(), Value::String(now_iso.to_string()));
-        time_obj.entry("created".to_string()).or_insert_with(|| Value::String(now_iso.to_string()));
-        for version_id in version_ids {
-            time_obj.entry(version_id).or_insert_with(|| Value::String(now_iso.to_string()));
-        }
-    }
+    stamp_time_entries(&mut out, now_iso);
 
     hoist_readme_from_latest(&mut out);
 
@@ -280,8 +283,10 @@ pub fn merge_manifest(
     // serde_json's `preserve_order` feature — without sorting, two
     // publishes of the same package can produce different bytes.
     if let Some(versions) = out.get_mut("versions").and_then(Value::as_object_mut) {
-        let sorted: BTreeMap<String, Value> =
-            versions.iter().map(|(k, v)| (k.clone(), v.clone())).collect();
+        let sorted: BTreeMap<String, Value> = versions
+            .iter()
+            .map(|(k, v)| (k.clone(), v.clone()))
+            .collect();
         *versions = sorted.into_iter().collect();
     }
 
@@ -352,8 +357,51 @@ fn merge_objects(existing: Option<&Value>, incoming: &Value) -> Value {
 /// Immutability keys off `hosted` (the locally hosted packument), not the
 /// seed: `existing` may be the upstream packument, and upstream versions are
 /// not immutable here — a first local publish of one must win.
+/// Merge one top-level packument field into the document being written.
+fn merge_manifest_field(
+    out: &mut Map<String, Value>,
+    key: &String,
+    value: &Value,
+    hosted: Option<&Value>,
+) {
+    let merged = match key.as_str() {
+        "versions" => merge_versions(out.get(key), value, hosted),
+        "dist-tags" | "time" => merge_objects(out.get(key), value),
+        // Already stripped by extract_attachments; if it slips through
+        // somehow, drop it so we don't persist base64 blobs alongside the
+        // packument.
+        "_attachments" => return,
+        _ => value.clone(),
+    };
+    out.insert(key.clone(), merged);
+}
+
+/// Synthesize time entries for any new version that didn't get one supplied
+/// by the client. pnpm reads `time.modified` for freshness checks, so it must
+/// always be present.
+fn stamp_time_entries(out: &mut Map<String, Value>, now_iso: &str) {
+    let version_ids: Vec<String> = out
+        .get("versions")
+        .and_then(Value::as_object)
+        .map(|versions| versions.keys().cloned().collect())
+        .unwrap_or_default();
+    let time_entry = out
+        .entry("time".to_string())
+        .or_insert_with(|| Value::Object(Map::new()));
+    let Some(time_obj) = time_entry.as_object_mut() else {
+        return;
+    };
+    time_obj.insert("modified".to_string(), Value::String(now_iso.to_string()));
+    time_obj.entry("created".to_string()).or_insert_with(|| Value::String(now_iso.to_string()));
+    for version_id in version_ids {
+        time_obj.entry(version_id).or_insert_with(|| Value::String(now_iso.to_string()));
+    }
+}
+
 fn merge_versions(existing: Option<&Value>, incoming: &Value, hosted: Option<&Value>) -> Value {
-    let hosted_versions = hosted.and_then(|h| h.get("versions")).and_then(Value::as_object);
+    let hosted_versions = hosted
+        .and_then(|h| h.get("versions"))
+        .and_then(Value::as_object);
     let mut merged = match existing {
         Some(Value::Object(obj)) => obj.clone(),
         _ => Map::new(),
@@ -363,31 +411,87 @@ fn merge_versions(existing: Option<&Value>, incoming: &Value, hosted: Option<&Va
             let hosted_manifest = hosted_versions
                 .and_then(|versions| versions.get(version))
                 .and_then(Value::as_object);
-            match (hosted_manifest, manifest.as_object()) {
+            let entry = match (hosted_manifest, manifest.as_object()) {
                 (Some(hosted_manifest), Some(incoming_manifest)) => {
-                    let mut updated = hosted_manifest.clone();
-                    match incoming_manifest.get("deprecated") {
-                        Some(deprecated) => {
-                            updated.insert("deprecated".to_string(), deprecated.clone());
-                        }
-                        None => {
-                            updated.remove("deprecated");
-                        }
-                    }
-                    merged.insert(version.clone(), Value::Object(updated));
+                    Value::Object(with_incoming_deprecation(hosted_manifest, incoming_manifest))
                 }
                 // Malformed incoming entry for a hosted version: keep the
                 // hosted manifest rather than overwrite it with junk.
-                (Some(hosted_manifest), None) => {
-                    merged.insert(version.clone(), Value::Object(hosted_manifest.clone()));
-                }
-                _ => {
-                    merged.insert(version.clone(), manifest.clone());
-                }
-            }
+                (Some(hosted_manifest), None) => Value::Object(hosted_manifest.clone()),
+                _ => manifest.clone(),
+            };
+            merged.insert(version.clone(), entry);
         }
     }
     Value::Object(merged)
+}
+
+/// The hosted manifest with only its deprecation taken from the incoming one.
+/// A publish may deprecate or un-deprecate a version but never rewrite what
+/// the store already holds for it.
+fn with_incoming_deprecation(
+    hosted_manifest: &Map<String, Value>,
+    incoming_manifest: &Map<String, Value>,
+) -> Map<String, Value> {
+    let mut updated = hosted_manifest.clone();
+    match incoming_manifest.get("deprecated") {
+        Some(deprecated) => updated.insert("deprecated".to_string(), deprecated.clone()),
+        None => updated.remove("deprecated"),
+    };
+    updated
+}
+
+/// The npm half of the journal's [`crate::journal::HostedDocuments`]: merge a
+/// journaled packument into the packument the store holds, minus the versions
+/// whose tarball the transaction lost. Publishing and startup recovery both
+/// land here, so a re-applied transaction adds its versions to whatever was
+/// published in the meantime instead of erasing it.
+pub fn merge_journaled_packument(merge: &DocumentMerge<'_>) -> Result<Option<Vec<u8>>> {
+    let mut journaled: Value = serde_json::from_slice(merge.journaled)?;
+    if !merge.lost_blobs.is_empty() {
+        let lost_versions = merge.lost_blobs
+            .iter()
+            .map(|filename| merge.name.parse_tarball_name(filename).map(|(_, version)| version))
+            .collect::<Result<HashSet<String>>>()?;
+        drop_lost_versions(&mut journaled, &lost_versions);
+    }
+    let existing: Option<Value> = match merge.existing {
+        Some(bytes) => Some(serde_json::from_slice(bytes)?),
+        None => None,
+    };
+    let merged = merge_manifest(existing.as_ref(), &journaled, existing.as_ref(), &now_iso());
+    Ok(Some(serde_json::to_vec_pretty(&merged)?))
+}
+
+/// Drop from a journaled packument every version the transaction could not
+/// place: one whose tarball slot another writer already owned, or that could
+/// not reserve a bounded digest-reference slot. The journal keeps each staged
+/// attachment's canonical filename, so callers resolve that name to the
+/// version before reaching this helper instead of trusting a publisher-
+/// supplied `dist.tarball` URL as the transaction identity.
+fn drop_lost_versions(journaled: &mut Value, lost: &HashSet<String>) {
+    let Some(versions) = journaled.get_mut("versions").and_then(Value::as_object_mut) else {
+        return;
+    };
+    let mut removed_versions = HashSet::new();
+    versions.retain(|version, _| {
+        let keep = !lost.contains(version);
+        if !keep {
+            removed_versions.insert(version.clone());
+        }
+        keep
+    });
+
+    if let Some(tags) = journaled.get_mut("dist-tags").and_then(Value::as_object_mut) {
+        tags.retain(|_, version| {
+            version
+                .as_str()
+                .is_none_or(|version| !removed_versions.contains(version))
+        });
+    }
+    if let Some(time) = journaled.get_mut("time").and_then(Value::as_object_mut) {
+        time.retain(|version, _| !removed_versions.contains(version));
+    }
 }
 
 /// Format the current time as an ISO-8601 / RFC-3339 string with
@@ -413,9 +517,14 @@ pub fn iso_from_unix_millis(millis: i64) -> String {
     let (h, rem) = (ms_in_day / 3_600_000, ms_in_day.rem_euclid(3_600_000));
     let (m, rem) = (rem / 60_000, rem.rem_euclid(60_000));
     let (s, ms) = (rem / 1000, rem.rem_euclid(1000));
-    // Days since 1970-01-01 → year/month/day. Howard Hinnant's
-    // algorithm, adapted to integer days from epoch. Shift so era
-    // is positive (719_468 = days from 0000-03-01 to 1970-01-01).
+    let (year, month, day) = civil_from_days(days);
+    format!("{year:04}-{month:02}-{day:02}T{h:02}:{m:02}:{s:02}.{ms:03}Z")
+}
+
+/// Days since 1970-01-01 → year/month/day. Howard Hinnant's
+/// algorithm, adapted to integer days from epoch. Shift so era
+/// is positive (`719_468` = days from 0000-03-01 to 1970-01-01).
+fn civil_from_days(days: i64) -> (i64, u32, u32) {
     let epoch_days = days + 719_468;
     let era = epoch_days.div_euclid(146_097);
     let doe = epoch_days.rem_euclid(146_097) as u32;
@@ -426,7 +535,7 @@ pub fn iso_from_unix_millis(millis: i64) -> String {
     let day = doy - (153 * mp + 2) / 5 + 1;
     let month = if mp < 10 { mp + 3 } else { mp - 9 };
     let year = if month <= 2 { year + 1 } else { year };
-    format!("{year:04}-{month:02}-{day:02}T{h:02}:{m:02}:{s:02}.{ms:03}Z")
+    (year, month, day)
 }
 
 #[cfg(test)]

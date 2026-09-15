@@ -3,8 +3,6 @@
 //! this module is the thin CLI adapter that resolves config into
 //! [`LogoutOptions`].
 
-use std::{collections::HashMap, time::Duration};
-
 use clap::Args;
 use derive_more::{Display, Error};
 use miette::{Diagnostic, IntoDiagnostic};
@@ -12,6 +10,7 @@ use pnpm_auth_commands::logout::{Host as AuthHost, LogoutOptions, logout};
 use pnpm_config::Config;
 use pnpm_network::{RetryOpts, ThrottledClient};
 use pnpm_reporter::Reporter;
+use std::{collections::HashMap, time::Duration};
 
 /// Log out of an npm registry.
 #[derive(Debug, Args)]
@@ -52,8 +51,7 @@ impl LogoutArgs {
 
         // Reconstruct the subset of pnpm's `config.authConfig` the command
         // reads: `<nerf-darted-uri>:_authToken` -> raw token.
-        let auth_config: HashMap<String, String> = config
-            .auth_tokens_by_uri
+        let auth_config: HashMap<String, String> = config.auth_tokens_by_uri
             .iter()
             .map(|(uri, token)| (format!("{uri}:_authToken"), token.clone()))
             .collect();
@@ -70,7 +68,9 @@ impl LogoutArgs {
             LogoutOptions {
                 // `--registry` wins; otherwise the resolved registry,
                 // which already folds in `.npmrc` and the npmjs default.
-                registry: self.registry.as_deref().or(Some(config.registry.as_str())),
+                registry: self.registry
+                    .as_deref()
+                    .or(Some(config.registry.as_str())),
                 auth_config: &auth_config,
                 config_dir,
                 retry,

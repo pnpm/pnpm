@@ -48,6 +48,23 @@ pub fn hash_object_nullable_with_prefix(value: &Value) -> Option<String> {
     Some(format!("sha256-{}", hash_object(value)))
 }
 
+/// SHA-256 + base64 of an already-serialized object-hash bytestream.
+///
+/// For callers that write the [`serialize`] bytestream for a fixed
+/// object shape directly, so no `serde_json::Value` is built to
+/// describe it.
+#[must_use]
+pub(crate) fn digest_base64(bytes: &[u8]) -> String {
+    BASE64.encode(Sha256::digest(bytes))
+}
+
+/// The same, hex-encoded — [`HashEncoding::Hex`]'s output.
+#[must_use]
+pub(crate) fn digest_hex(bytes: &[u8]) -> String {
+    let digest = Sha256::digest(bytes);
+    format!("{digest:x}")
+}
+
 /// General form. `sort = true` sorts object keys before serialization
 /// (object-hash's `unorderedObjects` option); `sort = false` preserves
 /// insertion order.
@@ -104,41 +121,43 @@ fn serialize(out: &mut Vec<u8>, value: &Value, sort: bool) {
             out.extend_from_slice(n.to_string().as_bytes());
         }
         Value::String(s) => serialize_str(out, s),
-        Value::Array(arr) => {
-            // index.js:257-291 — `array:<N>:` then each entry.
-            // object-hash *does* sort arrays in the
-            // unordered case, but pacquet does not currently feed
-            // arrays through this path, so the simpler "ordered"
-            // variant is what we model. Adding the unordered
-            // permutation handling can land alongside a real
-            // caller that needs it.
-            out.extend_from_slice(b"array:");
-            out.extend_from_slice(arr.len().to_string().as_bytes());
-            out.push(b':');
-            for entry in arr {
-                serialize(out, entry, sort);
-            }
+        Value::Array(arr) => serialize_array(out, arr, sort),
+        Value::Object(map) => serialize_object(out, map, sort),
+    }
+}
+
+/// index.js:257-291 — `array:<N>:` then each entry.
+///
+/// object-hash *does* sort arrays in the unordered case, but pacquet does not
+/// currently feed arrays through this path, so the simpler "ordered" variant
+/// is what is modelled here. Adding the unordered permutation handling can
+/// land alongside a real caller that needs it.
+fn serialize_array(out: &mut Vec<u8>, arr: &[Value], sort: bool) {
+    out.extend_from_slice(b"array:");
+    out.extend_from_slice(arr.len().to_string().as_bytes());
+    out.push(b':');
+    for entry in arr {
+        serialize(out, entry, sort);
+    }
+}
+
+/// index.js:225-255 — `object:<N>:<key>:<value>,...`, sorted iff
+/// `unorderedObjects` (i.e. `sort = true`). Each key is dispatched through
+/// `_string` and each value through the normal dispatcher.
+fn serialize_object(out: &mut Vec<u8>, map: &serde_json::Map<String, Value>, sort: bool) {
+    out.extend_from_slice(b"object:");
+    out.extend_from_slice(map.len().to_string().as_bytes());
+    out.push(b':');
+    if !sort {
+        for (key, value) in map {
+            write_pair(out, key, value, sort);
         }
-        Value::Object(map) => {
-            // index.js:225-255 — `object:<N>:<key>:<value>,...`.
-            // Sorted iff `unorderedObjects` (i.e. `sort = true`).
-            // Each key is dispatched through `_string` and each
-            // value through the normal dispatcher.
-            out.extend_from_slice(b"object:");
-            out.extend_from_slice(map.len().to_string().as_bytes());
-            out.push(b':');
-            if sort {
-                let mut keys: Vec<&String> = map.keys().collect();
-                keys.sort();
-                for key in keys {
-                    write_pair(out, key, &map[key], sort);
-                }
-            } else {
-                for (key, val) in map {
-                    write_pair(out, key, val, sort);
-                }
-            }
-        }
+        return;
+    }
+    let mut keys: Vec<&String> = map.keys().collect();
+    keys.sort();
+    for key in keys {
+        write_pair(out, key, &map[key], sort);
     }
 }
 
@@ -157,7 +176,7 @@ fn write_pair(out: &mut Vec<u8>, key: &str, value: &Value, sort: bool) {
 /// `_string` arm (index.js:304-307). `length` is UTF-16 code units
 /// (JS `.length`), not bytes and not Unicode codepoints. For ASCII
 /// strings all three agree.
-fn serialize_str(out: &mut Vec<u8>, text: &str) {
+pub(crate) fn serialize_str(out: &mut Vec<u8>, text: &str) {
     let utf16_len: usize = text.encode_utf16().count();
     out.extend_from_slice(b"string:");
     out.extend_from_slice(utf16_len.to_string().as_bytes());

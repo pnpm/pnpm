@@ -71,6 +71,9 @@ pub enum PreparePackageError {
 #[derive(Debug, Display, Error, Diagnostic)]
 #[non_exhaustive]
 pub enum GitFetcherError {
+    #[diagnostic(transparent)]
+    SharedSource(#[error(source)] std::sync::Arc<GitFetcherError>),
+
     /// `git` executable not found on `PATH`. Pacquet, like pnpm, does
     /// not bundle git — the user must install it themselves.
     #[display("`git` executable not found on PATH. Install git to fetch git-hosted packages.")]

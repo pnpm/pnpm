@@ -1,9 +1,18 @@
 use super::{
-    HostedRevisionDist, HostedRevisionRecord, PeerAddr, RevisionField,
-    authentication::{
-        bearer_credentials, canonical_ip, cidr_contains, cidr_whitelist_allows, is_write_method,
+    revision_tarballs::{
+        HostedRevisionDist, HostedRevisionRecord, RevisionField, original_integrity,
     },
-    original_integrity, router_with_auth, tilde_registry, token_timestamp_millis,
+    user_accounts::token_timestamp_millis,
+};
+mod compiler_cache;
+
+use super::{
+    PeerAddr,
+    authentication::{
+        bearer_credentials, canonical_ip, cidr_contains, cidr_whitelist_allows, is_write_request,
+        token_credentials,
+    },
+    router_with_auth, tilde_registry,
 };
 use async_trait::async_trait;
 use axum::{
@@ -11,6 +20,7 @@ use axum::{
     extract::ConnectInfo,
     http::{Method, Request, StatusCode, header},
 };
+use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64_STANDARD};
 use pnpr_auth::{AuthState, TokenBackend, TokenRecord, UserStore};
 use pnpr_config::Config;
 use pnpr_error::{RegistryError, Result};
@@ -176,14 +186,47 @@ fn cidr_whitelist_allows_requires_some_entry_to_match() {
 // ---------------------------------------------------------------
 
 #[test]
-fn is_write_method_flags_only_mutating_methods() {
-    assert!(is_write_method(&Method::PUT));
-    assert!(is_write_method(&Method::DELETE));
-    assert!(is_write_method(&Method::PATCH));
-    assert!(!is_write_method(&Method::GET));
-    assert!(!is_write_method(&Method::HEAD));
-    assert!(!is_write_method(&Method::OPTIONS));
-    assert!(!is_write_method(&Method::POST)); // resolver reads are POSTs
+fn is_write_request_flags_only_mutating_requests() {
+    assert!(is_write_request(&Method::PUT, "/foo"));
+    assert!(is_write_request(&Method::DELETE, "/foo/-rev/1"));
+    assert!(is_write_request(&Method::PATCH, "/foo"));
+    assert!(!is_write_request(&Method::GET, "/foo"));
+    assert!(!is_write_request(&Method::HEAD, "/foo"));
+    assert!(!is_write_request(&Method::OPTIONS, "/foo"));
+    assert!(!is_write_request(&Method::POST, "/-/pnpr/v0/resolve")); // resolver reads are POSTs
+    // The Python legacy upload API is the one mutating POST.
+    assert!(is_write_request(&Method::POST, "/pypi/legacy/"));
+    assert!(is_write_request(&Method::POST, "/pypi/legacy"));
+    assert!(is_write_request(&Method::POST, "/pypi/~internal/legacy/"));
+    assert!(!is_write_request(&Method::POST, "/legacy/"));
+    assert!(!is_write_request(&Method::POST, "/~pypi/legacy/"));
+    assert!(!is_write_request(&Method::POST, "/pypi/simple/legacy/"));
+    // Starting an image blob upload is the other mutating POST.
+    assert!(is_write_request(&Method::POST, "/v2/acme/app/blobs/uploads/"));
+    assert!(is_write_request(&Method::POST, "/v2/acme/app/blobs/uploads"));
+    assert!(is_write_request(&Method::POST, "/oci/~images/v2/acme/team/app/blobs/uploads/"));
+    assert!(!is_write_request(&Method::POST, "/v2/acme/app/blobs/sha256-abc"));
+    assert!(!is_write_request(&Method::POST, "/acme/app/blobs/uploads/"));
+}
+
+#[test]
+fn token_credentials_accepts_every_client_token_shape() {
+    assert_eq!(token_credentials("Bearer abc"), Some("abc".to_string()));
+    assert_eq!(token_credentials("bearer  abc "), Some("abc".to_string()));
+    // cargo sends the registry token with no scheme at all.
+    assert_eq!(token_credentials("abc"), Some("abc".to_string()));
+    assert_eq!(token_credentials("  "), None);
+    // `Basic` carries the token as the password. twine and pip pair it with
+    // pypi.org's `__token__` user, docker and podman with the name the user
+    // typed at login, so the username is not what is checked.
+    let basic = |pair: &str| format!("Basic {}", BASE64_STANDARD.encode(pair));
+    assert_eq!(token_credentials(&basic("__token__:abc")), Some("abc".to_string()));
+    assert_eq!(token_credentials(&basic("alice:abc")), Some("abc".to_string()));
+    assert_eq!(token_credentials(&basic(":abc")), Some("abc".to_string()));
+    assert_eq!(token_credentials(&basic("__token__:")), None);
+    assert_eq!(token_credentials(&basic("alice:")), None);
+    assert_eq!(token_credentials("Basic not-base64!"), None);
+    assert_eq!(token_credentials("Digest abc"), None);
 }
 
 #[test]
@@ -207,7 +250,10 @@ fn record(readonly: bool, cidr_whitelist: &[&str]) -> TokenRecord {
         created_at: 1,
         last_used_at: 1,
         readonly,
-        cidr_whitelist: cidr_whitelist.iter().map(|entry| (*entry).to_string()).collect(),
+        cidr_whitelist: cidr_whitelist
+            .iter()
+            .map(|entry| (*entry).to_string())
+            .collect(),
     }
 }
 
@@ -269,12 +315,16 @@ fn signed(method: Method, path: &str, raw: &str) -> Request<Body> {
 }
 
 fn with_peer(mut request: Request<Body>, addr: SocketAddr) -> Request<Body> {
-    request.extensions_mut().insert(ConnectInfo(PeerAddr(addr)));
+    request
+        .extensions_mut()
+        .insert(ConnectInfo(PeerAddr(addr)));
     request
 }
 
 async fn status(app: axum::Router, request: Request<Body>) -> StatusCode {
-    app.oneshot(request).await.unwrap().status()
+    app.oneshot(request).await
+        .unwrap()
+        .status()
 }
 
 #[tokio::test]
@@ -283,14 +333,21 @@ async fn authenticated_identity_reaches_handlers() {
     let app = app_with_token(&tmp, "tok", record(false, &[]));
     // The middleware resolves the bearer once; whoami reads that identity
     // back out of request extensions rather than re-parsing the header.
-    let response = app.clone().oneshot(signed(Method::GET, "/-/whoami", "tok")).await.unwrap();
+    let response = app
+        .clone()
+        .oneshot(signed(Method::GET, "/-/whoami", "tok"))
+        .await
+        .unwrap();
     assert_eq!(response.status(), StatusCode::OK);
     let body = to_bytes(response.into_body(), usize::MAX).await.unwrap();
     let json: serde_json::Value = serde_json::from_slice(&body).unwrap();
     assert_eq!(json["username"], "alice");
 
     // An unknown token resolves to anonymous, so whoami is a 401.
-    let anon = app.oneshot(signed(Method::GET, "/-/whoami", "unknown")).await.unwrap();
+    let anon = app
+        .oneshot(signed(Method::GET, "/-/whoami", "unknown"))
+        .await
+        .unwrap();
     assert_eq!(anon.status(), StatusCode::UNAUTHORIZED);
 }
 
@@ -300,10 +357,10 @@ async fn team_tokens_reach_package_authorization() {
     let listen = SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), 0);
     let mut config = Config::static_serve(listen, tmp.path().to_path_buf());
     use pnpr_policy::{AccessToken, Identity};
-    use pnpr_registry::PackagePattern;
-    config.hosted.get_mut("local").unwrap().rules = PackageRules::new(
+    use pnpr_registry::{Ecosystem, PackagePattern};
+    config.routing.hosted.get_mut("local").unwrap().rules = PackageRules::new(
         vec![PackageRule {
-            pattern: PackagePattern::parse("@team/*").unwrap(),
+            pattern: PackagePattern::parse("@team/*", Ecosystem::Npm).unwrap(),
             access: Some(AccessList::new(vec![AccessToken::Team {
                 name: "platform".to_string(),
                 members: ["alice".to_string()].into(),
@@ -316,7 +373,7 @@ async fn team_tokens_reach_package_authorization() {
     // Team membership reaches the per-package rule evaluation.
     let alice = Identity::user("alice");
     let carol = Identity::user("carol");
-    let rules = &config.hosted["local"].rules;
+    let rules = &config.routing.hosted["local"].rules;
     assert!(rules.for_package("@team/x").access.allows(&alice));
     assert!(!rules.for_package("@team/x").access.allows(&carol));
 
@@ -326,9 +383,16 @@ async fn team_tokens_reach_package_authorization() {
     // credentials — rather than masked (masking is the registry-level
     // default's behavior, not an explicit entry's).
     let app = app_with_config_and_token(config, "tok", record(false, &[]));
-    let allowed = app.clone().oneshot(signed(Method::GET, "/@team/missing", "tok")).await.unwrap();
+    let allowed = app
+        .clone()
+        .oneshot(signed(Method::GET, "/@team/missing", "tok"))
+        .await
+        .unwrap();
     assert_eq!(allowed.status(), StatusCode::NOT_FOUND);
-    let anonymous = app.oneshot(signed(Method::GET, "/@team/missing", "unknown")).await.unwrap();
+    let anonymous = app
+        .oneshot(signed(Method::GET, "/@team/missing", "unknown"))
+        .await
+        .unwrap();
     assert_eq!(anonymous.status(), StatusCode::UNAUTHORIZED);
 }
 
@@ -405,7 +469,9 @@ async fn forwarded_header_cannot_satisfy_a_cidr_restriction() {
     let request = signed(Method::GET, "/foo", "pinned");
     let request = {
         let mut request = request;
-        request.headers_mut().insert("x-forwarded-for", "10.1.2.3".parse().unwrap());
+        request
+            .headers_mut()
+            .insert("x-forwarded-for", "10.1.2.3".parse().unwrap());
         request
     };
     assert_eq!(status(app, request).await, StatusCode::FORBIDDEN);
@@ -421,7 +487,7 @@ fn access_log_uri_redacts_the_logout_token_segment() {
     );
     // Everything else is logged verbatim, query string included.
     assert_eq!(redact("/foo/-/foo-1.0.0.tgz"), "/foo/-/foo-1.0.0.tgz");
-    assert_eq!(redact("/-/v1/search?text=foo"), "/-/v1/search?text=foo");
+    assert_eq!(redact("/-/npm/v1/search?text=foo"), "/-/npm/v1/search?text=foo");
 }
 
 // --------------------------------------------------------------------
@@ -434,10 +500,16 @@ fn config_with_teams(tmp: &TempDir) -> Config {
     let listen = SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), 0);
     let mut config = Config::static_serve(listen, tmp.path().to_path_buf());
     let teams = [("developers", vec!["bob", "alice"]), ("admins", vec!["alice"])];
-    config.hosted.get_mut("local").unwrap().teams = teams
+    config.routing.hosted.get_mut("local").unwrap().teams = teams
         .into_iter()
         .map(|(team, members)| {
-            (team.to_string(), members.into_iter().map(str::to_string).collect())
+            (
+                team.to_string(),
+                members
+                    .into_iter()
+                    .map(str::to_string)
+                    .collect(),
+            )
         })
         .collect();
     config
@@ -455,13 +527,18 @@ async fn team_listing_serves_config_declared_teams() {
     // Declaration order is preserved; the shape is what `pnpm team ls`
     // consumes.
     let expected = serde_json::json!([{ "name": "developers" }, { "name": "admins" }]);
-    let response =
-        app.clone().oneshot(signed(Method::GET, "/-/org/myorg/team", "tok")).await.unwrap();
+    let response = app
+        .clone()
+        .oneshot(signed(Method::GET, "/-/org/myorg/team", "tok"))
+        .await
+        .unwrap();
     assert_eq!(response.status(), StatusCode::OK);
     assert_eq!(body_json(response).await, expected);
     // The same listing through the registry-addressed endpoint.
-    let prefixed =
-        app.oneshot(signed(Method::GET, "/~local/-/org/myorg/team", "tok")).await.unwrap();
+    let prefixed = app
+        .oneshot(signed(Method::GET, "/~local/-/org/myorg/team", "tok"))
+        .await
+        .unwrap();
     assert_eq!(prefixed.status(), StatusCode::OK);
     assert_eq!(body_json(prefixed).await, expected);
 }
@@ -487,7 +564,10 @@ async fn team_members_are_listed_sorted() {
     assert_eq!(prefixed.status(), StatusCode::OK);
     assert_eq!(body_json(prefixed).await, expected);
     // A team the config does not declare is a definitive not-found.
-    let missing = app.oneshot(signed(Method::GET, "/-/team/myorg/nope/user", "tok")).await.unwrap();
+    let missing = app
+        .oneshot(signed(Method::GET, "/-/team/myorg/nope/user", "tok"))
+        .await
+        .unwrap();
     assert_eq!(missing.status(), StatusCode::NOT_FOUND);
 }
 
@@ -506,7 +586,11 @@ async fn team_mutations_are_rejected_as_config_managed() {
         (Method::DELETE, "/~local/-/team/myorg/developers/user"),
     ];
     for (method, path) in mutations {
-        let response = app.clone().oneshot(signed(method.clone(), path, "tok")).await.unwrap();
+        let response = app
+            .clone()
+            .oneshot(signed(method.clone(), path, "tok"))
+            .await
+            .unwrap();
         assert_eq!(response.status(), StatusCode::FORBIDDEN, "{method} {path}");
         let body = to_bytes(response.into_body(), usize::MAX).await.unwrap();
         let body = String::from_utf8(body.to_vec()).unwrap();
@@ -519,7 +603,7 @@ async fn team_listing_masks_callers_the_registry_denies() {
     let tmp = TempDir::new().unwrap();
     let mut config = config_with_teams(&tmp);
     // Registry-level default access admits only authenticated callers.
-    config.hosted.get_mut("local").unwrap().rules =
+    config.routing.hosted.get_mut("local").unwrap().rules =
         PackageRules::new(Vec::new(), Some(AccessList::from_tokens(["$authenticated"])));
     let app = app_with_config_and_token(config, "tok", record(false, &[]));
     // An anonymous caller gets the not-found mask on reads and mutations
@@ -529,11 +613,18 @@ async fn team_listing_masks_callers_the_registry_denies() {
         (Method::GET, "/-/team/myorg/developers/user"),
         (Method::PUT, "/-/org/myorg/team"),
     ] {
-        let response = app.clone().oneshot(signed(method.clone(), path, "unknown")).await.unwrap();
+        let response = app
+            .clone()
+            .oneshot(signed(method.clone(), path, "unknown"))
+            .await
+            .unwrap();
         assert_eq!(response.status(), StatusCode::NOT_FOUND, "{method} {path}");
     }
     // The authenticated caller passes the gate.
-    let allowed = app.oneshot(signed(Method::GET, "/-/org/myorg/team", "tok")).await.unwrap();
+    let allowed = app
+        .oneshot(signed(Method::GET, "/-/org/myorg/team", "tok"))
+        .await
+        .unwrap();
     assert_eq!(allowed.status(), StatusCode::OK);
 }
 
@@ -546,7 +637,7 @@ fn packument_last_modified_formats_the_documents_modified_time() {
         "time": { "modified": "2024-01-02T03:04:05.678Z" },
     });
     assert_eq!(
-        super::packument_last_modified(&doc).as_deref(),
+        super::package_responses::packument_last_modified(&doc).as_deref(),
         Some("Tue, 02 Jan 2024 03:04:06 GMT"),
     );
     let whole = serde_json::json!({
@@ -554,13 +645,18 @@ fn packument_last_modified_formats_the_documents_modified_time() {
         "time": { "modified": "2024-01-02T03:04:05.000Z" },
     });
     assert_eq!(
-        super::packument_last_modified(&whole).as_deref(),
+        super::package_responses::packument_last_modified(&whole).as_deref(),
         Some("Tue, 02 Jan 2024 03:04:05 GMT"),
     );
     // No / malformed time.modified omits the header instead of guessing.
-    assert_eq!(super::packument_last_modified(&serde_json::json!({"name": "acme"})), None);
     assert_eq!(
-        super::packument_last_modified(&serde_json::json!({"time": {"modified": "not-a-date"}}),),
+        super::package_responses::packument_last_modified(&serde_json::json!({"name": "acme"})),
+        None,
+    );
+    assert_eq!(
+        super::package_responses::packument_last_modified(
+            &serde_json::json!({"time": {"modified": "not-a-date"}}),
+        ),
         None,
     );
 }
@@ -579,4 +675,27 @@ fn tilde_registry_names_a_registry_only_for_a_leading_tilde_and_a_name() {
     assert_eq!(tilde_registry(""), None);
     assert_eq!(tilde_registry("pkg~name"), None, "a tilde inside a name is part of it");
     assert_eq!(tilde_registry("@scope/pkg"), None);
+}
+
+#[tokio::test]
+async fn stored_tokens_with_jwt_shape_keep_their_backend_restrictions() {
+    let tmp = TempDir::new().unwrap();
+    let mut config = Config::static_serve("127.0.0.1:0".parse().unwrap(), tmp.path().to_path_buf());
+    config.identity.auth.oidc = serde_json::from_value(serde_json::json!([{
+        "name": "github", "issuer": "https://token.actions.githubusercontent.com", "audience": "pnpr",
+        "workloads": [{"identity": {"subject": "repo:org/repo:ref:refs/heads/main", "username": "ci"},
+            "registry": "local", "packages": ["foo"]}]
+    }])).unwrap();
+    let token = "header.payload.signature";
+    let app = app_with_config_and_token(config, token, record(true, &[]));
+    assert_eq!(status(app.clone(), signed(Method::GET, "/-/whoami", token)).await, StatusCode::OK);
+    assert_eq!(status(app, signed(Method::PUT, "/foo", token)).await, StatusCode::FORBIDDEN);
+}
+
+#[tokio::test]
+async fn workload_namespace_does_not_consult_the_token_backend() {
+    let tmp = TempDir::new().unwrap();
+    let raw = "pnpr_workload_not-a-jwt";
+    let app = app_with_token(&tmp, raw, record(false, &[]));
+    assert_eq!(status(app, signed(Method::GET, "/-/whoami", raw)).await, StatusCode::UNAUTHORIZED);
 }

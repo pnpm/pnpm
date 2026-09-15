@@ -1,8 +1,17 @@
+import fs from 'node:fs'
+import path from 'node:path'
+
 import { describe, expect, test } from '@jest/globals'
 import { prepare, prepareEmpty } from '@pnpm/prepare'
+import isWindows from 'is-windows'
+import { writeJsonFileSync } from 'write-json-file'
 import { writeYamlFileSync } from 'write-yaml-file'
 
 import { execPnpmSync } from './utils/index.js'
+
+// The read-only bit on a Windows directory does not stop a file from being
+// created in it, so the case below has nothing to observe there.
+const testOnPosix = isWindows() ? test.skip : test
 
 test('install should fail if the used pnpm version does not satisfy the pnpm version specified in engines', async () => {
   prepare({
@@ -91,6 +100,50 @@ test('some commands should not fail if the required package manager is not pnpm'
   expect(status).toBe(0)
 })
 
+test('config set can bootstrap auth for a global custom registry before switching pnpm versions', () => {
+  prepare({
+    packageManager: 'pnpm@0.0.0',
+  })
+
+  const configHome = path.resolve('.config')
+  const configDir = path.join(configHome, 'pnpm')
+  fs.mkdirSync(configDir, { recursive: true })
+  fs.writeFileSync(path.join(configDir, 'auth.ini'), 'registry=http://127.0.0.1:1/\n')
+
+  const { status } = execPnpmSync([
+    'config',
+    'set',
+    '//127.0.0.1:1/:_auth',
+    'secret',
+  ], {
+    env: {
+      XDG_CONFIG_HOME: configHome,
+      pnpm_config_fetch_retries: '0',
+    },
+    omitEnvDefaults: ['pnpm_config_registry'],
+  })
+
+  expect(status).toBe(0)
+  expect(fs.readFileSync(path.join(configDir, 'auth.ini'), 'utf8')).toContain('//127.0.0.1:1/:_auth=secret')
+})
+
+test('config set checks the package manager when writing project configuration', () => {
+  prepare({
+    packageManager: 'yarn@4.0.0',
+  })
+
+  const { status, stderr } = execPnpmSync([
+    'config',
+    'set',
+    '--location=project',
+    'node-linker',
+    'hoisted',
+  ])
+
+  expect(status).toBe(1)
+  expect(stderr.toString()).toContain('This project is configured to use yarn')
+})
+
 test('devEngines.packageManager with onFail=error should fail on version mismatch', async () => {
   prepare({
     devEngines: {
@@ -155,6 +208,24 @@ test('devEngines.runtime with onFail=error should fail on Node.js version mismat
   })
 
   const { status, stderr } = execPnpmSync(['--config.verify-deps-before-run=false', 'exec', 'node', '--version'])
+
+  expect(status).toBe(1)
+  expect(stderr.toString()).toContain('This project requires Node.js 99999.0.0')
+})
+
+test('devEngines.runtime is still checked when --lockfile-dir moves the root project directory', async () => {
+  prepare({
+    devEngines: {
+      runtime: {
+        name: 'node',
+        version: '99999.0.0',
+        onFail: 'error',
+      },
+    },
+  })
+  fs.mkdirSync('lf')
+
+  const { status, stderr } = execPnpmSync(['install', '--lockfile-dir=lf', '--lockfile-only'])
 
   expect(status).toBe(1)
   expect(stderr.toString()).toContain('This project requires Node.js 99999.0.0')
@@ -790,3 +861,51 @@ describe('release-brittle: may fail until current version is published to npm', 
     expect(status).toBe(0)
   })
 })
+
+testOnPosix('pnpm --version reports a pin it cannot record instead of failing', () => {
+  prepare()
+  const projectDir = process.cwd()
+  const pnpmVersion = execPnpmSync(['--version']).stdout.toString().trim()
+  writeJsonFileSync('package.json', {
+    name: 'project',
+    version: '1.0.0',
+    devEngines: {
+      packageManager: {
+        name: 'pnpm',
+        version: pnpmVersion,
+        onFail: 'error',
+      },
+    },
+  })
+
+  fs.chmodSync(projectDir, 0o555)
+  let result
+  try {
+    // A test running as root writes through the read-only bit, and this
+    // case then has nothing to observe, so it fails below rather than
+    // passing without having run.
+    if (!canWriteTo(projectDir)) result = execPnpmSync(['--version'])
+  } finally {
+    fs.chmodSync(projectDir, 0o755)
+  }
+
+  if (result == null) {
+    throw new Error('the read-only bit must reject writes; do not run this test as root')
+  }
+  expect(result.status).toBe(0)
+  expect(result.stdout.toString().trim()).toBe(pnpmVersion)
+  expect(result.stderr.toString()).toContain('Cannot use the pnpm version this project pins')
+  expect(result.stderr.toString()).toContain('permission denied')
+  expect(fs.existsSync(path.join(projectDir, 'pnpm-lock.yaml'))).toBe(false)
+})
+
+function canWriteTo (dir: string): boolean {
+  const probe = path.join(dir, 'write-probe')
+  try {
+    fs.writeFileSync(probe, '')
+  } catch {
+    return false
+  }
+  fs.rmSync(probe)
+  return true
+}

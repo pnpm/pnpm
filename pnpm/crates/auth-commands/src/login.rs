@@ -26,6 +26,11 @@
 //! sit behind the `Sys` seam. See the "Dependency injection for tests" section
 //! of `pnpm/CODE_STYLE_GUIDE.md`.
 
+pub use classic_login::ClassicLoginOpError;
+pub use error::LoginError;
+pub use host::Host;
+pub use prompt::{PromptInput, PromptPassword};
+
 use std::{io, path::Path};
 
 use pnpm_config::{is_json_auth_scope, validate_json_auth_registry};
@@ -48,11 +53,6 @@ mod error;
 mod host;
 mod prompt;
 mod web_login;
-
-pub use classic_login::ClassicLoginOpError;
-pub use error::LoginError;
-pub use host::Host;
-pub use prompt::{PromptInput, PromptPassword};
 
 use classic_login::classic_login;
 use web_login::{WebLoginFlowError, web_login};

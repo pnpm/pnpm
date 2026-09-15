@@ -1,4 +1,4 @@
-use super::{parse_query, parse_size};
+use super::{SearchParams, SearchText, parse_from, parse_params, parse_query, parse_size};
 
 #[test]
 fn parses_text_query() {
@@ -51,4 +51,38 @@ fn size_clamps() {
     assert_eq!(parse_size("size=9999", 20), 250);
     assert_eq!(parse_size("size=garbage", 20), 20);
     assert_eq!(parse_size("", 20), 20);
+}
+
+#[test]
+fn parses_pagination() {
+    assert_eq!(parse_from("text=foo&from=25&size=10"), 25);
+    assert_eq!(parse_from("text=foo&from=invalid"), 0);
+    assert_eq!(parse_from("text=foo"), 0);
+}
+
+#[test]
+fn parses_package_search_params() {
+    assert_eq!(
+        parse_params("text=foo&from=20&size=10", 20),
+        Some(SearchParams { text: SearchText::Package("foo".to_string()), from: 20, size: 10 }),
+    );
+}
+
+#[test]
+fn parses_maintainer_search_params() {
+    assert_eq!(
+        parse_params("text=maintainer%3Aalice&size=1", 20),
+        Some(SearchParams { text: SearchText::Maintainer("alice".to_string()), from: 0, size: 1 }),
+    );
+}
+
+#[test]
+fn browsing_requires_an_explicit_flag() {
+    assert_eq!(parse_query("browse=true&size=1"), Some(String::new()));
+    assert_eq!(parse_query("text=&browse=true"), Some(String::new()));
+    assert_eq!(parse_query("browse=true&text=demo"), Some("demo".to_string()));
+    for query in ["browse=false", "browse=", "text=browse%3Dtrue&browse=false"] {
+        assert!(!super::browse_requested(query));
+    }
+    assert!(parse_query("browse=false").is_none());
 }

@@ -2,6 +2,7 @@ import { existsSync, promises as fs } from 'node:fs'
 import { createRequire } from 'node:module'
 import path from 'node:path'
 
+import { cmdShim, getExeExtension, isShimPointingAt } from '@pnpm/bins.cmd-shim'
 import { type Command, getBinsFromPackageManifest, pkgOwnsBin } from '@pnpm/bins.resolver'
 import { PnpmError } from '@pnpm/error'
 import { readModulesDir } from '@pnpm/fs.read-modules-dir'
@@ -10,7 +11,6 @@ import { readPackageJsonFromDir } from '@pnpm/pkg-manifest.reader'
 import { getAllDependenciesFromManifest } from '@pnpm/pkg-manifest.utils'
 import type { DependencyManifest, EngineDependency, ProjectManifest } from '@pnpm/types'
 import { safeReadProjectManifestOnly } from '@pnpm/workspace.project-manifest-reader'
-import { cmdShim, isShimPointingAt } from '@zkochan/cmd-shim'
 import { rimraf } from '@zkochan/rimraf'
 import fixBin from 'bin-links/lib/fix-bin.js'
 import { isSubdir } from 'is-subdir'
@@ -286,7 +286,7 @@ async function linkBin (cmd: CommandInfo, binsDir: string, opts?: LinkBinOptions
       isCorrectlyLinked = target === cmd.path || path.resolve(binsDir, target) === path.resolve(cmd.path)
     } else if (stat.isFile() && stat.size < CMD_SHIM_MAX_SIZE) {
       const content = await fs.readFile(externalBinPath, 'utf8')
-      isCorrectlyLinked = isShimPointingAt(content, cmd.path)
+      isCorrectlyLinked = isShimPointingAt(content, cmd.path) && isShimHardened(content)
     }
   } catch {}
   if (isCorrectlyLinked) {
@@ -387,6 +387,15 @@ async function linkBin (cmd: CommandInfo, binsDir: string, opts?: LinkBinOptions
   if (EXECUTABLE_SHEBANG_SUPPORTED) {
     await ensureExecutable(cmd.path, 0o755)
   }
+}
+
+// The line the POSIX shim header resolves readlink through. A shim written
+// before the helpers moved to `command -p` still points at its target, so this
+// is what tells a warm install to replace it. pnpm 12 looks for the same line.
+const SH_SHIM_HARDENED_HELPER_LINE = '  target=$(command -p readlink "$link")\n'
+
+function isShimHardened (content: string): boolean {
+  return content.includes(SH_SHIM_HARDENED_HELPER_LINE)
 }
 
 // Reports whether two paths refer to the same file. A matching inode/device
@@ -500,18 +509,6 @@ async function hasWindowsShebang (file: string): Promise<boolean> {
   } finally {
     await fh.close().catch(() => {})
   }
-}
-
-function getExeExtension (): string {
-  let cmdExtension
-
-  if (process.env.PATHEXT) {
-    cmdExtension = process.env.PATHEXT
-      .split(path.delimiter)
-      .find(ext => ext.toUpperCase() === '.EXE')
-  }
-
-  return cmdExtension ?? '.exe'
 }
 
 async function safeReadPkgJson (pkgDir: string): Promise<DependencyManifest | null> {

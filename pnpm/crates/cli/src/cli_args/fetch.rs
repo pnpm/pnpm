@@ -36,57 +36,26 @@ impl FetchArgs {
             resolved_packages,
         } = &state;
 
-        // `ignore_pnpmfile` is already folded into `fetch_config` above.
-        let &FetchArgs { prod, dev, ignore_pnpmfile: _ } = &self;
-        let has_both = prod == dev;
-        let include_prod = has_both || prod;
-        let include_dev = has_both || dev;
+        let has_both = self.prod == self.dev;
+        let include_prod = has_both || self.prod;
+        let include_dev = has_both || self.dev;
 
-        Install {
-            tarball_mem_cache: std::sync::Arc::clone(tarball_mem_cache),
-            http_client,
-            http_client_arc: std::sync::Arc::clone(http_client),
-            config: fetch_config,
+        let mut base_install = Install::new(
+            std::sync::Arc::clone(tarball_mem_cache),
+            resolved_packages,
+            (http_client, std::sync::Arc::clone(http_client)),
+            fetch_config,
             manifest,
-            emit_initial_manifest: true,
-            lockfile: pnpm_lockfile::MaybeLazyLockfile::Lazy(lockfile),
-            lockfile_path: Some(&lockfile_path),
-            // Optional dependencies follow production, so `--dev` (which
-            // excludes production) excludes optional deps too.
-            dependency_groups: std::iter::empty()
+            pnpm_lockfile::MaybeLazyLockfile::Lazy(lockfile),
+            std::iter::empty()
                 .chain(include_prod.then_some(DependencyGroup::Prod))
                 .chain(include_dev.then_some(DependencyGroup::Dev))
                 .chain(include_prod.then_some(DependencyGroup::Optional)),
-            frozen_lockfile: true,
-            prefer_frozen_lockfile: None,
-            ignore_manifest_check: true,
-            // Honor the yaml/npmrc `skipRuntimes` / `trustLockfile`. Fetch
-            // exposes no CLI override for either, so the config value is
-            // the resolved value, mirroring `pacquet install`.
-            skip_runtimes: fetch_config.skip_runtimes,
-            trust_lockfile: fetch_config.trust_lockfile,
-            update_checksums: false,
-            mutation: ProjectMutation::NoInstall,
-            installs_only: true,
-            resolved_packages,
-            supported_architectures: fetch_config.supported_architectures.clone(),
-            node_linker: fetch_config.node_linker,
-            lockfile_only: false,
-            dry_run: false,
-            persist_policy_excludes: false,
-            update_seed_policy: pnpm_package_manager::UpdateSeedPolicy::KeepAll,
-            preferred_versions_override: None,
-            auth_override: None,
-            resolution_observer: None,
-            peer_issues_sink: None,
-            deps_requiring_build_sink: None,
-            catalogs_override: None,
-            disable_optimistic_repeat_install: false,
-            pnpmfile_hook_override: None,
-            workspace_projects_override: None,
-        }
-        .run::<Reporter>()
-        .await
-        .wrap_err("fetching dependencies")
+        );
+        base_install.lockfile_policy.frozen = true;
+        base_install.lockfile_policy.ignore_manifest_check = true;
+        base_install.execution.mutation = ProjectMutation::NoInstall;
+        base_install.context.lockfile_path = Some(&lockfile_path);
+        base_install.run::<Reporter>().await.wrap_err("fetching dependencies")
     }
 }

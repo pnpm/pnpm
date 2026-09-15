@@ -3,14 +3,22 @@ use std::ffi::OsString;
 
 /// `argv` split at the boundary: what pnpm parses, and what it forwards.
 fn split(argv: &[&str]) -> (Vec<String>, Vec<String>) {
-    let owned: Vec<OsString> =
-        std::iter::once("pnpm").chain(argv.iter().copied()).map(OsString::from).collect();
+    let owned: Vec<OsString> = std::iter::once("pnpm")
+        .chain(argv.iter().copied())
+        .map(OsString::from)
+        .collect();
     let boundary = passthrough_from(&owned).unwrap_or(owned.len());
     let to_string = |slot: &OsString| slot.to_string_lossy().into_owned();
     // Skip the `pnpm` slot in the parsed half; it is never interesting.
     (
-        owned[1..boundary.max(1)].iter().map(to_string).collect(),
-        owned[boundary.min(owned.len())..].iter().map(to_string).collect(),
+        owned[1..boundary.max(1)]
+            .iter()
+            .map(to_string)
+            .collect(),
+        owned[boundary.min(owned.len())..]
+            .iter()
+            .map(to_string)
+            .collect(),
     )
 }
 

@@ -130,18 +130,7 @@ pub fn create_exportable_manifest(
     let empty = Map::new();
     let original = original_manifest.as_object().unwrap_or(&empty);
 
-    let mut publish = if opts.skip_manifest_obfuscation {
-        omit_keys(original, &["pnpm"])
-    } else {
-        let mut publish = omit_keys(original, &["scripts", "packageManager", "pnpm"]);
-        if let Some(scripts) = original.get("scripts").and_then(Value::as_object) {
-            publish.insert(
-                "scripts".to_string(),
-                Value::Object(omit_keys(scripts, PREPUBLISH_SCRIPTS)),
-            );
-        }
-        publish
-    };
+    let mut publish = publication_fields(original, opts.skip_manifest_obfuscation);
 
     for field in ["dependencies", "devDependencies", "optionalDependencies"] {
         if let Some(deps) =
@@ -163,15 +152,32 @@ pub fn create_exportable_manifest(
 
     if opts.embed_readme
         && !publish.contains_key("readme")
-        && let Some(readme) = read_readme_file(dir).map_err(|source| {
-            CreateExportableManifestError::ReadReadme { dir: dir.display().to_string(), source }
-        })?
+        && let Some(readme) = read_readme_file(dir)
+            .map_err(|source| CreateExportableManifestError::ReadReadme {
+                dir: dir.display().to_string(),
+                source,
+            })?
     {
         publish.insert("readme".to_string(), Value::String(readme));
     }
 
     transform(&mut publish).map_err(CreateExportableManifestError::Transform)?;
     Ok(Value::Object(publish))
+}
+
+fn publication_fields(original: &Map<String, Value>, skip_obfuscation: bool) -> Map<String, Value> {
+    if skip_obfuscation {
+        omit_keys(original, &["pnpm"])
+    } else {
+        let mut publish = omit_keys(original, &["scripts", "packageManager", "pnpm"]);
+        if let Some(scripts) = original.get("scripts").and_then(Value::as_object) {
+            publish.insert(
+                "scripts".to_string(),
+                Value::Object(omit_keys(scripts, PREPUBLISH_SCRIPTS)),
+            );
+        }
+        publish
+    }
 }
 
 /// Whether a dependency map's specifiers carry the regular-dependency
@@ -277,7 +283,10 @@ fn create_npm_aliased_specifier(npm_pkg_name: &str, version_selector: Option<&st
 /// dropping them from `publishConfig` (and removing `publishConfig`
 /// entirely once empty).
 fn override_publish_config(publish: &mut Map<String, Value>) {
-    let Some(publish_config) = publish.get("publishConfig").and_then(Value::as_object).cloned()
+    let Some(publish_config) = publish
+        .get("publishConfig")
+        .and_then(Value::as_object)
+        .cloned()
     else {
         return;
     };
@@ -312,7 +321,11 @@ pub fn read_readme_file(dir: &Path) -> io::Result<Option<String>> {
         if !entry.file_type()?.is_file() {
             continue;
         }
-        if entry.file_name().to_string_lossy().eq_ignore_ascii_case("readme.md") {
+        if entry
+            .file_name()
+            .to_string_lossy()
+            .eq_ignore_ascii_case("readme.md")
+        {
             return read_regular_file(&entry.path());
         }
     }
@@ -328,7 +341,11 @@ pub fn read_readme_file(dir: &Path) -> io::Result<Option<String>> {
 #[cfg(unix)]
 fn read_regular_file(path: &Path) -> io::Result<Option<String>> {
     use std::os::unix::fs::OpenOptionsExt;
-    let file = match fs::OpenOptions::new().read(true).custom_flags(libc::O_NOFOLLOW).open(path) {
+    let file = match fs::OpenOptions::new()
+        .read(true)
+        .custom_flags(libc::O_NOFOLLOW)
+        .open(path)
+    {
         Ok(file) => file,
         Err(err) if err.raw_os_error() == Some(libc::ELOOP) => return Ok(None),
         Err(err) => return Err(err),

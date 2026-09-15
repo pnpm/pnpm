@@ -23,7 +23,7 @@ use std::{collections::HashMap, path::PathBuf};
 /// - `resolve_symlinks = true` → follow symlinks via `realpath` (used
 ///   when `resolveSymlinksInInjectedDirs` is on).
 /// - `allow_path_escape = false` → reject files whose real path leaves
-///   `directory`.
+///   the real path of `directory`.
 pub struct DirectoryFetcher {
     pub directory: PathBuf,
     pub include_only_package_files: bool,
@@ -48,9 +48,6 @@ pub struct DirectoryFetchOutput {
 
 impl DirectoryFetcher {
     pub fn run(&self) -> Result<DirectoryFetchOutput, DirectoryFetcherError> {
-        if !self.allow_path_escape {
-            walker::reject_linked_confined_root(&self.directory)?;
-        }
         let files_map = if self.include_only_package_files {
             let mut files_map = walker::walk_package_files(&self.directory)?;
             if !self.allow_path_escape {

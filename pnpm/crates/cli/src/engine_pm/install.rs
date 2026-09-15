@@ -12,6 +12,17 @@
 //! package bins are linked into a `bin/` directory the caller prepends to
 //! `PATH`.
 
+use crate::{
+    cli_args::self_update::{
+        install_pnpm::{link_exe_platform_binary, package_dir, run_install},
+        verify_engine::{EngineToVerify, PlatformBinaries, verify_engine_identity},
+    },
+    config_deps,
+    engine_pm::{
+        channel::{EnginePackages, PackageManager},
+        error::EngineError,
+    },
+};
 use miette::{Context, IntoDiagnostic};
 use pnpm_cmd_shim::{
     Host as CmdShimHost, LinkBinsOptions, PackageBinSource, link_bins_of_packages,
@@ -30,18 +41,6 @@ use std::{
     path::{Path, PathBuf},
     sync::Arc,
     time::Duration,
-};
-
-use crate::{
-    cli_args::self_update::{
-        install_pnpm::{link_exe_platform_binary, package_dir, run_install},
-        verify_engine::{EngineToVerify, PlatformBinaries, verify_engine_identity},
-    },
-    config_deps,
-    engine_pm::{
-        channel::{EnginePackages, PackageManager},
-        error::EngineError,
-    },
 };
 
 /// Install the `pm` engine for `version` into the global virtual store and
@@ -67,9 +66,11 @@ pub(crate) async fn install_engine_to_store<Reporter: self::Reporter + 'static>(
 ) -> miette::Result<PathBuf> {
     let packages = registry_engine_packages(pm, version)?;
     let config = package_manager_engine_config(config)?.leak();
-    fs::create_dir_all(env_root).into_diagnostic().wrap_err_with(|| {
-        format!("create the package-manager env directory at {}", env_root.display())
-    })?;
+    fs::create_dir_all(env_root)
+        .into_diagnostic()
+        .wrap_err_with(|| {
+            format!("create the package-manager env directory at {}", env_root.display())
+        })?;
     let env = {
         let _lock = package_manager_env_lock::<Reporter>(config).await?;
         // Resolve the package-manager closure into the env lockfile (a no-op
@@ -104,9 +105,10 @@ pub(crate) async fn install_engine_from_env<Reporter: self::Reporter + 'static>(
 /// channels never reach this installer.
 fn registry_engine_packages(pm: PackageManager, version: &str) -> miette::Result<EnginePackages> {
     let name = pm.name();
-    pm.engine_packages(version).ok_or_else(|| {
-        EngineError::NotRegistryPublished { name, version: version.to_string() }.into()
-    })
+    pm.engine_packages(version)
+        .ok_or_else(|| {
+            EngineError::NotRegistryPublished { name, version: version.to_string() }.into()
+        })
 }
 
 async fn install_engine_from_env_with_config<Reporter: self::Reporter + 'static>(
@@ -117,20 +119,10 @@ async fn install_engine_from_env_with_config<Reporter: self::Reporter + 'static>
 ) -> miette::Result<PathBuf> {
     let package = registry_engine_packages(pm, version)?;
     let package_name = package.wrapper;
-    // Cache hit: when the engine already sits in its GVS slot, skip both
-    // the signature check and the install — short-circuit on the engine's
-    // `package.json` already existing. The slot is computed
-    // with the same hashing the install pipeline uses, so a stale or wrong
-    // computation merely misses the cache (the idempotent install below
-    // then re-derives the slot from the install's own symlink).
-    if let Some(slot) = compute_engine_slot(config, env, package, version) {
-        let pkg_dir = package_dir(&slot, package_name);
-        if pkg_dir.join("package.json").exists()
-            && let Ok(bin_dir) =
-                link_cached_engine_bins(&slot, package_name, package.links_native_binary)
-        {
-            return Ok(bin_dir);
-        }
+    // An engine already in its slot skips both the signature check and the
+    // install.
+    if let Some(bin_dir) = cached_engine_bins(config, env, package, version) {
+        return Ok(bin_dir);
     }
 
     // The engine's global-virtual-store slot is shared by every process on
@@ -143,45 +135,18 @@ async fn install_engine_from_env_with_config<Reporter: self::Reporter + 'static>
     let _lock = engine_install_lock::<Reporter>(config, package_name, version);
     // The wait may have been for a process that installed the very engine
     // we want, so ask the cache again before paying for the download.
-    if let Some(slot) = compute_engine_slot(config, env, package, version) {
-        let pkg_dir = package_dir(&slot, package_name);
-        if pkg_dir.join("package.json").exists()
-            && let Ok(bin_dir) =
-                link_cached_engine_bins(&slot, package_name, package.links_native_binary)
-        {
-            return Ok(bin_dir);
-        }
+    if let Some(bin_dir) = cached_engine_bins(config, env, package, version) {
+        return Ok(bin_dir);
     }
 
-    // Genuine download: verify the engine's registry signature before
-    // installing or executing it.
-    let label = format!("{}@{version}", pm.name());
-    let engine = EngineToVerify {
-        label: &label,
-        packages: package.pinned,
-        platform_binaries: if package.links_native_binary {
-            PlatformBinaries::PnpmExe
-        } else {
-            PlatformBinaries::None
-        },
-    };
-    if let Some(warning) = verify_engine_identity(env, &engine, config)
-        .await
-        .map_err(miette::Report::new)
-        .wrap_err("verify the package manager identity")?
-    {
-        Reporter::emit(&LogEvent::Pnpm(PnpmLog {
-            level: LogLevel::Warn,
-            message: warning,
-            prefix: String::new(),
-        }));
-    }
+    verify_registry_engine::<Reporter>(config, pm, env, version, package).await?;
 
     // Install into a throwaway directory with the global virtual store
     // enabled, so the engine itself materializes in `<store>/links/...`
     // and the temp directory holds only symlinks into it.
-    let tmp_install_dir =
-        config.store_dir.tmp().join(format!("{}-engine-{version}-{}", pm.name(), unique_suffix()));
+    let tmp_install_dir = config.store_dir
+        .tmp()
+        .join(format!("{}-engine-{version}-{}", pm.name(), unique_suffix()));
     fs::create_dir_all(&tmp_install_dir)
         .into_diagnostic()
         .wrap_err("create the temporary package manager install directory")?;
@@ -214,6 +179,24 @@ async fn install_engine_from_env_with_config<Reporter: self::Reporter + 'static>
     Ok(bin_dir)
 }
 
+/// The engine's already-linked bin directory, when its global-virtual-store
+/// slot is already populated. The slot is computed with the same hashing
+/// the install pipeline uses, so a stale or wrong computation merely misses
+/// the cache: the idempotent install then re-derives the slot from its own
+/// symlink.
+fn cached_engine_bins(
+    config: &Config,
+    env: &EnvLockfile,
+    package: EnginePackages,
+    version: &str,
+) -> Option<PathBuf> {
+    let slot = compute_engine_slot(config, env, package, version)?;
+    if !package_dir(&slot, package.wrapper).join("package.json").exists() {
+        return None;
+    }
+    link_cached_engine_bins(&slot, package.wrapper, package.links_native_binary).ok()
+}
+
 /// Take the host-wide lock guarding this engine's install, or `None`
 /// when it can't be taken. Losing the lock is not a reason to refuse to
 /// run: the install below is the same one every other process is racing
@@ -224,7 +207,10 @@ fn engine_install_lock<Reporter: self::Reporter>(
     version: &str,
 ) -> Option<DirLock> {
     let name = format!("{}@{version}.lock", package_name.replace('/', "+"));
-    let path = config.store_dir.tmp().join("engine-locks").join(name);
+    let path = config.store_dir
+        .tmp()
+        .join("engine-locks")
+        .join(name);
     acquire_install_lock::<Reporter>(&path, "the package manager engine install")
 }
 
@@ -295,7 +281,10 @@ pub(crate) fn engine_env_root(config: &Config, pm: PackageManager) -> miette::Re
 /// The pnpm home directory, derived from the versioned global packages
 /// directory (`<home>/global/<version>`) it contains.
 fn package_manager_home(global_pkg_dir: &Path) -> &Path {
-    global_pkg_dir.parent().and_then(Path::parent).unwrap_or(global_pkg_dir)
+    global_pkg_dir
+        .parent()
+        .and_then(Path::parent)
+        .unwrap_or(global_pkg_dir)
 }
 
 fn link_cached_engine_bins(
@@ -323,7 +312,10 @@ fn compute_engine_slot(
     version: &str,
 ) -> Option<PathBuf> {
     let wanted: PackageKey = format!("{}@{version}", packages.wrapper).parse().ok()?;
-    let key = env.snapshots.keys().find(|key| key.without_peer() == wanted)?.clone();
+    let key = env.snapshots
+        .keys()
+        .find(|key| key.without_peer() == wanted)?
+        .clone();
 
     let mut cfg = config.clone();
     cfg.enable_global_virtual_store = true;
@@ -352,14 +344,30 @@ fn compute_engine_slot(
 /// Derive the engine's GVS slot from the install's own wrapper symlink. This
 /// is the ground truth after an install, independent of any hash
 /// recomputation.
+///
+/// Errors when the wrapper is a real directory inside `install_dir` rather
+/// than a symlink into the store: `install_dir` is thrown away right after,
+/// so a slot naming it would be gone before the engine is linked.
 fn resolve_slot(install_dir: &Path, package_name: &str) -> miette::Result<PathBuf> {
     let link = package_dir(install_dir, package_name);
     let real = fs::canonicalize(&link)
         .into_diagnostic()
         .wrap_err_with(|| format!("resolve the installed {package_name} at {}", link.display()))?;
-    slot_from_package_dir(&real, package_name).ok_or_else(|| {
-        miette::miette!("could not locate the {package_name} global-virtual-store slot")
-    })
+    let install_real = fs::canonicalize(install_dir)
+        .into_diagnostic()
+        .wrap_err_with(|| {
+            format!("resolve the temporary install directory at {}", install_dir.display())
+        })?;
+    if real.starts_with(&install_real) {
+        let real_display = real.display();
+        return Err(miette::miette!(
+            "the installed {package_name} at {real_display} did not materialize in the global virtual store"
+        ));
+    }
+    slot_from_package_dir(&real, package_name)
+        .ok_or_else(|| {
+            miette::miette!("could not locate the {package_name} global-virtual-store slot")
+        })
 }
 
 pub(crate) fn slot_from_package_dir(package_dir: &Path, package_name: &str) -> Option<PathBuf> {
@@ -419,3 +427,35 @@ fn unique_suffix() -> String {
 
 #[cfg(test)]
 mod tests;
+
+async fn verify_registry_engine<Reporter: self::Reporter>(
+    config: &Config,
+    pm: PackageManager,
+    env: &EnvLockfile,
+    version: &str,
+    package: EnginePackages,
+) -> miette::Result<()> {
+    let label = format!("{}@{version}", pm.name());
+    let engine = EngineToVerify {
+        label: &label,
+        package: package.wrapper,
+        version,
+        platform_binaries: if package.links_native_binary {
+            PlatformBinaries::PnpmExe
+        } else {
+            PlatformBinaries::None
+        },
+    };
+    if let Some(warning) = verify_engine_identity(env, &engine, config).await
+        .map_err(miette::Report::new)
+        .wrap_err("verify the package manager identity")?
+    {
+        Reporter::emit(&LogEvent::Pnpm(PnpmLog {
+            level: LogLevel::Warn,
+            message: warning,
+            prefix: String::new(),
+        }));
+    }
+
+    Ok(())
+}

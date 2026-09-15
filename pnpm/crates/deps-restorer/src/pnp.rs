@@ -63,7 +63,9 @@ fn render_pnp_loader(registry: &str, modules_dir: &str) -> String {
 
 #[must_use]
 pub fn pnp_path_for_execution(config: &pnpm_config::Config, dir: &Path) -> Option<PathBuf> {
-    let workspace_path = config.workspace_dir.as_ref().map(|dir| dir.join(PNP_FILENAME));
+    let workspace_path = config.workspace_dir
+        .as_ref()
+        .map(|dir| dir.join(PNP_FILENAME));
     if let Some(path) = workspace_path
         && path.exists()
     {

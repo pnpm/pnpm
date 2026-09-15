@@ -393,6 +393,55 @@ test('devEngines.packageManager with explicit onFail is respected (regression gu
   expect(context.wantedPackageManager?.onFail).toBe('error')
 })
 
+test('lockfileDir does not hide the engine pins declared at the workspace root', async () => {
+  prepare({
+    devEngines: {
+      packageManager: {
+        name: 'pnpm',
+        version: '11.0.0',
+        onFail: 'error',
+      },
+      runtime: {
+        name: 'node',
+        version: '20.0.0',
+        onFail: 'error',
+      },
+    },
+  })
+  fs.mkdirSync('lf')
+
+  const { context } = await getConfig({
+    cliOptions: { 'lockfile-dir': 'lf' },
+    packageManager: { name: 'pnpm', version: '11.0.0' },
+  })
+
+  expect(context.rootProjectManifest).toBeUndefined()
+  expect(context.wantedPackageManager).toMatchObject({
+    name: 'pnpm',
+    version: '11.0.0',
+    onFail: 'error',
+  })
+  expect(context.enginePinManifest?.devEngines?.runtime).toMatchObject({
+    name: 'node',
+    version: '20.0.0',
+  })
+})
+
+test('without lockfileDir the engine pin manifest is the root project manifest itself', async () => {
+  prepare({
+    devEngines: {
+      packageManager: { name: 'pnpm', version: '11.0.0', onFail: 'error' },
+    },
+  })
+
+  const { context } = await getConfig({
+    cliOptions: {},
+    packageManager: { name: 'pnpm', version: '11.0.0' },
+  })
+
+  expect(context.enginePinManifest).toBe(context.rootProjectManifest)
+})
+
 describe('"packageManager" / "devEngines.packageManager" conflict warning', () => {
   const HASH_A = 'sha512.aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'
   const HASH_B = 'sha512.bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb'
@@ -2986,6 +3035,65 @@ test('a scope declared in pnpm-workspace.yaml beats the global _auth file', asyn
   expect(config.registriesByScope['@org']).toBe('https://project-choice.example/')
 })
 
+test('a registry declared in the project .npmrc beats the global _auth file', async () => {
+  prepareEmpty()
+
+  fs.writeFileSync('.npmrc', 'registry=http://project-choice.example/', 'utf8')
+
+  const { config } = await getConfigWithGlobalYaml({
+    _auth: {
+      'https://private.example': {
+        '@': { authToken: 'stored-token' },
+      },
+    },
+  })
+
+  expect(config.registry).toBe('http://project-choice.example/')
+  expect(config.registriesByScope.default).toBe('http://project-choice.example/')
+  // The credential still reaches the registry it was written for.
+  expect(config.authConfig['//private.example/:_authToken']).toBe('stored-token')
+})
+
+test('a scope declared in the project .npmrc beats the global _auth file', async () => {
+  prepareEmpty()
+
+  fs.writeFileSync('.npmrc', '@org:registry=https://from-npmrc.example/', 'utf8')
+
+  const { config } = await getConfigWithGlobalYaml({
+    _auth: {
+      'https://private.example': {
+        '@': { authToken: 'stored-token' },
+        '@org': { authToken: 'stored-org-token' },
+      },
+    },
+  })
+
+  expect(config.registriesByScope['@org']).toBe('https://from-npmrc.example/')
+  // Nothing declares the default registry, so the stored credential still routes it.
+  expect(config.registry).toBe('https://private.example/')
+})
+
+test('a registry declared in the user .npmrc beats the global _auth file in the package-manager registries', async () => {
+  prepareEmpty()
+
+  const userNpmrc = path.resolve('user-npmrc')
+  fs.writeFileSync(userNpmrc, 'registry=https://user-choice.example/', 'utf8')
+
+  const { config } = await getConfigWithGlobalYaml(
+    {
+      _auth: {
+        'https://private.example': {
+          '@': { authToken: 'stored-token' },
+        },
+      },
+    },
+    { cliOptions: { 'npmrc-auth-file': userNpmrc } }
+  )
+
+  expect(config.registry).toBe('https://user-choice.example/')
+  expect(config.packageManagerRegistries?.default).toBe('https://user-choice.example/')
+})
+
 test('a registry declared in the global config beats its own _auth file', async () => {
   prepareEmpty()
 
@@ -4634,6 +4742,51 @@ test.each([
   expect(config.verifyDepsBeforeRun).toBe(expectedValue)
 })
 
+test('loads nodeDownloadMirrors from environment variable pnpm_config_node_download_mirrors', async () => {
+  prepareEmpty()
+
+  writeYamlFileSync('pnpm-workspace.yaml', {
+    nodeDownloadMirrors: {
+      release: 'https://yaml.example.com/release/',
+    },
+  })
+
+  async function getNodeDownloadMirrors (env: NodeJS.ProcessEnv, cliOptions: Record<string, unknown> = {}): Promise<Record<string, string> | undefined> {
+    const { config } = await getConfig({
+      cliOptions,
+      env,
+      packageManager: {
+        name: 'pnpm',
+        version: '1.0.0',
+      },
+      workspaceDir: process.cwd(),
+    })
+    return config.nodeDownloadMirrors
+  }
+
+  expect(await getNodeDownloadMirrors({})).toStrictEqual({
+    release: 'https://yaml.example.com/release/',
+  })
+  expect(await getNodeDownloadMirrors({
+    pnpm_config_node_download_mirrors: '{"release":"https://mirror.example.com/release/","rc":"https://mirror.example.com/rc/"}',
+  })).toStrictEqual({
+    release: 'https://mirror.example.com/release/',
+    rc: 'https://mirror.example.com/rc/',
+  })
+  expect(await getNodeDownloadMirrors({
+    PNPM_CONFIG_NODE_DOWNLOAD_MIRRORS: '{"release":"https://upper.example.com/release/"}',
+  })).toStrictEqual({
+    release: 'https://upper.example.com/release/',
+  })
+  expect(await getNodeDownloadMirrors({
+    PNPM_CONFIG_NODE_DOWNLOAD_MIRRORS: '{"release":"https://upper.example.com/release/"}',
+  }, {
+    nodeDownloadMirrors: { release: 'https://cli.example.com/release/' },
+  })).toStrictEqual({
+    release: 'https://cli.example.com/release/',
+  })
+})
+
 test('environment variable pnpm_config_* should override pnpm-workspace.yaml', async () => {
   prepareEmpty()
 
@@ -4996,6 +5149,108 @@ describe('global config.yaml', () => {
     expect(config.virtualStoreDir).toBe('/custom/.pnpm')
     expect(config.virtualStoreDirMaxLength).toBe(80)
     expect(warnings.find((w) => w.includes('global config file'))).toBeUndefined()
+  })
+
+  test('resolves a path-like scriptShell from pnpm-workspace.yaml against the workspace root', async () => {
+    prepareEmpty()
+    writeYamlFileSync('pnpm-workspace.yaml', { scriptShell: './workspace-shell.sh' })
+
+    const { config } = await getConfig({
+      cliOptions: {},
+      packageManager: {
+        name: 'pnpm',
+        version: '1.0.0',
+      },
+      workspaceDir: process.cwd(),
+    })
+
+    expect(config.scriptShell).toBe(path.join(process.cwd(), 'workspace-shell.sh'))
+  })
+
+  test('keeps a path-like scriptShell from global config.yaml unresolved', async () => {
+    prepareEmpty()
+    fs.mkdirSync('.config/pnpm', { recursive: true })
+    writeYamlFileSync('.config/pnpm/config.yaml', { scriptShell: './global-shell.sh' })
+    process.env.XDG_CONFIG_HOME = path.resolve('.config')
+
+    const { config } = await getConfig({
+      cliOptions: {},
+      packageManager: {
+        name: 'pnpm',
+        version: '1.0.0',
+      },
+    })
+
+    expect(config.scriptShell).toBe('./global-shell.sh')
+  })
+
+  test('keeps a path-like scriptShell from PNPM_CONFIG_* unresolved', async () => {
+    prepareEmpty()
+
+    const { config } = await getConfig({
+      cliOptions: {},
+      env: {
+        PNPM_CONFIG_SCRIPT_SHELL: './env-shell.sh',
+      },
+      packageManager: {
+        name: 'pnpm',
+        version: '1.0.0',
+      },
+    })
+
+    expect(config.scriptShell).toBe('./env-shell.sh')
+  })
+
+  test('reads nodeDownloadMirrors from global config.yaml', async () => {
+    prepareEmpty()
+
+    fs.mkdirSync('.config/pnpm', { recursive: true })
+    writeYamlFileSync('.config/pnpm/config.yaml', {
+      nodeDownloadMirrors: {
+        release: 'https://mirror.example.com/release/',
+      },
+    })
+
+    process.env.XDG_CONFIG_HOME = path.resolve('.config')
+
+    const { config, warnings } = await getConfig({
+      cliOptions: {},
+      packageManager: {
+        name: 'pnpm',
+        version: '1.0.0',
+      },
+      workspaceDir: process.cwd(),
+    })
+
+    expect(config.nodeDownloadMirrors).toStrictEqual({
+      release: 'https://mirror.example.com/release/',
+    })
+    expect(warnings.find((w) => w.includes('global config file'))).toBeUndefined()
+  })
+
+  test('rejects a non-string nodeDownloadMirrors value in global config.yaml', async () => {
+    prepareEmpty()
+
+    fs.mkdirSync('.config/pnpm', { recursive: true })
+    writeYamlFileSync('.config/pnpm/config.yaml', {
+      nodeDownloadMirrors: {
+        release: 42,
+      },
+    })
+
+    process.env.XDG_CONFIG_HOME = path.resolve('.config')
+
+    await expect(getConfig({
+      cliOptions: {},
+      packageManager: {
+        name: 'pnpm',
+        version: '1.0.0',
+      },
+      workspaceDir: process.cwd(),
+    })).rejects.toThrow(expect.objectContaining({
+      code: 'ERR_PNPM_INVALID_SETTING',
+      message: 'The "nodeDownloadMirrors.release" setting should be a string, but got number',
+    }))
   })
 
   test('warns when global config.yaml contains settings that are not allowed in the global config', async () => {
@@ -5730,6 +5985,25 @@ test('catalogPrune overrides its former name', async () => {
   })
 
   expect(config.catalogPrune).toBe(false)
+})
+
+test('trustPolicyExcludePrune is read from pnpm-workspace.yaml', async () => {
+  prepareEmpty()
+
+  writeYamlFileSync('pnpm-workspace.yaml', {
+    trustPolicyExcludePrune: true,
+  })
+
+  const { config } = await getConfig({
+    cliOptions: {},
+    packageManager: {
+      name: 'pnpm',
+      version: '1.0.0',
+    },
+    workspaceDir: process.cwd(),
+  })
+
+  expect(config.trustPolicyExcludePrune).toBe(true)
 })
 
 test('getConfig() routes the scopes and the prefix a registry declares', async () => {

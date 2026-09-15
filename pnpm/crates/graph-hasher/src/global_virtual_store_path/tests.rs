@@ -405,3 +405,57 @@ fn subdeps_partition_the_hash() {
     assert_ne!(with_sub, with_other_sub, "changing a subdep id must change the parent hash");
     assert_eq!(with_sub.matches('/').count(), 3, "path stays at <prefix>name/version/hash depth");
 }
+
+/// The slot hash names a directory in a shared store, so the payload
+/// [`calc_graph_node_hash`] hashes is a layout contract. It writes the
+/// object-hash bytestream itself rather than building the
+/// `serde_json` value; this pins the two to the same output, with and
+/// without the optional `project` key.
+#[test]
+fn graph_node_hash_matches_the_object_hash_of_the_value_it_models() {
+    let mut children = IndexMap::new();
+    children.insert("leaf".to_string(), "leaf".to_string());
+    let graph: HashMap<String, DepsGraphNode<String>> = HashMap::from([
+        (
+            "root".to_string(),
+            DepsGraphNode { full_pkg_id: "root@1.0.0:sha512-root".to_string(), children },
+        ),
+        (
+            "leaf".to_string(),
+            DepsGraphNode {
+                full_pkg_id: "leaf@1.0.0:sha512-leaf".to_string(),
+                children: IndexMap::new(),
+            },
+        ),
+    ]);
+
+    for (engine, project) in [
+        (Some("darwin;arm64;node20"), None),
+        (Some("darwin;arm64;node20"), Some("/workspace/app")),
+        (None, Some("/workspace/app")),
+    ] {
+        let mut cache = HashMap::new();
+        let actual =
+            calc_graph_node_hash(&graph, &mut cache, &"root".to_string(), engine, None, project);
+
+        let mut reference_cache = HashMap::new();
+        let deps_hash = crate::dep_state::calc_dep_graph_hash(
+            &graph,
+            &mut reference_cache,
+            &mut HashSet::new(),
+            &"root".to_string(),
+        );
+        let engine_value = match engine {
+            Some(engine) => serde_json::Value::String(engine.to_owned()),
+            None => serde_json::Value::Null,
+        };
+        let payload = match project {
+            None => serde_json::json!({ "engine": engine_value, "deps": deps_hash }),
+            Some(project) => {
+                serde_json::json!({ "engine": engine_value, "deps": deps_hash, "project": project })
+            }
+        };
+        let expected = crate::hash_object_without_sorting(&payload, crate::HashEncoding::Hex);
+        assert_eq!(actual, expected, "graph-node hash diverged for {engine:?} / {project:?}");
+    }
+}

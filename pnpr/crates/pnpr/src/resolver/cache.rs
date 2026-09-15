@@ -38,9 +38,13 @@ pub(super) fn cached_resolution(
     let mut cache = cache.lock().expect("resolution cache poisoned");
     let candidates = cache.get_mut(key)?;
     candidates.retain(|candidate| candidate.inserted.elapsed() <= ttl);
-    let Some((candidate_index, _)) = candidates.iter().enumerate().find(|(_, candidate)| {
-        candidate.footprint.is_public() || candidate.footprint.allows(route_context, identity)
-    }) else {
+    let Some((candidate_index, _)) = candidates
+        .iter()
+        .enumerate()
+        .find(|(_, candidate)| {
+            candidate.footprint.is_public() || candidate.footprint.allows(route_context, identity)
+        })
+    else {
         if candidates.is_empty() {
             cache.remove(key);
         }
@@ -74,8 +78,9 @@ pub(super) fn store_resolution(
     let mut cache = cache.lock().expect("resolution cache poisoned");
     prune_expired_resolution_cache(&mut cache, ttl);
     let candidates = cache.entry(key).or_default();
-    if let Some(existing) =
-        candidates.iter_mut().find(|entry| entry.descriptor_digest == candidate.descriptor_digest)
+    if let Some(existing) = candidates
+        .iter_mut()
+        .find(|entry| entry.descriptor_digest == candidate.descriptor_digest)
     {
         *existing = candidate;
         return true;
@@ -178,20 +183,7 @@ pub(super) fn resolution_cache_key(
     if request.update_patches || request.fix_lockfile {
         return None;
     }
-    let projects: Vec<serde_json::Value> = request
-        .projects_normalized()
-        .into_iter()
-        .map(|project| {
-            serde_json::json!({
-                "dir": project.dir,
-                "name": project.name,
-                "version": project.version,
-                "dependencies": project.dependencies,
-                "devDependencies": project.dev_dependencies,
-                "optionalDependencies": project.optional_dependencies,
-            })
-        })
-        .collect();
+    let projects = cache_key_projects(request);
     let input = serde_json::json!({
         "registry": &config.registry,
         "registries": &request.registries,
@@ -221,4 +213,21 @@ pub(super) fn resolution_cache_key(
     let mut hasher = Sha256::new();
     hasher.update(bytes);
     Some(format!("{:x}", hasher.finalize()))
+}
+
+fn cache_key_projects(request: &ResolveRequest) -> Vec<serde_json::Value> {
+    request
+        .projects_normalized()
+        .into_iter()
+        .map(|project| {
+            serde_json::json!({
+                "dir": project.dir,
+                "name": project.name,
+                "version": project.version,
+                "dependencies": project.dependencies,
+                "devDependencies": project.dev_dependencies,
+                "optionalDependencies": project.optional_dependencies,
+            })
+        })
+        .collect()
 }

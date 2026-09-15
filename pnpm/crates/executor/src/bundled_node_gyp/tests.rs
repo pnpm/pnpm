@@ -18,7 +18,12 @@ fn finds_the_wrapper_dir_shipped_beside_the_executable() {
 
     assert_eq!(
         bundled_node_gyp_bin_in(exe_dir.path()),
-        Some(exe_dir.path().join("dist").join("node-gyp-bin")),
+        Some(
+            exe_dir
+                .path()
+                .join("dist")
+                .join("node-gyp-bin")
+        ),
     );
 }
 
@@ -45,7 +50,13 @@ fn absent_when_dist_exists_without_the_wrapper_dir() {
 #[test]
 fn absent_when_the_wrapper_dir_is_empty() {
     let exe_dir = tempfile::tempdir().unwrap();
-    fs::create_dir_all(exe_dir.path().join("dist").join("node-gyp-bin")).unwrap();
+    fs::create_dir_all(
+        exe_dir
+            .path()
+            .join("dist")
+            .join("node-gyp-bin"),
+    )
+    .unwrap();
 
     assert_eq!(bundled_node_gyp_bin_in(exe_dir.path()), None);
 }
@@ -56,7 +67,10 @@ fn absent_when_the_wrapper_dir_is_empty() {
 #[test]
 fn absent_when_only_the_other_platforms_wrapper_was_shipped() {
     let exe_dir = tempfile::tempdir().unwrap();
-    let bin_dir = exe_dir.path().join("dist").join("node-gyp-bin");
+    let bin_dir = exe_dir
+        .path()
+        .join("dist")
+        .join("node-gyp-bin");
     fs::create_dir_all(&bin_dir).unwrap();
     let other = if cfg!(windows) { "node-gyp" } else { "node-gyp.cmd" };
     fs::write(bin_dir.join(other), "").unwrap();
@@ -68,7 +82,14 @@ fn absent_when_only_the_other_platforms_wrapper_was_shipped() {
 #[test]
 fn absent_when_the_wrapper_is_a_directory() {
     let exe_dir = tempfile::tempdir().unwrap();
-    fs::create_dir_all(exe_dir.path().join("dist").join("node-gyp-bin").join("node-gyp")).unwrap();
+    fs::create_dir_all(
+        exe_dir
+            .path()
+            .join("dist")
+            .join("node-gyp-bin")
+            .join("node-gyp"),
+    )
+    .unwrap();
 
     assert_eq!(bundled_node_gyp_bin_in(exe_dir.path()), None);
 }

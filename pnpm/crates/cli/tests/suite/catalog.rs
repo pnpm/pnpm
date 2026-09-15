@@ -57,8 +57,7 @@ fn read(workspace: &Path, file: &str) -> String {
 fn catalog_snapshot(workspace: &Path, name: &str) -> (String, String) {
     let lockfile: Lockfile =
         serde_saphyr::from_str(&read(workspace, "pnpm-lock.yaml")).expect("parse pnpm-lock.yaml");
-    let entry = lockfile
-        .catalogs
+    let entry = lockfile.catalogs
         .as_ref()
         .and_then(|catalogs| catalogs.get("default"))
         .and_then(|catalog| catalog.get(name))
@@ -69,7 +68,9 @@ fn catalog_snapshot(workspace: &Path, name: &str) -> (String, String) {
 fn lockfile_override(workspace: &Path, selector: &str) -> Option<String> {
     let lockfile: Lockfile =
         serde_saphyr::from_str(&read(workspace, "pnpm-lock.yaml")).expect("parse pnpm-lock.yaml");
-    lockfile.overrides.as_ref().and_then(|overrides| overrides.get(selector).cloned())
+    lockfile.overrides
+        .as_ref()
+        .and_then(|overrides| overrides.get(selector).cloned())
 }
 
 fn run_ok(workspace: &Path, args: &[&str]) {
@@ -266,7 +267,9 @@ fn save_catalog_name_preserves_the_dependency_group() {
 
     let manifest = PackageManifest::from_path(workspace.join("package.json")).unwrap();
     assert_eq!(
-        manifest.dependencies([DependencyGroup::Dev]).collect::<Vec<_>>(),
+        manifest
+            .dependencies([DependencyGroup::Dev])
+            .collect::<Vec<_>>(),
         vec![(FOO, "catalog:tools")],
     );
     let workspace_yaml = read(&workspace, "pnpm-workspace.yaml");
@@ -535,6 +538,133 @@ fn prunes_the_minimum_release_age_excludes() {
     drop((root, anchor));
 }
 
+/// Regression test for [pnpm/pnpm#14759](https://github.com/pnpm/pnpm/issues/14759):
+/// `install` runs the same prune pass as `add`.
+#[test]
+fn install_prunes_the_minimum_release_age_excludes_after_resolution_changes() {
+    let (root, workspace, anchor) = setup();
+    lock_foo_with_stale_excludes(&workspace);
+    write_manifest(&workspace, &format!(r#"{{ "{FOO}": "2.0.0" }}"#));
+
+    run_ok(&workspace, &["install", "--lockfile-only"]);
+
+    assert_excludes_narrowed_to_foo_2(&workspace);
+    drop((root, anchor));
+}
+
+#[test]
+fn dedupe_prunes_the_minimum_release_age_excludes_after_resolution_changes() {
+    let (root, workspace, anchor) = setup();
+    lock_foo_with_stale_excludes(&workspace);
+    write_manifest(&workspace, &format!(r#"{{ "{FOO}": "2.0.0" }}"#));
+
+    run_ok(&workspace, &["dedupe", "--lockfile-only"]);
+
+    assert_excludes_narrowed_to_foo_2(&workspace);
+    drop((root, anchor));
+}
+
+/// Dropping a dependency is drift the install absorbs by rewriting the
+/// loaded lockfile in place of a resolution, and `--lockfile-only` then
+/// returns before materializing anything; the prune pass has to run on
+/// that early return too.
+#[test]
+fn install_prunes_the_minimum_release_age_excludes_after_a_dependency_is_removed() {
+    let (root, workspace, anchor) = setup();
+    lock_foo_with_stale_excludes(&workspace);
+    write_manifest(&workspace, "{}");
+
+    run_ok(&workspace, &["install", "--lockfile-only"]);
+
+    let workspace_yaml = read(&workspace, "pnpm-workspace.yaml");
+    assert!(
+        !workspace_yaml.contains("minimumReleaseAgeExclude:"),
+        "a list left with no resolved entry must be dropped:\n{workspace_yaml}",
+    );
+    assert!(
+        workspace_yaml.contains("minimumReleaseAgeExcludePrune: true"),
+        "the prune setting itself must survive:\n{workspace_yaml}",
+    );
+    drop((root, anchor));
+}
+
+/// Lock `FOO@1.0.0`, then list it (alongside a package the workspace never
+/// resolves) under `minimumReleaseAgeExcludePrune` so a later run that
+/// drops it from the lockfile has something to prune.
+fn lock_foo_with_stale_excludes(workspace: &Path) {
+    write_manifest(workspace, &format!(r#"{{ "{FOO}": "1.0.0" }}"#));
+    run_ok(workspace, &["install", "--lockfile-only"]);
+    append_workspace_yaml(
+        workspace,
+        &format!(
+            "minimumReleaseAgeExcludePrune: true\n\
+             minimumReleaseAgeExclude:\n  \
+             - '{FOO}@1.0.0 || 2.0.0'\n  \
+             - '@pnpm.e2e/bar@100.0.0'\n",
+        ),
+    );
+}
+
+fn assert_excludes_narrowed_to_foo_2(workspace: &Path) {
+    let workspace_yaml = read(workspace, "pnpm-workspace.yaml");
+    assert!(
+        workspace_yaml.contains(&format!("{FOO}@2.0.0")),
+        "the narrowed exclude must keep the newly resolved version:\n{workspace_yaml}",
+    );
+    assert!(
+        !workspace_yaml.contains("1.0.0"),
+        "the previously resolved version must be pruned once it is unresolved:\n{workspace_yaml}",
+    );
+    assert!(
+        !workspace_yaml.contains("@pnpm.e2e/bar"),
+        "the exclude for an absent package must be dropped:\n{workspace_yaml}",
+    );
+}
+
+/// The `trustPolicyExcludePrune` counterpart of
+/// [`prunes_the_minimum_release_age_excludes`], over `trustPolicyExclude`.
+#[test]
+fn prunes_the_trust_policy_excludes() {
+    let (root, workspace, anchor) = setup();
+    write_manifest(&workspace, "{}");
+    append_workspace_yaml(
+        &workspace,
+        &format!(
+            "trustPolicyExcludePrune: true\n\
+             trustPolicyExclude:\n  \
+             - '{FOO}@1.0.0 || 2.0.0'\n  \
+             - '@pnpm.e2e/bar@100.0.0'\n  \
+             - '@pnpm.e2e/*' # forward-looking\n",
+        ),
+    );
+
+    run_ok(&workspace, &["add", &format!("{FOO}@2.0.0")]);
+
+    let workspace_yaml = read(&workspace, "pnpm-workspace.yaml");
+    assert!(
+        workspace_yaml.contains(&format!("{FOO}@2.0.0")),
+        "the narrowed exclude must keep the resolved version:\n{workspace_yaml}",
+    );
+    assert!(
+        !workspace_yaml.contains("1.0.0"),
+        "the version no longer resolved must be pruned:\n{workspace_yaml}",
+    );
+    assert!(
+        !workspace_yaml.contains("@pnpm.e2e/bar"),
+        "the exclude for an absent package must be dropped:\n{workspace_yaml}",
+    );
+    assert!(
+        workspace_yaml.contains("@pnpm.e2e/*"),
+        "a glob exclude must survive:\n{workspace_yaml}",
+    );
+    assert!(
+        workspace_yaml.contains("# forward-looking"),
+        "a surviving entry must keep its comment:\n{workspace_yaml}",
+    );
+
+    drop((root, anchor));
+}
+
 /// Regression test for [pnpm#13715](https://github.com/pnpm/pnpm/issues/13715).
 #[test]
 fn add_moves_a_catalog_locked_on_another_version() {
@@ -629,8 +759,7 @@ fn add_moving_a_catalog_leaves_an_untargeted_project_alone() {
 fn importer_dep_version(workspace: &Path, importer: &str, name: &str) -> String {
     let lockfile: Lockfile =
         serde_saphyr::from_str(&read(workspace, "pnpm-lock.yaml")).expect("parse pnpm-lock.yaml");
-    lockfile
-        .importers
+    lockfile.importers
         .get(importer)
         .and_then(|snapshot| snapshot.dependencies.as_ref())
         .and_then(|dependencies| {

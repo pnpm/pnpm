@@ -1,9 +1,13 @@
 use super::{
-    CliArgs, CliCommand, KeyIssueReporting, PackageManagerToSync, PreCommandInput, PreCommandPlan,
-    SwitchInput, SwitchProcessState, SwitchSource, frozen_lockfile_flag,
+    CliArgs, CliCommand, KeyIssueReporting, PackageManagerToSync, PinRoots, PreCommandInput,
+    PreCommandPlan, SwitchInput, SwitchProcessState, SwitchSource, load_pre_command_config,
     pre_command_plan_from_input, switch_target,
 };
-use crate::{boolean_negations::with_boolean_negations, config_overrides::ConfigOverrides};
+use crate::{
+    boolean_negations::with_boolean_negations,
+    cli_args::pre_command::input::{PinFlags, SwitchPaths, frozen_lockfile_flag},
+    config_overrides::ConfigOverrides,
+};
 use clap::{CommandFactory, FromArgMatches};
 use pnpm_config::{Config, PNPM_VERSION, PmOnFail};
 use pnpm_reporter::{Reporter, SilentReporter};
@@ -19,7 +23,11 @@ fn version_argv_reads_dir_auth_file_and_command_forms() {
     struct Case {
         name: &'static str,
         argv: &'static [&'static str],
-        dir: &'static str,
+        /// The `--dir` the scan is expected to find. `None` asserts
+        /// nothing: the command line carries none, and the default it
+        /// falls back to is covered by the CLI tests that run in a real
+        /// project.
+        dir: Option<&'static str>,
         npmrc_auth_file: Option<&'static str>,
         command: Option<&'static str>,
     }
@@ -28,75 +36,81 @@ fn version_argv_reads_dir_auth_file_and_command_forms() {
         Case {
             name: "separate long dir and equals auth file",
             argv: &["pnpm", "--dir", "/tmp/project", "--npmrc-auth-file=auth.ini", "--version"],
-            dir: "/tmp/project",
+            dir: Some("/tmp/project"),
             npmrc_auth_file: Some("auth.ini"),
             command: None,
         },
         Case {
             name: "short dir",
             argv: &["pnpm", "-C", "/tmp/short-dir", "--version"],
-            dir: "/tmp/short-dir",
+            dir: Some("/tmp/short-dir"),
             npmrc_auth_file: None,
             command: None,
         },
         Case {
             name: "equals dir and userconfig alias",
             argv: &["pnpm", "--dir=/tmp/equals-dir", "--userconfig", "user.ini", "--version"],
-            dir: "/tmp/equals-dir",
+            dir: Some("/tmp/equals-dir"),
             npmrc_auth_file: Some("user.ini"),
             command: None,
         },
         Case {
             name: "prefix alias of dir",
             argv: &["pnpm", "--prefix", "/tmp/prefix-dir", "--version"],
-            dir: "/tmp/prefix-dir",
+            dir: Some("/tmp/prefix-dir"),
             npmrc_auth_file: None,
             command: None,
         },
         Case {
             name: "equals prefix alias of dir",
             argv: &["pnpm", "--prefix=/tmp/equals-prefix", "--version"],
-            dir: "/tmp/equals-prefix",
+            dir: Some("/tmp/equals-prefix"),
             npmrc_auth_file: None,
             command: None,
         },
         Case {
             name: "separator stops command detection",
             argv: &["pnpm", "--dir=/tmp/separator", "--", "run"],
-            dir: "/tmp/separator",
+            dir: Some("/tmp/separator"),
             npmrc_auth_file: None,
             command: None,
         },
         Case {
             name: "value-taking global option is skipped",
             argv: &["pnpm", "--filter", "pkg", "--reporter", "append-only", "install"],
-            dir: ".",
+            dir: None,
             npmrc_auth_file: None,
             command: Some("install"),
         },
         Case {
             name: "store directory value is not mistaken for the command",
             argv: &["pnpm", "--store", "/tmp/store", "--prefix", "/tmp/scanned", "--version"],
-            dir: "/tmp/scanned",
+            dir: Some("/tmp/scanned"),
             npmrc_auth_file: None,
             command: None,
         },
         Case {
             name: "canonical store directory value is not mistaken for the command",
             argv: &["pnpm", "--store-dir", "/tmp/store", "--dir", "/tmp/scanned", "--version"],
-            dir: "/tmp/scanned",
+            dir: Some("/tmp/scanned"),
             npmrc_auth_file: None,
             command: None,
         },
     ];
 
     for case in cases {
-        let argv = case.argv.iter().copied().map(OsString::from).collect::<Vec<_>>();
+        let argv = case.argv
+            .iter()
+            .copied()
+            .map(OsString::from)
+            .collect::<Vec<_>>();
         let input = SwitchInput::from_version_argv(&argv);
 
-        assert_eq!(input.dir, PathBuf::from(case.dir), "case: {}", case.name);
+        if let Some(dir) = case.dir {
+            assert_eq!(input.paths.dir, PathBuf::from(dir), "case: {}", case.name);
+        }
         assert_eq!(
-            input.npmrc_auth_file,
+            input.paths.npmrc_auth_file,
             case.npmrc_auth_file.map(PathBuf::from),
             "case: {}",
             case.name,
@@ -110,7 +124,93 @@ fn version_argv_reads_dir_auth_file_and_command_forms() {
         OsString::from("/tmp/state"),
         OsString::from("--version"),
     ]);
-    assert_eq!(input.state_dir.as_deref(), Some(Path::new("/tmp/state")));
+    assert_eq!(input.paths.state_dir.as_deref(), Some(Path::new("/tmp/state")));
+
+    for spelling in ["--store-dir", "--store"] {
+        let input = SwitchInput::from_version_argv(&[
+            OsString::from("pnpm"),
+            OsString::from(spelling),
+            OsString::from("/tmp/store"),
+            OsString::from("--version"),
+        ]);
+        assert_eq!(
+            input.paths.store_dir.as_deref(),
+            Some(Path::new("/tmp/store")),
+            "spelling: {spelling}",
+        );
+    }
+}
+
+#[test]
+fn the_warning_carries_the_code_and_help_of_a_diagnostic() {
+    #[derive(Debug, derive_more::Display, derive_more::Error, miette::Diagnostic)]
+    #[display("the engine could not be installed")]
+    #[diagnostic(code(ERR_PNPM_TEST), help("Pin an exact version."))]
+    struct Failed;
+
+    let warning = super::warning_for_unusable_pin(&miette::Report::new(Failed));
+
+    assert!(warning.contains("ERR_PNPM_TEST"), "{warning}");
+    assert!(warning.contains("the engine could not be installed"), "{warning}");
+    assert!(warning.contains("Pin an exact version."), "{warning}");
+}
+
+#[test]
+fn the_reported_causes_redact_registry_credentials() {
+    let error = miette::miette!("fetch https://user:hunter2@registry.example.com/pnpm failed");
+
+    let causes = super::error_causes(&error);
+
+    assert!(!causes.contains("hunter2"), "credentials reached the warning: {causes}");
+    assert!(causes.contains("registry.example.com"), "the host should survive: {causes}");
+}
+
+#[test]
+fn the_pre_command_config_resolves_the_store_dir_flag() {
+    let root = TempDir::new().expect("tmp dir");
+    let dir = dunce::canonicalize(root.path()).expect("canonicalize the project directory");
+    let mut switch = SwitchInput::from_version_argv(&[
+        OsString::from("pnpm"),
+        OsString::from("--store-dir"),
+        OsString::from("relative-store"),
+        OsString::from("--version"),
+    ]);
+    switch.paths.dir = dir.clone();
+
+    let config = load_pre_command_config(&switch, &ConfigOverrides::default(), &dir)
+        .expect("load the pre-command config");
+
+    assert_eq!(
+        config.store_dir.root(),
+        dir.join("relative-store").join(pnpm_store_dir::STORE_VERSION),
+    );
+}
+
+/// `pnpm --version` still reconciles the `packageManager` pin, so its argv
+/// scan has to see `--ignore-workspace` too — otherwise the pass reports
+/// the key issues of a `pnpm-workspace.yaml` the user asked it to ignore.
+/// [`resolve_boolean_values`](crate::boolean_values::resolve_boolean_values)
+/// has already folded a `=<bool>` spelling into one of the bare forms by the
+/// time the scan runs.
+#[test]
+fn the_version_scan_reads_ignore_workspace_from_the_command_line() {
+    let flag_of = |argv: &[&str]| {
+        SwitchInput::from_version_argv(
+            &argv
+                .iter()
+                .copied()
+                .map(OsString::from)
+                .collect::<Vec<_>>(),
+        )
+        .ignore_workspace
+    };
+    assert!(flag_of(&["pnpm", "--ignore-workspace", "--version"]));
+    assert!(!flag_of(&["pnpm", "--no-ignore-workspace", "--version"]));
+    assert!(!flag_of(&["pnpm", "--version"]));
+    assert!(
+        flag_of(&["pnpm", "--dir", "/tmp/scanned", "--ignore-workspace", "--version"]),
+        "a preceding value-taking flag must not swallow it",
+    );
 }
 
 #[test]
@@ -256,19 +356,31 @@ fn pre_command_plan_records_a_pin_that_only_warns() {
     );
 }
 
+/// The install family records the pin here like every other command, so
+/// there is one writer and no command list to keep in step with it.
 #[test]
-fn pre_command_plan_leaves_the_env_lockfile_sync_to_the_install_pipeline() {
+fn pre_command_plan_records_the_pin_for_the_install_family_too() {
     let root = TempDir::new().expect("tmp dir");
     write_dev_engine_manifest(root.path(), PNPM_VERSION);
 
-    let plan = pre_command_plan_from_input(
-        &PreCommandInput { syncs_env_lockfile_in_pipeline: true, ..pre_command_input(root.path()) },
-        &ConfigOverrides::default(),
-        SwitchProcessState { package_manager_switch_disabled: false, executed_by_corepack: false },
-    )
-    .expect("pre-command plan");
+    for command in ["install", "add", "ci", "update", "remove", "dedupe", "prune", "unlink"] {
+        let mut input = pre_command_input(root.path());
+        input.switch.command = Some(command.to_string());
+        let plan = pre_command_plan_from_input(
+            &input,
+            &ConfigOverrides::default(),
+            SwitchProcessState {
+                package_manager_switch_disabled: false,
+                executed_by_corepack: false,
+            },
+        )
+        .expect("pre-command plan");
 
-    assert!(plan.is_none(), "unexpected pre-command plan: {plan:?}");
+        assert!(
+            matches!(plan, Some(PreCommandPlan::SyncEnvLockfile(_))),
+            "expected an env lockfile sync for {command}, got {plan:?}",
+        );
+    }
 }
 
 #[test]
@@ -334,6 +446,65 @@ fn pre_command_plan_switches_to_the_version_the_pin_resolved_to() {
     assert_eq!(version, "99.0.0");
 }
 
+/// The install family records the pin from its own pipeline whether or not
+/// version switching is on, so every other command has to record it there
+/// too — otherwise the two rewrite each other forever (pnpm/pnpm#14575).
+#[test]
+fn pre_command_plan_records_a_pin_when_version_switching_is_turned_off() {
+    let root = TempDir::new().expect("tmp dir");
+    write_dev_engine_manifest(root.path(), PNPM_VERSION);
+
+    let plan = pre_command_plan_from_input(
+        &pre_command_input(root.path()),
+        &ConfigOverrides::default(),
+        SwitchProcessState { package_manager_switch_disabled: true, executed_by_corepack: false },
+    )
+    .expect("pre-command plan");
+
+    let Some(PreCommandPlan::SyncEnvLockfile(sync)) = plan else {
+        panic!("expected an env lockfile sync, got {plan:?}");
+    };
+    assert_eq!(
+        sync.package_manager,
+        PackageManagerToSync {
+            specifier: PNPM_VERSION.to_string(),
+            version: PNPM_VERSION.to_string(),
+        },
+    );
+}
+
+/// A pin the running pnpm cannot satisfy resolves to no version to record,
+/// so turning the switch off never cements one nobody runs.
+#[test]
+fn pre_command_plan_records_nothing_for_an_unsatisfiable_pin_when_switching_is_turned_off() {
+    let root = TempDir::new().expect("tmp dir");
+    write_dev_engine_manifest(root.path(), "^999.0.0");
+
+    let plan = pre_command_plan_from_input(
+        &pre_command_input(root.path()),
+        &ConfigOverrides::default(),
+        SwitchProcessState { package_manager_switch_disabled: true, executed_by_corepack: false },
+    )
+    .expect("pre-command plan");
+
+    assert!(plan.is_none(), "unexpected pre-command plan: {plan:?}");
+}
+
+#[test]
+fn pre_command_plan_records_nothing_for_a_global_command_when_switching_is_turned_off() {
+    let root = TempDir::new().expect("tmp dir");
+    write_dev_engine_manifest(root.path(), PNPM_VERSION);
+
+    let plan = pre_command_plan_from_input(
+        &PreCommandInput { global: true, ..pre_command_input(root.path()) },
+        &ConfigOverrides::default(),
+        SwitchProcessState { package_manager_switch_disabled: true, executed_by_corepack: false },
+    )
+    .expect("pre-command plan");
+
+    assert!(plan.is_none(), "unexpected pre-command plan: {plan:?}");
+}
+
 #[test]
 fn pre_command_plan_records_a_pin_the_pm_on_fail_setting_reactivated() {
     let root = TempDir::new().expect("tmp dir");
@@ -374,6 +545,57 @@ fn pre_command_plan_does_not_record_a_pin_the_pm_on_fail_setting_turned_off() {
     assert!(plan.is_none(), "unexpected pre-command plan: {plan:?}");
 }
 
+/// `lockfile: false` must suppress the project env-lockfile write even when
+/// `devEngines.packageManager.onFail: download` would otherwise persist the
+/// pin (pnpm/pnpm#14728). Download switching itself stays available.
+#[test]
+fn pre_command_plan_skips_env_lockfile_sync_when_lockfile_is_disabled() {
+    let root = TempDir::new().expect("tmp dir");
+    write_dev_engine_manifest(root.path(), PNPM_VERSION);
+
+    let plan = pre_command_plan_from_input(
+        &pre_command_input(root.path()),
+        &config_overrides(&["--no-lockfile"]),
+        SwitchProcessState { package_manager_switch_disabled: false, executed_by_corepack: false },
+    )
+    .expect("pre-command plan");
+
+    assert!(
+        plan.is_none(),
+        "lockfile: false must not schedule a project env lockfile sync, got {plan:?}",
+    );
+}
+
+/// `lockfile: false` silences the pin record, not the switch: a pin the
+/// running pnpm cannot satisfy is still downloaded, and resolves outside the
+/// project because the project has no lockfile to resolve into
+/// (pnpm/pnpm#14728).
+#[test]
+fn pre_command_plan_still_switches_when_lockfile_is_disabled() {
+    let root = TempDir::new().expect("tmp dir");
+    write_dev_engine_manifest(root.path(), "99.0.0");
+
+    let plan = pre_command_plan_from_input(
+        &pre_command_input(root.path()),
+        &config_overrides(&["--no-lockfile"]),
+        SwitchProcessState { package_manager_switch_disabled: false, executed_by_corepack: false },
+    )
+    .expect("pre-command plan");
+
+    let Some(PreCommandPlan::Switch(plan)) = plan else {
+        panic!("expected a switch plan, got {plan:?}");
+    };
+    assert_eq!(plan.target.spec, "99.0.0");
+    let SwitchSource::Resolve { env_root, .. } = &plan.target.source else {
+        panic!("expected a resolve target, got {:?}", plan.target.source);
+    };
+    assert_ne!(env_root.as_path(), root.path());
+}
+
+fn pin_roots(dir: &Path) -> PinRoots {
+    PinRoots { manifest: dir.to_path_buf(), env: dir.to_path_buf() }
+}
+
 fn config_overrides(argv: &[&str]) -> ConfigOverrides {
     ConfigOverrides::extract(argv.iter().copied().map(OsString::from)).0
 }
@@ -381,272 +603,24 @@ fn config_overrides(argv: &[&str]) -> ConfigOverrides {
 fn pre_command_input(dir: &Path) -> PreCommandInput {
     PreCommandInput {
         switch: SwitchInput {
-            dir: dir.to_path_buf(),
-            state_dir: None,
-            npmrc_auth_file: None,
+            paths: SwitchPaths {
+                dir: dir.to_path_buf(),
+                state_dir: None,
+                store_dir: None,
+                npmrc_auth_file: None,
+            },
             command: Some("run".to_string()),
             frozen_lockfile: None,
+            pin_flags: PinFlags::default(),
             color: None,
+            ignore_workspace: false,
         },
         global: false,
+        skip_pm_handling: false,
         check_runtimes: true,
-        syncs_env_lockfile_in_pipeline: false,
         emit: SilentReporter::emit,
         key_issues: KeyIssueReporting::Enforce,
     }
-}
-
-#[test]
-fn switch_target_prefers_locked_dev_engine_version() {
-    let root = TempDir::new().expect("tmp dir");
-    write_manifest(
-        root.path(),
-        r#"{"devEngines":{"packageManager":{"name":"pnpm","version":"^11.0.0-rc.5","onFail":"download"}}}"#,
-    );
-    write_lockfile(
-        root.path(),
-        r"---
-lockfileVersion: '9.0'
-
-importers:
-
-  .:
-    configDependencies: {}
-    packageManagerDependencies:
-      '@pnpm/exe':
-        specifier: 11.1.2
-        version: 11.1.2
-      pnpm:
-        specifier: 11.1.2
-        version: 11.1.2
-
-packages:
-
-  '@pnpm/exe@11.1.2':
-    resolution: {integrity: sha512-di6YvqPO/2jvih6kCJ8r0ySzQNjQWrBXPEfqEHtrmwOamuNALnfASwhFBwEtMjWmaA8QG7TqAg2qEvAe+8cBkQ==}
-
-  pnpm@11.1.2:
-    resolution: {integrity: sha512-QVocwll0cx51RVwUaDcb50xapft2IbUNQFbSIkUWCfEUEvI/1gLmFp8eBgRmZB95hZfhvpYaEGiINqZ7FlaUmQ==}
-
-snapshots:
-
-  '@pnpm/exe@11.1.2': {}
-
-  pnpm@11.1.2: {}
----
-",
-    );
-
-    let target =
-        switch_target(&Config::default(), root.path(), false).expect("target").expect("switch");
-
-    assert_eq!(target.spec, "^11.0.0-rc.5");
-    let SwitchSource::LockedEnv { version, .. } = target.source else {
-        panic!("expected locked env target");
-    };
-    assert_eq!(version, "11.1.2");
-}
-
-#[test]
-fn switch_target_accepts_peer_suffixed_package_manager_lockfile() {
-    let root = TempDir::new().expect("tmp dir");
-    write_dev_engine_manifest(root.path(), "9.3.0");
-    write_lockfile(root.path(), LOCKED_9_3_0_WITH_PEER_SUFFIX);
-
-    let target =
-        switch_target(&Config::default(), root.path(), false).expect("target").expect("switch");
-
-    let SwitchSource::LockedEnv { version, .. } = target.source else {
-        panic!("expected locked env target");
-    };
-    assert_eq!(version, "9.3.0");
-}
-
-#[test]
-fn switch_target_accepts_v12_lockfile_without_legacy_wrapper_entry() {
-    let root = TempDir::new().expect("tmp dir");
-    write_manifest(root.path(), r#"{"packageManager":"pnpm@99.0.0"}"#);
-    write_lockfile(root.path(), LOCKED_99_0_0);
-
-    let target =
-        switch_target(&Config::default(), root.path(), false).expect("target").expect("switch");
-
-    let SwitchSource::LockedEnv { version, .. } = target.source else {
-        panic!("expected locked env target");
-    };
-    assert_eq!(version, "99.0.0");
-}
-
-#[test]
-fn switch_target_discards_package_manager_lockfile_resolution_with_non_integrity_fields() {
-    let root = TempDir::new().expect("tmp dir");
-    write_dev_engine_manifest(root.path(), "9.3.0");
-    write_lockfile(root.path(), LOCKED_9_3_0_WITH_TARBALL_RESOLUTION);
-
-    let target =
-        switch_target(&Config::default(), root.path(), false).expect("target").expect("switch");
-
-    let SwitchSource::Resolve {
-        env_root,
-        frozen_lockfile: false,
-        force_resync: true,
-        locked_version,
-    } = target.source
-    else {
-        panic!("expected a forced re-resolve, got {:?}", target.source);
-    };
-    assert_eq!(env_root, root.path());
-    assert_eq!(locked_version.as_deref(), Some("9.3.0"));
-}
-
-#[test]
-fn switch_target_discards_package_manager_lockfile_dependency_with_non_registry_dep_path() {
-    let root = TempDir::new().expect("tmp dir");
-    write_dev_engine_manifest(root.path(), "9.3.0");
-    write_lockfile(root.path(), LOCKED_9_3_0_WITH_FILE_DEP_PATH);
-
-    let target =
-        switch_target(&Config::default(), root.path(), false).expect("target").expect("switch");
-
-    let SwitchSource::Resolve {
-        env_root,
-        frozen_lockfile: false,
-        force_resync: true,
-        locked_version,
-    } = target.source
-    else {
-        panic!("expected a forced re-resolve, got {:?}", target.source);
-    };
-    assert_eq!(env_root, root.path());
-    assert_eq!(locked_version.as_deref(), Some("9.3.0"));
-}
-
-#[test]
-fn switch_target_reresolves_when_locked_version_no_longer_satisfies_range() {
-    let root = TempDir::new().expect("tmp dir");
-    write_dev_engine_manifest(root.path(), ">=9.1.2 <9.1.4");
-    write_lockfile(root.path(), LOCKED_9_1_1);
-
-    let target =
-        switch_target(&Config::default(), root.path(), false).expect("target").expect("switch");
-
-    assert_eq!(target.spec, ">=9.1.2 <9.1.4");
-    let SwitchSource::Resolve {
-        env_root,
-        frozen_lockfile: false,
-        force_resync: false,
-        locked_version: None,
-    } = target.source
-    else {
-        panic!("expected resolve target");
-    };
-    assert_eq!(env_root, root.path());
-}
-
-#[test]
-fn switch_target_uses_global_env_for_legacy_package_manager_field() {
-    let root = TempDir::new().expect("tmp dir");
-    let global_pkg_dir = root.path().join("pnpm-home").join("global");
-    write_manifest(root.path(), r#"{"packageManager":"pnpm@9.3.0"}"#);
-
-    let target = switch_target(
-        &Config { global_pkg_dir: Some(global_pkg_dir.clone()), ..Config::default() },
-        root.path(),
-        false,
-    )
-    .expect("target")
-    .expect("switch");
-
-    let SwitchSource::Resolve {
-        env_root,
-        frozen_lockfile: false,
-        force_resync: false,
-        locked_version: None,
-    } = target.source
-    else {
-        panic!("expected resolve target");
-    };
-    assert_eq!(target.spec, "9.3.0");
-    assert_eq!(env_root, global_pkg_dir);
-}
-
-#[test]
-fn switch_target_respects_pm_on_fail_ignore() {
-    let root = TempDir::new().expect("tmp dir");
-    write_manifest(root.path(), r#"{"packageManager":"pnpm@9.3.0"}"#);
-
-    let target = switch_target(
-        &Config {
-            pm_on_fail: Some(PmOnFail::Ignore),
-            global_pkg_dir: Some(root.path().join("pnpm-home").join("global")),
-            ..Config::default()
-        },
-        root.path(),
-        false,
-    )
-    .expect("target");
-
-    assert!(target.is_none(), "unexpected switch target: {target:?}");
-}
-
-#[test]
-fn switch_target_refuses_to_record_a_persisting_pin_under_frozen_lockfile() {
-    let root = TempDir::new().expect("tmp dir");
-    write_dev_engine_manifest(root.path(), ">=9.1.2 <9.1.4");
-    write_lockfile(root.path(), LOCKED_9_1_1);
-
-    let target =
-        switch_target(&Config::default(), root.path(), true).expect("target").expect("switch");
-
-    let SwitchSource::Resolve {
-        env_root,
-        frozen_lockfile: true,
-        force_resync: false,
-        locked_version: None,
-    } = target.source
-    else {
-        panic!("expected a frozen resolve target, got {:?}", target.source);
-    };
-    assert_eq!(env_root, root.path());
-}
-
-#[test]
-fn switch_target_leaves_the_global_env_writable_under_frozen_lockfile() {
-    let root = TempDir::new().expect("tmp dir");
-    let global_pkg_dir = root.path().join("pnpm-home").join("global");
-    write_manifest(root.path(), r#"{"packageManager":"pnpm@9.3.0"}"#);
-
-    let target = switch_target(
-        &Config { global_pkg_dir: Some(global_pkg_dir.clone()), ..Config::default() },
-        root.path(),
-        true,
-    )
-    .expect("target")
-    .expect("switch");
-
-    let SwitchSource::Resolve {
-        env_root,
-        frozen_lockfile: false,
-        force_resync: false,
-        locked_version: None,
-    } = target.source
-    else {
-        panic!("expected an unfrozen resolve target, got {:?}", target.source);
-    };
-    assert_eq!(env_root, global_pkg_dir);
-}
-
-#[test]
-fn switch_target_does_not_switch_dev_engine_without_download() {
-    let root = TempDir::new().expect("tmp dir");
-    write_manifest(
-        root.path(),
-        r#"{"devEngines":{"packageManager":{"name":"pnpm","version":"9.3.0","onFail":"error"}}}"#,
-    );
-
-    let target = switch_target(&Config::default(), root.path(), false).expect("target");
-
-    assert!(target.is_none(), "unexpected switch target: {target:?}");
 }
 
 #[test]
@@ -661,6 +635,93 @@ fn the_switch_reads_frozen_lockfile_from_the_command_line() {
     // Only the install family carries the flag; every other command leaves the
     // `frozenLockfile` setting to answer on its own.
     assert_eq!(flag_of(&["pnpm", "run", "build"]), None);
+}
+
+/// The pin record reads `--lockfile-dir` and `--offline` straight from the
+/// command line, so a command that grows either flag and is not added to
+/// [`PinFlags::of`] would silently record against the wrong directory or go
+/// to the network. Ask clap which commands declare them rather than trusting
+/// a second hand-written list.
+#[test]
+fn pin_flags_cover_every_command_declaring_them() {
+    for subcommand in super::super::grammar().get_subcommands() {
+        let name = subcommand.get_name();
+        // A command that skips the package-manager checks records no pin, so
+        // neither flag reaches a write for it.
+        if super::should_skip_command_name(name) {
+            continue;
+        }
+        let declares = |long: &str| {
+            subcommand
+                .get_arguments()
+                .any(|arg| arg.get_long() == Some(long))
+        };
+        if declares("lockfile-dir") {
+            let flags = PinFlags::of(&parse_with_positional(name, &["--lockfile-dir", "lf"]));
+            assert_eq!(
+                flags.lockfile_dir.as_deref(),
+                Some(Path::new("lf")),
+                "`pnpm {name}` accepts --lockfile-dir but PinFlags::of ignores it",
+            );
+        }
+        if declares("offline") {
+            let flags = PinFlags::of(&parse_with_positional(name, &["--offline"]));
+            assert_eq!(
+                flags.offline,
+                Some(true),
+                "`pnpm {name}` accepts --offline but PinFlags::of ignores it",
+            );
+        }
+        if declares("prefer-offline") {
+            let flags = PinFlags::of(&parse_with_positional(name, &["--prefer-offline"]));
+            assert_eq!(
+                flags.prefer_offline,
+                Some(true),
+                "`pnpm {name}` accepts --prefer-offline but PinFlags::of ignores it",
+            );
+        }
+    }
+}
+
+/// The pair overrides the configured value in both directions, the
+/// precedence `resolve_bool_override` gives every install-family boolean. An
+/// `offline` that only ever turned on would send `--no-offline` to the
+/// network's opposite.
+#[test]
+fn a_negated_flag_clears_a_configured_value() {
+    let cases = [
+        (PinFlags::default(), true, true),
+        (PinFlags::default(), false, false),
+        (PinFlags { offline: Some(false), ..PinFlags::default() }, true, false),
+        (PinFlags { offline: Some(true), ..PinFlags::default() }, false, true),
+    ];
+    for (flags, configured, expected) in cases {
+        let mut config = Config { offline: configured, ..Config::default() };
+        flags.apply_to(&mut config, Path::new("/tmp"));
+        assert_eq!(
+            config.offline, expected,
+            "offline {:?} over a configured {configured}",
+            flags.offline,
+        );
+    }
+}
+
+/// Parse `pnpm <name> <args>`, adding a placeholder positional for the
+/// commands that require one.
+fn parse_with_positional(name: &str, args: &[&str]) -> CliCommand {
+    let mut argv = vec!["pnpm", name];
+    argv.extend_from_slice(args);
+    let parse = |argv: &[&str]| {
+        with_boolean_negations(CliArgs::command())
+            .try_get_matches_from(argv)
+            .and_then(|matches| CliArgs::from_arg_matches(&matches))
+            .map(|args| args.command)
+    };
+    parse(&argv)
+        .unwrap_or_else(|_| {
+            argv.push("placeholder");
+            parse(&argv).unwrap_or_else(|error| panic!("parse `pnpm {name}`: {error}"))
+        })
 }
 
 fn parse_command(argv: &[&str]) -> CliCommand {
@@ -893,3 +954,5 @@ snapshots:
   pnpm@99.0.0: {}
 ---
 ";
+
+mod switch_target;

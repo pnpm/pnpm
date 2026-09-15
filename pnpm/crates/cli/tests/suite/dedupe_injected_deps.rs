@@ -22,8 +22,13 @@ use std::{fs, process::Command};
 /// transitive deps are empty (vacuous subset).
 #[test]
 fn injected_leaf_workspace_dep_is_deduped_to_link() {
-    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
-        CommandTempCwd::init().add_mocked_registry();
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
 
     fs::write(
@@ -61,7 +66,10 @@ fn injected_leaf_workspace_dep_is_deduped_to_link() {
     )
     .expect("write packages/b/package.json");
 
-    pacquet.with_arg("install").assert().success();
+    pacquet
+        .with_arg("install")
+        .assert()
+        .success();
 
     let dep = workspace.join("packages/a/node_modules/b");
     assert!(
@@ -95,8 +103,13 @@ fn injected_leaf_workspace_dep_is_deduped_to_link() {
 /// mode), so the same resolve path backs both `install` and `remove`.
 #[test]
 fn injected_workspace_dep_with_children_stays_link_after_remove() {
-    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
-        CommandTempCwd::init().add_mocked_registry();
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
 
     fs::write(
@@ -144,7 +157,10 @@ fn injected_workspace_dep_with_children_stays_link_after_remove() {
     )
     .expect("write packages/b/package.json");
 
-    pacquet.with_arg("install").assert().success();
+    pacquet
+        .with_arg("install")
+        .assert()
+        .success();
 
     let lockfile_path = workspace.join("pnpm-lock.yaml");
     let lockfile = fs::read_to_string(&lockfile_path).expect("read pnpm-lock.yaml");
@@ -197,8 +213,13 @@ fn injected_workspace_dep_with_children_stays_link_after_remove() {
 /// subset of `b`'s own direct deps.
 #[test]
 fn injected_peer_suffixed_workspace_dep_stays_file_after_remove() {
-    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
-        CommandTempCwd::init().add_mocked_registry();
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
 
     fs::write(
@@ -248,7 +269,10 @@ fn injected_peer_suffixed_workspace_dep_stays_file_after_remove() {
     )
     .expect("write packages/b/package.json");
 
-    pacquet.with_arg("install").assert().success();
+    pacquet
+        .with_arg("install")
+        .assert()
+        .success();
 
     let lockfile_path = workspace.join("pnpm-lock.yaml");
     let lockfile = fs::read_to_string(&lockfile_path).expect("read pnpm-lock.yaml");
@@ -290,8 +314,13 @@ fn injected_peer_suffixed_workspace_dep_stays_file_after_remove() {
 /// entry is stale. Regression test for pnpm/pnpm#13754.
 #[test]
 fn newly_injected_workspace_dep_with_dedupe_off_replaces_recorded_link() {
-    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
-        CommandTempCwd::init().add_mocked_registry();
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
 
     fs::write(
@@ -329,7 +358,10 @@ fn newly_injected_workspace_dep_with_dedupe_off_replaces_recorded_link() {
     )
     .expect("write packages/b/package.json");
 
-    pacquet.with_arg("install").assert().success();
+    pacquet
+        .with_arg("install")
+        .assert()
+        .success();
 
     let lockfile_path = workspace.join("pnpm-lock.yaml");
     let lockfile = fs::read_to_string(&lockfile_path).expect("read pnpm-lock.yaml");
@@ -350,7 +382,10 @@ fn newly_injected_workspace_dep_with_dedupe_off_replaces_recorded_link() {
     )
     .expect("rewrite packages/a/package.json");
 
-    pacquet_in(&workspace).with_arg("install").assert().success();
+    pacquet_in(&workspace)
+        .with_arg("install")
+        .assert()
+        .success();
 
     let lockfile = fs::read_to_string(&lockfile_path).expect("read pnpm-lock.yaml");
     assert!(
@@ -390,8 +425,13 @@ fn newly_injected_workspace_dep_with_dedupe_off_replaces_recorded_link() {
 /// [`ImporterDepVersion::File`]: pnpm_lockfile::ImporterDepVersion::File
 #[test]
 fn injected_workspace_dep_with_dedupe_off_writes_file_arm() {
-    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
-        CommandTempCwd::init().add_mocked_registry();
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
 
     fs::write(
@@ -429,7 +469,10 @@ fn injected_workspace_dep_with_dedupe_off_writes_file_arm() {
     )
     .expect("write packages/b/package.json");
 
-    pacquet.with_arg("install").assert().success();
+    pacquet
+        .with_arg("install")
+        .assert()
+        .success();
 
     let lockfile_path = workspace.join("pnpm-lock.yaml");
     let lockfile = fs::read_to_string(&lockfile_path).expect("read pnpm-lock.yaml");
@@ -467,8 +510,13 @@ fn injected_workspace_dep_with_dedupe_off_writes_file_arm() {
 /// pnpm/pnpm#12038.
 #[test]
 fn injected_workspace_dep_with_dedupe_off_materialises_under_gvs() {
-    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
-        CommandTempCwd::init().add_mocked_registry();
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
 
     fs::write(
@@ -502,7 +550,10 @@ fn injected_workspace_dep_with_dedupe_off_materialises_under_gvs() {
     )
     .expect("write packages/b/package.json");
 
-    pacquet.with_arg("install").assert().success();
+    pacquet
+        .with_arg("install")
+        .assert()
+        .success();
 
     let dep = workspace.join("packages/a/node_modules/b");
     assert!(

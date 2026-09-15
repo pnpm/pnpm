@@ -42,8 +42,10 @@ pub(super) fn package(
     peer_dependencies: &[(&str, &str)],
     is_leaf: bool,
 ) -> ResolvedPackage {
-    let peer_dependencies: Vec<_> =
-        peer_dependencies.iter().map(|(name, version)| (*name, *version, false)).collect();
+    let peer_dependencies: Vec<_> = peer_dependencies
+        .iter()
+        .map(|(name, version)| (*name, *version, false))
+        .collect();
     package_with_peer_dependencies(name, version, &peer_dependencies, is_leaf)
 }
 
@@ -73,10 +75,6 @@ pub(super) fn linked_package(name: &str, id: &str, directory: &str) -> ResolvedP
         id: Arc::from(id.to_string()),
         result: Arc::new(ResolveResult {
             id: PkgResolutionId::from(id.to_string()),
-            name_ver: None,
-            latest: None,
-            published_at: None,
-            manifest: Some(Arc::new(serde_json::json!({ "name": name, "version": "1.0.0" }))),
             resolution: LockfileResolution::Directory(DirectoryResolution {
                 directory: directory.to_string(),
             }),
@@ -84,6 +82,12 @@ pub(super) fn linked_package(name: &str, id: &str, directory: &str) -> ResolvedP
             normalized_bare_specifier: None,
             alias: Some(name.to_string()),
             policy_violation: None,
+            package: pnpm_resolving_resolver_base::ResolvedPackageInfo {
+                name_ver: None,
+                latest: None,
+                published_at: None,
+                manifest: Some(Arc::new(serde_json::json!({ "name": name, "version": "1.0.0" }))),
+            },
         }),
         peer_dependencies: BTreeMap::new(),
         optional: false,
@@ -98,10 +102,6 @@ pub(super) fn resolve_result(name: &str, version: &str) -> ResolveResult {
     );
     ResolveResult {
         id: (&name_ver).into(),
-        name_ver: Some(name_ver),
-        latest: Some(version.to_string()),
-        published_at: None,
-        manifest: None,
         resolution: LockfileResolution::Tarball(TarballResolution {
             tarball: format!("https://registry.example/{name}-{version}.tgz"),
             integrity: None,
@@ -113,5 +113,11 @@ pub(super) fn resolve_result(name: &str, version: &str) -> ResolveResult {
         normalized_bare_specifier: None,
         alias: Some(name.to_string()),
         policy_violation: None,
+        package: pnpm_resolving_resolver_base::ResolvedPackageInfo {
+            name_ver: Some(name_ver),
+            latest: Some(version.to_string()),
+            published_at: None,
+            manifest: None,
+        },
     }
 }

@@ -64,11 +64,10 @@ pub trait GitProbe: Send + Sync {
 ///
 /// Either way this stops at the manifest: `prepare` / `prepublish` and
 /// packlist filtering stay in the install pass, so no package script
-/// runs during resolution. The install pass re-fetches to run them —
-/// unlike a registry tarball, a git-hosted one can't hand its
-/// extraction over through `MemCache` (only `Registry` resolutions read
-/// it) — so a git dep costs one extra fetch per install.
+/// runs during resolution. Plain Git resolutions share their source checkout
+/// with the install pass through the install-scoped source cache.
 pub struct GitFetchContext {
+    pub source_cache: Arc<pnpm_git_fetcher::GitSourceCache>,
     pub http_client: Arc<ThrottledClient>,
     pub store_dir: &'static StoreDir,
     pub store_index_writer: Option<Arc<StoreIndexWriter>>,
@@ -185,7 +184,7 @@ impl<Probe: GitProbe + 'static, Runner: GitCommandRunner + 'static> GitResolver<
                 .await
                 .map_err(|err| Box::new(err) as ResolveError)?;
 
-                result.manifest = resolved.manifest.map(Arc::new);
+                result.package.manifest = resolved.manifest.map(Arc::new);
                 if let LockfileResolution::Tarball(tarball) = &mut result.resolution {
                     // A git host's archive carries no integrity of its
                     // own, and the install pass refuses a tarball
@@ -201,6 +200,7 @@ impl<Probe: GitProbe + 'static, Runner: GitCommandRunner + 'static> GitResolver<
                 // the only source of the name, and there is nothing to
                 // hash — the commit anchors the content.
                 let manifest = read_git_manifest(GitManifestQuery {
+                    source_cache: &ctx.source_cache,
                     repo: &git.repo,
                     commit: &git.commit,
                     path: git.path.as_deref(),
@@ -209,7 +209,7 @@ impl<Probe: GitProbe + 'static, Runner: GitCommandRunner + 'static> GitResolver<
                 })
                 .await
                 .map_err(|err| Box::new(err) as ResolveError)?;
-                result.manifest = manifest.map(Arc::new);
+                result.package.manifest = manifest.map(Arc::new);
             }
             _ => {}
         }
@@ -270,15 +270,17 @@ async fn build_resolve_result<Probe: GitProbe + ?Sized, Runner: GitCommandRunner
 
     Ok(ResolveResult {
         id: id_string.into(),
-        name_ver: None,
-        latest: None,
-        published_at: None,
-        manifest: None,
         resolution,
         resolved_via: "git-repository".to_string(),
         normalized_bare_specifier: Some(spec.normalized_bare_specifier),
         alias: wanted_dependency.alias.clone(),
         policy_violation: None,
+        package: pnpm_resolving_resolver_base::ResolvedPackageInfo {
+            name_ver: None,
+            latest: None,
+            published_at: None,
+            manifest: None,
+        },
     })
 }
 

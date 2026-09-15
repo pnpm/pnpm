@@ -92,13 +92,14 @@ pub fn execute_token_helper(
     let Some(program) = command.first() else {
         return Err(TokenHelperError::EmptyToken { program: String::new() });
     };
-    let output = run(command).map_err(|source| {
-        if source.kind() == io::ErrorKind::TimedOut {
-            TokenHelperError::Timeout { program: program.clone() }
-        } else {
-            TokenHelperError::Spawn { program: program.clone(), source }
-        }
-    })?;
+    let output = run(command)
+        .map_err(|source| {
+            if source.kind() == io::ErrorKind::TimedOut {
+                TokenHelperError::Timeout { program: program.clone() }
+            } else {
+                TokenHelperError::Spawn { program: program.clone(), source }
+            }
+        })?;
     if !output.success {
         return Err(TokenHelperError::ErrorStatus { program: program.clone() });
     }
@@ -216,7 +217,10 @@ fn build_command(program: &str, args: &[String]) -> Command {
     let lowercased = program.to_ascii_lowercase();
     if lowercased.ends_with(".bat") || lowercased.ends_with(".cmd") {
         let mut command = Command::new("cmd");
-        command.arg("/C").arg(program).args(args);
+        command
+            .arg("/C")
+            .arg(program)
+            .args(args);
         return command;
     }
     let mut command = Command::new(program);

@@ -27,7 +27,7 @@ pub fn enable() {
             let mut mode = 0;
             // Fails when the stream is redirected to a file or a pipe, which
             // has no console mode to change.
-            if GetConsoleMode(handle, &mut mode) == 0 {
+            if GetConsoleMode(handle, &raw mut mode) == 0 {
                 continue;
             }
             // `ENABLE_VIRTUAL_TERMINAL_PROCESSING` is documented as requiring

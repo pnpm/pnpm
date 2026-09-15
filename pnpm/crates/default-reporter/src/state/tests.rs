@@ -1,4 +1,6 @@
-use super::{PnpmInstallSource, cached_verdict, standalone_install_command, update_command};
+use super::{
+    cached_verdict, standalone_install_command, update_check::PnpmInstallSource, update_command,
+};
 use chrono::{DateTime, Utc};
 use pretty_assertions::assert_eq;
 

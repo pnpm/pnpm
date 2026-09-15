@@ -21,6 +21,13 @@ use crate::{
 
 /// Inputs for [`pack`]. Mirrors [`PackOptions`] in `index.d.ts`.
 #[napi(object)]
+#[cfg_attr(
+    dylint_lib = "perfectionist",
+    expect(
+        perfectionist::too_many_struct_fields,
+        reason = "The fields mirror the public JavaScript object exposed by the NAPI addon."
+    )
+)]
 pub struct PackOptions {
     pub dir: String,
     pub workspace_dir: Option<String>,
@@ -54,36 +61,7 @@ pub async fn pack(options: PackOptions, on_log: Option<LogSink>) -> napi::Result
     // Restores the previous sink on drop, whatever path `pack` returns on.
     let _sink_guard = EngineCallGuard::new(on_log);
 
-    let pack_opts = pnpm_pack::PackOptions {
-        dir: PathBuf::from(&options.dir),
-        // Bit does not use catalog: specifiers; workspace catalog loading is
-        // deferred until a consumer needs it. See pnpm/plans/NAPI.md.
-        catalogs: Catalogs::default(),
-        ignore_scripts: options.ignore_scripts.unwrap_or(false),
-        unsafe_perm: false,
-        embed_readme: options.embed_readme.unwrap_or(false),
-        pack_gzip_level: options.pack_gzip_level,
-        node_linker: NodeLinker::default(),
-        skip_manifest_obfuscation: false,
-        user_agent: format!("pnpm/{PNPM_VERSION} napi"),
-        extra_bin_paths: options
-            .extra_bin_paths
-            .unwrap_or_default()
-            .into_iter()
-            .map(PathBuf::from)
-            .collect(),
-        extra_env: options.extra_env.unwrap_or_default(),
-        workspace_dir: options.workspace_dir.map(PathBuf::from),
-        dry_run: options.dry_run.unwrap_or(false),
-        pack_destination: options.pack_destination,
-        out: options.out,
-        // Bit drives its own `readPackage` hook through the napi bridge and
-        // loads no `beforePacking` pnpmfiles, so the hook loop is a no-op.
-        before_packing_hooks: Vec::new(),
-        // Bit composes and injects changelogs itself; the pack bridge does not.
-        injected_files: Vec::new(),
-        output_locks: None,
-    };
+    let pack_opts = pack_options(options);
 
     let result = tokio::task::spawn_blocking(move || {
         // `api` is async; drive it to completion on this blocking-pool thread so
@@ -104,5 +82,43 @@ pub async fn pack(options: PackOptions, on_log: Option<LogSink>) -> napi::Result
         Err(join_error) => Err(napi::Error::from_reason(format!(
             "pack task panicked or was cancelled: {join_error}",
         ))),
+    }
+}
+
+fn pack_options(options: PackOptions) -> pnpm_pack::PackOptions {
+    pnpm_pack::PackOptions {
+        dir: PathBuf::from(&options.dir),
+        workspace_dir: options.workspace_dir.map(PathBuf::from),
+        scripts: pnpm_pack::PackScripts {
+            ignore: options.ignore_scripts.unwrap_or(false),
+            unsafe_perm: false,
+            user_agent: format!("pnpm/{PNPM_VERSION} napi"),
+            extra_bin_paths: options.extra_bin_paths
+                .unwrap_or_default()
+                .into_iter()
+                .map(PathBuf::from)
+                .collect(),
+            extra_env: options.extra_env.unwrap_or_default(),
+        },
+        manifest: pnpm_pack::PackManifestOptions {
+            // Bit does not use catalog: specifiers; workspace catalog loading is
+            // deferred until a consumer needs it. See pnpm/plans/NAPI.md.
+            catalogs: Catalogs::default(),
+            embed_readme: options.embed_readme.unwrap_or(false),
+            node_linker: NodeLinker::default(),
+            skip_obfuscation: false,
+            // Bit drives its own `readPackage` hook through the napi bridge and
+            // loads no `beforePacking` pnpmfiles, so the hook loop is a no-op.
+            before_packing_hooks: Vec::new(),
+        },
+        output: pnpm_pack::PackOutputOptions {
+            gzip_level: options.pack_gzip_level,
+            dry_run: options.dry_run.unwrap_or(false),
+            destination: options.pack_destination,
+            out: options.out,
+            // Bit composes and injects changelogs itself; the pack bridge does not.
+            injected_files: Vec::new(),
+            locks: None,
+        },
     }
 }

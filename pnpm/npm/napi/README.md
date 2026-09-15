@@ -102,12 +102,13 @@ The addon ships as prebuilt per-platform packages, the same model as the
   `@pnpm/napi.<platform>` optional dependency, then a local build.
 - CI cross-compiles the addon per target (`napi build --release --target
   <rust-triple>`), uploads each as `pnpm-napi.<codeTarget>.node` at the repo
-  root, then runs `scripts/generate-packages.mjs` to produce the eight
-  `@pnpm/napi.<platform>` packages and wire them as this wrapper's
-  `optionalDependencies`.
+  root, then runs `scripts/generate-packages.mjs` to produce the
+  `@pnpm/napi.<platform>` packages listed below and wire them as this
+  wrapper's `optionalDependencies`.
 
 Supported targets: `win32-x64`, `win32-arm64`, `darwin-x64`, `darwin-arm64`,
-`linux-x64`, `linux-arm64`, `linux-x64-musl`, `linux-arm64-musl`.
+`linux-x64`, `linux-arm64`, `linux-riscv64`, `linux-ppc64`, `linux-s390x`,
+`linux-x64-musl`, `linux-arm64-musl`, `freebsd-x64`, `android-arm64`, `android-x64`.
 
 ## Local development
 

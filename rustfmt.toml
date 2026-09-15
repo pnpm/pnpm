@@ -2,6 +2,11 @@
 # This is also the setting used by [rustc](https://github.com/rust-lang/rust/blob/c7fe5e9d1e/rustfmt.toml)
 use_small_heuristics = "Max"
 
+chain_complexity_layout = true
+chain_width = 40
+chain_head_width = 80
+struct_pattern_width = 35
+
 # Use field initialize shorthand if possible
 use_field_init_shorthand = true
 

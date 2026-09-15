@@ -1,17 +1,17 @@
+use crate::{State, cli_args::ignored_builds::get_automatically_ignored_builds};
 use clap::Args;
 use derive_more::{Display, Error};
 use dialoguer::{Confirm, MultiSelect};
 use miette::{Diagnostic, IntoDiagnostic};
 use pnpm_config::Config;
 use pnpm_modules_yaml::{Host, write_modules_manifest};
-use pnpm_package_manager::allow_build_key_from_ignored_build;
+use pnpm_package_manager::{allow_build_key_from_ignored_build, parse_allow_build_selector};
+use pnpm_reporter::{Reporter, emit_global_warning};
 use pnpm_workspace_manifest_writer::set_allow_builds_clearing_legacy;
 use std::{
     collections::{BTreeMap, HashSet},
     path::Path,
 };
-
-use crate::{State, cli_args::ignored_builds::get_automatically_ignored_builds};
 
 /// Approve dependencies for running scripts during installation.
 #[derive(Debug, Args)]
@@ -37,9 +37,11 @@ enum ApproveBuildsError {
     #[diagnostic(code(ERR_PNPM_APPROVE_BUILDS_ALL_WITH_ARGS))]
     AllWithArgs,
 
-    #[display("The following packages are not awaiting approval: {}", _0.join(", "))]
-    #[diagnostic(code(ERR_PNPM_APPROVE_BUILDS_UNKNOWN_PACKAGES))]
-    UnknownPackages(#[error(not(source))] Vec<String>),
+    #[display(
+        "A package name is missing from the arguments. Please specify the package name(s) to approve (`<pkg>`) or deny (`!<pkg>`)."
+    )]
+    #[diagnostic(code(ERR_PNPM_APPROVE_BUILDS_MISSING_PACKAGE))]
+    MissingPackage,
 
     #[display("The following packages are both approved and denied: {}", _0.join(", "))]
     #[diagnostic(code(ERR_PNPM_APPROVE_BUILDS_CONTRADICTING_ARGS))]
@@ -65,7 +67,7 @@ impl ApproveBuildsArgs {
     /// reflects the just-written `allowBuilds`. `dir` is the canonicalized
     /// `--dir`, the fallback settings target when no `pnpm-workspace.yaml`
     /// is found.
-    pub fn prepare(
+    pub fn prepare<Reporter: self::Reporter>(
         self,
         dir: &Path,
         config: &(dyn Fn() -> miette::Result<&'static mut Config> + Sync),
@@ -74,11 +76,12 @@ impl ApproveBuildsArgs {
         self.validate()?;
         let initial_config: &Config = config()?;
         let scan = get_automatically_ignored_builds(initial_config)?;
-        let Some(pending) = scan.names.filter(|names| !names.is_empty()) else {
+        let pending = scan.names.unwrap_or_default();
+        if pending.is_empty() && self.packages.is_empty() {
             println!("There are no packages awaiting approval");
             return Ok(None);
-        };
-        let Some(decision) = self.decide(&pending)? else {
+        }
+        let Some(decision) = self.decide::<Reporter>(&pending)? else {
             return Ok(None);
         };
 
@@ -87,17 +90,42 @@ impl ApproveBuildsArgs {
         write_approval_settings(&settings_dir, &decision)?;
         clear_decided_ignored_builds(scan.modules_manifest, &scan.modules_dir, &decision)?;
 
-        if decision.build_packages.is_empty() {
+        // Only a package that was awaiting approval has something to
+        // rebuild. A pre-emptive approval names a package that is not
+        // installed yet, and rebuilding for it would demand a lockfile the
+        // project may not have.
+        let build_packages: Vec<String> = decision.build_packages
+            .into_iter()
+            .filter(|name| pending.contains(name))
+            .collect();
+        if build_packages.is_empty() {
             return Ok(None);
         }
-        Ok(Some((state(true)?, decision.build_packages)))
+        Ok(Some((state(true)?, build_packages)))
     }
 
-    pub(crate) fn decide(self, pending: &[String]) -> miette::Result<Option<ApprovalDecision>> {
+    pub(crate) fn decide<Reporter: self::Reporter>(
+        self,
+        pending: &[String],
+    ) -> miette::Result<Option<ApprovalDecision>> {
         self.validate()?;
         let ApproveBuildsArgs { packages, all, global: _ } = self;
 
-        let (approved, denied) = partition_params(&packages, pending)?;
+        let Partition { approved, denied, unknown } = partition_params(&packages, pending);
+        if !unknown.is_empty() {
+            emit_global_warning::<Reporter>(&format!(
+                "The following packages are not awaiting approval: {}",
+                unknown.join(", "),
+            ));
+        }
+        let contradictions: Vec<String> = approved
+            .iter()
+            .filter(|pkg| denied.contains(pkg))
+            .cloned()
+            .collect();
+        if !contradictions.is_empty() {
+            return Err(ApproveBuildsError::ContradictingArgs(contradictions).into());
+        }
         let build_packages: Vec<String> = if !packages.is_empty() {
             sort_unique(approved.clone())
         } else if all {
@@ -109,26 +137,19 @@ impl ApproveBuildsArgs {
             selected
         };
 
-        let mut decisions: BTreeMap<String, bool> = BTreeMap::new();
-        if packages.is_empty() {
-            for pkg in pending {
-                decisions.insert(pkg.clone(), build_packages.contains(pkg));
-            }
+        let decisions = if packages.is_empty() {
+            pending
+                .iter()
+                .map(|pkg| (pkg.clone(), build_packages.contains(pkg)))
+                .collect()
         } else {
-            for pkg in &approved {
-                decisions.insert(pkg.clone(), true);
-            }
-            for pkg in &denied {
-                decisions.insert(pkg.clone(), false);
-            }
-        }
+            named_decisions(&approved, &denied)
+        };
 
-        if !all && packages.is_empty() {
-            if build_packages.is_empty() {
-                println!("All packages were added to allowBuilds with value false.");
-            } else if !confirm_builds(&build_packages)? {
-                return Ok(None);
-            }
+        // Only the interactive path asks for confirmation: named
+        // packages and `--all` are the answer already.
+        if !all && packages.is_empty() && !confirm_selected_builds(&build_packages)? {
+            return Ok(None);
         }
 
         Ok(Some(ApprovalDecision { build_packages, decisions, clear_all: packages.is_empty() }))
@@ -138,8 +159,37 @@ impl ApproveBuildsArgs {
         if self.all && !self.packages.is_empty() {
             return Err(ApproveBuildsError::AllWithArgs.into());
         }
+        if self.packages
+            .iter()
+            .any(|param| parse_allow_build_selector(param).0.is_empty())
+        {
+            return Err(ApproveBuildsError::MissingPackage.into());
+        }
         Ok(())
     }
+}
+
+/// The per-package verdicts of a run that named its packages.
+fn named_decisions(approved: &[String], denied: &[String]) -> BTreeMap<String, bool> {
+    approved
+        .iter()
+        .map(|pkg| (pkg.clone(), true))
+        .chain(
+            denied
+                .iter()
+                .map(|pkg| (pkg.clone(), false)),
+        )
+        .collect()
+}
+
+/// Whether the interactive run may proceed. An empty selection needs no
+/// confirmation — it denies every pending package.
+fn confirm_selected_builds(build_packages: &[String]) -> miette::Result<bool> {
+    if build_packages.is_empty() {
+        println!("All packages were added to allowBuilds with value false.");
+        return Ok(true);
+    }
+    confirm_builds(build_packages)
 }
 
 pub(crate) fn write_approval_settings(
@@ -148,39 +198,45 @@ pub(crate) fn write_approval_settings(
 ) -> miette::Result<()> {
     set_allow_builds_clearing_legacy(
         settings_dir,
-        decision.decisions.iter().map(|(pkg, &value)| (pkg.as_str(), value)),
+        decision.decisions
+            .iter()
+            .map(|(pkg, &value)| (pkg.as_str(), value)),
     )
     .into_diagnostic()
 }
 
+/// The names an `approve-builds` argument list decides, split by verdict.
+///
+/// A name that is not awaiting approval lands in `unknown` as well as in
+/// its verdict: pre-emptive decisions are recorded, but a typo is worth a
+/// warning because it silently allows or denies a package that will never
+/// be installed under that name.
+#[derive(Debug, Default)]
+struct Partition {
+    approved: Vec<String>,
+    denied: Vec<String>,
+    unknown: Vec<String>,
+}
+
 /// Split `params` into approved (`<pkg>`) and denied (`!<pkg>`) names,
-/// validating each is awaiting approval and that none is both.
-fn partition_params(
-    params: &[String],
-    automatically_ignored_builds: &[String],
-) -> Result<(Vec<String>, Vec<String>), ApproveBuildsError> {
-    let mut approved = Vec::new();
-    let mut denied = Vec::new();
-    let mut unknown = Vec::new();
+/// collecting the ones that are not awaiting approval.
+fn partition_params(params: &[String], automatically_ignored_builds: &[String]) -> Partition {
+    let mut partition = Partition::default();
     for param in params {
-        let name = param.strip_prefix('!').unwrap_or(param);
-        if !automatically_ignored_builds.iter().any(|build| build == name) {
-            unknown.push(name.to_string());
-        } else if param.starts_with('!') {
-            denied.push(name.to_string());
+        let (name, allowed) = parse_allow_build_selector(param);
+        if !automatically_ignored_builds
+            .iter()
+            .any(|build| build == name)
+        {
+            partition.unknown.push(name.to_string());
+        }
+        if allowed {
+            partition.approved.push(name.to_string());
         } else {
-            approved.push(name.to_string());
+            partition.denied.push(name.to_string());
         }
     }
-    if !unknown.is_empty() {
-        return Err(ApproveBuildsError::UnknownPackages(unknown));
-    }
-    let contradictions: Vec<String> =
-        approved.iter().filter(|pkg| denied.contains(pkg)).cloned().collect();
-    if !contradictions.is_empty() {
-        return Err(ApproveBuildsError::ContradictingArgs(contradictions));
-    }
-    Ok((approved, denied))
+    partition
 }
 
 /// Show the checkbox prompt and return the chosen package names, or `None`
@@ -195,9 +251,12 @@ fn prompt_for_builds(
         .interact_opt()
         .into_diagnostic()?
     {
-        Some(indices) => {
-            Ok(Some(indices.into_iter().map(|index| choices[index].clone()).collect()))
-        }
+        Some(indices) => Ok(Some(
+            indices
+                .into_iter()
+                .map(|index| choices[index].clone())
+                .collect(),
+        )),
         None => Ok(None),
     }
 }
@@ -233,7 +292,10 @@ pub(crate) fn clear_decided_ignored_builds(
     if decision.clear_all {
         modules.ignored_builds = None;
     } else {
-        let decided: HashSet<&str> = decision.decisions.keys().map(String::as_str).collect();
+        let decided: HashSet<&str> = decision.decisions
+            .keys()
+            .map(String::as_str)
+            .collect();
         if let Some(ignored) = modules.ignored_builds.as_mut() {
             ignored.retain(|dep_path| {
                 !decided.contains(allow_build_key_from_ignored_build(dep_path.as_str()).as_str())
@@ -251,10 +313,10 @@ pub(crate) fn clear_decided_ignored_builds(
 
 /// Deduplicate and sort `names` by code unit, matching pnpm's
 /// `sortUniqueStrings` (a `Set` then `lexCompare`).
-fn sort_unique(names: Vec<String>) -> Vec<String> {
-    let mut unique: Vec<String> = names.into_iter().collect::<HashSet<_>>().into_iter().collect();
-    unique.sort();
-    unique
+fn sort_unique(mut names: Vec<String>) -> Vec<String> {
+    names.sort();
+    names.dedup();
+    names
 }
 
 #[cfg(test)]

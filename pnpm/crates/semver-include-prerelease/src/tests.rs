@@ -92,6 +92,18 @@ fn matches_npm_semver_under_include_prerelease() {
         ("<19", "18.1.0-rc.1", true),
         ("<19", "19.0.0", false),
         ("<19", "19.0.0-rc.1", false),
+        ("<18.1", "17.9.9", true),
+        ("<18.1", "18.0.0", true),
+        ("<18.1", "18.0.0-rc.1", true),
+        ("<18.1", "18.1.0-rc.1", false),
+        ("<18.1", "19.0.0", false),
+        ("<18.1", "19.0.0-rc.1", false),
+        ("<18.x", "17.9.9", true),
+        ("<18.x", "18.0.0", false),
+        ("<18.x", "18.0.0-rc.1", false),
+        ("<18.x", "18.1.0-rc.1", false),
+        ("<18.x", "19.0.0", false),
+        ("<18.x", "19.0.0-rc.1", false),
         ("<=18", "17.9.9", true),
         ("<=18", "18.0.0", true),
         ("<=18", "18.0.0-rc.1", true),
@@ -194,9 +206,8 @@ fn matches_npm_semver_under_include_prerelease() {
 
 /// A peer range reaches this evaluator straight from a manifest, which
 /// can name a component larger than any parser accepts. npm rejects the
-/// whole range and reports no match; rewriting the bound is skipped
-/// rather than overflowed, and the comparator no parser accepts drops
-/// its alternative to the same answer.
+/// whole range and reports no match; a comparator `node_semver` cannot
+/// parse drops its alternative to the same answer.
 #[test]
 fn matches_nothing_when_a_bound_names_an_out_of_range_component() {
     for range in ["<=18446744073709551615", "<=18.18446744073709551615"] {

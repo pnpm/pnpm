@@ -1,3 +1,7 @@
+pub(super) use tarball_router::TarballRouter;
+
+mod tarball_router;
+
 use std::{collections::HashMap, sync::Arc};
 
 use axum::{
@@ -7,190 +11,18 @@ use axum::{
 };
 use pnpm_config::Config as PacquetConfig;
 use pnpm_lockfile::{
-    Lockfile, LockfileResolution, TarballResolution, TarballRevision, is_git_hosted_tarball_url,
-    pick_registry_for_package,
+    Lockfile, LockfileResolution, PackageKey, PackageMetadata, TarballResolution, TarballRevision,
+    is_git_hosted_tarball_url, pick_registry_for_package,
 };
 use pnpm_package_manager::{ResolvedPackageHint, tarball_url_and_integrity};
 use pnpm_resolving_npm_resolver::ObservedDistStats;
 use pnpm_resolving_resolver_base::PackageVersionGuard;
 
 use pnpr_osv::{OsvIndex, format_advisory_ids};
-use pnpr_package_name::PackageName;
+use pnpr_package_name::CanonicalPackageName;
 use pnpr_policy::Identity;
 use pnpr_route::{RouteClass, RouteContext, sanitize_registry_tarball_url, strip_url_credentials};
 use pnpr_upstream::tarball_basename;
-
-#[derive(Clone)]
-pub(super) struct TarballRouter {
-    context: Arc<RouteContext>,
-    identity: Identity,
-    public_url: String,
-    /// Per-scope registry map (`scope -> registry URL`, plus the default) used
-    /// to classify a registry-resolved package by its *registry* route rather
-    /// than its `dist.tarball` host. See [`Self::route_registry_url`].
-    registries: HashMap<String, String>,
-}
-
-impl TarballRouter {
-    pub(super) fn new(
-        context: Arc<RouteContext>,
-        identity: Identity,
-        public_url: String,
-        registries: HashMap<String, String>,
-    ) -> Self {
-        Self { context, identity, public_url, registries }
-    }
-
-    /// Route a registry-resolved package's tarball by the **registry** it came
-    /// from, not its `dist.tarball` URL. A split-domain registry serves the
-    /// tarball from a different host than the packument, so classifying by the
-    /// tarball URL would misread a private package as public and leak its raw
-    /// upstream URL. Classifying by the registry origin keeps a private
-    /// package on its `/~<name>/` endpoint; a public one still emits its real
-    /// (anonymously fetchable) tarball URL for a direct CDN download.
-    fn route_registry_url(&self, package: &str, version: &str, tarball_url: &str) -> String {
-        let registry = pick_registry_for_package(&self.registries, package, None);
-        match self.context.classify(&self.identity, &registry, Some(package)) {
-            // The `dist.tarball` is untrusted upstream metadata, so sanitize it
-            // before emitting/caching: drop inline `user:pass@host` userinfo and
-            // any query/fragment a registry could use to carry a signed-URL
-            // token. A genuinely public tarball is anonymously fetchable, so the
-            // sanitized URL still works.
-            RouteClass::Public => sanitize_registry_tarball_url(tarball_url),
-            RouteClass::Hosted { .. } => pnpr_tarball_url(
-                &self.public_url,
-                package,
-                &tarball_filename(package, version, tarball_url),
-            ),
-            RouteClass::Proxied { alias, .. } => upstream_endpoint_tarball_url(
-                &self.public_url,
-                &alias,
-                package,
-                &tarball_filename(package, version, tarball_url),
-            ),
-        }
-    }
-
-    pub(super) fn route_lockfile(&self, config: &PacquetConfig, lockfile: &Lockfile) -> Lockfile {
-        let mut routed = lockfile.clone();
-        let Some(packages) = routed.packages.as_mut() else {
-            return routed;
-        };
-        for (package_key, metadata) in packages {
-            if !matches!(
-                metadata.resolution,
-                LockfileResolution::Registry(_) | LockfileResolution::Tarball(_),
-            ) {
-                continue;
-            }
-            // A resolution that pins no integrity keeps its original URL:
-            // routing it through the endpoint would hand the client a
-            // mirrored tarball it has no hash to check.
-            let Ok((tarball_url, Some(integrity))) =
-                tarball_url_and_integrity(&metadata.resolution, package_key, config)
-            else {
-                continue;
-            };
-            if !is_http_tarball_url(&tarball_url) || is_git_hosted_tarball_url(&tarball_url) {
-                continue;
-            }
-            let name = package_key.name.to_string();
-            let version = package_key.suffix.version().to_string();
-            let routed_url = self.route_url(&name, &version, &tarball_url);
-            if routed_url == tarball_url.as_ref() {
-                continue;
-            }
-            metadata.resolution = LockfileResolution::Tarball(TarballResolution {
-                tarball: routed_url,
-                integrity: Some(integrity.clone()),
-                revision: None,
-                git_hosted: None,
-                path: None,
-            });
-        }
-        routed
-    }
-
-    pub(super) fn verification_lockfile(&self, lockfile: &Lockfile) -> Lockfile {
-        let mut upstream = lockfile.clone();
-        let Some(packages) = upstream.packages.as_mut() else {
-            return upstream;
-        };
-        for metadata in packages.values_mut() {
-            let LockfileResolution::Tarball(resolution) = &mut metadata.resolution else {
-                continue;
-            };
-            if let Some(tarball_url) = self.upstream_endpoint_tarball_url(&resolution.tarball) {
-                resolution.tarball = tarball_url;
-            }
-        }
-        upstream
-    }
-
-    fn route_url(&self, package: &str, version: &str, tarball_url: &str) -> String {
-        match self.context.classify(&self.identity, tarball_url, Some(package)) {
-            // A public route keeps its upstream URL: it was fetched
-            // anonymously, so its tarball is anonymously fetchable and pnpr
-            // never mints a per-tarball gateway URL. Any inline userinfo a
-            // malicious/compromised registry embedded in `dist.tarball` is
-            // stripped first, so pnpr never streams or caches it.
-            RouteClass::Public => strip_url_credentials(tarball_url),
-            RouteClass::Hosted { .. } => pnpr_tarball_url(
-                &self.public_url,
-                package,
-                &tarball_filename(package, version, tarball_url),
-            ),
-            RouteClass::Proxied { alias, .. } => upstream_endpoint_tarball_url(
-                &self.public_url,
-                &alias,
-                package,
-                &tarball_filename(package, version, tarball_url),
-            ),
-        }
-    }
-
-    /// Reverse a `/~<name>/<pkg>/-/<file>` endpoint tarball URL back to its
-    /// upstream URL so an input lockfile carrying endpoint URLs can be verified
-    /// against the real registry. Returns `None` for any other URL, and for an
-    /// endpoint the caller is not authorized for (so verification cannot be
-    /// used as an oracle for an upstream the caller cannot reach).
-    fn upstream_endpoint_tarball_url(&self, tarball_url: &str) -> Option<String> {
-        let prefix = format!("{}/~", self.public_url.trim_end_matches('/'));
-        let route = tarball_url.strip_prefix(&prefix)?;
-        let (upstream, rest) = route.split_once('/')?;
-        let registry = self.context.upstream_registry(&self.identity, upstream)?;
-        Some(format!("{}/{rest}", registry.trim_end_matches('/')))
-    }
-}
-
-fn tarball_filename(package: &str, version: &str, tarball_url: &str) -> String {
-    tarball_basename(tarball_url).map_or_else(
-        || {
-            PackageName::parse(package).map_or_else(
-                |_| format!("{package}-{version}.tgz"),
-                |name| name.tarball_name_for_version(version),
-            )
-        },
-        str::to_string,
-    )
-}
-
-fn pnpr_tarball_url(public_url: &str, package: &str, filename: &str) -> String {
-    format!("{}/{package}/-/{filename}", public_url.trim_end_matches('/'))
-}
-
-/// The `/~<name>/<package>/-/<filename>` registry-endpoint URL a proxied
-/// route's tarball is served through. Canonical for a client whose scope is
-/// configured at `https://<pnpr>/~<name>/`, so the lockfile entry collapses
-/// to integrity-only; the upstream URL and credential stay server-side.
-fn upstream_endpoint_tarball_url(
-    public_url: &str,
-    upstream: &str,
-    package: &str,
-    filename: &str,
-) -> String {
-    format!("{}/~{upstream}/{package}/-/{filename}", public_url.trim_end_matches('/'))
-}
 
 /// NDJSON content type for the `/-/pnpr/v0/resolve` response. One JSON object
 /// per line; the client parses frames as they arrive. Excluded from the
@@ -233,15 +65,15 @@ pub(super) fn package_frame(
     // — route it by the registry, not the tarball host, so a private package
     // never leaks its raw upstream URL. Direct tarball deps keep their own URL.
     let tarball_url = if hint.from_registry {
-        router.route_registry_url(hint.name, hint.version, hint.tarball_url)
+        router.route_registry_url(hint.identity.name, hint.identity.version, hint.tarball_url)
     } else {
-        router.route_url(hint.name, hint.version, hint.tarball_url)
+        router.route_url(hint.identity.name, hint.identity.version, hint.tarball_url)
     };
     let mut frame = serde_json::json!({
         "type": "package",
-        "id": hint.id,
-        "name": hint.name,
-        "version": hint.version,
+        "id": hint.identity.id,
+        "name": hint.identity.name,
+        "version": hint.identity.version,
         "integrity": hint.integrity,
         "tarball": tarball_url,
     });
@@ -284,62 +116,105 @@ pub(super) fn frozen_package_frames(
     let mut seen_urls = std::collections::HashSet::new();
     let mut frames = Vec::new();
     for (package_key, snapshot) in packages {
-        if !matches!(
-            snapshot.resolution,
-            LockfileResolution::Registry(_) | LockfileResolution::Tarball(_),
+        if let Some(line) = frozen_package_frame(
+            FrozenFrameInputs { config, router, dist_stats, package_key, snapshot },
+            &mut seen_urls,
         ) {
-            continue;
-        }
-        // The frame carries the integrity the client prefetches against;
-        // an entry that pins none has no frame to announce.
-        let Ok((tarball_url, Some(integrity))) =
-            tarball_url_and_integrity(&snapshot.resolution, package_key, config)
-        else {
-            continue;
-        };
-        let name = package_key.name.to_string();
-        let version = package_key.suffix.version().to_string();
-        let upstream_tarball_url = tarball_url;
-        let tarball_url = router.route_url(&name, &version, &upstream_tarball_url);
-        if !seen_urls.insert(tarball_url.clone()) {
-            continue;
-        }
-        let id = format!("{name}@{version}");
-        let integrity = integrity.to_string();
-        let revision = if tarball_url == upstream_tarball_url {
-            match &snapshot.resolution {
-                LockfileResolution::Tarball(tarball) => tarball.revision.map(TarballRevision::get),
-                LockfileResolution::Registry(registry) => {
-                    registry.revision.map(TarballRevision::get)
-                }
-                _ => None,
-            }
-        } else {
-            None
-        };
-        let stats = dist_stats.get(&(name.clone(), version.clone())).map(|entry| *entry.value());
-        let frame = package_frame(
-            router,
-            &ResolvedPackageHint {
-                id: &id,
-                name: &name,
-                version: &version,
-                integrity: &integrity,
-                tarball_url: &tarball_url,
-                unpacked_size: stats.and_then(|stats| stats.unpacked_size),
-                file_count: stats.and_then(|stats| stats.file_count),
-                revision,
-                // The URL is already routed (canonical → endpoint above), so
-                // re-routing by registry would be redundant; route_url is a
-                // no-op on an already-routed URL.
-                from_registry: false,
-            },
-        );
-        if let Ok(line) = ndjson_line(&frame) {
             frames.push(line);
         }
     }
     frames
+}
+
+#[derive(Clone, Copy)]
+struct FrozenFrameInputs<'a> {
+    config: &'a PacquetConfig,
+    router: &'a TarballRouter,
+    dist_stats: &'a ObservedDistStats,
+    package_key: &'a PackageKey,
+    snapshot: &'a PackageMetadata,
+}
+
+/// The `package` frame for one frozen lockfile entry, or `None` when the
+/// entry is not a registry or tarball package or its URL was announced
+/// already.
+fn frozen_package_frame(
+    inputs: FrozenFrameInputs<'_>,
+    seen_urls: &mut std::collections::HashSet<String>,
+) -> Option<Vec<u8>> {
+    if !matches!(
+        inputs.snapshot.resolution,
+        LockfileResolution::Registry(_) | LockfileResolution::Tarball(_),
+    ) {
+        return None;
+    }
+    // The frame carries the integrity the client prefetches against;
+    // an entry that pins none has no frame to announce.
+    let Ok((tarball_url, Some(integrity))) =
+        tarball_url_and_integrity(&inputs.snapshot.resolution, inputs.package_key, inputs.config)
+    else {
+        return None;
+    };
+    let name = inputs.package_key.name.to_string();
+    let version = inputs.package_key.suffix.version().to_string();
+    let upstream_tarball_url = tarball_url;
+    let tarball_url = inputs.router.route_url(&name, &version, &upstream_tarball_url);
+    if !seen_urls.insert(tarball_url.clone()) {
+        return None;
+    }
+    let id = format!("{name}@{version}");
+    let integrity = integrity.to_string();
+    let revision =
+        pnpr_served_revision(&inputs.snapshot.resolution, &tarball_url, &upstream_tarball_url);
+    let (unpacked_size, file_count) = frozen_dist_stats(inputs.dist_stats, &name, &version);
+    let frame = package_frame(
+        inputs.router,
+        &ResolvedPackageHint {
+            integrity: &integrity,
+            tarball_url: &tarball_url,
+            unpacked_size,
+            file_count,
+            revision,
+            // The URL is already routed (canonical → endpoint above), so
+            // re-routing by registry would be redundant; route_url is a
+            // no-op on an already-routed URL.
+            from_registry: false,
+            identity: pnpm_package_manager::ResolvedPackageIdentity {
+                id: &id,
+                name: &name,
+                version: &version,
+            },
+        },
+    );
+    ndjson_line(&frame).ok()
+}
+
+fn frozen_dist_stats(
+    stats: &ObservedDistStats,
+    name: &str,
+    version: &str,
+) -> (Option<usize>, Option<usize>) {
+    stats
+        .get(&(name.to_string(), version.to_string()))
+        .map_or((None, None), |entry| (entry.unpacked_size, entry.file_count))
+}
+
+/// The tarball revision a frame announces. Only a URL still pointing at the
+/// upstream carries one: a routed URL is served by pnpr, which addresses the
+/// tarball by integrity rather than by revision.
+fn pnpr_served_revision(
+    resolution: &LockfileResolution,
+    tarball_url: &str,
+    upstream_tarball_url: &str,
+) -> Option<u64> {
+    if tarball_url != upstream_tarball_url {
+        return None;
+    }
+    match resolution {
+        LockfileResolution::Tarball(tarball) => tarball.revision.map(TarballRevision::get),
+        LockfileResolution::Registry(registry) => registry.revision.map(TarballRevision::get),
+        _ => None,
+    }
 }
 
 /// Terminal `done` frame: the full resolved lockfile + stats. The client
@@ -351,9 +226,35 @@ pub(super) fn done_frame(lockfile: &Lockfile) -> Vec<u8> {
         "lockfile": serde_json::to_value(lockfile).unwrap_or(serde_json::Value::Null),
         "stats": { "totalPackages": total_packages },
     });
-    ndjson_line(&frame).unwrap_or_else(|_| {
-        br#"{"type":"error","message":"failed to serialize lockfile"}"#.to_vec()
-    })
+    ndjson_line(&frame)
+        .unwrap_or_else(|_| {
+            br#"{"type":"error","message":"failed to serialize lockfile"}"#.to_vec()
+        })
+}
+
+/// Terminal `done` frame of a Cargo resolve: the rendered `Cargo.lock`
+/// the client writes verbatim. Cargo's lockfile is a TOML document rather
+/// than a structure the server rewrites, so it rides the frame as text.
+pub(super) fn cargo_done_frame(lockfile: &str) -> Vec<u8> {
+    let frame = serde_json::json!({ "type": "done", "lockfile": lockfile });
+    ndjson_line(&frame)
+        .unwrap_or_else(|_| {
+            br#"{"type":"error","message":"failed to serialize lockfile"}"#.to_vec()
+        })
+}
+
+/// Terminal `done` frame of a Python resolve: the `pylock.toml` document
+/// the client writes. It rides the frame as JSON, which is the shape the
+/// client's own lockfile type reads.
+pub(super) fn pypi_done_frame(lockfile: &pnpm_python_resolver::Lockfile) -> Vec<u8> {
+    let Ok(lockfile) = serde_json::to_value(lockfile) else {
+        return br#"{"type":"error","message":"failed to serialize lockfile"}"#.to_vec();
+    };
+    let frame = serde_json::json!({ "type": "done", "lockfile": lockfile });
+    ndjson_line(&frame)
+        .unwrap_or_else(|_| {
+            br#"{"type":"error","message":"failed to serialize lockfile"}"#.to_vec()
+        })
 }
 
 /// Terminal `error` frame for a resolution that aborted mid-stream,
@@ -413,22 +314,7 @@ pub(super) fn osv_violations_for_lockfile(
         }
         let name = package_key.name.to_string();
         let version = package_key.suffix.version().to_string();
-        let mut ids = index.vulnerability_ids(&name, &version);
-        // For a tarball resolution the fetched artifact's identity is its
-        // URL, not the lockfile key. Under `trustLockfile` a tampered
-        // lockfile could key a safe `name@version` while pointing the
-        // tarball at a vulnerable artifact, so also screen the version in
-        // the tarball filename. This is additive — a mismatch alone is
-        // never a violation (custom registries may name tarballs
-        // differently), only an actually-vulnerable version is.
-        if let LockfileResolution::Tarball(tarball) = &snapshot.resolution
-            && let Some(url_version) = tarball_url_version(&tarball.tarball, &name)
-            && url_version != version
-        {
-            ids.extend(index.vulnerability_ids(&name, url_version));
-            ids.sort_unstable();
-            ids.dedup();
-        }
+        let ids = vulnerability_ids_for_entry(index, &snapshot.resolution, &name, &version);
         if ids.is_empty() {
             continue;
         }
@@ -451,13 +337,42 @@ pub(super) fn osv_violations_for_lockfile(
     violations
 }
 
+/// The advisory ids one lockfile entry matches.
+///
+/// For a tarball resolution the fetched artifact's identity is its URL, not the
+/// lockfile key. Under `trustLockfile` a tampered lockfile could key a safe
+/// `name@version` while pointing the tarball at a vulnerable artifact, so the
+/// version in the tarball filename is screened too. This is additive — a
+/// mismatch alone is never a violation (custom registries may name tarballs
+/// differently), only an actually-vulnerable version is.
+fn vulnerability_ids_for_entry(
+    index: &OsvIndex,
+    resolution: &LockfileResolution,
+    name: &str,
+    version: &str,
+) -> Vec<String> {
+    let mut ids = index.vulnerability_ids(name, version);
+    if let LockfileResolution::Tarball(tarball) = resolution
+        && let Some(url_version) = tarball_url_version(&tarball.tarball, name)
+        && url_version != version
+    {
+        ids.extend(index.vulnerability_ids(name, url_version));
+        ids.sort_unstable();
+        ids.dedup();
+    }
+    ids
+}
+
 /// Best-effort extraction of the version from a registry tarball URL of
 /// the conventional `<unscoped-name>-<version>.tgz` shape. Returns `None`
 /// for non-standard naming so a legitimate custom registry isn't
 /// misjudged. Never parses the URL strictly — the lockfile is untrusted.
 pub(super) fn tarball_url_version<'a>(url: &'a str, name: &str) -> Option<&'a str> {
     let last = url.rsplit('/').next()?;
-    let last = last.split(['?', '#']).next().unwrap_or(last);
+    let last = last
+        .split(['?', '#'])
+        .next()
+        .unwrap_or(last);
     let stem = strip_tarball_suffix(last)?;
     let unscoped = name.rsplit('/').next().unwrap_or(name);
     let version = stem.strip_prefix(unscoped)?.strip_prefix('-')?;
@@ -468,11 +383,13 @@ pub(super) fn tarball_url_version<'a>(url: &'a str, name: &str) -> Option<&'a st
 /// tampered lockfile can't dodge the URL-version cross-check with a
 /// `.TGZ` or `.tar.gz` variant. Returns `None` for any other suffix.
 fn strip_tarball_suffix(name: &str) -> Option<&str> {
-    [".tar.gz", ".tgz"].into_iter().find_map(|suffix| {
-        let head_len = name.len().checked_sub(suffix.len())?;
-        let (head, tail) = (name.get(..head_len)?, name.get(head_len..)?);
-        tail.eq_ignore_ascii_case(suffix).then_some(head)
-    })
+    [".tar.gz", ".tgz"]
+        .into_iter()
+        .find_map(|suffix| {
+            let head_len = name.len().checked_sub(suffix.len())?;
+            let (head, tail) = (name.get(..head_len)?, name.get(head_len..)?);
+            tail.eq_ignore_ascii_case(suffix).then_some(head)
+        })
 }
 
 pub(super) fn is_osv_checkable_resolution(resolution: &LockfileResolution) -> bool {
@@ -501,8 +418,12 @@ pub(super) fn is_osv_checkable_resolution(resolution: &LockfileResolution) -> bo
 /// uppercase scheme can't slip past) without allocating a lowercased copy.
 fn is_http_tarball_url(url: &str) -> bool {
     let bytes = url.as_bytes();
-    bytes.get(..8).is_some_and(|prefix| prefix.eq_ignore_ascii_case(b"https://"))
-        || bytes.get(..7).is_some_and(|prefix| prefix.eq_ignore_ascii_case(b"http://"))
+    bytes
+        .get(..8)
+        .is_some_and(|prefix| prefix.eq_ignore_ascii_case(b"https://"))
+        || bytes
+            .get(..7)
+            .is_some_and(|prefix| prefix.eq_ignore_ascii_case(b"http://"))
 }
 
 /// Serialize one frame to a newline-terminated NDJSON line.
@@ -543,7 +464,8 @@ pub(super) fn ndjson_stream_response(
     rx: tokio::sync::mpsc::UnboundedReceiver<Vec<u8>>,
 ) -> Response {
     let stream = futures_util::stream::unfold(rx, |mut rx| async move {
-        rx.recv().await.map(|line| (Ok::<_, std::io::Error>(axum::body::Bytes::from(line)), rx))
+        rx.recv().await
+            .map(|line| (Ok::<_, std::io::Error>(axum::body::Bytes::from(line)), rx))
     });
     Response::builder()
         .status(StatusCode::OK)

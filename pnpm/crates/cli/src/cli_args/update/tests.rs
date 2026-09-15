@@ -101,11 +101,15 @@ fn workspace_option_is_checked_before_anything_is_read() {
     let workspace_root = std::path::Path::new("/workspace");
 
     assert_eq!(
-        update_args(&[]).check_workspace_option(Some(workspace_root)).expect("no flag"),
+        update_args(&[])
+            .check_workspace_option(Some(workspace_root))
+            .expect("no flag"),
         None,
     );
     assert_eq!(
-        update_args(&["--workspace"]).check_workspace_option(Some(workspace_root)).expect("linked"),
+        update_args(&["--workspace"])
+            .check_workspace_option(Some(workspace_root))
+            .expect("linked"),
         Some(workspace_root),
     );
 
@@ -131,6 +135,23 @@ fn ignore_pnpmfile_flag_applies_to_config() {
 }
 
 #[test]
+fn ignore_scripts_flags_apply_to_config() {
+    let mut config = Config::default();
+    assert!(!config.ignore_scripts);
+
+    config.ignore_scripts = true;
+    update_args(&[]).apply_cli_config(&mut config);
+    assert!(config.ignore_scripts, "flags absent -> config unchanged");
+
+    config.ignore_scripts = false;
+    update_args(&["--ignore-scripts"]).apply_cli_config(&mut config);
+    assert!(config.ignore_scripts, "--ignore-scripts enables the setting");
+
+    update_args(&["--no-ignore-scripts"]).apply_cli_config(&mut config);
+    assert!(!config.ignore_scripts, "--no-ignore-scripts disables the setting");
+}
+
+#[test]
 fn pnpr_server_flag_applies_to_config() {
     let mut config = Config::default();
 
@@ -142,7 +163,7 @@ fn pnpr_server_flag_applies_to_config() {
 #[test]
 fn patches_is_a_selectorless_update_mode() {
     let patches = update_args(&["--patches"]);
-    assert!(patches.patches);
+    assert!(patches.selection.patches);
     patches.check_patches_options().expect("standalone --patches");
 
     for args in [

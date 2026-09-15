@@ -26,18 +26,19 @@ pub fn detect_dep_types(lockfile: &Lockfile) -> DepTypes {
     let group_dep_paths = |group: fn(
         &pnpm_lockfile::ProjectSnapshot,
     ) -> Option<&pnpm_lockfile::ResolvedDependencyMap>| {
-        lockfile
-            .importers
+        lockfile.importers
             .values()
             .filter_map(group)
             .flat_map(|deps| {
-                deps.iter().filter_map(|(alias, spec)| spec.version.resolved_key(alias))
+                deps.iter()
+                    .filter_map(|(alias, spec)| spec.version.resolved_key(alias))
             })
             .collect::<Vec<_>>()
     };
 
     let dev_dep_paths = group_dep_paths(|importer| importer.dev_dependencies.as_ref());
-    let optional_dep_paths = group_dep_paths(|importer| importer.optional_dependencies.as_ref());
+    let optional_dep_paths =
+        group_dep_paths(|importer| importer.optional_dependencies.as_ref());
     let prod_dep_paths = group_dep_paths(|importer| importer.dependencies.as_ref());
 
     detect_in_subgraph(&mut ctx, &dev_dep_paths, true);
@@ -65,26 +66,35 @@ fn detect_in_subgraph_at(ctx: &mut Ctx<'_>, dep_paths: &[PkgNameVerPeer], dev: b
         if !ctx.walked.insert((dep_path.clone(), dev)) {
             continue;
         }
-        let Some(snapshot) =
-            ctx.lockfile.snapshots.as_ref().and_then(|snapshots| snapshots.get(dep_path))
+        let Some(snapshot) = ctx.lockfile.snapshots
+            .as_ref()
+            .and_then(|snapshots| snapshots.get(dep_path))
         else {
             continue;
         };
-        if dev {
-            ctx.not_prod_only.insert(dep_path.clone());
-            ctx.dep_types.insert(dep_path.clone(), DepType::DevOnly);
-        } else if ctx.dep_types.get(dep_path) == Some(&DepType::DevOnly) {
-            ctx.dep_types.insert(dep_path.clone(), DepType::DevAndProd);
-        } else if !ctx.dep_types.contains_key(dep_path) && !ctx.not_prod_only.contains(dep_path) {
-            ctx.dep_types.insert(dep_path.clone(), DepType::ProdOnly);
-        }
-        for group in [&snapshot.dependencies, &snapshot.optional_dependencies] {
-            let child_paths: Vec<PkgNameVerPeer> = group
-                .iter()
+        record_dep_type(ctx, dep_path, dev);
+
+        let child_paths: Vec<PkgNameVerPeer> =
+            [&snapshot.dependencies, &snapshot.optional_dependencies]
+                .into_iter()
+                .flatten()
                 .flatten()
                 .filter_map(|(alias, dep_ref)| dep_ref.resolve(alias))
                 .collect();
-            detect_in_subgraph_at(ctx, &child_paths, dev, depth + 1);
-        }
+        detect_in_subgraph_at(ctx, &child_paths, dev, depth + 1);
+    }
+}
+
+/// Widen the package's recorded type for the subgraph it was reached from.
+/// A package reached both ways is `DevAndProd`; one reached only under a dev
+/// dependency stays `DevOnly` however often it is seen again.
+fn record_dep_type(ctx: &mut Ctx<'_>, dep_path: &PkgNameVerPeer, dev: bool) {
+    if dev {
+        ctx.not_prod_only.insert(dep_path.clone());
+        ctx.dep_types.insert(dep_path.clone(), DepType::DevOnly);
+    } else if ctx.dep_types.get(dep_path) == Some(&DepType::DevOnly) {
+        ctx.dep_types.insert(dep_path.clone(), DepType::DevAndProd);
+    } else if !ctx.dep_types.contains_key(dep_path) && !ctx.not_prod_only.contains(dep_path) {
+        ctx.dep_types.insert(dep_path.clone(), DepType::ProdOnly);
     }
 }

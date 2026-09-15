@@ -18,11 +18,14 @@ pub(crate) fn overlay_merged_selectors(
     opts: &ResolveOptions,
     name: &str,
 ) -> Option<VersionSelectors> {
-    let versions = opts.preferred_versions_overlay.as_ref()?.versions_for(name);
+    let versions = opts.version.preferred_versions_overlay.as_ref()?.versions_for(name);
     if versions.is_empty() {
         return None;
     }
-    let mut selectors = opts.preferred_versions.get(name).cloned().unwrap_or_default();
+    let mut selectors = opts.version.preferred_versions
+        .get(name)
+        .cloned()
+        .unwrap_or_default();
     for version in versions {
         selectors
             .entry(version.to_string())
@@ -100,7 +103,7 @@ fn held_back_preferred(
     meta: &Package,
     picked_version: &str,
 ) -> Option<String> {
-    if !opts.update_requested || spec.spec_type != RegistryPackageSpecType::Range {
+    if !opts.refresh.update_requested || spec.spec_type != RegistryPackageSpecType::Range {
         return None;
     }
     let selectors = selectors?;
@@ -114,9 +117,10 @@ fn held_back_preferred(
     // already succeeded on this metadata, which for an abbreviated
     // packument means every version cleared the cutoff, so `meta` is
     // the filtered view.
-    let baseline_meta: &Package = match opts.published_by {
+    let baseline_meta: &Package = match opts.policy.published_by {
         Some(cutoff) => {
-            view = apply_published_by_policy(meta, cutoff, opts.published_by_exclude.as_ref());
+            view =
+                apply_published_by_policy(meta, cutoff, opts.policy.published_by_exclude.as_ref());
             view.filtered.as_deref().unwrap_or(meta)
         }
         None => meta,
@@ -125,7 +129,7 @@ fn held_back_preferred(
         meta: baseline_meta,
         version_range: &spec.fetch_spec,
         preferred_version_selectors: (!non_pin_selectors.is_empty()).then_some(&non_pin_selectors),
-        published_by: opts.published_by,
+        published_by: opts.policy.published_by,
     })?;
     (preferred != picked_version).then_some(preferred)
 }

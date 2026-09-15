@@ -44,7 +44,7 @@ import type {
   StoreController,
 } from '@pnpm/store.controller-types'
 import { lexCompare } from '@pnpm/text.ordinal-comparator'
-import type { AllowBuild, AllowedDeprecatedVersions, DepPath, PackageManifest, PackageVersionPolicy, PkgIdWithPatchHash, RangeSpecStyle, ReadPackageHook, RegistryContext, SupportedArchitectures, TrustPolicy } from '@pnpm/types'
+import { type AllowBuild, type AllowedDeprecatedVersions, DEPENDENCIES_OR_PEER_FIELDS, type DepPath, type PackageManifest, type PackageVersionPolicy, type PkgIdWithPatchHash, type RangeSpecStyle, type ReadPackageHook, type RegistryContext, type SupportedArchitectures, type TrustPolicy } from '@pnpm/types'
 import normalizePath from 'normalize-path'
 import pDefer from 'p-defer'
 import { pathExists } from 'path-exists'
@@ -426,6 +426,12 @@ export async function resolveRootDependencies (
         for (const pkgAddress of importerResolutionResult.pkgAddresses) {
           parentPkgAliases[pkgAddress.alias] = true
         }
+        if (ctx.autoInstallPeers) {
+          importerResolutionResult.missingPeers = mergePkgsDeps([
+            importerResolutionResult.missingPeers,
+            collectMissingRequiredPeers(ctx, importerResolutionResult.pkgAddresses),
+          ], ctx)
+        }
         const missingOptionalPeers: Array<[string, MissingPeerInfo]> = []
         const missingRequiredPeers: Array<[string, MissingPeerInfo]> = []
         for (const [peerName, peerInfo] of Object.entries(importerResolutionResult.missingPeers ?? {})) {
@@ -793,6 +799,62 @@ async function resolveDependenciesOfImporterDependency (
   }
 
   return result
+}
+
+// Shared child resolution can omit peers supplied by another importer's ancestors.
+// Discover required peers from the graph without waiting on child-resolution promises.
+export function collectMissingRequiredPeers (
+  ctx: Pick<ResolutionContext, 'childrenByParentId' | 'autoInstallPeersFromHighestMatch'> & {
+    resolvedPkgsById: Record<PkgResolutionId, Pick<ResolvedPackage, 'peerDependencies'>>
+  },
+  roots: Array<Pick<PkgAddress, 'alias' | 'pkgId'>>
+): MissingPeers {
+  const rootAliases = new Set(roots.map(({ alias }) => alias))
+  const packages = new Map<PkgResolutionId, {
+    children: ChildrenByParentId[PkgResolutionId]
+    childAliases: Set<string>
+    requiredPeers: MissingPeers
+  }>()
+  const peerNames = new Set<string>()
+  const providedAliases = new Set<string>()
+  const pending = roots.map(({ pkgId }) => pkgId)
+  while (pending.length) {
+    const pkgId = pending.pop()!
+    if (packages.has(pkgId)) continue
+    const pkg = ctx.resolvedPkgsById[pkgId]
+    if (!pkg) continue
+    const children = ctx.childrenByParentId[pkgId] ?? []
+    const requiredPeers: MissingPeers = pickBy(({ optional }, name) => !optional && !rootAliases.has(name), getMissingPeers(pkg.peerDependencies))
+    packages.set(pkgId, { children, childAliases: new Set(children.map(({ alias }) => alias)), requiredPeers })
+    for (const name of Object.keys(requiredPeers)) peerNames.add(name)
+    for (const { alias, id } of children) {
+      providedAliases.add(alias)
+      pending.push(id)
+    }
+  }
+  const missingPeers: MissingPeers[] = []
+  for (const { requiredPeers } of packages.values()) {
+    missingPeers.push(pickBy((_, name) => !providedAliases.has(name), requiredPeers))
+  }
+  for (const peerName of peerNames) {
+    if (!providedAliases.has(peerName)) continue
+    const visited = new Set<PkgResolutionId>()
+    pending.push(...roots.map(({ pkgId }) => pkgId))
+    while (pending.length) {
+      const pkgId = pending.pop()!
+      if (visited.has(pkgId)) continue
+      visited.add(pkgId)
+      const pkg = packages.get(pkgId)
+      if (!pkg) continue
+      if (pkg.requiredPeers[peerName]) {
+        missingPeers.push({ [peerName]: pkg.requiredPeers[peerName] })
+      }
+      if (!pkg.childAliases.has(peerName)) {
+        for (const { id } of pkg.children) pending.push(id)
+      }
+    }
+  }
+  return mergePkgsDeps(missingPeers, ctx)
 }
 
 function filterMissingPeersFromPkgAddresses (
@@ -2090,10 +2152,7 @@ async function resolveDependency (
 
     let prepare!: boolean
     let hasBin!: boolean
-    let pkg: PackageManifest = getManifestFromResponse(pkgResponse, wantedDependency, currentPkg)
-    if (!pkg.dependencies) {
-      pkg.dependencies = {}
-    }
+    let pkg: PackageManifest = copyResolvedManifest(getManifestFromResponse(pkgResponse, wantedDependency, currentPkg))
     if (ctx.readPackageHook != null) {
       pkg = await ctx.readPackageHook(pkg)
     }
@@ -2373,6 +2432,36 @@ export function getManifestFromResponse (
     name: wantedDependency.alias ? wantedDependency.alias : wantedDependency.bareSpecifier.split('/').pop()!,
     version: '0.0.0',
   }
+}
+
+/**
+ * Returns a manifest that resolution may write to freely, leaving `manifest`
+ * untouched down to each `peerDependenciesMeta` entry. Every other field is
+ * shared with `manifest` and must stay read-only.
+ *
+ * The resolver returns the manifest object its metadata cache holds, so every
+ * dependency that resolves to the same package version is handed the same
+ * object. What resolution writes to it decides the isolation this owes:
+ * dependency and peer records are rewritten by the read-package hook, a
+ * `deprecated` notice is carried over from the lockfile, and an
+ * `engines.runtime` entry becomes a dependency. `dependencies` is present on
+ * the result whether or not the manifest declares it, since the peer handling
+ * and `convertEnginesRuntimeToDependencies` both write into it.
+ */
+function copyResolvedManifest (manifest: PackageManifest): PackageManifest {
+  const copy: PackageManifest = { ...manifest, dependencies: { ...manifest.dependencies } }
+  for (const depsField of DEPENDENCIES_OR_PEER_FIELDS) {
+    if (manifest[depsField] != null) {
+      copy[depsField] = { ...manifest[depsField] }
+    }
+  }
+  if (manifest.peerDependenciesMeta != null) {
+    copy.peerDependenciesMeta = {}
+    for (const [peerName, peerMeta] of Object.entries(manifest.peerDependenciesMeta)) {
+      copy.peerDependenciesMeta[peerName] = { ...peerMeta }
+    }
+  }
+  return copy
 }
 
 // The materialized peer set is used (not the manifest's raw peerDependencies)

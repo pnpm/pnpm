@@ -65,11 +65,14 @@ impl DeclaredNames {
     /// prod, prod over dev.
     fn of(manifest: &PackageManifest, auto_install_peers: bool) -> Self {
         let names_of = |group| {
-            manifest.dependencies([group]).filter_map(|(name, _)| PkgName::parse(name).ok())
+            manifest
+                .dependencies([group])
+                .filter_map(|(name, _)| PkgName::parse(name).ok())
         };
         let optional: HashSet<PkgName> = names_of(DependencyGroup::Optional).collect();
-        let mut prod: HashSet<PkgName> =
-            names_of(DependencyGroup::Prod).filter(|name| !optional.contains(name)).collect();
+        let mut prod: HashSet<PkgName> = names_of(DependencyGroup::Prod)
+            .filter(|name| !optional.contains(name))
+            .collect();
         let dev: HashSet<PkgName> = names_of(DependencyGroup::Dev)
             .filter(|name| !optional.contains(name) && !prod.contains(name))
             .collect();

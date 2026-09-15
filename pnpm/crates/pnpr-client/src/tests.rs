@@ -1,17 +1,15 @@
-use std::{collections::BTreeMap, future::pending, time::Duration};
-
+use super::{
+    PnprClient, PnprClientError, ResolveOutcome, ResolveProject, ResolveProjectsOptions,
+    ResolvedPackage, VerifyError, build_verify_error,
+    resolve::{Frame, PROJECT_TRANSFORMS_HEADER, PROJECT_TRANSFORMS_VERSION, parse_frame},
+};
 use indexmap::IndexMap;
 use pnpm_config::{PackageExtension, ResolutionMode, TrustPolicy};
 use pnpm_graph_hasher::hash_object_nullable_with_prefix;
 use pnpm_lockfile::TarballRevision;
 use serde_json::{Value, json};
+use std::{collections::BTreeMap, future::pending, time::Duration};
 use tokio::net::TcpListener;
-
-use super::{
-    Frame, PROJECT_TRANSFORMS_HEADER, PROJECT_TRANSFORMS_VERSION, PnprClient, PnprClientError,
-    ResolveOutcome, ResolveProject, ResolveProjectsOptions, ResolvedPackage, VerifyError,
-    build_verify_error, parse_frame,
-};
 
 #[tokio::test]
 async fn artifact_handshake_times_out() {
@@ -34,7 +32,7 @@ async fn artifact_handshake_times_out() {
 async fn lockfile_repair_rejects_a_server_without_the_capability() {
     let mut options = resolve_projects_options();
     options.fix_lockfile = true;
-    options.update_patches = false;
+    options.reuse.update_patches = false;
     let mut server = mockito::Server::new_async().await;
     let handshake_mock = server
         .mock("GET", "/-/pnpr")
@@ -56,7 +54,7 @@ async fn lockfile_repair_rejects_a_server_without_the_capability() {
 async fn lockfile_repair_uses_an_advertised_capability() {
     let mut options = resolve_projects_options();
     options.fix_lockfile = true;
-    options.update_patches = false;
+    options.reuse.update_patches = false;
     let response_lockfile = matching_transform_lockfile(&options);
     let mut server = mockito::Server::new_async().await;
     let handshake_mock = server
@@ -214,57 +212,70 @@ fn resolve_projects_options() -> ResolveProjectsOptions {
             dev_dependencies: BTreeMap::new(),
             optional_dependencies: BTreeMap::new(),
         }],
-        registry: "https://registry.test/".to_string(),
-        registries: BTreeMap::new(),
-        authorization: None,
-        overrides: None,
-        patched_dependencies: Some(IndexMap::from([(
-            "acme@1.0.0".to_string(),
-            "abc123".to_string(),
-        )])),
-        package_extensions: Some(IndexMap::from([(
-            "acme@1.0.0".to_string(),
-            PackageExtension {
-                dependencies: Some(BTreeMap::from([("helper".to_string(), "1.0.0".to_string())])),
-                ..PackageExtension::default()
-            },
-        )])),
-        allow_unused_patches: true,
-        catalogs: Some(BTreeMap::from([(
-            "default".to_string(),
-            BTreeMap::from([("acme".to_string(), "^1.0.0".to_string())]),
-        )])),
-        auto_install_peers: Some(false),
-        dedupe_peers: Some(true),
-        exclude_links_from_lockfile: Some(false),
-        lockfile: None,
-        frozen_lockfile: false,
-        prefer_frozen_lockfile: None,
-        update_patches: true,
         fix_lockfile: false,
-        ignore_manifest_check: false,
-        trust_lockfile: true,
-        resolution_mode: ResolutionMode::TimeBased,
-        minimum_release_age: Some(1440),
-        minimum_release_age_exclude: Some(vec!["@acme/*".to_string()]),
-        minimum_release_age_ignore_missing_time: false,
-        trust_policy: TrustPolicy::NoDowngrade,
-        trust_policy_exclude: Some(vec!["legacy-pkg".to_string()]),
-        trust_policy_ignore_after: Some(43200),
+        routing: crate::RegistryRouting {
+            registry: "https://registry.test/".to_string(),
+            registries: BTreeMap::new(),
+            authorization: None,
+        },
+        transforms: crate::ManifestTransforms {
+            overrides: None,
+            patched_dependencies: Some(IndexMap::from([(
+                "acme@1.0.0".to_string(),
+                "abc123".to_string(),
+            )])),
+            package_extensions: Some(IndexMap::from([(
+                "acme@1.0.0".to_string(),
+                PackageExtension {
+                    dependencies: Some(BTreeMap::from([(
+                        "helper".to_string(),
+                        "1.0.0".to_string(),
+                    )])),
+                    ..PackageExtension::default()
+                },
+            )])),
+            allow_unused_patches: true,
+            catalogs: Some(BTreeMap::from([(
+                "default".to_string(),
+                BTreeMap::from([("acme".to_string(), "^1.0.0".to_string())]),
+            )])),
+        },
+        resolution: crate::ResolutionSettings {
+            auto_install_peers: Some(false),
+            dedupe_peers: Some(true),
+            exclude_links_from_lockfile: Some(false),
+            resolution_mode: ResolutionMode::TimeBased,
+        },
+        reuse: crate::LockfileReuseOptions {
+            lockfile: None,
+            frozen_lockfile: false,
+            prefer_frozen_lockfile: None,
+            update_patches: true,
+            ignore_manifest_check: false,
+            trust_lockfile: true,
+        },
+        verification: crate::VerificationPolicy {
+            minimum_release_age: Some(1440),
+            minimum_release_age_exclude: Some(vec!["@acme/*".to_string()]),
+            minimum_release_age_ignore_missing_time: false,
+            trust_policy: TrustPolicy::NoDowngrade,
+            trust_policy_exclude: Some(vec!["legacy-pkg".to_string()]),
+            trust_policy_ignore_after: Some(43200),
+        },
     }
 }
 
 fn matching_transform_lockfile(options: &ResolveProjectsOptions) -> Value {
     json!({
         "lockfileVersion": "9.0",
-        "patchedDependencies": options.patched_dependencies,
+        "patchedDependencies": options.transforms.patched_dependencies,
         "packageExtensionsChecksum": package_extensions_checksum(options),
     })
 }
 
 fn package_extensions_checksum(options: &ResolveProjectsOptions) -> String {
     let package_extensions = serde_json::to_value(
-        options.package_extensions.as_ref().expect("package extensions are configured"),
+        options.transforms.package_extensions.as_ref().expect("package extensions are configured"),
     )
     .expect("package extensions serialize");
     hash_object_nullable_with_prefix(&package_extensions)
@@ -295,7 +306,11 @@ async fn resolve_mock_frames(
     supports_project_transforms: bool,
     on_package: impl FnMut(ResolvedPackage),
 ) -> Result<ResolveOutcome, PnprClientError> {
-    let body = frames.into_iter().map(|frame| format!("{frame}\n")).collect::<Vec<_>>().concat();
+    let body = frames
+        .into_iter()
+        .map(|frame| format!("{frame}\n"))
+        .collect::<Vec<_>>()
+        .concat();
     let mut server = mockito::Server::new_async().await;
     let mut resolve_mock = server.mock("POST", "/-/pnpr/v0/resolve").with_body(body);
     if supports_project_transforms {
@@ -400,4 +415,55 @@ fn an_untyped_frame_is_a_protocol_error() {
     let Err(PnprClientError::Protocol(_)) = parse_frame(b"{}") else {
         panic!("expected a Protocol error");
     };
+}
+
+#[tokio::test]
+async fn pipeline_reports_refuse_credentials_on_non_loopback_http() {
+    let client = PnprClient::new("http://example.invalid");
+    let request = super::PublishPipelineRunRequest {
+        workspace: "demo".to_string(),
+        run_id: "100-run".to_string(),
+        summary: json!({}),
+        events: Vec::new(),
+    };
+    let error = client
+        .publish_pipeline_run(&request, Some("Bearer secret"))
+        .await
+        .unwrap_err();
+    assert!(
+        matches!(error, PnprClientError::Protocol(_)),
+        "insecure credentials must be rejected before any request: {error}",
+    );
+}
+
+#[tokio::test]
+async fn pipeline_report_redirects_are_not_followed() {
+    let mut server = mockito::Server::new_async().await;
+    let redirect = server
+        .mock("PUT", "/-/pnpr/v0/pipeline/runs")
+        .with_status(307)
+        .with_header("location", "/unexpected")
+        .create_async()
+        .await;
+    let destination = server
+        .mock("PUT", "/unexpected")
+        .expect(0)
+        .create_async()
+        .await;
+    let client = PnprClient::new(server.url());
+    let request = super::PublishPipelineRunRequest {
+        workspace: "demo".to_string(),
+        run_id: "100-run".to_string(),
+        summary: json!({}),
+        events: Vec::new(),
+    };
+    assert!(
+        client
+            .publish_pipeline_run(&request, Some("Bearer secret"))
+            .await
+            .is_err(),
+        "report redirects must not receive credentials",
+    );
+    redirect.assert_async().await;
+    destination.assert_async().await;
 }

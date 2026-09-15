@@ -1,6 +1,5 @@
-use clap::Args;
-
 use super::{reporter::ReporterType, run::RunArgs};
+use clap::Args;
 
 /// Restarts a package. Runs a package's "stop", "restart", and "start"
 /// scripts, and associated pre- and post- scripts.
@@ -28,15 +27,17 @@ impl RestartArgs {
             RunArgs {
                 script: RunArgs::script(script_name, args.clone()),
                 if_present,
-                resume_from: None,
-                report_summary: false,
-                no_bail: false,
-                sort: true,
-                reverse: false,
-                parallel: false,
                 sequential: false,
                 dry_run: false,
                 json: false,
+                workspace: crate::cli_args::recursive::RecursiveExecutionArgs {
+                    resume_from: None,
+                    report_summary: false,
+                    no_bail: false,
+                    sort: true,
+                    reverse: false,
+                    parallel: false,
+                },
             }
             .run(dir, config, reporter)?;
         }

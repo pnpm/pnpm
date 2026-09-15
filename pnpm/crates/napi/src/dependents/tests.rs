@@ -56,7 +56,10 @@ snapshots:
 fn options(dir: &Path, packages: &[&str]) -> DependentsOptions {
     DependentsOptions {
         dir: dir.to_string_lossy().into_owned(),
-        packages: packages.iter().map(|name| (*name).to_string()).collect(),
+        packages: packages
+            .iter()
+            .map(|name| (*name).to_string())
+            .collect(),
         project_dirs: None,
         exclude_project_patterns: None,
         modules_dir: None,
@@ -131,7 +134,9 @@ fn manifest_fields_are_projected_onto_the_matched_package() {
     let trees = build_trees(&opts).unwrap();
 
     assert_eq!(
-        trees[0].manifest.as_ref().and_then(|manifest| manifest.get("componentId")),
+        trees[0].manifest
+            .as_ref()
+            .and_then(|manifest| manifest.get("componentId")),
         Some(&json!({ "scope": "acme.utils", "name": "nested" })),
     );
 }

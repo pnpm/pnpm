@@ -31,89 +31,58 @@ pub(crate) fn modified_manifests_match_lockfile(
     modified: &[&ManifestStat<'_>],
     dedupe_peers: bool,
 ) -> Result<Option<Lockfile>, &'static str> {
-    let &OptimisticRepeatInstallCheck {
-        workspace_root,
-        config,
-        project_manifests,
-        is_workspace_install,
-        lockfile,
-        catalogs,
-        ..
-    } = check;
     let mut loaded_current: Option<Lockfile> = None;
     let mut wanted_is_current = false;
-    let lockfile = lockfile.get().map_err(|_| "the wanted lockfile cannot be read or parsed")?;
+    let lockfile =
+        check.lockfile.get().map_err(|_| "the wanted lockfile cannot be read or parsed")?;
     let (wanted, wanted_mtime): (&Lockfile, FileMtime) = if let Some(wanted) = lockfile {
-        let Some(mtime) = file_mtime(&workspace_root.join(config.wanted_lockfile_name())) else {
+        let Some(mtime) =
+            file_mtime(&check.workspace_root.join(check.config.wanted_lockfile_name()))
+        else {
             return Err(
                 "a manifest is newer than the last validation and the wanted lockfile cannot be stat'd",
             );
         };
         (wanted, mtime)
     } else {
-        let current_path = config.virtual_store_dir.join(Lockfile::CURRENT_FILE_NAME);
+        let current_path = check.config.virtual_store_dir.join(Lockfile::CURRENT_FILE_NAME);
         let Some(mtime) = file_mtime(&current_path) else {
             return Err("a manifest is newer than the last validation and no lockfile is loaded");
         };
-        let current = Lockfile::load_current_from_virtual_store_dir(&config.virtual_store_dir)
-            .map_err(|_| "the current lockfile cannot be loaded")?
-            .ok_or("a manifest is newer than the last validation and no lockfile is loaded")?;
+        let current =
+            Lockfile::load_current_from_virtual_store_dir(&check.config.virtual_store_dir)
+                .map_err(|_| "the current lockfile cannot be loaded")?
+                .ok_or("a manifest is newer than the last validation and no lockfile is loaded")?;
         wanted_is_current = true;
         (&*loaded_current.insert(current), mtime)
     };
 
-    // Decide which modified projects need the full content check, and
-    // whether the wanted lockfile must be compared against the current
-    // one (`<virtual_store_dir>/lock.yaml`).
-    let to_check: &[&ManifestStat<'_>] = if wanted_is_current {
-        // The wanted lockfile IS the current one — there's no second
-        // lockfile to assert equality against, and the mtime
-        // short-circuits below compare the two lockfile files, so they
-        // don't apply. Every modified project gets the content check.
-        modified
-    } else if is_workspace_install {
-        // Workspace branch: a wanted lockfile newer than the last
-        // validation must equal what the previous install materialized.
-        if modified_at_or_after(wanted_mtime, state.last_validated_timestamp) {
-            assert_wanted_lockfile_equals_current(wanted, config)?;
-        }
-        modified
-    } else {
-        // Single-project branch keys off the lockfile mtimes instead of
-        // `lastValidatedTimestamp`.
-        let current_mtime_ms =
-            mtime_ms(&config.virtual_store_dir.join(Lockfile::CURRENT_FILE_NAME));
-        if let Some(current_mtime_ms) = current_mtime_ms
-            && modified_at_or_after(wanted_mtime, current_mtime_ms)
-        {
-            assert_wanted_lockfile_equals_current(wanted, config)?;
-        }
-        let root = modified.first().expect("modified-manifests branch requires a modified project");
-        if modified_at_or_after(root.mtime, wanted_mtime.ms) {
-            modified
-        } else if current_mtime_ms.is_some() {
-            // "The manifest file is not newer than the lockfile.
-            // Exiting check."
-            &[]
-        } else if !wanted.is_empty() {
-            // RUN_CHECK_DEPS_NO_DEPS: the lockfile requires
-            // dependencies but nothing was ever installed.
-            return Err("the lockfile requires dependencies but none were installed");
-        } else {
-            &[]
-        }
-    };
-
-    if to_check.is_empty() {
-        return Ok(loaded_current);
+    let to_check = projects_to_content_check(
+        check,
+        state,
+        modified,
+        &WantedLockfileStat { wanted, mtime: wanted_mtime, is_current: wanted_is_current },
+    )?;
+    if !to_check.is_empty() {
+        check_projects_content(check, wanted, to_check, dedupe_peers)?;
     }
+    Ok(loaded_current)
+}
 
-    let parsed_overrides = crate::install::parse_config_overrides(config, catalogs)
+/// The full content check of the modified projects against the wanted
+/// lockfile, once its settings are known not to have drifted.
+fn check_projects_content(
+    check: &OptimisticRepeatInstallCheck<'_>,
+    wanted: &Lockfile,
+    to_check: &[&ManifestStat<'_>],
+    dedupe_peers: bool,
+) -> Result<(), &'static str> {
+    let parsed_overrides = crate::install::parse_config_overrides(check.config, check.catalogs)
         .map_err(|_| "pnpm.overrides cannot be parsed")?;
     if let Err(error) = crate::install::check_lockfile_settings_drift(
         wanted,
-        config,
-        catalogs,
+        check.config,
+        check.catalogs,
         crate::install::CheckLockfileSettingsDriftOptions {
             parsed_overrides: parsed_overrides.as_deref(),
             // `pnpmfileChecksum` needs no comparison here: reaching this
@@ -129,37 +98,128 @@ pub(crate) fn modified_manifests_match_lockfile(
         return Err("a lockfile setting drifted from the current configuration");
     }
 
-    let linked_ctx = LinkedPackagesContext::new(config, project_manifests);
-    let ignored_optional_matcher = pnpm_config::matcher::create_matcher(
-        config.ignored_optional_dependencies.as_deref().unwrap_or_default(),
+    let linked_ctx = LinkedPackagesContext::new(check.config, check.project_manifests);
+    let ignored_optional_matcher = pnpm_matcher::create_matcher(
+        check.config.ignored_optional_dependencies.as_deref().unwrap_or_default(),
     );
+    let content_check = ProjectContentCheck {
+        workspace_root: check.workspace_root,
+        config: check.config,
+        wanted,
+        linked_ctx: &linked_ctx,
+        ignored_optional_matcher: &ignored_optional_matcher,
+        parsed_overrides: parsed_overrides.as_deref(),
+    };
     for project in to_check {
-        let importer_id =
-            pnpm_workspace::importer_id_from_root_dir(workspace_root, project.root_dir);
-        if let Err(error) = crate::install::check_importer_satisfies(
-            wanted,
-            project.manifest,
-            &importer_id,
-            config,
-            &ignored_optional_matcher,
-            parsed_overrides.as_deref(),
-        ) {
-            tracing::debug!(target: "pacquet::install", %error, importer_id, "repeat-install content check: manifest no longer satisfied");
-            return Err("a modified manifest is no longer satisfied by the lockfile");
-        }
-        let Some(importer) = wanted.importers.get(&importer_id) else {
-            return Err("a modified project has no importer entry in the lockfile");
-        };
-        if !linked_packages_are_up_to_date(
-            &linked_ctx,
-            project.root_dir,
-            project.manifest,
-            importer,
-        ) {
-            return Err("a linked package is out of date");
-        }
+        project_content_check(&content_check, project)?;
     }
-    Ok(loaded_current)
+    Ok(())
+}
+
+/// The lockfile the content check compares against, and how it was found.
+struct WantedLockfileStat<'a> {
+    wanted: &'a Lockfile,
+    mtime: FileMtime,
+    /// Whether the "wanted" lockfile is really the current one standing in
+    /// for a missing `pnpm-lock.yaml`.
+    is_current: bool,
+}
+
+/// The modified projects that need the full content check. Deciding this also
+/// asserts, where it applies, that the wanted lockfile equals the current one
+/// (`<virtual_store_dir>/lock.yaml`).
+fn projects_to_content_check<'a>(
+    check: &OptimisticRepeatInstallCheck<'_>,
+    state: &WorkspaceState,
+    modified: &'a [&'a ManifestStat<'a>],
+    wanted: &WantedLockfileStat<'_>,
+) -> Result<&'a [&'a ManifestStat<'a>], &'static str> {
+    if wanted.is_current {
+        // There is no second lockfile to assert equality against, and the
+        // mtime short-circuits below compare the two lockfile files, so they
+        // don't apply. Every modified project gets the content check.
+        return Ok(modified);
+    }
+    if check.is_workspace_install {
+        // A wanted lockfile newer than the last validation must equal what
+        // the previous install materialized.
+        if modified_at_or_after(wanted.mtime, state.last_validated_timestamp) {
+            assert_wanted_lockfile_equals_current(wanted.wanted, check.config)?;
+        }
+        return Ok(modified);
+    }
+    single_project_projects_to_check(check.config, modified, wanted)
+}
+
+/// The single-project branch keys off the lockfile mtimes instead of
+/// `lastValidatedTimestamp`.
+fn single_project_projects_to_check<'a>(
+    config: &Config,
+    modified: &'a [&'a ManifestStat<'a>],
+    wanted: &WantedLockfileStat<'_>,
+) -> Result<&'a [&'a ManifestStat<'a>], &'static str> {
+    let current_mtime_ms = mtime_ms(&config.virtual_store_dir.join(Lockfile::CURRENT_FILE_NAME));
+    if let Some(current_mtime_ms) = current_mtime_ms
+        && modified_at_or_after(wanted.mtime, current_mtime_ms)
+    {
+        assert_wanted_lockfile_equals_current(wanted.wanted, config)?;
+    }
+    let root = modified.first().expect("modified-manifests branch requires a modified project");
+    if modified_at_or_after(root.mtime, wanted.mtime.ms) {
+        return Ok(modified);
+    }
+    if current_mtime_ms.is_some() {
+        // "The manifest file is not newer than the lockfile. Exiting check."
+        return Ok(&[]);
+    }
+    if !wanted.wanted.is_empty() {
+        // RUN_CHECK_DEPS_NO_DEPS: the lockfile requires dependencies but
+        // nothing was ever installed.
+        return Err("the lockfile requires dependencies but none were installed");
+    }
+    Ok(&[])
+}
+
+/// What one modified project is checked against.
+struct ProjectContentCheck<'a> {
+    workspace_root: &'a Path,
+    config: &'a Config,
+    wanted: &'a Lockfile,
+    linked_ctx: &'a LinkedPackagesContext<'a>,
+    ignored_optional_matcher: &'a pnpm_matcher::Matcher,
+    parsed_overrides: Option<&'a [pnpm_config_parse_overrides::VersionOverride]>,
+}
+
+fn project_content_check(
+    context: &ProjectContentCheck<'_>,
+    project: &ManifestStat<'_>,
+) -> Result<(), &'static str> {
+    let importer_id =
+        pnpm_workspace::importer_id_from_root_dir(context.workspace_root, project.root_dir);
+    if let Err(error) = crate::install::check_importer_satisfies(
+        context.wanted,
+        context.workspace_root,
+        project.manifest,
+        &importer_id,
+        context.config,
+        context.ignored_optional_matcher,
+        context.parsed_overrides,
+    ) {
+        tracing::debug!(target: "pacquet::install", %error, importer_id, "repeat-install content check: manifest no longer satisfied");
+        return Err("a modified manifest is no longer satisfied by the lockfile");
+    }
+    let Some(importer) = context.wanted.importers.get(&importer_id) else {
+        return Err("a modified project has no importer entry in the lockfile");
+    };
+    if !linked_packages_are_up_to_date(
+        context.linked_ctx,
+        project.root_dir,
+        project.manifest,
+        importer,
+    ) {
+        return Err("a linked package is out of date");
+    }
+    Ok(())
 }
 
 /// Assert the wanted lockfile equals the current one: with no current
@@ -174,16 +234,18 @@ pub(crate) fn assert_wanted_lockfile_equals_current(
         .map_err(|_| "the current lockfile cannot be loaded")?;
     match current {
         None => {
-            let any_deps = wanted.importers.values().any(|snapshot| {
-                snapshot
-                    .dependencies_by_groups([
-                        DependencyGroup::Prod,
-                        DependencyGroup::Dev,
-                        DependencyGroup::Optional,
-                    ])
-                    .next()
-                    .is_some()
-            });
+            let any_deps = wanted.importers
+                .values()
+                .any(|snapshot| {
+                    snapshot
+                        .dependencies_by_groups([
+                            DependencyGroup::Prod,
+                            DependencyGroup::Dev,
+                            DependencyGroup::Optional,
+                        ])
+                        .next()
+                        .is_some()
+                });
             if any_deps {
                 Err("the lockfile requires dependencies but none were installed")
             } else {
@@ -232,66 +294,97 @@ pub(crate) fn linked_packages_are_up_to_date(
         let Some(lockfile_deps) = snapshot.get_map_by_group(group) else {
             continue;
         };
-        let Some(manifest_deps) =
-            manifest.value().get(manifest_field).and_then(|value| value.as_object())
+        let Some(manifest_deps) = manifest
+            .value()
+            .get(manifest_field)
+            .and_then(|value| value.as_object())
         else {
             continue;
         };
-        for (dep_name, dep) in lockfile_deps {
-            let dep_name = dep_name.to_string();
-            let Some(current_spec) = manifest_deps.get(&dep_name).and_then(|v| v.as_str()) else {
-                continue;
-            };
-            if ref_is_local_directory(&dep.specifier) {
-                // A `file:` specifier that resolved to `link:` (e.g. an
-                // injected self-reference) is a local link with no
-                // `packages:` entry — up to date by construction.
-                if matches!(dep.version, ImporterDepVersion::Link(_)) {
-                    continue;
-                }
-                return false;
-            }
-            let link_target = dep.version.as_link_target();
-            let is_linked = link_target.is_some();
-            if is_linked
-                && (current_spec.starts_with("link:")
-                    || current_spec.starts_with("file:")
-                    || current_spec.starts_with("workspace:."))
-            {
-                continue;
-            }
-            // A linked dependency whose spec is a distribution tag is
-            // considered up to date to skip full resolution.
-            if is_linked && spec_is_distribution_tag(current_spec) {
-                continue;
-            }
-            let linked_dir: Option<std::borrow::Cow<'_, Path>> = match link_target {
-                Some(target) => Some(std::borrow::Cow::Owned(project_dir.join(target))),
-                None => dep
-                    .version
-                    .as_regular()
-                    .map(std::string::ToString::to_string)
-                    .and_then(|version| ctx.workspace_packages.get(&dep_name)?.get(&version))
-                    .map(|dir| std::borrow::Cow::Borrowed(*dir)),
-            };
-            let Some(linked_dir) = linked_dir else {
-                continue;
-            };
-            if !ctx.link_workspace_packages && !current_spec.starts_with("workspace:") {
-                // A linkable dir exists, but nothing requests linking it.
-                continue;
-            }
-            let available_range = version_range_of_spec(current_spec);
-            let local_package_satisfies_range = matches!(available_range, "*" | "^" | "~")
-                || ctx
-                    .linked_version(&linked_dir)
-                    .is_some_and(|version| semver_satisfies_loosely(&version, available_range));
-            if is_linked != local_package_satisfies_range {
-                return false;
-            }
+        if !linked_group_is_up_to_date(ctx, project_dir, lockfile_deps, manifest_deps) {
+            return false;
         }
     }
     true
+}
+
+fn linked_group_is_up_to_date(
+    ctx: &LinkedPackagesContext<'_>,
+    project_dir: &Path,
+    lockfile_deps: &pnpm_lockfile::ResolvedDependencyMap,
+    manifest_deps: &serde_json::Map<String, serde_json::Value>,
+) -> bool {
+    for (dep_name, dep) in lockfile_deps {
+        let dep_name = dep_name.to_string();
+        let Some(current_spec) = manifest_deps.get(&dep_name).and_then(|v| v.as_str()) else {
+            continue;
+        };
+        if !linked_dep_is_up_to_date(ctx, project_dir, &dep_name, dep, current_spec) {
+            return false;
+        }
+    }
+    true
+}
+
+fn linked_dep_is_up_to_date(
+    ctx: &LinkedPackagesContext<'_>,
+    project_dir: &Path,
+    dep_name: &str,
+    dep: &pnpm_lockfile::ResolvedDependencySpec,
+    current_spec: &str,
+) -> bool {
+    if ref_is_local_directory(&dep.specifier) {
+        // A `file:` specifier that resolved to `link:` (e.g. an
+        // injected self-reference) is a local link with no
+        // `packages:` entry — up to date by construction.
+        return matches!(dep.version, ImporterDepVersion::Link(_));
+    }
+    let link_target = dep.version.as_link_target();
+    let is_linked = link_target.is_some();
+    if is_linked && linked_spec_needs_no_resolution(current_spec) {
+        return true;
+    }
+    let Some(linked_dir) = linked_package_dir(ctx, project_dir, dep_name, dep, link_target) else {
+        return true;
+    };
+    if !ctx.link_workspace_packages && !current_spec.starts_with("workspace:") {
+        // A linkable dir exists, but nothing requests linking it.
+        return true;
+    }
+    let available_range = version_range_of_spec(current_spec);
+    let local_package_satisfies_range = matches!(available_range, "*" | "^" | "~")
+        || ctx
+            .linked_version(&linked_dir)
+            .is_some_and(|version| semver_satisfies_loosely(&version, available_range));
+    is_linked == local_package_satisfies_range
+}
+
+/// A declaration that asks for a link outright, or names a distribution tag,
+/// leaves a linked dependency up to date without resolving anything.
+fn linked_spec_needs_no_resolution(current_spec: &str) -> bool {
+    current_spec.starts_with("link:")
+        || current_spec.starts_with("file:")
+        || current_spec.starts_with("workspace:.")
+        || spec_is_distribution_tag(current_spec)
+}
+
+/// The directory a dependency would be linked from: its own link target, or
+/// the workspace project whose version the lockfile recorded.
+fn linked_package_dir<'a>(
+    ctx: &'a LinkedPackagesContext<'_>,
+    project_dir: &Path,
+    dep_name: &str,
+    dep: &pnpm_lockfile::ResolvedDependencySpec,
+    link_target: Option<&str>,
+) -> Option<std::borrow::Cow<'a, Path>> {
+    match link_target {
+        Some(target) => Some(std::borrow::Cow::Owned(project_dir.join(target))),
+        None => dep.version
+            .as_regular()
+            .map(std::string::ToString::to_string)
+            .and_then(|version| ctx.workspace_packages.get(dep_name)?.get(&version))
+            .map(|dir| std::borrow::Cow::Borrowed(*dir)),
+    }
 }
 
 /// Whether a specifier points at a local directory: a `file:`
@@ -311,7 +404,9 @@ pub(crate) fn ref_is_local_directory(specifier: &str) -> bool {
 pub(crate) fn spec_is_distribution_tag(spec: &str) -> bool {
     !spec.is_empty()
         && spec.parse::<node_semver::Range>().is_err()
-        && spec.chars().all(|char| char.is_ascii_alphanumeric() || matches!(char, '-' | '_' | '.'))
+        && spec
+            .chars()
+            .all(|char| char.is_ascii_alphanumeric() || matches!(char, '-' | '_' | '.'))
 }
 
 /// Strip the `workspace:` / `npm:` envelope so the remainder can be
@@ -323,7 +418,10 @@ pub(crate) fn version_range_of_spec(spec: &str) -> &str {
     if let Some(rest) = spec.strip_prefix("npm:") {
         // `npm:<alias>@<range>` — the `@` search starts at index 1 so a
         // leading scope `@` isn't mistaken for the separator.
-        return match rest.get(1..).and_then(|tail| tail.find('@')) {
+        return match rest
+            .get(1..)
+            .and_then(|tail| tail.find('@'))
+        {
             Some(at) => {
                 let range = &rest[at + 2..];
                 if range.is_empty() { "*" } else { range }
@@ -350,11 +448,8 @@ pub(crate) fn stat_manifests<'a>(
     project_manifests
         .iter()
         .map(|(root_dir, manifest)| {
-            file_mtime(manifest.path()).map(|mtime| ManifestStat {
-                root_dir: root_dir.as_path(),
-                manifest,
-                mtime,
-            })
+            file_mtime(manifest.path())
+                .map(|mtime| ManifestStat { root_dir: root_dir.as_path(), manifest, mtime })
         })
         .collect()
 }

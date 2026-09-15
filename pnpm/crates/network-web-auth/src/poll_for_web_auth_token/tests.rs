@@ -255,7 +255,8 @@ async fn passes_done_url_and_fetch_options_to_fetch() {
     let captured = Rc::new(RefCell::new(Vec::<(String, WebAuthFetchOptions)>::new()));
     let sink = Rc::clone(&captured);
     set_fetch(Box::new(move |url, options| {
-        sink.borrow_mut().push((url.to_owned(), options.clone()));
+        sink.borrow_mut()
+            .push((url.to_owned(), options.clone()));
         Ok(ok_token("tok"))
     }));
     let options = WebAuthFetchOptions {
@@ -348,8 +349,7 @@ async fn caps_retry_after_additional_delay_to_remaining_timeout() {
     set_fetch(Box::new(|_url, _options| Ok(ok_202(Some("60")))));
 
     // A 10s budget so the 60s Retry-After gets capped.
-    poll_for_web_auth_token::<Fake>(params(Some(10_000)))
-        .await
+    poll_for_web_auth_token::<Fake>(params(Some(10_000))).await
         .expect_err("polling should time out");
 
     let sleeps = recorded_sleeps();
@@ -364,8 +364,7 @@ async fn throws_timeout_error_when_timeout_expires_during_retry_after_wait() {
     set_sleep_behavior(SleepBehavior::AdvanceByMs);
     set_fetch(Box::new(|_url, _options| Ok(ok_202(Some("100")))));
 
-    let error = poll_for_web_auth_token::<Fake>(params(Some(5000)))
-        .await
+    let error = poll_for_web_auth_token::<Fake>(params(Some(5000))).await
         .expect_err("polling should time out");
 
     assert_eq!(error.timeout, 5000);
@@ -448,7 +447,11 @@ async fn continues_polling_when_response_body_was_truncated() {
         Ok(if counter.get() == 1 { ok_truncated() } else { ok_token("tok") })
     }));
 
-    let token = None.pipe(params).pipe(poll_for_web_auth_token::<Fake>).await.expect("a token");
+    let token = None
+        .pipe(params)
+        .pipe(poll_for_web_auth_token::<Fake>)
+        .await
+        .expect("a token");
 
     assert_eq!(token, "tok");
     assert_eq!(calls.get(), 2);
@@ -510,8 +513,7 @@ async fn uses_custom_timeout_value() {
     set_sleep_behavior(SleepBehavior::AdvanceByFixed(2000));
     set_fetch(Box::new(|_url, _options| Ok(ok_202(None))));
 
-    let error = poll_for_web_auth_token::<Fake>(params(Some(3000)))
-        .await
+    let error = poll_for_web_auth_token::<Fake>(params(Some(3000))).await
         .expect_err("polling should time out");
 
     assert_eq!(error.timeout, 3000);
@@ -564,8 +566,7 @@ async fn throws_timeout_error_when_remaining_time_is_zero_during_retry_after() {
         Ok(if counter.get() == 1 { ok_202(Some("10")) } else { ok_202(None) })
     }));
 
-    let error = poll_for_web_auth_token::<Fake>(params(Some(2000)))
-        .await
+    let error = poll_for_web_auth_token::<Fake>(params(Some(2000))).await
         .expect_err("polling should time out");
 
     assert_eq!(error.timeout, 2000);

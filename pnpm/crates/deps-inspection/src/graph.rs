@@ -65,47 +65,46 @@ pub fn build_dependency_graph(
             continue;
         }
 
-        let edges = match &node_id {
-            TreeNodeId::Importer(importer_id) => {
-                match opts.lockfile.importers.get(importer_id.as_str()) {
-                    Some(importer) => importer_edges(importer, importer_id, opts),
-                    None => Vec::new(),
-                }
-            }
-            TreeNodeId::Package(dep_path) => {
-                match opts.lockfile.snapshots.as_ref().and_then(|snapshots| snapshots.get(dep_path))
-                {
-                    Some(snapshot) => package_edges(snapshot, opts),
-                    None => Vec::new(),
-                }
-            }
-        };
-
+        let edges = node_edges(&node_id, opts);
         let peers = match &node_id {
             TreeNodeId::Package(dep_path) => peer_names(opts.lockfile, dep_path),
             TreeNodeId::Importer(_) => HashSet::new(),
         };
 
-        for edge in &edges {
-            if let Some(target) = &edge.target
-                && !visited.contains(target)
-            {
-                queue.push(target.clone());
-            }
-        }
-
+        queue.extend(
+            edges
+                .iter()
+                .filter_map(|edge| edge.target.as_ref())
+                .filter(|target| !visited.contains(*target))
+                .cloned(),
+        );
         graph.nodes.insert(node_id, GraphNode { edges, peers });
     }
 
     graph
 }
 
+/// The outgoing edges of one node. A node the lockfile does not describe has
+/// none.
+fn node_edges(node_id: &TreeNodeId, opts: &BuildGraphOptions<'_>) -> Vec<GraphEdge> {
+    match node_id {
+        TreeNodeId::Importer(importer_id) => opts.lockfile.importers
+            .get(importer_id.as_str())
+            .map(|importer| importer_edges(importer, importer_id, opts))
+            .unwrap_or_default(),
+        TreeNodeId::Package(dep_path) => opts.lockfile.snapshots
+            .as_ref()
+            .and_then(|snapshots| snapshots.get(dep_path))
+            .map(|snapshot| package_edges(snapshot, opts))
+            .unwrap_or_default(),
+    }
+}
+
 /// Names declared in `peerDependencies` of the `packages:` entry for
 /// `dep_path` (looked up by its peer-stripped key).
 #[must_use]
 pub fn peer_names(lockfile: &Lockfile, dep_path: &PkgNameVerPeer) -> HashSet<String> {
-    lockfile
-        .packages
+    lockfile.packages
         .as_ref()
         .and_then(|packages| packages.get(&dep_path.without_peer()))
         .and_then(|metadata| metadata.peer_dependencies.as_ref())
@@ -201,8 +200,7 @@ fn edge_target(
     let link_target = link_target?;
     let parent_importer_id = parent_importer_id?;
     let importer_id = normalize_importer_path(parent_importer_id, link_target)?;
-    lockfile
-        .importers
+    lockfile.importers
         .contains_key(importer_id.as_str())
         .then_some(TreeNodeId::Importer(importer_id))
 }
@@ -212,8 +210,10 @@ fn edge_target(
 /// when the path escapes the workspace root.
 #[must_use]
 pub fn normalize_importer_path(base: &str, relative: &str) -> Option<String> {
-    let mut parts: Vec<&str> =
-        base.split('/').filter(|segment| !segment.is_empty() && *segment != ".").collect();
+    let mut parts: Vec<&str> = base
+        .split('/')
+        .filter(|segment| !segment.is_empty() && *segment != ".")
+        .collect();
     let normalized = relative.replace('\\', "/");
     for part in normalized.split('/') {
         match part {

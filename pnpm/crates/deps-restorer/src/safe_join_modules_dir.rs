@@ -8,7 +8,7 @@
 
 use derive_more::{Display, Error};
 use miette::Diagnostic;
-use pnpm_resolving_deps_resolver::is_valid_dependency_alias;
+use pnpm_package_name::is_valid_dependency_alias;
 use std::path::{Path, PathBuf};
 
 /// A dependency alias that would escape `modules` or collide with

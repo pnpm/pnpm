@@ -42,14 +42,6 @@ fn tls_config_clone_round_trip() {
 }
 
 #[test]
-fn tls_error_invalid_ca_includes_index_in_display() {
-    let err = TlsError::InvalidCa { index: 3, reason: "bad pem".into() };
-    let rendered = err.to_string();
-    assert!(rendered.contains("entry 3"), "expected `entry 3` in {rendered}");
-    assert!(rendered.contains("bad pem"), "expected reason in {rendered}");
-}
-
-#[test]
 fn tls_error_invalid_client_identity_includes_reason_in_display() {
     let err = TlsError::InvalidClientIdentity { reason: "garbage key".into() };
     let rendered = err.to_string();

@@ -54,7 +54,9 @@ impl InitArgs {
     /// pinned.
     pub(crate) fn pins_pnpm(&self, config: &Config, init_dir: &Path) -> bool {
         self.effective_init_package_manager(config)
-            && config.workspace_dir.as_deref().is_none_or(|root| root == init_dir)
+            && config.workspace_dir
+                .as_deref()
+                .is_none_or(|root| root == init_dir)
     }
 }
 

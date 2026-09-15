@@ -321,6 +321,27 @@ test('devEngines.packageManager entries with a tarball resolution are repaired u
   expect(fs.readFileSync('pnpm-lock.yaml', 'utf8')).toBe(lockfile)
 })
 
+test('devEngines.packageManager with onFail=download writes no lockfile when lockfile is disabled (#14728)', async () => {
+  prepare()
+  const pnpmHome = path.resolve('pnpm')
+  const env = { PNPM_HOME: pnpmHome }
+  writeJsonFileSync('package.json', {
+    devEngines: {
+      packageManager: {
+        name: 'pnpm',
+        version: '9.3.0',
+        onFail: 'download',
+      },
+    },
+  })
+  writeYamlFileSync('pnpm-workspace.yaml', { lockfile: false })
+
+  const { stdout } = execPnpmSync(['help'], { env })
+
+  expect(stdout.toString()).toContain('Version 9.3.0')
+  expect(fs.existsSync('pnpm-lock.yaml')).toBe(false)
+})
+
 test('devEngines.packageManager without onFail=download does not switch version', async () => {
   prepare()
   const pnpmHome = path.resolve('pnpm')

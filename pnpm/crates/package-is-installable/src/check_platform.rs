@@ -95,7 +95,10 @@ fn current_json(current: &Platform) -> String {
     // The current platform is `{ os, cpu, libc }` with single strings,
     // not arrays.
     fn single(values: &[String]) -> String {
-        values.first().cloned().unwrap_or_default()
+        values
+            .first()
+            .cloned()
+            .unwrap_or_default()
     }
     format!(
         r#"{{"os":{:?},"cpu":{:?},"libc":{:?}}}"#,
@@ -106,7 +109,10 @@ fn current_json(current: &Platform) -> String {
 }
 
 fn json_string_array(values: &[String]) -> String {
-    let joined: Vec<String> = values.iter().map(|s| format!("{s:?}")).collect();
+    let joined: Vec<String> = values
+        .iter()
+        .map(|s| format!("{s:?}"))
+        .collect();
     format!("[{}]", joined.join(","))
 }
 
@@ -188,24 +194,38 @@ fn axis_is_supported(current: &str, supported: Option<&[String]>, wanted: &[Stri
     if wanted.len() == 1 && wanted[0] == "any" {
         return true;
     }
+    let Some(matched) = axis_match(current, supported, wanted) else {
+        return false;
+    };
+    matched
+        || wanted
+            .iter()
+            .all(|entry| entry.starts_with('!'))
+}
 
+/// Whether any value the package declares for this axis matched what is
+/// wanted, or `None` when one was explicitly rejected by a `!value` entry.
+///
+/// A package that declares nothing for the axis is judged on the running
+/// platform's own value.
+fn axis_match(current: &str, supported: Option<&[String]>, wanted: &[String]) -> Option<bool> {
+    let Some(supported) = supported else {
+        return match platform_value_match(current, wanted) {
+            PlatformValueMatch::Rejected => None,
+            PlatformValueMatch::Matched => Some(true),
+            PlatformValueMatch::NoMatch => Some(false),
+        };
+    };
     let mut matched = false;
-    if let Some(supported) = supported {
-        for value in supported {
-            match platform_value_match(if value == "current" { current } else { value }, wanted) {
-                PlatformValueMatch::Rejected => return false,
-                PlatformValueMatch::Matched => matched = true,
-                PlatformValueMatch::NoMatch => {}
-            }
-        }
-    } else {
-        match platform_value_match(current, wanted) {
-            PlatformValueMatch::Rejected => return false,
+    for value in supported {
+        let value = if value == "current" { current } else { value };
+        match platform_value_match(value, wanted) {
+            PlatformValueMatch::Rejected => return None,
             PlatformValueMatch::Matched => matched = true,
             PlatformValueMatch::NoMatch => {}
         }
     }
-    matched || wanted.iter().all(|entry| entry.starts_with('!'))
+    Some(matched)
 }
 
 enum PlatformValueMatch {

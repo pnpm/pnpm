@@ -30,13 +30,8 @@ pub enum ReadYarnReleasesError {
     },
 
     #[display("Fetching the Yarn releases from {url} responded with status {status}")]
-    #[diagnostic(
-        code(ERR_PNPM_YARN_RELEASES_STATUS),
-        help(
-            "GitHub rate-limits anonymous requests. Wait for the limit to reset, or install Yarn 6 by hand."
-        )
-    )]
-    StatusNotOk { url: String, status: u16 },
+    #[diagnostic(code(ERR_PNPM_YARN_RELEASES_STATUS), help("{}", status_help(*status, *authenticated)))]
+    StatusNotOk { url: String, status: u16, authenticated: bool },
 
     #[display("Could not parse the Yarn releases from {url}: {error}")]
     #[diagnostic(code(ERR_PNPM_YARN_RELEASES_PARSE))]
@@ -95,14 +90,27 @@ struct GithubAsset {
 }
 
 /// Fetch the published Yarn releases, newest first.
+///
+/// `authenticate` carries whether a token may be sent: the client this
+/// borrows verifies certificates only when the project's `strict-ssl` says
+/// so, and that setting is about the registry the project installs from, not
+/// about GitHub.
 pub async fn fetch_yarn_releases(
     http_client: &ThrottledClient,
+    authenticate: bool,
 ) -> Result<Vec<YarnRelease>, ReadYarnReleasesError> {
-    let response = http_client
+    let mut request = http_client
         .acquire_for_url(RELEASES_URL)
         .await
         .get(RELEASES_URL)
-        .header("accept", "application/vnd.github+json")
+        .header("accept", "application/vnd.github+json");
+    // The API's anonymous rate limit is counted per IP, which CI runners
+    // share, so a job that has a token is much better off spending it.
+    let token = github_token(authenticate);
+    if let Some(token) = &token {
+        request = request.header("authorization", format!("Bearer {token}"));
+    }
+    let response = request
         .send()
         .await
         .map_err(|error| ReadYarnReleasesError::Network {
@@ -113,25 +121,71 @@ pub async fn fetch_yarn_releases(
         return Err(ReadYarnReleasesError::StatusNotOk {
             url: RELEASES_URL.to_string(),
             status: response.status().as_u16(),
+            authenticated: token.is_some(),
         });
     }
-    let body = response.text().await.map_err(|error| ReadYarnReleasesError::Network {
-        url: RELEASES_URL.to_string(),
-        error: Arc::new(error),
-    })?;
+    let body = response
+        .text()
+        .await
+        .map_err(|error| ReadYarnReleasesError::Network {
+            url: RELEASES_URL.to_string(),
+            error: Arc::new(error),
+        })?;
     parse_releases(&body)
 }
 
+/// What to suggest when GitHub turns the request down. Sending a credential
+/// gives the same status a different cause, so the advice has to follow which
+/// request was made rather than always describing the anonymous limit.
+fn status_help(status: u16, authenticated: bool) -> &'static str {
+    match status {
+        401 => {
+            "GitHub rejected the credential in GH_TOKEN/GITHUB_TOKEN. Check that it is valid and unexpired, or unset it to ask anonymously."
+        }
+        _ if authenticated => {
+            "GitHub refused the authenticated request. The token may lack access, or its rate limit may be spent — wait for it to reset, or install Yarn 6 by hand."
+        }
+        _ => {
+            "GitHub rate-limits anonymous requests. Set GH_TOKEN, or GITHUB_TOKEN if it is not set, to authenticate; wait for the limit to reset; or install Yarn 6 by hand."
+        }
+    }
+}
+
+/// A GitHub token from the environment. `GH_TOKEN` outranks `GITHUB_TOKEN`,
+/// the order GitHub's own CLI reads them in.
+fn github_token(authenticate: bool) -> Option<String> {
+    pick_token(authenticate, std::env::var("GH_TOKEN").ok(), std::env::var("GITHUB_TOKEN").ok())
+}
+
+/// An exported variable holding only whitespace is a common CI artifact, and
+/// reads as no token rather than becoming an `Authorization` header GitHub
+/// rejects.
+fn pick_token(
+    authenticate: bool,
+    gh_token: Option<String>,
+    github_token: Option<String>,
+) -> Option<String> {
+    if !authenticate {
+        return None;
+    }
+    [gh_token, github_token]
+        .into_iter()
+        .flatten()
+        .map(|token| token.trim().to_string())
+        .find(|token| !token.is_empty())
+}
+
 pub fn parse_releases(body: &str) -> Result<Vec<YarnRelease>, ReadYarnReleasesError> {
-    let releases: Vec<GithubRelease> = serde_json::from_str(body).map_err(|error| {
-        ReadYarnReleasesError::Parse { url: RELEASES_URL.to_string(), error: Arc::new(error) }
-    })?;
+    let releases: Vec<GithubRelease> = serde_json::from_str(body)
+        .map_err(|error| ReadYarnReleasesError::Parse {
+            url: RELEASES_URL.to_string(),
+            error: Arc::new(error),
+        })?;
     Ok(releases
         .into_iter()
         .filter_map(|release| {
             let version = release.tag_name.strip_prefix('v')?.to_string();
-            let assets = release
-                .assets
+            let assets = release.assets
                 .into_iter()
                 .map(|asset| YarnAsset {
                     file_name: asset.name,
@@ -149,22 +203,7 @@ pub fn parse_releases(body: &str) -> Result<Vec<YarnRelease>, ReadYarnReleasesEr
 pub fn asset_variants(
     release: &YarnRelease,
 ) -> Result<Vec<PlatformAssetResolution>, ReadYarnReleasesError> {
-    // zpm ships Linux as a statically linked musl build and nothing else,
-    // and a static musl binary runs on glibc hosts too. Recording it as
-    // `libc: musl` would hide it from every glibc host, so the constraint
-    // is only recorded once a release also ships a glibc build to choose
-    // between.
-    let has_glibc_build = release
-        .assets
-        .iter()
-        .filter_map(|asset| {
-            let target = parse_asset_name(&asset.file_name)?;
-            // An asset the loop below skips is not a build to choose
-            // between, so it cannot be what constrains the musl one.
-            asset.digest.as_deref().and_then(sha256_digest_to_sri)?;
-            Some(target)
-        })
-        .any(|target| target.os == "linux" && !target.musl);
+    let has_glibc_build = has_valid_glibc_build(release);
 
     let mut variants = Vec::new();
     for asset in &release.assets {
@@ -172,8 +211,9 @@ pub fn asset_variants(
         let Some(integrity) = asset.digest.as_deref().and_then(sha256_digest_to_sri) else {
             continue;
         };
-        let integrity: Integrity =
-            integrity.parse().map_err(|error| ReadYarnReleasesError::Integrity {
+        let integrity: Integrity = integrity
+            .parse()
+            .map_err(|error| ReadYarnReleasesError::Integrity {
                 integrity,
                 file_name: asset.file_name.clone(),
                 error: Arc::new(error),
@@ -202,6 +242,21 @@ pub fn asset_variants(
     }
     variants.sort_by(|left, right| variant_url(left).cmp(variant_url(right)));
     Ok(variants)
+}
+
+/// A musl-only release also runs on glibc hosts. Constrain it by libc
+/// only when a usable glibc asset gives those hosts an alternative.
+fn has_valid_glibc_build(release: &YarnRelease) -> bool {
+    release.assets
+        .iter()
+        .filter_map(|asset| {
+            let target = parse_asset_name(&asset.file_name)?;
+            // An asset the loop below skips is not a build to choose
+            // between, so it cannot be what constrains the musl one.
+            asset.digest.as_deref().and_then(sha256_digest_to_sri)?;
+            Some(target)
+        })
+        .any(|target| target.os == "linux" && !target.musl)
 }
 
 fn variant_url(variant: &PlatformAssetResolution) -> &str {

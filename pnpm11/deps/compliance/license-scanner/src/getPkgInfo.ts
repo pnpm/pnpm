@@ -7,7 +7,7 @@ import { type PackageSnapshot, pkgSnapshotToResolution } from '@pnpm/lockfile.ut
 import { readPackageJson } from '@pnpm/pkg-manifest.reader'
 import type { StoreIndex } from '@pnpm/store.index'
 import { readPackageFileMap } from '@pnpm/store.pkg-finder'
-import type { PackageManifest, RegistriesByScope } from '@pnpm/types'
+import type { PackageManifest, RegistriesByScope, SupportedArchitectures } from '@pnpm/types'
 import pLimit from 'p-limit'
 import { pathAbsolute } from 'path-absolute'
 
@@ -36,6 +36,7 @@ export interface GetPackageInfoOptions {
   virtualStoreDirMaxLength: number
   dir: string
   modulesDir: string
+  supportedArchitectures?: SupportedArchitectures
 }
 
 export type PkgInfo = {
@@ -68,6 +69,7 @@ export async function getPkgInfo (
         storeDir: opts.storeDir,
         storeIndex: opts.storeIndex,
         lockfileDir: opts.dir,
+        supportedArchitectures: opts.supportedArchitectures,
         virtualStoreDirMaxLength: opts.virtualStoreDirMaxLength,
       }
     )

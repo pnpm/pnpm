@@ -11,9 +11,7 @@ use crate::{
     pm_shims::{shim_names, write_pm_shims},
     preferred_pm::{PreferredPm, WantedPm, detect_wanted_pm},
 };
-use pnpm_executor::{
-    LifecycleScriptError, RunPostinstallHooks, ScriptsPrependNodePath, run_lifecycle_hook,
-};
+use pnpm_executor::{LifecycleScriptError, RunPostinstallHooks, run_lifecycle_hook};
 use pnpm_network::redact_and_sanitize;
 use pnpm_package_manifest::safe_read_package_json_from_dir;
 use pnpm_reporter::{LogEvent, LogLevel, PnpmLog, Reporter};
@@ -47,23 +45,13 @@ pub type AllowBuildRef<'a> = &'a (dyn Fn(&str) -> bool + Send + Sync);
 
 /// Caller-supplied context for [`prepare_package`].
 pub struct PreparePackageOptions<'a> {
+    pub scripts: crate::PrepareScriptOptions<'a>,
     pub allow_build: AllowBuildFn<'a>,
     /// The package's resolution id — the bare `git+…#<commit>` or
     /// archive URL. The gated dep path is synthesized from it and the
     /// fetched manifest's name, so the policy sees the same
     /// `<name>@<id>` key a lockfile would record.
     pub pkg_resolution_id: &'a str,
-    pub ignore_scripts: bool,
-    pub unsafe_perm: bool,
-    pub user_agent: Option<&'a str>,
-    pub scripts_prepend_node_path: ScriptsPrependNodePath,
-    pub script_shell: Option<&'a Path>,
-    pub node_execpath: Option<&'a Path>,
-    pub npm_execpath: Option<&'a Path>,
-    /// The running pnpm, which the package-manager shims forward to.
-    /// Without it pnpm cannot provide the package manager a dependency
-    /// asks for, and the build falls back to whatever the host has.
-    pub pnpm_execpath: Option<&'a Path>,
     pub extra_bin_paths: &'a [PathBuf],
     pub extra_env: &'a HashMap<String, String>,
 }
@@ -76,12 +64,6 @@ pub struct PreparedPackage {
     pub should_be_built: bool,
 }
 
-/// Read the manifest, decide whether the package needs building, and
-/// run the appropriate lifecycle scripts. Returns `should_be_built:
-/// false` early when there's nothing to do; otherwise runs
-/// `<pm>-install` plus any defined `prepublish` / `prepack` / `publish`
-/// hooks, then deletes `node_modules` so the install-time deps don't
-/// leak into the CAS.
 pub fn prepare_package<Reporter: self::Reporter>(
     opts: &PreparePackageOptions<'_>,
     git_root_dir: &Path,
@@ -100,45 +82,86 @@ pub fn prepare_package<Reporter: self::Reporter>(
     {
         return Ok(PreparedPackage { pkg_dir, should_be_built: false });
     }
-    if opts.ignore_scripts {
+    if opts.scripts.ignore {
         return Ok(PreparedPackage { pkg_dir, should_be_built: true });
     }
 
     assert_package_build_allowed(opts.allow_build.as_ref(), opts.pkg_resolution_id, &manifest)?;
 
-    let name = manifest.get("name").and_then(Value::as_str).unwrap_or("");
-    let version = manifest.get("version").and_then(Value::as_str).unwrap_or("");
     let wanted_pm = detect_wanted_pm(git_root_dir, Some(&manifest));
     let pm = wanted_pm.pm;
-    let dep_path = format!("{name}@{version}");
+    let dep_path = manifest_dep_path(&manifest);
 
     let mut extra_bin_paths = opts.extra_bin_paths.to_vec();
     // Kept alive until the prepare is over: dropping it takes the shims
     // with it.
-    let shims_dir = provide_wanted_pm::<Reporter>(&wanted_pm, &dep_path, opts.pnpm_execpath)?;
+    let shims_dir =
+        provide_wanted_pm::<Reporter>(&wanted_pm, &dep_path, opts.scripts.pnpm_execpath)?;
     if let Some(dir) = shims_dir.as_ref() {
         extra_bin_paths.insert(0, dir.path().to_path_buf());
     }
 
-    let run_opts = RunPostinstallHooks {
-        dep_path: &dep_path,
-        pkg_root: &pkg_dir,
-        root_modules_dir: &pkg_dir,
-        init_cwd: &pkg_dir,
-        extra_bin_paths: &extra_bin_paths,
-        extra_env: opts.extra_env,
-        node_execpath: opts.node_execpath,
-        npm_execpath: opts.npm_execpath,
-        node_gyp_path: None,
-        user_agent: opts.user_agent,
-        unsafe_perm: opts.unsafe_perm,
-        node_gyp_bin: pnpm_executor::bundled_node_gyp_bin(),
-        scripts_prepend_node_path: opts.scripts_prepend_node_path,
-        script_shell: opts.script_shell,
-        shell_emulator: false,
-        optional: false,
-    };
+    let run_opts = opts.lifecycle_options(&dep_path, &pkg_dir, &extra_bin_paths);
 
+    run_install_and_prepublish::<Reporter>(pm, &run_opts, &manifest)?;
+    remove_install_node_modules(&pkg_dir)?;
+
+    Ok(PreparedPackage { pkg_dir, should_be_built: true })
+}
+
+impl PreparePackageOptions<'_> {
+    fn lifecycle_options<'a>(
+        &'a self,
+        dep_path: &'a str,
+        pkg_dir: &'a Path,
+        extra_bin_paths: &'a [PathBuf],
+    ) -> RunPostinstallHooks<'a> {
+        RunPostinstallHooks {
+            environment: pnpm_executor::ScriptEnvironment {
+                init_cwd: pkg_dir,
+                node_execpath: self.scripts.node_execpath,
+                npm_execpath: self.scripts.npm_execpath,
+                node_gyp_path: None,
+                user_agent: self.scripts.user_agent,
+                extra_env: self.extra_env,
+            },
+            execution: pnpm_executor::ScriptExecutionOptions {
+                extra_bin_paths,
+                node_gyp_bin: pnpm_executor::bundled_node_gyp_bin(),
+                prepend_node_path: self.scripts.prepend_node_path,
+                shell: self.scripts.shell,
+                shell_emulator: false,
+            },
+            dep_path,
+            pkg_root: pkg_dir,
+            root_modules_dir: pkg_dir,
+
+            unsafe_perm: self.scripts.unsafe_perm,
+
+            optional: false,
+        }
+    }
+}
+
+fn manifest_dep_path(manifest: &Value) -> String {
+    let name = manifest
+        .get("name")
+        .and_then(Value::as_str)
+        .unwrap_or("");
+    let version = manifest
+        .get("version")
+        .and_then(Value::as_str)
+        .unwrap_or("");
+    format!("{name}@{version}")
+}
+
+/// Run `<pm> install` and then the prepublish lifecycle scripts, each
+/// against the manifest with that script injected.
+fn run_install_and_prepublish<Reporter: self::Reporter>(
+    pm: PreferredPm,
+    run_opts: &RunPostinstallHooks<'_>,
+    manifest: &Value,
+) -> Result<(), PreparePackageError> {
     let parent_env: HashMap<String, String> = std::env::vars().collect();
     let mut working_manifest = manifest.clone();
     let install_stage = format!("{}-install", pm.name());
@@ -147,45 +170,66 @@ pub fn prepare_package<Reporter: self::Reporter>(
     run_lifecycle_hook::<Reporter>(
         &install_stage,
         &install_script,
-        &run_opts,
+        run_opts,
         &working_manifest,
         &parent_env,
     )
     .map_err(map_lifecycle_err)?;
 
     for &script_name in PREPUBLISH_SCRIPTS {
-        let Some(script_body) = working_manifest
-            .get("scripts")
-            .and_then(|s| s.get(script_name))
-            .and_then(Value::as_str)
-            .filter(|script| !script.is_empty())
-            .map(str::to_owned)
+        let Some((stage, script)) =
+            prepublish_invocation(&mut working_manifest, pm.name(), script_name)
         else {
             continue;
         };
-        let (stage, script) = if pm.name() == "pnpm" {
-            (script_name.to_string(), script_body)
-        } else {
-            let synthesized_stage = format!("{}-run-{}", pm.name(), script_name);
-            let synthesized = format!("{} run {}", pm.name(), script_name);
-            inject_script(&mut working_manifest, &synthesized_stage, &synthesized);
-            (synthesized_stage, synthesized)
-        };
-        run_lifecycle_hook::<Reporter>(&stage, &script, &run_opts, &working_manifest, &parent_env)
+        run_lifecycle_hook::<Reporter>(&stage, &script, run_opts, &working_manifest, &parent_env)
             .map_err(map_lifecycle_err)?;
     }
+    Ok(())
+}
 
-    // Remove the install-time `node_modules` so the deps don't leak
-    // into the CAS. Ignore `NotFound` (the script may not have
-    // populated `node_modules` at all).
-    let node_modules = pkg_dir.join("node_modules");
-    if let Err(error) = fs::remove_dir_all(&node_modules)
-        && error.kind() != std::io::ErrorKind::NotFound
-    {
-        return Err(PreparePackageError::Io(error));
+/// Remove the install-time `node_modules` so the deps don't leak
+/// into the CAS. Ignore `NotFound` (the script may not have
+/// populated `node_modules` at all).
+fn remove_install_node_modules(pkg_dir: &Path) -> Result<(), PreparePackageError> {
+    match fs::remove_dir_all(pkg_dir.join("node_modules")) {
+        Err(error) if error.kind() != std::io::ErrorKind::NotFound => {
+            Err(PreparePackageError::Io(error))
+        }
+        _ => Ok(()),
     }
+}
 
-    Ok(PreparedPackage { pkg_dir, should_be_built: true })
+/// Read the manifest, decide whether the package needs building, and
+/// run the appropriate lifecycle scripts. Returns `should_be_built:
+/// false` early when there's nothing to do; otherwise runs
+/// `<pm>-install` plus any defined `prepublish` / `prepack` / `publish`
+/// hooks, then deletes `node_modules` so the install-time deps don't
+/// leak into the CAS.
+/// The lifecycle stage and command one prepublish script runs as, or `None`
+/// when the package declares no such script.
+///
+/// Only pnpm runs a package's own script names; every other package manager is
+/// driven through a synthesized `<pm>-run-<script>` stage, which is injected
+/// into the working manifest so the hook runner can find it.
+fn prepublish_invocation(
+    working_manifest: &mut Value,
+    pm_name: &str,
+    script_name: &str,
+) -> Option<(String, String)> {
+    let script_body = working_manifest
+        .get("scripts")
+        .and_then(|scripts| scripts.get(script_name))
+        .and_then(Value::as_str)
+        .filter(|script| !script.is_empty())
+        .map(str::to_owned)?;
+    if pm_name == "pnpm" {
+        return Some((script_name.to_string(), script_body));
+    }
+    let stage = format!("{pm_name}-run-{script_name}");
+    let script = format!("{pm_name} run {script_name}");
+    inject_script(working_manifest, &stage, &script);
+    Some((stage, script))
 }
 
 /// Whether the package manager on `PATH` can install what the dependency
@@ -294,31 +338,33 @@ fn host_can_prepare(wanted: &WantedPm) -> bool {
 }
 
 fn probe_host(wanted: &WantedPm) -> bool {
-    let wanted_range =
-        wanted.version_spec.as_deref().and_then(|range| node_semver::Range::parse(range).ok());
+    let wanted_range = wanted.version_spec
+        .as_deref()
+        .and_then(|range| node_semver::Range::parse(range).ok());
     // A dependency's scripts reach for any of the package manager's names
     // — `yarnpkg` as readily as `yarn` — and nothing says two of them on
     // one host are the same install, so each has to answer for itself.
-    shim_names(wanted.pm).all(|name| {
-        let Ok(program) = which::which(name) else {
-            return false;
-        };
-        let Some(wanted_range) = wanted_range.as_ref() else {
-            return true;
-        };
-        let Ok(output) = Command::new(program).arg("--version").output() else {
-            return false;
-        };
-        // A version printed by a command that then failed says nothing
-        // about what that command can do.
-        output.status.success()
-            && String::from_utf8_lossy(&output.stdout)
-                .lines()
-                .next()
-                .map(str::trim)
-                .and_then(|version| node_semver::Version::parse(version).ok())
-                .is_some_and(|version| version.satisfies(wanted_range))
-    })
+    shim_names(wanted.pm)
+        .all(|name| {
+            let Ok(program) = which::which(name) else {
+                return false;
+            };
+            let Some(wanted_range) = wanted_range.as_ref() else {
+                return true;
+            };
+            let Ok(output) = Command::new(program).arg("--version").output() else {
+                return false;
+            };
+            // A version printed by a command that then failed says nothing
+            // about what that command can do.
+            output.status.success()
+                && String::from_utf8_lossy(&output.stdout)
+                    .lines()
+                    .next()
+                    .map(str::trim)
+                    .and_then(|version| node_semver::Version::parse(version).ok())
+                    .is_some_and(|version| version.satisfies(wanted_range))
+        })
 }
 
 pub fn assert_package_build_allowed(
@@ -326,8 +372,14 @@ pub fn assert_package_build_allowed(
     pkg_resolution_id: &str,
     manifest: &Value,
 ) -> Result<(), PreparePackageError> {
-    let name = manifest.get("name").and_then(Value::as_str).unwrap_or("");
-    let version = manifest.get("version").and_then(Value::as_str).unwrap_or("");
+    let name = manifest
+        .get("name")
+        .and_then(Value::as_str)
+        .unwrap_or("");
+    let version = manifest
+        .get("version")
+        .and_then(Value::as_str)
+        .unwrap_or("");
     let allow_build_dep_path = format!("{name}@{pkg_resolution_id}");
     if allow_build(&allow_build_dep_path) {
         return Ok(());
@@ -344,16 +396,28 @@ fn package_should_be_built(manifest: &Value, pkg_dir: &Path) -> bool {
     let Some(scripts) = manifest.get("scripts").and_then(Value::as_object) else {
         return false;
     };
-    if scripts.get("prepare").and_then(Value::as_str).is_some_and(|script| !script.is_empty()) {
+    if scripts
+        .get("prepare")
+        .and_then(Value::as_str)
+        .is_some_and(|script| !script.is_empty())
+    {
         return true;
     }
-    let has_prepublish_script = PREPUBLISH_SCRIPTS.iter().any(|name| {
-        scripts.get(*name).and_then(Value::as_str).is_some_and(|script| !script.is_empty())
-    });
+    let has_prepublish_script = PREPUBLISH_SCRIPTS
+        .iter()
+        .any(|name| {
+            scripts
+                .get(*name)
+                .and_then(Value::as_str)
+                .is_some_and(|script| !script.is_empty())
+        });
     if !has_prepublish_script {
         return false;
     }
-    let main_file = manifest.get("main").and_then(Value::as_str).unwrap_or("index.js");
+    let main_file = manifest
+        .get("main")
+        .and_then(Value::as_str)
+        .unwrap_or("index.js");
     !pkg_dir.join(main_file).exists()
 }
 
@@ -368,7 +432,9 @@ pub(crate) fn safe_join_path(
     root: &Path,
     sub: Option<&str>,
 ) -> Result<PathBuf, PreparePackageError> {
-    let sub = sub.unwrap_or("").trim_start_matches(['/', '\\']);
+    let sub = sub
+        .unwrap_or("")
+        .trim_start_matches(['/', '\\']);
     let joined = if sub.is_empty() { root.to_path_buf() } else { root.join(sub) };
     let canonical_root = root.canonicalize().map_err(PreparePackageError::Io)?;
     let Ok(canonical_joined) = joined.canonicalize() else {

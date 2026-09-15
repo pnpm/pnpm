@@ -46,13 +46,10 @@ pub enum SkipReason {
 /// collapsed into a misleading engine-mismatch error.
 #[derive(Debug, Display, Error, Diagnostic, Clone, PartialEq, Eq)]
 pub enum InstallabilityError {
-    #[display("{_0}")]
     #[diagnostic(transparent)]
     Engine(UnsupportedEngineError),
-    #[display("{_0}")]
     #[diagnostic(transparent)]
     Platform(UnsupportedPlatformError),
-    #[display("{_0}")]
     #[diagnostic(transparent)]
     InvalidNodeVersion(InvalidNodeVersionError),
 }
@@ -259,11 +256,13 @@ pub fn platform_is_supported_with_inference(
     options: &InstallabilityOptions<'_>,
 ) -> bool {
     let inferred = inferred_platform(name, declared);
-    let wanted = inferred.as_ref().map_or(declared, |platform| WantedPlatformRef {
-        os: platform.os.as_deref(),
-        cpu: platform.cpu.as_deref(),
-        libc: platform.libc.as_deref(),
-    });
+    let wanted = inferred
+        .as_ref()
+        .map_or(declared, |platform| WantedPlatformRef {
+            os: platform.os.as_deref(),
+            cpu: platform.cpu.as_deref(),
+            libc: platform.libc.as_deref(),
+        });
     platform_is_supported(
         wanted,
         options.supported_architectures,

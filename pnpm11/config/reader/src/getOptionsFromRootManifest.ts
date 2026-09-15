@@ -25,6 +25,7 @@ import { map as mapValues } from 'ramda'
 import { quoteAndJoin } from './quoteAndJoin.js'
 
 export type OptionsFromRootManifest = {
+  scriptShell?: string
   allowedDeprecatedVersions?: AllowedDeprecatedVersions
   allowUnusedPatches?: boolean
   overrides?: Record<string, string>
@@ -77,6 +78,9 @@ export function getOptionsFromPnpmSettings (
   const settings: OptionsFromRootManifest = replaceEnvInSettings(pnpmSettings, {
     expandRequestDestinationEnv: opts.expandRequestDestinationEnv ?? false,
   })
+  if (manifestDir != null && settings.scriptShell != null) {
+    settings.scriptShell = resolveScriptShell(manifestDir, settings.scriptShell)
+  }
   if (settings.overrides) {
     assertValidOverrides(settings.overrides)
     if (Object.keys(settings.overrides).length === 0) {
@@ -98,6 +102,9 @@ export function getOptionsFromPnpmSettings (
       settings.patchedDependencies[dep] = path.join(manifestDir, patchFile)
     }
   }
+  if (pnpmSettings.nodeDownloadMirrors != null) {
+    assertStringRecord(pnpmSettings.nodeDownloadMirrors, 'nodeDownloadMirrors')
+  }
   translateRegistrySettings(settings)
   translateUpdateSettings(pnpmSettings, settings)
   translateAuditSettings(pnpmSettings, settings)
@@ -107,6 +114,13 @@ export function getOptionsFromPnpmSettings (
   }
 
   return settings
+}
+
+function resolveScriptShell (manifestDir: string, scriptShell: string): string {
+  if (path.isAbsolute(scriptShell) || (!scriptShell.includes('/') && !scriptShell.includes('\\'))) {
+    return scriptShell
+  }
+  return path.join(manifestDir, scriptShell)
 }
 
 /** The fields a `tasks` entry may carry. Anything else is a typo. */
@@ -625,6 +639,13 @@ function assertBoolean (value: unknown, settingName: string): asserts value is b
 function assertString (value: unknown, settingName: string): asserts value is string {
   if (typeof value !== 'string') {
     throw new PnpmError('INVALID_SETTING', `The "${settingName}" setting should be a string, but got ${renderReceivedType(value)}`)
+  }
+}
+
+function assertStringRecord (value: unknown, settingName: string): void {
+  assertObjectSetting(value, settingName)
+  for (const [key, item] of Object.entries(value as Record<string, unknown>)) {
+    assertString(item, `${settingName}.${key}`)
   }
 }
 

@@ -93,7 +93,11 @@ fn strips_control_characters_from_the_username() {
     let bel = char::from(0x07);
     let username = format!("al{esc}[31mice{bel}");
     let body = serde_json::json!({ "username": username }).to_string();
-    let mock = server.mock("GET", "/-/whoami").with_status(200).with_body(body).create();
+    let mock = server
+        .mock("GET", "/-/whoami")
+        .with_status(200)
+        .with_body(body)
+        .create();
     let auth_file = configure(root.path(), &workspace, &registry, Some("test-token"));
 
     let output = run_whoami(&workspace, &auth_file);
@@ -138,7 +142,11 @@ fn fails_when_the_registry_rejects_the_request() {
     let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
     let mut server = mockito::Server::new();
     let registry = format!("{}/", server.url());
-    let mock = server.mock("GET", "/-/whoami").with_status(401).with_body("{}").create();
+    let mock = server
+        .mock("GET", "/-/whoami")
+        .with_status(401)
+        .with_body("{}")
+        .create();
     let auth_file = configure(root.path(), &workspace, &registry, Some("test-token"));
 
     let output = run_whoami(&workspace, &auth_file);

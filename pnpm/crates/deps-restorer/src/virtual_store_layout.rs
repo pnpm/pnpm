@@ -20,25 +20,23 @@
 //! [`PkgNameVerPeer::to_virtual_store_name`]: pnpm_lockfile::PkgNameVerPeer::to_virtual_store_name
 //! [`pnpm_graph_hasher::format_global_virtual_store_path`]: pnpm_graph_hasher::format_global_virtual_store_path
 
+mod graph_hash;
+use graph_hash::GvsHasher;
+
 use crate::{
     AllowBuildPolicy,
-    install_frozen_lockfile::{
-        find_own_runtime_node_major, find_runtime_node_major, parse_major_from_version,
-    },
+    install_frozen_lockfile::{find_runtime_node_major, parse_major_from_version},
 };
-use indexmap::IndexMap;
 use pnpm_config::Config;
-use pnpm_deps_path::get_pkg_id_with_patch_hash;
 use pnpm_graph_hasher::{
-    DepsGraphNode, DepsStateCache, calc_graph_node_hash, detect_node_major, engine_name,
-    format_global_virtual_store_path, join_global_virtual_store_path,
+    detect_node_major, engine_name, format_global_virtual_store_path,
+    join_global_virtual_store_path,
 };
 use pnpm_lockfile::{
-    LockfileResolution, PackageKey, PackageMetadata, PkgIdWithPatchHash, PkgVerPeer, SnapshotEntry,
-    VersionPart,
+    LockfileResolution, PackageKey, PackageMetadata, PkgVerPeer, SnapshotEntry, VersionPart,
 };
 use std::{
-    collections::{HashMap, HashSet},
+    collections::HashMap,
     path::{Path, PathBuf},
 };
 
@@ -138,7 +136,7 @@ impl VirtualStoreLayout {
     /// precompute GVS slot names, then iterates the lockfile's
     /// `snapshots` (the per-peer-context entries) and computes each
     /// snapshot's [`format_global_virtual_store_path`]-shaped suffix
-    /// via [`calc_graph_node_hash`].
+    /// via [`calc_graph_node_hash`](pnpm_graph_hasher::calc_graph_node_hash).
     ///
     /// Returns a layout that's safe to pass by reference across rayon
     /// workers: every field is `Send + Sync` once constructed (the
@@ -159,7 +157,7 @@ impl VirtualStoreLayout {
     /// the install-wide fallback.
     ///
     /// `None` propagates straight into
-    /// [`calc_graph_node_hash`]'s `engine` parameter — `None` and
+    /// [`calc_graph_node_hash`](pnpm_graph_hasher::calc_graph_node_hash)'s `engine` parameter — `None` and
     /// `Some("")` produce *different* GVS hashes (the former omits
     /// the `engine` contribution, the latter hashes the empty string),
     /// so the call site must keep the `Option` shape rather than
@@ -227,6 +225,82 @@ impl VirtualStoreLayout {
         )
     }
 
+    /// [`Self::new`], with the derived suffix map cached on disk.
+    ///
+    /// The key is a digest of the inputs the suffixes are derived from,
+    /// taken from the values in hand rather than from a re-read of the
+    /// lockfile file — the caller parsed that file at some earlier
+    /// point, and a second read can return a different revision, which
+    /// would file this run's suffixes under another one's identity.
+    ///
+    /// Only the restore path uses it. Nothing here depends on that any
+    /// more, but a caller whose lockfile the install is about to
+    /// rewrite gains nothing from an entry it will immediately
+    /// invalidate.
+    ///
+    /// The cache module below documents what the key covers and what
+    /// the loader refuses to trust.
+    #[must_use]
+    pub fn new_cached(
+        config: &Config,
+        engine: Option<&str>,
+        snapshots: Option<&HashMap<PackageKey, SnapshotEntry>>,
+        packages: Option<&HashMap<PackageKey, PackageMetadata>>,
+        allow_build_policy: Option<&AllowBuildPolicy>,
+        lockfile_dir: Option<&Path>,
+    ) -> Self {
+        let Some(snapshots) = snapshots.filter(|_| config.enable_global_virtual_store) else {
+            return Self::new(
+                config,
+                engine,
+                snapshots,
+                packages,
+                allow_build_policy,
+                lockfile_dir,
+            );
+        };
+        let mut hasher =
+            GvsHasher::new(snapshots, packages, engine, allow_build_policy, lockfile_dir);
+        let fingerprint = hasher.fingerprint(snapshots);
+        let cache_file = lockfile_dir.map(|lockfile_dir| gvs_layout_cache::CacheFile {
+            cache_dir: &config.cache_dir,
+            lockfile_dir,
+            fingerprint: &fingerprint,
+        });
+        if let Some(cache_file) = cache_file
+            && let Some(gvs_suffixes) = gvs_layout_cache::load(
+                cache_file,
+                gvs_layout_cache::Expected { snapshots, packages },
+            )
+        {
+            tracing::info!(
+                target: "pacquet::install::phase",
+                phase = "gvs.layout_cache_hit",
+                entries = gvs_suffixes.len(),
+                "phase complete",
+            );
+            return Self::with_cached_suffixes(config, gvs_suffixes, lockfile_dir);
+        }
+        let gvs_suffixes = hasher.suffixes(snapshots);
+        if let Some(cache_file) = cache_file {
+            gvs_layout_cache::store(cache_file, &gvs_suffixes);
+        }
+        Self::with_cached_suffixes(config, gvs_suffixes, lockfile_dir)
+    }
+
+    fn with_cached_suffixes(
+        config: &Config,
+        gvs_suffixes: HashMap<PackageKey, String>,
+        lockfile_dir: Option<&Path>,
+    ) -> Self {
+        VirtualStoreLayout {
+            package_store_dir: config.global_virtual_store_dir.clone(),
+            gvs_suffixes: Some(gvs_suffixes),
+            virtual_store_dir_max_length: config.virtual_store_dir_max_length as usize,
+            lockfile_dir: lockfile_dir.map(Path::to_path_buf),
+        }
+    }
+
     /// Build a GVS-shaped layout rooted at `package_store_dir`,
     /// regardless of `Config::enable_global_virtual_store`. This is the
     /// body of [`Self::new`]'s GVS branch; the macOS directory-clone
@@ -253,66 +327,11 @@ impl VirtualStoreLayout {
                 lockfile_dir: lockfile_dir.map(Path::to_path_buf),
             };
         };
-        let graph = lockfile_to_dep_graph(snapshots, packages, lockfile_dir);
-        // One conversion for the whole lockfile: the same string scopes every
-        // local directory snapshot in it.
-        //
-        // Lossy on purpose: the TypeScript CLI hashes the same slot from a JS
-        // string, and Node decodes a path as UTF-8 with replacement, so this is
-        // the identical input. Hashing the raw bytes instead would give the two
-        // stacks different slots for the same project.
-        let project_scope = lockfile_dir.map(|dir| dir.to_string_lossy());
-        // Build the engine-agnostic gating set once per install.
-        // `None` here disables gating so every snapshot still hashes
-        // with its engine string.
-        let build_required_dep_paths: Option<HashSet<String>> = allow_build_policy.map(|policy| {
-            let built_dep_paths = snapshots
-                .keys()
-                .filter(|key| policy.check(&key.without_peer().to_string()) == Some(true))
-                .map(ToString::to_string)
-                .collect();
-            pnpm_graph_hasher::build_required_dep_paths(&graph, &built_dep_paths)
-        });
-        let mut cache: DepsStateCache<String> = HashMap::new();
-        let mut gvs_suffixes: HashMap<PackageKey, String> = HashMap::with_capacity(snapshots.len());
-        // Lockfile key order, not `HashMap` order: `calc_graph_node_hash`
-        // memoizes into `cache`, and for a snapshot inside a dependency
-        // cycle the digest that lands there depends on which snapshot the
-        // walk reached it from.
-        for (snapshot_key, snapshot) in crate::deps_graph::in_lockfile_order(snapshots) {
-            // Per-snapshot engine resolution: a snapshot that declares
-            // its own `engines.runtime` carries the desugared
-            // `dependencies.node: 'runtime:<version>'` pin, which has
-            // to drive the engine portion of *its* hash rather than
-            // the install-wide fallback. Precedence: own pin first,
-            // install-wide fallback second. Default host platform /
-            // arch (`None`, `None`) matches whatever the caller used
-            // to format the fallback `engine` so the two strings
-            // remain comparable across snapshots in one install.
-            let own_engine =
-                find_own_runtime_node_major(snapshot).map(|major| engine_name(major, None, None));
-            let snapshot_engine = own_engine.as_deref().or(engine);
-            let metadata_key = snapshot_key.without_peer();
-            let metadata = packages.and_then(|map| map.get(&metadata_key));
-            let project =
-                local_directory_scope(metadata, &metadata_key.suffix, project_scope.as_deref());
-            let graph_key = snapshot_key.to_string();
-            let hex_digest = calc_graph_node_hash(
-                &graph,
-                &mut cache,
-                &graph_key,
-                snapshot_engine,
-                build_required_dep_paths.as_ref(),
-                project,
-            );
-            let name = metadata_key.name.to_string();
-            let version = gvs_version_segment(metadata, &metadata_key.suffix);
-            let suffix = format_global_virtual_store_path(&name, &version, &hex_digest);
-            gvs_suffixes.insert(snapshot_key.clone(), suffix);
-        }
+        let mut hasher =
+            GvsHasher::new(snapshots, packages, engine, allow_build_policy, lockfile_dir);
         VirtualStoreLayout {
             package_store_dir,
-            gvs_suffixes: Some(gvs_suffixes),
+            gvs_suffixes: Some(hasher.suffixes(snapshots)),
             virtual_store_dir_max_length,
             lockfile_dir: lockfile_dir.map(Path::to_path_buf),
         }
@@ -404,6 +423,33 @@ pub fn virtual_store_layout_for_lockfile(
     )
 }
 
+/// Return the GVS directory containing every graph-hash slot for one snapshot.
+/// This derives only the `<scope>/<name>/<version>` prefix and does not build or
+/// hash the dependency graph. Returns `None` when lockfile data cannot form the
+/// exact package-name and version components in that prefix.
+#[must_use]
+pub fn global_virtual_store_version_dir(
+    package_store_dir: &Path,
+    snapshot_key: &PackageKey,
+    metadata: Option<&PackageMetadata>,
+) -> Option<PathBuf> {
+    let name = snapshot_key.name.to_string();
+    let version = gvs_version_segment(metadata, &snapshot_key.suffix);
+    if !pnpm_package_name::is_valid_dependency_alias(&name)
+        || !is_single_gvs_path_component(&version)
+    {
+        return None;
+    }
+    let candidate_slot = join_global_virtual_store_path(
+        package_store_dir,
+        &format_global_virtual_store_path(&name, &version, "candidate"),
+    );
+    if !pnpm_fs::is_subdir(package_store_dir, &candidate_slot) {
+        return None;
+    }
+    candidate_slot.parent().map(Path::to_path_buf)
+}
+
 /// Map each injected `file:` project to the virtual-store package
 /// directories its copies were materialized at.
 ///
@@ -437,11 +483,11 @@ pub fn virtual_store_layout_for_lockfile(
 pub fn collect_injected_deps(
     layout: &VirtualStoreLayout,
     lockfile_dir: &Path,
-    snapshots: Option<&HashMap<PackageKey, SnapshotEntry>>,
-    packages: Option<&HashMap<PackageKey, PackageMetadata>>,
+    entries: pnpm_lockfile::LockfileEntries<'_>,
     skipped: &crate::SkippedSnapshots,
     hoisted_locations: Option<&std::collections::BTreeMap<String, Vec<String>>>,
 ) -> std::collections::BTreeMap<String, Vec<String>> {
+    let pnpm_lockfile::LockfileEntries { packages, snapshots } = entries;
     let mut injected: std::collections::BTreeMap<String, Vec<String>> =
         std::collections::BTreeMap::new();
     let Some(snapshots) = snapshots else { return injected };
@@ -459,25 +505,10 @@ pub fn collect_injected_deps(
             continue;
         }
         let source = path.strip_prefix("./").unwrap_or(path);
-        let targets = injected.entry(source.to_string()).or_default();
-        if let Some(locations) = hoisted_locations {
-            // Hoisted linker: the walker already recorded every
-            // lockfile-relative dir this depPath was placed at.
-            if let Some(dirs) = locations.get(&key.to_string()) {
-                targets.extend(dirs.iter().cloned());
-            }
-        } else {
-            // Isolated linker: one virtual-store slot per snapshot.
-            let target = layout.slot_dir(key).join("node_modules").join(key.name.to_string());
-            let target = match target.strip_prefix(lockfile_dir) {
-                Ok(relative) => relative.to_path_buf(),
-                Err(_) => target,
-            };
-            // POSIX separators on every platform, matching the
-            // `hoistedLocations` entries the hoisted branch reuses
-            // (see `path_relative_to_lockfile_dir`).
-            targets.push(target.to_string_lossy().replace('\\', "/"));
-        }
+        injected
+            .entry(source.to_string())
+            .or_default()
+            .extend(injected_targets(layout, lockfile_dir, key, hoisted_locations));
     }
     // A source project whose every snapshot contributed no target
     // (e.g. hoisted entries the walker never placed) would round-trip
@@ -490,6 +521,36 @@ pub fn collect_injected_deps(
         targets.sort_unstable();
     }
     injected
+}
+
+/// Where one injected snapshot's copies live, as lockfile-relative
+/// paths with POSIX separators on every platform.
+fn injected_targets(
+    layout: &VirtualStoreLayout,
+    lockfile_dir: &Path,
+    key: &PackageKey,
+    hoisted_locations: Option<&std::collections::BTreeMap<String, Vec<String>>>,
+) -> Vec<String> {
+    // Hoisted linker: the walker already recorded every
+    // lockfile-relative dir this depPath was placed at.
+    if let Some(locations) = hoisted_locations {
+        return locations
+            .get(&key.to_string())
+            .cloned()
+            .unwrap_or_default();
+    }
+    // Isolated linker: one virtual-store slot per snapshot. The
+    // separator normalization matches the `hoistedLocations` entries the
+    // hoisted branch reuses (see `path_relative_to_lockfile_dir`).
+    let target = layout
+        .slot_dir(key)
+        .join("node_modules")
+        .join(key.name.to_string());
+    let target = match target.strip_prefix(lockfile_dir) {
+        Ok(relative) => relative.to_path_buf(),
+        Err(_) => target,
+    };
+    vec![target.to_string_lossy().replace('\\', "/")]
 }
 
 /// Version segment of a snapshot's global-virtual-store path. Derives
@@ -511,6 +572,13 @@ fn gvs_version_segment(metadata: Option<&PackageMetadata>, suffix: &PkgVerPeer) 
         Some(version) => version.to_string(),
         None => suffix.version().to_string(),
     }
+}
+
+fn is_single_gvs_path_component(value: &str) -> bool {
+    let mut components = Path::new(value).components();
+    !value.contains(['/', '\\'])
+        && matches!(components.next(), Some(std::path::Component::Normal(_)))
+        && components.next().is_none()
 }
 
 /// Stands in for the version of a snapshot resolved from a local
@@ -562,80 +630,26 @@ fn local_directory_scope<'a>(
     is_local_directory(metadata, suffix).then_some(lockfile_dir).flatten()
 }
 
-/// Build the dependency graph from the lockfile's `snapshots` /
-/// `packages` sections. Every entry in `snapshots` becomes a node whose
-/// `full_pkg_id` is `<pkg_id_with_patch_hash>:<integrity>` (for tarball
-/// / registry resolutions) and whose `children` are the
-/// alias→snapshot-key edges pulled from the snapshot's combined
-/// `dependencies` + `optionalDependencies`.
-///
-/// Resolved `link:` targets become leaf nodes whose identity is the
-/// absolute target path. Modeling them as children makes the target
-/// participate in every ancestor's recursive hash while keeping slots
-/// shared between projects that resolve the link to the same directory.
-///
-/// Packages whose metadata is missing or whose resolution has no
-/// `integrity` (directory / git) are emitted with the bare
-/// `pkg_id_with_patch_hash` as their `full_pkg_id`. The frozen-
-/// lockfile install path rejects those resolutions before reaching the
-/// linker, so a stub `full_pkg_id` here is safe — the GVS hash for an
-/// install that contains one of those snapshots is irrelevant because
-/// the install will error out before consulting it.
-fn lockfile_to_dep_graph(
-    snapshots: &HashMap<PackageKey, SnapshotEntry>,
-    packages: Option<&HashMap<PackageKey, PackageMetadata>>,
-    lockfile_dir: Option<&Path>,
-) -> HashMap<String, DepsGraphNode<String>> {
-    let mut graph = HashMap::with_capacity(snapshots.len());
-    let mut link_target_nodes = HashSet::new();
-    for (snapshot_key, snapshot) in snapshots {
-        let children = crate::deps_graph::build_children_with(snapshot, |alias, dep_ref| {
-            if let Some(snapshot_key) = dep_ref.resolve(alias) {
-                return Some(snapshot_key.to_string());
-            }
-            let link_target = dep_ref.as_link_target()?;
-            let lockfile_dir = lockfile_dir?;
-            let resolved = pnpm_fs::lexical_normalize(&lockfile_dir.join(link_target));
-            Some(format!("link:{}", resolved.to_string_lossy()))
-        });
-        link_target_nodes
-            .extend(children.values().filter(|child_key| child_key.starts_with("link:")).cloned());
-        let metadata_key = snapshot_key.without_peer();
-        let pkg_id_with_patch_hash = PkgIdWithPatchHash::from(
-            get_pkg_id_with_patch_hash(&snapshot_key.to_string()).to_string(),
-        );
-        let resolution =
-            packages.and_then(|map| map.get(&metadata_key)).map(|meta| &meta.resolution);
-        let full_pkg_id = create_full_pkg_id(&pkg_id_with_patch_hash, resolution);
-        graph.insert(snapshot_key.to_string(), DepsGraphNode { full_pkg_id, children });
-    }
-    for link_target_node in link_target_nodes {
-        graph.insert(
-            link_target_node.clone(),
-            DepsGraphNode { full_pkg_id: link_target_node, children: IndexMap::default() },
-        );
-    }
-    graph
-}
-
-/// `variations` (cross-platform variant) resolutions don't exist in
-/// pacquet's lockfile model yet — when they're added, this helper
-/// will need a `selectPlatformVariant` branch to pick the right
-/// integrity.
-fn create_full_pkg_id(
-    pkg_id_with_patch_hash: &PkgIdWithPatchHash,
-    resolution: Option<&LockfileResolution>,
-) -> String {
-    match resolution.and_then(LockfileResolution::integrity) {
-        Some(integrity) => format!("{pkg_id_with_patch_hash}:{integrity}"),
-        // Directory / git / missing-metadata fall through to the bare
-        // id. The install path rejects these resolutions before the
-        // hash is consulted (see
-        // [`crate::InstallPackageBySnapshotError::UnsupportedResolution`]),
-        // so the value never actually drives a slot path on disk.
-        None => pkg_id_with_patch_hash.to_string(),
-    }
-}
-
 #[cfg(test)]
 mod tests;
+
+/// On-disk cache for the derived global-virtual-store suffix map.
+///
+/// The map — every snapshot's `<scope>/<name>/<version>/<hash>` slot
+/// suffix — is a pure function of its inputs, so a run whose inputs are
+/// unchanged loads it instead of deriving it. What that skips is the
+/// recursive hash per snapshot; the dep graph is built either way,
+/// because the key is derived from it.
+///
+/// Modelled on the lockfile-verification cache
+/// (`<cache_dir>/lockfile-verified.jsonl`) and it lives next to it, in
+/// `cache_dir`: derived state a run may always recompute, never
+/// something an install depends on being there.
+///
+/// The key is [`GvsHasher::fingerprint`] — a digest of the dep graph
+/// the suffixes are derived from, plus the engine string, the
+/// allow-build gating set, the project scope and a format version.
+/// Deriving the key and the suffixes from the same in-hand values is
+/// what keeps them in step; a key taken from a re-read of the lockfile
+/// could describe a revision the suffixes did not come from.
+mod gvs_layout_cache;

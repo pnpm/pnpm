@@ -8,7 +8,7 @@ import { prepare } from '@pnpm/prepare'
 import { closeAllStoreIndexes } from '@pnpm/store.index'
 import { fixtures } from '@pnpm/test-fixtures'
 import { REGISTRY_MOCK_PORT } from '@pnpm/testing.registry-mock'
-import { finishWorkers } from '@pnpm/worker'
+import { restartWorkerPool } from '@pnpm/worker'
 import { rimrafSync } from '@zkochan/rimraf'
 
 const REGISTRY_URL = `http://localhost:${REGISTRY_MOCK_PORT}`
@@ -209,7 +209,7 @@ test('fetch populates global virtual store links/', async () => {
   })
 
   // Drain workers and close SQLite connections before removing the store (required on Windows)
-  await finishWorkers()
+  await restartWorkerPool()
   closeAllStoreIndexes()
 
   // Remove the store — simulate a cold start with only the lockfile

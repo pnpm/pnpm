@@ -13,6 +13,7 @@
 //! - a removal never switches a shim *on*, which clearing the entry that
 //!   holds back a built-in shim would do.
 
+use crate::{cli_args::shim::ShimError, engine_pm::channel::PackageManager};
 use miette::{Context, IntoDiagnostic};
 use pnpm_config::{
     Config, GLOBAL_CONFIG_YAML_FILENAME, GlobalShims, GlobalShimsSetting, Host, NamedShimPolicy,
@@ -24,8 +25,6 @@ use std::{
     fs,
     path::{Path, PathBuf},
 };
-
-use crate::{cli_args::shim::ShimError, engine_pm::channel::PackageManager};
 
 /// Record (or clear) `package`'s entry in the global `config.yaml`'s
 /// `globalShims` record, which is what the dispatcher consults at run
@@ -111,8 +110,7 @@ pub(crate) fn record_package_manager_shims<'a>(
 }
 
 pub(super) fn global_config_dir(config: &Config) -> miette::Result<PathBuf> {
-    config
-        .config_dir
+    config.config_dir
         .clone()
         .or_else(default_config_dir::<Host>)
         .ok_or_else(|| ShimError::NoGlobalDir.into())

@@ -32,7 +32,9 @@ impl PkgNameVerPeer {
             if filename.ends_with(')') {
                 filename.pop();
             }
-            filename = filename.replace(")(", "_").replace(['(', ')'], "_");
+            filename = filename
+                .replace(")(", "_")
+                .replace(['(', ')'], "_");
         }
         shorten_virtual_store_name(filename, max_length)
     }

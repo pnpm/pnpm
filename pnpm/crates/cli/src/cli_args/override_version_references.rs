@@ -20,7 +20,10 @@ pub(crate) fn warn_deprecated_override_version_references(config: &Config, emit:
     };
     let selectors = overrides
         .iter()
-        .filter(|(_, spec)| spec.as_str().is_some_and(|spec| spec.starts_with('$')))
+        .filter(|(_, spec)| {
+            spec.as_str()
+                .is_some_and(|spec| spec.starts_with('$'))
+        })
         .map(|(selector, _)| selector.as_str())
         .collect::<Vec<_>>();
     if selectors.is_empty() {

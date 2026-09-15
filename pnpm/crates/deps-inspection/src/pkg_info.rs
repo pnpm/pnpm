@@ -24,13 +24,6 @@ use super::{
 /// Everything that stays constant while resolving node metadata across
 /// one tree build.
 pub struct PkgInfoEnv<'a> {
-    pub lockfile_dir: PathBuf,
-    /// Absolute, symlink-resolved `node_modules` of the lockfile root.
-    pub modules_dir: PathBuf,
-    /// Absolute virtual store directory (`<modules_dir>/.pnpm` unless
-    /// the modules manifest points elsewhere, e.g. a global store).
-    pub virtual_store_dir: PathBuf,
-    pub virtual_store_dir_max_length: usize,
     /// Registry URLs keyed by `default` / `@scope`.
     pub registries: HashMap<String, String>,
     /// Per-registry tarball layouts from the `registries` setting, used
@@ -39,13 +32,24 @@ pub struct PkgInfoEnv<'a> {
     /// depPaths of packages skipped by the installer (unsupported
     /// platform optional deps).
     pub skipped: HashSet<String>,
-    pub store_dir: Option<PathBuf>,
     pub current_lockfile: &'a Lockfile,
     pub wanted_lockfile: Option<&'a Lockfile>,
     pub dep_types: DepTypes,
+    pub layout: InspectionLayout,
 }
 
-impl PkgInfoEnv<'_> {
+pub struct InspectionLayout {
+    pub lockfile_dir: PathBuf,
+    /// Absolute, symlink-resolved `node_modules` of the lockfile root.
+    pub modules_dir: PathBuf,
+    /// Absolute virtual store directory (`<modules_dir>/.pnpm` unless
+    /// the modules manifest points elsewhere, e.g. a global store).
+    pub virtual_store_dir: PathBuf,
+    pub virtual_store_dir_max_length: usize,
+    pub store_dir: Option<PathBuf>,
+}
+
+impl InspectionLayout {
     /// Whether the virtual store lives outside the project's
     /// `node_modules` (global virtual store), in which case package
     /// paths must be resolved through symlinks.
@@ -84,93 +88,146 @@ pub fn get_pkg_info(
     edge: &GraphEdge,
     ctx: &EdgeContext<'_>,
 ) -> (DependencyNode, ManifestSource) {
-    let name;
-    let mut version;
-    let mut resolved = None;
-    let mut integrity = None;
-    let mut optional = false;
-    let mut is_skipped = false;
-    let mut dev = None;
-
-    let full_package_path: PathBuf;
-
-    if let Some(dep_path) = &edge.dep_path {
-        let metadata_key = dep_path.without_peer();
-
-        let (in_current, current_snapshot, current_metadata) =
-            lookup_dep(env.current_lockfile, dep_path, &metadata_key);
-        let (known, snapshot, metadata) = if in_current {
-            (true, current_snapshot, current_metadata)
-        } else {
-            // The package is missing from the current lockfile — it was
-            // never materialized (e.g. skipped platform-specific
-            // optional deps).
-            is_skipped = env.skipped.contains(&dep_path.to_string());
-            match env.wanted_lockfile {
-                Some(wanted) => lookup_dep(wanted, dep_path, &metadata_key),
-                None => (false, None, None),
-            }
-        };
-
-        if known {
-            name = dep_path.name.to_string();
-            version = metadata
-                .and_then(|metadata| metadata.version.clone())
-                .unwrap_or_else(|| dep_path.suffix.version().to_string());
-            optional = snapshot.is_some_and(|snapshot| snapshot.optional);
-            if let Some(metadata) = metadata {
-                integrity = metadata.resolution.integrity().map(ToString::to_string);
-                resolved = resolved_tarball_url(env, &metadata.resolution, &name, &version);
-            }
-        } else {
-            name = edge.alias.clone();
-            version = edge.ref_display.clone();
-        }
-        dev = match env.dep_types.get(dep_path) {
-            Some(DepType::DevOnly) => Some(true),
-            Some(DepType::ProdOnly) => Some(false),
-            Some(DepType::DevAndProd) | None => None,
-        };
-        full_package_path = resolve_package_path(env, dep_path, &name, &edge.alias, ctx);
+    let mut locked = match &edge.dep_path {
+        Some(dep_path) => locked_pkg(env, edge, dep_path),
+        None => LockedPkg::unlocked(edge),
+    };
+    let full_package_path = if let Some(dep_path) = &edge.dep_path {
+        resolve_package_path(&env.layout, dep_path, &locked.name, &edge.alias, ctx)
     } else {
-        name = edge.alias.clone();
-        version = edge.ref_display.clone();
         let link_target = edge.link_target.as_deref().unwrap_or("");
-        full_package_path = lexical_normalize(&ctx.linked_path_base_dir.join(link_target));
-    }
+        lexical_normalize(&ctx.linked_path_base_dir.join(link_target))
+    };
 
-    if version.is_empty() {
-        version = edge.ref_display.clone();
-    }
-    if version.starts_with("link:")
-        && let Some(rewrite_dir) = &ctx.rewrite_link_version_dir
-    {
-        let relative = pathdiff::diff_paths(&full_package_path, rewrite_dir)
-            .unwrap_or_else(|| full_package_path.clone());
-        version = format!("link:{}", relative.to_string_lossy().replace('\\', "/"));
-    }
+    locked.rewrite_link_version(edge, ctx, &full_package_path);
 
     let path = full_package_path.to_string_lossy().into_owned();
     let manifest_source = ManifestSource {
         path: full_package_path,
-        integrity,
-        name: name.clone(),
-        version: version.clone(),
+        integrity: locked.integrity,
+        name: locked.name.clone(),
+        version: locked.version.clone(),
     };
     let node = DependencyNode {
         alias: edge.alias.clone(),
-        name,
-        version,
-        path,
-        resolved,
-        is_peer: ctx.peers.is_some_and(|peers| peers.contains(&edge.alias)),
-        is_skipped,
-        dev,
-        optional,
-        peers_suffix_hash: edge.dep_path.as_ref().and_then(peers_suffix_hash),
+        package: crate::DependencyPackage {
+            name: locked.name,
+            version: locked.version,
+            path,
+            resolved: locked.resolved,
+            peers_suffix_hash: edge.dep_path.as_ref().and_then(peers_suffix_hash),
+        },
+        status: crate::DependencyStatus {
+            is_peer: ctx.peers.is_some_and(|peers| peers.contains(&edge.alias)),
+            is_skipped: locked.is_skipped,
+            dev: locked.dev,
+            optional: locked.optional,
+            ..Default::default()
+        },
         ..DependencyNode::default()
     };
     (node, manifest_source)
+}
+
+/// What the lockfiles say about one edge's package.
+struct LockedPkg {
+    name: String,
+    version: String,
+    resolved: Option<String>,
+    integrity: Option<String>,
+    optional: bool,
+    is_skipped: bool,
+    dev: Option<bool>,
+}
+
+impl LockedPkg {
+    /// An edge with no dep path is a `link:` dependency: it is described by
+    /// the edge alone.
+    fn unlocked(edge: &GraphEdge) -> Self {
+        LockedPkg {
+            name: edge.alias.clone(),
+            version: edge.ref_display.clone(),
+            resolved: None,
+            integrity: None,
+            optional: false,
+            is_skipped: false,
+            dev: None,
+        }
+    }
+    fn rewrite_link_version(
+        &mut self,
+        edge: &GraphEdge,
+        ctx: &EdgeContext<'_>,
+        full_package_path: &Path,
+    ) {
+        if self.version.is_empty() {
+            self.version.clone_from(&edge.ref_display);
+        }
+        if self.version.starts_with("link:")
+            && let Some(rewrite_dir) = &ctx.rewrite_link_version_dir
+        {
+            let relative = pathdiff::diff_paths(full_package_path, rewrite_dir)
+                .unwrap_or_else(|| full_package_path.to_path_buf());
+            self.version = format!("link:{}", relative.to_string_lossy().replace('\\', "/"));
+        }
+    }
+}
+
+fn locked_pkg(env: &PkgInfoEnv<'_>, edge: &GraphEdge, dep_path: &PkgNameVerPeer) -> LockedPkg {
+    let metadata_key = dep_path.without_peer();
+    let mut is_skipped = false;
+
+    let (in_current, current_snapshot, current_metadata) =
+        lookup_dep(env.current_lockfile, dep_path, &metadata_key);
+    let (known, snapshot, metadata) = if in_current {
+        (true, current_snapshot, current_metadata)
+    } else {
+        // The package is missing from the current lockfile — it was
+        // never materialized (e.g. skipped platform-specific
+        // optional deps).
+        is_skipped = env.skipped.contains(&dep_path.to_string());
+        match env.wanted_lockfile {
+            Some(wanted) => lookup_dep(wanted, dep_path, &metadata_key),
+            None => (false, None, None),
+        }
+    };
+
+    let dev = dev_only(env.dep_types.get(dep_path));
+    if !known {
+        return LockedPkg {
+            name: edge.alias.clone(),
+            version: edge.ref_display.clone(),
+            is_skipped,
+            dev,
+            ..LockedPkg::unlocked(edge)
+        };
+    }
+
+    let name = dep_path.name.to_string();
+    let version = metadata
+        .and_then(|metadata| metadata.version.clone())
+        .unwrap_or_else(|| dep_path.suffix.version().to_string());
+    LockedPkg {
+        resolved: metadata.and_then(|metadata| {
+            resolved_tarball_url(env, &metadata.resolution, &name, &version)
+        }),
+        integrity: metadata.and_then(|metadata| {
+            metadata.resolution.integrity().map(ToString::to_string)
+        }),
+        optional: snapshot.is_some_and(|snapshot| snapshot.optional),
+        name,
+        version,
+        is_skipped,
+        dev,
+    }
+}
+
+fn dev_only(dep_type: Option<&DepType>) -> Option<bool> {
+    match dep_type {
+        Some(DepType::DevOnly) => Some(true),
+        Some(DepType::ProdOnly) => Some(false),
+        Some(DepType::DevAndProd) | None => None,
+    }
 }
 
 fn lookup_dep<'l>(
@@ -178,8 +235,12 @@ fn lookup_dep<'l>(
     dep_path: &PkgNameVerPeer,
     metadata_key: &PkgNameVerPeer,
 ) -> (bool, Option<&'l pnpm_lockfile::SnapshotEntry>, Option<&'l pnpm_lockfile::PackageMetadata>) {
-    let snapshot = lockfile.snapshots.as_ref().and_then(|snapshots| snapshots.get(dep_path));
-    let metadata = lockfile.packages.as_ref().and_then(|packages| packages.get(metadata_key));
+    let snapshot = lockfile.snapshots
+        .as_ref()
+        .and_then(|snapshots| snapshots.get(dep_path));
+    let metadata = lockfile.packages
+        .as_ref()
+        .and_then(|packages| packages.get(metadata_key));
     (snapshot.is_some() || metadata.is_some(), snapshot, metadata)
 }
 
@@ -218,14 +279,16 @@ fn resolved_tarball_url(
 /// `C:evil`) is not "absolute" yet still replaces the join base.
 #[must_use]
 pub fn is_unsafe_path_component(component: &str) -> bool {
-    Path::new(component).components().any(|part| {
-        matches!(
-            part,
-            std::path::Component::ParentDir
-                | std::path::Component::RootDir
-                | std::path::Component::Prefix(_),
-        )
-    })
+    Path::new(component)
+        .components()
+        .any(|part| {
+            matches!(
+                part,
+                std::path::Component::ParentDir
+                    | std::path::Component::RootDir
+                    | std::path::Component::Prefix(_),
+            )
+        })
 }
 
 /// Filesystem path of a package addressed by `dep_path`. For a local
@@ -234,34 +297,42 @@ pub fn is_unsafe_path_component(component: &str) -> bool {
 /// resolved instead. A name that could traverse outside the virtual
 /// store is never joined or dereferenced.
 pub fn resolve_package_path(
-    env: &PkgInfoEnv<'_>,
+    layout: &InspectionLayout,
     dep_path: &PkgNameVerPeer,
     name: &str,
     alias: &str,
     ctx: &EdgeContext<'_>,
 ) -> PathBuf {
-    let store_name = dep_path.to_virtual_store_name(env.virtual_store_dir_max_length);
+    let store_name = dep_path.to_virtual_store_name(layout.virtual_store_dir_max_length);
     if is_unsafe_path_component(&store_name) || is_unsafe_path_component(name) {
-        return env.virtual_store_dir.clone();
+        return layout.virtual_store_dir.clone();
     }
-    let constructed = env.virtual_store_dir.join(store_name).join("node_modules").join(name);
+    let constructed = layout.virtual_store_dir
+        .join(store_name)
+        .join("node_modules")
+        .join(name);
 
-    if !env.is_global_virtual_store() || is_unsafe_path_component(alias) {
+    if !layout.is_global_virtual_store() || is_unsafe_path_component(alias) {
         return constructed;
     }
 
     let node_modules_dir = match &ctx.parent_dir {
         Some(parent_dir) => {
-            let mut dir = parent_dir.parent().map(Path::to_path_buf).unwrap_or_default();
+            let mut dir = parent_dir
+                .parent()
+                .map(Path::to_path_buf)
+                .unwrap_or_default();
             // Scoped parents live one level deeper (`node_modules/@scope/pkg`).
-            if dir.file_name().is_some_and(|component| component.to_string_lossy().starts_with('@'))
+            if dir
+                .file_name()
+                .is_some_and(|component| component.to_string_lossy().starts_with('@'))
                 && let Some(grandparent) = dir.parent()
             {
                 dir = grandparent.to_path_buf();
             }
             dir
         }
-        None => env.modules_dir.clone(),
+        None => layout.modules_dir.clone(),
     };
     dunce::canonicalize(node_modules_dir.join(alias)).unwrap_or(constructed)
 }

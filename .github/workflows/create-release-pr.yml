@@ -56,6 +56,11 @@ jobs:
         # single-use remote URL in the "Commit and push" step.
         persist-credentials: false
 
+    - name: Initialize Rust before dependency installation
+      uses: $/.github/actions/rustup
+      with:
+        restore-cache: false
+
     - name: Install pnpm and Node
       uses: pnpm/setup@703c52620218391530e48b9e8870d5c0082e1b9b # v2.1.0
       with:

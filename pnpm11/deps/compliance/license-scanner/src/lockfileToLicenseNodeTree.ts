@@ -91,6 +91,7 @@ export async function lockfileToLicenseNode (
           virtualStoreDirMaxLength: options.virtualStoreDirMaxLength,
           dir: options.dir,
           modulesDir: options.modulesDir ?? 'node_modules',
+          supportedArchitectures: options.supportedArchitectures,
         }
       )
 

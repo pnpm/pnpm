@@ -47,9 +47,13 @@ fn libc_for_token(token: &str) -> Option<&'static str> {
 /// the only platform signal left when their os/cpu/libc manifest fields are
 /// absent.
 pub fn infer_platform_from_package_name(name: &str) -> Option<WantedPlatform> {
-    let name_without_scope = name.find('/').map_or(name, |idx| &name[idx + 1..]);
+    let name_without_scope = name
+        .find('/')
+        .map_or(name, |idx| &name[idx + 1..]);
     let lowercase = name_without_scope.to_lowercase();
-    let tokens: Vec<&str> = lowercase.split(['-', '_', '.']).collect();
+    let tokens: Vec<&str> = lowercase
+        .split(['-', '_', '.'])
+        .collect();
     let os = pick_token_values(&tokens, os_for_token);
     let cpu = pick_token_values(&tokens, cpu_for_token);
     let libc = pick_token_values(&tokens, libc_for_token);

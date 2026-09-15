@@ -81,7 +81,10 @@ fn entries_only_one_side_records_all_survive() {
     assert!(merged.importers.contains_key("packages/theirs"));
 
     let packages = merged.packages.as_ref().unwrap();
-    let mut names: Vec<String> = packages.keys().map(ToString::to_string).collect();
+    let mut names: Vec<String> = packages
+        .keys()
+        .map(ToString::to_string)
+        .collect();
     names.sort();
     assert_eq!(
         names,

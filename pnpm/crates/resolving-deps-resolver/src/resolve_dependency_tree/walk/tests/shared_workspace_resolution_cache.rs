@@ -8,8 +8,10 @@ use std::{
     sync::Arc,
 };
 
-use super::super::{canonical_workspace_resolution, render_workspace_resolution};
-use crate::resolve_dependency_tree::workspace_ctx::WantedKey;
+use super::super::workspace_resolution::{
+    canonical_workspace_resolution, render_workspace_resolution,
+};
+use crate::resolve_dependency_tree::{TreeCtx, workspace_ctx::WantedKey};
 
 fn wanted(specifier: &str) -> WantedDependency {
     WantedDependency {
@@ -20,26 +22,29 @@ fn wanted(specifier: &str) -> WantedDependency {
 }
 
 fn key(wanted: &WantedDependency, project_dir: &str) -> WantedKey {
-    (
+    WantedKey::new((
         wanted.alias.clone(),
         wanted.bare_specifier.clone(),
         wanted.optional,
         wanted.injected,
         false,
         None,
-        Some(PathBuf::from(project_dir)),
+        Some(PathBuf::from(project_dir).into()),
         None,
         Vec::new(),
         None,
         false,
-    )
+    ))
 }
 
 fn opts(project_dir: &str) -> ResolveOptions {
     ResolveOptions {
-        project_dir: PathBuf::from(project_dir),
-        lockfile_dir: PathBuf::from("/repo"),
-        workspace_packages: Some(Arc::new(BTreeMap::new())),
+        project: pnpm_resolving_resolver_base::ResolverProjectOptions {
+            project_dir: PathBuf::from(project_dir),
+            lockfile_dir: PathBuf::from("/repo"),
+            workspace_packages: Some(Arc::new(BTreeMap::new())),
+            ..Default::default()
+        },
         ..ResolveOptions::default()
     }
 }
@@ -51,41 +56,59 @@ fn directory_result(id: &str, resolved_via: &str) -> ResolveResult {
         id.split_once(':').map_or_else(|| id.to_string(), |(_, directory)| directory.to_string());
     ResolveResult {
         id: PkgResolutionId::from(id.to_string()),
-        name_ver: None,
-        latest: None,
-        published_at: None,
-        manifest: None,
         resolution: LockfileResolution::Directory(DirectoryResolution { directory }),
         resolved_via: resolved_via.to_string(),
         normalized_bare_specifier: None,
         alias: Some("shared".to_string()),
         policy_violation: None,
+        package: pnpm_resolving_resolver_base::ResolvedPackageInfo {
+            name_ver: None,
+            latest: None,
+            published_at: None,
+            manifest: None,
+        },
     }
 }
 
 fn rendered_link(canonical: &ResolveResult, project_dir: &str) -> String {
-    render_workspace_resolution(canonical, Path::new(project_dir), Path::new("/repo"))
-        .id
-        .as_str()
-        .to_string()
+    render_workspace_resolution(
+        canonical,
+        &crate::link_target::ImporterAnchor::new(Path::new(project_dir), Path::new("/repo")),
+        Path::new(project_dir),
+        Path::new("/repo"),
+    )
+    .id
+    .as_str()
+    .to_string()
 }
 
 #[test]
 fn shares_only_named_workspace_selectors_and_ignores_project_dir() {
     let base_wanted = wanted("workspace:^");
     let options = opts("/repo/packages/a");
-    let shared = super::super::shared_workspace_key(
+    let ctx = TreeCtx::new(options.clone());
+    let shared = super::super::workspace_resolution::shared_workspace_key(
+        &ctx,
         &key(&base_wanted, "/repo/packages/a"),
         &base_wanted,
         &options,
     )
     .expect("named workspace selector is shareable");
+    let other_options = ResolveOptions {
+        project: pnpm_resolving_resolver_base::ResolverProjectOptions {
+            project_dir: PathBuf::from("/repo/apps/b"),
+            ..options.project.clone()
+        },
+        ..options.clone()
+    };
+    let other_ctx = TreeCtx::new(other_options.clone());
     assert_eq!(
         shared,
-        super::super::shared_workspace_key(
+        super::super::workspace_resolution::shared_workspace_key(
+            &other_ctx,
             &key(&base_wanted, "/repo/apps/b"),
             &base_wanted,
-            &ResolveOptions { project_dir: PathBuf::from("/repo/apps/b"), ..options.clone() },
+            &other_options,
         )
         .expect("consumer-independent key"),
     );
@@ -93,7 +116,8 @@ fn shares_only_named_workspace_selectors_and_ignores_project_dir() {
     for specifier in ["^1.0.0", "link:../shared", "file:../shared", "workspace:./shared"] {
         let wanted = wanted(specifier);
         assert_eq!(
-            super::super::shared_workspace_key(
+            super::super::workspace_resolution::shared_workspace_key(
+                &ctx,
                 &key(&wanted, "/repo/packages/a"),
                 &wanted,
                 &options
@@ -109,9 +133,21 @@ fn separates_distinct_workspace_maps() {
     let wanted = wanted("workspace:^");
     let first = opts("/repo/packages/a");
     let second = opts("/repo/apps/b");
+    let first_ctx = TreeCtx::new(first.clone());
+    let second_ctx = TreeCtx::new(second.clone());
     assert_ne!(
-        super::super::shared_workspace_key(&key(&wanted, "/repo/packages/a"), &wanted, &first),
-        super::super::shared_workspace_key(&key(&wanted, "/repo/apps/b"), &wanted, &second),
+        super::super::workspace_resolution::shared_workspace_key(
+            &first_ctx,
+            &key(&wanted, "/repo/packages/a"),
+            &wanted,
+            &first
+        ),
+        super::super::workspace_resolution::shared_workspace_key(
+            &second_ctx,
+            &key(&wanted, "/repo/apps/b"),
+            &wanted,
+            &second
+        ),
     );
 }
 

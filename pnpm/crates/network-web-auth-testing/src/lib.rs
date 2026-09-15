@@ -28,8 +28,9 @@ use serde_json::json;
 #[derive(Debug, derive_more::Display, derive_more::Error, Diagnostic)]
 pub enum FakeOtpError {
     #[display("otp challenge")]
-    Otp { body: Option<OtpErrorBody> },
-    #[display("{_0}")]
+    Otp {
+        body: Option<OtpErrorBody>,
+    },
     Other(#[error(not(source))] String),
 }
 

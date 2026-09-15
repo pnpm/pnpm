@@ -591,6 +591,144 @@ test('patch package when the package is not in allowBuilds list', async () => {
   expect(fs.readFileSync('node_modules/is-positive/index.js', 'utf8')).not.toContain('// patched')
 })
 
+test('a patch that adds install scripts asks for build approval', async () => {
+  const reporter = jest.fn()
+  prepareEmpty()
+  const patchPath = path.join(f.find('patch-pkg'), 'is-positive@1.0.0-postinstall.patch')
+  const patchFileHash = await createHexHashFromFile(patchPath)
+  const marker = 'node_modules/is-positive/postinstall-ran.txt'
+
+  const patchedDependencies = {
+    'is-positive@1.0.0': patchPath,
+  }
+  const opts = testDefaults({
+    fastUnpack: false,
+    sideEffectsCacheRead: true,
+    sideEffectsCacheWrite: true,
+    patchedDependencies,
+    allowBuilds: {},
+    reporter,
+  }, {}, {}, { packageImportMethod: 'hardlink' })
+  await install({
+    dependencies: {
+      'is-positive': '1.0.0',
+    },
+  }, opts)
+
+  expect(reporter).toHaveBeenCalledWith(expect.objectContaining({
+    packageNames: [`is-positive@1.0.0(patch_hash=${patchFileHash})`],
+    level: 'debug',
+    name: 'pnpm:ignored-scripts',
+  }))
+  expect(fs.existsSync(marker)).toBe(false)
+
+  rimrafSync('node_modules')
+  await install({
+    dependencies: {
+      'is-positive': '1.0.0',
+    },
+  }, {
+    ...opts,
+    allowBuilds: { 'is-positive': true },
+  })
+
+  expect(fs.existsSync(marker)).toBe(true)
+})
+
+test('a patch-added install script survives an install that ignored scripts', async () => {
+  prepareEmpty()
+  const patchPath = path.join(f.find('patch-pkg'), 'is-positive@1.0.0-postinstall.patch')
+  const marker = 'node_modules/is-positive/postinstall-ran.txt'
+
+  const installOpts = (ignoreScripts: boolean) => testDefaults({
+    fastUnpack: false,
+    sideEffectsCacheRead: true,
+    sideEffectsCacheWrite: true,
+    patchedDependencies: {
+      'is-positive@1.0.0': patchPath,
+    },
+    allowBuilds: { 'is-positive': true },
+    ignoreScripts,
+  }, {}, {}, { packageImportMethod: 'hardlink' })
+  await install({
+    dependencies: {
+      'is-positive': '1.0.0',
+    },
+  }, installOpts(true))
+
+  expect(fs.existsSync(marker)).toBe(false)
+
+  // A second store controller, so the install below reads the side-effects
+  // cache off disk instead of the first one's in-memory view of it.
+  rimrafSync('node_modules')
+  await install({
+    dependencies: {
+      'is-positive': '1.0.0',
+    },
+  }, installOpts(false))
+
+  expect(fs.existsSync(marker)).toBe(true)
+})
+
+test('a patch that adds a binding.gyp asks for build approval', async () => {
+  const reporter = jest.fn()
+  prepareEmpty()
+  const patchPath = path.join(f.find('patch-pkg'), 'is-positive@1.0.0-binding-gyp.patch')
+  const patchFileHash = await createHexHashFromFile(patchPath)
+
+  await install({
+    dependencies: {
+      'is-positive': '1.0.0',
+    },
+  }, testDefaults({
+    fastUnpack: false,
+    sideEffectsCacheRead: true,
+    sideEffectsCacheWrite: true,
+    patchedDependencies: {
+      'is-positive@1.0.0': patchPath,
+    },
+    allowBuilds: {},
+    reporter,
+  }, {}, {}, { packageImportMethod: 'hardlink' }))
+
+  // An unapproved binding.gyp must not reach the implicit `node-gyp rebuild`.
+  expect(reporter).toHaveBeenCalledWith(expect.objectContaining({
+    packageNames: [`is-positive@1.0.0(patch_hash=${patchFileHash})`],
+    level: 'debug',
+    name: 'pnpm:ignored-scripts',
+  }))
+})
+
+test('a patch that adds a .hooks file does not ask for build approval', async () => {
+  const reporter = jest.fn()
+  prepareEmpty()
+  const patchPath = path.join(f.find('patch-pkg'), 'is-positive@1.0.0-hooks-file.patch')
+
+  await install({
+    dependencies: {
+      'is-positive': '1.0.0',
+    },
+  }, testDefaults({
+    fastUnpack: false,
+    sideEffectsCacheRead: true,
+    sideEffectsCacheWrite: true,
+    patchedDependencies: {
+      'is-positive@1.0.0': patchPath,
+    },
+    allowBuilds: {},
+    reporter,
+  }, {}, {}, { packageImportMethod: 'hardlink' }))
+
+  // Only entries below a `.hooks` directory are hooks; a plain file by that
+  // name must not hold the install for approval.
+  expect(reporter).toHaveBeenCalledWith(expect.objectContaining({
+    packageNames: [],
+    level: 'debug',
+    name: 'pnpm:ignored-scripts',
+  }))
+  expect(fs.readFileSync('node_modules/is-positive/.hooks', 'utf8')).toContain('not a hooks directory')
+})
+
 test('patch package when the patched package has no dependencies and appears multiple times', async () => {
   const project = prepareEmpty()
   const patchPath = path.join(f.find('patch-pkg'), 'is-positive@1.0.0.patch')

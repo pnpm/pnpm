@@ -10,7 +10,7 @@ use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
 use pnpm_testing_utils::bin::{AddMockedRegistry, CommandTempCwd};
 use serde_json::json;
-use std::{fs, path::Path};
+use std::{fmt::Write, fs, path::Path};
 
 #[test]
 fn pack_uses_embed_readme_and_manifest_obfuscation_settings() {
@@ -32,7 +32,10 @@ fn pack_uses_embed_readme_and_manifest_obfuscation_settings() {
     )
     .unwrap();
 
-    pacquet.with_arg("pack").assert().success();
+    pacquet
+        .with_arg("pack")
+        .assert()
+        .success();
 
     let manifest = read_manifest_from_tarball(&workspace.join("pkg-1.0.0.tgz"));
     assert_eq!(manifest["readme"], "# Packed README\n");
@@ -73,7 +76,10 @@ fn packing_reuses_the_hooks_that_updated_config() {
     )
     .expect("write .pnpmfile.cjs");
 
-    pacquet.with_arg("pack").assert().success();
+    pacquet
+        .with_arg("pack")
+        .assert()
+        .success();
 
     let manifest = read_manifest_from_tarball(&workspace.join("pkg-1.0.0.tgz"));
     assert_eq!(manifest["devDependencies"]["is-odd"], "3.0.1");
@@ -111,7 +117,10 @@ fn external_lockfile_dir_supplies_packing_hooks() {
     )
     .expect("write lockfile-root pnpmfile");
 
-    pacquet.with_arg("pack").assert().success();
+    pacquet
+        .with_arg("pack")
+        .assert()
+        .success();
 
     let manifest = read_manifest_from_tarball(&workspace.join("pkg-1.0.0.tgz"));
     assert_eq!(manifest["dependencies"]["is-odd"], "3.0.1");
@@ -121,8 +130,13 @@ fn external_lockfile_dir_supplies_packing_hooks() {
 
 #[test]
 fn pack_installs_config_dependencies_before_loading_hooks() {
-    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
-        CommandTempCwd::init().add_mocked_registry();
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
     fs::write(
         workspace.join("package.json"),
@@ -134,7 +148,10 @@ fn pack_installs_config_dependencies_before_loading_hooks() {
     settings.push_str("\nconfigDependencies:\n  '@pnpm/plugin-pnpmfile': 1.0.0\n");
     fs::write(workspace_yaml, settings).expect("write configDependencies");
 
-    pacquet.with_arg("pack").assert().success();
+    pacquet
+        .with_arg("pack")
+        .assert()
+        .success();
 
     assert!(
         workspace.join("node_modules/.pnpm-config/@pnpm/plugin-pnpmfile/pnpmfile.cjs").is_file(),
@@ -415,8 +432,8 @@ fn recursive_pack_reports_results_in_dependency_order() {
         "recursive pack failed: {}",
         String::from_utf8_lossy(&output.stderr),
     );
-    let results: serde_json::Value =
-        serde_json::from_slice(&output.stdout).unwrap_or_else(|error| {
+    let results: serde_json::Value = serde_json::from_slice(&output.stdout)
+        .unwrap_or_else(|error| {
             panic!(
                 "parse recursive pack JSON: {error}; stdout={:?}; stderr={:?}",
                 String::from_utf8_lossy(&output.stdout),
@@ -468,7 +485,11 @@ fn config_ignore_scripts_override_suppresses_prepack() {
     fs::remove_file(&marker).expect("remove marker");
     fs::remove_file(&tarball).expect("remove the first tarball");
 
-    let CommandTempCwd { pacquet: ignoring, root: ignoring_root, .. } = CommandTempCwd::init();
+    let CommandTempCwd {
+        pacquet: ignoring,
+        root: ignoring_root,
+        ..
+    } = CommandTempCwd::init();
     ignoring
         .with_current_dir(&workspace)
         .with_arg("pack")
@@ -499,4 +520,118 @@ fn read_manifest_from_tarball(tarball: &Path) -> serde_json::Value {
         }
     }
     panic!("package/package.json not found in {}", tarball.display());
+}
+
+#[test]
+fn pack_json_preserves_lifecycle_streams_before_the_result() {
+    assert_pack_json_lifecycle_streams(None, false);
+}
+
+#[test]
+fn pack_json_preserves_lifecycle_streams_before_the_error() {
+    for stage in ["prepack", "prepare", "postpack"] {
+        assert_pack_json_lifecycle_streams(Some(stage), false);
+    }
+}
+
+#[test]
+fn recursive_pack_json_preserves_lifecycle_streams_before_the_error() {
+    for stage in ["prepack", "prepare", "postpack"] {
+        assert_pack_json_lifecycle_streams(Some(stage), true);
+    }
+}
+
+fn assert_pack_json_lifecycle_streams(failing_stage: Option<&str>, recursive: bool) {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    if recursive {
+        fs::write(workspace.join("pnpm-workspace.yaml"), "packages: []\n")
+            .expect("write pnpm-workspace.yaml");
+    }
+    let stages = ["prepack", "prepare", "postpack"];
+    fs::write(
+        workspace.join("package.json"),
+        json!({
+            "name": "pack-json-streams",
+            "version": "1.0.0",
+            "scripts": {
+                "prepack": "node lifecycle.cjs prepack",
+                "prepare": "node lifecycle.cjs prepare",
+                "postpack": "node lifecycle.cjs postpack",
+            },
+        })
+        .to_string(),
+    )
+    .expect("write package.json");
+    fs::write(
+        workspace.join("lifecycle.cjs"),
+        r"const stage = process.argv[2];
+console.log(JSON.stringify({ error: { code: stage } }));
+console.log(`${stage} stdout`);
+console.error(`${stage} stderr`);
+process.exitCode = stage === process.env.FAILING_STAGE ? 1 : 0;
+",
+    )
+    .expect("write lifecycle script");
+
+    let output = pacquet
+        .with_args(["pack", "--json"])
+        .with_args(recursive.then_some("--recursive"))
+        .with_env("FAILING_STAGE", failing_stage.unwrap_or(""))
+        .output()
+        .expect("run pack --json");
+    let stdout = String::from_utf8(output.stdout).expect("UTF-8 stdout");
+    let stderr = String::from_utf8(output.stderr).expect("UTF-8 stderr");
+    eprintln!("failing stage: {failing_stage:?}; stdout: {stdout}; stderr: {stderr}");
+    assert_eq!(output.status.success(), failing_stage.is_none());
+    let mut expected_stdout = String::new();
+    let mut expected_stderr = String::new();
+    for stage in stages {
+        writeln!(expected_stdout, "{{\"error\":{{\"code\":\"{stage}\"}}}}\n{stage} stdout").expect(
+            "write expected stdout",
+        );
+        writeln!(expected_stderr, "$ node lifecycle.cjs {stage}\n{stage} stderr").expect(
+            "write expected stderr",
+        );
+        if Some(stage) == failing_stage {
+            break;
+        }
+    }
+    assert_eq!(stderr, expected_stderr);
+    let result = stdout.strip_prefix(&expected_stdout).expect("lifecycle stdout precedes JSON");
+    let result: serde_json::Value = serde_json::from_str(result).expect("final JSON result");
+    if let Some(stage) = failing_stage {
+        assert_eq!(result["error"]["code"], "ERR_PNPM_EXECUTOR_LIFECYCLE_SCRIPT_FAILED");
+        let message = result["error"]["message"].as_str().expect("error message");
+        assert!(
+            message.contains(&format!("{stage}: `node lifecycle.cjs {stage}` exited with")),
+            "{message}",
+        );
+    } else {
+        assert_eq!(result["name"], "pack-json-streams");
+        assert_eq!(result["version"], "1.0.0");
+        assert!(workspace.join("pack-json-streams-1.0.0.tgz").is_file());
+    }
+    drop(root);
+}
+
+#[test]
+fn pack_json_prints_structured_errors_without_lifecycle_scripts() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    fs::write(workspace.join("package.json"), json!({ "name": "pack-json" }).to_string())
+        .expect("write package.json");
+
+    let output = pacquet
+        .with_args(["pack", "--json"])
+        .output()
+        .expect("run pack --json");
+    let stdout = String::from_utf8(output.stdout).expect("UTF-8 stdout");
+    let stderr = String::from_utf8(output.stderr).expect("UTF-8 stderr");
+    eprintln!("status: {}; stdout:\n{stdout}\nstderr:\n{stderr}", output.status);
+    assert!(!output.status.success());
+    assert_eq!(stderr, "");
+    assert_eq!(
+        stdout,
+        "{\n  \"error\": {\n    \"code\": \"ERR_PNPM_PACKAGE_VERSION_NOT_FOUND\",\n    \"message\": \"Package version is not defined in the package.json.\"\n  }\n}\n",
+    );
+    drop(root);
 }

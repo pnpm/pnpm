@@ -16,7 +16,7 @@ use crate::{
         PublishPackedPkgOptions, build_publish_document, join_registry, publish_with_otp_handling,
         registry_for_display, web_auth_fetch_options,
     },
-    publish_summary::{PackedPkgInfo, PublishSummary, create_publish_summary},
+    publish_summary::PublishSummary,
     registry_config_keys::NormalizedRegistryUrl,
 };
 
@@ -37,7 +37,7 @@ pub fn validate_batch_publish_options(
     if opts.stage {
         return Err(BatchPublishError::Stage);
     }
-    if opts.provenance == Some(true) {
+    if opts.registry.provenance == Some(true) {
         return Err(BatchPublishError::Provenance);
     }
     Ok(())
@@ -62,52 +62,7 @@ where
     let mut summaries = Vec::with_capacity(packages.len());
     let mut groups: Vec<BatchGroup> = Vec::new();
     for package in packages {
-        let manifest = package.published_manifest;
-        let name = manifest.get("name").and_then(Value::as_str).unwrap_or_default();
-        let publish_config_registry = manifest
-            .get("publishConfig")
-            .and_then(|config| config.get("registry"))
-            .and_then(Value::as_str);
-        let registry = find_registry_info(
-            name,
-            &opts.default_registry,
-            &opts.scoped_registries,
-            publish_config_registry,
-        )
-        .map_err(BatchPublishError::from)?;
-        let summary = create_publish_summary(
-            &PackedPkgInfo {
-                published_manifest: manifest,
-                tarball_path: package.tarball_path,
-                contents: package.contents,
-                unpacked_size: package.unpacked_size,
-            },
-            package.tarball_data,
-        );
-        let document = build_publish_document(
-            manifest,
-            package.tarball_data,
-            &registry,
-            resolve_access(opts.access, manifest),
-            &opts.tag,
-            &DistHashes { integrity: &summary.integrity, shasum: &summary.shasum },
-        )
-        .map_err(BatchPublishError::from)?;
-        let summary_index = summaries.len();
-        summaries.push(summary);
-
-        if let Some(group) = groups.iter_mut().find(|group| group.registry == registry) {
-            group.package_names.push(name.to_string());
-            group.summary_indexes.push(summary_index);
-            group.documents.push(document);
-        } else {
-            groups.push(BatchGroup {
-                registry,
-                package_names: vec![name.to_string()],
-                summary_indexes: vec![summary_index],
-                documents: vec![document],
-            });
-        }
+        group_packed_pkg(package, opts, &mut summaries, &mut groups)?;
     }
 
     let authorizations = if opts.dry_run {
@@ -130,37 +85,8 @@ where
                 group.documents.len(),
             ));
         } else {
-            let put_url = join_registry(&group.registry, BATCH_PUBLISH_ENDPOINT)
-                .map_err(BatchPublishError::from)?;
-            let body = bytes::Bytes::from(
-                serde_json::to_vec(&serde_json::json!({ "packages": group.documents }))
-                    .expect("serialize batch publish documents"),
-            );
-            let response = publish_with_otp_handling::<WebAuthHost, Reporter>(
-                network.client,
-                &put_url,
-                authorization.as_deref(),
-                "publish",
-                body,
-                opts.otp.as_deref(),
-                false,
-                web_auth_fetch_options(&opts.http),
-            )
-            .await
-            .map_err(BatchPublishError::from)?;
-            if !response.ok {
-                if matches!(response.status, 404 | 405) {
-                    return Err(BatchPublishError::Unsupported { registry }.into());
-                }
-                return Err(BatchPublishError::Failed(FailedToPublishError::new_batch(
-                    group.package_names.len(),
-                    &registry,
-                    response.status,
-                    response.status_text,
-                    response.body,
-                ))
-                .into());
-            }
+            put_batch::<Reporter>(&group, authorization.as_deref(), opts, network, &registry)
+                .await?;
             global_info::<Reporter>(&format!(
                 "✅ Published {} package(s) to {registry} in a single request",
                 group.summary_indexes.len(),
@@ -172,14 +98,105 @@ where
     Ok(summaries)
 }
 
+/// Summarize one packed package and fold it into the group of everything
+/// bound for the same registry.
+fn group_packed_pkg(
+    package: &PackedPkg<'_>,
+    opts: &PublishPackedPkgOptions,
+    summaries: &mut Vec<PublishSummary>,
+    groups: &mut Vec<BatchGroup>,
+) -> Result<(), BatchPublishError> {
+    let manifest = package.published_manifest;
+    let name = manifest
+        .get("name")
+        .and_then(Value::as_str)
+        .unwrap_or_default();
+    let publish_config_registry = crate::publish_options::manifest_registry(manifest);
+    let registry = find_registry_info(
+        name,
+        &opts.registry.default,
+        &opts.registry.scoped,
+        publish_config_registry,
+    )?;
+    let summary = package.summary();
+    let document = build_publish_document(
+        manifest,
+        package.tarball_data,
+        &registry,
+        resolve_access(opts.registry.access, manifest),
+        &opts.registry.tag,
+        &DistHashes { integrity: &summary.integrity, shasum: &summary.shasum },
+    )?;
+    let summary_index = summaries.len();
+    summaries.push(summary);
+
+    if let Some(group) = groups
+        .iter_mut()
+        .find(|group| group.registry == registry)
+    {
+        group.package_names.push(name.to_string());
+        group.summary_indexes.push(summary_index);
+        group.documents.push(document);
+        return Ok(());
+    }
+    groups.push(BatchGroup {
+        registry,
+        package_names: vec![name.to_string()],
+        summary_indexes: vec![summary_index],
+        documents: vec![document],
+    });
+    Ok(())
+}
+
+/// Send one registry's whole batch in a single request.
+async fn put_batch<Reporter: self::Reporter>(
+    group: &BatchGroup,
+    authorization: Option<&str>,
+    opts: &PublishPackedPkgOptions,
+    network: &PublishNetwork<'_>,
+    registry: &str,
+) -> Result<(), BatchPublishError> {
+    let put_url = join_registry(&group.registry, BATCH_PUBLISH_ENDPOINT)?;
+    let body = bytes::Bytes::from(
+        serde_json::to_vec(&serde_json::json!({ "packages": group.documents }))
+            .expect("serialize batch publish documents"),
+    );
+    let response = publish_with_otp_handling::<WebAuthHost, Reporter>(
+        network.client,
+        &put_url,
+        authorization,
+        "publish",
+        body,
+        opts.registry.otp.as_deref(),
+        false,
+        web_auth_fetch_options(&opts.registry.http),
+    )
+    .await?;
+    if response.ok {
+        return Ok(());
+    }
+    if matches!(response.status, 404 | 405) {
+        return Err(BatchPublishError::Unsupported { registry: registry.to_string() });
+    }
+    Err(BatchPublishError::Failed(FailedToPublishError::new_batch(
+        group.package_names.len(),
+        registry,
+        response.status,
+        response.status_text,
+        response.body,
+    )))
+}
+
 fn batch_authorization(
     group: &BatchGroup,
     network: &PublishNetwork<'_>,
 ) -> Result<Option<String>, BatchPublishError> {
     let mut package_names = group.package_names.iter();
-    let authorization = package_names.next().and_then(|name| {
-        network.auth_headers.for_url_with_package(group.registry.as_str(), Some(name))
-    });
+    let authorization = package_names
+        .next()
+        .and_then(|name| {
+            network.auth_headers.for_url_with_package(group.registry.as_str(), Some(name))
+        });
     if package_names.any(|name| {
         network.auth_headers.for_url_with_package(group.registry.as_str(), Some(name))
             != authorization
@@ -235,19 +252,15 @@ pub enum BatchPublishError {
         registry: String,
     },
 
-    #[display("{_0}")]
     #[diagnostic(transparent)]
     Registry(PublishUnsupportedRegistryProtocolError),
 
-    #[display("{_0}")]
     #[diagnostic(transparent)]
     Package(PublishPackedPkgError),
 
-    #[display("{_0}")]
     #[diagnostic(transparent)]
     Otp(WithOtpError<PublishHttpError>),
 
-    #[display("{_0}")]
     #[diagnostic(transparent)]
     Failed(FailedToPublishError),
 }

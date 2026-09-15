@@ -4,9 +4,9 @@
 //!
 //! See [`DirectoryFetcher`] for the public entry point.
 
+pub use error::DirectoryFetcherError;
+pub use fetcher::{DirectoryFetchOutput, DirectoryFetcher};
+
 mod error;
 mod fetcher;
 mod walker;
-
-pub use error::DirectoryFetcherError;
-pub use fetcher::{DirectoryFetchOutput, DirectoryFetcher};

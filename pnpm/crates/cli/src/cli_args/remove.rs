@@ -64,24 +64,35 @@ impl RemoveArgs {
         mut state: State,
     ) -> miette::Result<()> {
         let lockfile_path = state.lockfile_path();
-        let State { tarball_mem_cache, http_client, config, manifest, lockfile, resolved_packages } =
-            &mut state;
-        let lockfile =
-            lockfile.get().map_err(|err| miette::Report::new(err).wrap_err("load the lockfile"))?;
-
-        Remove {
-            tarball_mem_cache: std::sync::Arc::clone(tarball_mem_cache),
+        let State {
+            tarball_mem_cache,
             http_client,
-            http_client_arc: std::sync::Arc::clone(http_client),
             config,
             manifest,
             lockfile,
-            lockfile_path: Some(&lockfile_path),
-            package_names: &self.package_names,
-            save_type: self.dependency_options.save_type(),
             resolved_packages,
-            supported_architectures: config.supported_architectures.clone(),
-            lockfile_only: self.lockfile_only,
+        } = &mut state;
+        let lockfile = lockfile
+            .get()
+            .map_err(|err| miette::Report::new(err).wrap_err("load the lockfile"))?;
+
+        Remove {
+            manifest,
+            options: pnpm_package_manager::RemoveOptions {
+                http_client,
+                config,
+                lockfile,
+                lockfile_path: Some(&lockfile_path),
+                package_names: &self.package_names,
+                save_type: self.dependency_options.save_type(),
+                resolved_packages,
+                lockfile_only: self.lockfile_only,
+            },
+            resources: pnpm_package_manager::RemoveResources {
+                tarball_mem_cache: std::sync::Arc::clone(tarball_mem_cache),
+                http_client_arc: std::sync::Arc::clone(http_client),
+                supported_architectures: config.supported_architectures.clone(),
+            },
         }
         .run::<Reporter>()
         .await
@@ -91,45 +102,47 @@ impl RemoveArgs {
     pub(crate) async fn run_selected<Reporter: self::Reporter + 'static>(
         self,
         mut state: State,
-        selection: InstallFamilySelection,
+        mut selection: InstallFamilySelection,
     ) -> miette::Result<()> {
-        let InstallFamilySelection {
-            workspace_root: _,
-            mut projects,
-            project_dependencies,
-            ordered_dirs,
-            selected_dirs,
-            install_dirs,
-            active_manifest_is_standin,
-        } = selection;
         let lockfile_path = state.lockfile_path();
-        let State { tarball_mem_cache, http_client, config, manifest, lockfile, resolved_packages } =
-            &mut state;
-        let lockfile =
-            lockfile.get().map_err(|err| miette::Report::new(err).wrap_err("load the lockfile"))?;
-
-        Remove {
-            tarball_mem_cache: std::sync::Arc::clone(tarball_mem_cache),
+        let State {
+            tarball_mem_cache,
             http_client,
-            http_client_arc: std::sync::Arc::clone(http_client),
             config,
             manifest,
             lockfile,
-            lockfile_path: Some(&lockfile_path),
-            package_names: &self.package_names,
-            save_type: self.dependency_options.save_type(),
             resolved_packages,
-            supported_architectures: config.supported_architectures.clone(),
-            lockfile_only: self.lockfile_only,
+        } = &mut state;
+        let lockfile = lockfile
+            .get()
+            .map_err(|err| miette::Report::new(err).wrap_err("load the lockfile"))?;
+
+        Remove {
+            manifest,
+            options: pnpm_package_manager::RemoveOptions {
+                http_client,
+                config,
+                lockfile,
+                lockfile_path: Some(&lockfile_path),
+                package_names: &self.package_names,
+                save_type: self.dependency_options.save_type(),
+                resolved_packages,
+                lockfile_only: self.lockfile_only,
+            },
+            resources: pnpm_package_manager::RemoveResources {
+                tarball_mem_cache: std::sync::Arc::clone(tarball_mem_cache),
+                http_client_arc: std::sync::Arc::clone(http_client),
+                supported_architectures: config.supported_architectures.clone(),
+            },
         }
-        .run_selected::<Reporter>(
-            &mut projects,
-            &project_dependencies,
-            &ordered_dirs,
-            selected_dirs.as_ref(),
-            install_dirs.as_ref(),
-            active_manifest_is_standin,
-        )
+        .run_selected::<Reporter>(pnpm_package_manager::SelectedProjects {
+            projects: &mut selection.projects,
+            project_dependencies: &selection.project_dependencies,
+            ordered_dirs: &selection.ordered_dirs,
+            selected_dirs: selection.selected_dirs.as_ref(),
+            install_dirs: selection.install_dirs.as_ref(),
+            active_manifest_is_standin: selection.active_manifest_is_standin,
+        })
         .await
         .wrap_err("removing a package")
     }

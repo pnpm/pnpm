@@ -31,6 +31,14 @@ export interface NpmrcConfigResult {
   warnings: string[]
   /** Parsed `_auth` (env var + global config yaml). See {@link JsonAuthResult}. */
   jsonAuth: JsonAuthResult
+  /**
+   * Scope→URL routes the `.npmrc` files declared through `registry=` and
+   * `@scope:registry=`, keyed like `registriesByScope`. The builtin defaults
+   * are not declarations, so they are absent.
+   */
+  declaredRegistries: Record<string, string>
+  /** The same routes from the non-project `.npmrc` files, for the package-manager bootstrap. */
+  trustedDeclaredRegistries: Record<string, string>
 }
 
 /**
@@ -47,8 +55,8 @@ export interface NpmrcConfigResult {
  *   Merged above workspace yaml but below CLI flags.
  * - `fallbackRegistries` — the same routes inferred from the `_auth` of
  *   the global config **file**. That file is the user's own store rather
- *   than a mandate, so an explicitly declared `registries` / `registry`
- *   outranks it and it only fills in what nothing else declares.
+ *   than a mandate, so a `registries` / `registry` declared in a yaml or
+ *   an `.npmrc` outranks it and it only fills in what nothing else declares.
  */
 export interface JsonAuthResult {
   auth: Record<string, string>
@@ -208,7 +216,28 @@ export function loadNpmrcConfig (opts: LoadNpmrcConfigOpts): NpmrcConfigResult {
     localPrefix,
     warnings,
     jsonAuth,
+    declaredRegistries: readDeclaredRegistries([userConfig, pnpmAuthConfig, workspaceNpmrc]),
+    trustedDeclaredRegistries: readDeclaredRegistries([userConfig, pnpmAuthConfig]),
   }
+}
+
+/**
+ * The scope→URL routes `sources` declare through `registry=` and
+ * `@scope:registry=`, a later source overriding an earlier one. Whether a
+ * registry was declared is a question about the key, not its value, so one
+ * pinned to the builtin default is declared too. A value that is not a
+ * string is not a route and is skipped.
+ */
+function readDeclaredRegistries (sources: Array<Record<string, unknown>>): Record<string, string> {
+  const registries: Record<string, string> = {}
+  for (const source of sources) {
+    for (const [key, value] of Object.entries(source)) {
+      if (typeof value !== 'string' || !isRegistryKey(key)) continue
+      const scope = key === 'registry' ? 'default' : key.slice(0, -':registry'.length)
+      registries[scope] = normalizeRegistryUrl(value)
+    }
+  }
+  return registries
 }
 
 // Matches `npm_config_//…` and `pnpm_config_//…` env var names. The prefix is

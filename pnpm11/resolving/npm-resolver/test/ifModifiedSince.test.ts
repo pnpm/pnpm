@@ -104,7 +104,7 @@ test('use local cache when registry returns 304 Not Modified', async () => {
   const cacheDir = temporaryDirectory()
   // Write cached metadata with etag to disk in NDJSON format:
   // Line 1: cache headers, Line 2: registry metadata
-  const cacheDir2 = path.join(cacheDir, `${ABBREVIATED_META_DIR}/registry.npmjs.org`)
+  const cacheDir2 = path.join(cacheDir, `${ABBREVIATED_META_DIR}/https%3A+registry.npmjs.org`)
   fs.mkdirSync(cacheDir2, { recursive: true })
   const headers = JSON.stringify({ etag: '"abc123"', modified: isPositiveMeta.modified })
   fs.writeFileSync(
@@ -140,7 +140,7 @@ test('use local cache when registry returns 304 Not Modified', async () => {
 
 test('if-modified-since is sent as an HTTP-date derived from the stored ISO-8601 modified value', async () => {
   const cacheDir = temporaryDirectory()
-  const metaDir = path.join(cacheDir, `${ABBREVIATED_META_DIR}/registry.npmjs.org`)
+  const metaDir = path.join(cacheDir, `${ABBREVIATED_META_DIR}/https%3A+registry.npmjs.org`)
   fs.mkdirSync(metaDir, { recursive: true })
   // The mirror stores the packument's `time.modified`, which is ISO-8601. The
   // wire header must be the HTTP-date form (RFC 9110 §8.8.3) — pinned here so
@@ -178,7 +178,7 @@ test('if-modified-since is sent as an HTTP-date derived from the stored ISO-8601
 
 test('a 304 Not Modified renews the metadata file mtime so the publishedBy freshness shortcut can fire again', async () => {
   const cacheDir = temporaryDirectory()
-  const metaDir = path.join(cacheDir, `${ABBREVIATED_META_DIR}/registry.npmjs.org`)
+  const metaDir = path.join(cacheDir, `${ABBREVIATED_META_DIR}/https%3A+registry.npmjs.org`)
   fs.mkdirSync(metaDir, { recursive: true })
   const metaPath = path.join(metaDir, 'is-positive.jsonl')
   const headers = JSON.stringify({ etag: '"abc123"', modified: isPositiveMeta.modified })
@@ -247,7 +247,7 @@ test('store etag from 200 response in cache', async () => {
   expect(resolveResult!.id).toBe('is-positive@3.1.0')
 
   // Verify etag was saved to disk cache
-  const cachePath = path.join(cacheDir, `${ABBREVIATED_META_DIR}/registry.npmjs.org/is-positive.jsonl`)
+  const cachePath = path.join(cacheDir, `${ABBREVIATED_META_DIR}/https%3A+registry.npmjs.org/is-positive.jsonl`)
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const savedMeta = await retryLoadJsonFile<any>(cachePath)
   expect(savedMeta.etag).toBe('"xyz789"')

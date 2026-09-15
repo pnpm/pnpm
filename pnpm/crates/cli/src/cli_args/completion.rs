@@ -72,7 +72,10 @@ pub fn shell_from_args(
         return Err(CompletionError::RedundantParameters { count: extra.len() });
     }
 
-    let Some(shell) = shell.map(str::trim).filter(|shell| !shell.is_empty()) else {
+    let Some(shell) = shell
+        .map(str::trim)
+        .filter(|shell| !shell.is_empty())
+    else {
         return Err(CompletionError::MissingShellName);
     };
 
@@ -98,13 +101,18 @@ impl CompletionServerArgs {
 }
 
 pub fn generate_completion(shell: CompletionShell, output: &mut dyn Write) -> miette::Result<()> {
-    output.write_all(shell.script().as_bytes()).into_diagnostic()
+    output
+        .write_all(shell.script().as_bytes())
+        .into_diagnostic()
 }
 
 pub fn complete_words(words: &[String]) -> Vec<String> {
     let words = words_without_binary(words);
     let (before_current, current_word) = split_current_word(&words);
-    if before_current.iter().any(|word| word == "--") {
+    if before_current
+        .iter()
+        .any(|word| word == "--")
+    {
         return Vec::new();
     }
 
@@ -125,7 +133,10 @@ pub fn complete_words(words: &[String]) -> Vec<String> {
 
     if context.command_name == Some("completion") {
         return filter_by_prefix(
-            SUPPORTED_SHELLS.iter().map(|shell| (*shell).to_string()).collect(),
+            SUPPORTED_SHELLS
+                .iter()
+                .map(|shell| (*shell).to_string())
+                .collect(),
             current_word,
         );
     }
@@ -157,15 +168,7 @@ impl<'a> CompletionContext<'a> {
             }
 
             if word.starts_with('-') {
-                if option_has_separate_value(word)
-                    && find_option_argument_in_command(command, word)
-                        .or_else(|| find_option_argument_in_command(root, word))
-                        .is_some_and(argument_takes_value)
-                {
-                    index += 2;
-                } else {
-                    index += 1;
-                }
+                index += option_word_width(root, command, word);
                 continue;
             }
 
@@ -174,6 +177,16 @@ impl<'a> CompletionContext<'a> {
 
         Self { root, command, command_name }
     }
+}
+
+/// How many words an option consumes: two when it takes its value as a
+/// separate word, one otherwise.
+fn option_word_width(root: &Command, command: &Command, word: &str) -> usize {
+    let takes_separate_value = option_has_separate_value(word)
+        && find_option_argument_in_command(command, word)
+            .or_else(|| find_option_argument_in_command(root, word))
+            .is_some_and(argument_takes_value);
+    if takes_separate_value { 2 } else { 1 }
 }
 
 fn command_for_completion() -> Command {
@@ -188,7 +201,7 @@ fn words_without_binary(words: &[String]) -> Vec<String> {
     if Path::new(first)
         .file_stem()
         .and_then(|name| name.to_str())
-        .is_some_and(|name| name == "pnpm" || name == "pacquet")
+        .is_some_and(|name| matches!(name, "pnpm" | "pn" | "pacquet"))
     {
         rest.to_vec()
     } else {
@@ -204,7 +217,10 @@ fn split_current_word(words: &[String]) -> (&[String], &str) {
 }
 
 fn command_matches(command: &Command, word: &str) -> bool {
-    command.get_name() == word || command.get_all_aliases().any(|alias| alias == word)
+    command.get_name() == word
+        || command
+            .get_all_aliases()
+            .any(|alias| alias == word)
 }
 
 fn visible_subcommands(command: &Command) -> Vec<String> {
@@ -212,7 +228,10 @@ fn visible_subcommands(command: &Command) -> Vec<String> {
         .get_subcommands()
         .filter(|subcommand| !subcommand.is_hide_set())
         .flat_map(|subcommand| {
-            subcommand.get_name_and_visible_aliases().into_iter().map(String::from)
+            subcommand
+                .get_name_and_visible_aliases()
+                .into_iter()
+                .map(String::from)
         })
         .collect()
 }
@@ -229,11 +248,17 @@ fn visible_options(context: &CompletionContext<'_>) -> Vec<String> {
 }
 
 fn filter_by_prefix(candidates: Vec<String>, prefix: &str) -> Vec<String> {
-    candidates.into_iter().filter(|candidate| candidate.starts_with(prefix)).collect()
+    candidates
+        .into_iter()
+        .filter(|candidate| candidate.starts_with(prefix))
+        .collect()
 }
 
 fn extend_visible_options(options: &mut Vec<String>, command: &Command) {
-    for argument in command.get_arguments().filter(|argument| !argument.is_hide_set()) {
+    for argument in command
+        .get_arguments()
+        .filter(|argument| !argument.is_hide_set())
+    {
         if let Some(short) = argument.get_short() {
             options.push(format!("-{short}"));
         }
@@ -241,7 +266,11 @@ fn extend_visible_options(options: &mut Vec<String>, command: &Command) {
             options.push(format!("--{long}"));
         }
         if let Some(aliases) = argument.get_visible_aliases() {
-            options.extend(aliases.into_iter().map(|alias| format!("--{alias}")));
+            options.extend(
+                aliases
+                    .into_iter()
+                    .map(|alias| format!("--{alias}")),
+            );
         }
     }
 }
@@ -268,8 +297,9 @@ fn equals_option_values(
 }
 
 fn option_values(context: &CompletionContext<'_>, words: &[String]) -> Option<Vec<String>> {
-    let option =
-        words.last().filter(|word| word.starts_with('-') && option_has_separate_value(word))?;
+    let option = words
+        .last()
+        .filter(|word| word.starts_with('-') && option_has_separate_value(word))?;
     let argument = find_option_argument(context, option)?;
     let mut values = visible_possible_values(argument);
 
@@ -306,7 +336,11 @@ fn argument_matches(argument: &Arg, option: &str) -> bool {
         return argument.get_long() == Some(long)
             || argument
                 .get_all_aliases()
-                .is_some_and(|aliases| aliases.into_iter().any(|alias| alias == long));
+                .is_some_and(|aliases| {
+                    aliases
+                        .into_iter()
+                        .any(|alias| alias == long)
+                });
     }
 
     if let Some(short) = option.strip_prefix('-') {
@@ -333,7 +367,7 @@ _pnpm_completion() {
   local IFS=$'\n'
   COMPREPLY=($(COMP_LINE="$COMP_LINE" COMP_POINT="$COMP_POINT" SHELL=bash pnpm completion-server -- "${COMP_WORDS[@]}"))
 }
-complete -F _pnpm_completion pnpm
+complete -F _pnpm_completion pnpm pn
 ###-end-pnpm-completion-###
 "#;
 
@@ -352,11 +386,12 @@ function __pnpm_completion
   pnpm completion-server -- $tokens
 end
 complete -c pnpm -f -a "(__pnpm_completion)"
+complete -c pn -f -a "(__pnpm_completion)"
 ###-end-pnpm-completion-###
 "#;
 
 const PWSH_COMPLETION: &str = r#"###-begin-pnpm-completion-###
-Register-ArgumentCompleter -Native -CommandName pnpm -ScriptBlock {
+Register-ArgumentCompleter -Native -CommandName pnpm,pn -ScriptBlock {
   param($wordToComplete, $commandAst, $cursorPosition)
   $env:SHELL = "pwsh"
   $env:COMP_LINE = $commandAst.ToString()
@@ -370,14 +405,14 @@ Register-ArgumentCompleter -Native -CommandName pnpm -ScriptBlock {
 ###-end-pnpm-completion-###
 "#;
 
-const ZSH_COMPLETION: &str = r#"#compdef pnpm
+const ZSH_COMPLETION: &str = r#"#compdef pnpm pn
 ###-begin-pnpm-completion-###
 _pnpm_completion() {
   local reply
   reply=("${(@f)$(COMP_CWORD=$((CURRENT-1)) COMP_LINE="$BUFFER" COMP_POINT="$CURSOR" SHELL=zsh pnpm completion-server -- "${words[@]}")}")
   _describe 'values' reply
 }
-compdef _pnpm_completion pnpm
+compdef _pnpm_completion pnpm pn
 ###-end-pnpm-completion-###
 "#;
 

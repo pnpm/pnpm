@@ -3,12 +3,14 @@ import { pickRegistryForPackage } from '@pnpm/config.pick-registry-for-package'
 import { PnpmError } from '@pnpm/error'
 import { createGetAuthHeaderByURI } from '@pnpm/network.auth-header'
 import { createFetchFromRegistry, type CreateFetchFromRegistryOptions, type FetchFromRegistry } from '@pnpm/network.fetch'
+import { createOtpSession, type OtpSession, SyntheticOtpError } from '@pnpm/network.web-auth'
 import npa from '@pnpm/npm-package-arg'
+import { sanitizeInline } from '@pnpm/text.sanitize'
 import type { RegistriesByScope, RegistryConfig } from '@pnpm/types'
 import { renderHelp } from 'render-help'
 import semver from 'semver'
 
-import { parsePackageSpec, rcOptionsTypes } from './common.js'
+import { createOtpContext, parsePackageSpec, rcOptionsTypes, readErrorBody, WEB_AUTH_FETCH_OPTIONS } from './common.js'
 
 export { rcOptionsTypes }
 
@@ -97,6 +99,24 @@ export async function handler (
   return unpublishPackage(name, versionRange, opts)
 }
 
+/**
+ * Everything a registry mutation of one package needs. The OTP session is
+ * shared by every mutation of the run, so a partial unpublish (one `PUT`
+ * plus a tarball `DELETE` per removed version) authenticates once.
+ */
+interface RegistryMutationContext {
+  authHeader: string | undefined
+  /** Mirrors npm's `auth-type`: `'web'` opts into the web-based OTP
+   * challenge, `'legacy'` is set when the user passes `--otp` so a classic
+   * code is accepted. */
+  authType: 'web' | 'legacy'
+  cliOtp: string | undefined
+  fetchFromRegistry: FetchFromRegistry
+  otpSession: OtpSession
+  packageUrl: string
+  registryUrl: string
+}
+
 async function unpublishPackage (
   packageName: string,
   versionRange: string | undefined,
@@ -118,10 +138,22 @@ async function unpublishPackage (
     throw new PnpmError('NO_VERSIONS', `Package "${packageName}" has no versions`)
   }
 
-  const otp = opts.cliOptions?.otp
+  const cliOtp = opts.cliOptions?.otp
+  const ctx: RegistryMutationContext = {
+    authHeader,
+    authType: cliOtp ? 'legacy' : 'web',
+    cliOtp,
+    fetchFromRegistry,
+    otpSession: createOtpSession({
+      context: createOtpContext(opts),
+      fetchOptions: WEB_AUTH_FETCH_OPTIONS,
+    }),
+    packageUrl,
+    registryUrl,
+  }
 
   if (!versionRange) {
-    return unpublishAll(packageUrl, pkg, fetchFromRegistry, authHeader, otp, opts.cliOptions)
+    return unpublishAll(ctx, pkg, opts.cliOptions)
   }
 
   const versionsToUnpublish = getVersionsMatchingRange(allVersions, versionRange)
@@ -131,10 +163,10 @@ async function unpublishPackage (
 
   // If removing all matched versions leaves none, treat as full unpublish
   if (versionsToUnpublish.length === Object.keys(allVersions).length) {
-    return unpublishAll(packageUrl, pkg, fetchFromRegistry, authHeader, otp, opts.cliOptions)
+    return unpublishAll(ctx, pkg, opts.cliOptions)
   }
 
-  return unpublishVersions(packageUrl, registryUrl, pkg, versionsToUnpublish, fetchFromRegistry, authHeader, otp)
+  return unpublishVersions(ctx, pkg, versionsToUnpublish)
 }
 
 async function fetchPackument (
@@ -160,13 +192,9 @@ async function fetchPackument (
 }
 
 async function unpublishVersions (
-  packageUrl: string,
-  registryUrl: string,
+  ctx: RegistryMutationContext,
   pkg: PackumentResponse,
-  versions: string[],
-  fetchFromRegistry: FetchFromRegistry,
-  authHeader: string | undefined,
-  otp: string | undefined
+  versions: string[]
 ): Promise<string> {
   // Collect tarball URLs before mutating
   const tarballs: string[] = []
@@ -199,14 +227,8 @@ async function unpublishVersions (
   delete pkg._revisions
   delete pkg._attachments
 
-  // PUT updated packument
-  const putResponse = await fetchFromRegistry(`${packageUrl}/-rev/${pkg._rev}`, {
-    authHeaderValue: authHeader,
+  const putResponse = await sendMutation(ctx, `${ctx.packageUrl}/-rev/${pkg._rev}`, {
     method: 'PUT',
-    headers: {
-      'content-type': 'application/json',
-      ...(otp ? { 'npm-otp': otp } : {}),
-    },
     body: JSON.stringify(pkg),
   })
 
@@ -215,17 +237,13 @@ async function unpublishVersions (
   }
 
   // Delete each tarball
-  const registryOrigin = new URL(registryUrl).origin
+  const registryOrigin = new URL(ctx.registryUrl).origin
   /* eslint-disable no-await-in-loop */
   for (const tarball of tarballs) {
-    const updated = await fetchPackument(packageUrl, fetchFromRegistry, authHeader)
-    const tarballPathname = getTarballPathname(tarball, registryUrl)
-    const deleteResponse = await fetchFromRegistry(`${registryOrigin}/${tarballPathname}/-rev/${updated._rev}`, {
-      authHeaderValue: authHeader,
+    const updated = await fetchPackument(ctx.packageUrl, ctx.fetchFromRegistry, ctx.authHeader)
+    const tarballPathname = getTarballPathname(tarball, ctx.registryUrl)
+    const deleteResponse = await sendMutation(ctx, `${registryOrigin}/${tarballPathname}/-rev/${updated._rev}`, {
       method: 'DELETE',
-      headers: {
-        ...(otp ? { 'npm-otp': otp } : {}),
-      },
     })
 
     // Some registries handle tarball cleanup automatically on packument update,
@@ -240,11 +258,8 @@ async function unpublishVersions (
 }
 
 async function unpublishAll (
-  packageUrl: string,
+  ctx: RegistryMutationContext,
   pkg: PackumentResponse,
-  fetchFromRegistry: FetchFromRegistry,
-  authHeader: string | undefined,
-  otp: string | undefined,
   cliOptions: UnpublishOptions['cliOptions']
 ): Promise<string> {
   const packageName = pkg.name
@@ -258,12 +273,8 @@ This is a protection mechanism to prevent accidental unpublish of packages with 
 If you want to unpublish a specific version, run pnpm unpublish ${packageName}@<version>`)
   }
 
-  const deleteResponse = await fetchFromRegistry(`${packageUrl}/-rev/${pkg._rev}`, {
-    authHeaderValue: authHeader,
+  const deleteResponse = await sendMutation(ctx, `${ctx.packageUrl}/-rev/${pkg._rev}`, {
     method: 'DELETE',
-    headers: {
-      ...(otp ? { 'npm-otp': otp } : {}),
-    },
   })
 
   if (!deleteResponse.ok) {
@@ -276,10 +287,37 @@ If you want to unpublish a specific version, run pnpm unpublish ${packageName}@<
   return `Successfully unpublished all ${versionCount} version(s) of ${packageName}`
 }
 
+/**
+ * Sends one authenticated mutation through the OTP session: a `401` that is
+ * an OTP challenge is answered (web flow or classic prompt) and the request
+ * retried with the one-time password; any other `401` is a plain
+ * authentication failure. Every other status is left to the caller.
+ */
+async function sendMutation (
+  ctx: RegistryMutationContext,
+  url: string,
+  init: { method: 'PUT' | 'DELETE', body?: string }
+): Promise<Response> {
+  return ctx.otpSession.run(async (challengeOtp) => {
+    const otp = challengeOtp ?? ctx.cliOtp
+    const response = await ctx.fetchFromRegistry(url, {
+      authHeaderValue: ctx.authHeader,
+      method: init.method,
+      headers: {
+        'npm-auth-type': ctx.authType,
+        ...(init.body != null ? { 'content-type': 'application/json' } : {}),
+        ...(otp ? { 'npm-otp': otp } : {}),
+      },
+      body: init.body,
+    })
+    if (response.status !== 401) return response
+    const body = await readErrorBody(response)
+    throw SyntheticOtpError.fromUnauthorizedBody(body) ??
+      new PnpmError('UNAUTHORIZED', `You must be logged in to unpublish packages. ${sanitizeInline(body)}`)
+  })
+}
+
 async function throwRegistryError (response: Response, verb: string): Promise<never> {
-  if (response.status === 401) {
-    throw new PnpmError('UNAUTHORIZED', `You must be logged in to ${verb} packages`)
-  }
   if (response.status === 403) {
     throw new PnpmError('FORBIDDEN', `You do not have permission to ${verb} this package`)
   }

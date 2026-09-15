@@ -82,7 +82,7 @@ test('resolveFromNamedRegistry() resolves a scoped package published to GitHub P
   })
 
   // The resolve function writes the cache asynchronously — wait briefly before reading.
-  const meta = await retryLoadJsonFile<any>(path.join(cacheDir, ABBREVIATED_META_DIR, 'npm.pkg.github.com/@acme/private.jsonl')) // eslint-disable-line @typescript-eslint/no-explicit-any
+  const meta = await retryLoadJsonFile<any>(path.join(cacheDir, ABBREVIATED_META_DIR, 'https%3A+npm.pkg.github.com/@acme/private.jsonl')) // eslint-disable-line @typescript-eslint/no-explicit-any
   expect(meta).toMatchObject({
     name: '@acme/private',
     versions: expect.any(Object),

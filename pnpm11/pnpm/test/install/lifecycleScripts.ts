@@ -183,6 +183,18 @@ test('selectively allow scripts in some dependencies by --allow-build flag', asy
   })
 })
 
+test('--allow-build denies scripts for a package prefixed with !', async () => {
+  const project = prepare({})
+  execPnpmSync(['add', '--allow-build=!@pnpm.e2e/install-script-example', '@pnpm.e2e/install-script-example'], { expectSuccess: true })
+
+  expect(fs.existsSync('node_modules/@pnpm.e2e/install-script-example/generated-by-install.js')).toBeFalsy()
+
+  const workspaceManifest = await readWorkspaceManifest(project.dir())
+  expect(workspaceManifest?.allowBuilds).toStrictEqual({
+    '@pnpm.e2e/install-script-example': false,
+  })
+})
+
 test('--allow-build flag keeps the packages already listed in allowBuilds', async () => {
   const project = prepare({})
   writeYamlFileSync('pnpm-workspace.yaml', {
@@ -203,10 +215,12 @@ test('--allow-build flag keeps the packages already listed in allowBuilds', asyn
 
 test('--allow-build flag should specify the package', async () => {
   const project = prepare({})
-  const result = execPnpmSync(['add', '@pnpm.e2e/pre-and-postinstall-scripts-example@1.0.0', '--allow-build'])
+  for (const allowBuild of ['--allow-build', '--allow-build=!']) {
+    const result = execPnpmSync(['add', '@pnpm.e2e/pre-and-postinstall-scripts-example@1.0.0', allowBuild])
 
-  expect(result.status).toBe(1)
-  expect(result.stdout.toString()).toContain('The --allow-build flag is missing a package name. Please specify the package name(s) that are allowed to run installation scripts.')
+    expect(result.status).toBe(1)
+    expect(result.stdout.toString()).toContain('The --allow-build flag is missing a package name. Please specify the package name(s) that are allowed to run installation scripts.')
+  }
 
   expect(fs.existsSync('node_modules/@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-preinstall.js')).toBeFalsy()
   expect(fs.existsSync('node_modules/@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-postinstall.js')).toBeFalsy()

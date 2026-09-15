@@ -1,4 +1,4 @@
-use super::{ReadYarnReleasesError, asset_variants, parse_releases};
+use super::{ReadYarnReleasesError, asset_variants, parse_releases, pick_token, status_help};
 use pnpm_lockfile::LockfileResolution;
 use pretty_assertions::assert_eq;
 
@@ -30,11 +30,30 @@ fn releases_body(extra_assets: &str) -> String {
     )
 }
 
+/// Sending a credential gives 401 a cause the anonymous advice does not
+/// cover, so the help has to follow which request was actually made.
+#[test]
+fn a_rejected_credential_is_not_reported_as_an_anonymous_rate_limit() {
+    assert!(status_help(401, true).contains("rejected the credential"));
+    assert!(status_help(403, true).contains("authenticated request"));
+    assert!(status_help(403, false).contains("rate-limits anonymous"));
+}
+
+/// A project that relaxed certificate verification does not spend a GitHub
+/// credential on the connection it relaxed.
+#[test]
+fn no_token_is_sent_when_authentication_is_withheld() {
+    assert_eq!(pick_token(false, Some("gh".to_string()), Some("github".to_string())), None);
+}
+
 #[test]
 fn releases_are_read_with_the_v_prefix_stripped() {
     let releases = parse_releases(&releases_body("")).expect("parse the release list");
     assert_eq!(
-        releases.iter().map(|release| release.version.as_str()).collect::<Vec<_>>(),
+        releases
+            .iter()
+            .map(|release| release.version.as_str())
+            .collect::<Vec<_>>(),
         ["6.0.0-rc.19", "6.0.0-rc.18"],
     );
 }
@@ -128,7 +147,9 @@ fn an_asset_without_a_usable_digest_is_skipped() {
     let releases = parse_releases(&releases_body(unsigned)).expect("parse the release list");
     let variants = asset_variants(&releases[0]).expect("decode the archives");
     assert!(
-        variants.iter().all(|variant| variant.targets[0].cpu != "ia32"),
+        variants
+            .iter()
+            .all(|variant| variant.targets[0].cpu != "ia32"),
         "an archive pnpm cannot verify must not be installable",
     );
 }
@@ -138,4 +159,29 @@ fn a_release_without_archives_is_an_error() {
     let releases = parse_releases(&releases_body("")).expect("parse the release list");
     let error = asset_variants(&releases[1]).expect_err("a release with no assets cannot resolve");
     assert!(matches!(error, ReadYarnReleasesError::NoUsableAssets { .. }), "{error:?}");
+}
+
+#[test]
+fn gh_token_outranks_github_token() {
+    let token = pick_token(true, Some("gh".to_string()), Some("github".to_string()));
+    assert_eq!(token.as_deref(), Some("gh"));
+}
+
+#[test]
+fn a_blank_token_reads_as_no_token() {
+    assert_eq!(pick_token(true, Some("  ".to_string()), None), None);
+    assert_eq!(pick_token(true, Some(String::new()), Some(String::new())), None);
+    assert_eq!(pick_token(true, None, None), None);
+}
+
+#[test]
+fn a_blank_override_falls_through_to_the_other_token() {
+    let token = pick_token(true, Some(String::new()), Some("github".to_string()));
+    assert_eq!(token.as_deref(), Some("github"));
+}
+
+#[test]
+fn a_token_is_trimmed() {
+    let token = pick_token(true, None, Some(" github \n".to_string()));
+    assert_eq!(token.as_deref(), Some("github"));
 }

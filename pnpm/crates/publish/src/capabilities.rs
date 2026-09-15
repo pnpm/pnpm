@@ -14,11 +14,6 @@
 //! [`pnpm_network_web_auth`], whose [`pnpm_network_web_auth::Host`] this
 //! crate reuses to drive the publish request's OTP handling.
 
-use std::{
-    sync::LazyLock,
-    time::{Duration, SystemTime, UNIX_EPOCH},
-};
-
 /// The subprocess capability (used to run the configured token helper and
 /// the git working-tree checks) and the production provider every
 /// capability trait below is also implemented for.
@@ -27,6 +22,11 @@ use std::{
 /// the same seam — and re-exported here so this crate's callers keep
 /// importing them from `pnpm_publish` alongside the rest.
 pub use pnpm_git_utils::{CommandOutput, Host, RunCommand};
+
+use std::{
+    sync::LazyLock,
+    time::{Duration, SystemTime, UNIX_EPOCH},
+};
 
 /// Read an environment variable.
 ///
@@ -116,7 +116,10 @@ impl OidcFetch for Host {
 
         let mut builder = match request.method {
             OidcMethod::Get => CLIENT.get(request.url),
-            OidcMethod::Post => CLIENT.post(request.url).header("content-length", "0").body(""),
+            OidcMethod::Post => CLIENT
+                .post(request.url)
+                .header("content-length", "0")
+                .body(""),
         };
         builder = builder
             .header("accept", "application/json")
@@ -124,8 +127,10 @@ impl OidcFetch for Host {
         if let Some(timeout) = request.timeout_ms {
             builder = builder.timeout(Duration::from_millis(timeout));
         }
-        let response =
-            builder.send().await.map_err(|error| OidcFetchError { reason: error.to_string() })?;
+        let response = builder
+            .send()
+            .await
+            .map_err(|error| OidcFetchError { reason: error.to_string() })?;
         let ok = response.status().is_success();
         let status = response.status().as_u16();
         let body = response.text().await.unwrap_or_default();
@@ -135,7 +140,10 @@ impl OidcFetch for Host {
 
 impl ConfirmPrompt for Host {
     fn confirm(message: &str) -> bool {
-        dialoguer::Confirm::new().with_prompt(message).interact().unwrap_or(false)
+        dialoguer::Confirm::new()
+            .with_prompt(message)
+            .interact()
+            .unwrap_or(false)
     }
 }
 

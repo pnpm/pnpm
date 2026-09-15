@@ -2,6 +2,7 @@
 
 use derive_more::{Display, Error, From};
 use miette::Diagnostic;
+use pnpm_network::redact_url_for_display;
 use pnpm_store_dir::{StoreIndexError, WriteCasFileError};
 use std::{error::Error as StdError, io, path::PathBuf};
 use zune_inflate::errors::InflateDecodeErrors;
@@ -36,8 +37,13 @@ fn walk_reqwest_chain(error: &reqwest::Error) -> String {
     out
 }
 
+/// Every URL below is rendered through [`redact_url_for_display`]: a
+/// tarball URL can carry inline `user:pass@` credentials — typed on the
+/// command line for `pnpm add <url>`, or declared in a manifest — and an
+/// error message ends up in terminal scrollback and CI logs. Network
+/// errors also remove the request URL from the reqwest source chain.
 #[derive(Debug, Display, Error, Diagnostic)]
-#[display("Failed to fetch {url}: {}", walk_reqwest_chain(error))]
+#[display("Failed to fetch {}: {}", redact_url_for_display(url), walk_reqwest_chain(error))]
 pub struct NetworkError {
     pub url: String,
     /// Marked `#[error(source)]` so miette can also walk the chain on
@@ -48,15 +54,21 @@ pub struct NetworkError {
     pub error: reqwest::Error,
 }
 
+impl NetworkError {
+    pub(crate) fn new(url: &str, error: reqwest::Error) -> Self {
+        Self { url: redact_url_for_display(url), error: error.without_url() }
+    }
+}
+
 #[derive(Debug, Display, Error, Diagnostic)]
-#[display("Tarball server returned HTTP {status} for {url}")]
+#[display("Tarball server returned HTTP {status} for {}", redact_url_for_display(url))]
 pub struct HttpStatusError {
     pub url: String,
     pub status: u16,
 }
 
 #[derive(Debug, Display, Error, Diagnostic)]
-#[display("Failed to verify the integrity of {url}: {error}")]
+#[display("Failed to verify the integrity of {}: {error}", redact_url_for_display(url))]
 pub struct VerifyChecksumError {
     pub url: String,
     #[error(source)]
@@ -85,7 +97,8 @@ pub enum TarballError {
     /// configured.
     #[from(ignore)]
     #[display(
-        "{url} is not allowed by this pnpr server; the operator must declare its registry as a public route or an upstream"
+        "{} is not allowed by this pnpr server; the operator must declare its registry as a public route or an upstream",
+        redact_url_for_display(url)
     )]
     #[diagnostic(code(ERR_PNPM_REGISTRY_OFF_ALLOWLIST))]
     OffAllowlist {
@@ -153,7 +166,8 @@ pub enum TarballError {
 
     #[from(ignore)]
     #[display(
-        "Archive at {url} advertised a Content-Length of {advertised_size} bytes, which exceeds what pnpm can allocate (either larger than `usize::MAX` on this target or memory pressure prevented a one-shot reservation)"
+        "Archive at {} advertised a Content-Length of {advertised_size} bytes, which exceeds what pnpm can allocate (either larger than `usize::MAX` on this target or memory pressure prevented a one-shot reservation)",
+        redact_url_for_display(url)
     )]
     #[diagnostic(code(ERR_PNPM_TARBALL_TOO_LARGE))]
     TarballTooLarge { url: String, advertised_size: u64 },
@@ -166,7 +180,8 @@ pub enum TarballError {
     /// owner (it can't be cloned past `reqwest::Error`).
     #[from(ignore)]
     #[display(
-        "A concurrent fetch for {url} failed; this request waited on the shared mem cache and inherits the failure"
+        "A concurrent fetch for {} failed; this request waited on the shared mem cache and inherits the failure",
+        redact_url_for_display(url)
     )]
     #[diagnostic(code(ERR_PNPM_TARBALL_SIBLING_FETCH_FAILED))]
     SiblingFetchFailed { url: String },
@@ -176,7 +191,10 @@ pub enum TarballError {
     /// or whose normalized form would land outside the target
     /// directory is rejected before any bytes are written to the CAS.
     #[from(ignore)]
-    #[display("Refusing to extract zip entry {entry_path:?} from {url} — {reason}")]
+    #[display(
+        "Refusing to extract zip entry {entry_path:?} from {} — {reason}",
+        redact_url_for_display(url)
+    )]
     #[diagnostic(code(ERR_PNPM_PATH_TRAVERSAL))]
     PathTraversal { url: String, entry_path: String, reason: &'static str },
 
@@ -184,7 +202,7 @@ pub enum TarballError {
     /// crate error verbatim; pacquet does not interpret the failure
     /// mode beyond surfacing the entry path that triggered it.
     #[from(ignore)]
-    #[display("Failed to read zip archive {url}: {source}")]
+    #[display("Failed to read zip archive {}: {source}", redact_url_for_display(url))]
     #[diagnostic(code(ERR_PNPM_TARBALL_READ_ZIP))]
     ReadZipArchive {
         url: String,
@@ -203,7 +221,10 @@ pub enum TarballError {
     /// the retry-classification path emits `ERR_PNPM_ZIP`
     /// rather than the tar-specific `ERR_PNPM_TARBALL_TAR`.
     #[from(ignore)]
-    #[display("Failed to read zip entry {entry_path:?} from {url}: {source}")]
+    #[display(
+        "Failed to read zip entry {entry_path:?} from {}: {source}",
+        redact_url_for_display(url)
+    )]
     #[diagnostic(code(ERR_PNPM_TARBALL_READ_ZIP_ENTRY))]
     ReadZipEntries {
         url: String,
@@ -275,37 +296,50 @@ impl TarballError {
         if network.error.is_connect() {
             details.code = Some("ENETUNREACH".to_string());
         }
-
-        let mut source = network.error.source();
-        while let Some(error) = source {
-            // Only matches while this crate and `reqwest` resolve the same
-            // major `rustls`; a version split makes the downcast fail
-            // silently rather than break the build.
-            if error.is::<rustls::Error>() {
-                details.code = Some("ERR_TLS_HANDSHAKE".to_string());
-                return details;
-            }
-            if let Some(io_error) = error.downcast_ref::<io::Error>() {
-                let code = match io_error.kind() {
-                    io::ErrorKind::ConnectionRefused => Some("ECONNREFUSED"),
-                    io::ErrorKind::ConnectionReset => Some("ECONNRESET"),
-                    io::ErrorKind::ConnectionAborted => Some("ECONNABORTED"),
-                    io::ErrorKind::TimedOut => Some("ETIMEDOUT"),
-                    io::ErrorKind::BrokenPipe => Some("EPIPE"),
-                    _ => None,
-                };
-                if let Some(code) = code {
-                    details.code = Some(code.to_string());
-                }
-                // `io::Error::source()` skips its boxed error itself, which
-                // can be the rustls certificate or handshake failure.
-                if let Some(inner) = io_error.get_ref() {
-                    source = Some(inner);
-                    continue;
-                }
-            }
-            source = error.source();
+        if let Some(code) = transport_error_code(&network.error) {
+            details.code = Some(code);
         }
         details
+    }
+}
+
+/// The `errno`-style code a transport failure buried in the error chain
+/// carries, if any. The chain is walked because `reqwest` wraps the
+/// underlying TLS or I/O error several layers deep.
+fn transport_error_code(error: &reqwest::Error) -> Option<String> {
+    let mut code = None;
+    let mut source = error.source();
+    while let Some(error) = source {
+        // Only matches while this crate and `reqwest` resolve the same
+        // major `rustls`; a version split makes the downcast fail
+        // silently rather than break the build.
+        if error.is::<rustls::Error>() {
+            return Some("ERR_TLS_HANDSHAKE".to_string());
+        }
+        let Some(io_error) = error.downcast_ref::<io::Error>() else {
+            source = error.source();
+            continue;
+        };
+        if let Some(io_code) = io_error_code(io_error) {
+            code = Some(io_code.to_string());
+        }
+        // `io::Error::source()` skips its boxed error itself, which
+        // can be the rustls certificate or handshake failure.
+        source = match io_error.get_ref() {
+            Some(inner) => Some(inner),
+            None => error.source(),
+        };
+    }
+    code
+}
+
+fn io_error_code(error: &io::Error) -> Option<&'static str> {
+    match error.kind() {
+        io::ErrorKind::ConnectionRefused => Some("ECONNREFUSED"),
+        io::ErrorKind::ConnectionReset => Some("ECONNRESET"),
+        io::ErrorKind::ConnectionAborted => Some("ECONNABORTED"),
+        io::ErrorKind::TimedOut => Some("ETIMEDOUT"),
+        io::ErrorKind::BrokenPipe => Some("EPIPE"),
+        _ => None,
     }
 }

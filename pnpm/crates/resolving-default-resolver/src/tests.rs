@@ -42,15 +42,17 @@ impl Resolver for PrefixResolver {
             let name_ver = fake_name_ver();
             Ok(Some(ResolveResult {
                 id: (&name_ver).into(),
-                name_ver: Some(name_ver),
-                latest: None,
-                published_at: None,
-                manifest: None,
                 resolution: fake_resolution(),
                 resolved_via: self.tag.to_string(),
                 normalized_bare_specifier: None,
                 alias: wanted_dependency.alias.clone(),
                 policy_violation: None,
+                package: pnpm_resolving_resolver_base::ResolvedPackageInfo {
+                    name_ver: Some(name_ver),
+                    latest: None,
+                    published_at: None,
+                    manifest: None,
+                },
             }))
         })
     }

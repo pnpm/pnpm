@@ -41,8 +41,8 @@ fn outdated_lockfile_project() -> TempDir {
     .expect("write local dependency manifest");
     fs::write(
         workspace.join("package.json"),
-        serde_json::json!({ "dependencies": { "local-dependency": "file:dependency" } })
-            .to_string(),
+        serde_json::json!({ "dependencies": { "local-dependency": "file:dependency" } }).to_string(
+        ),
     )
     .expect("write project manifest");
     fs::write(workspace.join("pnpm-lock.yaml"), OUTDATED_LOCKFILE).expect("write stale lockfile");
@@ -66,7 +66,10 @@ fn ci_rejects_an_outdated_lockfile_by_default() {
         let workspace = root.path();
         let lockfile_path = workspace.join("pnpm-lock.yaml");
 
-        let assert = command_in_ci(workspace).arg("install").assert().failure();
+        let assert = command_in_ci(workspace)
+            .arg("install")
+            .assert()
+            .failure();
         let stderr = String::from_utf8_lossy(&assert.get_output().stderr);
         eprintln!("STDERR:\n{stderr}\n");
         assert!(
@@ -132,7 +135,10 @@ fn workspace_manifest_cannot_disable_ci_detection() {
     fs::write(workspace.join("pnpm-workspace.yaml"), "ci: false\n")
         .expect("write workspace manifest");
 
-    let assert = pacquet_in_ci(workspace).arg("install").assert().failure();
+    let assert = pacquet_in_ci(workspace)
+        .arg("install")
+        .assert()
+        .failure();
     let stderr = String::from_utf8_lossy(&assert.get_output().stderr);
     assert!(
         stderr.contains("ERR_PNPM_OUTDATED_LOCKFILE"),
@@ -151,7 +157,10 @@ fn ci_honors_explicit_prefer_frozen_lockfile_values() {
         let root = outdated_lockfile_project();
         let workspace = root.path();
 
-        pacquet_in_ci(workspace).args(["install", prefer_arg]).assert().success();
+        pacquet_in_ci(workspace)
+            .args(["install", prefer_arg])
+            .assert()
+            .success();
 
         assert_lockfile_was_updated(workspace);
     }
@@ -186,7 +195,10 @@ fn ci_honors_pnpmfile_prefer_frozen_lockfile_values() {
         )
         .expect("write updateConfig hook");
 
-        pacquet_in_ci(workspace).arg("install").assert().success();
+        pacquet_in_ci(workspace)
+            .arg("install")
+            .assert()
+            .success();
 
         assert_lockfile_was_updated(workspace);
     }
@@ -258,7 +270,10 @@ fn ci_install_without_a_nonempty_lockfile_generates_one() {
             fs::write(workspace.join("pnpm-lock.yaml"), "").expect("write empty lockfile");
         }
 
-        pacquet_in_ci(workspace).arg("install").assert().success();
+        pacquet_in_ci(workspace)
+            .arg("install")
+            .assert()
+            .success();
 
         let lockfile =
             fs::read_to_string(workspace.join("pnpm-lock.yaml")).expect("read generated lockfile");
@@ -273,7 +288,10 @@ fn ci_install_with_a_semantically_empty_lockfile_updates_it() {
     fs::write(workspace.join("pnpm-lock.yaml"), EMPTY_LOCKFILE)
         .expect("write semantically empty lockfile");
 
-    pacquet_in_ci(workspace).arg("install").assert().success();
+    pacquet_in_ci(workspace)
+        .arg("install")
+        .assert()
+        .success();
 
     assert_lockfile_was_updated(workspace);
 }

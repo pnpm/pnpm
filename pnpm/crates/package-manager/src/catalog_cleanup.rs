@@ -5,10 +5,10 @@
 //! same single read-modify-write upstream's `updateWorkspaceManifest`
 //! performs.
 //!
-//! A second, post-install write runs the
-//! `minimumReleaseAgeExcludePrune` pass: it needs the lockfile
+//! A second, post-install write runs the `minimumReleaseAgeExcludePrune`
+//! and `trustPolicyExcludePrune` passes: they need the lockfile
 //! the install just wrote (the catalog write happens before the install
-//! so the resolver reads the new entries back), so it cannot ride along.
+//! so the resolver reads the new entries back), so they cannot ride along.
 
 use derive_more::{Display, Error};
 use miette::Diagnostic;
@@ -18,8 +18,8 @@ use pnpm_lockfile::{LoadLockfileError, Lockfile};
 use pnpm_package_manifest::PackageManifest;
 use pnpm_workspace::{
     FindWorkspaceDirError, FindWorkspaceProjectsError, FindWorkspaceProjectsOpts, Project,
-    ReadWorkspaceManifestError, find_workspace_dir, find_workspace_projects,
-    read_workspace_manifest, workspace_package_patterns,
+    ReadWorkspaceManifestError, find_workspace_projects, read_workspace_manifest,
+    workspace_package_patterns,
 };
 use pnpm_workspace_manifest_writer::{
     ResolvedPackageVersions, UpdateWorkspaceManifestError, UpdateWorkspaceManifestOptions,
@@ -62,7 +62,7 @@ pub(crate) fn write_workspace_catalogs(
     }
     let workspace_dir = match workspace_dir {
         Some(dir) => dir.to_path_buf(),
-        None => derive_workspace_dir(current_manifest)?,
+        None => derive_workspace_dir(config, current_manifest)?,
     };
     let projects =
         if config.catalog_prune { load_cleanup_projects(&workspace_dir)? } else { Vec::new() };
@@ -90,8 +90,10 @@ pub(crate) fn write_workspace_catalogs_selected(
     if updated_catalogs.is_empty() && !config.catalog_prune {
         return Ok(());
     }
-    let all_projects: Vec<&PackageManifest> =
-        projects.iter().map(|project| &project.manifest).collect();
+    let all_projects: Vec<&PackageManifest> = projects
+        .iter()
+        .map(|project| &project.manifest)
+        .collect();
     update_workspace_manifest(
         workspace_dir,
         &UpdateWorkspaceManifestOptions {
@@ -105,6 +107,7 @@ pub(crate) fn write_workspace_catalogs_selected(
 }
 
 fn derive_workspace_dir(
+    config: &Config,
     current_manifest: &PackageManifest,
 ) -> Result<PathBuf, WriteWorkspaceCatalogsError> {
     let manifest_dir = current_manifest
@@ -112,23 +115,24 @@ fn derive_workspace_dir(
         .parent()
         .expect("manifest path always has a parent dir")
         .to_path_buf();
-    let workspace_dir = find_workspace_dir(&manifest_dir)
-        .map_err(WriteWorkspaceCatalogsError::FindWorkspaceDir)?
-        .unwrap_or(manifest_dir);
+    let workspace_dir =
+        crate::install::configured_or_discovered_workspace_dir(config, &manifest_dir)
+            .map_err(WriteWorkspaceCatalogsError::FindWorkspaceDir)?
+            .unwrap_or(manifest_dir);
     Ok(workspace_dir)
 }
 
-/// Post-install pass under `minimumReleaseAgeExcludePrune`: prune
-/// `minimumReleaseAgeExclude` entries whose versions the lockfile written
-/// by the just-finished install no longer records.
+/// Post-install pass under `minimumReleaseAgeExcludePrune` /
+/// `trustPolicyExcludePrune`: prune exclude entries whose versions the
+/// lockfile written by the just-finished install no longer records.
 ///
 /// The pass may only drop an entry it can prove nothing resolves, so it
-/// needs a lockfile covering every project `minimumReleaseAgeExclude`
-/// governs — only a shared one does. Under dedicated per-project
-/// lockfiles (`sharedWorkspaceLockfile: false` with no `lockfileDir`
-/// pinning them back together) every entry a sibling project needs would
-/// look unresolved, so the pass no-ops. It also no-ops when the setting
-/// is off, when lockfile persistence is disabled (`lockfile: false` — the
+/// needs a lockfile covering every project the exclude lists govern —
+/// only a shared one does. Under dedicated per-project lockfiles
+/// (`sharedWorkspaceLockfile: false` with no `lockfileDir` pinning them
+/// back together) every entry a sibling project needs would look
+/// unresolved, so the pass no-ops. It also no-ops when the settings are
+/// off, when lockfile persistence is disabled (`lockfile: false` — the
 /// on-disk lockfile would be stale), and when no lockfile exists,
 /// mirroring the `all_projects` guard of the catalog cleanup.
 pub(crate) fn post_install_prune(
@@ -141,7 +145,7 @@ pub(crate) fn post_install_prune(
     }
     let workspace_dir = match workspace_dir {
         Some(dir) => dir.to_path_buf(),
-        None => derive_workspace_dir(current_manifest)?,
+        None => derive_workspace_dir(config, current_manifest)?,
     };
     // The entries live in the workspace's `pnpm-workspace.yaml`; the
     // lockfile that proves what still resolves sits wherever
@@ -156,6 +160,7 @@ pub(crate) fn post_install_prune(
         &workspace_dir,
         &UpdateWorkspaceManifestOptions {
             prune_minimum_release_age_excludes: config.minimum_release_age_exclude_prune,
+            prune_trust_policy_excludes: config.trust_policy_exclude_prune,
             prune_allow_builds: true,
             resolved_package_versions: Some(&resolved),
             ..Default::default()
@@ -177,8 +182,7 @@ fn resolved_package_versions(lockfile: &Lockfile) -> ResolvedPackageVersions {
     let mut resolved = ResolvedPackageVersions::new();
     for key in lockfile.snapshots.iter().flat_map(|snapshots| snapshots.keys()) {
         let versions = resolved.entry(key.name.to_string()).or_default();
-        let version = key
-            .suffix
+        let version = key.suffix
             .version_semver()
             .or_else(|| key.suffix.registry_qualified().map(|(_, version)| version));
         if let Some(version) = version {

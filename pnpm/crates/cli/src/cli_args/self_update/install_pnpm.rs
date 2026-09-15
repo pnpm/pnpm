@@ -6,10 +6,19 @@
 //! preinstall, which is skipped because the engine is installed with scripts
 //! disabled), and the caller links the bins + hash symlink.
 
+pub(crate) use native_binary::link_exe_platform_binary;
+pub(super) use native_binary::{
+    exe_platform_pkg_dir_name, exe_platform_pkg_dir_name_next, native_target_name,
+};
+
+use super::SelfUpdateError;
 use crate::{State, cli_args::add::add_package, executable_link::replace_executable};
 use miette::{Context, IntoDiagnostic};
-use pnpm_config::{Config, PackageManagerBootstrap};
-use pnpm_global::{clean_orphaned_install_dirs, create_install_dir, find_global_package};
+
+use pnpm_config::{Config, NodeLinker, PackageManagerBootstrap};
+use pnpm_global::{
+    GlobalPackageInfo, clean_orphaned_install_dirs, create_install_dir, scan_global_packages,
+};
 use pnpm_graph_hasher::{format_global_virtual_store_path, host_arch, host_libc, host_platform};
 use pnpm_package_is_installable::SupportedArchitectures;
 use pnpm_package_manifest::{DependencyGroup, parse_manifest};
@@ -21,8 +30,6 @@ use std::{
     path::{Path, PathBuf},
     process::Command,
 };
-
-use super::SelfUpdateError;
 
 /// From v12 the unscoped `pnpm` package is itself the native engine
 /// (equal content to `@pnpm/exe`), so v12+ installs converge on `pnpm`.
@@ -60,16 +67,8 @@ pub(super) async fn install_pnpm<Reporter: self::Reporter + 'static>(
         .wrap_err("create the global packages directory")?;
     clean_orphaned_install_dirs(&global_pkg_dir);
 
-    if let Some(existing) = find_global_package(&global_pkg_dir, package_name)
-        .into_diagnostic()
-        .wrap_err("scan global packages")?
-        && reuse_cached_engine(&existing.install_dir, package, version)
-    {
-        return Ok(InstallPnpmResult {
-            install_dir: existing.install_dir,
-            package_name,
-            already_existed: true,
-        });
+    if let Some(result) = reuse_global_engine(&global_pkg_dir, package, version)? {
+        return Ok(result);
     }
 
     let install_dir = create_install_dir(&global_pkg_dir)
@@ -84,17 +83,7 @@ pub(super) async fn install_pnpm<Reporter: self::Reporter + 'static>(
         None,
     ))
     .await
-    .and_then(|()| {
-        if package.links_native_binary {
-            link_exe_platform_binary(&install_dir, package_name)?;
-            // Before the caller links this dir into the global bin, so a broken
-            // release is discarded rather than swapped in.
-            assert_pnpm_runs(&install_dir, package_name, version)
-        } else {
-            // The legacy JS engine has no binary of its own to be missing.
-            Ok(())
-        }
-    });
+    .and_then(|()| finalize_engine_install(&install_dir, package, version));
     if let Err(err) = outcome {
         let _ = fs::remove_dir_all(&install_dir);
         return Err(err);
@@ -120,24 +109,26 @@ pub(super) fn assert_pnpm_runs(
     let probe_dir = tempfile::tempdir()
         .into_diagnostic()
         .wrap_err("create a directory to check the installed pnpm from")?;
-    let reason =
-        match Command::new(&executable).arg("--version").current_dir(probe_dir.path()).output() {
-            Err(err) => err.to_string(),
-            Ok(output) if !output.status.success() => {
-                let stderr = String::from_utf8_lossy(&output.stderr);
-                let stderr = stderr.trim();
-                let code = output
-                    .status
-                    .code()
-                    .map_or_else(|| "a signal".to_string(), |code| format!("code {code}"));
-                if stderr.is_empty() {
-                    format!("it exited with {code}")
-                } else {
-                    format!("it exited with {code}: {stderr}")
-                }
+    let reason = match Command::new(&executable)
+        .arg("--version")
+        .current_dir(probe_dir.path())
+        .output()
+    {
+        Err(err) => err.to_string(),
+        Ok(output) if !output.status.success() => {
+            let stderr = String::from_utf8_lossy(&output.stderr);
+            let stderr = stderr.trim();
+            let code = output.status
+                .code()
+                .map_or_else(|| "a signal".to_string(), |code| format!("code {code}"));
+            if stderr.is_empty() {
+                format!("it exited with {code}")
+            } else {
+                format!("it exited with {code}: {stderr}")
             }
-            Ok(_) => return Ok(()),
-        };
+        }
+        Ok(_) => return Ok(()),
+    };
     Err(SelfUpdateError::BrokenPnpmInstall {
         version: version.to_string(),
         reason,
@@ -148,16 +139,8 @@ pub(super) fn assert_pnpm_runs(
 
 /// The native pnpm executable linked into an installed engine wrapper.
 pub(super) fn pnpm_executable_path(install_dir: &Path, package_name: &str) -> PathBuf {
-    let wrapper_dir = package_dir(install_dir, package_name);
-    wrapper_executable_path(&wrapper_dir, host_platform())
-}
-
-fn wrapper_executable_path(wrapper_dir: &Path, platform: &str) -> PathBuf {
-    wrapper_dir.join(if wrapper_dir.join("pnpm.exe").exists() || platform == "win32" {
-        "pnpm.exe"
-    } else {
-        "pnpm"
-    })
+    package_dir(install_dir, package_name)
+        .join(if host_platform() == "win32" { "pnpm.exe" } else { "pnpm" })
 }
 
 /// The installed wrapper's recorded version, or `None` when the install is
@@ -166,7 +149,61 @@ pub(super) fn installed_version(install_dir: &Path, package_name: &str) -> Optio
     let pkg_json = package_dir(install_dir, package_name).join("package.json");
     let text = fs::read_to_string(pkg_json).ok()?;
     let value: Value = parse_manifest(&text).ok()?;
-    value.get("version").and_then(Value::as_str).map(ToString::to_string)
+    value
+        .get("version")
+        .and_then(Value::as_str)
+        .map(ToString::to_string)
+}
+
+/// The aliases a pnpm engine can be installed under globally. The standalone
+/// install script installs `@pnpm/exe` even for the versions
+/// [`pnpm_package_to_install`] resolves to `pnpm`, so a switch to either name
+/// has to recognize an install under the other (see pnpm/pnpm#14823).
+const ENGINE_ALIASES: [&str; 2] = [PNPM_PACKAGE_NAME, PNPM_EXE_PACKAGE_NAME];
+
+/// Every global package group holding a pnpm engine at exactly `version`,
+/// paired with the alias it is installed under.
+pub(super) fn find_global_engines(
+    global_pkg_dir: &Path,
+    version: &str,
+) -> miette::Result<Vec<(GlobalPackageInfo, &'static str)>> {
+    let packages =
+        scan_global_packages(global_pkg_dir).into_diagnostic().wrap_err("scan global packages")?;
+    Ok(packages
+        .into_iter()
+        .filter_map(|pkg| engine_alias_at_version(&pkg, version).map(|alias| (pkg, alias)))
+        .collect())
+}
+
+fn engine_alias_at_version(pkg: &GlobalPackageInfo, version: &str) -> Option<&'static str> {
+    ENGINE_ALIASES
+        .into_iter()
+        .find(|alias| {
+            pkg.has_alias(alias)
+                && installed_version(&pkg.install_dir, alias).as_deref() == Some(version)
+        })
+}
+
+/// Reuse a global engine already installed at `version`, under whichever
+/// alias it was installed as, instead of downloading it again. Every
+/// candidate is tried: a group that cannot be relinked (a pre-v12 JS `pnpm`
+/// where the native `@pnpm/exe` is wanted, say) must not hide a usable one.
+fn reuse_global_engine(
+    global_pkg_dir: &Path,
+    package: PnpmPackageToInstall,
+    version: &str,
+) -> miette::Result<Option<InstallPnpmResult>> {
+    for (existing, name) in find_global_engines(global_pkg_dir, version)? {
+        let existing_package = PnpmPackageToInstall { name, ..package };
+        if reuse_cached_engine(&existing.install_dir, existing_package, version) {
+            return Ok(Some(InstallPnpmResult {
+                install_dir: existing.install_dir,
+                package_name: name,
+                already_existed: true,
+            }));
+        }
+    }
+    Ok(None)
 }
 
 /// Whether an existing global slot at `install_dir` can be reused for
@@ -297,6 +334,11 @@ pub(crate) async fn run_install<Reporter: self::Reporter + 'static>(
     cfg.package_extensions = None;
     cfg.catalogs = None;
     cfg.patched_dependencies = None;
+    // The engine closure is pnpm's own, so the project's linker choice must
+    // not shape its layout: under `hoisted` the engine materializes inside
+    // `install_dir` instead of the global virtual store the caller resolves
+    // its slot from (pnpm/pnpm#14595).
+    cfg.node_linker = NodeLinker::Isolated;
 
     let config: &'static Config = Config::leak(cfg);
     let manifest_path = install_dir.join("package.json");
@@ -312,39 +354,6 @@ pub(crate) async fn run_install<Reporter: self::Reporter + 'static>(
         [DependencyGroup::Prod],
     )
     .await
-}
-
-/// Scope-local directory name of the `@pnpm/exe` platform package under
-/// the legacy `<os>-<arch>` scheme (`macos-arm64`, `win-x86`,
-/// `linux-x64`, `linuxstatic-x64`).
-pub(super) fn exe_platform_pkg_dir_name(platform: &str, arch: &str, libc: &str) -> String {
-    let arch = normalized_arch(platform, arch);
-    let os = match platform {
-        "darwin" => "macos",
-        "win32" => "win",
-        "linux" => {
-            if libc == "musl" {
-                "linuxstatic"
-            } else {
-                "linux"
-            }
-        }
-        other => other,
-    };
-    format!("{os}-{arch}")
-}
-
-/// Scope-local directory name of the platform package under the
-/// `exe.<platform>-<arch>[-musl]` scheme — the convention pnpm v12 ships
-/// its native binaries under.
-pub(super) fn exe_platform_pkg_dir_name_next(platform: &str, arch: &str, libc: &str) -> String {
-    let arch = normalized_arch(platform, arch);
-    let libc_suffix = if platform == "linux" && libc == "musl" { "-musl" } else { "" };
-    format!("exe.{platform}-{arch}{libc_suffix}")
-}
-
-fn normalized_arch<'a>(platform: &str, arch: &'a str) -> &'a str {
-    if platform == "win32" && arch == "ia32" { "x86" } else { arch }
 }
 
 #[cfg(test)]
@@ -363,142 +372,6 @@ fn apply_package_manager_bootstrap(cfg: &mut Config, bootstrap: &PackageManagerB
     cfg.auth_headers = std::sync::Arc::clone(&bootstrap.auth_headers);
 }
 
-/// Link the host's native platform binary (`@pnpm/exe.<target>`) into the
-/// wrapper package directory, replicating the wrapper's preinstall step
-/// (skipped because the engine is installed with scripts disabled).
-///
-/// Errors loudly when the wrapper or its platform binary is missing, or
-/// when the hard link fails: with scripts disabled, this manual linking is
-/// the critical path, so a silent no-op would leave a "successful"
-/// self-update with a non-functional `pnpm`.
-pub(crate) fn link_exe_platform_binary(
-    install_dir: &Path,
-    wrapper_pkg_name: &str,
-) -> miette::Result<()> {
-    let wrapper_dir = package_dir(install_dir, wrapper_pkg_name);
-    if !wrapper_dir.exists() {
-        let wrapper_display = wrapper_dir.display();
-        return Err(miette::miette!("the installed pnpm wrapper is missing at {wrapper_display}"));
-    }
-    let platform = host_platform();
-    let arch = host_arch();
-    let libc = host_libc();
-    let executable = if platform == "win32" { "pnpm.exe" } else { "pnpm" };
-
-    // Resolve the platform binary by its explicit adjacent path in the
-    // real virtual store, not via a `node_modules` walk (which a
-    // repo-controlled store-dir could shadow). `@pnpm/exe`'s parent is
-    // already `@pnpm`; the unscoped `pnpm` descends into `@pnpm`.
-    let install_real_dir = fs::canonicalize(install_dir)
-        .into_diagnostic()
-        .wrap_err_with(|| format!("resolve the pnpm install dir at {}", install_dir.display()))?;
-    let wrapper_real_dir = fs::canonicalize(&wrapper_dir)
-        .into_diagnostic()
-        .wrap_err_with(|| format!("resolve the pnpm wrapper at {}", wrapper_dir.display()))?;
-    if !wrapper_real_dir.starts_with(&install_real_dir) {
-        let wrapper_display = wrapper_dir.display();
-        let install_display = install_dir.display();
-        return Err(miette::miette!(
-            "the installed pnpm wrapper at {} resolves outside {}",
-            wrapper_display,
-            install_display
-        ));
-    }
-    let parent = wrapper_real_dir
-        .parent()
-        .ok_or_else(|| miette::miette!("the pnpm wrapper has no parent directory"))?;
-    let scope_dir =
-        if wrapper_pkg_name.starts_with('@') { parent.to_path_buf() } else { parent.join("@pnpm") };
-
-    let candidate_dir_names = [
-        exe_platform_pkg_dir_name(platform, arch, libc),
-        exe_platform_pkg_dir_name_next(platform, arch, libc),
-    ];
-    let src = candidate_dir_names
-        .iter()
-        .map(|dir_name| scope_dir.join(dir_name).join(executable))
-        .find(|candidate| candidate.exists())
-        .ok_or_else(|| {
-            miette::miette!("no @pnpm/exe.{platform}-{arch} native binary was found for this host")
-        })?;
-    let native_source_root = native_source_trust_root(&install_real_dir, wrapper_pkg_name);
-    let src = validate_native_binary_source(&src, &native_source_root)?;
-    let dest = wrapper_executable_path(&wrapper_real_dir, platform);
-    replace_executable(&src, &dest)
-        .into_diagnostic()
-        .wrap_err("link the native pnpm binary into the wrapper")?;
-
-    if platform == "win32" {
-        // Aliases (pn / pnpx / pnx) must be .exe hardlinks of the native
-        // binary, not .cmd wrappers — cmd-shim's Bash shim mangles a .cmd
-        // target under MSYS2 / Git Bash. The native binary detects which
-        // name it was launched as and prepends `dlx` for pnpx / pnx.
-        for alias in ["pn", "pnpx", "pnx"] {
-            replace_executable(&src, &wrapper_real_dir.join(format!("{alias}.exe")))
-                .into_diagnostic()
-                .wrap_err_with(|| format!("link the {alias} alias into the wrapper"))?;
-        }
-        rewrite_windows_bin_field(&wrapper_real_dir);
-    }
-    Ok(())
-}
-
-fn native_source_trust_root(install_real_dir: &Path, wrapper_pkg_name: &str) -> PathBuf {
-    // In the global virtual store, the wrapper and platform binary live
-    // in sibling slots under `links`; self-update installs keep both
-    // under the one install dir.
-    global_virtual_store_root_from_slot(install_real_dir, wrapper_pkg_name)
-        .unwrap_or_else(|| install_real_dir.to_path_buf())
-}
-
-// Recognizes a slot by re-deriving its `links`-relative path with
-// [`format_global_virtual_store_path`] — the same formatter that laid the
-// slot out — so this walk can't drift from the layout (e.g. the `@`
-// placeholder scope segment unscoped packages sit under).
-fn global_virtual_store_root_from_slot(slot_dir: &Path, package_name: &str) -> Option<PathBuf> {
-    let hash = slot_dir.file_name()?.to_str()?;
-    let version = slot_dir.parent()?.file_name()?.to_str()?;
-    node_semver::Version::parse(version).ok()?;
-
-    let mut cursor = slot_dir;
-    for segment in format_global_virtual_store_path(package_name, version, hash).split('/').rev() {
-        if cursor.file_name()?.to_str()? != segment {
-            return None;
-        }
-        cursor = cursor.parent()?;
-    }
-    (cursor.file_name()?.to_str()? == "links").then(|| cursor.to_path_buf())
-}
-
-fn validate_native_binary_source(src: &Path, source_root: &Path) -> miette::Result<PathBuf> {
-    let src_display = src.display().to_string();
-    let link_meta = fs::symlink_metadata(src)
-        .into_diagnostic()
-        .wrap_err_with(|| format!("inspect the native pnpm binary at {src_display}"))?;
-    if link_meta.file_type().is_symlink() {
-        return Err(miette::miette!("the native pnpm binary at {src_display} is a symlink"));
-    }
-    let src_real = fs::canonicalize(src)
-        .into_diagnostic()
-        .wrap_err_with(|| format!("resolve the native pnpm binary at {src_display}"))?;
-    if !src_real.starts_with(source_root) {
-        let source_root_display = source_root.display().to_string();
-        return Err(miette::miette!(
-            "the native pnpm binary at {src_display} resolves outside {source_root_display}"
-        ));
-    }
-    let src_real_display = src_real.display().to_string();
-    let meta = fs::metadata(&src_real)
-        .into_diagnostic()
-        .wrap_err_with(|| format!("inspect the native pnpm binary at {src_real_display}"))?;
-    if !meta.is_file() {
-        return Err(miette::miette!(
-            "the native pnpm binary at {src_real_display} is not a regular file"
-        ));
-    }
-    Ok(src_real)
-}
-
 pub(crate) fn package_dir(install_dir: &Path, package_name: &str) -> PathBuf {
     let mut package_dir = install_dir.join("node_modules");
     for segment in package_name.split('/') {
@@ -507,35 +380,21 @@ pub(crate) fn package_dir(install_dir: &Path, package_name: &str) -> PathBuf {
     package_dir
 }
 
-/// Point the Windows wrapper's `bin` field at the `.exe` variants (the
-/// npm shim generator reads `bin` at install time). Written via a temp
-/// file + rename so the content-addressed, hard-linked `package.json`
-/// blob is not mutated in place.
-fn rewrite_windows_bin_field(wrapper_dir: &Path) {
-    let pkg_json_path = wrapper_dir.join("package.json");
-    let Ok(text) = fs::read_to_string(&pkg_json_path) else {
-        return;
-    };
-    let Ok(mut pkg) = parse_manifest(&text) else {
-        return;
-    };
-    let Some(bin) = pkg.get_mut("bin").and_then(Value::as_object_mut) else {
-        return;
-    };
-    for (name, target) in
-        [("pnpm", "pnpm.exe"), ("pn", "pn.exe"), ("pnpx", "pnpx.exe"), ("pnx", "pnx.exe")]
-    {
-        bin.insert(name.to_string(), Value::String(target.to_string()));
-    }
-    let Ok(serialized) = serde_json::to_string_pretty(&pkg) else {
-        return;
-    };
-    let temp_path = pkg_json_path.with_extension("json.pnpm-tmp");
-    if fs::write(&temp_path, serialized).is_err() {
-        let _ = fs::remove_file(&temp_path);
-        return;
-    }
-    if fs::rename(&temp_path, &pkg_json_path).is_err() {
-        let _ = fs::remove_file(&temp_path);
+/// Link and execute native engines before making them the global command.
+fn finalize_engine_install(
+    install_dir: &Path,
+    package: PnpmPackageToInstall,
+    version: &str,
+) -> miette::Result<()> {
+    if package.links_native_binary {
+        link_exe_platform_binary(install_dir, package.name)?;
+        // Before the caller links this dir into the global bin, so a broken
+        // release is discarded rather than swapped in.
+        assert_pnpm_runs(install_dir, package.name, version)
+    } else {
+        // The legacy JS engine has no binary of its own to be missing.
+        Ok(())
     }
 }
+
+mod native_binary;

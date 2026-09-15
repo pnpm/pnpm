@@ -10,7 +10,7 @@ use crate::{
         HoistMissingScope, ResolvePeersOptions,
         cache::{PeerProviderChildren, PeersCacheItem},
         context::{ChainSuffixMemo, CurrentProviderSource, ParentPkgInfo, SharedChain},
-        walker::{MissingSummary, NodeOutput, Walker},
+        walker::{MissingSummary, NodeOutput, RootWalk, Walker},
     },
     resolved_tree::{DirectDep, ResolvedTree},
 };
@@ -49,7 +49,7 @@ impl PeerHoistDiscovery {
     /// `workspace` first when the context changed since the last pass.
     ///
     /// A children-ownership handover that rewrote existing occurrence
-    /// nodes ([`crate::WorkspaceTreeCtx::children_rewrites`]) discards
+    /// nodes (the children-rewrite counter in [`crate::WorkspaceTreeCtx::tree`]) discards
     /// the whole view: the retained realized children and the walk
     /// verdicts derived from them predate the rewrite, and an
     /// incremental sync cannot tell which of them the rewrite
@@ -66,9 +66,9 @@ impl PeerHoistDiscovery {
         walk_direct: &[DirectDep],
         opts: ResolvePeersOptions,
     ) -> PeerDiscoveryResult {
-        let revision = workspace.revision();
+        let revision = workspace.tree.revision();
         if self.synced_revision != Some(revision) {
-            let children_rewrites = workspace.children_rewrites();
+            let children_rewrites = workspace.tree.children_rewrites();
             let stale =
                 self.synced_children_rewrites.is_some_and(|synced| synced != children_rewrites);
             if stale || !workspace.sync_discovery_tree(&mut self.tree, &mut self.cursor) {
@@ -155,83 +155,56 @@ fn discover_peers(
     caches: PeerDiscoveryCaches,
     opts: ResolvePeersOptions,
 ) -> (PeerDiscoveryResult, PeerDiscoveryCaches) {
-    let current_provider_sources = vec![CurrentProviderSource {
-        direct_node_ids_by_alias: parents_direct
-            .iter()
-            .map(|dep| (dep.alias.clone(), dep.node_id.clone()))
-            .collect(),
-        declared_direct_dependencies: opts.declared_direct_dependencies.clone(),
-        explicitly_requested_direct_dependencies: opts
-            .explicitly_requested_direct_dependencies
-            .clone(),
-    }];
+    let current_provider_sources = discovery_provider_sources(parents_direct, &opts);
     let mut walker =
         Walker::new(tree, opts, HashMap::default(), current_provider_sources, caches, true);
-
-    let importer_parents = Arc::new(walker.build_importer_parents_from(parents_direct));
-    let parent_chain_names = SharedChain::default();
-    let parent_node_ids = SharedChain::default();
-    let parent_pkg_ids_chain = SharedChain::default();
-    let importer_parent_dep_paths = walker.parent_dep_paths_from_refs(&importer_parents);
+    let root = RootWalk::of(&walker, parents_direct);
     let (own_direct, provider_direct): (Vec<&DirectDep>, Vec<&DirectDep>) = walk_direct
         .iter()
-        .partition(|dep| !walker.opts.hoisted_peer_provider_node_ids.contains(&dep.node_id));
+        .partition(|dep| !walker.opts.scope.hoisted_peer_provider_node_ids.contains(&dep.node_id));
     let mut result = PeerDiscoveryResult::default();
     for dep in &own_direct {
         walker.remember_parent_context_if_peer_provider(
             &dep.alias,
             &dep.node_id,
-            &importer_parent_dep_paths,
+            &root.parent_dep_paths,
         );
     }
-    let fold_output = |result: &mut PeerDiscoveryResult, output: NodeOutput| {
-        for (peer_alias, peer_node_id) in output.auto_install_resolved_peers {
-            result.resolved_peer_providers_by_alias.insert(peer_alias, peer_node_id);
-        }
-        if let Some(summary) = output.subtree_missing_by_pkg
-            && !result.missing_summaries.iter().any(|seen| Arc::ptr_eq(seen, &summary))
-        {
-            result.missing_summaries.push(summary);
-        }
-    };
     for dep in &own_direct {
-        let output = walker.resolve_node(
-            &dep.node_id,
-            &importer_parents,
-            &importer_parent_dep_paths,
-            &parent_chain_names,
-            &parent_node_ids,
-            &parent_pkg_ids_chain,
-        );
-        fold_output(&mut result, output);
+        result.fold(walker.resolve_node(&dep.node_id, &root.context()));
     }
     // See ResolvePeersOptions::hoisted_peer_provider_node_ids — a
     // provider is normally resolved at its tree position during the
     // walk above; only one whose position was pruned still needs the
     // root-context fallback.
     for dep in &provider_direct {
-        if walker.visited_this_call.contains(&dep.node_id) {
+        if walker.traversal.visited_this_call.contains(&dep.node_id) {
             continue;
         }
         walker.remember_parent_context_if_peer_provider(
             &dep.alias,
             &dep.node_id,
-            &importer_parent_dep_paths,
+            &root.parent_dep_paths,
         );
-        let output = walker.resolve_node(
-            &dep.node_id,
-            &importer_parents,
-            &importer_parent_dep_paths,
-            &parent_chain_names,
-            &parent_node_ids,
-            &parent_pkg_ids_chain,
-        );
-        fold_output(&mut result, output);
+        result.fold(walker.resolve_node(&dep.node_id, &root.context()));
     }
-    walker.drain_pending_canonical_nodes(&importer_parents, &importer_parent_dep_paths);
-    result.peer_dependency_issues = std::mem::take(&mut walker.issues);
-    result.missing_ancestor_pkg_ids = std::mem::take(&mut walker.missing_ancestor_pkg_ids);
+    walker.drain_pending_canonical_nodes(&root.importer_parents, &root.parent_dep_paths);
+    result.peer_dependency_issues = std::mem::take(&mut walker.output.issues);
+    result.missing_ancestor_pkg_ids = std::mem::take(&mut walker.output.missing_ancestor_pkg_ids);
     (result, walker.into_caches())
+}
+
+impl PeerDiscoveryResult {
+    fn fold(&mut self, output: NodeOutput) {
+        for (peer_alias, peer_node_id) in output.auto_install_resolved_peers {
+            self.resolved_peer_providers_by_alias.insert(peer_alias, peer_node_id);
+        }
+        if let Some(summary) = output.subtree_missing_by_pkg
+            && !self.missing_summaries.iter().any(|seen| Arc::ptr_eq(seen, &summary))
+        {
+            self.missing_summaries.push(summary);
+        }
+    }
 }
 
 pub(crate) fn apply_hoist_missing_scope(
@@ -256,3 +229,19 @@ pub(crate) fn apply_hoist_missing_scope(
 
 #[cfg(test)]
 mod tests;
+
+fn discovery_provider_sources(
+    parents_direct: &[DirectDep],
+    opts: &ResolvePeersOptions,
+) -> Vec<CurrentProviderSource> {
+    vec![CurrentProviderSource {
+        direct_node_ids_by_alias: parents_direct
+            .iter()
+            .map(|dep| (dep.alias.clone(), dep.node_id.clone()))
+            .collect(),
+        declared_direct_dependencies: opts.scope.declared_direct_dependencies.clone(),
+        explicitly_requested_direct_dependencies: opts.scope
+            .explicitly_requested_direct_dependencies
+            .clone(),
+    }]
+}

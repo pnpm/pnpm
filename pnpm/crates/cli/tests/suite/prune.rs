@@ -5,8 +5,13 @@ use std::fs;
 
 #[test]
 fn prune_writes_lockfile() {
-    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
-        CommandTempCwd::init().add_mocked_registry();
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
 
     let manifest_path = workspace.join("package.json");
@@ -22,7 +27,10 @@ fn prune_writes_lockfile() {
     .expect("write package.json");
 
     let lockfile_path = workspace.join("pnpm-lock.yaml");
-    pacquet.with_arg("prune").assert().success();
+    pacquet
+        .with_arg("prune")
+        .assert()
+        .success();
 
     assert!(lockfile_path.exists(), "prune must create pnpm-lock.yaml");
     let lockfile = fs::read_to_string(&lockfile_path).expect("read pnpm-lock.yaml");
@@ -36,8 +44,13 @@ fn prune_writes_lockfile() {
 
 #[test]
 fn prune_from_workspace_member_writes_the_workspace_lockfile() {
-    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
-        CommandTempCwd::init().add_mocked_registry();
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
     fs::write(workspace.join("package.json"), r#"{ "name": "workspace-root" }"#)
         .expect("write root package.json");
@@ -51,7 +64,11 @@ fn prune_from_workspace_member_writes_the_workspace_lockfile() {
     )
     .expect("write member package.json");
 
-    pacquet.with_current_dir(&member).with_arg("prune").assert().success();
+    pacquet
+        .with_current_dir(&member)
+        .with_arg("prune")
+        .assert()
+        .success();
 
     assert!(workspace.join("pnpm-lock.yaml").is_file());
     assert!(!member.join("pnpm-lock.yaml").exists());
@@ -61,8 +78,13 @@ fn prune_from_workspace_member_writes_the_workspace_lockfile() {
 
 #[test]
 fn prune_with_prod_only_omits_dev_deps() {
-    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
-        CommandTempCwd::init().add_mocked_registry();
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
 
     let manifest_path = workspace.join("package.json");
@@ -81,7 +103,10 @@ fn prune_with_prod_only_omits_dev_deps() {
     .expect("write package.json");
 
     let lockfile_path = workspace.join("pnpm-lock.yaml");
-    pacquet.with_args(["prune", "--prod"]).assert().success();
+    pacquet
+        .with_args(["prune", "--prod"])
+        .assert()
+        .success();
 
     assert!(lockfile_path.exists(), "prune --prod must create pnpm-lock.yaml");
     let lockfile = fs::read_to_string(&lockfile_path).expect("read pnpm-lock.yaml");
@@ -99,8 +124,13 @@ fn prune_with_prod_only_omits_dev_deps() {
 
 #[test]
 fn prune_with_dev_only_includes_dev_deps() {
-    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
-        CommandTempCwd::init().add_mocked_registry();
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
 
     let manifest_path = workspace.join("package.json");
@@ -119,7 +149,10 @@ fn prune_with_dev_only_includes_dev_deps() {
     .expect("write package.json");
 
     let lockfile_path = workspace.join("pnpm-lock.yaml");
-    pacquet.with_args(["prune", "--dev"]).assert().success();
+    pacquet
+        .with_args(["prune", "--dev"])
+        .assert()
+        .success();
 
     assert!(lockfile_path.exists(), "prune --dev must create pnpm-lock.yaml");
     let lockfile = fs::read_to_string(&lockfile_path).expect("read pnpm-lock.yaml");
@@ -137,8 +170,13 @@ fn prune_with_dev_only_includes_dev_deps() {
 
 #[test]
 fn prune_with_no_optional_excludes_optional_deps() {
-    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
-        CommandTempCwd::init().add_mocked_registry();
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
 
     let manifest_path = workspace.join("package.json");
@@ -157,7 +195,10 @@ fn prune_with_no_optional_excludes_optional_deps() {
     .expect("write package.json");
 
     let lockfile_path = workspace.join("pnpm-lock.yaml");
-    pacquet.with_args(["prune", "--no-optional"]).assert().success();
+    pacquet
+        .with_args(["prune", "--no-optional"])
+        .assert()
+        .success();
 
     assert!(lockfile_path.exists(), "prune --no-optional must create pnpm-lock.yaml");
     let lockfile = fs::read_to_string(&lockfile_path).expect("read pnpm-lock.yaml");

@@ -52,7 +52,10 @@ pub fn ensure_pacquet_git_repo(path: &Path) {
 /// manifest) — that's not a shape pnpm ships in.
 pub fn ensure_pnpm_git_repo(path: &Path) {
     ensure_git_repo_common(path);
-    let has_pnpm_dir = path.join("pnpm").join("package.json").is_file();
+    let has_pnpm_dir = path
+        .join("pnpm")
+        .join("package.json")
+        .is_file();
     let has_workspace_yaml = path.join("pnpm-workspace.yaml").is_file();
     assert!(
         has_pnpm_dir || has_workspace_yaml,

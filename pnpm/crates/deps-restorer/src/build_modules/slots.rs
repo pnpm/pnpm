@@ -35,7 +35,10 @@ pub(crate) fn virtual_store_dir_for_key(
     let at_idx = name_version.rfind('@').unwrap_or(name_version.len());
     let name = &name_version[..at_idx];
 
-    layout.slot_dir(key).join("node_modules").join(name)
+    layout
+        .slot_dir(key)
+        .join("node_modules")
+        .join(name)
 }
 
 /// Whether `pkg_dir` already holds every file of a side-effects-cache
@@ -55,7 +58,9 @@ pub(crate) fn virtual_store_dir_for_key(
 pub(crate) fn slot_carries_overlay(pkg_dir: &Path, overlay: &HashMap<String, PathBuf>) -> bool {
     !pkg_dir.join(NEEDS_BUILD_MARKER).exists()
         && pkg_dir.is_dir()
-        && overlay.keys().all(|relative| pkg_dir.join(relative).exists())
+        && overlay
+            .keys()
+            .all(|relative| pkg_dir.join(relative).exists())
 }
 
 /// Whether `slot_dir` is a strict descendant of `root` reached only
@@ -66,11 +71,13 @@ pub(crate) fn slot_carries_overlay(pkg_dir: &Path, overlay: &HashMap<String, Pat
 /// name, so a crafted `..` segment must not let the delete escape the
 /// store root.
 pub(crate) fn is_contained_descendant(root: &Path, slot_dir: &Path) -> bool {
-    slot_dir.strip_prefix(root).is_ok_and(|suffix| {
-        let mut components = suffix.components().peekable();
-        components.peek().is_some()
-            && components.all(|component| matches!(component, std::path::Component::Normal(_)))
-    })
+    slot_dir
+        .strip_prefix(root)
+        .is_ok_and(|suffix| {
+            let mut components = suffix.components().peekable();
+            components.peek().is_some()
+                && components.all(|component| matches!(component, std::path::Component::Normal(_)))
+        })
 }
 
 /// Remove a snapshot's whole global-virtual-store hash directory after
@@ -123,49 +130,56 @@ pub(crate) fn discard_failed_global_virtual_store_slot(
     }
 }
 
-/// Resolve the canonical on-disk package directory for a snapshot — the
-/// one whose lifecycle scripts run and whose contents seed the
-/// side-effects cache.
+/// Where each snapshot's package sits on disk, under either linker.
 ///
-/// Two-mode lookup:
-///
-/// - **Isolated** (`pkg_roots_by_key.is_none()`) — fall through to
-///   [`virtual_store_dir_for_key`], which routes through the
-///   install-scoped [`crate::VirtualStoreLayout`].
-/// - **Hoisted** (`pkg_roots_by_key.is_some()`) — take the first
-///   directory the slice 4 walker recorded for the snapshot. `None` here
-///   means the snapshot is absent from the hoisted graph (pre-skipped, or
-///   the walker decided not to record it); the caller should treat
-///   that the same as the isolated `pkg_dir.exists() == false` skip.
-///
-/// Use [`pkg_roots_for_key`] instead for a write that has to reach every
-/// copy of the package.
-pub(crate) fn pkg_root_for_key(
-    layout: &crate::VirtualStoreLayout,
-    pkg_roots_by_key: Option<&HashMap<PackageKey, Vec<PathBuf>>>,
-    key: &PackageKey,
-) -> Option<PathBuf> {
-    match pkg_roots_by_key {
-        Some(map) => map.get(key).and_then(|dirs| dirs.first()).cloned(),
-        None => Some(virtual_store_dir_for_key(layout, key)),
-    }
+/// `by_key` is what distinguishes the two: the isolated linker leaves it
+/// `None` and every lookup derives the one virtual-store slot from
+/// `layout`, while the hoisted walker fills it with the paths it chose,
+/// which may be several for one snapshot.
+#[derive(Clone, Copy)]
+pub(crate) struct PkgRoots<'a> {
+    pub layout: &'a crate::VirtualStoreLayout,
+    pub by_key: Option<&'a HashMap<PackageKey, Vec<PathBuf>>>,
 }
 
-/// Every on-disk directory holding a snapshot's package.
-///
-/// The isolated linker gives each snapshot exactly one virtual-store
-/// slot, so this is [`pkg_root_for_key`] in a one-element list. The
-/// hoisted linker can place the same snapshot at several paths — a
-/// version conflict keeps a package out of the root and the walker nests
-/// a copy under each consumer that needs it.
-pub(crate) fn pkg_roots_for_key(
-    layout: &crate::VirtualStoreLayout,
-    pkg_roots_by_key: Option<&HashMap<PackageKey, Vec<PathBuf>>>,
-    key: &PackageKey,
-) -> Vec<PathBuf> {
-    match pkg_roots_by_key {
-        Some(map) => map.get(key).cloned().unwrap_or_default(),
-        None => vec![virtual_store_dir_for_key(layout, key)],
+impl PkgRoots<'_> {
+    /// The canonical on-disk package directory for a snapshot — the one
+    /// whose lifecycle scripts run and whose contents seed the
+    /// side-effects cache.
+    ///
+    /// Under the hoisted linker this is the first directory the walker
+    /// recorded. `None` there means the snapshot is absent from the
+    /// hoisted graph (pre-skipped, or the walker decided not to record
+    /// it); the caller should treat that the same as the isolated
+    /// `pkg_dir.exists() == false` skip.
+    ///
+    /// Use [`Self::all`] instead for a write that has to reach every copy
+    /// of the package.
+    pub(crate) fn canonical(self, key: &PackageKey) -> Option<PathBuf> {
+        match self.by_key {
+            Some(map) => map
+                .get(key)
+                .and_then(|dirs| dirs.first())
+                .cloned(),
+            None => Some(virtual_store_dir_for_key(self.layout, key)),
+        }
+    }
+
+    /// Every on-disk directory holding a snapshot's package.
+    ///
+    /// The isolated linker gives each snapshot exactly one virtual-store
+    /// slot, so this is [`Self::canonical`] in a one-element list. The
+    /// hoisted linker can place the same snapshot at several paths — a
+    /// version conflict keeps a package out of the root and the walker
+    /// nests a copy under each consumer that needs it.
+    pub(crate) fn all(self, key: &PackageKey) -> Vec<PathBuf> {
+        match self.by_key {
+            Some(map) => map
+                .get(key)
+                .cloned()
+                .unwrap_or_default(),
+            None => vec![virtual_store_dir_for_key(self.layout, key)],
+        }
     }
 }
 
@@ -227,8 +241,10 @@ pub(crate) fn bin_dirs_in_all_parent_dirs(pkg_root: &Path, lockfile_dir: &Path) 
     let mut dir: PathBuf = pkg_root.to_path_buf();
     loop {
         let parent = dir.parent().unwrap_or_else(|| Path::new(""));
-        let parent_starts_with_at =
-            parent.to_str().and_then(|text| text.chars().next()).is_some_and(|ch| ch == '@');
+        let parent_starts_with_at = parent
+            .to_str()
+            .and_then(|text| text.chars().next())
+            .is_some_and(|ch| ch == '@');
         if !parent_starts_with_at {
             bin_dirs.push(dir.join("node_modules").join(".bin"));
         }

@@ -330,7 +330,10 @@ fn update_changeset_reports_malformed_config_with_a_stable_error() {
     // Windows CI splits the long temp path — and the `config.json` within it —
     // across lines. Drop whitespace and the box-drawing continuation marker so
     // the substring check doesn't depend on where the wrap lands.
-    let unwrapped: String = stderr.chars().filter(|&c| !c.is_whitespace() && c != '│').collect();
+    let unwrapped: String = stderr
+        .chars()
+        .filter(|&c| !c.is_whitespace() && c != '│')
+        .collect();
     assert!(
         unwrapped.contains("ERR_PNPM_INVALID_CHANGESET_CONFIG")
             && unwrapped.contains("config.json"),

@@ -40,11 +40,9 @@ pub enum LoginError {
     #[diagnostic(code(ERR_PNPM_WEB_LOGIN_FAILED))]
     WebLoginFailed { status: u16, text: String },
 
-    #[display("{_0}")]
     #[diagnostic(transparent)]
     ClassicLogin(WithOtpError<ClassicLoginOpError>),
 
-    #[display("{_0}")]
     #[diagnostic(transparent)]
     WebAuthTimeout(WebAuthTimeoutError),
 
@@ -85,11 +83,9 @@ pub enum LoginError {
         reason: String,
     },
 
-    #[display("{_0}")]
     #[diagnostic(transparent)]
     ParseConfigYaml(ParseConfigYamlError),
 
-    #[display("{_0}")]
     #[diagnostic(transparent)]
     EditConfigYaml(EditManifestFieldError),
 }

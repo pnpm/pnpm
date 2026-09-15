@@ -124,6 +124,13 @@ impl AuditVulnerabilityCounts {
 }
 
 #[derive(Debug, Clone, Serialize)]
+#[cfg_attr(
+    dylint_lib = "perfectionist",
+    expect(
+        perfectionist::too_many_struct_fields,
+        reason = "The fields mirror the npm audit advisory JSON format."
+    )
+)]
 pub(crate) struct AuditAdvisory {
     pub(crate) findings: Vec<AuditFinding>,
     pub(crate) id: u64,

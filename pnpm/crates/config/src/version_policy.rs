@@ -27,10 +27,10 @@
 //! explicitly rejected as
 //! [`VersionPolicyError::NamePatternInVersionUnion`].
 
-use crate::matcher::{Matcher, create_matcher};
 use derive_more::{Display, Error};
 use miette::Diagnostic;
 use node_semver::Version;
+use pnpm_matcher::{Matcher, create_matcher};
 use std::collections::HashSet;
 
 /// Error from [`expand_package_version_specs`] or
@@ -104,44 +104,48 @@ where
     let mut by_package: indexmap::IndexMap<String, Option<Vec<String>>> = indexmap::IndexMap::new();
     for spec in specs {
         let parsed = parse_version_policy_rule(spec.as_ref())?;
-        let name = parsed.package_name.to_string();
-        match by_package.get_mut(&name) {
-            None => {
-                let value = if parsed.exact_versions.is_empty() {
-                    None
-                } else {
-                    Some(parsed.exact_versions)
-                };
-                by_package.insert(name, value);
-            }
-            Some(slot) => {
-                if parsed.exact_versions.is_empty() {
-                    *slot = None;
-                } else if let Some(existing) = slot {
-                    for version in parsed.exact_versions {
-                        if !existing.contains(&version) {
-                            existing.push(version);
-                        }
-                    }
-                }
-            }
-        }
+        absorb_spec(&mut by_package, parsed.package_name.to_string(), parsed.exact_versions);
     }
     Ok(by_package
         .into_iter()
-        .map(|(name, versions)| match versions {
-            None => name,
-            Some(mut versions) => {
-                versions.sort_by(|left, right| {
-                    match (Version::parse(left), Version::parse(right)) {
-                        (Ok(left), Ok(right)) => left.cmp(&right),
-                        _ => left.cmp(right),
-                    }
-                });
-                format!("{name}@{}", versions.join(" || "))
-            }
-        })
+        .map(|(name, versions)| render_merged_spec(name, versions))
         .collect())
+}
+
+/// Fold one parsed spec into the accumulator: a bare name absorbs every
+/// version-specific spec for the same package, and exact versions accumulate
+/// in first-seen order without duplicates.
+fn absorb_spec(
+    by_package: &mut indexmap::IndexMap<String, Option<Vec<String>>>,
+    name: String,
+    exact_versions: Vec<String>,
+) {
+    let Some(slot) = by_package.get_mut(&name) else {
+        let versions = (!exact_versions.is_empty()).then_some(exact_versions);
+        by_package.insert(name, versions);
+        return;
+    };
+    if exact_versions.is_empty() {
+        *slot = None;
+        return;
+    }
+    let Some(existing) = slot else { return };
+    for version in exact_versions {
+        if !existing.contains(&version) {
+            existing.push(version);
+        }
+    }
+}
+
+/// One package's canonical entry: the bare name, or `name@v1 || v2` with the
+/// versions in semver order.
+fn render_merged_spec(name: String, versions: Option<Vec<String>>) -> String {
+    let Some(mut versions) = versions else { return name };
+    versions.sort_by(|left, right| match (Version::parse(left), Version::parse(right)) {
+        (Ok(left), Ok(right)) => left.cmp(&right),
+        _ => left.cmp(right),
+    });
+    format!("{name}@{}", versions.join(" || "))
 }
 
 /// Package name → the exact versions the freshly resolved lockfile
@@ -169,7 +173,10 @@ pub fn drop_unresolved_package_version_specs(
     specs: &[String],
     resolved: &ResolvedPackageVersions,
 ) -> Vec<String> {
-    specs.iter().filter_map(|spec| drop_unresolved_spec(spec, resolved)).collect()
+    specs
+        .iter()
+        .filter_map(|spec| drop_unresolved_spec(spec, resolved))
+        .collect()
 }
 
 fn drop_unresolved_spec(spec: &str, resolved: &ResolvedPackageVersions) -> Option<String> {
@@ -183,8 +190,7 @@ fn drop_unresolved_spec(spec: &str, resolved: &ResolvedPackageVersions) -> Optio
     if parsed.exact_versions.is_empty() {
         return Some(spec.to_string());
     }
-    let kept: Vec<&str> = parsed
-        .exact_versions
+    let kept: Vec<&str> = parsed.exact_versions
         .iter()
         .map(String::as_str)
         .filter(|version| resolved_versions.contains(*version))
@@ -236,7 +242,13 @@ impl std::fmt::Debug for PackageVersionPolicy {
     // count and each rule's exact-versions list.
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("PackageVersionPolicy")
-            .field("rules", &self.rules.iter().map(|rule| &rule.exact_versions).collect::<Vec<_>>())
+            .field(
+                "rules",
+                &self.rules
+                    .iter()
+                    .map(|rule| &rule.exact_versions)
+                    .collect::<Vec<_>>(),
+            )
             .finish()
     }
 }
@@ -254,20 +266,21 @@ impl PackageVersionPolicy {
     /// A bare-name or wildcard rule matches every version.
     #[must_use]
     pub fn matches(&self, pkg_name: &str) -> PolicyMatch {
+        let matching = self.rules
+            .iter()
+            .filter(|rule| rule.name_matcher.matches(pkg_name));
         let mut merged: Option<(Vec<String>, HashSet<String>)> = None;
-        for rule in &self.rules {
-            if !rule.name_matcher.matches(pkg_name) {
-                continue;
-            }
+        for rule in matching {
             if rule.exact_versions.is_empty() {
                 return PolicyMatch::AnyVersion;
             }
-            let (acc, seen) = merged.get_or_insert_with(|| (Vec::new(), HashSet::new()));
-            for version in &rule.exact_versions {
-                if seen.insert(version.clone()) {
-                    acc.push(version.clone());
-                }
-            }
+            let (versions, seen) = merged.get_or_insert_with(|| (Vec::new(), HashSet::new()));
+            versions.extend(
+                rule.exact_versions
+                    .iter()
+                    .filter(|version| seen.insert((*version).clone()))
+                    .cloned(),
+            );
         }
         match merged {
             Some((versions, _)) => PolicyMatch::ExactVersions(versions),
@@ -311,7 +324,10 @@ fn parse_version_policy_rule(pattern: &str) -> Result<ParsedRule<'_>, VersionPol
     // Scoped name (`@scope/foo`) starts with `@`, so the version
     // separator is the *second* `@`. Otherwise the first.
     let at_index = if pattern.starts_with('@') {
-        pattern.char_indices().skip(1).find_map(|(i, c)| (c == '@').then_some(i))
+        pattern
+            .char_indices()
+            .skip(1)
+            .find_map(|(i, c)| (c == '@').then_some(i))
     } else {
         pattern.find('@')
     };

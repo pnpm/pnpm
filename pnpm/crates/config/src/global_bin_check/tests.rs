@@ -19,7 +19,11 @@ fn not_in_path_when_missing() {
     let tmp = tempfile::tempdir().unwrap();
     let bin = tmp.path().join("bin");
     std::fs::create_dir_all(&bin).unwrap();
-    let other = tmp.path().join("other").to_string_lossy().into_owned();
+    let other = tmp
+        .path()
+        .join("other")
+        .to_string_lossy()
+        .into_owned();
     let result = check_global_bin_dir(&bin, Some(&other), false);
     assert!(matches!(result, Err(CheckGlobalBinDirError::NotInPath { .. })));
 }

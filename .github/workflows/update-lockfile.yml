@@ -36,6 +36,14 @@ jobs:
         # through a single-use credential helper.
         persist-credentials: false
 
+    # pnpm/update's install also installs the Rust dependencies, which runs
+    # `cargo`. Provision the pinned toolchain up front so that install does not
+    # race a rustup download.
+    - name: Initialize Rust before dependency installation
+      uses: $/.github/actions/rustup
+      with:
+        restore-cache: false
+
     # pnpm/update runs the install itself, so the action's auto-install would
     # be wasted work.
     - name: Install pnpm

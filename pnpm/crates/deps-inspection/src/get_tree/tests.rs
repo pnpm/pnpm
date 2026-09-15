@@ -25,8 +25,15 @@ const MOCK_INTEGRITY: &str = "sha512-TIE61hcgbI/SlJh/0c1sT1SZbBlpg7WiZcs65WPJhoI
 /// every package gets version `1.0.0`, and every dependency name that is
 /// mentioned but not declared gets its own empty entry.
 fn mock_packages_yaml(packages: &[(&str, &[&str])]) -> String {
-    let mut names: BTreeSet<&str> = packages.iter().map(|(name, _)| *name).collect();
-    names.extend(packages.iter().flat_map(|(_, deps)| deps.iter().copied()));
+    let mut names: BTreeSet<&str> = packages
+        .iter()
+        .map(|(name, _)| *name)
+        .collect();
+    names.extend(
+        packages
+            .iter()
+            .flat_map(|(_, deps)| deps.iter().copied()),
+    );
     let deps_of: HashMap<&str, &[&str]> = packages.iter().copied().collect();
 
     let mut yaml = String::from("packages:\n");
@@ -35,7 +42,11 @@ fn mock_packages_yaml(packages: &[(&str, &[&str])]) -> String {
     }
     yaml.push_str("\nsnapshots:\n");
     for name in &names {
-        match deps_of.get(name).copied().unwrap_or_default() {
+        match deps_of
+            .get(name)
+            .copied()
+            .unwrap_or_default()
+        {
             [] => writeln!(yaml, "  {name}@1.0.0: {{}}").unwrap(),
             deps => {
                 writeln!(yaml, "  {name}@1.0.0:\n    dependencies:").unwrap();
@@ -63,20 +74,22 @@ fn mock_lockfile(dir: &Path, packages: &[(&str, &[&str])]) -> Lockfile {
 
 fn mock_env<'a>(dir: &Path, lockfile: &'a Lockfile) -> PkgInfoEnv<'a> {
     PkgInfoEnv {
-        lockfile_dir: dir.to_path_buf(),
-        modules_dir: dir.join("node_modules"),
-        virtual_store_dir: dir.join("node_modules/.pnpm"),
-        virtual_store_dir_max_length: 120,
         registry_options_by_url: std::collections::BTreeMap::new(),
         registries: HashMap::from([(
             "default".to_string(),
             "https://mock-registry-for-testing.example/".to_string(),
         )]),
         skipped: HashSet::new(),
-        store_dir: None,
         current_lockfile: lockfile,
         wanted_lockfile: Some(lockfile),
         dep_types: HashMap::new(),
+        layout: crate::pkg_info::InspectionLayout {
+            lockfile_dir: dir.to_path_buf(),
+            modules_dir: dir.join("node_modules"),
+            virtual_store_dir: dir.join("node_modules/.pnpm"),
+            virtual_store_dir_max_length: 120,
+            store_dir: None,
+        },
     }
 }
 
@@ -114,7 +127,7 @@ fn tree_with_graph(
         only_projects: false,
         search: None,
         show_deduped_search_matches: false,
-        rewrite_link_version_dir: env.lockfile_dir.clone(),
+        rewrite_link_version_dir: env.layout.lockfile_dir.clone(),
     };
     get_tree(&opts, &mut MaterializationCache::new(), root, max_depth, None)
 }
@@ -133,7 +146,7 @@ fn tree_with_search(
         only_projects: false,
         search: Some(search),
         show_deduped_search_matches,
-        rewrite_link_version_dir: env.lockfile_dir.clone(),
+        rewrite_link_version_dir: env.layout.lockfile_dir.clone(),
     };
     get_tree(&opts, &mut MaterializationCache::new(), root, MaxDepth::Unlimited, None)
 }
@@ -343,7 +356,7 @@ fn marks_back_edge_as_circular_in_a_simple_cycle() {
     assert_eq!(shape(&result), "a(b(a))");
     let back_edge = find(&result, &["a", "b", "a"]);
     dbg!(back_edge);
-    assert!(back_edge.circular);
+    assert!(back_edge.status.circular);
 }
 
 // Port of upstream's 'does not mark a node as circular when reached from a non-cyclic path' (deps/inspection/tree-builder/test/getTree.test.ts).
@@ -362,10 +375,10 @@ fn does_not_mark_a_node_as_circular_when_reached_from_a_non_cyclic_path() {
     let back_edge = find(&result, &["a", "b", "a"]);
     let b_under_c = find(&result, &["c", "b"]);
     dbg!(back_edge, b_under_c);
-    assert!(back_edge.circular);
+    assert!(back_edge.status.circular);
     // b under c is deduped (already expanded under a), not circular.
-    assert!(!b_under_c.circular);
-    assert!(b_under_c.deduped);
+    assert!(!b_under_c.status.circular);
+    assert!(b_under_c.status.deduped);
 }
 
 // Port of upstream's 'link outside workspace appears as leaf node' (deps/inspection/tree-builder/test/getTree.test.ts).
@@ -394,7 +407,7 @@ importers:
     let result = tree_with_graph(&env, &TreeNodeId::Importer(".".to_string()), MaxDepth::Unlimited);
 
     assert_eq!(shape(&result), "my-link,regular-dep(transitive)");
-    assert_eq!(find(&result, &["my-link"]).version, "link:../external-pkg");
+    assert_eq!(find(&result, &["my-link"]).package.version, "link:../external-pkg");
 }
 
 // Port of upstream's 'link inside workspace resolves to importer and is traversed' (deps/inspection/tree-builder/test/getTree.test.ts).
@@ -425,7 +438,7 @@ importers:
     let result = tree_with_graph(&env, &TreeNodeId::Importer(".".to_string()), MaxDepth::Unlimited);
 
     assert_eq!(shape(&result), "workspace-pkg(leaf)");
-    assert_eq!(find(&result, &["workspace-pkg"]).version, "link:packages/workspace-pkg");
+    assert_eq!(find(&result, &["workspace-pkg"]).package.version, "link:packages/workspace-pkg");
 }
 
 // Port of upstream's 'deduped subtree containing a search match still appears in output' (deps/inspection/tree-builder/test/getTree.test.ts).
@@ -445,9 +458,9 @@ fn deduped_subtree_containing_a_search_match_still_appears_in_output() {
     let matched = find(&result, &["a", "b", "target"]);
     let b_under_c = find(&result, &["c", "b"]);
     dbg!(matched, b_under_c);
-    assert!(matched.searched);
-    assert!(b_under_c.deduped);
-    assert!(b_under_c.searched);
+    assert!(matched.search.matched);
+    assert!(b_under_c.status.deduped);
+    assert!(b_under_c.search.matched);
 }
 
 // Port of upstream's 'deduped subtree propagates string search messages to the deduped node' (deps/inspection/tree-builder/test/getTree.test.ts).
@@ -467,12 +480,12 @@ fn deduped_subtree_propagates_string_search_messages_to_the_deduped_node() {
     let matched = find(&result, &["a", "b", "target"]);
     let b_under_c = find(&result, &["c", "b"]);
     dbg!(matched, b_under_c);
-    assert!(matched.searched);
-    assert_eq!(matched.search_message.as_deref(), Some("depends on target"));
+    assert!(matched.search.matched);
+    assert_eq!(matched.search.message.as_deref(), Some("depends on target"));
     // The deduped b under c carries the search message from target.
-    assert!(b_under_c.deduped);
-    assert!(b_under_c.searched);
-    assert_eq!(b_under_c.search_message.as_deref(), Some("depends on target"));
+    assert!(b_under_c.status.deduped);
+    assert!(b_under_c.search.matched);
+    assert_eq!(b_under_c.search.message.as_deref(), Some("depends on target"));
 }
 
 // Port of upstream's 'deduped subtree with search match is hidden by default' (deps/inspection/tree-builder/test/getTree.test.ts).
@@ -575,8 +588,8 @@ fn second_get_tree_call_for_same_node_returns_deduped_children() {
     assert_eq!(shape(&result2), "a");
     let deduped_a = &result2[0];
     dbg!(deduped_a);
-    assert!(deduped_a.deduped);
-    assert!(deduped_a.deduped_dependencies_count.unwrap() > 0);
+    assert!(deduped_a.status.deduped);
+    assert!(deduped_a.status.deduped_dependencies_count.unwrap() > 0);
 }
 
 // Port of upstream's 'deduped result preserves search match metadata' (deps/inspection/tree-builder/test/getTree.test.ts).
@@ -603,17 +616,17 @@ fn deduped_result_preserves_search_match_metadata() {
     assert_eq!(shape(&result1), "a(target)");
     let matched = find(&result1, &["a", "target"]);
     dbg!(matched);
-    assert!(matched.searched);
-    assert_eq!(matched.search_message.as_deref(), Some("found target"));
+    assert!(matched.search.matched);
+    assert_eq!(matched.search.message.as_deref(), Some("found target"));
 
     // The second call dedupes a but carries the search metadata from the cache.
     let result2 = get_tree(&opts, &mut cache, &root, MaxDepth::Unlimited, None);
     assert_eq!(shape(&result2), "a");
     let deduped_a = &result2[0];
     dbg!(deduped_a);
-    assert!(deduped_a.deduped);
-    assert!(deduped_a.searched);
-    assert_eq!(deduped_a.search_message.as_deref(), Some("found target"));
+    assert!(deduped_a.status.deduped);
+    assert!(deduped_a.search.matched);
+    assert_eq!(deduped_a.search.message.as_deref(), Some("found target"));
 }
 
 // Port of upstream's 'dedupedDependenciesCount correctly reflects subtree size' (deps/inspection/tree-builder/test/getTree.test.ts).
@@ -642,9 +655,9 @@ fn deduped_dependencies_count_correctly_reflects_subtree_size() {
     assert_eq!(shape(&result2), "a");
     let deduped_a = &result2[0];
     dbg!(deduped_a);
-    assert!(deduped_a.deduped);
+    assert!(deduped_a.status.deduped);
     // a's subtree had 2 nodes (b and c).
-    assert_eq!(deduped_a.deduped_dependencies_count, Some(2));
+    assert_eq!(deduped_a.status.deduped_dependencies_count, Some(2));
 }
 
 // Port of upstream's 'different maxDepth values are cached independently' (deps/inspection/tree-builder/test/getTree.test.ts).
@@ -740,7 +753,9 @@ snapshots:
 #[test]
 fn absurdly_deep_chain_is_capped_instead_of_overflowing_the_stack() {
     let chain_len = crate::MAX_WALK_DEPTH * 3;
-    let names: Vec<String> = (0..chain_len).map(|i| format!("chain-{i}")).collect();
+    let names: Vec<String> = (0..chain_len)
+        .map(|i| format!("chain-{i}"))
+        .collect();
 
     let mut yaml = String::from("lockfileVersion: '9.0'\n\nimporters:\n  .: {}\n\npackages:\n");
     for name in &names {

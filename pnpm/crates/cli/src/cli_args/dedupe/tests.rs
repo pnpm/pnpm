@@ -1,15 +1,13 @@
-use std::{collections::HashSet, marker::PhantomData, sync::Mutex};
-
-use pnpm_lockfile::PackageMetadata;
-use pnpm_package_manager::{InstallabilityHost, LockfileDiff, SnapshotDiff};
-use pnpm_reporter::{LogEvent, ProgressMessage, Reporter};
-use pnpm_store_dir::{PackageFilesIndex, StoreDir, StoreIndex, store_index_key};
-use tempfile::TempDir;
-
 use super::{
     DedupeResolutionReporter, emit_dedupe_check_error, render_dedupe_check_error,
     render_dedupe_check_issues, reusable_skipped_package_id,
 };
+use pnpm_lockfile::PackageMetadata;
+use pnpm_package_manager::{InstallabilityHost, LockfileDiff, SnapshotDiff};
+use pnpm_reporter::{LogEvent, ProgressMessage, Reporter};
+use pnpm_store_dir::{PackageFilesIndex, StoreDir, StoreIndex, store_index_key};
+use std::{collections::HashSet, marker::PhantomData, sync::Mutex};
+use tempfile::TempDir;
 
 #[test]
 fn a_resolution_free_rewrite_says_so() {
@@ -44,7 +42,10 @@ fn check_error_emits_the_structured_pnpm_event() {
     struct RecordingReporter;
     impl Reporter for RecordingReporter {
         fn emit(event: &LogEvent) {
-            EVENTS.lock().unwrap().push(event.clone());
+            EVENTS
+                .lock()
+                .unwrap()
+                .push(event.clone());
         }
     }
 
@@ -71,7 +72,10 @@ fn resolution_observer_emits_resolved_progress() {
     struct RecordingReporter;
     impl Reporter for RecordingReporter {
         fn emit(event: &LogEvent) {
-            EVENTS.lock().unwrap().push(event.clone());
+            EVENTS
+                .lock()
+                .unwrap()
+                .push(event.clone());
         }
     }
 
@@ -106,7 +110,10 @@ fn resolution_observer_reports_packages_found_in_store() {
     struct RecordingReporter;
     impl Reporter for RecordingReporter {
         fn emit(event: &LogEvent) {
-            EVENTS.lock().unwrap().push(event.clone());
+            EVENTS
+                .lock()
+                .unwrap()
+                .push(event.clone());
         }
     }
 
@@ -148,7 +155,10 @@ fn resolution_observer_reports_skipped_packages_as_reused() {
     struct RecordingReporter;
     impl Reporter for RecordingReporter {
         fn emit(event: &LogEvent) {
-            EVENTS.lock().unwrap().push(event.clone());
+            EVENTS
+                .lock()
+                .unwrap()
+                .push(event.clone());
         }
     }
 
@@ -202,15 +212,17 @@ fn engine_incompatible_skipped_packages_are_not_reported_as_reused() {
 
 fn resolved_dep_hint() -> pnpm_package_manager::ResolvedPackageHint<'static> {
     pnpm_package_manager::ResolvedPackageHint {
-        id: "dep@2.0.0",
-        name: "dep",
-        version: "2.0.0",
         integrity: "sha512-test",
         tarball_url: "https://registry.example/dep/-/dep-2.0.0.tgz",
         unpacked_size: None,
         file_count: None,
         revision: None,
         from_registry: true,
+        identity: pnpm_package_manager::ResolvedPackageIdentity {
+            id: "dep@2.0.0",
+            name: "dep",
+            version: "2.0.0",
+        },
     }
 }
 

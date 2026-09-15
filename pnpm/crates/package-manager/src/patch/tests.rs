@@ -1,10 +1,7 @@
 use super::{
     PatchCandidate, PatchTarget, WritePackageForPatch, WritePackageForPatchError,
-    compare_candidates, default_patch_target, executor_scripts_prepend_node_path,
-    patch_candidates_from_lockfile, resolution_kind,
+    compare_candidates, default_patch_target, patch_candidates_from_lockfile, resolution_kind,
 };
-use pnpm_config::ScriptsPrependNodePath;
-use pnpm_executor::ScriptsPrependNodePath as ExecScriptsPrependNodePath;
 use pnpm_lockfile::{
     BinaryArchive, BinaryResolution, BinarySpec, ComVer, GitResolution, Lockfile,
     LockfileResolution, LockfileVersion, PackageKey, PackageMetadata, RegistryResolution,
@@ -43,8 +40,10 @@ fn empty_lockfile() -> Lockfile {
 }
 
 fn lockfile_with_packages(keys: &[&str]) -> Lockfile {
-    let packages =
-        keys.iter().map(|key| (key.parse::<PackageKey>().unwrap(), registry_metadata())).collect();
+    let packages = keys
+        .iter()
+        .map(|key| (key.parse::<PackageKey>().unwrap(), registry_metadata()))
+        .collect();
     Lockfile { packages: Some(packages), ..empty_lockfile() }
 }
 
@@ -70,7 +69,10 @@ fn patch_target(raw: &str, lockfile: &Lockfile) -> PatchTarget {
 }
 
 fn versions(candidates: &[PatchCandidate]) -> Vec<&str> {
-    candidates.iter().map(|candidate| candidate.version.as_str()).collect()
+    candidates
+        .iter()
+        .map(|candidate| candidate.version.as_str())
+        .collect()
 }
 
 #[test]
@@ -260,7 +262,7 @@ async fn patch_extract_records_download_in_store_index() {
         "1.0.0",
     )
     .await;
-    let name_ver = resolved.name_ver.as_ref().expect("npm resolver fills name/version");
+    let name_ver = resolved.package.name_ver.as_ref().expect("npm resolver fills name/version");
     let package_id = name_ver.to_string();
     let integrity = resolved.resolution.integrity().expect("registry fixture has integrity");
     let store_index_key = store_index_key(&integrity.to_string(), &package_id);
@@ -298,8 +300,11 @@ async fn patch_extract_records_download_in_store_index() {
 
     let store_index = StoreIndex::shared_readonly_in(&config.store_dir)
         .expect("patch extraction should create a store index");
-    let indexed_package =
-        store_index.lock().expect("store index lock").get(&store_index_key).expect("read row");
+    let indexed_package = store_index
+        .lock()
+        .expect("store index lock")
+        .get(&store_index_key)
+        .expect("read row");
     assert!(indexed_package.is_some(), "store index row should exist for {store_index_key}");
 }
 
@@ -441,22 +446,6 @@ async fn patch_extract_rejects_missing_package_metadata() {
     assert!(
         matches!(err, WritePackageForPatchError::MissingPackageMetadata { .. }),
         "missing metadata should be reported, got {err:?}",
-    );
-}
-
-#[test]
-fn executor_scripts_prepend_node_path_maps_all_variants() {
-    assert_eq!(
-        executor_scripts_prepend_node_path(ScriptsPrependNodePath::Always),
-        ExecScriptsPrependNodePath::Always,
-    );
-    assert_eq!(
-        executor_scripts_prepend_node_path(ScriptsPrependNodePath::Never),
-        ExecScriptsPrependNodePath::Never,
-    );
-    assert_eq!(
-        executor_scripts_prepend_node_path(ScriptsPrependNodePath::WarnOnly),
-        ExecScriptsPrependNodePath::WarnOnly,
     );
 }
 
@@ -622,19 +611,25 @@ async fn resolve_registry_fixture(
     let resolver = NpmResolver {
         registries,
         registries_by_prefix: HashMap::new(),
-        http_client,
-        auth_headers: Arc::default(),
-        meta_cache: Arc::new(InMemoryPackageMetaCache::default()),
-        fetch_locker: shared_packument_fetch_locker(),
-        picked_manifest_cache: shared_picked_manifest_cache(),
-        cache_dir: Some(cache_dir.to_path_buf()),
-        offline: false,
-        prefer_offline: false,
-        ignore_missing_time_field: true,
-        full_metadata: false,
-        needs_full_metadata_for: None,
-        filter_metadata: false,
-        retry_opts: RetryOpts::default(),
+        metadata: pnpm_resolving_npm_resolver::RegistryMetadataClient {
+            http_client,
+            auth_headers: Arc::default(),
+            meta_cache: Arc::new(InMemoryPackageMetaCache::default()),
+            fetch_locker: shared_packument_fetch_locker(),
+            picked_manifest_cache: shared_picked_manifest_cache(),
+            cache_dir: Some(cache_dir.to_path_buf()),
+            retry_opts: RetryOpts::default(),
+        },
+        format: pnpm_resolving_npm_resolver::RegistryMetadataFormat {
+            full_metadata: false,
+            needs_full_metadata_for: None,
+            filter_metadata: false,
+        },
+        cache_policy: pnpm_resolving_npm_resolver::MetadataCachePolicy {
+            offline: false,
+            prefer_offline: false,
+            ignore_missing_time_field: true,
+        },
     };
     let wanted = WantedDependency {
         alias: Some(alias.to_string()),

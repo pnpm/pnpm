@@ -335,11 +335,15 @@ fn why_shows_reverse_dependency_tree_for_a_non_direct_dependency() {
     let lines: Vec<&str> = stdout.lines().collect();
     assert_eq!(lines[0], format!("{DEP}@100.0.0"), "root is the searched package: {stdout}");
     assert!(
-        lines.iter().any(|line| line.contains("project@0.0.0")),
+        lines
+            .iter()
+            .any(|line| line.contains("project@0.0.0")),
         "shows project as a direct dependent: {stdout}",
     );
     assert!(
-        lines.iter().any(|line| line.contains(&format!("{PKG}@100.0.0"))),
+        lines
+            .iter()
+            .any(|line| line.contains(&format!("{PKG}@100.0.0"))),
         "shows the transitive path: {stdout}",
     );
 }
@@ -364,7 +368,9 @@ fn why_finds_packages_by_alias_name_when_using_npm_protocol() {
     let lines: Vec<&str> = stdout.lines().collect();
     assert_eq!(lines[0], format!("{PKG}@100.0.0"), "root shows the canonical name: {stdout}");
     assert!(
-        lines.iter().any(|line| line.contains("project@0.0.0")),
+        lines
+            .iter()
+            .any(|line| line.contains("project@0.0.0")),
         "shows the project as dependent: {stdout}",
     );
 }
@@ -389,7 +395,9 @@ fn why_finds_packages_by_actual_name_when_using_npm_protocol() {
     let lines: Vec<&str> = stdout.lines().collect();
     assert_eq!(lines[0], format!("{PKG}@100.0.0"), "root shows the canonical name: {stdout}");
     assert!(
-        lines.iter().any(|line| line.contains("project@0.0.0")),
+        lines
+            .iter()
+            .any(|line| line.contains("project@0.0.0")),
         "shows the project as dependent: {stdout}",
     );
 }
@@ -523,7 +531,9 @@ fn why_finds_file_protocol_local_packages() {
     let lines: Vec<&str> = stdout.lines().collect();
     assert!(lines[0].contains("my-local-pkg"), "finds the local package: {stdout}");
     assert!(
-        lines.iter().any(|line| line.contains("project@0.0.0")),
+        lines
+            .iter()
+            .any(|line| line.contains("project@0.0.0")),
         "shows the project as dependent: {stdout}",
     );
 }

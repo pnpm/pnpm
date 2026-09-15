@@ -56,15 +56,27 @@ pub fn detect_node_major() -> Option<u32> {
 #[must_use]
 pub fn detect_node_version() -> Option<String> {
     let raw = detect_node_version_raw()?;
-    Some(raw.strip_prefix('v').unwrap_or(&raw).to_string())
+    Some(
+        raw.strip_prefix('v')
+            .unwrap_or(&raw)
+            .to_string(),
+    )
 }
 
 fn detect_node_version_raw() -> Option<String> {
-    let output = std::process::Command::new("node").arg("--version").output().ok()?;
+    let output = std::process::Command::new("node")
+        .arg("--version")
+        .output()
+        .ok()?;
     if !output.status.success() {
         return None;
     }
-    Some(std::str::from_utf8(&output.stdout).ok()?.trim().to_string())
+    Some(
+        std::str::from_utf8(&output.stdout)
+            .ok()?
+            .trim()
+            .to_string(),
+    )
 }
 
 /// Parse `v22.11.0`-style output from `node --version` to the major

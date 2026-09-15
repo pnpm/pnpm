@@ -565,3 +565,36 @@ describe('createOtpSession', () => {
     })).rejects.toThrow(OtpSecondChallengeError)
   })
 })
+
+describe('SyntheticOtpError.fromUnauthorizedBody', () => {
+  it('recognizes a body carrying both web-auth URLs', () => {
+    const error = SyntheticOtpError.fromUnauthorizedBody(JSON.stringify({
+      error: 'one-time pass required',
+      authUrl: 'https://auth.example/login',
+      doneUrl: 'https://auth.example/done',
+    }))
+    expect(error).toBeInstanceOf(SyntheticOtpError)
+    expect(error?.body).toEqual({
+      authUrl: 'https://auth.example/login',
+      doneUrl: 'https://auth.example/done',
+    })
+  })
+
+  it('drops a non-string URL but still reports a challenge', () => {
+    const error = SyntheticOtpError.fromUnauthorizedBody(JSON.stringify({ authUrl: 42, doneUrl: 'https://auth.example/done' }))
+    expect(error?.body).toEqual({ authUrl: undefined, doneUrl: 'https://auth.example/done' })
+  })
+
+  it('recognizes the classic "one-time pass" wording as a challenge without a body', () => {
+    const error = SyntheticOtpError.fromUnauthorizedBody('{"error":"You must provide a One-Time Pass. Upgrade your client to npm@latest in order to use 2FA."}')
+    expect(error).toBeInstanceOf(SyntheticOtpError)
+    expect(error?.body).toBeUndefined()
+  })
+
+  it('returns undefined for a plain authentication failure', () => {
+    expect(SyntheticOtpError.fromUnauthorizedBody('{"error":"unauthorized"}')).toBeUndefined()
+    expect(SyntheticOtpError.fromUnauthorizedBody('{"authUrl":"https://auth.example/login"}')).toBeUndefined()
+    expect(SyntheticOtpError.fromUnauthorizedBody('Bad token')).toBeUndefined()
+    expect(SyntheticOtpError.fromUnauthorizedBody('')).toBeUndefined()
+  })
+})

@@ -41,19 +41,14 @@ pub fn get_changed_projects(
     let repo_root = find_repo_root(opts.workspace_dir);
     let changed_dirs = get_changed_dirs_since_commit(commit, opts)?;
 
-    let mut project_change_types: IndexMap<PathBuf, Option<ChangeType>> =
-        project_dirs.into_iter().map(|dir| (dir, None)).collect();
+    let mut project_change_types: IndexMap<PathBuf, Option<ChangeType>> = project_dirs
+        .into_iter()
+        .map(|dir| (dir, None))
+        .collect();
     for (changed_dir, change_type) in changed_dirs {
-        let mut current = if changed_dir.as_os_str().is_empty() {
-            repo_root.clone()
-        } else {
-            repo_root.join(&changed_dir)
-        };
-        while !project_change_types.contains_key(&current) {
-            let Some(parent) = current.parent() else { break };
-            current = parent.to_path_buf();
-        }
-        let entry = project_change_types.entry(current).or_insert(None);
+        let owner = owning_project(&repo_root, &changed_dir, &project_change_types);
+        let entry = project_change_types.entry(owner).or_insert(None);
+        // `source` is sticky: a later test change never downgrades it.
         if *entry != Some(ChangeType::Source) {
             *entry = Some(change_type);
         }
@@ -71,6 +66,26 @@ pub fn get_changed_projects(
     Ok(ChangedProjects { changed_projects, ignore_dependent_for_projects })
 }
 
+/// The project a changed directory belongs to: itself if it is one, else the
+/// nearest ancestor that is. A path under no project climbs to the filesystem
+/// root, which owns nothing.
+fn owning_project(
+    repo_root: &Path,
+    changed_dir: &Path,
+    project_change_types: &IndexMap<PathBuf, Option<ChangeType>>,
+) -> PathBuf {
+    let mut current = if changed_dir.as_os_str().is_empty() {
+        repo_root.to_path_buf()
+    } else {
+        repo_root.join(changed_dir)
+    };
+    while !project_change_types.contains_key(&current) {
+        let Some(parent) = current.parent() else { break };
+        current = parent.to_path_buf();
+    }
+    current
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum ChangeType {
     Source,
@@ -85,23 +100,7 @@ fn get_changed_dirs_since_commit(
     commit: &str,
     opts: &GetChangedProjectsOptions<'_>,
 ) -> Result<IndexMap<PathBuf, ChangeType>, FilterError> {
-    // `--end-of-options` keeps an option-like `<since>` (`--output=...`)
-    // from being parsed as a git option — git rejects it as a bad
-    // revision instead.
-    let output = Command::new("git")
-        .args(["diff", "--name-only", "--end-of-options", commit, "--"])
-        .arg(opts.workspace_dir)
-        .current_dir(opts.workspace_dir)
-        .output()
-        .map_err(|err| FilterError::FilterChanged { stderr: err.to_string() })?;
-    if !output.status.success() {
-        let stderr = String::from_utf8_lossy(&output.stderr);
-        return Err(FilterError::FilterChanged {
-            stderr: strip_final_newline(&stderr).to_string(),
-        });
-    }
-
-    let stdout = String::from_utf8_lossy(&output.stdout);
+    let stdout = git_diff_names(commit, opts.workspace_dir)?;
     let diff = strip_final_newline(&stdout);
     if diff.is_empty() {
         return Ok(IndexMap::new());
@@ -115,14 +114,23 @@ fn get_changed_dirs_since_commit(
         // git wraps paths with non-ASCII characters in quotes.
         let changed_file = line.strip_prefix('"').unwrap_or(line);
         let changed_file = changed_file.strip_suffix('"').unwrap_or(changed_file);
-        if ignore_globs.iter().any(|glob| glob.is_match(changed_file)) {
+        if ignore_globs
+            .iter()
+            .any(|glob| glob.is_match(changed_file))
+        {
             continue;
         }
-        let dir = Path::new(changed_file).parent().unwrap_or_else(|| Path::new("")).to_path_buf();
+        let dir = Path::new(changed_file)
+            .parent()
+            .unwrap_or_else(|| Path::new(""))
+            .to_path_buf();
         if changed_dirs.get(&dir) == Some(&ChangeType::Source) {
             continue;
         }
-        let change_type = if test_globs.iter().any(|glob| glob.is_match(changed_file)) {
+        let change_type = if test_globs
+            .iter()
+            .any(|glob| glob.is_match(changed_file))
+        {
             ChangeType::Test
         } else {
             ChangeType::Source
@@ -130,6 +138,27 @@ fn get_changed_dirs_since_commit(
         changed_dirs.insert(dir, change_type);
     }
     Ok(changed_dirs)
+}
+
+/// The paths `git diff --name-only <commit>` lists under `workspace_dir`.
+fn git_diff_names(commit: &str, workspace_dir: &Path) -> Result<String, FilterError> {
+    // `--end-of-options` keeps an option-like `<since>` (`--output=...`)
+    // from being parsed as a git option — git rejects it as a bad
+    // revision instead.
+    let output = Command::new("git")
+        .args(["diff", "--name-only", "--end-of-options", commit, "--"])
+        .arg(workspace_dir)
+        .current_dir(workspace_dir)
+        .output()
+        .map_err(|err| FilterError::FilterChanged { stderr: err.to_string() })?;
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        return Err(FilterError::FilterChanged {
+            stderr: strip_final_newline(&stderr).to_string(),
+        });
+    }
+
+    Ok(String::from_utf8_lossy(&output.stdout).into_owned())
 }
 
 /// Strip one final `\n` (and a preceding `\r`, if any) — execa's
@@ -145,10 +174,11 @@ fn compile_globs(patterns: &[String]) -> Result<Vec<Glob<'_>>, FilterError> {
         .iter()
         .filter(|pattern| !pattern.is_empty())
         .map(|pattern| {
-            Glob::new(pattern).map_err(|err| FilterError::InvalidPattern {
-                pattern: pattern.clone(),
-                message: err.to_string(),
-            })
+            Glob::new(pattern)
+                .map_err(|err| FilterError::InvalidPattern {
+                    pattern: pattern.clone(),
+                    message: err.to_string(),
+                })
         })
         .collect()
 }
@@ -160,10 +190,18 @@ fn compile_globs(patterns: &[String]) -> Result<Vec<Glob<'_>>, FilterError> {
 /// a worktree checked out inside another repository's tree resolves to
 /// the worktree root, matching where git anchors its diff paths.
 fn find_repo_root(workspace_dir: &Path) -> PathBuf {
-    let git_path =
-        workspace_dir.ancestors().map(|dir| dir.join(".git")).find(|candidate| candidate.exists());
+    let git_path = workspace_dir
+        .ancestors()
+        .map(|dir| dir.join(".git"))
+        .find(|candidate| candidate.exists());
     match git_path {
-        Some(git_path) => git_path.parent().expect("a `.git` path has a parent").to_path_buf(),
-        None => workspace_dir.parent().unwrap_or(workspace_dir).to_path_buf(),
+        Some(git_path) => git_path
+            .parent()
+            .expect("a `.git` path has a parent")
+            .to_path_buf(),
+        None => workspace_dir
+            .parent()
+            .unwrap_or(workspace_dir)
+            .to_path_buf(),
     }
 }

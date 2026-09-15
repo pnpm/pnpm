@@ -26,7 +26,10 @@ impl FakeProbe {
 
 impl GitProbe for FakeProbe {
     fn anonymous_head_ok<'a>(&'a self, url: &'a str) -> ProbeFuture<'a> {
-        self.calls.lock().unwrap().push(url.to_string());
+        self.calls
+            .lock()
+            .unwrap()
+            .push(url.to_string());
         let ok = self.archive_ok;
         Box::pin(async move { ok })
     }
@@ -42,7 +45,10 @@ impl GitCommandRunner for FakeRunner {
         repo: &'a str,
         ref_: Option<&'a str>,
     ) -> Pin<Box<dyn Future<Output = Result<String, GitRunError>> + Send + 'a>> {
-        self.calls.lock().unwrap().push((repo.to_string(), ref_.map(str::to_string)));
+        self.calls
+            .lock()
+            .unwrap()
+            .push((repo.to_string(), ref_.map(str::to_string)));
         let stdout = self.stdout.clone();
         Box::pin(async move { Ok(stdout) })
     }
@@ -101,8 +107,11 @@ async fn resolve_with(
         bare_specifier: Some(bare_specifier.to_string()),
         ..WantedDependency::default()
     };
-    let result =
-        resolver.resolve(&wanted, &ResolveOptions::default()).await.unwrap().expect("claimed");
+    let result = resolver
+        .resolve(&wanted, &ResolveOptions::default())
+        .await
+        .unwrap()
+        .expect("claimed");
     (result, runner, probe)
 }
 
@@ -114,7 +123,13 @@ async fn declines_non_git_specifier() {
         bare_specifier: Some("1.2.3".to_string()),
         ..WantedDependency::default()
     };
-    assert!(resolver.resolve(&wanted, &ResolveOptions::default()).await.unwrap().is_none());
+    assert!(
+        resolver
+            .resolve(&wanted, &ResolveOptions::default())
+            .await
+            .unwrap()
+            .is_none(),
+    );
 }
 
 #[tokio::test]

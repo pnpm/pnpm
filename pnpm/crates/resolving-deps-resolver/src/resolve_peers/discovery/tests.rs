@@ -92,8 +92,8 @@ fn discovery_engine_rebuilds_after_a_children_ownership_rewrite() {
     engine.caches.pure_pkgs.insert("marker@1.0.0".to_string(), DepPath::from("marker@1.0.0"));
     // Production rewrites happen inside `extend_tree`, which always
     // bumps the revision; mirror that pairing.
-    workspace.record_children_rewrite();
-    workspace.bump_revision();
+    workspace.tree.record_children_rewrite();
+    workspace.tree.bump_revision();
     engine.discover(&workspace, &[], &[], ResolvePeersOptions::default());
     assert!(
         engine.caches.pure_pkgs.is_empty(),
@@ -101,7 +101,7 @@ fn discovery_engine_rebuilds_after_a_children_ownership_rewrite() {
     );
 
     engine.caches.pure_pkgs.insert("marker@1.0.0".to_string(), DepPath::from("marker@1.0.0"));
-    workspace.bump_revision();
+    workspace.tree.bump_revision();
     engine.discover(&workspace, &[], &[], ResolvePeersOptions::default());
     assert!(
         engine.caches.pure_pkgs.contains_key("marker@1.0.0"),

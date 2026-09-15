@@ -18,7 +18,12 @@ fn platform(
 }
 
 fn owned(values: Option<&[&str]>) -> Option<Vec<String>> {
-    values.map(|values| values.iter().map(|value| (*value).to_string()).collect())
+    values.map(|values| {
+        values
+            .iter()
+            .map(|value| (*value).to_string())
+            .collect()
+    })
 }
 
 #[test]

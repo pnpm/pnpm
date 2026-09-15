@@ -1,6 +1,7 @@
 use super::{
-    RetryTiming, is_transient_file_lock_error, remove_dir_all_with_retry, rename_with_retry,
-    retry_fs_operation, retry_fs_operation_with_timing,
+    ERROR_LOCK_VIOLATION, ERROR_SHARING_VIOLATION, RetryTiming, is_transient_file_lock_error,
+    remove_dir_all_with_retry, rename_with_retry, retry_fs_operation,
+    retry_fs_operation_with_timing,
 };
 use std::{cell::Cell, fs, io, time::Duration};
 use tempfile::tempdir;
@@ -74,6 +75,11 @@ fn transient_file_lock_error_classifier_is_windows_specific() {
         assert_eq!(is_transient_file_lock_error(&error), cfg!(windows), "{kind:?}");
     }
 
+    for code in [ERROR_SHARING_VIOLATION, ERROR_LOCK_VIOLATION] {
+        let error = io::Error::from_raw_os_error(code);
+        assert_eq!(is_transient_file_lock_error(&error), cfg!(windows), "os error {code}");
+    }
+
     for kind in [
         io::ErrorKind::NotFound,
         io::ErrorKind::AlreadyExists,
@@ -109,4 +115,52 @@ fn remove_dir_all_with_retry_removes_the_tree() {
     remove_dir_all_with_retry(&target).expect("remove should succeed");
 
     assert!(!target.exists(), "directory tree should be gone after removal");
+}
+
+#[cfg(windows)]
+mod windows;
+
+#[test]
+fn permission_errors_shorten_the_budget_even_when_errors_change() {
+    for permission_attempt in [0, 3] {
+        let attempts = Cell::new(0);
+        let elapsed = Cell::new(Duration::ZERO);
+        let result: io::Result<()> = retry_fs_operation_with_timing(
+            || {
+                let attempt = attempts.get();
+                attempts.set(attempt + 1);
+                Err(io::Error::from(if attempt == permission_attempt {
+                    io::ErrorKind::PermissionDenied
+                } else {
+                    io::ErrorKind::ResourceBusy
+                }))
+            },
+            |_| true,
+            RetryTiming {
+                budget: Duration::from_mins(1),
+                elapsed: || elapsed.get(),
+                sleep: |delay| elapsed.set(elapsed.get() + delay),
+            },
+        );
+        assert_eq!(result.unwrap_err().kind(), io::ErrorKind::ResourceBusy);
+        assert_eq!(elapsed.get(), Duration::from_secs(1));
+    }
+}
+
+#[test]
+fn explicit_locks_keep_the_full_budget() {
+    for code in [ERROR_SHARING_VIOLATION, ERROR_LOCK_VIOLATION] {
+        let elapsed = Cell::new(Duration::ZERO);
+        let result: io::Result<()> = retry_fs_operation_with_timing(
+            || Err(io::Error::from_raw_os_error(code)),
+            |_| true,
+            RetryTiming {
+                budget: Duration::from_mins(1),
+                elapsed: || elapsed.get(),
+                sleep: |delay| elapsed.set(elapsed.get() + delay),
+            },
+        );
+        assert_eq!(result.unwrap_err().raw_os_error(), Some(code));
+        assert_eq!(elapsed.get(), Duration::from_mins(1));
+    }
 }

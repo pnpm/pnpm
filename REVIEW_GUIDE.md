@@ -39,7 +39,7 @@ security advice untethered from the diff. Security fixes themselves need precise
   env var, or path influence a **trust decision**?
 - Does the bug expose end users, or only dev dependencies/tests in the repo?
 - Is the fix in the right layer, or does it only patch one call site?
-- Does it keep pnpm/pacquet parity where behavior is shared?
+- Does the fix cover every affected pnpm version?
 
 Treat as attacker-controlled: package metadata, tarball contents, lockfiles, workspace
 manifests, `.npmrc`/environment config, registry responses, git URLs, filesystem paths, and
@@ -66,7 +66,7 @@ Advisory regression themes — recurring classes from past pnpm advisories:
   registry scope and trust boundary are explicit;
 - lifecycle/build-script approval gates must cover all dependency sources and phases — git
   dependencies, fetch/prepare/prepack/prepublish paths, `allowBuilds`, ignored-build reporting,
-  explicit denials, and pacquet parity;
+  explicit denials, and every affected pnpm version;
 - opaque dependency identities (git, URL, tarball, file, directory, patch, alias locators) stay
   byte-for-byte exact where used for trust; don't normalize away attacker-controlled suffixes or
   confuse them with registry peer suffixes;
@@ -116,8 +116,7 @@ before it ships as a default.
 
 pnpm is performance-sensitive; be skeptical of extra work in common flows.
 
-- **Never trade correctness for a micro-optimization.** This is pacquet's cardinal rule — match
-  pnpm exactly even when that's slower. Declining an optimization that risks order-dependent
+- **Never trade correctness for a micro-optimization.** Declining an optimization that risks order-dependent
   output, breaks an invariant, or couples concerns is correct.
 - **A performance change must be measured.** If it's pitched as perf, there must be a number.
 
@@ -250,26 +249,33 @@ Tests must prove the changed behavior, not just execute nearby code.
 - **User-visible change to a published package → changeset required.**
 - **Test-only or internal change (not visible to CLI users) → none.**
 - **Behavior/setting users should know about → changeset and usually docs.**
-- **Always include `"pnpm"` explicitly** with the right bump: `patch` (bug fix / internal),
-  `minor` (feature / setting), `major` (breaking).
+- **For a pnpm v11 fix, include `"pnpm"` explicitly with a patch bump.**
+- **For a pnpm v12 change, target `pacquet`.** A shared bug fix targets both CLI packages and
+  any affected supporting packages.
 - **One changeset per logical change.** The text is a user-facing release note — accurate and
   concise, no implementation rationale — and it must match what the code actually does.
-- **pacquet-only PRs don't get changesets.**
+- **The text follows the changeset style rules** (`AGENTS.md` → Changeset style): the user-visible
+  effect first, no list of internals, no em dashes, no "instead of" tail on every sentence.
+- **A user-visible pacquet change needs a changeset.** Test-only and internal changes do not.
 
 ---
 
-## 9. pnpm ↔ pacquet parity
+## 9. pnpm v12 and v11 coverage
 
-pnpm is the source of truth; pacquet is the Rust port that matches it exactly. **Every command
-should have a pacquet equivalent, and every user-visible change must land in both products** —
-flags, defaults, env handling, error codes/messages, lockfile shape, store layout, build
-policy, lifecycle behavior, config handling, output. A change without its pacquet counterpart
-is incomplete.
+This section applies to the pnpm CLI implementations under `pnpm/` and `pnpm11/`, not to the
+pnpr registry server.
 
-- Do both sides in one PR when practical; otherwise open with one side and state in the
-  description what still needs porting.
-- Don't make pacquet "better" than pnpm independently — land the behavior in pnpm first, then
-  mirror.
+pnpm v12 is the target for new features. It is implemented in Rust under `pnpm/`. pnpm v11 is
+the TypeScript implementation under `pnpm11/` and receives bug fixes only. **Reject new-feature
+implementations in v11; a v12-only feature is an intentional version difference, not a parity
+failure.**
+
+- For a bug fix, establish whether the bug is present in v11, v12, or both.
+- If both versions are affected, fix and test both implementations. Do both sides in one PR
+  when practical; otherwise state in the description what is still missing.
+- If only one version is affected, change only that version and make the scope clear in the PR.
+- Compare flags, defaults, env handling, error codes/messages, lockfile shape, store layout,
+  build policy, lifecycle behavior, config handling, and output when reviewing shared bug fixes.
 - When a bot says a symbol is "not referenced," it may be searching only one major's branch;
   check the other branch.
 
@@ -326,11 +332,13 @@ For each PR, in order:
 6. **Product/contract.** npm-recognized semantics; defaults preserved or properly gated;
    no log noise. (§5)
 7. **Tests.** Right level, meaningful, regression-proving, cross-platform where relevant. (§7)
-8. **Changeset.** Present iff user-visible; `"pnpm"` included; one per change; accurate. (§8)
-9. **Parity.** pacquet equivalent handled or explicitly deferred. (§9)
+8. **Changeset.** Present iff user-visible; targets every affected package (`pacquet` for v12,
+   `"pnpm"` for v11); one per change; accurate; styled per `AGENTS.md`. (§8)
+9. **CLI version coverage.** New pnpm CLI features target v12 only; CLI bug fixes cover every
+   affected version. This rule does not apply to pnpr. (§9)
 10. **Conventions.** `PnpmError`, no swallowed errors, good names, reused libraries, correct
     dependency placement, config through options. (`AGENTS.md` → Conventions)
 
 A change is mergeable when it is the **smallest correct, secure, in-scope version of a thing
 pnpm should do**, in the right layer, proven by a meaningful test, documented if user-visible,
-and mirrored in pacquet.
+and implemented in every affected pnpm CLI version when the change is to the CLI.

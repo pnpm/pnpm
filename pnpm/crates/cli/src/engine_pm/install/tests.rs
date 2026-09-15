@@ -1,4 +1,4 @@
-use super::{link_cached_engine_bins, package_dir, package_manager_engine_config};
+use super::{link_cached_engine_bins, package_dir, package_manager_engine_config, resolve_slot};
 use pnpm_config::Config;
 use pnpm_graph_hasher::{host_arch, host_libc, host_platform};
 use pnpm_store_dir::StoreDir;
@@ -55,7 +55,11 @@ fn cache_hit_relinks_legacy_wrapper_native_binary() {
 fn package_manager_engine_config_uses_global_store() {
     let root = tempfile::TempDir::new().expect("tmp dir");
     let project_store_root = root.path().join("repo-controlled-store");
-    let global_pkg_dir = root.path().join("pnpm-home").join("global").join("v11");
+    let global_pkg_dir = root
+        .path()
+        .join("pnpm-home")
+        .join("global")
+        .join("v11");
     let config = Config {
         global_pkg_dir: Some(global_pkg_dir),
         store_dir: StoreDir::new(&project_store_root),
@@ -64,8 +68,11 @@ fn package_manager_engine_config_uses_global_store() {
 
     let engine_config = package_manager_engine_config(&config).expect("engine config");
 
-    let expected_store_root =
-        root.path().join("pnpm-home").join("package-manager-store").join("v11");
+    let expected_store_root = root
+        .path()
+        .join("pnpm-home")
+        .join("package-manager-store")
+        .join("v11");
     assert_eq!(engine_config.store_dir.root(), expected_store_root.as_path());
     assert!(
         !engine_config.store_dir.root().starts_with(&project_store_root),
@@ -74,10 +81,50 @@ fn package_manager_engine_config_uses_global_store() {
     );
 }
 
+#[test]
+fn slot_resolution_follows_the_wrapper_symlink_into_the_store() {
+    let root = tempfile::TempDir::new().expect("tmp dir");
+    let install_dir = root.path().join("tmp-install");
+    let slot = root
+        .path()
+        .join("links")
+        .join("@pnpm")
+        .join("exe")
+        .join("9.3.0")
+        .join("hash");
+    let installed_pkg_dir = package_dir(&slot, "@pnpm/exe");
+    fs::create_dir_all(&installed_pkg_dir).expect("create the store package dir");
+    let link = package_dir(&install_dir, "@pnpm/exe");
+    fs::create_dir_all(link.parent().expect("the wrapper scope dir")).expect("create scope dir");
+    pnpm_fs::force_symlink_dir(&installed_pkg_dir, &link).expect("link the wrapper");
+
+    let resolved = resolve_slot(&install_dir, "@pnpm/exe").expect("resolve the slot");
+
+    assert_eq!(resolved, fs::canonicalize(&slot).expect("canonicalize the slot"));
+}
+
+#[test]
+fn slot_resolution_rejects_an_engine_materialized_in_the_install_dir() {
+    let root = tempfile::TempDir::new().expect("tmp dir");
+    let install_dir = root.path().join("tmp-install");
+    fs::create_dir_all(package_dir(&install_dir, "@pnpm/exe")).expect("create the wrapper dir");
+
+    let error = resolve_slot(&install_dir, "@pnpm/exe").expect_err("an install-dir slot");
+
+    let message = format!("{error}");
+    assert!(
+        message.contains("did not materialize in the global virtual store"),
+        "unexpected error: {message}",
+    );
+}
+
 fn write_host_native_binaries(slot: &Path) {
     let executable = host_executable();
     for platform_dir_name in platform_package_dir_names() {
-        let platform_dir = slot.join("node_modules").join("@pnpm").join(platform_dir_name);
+        let platform_dir = slot
+            .join("node_modules")
+            .join("@pnpm")
+            .join(platform_dir_name);
         fs::create_dir_all(&platform_dir).expect("create platform dir");
         fs::write(platform_dir.join(executable), b"#!/bin/sh\necho pnpm\n")
             .expect("write native binary");

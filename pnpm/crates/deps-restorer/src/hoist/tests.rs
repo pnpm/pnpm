@@ -9,12 +9,12 @@ use super::{
     build_direct_deps_by_importer, build_hoist_graph, get_hoisted_dependencies,
 };
 use indexmap::IndexMap;
-use pnpm_config::matcher::create_matcher;
 use pnpm_lockfile::{
     LockfileResolution, PackageKey, PackageMetadata, PkgName, PkgVerPeer, ProjectSnapshot,
     RegistryResolution, ResolvedDependencyMap, ResolvedDependencySpec, SnapshotDepRef,
     SnapshotEntry,
 };
+use pnpm_matcher::create_matcher;
 use pnpm_modules_yaml::HoistKind;
 use pnpm_package_manifest::DependencyGroup;
 use pretty_assertions::assert_eq;
@@ -60,7 +60,10 @@ fn metadata(has_bin: bool) -> PackageMetadata {
 }
 
 fn pats<const LEN: usize>(patterns: [&str; LEN]) -> Vec<String> {
-    patterns.iter().map(std::string::ToString::to_string).collect()
+    patterns
+        .iter()
+        .map(std::string::ToString::to_string)
+        .collect()
 }
 
 /// `(alias, dep_name, dep_version)` triple describing one entry in
@@ -291,8 +294,7 @@ fn traversal_matches_pnpm_graph_walker_ownership() {
     })
     .expect("non-empty graph");
 
-    let choices: Vec<_> = result
-        .hoisted_dependencies
+    let choices: Vec<_> = result.hoisted_dependencies
         .keys()
         .filter(|key| key.starts_with("chosen-through-"))
         .map(String::as_str)
@@ -327,7 +329,10 @@ fn traversal_includes_alias_collisions_from_every_importer() {
     })
     .expect("non-empty graph");
 
-    let hoisted_keys: Vec<_> = result.hoisted_dependencies.keys().map(String::as_str).collect();
+    let hoisted_keys: Vec<_> = result.hoisted_dependencies
+        .keys()
+        .map(String::as_str)
+        .collect();
     dbg!(&hoisted_keys);
     assert!(hoisted_keys.contains(&"from-one@1.0.0"));
     assert!(hoisted_keys.contains(&"from-two@1.0.0"));
@@ -419,8 +424,10 @@ fn symlink_skips_dropped_nodes() {
     let dropped_key = key("dropped", "1.0.0");
     let mut hoisted: HashMap<PackageKey, HashMap<String, HoistKind>> = HashMap::new();
     hoisted.insert(kept_key.clone(), HashMap::from([("kept".to_string(), HoistKind::Private)]));
-    hoisted
-        .insert(dropped_key.clone(), HashMap::from([("dropped".to_string(), HoistKind::Private)]));
+    hoisted.insert(
+        dropped_key.clone(),
+        HashMap::from([("dropped".to_string(), HoistKind::Private)]),
+    );
 
     let mut graph: HashMap<PackageKey, HoistGraphNode> = HashMap::new();
     graph.insert(
@@ -552,8 +559,10 @@ fn private_hoist_with_bins_collected_for_bin_link() {
     })
     .expect("non-empty graph");
 
-    let bin_aliases: Vec<&str> =
-        result.hoisted_aliases_with_bins.iter().map(|(alias, _)| alias.as_str()).collect();
+    let bin_aliases: Vec<&str> = result.hoisted_aliases_with_bins
+        .iter()
+        .map(|(alias, _)| alias.as_str())
+        .collect();
     dbg!(&bin_aliases);
     assert!(bin_aliases.contains(&"with-bin"));
     assert!(!bin_aliases.contains(&"no-bin"));
@@ -636,11 +645,15 @@ fn build_hoist_graph_walks_dependencies() {
         ("b", "1.0.0", &[], false),
     ]);
     let graph = build_hoist_graph(&snapshots, &packages);
-    let a_node = graph.get(&key("a", "1.0.0")).expect("a node");
+    let a_node = graph
+        .get(&key("a", "1.0.0"))
+        .expect("a node");
     assert_eq!(a_node.children.get("b"), Some(&key("b", "1.0.0")));
     assert!(a_node.has_bin);
 
-    let b_node = graph.get(&key("b", "1.0.0")).expect("b node");
+    let b_node = graph
+        .get(&key("b", "1.0.0"))
+        .expect("b node");
     assert!(b_node.children.is_empty());
     assert!(!b_node.has_bin);
 }
@@ -664,11 +677,21 @@ fn update_stale_hoist_symlink_replaces_virtual_store_resident_symlink() {
     std::fs::create_dir_all(&stale_target).unwrap();
     pnpm_fs::symlink_dir(&stale_target, &dest).unwrap();
 
-    super::update_stale_hoist_symlink(&dep_dir, &dest, &virtual_store_dir, &internal_pnpm_dir)
-        .expect("should replace virtual-store-resident symlink");
+    crate::hoist::symlinks::update_stale_hoist_symlink(
+        &dep_dir,
+        &dest,
+        &virtual_store_dir,
+        &internal_pnpm_dir,
+    )
+    .expect("should replace virtual-store-resident symlink");
 
     let new_target_raw = std::fs::read_link(&dest).unwrap();
-    let new_target_abs = pnpm_fs::lexical_normalize(&dest.parent().unwrap().join(&new_target_raw));
+    let new_target_abs = pnpm_fs::lexical_normalize(
+        &dest
+            .parent()
+            .unwrap()
+            .join(&new_target_raw),
+    );
     assert!(
         pnpm_fs::is_subdir(&virtual_store_dir, &new_target_abs),
         "stale symlink should be replaced with new target under virtual store dir; \
@@ -695,11 +718,21 @@ fn update_stale_hoist_symlink_replaces_internal_pnpm_symlink() {
     std::fs::create_dir_all(&stale_target).unwrap();
     pnpm_fs::symlink_dir(&stale_target, &dest).unwrap();
 
-    super::update_stale_hoist_symlink(&dep_dir, &dest, &virtual_store_dir, &internal_pnpm_dir)
-        .expect("should replace internal-pnpm-resident symlink");
+    crate::hoist::symlinks::update_stale_hoist_symlink(
+        &dep_dir,
+        &dest,
+        &virtual_store_dir,
+        &internal_pnpm_dir,
+    )
+    .expect("should replace internal-pnpm-resident symlink");
 
     let new_target_raw = std::fs::read_link(&dest).unwrap();
-    let new_target_abs = pnpm_fs::lexical_normalize(&dest.parent().unwrap().join(&new_target_raw));
+    let new_target_abs = pnpm_fs::lexical_normalize(
+        &dest
+            .parent()
+            .unwrap()
+            .join(&new_target_raw),
+    );
     assert!(
         pnpm_fs::is_subdir(&virtual_store_dir, &new_target_abs),
         "stale symlink should be replaced with new target under virtual store dir; \
@@ -726,8 +759,13 @@ fn update_stale_hoist_symlink_preserves_external_symlink() {
     std::fs::create_dir_all(&external_target).unwrap();
     pnpm_fs::symlink_dir(&external_target, &dest).unwrap();
 
-    super::update_stale_hoist_symlink(&dep_dir, &dest, &virtual_store_dir, &internal_pnpm_dir)
-        .expect("should preserve external symlink");
+    crate::hoist::symlinks::update_stale_hoist_symlink(
+        &dep_dir,
+        &dest,
+        &virtual_store_dir,
+        &internal_pnpm_dir,
+    )
+    .expect("should preserve external symlink");
 
     let target = std::fs::read_link(&dest).unwrap();
     let target_abs = dest.parent().unwrap().join(&target);
@@ -753,8 +791,13 @@ fn update_stale_hoist_symlink_preserves_regular_directory() {
 
     std::fs::create_dir(&dest).unwrap();
 
-    super::update_stale_hoist_symlink(&dep_dir, &dest, &virtual_store_dir, &internal_pnpm_dir)
-        .expect("should preserve directory");
+    crate::hoist::symlinks::update_stale_hoist_symlink(
+        &dep_dir,
+        &dest,
+        &virtual_store_dir,
+        &internal_pnpm_dir,
+    )
+    .expect("should preserve directory");
 
     assert!(dest.is_dir(), "regular directory must be preserved");
 }
@@ -779,8 +822,13 @@ fn update_stale_hoist_symlink_is_noop_when_already_correct() {
 
     let ino_before = std::fs::symlink_metadata(&dest).unwrap().ino();
 
-    super::update_stale_hoist_symlink(&dep_dir, &dest, &virtual_store_dir, &internal_pnpm_dir)
-        .expect("should leave an already-correct symlink untouched");
+    crate::hoist::symlinks::update_stale_hoist_symlink(
+        &dep_dir,
+        &dest,
+        &virtual_store_dir,
+        &internal_pnpm_dir,
+    )
+    .expect("should leave an already-correct symlink untouched");
 
     let ino_after = std::fs::symlink_metadata(&dest).unwrap().ino();
     assert_eq!(
@@ -794,7 +842,12 @@ fn update_stale_hoist_symlink_is_noop_when_already_correct() {
 fn kinds_for(map: &HoistedDependencies, key: &str) -> Vec<(String, HoistKind)> {
     let mut pairs: Vec<_> = map
         .get(key)
-        .map(|inner| inner.iter().map(|(pkg_key, v)| (pkg_key.clone(), *v)).collect())
+        .map(|inner| {
+            inner
+                .iter()
+                .map(|(pkg_key, v)| (pkg_key.clone(), *v))
+                .collect()
+        })
         .unwrap_or_default();
     pairs.sort_by(|a, b| a.0.cmp(&b.0));
     pairs

@@ -62,7 +62,6 @@ pub enum VerifyError {
     /// already explains the auth situation — rather than a tampering-style
     /// mismatch or a lockfile-policy batch. The message is credential-redacted
     /// at the verifier before it reaches here.
-    #[display("{message}")]
     #[diagnostic(code(ERR_PNPM_META_FETCH_FAIL))]
     RegistryMetaFetchFailed {
         #[error(not(source))]
@@ -139,49 +138,22 @@ impl VerifyError {
     #[must_use]
     pub fn from_rendered(violations: &[RenderedViolation]) -> Self {
         debug_assert!(!violations.is_empty(), "no violations → no error");
-        let distinct_codes: std::collections::BTreeSet<&str> =
-            violations.iter().map(|violation| violation.code).collect();
+        let distinct_codes: std::collections::BTreeSet<&str> = violations
+            .iter()
+            .map(|violation| violation.code)
+            .collect();
         let mixed = distinct_codes.len() > 1;
         let count = violations.len();
-        let visible_count = count.min(MAX_VIOLATIONS_TO_PRINT);
-        let omitted = count.saturating_sub(visible_count);
-
-        let mut breakdown = String::new();
-        for violation in violations.iter().take(visible_count) {
-            if mixed {
-                writeln!(
-                    breakdown,
-                    "  {name}@{version} [{code}] {reason}",
-                    name = violation.name,
-                    version = violation.version,
-                    code = violation.code,
-                    reason = violation.reason,
-                )
-                .unwrap();
-            } else {
-                writeln!(
-                    breakdown,
-                    "  {name}@{version} {reason}",
-                    name = violation.name,
-                    version = violation.version,
-                    reason = violation.reason,
-                )
-                .unwrap();
-            }
-        }
-        if omitted > 0 {
-            write!(breakdown, "  …and {omitted} more").unwrap();
-        } else if breakdown.ends_with('\n') {
-            // Drop the final newline so the formatted error doesn't
-            // carry trailing whitespace into log lines.
-            breakdown.pop();
-        }
+        let breakdown = violation_breakdown(violations, mixed);
 
         if mixed {
             VerifyError::LockfileResolutionVerification { count, breakdown }
         } else {
             // Safe: distinct_codes has exactly one element.
-            let code = *distinct_codes.iter().next().expect("at least one code");
+            let code = *distinct_codes
+                .iter()
+                .next()
+                .expect("at least one code");
             match code {
                 pnpm_resolving_npm_resolver_violation_codes::MINIMUM_RELEASE_AGE_VIOLATION => {
                     VerifyError::MinimumReleaseAgeViolation { count, breakdown }
@@ -202,6 +174,45 @@ impl VerifyError {
             }
         }
     }
+}
+
+/// Bound the printed list and omit the trailing newline from the error text.
+fn violation_breakdown(violations: &[RenderedViolation], mixed: bool) -> String {
+    let count = violations.len();
+    let visible_count = count.min(MAX_VIOLATIONS_TO_PRINT);
+    let omitted = count.saturating_sub(visible_count);
+
+    let mut breakdown = String::new();
+    for violation in violations.iter().take(visible_count) {
+        if mixed {
+            writeln!(
+                breakdown,
+                "  {name}@{version} [{code}] {reason}",
+                name = violation.name,
+                version = violation.version,
+                code = violation.code,
+                reason = violation.reason,
+            )
+            .unwrap();
+        } else {
+            writeln!(
+                breakdown,
+                "  {name}@{version} {reason}",
+                name = violation.name,
+                version = violation.version,
+                reason = violation.reason,
+            )
+            .unwrap();
+        }
+    }
+    if omitted > 0 {
+        write!(breakdown, "  …and {omitted} more").unwrap();
+    } else if breakdown.ends_with('\n') {
+        // Drop the final newline so the formatted error doesn't
+        // carry trailing whitespace into log lines.
+        breakdown.pop();
+    }
+    breakdown
 }
 
 /// Aliases the violation codes the npm verifier defines, so this

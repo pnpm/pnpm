@@ -9,8 +9,10 @@ use std::{
 };
 
 fn parsed(map: &[(&str, &str)]) -> Vec<pnpm_config_parse_overrides::VersionOverride> {
-    let owned: HashMap<String, String> =
-        map.iter().map(|(k, v)| ((*k).to_string(), (*v).to_string())).collect();
+    let owned: HashMap<String, String> = map
+        .iter()
+        .map(|(k, v)| ((*k).to_string(), (*v).to_string()))
+        .collect();
     parse_overrides(&owned, &Catalogs::new()).expect("parse_overrides fixture")
 }
 
@@ -21,7 +23,11 @@ fn manifest_from_value(value: Value) -> PackageManifest {
 }
 
 fn dep_spec<'a>(manifest: &'a PackageManifest, group: &str, name: &str) -> Option<&'a str> {
-    manifest.value().get(group)?.get(name)?.as_str()
+    manifest
+        .value()
+        .get(group)?
+        .get(name)?
+        .as_str()
 }
 
 /// [`VersionsOverrider::override_for_undeclared_dependency`] for an edge
@@ -76,7 +82,14 @@ fn override_dash_deletes_dependency() {
     }));
     overrider.apply(&mut manifest, Some(Path::new("/workspace")));
 
-    assert!(manifest.value().get("dependencies").unwrap().get("foo").is_none());
+    assert!(
+        manifest
+            .value()
+            .get("dependencies")
+            .unwrap()
+            .get("foo")
+            .is_none(),
+    );
     assert_eq!(dep_spec(&manifest, "dependencies", "bar"), Some("^1"));
 }
 
@@ -252,7 +265,14 @@ fn override_for_missing_dep_does_not_add_entry() {
     }));
     overrider.apply(&mut manifest, Some(Path::new("/workspace")));
 
-    assert!(manifest.value().get("dependencies").unwrap().get("foo").is_none());
+    assert!(
+        manifest
+            .value()
+            .get("dependencies")
+            .unwrap()
+            .get("foo")
+            .is_none(),
+    );
     assert_eq!(dep_spec(&manifest, "dependencies", "bar"), Some("^1"));
 }
 
@@ -454,7 +474,10 @@ fn apply_to_arc_clones_when_only_a_peer_matches() {
 
     assert!(!std::sync::Arc::ptr_eq(&original, &updated), "peer-only match must clone");
     assert_eq!(
-        updated.get("peerDependencies").and_then(|peers| peers.get("ajv")).and_then(Value::as_str),
+        updated
+            .get("peerDependencies")
+            .and_then(|peers| peers.get("ajv"))
+            .and_then(Value::as_str),
         Some(">=8.18.0"),
     );
 }

@@ -180,31 +180,32 @@ pub(crate) fn try_resolve_from_workspace_packages(
     wanted_dependency: &WantedDependency,
     opts: &ResolveFromWorkspaceOptions<'_>,
 ) -> Result<ResolveResult, ResolveFromWorkspaceError> {
-    let matching_name = workspace_packages.get(spec.name.as_str()).ok_or_else(|| {
-        let names = workspace_packages.keys().cloned().collect::<Vec<_>>().join(", ");
-        ResolveFromWorkspaceError::WorkspacePkgNotFound {
-            name: spec.name.clone(),
-            bare_specifier: wanted_dependency.bare_specifier.clone().unwrap_or_default(),
-            project_dir: opts.project_dir.display().to_string(),
-            hint: format!("Packages found in the workspace: {names}"),
-        }
-    })?;
+    let matching_name = workspace_packages
+        .get(spec.name.as_str())
+        .ok_or_else(|| {
+            let names = workspace_packages
+                .keys()
+                .cloned()
+                .collect::<Vec<_>>()
+                .join(", ");
+            ResolveFromWorkspaceError::WorkspacePkgNotFound {
+                name: spec.name.clone(),
+                bare_specifier: wanted_dependency.bare_specifier.clone().unwrap_or_default(),
+                project_dir: opts.project_dir.display().to_string(),
+                hint: format!("Packages found in the workspace: {names}"),
+            }
+        })?;
 
-    let picked = pick_matching_local_version_or_null(matching_name, spec).ok_or_else(|| {
-        let mut versions: Vec<String> = matching_name.keys().cloned().collect();
-        versions.sort_by(|a, b| rcompare_versions(a, b));
-        let available = if versions.is_empty() {
-            String::new()
-        } else {
-            format!(". Available versions: {}", versions.join(", "))
-        };
-        ResolveFromWorkspaceError::NoMatchingVersionInsideWorkspace {
-            alias: wanted_dependency.alias.clone().unwrap_or_default(),
-            bare_specifier: wanted_dependency.bare_specifier.clone().unwrap_or_default(),
-            project_dir: opts.project_dir.display().to_string(),
-            available,
-        }
-    })?;
+    let picked = pick_matching_local_version_or_null(matching_name, spec)
+        .ok_or_else(|| {
+            let available = available_workspace_versions(matching_name);
+            ResolveFromWorkspaceError::NoMatchingVersionInsideWorkspace {
+                alias: wanted_dependency.alias.clone().unwrap_or_default(),
+                bare_specifier: wanted_dependency.bare_specifier.clone().unwrap_or_default(),
+                project_dir: opts.project_dir.display().to_string(),
+                available,
+            }
+        })?;
     let local_package =
         matching_name.get(&picked).expect("picked version came from the matching set");
 
@@ -262,18 +263,19 @@ pub(crate) fn resolve_from_local_package(
 
     ResolveResult {
         id: PkgResolutionId::from(id_text),
-        name_ver: None,
-        latest: None,
-        published_at: None,
-        manifest: Some(std::sync::Arc::new(local_package.manifest.clone())),
         resolution: LockfileResolution::Directory(DirectoryResolution { directory }),
         resolved_via: "workspace".to_string(),
-        normalized_bare_specifier: saved_specifier
-            .calc_specifier
+        normalized_bare_specifier: saved_specifier.calc_specifier
             .then(|| workspace_specifier(local_package, wanted_dependency, saved_specifier))
             .flatten(),
         alias: wanted_dependency.alias.clone(),
         policy_violation: None,
+        package: pnpm_resolving_resolver_base::ResolvedPackageInfo {
+            name_ver: None,
+            latest: None,
+            published_at: None,
+            manifest: Some(std::sync::Arc::new(local_package.manifest.clone())),
+        },
     }
 }
 
@@ -302,8 +304,9 @@ fn workspace_specifier(
 /// is unset or `true`; otherwise the project's own `rootDir`.
 fn resolve_local_package_dir(local_package: &WorkspacePackage) -> PathBuf {
     let publish_config = local_package.manifest.get("publishConfig");
-    let publish_dir =
-        publish_config.and_then(|cfg| cfg.get("directory")).and_then(serde_json::Value::as_str);
+    let publish_dir = publish_config
+        .and_then(|cfg| cfg.get("directory"))
+        .and_then(serde_json::Value::as_str);
     let link_directory = publish_config
         .and_then(|cfg| cfg.get("linkDirectory"))
         .and_then(serde_json::Value::as_bool);
@@ -341,7 +344,10 @@ fn pathdiff_string(base: &Path, target: &Path) -> Option<String> {
     target_components.drain(..common);
 
     let mut out = PathBuf::new();
-    for _ in base_components.iter().filter(|component| !matches!(component, Component::CurDir)) {
+    for _ in base_components
+        .iter()
+        .filter(|component| !matches!(component, Component::CurDir))
+    {
         out.push("..");
     }
     for component in target_components {
@@ -360,6 +366,16 @@ fn rcompare_versions(left: &str, right: &str) -> std::cmp::Ordering {
     match (Version::parse(left), Version::parse(right)) {
         (Ok(left_parsed), Ok(right_parsed)) => right_parsed.cmp(&left_parsed),
         _ => right.cmp(left),
+    }
+}
+
+fn available_workspace_versions(matching_name: &WorkspacePackagesByVersion) -> String {
+    let mut versions: Vec<String> = matching_name.keys().cloned().collect();
+    versions.sort_by(|a, b| rcompare_versions(a, b));
+    if versions.is_empty() {
+        String::new()
+    } else {
+        format!(". Available versions: {}", versions.join(", "))
     }
 }
 

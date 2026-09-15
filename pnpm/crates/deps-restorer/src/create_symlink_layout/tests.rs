@@ -24,8 +24,10 @@ fn assert_symlink_shape(
     let symlink_path = virtual_node_modules_dir.join(alias);
     let read = fs::read_link(&symlink_path)
         .unwrap_or_else(|err| panic!("read_link {symlink_path:?}: {err}"));
-    let target_path =
-        layout.slot_dir(target_key).join("node_modules").join(target_key.name.to_string());
+    let target_path = layout
+        .slot_dir(target_key)
+        .join("node_modules")
+        .join(target_key.name.to_string());
     // pacquet writes the symlink contents as a path relative to the
     // link's parent dir. The expected on-disk contents are the same
     // relative form.

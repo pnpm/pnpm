@@ -1,6 +1,7 @@
 import { requestRetryLogger } from '@pnpm/core-loggers'
+import { redactUrlForDisplay } from '@pnpm/error'
 import { operation, type RetryTimeoutOptions } from '@zkochan/retry'
-import { type Dispatcher, fetch as undiciFetch } from 'undici'
+import { type Dispatcher, fetch as undiciFetch, getGlobalDispatcher } from 'undici'
 
 export { type RetryTimeoutOptions }
 
@@ -23,6 +24,12 @@ export type RequestInfo = string | URLLike | URL
 
 export interface RequestInit extends globalThis.RequestInit {
   retry?: RetryTimeoutOptions
+  /**
+   * How long the request may make no progress before it fails, in
+   * milliseconds. `0` disables it. Bounds the wait for the response head and
+   * for each chunk of the body; the connect phase is bounded by the
+   * dispatcher's own connect timeout, which cannot be set per request.
+   */
   timeout?: number
   dispatcher?: Dispatcher
 }
@@ -44,11 +51,13 @@ export async function fetch (url: RequestInfo, opts: RequestInit = {}): Promise<
       op.attempt(async (attempt) => {
         const urlString = typeof url === 'string' ? url : url.href ?? url.toString()
         const { retry: _retry, timeout, dispatcher, ...fetchOpts } = opts
-        const signal = timeout ? AbortSignal.timeout(timeout) : undefined
         try {
           // undici's Response type differs slightly from globalThis.Response (iterator types),
           // requiring the double cast. This is a known TypeScript/undici compatibility issue.
-          const res = await undiciFetch(urlString, { ...fetchOpts, signal, dispatcher } as Parameters<typeof undiciFetch>[1]) as unknown as Response
+          const res = await undiciFetch(urlString, {
+            ...fetchOpts,
+            dispatcher: withInactivityTimeout(dispatcher, timeout),
+          } as Parameters<typeof undiciFetch>[1]) as unknown as Response
           // A retry on 409 sometimes helps when making requests to the Bit registry.
           if ((res.status >= 500 && res.status < 600) || [408, 409, 420, 429].includes(res.status)) {
             throw new ResponseError(res)
@@ -74,9 +83,10 @@ export async function fetch (url: RequestInfo, opts: RequestInit = {}): Promise<
           }
           // Extract error properties into a plain object because Error properties
           // are non-enumerable and don't serialize well through the logging system
+          const displayUrl = redactUrlForDisplay(urlString)
           const errorInfo = {
             name: err.name,
-            message: err.message,
+            message: err.message?.replaceAll(urlString, displayUrl),
             code: err.code,
             errno: (err as Error & { errno?: number }).errno,
             // For HTTP errors from ResponseError class
@@ -94,7 +104,7 @@ export async function fetch (url: RequestInfo, opts: RequestInit = {}): Promise<
             maxRetries,
             method: opts.method ?? 'GET',
             timeout: retryTimeout,
-            url: urlString,
+            url: displayUrl,
           })
         }
       })
@@ -105,6 +115,19 @@ export async function fetch (url: RequestInfo, opts: RequestInit = {}): Promise<
     }
     throw err
   }
+}
+
+/**
+ * Hands the timeout to whichever dispatcher serves the request as undici's
+ * `headersTimeout` and `bodyTimeout`, which restart on every chunk received.
+ * Aborting the request `timeout` after it started instead would kill downloads
+ * that are still making progress (https://github.com/pnpm/pnpm/issues/14604).
+ */
+function withInactivityTimeout (dispatcher: Dispatcher | undefined, timeout: number | undefined): Dispatcher | undefined {
+  if (timeout == null) return dispatcher
+  return (dispatcher ?? getGlobalDispatcher()).compose((dispatch) => (dispatchOpts, handler) =>
+    dispatch({ ...dispatchOpts, headersTimeout: timeout, bodyTimeout: timeout }, handler)
+  )
 }
 
 export class ResponseError extends Error {

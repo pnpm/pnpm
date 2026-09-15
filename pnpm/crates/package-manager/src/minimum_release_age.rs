@@ -27,7 +27,6 @@ pub enum MinimumReleaseAgeError {
     )]
     StrictRequiresSave,
 
-    #[display("{message}")]
     #[diagnostic(
         code(ERR_PNPM_NO_MATURE_MATCHING_VERSION),
         help(
@@ -56,17 +55,33 @@ pub enum MinimumReleaseAgeError {
     WriteWorkspaceManifest(#[error(source)] UpdateWorkspaceManifestError),
 }
 
-pub(crate) fn ensure_strict_minimum_release_age_can_save(
-    config: &Config,
-    save: bool,
-) -> Result<(), MinimumReleaseAgeError> {
-    if !save
-        && config.resolved_minimum_release_age().is_some()
-        && config.resolved_minimum_release_age_strict()
-    {
-        return Err(MinimumReleaseAgeError::StrictRequiresSave);
+/// What a run may do with the resolution-policy bypasses an immature pick
+/// needs, such as the `minimumReleaseAgeExclude` entries approving one
+/// appends to `pnpm-workspace.yaml`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PolicyExcludes {
+    /// Append them to the workspace manifest: `install`, `add`, `dedupe`,
+    /// and `update` without `--no-save`.
+    Persist,
+    /// Leave the workspace manifest alone. An approval given at the prompt
+    /// covers this run only: `dedupe --check`, `remove`, `--dry-run`, and
+    /// embedder-driven installs.
+    Skip,
+    /// Leave the workspace manifest alone because the user asked for no
+    /// manifest writes (`update --no-save`), and refuse a run that needs an
+    /// approval it could not record there.
+    Forbidden,
+}
+
+impl PolicyExcludes {
+    /// What a run that writes nothing may still do: a would-be write
+    /// becomes a skip, a refusal stays a refusal.
+    pub(crate) fn without_writes(self) -> Self {
+        match self {
+            Self::Persist | Self::Skip => Self::Skip,
+            Self::Forbidden => Self::Forbidden,
+        }
     }
-    Ok(())
 }
 
 pub(crate) async fn handle_minimum_release_age_violations<ReporterImpl: Reporter>(
@@ -74,14 +89,14 @@ pub(crate) async fn handle_minimum_release_age_violations<ReporterImpl: Reporter
     workspace_dir: &Path,
     violations: &[ResolutionPolicyViolation],
     can_prompt: bool,
-    persist_excludes: bool,
+    policy_excludes: PolicyExcludes,
 ) -> Result<(), MinimumReleaseAgeError> {
     handle_minimum_release_age_violations_with::<ReporterImpl, _>(
         config,
         workspace_dir,
         violations,
         can_prompt,
-        persist_excludes,
+        policy_excludes,
         &mut DialoguerPrompt,
     )
     .await
@@ -97,7 +112,10 @@ impl ApprovalPrompt for DialoguerPrompt {
     async fn confirm(&mut self, message: &str) -> dialoguer::Result<bool> {
         let message = message.to_owned();
         tokio::task::spawn_blocking(move || {
-            dialoguer::Confirm::new().with_prompt(message).default(false).interact()
+            dialoguer::Confirm::new()
+                .with_prompt(message)
+                .default(false)
+                .interact()
         })
         .await
         .map_err(|error| dialoguer::Error::IO(std::io::Error::other(error)))?
@@ -109,7 +127,7 @@ async fn handle_minimum_release_age_violations_with<ReporterImpl, Prompt>(
     workspace_dir: &Path,
     violations: &[ResolutionPolicyViolation],
     can_prompt: bool,
-    persist_excludes: bool,
+    policy_excludes: PolicyExcludes,
     prompt: &mut Prompt,
 ) -> Result<(), MinimumReleaseAgeError>
 where
@@ -117,7 +135,7 @@ where
     Prompt: ApprovalPrompt,
 {
     let strict = config.resolved_minimum_release_age_strict();
-    if !strict && !persist_excludes {
+    if !strict && policy_excludes != PolicyExcludes::Persist {
         return Ok(());
     }
     let immature = sorted_immature_violations(violations);
@@ -131,6 +149,10 @@ where
             &immature,
             "(set minimumReleaseAgeStrict to true to gate these updates with a prompt)",
         );
+    }
+
+    if policy_excludes == PolicyExcludes::Forbidden {
+        return Err(MinimumReleaseAgeError::StrictRequiresSave);
     }
 
     if !can_prompt {
@@ -148,12 +170,7 @@ where
         return Err(MinimumReleaseAgeError::Denied);
     }
 
-    // A non-persisting caller (`dedupe --check`) still prompts in strict
-    // mode, but an approval only lets the run proceed — nothing may be
-    // written. `update --no-save` never reaches this point: strict mode
-    // without persistence is rejected up-front by
-    // [`ensure_strict_minimum_release_age_can_save`].
-    if !persist_excludes {
+    if policy_excludes != PolicyExcludes::Persist {
         return Ok(());
     }
     persist_and_report_excludes::<ReporterImpl>(
@@ -172,8 +189,7 @@ fn persist_and_report_excludes<ReporterImpl: Reporter>(
         .iter()
         .map(|violation| format!("{}@{}", violation.name, violation.version))
         .collect();
-    let added =
-        merge_package_version_specs(&added).map_err(MinimumReleaseAgeError::VersionPolicy)?;
+    let added = merge_package_version_specs(&added).map_err(MinimumReleaseAgeError::VersionPolicy)?;
     update_workspace_manifest(
         workspace_dir,
         &UpdateWorkspaceManifestOptions {

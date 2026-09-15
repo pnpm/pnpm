@@ -28,7 +28,10 @@ use std::fs;
 /// diagnostic propagates from the classic fallback.
 fn assert_rejects_non_interactive_terminal(subcommand: &str) {
     let mut server = mockito::Server::new();
-    let login_probe = server.mock("POST", "/-/v1/login").with_status(404).create();
+    let login_probe = server
+        .mock("POST", "/-/v1/login")
+        .with_status(404)
+        .create();
     let CommandTempCwd { pacquet, root, .. } = CommandTempCwd::init();
 
     let output = pacquet
@@ -165,10 +168,14 @@ fn a_scoped_login_records_the_token_and_route_in_config_yaml() {
     #[cfg(unix)]
     {
         use std::os::unix::fs::PermissionsExt as _;
-        let mode = fs::metadata(root.path().join("pnpm").join("config.yaml"))
-            .expect("stat config.yaml")
-            .permissions()
-            .mode()
+        let mode = fs::metadata(
+            root.path()
+                .join("pnpm")
+                .join("config.yaml"),
+        )
+        .expect("stat config.yaml")
+        .permissions()
+        .mode()
             & 0o777;
         assert_eq!(mode, 0o600, "the file now holds a token; got {mode:o}");
     }
@@ -218,8 +225,7 @@ fn a_login_writes_a_config_the_reader_reads_back() {
         String::from_utf8_lossy(&login.stderr),
     );
 
-    let listed = CommandTempCwd::init()
-        .pacquet
+    let listed = CommandTempCwd::init().pacquet
         .with_env("XDG_CONFIG_HOME", root.path())
         .with_arg("config")
         .with_arg("list")

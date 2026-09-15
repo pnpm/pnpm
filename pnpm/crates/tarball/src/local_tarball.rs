@@ -4,11 +4,12 @@
 //! local archive without going through the store.
 
 use super::{
-    Component, Cursor, HashMap, MAX_UNTRUSTED_PREALLOC_BYTES, Path, PathBuf, Read, TarballError,
-    allocate_tarball_buffer, decompress_gzip, io, is_eager_decode_limit_exceeded,
-    normalize_bundled_manifest, oversized_manifest_error, post_download_semaphore,
-    tar_entry_payload, verify_tarball_integrity,
+    Cursor, HashMap, MAX_UNTRUSTED_PREALLOC_BYTES, Path, PathBuf, Read, TarballError,
+    allocate_tarball_buffer, clean_archive_entry_path, decompress_gzip, io,
+    is_eager_decode_limit_exceeded, normalize_bundled_manifest, oversized_manifest_error,
+    post_download_semaphore, tar_entry_payload, verify_tarball_integrity,
 };
+use crate::extraction_task::spawn_extraction;
 use pnpm_package_manifest::parse_manifest_bytes;
 use ssri::Integrity;
 use tar::Archive;
@@ -16,12 +17,10 @@ use tar::Archive;
 pub(crate) async fn open_local_tarball(
     path: &Path,
 ) -> Result<(tokio::fs::File, u64), TarballError> {
-    let metadata = tokio::fs::metadata(path)
-        .await
+    let metadata = tokio::fs::metadata(path).await
         .map_err(|source| TarballError::ReadLocalTarball { path: path.to_path_buf(), source })?;
     reject_non_file_local_tarball(path, &metadata)?;
-    let file = tokio::fs::File::open(path)
-        .await
+    let file = tokio::fs::File::open(path).await
         .map_err(|source| TarballError::ReadLocalTarball { path: path.to_path_buf(), source })?;
     let metadata = file
         .metadata()
@@ -53,13 +52,15 @@ pub(crate) async fn read_local_tarball_buffer(
 ) -> Result<Vec<u8>, TarballError> {
     use tokio::io::AsyncReadExt;
 
-    let read_limit = size.checked_add(1).ok_or_else(|| {
-        read_local_tarball_error(
-            path,
-            io::ErrorKind::InvalidData,
-            format!("local tarball is too large to read into memory ({size} bytes)"),
-        )
-    })?;
+    let read_limit = size
+        .checked_add(1)
+        .ok_or_else(|| {
+            read_local_tarball_error(
+                path,
+                io::ErrorKind::InvalidData,
+                format!("local tarball is too large to read into memory ({size} bytes)"),
+            )
+        })?;
     let mut buffer = allocate_local_tarball_buffer(path, package_url, size)?;
     let mut reader = file.take(read_limit);
     reader
@@ -81,14 +82,15 @@ pub(crate) fn allocate_local_tarball_buffer(
     package_url: &str,
     size: u64,
 ) -> Result<Vec<u8>, TarballError> {
-    allocate_tarball_buffer(Some(size), package_url).map_err(|error| match error {
-        TarballError::TarballTooLarge { .. } => read_local_tarball_error(
-            path,
-            io::ErrorKind::InvalidData,
-            format!("local tarball is too large to read into memory ({size} bytes)"),
-        ),
-        other => other,
-    })
+    allocate_tarball_buffer(Some(size), package_url)
+        .map_err(|error| match error {
+            TarballError::TarballTooLarge { .. } => read_local_tarball_error(
+                path,
+                io::ErrorKind::InvalidData,
+                format!("local tarball is too large to read into memory ({size} bytes)"),
+            ),
+            other => other,
+        })
 }
 
 pub(crate) fn read_local_tarball_error(
@@ -142,8 +144,7 @@ pub(crate) async fn read_subdir_manifest(
     // slash it was written with (`#path:/packages/foo`).
     let key = format!("{}/package.json", subdir.trim_matches('/'));
     let Some(cas_path) = cas_paths.get(&key) else { return Ok(None) };
-    let bytes = tokio::fs::read(cas_path)
-        .await
+    let bytes = tokio::fs::read(cas_path).await
         .map_err(|source| TarballError::ReadLocalTarball { path: cas_path.clone(), source })?;
     match parse_manifest_bytes(&bytes) {
         Ok(parsed) => Ok(normalize_bundled_manifest(&parsed)),
@@ -202,11 +203,11 @@ pub async fn read_local_tarball_metadata(
     let (file, size) = open_local_tarball(path).await?;
     let buffer = read_local_tarball_buffer(file, path, &package_url, size).await?;
 
-    let _post_download_permit = post_download_semaphore()
+    let post_download_permit = post_download_semaphore()
         .acquire()
         .await
         .expect("post-download semaphore shouldn't be closed this soon");
-    tokio::task::spawn_blocking(move || {
+    spawn_extraction(post_download_permit, move || {
         let integrity = verify_tarball_integrity(&buffer, None, package_url)?;
         let (manifest, has_manifest_entry) =
             read_bundled_manifest_from_archive(&buffer, &tarball_path)?;
@@ -294,7 +295,10 @@ fn read_bundled_manifest_streaming(
         if !is_manifest {
             continue;
         }
-        let file_size = entry.header().size().map_err(TarballError::ReadTarballEntries)?;
+        let file_size = entry
+            .header()
+            .size()
+            .map_err(TarballError::ReadTarballEntries)?;
         if file_size > MAX_UNTRUSTED_PREALLOC_BYTES as u64 {
             return Err(oversized_manifest_error(file_size));
         }
@@ -306,21 +310,28 @@ fn read_bundled_manifest_streaming(
     finish_bundled_manifest(&payload, tarball_path)
 }
 
-/// Whether an archive entry is the package's own `package.json` — the
-/// one directly inside the top-level directory every published tarball
-/// wraps its payload in, not a `package.json` shipped in a subdirectory.
+/// Whether an archive entry is the package's own `package.json`: the one
+/// that lands at the package root once the entry path is cleaned, not a
+/// `package.json` shipped in a subdirectory.
+///
+/// Answered by [`clean_archive_entry_path`] rather than by a rule of its
+/// own, because this resolve-time read and the extraction that follows it
+/// must name the same entry. A `file:` archive whose manifest they
+/// disagree about is recorded under the alias its consumer gave it at
+/// version `0.0.0`, while the `package.json` extracted beside it names
+/// something else.
 fn is_root_manifest_entry_path(path: &Path) -> bool {
-    let mut components = path.components().skip(1);
-    components.next() == Some(Component::Normal("package.json".as_ref()))
-        && components.next().is_none()
+    clean_archive_entry_path(&path.to_string_lossy()).is_ok_and(|cleaned| cleaned == "package.json")
 }
 
 fn finish_bundled_manifest(
     payload: &[u8],
     tarball_path: &str,
 ) -> Result<(Option<serde_json::Value>, bool), TarballError> {
-    let parsed = parse_manifest_bytes(payload).map_err(|source| {
-        TarballError::ParseBundledManifest { tarball: tarball_path.to_string(), source }
-    })?;
+    let parsed = parse_manifest_bytes(payload)
+        .map_err(|source| TarballError::ParseBundledManifest {
+            tarball: tarball_path.to_string(),
+            source,
+        })?;
     Ok((normalize_bundled_manifest(&parsed), true))
 }

@@ -21,6 +21,12 @@ pub(crate) struct BadPathDir {
     pub(crate) delimiter: char,
 }
 
+/// The character that separates entries of `PATH` on this platform.
+const PATH_DELIMITER: char = if cfg!(windows) { ';' } else { ':' };
+
+/// [`PATH_DELIMITER`] as a string, for joining entries.
+const PATH_SEPARATOR: &str = if cfg!(windows) { ";" } else { ":" };
+
 /// Prepend `dirs` to the current process `PATH`, most significant first.
 ///
 /// A directory holding the platform path delimiter is rejected rather than
@@ -30,16 +36,14 @@ pub(crate) struct BadPathDir {
 /// `dlx`, `with`, and the shim dispatcher — goes through here, so they
 /// cannot drift apart on that.
 pub(crate) fn prepend_dirs_to_path(dirs: &[PathBuf]) -> Result<OsString, BadPathDir> {
-    let delimiter = if cfg!(windows) { ';' } else { ':' };
-    let separator = if cfg!(windows) { ";" } else { ":" };
     let mut path = OsString::new();
     for dir in dirs {
         let displayed = dir.to_string_lossy();
-        if displayed.contains(delimiter) {
-            return Err(BadPathDir { dir: displayed.into_owned(), delimiter });
+        if displayed.contains(PATH_DELIMITER) {
+            return Err(BadPathDir { dir: displayed.into_owned(), delimiter: PATH_DELIMITER });
         }
         if !path.is_empty() {
-            path.push(separator);
+            path.push(PATH_SEPARATOR);
         }
         path.push(dir);
     }
@@ -47,7 +51,7 @@ pub(crate) fn prepend_dirs_to_path(dirs: &[PathBuf]) -> Result<OsString, BadPath
         && !current.is_empty()
     {
         if !path.is_empty() {
-            path.push(separator);
+            path.push(PATH_SEPARATOR);
         }
         path.push(current);
     }

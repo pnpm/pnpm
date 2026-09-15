@@ -20,7 +20,13 @@ fn try_read_returns_manifest_when_present() {
     write_manifest(tmp.path(), r#"{"name": "alpha", "version": "1.2.3"}"#);
     let result = try_read_project_manifest(tmp.path()).unwrap().unwrap();
     assert_eq!(result.0, "package.json");
-    assert_eq!(result.1.value().get("name").and_then(|v| v.as_str()), Some("alpha"));
+    assert_eq!(
+        result.1
+            .value()
+            .get("name")
+            .and_then(|v| v.as_str()),
+        Some("alpha"),
+    );
 }
 
 #[test]
@@ -29,7 +35,13 @@ fn try_read_returns_yaml_manifest_when_json_is_missing() {
     write_yaml_manifest(tmp.path(), "name: alpha\nversion: 1.2.3\n");
     let result = try_read_project_manifest(tmp.path()).unwrap().unwrap();
     assert_eq!(result.0, "package.yaml");
-    assert_eq!(result.1.value().get("name").and_then(|v| v.as_str()), Some("alpha"));
+    assert_eq!(
+        result.1
+            .value()
+            .get("name")
+            .and_then(|v| v.as_str()),
+        Some("alpha"),
+    );
 }
 
 #[test]
@@ -39,7 +51,13 @@ fn try_read_prefers_json_over_yaml() {
     write_yaml_manifest(tmp.path(), "name: yaml\nversion: 1.2.3\n");
     let result = try_read_project_manifest(tmp.path()).unwrap().unwrap();
     assert_eq!(result.0, "package.json");
-    assert_eq!(result.1.value().get("name").and_then(|v| v.as_str()), Some("json"));
+    assert_eq!(
+        result.1
+            .value()
+            .get("name")
+            .and_then(|v| v.as_str()),
+        Some("json"),
+    );
 }
 
 #[test]
@@ -86,7 +104,13 @@ fn read_exact_accepts_package_json() {
     let path = tmp.path().join("package.json");
     fs::write(&path, r#"{"name": "beta", "version": "0.1.0"}"#).unwrap();
     let manifest = read_exact_project_manifest(&path).unwrap();
-    assert_eq!(manifest.value().get("name").and_then(|v| v.as_str()), Some("beta"));
+    assert_eq!(
+        manifest
+            .value()
+            .get("name")
+            .and_then(|v| v.as_str()),
+        Some("beta"),
+    );
 }
 
 #[test]
@@ -95,7 +119,13 @@ fn read_exact_accepts_package_yaml() {
     let path = tmp.path().join("package.yaml");
     fs::write(&path, "name: beta\nversion: 0.1.0\n").unwrap();
     let manifest = read_exact_project_manifest(&path).unwrap();
-    assert_eq!(manifest.value().get("name").and_then(|v| v.as_str()), Some("beta"));
+    assert_eq!(
+        manifest
+            .value()
+            .get("name")
+            .and_then(|v| v.as_str()),
+        Some("beta"),
+    );
 }
 
 /// A leading UTF-8 BOM is accepted in every manifest format, the same as

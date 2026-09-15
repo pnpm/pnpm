@@ -2,7 +2,7 @@ use super::DirCloneCache;
 use pnpm_config::{Config, NodeLinker, PackageImportMethod};
 
 #[test]
-fn eligible_only_for_isolated_clone_capable_local_virtual_store() {
+fn eligible_for_clone_capable_local_materialization() {
     let mut config = Config { enable_global_virtual_store: false, ..Config::default() };
     for method in
         [PackageImportMethod::Auto, PackageImportMethod::Clone, PackageImportMethod::CloneOrCopy]
@@ -13,7 +13,11 @@ fn eligible_only_for_isolated_clone_capable_local_virtual_store() {
             cfg!(target_os = "macos"),
             "clone-capable method {method:?} must be eligible exactly on macOS",
         );
-        assert!(!DirCloneCache::eligible(&config, NodeLinker::Hoisted));
+        assert_eq!(
+            DirCloneCache::eligible(&config, NodeLinker::Hoisted),
+            cfg!(target_os = "macos"),
+            "the hoisted linker clones into `node_modules` with {method:?}",
+        );
     }
     for method in [PackageImportMethod::Hardlink, PackageImportMethod::Copy] {
         config.package_import_method = method;

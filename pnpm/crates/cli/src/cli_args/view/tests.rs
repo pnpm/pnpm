@@ -1,10 +1,10 @@
+use super::{render_fields, render_summary};
+use crate::cli_args::view::render::{
+    bin_summary, format_bytes, format_field_value, format_person, format_time_ago_since,
+    get_nested_property, parse_date, published_info, publisher,
+};
 use chrono::{DateTime, Utc};
 use serde_json::{Value, json};
-
-use super::{
-    bin_summary, format_bytes, format_field_value, format_person, format_time_ago_since,
-    get_nested_property, parse_date, published_info, publisher, render_fields, render_summary,
-};
 
 fn utc(rfc3339: &str) -> DateTime<Utc> {
     DateTime::parse_from_rfc3339(rfc3339).expect("valid timestamp").with_timezone(&Utc)
@@ -161,7 +161,11 @@ fn render_fields_multi_text_formats_by_type() {
     // An absent field renders as `field = ` with an empty value.
     let with_absent = ["missing".to_string(), "name".to_string()];
     let out2 = render_fields(&info, &with_absent, false);
-    assert!(out2.lines().any(|line| line == "missing = "), "{out2}");
+    assert!(
+        out2.lines()
+            .any(|line| line == "missing = "),
+        "{out2}",
+    );
 }
 
 #[test]

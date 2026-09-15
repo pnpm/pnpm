@@ -10,7 +10,13 @@ fn summary(
 ) -> Arc<MissingSummary> {
     Arc::new(MissingSummary {
         own: own.map(|(pkg_id, names)| {
-            (pkg_id.to_string(), names.iter().map(|name| (*name).to_string()).collect())
+            (
+                pkg_id.to_string(),
+                names
+                    .iter()
+                    .map(|name| (*name).to_string())
+                    .collect(),
+            )
         }),
         children,
     })
@@ -20,7 +26,11 @@ fn names_of<'a>(
     index: &'a rustc_hash::FxHashMap<&str, super::MissingNames<'_>>,
     pkg_id: &str,
 ) -> HashSet<&'a str> {
-    index.get(pkg_id).expect("package reported missing peers").iter().collect()
+    index
+        .get(pkg_id)
+        .expect("package reported missing peers")
+        .iter()
+        .collect()
 }
 
 #[test]

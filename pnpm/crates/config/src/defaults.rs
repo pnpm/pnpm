@@ -53,7 +53,11 @@ fn default_store_dir_windows(home_dir: &Path, current_dir: &Path) -> PathBuf {
         get_drive_letter(home_dir).expect("home dir is an absolute path with drive letter");
 
     if current_drive == home_drive {
-        return home_dir.join("AppData/Local/pnpm/store");
+        return home_dir
+            .join("AppData")
+            .join("Local")
+            .join("pnpm")
+            .join("store");
     }
 
     PathBuf::from(format!(r"{current_drive}:\.pnpm-store"))
@@ -77,6 +81,11 @@ fn default_store_dir_windows(home_dir: &Path, current_dir: &Path) -> PathBuf {
 /// re-resolution a workspace on a separate case-sensitive volume
 /// would land in the case-insensitive home store, breaking tools
 /// that compare canonicalised file paths (typescript-eslint, for one).
+///
+/// Like [`default_pnpm_home_dir`] and [`default_cache_dir`], every
+/// non-Windows platform is treated as Unix here: the default is
+/// `~/.local/share/pnpm/store` on Linux, BSD, and every other
+/// Unix-like host, and `~/Library/pnpm/store` on macOS.
 pub fn default_store_dir<Sys>() -> StoreDir
 where
     Sys: EnvVar + GetHomeDir + GetCurrentDir,
@@ -87,7 +96,10 @@ where
     }
 
     if let Some(xdg_data_home) = Sys::var("XDG_DATA_HOME") {
-        return PathBuf::from(xdg_data_home).join("pnpm").join("store").into();
+        return PathBuf::from(xdg_data_home)
+            .join("pnpm")
+            .join("store")
+            .into();
     }
 
     // Using ~ (tilde) for defining home path is not supported in Rust and
@@ -101,10 +113,18 @@ where
     }
 
     // <https://doc.rust-lang.org/std/env/consts/constant.OS.html>
-    match env::consts::OS {
-        "linux" => home_dir.join(".local/share/pnpm/store").into(),
-        "macos" => home_dir.join("Library/pnpm/store").into(),
-        _ => panic!("unsupported operating system: {}", env::consts::OS),
+    store_dir_for_os(&home_dir, env::consts::OS).into()
+}
+
+/// Takes the OS as a parameter so unit tests can drive platforms no CI
+/// runner builds on, such as FreeBSD.
+///
+/// Windows never reaches here: [`default_store_dir`] returns through the
+/// drive-letter logic first.
+fn store_dir_for_os(home_dir: &Path, os: &str) -> PathBuf {
+    match os {
+        "macos" => home_dir.join("Library/pnpm/store"),
+        _ => home_dir.join(".local/share/pnpm/store"),
     }
 }
 
@@ -232,17 +252,21 @@ where
     let home_dir = Sys::home_dir().expect("Home directory is not available");
     match env::consts::OS {
         "macos" => home_dir.join("Library/Caches/pnpm"),
-        "windows" => Sys::var("LOCALAPPDATA").map_or_else(
-            || home_dir.join(".pnpm-cache"),
-            |local_app_data| PathBuf::from(local_app_data).join("pnpm-cache"),
-        ),
+        "windows" => Sys::var("LOCALAPPDATA")
+            .map_or_else(
+                || home_dir.join(".pnpm-cache"),
+                |local_app_data| PathBuf::from(local_app_data).join("pnpm-cache"),
+            ),
         _ => home_dir.join(".cache/pnpm"),
     }
 }
 
 pub fn default_virtual_store_dir() -> PathBuf {
     // TODO: find directory with package.json
-    env::current_dir().expect("current directory is unavailable").join("node_modules/.pnpm")
+    env::current_dir()
+        .expect("current directory is unavailable")
+        .join("node_modules")
+        .join(".pnpm")
 }
 
 /// Default for `enableGlobalVirtualStore`: `false` — every project keeps
@@ -327,7 +351,7 @@ pub fn default_fetch_retry_maxtimeout() -> u64 {
 /// can't drift apart. `pnpm bump` keeps this constant in sync with the
 /// version of the npm wrapper package (`pnpm/npm/pnpm/package.json`);
 /// the release workflow verifies the two match before building.
-pub const PNPM_VERSION: &str = "12.1.0";
+pub const PNPM_VERSION: &str = "12.4.2";
 
 /// The command that installs pnpm with the standalone script, as documented
 /// at <https://pnpm.io/installation>: the PowerShell form on Windows, the
@@ -408,7 +432,9 @@ pub fn default_workspace_concurrency() -> u32 {
 /// Available CPU parallelism. Floors at 1.
 #[must_use]
 pub fn available_parallelism() -> u32 {
-    std::thread::available_parallelism().map_or(1, |count| count.get() as u32).max(1)
+    std::thread::available_parallelism()
+        .map_or(1, |count| count.get() as u32)
+        .max(1)
 }
 
 /// Resolve `childConcurrency` from a possibly-negative yaml value

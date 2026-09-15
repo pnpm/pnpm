@@ -3,8 +3,6 @@
 //! `pnpm-auth-commands`; this module is the thin CLI adapter that resolves
 //! config into [`LoginOptions`].
 
-use std::path::Path;
-
 use clap::Args;
 use derive_more::{Display, Error};
 use miette::{Diagnostic, IntoDiagnostic};
@@ -12,6 +10,7 @@ use pnpm_auth_commands::login::{Host as AuthHost, LoginHost, LoginOptions, login
 use pnpm_config::Config;
 use pnpm_network::ThrottledClient;
 use pnpm_reporter::Reporter;
+use std::path::Path;
 
 /// Log in to an npm registry.
 #[derive(Debug, Args)]
@@ -79,7 +78,9 @@ impl LoginArgs {
         LoginOptions {
             // `--registry` wins; otherwise the resolved registry, which already
             // folds in `.npmrc` and the npmjs default.
-            registry: self.registry.as_deref().or(Some(config.registry.as_str())),
+            registry: self.registry
+                .as_deref()
+                .or(Some(config.registry.as_str())),
             scope: self.scope.as_deref().or(config.scope.as_deref()),
             config_dir,
             fetch_retries: config.fetch_retries,

@@ -92,16 +92,21 @@ fn with_forwards_subsequent_args_to_the_child_pnpm() {
 }
 
 #[test]
-fn with_current_dispatches_the_inner_command_after_a_global_boolean_flag() {
-    for flag in ["--color", "--yes"] {
+fn with_current_dispatches_the_inner_command_after_global_options() {
+    for global in [vec!["--color"], vec!["--yes"], vec!["--workspace-root"], vec!["-yC", "."]] {
         let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
         write_manifest(&workspace, &serde_json::json!({ "name": "project", "version": "1.0.0" }));
 
+        let args: Vec<&str> = global
+            .iter()
+            .copied()
+            .chain(["with", "current", "--version"])
+            .collect();
         let output = test_command(pacquet, root.path())
-            .with_args([flag, "with", "current", "--version"])
+            .with_args(args)
             .output()
-            .expect("run pacquet with current --version after a global boolean flag");
-        dbg!(&output);
+            .expect("run pacquet with current --version after a global option");
+        dbg!(&global, &output);
         assert_success(&output);
         assert_semver_like(stdout(&output).trim());
 
@@ -113,8 +118,10 @@ fn with_current_dispatches_the_inner_command_after_a_global_boolean_flag() {
 fn with_fails_when_no_spec_is_provided() {
     let CommandTempCwd { pacquet, root, .. } = CommandTempCwd::init();
 
-    let output =
-        test_command(pacquet, root.path()).with_args(["with"]).output().expect("run pacquet with");
+    let output = test_command(pacquet, root.path())
+        .with_args(["with"])
+        .output()
+        .expect("run pacquet with");
     dbg!(&output);
     assert!(!output.status.success(), "pacquet with (no spec) should fail");
 
@@ -126,8 +133,13 @@ fn with_fails_when_no_spec_is_provided() {
 
 #[test]
 fn with_version_downloads_and_runs_the_specified_pnpm_version() {
-    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
-        CommandTempCwd::init().add_mocked_registry();
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
     write_manifest(&workspace, &serde_json::json!({ "name": "project", "version": "1.0.0" }));
 
@@ -149,8 +161,13 @@ fn with_version_downloads_and_runs_the_specified_pnpm_version() {
 
 #[test]
 fn with_version_ignores_the_package_manager_pin_and_uses_the_requested_version() {
-    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
-        CommandTempCwd::init().add_mocked_registry();
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
     write_manifest(&workspace, &serde_json::json!({ "packageManager": "pnpm@9.1.0" }));
 
@@ -228,7 +245,10 @@ fn assert_semver_like(value: &str) {
                 .is_some_and(|part| !part.is_empty() && part.chars().all(|c| c.is_ascii_digit()))
             && parts
                 .next()
-                .is_some_and(|part| part.chars().next().is_some_and(|c| c.is_ascii_digit())),
+                .is_some_and(|part| part
+                    .chars()
+                    .next()
+                    .is_some_and(|c| c.is_ascii_digit())),
         "expected a semver-looking version, got {value:?}",
     );
 }

@@ -7,16 +7,6 @@
 //! lives in the CLI crate, alongside the install pipeline it needs —
 //! mirroring how pnpm's `global.commands` sit above `installing.deps-installer`.
 
-mod cache_key;
-mod check_bin_conflicts;
-mod global_package_dir;
-mod list;
-mod scan;
-
-use pnpm_package_manifest::{convert_engines_runtime_to_dependencies, parse_manifest};
-use serde_json::Value;
-use std::path::Path;
-
 pub use cache_key::create_global_cache_key;
 pub use check_bin_conflicts::{
     CheckGlobalBinConflictsError, GlobalBinConflictError, bin_slot_exists,
@@ -30,6 +20,16 @@ pub use scan::{
     read_direct_dependencies, read_direct_dependency_aliases, read_installed_packages,
     scan_global_packages,
 };
+
+mod cache_key;
+mod check_bin_conflicts;
+mod global_package_dir;
+mod list;
+mod scan;
+
+use pnpm_package_manifest::{convert_engines_runtime_to_dependencies, parse_manifest};
+use serde_json::Value;
+use std::path::Path;
 
 /// Read and parse a `package.json` from `dir`, returning `None` on any
 /// read or parse failure. Mirrors pnpm's `safeReadPackageJsonFromDir`.

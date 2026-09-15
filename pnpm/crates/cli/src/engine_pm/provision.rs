@@ -1,11 +1,6 @@
 //! Resolve a package manager's version specifier and materialize it,
 //! returning what a caller needs to run it.
 
-use miette::Context;
-use pnpm_config::Config;
-use pnpm_reporter::Reporter;
-use std::path::{Path, PathBuf};
-
 use crate::{
     engine_pm::{
         channel::{BinaryChannel, Channel, EnginePackages, PackageManager},
@@ -15,6 +10,10 @@ use crate::{
     },
     shim_dispatch::materialize_runtime,
 };
+use miette::Context;
+use pnpm_config::Config;
+use pnpm_reporter::Reporter;
+use std::path::{Path, PathBuf};
 
 /// The Node.js line a JavaScript package manager runs on when the host has
 /// no `node` of its own. LTS is the conservative pick, and — being a stable
@@ -89,10 +88,12 @@ async fn provision_binary(
     };
     let program =
         materialize_runtime(&config.state_dir, name.to_string(), version_spec.to_string()).await?;
-    let bin_dir = program.parent().ok_or_else(|| EngineError::MissingEngineBin {
-        name,
-        dir: program.display().to_string(),
-    })?;
+    let bin_dir = program
+        .parent()
+        .ok_or_else(|| EngineError::MissingEngineBin {
+            name,
+            dir: program.display().to_string(),
+        })?;
     Ok(ProvisionedEngine { bin_dirs: vec![bin_dir.to_path_buf()], program })
 }
 
@@ -119,10 +120,11 @@ async fn provision_from_registry<Reporter: self::Reporter + 'static>(
     ))
     .await?;
 
-    let program = engine_bin(&bin_dir, name).ok_or_else(|| EngineError::MissingEngineBin {
-        name,
-        dir: bin_dir.display().to_string(),
-    })?;
+    let program = engine_bin(&bin_dir, name)
+        .ok_or_else(|| EngineError::MissingEngineBin {
+            name,
+            dir: bin_dir.display().to_string(),
+        })?;
 
     let mut bin_dirs = vec![bin_dir];
     let packages = pm

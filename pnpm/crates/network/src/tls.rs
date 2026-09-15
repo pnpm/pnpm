@@ -27,6 +27,7 @@
 //! * The default trust store is the platform's, but pacquet falls back
 //!   to the Mozilla roots bundled into the binary when the platform
 //!   verifier cannot be built at all (see `TrustRoots` in `lib.rs`).
+//!   Android always uses bundled roots because the CLI has no JVM.
 //!   Node ships those same roots, so the fallback keeps installs
 //!   working on a machine with no system trust store, exactly as
 //!   pnpm-on-Node does.
@@ -49,7 +50,8 @@ pub struct TlsConfig {
     /// `ca` key (inline PEM, possibly multiple via array shape) or by
     /// reading `cafile` (which gets split on
     /// `-----END CERTIFICATE-----`). `cafile`-not-found is silently
-    /// treated as unset.
+    /// treated as unset, and so is an entry that carries no readable
+    /// certificate.
     pub ca: Vec<String>,
 
     /// PEM-encoded client certificate, when client-cert auth is
@@ -86,23 +88,20 @@ pub struct TlsConfig {
 /// Build-time error returned by [`crate::ThrottledClient::for_installs`]
 /// when configured TLS material is invalid.
 ///
-/// pnpm does not define `ERR_PNPM_INVALID_CA` / `ERR_PNPM_INVALID_CERT`
-/// / `ERR_PNPM_INVALID_KEY` error codes — invalid PEM surfaces as raw
-/// `tls.connect` errors at request time.
-/// Pacquet validates eagerly because reqwest's `Certificate::from_pem`
-/// / `Identity::from_pem` return errors up-front and pushing that to
-/// per-request time would silently degrade every install behind a
-/// broken `ca`. Diagnostic messages are plain prose; no code
-/// attribute is emitted so reviewers can see at a glance that this is
-/// a pacquet-only diagnostic, not a pnpm error code.
+/// pnpm does not define `ERR_PNPM_INVALID_CERT` / `ERR_PNPM_INVALID_KEY`
+/// error codes — invalid PEM surfaces as a raw `tls.createSecureContext`
+/// throw. Pacquet reports the same failure up-front because reqwest's
+/// `Identity::from_pem` returns the error there. Diagnostic messages
+/// are plain prose; no code attribute is emitted so reviewers can see
+/// at a glance that this is a pacquet-only diagnostic, not a pnpm
+/// error code.
+///
+/// A `ca` entry is not part of this surface: Node ignores CA material
+/// it cannot read, so pacquet drops the entry rather than fail the
+/// install (pnpm/pnpm#14646).
 #[derive(Debug, derive_more::Display, derive_more::Error, miette::Diagnostic)]
 #[non_exhaustive]
 pub enum TlsError {
-    /// `Certificate::from_pem` rejected one of the `ca` entries.
-    /// `index` is the 0-based position within the resolved CA list.
-    #[display("Invalid CA certificate (entry {index}): {reason}")]
-    InvalidCa { index: usize, reason: String },
-
     /// `Identity::from_pem` rejected the concatenated `cert` +
     /// `key` PEM pair. Rustls accepts PKCS#1, PKCS#8, and EC keys —
     /// landing here means the bytes aren't a valid PEM in any of
@@ -188,7 +187,10 @@ impl PerRegistryTls {
     /// entries.
     #[must_use]
     pub fn from_map(by_uri: HashMap<String, RegistryTls>) -> Self {
-        let by_uri: HashMap<_, _> = by_uri.into_iter().filter(|(_, v)| !v.is_empty()).collect();
+        let by_uri: HashMap<_, _> = by_uri
+            .into_iter()
+            .filter(|(_, v)| !v.is_empty())
+            .collect();
         PerRegistryTls { by_uri: PerRegistryMap::from_map(by_uri) }
     }
 
@@ -235,7 +237,11 @@ impl PerRegistryTls {
 
 impl<Value> PerRegistryMap<Value> {
     fn from_map(by_uri: HashMap<String, Value>) -> Self {
-        let max_parts = by_uri.keys().map(|key| key.split('/').count()).max().unwrap_or(0);
+        let max_parts = by_uri
+            .keys()
+            .map(|key| key.split('/').count())
+            .max()
+            .unwrap_or(0);
         Self { by_uri, max_parts }
     }
 
@@ -264,20 +270,8 @@ impl<Value> PerRegistryMap<Value> {
         {
             return Some((key.as_str(), value));
         }
-        // Step 4: walk progressively shorter prefixes of the
-        // nerf-darted form. `nerf` is `//host[:port]/path/`, splitting
-        // on `/` yields `["", "", "host[:port]", "path", "", ""]` or
-        // similar; the loop iterates from the longest meaningful
-        // prefix down to `//host[:port]/`.
-        if !nerf.is_empty() {
-            let parts: Vec<&str> = nerf.split('/').collect();
-            let upper = parts.len().min(self.max_parts);
-            for i in (3..upper).rev() {
-                let key = format!("{}/", parts[..i].join("/"));
-                if let Some((found, value)) = self.by_uri.get_key_value(key.as_str()) {
-                    return Some((found.as_str(), value));
-                }
-            }
+        if let Some(found) = self.pick_by_nerf_prefix(&nerf) {
+            return Some(found);
         }
         // Steps 3 + 5: strip any port from the URL and retry. We do
         // this *after* the nerf-dart walk because the walk already
@@ -291,6 +285,26 @@ impl<Value> PerRegistryMap<Value> {
         None
     }
 
+    /// Step 4: walk progressively shorter prefixes of the nerf-darted form.
+    ///
+    /// `nerf` is `//host[:port]/path/`, so splitting on `/` yields
+    /// `["", "", "host[:port]", "path", "", ""]` or similar; the walk runs from
+    /// the longest meaningful prefix down to `//host[:port]/`.
+    fn pick_by_nerf_prefix(&self, nerf: &str) -> Option<(&str, &Value)> {
+        if nerf.is_empty() {
+            return None;
+        }
+        let parts: Vec<&str> = nerf.split('/').collect();
+        let upper = parts.len().min(self.max_parts);
+        for count in (3..upper).rev() {
+            let key = format!("{}/", parts[..count].join("/"));
+            if let Some((found, value)) = self.by_uri.get_key_value(key.as_str()) {
+                return Some((found.as_str(), value));
+            }
+        }
+        None
+    }
+
     fn get(&self, key: &str) -> Option<&Value> {
         self.by_uri.get(key)
     }
@@ -299,8 +313,7 @@ impl<Value> PerRegistryMap<Value> {
         &self,
         mut map_value: impl FnMut(&Value) -> Result<Mapped, MapError>,
     ) -> Result<PerRegistryMap<Mapped>, MapError> {
-        let by_uri = self
-            .by_uri
+        let by_uri = self.by_uri
             .iter()
             .map(|(key, value)| Ok((key.clone(), map_value(value)?)))
             .collect::<Result<_, MapError>>()?;
@@ -322,28 +335,37 @@ fn strip_port(url: &str) -> String {
     let Some((scheme, rest)) = url.split_once("://") else {
         return url.to_string();
     };
-    let (authority, path_tail) = match rest.split_once('/') {
-        Some((a, p)) => (a, Some(p)),
-        None => (rest, None),
-    };
+    let (authority, path_tail) = split_authority(rest);
     // Skip past any `user[:pw]@` userinfo. The port-bearing colon is
     // the one in the host segment, not in the userinfo.
     let host_segment = authority.rsplit_once('@').map_or(authority, |(_, h)| h);
     let userinfo = authority.strip_suffix(host_segment).unwrap_or("");
-    // IPv6 literals like `[::1]:8080` have `:` inside the brackets;
-    // find the port colon only *after* a closing `]` when present.
-    let port_colon = if let Some(bracket_end) = host_segment.find(']') {
-        host_segment[bracket_end..].find(':').map(|offset| bracket_end + offset)
-    } else {
-        host_segment.find(':')
-    };
-    let Some(idx) = port_colon else {
+    let Some(idx) = port_colon_index(host_segment) else {
         return url.to_string();
     };
     let host_no_port = &host_segment[..idx];
     match path_tail {
         Some(path) => format!("{scheme}://{userinfo}{host_no_port}/{path}"),
         None => format!("{scheme}://{userinfo}{host_no_port}/"),
+    }
+}
+
+fn split_authority(rest: &str) -> (&str, Option<&str>) {
+    match rest.split_once('/') {
+        Some((authority, path)) => (authority, Some(path)),
+        None => (rest, None),
+    }
+}
+
+/// IPv6 literals like `[::1]:8080` have `:` inside the brackets; the port
+/// colon is found only after a closing `]` when present.
+fn port_colon_index(host_segment: &str) -> Option<usize> {
+    if let Some(bracket_end) = host_segment.find(']') {
+        host_segment[bracket_end..]
+            .find(':')
+            .map(|offset| bracket_end + offset)
+    } else {
+        host_segment.find(':')
     }
 }
 

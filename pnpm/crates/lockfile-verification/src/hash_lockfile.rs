@@ -19,7 +19,6 @@
 use std::io;
 
 use pnpm_lockfile::Lockfile;
-use serde_json::{Map, Value};
 use sha2::{Digest, Sha256};
 
 /// Sha256 hex digest of the lockfile content.
@@ -33,39 +32,11 @@ pub fn hash_lockfile(lockfile: &Lockfile) -> String {
     let mut value = serde_json::to_value(lockfile)
         .expect("Lockfile serializes; serde_json::Value supports all JSON-shape variants");
     pnpm_lockfile::prune_time(&mut value);
-    let normalized = normalize(value);
+    value.sort_all_objects();
     let mut hasher = HashWriter(Sha256::new());
-    serde_json::to_writer(&mut hasher, &normalized)
+    serde_json::to_writer(&mut hasher, &value)
         .expect("HashWriter is infallible; serde_json::to_writer cannot fail otherwise");
     format!("{:x}", hasher.0.finalize())
-}
-
-/// Walk a [`Value`] and rebuild every map with sorted keys. Arrays
-/// are left in place — the lockfile's only array-shaped fields are
-/// `ignoredOptionalDependencies` (which is semantically a set the
-/// install treats as ordered for diff stability) and dependency-name
-/// lists inside individual entries (where order matches the manifest
-/// section it came from).
-///
-/// `serde_json::Map` is backed by `IndexMap` under the
-/// `preserve_order` workspace feature, so a fresh `Map` populated in
-/// sorted-key order serialises in that order.
-fn normalize(value: Value) -> Value {
-    match value {
-        Value::Object(map) => {
-            let mut keys: Vec<String> = map.keys().cloned().collect();
-            keys.sort();
-            let mut sorted = Map::with_capacity(keys.len());
-            for key in keys {
-                let inner =
-                    map.get(&key).cloned().expect("key came from the same map we're walking");
-                sorted.insert(key, normalize(inner));
-            }
-            Value::Object(sorted)
-        }
-        Value::Array(items) => Value::Array(items.into_iter().map(normalize).collect()),
-        other => other,
-    }
 }
 
 /// `io::Write` adapter that feeds bytes into a [`Sha256`] as they

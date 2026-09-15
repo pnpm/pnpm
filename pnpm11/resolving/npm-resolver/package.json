@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/resolving.npm-resolver",
-  "version": "1104.1.0",
+  "version": "1104.1.2",
   "description": "Resolver for npm-hosted packages",
   "keywords": [
     "pnpm",
@@ -55,7 +55,6 @@
     "@pnpm/workspace.range-resolver": "workspace:*",
     "@pnpm/workspace.spec-parser": "workspace:*",
     "@zkochan/retry": "catalog:",
-    "encode-registry": "catalog:",
     "lru-cache": "catalog:",
     "normalize-path": "catalog:",
     "p-limit": "catalog:",

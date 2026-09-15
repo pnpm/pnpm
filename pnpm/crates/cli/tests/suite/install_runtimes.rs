@@ -31,7 +31,10 @@ fn installs_node_deno_and_bun_then_reinstalls_them_offline() {
     write_runtime_manifest(&workspace, &fixtures);
     write_runtime_lockfile(&workspace, &fixtures);
 
-    command(&workspace).with_args(["install", "--frozen-lockfile"]).assert().success();
+    command(&workspace)
+        .with_args(["install", "--frozen-lockfile"])
+        .assert()
+        .success();
     assert_installed(&workspace, &fixtures);
     let node_root = workspace.join("node_modules/node");
     let node_extras = if host_platform() == "win32" {
@@ -56,7 +59,10 @@ fn installs_node_deno_and_bun_then_reinstalls_them_offline() {
     }
 
     fs::remove_dir_all(workspace.join("node_modules")).unwrap();
-    command(&workspace).with_args(["install", "--frozen-lockfile", "--offline"]).assert().success();
+    command(&workspace)
+        .with_args(["install", "--frozen-lockfile", "--offline"])
+        .assert()
+        .success();
     assert_installed(&workspace, &fixtures);
     for fixture in &fixtures {
         fixture.archive_mock.assert();
@@ -108,7 +114,12 @@ fn installs_node_runtime_for_the_requested_target_architecture() {
         .assert()
         .success();
     let expected_bin = if target_os == "win32" { "node.exe" } else { "bin/node" };
-    assert!(workspace.join("node_modules/node").join(expected_bin).exists());
+    assert!(
+        workspace
+            .join("node_modules/node")
+            .join(expected_bin)
+            .exists(),
+    );
 }
 
 #[test]
@@ -127,7 +138,10 @@ fn installs_node_runtime_from_the_rc_channel() {
     )
     .unwrap();
 
-    command(&workspace).with_arg("install").assert().success();
+    command(&workspace)
+        .with_arg("install")
+        .assert()
+        .success();
     assert!(workspace.join("node_modules/node/package.json").exists());
     assert!(fs::read_to_string(workspace.join("pnpm-lock.yaml")).unwrap().contains(version));
 }
@@ -151,7 +165,10 @@ fn installs_node_runtime_from_an_authenticated_mirror() {
     )
     .unwrap();
 
-    command(&workspace).with_arg("install").assert().success();
+    command(&workspace)
+        .with_arg("install")
+        .assert()
+        .success();
     assert!(workspace.join("node_modules/node/package.json").exists());
 }
 
@@ -174,9 +191,15 @@ fn update_latest_keeps_runtime_dependency_on_the_runtime_resolver() {
         json!({ "dependencies": { "node": format!("runtime:{version}") } }).to_string(),
     )
     .unwrap();
-    command(&workspace).with_arg("install").assert().success();
+    command(&workspace)
+        .with_arg("install")
+        .assert()
+        .success();
 
-    command(&workspace).with_args(["update", "--latest"]).assert().success();
+    command(&workspace)
+        .with_args(["update", "--latest"])
+        .assert()
+        .success();
 
     let manifest = fs::read_to_string(workspace.join("package.json")).unwrap();
     assert!(
@@ -202,7 +225,10 @@ fn fresh_install_with_no_runtime_resolves_but_does_not_fetch_the_runtime() {
     .unwrap();
 
     // No pnpm-lock.yaml, so the install takes the fresh-resolve path.
-    command(&workspace).with_args(["install", "--no-runtime"]).assert().success();
+    command(&workspace)
+        .with_args(["install", "--no-runtime"])
+        .assert()
+        .success();
 
     let lockfile = fs::read_to_string(workspace.join("pnpm-lock.yaml")).unwrap();
     assert!(
@@ -219,7 +245,10 @@ fn fresh_install_with_no_runtime_resolves_but_does_not_fetch_the_runtime() {
     }
     // A follow-up plain install treats the modules state as up to date
     // and does not restore the runtime — same as the TypeScript CLI.
-    command(&workspace).with_arg("install").assert().success();
+    command(&workspace)
+        .with_arg("install")
+        .assert()
+        .success();
     assert!(!workspace.join("node_modules/node").exists());
     assert!(!archive.matched(), "the runtime archive must never be downloaded");
 }
@@ -258,7 +287,10 @@ fn installs_node_runtime_declared_by_a_dependency_engine() {
     )
     .unwrap();
 
-    command(&workspace).with_arg("install").assert().success();
+    command(&workspace)
+        .with_arg("install")
+        .assert()
+        .success();
     let lockfile = fs::read_to_string(workspace.join("pnpm-lock.yaml")).unwrap();
     assert!(
         lockfile.contains(format!("node@runtime:{version}").as_str()),
@@ -275,7 +307,10 @@ fn runtime_on_fail_download_reifies_the_manifest_runtime() {
     write_devengines_manifest(&workspace, fixture.version, None);
     write_runtime_lockfile_for_group(&workspace, std::slice::from_ref(&fixture), "devDependencies");
 
-    command(&workspace).with_args(["install", "--frozen-lockfile"]).assert().success();
+    command(&workspace)
+        .with_args(["install", "--frozen-lockfile"])
+        .assert()
+        .success();
     assert_installed(&workspace, std::slice::from_ref(&fixture));
 }
 
@@ -288,7 +323,10 @@ fn devengines_runtime_with_download_is_installed() {
     write_devengines_manifest(&workspace, fixture.version, Some("download"));
     write_runtime_lockfile_for_group(&workspace, std::slice::from_ref(&fixture), "devDependencies");
 
-    command(&workspace).with_args(["install", "--frozen-lockfile"]).assert().success();
+    command(&workspace)
+        .with_args(["install", "--frozen-lockfile"])
+        .assert()
+        .success();
     assert_installed(&workspace, std::slice::from_ref(&fixture));
 }
 
@@ -334,7 +372,11 @@ fn downloaded_node_runtime_is_available_to_dependency_lifecycle_scripts() {
     fs::create_dir(&empty_path).unwrap();
     std::os::unix::fs::symlink("/bin/sh", empty_path.join("sh")).unwrap();
 
-    command(&workspace).with_env("PATH", &empty_path).with_arg("install").assert().success();
+    command(&workspace)
+        .with_env("PATH", &empty_path)
+        .with_arg("install")
+        .assert()
+        .success();
     let lifecycle_marker = workspace.join("node_modules/dependency/lifecycle-ran");
     assert!(lifecycle_marker.exists(), "missing lifecycle marker: {lifecycle_marker:?}");
 
@@ -353,7 +395,10 @@ fn devengines_runtime_without_download_is_not_installed() {
     let workspace = prepare_workspace(&root, "");
     write_devengines_manifest(&workspace, "24.0.0", None);
 
-    command(&workspace).with_args(["install", "--lockfile-only"]).assert().success();
+    command(&workspace)
+        .with_args(["install", "--lockfile-only"])
+        .assert()
+        .success();
     let lockfile = fs::read_to_string(workspace.join("pnpm-lock.yaml")).unwrap();
     assert!(!lockfile.contains("node@runtime:"), "lockfile was:\n{lockfile}");
 }
@@ -376,7 +421,10 @@ fn runtime_on_fail_ignore_removes_the_synthesized_runtime_dependency() {
         .to_string(),
     )
     .unwrap();
-    command(&workspace).with_args(["install", "--lockfile-only"]).assert().success();
+    command(&workspace)
+        .with_args(["install", "--lockfile-only"])
+        .assert()
+        .success();
     let lockfile = fs::read_to_string(workspace.join("pnpm-lock.yaml")).unwrap();
     assert!(!lockfile.contains("node@runtime:"), "lockfile was:\n{lockfile}");
 }
@@ -404,7 +452,10 @@ fn explicit_node_version_takes_priority_over_the_manifest_runtime() {
         .to_string(),
     )
     .unwrap();
-    command(&workspace).with_arg("install").assert().success();
+    command(&workspace)
+        .with_arg("install")
+        .assert()
+        .success();
 }
 
 #[test]
@@ -445,7 +496,10 @@ fn assert_runtime_missing_offline(name: &'static str, version: &'static str) {
         json!({ "dependencies": { name: format!("runtime:{version}") } }).to_string(),
     )
     .unwrap();
-    let output = command(&workspace).with_args(["install", "--offline"]).assert().failure();
+    let output = command(&workspace)
+        .with_args(["install", "--offline"])
+        .assert()
+        .failure();
     let stderr = String::from_utf8_lossy(&output.get_output().stderr);
     assert!(
         stderr.to_ascii_lowercase().contains(name),
@@ -466,7 +520,10 @@ fn assert_runtime_bad_integrity(name: &'static str, version: &'static str) {
     fixture.resolution["variants"][0]["resolution"]["integrity"] = Value::String(bad_integrity);
     write_runtime_manifest(&workspace, std::slice::from_ref(&fixture));
     write_runtime_lockfile(&workspace, std::slice::from_ref(&fixture));
-    let output = command(&workspace).with_args(["install", "--frozen-lockfile"]).assert().failure();
+    let output = command(&workspace)
+        .with_args(["install", "--frozen-lockfile"])
+        .assert()
+        .failure();
     let stderr = String::from_utf8_lossy(&output.get_output().stderr);
     assert!(stderr.contains("Integrity check failed"), "stderr was:\n{stderr}");
 }
@@ -561,8 +618,10 @@ fn write_runtime_lockfile_for_group(
     for fixture in fixtures {
         let version = format!("runtime:{}", fixture.version);
         let key = format!("{}@{version}", fixture.name);
-        importer_dependencies
-            .insert(fixture.name.to_string(), json!({ "specifier": version, "version": version }));
+        importer_dependencies.insert(
+            fixture.name.to_string(),
+            json!({ "specifier": version, "version": version }),
+        );
         packages.insert(
             key.clone(),
             json!({
@@ -599,7 +658,13 @@ fn write_devengines_manifest(workspace: &Path, version: &str, on_fail: Option<&s
 
 fn assert_installed(workspace: &Path, fixtures: &[RuntimeFixture]) {
     for fixture in fixtures {
-        assert!(workspace.join("node_modules").join(fixture.name).join("package.json").exists());
+        assert!(
+            workspace
+                .join("node_modules")
+                .join(fixture.name)
+                .join("package.json")
+                .exists(),
+        );
         let bin_dir = workspace.join("node_modules/.bin");
         assert!(
             [
@@ -668,7 +733,9 @@ fn build_zip(name: &str, target_os: &str, prefix: Option<&str>, node_extras: boo
         let path = |relative: &str| {
             prefix.map_or_else(|| relative.to_string(), |p| format!("{p}/{relative}"))
         };
-        writer.start_file(path(runtime_bin_path(name, target_os).as_str()), options).unwrap();
+        writer
+            .start_file(path(runtime_bin_path(name, target_os).as_str()), options)
+            .unwrap();
         writer.write_all(b"runtime fixture").unwrap();
         if node_extras {
             for relative in [
@@ -678,7 +745,9 @@ fn build_zip(name: &str, target_os: &str, prefix: Option<&str>, node_extras: boo
                 "npx.cmd",
                 "corepack.cmd",
             ] {
-                writer.start_file(path(relative), options).unwrap();
+                writer
+                    .start_file(path(relative), options)
+                    .unwrap();
                 writer.write_all(b"extra").unwrap();
             }
         }

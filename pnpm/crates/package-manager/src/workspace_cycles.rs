@@ -8,7 +8,7 @@
 //! its own check in that case.
 
 use pnpm_config::{Config, LinkWorkspacePackages};
-use pnpm_deps_restorer::graph_sequencer;
+use pnpm_deps_restorer::{PathNode, graph_sequencer};
 use pnpm_reporter::{LogEvent, LogLevel, PnpmLog, Reporter};
 use pnpm_workspace::{GraphPkg, Project};
 use pnpm_workspace_projects_graph::{
@@ -30,25 +30,35 @@ use std::{
 /// unorderable, so only cycles with more than one project are returned.
 #[must_use]
 pub fn workspace_cycles<Pkg>(graph: &ProjectGraph<Pkg>) -> Option<Vec<Vec<PathBuf>>> {
-    let dirs: Vec<PathBuf> = graph.keys().cloned().collect();
-    let included: HashSet<&Path> = dirs.iter().map(PathBuf::as_path).collect();
-    let edges: HashMap<PathBuf, Vec<PathBuf>> = graph
+    // The sequencer runs over borrowed paths: a workspace-scale graph
+    // holds tens of thousands of edges, and cloning every `PathBuf`
+    // into a throwaway map cost more than the sort itself.
+    let dirs: Vec<PathNode<'_>> = graph
+        .keys()
+        .map(|dir| PathNode(dir))
+        .collect();
+    let included: HashSet<PathNode<'_>> = dirs.iter().copied().collect();
+    let edges: HashMap<PathNode<'_>, Vec<PathNode<'_>>> = graph
         .iter()
         .map(|(dir, node)| {
-            let dependencies = node
-                .dependencies
+            let dependencies = node.dependencies
                 .iter()
-                .filter(|dependency| included.contains(dependency.as_path()))
-                .cloned()
+                .map(|dependency| PathNode(dependency))
+                .filter(|dependency| included.contains(dependency))
                 .collect();
-            (dir.clone(), dependencies)
+            (PathNode(dir), dependencies)
         })
         .collect();
-    let cycles = graph_sequencer(&edges, &dirs)
-        .cycles
+    let cycles = graph_sequencer(&edges, &dirs).cycles
         .into_iter()
         .filter(|cycle| cycle.len() > 1)
-        .collect::<Vec<_>>();
+        .map(|cycle| {
+            cycle
+                .into_iter()
+                .map(|node| node.0.to_path_buf())
+                .collect()
+        })
+        .collect::<Vec<Vec<PathBuf>>>();
     (!cycles.is_empty()).then_some(cycles)
 }
 
@@ -69,7 +79,10 @@ pub fn install_scope_cycles(
         return None;
     }
     let mut graph = create_projects_graph(
-        projects.iter().map(|project| GraphPkg { project }).collect(),
+        projects
+            .iter()
+            .map(|project| GraphPkg { project })
+            .collect(),
         &CreateProjectsGraphOptions {
             link_workspace_packages: Some(
                 config.link_workspace_packages != LinkWorkspacePackages::Off,
@@ -119,14 +132,19 @@ fn render_cycles(cycles: &[Vec<PathBuf>]) -> String {
     }
     let rendered = cycles
         .iter()
-        .map(|cycle| cycle.iter().map(|dir| dir.to_string_lossy()).collect::<Vec<_>>().join(", "))
+        .map(|cycle| {
+            cycle
+                .iter()
+                .map(|dir| dir.to_string_lossy())
+                .collect::<Vec<_>>()
+                .join(", ")
+        })
         .collect::<Vec<_>>()
         .join("; ");
     format!(": {rendered}")
 }
 
 #[derive(Debug, derive_more::Display, derive_more::Error, miette::Diagnostic)]
-#[display("{message}")]
 #[diagnostic(code(ERR_PNPM_DISALLOW_WORKSPACE_CYCLES))]
 pub struct CyclicWorkspaceDependenciesError {
     #[error(not(source))]

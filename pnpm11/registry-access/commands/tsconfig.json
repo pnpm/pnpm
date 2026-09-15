@@ -55,6 +55,9 @@
       "path": "../../testing/registry-mock"
     },
     {
+      "path": "../../text/sanitize"
+    },
+    {
       "path": "../client"
     }
   ]

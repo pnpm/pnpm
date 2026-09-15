@@ -27,7 +27,7 @@ use std::{
 };
 use tokio::{
     io::{AsyncBufReadExt, AsyncWriteExt, BufReader},
-    process::{Child, ChildStdin, Command},
+    process::{Child, ChildStdin, ChildStdout, Command},
     sync::{Mutex, Semaphore, oneshot},
     time::{Duration, timeout},
 };
@@ -96,7 +96,10 @@ struct PendingEntryGuard {
 
 impl Drop for PendingEntryGuard {
     fn drop(&mut self) {
-        self.pending.lock().unwrap().remove(&self.id);
+        self.pending
+            .lock()
+            .unwrap()
+            .remove(&self.id);
     }
 }
 
@@ -151,19 +154,7 @@ impl NodeWorker {
         let stdout = child.stdout.take().expect("worker stdout is piped");
 
         let pending: PendingMap = Arc::new(StdMutex::new(HashMap::new()));
-        let pending_reader = Arc::clone(&pending);
-        let stdin_reader = Arc::clone(&stdin);
-        tokio::spawn(async move {
-            let mut lines = BufReader::new(stdout).lines();
-            while let Ok(Some(line)) = lines.next_line().await {
-                dispatch_line(&pending_reader, &stdin_reader, &line);
-            }
-            // The worker exited: fail every still-pending request so callers
-            // don't hang waiting for a response that will never arrive.
-            for (_, pending) in pending_reader.lock().unwrap().drain() {
-                let _ = pending.done.send(Err("pnpmfile worker exited".to_string()));
-            }
-        });
+        spawn_stdout_reader(stdout, Arc::clone(&pending), Arc::clone(&stdin));
 
         Ok(Arc::new(NodeWorker {
             pnpmfile,
@@ -256,9 +247,12 @@ impl NodeWorker {
     /// implement, mirroring pnpm's optional-method checks
     /// (`if (!customResolver.canResolve || !customResolver.resolve) continue`).
     pub async fn get_resolver_capabilities(&self) -> Result<Vec<ResolverCapabilities>, HookError> {
-        let value = self
-            .request("resolvers", serde_json::json!({ "target": "resolvers" }), Arc::new(|_| {}))
-            .await?;
+        let value = self.request(
+            "resolvers",
+            serde_json::json!({ "target": "resolvers" }),
+            Arc::new(|_| {}),
+        )
+        .await?;
         serde_json::from_value(value).map_err(|err| self.exec_err(err.to_string()))
     }
 
@@ -290,16 +284,16 @@ impl NodeWorker {
     /// Get the capabilities of every custom fetcher exported by the
     /// pnpmfile's `fetchers` array, in array order.
     pub async fn get_fetcher_capabilities(&self) -> Result<Vec<FetcherCapabilities>, HookError> {
-        let value = self
-            .request("fetchers", serde_json::json!({ "target": "fetchers" }), Arc::new(|_| {}))
-            .await?;
+        let value =
+            self.request("fetchers", serde_json::json!({ "target": "fetchers" }), Arc::new(|_| {}))
+                .await?;
         serde_json::from_value(value).map_err(|err| self.exec_err(err.to_string()))
     }
 
     pub async fn get_finder_names(&self) -> Result<Vec<String>, HookError> {
-        let value = self
-            .request("finders", serde_json::json!({ "target": "finders" }), Arc::new(|_| {}))
-            .await?;
+        let value =
+            self.request("finders", serde_json::json!({ "target": "finders" }), Arc::new(|_| {}))
+                .await?;
         serde_json::from_value(value).map_err(|err| self.exec_err(err.to_string()))
     }
 
@@ -339,17 +333,25 @@ impl NodeWorker {
         let id = self.next_id.fetch_add(1, Ordering::Relaxed);
         let (done, rx) = oneshot::channel();
         let callback_timeout = label == "fetch" && callbacks.is_some();
-        self.pending.lock().unwrap().insert(id, Pending { log, done, callbacks });
+        self.pending
+            .lock()
+            .unwrap()
+            .insert(id, Pending { log, done, callbacks });
         let _pending_guard = PendingEntryGuard { pending: Arc::clone(&self.pending), id };
 
         body["id"] = serde_json::json!(id);
-        let mut line =
-            serde_json::to_string(&body).map_err(|err| self.exec_err(err.to_string()))?;
+        let mut line = serde_json::to_string(&body).map_err(|err| self.exec_err(err.to_string()))?;
         line.push('\n');
         {
             let mut stdin = self.stdin.lock().await;
-            stdin.write_all(line.as_bytes()).await.map_err(|err| self.exec_err(err.to_string()))?;
-            stdin.flush().await.map_err(|err| self.exec_err(err.to_string()))?;
+            stdin
+                .write_all(line.as_bytes())
+                .await
+                .map_err(|err| self.exec_err(err.to_string()))?;
+            stdin
+                .flush()
+                .await
+                .map_err(|err| self.exec_err(err.to_string()))?;
         }
 
         let request_timeout = if callback_timeout {
@@ -369,12 +371,31 @@ impl NodeWorker {
 /// Route one line from the worker to its pending request: forward `log` lines
 /// to the call's logger (the entry stays until the result arrives) and resolve
 /// the call on `ok`/`err`.
+/// Dispatch every line the worker writes; once it exits, fail every
+/// still-pending request so callers don't hang waiting for a response
+/// that will never arrive.
+fn spawn_stdout_reader(stdout: ChildStdout, pending: PendingMap, stdin: Arc<Mutex<ChildStdin>>) {
+    tokio::spawn(async move {
+        let mut lines = BufReader::new(stdout).lines();
+        while let Ok(Some(line)) = lines.next_line().await {
+            dispatch_line(&pending, &stdin, &line);
+        }
+        for (_, request) in pending.lock().unwrap().drain() {
+            let _ = request.done.send(Err("pnpmfile worker exited".to_string()));
+        }
+    });
+}
+
 fn dispatch_line(pending: &PendingMap, stdin: &Arc<Mutex<ChildStdin>>, line: &str) {
     let Ok(message) = serde_json::from_str::<Value>(line) else { return };
     let Some(id) = message.get("id").and_then(Value::as_u64) else { return };
 
     if let Some(log) = message.get("log").and_then(Value::as_str) {
-        let log_fn = pending.lock().unwrap().get(&id).map(|entry| Arc::clone(&entry.log));
+        let log_fn = pending
+            .lock()
+            .unwrap()
+            .get(&id)
+            .map(|entry| Arc::clone(&entry.log));
         if let Some(log_fn) = log_fn {
             log_fn(log.to_string());
         }
@@ -382,235 +403,89 @@ fn dispatch_line(pending: &PendingMap, stdin: &Arc<Mutex<ChildStdin>>, line: &st
     }
 
     if let Some(callback) = message.get("callback") {
-        let Some(callback_id) = callback.get("id").and_then(Value::as_u64) else { return };
-        let Some(method) = callback.get("method").cloned() else { return };
-        let Ok(method) = serde_json::from_value(method) else { return };
-        let resolution = callback.get("resolution").cloned().unwrap_or(Value::Null);
-        let options = callback.get("options").cloned().unwrap_or(Value::Null);
-        let callbacks = pending.lock().unwrap().get(&id).and_then(|entry| entry.callbacks.clone());
-        let (response, receiver) = oneshot::channel();
-        if let Some(callbacks) = callbacks {
-            let _ = callbacks.send(FetcherCallback { method, resolution, options, response });
-        }
-        let stdin = Arc::clone(stdin);
-        tokio::spawn(async move {
-            let result = receiver.await.unwrap_or_else(|_| {
-                Err(serde_json::json!({
-                    "message": "built-in fetcher callback is unavailable",
-                    "code": "ERR_PNPM_FETCHER_CALLBACK_UNAVAILABLE",
-                }))
-            });
-            let reply = match result {
-                Ok(value) => serde_json::json!({ "callbackResponse": callback_id, "ok": value }),
-                Err(error) => {
-                    serde_json::json!({ "callbackResponse": callback_id, "err": error })
-                }
-            };
-            let Ok(mut line) = serde_json::to_string(&reply) else { return };
-            line.push('\n');
-            let mut stdin = stdin.lock().await;
-            if stdin.write_all(line.as_bytes()).await.is_ok() {
-                let _ = stdin.flush().await;
-            }
-        });
+        dispatch_callback(pending, stdin, id, callback);
         return;
     }
 
     let Some(entry) = pending.lock().unwrap().remove(&id) else { return };
     let result = match message.get("err").and_then(Value::as_str) {
         Some(err) => Err(err.to_string()),
-        None => Ok(message.get("ok").cloned().unwrap_or(Value::Null)),
+        None => Ok(message
+            .get("ok")
+            .cloned()
+            .unwrap_or(Value::Null)),
     };
     let _ = entry.done.send(result);
+}
+
+/// Hand one fetcher callback to the request that opened it, and reply to the
+/// worker with whatever it answers.
+fn dispatch_callback(
+    pending: &PendingMap,
+    stdin: &Arc<Mutex<ChildStdin>>,
+    id: u64,
+    callback: &Value,
+) {
+    let Some(callback_id) = callback.get("id").and_then(Value::as_u64) else { return };
+    let Some(method) = callback.get("method").cloned() else { return };
+    let Ok(method) = serde_json::from_value(method) else { return };
+    let resolution = callback
+        .get("resolution")
+        .cloned()
+        .unwrap_or(Value::Null);
+    let options = callback
+        .get("options")
+        .cloned()
+        .unwrap_or(Value::Null);
+    let callbacks = pending
+        .lock()
+        .unwrap()
+        .get(&id)
+        .and_then(|entry| entry.callbacks.clone());
+    let (response, receiver) = oneshot::channel();
+    if let Some(callbacks) = callbacks {
+        let _ = callbacks.send(FetcherCallback { method, resolution, options, response });
+    }
+    reply_when_answered(Arc::clone(stdin), callback_id, receiver);
+}
+
+fn reply_when_answered(
+    stdin: Arc<Mutex<ChildStdin>>,
+    callback_id: u64,
+    receiver: oneshot::Receiver<Result<Value, Value>>,
+) {
+    tokio::spawn(async move {
+        let result = receiver.await.unwrap_or_else(|_| {
+            Err(serde_json::json!({
+                "message": "built-in fetcher callback is unavailable",
+                "code": "ERR_PNPM_FETCHER_CALLBACK_UNAVAILABLE",
+            }))
+        });
+        let reply = match result {
+            Ok(value) => serde_json::json!({ "callbackResponse": callback_id, "ok": value }),
+            Err(error) => serde_json::json!({ "callbackResponse": callback_id, "err": error }),
+        };
+        write_worker_line(&stdin, &reply).await;
+    });
+}
+
+/// Write one JSON line to the worker's stdin, ignoring a closed pipe.
+async fn write_worker_line(stdin: &Mutex<ChildStdin>, reply: &Value) {
+    let Ok(mut line) = serde_json::to_string(reply) else { return };
+    line.push('\n');
+    let mut stdin = stdin.lock().await;
+    if stdin.write_all(line.as_bytes()).await.is_ok() {
+        let _ = stdin.flush().await;
+    }
 }
 
 /// Build the worker's Node script. `file_escaped` is the JSON-encoded pnpmfile
 /// path; the worker loads it once and replays the `readPackage` validation and
 /// normalization that [`crate::node_runtime`] documents.
 fn build_runner(is_mjs: bool, file_escaped: &str) -> String {
-    let load = if is_mjs {
-        format!("mod = await import(pathToFileURL({file_escaped}).href);")
-    } else {
-        format!("mod = require({file_escaped});")
-    };
     format!(
-        r#"const readline = require('node:readline');
-const {{ pathToFileURL }} = require('node:url');
-let mod = null;
-let loadErr = null;
-let nextCallbackId = 0;
-const pendingCallbacks = new Map();
-async function ensureLoaded() {{
-  if (mod !== null || loadErr !== null) return;
-  try {{ {load} }} catch (err) {{ loadErr = err && err.stack ? err.stack : String(err); }}
-}}
-const rl = readline.createInterface({{ input: process.stdin }});
-rl.on('line', (line) => {{
-  let req;
-  try {{ req = JSON.parse(line); }} catch {{ return; }}
-  if (Object.prototype.hasOwnProperty.call(req, 'callbackResponse')) {{
-    const pending = pendingCallbacks.get(req.callbackResponse);
-    if (!pending) return;
-    pendingCallbacks.delete(req.callbackResponse);
-    if (req.err) {{
-      const error = Object.assign(new Error(req.err.message), req.err);
-      if (req.err.status != null) error.response = {{ status: req.err.status }};
-      pending.reject(error);
-    }} else {{
-      const result = req.ok;
-      if (result && result.filesMap && !(result.filesMap instanceof Map)) {{
-        result.filesMap = new Map(Object.entries(result.filesMap));
-      }}
-      pending.resolve(result);
-    }}
-    return;
-  }}
-  handle(req);
-}});
-async function handle(req) {{
-  const id = req.id;
-  const send = (obj) => process.stdout.write(JSON.stringify(Object.assign({{ id }}, obj)) + '\n');
-  await ensureLoaded();
-  if (loadErr !== null) {{ send({{ err: loadErr }}); return; }}
-  if (req.query === 'hasHooks') {{ send({{ ok: mod != null && mod.hooks != null }}); return; }}
-  if (req.query === 'hasFilterLog') {{
-    send({{ ok: mod != null && mod.hooks != null && typeof mod.hooks.filterLog === 'function' }});
-    return;
-  }}
-  try {{
-    const fn = mod && mod.hooks && mod.hooks[req.hook];
-    const context = {{ log: (m) => send({{ log: String(m) }}) }};
-    if (req.target === 'resolvers') {{
-      const resolvers = mod && mod.resolvers;
-      send({{ ok: (Array.isArray(resolvers) ? resolvers.map((resolver) => ({{
-        canResolve: typeof resolver.canResolve === 'function',
-        resolve: typeof resolver.resolve === 'function',
-        shouldRefreshResolution: typeof resolver.shouldRefreshResolution === 'function',
-      }})) : []) }});
-      return;
-    }}
-    if (req.target === 'resolver') {{
-      const resolvers = mod && mod.resolvers;
-      const resolver = Array.isArray(resolvers) ? resolvers[req.index] : null;
-      if (!resolver || typeof resolver[req.method] !== 'function') {{
-        send({{ ok: null }});
-        return;
-      }}
-      const args = req.payload || [];
-      const res = await resolver[req.method](...args);
-      send({{ ok: res === undefined ? null : res }});
-      return;
-    }}
-    if (req.target === 'fetchers') {{
-      const fetchers = mod && mod.fetchers;
-      send({{ ok: (Array.isArray(fetchers) ? fetchers.map((f) => ({{
-        canFetch: f != null && typeof f.canFetch === 'function',
-        fetch: f != null && typeof f.fetch === 'function',
-      }})) : []) }});
-      return;
-    }}
-    if (req.target === 'finders') {{
-      const finders = mod && mod.finders;
-      send({{ ok: (finders != null && typeof finders === 'object')
-        ? Object.keys(finders).filter((name) => typeof finders[name] === 'function')
-        : [] }});
-      return;
-    }}
-    if (req.target === 'finder') {{
-      const finders = mod && mod.finders;
-      const finder = (finders != null && typeof finders === 'object') ? finders[req.name] : null;
-      if (typeof finder !== 'function') {{
-        send({{ ok: false }});
-        return;
-      }}
-      const ctx = req.ctx || {{}};
-      const res = await finder({{
-        alias: ctx.alias,
-        name: ctx.name,
-        version: ctx.version,
-        readManifest: () => ctx.manifest,
-      }});
-      send({{ ok: res === undefined ? false : res }});
-      return;
-    }}
-    if (req.target === 'fetcher') {{
-      const fetchers = mod && mod.fetchers;
-      const fetcher = Array.isArray(fetchers) ? fetchers[req.index] : null;
-      if (!fetcher || typeof fetcher[req.method] !== 'function') {{
-        send({{ ok: null }});
-        return;
-      }}
-      const args = req.payload || [];
-      if (req.method === 'fetch' && req.callbacks) {{
-        const callNative = (method, resolution, options) => {{
-          const callbackId = nextCallbackId++;
-          return new Promise((resolve, reject) => {{
-            pendingCallbacks.set(callbackId, {{ resolve, reject }});
-            send({{ callback: {{ id: callbackId, method, resolution, options }} }});
-          }});
-        }};
-        const cafs = Object.freeze({{
-          ...(await callNative('cafsInfo')),
-          tempDir: () => callNative('tempDir'),
-        }});
-        const callBuiltin = (method, providedCafs, resolution, options) => {{
-          if (providedCafs !== cafs) {{
-            return Promise.reject(new Error('Built-in fetcher received an invalid CAFS handle'));
-          }}
-          return callNative(method, resolution, options);
-        }};
-        args[0] = cafs;
-        args[3] = Object.freeze({{
-          localTarball: (handle, resolution, options) =>
-            callBuiltin('localTarball', handle, resolution, options),
-          remoteTarball: (handle, resolution, options) =>
-            callBuiltin('remoteTarball', handle, resolution, options),
-        }});
-      }}
-      const res = await fetcher[req.method](...args);
-      if (req.method === 'canFetch') {{
-        send({{ ok: {{ value: res === undefined ? null : res, resolution: args[1] }} }});
-      }} else if (res && res.filesMap instanceof Map) {{
-        send({{ ok: {{ ...res, filesMap: Object.fromEntries(res.filesMap) }} }});
-      }} else {{
-        send({{ ok: res === undefined ? null : res }});
-      }}
-      return;
-    }}
-    if (req.hook === 'readPackage') {{
-      const pkg = req.payload;
-      if (typeof fn !== 'function') {{ send({{ ok: pkg }}); return; }}
-      pkg.dependencies = pkg.dependencies ?? {{}};
-      pkg.devDependencies = pkg.devDependencies ?? {{}};
-      pkg.optionalDependencies = pkg.optionalDependencies ?? {{}};
-      pkg.peerDependencies = pkg.peerDependencies ?? {{}};
-      const newPkg = await fn(pkg, context);
-      if (!newPkg) {{
-        throw new Error("readPackage hook did not return a package manifest object. Hook imported via " + {file_escaped});
-      }}
-      for (const dep of ["dependencies", "devDependencies", "optionalDependencies", "peerDependencies"]) {{
-        const v = newPkg[dep];
-        if (v != null && (typeof v !== "object" || Array.isArray(v))) {{
-          throw new Error("readPackage hook returned package manifest object's property '" + dep + "' must be an object. Hook imported via " + {file_escaped});
-        }}
-      }}
-      send({{ ok: newPkg }});
-    }} else if (req.hook === 'beforePacking') {{
-      if (typeof fn !== 'function') {{ send({{ ok: req.payload }}); return; }}
-      const newPkg = await fn(req.payload, req.dir, context);
-      send({{ ok: newPkg == null ? req.payload : newPkg }});
-    }} else if (req.hook === 'filterLog') {{
-      const res = (typeof fn === 'function') ? await fn(req.payload, context) : true;
-      send({{ ok: res }});
-    }} else {{
-      const res = (typeof fn === 'function') ? await fn(req.payload, context) : null;
-      send({{ ok: res === undefined ? null : res }});
-    }}
-  }} catch (err) {{
-    send({{ err: err && err.stack ? err.stack : String(err) }});
-  }}
-}}
-"#,
+        "const pnpmfilePath = {file_escaped};\nconst pnpmfileIsMjs = {is_mjs};\n{}",
+        include_str!("worker.cjs"),
     )
 }
 

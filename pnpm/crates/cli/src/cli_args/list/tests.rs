@@ -1,6 +1,3 @@
-use pretty_assertions::assert_eq;
-use text_block_macros::text_block;
-
 use super::{
     RecursionLimit, parse_depth,
     render::{
@@ -8,6 +5,8 @@ use super::{
     },
 };
 use crate::cli_args::deps_tree::{DependencyNode, build::DependenciesHierarchy};
+use pretty_assertions::assert_eq;
+use text_block_macros::text_block;
 
 #[test]
 fn parse_depth_accepts_infinity_and_minus_one() {
@@ -21,9 +20,12 @@ fn parse_depth_accepts_infinity_and_minus_one() {
 fn dep(alias: &str, name: &str, version: &str, path: &str) -> DependencyNode {
     DependencyNode {
         alias: alias.to_string(),
-        name: name.to_string(),
-        version: version.to_string(),
-        path: path.to_string(),
+        package: pnpm_deps_inspection::DependencyPackage {
+            name: name.to_string(),
+            version: version.to_string(),
+            path: path.to_string(),
+            ..Default::default()
+        },
         ..DependencyNode::default()
     }
 }
@@ -309,7 +311,13 @@ fn render_parseable_search_shared_dep_across_packages_is_not_duplicated() {
     assert!(lines.contains(&"/workspace/packages/pkg-a"));
     assert!(lines.contains(&"/workspace/packages/pkg-b"));
     assert!(lines.contains(&"/workspace/packages/shared"));
-    assert_eq!(lines.iter().filter(|line| **line == "/workspace/packages/shared").count(), 1);
+    assert_eq!(
+        lines
+            .iter()
+            .filter(|line| **line == "/workspace/packages/shared")
+            .count(),
+        1,
+    );
 }
 
 // Port of upstream's 'renderParseable search: packages unrelated to search are excluded' (deps/inspection/list/test/index.ts).
@@ -382,7 +390,10 @@ fn render_parseable_search_long_shared_dep_across_packages_is_not_duplicated() {
     assert!(lines.contains(&"/workspace/packages/pkg-a:pkg-a@1.0.0"));
     assert!(lines.contains(&"/workspace/packages/pkg-b:pkg-b@1.0.0"));
     assert_eq!(
-        lines.iter().filter(|line| line.starts_with("/workspace/packages/shared")).count(),
+        lines
+            .iter()
+            .filter(|line| line.starts_with("/workspace/packages/shared"))
+            .count(),
         1,
     );
 }

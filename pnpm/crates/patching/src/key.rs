@@ -21,7 +21,11 @@ pub fn parse_key(input: &str) -> ParsedKey<'_> {
     // Skip a leading `@` so scoped names (`@scope/foo`) match on the
     // *second* `@`.
     let bytes = input.as_bytes();
-    let sep_index = bytes.iter().enumerate().skip(1).find_map(|(i, &b)| (b == b'@').then_some(i));
+    let sep_index = bytes
+        .iter()
+        .enumerate()
+        .skip(1)
+        .find_map(|(i, &b)| (b == b'@').then_some(i));
 
     let Some(sep) = sep_index else {
         return ParsedKey::default();

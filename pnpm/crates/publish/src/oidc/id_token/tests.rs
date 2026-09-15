@@ -54,8 +54,9 @@ async fn returns_npm_id_token_without_any_fetch() {
         }
     }
 
-    let token =
-        get_id_token::<Sys, SilentReporter>(REGISTRY, &OidcHttpOptions::default()).await.unwrap();
+    let token = get_id_token::<Sys, SilentReporter>(REGISTRY, &OidcHttpOptions::default())
+        .await
+        .unwrap();
     assert_eq!(token, Some("forwarded-token".to_owned()));
 }
 
@@ -78,8 +79,9 @@ async fn returns_none_outside_supported_ci() {
         }
     }
 
-    let token =
-        get_id_token::<Sys, SilentReporter>(REGISTRY, &OidcHttpOptions::default()).await.unwrap();
+    let token = get_id_token::<Sys, SilentReporter>(REGISTRY, &OidcHttpOptions::default())
+        .await
+        .unwrap();
     assert_eq!(token, None);
 }
 
@@ -115,8 +117,9 @@ async fn fetches_and_returns_github_id_token() {
         Ok(OidcResponse { ok: true, status: 200, body: r#"{"value":"gh-id-token"}"#.to_owned() })
     });
 
-    let token =
-        get_id_token::<Sys, SilentReporter>(REGISTRY, &OidcHttpOptions::default()).await.unwrap();
+    let token = get_id_token::<Sys, SilentReporter>(REGISTRY, &OidcHttpOptions::default())
+        .await
+        .unwrap();
     assert_eq!(token, Some("gh-id-token".to_owned()));
 }
 

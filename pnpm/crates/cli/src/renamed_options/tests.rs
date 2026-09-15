@@ -9,16 +9,28 @@ use std::{ffi::OsString, path::Path};
 
 fn drop_aliases(tokens: &[&str]) -> Vec<String> {
     let cmd = with_boolean_negations(CliArgs::command());
-    drop_shadowed_aliases(&cmd, tokens.iter().map(OsString::from).collect())
-        .into_iter()
-        .map(|token| token.into_string().expect("test tokens are UTF-8"))
-        .collect()
+    drop_shadowed_aliases(
+        &cmd,
+        tokens
+            .iter()
+            .map(OsString::from)
+            .collect(),
+    )
+    .into_iter()
+    .map(|token| token.into_string().expect("test tokens are UTF-8"))
+    .collect()
 }
 
 /// Run the full pre-parse pipeline and parse.
 fn parse(tokens: &[&str]) -> CliArgs {
     let cmd = with_boolean_negations(CliArgs::command());
-    let argv = expand_universal_shorthands(&cmd, tokens.iter().map(OsString::from).collect());
+    let argv = expand_universal_shorthands(
+        &cmd,
+        tokens
+            .iter()
+            .map(OsString::from)
+            .collect(),
+    );
     let argv = drop_shadowed_aliases(&cmd, argv);
     let argv = relocate_pre_subcommand_flags(&cmd, argv);
     cmd.try_get_matches_from(argv)
@@ -45,7 +57,7 @@ fn the_canonical_spelling_wins_over_the_alias_in_either_order() {
         ["pnpm", "--dir", "canonical", "--prefix", "aliased", "install"].as_slice(),
         ["pnpm", "--prefix=aliased", "-C", "canonical", "install"].as_slice(),
     ] {
-        assert_eq!(parse(argv).dir, Path::new("canonical"), "argv: {argv:?}");
+        assert_eq!(parse(argv).paths.dir, Path::new("canonical"), "argv: {argv:?}");
     }
 
     for argv in [
@@ -53,7 +65,7 @@ fn the_canonical_spelling_wins_over_the_alias_in_either_order() {
         ["pnpm", "--store-dir=canonical", "--store=aliased", "install"].as_slice(),
     ] {
         assert_eq!(
-            parse(argv).store_dir.as_deref(),
+            parse(argv).paths.store_dir.as_deref(),
             Some(Path::new("canonical")),
             "argv: {argv:?}",
         );
@@ -69,7 +81,10 @@ fn a_canonical_short_inside_an_attached_value_is_not_the_option() {
         drop_aliases(&["pnpm", "-FpkgC", "--prefix", "here", "install"]),
         ["pnpm", "-FpkgC", "--prefix", "here", "install"],
     );
-    assert_eq!(parse(&["pnpm", "-FpkgC", "--prefix", "here", "install"]).dir, Path::new("here"));
+    assert_eq!(
+        parse(&["pnpm", "-FpkgC", "--prefix", "here", "install"]).paths.dir,
+        Path::new("here"),
+    );
     // Up to that point the cluster's own options are read: `-r` takes no
     // value, so the `-C` behind it is an option and shadows the alias.
     assert_eq!(
@@ -77,7 +92,7 @@ fn a_canonical_short_inside_an_attached_value_is_not_the_option() {
         ["pnpm", "-rCcanonical", "install"],
     );
     assert_eq!(
-        parse(&["pnpm", "-rCcanonical", "--prefix", "here", "install"]).dir,
+        parse(&["pnpm", "-rCcanonical", "--prefix", "here", "install"]).paths.dir,
         Path::new("canonical"),
     );
 }

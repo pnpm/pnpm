@@ -16,8 +16,9 @@ use derive_more::{Display, Error};
 use miette::Diagnostic;
 use node_semver::Version;
 use pnpm_crypto_shasums_file::{
-    FetchShasumsFileError, FetchVerifiedNodeShasumsError, fetch_shasums_file_cached,
-    fetch_shasums_file_cached_with_auth_headers, fetch_verified_node_shasums_file_cached,
+    FetchShasumsFileError, FetchVerifiedNodeShasumsError, ShasumsFileItem,
+    fetch_shasums_file_cached, fetch_shasums_file_cached_with_auth_headers,
+    fetch_verified_node_shasums_file_cached,
     fetch_verified_node_shasums_file_cached_with_auth_headers,
 };
 use pnpm_lockfile::{
@@ -163,35 +164,7 @@ impl NodeResolver {
             .pick_node_version(version_spec)
             .await
             .map_err(|err| Box::new(err) as ResolveError)?;
-        let variants = match self
-            .read_node_assets(&picked.mirror, &picked.version, &picked.release_channel)
-            .await
-        {
-            Ok(variants) => variants,
-            // An exact-specifier pick skipped the release index, so a
-            // failed asset read is ambiguous: the version may simply not
-            // exist. Consult the index now, purely to raise the same
-            // `ERR_PNPM_NODEJS_VERSION_NOT_FOUND` the index-first path
-            // raises for a nonexistent version; any other outcome
-            // re-raises the asset error unchanged.
-            Err(error) if picked.resolved_without_index => {
-                let error = match resolve_node_version_with_auth(
-                    &self.http_client,
-                    &self.auth_headers,
-                    &picked.version,
-                    Some(&picked.mirror),
-                )
-                .await
-                {
-                    Ok(None) => {
-                        NodeResolverError::VersionNotFound { spec: version_spec.to_string() }
-                    }
-                    _ => error,
-                };
-                return Err(Box::new(error));
-            }
-            Err(error) => return Err(Box::new(error)),
-        };
+        let variants = self.read_picked_assets(&picked, version_spec).await?;
         let PickedNodeVersion { version, .. } = picked;
         let range = normalize_node_runtime_version_specifier(
             version_spec,
@@ -206,16 +179,48 @@ impl NodeResolver {
         });
         Ok(Some(ResolveResult {
             id: format!("node@runtime:{version}").into(),
-            name_ver: None,
-            latest: None,
-            published_at: None,
-            manifest: Some(std::sync::Arc::new(manifest)),
             resolution,
             resolved_via: RESOLVED_VIA.to_string(),
             normalized_bare_specifier: Some(format!("runtime:{range}")),
             alias: wanted_dependency.alias.clone(),
             policy_violation: None,
+            package: pnpm_resolving_resolver_base::ResolvedPackageInfo {
+                name_ver: None,
+                latest: None,
+                published_at: None,
+                manifest: Some(std::sync::Arc::new(manifest)),
+            },
         }))
+    }
+
+    /// A failed exact-version asset lookup consults the release index to
+    /// distinguish a nonexistent version from a download failure.
+    async fn read_picked_assets(
+        &self,
+        picked: &PickedNodeVersion,
+        version_spec: &str,
+    ) -> Result<Vec<PlatformAssetResolution>, ResolveError> {
+        match self.read_node_assets(&picked.mirror, &picked.version, &picked.release_channel).await
+        {
+            Ok(variants) => Ok(variants),
+            Err(error) if picked.resolved_without_index => {
+                let error = match resolve_node_version_with_auth(
+                    &self.http_client,
+                    &self.auth_headers,
+                    &picked.version,
+                    Some(&picked.mirror),
+                )
+                .await
+                {
+                    Ok(None) => {
+                        NodeResolverError::VersionNotFound { spec: version_spec.to_string() }
+                    }
+                    _ => error,
+                };
+                Err(Box::new(error))
+            }
+            Err(error) => Err(Box::new(error)),
+        }
     }
 
     /// Parse a `runtime:` version spec, pick the mirror for its release
@@ -303,9 +308,10 @@ impl NodeResolver {
             spec_owned = "latest";
             spec_owned
         };
-        let parsed = parse_node_specifier(version_spec).map_err(|err| {
-            Box::new(NodeResolverError::InvalidReleaseChannel(err)) as ResolveError
-        })?;
+        let parsed = parse_node_specifier(version_spec)
+            .map_err(|err| {
+                Box::new(NodeResolverError::InvalidReleaseChannel(err)) as ResolveError
+            })?;
         let mirror = get_node_mirror(Some(&self.node_download_mirrors), &parsed.release_channel);
         let version = resolve_node_version_with_auth(
             &self.http_client,
@@ -332,8 +338,8 @@ impl NodeResolver {
     ///
     /// The musl branch only fires when the active mirror is the
     /// default one (custom mirrors are assumed to publish their own
-    /// musl-or-not policy), and musl-fetch failures are swallowed
-    /// because old releases simply don't have musl builds.
+    /// musl-or-not policy). See [`read_musl_assets`] for which musl
+    /// failures are tolerated.
     async fn read_node_assets(
         &self,
         mirror: &str,
@@ -350,19 +356,17 @@ impl NodeResolver {
             self.cache_dir.as_deref(),
         )
         .await?;
-        if mirror == DEFAULT_NODE_MIRROR_BASE_URL
-            && let Ok(mut musl_assets) = read_node_assets_from_mirror(
-                &self.http_client,
-                &self.auth_headers,
-                UNOFFICIAL_NODE_MIRROR_BASE_URL,
-                version,
-                /* musl_only */ true,
-                /* verify_signature */ false,
-                self.cache_dir.as_deref(),
-            )
-            .await
-        {
-            assets.append(&mut musl_assets);
+        if mirror == DEFAULT_NODE_MIRROR_BASE_URL {
+            assets.extend(
+                read_musl_assets(
+                    &self.http_client,
+                    &self.auth_headers,
+                    UNOFFICIAL_NODE_MIRROR_BASE_URL,
+                    version,
+                    self.cache_dir.as_deref(),
+                )
+                .await?,
+            );
         }
         Ok(assets)
     }
@@ -404,7 +408,9 @@ fn bare_runtime_spec<'a>(wanted: &'a WantedDependency, expected_alias: &str) -> 
     if wanted.alias.as_deref() != Some(expected_alias) {
         return None;
     }
-    wanted.bare_specifier.as_deref().and_then(|spec| spec.strip_prefix(BARE_SPEC_PREFIX))
+    wanted.bare_specifier
+        .as_deref()
+        .and_then(|spec| spec.strip_prefix(BARE_SPEC_PREFIX))
 }
 
 fn normalize_node_runtime_version_specifier(
@@ -431,151 +437,10 @@ fn normalize_node_runtime_version_specifier(
     format!("{prefix}{resolved_version}")
 }
 
-/// Read the asset list for one mirror version and decode each row
-/// into a [`PlatformAssetResolution`].
-///
-/// Rows are matched against the nodejs.org artifact pattern
-/// `node-v<version>-<platform>-<arch>(-musl)?.(tar.gz|zip)`.
-/// Files that don't match (e.g. `.pkg`, `.msi`, source tarballs) are
-/// dropped. When `musl_only` is true, glibc builds are filtered out
-/// so the asset list only carries the musl-specific variants the
-/// caller asked for.
-async fn read_node_assets_from_mirror(
-    http_client: &ThrottledClient,
-    auth_headers: &AuthHeaders,
-    node_mirror_base_url: &str,
-    version: &str,
-    musl_only: bool,
-    verify_signature: bool,
-    cache_dir: Option<&Path>,
-) -> Result<Vec<PlatformAssetResolution>, NodeResolverError> {
-    // The URL is pinned to one released version, which is what makes it
-    // eligible for the SHASUMS disk cache.
-    let integrities_url = format!("{node_mirror_base_url}v{version}/SHASUMS256.txt");
-    let items = if verify_signature {
-        if auth_headers.is_empty() {
-            fetch_verified_node_shasums_file_cached(http_client, &integrities_url, cache_dir)
-                .await
-                .map_err(NodeResolverError::FetchVerifiedNodeShasums)?
-        } else {
-            fetch_verified_node_shasums_file_cached_with_auth_headers(
-                http_client,
-                &integrities_url,
-                cache_dir,
-                auth_headers,
-            )
-            .await
-            .map_err(NodeResolverError::FetchVerifiedNodeShasums)?
-        }
-    } else if auth_headers.is_empty() {
-        fetch_shasums_file_cached(http_client, &integrities_url, cache_dir)
-            .await
-            .map_err(NodeResolverError::FetchShasumsFile)?
-    } else {
-        fetch_shasums_file_cached_with_auth_headers(
-            http_client,
-            &integrities_url,
-            cache_dir,
-            auth_headers,
-        )
-        .await
-        .map_err(NodeResolverError::FetchShasumsFile)?
-    };
-    let mut assets = Vec::new();
-    for item in items {
-        let Some(parsed) = parse_node_file_name(&item.file_name, version) else { continue };
-        let is_musl = parsed.is_musl;
-        if musl_only && !is_musl {
-            continue;
-        }
-        let mut platform = parsed.platform;
-        if platform == "win" {
-            platform = "win32".to_string();
-        }
-        let libc = is_musl.then(|| "musl".to_string());
-        let address = get_node_artifact_address(GetNodeArtifactAddressOptions {
-            version,
-            base_url: node_mirror_base_url,
-            platform: &platform,
-            arch: &parsed.arch,
-            libc: libc.as_deref(),
-        });
-        let url = format!("{}/{}{}", address.dirname, address.basename, address.extname);
-        let archive =
-            if address.extname == ".zip" { BinaryArchive::Zip } else { BinaryArchive::Tarball };
-        let integrity: Integrity =
-            item.integrity.parse().map_err(|error| NodeResolverError::ParseIntegrity {
-                integrity: item.integrity.clone(),
-                file_name: item.file_name.clone(),
-                error: Arc::new(error),
-            })?;
-        let prefix = matches!(archive, BinaryArchive::Zip).then(|| address.basename.clone());
-        let binary = BinaryResolution {
-            url,
-            integrity,
-            bin: bin_spec_for_platform(&platform),
-            archive,
-            prefix,
-        };
-        let target = PlatformAssetTarget { os: platform, cpu: parsed.arch, libc };
-        assets.push(PlatformAssetResolution {
-            resolution: LockfileResolution::Binary(binary),
-            targets: vec![target],
-        });
-    }
-    Ok(assets)
-}
-
-struct NodeFileName {
-    platform: String,
-    arch: String,
-    is_musl: bool,
-}
-
-/// Match the nodejs.org artifact pattern
-/// `^node-v<version>-([^-.]+)-([^.-]+)(-musl)?\.(tar\.gz|zip)$` —
-/// implemented by hand so the resolver doesn't pay the regex crate
-/// dependency for a single pattern.
-fn parse_node_file_name(file_name: &str, version: &str) -> Option<NodeFileName> {
-    let prefix = format!("node-v{version}-");
-    let rest = file_name.strip_prefix(&prefix)?;
-    let head = if let Some(head) = rest.strip_suffix(".tar.gz") {
-        head
-    } else {
-        rest.strip_suffix(".zip")?
-    };
-    let (platform, after_platform) = head.split_once('-')?;
-    if platform.is_empty() || platform.contains('.') {
-        return None;
-    }
-    let (arch_part, is_musl) = match after_platform.strip_suffix("-musl") {
-        Some(arch_part) => (arch_part, true),
-        None => (after_platform, false),
-    };
-    if arch_part.is_empty() || arch_part.contains('.') || arch_part.contains('-') {
-        return None;
-    }
-    Some(NodeFileName { platform: platform.to_string(), arch: arch_part.to_string(), is_musl })
-}
-
-fn bin_spec_for_platform(platform: &str) -> BinarySpec {
-    let path = if platform == "win32" { "node.exe" } else { "bin/node" };
-    BinarySpec::Map(BTreeMap::from([("node".to_string(), path.to_string())]))
-}
-
-fn node_bins_for_current_os(platform: &str) -> serde_json::Value {
-    serde_json::json!({ "node": if platform == "win32" { "node.exe" } else { "bin/node" } })
-}
-
-/// Host platform string in pnpm's normalised form (`win32`, `darwin`,
-/// `linux`, ...). Reads `std::env::consts::OS` rather than spawning a
-/// helper so the lookup is allocation-free.
-fn current_platform() -> &'static str {
-    match std::env::consts::OS {
-        "windows" => "win32",
-        other => other,
-    }
-}
-
 #[cfg(test)]
 mod tests;
+
+mod assets;
+use assets::{
+    current_platform, node_bins_for_current_os, read_musl_assets, read_node_assets_from_mirror,
+};

@@ -16,6 +16,8 @@ fn pnpm_and_npm_settings_match_in_either_spelling() {
         "npm_config_registry",
         "PNPM_SHIM_BYPASS",
         "pnpm_shim_bypass",
+        "npm_lifecycle_event",
+        "NPM_LIFECYCLE_EVENT",
     ] {
         assert!(is_pnpm_config_var(name), "{name} should be stripped");
     }

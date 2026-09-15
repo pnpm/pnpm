@@ -67,6 +67,11 @@ export function rcOptionsTypes (): Record<string, unknown> {
     'shared-workspace-lockfile',
     'store-dir',
     'strict-peer-dependencies',
+    'trust-lockfile',
+    'trust-policy',
+    'trust-policy-exclude',
+    'trust-policy-ignore-after',
+    'unsafe-perm',
     'virtual-store-dir',
   ], allTypes)
 }
@@ -150,6 +155,7 @@ export async function handler (
   | 'lockfile'
   | 'catalogPrune'
   | 'minimumReleaseAgeExcludePrune'
+  | 'trustPolicyExcludePrune'
   | 'trustLockfile'
   > & Pick<ConfigContext,
   | 'allProjects'
@@ -257,6 +263,7 @@ export async function handler (
     catalogPrune: opts.catalogPrune,
     resolvedPackageVersions: resolvedPackageVersionsForPrune(opts, mutationResult.newLockfile),
     minimumReleaseAgeExcludePrune: opts.minimumReleaseAgeExcludePrune,
+    trustPolicyExcludePrune: opts.trustPolicyExcludePrune,
     allProjects: updatedProjects,
   })
 }

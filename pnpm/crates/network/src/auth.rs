@@ -6,14 +6,21 @@
 //! the URL carries inline `user:password@`, that takes precedence and
 //! is encoded as a `Basic` header even when no per-host token matches.
 //!
-//! The map is built once per install from the merged `.npmrc` and is
-//! consulted on every metadata fetch and tarball download. The lookup
+//! Configuration readers build the map once per install from their native
+//! credential sources, and request code consults it on every metadata fetch
+//! and archive download. The lookup
 //! walks parts of the *request* URL: a tarball served from a CDN on a
 //! different host than the registry only matches keys keyed at the
 //! CDN's host (or a path prefix on that host). It does *not* fall
 //! through to the registry's host. If a private registry redirects to
 //! its own subdomain or path, place a key at that host or prefix in
 //! `.npmrc`; if it redirects across hosts, no header is attached.
+
+pub use redaction::{
+    hide_auth_information, redact_and_sanitize, redact_and_sanitize_multiline,
+    redact_url_credentials, redact_url_for_display,
+};
+pub use url::{base64_encode, base64_encode_bytes, is_url_secure_for_credentials, nerf_dart};
 
 use crate::token_helper::{TokenHelperRunner, execute_token_helper, run_token_helper_command};
 use std::{
@@ -99,16 +106,16 @@ pub enum MetadataCacheScope {
 }
 
 /// Bag of `Authorization` header values keyed by the nerf-darted form
-/// of each registry URL. Pacquet builds one of these from the parsed
-/// `.npmrc` and shares it across every HTTP call made during install.
+/// of each registry URL. Ecosystem-specific configuration readers normalize
+/// their credentials into this request-facing form and share it across HTTP
+/// calls made during install.
 ///
 /// Construct via [`AuthHeaders::from_parts`], [`AuthHeaders::from_creds_map`],
 /// [`AuthHeaders::from_map`], or [`AuthHeaders::default`] (empty). Look up via
 /// [`AuthHeaders::for_url`].
 /// Memo of resolved `tokenHelper` results keyed by `scope + map key`. Each
 /// entry is a per-key [`OnceLock`] so a resolving subprocess runs without the
-/// shared [`Mutex`] held. See the `resolved_token_helpers` field on
-/// [`AuthHeaders`].
+/// shared [`Mutex`] held. Cloning the headers shares the cache.
 type TokenHelperCache = Arc<Mutex<HashMap<String, Arc<OnceLock<Option<String>>>>>>;
 
 #[derive(Default, Clone)]
@@ -132,12 +139,18 @@ pub struct AuthHeaders {
     /// the client-forwarded credentials above are ignored. See
     /// [`UpstreamRouteHook`].
     route_hook: Option<Arc<dyn UpstreamRouteHook>>,
+    require_secure_transport: bool,
     /// Set iff any entry is an [`AuthEntry::TokenHelper`]. Surfaced in the
     /// [`fmt::Debug`] output (never the values) so a resolve trace shows
     /// at a glance whether any helper is configured. The lookup hot path
     /// touches the resolution cache only on a `TokenHelper` match, so a
     /// map of only baked headers pays nothing regardless.
     has_token_helpers: bool,
+    token_helpers: TokenHelpers,
+}
+
+#[derive(Default, Clone)]
+struct TokenHelpers {
     /// Memoizes each resolved `tokenHelper`: a helper runs at most once
     /// per process, keyed by its map key. Each key maps to a per-key
     /// [`OnceLock`] so the resolving subprocess runs without the shared
@@ -177,16 +190,52 @@ impl fmt::Debug for AuthHeaders {
             .field("scoped_by_scope", &self.scoped_by_scope.len())
             .field("has_token_helpers", &self.has_token_helpers)
             .field("route_hook", &self.route_hook.is_some())
+            .field("require_secure_transport", &self.require_secure_transport)
             .finish_non_exhaustive()
     }
 }
 
 impl AuthHeaders {
+    /// Restrict every credential lookup to TLS or loopback URLs, including
+    /// lookups made by shared fetchers. This restriction survives cloning.
+    #[must_use]
+    pub fn with_secure_transport(mut self) -> Self {
+        self.require_secure_transport = true;
+        self
+    }
+
     /// Whether no configured credential or route hook can provide
     /// authorization for any URL.
     #[must_use]
     pub fn is_empty(&self) -> bool {
-        self.by_uri.is_empty() && self.scoped_by_scope.is_empty() && self.route_hook.is_none()
+        self.by_uri.is_empty()
+            && self.scoped_by_scope.is_empty()
+            && self.route_hook.is_none()
+    }
+
+    /// Overlay a ready-to-send `Authorization` header at `url`.
+    ///
+    /// This is the boundary for credential sources that are already scoped to
+    /// a concrete request URL and have no npm package-scope semantics. The
+    /// caller owns the authentication scheme: npm tokens include `Bearer`,
+    /// Cargo tokens are bare, and future readers may supply `Basic` or another
+    /// registry-defined value. An invalid or unsupported URL is ignored.
+    pub fn insert_url_header(&mut self, url: &str, header: String) {
+        let mut terminated;
+        let url = if url.ends_with('/') {
+            url
+        } else {
+            terminated = String::with_capacity(url.len() + 1);
+            terminated.push_str(url);
+            terminated.push('/');
+            &terminated
+        };
+        let uri = nerf_dart(url);
+        if uri.is_empty() {
+            return;
+        }
+        self.max_parts = self.max_parts.max(uri.split('/').count());
+        self.by_uri.insert(uri, AuthEntry::Header(header));
     }
 
     /// Build an [`AuthHeaders`] from `(nerf_darted_uri, header_value)`
@@ -226,7 +275,10 @@ impl AuthHeaders {
         for (uri, value) in headers {
             let uri = normalize_auth_key(uri);
             if let Some((registry_uri, scope)) = split_scoped_auth_key(&uri) {
-                scoped_by_uri.entry(registry_uri).or_default().insert(scope, value);
+                scoped_by_uri
+                    .entry(registry_uri)
+                    .or_default()
+                    .insert(scope, value);
             } else {
                 by_uri.insert(uri, value);
             }
@@ -292,8 +344,9 @@ impl AuthHeaders {
     ) -> Self {
         let mut scoped_by_scope: HashMap<String, HashMap<String, AuthEntry>> = HashMap::new();
         let mut max_scoped_parts_by_scope: HashMap<String, usize> = HashMap::new();
-        let mut has_token_helpers =
-            by_uri.values().any(|entry| matches!(entry, AuthEntry::TokenHelper(_)));
+        let mut has_token_helpers = by_uri
+            .values()
+            .any(|entry| matches!(entry, AuthEntry::TokenHelper(_)));
         for (uri, scoped) in scoped_by_uri {
             let parts = uri.split('/').count();
             for (scope, value) in scoped {
@@ -302,19 +355,26 @@ impl AuthHeaders {
                     .entry(scope.clone())
                     .and_modify(|max| *max = (*max).max(parts))
                     .or_insert(parts);
-                scoped_by_scope.entry(scope).or_default().insert(uri.clone(), value);
+                scoped_by_scope
+                    .entry(scope)
+                    .or_default()
+                    .insert(uri.clone(), value);
             }
         }
-        let max_parts = by_uri.keys().map(|key| key.split('/').count()).max().unwrap_or(0);
+        let max_parts = by_uri
+            .keys()
+            .map(|key| key.split('/').count())
+            .max()
+            .unwrap_or(0);
         AuthHeaders {
             by_uri,
             scoped_by_scope,
             max_parts,
             max_scoped_parts_by_scope,
             route_hook: None,
+            require_secure_transport: false,
             has_token_helpers,
-            resolved_token_helpers: Arc::default(),
-            token_helper_runner: None,
+            token_helpers: TokenHelpers::default(),
         }
     }
 
@@ -323,7 +383,7 @@ impl AuthHeaders {
     /// and spawns real processes.
     #[must_use]
     pub fn with_token_helper_runner(mut self, runner: TokenHelperRunner) -> Self {
-        self.token_helper_runner = Some(runner);
+        self.token_helpers.token_helper_runner = Some(runner);
         self
     }
 
@@ -340,7 +400,10 @@ impl AuthHeaders {
                 if scope == DEFAULT_REGISTRY_SCOPE {
                     by_uri.insert(uri.clone(), value);
                 } else {
-                    scoped_by_uri.entry(uri.clone()).or_default().insert(scope, value);
+                    scoped_by_uri
+                        .entry(uri.clone())
+                        .or_default()
+                        .insert(scope, value);
                 }
             }
         }
@@ -401,8 +464,7 @@ impl AuthHeaders {
     /// Package-aware counterpart to [`Self::for_secure_url`].
     #[must_use]
     pub fn for_secure_url_with_package(&self, url: &str, pkg_name: Option<&str>) -> Option<String> {
-        let parsed = ParsedUrl::parse(url)?;
-        if !parsed.scheme.eq_ignore_ascii_case("https") && !is_loopback_host(parsed.host) {
+        if !is_url_secure_for_credentials(url) {
             return None;
         }
         self.for_url_with_package(url, pkg_name)
@@ -425,7 +487,9 @@ impl AuthHeaders {
     /// [`UpstreamRouteHook::allows_fetch`].
     #[must_use]
     pub fn allows_fetch(&self, url: &str) -> bool {
-        self.route_hook.as_ref().is_none_or(|hook| hook.allows_fetch(url))
+        self.route_hook
+            .as_ref()
+            .is_none_or(|hook| hook.allows_fetch(url))
     }
 
     /// Record the route for a metadata/tarball fetch that is about to be
@@ -455,149 +519,6 @@ impl AuthHeaders {
         match &self.route_hook {
             Some(hook) => hook.metadata_scope(url, pkg_name),
             None => MetadataCacheScope::Public,
-        }
-    }
-
-    /// Resolve an `Authorization` header for `url`, preferring
-    /// package-scope credentials when `pkg_name` is scoped.
-    #[must_use]
-    pub fn for_url_with_package(&self, url: &str, pkg_name: Option<&str>) -> Option<String> {
-        // A server route hook owns the decision: ignore the
-        // client-forwarded credentials entirely (including any inline
-        // `user:pass@` in `url`) and let the deployment's policy pick the
-        // credential and record the route.
-        if let Some(hook) = &self.route_hook {
-            return hook.authorize(url, pkg_name);
-        }
-        // Append a trailing `/` before parsing. Without this, a URL like
-        // `https://npm.pkg.github.com/pnpm` (registry without
-        // trailing slash) would nerf-dart to `//npm.pkg.github.com/`
-        // and miss a `//npm.pkg.github.com/pnpm/` token.
-        let mut owned: String;
-        let url_with_slash = if url.ends_with('/') {
-            url
-        } else {
-            owned = String::with_capacity(url.len() + 1);
-            owned.push_str(url);
-            owned.push('/');
-            owned.as_str()
-        };
-        let parsed = ParsedUrl::parse(url_with_slash)?;
-        if let Some(basic) = parsed.basic_auth_header() {
-            return Some(basic);
-        }
-        // Each lookup returns `None` when no key matched (so the walk
-        // falls through to the next candidate) and `Some(_)` when a key
-        // matched — even `Some(None)`, a matched `tokenHelper` that failed
-        // to resolve. A match is final: pnpm's most-specific key owns the
-        // decision, so a failed helper must not fall back to a shorter
-        // prefix or a different scope and send another credential.
-        if let Some(scope) = package_scope(pkg_name) {
-            if let Some(resolved) = self.lookup_scope_by_nerf(&parsed, scope) {
-                return resolved;
-            }
-            if parsed.port.is_some() {
-                let stripped = parsed.with_port_stripped();
-                if let Some(resolved) = self.lookup_scope_by_nerf(&stripped, scope) {
-                    return resolved;
-                }
-            }
-        }
-        if let Some(resolved) = self.lookup_by_nerf(&parsed) {
-            return resolved;
-        }
-        if parsed.port.is_some() {
-            let stripped = parsed.with_port_stripped();
-            if let Some(resolved) = self.lookup_by_nerf(&stripped) {
-                return resolved;
-            }
-        }
-        None
-    }
-
-    /// Walk package-scope keys for `scope` longest-prefix first. Returns
-    /// `None` when nothing matched and `Some(resolved)` when a key
-    /// matched (the inner `Option` is the resolved header, `None` if a
-    /// matched `tokenHelper` failed).
-    fn lookup_scope_by_nerf(&self, parsed: &ParsedUrl<'_>, scope: &str) -> Option<Option<String>> {
-        let scoped_by_uri = self.scoped_by_scope.get(scope)?;
-        let max_scoped_parts = self.max_scoped_parts_by_scope.get(scope).copied()?;
-        let nerfed = parsed.nerf_dart();
-        let parts: Vec<&str> = nerfed.split('/').collect();
-        let upper = parts.len().min(max_scoped_parts);
-        for i in (3..upper).rev() {
-            let key = format!("{}/", parts[..i].join("/"));
-            if let Some(entry) = scoped_by_uri.get(&key) {
-                return Some(self.resolve_entry(&key, scope, entry));
-            }
-        }
-        None
-    }
-
-    fn lookup_by_nerf(&self, parsed: &ParsedUrl<'_>) -> Option<Option<String>> {
-        if self.by_uri.is_empty() {
-            return None;
-        }
-        let nerfed = parsed.nerf_dart();
-        let parts: Vec<&str> = nerfed.split('/').collect();
-        let upper = parts.len().min(self.max_parts);
-        // Walk from the longest meaningful prefix down to `//host/`.
-        // `parts[0..3]` is `["", "", host]`, so joined with `/` it is
-        // `//host`; the loop slices through `parts[..i]` and re-joins,
-        // then appends a trailing slash. The exclusive upper bound at
-        // `min(parts.len(), max_parts)` drops the extra iteration that
-        // would always build a key ending in `//` (the trailing empty
-        // segment from `nerfed.split('/')` plus the appended `/`) and
-        // never match.
-        for i in (3..upper).rev() {
-            let key = format!("{}/", parts[..i].join("/"));
-            if let Some(entry) = self.by_uri.get(&key) {
-                return Some(self.resolve_entry(&key, DEFAULT_REGISTRY_SCOPE, entry));
-            }
-        }
-        None
-    }
-
-    /// Resolve a matched [`AuthEntry`] to a header value. A baked header
-    /// is cloned; a `tokenHelper` is executed once and memoized (keyed by
-    /// `scope` + map key so the same command at two registries still runs
-    /// per registry). A helper failure logs and yields `None` — pacquet
-    /// never sends a wrong, partial, or stale credential.
-    fn resolve_entry(&self, key: &str, scope: &str, entry: &AuthEntry) -> Option<String> {
-        match entry {
-            AuthEntry::Header(value) => Some(value.clone()),
-            AuthEntry::TokenHelper(command) => {
-                let cache_key = format!("{scope}\u{0}{key}");
-                // Take the per-key cell out under the global lock, then
-                // release it *before* running the helper. Holding the lock
-                // across the (up to `TOKEN_HELPER_TIMEOUT`) subprocess would
-                // block every other registry's lookup on one slow helper.
-                // `OnceLock` still serializes concurrent first-lookups of the
-                // *same* key, so the command runs at most once.
-                let cell = {
-                    let mut cache = self
-                        .resolved_token_helpers
-                        .lock()
-                        .unwrap_or_else(std::sync::PoisonError::into_inner);
-                    Arc::clone(cache.entry(cache_key).or_default())
-                };
-                cell.get_or_init(|| {
-                    let runner = self.token_helper_runner.unwrap_or(run_token_helper_command);
-                    match execute_token_helper(command, runner) {
-                        Ok(header) => Some(header),
-                        Err(error) => {
-                            let program = command.first().map_or("", String::as_str);
-                            tracing::error!(
-                                target: "pacquet::auth",
-                                "token helper {program:?} failed; the request will be sent \
-                                 without authentication: {error}",
-                            );
-                            None
-                        }
-                    }
-                })
-                .clone()
-            }
         }
     }
 }
@@ -648,280 +569,12 @@ fn package_scope(pkg_name: Option<&str>) -> Option<&str> {
     Some(scope)
 }
 
-/// Strip protocol, query string, fragment, basic-auth, and any
-/// trailing characters past the path's final `/`, returning the
-/// canonical "nerf-darted" form npm uses as `.npmrc` keys.
-#[must_use]
-pub fn nerf_dart(url: &str) -> String {
-    let Some(parsed) = ParsedUrl::parse(url) else { return String::new() };
-    parsed.nerf_dart()
-}
-
-/// Lightweight URL parsing tuned for the subset of URLs `.npmrc` and
-/// registries actually carry: `http`/`https` only, optional `user:pw@`,
-/// optional `:port`, optional path. Standard library has no URL type
-/// and pulling in the full `url` crate just for this is heavier than
-/// needed.
-#[derive(Clone, Copy)]
-struct ParsedUrl<'a> {
-    scheme: &'a str,
-    user_info: Option<&'a str>,
-    host: &'a str,
-    port: Option<&'a str>,
-    path: &'a str,
-}
-
-impl<'a> ParsedUrl<'a> {
-    fn parse(url: &'a str) -> Option<Self> {
-        let (scheme, rest) = url.split_once("://")?;
-        // Strip query string and fragment. Neither participates in
-        // nerf-darting per `removeFragment` / `removeSearch` in npm's
-        // own implementation.
-        let rest = rest.split(['?', '#']).next().unwrap_or(rest);
-        let (authority, path) = match rest.split_once('/') {
-            Some((authority, path_tail)) => (authority, path_tail),
-            None => (rest, ""),
-        };
-        let (user_info, host_port) = match authority.rsplit_once('@') {
-            Some((user_info, host_port)) => (Some(user_info), host_port),
-            None => (None, authority),
-        };
-        let (host, port) = if host_port.starts_with('[') {
-            match host_port.find(']') {
-                Some(closing_bracket) => {
-                    let host = &host_port[..=closing_bracket];
-                    let port = host_port[closing_bracket + 1..].strip_prefix(':');
-                    (host, port)
-                }
-                None => (host_port, None),
-            }
-        } else {
-            match host_port.rsplit_once(':') {
-                Some((host, port)) => (host, Some(port)),
-                None => (host_port, None),
-            }
-        };
-        Some(ParsedUrl { scheme, user_info, host, port, path })
-    }
-
-    fn nerf_dart(&self) -> String {
-        let mut out = String::with_capacity(2 + self.host.len() + self.path.len());
-        out.push_str("//");
-        out.push_str(self.host);
-        // Drop default ports (`//reg.com:443/` → `//reg.com/`). Without
-        // this, a registry configured as `https://reg.com:443/` keys
-        // creds at `//reg.com:443/` and a request to
-        // `https://reg.com/...` (no port) misses, because the port-strip
-        // fallback only fires when the *request* URL carries a port.
-        if let Some(port) = self.port
-            && !is_default_port(self.scheme, port)
-        {
-            out.push(':');
-            out.push_str(port);
-        }
-        out.push('/');
-        // Drop everything after the last `/` in the path. That final
-        // segment is a filename or package selector, not a key.
-        let trimmed = match self.path.rfind('/') {
-            Some(index) => &self.path[..index],
-            None => "",
-        };
-        if !trimmed.is_empty() {
-            out.push_str(trimmed);
-            out.push('/');
-        }
-        out
-    }
-
-    fn basic_auth_header(&self) -> Option<String> {
-        let user_info = self.user_info?;
-        let (user, pass) = match user_info.split_once(':') {
-            Some((user, pass)) => (user, pass),
-            None => (user_info, ""),
-        };
-        if user.is_empty() && pass.is_empty() {
-            return None;
-        }
-        Some(format!("Basic {}", base64_encode(&format!("{user}:{pass}"))))
-    }
-
-    fn with_port_stripped(&self) -> ParsedUrl<'a> {
-        ParsedUrl { port: None, ..*self }
-    }
-}
-
-fn is_default_port(scheme: &str, port: &str) -> bool {
-    matches!((scheme, port), ("https", "443") | ("http", "80"))
-}
-
-fn is_loopback_host(host: &str) -> bool {
-    host.eq_ignore_ascii_case("localhost")
-        || host
-            .trim_matches(['[', ']'])
-            .parse::<std::net::IpAddr>()
-            .is_ok_and(|address| address.is_loopback())
-}
-
-/// Local base64 encode so this crate doesn't pull in `base64` just for
-/// 4 lines. Standard alphabet, with padding.
-#[must_use]
-pub fn base64_encode(input: &str) -> String {
-    base64_encode_bytes(input.as_bytes())
-}
-
-/// [`base64_encode`] for credentials that are not required to be UTF-8,
-/// so a re-encoded `.npmrc` credential reproduces its bytes exactly.
-#[must_use]
-pub fn base64_encode_bytes(bytes: &[u8]) -> String {
-    const ALPHABET: &[u8; 64] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
-    let mut out = String::with_capacity(bytes.len().div_ceil(3) * 4);
-    let mut chunks = bytes.chunks_exact(3);
-    for chunk in &mut chunks {
-        let n = (u32::from(chunk[0]) << 16) | (u32::from(chunk[1]) << 8) | u32::from(chunk[2]);
-        out.push(ALPHABET[((n >> 18) & 0x3f) as usize] as char);
-        out.push(ALPHABET[((n >> 12) & 0x3f) as usize] as char);
-        out.push(ALPHABET[((n >> 6) & 0x3f) as usize] as char);
-        out.push(ALPHABET[(n & 0x3f) as usize] as char);
-    }
-    let remainder = chunks.remainder();
-    match remainder.len() {
-        1 => {
-            let n = u32::from(remainder[0]) << 16;
-            out.push(ALPHABET[((n >> 18) & 0x3f) as usize] as char);
-            out.push(ALPHABET[((n >> 12) & 0x3f) as usize] as char);
-            out.push('=');
-            out.push('=');
-        }
-        2 => {
-            let n = (u32::from(remainder[0]) << 16) | (u32::from(remainder[1]) << 8);
-            out.push(ALPHABET[((n >> 18) & 0x3f) as usize] as char);
-            out.push(ALPHABET[((n >> 12) & 0x3f) as usize] as char);
-            out.push(ALPHABET[((n >> 6) & 0x3f) as usize] as char);
-            out.push('=');
-        }
-        _ => {}
-    }
-    out
-}
-
-/// Mask an `Authorization` header value for display in an error message.
-/// The scheme survives so the reader can tell a `Bearer` token from `Basic`
-/// credentials, and a token long enough to be recognized by its owner keeps
-/// its first four characters; everything else becomes `[hidden]`.
-///
-/// Control characters are dropped first: the value comes from an untrusted
-/// `.npmrc` / environment variable and the masked result is printed to the
-/// terminal, so a token carrying raw escapes could otherwise inject terminal
-/// output through the characters masking leaves behind.
-#[must_use]
-pub fn hide_auth_information(auth_header_value: &str) -> String {
-    let sanitized: String =
-        auth_header_value.chars().filter(|character| !character.is_control()).collect();
-    let mut parts = sanitized.split(' ');
-    let auth_type = parts.next().unwrap_or_default();
-    let Some(token) = parts.next() else {
-        return "[hidden]".to_string();
-    };
-    if token.chars().count() < 20 {
-        return format!("{auth_type} [hidden]");
-    }
-    let prefix: String = token.chars().take(4).collect();
-    format!("{auth_type} {prefix}[hidden]")
-}
-
-/// Strip `user:pass@` (or `user@`) that appears right after a URL scheme in
-/// any message text, e.g. `… https://user:pass@host/pkg …` →
-/// `… https://host/pkg …`. A registry configured as `https://user:pass@host/`
-/// would otherwise leak its embedded basic-auth into a fetch error or a retry
-/// log line.
-#[must_use]
-pub fn redact_url_credentials(text: &str) -> String {
-    let mut out = String::with_capacity(text.len());
-    let mut rest = text;
-    while let Some(pos) = rest.find("://") {
-        let (before, after) = rest.split_at(pos + "://".len());
-        out.push_str(before);
-        // Only treat "://" as a URL authority boundary when a scheme character
-        // (schemes end in an ASCII alphanumeric) precedes it, so an unrelated
-        // "://" in the message isn't mangled.
-        let has_scheme = pos > 0 && rest.as_bytes()[pos - 1].is_ascii_alphanumeric();
-        rest = strip_leading_userinfo(after).filter(|_| has_scheme).unwrap_or(after);
-    }
-    out.push_str(rest);
-    out
-}
-
-/// Make untrusted, URL-bearing text safe to print or log: strip every
-/// control character, then redact inline `user:pass@` credentials
-/// ([`redact_url_credentials`]). Used for registry URLs and network-error
-/// messages alike — both can carry basic-auth or escape sequences from an
-/// untrusted `.npmrc` / `--registry` (or a `reqwest` error that echoes the
-/// request URL back), which must not leak credentials or inject terminal
-/// output via raw escapes / `\r` / `\n`.
-///
-/// The order is load-bearing: a control character inside the userinfo
-/// (`user:pass\r@host`) would split the authority across the redaction
-/// scan, and removing it afterwards would rejoin the credentials into the
-/// output.
-#[must_use]
-pub fn redact_and_sanitize(text: &str) -> String {
-    let sanitized = sanitize_control_characters(text);
-    redact_url_credentials(&sanitized)
-}
-
-/// Make a URL safe for user-visible output without exposing credentials,
-/// query parameters, fragments, or terminal control characters.
-/// Malformed URLs are replaced entirely because their authority cannot be
-/// redacted reliably.
-#[must_use]
-pub fn redact_url_for_display(url: &str) -> String {
-    let sanitized = sanitize_control_characters(url);
-    let Ok(mut display) = reqwest::Url::parse(&sanitized) else {
-        return "[hidden]".to_string();
-    };
-    if display.set_username("").is_err() || display.set_password(None).is_err() {
-        return "[hidden]".to_string();
-    }
-    display.set_query(None);
-    display.set_fragment(None);
-    display.to_string()
-}
-
-fn sanitize_control_characters(text: &str) -> String {
-    text.chars().filter(|character| !character.is_control()).collect()
-}
-
-/// [`redact_and_sanitize`] for text whose line breaks are worth keeping, such
-/// as a subprocess's multi-line stderr.
-///
-/// Line breaks are kept only when doing so redacts exactly as much as
-/// collapsing the text would: a newline can fall inside a `user:pass@`
-/// authority — git echoes such a URL back verbatim, password included — and
-/// redacting each line separately would leave the credentials split but
-/// readable. Whenever the two disagree, the collapsed form wins.
-#[must_use]
-pub fn redact_and_sanitize_multiline(text: &str) -> String {
-    let collapsed = redact_and_sanitize(text);
-    let per_line = text.split('\n').map(redact_and_sanitize).collect::<Vec<_>>().join("\n");
-    if per_line.replace('\n', "") == collapsed { per_line } else { collapsed }
-}
-
-/// If the authority leading `text` contains `userinfo@`, return the slice after
-/// the **last** `@` within it; otherwise `None`. The authority ends at the first
-/// `/`, `?`, `#`, or whitespace. Stripping to the last `@` keeps a raw `@` inside
-/// the password (`user:p@ss@host`) from leaking its tail.
-fn strip_leading_userinfo(authority: &str) -> Option<&str> {
-    let mut last_at = None;
-    for (idx, ch) in authority.char_indices() {
-        match ch {
-            '@' => last_at = Some(idx + ch.len_utf8()),
-            '/' | '?' | '#' => break,
-            c if c.is_whitespace() => break,
-            _ => {}
-        }
-    }
-    last_at.map(|end| &authority[end..])
-}
-
 #[cfg(test)]
 mod tests;
+
+mod redaction;
+
+mod url;
+use url::ParsedUrl;
+
+mod lookup;
