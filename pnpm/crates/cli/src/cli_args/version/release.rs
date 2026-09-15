@@ -64,7 +64,7 @@ async fn plan_workspace_release(
     let published_names = changelog::published_names(&projects);
     let private_dirs = projects
         .iter()
-        .filter(|project| project.manifest.value().get("private").and_then(|value| value.as_bool()) == Some(true))
+        .filter(|project| project.manifest.value().get("private").and_then(serde_json::Value::as_bool) == Some(true))
         .map(|project| pnpm_versioning::to_project_dir(workspace_dir, &project.root_dir))
         .collect();
 

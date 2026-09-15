@@ -171,7 +171,7 @@ impl ChangeArgs {
                 let names = published_names(projects);
                 let private_dirs = projects
                     .iter()
-                    .filter(|project| project.manifest.value().get("private").and_then(|value| value.as_bool()) == Some(true))
+                    .filter(|project| project.manifest.value().get("private").and_then(serde_json::Value::as_bool) == Some(true))
                     .map(|project| to_project_dir(workspace_dir, &project.root_dir))
                     .collect();
                 let output = render_status(workspace_dir, engine_projects, &names, &private_dirs, config).await?;
