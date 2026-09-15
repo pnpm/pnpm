@@ -18,8 +18,17 @@ pub(crate) struct OutdatedRun {
 }
 
 impl OutdatedRun {
-    pub(crate) fn new(config: &Config, http_client: Arc<ThrottledClient>) -> miette::Result<Self> {
-        let policy = PickPolicy::from_config(config).map_err(miette::Report::new)?;
+    pub(crate) fn new(
+        config: &Config,
+        http_client: Arc<ThrottledClient>,
+        full_metadata: bool,
+    ) -> miette::Result<Self> {
+        let mut policy = PickPolicy::from_config(config).map_err(miette::Report::new)?;
+        if full_metadata {
+            policy.full_metadata = true;
+            policy.filter_metadata = false;
+            policy.needs_full_metadata_for = Arc::new(|_| true);
+        }
         let resolver = create_configured_npm_resolver(config, http_client, &policy)
             .map_err(miette::Report::new)?;
         Ok(Self {
@@ -127,6 +136,10 @@ pub struct OutdatedQuery<'a> {
     /// `update` does not (a deprecated-but-current dependency has no
     /// newer version to move to).
     pub include_deprecated: bool,
+    /// Fetch the full packument instead of the abbreviated install
+    /// metadata. The full document is the only source of `homepage`,
+    /// which the `--long` details column renders.
+    pub full_metadata: bool,
 }
 
 /// The matcher for `updateConfig.ignoreDependencies`, or [`None`] when
@@ -175,7 +188,7 @@ pub(crate) async fn collect_outdated_for_importer(
         lockfile,
         importer_id,
         query,
-        &OutdatedRun::new(config, Arc::clone(http_client))?,
+        &OutdatedRun::new(config, Arc::clone(http_client), query.full_metadata)?,
     )
     .await
 }

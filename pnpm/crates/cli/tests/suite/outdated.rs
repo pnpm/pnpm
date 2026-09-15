@@ -414,8 +414,9 @@ fn outdated_list_format() {
     drop((root, anchor));
 }
 
-/// `--long` adds the deprecation reason to the report. Ports pnpm's
-/// "--long with only deprecated packages".
+/// `--long` renders the deprecation reason and the package homepage in
+/// the Details column. Ports pnpm's "--long with only deprecated
+/// packages".
 #[test]
 fn outdated_long_shows_deprecation_details() {
     let (root, workspace, anchor) = setup();
@@ -431,6 +432,7 @@ fn outdated_long_shows_deprecation_details() {
         stdout.contains("This package is deprecated"),
         "--long should print the deprecation reason: {stdout}",
     );
+    assert!(stdout.contains("https://foo.bar/qar"), "--long should print the homepage: {stdout}");
 
     drop((root, anchor));
 }

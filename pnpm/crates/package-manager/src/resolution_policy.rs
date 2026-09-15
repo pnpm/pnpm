@@ -33,6 +33,11 @@ pub struct PickPolicy {
     /// `supportsTimeField` is not charged for full metadata because another
     /// one needs it.
     pub needs_full_metadata_for: NeedsFullMetadataFor,
+    /// When [`Self::full_metadata`] forces the full packument, read and
+    /// write pnpm's filtered full-metadata mirror. The filtered mirror
+    /// drops install-irrelevant fields (`homepage` among them), so a run
+    /// that renders them (`outdated --long`) overrides this to `false`.
+    pub filter_metadata: bool,
     /// `minimumReleaseAge` cutoff: only versions published at or before
     /// this instant are eligible. `None` disables the maturity filter.
     pub published_by: Option<DateTime<Utc>>,
@@ -100,6 +105,7 @@ impl PickPolicy {
             pick_lowest_direct,
             full_metadata,
             needs_full_metadata_for: config.requires_full_metadata_for_registry_fn(),
+            filter_metadata: config.requires_filtered_full_metadata(),
             published_by,
             published_by_exclude,
         })
@@ -144,7 +150,7 @@ pub fn create_configured_npm_resolver(
         format: pnpm_resolving_npm_resolver::RegistryMetadataFormat {
             full_metadata: policy.full_metadata,
             needs_full_metadata_for: Some(Arc::clone(&policy.needs_full_metadata_for)),
-            filter_metadata: config.requires_filtered_full_metadata(),
+            filter_metadata: policy.filter_metadata,
         },
         cache_policy: pnpm_resolving_npm_resolver::MetadataCachePolicy {
             offline: config.offline,
@@ -171,7 +177,7 @@ pub(crate) fn pick_package_context<'a>(
     PickPackageContext {
         full_metadata: policy.full_metadata,
         needs_full_metadata_for: Some(policy.needs_full_metadata_for.as_ref()),
-        filter_metadata: config.requires_filtered_full_metadata(),
+        filter_metadata: policy.filter_metadata,
         cache_policy: pnpm_resolving_npm_resolver::MetadataCachePolicy {
             offline: config.offline,
             prefer_offline: config.prefer_offline,
