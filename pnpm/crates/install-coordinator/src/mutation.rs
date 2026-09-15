@@ -1,6 +1,6 @@
 use super::metadata_file::MetadataFile;
 use miette::{IntoDiagnostic, Result, WrapErr};
-use std::{collections::BTreeSet, fs, path::PathBuf};
+use std::{fs, path::PathBuf};
 
 pub(crate) struct MetadataMutation {
     snapshots: Vec<MetadataFile>,
@@ -20,7 +20,10 @@ impl MetadataMutation {
             .wrap_err("join metadata snapshot task")?
     }
 
-    fn capture_blocking(transaction_key: &std::path::Path, paths: Vec<PathBuf>) -> Result<Self> {
+    fn capture_blocking(
+        transaction_key: &std::path::Path,
+        mut paths: Vec<PathBuf>,
+    ) -> Result<Self> {
         let lock_directory = metadata_lock_directory();
         prepare_metadata_lock_directory(&lock_directory)?;
         let transaction_key = fs::canonicalize(transaction_key)
@@ -38,9 +41,9 @@ impl MetadataMutation {
             .wrap_err_with(|| {
                 format!("acquire metadata transaction lock {}", lock_path.display())
             })?;
+        paths.sort();
+        paths.dedup();
         let snapshots = paths
-            .into_iter()
-            .collect::<BTreeSet<_>>()
             .into_iter()
             .map(MetadataFile::capture)
             .collect::<Result<Vec<_>>>()?;

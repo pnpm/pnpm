@@ -328,3 +328,49 @@ test('createDeployFiles binds a peer whose name collides with an Object prototyp
   expect(Object.hasOwn(libSnapshot.dependencies ?? {}, 'constructor')).toBeTruthy()
   expect(libSnapshot.dependencies!.constructor).toBe('1.0.0')
 })
+
+
+test.each(['dependencies', 'devDependencies', 'optionalDependencies'] as const)('createDeployFiles normalizes registry specifiers in %s and preserves snapshot references', (field) => {
+  const lockfileDir = path.resolve('workspace')
+  const references = {
+    plain: '1.0.0',
+    peer: '1.0.0(react-dom@19.0.0(react@19.0.0))(react@19.0.0)',
+    patched: '1.0.0(patch_hash=abc)(react@19.0.0)',
+    alias: '@scope/pkg@1.0.0(react@19.0.0)',
+    tarball: 'https://example.com/pkg.tgz',
+    opaque: 'https://example.com/pkg.tgz(peer@1.0.0)',
+    registry: 'private:1.0.0(react@19.0.0)',
+    runtime: 'runtime:24.0.0',
+  }
+  const specifiers = {
+    plain: '1.0.0',
+    peer: '1.0.0',
+    patched: '1.0.0',
+    alias: 'npm:@scope/pkg@1.0.0',
+    tarball: 'https://example.com/pkg.tgz',
+    opaque: 'https://example.com/pkg.tgz(peer@1.0.0)',
+    registry: 'private:1.0.0(react@19.0.0)',
+    runtime: 'runtime:24.0.0',
+  }
+  const lockfile: LockfileObject = {
+    lockfileVersion: '9.0',
+    importers: { ['.' as ProjectId]: { specifiers: {}, [field]: references } },
+    packages: {
+      ['peer@' + references.peer as DepPath]: { resolution: { integrity: 'sha512-test' } },
+    },
+  }
+  const result = createDeployFiles({
+    allProjects: [],
+    deployDir: path.join(lockfileDir, 'out'),
+    include: { dependencies: true, devDependencies: true, optionalDependencies: true },
+    lockfile,
+    lockfileDir,
+    selectedProjectManifest: { name: 'app', [field]: references },
+    projectId: '.' as ProjectId,
+    rootProjectManifestDir: lockfileDir,
+  })
+  expect(result.manifest[field]).toStrictEqual(specifiers)
+  expect(result.lockfile.importers['.' as ProjectId].specifiers).toStrictEqual(specifiers)
+  expect(result.lockfile.importers['.' as ProjectId][field]).toStrictEqual(references)
+  expect(result.lockfile.packages).toEqual(lockfile.packages)
+})

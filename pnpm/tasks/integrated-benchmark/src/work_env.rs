@@ -10,6 +10,8 @@ mod fixtures;
 
 use fixtures::{create_npmrc, create_package_json, create_pnpm_workspace, save_pristine_copies};
 
+mod linked_workspace;
+
 mod server_config;
 use server_config::{
     PnprServer, PnprServerPaths, RevisionMockRegistry, append_pnpr_auth_to_npmrc,
@@ -73,6 +75,13 @@ const PEER_HEAVY_WIDTH: usize = 80;
 const PEER_HEAVY_PROVIDER: &str = "@pnpmtest/peer-benchmark-provider";
 const PEER_HEAVY_VERSION: &str = "1.0.0";
 const PEER_HEAVY_INTEGRITY: &str = "sha512-z6pI0F3yfz8Zl3R0+g1pwMbdY12h7Osj5UYSTh6Rcpd7UtO7nxeIzf+7gPDOAH4mgxi7BXaTyBDS0hBFgZVssQ==";
+// 7 x 32 projects with a shared peer provider, so the generated workspace
+// holds 225 importers joined by 6,369 `workspace:*` edges. Sized to keep
+// fixture generation instant while leaving a walk that re-traverses shared
+// subgraphs per importer ~100x more edges to visit than one that does not.
+const LINKED_WORKSPACE_DEPTH: usize = 7;
+const LINKED_WORKSPACE_WIDTH: usize = 32;
+const LINKED_WORKSPACE_VERSION: &str = "1.0.0";
 const PNPM_BUNDLE_PATHS: [&str; 4] = [
     "pnpm11/pnpm/dist/pnpm.mjs",
     "pnpm11/pnpm/dist/pnpm.cjs",
@@ -263,13 +272,14 @@ impl WorkEnv {
         eprintln!("Initializing...");
         // The proxy-cache populator only runs against a local
         // verdaccio/virtual registry to warm its on-disk cache. With
-        // `--registry=npm`, no proxy exists. The peer-heavy fixture is
-        // already seeded into hosted storage, so it needs no population
-        // pass either.
+        // `--registry=npm`, no proxy exists. A generated fixture needs no
+        // population pass either: the peer-heavy one is already seeded into
+        // hosted storage, and the linked-workspace one names no registry
+        // package at all.
         let populate_proxy_cache = matches!(
             self.options.network.registry,
             RegistryMode::Verdaccio | RegistryMode::Virtual,
-        ) && !scenario.uses_peer_heavy_fixture();
+        ) && !scenario.uses_generated_fixture();
         let id_list = self
             .target_ids()
             .chain(populate_proxy_cache.then_some(WorkEnv::INIT_PROXY_CACHE))
@@ -280,6 +290,9 @@ impl WorkEnv {
             let registry = self.registry_for(id, direct_registry, revision_mocks);
             fs::create_dir_all(&dir).expect("create directory for the revision");
             create_package_json(&dir, self.options.selection.fixture_dir.as_deref(), scenario);
+            if scenario.uses_linked_workspace_fixture() {
+                linked_workspace::create_projects(&dir);
+            }
             create_pnpm_workspace(
                 &dir,
                 self.options.selection.fixture_dir.as_deref(),

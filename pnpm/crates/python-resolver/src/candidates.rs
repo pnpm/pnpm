@@ -1,9 +1,10 @@
 use crate::{
     lockfile::{LockedWheel, Target},
     packages::Candidate,
+    requires_python::declared_range,
 };
 use miette::{IntoDiagnostic, Result, bail};
-use pep440_rs::{Version, VersionSpecifiers};
+use pep440_rs::Version;
 use pep508_rs::{PackageName, Requirement};
 use serde::Deserialize;
 use std::collections::BTreeMap;
@@ -111,11 +112,10 @@ fn installable_candidate(
     if wheel_name != *name {
         bail!("Python index for {name} contains a wheel for {wheel_name}");
     }
-    if let Some(requirement) = &file.requires_python {
-        let specifiers: VersionSpecifiers = requirement.parse().into_diagnostic()?;
-        if !specifiers.contains(target.environment.python_full_version()) {
-            return Ok(None);
-        }
+    if let Some(specifiers) = file.requires_python.as_deref().and_then(declared_range)
+        && !specifiers.contains(target.environment.python_full_version())
+    {
+        return Ok(None);
     }
     let url = page_url.join(&file.url).into_diagnostic()?;
     validate_url(&url)?;

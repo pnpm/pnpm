@@ -1,9 +1,9 @@
 use super::{
-    CatalogMode, Config, Context, DependencyGroup, GlobalPackageBinSnapshot, GlobalPackageInfo,
-    HashMap, HashSet, ImporterDepVersion, Lockfile, PackageBinSource, Path, RangeSpecStyle,
-    Reporter, State, SupportedArchitectures, Version, WorkspaceSettings, add_packages,
-    apply_allow_build, decided_allow_builds, infer_local_package_alias, installed_versions,
-    prompt_approve_global_builds, update_selectors,
+    AddGroups, CatalogMode, Config, Context, DependencyGroup, GlobalPackageBinSnapshot,
+    GlobalPackageInfo, HashMap, HashSet, ImporterDepVersion, Lockfile, PackageBinSource, Path,
+    RangeSpecStyle, Reporter, State, SupportedArchitectures, Version, WorkspaceSettings,
+    add_packages, apply_allow_build, decided_allow_builds, infer_local_package_alias,
+    installed_versions, prompt_approve_global_builds, update_selectors,
 };
 
 /// The pnpm home a global group installs into.
@@ -164,7 +164,7 @@ pub(super) async fn run_group_install<Reporter: self::Reporter + 'static>(
         None,
         install.lockfile_only,
         config.supported_architectures.clone(),
-        Some([DependencyGroup::Prod]),
+        AddGroups { save_target: Some([DependencyGroup::Prod]), included: None },
     )
     .await?;
 

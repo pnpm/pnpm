@@ -7,6 +7,7 @@ use crate::{
 };
 use clap::{CommandFactory, FromArgMatches};
 use pnpm_config::Config;
+use pnpm_package_manifest::DependencyGroup;
 use pretty_assertions::assert_eq;
 use std::{ffi::OsString, path::Path};
 
@@ -132,4 +133,56 @@ fn install_with_offline_after_the_package_parses_as_add() {
     let mut config = Config::default();
     overrides.apply(&mut config, Path::new("/workspace"));
     assert!(config.offline);
+}
+
+/// The whole pre-clap pipeline, as `main` runs it.
+fn prepare(tokens: &[&str]) -> CliArgs {
+    let (cmd, argv) = crate::prepare_cli_argv(
+        tokens
+            .iter()
+            .map(OsString::from)
+            .collect(),
+    );
+    cmd.try_get_matches_from(argv)
+        .and_then(|matches| CliArgs::from_arg_matches(&matches))
+        .expect("parses after the pre-clap passes")
+}
+
+/// `--prod` and `--dev` are `install`'s flags, and a command line that
+/// names a package is handed to `add`'s grammar, so `add` takes them too
+/// (pnpm/pnpm#14868). `--prod=false` reaches the negation the boolean
+/// value pass resolves it to.
+#[test]
+fn a_dependency_group_filter_survives_the_rewrite_to_add() {
+    for (spelling, prod, dev) in [
+        ("--prod", true, false),
+        ("--production", true, false),
+        ("--prod=false", false, false),
+        ("--production=false", false, false),
+        ("--no-prod", false, false),
+        ("--dev", false, true),
+        ("--dev=false", false, false),
+        ("--no-dev", false, false),
+    ] {
+        let args = prepare(&["pnpm", "install", spelling, "valibot"]);
+
+        let CliCommand::Add(add) = args.command else {
+            panic!("expected add for {spelling}");
+        };
+        assert_eq!(add.package_names, ["valibot"], "{spelling}");
+        assert_eq!((add.include.prod, add.include.dev), (prod, dev), "{spelling}");
+    }
+}
+
+/// `-P` and `-D` are `add`'s save-target shorthands, as they are in pnpm,
+/// so the long `--prod` / `--dev` must not claim them.
+#[test]
+fn the_short_spellings_stay_with_the_save_target() {
+    let args = prepare(&["pnpm", "install", "-D", "vitest"]);
+
+    let CliCommand::Add(add) = args.command else {
+        panic!("expected add");
+    };
+    assert!(!add.include.dev, "-D is --save-dev on add, not --dev");
+    assert_eq!(add.dependency_options.save_target(), Some(vec![DependencyGroup::Dev]));
 }

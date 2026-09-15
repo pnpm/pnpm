@@ -234,3 +234,45 @@ fn percent_decode_reassembles_utf8_sequences() {
     // (`@foo/bar` → `%40foo%2Fbar`).
     assert_eq!(super::percent_decode("%40foo%2Fbar"), "@foo/bar");
 }
+
+#[test]
+fn synthesized_name_scopes_a_repository_by_its_owner() {
+    for (specifier, expected) in [
+        ("github:anthropics/skills", "@anthropics/skills"),
+        ("github:vercel-labs/skills", "@vercel-labs/skills"),
+        ("zkochan/is-negative#canary", "@zkochan/is-negative"),
+        ("https://github.com/zkochan/is-negative.git#2.0.1", "@zkochan/is-negative"),
+        ("bitbucket:pnpmjs/git-resolver", "@pnpmjs/git-resolver"),
+    ] {
+        let hosted = HostedGit::from_url(specifier).expect("recognised");
+        assert_eq!(hosted.synthesized_package_name(), expected, "specifier: {specifier}");
+    }
+}
+
+#[test]
+fn synthesized_name_is_lowercased() {
+    let hosted = HostedGit::from_url("github:Anthropics/Skills").expect("recognised");
+    assert_eq!(hosted.synthesized_package_name(), "@anthropics/skills");
+}
+
+/// A GitLab project in a subgroup arrives with the groups joined by `/`,
+/// which a scope cannot hold. The separator they join with has to be one
+/// no group path can spell, or a nested path would take the name of a
+/// top-level group.
+#[test]
+fn synthesized_name_joins_gitlab_subgroups() {
+    let nested = HostedGit::from_url("gitlab:group/subgroup/project").expect("recognised");
+    assert_eq!(nested.user, "group/subgroup");
+    assert_eq!(nested.synthesized_package_name(), "@group~subgroup/project");
+
+    let flat = HostedGit::from_url("gitlab:group-subgroup/project").expect("recognised");
+    assert_ne!(flat.synthesized_package_name(), nested.synthesized_package_name());
+    assert_eq!(flat.synthesized_package_name(), "@group-subgroup/project");
+}
+
+#[test]
+fn synthesized_name_of_an_ownerless_shortcut_is_the_project() {
+    let hosted = HostedGit::from_url("github:skills").expect("recognised");
+    assert_eq!(hosted.user, "");
+    assert_eq!(hosted.synthesized_package_name(), "skills");
+}

@@ -21,6 +21,7 @@ import type {
   ProjectManifest,
 } from '@pnpm/types'
 import normalizePath from 'normalize-path'
+import { pick } from 'ramda'
 
 const DEPENDENCIES_FIELD = ['dependencies', 'devDependencies', 'optionalDependencies'] as const satisfies DependenciesField[]
 
@@ -140,7 +141,8 @@ export function createDeployFiles ({
       })
 
       if (!resolveResult) {
-        targetSpecifiers[name] = targetDependencies[name] = version
+        targetDependencies[name] = version
+        targetSpecifiers[name] = deployDependencySpecifier(name, version)
         continue
       }
 
@@ -177,9 +179,9 @@ export function createDeployFiles ({
     },
     manifest: omitPeersOfExcludedDependencies({
       ...selectedProjectManifest,
-      dependencies: targetSnapshot.dependencies,
-      devDependencies: targetSnapshot.devDependencies,
-      optionalDependencies: targetSnapshot.optionalDependencies,
+      dependencies: pick(Object.keys(targetSnapshot.dependencies ?? {}), targetSnapshot.specifiers),
+      devDependencies: pick(Object.keys(targetSnapshot.devDependencies ?? {}), targetSnapshot.specifiers),
+      optionalDependencies: pick(Object.keys(targetSnapshot.optionalDependencies ?? {}), targetSnapshot.specifiers),
     }, selectedProjectManifest, targetSnapshot),
   }
 
@@ -205,6 +207,14 @@ export function createDeployFiles ({
   }
 
   return result
+}
+
+function deployDependencySpecifier (alias: string, reference: string): string {
+  const depPath = dp.refToRelative(reference, alias)
+  if (depPath == null) return reference
+  const { name, version, registryName } = dp.parse(depPath)
+  if (version == null || registryName != null) return reference
+  return name === alias ? version : `npm:${name}@${version}`
 }
 
 function omitPeersOfExcludedDependencies (

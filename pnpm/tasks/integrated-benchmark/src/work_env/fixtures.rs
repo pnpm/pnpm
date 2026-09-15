@@ -23,6 +23,11 @@ pub(super) fn create_package_json(
         fs::write(dst, peer_heavy_root_manifest()).expect("write peer-heavy package.json");
         return;
     }
+    if scenario.uses_linked_workspace_fixture() {
+        fs::write(dst, super::linked_workspace::root_manifest())
+            .expect("write linked-workspace package.json");
+        return;
+    }
     if let Some(src_dir) = src_dir {
         let src = src_dir.join("package.json");
         assert!(src.is_file(), "{src:?} must be a file");
@@ -195,9 +200,12 @@ pub(super) fn create_pnpm_workspace(
     scenario: BenchmarkScenario,
 ) {
     let dst = dst_dir.join("pnpm-workspace.yaml");
-    let src_dir = if scenario.uses_peer_heavy_fixture() { None } else { src_dir };
+    let src_dir = if scenario.uses_generated_fixture() { None } else { src_dir };
     let mut manifest = fixture_workspace_manifest(src_dir, &dst)
         .unwrap_or_else(MinimalWorkspaceManifest::default_for_benchmark);
+    if scenario.uses_linked_workspace_fixture() {
+        manifest.packages = Some(vec![".".to_string(), "packages/*".to_string()]);
+    }
     if manifest.store_dir.is_none() {
         manifest.store_dir = Some("./store-dir".to_string());
     }

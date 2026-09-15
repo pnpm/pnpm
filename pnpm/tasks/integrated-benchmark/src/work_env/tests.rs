@@ -1,6 +1,7 @@
 use super::{
-    BenchId, HyperfineCommand, PEER_HEAVY_DEPTH, PEER_HEAVY_PROVIDER, PEER_HEAVY_WIDTH, WorkEnv,
-    collect_pnpr_direct_ratios, create_install_script, create_package_json, create_pnpm_workspace,
+    BenchId, HyperfineCommand, LINKED_WORKSPACE_DEPTH, LINKED_WORKSPACE_WIDTH, PEER_HEAVY_DEPTH,
+    PEER_HEAVY_PROVIDER, PEER_HEAVY_WIDTH, WorkEnv, collect_pnpr_direct_ratios,
+    create_install_script, create_package_json, create_pnpm_workspace,
     fixtures::peer_heavy_package_name,
     measurements::PhaseEvent,
     non_trivial_cold_batch, read_phase_events, render_diagnostics_markdown,
@@ -145,6 +146,70 @@ fn peer_heavy_scenario_generates_shared_subgraph_root() {
             .as_object()
             .expect("leaf dependencies")
             .is_empty(),
+    );
+}
+
+/// The fixture's point is the `workspace:*` fan-out and the peer every
+/// linked project declares: without both, the install never walks a shared
+/// `link:` graph and the scenario stops guarding anything.
+#[test]
+fn linked_workspace_scenario_generates_a_shared_link_graph() {
+    let scenario = BenchmarkScenario::IsolatedLinkedWorkspaceResolveHotCacheOffline;
+    let dir = std::env::temp_dir()
+        .join(format!("pacquet-integrated-benchmark-linked-workspace-{}", std::process::id()));
+    fs::create_dir_all(&dir).expect("create linked-workspace test dir");
+
+    create_package_json(&dir, None, scenario);
+    super::linked_workspace::create_projects(&dir);
+    create_pnpm_workspace(&dir, None, "http://localhost:4873/", scenario);
+
+    let root: serde_json::Value =
+        serde_json::from_slice(&fs::read(dir.join("package.json")).expect("read root manifest"))
+            .expect("parse root manifest");
+    let first: serde_json::Value = serde_json::from_slice(
+        &fs::read(dir.join("packages/level-0-00/package.json")).expect("read first project"),
+    )
+    .expect("parse first project");
+    let leaf: serde_json::Value = serde_json::from_slice(
+        &fs::read(dir.join(format!(
+            "packages/level-{}-00/package.json",
+            LINKED_WORKSPACE_DEPTH - 1,
+        )))
+        .expect("read leaf project"),
+    )
+    .expect("parse leaf project");
+    let workspace =
+        fs::read_to_string(dir.join("pnpm-workspace.yaml")).expect("read generated workspace");
+    let project_count = fs::read_dir(dir.join("packages")).expect("read projects").count();
+    let _ = fs::remove_dir_all(&dir);
+
+    assert_eq!(project_count, LINKED_WORKSPACE_DEPTH * LINKED_WORKSPACE_WIDTH + 1);
+    assert!(workspace.contains("- packages/*"), "workspace = {workspace}");
+    dbg!(&root, &first, &leaf);
+    assert_eq!(
+        root["dependencies"]
+            .as_object()
+            .expect("root dependencies")
+            .len(),
+        LINKED_WORKSPACE_WIDTH + 1,
+    );
+    // Every project links the whole next level plus the shared peer provider.
+    assert_eq!(
+        first["dependencies"]
+            .as_object()
+            .expect("first dependencies")
+            .len(),
+        LINKED_WORKSPACE_WIDTH + 1,
+    );
+    assert_eq!(first["dependencies"]["@pnpmtest/linked-benchmark-level-1-00"], "workspace:*");
+    assert_eq!(first["peerDependencies"]["@pnpmtest/linked-benchmark-shared"], "1.0.0");
+    // The last level links nothing but the provider, so the graph terminates.
+    assert_eq!(
+        leaf["dependencies"]
+            .as_object()
+            .expect("leaf dependencies")
+            .len(),
+        1,
     );
 }
 

@@ -243,6 +243,7 @@ jobs:
           - isolated-linker.fresh-install.cold-cache.hot-store
           - isolated-linker.fresh-resolve.hot-cache.offline
           - isolated-linker.peer-heavy-resolve.hot-cache.offline
+          - isolated-linker.linked-workspace-resolve.hot-cache.offline
           - isolated-linker.fresh-restore.cold-cache.cold-store.cold-pnpr
           - gvs-linker.fresh-restore.hot-cache.hot-store
     name: ${{ matrix.scenario }} on ${{ matrix.os }}
@@ -267,6 +268,10 @@ jobs:
       # command exercises client-side peer resolution rather than server or
       # tarball performance.
       PEER_HEAVY_BENCHMARK_TARGETS: ${{ github.ref_name == 'main' && 'pacquet@HEAD pnpm@HEAD' || 'pacquet@HEAD pacquet@main pnpm@HEAD' }}
+      # The linked-workspace case compares the PR against main only. Its
+      # fixture is a pure `workspace:*` graph, so there is nothing for a pnpr
+      # server to accelerate, and pnpm v11 never walks linked importers at all.
+      LINKED_WORKSPACE_BENCHMARK_TARGETS: ${{ github.ref_name == 'main' && 'pacquet@HEAD' || 'pacquet@HEAD pacquet@main' }}
       BENCHMARK_BUILD_TARGETS: ${{ github.ref_name == 'main' && 'pacquet@HEAD pnpr@HEAD' || 'pacquet@HEAD pacquet@main pnpr@HEAD pnpr@main' }}
       # Network emulation so both install strategies cross the link they
       # would in production instead of free loopback (~GB/s, ~0 RTT), which
@@ -304,8 +309,12 @@ jobs:
         run: git branch --force main "$MAIN_SHA"
 
       - name: Cache pnpm-registry storage
-        # Peer-heavy uses hosted fixtures and never populates the npm proxy cache.
-        if: matrix.scenario != 'isolated-linker.peer-heavy-resolve.hot-cache.offline'
+        # The generated fixtures never populate the npm proxy cache: peer-heavy
+        # is seeded into hosted storage, linked-workspace names no registry
+        # package at all.
+        if: >-
+          matrix.scenario != 'isolated-linker.peer-heavy-resolve.hot-cache.offline' &&
+          matrix.scenario != 'isolated-linker.linked-workspace-resolve.hot-cache.offline'
         # Persists pnpm-registry's `--storage` dir across CI runs so
         # cold-cache benchmark scenarios don't refetch ~2.3k unscoped
         # packages from npmjs on every run. Replaces the older
@@ -370,7 +379,7 @@ jobs:
           packages: hyperfine@1.18.0
 
       - name: Install just
-        uses: taiki-e/install-action@9534c84618278caac52cb373bb164ed464dbd8af # v2.87.11
+        uses: taiki-e/install-action@3f74d7c16a4242f1c95561e98edc25d36adb4375 # v2.87.12
         with:
           tool: just
 
@@ -536,6 +545,22 @@ jobs:
           cp bench-work-env/BENCHMARK_REPORT.json bench-work-env/BENCHMARK_REPORT_ISOLATED_PEER_HEAVY_RESOLVE_HOT_CACHE_OFFLINE.json || true
           exit $status
 
+      - name: 'Benchmark: Isolated linker: linked-workspace resolve, hot cache, offline'
+        if: matrix.scenario == 'isolated-linker.linked-workspace-resolve.hot-cache.offline'
+        shell: bash
+        # A generated workspace of 225 projects joined by 6,369 `workspace:*`
+        # edges, every linked project declaring a peer its consumers provide.
+        # The timed command resolves offline with no lockfile and no registry
+        # package, so the install's walk over linked workspace packages is the
+        # only variable cost. A walk that re-traverses a shared linked project
+        # once per importer that reaches it lands ~100x more edge visits here
+        # (https://github.com/pnpm/pnpm/issues/14906).
+        timeout-minutes: 20
+        run: |
+          target/debug/integrated-benchmark --reuse-prebuilt-binaries --scenario=isolated-linker.linked-workspace-resolve.hot-cache.offline --registry=verdaccio --registry-latency-ms=${REGISTRY_LATENCY_MS} --registry-bandwidth-mbps=${REGISTRY_BANDWIDTH_MBPS} $LINKED_WORKSPACE_BENCHMARK_TARGETS
+          cp bench-work-env/BENCHMARK_REPORT.md bench-work-env/BENCHMARK_REPORT_ISOLATED_LINKED_WORKSPACE_RESOLVE_HOT_CACHE_OFFLINE.md
+          cp bench-work-env/BENCHMARK_REPORT.json bench-work-env/BENCHMARK_REPORT_ISOLATED_LINKED_WORKSPACE_RESOLVE_HOT_CACHE_OFFLINE.json
+
       - name: 'Benchmark: Isolated linker: fresh restore, cold cache + cold store + cold pnpr'
         if: matrix.scenario == 'isolated-linker.fresh-restore.cold-cache.cold-store.cold-pnpr'
         shell: bash
@@ -674,7 +699,7 @@ jobs:
             echo
             echo "**Commit:** [\`${SHA:0:12}\`](${{ github.server_url }}/${{ github.repository }}/commit/$SHA)"
             echo
-            echo 'Regular scenarios report direct and pnpr installs. The peer-heavy resolver scenario compares current Rust, main Rust, and TypeScript pnpm. Bencher consumes pacquet@HEAD and pnpr@HEAD.'
+            echo 'Regular scenarios report direct and pnpr installs. The peer-heavy resolver scenario compares current Rust, main Rust, and TypeScript pnpm; the linked-workspace scenario compares current Rust against main Rust. Bencher consumes pacquet@HEAD and pnpr@HEAD.'
             echo
             echo 'The tables below show mean ± σ; Bencher thresholds on the **minimum** latency, which is far less perturbed by shared-runner contention (noise only adds time).'
             echo
@@ -786,6 +811,18 @@ jobs:
             echo
             echo '</details>'
             echo
+            echo '### Scenario: Isolated linker: linked-workspace resolve, hot cache, offline'
+            echo
+            cat bench-work-env/BENCHMARK_REPORT_ISOLATED_LINKED_WORKSPACE_RESOLVE_HOT_CACHE_OFFLINE.md
+            echo
+            echo '<details><summary>BENCHMARK_REPORT.json</summary>'
+            echo
+            echo '```json'
+            jq 'del(.results[].exit_codes, .results[].times)' bench-work-env/BENCHMARK_REPORT_ISOLATED_LINKED_WORKSPACE_RESOLVE_HOT_CACHE_OFFLINE.json
+            echo '```'
+            echo
+            echo '</details>'
+            echo
             echo '### Scenario: Isolated linker: fresh restore, cold cache + cold store + cold pnpr'
             echo
             cat bench-work-env/BENCHMARK_REPORT_ISOLATED_FRESH_RESTORE_COLD_CACHE_COLD_STORE_COLD_PNPR.md
@@ -875,6 +912,7 @@ jobs:
             'ISOLATED_FRESH_INSTALL_COLD_CACHE_HOT_STORE:isolated-linker.fresh-install.cold-cache.hot-store' \
             'ISOLATED_FRESH_RESOLVE_HOT_CACHE_OFFLINE:isolated-linker.fresh-resolve.hot-cache.offline' \
             'ISOLATED_PEER_HEAVY_RESOLVE_HOT_CACHE_OFFLINE:isolated-linker.peer-heavy-resolve.hot-cache.offline' \
+            'ISOLATED_LINKED_WORKSPACE_RESOLVE_HOT_CACHE_OFFLINE:isolated-linker.linked-workspace-resolve.hot-cache.offline' \
             'ISOLATED_FRESH_RESTORE_COLD_CACHE_COLD_STORE_COLD_PNPR:isolated-linker.fresh-restore.cold-cache.cold-store.cold-pnpr' \
             'GVS_FRESH_RESTORE_HOT_CACHE_HOT_STORE:gvs-linker.fresh-restore.hot-cache.hot-store'
 

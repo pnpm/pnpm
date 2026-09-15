@@ -9,16 +9,15 @@ use std::{
 };
 
 use pnpm_config::{Config, NodeLinker};
-#[cfg(unix)]
-use pnpm_lockfile::Lockfile;
-use pnpm_lockfile::{LockfileResolution, PackageKey, PackageMetadata, TarballResolution};
-use pnpm_package_manifest::PackageManifest;
+use pnpm_lockfile::{Lockfile, LockfileResolution, PackageKey, PackageMetadata, TarballResolution};
+use pnpm_package_manifest::{DependencyGroup, PackageManifest};
 use pnpm_workspace::Project;
 use serde_json::json;
 
 use super::{
-    ConvertCtx, ProjectInfo, ProjectPathKey, convert_package_key, convert_package_metadata,
-    create_file_url_key, index_projects, validate_lockfile_local_path,
+    ConvertCtx, ProjectInfo, ProjectPathKey, SelectedProject, convert_package_key,
+    convert_package_metadata, create_deploy_files, create_file_url_key, index_projects,
+    validate_lockfile_local_path,
 };
 #[cfg(unix)]
 use super::{DeployFiles, DeployWorkspaceConfig, write_deploy_files};
@@ -263,4 +262,71 @@ fn windows_case_variant_workspace_root_is_rejected_as_deploy_target() {
     )
     .expect_err("case-variant workspace root must be rejected");
     assert!(err.to_string().contains("target is the workspace root"));
+}
+
+#[test]
+fn deploy_normalizes_registry_specifiers_and_preserves_snapshot_references() {
+    let tmp = tempfile::tempdir().expect("tempdir");
+    let references = json!({
+        "plain": "1.0.0",
+        "peer": "1.0.0(react-dom@19.0.0(react@19.0.0))(react@19.0.0)",
+        "patched": "1.0.0(patch_hash=abc)(react@19.0.0)",
+        "alias": "@scope/pkg@1.0.0(react@19.0.0)",
+        "tarball": "https://example.com/pkg.tgz",
+        "opaque": "https://example.com/pkg.tgz(peer@1.0.0)",
+        "registry": "private:1.0.0(react@19.0.0)",
+        "runtime": "runtime:24.0.0",
+    });
+    let specifiers = json!({
+        "plain": "1.0.0",
+        "peer": "1.0.0",
+        "patched": "1.0.0",
+        "alias": "npm:@scope/pkg@1.0.0",
+        "tarball": "https://example.com/pkg.tgz",
+        "opaque": "https://example.com/pkg.tgz(peer@1.0.0)",
+        "registry": "private:1.0.0(react@19.0.0)",
+        "runtime": "runtime:24.0.0",
+    });
+    for field in ["dependencies", "devDependencies", "optionalDependencies"] {
+        let dependencies = references
+            .as_object()
+            .unwrap()
+            .iter()
+            .map(|(name, version)| (name.clone(), json!({ "specifier": "*", "version": version })))
+            .collect::<serde_json::Map<_, _>>();
+        let lockfile: Lockfile = serde_json::from_value(json!({
+            "lockfileVersion": "9.0",
+            "importers": { ".": { field: dependencies } },
+            "snapshots": { "peer@1.0.0(react-dom@19.0.0(react@19.0.0))(react@19.0.0)": {} },
+        }))
+        .unwrap();
+        let selected = SelectedProject {
+            project: Project {
+                root_dir: tmp.path().to_path_buf(),
+                manifest: PackageManifest::from_value(
+                    tmp.path().join("package.json"),
+                    json!({ "name": "app", field: references }),
+                ),
+                dependency_manifest: None,
+            },
+            projects_by_path: HashMap::new(),
+        };
+        let result = create_deploy_files(
+            &lockfile,
+            &selected,
+            ".",
+            tmp.path(),
+            &tmp.path().join("out"),
+            &Config::default(),
+            &[DependencyGroup::Prod, DependencyGroup::Dev, DependencyGroup::Optional],
+        )
+        .unwrap();
+        assert_eq!(result.manifest[field], specifiers);
+        let importer = serde_json::to_value(&result.lockfile.importers["."]).unwrap();
+        for (name, reference) in references.as_object().unwrap() {
+            assert_eq!(importer[field][name]["version"], *reference);
+            assert_eq!(importer[field][name]["specifier"], specifiers[name]);
+        }
+        assert_eq!(result.lockfile.snapshots, lockfile.snapshots);
+    }
 }

@@ -399,6 +399,80 @@ fn strict_peer_dependencies_fails_on_a_linked_workspace_packages_unmet_peer() {
     drop((root, mock_instance));
 }
 
+/// The walk stops at each `link:` edge. A linked workspace package's own
+/// linked dependencies are its obligation, and it is an importer of the same
+/// lockfile, so its own report covers them. Following the edge instead would
+/// re-traverse every shared workspace package once per importer that reaches
+/// it, which is quadratic in a workspace whose projects depend on each other.
+#[test]
+fn a_transitively_linked_packages_peer_is_reported_only_under_its_own_consumer() {
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    fs::write(workspace.join("pnpm-workspace.yaml"), "packages:\n  - packages/*\n")
+        .expect("write workspace manifest");
+    fs::write(workspace.join("package.json"), r#"{ "name": "root", "version": "1.0.0" }"#)
+        .expect("write root manifest");
+    write_linked_chain_project(
+        &workspace,
+        "leaf",
+        serde_json::json!({ "peerDependencies": { "@pnpm.e2e/foo": "100.0.0" } }),
+    );
+    write_linked_chain_project(
+        &workspace,
+        "mid",
+        serde_json::json!({ "dependencies": { "leaf": "workspace:*", "@pnpm.e2e/foo": "2.0.0" } }),
+    );
+    write_linked_chain_project(
+        &workspace,
+        "app",
+        serde_json::json!({ "dependencies": { "mid": "workspace:*" } }),
+    );
+
+    pacquet
+        .with_args(["install", "--lockfile-only"])
+        .assert()
+        .success();
+    let output = Command::cargo_bin("pnpm")
+        .expect("find the pnpm binary")
+        .with_current_dir(&workspace)
+        .with_args(["peers", "check", "--lockfile-only", "--json"])
+        .output()
+        .expect("inspect the linked chain's peers");
+    assert_eq!(output.status.code(), Some(1), "the leaf's peer is unmet: {output:?}");
+    let issues: Value = serde_json::from_slice(&output.stdout).expect("parse peers JSON");
+
+    dbg!(&issues);
+    assert_eq!(issues["packages/mid"]["bad"]["@pnpm.e2e/foo"][0]["foundVersion"], "2.0.0");
+    assert_eq!(issues["packages/app"]["bad"], serde_json::json!({}));
+    assert_eq!(issues["packages/app"]["missing"], serde_json::json!({}));
+
+    drop((root, mock_instance));
+}
+
+/// One project of the `app` -> `mid` -> `leaf` chain, named after its
+/// directory, with `extra` merged over the shared name and version.
+fn write_linked_chain_project(workspace: &std::path::Path, name: &str, extra: Value) {
+    let project_dir = workspace.join("packages").join(name);
+    fs::create_dir_all(&project_dir).expect("create the chained project directory");
+    let mut manifest = serde_json::json!({ "name": name, "version": "1.0.0" });
+    let extra = match extra {
+        Value::Object(extra) => extra,
+        other => panic!("the extra manifest fields must be an object, got {other}"),
+    };
+    manifest
+        .as_object_mut()
+        .expect("package manifest is an object")
+        .extend(extra);
+    fs::write(project_dir.join("package.json"), manifest.to_string())
+        .expect("write the chained project manifest");
+}
+
 #[test]
 fn a_partial_upper_bound_peer_range_covers_the_omitted_component() {
     let CommandTempCwd {

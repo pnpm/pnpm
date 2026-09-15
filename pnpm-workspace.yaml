@@ -228,7 +228,7 @@ catalog:
   '@zkochan/retry': ^0.2.0
   '@zkochan/rimraf': ^4.0.0
   '@zkochan/table': ^2.0.1
-  adm-zip: ^0.6.0
+  adm-zip: ^0.6.1
   amaro: ^1.1.11
   ansi-diff: ^1.2.0
   archy: ^1.0.0
@@ -283,7 +283,7 @@ catalog:
   fuse-native: ^2.2.6
   # Bundled into the pnpm 12 wrapper's dist/ payload, where the Corepack entry
   # point loads it from; see pnpm/npm/pnpm/bin/pnpm.mjs.
-  get-pnpm: ^0.0.4
+  get-pnpm: ^0.0.5
   get-port: ^7.2.0
   ghooks: 2.0.4
   graceful-fs: ^4.2.11
@@ -317,7 +317,7 @@ catalog:
   lru-cache: ^11.5.2
   make-empty-dir: ^4.0.0
   mdast-util-to-string: ^4.0.0
-  memfs: ^3.5.3
+  memfs: ^4.78.0
   memoize: ^11.0.0
   micromatch: ^4.0.8
   msgpackr: 2.1.0
@@ -338,7 +338,7 @@ catalog:
   # above pnpm's supported floor of Node.js >=22.13.
   npm-registry-fetch: ^19.0.0
   object-hash: 3.0.0
-  open: ^11.0.2
+  open: ^11.0.3
   openpgp: ^6.3.1
   '@openpgp/web-stream-tools': 0.3.1
   p-defer: ^4.0.1
@@ -428,7 +428,7 @@ catalog:
   write-json5-file: ^4.0.0
   write-package: 7.2.0
   write-yaml-file: ^6.0.0
-  yaml: ^2.9.0
+  yaml: ^2.9.1
   yaml-tag: 1.1.0
 
 catalogMode: strict
@@ -558,7 +558,6 @@ packageExtensions:
       unified: '*'
 
 patchedDependencies:
-  adm-zip@0.6.0: __patches__/adm-zip@0.6.0.patch
   graceful-fs@4.2.11: __patches__/graceful-fs@4.2.11.patch
   normalize-registry-url@2.0.1: __patches__/normalize-registry-url@2.0.1.patch
 

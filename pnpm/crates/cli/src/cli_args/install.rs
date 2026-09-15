@@ -105,21 +105,38 @@ impl InstallDependencyOptions {
         include_optional: bool,
     ) -> impl Iterator<Item = DependencyGroup> {
         let &InstallDependencyOptions { prod, dev, optional, no_optional } = self;
-        let include_optional = resolve_bool_override(optional, no_optional, include_optional);
-        // `--prod` wins over `--dev`, and a dev-only install drops optional
-        // dependencies along with the production ones.
-        let (has_prod, has_dev, has_optional) = if prod {
-            (true, false, include_optional)
-        } else if dev {
-            (false, true, false)
-        } else {
-            (true, true, include_optional)
-        };
-        std::iter::empty()
-            .chain(has_prod.then_some(DependencyGroup::Prod))
-            .chain(has_dev.then_some(DependencyGroup::Dev))
-            .chain(has_optional.then_some(DependencyGroup::Optional))
+        included_dependency_groups(
+            prod,
+            dev,
+            resolve_bool_override(optional, no_optional, include_optional),
+        )
     }
+}
+
+/// The dependency groups an install resolves and materializes, given the
+/// `--prod` / `--dev` filter and whether optional dependencies are
+/// included.
+///
+/// Shared with `add`, which takes the same two flags through `pnpm
+/// install <pkg>`.
+pub(crate) fn included_dependency_groups(
+    prod: bool,
+    dev: bool,
+    include_optional: bool,
+) -> impl Iterator<Item = DependencyGroup> {
+    // `--prod` wins over `--dev`, and a dev-only install drops optional
+    // dependencies along with the production ones.
+    let (has_prod, has_dev, has_optional) = if prod {
+        (true, false, include_optional)
+    } else if dev {
+        (false, true, false)
+    } else {
+        (true, true, include_optional)
+    };
+    std::iter::empty()
+        .chain(has_prod.then_some(DependencyGroup::Prod))
+        .chain(has_dev.then_some(DependencyGroup::Dev))
+        .chain(has_optional.then_some(DependencyGroup::Optional))
 }
 
 #[derive(Debug, Default, Clone, Args)]

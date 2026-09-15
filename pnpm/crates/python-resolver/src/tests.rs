@@ -137,6 +137,54 @@ fn candidates_leave_out_what_the_target_cannot_install() {
     );
 }
 
+/// The scenario of pnpm/pnpm#14910: releases whose `Requires-Python` is
+/// not a version specifier, in the index page and in the wheel's own
+/// metadata. Every reader of the field has to agree that it says nothing,
+/// or a project that depends on such a release cannot be resolved,
+/// installed, or locked.
+#[test]
+fn a_requires_python_that_does_not_parse_is_read_as_none_at_all() {
+    let target = target();
+    let mut malformed = wheel("demo-1.0.0-py3-none-any.whl");
+    malformed["requires-python"] = serde_json::json!(">=3.6,");
+
+    let candidates = candidates_from_page(
+        &page(&serde_json::json!([malformed])),
+        &index_url(),
+        &name("demo"),
+        &target,
+    )
+    .expect("page parses");
+    assert_eq!(
+        candidates
+            .keys()
+            .map(ToString::to_string)
+            .collect::<Vec<_>>(),
+        ["1.0.0"],
+    );
+
+    let (packages, requirements, _) = solved_project("demo", "Requires-Python: >=3.6,\n");
+    let Step::Solved(solution) = step(&packages, &requirements, &target.environment).unwrap()
+    else {
+        panic!("the wheel offers the only version the project asks for");
+    };
+    assert_eq!(solution[&name("demo")].to_string(), "1.0.0");
+
+    let lockfile = lockfile_for("demo", "Requires-Python: >=3.6,\n");
+    assert_eq!(lockfile.environments, ["python_version == '3.12'"]);
+}
+
+#[test]
+fn a_wheel_the_running_interpreter_is_outside_of_is_unavailable() {
+    let target = target();
+    let (packages, requirements, _) = solved_project("demo", "Requires-Python: >=3.13\n");
+
+    let error = step(&packages, &requirements, &target.environment)
+        .expect_err("the only version excludes this interpreter");
+
+    assert!(error.to_string().contains("incompatible Python interpreter"), "{error}");
+}
+
 #[test]
 fn candidates_carry_the_metadata_file_an_index_advertises() {
     let mut declared = wheel("demo-1.0.0-py3-none-any.whl");

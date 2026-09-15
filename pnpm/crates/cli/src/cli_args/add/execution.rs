@@ -6,6 +6,17 @@ use super::{
     workspace_link_root, workspace_selectors,
 };
 
+/// The dependency groups one add works with, which are two different
+/// sets: `save_target` names the manifest group the added packages are
+/// written to, `included` the groups the install that follows resolves
+/// and materializes (`--prod` / `--dev`). `None` defaults each, as
+/// documented on the [`pnpm_package_manager::AddResources`] fields they
+/// reach.
+pub(crate) struct AddGroups<DependencyGroupList> {
+    pub(crate) save_target: Option<DependencyGroupList>,
+    pub(crate) included: Option<Vec<DependencyGroup>>,
+}
+
 /// Add a single package to `state`'s manifest and install it.
 ///
 /// Shared by `pacquet dlx`, `pacquet runtime`, and the self-updater. dlx
@@ -33,7 +44,7 @@ where
         save_catalog_name,
         lockfile_only,
         supported_architectures,
-        Some(dependency_groups),
+        AddGroups { save_target: Some(dependency_groups), included: None },
     ))
     .await
 }
@@ -118,7 +129,7 @@ pub(crate) async fn add_packages<Reporter, DependencyGroupList>(
     save_catalog_name: Option<String>,
     lockfile_only: bool,
     supported_architectures: Option<pnpm_package_is_installable::SupportedArchitectures>,
-    dependency_groups: Option<DependencyGroupList>,
+    groups: AddGroups<DependencyGroupList>,
 ) -> miette::Result<()>
 where
     Reporter: self::Reporter + 'static,
@@ -152,7 +163,8 @@ where
         resources: pnpm_package_manager::AddResources {
             tarball_mem_cache: std::sync::Arc::clone(tarball_mem_cache),
             http_client_arc: std::sync::Arc::clone(http_client),
-            dependency_groups,
+            dependency_groups: groups.save_target,
+            included_groups: groups.included,
             save_catalog_name,
             supported_architectures,
         },
@@ -242,6 +254,7 @@ impl AddArgs {
         let range_spec_style = self.range_spec_style(state.config);
         let dependency_options =
             self.dependency_options.clone().with_save_peer_setting(state.config.save_peer);
+        let included_groups = self.included_groups(state.config);
 
         // The install saves the manifest, so the declarations recorded
         // above reach disk with the dependencies or not at all.
@@ -252,7 +265,10 @@ impl AddArgs {
             save_catalog_name,
             self.install.lockfile_only,
             supported_architectures,
-            dependency_options.save_target(),
+            AddGroups {
+                save_target: dependency_options.save_target(),
+                included: Some(included_groups),
+            },
         )
         .await?;
         pins.report::<Reporter>();
@@ -272,6 +288,7 @@ impl AddArgs {
             .clone()
             .with_save_peer_setting(state.config.save_peer)
             .save_target();
+        let included_groups = self.included_groups(state.config);
         let lockfile_path = state.lockfile_path();
         let lockfile = state.lockfile
             .get()
@@ -293,6 +310,7 @@ impl AddArgs {
                 tarball_mem_cache: std::sync::Arc::clone(&state.tarball_mem_cache),
                 http_client_arc: std::sync::Arc::clone(&state.http_client),
                 dependency_groups,
+                included_groups: Some(included_groups),
                 save_catalog_name,
                 supported_architectures,
             },
