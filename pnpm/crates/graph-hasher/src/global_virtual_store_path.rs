@@ -161,7 +161,7 @@ pub fn format_global_virtual_store_path(name: &str, version: &str, hex_digest: &
 /// The GVS relative path is always formatted with `/` because it
 /// doubles as a cross-platform canonical id (it feeds hashing and
 /// lockfile comparison). Passing that string straight to
-/// [`Path::join`] keeps the `/` bytes on Windows, and the directory
+/// [`std::path::Path::join`] keeps the `/` bytes on Windows, and the directory
 /// symlink/junction syscall that later consumes the slot path then
 /// rejects the forward-slash path with `ERROR_DIRECTORY`
 /// (`os error 267`). Splitting on `/` and pushing each segment yields

@@ -71,7 +71,7 @@ pub fn capturing_emit(event: &LogEvent) {
         match &log.message {
             LifecycleMessage::Script { dep_path, stage, script, .. } => {
                 with_buffer(dep_path.clone(), stage.clone(), |buffer| {
-                    buffer.command.clone_from(script)
+                    buffer.command.clone_from(script);
                 });
             }
             LifecycleMessage::Stdio { dep_path, stage, line, stdio, .. } => {
@@ -79,7 +79,7 @@ pub fn capturing_emit(event: &LogEvent) {
             }
             LifecycleMessage::Exit { dep_path, stage, exit_code, .. } => {
                 with_buffer(dep_path.clone(), stage.clone(), |buffer| {
-                    buffer.exit_code = *exit_code
+                    buffer.exit_code = *exit_code;
                 });
             }
         }

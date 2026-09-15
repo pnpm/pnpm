@@ -212,5 +212,5 @@ pub(super) fn update_target_name(selectors: &[ParsedSelector], matched: &str) ->
 /// dependency back to the selector that claimed it (so a versioned
 /// selector's version is applied to the right dep).
 pub(super) fn matcher_one(pattern: String) -> pnpm_matcher::Matcher {
-    create_matcher(std::slice::from_ref(&pattern))
+    create_matcher(&[pattern])
 }
