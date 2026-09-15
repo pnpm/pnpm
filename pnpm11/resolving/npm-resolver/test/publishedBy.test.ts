@@ -273,16 +273,10 @@ test('scopes a 304 full-metadata upgrade marker to one resolver', async () => {
   const agent = getMockAgent().get(registriesByScope.default.replace(/\/$/, ''))
   agent.intercept({ path: '/is-positive', method: 'GET' })
     .reply(200, partialTimeMeta(), { headers: { etag: '"partial-time"' } })
-  agent.intercept({
-    path: '/is-positive',
-    method: 'GET',
-    headers: { 'if-none-match': '"partial-time"' },
-  }).reply(304, '')
-  agent.intercept({
-    path: '/is-positive',
-    method: 'GET',
-    headers: { 'if-none-match': '"partial-time"' },
-  }).reply(304, '')
+  agent.intercept({ path: '/is-positive', method: 'GET' })
+    .reply(200, partialTimeMeta())
+  agent.intercept({ path: '/is-positive', method: 'GET' })
+    .reply(200, partialTimeMeta())
 
   const metaCache = new Map<string, PackageMeta>()
   const cacheDir = temporaryDirectory()
@@ -864,6 +858,53 @@ test('latest is suppressed when all versions are immature (fallback case)', asyn
 
   expect(resolveResult!.id).toBe('is-positive@1.0.0')
   expect(resolveResult!.latest).toBeUndefined()
+})
+
+test('release-age upgrade fetch for fullMetadata does not pass abbreviated etag/modified as conditional headers', async () => {
+  const cacheDir = temporaryDirectory()
+  const abbrevCacheDir = path.join(cacheDir, `${ABBREVIATED_META_DIR}/https%3A+registry.npmjs.org`)
+  fs.mkdirSync(abbrevCacheDir, { recursive: true })
+  const cachePath = path.join(abbrevCacheDir, 'is-positive.jsonl')
+
+  const { time: _time, ...abbreviatedWithoutTime } = isPositiveAbbreviatedMeta
+  const cachedMeta = {
+    ...abbreviatedWithoutTime,
+    modified: '2015-06-10T00:00:00.000Z',
+  }
+  const cacheHeaders = JSON.stringify({ etag: '"abbreviated-etag"', modified: cachedMeta.modified })
+  fs.writeFileSync(cachePath, `${cacheHeaders}\n${JSON.stringify(cachedMeta)}`, 'utf8')
+
+  let upgradeHeadersReceived: Record<string, string> | undefined
+  const agent = getMockAgent().get(registriesByScope.default.replace(/\/$/, ''))
+  // 1. First fetch: conditional request for abbreviated metadata -> 304 Not Modified
+  agent.intercept({
+    path: '/is-positive',
+    method: 'GET',
+    headers: { 'if-none-match': '"abbreviated-etag"' },
+  }).reply(304, '')
+
+  // 2. Second fetch: upgrade request for full metadata -> MUST NOT send if-none-match
+  agent.intercept({
+    path: '/is-positive',
+    method: 'GET',
+  }).reply(200, (options) => {
+    upgradeHeadersReceived = options.headers as Record<string, string>
+    return isPositiveMeta
+  })
+
+  const { resolveFromNpm } = createResolveFromNpm({
+    storeDir: temporaryDirectory(),
+    cacheDir,
+    registriesByScope,
+  })
+
+  const resolveResult = await resolveFromNpm({ alias: 'is-positive', bareSpecifier: '^1.0.0' }, {
+    publishedBy: new Date('2015-06-05T00:00:00.000Z'),
+  })
+
+  expect(resolveResult!.id).toBe('is-positive@1.0.0')
+  expect(upgradeHeadersReceived?.['if-none-match']).toBeUndefined()
+  expect(upgradeHeadersReceived?.['if-modified-since']).toBeUndefined()
 })
 
 /**

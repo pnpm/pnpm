@@ -671,14 +671,13 @@ async function maybeUpgradeAbbreviatedMetaForReleaseAge (
   // When `modified` is missing or malformed we fall through to the upgrade
   // fetch: prefer correctness (run the maturity check on real `time` data)
   // over saving a network call when our cached freshness signal is unusable.
-  // Forward etag/modified so the registry can answer 304 if the upgraded
-  // representation hasn't actually changed (rare on the npm registry where
-  // full and abbreviated have distinct etags, but cheap to support).
+  // Do not forward etag/modified: `meta` is the abbreviated packument, so its
+  // validator cannot validate a full packument representation. Forwarding it
+  // causes registries that reuse ETags across representations to return 304
+  // without per-version publish dates.
   const fullFetchResult = await ctx.fetch(spec.name, {
     authHeaderValue: opts.authHeaderValue,
     fullMetadata: true,
-    etag: meta.etag,
-    modified: meta.modified,
     registry: opts.registry,
   })
   if (fullFetchResult.notModified) {
