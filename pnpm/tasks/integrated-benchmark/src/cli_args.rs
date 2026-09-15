@@ -252,6 +252,16 @@ pub enum BenchmarkScenario {
     /// with no lockfile or linking, isolating peer discovery and resolution.
     #[value(name = "isolated-linker.peer-heavy-resolve.hot-cache.offline")]
     IsolatedPeerHeavyResolveHotCacheOffline,
+    /// Generated workspace whose projects link the whole next level through
+    /// `workspace:*` and declare a peer their consumers provide, so hundreds
+    /// of importers share the same linked subgraphs. The timed command
+    /// resolves offline with no lockfile and no linking, and the fixture
+    /// names no registry package, which leaves the install's peer report
+    /// walking the `link:` graph as the only variable cost. The series that
+    /// guards that walk against re-traversing a shared workspace package
+    /// once per importer that reaches it (pnpm/pnpm#14906).
+    #[value(name = "isolated-linker.linked-workspace-resolve.hot-cache.offline")]
+    IsolatedLinkedWorkspaceResolveHotCacheOffline,
     /// Frozen lockfile, hot cache + hot store, `enableGlobalVirtualStore: true` with a pre-warmed GVS.
     #[value(name = "gvs-linker.fresh-restore.hot-cache.hot-store")]
     GvsFreshRestoreHotCacheHotStore,
@@ -264,6 +274,14 @@ pub struct Cleanup {
     /// `(dst, src)` pairs (relative to the bench dir) to `cp` before
     /// each iteration — restores files the install mutates.
     pub restore: &'static [(&'static str, &'static str)],
+}
+
+impl Cleanup {
+    /// Cleanup for a scenario the install never mutates a tracked file in,
+    /// so there is nothing to restore between iterations.
+    const fn removing(remove: &'static [&'static str]) -> Self {
+        Cleanup { remove, restore: &[] }
+    }
 }
 
 impl BenchmarkScenario {
@@ -284,7 +302,8 @@ impl BenchmarkScenario {
             }
             BenchmarkScenario::IsolatedFreshAddDepHotCacheHotStore => &["add", "is-odd"],
             BenchmarkScenario::IsolatedFreshResolveHotCacheOffline
-            | BenchmarkScenario::IsolatedPeerHeavyResolveHotCacheOffline => {
+            | BenchmarkScenario::IsolatedPeerHeavyResolveHotCacheOffline
+            | BenchmarkScenario::IsolatedLinkedWorkspaceResolveHotCacheOffline => {
                 &["install", "--offline", "--lockfile-only"]
             }
         }
@@ -327,6 +346,7 @@ impl BenchmarkScenario {
             | BenchmarkScenario::IsolatedFreshAddDepHotCacheHotStore
             | BenchmarkScenario::IsolatedFreshResolveHotCacheOffline
             | BenchmarkScenario::IsolatedPeerHeavyResolveHotCacheOffline
+            | BenchmarkScenario::IsolatedLinkedWorkspaceResolveHotCacheOffline
             | BenchmarkScenario::GvsFreshRestoreHotCacheHotStore
             | BenchmarkScenario::IsolatedRepeatInstallHotCacheHotStore
             | BenchmarkScenario::IsolatedRepeatInstallColdCacheHotStore => true,
@@ -390,11 +410,9 @@ impl BenchmarkScenario {
             // push every iteration off the pure-mtime fast path into the
             // heavier content re-check. The populated `node_modules` (and
             // workspace state) come from the pre-warm pass.
-            BenchmarkScenario::IsolatedRepeatInstallHotCacheHotStore => {
-                Cleanup { remove: &[], restore: &[] }
-            }
+            BenchmarkScenario::IsolatedRepeatInstallHotCacheHotStore => Cleanup::removing(&[]),
             BenchmarkScenario::IsolatedRepeatInstallColdCacheHotStore => {
-                Cleanup { remove: &["cache-dir"], restore: &[] }
+                Cleanup::removing(&["cache-dir"])
             }
             BenchmarkScenario::IsolatedFreshAddDepHotCacheHotStore => Cleanup {
                 remove: &["node_modules"],
@@ -419,8 +437,9 @@ impl BenchmarkScenario {
             // `cache-dir` / `store-dir` the pre-warm populated are the
             // scenario's contract and survive.
             BenchmarkScenario::IsolatedFreshResolveHotCacheOffline
-            | BenchmarkScenario::IsolatedPeerHeavyResolveHotCacheOffline => {
-                Cleanup { remove: &["node_modules", "pnpm-lock.yaml"], restore: &[] }
+            | BenchmarkScenario::IsolatedPeerHeavyResolveHotCacheOffline
+            | BenchmarkScenario::IsolatedLinkedWorkspaceResolveHotCacheOffline => {
+                Cleanup::removing(&["node_modules", "pnpm-lock.yaml"])
             }
         }
     }
@@ -474,13 +493,28 @@ impl BenchmarkScenario {
         matches!(self, BenchmarkScenario::IsolatedPeerHeavyResolveHotCacheOffline)
     }
 
+    /// Whether to use the generated `workspace:*` fixture that guards the
+    /// install's walk over linked workspace packages.
+    pub fn uses_linked_workspace_fixture(self) -> bool {
+        matches!(self, BenchmarkScenario::IsolatedLinkedWorkspaceResolveHotCacheOffline)
+    }
+
+    /// Whether the scenario brings its own generated fixture rather than the
+    /// static `package.json` / `pnpm-lock.yaml` pair. Such a fixture needs no
+    /// pass to populate the npm proxy cache, since it names none of the
+    /// packages the static lockfile does.
+    pub fn uses_generated_fixture(self) -> bool {
+        self.uses_peer_heavy_fixture() || self.uses_linked_workspace_fixture()
+    }
+
     /// Whether the measured command needs an online pre-warm followed by an
     /// offline, lockfile-only fresh resolve.
     fn is_offline_fresh_resolve(self) -> bool {
         matches!(
             self,
             BenchmarkScenario::IsolatedFreshResolveHotCacheOffline
-                | BenchmarkScenario::IsolatedPeerHeavyResolveHotCacheOffline,
+                | BenchmarkScenario::IsolatedPeerHeavyResolveHotCacheOffline
+                | BenchmarkScenario::IsolatedLinkedWorkspaceResolveHotCacheOffline,
         )
     }
 }

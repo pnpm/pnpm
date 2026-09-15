@@ -183,11 +183,10 @@ pub fn check_peer_dependencies_of_importers(
             intersections: BTreeMap::new(),
         };
 
-        let mut walk = InitialKeyWalk::new(&context);
-        walk.collect(importer_id, &[], &mut issues)?;
+        let initial_keys = collect_initial_keys(&context, importer_id, &mut issues)?;
 
         walk_snapshot(
-            walk.keys,
+            initial_keys,
             snapshots,
             packages,
             lockfile_dir,
@@ -211,98 +210,83 @@ struct PeerWalkContext<'a> {
     catalogs: Option<&'a Catalogs>,
 }
 
-/// Walks the importers reachable through `link:` dependencies, gathering the
-/// snapshot keys their dependency graphs start from.
-struct InitialKeyWalk<'a> {
-    context: &'a PeerWalkContext<'a>,
-    keys: Vec<(PkgNameVerPeer, Vec<ParentPkg>)>,
-    visited_importers: HashSet<String>,
-}
+/// The snapshot keys an importer's dependency graph starts from, recording
+/// along the way every peer the workspace packages it links directly leave
+/// unmet. Stops at each `link:` edge: a linked workspace package's own linked
+/// dependencies belong to its own report, not to its consumer's.
+fn collect_initial_keys(
+    context: &PeerWalkContext<'_>,
+    importer_id: &str,
+    issues: &mut PeerIssues,
+) -> Result<Vec<PkgNameVerPeer>, CatalogResolutionError> {
+    let mut keys = Vec::new();
+    let Some(importer) = context.lockfile.importers.get(importer_id) else {
+        return Ok(keys);
+    };
+    let importer_dir = context.lockfile_dir.join(importer_id);
 
-impl<'a> InitialKeyWalk<'a> {
-    fn new(context: &'a PeerWalkContext<'a>) -> Self {
-        InitialKeyWalk { context, keys: Vec::new(), visited_importers: HashSet::new() }
-    }
-
-    fn collect(
-        &mut self,
-        importer_id: &str,
-        parents: &[ParentPkg],
-        issues: &mut PeerIssues,
-    ) -> Result<(), CatalogResolutionError> {
-        if !self.visited_importers.insert(importer_id.to_string()) {
-            return Ok(());
-        }
-        let Some(importer) = self.context.lockfile.importers.get(importer_id) else {
-            return Ok(());
-        };
-        let importer_dir = self.context.lockfile_dir.join(importer_id);
-
-        let groups =
-            [&importer.dependencies, &importer.dev_dependencies, &importer.optional_dependencies];
-        for (alias, spec) in groups.into_iter().flatten().flatten() {
-            if let Some(key) = spec.version.resolved_key(alias) {
-                self.keys.push((key, parents.to_owned()));
-            } else if let Some(link_target) = spec.version.as_link_target() {
-                let linked = LinkedDependency::resolve(
-                    &importer_dir,
-                    self.context.lockfile_dir,
-                    link_target,
-                );
-                let Some(linked) = linked else { continue };
-                self.follow_link(FollowLink {
-                    importer,
-                    importer_dir: &importer_dir,
-                    alias: &alias.to_string(),
-                    linked: &linked,
-                    parents,
-                    issues,
-                })?;
-            }
-        }
-        Ok(())
-    }
-
-    /// Check the linked package's own peer dependencies against what the two
-    /// importers provide, then walk into it.
-    fn follow_link(&mut self, inputs: FollowLink<'_>) -> Result<(), CatalogResolutionError> {
-        let FollowLink {
-            importer,
-            importer_dir,
-            alias,
-            linked,
-            parents,
-            issues,
-        } = inputs;
-        if let Some(manifest) = &linked.manifest {
-            check_linked_package_peers(LinkedPackagePeers {
-                manifest,
-                alias,
-                linked_version: &linked.version,
-                catalogs: self.context.catalogs,
+    let groups =
+        [&importer.dependencies, &importer.dev_dependencies, &importer.optional_dependencies];
+    for (alias, spec) in groups.into_iter().flatten().flatten() {
+        if let Some(key) = spec.version.resolved_key(alias) {
+            keys.push(key);
+        } else if let Some(link_target) = spec.version.as_link_target() {
+            // pnpm's own lockfile walker stops at `link:` too. Following the
+            // edge re-traverses every shared workspace package once per
+            // importer that reaches it, which is quadratic in a workspace
+            // whose projects depend on each other (pnpm/pnpm#14906).
+            check_link(CheckLink {
+                context,
+                importer,
+                importer_dir: &importer_dir,
+                alias: &alias.to_string(),
+                link_target,
                 issues,
-                providers: crate::linked::PeerProviders {
-                    lockfile: self.context.lockfile,
-                    importer,
-                    linked_importer: self.context.lockfile.importers.get(&linked.importer_id),
-                    importer_dir,
-                    linked_importer_dir: &linked.dir,
-                    lockfile_dir: self.context.lockfile_dir,
-                },
             })?;
         }
-        let mut next_parents = parents.to_owned();
-        next_parents.push(ParentPkg { name: alias.to_string(), version: linked.version.clone() });
-        self.collect(&linked.importer_id, &next_parents, issues)
     }
+    Ok(keys)
 }
 
-struct FollowLink<'a> {
+/// Check one linked workspace package's own peer dependencies against what
+/// the consuming importer and the linked importer provide.
+fn check_link(inputs: CheckLink<'_>) -> Result<(), CatalogResolutionError> {
+    let CheckLink {
+        context,
+        importer,
+        importer_dir,
+        alias,
+        link_target,
+        issues,
+    } = inputs;
+    let Some(linked) = LinkedDependency::resolve(importer_dir, context.lockfile_dir, link_target)
+    else {
+        return Ok(());
+    };
+    let Some(manifest) = &linked.manifest else { return Ok(()) };
+    check_linked_package_peers(LinkedPackagePeers {
+        manifest,
+        alias,
+        linked_version: &linked.version,
+        catalogs: context.catalogs,
+        issues,
+        providers: crate::linked::PeerProviders {
+            lockfile: context.lockfile,
+            importer,
+            linked_importer: context.lockfile.importers.get(&linked.importer_id),
+            importer_dir,
+            linked_importer_dir: &linked.dir,
+            lockfile_dir: context.lockfile_dir,
+        },
+    })
+}
+
+struct CheckLink<'a> {
+    context: &'a PeerWalkContext<'a>,
     importer: &'a ProjectSnapshot,
     importer_dir: &'a Path,
     alias: &'a str,
-    linked: &'a LinkedDependency,
-    parents: &'a [ParentPkg],
+    link_target: &'a str,
     issues: &'a mut PeerIssues,
 }
 
@@ -316,8 +300,8 @@ struct LinkedDependency {
 
 impl LinkedDependency {
     /// One canonicalization and one manifest read per linked dependency: the
-    /// version, the peer check, and the recursion all need the same answers,
-    /// and this walk now runs on the install path.
+    /// version, the peer check, and the linked importer's own snapshot all
+    /// need the same answers, and this walk runs on the install path.
     fn resolve(importer_dir: &Path, lockfile_dir: &Path, link_target: &str) -> Option<Self> {
         let CanonicalPathWithin {
             path: dir,
@@ -334,14 +318,17 @@ impl LinkedDependency {
 }
 
 fn walk_snapshot(
-    initial_keys: Vec<(PkgNameVerPeer, Vec<ParentPkg>)>,
+    initial_keys: Vec<PkgNameVerPeer>,
     snapshots: &HashMap<PkgNameVerPeer, SnapshotEntry>,
     packages: &HashMap<PkgNameVerPeer, PackageMetadata>,
     lockfile_dir: &Path,
     visited: &mut HashSet<PkgNameVerPeer>,
     issues: &mut PeerIssues,
 ) {
-    let mut stack = initial_keys;
+    let mut stack: Vec<(PkgNameVerPeer, Vec<ParentPkg>)> = initial_keys
+        .into_iter()
+        .map(|key| (key, Vec::new()))
+        .collect();
 
     while let Some((key, parents)) = stack.pop() {
         if !visited.insert(key.clone()) {
