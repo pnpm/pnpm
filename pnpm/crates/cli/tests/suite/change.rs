@@ -98,14 +98,10 @@ fn private_package_bumps_without_a_registry_release_probe() {
     )
     .expect("write package.json");
 
-    stdout_of(pnpm_probing(&workspace).with_args([
-        "change",
-        "--bump",
-        "minor",
-        "--summary",
-        "A deployable feature.",
-        "app",
-    ]));
+    stdout_of(
+        pnpm_probing(&workspace)
+            .with_args(["change", "--bump", "minor", "--summary", "A deployable feature.", "app"]),
+    );
     let status = stdout_of(pnpm_probing(&workspace).with_args(["change", "status"]));
     assert!(status.contains("app: 0.5.0 → 0.6.0"), "unexpected: {status}");
     let preview = stdout_of(pnpm_probing(&workspace).with_args(["version", "-r", "--dry-run"]));

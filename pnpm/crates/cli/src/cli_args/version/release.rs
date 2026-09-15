@@ -64,7 +64,13 @@ async fn plan_workspace_release(
     let published_names = changelog::published_names(&projects);
     let private_dirs = projects
         .iter()
-        .filter(|project| project.manifest.value().get("private").and_then(serde_json::Value::as_bool) == Some(true))
+        .filter(|project| {
+            project.manifest
+                .value()
+                .get("private")
+                .and_then(serde_json::Value::as_bool)
+                == Some(true)
+        })
         .map(|project| pnpm_versioning::to_project_dir(workspace_dir, &project.root_dir))
         .collect();
 
@@ -84,8 +90,13 @@ async fn plan_workspace_release(
             },
         )
     };
-    let unpublished_dirs =
-        unpublished_release_dirs(config, &assemble(HashSet::new())?, &published_names, &private_dirs).await?;
+    let unpublished_dirs = unpublished_release_dirs(
+        config,
+        &assemble(HashSet::new())?,
+        &published_names,
+        &private_dirs,
+    )
+    .await?;
     let plan = assemble(unpublished_dirs)?;
 
     Ok(PlannedWorkspaceRelease {
