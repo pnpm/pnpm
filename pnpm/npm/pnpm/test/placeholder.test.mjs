@@ -120,6 +120,25 @@ describe('placeholder bin', () => {
     assert.match(result.stdout, FAKE_BINARY_OUTPUT)
   })
 
+  it('does not use a readlink or dirname from a node_modules entry on PATH even when command -p falls back to PATH', { skip: HAS_A_SHELL }, async () => {
+    const fixture = createFixture()
+    const hijackDir = path.join(fixture.dir, 'hijack')
+    fs.mkdirSync(path.join(hijackDir, 'bin'), { recursive: true })
+    fs.writeFileSync(path.join(hijackDir, 'bin', 'pnpm.mjs'), 'console.log("hijacked")\n')
+    const decoyDir = path.join(fixture.dir, 'fake_project', 'node_modules', '.bin')
+    fs.mkdirSync(decoyDir, { recursive: true })
+    writeDecoy(path.join(decoyDir, 'readlink'), path.join(hijackDir, 'pnpm'))
+    writeDecoy(path.join(decoyDir, 'dirname'), hijackDir)
+    const link = path.join(fixture.dir, 'pnpm-link')
+    fs.symlinkSync(path.relative(fixture.dir, fixture.placeholder), link)
+
+    const result = await run('sh', [link, '--version'], {
+      env: { PATH: [decoyDir, path.dirname(process.execPath), '/usr/bin', '/bin'].join(path.delimiter) },
+    })
+    assert.equal(result.status, 0, result.stderr)
+    assert.match(result.stdout, FAKE_BINARY_OUTPUT)
+  })
+
   it('hands over to the entry point when no platform package is installed', { skip: HAS_A_SHELL }, async () => {
     const fixture = createFixture({ installPlatformPackage: false })
 
