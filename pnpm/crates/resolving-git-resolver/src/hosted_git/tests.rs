@@ -256,12 +256,18 @@ fn synthesized_name_is_lowercased() {
 }
 
 /// A GitLab project in a subgroup arrives with the groups joined by `/`,
-/// which a scope cannot hold.
+/// which a scope cannot hold. The separator they join with has to be one
+/// no group path can spell, or a nested path would take the name of a
+/// top-level group.
 #[test]
 fn synthesized_name_joins_gitlab_subgroups() {
-    let hosted = HostedGit::from_url("gitlab:group/subgroup/project").expect("recognised");
-    assert_eq!(hosted.user, "group/subgroup");
-    assert_eq!(hosted.synthesized_package_name(), "@group-subgroup/project");
+    let nested = HostedGit::from_url("gitlab:group/subgroup/project").expect("recognised");
+    assert_eq!(nested.user, "group/subgroup");
+    assert_eq!(nested.synthesized_package_name(), "@group~subgroup/project");
+
+    let flat = HostedGit::from_url("gitlab:group-subgroup/project").expect("recognised");
+    assert_ne!(flat.synthesized_package_name(), nested.synthesized_package_name());
+    assert_eq!(flat.synthesized_package_name(), "@group-subgroup/project");
 }
 
 #[test]

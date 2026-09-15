@@ -67,3 +67,23 @@ fn git_dependency_falls_back_to_the_repository_host_identity() {
     // A host with no owner and project to read leaves the name unknown.
     assert_eq!(git_package_name(None, "git+file:///tmp/skills"), None);
 }
+
+/// A synthesized name keys the manifest entry and names the directory the
+/// package is linked into, so `add` refuses it unless npm would.
+#[test]
+fn a_synthesized_git_dependency_name_is_a_usable_alias() {
+    use crate::add::aliasless::git_package_name;
+
+    for specifier in [
+        "github:anthropics/skills",
+        "gitlab:group/subgroup/project",
+        "bitbucket:pnpmjs/git-resolver",
+    ] {
+        let name = git_package_name(None, specifier)
+            .unwrap_or_else(|| panic!("{specifier} synthesized no name"));
+        assert!(
+            pnpm_package_name::is_valid_dependency_alias(&name),
+            "{specifier} synthesized the invalid name {name:?}",
+        );
+    }
+}
