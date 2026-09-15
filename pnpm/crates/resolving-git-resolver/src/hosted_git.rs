@@ -183,6 +183,25 @@ impl HostedGit {
         })
     }
 
+    /// The package name for a repository that ships no `package.json`
+    /// of its own: `@<user>/<project>`.
+    ///
+    /// A project name is unique only within its owner, so the owner has
+    /// to be part of the name for two repositories that share a project
+    /// name to coexist in one `node_modules`. The name is lowercased,
+    /// because a host reads `Owner/Repo` and `owner/repo` as the same
+    /// repository while npm names are case-sensitive. A GitLab project
+    /// nested in subgroups arrives with its groups joined by `/`, which
+    /// a scope cannot hold, so those join with `-` instead. A shortcut
+    /// naming no owner keeps the bare project name.
+    #[must_use]
+    pub fn synthesized_package_name(&self) -> String {
+        if self.user.is_empty() {
+            return self.project.to_ascii_lowercase();
+        }
+        format!("@{}/{}", self.user.replace('/', "-"), self.project).to_ascii_lowercase()
+    }
+
     /// Shorthand `<type>:<user>/<project>[#committish]`. Mirrors
     /// upstream's `shortcuttemplate`.
     #[must_use]

@@ -260,6 +260,23 @@ pub(super) fn aliasless_package_name(
     }
     Ok(name.to_string())
 }
+/// The name an alias-less git selector's package is added under: the one
+/// its own manifest declares, or — for a repository that ships no manifest
+/// — one synthesized from the repository's host identity.
+///
+/// `None` when neither is available: the repository declares no name and
+/// its URL names a host pacquet cannot read an owner and project out of.
+pub(super) fn git_package_name(
+    manifest: Option<&serde_json::Value>,
+    specifier: &str,
+) -> Option<String> {
+    manifest
+        .and_then(|manifest| manifest.get("name"))
+        .and_then(serde_json::Value::as_str)
+        .filter(|name| !name.is_empty())
+        .map(str::to_string)
+        .or_else(|| HostedGit::from_url(specifier).map(|hosted| hosted.synthesized_package_name()))
+}
 pub(super) async fn resolve_aliasless_git(
     specifier: &str,
     inputs: &AddResolveInputs<'_, '_>,
@@ -282,12 +299,7 @@ pub(super) async fn resolve_aliasless_git(
         Err(source) => AddError::ResolveGit { specifier: redact_and_sanitize(specifier), source },
     })?
     .ok_or_else(|| AddError::GitPackageName { specifier: redact_and_sanitize(specifier) })?;
-    let package_name = result.package.manifest
-        .as_ref()
-        .and_then(|manifest| manifest.get("name"))
-        .and_then(serde_json::Value::as_str)
-        .map(str::to_string)
-        .or_else(|| HostedGit::from_url(specifier).map(|hosted| hosted.project))
+    let package_name = git_package_name(result.package.manifest.as_deref(), specifier)
         .ok_or_else(|| AddError::GitPackageName { specifier: redact_and_sanitize(specifier) })?;
     if !is_valid_dependency_alias(&package_name) {
         return Err(AddError::InvalidGitPackageName {
