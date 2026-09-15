@@ -55,7 +55,7 @@ export interface ResolvedDirectDependency {
    * The wanted dependency this was resolved from, carried so consumers can
    * recover the request directly. See `updateProjectManifest`.
    */
-  wantedDependency?: WantedDependency
+  wantedDependency?: WantedDependency & { isNew?: boolean }
 }
 
 /**
