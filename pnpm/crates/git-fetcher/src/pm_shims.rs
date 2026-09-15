@@ -62,7 +62,7 @@ pub(crate) fn write_pm_shims(
         // `bunx` runs `bun x`; every other command runs the one it is
         // named after.
         let run_as: Vec<&str> = if run_as.is_empty() { vec![name] } else { run_as.to_vec() };
-        for (file_name, contents) in shim_files(name, &run_as, &spec, pnpm_execpath) {
+        for (file_name, contents) in shim_files(name.to_string(), &run_as, &spec, pnpm_execpath) {
             let path = dir.join(file_name);
             write_executable(&path, &contents)?;
             written.push(path);
@@ -73,7 +73,7 @@ pub(crate) fn write_pm_shims(
 
 #[cfg(unix)]
 fn shim_files(
-    name: &str,
+    name: String,
     run_as: &[&str],
     spec: &str,
     pnpm_execpath: &Path,
@@ -90,12 +90,12 @@ fn shim_files(
         spec = sh_single_quote(spec),
         run_as = run_as.join(" "),
     );
-    vec![(name.to_string(), contents)]
+    vec![(name, contents)]
 }
 
 #[cfg(windows)]
 fn shim_files(
-    name: &str,
+    name: String,
     run_as: &[&str],
     spec: &str,
     pnpm_execpath: &Path,

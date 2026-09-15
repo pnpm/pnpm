@@ -39,7 +39,7 @@ fn set_registry_global_writes_auth_ini() {
         &config,
         tmp.path(),
         flags(true, None, false),
-        "registry",
+        "registry".to_string(),
         Some("https://npm-registry.example.com/".to_string()),
     )
     .unwrap();
@@ -54,8 +54,14 @@ fn set_cafile_global_writes_auth_ini() {
     let config_dir = tmp.path().join("global-config");
     let config = config_with_dir(&config_dir);
 
-    config_set(&config, tmp.path(), flags(true, None, false), "cafile", Some("some-cafile".into()))
-        .unwrap();
+    config_set(
+        &config,
+        tmp.path(),
+        flags(true, None, false),
+        "cafile".to_string(),
+        Some("some-cafile".into()),
+    )
+    .unwrap();
 
     assert_eq!(
         read_ini(&config_dir.join("auth.ini")).get("cafile").map(String::as_str),
@@ -72,7 +78,7 @@ fn set_scoped_registry_project_creates_npmrc() {
         &config,
         tmp.path(),
         flags(false, Some(ConfigLocation::Project), false),
-        "@myorg:registry",
+        "@myorg:registry".to_string(),
         Some("https://test-registry.example.com/".to_string()),
     )
     .unwrap();
@@ -97,7 +103,7 @@ fn set_per_registry_auth_project_creates_npmrc() {
         &config,
         tmp.path(),
         flags(false, Some(ConfigLocation::Project), false),
-        "//registry.example.com/:_auth",
+        "//registry.example.com/:_auth".to_string(),
         Some("test-auth-value".to_string()),
     )
     .unwrap();
@@ -119,8 +125,14 @@ fn set_pnpm_key_global_writes_config_yaml_as_number() {
     std::fs::create_dir_all(&config_dir).unwrap();
     let config = config_with_dir(&config_dir);
 
-    config_set(&config, tmp.path(), flags(true, None, false), "fetch-retries", Some("1".into()))
-        .unwrap();
+    config_set(
+        &config,
+        tmp.path(),
+        flags(true, None, false),
+        "fetch-retries".to_string(),
+        Some("1".into()),
+    )
+    .unwrap();
 
     assert_eq!(read_yaml(&config_dir.join("config.yaml")).unwrap(), json!({ "fetchRetries": 1 }));
 }
@@ -140,7 +152,7 @@ fn set_registries_and_named_registries_global_writes_config_yaml() {
         &config,
         tmp.path(),
         flags(true, None, true),
-        "registries",
+        "registries".to_string(),
         Some(registries.to_string()),
     )
     .unwrap();
@@ -150,7 +162,7 @@ fn set_registries_and_named_registries_global_writes_config_yaml() {
         &config,
         tmp.path(),
         flags(true, None, true),
-        "named-registries",
+        "named-registries".to_string(),
         Some(registries_by_prefix.to_string()),
     )
     .unwrap();
@@ -172,7 +184,7 @@ fn set_camel_key_location_global() {
         &config,
         tmp.path(),
         flags(false, Some(ConfigLocation::Global), false),
-        "fetchRetries",
+        "fetchRetries".to_string(),
         Some("1".into()),
     )
     .unwrap();
@@ -189,7 +201,7 @@ fn set_pnpm_key_project_writes_workspace_yaml() {
         &config,
         tmp.path(),
         flags(false, Some(ConfigLocation::Project), false),
-        "virtual-store-dir",
+        "virtual-store-dir".to_string(),
         Some(".pnpm".into()),
     )
     .unwrap();
@@ -210,7 +222,7 @@ fn set_global_https_proxy_writes_config_yaml_not_auth_ini() {
         &config,
         tmp.path(),
         flags(true, None, false),
-        "https-proxy",
+        "https-proxy".to_string(),
         Some("http://proxy.example.com:8443".into()),
     )
     .unwrap();
@@ -232,7 +244,7 @@ fn set_global_http_proxy_writes_config_yaml() {
         &config,
         tmp.path(),
         flags(true, None, false),
-        "httpProxy",
+        "httpProxy".to_string(),
         Some("http://proxy.example.com:8080".into()),
     )
     .unwrap();
@@ -253,7 +265,7 @@ fn set_global_no_proxy_writes_config_yaml() {
         &config,
         tmp.path(),
         flags(true, None, false),
-        "no-proxy",
+        "no-proxy".to_string(),
         Some("localhost,127.0.0.1".into()),
     )
     .unwrap();
@@ -276,7 +288,7 @@ fn set_key_equals_value_form() {
                 &config,
                 tmp.path(),
                 flags(false, Some(ConfigLocation::Project), false),
-                &k,
+                k,
                 Some(v),
             )
         })
@@ -297,7 +309,14 @@ fn set_dot_leading_and_subscripted_keys() {
         std::fs::create_dir_all(&config_dir).unwrap();
         let config = config_with_dir(&config_dir);
 
-        config_set(&config, tmp.path(), flags(true, None, false), key, Some("1".into())).unwrap();
+        config_set(
+            &config,
+            tmp.path(),
+            flags(true, None, false),
+            key.to_string(),
+            Some("1".into()),
+        )
+        .unwrap();
 
         assert_eq!(
             read_yaml(&config_dir.join("config.yaml")).unwrap(),
@@ -320,7 +339,7 @@ fn set_object_value_with_json_writes_workspace_yaml() {
         &config,
         tmp.path(),
         flags(false, Some(ConfigLocation::Project), true),
-        "packageExtensions",
+        "packageExtensions".to_string(),
         Some(extensions.to_string()),
     )
     .unwrap();
@@ -341,7 +360,7 @@ fn set_rejects_deep_property_path() {
         &config,
         tmp.path(),
         flags(true, None, false),
-        ".catalog.react",
+        ".catalog.react".to_string(),
         Some("19".into()),
     )
     .unwrap_err();
@@ -357,7 +376,7 @@ fn set_refuses_workspace_key_in_global_config() {
         &config,
         tmp.path(),
         flags(false, Some(ConfigLocation::Global), true),
-        "catalog",
+        "catalog".to_string(),
         Some(r#"{"react":"19"}"#.into()),
     )
     .unwrap_err();
@@ -372,7 +391,7 @@ fn set_refuses_kebab_workspace_key() {
         &config,
         tmp.path(),
         flags(false, Some(ConfigLocation::Project), true),
-        "package-extensions",
+        "package-extensions".to_string(),
         Some("{}".into()),
     )
     .unwrap_err();
@@ -390,7 +409,7 @@ fn delete_last_yaml_key_removes_file() {
         &config,
         tmp.path(),
         flags(false, Some(ConfigLocation::Project), false),
-        "virtual-store-dir",
+        "virtual-store-dir".to_string(),
         Some(".pnpm".into()),
     )
     .unwrap();
@@ -404,7 +423,7 @@ fn delete_last_yaml_key_removes_file() {
         &config,
         tmp.path(),
         flags(false, Some(ConfigLocation::Project), false),
-        "virtual-store-dir",
+        "virtual-store-dir".to_string(),
         None,
     )
     .unwrap();
@@ -428,7 +447,8 @@ fn delete_auth_key_set_and_unset() {
         "@my-company:registry=https://registry.my-company.example.com/\n",
     )
     .unwrap();
-    config_set(&config, tmp.path(), flags(true, None, false), "registry", None).unwrap();
+    config_set(&config, tmp.path(), flags(true, None, false), "registry".to_string(), None)
+        .unwrap();
     assert_eq!(
         read_ini(&config_dir.join("auth.ini")).get("@my-company:registry").map(String::as_str),
         Some("https://registry.my-company.example.com/"),
@@ -440,7 +460,8 @@ fn delete_auth_key_set_and_unset() {
         "registry=https://registry.my-company.example.com/\n",
     )
     .unwrap();
-    config_set(&config, tmp.path(), flags(true, None, false), "registry", None).unwrap();
+    config_set(&config, tmp.path(), flags(true, None, false), "registry".to_string(), None)
+        .unwrap();
     assert!(read_ini(&config_dir.join("auth.ini")).is_empty());
 }
 
@@ -826,7 +847,7 @@ fn set_ini_value_with_control_char_is_rejected() {
         &config,
         tmp.path(),
         flags(false, Some(ConfigLocation::Project), false),
-        "//registry.example.com/:_authToken",
+        "//registry.example.com/:_authToken".to_string(),
         Some("token\ninjected=evil".to_string()),
     )
     .unwrap_err();
@@ -854,7 +875,7 @@ fn set_preserves_existing_npmrc_mode() {
         &config,
         tmp.path(),
         flags(false, Some(ConfigLocation::Project), false),
-        "registry",
+        "registry".to_string(),
         Some("https://example.com/".to_string()),
     )
     .unwrap();
@@ -885,7 +906,7 @@ fn set_does_not_follow_symlinked_npmrc_mode() {
         &config,
         tmp.path(),
         flags(false, Some(ConfigLocation::Project), false),
-        "//registry.example.com/:_authToken",
+        "//registry.example.com/:_authToken".to_string(),
         Some("secret-token".to_string()),
     )
     .unwrap();

@@ -376,7 +376,7 @@ impl VirtualStoreLayout {
     #[must_use]
     pub fn hashed_slot_dir(&self, key: &PackageKey) -> Option<PathBuf> {
         let suffix = self.gvs_suffixes.as_ref()?.get(key)?;
-        Some(join_global_virtual_store_path(&self.package_store_dir, suffix))
+        Some(join_global_virtual_store_path(self.package_store_dir.clone(), suffix))
     }
 
     #[must_use]
@@ -391,7 +391,7 @@ impl VirtualStoreLayout {
         // The flat non-GVS `to_virtual_store_name` fallback carries no
         // `/`, so it too can route through the GVS join (which then just
         // pushes it as a single component).
-        join_global_virtual_store_path(&self.package_store_dir, &suffix)
+        join_global_virtual_store_path(self.package_store_dir.clone(), &suffix)
     }
 }
 
@@ -441,7 +441,7 @@ pub fn global_virtual_store_version_dir(
         return None;
     }
     let candidate_slot = join_global_virtual_store_path(
-        package_store_dir,
+        package_store_dir.to_path_buf(),
         &format_global_virtual_store_path(&name, &version, "candidate"),
     );
     if !pnpm_fs::is_subdir(package_store_dir, &candidate_slot) {

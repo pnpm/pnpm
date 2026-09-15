@@ -1,6 +1,6 @@
 use super::{
     Arc, Config, Context, DeployArgs, DeployInstallMode, LazyLockfile, Lockfile, NodeLinker,
-    NodeLinkerArg, Path, PreferredVersions, Reporter, State, WantedLockfileSelection,
+    NodeLinkerArg, Path, PathBuf, PreferredVersions, Reporter, State, WantedLockfileSelection,
     deployed_workspace_projects, get_preferred_versions_from_lockfile_and_manifests,
     resolve_bool_override, warn,
 };
@@ -22,11 +22,11 @@ fn deploy_pnpmfile_hooks(
 /// A shared deploy installs the deployed project as a workspace of its
 /// own, so none of the source workspace's graph-level settings apply to
 /// it. The legacy path resolves from scratch and keeps them.
-fn apply_shared_deploy_config(config: &mut Config, deploy_dir: &Path, mode: DeployInstallMode) {
+fn apply_shared_deploy_config(config: &mut Config, deploy_dir: PathBuf, mode: DeployInstallMode) {
     let DeployInstallMode::Shared { workspace_config } = mode else {
         return;
     };
-    config.workspace_dir = deploy_dir.to_path_buf().into();
+    config.workspace_dir = deploy_dir.into();
     config.inject_workspace_packages = false;
     config.overrides = None;
     config.package_extensions = None;
@@ -228,7 +228,7 @@ impl DeployArgs {
         // manifest, where `copy_project` may have left the deployed
         // project's own pnpmfile.
         deploy_config.ignore_pnpmfile = ignore_pnpmfile;
-        apply_shared_deploy_config(&mut deploy_config, deploy_dir, mode);
+        apply_shared_deploy_config(&mut deploy_config, deploy_dir.to_path_buf(), mode);
         Config::leak(deploy_config)
     }
 }

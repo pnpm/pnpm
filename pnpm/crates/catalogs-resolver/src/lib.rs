@@ -100,7 +100,7 @@ pub fn resolve_from_catalog(
     };
 
     if parse_catalog_protocol(catalog_lookup).is_some() {
-        return recursive_catalog_error(catalog_name, &wanted_dependency.alias);
+        return recursive_catalog_error(catalog_name, wanted_dependency.alias.clone());
     }
 
     let protocol_of_lookup = catalog_lookup
@@ -126,11 +126,11 @@ pub fn resolve_from_catalog(
     })
 }
 
-fn recursive_catalog_error(catalog_name: &str, alias: &str) -> CatalogResolutionResult {
+fn recursive_catalog_error(catalog_name: &str, alias: String) -> CatalogResolutionResult {
     CatalogResolutionResult::Misconfiguration(CatalogResolutionMisconfiguration {
         catalog_name: catalog_name.to_string(),
         error: CatalogResolutionError::EntryInvalidRecursiveDefinition {
-            alias: alias.to_string(),
+            alias,
             catalog_name: catalog_name.to_string(),
         },
     })

@@ -57,7 +57,7 @@ fn collect_preferences(
 
     let root_ident = node_ident(root);
     for dep in hoistable {
-        add_dependent(&root_ident, dep, &mut preference, &mut seen);
+        add_dependent(root_ident.clone(), dep, &mut preference, &mut seen);
     }
     preference
 }
@@ -110,7 +110,7 @@ fn append_preferred_idents(
 /// and records peer children as peer-dependents. Mirrors yarn's
 /// `addDependent`.
 fn add_dependent(
-    dependent_ident: &str,
+    dependent_ident: String,
     node: &Rc<HoisterResult>,
     preference: &mut IndexMap<(String, String), PreferenceEntry>,
     seen: &mut HashSet<*const HoisterResult>,
@@ -120,7 +120,7 @@ fn add_dependent(
         .entry((node.name.clone(), parent_ident.clone()))
         .or_default()
         .dependents
-        .insert(dependent_ident.to_string());
+        .insert(dependent_ident);
 
     if seen.insert(Rc::as_ptr(node)) {
         let children: Vec<Rc<HoisterResult>> = node.dependencies
@@ -136,7 +136,7 @@ fn add_dependent(
                     .peer_dependents
                     .insert(parent_ident.clone());
             } else {
-                add_dependent(&parent_ident, &child, preference, seen);
+                add_dependent(parent_ident.clone(), &child, preference, seen);
             }
         }
     }

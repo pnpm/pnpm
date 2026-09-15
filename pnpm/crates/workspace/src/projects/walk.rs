@@ -46,7 +46,7 @@ pub(super) fn collect_manifests_in_children(
             return Ok(());
         }
         if !ignore_not_found(entry.file_type())
-            .map_err(|source| workspace_walk_error(workspace_root, source))?
+            .map_err(|source| workspace_walk_error(workspace_root.to_path_buf(), source))?
             .is_some_and(|file_type| file_type.is_dir())
         {
             return Ok(());
@@ -103,11 +103,11 @@ fn for_each_directory_entry(
     let entries = match fs::read_dir(directory) {
         Ok(entries) => entries,
         Err(error) if error.kind() == ErrorKind::NotFound => return Ok(()),
-        Err(source) => return Err(workspace_walk_error(workspace_root, source)),
+        Err(source) => return Err(workspace_walk_error(workspace_root.to_path_buf(), source)),
     };
     for entry in entries {
-        if let Some(entry) =
-            ignore_not_found(entry).map_err(|source| workspace_walk_error(workspace_root, source))?
+        if let Some(entry) = ignore_not_found(entry)
+            .map_err(|source| workspace_walk_error(workspace_root.to_path_buf(), source))?
         {
             visit(entry)?;
         }
@@ -124,10 +124,10 @@ fn ignore_not_found<Value>(result: std::io::Result<Value>) -> std::io::Result<Op
 }
 
 fn workspace_walk_error(
-    workspace_root: &Path,
+    workspace_root: PathBuf,
     source: std::io::Error,
 ) -> FindWorkspaceProjectsError {
-    FindWorkspaceProjectsError::Walk { root: workspace_root.to_path_buf(), source }
+    FindWorkspaceProjectsError::Walk { root: workspace_root, source }
 }
 
 fn is_ignored_manifest(

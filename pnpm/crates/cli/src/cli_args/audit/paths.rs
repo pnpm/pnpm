@@ -120,14 +120,7 @@ pub(crate) fn open_path_node(
             .get(&key)
             .copied()
             .unwrap_or(DepClass { dev_only: false, optional_only: false });
-        record_path(
-            paths,
-            &name,
-            &version,
-            join_trail(&trail),
-            class.dev_only,
-            class.optional_only,
-        );
+        record_path(paths, name, version, join_trail(&trail), class.dev_only, class.optional_only);
     }
     let children = walk.graph.children(&key, walk.include.optional_dependencies);
     if children.is_empty() {
@@ -139,15 +132,15 @@ pub(crate) fn open_path_node(
 
 pub(crate) fn record_path(
     paths: &mut AuditPathIndex,
-    name: &str,
-    version: &str,
+    name: String,
+    version: String,
     joined: String,
     is_dev: bool,
     is_optional: bool,
 ) {
-    let by_version = paths.entry(name.to_string()).or_default();
+    let by_version = paths.entry(name).or_default();
     let info = by_version
-        .entry(version.to_string())
+        .entry(version)
         .or_insert_with(|| PathInfo { paths: Vec::new(), dev: is_dev, optional: is_optional });
     if !is_dev {
         info.dev = false;

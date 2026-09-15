@@ -151,8 +151,8 @@ impl super::WorkspaceTreeStorage {
     }
 
     /// See [`WorkspaceTreeCtx::record_package_write`].
-    pub(in super::super) fn record_children_by_id_write(&self, pkg_id: &str) {
-        lock_recoverable(&self.sync_log).children_by_id.push(pkg_id.to_string());
+    pub(in super::super) fn record_children_by_id_write(&self, pkg_id: String) {
+        lock_recoverable(&self.sync_log).children_by_id.push(pkg_id);
     }
 
     /// See [`WorkspaceTreeCtx::record_package_write`].
@@ -161,8 +161,8 @@ impl super::WorkspaceTreeStorage {
     }
 
     /// See [`WorkspaceTreeCtx::record_package_write`].
-    pub(in super::super) fn record_peer_dep_name(&self, name: &str) {
-        lock_recoverable(&self.sync_log).peer_dep_names.push(name.to_string());
+    pub(in super::super) fn record_peer_dep_name(&self, name: String) {
+        lock_recoverable(&self.sync_log).peer_dep_names.push(name);
     }
 
     /// `false` when a package's peer dependencies were re-read differently

@@ -153,7 +153,7 @@ pub fn diff_lockfiles(
     }
     for id in importer_ids {
         let importer_diff = diff_importer(
-            id,
+            id.to_string(),
             old.and_then(|lockfile| lockfile.importers.get(id)),
             new.importers.get(id),
             importer_key,
@@ -235,7 +235,7 @@ fn dep_refs(deps: Option<&HashMap<PkgName, SnapshotDepRef>>) -> BTreeMap<String,
 }
 
 fn diff_importer(
-    id: &str,
+    id: String,
     old: Option<&ProjectSnapshot>,
     new: Option<&ProjectSnapshot>,
     key: ImporterDiffKey,
@@ -244,7 +244,7 @@ fn diff_importer(
     for group in IMPORTER_GROUPS {
         changes.merge(&group_deps(old, group, key), &group_deps(new, group, key));
     }
-    changes.into_diff(id.to_string())
+    changes.into_diff(id)
 }
 
 /// The importer dependency groups, in pnpm's `DEPENDENCIES_FIELDS` order —

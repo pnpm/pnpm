@@ -169,7 +169,8 @@ impl PythonPrepare<'_> {
         let project = manifest.project.as_ref().expect("only project manifests were selected");
         self.check_requires_python(&root, project.requires_python.as_deref())?;
         let requirements = manifest.requirements(config, manifest::DependencySelection::ALL)?;
-        let inputs = Inputs::new(&requirements, &self.interpreter.target, self.index.as_str());
+        let inputs =
+            Inputs::new(&requirements, &self.interpreter.target, self.index.as_str().to_string());
         let mut registry = self.registry();
         let lock_path = root.join("pylock.toml");
         let existing =
@@ -253,7 +254,7 @@ impl PythonPrepare<'_> {
         }
         validate_environment_link(root)?;
         let generations = root.join(".pnpm/python-envs");
-        ensure_environment_parent(root)?;
+        ensure_environment_parent(root.to_path_buf())?;
         let environment = tempfile::Builder::new()
             .prefix("env-")
             .tempdir_in(&generations)

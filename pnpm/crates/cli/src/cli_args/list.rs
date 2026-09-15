@@ -369,7 +369,7 @@ impl ListArgs {
         let include = self.include(config.optional);
         let root_ids = importer_root_ids(env.current_lockfile, lockfile_dir, project_dirs);
         let graph = build_dependency_graph(
-            &root_ids,
+            root_ids,
             &BuildGraphOptions {
                 lockfile: env.current_lockfile,
                 include,

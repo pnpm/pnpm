@@ -602,7 +602,7 @@ pub fn package_dir_matches_index(dir: &Path, index: &PackageFilesIndex) -> bool 
     index.files
         .iter()
         .all(|(path, file)| {
-            join_inside(dir, path)
+            join_inside(dir.to_path_buf(), path)
                 .is_some_and(|path| verify_file_integrity(&path, &file.digest, &index.algo))
         })
 }
@@ -616,8 +616,8 @@ pub fn package_dir_matches_index(dir: &Path, index: &PackageFilesIndex) -> bool 
 /// point the hash at a file outside the package. Rejecting here keeps that
 /// decision local to the one caller that joins index keys onto a
 /// directory rather than reading them out of the CAS.
-fn join_inside(dir: &Path, relative: &str) -> Option<PathBuf> {
-    let mut joined = dir.to_path_buf();
+fn join_inside(dir: PathBuf, relative: &str) -> Option<PathBuf> {
+    let mut joined = dir;
     for component in Path::new(relative).components() {
         match component {
             std::path::Component::Normal(segment) => joined.push(segment),

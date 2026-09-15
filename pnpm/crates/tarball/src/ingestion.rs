@@ -52,7 +52,11 @@ impl ArchiveIngestion<'_> {
                 package_id = ?self.package.id,
                 "Reusing prefetched CAFS entry — skipping download",
             );
-            emit_progress_found_in_store::<Reporter>(self.package.id, self.requester, progress_key);
+            emit_progress_found_in_store::<Reporter>(
+                self.package.id.to_string(),
+                self.requester.to_string(),
+                progress_key,
+            );
             return Ok((**cas_paths).clone());
         }
         if let Some(cache_key) = cache_key.clone() {
@@ -68,8 +72,8 @@ impl ArchiveIngestion<'_> {
             if let Some(cas_paths) = cached {
                 tracing::info!(target: "pacquet::download", package_url = ?self.package.url, package_id = ?self.package.id, "Reusing cached CAFS entry — skipping download");
                 emit_progress_found_in_store::<Reporter>(
-                    self.package.id,
-                    self.requester,
+                    self.package.id.to_string(),
+                    self.requester.to_string(),
                     progress_key,
                 );
                 return Ok(cas_paths);
@@ -103,8 +107,8 @@ impl ArchiveIngestion<'_> {
             if let Some(cas_paths) = cached {
                 tracing::info!(target: "pacquet::download", package_url = ?self.package.url, package_id = ?self.package.id, "Reusing compatible legacy CAFS entry — skipping download");
                 emit_progress_found_in_store::<Reporter>(
-                    self.package.id,
-                    self.requester,
+                    self.package.id.to_string(),
+                    self.requester.to_string(),
                     progress_key,
                 );
                 return Ok(Some(cas_paths));

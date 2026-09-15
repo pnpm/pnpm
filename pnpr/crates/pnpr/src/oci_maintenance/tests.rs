@@ -41,7 +41,7 @@ async fn retained_image(storage: &Storage, repository: &CanonicalPackageName) ->
     }))
     .unwrap();
     let manifest = blob(storage, repository, &bytes).await;
-    let mut document = ImageDocument::new(repository.as_str());
+    let mut document = ImageDocument::new(repository.as_str().to_string());
     document.insert_manifest(ManifestEntry {
         referrer: None,
         digest: manifest.clone(),
@@ -155,7 +155,7 @@ async fn index_keeps_children_removed_from_the_document_and_their_layers() {
     }))
     .unwrap();
     let index = blob(&storage, &repository, &bytes).await;
-    let mut document = ImageDocument::new(repository.as_str());
+    let mut document = ImageDocument::new(repository.as_str().to_string());
     document.insert_manifest(ManifestEntry {
         referrer: None,
         digest: index.clone(),
@@ -201,7 +201,7 @@ async fn collection_uses_the_stored_media_type_for_header_only_manifests() {
     }))
     .unwrap();
     let digest = blob(&storage, &repository, &bytes).await;
-    let mut document = ImageDocument::new(repository.as_str());
+    let mut document = ImageDocument::new(repository.as_str().to_string());
     document.insert_manifest(ManifestEntry {
         referrer: None,
         digest: digest.clone(),
@@ -222,7 +222,7 @@ async fn collection_uses_the_stored_media_type_for_header_only_manifests() {
 async fn a_document_without_any_blob_files_still_blocks_collection_when_corrupt() {
     let (_temp, storage) = setup();
     let repository = name("empty");
-    let mut document = ImageDocument::new(repository.as_str());
+    let mut document = ImageDocument::new(repository.as_str().to_string());
     document.insert_manifest(ManifestEntry {
         referrer: None,
         digest: Digest::of(b"missing"),
@@ -307,7 +307,7 @@ async fn offline_collection_finishes_interrupted_explicit_deletion() {
     let (_temp, storage) = setup();
     let repository = name("acme/app");
     let digest = blob(&storage, &repository, b"pending deletion").await;
-    let mut document = ImageDocument::new(repository.as_str());
+    let mut document = ImageDocument::new(repository.as_str().to_string());
     document.generation = 1;
     document.deleting_blob = Some(digest.clone());
     storage

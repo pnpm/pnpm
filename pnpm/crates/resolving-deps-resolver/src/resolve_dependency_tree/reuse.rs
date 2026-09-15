@@ -143,7 +143,7 @@ pub(super) fn try_reuse_node(
     if !subtree_fully_reusable(ctx, lockfile, key, depth) {
         return None;
     }
-    let result = synthesize_reused_result(lockfile, key, alias)?;
+    let result = synthesize_reused_result(lockfile, key, alias.to_string())?;
     Some(ReusedNode { key: key.clone(), result })
 }
 
@@ -365,7 +365,7 @@ fn subtree_fully_reusable(
     // up — update names match at every depth the update reaches.
     let name = key.name.to_string();
     let reusable = !update_excludes(scope, &name, key.suffix.version_semver(), depth)
-        && synthesize_reused_result(lockfile, key, &name).is_some()
+        && synthesize_reused_result(lockfile, key, name).is_some()
         && subtree_children_reusable(ctx, lockfile, key, depth);
     lock_recoverable(&ctx.workspace.cache.subtree_reusable).insert(memo_key, reusable);
     reusable
@@ -452,7 +452,7 @@ where
         current_is_optional,
         identity.is_leaf,
     ) {
-        emit_deprecation_if_needed(ctx, &result, &id, edge.depth);
+        emit_deprecation_if_needed(ctx, &result, id.clone(), edge.depth);
     }
 
     attach_reused_children(
@@ -464,7 +464,11 @@ where
             key: &reused.key,
             snapshot: identity.snapshot,
             child_refs: &identity.child_refs,
-            ancestry: snapshot_children::ReusedNodeAncestry::new(edge, &id, current_is_optional),
+            ancestry: snapshot_children::ReusedNodeAncestry::new(
+                edge,
+                id.clone(),
+                current_is_optional,
+            ),
         },
         &identity.node_id,
     )
@@ -525,8 +529,13 @@ where
     Chain: Resolver + ?Sized,
 {
     let reused_id = reused.id;
-    let children_owner =
-        claim_children_owner(ctx, reused_id, edge.depth, edge.ancestor_ids, HashSet::default());
+    let children_owner = claim_children_owner(
+        ctx,
+        reused_id,
+        edge.depth,
+        edge.ancestor_ids.to_vec(),
+        HashSet::default(),
+    );
     let (children, others_stale) = reused_children(ctx, resolver, &children_owner, reused).await?;
     remember_node_parent_ids(ctx, node_id, Arc::clone(edge.ancestor_ids));
     insert_tree_node(ctx, node_id.clone(), reused_id, children, edge.depth);
@@ -574,7 +583,7 @@ fn record_peer_dep_names(ctx: &TreeCtx, peer_dependencies: &BTreeMap<String, Pee
     let mut all_peers = lock_recoverable(&ctx.workspace.tree.all_peer_dep_names);
     for name in peer_dependencies.keys() {
         if all_peers.insert(name.clone()) {
-            ctx.workspace.tree.record_peer_dep_name(name);
+            ctx.workspace.tree.record_peer_dep_name(name.clone());
         }
     }
 }

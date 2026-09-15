@@ -236,9 +236,9 @@ pub(crate) fn materialize_side_effects<Reporter: self::Reporter>(
 ///
 /// Non-existent ancestor `.bin` directories are harmless: they
 /// just don't contribute anything to lifecycle-script PATH lookup.
-pub(crate) fn bin_dirs_in_all_parent_dirs(pkg_root: &Path, lockfile_dir: &Path) -> Vec<PathBuf> {
+pub(crate) fn bin_dirs_in_all_parent_dirs(pkg_root: PathBuf, lockfile_dir: &Path) -> Vec<PathBuf> {
     let mut bin_dirs: Vec<PathBuf> = Vec::new();
-    let mut dir: PathBuf = pkg_root.to_path_buf();
+    let mut dir: PathBuf = pkg_root;
     loop {
         let parent = dir.parent().unwrap_or_else(|| Path::new(""));
         let parent_starts_with_at = parent

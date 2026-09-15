@@ -28,7 +28,7 @@ pub(super) fn check_a_project_has_the_script(
     {
         return Ok(());
     }
-    Err(no_requested_script_error(script_name, all_packages_selected).into())
+    Err(no_requested_script_error(script_name.to_string(), all_packages_selected).into())
 }
 
 /// `--no-bail` runs every task whatever fails, so it needs no tracker at
@@ -92,8 +92,8 @@ pub(super) fn resume_task_graph(
     let completed_tasks = task_run_state_context.read_completed_tasks()?;
     Ok(resume_task_graph_from(
         full_task_graph.clone(),
-        &anchor,
-        script_name,
+        anchor,
+        script_name.to_string(),
         completed_tasks.as_ref(),
     ))
 }
@@ -213,7 +213,11 @@ pub(super) fn report_run_outcome(
     let failures = count_failures(result);
     if script_name != "test" && !reporting.ran_a_command && failures == 0 && !args.if_present {
         task_run_state.finish()?;
-        return Err(no_requested_script_error(script_name, reporting.all_packages_selected).into());
+        return Err(no_requested_script_error(
+            script_name.to_string(),
+            reporting.all_packages_selected,
+        )
+        .into());
     }
 
     if args.workspace.report_summary {
@@ -225,8 +229,10 @@ pub(super) fn report_run_outcome(
     task_run_state.finish()
 }
 
-fn no_requested_script_error(script_name: &str, all_packages_selected: bool) -> RecursiveRunError {
-    let script_name = script_name.to_string();
+fn no_requested_script_error(
+    script_name: String,
+    all_packages_selected: bool,
+) -> RecursiveRunError {
     if all_packages_selected {
         RecursiveRunError::NoScript { script_name }
     } else {

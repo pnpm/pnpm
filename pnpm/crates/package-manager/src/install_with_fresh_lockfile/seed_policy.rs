@@ -62,7 +62,7 @@ pub enum UpdateSeedPolicy {
 /// recorded resolution is reused and the request is dropped silently.
 pub(crate) fn prefer_requested_version(
     preferred: &mut pnpm_resolving_resolver_base::PreferredVersions,
-    name: &str,
+    name: String,
     version: &str,
 ) {
     use pnpm_resolving_resolver_base::{
@@ -74,7 +74,7 @@ pub(crate) fn prefer_requested_version(
         return;
     }
     preferred
-        .entry(name.to_string())
+        .entry(name)
         .or_default()
         .insert(
             version.to_string(),

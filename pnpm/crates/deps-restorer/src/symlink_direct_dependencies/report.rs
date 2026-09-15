@@ -16,7 +16,7 @@ use std::collections::HashMap;
 pub(super) fn emit_root_added<Reporter: self::Reporter>(
     entry: &ResolvedEntry<'_>,
     packages: Option<&HashMap<PackageKey, PackageMetadata>>,
-    prefix: &str,
+    prefix: String,
 ) {
     let ResolvedEntry { name, spec, group, name_str, .. } = entry;
     let dependency_type = match group {
@@ -46,7 +46,7 @@ pub(super) fn emit_root_added<Reporter: self::Reporter>(
     Reporter::emit(&LogEvent::Root(RootLog {
         level: LogLevel::Debug,
         message: RootMessage::Added {
-            prefix: prefix.to_owned(),
+            prefix,
             added: AddedRoot {
                 name: name_str.clone(),
                 real_name,

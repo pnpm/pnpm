@@ -67,9 +67,9 @@ struct CheckResult {
 }
 
 impl CheckResult {
-    fn pass(title: &str, detail: impl Into<String>) -> Self {
+    fn pass(title: String, detail: impl Into<String>) -> Self {
         CheckResult {
-            title: title.to_owned(),
+            title,
             status: CheckStatus::Pass,
             detail: Some(detail.into()),
             fix: None,
@@ -77,9 +77,9 @@ impl CheckResult {
         }
     }
 
-    fn warn(title: &str, detail: impl Into<String>, fix: impl Into<String>) -> Self {
+    fn warn(title: String, detail: impl Into<String>, fix: impl Into<String>) -> Self {
         CheckResult {
-            title: title.to_owned(),
+            title,
             status: CheckStatus::Warn,
             detail: Some(detail.into()),
             fix: Some(fix.into()),
@@ -87,9 +87,9 @@ impl CheckResult {
         }
     }
 
-    fn fail(title: &str, detail: impl Into<String>, fix: impl Into<String>) -> Self {
+    fn fail(title: String, detail: impl Into<String>, fix: impl Into<String>) -> Self {
         CheckResult {
-            title: title.to_owned(),
+            title,
             status: CheckStatus::Fail,
             detail: Some(detail.into()),
             fix: Some(fix.into()),
@@ -153,16 +153,16 @@ impl DoctorArgs {
     async fn check_connectivity(&self, config: &Config) -> CheckResult {
         let title = "Registry connectivity";
         if self.offline {
-            return CheckResult::pass(title, "skipped (--offline)");
+            return CheckResult::pass(title.to_string(), "skipped (--offline)");
         }
         let started = Instant::now();
         match (PingArgs { registry: None }).run(config).await {
             Ok(_) => CheckResult::pass(
-                title,
+                title.to_string(),
                 format!("{} ({}ms)", config.registry, started.elapsed().as_millis()),
             ),
             Err(error) => CheckResult::fail(
-                title,
+                title.to_string(),
                 format!("could not reach {}: {error}", config.registry),
                 "Check your network, proxy, and registry configuration.",
             ),
@@ -175,7 +175,7 @@ fn check_versions() -> CheckResult {
         Some(node_version) => format!("pnpm {PNPM_VERSION}, Node.js {node_version}"),
         None => format!("pnpm {PNPM_VERSION}"),
     };
-    CheckResult::pass("Versions", detail)
+    CheckResult::pass("Versions".to_string(), detail)
 }
 
 /// Report the Node.js that lifecycle scripts will run under. pacquet is a
@@ -202,12 +202,12 @@ fn check_install_method() -> CheckResult {
     let title = "Install method";
     if std::env::var_os("COREPACK_ROOT").is_some() {
         return CheckResult::warn(
-            title,
+            title.to_string(),
             "pnpm, run by Corepack",
             r#"Corepack manages the pnpm version itself; "pnpm self-update" is unavailable under it."#,
         );
     }
-    CheckResult::pass(title, "pnpm")
+    CheckResult::pass(title.to_string(), "pnpm")
 }
 
 /// Check the global executables directory — where the CLI links binaries and
@@ -221,12 +221,12 @@ fn check_global_bin_dir(config: &Config) -> CheckResult {
         .flatten()
         .collect();
     let Some(first) = candidates.first() else {
-        return CheckResult::pass(title, "not configured");
+        return CheckResult::pass(title.to_string(), "not configured");
     };
 
     let Some(path_var) = std::env::var_os("PATH") else {
         return CheckResult::warn(
-            title,
+            title.to_string(),
             "the PATH environment variable is not set",
             r#"Run "pnpm setup" to add it to your shell configuration."#,
         );
@@ -235,19 +235,19 @@ fn check_global_bin_dir(config: &Config) -> CheckResult {
 
     let Some(bin_dir) = candidates.iter().find(|dir| dir_is_in_path(dir, &path_dirs)) else {
         return CheckResult::warn(
-            title,
+            title.to_string(),
             format!("{} is not in PATH", first.display()),
             r#"Run "pnpm setup" to add it to your shell configuration."#,
         );
     };
     if !can_write_to_dir(bin_dir) {
         return CheckResult::fail(
-            title,
+            title.to_string(),
             format!("no write access to {}", bin_dir.display()),
             r#"Run "pnpm setup", or fix the directory permissions."#,
         );
     }
-    CheckResult::pass(title, bin_dir.display().to_string())
+    CheckResult::pass(title.to_string(), bin_dir.display().to_string())
 }
 
 fn dir_is_in_path(dir: &Path, path_dirs: &[PathBuf]) -> bool {
@@ -266,12 +266,12 @@ fn dir_is_in_path(dir: &Path, path_dirs: &[PathBuf]) -> bool {
 fn check_writable_dir(title: &str, dir: &Path) -> CheckResult {
     if !can_write_to_dir(dir) {
         return CheckResult::fail(
-            title,
+            title.to_string(),
             format!("no write access to {}", dir.display()),
             "Fix the directory permissions or point the setting at a writable path.",
         );
     }
-    CheckResult::pass(title, dir.display().to_string())
+    CheckResult::pass(title.to_string(), dir.display().to_string())
 }
 
 /// Probe which link strategies work from the store's volume, since that is what
@@ -283,7 +283,7 @@ fn check_filesystem_capabilities(config: &Config, benchmark: bool) -> CheckResul
     let probe_dir = tempfile::tempdir_in(config.store_dir.root()).or_else(|_| tempfile::tempdir());
     let Ok(probe_dir) = probe_dir else {
         return CheckResult::warn(
-            title,
+            title.to_string(),
             "could not create a probe directory",
             "Check that the store directory and the system temp directory are writable.",
         );
@@ -291,7 +291,7 @@ fn check_filesystem_capabilities(config: &Config, benchmark: bool) -> CheckResul
 
     let Ok(capabilities) = probe_link_capabilities(probe_dir.path()) else {
         return CheckResult::warn(
-            title,
+            title.to_string(),
             "could not write a probe file",
             "Check that the store directory is writable.",
         );
@@ -307,10 +307,10 @@ fn check_filesystem_capabilities(config: &Config, benchmark: bool) -> CheckResul
         .any(|(name, supported)| *supported && matches!(*name, "reflink" | "hardlink"));
 
     let result = if has_cheap_link {
-        CheckResult::pass(title, format!("available: {}", available.join(", ")))
+        CheckResult::pass(title.to_string(), format!("available: {}", available.join(", ")))
     } else {
         CheckResult::warn(
-            title,
+            title.to_string(),
             "only copying is available",
             "Neither reflink nor hardlink works between the store and this project; installs will copy files and be slower. Put the store on the same filesystem as your projects.",
         )
@@ -347,16 +347,18 @@ fn check_install_smoke_test(benchmark: bool) -> CheckResult {
     let started = Instant::now();
     let Ok(base) = tempfile::tempdir() else {
         return CheckResult::warn(
-            title,
+            title.to_string(),
             "could not create a temporary directory",
             "Check that the system temp directory is writable.",
         );
     };
     match run_install_smoke_test(base.path()) {
-        Ok(()) => CheckResult::pass(title, r#"offline "file:" install linked its dependency"#)
-            .timed(benchmark, started),
+        Ok(()) => {
+            CheckResult::pass(title.to_string(), r#"offline "file:" install linked its dependency"#)
+                .timed(benchmark, started)
+        }
         Err(detail) => CheckResult::fail(
-            title,
+            title.to_string(),
             detail,
             r#"Run "pnpm install" in a scratch project to see the full error."#,
         ),

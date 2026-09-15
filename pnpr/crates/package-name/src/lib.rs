@@ -105,16 +105,22 @@ impl CanonicalPackageName {
         let canonical = match ecosystem {
             Ecosystem::Npm => raw.to_string(),
             Ecosystem::Cargo => canonicalize_crate_name(raw)
-                .map_err(|error| invalid_ecosystem_name(raw, ecosystem, error.to_string()))?,
+                .map_err(|error| {
+                    invalid_ecosystem_name(raw.to_string(), ecosystem, error.to_string())
+                })?,
             Ecosystem::Pypi => canonicalize_python_name(raw)
-                .map_err(|error| invalid_ecosystem_name(raw, ecosystem, error.to_string()))?,
+                .map_err(|error| {
+                    invalid_ecosystem_name(raw.to_string(), ecosystem, error.to_string())
+                })?,
             // An image name is many `/`-joined components and may outrun the
             // npm length limit, so the OCI grammar is the whole check: it
             // holds every component to starting and ending alphanumeric,
             // which is stricter than `is_safe_segment` asks for.
             Ecosystem::Oci => {
                 let canonical = canonicalize_oci_name(raw)
-                    .map_err(|error| invalid_ecosystem_name(raw, ecosystem, error.to_string()))?;
+                    .map_err(|error| {
+                        invalid_ecosystem_name(raw.to_string(), ecosystem, error.to_string())
+                    })?;
                 let basename =
                     canonical.rsplit_once('/').map_or(canonical.as_str(), |(_, last)| last);
                 let basename = basename.to_string();
@@ -125,7 +131,7 @@ impl CanonicalPackageName {
             .map_err(|error| match ecosystem {
                 Ecosystem::Npm => error,
                 Ecosystem::Cargo | Ecosystem::Pypi | Ecosystem::Oci => invalid_ecosystem_name(
-                    raw,
+                    raw.to_string(),
                     ecosystem,
                     "its canonical form is not a safe registry key".to_string(),
                 ),
@@ -195,12 +201,8 @@ impl CanonicalPackageName {
     }
 }
 
-fn invalid_ecosystem_name(name: &str, ecosystem: Ecosystem, reason: String) -> RegistryError {
-    RegistryError::InvalidEcosystemPackageName {
-        name: name.to_string(),
-        ecosystem: ecosystem.to_string(),
-        reason,
-    }
+fn invalid_ecosystem_name(name: String, ecosystem: Ecosystem, reason: String) -> RegistryError {
+    RegistryError::InvalidEcosystemPackageName { name, ecosystem: ecosystem.to_string(), reason }
 }
 
 pub fn canonicalize_crate_name(name: &str) -> Result<String, CrateNameError> {

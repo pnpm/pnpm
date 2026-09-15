@@ -150,7 +150,7 @@ fn report_add_outcome<Reporter: self::Reporter>(outcome: miette::Result<String>)
             let code = error
                 .code()
                 .map_or_else(String::new, |code| format!("{code}: "));
-            emit_global_warning::<Reporter>(&format!("{code}{error}"));
+            emit_global_warning::<Reporter>(format!("{code}{error}"));
             true
         }
     }

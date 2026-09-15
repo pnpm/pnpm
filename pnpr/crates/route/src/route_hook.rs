@@ -108,14 +108,14 @@ impl ResolvedAlias {
     /// participates in route classification only when it declares both an
     /// `access:` policy and a resolved `Authorization` credential; routing is
     /// by registry origin, so no package glob is attached.
-    pub(super) fn from_upstream(name: &str, upstream: &UpstreamConfig) -> Option<Self> {
+    pub(super) fn from_upstream(name: String, upstream: &UpstreamConfig) -> Option<Self> {
         let access = upstream.access.clone()?;
         let authorization = upstream.headers
             .get(AUTHORIZATION)
             .and_then(|value| value.to_str().ok())?
             .to_string();
         Some(Self {
-            name: name.to_string(),
+            name,
             credential_digest: credential_digest(&authorization),
             registry: upstream.url.clone(),
             origin: nerf_prefix(&upstream.url)?,

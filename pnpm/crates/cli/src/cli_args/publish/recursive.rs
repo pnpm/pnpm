@@ -176,7 +176,10 @@ impl PublishArgs {
                 .await;
 
         if to_publish.is_empty() {
-            emit_info::<Reporter>("There are no new packages that should be published", dir);
+            emit_info::<Reporter>(
+                "There are no new packages that should be published".to_string(),
+                dir,
+            );
             self.write_summary(workspace_root, &[])?;
             return Ok(Vec::new());
         }
@@ -385,10 +388,10 @@ fn retry_opts_from_config(config: &Config) -> RetryOpts {
 
 /// Emit on the generic `pnpm` channel with a project prefix (rather than the
 /// prefix-less `pnpm:global` channel), so the message carries the project dir.
-fn emit_info<Reporter: self::Reporter>(message: &str, prefix: &Path) {
+fn emit_info<Reporter: self::Reporter>(message: String, prefix: &Path) {
     Reporter::emit(&LogEvent::Pnpm(PnpmLog {
         level: LogLevel::Info,
-        message: message.to_owned(),
+        message,
         prefix: prefix.display().to_string(),
     }));
 }

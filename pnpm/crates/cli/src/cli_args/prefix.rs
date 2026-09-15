@@ -75,11 +75,11 @@ fn find_prefix(start_dir: &Path, targets: &[&str]) -> miette::Result<PathBuf> {
         }
     }
 
-    if name == start_dir { find_prefix_up(&name, &name, targets) } else { Ok(name) }
+    if name == start_dir { find_prefix_up(name.clone(), &name, targets) } else { Ok(name) }
 }
 
-fn find_prefix_up(name: &Path, original: &Path, targets: &[&str]) -> miette::Result<PathBuf> {
-    let mut current = name.to_path_buf();
+fn find_prefix_up(name: PathBuf, original: &Path, targets: &[&str]) -> miette::Result<PathBuf> {
+    let mut current = name;
 
     loop {
         match probe_project_markers(&current, targets, original)? {

@@ -352,7 +352,7 @@ fn is_empty_or_absent(value: Option<&Value>) -> bool {
 pub(super) fn emit_deprecation_if_needed(
     ctx: &TreeCtx,
     result: &pnpm_resolving_resolver_base::ResolveResult,
-    id: &str,
+    id: String,
     depth: i32,
 ) {
     let Some(deprecated) = extract_deprecated_from_manifest(result.package.manifest.as_deref())
@@ -378,7 +378,7 @@ pub(super) fn emit_deprecation_if_needed(
     log(Deprecation {
         pkg_name,
         pkg_version,
-        pkg_id: id.to_string(),
+        pkg_id: id,
         prefix: ctx.options.base.project.project_dir.display().to_string(),
         deprecated,
         depth,

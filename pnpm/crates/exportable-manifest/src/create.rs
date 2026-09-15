@@ -224,7 +224,7 @@ fn convert_dependency_for_publish(
     opts: &CreateExportableManifestOptions<'_>,
     kind: DependencyKind,
 ) -> Result<String, CreateExportableManifestError> {
-    let after_catalog = replace_catalog_protocol(dep_name, spec, opts.catalogs)?;
+    let after_catalog = replace_catalog_protocol(dep_name.to_string(), spec, opts.catalogs)?;
     let after_workspace = match kind {
         DependencyKind::Regular => {
             replace_workspace_protocol(dep_name, &after_catalog, dir, opts.modules_dir)
@@ -243,11 +243,11 @@ fn convert_dependency_for_publish(
 /// Dereference a `catalog:` specifier; pass any other specifier
 /// through unchanged.
 fn replace_catalog_protocol(
-    alias: &str,
+    alias: String,
     spec: &str,
     catalogs: &Catalogs,
 ) -> Result<String, CreateExportableManifestError> {
-    let wanted = WantedDependency { alias: alias.to_string(), bare_specifier: spec.to_string() };
+    let wanted = WantedDependency { alias, bare_specifier: spec.to_string() };
     match resolve_from_catalog(catalogs, &wanted) {
         CatalogResolutionResult::Found(found) => Ok(found.resolution.specifier),
         CatalogResolutionResult::Unused => Ok(spec.to_string()),

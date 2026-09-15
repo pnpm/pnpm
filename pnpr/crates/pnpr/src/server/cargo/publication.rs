@@ -142,7 +142,7 @@ impl CratePublication {
             &self.key,
             &self.filename,
             &self.archive,
-            refuse_published_version(&self.entry.vers),
+            refuse_published_version(self.entry.vers.clone()),
             self.document(),
         )
         .await
@@ -160,7 +160,7 @@ impl CratePublication {
             &self.key,
             &self.filename,
             &self.archive,
-            &refuse_published_version(&self.entry.vers),
+            &refuse_published_version(self.entry.vers.clone()),
             self.document(),
         )
         .await
@@ -170,9 +170,8 @@ impl CratePublication {
 /// A published crate version is immutable, so a document that already carries
 /// `vers` is one this publish must not land on.
 pub(super) fn refuse_published_version(
-    vers: &str,
+    vers: String,
 ) -> impl Fn(&CrateDocument) -> Result<(), RegistryError> {
-    let vers = vers.to_string();
     move |document: &CrateDocument| match document.version(&vers) {
         Some(_) => Err(RegistryError::BadRequest {
             reason: format!("crate version `{vers}` is already uploaded"),

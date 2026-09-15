@@ -236,7 +236,7 @@ pub(super) fn upload_side_effects_cache(
     if let Err(err) = upload_and_publish(
         context,
         snapshot_key,
-        (store, writer, &files_index_file, cache_key),
+        (store, writer, files_index_file, cache_key.to_string()),
         (upload, metadata),
     ) {
         tracing::warn!(
@@ -253,8 +253,8 @@ pub(super) fn upload_and_publish(
     store: (
         &pnpm_store_dir::StoreDir,
         &std::sync::Arc<pnpm_store_dir::StoreIndexWriter>,
-        &str,
-        &str,
+        String,
+        String,
     ),
     uploaded: (&SideEffectsUpload<'_>, &pnpm_lockfile::PackageMetadata),
 ) -> Result<(), pnpm_store_dir::UploadError> {

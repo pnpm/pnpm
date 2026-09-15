@@ -201,7 +201,7 @@ pub(super) fn announce_headless_install<Reporter: self::Reporter>(
     lockfile: &Lockfile,
     rebuild: Option<&RebuildOptions>,
     importing_only: bool,
-    prefix: &str,
+    prefix: String,
 ) {
     if rebuild.is_some() || lockfile.is_empty() {
         return;
@@ -214,6 +214,6 @@ pub(super) fn announce_headless_install<Reporter: self::Reporter>(
     Reporter::emit(&LogEvent::Pnpm(PnpmLog {
         level: LogLevel::Info,
         message: message.to_string(),
-        prefix: prefix.to_string(),
+        prefix,
     }));
 }

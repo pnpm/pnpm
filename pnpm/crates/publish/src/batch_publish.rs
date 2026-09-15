@@ -77,17 +77,17 @@ where
     for (group, authorization) in groups.into_iter().zip(authorizations) {
         let registry = registry_for_display(&group.registry);
         for &summary_index in &group.summary_indexes {
-            global_info::<Reporter>(&format!("📦 {} → {registry}", summaries[summary_index].id));
+            global_info::<Reporter>(format!("📦 {} → {registry}", summaries[summary_index].id));
         }
         if opts.dry_run {
-            global_warn::<Reporter>(&format!(
+            global_warn::<Reporter>(format!(
                 "Skip publishing {} package(s) to {registry} (dry run)",
                 group.documents.len(),
             ));
         } else {
             put_batch::<Reporter>(&group, authorization.as_deref(), opts, network, &registry)
                 .await?;
-            global_info::<Reporter>(&format!(
+            global_info::<Reporter>(format!(
                 "✅ Published {} package(s) to {registry} in a single request",
                 group.summary_indexes.len(),
             ));

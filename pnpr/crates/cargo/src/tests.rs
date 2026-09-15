@@ -234,7 +234,7 @@ fn index_files_round_trip_through_the_document() {
     let entries = parse_index(text).unwrap();
     assert_eq!(entries.len(), 2);
     assert!(entries[1].yanked);
-    let mut document = CrateDocument::new("demo");
+    let mut document = CrateDocument::new("demo".to_string());
     document.versions.clone_from(&entries);
     let reparsed = CrateDocument::parse(&document.to_bytes()).unwrap();
     assert_eq!(reparsed, document);
@@ -409,7 +409,7 @@ fn entry(vers: &str, yanked: bool) -> IndexEntry {
 
 #[test]
 fn max_version_prefers_the_newest_release_that_is_not_yanked() {
-    let mut document = CrateDocument::new("demo");
+    let mut document = CrateDocument::new("demo".to_string());
     document.versions = vec![entry("0.9.0", false), entry("1.10.0", false), entry("1.9.0", false)];
 
     // Semver ordering, not lexicographic: 1.10.0 is newer than 1.9.0.
@@ -426,12 +426,12 @@ fn max_version_prefers_the_newest_release_that_is_not_yanked() {
 
 #[test]
 fn a_document_with_no_release_has_no_max_version() {
-    assert_eq!(CrateDocument::new("demo").max_version(), None);
+    assert_eq!(CrateDocument::new("demo".to_string()).max_version(), None);
 }
 
 #[test]
 fn a_search_row_carries_the_name_as_published() {
-    let mut document = CrateDocument::new("Inflector");
+    let mut document = CrateDocument::new("Inflector".to_string());
     document.versions = vec![entry("0.11.4", false)];
     document.description = Some("A crate".to_string());
 

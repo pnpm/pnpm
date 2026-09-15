@@ -474,7 +474,10 @@ impl<'a> PickState<'a> {
             {
                 meta = Arc::new(reloaded);
             }
-            ctx.metadata.fetch_locker.mark_release_age_upgrade_checked(&self.cache_key, &meta);
+            ctx.metadata.fetch_locker.mark_release_age_upgrade_checked(
+                self.cache_key.clone(),
+                &meta,
+            );
         }
 
         meta
@@ -580,7 +583,7 @@ async fn handle_cache_hit<Cache: PackageMetaCache>(
         ctx.metadata.meta_cache.set(cache_key.to_string(), Arc::clone(&meta));
     }
     if upgrade.upgraded {
-        ctx.metadata.fetch_locker.mark_release_age_upgrade_checked(cache_key, &meta);
+        ctx.metadata.fetch_locker.mark_release_age_upgrade_checked(cache_key.to_string(), &meta);
     }
     let (meta, picked) = pick_from_meta(picker_opts, spec, meta, opts.blocked_versions)?;
     if !ctx.cache_policy.offline

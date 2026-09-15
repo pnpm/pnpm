@@ -658,7 +658,7 @@ fn hoist_into_root(
 
     loop {
         let ctx = HoistCtx { root, border_names, hoist_ident_map: &hoist_ident_map, used };
-        let changed = hoist_subtree(root, &[], &ctx, &mut root_index, false);
+        let changed = hoist_subtree(root, Vec::new(), &ctx, &mut root_index, false);
 
         // Per-pass ident shift: a name with more than one candidate
         // ident whose preferred ident still hasn't reached the root
@@ -711,7 +711,7 @@ fn node_ident(node: &HoisterResult) -> String {
 /// on a path, so paths (and the walk) are finite.
 fn hoist_subtree(
     node: &Rc<HoisterResult>,
-    ancestor_path: &[Rc<HoisterResult>],
+    ancestor_path: Vec<Rc<HoisterResult>>,
     ctx: &HoistCtx<'_>,
     root_index: &mut HashMap<String, RcByPtr<HoisterResult>>,
     under_border: bool,
@@ -742,7 +742,7 @@ fn hoist_subtree(
     // peer-shadow checks, the cycle cut, and as the starting point
     // for the path passed into recursion when a child stays
     // nested.
-    let mut path_for_children: Vec<Rc<HoisterResult>> = ancestor_path.to_vec();
+    let mut path_for_children: Vec<Rc<HoisterResult>> = ancestor_path;
     path_for_children.push(Rc::clone(node));
 
     for child in children {
@@ -779,7 +779,7 @@ fn hoist_subtree(
         }
 
         let child_changed =
-            hoist_subtree(&child.0, &child_recursion_path, ctx, root_index, children_blocked);
+            hoist_subtree(&child.0, child_recursion_path, ctx, root_index, children_blocked);
         changed_in_subtree |= child_changed;
     }
     changed_in_subtree

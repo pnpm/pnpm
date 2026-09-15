@@ -1,6 +1,6 @@
 use super::{
-    HashMap, HashSet, LogEvent, LogLevel, Path, PnpmLog, Serialize, TaskCycle, TaskGraph, TaskKey,
-    TaskNode, graph_sequencer,
+    HashMap, HashSet, LogEvent, LogLevel, Path, PathBuf, PnpmLog, Serialize, TaskCycle, TaskGraph,
+    TaskKey, TaskNode, graph_sequencer,
 };
 
 pub struct SequenceTasksOptions<'a> {
@@ -124,12 +124,11 @@ pub fn reverse_task_graph(graph: &TaskGraph) -> TaskGraph {
 #[must_use]
 pub fn resume_task_graph_from(
     graph: TaskGraph,
-    anchor_project: &Path,
-    task_name: &str,
+    anchor_project: PathBuf,
+    task_name: String,
     completed_tasks: Option<&HashSet<TaskKey>>,
 ) -> TaskGraph {
-    let anchor =
-        TaskKey { project: anchor_project.to_path_buf(), task_name: task_name.to_string() };
+    let anchor = TaskKey { project: anchor_project, task_name };
     let Some(anchor_node) = graph.get(&anchor) else {
         // The anchor exists but its task is not in this graph: there is
         // nothing to skip.

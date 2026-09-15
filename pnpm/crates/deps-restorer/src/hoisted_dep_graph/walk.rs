@@ -249,9 +249,17 @@ pub(super) fn walk_dep(
     // `fill_children` after the whole walk is done.
     state.result.graph.insert(
         dir.clone(),
-        graph_node(dep, &reference, &resolved, optional, present, &dir, modules),
+        graph_node(
+            dep,
+            reference.clone(),
+            &resolved,
+            optional,
+            present,
+            dir.clone(),
+            modules.to_path_buf(),
+        ),
     );
-    record_package_location(state, &resolved.pkg_key, &dir);
+    record_package_location(state, &resolved.pkg_key, dir.clone());
 
     record_injected_location(&mut state.result, &resolved, &reference, &dir);
 
@@ -366,16 +374,16 @@ pub(super) fn resolve_reference<'l>(
 }
 pub(super) fn graph_node(
     dep: &RcByPtr<HoisterResult>,
-    reference: &str,
+    reference: String,
     resolved: &ResolvedReference<'_>,
     optional: bool,
     present: bool,
-    dir: &Path,
-    modules: &Path,
+    dir: PathBuf,
+    modules: PathBuf,
 ) -> DependenciesGraphNode {
     DependenciesGraphNode {
         package: crate::HoistedPackageMetadata {
-            dep_path: DepPath::from(reference.to_string()),
+            dep_path: DepPath::from(reference),
             pkg_id_with_patch_hash: PkgIdWithPatchHash::from(
                 get_pkg_id_with_patch_hash(&resolved.pkg_key.to_string()).to_string(),
             ),
@@ -389,8 +397,8 @@ pub(super) fn graph_node(
         alias: Some(dep.0.name.clone()),
         // `pkgIdWithPatchHash` strips peer-graph hashes but keeps
         // `(patch_hash=...)`.
-        dir: dir.to_path_buf(),
-        modules: modules.to_path_buf(),
+        dir,
+        modules,
         optional,
         optional_dependencies: resolved.snapshot
             .and_then(|snap| snap.optional_dependencies.as_ref())
@@ -435,9 +443,9 @@ pub(super) fn compute_children(
     children
 }
 
-fn record_package_location(state: &mut WalkState<'_>, pkg_key: &PackageKey, dir: &Path) {
+fn record_package_location(state: &mut WalkState<'_>, pkg_key: &PackageKey, dir: PathBuf) {
     state.pkg_locations_by_pkg_id
         .entry(pnpm_real_hoist::pkg_id(pkg_key))
         .or_default()
-        .push(dir.to_path_buf());
+        .push(dir);
 }

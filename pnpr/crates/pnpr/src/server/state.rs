@@ -121,7 +121,7 @@ fn upstream_clients(config: &Config, registry_enabled: bool) -> IndexMap<String,
     config.routing.upstreams
         .iter()
         .map(|(name, upstream)| {
-            let client = Upstream::new(name, upstream);
+            let client = Upstream::new(name.clone(), upstream);
             let client = if config.routing.registries.ecosystem(name) == Some(Ecosystem::Npm) {
                 client
             } else {

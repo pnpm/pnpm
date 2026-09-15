@@ -126,7 +126,7 @@ impl OciPublication {
         .map_err(Into::into)
     }
     fn document_addition(&self, generation: u64) -> ImageDocument {
-        let mut addition = ImageDocument::new(self.key.as_str());
+        let mut addition = ImageDocument::new(self.key.as_str().to_string());
         addition.generation = generation;
         addition.insert_manifest(ManifestEntry {
             digest: self.digest.clone(),

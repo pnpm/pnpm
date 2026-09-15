@@ -237,7 +237,7 @@ async fn serve_staged_publish(
         };
 
     let stage_id = generate_stage_id();
-    let record = staged_record(&validated, identity, registry, &stage_id);
+    let record = staged_record(&validated, identity, registry, stage_id.clone());
 
     if let Err(err) = store_staged(state, &stage_id, body, &record).await {
         return err.into_response();

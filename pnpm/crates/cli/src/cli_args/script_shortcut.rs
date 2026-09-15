@@ -21,7 +21,7 @@ pub struct ScriptShortcutArgs {
 impl ScriptShortcutArgs {
     pub(crate) fn into_run_args(self, script_name: &str, if_present: bool) -> RunArgs {
         RunArgs {
-            script: RunArgs::script(script_name, self.args),
+            script: RunArgs::script(script_name.to_string(), self.args),
             if_present,
             sequential: false,
             dry_run: false,

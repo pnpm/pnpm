@@ -162,7 +162,7 @@ impl PypiPublication {
             &self.key,
             &self.entry.filename.clone(),
             &self.content,
-            refuse_existing_file(&self.entry.filename),
+            refuse_existing_file(self.entry.filename.clone()),
             ProjectDocument {
                 name: self.key.as_str().to_string(),
                 files: vec![self.entry.clone()],
@@ -183,7 +183,7 @@ impl PypiPublication {
             &self.key,
             &self.entry.filename.clone(),
             &self.content,
-            &refuse_existing_file(&self.entry.filename),
+            &refuse_existing_file(self.entry.filename.clone()),
             ProjectDocument {
                 name: self.key.as_str().to_string(),
                 files: vec![self.entry.clone()],
@@ -196,9 +196,8 @@ impl PypiPublication {
 /// A published distribution file is immutable, so a document that already
 /// carries `filename` is one this upload must not land on.
 pub(super) fn refuse_existing_file(
-    filename: &str,
+    filename: String,
 ) -> impl Fn(&ProjectDocument) -> Result<(), RegistryError> {
-    let filename = filename.to_string();
     move |document: &ProjectDocument| match document.file(&filename) {
         Some(_) => {
             Err(RegistryError::BadRequest { reason: format!("File already exists: {filename:?}") })

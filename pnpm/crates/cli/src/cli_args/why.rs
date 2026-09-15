@@ -82,7 +82,7 @@ impl WhyArgs {
 
         let root_ids = importer_root_ids(lockfile, &lockfile_dir, &project_dirs);
         let graph = build_dependency_graph(
-            &root_ids,
+            root_ids,
             &BuildGraphOptions { lockfile, include, only_projects: false },
         );
 

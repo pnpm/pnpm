@@ -116,7 +116,7 @@ impl EnvLockfile {
             return Ok(None);
         };
         let mut env: EnvLockfile = serde_saphyr::from_str(&env_doc)
-            .map_err(|source| LoadLockfileError::parse_yaml(&path, &source))?;
+            .map_err(|source| LoadLockfileError::parse_yaml(path, &source))?;
         env.root_importer_mut();
         Ok(Some(env))
     }

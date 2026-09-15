@@ -10,7 +10,7 @@ pub(in super::super) fn install_test<'a>(
 ) -> miette::Result<CommandFuture<'a>> {
     let install_args = args.install_args;
     let mut run_args = super::super::run::RunArgs {
-        script: super::super::run::RunArgs::script("test", args.args),
+        script: super::super::run::RunArgs::script("test".to_string(), args.args),
         if_present: ctx.workspace.if_present,
         sequential: false,
         dry_run: false,

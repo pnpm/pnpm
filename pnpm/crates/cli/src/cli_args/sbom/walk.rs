@@ -77,7 +77,7 @@ fn collect_importer_components(
             importer_id,
             name,
             spec,
-            &parent_purl,
+            parent_purl.clone(),
             dev_only,
             walk,
         );
@@ -87,7 +87,7 @@ fn collect_importer_components(
         if let Some(snapshot_key) = spec.version.resolved_key(name) {
             walk_snapshot(
                 &snapshot_key,
-                &parent_purl,
+                parent_purl.clone(),
                 inputs.ctx,
                 walk.components_map,
                 walk.relationships,
@@ -117,7 +117,7 @@ fn collect_linked_workspace_component(
     importer_id: &str,
     name: &PkgName,
     spec: &pnpm_lockfile::ResolvedDependencySpec,
-    parent_purl: &str,
+    parent_purl: String,
     dev_only: bool,
     walk: &mut ImporterWalk<'_>,
 ) -> bool {
@@ -143,7 +143,7 @@ fn collect_linked_workspace_component(
         .unwrap_or("0.0.0")
         .to_string();
     let ws_purl = build_purl(&ws_name, &ws_version);
-    walk.relationships.push(SbomRelationship { from: parent_purl.to_owned(), to: ws_purl.clone() });
+    walk.relationships.push(SbomRelationship { from: parent_purl, to: ws_purl.clone() });
     // A sibling reached both ways is a production dependency.
     if let Some(existing) = walk.components_map.get_mut(&ws_purl) {
         if !dev_only && existing.dep_type == DepType::DevOnly {
@@ -191,14 +191,13 @@ fn workspace_component(
 
 fn walk_snapshot(
     initial_key: &PkgNameVerPeer,
-    initial_parent_purl: &str,
+    initial_parent_purl: String,
     ctx: &WalkContext<'_>,
     components_map: &mut IndexMap<String, SbomComponent>,
     relationships: &mut Vec<SbomRelationship>,
     visited: &mut HashSet<PackageKey>,
 ) {
-    let mut queue: Vec<(PkgNameVerPeer, String)> =
-        vec![(initial_key.clone(), initial_parent_purl.to_string())];
+    let mut queue: Vec<(PkgNameVerPeer, String)> = vec![(initial_key.clone(), initial_parent_purl)];
 
     while let Some((key, parent_purl)) = queue.pop() {
         let name = key.name.to_string();

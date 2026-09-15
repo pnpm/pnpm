@@ -114,8 +114,8 @@ pub struct ImageDocument {
 
 impl ImageDocument {
     #[must_use]
-    pub fn new(name: &str) -> Self {
-        Self { name: name.to_string(), ..Self::default() }
+    pub fn new(name: String) -> Self {
+        Self { name, ..Self::default() }
     }
 
     pub fn parse(bytes: &[u8]) -> Result<Self, serde_json::Error> {

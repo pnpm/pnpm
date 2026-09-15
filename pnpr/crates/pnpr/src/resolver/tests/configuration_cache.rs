@@ -296,7 +296,7 @@ fn intern_config_applies_project_transforms() {
     }))
     .expect("resolve request parses");
 
-    let config = intern_config(&configs, &store_dir, &cache_dir, &request, 10, usize::MAX)
+    let config = intern_config(&configs, &store_dir, cache_dir, &request, 10, usize::MAX)
         .expect("intern config");
 
     assert!(config.allow_unused_patches);
@@ -330,7 +330,7 @@ fn intern_config_uses_lockfile_settings_for_a_legacy_frozen_request() {
         ..ResolveRequest::default()
     };
     let intern = |request: &ResolveRequest| {
-        intern_config(&configs, &store_dir, &cache_dir, request, 10, usize::MAX)
+        intern_config(&configs, &store_dir, cache_dir.clone(), request, 10, usize::MAX)
             .expect("intern config")
     };
 
@@ -390,7 +390,7 @@ fn intern_config_prefers_request_settings_and_keys_effective_values() {
         };
     let intern = |configs: &Mutex<HashMap<String, &'static PacquetConfig>>,
                   request: &ResolveRequest| {
-        intern_config(configs, &store_dir, &cache_dir, request, 10, usize::MAX)
+        intern_config(configs, &store_dir, cache_dir.clone(), request, 10, usize::MAX)
             .expect("intern config")
     };
     let effective = |config: &PacquetConfig| {
@@ -473,7 +473,7 @@ fn intern_config_uses_server_defaults_for_a_legacy_update_request() {
         ..ResolveRequest::default()
     };
 
-    let config = intern_config(&configs, &store_dir, &cache_dir, &request, 10, usize::MAX)
+    let config = intern_config(&configs, &store_dir, cache_dir, &request, 10, usize::MAX)
         .expect("intern config");
     let defaults = PacquetConfig::new();
     assert_eq!(config.auto_install_peers, defaults.auto_install_peers);
@@ -508,7 +508,7 @@ fn intern_config_ignores_unrelated_lockfile_settings() {
         ..ResolveRequest::default()
     };
     let intern = |request: &ResolveRequest| {
-        intern_config(&configs, &store_dir, &cache_dir, request, 1, usize::MAX)
+        intern_config(&configs, &store_dir, cache_dir.clone(), request, 1, usize::MAX)
     };
 
     assert!(intern(&request(1000)).is_some());
@@ -534,7 +534,7 @@ fn intern_config_caps_distinct_leaked_configs_but_keeps_serving_known_ones() {
         ..ResolveRequest::default()
     };
     let intern = |registry: &str| {
-        intern_config(&configs, &store_dir, &cache_dir, &request(registry), max, usize::MAX)
+        intern_config(&configs, &store_dir, cache_dir.clone(), &request(registry), max, usize::MAX)
     };
 
     // Distinct registry configurations are interned up to the cap.
@@ -572,7 +572,7 @@ fn intern_config_refuses_a_config_key_larger_than_the_byte_cap() {
         ..ResolveRequest::default()
     };
     let intern = |registry: &str| {
-        intern_config(&configs, &store_dir, &cache_dir, &request(registry), 10, 1024)
+        intern_config(&configs, &store_dir, cache_dir.clone(), &request(registry), 10, 1024)
     };
 
     // A normal configuration is interned.
@@ -594,7 +594,7 @@ fn intern_config_keys_overrides_canonically_regardless_of_order() {
     let cache_dir = PathBuf::from("/tmp/pnpr-canon-test-cache");
     let intern = |overrides: serde_json::Value| {
         let request = ResolveRequest { overrides: Some(overrides), ..ResolveRequest::default() };
-        intern_config(&configs, &store_dir, &cache_dir, &request, 10, usize::MAX)
+        intern_config(&configs, &store_dir, cache_dir.clone(), &request, 10, usize::MAX)
     };
 
     // The same overrides sent with a different JSON key order must dedup to a
@@ -627,7 +627,7 @@ fn intern_config_resolves_in_the_client_s_resolution_mode() {
     let store_dir = StoreDir::new(PathBuf::from("/tmp/pnpr-resolution-mode-store"));
     let cache_dir = PathBuf::from("/tmp/pnpr-resolution-mode-cache");
     let intern = |request: &ResolveRequest| {
-        intern_config(&configs, &store_dir, &cache_dir, request, 10, usize::MAX)
+        intern_config(&configs, &store_dir, cache_dir.clone(), request, 10, usize::MAX)
             .expect("intern config")
     };
 

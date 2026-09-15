@@ -106,12 +106,12 @@ where
     let registry = resolved.registry.clone();
     let is_stage = opts.stage;
 
-    global_info::<Reporter>(&format!("📦 {name}@{version} → {}", registry_for_display(&registry)));
+    global_info::<Reporter>(format!("📦 {name}@{version} → {}", registry_for_display(&registry)));
 
     let mut summary = pkg.summary();
 
     if opts.dry_run {
-        global_warn::<Reporter>(&format!(
+        global_warn::<Reporter>(format!(
             "Skip {verb} {name}@{version} (dry run)",
             verb = if is_stage { "staging" } else { "publishing" },
         ));
@@ -224,7 +224,7 @@ fn finish_publish<Reporter: self::Reporter>(
         summary.stage_id = response.stage_id;
     }
     let verb = if is_stage { "Staged" } else { "Published" };
-    global_info::<Reporter>(&format!("✅ {verb} package {name}@{version}"));
+    global_info::<Reporter>(format!("✅ {verb} package {name}@{version}"));
     Ok(())
 }
 

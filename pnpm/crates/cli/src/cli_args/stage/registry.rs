@@ -162,7 +162,7 @@ async fn stage_mutation(
 ) -> Result<(), StageHttpError> {
     let (_guard, response) = stage_send(context, method, url, otp).await
         .map_err(|source| {
-            StageHttpError::Request(Box::new(request_failed_error(action, source)))
+            StageHttpError::Request(Box::new(request_failed_error(action.to_string(), source)))
         })?;
     let status = response.status();
     if status.is_success() {
@@ -179,7 +179,7 @@ async fn stage_mutation(
         .map(str::to_owned);
     let body = read_limited_body(response, STAGE_ERROR_BODY_LIMIT).await
         .map_err(|source| {
-            StageHttpError::Request(Box::new(request_failed_error(action, source)))
+            StageHttpError::Request(Box::new(request_failed_error(action.to_string(), source)))
         })?;
     if status.as_u16() == 401
         && let Some(challenge) = parse_stage_otp_challenge(www_authenticate.as_deref(), &body.bytes)
@@ -317,12 +317,12 @@ fn parse_stage_otp_challenge(www_authenticate: Option<&str>, body: &[u8]) -> Opt
 }
 
 fn request_failed(action: &str, source: impl std::fmt::Display) -> miette::Report {
-    request_failed_error(action, source).into()
+    request_failed_error(action.to_string(), source).into()
 }
 
-fn request_failed_error(action: &str, source: impl std::fmt::Display) -> StageError {
+fn request_failed_error(action: String, source: impl std::fmt::Display) -> StageError {
     StageError::RequestFailed {
-        operation: action.to_owned(),
+        operation: action,
         reason: redact_url_credentials(&source.to_string()),
     }
 }

@@ -151,8 +151,8 @@ fn resumed_exec_task_graph(
     Ok(match resume_anchor {
         Some(anchor) => resume_task_graph_from(
             full_task_graph.clone(),
-            &anchor,
-            &args.command[0],
+            anchor,
+            args.command[0].clone(),
             completed_tasks.as_ref(),
         ),
         None => full_task_graph.clone(),

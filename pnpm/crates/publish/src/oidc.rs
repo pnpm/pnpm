@@ -91,7 +91,7 @@ where
     .map_err(GitHubRequestTokenError::Fetch)?;
 
     let elapsed = Sys::now_ms().saturating_sub(start);
-    global_info::<Reporter>(&format!("GET {url} {} {elapsed}ms", response.status));
+    global_info::<Reporter>(format!("GET {url} {} {elapsed}ms", response.status));
 
     if !response.ok {
         return Err(GitHubRequestTokenError::NotOk);

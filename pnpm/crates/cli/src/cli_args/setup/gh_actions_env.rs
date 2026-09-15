@@ -123,7 +123,7 @@ fn append_gh_actions_env_file<Reporter: self::Reporter>(
     if let Err(err) = append_line_to_regular_file(path, line) {
         warn::<Reporter>(
             prefix_dir,
-            &format!(
+            format!(
                 "Failed to write GitHub Actions environment file {target_name} ({}): {err}",
                 path.display(),
             ),
@@ -174,10 +174,10 @@ fn write_line(file: &mut File, line: &str) -> std::io::Result<()> {
     file.write_all(output.as_bytes())
 }
 
-fn warn<Reporter: self::Reporter>(prefix: &Path, message: &str) {
+fn warn<Reporter: self::Reporter>(prefix: &Path, message: String) {
     Reporter::emit(&LogEvent::Pnpm(PnpmLog {
         level: LogLevel::Warn,
-        message: message.to_string(),
+        message,
         prefix: prefix.to_string_lossy().into_owned(),
     }));
 }

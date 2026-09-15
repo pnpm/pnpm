@@ -291,7 +291,11 @@ impl<'a> IngestTarballToStore<'a> {
             package_id = ?self.package.id,
             "Reusing prefetched CAFS entry — skipping download (warm-cache fast path)",
         );
-        emit_progress_found_in_store::<Reporter>(self.package.id, self.requester, progress_key);
+        emit_progress_found_in_store::<Reporter>(
+            self.package.id.to_string(),
+            self.requester.to_string(),
+            progress_key,
+        );
         let cas_paths = Arc::clone(cas_paths);
         let cache_lock = Arc::new(RwLock::new(CacheValue::Available(Arc::clone(&cas_paths))));
         mem_cache.insert(mem_cache_key, cache_lock);
@@ -365,7 +369,11 @@ impl<'a> IngestTarballToStore<'a> {
         cas_paths: &Arc<HashMap<String, PathBuf>>,
         progress_key: Option<(&SharedReportedProgressKeys, &str)>,
     ) -> Arc<HashMap<String, PathBuf>> {
-        emit_progress_found_in_store::<Reporter>(self.package.id, self.requester, progress_key);
+        emit_progress_found_in_store::<Reporter>(
+            self.package.id.to_string(),
+            self.requester.to_string(),
+            progress_key,
+        );
         Arc::clone(cas_paths)
     }
 

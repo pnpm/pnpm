@@ -83,7 +83,7 @@ pub(super) fn create_indexed_dirs(
     ordered.sort_by_key(|s| s.len());
     for rel in ordered {
         if placement == Placement::Repair {
-            clear_dirent_blocking_dir(dir_path, rel)?;
+            clear_dirent_blocking_dir(dir_path.to_path_buf(), rel)?;
         }
         let abs = dir_path.join(rel);
         fs::create_dir_all(&abs)
@@ -162,10 +162,10 @@ pub(super) fn clear_dir_blocking_file(target: &Path) -> Result<(), ImportIndexed
 /// never stat-ed: the parent is cleared first, and everything below a
 /// missing component is missing too.
 pub(super) fn clear_dirent_blocking_dir(
-    root: &Path,
+    root: PathBuf,
     rel: &str,
 ) -> Result<(), ImportIndexedDirError> {
-    let mut abs = root.to_path_buf();
+    let mut abs = root;
     for component in Path::new(rel).components() {
         abs.push(component);
         match fs::symlink_metadata(&abs) {

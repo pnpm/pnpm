@@ -120,7 +120,7 @@ pub(super) fn build_registries(
         .iter()
         .filter(|(_, ecosystem)| **ecosystem != Ecosystem::Npm)
         .fold(Registries::new(builder.graph, default_registry), |registries, (name, ecosystem)| {
-            registries.with_ecosystem(name, *ecosystem)
+            registries.with_ecosystem(name.clone(), *ecosystem)
         });
     let defaults = addressed_defaults(defaults, &registries);
     let registries = registries.with_defaults(defaults);

@@ -215,7 +215,7 @@ fn satisfies_with_prereleases(range: &Range, version: &Version) -> bool {
 pub(crate) fn synthesize_reused_result(
     lockfile: &Lockfile,
     key: &PkgNameVerPeer,
-    alias: &str,
+    alias: String,
 ) -> Option<ResolveResult> {
     let metadata_key = key.without_peer();
     let metadata = lockfile.packages.as_ref()?.get(&metadata_key)?;
@@ -241,7 +241,7 @@ pub(crate) fn synthesize_reused_result(
         resolution: metadata.resolution.clone(),
         resolved_via: resolved_via.to_string(),
         normalized_bare_specifier: None,
-        alias: Some(alias.to_string()),
+        alias: Some(alias),
         policy_violation: None,
         package: pnpm_resolving_resolver_base::ResolvedPackageInfo {
             name_ver,

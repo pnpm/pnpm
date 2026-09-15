@@ -67,7 +67,7 @@ mod wire;
 
 use std::{
     collections::HashMap,
-    path::{Path, PathBuf},
+    path::PathBuf,
     sync::{Arc, LazyLock, Mutex, OnceLock},
     time::Duration,
 };
@@ -281,7 +281,7 @@ impl Resolver {
         intern_config(
             &self.configs,
             &self.store_dir,
-            &self.cache.dir,
+            self.cache.dir.clone(),
             request,
             MAX_INTERNED_CONFIGS,
             MAX_CONFIG_KEY_BYTES,
@@ -452,7 +452,7 @@ async fn verify_request_lockfile(
         Ok(stats) => Ok(stats),
         Err(VerifyFailure::Internal(response)) => Err(response),
         Err(VerifyFailure::Violations(violations)) => {
-            Err(ndjson_single_frame(&violations_frame(&violations)))
+            Err(ndjson_single_frame(violations_frame(&violations)))
         }
     }
 }
@@ -498,7 +498,7 @@ fn frozen_lockfile_response(
     if let Some(osv_index) = runtime.osv_index.as_ref() {
         let violations = osv_violations_for_lockfile(osv_index, &lockfile);
         if !violations.is_empty() {
-            return Some(ndjson_single_frame(&violations_frame(&violations)));
+            return Some(ndjson_single_frame(violations_frame(&violations)));
         }
     }
     let mut frames = verified_dist_stats
@@ -525,7 +525,7 @@ fn cached_resolution_response(
         &runtime.route_context,
         identity,
     )?;
-    Some(ndjson_single_frame(&done_frame(&lockfile)))
+    Some(ndjson_single_frame(done_frame(&lockfile)))
 }
 
 /// What a finished resolution offers the resolution cache.

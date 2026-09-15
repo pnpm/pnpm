@@ -65,9 +65,10 @@ impl PrivateAccessDescriptor {
 /// upstream's attached headers, so rotating any credential moves to a fresh
 /// namespace.
 #[must_use]
-pub fn upstream_cache_digest(upstream: &str, credential_digest: String, secret: &[u8]) -> String {
-    PrivateAccessDescriptor::Alias { alias: upstream.to_string(), credential_digest, package: None }
-        .digest_id(secret)
+pub fn upstream_cache_digest(upstream: String, credential_digest: String, secret: &[u8]) -> String {
+    PrivateAccessDescriptor::Alias { alias: upstream, credential_digest, package: None }.digest_id(
+        secret,
+    )
 }
 
 /// A hash of an upstream's `Authorization` header value, used as the credential

@@ -145,7 +145,7 @@ impl TaskRunStateContext {
                 task_identity(node, id, graph, workspace_dir, &script_commands)
             })
             .collect();
-        let invocation = invocation_hash(command, params, settings, tasks);
+        let invocation = invocation_hash(command, params, settings.to_vec(), tasks);
         let state_dir = workspace_dir.join("node_modules").join(STATE_DIR);
         let latest_state_path = state_dir.join(LATEST_STATE_FILE);
         Self { state_dir, latest_state_path, invocation, keys_by_id, ids_by_key }
@@ -349,7 +349,7 @@ fn task_identity(
 fn invocation_hash(
     command: &str,
     params: &[String],
-    settings: &[String],
+    mut settings: Vec<String>,
     mut tasks: Vec<TaskIdentity>,
 ) -> String {
     tasks.sort_by(|left, right| {
@@ -357,7 +357,6 @@ fn invocation_hash(
             .cmp(&right.project)
             .then_with(|| left.task.cmp(&right.task))
     });
-    let mut settings = settings.to_vec();
     settings.sort();
     let identity =
         serde_json::to_string(&InvocationIdentity { command, params, settings: &settings, tasks })
@@ -371,8 +370,8 @@ enum StateStorageError {
 }
 
 impl StateStorageError {
-    fn io(error: io::Error, operation: &'static str, path: &Path) -> Self {
-        Self::Io { error, operation, path: path.to_path_buf() }
+    fn io(error: io::Error, operation: &'static str, path: PathBuf) -> Self {
+        Self::Io { error, operation, path }
     }
 
     fn is_unavailable(&self) -> bool {

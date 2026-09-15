@@ -184,7 +184,7 @@ impl RouteContext {
         // to clients at `/~<name>/`.
         let aliases = routing.upstreams
             .iter()
-            .filter_map(|(name, upstream)| ResolvedAlias::from_upstream(name, upstream))
+            .filter_map(|(name, upstream)| ResolvedAlias::from_upstream(name.clone(), upstream))
             .collect();
         let upstream_origins = routing.upstreams
             .values()

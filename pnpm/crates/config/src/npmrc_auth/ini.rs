@@ -212,7 +212,7 @@ impl NpmrcAuth {
             return;
         }
         if let Some((uri, field, is_file)) = split_ssl_key(key) {
-            self.apply_ssl_key(uri, field, is_file, &value);
+            self.apply_ssl_key(uri.to_string(), field, is_file, &value);
             return;
         }
         apply_creds_field(&mut self.default_creds, key, value);
@@ -241,7 +241,7 @@ impl NpmrcAuth {
 
     /// A per-registry TLS key. For the `*file` variants the value is a path,
     /// read at parse time (silent on error).
-    pub(super) fn apply_ssl_key(&mut self, uri: &str, field: &str, is_file: bool, value: &str) {
+    pub(super) fn apply_ssl_key(&mut self, uri: String, field: &str, is_file: bool, value: &str) {
         let resolved = if is_file {
             let Ok(contents) = std::fs::read_to_string(value) else {
                 return;
@@ -250,7 +250,7 @@ impl NpmrcAuth {
         } else {
             expand_inline_pem(value)
         };
-        let entry = self.tls.by_uri.entry(uri.to_owned()).or_default();
+        let entry = self.tls.by_uri.entry(uri).or_default();
         apply_tls_field(entry, field, resolved);
     }
 

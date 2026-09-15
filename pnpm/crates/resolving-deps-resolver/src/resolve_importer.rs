@@ -433,7 +433,7 @@ impl ResolveImporterOptions {
             self.links.lockfile_dir.clone().unwrap_or_else(|| project_dir.clone());
         let ctx = TreeCtx::with_workspace(workspace, self.base_opts)
             .with_lockfile_dir(&tree_lockfile_dir)
-            .with_importer_id(importer_id)
+            .with_importer_id(importer_id.to_string())
             .with_importer_order(importer_order)
             .with_patched_dependencies(self.resolution.patched_dependencies)
             .with_resolution_mode(
@@ -494,7 +494,7 @@ impl ImporterHoistState {
         .await?;
         seeds.parent_pkg_aliases.extend(direct.iter().map(|dep| dep.alias.clone()));
         ctx.resolve_new_direct_deps_as_subdeps();
-        Ok(Self::assemble(importer_id, ctx, direct, seeds, locked, settings))
+        Ok(Self::assemble(importer_id.to_string(), ctx, direct, seeds, locked, settings))
     }
 
     pub(crate) fn importer_id(&self) -> &str {

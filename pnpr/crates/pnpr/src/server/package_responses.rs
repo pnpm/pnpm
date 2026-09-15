@@ -68,8 +68,8 @@ pub(super) fn expected_tarball_dist(
     // legitimate registry, so fail closed rather than pick by iteration order.
     if matches.next().is_some() {
         return Err(tarball_integrity_error(
-            name.as_str(),
-            filename,
+            name.as_str().to_string(),
+            filename.to_string(),
             "packument declares the same dist.tarball basename for multiple versions".to_string(),
         ));
     }
@@ -96,28 +96,24 @@ pub(super) fn tarball_stream_error_for_package(
         }
         streaming::BlobStreamError::Io(err) => RegistryError::Io(err),
         streaming::BlobStreamError::Integrity(err) => tarball_integrity_error(
-            package,
-            filename,
+            package.to_string(),
+            filename.to_string(),
             format!("integrity verification failed: {err}"),
         ),
         streaming::BlobStreamError::TooLarge { limit, received } => tarball_integrity_error(
-            package,
-            filename,
+            package.to_string(),
+            filename.to_string(),
             format!("tarball body exceeds {limit} byte limit (received {received} bytes)"),
         ),
     }
 }
 
 pub(super) fn tarball_integrity_error(
-    package: &str,
-    filename: &str,
+    package: String,
+    filename: String,
     reason: String,
 ) -> RegistryError {
-    RegistryError::TarballIntegrity {
-        package: package.to_string(),
-        filename: filename.to_string(),
-        reason,
-    }
+    RegistryError::TarballIntegrity { package, filename, reason }
 }
 
 /// True when the client's `Accept` header offers the

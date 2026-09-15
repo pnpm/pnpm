@@ -26,7 +26,7 @@ fn detect_dep_types(
         snapshots,
         &mut dep_types,
         &mut walked,
-        &dev_keys,
+        dev_keys,
         true,
         include_optional_transitive,
     );
@@ -34,7 +34,7 @@ fn detect_dep_types(
         snapshots,
         &mut dep_types,
         &mut walked,
-        &prod_keys,
+        prod_keys,
         false,
         include_optional_transitive,
     );
@@ -60,11 +60,11 @@ fn detect_dep_types_walk(
     snapshots: Option<&HashMap<PackageKey, SnapshotEntry>>,
     dep_types: &mut HashMap<PackageKey, DepType>,
     walked: &mut HashSet<(PackageKey, bool)>,
-    initial_keys: &[PackageKey],
+    initial_keys: Vec<PackageKey>,
     is_dev: bool,
     include_optional_transitive: bool,
 ) {
-    let mut queue: Vec<PackageKey> = initial_keys.to_vec();
+    let mut queue: Vec<PackageKey> = initial_keys;
 
     while let Some(key) = queue.pop() {
         if !walked.insert((key.clone(), is_dev)) {

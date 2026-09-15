@@ -203,7 +203,7 @@ impl GlobalInstallTarget<'_> {
         )
         .wrap_err("activate global install")?;
         if let Some(leftover) = &activated.leftover_backup {
-            warn_global::<Reporter>(&leftover.to_string());
+            warn_global::<Reporter>(leftover.to_string());
         }
         if let Some(leftover) = cleanup_replaced_global_installs(
             self.global_pkg_dir,
@@ -216,7 +216,7 @@ impl GlobalInstallTarget<'_> {
         )
         .wrap_err("remove existing global installs")?
         {
-            warn_global::<Reporter>(&leftover.to_string());
+            warn_global::<Reporter>(leftover.to_string());
         }
         Ok(())
     }

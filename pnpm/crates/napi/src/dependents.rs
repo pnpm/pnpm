@@ -196,7 +196,7 @@ fn build_trees(options: &DependentsOptions) -> napi::Result<Vec<DependentsTree>>
     let importer_info = read_importer_info(lockfile, &lockfile_dir);
     let root_ids = importer_root_ids(lockfile, &lockfile_dir, &project_dirs);
     let graph = build_dependency_graph(
-        &root_ids,
+        root_ids,
         &BuildGraphOptions {
             lockfile,
             include: included_dependencies(options),

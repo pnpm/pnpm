@@ -19,7 +19,7 @@ use crate::{
 use serde_json::{Value, json};
 use std::{
     collections::{BTreeMap, HashMap, HashSet},
-    path::{Path, PathBuf},
+    path::PathBuf,
 };
 
 /// Compute the hex digest that uniquely identifies one snapshot's
@@ -168,8 +168,8 @@ pub fn format_global_virtual_store_path(name: &str, version: &str, hex_digest: &
 /// a path built from the platform-native separator on every OS (and
 /// is a no-op transformation on Unix, where `/` is already native).
 #[must_use]
-pub fn join_global_virtual_store_path(base: &Path, rel: &str) -> PathBuf {
-    let mut path = base.to_path_buf();
+pub fn join_global_virtual_store_path(base: PathBuf, rel: &str) -> PathBuf {
+    let mut path = base;
     path.extend(rel.split('/'));
     path
 }

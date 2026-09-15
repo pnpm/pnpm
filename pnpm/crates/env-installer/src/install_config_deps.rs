@@ -169,7 +169,8 @@ fn config_dep_paths(
         &subdep_ids,
     );
     let leaf_node_modules =
-        join_global_virtual_store_path(global_virtual_store_dir, &rel_path).join("node_modules");
+        join_global_virtual_store_path(global_virtual_store_dir.to_path_buf(), &rel_path)
+            .join("node_modules");
     ConfigDepPaths {
         config_dep_path: config_modules_dir.join(name),
         pkg_dir_in_gvs: leaf_node_modules.join(name),

@@ -251,10 +251,10 @@ pub(super) fn seed_pending(
             is_leaf: identity.is_leaf,
         },
     )? {
-        emit_deprecation_if_needed(ctx, &result, &resolved.id, edge.depth);
+        emit_deprecation_if_needed(ctx, &result, resolved.id.clone(), edge.depth);
     }
 
-    let ancestry = edge.pending_ancestry(&resolved.id, resolved.current_is_optional);
+    let ancestry = edge.pending_ancestry(resolved.id.clone(), resolved.current_is_optional);
 
     Ok(NodeSeed::Pending(Box::new(PendingNode {
         result,
@@ -404,7 +404,7 @@ pub(super) fn record_workspace_manifest_identity(
     ) else {
         return;
     };
-    ctx.workspace.versions.record_workspace_manifest_identity(id, name, version);
+    ctx.workspace.versions.record_workspace_manifest_identity(id.to_string(), name, version);
 }
 
 pub(super) fn reject_exotic_subdep(
@@ -477,11 +477,15 @@ pub(super) fn is_droppable_resolve_error(err: &ResolveDependencyTreeError) -> bo
 }
 
 impl ChildEdge<'_> {
-    fn pending_ancestry(&self, id: &str, current_is_optional: bool) -> super::PendingNodeAncestry {
+    fn pending_ancestry(
+        &self,
+        id: String,
+        current_is_optional: bool,
+    ) -> super::PendingNodeAncestry {
         let next_ancestors = self.ancestor_ids
             .iter()
             .cloned()
-            .chain(std::iter::once(id.to_owned()))
+            .chain(std::iter::once(id))
             .collect();
         super::PendingNodeAncestry {
             parent_ancestors: Arc::clone(self.ancestor_ids),

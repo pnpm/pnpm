@@ -148,11 +148,11 @@ impl Upstream {
     /// `timeout`/`maxage`/`cache` knobs and arming the
     /// `max_fails`/`fail_timeout` circuit breaker.
     #[must_use]
-    pub fn new(name: &str, config: &UpstreamConfig) -> Self {
+    pub fn new(name: String, config: &UpstreamConfig) -> Self {
         Self {
             http: UpstreamHttp::new(config),
             base: config.url.clone(),
-            name: name.to_string(),
+            name,
             maxage: config.maxage,
             cache: config.cache,
             breaker: Arc::new(CircuitBreaker::new(

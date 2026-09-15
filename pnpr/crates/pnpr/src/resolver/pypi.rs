@@ -122,7 +122,7 @@ pub(super) async fn handle_resolve(
     };
 
     let reader = IndexReader::new(runtime, identity, index);
-    let inputs = Inputs::new(&requirements, &request.target, reader.index.as_str());
+    let inputs = Inputs::new(&requirements, &request.target, reader.index.as_str().to_string());
     match resolve(&reader, &requirements, &request.target).await {
         Ok(packages) => {
             let solution = packages.0;
@@ -134,11 +134,11 @@ pub(super) async fn handle_resolve(
                 inputs,
                 request.requires_python,
             ) {
-                Ok(lockfile) => ndjson_single_frame(&pypi_done_frame(&lockfile)),
-                Err(err) => ndjson_single_frame(&error_frame(&super::report_message(&err))),
+                Ok(lockfile) => ndjson_single_frame(pypi_done_frame(&lockfile)),
+                Err(err) => ndjson_single_frame(error_frame(&super::report_message(&err))),
             }
         }
-        Err(err) => ndjson_single_frame(&error_frame(&err)),
+        Err(err) => ndjson_single_frame(error_frame(&err)),
     }
 }
 
@@ -226,7 +226,7 @@ impl IndexReader {
     ) -> Result<BTreeMap<pep440_rs::Version, Candidate>, String> {
         let canonical_name = canonical_project_name(name)?;
         let page_url = project_page_url(&self.index, &canonical_name)?;
-        let auth = self.auth_for(&canonical_name);
+        let auth = self.auth_for(canonical_name);
         let cache_path = self.cache_path(&auth, &page_url, None);
         if let Some(cached) = self.cached(&cache_path).await {
             let source = cached.url(&page_url)?;
@@ -271,7 +271,7 @@ impl IndexReader {
         let wheel_url = url::Url::parse(&candidate.wheel.url)
             .map_err(|err| format!("parse the wheel URL for {name}: {err}"))?;
         validate_url(&wheel_url).map_err(|err| super::report_message(&err))?;
-        let auth = self.auth_for(&canonical_name);
+        let auth = self.auth_for(canonical_name);
         // An index that publishes a metadata file vouches for a digest
         // `cached_metadata` re-checks. One that publishes none leaves the
         // extracted document nothing to be checked against, so its cache
@@ -382,12 +382,9 @@ impl IndexReader {
     /// The request auth for a read about `canonical_name`: this server's
     /// route policy for the caller, with the project bound in so the
     /// package-blind fetch helpers still classify by it.
-    fn auth_for(&self, canonical_name: &str) -> AuthHeaders {
+    fn auth_for(&self, canonical_name: String) -> AuthHeaders {
         AuthHeaders::default()
-            .with_route_hook(Arc::new(PackageRoute::new(
-                Arc::clone(&self.hook),
-                canonical_name.to_string(),
-            )))
+            .with_route_hook(Arc::new(PackageRoute::new(Arc::clone(&self.hook), canonical_name)))
     }
 
     /// Where `url`'s document is cached. The route scope keys the

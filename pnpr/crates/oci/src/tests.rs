@@ -41,7 +41,7 @@ fn digest_of_matches_the_spec_vector() {
 
 #[test]
 fn resolves_a_reference_as_tag_or_digest() {
-    let mut document = ImageDocument::new("acme/app");
+    let mut document = ImageDocument::new("acme/app".to_string());
     document.insert_manifest(entry("one"));
     document.set_tag(tag("latest", "one", 1));
 
@@ -58,7 +58,7 @@ fn resolves_a_reference_as_tag_or_digest() {
 
 #[test]
 fn lists_tags_in_lexical_order() {
-    let mut document = ImageDocument::new("acme/app");
+    let mut document = ImageDocument::new("acme/app".to_string());
     document.insert_manifest(entry("one"));
     for name in ["v2", "latest", "v10"] {
         document.set_tag(tag(name, "one", 1));
@@ -68,7 +68,7 @@ fn lists_tags_in_lexical_order() {
 
 #[test]
 fn removing_a_manifest_drops_the_tags_that_named_it() {
-    let mut document = ImageDocument::new("acme/app");
+    let mut document = ImageDocument::new("acme/app".to_string());
     document.insert_manifest(entry("one"));
     document.insert_manifest(entry("two"));
     document.set_tag(tag("latest", "one", 1));
@@ -81,7 +81,7 @@ fn removing_a_manifest_drops_the_tags_that_named_it() {
 
 #[test]
 fn removing_a_tag_keeps_the_manifest() {
-    let mut document = ImageDocument::new("acme/app");
+    let mut document = ImageDocument::new("acme/app".to_string());
     document.insert_manifest(entry("one"));
     document.set_tag(tag("latest", "one", 1));
 
@@ -108,9 +108,9 @@ fn merge_keeps_the_newer_tag_whichever_order_it_arrives_in() {
     type Write = fn(&mut ImageDocument);
     let orders: [(Write, Write); 2] = [(older, newer), (newer, older)];
     for (first, second) in orders {
-        let mut stored = ImageDocument::new("acme/app");
+        let mut stored = ImageDocument::new("acme/app".to_string());
         first(&mut stored);
-        let mut addition = ImageDocument::new("acme/app");
+        let mut addition = ImageDocument::new("acme/app".to_string());
         second(&mut addition);
 
         stored.merge(addition, &HashSet::new());
@@ -120,8 +120,8 @@ fn merge_keeps_the_newer_tag_whichever_order_it_arrives_in() {
 
 #[test]
 fn merge_skips_entries_whose_blob_was_lost() {
-    let mut stored = ImageDocument::new("acme/app");
-    let mut addition = ImageDocument::new("acme/app");
+    let mut stored = ImageDocument::new("acme/app".to_string());
+    let mut addition = ImageDocument::new("acme/app".to_string());
     addition.insert_manifest(entry("one"));
     addition.set_tag(tag("latest", "one", 1));
 
@@ -133,8 +133,8 @@ fn merge_skips_entries_whose_blob_was_lost() {
 
 #[test]
 fn merge_refuses_a_tag_with_no_manifest_behind_it() {
-    let mut stored = ImageDocument::new("acme/app");
-    let mut addition = ImageDocument::new("acme/app");
+    let mut stored = ImageDocument::new("acme/app".to_string());
+    let mut addition = ImageDocument::new("acme/app".to_string());
     addition.set_tag(tag("latest", "absent", 1));
 
     assert!(!stored.merge(addition, &HashSet::new()));
@@ -143,7 +143,7 @@ fn merge_refuses_a_tag_with_no_manifest_behind_it() {
 
 #[test]
 fn merge_reports_no_change_when_everything_is_already_held() {
-    let mut stored = ImageDocument::new("acme/app");
+    let mut stored = ImageDocument::new("acme/app".to_string());
     stored.insert_manifest(entry("one"));
     stored.set_tag(tag("latest", "one", 1));
     let addition = stored.clone();
@@ -153,7 +153,7 @@ fn merge_reports_no_change_when_everything_is_already_held() {
 
 #[test]
 fn document_round_trips() {
-    let mut document = ImageDocument::new("acme/app");
+    let mut document = ImageDocument::new("acme/app".to_string());
     document.insert_manifest(entry("one"));
     document.set_tag(tag("latest", "one", 1));
 
@@ -231,11 +231,11 @@ fn a_tag_written_in_the_same_millisecond_still_moves() {
     // Live writes to one repository are serialized by its package lock, so a
     // tie is an ordering the clock could not resolve, not a conflict.
     let same_instant = 1;
-    let mut stored = ImageDocument::new("acme/app");
+    let mut stored = ImageDocument::new("acme/app".to_string());
     stored.insert_manifest(entry("one"));
     stored.set_tag(tag("latest", "one", same_instant));
 
-    let mut addition = ImageDocument::new("acme/app");
+    let mut addition = ImageDocument::new("acme/app".to_string());
     addition.insert_manifest(entry("two"));
     addition.set_tag(tag("latest", "two", same_instant));
 
@@ -249,17 +249,17 @@ fn a_stale_journaled_tag_cannot_move_a_re_pushed_tag_backward() {
     // applied, then `one` is pushed again. Replaying the journal afterwards
     // must not resurrect `two`, which it would if the re-push had left the
     // first push's timestamp in place.
-    let mut stored = ImageDocument::new("acme/app");
+    let mut stored = ImageDocument::new("acme/app".to_string());
     stored.insert_manifest(entry("one"));
     stored.insert_manifest(entry("two"));
     stored.set_tag(tag("latest", "one", 1));
 
-    let mut re_push = ImageDocument::new("acme/app");
+    let mut re_push = ImageDocument::new("acme/app".to_string());
     re_push.insert_manifest(entry("one"));
     re_push.set_tag(tag("latest", "one", 3));
     stored.merge(re_push, &HashSet::new());
 
-    let mut journaled = ImageDocument::new("acme/app");
+    let mut journaled = ImageDocument::new("acme/app".to_string());
     journaled.insert_manifest(entry("two"));
     journaled.set_tag(tag("latest", "two", 2));
     stored.merge(journaled, &HashSet::new());
@@ -349,7 +349,7 @@ fn an_image_referrer_requires_an_artifact_type_or_config_media_type() {
 
 #[test]
 fn deletion_generations_fence_staged_and_recovered_manifest_writes() {
-    let mut stored = ImageDocument::new("acme/app");
+    let mut stored = ImageDocument::new("acme/app".to_string());
     let mut staged = stored.clone();
     staged.insert_manifest(entry("manifest"));
     staged.set_tag(tag("latest", "manifest", 1));

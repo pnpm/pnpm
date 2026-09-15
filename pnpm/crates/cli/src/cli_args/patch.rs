@@ -178,7 +178,7 @@ impl PatchArgs {
         .await
         .map_err(PatchError::WritePackage)?;
 
-        record_edit_target(&state.config.modules_dir, &edit_dir, &package_name, &target)?;
+        record_edit_target(&state.config.modules_dir, &edit_dir, package_name, &target)?;
 
         if !ignore_existing {
             apply_existing_patch_file(state.config, &target, &edit_dir)?;
@@ -318,14 +318,14 @@ fn prepare_patch_edit_dir(
 fn record_edit_target(
     modules_dir: &Path,
     edit_dir: &Path,
-    package_name: &str,
+    package_name: String,
     target: &PatchTarget,
 ) -> Result<(), PatchError> {
     write_edit_dir_state(
         modules_dir,
         edit_dir,
         &EditDirState {
-            patched_pkg: package_name.to_owned(),
+            patched_pkg: package_name,
             apply_to_all: target.apply_to_all,
             package_key: Some(target.package_key.clone()),
         },

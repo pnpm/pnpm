@@ -58,12 +58,12 @@ pub(crate) struct Registry {
 }
 
 impl Registry {
-    pub(crate) fn new(index_files: &BTreeMap<String, String>, source: &str) -> Result<Self> {
+    pub(crate) fn new(index_files: &BTreeMap<String, String>, source: String) -> Result<Self> {
         let mut packages = BTreeMap::new();
         for (name, contents) in index_files {
             packages.insert(normalize_name(name), parse_index_file(name, contents)?);
         }
-        Ok(Self { packages, source: source.to_string() })
+        Ok(Self { packages, source })
     }
 
     /// Reject a dependency that names a registry other than the one being
@@ -99,7 +99,7 @@ impl Registry {
 pub fn latest_version(name: &str, index_file: &str) -> Result<String> {
     let registry = Registry::new(
         &BTreeMap::from([(name.to_string(), index_file.to_string())]),
-        CRATES_IO_SOURCE,
+        CRATES_IO_SOURCE.to_string(),
     )?;
     registry
         .package(name)?

@@ -494,7 +494,7 @@ fn link_resolved_entry<Reporter: self::Reporter>(
         }
     }
 
-    emit_root_added::<Reporter>(entry, packages, prefix);
+    emit_root_added::<Reporter>(entry, packages, prefix.to_string());
     Ok(())
 }
 

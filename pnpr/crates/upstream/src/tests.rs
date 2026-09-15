@@ -28,7 +28,7 @@ use tokio::{
 /// Build an [`Upstream`] pointing at `url` with `headers`, all per-upstream
 /// tuning knobs at their verdaccio defaults.
 fn upstream(url: String, headers: HeaderMap) -> Upstream {
-    Upstream::new("npmjs", &UpstreamConfig::with_defaults(url, headers))
+    Upstream::new("npmjs".to_string(), &UpstreamConfig::with_defaults(url, headers))
 }
 
 /// Fixed "current time" for abbreviation tests so the `time`-map
@@ -52,7 +52,7 @@ fn auth_and_custom_headers() -> HeaderMap {
 /// open state and observe the short-circuit before the cooldown lapses.
 fn breaking_upstream(url: String, max_fails: u32) -> Upstream {
     Upstream::new(
-        "npmjs",
+        "npmjs".to_string(),
         &UpstreamConfig {
             url,
             headers: HeaderMap::new(),
@@ -93,7 +93,7 @@ async fn assert_redirect_timeout(delay_body: bool) {
     });
     let mut config = UpstreamConfig::with_defaults(url.clone(), HeaderMap::new());
     config.requests.timeout = Duration::from_millis(600);
-    let upstream = Upstream::new("test", &config);
+    let upstream = Upstream::new("test".to_string(), &config);
     let result = upstream.fetch_artifact_response(&url).await;
     if delay_body {
         let FetchOutcome::Ok(response) = result.unwrap() else {

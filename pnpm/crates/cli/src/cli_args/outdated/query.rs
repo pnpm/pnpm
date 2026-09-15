@@ -251,7 +251,7 @@ async fn outdated_dependency(
     candidate: OutdatedCandidate<'_>,
 ) -> miette::Result<Option<OutdatedPackage>> {
     let bare_specifier =
-        dereference_catalog(&run.catalogs, candidate.alias, candidate.bare_specifier)?;
+        dereference_catalog(&run.catalogs, candidate.alias.to_string(), candidate.bare_specifier)?;
     let resolved_package_name =
         PackageManifest::resolve_registry_dependency(candidate.alias, &bare_specifier)
             .0
@@ -267,7 +267,13 @@ async fn outdated_dependency(
     let Some(target_manifest) = latest.and_then(|latest| latest.latest_manifest) else {
         return Ok(None);
     };
-    Ok(outdated_target(query, workspace, candidate, &target_manifest, &resolved_package_name))
+    Ok(outdated_target(
+        query,
+        workspace.to_string(),
+        candidate,
+        &target_manifest,
+        &resolved_package_name,
+    ))
 }
 
 /// Replace a `catalog:` specifier with the specifier the catalog holds,
@@ -276,7 +282,7 @@ async fn outdated_dependency(
 /// (`npm:@types/table@^6`). Any other specifier passes through.
 fn dereference_catalog<'a>(
     catalogs: &Catalogs,
-    alias: &str,
+    alias: String,
     bare_specifier: &'a str,
 ) -> miette::Result<Cow<'a, str>> {
     // Most dependencies are not catalog entries, and every walked
@@ -285,10 +291,7 @@ fn dereference_catalog<'a>(
     if parse_catalog_protocol(bare_specifier).is_none() {
         return Ok(Cow::Borrowed(bare_specifier));
     }
-    let wanted = CatalogWantedDependency {
-        alias: alias.to_string(),
-        bare_specifier: bare_specifier.to_string(),
-    };
+    let wanted = CatalogWantedDependency { alias, bare_specifier: bare_specifier.to_string() };
     match resolve_from_catalog(catalogs, &wanted) {
         CatalogResolutionResult::Found(found) => Ok(Cow::Owned(found.resolution.specifier)),
         CatalogResolutionResult::Misconfiguration(misconfiguration) => {
@@ -347,7 +350,7 @@ async fn resolve_outdated_target(
 
 fn outdated_target(
     query: &OutdatedQuery<'_>,
-    workspace: &str,
+    workspace: String,
     candidate: OutdatedCandidate<'_>,
     target_manifest: &pnpm_resolving_resolver_base::SharedDependencyManifest,
     resolved_package_name: &str,
@@ -383,7 +386,7 @@ fn outdated_target(
                 .get("homepage")
                 .and_then(serde_json::Value::as_str)
                 .map(str::to_string),
-            workspace: Some(workspace.to_string()),
+            workspace: Some(workspace),
         },
     })
 }

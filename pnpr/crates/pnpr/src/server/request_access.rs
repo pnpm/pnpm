@@ -123,8 +123,11 @@ pub(super) fn compute_upstream_cache_namespace(config: &Config, upstream: &str) 
             "{url}\0{}",
             pnpr_route::headers_credential_digest(&upstream_config.headers),
         ));
-        let digest =
-            pnpr_route::upstream_cache_digest(upstream, epoch, &config.resolution_cache_secret);
+        let digest = pnpr_route::upstream_cache_digest(
+            upstream.to_string(),
+            epoch,
+            &config.resolution_cache_secret,
+        );
         return format!("~upstreams/{digest}");
     }
     // Public registry: a stable, secret-free namespace keyed by the registry name

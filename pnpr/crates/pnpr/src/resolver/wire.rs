@@ -166,7 +166,8 @@ fn frozen_package_frame(
     let integrity = integrity.to_string();
     let revision =
         pnpr_served_revision(&inputs.snapshot.resolution, &tarball_url, &upstream_tarball_url);
-    let (unpacked_size, file_count) = frozen_dist_stats(inputs.dist_stats, &name, &version);
+    let (unpacked_size, file_count) =
+        frozen_dist_stats(inputs.dist_stats, name.clone(), version.clone());
     let frame = package_frame(
         inputs.router,
         &ResolvedPackageHint {
@@ -191,11 +192,11 @@ fn frozen_package_frame(
 
 fn frozen_dist_stats(
     stats: &ObservedDistStats,
-    name: &str,
-    version: &str,
+    name: String,
+    version: String,
 ) -> (Option<usize>, Option<usize>) {
     stats
-        .get(&(name.to_string(), version.to_string()))
+        .get(&(name, version))
         .map_or((None, None), |entry| (entry.unpacked_size, entry.file_count))
 }
 
@@ -288,13 +289,13 @@ pub(super) fn verify_done_or_osv_violations(
     lockfile: &Lockfile,
 ) -> Response {
     let Some(osv_index) = osv_index else {
-        return ndjson_single_frame(&verify_done_frame());
+        return ndjson_single_frame(verify_done_frame());
     };
     let violations = osv_violations_for_lockfile(osv_index, lockfile);
     if violations.is_empty() {
-        ndjson_single_frame(&verify_done_frame())
+        ndjson_single_frame(verify_done_frame())
     } else {
-        ndjson_single_frame(&violations_frame(&violations))
+        ndjson_single_frame(violations_frame(&violations))
     }
 }
 
@@ -436,12 +437,12 @@ fn ndjson_line(value: &serde_json::Value) -> Result<Vec<u8>, serde_json::Error> 
 /// A 200 NDJSON response carrying a single, already-serialized terminal
 /// frame (the short-circuit and violation paths, which never stream
 /// `package` frames).
-pub(super) fn ndjson_single_frame(frame: &[u8]) -> Response {
+pub(super) fn ndjson_single_frame(frame: Vec<u8>) -> Response {
     Response::builder()
         .status(StatusCode::OK)
         .header(header::CONTENT_TYPE, NDJSON_CONTENT_TYPE)
         .header(PROJECT_TRANSFORMS_HEADER, PROJECT_TRANSFORMS_VERSION)
-        .body(Body::from(frame.to_vec()))
+        .body(Body::from(frame))
         .expect("binary response is always valid")
 }
 

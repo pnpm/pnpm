@@ -196,7 +196,7 @@ impl OidcState {
         if consumed.contains_key(&login.state_hash) || consumed.len() >= MAX_ENTRIES {
             return Err(rejected());
         }
-        let session = self.issue_session(&binding.username, expiration)?;
+        let session = self.issue_session(binding.username.clone(), expiration)?;
         consumed.insert(login.state_hash, login.expires);
         Ok(session)
     }
@@ -318,7 +318,7 @@ impl OidcState {
             AuthType::RequestBody
         } else {
             return Err(invalid_config(
-                "OIDC provider does not support client secret authentication",
+                "OIDC provider does not support client secret authentication".to_string(),
             ));
         };
         Ok(CoreClient::from_provider_metadata(
@@ -329,7 +329,7 @@ impl OidcState {
         .set_auth_type(auth_type)
         .set_redirect_uri(
             RedirectUrl::new(format!("{}/-/oidc/{}/callback", self.public_url, config.name))
-                .map_err(|_| invalid_config("invalid OIDC callback URL"))?,
+                .map_err(|_| invalid_config("invalid OIDC callback URL".to_string()))?,
         ))
     }
 
@@ -410,8 +410,8 @@ fn random_secret() -> Result<String> {
     Ok(BASE64_URL_SAFE_NO_PAD.encode(bytes))
 }
 
-fn invalid_config(reason: &str) -> RegistryError {
-    RegistryError::InvalidConfig { reason: reason.to_string() }
+fn invalid_config(reason: String) -> RegistryError {
+    RegistryError::InvalidConfig { reason }
 }
 
 fn rejected() -> RegistryError {

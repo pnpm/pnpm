@@ -7,7 +7,7 @@ use crate::{build_required_dep_paths, dep_state::DepsGraphNode};
 use indexmap::IndexMap;
 use std::{
     collections::{BTreeMap, HashMap, HashSet},
-    path::{MAIN_SEPARATOR, Path},
+    path::{MAIN_SEPARATOR, PathBuf},
 };
 
 #[test]
@@ -28,7 +28,7 @@ fn format_prefixes_unscoped_with_at_slash() {
 #[test]
 fn join_expands_suffix_into_native_components() {
     let rel = format_global_virtual_store_path("foo", "1.2.3", "deadbeef");
-    let joined = join_global_virtual_store_path(Path::new("base"), &rel);
+    let joined = join_global_virtual_store_path(PathBuf::from("base"), &rel);
 
     // The four suffix segments plus `base` become five components.
     assert_eq!(joined.components().count(), 5, "{joined:?}");

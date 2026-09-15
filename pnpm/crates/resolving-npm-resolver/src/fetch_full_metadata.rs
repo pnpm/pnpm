@@ -285,7 +285,7 @@ pub async fn fetch_full_metadata(
 pub(crate) fn warn_if_request_is_slow(http_client: &ThrottledClient, elapsed: Duration, url: &str) {
     let elapsed_ms = elapsed.as_millis();
     if elapsed_ms > http_client.fetch_warn_timeout().as_millis() {
-        http_client.warn(&format!("Request took {elapsed_ms}ms: {}", redact_url_for_display(url)));
+        http_client.warn(format!("Request took {elapsed_ms}ms: {}", redact_url_for_display(url)));
     }
 }
 

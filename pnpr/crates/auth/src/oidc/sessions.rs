@@ -29,7 +29,7 @@ impl OidcState {
             .is_some()
     }
 
-    pub(super) fn issue_session(&self, username: &str, expiration: i64) -> Result<LoginSession> {
+    pub(super) fn issue_session(&self, username: String, expiration: i64) -> Result<LoginSession> {
         let now = Utc::now().timestamp();
         let expires = expiration.min(now + 3600);
         if expires <= now {
@@ -41,10 +41,7 @@ impl OidcState {
         if sessions.len() >= MAX_ENTRIES {
             return Err(unavailable());
         }
-        sessions.insert(
-            super::super::sha256_hex(token.as_bytes()),
-            Session { username: username.to_string(), expires },
-        );
+        sessions.insert(super::super::sha256_hex(token.as_bytes()), Session { username, expires });
         Ok(LoginSession { token, expires })
     }
 }

@@ -12,7 +12,7 @@ pub(super) fn validate_provider(config: &OidcProvider) -> Result<()> {
         || config.audience.is_empty()
     {
         return Err(invalid_config(
-            "OIDC providers require a name (letters, digits, '-' or '_') and audience",
+            "OIDC providers require a name (letters, digits, '-' or '_') and audience".to_string(),
         ));
     }
     secure_url(&config.issuer)?;
@@ -23,23 +23,25 @@ pub(super) fn validate_provider(config: &OidcProvider) -> Result<()> {
         .chain(config.workloads.iter().map(|workload| &workload.identity))
     {
         super::super::validate_username(&binding.username)
-            .map_err(|_| invalid_config("invalid OIDC username"))?;
+            .map_err(|_| invalid_config("invalid OIDC username".to_string()))?;
         if binding.subject.is_empty() || !subjects.insert(&binding.subject) {
             return Err(invalid_config(
-                "OIDC subjects must be nonempty and unique within each provider",
+                "OIDC subjects must be nonempty and unique within each provider".to_string(),
             ));
         }
     }
     if config.login.as_ref().is_some_and(|login| login.users.is_empty())
         || (config.login.is_none() && config.workloads.is_empty())
     {
-        return Err(invalid_config("OIDC providers require explicit user or workload bindings"));
+        return Err(invalid_config(
+            "OIDC providers require explicit user or workload bindings".to_string(),
+        ));
     }
     Ok(())
 }
 
 pub(super) fn secure_url(raw: &str) -> Result<()> {
-    let url = Url::parse(raw).map_err(|_| invalid_config("invalid OIDC URL"))?;
+    let url = Url::parse(raw).map_err(|_| invalid_config("invalid OIDC URL".to_string()))?;
     let secure = url.scheme() == "https";
     #[cfg(test)]
     let secure = secure || (url.scheme() == "http" && url.host_str() == Some("127.0.0.1"));
@@ -51,7 +53,7 @@ pub(super) fn secure_url(raw: &str) -> Result<()> {
         || url.fragment().is_some()
     {
         return Err(invalid_config(
-            "OIDC URLs require HTTPS without credentials, query, or fragment",
+            "OIDC URLs require HTTPS without credentials, query, or fragment".to_string(),
         ));
     }
     Ok(())
@@ -75,13 +77,16 @@ pub(super) fn build_providers(
             )
             .is_some()
         {
-            return Err(invalid_config("duplicate OIDC provider name"));
+            return Err(invalid_config("duplicate OIDC provider name".to_string()));
         }
         if config.login.is_some() {
             secure_url(public_url)?;
-            let url = Url::parse(public_url).map_err(|_| invalid_config("invalid public URL"))?;
+            let url = Url::parse(public_url)
+                .map_err(|_| invalid_config("invalid public URL".to_string()))?;
             if url.path() != "/" && !url.path().is_empty() {
-                return Err(invalid_config("OIDC login requires --public-url at the origin root"));
+                return Err(invalid_config(
+                    "OIDC login requires --public-url at the origin root".to_string(),
+                ));
             }
         }
     }

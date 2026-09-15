@@ -127,11 +127,11 @@ pub enum RunError {
 impl RunArgs {
     /// Build the positional from a script name and its arguments, for the
     /// paths that synthesize a `run` rather than parsing one.
-    pub(super) fn script<Args>(name: &str, args: Args) -> Vec<String>
+    pub(super) fn script<Args>(name: String, args: Args) -> Vec<String>
     where
         Args: IntoIterator<Item = String>,
     {
-        std::iter::once(name.to_string()).chain(args).collect()
+        std::iter::once(name).chain(args).collect()
     }
 
     /// The script to run, or `None` when `run` was given no positional and
@@ -299,7 +299,7 @@ fn exec_fallback(
     reporter: ReporterType,
 ) -> miette::Result<()> {
     ExecArgs {
-        command: RunArgs::script(script_name, args.iter().cloned()),
+        command: RunArgs::script(script_name.to_string(), args.iter().cloned()),
         shell_mode: false,
         workspace: crate::cli_args::recursive::RecursiveExecutionArgs {
             resume_from: None,

@@ -88,7 +88,7 @@ fn build_candidate<Reporter: self::Reporter>(
     // `lockfile_dir` so a lifecycle script invoked at a nested
     // hoisted location can resolve bins added by parents.
     let extra_bin_paths = if context.directories.gather_ancestor_bin_paths {
-        bin_dirs_in_all_parent_dirs(&pkg_dir, context.directories.lockfile_dir)
+        bin_dirs_in_all_parent_dirs(pkg_dir.clone(), context.directories.lockfile_dir)
     } else {
         Vec::new()
     };

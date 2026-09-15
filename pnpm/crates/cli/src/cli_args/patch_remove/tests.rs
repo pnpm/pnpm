@@ -193,7 +193,7 @@ fn patch_removal_target_rejects_patch_file_outside_patches_dir() {
     let tmp = tempfile::tempdir().expect("temp dir");
     let ctx = PatchRemovalContext::new(tmp.path(), "patches").expect("context");
 
-    let Err(err) = PatchRemovalTarget::new("pkg", "other/pkg.patch", &ctx) else {
+    let Err(err) = PatchRemovalTarget::new("pkg".to_string(), "other/pkg.patch", &ctx) else {
         panic!("patch file outside patches dir should error");
     };
 
@@ -207,7 +207,7 @@ fn patch_removal_target_rejects_directory_entries() {
     std::fs::create_dir_all(patches.join("pkg.patch")).expect("create directory patch target");
     let ctx = PatchRemovalContext::new(tmp.path(), "patches").expect("context");
 
-    let Err(err) = PatchRemovalTarget::new("pkg", "patches/pkg.patch", &ctx) else {
+    let Err(err) = PatchRemovalTarget::new("pkg".to_string(), "patches/pkg.patch", &ctx) else {
         panic!("directory patch target should error");
     };
 
@@ -223,7 +223,8 @@ fn patch_removal_target_reports_lstat_errors() {
     std::fs::write(patches.join("not-a-dir"), "file").expect("write file parent");
     let ctx = PatchRemovalContext::new(tmp.path(), "patches").expect("context");
 
-    let Err(err) = PatchRemovalTarget::new("pkg", "patches/not-a-dir/pkg.patch", &ctx) else {
+    let Err(err) = PatchRemovalTarget::new("pkg".to_string(), "patches/not-a-dir/pkg.patch", &ctx)
+    else {
         panic!("non-directory parent should error");
     };
 
@@ -235,14 +236,14 @@ fn join_setting_path_ignores_root_and_current_dir_components() {
     let tmp = tempfile::tempdir().expect("temp dir");
 
     assert_eq!(
-        join_setting_path(tmp.path(), "./patches/./nested"),
+        join_setting_path(tmp.path().to_path_buf(), "./patches/./nested"),
         tmp.path()
             .join("patches")
             .join("nested"),
     );
 
     #[cfg(unix)]
-    assert_eq!(join_setting_path(tmp.path(), "/patches"), tmp.path().join("patches"));
+    assert_eq!(join_setting_path(tmp.path().to_path_buf(), "/patches"), tmp.path().join("patches"));
 }
 
 #[test]

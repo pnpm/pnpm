@@ -47,14 +47,14 @@ pub(super) fn validate_real_directory(
                 Ok(()) => {}
                 Err(error) if error.kind() == io::ErrorKind::AlreadyExists => {}
                 Err(error) => {
-                    return Err(StateStorageError::io(error, "creating", path));
+                    return Err(StateStorageError::io(error, "creating", path.to_path_buf()));
                 }
             }
             fs::symlink_metadata(path)
-                .map_err(|error| StateStorageError::io(error, "inspecting", path))?
+                .map_err(|error| StateStorageError::io(error, "inspecting", path.to_path_buf()))?
         }
         Err(error) => {
-            return Err(StateStorageError::io(error, "inspecting", path));
+            return Err(StateStorageError::io(error, "inspecting", path.to_path_buf()));
         }
     };
     if metadata.file_type().is_symlink()
@@ -159,7 +159,7 @@ impl TaskRunStateContext {
         let lock_path = self.state_dir.join(START_LOCK_DIR);
         let Some(lock) =
             pnpm_fs::DirLock::acquire(lock_path.clone(), LOCK_WAIT, LOCK_ABANDONED_AFTER)
-                .map_err(|error| StateStorageError::io(error, "locking", &lock_path))?
+                .map_err(|error| StateStorageError::io(error, "locking", lock_path.clone()))?
         else {
             let run = run_id(current_generation());
             return Ok((self.journal_path(&run), run, None));
@@ -173,7 +173,7 @@ impl TaskRunStateContext {
         let contents = initial_journal_contents(&header, completed);
         let file_path = self.journal_path(&run);
         pnpm_fs::write_atomic(&file_path, contents.as_bytes())
-            .map_err(|error| StateStorageError::io(error, "writing", &file_path))?;
+            .map_err(|error| StateStorageError::io(error, "writing", file_path.clone()))?;
         let file = open_journal_for_append(&file_path)?;
         match lock.is_owner() {
             Ok(true) => {}
@@ -185,7 +185,7 @@ impl TaskRunStateContext {
             Err(error) => {
                 drop(file);
                 let _ = fs::remove_file(&file_path);
-                return Err(StateStorageError::io(error, "checking", &lock_path));
+                return Err(StateStorageError::io(error, "checking", lock_path));
             }
         }
         self.publish_journal(&header, &file_path, file)
@@ -208,14 +208,14 @@ impl TaskRunStateContext {
         if let Err(error) = latest_write {
             drop(file);
             let _ = fs::remove_file(file_path);
-            return Err(StateStorageError::io(error, "writing", &self.latest_state_path));
+            return Err(StateStorageError::io(error, "writing", self.latest_state_path.clone()));
         }
         let published_path = self.published_path(&header.run);
         if let Err(error) = pnpm_fs::write_atomic(&published_path, &[]) {
             drop(file);
             let _ = fs::remove_file(file_path);
             let _ = fs::remove_file(&published_path);
-            return Err(StateStorageError::io(error, "writing", &published_path));
+            return Err(StateStorageError::io(error, "writing", published_path));
         }
         Ok(file)
     }
@@ -227,11 +227,12 @@ impl TaskRunStateContext {
         let mut newest_run = latest_run.to_string();
         let prefix = format!("{}.", self.invocation);
         let entries = fs::read_dir(&self.state_dir)
-            .map_err(|error| StateStorageError::io(error, "reading", &self.state_dir))?;
+            .map_err(|error| StateStorageError::io(error, "reading", self.state_dir.clone()))?;
         let mut names = HashSet::new();
         for entry in entries {
-            let entry =
-                entry.map_err(|error| StateStorageError::io(error, "reading", &self.state_dir))?;
+            let entry = entry.map_err(|error| {
+                StateStorageError::io(error, "reading", self.state_dir.clone())
+            })?;
             names.insert(entry.file_name());
         }
         let mut finished =
@@ -284,7 +285,11 @@ impl TaskRunStateContext {
             }
             Err(error) if error.kind() == io::ErrorKind::NotFound => {}
             Err(error) => {
-                return Err(StateStorageError::io(error, "reading", &self.latest_state_path));
+                return Err(StateStorageError::io(
+                    error,
+                    "reading",
+                    self.latest_state_path.clone(),
+                ));
             }
         }
         newest_run = self.newest_state(&newest_run)?.0;
@@ -333,6 +338,6 @@ pub(super) fn open_journal_for_append(file_path: &Path) -> Result<File, StateSto
         .open(file_path)
         .map_err(|error| {
             let _ = fs::remove_file(file_path);
-            StateStorageError::io(error, "opening", file_path)
+            StateStorageError::io(error, "opening", file_path.to_path_buf())
         })
 }

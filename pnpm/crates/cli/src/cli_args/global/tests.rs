@@ -109,7 +109,7 @@ fn a_virtual_shim_only_yields_to_its_own_package() {
 
     remove_native_shim(&bin_dir, "tool").expect("remove virtual shim");
     fs::write(bin_dir.join("tool"), "globally installed shim").expect("replace virtual shim");
-    record_virtual_shim_state(&bin_dir, "owner", &["tool".to_string()])
+    record_virtual_shim_state(&bin_dir, "owner", vec!["tool".to_string()])
         .expect("record restoration state");
     let error = check_virtual_shim_conflicts(&[unrelated], &bin_dir).unwrap_err().to_string();
     assert!(error.contains(r#"project-aware shim for "owner""#), "{error}");

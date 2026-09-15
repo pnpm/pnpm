@@ -105,8 +105,8 @@ pub(super) async fn resolve_via_pnpr(
         .map(Some)
 }
 
-pub(super) fn ensure_environment_parent(root: &Path) -> Result<()> {
-    let mut path = root.to_path_buf();
+pub(super) fn ensure_environment_parent(root: PathBuf) -> Result<()> {
+    let mut path = root;
     for component in [".pnpm", "python-envs"] {
         path.push(component);
         match fs::create_dir(&path) {

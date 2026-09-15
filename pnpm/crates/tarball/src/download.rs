@@ -365,7 +365,7 @@ impl<'a> BodyProgress<'a> {
             http_client.fetch_min_speed_ki_bps(),
             package_url,
         ) {
-            http_client.warn(&message);
+            http_client.warn(message);
         }
     }
 }

@@ -224,7 +224,7 @@ fn check_field_specs(
                 manifest: (*manifest_spec).to_string(),
             });
         }
-        check_resolution_satisfies(name, manifest_spec, importer_dep)?;
+        check_resolution_satisfies((*name).to_string(), manifest_spec, importer_dep)?;
     }
     Ok(())
 }
@@ -232,7 +232,7 @@ fn check_field_specs(
 /// A specifier the importer's recorded resolution no longer satisfies means
 /// the range moved under the lockfile.
 fn check_resolution_satisfies(
-    name: &str,
+    name: String,
     manifest_spec: &str,
     importer_dep: Option<&ResolvedDependencySpec>,
 ) -> Result<(), StalenessReason> {
@@ -246,7 +246,7 @@ fn check_resolution_satisfies(
         return Ok(());
     }
     Err(StalenessReason::ResolutionDoesNotSatisfy {
-        name: name.to_string(),
+        name,
         version: version.to_string(),
         range: manifest_spec.to_string(),
     })

@@ -53,7 +53,7 @@ pub(super) fn assign_level_owners<'seed>(
             ctx,
             &pending.identity.id,
             pending.ancestry.depth,
-            &pending.ancestry.parent_ancestors,
+            pending.ancestry.parent_ancestors.to_vec(),
             peer_shadowed,
         );
         install_owner_peer_dependencies(ctx, pending, &claim)?;
