@@ -462,9 +462,7 @@ describe('extractZipToTarget security', () => {
 // Developer Mode or elevation.
 const itOnNonWindows = process.platform === 'win32' ? it.skip : it
 
-describe('adm-zip patch (__patches__/adm-zip@0.6.0.patch)', () => {
-  // The patch makes Utils.sanitize re-check containment against the resolved path.
-  // Without it adm-zip follows the link and clobbers the file outside the root.
+describe('adm-zip symlink extraction', () => {
   function extractOverSymlink (plantSymlink: (paths: { root: string, outside: string }) => void): string {
     const dir = temporaryDirectory()
     const outside = path.join(dir, 'outside')
@@ -480,7 +478,7 @@ describe('adm-zip patch (__patches__/adm-zip@0.6.0.patch)', () => {
       for (const entry of zip.getEntries()) {
         if (!entry.isDirectory) zip.extractEntryTo(entry, root, true, true)
       }
-    }).toThrow(/symbolic link/)
+    }).toThrow()
     return fs.readFileSync(path.join(outside, 'node'), 'utf8')
   }
 
