@@ -120,6 +120,7 @@ pub async fn unpublished_release_dirs(
     config: &Config,
     plan: &ReleasePlan,
     published_names: &HashMap<String, String>,
+    private_dirs: &HashSet<String>,
 ) -> miette::Result<HashSet<String>> {
     // Debug-only test seam, compiled out of release builds: the engine tests
     // advance manifests without publishing, so they force "all published".
@@ -131,6 +132,7 @@ pub async fn unpublished_release_dirs(
     let client = build_registry_client(config)?;
     let checks = plan.releases
         .iter()
+        .filter(|release| !private_dirs.contains(&release.dir))
         .map(|release| {
             let client = &client;
             let probe =
