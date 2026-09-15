@@ -29,11 +29,11 @@ The repository holds two implementations of the same package manager: the TypeSc
 1. Install pnpm using one of the [official installation methods](https://pnpm.io/installation). **Do not use Corepack.** The scripts in this repository invoke pnpm through the `pn` and `pnx` aliases, which the official installation methods create. Corepack only provides the `pnpm` and `pnpx` commands, so with a Corepack-managed pnpm the build fails with errors like `pn: Permission denied` ([pnpm/pnpm#12448](https://github.com/pnpm/pnpm/issues/12448)).
 1. Set up the Rust toolchain first, as described under [Rust toolchain and git hooks](#rust-toolchain-and-git-hooks). `pnpm install` also installs the Rust dependencies and runs `cargo`, so it fails when `cargo` is not on `PATH`.
 1. Run `pnpm install` in the root of the repository to install all dependencies.
-1. Run `pnpm add ./pnpm/dev -g` to make pnpm from the repository available in the command line via the `pd` command.
+1. Run `pnpm add ./pnpm11/pnpm/dev -g` to make pnpm from the repository available in the command line via the `pd` command.
 1. Run `pnpm run compile` to create an initial build of pnpm from the source in the repository.
 1. Now you can change any source code file and run `pd [command] [flags]` to run `pnpm` directly from the source code by compiling all the files without typechecking in memory.
 1. Alternatively, for recompiling all the projects with typechecking after your changes, again run `pnpm run compile` in the root of the repository.
-1. In order to run all the tests in the repository, run `pnpm run test-main`. You may also run tests of specific projects by running `pnpm test` inside a project's directory or using `pnpm --filter <project name> test`.
+1. Run the tests for what you changed rather than the whole repository, which takes a long time: `pnpm test` inside a project's directory, `pnpm --filter <project name> test` from the root, or `pnpm --filter <project name> test <file path>` for a single file. `pnpm run test-all` runs the whole TypeScript suite on the rare occasion you need it; the Rust and `pnpr` suites are separate, and are covered in [`pnpm/CONTRIBUTING.md`](./pnpm/CONTRIBUTING.md).
 
 Some of the e2e tests run node-gyp, so you might need to install some build-essentials on your system for those tests to pass. On Fedora, install these:
 
@@ -54,6 +54,8 @@ Rust is now the primary language in this repository, so most contributions need 
    ```
 
    `just init` installs `cargo-nextest`, `cargo-watch`, `cargo-insta`, `typos-cli`, `taplo-cli`, `wasm-pack`, and `cargo-llvm-cov` (via `cargo binstall`), plus `cargo-fixit` (pinned to `0.1.15` via `cargo install cargo-fixit@0.1.15 --locked`, since `cargo-fixit` has no prebuilt binaries). `cargo-fixit` backs the `just fix` task. It also builds the pinned pnpm rustfmt fork described below.
+
+   Because `cargo-fixit` is built from source, it needs a complete OpenSSL development installation — headers and libraries — which its `openssl-sys` dependency looks for at build time. Without one, `just init` fails while installing `cargo-fixit`, before it reaches the rustfmt step, with `failed to run custom build command for openssl-sys`. Install it first: `sudo dnf install openssl-devel` on Fedora, `sudo apt install libssl-dev pkg-config` on Debian and Ubuntu. If OpenSSL is installed somewhere `openssl-sys` does not look — under a Homebrew prefix, for instance — point it at that existing installation with `OPENSSL_DIR`, for example `export OPENSSL_DIR=$(brew --prefix openssl@3)`. Note that `OPENSSL_DIR` only locates an installation; it is not a substitute for one.
 
 3. Install the dylint tools, which `just init` does not cover, **from source**:
 
