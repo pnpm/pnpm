@@ -3997,6 +3997,41 @@ pacquet@12.4.1:
     - wait-for-interrupted-scripts
     - warm-global-virtual-store-installs
     - warn-about-yarn-workspaces-field
+pacquet@12.4.2:
+  dir: pnpm/npm/pnpm
+  intents:
+    - alias-bins-resolve-sibling-pnpm
+    - blue-pianos-smile
+    - detect-manifest-edits-during-install
+    - dir-clone-cache-mutable-sources
+    - filter-brace-alternatives
+    - fix-deploy-peer-specifiers
+    - fix-native-discovery-exclusions
+    - fix-node-runtime-unofficial-builds-error-handling
+    - fix-peer-dependent-child-dedupe
+    - fix-sbom-repository-url
+    - fix-unreachable-lockfile-snapshots
+    - fix-version-read-only-fs
+    - freebsd-store-dir-panic
+    - github-actions-safe-updates
+    - hoisted-directory-clone-cache
+    - ignore-workspace-nested-project
+    - install-with-a-package-takes-prod-and-dev
+    - peer-walk-stops-at-linked-packages
+    - pnpm-t-alias
+    - polite-bugs-preserve-override-specifiers
+    - purge-windows-directory-links
+    - python-lockfile-replays-across-targets
+    - python-save-prefix-validation
+    - record-injected-copies-from-the-current-lockfile
+    - self-update-check-exe-package
+    - share-hoisted-cas-paths
+    - shell-emulator-braced-parameter-expansion
+    - shim-helpers-bypass-caller-path
+    - tolerate-unreadable-requires-python
+    - update-no-save-under-strict-release-age
+    - update-optional-peer-one-pass
+    - validate-peer-dependencies-spec
 pnpm@11.13.0:
   dir: pnpm11/pnpm
   intents:
