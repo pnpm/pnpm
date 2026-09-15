@@ -24,24 +24,14 @@ fn removing_bin_entries_preserves_their_targets() {
     remove_bin(&bin).unwrap();
     remove_bin(&bin).expect("removing an already removed command must succeed");
 
-    assert_eq!(
-        std::fs::read_dir(&bins_dir)
-            .unwrap()
-            .count(),
-        0,
-    );
+    assert_eq!(std::fs::read_dir(&bins_dir).unwrap().count(), 0,);
     assert_eq!(read_to_string(&target).unwrap(), "node binary");
 
     #[cfg(unix)]
     {
         std::os::unix::fs::symlink(&target, &bin).unwrap();
         remove_bin(&bin).unwrap();
-        assert_eq!(
-            std::fs::read_dir(&bins_dir)
-                .unwrap()
-                .count(),
-            0,
-        );
+        assert_eq!(std::fs::read_dir(&bins_dir).unwrap().count(), 0,);
         assert_eq!(read_to_string(&target).unwrap(), "node binary");
     }
 }
@@ -57,9 +47,7 @@ fn bin_cleanup_and_replacement_preserve_deletion_errors() {
     create_dir_all(&shim).unwrap();
     let preserved = shim.join("keep");
     write_file(&preserved, "untouched").unwrap();
-    let expected = std::fs::remove_file(&shim)
-        .unwrap_err()
-        .raw_os_error();
+    let expected = std::fs::remove_file(&shim).unwrap_err().raw_os_error();
 
     let error = remove_bin(&shim).expect_err("a directory must not be silently removed");
     assert_eq!(error.raw_os_error(), expected);

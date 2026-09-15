@@ -294,9 +294,7 @@ impl FsWrite for Host {
 
     fn write_replace(path: &Path, bytes: &[u8]) -> io::Result<()> {
         use std::io::Write;
-        let parent = path
-            .parent()
-            .ok_or_else(|| io::Error::from(io::ErrorKind::InvalidInput))?;
+        let parent = path.parent().ok_or_else(|| io::Error::from(io::ErrorKind::InvalidInput))?;
         let file_name = path
             .file_name()
             .and_then(std::ffi::OsStr::to_str)

@@ -13,9 +13,7 @@ use super::{
 #[test]
 fn resolved_location_matches_canonicalize_fallback_for_node_path() {
     let tmp = tempdir().unwrap();
-    let slot_pkg_dir = tmp
-        .path()
-        .join("node_modules/.pnpm/foo@1.0.0/node_modules/foo");
+    let slot_pkg_dir = tmp.path().join("node_modules/.pnpm/foo@1.0.0/node_modules/foo");
     create_dir_all(&slot_pkg_dir).unwrap();
     write_file(
         slot_pkg_dir.join("package.json"),

@@ -230,9 +230,7 @@ impl ShimTargetCache {
     /// read from serializing every other target's probe behind it. Same
     /// trade as the store's `verifiedFilesCache`.
     fn runtime_for<Sys: FsReadHead>(&self, probe_path: &Path) -> io::Result<Option<ScriptRuntime>> {
-        if let Some(runtime) = self
-            .0
-            .runtimes
+        if let Some(runtime) = self.0.runtimes
             .lock()
             .expect("runtime memo lock")
             .get(probe_path)
@@ -240,8 +238,7 @@ impl ShimTargetCache {
             return Ok(runtime.clone());
         }
         let runtime = search_script_runtime::<Sys>(probe_path)?;
-        self.0
-            .runtimes
+        self.0.runtimes
             .lock()
             .expect("runtime memo lock")
             .insert(probe_path.to_path_buf(), runtime.clone());
@@ -253,9 +250,7 @@ impl ShimTargetCache {
         &self,
         probe_path: &Path,
     ) -> Result<(), LinkBinsError> {
-        if self
-            .0
-            .executable_ensured
+        if self.0.executable_ensured
             .lock()
             .expect("executable memo lock")
             .contains(probe_path)
@@ -263,8 +258,7 @@ impl ShimTargetCache {
             return Ok(());
         }
         ensure_target_executable::<Sys>(probe_path)?;
-        self.0
-            .executable_ensured
+        self.0.executable_ensured
             .lock()
             .expect("executable memo lock")
             .insert(probe_path.to_path_buf());
@@ -420,12 +414,10 @@ where
             // virtual-store file through different symlinks share it.
             // Without a resolved location, the literal path still dedupes
             // within whatever scope the caller gave the cache.
-            let probe_path = pkg
-                .resolved_location
+            let probe_path = pkg.resolved_location
                 .as_ref()
                 .and_then(|resolved| {
-                    command
-                        .path
+                    command.path
                         .strip_prefix(&pkg.location)
                         .ok()
                         .map(|bin_rel_path| resolved.join(bin_rel_path))
@@ -492,7 +484,8 @@ fn shim_node_path(pkg: &PackageBinSource, extra_node_paths: &[String]) -> Vec<St
     let mut merged = if let Some(resolved) = &pkg.resolved_location {
         bin_node_paths(resolved)
     } else {
-        let dir = dunce::canonicalize(&pkg.location).unwrap_or_else(|_| pkg.location.clone());
+        let dir =
+            dunce::canonicalize(&pkg.location).unwrap_or_else(|_| pkg.location.clone());
         bin_node_paths(&dir)
     };
     for extra in extra_node_paths {

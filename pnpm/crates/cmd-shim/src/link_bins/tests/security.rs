@@ -131,11 +131,7 @@ fn prefer_symlinked_executables_links_bins_as_relative_symlinks() {
     );
     // The read follows the symlink: the entry resolves to the bin
     // source itself, not a shim body.
-    assert!(
-        read_to_string(&bin)
-            .unwrap()
-            .contains("hello_world"),
-    );
+    assert!(read_to_string(&bin).unwrap().contains("hello_world"),);
     #[cfg(unix)]
     {
         use std::os::unix::fs::PermissionsExt;

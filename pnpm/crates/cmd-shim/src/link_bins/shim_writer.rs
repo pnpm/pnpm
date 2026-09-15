@@ -294,8 +294,14 @@ fn write_shim_fresh<Sys>(
 where
     Sys: FsReadToString + FsReadHead + FsWrite + FsSetExecutable + FsEnsureExecutableBits,
 {
-    let &ShimSpec { target_path, probe_path, shim_path, node_path, make_powershell_shim, .. } =
-        spec;
+    let &ShimSpec {
+        target_path,
+        probe_path,
+        shim_path,
+        node_path,
+        make_powershell_shim,
+        ..
+    } = spec;
     let runtime = cache
         .runtime_for::<Sys>(probe_path)
         .map_err(|error| LinkBinsError::ProbeShimSource {
