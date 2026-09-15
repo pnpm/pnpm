@@ -85,7 +85,7 @@ Please unset the scriptShell option, or configure it to a .exe instead.
       }
       break
     case 'install':
-      if (!m.scripts.install && !m.scripts.preinstall) {
+      if (!m.scripts.install && !m.scripts.preinstall && m.gypfile !== false) {
         checkBindingGyp(opts.pkgRoot, m.scripts)
       }
       break
@@ -179,7 +179,9 @@ Please unset the scriptShell option, or configure it to a .exe instead.
 
 /**
  * Run node-gyp when binding.gyp is available. Only do this when there are no
- * `install` and `preinstall` scripts (see `npm help scripts`).
+ * `install` and `preinstall` scripts and the manifest does not opt out with
+ * `gypfile: false` (see `npm help scripts` and
+ * https://docs.npmjs.com/cli/v12/configuring-npm/package-json#gypfile).
  */
 function checkBindingGyp (
   root: string,

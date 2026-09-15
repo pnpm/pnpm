@@ -106,7 +106,9 @@ pub fn apply_patch_to_dir(
     Ok(())
 }
 
-const MANIFEST_FILE_NAME: &str = "package.json";
+/// How a package's manifest is spelled in [`PatchPreview::written_paths`] and
+/// [`PatchPreview::removed_paths`].
+pub const MANIFEST_FILE_NAME: &str = "package.json";
 
 /// What a patch file would leave behind in a package directory, read
 /// without writing anything.
@@ -123,6 +125,14 @@ pub struct PatchPreview {
     /// directory, `/`-separated and free of `.` segments. Deletions are
     /// left out: a file a patch removes is not one the package has.
     pub written_paths: Vec<String>,
+    /// The paths the patch deletes, in the same spelling as
+    /// [`Self::written_paths`]. A path the patch deletes and then writes
+    /// again is reported as written rather than removed, because that is what
+    /// the package is left holding.
+    ///
+    /// A caller deciding what the patched package holds needs these too: a
+    /// file the package published survives the patch unless it is here.
+    pub removed_paths: Vec<String>,
 }
 
 /// Read what `patch_file_path` would leave in `patched_dir`.
@@ -144,6 +154,10 @@ pub fn preview_patch(
         // insertion order is kept because a patch that rewrites a file twice
         // should not report it twice.
         written_paths: IndexSet::new(),
+        // Tracked as a set for the same reasons, and kept disjoint from
+        // `written_paths`: whichever record came last decides which side a
+        // path ends up on.
+        removed_paths: IndexSet::new(),
         // A patch may delete the manifest and write a new one, so "no
         // manifest record yet" and "the manifest is gone" are different
         // states.
@@ -156,8 +170,14 @@ pub fn preview_patch(
         })?;
         state.record(&file_patch)?;
     }
-    let PreviewState { mut preview, written_paths, .. } = state;
+    let PreviewState {
+        mut preview,
+        written_paths,
+        removed_paths,
+        ..
+    } = state;
     preview.written_paths = written_paths.into_iter().collect();
+    preview.removed_paths = removed_paths.into_iter().collect();
     Ok(preview)
 }
 
@@ -167,6 +187,7 @@ struct PreviewState<'a> {
     patch_file_path: &'a Path,
     preview: PatchPreview,
     written_paths: IndexSet<String>,
+    removed_paths: IndexSet<String>,
     manifest_removed: bool,
 }
 
@@ -186,6 +207,7 @@ impl PreviewState<'_> {
         };
         let Some(written) = normalized_patch_path(raw_path) else { return Ok(()) };
         let is_manifest = names_manifest(self.patched_dir, &written);
+        self.removed_paths.shift_remove(&written);
         self.written_paths.insert(written);
         if !is_manifest {
             return Ok(());
@@ -210,6 +232,7 @@ impl PreviewState<'_> {
             self.manifest_removed = true;
         }
         self.written_paths.shift_remove(&removed);
+        self.removed_paths.insert(removed);
     }
 
     fn apply_to_manifest(

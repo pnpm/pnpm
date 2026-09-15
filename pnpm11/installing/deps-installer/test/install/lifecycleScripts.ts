@@ -669,6 +669,23 @@ test('selectively ignore scripts in some dependencies by allowBuilds (not others
   expect(fs.existsSync('node_modules/@pnpm.e2e/install-script-example/generated-by-install.js')).toBeTruthy()
 })
 
+test('a dependency that ships a binding.gyp and sets gypfile: false is not asked to build', async () => {
+  prepareEmpty()
+  const reporter = jest.fn()
+
+  await addDependenciesToPackage({},
+    ['@pnpm.e2e/gypfile-false@1.0.0'],
+    testDefaults({ fastUnpack: false, allowBuilds: {}, reporter })
+  )
+
+  const pkgDir = 'node_modules/@pnpm.e2e/gypfile-false'
+  expect(fs.existsSync(path.join(pkgDir, 'binding.gyp'))).toBeTruthy()
+  expect(fs.existsSync(path.join(pkgDir, 'generated.js'))).toBeFalsy()
+
+  const ignoredPkgsLog = reporter.mock.calls.find((call) => (call[0] as Record<string, unknown>).name === 'pnpm:ignored-scripts')![0] as Record<string, unknown>
+  expect(ignoredPkgsLog.packageNames).toStrictEqual([])
+})
+
 test('selectively allow scripts in some dependencies by allowBuilds', async () => {
   prepareEmpty()
   const reporter = jest.fn()

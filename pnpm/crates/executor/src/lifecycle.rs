@@ -10,7 +10,10 @@ use crate::{
 };
 use derive_more::{Display, Error};
 use miette::Diagnostic;
-use pnpm_package_manifest::{PackageManifestError, safe_read_package_json_from_dir};
+use pnpm_package_manifest::{
+    BINDING_GYP, PackageManifestError, manifest_opts_out_of_gyp_build,
+    safe_read_package_json_from_dir,
+};
 use pnpm_reporter::{LifecycleLog, LifecycleMessage, LifecycleStdio, LogEvent, LogLevel, Reporter};
 use serde_json::Value;
 use std::{
@@ -164,7 +167,9 @@ pub fn run_dev_preinstall_hook<Reporter: self::Reporter>(
 /// [`run_project_lifecycle_scripts`], and [`run_dev_preinstall_hook`].
 ///
 /// The `install` stage falls back to `node-gyp rebuild` when neither
-/// `install` nor `preinstall` is defined and a `binding.gyp` exists.
+/// `install` nor `preinstall` is defined, a `binding.gyp` exists, and the
+/// manifest does not opt out with `gypfile: false`
+/// ([`manifest_opts_out_of_gyp_build`]).
 /// The `npx only-allow pnpm` guard script is skipped — it does nothing
 /// under pnpm/pacquet.
 fn run_lifecycle_stages<Reporter: self::Reporter>(
@@ -190,14 +195,7 @@ fn run_lifecycle_stages<Reporter: self::Reporter>(
 
     for &stage in stages {
         let script = if stage == "install" {
-            get_script("install")
-                .map(String::from)
-                .or_else(|| {
-                    (get_script("preinstall").is_none()
-                        && opts.pkg_root.join("binding.gyp").exists())
-                    .then_some("node-gyp rebuild")
-                    .map(String::from)
-                })
+            install_stage_script(&manifest, opts.pkg_root)
         } else {
             get_script(stage).map(String::from)
         };
@@ -225,6 +223,28 @@ fn read_lifecycle_manifest(
                 .to_string(),
             source,
         })
+}
+
+/// The script the `install` stage runs for the package at `pkg_root`, if any.
+///
+/// npm synthesizes `node-gyp rebuild` for a package that ships a
+/// [`BINDING_GYP`] and declares neither an `install` nor a `preinstall` script,
+/// and reads `gypfile: false` as that package's opt-out. See
+/// [`manifest_opts_out_of_gyp_build`].
+fn install_stage_script(manifest: &Value, pkg_root: &Path) -> Option<String> {
+    let script = |name: &str| -> Option<&str> {
+        manifest
+            .get("scripts")?
+            .get(name)?
+            .as_str()
+    };
+    if let Some(install) = script("install") {
+        return Some(install.to_string());
+    }
+    (script("preinstall").is_none()
+        && !manifest_opts_out_of_gyp_build(manifest)
+        && pkg_root.join(BINDING_GYP).exists())
+    .then(|| "node-gyp rebuild".to_string())
 }
 
 /// Run a single lifecycle hook and emit `pnpm:lifecycle` events.

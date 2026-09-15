@@ -35,6 +35,67 @@ const IS_POSITIVE_HOOKS_FILE_PATCH: &str = include_str!(
     "../../../../../pnpm11/installing/deps-installer/test/fixtures/patch-pkg/is-positive@1.0.0-hooks-file.patch"
 );
 
+/// Drops the `gypfile: false` from `@pnpm.e2e/gypfile-false`, which puts the
+/// `binding.gyp` the package already ships back in scope for the implicit
+/// `node-gyp rebuild`.
+const GYPFILE_FALSE_REMOVAL_PATCH: &str = concat!(
+    "diff --git a/package.json b/package.json\n",
+    "index 1d0f9e2..7c4a51b 100644\n",
+    "--- a/package.json\n",
+    "+++ b/package.json\n",
+    "@@ -1,5 +1,4 @@\n",
+    " {\n",
+    "   \"name\": \"@pnpm.e2e/gypfile-false\",\n",
+    "-  \"version\": \"1.0.0\",\n",
+    "-  \"gypfile\": false\n",
+    "+  \"version\": \"1.0.0\"\n",
+    " }\n",
+);
+
+/// Deletes the `binding.gyp` `@pnpm.e2e/gypfile-false` ships. Appended to
+/// [`GYPFILE_FALSE_REMOVAL_PATCH`] to leave a package with neither the opt-out
+/// nor the file it opted out of.
+const BINDING_GYP_DELETION_HUNK: &str = concat!(
+    "diff --git a/binding.gyp b/binding.gyp\n",
+    "deleted file mode 100644\n",
+    "index d7ea4ac..0000000\n",
+    "--- a/binding.gyp\n",
+    "+++ /dev/null\n",
+    "@@ -1,15 +0,0 @@\n",
+    "-{\n",
+    "-  \"targets\": [\n",
+    "-    {\n",
+    "-      \"target_name\": \"run_js_script\",\n",
+    "-      \"actions\": [\n",
+    "-        {\n",
+    "-          \"action_name\": \"execute_postinstall\",\n",
+    "-          \"inputs\": [],\n",
+    "-          \"outputs\": [\"generated.js\"],\n",
+    "-          \"action\": [\"node\", \"postinstall.js\"]\n",
+    "-        }\n",
+    "-      ]\n",
+    "-    }\n",
+    "-  ]\n",
+    "-}\n",
+);
+
+/// Deletes the manifest `@pnpm.e2e/gypfile-false` ships, taking its
+/// `gypfile: false` with it and leaving the `binding.gyp` with no manifest to
+/// speak for it.
+const MANIFEST_DELETION_PATCH: &str = concat!(
+    "diff --git a/package.json b/package.json\n",
+    "deleted file mode 100644\n",
+    "index 1d0f9e2..0000000\n",
+    "--- a/package.json\n",
+    "+++ /dev/null\n",
+    "@@ -1,5 +0,0 @@\n",
+    "-{\n",
+    "-  \"name\": \"@pnpm.e2e/gypfile-false\",\n",
+    "-  \"version\": \"1.0.0\",\n",
+    "-  \"gypfile\": false\n",
+    "-}\n",
+);
+
 /// Adds a marker file, so a package's patched state can be read off the
 /// filesystem without depending on the package's own sources.
 const MARKER_PATCH: &str = concat!(
