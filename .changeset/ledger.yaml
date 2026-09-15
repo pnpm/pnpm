@@ -3997,7 +3997,7 @@ pacquet@12.4.1:
     - wait-for-interrupted-scripts
     - warm-global-virtual-store-installs
     - warn-about-yarn-workspaces-field
-pacquet@12.5.0:
+pacquet@12.4.2:
   dir: pnpm/npm/pnpm
   intents:
     - alias-bins-resolve-sibling-pnpm
