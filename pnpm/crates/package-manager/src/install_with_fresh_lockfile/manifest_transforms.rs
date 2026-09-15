@@ -68,6 +68,28 @@ pub(super) fn build_manifest_transforms(
     })
 }
 
+/// The manifests a `--no-save` run writes the lockfile's importer specifiers
+/// from, rewritten through `pnpm.overrides` the way the resolve's own
+/// manifests are. The frozen-lockfile gate applies the same overrides to
+/// what is on disk before comparing, so specifiers left as declared would
+/// fail the very lockfile that wrote them.
+pub(super) fn apply_overrides_to_specifier_manifests(
+    manifests: Option<BTreeMap<String, PackageManifest>>,
+    overrider: Option<&VersionsOverrider>,
+) -> Option<BTreeMap<String, PackageManifest>> {
+    let mut manifests = manifests?;
+    if let Some(overrider) = overrider.filter(|overrider| !overrider.is_empty()) {
+        for manifest in manifests.values_mut() {
+            let manifest_dir = manifest
+                .path()
+                .parent()
+                .map(Path::to_path_buf);
+            overrider.apply(manifest, manifest_dir.as_deref());
+        }
+    }
+    Some(manifests)
+}
+
 /// The user's `packageExtensions`, when they extend anything at all.
 fn configured_package_extender(
     config: &Config,

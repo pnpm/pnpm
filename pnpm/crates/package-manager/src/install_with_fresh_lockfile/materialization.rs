@@ -3,8 +3,8 @@ use super::{
     InstallWithFreshLockfileResult, LockfileOnlyOptions, LockfileViews, MaterializationScope,
     OnDiskInputs, OnDiskOutput, OwnedInputs, PlanLockfiles, PlanScope, Resolved, ResolverSetup,
     build_lockfile_phase, errors::InstallWithFreshLockfileError, finish_early_materialization,
-    finish_lockfile_only, persist_fresh_lockfile, plan_fresh_materialization, resolver_setup,
-    run_on_disk_phases, warn_stale_convergence_overrides_if_any,
+    finish_lockfile_only, manifest_transforms, persist_fresh_lockfile, plan_fresh_materialization,
+    resolver_setup, run_on_disk_phases, warn_stale_convergence_overrides_if_any,
 };
 use crate::{AllowBuildPolicy, VirtualStoreLayout};
 use pnpm_catalogs_types::Catalogs;
@@ -82,7 +82,11 @@ pub(super) fn finish_resolved_install<'a, Reporter: self::Reporter + 'static>(
             install,
             resources: MaterializationResources {
                 tarball_mem_cache: owned.fetching.tarball_mem_cache,
-                lockfile_specifier_manifests: owned.projects.lockfile_specifier_manifests,
+                lockfile_specifier_manifests:
+                    manifest_transforms::apply_overrides_to_specifier_manifests(
+                        owned.projects.lockfile_specifier_manifests,
+                        resolved.overrides.versions_overrider.as_deref(),
+                    ),
                 catalogs: owned.projects.catalogs,
                 node_version: owned.node_version,
                 early_host_detection: owned.early_host_detection,
