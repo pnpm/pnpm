@@ -19,7 +19,7 @@ use self::activation::{
 use crate::{
     State,
     cli_args::{
-        add::{add_packages, apply_allow_build},
+        add::{AddGroups, add_packages, apply_allow_build},
         approve_builds::{
             ApproveBuildsArgs, clear_decided_ignored_builds, write_approval_settings,
         },

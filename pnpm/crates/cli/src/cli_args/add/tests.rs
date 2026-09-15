@@ -1,5 +1,9 @@
-use super::{AddDependencyOptions, AddError, apply_allow_build, workspace_selectors};
-use crate::cargo_manifest::CargoDependencyKind;
+use super::{AddArgs, AddDependencyOptions, AddError, apply_allow_build, workspace_selectors};
+use crate::{
+    cargo_manifest::CargoDependencyKind,
+    cli_args::{CliArgs, cli_command::CliCommand},
+};
+use clap::Parser;
 use pnpm_config::Config;
 use pnpm_package_manifest::DependencyGroup;
 use pretty_assertions::assert_eq;
@@ -265,4 +269,42 @@ fn workspace_selectors_reject_a_selector_without_a_package_name() {
         matches!(&err, AddError::NoPkgNameInSpec { selector } if selector == "./local-dir"),
         "{err}",
     );
+}
+
+fn add_args(argv: &[&str]) -> AddArgs {
+    match CliArgs::try_parse_from(argv).expect("parses").command {
+        CliCommand::Add(add) => add,
+        other => panic!("expected add, got {other:?}"),
+    }
+}
+
+/// `--prod` and `--dev` filter what the install materializes, the way
+/// they do on `install`. They do not move the save target, which stays
+/// with the `--save-*` flags.
+#[test]
+fn the_dependency_group_filter_narrows_what_the_install_materializes() {
+    let config = Config::default();
+    for (spelling, expected) in [
+        (&[][..], &[DependencyGroup::Prod, DependencyGroup::Dev, DependencyGroup::Optional][..]),
+        (&["--prod"][..], &[DependencyGroup::Prod, DependencyGroup::Optional][..]),
+        (&["--production"][..], &[DependencyGroup::Prod, DependencyGroup::Optional][..]),
+        (&["--dev"][..], &[DependencyGroup::Dev][..]),
+    ] {
+        let argv: Vec<&str> = ["pacquet", "add", "foo"]
+            .into_iter()
+            .chain(spelling.iter().copied())
+            .collect();
+        let args = add_args(&argv);
+        assert_eq!(args.included_groups(&config), expected, "{spelling:?}");
+        assert_eq!(args.dependency_options.save_target(), None, "{spelling:?}");
+    }
+}
+
+#[test]
+fn the_dependency_group_filter_honors_the_optional_setting() {
+    let args = add_args(&["pacquet", "add", "foo", "--no-optional"]);
+    let mut config = Config::default();
+    args.apply_cli_config(&mut config);
+
+    assert_eq!(args.included_groups(&config), [DependencyGroup::Prod, DependencyGroup::Dev]);
 }

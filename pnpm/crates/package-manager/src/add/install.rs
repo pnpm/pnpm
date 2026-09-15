@@ -101,9 +101,10 @@ pub(super) struct AddSeed {
 }
 /// `dependency_groups` names the manifest group the new
 /// package is saved into ([`prepare_manifest`](crate::add::manifest::prepare_manifest)), not an
-/// include filter: like `remove`, the re-resolve walks every
-/// dependency group so the other groups' entries stay in the
-/// lockfile, the virtual store, and `node_modules`.
+/// include filter: unless `included_groups` narrows it, and like
+/// `remove`, the re-resolve walks every dependency group so the other
+/// groups' entries stay in the lockfile, the virtual store, and
+/// `node_modules`.
 /// `None` defers to `config.prefer_frozen_lockfile`, which is
 /// what lets the fast lockfile update absorb the manifest edit
 /// [`prepare_manifest`](crate::add::manifest::prepare_manifest) just made. It only absorbs an addition the
@@ -117,8 +118,11 @@ pub(super) fn add_install<'i>(
     owned: AddOwned,
     manifest: &'i PackageManifest,
     seed: AddSeed,
-) -> Install<'i, impl Iterator<Item = DependencyGroup>> {
+) -> Install<'i, Vec<DependencyGroup>> {
     let named_a_version = !seed.seed_policies.is_empty();
+    let included_groups = owned.included_groups.unwrap_or_else(|| {
+        included_direct_groups(add.config.optional).collect()
+    });
     let mut install = Install::new(
         owned.tarball_mem_cache,
         add.resolved_packages,
@@ -126,7 +130,7 @@ pub(super) fn add_install<'i>(
         add.config,
         manifest,
         MaybeLazyLockfile::Loaded(add.lockfile),
-        included_direct_groups(add.config.optional),
+        included_groups,
     );
     install.lockfile_policy.prefer_frozen = named_a_version.then_some(false);
     install.lockfile_policy.excludes = PolicyExcludes::Persist;

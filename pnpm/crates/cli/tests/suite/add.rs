@@ -790,3 +790,94 @@ mod cargo;
 mod version_specifiers;
 
 mod workspace;
+
+/// `pnpm install <pkg>` is a spelling of `pnpm add <pkg>`, so the
+/// `--prod` / `--dev` filter `install` takes has to survive the rewrite
+/// into `add`'s grammar (pnpm/pnpm#14868).
+#[test]
+fn install_with_a_package_keeps_dev_dependencies_when_prod_is_false() {
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    std::fs::write(
+        workspace.join("package.json"),
+        r#"{ "name": "p", "version": "1.0.0", "devDependencies": { "@pnpm.e2e/foo": "100.0.0" } }"#,
+    )
+    .unwrap();
+
+    pacquet
+        .with_args(["install", "--prod=false", "@pnpm.e2e/bar@100.0.0"])
+        .assert()
+        .success();
+
+    let installed = get_filenames_in_folder(&workspace.join("node_modules/@pnpm.e2e"));
+    assert_eq!(installed, ["bar", "foo"]);
+    drop((root, npmrc_info)); // cleanup
+}
+
+#[test]
+fn install_with_a_package_skips_dev_dependencies_when_prod_is_set() {
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    std::fs::write(
+        workspace.join("package.json"),
+        r#"{ "name": "p", "version": "1.0.0", "devDependencies": { "@pnpm.e2e/foo": "100.0.0" } }"#,
+    )
+    .unwrap();
+
+    pacquet
+        .with_args(["install", "--prod", "@pnpm.e2e/bar@100.0.0"])
+        .assert()
+        .success();
+
+    let installed = get_filenames_in_folder(&workspace.join("node_modules/@pnpm.e2e"));
+    assert_eq!(installed, ["bar"]);
+    drop((root, npmrc_info)); // cleanup
+}
+
+/// `--dev` filters what the install materializes and `-D` picks the
+/// manifest group the package is saved into, so one command line can
+/// carry both.
+#[test]
+fn install_with_a_package_skips_dependencies_when_dev_is_set() {
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    std::fs::write(
+        workspace.join("package.json"),
+        r#"{ "name": "p", "version": "1.0.0", "dependencies": { "@pnpm.e2e/foo": "100.0.0" }, "devDependencies": { "@pnpm.e2e/bar": "100.0.0" } }"#,
+    )
+    .unwrap();
+
+    pacquet
+        .with_args(["install", "--dev", "-D", "@pnpm.e2e/qar@100.0.0"])
+        .assert()
+        .success();
+
+    let installed = get_filenames_in_folder(&workspace.join("node_modules/@pnpm.e2e"));
+    assert_eq!(installed, ["bar", "qar"]);
+
+    let manifest = PackageManifest::from_path(workspace.join("package.json")).unwrap();
+    let group_spec = |group| {
+        manifest
+            .dependencies([group])
+            .find(|(key, _)| *key == "@pnpm.e2e/qar")
+            .map(|(_, spec)| spec.to_string())
+    };
+    assert_eq!(group_spec(DependencyGroup::Dev).as_deref(), Some("100.0.0"));
+    assert_eq!(group_spec(DependencyGroup::Prod), None);
+    drop((root, npmrc_info)); // cleanup
+}
