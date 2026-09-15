@@ -13,14 +13,11 @@
 //! [`FsReadFile`] (bounded by the largest single file), one `readFileSync`
 //! per entry.
 
-use crate::{
-    capabilities::FsReadFile, contents::case_precedence_tiebreak, manifest_entry::is_manifest_entry,
-};
+use crate::{capabilities::FsReadFile, collation::en_collator, manifest_entry::is_manifest_entry};
 use flate2::{Compression, write::GzEncoder};
 use indexmap::IndexMap;
 use std::{
     collections::HashSet,
-    ffi::OsStr,
     io::{self, Write},
     path::{Path, PathBuf},
 };
@@ -79,12 +76,9 @@ pub fn build_tarball<Sys: FsReadFile>(
 }
 
 /// Every entry the archive will carry, in npm-packlist's compression
-/// order: extension, then basename, then full path. Each key compares
-/// through the same approximation of `localeCompare(b, 'en')` that
-/// [`sort_paths_en_locale`](crate::contents::sort_paths_en_locale) applies
-/// to the contents listing, whose divergences reorder a group of
-/// same-named files without splitting it up. The fixed order also keeps a
-/// re-pack of unchanged sources byte-identical.
+/// order: lowercased extension, then lowercased basename, then the path,
+/// each compared with [`en_collator`]. The fixed order also keeps a re-pack
+/// of unchanged sources byte-identical.
 fn compression_ordered_entries<'a>(
     files_map: &'a IndexMap<String, PathBuf>,
     injected: &'a [(String, Vec<u8>)],
@@ -107,12 +101,12 @@ fn compression_ordered_entries<'a>(
     // Grouping by extension and basename keeps the same file name from
     // every template directory adjacent, so DEFLATE's window matches the
     // repeated content instead of storing each copy in full.
+    let collator = en_collator();
     entries.sort_by(|left, right| {
-        left.ext
-            .cmp(&right.ext)
-            .then_with(|| left.base.cmp(&right.base))
-            .then_with(|| left.name_lower.cmp(&right.name_lower))
-            .then_with(|| case_precedence_tiebreak(left.name, right.name))
+        collator
+            .compare(&left.ext, &right.ext)
+            .then_with(|| collator.compare(&left.base, &right.base))
+            .then_with(|| collator.compare(left.name, right.name))
     });
     entries
 }
@@ -127,30 +121,38 @@ enum EntrySource<'a> {
     File(&'a Path),
 }
 
-/// One entry queued for the archive, decorated with the compression-order
-/// sort keys (lowercased extension, basename, and full path) so the sort
-/// does not recompute them on every comparison.
+/// One entry queued for the archive, decorated with its lowercased
+/// extension and basename so the sort does not recompute them on every
+/// comparison.
 struct QueuedEntry<'a> {
     ext: String,
     base: String,
-    name_lower: String,
     name: &'a str,
     source: EntrySource<'a>,
 }
 
 fn queued_entry<'a>(name: &'a str, source: EntrySource<'a>) -> QueuedEntry<'a> {
-    let path = Path::new(name);
-    QueuedEntry {
-        ext: lowercased(path.extension()),
-        base: lowercased(path.file_name()),
-        name_lower: name.to_lowercase(),
-        name,
-        source,
-    }
+    let base = basename(name);
+    QueuedEntry { ext: extname(base).to_lowercase(), base: base.to_lowercase(), name, source }
 }
 
-fn lowercased(component: Option<&OsStr>) -> String {
-    component.map_or_else(String::new, |value| value.to_string_lossy().to_lowercase())
+/// The name's last `/`-separated component. Tar entry names are always
+/// `/`-separated, so this stays a plain string split rather than going
+/// through [`Path`], whose component split follows the host platform.
+fn basename(name: &str) -> &str {
+    name.rsplit('/').next().unwrap_or(name)
+}
+
+/// The extension Node's `path.extname` reports, leading `.` included, so
+/// the key matches the one pnpm 11 sorts on. [`Path::extension`] drops the
+/// dot and reports `a.` and `a` alike, which would group a name ending in a
+/// bare dot with the extensionless names instead of ahead of them.
+pub(super) fn extname(base: &str) -> &str {
+    match base.rfind('.') {
+        // A dot only at the front names a dotfile, not an extension.
+        None | Some(0) => "",
+        Some(dot) => &base[dot..],
+    }
 }
 
 fn bin_mode(bin_set: &HashSet<&Path>, source: &Path) -> u32 {

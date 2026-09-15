@@ -220,18 +220,40 @@ fn duplicate_named_files_are_adjacent_for_compression() {
     );
 }
 
-/// Paths that differ only in case reach the tiebreak, and a
-/// case-insensitive filesystem cannot hold such a pair, so the ordering it
-/// gives them is pinned directly.
+/// The verdicts `String.prototype.localeCompare(b, 'en')` gives in Node,
+/// which pnpm 11 sorts packed paths with. Code-point order disagrees with
+/// every one of these but the last two: it puts the digit ahead of `_`,
+/// `-` ahead of `_`, `-` ahead of the space, and every accented letter
+/// past `z`.
 #[test]
-fn case_precedence_tiebreak_puts_lowercase_first() {
-    use super::contents::case_precedence_tiebreak;
+fn en_collator_matches_javascript_locale_compare() {
+    use super::collation::en_collator;
     use std::cmp::Ordering;
 
-    assert_eq!(case_precedence_tiebreak("readme.md", "README.md"), Ordering::Less);
-    assert_eq!(case_precedence_tiebreak("README.md", "readme.md"), Ordering::Greater);
-    assert_eq!(case_precedence_tiebreak("dir/a.js", "dir/A.js"), Ordering::Less);
-    assert_eq!(case_precedence_tiebreak("a.txt", "a.txt"), Ordering::Equal);
+    let collator = en_collator();
+    assert_eq!(collator.compare("é.txt", "z.txt"), Ordering::Less);
+    assert_eq!(collator.compare("ä.txt", "b.txt"), Ordering::Less);
+    assert_eq!(collator.compare("_a.js", "1a.js"), Ordering::Less);
+    assert_eq!(collator.compare("a-b.js", "a_b.js"), Ordering::Greater);
+    assert_eq!(collator.compare("a b.js", "a-b.js"), Ordering::Less);
+    assert_eq!(collator.compare("readme.md", "README.md"), Ordering::Less);
+    assert_eq!(collator.compare("a.txt", "B.txt"), Ordering::Less);
+    assert_eq!(collator.compare("dir/x.js", "LICENSE"), Ordering::Less);
+    assert_eq!(collator.compare("a.txt", "a.txt"), Ordering::Equal);
+}
+
+/// A name ending in a bare dot has the extension `.`, which sorts ahead of
+/// every real extension but behind no extension at all. Such a name cannot
+/// be created on Windows, so the key is pinned directly rather than through
+/// a fixture.
+#[test]
+fn extname_keys_a_trailing_dot_apart_from_no_extension() {
+    use super::tarball::extname;
+
+    assert_eq!(extname("archive."), ".");
+    assert_eq!(extname("archive"), "");
+    assert_eq!(extname(".npmrc"), "");
+    assert_eq!(extname("archive.tar.gz"), ".gz");
 }
 
 /// The packed manifest comes from memory rather than from its on-disk file,

@@ -623,12 +623,10 @@ type PackedEntry =
   | { name: string, content: string }
 
 /**
- * Every tar entry under the name it is packed as, in npm-packlist's order:
- * extension, then basename, then full path. Files that share a name across
- * directories land next to each other, so gzip matches their repeated bytes
- * instead of storing every copy. `packlist()` returns its own files in this
- * order already; sorting here also places the entries added afterwards, such
- * as a workspace LICENSE or a composed CHANGELOG.md.
+ * Every tar entry under the name it is packed as, ordered for compression.
+ * `packlist()` already returns its own files that way; sorting here also
+ * places the entries added afterwards, such as a workspace LICENSE or a
+ * composed CHANGELOG.md.
  */
 function compressionOrderedEntries (filesMap: Record<string, string>, injectedEntries?: Record<string, string>): PackedEntry[] {
   const entries: PackedEntry[] = [

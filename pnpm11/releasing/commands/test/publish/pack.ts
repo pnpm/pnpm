@@ -619,6 +619,45 @@ test('pack: writes tarball entries in npm-packlist compression order', async () 
   ])
 })
 
+test('pack: keeps same-named files from different directories adjacent', async () => {
+  prepare({
+    name: 'templates',
+    version: '1.0.0',
+  })
+
+  fs.mkdirSync('template-a')
+  fs.mkdirSync('template-b')
+  fs.writeFileSync('template-a/hero.png', 'png-bytes', 'utf8')
+  fs.writeFileSync('template-b/hero.png', 'png-bytes', 'utf8')
+  fs.writeFileSync('template-a/index.html', '<html>a</html>\n', 'utf8')
+  fs.writeFileSync('template-b/index.html', '<html>b</html>\n', 'utf8')
+
+  await pack.handler({
+    ...DEFAULT_OPTS,
+    argv: { original: [] },
+    dir: process.cwd(),
+    extraBinPaths: [],
+  })
+
+  const names: string[] = []
+  await tar.list({
+    file: 'templates-1.0.0.tgz',
+    onReadEntry: (entry) => {
+      names.push(entry.path)
+    },
+  })
+
+  // The adjacency a path order would break up: it would interleave each
+  // template directory's files instead of grouping the copies of a name.
+  expect(names).toStrictEqual([
+    'package/template-a/index.html',
+    'package/template-b/index.html',
+    'package/package.json',
+    'package/template-a/hero.png',
+    'package/template-b/hero.png',
+  ])
+})
+
 const modeIsExecutable = (mode: number) => (mode & 0o111) === 0o111
 
 ;(process.platform === 'win32' ? test.skip : test)('the mode of executable is changed', async () => {
