@@ -462,6 +462,7 @@ describe('extractZipToTarget security', () => {
 // Developer Mode or elevation.
 const itOnNonWindows = process.platform === 'win32' ? it.skip : it
 
+// A symlink inside an extraction destination can redirect a ZIP entry to a file outside it.
 describe('adm-zip symlink extraction', () => {
   function extractOverSymlink (plantSymlink: (paths: { root: string, outside: string }) => void): string {
     const dir = temporaryDirectory()
