@@ -21,13 +21,13 @@ pub struct StreamedScript<'a> {
 
 impl StreamedScript<'_> {
     /// Announce the script that is about to run.
-    pub fn started(&self, script: &str) {
+    pub fn started(&self, script: String) {
         (self.emit)(&LogEvent::Lifecycle(LifecycleLog {
             level: LogLevel::Debug,
             message: LifecycleMessage::Script {
                 dep_path: self.dep_path.to_string(),
                 optional: false,
-                script: script.to_string(),
+                script,
                 stage: self.stage.to_string(),
                 wd: self.wd.to_string(),
             },

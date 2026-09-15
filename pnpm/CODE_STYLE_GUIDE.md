@@ -192,6 +192,8 @@ push_path(&mut my_list, my_path_ref.to_path_buf());
 
 It does force `my_path_ref` to be explicitly copied, but since `item` is not copied, the total number of copying remains the same for `my_path_ref`.
 
+[`perfectionist::needless_borrowed_parameters`](https://github.com/KSXGitHub/perfectionist/blob/0.0.0-rc.21/rules/needless_borrowed_parameters.md) enforces this direction across the Rust workspace through [`dylint.toml`](../dylint.toml). It flags a [borrowed] parameter whose sole, unconditional use in the body is to produce its [owned] counterpart, which is exactly the `push_path` shape above.
+
 **Example 2:** Preferring [borrowed] signature.
 
 ```rust

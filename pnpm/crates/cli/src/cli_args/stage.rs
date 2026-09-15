@@ -272,7 +272,8 @@ impl StageArgs {
         let context = self.stage_context(config, None)?;
         global_warn::<Reporter>(
             "Rejecting will permanently delete this staged publish record and tarball from the \
-             registry.",
+             registry."
+                .to_string(),
         );
         let url = stage_endpoint_url(&context.registry, &format!("-/stage/{stage_id}"))?;
         stage_request_with_otp::<Reporter>(
@@ -430,18 +431,12 @@ fn key_by_package_name(summaries: &[PublishSummary]) -> serde_json::Map<String, 
     keyed
 }
 
-fn global_info<Reporter: self::Reporter>(message: &str) {
-    Reporter::emit(&LogEvent::Global(GlobalLog {
-        level: LogLevel::Info,
-        message: message.to_owned(),
-    }));
+fn global_info<Reporter: self::Reporter>(message: String) {
+    Reporter::emit(&LogEvent::Global(GlobalLog { level: LogLevel::Info, message }));
 }
 
-fn global_warn<Reporter: self::Reporter>(message: &str) {
-    Reporter::emit(&LogEvent::Global(GlobalLog {
-        level: LogLevel::Warn,
-        message: message.to_owned(),
-    }));
+fn global_warn<Reporter: self::Reporter>(message: String) {
+    Reporter::emit(&LogEvent::Global(GlobalLog { level: LogLevel::Warn, message }));
 }
 
 #[cfg(test)]

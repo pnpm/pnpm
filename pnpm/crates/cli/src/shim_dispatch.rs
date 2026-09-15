@@ -129,7 +129,7 @@ fn dispatch_target(
         Some(Candidate::PackageManagerPin { pm, version_spec, .. })
             if package_manager_runs_promptless(policy, pm, &version_spec) =>
         {
-            run_package_manager_from_pin(state_dir, pm, &version_spec, name, args)
+            run_package_manager_from_pin(state_dir.to_path_buf(), pm, &version_spec, name, args)
         }
         Some(candidate)
             if policy == ShimPolicy::Always || is_trusted(&candidate, name, state_dir) =>
@@ -176,7 +176,7 @@ fn run_trusted_candidate(
             run_runtime_from_store(state_dir, name, &version_spec, args)
         }
         Candidate::PackageManagerPin { pm, version_spec, .. } => {
-            run_package_manager_from_pin(state_dir, pm, &version_spec, name, args)
+            run_package_manager_from_pin(state_dir.to_path_buf(), pm, &version_spec, name, args)
         }
     }
 }
@@ -417,14 +417,13 @@ fn run_runtime_from_store(
 /// directory: the project decides *which* package manager runs, never
 /// where its bytes come from.
 fn run_package_manager_from_pin(
-    state_dir: &Path,
+    state_dir: PathBuf,
     pm: PackageManager,
     version_spec: &str,
     name: &str,
     args: &[OsString],
 ) -> i32 {
     let spec = version_spec.to_string();
-    let state_dir = state_dir.to_path_buf();
     let result = crate::block_on_runtime("pacquet-global-shim-pm", async move {
         let config = Config::leak(trusted_package_manager_config(&state_dir)?);
         provision::<SilentReporter>(config, pm, &spec).await

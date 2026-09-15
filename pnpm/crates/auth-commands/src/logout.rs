@@ -179,7 +179,7 @@ where
     if !removed_from_config && !removed_from_ini {
         if revoked {
             global::<Reporter>(
-                opts.prefix,
+                opts.prefix.to_string(),
                 LogLevel::Warn,
                 format!(
                     "The auth token for {registry_display} was not found in {}. \
@@ -204,7 +204,7 @@ fn report_revocation<Reporter: self::Reporter>(outcome: RevokeOutcome, prefix: &
         RevokeOutcome::Revoked => true,
         RevokeOutcome::Rejected { status } => {
             global::<Reporter>(
-                prefix,
+                prefix.to_string(),
                 LogLevel::Info,
                 format!("Registry returned HTTP {status} when revoking token"),
             );
@@ -212,7 +212,7 @@ fn report_revocation<Reporter: self::Reporter>(outcome: RevokeOutcome, prefix: &
         }
         RevokeOutcome::Unreachable => {
             global::<Reporter>(
-                prefix,
+                prefix.to_string(),
                 LogLevel::Info,
                 "Could not reach the registry to revoke the token".to_string(),
             );
@@ -283,8 +283,8 @@ fn safe_read_ini<Sys: FsReadToString>(path: &std::path::Path) -> Result<IniSetti
     }
 }
 
-fn global<Reporter: self::Reporter>(prefix: &str, level: LogLevel, message: String) {
-    Reporter::emit(&LogEvent::Pnpm(PnpmLog { level, message, prefix: prefix.to_string() }));
+fn global<Reporter: self::Reporter>(prefix: String, level: LogLevel, message: String) {
+    Reporter::emit(&LogEvent::Pnpm(PnpmLog { level, message, prefix }));
 }
 
 /// The token-free prefix of a `…/-/user/token/<token>` revoke URL — the

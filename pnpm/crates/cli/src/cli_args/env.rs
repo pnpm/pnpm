@@ -94,7 +94,7 @@ impl EnvArgs {
         }
         match subcommand.as_str() {
             "use" => {
-                emit_global_warning::<Reporter>(DEPRECATION_WARNING);
+                emit_global_warning::<Reporter>(DEPRECATION_WARNING.to_string());
                 if !self.global {
                     return Err(EnvError::LocalUseUnsupported);
                 }

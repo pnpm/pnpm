@@ -3,8 +3,8 @@ use super::{
     VerificationReleaseAgeOptions,
 };
 
-pub(super) fn sorted_unique(values: &[String]) -> Vec<String> {
-    let mut deduped: Vec<String> = values.to_vec();
+pub(super) fn sorted_unique(values: Vec<String>) -> Vec<String> {
+    let mut deduped: Vec<String> = values;
     deduped.sort();
     deduped.dedup();
     deduped

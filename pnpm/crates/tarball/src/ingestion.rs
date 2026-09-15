@@ -52,7 +52,7 @@ impl ArchiveIngestion<'_> {
                 package_id = ?self.package.id,
                 "Reusing prefetched CAFS entry — skipping download",
             );
-            emit_progress_found_in_store::<Reporter>(self.package.id, self.requester, progress_key);
+            self.emit_found_in_store::<Reporter>(progress_key);
             return Ok((**cas_paths).clone());
         }
         if let Some(cache_key) = cache_key.clone() {
@@ -67,11 +67,7 @@ impl ArchiveIngestion<'_> {
             .await?;
             if let Some(cas_paths) = cached {
                 tracing::info!(target: "pacquet::download", package_url = ?self.package.url, package_id = ?self.package.id, "Reusing cached CAFS entry — skipping download");
-                emit_progress_found_in_store::<Reporter>(
-                    self.package.id,
-                    self.requester,
-                    progress_key,
-                );
+                self.emit_found_in_store::<Reporter>(progress_key);
                 return Ok(cas_paths);
             }
             if let Some(cas_paths) = self.load_legacy_cache::<Reporter>(progress_key).await? {
@@ -102,15 +98,22 @@ impl ArchiveIngestion<'_> {
             .await?;
             if let Some(cas_paths) = cached {
                 tracing::info!(target: "pacquet::download", package_url = ?self.package.url, package_id = ?self.package.id, "Reusing compatible legacy CAFS entry — skipping download");
-                emit_progress_found_in_store::<Reporter>(
-                    self.package.id,
-                    self.requester,
-                    progress_key,
-                );
+                self.emit_found_in_store::<Reporter>(progress_key);
                 return Ok(Some(cas_paths));
             }
         }
         Ok(None)
+    }
+
+    fn emit_found_in_store<Reporter: self::Reporter>(
+        &self,
+        progress_key: Option<(&SharedReportedProgressKeys, &str)>,
+    ) {
+        emit_progress_found_in_store::<Reporter>(
+            self.package.id.to_string(),
+            self.requester.to_string(),
+            progress_key,
+        );
     }
 
     fn cache_key(&self) -> Option<String> {

@@ -26,7 +26,11 @@ where
         let result = fetch(attempt).await;
         match result {
             Ok(value) => {
-                emit_progress_fetched::<Reporter>(package_id, requester, progress_key);
+                emit_progress_fetched::<Reporter>(
+                    package_id.to_string(),
+                    requester.to_string(),
+                    progress_key,
+                );
                 return Ok(value);
             }
             Err(err) if !is_transient_error(&err) => return Err(err),

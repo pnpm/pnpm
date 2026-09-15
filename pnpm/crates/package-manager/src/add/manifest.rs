@@ -113,7 +113,7 @@ pub(super) fn catalog_version_requests(
         };
         crate::install_with_fresh_lockfile::prefer_requested_version(
             &mut preferred,
-            &alias,
+            alias.clone(),
             &wanted,
         );
         names.insert(alias);

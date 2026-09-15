@@ -130,8 +130,8 @@ pub struct ProjectDocument {
 
 impl ProjectDocument {
     #[must_use]
-    pub fn new(name: &str) -> Self {
-        Self { name: name.to_string(), files: Vec::new() }
+    pub fn new(name: String) -> Self {
+        Self { name, files: Vec::new() }
     }
 
     pub fn parse(bytes: &[u8]) -> Result<Self, serde_json::Error> {

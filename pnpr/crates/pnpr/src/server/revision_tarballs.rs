@@ -228,8 +228,8 @@ pub(super) fn declared_tarball_integrity(
         streaming::parse_integrity(declared)
             .map_err(|err| {
                 tarball_integrity_error(
-                    name.as_str(),
-                    filename,
+                    name.as_str().to_string(),
+                    filename.to_string(),
                     format!("malformed dist.integrity: {err}"),
                 )
             })?
@@ -238,16 +238,16 @@ pub(super) fn declared_tarball_integrity(
             .as_deref()
             .ok_or_else(|| {
                 tarball_integrity_error(
-                    name.as_str(),
-                    filename,
+                    name.as_str().to_string(),
+                    filename.to_string(),
                     format!("packument has no dist.integrity or dist.shasum for {version:?}"),
                 )
             })?;
         Integrity::from_hex(shasum, ssri::Algorithm::Sha1)
             .map_err(|err| {
                 tarball_integrity_error(
-                    name.as_str(),
-                    filename,
+                    name.as_str().to_string(),
+                    filename.to_string(),
                     format!("malformed dist.shasum: {err}"),
                 )
             })?

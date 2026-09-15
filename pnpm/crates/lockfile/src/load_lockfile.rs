@@ -41,8 +41,8 @@ pub enum LoadLockfileError {
 }
 
 impl LoadLockfileError {
-    pub(super) fn parse_yaml(path: &Path, source: &serde_saphyr::Error) -> Self {
-        Self::ParseYaml { path: path.to_path_buf(), reason: format_yaml_error(source) }
+    pub(super) fn parse_yaml(path: PathBuf, source: &serde_saphyr::Error) -> Self {
+        Self::ParseYaml { path, reason: format_yaml_error(source) }
     }
 }
 
@@ -233,7 +233,7 @@ impl Lockfile {
                 lockfile.reconstruct_missing_directory_resolutions();
                 Some(lockfile)
             })
-            .map_err(|source| LoadLockfileError::parse_yaml(file_path, &source))
+            .map_err(|source| LoadLockfileError::parse_yaml(file_path.to_path_buf(), &source))
     }
 
     fn parse_repair_views(
@@ -248,7 +248,7 @@ impl Lockfile {
             &main,
             yaml_parse_options(main.len()),
         )
-        .map_err(|source| LoadLockfileError::parse_yaml(file_path, &source))?;
+        .map_err(|source| LoadLockfileError::parse_yaml(file_path.to_path_buf(), &source))?;
         prepare_value_for_fix(&mut value);
         serde_json::from_value::<Self>(value)
             .map(|mut merge| {

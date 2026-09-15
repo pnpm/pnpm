@@ -218,7 +218,7 @@ pub(super) async fn read_image_document(
 ) -> Result<ImageDocument, Response> {
     match storage.read_hosted_document(key).await {
         Ok(Some(bytes)) => ImageDocument::parse(&bytes).map_err(|err| registry_error(err.into())),
-        Ok(None) => Ok(ImageDocument::new(key.as_str())),
+        Ok(None) => Ok(ImageDocument::new(key.as_str().to_string())),
         Err(err) => Err(registry_error(err)),
     }
 }

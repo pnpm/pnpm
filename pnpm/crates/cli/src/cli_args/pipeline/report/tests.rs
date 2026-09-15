@@ -12,7 +12,8 @@ fn empty_selection_upload_has_a_summary_and_an_opaque_run_id() {
         changed_count: 0,
     };
     let pipeline = "../../outside/../pipeline";
-    let report = RunReport::new(pipeline, "main", &selection, None).unwrap();
+    let report =
+        RunReport::new(pipeline.to_string(), "main".to_string(), &selection, None).unwrap();
     let upload = report.to_upload("workspace".to_string());
     assert_eq!(upload.summary["pipeline"], pipeline);
     assert_eq!(upload.summary["tasks"], serde_json::json!({}));

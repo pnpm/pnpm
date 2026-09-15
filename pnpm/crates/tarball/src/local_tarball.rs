@@ -19,19 +19,19 @@ pub(crate) async fn open_local_tarball(
 ) -> Result<(tokio::fs::File, u64), TarballError> {
     let metadata = tokio::fs::metadata(path).await
         .map_err(|source| TarballError::ReadLocalTarball { path: path.to_path_buf(), source })?;
-    reject_non_file_local_tarball(path, &metadata)?;
+    reject_non_file_local_tarball(path.to_path_buf(), &metadata)?;
     let file = tokio::fs::File::open(path).await
         .map_err(|source| TarballError::ReadLocalTarball { path: path.to_path_buf(), source })?;
     let metadata = file
         .metadata()
         .await
         .map_err(|source| TarballError::ReadLocalTarball { path: path.to_path_buf(), source })?;
-    reject_non_file_local_tarball(path, &metadata)?;
+    reject_non_file_local_tarball(path.to_path_buf(), &metadata)?;
     Ok((file, metadata.len()))
 }
 
 pub(crate) fn reject_non_file_local_tarball(
-    path: &Path,
+    path: PathBuf,
     metadata: &std::fs::Metadata,
 ) -> Result<(), TarballError> {
     if metadata.is_file() {
@@ -56,7 +56,7 @@ pub(crate) async fn read_local_tarball_buffer(
         .checked_add(1)
         .ok_or_else(|| {
             read_local_tarball_error(
-                path,
+                path.to_path_buf(),
                 io::ErrorKind::InvalidData,
                 format!("local tarball is too large to read into memory ({size} bytes)"),
             )
@@ -69,7 +69,7 @@ pub(crate) async fn read_local_tarball_buffer(
         .map_err(|source| TarballError::ReadLocalTarball { path: path.to_path_buf(), source })?;
     if u64::try_from(buffer.len()).unwrap_or(u64::MAX) > size {
         return Err(read_local_tarball_error(
-            path,
+            path.to_path_buf(),
             io::ErrorKind::InvalidData,
             format!("local tarball changed while reading; refused to read past {size} bytes"),
         ));
@@ -85,7 +85,7 @@ pub(crate) fn allocate_local_tarball_buffer(
     allocate_tarball_buffer(Some(size), package_url)
         .map_err(|error| match error {
             TarballError::TarballTooLarge { .. } => read_local_tarball_error(
-                path,
+                path.to_path_buf(),
                 io::ErrorKind::InvalidData,
                 format!("local tarball is too large to read into memory ({size} bytes)"),
             ),
@@ -94,14 +94,11 @@ pub(crate) fn allocate_local_tarball_buffer(
 }
 
 pub(crate) fn read_local_tarball_error(
-    path: &Path,
+    path: PathBuf,
     kind: io::ErrorKind,
     message: impl Into<String>,
 ) -> TarballError {
-    TarballError::ReadLocalTarball {
-        path: path.to_path_buf(),
-        source: io::Error::new(kind, message.into()),
-    }
+    TarballError::ReadLocalTarball { path, source: io::Error::new(kind, message.into()) }
 }
 
 pub(crate) fn local_file_tarball_path(package_url: &str) -> Option<PathBuf> {

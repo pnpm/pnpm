@@ -62,7 +62,7 @@ pub(super) fn workspace_link_targets(
     // to the selector that claimed it — and so to the version it asked for.
     let claims = selectors
         .iter()
-        .map(|selector| (matcher_one(&selector.pattern), selector.version.as_deref()))
+        .map(|selector| (matcher_one(selector.pattern.clone()), selector.version.as_deref()))
         .collect::<Vec<_>>();
     for (name, group, declared) in direct {
         if !matcher.matches(name.as_str()) {

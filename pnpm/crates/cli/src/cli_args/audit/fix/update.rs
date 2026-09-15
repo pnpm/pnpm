@@ -364,7 +364,7 @@ async fn update_non_vulnerable<Reporter: self::Reporter + 'static>(
     let lockfile = state.lockfile
         .get()
         .map_err(|err| miette::Report::new(err).wrap_err("load the lockfile"))?;
-    let resources = update_resources(state, classification, age_excludes);
+    let resources = update_resources(state, classification, age_excludes.to_vec());
     Update {
         manifest: &mut state.manifest,
         options: pnpm_package_manager::UpdateOptions {
@@ -399,7 +399,7 @@ async fn update_non_vulnerable<Reporter: self::Reporter + 'static>(
 fn update_resources(
     state: &State,
     classification: &UpdateClassification,
-    age_excludes: &[String],
+    age_excludes: Vec<String>,
 ) -> pnpm_package_manager::UpdateResources {
     pnpm_package_manager::UpdateResources {
         tarball_mem_cache: Arc::clone(&state.tarball_mem_cache),
@@ -410,9 +410,6 @@ fn update_resources(
             DependencyGroup::Optional,
         ],
         supported_architectures: state.config.supported_architectures.clone(),
-        resolution_observer: Some(fix_observer(
-            &classification.vulnerabilities,
-            age_excludes.to_vec(),
-        )),
+        resolution_observer: Some(fix_observer(&classification.vulnerabilities, age_excludes)),
     }
 }

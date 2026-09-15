@@ -287,12 +287,12 @@ impl super::WorkspacePreferredVersions {
     /// reachable.
     pub(in super::super) fn record_workspace_manifest_identity(
         &self,
-        pkg_id: &str,
+        pkg_id: String,
         name: &str,
         version: &str,
     ) {
         lock_recoverable(&self.workspace_manifest_identities)
-            .entry(pkg_id.to_string())
+            .entry(pkg_id)
             .or_insert_with(|| (name.to_string(), version.to_string()));
     }
 }

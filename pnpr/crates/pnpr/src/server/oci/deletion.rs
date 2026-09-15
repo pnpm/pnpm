@@ -83,7 +83,7 @@ impl Request {
             .as_ref()
             .map(|stored| ImageDocument::parse(&stored.bytes))
             .transpose()?
-            .unwrap_or_else(|| ImageDocument::new(key.as_str()));
+            .unwrap_or_else(|| ImageDocument::new(key.as_str().to_string()));
         if document.deleting_blob.is_some() {
             return Err(RegistryError::DocumentWriteConflict { package: key.as_str().to_string() });
         }

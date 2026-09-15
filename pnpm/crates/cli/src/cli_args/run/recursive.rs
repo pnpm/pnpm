@@ -226,7 +226,7 @@ impl RecursiveRun<'_, '_> {
         let task_run_state_context = TaskRunStateContext::new(
             "run",
             &self.args.script,
-            &state_settings,
+            state_settings,
             &full_task_graph,
             self.workspace_root,
             |node, script| self.script_commands(node, script),
@@ -236,7 +236,7 @@ impl RecursiveRun<'_, '_> {
             self.args,
             self.graph,
             &full_task_graph,
-            self.script.script_name,
+            self.script.script_name.to_string(),
         )?;
         // Also the cycle check: a cyclic graph cannot be scheduled, and
         // sequenced into an arbitrary order it would succeed or fail by luck.

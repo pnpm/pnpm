@@ -455,8 +455,8 @@ impl HoistedLinkScope<'_> {
     fn link_one(&self, alias: &str, target: &Path) -> Result<bool, HoistedLinkerError> {
         let link_path =
             crate::safe_join_modules_dir::safe_join_modules_dir(&self.modules_dir, alias)
-                .map_err(|source| {
-                    self.symlink_failure(alias, SymlinkPackageError::InvalidAlias(source))
+                .map_err(|err| {
+                    self.symlink_failure(alias.to_string(), SymlinkPackageError::InvalidAlias(err))
                 })?;
         // A dependency that won the workspace-root slot is reached by
         // walking up from the project, exactly as it is under pnpm.
@@ -474,7 +474,7 @@ impl HoistedLinkScope<'_> {
             return Ok(true);
         }
         crate::symlink_package(target, &link_path)
-            .map_err(|source| self.symlink_failure(alias, source))?;
+            .map_err(|err| self.symlink_failure(alias.to_string(), err))?;
         Ok(true)
     }
 
@@ -498,20 +498,34 @@ impl HoistedLinkScope<'_> {
             // `junction::exists` reports as an error rather than
             // `Ok(false)`.
             Err(error) if error.kind() == std::io::ErrorKind::NotFound => false,
-            Err(error) => return Err(self.symlink_dir_failure(alias, target, link_path, error)),
+            Err(error) => {
+                return Err(self.symlink_dir_failure(
+                    alias.to_string(),
+                    target.to_path_buf(),
+                    link_path.to_path_buf(),
+                    error,
+                ));
+            }
         };
         if !stale_link {
             return Ok(());
         }
         pnpm_fs::remove_symlink_dir(link_path)
-            .map_err(|error| self.symlink_dir_failure(alias, target, link_path, error))
+            .map_err(|error| {
+                self.symlink_dir_failure(
+                    alias.to_string(),
+                    target.to_path_buf(),
+                    link_path.to_path_buf(),
+                    error,
+                )
+            })
     }
 
-    fn symlink_failure(&self, alias: &str, source: SymlinkPackageError) -> HoistedLinkerError {
+    fn symlink_failure(&self, alias: String, source: SymlinkPackageError) -> HoistedLinkerError {
         HoistedLinkerError::SymlinkDirectDependencies(
             SymlinkDirectDependenciesError::SymlinkPackage {
                 importer_id: self.importer_id.clone(),
-                name: alias.to_owned(),
+                name: alias,
                 source,
             },
         )
@@ -519,16 +533,16 @@ impl HoistedLinkScope<'_> {
 
     fn symlink_dir_failure(
         &self,
-        alias: &str,
-        target: &Path,
-        link_path: &Path,
+        alias: String,
+        target: PathBuf,
+        link_path: PathBuf,
         error: std::io::Error,
     ) -> HoistedLinkerError {
         self.symlink_failure(
             alias,
             SymlinkPackageError::SymlinkDir {
-                symlink_target: target.to_path_buf(),
-                symlink_path: link_path.to_path_buf(),
+                symlink_target: target,
+                symlink_path: link_path,
                 error,
             },
         )

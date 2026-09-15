@@ -125,7 +125,7 @@ fn run_one_script(
     }
     match run_stages(ctx, name, &main, args) {
         Ok(status) if status.success() => TaskCompletion::Passed,
-        Ok(status) => outcome.fail(name, status),
+        Ok(status) => outcome.fail(name.to_string(), status),
         Err(error) => outcome.abort(error),
     }
 }
@@ -146,7 +146,7 @@ pub(super) fn no_matching_script(
         return Ok(());
     }
     if fallback_to_exec {
-        return exec_fallback(script_name, args, dirs, config, reporter);
+        return exec_fallback(script_name.to_string(), args, dirs, config, reporter);
     }
     Err(RunError::NoScript {
         script: script_name.to_owned(),
@@ -256,11 +256,11 @@ impl ScriptOutcome<'_> {
         .into())
     }
 
-    pub(super) fn fail(&self, name: &str, exit: ScriptExit) -> TaskCompletion {
+    pub(super) fn fail(&self, name: String, exit: ScriptExit) -> TaskCompletion {
         self.failures
             .lock()
             .expect("run failure lock is not poisoned")
-            .push((name.to_owned(), exit));
+            .push((name, exit));
         self.cancel_siblings();
         TaskCompletion::Failed
     }

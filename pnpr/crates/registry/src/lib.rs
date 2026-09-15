@@ -186,8 +186,8 @@ impl Registries {
     /// Declare the ecosystem a concrete registry serves. Every registry is npm
     /// unless declared otherwise.
     #[must_use]
-    pub fn with_ecosystem(mut self, registry: &str, ecosystem: Ecosystem) -> Self {
-        self.ecosystems.insert(registry.to_string(), ecosystem);
+    pub fn with_ecosystem(mut self, registry: String, ecosystem: Ecosystem) -> Self {
+        self.ecosystems.insert(registry, ecosystem);
         self
     }
 

@@ -54,7 +54,7 @@ impl HostedDocument for CrateDocument {
     const ECOSYSTEM: Ecosystem = Ecosystem::Cargo;
 
     fn empty(name: &str) -> Self {
-        CrateDocument::new(name)
+        CrateDocument::new(name.to_string())
     }
 
     fn parse(bytes: &[u8]) -> Result<Self, serde_json::Error> {
@@ -91,7 +91,7 @@ impl HostedDocument for ProjectDocument {
     const ECOSYSTEM: Ecosystem = Ecosystem::Pypi;
 
     fn empty(name: &str) -> Self {
-        ProjectDocument::new(name)
+        ProjectDocument::new(name.to_string())
     }
 
     fn parse(bytes: &[u8]) -> Result<Self, serde_json::Error> {
@@ -118,7 +118,7 @@ impl HostedDocument for ImageDocument {
     const ECOSYSTEM: Ecosystem = Ecosystem::Oci;
 
     fn empty(name: &str) -> Self {
-        ImageDocument::new(name)
+        ImageDocument::new(name.to_string())
     }
 
     fn parse(bytes: &[u8]) -> Result<Self, serde_json::Error> {

@@ -99,8 +99,8 @@ impl PackumentFetchState {
             .is_some_and(|checked| Arc::ptr_eq(checked.value(), meta))
     }
 
-    pub(super) fn mark_release_age_upgrade_checked(&self, cache_key: &str, meta: &Arc<Package>) {
-        self.release_age_upgrade_checked.insert(cache_key.to_string(), Arc::clone(meta));
+    pub(super) fn mark_release_age_upgrade_checked(&self, cache_key: String, meta: &Arc<Package>) {
+        self.release_age_upgrade_checked.insert(cache_key, Arc::clone(meta));
     }
 }
 

@@ -86,11 +86,11 @@ pub(super) fn importer_dep_specifier<'a>(
 /// [`crate::resolve_dependency_tree::workspace_ctx::WorkspacePreferredVersions::direct_dep_versions`]: crate::resolve_dependency_tree::workspace_ctx::WorkspacePreferredVersions::direct_dep_versions
 pub(in super::super) fn record_direct_dep_versions(
     ctx: &TreeCtx,
-    importer_id: &str,
+    importer_id: String,
     level: &BTreeMap<String, Vec<String>>,
 ) {
     let mut versions = lock_recoverable(&ctx.workspace.versions.direct_dep_versions);
-    let by_name = Arc::make_mut(versions.entry(importer_id.to_string()).or_default());
+    let by_name = Arc::make_mut(versions.entry(importer_id).or_default());
     for (name, level_versions) in level {
         let bucket = by_name.entry(name.clone()).or_default();
         for version in level_versions {

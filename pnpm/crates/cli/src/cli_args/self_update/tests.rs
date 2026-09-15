@@ -243,7 +243,7 @@ fn assert_pnpm_runs_accepts_an_engine_that_executes() {
     let install_dir = global_dir.path().join("1");
     seed_engine_executable(&install_dir, "#!/bin/sh\nexit 0\n");
 
-    install_pnpm::assert_pnpm_runs(&install_dir, "@pnpm/exe", "1.2.3").unwrap();
+    install_pnpm::assert_pnpm_runs(&install_dir, "@pnpm/exe", "1.2.3".to_string()).unwrap();
 }
 
 #[cfg(unix)]
@@ -255,7 +255,8 @@ fn assert_pnpm_runs_rejects_the_placeholder_left_by_a_missing_native() {
     // the wrapper is present and executable, but it is not a program.
     seed_engine_executable(&install_dir, "This file intentionally left blank");
 
-    let err = install_pnpm::assert_pnpm_runs(&install_dir, "@pnpm/exe", "1.2.3").unwrap_err();
+    let err =
+        install_pnpm::assert_pnpm_runs(&install_dir, "@pnpm/exe", "1.2.3".to_string()).unwrap_err();
 
     assert!(err.to_string().contains("cannot run"), "{err}");
 }
@@ -267,7 +268,8 @@ fn assert_pnpm_runs_reports_the_exit_code_of_an_engine_that_fails() {
     let install_dir = global_dir.path().join("1");
     seed_engine_executable(&install_dir, "#!/bin/sh\nexit 1\n");
 
-    let err = install_pnpm::assert_pnpm_runs(&install_dir, "@pnpm/exe", "1.2.3").unwrap_err();
+    let err =
+        install_pnpm::assert_pnpm_runs(&install_dir, "@pnpm/exe", "1.2.3".to_string()).unwrap_err();
 
     assert!(err.to_string().contains("exited with code 1"), "{err}");
 }

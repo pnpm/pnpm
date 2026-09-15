@@ -135,6 +135,13 @@ fn json_string_array(values: &[String]) -> String {
 /// `current_os`, `current_cpu`, and `current_libc` are passed in
 /// rather than read from the environment so this function stays
 /// trivially testable.
+#[cfg_attr(
+    dylint_lib = "perfectionist",
+    expect(
+        perfectionist::needless_borrowed_parameters,
+        reason = "the owned conversion sits past the early return, so a supported platform never reaches it; an owned parameter would allocate on every check instead"
+    )
+)]
 pub fn check_platform(
     package_id: &str,
     wanted: WantedPlatformRef<'_>,

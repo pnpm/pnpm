@@ -9,11 +9,11 @@ use super::{
 #[test]
 fn warns_when_metadata_request_exceeds_configured_timeout() {
     static WARNINGS: std::sync::Mutex<Vec<String>> = std::sync::Mutex::new(Vec::new());
-    fn record_warning(message: &str) {
+    fn record_warning(message: String) {
         WARNINGS
             .lock()
             .expect("warning recorder lock poisoned")
-            .push(message.to_string());
+            .push(message);
     }
 
     let http_client = ThrottledClient::default();

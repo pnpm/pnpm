@@ -619,11 +619,8 @@ pub trait Reporter: Send + Sync + 'static {
 }
 
 /// Adapt a [`Reporter`] into the warning callback used by the network client.
-pub fn emit_global_warning<Sink: Reporter>(message: &str) {
-    Sink::emit(&LogEvent::Global(GlobalLog {
-        level: LogLevel::Warn,
-        message: message.to_string(),
-    }));
+pub fn emit_global_warning<Sink: Reporter>(message: String) {
+    Sink::emit(&LogEvent::Global(GlobalLog { level: LogLevel::Warn, message }));
 }
 
 /// `--reporter=silent`: every event is dropped.

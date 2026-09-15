@@ -176,8 +176,12 @@ pub(super) async fn plan_root(
     persisted_remote: &mut HashMap<(PackageKey, String), HashMap<String, PathBuf>>,
     side_effects_maps_by_snapshot: &mut SideEffectsMapsBySnapshot,
 ) -> Option<PlannedRoot> {
-    let candidate =
-        artifact_candidate(plan, root.snapshot_key, root.input_key, plan.setup.owner.clone())?;
+    let candidate = artifact_candidate(
+        plan,
+        root.snapshot_key,
+        root.input_key.to_string(),
+        plan.setup.owner.clone(),
+    )?;
     let local_cache_key = hasher.local_cache_key(root.snapshot_key, root.patch_hash);
     if reuse_persisted_overlay(
         plan,
@@ -206,14 +210,14 @@ pub(super) async fn plan_root(
 pub(super) fn artifact_candidate(
     plan: &CandidatePlan<'_>,
     snapshot_key: &PackageKey,
-    input_key: &str,
+    input_key: String,
     owner: OwnerScope,
 ) -> Option<ArtifactCandidate> {
     let metadata_key = snapshot_key.without_peer();
     let metadata = plan.packages.get(&metadata_key)?;
     let source_integrity = metadata.resolution.checkable_integrity().map(ToString::to_string)?;
     Some(ArtifactCandidate {
-        key: input_key.to_owned(),
+        key: input_key,
         subject: ArtifactSubject::dependency_side_effects(
             PackageIdentity {
                 name: metadata_key.name.to_string(),

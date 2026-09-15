@@ -293,8 +293,8 @@ pub fn create_npm_resolution_verifier(
 
     let named_registry_prefixes = named_registry_tarball_prefixes(&opts.registries_by_prefix);
 
-    let sorted_min_age_excludes = sorted_unique(&opts.release_age.exclude_patterns);
-    let sorted_trust_excludes = sorted_unique(&opts.trust.exclude_patterns);
+    let sorted_min_age_excludes = sorted_unique(opts.release_age.exclude_patterns);
+    let sorted_trust_excludes = sorted_unique(opts.trust.exclude_patterns);
     let named_registries_routing = named_registries_routing_digest(&opts.registries_by_prefix);
 
     let policy_snapshot = build_policy_snapshot(&BuildPolicySnapshot {

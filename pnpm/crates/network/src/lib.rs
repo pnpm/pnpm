@@ -179,7 +179,7 @@ pub struct ThrottledClient {
     host_socket_limit: Option<HostSocketLimit>,
     fetch_warn_timeout: Duration,
     fetch_min_speed_ki_bps: u64,
-    warning_handler: std::sync::RwLock<fn(&str)>,
+    warning_handler: std::sync::RwLock<fn(String)>,
 }
 
 #[derive(Debug)]
@@ -367,12 +367,12 @@ impl Deref for ThrottledClientGuard<'_> {
 
 impl ThrottledClient {
     /// Replace the sink used by successful slow-fetch warnings.
-    pub fn set_warning_handler(&self, handler: fn(&str)) {
+    pub fn set_warning_handler(&self, handler: fn(String)) {
         *self.warning_handler.write().expect("warning-handler lock poisoned") = handler;
     }
 
     /// Emit a successful slow-fetch warning through the configured sink.
-    pub fn warn(&self, message: &str) {
+    pub fn warn(&self, message: String) {
         let handler = *self.warning_handler.read().expect("warning-handler lock poisoned");
         handler(message);
     }
@@ -470,7 +470,7 @@ pub struct SecureAuthResponse {
     pub url: String,
 }
 
-fn ignore_warning(_: &str) {}
+fn ignore_warning(_: String) {}
 
 impl<Inner> CappedDnsResolver<Inner> {
     fn new(inner: Inner, concurrency: NonZeroUsize) -> Self {

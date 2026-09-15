@@ -139,7 +139,7 @@ where
     let id_token = match get_id_token::<Sys, Reporter>(registry, http).await {
         Ok(token) => token,
         Err(GetIdTokenError::IdToken(error)) => {
-            global_warn::<Reporter>(&format!("Skipped OIDC: {}", display_diagnostic(&error)));
+            global_warn::<Reporter>(format!("Skipped OIDC: {}", display_diagnostic(&error)));
             return Ok(None);
         }
         Err(error) => return Err(FetchTokenAndProvenanceError::IdToken(error)),
@@ -153,7 +153,7 @@ where
     let auth_token = match fetch_auth_token::<Sys>(&id_token, package_name, registry, http).await {
         Ok(token) => token,
         Err(error) => {
-            global_warn::<Reporter>(&format!("Skipped OIDC: {}", display_diagnostic(&error)));
+            global_warn::<Reporter>(format!("Skipped OIDC: {}", display_diagnostic(&error)));
             return Ok(None);
         }
     };
@@ -167,7 +167,7 @@ where
         Err(DetermineProvenanceError::Provenance(error)) => {
             // Keep the OIDC auth token even when provenance can't be decided —
             // the publish itself can still go through, matching the npm CLI.
-            global_warn::<Reporter>(&format!(
+            global_warn::<Reporter>(format!(
                 "Skipped setting provenance: {}",
                 display_diagnostic(&error),
             ));

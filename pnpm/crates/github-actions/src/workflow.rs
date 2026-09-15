@@ -85,7 +85,8 @@ async fn scan_workflow_file(
             }
             continue;
         }
-        if let Some(action) = action_reference(uses_value, value, comment, real_file) {
+        if let Some(action) = action_reference(uses_value, value, comment, real_file.to_path_buf())
+        {
             scan.actions.push(action);
         }
     }
@@ -98,7 +99,7 @@ fn action_reference(
     uses_value: UsesValue<'_>,
     value: &str,
     comment: Option<&str>,
-    real_file: &Path,
+    real_file: PathBuf,
 ) -> Option<ActionReference> {
     let (name, ref_and_comment) = value.rsplit_once('@')?;
     if name.starts_with("docker://") {
@@ -113,7 +114,7 @@ fn action_reference(
         .filter(|candidate| parse_version(candidate).is_some())
         .map(str::to_string);
     Some(ActionReference {
-        file: real_file.to_path_buf(),
+        file: real_file,
         name: name.to_string(),
         ref_: ref_and_comment.to_string(),
         repo: format!("{owner}/{repository}"),

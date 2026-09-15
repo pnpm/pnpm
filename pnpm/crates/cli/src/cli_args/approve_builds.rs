@@ -113,7 +113,7 @@ impl ApproveBuildsArgs {
 
         let Partition { approved, denied, unknown } = partition_params(&packages, pending);
         if !unknown.is_empty() {
-            emit_global_warning::<Reporter>(&format!(
+            emit_global_warning::<Reporter>(format!(
                 "The following packages are not awaiting approval: {}",
                 unknown.join(", "),
             ));
@@ -131,7 +131,7 @@ impl ApproveBuildsArgs {
         } else if all {
             sort_unique(pending.to_owned())
         } else {
-            let Some(selected) = prompt_for_builds(pending)? else {
+            let Some(selected) = prompt_for_builds(pending.to_vec())? else {
                 return Ok(None);
             };
             selected
@@ -242,9 +242,9 @@ fn partition_params(params: &[String], automatically_ignored_builds: &[String]) 
 /// Show the checkbox prompt and return the chosen package names, or `None`
 /// when the prompt is interrupted.
 fn prompt_for_builds(
-    automatically_ignored_builds: &[String],
+    automatically_ignored_builds: Vec<String>,
 ) -> miette::Result<Option<Vec<String>>> {
-    let choices = sort_unique(automatically_ignored_builds.to_vec());
+    let choices = sort_unique(automatically_ignored_builds);
     match MultiSelect::new()
         .with_prompt("Choose which packages to build (<space> to select, <enter> to confirm)")
         .items(&choices)

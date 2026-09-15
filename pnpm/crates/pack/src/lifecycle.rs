@@ -18,8 +18,10 @@ pub(super) async fn apply_before_packing<Reporter: self::Reporter>(
     let prefix = project_dir.to_string_lossy();
     for hook in hooks {
         let pnpmfile = hook.source_path().unwrap_or_else(|| Path::new("<pnpmfile>"));
-        let ctx =
-            HookContext { log: before_packing_logger::<Reporter>(pnpmfile, &prefix), dir: None };
+        let ctx = HookContext {
+            log: before_packing_logger::<Reporter>(pnpmfile, prefix.to_string()),
+            dir: None,
+        };
         manifest = hook
             .before_packing(manifest, publish_dir, ctx)
             .await
@@ -33,9 +35,8 @@ pub(super) async fn apply_before_packing<Reporter: self::Reporter>(
 
 /// A `context.log(...)` sink forwarding each `beforePacking` log line to
 /// the `pnpm:hook` channel, tagged with the pnpmfile it came from.
-fn before_packing_logger<Reporter: self::Reporter>(pnpmfile: &Path, prefix: &str) -> LogFn {
+fn before_packing_logger<Reporter: self::Reporter>(pnpmfile: &Path, prefix: String) -> LogFn {
     let from = pnpmfile.to_string_lossy().into_owned();
-    let prefix = prefix.to_owned();
     Arc::new(move |message| {
         Reporter::emit(&LogEvent::Hook(HookLog {
             level: LogLevel::Debug,

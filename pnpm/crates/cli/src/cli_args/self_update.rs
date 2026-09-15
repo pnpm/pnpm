@@ -210,7 +210,7 @@ async fn handler<Reporter: self::Reporter + 'static>(
     dir: &Path,
 ) -> miette::Result<Option<String>> {
     let prefix = dir.to_string_lossy().into_owned();
-    info::<Reporter>(&prefix, "Checking for updates...");
+    info::<Reporter>(prefix.clone(), "Checking for updates...".to_string());
 
     // `self-update` (no args) defaults to the `latest` dist-tag but
     // refuses to downgrade; `self-update latest` (explicit) bypasses the
@@ -236,7 +236,7 @@ async fn handler<Reporter: self::Reporter + 'static>(
     let wanted = manifest_value.as_ref().and_then(super::package_manager::wanted_package_manager);
 
     if let Some(hint) = crossed_major_hint(config, dir, wanted.as_ref(), &target_version) {
-        warn::<Reporter>(&prefix, hint);
+        warn::<Reporter>(prefix.clone(), hint.to_string());
     }
 
     // Project-pin branch: the project pins pnpm, so update the pin in
@@ -299,7 +299,7 @@ async fn verify_target_engine<Reporter: self::Reporter + 'static>(
     if let Some(warning) =
         Box::pin(verify_engine::verify_engine_identity(&env, &engine, config)).await?
     {
-        warn::<Reporter>(prefix, &warning);
+        warn::<Reporter>(prefix.to_string(), warning);
     }
     Ok(())
 }
@@ -481,20 +481,12 @@ fn range_satisfies(range: &str, version: &str) -> bool {
 #[cfg(test)]
 mod tests;
 
-fn info<Reporter: self::Reporter>(prefix: &str, message: &str) {
-    Reporter::emit(&LogEvent::Pnpm(PnpmLog {
-        level: LogLevel::Info,
-        message: message.to_string(),
-        prefix: prefix.to_string(),
-    }));
+fn info<Reporter: self::Reporter>(prefix: String, message: String) {
+    Reporter::emit(&LogEvent::Pnpm(PnpmLog { level: LogLevel::Info, message, prefix }));
 }
 
-fn warn<Reporter: self::Reporter>(prefix: &str, message: &str) {
-    Reporter::emit(&LogEvent::Pnpm(PnpmLog {
-        level: LogLevel::Warn,
-        message: message.to_string(),
-        prefix: prefix.to_string(),
-    }));
+fn warn<Reporter: self::Reporter>(prefix: String, message: String) {
+    Reporter::emit(&LogEvent::Pnpm(PnpmLog { level: LogLevel::Warn, message, prefix }));
 }
 
 async fn switch_global_pnpm<Reporter: self::Reporter + 'static>(
@@ -504,8 +496,8 @@ async fn switch_global_pnpm<Reporter: self::Reporter + 'static>(
     bare_specifier: &str,
 ) -> miette::Result<Option<String>> {
     info::<Reporter>(
-        prefix,
-        &format!("Switching pnpm from v{PNPM_VERSION} to v{target_version}..."),
+        prefix.to_string(),
+        format!("Switching pnpm from v{PNPM_VERSION} to v{target_version}..."),
     );
 
     verify_target_engine::<Reporter>(config, target_version, prefix).await?;

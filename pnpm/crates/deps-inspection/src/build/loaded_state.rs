@@ -61,7 +61,7 @@ impl LoadedState {
     #[must_use]
     pub fn env<'a>(
         &'a self,
-        lockfile_dir: &Path,
+        lockfile_dir: PathBuf,
         virtual_store_dir_max_length: usize,
         registries_by_scope: &BTreeMap<String, String>,
         registry_options_by_url: BTreeMap<String, RegistryOptions>,
@@ -91,7 +91,7 @@ impl LoadedState {
     }
     fn layout(
         &self,
-        lockfile_dir: &Path,
+        lockfile_dir: PathBuf,
         virtual_store_dir_max_length: usize,
     ) -> crate::pkg_info::InspectionLayout {
         let virtual_store_dir = match &self.modules {
@@ -102,7 +102,7 @@ impl LoadedState {
             _ => self.modules_dir.join(".pnpm"),
         };
         crate::pkg_info::InspectionLayout {
-            lockfile_dir: lockfile_dir.to_path_buf(),
+            lockfile_dir,
             modules_dir: self.modules_dir.clone(),
             virtual_store_dir,
             virtual_store_dir_max_length: self.modules

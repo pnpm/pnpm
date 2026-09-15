@@ -203,7 +203,7 @@ fn replacing_a_package_that_drops_a_bin_restores_its_recorded_shim() {
     .expect("write installed package manifest");
     fs::write(package_dir.join("node.js"), b"").expect("write package bin");
     fs::write(global_bin_dir.join("node"), b"old global bin\n").expect("seed global bin");
-    record_virtual_shim_state(&global_bin_dir, "node", &["node".to_string()])
+    record_virtual_shim_state(&global_bin_dir, "node", vec!["node".to_string()])
         .expect("record shim restoration state");
     let group = snapshot_global_package(GlobalPackageInfo {
         hash: "old-hash".to_string(),

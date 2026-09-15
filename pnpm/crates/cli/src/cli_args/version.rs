@@ -282,9 +282,9 @@ impl VersionArgs {
         let current_version = parse_current_version(pkg_dir, &current)?;
 
         self.preversion_hook::<Reporter>(
-            pkg_dir,
-            &manifest_path,
-            &name,
+            pkg_dir.to_path_buf(),
+            manifest_path.clone(),
+            name.clone(),
             &current,
             config,
             init_cwd,
@@ -316,19 +316,19 @@ impl VersionArgs {
 
     fn preversion_hook<Reporter: pnpm_reporter::Reporter>(
         &self,
-        pkg_dir: &Path,
-        manifest_path: &Path,
-        name: &str,
+        pkg_dir: PathBuf,
+        manifest_path: PathBuf,
+        name: String,
         current: &str,
         config: &Config,
         init_cwd: &Path,
     ) -> miette::Result<()> {
         let pre_change = VersionChange {
-            name: name.to_string(),
+            name,
             current_version: current.to_string(),
             new_version: current.to_string(),
-            path: pkg_dir.to_path_buf(),
-            manifest_path: manifest_path.to_path_buf(),
+            path: pkg_dir,
+            manifest_path,
         };
         run_version_lifecycle_hook::<Reporter>(
             "preversion",

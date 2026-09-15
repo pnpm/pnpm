@@ -96,7 +96,7 @@ impl<'a> MaterializationInputs<'a, '_> {
             self.modules.rebuild,
             self.install.lockfile_policy.ignore_manifest_check
                 && !self.install.execution.mutation.is_full_install(),
-            self.execution.prefix,
+            self.execution.prefix.to_string(),
         );
         let scope = self.workspace.frozen_scope(
             lockfile,

@@ -210,7 +210,7 @@ fn publish_virtual_shims(publication: &VirtualShimPublication<'_>) -> miette::Re
     // fails, a retry can repair it without rollback racing a process
     // that replaced the public bin slot.
     set_policy(config, package, Some(ShimPolicyValue::Named(NamedShimPolicy::Auto)))?;
-    record_virtual_shim_state(bin_dir, package, bins)?;
+    record_virtual_shim_state(bin_dir, package, bins.to_vec())?;
     for bin in bins {
         install_native_shim(bin_dir, bin, &ShimTarget::Virtual(package.to_string()))
             .into_diagnostic()

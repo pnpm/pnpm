@@ -63,7 +63,10 @@ pub(super) async fn maybe_upgrade_abbreviated_meta_for_release_age<Cache: Packag
         // The 304 also registry-validated the document, so it may enter the
         // shared metadata cache as verified.
         FetchFullMetadataOutcome::NotModified => {
-            ctx.metadata.fetch_locker.mark_release_age_upgrade_checked(cache_key, &meta);
+            ctx.metadata.fetch_locker.mark_release_age_upgrade_checked(
+                cache_key.to_string(),
+                &meta,
+            );
             // A `Modified` outcome is marked by the caller instead: it persists
             // the response to the mirror and may hand back a reloaded document,
             // so only the caller knows the `Arc` that ends up in the cache.

@@ -345,8 +345,8 @@ impl TreeCtx {
     /// Set the importer this context walks for. See [`TreeCtx`]'s
     /// `importer_id` field.
     #[must_use]
-    pub fn with_importer_id(mut self, importer_id: &str) -> Self {
-        self.importer.id = importer_id.to_string();
+    pub fn with_importer_id(mut self, importer_id: String) -> Self {
+        self.importer.id = importer_id;
         self
     }
 

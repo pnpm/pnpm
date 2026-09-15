@@ -559,7 +559,8 @@ fn rejects_a_symlinked_cargo_config_parent() {
 fn config_write_stays_in_the_directory_pinned_before_a_parent_swap() {
     let workspace = tempfile::tempdir().unwrap();
     let outside = tempfile::tempdir().unwrap();
-    let cargo_dir = ensure_workspace_directory(workspace.path(), &[".cargo"]).unwrap();
+    let cargo_dir =
+        ensure_workspace_directory(workspace.path().to_path_buf(), &[".cargo"]).unwrap();
     let pinned_path = workspace.path().join(".cargo-pinned");
     fs::rename(workspace.path().join(".cargo"), &pinned_path).unwrap();
     fs::write(outside.path().join("config.toml"), "unchanged\n").unwrap();
@@ -582,7 +583,8 @@ fn crate_link_stays_in_the_directory_pinned_before_a_parent_swap() {
     let outside = tempfile::tempdir().unwrap();
     let slot = tempfile::tempdir().unwrap();
     let source_dir =
-        ensure_workspace_directory(workspace.path(), &CRATES_SOURCE_DIRECTORY).unwrap();
+        ensure_workspace_directory(workspace.path().to_path_buf(), &CRATES_SOURCE_DIRECTORY)
+            .unwrap();
     let source_path = workspace.path().join(".pnpm/crates/crates-io");
     let pinned_path = workspace.path().join(".pnpm/crates/crates-io-pinned");
     fs::rename(&source_path, &pinned_path).unwrap();

@@ -196,7 +196,7 @@ pub(super) fn save_pristine_copies(dir: &Path) {
 pub(super) fn create_pnpm_workspace(
     dst_dir: &Path,
     src_dir: Option<&Path>,
-    registry: &str,
+    registry: String,
     scenario: BenchmarkScenario,
 ) {
     let dst = dst_dir.join("pnpm-workspace.yaml");
@@ -227,7 +227,7 @@ pub(super) fn create_pnpm_workspace(
     if manifest.packages.is_none() {
         manifest.packages = Some(vec![".".to_string()]);
     }
-    manifest.registry = Some(registry.to_string());
+    manifest.registry = Some(registry);
     manifest.auto_install_peers = Some(true);
     manifest.ignore_scripts = Some(true);
     manifest.lockfile = Some(scenario.lockfile_enabled());

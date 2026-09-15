@@ -82,8 +82,8 @@ pub fn mixed_router_config(
         },
     );
     let registries = Registries::new(graph, Some("main".to_string()))
-        .with_ecosystem(hosted.name, ecosystem)
-        .with_ecosystem(upstream.0, ecosystem);
+        .with_ecosystem(hosted.name.to_string(), ecosystem)
+        .with_ecosystem(upstream.0.to_string(), ecosystem);
     registries.validate().expect("mixed graph is valid");
     config.routing.registries = registries;
     config

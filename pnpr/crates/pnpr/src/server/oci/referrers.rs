@@ -31,7 +31,7 @@ impl Request {
         )
         .await
         {
-            Ok(document) => document.unwrap_or_else(|| ImageDocument::new(repo.key.as_str())),
+            Ok(doc) => doc.unwrap_or_else(|| ImageDocument::new(repo.key.as_str().to_string())),
             Err(err) => return registry_error(err),
         };
         let filter = ReferrerFilter::new(digest, &self.query);

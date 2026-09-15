@@ -244,8 +244,8 @@ fn failure(package_id: &str, error: impl std::fmt::Display) -> InstallPackageByS
     InstallPackageBySnapshotError::CustomFetcher(format!("{package_id}: {error}"))
 }
 
-fn callback_error(message: impl Into<String>, code: &str) -> FetchErrorDetails {
-    FetchErrorDetails { message: message.into(), code: Some(code.to_owned()), status: None }
+fn callback_error(message: impl Into<String>, code: String) -> FetchErrorDetails {
+    FetchErrorDetails { message: message.into(), code: Some(code), status: None }
 }
 
 fn decode_resolution(
@@ -347,7 +347,7 @@ async fn run_callback<Reporter: self::Reporter>(
         {
             return Err(callback_error(
                 format!("native custom-fetcher callbacks do not support {option}"),
-                "ERR_PNPM_UNSUPPORTED_FETCHER_OPTION",
+                "ERR_PNPM_UNSUPPORTED_FETCHER_OPTION".to_string(),
             ));
         }
     }
@@ -373,11 +373,15 @@ async fn run_callback<Reporter: self::Reporter>(
 async fn temp_dir(download: &IngestTarballToStore<'_>) -> Result<Value, FetchErrorDetails> {
     let root = download.store.dir.tmp();
     tokio::fs::create_dir_all(&root).await
-        .map_err(|error| callback_error(error.to_string(), "ERR_PNPM_FETCHER_TEMP_DIR"))?;
+        .map_err(|error| {
+            callback_error(error.to_string(), "ERR_PNPM_FETCHER_TEMP_DIR".to_string())
+        })?;
     let directory = tempfile::Builder::new()
         .prefix("fetcher-")
         .tempdir_in(root)
-        .map_err(|error| callback_error(error.to_string(), "ERR_PNPM_FETCHER_TEMP_DIR"))?
+        .map_err(|error| {
+            callback_error(error.to_string(), "ERR_PNPM_FETCHER_TEMP_DIR".to_string())
+        })?
         .keep();
     Ok(serde_json::json!(directory))
 }
@@ -403,7 +407,7 @@ fn callback_location(
     }
     let location: TarballLocation = serde_json::from_value(location)
         .map_err(|error| {
-            callback_error(error.to_string(), "ERR_PNPM_INVALID_FETCHER_RESOLUTION")
+            callback_error(error.to_string(), "ERR_PNPM_INVALID_FETCHER_RESOLUTION".to_string())
         })?;
     let scheme_matches_callback = if expects_local_archive {
         location.tarball.starts_with("file:")
@@ -413,7 +417,7 @@ fn callback_location(
     if !scheme_matches_callback {
         return Err(callback_error(
             "native tarball callback received an incompatible URL",
-            "ERR_PNPM_INVALID_FETCHER_RESOLUTION",
+            "ERR_PNPM_INVALID_FETCHER_RESOLUTION".to_string(),
         ));
     }
     Ok(location)

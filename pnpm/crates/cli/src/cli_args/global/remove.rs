@@ -49,7 +49,7 @@ pub fn handle_global_remove<Reporter: self::Reporter>(
     if let Some(leftover) = commit_global_removal::<CmdShimHost>(&transaction, || {
         restore_virtual_shims(&shims_to_restore, &global_bin_dir)
     })? {
-        warn_global::<Reporter>(&leftover.to_string());
+        warn_global::<Reporter>(leftover.to_string());
     }
     removed_global_install_result(cleanup_removed_global_install_dirs(&groups, &cleanup))
 }

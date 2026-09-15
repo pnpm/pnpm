@@ -66,7 +66,7 @@ pub(super) async fn matched_direct_rewrite<Reporter: self::Reporter>(
     let MatchedRewriteInputs { rewrite_ctx, latest_chain, .. } = inputs;
     let requested = scope.selectors
         .iter()
-        .find(|selector| matcher_one(&selector.pattern).matches(name))
+        .find(|selector| matcher_one(selector.pattern.clone()).matches(name))
         .and_then(|selector| selector.version.clone());
     if let Some(version) = requested.as_deref() {
         seed_requested_version(&mut plan.preferred_versions_override, name, previous, version);
@@ -131,7 +131,7 @@ pub(super) fn seed_requested_version(
     let resolved_name = real_package_name_of(Some(name), Some(previous));
     crate::install_with_fresh_lockfile::prefer_requested_version(
         preferred_versions_override,
-        resolved_name.as_deref().unwrap_or(name),
+        resolved_name.map_or_else(|| name.to_string(), std::borrow::Cow::into_owned),
         version,
     );
 }
@@ -215,7 +215,7 @@ pub(super) async fn tag_rewrite(
                 Some(version) => {
                     crate::install_with_fresh_lockfile::prefer_requested_version(
                         preferred_versions_override,
-                        name,
+                        name.to_string(),
                         &version.to_string(),
                     );
                     Some(calc_version_range(

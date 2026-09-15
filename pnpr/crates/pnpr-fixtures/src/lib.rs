@@ -89,19 +89,19 @@ pub fn set_dist_tag(storage: &Path, package: &str, version: &str, tag: &str) {
             .is_some_and(|versions| versions.contains_key(version)),
         "{package} has no fixture version {version} to tag as {tag}",
     );
-    insert_object_entry(packument_object, "dist-tags", tag, json!(version));
-    insert_object_entry(packument_object, "time", "modified", json!(now_iso()));
+    insert_object_entry(packument_object, "dist-tags", tag.to_string(), json!(version));
+    insert_object_entry(packument_object, "time", "modified".to_string(), json!(now_iso()));
     fs::write(&path, serde_json::to_vec(&packument).expect("serialize fixture packument"))
         .expect("write fixture packument");
 }
 
-fn insert_object_entry(parent: &mut Map<String, Value>, field: &str, key: &str, value: Value) {
+fn insert_object_entry(parent: &mut Map<String, Value>, field: &str, key: String, value: Value) {
     parent
         .entry(field.to_string())
         .or_insert_with(|| Value::Object(Map::new()))
         .as_object_mut()
         .unwrap_or_else(|| panic!("fixture packument {field} is an object"))
-        .insert(key.to_string(), value);
+        .insert(key, value);
 }
 
 fn now_iso() -> String {

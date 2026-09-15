@@ -97,7 +97,7 @@ pub(super) fn check_linked_package_peers(
 
     for (peer_name, peer_range_val) in peer_deps {
         let Some(peer_range) = peer_range_val.as_str() else { continue };
-        let peer_range = resolve_peer_range(peer_name, peer_range, inputs.catalogs)?;
+        let peer_range = resolve_peer_range(peer_name.clone(), peer_range, inputs.catalogs)?;
         check_one_linked_peer(LinkedPeerCheck {
             parents: &current_parents,
             optional: peer_is_optional(inputs.manifest, peer_name),
@@ -131,10 +131,10 @@ fn check_one_linked_peer(check: LinkedPeerCheck<'_>) {
     let Some((spec, dependency_dir)) = resolved_ref else {
         record_missing_peer(
             issues,
-            check.peer_name,
-            check.parents,
+            check.peer_name.to_string(),
+            check.parents.to_vec(),
             check.optional,
-            check.peer_range,
+            check.peer_range.to_string(),
         );
         return;
     };
@@ -149,8 +149,8 @@ fn check_one_linked_peer(check: LinkedPeerCheck<'_>) {
     let Some(found_version) = found_version else { return };
     record_bad_peer(
         issues,
-        check.peer_name,
-        check.parents,
+        check.peer_name.to_string(),
+        check.parents.to_vec(),
         check.optional,
         check.peer_range,
         found_version,
@@ -160,29 +160,25 @@ fn check_one_linked_peer(check: LinkedPeerCheck<'_>) {
 /// An unresolved peer is an issue unless the declaration marks it optional.
 pub(super) fn record_missing_peer(
     issues: &mut PeerIssues,
-    peer_name: &str,
-    parents: &[ParentPkg],
+    peer_name: String,
+    parents: Vec<ParentPkg>,
     optional: bool,
-    wanted_range: &str,
+    wanted_range: String,
 ) {
     if optional {
         return;
     }
     issues.missing
-        .entry(peer_name.to_string())
+        .entry(peer_name)
         .or_default()
-        .push(MissingPeerIssue {
-            parents: parents.to_vec(),
-            optional,
-            wanted_range: wanted_range.to_string(),
-        });
+        .push(MissingPeerIssue { parents, optional, wanted_range });
 }
 
 /// A resolved peer outside the wanted range is an issue, optional or not.
 pub(super) fn record_bad_peer(
     issues: &mut PeerIssues,
-    peer_name: &str,
-    parents: &[ParentPkg],
+    peer_name: String,
+    parents: Vec<ParentPkg>,
     optional: bool,
     wanted_range: &str,
     found_version: String,
@@ -191,10 +187,10 @@ pub(super) fn record_bad_peer(
         return;
     }
     issues.bad
-        .entry(peer_name.to_string())
+        .entry(peer_name)
         .or_default()
         .push(BadPeerIssue {
-            parents: parents.to_vec(),
+            parents,
             optional,
             wanted_range: wanted_range.to_string(),
             found_version,
@@ -258,13 +254,12 @@ fn project_dependency<'a>(
 }
 
 fn resolve_peer_range(
-    peer_name: &str,
+    peer_name: String,
     peer_range: &str,
     catalogs: Option<&Catalogs>,
 ) -> Result<String, CatalogResolutionError> {
     let Some(catalogs) = catalogs else { return Ok(peer_range.to_string()) };
-    let wanted =
-        WantedDependency { alias: peer_name.to_string(), bare_specifier: peer_range.to_string() };
+    let wanted = WantedDependency { alias: peer_name, bare_specifier: peer_range.to_string() };
     match resolve_from_catalog(catalogs, &wanted) {
         CatalogResolutionResult::Found(found) => Ok(found.resolution.specifier),
         CatalogResolutionResult::Unused => Ok(peer_range.to_string()),

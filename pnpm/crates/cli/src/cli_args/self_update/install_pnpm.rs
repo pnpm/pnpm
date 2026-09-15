@@ -100,7 +100,7 @@ pub(super) async fn install_pnpm<Reporter: self::Reporter + 'static>(
 pub(super) fn assert_pnpm_runs(
     install_dir: &Path,
     package_name: &str,
-    version: &str,
+    version: String,
 ) -> miette::Result<()> {
     let executable = pnpm_executable_path(install_dir, package_name);
     // pnpm prints its version only after loading config and switching versions,
@@ -130,7 +130,7 @@ pub(super) fn assert_pnpm_runs(
         Ok(_) => return Ok(()),
     };
     Err(SelfUpdateError::BrokenPnpmInstall {
-        version: version.to_string(),
+        version,
         reason,
         executable: executable.display().to_string(),
     }
@@ -390,7 +390,7 @@ fn finalize_engine_install(
         link_exe_platform_binary(install_dir, package.name)?;
         // Before the caller links this dir into the global bin, so a broken
         // release is discarded rather than swapped in.
-        assert_pnpm_runs(install_dir, package.name, version)
+        assert_pnpm_runs(install_dir, package.name, version.to_string())
     } else {
         // The legacy JS engine has no binary of its own to be missing.
         Ok(())

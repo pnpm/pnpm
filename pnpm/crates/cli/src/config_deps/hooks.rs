@@ -115,7 +115,7 @@ pub async fn run_update_config_hooks<Reporter: self::Reporter>(
     let mut current = input.clone();
     let mut has_filter_log = false;
     for (pnpmfile, hook) in pnpmfiles.iter().zip(&hooks) {
-        let ctx = HookContext { log: hook_logger::<Reporter>(pnpmfile, &prefix), dir: None };
+        let ctx = HookContext { log: hook_logger::<Reporter>(pnpmfile, prefix.clone()), dir: None };
         current = hook
             .update_config(current, ctx)
             .await
@@ -424,9 +424,8 @@ fn config_delta(input: &Value, output: &Value) -> Value {
 
 /// A `context.log(...)` sink that forwards each hook log line to the
 /// `pnpm:hook` channel, tagged with the pnpmfile it came from.
-fn hook_logger<Reporter: self::Reporter>(pnpmfile: &Path, prefix: &str) -> LogFn {
+fn hook_logger<Reporter: self::Reporter>(pnpmfile: &Path, prefix: String) -> LogFn {
     let from = pnpmfile.to_string_lossy().into_owned();
-    let prefix = prefix.to_owned();
     Arc::new(move |message| {
         Reporter::emit(&LogEvent::Hook(HookLog {
             level: LogLevel::Debug,

@@ -6,8 +6,8 @@ use super::{
 /// Emit `pnpm:progress found_in_store` for a (`package_id`, requester)
 /// pair the cache resolved without a download.
 pub(crate) fn emit_progress_found_in_store<Reporter: self::Reporter>(
-    package_id: &str,
-    requester: &str,
+    package_id: String,
+    requester: String,
     progress_key: Option<(&SharedReportedProgressKeys, &str)>,
 ) {
     if progress_already_reported(progress_key) {
@@ -15,16 +15,13 @@ pub(crate) fn emit_progress_found_in_store<Reporter: self::Reporter>(
     }
     Reporter::emit(&LogEvent::Progress(ProgressLog {
         level: LogLevel::Debug,
-        message: ProgressMessage::FoundInStore {
-            package_id: package_id.to_owned(),
-            requester: requester.to_owned(),
-        },
+        message: ProgressMessage::FoundInStore { package_id, requester },
     }));
 }
 
 pub(crate) fn emit_progress_fetched<Reporter: self::Reporter>(
-    package_id: &str,
-    requester: &str,
+    package_id: String,
+    requester: String,
     progress_key: Option<(&SharedReportedProgressKeys, &str)>,
 ) {
     if progress_already_reported(progress_key) {
@@ -32,10 +29,7 @@ pub(crate) fn emit_progress_fetched<Reporter: self::Reporter>(
     }
     Reporter::emit(&LogEvent::Progress(ProgressLog {
         level: LogLevel::Debug,
-        message: ProgressMessage::Fetched {
-            package_id: package_id.to_owned(),
-            requester: requester.to_owned(),
-        },
+        message: ProgressMessage::Fetched { package_id, requester },
     }));
 }
 

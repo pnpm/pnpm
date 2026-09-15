@@ -159,10 +159,18 @@ pub fn link_direct_dep_bins_prefetched(
     let bin_sources: Vec<PackageBinSource> = deps
         .par_iter()
         .filter_map(|(name, target, snapshot_key)| {
-            match prefetched_bin_source(modules_dir, name, target, snapshot_key.as_ref(), lookup) {
+            match prefetched_bin_source(
+                modules_dir,
+                name,
+                target.clone(),
+                snapshot_key.as_ref(),
+                lookup,
+            ) {
                 PrefetchedBin::NoBins => None,
                 PrefetchedBin::Source(source) => Some(Ok(source)),
-                PrefetchedBin::ReadFromDisk => read_dep_bin_source(modules_dir, name, target),
+                PrefetchedBin::ReadFromDisk => {
+                    read_dep_bin_source(modules_dir, name, target.clone())
+                }
             }
         })
         .collect::<Result<_, _>>()?;
@@ -192,7 +200,7 @@ pub(super) enum PrefetchedBin {
 pub(super) fn prefetched_bin_source(
     modules_dir: &Path,
     name: &str,
-    target: &Path,
+    target: PathBuf,
     snapshot_key: Option<&PackageKey>,
     lookup: &PrefetchedBinLookup<'_>,
 ) -> PrefetchedBin {
@@ -215,7 +223,7 @@ pub(super) fn prefetched_bin_source(
     };
     PrefetchedBin::Source(
         PackageBinSource::new(modules_dir.join(name), Arc::clone(manifest))
-            .with_resolved_location(target.to_path_buf()),
+            .with_resolved_location(target),
     )
 }
 /// The disk-read arm of [`link_direct_dep_bins_prefetched`], with the
@@ -224,7 +232,7 @@ pub(super) fn prefetched_bin_source(
 pub(super) fn read_dep_bin_source(
     modules_dir: &Path,
     name: &str,
-    target: &Path,
+    target: PathBuf,
 ) -> Option<Result<PackageBinSource, LinkBinsError>> {
     let location = modules_dir.join(name);
     let manifest_path = location.join("package.json");
@@ -241,8 +249,7 @@ pub(super) fn read_dep_bin_source(
             return Some(Err(LinkBinsError::ParseManifest { path: manifest_path, error }));
         }
     };
-    Some(Ok(PackageBinSource::new(location, Arc::new(manifest))
-        .with_resolved_location(target.to_path_buf())))
+    Some(Ok(PackageBinSource::new(location, Arc::new(manifest)).with_resolved_location(target)))
 }
 pub(super) fn link_named_dep_bins(
     modules_dir: &Path,

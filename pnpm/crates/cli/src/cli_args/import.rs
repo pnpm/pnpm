@@ -70,7 +70,7 @@ impl ImportArgs {
             self.pnpr_server.as_deref().or(config.pnpr_server.as_deref())
         {
             let pnpr_server = redact_url_for_display(pnpr_server);
-            pnpm_reporter::emit_global_warning::<Reporter>(&format!(
+            pnpm_reporter::emit_global_warning::<Reporter>(format!(
                 r#""pnpm import" resolves dependencies locally, so the pnpr server at {pnpr_server} is not used"#,
             ));
         }

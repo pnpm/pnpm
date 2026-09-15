@@ -104,7 +104,7 @@ fn include_no_optional() -> IncludedDependencies {
 
 fn graph_for(lockfile: &Lockfile, roots: &[TreeNodeId]) -> DependencyGraph {
     build_dependency_graph(
-        roots,
+        roots.to_vec(),
         &BuildGraphOptions { lockfile, include: include_no_optional(), only_projects: false },
     )
 }
@@ -776,7 +776,7 @@ fn absurdly_deep_chain_is_capped_instead_of_overflowing_the_stack() {
     let env = mock_env(dir.path(), &lockfile);
     let root_id = TreeNodeId::Package("chain-0@1.0.0".parse().unwrap());
     let graph = build_dependency_graph(
-        std::slice::from_ref(&root_id),
+        vec![root_id.clone()],
         &BuildGraphOptions {
             lockfile: &lockfile,
             include: include_no_optional(),

@@ -75,7 +75,7 @@ pub(super) fn test<'a>(
     ctx: &RunCtx<'a>,
     args: ScriptShortcutArgs,
 ) -> miette::Result<CommandFuture<'a>> {
-    run(ctx, args.into_run_args("test", true))
+    run(ctx, args.into_run_args("test".to_string(), true))
 }
 
 pub(super) fn run<'a>(ctx: &RunCtx<'a>, args: RunArgs) -> miette::Result<CommandFuture<'a>> {
@@ -208,7 +208,7 @@ pub(super) fn start<'a>(
     ctx: &RunCtx<'a>,
     args: ScriptShortcutArgs,
 ) -> miette::Result<CommandFuture<'a>> {
-    run(ctx, args.into_run_args("start", ctx.workspace.if_present))
+    run(ctx, args.into_run_args("start".to_string(), ctx.workspace.if_present))
 }
 
 pub(super) fn stop<'a>(
@@ -216,7 +216,7 @@ pub(super) fn stop<'a>(
     args: ScriptShortcutArgs,
 ) -> miette::Result<CommandFuture<'a>> {
     if ctx.workspace.recursive {
-        run(ctx, args.into_run_args("stop", ctx.workspace.if_present))
+        run(ctx, args.into_run_args("stop".to_string(), ctx.workspace.if_present))
     } else {
         let config = (ctx.loaders.config)()?;
         let dir = ctx.locations.dir;
@@ -224,7 +224,7 @@ pub(super) fn stop<'a>(
         let if_present = ctx.workspace.if_present;
         Ok(Box::pin(async move {
             apply_update_config(config, dir, reporter).await?;
-            args.run("stop", if_present, dir, config, reporter)
+            args.run("stop".to_string(), if_present, dir, config, reporter)
         }))
     }
 }

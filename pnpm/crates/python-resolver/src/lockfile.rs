@@ -61,7 +61,7 @@ impl Inputs {
     }
 
     #[must_use]
-    pub fn new(requirements: &[Requirement], target: &Target, index: &str) -> Self {
+    pub fn new(requirements: &[Requirement], target: &Target, index: String) -> Self {
         let mut requirements = requirements
             .iter()
             .map(ToString::to_string)
@@ -72,7 +72,7 @@ impl Inputs {
             requirements,
             environment: target.environment.clone(),
             tags: target.tags.clone(),
-            index: index.to_string(),
+            index,
         }
     }
 }

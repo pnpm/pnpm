@@ -270,7 +270,7 @@ impl<'a> MaterializationInputs<'a, '_> {
                         loaded_lockfile,
                         &self.lockfiles.verification.resolution_verifiers,
                         self.lockfiles.verification.derived_lockfile_path.as_deref(),
-                        &self.install.context.config.cache_dir,
+                        self.install.context.config.cache_dir.clone(),
                     )
                 })
             },

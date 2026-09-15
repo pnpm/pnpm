@@ -112,7 +112,7 @@ pub(super) fn wanted_spec(
     let alias = wanted_dependency.alias
         .as_deref()
         .filter(|alias| !alias.is_empty())?;
-    Some(default_tag_spec(alias, default_tag))
+    Some(default_tag_spec(alias.to_string(), default_tag.to_string()))
 }
 
 /// Whether a latest-version lookup should report "no latest" instead of
@@ -228,10 +228,10 @@ pub(super) fn saved_specifier_options(opts: &ResolveOptions) -> SavedSpecifierOp
 
 /// `bare_specifier` is absent but `alias` is present: synthesize a tag
 /// spec pointing at the default tag.
-pub(super) fn default_tag_spec(alias: &str, default_tag: &str) -> RegistryPackageSpec {
+pub(super) fn default_tag_spec(alias: String, default_tag: String) -> RegistryPackageSpec {
     RegistryPackageSpec {
-        name: alias.to_string(),
-        fetch_spec: default_tag.to_string(),
+        name: alias,
+        fetch_spec: default_tag,
         spec_type: RegistryPackageSpecType::Tag,
         revision: None,
         normalized_bare_specifier: None,

@@ -80,7 +80,7 @@ fn start_pnpr_registry(upstream_url: &str, ecosystem: Ecosystem) -> String {
                 )]),
                 Some(name.to_string()),
             )
-            .with_ecosystem(name, ecosystem);
+            .with_ecosystem(name.to_string(), ecosystem);
         });
     // The server's root is its npm alias; every other ecosystem is
     // addressed under its own prefix.

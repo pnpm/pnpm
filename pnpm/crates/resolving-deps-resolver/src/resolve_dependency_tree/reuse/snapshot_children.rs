@@ -25,14 +25,14 @@ pub(super) struct ReusedNodeAncestry<'a> {
 }
 
 impl<'a> ReusedNodeAncestry<'a> {
-    pub(super) fn new(edge: &super::ChildEdge<'a>, id: &str, current_is_optional: bool) -> Self {
+    pub(super) fn new(edge: &super::ChildEdge<'a>, id: String, current_is_optional: bool) -> Self {
         Self {
             ancestor_ids: edge.ancestor_ids,
             next_ancestors: Arc::new(
                 edge.ancestor_ids
                     .iter()
                     .cloned()
-                    .chain(std::iter::once(id.to_owned()))
+                    .chain(std::iter::once(id))
                     .collect(),
             ),
             depth: edge.depth,

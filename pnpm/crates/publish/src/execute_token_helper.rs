@@ -45,7 +45,7 @@ where
     let stderr = output.stderr.trim_end();
     if !stderr.trim().is_empty() {
         for line in stderr.split('\n') {
-            global_warn::<Reporter>(&format!("(tokenHelper stderr) {line}"));
+            global_warn::<Reporter>(format!("(tokenHelper stderr) {line}"));
         }
     }
 

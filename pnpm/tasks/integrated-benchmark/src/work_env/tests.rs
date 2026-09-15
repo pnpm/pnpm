@@ -83,7 +83,7 @@ fn peer_heavy_scenario_generates_shared_subgraph_root() {
     create_pnpm_workspace(
         &dir,
         None,
-        "http://localhost:4873/",
+        "http://localhost:4873/".to_string(),
         BenchmarkScenario::IsolatedPeerHeavyResolveHotCacheOffline,
     );
     create_install_script(
@@ -161,7 +161,7 @@ fn linked_workspace_scenario_generates_a_shared_link_graph() {
 
     create_package_json(&dir, None, scenario);
     super::linked_workspace::create_projects(&dir);
-    create_pnpm_workspace(&dir, None, "http://localhost:4873/", scenario);
+    create_pnpm_workspace(&dir, None, "http://localhost:4873/".to_string(), scenario);
 
     let root: serde_json::Value =
         serde_json::from_slice(&fs::read(dir.join("package.json")).expect("read root manifest"))

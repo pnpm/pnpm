@@ -165,7 +165,7 @@ fn set_exclude_list(manifest: &mut Manifest, list: ExcludeList, items: &[String]
                 .iter()
                 .map(|item| render::render_value(item))
                 .collect();
-            manifest.document.set_text(flow::set_items(text, &collection, &rendered));
+            manifest.document.set_text(flow::set_items(text.to_string(), &collection, &rendered));
             *decoded(manifest) = Some(items.to_vec());
             return true;
         }

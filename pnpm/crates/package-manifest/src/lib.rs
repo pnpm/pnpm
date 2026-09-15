@@ -321,7 +321,7 @@ impl PackageManifest {
             let mut dependencies = Map::<String, Value>::new();
             dependencies.insert(name.to_string(), Value::String(version.to_string()));
             self.value[dependency_type] = Value::Object(dependencies);
-            self.drop_from_other_install_groups(name, dependency_group);
+            self.drop_from_other_install_groups(name.to_string(), dependency_group);
             return Ok(());
         };
         let Some(dependencies) = field.as_object_mut() else {
@@ -330,19 +330,19 @@ impl PackageManifest {
             ));
         };
         dependencies.insert(name.to_string(), Value::String(version.to_string()));
-        self.drop_from_other_install_groups(name, dependency_group);
+        self.drop_from_other_install_groups(name.to_string(), dependency_group);
         Ok(())
     }
 
     /// A dependency belongs to one install group at a time, so adding it to
     /// one removes it from the other two.
-    fn drop_from_other_install_groups(&mut self, name: &str, added_to: DependencyGroup) {
+    fn drop_from_other_install_groups(&mut self, name: String, added_to: DependencyGroup) {
         const INSTALL_GROUPS: [DependencyGroup; 3] =
             [DependencyGroup::Prod, DependencyGroup::Dev, DependencyGroup::Optional];
         if !INSTALL_GROUPS.contains(&added_to) {
             return;
         }
-        let removed = [name.to_string()];
+        let removed = [name];
         for group in INSTALL_GROUPS {
             if group != added_to {
                 self.remove_from_object(group.into(), &removed);

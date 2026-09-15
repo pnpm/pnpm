@@ -79,7 +79,7 @@ fn save_spec_into_field(
         .or_else(|| find_spec(&spec.alias, root))
         .filter(|spec| !spec.is_empty());
     let Some(spec_str) = resolved_spec else { return Ok(()) };
-    define_dep_entry(root, field, &spec.alias, &spec_str)?;
+    define_dep_entry(root, field, spec.alias.clone(), spec_str.clone())?;
     for dep_field in DEPENDENCIES_FIELDS {
         if dep_field != field {
             delete_dep_entry(root, dep_field, &spec.alias);
@@ -88,7 +88,7 @@ fn save_spec_into_field(
     if spec.peer {
         let peer_spec =
             get_peer_specifier(&spec_str, spec.resolved_version.as_deref(), spec.range_spec_style);
-        define_dep_entry(root, "peerDependencies", &spec.alias, &peer_spec)?;
+        define_dep_entry(root, "peerDependencies", spec.alias.clone(), peer_spec)?;
     }
     Ok(())
 }
@@ -107,7 +107,7 @@ fn update_unsaved_spec(
     };
     let used = guess_dependency_type(&spec.alias, root).unwrap_or("dependencies");
     if used != "peerDependencies" {
-        define_dep_entry(root, used, &spec.alias, bare_specifier)?;
+        define_dep_entry(root, used, spec.alias.clone(), bare_specifier.to_string())?;
     }
     Ok(())
 }
@@ -171,8 +171,8 @@ fn guess_dependency_type(alias: &str, root: &Value) -> Option<&'static str> {
 fn define_dep_entry(
     root: &mut Value,
     field: &str,
-    alias: &str,
-    value: &str,
+    alias: String,
+    value: String,
 ) -> Result<(), PackageManifestError> {
     let Some(obj) = root.as_object_mut() else {
         return Err(PackageManifestError::InvalidAttribute(
@@ -192,7 +192,7 @@ fn define_dep_entry(
             "the {field} field must be an object",
         )));
     };
-    deps.insert(alias.to_string(), Value::String(value.to_string()));
+    deps.insert(alias, Value::String(value));
     Ok(())
 }
 

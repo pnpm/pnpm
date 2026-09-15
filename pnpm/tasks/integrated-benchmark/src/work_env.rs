@@ -296,7 +296,7 @@ impl WorkEnv {
             create_pnpm_workspace(
                 &dir,
                 self.options.selection.fixture_dir.as_deref(),
-                registry,
+                registry.to_string(),
                 scenario,
             );
             create_install_script(&dir, scenario, &WorkEnv::install_command(id), id);

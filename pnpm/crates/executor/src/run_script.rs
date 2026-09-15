@@ -177,7 +177,7 @@ fn run_streamed(
     child_env: &HashMap<String, String>,
     streamed: StreamedScript<'_>,
 ) -> Result<ScriptExit, RunScriptError> {
-    streamed.started(command);
+    streamed.started(command.to_string());
     let status = if opts.execution.shell_emulator {
         let emit_line = |stdio, line| streamed.emit_line(stdio, line);
         execute_emulated(

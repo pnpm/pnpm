@@ -88,7 +88,7 @@ pub(super) fn insert_update_target(
         .iter()
         .filter(|selector| !selector.pattern.starts_with('!'))
     {
-        if !matcher_one(&selector.pattern).matches(name) {
+        if !matcher_one(selector.pattern.clone()).matches(name) {
             continue;
         }
         claimed = true;
@@ -105,7 +105,7 @@ pub(super) fn selector_matches_a_direct_dependency(
     manifests: &[&PackageManifest],
     include_direct: &[DependencyGroup],
 ) -> bool {
-    let matcher = matcher_one(&selector.pattern);
+    let matcher = matcher_one(selector.pattern.clone());
     manifests
         .iter()
         .any(|manifest| {
@@ -201,7 +201,7 @@ pub(super) fn indirect_version_error(pinned: &[(String, String)]) -> UpdateError
 pub(super) fn update_target_name(selectors: &[ParsedSelector], matched: &str) -> String {
     selectors
         .iter()
-        .filter(|selector| matcher_one(&selector.pattern).matches(matched))
+        .filter(|selector| matcher_one(selector.pattern.clone()).matches(matched))
         .filter_map(|selector| {
             real_package_name_of(Some(matched), Some(selector.version.as_deref()?))
         })
@@ -211,6 +211,6 @@ pub(super) fn update_target_name(selectors: &[ParsedSelector], matched: &str) ->
 /// Compile a single pattern into a matcher. Used to map a matched direct
 /// dependency back to the selector that claimed it (so a versioned
 /// selector's version is applied to the right dep).
-pub(super) fn matcher_one(pattern: &str) -> pnpm_matcher::Matcher {
-    create_matcher(std::slice::from_ref(&pattern.to_string()))
+pub(super) fn matcher_one(pattern: String) -> pnpm_matcher::Matcher {
+    create_matcher(&[pattern])
 }

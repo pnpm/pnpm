@@ -320,7 +320,7 @@ fn solved_project(
 fn lockfile_for(requirement: &str, requires_dist: &str) -> Lockfile {
     let target = target();
     let (packages, requirements, solution) = solved_project(requirement, requires_dist);
-    let inputs = Inputs::new(&requirements, &target, index_url().as_str());
+    let inputs = Inputs::new(&requirements, &target, index_url().to_string());
     Lockfile::new(&packages, &target, &requirements, solution, inputs, Some(">=3.10".to_string()))
         .expect("lockfile builds")
 }
@@ -351,7 +351,7 @@ fn a_lockfile_names_the_interpreter_version_and_the_markers_its_graph_reads() {
 fn a_lockfile_applies_wherever_its_wheels_install() {
     let lockfile = lockfile_for("demo", "");
     let requirements = [Requirement::from_str("demo").unwrap()];
-    let inputs = Inputs::new(&requirements, &target(), index_url().as_str());
+    let inputs = Inputs::new(&requirements, &target(), index_url().to_string());
 
     let mut other_kernel = target();
     other_kernel.environment = serde_json::from_value(serde_json::json!({
@@ -383,14 +383,15 @@ fn a_lockfile_applies_wherever_its_wheels_install() {
     let other_requirements = [Requirement::from_str("demo>=1").unwrap()];
     let error = lockfile
         .applies_to(
-            &Inputs::new(&other_requirements, &target(), index_url().as_str()),
+            &Inputs::new(&other_requirements, &target(), index_url().to_string()),
             Some(">=3.10"),
             &target(),
         )
         .expect_err("other requirements");
     assert!(error.to_string().contains("requirements changed"), "{error}");
 
-    let other_index = Inputs::new(&requirements, &target(), "https://other.test/simple/");
+    let other_index =
+        Inputs::new(&requirements, &target(), "https://other.test/simple/".to_string());
     let error = lockfile
         .applies_to(&other_index, Some(">=3.10"), &target())
         .expect_err("index");
@@ -406,7 +407,7 @@ fn a_lockfile_applies_wherever_its_wheels_install() {
 fn a_lockfile_pinning_another_distribution_under_a_package_is_refused() {
     let mut lockfile = lockfile_for("demo", "");
     let requirements = [Requirement::from_str("demo").unwrap()];
-    let inputs = Inputs::new(&requirements, &target(), index_url().as_str());
+    let inputs = Inputs::new(&requirements, &target(), index_url().to_string());
     lockfile.packages[0].wheels[0].name = "other-1.0.0-py3-none-any.whl".to_string();
 
     let error = lockfile

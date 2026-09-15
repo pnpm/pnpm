@@ -642,7 +642,7 @@ async fn registry_directory_filters_private_registries_and_routing_details() {
         .collect(),
         Some("main".to_string()),
     )
-    .with_ecosystem("crates", Ecosystem::Cargo);
+    .with_ecosystem("crates".to_string(), Ecosystem::Cargo);
     let auth = AuthState::in_memory();
     let token = auth.tokens.issue("alice").await.unwrap();
     let app = router_with_auth(config, auth);

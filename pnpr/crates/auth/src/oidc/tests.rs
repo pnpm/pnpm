@@ -277,9 +277,9 @@ async fn browser_login_uses_pkce_nonce_cookie_binding_and_single_use_state() {
 #[test]
 fn sessions_expire_and_configuration_fails_closed() {
     let state = OidcState::new(&[], "http://localhost").unwrap();
-    assert!(state.issue_session("alice", 0).is_err());
+    assert!(state.issue_session("alice".to_string(), 0).is_err());
     let session = state
-        .issue_session("alice", Utc::now().timestamp() + 60)
+        .issue_session("alice".to_string(), Utc::now().timestamp() + 60)
         .unwrap();
     state.sessions
         .lock()

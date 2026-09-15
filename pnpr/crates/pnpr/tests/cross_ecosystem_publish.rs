@@ -71,8 +71,8 @@ fn tri_ecosystem_config(storage: PathBuf) -> Config {
         Registry::Router { sources: ["local", "crates", "python"].map(str::to_string).to_vec() },
     );
     let registries = Registries::new(graph, Some("main".to_string()))
-        .with_ecosystem("crates", Ecosystem::Cargo)
-        .with_ecosystem("python", Ecosystem::Pypi);
+        .with_ecosystem("crates".to_string(), Ecosystem::Cargo)
+        .with_ecosystem("python".to_string(), Ecosystem::Pypi);
     registries.validate().expect("the three-ecosystem graph is valid");
     config.routing.registries = registries;
     config

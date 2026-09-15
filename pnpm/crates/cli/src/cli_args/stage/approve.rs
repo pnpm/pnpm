@@ -61,9 +61,9 @@ struct StageApprovalItem {
 impl StageApprovalItem {
     /// A staged version named on the command line, before the registry
     /// listing filled in what it publishes.
-    fn from_id(id: &str) -> Self {
+    fn from_id(id: String) -> Self {
         StageApprovalItem {
-            id: id.to_owned(),
+            id,
             package_name: None,
             version: None,
             tag: None,
@@ -160,7 +160,7 @@ pub(super) async fn stage_approve<Reporter: self::Reporter>(
         approve_staged_package::<Reporter>(
             &context,
             &mut session,
-            &StageApprovalItem::from_id(stage_id),
+            &StageApprovalItem::from_id(stage_id.clone()),
         )
         .await?;
         return Ok(Some(format!("Staged package {stage_id} approved and published successfully.")));
@@ -247,7 +247,7 @@ async fn resolve_approval_items(
             described
                 .as_ref()
                 .and_then(|item| StageApprovalItem::from_value(&with_id(item, stage_id)))
-                .unwrap_or_else(|| StageApprovalItem::from_id(stage_id)),
+                .unwrap_or_else(|| StageApprovalItem::from_id(stage_id.clone())),
         );
     }
     Ok(items)
@@ -299,7 +299,7 @@ async fn approve_staged_packages<Reporter: self::Reporter>(
         let blockers = unavailable_dependencies(item, &unpublished_stage_ids, &order);
         if !blockers.is_empty() {
             unpublished_stage_ids.insert(item.id.clone());
-            global_warn::<Reporter>(&format!(
+            global_warn::<Reporter>(format!(
                 "Skipped {}, as it depends on {}, which could not be approved",
                 item.label(),
                 blockers.join(", "),
@@ -309,14 +309,14 @@ async fn approve_staged_packages<Reporter: self::Reporter>(
         match approve_staged_package::<Reporter>(context, &mut session, item).await {
             Ok(()) => {
                 approved += 1;
-                global_info::<Reporter>(&format!("Approved {}", item.label()));
+                global_info::<Reporter>(format!("Approved {}", item.label()));
             }
             // Only the registry's verdict on one staged version is
             // survivable. An authentication failure or a broken connection
             // applies to every remaining version too, so it aborts the batch.
             Err(error) if is_stage_registry_error(&error) => {
                 unpublished_stage_ids.insert(item.id.clone());
-                global_warn::<Reporter>(&format!("{error}"));
+                global_warn::<Reporter>(format!("{error}"));
             }
             Err(error) => return Err(error),
         }

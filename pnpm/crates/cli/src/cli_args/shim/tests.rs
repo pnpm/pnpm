@@ -154,7 +154,7 @@ fn restoration_state_round_trips_scoped_packages_and_bins() {
     let dir = tempdir().unwrap();
     let bins = vec!["tool".to_string(), "tool.js".to_string()];
 
-    record_virtual_shim_state(dir.path(), "@scope/tool", &bins).expect("record state");
+    record_virtual_shim_state(dir.path(), "@scope/tool", bins.clone()).expect("record state");
 
     assert_eq!(virtual_shim_bins_to_restore(dir.path(), "@scope/tool").expect("read state"), bins);
     let state_path = virtual_shim_state_path(dir.path(), "@scope/tool");

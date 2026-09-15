@@ -188,7 +188,7 @@ async fn revision_download_budget_starts_after_waiting_for_a_permit() {
     });
     let mut config = UpstreamConfig::with_defaults(url.clone(), HeaderMap::new());
     config.requests.timeout = Duration::from_millis(250);
-    let mut upstream = Upstream::new("test", &config);
+    let mut upstream = Upstream::new("test".to_string(), &config);
     upstream.http.client = std::sync::Arc::new(
         pnpm_network::ThrottledClient::new_for_installs().with_max_sockets_per_host(Some(1)),
     );

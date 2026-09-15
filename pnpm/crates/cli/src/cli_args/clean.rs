@@ -56,7 +56,7 @@ impl CleanArgs {
             && !script.is_empty()
         {
             return RunArgs {
-                script: RunArgs::script(command_name, []),
+                script: RunArgs::script(command_name.to_string(), []),
                 if_present: false,
                 sequential: false,
                 dry_run: false,

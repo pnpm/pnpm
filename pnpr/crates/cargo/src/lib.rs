@@ -199,8 +199,8 @@ pub struct CrateDocument {
 
 impl CrateDocument {
     #[must_use]
-    pub fn new(name: &str) -> Self {
-        Self { name: name.to_string(), versions: Vec::new(), description: None }
+    pub fn new(name: String) -> Self {
+        Self { name, versions: Vec::new(), description: None }
     }
 
     /// The version the crates API reports as `max_version`: the highest

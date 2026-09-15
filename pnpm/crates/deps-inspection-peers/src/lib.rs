@@ -382,14 +382,27 @@ fn check_snapshot_peers(inputs: SnapshotPeers<'_>) {
         let Ok(peer_pkg_name) = peer_name.parse::<PkgName>() else { continue };
         let dep_ref = inputs.snapshot.and_then(|entry| snapshot_dependency(entry, &peer_pkg_name));
         let Some(dep_ref) = dep_ref else {
-            record_missing_peer(issues, peer_name, inputs.parents, optional, &peer_range);
+            record_missing_peer(
+                issues,
+                peer_name.clone(),
+                inputs.parents.to_vec(),
+                optional,
+                peer_range,
+            );
             continue;
         };
 
         let Some(found_version) = resolved_snapshot_version(dep_ref, inputs.lockfile_dir) else {
             continue;
         };
-        record_bad_peer(issues, peer_name, inputs.parents, optional, &peer_range, found_version);
+        record_bad_peer(
+            issues,
+            peer_name.clone(),
+            inputs.parents.to_vec(),
+            optional,
+            &peer_range,
+            found_version,
+        );
     }
 }
 

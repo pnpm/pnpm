@@ -18,18 +18,19 @@ pub(super) struct ManagedDirectory {
 }
 
 pub(super) fn ensure_workspace_directory(
-    root_dir: &Path,
+    root_dir: PathBuf,
     components: &[&str],
 ) -> Result<ManagedDirectory> {
     #[cfg(unix)]
     {
-        ensure_workspace_directory_unix(root_dir.to_path_buf(), components)
+        ensure_workspace_directory_unix(root_dir, components)
     }
     #[cfg(windows)]
     {
-        let root = fs::canonicalize(root_dir)
+        let canonical = fs::canonicalize(&root_dir);
+        let root = canonical
             .into_diagnostic()
-            .wrap_err_with(|| {
+            .wrap_err_with(move || {
                 format!("resolve Cargo workspace directory {}", root_dir.display())
             })?;
         ensure_workspace_directory_windows(root, components)

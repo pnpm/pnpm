@@ -1,5 +1,5 @@
 use super::{
-    IgnoredAny, IndexMap, LoadWorkspaceYamlError, Path, RemoteSideEffectsCacheSettings,
+    IgnoredAny, IndexMap, LoadWorkspaceYamlError, Path, PathBuf, RemoteSideEffectsCacheSettings,
     SCHEMA_DIRECTIVE_KEY, SideEffectsCacheSetting, TaskSettings, WorkspaceKeyIssues,
     WorkspaceSettings, is_camel_case, is_known_setting_key, is_refused_by_a_project_manifest,
     registries,
@@ -105,7 +105,7 @@ impl WorkspaceSettings {
             (self.remote_side_effects_cache.as_ref(), "remoteSideEffectsCache"),
         ] {
             let Some(settings) = setting else { continue };
-            Self::reject_machine_only_fields(settings, prefix, path)?;
+            Self::reject_machine_only_fields(settings, prefix, path.to_path_buf())?;
         }
         Ok(())
     }
@@ -113,7 +113,7 @@ impl WorkspaceSettings {
     pub(super) fn reject_machine_only_fields(
         settings: &RemoteSideEffectsCacheSettings,
         prefix: &'static str,
-        path: &Path,
+        path: PathBuf,
     ) -> Result<(), LoadWorkspaceYamlError> {
         let machine_only = [
             ("publish", settings.publish.is_some()),
@@ -128,11 +128,7 @@ impl WorkspaceSettings {
         let Some((field, _)) = machine_only.into_iter().find(|(_, is_set)| *is_set) else {
             return Ok(());
         };
-        Err(LoadWorkspaceYamlError::WorkspaceRemoteSideEffectsTrust {
-            path: path.to_path_buf(),
-            prefix,
-            field,
-        })
+        Err(LoadWorkspaceYamlError::WorkspaceRemoteSideEffectsTrust { path, prefix, field })
     }
 
     /// Bucket the file's keys that set nothing into [`Self::key_issues`],

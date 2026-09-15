@@ -291,7 +291,7 @@ impl ListArgs {
             self.graph.lockfile_only,
         )?;
         let env = state.env(
-            lockfile_dir,
+            lockfile_dir.to_path_buf(),
             config.virtual_store_dir_max_length as usize,
             &config.resolved_registries(),
             config.registry_options_by_url.clone(),
@@ -369,7 +369,7 @@ impl ListArgs {
         let include = self.include(config.optional);
         let root_ids = importer_root_ids(env.current_lockfile, lockfile_dir, project_dirs);
         let graph = build_dependency_graph(
-            &root_ids,
+            root_ids,
             &BuildGraphOptions {
                 lockfile: env.current_lockfile,
                 include,

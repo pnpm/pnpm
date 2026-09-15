@@ -424,7 +424,7 @@ impl ResolveImporterOptions {
     /// before handing the `Arc` over.
     fn into_tree_ctx(
         self,
-        importer_id: &str,
+        importer_id: String,
         importer_order: usize,
         workspace: Arc<WorkspaceTreeCtx>,
     ) -> (TreeCtx, HoistSettings) {
@@ -481,7 +481,8 @@ impl ImporterHoistState {
         Chain: Resolver + ?Sized,
     {
         let mut seeds = DirectSeeds::of(manifest, dependency_groups, &opts)?;
-        let (mut ctx, settings) = opts.into_tree_ctx(importer_id, importer_order, workspace);
+        let (mut ctx, settings) =
+            opts.into_tree_ctx(importer_id.to_string(), importer_order, workspace);
         let locked = LockedPeers::of(&ctx, importer_id);
         record_changed_direct_deps(&ctx, importer_id, &seeds.initial_wanted);
         let direct = extend_tree(
@@ -494,7 +495,7 @@ impl ImporterHoistState {
         .await?;
         seeds.parent_pkg_aliases.extend(direct.iter().map(|dep| dep.alias.clone()));
         ctx.resolve_new_direct_deps_as_subdeps();
-        Ok(Self::assemble(importer_id, ctx, direct, seeds, locked, settings))
+        Ok(Self::assemble(importer_id.to_string(), ctx, direct, seeds, locked, settings))
     }
 
     pub(crate) fn importer_id(&self) -> &str {

@@ -25,7 +25,7 @@ impl RestartArgs {
 
         for script_name in ["stop", "restart", "start"] {
             RunArgs {
-                script: RunArgs::script(script_name, args.clone()),
+                script: RunArgs::script(script_name.to_string(), args.clone()),
                 if_present,
                 sequential: false,
                 dry_run: false,

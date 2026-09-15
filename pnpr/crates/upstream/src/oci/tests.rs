@@ -51,7 +51,7 @@ async fn negotiates_pull_scope_and_reuses_token_without_forwarding_client_scope(
         .create_async()
         .await;
     let upstream = Upstream::new(
-        "registry",
+        "registry".to_string(),
         &UpstreamConfig::with_defaults(format!("{}/", server.url()), HeaderMap::new()),
     );
     for _ in 0..2 {
@@ -91,7 +91,7 @@ async fn rejects_an_untrusted_token_realm_without_contacting_it() {
     let mut headers = HeaderMap::new();
     headers.insert(AUTHORIZATION, HeaderValue::from_static("Basic secret"));
     let upstream = Upstream::new(
-        "registry",
+        "registry".to_string(),
         &UpstreamConfig::with_defaults(format!("{}/", server.url()), headers),
     );
     assert!(upstream.fetch_oci("acme/app", "manifests/latest", "application/json").await.is_err());

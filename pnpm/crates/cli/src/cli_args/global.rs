@@ -252,11 +252,8 @@ pub async fn handle_global_update<Reporter: self::Reporter + 'static>(
 
 /// Surface a non-fatal problem on the `pnpm:global` channel, matching
 /// the TypeScript CLI's `globalWarn`.
-fn warn_global<Reporter: self::Reporter>(message: &str) {
-    Reporter::emit(&LogEvent::Global(GlobalLog {
-        level: LogLevel::Warn,
-        message: message.to_string(),
-    }));
+fn warn_global<Reporter: self::Reporter>(message: String) {
+    Reporter::emit(&LogEvent::Global(GlobalLog { level: LogLevel::Warn, message }));
 }
 
 /// Build the registry map (`{ default, ...scoped }`) hashed into the

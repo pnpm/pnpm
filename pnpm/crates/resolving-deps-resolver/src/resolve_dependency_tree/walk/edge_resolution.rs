@@ -83,7 +83,7 @@ where
 
     let id = build_pkg_id_with_patch_hash(ctx, &result).await?;
 
-    record_workspace_manifest_identity(ctx, &wanted, &result, &id);
+    record_workspace_manifest_identity(ctx, &wanted, &result, id.clone());
 
     if closes_cycle(edge.ancestor_ids, &id) {
         return Ok(NodeSeed::Done(None));
@@ -251,10 +251,10 @@ pub(super) fn seed_pending(
             is_leaf: identity.is_leaf,
         },
     )? {
-        emit_deprecation_if_needed(ctx, &result, &resolved.id, edge.depth);
+        emit_deprecation_if_needed(ctx, &result, resolved.id.clone(), edge.depth);
     }
 
-    let ancestry = edge.pending_ancestry(&resolved.id, resolved.current_is_optional);
+    let ancestry = edge.pending_ancestry(resolved.id.clone(), resolved.current_is_optional);
 
     Ok(NodeSeed::Pending(Box::new(PendingNode {
         result,
@@ -384,7 +384,7 @@ pub(super) fn record_workspace_manifest_identity(
     ctx: &TreeCtx,
     wanted: &WantedDependency,
     result: &pnpm_resolving_resolver_base::ResolveResult,
-    id: &str,
+    id: String,
 ) {
     if result.package.name_ver.is_some() {
         return;
@@ -477,11 +477,15 @@ pub(super) fn is_droppable_resolve_error(err: &ResolveDependencyTreeError) -> bo
 }
 
 impl ChildEdge<'_> {
-    fn pending_ancestry(&self, id: &str, current_is_optional: bool) -> super::PendingNodeAncestry {
+    fn pending_ancestry(
+        &self,
+        id: String,
+        current_is_optional: bool,
+    ) -> super::PendingNodeAncestry {
         let next_ancestors = self.ancestor_ids
             .iter()
             .cloned()
-            .chain(std::iter::once(id.to_owned()))
+            .chain(std::iter::once(id))
             .collect();
         super::PendingNodeAncestry {
             parent_ancestors: Arc::clone(self.ancestor_ids),

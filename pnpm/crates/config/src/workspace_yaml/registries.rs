@@ -307,7 +307,7 @@ fn extend_lookups_with_declarations(
 ) {
     for (registry, declaration) in entries {
         let normalized = normalize_registry_url(&registry);
-        extend_registry_options(lookups, &normalized, &declaration);
+        extend_registry_options(lookups, normalized.clone(), &declaration);
         for scope in declaration.scopes.into_iter().flatten() {
             if scope == DEFAULT_REGISTRY_SCOPE {
                 lookups.default_registry = Some(normalized.clone());
@@ -325,14 +325,14 @@ fn extend_lookups_with_declarations(
 /// absent entry is what "assume nothing about this registry" is spelled as.
 fn extend_registry_options(
     lookups: &mut RegistryLookups,
-    normalized: &str,
+    normalized: String,
     declaration: &RegistryDeclaration,
 ) {
     if declaration.server_type.is_none() && declaration.supports_time_field.is_none() {
         return;
     }
     lookups.registry_options_by_url.insert(
-        normalized.to_string(),
+        normalized,
         RegistryOptions {
             server_type: declaration.server_type,
             supports_time_field: declaration.supports_time_field,

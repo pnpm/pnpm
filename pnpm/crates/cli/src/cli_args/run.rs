@@ -127,11 +127,11 @@ pub enum RunError {
 impl RunArgs {
     /// Build the positional from a script name and its arguments, for the
     /// paths that synthesize a `run` rather than parsing one.
-    pub(super) fn script<Args>(name: &str, args: Args) -> Vec<String>
+    pub(super) fn script<Args>(name: String, args: Args) -> Vec<String>
     where
         Args: IntoIterator<Item = String>,
     {
-        std::iter::once(name.to_string()).chain(args).collect()
+        std::iter::once(name).chain(args).collect()
     }
 
     /// The script to run, or `None` when `run` was given no positional and
@@ -199,7 +199,7 @@ impl RunArgs {
             Err(ReadProjectManifestOnlyError::NoImporterManifestFound { .. })
                 if fallback_to_exec =>
             {
-                return exec_fallback(script_name, args, dirs, config, reporter);
+                return exec_fallback(script_name.clone(), args, dirs, config, reporter);
             }
             Err(err) => return Err(RunError::Manifest(err).into()),
         };
@@ -292,7 +292,7 @@ impl RunArgs {
 }
 
 fn exec_fallback(
-    script_name: &str,
+    script_name: String,
     args: &[String],
     dirs: ExecDirs<'_>,
     config: &Config,

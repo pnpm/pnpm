@@ -177,10 +177,10 @@ fn plan_specifier(
 
 /// Resolve a single config dependency and record it (plus one level of
 /// optional subdeps) into the env lockfile.
-fn wanted_config_dependency(name: &str, specifier: &str) -> WantedDependency {
+fn wanted_config_dependency(name: String, specifier: String) -> WantedDependency {
     WantedDependency {
-        alias: Some(name.to_string()),
-        bare_specifier: Some(specifier.to_string()),
+        alias: Some(name),
+        bare_specifier: Some(specifier),
         ..WantedDependency::default()
     }
 }
@@ -193,7 +193,7 @@ async fn resolve_one(
     specifier: &str,
     pinned_integrity: Option<&Integrity>,
 ) -> Result<(), ConfigDepError> {
-    let wanted = wanted_config_dependency(name, specifier);
+    let wanted = wanted_config_dependency(name.to_string(), specifier.to_string());
     let resolve_opts = resolve_options(opts.root_dir);
     let no_integrity = || missing_config_integrity(name, specifier);
     let result = resolver

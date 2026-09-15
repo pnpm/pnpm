@@ -3,12 +3,12 @@ use super::{Host, Path, RunCommand, Version, VersionArgs, VersionChange, Version
 /// Build the canonical cross-stack error for an invalid version from Git.
 fn invalid_version_from_git(
     cwd: &Path,
-    tag_version_prefix: &str,
+    tag_version_prefix: String,
     reason: impl Into<String>,
 ) -> VersionError {
     VersionError::InvalidVersionFromGit {
         dir: cwd.display().to_string(),
-        tag_version_prefix: tag_version_prefix.to_string(),
+        tag_version_prefix,
         reason: reason.into(),
     }
 }
@@ -26,13 +26,17 @@ pub(super) fn version_from_git(
     let matching_tag = git_output(cwd, &tag_args)?;
 
     if matching_tag.stdout.trim() != tag {
-        return Err(invalid_version_from_git(cwd, tag_version_prefix, "no matching Git tag found"));
+        return Err(invalid_version_from_git(
+            cwd,
+            tag_version_prefix.to_string(),
+            "no matching Git tag found",
+        ));
     }
 
     let Some(raw_version) = tag.strip_prefix(tag_version_prefix) else {
         return Err(invalid_version_from_git(
             cwd,
-            tag_version_prefix,
+            tag_version_prefix.to_string(),
             format!("tag is not a valid version: {tag:?}"),
         ));
     };
@@ -41,7 +45,7 @@ pub(super) fn version_from_git(
         .map_err(|_| {
             invalid_version_from_git(
                 cwd,
-                tag_version_prefix,
+                tag_version_prefix.to_string(),
                 format!("tag is not a valid version: {tag:?}"),
             )
         })

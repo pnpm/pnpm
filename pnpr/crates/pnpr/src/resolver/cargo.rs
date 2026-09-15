@@ -121,7 +121,7 @@ pub(super) async fn handle_resolve(
     let source = pnpm_cargo_resolver::registry_source(&index.registry);
     let index_files = match index.fetch_for(&metadata).await {
         Ok(index_files) => index_files,
-        Err(err) => return ndjson_single_frame(&error_frame(&err)),
+        Err(err) => return ndjson_single_frame(error_frame(&err)),
     };
     // pubgrub's solve is CPU-bound and can run for a while on a large
     // workspace, so it stays off the async runtime's worker threads.
@@ -130,9 +130,9 @@ pub(super) async fn handle_resolve(
     })
     .await;
     match lockfile {
-        Ok(Ok(lockfile)) => ndjson_single_frame(&cargo_done_frame(&lockfile)),
-        Ok(Err(err)) => ndjson_single_frame(&error_frame(&report_message(&err))),
-        Err(err) => ndjson_single_frame(&error_frame(&err.to_string())),
+        Ok(Ok(lockfile)) => ndjson_single_frame(cargo_done_frame(&lockfile)),
+        Ok(Err(err)) => ndjson_single_frame(error_frame(&report_message(&err))),
+        Err(err) => ndjson_single_frame(error_frame(&err.to_string())),
     }
 }
 
@@ -237,7 +237,7 @@ impl IndexFetcher {
         // decide the credential and the cache namespace here too. Both
         // surfaces match rules against the lowercased crate name.
         let canonical_name = canonical_name.as_str().to_string();
-        let auth = self.auth_for(&canonical_name);
+        let auth = self.auth_for(canonical_name);
         let cache_path = self.cache_path(&auth, &url, &relative_path);
         if let Some(cached) = self.cached(&cache_path).await {
             return self.hold(name, cached);
@@ -318,12 +318,9 @@ impl IndexFetcher {
     /// The request auth for a fetch about `canonical_name`: this server's
     /// route policy for the caller, with the crate bound in so the
     /// package-blind fetch helpers still classify by it.
-    fn auth_for(&self, canonical_name: &str) -> AuthHeaders {
+    fn auth_for(&self, canonical_name: String) -> AuthHeaders {
         AuthHeaders::default()
-            .with_route_hook(Arc::new(PackageRoute::new(
-                Arc::clone(&self.hook),
-                canonical_name.to_string(),
-            )))
+            .with_route_hook(Arc::new(PackageRoute::new(Arc::clone(&self.hook), canonical_name)))
     }
 
     /// Where `url`'s index file is cached. The route scope keys the

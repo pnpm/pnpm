@@ -65,7 +65,7 @@ pub(crate) async fn handle_verify_lockfile(
         Ok(_) => verify_done_or_osv_violations(runtime.osv_index.as_ref(), &input_lockfile),
         Err(VerifyFailure::Internal(response)) => response,
         Err(VerifyFailure::Violations(violations)) => {
-            ndjson_single_frame(&violations_frame(&violations))
+            ndjson_single_frame(violations_frame(&violations))
         }
     }
 }

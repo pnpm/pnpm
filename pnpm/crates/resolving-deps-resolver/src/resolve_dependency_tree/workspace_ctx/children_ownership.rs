@@ -126,14 +126,14 @@ pub(in super::super) fn claim_children_owner(
     ctx: &TreeCtx,
     pkg_id: &str,
     depth: i32,
-    ancestor_ids: &[String],
+    ancestor_ids: Vec<String>,
     peer_shadowed: HashSet<String>,
 ) -> ChildrenOwnerClaim {
     let owner = ChildrenOwner {
         update_active: !matches!(ctx.update_reuse_scope(), UpdateReuseScope::All),
         depth,
         importer_order: ctx.importer.order,
-        parent_path: ancestor_ids.to_vec(),
+        parent_path: ancestor_ids,
         importer_id: ctx.importer.id.clone(),
     };
     let (owns_children, peer_shadowed, children_context_unchanged) = {
@@ -297,7 +297,7 @@ pub(in super::super) fn record_children(
         children.insert(Arc::from(pkg_id.to_string()), RecordedChildren { edges, context });
         recording
     };
-    ctx.workspace.tree.record_children_by_id_write(pkg_id);
+    ctx.workspace.tree.record_children_by_id_write(pkg_id.to_string());
     ctx.workspace.note_finalization_candidate(pkg_id);
     recording
 }
@@ -347,7 +347,7 @@ pub(in super::super) fn register_peer_dep_names(
     let mut all_peers = lock_recoverable(&ctx.workspace.tree.all_peer_dep_names);
     for name in peer_dependencies.keys() {
         if all_peers.insert(name.clone()) {
-            ctx.workspace.tree.record_peer_dep_name(name);
+            ctx.workspace.tree.record_peer_dep_name(name.clone());
         }
     }
 }

@@ -129,7 +129,7 @@ impl TaskRunStateContext {
     pub fn new(
         command: &str,
         params: &[String],
-        settings: &[String],
+        settings: Vec<String>,
         graph: &TaskGraph,
         workspace_dir: &Path,
         script_commands: impl Fn(&TaskNode, &str) -> Vec<String>,
@@ -349,7 +349,7 @@ fn task_identity(
 fn invocation_hash(
     command: &str,
     params: &[String],
-    settings: &[String],
+    mut settings: Vec<String>,
     mut tasks: Vec<TaskIdentity>,
 ) -> String {
     tasks.sort_by(|left, right| {
@@ -357,7 +357,6 @@ fn invocation_hash(
             .cmp(&right.project)
             .then_with(|| left.task.cmp(&right.task))
     });
-    let mut settings = settings.to_vec();
     settings.sort();
     let identity =
         serde_json::to_string(&InvocationIdentity { command, params, settings: &settings, tasks })
@@ -371,8 +370,8 @@ enum StateStorageError {
 }
 
 impl StateStorageError {
-    fn io(error: io::Error, operation: &'static str, path: &Path) -> Self {
-        Self::Io { error, operation, path: path.to_path_buf() }
+    fn io(error: io::Error, operation: &'static str, path: PathBuf) -> Self {
+        Self::Io { error, operation, path }
     }
 
     fn is_unavailable(&self) -> bool {

@@ -23,7 +23,7 @@ pub fn missing_index_names(
     source: &str,
 ) -> Result<Vec<String>> {
     let metadata = parse_metadata(metadata)?;
-    let registry = Registry::new(index_files, source)?;
+    let registry = Registry::new(index_files, source.to_string())?;
     let mut pending = VecDeque::from(root_dependencies(&metadata)?);
     let mut visited = BTreeSet::new();
     let mut missing = BTreeSet::new();
@@ -65,9 +65,9 @@ pub fn resolve_lockfile(
     source: &str,
 ) -> Result<String> {
     let metadata = parse_metadata(metadata)?;
-    let registry = Registry::new(index_files, source)?;
+    let registry = Registry::new(index_files, source.to_string())?;
     let root_dependencies = root_dependencies(&metadata)?;
-    let mut feature_selections = root_feature_selections(&registry, &root_dependencies)?;
+    let mut feature_selections = root_feature_selections(&registry, root_dependencies.clone())?;
     let mut previous_selections = Vec::new();
 
     loop {
@@ -77,10 +77,13 @@ pub fn resolve_lockfile(
         previous_selections.push(feature_selections.clone());
         let solution = resolve_with_features(&registry, &root_dependencies, &feature_selections)?;
         let selected_features =
-            feature_selections_for_solution(&registry, &root_dependencies, &solution)?;
-        if let Some(validated_solution) =
-            validate_selected_graph(&registry, &root_dependencies, &solution, &selected_features)?
-        {
+            feature_selections_for_solution(&registry, root_dependencies.clone(), &solution)?;
+        if let Some(validated_solution) = validate_selected_graph(
+            &registry,
+            root_dependencies.clone(),
+            &solution,
+            &selected_features,
+        )? {
             return lockfile_from_solution(
                 &metadata,
                 &registry,
@@ -95,13 +98,13 @@ pub fn resolve_lockfile(
 
 fn validate_selected_graph(
     registry: &Registry,
-    root_dependencies: &[RegistryDependency],
+    root_dependencies: Vec<RegistryDependency>,
     solution: &pubgrub::SelectedDependencies<PackageKey, Version>,
     feature_selections: &BTreeMap<PackageKey, FeatureSelection>,
 ) -> Result<Option<pubgrub::SelectedDependencies<PackageKey, Version>>> {
     let Some(root_version) = solution.get(&PackageKey::Root) else { return Ok(None) };
     let mut validated = BTreeMap::from([(PackageKey::Root, root_version.clone())]);
-    let mut pending = VecDeque::from(root_dependencies.to_vec());
+    let mut pending = VecDeque::from(root_dependencies);
 
     while let Some(dependency) = pending.pop_front() {
         let package = package_key(registry, &dependency)?;

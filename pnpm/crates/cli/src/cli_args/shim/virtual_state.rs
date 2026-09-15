@@ -48,10 +48,10 @@ pub(super) fn read_virtual_shim_state(path: &Path) -> miette::Result<Option<Virt
 pub(crate) fn record_virtual_shim_state(
     bin_dir: &Path,
     package: &str,
-    bins: &[String],
+    bins: Vec<String>,
 ) -> miette::Result<()> {
     let path = virtual_shim_state_path(bin_dir, package);
-    let state = VirtualShimState { package: package.to_string(), bins: bins.to_vec() };
+    let state = VirtualShimState { package: package.to_string(), bins };
     let bytes = serde_json::to_vec(&state).into_diagnostic().wrap_err("serialize virtual shims")?;
     pnpm_fs::write_atomic(&path, &bytes)
         .into_diagnostic()

@@ -223,7 +223,7 @@ async fn prepare_workspace<Reporter: self::Reporter + 'static>(
 }
 
 fn link_workspace(root_dir: &Path, directory: &[&str], slots: &[(String, PathBuf)]) -> Result<()> {
-    let source_dir = ensure_workspace_directory(root_dir, directory)?;
+    let source_dir = ensure_workspace_directory(root_dir.to_path_buf(), directory)?;
     link_workspace_in(&source_dir, slots)
 }
 
@@ -240,7 +240,7 @@ fn link_workspace_in(source_dir: &ManagedDirectory, slots: &[(String, PathBuf)])
 }
 
 fn write_cargo_config(root_dir: &Path, index_url: &str, git_sources: &[GitSource]) -> Result<()> {
-    let cargo_dir = ensure_workspace_directory(root_dir, &[".cargo"])?;
+    let cargo_dir = ensure_workspace_directory(root_dir.to_path_buf(), &[".cargo"])?;
     write_cargo_config_in(&cargo_dir, index_url, git_sources)
 }
 

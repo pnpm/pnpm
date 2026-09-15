@@ -1,6 +1,4 @@
-use super::{
-    HashMap, IndexMap, LazyLock, Mutex, PacquetConfig, Path, PathBuf, ResolveRequest, StoreDir,
-};
+use super::{HashMap, IndexMap, LazyLock, Mutex, PacquetConfig, PathBuf, ResolveRequest, StoreDir};
 
 /// Hard cap on how many distinct client configurations the server will
 /// intern. Each interned [`PacquetConfig`] is leaked (the install path
@@ -88,7 +86,7 @@ impl EffectiveResolverSettings {
 pub(super) fn intern_config(
     configs: &Mutex<HashMap<String, &'static PacquetConfig>>,
     store_dir: &StoreDir,
-    cache_dir: &Path,
+    cache_dir: PathBuf,
     request: &ResolveRequest,
     max_interned: usize,
     max_key_bytes: usize,
@@ -115,7 +113,7 @@ pub(super) fn intern_config(
 
     let mut config = PacquetConfig::new();
     config.store_dir = store_dir.clone();
-    config.cache_dir = cache_dir.to_path_buf();
+    config.cache_dir = cache_dir;
     config.registry = registry;
     apply_registry_declarations(&mut config, request);
     config.overrides = overrides;

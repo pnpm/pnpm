@@ -171,7 +171,7 @@ impl LockfileVerificationGate {
         lockfile: &Lockfile,
         verifiers: &[Arc<dyn ResolutionVerifier>],
         lockfile_path: Option<&Path>,
-        cache_dir: &Path,
+        cache_dir: PathBuf,
     ) -> Option<Self> {
         if verifiers.is_empty() {
             return None;
@@ -179,7 +179,6 @@ impl LockfileVerificationGate {
         let lockfile = lockfile.clone();
         let verifiers = verifiers.to_vec();
         let lockfile_path = lockfile_path.map(Path::to_path_buf);
-        let cache_dir = cache_dir.to_path_buf();
         Some(Self(tokio::spawn(async move {
             verify_lockfile_resolutions::<Reporter>(
                 &lockfile,

@@ -109,7 +109,7 @@ pub(crate) fn upsert(text: &str, collection: &Collection, key: &str, value_text:
             .expect("key is in the order");
         entries.insert(position, format!("{}: {value_text}", crate::render::render_value(key)));
     }
-    splice(text, collection, &entries)
+    splice(text.to_string(), collection, &entries)
 }
 
 /// Drop the entries whose key is in `keys` and return the document with the
@@ -124,12 +124,12 @@ pub(crate) fn remove_keys(text: &str, collection: &Collection, keys: &[String]) 
         })
         .map(|entry| text[entry.span.clone()].to_string())
         .collect();
-    splice(text, collection, &entries)
+    splice(text.to_string(), collection, &entries)
 }
 
 /// Replace a flow sequence's items wholesale and return the document with
 /// the rebuilt collection spliced in. `items` are already-rendered YAML.
-pub(crate) fn set_items(text: &str, collection: &Collection, items: &[String]) -> String {
+pub(crate) fn set_items(text: String, collection: &Collection, items: &[String]) -> String {
     splice(text, collection, items)
 }
 
@@ -154,9 +154,9 @@ fn render(kind: Kind, entries: &[String]) -> String {
 
 /// Render `entries` into `collection`'s brackets and splice the result over
 /// the original collection text.
-fn splice(text: &str, collection: &Collection, entries: &[String]) -> String {
+fn splice(text: String, collection: &Collection, entries: &[String]) -> String {
     let rendered = render(collection.kind, entries);
-    let mut out = text.to_string();
+    let mut out = text;
     out.replace_range(collection.span.clone(), &rendered);
     out
 }
