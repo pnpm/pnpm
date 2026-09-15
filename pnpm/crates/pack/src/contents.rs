@@ -1,5 +1,5 @@
 use super::{
-    FsFileLen, HashSet, Ordering, PackError, PackOptions, Path, PathBuf, Value,
+    FsFileLen, HashSet, PackError, PackOptions, Path, PathBuf, Value, collation::en_collator,
     get_bins_from_package_manifest, is_manifest_entry,
 };
 
@@ -133,42 +133,10 @@ fn packed_contents(files_map: &indexmap::IndexMap<String, PathBuf>) -> Vec<Strin
 }
 
 /// Sort path strings the way pnpm's `localeCompare(b, 'en')` orders a
-/// tarball's file listing: case-insensitively, with lowercase given
-/// precedence over uppercase on case-only ties.
-pub fn sort_paths_en_locale(paths: &mut Vec<String>) {
-    // Decorate each path with its lowercase form once, rather than
-    // recomputing `to_lowercase` for both sides on every comparison.
-    let mut decorated: Vec<(String, String)> = std::mem::take(paths)
-        .into_iter()
-        .map(|item| (item.to_lowercase(), item))
-        .collect();
-    decorated.sort_by(|(left_lower, left), (right_lower, right)| {
-        left_lower.cmp(right_lower).then_with(|| case_precedence_tiebreak(left, right))
-    });
-    *paths = decorated
-        .into_iter()
-        .map(|(_, item)| item)
-        .collect();
-}
-
-/// Tie-breaker for [`sort_paths_en_locale`]'s `localeCompare(b, 'en')`
-/// approximation: once two ASCII path strings compare equal
-/// case-insensitively, give a lowercase character precedence over its
-/// uppercase counterpart. Full ICU collation is not a workspace
-/// dependency; this reproduces `en` ordering for plain file paths, where
-/// the two agree.
-fn case_precedence_tiebreak(left: &str, right: &str) -> Ordering {
-    for (left_char, right_char) in left.chars().zip(right.chars()) {
-        if left_char == right_char {
-            continue;
-        }
-        return match (left_char.is_lowercase(), right_char.is_lowercase()) {
-            (true, false) => Ordering::Less,
-            (false, true) => Ordering::Greater,
-            _ => left_char.cmp(&right_char),
-        };
-    }
-    left.len().cmp(&right.len())
+/// tarball's file listing.
+pub fn sort_paths_en_locale(paths: &mut [String]) {
+    let collator = en_collator();
+    paths.sort_by(|left, right| collator.compare(left, right));
 }
 
 /// Whether a packed path looks like a license file, matching upstream's
