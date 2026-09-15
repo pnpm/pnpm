@@ -1,4 +1,4 @@
-use crate::{metadata::WheelMetadata, packages::Packages};
+use crate::{metadata::WheelMetadata, packages::Packages, requires_python::declared_range};
 use miette::{Result, bail};
 use pep440_rs::Version;
 use pep508_rs::{ExtraName, MarkerEnvironment, PackageName, Requirement, VersionOrUrl};
@@ -101,7 +101,7 @@ impl DependencyProvider for Provider<'_> {
                 let metadata = self.packages.metadata
                     .get(&(name.clone(), version.clone()))
                     .ok_or_else(|| Needed::Metadata(name.clone(), version.clone()))?;
-                if let Some(unusable) = self.incompatible_interpreter(metadata)? {
+                if let Some(unusable) = self.incompatible_interpreter(metadata) {
                     return Ok(Dependencies::Unavailable(unusable));
                 }
                 let extras = extra
@@ -151,17 +151,11 @@ fn metadata_requirements(
 impl Provider<'_> {
     /// Why this interpreter cannot use the wheel, when it cannot: a
     /// `Requires-Python` the running interpreter is outside of.
-    fn incompatible_interpreter(
-        &self,
-        metadata: &WheelMetadata,
-    ) -> std::result::Result<Option<String>, Needed> {
-        let Some(specifier) = &metadata.requires_python else { return Ok(None) };
-        let specifier: pep440_rs::VersionSpecifiers = specifier
-            .parse()
-            .map_err(|error| Needed::Invalid(format!("invalid Requires-Python: {error}")))?;
-        Ok((!specifier.contains(self.environment.python_full_version())).then(|| {
+    fn incompatible_interpreter(&self, metadata: &WheelMetadata) -> Option<String> {
+        let specifier = metadata.requires_python.as_deref().and_then(declared_range)?;
+        (!specifier.contains(self.environment.python_full_version())).then(|| {
             "incompatible Python interpreter".to_string()
-        }))
+        })
     }
 
     fn constraints(

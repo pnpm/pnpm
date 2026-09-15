@@ -5807,6 +5807,7 @@ dependencies = [
  "serde",
  "serde_json",
  "ssri",
+ "tracing",
  "url",
 ]
 
