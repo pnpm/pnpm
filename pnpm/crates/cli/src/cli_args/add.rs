@@ -291,8 +291,7 @@ impl AddArgs {
     fn range_spec_style(&self, config: &Config) -> RangeSpecStyle {
         RangeSpecStyle::from_save_options(
             self.save.exact || config.save_exact,
-            self.save
-                .prefix
+            self.save.prefix
                 .as_deref()
                 .or_else(|| self.save.tilde.then_some("~"))
                 .or(config.save_prefix.as_deref()),
