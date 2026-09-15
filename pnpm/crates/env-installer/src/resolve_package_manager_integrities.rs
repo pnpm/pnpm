@@ -218,9 +218,8 @@ pub fn is_package_manager_resolved(
     )
 }
 
-/// Whether the env lockfile already records what this pnpm would write for
-/// `pnpm_version`: the pinned packages under the specifier they were pinned
-/// from, and nothing besides them.
+/// Whether the env lockfile already pins `pnpm_version` under
+/// `wanted_specifier`, so there is nothing for this run to write.
 fn is_package_manager_resolved_with_deps(
     env_lockfile: &EnvLockfile,
     wanted_specifier: &str,
@@ -229,10 +228,9 @@ fn is_package_manager_resolved_with_deps(
 ) -> bool {
     recorded_package_manager_deps(env_lockfile)
         .is_some_and(|pm_deps| {
-            pm_deps.len() == package_manager_deps.len()
-                && pm_deps
-                    .values()
-                    .all(|dep| dep.specifier == wanted_specifier)
+            pm_deps
+                .values()
+                .all(|dep| dep.specifier == wanted_specifier)
         })
         && pins_wanted_package_manager(env_lockfile, pnpm_version, package_manager_deps)
 }
@@ -240,15 +238,9 @@ fn is_package_manager_resolved_with_deps(
 /// Whether the env lockfile pins the package manager the manifest asks for,
 /// even when it records more packages than this pnpm installs it from.
 ///
-/// A pnpm below 11.20.0 pins `@pnpm/exe` beside `pnpm` for a v12 version,
-/// because that is the set its own major is installed from. Such an entry
-/// pins the wanted version through the same integrity and cannot change
-/// which pnpm runs, so a frozen lockfile accepts it instead of failing a
-/// project whose lockfile a teammate's older pnpm last wrote. An entry
-/// pinning any other version, or one the lockfile carries no package to
-/// install from, is a lockfile that disagrees with the manifest, which is
-/// what the flag is for, and a writable install still rewrites the block to
-/// the packages this pnpm installs from.
+/// Every entry must pin the wanted version and have package and snapshot
+/// records. Compatible additional entries are retained to keep commands
+/// from repeatedly rewriting `pnpm-lock.yaml`.
 fn pins_wanted_package_manager(
     env_lockfile: &EnvLockfile,
     pnpm_version: &str,

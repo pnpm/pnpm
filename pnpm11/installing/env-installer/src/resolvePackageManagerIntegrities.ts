@@ -51,6 +51,11 @@ export interface ResolvePackageManagerIntegritiesOpts {
  * records the pin the project asks for now: one written under a pin that has
  * since changed still has to be rewritten, even though its version stands.
  * Omit it to accept the entry on its version alone.
+ *
+ * A package this pnpm does not install the wanted version from is accepted
+ * beside the ones it does, when it pins that same version and the lockfile
+ * carries the records to install it from. See {@link pinsWantedPackageManager}
+ * for why such an entry is left alone.
  */
 export function isPackageManagerResolved (
   envLockfile: EnvLockfile | undefined,
@@ -62,10 +67,11 @@ export function isPackageManagerResolved (
   const pmDeps = envLockfile.importers['.'].packageManagerDependencies
   if (pmDeps == null) return false
   const wantedDeps = packageManagerDeps(pnpmVersion)
-  return Object.keys(pmDeps).length === wantedDeps.length &&
-    wantedDeps.every((name) =>
-      pmDeps[name]?.version === pnpmVersion &&
-      (specifier == null || pmDeps[name]?.specifier === specifier)
+  return wantedDeps.every((name) => pmDeps[name] != null) &&
+    Object.entries(pmDeps).every(([name, dep]) =>
+      dep.version === pnpmVersion &&
+      (specifier == null || dep.specifier === specifier) &&
+      isRecordedForInstall(envLockfile, name, dep.version)
     )
 }
 
@@ -73,15 +79,9 @@ export function isPackageManagerResolved (
  * Whether the env lockfile pins the package manager the manifest asks for,
  * even when it records more packages than this pnpm installs it from.
  *
- * A pnpm below 11.20.0 pins `@pnpm/exe` beside `pnpm` for a v12 version,
- * because that is the set its own major is installed from. Such an entry pins
- * the wanted version through the same integrity and cannot change which pnpm
- * runs, so a frozen lockfile accepts it instead of failing a project whose
- * lockfile a teammate's older pnpm last wrote. An entry pinning any other
- * version, or one the lockfile carries no package to install from, is a
- * lockfile that disagrees with the manifest, which is what the flag is for,
- * and a writable install still rewrites the block to the packages this pnpm
- * installs from.
+ * Every entry must pin the wanted version and have package and snapshot
+ * records. Compatible additional entries are retained to keep commands from
+ * repeatedly rewriting `pnpm-lock.yaml`.
  */
 export function pinsWantedPackageManager (
   envLockfile: EnvLockfile | undefined,
