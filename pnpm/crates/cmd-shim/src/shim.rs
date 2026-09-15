@@ -275,9 +275,7 @@ pub fn generate_cmd_shim(
 /// if the relative computation fails. Same shape as
 /// [`relative_target`] but with the slash direction flipped.
 fn relative_target_windows(target_path: &Path, shim_path: &Path) -> String {
-    let shim_dir = shim_path
-        .parent()
-        .unwrap_or_else(|| Path::new(""));
+    let shim_dir = shim_path.parent().unwrap_or_else(|| Path::new(""));
     let rel = relative_path_from(shim_dir, target_path);
     rel.to_string_lossy().replace('/', r"\")
 }
@@ -287,9 +285,7 @@ fn relative_target_windows(target_path: &Path, shim_path: &Path) -> String {
 /// computation fails, which the sh-shim generator handles via its
 /// `is_absolute` guard on the result.
 fn relative_target(target_path: &Path, shim_path: &Path) -> String {
-    let shim_dir = shim_path
-        .parent()
-        .unwrap_or_else(|| Path::new(""));
+    let shim_dir = shim_path.parent().unwrap_or_else(|| Path::new(""));
     let rel = relative_path_from(shim_dir, target_path);
     rel.to_string_lossy().replace('\\', "/")
 }

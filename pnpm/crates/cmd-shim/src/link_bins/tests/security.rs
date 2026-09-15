@@ -134,7 +134,7 @@ fn prefer_symlinked_executables_links_bins_as_relative_symlinks() {
     assert!(
         read_to_string(&bin)
             .unwrap()
-            .contains("hello_world")
+            .contains("hello_world"),
     );
     #[cfg(unix)]
     {

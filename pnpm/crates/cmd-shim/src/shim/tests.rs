@@ -839,7 +839,7 @@ fn shim_execution_ignores_helpers_from_node_modules_in_path() {
     let path = format!(
         "{}:{}",
         node_modules_decoy_dir.display(),
-        std::env::var("PATH").unwrap_or_default()
+        std::env::var("PATH").unwrap_or_default(),
     );
     let output = std::process::Command::new(bin_dir.join("tsc-link"))
         .env("PATH", path)
@@ -851,6 +851,6 @@ fn shim_execution_ignores_helpers_from_node_modules_in_path() {
     assert_eq!(
         stdout.trim_end(),
         "tsc-output",
-        "the shim executed a helper from node_modules in PATH"
+        "the shim executed a helper from node_modules in PATH",
     );
 }
