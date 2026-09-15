@@ -289,8 +289,9 @@ impl AddArgs {
     /// `--tilde` / `--save-prefix` layered over the `saveExact` and `savePrefix`
     /// settings, mirroring pnpm's `getRangeSpecStyle`.
     fn range_spec_style(&self, config: &Config) -> RangeSpecStyle {
+        let cli_save_style_override = self.save.tilde || self.save.prefix.is_some();
         RangeSpecStyle::from_save_options(
-            self.save.exact || config.save_exact,
+            self.save.exact || (!cli_save_style_override && config.save_exact),
             self.save.tilde
                 .then_some("~")
                 .or(self.save.prefix.as_deref())

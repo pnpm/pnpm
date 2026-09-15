@@ -387,3 +387,20 @@ fn save_exact_and_equals_prefix_settings_drive_add() {
     assert_eq!(spec, "=1.0.0", "a savePrefix of = must keep the explicit operator");
     drop((root, mock_instance));
 }
+
+/// Save-style CLI flags overrule `saveExact`, the same way they overrule
+/// `savePrefix`.
+#[test]
+fn save_style_flags_overrule_save_exact_setting() {
+    let (root, workspace, mock_instance) =
+        add_with_settings("saveExact: true\n", &["add", "--tilde"]);
+    let spec = prod_spec(&workspace, "@pnpm.e2e/hello-world-js-bin");
+    assert_eq!(spec, "~1.0.0", "--tilde must overrule saveExact");
+    drop((root, mock_instance));
+
+    let (root, workspace, mock_instance) =
+        add_with_settings("saveExact: true\n", &["add", "--save-prefix=^"]);
+    let spec = prod_spec(&workspace, "@pnpm.e2e/hello-world-js-bin");
+    assert_eq!(spec, "^1.0.0", "--save-prefix must overrule saveExact");
+    drop((root, mock_instance));
+}
