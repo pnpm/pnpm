@@ -94,8 +94,25 @@ pub(super) fn convert_resolved_dependency_spec(
 ) -> miette::Result<ResolvedDependencySpec> {
     let mut spec = spec.clone();
     spec.version = convert_importer_dep_version(name, &spec.version, ctx, bases)?;
-    spec.specifier = spec.version.to_string();
+    spec.specifier = deploy_dependency_specifier(name, &spec.version);
     Ok(spec)
+}
+
+fn deploy_dependency_specifier(name: &PkgName, reference: &ImporterDepVersion) -> String {
+    let (resolved_name, version) = match reference {
+        ImporterDepVersion::Regular(version) => (name, version),
+        ImporterDepVersion::Alias(key) => (&key.name, &key.suffix),
+        ImporterDepVersion::Link(_) | ImporterDepVersion::File(_) => return reference.to_string(),
+    };
+    if !version.prefix().as_str().is_empty() {
+        return reference.to_string();
+    }
+    let Some(version) = version.version_semver() else { return reference.to_string() };
+    if resolved_name == name {
+        version.to_string()
+    } else {
+        format!("npm:{resolved_name}@{version}")
+    }
 }
 
 fn convert_importer_dep_map_to_snapshot_deps(
