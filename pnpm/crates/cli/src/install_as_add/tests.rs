@@ -162,6 +162,7 @@ fn a_dependency_group_filter_survives_the_rewrite_to_add() {
         ("--no-prod", false, false),
         ("--dev", false, true),
         ("--dev=false", false, false),
+        ("--no-dev", false, false),
     ] {
         let args = prepare(&["pnpm", "install", spelling, "valibot"]);
 
