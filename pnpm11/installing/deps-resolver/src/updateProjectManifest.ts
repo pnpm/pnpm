@@ -1,5 +1,6 @@
 import {
   getSpecFromPackageManifest,
+  guessDependencyType,
   type PackageSpecObject,
   updateProjectManifestObject,
 } from '@pnpm/pkg-manifest.utils'
@@ -20,6 +21,7 @@ export async function updateProjectManifest (
     throw new Error('Cannot save because no package.json found')
   }
   const specsToUpsert: PackageSpecObject[] = []
+  const specsToUpsertInOriginalManifest: PackageSpecObject[] = []
   const declaredSpecifiers = new Map<string, string>()
   for (const rdd of opts.directDependencies) {
     const wantedDep = rdd.wantedDependency
@@ -28,7 +30,7 @@ export async function updateProjectManifest (
     if (declaredSpecifier != null) {
       declaredSpecifiers.set(rdd.alias, declaredSpecifier)
     }
-    specsToUpsert.push({
+    const spec = {
       alias: rdd.alias,
       peer: importer.peer,
       bareSpecifier: declaredSpecifier == null
@@ -37,7 +39,11 @@ export async function updateProjectManifest (
       resolvedVersion: rdd.version,
       rangeSpecStyle: importer.rangeSpecStyle,
       saveType: importer.targetDependenciesField,
-    })
+    }
+    specsToUpsert.push(spec)
+    if (shouldUpdateOriginalManifest(importer, rdd.alias, wantedDep.isNew)) {
+      specsToUpsertInOriginalManifest.push(spec)
+    }
   }
   // Re-save a dependency flagged for update that failed to resolve (e.g. a
   // missing optional, hence absent from `directDependencies`) carrying no
@@ -45,11 +51,15 @@ export async function updateProjectManifest (
   // field (which is unset for a plain install/update, making this a no-op).
   for (const pkgToInstall of importer.wantedDependencies) {
     if (pkgToInstall.updateSpec && pkgToInstall.alias && !specsToUpsert.some(({ alias }) => alias === pkgToInstall.alias)) {
-      specsToUpsert.push({
+      const spec = {
         alias: pkgToInstall.alias,
         peer: importer.peer,
         saveType: importer.targetDependenciesField,
-      })
+      }
+      specsToUpsert.push(spec)
+      if (shouldUpdateOriginalManifest(importer, pkgToInstall.alias, pkgToInstall.isNew)) {
+        specsToUpsertInOriginalManifest.push(spec)
+      }
     }
   }
   const hookedManifest = await updateProjectManifestObject(
@@ -62,13 +72,23 @@ export async function updateProjectManifest (
       importer.rootDir,
       importer.originalManifest,
       declaredSpecifiers.size === 0
-        ? specsToUpsert
-        : specsToUpsert.map((spec) => declaredSpecifiers.has(spec.alias)
+        ? specsToUpsertInOriginalManifest
+        : specsToUpsertInOriginalManifest.map((spec) => declaredSpecifiers.has(spec.alias)
           ? { ...spec, bareSpecifier: declaredSpecifiers.get(spec.alias) }
           : spec)
     )
     : undefined
   return [hookedManifest, originalManifest]
+}
+
+function shouldUpdateOriginalManifest (
+  importer: ImporterToResolve,
+  alias: string,
+  isNew: boolean | undefined
+): boolean {
+  return isNew === true ||
+    importer.originalManifest == null ||
+    guessDependencyType(alias, importer.originalManifest) != null
 }
 
 /**
