@@ -107,6 +107,10 @@ fn add_tilde_and_save_prefix_resolve_last_one_wins() {
     assert!(args.save.tilde, "--tilde should win when it is last");
     assert_eq!(args.save.prefix, None);
 
+    let args = add_args(&["pacquet", "add", "foo", "--tilde", "--save-prefix=^"]);
+    assert!(!args.save.tilde, "--save-prefix should win when it is last");
+    assert_eq!(args.save.prefix.as_deref(), Some("^"));
+
     let args = add_args(&["pacquet", "add", "foo", "--tilde", "--save-prefix="]);
     assert!(!args.save.tilde, "--save-prefix should win when it is last");
     assert_eq!(args.save.prefix.as_deref(), Some(""));
