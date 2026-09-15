@@ -298,6 +298,13 @@ describeOnPosix('sh shim converts a Windows-form path', () => {
       .split('\n')
       .find((line) => line.startsWith('basedir=$('))
     assert.ok(conversion, 'the header must assign basedir from the shim path')
+    // POSIX echo backslash handling is implementation-defined. A shell that
+    // preserves backslashes can make an echo-based header pass the path
+    // assertion below, so also require the printf conversion form.
+    assert.ok(
+      conversion.includes(String.raw`command -p printf '%s\n' "$link"`),
+      'the basedir conversion must use command -p printf so backslashes stay literal'
+    )
 
     const script = `link='C:\\node_modules\\.bin\\tsc'\n${conversion}\nprintf '%s' "$basedir"`
     const r = spawnSync('/bin/sh', ['-c', script], {
