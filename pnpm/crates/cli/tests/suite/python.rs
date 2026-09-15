@@ -94,8 +94,6 @@ async fn serve_with_index_auth(
     serve_files(server, name, &versions, authorization).await
 }
 
-/// Serve an index page whose files declare the `requires-python` given
-/// with each version, and the wheels it lists.
 async fn serve_files(
     server: &mut mockito::ServerGuard,
     name: &str,
