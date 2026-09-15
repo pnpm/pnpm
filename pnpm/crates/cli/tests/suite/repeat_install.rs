@@ -670,6 +670,95 @@ fn repeat_hoisted_install_with_unchanged_local_tarball_is_up_to_date() {
     drop((root, mock_instance));
 }
 
+/// pnpm/pnpm#14912: `pnpm install --prod` must include all dependency
+/// groups in the lockfile (not just prod deps) so that a subsequent
+/// `--frozen-lockfile` install succeeds.
+#[test]
+fn install_prod_writes_complete_lockfile() {
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({
+            "dependencies": { "is-positive": "1.0.0" },
+            "devDependencies": { "is-negative": "1.0.0" },
+        })
+        .to_string(),
+    )
+    .expect("write package.json");
+
+    // Seed a full lockfile so the lockfile structure includes both groups.
+    pacquet
+        .with_arg("install")
+        .assert()
+        .success();
+
+    // Install with --prod only.
+    pacquet_in(&workspace)
+        .with_args(["install", "--prod", "--lockfile-only"])
+        .assert()
+        .success();
+
+    // A frozen-lockfile install (all groups) must still succeed.
+    pacquet_in(&workspace)
+        .with_args(["install", "--frozen-lockfile"])
+        .assert()
+        .success();
+
+    drop((root, mock_instance));
+}
+
+/// pnpm/pnpm#14912: `pnpm install --dev` must include all dependency
+/// groups in the lockfile so that a subsequent `--frozen-lockfile`
+/// install succeeds.
+#[test]
+fn install_dev_writes_complete_lockfile() {
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({
+            "dependencies": { "is-positive": "1.0.0" },
+            "devDependencies": { "is-negative": "1.0.0" },
+        })
+        .to_string(),
+    )
+    .expect("write package.json");
+
+    pacquet
+        .with_arg("install")
+        .assert()
+        .success();
+
+    // Install with --dev only.
+    pacquet_in(&workspace)
+        .with_args(["install", "--dev", "--lockfile-only"])
+        .assert()
+        .success();
+
+    // A frozen-lockfile install (all groups) must still succeed.
+    pacquet_in(&workspace)
+        .with_args(["install", "--frozen-lockfile"])
+        .assert()
+        .success();
+
+    drop((root, mock_instance));
+}
+
 /// A hoisted install writes no virtual-store slot, so the pipeline must
 /// not probe one: it reported every package of the tree it had just
 /// written as broken (pnpm/pnpm#14001). Dropping the workspace-state
