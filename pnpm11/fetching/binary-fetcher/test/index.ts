@@ -478,7 +478,7 @@ describe('adm-zip symlink extraction', () => {
       for (const entry of zip.getEntries()) {
         if (!entry.isDirectory) zip.extractEntryTo(entry, root, true, true)
       }
-    }).toThrow()
+    }).toThrow(/There is a file in the way/)
     return fs.readFileSync(path.join(outside, 'node'), 'utf8')
   }
 
