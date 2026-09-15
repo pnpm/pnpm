@@ -84,7 +84,7 @@ pub(super) fn bin_node_paths(dir: &Path) -> Vec<String> {
 /// node-runtime short-circuit in [`write_shim`](super::shim_writer::write_shim). Lifted out so the check
 /// is unit-testable and the call site reads as a predicate.
 pub(super) fn is_node_bin_name(shim_path: &Path) -> bool {
-    matches!(shim_path.file_name().and_then(|s| s.to_str()), Some("node"),)
+    matches!(shim_path.file_name().and_then(|s| s.to_str()), Some("node"))
 }
 
 /// Link the node runtime binary `target_path` into the bin slot

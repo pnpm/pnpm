@@ -24,14 +24,14 @@ fn removing_bin_entries_preserves_their_targets() {
     remove_bin(&bin).unwrap();
     remove_bin(&bin).expect("removing an already removed command must succeed");
 
-    assert_eq!(std::fs::read_dir(&bins_dir).unwrap().count(), 0,);
+    assert_eq!(std::fs::read_dir(&bins_dir).unwrap().count(), 0);
     assert_eq!(read_to_string(&target).unwrap(), "node binary");
 
     #[cfg(unix)]
     {
         std::os::unix::fs::symlink(&target, &bin).unwrap();
         remove_bin(&bin).unwrap();
-        assert_eq!(std::fs::read_dir(&bins_dir).unwrap().count(), 0,);
+        assert_eq!(std::fs::read_dir(&bins_dir).unwrap().count(), 0);
         assert_eq!(read_to_string(&target).unwrap(), "node binary");
     }
 }

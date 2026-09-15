@@ -403,6 +403,6 @@ fn existing_bins_pointing_at_the_target_survive_flag_changes() {
     #[cfg(unix)]
     {
         use std::os::unix::fs::MetadataExt;
-        assert_eq!(std::fs::symlink_metadata(&bin).unwrap().ino(), inode,);
+        assert_eq!(std::fs::symlink_metadata(&bin).unwrap().ino(), inode);
     }
 }
