@@ -300,8 +300,9 @@ async fn published_by_upgrade_not_modified_marker_is_scoped_to_install() {
     let full_mock = server
         .mock("GET", "/acme")
         .match_header("accept", "application/json; q=1.0, */*")
-        .match_header("if-none-match", r#""acme-etag""#)
-        .with_status(304)
+        .match_header("if-none-match", mockito::Matcher::Missing)
+        .with_status(200)
+        .with_body(PARTIAL_TIME_PACKAGE_BODY)
         .expect(2)
         .create_async()
         .await;
@@ -457,8 +458,9 @@ async fn published_by_upgrade_not_modified_marker_is_scoped_to_document() {
     let first_full_mock = server
         .mock("GET", "/acme")
         .match_header("accept", "application/json; q=1.0, */*")
-        .match_header("if-none-match", r#""acme-etag""#)
-        .with_status(304)
+        .match_header("if-none-match", mockito::Matcher::Missing)
+        .with_status(200)
+        .with_body(PARTIAL_TIME_PACKAGE_BODY)
         .expect(1)
         .create_async()
         .await;
@@ -477,8 +479,9 @@ async fn published_by_upgrade_not_modified_marker_is_scoped_to_document() {
     let second_full_mock = server
         .mock("GET", "/acme")
         .match_header("accept", "application/json; q=1.0, */*")
-        .match_header("if-none-match", r#""acme-etag-2""#)
-        .with_status(304)
+        .match_header("if-none-match", mockito::Matcher::Missing)
+        .with_status(200)
+        .with_body(PARTIAL_TIME_PACKAGE_BODY)
         .expect(1)
         .create_async()
         .await;
