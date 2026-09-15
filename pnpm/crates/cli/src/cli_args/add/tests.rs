@@ -300,8 +300,6 @@ fn the_dependency_group_filter_narrows_what_the_install_materializes() {
     }
 }
 
-/// `--no-optional` reaches the filter through the `optional` setting
-/// [`AddArgs::apply_cli_config`] resolves it into.
 #[test]
 fn the_dependency_group_filter_honors_the_optional_setting() {
     let args = add_args(&["pacquet", "add", "foo", "--no-optional"]);
