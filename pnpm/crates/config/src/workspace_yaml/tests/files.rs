@@ -1,5 +1,6 @@
 use super::{
-    Config, Path, StoreDir, WORKSPACE_MANIFEST_FILENAME, WorkspaceSettings, assert_eq, fs,
+    Config, NodeLinker, Path, StoreDir, WORKSPACE_MANIFEST_FILENAME, WorkspaceSettings, assert_eq,
+    fs,
 };
 
 #[test]
@@ -164,4 +165,30 @@ fn load_at_collects_issues_from_a_tab_indented_file() {
         .expect("pnpm-workspace.yaml is present");
 
     assert_eq!(settings.key_issues.unrecognized, ["zzzNotASettingZzz"]);
+}
+
+/// Env-variable placeholders with fallback syntax are expanded before YAML
+/// parsing, so enum-valued settings like `nodeLinker` can hold a placeholder
+/// that resolves to a valid variant name.
+///
+/// Regression test for <https://github.com/pnpm/pnpm/issues/14914>.
+#[test]
+fn load_at_expands_env_placeholder_in_enum_field() {
+    // The env var PNPM_TEST_14914_LINKER is unset in the test process, so
+    // the fallback `isolated` is used. The result must be the `Isolated`
+    // variant — if env substitution does not happen before YAML parsing
+    // serde would see the literal `${PNPM_TEST_14914_LINKER:-isolated}`
+    // and reject it as an unknown variant.
+    let dir = tempfile::tempdir().unwrap();
+    fs::write(
+        dir.path().join(WORKSPACE_MANIFEST_FILENAME),
+        "nodeLinker: ${PNPM_TEST_14914_LINKER:-isolated}\n",
+    )
+    .unwrap();
+
+    let settings = WorkspaceSettings::load_at(dir.path())
+        .expect("load pnpm-workspace.yaml")
+        .expect("pnpm-workspace.yaml is present");
+
+    assert_eq!(settings.node_linker, Some(NodeLinker::Isolated));
 }
