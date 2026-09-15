@@ -175,6 +175,17 @@ fn a_requires_python_that_does_not_parse_is_read_as_none_at_all() {
 }
 
 #[test]
+fn a_wheel_the_running_interpreter_is_outside_of_is_unavailable() {
+    let target = target();
+    let (packages, requirements, _) = solved_project("demo", "Requires-Python: >=3.13\n");
+
+    let error = step(&packages, &requirements, &target.environment)
+        .expect_err("the only version excludes this interpreter");
+
+    assert!(error.to_string().contains("incompatible Python interpreter"), "{error}");
+}
+
+#[test]
 fn candidates_carry_the_metadata_file_an_index_advertises() {
     let mut declared = wheel("demo-1.0.0-py3-none-any.whl");
     declared["core-metadata"] = serde_json::json!({ "sha256": "c".repeat(64) });
