@@ -26,6 +26,7 @@ mod candidates;
 mod lockfile;
 mod metadata;
 mod packages;
+mod requires_python;
 mod resolve;
 
 #[cfg(test)]

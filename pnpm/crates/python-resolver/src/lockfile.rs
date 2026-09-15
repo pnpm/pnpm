@@ -1,6 +1,7 @@
 use crate::{
     candidates::{parse_requirement, wheel_identity},
     packages::{Candidate, Packages},
+    requires_python::declared_range,
 };
 use miette::{IntoDiagnostic, Result, bail};
 use pep440_rs::{Operator, Version, VersionSpecifiers};
@@ -263,12 +264,10 @@ fn referenced_marker_keys(
         for requirement in &metadata.requires_dist {
             collect_marker_keys(&parse_requirement(requirement)?.marker, &mut keys);
         }
-        if let Some(requires_python) = &metadata.requires_python {
-            let specifiers: VersionSpecifiers = requires_python.parse().into_diagnostic()?;
-            if !admits_every_patch_release(&specifiers, &environment.python_full_version().version)
-            {
-                keys.insert("python_full_version".to_string());
-            }
+        if let Some(specifiers) = metadata.requires_python.as_deref().and_then(declared_range)
+            && !admits_every_patch_release(&specifiers, &environment.python_full_version().version)
+        {
+            keys.insert("python_full_version".to_string());
         }
     }
     Ok(keys)

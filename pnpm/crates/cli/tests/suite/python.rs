@@ -87,11 +87,24 @@ async fn serve_with_index_auth(
     versions: &[(&str, Vec<u8>)],
     authorization: Option<&str>,
 ) -> Vec<mockito::Mock> {
+    let versions = versions
+        .iter()
+        .map(|(version, archive)| (*version, archive.clone(), None))
+        .collect::<Vec<_>>();
+    serve_files(server, name, &versions, authorization).await
+}
+
+async fn serve_files(
+    server: &mut mockito::ServerGuard,
+    name: &str,
+    versions: &[(&str, Vec<u8>, Option<&str>)],
+    authorization: Option<&str>,
+) -> Vec<mockito::Mock> {
     let mut mocks = Vec::new();
     let mut files = Vec::new();
-    for (version, archive) in versions {
+    for (version, archive, requires_python) in versions {
         let filename = format!("{name}-{version}-py3-none-any.whl");
-        files.push(json!({"filename": filename, "url": format!("/files/{filename}"), "hashes": {"sha256": format!("{:x}", Sha256::digest(archive))}}));
+        files.push(json!({"filename": filename, "url": format!("/files/{filename}"), "hashes": {"sha256": format!("{:x}", Sha256::digest(archive))}, "requires-python": requires_python}));
         mocks.push(
             server
                 .mock("GET", format!("/files/{filename}").as_str())
@@ -408,6 +421,37 @@ async fn frozen_lockfile_replays_after_a_kernel_only_marker_change() {
     );
     python(root.path())
         .args(["-c", "import alpha, beta"])
+        .assert()
+        .success();
+}
+
+/// The scenario of pnpm/pnpm#14910: a release whose `Requires-Python` is
+/// not a version specifier, both in the index page that lists it and in
+/// the wheel's own metadata. Releases are immutable, so a project that
+/// depends on one has no way to correct it.
+#[tokio::test]
+async fn installs_a_release_whose_requires_python_does_not_parse() {
+    let root = tempfile::tempdir().unwrap();
+    let mut server = mockito::Server::new_async().await;
+    let _alpha = serve_files(
+        &mut server,
+        "alpha",
+        &[
+            ("1.0", wheel("alpha", "1.0", "Requires-Python: >=3.6,", &[]), Some(">=3.6,")),
+            ("2.0", wheel("alpha", "2.0", "Requires-Python: >=3.10", &[]), Some(">=3.10")),
+        ],
+        None,
+    )
+    .await;
+    project(root.path(), &server.url(), &["alpha==1.0"]);
+
+    pacquet_in(root.path())
+        .arg("install")
+        .assert()
+        .success();
+
+    python(root.path())
+        .args(["-c", "import alpha; assert alpha.VERSION == '1.0'"])
         .assert()
         .success();
 }
