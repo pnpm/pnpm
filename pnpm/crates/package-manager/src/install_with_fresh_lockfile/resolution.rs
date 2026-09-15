@@ -326,7 +326,11 @@ pub(super) async fn run_prepared_resolve<'m, Reporter: self::Reporter + 'static>
     let workspace_result = resolve::run_resolve_pass::<Reporter>(resolve::ResolvePassInputs {
         resolver: &*context.setup.chain.resolver,
         importer_manifests: &importer_manifests,
-        dependency_groups: context.install.projects.dependency_groups,
+        dependency_groups: if context.install.execution.save_lockfile {
+            &crate::DIRECT_GROUPS
+        } else {
+            context.install.projects.dependency_groups
+        },
         walk,
         per_importer: context.importer_inputs(
             &shared_resolve_options,
