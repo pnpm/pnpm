@@ -211,15 +211,9 @@ struct PeerWalkContext<'a> {
 }
 
 /// The snapshot keys an importer's dependency graph starts from, recording
-/// along the way every peer the workspace packages it links leave unmet.
-///
-/// The walk stops at each `link:` edge, as pnpm's own lockfile walker does.
-/// A linked workspace package's own linked dependencies are its obligation,
-/// not its consumer's, and it is an importer of the same lockfile, so its own
-/// report covers them. Following the edge instead would re-traverse every
-/// shared workspace package once per importer that reaches it, which is
-/// quadratic in a workspace whose projects depend on each other
-/// ([pnpm/pnpm#14906](https://github.com/pnpm/pnpm/issues/14906)).
+/// along the way every peer the workspace packages it links directly leave
+/// unmet. Stops at each `link:` edge: a linked workspace package's own linked
+/// dependencies belong to its own report, not to its consumer's.
 fn collect_initial_keys(
     context: &PeerWalkContext<'_>,
     importer_id: &str,
@@ -237,6 +231,10 @@ fn collect_initial_keys(
         if let Some(key) = spec.version.resolved_key(alias) {
             keys.push(key);
         } else if let Some(link_target) = spec.version.as_link_target() {
+            // pnpm's own lockfile walker stops at `link:` too. Following the
+            // edge re-traverses every shared workspace package once per
+            // importer that reaches it, which is quadratic in a workspace
+            // whose projects depend on each other (pnpm/pnpm#14906).
             check_link(CheckLink {
                 context,
                 importer,
