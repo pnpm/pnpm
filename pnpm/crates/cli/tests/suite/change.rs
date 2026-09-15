@@ -113,8 +113,7 @@ fn private_package_bumps_without_a_registry_release_probe() {
 #[test]
 fn private_only_release_ignores_invalid_registry_configuration() {
     let CommandTempCwd { workspace, root, .. } = CommandTempCwd::init();
-    fs::write(workspace.join("pnpm-workspace.yaml"), "\n")
-        .expect("write workspace yaml");
+    fs::write(workspace.join("pnpm-workspace.yaml"), "\n").expect("write workspace yaml");
     setup_mock_workspace(&workspace);
     fs::write(workspace.join(".npmrc"), "https-proxy=://nonsense\n").expect("write npmrc");
     let pkg_dir = workspace.join("packages").join("app");
