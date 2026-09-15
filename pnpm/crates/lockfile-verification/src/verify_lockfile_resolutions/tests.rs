@@ -14,8 +14,9 @@ use pnpm_resolving_resolver_base::{
 use tempfile::TempDir;
 
 use super::{
-    VerifyLockfileResolutionsOptions, collect_resolution_policy_violations,
-    verify_lockfile_resolutions,
+    VerifyLockfileResolutionsOptions,
+    candidates::{collect_candidates, run_fan_out},
+    collect_resolution_policy_violations, verify_lockfile_resolutions,
 };
 use crate::VerifyError;
 
@@ -64,6 +65,47 @@ snapshots:
 
   acme@1.0.0: {}
   bravo@2.0.0: {}
+";
+
+const FOUR_PKG_LOCKFILE: &str = "lockfileVersion: '9.0'
+
+importers:
+
+  .:
+    dependencies:
+      acme:
+        specifier: ^1.0.0
+        version: 1.0.0
+      bravo:
+        specifier: ^2.0.0
+        version: 2.0.0
+      charlie:
+        specifier: ^3.0.0
+        version: 3.0.0
+      delta:
+        specifier: ^4.0.0
+        version: 4.0.0
+
+packages:
+
+  acme@1.0.0:
+    resolution: {integrity: sha512-TIE61hcgbI/SlJh/0c1sT1SZbBlpg7WiZcs65WPJhoIZQPhH1SCpcGA7LgrVXT15lwN3HV4GQM/MJ9aKEn3Qfg==}
+
+  bravo@2.0.0:
+    resolution: {integrity: sha512-s4h96KtLDUQlsENhMn1ar8t2bEa+q/YAtj8pPPdIjPDGBDIVNsrD9aXNWqspUe6AzKCIG0C1HZZLqLV7qpOBGA==}
+
+  charlie@3.0.0:
+    resolution: {integrity: sha512-TIE61hcgbI/SlJh/0c1sT1SZbBlpg7WiZcs65WPJhoIZQPhH1SCpcGA7LgrVXT15lwN3HV4GQM/MJ9aKEn3Qfg==}
+
+  delta@4.0.0:
+    resolution: {integrity: sha512-s4h96KtLDUQlsENhMn1ar8t2bEa+q/YAtj8pPPdIjPDGBDIVNsrD9aXNWqspUe6AzKCIG0C1HZZLqLV7qpOBGA==}
+
+snapshots:
+
+  acme@1.0.0: {}
+  bravo@2.0.0: {}
+  charlie@3.0.0: {}
+  delta@4.0.0: {}
 ";
 
 fn parse(yaml: &str) -> Lockfile {
