@@ -28,7 +28,7 @@ fn removing_bin_entries_preserves_their_targets() {
         std::fs::read_dir(&bins_dir)
             .unwrap()
             .count(),
-        0
+        0,
     );
     assert_eq!(read_to_string(&target).unwrap(), "node binary");
 
@@ -40,7 +40,7 @@ fn removing_bin_entries_preserves_their_targets() {
             std::fs::read_dir(&bins_dir)
                 .unwrap()
                 .count(),
-            0
+            0,
         );
         assert_eq!(read_to_string(&target).unwrap(), "node binary");
     }

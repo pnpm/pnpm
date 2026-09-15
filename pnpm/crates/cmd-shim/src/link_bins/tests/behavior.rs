@@ -409,7 +409,7 @@ fn existing_bins_pointing_at_the_target_survive_flag_changes() {
             std::fs::symlink_metadata(&bin)
                 .unwrap()
                 .ino(),
-            inode
+            inode,
         );
     }
 }
