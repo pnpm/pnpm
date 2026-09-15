@@ -14,3 +14,7 @@ image = "ghcr.io/cross-rs/aarch64-linux-android@sha256:85d58ad7dd4cc97903bff4c5e
 
 [target.x86_64-linux-android]
 image = "ghcr.io/cross-rs/x86_64-linux-android@sha256:e60e4a759b4f07ac5d6f7632afc728d2a6a3ad668013ec17d9627b537acf2cdc"
+
+# FIXME: Remove this with cross > 0.2.5
+[target.loongarch64-unknown-linux-gnu]
+image = "ghcr.io/cross-rs/loongarch64-unknown-linux-gnu@sha256:df9c23b328318d31037a1300d51d0a08990abf8b801e9742d5739bd782ad5f50"
