@@ -197,10 +197,9 @@ impl HostedGit {
     /// because a host reads `Owner/Repo` and `owner/repo` as the same
     /// repository while npm names are case-sensitive. A GitLab project
     /// nested in subgroups arrives with its groups joined by `/`, which
-    /// a scope cannot hold; they join with [`SUBGROUP_SEPARATOR`], which
-    /// a group path cannot contain, so a nested path cannot be spelled
-    /// by a group name. A shortcut naming no owner keeps the bare
-    /// project name.
+    /// a scope cannot hold; they join with `~`, which a group path
+    /// cannot contain, so a nested path cannot be spelled by a group
+    /// name. A shortcut naming no owner keeps the bare project name.
     #[must_use]
     pub fn synthesized_package_name(&self) -> String {
         if self.user.is_empty() {
