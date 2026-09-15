@@ -1,6 +1,6 @@
-pub use arguments::{AddInstallArgs, AddSaveArgs, AddTargetArgs};
+pub use arguments::{AddIncludeArgs, AddInstallArgs, AddSaveArgs, AddTargetArgs};
 
-pub(crate) use execution::{add_package, add_packages};
+pub(crate) use execution::{AddGroups, add_package, add_packages};
 
 mod arguments;
 
@@ -8,9 +8,12 @@ use crate::{
     State,
     cargo_manifest::CargoDependencyKind,
     cli_args::{
-        install::resolve_bool_override, lockfile_dir::LockfileDirArg,
-        pipelines::InstallFamilySelection, recursive,
-        supported_architectures::SupportedArchitecturesArgs, workspace_option::workspace_link_root,
+        install::{included_dependency_groups, resolve_bool_override},
+        lockfile_dir::LockfileDirArg,
+        pipelines::InstallFamilySelection,
+        recursive,
+        supported_architectures::SupportedArchitecturesArgs,
+        workspace_option::workspace_link_root,
     },
     config_deps,
     engine_pm::{
@@ -170,7 +173,7 @@ impl AddDependencyOptions {
     /// flag names it explicitly, `None` when pnpm infers it per package
     /// (an already-declared dependency is updated in the group it
     /// occupies; a new one lands in `dependencies`).
-    fn save_target(&self) -> Option<Vec<DependencyGroup>> {
+    pub(crate) fn save_target(&self) -> Option<Vec<DependencyGroup>> {
         let &AddDependencyOptions {
             save_prod,
             save_dev,
@@ -193,6 +196,9 @@ pub struct AddArgs {
     /// --save-prod, --save-dev, --save-optional, --save-peer
     #[clap(flatten)]
     pub dependency_options: AddDependencyOptions,
+    /// `--prod` / `--dev`: which dependency groups end up in `node_modules`.
+    #[clap(flatten)]
+    pub include: AddIncludeArgs,
     /// `--cpu`, `--os`, and `--libc` filters for which optional dependencies are installed.
     #[clap(flatten)]
     pub supported_architectures: SupportedArchitecturesArgs,
@@ -241,6 +247,14 @@ impl AddArgs {
         config.optional =
             resolve_bool_override(self.install.optional, self.install.no_optional, config.optional);
         config.force = self.install.force || config.force;
+    }
+
+    /// The dependency groups the install that follows the manifest edit
+    /// resolves and materializes. Distinct from
+    /// [`AddDependencyOptions::save_target`], which names the manifest
+    /// group the added packages are written to.
+    fn included_groups(&self, config: &Config) -> Vec<DependencyGroup> {
+        included_dependency_groups(self.include.prod, self.include.dev, config.optional).collect()
     }
 
     /// The `--config` selectors parsed into the `name → specifier` pairs to

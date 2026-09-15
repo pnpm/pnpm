@@ -1,4 +1,21 @@
 use super::LockfileDirArg;
+
+/// Which dependency groups the install that follows the manifest edit
+/// materializes.
+///
+/// `pnpm install <pkg>` is a spelling of `pnpm add <pkg>`, so `add` has to
+/// take the `--prod` / `--dev` filter `install` takes. Long-only: on `add`,
+/// `-P` and `-D` are `--save-prod` and `--save-dev`, as they are in pnpm.
+#[derive(Debug, Clone, clap::Args)]
+pub struct AddIncludeArgs {
+    /// Leave devDependencies out of `node_modules`.
+    #[clap(long, visible_alias = "production")]
+    pub prod: bool,
+    /// Leave dependencies and optionalDependencies out of `node_modules`.
+    #[clap(long)]
+    pub dev: bool,
+}
+
 #[derive(Debug, Clone, clap::Args)]
 pub struct AddSaveArgs {
     /// Saved dependencies will be configured with an exact version rather than using

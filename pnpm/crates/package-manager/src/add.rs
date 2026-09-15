@@ -193,6 +193,7 @@ where
                 dependency_groups: self.resources.dependency_groups.map(|groups| {
                     groups.into_iter().collect()
                 }),
+                included_groups: self.resources.included_groups,
                 save_catalog_name: self.resources.save_catalog_name,
                 supported_architectures: self.resources.supported_architectures,
             },
@@ -316,6 +317,10 @@ pub struct AddResources<DependencyGroupList> {
     /// `peerDependencies` order, with a peer-only entry left untouched),
     /// and a new package lands in `dependencies`.
     pub dependency_groups: Option<DependencyGroupList>,
+    /// The dependency groups the install that follows the manifest edit
+    /// resolves and materializes, from `--prod` / `--dev`. `None` includes
+    /// every direct group the `optional` setting allows.
+    pub included_groups: Option<Vec<DependencyGroup>>,
     /// `--save-catalog-name=<name>` (with `--save-catalog` a shorthand for
     /// `default`), or the `saveCatalogName` config default. When `Some`,
     /// the added dependency is written as `catalog:` / `catalog:<name>`
