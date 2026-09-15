@@ -6,7 +6,7 @@ use sysinfo::{Pid, ProcessRefreshKind, RefreshKind, Signal, System, UpdateKind};
 use tokio::{
     net::{TcpListener, TcpStream},
     task::JoinHandle,
-    time::{Duration, timeout},
+    time::{Duration, Instant, sleep, timeout},
 };
 
 fn options(client: &Client, port: u16) -> MockInstanceOptions<'_> {
@@ -28,6 +28,10 @@ fn processes() -> System {
     )
 }
 
+/// How long [`ChildCleanup::assert_reaped`] waits for the process table to
+/// catch up before it calls the child abandoned.
+const REAP_TIMEOUT: Duration = Duration::from_secs(10);
+
 /// Last-resort kill for the registry child a test spawned, so a failing
 /// assertion never leaves the process behind.
 struct ChildCleanup(Option<Pid>);
@@ -35,12 +39,18 @@ struct ChildCleanup(Option<Pid>);
 impl ChildCleanup {
     /// Disarms once the child is confirmed gone, because the OS is free to
     /// hand that PID to an unrelated process afterwards.
-    fn assert_reaped(mut self) {
+    ///
+    /// Windows keeps a terminated process listed until its last handle
+    /// closes, so the PID can outlive the `wait()` that reaped it. Polling
+    /// still fails a child that is genuinely left running, it just does not
+    /// race the process table.
+    async fn assert_reaped(mut self) {
         let pid = self.0.expect("cleanup is armed");
-        assert!(
-            processes().process(pid).is_none(),
-            "registry child {pid} must be stopped and reaped",
-        );
+        let deadline = Instant::now() + REAP_TIMEOUT;
+        while processes().process(pid).is_some() {
+            assert!(Instant::now() < deadline, "registry child {pid} must be stopped and reaped");
+            sleep(Duration::from_millis(50)).await;
+        }
         self.0 = None;
     }
 }
@@ -90,7 +100,7 @@ async fn cancelled_startup_reaps_child() {
     startup.abort();
     let error = startup.await.unwrap_err();
     assert!(error.is_cancelled(), "aborting startup cancels it: {error}");
-    child.assert_reaped();
+    child.assert_reaped().await;
 }
 
 #[tokio::test]
@@ -103,7 +113,7 @@ async fn failed_readiness_check_reaps_child() {
         .expect("closed connection must fail the readiness check")
         .unwrap_err();
     assert!(error.is_panic(), "readiness failures panic: {error}");
-    child.assert_reaped();
+    child.assert_reaped().await;
 }
 
 #[tokio::test]
@@ -118,5 +128,5 @@ async fn successful_startup_retains_owner_and_reuse_does_not_stop_registry() {
     assert!(registry.spawn_if_necessary().await.is_none(), "a ready registry is not respawned");
     assert!(registry.is_registry_ready().await, "reuse must leave the registry serving");
     drop(instance);
-    child.assert_reaped();
+    child.assert_reaped().await;
 }
