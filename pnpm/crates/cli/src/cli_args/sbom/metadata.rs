@@ -113,26 +113,6 @@ pub(super) fn build_purl(name: &str, version: &str) -> String {
     format!("pkg:npm/{}@{}", encode_purl_name(name), version)
 }
 
-pub(super) fn is_simple_spdx_id(license: &str) -> bool {
-    !license.is_empty()
-        && license
-            .chars()
-            .all(|ch| ch.is_ascii_alphanumeric() || ch == '-' || ch == '.' || ch == '+')
-}
-
-pub(super) fn classify_license(license: &str) -> serde_json::Value {
-    let is_expression = license
-        .split_whitespace()
-        .any(|word| word == "AND" || word == "OR" || word == "WITH");
-    if is_expression {
-        serde_json::json!({ "expression": license })
-    } else if is_simple_spdx_id(license) {
-        serde_json::json!({ "license": { "id": license } })
-    } else {
-        serde_json::json!({ "license": { "name": license } })
-    }
-}
-
 /// The resolution's integrity, but only where pnpm checks the downloaded
 /// bytes against it — so an SBOM never publishes a checksum as an assurance
 /// pnpm did not make. A git resolution's recorded hash is not one: nothing

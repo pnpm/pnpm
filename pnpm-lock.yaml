@@ -338,6 +338,9 @@ catalogs:
     '@types/semver':
       specifier: 7.8.0
       version: 7.8.0
+    '@types/spdx-expression-parse':
+      specifier: 4.0.0
+      version: 4.0.0
     '@types/ssri':
       specifier: ^7.1.5
       version: 7.1.5
@@ -785,6 +788,9 @@ catalogs:
     sort-keys:
       specifier: ^6.0.1
       version: 6.0.1
+    spdx-expression-parse:
+      specifier: 4.0.0
+      version: 4.0.0
     split-cmd:
       specifier: ^1.1.0
       version: 1.1.0
@@ -3234,6 +3240,9 @@ importers:
       p-limit:
         specifier: 'catalog:'
         version: 7.3.2
+      spdx-expression-parse:
+        specifier: 'catalog:'
+        version: 4.0.0
       ssri:
         specifier: 'catalog:'
         version: 13.0.1
@@ -3253,6 +3262,9 @@ importers:
       '@types/hosted-git-info':
         specifier: 'catalog:'
         version: 3.0.5
+      '@types/spdx-expression-parse':
+        specifier: 'catalog:'
+        version: 4.0.0
       '@types/ssri':
         specifier: 'catalog:'
         version: 7.1.5
@@ -12627,6 +12639,9 @@ packages:
   '@types/semver@7.8.0':
     resolution: {integrity: sha512-1mAINjtQCXXeLkJ9ehXkwOcBpqtLxiVtKhpUf83DdRNdQKV0iXZpaHYqRr7nj+wvxuJzoAmAwXI+sCNMv1CzLQ==}
 
+  '@types/spdx-expression-parse@4.0.0':
+    resolution: {integrity: sha512-odQzy87phelGS4inXOzjmusx4hoCVD0IbxUANxHzVkmTzMRTNnUPoq1urIl7S1qf09KcDWKLFIftPmLtgbsAHA==}
+
   '@types/ssri@7.1.5':
     resolution: {integrity: sha512-odD/56S3B51liILSk5aXJlnYt99S6Rt9EFDDqGtJM26rKHApHcwyU/UoYHrzKkdkHMAIquGWCuHtQTbes+FRQw==}
 
@@ -20301,6 +20316,8 @@ snapshots:
   '@types/semver@6.2.7': {}
 
   '@types/semver@7.8.0': {}
+
+  '@types/spdx-expression-parse@4.0.0': {}
 
   '@types/ssri@7.1.5':
     dependencies:
