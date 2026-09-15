@@ -4,8 +4,8 @@
 //! [`StoreIndexWriter`].
 
 use crate::{
-    AddFilesFromDirError, CafsFileInfo, SideEffectsDiff, StoreDir, StoreIndexWriter,
-    add_files_from_dir,
+    AddFilesFromDirError, CafsFileInfo, SideEffectsDiff, StoreDir, StoreIndexError,
+    StoreIndexWriter, add_files_from_dir,
 };
 use derive_more::{Display, Error};
 use miette::Diagnostic;
@@ -20,6 +20,8 @@ use std::{
 pub enum UploadError {
     #[diagnostic(transparent)]
     AddFilesFromDir(#[error(source)] AddFilesFromDirError),
+    #[diagnostic(transparent)]
+    StoreIndex(#[error(source)] StoreIndexError),
 }
 
 /// Digest algorithm pacquet writes into `PackageFilesIndex.algo`.
@@ -38,6 +40,8 @@ pub const HASH_ALGORITHM: &str = "sha512";
 ///
 /// Behaviour at the writer side:
 ///
+/// - Build output contains symlinks → remove the matching cache entry and
+///   wait for persistence; read, write, or unavailable-writer errors propagate.
 /// - No base row at `files_index_file` → silent skip.
 /// - Existing row's `algo` differs from [`HASH_ALGORITHM`] → log
 ///   at `warn!` and skip (an algorithm mismatch is demoted to a
@@ -55,6 +59,15 @@ pub fn upload(
 ) -> Result<(), UploadError> {
     let added =
         add_files_from_dir(store_dir, built_pkg_location).map_err(UploadError::AddFilesFromDir)?;
+    if added.has_symlinks {
+        writer
+            .queue_side_effects_invalidation(
+                files_index_file.to_string(),
+                side_effects_cache_key.to_string(),
+            )
+            .map_err(UploadError::StoreIndex)?;
+        return Ok(());
+    }
     writer.queue_side_effects_upload(
         files_index_file.to_string(),
         side_effects_cache_key.to_string(),
@@ -72,6 +85,15 @@ pub fn upload_with_diff(
 ) -> Result<Option<SideEffectsDiff>, UploadError> {
     let added =
         add_files_from_dir(store_dir, built_pkg_location).map_err(UploadError::AddFilesFromDir)?;
+    if added.has_symlinks {
+        writer
+            .queue_side_effects_invalidation(
+                files_index_file.to_string(),
+                side_effects_cache_key.to_string(),
+            )
+            .map_err(UploadError::StoreIndex)?;
+        return Ok(None);
+    }
     Ok(writer.queue_side_effects_upload_with_result(
         files_index_file.to_string(),
         side_effects_cache_key.to_string(),

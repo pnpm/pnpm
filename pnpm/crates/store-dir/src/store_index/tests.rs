@@ -31,7 +31,7 @@ fn immutable_uri_absolutizes_a_relative_path() {
     assert!(uri.ends_with("/relative-store/index.db?immutable=1"), "{uri}");
 }
 
-fn sample_index() -> PackageFilesIndex {
+pub(super) fn sample_index() -> PackageFilesIndex {
     let mut files = HashMap::new();
     files.insert(
         "package.json".to_string(),
