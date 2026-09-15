@@ -46,8 +46,6 @@ fn normalizes_hosted_git_specifiers_to_shortcut_form() {
     assert_eq!(normalized_save_specifier("workspace:*"), "workspace:*");
 }
 
-/// A repository's own `name` wins; only a repository that declares none
-/// is named after its owner and project.
 #[test]
 fn git_dependency_falls_back_to_the_repository_host_identity() {
     use crate::add::aliasless::git_package_name;
