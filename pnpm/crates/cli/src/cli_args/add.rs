@@ -290,12 +290,17 @@ impl AddArgs {
     /// settings, mirroring pnpm's `getRangeSpecStyle`.
     fn range_spec_style(&self, config: &Config) -> RangeSpecStyle {
         let cli_save_style_override = self.save.tilde || self.save.prefix.is_some();
-        RangeSpecStyle::from_save_options(
-            self.save.exact || (!cli_save_style_override && config.save_exact),
+        let save_prefix = if self.save.exact {
+            None
+        } else {
             self.save.tilde
                 .then_some("~")
                 .or(self.save.prefix.as_deref())
-                .or(config.save_prefix.as_deref()),
+                .or(config.save_prefix.as_deref())
+        };
+        RangeSpecStyle::from_save_options(
+            self.save.exact || (!cli_save_style_override && config.save_exact),
+            save_prefix,
         )
     }
 
