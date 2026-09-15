@@ -34,6 +34,19 @@ fn tilde_flag_writes_tilde_range() {
 }
 
 #[test]
+fn save_prefix_after_tilde_wins() {
+    let (root, dir, anchor) = exec_pacquet_in_temp_cwd([
+        "add",
+        "@pnpm.e2e/hello-world-js-bin",
+        "--tilde",
+        "--save-prefix=^",
+    ]);
+    let spec = prod_spec(&dir, "@pnpm.e2e/hello-world-js-bin");
+    assert_eq!(spec, "^1.0.0");
+    drop((root, anchor)); // cleanup
+}
+
+#[test]
 fn save_prefix_empty_writes_exact_version() {
     let (root, dir, anchor) =
         exec_pacquet_in_temp_cwd(["add", "@pnpm.e2e/hello-world-js-bin", "--save-prefix="]);
