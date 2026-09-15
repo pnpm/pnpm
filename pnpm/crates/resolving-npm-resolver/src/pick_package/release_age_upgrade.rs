@@ -47,8 +47,8 @@ pub(super) async fn maybe_upgrade_abbreviated_meta_for_release_age<Cache: Packag
     let fetch_opts = FetchFullMetadataOptions {
         registry: opts.registry,
         full_metadata: true,
-        etag: meta.etag.as_deref(),
-        modified: meta.modified.as_deref(),
+        etag: None,
+        modified: None,
         http: ctx.metadata.http,
     };
     match fetch_full_metadata(&spec.name, &fetch_opts).await? {
@@ -115,12 +115,9 @@ pub(super) async fn maybe_upgrade_abbreviated_meta_for_release_age<Cache: Packag
 /// intentionally updates the *abbreviated* cache file with full data so
 /// the next install sees `time` populated and skips the upgrade fetch.
 ///
-/// The upgrade fetch forwards `meta.etag` and `meta.modified` as
-/// conditional headers. When the registry's full-form representation
-/// hasn't changed it answers `304 Not Modified` and the abbreviated
-/// meta is returned untouched.
-/// Whether a `minimumReleaseAge` check needs the full packument this
-/// abbreviated one cannot answer from.
+/// The upgrade fetch intentionally omits `meta.etag` and `meta.modified`
+/// validators because `meta` is the abbreviated packument, so its validator
+/// cannot validate a full packument representation.
 pub(super) fn release_age_upgrade_needed<Cache: PackageMetaCache>(
     ctx: &PickPackageContext<'_, Cache>,
     spec: &RegistryPackageSpec,
