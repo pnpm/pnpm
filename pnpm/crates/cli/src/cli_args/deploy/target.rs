@@ -316,6 +316,13 @@ fn comparison_component(component: &str) -> String {
 }
 
 #[cfg(not(windows))]
+#[cfg_attr(
+    dylint_lib = "perfectionist",
+    expect(
+        perfectionist::needless_borrowed_parameters,
+        reason = "the `cfg(windows)` twin lowercases this parameter rather than owning it, and both must offer one signature to the shared call site"
+    )
+)]
 fn comparison_component(component: &str) -> String {
     component.to_string()
 }

@@ -67,7 +67,7 @@ pub fn resolve_lockfile(
     let metadata = parse_metadata(metadata)?;
     let registry = Registry::new(index_files, source.to_string())?;
     let root_dependencies = root_dependencies(&metadata)?;
-    let mut feature_selections = root_feature_selections(&registry, &root_dependencies)?;
+    let mut feature_selections = root_feature_selections(&registry, root_dependencies.to_vec())?;
     let mut previous_selections = Vec::new();
 
     loop {
@@ -77,7 +77,7 @@ pub fn resolve_lockfile(
         previous_selections.push(feature_selections.clone());
         let solution = resolve_with_features(&registry, &root_dependencies, &feature_selections)?;
         let selected_features =
-            feature_selections_for_solution(&registry, &root_dependencies, &solution)?;
+            feature_selections_for_solution(&registry, root_dependencies.to_vec(), &solution)?;
         if let Some(validated_solution) = validate_selected_graph(
             &registry,
             root_dependencies.clone(),

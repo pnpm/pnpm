@@ -405,6 +405,13 @@ fn encode_os(value: &OsStr) -> Vec<u8> {
 }
 
 #[cfg(unix)]
+#[cfg_attr(
+    dylint_lib = "perfectionist",
+    expect(
+        perfectionist::needless_borrowed_parameters,
+        reason = "the `cfg(windows)` twin reads this parameter twice, and both must offer one signature to the shared call site"
+    )
+)]
 fn decode_os(bytes: &[u8]) -> Option<OsString> {
     use std::os::unix::ffi::OsStringExt as _;
     Some(OsString::from_vec(bytes.to_vec()))

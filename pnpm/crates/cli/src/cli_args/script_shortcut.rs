@@ -19,9 +19,9 @@ pub struct ScriptShortcutArgs {
 }
 
 impl ScriptShortcutArgs {
-    pub(crate) fn into_run_args(self, script_name: &str, if_present: bool) -> RunArgs {
+    pub(crate) fn into_run_args(self, script_name: String, if_present: bool) -> RunArgs {
         RunArgs {
-            script: RunArgs::script(script_name.to_string(), self.args),
+            script: RunArgs::script(script_name, self.args),
             if_present,
             sequential: false,
             dry_run: false,
@@ -39,7 +39,7 @@ impl ScriptShortcutArgs {
 
     pub fn run(
         self,
-        script_name: &str,
+        script_name: String,
         if_present: bool,
         dir: &std::path::Path,
         config: &pnpm_config::Config,

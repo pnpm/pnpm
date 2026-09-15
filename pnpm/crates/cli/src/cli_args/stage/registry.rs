@@ -47,13 +47,13 @@ pub(super) async fn fetch_stage_tarball(
     let action = format!("download staged package {stage_id}");
     let (_guard, response) = stage_send(context, reqwest::Method::GET, url.as_str(), None)
         .await
-        .map_err(|source| request_failed(&action, source))?;
+        .map_err(|source| request_failed(action.clone(), source))?;
     if !response.status().is_success() {
         return Err(registry_error_from_response(response, &action).await.into());
     }
     let tarball_data = read_limited_body(response, STAGE_TARBALL_BODY_LIMIT)
         .await
-        .map_err(|source| request_failed(&action, source))?;
+        .map_err(|source| request_failed(action.clone(), source))?;
     if tarball_data.truncated {
         return Err(StageError::RequestFailed {
             operation: action,
@@ -233,12 +233,12 @@ pub(super) async fn stage_json_request<Body: serde::de::DeserializeOwned>(
 ) -> miette::Result<Body> {
     let (_guard, response) = stage_send(context, reqwest::Method::GET, url, None)
         .await
-        .map_err(|source| request_failed(action, source))?;
+        .map_err(|source| request_failed(action.to_string(), source))?;
     if !response.status().is_success() {
         return Err(registry_error_from_response(response, action).await.into());
     }
     let body = read_limited_body(response, STAGE_BODY_LIMIT).await
-        .map_err(|source| request_failed(action, source))?;
+        .map_err(|source| request_failed(action.to_string(), source))?;
     if body.truncated {
         return Err(StageError::RequestFailed {
             operation: action.to_owned(),
@@ -246,7 +246,7 @@ pub(super) async fn stage_json_request<Body: serde::de::DeserializeOwned>(
         }
         .into());
     }
-    serde_json::from_slice(&body.bytes).map_err(|source| request_failed(action, source))
+    serde_json::from_slice(&body.bytes).map_err(|source| request_failed(action.to_string(), source))
 }
 
 /// Send one request to a `-/stage` endpoint with the stage headers
@@ -316,8 +316,8 @@ fn parse_stage_otp_challenge(www_authenticate: Option<&str>, body: &[u8]) -> Opt
     Some(OtpChallenge { body: Some(OtpErrorBody { auth_url, done_url }) })
 }
 
-fn request_failed(action: &str, source: impl std::fmt::Display) -> miette::Report {
-    request_failed_error(action.to_string(), source).into()
+fn request_failed(action: String, source: impl std::fmt::Display) -> miette::Report {
+    request_failed_error(action, source).into()
 }
 
 fn request_failed_error(action: String, source: impl std::fmt::Display) -> StageError {
@@ -331,5 +331,5 @@ fn request_failed_error(action: String, source: impl std::fmt::Display) -> Stage
 pub(super) fn stage_endpoint_url(registry: &str, path: &str) -> miette::Result<reqwest::Url> {
     reqwest::Url::parse(registry)
         .and_then(|url| url.join(path))
-        .map_err(|source| request_failed("build the registry staging URL", source))
+        .map_err(|source| request_failed("build the registry staging URL".to_string(), source))
 }

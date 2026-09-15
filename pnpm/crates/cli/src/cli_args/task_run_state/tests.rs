@@ -65,7 +65,7 @@ fn a_changed_execution_setting_produces_a_different_invocation_identity() {
     let first = TaskRunStateContext::new(
         "run",
         &["build".to_string()],
-        &settings("first"),
+        settings("first"),
         &graph,
         workspace.path(),
         |_, _| vec!["build-command".to_string()],
@@ -73,7 +73,7 @@ fn a_changed_execution_setting_produces_a_different_invocation_identity() {
     let second = TaskRunStateContext::new(
         "run",
         &["build".to_string()],
-        &settings("second"),
+        settings("second"),
         &graph,
         workspace.path(),
         |_, _| vec!["build-command".to_string()],
@@ -116,7 +116,7 @@ fn ignores_a_torn_trailing_record_and_removes_a_completed_journal() {
     let context = TaskRunStateContext::new(
         "run",
         &["build".to_string()],
-        &[],
+        Vec::new(),
         &graph,
         workspace.path(),
         |_, _| vec!["build-command".to_string()],
@@ -177,7 +177,7 @@ fn rejects_a_malformed_complete_record() {
     let context = TaskRunStateContext::new(
         "run",
         &["build".to_string()],
-        &[],
+        Vec::new(),
         &graph,
         workspace.path(),
         |_, _| vec!["build-command".to_string()],
@@ -227,7 +227,7 @@ fn rejects_a_symlinked_state_directory() {
     let context = TaskRunStateContext::new(
         "run",
         &["build".to_string()],
-        &[],
+        Vec::new(),
         &graph,
         workspace.path(),
         |_, _| vec!["build-command".to_string()],
@@ -274,7 +274,7 @@ fn disables_state_when_node_modules_is_read_only() {
     let context = TaskRunStateContext::new(
         "run",
         &["build".to_string()],
-        &[],
+        Vec::new(),
         &graph,
         workspace.path(),
         |_, _| vec!["build-command".to_string()],
@@ -312,7 +312,7 @@ fn finishing_an_older_invocation_preserves_the_newer_invocation_journal() {
     let context = TaskRunStateContext::new(
         "run",
         &["build".to_string()],
-        &[],
+        Vec::new(),
         &graph,
         workspace.path(),
         |_, _| vec!["build-command".to_string()],
@@ -362,7 +362,7 @@ fn a_finished_journal_is_not_resumable_when_cleanup_is_unavailable() {
     let context = TaskRunStateContext::new(
         "run",
         &["build".to_string()],
-        &[],
+        Vec::new(),
         &graph,
         workspace.path(),
         |_, _| vec!["build-command".to_string()],
@@ -405,7 +405,7 @@ fn a_stale_pointer_does_not_hide_a_newer_published_invocation_journal() {
     let context = TaskRunStateContext::new(
         "run",
         &["build".to_string()],
-        &[],
+        Vec::new(),
         &graph,
         workspace.path(),
         |_, _| vec!["build-command".to_string()],
@@ -464,7 +464,7 @@ fn a_stale_start_cannot_revive_state_after_a_newer_invocation_finishes() {
     let context = TaskRunStateContext::new(
         "run",
         &["build".to_string()],
-        &[],
+        Vec::new(),
         &graph,
         workspace.path(),
         |_, _| vec!["build-command".to_string()],

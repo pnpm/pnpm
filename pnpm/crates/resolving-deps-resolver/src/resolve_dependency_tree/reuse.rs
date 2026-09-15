@@ -11,7 +11,7 @@ pub(super) use direct_versions::{
 };
 
 mod snapshot_children;
-use snapshot_children::{ReusedChildren, reused_children, snapshot_child_refs};
+use snapshot_children::{ReusedChildren, ReusedNodeAncestry, reused_children, snapshot_child_refs};
 
 mod direct_versions;
 
@@ -464,11 +464,7 @@ where
             key: &reused.key,
             snapshot: identity.snapshot,
             child_refs: &identity.child_refs,
-            ancestry: snapshot_children::ReusedNodeAncestry::new(
-                edge,
-                id.clone(),
-                current_is_optional,
-            ),
+            ancestry: ReusedNodeAncestry::new(edge, id.clone(), current_is_optional),
         },
         &identity.node_id,
     )

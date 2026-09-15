@@ -157,15 +157,14 @@ fn frozen_package_frame(
     };
     let name = inputs.package_key.name.to_string();
     let version = inputs.package_key.suffix.version().to_string();
-    let upstream_tarball_url = tarball_url;
-    let tarball_url = inputs.router.route_url(&name, &version, &upstream_tarball_url);
+    let upstream_url = tarball_url;
+    let tarball_url = inputs.router.route_url(&name, &version, &upstream_url);
     if !seen_urls.insert(tarball_url.clone()) {
         return None;
     }
     let id = format!("{name}@{version}");
     let integrity = integrity.to_string();
-    let revision =
-        pnpr_served_revision(&inputs.snapshot.resolution, &tarball_url, &upstream_tarball_url);
+    let revision = pnpr_served_revision(&inputs.snapshot.resolution, &tarball_url, &upstream_url);
     let (unpacked_size, file_count) =
         frozen_dist_stats(inputs.dist_stats, name.clone(), version.clone());
     let frame = package_frame(

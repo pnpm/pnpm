@@ -129,8 +129,8 @@ pub(crate) fn remove_keys(text: &str, collection: &Collection, keys: &[String]) 
 
 /// Replace a flow sequence's items wholesale and return the document with
 /// the rebuilt collection spliced in. `items` are already-rendered YAML.
-pub(crate) fn set_items(text: &str, collection: &Collection, items: &[String]) -> String {
-    splice(text.to_string(), collection, items)
+pub(crate) fn set_items(text: String, collection: &Collection, items: &[String]) -> String {
+    splice(text, collection, items)
 }
 
 /// Render `items` as a flow sequence, for writing one as another

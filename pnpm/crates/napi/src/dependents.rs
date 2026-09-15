@@ -184,7 +184,7 @@ fn build_trees(options: &DependentsOptions) -> napi::Result<Vec<DependentsTree>>
 
     // No lockfile: nothing is installed, so nothing depends on anything.
     let Some(env) = loaded.env(
-        &lockfile_dir,
+        lockfile_dir.clone(),
         virtual_store_dir_max_length(options),
         &registries,
         BTreeMap::new(),

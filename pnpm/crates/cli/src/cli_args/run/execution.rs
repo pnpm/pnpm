@@ -146,7 +146,7 @@ pub(super) fn no_matching_script(
         return Ok(());
     }
     if fallback_to_exec {
-        return exec_fallback(script_name, args, dirs, config, reporter);
+        return exec_fallback(script_name.to_string(), args, dirs, config, reporter);
     }
     Err(RunError::NoScript {
         script: script_name.to_owned(),

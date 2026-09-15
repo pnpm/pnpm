@@ -39,7 +39,7 @@ pub async fn install_config_deps<Reporter: self::Reporter>(
 ) -> Result<(), ConfigDepError> {
     verify_env_lockfile(env_lockfile)?;
     let normalized = normalize_from_lockfile(env_lockfile, opts)?;
-    let global_virtual_store_dir = opts.store.dir.links();
+    let gvs_dir = opts.store.dir.links();
     let config_modules_dir = opts.root_dir.join("node_modules").join(".pnpm-config");
 
     let existing: Vec<String> = read_dir_names(&config_modules_dir)?;
@@ -51,7 +51,7 @@ pub async fn install_config_deps<Reporter: self::Reporter>(
     let mut installed: Vec<InstalledConfigDep> = Vec::new();
 
     for (name, dep) in &normalized {
-        let paths = config_dep_paths(name, dep, &config_modules_dir, &global_virtual_store_dir);
+        let paths = config_dep_paths(name, dep, &config_modules_dir, gvs_dir.clone());
         let parent_symlink_already_correct = existing
             .iter()
             .any(|entry| entry == name)
@@ -64,7 +64,7 @@ pub async fn install_config_deps<Reporter: self::Reporter>(
             name,
             dep,
             &paths,
-            &global_virtual_store_dir,
+            &gvs_dir,
         )
         .await?;
 
@@ -153,7 +153,7 @@ fn config_dep_paths(
     name: &str,
     dep: &NormalizedConfigDep,
     config_modules_dir: &Path,
-    global_virtual_store_dir: &Path,
+    global_virtual_store_dir: PathBuf,
 ) -> ConfigDepPaths {
     let parent_full_pkg_id = full_pkg_id(name, &dep.version, &dep.integrity);
     let subdep_ids: BTreeMap<String, String> = dep.optional_subdeps
@@ -169,8 +169,7 @@ fn config_dep_paths(
         &subdep_ids,
     );
     let leaf_node_modules =
-        join_global_virtual_store_path(global_virtual_store_dir.to_path_buf(), &rel_path)
-            .join("node_modules");
+        join_global_virtual_store_path(global_virtual_store_dir, &rel_path).join("node_modules");
     ConfigDepPaths {
         config_dep_path: config_modules_dir.join(name),
         pkg_dir_in_gvs: leaf_node_modules.join(name),

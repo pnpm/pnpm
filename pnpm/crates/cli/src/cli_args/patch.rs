@@ -306,7 +306,7 @@ fn prepare_patch_edit_dir(
     let edit_dir = if let Some(path) = custom_dir {
         resolve_path(dir, path)
     } else {
-        let edit_dir = default_edit_dir(modules_dir, package_name, target);
+        let edit_dir = default_edit_dir(modules_dir, package_name.to_string(), target);
         prepare_default_edit_dir(modules_dir, &edit_dir)?;
         edit_dir
     };

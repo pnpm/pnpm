@@ -239,29 +239,11 @@ pub(super) fn walk_dep(
         return Ok(None);
     }
 
-    let dir = safe_join_modules_dir(modules, &dep.0.name)?;
-    let dep_location = path_relative_to_lockfile_dir(&dir, state.lockfile_dir);
-    let present = package_is_reusable(state, &resolved, &reference, &dep_location, modules, &dir);
-
-    // Insert *before* recursing (insert + push to `pkg_locations`, then
+    // Record *before* recursing (insert + push to `pkg_locations`, then
     // recurse) so every node's location is recorded ahead of any child
     // that needs to resolve to it. `children` is filled in by
     // `fill_children` after the whole walk is done.
-    state.result.graph.insert(
-        dir.clone(),
-        graph_node(
-            dep,
-            reference.clone(),
-            &resolved,
-            optional,
-            present,
-            dir.clone(),
-            modules.to_path_buf(),
-        ),
-    );
-    record_package_location(state, &resolved.pkg_key, dir.clone());
-
-    record_injected_location(&mut state.result, &resolved, &reference, &dir);
+    let (dir, dep_location) = record_node(state, dep, modules, &reference, &resolved, optional)?;
 
     let hierarchy = walk_deps(state, &dir.join("node_modules"), &dep.0.dependencies.borrow())?;
 
@@ -274,6 +256,36 @@ pub(super) fn walk_dep(
         .or_default()
         .push(dep_location);
     Ok(Some((dir, hierarchy)))
+}
+/// Records the node's graph entry, its package location, and, for an
+/// injected workspace package, its injection target. Returns the node's
+/// directory and its location relative to the lockfile directory.
+fn record_node(
+    state: &mut WalkState<'_>,
+    dep: &RcByPtr<HoisterResult>,
+    modules: &Path,
+    reference: &str,
+    resolved: &ResolvedReference<'_>,
+    optional: bool,
+) -> Result<(PathBuf, String), HoistedDepGraphError> {
+    let dir = safe_join_modules_dir(modules, &dep.0.name)?;
+    let dep_location = path_relative_to_lockfile_dir(&dir, state.lockfile_dir);
+    let present = package_is_reusable(state, resolved, reference, &dep_location, modules, &dir);
+    state.result.graph.insert(
+        dir.clone(),
+        graph_node(
+            dep,
+            reference.to_string(),
+            resolved,
+            optional,
+            present,
+            dir.clone(),
+            modules.to_path_buf(),
+        ),
+    );
+    record_package_location(state, &resolved.pkg_key, dir.clone());
+    record_injected_location(&mut state.result, resolved, reference, &dir);
+    Ok((dir, dep_location))
 }
 fn record_injected_location(
     result: &mut super::LockfileToDepGraphResult,

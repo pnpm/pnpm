@@ -222,7 +222,7 @@ fn default_edit_dir_name_falls_back_to_alias_then_requested_package() {
     target.alias.clear();
     assert_eq!(
         default_edit_dir_name("chalk@npm:chalk@5.3.0".to_string(), &target),
-        "chalk@npm:chalk@5.3.0"
+        "chalk@npm:chalk@5.3.0",
     );
 }
 

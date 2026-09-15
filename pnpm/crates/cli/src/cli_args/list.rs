@@ -291,7 +291,7 @@ impl ListArgs {
             self.graph.lockfile_only,
         )?;
         let env = state.env(
-            lockfile_dir,
+            lockfile_dir.to_path_buf(),
             config.virtual_store_dir_max_length as usize,
             &config.resolved_registries(),
             config.registry_options_by_url.clone(),

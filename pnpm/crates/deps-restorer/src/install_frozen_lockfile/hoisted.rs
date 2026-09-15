@@ -455,11 +455,8 @@ impl HoistedLinkScope<'_> {
     fn link_one(&self, alias: &str, target: &Path) -> Result<bool, HoistedLinkerError> {
         let link_path =
             crate::safe_join_modules_dir::safe_join_modules_dir(&self.modules_dir, alias)
-                .map_err(|source| {
-                    self.symlink_failure(
-                        alias.to_string(),
-                        SymlinkPackageError::InvalidAlias(source),
-                    )
+                .map_err(|err| {
+                    self.symlink_failure(alias.to_string(), SymlinkPackageError::InvalidAlias(err))
                 })?;
         // A dependency that won the workspace-root slot is reached by
         // walking up from the project, exactly as it is under pnpm.
@@ -477,7 +474,7 @@ impl HoistedLinkScope<'_> {
             return Ok(true);
         }
         crate::symlink_package(target, &link_path)
-            .map_err(|source| self.symlink_failure(alias.to_string(), source))?;
+            .map_err(|err| self.symlink_failure(alias.to_string(), err))?;
         Ok(true)
     }
 
@@ -503,7 +500,7 @@ impl HoistedLinkScope<'_> {
             Err(error) if error.kind() == std::io::ErrorKind::NotFound => false,
             Err(error) => {
                 return Err(self.symlink_dir_failure(
-                    alias,
+                    alias.to_string(),
                     target.to_path_buf(),
                     link_path.to_path_buf(),
                     error,
@@ -516,7 +513,7 @@ impl HoistedLinkScope<'_> {
         pnpm_fs::remove_symlink_dir(link_path)
             .map_err(|error| {
                 self.symlink_dir_failure(
-                    alias,
+                    alias.to_string(),
                     target.to_path_buf(),
                     link_path.to_path_buf(),
                     error,
@@ -536,13 +533,13 @@ impl HoistedLinkScope<'_> {
 
     fn symlink_dir_failure(
         &self,
-        alias: &str,
+        alias: String,
         target: PathBuf,
         link_path: PathBuf,
         error: std::io::Error,
     ) -> HoistedLinkerError {
         self.symlink_failure(
-            alias.to_string(),
+            alias,
             SymlinkPackageError::SymlinkDir {
                 symlink_target: target,
                 symlink_path: link_path,

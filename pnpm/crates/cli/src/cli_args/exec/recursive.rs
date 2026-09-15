@@ -254,7 +254,7 @@ fn execute_selection(
     let task_run_state_context = TaskRunStateContext::new(
         "exec",
         &state_inputs.params,
-        &state_inputs.settings,
+        state_inputs.settings,
         &full_task_graph,
         workspace_root,
         |_, _| Vec::new(),

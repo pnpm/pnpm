@@ -212,7 +212,7 @@ pub(super) fn upsert_sequence_entry(
         .map(|item| render::render_value(item))
         .collect();
     if let Inline::Flow(collection) = locate_sequence(text, &[block_name, key]) {
-        return flow::set_items(text, &collection, &rendered_items);
+        return flow::set_items(text.to_string(), &collection, &rendered_items);
     }
     if let Inline::Flow(collection) = locate_mapping(text, &[block_name]) {
         return flow::upsert(text, &collection, key, &flow::render_sequence(&rendered_items));

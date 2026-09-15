@@ -477,7 +477,7 @@ fn link_resolved_entry<Reporter: self::Reporter>(
     modules_dir: &Path,
     symlink: bool,
     packages: Option<&HashMap<PackageKey, PackageMetadata>>,
-    prefix: &str,
+    prefix: String,
 ) -> Result<(), SymlinkDirectDependenciesError> {
     let ResolvedEntry { name_str, target, .. } = entry;
 
@@ -494,7 +494,7 @@ fn link_resolved_entry<Reporter: self::Reporter>(
         }
     }
 
-    emit_root_added::<Reporter>(entry, packages, prefix.to_string());
+    emit_root_added::<Reporter>(entry, packages, prefix);
     Ok(())
 }
 
@@ -565,7 +565,7 @@ fn link_one_importer<Reporter: self::Reporter>(
                 modules_dir,
                 symlink,
                 packages,
-                &prefix,
+                prefix.clone(),
             )
         })?;
 

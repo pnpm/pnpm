@@ -38,12 +38,12 @@ fn is_empty_dir(path: &Path) -> io::Result<bool> {
 
 pub(super) fn default_edit_dir(
     modules_dir: &Path,
-    package_name: &str,
+    package_name: String,
     target: &PatchTarget,
 ) -> PathBuf {
     modules_dir
         .join(".pnpm_patches")
-        .join(default_edit_dir_name(package_name.to_string(), target))
+        .join(default_edit_dir_name(package_name, target))
 }
 
 pub(super) fn prepare_default_edit_dir(

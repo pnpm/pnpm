@@ -153,17 +153,17 @@ fn implicit_optional_aliases<'a>(
 
 pub(crate) fn root_feature_selections(
     registry: &Registry,
-    root_dependencies: &[RegistryDependency],
+    root_dependencies: Vec<RegistryDependency>,
 ) -> Result<BTreeMap<PackageKey, FeatureSelection>> {
-    collect_feature_selections(registry, root_dependencies.to_vec(), None)
+    collect_feature_selections(registry, root_dependencies, None)
 }
 
 pub(crate) fn feature_selections_for_solution(
     registry: &Registry,
-    root_dependencies: &[RegistryDependency],
+    root_dependencies: Vec<RegistryDependency>,
     solution: &SelectedDependencies<PackageKey, Version>,
 ) -> Result<BTreeMap<PackageKey, FeatureSelection>> {
-    collect_feature_selections(registry, root_dependencies.to_vec(), Some(solution))
+    collect_feature_selections(registry, root_dependencies, Some(solution))
 }
 
 fn collect_feature_selections(

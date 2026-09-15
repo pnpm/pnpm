@@ -129,7 +129,7 @@ impl TaskRunStateContext {
     pub fn new(
         command: &str,
         params: &[String],
-        settings: &[String],
+        settings: Vec<String>,
         graph: &TaskGraph,
         workspace_dir: &Path,
         script_commands: impl Fn(&TaskNode, &str) -> Vec<String>,
@@ -145,7 +145,7 @@ impl TaskRunStateContext {
                 task_identity(node, id, graph, workspace_dir, &script_commands)
             })
             .collect();
-        let invocation = invocation_hash(command, params, settings.to_vec(), tasks);
+        let invocation = invocation_hash(command, params, settings, tasks);
         let state_dir = workspace_dir.join("node_modules").join(STATE_DIR);
         let latest_state_path = state_dir.join(LATEST_STATE_FILE);
         Self { state_dir, latest_state_path, invocation, keys_by_id, ids_by_key }

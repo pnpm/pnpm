@@ -83,7 +83,7 @@ where
 
     let id = build_pkg_id_with_patch_hash(ctx, &result).await?;
 
-    record_workspace_manifest_identity(ctx, &wanted, &result, &id);
+    record_workspace_manifest_identity(ctx, &wanted, &result, id.clone());
 
     if closes_cycle(edge.ancestor_ids, &id) {
         return Ok(NodeSeed::Done(None));
@@ -384,7 +384,7 @@ pub(super) fn record_workspace_manifest_identity(
     ctx: &TreeCtx,
     wanted: &WantedDependency,
     result: &pnpm_resolving_resolver_base::ResolveResult,
-    id: &str,
+    id: String,
 ) {
     if result.package.name_ver.is_some() {
         return;
@@ -404,7 +404,7 @@ pub(super) fn record_workspace_manifest_identity(
     ) else {
         return;
     };
-    ctx.workspace.versions.record_workspace_manifest_identity(id.to_string(), name, version);
+    ctx.workspace.versions.record_workspace_manifest_identity(id, name, version);
 }
 
 pub(super) fn reject_exotic_subdep(

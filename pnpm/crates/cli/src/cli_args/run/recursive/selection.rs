@@ -83,7 +83,7 @@ pub(super) fn resume_task_graph(
     args: &RunArgs,
     graph: &ProjectGraph<GraphPkg<'_>>,
     full_task_graph: &TaskGraph,
-    script_name: &str,
+    script_name: String,
 ) -> miette::Result<TaskGraph> {
     let Some(resume_from) = args.workspace.resume_from.as_ref() else {
         return Ok(full_task_graph.clone());
@@ -93,7 +93,7 @@ pub(super) fn resume_task_graph(
     Ok(resume_task_graph_from(
         full_task_graph.clone(),
         anchor,
-        script_name.to_string(),
+        script_name,
         completed_tasks.as_ref(),
     ))
 }

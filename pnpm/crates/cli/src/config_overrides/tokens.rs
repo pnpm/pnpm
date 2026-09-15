@@ -212,6 +212,13 @@ fn is_u64(value: &str) -> bool {
     value.parse::<u64>().is_ok()
 }
 
+#[cfg_attr(
+    dylint_lib = "perfectionist",
+    expect(
+        perfectionist::needless_borrowed_parameters,
+        reason = "stored as a `SettingArity::Parsed` function pointer in `BARE_SETTING_FLAGS`, so the table fixes this signature"
+    )
+)]
 fn is_enum<Value: serde::de::DeserializeOwned>(value: &str) -> bool {
     parse_enum::<Value>(value.to_string()).is_some()
 }

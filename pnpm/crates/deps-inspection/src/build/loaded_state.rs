@@ -61,7 +61,7 @@ impl LoadedState {
     #[must_use]
     pub fn env<'a>(
         &'a self,
-        lockfile_dir: &Path,
+        lockfile_dir: PathBuf,
         virtual_store_dir_max_length: usize,
         registries_by_scope: &BTreeMap<String, String>,
         registry_options_by_url: BTreeMap<String, RegistryOptions>,
@@ -86,7 +86,7 @@ impl LoadedState {
             current_lockfile: lockfile,
             wanted_lockfile: self.wanted_lockfile.as_ref(),
             dep_types: detect_dep_types(lockfile),
-            layout: self.layout(lockfile_dir.to_path_buf(), virtual_store_dir_max_length),
+            layout: self.layout(lockfile_dir, virtual_store_dir_max_length),
         })
     }
     fn layout(

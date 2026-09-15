@@ -199,7 +199,7 @@ impl RunArgs {
             Err(ReadProjectManifestOnlyError::NoImporterManifestFound { .. })
                 if fallback_to_exec =>
             {
-                return exec_fallback(script_name, args, dirs, config, reporter);
+                return exec_fallback(script_name.clone(), args, dirs, config, reporter);
             }
             Err(err) => return Err(RunError::Manifest(err).into()),
         };
@@ -292,14 +292,14 @@ impl RunArgs {
 }
 
 fn exec_fallback(
-    script_name: &str,
+    script_name: String,
     args: &[String],
     dirs: ExecDirs<'_>,
     config: &Config,
     reporter: ReporterType,
 ) -> miette::Result<()> {
     ExecArgs {
-        command: RunArgs::script(script_name.to_string(), args.iter().cloned()),
+        command: RunArgs::script(script_name, args.iter().cloned()),
         shell_mode: false,
         workspace: crate::cli_args::recursive::RecursiveExecutionArgs {
             resume_from: None,
