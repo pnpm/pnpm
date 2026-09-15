@@ -29,6 +29,7 @@ const {
 } = await import('@pnpm/bins.linker')
 
 const binsConflictLogger = logger('bins-conflict')
+const PRINTF_BASEDIR_LINE = String.raw`basedir=$(command -p printf '%s\n' "$link" | command -p sed -e 's,\\,/,g')`
 // The fixture directories are copied to before the tests run
 // This happens because the tests convert some of the files into executables
 const f = fixtures(import.meta.dirname)
@@ -91,6 +92,7 @@ test('linkBins() skips bins that already reference the correct target', async ()
   // The bin contains a cmd-shim-target marker with the correct target path
   const expectedTarget = normalizePath(path.join(simpleFixture, 'node_modules', 'simple', 'index.js'))
   expect(originalContent).toContain(`# cmd-shim-target=${expectedTarget}\n`)
+  expect(originalContent).toContain(PRINTF_BASEDIR_LINE)
   // Append a sentinel to the existing (correct) content to prove it is not rewritten
   const sentinel = originalContent + '\n# sentinel'
   fs.writeFileSync(binLocation, sentinel, 'utf8')
@@ -134,6 +136,41 @@ exec node  "$basedir/../simple/index.js" "$@"
   const content = fs.readFileSync(binLocation, 'utf8')
   expect(content).toContain(`# cmd-shim-target=${target}\n`)
   expect(content).toContain('  target=$(command -p readlink "$link")\n')
+})
+
+test('linkBins() replaces a shim that still pipes the path through echo', async () => {
+  const binTarget = temporaryDirectory()
+  const warn = jest.fn()
+  const simpleFixture = f.prepare('simple-fixture')
+  const target = normalizePath(path.join(simpleFixture, 'node_modules', 'simple', 'index.js'))
+
+  fs.mkdirSync(binTarget, { recursive: true })
+  const binLocation = path.join(binTarget, 'simple')
+  const outdated = `#!/bin/sh
+link="$0"
+hops=0
+while [ -L "$link" ] && [ "$hops" -lt 40 ]; do
+  hops=$((hops+1))
+  target=$(command -p readlink "$link")
+  case "$target" in
+    /*) link="$target" ;;
+    *)  link="$(dirname "$link")/$target" ;;
+  esac
+done
+basedir=$(echo "$link" | command -p sed -e 's,\\\\,/,g')
+exec node  "$basedir/../simple/index.js" "$@"
+# cmd-shim-target=${target}
+# outdated-echo-basedir
+`
+  fs.writeFileSync(binLocation, outdated, 'utf8')
+
+  await linkBins(path.join(simpleFixture, 'node_modules'), binTarget, { warn })
+
+  const content = fs.readFileSync(binLocation, 'utf8')
+  expect(content).toContain(`# cmd-shim-target=${target}\n`)
+  expect(content).toContain('  target=$(command -p readlink "$link")\n')
+  expect(content).toContain(PRINTF_BASEDIR_LINE)
+  expect(content).not.toContain('# outdated-echo-basedir')
 })
 
 testOnPosix('linkBins() repairs a non-executable source when the existing bin references it', async () => {

@@ -221,8 +221,8 @@ fn windows_shim_bodies(
 ///
 /// The marker says nothing about the header, so the marker-only branch also
 /// requires [`is_sh_shim_hardened`]. A shim an older version wrote still points
-/// at the right target, and without that check an upgrade would leave it in
-/// place resolving its shell helpers off the caller's `PATH`.
+/// at the right target, and without that check an upgrade would leave a stale
+/// header in place.
 fn shim_body_matches(existing: Option<&str>, sh_body: &str, spec: &ShimSpec<'_>) -> bool {
     let Some(existing) = existing else {
         return false;

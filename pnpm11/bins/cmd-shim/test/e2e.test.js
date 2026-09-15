@@ -243,7 +243,7 @@ describeOnPosix('sh shim resolves its helpers off the caller\'s PATH', () => {
     const decoyDir = path.join(tempDir, 'decoy')
     fs.mkdirSync(decoyDir)
     const answer = (p) => `#!/bin/sh\necho '${p}'\n`
-    for (const helper of ['readlink', 'sed']) {
+    for (const helper of ['readlink', 'sed', 'printf']) {
       writeExecutable(path.join(decoyDir, helper), answer(path.join(hijackBin, 'tsc')))
     }
     writeExecutable(path.join(decoyDir, 'dirname'), answer(hijackBin))
@@ -280,5 +280,39 @@ describeOnPosix('sh shim resolves its helpers off the caller\'s PATH', () => {
     const binDir = await makeShimmedTool(tempDir)
 
     runWithDecoys(tempDir, 'sh', ['tsc-link'], binDir)
+  })
+})
+
+describeOnPosix('sh shim converts a Windows-form path', () => {
+  // The header converts backslashes to slashes with `sed`. A POSIX `echo` would
+  // turn the `\n` of `\node_modules` into a newline and the `\t` of `\tsc` into
+  // a tab before `sed` ever saw them (https://github.com/pnpm/pnpm/issues/14867).
+  test('keeps the backslashes until sed converts them', async () => {
+    const tempDir = temporaryDirectory()
+    const target = path.join(tempDir, 'tool.js')
+    fs.writeFileSync(target, '#!/usr/bin/env node\nconsole.log("SHIM_OK")\n', 'utf8')
+    const shim = path.join(tempDir, 'tool')
+    await cmdShim(target, shim, { createCmdFile: false })
+
+    const conversion = fs.readFileSync(shim, 'utf8')
+      .split('\n')
+      .find((line) => line.startsWith('basedir=$('))
+    assert.ok(conversion, 'the header must assign basedir from the shim path')
+    // POSIX echo backslash handling is implementation-defined. A shell that
+    // preserves backslashes can make an echo-based header pass the path
+    // assertion below, so also require the printf conversion form.
+    assert.ok(
+      conversion.includes(String.raw`command -p printf '%s\n' "$link"`),
+      'the basedir conversion must use command -p printf so backslashes stay literal'
+    )
+
+    const script = `link='C:\\node_modules\\.bin\\tsc'\n${conversion}\nprintf '%s' "$basedir"`
+    const r = spawnSync('/bin/sh', ['-c', script], {
+      encoding: 'utf8',
+      stdio: ['ignore', 'pipe', 'pipe'],
+    })
+
+    assert.equal(r.status, 0, `sh exited ${r.status}\nstderr: ${r.stderr}`)
+    assert.equal(r.stdout, 'C:/node_modules/.bin/tsc')
   })
 })

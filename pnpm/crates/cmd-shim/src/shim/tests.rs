@@ -2,7 +2,10 @@ use super::{
     ScriptRuntime, extension_program, generate_cmd_shim, generate_pwsh_shim, generate_sh_shim,
     is_sh_shim_hardened, is_shim_pointing_at, parse_shebang, parse_shebang_from_bytes,
     read_head_filled, relative_target, search_script_runtime,
-    sh::{SH_SHIM_HARDENED_HELPER_LINE, escape_msys_cmd_switches, strip_exe_suffix},
+    sh::{
+        SH_SHIM_HARDENED_HELPER_LINE, SH_SHIM_PATH_PRINTF_LINE, escape_msys_cmd_switches,
+        strip_exe_suffix,
+    },
 };
 use crate::{
     capabilities::{FsReadHead, Host},
@@ -60,8 +63,8 @@ fn relative_target_traverses_into_sibling_package() {
 }
 
 /// `is_sh_shim_hardened` decides whether a warm reinstall replaces a shim an
-/// older pacquet wrote, by looking for one exact line of the header. Reformat
-/// that line and every existing shim starts looking unhardened, so pin the two
+/// older pacquet wrote, by looking for exact lines of the header. Reformat
+/// those lines and every existing shim starts looking unhardened, so pin them
 /// together.
 #[test]
 fn generate_sh_shim_header_carries_the_hardened_helper_line() {
@@ -76,6 +79,13 @@ fn generate_sh_shim_header_carries_the_hardened_helper_line() {
     assert!(
         !is_sh_shim_hardened(&body.replace(SH_SHIM_HARDENED_HELPER_LINE, "  target=$(readlink)")),
         "a shim that looks up readlink on PATH must not count as hardened",
+    );
+    assert!(
+        !is_sh_shim_hardened(&body.replace(
+            SH_SHIM_PATH_PRINTF_LINE,
+            r#"basedir=$(echo "$link" | command -p sed -e 's,\\,/,g')"#,
+        )),
+        "a shim that pipes $link through echo must not count as hardened",
     );
 }
 
@@ -103,6 +113,17 @@ case `command -p uname -a` in"#
         assert!(body.contains(helper), "the header must reach {helper}, body was:\n{body}");
     }
     assert!(!body.contains("dirname"), "the header must not fork dirname, body was:\n{body}");
+    // POSIX echo processes `\n` / `\t` before sed can convert the backslashes.
+    assert!(
+        body.contains(
+            r#"basedir=$(command -p printf '%s\n' "$link" | command -p sed -e 's,\\,/,g')"#
+        ),
+        "header must print $link with printf so a Windows-form path keeps its backslashes, body was:\n{body}",
+    );
+    assert!(
+        !body.contains(r#"basedir=$(echo "$link""#),
+        "header must not pipe $link through echo, body was:\n{body}",
+    );
     // The header converts backslashes to slashes, so a Windows-form $0 is already
     // absolute and must not be prefixed with `./`, which would reroot it on the
     // working directory. Only a name with no separator at all came from a PATH
@@ -135,6 +156,32 @@ case `command -p uname -a` in"#
         body.ends_with("# cmd-shim-target=/proj/node_modules/typescript/bin/tsc\n"),
         "trailing target marker is required for is_shim_pointing_at parity",
     );
+}
+
+/// POSIX `echo` turns `\n` and `\t` into a newline and a tab, so a Windows-form
+/// `$0` such as `C:\node_modules\.bin\tsc` is corrupted before `sed` runs.
+#[test]
+#[cfg_attr(not(unix), ignore = "the shim shebang is /bin/sh")]
+fn posix_shim_header_normalizes_windows_backslash_paths_without_echo_escapes() {
+    let target = Path::new("/proj/node_modules/typescript/bin/tsc");
+    let shim = Path::new("/proj/node_modules/.bin/tsc");
+    let body = generate_sh_shim(target, shim, None, &[]);
+    let conversion = body
+        .lines()
+        .find(|line| line.starts_with("basedir=$("))
+        .expect("header must assign basedir from the shim path");
+    assert_eq!(conversion, SH_SHIM_PATH_PRINTF_LINE);
+
+    let script =
+        format!("link='C:\\node_modules\\.bin\\tsc'\n{conversion}\nprintf '%s' \"$basedir\"");
+    let output = std::process::Command::new("/bin/sh")
+        .arg("-c")
+        .arg(&script)
+        .output()
+        .expect("run the header's basedir conversion");
+    assert!(output.status.success(), "stderr:\n{}", String::from_utf8_lossy(&output.stderr));
+    let basedir = String::from_utf8_lossy(&output.stdout);
+    assert_eq!(basedir, "C:/node_modules/.bin/tsc");
 }
 
 #[test]
@@ -742,7 +789,7 @@ fn plant_hijack_tree_and_decoys(root: &Path) -> PathBuf {
     let decoy_dir = root.join("decoy");
     std::fs::create_dir_all(&decoy_dir).unwrap();
     let answer = |path: &Path| format!("#!/bin/sh\necho '{}'\n", path.display());
-    for helper in ["readlink", "sed"] {
+    for helper in ["readlink", "sed", "printf"] {
         write_executable(&decoy_dir.join(helper), &answer(&hijack_bin.join("tsc")));
     }
     write_executable(&decoy_dir.join("dirname"), &answer(&hijack_bin));

@@ -293,3 +293,67 @@ exec node  "$basedir/../foo/cli.js" "$@"
         "the reinstall must replace a shim that resolves its helpers on PATH, body was:\n{body}",
     );
 }
+
+/// A shim that already looks up `readlink` with `command -p` can still pipe
+/// `$link` through `echo`. The target marker matches, so a warm reinstall
+/// has to notice the conversion line and replace the shim.
+#[cfg(unix)]
+#[test]
+fn a_reinstall_replaces_a_shim_that_pipes_the_path_through_echo() {
+    let manifest = serde_json::json!({"name": "foo", "bin": "cli.js"});
+    let tmp = tempdir().unwrap();
+    let pkg = tmp.path().join("foo");
+    create_dir_all(&pkg).unwrap();
+    write_file(pkg.join("cli.js"), "#!/usr/bin/env node\n").unwrap();
+    let target = pkg.join("cli.js");
+    let bins_dir = tmp.path().join(".bin");
+    create_dir_all(&bins_dir).unwrap();
+    let shim = bins_dir.join("foo");
+    let outdated = format!(
+        r#"#!/bin/sh
+link="$0"
+case "$link" in
+  */*|*\\*) ;;
+  *) link="./$link" ;;
+esac
+hops=0
+while [ -L "$link" ] && [ "$hops" -lt 40 ]; do
+  hops=$((hops+1))
+  target=$(command -p readlink "$link")
+  case "$target" in
+    /*) link="$target" ;;
+    *)  link="${{link%/*}}/$target" ;;
+  esac
+done
+basedir=$(echo "$link" | command -p sed -e 's,\\,/,g')
+basedir="${{basedir%/*}}"
+exec node  "$basedir/../foo/cli.js" "$@"
+# cmd-shim-target={}
+"#,
+        target.display(),
+    );
+    write_file(&shim, &outdated).unwrap();
+    assert!(
+        is_shim_pointing_at(&outdated, &target),
+        "precondition: the outdated shim carries a matching target marker",
+    );
+    assert!(
+        outdated.contains(r#"  target=$(command -p readlink "$link")"#),
+        "precondition: helpers already resolve off the system path",
+    );
+    assert!(!is_sh_shim_hardened(&outdated), "precondition: the echo conversion is not current");
+
+    link_bins_of_packages::<Host>(
+        &[PackageBinSource::new(pkg, Arc::new(manifest))],
+        &bins_dir,
+        &LinkBinsOptions::default(),
+    )
+    .unwrap();
+
+    let body = read_to_string(&shim).unwrap();
+    assert!(is_shim_pointing_at(&body, &target), "the rewritten shim keeps its target");
+    assert!(
+        is_sh_shim_hardened(&body),
+        "the reinstall must replace a shim that pipes $link through echo, body was:\n{body}",
+    );
+}
