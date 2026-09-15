@@ -113,6 +113,7 @@ export async function fixWithUpdate (auditReport: AuditReport, opts: FixWithUpda
 
   await update.handler({
     ...updateOpts as FixWithUpdateOptions,
+    interactive: false,
     packageVulnerabilityAudit,
   }, [])
 
