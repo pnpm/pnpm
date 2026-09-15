@@ -313,14 +313,10 @@ pub(crate) fn clear_decided_ignored_builds(
 
 /// Deduplicate and sort `names` by code unit, matching pnpm's
 /// `sortUniqueStrings` (a `Set` then `lexCompare`).
-fn sort_unique(names: Vec<String>) -> Vec<String> {
-    let mut unique: Vec<String> = names
-        .into_iter()
-        .collect::<HashSet<_>>()
-        .into_iter()
-        .collect();
-    unique.sort();
-    unique
+fn sort_unique(mut names: Vec<String>) -> Vec<String> {
+    names.sort();
+    names.dedup();
+    names
 }
 
 #[cfg(test)]

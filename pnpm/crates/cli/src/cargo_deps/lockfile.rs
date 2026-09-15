@@ -26,12 +26,13 @@ impl LockedPackages {
     /// The git sources the locked packages come from, deduplicated so the
     /// managed Cargo configuration declares each one once.
     pub(super) fn git_sources(&self) -> Vec<GitSource> {
-        self.git
+        let mut sources: Vec<GitSource> = self.git
             .iter()
             .map(|package| GitSource::clone(&package.source))
-            .collect::<BTreeSet<_>>()
-            .into_iter()
-            .collect()
+            .collect();
+        sources.sort();
+        sources.dedup();
+        sources
     }
 }
 
