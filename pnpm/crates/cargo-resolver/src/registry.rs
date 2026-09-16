@@ -4,9 +4,10 @@ use miette::{IntoDiagnostic, Result, WrapErr};
 use semver::{Version, VersionReq};
 use std::collections::BTreeMap;
 
-/// The source identifier `cargo` writes for a crates.io package, and what
-/// every registry crate is locked against because pnpm serves other
-/// registries by replacing `[source.crates-io]`.
+/// The source identifier `cargo` writes for a crates.io package. A crate is
+/// locked against it when its dependency named crates.io or named no
+/// registry from a dependent that came from crates.io, whichever registry
+/// the replacement in `.cargo/config.toml` served it from.
 pub const CRATES_IO_SOURCE: &str = "registry+https://github.com/rust-lang/crates.io-index";
 const CRATES_IO_INDEX: &str = "https://github.com/rust-lang/crates.io-index";
 const CRATES_IO_SPARSE_SOURCE: &str = "sparse+https://index.crates.io/";

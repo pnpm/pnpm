@@ -393,9 +393,10 @@ fn install_vendors_a_git_patched_crate_beside_the_registry_crates() {
     // Offline, so the revision has to come from what the install vendored.
     Command::new("cargo")
         .with_current_dir(root.path())
-        .with_args(["check", "--offline"])
+        .with_args(["check", "--locked", "--offline"])
         .assert()
         .success();
+    assert_eq!(fs::read_to_string(root.path().join("Cargo.lock")).unwrap(), lockfile);
 }
 
 #[test]

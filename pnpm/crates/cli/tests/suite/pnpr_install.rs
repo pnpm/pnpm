@@ -649,9 +649,10 @@ fn cargo_install_uses_a_configured_pnpr_registry_and_accelerator() {
     );
     Command::new("cargo")
         .with_current_dir(root.path())
-        .with_args(["check", "--offline"])
+        .with_args(["check", "--locked", "--offline"])
         .assert()
         .success();
+    assert_eq!(fs::read_to_string(root.path().join("Cargo.lock")).unwrap(), lockfile);
 
     index_mock.assert();
     download_mock.assert();
