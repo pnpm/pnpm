@@ -382,6 +382,16 @@ Use `shell/resolve-pr-conflicts.sh` to resolve PR conflicts:
 
 The script force-fetches the base branch (avoiding stale refs), rebases, auto-resolves `pnpm-lock.yaml` conflicts via `pnpm install`, force-pushes, and verifies GitHub sees the PR as mergeable. For non-lockfile conflicts it will pause and list the files that need manual resolution.
 
+## Agent Skills
+
+The repository's skills live in `.agents/skills/<name>/SKILL.md`, one directory per skill.
+
+Codex reads that directory as-is. Claude Code only looks in `.claude/skills`, so `.claude/skills` is a symlink to `../.agents/skills`. Git stores the symlink, and `.gitignore` keeps ignoring everything else under `.claude`, so a local `settings.local.json` stays untracked.
+
+Add a new skill under `.agents/skills`; nothing else needs to change.
+
+Git only writes a real symlink on Windows when the clone has `core.symlinks=true`, which needs Developer Mode or an elevated shell. Without it `.claude/skills` is checked out as a text file holding the target path, and Claude Code finds no skills. `CLAUDE.md` is a symlink to `AGENTS.md`, so such a clone loses the project instructions the same way.
+
 ## Key Configuration Files
 
 -   `pnpm-workspace.yaml`: Defines the workspace structure.
