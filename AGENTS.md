@@ -352,9 +352,19 @@ try {
 
 ## Working with GitHub PRs, Issues, and Comments
 
--   **Open every PR with the repository template.** `gh pr create` does not apply `.github/pull_request_template.md` automatically, so read that file and pass its filled-in contents as the PR body (`--body`/`--body-file`). Keep every section (Summary, Squash Commit Body, Checklist), fill them in for this change, mark the checklist items, and remove only the lines the template says are inapplicable.
--   **Keep PR titles and descriptions current.** When pushing new changes to a PR, review the title and description and update them if they no longer accurately reflect what the PR does.
--   **Reply to and resolve review conversations.** Once a review comment has been addressed, reply to the thread with a description of the resolution including the commit hash that fixed it, then mark the conversation as resolved.
+The [`pull-requests`](./.agents/skills/pull-requests/SKILL.md) skill covers taking
+a change through a pull request: opening it from the template, waiting for the
+checks, and working the review rounds. Two rules hold whether or not it is loaded:
+
+-   **Open the PR as a draft.** CI runs on a draft in this repository and the
+    reviewers do not, so the checks and your own pass over the diff happen
+    before the first round of review. `gh pr ready <pr>` once the checks are
+    green and that pass is clean.
+-   **A push is not the end of the task.** Every push re-triggers CI and the
+    review bots. Wait for the checks and the new review round, investigate every
+    failure, verify each finding before acting on it, and push the fixes. Repeat
+    until the checks are green and a round produces nothing to act on. Handing
+    back a PR that has an unread round or a red check on it is unfinished work.
 -   **Sign all agent-authored content.** When posting a comment, creating an issue, or opening a PR, append a footer to the message indicating that it was written by an agent. The footer must include the name of the agent and the name of the model used. Example:
 
     ```markdown
