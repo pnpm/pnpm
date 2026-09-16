@@ -937,6 +937,129 @@ async fn installs_node_cargo_and_python_through_the_real_coordinator() {
         .success();
 }
 
+/// The scenario of pnpm/pnpm#14945.
+#[tokio::test]
+async fn installs_the_projects_own_package_from_its_source_tree() {
+    let root = tempfile::tempdir().unwrap();
+    let mut server = mockito::Server::new_async().await;
+    let _alpha = serve(&mut server, "alpha", &[("1.0", wheel("alpha", "1.0", "", &[]))]).await;
+    project(root.path(), &server.url(), &["alpha>=1"]);
+    fs::write(root.path().join("pyproject.toml"), "[project]\nname = 'My-App'\nversion = '1.2.3'\nrequires-python = '>=3.10'\ndependencies = ['alpha>=1']\n\n[project.scripts]\nmy-app = 'my_app:main'\n\n[project.entry-points.pnpm_demo]\nplugin = 'my_app:main'\n\n[build-system]\nrequires = ['hatchling']\nbuild-backend = 'hatchling.build'\n").unwrap();
+    fs::create_dir(root.path().join("my_app")).unwrap();
+    let source = root.path().join("my_app/__init__.py");
+    fs::write(&source, "def main():\n    print('first')\n").unwrap();
+    pacquet_in(root.path())
+        .arg("install")
+        .assert()
+        .success();
+
+    // The environment directory holds no modules of its own, so an import
+    // that succeeds there is one the installed package provides.
+    python(root.path())
+        .current_dir(root.path().join(".venv"))
+        .args(["-c", "import alpha, my_app"])
+        .assert()
+        .success();
+    python(root.path())
+        .args([
+            "-c",
+            "import importlib.metadata as m; d = m.distribution('my-app'); assert d.version == '1.2.3', d.version; assert 'alpha>=1' in m.requires('my-app'), m.requires('my-app'); assert d.read_text('INSTALLER').strip() == 'pnpm'; import json; assert json.loads(d.read_text('direct_url.json'))['dir_info']['editable']; assert [entry.value for entry in m.entry_points(group='pnpm_demo')] == ['my_app:main']",
+        ])
+        .assert()
+        .success();
+
+    let script = root
+        .path()
+        .join(if cfg!(windows) { ".venv/Scripts/my-app.cmd" } else { ".venv/bin/my-app" });
+    Command::new(&script)
+        .assert()
+        .success()
+        .stdout(if cfg!(windows) { "first\r\n" } else { "first\n" });
+    fs::write(&source, "def main():\n    print('second')\n").unwrap();
+    Command::new(&script)
+        .assert()
+        .success()
+        .stdout(if cfg!(windows) { "second\r\n" } else { "second\n" });
+}
+
+#[tokio::test]
+async fn installs_the_package_of_a_src_layout_project_and_none_for_a_virtual_one() {
+    let root = tempfile::tempdir().unwrap();
+    let mut server = mockito::Server::new_async().await;
+    let _alpha = serve(&mut server, "alpha", &[("1.0", wheel("alpha", "1.0", "", &[]))]).await;
+    project(root.path(), &server.url(), &[]);
+    fs::write(root.path().join("pyproject.toml"), "[tool.ruff]\nline-length = 100\n").unwrap();
+    for (directory, module, manifest) in [
+        (
+            "packaged",
+            "src/packaged",
+            "[project]\nname = 'packaged'\nversion = '0.1'\ndependencies = ['alpha>=1']\n\n[build-system]\nrequires = ['setuptools']\n",
+        ),
+        (
+            "declared",
+            "modules/declared",
+            "[project]\nname = 'declared'\nversion = '0.1'\ndependencies = []\n\n[build-system]\nrequires = ['hatchling']\n\n[tool.hatch.build.targets.wheel]\npackages = ['modules/declared']\n",
+        ),
+        ("virtual", "virtual", "[project]\nname = 'virtual'\nversion = '0.1'\ndependencies = []\n"),
+    ] {
+        let path = root.path().join(directory);
+        fs::create_dir_all(path.join(module)).unwrap();
+        fs::write(path.join("pyproject.toml"), manifest).unwrap();
+        fs::write(path.join(module).join("__init__.py"), "VALUE = 'source'\n").unwrap();
+    }
+    pacquet_in(root.path())
+        .arg("install")
+        .assert()
+        .success();
+
+    for (directory, module) in [("packaged", "packaged"), ("declared", "declared")] {
+        let project = root.path().join(directory);
+        python(&project)
+            .current_dir(project.join(".venv"))
+            .args(["-c", &format!("import {module}; assert {module}.VALUE == 'source'")])
+            .assert()
+            .success();
+    }
+    python(&root.path().join("packaged"))
+        .args(["-c", "import alpha"])
+        .assert()
+        .success();
+    // A project no build backend builds has no package to install.
+    python(&root.path().join("virtual"))
+        .args(["-c", "import importlib.metadata as m; m.distribution('virtual')"])
+        .assert()
+        .failure();
+}
+
+#[tokio::test]
+async fn a_dynamic_version_leaves_the_projects_own_package_uninstalled() {
+    let root = tempfile::tempdir().unwrap();
+    let mut server = mockito::Server::new_async().await;
+    let _alpha = serve(&mut server, "alpha", &[("1.0", wheel("alpha", "1.0", "", &[]))]).await;
+    project(root.path(), &server.url(), &["alpha>=1"]);
+    fs::write(root.path().join("pyproject.toml"), "[project]\nname = 'app'\ndynamic = ['version']\nrequires-python = '>=3.10'\ndependencies = ['alpha>=1']\n\n[build-system]\nrequires = ['hatchling']\n").unwrap();
+    let output = pacquet_in(root.path())
+        .arg("install")
+        .output()
+        .unwrap();
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    eprintln!("stdout:\n{stdout}\nstderr:\n{}", String::from_utf8_lossy(&output.stderr));
+    assert!(output.status.success());
+    assert!(
+        stdout.contains("[WARN] Installing only the dependencies of")
+            && stdout.contains("because its version is dynamic"),
+        "{stdout}",
+    );
+    python(root.path())
+        .args(["-c", "import alpha"])
+        .assert()
+        .success();
+    python(root.path())
+        .args(["-c", "import importlib.metadata as m; m.distribution('app')"])
+        .assert()
+        .failure();
+}
+
 #[tokio::test]
 async fn disabled_python_and_tool_only_pyprojects_do_not_probe_an_interpreter() {
     let root = tempfile::tempdir().unwrap();

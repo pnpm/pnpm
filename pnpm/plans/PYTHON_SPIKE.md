@@ -35,6 +35,20 @@ pnpm exec python -c 'import requests'
 Static PEP 621 dependencies come from each discovered `pyproject.toml`.
 Tool-only manifests are ignored. Each Python project has its own `pylock.toml`
 and `.venv`; environment directories are excluded from discovery.
+
+The environment also holds the project's own package, so the project can be
+imported, its `[project.scripts]` run, and its `[project.entry-points]` found
+from it. pnpm does not build the
+project: the installed distribution is a path entry onto the source tree plus
+the `.dist-info` an installed distribution records, which is what an editable
+install is. A project is packaged when it declares a `[build-system]`, and
+`tool.uv.package` overrides that either way. Modules are imported from the
+package directories the build backend declares in
+`[tool.hatch.build]`/`[tool.hatch.build.targets.wheel]` or
+`[tool.setuptools] package-dir`; a project that declares none uses `src` when
+it has such a directory, and the project directory otherwise. A project whose
+version is dynamic gets its dependencies and a warning, since pnpm cannot
+record a version only a build backend knows.
 Python-only operations do not scaffold Node metadata. Mixed adds can contain
 npm, `crate:` and `pypi:` selectors together.
 
@@ -129,6 +143,12 @@ indexes, pip configuration/keyring discovery, universal multi-target locking
 and recursive/filtered add are not implemented. Existing lockfiles must use
 pnpm's supported single-target contract; arbitrary third-party pylock imports
 are not supported. Unsupported forms fail explicitly.
+
+The project's own package is installed from the layout its manifest declares,
+not from a build backend's `build_editable` hook, so a backend that computes
+its package directories in code or rewrites modules as it builds them is not
+followed. The metadata pnpm records for it is the project's name, version,
+`requires-python` and dependencies; a project extra is not recorded as one.
 
 ## Verification
 

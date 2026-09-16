@@ -1,4 +1,9 @@
+pub(super) use package::{OwnPackage, ProjectPackage};
+
+mod package;
+
 use miette::{IntoDiagnostic, Result, bail};
+use package::{EntryPoints, Tool};
 use pep508_rs::Requirement;
 use pnpm_config::Config;
 use pnpm_python_resolver::parse_requirement;
@@ -18,13 +23,19 @@ impl DependencySelection {
 #[derive(Deserialize)]
 pub(super) struct Manifest {
     pub(super) project: Option<Project>,
+    #[serde(rename = "build-system")]
+    build_system: Option<toml::Value>,
     #[serde(default, rename = "dependency-groups")]
     groups: BTreeMap<String, Vec<toml::Value>>,
+    #[serde(default)]
+    tool: Tool,
 }
 
 #[derive(Deserialize)]
 #[serde(rename_all = "kebab-case")]
 pub(super) struct Project {
+    name: Option<String>,
+    version: Option<String>,
     #[serde(default)]
     pub(super) dependencies: Vec<String>,
     #[serde(default)]
@@ -32,6 +43,8 @@ pub(super) struct Project {
     pub(super) requires_python: Option<String>,
     #[serde(default)]
     optional_dependencies: BTreeMap<String, Vec<String>>,
+    #[serde(flatten)]
+    entry_points: EntryPoints,
 }
 
 impl Project {

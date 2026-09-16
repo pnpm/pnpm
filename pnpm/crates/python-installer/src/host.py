@@ -9,6 +9,7 @@ import io
 import json
 import os
 from pathlib import Path, PurePosixPath
+import shlex
 import sys
 import sysconfig
 import venv
@@ -102,6 +103,121 @@ def inspect_wheel(request):
     }
 
 
+class Environment:
+    """One environment's files: what is written where, and what each installed distribution records."""
+
+    def __init__(self, root, scheme):
+        self.root = root
+        self.scheme = scheme
+        self.scripts = Path(scheme["scripts"])
+        self.interpreter = self.scripts / ("python.exe" if os.name == "nt" else "python")
+        self.occupied = set()
+
+    def start(self, purelib):
+        self.site = Path(self.scheme["purelib" if purelib else "platlib"])
+        self.records = []
+
+    def write(self, destination, contents, executable=False):
+        destination = Path(destination)
+        if not destination.is_relative_to(self.root):
+            raise ValueError("wheel destination escapes environment")
+        key = os.path.normcase(str(destination))
+        if key in self.occupied or destination.exists():
+            raise ValueError("Python package file collision: " + str(destination.relative_to(self.root)))
+        self.occupied.add(key)
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        destination.write_bytes(contents)
+        if executable:
+            destination.chmod(0o755)
+        digest = base64.urlsafe_b64encode(hashlib.sha256(contents).digest()).rstrip(b"=").decode()
+        self.records.append([os.path.relpath(destination, self.site).replace(os.sep, "/"), "sha256=" + digest, str(len(contents))])
+
+    def write_entry_points(self, entries):
+        for group in ("console_scripts", "gui_scripts"):
+            for name, entry in entries.items(group) if entries.has_section(group) else []:
+                if not name or not all(character.isascii() and (character.isalnum() or character in "-_.") for character in name):
+                    raise ValueError("unsafe entry point name: " + name)
+                module, separator, function = entry.split("[", 1)[0].strip().partition(":")
+                if not separator or not all(part.isidentifier() for part in module.split(".")) or not all(part.isidentifier() for part in function.strip().split(".")):
+                    raise ValueError("invalid Python entry point: " + entry)
+                function = function.strip()
+                body = "import sys\nfrom " + module + " import " + function.split(".")[0] + "\nif __name__ == '__main__':\n    sys.exit(" + function + "())\n"
+                if os.name == "nt":
+                    self.write(self.scripts / (name + "-script.py"), body.encode())
+                    launcher = '@"' + str(self.interpreter) + '" "%~dp0' + name + '-script.py" %*\r\n'
+                    self.write(self.scripts / (name + ".cmd"), launcher.encode())
+                else:
+                    # A shell trampoline supports interpreter paths containing spaces and long paths.
+                    prefix = "#!/bin/sh\n'''exec' " + shlex.quote(str(self.interpreter)) + ' "$0" "$@"\n\x27 \x27\x27\x27\n'
+                    self.write(self.scripts / name, (prefix + body).encode(), True)
+
+    def finish(self, dist_info):
+        self.write(self.site / dist_info / "INSTALLER", b"pnpm\n")
+        self.records.append([dist_info + "/RECORD", "", ""])
+        record_path = self.site / dist_info / "RECORD"
+        record_path.parent.mkdir(parents=True, exist_ok=True)
+        with record_path.open("w", encoding="utf-8", newline="") as record:
+            csv.writer(record).writerows(sorted(self.records))
+
+
+def install_wheel(environment, package):
+    files, metadata = package["files"], package["metadata"]
+    dist_info = metadata["dist_info"]
+    environment.start(metadata["purelib"])
+    for name, source in files.items():
+        if name in (dist_info + "/RECORD", dist_info + "/RECORD.jws", dist_info + "/RECORD.p7s", dist_info + "/INSTALLER"):
+            continue
+        parts = PurePosixPath(name).parts
+        executable = bool(Path(source).stat().st_mode & 0o111)
+        if parts[0].endswith(".data"):
+            if parts[0] != dist_info.removesuffix(".dist-info") + ".data" or len(parts) < 3 or parts[1] not in environment.scheme:
+                raise ValueError("invalid wheel data path: " + name)
+            destination = Path(environment.scheme[parts[1]]).joinpath(*parts[2:])
+            executable = executable or parts[1] == "scripts"
+        else:
+            destination = environment.site.joinpath(*parts)
+        contents = Path(source).read_bytes()
+        if executable and contents.startswith(b"#!python"):
+            first_line, newline, body = contents.partition(b"\n")
+            if first_line.removesuffix(b"\r") in (b"#!python", b"#!pythonw"):
+                contents = ("#!" + str(environment.interpreter)).encode() + newline + body
+        environment.write(destination, contents, executable)
+
+    entry_points = files.get(dist_info + "/entry_points.txt")
+    if entry_points:
+        entries = configparser.ConfigParser(interpolation=None)
+        entries.optionxform = str
+        entries.read(entry_points, encoding="utf-8")
+        environment.write_entry_points(entries)
+    environment.finish(dist_info)
+
+
+def install_project(environment, project):
+    """Install the project's own package: a path entry onto its source tree, with the metadata of an installed distribution."""
+    environment.start(True)
+    dist_info = project["dist_info"]
+    for path in project["paths"]:
+        # Python runs a .pth line that starts with "import", so one path must not become two lines.
+        if "\n" in path or "\r" in path:
+            raise ValueError("unsafe Python source path: " + path)
+    environment.write(environment.site / project["pth"], "".join(path + "\n" for path in project["paths"]).encode("utf-8"))
+    environment.write(environment.site / dist_info / "METADATA", project["metadata"].encode("utf-8"))
+    direct_url = {"url": Path(project["directory"]).as_uri(), "dir_info": {"editable": True}}
+    environment.write(environment.site / dist_info / "direct_url.json", json.dumps(direct_url).encode("utf-8"))
+    if project["entry_points"]:
+        for group in project["entry_points"]:
+            if not group or not all(character.isascii() and (character.isalnum() or character in "-_.") for character in group):
+                raise ValueError("unsafe entry point group: " + group)
+        entries = configparser.ConfigParser(interpolation=None)
+        entries.optionxform = str
+        entries.read_dict(project["entry_points"])
+        declaration = io.StringIO()
+        entries.write(declaration)
+        environment.write(environment.site / dist_info / "entry_points.txt", declaration.getvalue().encode("utf-8"))
+        environment.write_entry_points(entries)
+    environment.finish(dist_info)
+
+
 def install(request):
     root = Path(request["root"])
     venv.EnvBuilder(with_pip=False, symlinks=os.name != "nt").create(root)
@@ -109,78 +225,11 @@ def install(request):
     scheme_name = "venv" if "venv" in sysconfig.get_scheme_names() else ("nt" if os.name == "nt" else "posix_prefix")
     scheme = sysconfig.get_paths(scheme=scheme_name, vars=variables)
     scheme["headers"] = str(root / "include" / "site" / ("python" + sysconfig.get_python_version()))
-    scripts = Path(scheme["scripts"])
-    interpreter = scripts / ("python.exe" if os.name == "nt" else "python")
-    occupied = set()
+    environment = Environment(root, scheme)
     for package in request["packages"]:
-        files, metadata = package["files"], package["metadata"]
-        dist_info = metadata["dist_info"]
-        site = Path(scheme["purelib" if metadata["purelib"] else "platlib"])
-        record_path = site / dist_info / "RECORD"
-        records = []
-
-        def write(destination, contents, executable=False):
-            destination = Path(destination)
-            if not destination.is_relative_to(root):
-                raise ValueError("wheel destination escapes environment")
-            key = os.path.normcase(str(destination))
-            if key in occupied or destination.exists():
-                raise ValueError("Python package file collision: " + str(destination.relative_to(root)))
-            occupied.add(key)
-            destination.parent.mkdir(parents=True, exist_ok=True)
-            destination.write_bytes(contents)
-            if executable:
-                destination.chmod(0o755)
-            digest = base64.urlsafe_b64encode(hashlib.sha256(contents).digest()).rstrip(b"=").decode()
-            records.append([os.path.relpath(destination, site).replace(os.sep, "/"), "sha256=" + digest, str(len(contents))])
-
-        for name, source in files.items():
-            if name in (dist_info + "/RECORD", dist_info + "/RECORD.jws", dist_info + "/RECORD.p7s", dist_info + "/INSTALLER"):
-                continue
-            parts = PurePosixPath(name).parts
-            executable = bool(Path(source).stat().st_mode & 0o111)
-            if parts[0].endswith(".data"):
-                if parts[0] != dist_info.removesuffix(".dist-info") + ".data" or len(parts) < 3 or parts[1] not in scheme:
-                    raise ValueError("invalid wheel data path: " + name)
-                destination = Path(scheme[parts[1]]).joinpath(*parts[2:])
-                executable = executable or parts[1] == "scripts"
-            else:
-                destination = site.joinpath(*parts)
-            contents = Path(source).read_bytes()
-            if executable and contents.startswith(b"#!python"):
-                first_line, newline, body = contents.partition(b"\n")
-                if first_line.removesuffix(b"\r") in (b"#!python", b"#!pythonw"):
-                    contents = ("#!" + str(interpreter)).encode() + newline + body
-            write(destination, contents, executable)
-
-        entry_points = files.get(dist_info + "/entry_points.txt")
-        if entry_points:
-            entries = configparser.ConfigParser(interpolation=None)
-            entries.optionxform = str
-            entries.read(entry_points, encoding="utf-8")
-            for group in ("console_scripts", "gui_scripts"):
-                for name, entry in entries.items(group) if entries.has_section(group) else []:
-                    if not name or not all(character.isascii() and (character.isalnum() or character in "-_.") for character in name):
-                        raise ValueError("unsafe entry point name: " + name)
-                    module, separator, function = entry.split("[", 1)[0].strip().partition(":")
-                    if not separator or not all(part.isidentifier() for part in module.split(".")) or not all(part.isidentifier() for part in function.strip().split(".")):
-                        raise ValueError("invalid Python entry point: " + entry)
-                    function = function.strip()
-                    body = "import sys\nfrom " + module + " import " + function.split(".")[0] + "\nif __name__ == '__main__':\n    sys.exit(" + function + "())\n"
-                    if os.name == "nt":
-                        write(scripts / (name + "-script.py"), body.encode())
-                        launcher = '@"' + str(interpreter) + '" "%~dp0' + name + '-script.py" %*\r\n'
-                        write(scripts / (name + ".cmd"), launcher.encode())
-                    else:
-                        # A shell trampoline supports interpreter paths containing spaces and long paths.
-                        import shlex
-                        prefix = "#!/bin/sh\n'''exec' " + shlex.quote(str(interpreter)) + ' "$0" "$@"\n\x27 \x27\x27\x27\n'
-                        write(scripts / name, (prefix + body).encode(), True)
-        write(site / dist_info / "INSTALLER", b"pnpm\n")
-        records.append([dist_info + "/RECORD", "", ""])
-        record_path.parent.mkdir(parents=True, exist_ok=True)
-        with record_path.open("w", encoding="utf-8", newline="") as record:
-            csv.writer(record).writerows(sorted(records))
+        install_wheel(environment, package)
+    if request.get("project"):
+        install_project(environment, request["project"])
     return {"root": str(root)}
 
 
