@@ -2,25 +2,21 @@ use super::{Inputs, Registry, environment::PythonPrepare, manifest};
 use base64::{Engine as _, engine::general_purpose::STANDARD};
 use derive_more::{Display, Error};
 use pnpm_diagnostics::miette::{Diagnostic, IntoDiagnostic, Result};
-use std::sync::Arc;
+use std::{collections::HashMap, sync::Arc};
 
-/// The Python index a project resolves against. Credentials the
-/// configured URL carried are lifted into `auth`, so `url` never holds
-/// any: it is cached under, and locked as, what it reads.
 pub(crate) struct Index {
     pub(crate) url: url::Url,
     pub(crate) extra_urls: Vec<url::Url>,
     pub(crate) auth: pnpm_network::AuthHeaders,
 }
 
-/// The configured Python index, with any credentials it carries lifted out
-/// of the URL. A repository-selected Python index must not select
-/// user-level npm credentials.
+/// Repository-selected Python indexes must not select user-level npm credentials.
 pub(super) fn python_index(config: &pnpm_config::Config) -> Result<Index> {
     let indexes = std::iter::once(&config.python.index_url)
         .chain(&config.python.extra_index_urls)
         .map(|configured| parse_index(configured))
         .collect::<Result<Vec<_>>>()?;
+    validate_index_credentials(&indexes)?;
     let url = indexes[0].url.clone();
     let extra_urls = indexes
         .iter()
@@ -63,6 +59,30 @@ impl pnpm_network::UpstreamRouteHook for IndexAuth {
             .max_by_key(|index| index.url.path().len())
             .and_then(|index| index.authorization.clone())
     }
+}
+
+fn validate_index_credentials(indexes: &[ConfiguredIndex]) -> Result<()> {
+    let mut credentials = HashMap::new();
+    for index in indexes {
+        let origin = index.url.origin();
+        if credentials
+            .insert((origin.clone(), index.url.path()), &index.authorization)
+            .is_some_and(|previous| previous != &index.authorization)
+        {
+            return Err(ConflictingIndexCredentials {
+                url: format!("{}{}", origin.ascii_serialization(), index.url.path()),
+            }
+            .into());
+        }
+    }
+    Ok(())
+}
+
+#[derive(Debug, Display, Error, Diagnostic)]
+#[display("Python index {url} is configured with conflicting credentials")]
+#[diagnostic(code(ERR_PNPM_CONFLICTING_PYTHON_INDEX_CREDENTIALS))]
+struct ConflictingIndexCredentials {
+    url: String,
 }
 
 fn parse_index(configured: &str) -> Result<ConfiguredIndex> {

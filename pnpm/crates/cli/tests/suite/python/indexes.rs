@@ -218,3 +218,24 @@ async fn authenticated_index_caches_do_not_cross_credential_identities() {
     );
     missing.assert_async().await;
 }
+
+#[test]
+fn duplicate_index_paths_with_conflicting_credentials_are_configuration_errors() {
+    let root = tempfile::tempdir().unwrap();
+    project(root.path(), "http://localhost:1", &["alpha"]);
+    add_python_settings(
+        root.path(),
+        "  extraIndexUrls: ['http://alice:private-secret@localhost:1/simple/']\n",
+    );
+    let output = pacquet_in(root.path())
+        .arg("install")
+        .assert()
+        .failure()
+        .get_output()
+        .stderr
+        .clone();
+    let message = String::from_utf8(output).unwrap();
+    assert!(message.contains("ERR_PNPM_CONFLICTING_PYTHON_INDEX_CREDENTIALS"));
+    assert!(message.contains("http://localhost:1/simple/"));
+    assert!(!message.contains("private-secret"));
+}
