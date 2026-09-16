@@ -24,8 +24,9 @@ pub(super) struct Environment {
 /// per environment the project declares, with a dimension it leaves
 /// unconfigured taken from the interpreter.
 pub(super) fn probe_request(config: &Config) -> serde_json::Value {
+    let (platforms, python_versions) = named(config);
     serde_json::json!({
-        "targets": declarations(config)
+        "targets": declarations(&platforms, &python_versions)
             .into_iter()
             .map(|(platform, version)| serde_json::json!({"platform": platform, "python": version}))
             .collect::<Vec<_>>(),
@@ -40,15 +41,22 @@ pub(super) struct Environments {
     /// install, which is the one environment in `list`.
     pub(super) declared: bool,
     pub(super) list: Vec<Environment>,
+    /// The platforms and Python versions the project declares, as the
+    /// lockfile records what it was answered for. Repeats are dropped, so
+    /// removing one from the configuration does not make a lockfile that
+    /// still answers the project look like one that does not.
+    pub(super) platforms: Vec<String>,
+    pub(super) python_versions: Vec<String>,
 }
 
 impl Environments {
     pub(super) fn of(config: &Config, interpreter: &Interpreter) -> Result<Self> {
-        let declarations = declarations(config);
+        let (platforms, python_versions) = named(config);
+        let declarations = declarations(&platforms, &python_versions);
         if declarations.is_empty() {
             let target = interpreter.target.clone();
             let list = vec![Environment { target, declared: Vec::new() }];
-            return Ok(Self { declared: false, list });
+            return Ok(Self { declared: false, list, platforms, python_versions });
         }
         if declarations.len() != interpreter.targets.len() {
             bail!(
@@ -57,10 +65,9 @@ impl Environments {
                 declarations.len(),
             );
         }
-        let list = declarations
-            .iter()
-            .zip(&interpreter.targets)
-            .map(|((_, version), target)| Environment {
+        let mut list = Vec::<Environment>::new();
+        for ((_, version), target) in declarations.iter().zip(&interpreter.targets) {
+            let environment = Environment {
                 target: target.clone(),
                 declared: vec![
                     "implementation_name".to_string(),
@@ -68,10 +75,20 @@ impl Environments {
                     interpreter_version_key(version.map(String::as_str)).to_string(),
                     "sys_platform".to_string(),
                 ],
-            })
-            .collect::<Vec<_>>();
+            };
+            // Two names for one environment, such as `linux` and the triple
+            // it stands for, are what the interpreter reports them as.
+            if !list
+                .iter()
+                .any(|kept| {
+                    kept.target == environment.target && kept.declared == environment.declared
+                })
+            {
+                list.push(environment);
+            }
+        }
         check_interpreter_is_declared(&list, interpreter)?;
-        Ok(Self { declared: true, list })
+        Ok(Self { declared: true, list, platforms, python_versions })
     }
 }
 
@@ -88,34 +105,40 @@ fn marker(environment: &Environment) -> Result<MarkerTree> {
 /// Every declared platform paired with every declared Python version.
 /// `None` is a dimension the project leaves to the interpreter running
 /// the install.
-fn declarations(config: &Config) -> Vec<(Option<&String>, Option<&String>)> {
-    let settings = &config.python;
-    if settings.platforms.is_empty() && settings.python_versions.is_empty() {
+fn declarations<'a>(
+    platforms: &'a [String],
+    python_versions: &'a [String],
+) -> Vec<(Option<&'a String>, Option<&'a String>)> {
+    if platforms.is_empty() && python_versions.is_empty() {
         return Vec::new();
     }
     let mut declarations = Vec::new();
-    for platform in configured(&settings.platforms) {
-        for version in configured(&settings.python_versions) {
+    for platform in configured(platforms) {
+        for version in configured(python_versions) {
             declarations.push((platform, version));
         }
     }
     declarations
 }
 
-/// The configured values with repeats dropped, or the one unconfigured
-/// value standing for whatever the interpreter running the install
-/// reports. A platform or version named twice is one environment, and
-/// locking for it twice would write its marker into the lockfile twice.
+/// The platforms and Python versions the project declares, each named
+/// once. A value repeated in the configuration is one environment.
+fn named(config: &Config) -> (Vec<String>, Vec<String>) {
+    let once = |values: &[String]| {
+        let mut named = BTreeSet::new();
+        values
+            .iter()
+            .filter(|value| named.insert(*value))
+            .cloned()
+            .collect()
+    };
+    (once(&config.python.platforms), once(&config.python.python_versions))
+}
+
+/// The configured values, or the one unconfigured value standing for
+/// whatever the interpreter running the install reports.
 fn configured(values: &[String]) -> Vec<Option<&String>> {
-    if values.is_empty() {
-        return vec![None];
-    }
-    let mut named = BTreeSet::new();
-    values
-        .iter()
-        .filter(|value| named.insert(*value))
-        .map(Some)
-        .collect()
+    if values.is_empty() { vec![None] } else { values.iter().map(Some).collect() }
 }
 
 /// A declared Python version is locked for as the release it names: a

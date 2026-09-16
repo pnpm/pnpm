@@ -88,7 +88,8 @@ impl Registry<'_> {
         let cache = self.config.cache_dir
             .join("python-index-v2")
             .join(format!("{}.json", pnpm_crypto_hash::create_hex_hash(index_url.as_str())));
-        let cached = if self.config.offline || self.downloaded.contains(name) {
+        let replayed = self.config.offline || self.downloaded.contains(name);
+        let cached = if replayed {
             read_cached_index(&cache, name).await?
         } else {
             self.download_index(&index_url, name).await?
@@ -96,7 +97,7 @@ impl Registry<'_> {
         if cached.body.get().len() > MAX_INDEX_BYTES {
             bail!("Python index response for {name} exceeds {MAX_INDEX_BYTES} bytes");
         }
-        if !self.config.offline {
+        if !replayed {
             tokio::fs::create_dir_all(cache.parent().expect("cache file has a parent"))
                 .await
                 .into_diagnostic()?;

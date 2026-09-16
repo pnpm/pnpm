@@ -218,12 +218,11 @@ impl PythonPrepare<'_> {
     /// What this install's resolution depends on, which is what decides
     /// whether the lockfile on disk still answers it.
     fn inputs(&self, requirements: &[pep508_rs::Requirement]) -> Inputs {
-        let settings = &self.context.config.python;
         if self.environments.declared {
             Inputs::declared(
                 requirements,
-                &settings.platforms,
-                &settings.python_versions,
+                &self.environments.platforms,
+                &self.environments.python_versions,
                 self.index.url.as_str(),
             )
         } else {

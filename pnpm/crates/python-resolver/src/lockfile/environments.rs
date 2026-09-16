@@ -19,7 +19,7 @@ use std::collections::{BTreeMap, BTreeSet};
 /// and the wheel tags it accepts, in the order it prefers them. Both come
 /// from the interpreter that will run the environment, or from the
 /// interpreter's report on an environment the project declares.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Target {
     pub environment: MarkerEnvironment,
     pub tags: Vec<String>,

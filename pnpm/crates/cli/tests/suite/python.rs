@@ -203,6 +203,17 @@ fn running_platform() -> (&'static str, &'static str) {
     }
 }
 
+/// The short name `python.platforms` also accepts for the platform
+/// running the test, when one of them stands for it.
+fn running_platform_alias() -> Option<&'static str> {
+    match running_platform().0 {
+        "x86_64-manylinux_2_17" => Some("linux"),
+        "aarch64-apple-darwin" => Some("macos"),
+        "x86_64-pc-windows-msvc" => Some("windows"),
+        _ => None,
+    }
+}
+
 /// The platform running the test is always among these: an install
 /// refuses an interpreter no declared environment stands for.
 fn declared_platforms() -> Vec<(&'static str, &'static str)> {
@@ -1312,6 +1323,61 @@ async fn rejects_a_platform_it_cannot_resolve_for() {
 
         assert_failure_contains(pacquet_in(root.path()).arg("install"), expected);
     }
+}
+
+/// A platform named twice, or under two names standing for one machine,
+/// is one environment. Dropping the repeat leaves a lockfile that still
+/// answers the project.
+#[tokio::test]
+async fn locks_one_environment_per_platform_however_it_is_named() {
+    let root = tempfile::tempdir().unwrap();
+    let mut server = mockito::Server::new_async().await;
+    let (platform, tag) = running_platform();
+    let _alpha = serve_wheels(&mut server, "alpha", "1.0", &[tag]).await;
+    let alias = running_platform_alias();
+    let names = |repeated: bool| {
+        let mut declaration = String::new();
+        for _ in 0..if repeated { 2 } else { 1 } {
+            writeln!(declaration, "    - {platform}").unwrap();
+        }
+        if let Some(alias) = alias {
+            writeln!(declaration, "    - {alias}").unwrap();
+        }
+        format!("  platforms:\n{declaration}")
+    };
+    project(root.path(), &server.url(), &["alpha>=1"]);
+    add_python_settings(root.path(), &names(true));
+
+    pacquet_in(root.path())
+        .arg("install")
+        .assert()
+        .success();
+
+    let lock = fs::read_to_string(root.path().join("pylock.toml")).unwrap();
+    eprintln!("LOCK:\n{lock}");
+    let parsed: toml::Value = toml::from_str(&lock).unwrap();
+    assert_eq!(
+        parsed["environments"]
+            .as_array()
+            .unwrap()
+            .len(),
+        1,
+    );
+    assert_eq!(
+        parsed["tool"]["pnpm"]["platforms"]
+            .as_array()
+            .unwrap()
+            .len(),
+        1 + usize::from(alias.is_some()),
+    );
+
+    project(root.path(), &server.url(), &["alpha>=1"]);
+    add_python_settings(root.path(), &names(false));
+    pacquet_in(root.path())
+        .args(["install", "--offline", "--frozen-lockfile"])
+        .assert()
+        .success();
+    assert_eq!(fs::read_to_string(root.path().join("pylock.toml")).unwrap(), lock);
 }
 
 mod validation;
