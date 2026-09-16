@@ -14,7 +14,7 @@ use manifest::{Checkout, CheckoutPackage, entry_file_type, read_directory};
 use miette::{IntoDiagnostic, Result, WrapErr};
 use pnpm_config::PackageImportMethod;
 use pnpm_deps_restorer::{ImportIndexedDirOpts, import_indexed_dir};
-use pnpm_git_fetcher::{CheckoutOptions, checkout_commit};
+use pnpm_git_fetcher::{CheckoutOptions, checkout_commit, checkout_submodules};
 use pnpm_network::redact_and_sanitize;
 use pnpm_reporter::Reporter;
 use pnpm_store_dir::StoreDir;
@@ -145,7 +145,7 @@ impl GitPackage {
             .join("crates")
             .join(&self.name)
             .join(&self.version)
-            .join(format!("git-{}", self.source.commit))
+            .join(format!("git-submodules-v1-{}", self.source.commit))
     }
 }
 
@@ -308,6 +308,9 @@ fn import_directory(
                 let path = path.display();
                 miette::miette!("cannot vendor {path}: its name is not valid UTF-8")
             })?;
+        if name == ".git" {
+            continue;
+        }
         let path = entry.path();
         match entry_kind(context.root, &entry)? {
             Some(EntryKind::Directory) => {
@@ -446,6 +449,12 @@ fn checkout_source(options: &VendorSourceOptions<'_>) -> Result<tempfile::TempDi
         miette::miette!("{error}")
     })
     .wrap_err_with(|| format!("check out {repository} at {}", options.source.commit))?;
+    checkout_submodules(checkout.path())
+        .map_err(|error| {
+            let error = redact_and_sanitize(&error.to_string());
+            miette::miette!("{error}")
+        })
+        .wrap_err_with(|| format!("check out submodules of {repository}"))?;
     Ok(checkout)
 }
 

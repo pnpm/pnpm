@@ -336,6 +336,17 @@ pub fn checkout_commit(opts: &CheckoutOptions<'_>) -> Result<(), GitFetcherError
     Ok(())
 }
 
+/// Initialize recursive submodules at their committed gitlinks. Only the
+/// Cargo-supported transports may run, including after Git URL rewrites.
+pub fn checkout_submodules(dest: &Path) -> Result<(), GitFetcherError> {
+    exec_git_with(
+        Path::new("git"),
+        &["submodule", "update", "--init", "--recursive", "--checkout"],
+        Some(dest),
+    )?;
+    Ok(())
+}
+
 /// Inputs for [`read_git_manifest`].
 pub struct GitManifestQuery<'a> {
     pub source_cache: &'a GitSourceCache,
@@ -461,6 +472,11 @@ fn exec_git_with(bin: &Path, args: &[&str], cwd: Option<&Path>) -> Result<String
         cmd.arg(arg);
     }
     cmd.args(args);
+    if args.first() == Some(&"submodule") {
+        // The environment allowlist also constrains nested Git processes and
+        // overrides protocol-specific settings in the user's configuration.
+        cmd.env("GIT_ALLOW_PROTOCOL", "file:git:http:https:ssh");
+    }
     if let Some(dir) = cwd {
         cmd.current_dir(dir);
     }
@@ -497,6 +513,7 @@ fn static_operation_label(args: &[&str]) -> &'static str {
         "fetch" => "fetch",
         "checkout" => "checkout",
         "rev-parse" => "rev-parse",
+        "submodule" => "submodule",
         _ => "git",
     }
 }

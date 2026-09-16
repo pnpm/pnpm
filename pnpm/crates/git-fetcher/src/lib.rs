@@ -18,7 +18,7 @@
 pub use error::{GitFetcherError, PreparePackageError};
 pub use fetcher::{
     CheckoutOptions, GitFetchOutput, GitFetcher, GitManifestQuery, checkout_commit,
-    read_git_manifest,
+    checkout_submodules, read_git_manifest,
 };
 pub use options::{GitSource, GitStoreContext, PrepareScriptOptions};
 pub use pnpm_fs_packlist::{PacklistError, packlist};
