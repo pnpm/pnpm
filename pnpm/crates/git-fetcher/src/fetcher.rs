@@ -549,12 +549,11 @@ fn submodule_protocol_enabled(protocol: &str, policies: &HashMap<String, String>
         .get(&format!("protocol.{protocol}.allow"))
         .or_else(|| policies.get("protocol.allow"))
         .map_or(default, String::as_str)
-        == "always"
+        .eq_ignore_ascii_case("always")
 }
 
-/// Return a `'static` label for the git subcommand. Used in error
-/// messages. `init` / `clone` / `fetch` / `checkout` / `rev-parse` /
-/// `remote` are the only ones the fetcher invokes.
+/// Return a static subcommand label for error messages, falling back to `git`
+/// for unrecognized commands.
 fn static_operation_label(args: &[&str]) -> &'static str {
     let first = args
         .iter()

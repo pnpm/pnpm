@@ -69,8 +69,21 @@ fn configured_protocol_bans_are_preserved_for_submodules() {
 fn recursive_user_protocol_policies_remain_restricted() {
     let policies = HashMap::new();
     assert_eq!(submodule_protocols(None, &policies), "git:http:https:ssh");
-    for policy in ["never", "user"] {
+    for policy in ["never", "user", "NEVER", "User"] {
         let policies = HashMap::from([("protocol.allow".to_string(), policy.to_string())]);
         assert_eq!(submodule_protocols(None, &policies), "");
+    }
+}
+
+#[test]
+fn protocol_policy_values_are_case_insensitive() {
+    for policy in ["always", "ALWAYS", "Always"] {
+        let policies = HashMap::from([("protocol.allow".to_string(), policy.to_string())]);
+        assert_eq!(submodule_protocols(None, &policies), "file:git:http:https:ssh");
+        let policies = HashMap::from([
+            ("protocol.allow".to_string(), "never".to_string()),
+            ("protocol.https.allow".to_string(), policy.to_string()),
+        ]);
+        assert_eq!(submodule_protocols(None, &policies), "https");
     }
 }
