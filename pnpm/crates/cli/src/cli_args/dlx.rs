@@ -8,9 +8,7 @@ use crate::{
     path_env::{BadPathDir, prepend_dirs_to_path, set_command_path},
     shim_dispatch::materialize_runtime,
 };
-use cache::{
-    command_cache_dir, get_valid_cache_dir, prepare_cache_dir, read_json, resolve_catalog_specs,
-};
+use cache::{read_json, resolve_catalog_specs};
 use clap::Args;
 use derive_more::{Display, Error};
 use miette::{Context, Diagnostic, IntoDiagnostic};
@@ -193,25 +191,13 @@ impl DlxArgs {
         // is part of the cache key: it changes which platform-tagged
         // optional dependencies get installed, so two invocations that
         // differ only by architecture must not share a cache entry.
-        let dlx_command_cache_dir =
-            command_cache_dir(config, &pkgs, &self.allow_build, &supported_architectures)?;
-        let cache_link = dlx_command_cache_dir.join("pkg");
-
-        let cached_dir =
-            match get_valid_cache_dir(&cache_link, config.dlx_cache_max_age, SystemTime::now()) {
-                Some(cached_dir) => cached_dir,
-                None => {
-                    prepare_cache_dir::<Reporter>(
-                        &dlx_command_cache_dir,
-                        &cache_link,
-                        &pkgs,
-                        &self.allow_build,
-                        &supported_architectures,
-                        config,
-                    )
-                    .await?
-                }
-            };
+        let cached_dir = cache::get_or_prepare_cache::<Reporter>(
+            config,
+            &pkgs,
+            &self.allow_build,
+            &supported_architectures,
+        )
+        .await?;
 
         let bin_name =
             if self.package.is_empty() { get_bin_name(&cached_dir)? } else { bin_command.clone() };

@@ -167,8 +167,8 @@ export async function handler (
     allowBuild: opts.allowBuild,
     supportedArchitectures: opts.supportedArchitectures,
   })
+  const allowBuilds = Object.fromEntries([...resolvedPkgAliases, ...(opts.allowBuild ?? [])].map(pkg => [pkg, true]))
   if (!cacheExists) {
-    const allowBuilds = Object.fromEntries([...resolvedPkgAliases, ...(opts.allowBuild ?? [])].map(pkg => [pkg, true]))
     try {
       fs.mkdirSync(cachedDir, { recursive: true })
       await add.handler({
@@ -234,6 +234,8 @@ export async function handler (
         throw err
       }
     }
+  } else {
+    await promptApproveDlxBuilds({ cachedDir, allowBuilds, inheritedOpts: opts }, commands)
   }
   const binsDir = path.join(cachedDir, 'node_modules/.bin')
   const env = makeEnv({

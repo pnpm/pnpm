@@ -448,21 +448,26 @@ test('dlx does not error on ignored builds in non-interactive mode', async () =>
 // forwards `all: true` to approve-builds, which approves every pending
 // build without prompting and re-runs install. The build artifacts must
 // end up in the dlx cache.
-test('dlx prompts to approve ignored builds when invoked with a commands map', async () => {
+test.each([false, true])('dlx prompts to approve ignored builds with an existing cache: %s', async (cached) => {
   prepareEmpty()
+
+  const opts = {
+    ...DEFAULT_OPTS,
+    enableGlobalVirtualStore: false,
+    strictDepBuilds: true,
+    dir: path.resolve('project'),
+    storeDir: path.resolve('store'),
+    cacheDir: path.resolve('cache'),
+    dlxCacheMaxAge: Infinity,
+  }
+  if (cached) {
+    await dlx.handler(opts, ['@pnpm.e2e/has-bin-and-needs-build'])
+  }
 
   const prevAutoApprove = process.env.PNPM_AUTO_APPROVE_BUILDS_FOR_TESTS
   process.env.PNPM_AUTO_APPROVE_BUILDS_FOR_TESTS = '1'
   try {
-    await dlx.handler({
-      ...DEFAULT_OPTS,
-      enableGlobalVirtualStore: false,
-      strictDepBuilds: true,
-      dir: path.resolve('project'),
-      storeDir: path.resolve('store'),
-      cacheDir: path.resolve('cache'),
-      dlxCacheMaxAge: Infinity,
-    }, ['@pnpm.e2e/has-bin-and-needs-build'], { 'approve-builds': approveBuilds.handler })
+    await dlx.handler(opts, ['@pnpm.e2e/has-bin-and-needs-build'], { 'approve-builds': approveBuilds.handler })
   } finally {
     if (prevAutoApprove === undefined) {
       delete process.env.PNPM_AUTO_APPROVE_BUILDS_FOR_TESTS

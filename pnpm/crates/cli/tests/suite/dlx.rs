@@ -335,7 +335,7 @@ fn dlx_provisions_a_package_manager_by_name() {
 #[cfg(unix)]
 #[test]
 fn dlx_recovers_ignored_builds() {
-    for approve in [false, true] {
+    for (approve, cached) in [(false, false), (true, false), (true, true)] {
         let CommandTempCwd {
             mut pacquet,
             root,
@@ -346,10 +346,13 @@ fn dlx_recovers_ignored_builds() {
         let caller_yaml = std::fs::read_to_string(workspace.join("pnpm-workspace.yaml"))
             .expect("read caller settings");
         pacquet.env_remove("PNPM_AUTO_APPROVE_BUILDS_FOR_TESTS");
+        pacquet.args(["dlx", "@pnpm.e2e/has-bin-and-needs-build"]);
+        if cached {
+            pacquet.assert().success();
+        }
         if approve {
             pacquet.env("PNPM_AUTO_APPROVE_BUILDS_FOR_TESTS", "1");
         }
-        pacquet.args(["dlx", "@pnpm.e2e/has-bin-and-needs-build"]);
         pacquet.assert().success();
         let cache_entry = std::fs::read_dir(npmrc_info.cache_dir.join("dlx"))
             .expect("read dlx cache")
@@ -360,10 +363,9 @@ fn dlx_recovers_ignored_builds() {
             .join("pkg");
         let artifact = cache_entry.join("node_modules/.pacquet/@pnpm.e2e+install-script-example@1.0.0/node_modules/@pnpm.e2e/install-script-example/generated-by-install.js");
         assert_eq!(artifact.exists(), approve);
-        assert_eq!(
-            std::fs::read_to_string(workspace.join("pnpm-workspace.yaml")).unwrap(),
-            caller_yaml,
-        );
+        let actual_yaml = std::fs::read_to_string(workspace.join("pnpm-workspace.yaml")).unwrap();
+        eprintln!("CALLER SETTINGS:\n{actual_yaml}\n");
+        assert_eq!(actual_yaml, caller_yaml);
         if approve {
             assert!(
                 std::fs::read_to_string(cache_entry.join("pnpm-workspace.yaml"))
