@@ -33,7 +33,7 @@ fn git_dependency_sources_preserve_the_requested_revision() {
 #[test]
 fn registry_and_path_dependencies_do_not_require_git_resolution() {
     for metadata in
-        [METADATA.to_string(), METADATA.replace(&format!("\"{CRATES_IO_SOURCE}\""), "null")]
+        [METADATA.to_string(), METADATA.replace(&format!(r#""{CRATES_IO_SOURCE}""#), "null")]
     {
         let sources = git_dependency_sources(&metadata).unwrap();
 

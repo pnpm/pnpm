@@ -118,7 +118,7 @@ fn missing_lockfile_is_resolved_with_git_sources_before_materialization() {
                 .as_ref()
                 .unwrap()
                 .precise(),
-            Some(repository.head().as_str())
+            Some(repository.head().as_str()),
         );
     }
     cargo_check(&root);
@@ -184,7 +184,7 @@ fn adding_a_registry_crate_to_a_git_workspace_resolves_both_sources() {
             serde_json::json!({
                 "name": "extra", "vers": "1.0.0", "deps": [], "cksum": checksum,
                 "features": {}, "yanked": false,
-            })
+            }),
         ))
         .create();
 
@@ -207,18 +207,18 @@ fn adding_a_registry_crate_to_a_git_workspace_resolves_both_sources() {
             .as_ref()
             .unwrap()
             .to_string(),
-        checksum
+        checksum,
     );
     eprintln!("The git dependencies must remain in the resolved lockfile: {lock:?}");
     assert!(
         lock.packages
             .iter()
-            .any(|package| package.name.as_str() == "demo")
+            .any(|package| package.name.as_str() == "demo"),
     );
     assert!(
         lock.packages
             .iter()
-            .any(|package| package.name.as_str() == "sibling")
+            .any(|package| package.name.as_str() == "sibling"),
     );
     assert_eq!(fs::read(root.path().join(".cargo/config.toml")).unwrap(), config);
     index.assert();

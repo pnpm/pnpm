@@ -70,12 +70,15 @@ fn sysroot(root: &Path) -> Result<PathBuf> {
         .wrap_err("find Rust sysroot for Cargo build-std")?;
     if !output.status.success() {
         let stderr = redact_and_sanitize_multiline(&String::from_utf8_lossy(&output.stderr));
-        return Err(miette::miette!("find Rust sysroot for {}: {}", root.display(), stderr.trim()));
+        let stderr = stderr.trim();
+        let root = root.display();
+        return Err(miette::miette!("find Rust sysroot for {root}: {stderr}"));
     }
     let path =
         String::from_utf8(output.stdout).into_diagnostic().wrap_err("decode Rust sysroot")?;
     if path.trim().is_empty() {
-        return Err(miette::miette!("rustc returned an empty sysroot for {}", root.display()));
+        let root = root.display();
+        return Err(miette::miette!("rustc returned an empty sysroot for {root}"));
     }
     Ok(PathBuf::from(path.trim()))
 }
@@ -87,7 +90,7 @@ fn read_packages(sysroot: &Path, index_url: &str) -> Result<LockedPackages> {
         .wrap_err_with(|| {
             format!(
                 "read {} for Cargo build-std; install the toolchain's rust-src component",
-                path.display()
+                path.display(),
             )
         })?;
     parse_lockfile(&contents, index_url)

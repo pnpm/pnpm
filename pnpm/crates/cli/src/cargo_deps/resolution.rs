@@ -115,11 +115,9 @@ fn resolve_without_managed_sources(
         .wrap_err("run cargo generate-lockfile")?;
     if !output.status.success() {
         let stderr = redact_and_sanitize_multiline(&String::from_utf8_lossy(&output.stderr));
-        return Err(miette::miette!(
-            "cargo generate-lockfile failed for {}: {}",
-            root.display(),
-            stderr.trim(),
-        ));
+        let stderr = stderr.trim();
+        let root = root.display();
+        return Err(miette::miette!("cargo generate-lockfile failed for {root}: {stderr}",));
     }
     let directory = ensure_workspace_directory(root, &[])?;
     read_workspace_file(&directory, "Cargo.lock")

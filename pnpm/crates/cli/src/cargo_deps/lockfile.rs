@@ -65,9 +65,9 @@ fn merge_packages<Package: PartialEq>(
             }
             std::collections::btree_map::Entry::Occupied(slot) if *slot.get() == package => {}
             std::collections::btree_map::Entry::Occupied(slot) => {
+                let name = slot.key();
                 return Err(miette::miette!(
-                    "Cargo lockfiles contain conflicting {kind} package {}",
-                    slot.key(),
+                    "Cargo lockfiles contain conflicting {kind} package {name}",
                 ));
             }
         }
