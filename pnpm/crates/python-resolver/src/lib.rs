@@ -20,11 +20,11 @@ pub use candidates::{
     WheelFilename, candidates_from_page, parse_requirement, validate_url, wheel_identity,
 };
 pub use lockfile::{
-    Inputs, LockedPackage, LockedWheel, Lockfile, Metadata, Solved, Target, ToolMetadata,
-    environment_marker,
+    Inputs, LockedDirectory, LockedPackage, LockedWheel, Lockfile, Metadata, Solved, Target,
+    ToolMetadata, environment_marker,
 };
 pub use metadata::WheelMetadata;
-pub use packages::{Candidate, Packages};
+pub use packages::{Candidate, IndexCandidate, Packages};
 pub use resolve::{Step, locked_solution, step, validate_locked};
 
 mod candidates;

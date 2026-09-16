@@ -1,7 +1,4 @@
-use super::{
-    environment::{accept_server_lockfile, resolve_via_pnpr},
-    manifest::{Manifest, ProjectPackage},
-};
+use super::environment::{accept_server_lockfile, resolve_via_pnpr};
 use pnpm_config::Config;
 use pnpm_python_resolver::Target;
 use std::path::Path;
@@ -182,171 +179,14 @@ fn a_lockfile_answering_another_question_is_refused() {
     assert!(error.to_string().contains("for other inputs"), "{error}");
 }
 
-fn parse_project_package(root: &Path, contents: &str) -> miette::Result<ProjectPackage> {
-    Manifest::parse(contents).expect("manifest fixture").project_package(root)
-}
-
-fn project_package(root: &Path, contents: &str) -> ProjectPackage {
-    parse_project_package(root, contents).expect("the project package")
-}
-
-fn own_package(root: &Path, contents: &str) -> serde_json::Value {
-    match project_package(root, contents) {
-        ProjectPackage::Installable(package) => {
-            serde_json::to_value(*package).expect("serialize the project package")
-        }
-        ProjectPackage::Virtual => panic!("the manifest declares a package"),
-        ProjectPackage::Unsupported(reason) => panic!("the package is installable: {reason}"),
-    }
-}
-
-fn refusal(root: &Path, contents: &str) -> miette::Report {
-    match parse_project_package(root, contents) {
-        Err(error) => error,
-        Ok(_) => panic!("pnpm refuses this manifest"),
-    }
-}
-
-fn unsupported_reason(root: &Path, contents: &str) -> String {
-    match project_package(root, contents) {
-        ProjectPackage::Unsupported(reason) => reason,
-        _ => panic!("pnpm cannot install this package"),
-    }
-}
-
-fn packaged(body: &str) -> String {
-    format!(
-        "[project]\nname = 'My.App'\nversion = '1.0+Local.1'\n{body}\n[build-system]\nrequires = ['hatchling']\n",
-    )
-}
-
+/// A lockfile records a workspace project by a path that still means the
+/// same project in another checkout of the repository.
 #[test]
-fn the_projects_own_package_is_named_and_described_as_an_installed_distribution_is() {
-    let root = tempfile::tempdir().expect("project directory");
-    let package = own_package(
-        root.path(),
-        &packaged(
-            "requires-python = '>=3.10'\ndependencies = ['alpha >= 1']\n\n[project.scripts]\nmy-app = 'my_app:main'\n\n[project.entry-points.pytest11]\nmy-app = 'my_app.plugin'\n",
-        ),
-    );
-    dbg!(&package);
-    assert_eq!(package["dist_info"], "my_app-1.0_local.1.dist-info");
-    assert_eq!(package["pth"], "__pnpm__my_app.pth");
-    assert_eq!(
-        package["directory"],
-        root.path()
-            .to_str()
-            .expect("a printable path"),
-    );
-    assert_eq!(
-        package["metadata"],
-        "Metadata-Version: 2.1\nName: my-app\nVersion: 1.0+local.1\nRequires-Python: >=3.10\nRequires-Dist: alpha>=1\n",
-    );
-    assert_eq!(package["entry_points"]["console_scripts"]["my-app"], "my_app:main");
-    assert_eq!(package["entry_points"]["pytest11"]["my-app"], "my_app.plugin");
-}
-
-#[test]
-fn the_build_backends_package_directories_are_where_the_projects_modules_are_imported_from() {
-    let root = tempfile::tempdir().expect("project directory");
-    let flat = own_package(root.path(), &packaged("dependencies = []\n"));
-    assert_eq!(flat["paths"], serde_json::json!([root.path()]));
-
-    std::fs::create_dir(root.path().join("src")).expect("a src layout");
-    let src = own_package(root.path(), &packaged("dependencies = []\n"));
-    assert_eq!(src["paths"], serde_json::json!([root.path().join("src")]));
-
-    let hatch = own_package(
-        root.path(),
-        &packaged(
-            "dependencies = []\n\n[tool.hatch.build.targets.wheel]\npackages = ['modules/one', 'modules/two']\n",
-        ),
-    );
-    assert_eq!(hatch["paths"], serde_json::json!([root.path().join("modules")]));
-
-    let setuptools = own_package(
-        root.path(),
-        &packaged("dependencies = []\n\n[tool.setuptools]\npackage-dir = { '' = 'lib' }\n"),
-    );
-    assert_eq!(setuptools["paths"], serde_json::json!([root.path().join("lib")]));
-
-    let package_dir = own_package(
-        root.path(),
-        &packaged(
-            "dependencies = []\n\n[tool.setuptools]\npackage-dir = { 'my_app' = 'lib/my_app' }\n",
-        ),
-    );
-    assert_eq!(package_dir["paths"], serde_json::json!([root.path().join("lib")]));
-
-    let reason = unsupported_reason(
-        root.path(),
-        &packaged("dependencies = []\n\n[tool.setuptools]\npackage-dir = { 'my_app' = 'lib' }\n"),
-    );
-    assert!(reason.contains("puts my_app in lib"), "{reason}");
-}
-
-/// A `.pth` file names one directory per line, and Python runs a line of
-/// one that starts with `import`.
-#[test]
-fn a_package_directory_that_would_write_more_than_one_pth_line_is_refused() {
-    let root = tempfile::tempdir().expect("project directory");
-    for directory in [r"lib\nimport os", "../outside", "/etc"] {
-        let error = refusal(
-            root.path(),
-            &packaged(&format!(
-                "dependencies = []\n\n[tool.hatch.build.targets.wheel]\npackages = [\"{directory}/my_app\"]\n",
-            )),
-        );
-        eprintln!("{error}");
-        assert!(
-            error
-                .to_string()
-                .contains(
-                    root.path()
-                        .to_str()
-                        .expect("a printable path")
-                ),
-            "{error}",
-        );
-    }
-}
-
-#[test]
-fn the_script_tables_cannot_also_be_declared_as_entry_point_groups() {
-    let root = tempfile::tempdir().expect("project directory");
-    let error = refusal(
-        root.path(),
-        &packaged(
-            "dependencies = []\n\n[project.entry-points.console_scripts]\nmy-app = 'my_app:main'\n",
-        ),
-    );
-    eprintln!("{error}");
-    assert!(error.to_string().contains("[project.scripts]"), "{error}");
-}
-
-#[test]
-fn only_a_project_a_build_backend_builds_has_a_package_to_install() {
-    let root = tempfile::tempdir().expect("project directory");
-    let backend_only = "[project]\nname = 'app'\nversion = '1.0'\ndependencies = []\n";
-    assert!(matches!(project_package(root.path(), backend_only), ProjectPackage::Virtual,));
-    assert!(matches!(
-        project_package(root.path(), &format!("{backend_only}\n[tool.uv]\npackage = true\n")),
-        ProjectPackage::Installable(_),
-    ));
-    assert!(matches!(
-        project_package(root.path(), &packaged("dependencies = []\n")),
-        ProjectPackage::Installable(_),
-    ));
-    assert!(matches!(
-        project_package(
-            root.path(),
-            &format!("{}\n[tool.uv]\npackage = false\n", packaged("dependencies = []\n"))
-        ),
-        ProjectPackage::Virtual,
-    ));
-    let reason = unsupported_reason(
-        root.path(),
-        "[project]\nname = 'app'\ndynamic = ['version']\ndependencies = []\n[build-system]\nrequires = ['hatchling']\n",
-    );
-    assert_eq!(reason, "its version is dynamic");
+fn a_workspace_project_is_recorded_relative_to_the_lockfile() {
+    let relative =
+        |from: &str, to: &str| super::workspace::relative(Path::new(from), Path::new(to));
+    assert_eq!(relative("/repo/packages/app", "/repo/packages/lib"), "../lib");
+    assert_eq!(relative("/repo", "/repo/packages/lib"), "packages/lib");
+    assert_eq!(relative("/repo/app", "/repo/app"), ".");
+    assert_eq!(relative("/repo/a/b/c", "/repo/lib"), "../../../lib");
 }

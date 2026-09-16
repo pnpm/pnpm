@@ -5,14 +5,17 @@ import configparser
 import csv
 import email.parser
 import hashlib
+import importlib
 import io
 import json
 import os
 from pathlib import Path, PurePosixPath
 import shlex
+import shutil
 import sys
 import sysconfig
 import venv
+import zipfile
 
 
 def packaging_modules():
@@ -298,33 +301,78 @@ def install_wheel(environment, package):
         entries.optionxform = str
         entries.read(entry_points, encoding="utf-8")
         environment.write_entry_points(entries)
+    # PEP 610 has the installer record where a distribution came from,
+    # which a wheel built from a directory cannot carry itself.
+    if package.get("direct_url"):
+        origin = package["direct_url"]
+        environment.write(
+            environment.site / dist_info / "direct_url.json",
+            json.dumps({"url": origin["url"], "dir_info": {"editable": origin["editable"]}}).encode("utf-8"),
+        )
     environment.finish(dist_info)
 
 
-def install_project(environment, project):
-    """Install the project's own package: a path entry onto its source tree, with the metadata of an installed distribution."""
-    environment.start(True)
-    dist_info = project["dist_info"]
-    for path in project["paths"]:
-        # Python runs a .pth line that starts with "import", so one path must not become two lines.
-        if "\n" in path or "\r" in path:
-            raise ValueError("unsafe Python source path: " + path)
-    environment.write(environment.site / project["pth"], "".join(path + "\n" for path in project["paths"]).encode("utf-8"))
-    environment.write(environment.site / dist_info / "METADATA", project["metadata"].encode("utf-8"))
-    direct_url = {"url": Path(project["directory"]).as_uri(), "dir_info": {"editable": True}}
-    environment.write(environment.site / dist_info / "direct_url.json", json.dumps(direct_url).encode("utf-8"))
-    if project["entry_points"]:
-        for group in project["entry_points"]:
-            if not group or not all(character.isascii() and (character.isalnum() or character in "-_.") for character in group):
-                raise ValueError("unsafe entry point group: " + group)
-        entries = configparser.ConfigParser(interpolation=None)
-        entries.optionxform = str
-        entries.read_dict(project["entry_points"])
-        declaration = io.StringIO()
-        entries.write(declaration)
-        environment.write(environment.site / dist_info / "entry_points.txt", declaration.getvalue().encode("utf-8"))
-        environment.write_entry_points(entries)
-    environment.finish(dist_info)
+def unpack(archive, target):
+    """Extract a wheel, reporting each file the way `inspect` and `install` read one."""
+    files = {}
+    with zipfile.ZipFile(archive) as contents:
+        for entry in contents.infolist():
+            if entry.is_dir():
+                continue
+            parts = PurePosixPath(entry.filename).parts
+            if not parts or entry.filename.startswith("/") or "\\" in entry.filename or any(part in (".", "..") for part in parts):
+                raise ValueError("unsafe wheel path: " + entry.filename)
+            destination = target.joinpath(*parts)
+            destination.parent.mkdir(parents=True, exist_ok=True)
+            with contents.open(entry) as source, destination.open("wb") as sink:
+                shutil.copyfileobj(source, sink)
+            if entry.external_attr >> 16 & 0o111:
+                destination.chmod(0o755)
+            files[entry.filename] = str(destination)
+    return files
+
+
+def load_backend(request):
+    """Import the project's PEP 517 backend, with the project as the working directory.
+
+    PEP 660's editable hooks are optional, so a backend that does not
+    implement them builds an ordinary wheel instead.
+    """
+    root = Path(request["root"]).resolve()
+    for entry in reversed(request["backend_path"]):
+        # PEP 517 gives backend-path the project as its root and forbids
+        # it from reaching outside, so a manifest cannot put an arbitrary
+        # directory of the machine on the import path.
+        located = root.joinpath(entry).resolve()
+        if located != root and root not in located.parents:
+            raise ValueError("backend-path escapes the project: " + entry)
+        sys.path.insert(0, str(located))
+    # The backend reads the project, so it is imported from within it.
+    os.chdir(root)
+    module, _, attribute = request["backend"].partition(":")
+    backend = importlib.import_module(module)
+    for part in filter(None, attribute.split(".")):
+        backend = getattr(backend, part)
+    editable = request["editable"] and hasattr(backend, "build_editable")
+    return backend, editable
+
+
+def build_requires(request):
+    """What the backend needs installed beyond `build-system.requires` to build this project."""
+    backend, editable = load_backend(request)
+    name = "get_requires_for_build_editable" if editable else "get_requires_for_build_wheel"
+    hook = getattr(backend, name, None)
+    return list(hook()) if hook is not None else []
+
+
+def build(request):
+    backend, editable = load_backend(request)
+    output = Path(request["output"]).resolve()
+    hook = backend.build_editable if editable else backend.build_wheel
+    filename = hook(str(output))
+    # Reading the wheel belongs to the interpreter it is installed for, not
+    # to the environment the backend needed, which holds only the backend.
+    return {"files": unpack(output / filename, output / "unpacked"), "filename": filename}
 
 
 def install(request):
@@ -337,11 +385,16 @@ def install(request):
     environment = Environment(root, scheme)
     for package in request["packages"]:
         install_wheel(environment, package)
-    if request.get("project"):
-        install_project(environment, request["project"])
     return {"root": str(root)}
 
 
 request = json.load(sys.stdin)
-result = {"probe": probe, "inspect": inspect_wheel, "install": install}[sys.argv[1]](request)
-json.dump(result, sys.stdout)
+# A build backend may write to stdout, and some run a child process that
+# writes to the descriptor directly. The answer to pnpm is what stdout
+# carries, so the operation gets stderr and the answer goes to a copy.
+answer = os.fdopen(os.dup(1), "w")
+os.dup2(2, 1)
+sys.stdout = sys.stderr
+result = {"probe": probe, "inspect": inspect_wheel, "install": install, "build": build, "build_requires": build_requires}[sys.argv[1]](request)
+json.dump(result, answer)
+answer.flush()

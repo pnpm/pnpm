@@ -1,14 +1,14 @@
-pub(super) use package::{OwnPackage, ProjectPackage};
-
-mod package;
-
 use miette::{IntoDiagnostic, Result, bail};
-use package::{EntryPoints, Tool};
-use pep508_rs::Requirement;
+use pep440_rs::Version;
+use pep508_rs::{PackageName, Requirement};
 use pnpm_config::Config;
 use pnpm_python_resolver::parse_requirement;
 use serde::Deserialize;
-use std::{collections::BTreeMap, fmt::Write as _, path::Path};
+use std::{
+    collections::{BTreeMap, BTreeSet},
+    fmt::Write as _,
+    path::Path,
+};
 
 #[derive(Clone, Copy)]
 pub struct DependencySelection {
@@ -23,19 +23,21 @@ impl DependencySelection {
 #[derive(Deserialize)]
 pub(super) struct Manifest {
     pub(super) project: Option<Project>,
-    #[serde(rename = "build-system")]
-    build_system: Option<toml::Value>,
     #[serde(default, rename = "dependency-groups")]
     groups: BTreeMap<String, Vec<toml::Value>>,
+    #[serde(default, rename = "build-system")]
+    pub(super) build_system: Option<BuildSystem>,
     #[serde(default)]
-    tool: Tool,
+    pub(super) tool: Tool,
 }
 
 #[derive(Deserialize)]
 #[serde(rename_all = "kebab-case")]
 pub(super) struct Project {
-    name: Option<String>,
-    version: Option<String>,
+    /// Absent only in a manifest that is not a distribution: PEP 621
+    /// requires it of one that is.
+    pub(super) name: Option<PackageName>,
+    pub(super) version: Option<Version>,
     #[serde(default)]
     pub(super) dependencies: Vec<String>,
     #[serde(default)]
@@ -43,8 +45,92 @@ pub(super) struct Project {
     pub(super) requires_python: Option<String>,
     #[serde(default)]
     optional_dependencies: BTreeMap<String, Vec<String>>,
+}
+
+/// The PEP 517 backend that turns a project directory into a wheel.
+#[derive(Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub(super) struct BuildSystem {
+    #[serde(default)]
+    pub(super) requires: Vec<String>,
+    pub(super) build_backend: Option<String>,
+    #[serde(default)]
+    pub(super) backend_path: Vec<String>,
+}
+
+#[derive(Default, Deserialize)]
+pub(super) struct Tool {
+    #[serde(default)]
+    pub(super) uv: Uv,
+}
+
+/// The parts of uv's table pnpm reads. A project that declares a
+/// dependency on another project in the repository says so here, which is
+/// where every Python workspace in the wild already writes it.
+#[derive(Default, Deserialize)]
+pub(super) struct Uv {
+    #[serde(default)]
+    pub(super) sources: BTreeMap<PackageName, SourceDeclaration>,
+    /// Whether this project is built and installed at all. A project that
+    /// sets this to `false` contributes its dependencies and nothing else.
+    pub(super) package: Option<bool>,
+    /// Present on the manifest that is a workspace root, naming which
+    /// projects under it the workspace contains.
+    pub(super) workspace: Option<UvWorkspace>,
+}
+
+#[derive(Deserialize)]
+pub(super) struct UvWorkspace {
+    #[serde(default)]
+    pub(super) members: Vec<String>,
+    #[serde(default)]
+    pub(super) exclude: Vec<String>,
+}
+
+/// A source as it is written: one table, or several selected by markers.
+#[derive(Deserialize)]
+#[serde(untagged)]
+pub(super) enum SourceDeclaration {
+    One(Source),
+    Many(Vec<Source>),
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub(super) struct Source {
+    #[serde(default)]
+    pub(super) workspace: bool,
+    pub(super) path: Option<String>,
+    pub(super) editable: Option<bool>,
+    pub(super) git: Option<String>,
+    pub(super) url: Option<String>,
+    pub(super) index: Option<String>,
     #[serde(flatten)]
-    entry_points: EntryPoints,
+    pub(super) narrowing: Narrowing,
+}
+
+/// What narrows a source to some targets, or to one extra or group. pnpm
+/// reads these to refuse them: a source it applied everywhere would
+/// install a project the manifest asked for somewhere else.
+#[derive(Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub(super) struct Narrowing {
+    marker: Option<String>,
+    extra: Option<String>,
+    group: Option<String>,
+}
+
+impl Narrowing {
+    /// What this source is narrowed by, if anything.
+    pub(super) fn kind(&self) -> Option<&'static str> {
+        if self.marker.is_some() {
+            return Some("conditional");
+        }
+        if self.extra.is_some() {
+            return Some("extra-qualified");
+        }
+        self.group.is_some().then_some("group-qualified")
+    }
 }
 
 impl Project {
@@ -91,6 +177,64 @@ impl Manifest {
             .into_iter()
             .map(|requirement| parse_requirement(&requirement))
             .collect()
+    }
+
+    /// Every distribution this project declares a requirement on,
+    /// wherever it declares it. Which source satisfies a requirement is
+    /// decided per distribution, so a name is reported once.
+    pub(super) fn declared_distributions(&self) -> Result<BTreeSet<PackageName>> {
+        let Some(project) = &self.project else { return Ok(BTreeSet::new()) };
+        project.ensure_static_dependencies()?;
+        let groups = self.groups
+            .values()
+            .flatten()
+            .filter_map(toml::Value::as_str)
+            .map(ToString::to_string)
+            .collect::<Vec<_>>();
+        project.dependencies
+            .iter()
+            .chain(project.optional_dependencies.values().flatten())
+            .chain(&groups)
+            .map(|requirement| Ok(parse_requirement(requirement)?.name))
+            .collect()
+    }
+
+    /// What a wheel built from this project would state in its
+    /// `METADATA`: its requirements, and its extras' requirements under
+    /// the marker that selects each extra. A dependency group is a
+    /// development input, so a wheel does not carry it.
+    pub(super) fn distribution_requirements(&self) -> Result<Vec<String>> {
+        let Some(project) = &self.project else { return Ok(Vec::new()) };
+        project.ensure_static_dependencies()?;
+        let mut requirements = project.dependencies.clone();
+        for (extra, dependencies) in &project.optional_dependencies {
+            for dependency in dependencies {
+                requirements.push(super::workspace::requirement_for_extra(dependency, extra)?);
+            }
+        }
+        Ok(requirements)
+    }
+
+    /// The extras this project offers.
+    pub(super) fn extras(&self) -> Vec<String> {
+        self.project
+            .iter()
+            .flat_map(|project| project.optional_dependencies.keys())
+            .cloned()
+            .collect()
+    }
+
+    /// The distribution this manifest declares, if it declares one.
+    pub(super) fn distribution(&self) -> Option<&PackageName> {
+        self.project.as_ref()?.name.as_ref()
+    }
+
+    /// Whether a wheel is built from this project and installed into its
+    /// own environment. A project that declares no build backend and does
+    /// not ask to be packaged is a place to collect dependencies, not a
+    /// distribution.
+    pub(super) fn is_packaged(&self) -> bool {
+        self.tool.uv.package.unwrap_or_else(|| self.build_system.is_some())
     }
 
     /// Expand every dependency group the config asks for. The `dev` group

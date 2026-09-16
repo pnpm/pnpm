@@ -137,7 +137,7 @@ async fn serve_files(
 }
 
 fn project(root: &Path, index: &str, dependencies: &[&str]) {
-    fs::write(root.join("pnpm-workspace.yaml"), format!("python:\n  enabled: true\n  indexUrl: '{index}/simple/'\nstoreDir: '{}'\ncacheDir: '{}'\nfetchRetries: 0\n", root.join("store").display(), root.join("cache").display())).unwrap();
+    fs::write(root.join("pnpm-workspace.yaml"), format!("python:\n  enabled: true\n  indexUrl: '{index}/simple/'\nstoreDir: '{}'\ncacheDir: '{}'\nfetchRetries: 0\nallowBuilds:\n  pkg:pypi/hatchling: true\n  pkg:pypi/setuptools: true\n  pkg:pypi/wheel: true\n  pkg:pypi/tinybackend: true\n", root.join("store").display(), root.join("cache").display())).unwrap();
     fs::write(root.join("pyproject.toml"), format!("[project]\nname = 'app'\nversion = '1.0'\nrequires-python = '>=3.10'\ndependencies = {dependencies:?}\n")).unwrap();
 }
 
@@ -1030,6 +1030,7 @@ async fn installs_node_cargo_and_python_through_the_real_coordinator() {
 async fn installs_the_projects_own_package_from_its_source_tree() {
     let root = tempfile::tempdir().unwrap();
     let mut server = mockito::Server::new_async().await;
+    let _backends = serve_backends(&mut server).await;
     let _alpha = serve(&mut server, "alpha", &[("1.0", wheel("alpha", "1.0", "", &[]))]).await;
     project(root.path(), &server.url(), &["alpha>=1"]);
     fs::write(root.path().join("pyproject.toml"), "[project]\nname = 'My-App'\nversion = '1.2.3'\nrequires-python = '>=3.10'\ndependencies = ['alpha>=1']\n\n[project.scripts]\nmy-app = 'my_app:main'\n\n[project.entry-points.pnpm_demo]\nplugin = 'my_app:main'\n\n[build-system]\nrequires = ['hatchling']\nbuild-backend = 'hatchling.build'\n").unwrap();
@@ -1074,6 +1075,7 @@ async fn installs_the_projects_own_package_from_its_source_tree() {
 async fn installs_the_package_of_a_src_layout_project_and_none_for_a_virtual_one() {
     let root = tempfile::tempdir().unwrap();
     let mut server = mockito::Server::new_async().await;
+    let _backends = serve_backends(&mut server).await;
     let _alpha = serve(&mut server, "alpha", &[("1.0", wheel("alpha", "1.0", "", &[]))]).await;
     project(root.path(), &server.url(), &[]);
     fs::write(root.path().join("pyproject.toml"), "[tool.ruff]\nline-length = 100\n").unwrap();
@@ -1120,32 +1122,32 @@ async fn installs_the_package_of_a_src_layout_project_and_none_for_a_virtual_one
 }
 
 #[tokio::test]
-async fn a_dynamic_version_leaves_the_projects_own_package_uninstalled() {
+async fn a_dynamic_version_comes_from_the_backend() {
     let root = tempfile::tempdir().unwrap();
     let mut server = mockito::Server::new_async().await;
+    let _backends = serve_backends(&mut server).await;
     let _alpha = serve(&mut server, "alpha", &[("1.0", wheel("alpha", "1.0", "", &[]))]).await;
     project(root.path(), &server.url(), &["alpha>=1"]);
-    fs::write(root.path().join("pyproject.toml"), "[project]\nname = 'app'\ndynamic = ['version']\nrequires-python = '>=3.10'\ndependencies = ['alpha>=1']\n\n[build-system]\nrequires = ['hatchling']\n").unwrap();
-    let output = pacquet_in(root.path())
+    fs::write(
+        root.path().join("pyproject.toml"),
+        "[project]\nname = 'app'\ndynamic = ['version']\nrequires-python = '>=3.10'\n\
+         dependencies = ['alpha>=1']\n\n[build-system]\nrequires = ['hatchling']\n\
+         build-backend = 'hatchling.build'\n",
+    )
+    .unwrap();
+    fs::create_dir(root.path().join("app")).unwrap();
+    fs::write(root.path().join("app/__init__.py"), "VALUE = 'source'\n").unwrap();
+
+    pacquet_in(root.path())
         .arg("install")
-        .output()
-        .unwrap();
-    let stdout = String::from_utf8_lossy(&output.stdout);
-    eprintln!("stdout:\n{stdout}\nstderr:\n{}", String::from_utf8_lossy(&output.stderr));
-    assert!(output.status.success());
-    assert!(
-        stdout.contains("[WARN] Installing only the dependencies of")
-            && stdout.contains("because its version is dynamic"),
-        "{stdout}",
-    );
-    python(root.path())
-        .args(["-c", "import alpha"])
         .assert()
         .success();
+
     python(root.path())
-        .args(["-c", "import importlib.metadata as m; m.distribution('app')"])
+        .args(["-c", "import importlib.metadata as m; print(m.version('app'))"])
         .assert()
-        .failure();
+        .success()
+        .stdout(if cfg!(windows) { "0.0.1\r\n" } else { "0.0.1\n" });
 }
 
 #[tokio::test]
@@ -1380,3 +1382,866 @@ async fn locks_one_environment_per_platform_however_it_is_named() {
 }
 
 mod validation;
+
+/// A PEP 517 backend small enough to serve from the mocked index, so a
+/// build in these tests runs the real hooks without a real backend.
+///
+/// It prints on the way through: a backend writing to stdout must not
+/// reach the JSON the host helper answers pnpm with.
+const TINY_BACKEND: &str = r#"
+import base64, hashlib, os, sys, tomllib, zipfile
+
+def _source_dir(manifest):
+    """Where the modules are, the way a backend knows and a manifest reader cannot."""
+    wheel = manifest.get("tool", {}).get("hatch", {}).get("build", {}).get("targets", {}).get("wheel", {})
+    declared = wheel.get("packages")
+    if declared:
+        return os.path.dirname(declared[0]) or "."
+    return "src" if os.path.isdir("src") else "."
+
+def _entry_points(project):
+    groups = dict(project.get("entry-points", {}))
+    for group, table in (("console_scripts", "scripts"), ("gui_scripts", "gui-scripts")):
+        if project.get(table):
+            groups[group] = project[table]
+    return groups
+
+def _build(directory, editable):
+    print("building", file=sys.stdout)
+    manifest = tomllib.load(open("pyproject.toml", "rb"))
+    project = manifest["project"]
+    name = project["name"]
+    module = name.replace("-", "_")
+    # A project may leave its version to the backend, as `dynamic` does.
+    version = project.get("version", "0.0.1")
+    dist_info = module + "-" + version + ".dist-info"
+    entries = {}
+    if editable:
+        entries["_editable_" + module + ".pth"] = os.path.join(os.getcwd(), _source_dir(manifest))
+    else:
+        source = os.path.join(_source_dir(manifest), module, "__init__.py")
+        entries[module + "/__init__.py"] = open(source).read()
+    metadata = "Metadata-Version: 2.4\nName: " + name + "\nVersion: " + version + "\n"
+    for requirement in project.get("dependencies", []):
+        metadata += "Requires-Dist: " + requirement + "\n"
+    entries[dist_info + "/METADATA"] = metadata
+    entries[dist_info + "/WHEEL"] = "Wheel-Version: 1.0\nRoot-Is-Purelib: true\nTag: py3-none-any\n"
+    declaration = ""
+    for group, table in _entry_points(project).items():
+        declaration += "[" + group + "]\n"
+        for key, value in table.items():
+            declaration += key + " = " + value + "\n"
+    if declaration:
+        entries[dist_info + "/entry_points.txt"] = declaration
+    record = ""
+    for path, body in entries.items():
+        digest = base64.urlsafe_b64encode(hashlib.sha256(body.encode()).digest()).rstrip(b"=").decode()
+        record += path + ",sha256=" + digest + "," + str(len(body.encode())) + "\n"
+    record += dist_info + "/RECORD,,\n"
+    entries[dist_info + "/RECORD"] = record
+    filename = module + "-" + version + "-py3-none-any.whl"
+    with zipfile.ZipFile(os.path.join(directory, filename), "w") as archive:
+        for path, body in entries.items():
+            archive.writestr(path, body)
+    return filename
+
+def build_wheel(wheel_directory, config_settings=None, metadata_directory=None):
+    return _build(wheel_directory, False)
+
+def build_editable(wheel_directory, config_settings=None, metadata_directory=None):
+    return _build(wheel_directory, True)
+"#;
+
+/// The backends the fixtures declare, served so a build can run. What
+/// these tests exercise is the build frontend; which wheel a real backend
+/// would produce is that backend's own business.
+async fn serve_backends(server: &mut mockito::ServerGuard) -> Vec<mockito::Mock> {
+    let mut mocks = Vec::new();
+    // PEP 517 names setuptools' legacy backend when a project declares
+    // none, and reads it as an attribute of the module rather than the
+    // module itself.
+    let legacy = format!("{TINY_BACKEND}\nimport sys\n__legacy__ = sys.modules[__name__]\n");
+    for (name, module, source) in [
+        ("hatchling", "hatchling/build.py", TINY_BACKEND),
+        ("setuptools", "setuptools/build_meta.py", legacy.as_str()),
+        ("wheel", "wheel/_unused.py", ""),
+        ("tinybackend", "tinybuild.py", TINY_BACKEND),
+    ] {
+        mocks.extend(
+            serve(server, name, &[("80.0", wheel(name, "80.0", "", &[(module, source)]))]).await,
+        );
+    }
+    mocks
+}
+
+fn python_project(root: &Path, name: &str, body: &str) {
+    fs::create_dir_all(root.join("src").join(name)).unwrap();
+    fs::write(
+        root.join("src")
+            .join(name)
+            .join("__init__.py"),
+        format!("MARKER = 'workspace {name}'\n"),
+    )
+    .unwrap();
+    fs::write(
+        root.join("pyproject.toml"),
+        format!(
+            "[project]\nname = '{name}'\nversion = '1.0'\nrequires-python = '>=3.10'\n{body}\n\
+             [build-system]\nrequires = ['tinybackend']\nbuild-backend = 'tinybuild'\n",
+        ),
+    )
+    .unwrap();
+}
+
+/// The index publishes a different `mylib`, so which one is installed is
+/// what this is about.
+#[tokio::test]
+async fn a_workspace_project_is_built_from_its_source_instead_of_the_index() {
+    let root = tempfile::tempdir().unwrap();
+    let mut server = mockito::Server::new_async().await;
+    let _backends = serve_backends(&mut server).await;
+    let _mylib = serve(&mut server, "mylib", &[("9.0", wheel("mylib", "9.0", "", &[]))]).await;
+    project(root.path(), &server.url(), &[]);
+    fs::remove_file(root.path().join("pyproject.toml")).unwrap();
+    python_project(&root.path().join("packages/mylib"), "mylib", "dependencies = []");
+    python_project(
+        &root.path().join("packages/app"),
+        "app",
+        "dependencies = ['mylib']\n\n[tool.uv.sources]\nmylib = { workspace = true }\n",
+    );
+
+    pacquet_in(root.path())
+        .arg("install")
+        .assert()
+        .success();
+
+    let app = root.path().join("packages/app");
+    python(&app)
+        .args(["-c", "import mylib; print(mylib.MARKER)"])
+        .assert()
+        .success()
+        .stdout(if cfg!(windows) { "workspace mylib\r\n" } else { "workspace mylib\n" });
+    python(&app)
+        .args(["-c", "import app; print(app.MARKER)"])
+        .assert()
+        .success()
+        .stdout(if cfg!(windows) { "workspace app\r\n" } else { "workspace app\n" });
+    let lock = fs::read_to_string(app.join("pylock.toml")).unwrap();
+    assert!(lock.contains(r#"path = "../mylib""#), "records the project's path: {lock}");
+    assert!(lock.contains("editable = true"), "installs it editable: {lock}");
+    assert!(!lock.contains("9.0"), "never reaches the index for mylib: {lock}");
+}
+
+#[tokio::test]
+async fn a_requirement_naming_a_workspace_project_is_not_taken_from_the_index() {
+    let root = tempfile::tempdir().unwrap();
+    let mut server = mockito::Server::new_async().await;
+    let _backends = serve_backends(&mut server).await;
+    let _mylib = serve(&mut server, "mylib", &[("9.0", wheel("mylib", "9.0", "", &[]))]).await;
+    project(root.path(), &server.url(), &[]);
+    fs::remove_file(root.path().join("pyproject.toml")).unwrap();
+    python_project(&root.path().join("packages/mylib"), "mylib", "dependencies = []");
+    python_project(&root.path().join("packages/app"), "app", "dependencies = ['mylib']");
+
+    assert_failure_contains(
+        pacquet_in(root.path()).arg("install"),
+        "names a project in this workspace",
+    );
+}
+
+#[tokio::test]
+async fn a_project_outside_the_declared_members_is_resolved_from_the_index() {
+    let root = tempfile::tempdir().unwrap();
+    let mut server = mockito::Server::new_async().await;
+    let _mylib = serve(&mut server, "mylib", &[("9.0", wheel("mylib", "9.0", "", &[]))]).await;
+    project(root.path(), &server.url(), &["mylib"]);
+    fs::write(
+        root.path().join("pyproject.toml"),
+        "[project]\nname = 'app'\nversion = '1.0'\nrequires-python = '>=3.10'\n\
+         dependencies = ['mylib']\n\n[tool.uv.workspace]\nmembers = ['packages/*']\n",
+    )
+    .unwrap();
+    let vendored = root.path().join("vendor/mylib");
+    fs::create_dir_all(&vendored).unwrap();
+    fs::write(
+        vendored.join("pyproject.toml"),
+        "[project]\nname = 'mylib'\nversion = '1.0'\nrequires-python = '>=3.10'\n\
+         dependencies = []\n",
+    )
+    .unwrap();
+
+    pacquet_in(root.path())
+        .arg("install")
+        .assert()
+        .success();
+    let lock = fs::read_to_string(root.path().join("pylock.toml")).unwrap();
+    assert!(lock.contains("9.0"), "the index serves a distribution of that name: {lock}");
+}
+
+#[tokio::test]
+async fn a_source_pnpm_cannot_resolve_is_refused() {
+    let root = tempfile::tempdir().unwrap();
+    let server = mockito::Server::new_async().await;
+    project(root.path(), &server.url(), &[]);
+    fs::write(
+        root.path().join("pyproject.toml"),
+        "[project]\nname = 'app'\nversion = '1.0'\nrequires-python = '>=3.10'\n\
+         dependencies = ['talon-core']\n\n[tool.uv.sources]\n\
+         talon-core = { git = 'https://example.invalid/talon.git' }\n",
+    )
+    .unwrap();
+
+    assert_failure_contains(
+        pacquet_in(root.path()).arg("install"),
+        "does not support the git Python source",
+    );
+}
+
+/// A path source may point outside the projects pnpm discovered, and the
+/// project it names is not part of any workspace those projects form.
+#[tokio::test]
+async fn a_path_source_outside_the_discovered_projects_resolves() {
+    let root = tempfile::tempdir().unwrap();
+    let mut server = mockito::Server::new_async().await;
+    let _alpha = serve(&mut server, "alpha", &[("1.0", wheel("alpha", "1.0", "", &[]))]).await;
+    let _backends = serve_backends(&mut server).await;
+    let workspace = root.path().join("workspace");
+    fs::create_dir_all(&workspace).unwrap();
+    project(&workspace, &server.url(), &[]);
+    python_project(&root.path().join("outside/lib"), "lib", "dependencies = ['alpha']");
+    fs::write(
+        workspace.join("pyproject.toml"),
+        "[project]\nname = 'app'\nversion = '1.0'\nrequires-python = '>=3.10'\n\
+         dependencies = ['lib']\n\n[tool.uv.sources]\n\
+         lib = { path = '../outside/lib', editable = true }\n",
+    )
+    .unwrap();
+
+    pacquet_in(&workspace)
+        .arg("install")
+        .assert()
+        .success();
+    python(&workspace)
+        .args(["-c", "import lib; print(lib.MARKER)"])
+        .assert()
+        .success()
+        .stdout(if cfg!(windows) { "workspace lib\r\n" } else { "workspace lib\n" });
+}
+
+/// A relative path means the same project to every member that inherits
+/// the declaration, so it is read against the manifest that declared it.
+#[tokio::test]
+async fn an_inherited_path_source_resolves_against_the_workspace_root() {
+    let root = tempfile::tempdir().unwrap();
+    let mut server = mockito::Server::new_async().await;
+    let _backends = serve_backends(&mut server).await;
+    project(root.path(), &server.url(), &[]);
+    fs::write(
+        root.path().join("pyproject.toml"),
+        "[project]\nname = 'root'\nversion = '1.0'\nrequires-python = '>=3.10'\n\
+         dependencies = []\n\n[tool.uv.workspace]\nmembers = ['packages/*']\n\n\
+         [tool.uv.sources]\nlib = { path = 'vendor/lib', editable = true }\n",
+    )
+    .unwrap();
+    python_project(&root.path().join("packages/app"), "app", "dependencies = ['lib']");
+    python_project(&root.path().join("vendor/lib"), "lib", "dependencies = []");
+
+    pacquet_in(root.path())
+        .arg("install")
+        .assert()
+        .success();
+    let app = root.path().join("packages/app");
+    python(&app)
+        .args(["-c", "import lib; print(lib.MARKER)"])
+        .assert()
+        .success()
+        .stdout(if cfg!(windows) { "workspace lib\r\n" } else { "workspace lib\n" });
+    let lock = fs::read_to_string(app.join("pylock.toml")).unwrap();
+    assert!(lock.contains(r#"path = "../../vendor/lib""#), "reads it against the root: {lock}");
+}
+
+/// Where a locked project's source is and how it is installed are not in
+/// the solved graph, so a frozen install checks them itself.
+#[tokio::test]
+async fn a_frozen_install_refuses_a_workspace_project_that_moved() {
+    let root = tempfile::tempdir().unwrap();
+    let mut server = mockito::Server::new_async().await;
+    let _backends = serve_backends(&mut server).await;
+    project(root.path(), &server.url(), &[]);
+    fs::remove_file(root.path().join("pyproject.toml")).unwrap();
+    python_project(&root.path().join("packages/lib"), "lib", "dependencies = []");
+    python_project(&root.path().join("elsewhere/lib"), "lib", "dependencies = []");
+    let app = root.path().join("packages/app");
+    let declare = |path: &str| {
+        fs::write(
+            app.join("pyproject.toml"),
+            format!(
+                "[project]\nname = 'app'\nversion = '1.0'\nrequires-python = '>=3.10'\n\
+                 dependencies = ['lib']\n\n[tool.uv.sources]\n\
+                 lib = {{ path = '{path}', editable = true }}\n\n\
+                 [build-system]\nrequires = ['tinybackend']\nbuild-backend = 'tinybuild'\n",
+            ),
+        )
+        .unwrap();
+    };
+    python_project(&app, "app", "dependencies = []");
+    declare("../lib");
+    pacquet_in(root.path())
+        .arg("install")
+        .assert()
+        .success();
+
+    declare("../../elsewhere/lib");
+    assert_failure_contains(
+        pacquet_in(root.path()).args(["install", "--frozen-lockfile"]),
+        "frozen Python lockfile is missing or out of date",
+    );
+}
+
+/// A backend builds the project it was handed, and installing anything
+/// else would install what no lockfile describes.
+#[tokio::test]
+async fn a_backend_building_another_distribution_is_refused() {
+    let root = tempfile::tempdir().unwrap();
+    let mut server = mockito::Server::new_async().await;
+    let _backend = serve(
+        &mut server,
+        "tinybackend",
+        &[(
+            "1.0",
+            wheel(
+                "tinybackend",
+                "1.0",
+                "",
+                &[(
+                    "tinybuild.py",
+                    TINY_BACKEND
+                        .replace(r#"name = project["name"]"#, r#"name = "impostor""#)
+                        .as_str(),
+                )],
+            ),
+        )],
+    )
+    .await;
+    project(root.path(), &server.url(), &[]);
+    python_project(root.path(), "app", "dependencies = []");
+
+    assert_failure_contains(
+        pacquet_in(root.path()).arg("install"),
+        "but its backend built `impostor`",
+    );
+}
+
+/// A distribution the lockfile pins from the index may become a project
+/// in the workspace without any requirement changing, which no comparison
+/// of the requirements or the solved versions can show.
+#[tokio::test]
+async fn a_lockfile_pinning_an_index_wheel_gives_way_to_a_workspace_project() {
+    let root = tempfile::tempdir().unwrap();
+    let mut server = mockito::Server::new_async().await;
+    let _lib = serve(&mut server, "lib", &[("1.0", wheel("lib", "1.0", "", &[]))]).await;
+    project(root.path(), &server.url(), &["lib"]);
+    pacquet_in(root.path())
+        .args(["install", "--lockfile-only"])
+        .assert()
+        .success();
+    let locked = fs::read_to_string(root.path().join("pylock.toml")).unwrap();
+    assert!(locked.contains("lib-1.0-py3-none-any.whl"), "starts pinned to the index: {locked}");
+
+    // The same distribution, at the version the lockfile already pins, so
+    // only where it comes from changes.
+    let lib = root.path().join("packages/lib");
+    fs::create_dir_all(&lib).unwrap();
+    fs::write(
+        lib.join("pyproject.toml"),
+        "[project]\nname = 'lib'\nversion = '1.0'\nrequires-python = '>=3.10'\n\
+         dependencies = []\n",
+    )
+    .unwrap();
+    fs::write(
+        root.path().join("pyproject.toml"),
+        "[project]\nname = 'app'\nversion = '1.0'\nrequires-python = '>=3.10'\n\
+         dependencies = ['lib']\n\n[tool.uv.sources]\nlib = { workspace = true }\n",
+    )
+    .unwrap();
+
+    pacquet_in(root.path())
+        .args(["install", "--lockfile-only"])
+        .assert()
+        .success();
+    let locked = fs::read_to_string(root.path().join("pylock.toml")).unwrap();
+    assert!(locked.contains(r#"path = "packages/lib""#), "records the project: {locked}");
+    assert!(!locked.contains("lib-1.0-py3-none-any.whl"), "drops the wheel: {locked}");
+}
+
+/// A project may leave its version to its backend, and the wheel is still
+/// the project it was built from.
+#[tokio::test]
+async fn a_backend_building_another_name_is_refused_without_a_declared_version() {
+    let root = tempfile::tempdir().unwrap();
+    let mut server = mockito::Server::new_async().await;
+    let _backend = serve(
+        &mut server,
+        "tinybackend",
+        &[(
+            "1.0",
+            wheel(
+                "tinybackend",
+                "1.0",
+                "",
+                &[(
+                    "tinybuild.py",
+                    TINY_BACKEND
+                        .replace(r#"name = project["name"]"#, r#"name = "impostor""#)
+                        .as_str(),
+                )],
+            ),
+        )],
+    )
+    .await;
+    project(root.path(), &server.url(), &[]);
+    python_project(root.path(), "app", "dependencies = []");
+    // The backend names the version, so only the distribution is declared.
+    fs::write(
+        root.path().join("pyproject.toml"),
+        fs::read_to_string(root.path().join("pyproject.toml"))
+            .unwrap()
+            .replace("version = '1.0'", "dynamic = ['version']"),
+    )
+    .unwrap();
+
+    assert_failure_contains(
+        pacquet_in(root.path()).arg("install"),
+        "but its backend built `impostor`",
+    );
+}
+
+/// One project is installed one way. Reachable declarations that disagree
+/// about that are a conflict, not a race between them.
+#[tokio::test]
+async fn sources_disagreeing_about_editable_are_refused() {
+    let root = tempfile::tempdir().unwrap();
+    let mut server = mockito::Server::new_async().await;
+    let _backends = serve_backends(&mut server).await;
+    project(root.path(), &server.url(), &[]);
+    python_project(&root.path().join("packages/lib"), "lib", "dependencies = []");
+    python_project(
+        &root.path().join("packages/helper"),
+        "helper",
+        "dependencies = ['lib']\n\n[tool.uv.sources]\n\
+         lib = { path = '../lib', editable = false }\n",
+    );
+    fs::write(
+        root.path().join("pyproject.toml"),
+        "[project]\nname = 'app'\nversion = '1.0'\nrequires-python = '>=3.10'\n\
+         dependencies = ['helper', 'lib']\n\n[tool.uv.sources]\n\
+         helper = { workspace = true }\nlib = { path = 'packages/lib', editable = true }\n",
+    )
+    .unwrap();
+
+    assert_failure_contains(pacquet_in(root.path()).arg("install"), "one editable, one not");
+}
+
+/// A source pnpm applies everywhere must not be one the manifest narrowed
+/// to some targets, or to one extra or group.
+#[tokio::test]
+async fn a_source_narrowed_by_a_marker_is_refused() {
+    let root = tempfile::tempdir().unwrap();
+    let server = mockito::Server::new_async().await;
+    project(root.path(), &server.url(), &[]);
+    fs::create_dir_all(root.path().join("packages/lib")).unwrap();
+    fs::write(
+        root.path().join("packages/lib/pyproject.toml"),
+        "[project]\nname = 'lib'\nversion = '1.0'\nrequires-python = '>=3.10'\n\
+         dependencies = []\n",
+    )
+    .unwrap();
+    fs::write(
+        root.path().join("pyproject.toml"),
+        "[project]\nname = 'app'\nversion = '1.0'\nrequires-python = '>=3.10'\n\
+         dependencies = ['lib']\n\n[tool.uv.sources]\n\
+         lib = { workspace = true, marker = \"sys_platform == 'never'\" }\n",
+    )
+    .unwrap();
+
+    assert_failure_contains(
+        pacquet_in(root.path()).arg("install"),
+        "does not support the conditional Python source",
+    );
+}
+
+/// A path source names where the project is, and the error says what was
+/// declared rather than what reading it failed on.
+#[tokio::test]
+async fn a_path_source_naming_a_missing_directory_is_refused() {
+    let root = tempfile::tempdir().unwrap();
+    let server = mockito::Server::new_async().await;
+    project(root.path(), &server.url(), &[]);
+    fs::create_dir_all(root.path().join("lib")).unwrap();
+    fs::write(
+        root.path().join("lib/pyproject.toml"),
+        "[project]\nname = 'lib'\nversion = '1.0'\nrequires-python = '>=3.10'\n\
+         dependencies = []\n",
+    )
+    .unwrap();
+    fs::write(
+        root.path().join("pyproject.toml"),
+        "[project]\nname = 'app'\nversion = '1.0'\nrequires-python = '>=3.10'\n\
+         dependencies = ['lib']\n\n[tool.uv.sources]\n\
+         lib = { path = 'nowhere/lib' }\n",
+    )
+    .unwrap();
+
+    assert_failure_contains(pacquet_in(root.path()).arg("install"), "which is not a directory");
+}
+
+/// A `..` after a symlink goes to the link's target on POSIX and to the
+/// directory the path was written in on Windows, so a path source that
+/// asks for one is refused rather than read as either.
+#[cfg(unix)]
+#[tokio::test]
+async fn a_path_source_stepping_out_of_a_symlink_is_refused() {
+    let root = tempfile::tempdir().unwrap();
+    let server = mockito::Server::new_async().await;
+    project(root.path(), &server.url(), &[]);
+    for directory in ["lib", "sub/elsewhere", "sub/lib"] {
+        fs::create_dir_all(root.path().join(directory)).unwrap();
+        fs::write(
+            root.path()
+                .join(directory)
+                .join("pyproject.toml"),
+            "[project]\nname = 'lib'\nversion = '1.0'\nrequires-python = '>=3.10'\n\
+             dependencies = []\n",
+        )
+        .unwrap();
+    }
+    std::os::unix::fs::symlink(root.path().join("sub/elsewhere"), root.path().join("link"))
+        .unwrap();
+    fs::write(
+        root.path().join("pyproject.toml"),
+        "[project]\nname = 'app'\nversion = '1.0'\nrequires-python = '>=3.10'\n\
+         dependencies = ['lib']\n\n[tool.uv.sources]\nlib = { path = 'link/../lib' }\n",
+    )
+    .unwrap();
+
+    assert_failure_contains(pacquet_in(root.path()).arg("install"), "whose `..` follows the link");
+}
+
+/// A `..` after a directory that is not there is an error on POSIX and
+/// nothing on Windows, so it is refused rather than read as either.
+#[tokio::test]
+async fn a_path_source_stepping_out_of_a_missing_directory_is_refused() {
+    let root = tempfile::tempdir().unwrap();
+    let server = mockito::Server::new_async().await;
+    project(root.path(), &server.url(), &[]);
+    fs::create_dir_all(root.path().join("lib")).unwrap();
+    fs::write(
+        root.path().join("lib/pyproject.toml"),
+        "[project]\nname = 'lib'\nversion = '1.0'\nrequires-python = '>=3.10'\n\
+         dependencies = []\n",
+    )
+    .unwrap();
+    fs::write(
+        root.path().join("pyproject.toml"),
+        "[project]\nname = 'app'\nversion = '1.0'\nrequires-python = '>=3.10'\n\
+         dependencies = ['lib']\n\n[tool.uv.sources]\nlib = { path = 'absent/../lib' }\n",
+    )
+    .unwrap();
+
+    assert_failure_contains(pacquet_in(root.path()).arg("install"), "which is not there");
+}
+
+/// A build backend is code from the index that a build runs, so it is
+/// approved the way a dependency's build scripts are.
+#[tokio::test]
+async fn a_backend_nothing_approved_does_not_build_the_project() {
+    let root = tempfile::tempdir().unwrap();
+    let mut server = mockito::Server::new_async().await;
+    let _backends = serve_backends(&mut server).await;
+    project(root.path(), &server.url(), &[]);
+    let workspace = fs::read_to_string(root.path().join("pnpm-workspace.yaml")).unwrap();
+    fs::write(
+        root.path().join("pnpm-workspace.yaml"),
+        workspace.split_once("allowBuilds:").expect("the fixture approves builds").0,
+    )
+    .unwrap();
+    python_project(root.path(), "app", "dependencies = []");
+
+    assert_failure_contains(
+        pacquet_in(root.path()).arg("install"),
+        "because the build requirement pkg:pypi/tinybackend is not approved to run",
+    );
+}
+
+/// An install that only warns about a build it skipped leaves the project
+/// out of its own environment, and says so.
+#[tokio::test]
+async fn an_unapproved_backend_warns_when_builds_are_not_strict() {
+    let root = tempfile::tempdir().unwrap();
+    let mut server = mockito::Server::new_async().await;
+    let _backends = serve_backends(&mut server).await;
+    let _alpha = serve(&mut server, "alpha", &[("1.0", wheel("alpha", "1.0", "", &[]))]).await;
+    project(root.path(), &server.url(), &["alpha>=1"]);
+    let workspace = fs::read_to_string(root.path().join("pnpm-workspace.yaml")).unwrap();
+    fs::write(
+        root.path().join("pnpm-workspace.yaml"),
+        format!(
+            "{}strictDepBuilds: false\n",
+            workspace.split_once("allowBuilds:").expect("the fixture approves builds").0,
+        ),
+    )
+    .unwrap();
+    python_project(root.path(), "app", "dependencies = ['alpha>=1']");
+
+    let output = pacquet_in(root.path())
+        .arg("install")
+        .output()
+        .unwrap();
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    eprintln!("stdout:\n{stdout}\nstderr:\n{}", String::from_utf8_lossy(&output.stderr));
+    assert!(output.status.success());
+    assert!(stdout.contains("is not approved to run"), "{stdout}");
+    python(root.path())
+        .args(["-c", "import alpha"])
+        .assert()
+        .success();
+    python(root.path())
+        .args(["-c", "import app"])
+        .assert()
+        .failure();
+}
+
+/// A group reached only through another group's `include-group` still
+/// names the projects it requires, so they come from the workspace.
+#[tokio::test]
+async fn a_workspace_project_an_included_group_requires_is_still_local() {
+    let root = tempfile::tempdir().unwrap();
+    let mut server = mockito::Server::new_async().await;
+    let _backends = serve_backends(&mut server).await;
+    let _lib = serve(&mut server, "lib", &[("9.0", wheel("lib", "9.0", "", &[]))]).await;
+    project(root.path(), &server.url(), &[]);
+    python_project(&root.path().join("packages/lib"), "lib", "dependencies = []");
+    fs::write(
+        root.path().join("pyproject.toml"),
+        "[project]\nname = 'app'\nversion = '1.0'\nrequires-python = '>=3.10'\n\
+         dependencies = []\n\n[dependency-groups]\ndev = [{ include-group = 'test' }]\n\
+         test = ['lib']\n\n[tool.uv.sources]\nlib = { workspace = true }\n",
+    )
+    .unwrap();
+
+    pacquet_in(root.path())
+        .arg("install")
+        .assert()
+        .success();
+    let lock = fs::read_to_string(root.path().join("pylock.toml")).unwrap();
+    assert!(lock.contains(r#"path = "packages/lib""#), "takes the workspace project: {lock}");
+    assert!(!lock.contains("9.0"), "never reaches the index for lib: {lock}");
+}
+
+/// A backend asks for what it needs once it can see the project, and what
+/// it asks for runs in the build too.
+#[tokio::test]
+async fn a_requirement_the_backend_asks_for_is_approved_too() {
+    let root = tempfile::tempdir().unwrap();
+    let mut server = mockito::Server::new_async().await;
+    let asking = format!(
+        "{TINY_BACKEND}\ndef get_requires_for_build_editable(config_settings=None):\n    \
+         return ['helper']\n",
+    );
+    let _backend = serve(
+        &mut server,
+        "tinybackend",
+        &[("80.0", wheel("tinybackend", "80.0", "", &[("tinybuild.py", asking.as_str())]))],
+    )
+    .await;
+    let _helper = serve(&mut server, "helper", &[("1.0", wheel("helper", "1.0", "", &[]))]).await;
+    project(root.path(), &server.url(), &[]);
+    python_project(root.path(), "app", "dependencies = []");
+
+    assert_failure_contains(
+        pacquet_in(root.path()).arg("install"),
+        "because the build requirement pkg:pypi/helper is not approved to run",
+    );
+}
+
+#[tokio::test]
+async fn a_workspace_project_as_a_build_requirement_is_refused() {
+    let root = tempfile::tempdir().unwrap();
+    let mut server = mockito::Server::new_async().await;
+    let _backends = serve_backends(&mut server).await;
+    project(root.path(), &server.url(), &[]);
+    python_project(&root.path().join("packages/tinybackend"), "tinybackend", "dependencies = []");
+    fs::write(
+        root.path().join("pyproject.toml"),
+        "[project]\nname = 'app'\nversion = '1.0'\nrequires-python = '>=3.10'\n\
+         dependencies = []\n\n[build-system]\nrequires = ['tinybackend']\n\
+         build-backend = 'tinybuild'\n",
+    )
+    .unwrap();
+
+    assert_failure_contains(
+        pacquet_in(root.path()).arg("install"),
+        "which is a project in its workspace",
+    );
+}
+
+#[tokio::test]
+async fn a_wheel_built_for_another_interpreter_is_refused() {
+    let root = tempfile::tempdir().unwrap();
+    let mut server = mockito::Server::new_async().await;
+    // A wheel built for another interpreter, and consistent about it, so
+    // what refuses it is the check against this interpreter's tags.
+    let elsewhere = TINY_BACKEND.replace("py3-none-any", "py2-none-any");
+    let _backend = serve(
+        &mut server,
+        "tinybackend",
+        &[("80.0", wheel("tinybackend", "80.0", "", &[("tinybuild.py", elsewhere.as_str())]))],
+    )
+    .await;
+    project(root.path(), &server.url(), &[]);
+    python_project(root.path(), "app", "dependencies = []");
+
+    assert_failure_contains(
+        pacquet_in(root.path()).arg("install"),
+        "which this interpreter does not install",
+    );
+}
+
+#[tokio::test]
+async fn a_build_requirement_a_marker_excludes_is_not_refused() {
+    let root = tempfile::tempdir().unwrap();
+    let mut server = mockito::Server::new_async().await;
+    let _backends = serve_backends(&mut server).await;
+    project(root.path(), &server.url(), &[]);
+    python_project(&root.path().join("packages/elsewhere"), "elsewhere", "dependencies = []");
+    fs::write(
+        root.path().join("pyproject.toml"),
+        "[project]\nname = 'app'\nversion = '1.0'\nrequires-python = '>=3.10'\n\
+         dependencies = []\n\n[build-system]\n\
+         requires = ['tinybackend', \"elsewhere; sys_platform == 'nowhere'\"]\n\
+         build-backend = 'tinybuild'\n",
+    )
+    .unwrap();
+    fs::create_dir_all(root.path().join("src/app")).unwrap();
+    fs::write(root.path().join("src/app/__init__.py"), "MARKER = 'built'\n").unwrap();
+
+    pacquet_in(root.path())
+        .arg("install")
+        .assert()
+        .success();
+    python(root.path())
+        .args(["-c", "import app; print(app.MARKER)"])
+        .assert()
+        .success()
+        .stdout(if cfg!(windows) { "built\r\n" } else { "built\n" });
+}
+
+/// PEP 517's defaults are requirements the build runs like any other, so
+/// a workspace that declares one of those names is as ambiguous.
+#[tokio::test]
+async fn a_default_build_requirement_naming_a_workspace_project_is_refused() {
+    let root = tempfile::tempdir().unwrap();
+    let mut server = mockito::Server::new_async().await;
+    let _backends = serve_backends(&mut server).await;
+    project(root.path(), &server.url(), &[]);
+    python_project(&root.path().join("packages/setuptools"), "setuptools", "dependencies = []");
+    fs::create_dir_all(root.path().join("packages/legacy")).unwrap();
+    fs::write(
+        root.path().join("packages/legacy/pyproject.toml"),
+        "[project]\nname = 'legacy'\nversion = '1.0'\nrequires-python = '>=3.10'\n\
+         dependencies = []\n",
+    )
+    .unwrap();
+    fs::write(
+        root.path().join("pyproject.toml"),
+        "[project]\nname = 'app'\nversion = '1.0'\nrequires-python = '>=3.10'\n\
+         dependencies = ['legacy']\n\n[tool.uv.sources]\nlegacy = { workspace = true }\n",
+    )
+    .unwrap();
+
+    assert_failure_contains(
+        pacquet_in(root.path()).arg("install"),
+        "which is a project in its workspace",
+    );
+}
+
+#[tokio::test]
+async fn a_backend_asking_for_a_workspace_project_is_refused() {
+    let root = tempfile::tempdir().unwrap();
+    let mut server = mockito::Server::new_async().await;
+    let asking = format!(
+        "{TINY_BACKEND}\ndef get_requires_for_build_editable(config_settings=None):\n    \
+         return ['elsewhere']\n",
+    );
+    let _backend = serve(
+        &mut server,
+        "tinybackend",
+        &[("80.0", wheel("tinybackend", "80.0", "", &[("tinybuild.py", asking.as_str())]))],
+    )
+    .await;
+    let _elsewhere =
+        serve(&mut server, "elsewhere", &[("1.0", wheel("elsewhere", "1.0", "", &[]))]).await;
+    project(root.path(), &server.url(), &[]);
+    python_project(&root.path().join("packages/elsewhere"), "elsewhere", "dependencies = []");
+    python_project(root.path(), "app", "dependencies = []");
+
+    assert_failure_contains(
+        pacquet_in(root.path()).arg("install"),
+        "which is a project in its workspace",
+    );
+}
+
+/// PEP 503 has one distribution name however it is spelled, and an
+/// approval names a distribution.
+#[tokio::test]
+async fn an_allow_builds_key_names_the_distribution_however_it_is_written() {
+    let root = tempfile::tempdir().unwrap();
+    let mut server = mockito::Server::new_async().await;
+    let _backends = serve_backends(&mut server).await;
+    project(root.path(), &server.url(), &[]);
+    let workspace = fs::read_to_string(root.path().join("pnpm-workspace.yaml")).unwrap();
+    fs::write(
+        root.path().join("pnpm-workspace.yaml"),
+        format!(
+            "{}allowBuilds:\n  pkg:pypi/TinyBackend: true\n",
+            workspace.split_once("allowBuilds:").expect("the fixture approves builds").0,
+        ),
+    )
+    .unwrap();
+    python_project(root.path(), "app", "dependencies = []");
+
+    pacquet_in(root.path())
+        .arg("install")
+        .assert()
+        .success();
+    python(root.path())
+        .args(["-c", "import app; print(app.MARKER)"])
+        .assert()
+        .success()
+        .stdout(if cfg!(windows) { "workspace app\r\n" } else { "workspace app\n" });
+}
+
+/// npm and `PyPI` both publish `esbuild`, `ruff` and `black`, so approving
+/// a build script must not approve a build backend nobody looked at.
+#[tokio::test]
+async fn an_allow_builds_key_naming_no_ecosystem_approves_no_python_build() {
+    let root = tempfile::tempdir().unwrap();
+    let mut server = mockito::Server::new_async().await;
+    let _backends = serve_backends(&mut server).await;
+    project(root.path(), &server.url(), &[]);
+    let workspace = fs::read_to_string(root.path().join("pnpm-workspace.yaml")).unwrap();
+    fs::write(
+        root.path().join("pnpm-workspace.yaml"),
+        format!(
+            "{}allowBuilds:\n  tinybackend: true\n",
+            workspace.split_once("allowBuilds:").expect("the fixture approves builds").0,
+        ),
+    )
+    .unwrap();
+    python_project(root.path(), "app", "dependencies = []");
+
+    assert_failure_contains(
+        pacquet_in(root.path()).arg("install"),
+        "pkg:pypi/tinybackend is not approved to run",
+    );
+}

@@ -31,7 +31,7 @@ pub(super) struct WheelMetadata {
     pub(super) purelib: bool,
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub(super) struct Wheel {
     /// The name of the wheel file this was unpacked from, which says
     /// which build of the version it is.
@@ -39,6 +39,16 @@ pub(super) struct Wheel {
     pub(super) filename: String,
     pub(super) files: BTreeMap<String, PathBuf>,
     pub(super) metadata: WheelMetadata,
+    /// Where a wheel built from a directory came from, which PEP 610 has
+    /// the installer record rather than the backend.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub(super) direct_url: Option<DirectUrl>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub(super) struct DirectUrl {
+    pub(super) url: String,
+    pub(super) editable: bool,
 }
 
 pub(super) async fn run<Output: DeserializeOwned>(

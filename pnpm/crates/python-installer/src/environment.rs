@@ -4,6 +4,7 @@ use super::{
     fs, io, manifest,
 };
 use miette::WrapErr;
+use std::collections::{BTreeMap, BTreeSet};
 
 /// What every project of one [`prepare`](super::prepare) run shares.
 pub(super) struct PythonPrepare<'a> {
@@ -12,20 +13,29 @@ pub(super) struct PythonPrepare<'a> {
     /// The environments every project of this run is locked for.
     pub(super) environments: &'a Environments,
     pub(super) index: &'a Index,
-    pub(super) store_index: Option<pnpm_store_dir::SharedReadonlyStoreIndex>,
-    pub(super) writer: &'a Arc<StoreIndexWriter>,
+    pub(super) store: ArtifactStore<'a>,
+    pub(super) asked: Asked,
+    /// Every distribution a project in this repository declares. A build
+    /// requirement naming one of them is refused rather than taken from
+    /// the index, wherever the backend asked for it.
+    pub(super) members: BTreeMap<std::path::PathBuf, BTreeSet<pep508_rs::PackageName>>,
+    /// The environments backends have already been installed into, by the
+    /// requirements they hold. Every project using one backend needs the
+    /// same environment, and a workspace is mostly one backend.
+    pub(super) build_environments: tokio::sync::Mutex<BTreeMap<String, Arc<tempfile::TempDir>>>,
+}
+
+/// What the install asked this run for.
+pub(super) struct Asked {
+    /// Whether a dependency is being added, which resolves again.
     pub(super) resolve: bool,
     pub(super) selection: manifest::DependencySelection,
 }
 
-/// What [`PythonPrepare::environment`] needs about one project.
-pub(super) struct EnvironmentInputs<'a> {
-    pub(super) root: &'a Path,
-    pub(super) manifest: &'a manifest::Manifest,
-    pub(super) lock: &'a Lockfile,
-    /// The requirements this install materializes, which `--prod` and
-    /// `--dev` narrow.
-    pub(super) selected_requirements: &'a [pep508_rs::Requirement],
+/// The store a run reads verified artifacts from and writes them to.
+pub(super) struct ArtifactStore<'a> {
+    pub(super) index: Option<pnpm_store_dir::SharedReadonlyStoreIndex>,
+    pub(super) writer: &'a Arc<StoreIndexWriter>,
 }
 
 /// What [`PythonPrepare::lockfile`] needs about one project.
@@ -37,6 +47,9 @@ pub(super) struct LockfileInputs<'a> {
     pub(super) requirements: &'a [pep508_rs::Requirement],
     pub(super) inputs: Inputs,
     pub(super) requires_python: Option<String>,
+    /// The projects in this repository the resolution installs from their
+    /// source, which every seeding of it has to offer again.
+    pub(super) local: Arc<[super::workspace::LocalProject]>,
 }
 
 /// What [`PythonPrepare::replay_lockfile`] needs about the lockfile on
@@ -45,6 +58,7 @@ pub(super) struct LockfileReplay<'a> {
     pub(super) lock: Lockfile,
     pub(super) lock_path: &'a Path,
     pub(super) requirements: &'a [pep508_rs::Requirement],
+    pub(super) local: Arc<[super::workspace::LocalProject]>,
     /// Whether the lockfile was resolved for this install's own target,
     /// so that every wheel it pins is one this target needs.
     pub(super) same_target: bool,

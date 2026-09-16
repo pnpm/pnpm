@@ -33,6 +33,7 @@ tempfile = { workspace = true }
 tokio = { workspace = true }
 toml = { workspace = true }
 url = { workspace = true }
+wax = { workspace = true }
 
 [dev-dependencies]
 mockito = { workspace = true }

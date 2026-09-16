@@ -1,9 +1,11 @@
 //! The environments a lockfile is resolved for, and the markers that
 //! name them.
 
-use super::LockedWheel;
+use super::{LockedDirectory, LockedWheel};
 use crate::{
-    candidates::parse_requirement, metadata::WheelMetadata, packages::Packages,
+    candidates::parse_requirement,
+    metadata::WheelMetadata,
+    packages::{Candidate, Packages},
     requires_python::declared_range,
 };
 use miette::{IntoDiagnostic, Result, bail};
@@ -39,6 +41,9 @@ pub struct Solved {
     pub target: Target,
     pub solution: BTreeMap<PackageName, Version>,
     pub wheels: BTreeMap<PackageName, LockedWheel>,
+    /// The projects in the repository this environment installs from
+    /// their source, which pin a directory where the others pin a wheel.
+    pub directories: BTreeMap<PackageName, LockedDirectory>,
     /// The marker variables the environment pins, empty for the running
     /// interpreter. A declared environment names a platform and a Python
     /// version, and its lockfile marker has to say so even when nothing
@@ -56,19 +61,25 @@ impl Solved {
         packages: &Packages,
         declared: Vec<String>,
     ) -> Result<Self> {
-        let wheels = solution
-            .iter()
-            .map(|(name, version)| {
-                let candidate = packages.candidates
-                    .get(name)
-                    .and_then(|versions| versions.get(version))
-                    .ok_or_else(|| {
-                        miette::miette!("solved Python package {name} {version} was never offered")
-                    })?;
-                Ok((name.clone(), candidate.wheel.clone()))
-            })
-            .collect::<Result<_>>()?;
-        Ok(Self { target, solution, wheels, declared })
+        let mut wheels = BTreeMap::new();
+        let mut directories = BTreeMap::new();
+        for (name, version) in &solution {
+            let candidate = packages.candidates
+                .get(name)
+                .and_then(|versions| versions.get(version))
+                .ok_or_else(|| {
+                    miette::miette!("solved Python package {name} {version} was never offered")
+                })?;
+            match candidate {
+                Candidate::Wheel(offered) => {
+                    wheels.insert(name.clone(), offered.wheel.clone());
+                }
+                Candidate::Directory(directory) => {
+                    directories.insert(name.clone(), directory.clone());
+                }
+            }
+        }
+        Ok(Self { target, solution, wheels, directories, declared })
     }
 
     /// The marker naming the environment this was solved for: every

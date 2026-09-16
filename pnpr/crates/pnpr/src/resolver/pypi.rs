@@ -42,8 +42,8 @@ use std::{
 use axum::{http::StatusCode, response::Response};
 use pnpm_network::{AuthHeaders, MetadataCacheScope, RetryOpts, ThrottledClient};
 use pnpm_python_resolver::{
-    Candidate, Inputs, Lockfile, Packages, Step, Target, WheelMetadata, candidates_from_page,
-    parse_requirement, validate_url,
+    Candidate, IndexCandidate, Inputs, Lockfile, Packages, Step, Target, WheelMetadata,
+    candidates_from_page, parse_requirement, validate_url,
 };
 use pnpr_route::{Footprint, url_has_inline_credentials};
 
@@ -177,6 +177,7 @@ async fn resolve(
                 let candidate = packages.candidates
                     .get(&name)
                     .and_then(|versions| versions.get(&version))
+                    .and_then(Candidate::from_index)
                     .ok_or_else(|| format!("{name} {version} is not a candidate"))?;
                 let metadata = reader.metadata(&name, &version, candidate).await?;
                 packages.metadata.insert((name, version), metadata);
@@ -265,7 +266,7 @@ impl IndexReader {
         &self,
         name: &pep508_rs::PackageName,
         version: &pep440_rs::Version,
-        candidate: &Candidate,
+        candidate: &IndexCandidate,
     ) -> Result<WheelMetadata, String> {
         let canonical_name = canonical_project_name(name)?;
         let wheel_url = url::Url::parse(&candidate.wheel.url)
@@ -316,7 +317,7 @@ impl IndexReader {
         document: &str,
         name: &pep508_rs::PackageName,
         version: &pep440_rs::Version,
-        candidate: &Candidate,
+        candidate: &IndexCandidate,
     ) -> Result<WheelMetadata, String> {
         if let Some(digests) = &candidate.core_metadata {
             verify_digest(document.as_bytes(), digests, "metadata file", &candidate.wheel.name)?;

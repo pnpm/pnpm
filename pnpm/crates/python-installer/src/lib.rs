@@ -2,24 +2,25 @@ pub use add::{AddOptions, plan_add};
 pub use manifest::DependencySelection;
 
 mod add;
+mod build;
 mod environment;
+mod generation;
 mod host;
 mod lockfile;
 mod manifest;
 mod registry;
 mod resolver;
 mod targets;
+mod workspace;
 
 use base64::{Engine as _, engine::general_purpose::STANDARD};
-use environment::{
-    EnvironmentInputs, LockfileInputs, PythonPrepare, ensure_environment_parent, publish_link,
-    validate_environment_link,
-};
+use environment::{LockfileInputs, PythonPrepare, publish_link, validate_environment_link};
+use generation::EnvironmentProject;
 use host::Interpreter;
 use miette::{IntoDiagnostic, Result, WrapErr, bail};
 use pnpm_pnpr_client::{PYPI_ECOSYSTEM, PnprClient, PypiResolveOptions};
 use pnpm_python_resolver::{Inputs, Lockfile};
-use pnpm_reporter::{GlobalLog, LogEvent, LogLevel, Reporter};
+use pnpm_reporter::Reporter;
 use pnpm_store_dir::{StoreIndex, StoreIndexWriter};
 use registry::Registry;
 use std::{
@@ -63,6 +64,23 @@ pub fn plan<Reporter: self::Reporter + 'static>(
     )
 }
 
+/// The manifests a run prepares from, or `None` when none of them
+/// declares a project. A manifest that only declares a workspace is read
+/// for what it says about the others, so it is not by itself a reason to
+/// start an interpreter.
+async fn discovered_projects(
+    manifests: Vec<PathBuf>,
+) -> Result<Option<Vec<(PathBuf, Arc<manifest::Manifest>)>>> {
+    let roots = read_project_manifests(manifests).await?
+        .into_iter()
+        .map(|(root, manifest)| (root, Arc::new(manifest)))
+        .collect::<Vec<_>>();
+    Ok(roots
+        .iter()
+        .any(|(_, manifest)| manifest.project.is_some())
+        .then_some(roots))
+}
+
 async fn prepare<Reporter: self::Reporter + 'static>(
     context: InstallOptions,
     manifests: Vec<PathBuf>,
@@ -70,10 +88,10 @@ async fn prepare<Reporter: self::Reporter + 'static>(
     selection: manifest::DependencySelection,
 ) -> Result<Vec<Prepared>> {
     let config = context.config;
-    let roots = read_project_manifests(manifests).await?;
-    if roots.is_empty() {
-        return Ok(Vec::new());
-    }
+    let Some(roots) = discovered_projects(manifests).await? else { return Ok(Vec::new()) };
+    // A manifest that declares only a workspace is still what says which
+    // projects that workspace contains and where they come from.
+    let workspace = workspace::Workspace::new(&roots)?;
     let interpreter: Interpreter =
         host::run(&config.python.executable, "probe", targets::probe_request(config)).await?;
     let environments = Environments::of(config, &interpreter)?;
@@ -86,12 +104,12 @@ async fn prepare<Reporter: self::Reporter + 'static>(
         interpreter: &interpreter,
         environments: &environments,
         index: &index,
-        store_index,
-        writer: &writer,
-        resolve,
-        selection,
+        store: environment::ArtifactStore { index: store_index, writer: &writer },
+        asked: environment::Asked { resolve, selection },
+        members: workspace.scopes().clone(),
+        build_environments: tokio::sync::Mutex::default(),
     };
-    let result = prepare_projects::<Reporter>(&prepare, roots).await;
+    let result = prepare_projects::<Reporter>(&prepare, &workspace, roots).await;
     drop(writer);
     writer_task.await
         .into_diagnostic()
@@ -103,17 +121,29 @@ async fn prepare<Reporter: self::Reporter + 'static>(
 
 async fn prepare_projects<Reporter: self::Reporter + 'static>(
     prepare: &PythonPrepare<'_>,
-    roots: Vec<(PathBuf, manifest::Manifest)>,
+    workspace: &workspace::Workspace,
+    discovered: Vec<(PathBuf, Arc<manifest::Manifest>)>,
 ) -> Result<Vec<Prepared>> {
+    // Every project's workspace dependencies are read before the first
+    // await, so the index itself is not held across one.
+    let planned = discovered
+        .into_iter()
+        .filter(|(_, manifest)| manifest.project.is_some())
+        .map(|(root, manifest)| {
+            let local = workspace.local_projects(&root, &manifest, &root)?;
+            Ok((root, manifest, Arc::from(local)))
+        })
+        .collect::<Result<Vec<_>>>()?;
     let mut prepared = Vec::new();
-    for (root, manifest) in roots {
-        prepared.push(prepare.project::<Reporter>(root, manifest).await?);
+    for (root, manifest, local) in planned {
+        prepared.push(prepare.project::<Reporter>(root, manifest, local).await?);
     }
     Ok(prepared)
 }
 
-/// The projects among `manifests`: a `pyproject.toml` without a
-/// `[project]` table declares no package of its own.
+/// Every `pyproject.toml` among `manifests`, parsed. One without a
+/// `[project]` table declares no package of its own, but may still say
+/// which projects a workspace contains and where they come from.
 async fn read_project_manifests(
     manifests: Vec<PathBuf>,
 ) -> Result<Vec<(PathBuf, manifest::Manifest)>> {
@@ -123,7 +153,7 @@ async fn read_project_manifests(
             .into_diagnostic()
             .wrap_err_with(|| format!("read {}", path.display()))?;
         let manifest = manifest::Manifest::parse(&contents)?;
-        if manifest.project.is_some() {
+        if manifest.project.is_some() || manifest.tool.uv.workspace.is_some() {
             roots.push((
                 path.parent()
                     .expect("manifest has a parent")
@@ -174,7 +204,8 @@ impl PythonPrepare<'_> {
     async fn project<Reporter: self::Reporter + 'static>(
         &self,
         root: PathBuf,
-        manifest: manifest::Manifest,
+        manifest: Arc<manifest::Manifest>,
+        local: Arc<[workspace::LocalProject]>,
     ) -> Result<Prepared> {
         let config = self.context.config;
         let project = manifest.project.as_ref().expect("only project manifests were selected");
@@ -182,10 +213,15 @@ impl PythonPrepare<'_> {
         let requirements = manifest.requirements(config, manifest::DependencySelection::ALL)?;
         let inputs = self.inputs(&requirements);
         let mut registry = self.registry();
+        workspace::offer(&mut registry.resolution.packages, &local);
         let lock_path = root.join("pylock.toml");
-        let existing =
-            self.replayable_lockfile(&lock_path, &inputs, project.requires_python.as_deref())
-                .await?;
+        let existing = self.replayable_lockfile(
+            &lock_path,
+            &inputs,
+            project.requires_python.as_deref(),
+            &local,
+        )
+        .await?;
         let lock = self.lockfile::<Reporter>(
             &mut registry,
             LockfileInputs {
@@ -194,17 +230,15 @@ impl PythonPrepare<'_> {
                 requirements: &requirements,
                 inputs,
                 requires_python: project.requires_python.clone(),
+                local: Arc::clone(&local),
             },
         )
         .await?;
         let environment = self.environment::<Reporter>(
             &mut registry,
-            EnvironmentInputs {
-                root: &root,
-                manifest: &manifest,
-                lock: &lock,
-                selected_requirements: &manifest.requirements(config, self.selection)?,
-            },
+            EnvironmentProject { root: &root, manifest: &manifest, local: &local },
+            &lock,
+            &manifest.requirements(config, self.asked.selection)?,
         )
         .await?;
         Ok(Prepared {
@@ -240,8 +274,8 @@ impl PythonPrepare<'_> {
             downloaded: BTreeSet::new(),
             store: pnpm_tarball::ArchiveStoreContext {
                 dir: &self.context.config.store_dir,
-                index: self.store_index.clone(),
-                index_writer: Some(Arc::clone(self.writer)),
+                index: self.store.index.clone(),
+                index_writer: Some(Arc::clone(self.store.writer)),
                 verify_integrity: self.context.config.verify_store_integrity,
                 strict_pkg_content_check: self.context.config.strict_store_pkg_content_check,
                 verified_files_cache: Arc::default(),
@@ -269,74 +303,6 @@ impl PythonPrepare<'_> {
             }
         }
         Ok(())
-    }
-
-    /// Install the locked wheels the project selects, and the project's
-    /// own package, into a fresh environment generation. A lockfile-only
-    /// run builds none.
-    async fn environment<Reporter: self::Reporter + 'static>(
-        &self,
-        registry: &mut Registry<'_>,
-        inputs: EnvironmentInputs<'_>,
-    ) -> Result<Option<tempfile::TempDir>> {
-        if self.context.lockfile_only {
-            return Ok(None);
-        }
-        let EnvironmentInputs {
-            root,
-            manifest,
-            lock,
-            selected_requirements,
-        } = inputs;
-        let project = project_package::<Reporter>(root, manifest)?;
-        validate_environment_link(root)?;
-        let generations = root.join(".pnpm/python-envs");
-        ensure_environment_parent(root)?;
-        let environment = tempfile::Builder::new()
-            .prefix("env-")
-            .tempdir_in(&generations)
-            .into_diagnostic()?;
-        registry.resolution.answer_for(self.interpreter.target.clone());
-        lock.seed(&mut registry.resolution.packages, &self.interpreter.target)?;
-        registry.fetch_wheels::<Reporter>().await?;
-        let selected = resolver::locked_solution(&registry.resolution, selected_requirements)?;
-        let wheels = selected
-            .into_iter()
-            .map(|package| &registry.wheels[&package])
-            .collect::<Vec<_>>();
-        host::run::<serde_json::Value>(
-            &self.interpreter.executable,
-            "install",
-            serde_json::json!({
-                "root": environment.path(),
-                "packages": wheels,
-                "project": project,
-            }),
-        )
-        .await?;
-        Ok(Some(environment))
-    }
-}
-
-/// The project's own package, when pnpm can install one without building
-/// the project.
-fn project_package<Reporter: self::Reporter + 'static>(
-    root: &Path,
-    manifest: &manifest::Manifest,
-) -> Result<Option<manifest::OwnPackage>> {
-    match manifest.project_package(root)? {
-        manifest::ProjectPackage::Installable(package) => Ok(Some(*package)),
-        manifest::ProjectPackage::Virtual => Ok(None),
-        manifest::ProjectPackage::Unsupported(reason) => {
-            Reporter::emit(&LogEvent::Global(GlobalLog {
-                level: LogLevel::Warn,
-                message: format!(
-                    "Installing only the dependencies of {}, not the project itself, because {reason}",
-                    root.display(),
-                ),
-            }));
-            Ok(None)
-        }
     }
 }
 
