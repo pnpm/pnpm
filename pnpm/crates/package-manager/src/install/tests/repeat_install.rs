@@ -12,7 +12,10 @@ use pnpm_modules_yaml::{Host, LayoutVersion, Modules, NodeLinker, write_modules_
 use pnpm_package_manifest::{DependencyGroup, PackageManifest};
 use pnpm_reporter::{LogEvent, Reporter, SilentReporter};
 use pnpm_store_dir::VerifiedFileIntegrity;
-use pnpm_testing_utils::registry::TestRegistry;
+use pnpm_testing_utils::{
+    fs::{MTIME_STEP_MS, set_mtime_ms},
+    registry::TestRegistry,
+};
 use pnpm_workspace_state as workspace_state;
 use std::{sync::Mutex, time::Duration};
 use tempfile::tempdir;
@@ -255,12 +258,13 @@ fn sync_fast_path_matches_optimistic_short_circuit() {
         included,
         None,
     );
+    let last_validated_timestamp = 1_700_000_000_000;
+    set_mtime_ms(&manifest_path, last_validated_timestamp - 2 * MTIME_STEP_MS);
+    set_mtime_ms(&project_root.join("pnpm-lock.yaml"), last_validated_timestamp - MTIME_STEP_MS);
     workspace_state::update_workspace_state(
         &project_root,
         &pnpm_workspace_state::WorkspaceState {
-            last_validated_timestamp: pnpm_testing_utils::fs::backdate_existing_files(
-                &project_root,
-            ),
+            last_validated_timestamp,
             projects,
             pnpmfiles: Vec::new(),
             filtered_install: false,
