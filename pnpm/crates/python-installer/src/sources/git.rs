@@ -77,7 +77,7 @@ async fn checkout(
 
 fn cache_path(config: &pnpm_config::Config, vcs: &LockedVcs, commit: &str) -> PathBuf {
     config.cache_dir
-        .join("python-git-v1")
+        .join("python-git-v2")
         .join(pnpm_crypto_hash::create_hex_hash(&format!("{}@{commit}", vcs.url)))
 }
 
@@ -90,9 +90,7 @@ fn checkout_source(
     if !vcs.commit_id.is_empty() && commit != vcs.commit_id {
         bail!("Python git checkout does not match the locked commit");
     }
-    if config.offline {
-        pnpm_git_fetcher::checkout_submodules_offline(temporary.path()).into_diagnostic()?;
-    } else {
+    if vcs.commit_id.is_empty() || !cache_path(config, vcs, &vcs.commit_id).is_dir() {
         pnpm_git_fetcher::checkout_submodules(temporary.path()).into_diagnostic()?;
     }
     if !config.offline {
@@ -109,8 +107,7 @@ fn checkout_repository(
     let cached = cache_path(config, vcs, &vcs.commit_id);
     let revision = if vcs.commit_id.is_empty() { &vcs.requested_revision } else { &vcs.commit_id };
     let commit = if !vcs.commit_id.is_empty() && cached.is_dir() {
-        pnpm_fs::copy_dir_contents(&cached, dest).into_diagnostic()?;
-        pnpm_git_fetcher::checkout_existing_revision(revision, dest).into_diagnostic()?
+        pnpm_git_fetcher::checkout_cached_bundles(&cached, revision, dest).into_diagnostic()?
     } else {
         if config.offline {
             bail!(
@@ -130,7 +127,7 @@ fn cache_checkout(checkout: &Path, cache: &Path) -> Result<()> {
     let parent = cache.parent().expect("cache has parent");
     std::fs::create_dir_all(parent).into_diagnostic()?;
     let cached = tempfile::tempdir_in(parent).into_diagnostic()?;
-    pnpm_fs::copy_dir_contents(checkout, cached.path()).into_diagnostic()?;
+    pnpm_git_fetcher::cache_checkout_bundles(checkout, cached.path()).into_diagnostic()?;
     match std::fs::rename(cached.path(), cache) {
         Ok(()) => {
             let _ = cached.keep();

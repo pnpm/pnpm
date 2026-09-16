@@ -103,10 +103,15 @@ impl Solved {
         if let Some(directory) = self.directories.get(name) {
             return serde_json::to_string(directory).into_diagnostic();
         }
-        Ok(self.direct_urls
-            .get(name)
-            .cloned()
-            .unwrap_or_default())
+        if self.direct_urls.contains_key(name) {
+            let wheel = self.wheels
+                .get(name)
+                .ok_or_else(|| {
+                    miette::miette!("direct Python source {name} pins no verified wheel")
+                })?;
+            return serde_json::to_string(wheel).into_diagnostic();
+        }
+        Ok(String::new())
     }
 
     /// The marker naming the environment this was solved for: every

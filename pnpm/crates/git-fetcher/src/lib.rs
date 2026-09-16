@@ -17,9 +17,9 @@
 
 pub use error::{GitFetcherError, PreparePackageError};
 pub use fetcher::{
-    CheckoutOptions, GitFetchOutput, GitFetcher, GitManifestQuery, checkout_commit,
-    checkout_existing_revision, checkout_revision, checkout_submodules,
-    checkout_submodules_offline, read_git_manifest,
+    CheckoutOptions, GitFetchOutput, GitFetcher, GitManifestQuery, cache_checkout_bundles,
+    checkout_cached_bundles, checkout_commit, checkout_existing_revision, checkout_revision,
+    checkout_submodules, checkout_submodules_offline, read_git_manifest,
 };
 pub use options::{GitSource, GitStoreContext, PrepareScriptOptions};
 pub use pnpm_fs_packlist::{PacklistError, packlist};

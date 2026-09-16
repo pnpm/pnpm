@@ -12,8 +12,10 @@
 #[cfg(test)]
 pub(crate) mod tests;
 
+pub use bundles::{cache_checkout_bundles, checkout_cached_bundles};
 pub use revision::{checkout_existing_revision, checkout_revision, checkout_submodules_offline};
 
+mod bundles;
 mod revision;
 
 use crate::{

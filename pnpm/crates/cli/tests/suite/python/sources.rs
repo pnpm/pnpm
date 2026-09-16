@@ -214,6 +214,7 @@ async fn git_revisions_and_direct_requirements_pin_commits_and_replay_offline() 
             .assert().success().stdout(format!("workspace fork{newline}{commit}{newline}", newline=if cfg!(windows) { "\r\n" } else { "\n" }));
         pnpm_fs::remove_symlink_dir(&root.path().join(".venv")).unwrap();
         pacquet_in(root.path())
+            .env("GIT_ALLOW_PROTOCOL", "https")
             .args(["install", "--offline", "--frozen-lockfile"])
             .assert()
             .success();

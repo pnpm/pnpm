@@ -196,7 +196,8 @@ commit even if a branch or tag moves. The package is built through the same
 isolated PEP 517 flow as workspace packages. Repositories without a
 `pyproject.toml` use PEP 517's default setuptools backend.
 Git checkouts retain history and tags for backends that derive package versions
-from the repository.
+from the repository. Cached repositories store Git bundles. Offline installs
+restore committed files in a fresh checkout without importing cached hooks or Git configuration.
 
 Approve the git dependency itself, as well as its build requirements, under
 `allowBuilds`, using `pkg:pypi/fork: true`. A build may execute code shipped in
