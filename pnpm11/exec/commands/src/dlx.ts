@@ -179,6 +179,7 @@ export async function handler (
         // Without this, `pnpm dlx <pkg>` cannot launch packages whose bin
         // depends on a postinstall step (e.g. native modules).
         strictDepBuilds: false,
+        useLockfile: true,
         enableGlobalVirtualStore,
         bin: path.join(cachedDir, 'node_modules/.bin'),
         dir: cachedDir,
@@ -456,7 +457,8 @@ function getValidCacheDir (cacheLink: string, dlxCacheMaxAge: number): string | 
     }
     throw err
   }
-  const isValid = stats.mtime.getTime() + dlxCacheMaxAge * 60_000 >= new Date().getTime()
+  const isValid = fs.existsSync(path.join(target, 'pnpm-lock.yaml')) &&
+    stats.mtime.getTime() + dlxCacheMaxAge * 60_000 >= new Date().getTime()
   return isValid ? target : undefined
 }
 
