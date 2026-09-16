@@ -390,7 +390,7 @@ Codex reads that directory as-is. Claude Code only looks in `.claude/skills`, so
 
 Add a new skill under `.agents/skills`; nothing else needs to change.
 
-On Windows, git only writes a real symlink when the clone has `core.symlinks=true`, which needs Developer Mode or an elevated shell. Without it `.claude/skills` is checked out as a text file holding the target path and Claude Code finds no skills; the rest of the repository is unaffected.
+Git only writes a real symlink on Windows when the clone has `core.symlinks=true`, which needs Developer Mode or an elevated shell. Without it `.claude/skills` is checked out as a text file holding the target path, and Claude Code finds no skills. `CLAUDE.md` is a symlink to `AGENTS.md` and has been since the agent guides were added, so such a clone already loses the project instructions the same way.
 
 ## Key Configuration Files
 
