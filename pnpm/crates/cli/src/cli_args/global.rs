@@ -21,7 +21,8 @@ use crate::{
     cli_args::{
         add::{AddGroups, add_packages, apply_allow_build},
         approve_builds::{
-            ApproveBuildsArgs, clear_decided_ignored_builds, write_approval_settings,
+            ApproveBuildsArgs, clear_decided_ignored_builds, prompt_approve_install_builds,
+            write_approval_settings,
         },
         global_bin_lock::acquire_global_bin_lock,
         ignored_builds::{IgnoredBuildsScan, get_automatically_ignored_builds},
@@ -35,7 +36,6 @@ use crate::{
     shim_dispatch::{ShimTarget, install_native_shim, migrate_legacy_shims, remove_native_shim},
 };
 
-use builds::prompt_approve_global_builds;
 use cleanup::discard_install_dir_on_error;
 use derive_more::{Display, Error};
 use install::{

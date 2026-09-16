@@ -56,51 +56,7 @@ async fn install_into_cache<Reporter: self::Reporter + 'static>(
     fs::write(&manifest_path, json!({ "name": "dlx", "version": "0.0.0" }).to_string())
         .map_err(|source| DlxError::Cache { dir: manifest_path.display().to_string(), source })?;
 
-    // Per-axis CLI overrides (`--cpu` / `--os` / `--libc`) replace the
-    // matching axis of the config-derived value for the dlx install.
-    config.supported_architectures =
-        supported_architectures.apply_to(config.supported_architectures.clone());
-
-    config.modules_dir = prepare_dir.join("node_modules");
-    config.virtual_store_dir = prepare_dir.join("node_modules").join(".pacquet");
-    // Force the project-local virtual store so the whole prepare dir is
-    // self-contained and can be symlinked as the cache entry. This is a
-    // deliberate deviation from pnpm's dlx, which keeps
-    // `enableGlobalVirtualStore ?? true`: pnpm caches only the
-    // `node_modules` tree and lets the global store back it, whereas
-    // pacquet symlinks the entire prepare dir, so its store must live
-    // inside that dir (the installer picks `global_virtual_store_dir`
-    // when this is on — see virtual_store_layout.rs).
-    config.enable_global_virtual_store = false;
-    // The cache install is always fresh, so no lockfile is loaded from
-    // the process working directory.
-    config.lockfile = false;
-    resolve_cache_overrides(config)?;
-    // The throwaway cache project is not part of the caller's
-    // workspace. If a caller has a settings-only pnpm-workspace.yaml,
-    // carrying its workspace root here makes the install enumerate that
-    // workspace and fail on the missing root package.json. Anchored
-    // rather than `None`, which walks up from the cache dir and can
-    // adopt a stray `pnpm-workspace.yaml` above it (pnpm/pnpm#13697).
-    config.workspace_dir = Some(prepare_dir.to_path_buf());
-    // Same reasoning for a pinned `lockfileDir`: it names the caller's
-    // lockfile, which the throwaway install must not touch.
-    config.lockfile_dir = None;
-    // The caller's patches never apply to the throwaway install (pnpm's
-    // dlx installs the package unpatched too). Their paths are relative
-    // to the caller's workspace root, which the anchor above replaced, so
-    // keeping them would also make every dlx invocation from a project
-    // with `patchedDependencies` fail on a patch file missing under the
-    // cache dir.
-    config.patched_dependencies = None;
-    // Build a *fresh* allow-list for the throwaway install — the dlx
-    // packages themselves plus the CLI `--allow-build` entries — rather
-    // than inheriting the caller project's `allow_builds` /
-    // `dangerously_allow_all_builds`. Inheriting the caller's policy would
-    // run build scripts the dlx invocation never opted into, and would
-    // also leave the cache key (which hashes only pkgs + CLI allow_build)
-    // unable to distinguish two callers with different policies.
-    apply_dlx_build_policy(config, pkgs, allow_build);
+    configure_cache_install(config, prepare_dir, pkgs, allow_build, supported_architectures)?;
     let config: &Config = config;
 
     for pkg in pkgs {
@@ -120,6 +76,12 @@ async fn install_into_cache<Reporter: self::Reporter + 'static>(
         )
         .await?;
     }
+    crate::cli_args::approve_builds::prompt_approve_install_builds::<Reporter>(
+        config,
+        prepare_dir,
+        prepare_dir,
+    )
+    .await?;
     Ok(())
 }
 
@@ -349,5 +311,99 @@ fn apply_dlx_build_policy(config: &mut Config, pkgs: &[String], allow_build: &[S
     }
     for name in allow_build {
         config.allow_builds.insert(name.clone(), true);
+    }
+}
+
+pub(super) fn configure_cache_install(
+    config: &mut Config,
+    prepare_dir: &Path,
+    pkgs: &[String],
+    allow_build: &[String],
+    supported_architectures: &SupportedArchitecturesArgs,
+) -> miette::Result<()> {
+    // Per-axis CLI overrides (`--cpu` / `--os` / `--libc`) replace the
+    // matching axis of the config-derived value for the dlx install.
+    config.supported_architectures =
+        supported_architectures.apply_to(config.supported_architectures.clone());
+
+    config.modules_dir = prepare_dir.join("node_modules");
+    config.virtual_store_dir = prepare_dir.join("node_modules").join(".pacquet");
+    // Force the project-local virtual store so the whole prepare dir is
+    // self-contained and can be symlinked as the cache entry. This is a
+    // deliberate deviation from pnpm's dlx, which keeps
+    // `enableGlobalVirtualStore ?? true`: pnpm caches only the
+    // `node_modules` tree and lets the global store back it, whereas
+    // pacquet symlinks the entire prepare dir, so its store must live
+    // inside that dir (the installer picks `global_virtual_store_dir`
+    // when this is on — see virtual_store_layout.rs).
+    config.enable_global_virtual_store = false;
+    // Keep a cache-local lockfile so approved builds can be rebuilt.
+    config.lockfile = true;
+    resolve_cache_overrides(config)?;
+    // The throwaway cache project is not part of the caller's
+    // workspace. If a caller has a settings-only pnpm-workspace.yaml,
+    // carrying its workspace root here makes the install enumerate that
+    // workspace and fail on the missing root package.json. Anchored
+    // rather than `None`, which walks up from the cache dir and can
+    // adopt a stray `pnpm-workspace.yaml` above it (pnpm/pnpm#13697).
+    config.workspace_dir = Some(prepare_dir.to_path_buf());
+    // Same reasoning for a pinned `lockfileDir`: it names the caller's
+    // lockfile, which the throwaway install must not touch.
+    config.lockfile_dir = None;
+    // The caller's patches never apply to the throwaway install (pnpm's
+    // dlx installs the package unpatched too). Their paths are relative
+    // to the caller's workspace root, which the anchor above replaced, so
+    // keeping them would also make every dlx invocation from a project
+    // with `patchedDependencies` fail on a patch file missing under the
+    // cache dir.
+    config.patched_dependencies = None;
+    // Build a *fresh* allow-list for the throwaway install — the dlx
+    // packages themselves plus the CLI `--allow-build` entries — rather
+    // than inheriting the caller project's `allow_builds` /
+    // `dangerously_allow_all_builds`. Inheriting the caller's policy would
+    // run build scripts the dlx invocation never opted into, and would
+    // also leave the cache key (which hashes only pkgs + CLI allow_build)
+    // unable to distinguish two callers with different policies.
+    apply_dlx_build_policy(config, pkgs, allow_build);
+    config.strict_dep_builds = false;
+    Ok(())
+}
+
+pub(super) async fn get_or_prepare_cache<Reporter: self::Reporter + 'static>(
+    config: &'static mut Config,
+    pkgs: &[String],
+    allow_build: &[String],
+    supported_architectures: &SupportedArchitecturesArgs,
+) -> miette::Result<PathBuf> {
+    let command_dir = command_cache_dir(config, pkgs, allow_build, supported_architectures)?;
+    let cache_link = command_dir.join("pkg");
+    match get_valid_cache_dir(&cache_link, config.dlx_cache_max_age, SystemTime::now()) {
+        Some(cached_dir) if cached_dir.join("pnpm-lock.yaml").is_file() => {
+            configure_cache_install(
+                config,
+                &cached_dir,
+                pkgs,
+                allow_build,
+                supported_architectures,
+            )?;
+            crate::cli_args::approve_builds::prompt_approve_install_builds::<Reporter>(
+                config,
+                &cached_dir,
+                &cached_dir,
+            )
+            .await?;
+            Ok(cached_dir)
+        }
+        _ => {
+            prepare_cache_dir::<Reporter>(
+                &command_dir,
+                &cache_link,
+                pkgs,
+                allow_build,
+                supported_architectures,
+                config,
+            )
+            .await
+        }
     }
 }

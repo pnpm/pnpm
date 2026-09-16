@@ -3,7 +3,6 @@ use super::{
     Path, PathBuf, Reporter, State, clear_decided_ignored_builds, get_automatically_ignored_builds,
     global_group_config, is_subdir, run_rebuild, scan_global_packages, write_approval_settings,
 };
-use std::io::IsTerminal;
 
 pub async fn approve_global_builds<Reporter: self::Reporter + 'static>(
     base_config: &'static Config,
@@ -100,56 +99,6 @@ async fn rebuild_approved_groups<Reporter: self::Reporter + 'static>(
             projects: Vec::new(),
         };
         run_rebuild::<Reporter>(&state, selection, None).await?;
-    }
-    Ok(())
-}
-
-/// Run the interactive build-approval flow against the just-installed
-/// group. No-op when nothing is awaiting approval, or when stdin is not a
-/// TTY (unless the test auto-approve env var is set).
-pub(super) async fn prompt_approve_global_builds<Reporter: self::Reporter + 'static>(
-    config: &'static Config,
-    install_dir: &Path,
-    global_pkg_dir: &Path,
-) -> miette::Result<()> {
-    let pending = get_automatically_ignored_builds(config)?.names.filter(|names| !names.is_empty());
-    if pending.is_none() {
-        return Ok(());
-    }
-    let auto_approve = std::env::var("PNPM_AUTO_APPROVE_BUILDS_FOR_TESTS").as_deref() == Ok("1");
-    if !auto_approve && !std::io::stdin().is_terminal() {
-        return Ok(());
-    }
-
-    let manifest_path = install_dir.join("package.json");
-    let config_fn = || -> miette::Result<&'static mut Config> {
-        // `prepare` persists the `allowBuilds` decision to
-        // `config.workspace_dir`, falling back to the passed dir (the global
-        // packages dir). The group install pins `workspace_dir` to the
-        // ephemeral install dir; clear it here so the decision lands in the
-        // stable global packages dir, where the next global install reads it
-        // back — rather than in a throwaway install group.
-        let mut cfg = config.clone();
-        cfg.workspace_dir = None;
-        Ok(Config::leak(cfg))
-    };
-    // The rebuild stays anchored at the install dir (keeping `config`'s
-    // `workspace_dir`), so its install pipeline doesn't walk up into the
-    // global settings workspace.
-    let state_fn = |require_lockfile: bool| -> miette::Result<State> {
-        State::init(manifest_path.clone(), Config::leak(config.clone()), require_lockfile)
-            .wrap_err("initialize the global approve-builds state")
-    };
-
-    let args = ApproveBuildsArgs { packages: Vec::new(), all: auto_approve, global: false };
-    if let Some((rebuild_state, build_packages)) =
-        args.prepare::<Reporter>(global_pkg_dir, &config_fn, &state_fn)?
-    {
-        let selection = crate::cli_args::rebuild::RebuildSelection {
-            names: Some(build_packages),
-            projects: Vec::new(),
-        };
-        run_rebuild::<Reporter>(&rebuild_state, selection, None).await?;
     }
     Ok(())
 }

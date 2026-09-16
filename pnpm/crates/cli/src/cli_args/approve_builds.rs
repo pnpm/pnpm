@@ -2,14 +2,15 @@ use crate::{State, cli_args::ignored_builds::get_automatically_ignored_builds};
 use clap::Args;
 use derive_more::{Display, Error};
 use dialoguer::{Confirm, MultiSelect};
-use miette::{Diagnostic, IntoDiagnostic};
-use pnpm_config::Config;
+use miette::{Context, Diagnostic, IntoDiagnostic};
+use pnpm_config::{Config, WorkspaceSettings, decided_allow_builds};
 use pnpm_modules_yaml::{Host, write_modules_manifest};
 use pnpm_package_manager::{allow_build_key_from_ignored_build, parse_allow_build_selector};
 use pnpm_reporter::{Reporter, emit_global_warning};
 use pnpm_workspace_manifest_writer::set_allow_builds_clearing_legacy;
 use std::{
     collections::{BTreeMap, HashSet},
+    io::IsTerminal,
     path::Path,
 };
 
@@ -321,3 +322,63 @@ fn sort_unique(mut names: Vec<String>) -> Vec<String> {
 
 #[cfg(test)]
 mod tests;
+
+/// Run the interactive build-approval flow against the just-installed
+/// packages. No-op when nothing is awaiting approval, or when stdin is not a
+/// TTY (unless the test auto-approve env var is set).
+pub(crate) async fn prompt_approve_install_builds<Reporter: self::Reporter + 'static>(
+    config: &'static Config,
+    install_dir: &Path,
+    settings_dir: &Path,
+) -> miette::Result<()> {
+    let pending = get_automatically_ignored_builds(config)?.names.filter(|names| !names.is_empty());
+    if pending.is_none() {
+        return Ok(());
+    }
+    let auto_approve = std::env::var("PNPM_AUTO_APPROVE_BUILDS_FOR_TESTS").as_deref() == Ok("1");
+    if !auto_approve && !std::io::stdin().is_terminal() {
+        return Ok(());
+    }
+
+    let manifest_path = install_dir.join("package.json");
+    let config_fn = || -> miette::Result<&'static mut Config> {
+        let mut cfg = config.clone();
+        cfg.workspace_dir = Some(settings_dir.to_path_buf());
+        Ok(Config::leak(cfg))
+    };
+    let state_fn = |require_lockfile: bool| -> miette::Result<State> {
+        State::init(
+            manifest_path.clone(),
+            config_with_install_approvals(config, settings_dir)?,
+            require_lockfile,
+        )
+        .wrap_err("initialize the install approve-builds state")
+    };
+
+    let args = ApproveBuildsArgs { packages: Vec::new(), all: auto_approve, global: false };
+    if let Some((rebuild_state, build_packages)) =
+        args.prepare::<Reporter>(settings_dir, &config_fn, &state_fn)?
+    {
+        let selection = crate::cli_args::rebuild::RebuildSelection {
+            names: Some(build_packages),
+            projects: Vec::new(),
+        };
+        crate::cli_args::rebuild::run_rebuild::<Reporter>(&rebuild_state, selection, None).await?;
+    }
+    Ok(())
+}
+
+fn config_with_install_approvals(
+    config: &Config,
+    settings_dir: &Path,
+) -> miette::Result<&'static Config> {
+    let mut cfg = config.clone();
+    if let Some((_, settings)) = WorkspaceSettings::find_and_load(settings_dir)
+        .map_err(miette::Report::new)
+        .wrap_err("load approved install builds")?
+        && let Some(allow_builds) = settings.allow_builds
+    {
+        cfg.allow_builds.extend(decided_allow_builds(allow_builds));
+    }
+    Ok(Config::leak(cfg))
+}

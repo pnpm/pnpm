@@ -3,7 +3,7 @@ use super::{
     GlobalPackageInfo, HashMap, HashSet, ImporterDepVersion, Lockfile, PackageBinSource, Path,
     RangeSpecStyle, Reporter, State, SupportedArchitectures, Version, WorkspaceSettings,
     add_packages, apply_allow_build, decided_allow_builds, infer_local_package_alias,
-    installed_versions, prompt_approve_global_builds, update_selectors,
+    installed_versions, prompt_approve_install_builds, update_selectors,
 };
 
 /// The pnpm home a global group installs into.
@@ -169,7 +169,7 @@ pub(super) async fn run_group_install<Reporter: self::Reporter + 'static>(
     .await?;
 
     if !install.lockfile_only {
-        prompt_approve_global_builds::<Reporter>(
+        prompt_approve_install_builds::<Reporter>(
             config,
             install.install_dir,
             install.global_pkg_dir,
