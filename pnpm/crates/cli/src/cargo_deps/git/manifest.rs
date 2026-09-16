@@ -220,17 +220,30 @@ pub(super) fn vendored_package(
     // directory does not hold, and `cargo` reads it as a workspace root.
     let had_workspace = vendored.remove("workspace").is_some();
 
-    let version = vendored
-        .get("package")
-        .and_then(|package| package.get("version")?.as_str())
-        .ok_or_else(|| miette::miette!("the package declares no version"))?
-        .to_string();
+    let version = package_version(&vendored)?;
     let text = if inherited || had_workspace {
         toml::to_string(&vendored).into_diagnostic().wrap_err("serialize Cargo.toml")?
     } else {
         manifest.text.clone()
     };
     Ok(VendoredPackage { version, manifest: text })
+}
+
+fn package_version(document: &toml::Table) -> Result<String> {
+    let package = document
+        .get("package")
+        .and_then(toml::Value::as_table)
+        .ok_or_else(|| miette::miette!("the manifest declares no package"))?;
+    let version = match package.get("version") {
+        None => "0.0.0",
+        Some(value) => value
+            .as_str()
+            .ok_or_else(|| miette::miette!("package.version must be a string"))?,
+    };
+    semver::Version::parse(version)
+        .into_diagnostic()
+        .wrap_err_with(|| format!("invalid package.version {version:?}"))?;
+    Ok(version.to_string())
 }
 
 /// Resolve the inheritance markers in every dependency table the manifest

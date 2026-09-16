@@ -23,6 +23,21 @@ pub(super) struct LockedPackages {
 }
 
 impl LockedPackages {
+    pub(super) fn merge(self, other: Self) -> Result<Self> {
+        Ok(Self {
+            crates: merge_packages(
+                "registry",
+                self.crates.into_iter().chain(other.crates),
+                LockedCrate::link_name,
+            )?,
+            git: merge_packages(
+                "git",
+                self.git.into_iter().chain(other.git),
+                GitPackage::link_name,
+            )?,
+        })
+    }
+
     /// The git sources the locked packages come from, deduplicated so the
     /// managed Cargo configuration declares each one once.
     pub(super) fn git_sources(&self) -> Vec<GitSource> {
@@ -34,6 +49,30 @@ impl LockedPackages {
         sources.dedup();
         sources
     }
+}
+
+fn merge_packages<Package: PartialEq>(
+    kind: &str,
+    packages: impl Iterator<Item = Package>,
+    link_name: impl Fn(&Package) -> String,
+) -> Result<Vec<Package>> {
+    let mut merged = BTreeMap::new();
+    for package in packages {
+        let name = link_name(&package);
+        match merged.entry(name) {
+            std::collections::btree_map::Entry::Vacant(slot) => {
+                slot.insert(package);
+            }
+            std::collections::btree_map::Entry::Occupied(slot) if *slot.get() == package => {}
+            std::collections::btree_map::Entry::Occupied(slot) => {
+                let name = slot.key();
+                return Err(miette::miette!(
+                    "Cargo lockfiles contain conflicting {kind} package {name}",
+                ));
+            }
+        }
+    }
+    Ok(merged.into_values().collect())
 }
 
 pub(crate) async fn workspace_root(manifest_path: &Path) -> Result<PathBuf> {
@@ -107,6 +146,9 @@ pub(super) async fn read_or_resolve_lockfile(
     reject_redirected_workspace(root_dir)?;
 
     let metadata = read_cargo_metadata(root_dir).await?;
+    if super::resolution::has_git_dependencies(&metadata)? {
+        return super::resolution::resolve_with_cargo(config, root_dir).await;
+    }
     if let Some(lockfile) = resolve_via_pnpr(config, &metadata).await? {
         return Ok(lockfile);
     }

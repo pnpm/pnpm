@@ -1,4 +1,6 @@
-use super::{latest_version, missing_index_names, resolve_inputs, resolve_lockfile};
+use super::{
+    git_dependency_sources, latest_version, missing_index_names, resolve_inputs, resolve_lockfile,
+};
 use crate::registry::CRATES_IO_SOURCE;
 use cargo_lock::Lockfile;
 use std::{collections::BTreeMap, str::FromStr};
@@ -16,6 +18,29 @@ const METADATA: &str = r#"{
   }],
   "workspace_members": ["path+file:///workspace#app@0.1.0"]
 }"#;
+
+#[test]
+fn git_dependency_sources_preserve_the_requested_revision() {
+    let source = "git+https://example.test/repository?rev=release";
+    let metadata = METADATA.replace(CRATES_IO_SOURCE, source);
+
+    let sources = git_dependency_sources(&metadata).unwrap();
+
+    assert_eq!(sources.len(), 1);
+    assert_eq!(sources[0].to_string(), source);
+}
+
+#[test]
+fn registry_and_path_dependencies_do_not_require_git_resolution() {
+    for metadata in
+        [METADATA.to_string(), METADATA.replace(&format!(r#""{CRATES_IO_SOURCE}""#), "null")]
+    {
+        let sources = git_dependency_sources(&metadata).unwrap();
+
+        eprintln!("Registry and path dependencies must stay in the native resolver: {sources:?}");
+        assert!(sources.is_empty());
+    }
+}
 
 const FOO_INDEX: &str = r#"{"name":"foo","vers":"1.0.0","deps":[{"name":"bar","req":"^2","features":[],"optional":false,"default_features":true,"target":null,"kind":"normal","registry":null}],"cksum":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","features":{},"yanked":false}
 {"name":"foo","vers":"1.1.0","deps":[{"name":"bar","req":"^2","features":[],"optional":false,"default_features":true,"target":null,"kind":"normal","registry":null}],"cksum":"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb","features":{},"yanked":false}"#;

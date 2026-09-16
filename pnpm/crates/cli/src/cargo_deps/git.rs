@@ -85,13 +85,7 @@ impl GitSource {
             Some(GitReference::Rev(rev)) => Some(("rev", rev.clone())),
             Some(GitReference::DefaultBranch) | None => None,
         };
-        if !SUPPORTED_SCHEMES.contains(&source.url().scheme()) {
-            let repository = redact_and_sanitize(&url);
-            let scheme = source.url().scheme();
-            return Err(miette::miette!(
-                "Cargo source {repository} asks for the {scheme} transport, which pnpm does not fetch a git dependency over",
-            ));
-        }
+        validate_transport(source)?;
         let Some(commit) = source.precise() else {
             let source = redact_and_sanitize(&source.to_string());
             return Err(miette::miette!("Cargo source {source} pins no commit"));
@@ -125,6 +119,17 @@ impl GitSource {
             toml::Value::from(GIT_SOURCE_NAME),
         )
     }
+}
+
+pub(super) fn validate_transport(source: &cargo_lock::SourceId) -> Result<()> {
+    if SUPPORTED_SCHEMES.contains(&source.url().scheme()) {
+        return Ok(());
+    }
+    let repository = redact_and_sanitize(source.url().as_ref());
+    let scheme = source.url().scheme();
+    Err(miette::miette!(
+        "Cargo source {repository} asks for the {scheme} transport, which pnpm does not fetch a git dependency over",
+    ))
 }
 
 impl GitPackage {

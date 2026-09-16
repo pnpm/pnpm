@@ -3,7 +3,7 @@
 #![cfg_attr(dylint_lib = "perfectionist", feature(register_tool))]
 #![cfg_attr(dylint_lib = "perfectionist", register_tool(perfectionist))]
 
-pub use metadata::resolve_inputs;
+pub use metadata::{git_dependency_sources, resolve_inputs};
 pub use registry::{
     CRATES_IO_SPARSE_INDEX, download_url, index_prefix, is_crates_io, latest_version,
     registry_source, sparse_source,

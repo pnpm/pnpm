@@ -47,9 +47,11 @@ use workspace_directory::{
     write_workspace_file,
 };
 
+mod build_std;
 mod checksum_cache;
 mod git;
 mod registry_auth;
+mod resolution;
 
 const WORKSPACE_INSTALL_CONCURRENCY: usize = 8;
 
@@ -274,8 +276,8 @@ fn update_managed_config(
     git_sources: &[GitSource],
 ) -> Result<String> {
     let managed_config = managed_config(index_url, git_sources);
-    match (existing.find(MANAGED_START), existing.find(MANAGED_END)) {
-        (None, None) => {
+    match managed_config_range(existing)? {
+        None => {
             let separator = if existing.is_empty() || existing.ends_with("\n\n") {
                 ""
             } else if existing.ends_with('\n') {
@@ -285,10 +287,16 @@ fn update_managed_config(
             };
             Ok(format!("{existing}{separator}{managed_config}\n"))
         }
-        (Some(start), Some(end)) if start <= end => {
-            let after = end + MANAGED_END.len();
-            Ok(format!("{}{}{}", &existing[..start], managed_config, &existing[after..]))
+        Some(range) => {
+            Ok(format!("{}{}{}", &existing[..range.start], managed_config, &existing[range.end..]))
         }
+    }
+}
+
+fn managed_config_range(existing: &str) -> Result<Option<std::ops::Range<usize>>> {
+    match (existing.find(MANAGED_START), existing.find(MANAGED_END)) {
+        (None, None) => Ok(None),
+        (Some(start), Some(end)) if start <= end => Ok(Some(start..end + MANAGED_END.len())),
         _ => Err(miette::miette!(
             ".cargo/config.toml contains an incomplete pnpm-managed Cargo source block"
         )),
@@ -333,6 +341,7 @@ async fn prepare_workspace_slots<Reporter: self::Reporter + 'static>(
 ) -> Result<WorkspaceSlots> {
     let packages = parse_lockfile(cargo_lock, &config.cargo.index_url)
         .wrap_err_with(|| format!("parse {}", cargo_lock_path.display()))?;
+    let packages = build_std::include_packages(root_dir, packages).await?;
     let git_sources = packages.git_sources();
     let logged_methods = Arc::new(AtomicU8::new(0));
     let store_dir = &config.store_dir;

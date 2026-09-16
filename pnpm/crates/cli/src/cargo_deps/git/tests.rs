@@ -39,6 +39,27 @@ fn a_manifest_that_inherits_nothing_is_vendored_verbatim() {
 }
 
 #[test]
+fn an_omitted_version_defaults_to_zero_without_rewriting_the_manifest() {
+    let text = "[package]\nname = \"demo\"\npublish = false\n";
+
+    let vendored = vendored_package(&manifest(text), None).unwrap();
+
+    assert_eq!(vendored.version, "0.0.0");
+    assert_eq!(vendored.manifest, text);
+}
+
+#[test]
+fn an_explicit_invalid_version_does_not_use_the_default() {
+    for value in ["123", "true", r#""""#, r#""invalid""#] {
+        let text = format!("[package]\nname = \"demo\"\nversion = {value}\n");
+        let error = vendored_package(&manifest(&text), None).unwrap_err();
+
+        eprintln!("An explicitly invalid version must be rejected: {error:?}");
+        assert!(format!("{error:?}").contains("package.version"));
+    }
+}
+
+#[test]
 fn workspace_inheritance_is_resolved_into_the_vendored_manifest() {
     let workspace = manifest(
         r#"
