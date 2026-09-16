@@ -346,3 +346,5 @@ mod manifests;
 mod security;
 
 mod reporting;
+
+mod submodules;

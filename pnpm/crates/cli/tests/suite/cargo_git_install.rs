@@ -292,3 +292,115 @@ fn lockfile_resolution_does_not_execute_checkout_configured_helpers() {
             .any(|package| package.name.as_str() == "demo"),
     );
 }
+
+fn add_submodule(parent: &TempDir, name: &str, url: &str, path: &str) {
+    Command::new("git")
+        .current_dir(
+            parent
+                .path()
+                .join(format!("{name}-src")),
+        )
+        .args(["-c", "protocol.file.allow=always", "submodule", "add", "--", url, path])
+        .assert()
+        .success();
+}
+
+#[test]
+fn recursive_submodules_are_pinned_checksummed_and_reused_offline() {
+    let (root, parent, repository) = git_workspace();
+    let leaf = GitRepoFixture::init(parent.path(), "leaf");
+    leaf.write_file("answer.rs", "pub fn answer() -> u8 { 42 }\n");
+    let _leaf_commit = leaf.commit("init");
+    let nested = GitRepoFixture::init(parent.path(), "nested");
+    nested.write_file("README", "nested sources\n");
+    let _nested_commit = nested.commit("init");
+    add_submodule(&parent, "nested", "../leaf.git", "leaf");
+    let _nested_commit = nested.commit("pin leaf");
+    add_submodule(&parent, "dependency", "../nested.git", "demo/native");
+    repository.write_file("demo/src/lib.rs", "include!(\"../native/leaf/answer.rs\");\n");
+    let commit = repository.commit("pin nested sources");
+    leaf.write_file("answer.rs", "compile_error!(\"unpinned source\");\n");
+    let _new_leaf_commit = leaf.commit("move branch");
+    let manifest = root.path().join("Cargo.toml");
+    fs::write(&manifest, format!(
+        "[package]\nname = \"survey\"\nversion = \"1.0.0\"\nedition = \"2024\"\n[dependencies]\ndemo = {{ git = {:?}, rev = {commit:?} }}\n",
+        repository.file_url(),
+    )).unwrap();
+
+    pnpm(&root)
+        .env("GIT_CONFIG_COUNT", "1")
+        .env("GIT_CONFIG_KEY_0", "protocol.file.allow")
+        .env("GIT_CONFIG_VALUE_0", "always")
+        .args(["install", "--no-frozen-lockfile"])
+        .assert()
+        .success();
+    let slot = root.path().join(".pnpm/crates/git/demo-0.0.0");
+    let checksum: serde_json::Value =
+        serde_json::from_slice(&fs::read(slot.join(".cargo-checksum.json")).unwrap()).unwrap();
+    assert_eq!(
+        checksum["files"]["native/leaf/answer.rs"],
+        format!("{:x}", Sha256::digest(fs::read(slot.join("native/leaf/answer.rs")).unwrap()),),
+    );
+    eprintln!("Submodule Git metadata must not be vendored: {}", slot.display());
+    assert!(!slot.join("native/.git").exists());
+    assert!(!slot.join("native/leaf/.git").exists());
+    cargo_check(&root);
+    fs::remove_dir_all(parent.path().join("nested.git")).unwrap();
+    fs::remove_dir_all(parent.path().join("leaf.git")).unwrap();
+    install_in(&root, &["install", "--offline", "--frozen-lockfile"]);
+    cargo_check(&root);
+    fs::write(slot.join("native/leaf/answer.rs"), "tampered").unwrap();
+    let cargo_home = TempDir::new().unwrap();
+    Command::new("cargo")
+        .current_dir(root.path())
+        .env("CARGO_HOME", cargo_home.path())
+        .env("CARGO_TARGET_DIR", root.path().join("tampered-target"))
+        .args(["check", "--locked", "--offline"])
+        .assert()
+        .failure();
+}
+
+#[test]
+fn submodule_fetching_preserves_the_callers_transport_allowlist() {
+    let (root, parent, repository) = git_workspace();
+    let cargo_home = TempDir::new().unwrap();
+    Command::new("cargo")
+        .current_dir(root.path())
+        .env("CARGO_HOME", cargo_home.path())
+        .arg("generate-lockfile")
+        .assert()
+        .success();
+    let old_commit = repository.head();
+    let mut server = mockito::Server::new();
+    let requests = server
+        .mock("GET", mockito::Matcher::Any)
+        .expect(0)
+        .create();
+    add_submodule(&parent, "dependency", &repository.file_url(), "demo/native");
+    repository.write_file(
+        ".gitmodules",
+        &format!("[submodule \"native\"]\npath = demo/native\nurl = {}/native.git\n", server.url()),
+    );
+    let commit = repository.commit("add HTTP submodule");
+    for name in ["Cargo.toml", "Cargo.lock"] {
+        let path = root.path().join(name);
+        fs::write(&path, fs::read_to_string(&path).unwrap().replace(&old_commit, &commit)).unwrap();
+    }
+
+    let output = pnpm(&root)
+        .env("GIT_ALLOW_PROTOCOL", "file")
+        .args(["install", "--frozen-lockfile"])
+        .output()
+        .unwrap();
+
+    eprintln!("A file-only caller must reject an HTTP submodule: {output:?}");
+    assert!(!output.status.success());
+    assert!(String::from_utf8_lossy(&output.stderr).contains("transport 'http' not allowed"));
+    assert!(
+        !root
+            .path()
+            .join(".pnpm/crates/git/demo-0.0.0/.cargo-checksum.json")
+            .exists(),
+    );
+    requests.assert();
+}
