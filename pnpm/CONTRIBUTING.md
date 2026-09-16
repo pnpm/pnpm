@@ -113,7 +113,7 @@ just test-affected
 
 This maps the working tree's changes to crates and runs those crates' tests, with the same sanitized environment `just test` uses. It does not include the CLI end-to-end suite unless you changed `pnpm-cli` itself, so for a user-visible change add the suite modules for the area: `just test-affected -- -p pnpm-cli -E 'test(catalog::)'`. The [`testing-changes`](../.agents/skills/testing-changes/SKILL.md) skill covers picking them.
 
-`just smoke` complements it by running one end-to-end test per area of CLI behavior, which catches breakage outside the crates you touched without waiting for CI.
+When crates depend on what changed without being selected themselves, it also runs the `smoke` profile in their place: one end-to-end test per area of CLI behavior, rather than the dependents' full test sets or nothing at all. `--no-smoke` skips that, and `just smoke` runs the same set on its own.
 
 Scope the tests, not the rest. `just check` and `just lint` stay workspace-wide: both cost far less than the test run, and they catch the cross-crate breakage a `-p` selection hides.
 

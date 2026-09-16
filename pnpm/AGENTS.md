@@ -164,10 +164,10 @@ by crate or name — see below).
   platforms for every pull request, so run it locally only when a change
   reaches past the crates you can name (see
   [`CONTRIBUTING.md`](./CONTRIBUTING.md#automated-checks)).
-- `just test-affected` — the tests of the crates the working tree changes.
-  `--print` shows the selection without running it. This is the default way to
-  test a change; it excludes the CLI end-to-end suite unless `pnpm-cli` itself
-  changed.
+- `just test-affected` — the tests of the crates the working tree changes,
+  plus the smoke profile when unselected crates depend on them. `--print`
+  shows the selection without running it, `--no-smoke` drops the smoke run.
+  This is the default way to test a change.
 - `node pnpm/scripts/run-rust-tests.mjs -p <crate>` — one crate's tests, with
   the sanitized environment `just test` uses. `-E '<filterset>'` narrows
   further: `test(<substring>)` for one test. Prefer `-p` over a `package()`
@@ -178,8 +178,9 @@ by crate or name — see below).
   [`testing-changes`](../.agents/skills/testing-changes/SKILL.md) skill has the
   measured fan-out and how to pick a selection.
 - `just smoke` — one end-to-end test per area of CLI behavior, listed in the
-  `smoke` profile in `.config/nextest.toml`. Breadth across areas you did not
-  touch, where `just test-affected` gives depth on the ones you did.
+  `smoke` profile in `.config/nextest.toml`. `just test-affected` runs it
+  automatically when unselected crates depend on what changed, standing in for
+  their full test sets; this runs it on its own.
 - `just test` — `cargo nextest run` over the whole workspace.
 - `just test-pacquet` / `just test-pnpr` — one product's crates.
 - `just lint` — `cargo clippy --locked --workspace --all-targets -- --deny warnings`.

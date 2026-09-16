@@ -76,12 +76,12 @@ export function isPnprPackage (name) {
 }
 
 /**
- * How many crates depend on each selected crate without being selected
- * themselves, keyed by crate name and counted transitively.
+ * The crates that transitively depend on a selected crate without being
+ * selected themselves, keyed by the selected crate.
  *
  * Selection is crate-level, so a change to a widely used crate leaves its
- * dependents' tests unrun. Reporting the count is what lets the caller decide
- * whether to widen the selection or leave those tests to CI.
+ * dependents' tests unrun. These are the tests the smoke profile stands in
+ * for.
  */
 export function unselectedDependents (selected, packages) {
   const dependents = new Map(packages.map(pkg => [pkg.name, new Set()]))
@@ -90,7 +90,7 @@ export function unselectedDependents (selected, packages) {
       dependents.get(dependency)?.add(pkg.name)
     }
   }
-  const counts = new Map()
+  const unselected = new Map()
   for (const name of selected) {
     const seen = new Set()
     const pending = [name]
@@ -101,10 +101,25 @@ export function unselectedDependents (selected, packages) {
         pending.push(dependent)
       }
     }
-    const unselected = [...seen].filter(dependent => !selected.includes(dependent))
-    if (unselected.length > 0) counts.set(name, unselected.length)
+    const left = [...seen].filter(dependent => !selected.includes(dependent)).sort()
+    if (left.length > 0) unselected.set(name, left)
   }
-  return counts
+  return unselected
+}
+
+/**
+ * The crates whose smoke tests stand in for their full test set, given what
+ * the selection already covers.
+ *
+ * Every entry in the `smoke` profile is a `pnpm-cli` end-to-end test, so
+ * `pnpm-cli` is the only crate that can contribute smoke tests today. It runs
+ * them when it depends on something that changed and is not selected outright,
+ * which is when its full suite would otherwise be the only way to find out
+ * that the change broke a command.
+ */
+export function smokeStandIns (selected, unselected) {
+  const dependents = new Set([...unselected.values()].flat())
+  return dependents.has('pnpm-cli') && !selected.includes('pnpm-cli') ? ['pnpm-cli'] : []
 }
 
 /**
@@ -115,7 +130,7 @@ export function unselectedDependents (selected, packages) {
  * name filter.
  */
 export function parseOptions (argv) {
-  const values = { base: 'main', print: false, help: false }
+  const values = { base: 'main', print: false, help: false, smoke: true }
   const rest = []
   for (let index = 0; index < argv.length; index++) {
     const arg = argv[index]
@@ -124,6 +139,7 @@ export function parseOptions (argv) {
       break
     }
     if (arg === '--print') values.print = true
+    else if (arg === '--no-smoke') values.smoke = false
     else if (arg === '--help' || arg === '-h') values.help = true
     else if (arg.startsWith('--base=')) values.base = arg.slice('--base='.length)
     else if (arg === '--base') {
@@ -140,7 +156,10 @@ function main () {
     console.log(`node pnpm/scripts/test-affected.mjs [--base main] [--print] [<nextest args>]
 
 Runs the tests of every crate the working tree changes relative to --base.
-Selection is crate-level: a crate's whole test set runs, or none of it.`)
+Selection is crate-level: a crate's whole test set runs, or none of it.
+
+When crates depend on what changed without being selected themselves, the
+smoke profile runs in their place. --no-smoke skips that.`)
     return 0
   }
 
@@ -165,28 +184,38 @@ Selection is crate-level: a crate's whole test set runs, or none of it.`)
     return 0
   }
 
+  const unselected = unselectedDependents(packages, manifests)
   console.log(`Testing ${packages.length} crate(s) changed against ${values.base}:`)
-  const dependents = unselectedDependents(packages, manifests)
   for (const name of packages) {
-    const count = dependents.get(name)
-    console.log(count == null ? `  ${name}` : `  ${name} (${count} crates depend on it; their tests are not selected)`)
+    const left = unselected.get(name)
+    console.log(left == null ? `  ${name}` : `  ${name} (${left.length} crates depend on it)`)
   }
-  if (!packages.includes('pnpm-cli') && !packages.every(isPnprPackage)) {
-    console.log('\nThe CLI end-to-end suite is not in this selection. For a user-visible change, add')
-    console.log("  -p pnpm-cli -E 'test(<area>::)'")
-    console.log('with the suite modules that exercise the change.')
+
+  const smoke = values.smoke ? smokeStandIns(packages, unselected) : []
+  if (smoke.length > 0) {
+    console.log(`\nThe crates that depend on those are not selected in full. Running ${smoke.join(', ')}`)
+    console.log('smoke tests in their place: one end-to-end test per area of CLI behavior.')
+    console.log('Add `--no-smoke` to skip them, or `-p pnpm-cli -E \'test(<area>::)\'` for the')
+    console.log('suite modules that exercise the change.')
   }
 
   const runner = path.join(repo, 'pnpm/scripts/run-rust-tests.mjs')
-  const nextestArgs = packages.flatMap(name => ['-p', name]).concat(rest)
+  const runs = [packages.flatMap(name => ['-p', name]).concat(rest)]
+  // A profile's default filter intersects with any other selection, so the
+  // smoke entries cannot be unioned into the run above. They get their own.
+  if (smoke.length > 0) runs.push(['--profile', 'smoke', ...smoke.flatMap(name => ['-p', name])])
+
   if (values.print) {
-    console.log(`\nnode ${path.relative(repo, runner)} ${nextestArgs.join(' ')}`)
+    for (const run of runs) console.log(`\nnode ${path.relative(repo, runner)} ${run.join(' ')}`)
     return 0
   }
 
-  const result = spawnSync('node', [runner, ...nextestArgs], { stdio: 'inherit' })
-  if (result.error != null) throw result.error
-  return result.status ?? 1
+  for (const run of runs) {
+    const result = spawnSync('node', [runner, ...run], { stdio: 'inherit' })
+    if (result.error != null) throw result.error
+    if (result.status !== 0) return result.status ?? 1
+  }
+  return 0
 }
 
 function workspaceManifests (repo) {

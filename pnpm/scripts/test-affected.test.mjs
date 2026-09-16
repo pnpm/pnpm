@@ -5,7 +5,7 @@ import os from 'node:os'
 import path from 'node:path'
 import { test } from 'node:test'
 import { fileURLToPath } from 'node:url'
-import { isPnprPackage, parseOptions, selectPackages, unselectedDependents, workspaceWideChanges } from './test-affected.mjs'
+import { isPnprPackage, parseOptions, selectPackages, smokeStandIns, unselectedDependents, workspaceWideChanges } from './test-affected.mjs'
 
 const script = fileURLToPath(new URL('./test-affected.mjs', import.meta.url))
 
@@ -71,15 +71,36 @@ test('refuses to scope a change to the shared test harness', () => {
   assert.deepEqual(workspaceWideChanges(['pnpm/crates/testing-utils/src/bin.rs']), ['pnpm/crates/testing-utils/src/bin.rs'])
 })
 
-test('counts the dependents whose tests the selection leaves out', () => {
-  const packages = [
-    { name: 'fs', dependencies: [] },
-    { name: 'lockfile', dependencies: ['fs'] },
-    { name: 'cli', dependencies: ['lockfile'] },
-    { name: 'unrelated', dependencies: [] },
-  ]
-  assert.deepEqual([...unselectedDependents(['fs'], packages)], [['fs', 2]])
-  assert.deepEqual([...unselectedDependents(['fs', 'lockfile', 'cli'], packages)], [])
+const graph = [
+  { name: 'pnpm-fs', dependencies: [] },
+  { name: 'pnpm-lockfile', dependencies: ['pnpm-fs'] },
+  { name: 'pnpm-cli', dependencies: ['pnpm-lockfile'] },
+  { name: 'pnpm-micro-benchmark', dependencies: [] },
+]
+
+test('names the dependents whose tests the selection leaves out', () => {
+  assert.deepEqual([...unselectedDependents(['pnpm-fs'], graph)], [['pnpm-fs', ['pnpm-cli', 'pnpm-lockfile']]])
+  assert.deepEqual([...unselectedDependents(['pnpm-fs', 'pnpm-lockfile', 'pnpm-cli'], graph)], [])
+})
+
+test('stands in for unselected dependents with smoke tests', () => {
+  const selected = ['pnpm-fs']
+  assert.deepEqual(smokeStandIns(selected, unselectedDependents(selected, graph)), ['pnpm-cli'])
+})
+
+test('skips smoke tests when the CLI is selected in full', () => {
+  const selected = ['pnpm-cli', 'pnpm-fs']
+  assert.deepEqual(smokeStandIns(selected, unselectedDependents(selected, graph)), [])
+})
+
+test('skips smoke tests when nothing depends on what changed', () => {
+  const selected = ['pnpm-micro-benchmark']
+  assert.deepEqual(smokeStandIns(selected, unselectedDependents(selected, graph)), [])
+})
+
+test('reads --no-smoke', () => {
+  assert.equal(parseOptions([]).values.smoke, true)
+  assert.equal(parseOptions(['--no-smoke']).values.smoke, false)
 })
 
 test('forwards every argument nextest understands, in order', () => {

@@ -63,17 +63,27 @@ For a crate anywhere near the core, `rdeps()` is the full suite wearing a filter
 
 Changing this — splitting the CLI end-to-end target so selection means something — is tracked in [pnpm/pnpm#14984](https://github.com/pnpm/pnpm/issues/14984).
 
-### Breadth: `just smoke`
+### What stands in for the dependents
 
-`just test-affected` covers what you changed. `just smoke` covers what you did not: one end-to-end test per area of CLI behavior, so a change that breaks `run` while you were editing the resolver does not wait for CI to say so.
+Selecting a crate runs its own tests and nothing downstream, so a change to `pnpm-lockfile` leaves the 59 crates that depend on it unrun, `pnpm-cli` among them. Running those in full is the whole suite; running nothing means a broken command surfaces in CI.
 
-```sh
-just smoke
+`just test-affected` runs the smoke profile in their place, and says so:
+
+```
+Testing 1 crate(s) changed against main:
+  pnpm-lockfile (59 crates depend on it)
+
+The crates that depend on those are not selected in full. Running pnpm-cli
+smoke tests in their place: one end-to-end test per area of CLI behavior.
 ```
 
-Membership lives in the `smoke` profile in `.config/nextest.toml`, one entry per area, and `pnpm/scripts/smoke-profile.test.mjs` fails if an entry stops naming a real test. Entries are chosen by behavior area, not by code coverage: nearly every end-to-end test walks the same install path, so a set picked to maximize covered lines would be a few install tests that miss every distinguishing case.
+It happens only when something unselected depends on what changed. Change `pnpm-cli` itself and its full suite runs instead; change a crate nothing depends on and no smoke tests run at all. `--no-smoke` skips them.
 
-Together they make a reasonable pre-push pair. Neither replaces CI, which runs the whole suite on three platforms before a pull request merges.
+`just smoke` runs the same set on its own.
+
+Membership lives in the `smoke` profile in `.config/nextest.toml`, one entry per area of CLI behavior, and `pnpm/scripts/smoke-profile.test.mjs` fails if an entry stops naming a real test. Entries are chosen by behavior area, not by code coverage: nearly every end-to-end test walks the same install path, so a set picked to maximize covered lines would be a few install tests that miss every distinguishing case.
+
+Every entry is a `pnpm-cli` test today, so `pnpm-cli` is the only crate that can stand in for itself this way. A smoke run is a breadth check, not a correctness check: CI runs the whole suite on three platforms before a pull request merges.
 
 ### Other selections
 
