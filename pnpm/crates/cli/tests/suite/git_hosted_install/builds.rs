@@ -296,6 +296,7 @@ fn a_git_dependency_is_prepared_with_the_package_manager_it_pins() {
         .with_env("XDG_DATA_HOME", root.path().join("data"))
         .with_env("XDG_STATE_HOME", root.path().join("state"))
         .with_env("XDG_CACHE_HOME", root.path().join("cache-home"))
+        .with_env("YARN_IGNORE_PATH", "1")
         .output()
         .expect("run pnpm install");
     dbg!(&output);

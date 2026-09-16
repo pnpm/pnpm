@@ -1,14 +1,15 @@
 use super::{
-    ACTIVATION_CALLS, ARTIFACT_PROBE_CALLS, ActivationFixture, Arc, ArtifactProbeFailure,
-    BACKUP_CLEANUP_HASH_CALLS, BackupCleanupFailure, GlobalInstallCleanup, GlobalPackageInfo,
-    GlobalRemovalTransaction, GlobalShims, HASH_FAILURE_CALLS, HashSet, HashSwapFailure, Host,
-    Ordering, PackageBinSource, RENAME_FAILURE_HASH_CALLS, RenameRollbackFailure,
-    TrackingActivation, activate_global_install, activate_global_install_with_extra_bin_names,
-    arm_backup_cleanup_blocker, backup_cleanup_guard, backup_dirs, canonical,
-    cleanup_replaced_global_installs, diagnostic_source_messages, force_symlink_dir, fs,
-    global_package_with_bins, hash_failure_guard, io, json, plan_replaced_global_bins,
-    record_virtual_shim_state, remove_global_install_entries, resolved_hash_target,
-    restore_virtual_shims, snapshot_global_package, test_link_bins, virtual_shim_owner,
+    ACTIVATION_CALLS, ARTIFACT_PROBE_CALLS, ActivationBinSets, ActivationFixture, Arc,
+    ArtifactProbeFailure, BACKUP_CLEANUP_HASH_CALLS, BackupCleanupFailure, GlobalInstallCleanup,
+    GlobalPackageInfo, GlobalRemovalTransaction, GlobalShims, HASH_FAILURE_CALLS, HashSet,
+    HashSwapFailure, Host, Ordering, PackageBinSource, RENAME_FAILURE_HASH_CALLS,
+    RenameRollbackFailure, TrackingActivation, activate_global_install,
+    activate_global_install_with_extra_bin_names, arm_backup_cleanup_blocker, backup_cleanup_guard,
+    backup_dirs, canonical, cleanup_replaced_global_installs, diagnostic_source_messages,
+    force_symlink_dir, fs, global_package_with_bins, hash_failure_guard, io, json,
+    plan_replaced_global_bins, record_virtual_shim_state, remove_global_install_entries,
+    resolved_hash_target, restore_virtual_shims, snapshot_global_package, test_link_bins,
+    virtual_shim_owner,
 };
 
 #[test]
@@ -229,7 +230,7 @@ fn replacing_a_package_that_drops_a_bin_restores_its_recorded_shim() {
         &global_bin_dir,
         &[],
         &HashSet::new(),
-        &plan.affected_bin_names,
+        ActivationBinSets { extra: &plan.affected_bin_names, required: &HashSet::new() },
         || restore_virtual_shims(&plan.shims_to_restore, &global_bin_dir),
     )
     .expect("activate replacement");
@@ -274,7 +275,10 @@ fn dropped_bin_failure_restores_its_command_and_hash_target() {
         &global_bin_dir,
         &[],
         &HashSet::new(),
-        &HashSet::from(["dropped".to_string()]),
+        ActivationBinSets {
+            extra: &HashSet::from(["dropped".to_string()]),
+            required: &HashSet::new(),
+        },
         || Err(miette::miette!("injected restoration failure")),
     )
     .expect_err("restoration must fail");

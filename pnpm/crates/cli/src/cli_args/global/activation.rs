@@ -1,24 +1,26 @@
-pub(super) use slots::{get_actual_bin_names, replace_global_bin_slots};
+pub(super) use filesystem::hash_linked_packages;
+pub(super) use slots::replace_global_bin_slots;
+pub(super) use targets::{ActivationBinSets, get_actual_bin_names};
 
 use derive_more::{Display, Error};
 use filesystem::{io_error_report, remove_dir_all_if_exists, swap_hash_link_atomically};
 use miette::{Context, Diagnostic, IntoDiagnostic};
-use pnpm_cmd_shim::{
-    FsWalkFiles, Host, PackageBinSource, get_bins_from_package_manifest, remove_bin,
-};
+use pnpm_cmd_shim::{FsWalkFiles, Host, PackageBinSource, remove_bin};
 use pnpm_fs::{read_symlink_dir, relative_path, remove_symlink_dir};
 use slots::{
-    SavedBinSlot, backup_bin_slots, get_actual_bins, read_hash_target,
-    remove_slots_of_missing_bins, restore_bin_slots,
+    SavedBinSlot, backup_bin_slots, read_hash_target, remove_slots_of_missing_bins,
+    restore_bin_slots,
 };
+use targets::{ensure_required_bin_names, ensure_required_bin_targets, get_actual_bins};
 
 use std::{
     collections::{BTreeMap, HashSet},
     fs, io,
     path::{Path, PathBuf},
-    sync::Arc,
 };
 use tempfile::TempDir;
+
+mod targets;
 
 pub(super) trait FsSwapHashLink {
     fn swap_hash_link(target: &Path, link: &Path) -> io::Result<()>;
@@ -123,6 +125,7 @@ struct PreparedGlobalInstall {
     actual_bins: BTreeMap<String, PathBuf>,
     actual_bin_names: HashSet<String>,
     affected_bin_names: HashSet<String>,
+    required_bin_names: HashSet<String>,
     backup_dir: TempDir,
     saved_bin_slots: Vec<SavedBinSlot>,
     old_hash_target: Option<PathBuf>,
@@ -144,7 +147,7 @@ pub(super) fn activate_global_install_with_extra_bin_names<Sys>(
     global_bin_dir: &Path,
     packages: &[PackageBinSource],
     bins_to_skip: &HashSet<String>,
-    extra_bin_names: &HashSet<String>,
+    bin_sets: ActivationBinSets<'_>,
     link_bins: impl FnOnce() -> miette::Result<()>,
 ) -> miette::Result<Activation>
 where
@@ -156,14 +159,14 @@ where
         global_bin_dir,
         packages,
         bins_to_skip,
-        extra_bin_names,
+        bin_sets,
     )?;
     let activation_result = activate_prepared_global_install::<Sys>(
         install_dir,
         hash_link,
         global_bin_dir,
         link_bins,
-        &prepared.actual_bins,
+        &prepared,
     );
     if let Err(activation_error) = activation_result {
         return rollback_failed_activation::<Sys>(
@@ -193,13 +196,16 @@ where
     Ok(Activation { activated_bins: actual_bin_names, leftover_backup })
 }
 
-fn activate_prepared_global_install<Sys: FsSwapHashLink>(
+fn activate_prepared_global_install<Sys>(
     install_dir: &Path,
     hash_link: &Path,
     global_bin_dir: &Path,
     link_bins: impl FnOnce() -> miette::Result<()>,
-    actual_bins: &BTreeMap<String, PathBuf>,
-) -> miette::Result<()> {
+    prepared: &PreparedGlobalInstall,
+) -> miette::Result<()>
+where
+    Sys: FsSwapHashLink + FsWalkFiles,
+{
     // Repointing the hash link is the switch-over: the shims resolve
     // through it, so every command the group already provides starts
     // running the new install here, in one step. Linking afterwards only
@@ -211,27 +217,8 @@ fn activate_prepared_global_install<Sys: FsSwapHashLink>(
             format!("link the global package install directory at {}", hash_link.display())
         })?;
     link_bins().wrap_err("link global package bins")?;
-    remove_slots_of_missing_bins(global_bin_dir, actual_bins)
-}
-
-/// The packages to link from, addressed through the group's hash link
-/// instead of the generation directory it currently points at. Bin shims
-/// embed the path they are generated from, so this is what makes a shim
-/// survive the next update untouched.
-pub(super) fn hash_linked_packages(
-    packages: &[PackageBinSource],
-    install_dir: &Path,
-    hash_link: &Path,
-) -> Vec<PackageBinSource> {
-    packages
-        .iter()
-        .map(|package| match package.location.strip_prefix(install_dir) {
-            Ok(relative) => {
-                PackageBinSource::new(hash_link.join(relative), Arc::clone(&package.manifest))
-            }
-            Err(_) => package.clone(),
-        })
-        .collect()
+    ensure_required_bin_targets(&prepared.required_bin_names, &prepared.actual_bins)?;
+    remove_slots_of_missing_bins(global_bin_dir, &prepared.actual_bins)
 }
 
 fn restore_global_install<Sys>(
@@ -321,12 +308,16 @@ fn prepare_global_install<Sys: FsWalkFiles>(
     global_bin_dir: &Path,
     packages: &[PackageBinSource],
     bins_to_skip: &HashSet<String>,
-    extra_bin_names: &HashSet<String>,
+    bin_sets: ActivationBinSets<'_>,
 ) -> miette::Result<PreparedGlobalInstall> {
-    let actual_bins = get_actual_bins::<Sys>(packages, bins_to_skip);
+    let actual_bins = match get_actual_bins::<Sys>(packages, bins_to_skip) {
+        Ok(actual_bins) => actual_bins,
+        Err(error) => return cleanup_failed_preparation(install_dir, None, error),
+    };
     let actual_bin_names: HashSet<String> = actual_bins.keys().cloned().collect();
+    validate_required_bin_names(install_dir, bin_sets.required, &actual_bin_names)?;
     let affected_bin_names = actual_bin_names
-        .union(extra_bin_names)
+        .union(bin_sets.extra)
         .cloned()
         .collect();
     let backup_dir =
@@ -353,10 +344,22 @@ fn prepare_global_install<Sys: FsWalkFiles>(
         actual_bins,
         actual_bin_names,
         affected_bin_names,
+        required_bin_names: bin_sets.required.clone(),
         backup_dir,
         saved_bin_slots,
         old_hash_target,
     })
+}
+
+fn validate_required_bin_names(
+    install_dir: &Path,
+    required_bin_names: &HashSet<String>,
+    actual_bin_names: &HashSet<String>,
+) -> miette::Result<()> {
+    match ensure_required_bin_names(required_bin_names, actual_bin_names) {
+        Ok(()) => Ok(()),
+        Err(error) => cleanup_failed_preparation(install_dir, None, error),
+    }
 }
 
 fn cleanup_failed_preparation<Value>(

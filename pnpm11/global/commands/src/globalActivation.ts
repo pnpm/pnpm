@@ -2,9 +2,8 @@ import fs from 'node:fs'
 import path from 'node:path'
 import util from 'node:util'
 
-import { linkBinsOfPackages } from '@pnpm/bins.linker'
+import { getBinsToLink, linkBinsOfPackages } from '@pnpm/bins.linker'
 import { removeBin } from '@pnpm/bins.remover'
-import { getBinsFromPackageManifest } from '@pnpm/bins.resolver'
 import { PnpmError } from '@pnpm/error'
 import { getHashLink, type GlobalPackageBinSnapshot } from '@pnpm/global.packages'
 import { globalWarn } from '@pnpm/logger'
@@ -20,6 +19,7 @@ export interface ActivateGlobalInstallOptions {
   globalBinDir: string
   pkgs: Array<{ manifest: DependencyManifest, location: string }>
   binsToSkip: Set<string>
+  requiredBinNames?: Set<string>
 }
 
 export interface CleanupReplacedGlobalInstallsOptions {
@@ -56,6 +56,7 @@ export async function activateGlobalInstall (
     // update of the same commands is none of them.
     await swapHashLink(opts.installDir, opts.hashLink)
     await linkBinsOfPackages(hashLinkedPkgs(opts), opts.globalBinDir, { excludeBins: opts.binsToSkip })
+    await ensureRequiredBinTargets(opts.requiredBinNames, prepared.actualBins)
     await removeSlotsOfMissingBins(opts, prepared.actualBins)
   } catch (activationError) {
     try {
@@ -162,9 +163,13 @@ async function swapHashLink (target: string, hashLink: string): Promise<void> {
     return
   }
   await fs.promises.mkdir(path.dirname(hashLink), { recursive: true })
+  const [linkParent, linkTarget] = await Promise.all([
+    fs.promises.realpath(path.dirname(hashLink)),
+    fs.promises.realpath(target),
+  ])
   const stagedLink = `${hashLink}.${process.pid}.tmp`
   await fs.promises.rm(stagedLink, { force: true, recursive: true })
-  await fs.promises.symlink(path.relative(path.dirname(hashLink), target), stagedLink, 'dir')
+  await fs.promises.symlink(path.relative(linkParent, linkTarget), stagedLink, 'dir')
   try {
     await fs.promises.rename(stagedLink, hashLink)
   } catch (err) {
@@ -180,6 +185,7 @@ async function prepareGlobalInstall (
   try {
     const actualBins = await getActualBins(opts)
     const actualBinNames = new Set(actualBins.keys())
+    ensureRequiredBinNames(opts.requiredBinNames, actualBinNames)
     // The backup directory lives in the global bin directory, which the
     // linker would otherwise be the first to create.
     await fs.promises.mkdir(opts.globalBinDir, { recursive: true })
@@ -210,31 +216,62 @@ async function prepareGlobalInstall (
   }
 }
 
-/** The commands the group declares, mapped to the file each one runs. */
-async function getActualBins (opts: ActivateGlobalInstallOptions): Promise<Map<string, string>> {
+/**
+ * Resolves commands not skipped whose target files exist. Missing targets are
+ * omitted, while package-manifest resolution and filesystem errors propagate.
+ */
+async function getActualBins (
+  opts: Pick<ActivateGlobalInstallOptions, 'pkgs' | 'binsToSkip'>
+): Promise<Map<string, string>> {
   const actualBins = new Map<string, string>()
-  const binsByPackage = await Promise.all(opts.pkgs.map(async ({ manifest, location }) => {
-    return getBinsFromPackageManifest(manifest, location)
-  }))
-  for (const bins of binsByPackage) {
-    for (const { name, path: binPath } of bins) {
-      if (!opts.binsToSkip.has(name)) actualBins.set(name, binPath)
-    }
+  const bins = await getBinsToLink(opts.pkgs, opts.binsToSkip)
+  const existing = await Promise.all(bins.map(async ({ path: binPath }) => binTargetExists(binPath)))
+  for (const [index, { name, path: binPath }] of bins.entries()) {
+    if (existing[index]) actualBins.set(name, binPath)
   }
   return actualBins
 }
 
+export async function getActualBinNames (
+  opts: Pick<ActivateGlobalInstallOptions, 'pkgs' | 'binsToSkip'>
+): Promise<Set<string>> {
+  return new Set((await getActualBins(opts)).keys())
+}
+
+async function ensureRequiredBinTargets (
+  required: Set<string> | undefined,
+  actualBins: Map<string, string>
+): Promise<void> {
+  const requiredBins = [...required ?? []].map((name) => [name, actualBins.get(name)] as const)
+  const existing = await Promise.all(requiredBins.map(async ([, binPath]) => binPath != null && binTargetExists(binPath)))
+  const missing = requiredBins
+    .filter(([, binPath], index) => binPath == null || !existing[index])
+    .map(([name]) => name)
+    .sort()
+  if (missing.length > 0) throwMissingBinTargets(missing)
+}
+
+function ensureRequiredBinNames (required: Set<string> | undefined, actual: Set<string>): void {
+  const missing = [...required ?? []].filter((name) => !actual.has(name)).sort()
+  if (missing.length > 0) throwMissingBinTargets(missing)
+}
+
+function throwMissingBinTargets (missing: string[]): never {
+  throw new PnpmError(
+    'GLOBAL_BIN_TARGET_MISSING',
+    `Global bin targets disappeared during activation: ${missing.join(', ')}`
+  )
+}
+
 /**
- * Drop the slots of commands the linker could not create because the file
- * the manifest points at is missing, so a replaced install leaves no shim
- * behind for a command that cannot run.
+ * Drop the slots of commands whose target disappeared during activation.
  */
 async function removeSlotsOfMissingBins (
   opts: ActivateGlobalInstallOptions,
   actualBins: Map<string, string>
 ): Promise<void> {
   const missing = (await Promise.all([...actualBins].map(async ([name, binPath]) => {
-    return await pathExists(binPath) ? [] : [name]
+    return await binTargetExists(binPath) ? [] : [name]
   }))).flat()
   for (const name of missing) {
     await removeBin(path.join(opts.globalBinDir, name)) // eslint-disable-line no-await-in-loop -- Each removal must settle before the next.
@@ -364,6 +401,16 @@ async function cleanupFailedGlobalActivation (
 async function pathExists (target: string): Promise<boolean> {
   try {
     await fs.promises.lstat(target)
+    return true
+  } catch (err) {
+    if (isErrorWithCode(err, 'ENOENT')) return false
+    throw err
+  }
+}
+
+async function binTargetExists (target: string): Promise<boolean> {
+  try {
+    await fs.promises.stat(target)
     return true
   } catch (err) {
     if (isErrorWithCode(err, 'ENOENT')) return false

@@ -7,22 +7,27 @@ import {
 
 /**
  * A complete ownership snapshot for the groups about to be replaced or
- * removed, together with the bins owned by every group that will survive.
+ * removed, together with the at-risk bins owned by groups that will survive.
  *
  * Every manifest read settles before the caller mutates global state. That
- * makes an incomplete target or survivor fail closed instead of allowing a
- * partial ownership result to drive removals.
+ * makes an incomplete target fail closed. Survivors only need inspecting when
+ * a target bin will not be retained, because no other bin can be removed.
  */
 export async function getGlobalBinOwnership (
   globalDir: string,
-  targetGroups: GlobalPackageInfo[]
+  targetGroups: GlobalPackageInfo[],
+  retainedBinNames: Set<string>
 ): Promise<{ groups: GlobalPackageBinSnapshot[], protectedBins: Set<string> }> {
   const targetHashes = new Set(targetGroups.map(({ hash }) => hash))
+  const targetBinNames = await Promise.all(targetGroups.map((pkg) => getInstalledBinNames(pkg)))
+  const groups = targetGroups.map((info, index) => ({ info, binNames: targetBinNames[index] }))
+  const binNamesToProtect = new Set(targetBinNames.flat().filter((name) => !retainedBinNames.has(name)))
+  if (binNamesToProtect.size === 0) return { groups, protectedBins: new Set() }
+
   const survivingGroups = scanGlobalPackages(globalDir).filter((pkg) => !targetHashes.has(pkg.hash))
-  const binNamesByGroup = await Promise.all(
-    [...targetGroups, ...survivingGroups].map((pkg) => getInstalledBinNames(pkg))
+  const survivorBinNames = await Promise.all(survivingGroups.map((pkg) => getInstalledBinNames(pkg)))
+  const protectedBins = new Set(
+    survivorBinNames.flat().filter((name) => binNamesToProtect.has(name))
   )
-  const groups = targetGroups.map((info, index) => ({ info, binNames: binNamesByGroup[index] }))
-  const protectedBins = new Set(binNamesByGroup.slice(targetGroups.length).flat())
   return { groups, protectedBins }
 }

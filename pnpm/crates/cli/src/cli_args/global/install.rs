@@ -20,6 +20,7 @@ pub(super) struct GroupActivation<'a> {
     pub(super) pkgs: &'a [PackageBinSource],
     pub(super) dependencies: &'a [(String, String)],
     pub(super) bins_to_skip: &'a HashSet<String>,
+    pub(super) retained_bin_names: &'a HashSet<String>,
     pub(super) groups_to_replace: &'a [GlobalPackageBinSnapshot],
     pub(super) protected_bins: &'a HashSet<String>,
     pub(super) hash: &'a str,

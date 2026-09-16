@@ -152,6 +152,94 @@ fn global_add_preflights_incomplete_survivor_ownership_before_activation() {
 
 #[cfg(unix)]
 #[test]
+fn global_add_ignores_incomplete_survivors_when_every_replaced_bin_is_retained() {
+    use assert_cmd::assert::OutputAssertExt;
+
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let pnpm_home = root.path().join("pnpm-home");
+    let global_bin = pnpm_home.join("bin");
+    let global_pkg_dir = pnpm_home.join("global/v11");
+    prepare_global_home(&pnpm_home, &npmrc_info);
+    fs::create_dir_all(&global_pkg_dir).expect("create global packages directory");
+    assert_fixture_paths(
+        root.path(),
+        &[&pnpm_home, &global_bin, &global_pkg_dir, &npmrc_info.store_dir, &npmrc_info.cache_dir],
+    );
+
+    let target_install = seed_global_group(
+        &global_pkg_dir,
+        "target-hash",
+        &[(
+            "@pnpm.e2e/print-version",
+            Some(
+                r#"{"name":"@pnpm.e2e/print-version","version":"1.0.0","bin":{"print-version":"index.js"}}"#,
+            ),
+        )],
+    );
+    let survivor_install = seed_global_group(&global_pkg_dir, "survivor-hash", &[("keeper", None)]);
+    fs::write(global_bin.join("print-version"), b"old command\n")
+        .expect("seed replaced global bin");
+
+    global_command(&workspace, &pnpm_home)
+        .with_args(["add", "-g", "@pnpm.e2e/print-version"])
+        .assert()
+        .success();
+
+    assert!(!target_install.exists());
+    assert!(survivor_install.exists());
+    assert!(global_bin.join("print-version").exists());
+    assert_eq!(symlink_entries(&global_pkg_dir).len(), 2);
+
+    drop((root, npmrc_info));
+}
+
+#[cfg(unix)]
+#[test]
+fn global_update_ignores_incomplete_survivors_when_every_replaced_bin_is_retained() {
+    use assert_cmd::assert::OutputAssertExt;
+
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let pnpm_home = root.path().join("pnpm-home");
+    let global_bin = pnpm_home.join("bin");
+    let global_pkg_dir = pnpm_home.join("global/v11");
+    prepare_global_home(&pnpm_home, &npmrc_info);
+    fs::create_dir_all(&global_pkg_dir).expect("create global packages directory");
+    assert_fixture_paths(
+        root.path(),
+        &[&pnpm_home, &global_bin, &global_pkg_dir, &npmrc_info.store_dir, &npmrc_info.cache_dir],
+    );
+
+    let target_install = seed_global_group(
+        &global_pkg_dir,
+        "target-hash",
+        &[(
+            "@pnpm.e2e/print-version",
+            Some(
+                r#"{"name":"@pnpm.e2e/print-version","version":"1.0.0","bin":{"print-version":"index.js"}}"#,
+            ),
+        )],
+    );
+    let survivor_install = seed_global_group(&global_pkg_dir, "survivor-hash", &[("keeper", None)]);
+    fs::write(global_bin.join("print-version"), b"old command\n")
+        .expect("seed replaced global bin");
+
+    global_command(&workspace, &pnpm_home)
+        .with_args(["update", "-g", "--latest", "@pnpm.e2e/print-version"])
+        .assert()
+        .success();
+
+    assert!(!target_install.exists());
+    assert!(survivor_install.exists());
+    assert!(global_bin.join("print-version").exists());
+    assert_eq!(symlink_entries(&global_pkg_dir).len(), 2);
+
+    drop((root, npmrc_info));
+}
+
+#[cfg(unix)]
+#[test]
 fn global_remove_preflights_all_targets_before_mutating_any_group() {
     use assert_cmd::assert::OutputAssertExt;
 

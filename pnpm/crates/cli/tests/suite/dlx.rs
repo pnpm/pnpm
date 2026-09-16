@@ -321,6 +321,7 @@ fn dlx_provisions_a_package_manager_by_name() {
 
     let registry_arg = format!("--config.registry={}", npmrc_info.mock_instance.url());
     let output = pacquet
+        .env("YARN_IGNORE_PATH", "1")
         .args([registry_arg.as_str(), "dlx", "yarn@4.9.2", "--version"])
         .output()
         .expect("run pacquet dlx yarn@4.9.2");

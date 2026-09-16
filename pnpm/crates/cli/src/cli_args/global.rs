@@ -13,8 +13,9 @@ pub use selectors::{has_pnpm_cli_dependency, selects_pnpm_cli};
 mod activation;
 
 use self::activation::{
-    ArtifactCleanupError, FsRename, activate_global_install_with_extra_bin_names,
-    get_actual_bin_names, hash_linked_packages, replace_global_bin_slots,
+    ActivationBinSets, ArtifactCleanupError, FsRename,
+    activate_global_install_with_extra_bin_names, get_actual_bin_names, hash_linked_packages,
+    replace_global_bin_slots,
 };
 use crate::{
     State,

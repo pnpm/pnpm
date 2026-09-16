@@ -23,6 +23,7 @@ jest.unstable_mockModule('@pnpm/logger', () => {
 
 const { logger, globalWarn } = await import('@pnpm/logger')
 const {
+  getBinsToLink,
   linkBins,
   linkBinsOfPackages,
   linkBinsOfPkgsByAliases,
@@ -464,19 +465,21 @@ test('linkBinsOfPackages() resolves conflicts. Prefer packages that use their na
 
   const modulesPath = path.join(binNameConflictsFixture, 'node_modules')
 
-  await linkBinsOfPackages(
-    [
-      {
-        location: path.join(modulesPath, 'bar'),
-        manifest: (await import(path.join(modulesPath, 'bar', 'package.json'))).default,
-      },
-      {
-        location: path.join(modulesPath, 'foo'),
-        manifest: (await import(path.join(modulesPath, 'foo', 'package.json'))).default,
-      },
-    ],
-    binTarget
-  )
+  const packages = [
+    {
+      location: path.join(modulesPath, 'bar'),
+      manifest: (await import(path.join(modulesPath, 'bar', 'package.json'))).default,
+    },
+    {
+      location: path.join(modulesPath, 'foo'),
+      manifest: (await import(path.join(modulesPath, 'foo', 'package.json'))).default,
+    },
+  ]
+  const binsToLink = await getBinsToLink(packages)
+
+  expect(binsToLink.find(({ name }) => name === 'bar')?.path).toBe(path.join(modulesPath, 'bar/index.js'))
+
+  await linkBinsOfPackages(packages, binTarget)
 
   expect(binsConflictLogger.debug).toHaveBeenCalledWith({
     binaryName: 'bar',

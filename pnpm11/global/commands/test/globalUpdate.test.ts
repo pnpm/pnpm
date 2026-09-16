@@ -20,6 +20,7 @@ const readInstalledPackages = jest.fn<(installDir: string) => Promise<Array<{ al
 const summaryDebug = jest.fn()
 const activateGlobalInstall = jest.fn<(opts: unknown) => Promise<Set<string>>>().mockResolvedValue(new Set(['fresh']))
 const cleanupReplacedGlobalInstalls = jest.fn<(opts: unknown) => Promise<void>>().mockResolvedValue(undefined)
+const getActualBinNames = jest.fn<(opts: unknown) => Promise<Set<string>>>().mockResolvedValue(new Set(['fresh']))
 
 jest.unstable_mockModule('@pnpm/core-loggers', () => ({ summaryLogger: { debug: summaryDebug } }))
 jest.unstable_mockModule('@pnpm/global.packages', () => ({
@@ -34,6 +35,7 @@ jest.unstable_mockModule('../src/checkGlobalBinConflicts.js', () => ({ checkGlob
 jest.unstable_mockModule('../src/globalActivation.js', () => ({
   activateGlobalInstall,
   cleanupReplacedGlobalInstalls,
+  getActualBinNames,
 }))
 jest.unstable_mockModule('../src/installGlobalPackages.js', () => ({ installGlobalPackages }))
 jest.unstable_mockModule('../src/promptApproveGlobalBuilds.js', () => ({ promptApproveGlobalBuilds }))
@@ -54,6 +56,7 @@ beforeEach(() => {
   })
   readInstalledPackages.mockResolvedValue([])
   activateGlobalInstall.mockResolvedValue(new Set(['fresh']))
+  getActualBinNames.mockResolvedValue(new Set(['fresh']))
 })
 
 test('global update emits a single summary after updating all isolated groups', async () => {
@@ -109,6 +112,7 @@ test('global update emits a single summary after updating all isolated groups', 
     globalBinDir: '/global/bin',
     pkgs: [],
     binsToSkip: new Set(),
+    requiredBinNames: new Set(['fresh']),
   })
   expect(activateGlobalInstall).toHaveBeenNthCalledWith(2, {
     installDir: '/global/v11/install-2',
@@ -116,6 +120,7 @@ test('global update emits a single summary after updating all isolated groups', 
     globalBinDir: '/global/bin',
     pkgs: [],
     binsToSkip: new Set(),
+    requiredBinNames: new Set(['fresh']),
   })
   expect(cleanupReplacedGlobalInstalls).toHaveBeenNthCalledWith(1, {
     groups: [{ info: groups[0], binNames: [] }],
@@ -133,11 +138,10 @@ test('global update emits a single summary after updating all isolated groups', 
     activatedBins: new Set(['fresh']),
     protectedBins: new Set(),
   })
-  const firstActivationOrder = activateGlobalInstall.mock.invocationCallOrder[0]
-  for (const group of groups) {
+  for (const [index, group] of groups.entries()) {
     const ownershipCall = getInstalledBinNames.mock.calls.findIndex(([pkg]) => pkg === group)
     expect(ownershipCall).toBeGreaterThanOrEqual(0)
-    expect(getInstalledBinNames.mock.invocationCallOrder[ownershipCall]).toBeLessThan(firstActivationOrder)
+    expect(getInstalledBinNames.mock.invocationCallOrder[ownershipCall]).toBeLessThan(activateGlobalInstall.mock.invocationCallOrder[index])
   }
   for (const index of [0, 1]) {
     expect(activateGlobalInstall.mock.invocationCallOrder[index]).toBeLessThan(cleanupReplacedGlobalInstalls.mock.invocationCallOrder[index])
@@ -145,6 +149,38 @@ test('global update emits a single summary after updating all isolated groups', 
   }
   expect(summaryDebug).toHaveBeenCalledTimes(1)
   expect(summaryDebug).toHaveBeenCalledWith({ prefix: '/global/v11' })
+})
+
+test('global update ignores incomplete survivors when every replaced bin is retained', async () => {
+  const target: GlobalPackageInfo = {
+    dependencies: { foo: '^1.0.0' },
+    hash: 'hash-foo',
+    installDir: '/global/v11/old-foo',
+  }
+  const survivor: GlobalPackageInfo = {
+    dependencies: { bar: '^2.0.0' },
+    hash: 'hash-bar',
+    installDir: '/global/v11/old-bar',
+  }
+  const survivorError = Object.assign(new Error('survivor package.json is missing'), { code: 'ENOENT' })
+  createInstallDir.mockReturnValue('/global/v11/install-1')
+  getHashLink.mockReturnValue('/global/v11/hash-foo')
+  scanGlobalPackages.mockReturnValue([target, survivor])
+  getInstalledBinNames.mockImplementation(async (pkg) => {
+    if (pkg === survivor) throw survivorError
+    return ['fresh']
+  })
+
+  await handleGlobalUpdate({
+    bin: '/global/bin',
+    globalPkgDir: '/global/v11',
+  } as any, ['foo'], {}) // eslint-disable-line @typescript-eslint/no-explicit-any
+
+  expect(getInstalledBinNames).toHaveBeenCalledTimes(1)
+  expect(getInstalledBinNames).toHaveBeenCalledWith(target)
+  expect(activateGlobalInstall).toHaveBeenCalledWith(expect.objectContaining({
+    requiredBinNames: new Set(['fresh']),
+  }))
 })
 
 test('global update removes the fresh install and does not activate when target ownership cannot be enumerated', async () => {

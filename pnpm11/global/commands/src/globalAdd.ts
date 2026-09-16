@@ -19,7 +19,7 @@ import type { CreateStoreControllerOptions } from '@pnpm/store.connection-manage
 import { getGlobalBinOwnership } from './binOwnership.js'
 import { checkGlobalBinConflicts } from './checkGlobalBinConflicts.js'
 import { cleanupFailedGlobalInstall } from './cleanupFailedGlobalInstall.js'
-import { activateGlobalInstall, cleanupReplacedGlobalInstalls } from './globalActivation.js'
+import { activateGlobalInstall, cleanupReplacedGlobalInstalls, getActualBinNames } from './globalActivation.js'
 import { installGlobalPackages, type ResolutionPolicyViolation } from './installGlobalPackages.js'
 import { isPnpmCliDependency, isPnpmCliOnlyGroup, selectsPnpmCli } from './pnpmCliPackages.js'
 import { promptApproveGlobalBuilds } from './promptApproveGlobalBuilds.js'
@@ -153,11 +153,14 @@ async function installGroup (
   }
 
   let existingGlobalInstalls: ExistingGlobalInstalls
+  let retainedBinNames: Set<string>
   try {
+    retainedBinNames = await getActualBinNames({ pkgs, binsToSkip })
     existingGlobalInstalls = await collectExistingGlobalInstalls({
       globalDir,
       aliases,
       replacementAliases,
+      retainedBinNames,
     })
   } catch (err) {
     return cleanupFailedGlobalInstall(installDir, err)
@@ -174,6 +177,7 @@ async function installGroup (
     globalBinDir,
     pkgs,
     binsToSkip,
+    requiredBinNames: retainedBinNames,
   })
   await cleanupReplacedGlobalInstalls({
     groups: existingGlobalInstalls.groups,
@@ -263,9 +267,10 @@ async function collectExistingGlobalInstalls (
     globalDir: string
     aliases: string[]
     replacementAliases: string[]
+    retainedBinNames: Set<string>
   }
 ): Promise<ExistingGlobalInstalls> {
-  const { globalDir, aliases, replacementAliases } = opts
+  const { globalDir, aliases, replacementAliases, retainedBinNames } = opts
 
   const groupsToReplace = new Map<string, GlobalPackageInfo>()
   for (const alias of replacementAliases) {
@@ -279,5 +284,5 @@ async function collectExistingGlobalInstalls (
     }
   }
 
-  return getGlobalBinOwnership(globalDir, [...groupsToReplace.values()])
+  return getGlobalBinOwnership(globalDir, [...groupsToReplace.values()], retainedBinNames)
 }
