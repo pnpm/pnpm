@@ -111,6 +111,7 @@ pub(super) struct Workspace {
     /// name without that being wrong: they are only in conflict if
     /// something depends on the name.
     roots: BTreeMap<PackageName, Vec<PathBuf>>,
+    manifests: BTreeMap<PathBuf, Arc<Manifest>>,
     inherited: BTreeMap<PathBuf, (PathBuf, Arc<Manifest>)>,
 }
 
@@ -134,7 +135,11 @@ impl Workspace {
             }
             declared.insert(root.clone(), BTreeSet::new());
         }
-        let workspace = Self { declared, roots, inherited: BTreeMap::new() };
+        let manifests = projects
+            .iter()
+            .map(|(root, manifest)| (root.clone(), Arc::clone(manifest)))
+            .collect();
+        let workspace = Self { declared, roots, manifests, inherited: BTreeMap::new() };
         workspace.with_scopes(projects)
     }
 
@@ -246,11 +251,18 @@ impl Workspace {
                 name.clone(),
                 Target { root: target.root.clone(), editable: target.editable },
             );
-            let manifest = Arc::new(load(&target.root)?);
+            let manifest = self.load(&target.root)?;
             local.push(read_project(&name, &target, &manifest, lock_root)?);
             frontier.extend(self.targets(&target.root, &manifest)?);
         }
         Ok(local)
+    }
+
+    fn load(&self, root: &Path) -> Result<Arc<Manifest>> {
+        match self.manifests.get(root) {
+            Some(manifest) => Ok(Arc::clone(manifest)),
+            None => Ok(Arc::new(load(root)?)),
+        }
     }
 
     /// Which of a project's requirements name a project on disk, and where

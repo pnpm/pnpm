@@ -10,6 +10,7 @@ mod interpreter;
 mod lockfile;
 mod manifest;
 mod registry;
+mod requirements;
 mod resolver;
 mod targets;
 mod workspace;
@@ -106,7 +107,7 @@ async fn prepare<Reporter: self::Reporter + 'static>(
         members: workspace.scopes().clone(),
         build_environments: tokio::sync::Mutex::default(),
     };
-    let result = prepare_projects::<Reporter>(&shared, &workspace, roots).await;
+    let result = prepare_discovered::<Reporter>(&shared, workspace, roots).await;
     drop(writer);
     writer_task.await
         .into_diagnostic()
@@ -116,8 +117,33 @@ async fn prepare<Reporter: self::Reporter + 'static>(
     result
 }
 
-/// Prepare each project with the interpreter it is installed with: the
-/// one the workspace configures, or the one the project accepts.
+async fn prepare_discovered<Reporter: self::Reporter + 'static>(
+    shared: &Shared<'_>,
+    workspace: workspace::Workspace,
+    roots: Vec<(PathBuf, Arc<manifest::Manifest>)>,
+) -> Result<Vec<Prepared>> {
+    if !roots.iter().any(|(_, manifest)| manifest.needs_metadata()) {
+        return prepare_projects::<Reporter>(shared, &workspace, roots).await;
+    }
+    drop(workspace);
+    let mut resolved = Vec::new();
+    let mut interpreters = Interpreters::new(shared.context.config);
+    for (root, mut manifest) in roots {
+        if manifest.needs_metadata() {
+            let interpreter = interpreters.select::<Reporter>(&root, &manifest).await?;
+            let environments = Environments::of(shared.context.config, &interpreter)?;
+            let (metadata, output) = PythonPrepare::for_project(shared, &interpreter, &environments)
+                .metadata::<Reporter>(&root, &manifest).await?;
+            Arc::make_mut(&mut manifest)
+                .set_metadata(metadata, output)
+                .wrap_err_with(|| format!("metadata for {}", root.display()))?;
+        }
+        resolved.push((root, manifest));
+    }
+    let workspace = workspace::Workspace::new(&resolved)?;
+    prepare_projects::<Reporter>(shared, &workspace, resolved).await
+}
+
 async fn prepare_projects<Reporter: self::Reporter + 'static>(
     shared: &Shared<'_>,
     workspace: &workspace::Workspace,
@@ -159,7 +185,7 @@ async fn read_project_manifests(
         let contents = tokio::fs::read_to_string(&path).await
             .into_diagnostic()
             .wrap_err_with(|| format!("read {}", path.display()))?;
-        let manifest = manifest::Manifest::parse(&contents)?;
+        let manifest = read_manifest(&path, &contents).await?;
         if manifest.project.is_some() || manifest.tool.uv.workspace.is_some() {
             roots.push((
                 path.parent()
@@ -170,6 +196,29 @@ async fn read_project_manifests(
         }
     }
     Ok(roots)
+}
+
+async fn read_manifest(path: &Path, contents: &str) -> Result<manifest::Manifest> {
+    let mut manifest = if path
+        .file_name()
+        .is_some_and(|name| name == "requirements.txt")
+    {
+        manifest::Manifest::parse("")?
+    } else {
+        manifest::Manifest::parse(contents)?
+    };
+    if manifest.project.is_none() {
+        let requirements_path = path.with_file_name("requirements.txt");
+        if tokio::fs::try_exists(&requirements_path).await.into_diagnostic()? {
+            let requirements =
+                tokio::task::spawn_blocking(move || requirements::read(&requirements_path))
+                    .await
+                    .into_diagnostic()
+                    .wrap_err("join Python requirements parsing")??;
+            manifest.set_requirements_file(requirements);
+        }
+    }
+    Ok(manifest)
 }
 
 /// The Python index a project resolves against. Credentials the

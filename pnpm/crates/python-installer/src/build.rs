@@ -1,3 +1,5 @@
+mod metadata;
+
 use super::{
     environment::PythonPrepare,
     host::{self, Wheel},
@@ -71,6 +73,8 @@ impl PythonPrepare<'_> {
             "backend": backend(manifest).module,
             "backend_path": backend(manifest).path,
             "editable": editable,
+            "metadata_directory": manifest.metadata_output.as_ref().zip(manifest.metadata.as_ref())
+                .map(|(output, metadata)| output.path().join(&metadata.dist_info)),
         });
         let environment = match self.build_environment::<Reporter>(root, requires, &request).await?
         {
@@ -323,6 +327,15 @@ struct BuiltWheel {
 /// another distribution under it would install something the lockfile
 /// does not describe.
 fn identify(metadata: &host::WheelMetadata, manifest: &Manifest, root: &Path) -> Result<()> {
+    identify_identity(metadata, manifest, root)?;
+    requires_what_it_declares(metadata, manifest, root)
+}
+
+fn identify_identity(
+    metadata: &host::WheelMetadata,
+    manifest: &Manifest,
+    root: &Path,
+) -> Result<()> {
     let Some(name) = manifest.distribution() else { return Ok(()) };
     if metadata.name
         .parse::<PackageName>()
@@ -336,7 +349,6 @@ fn identify(metadata: &host::WheelMetadata, manifest: &Manifest, root: &Path) ->
             metadata.name,
         );
     }
-    requires_what_it_declares(metadata, manifest, root)?;
     // A project may leave its version to the backend, and then what the
     // backend says it is is the only answer there is.
     let Some(version) =
@@ -443,6 +455,19 @@ fn requires_what_it_declares(
         .iter()
         .map(|requirement| Ok(parse_requirement(requirement)?.to_string()))
         .collect::<Result<BTreeSet<_>>>()?;
+    if manifest.metadata.is_some() {
+        let built = metadata.requires_dist
+            .iter()
+            .map(|requirement| Ok(parse_requirement(requirement)?.to_string()))
+            .collect::<Result<BTreeSet<_>>>()?;
+        if declared != built {
+            bail!(
+                "the Python project at {} built dependency metadata that differs from its prepared metadata",
+                root.display(),
+            );
+        }
+        return Ok(());
+    }
     for requirement in &metadata.requires_dist {
         let required = parse_requirement(requirement)?.to_string();
         if !declared.contains(&required) {

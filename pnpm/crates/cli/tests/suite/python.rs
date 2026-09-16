@@ -1501,6 +1501,7 @@ async fn locks_one_environment_per_platform_however_it_is_named() {
     assert_eq!(fs::read_to_string(root.path().join("pylock.toml")).unwrap(), lock);
 }
 
+mod metadata;
 mod validation;
 
 /// A PEP 517 backend small enough to serve from the mocked index, so a
@@ -1921,6 +1922,8 @@ async fn a_backend_building_another_name_is_refused_without_a_declared_version()
     .await;
     project(root.path(), &server.url(), &[]);
     python_project(root.path(), "app", "dependencies = []");
+    fs::create_dir(root.path().join("src/impostor")).unwrap();
+    fs::write(root.path().join("src/impostor/__init__.py"), "").unwrap();
     // The backend names the version, so only the distribution is declared.
     fs::write(
         root.path().join("pyproject.toml"),
