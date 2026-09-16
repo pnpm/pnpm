@@ -30,8 +30,6 @@ pub(crate) struct InstallContext {
     pub(crate) frozen_lockfile: bool,
 }
 
-/// An install plan for the non-npm ecosystems, and the Python projects it
-/// was resolved against.
 pub(crate) struct EcosystemPlan {
     pub(crate) plan: InstallPlan<'static>,
     pub(crate) python: PythonProjects,

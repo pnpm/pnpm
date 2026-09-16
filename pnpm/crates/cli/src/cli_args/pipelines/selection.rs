@@ -86,15 +86,18 @@ pub(super) fn select_install_family<Reporter: self::Reporter>(
     else {
         return Ok(InstallFamily { plan: InstallFamilyPlan::Single, scope: None, unmatched: None });
     };
-    let scope = Some(WorkspaceScope {
-        projects: Arc::new(
-            selection.projects
-                .iter()
-                .map(|project| project.root_dir.clone())
-                .collect(),
-        ),
-        selected: Arc::clone(&selection.selected_dirs),
-    });
+    // Only an install another ecosystem takes part in reads the scope. The
+    // npm install reads the selection itself, so it pays nothing for this.
+    let scope = crate::ecosystem_install::is_enabled(cfg)
+        .then(|| WorkspaceScope {
+            projects: Arc::new(
+                selection.projects
+                    .iter()
+                    .map(|project| project.root_dir.clone())
+                    .collect(),
+            ),
+            selected: Arc::clone(&selection.selected_dirs),
+        });
     // Report what the `--filter` / `-r` selection resolved to, so the user
     // can confirm it before the install acts on it. Emitted once here for
     // every plan shape below — a `PerProject` plan installs each selected

@@ -169,8 +169,6 @@ impl EcosystemAdd {
     }
 }
 
-/// What an ecosystem add resolves before it can be planned: the network it
-/// fetches through, and the npm projects the selection named.
 struct EcosystemAddSetup {
     cfg: &'static Config,
     http_client: Arc<ThrottledClient>,

@@ -99,8 +99,6 @@ impl InstallPipeline {
         self.run_with_ecosystems::<Reporter>(family, lockfile, http_client).await
     }
 
-    /// Install every enabled ecosystem in one transaction, with the npm
-    /// install enrolled as a participant of its own.
     async fn run_with_ecosystems<Reporter: self::Reporter + 'static>(
         self,
         family: InstallFamily,
