@@ -456,12 +456,46 @@ fn selected_python(root: &Path) -> String {
         .to_string()
 }
 
-/// A python-build-standalone release serving one interpreter for this
-/// machine: the `SHA256SUMS` naming it, and the archive itself.
+/// A python-build-standalone release serving an interpreter of every
+/// version for this machine: the `SHA256SUMS` naming them, and the
+/// archives themselves.
 #[cfg(any(target_os = "linux", target_os = "macos"))]
-async fn serve_interpreter(server: &mut mockito::ServerGuard, version: &str) -> Vec<mockito::Mock> {
-    use std::io::Write as _;
+async fn serve_interpreter(
+    server: &mut mockito::ServerGuard,
+    versions: &[&str],
+) -> Vec<mockito::Mock> {
+    use std::fmt::Write as _;
     let triple = host_triple();
+    let mut sums = String::new();
+    let mut mocks = Vec::new();
+    for version in versions {
+        let archive = interpreter_archive(version);
+        let file = format!("cpython-{version}+20260901-{triple}-install_only_stripped.tar.gz");
+        writeln!(sums, "{:x}  {file}", Sha256::digest(&archive)).unwrap();
+        mocks.push(
+            server
+                .mock("GET", format!("/download/20260901/{file}").as_str())
+                .with_body(archive)
+                .create_async()
+                .await,
+        );
+    }
+    mocks.push(
+        server
+            .mock("GET", "/latest/download/SHA256SUMS")
+            .with_body(sums)
+            .expect_at_least(1)
+            .create_async()
+            .await,
+    );
+    mocks
+}
+
+/// The archive one of those interpreters is downloaded as, laid out the
+/// way python-build-standalone lays a build out.
+#[cfg(any(target_os = "linux", target_os = "macos"))]
+fn interpreter_archive(version: &str) -> Vec<u8> {
+    use std::io::Write as _;
     let mut archive =
         tar::Builder::new(flate2::write::GzEncoder::new(Vec::new(), flate2::Compression::fast()));
     let shim = interpreter_shim_source(version);
@@ -472,23 +506,7 @@ async fn serve_interpreter(server: &mut mockito::ServerGuard, version: &str) -> 
     archive.append_data(&mut header, "python/bin/python3", shim.as_bytes()).unwrap();
     let mut encoder = archive.into_inner().unwrap();
     encoder.flush().unwrap();
-    let archive = encoder.finish().unwrap();
-    let file = format!("cpython-{version}+20260901-{triple}-install_only_stripped.tar.gz");
-    let sums = format!("{:x}  {file}\n", Sha256::digest(&archive));
-    vec![
-        server
-            .mock("GET", "/latest/download/SHA256SUMS")
-            .with_body(sums)
-            .expect_at_least(1)
-            .create_async()
-            .await,
-        server
-            .mock("GET", format!("/download/20260901/{file}").as_str())
-            .with_body(archive)
-            .expect_at_least(1)
-            .create_async()
-            .await,
-    ]
+    encoder.finish().unwrap()
 }
 
 /// What python-build-standalone calls the interpreter of this machine,
@@ -518,7 +536,7 @@ async fn installs_an_interpreter_no_machine_has_and_reuses_it() {
     let root = tempfile::tempdir().unwrap();
     let mut server = mockito::Server::new_async().await;
     project(root.path(), "https://unused.invalid", &[]);
-    let release = serve_interpreter(&mut server, "3.13.99").await;
+    let release = serve_interpreter(&mut server, &["3.13.99"]).await;
     add_python_settings(root.path(), &format!("  downloadUrl: '{}'\n", server.url()));
     let install = || {
         fs::write(
@@ -562,7 +580,7 @@ async fn a_pin_the_release_moved_past_installs_the_version_it_has() {
     let root = tempfile::tempdir().unwrap();
     let mut server = mockito::Server::new_async().await;
     project(root.path(), "https://unused.invalid", &[]);
-    let _release = serve_interpreter(&mut server, "3.13.96").await;
+    let _release = serve_interpreter(&mut server, &["3.13.96"]).await;
     fs::write(
         root.path().join("pyproject.toml"),
         "[project]\nname = 'app'\nversion = '1.0'\nrequires-python = '>=3.13.90,<3.14'\ndependencies = []\n",
@@ -580,6 +598,37 @@ async fn a_pin_the_release_moved_past_installs_the_version_it_has() {
     assert!(output.status.success());
     assert!(stdout.contains("asks for Python 3.13.95, which is not published"), "{stdout}");
     assert_eq!(selected_python(root.path()), "3.13.96");
+}
+
+/// A pin the release publishes and the project's own range refuses says
+/// so, rather than reporting a version the release has as one it has not.
+#[cfg(any(target_os = "linux", target_os = "macos"))]
+#[tokio::test]
+async fn a_pin_the_project_refuses_installs_a_version_it_accepts() {
+    let root = tempfile::tempdir().unwrap();
+    let mut server = mockito::Server::new_async().await;
+    project(root.path(), "https://unused.invalid", &[]);
+    let _release = serve_interpreter(&mut server, &["3.13.94", "3.13.93"]).await;
+    fs::write(
+        root.path().join("pyproject.toml"),
+        "[project]\nname = 'app'\nversion = '1.0'\nrequires-python = '>=3.13.94,<3.14'\ndependencies = []\n",
+    )
+    .unwrap();
+    fs::write(root.path().join(".python-version"), "3.13.93\n").unwrap();
+    add_python_settings(root.path(), &format!("  downloadUrl: '{}'\n", server.url()));
+
+    let output = pacquet_in(root.path())
+        .arg("install")
+        .output()
+        .unwrap();
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    eprintln!("stdout:\n{stdout}\nstderr:\n{}", String::from_utf8_lossy(&output.stderr));
+    assert!(output.status.success());
+    assert!(
+        stdout.contains("asks for Python 3.13.93, which this project's requires-python does not"),
+        "{stdout}",
+    );
+    assert_eq!(selected_python(root.path()), "3.13.94");
 }
 
 /// An interpreter is code, so pnpm runs one only if it is the one the
@@ -627,7 +676,7 @@ async fn an_interpreter_is_installed_only_where_the_install_may_download() {
     let root = tempfile::tempdir().unwrap();
     let mut server = mockito::Server::new_async().await;
     project(root.path(), "https://unused.invalid", &[]);
-    let _release = serve_interpreter(&mut server, "3.13.98").await;
+    let _release = serve_interpreter(&mut server, &["3.13.98"]).await;
     fs::write(
         root.path().join("pyproject.toml"),
         "[project]\nname = 'app'\nversion = '1.0'\nrequires-python = '==3.13.98'\ndependencies = []\n",

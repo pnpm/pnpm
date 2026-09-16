@@ -11,6 +11,7 @@ use super::{InterpreterCommand, VersionRequest, command::interpreter_in};
 use miette::{IntoDiagnostic, Result, WrapErr, bail};
 use pnpm_config::{Config, PythonDownloads};
 use pnpm_network::{AuthHeaders, ThrottledClient};
+use pnpm_reporter::{GlobalLog, LogEvent, LogLevel, Reporter};
 use std::{
     io::Write as _,
     path::{Path, PathBuf},
@@ -28,6 +29,11 @@ const MAX_INDEX_BYTES: usize = 8 * 1024 * 1024;
 /// An interpreter is tens of megabytes, and a mirror serving something
 /// else entirely is not read to the end to find that out.
 const MAX_ARCHIVE_BYTES: usize = 256 * 1024 * 1024;
+
+/// An interpreter unpacks to a little over a hundred megabytes. What a
+/// mirror compressed those megabytes out of is what this bounds: a gzip
+/// archive under [`MAX_ARCHIVE_BYTES`] can hold hundreds of gigabytes.
+const MAX_UNPACKED_BYTES: u64 = 512 * 1024 * 1024;
 
 /// The interpreters pnpm can install, as one release's `SHA256SUMS` names
 /// them.
@@ -152,6 +158,35 @@ impl Build {
         file.write_all(&response.body).into_diagnostic()?;
         Ok(file)
     }
+}
+
+/// What an install says when it installs a version other than the one a
+/// `.python-version` file asks for: the release publishes no such version
+/// for this machine, or the project's own range refuses the one it does
+/// publish.
+pub(super) fn report_unmet_request<Reporter: self::Reporter + 'static>(
+    releases: &Releases,
+    root: &Path,
+    request: &VersionRequest,
+    installing: &pep440_rs::Version,
+) {
+    let unmet = if releases
+        .best(None, Some(request))
+        .is_some()
+    {
+        "which this project's requires-python does not accept"
+    } else {
+        "which is not published for this machine"
+    };
+    Reporter::emit(&LogEvent::Global(GlobalLog {
+        level: LogLevel::Warn,
+        message: format!(
+            "Installing Python {installing} for {}: {} asks for Python {}, {unmet}",
+            root.display(),
+            request.file.display(),
+            request.version(),
+        ),
+    }));
 }
 
 pub(super) fn allowed(config: &Config) -> bool {
@@ -289,7 +324,8 @@ fn unpack(archive: &Path, directory: &Path) -> Result<()> {
     std::fs::create_dir_all(parent).into_diagnostic()?;
     let staged = tempfile::TempDir::new_in(parent).into_diagnostic()?;
     let file = std::fs::File::open(archive).into_diagnostic()?;
-    let mut unpacked = tar::Archive::new(flate2::read::GzDecoder::new(file));
+    let bounded = Bounded { inner: flate2::read::GzDecoder::new(file), left: MAX_UNPACKED_BYTES };
+    let mut unpacked = tar::Archive::new(bounded);
     unpacked.set_preserve_permissions(true);
     unpacked
         .unpack(staged.path())
@@ -305,6 +341,28 @@ fn unpack(archive: &Path, directory: &Path) -> Result<()> {
             .wrap_err_with(|| {
                 format!("install the Python interpreter into {}", directory.display())
             }),
+    }
+}
+
+/// A stream that ends in an error once it has given out more than it was
+/// allowed to. Reading the archive through one is what keeps unpacking
+/// it bounded: every entry costs a header of its own, so the same limit
+/// bounds how many entries an archive holds as well as how large they
+/// are.
+struct Bounded<Stream> {
+    inner: Stream,
+    left: u64,
+}
+
+impl<Stream: std::io::Read> std::io::Read for Bounded<Stream> {
+    fn read(&mut self, buffer: &mut [u8]) -> std::io::Result<usize> {
+        let read = self.inner.read(buffer)?;
+        self.left = self.left
+            .checked_sub(read as u64)
+            .ok_or_else(|| {
+                std::io::Error::other(format!("it unpacks to more than {MAX_UNPACKED_BYTES} bytes"))
+            })?;
+        Ok(read)
     }
 }
 

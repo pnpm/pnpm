@@ -169,17 +169,7 @@ impl<'a> Interpreters<'a> {
         };
         let Some(build) = build else { return Ok(None) };
         if let Some(request) = request.filter(|_| asked_for.is_none()) {
-            Reporter::emit(&LogEvent::Global(GlobalLog {
-                level: LogLevel::Warn,
-                message: format!(
-                    "Installing Python {} for {}: {} asks for Python {}, which is not published \
-                     for this machine",
-                    build.version(),
-                    root.display(),
-                    request.file.display(),
-                    request.version(),
-                ),
-            }));
+            download::report_unmet_request::<Reporter>(&releases, root, request, build.version());
         }
         Reporter::emit(&LogEvent::Global(GlobalLog {
             level: LogLevel::Info,
@@ -324,6 +314,7 @@ impl<'a> Interpreters<'a> {
     ) -> Result<Option<VersionRequest>> {
         version_request::<Reporter>(self.config.workspace_dir.as_deref(), root)
     }
+
     /// What was asked for and what this machine has, for the install that
     /// cannot go on without an interpreter.
     ///

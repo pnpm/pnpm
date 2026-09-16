@@ -1,5 +1,6 @@
-use super::{Releases, builds_in, host_triple};
+use super::{Bounded, MAX_UNPACKED_BYTES, Releases, builds_in, host_triple};
 use crate::interpreter::VersionRequest;
+use std::io::Read as _;
 
 /// A python-build-standalone `SHA256SUMS`, as the release writes it.
 fn sums(files: &[String]) -> String {
@@ -93,4 +94,21 @@ fn the_build_installed_is_the_newest_one_the_project_accepts() {
             .best(Some(&requires("==3.9.1")), None)
             .is_none(),
     );
+}
+
+/// What an archive holds is what it expands to, which is not what a
+/// mirror had to send to hold it.
+#[test]
+fn an_archive_expanding_past_what_an_interpreter_is_ends_in_an_error() {
+    let interpreter = "an interpreter".repeat(8);
+    let mut unpacked = String::new();
+    Bounded { inner: interpreter.as_bytes(), left: MAX_UNPACKED_BYTES }
+        .read_to_string(&mut unpacked)
+        .expect("an interpreter is smaller than the limit");
+    assert_eq!(unpacked, interpreter);
+
+    let error = Bounded { inner: interpreter.as_bytes(), left: 8 }
+        .read_to_string(&mut unpacked)
+        .expect_err("a stream past the limit");
+    assert!(error.to_string().contains("unpacks to more than"), "{error}");
 }

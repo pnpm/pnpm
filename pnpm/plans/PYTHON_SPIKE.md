@@ -104,10 +104,11 @@ offline install installs none; both report the project instead. `downloadUrl`
 names a mirror of the releases.
 
 A `.python-version` pin is met by installing the version it names. Where the
-release publishes no such version for this machine, pnpm warns and goes on:
-with an interpreter the machine has that the project's `requires-python`
-accepts, or, where it has none, by installing the newest version the release
-does publish that `requires-python` accepts.
+release publishes no such version for this machine, or the project's own
+`requires-python` refuses it, pnpm says which of the two it is and goes on:
+with an interpreter the machine has that `requires-python` accepts, or, where
+it has none, by installing the newest version the release does publish that
+`requires-python` accepts.
 
 [python-build-standalone]: https://github.com/astral-sh/python-build-standalone
 
