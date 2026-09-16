@@ -473,8 +473,8 @@ jobs:
             ~/.rustup/update-hashes/nightly-*
           key: rustfmt-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('pnpm/scripts/rustfmt.json') }}
 
-      - name: Test formatter installation and invocation
-        run: node --test pnpm/scripts/rustfmt.test.mjs
+      - name: Test the Rust helper scripts
+        run: node --test pnpm/scripts/*.test.mjs
 
       - name: Check Rust and TOML formatting
         run: pnpm pipeline rust-format --include-workspace-root --full --no-cache
