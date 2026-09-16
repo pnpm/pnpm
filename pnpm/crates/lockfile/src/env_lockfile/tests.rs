@@ -286,14 +286,16 @@ fn read_merges_a_conflicted_env_document() {
     assert_eq!(config_deps["theirs-config"].version, "2.0.0");
 }
 
+/// Only the env document is conflicted here, so the main document parses
+/// as it stands and the loader's recovery never runs on it. The merge has
+/// to come from the writer, which would otherwise copy the markers into
+/// the file it is writing to repair.
 #[test]
 fn saving_the_main_lockfile_merges_a_conflicted_env_document() {
     let dir = TempDir::new().unwrap();
     let path = dir.path().join(Lockfile::FILE_NAME);
     std::fs::write(&path, conflicted_env_lockfile()).unwrap();
 
-    // The install path: read the main document, which parses as it
-    // stands, then write it back.
     let main = Lockfile::load_wanted_from_dir(dir.path()).unwrap().expect("main lockfile loads");
     main.save_to_path(&path).unwrap();
 
@@ -353,10 +355,9 @@ fn a_conflict_spanning_the_separator_recovers_the_main_document() {
     assert!(written.contains("is-odd"), "the merged graph must survive");
 }
 
-/// The env document's markers are not taken at face value: a conflict
-/// that cannot be merged is one the writer copies back unchanged, so
-/// counting it would have the install report a merge that never happened
-/// and then finish with the markers still on disk.
+/// The env document's markers are not taken at face value: counting a
+/// conflict the merge cannot resolve would have the install report a
+/// merge that never happened.
 #[test]
 fn an_unmergeable_env_document_is_not_reported_as_merged() {
     let unterminated = text_block_fnl! {

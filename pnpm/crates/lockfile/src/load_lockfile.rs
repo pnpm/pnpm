@@ -91,12 +91,11 @@ fn read_lockfile_text(file_path: &Path) -> Result<Option<String>, LoadLockfileEr
 /// Whether the combined lockfile's leading env document was left
 /// conflicted by Git *and* merges cleanly.
 ///
-/// The merge has to be attempted, not guessed at from the markers: a
-/// document whose conflict is malformed, or whose sides do not parse,
-/// is one the lockfile writer will copy back unchanged, and counting it
-/// would have the install report a merge that never happened. A marker
-/// inside a YAML comment or scalar is ruled out the same way, by the
-/// document parsing as it stands.
+/// The merge has to be attempted, not guessed at from the markers:
+/// counting a conflict the merge cannot resolve would have the install
+/// report a merge that never happened. A marker inside a YAML comment or
+/// scalar is ruled out the same way, by the document parsing as it
+/// stands.
 ///
 /// The substring test only skips that work for the documents that
 /// plainly carry no marker, which is all of them but the conflicted few.

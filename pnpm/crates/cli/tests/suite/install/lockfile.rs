@@ -729,9 +729,9 @@ fn frozen_lockfile_setting_drives_the_headless_install() {
     drop((root, mock_instance));
 }
 
-/// `add`, `remove` and `update` pass the loaded lockfile on to their
-/// install as an already-loaded document, which leaves the install with
-/// no loader to ask about the merge. They report it at the load instead.
+/// `add`, `remove` and `update` pass their install the loader rather
+/// than the document it loaded, so the install reports the merge from
+/// its own load the way a plain install does.
 #[test]
 fn add_over_a_conflicted_lockfile_reports_the_merge() {
     let CommandTempCwd { root, workspace, npmrc_info, .. } =

@@ -408,8 +408,7 @@ fn ignore_pnpmfile_skips_a_config_dependency_plugin_pnpmfile() {
 
 /// Two branches that each added a config dependency conflict inside the
 /// env document — the *first* YAML document of `pnpm-lock.yaml` — where
-/// the main lockfile's own conflict recovery never looks. The install
-/// must merge it, not fail on it, and must not leave the markers behind.
+/// the main lockfile's own conflict recovery never looks.
 #[test]
 fn install_merges_a_conflicted_env_document() {
     let CommandTempCwd { root, workspace, npmrc_info, .. } =
