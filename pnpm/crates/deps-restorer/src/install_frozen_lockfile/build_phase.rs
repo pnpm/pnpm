@@ -246,6 +246,7 @@ fn build_modules<'a>(
             patches,
             requires_build_by_snapshot: Some(inputs.cache.requires_build_by_snapshot),
             importers: inputs.graph.importers,
+            dependency_groups: Some(inputs.graph.dependency_groups),
         },
         scripts: crate::BuildScriptOptions::from_config(config, inputs.extra_env),
 

@@ -197,6 +197,7 @@ fn frozen_backstop_run(
             patches: Some(&patches),
             requires_build_by_snapshot: None,
             importers: &importers,
+            dependency_groups: None,
         },
         scripts: crate::BuildScriptOptions {
             extra_env: &HashMap::new(),

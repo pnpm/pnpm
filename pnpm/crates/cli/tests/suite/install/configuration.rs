@@ -55,6 +55,95 @@ fn prod_takes_an_explicit_boolean_value() {
     drop((root, mock_instance));
 }
 
+/// An explicitly allowed dev-only dependency must not execute its
+/// lifecycle scripts during a production install (pnpm/pnpm#14864).
+#[test]
+fn prod_install_does_not_run_dev_dependency_postinstall() {
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    // The script's cwd is the package's materialized virtual-store
+    // directory, which a production install is free to leave out entirely.
+    // Writing the marker under `INIT_CWD` puts it at a path that exists
+    // either way, so the assertion below cannot pass just because the
+    // package was never materialized.
+    let dev_pkg = workspace.join("dev-tool");
+    fs::create_dir(&dev_pkg).expect("create the dev dependency directory");
+    fs::write(
+        dev_pkg.join("package.json"),
+        serde_json::json!({
+            "name": "dev-tool",
+            "version": "1.0.0",
+            "scripts": {
+                "postinstall":
+                    r#"node -e "require('fs').writeFileSync(process.env.INIT_CWD + '/dev-postinstall-ran', '')""#,
+            },
+        })
+        .to_string(),
+    )
+    .expect("write the dev dependency manifest");
+
+    fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({
+            "name": "project",
+            "version": "1.0.0",
+            "dependencies": {
+                "@pnpm.e2e/install-script-example": "1.0.0",
+            },
+            "devDependencies": {
+                "dev-tool": "file:./dev-tool",
+            },
+        })
+        .to_string(),
+    )
+    .expect("write package.json");
+
+    // Appended, not written: the harness already pinned `storeDir`,
+    // `cacheDir`, and `enableGlobalVirtualStore` in this file.
+    let workspace_yaml = workspace.join("pnpm-workspace.yaml");
+    let mut yaml = fs::read_to_string(&workspace_yaml).expect("read pnpm-workspace.yaml");
+    yaml.push_str(
+        "allowBuilds:\n  \
+         'dev-tool@file:dev-tool': true\n  \
+         '@pnpm.e2e/install-script-example': true\n",
+    );
+    fs::write(&workspace_yaml, yaml).expect("write pnpm-workspace.yaml");
+
+    pacquet
+        .with_args(["install", "--lockfile-only", "--ignore-scripts"])
+        .assert()
+        .success();
+    pacquet_in(&workspace)
+        .with_args(["install", "--prod", "--frozen-lockfile"])
+        .assert()
+        .success();
+
+    assert!(
+        !workspace.join("dev-postinstall-ran").exists(),
+        "a dev-only package must not run its postinstall during install --prod",
+    );
+    // Without this, the assertion above would also hold for an install
+    // that ran no script at all.
+    assert!(
+        workspace
+            .join(
+                "node_modules/.pnpm/@pnpm.e2e+install-script-example@1.0.0\
+                 /node_modules/@pnpm.e2e/install-script-example/generated-by-install.js",
+            )
+            .exists(),
+        "the prod dependency must run its install script",
+    );
+
+    drop((root, mock_instance));
+}
+
 #[test]
 fn no_optional_excludes_transitive_optional_dependencies() {
     let CommandTempCwd {
