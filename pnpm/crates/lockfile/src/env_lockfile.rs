@@ -115,8 +115,7 @@ impl EnvLockfile {
     ///
     /// Two branches that each added a config dependency conflict inside
     /// this document, where the main lockfile's own recovery never looks,
-    /// so the same merge runs here. [`Self::parse_document`] is the
-    /// parse it recovers.
+    /// so the same merge runs here.
     pub fn read(root_dir: &Path) -> Result<Option<Self>, LoadLockfileError> {
         let path = root_dir.join(Lockfile::FILE_NAME);
         let Some(env_doc) = read_env_document(&path).map_err(LoadLockfileError::ReadFile)? else {

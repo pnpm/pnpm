@@ -114,7 +114,7 @@ pub fn save_value_to_path<Document: serde::Serialize>(
 /// replace a conflicted one, and leave the next `EnvLockfile::read`
 /// failing on a lockfile that looks repaired. Merge the two sides
 /// instead. A document that cannot be merged is still copied: a write of
-/// the main document is not where an unparseable env document should
+/// the main document is not where an unparsable env document should
 /// surface.
 fn preserved_env_document<'a>(env: &'a str, path: &Path) -> Cow<'a, str> {
     if !env.contains(MERGE_CONFLICT_OURS) {
