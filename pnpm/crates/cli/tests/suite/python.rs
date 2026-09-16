@@ -1121,8 +1121,6 @@ async fn installs_the_package_of_a_src_layout_project_and_none_for_a_virtual_one
         .failure();
 }
 
-/// A version only the build backend knows is the version the environment
-/// records, because the backend is what pnpm runs.
 #[tokio::test]
 async fn a_dynamic_version_comes_from_the_backend() {
     let root = tempfile::tempdir().unwrap();
@@ -2136,6 +2134,35 @@ async fn a_build_requirement_a_marker_excludes_is_not_refused() {
         .assert()
         .success()
         .stdout(if cfg!(windows) { "built\r\n" } else { "built\n" });
+}
+
+/// PEP 517's defaults are requirements the build runs like any other, so
+/// a workspace that declares one of those names is as ambiguous.
+#[tokio::test]
+async fn a_default_build_requirement_naming_a_workspace_project_is_refused() {
+    let root = tempfile::tempdir().unwrap();
+    let mut server = mockito::Server::new_async().await;
+    let _backends = serve_backends(&mut server).await;
+    project(root.path(), &server.url(), &[]);
+    python_project(&root.path().join("packages/setuptools"), "setuptools", "dependencies = []");
+    fs::create_dir_all(root.path().join("packages/legacy")).unwrap();
+    fs::write(
+        root.path().join("packages/legacy/pyproject.toml"),
+        "[project]\nname = 'legacy'\nversion = '1.0'\nrequires-python = '>=3.10'\n\
+         dependencies = []\n",
+    )
+    .unwrap();
+    fs::write(
+        root.path().join("pyproject.toml"),
+        "[project]\nname = 'app'\nversion = '1.0'\nrequires-python = '>=3.10'\n\
+         dependencies = ['legacy']\n\n[tool.uv.sources]\nlegacy = { workspace = true }\n",
+    )
+    .unwrap();
+
+    assert_failure_contains(
+        pacquet_in(root.path()).arg("install"),
+        "which is a project in its workspace",
+    );
 }
 
 #[tokio::test]

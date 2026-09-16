@@ -146,9 +146,6 @@ impl PythonPrepare<'_> {
         Ok(())
     }
 
-    /// What the project's backend needs installed to run here. A
-    /// requirement a marker excludes is not installed and does not run,
-    /// so it is not one this target builds with.
     /// What the project declares it needs to build, with PEP 517's
     /// defaults where it names no backend.
     fn build_requirements(
@@ -156,23 +153,21 @@ impl PythonPrepare<'_> {
         root: &Path,
         manifest: &Manifest,
     ) -> Result<Vec<pep508_rs::Requirement>> {
-        let declared = manifest.build_system
-            .as_ref()
-            .map(|system| system.requires.clone())
+        let system = manifest.build_system.as_ref();
+        let mut requires = system
+            .map(|system| {
+                system.requires
+                    .iter()
+                    .map(String::as_str)
+                    .collect::<Vec<_>>()
+            })
             .unwrap_or_default();
-        let mut requires = self.usable_build_requirements(root, declared.iter())?;
         // PEP 517 has a project that names no backend built by setuptools'
         // legacy one, whether or not it thought to require it.
-        if manifest.build_system
-            .as_ref()
-            .and_then(|system| system.build_backend.as_ref())
-            .is_none()
-        {
-            for requirement in DEFAULT_REQUIRES {
-                requires.push(parse_requirement(requirement)?);
-            }
+        if system.and_then(|system| system.build_backend.as_ref()).is_none() {
+            requires.extend(DEFAULT_REQUIRES.iter().copied());
         }
-        Ok(requires)
+        self.usable_build_requirements(root, requires)
     }
 
     /// A build requirement read the same way wherever it was written: one
@@ -182,7 +177,7 @@ impl PythonPrepare<'_> {
     fn usable_build_requirements<'a>(
         &self,
         root: &Path,
-        requires: impl IntoIterator<Item = &'a String>,
+        requires: impl IntoIterator<Item = &'a str>,
     ) -> Result<Vec<pep508_rs::Requirement>> {
         let environment = &self.interpreter.target.environment;
         let members = self.members.get(root);
@@ -225,7 +220,7 @@ impl PythonPrepare<'_> {
         if extra.is_empty() {
             return Ok(BuildEnvironment::Ready(declared));
         }
-        let asked = self.usable_build_requirements(root, extra.iter())?;
+        let asked = self.usable_build_requirements(root, extra.iter().map(String::as_str))?;
         if asked.is_empty() {
             return Ok(BuildEnvironment::Ready(declared));
         }
