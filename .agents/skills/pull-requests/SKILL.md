@@ -88,6 +88,24 @@ scheduled sweep cancels approval-held workflows after 30 minutes
 (`.github/workflows/cancel-unapproved-workflows.yml`). That is not a test
 failure, and the run has to be approved and restarted.
 
+## Conflicts appear while you wait
+
+A PR that merged cleanly when you opened it stops merging cleanly as soon as
+something landing on `main` touches the same lines. Nothing announces this, so
+check it each time round the loop: `gh pr view <pr> --json mergeable,mergeStateStatus`.
+`CONFLICTING` means rebase; `UNKNOWN` means GitHub has not computed it yet, which
+is what you see right after a push, so ask again rather than reading it as a
+verdict. `BLOCKED` is about required checks and reviews, not conflicts.
+
+Rebase with `./shell/resolve-pr-conflicts.sh <pr>` (documented under "Resolving
+Conflicts in GitHub PRs" in `AGENTS.md`); it resolves a `pnpm-lock.yaml` conflict
+by reinstalling and stops with the file list when a conflict needs you.
+
+Rebasing force-pushes, and every reviewer starts over on the new commits, so the
+round in flight is lost. Fold the rebase into the push that carries your fixes
+when you can, and re-read the diff after it: a conflict resolved wrongly is a
+real bug that arrives with no review comment attached to it.
+
 ## Each round's findings land on the previous round's fixes
 
 Rounds do not reliably converge. The code a round comments on is mostly the code
