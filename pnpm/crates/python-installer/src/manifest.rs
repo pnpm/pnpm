@@ -43,12 +43,38 @@ pub(super) struct Project {
     pub(super) requires_python: Option<String>,
     #[serde(default)]
     optional_dependencies: BTreeMap<String, Vec<String>>,
+    #[serde(flatten)]
+    entry_points: EntryPoints,
+}
+
+/// What the project declares of the interfaces it exposes: the two
+/// script tables an install also puts on the PATH, and the
+/// `[project.entry-points]` groups other tools discover the project by.
+#[derive(Deserialize)]
+#[serde(rename_all = "kebab-case")]
+struct EntryPoints {
     #[serde(default)]
     scripts: BTreeMap<String, String>,
     #[serde(default)]
     gui_scripts: BTreeMap<String, String>,
-    #[serde(default)]
-    entry_points: BTreeMap<String, BTreeMap<String, String>>,
+    #[serde(default, rename = "entry-points")]
+    groups: BTreeMap<String, BTreeMap<String, String>>,
+}
+
+impl EntryPoints {
+    /// Every group an installed distribution records in
+    /// `entry_points.txt`, under the names that format gives them.
+    fn all(&self) -> BTreeMap<String, BTreeMap<String, String>> {
+        let mut groups = self.groups.clone();
+        for (group, entries) in
+            [("console_scripts", &self.scripts), ("gui_scripts", &self.gui_scripts)]
+        {
+            if !entries.is_empty() {
+                groups.insert(group.to_string(), entries.clone());
+            }
+        }
+        groups
+    }
 }
 
 /// The `[tool]` tables pnpm reads: whether the project declares a package
@@ -279,14 +305,6 @@ impl Manifest {
             .parse()
             .into_diagnostic()
             .wrap_err("read the Python project version")?;
-        let mut entry_points = project.entry_points.clone();
-        for (group, entries) in
-            [("console_scripts", &project.scripts), ("gui_scripts", &project.gui_scripts)]
-        {
-            if !entries.is_empty() {
-                entry_points.insert(group.to_string(), entries.clone());
-            }
-        }
         Ok(ProjectPackage::Installable(Box::new(OwnPackage {
             dist_info: format!(
                 "{}-{}.dist-info",
@@ -297,7 +315,7 @@ impl Manifest {
             paths: self.source_paths(root),
             directory: root.to_path_buf(),
             metadata: project.core_metadata(&name, &version)?,
-            entry_points,
+            entry_points: project.entry_points.all(),
         })))
     }
 

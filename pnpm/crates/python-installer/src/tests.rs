@@ -201,7 +201,7 @@ fn own_package(root: &Path, contents: &str) -> serde_json::Value {
 
 fn packaged(body: &str) -> String {
     format!(
-        "[project]\nname = 'My.App'\nversion = '1.0+Local.1'\n{body}\n[build-system]\nrequires = ['hatchling']\n"
+        "[project]\nname = 'My.App'\nversion = '1.0+Local.1'\n{body}\n[build-system]\nrequires = ['hatchling']\n",
     )
 }
 
@@ -221,7 +221,7 @@ fn the_projects_own_package_is_named_and_described_as_an_installed_distribution_
         package["directory"],
         root.path()
             .to_str()
-            .expect("a printable path")
+            .expect("a printable path"),
     );
     assert_eq!(
         package["metadata"],
