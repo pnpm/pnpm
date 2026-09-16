@@ -108,6 +108,7 @@ export interface ImporterToResolve extends Importer<{
    * Built per project by `@pnpm/hooks.read-package-hook`.
    */
   isOverriddenDependency?: (alias: string, bareSpecifier: string) => boolean
+  hookOwnedAliases?: Set<string>
   update?: boolean
   updateMatching?: UpdateMatchingFunction
   updatePackageManifest: boolean

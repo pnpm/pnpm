@@ -1067,7 +1067,9 @@ async function resolveDependenciesOfDependency (
     ? extendedWantedDep.wantedDependency.updateDepth
     : options.updateDepth
   const updateShouldContinue = options.currentDepth <= updateDepth
+  const updateAllowed = extendedWantedDep.wantedDependency.updateAllowed !== false
   const updateRequested =
+    updateAllowed &&
     updateShouldContinue &&
     (
       (options.updateMatching == null) ||
@@ -1080,7 +1082,7 @@ async function resolveDependenciesOfDependency (
         // updated. Fall back to matching by the wanted dependency itself.
         : wantedDependencyMatchesUpdateTarget(ctx, options.updateMatching, extendedWantedDep.wantedDependency))
     )
-  const update = updateRequested ||
+  const update = updateAllowed && (updateRequested ||
   (
     (extendedWantedDep.infoFromLockfile?.dependencyLockfile) == null
   ) || Boolean(
@@ -1091,7 +1093,7 @@ async function resolveDependenciesOfDependency (
       extendedWantedDep.wantedDependency,
       { defaultTag: ctx.defaultTag, registry: ctx.registriesByScope.default }
     )
-  ) || ctx.updatedSet.has(extendedWantedDep.infoFromLockfile.name!)
+  ) || ctx.updatedSet.has(extendedWantedDep.infoFromLockfile.name!))
 
   const resolveDependencyOpts: ResolveDependencyOptions = {
     currentDepth: options.currentDepth,
@@ -1102,10 +1104,10 @@ async function resolveDependenciesOfDependency (
     preferredVersion: extendedWantedDep.preferredVersion,
     pickLowestVersion: options.pickLowestVersion,
     prefix: options.prefix,
-    proceed: extendedWantedDep.proceed || updateShouldContinue || ctx.updatedSet.size > 0,
+    proceed: extendedWantedDep.proceed || (updateAllowed && (updateShouldContinue || ctx.updatedSet.size > 0)),
     publishedBy: options.publishedBy,
     update: update ? options.updateToLatest ? 'latest' : 'compatible' : false,
-    updatePatches: options.updatePatches,
+    updatePatches: updateAllowed ? options.updatePatches : false,
     updateChecksums: ctx.updateChecksums,
     updateDepth,
     updateRequested,

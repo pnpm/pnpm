@@ -14,6 +14,8 @@ export interface WantedDependency {
   dev: boolean
   optional: boolean
   saveCatalogName?: string
+  saveSpec?: boolean
+  updateAllowed?: boolean
   updateSpec?: boolean
   prevSpecifier?: string
 }

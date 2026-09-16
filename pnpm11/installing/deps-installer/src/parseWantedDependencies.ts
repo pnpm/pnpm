@@ -45,6 +45,7 @@ export function parseWantedDependencies (
      * the declared one — the lockfile importer entry has to keep satisfying its own specifier.
      */
     readonlyManifest?: boolean
+    readonlyAliases?: Set<string>
   }
 ): ParsedWantedDependencies {
   const wantedDeps = rawWantedDependencies
@@ -98,7 +99,7 @@ export function parseWantedDependencies (
     })
     .filter((wd) => wd !== null) as WantedDependency[]
 
-  if (!opts.readonlyManifest) {
+  if (!opts.readonlyManifest && opts.readonlyAliases == null) {
     return { wantedDependencies: wantedDeps, outsideKeptRange: [], supersededByKeptRange: [] }
   }
   const wantedDependencies: WantedDependency[] = []
@@ -106,6 +107,19 @@ export function parseWantedDependencies (
   const supersededByKeptRange: KeptRangeConflict[] = []
   for (const wantedDep of wantedDeps) {
     const { alias, bareSpecifier, prevSpecifier } = wantedDep
+    if (opts.readonlyAliases?.has(alias)) {
+      if (!prevSpecifier || bareSpecifier === prevSpecifier) {
+        wantedDependencies.push(wantedDep)
+      } else {
+        supersededByKeptRange.push({ alias, requested: bareSpecifier, kept: prevSpecifier })
+        wantedDependencies.push({ ...wantedDep, bareSpecifier: prevSpecifier })
+      }
+      continue
+    }
+    if (!opts.readonlyManifest) {
+      wantedDependencies.push(wantedDep)
+      continue
+    }
     if (!prevSpecifier || bareSpecifier === prevSpecifier) {
       wantedDependencies.push(wantedDep)
     } else if (semver.valid(bareSpecifier) != null && semver.validRange(prevSpecifier) != null) {

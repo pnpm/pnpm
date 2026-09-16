@@ -24,8 +24,10 @@ export async function updateProjectManifest (
   const declaredSpecifiers = new Map<string, string>()
   for (const rdd of opts.directDependencies) {
     const wantedDep = rdd.wantedDependency
-    if (wantedDep?.updateSpec !== true) continue
-    const declaredSpecifier = getDeclaredSpecifierOwnedByHook(importer, rdd)
+    if (wantedDep?.updateSpec !== true || wantedDep.saveSpec === false) continue
+    const declaredSpecifier = wantedDep.saveSpec === true
+      ? undefined
+      : getDeclaredSpecifierOwnedByHook(importer, rdd)
     if (declaredSpecifier != null) {
       declaredSpecifiers.set(rdd.alias, declaredSpecifier)
     }
@@ -48,7 +50,7 @@ export async function updateProjectManifest (
   // specifier, so it keeps its existing version under the importer's target
   // field (which is unset for a plain install/update, making this a no-op).
   for (const pkgToInstall of importer.wantedDependencies) {
-    if (pkgToInstall.updateSpec && pkgToInstall.alias && !specsToUpsert.some(({ alias }) => alias === pkgToInstall.alias)) {
+    if (pkgToInstall.updateSpec && pkgToInstall.saveSpec !== false && pkgToInstall.alias && !specsToUpsert.some(({ alias }) => alias === pkgToInstall.alias)) {
       const spec = {
         alias: pkgToInstall.alias,
         peer: importer.peer,

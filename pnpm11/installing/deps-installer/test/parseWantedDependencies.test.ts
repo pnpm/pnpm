@@ -107,3 +107,42 @@ test('the kept range is not enforced when the manifest is rewritten', () => {
   expect(wantedDependencies[0].bareSpecifier).toBe('7.8.5')
   expect(outsideKeptRange).toStrictEqual([])
 })
+
+test('readonly aliases use their hook-provided specifiers', () => {
+  const { wantedDependencies, outsideKeptRange, supersededByKeptRange } = parseWantedDependencies([
+    'hook-owned@2.0.0',
+    'declared@2.0.0',
+  ], {
+    ...defaults,
+    currentBareSpecifiers: {
+      'hook-owned': '^1.0.0',
+      declared: '^1.0.0',
+    },
+    readonlyAliases: new Set(['hook-owned']),
+  })
+
+  expect(wantedDependencies).toStrictEqual([
+    {
+      alias: 'hook-owned',
+      bareSpecifier: '^1.0.0',
+      dev: false,
+      optional: false,
+      prevSpecifier: '^1.0.0',
+      saveCatalogName: undefined,
+    },
+    {
+      alias: 'declared',
+      bareSpecifier: '2.0.0',
+      dev: false,
+      optional: false,
+      prevSpecifier: '^1.0.0',
+      saveCatalogName: undefined,
+    },
+  ])
+  expect(outsideKeptRange).toStrictEqual([])
+  expect(supersededByKeptRange).toStrictEqual([{
+    alias: 'hook-owned',
+    requested: '2.0.0',
+    kept: '^1.0.0',
+  }])
+})

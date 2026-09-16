@@ -4,4 +4,4 @@
 "pnpm": patch
 ---
 
-`pnpm audit --fix=update` no longer writes hook-injected dependencies to `package.json` or rewrites their hook-provided lockfile specifiers [#14928](https://github.com/pnpm/pnpm/issues/14928).
+`pnpm update` and `pnpm audit --fix=update` now leave dependency specifications and resolved versions unchanged when they are owned by `packageExtensions`, `readPackage` hooks, or overrides [#14928](https://github.com/pnpm/pnpm/issues/14928).

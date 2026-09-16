@@ -216,7 +216,7 @@ test('vulnerability updates do not widen pinned dependencies added by packageExt
   })
 })
 
-test('vulnerability updates can update ranged dependencies added by packageExtensions', async () => {
+test('vulnerability updates do not update ranged dependencies added by packageExtensions', async () => {
   const vulnerablePackage = '@pnpm.e2e/pkg-with-1-dep'
   const packageExtensions = {
     'project@*': {
@@ -247,6 +247,58 @@ test('vulnerability updates can update ranged dependencies added by packageExten
   expect(loadJsonFileSync<ProjectManifest>('package.json').dependencies).toBeUndefined()
   expect(project.readLockfile().importers['.'].dependencies?.[vulnerablePackage]).toStrictEqual({
     specifier: '^100.0.0',
+    version: '100.0.0',
+  })
+
+  await install.handler({
+    ...DEFAULT_OPTS,
+    dir: process.cwd(),
+    frozenLockfile: true,
+    packageExtensions,
+  })
+})
+
+test('update --latest stays within exact versions added by packageExtensions', async () => {
+  await addDistTag({ package: '@pnpm.e2e/bar', version: '100.0.0', distTag: 'latest' })
+  const packageExtensions = {
+    'project@*': {
+      dependencies: {
+        '@pnpm.e2e/foo': '1.0.0',
+      },
+    },
+  }
+  const project = prepare({
+    name: 'project',
+    version: '1.0.0',
+    dependencies: {
+      '@pnpm.e2e/bar': '^100.0.0',
+    },
+  })
+
+  await install.handler({
+    ...DEFAULT_OPTS,
+    dir: process.cwd(),
+    packageExtensions,
+  })
+
+  await addDistTag({ package: '@pnpm.e2e/bar', version: '100.1.0', distTag: 'latest' })
+
+  await update.handler({
+    ...DEFAULT_OPTS,
+    dir: process.cwd(),
+    latest: true,
+    packageExtensions,
+  })
+
+  expect(loadJsonFileSync<ProjectManifest>('package.json').dependencies).toStrictEqual({
+    '@pnpm.e2e/bar': '^100.1.0',
+  })
+  expect(project.readLockfile().importers['.'].dependencies?.['@pnpm.e2e/foo']).toStrictEqual({
+    specifier: '1.0.0',
+    version: '1.0.0',
+  })
+  expect(project.readLockfile().importers['.'].dependencies?.['@pnpm.e2e/bar']).toStrictEqual({
+    specifier: '^100.1.0',
     version: '100.1.0',
   })
 
@@ -255,6 +307,48 @@ test('vulnerability updates can update ranged dependencies added by packageExten
     dir: process.cwd(),
     frozenLockfile: true,
     packageExtensions,
+  })
+})
+
+test('update --latest preserves override-owned dependency resolutions', async () => {
+  await addDistTag({ package: '@pnpm.e2e/foo', version: '1.0.0', distTag: 'latest' })
+  const overrides = {
+    '@pnpm.e2e/foo': '1.0.0',
+  }
+  const project = prepare({
+    dependencies: {
+      '@pnpm.e2e/foo': '^1.0.0',
+    },
+  })
+
+  await install.handler({
+    ...DEFAULT_OPTS,
+    dir: process.cwd(),
+    overrides,
+  })
+
+  await addDistTag({ package: '@pnpm.e2e/foo', version: '2.0.0', distTag: 'latest' })
+
+  await update.handler({
+    ...DEFAULT_OPTS,
+    dir: process.cwd(),
+    latest: true,
+    overrides,
+  })
+
+  expect(loadJsonFileSync<ProjectManifest>('package.json').dependencies).toStrictEqual({
+    '@pnpm.e2e/foo': '^1.0.0',
+  })
+  expect(project.readLockfile().importers['.'].dependencies?.['@pnpm.e2e/foo']).toStrictEqual({
+    specifier: '1.0.0',
+    version: '1.0.0',
+  })
+
+  await install.handler({
+    ...DEFAULT_OPTS,
+    dir: process.cwd(),
+    frozenLockfile: true,
+    overrides,
   })
 })
 

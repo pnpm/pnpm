@@ -135,7 +135,119 @@ test('update does not save a dependency added by a readPackage hook', async () =
     name: 'project',
     version: '1.0.0',
   })
-  expect(project.readLockfile().packages['@pnpm.e2e/foo@2.0.0']).toBeDefined()
+  expect(project.readLockfile().packages['@pnpm.e2e/foo@1.0.0']).toBeDefined()
+  expect(project.readLockfile().packages['@pnpm.e2e/foo@2.0.0']).toBeUndefined()
+})
+
+test('update --latest stays within a dependency range rewritten by a readPackage hook', async () => {
+  const project = prepareEmpty()
+  const manifest = {
+    name: 'project',
+    version: '1.0.0',
+    dependencies: {
+      '@pnpm.e2e/foo': '^1.0.0',
+    },
+  }
+  const readPackage: ReadPackageHook = (hookedManifest) => ({
+    ...hookedManifest,
+    dependencies: {
+      ...hookedManifest.dependencies,
+      '@pnpm.e2e/foo': '1.0.0',
+    },
+  })
+  const options = testDefaults({
+    hooks: {
+      readPackage: [readPackage],
+    },
+  })
+
+  await install(manifest, options)
+
+  const { updatedProject } = await mutateModulesInSingleProject({
+    allowNew: false,
+    dependencySelectors: ['@pnpm.e2e/foo'],
+    manifest,
+    mutation: 'installSome',
+    rootDir: process.cwd() as ProjectRootDir,
+    update: true,
+    updatePackageManifest: true,
+    updateToLatest: true,
+  }, options)
+
+  expect(updatedProject.manifest).toStrictEqual(manifest)
+  expect(project.readLockfile().importers['.'].dependencies?.['@pnpm.e2e/foo']).toStrictEqual({
+    specifier: '1.0.0',
+    version: '1.0.0',
+  })
+})
+
+test('update selectors do not move dependencies added by a readPackage hook', async () => {
+  const project = prepareEmpty()
+  const manifest = {
+    name: 'project',
+    version: '1.0.0',
+  }
+  const readPackage: ReadPackageHook = (hookedManifest) => ({
+    ...hookedManifest,
+    dependencies: {
+      ...hookedManifest.dependencies,
+      '@pnpm.e2e/foo': '^1.0.0',
+    },
+  })
+  const options = testDefaults({
+    hooks: {
+      readPackage: [readPackage],
+    },
+  })
+
+  await install(manifest, options)
+
+  const { updatedProject } = await mutateModulesInSingleProject({
+    allowNew: false,
+    dependencySelectors: ['@pnpm.e2e/foo@1.0.1'],
+    manifest,
+    mutation: 'installSome',
+    rootDir: process.cwd() as ProjectRootDir,
+    update: true,
+    updatePackageManifest: true,
+  }, options)
+
+  expect(updatedProject.manifest).toStrictEqual(manifest)
+  expect(project.readLockfile().packages['@pnpm.e2e/foo@1.0.0']).toBeDefined()
+  expect(project.readLockfile().packages['@pnpm.e2e/foo@1.0.1']).toBeUndefined()
+})
+
+test('add saves a dependency when the requested specifier matches a readPackage rewrite', async () => {
+  prepareEmpty()
+  const manifest = {
+    name: 'project',
+    version: '1.0.0',
+    dependencies: {
+      '@pnpm.e2e/foo': '^1.0.0',
+    },
+  }
+  const readPackage: ReadPackageHook = (hookedManifest) => ({
+    ...hookedManifest,
+    dependencies: {
+      ...hookedManifest.dependencies,
+      '@pnpm.e2e/foo': '1.0.0',
+    },
+  })
+
+  const { updatedProject } = await mutateModulesInSingleProject({
+    allowNew: true,
+    dependencySelectors: ['@pnpm.e2e/foo@1.0.0'],
+    manifest,
+    mutation: 'installSome',
+    rootDir: process.cwd() as ProjectRootDir,
+    updatePackageManifest: true,
+  }, testDefaults({
+    hooks: {
+      readPackage: [readPackage],
+    },
+  }))
+
+  expect(updatedProject.manifest.dependencies?.['@pnpm.e2e/foo']).toBe('1.0.0')
 })
 
 test('update does not save a dependency added by packageExtensions', async () => {
@@ -168,7 +280,8 @@ test('update does not save a dependency added by packageExtensions', async () =>
     name: 'project',
     version: '1.0.0',
   })
-  expect(project.readLockfile().packages['@pnpm.e2e/foo@2.0.0']).toBeDefined()
+  expect(project.readLockfile().packages['@pnpm.e2e/foo@1.0.0']).toBeDefined()
+  expect(project.readLockfile().packages['@pnpm.e2e/foo@2.0.0']).toBeUndefined()
 })
 
 test('packageExtensionsChecksum does not change regardless of keys order', async () => {

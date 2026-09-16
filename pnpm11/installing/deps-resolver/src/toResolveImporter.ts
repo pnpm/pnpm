@@ -47,6 +47,13 @@ export async function toResolveImporter (
   const defaultUpdateDepth = (project.update === true || (project.updateMatching != null)) ? opts.defaultUpdateDepth : -1
   const existingDeps = nonLinkedDependencies
     .filter(({ alias }) => !project.wantedDependencies.some((wantedDep) => wantedDep.alias === alias))
+    .map((dependency) => project.hookOwnedAliases?.has(dependency.alias)
+      ? {
+        ...dependency,
+        saveSpec: false,
+        updateAllowed: false,
+      }
+      : dependency)
   if (opts.updateToLatest && opts.noDependencySelectors) {
     for (const dep of existingDeps) {
       dep.updateSpec = true
@@ -67,9 +74,11 @@ export async function toResolveImporter (
     // so their update depth should be at least 0
     const updateLocalTarballs = (dep: WantedDependency) => ({
       ...dep,
-      updateDepth: project.updateMatching != null
-        ? defaultUpdateDepth
-        : (prefIsLocalTarball(dep.bareSpecifier) ? 0 : defaultUpdateDepth),
+      updateDepth: dep.updateAllowed === false
+        ? -1
+        : project.updateMatching != null
+          ? defaultUpdateDepth
+          : (prefIsLocalTarball(dep.bareSpecifier) ? 0 : defaultUpdateDepth),
     })
     wantedDependencies = [
       ...project.wantedDependencies.map(
