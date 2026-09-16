@@ -1,8 +1,9 @@
 use super::Manifest;
 use crate::host::WheelMetadata;
 use miette::{IntoDiagnostic, Result, bail};
-use pnpm_config::Config;
+use pep508_rs::ExtraName;
 use pnpm_python_resolver::parse_requirement;
+use std::collections::BTreeSet;
 
 impl Manifest {
     pub(in super::super) fn needs_metadata(&self) -> bool {
@@ -92,9 +93,11 @@ impl Manifest {
         Ok(())
     }
 
-    pub(super) fn metadata_requirements(&self, config: &Config) -> Result<Vec<String>> {
+    pub(super) fn metadata_requirements(
+        &self,
+        selected: &BTreeSet<ExtraName>,
+    ) -> Result<Vec<String>> {
         let metadata = self.metadata.as_ref().expect("dynamic metadata was prepared");
-        let selected = self.selected_extras(config)?;
         let mut requirements = Vec::new();
         for requirement in &metadata.requires_dist {
             let mut requirement = parse_requirement(requirement)?;

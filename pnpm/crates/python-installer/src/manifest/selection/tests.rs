@@ -123,3 +123,46 @@ fn unknown_project_selection_settings_are_rejected() {
     eprintln!("{result}");
     assert!(result.contains("unknown field"));
 }
+
+#[test]
+fn explicit_selections_are_validated_before_install_projections() {
+    for selection in [
+        DependencySelection { production: true, development: false },
+        DependencySelection { production: false, development: true },
+    ] {
+        for (setting, error) in [
+            ("extras", "unknown Python project extra"),
+            ("groups", "unknown Python dependency group"),
+        ] {
+            let manifest = Manifest::parse(&format!(
+                "{PROJECT}\n[tool.pnpm.python]\n{setting} = ['missing']\n",
+            ))
+            .unwrap();
+            let result = manifest
+                .requirements(&Config::new(), selection)
+                .unwrap_err()
+                .to_string();
+            eprintln!("{result}");
+            assert!(result.contains(error));
+        }
+        for (included, error) in [
+            ("missing", "unknown Python dependency group"),
+            ("dev", "cyclic Python dependency group"),
+        ] {
+            let manifest = Manifest::parse(&format!(
+                "{}\n[tool.pnpm.python]\ngroups = ['dev']\n",
+                PROJECT.replace(
+                    "dev = ['pytest']",
+                    &format!("dev = [{{include-group = '{included}'}}]")
+                ),
+            ))
+            .unwrap();
+            let result = manifest
+                .requirements(&Config::new(), selection)
+                .unwrap_err()
+                .to_string();
+            eprintln!("{result}");
+            assert!(result.contains(error));
+        }
+    }
+}

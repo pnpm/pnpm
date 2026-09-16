@@ -29,13 +29,16 @@ impl Manifest {
         if self.metadata.is_none() {
             project.ensure_static_dependencies()?;
         }
+        let extras = self.selected_extras(config)?;
+        let mut groups = Vec::new();
+        self.expand_configured_groups(config, &mut groups)?;
         let mut requirements = if selection.production {
-            self.production_requirements(project, config)?
+            self.production_requirements(project, &extras)?
         } else {
             Vec::new()
         };
         if selection.development {
-            self.expand_configured_groups(config, &mut requirements)?;
+            requirements.extend(groups);
         }
         requirements
             .into_iter()
@@ -46,13 +49,12 @@ impl Manifest {
     fn production_requirements(
         &self,
         project: &super::Project,
-        config: &Config,
+        selected: &BTreeSet<ExtraName>,
     ) -> Result<Vec<String>> {
         if self.metadata.is_some() {
-            return self.metadata_requirements(config);
+            return self.metadata_requirements(selected);
         }
         let mut requirements = project.dependencies.clone();
-        let selected = self.selected_extras(config)?;
         for (extra, dependencies) in &project.optional_dependencies {
             let extra: ExtraName = extra.parse().into_diagnostic()?;
             if selected.contains(&extra) {
