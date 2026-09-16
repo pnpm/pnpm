@@ -50,17 +50,17 @@ impl Provider<'_> {
         requirement: &Requirement,
         extras: &[ExtraName],
     ) -> Vec<ExtraName> {
-        requirement.extras
+        let overrides = self.packages.overrides
             .iter()
-            .chain(
-                self.packages.overrides
-                    .iter()
-                    .filter(|replacement| {
-                        replacement.name == requirement.name
-                            && replacement.marker.evaluate(self.environment, extras)
-                    })
-                    .flat_map(|replacement| &replacement.extras),
-            )
+            .filter(|replacement| {
+                replacement.name == requirement.name
+                    && replacement.marker.evaluate(self.environment, extras)
+            });
+        if overrides.clone().next().is_none() {
+            return requirement.extras.clone();
+        }
+        overrides
+            .flat_map(|replacement| &replacement.extras)
             .cloned()
             .collect()
     }

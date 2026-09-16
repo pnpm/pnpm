@@ -1,6 +1,8 @@
 use super::{Inputs, Registry, environment::PythonPrepare, manifest};
 use base64::{Engine as _, engine::general_purpose::STANDARD};
-use miette::{IntoDiagnostic, Result};
+use derive_more::{Display, Error};
+use pnpm_diagnostics::miette::{Diagnostic, IntoDiagnostic, Result};
+use std::sync::Arc;
 
 /// The Python index a project resolves against. Credentials the
 /// configured URL carried are lifted into `auth`, so `url` never holds
@@ -15,34 +17,74 @@ pub(crate) struct Index {
 /// of the URL. A repository-selected Python index must not select
 /// user-level npm credentials.
 pub(super) fn python_index(config: &pnpm_config::Config) -> Result<Index> {
-    let mut auth = pnpm_network::AuthHeaders::default().with_secure_transport();
-    let mut urls = Vec::new();
-    for configured in
-        std::iter::once(&config.python.index_url).chain(&config.python.extra_index_urls)
-    {
-        let mut index: url::Url = configured.parse().into_diagnostic()?;
-        if !index.username().is_empty() || index.password().is_some() {
-            let username = pnpm_network::percent_decode_str(index.username());
-            let password = pnpm_network::percent_decode_str(index.password().unwrap_or(""));
-            index
-                .set_username("")
-                .map_err(|()| miette::miette!("invalid Python index URL"))?;
-            index
-                .set_password(None)
-                .map_err(|()| miette::miette!("invalid Python index URL"))?;
-            auth.insert_url_header(
-                index.as_str(),
-                format!("Basic {}", STANDARD.encode(format!("{username}:{password}"))),
-            );
-        }
-        pnpm_python_resolver::validate_url(&index)?;
-        if !index.path().ends_with('/') {
-            index.set_path(&format!("{}/", index.path()));
-        }
-        urls.push(index);
+    let indexes = std::iter::once(&config.python.index_url)
+        .chain(&config.python.extra_index_urls)
+        .map(|configured| parse_index(configured))
+        .collect::<Result<Vec<_>>>()?;
+    let url = indexes[0].url.clone();
+    let extra_urls = indexes
+        .iter()
+        .skip(1)
+        .map(|index| index.url.clone())
+        .collect();
+    let auth = pnpm_network::AuthHeaders::default()
+        .with_secure_transport()
+        .with_route_hook(Arc::new(IndexAuth { indexes }));
+    Ok(Index { url, extra_urls, auth })
+}
+
+impl Index {
+    pub(super) fn cache_key(&self, url: &url::Url) -> String {
+        let key = self.auth
+            .for_secure_url(url.as_str())
+            .map_or_else(|| url.to_string(), |header| format!("{url}\0{header}"));
+        pnpm_crypto_hash::create_hex_hash(&key)
     }
-    let url = urls.remove(0);
-    Ok(Index { url, extra_urls: urls, auth })
+}
+
+struct ConfiguredIndex {
+    url: url::Url,
+    authorization: Option<String>,
+}
+
+struct IndexAuth {
+    indexes: Vec<ConfiguredIndex>,
+}
+
+impl pnpm_network::UpstreamRouteHook for IndexAuth {
+    fn authorize(&self, url: &str, _package: Option<&str>) -> Option<String> {
+        let request = url::Url::parse(url).ok()?;
+        self.indexes
+            .iter()
+            .filter(|index| {
+                request.origin() == index.url.origin()
+                    && request.path().starts_with(index.url.path())
+            })
+            .max_by_key(|index| index.url.path().len())
+            .and_then(|index| index.authorization.clone())
+    }
+}
+
+fn parse_index(configured: &str) -> Result<ConfiguredIndex> {
+    let mut index: url::Url = configured.parse().into_diagnostic()?;
+    let authorization = if !index.username().is_empty() || index.password().is_some() {
+        let username = pnpm_network::percent_decode_str(index.username());
+        let password = pnpm_network::percent_decode_str(index.password().unwrap_or(""));
+        index
+            .set_username("")
+            .map_err(|()| miette::miette!("invalid Python index URL"))?;
+        index
+            .set_password(None)
+            .map_err(|()| miette::miette!("invalid Python index URL"))?;
+        Some(format!("Basic {}", STANDARD.encode(format!("{username}:{password}"))))
+    } else {
+        None
+    };
+    pnpm_python_resolver::validate_url(&index)?;
+    if !index.path().ends_with('/') {
+        index.set_path(&format!("{}/", index.path()));
+    }
+    Ok(ConfiguredIndex { url: index, authorization })
 }
 
 impl PythonPrepare<'_> {
@@ -104,9 +146,17 @@ impl PythonPrepare<'_> {
 fn parse_rule(declared: &str) -> Result<pep508_rs::Requirement> {
     let requirement = pnpm_python_resolver::parse_requirement(declared)?;
     if matches!(requirement.version_or_url, Some(pep508_rs::VersionOrUrl::Url(_))) {
-        miette::bail!(
-            "Python overrides and constraints must use registry version requirements: {declared}",
-        );
+        return Err(UnsupportedRule { requirement: declared.to_string() }.into());
     }
     Ok(requirement)
 }
+
+#[derive(Debug, Display, Error, Diagnostic)]
+#[display("Python overrides and constraints must use registry version requirements: {requirement}")]
+#[diagnostic(code(ERR_PNPM_UNSUPPORTED_PYTHON_RULE))]
+struct UnsupportedRule {
+    requirement: String,
+}
+
+#[cfg(test)]
+mod tests;

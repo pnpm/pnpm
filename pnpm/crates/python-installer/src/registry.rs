@@ -53,6 +53,35 @@ pub(super) struct Resolution {
     pub(super) downloaded: BTreeSet<PackageName>,
 }
 
+impl CachedIndex {
+    fn from_response(
+        name: &PackageName,
+        response: &pnpm_network::SecureAuthResponse,
+    ) -> Result<Self> {
+        if response.status.as_u16() == 404 {
+            return Ok(CachedIndex {
+                url: response.url.parse().into_diagnostic()?,
+                body: serde_json::value::RawValue::from_string(r#"{"files":[]}"#.to_string())
+                    .into_diagnostic()?,
+                missing: true,
+            });
+        }
+        if response.body_truncated {
+            bail!("Python index response for {name} exceeds {MAX_INDEX_BYTES} bytes");
+        }
+        if !response.status.is_success() {
+            bail!("Python index request for {name} returned {}", response.status);
+        }
+        Ok(CachedIndex {
+            missing: false,
+            url: response.url.parse().into_diagnostic()?,
+            body: serde_json::from_slice(&response.body)
+                .into_diagnostic()
+                .wrap_err("Python index must support the Simple JSON API")?,
+        })
+    }
+}
+
 impl Resolution {
     pub(super) fn new(target: Target) -> Self {
         Self { target, packages: Packages::new(), downloaded: BTreeSet::new() }
@@ -117,8 +146,8 @@ impl Registry<'_> {
             .join(&format!("{name}/"))
             .into_diagnostic()?;
         let cache = self.config.cache_dir
-            .join("python-index-v2")
-            .join(format!("{}.json", pnpm_crypto_hash::create_hex_hash(index_url.as_str())));
+            .join("python-index-v3")
+            .join(format!("{}.json", self.index.cache_key(&index_url)));
         let replayed = self.config.offline || self.resolution.downloaded.contains(name);
         let cached = if replayed {
             read_cached_index(&cache, name).await?
@@ -153,27 +182,7 @@ impl Registry<'_> {
             )
             .await
             .into_diagnostic()?;
-        if response.body_truncated {
-            bail!("Python index response for {name} exceeds {MAX_INDEX_BYTES} bytes");
-        }
-        if response.status.as_u16() == 404 {
-            return Ok(CachedIndex {
-                url: response.url.parse().into_diagnostic()?,
-                body: serde_json::value::RawValue::from_string(r#"{"files":[]}"#.to_string())
-                    .into_diagnostic()?,
-                missing: true,
-            });
-        }
-        if !response.status.is_success() {
-            bail!("Python index request for {name} returned {}", response.status);
-        }
-        Ok(CachedIndex {
-            missing: false,
-            url: response.url.parse().into_diagnostic()?,
-            body: serde_json::from_slice(&response.body)
-                .into_diagnostic()
-                .wrap_err("Python index must support the Simple JSON API")?,
-        })
+        CachedIndex::from_response(name, &response)
     }
 
     pub(super) async fn fetch_wheel<Reporter: self::Reporter + 'static>(
@@ -356,3 +365,6 @@ fn validate_wheel_identity(
     pnpm_python_resolver::validate_url(&Url::parse(&wheel.url).into_diagnostic()?)?;
     wheel.check_installable(tags, name, version)
 }
+
+#[cfg(test)]
+mod tests;

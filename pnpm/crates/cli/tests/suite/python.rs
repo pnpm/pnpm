@@ -811,7 +811,7 @@ async fn caches_python_index_as_raw_json_and_reuses_it_offline() {
         .arg("install")
         .assert()
         .success();
-    let cache = fs::read_dir(root.path().join("cache/python-index-v2"))
+    let cache = fs::read_dir(root.path().join("cache/python-index-v3"))
         .unwrap()
         .next()
         .unwrap()
