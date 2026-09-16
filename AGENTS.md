@@ -356,6 +356,10 @@ The [`pull-requests`](./.agents/skills/pull-requests/SKILL.md) skill covers taki
 a change through a pull request: opening it from the template, waiting for the
 checks, and working the review rounds. Two rules hold whether or not it is loaded:
 
+-   **Open the PR as a draft.** CI runs on a draft in this repository and the
+    reviewers do not, so the checks and your own pass over the diff happen
+    before the first round of review. `gh pr ready <pr>` once the checks are
+    green and that pass is clean.
 -   **A push is not the end of the task.** Every push re-triggers CI and the
     review bots. Wait for the checks and the new review round, investigate every
     failure, verify each finding before acting on it, and push the fixes. Repeat
