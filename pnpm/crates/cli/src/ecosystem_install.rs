@@ -35,9 +35,16 @@ pub(crate) async fn plan<Reporter: pnpm_reporter::Reporter + 'static>(
     }
     if config.python.enabled {
         let groups = dependencies.dependency_groups(config.optional).collect::<Vec<_>>();
+        let mut manifests = inventory.manifests(EcosystemManifest::Python).await?.to_vec();
+        let requirements = inventory.manifests(EcosystemManifest::Requirements).await?;
+        for path in requirements {
+            if !manifests.contains(&path.with_file_name("pyproject.toml")) {
+                manifests.push(path.clone());
+            }
+        }
         plan = plan.with_task(pnpm_python_installer::plan::<Reporter>(
             context.into(),
-            inventory.manifests(EcosystemManifest::Python).await?.to_vec(),
+            manifests,
             pnpm_python_installer::DependencySelection {
                 production: groups.contains(&DependencyGroup::Prod),
                 development: groups.contains(&DependencyGroup::Dev),

@@ -9,15 +9,17 @@ const IGNORED_DIRECTORY_BASENAMES: &[&str] =
 pub(crate) enum EcosystemManifest {
     Cargo,
     Python,
+    Requirements,
 }
 
 impl EcosystemManifest {
-    const ALL: &[Self] = &[Self::Cargo, Self::Python];
+    const ALL: &[Self] = &[Self::Cargo, Self::Python, Self::Requirements];
 
     const fn basename(self) -> &'static str {
         match self {
             Self::Cargo => "Cargo.toml",
             Self::Python => "pyproject.toml",
+            Self::Requirements => "requirements.txt",
         }
     }
 }

@@ -1,3 +1,11 @@
+pub(super) use validation::{extra_set, requirement_set};
+
+pub(super) use metadata::FallbackWheel;
+
+mod metadata;
+mod validation;
+use validation::requires_what_it_declares;
+
 use super::{
     environment::PythonPrepare,
     host::{self, Wheel},
@@ -66,19 +74,47 @@ impl PythonPrepare<'_> {
         if !unapproved.is_empty() {
             return Ok(Build::NotApproved(unapproved));
         }
-        let request = serde_json::json!({
-            "root": root,
-            "backend": backend(manifest).module,
-            "backend_path": backend(manifest).path,
-            "editable": editable,
-        });
-        let environment = match self.build_environment::<Reporter>(root, requires, &request).await?
-        {
-            BuildEnvironment::Ready(environment) => environment,
-            BuildEnvironment::NotApproved(names) => return Ok(Build::NotApproved(names)),
+        let cached = manifest.metadata_wheel
+            .as_ref()
+            .filter(|wheel| !editable && wheel.interpreter == self.interpreter.executable);
+        let (built, output) = if let Some(cached) = cached {
+            let metadata = host::run(
+                &self.interpreter.executable,
+                "inspect",
+                serde_json::json!({ "files": cached.wheel.files, "filename": cached.wheel.filename }),
+            )
+            .await
+            .wrap_err_with(|| format!("read the wheel built from {}", root.display()))?;
+            (Backend517 { wheel: cached.wheel.clone(), metadata }, Arc::clone(&cached.output))
+        } else {
+            let request = serde_json::json!({
+                "root": root,
+                "backend": backend(manifest).module,
+                "backend_path": backend(manifest).path,
+                "editable": editable,
+                "metadata_directory": manifest.metadata_output.as_ref().zip(manifest.metadata.as_ref())
+                    .map(|(output, metadata)| output.path().join(&metadata.dist_info)),
+            });
+            let environment =
+                match self.build_environment::<Reporter>(root, requires, &request).await? {
+                    BuildEnvironment::Ready(environment) => environment,
+                    BuildEnvironment::NotApproved(names) => return Ok(Build::NotApproved(names)),
+                };
+            let output = tempfile::tempdir().into_diagnostic()?;
+            let built = self.run_backend(root, environment, &output, request).await?;
+            (built, Arc::new(output))
         };
-        let output = tempfile::tempdir().into_diagnostic()?;
-        let built = self.run_backend(root, environment, &output, request).await?;
+        self.finish_build(root, manifest, editable, built, output)
+    }
+
+    fn finish_build(
+        &self,
+        root: &Path,
+        manifest: &Manifest,
+        editable: bool,
+        built: Backend517,
+        output: Arc<tempfile::TempDir>,
+    ) -> Result<Build> {
         self.installable_here(&built, root)?;
         identify(&built.metadata, manifest, root)?;
         let directory = root.display();
@@ -302,7 +338,7 @@ pub(super) enum Build {
 
 pub(super) struct Built {
     pub(super) wheel: Wheel,
-    pub(super) output: tempfile::TempDir,
+    pub(super) output: Arc<tempfile::TempDir>,
 }
 
 /// The wheel a backend produced, and what the target interpreter reads
@@ -312,7 +348,7 @@ struct Backend517 {
     metadata: host::WheelMetadata,
 }
 
-#[derive(serde::Deserialize)]
+#[derive(Clone, serde::Deserialize)]
 struct BuiltWheel {
     files: BTreeMap<String, std::path::PathBuf>,
     filename: String,
@@ -323,6 +359,15 @@ struct BuiltWheel {
 /// another distribution under it would install something the lockfile
 /// does not describe.
 fn identify(metadata: &host::WheelMetadata, manifest: &Manifest, root: &Path) -> Result<()> {
+    identify_identity(metadata, manifest, root)?;
+    requires_what_it_declares(metadata, manifest, root)
+}
+
+fn identify_identity(
+    metadata: &host::WheelMetadata,
+    manifest: &Manifest,
+    root: &Path,
+) -> Result<()> {
     let Some(name) = manifest.distribution() else { return Ok(()) };
     if metadata.name
         .parse::<PackageName>()
@@ -336,7 +381,6 @@ fn identify(metadata: &host::WheelMetadata, manifest: &Manifest, root: &Path) ->
             metadata.name,
         );
     }
-    requires_what_it_declares(metadata, manifest, root)?;
     // A project may leave its version to the backend, and then what the
     // backend says it is is the only answer there is.
     let Some(version) =
@@ -425,37 +469,6 @@ impl Approvals {
         }
         format!("{PYPI_PURL}{name}")
     }
-}
-
-/// Refuse a wheel that requires a distribution its project does not
-/// declare. Resolution answered with what the manifest requires, so such
-/// a wheel would be installed without it.
-fn requires_what_it_declares(
-    metadata: &host::WheelMetadata,
-    manifest: &Manifest,
-    root: &Path,
-) -> Result<()> {
-    // Compared as parsed requirements, so a changed version range, extra
-    // or marker is a difference too: resolution answered with what the
-    // manifest said, and the wheel is what gets installed.
-    let declared = manifest
-        .distribution_requirements()?
-        .iter()
-        .map(|requirement| Ok(parse_requirement(requirement)?.to_string()))
-        .collect::<Result<BTreeSet<_>>>()?;
-    for requirement in &metadata.requires_dist {
-        let required = parse_requirement(requirement)?.to_string();
-        if !declared.contains(&required) {
-            let manifest_path = root.join("pyproject.toml");
-            let manifest_path = manifest_path.display();
-            bail!(
-                "the wheel built from the Python project at {} requires `{required}`, which \
-                 {manifest_path} does not declare",
-                root.display(),
-            );
-        }
-    }
-    Ok(())
 }
 
 struct Backend {

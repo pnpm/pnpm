@@ -1,3 +1,5 @@
+mod metadata;
+
 use miette::{IntoDiagnostic, Result, bail};
 use pep440_rs::Version;
 use pep508_rs::{PackageName, Requirement};
@@ -20,9 +22,15 @@ impl DependencySelection {
     pub const ALL: Self = Self { production: true, development: true };
 }
 
-#[derive(Deserialize)]
+#[derive(Clone, Deserialize)]
 pub(super) struct Manifest {
     pub(super) project: Option<Project>,
+    #[serde(skip)]
+    pub(super) metadata: Option<super::host::WheelMetadata>,
+    #[serde(skip)]
+    pub(super) metadata_wheel: Option<std::sync::Arc<super::build::FallbackWheel>>,
+    #[serde(skip)]
+    pub(super) metadata_output: Option<std::sync::Arc<tempfile::TempDir>>,
     #[serde(default, rename = "dependency-groups")]
     groups: BTreeMap<String, Vec<toml::Value>>,
     #[serde(default, rename = "build-system")]
@@ -31,7 +39,7 @@ pub(super) struct Manifest {
     pub(super) tool: Tool,
 }
 
-#[derive(Deserialize)]
+#[derive(Clone, Deserialize)]
 #[serde(rename_all = "kebab-case")]
 pub(super) struct Project {
     /// Absent only in a manifest that is not a distribution: PEP 621
@@ -41,14 +49,14 @@ pub(super) struct Project {
     #[serde(default)]
     pub(super) dependencies: Vec<String>,
     #[serde(default)]
-    dynamic: Vec<String>,
+    pub(super) dynamic: Vec<String>,
     pub(super) requires_python: Option<String>,
     #[serde(default)]
     optional_dependencies: BTreeMap<String, Vec<String>>,
 }
 
 /// The PEP 517 backend that turns a project directory into a wheel.
-#[derive(Deserialize)]
+#[derive(Clone, Deserialize)]
 #[serde(rename_all = "kebab-case")]
 pub(super) struct BuildSystem {
     #[serde(default)]
@@ -58,7 +66,7 @@ pub(super) struct BuildSystem {
     pub(super) backend_path: Vec<String>,
 }
 
-#[derive(Default, Deserialize)]
+#[derive(Default, Clone, Deserialize)]
 pub(super) struct Tool {
     #[serde(default)]
     pub(super) uv: Uv,
@@ -67,7 +75,7 @@ pub(super) struct Tool {
 /// The parts of uv's table pnpm reads. A project that declares a
 /// dependency on another project in the repository says so here, which is
 /// where every Python workspace in the wild already writes it.
-#[derive(Default, Deserialize)]
+#[derive(Default, Clone, Deserialize)]
 pub(super) struct Uv {
     #[serde(default)]
     pub(super) sources: BTreeMap<PackageName, SourceDeclaration>,
@@ -79,7 +87,7 @@ pub(super) struct Uv {
     pub(super) workspace: Option<UvWorkspace>,
 }
 
-#[derive(Deserialize)]
+#[derive(Clone, Deserialize)]
 pub(super) struct UvWorkspace {
     #[serde(default)]
     pub(super) members: Vec<String>,
@@ -88,14 +96,14 @@ pub(super) struct UvWorkspace {
 }
 
 /// A source as it is written: one table, or several selected by markers.
-#[derive(Deserialize)]
+#[derive(Clone, Deserialize)]
 #[serde(untagged)]
 pub(super) enum SourceDeclaration {
     One(Source),
     Many(Vec<Source>),
 }
 
-#[derive(Deserialize)]
+#[derive(Clone, Deserialize)]
 #[serde(rename_all = "kebab-case")]
 pub(super) struct Source {
     #[serde(default)]
@@ -112,7 +120,7 @@ pub(super) struct Source {
 /// What narrows a source to some targets, or to one extra or group. pnpm
 /// reads these to refuse them: a source it applied everywhere would
 /// install a project the manifest asked for somewhere else.
-#[derive(Deserialize)]
+#[derive(Clone, Deserialize)]
 #[serde(rename_all = "kebab-case")]
 pub(super) struct Narrowing {
     marker: Option<String>,
@@ -134,6 +142,31 @@ impl Narrowing {
 }
 
 impl Project {
+    fn distribution_requirements(&self, static_only: bool) -> Result<Vec<String>> {
+        let mut requirements = if static_only
+            && self.dynamic
+                .iter()
+                .any(|field| field == "dependencies")
+        {
+            Vec::new()
+        } else {
+            self.dependencies.clone()
+        };
+        if static_only
+            && self.dynamic
+                .iter()
+                .any(|field| field == "optional-dependencies")
+        {
+            return Ok(requirements);
+        }
+        for (extra, dependencies) in &self.optional_dependencies {
+            for dependency in dependencies {
+                requirements.push(super::workspace::requirement_for_extra(dependency, extra)?);
+            }
+        }
+        Ok(requirements)
+    }
+
     fn ensure_static_dependencies(&self) -> Result<()> {
         if self.dynamic
             .iter()
@@ -151,6 +184,18 @@ impl Project {
 }
 
 impl Manifest {
+    pub(super) fn set_requirements_file(&mut self, requirements: Vec<String>) {
+        self.project = Some(Project {
+            name: None,
+            version: None,
+            dependencies: requirements,
+            dynamic: Vec::new(),
+            requires_python: None,
+            optional_dependencies: BTreeMap::new(),
+        });
+        self.tool.uv.package = Some(false);
+    }
+
     pub(super) fn parse(contents: &str) -> Result<Self> {
         toml::from_str(contents).into_diagnostic()
     }
@@ -161,10 +206,18 @@ impl Manifest {
         selection: DependencySelection,
     ) -> Result<Vec<Requirement>> {
         let Some(project) = &self.project else { return Ok(Vec::new()) };
-        project.ensure_static_dependencies()?;
+        if self.metadata.is_none() {
+            project.ensure_static_dependencies()?;
+        }
         let mut requirements =
             if selection.production { project.dependencies.clone() } else { Vec::new() };
-        for extra in config.python.extras.iter().filter(|_| selection.production) {
+        if self.metadata.is_some() && selection.production {
+            requirements = self.metadata_requirements(config)?;
+        }
+        for extra in config.python.extras
+            .iter()
+            .filter(|_| selection.production && self.metadata.is_none())
+        {
             let dependencies = project.optional_dependencies
                 .get(extra)
                 .ok_or_else(|| miette::miette!("unknown Python project extra: {extra}"))?;
@@ -184,7 +237,13 @@ impl Manifest {
     /// decided per distribution, so a name is reported once.
     pub(super) fn declared_distributions(&self) -> Result<BTreeSet<PackageName>> {
         let Some(project) = &self.project else { return Ok(BTreeSet::new()) };
-        project.ensure_static_dependencies()?;
+        if self.metadata.is_none() {
+            project.ensure_static_dependencies()?;
+        }
+        let metadata_requirements = self.metadata
+            .as_ref()
+            .map(|metadata| metadata.requires_dist.as_slice())
+            .unwrap_or_default();
         let groups = self.groups
             .values()
             .flatten()
@@ -195,6 +254,7 @@ impl Manifest {
             .iter()
             .chain(project.optional_dependencies.values().flatten())
             .chain(&groups)
+            .chain(metadata_requirements)
             .map(|requirement| Ok(parse_requirement(requirement)?.name))
             .collect()
     }
@@ -205,18 +265,20 @@ impl Manifest {
     /// development input, so a wheel does not carry it.
     pub(super) fn distribution_requirements(&self) -> Result<Vec<String>> {
         let Some(project) = &self.project else { return Ok(Vec::new()) };
-        project.ensure_static_dependencies()?;
-        let mut requirements = project.dependencies.clone();
-        for (extra, dependencies) in &project.optional_dependencies {
-            for dependency in dependencies {
-                requirements.push(super::workspace::requirement_for_extra(dependency, extra)?);
-            }
+        if self.metadata.is_none() {
+            project.ensure_static_dependencies()?;
         }
-        Ok(requirements)
+        if let Some(metadata) = &self.metadata {
+            return Ok(metadata.requires_dist.clone());
+        }
+        project.distribution_requirements(false)
     }
 
     /// The extras this project offers.
     pub(super) fn extras(&self) -> Vec<String> {
+        if let Some(metadata) = &self.metadata {
+            return metadata.provides_extra.clone();
+        }
         self.project
             .iter()
             .flat_map(|project| project.optional_dependencies.keys())

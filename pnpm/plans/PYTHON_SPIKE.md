@@ -61,9 +61,33 @@ pnpm install --prod --frozen-lockfile
 pnpm exec python -c 'import requests'
 ```
 
-Static PEP 621 dependencies come from each discovered `pyproject.toml`.
-Tool-only manifests are ignored. Each Python project has its own `pylock.toml`
-and `.venv`; environment directories are excluded from discovery.
+PEP 621 dependencies come from each discovered `pyproject.toml`. Dynamic
+version, dependency, extra, and interpreter metadata comes from the backend's
+`prepare_metadata_for_build_wheel` hook, falling back to building a wheel when
+the hook is absent. Metadata preparation uses the same isolated environments
+and `allowBuilds` approval checks as project builds. It also runs during
+lockfile-only and frozen installs, since dependency metadata is needed to
+validate the lockfile. Unapproved requirements are an error when metadata
+cannot be read without executing the backend. Final wheel dependencies, Python
+compatibility, and declared extras must match the metadata used for resolution.
+Only metadata produced by the preparation hook is passed to a later wheel build.
+
+Directories with `requirements.txt` and no `[project]` table participate too.
+A `[project]` table takes precedence over a neighboring requirements file.
+Requirements files accept PEP 508 requirements, comments, line continuations,
+and local `-r`/`--requirement` includes relative to the containing file. Cyclic
+includes and unsupported pip directives, including constraints, editable
+requirements, index options, and hashes, produce an error with file context.
+Includes must stay inside the discovered workspace, or the project directory
+when no workspace is configured. Only regular files are read. Reads and include
+depth are bounded, and repeated includes are parsed once.
+Direct URL requirements retain the installer's existing restrictions.
+Requirements files do not cause the directory's own package to be built or
+create a `pyproject.toml`.
+
+Tool-only manifests without requirements are ignored. Each Python project has
+its own `pylock.toml` and `.venv`; environment directories are excluded from
+discovery.
 
 A requirement on another project in this repository is declared under
 `[tool.uv.sources]`, the table every Python workspace in the wild already
@@ -255,9 +279,9 @@ multi-directory commit. Automatic generation garbage collection remains open.
 
 This covers the same vertical integration surfaces as the current Cargo
 implementation, not all pip or uv functionality. It supports registry wheels,
-static project dependencies, and the projects in this repository a project
-depends on. Git/URL requirements, Python installation, dynamic dependency
-metadata for a project in this repository, HTML-only indexes, pip
+static and dynamic project dependencies, requirements files, and the projects
+in this repository a project depends on. Git/URL requirements, Python
+installation, HTML-only indexes, pip
 configuration/keyring discovery and recursive/filtered add are not
 implemented, nor is building a project with a backend the workspace itself
 declares, which is refused rather than taken from the index. A distribution an
@@ -271,11 +295,13 @@ was. Existing lockfiles must use pnpm's supported contract; arbitrary
 third-party pylock imports are not supported. Unsupported forms fail
 explicitly.
 
-The project's own package is installed from the layout its manifest declares,
-not from a build backend's `build_editable` hook, so a backend that computes
-its package directories in code or rewrites modules as it builds them is not
-followed. The metadata pnpm records for it is the project's name, version,
-`requires-python` and dependencies; a project extra is not recorded as one.
+Dynamic project metadata is prepared for each project's selected interpreter.
+If dynamic `requires-python` selects another interpreter, pnpm prepares the
+metadata again with that interpreter. Backends
+that generate different dependencies for other interpreters or platforms are
+not queried for each lockfile environment. Path sources outside the discovered
+project inventory still need static metadata. `pnpm add pypi:` writes static
+manifest dependencies and does not edit backend-owned dynamic metadata.
 
 pnpm chooses among the interpreters a machine already has. It installs none,
 so a project is reported when no interpreter on the machine satisfies its

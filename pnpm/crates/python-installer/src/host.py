@@ -204,15 +204,7 @@ def inspect_wheel(request):
     unsigned = set(files) - recorded
     if unsigned - {record_name + ".jws", record_name + ".p7s"}:
         raise ValueError("wheel RECORD does not cover every file")
-    return {
-        "name": metadata["Name"],
-        "version": metadata["Version"],
-        "requires_dist": metadata.get_all("Requires-Dist", []),
-        "requires_python": metadata.get("Requires-Python"),
-        "provides_extra": metadata.get_all("Provides-Extra", []),
-        "dist_info": dist_info,
-        "purelib": wheel["Root-Is-Purelib"] == "true",
-    }
+    return core_metadata(metadata, dist_info, wheel["Root-Is-Purelib"] == "true")
 
 
 class Environment:
@@ -369,10 +361,45 @@ def build(request):
     backend, editable = load_backend(request)
     output = Path(request["output"]).resolve()
     hook = backend.build_editable if editable else backend.build_wheel
-    filename = hook(str(output))
+    metadata_directory = request.get("metadata_directory")
+    filename = hook(str(output), metadata_directory=metadata_directory) if metadata_directory and not editable else hook(str(output))
     # Reading the wheel belongs to the interpreter it is installed for, not
     # to the environment the backend needed, which holds only the backend.
     return {"files": unpack(output / filename, output / "unpacked"), "filename": filename}
+
+
+def core_metadata(metadata, dist_info, purelib):
+    for field in ("Metadata-Version", "Name", "Version"):
+        if len(metadata.get_all(field, [])) != 1:
+            raise ValueError("metadata must contain exactly one " + field)
+    if not metadata["Metadata-Version"].startswith("2."):
+        raise ValueError("unsupported Metadata-Version")
+    return {
+        "name": metadata["Name"], "version": metadata["Version"],
+        "requires_dist": metadata.get_all("Requires-Dist", []),
+        "requires_python": metadata.get("Requires-Python"),
+        "provides_extra": metadata.get_all("Provides-Extra", []),
+        "dist_info": dist_info, "purelib": purelib,
+    }
+
+
+def prepare_metadata(request):
+    backend, _ = load_backend(request)
+    output = Path(request["output"]).resolve()
+    hook = getattr(backend, "prepare_metadata_for_build_wheel", None)
+    if hook is None:
+        built = build(request)
+        directories = {name.split("/", 1)[0] for name in built["files"] if ".dist-info/" in name}
+        if len(directories) != 1:
+            raise ValueError("wheel must contain exactly one dist-info directory")
+        dist_info = directories.pop()
+        return {"metadata": core_metadata(read_headers(built["files"], dist_info + "/METADATA"), dist_info, True), "prepared": False, "wheel": built}
+    directory = hook(str(output))
+    located = output.joinpath(directory).resolve()
+    if located.parent != output or not located.name.endswith(".dist-info"):
+        raise ValueError("metadata hook returned an invalid dist-info directory: " + directory)
+    metadata = email.parser.Parser().parsestr((located / "METADATA").read_text(encoding="utf-8"))
+    return {"metadata": core_metadata(metadata, directory, True), "prepared": True}
 
 
 def install(request):
@@ -395,6 +422,6 @@ request = json.load(sys.stdin)
 answer = os.fdopen(os.dup(1), "w")
 os.dup2(2, 1)
 sys.stdout = sys.stderr
-result = {"probe": probe, "inspect": inspect_wheel, "install": install, "build": build, "build_requires": build_requires}[sys.argv[1]](request)
+result = {"probe": probe, "inspect": inspect_wheel, "install": install, "build": build, "build_requires": build_requires, "metadata": prepare_metadata}[sys.argv[1]](request)
 json.dump(result, answer)
 answer.flush()
