@@ -252,8 +252,8 @@ impl PythonPrepare<'_> {
         self.install_requirements::<Reporter>(&requires).await.map(BuildEnvironment::Ready)
     }
 
-    /// An environment holding exactly these requirements. Top-level builds
-    /// share ready environments across projects.
+    /// An environment holding exactly these requirements. Builds share
+    /// ready environments across projects.
     ///
     /// One environment belongs to the interpreter that installed it: a
     /// backend runs in the interpreter it was installed for, and what it
@@ -266,11 +266,6 @@ impl PythonPrepare<'_> {
         if self.state.building.contains(&key) {
             bail!("cyclic Python build requirements: {}", key.1);
         }
-        // Nested builds must not wait on a sibling's backend chain, which may
-        // in turn need the environment this chain is currently preparing.
-        if !self.state.building.is_empty() {
-            return self.install_nested_requirements::<Reporter>(requires, key).await;
-        }
         let entry = Arc::clone(
             self.state.caches.build_environments
                 .lock()
@@ -278,7 +273,16 @@ impl PythonPrepare<'_> {
                 .entry(key.clone())
                 .or_default(),
         );
-        let mut environment = entry.lock().await;
+        let mut environment = if self.state.building.is_empty() {
+            entry.lock().await
+        } else {
+            // Nested builds must not wait on a sibling's backend chain, which
+            // may need the environment this chain is currently preparing.
+            match entry.try_lock() {
+                Ok(environment) => environment,
+                Err(_) => return self.install_nested_requirements::<Reporter>(requires, key).await,
+            }
+        };
         if let Some(root) = environment.as_ref() {
             return Ok(Arc::clone(root));
         }
