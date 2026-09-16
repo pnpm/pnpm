@@ -2,7 +2,7 @@ use super::{
     Arc, BTreeMap, BTreeSet, CargoLockfilePolicy, CargoResolveOptions, CargoWorkspaceMetadata,
     Command, Config, FromStr, GitPackage, GitSource, IntoDiagnostic, Path, PathBuf, PnprClient,
     Result, StreamExt, ThrottledClient, TryStreamExt, WORKSPACE_INSTALL_CONCURRENCY,
-    fetch_sparse_index, fs, is_crates_io, stream,
+    fetch_sparse_index, fs, stream,
 };
 use miette::WrapErr;
 
@@ -273,17 +273,15 @@ fn locked_crate_from_package(
     source: &cargo_lock::SourceId,
     index_url: &str,
 ) -> Result<LockedCrate> {
-    // crates.io is spelled two ways in a lockfile — the canonical git
-    // identifier and the sparse index — and `cargo` writes either.
+    // A dependency that names no registry belongs to crates.io even when
+    // the configured registry serves it, and one that names the configured
+    // registry belongs to that. Both spellings of crates.io occur, the
+    // canonical git identifier and the sparse index, and `cargo` writes
+    // either.
     let expected_source = pnpm_cargo_resolver::registry_source(index_url);
-    let matches_registry = if is_crates_io(index_url) {
-        source.is_default_registry()
-    } else {
-        source.to_string() == expected_source
-    };
-    if !matches_registry {
+    if !source.is_default_registry() && source.to_string() != expected_source {
         return Err(miette::miette!(
-            "Cargo source {source:?} does not match the configured Cargo registry {expected_source:?}"
+            "Cargo source {source:?} is neither crates.io nor the configured Cargo registry {expected_source:?}"
         ));
     }
     let name = package.name.to_string();

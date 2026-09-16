@@ -156,8 +156,11 @@ fn resolves_newest_non_yanked_versions_into_a_cargo_lockfile() {
     );
 }
 
+/// The workspace names no registry, so its crates belong to crates.io even
+/// though a configured registry served the index. `cargo` records the source
+/// a dependency named, not the replacement that served it.
 #[test]
-fn writes_the_configured_sparse_registry_source() {
+fn locks_a_dependency_naming_no_registry_against_crates_io() {
     let files = BTreeMap::from([
         ("foo".to_string(), FOO_INDEX.to_string()),
         ("bar".to_string(), BAR_INDEX.to_string()),
@@ -165,7 +168,35 @@ fn writes_the_configured_sparse_registry_source() {
     let lockfile =
         resolve_lockfile(METADATA, &files, "sparse+https://registry.example.test/index/").unwrap();
 
-    assert!(lockfile.contains(r#"source = "sparse+https://registry.example.test/index/""#));
+    eprintln!("LOCKFILE:\n{lockfile}");
+    assert!(lockfile.contains(&format!(r#"source = "{CRATES_IO_SOURCE}""#)));
+    assert!(!lockfile.contains("registry.example.test"));
+}
+
+/// A workspace dependency that names the configured registry keeps it, and
+/// the crates it pulls in through entries naming no registry inherit it.
+#[test]
+fn locks_a_dependency_naming_the_configured_registry_against_it() {
+    const REGISTRY: &str = "sparse+https://registry.example.test/index/";
+    let metadata = METADATA.replace(
+        r#""source": "registry+https://github.com/rust-lang/crates.io-index""#,
+        &format!(r#""source": "{REGISTRY}""#),
+    );
+    let files = BTreeMap::from([
+        ("foo".to_string(), FOO_INDEX.to_string()),
+        ("bar".to_string(), BAR_INDEX.to_string()),
+    ]);
+
+    let lockfile = resolve_lockfile(&metadata, &files, REGISTRY).unwrap();
+
+    eprintln!("LOCKFILE:\n{lockfile}");
+    assert_eq!(
+        lockfile
+            .matches(&format!(r#"source = "{REGISTRY}""#))
+            .count(),
+        2,
+    );
+    assert!(!lockfile.contains(CRATES_IO_SOURCE));
 }
 
 #[test]

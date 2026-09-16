@@ -4,7 +4,11 @@ use miette::{IntoDiagnostic, Result, WrapErr};
 use semver::{Version, VersionReq};
 use std::collections::BTreeMap;
 
-pub(crate) const CRATES_IO_SOURCE: &str = "registry+https://github.com/rust-lang/crates.io-index";
+/// The source identifier `cargo` writes for a crates.io package. A crate is
+/// locked against it when its dependency named crates.io or named no
+/// registry from a dependent that came from crates.io, whichever registry
+/// the replacement in `.cargo/config.toml` served it from.
+pub const CRATES_IO_SOURCE: &str = "registry+https://github.com/rust-lang/crates.io-index";
 const CRATES_IO_INDEX: &str = "https://github.com/rust-lang/crates.io-index";
 const CRATES_IO_SPARSE_SOURCE: &str = "sparse+https://index.crates.io/";
 
@@ -25,10 +29,11 @@ pub fn sparse_source(index_url: &str) -> String {
     format!("sparse+{}/", index_url.trim_end_matches('/'))
 }
 
-/// The `source` a `Cargo.lock` records for packages taken from `index_url`.
-/// crates.io keeps the canonical git identifier `cargo` itself writes even
-/// when the sparse index served the metadata; every other registry is named
-/// by its sparse index.
+/// The source identifier of the registry `index_url` addresses, which is
+/// what a dependency naming a registry is measured against. crates.io keeps
+/// the canonical git identifier `cargo` itself writes even when the sparse
+/// index served the metadata; every other registry is named by its sparse
+/// index.
 #[must_use]
 pub fn registry_source(index_url: &str) -> String {
     if is_crates_io(index_url) { CRATES_IO_SOURCE.to_string() } else { sparse_source(index_url) }
@@ -190,7 +195,7 @@ pub(crate) fn matching_versions<'a>(
         .filter(|version| !version.yanked && requirement.matches(&version.version))
 }
 
-fn is_crates_io_source(registry: &str) -> bool {
+pub(crate) fn is_crates_io_source(registry: &str) -> bool {
     matches!(registry, CRATES_IO_SOURCE | CRATES_IO_INDEX | CRATES_IO_SPARSE_SOURCE)
 }
 

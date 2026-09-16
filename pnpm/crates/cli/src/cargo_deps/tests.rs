@@ -69,11 +69,13 @@ checksum = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
 "#;
 
     let error = parse_lockfile(lockfile, CRATES_IO_SPARSE_INDEX).unwrap_err().to_string();
-    assert!(error.contains("does not match the configured Cargo registry"), "{error}");
+    assert!(error.contains("is neither crates.io nor the configured"), "{error}");
 }
 
+/// A dependency that names no registry belongs to crates.io, whichever
+/// registry `cargo.indexUrl` points the fetch at.
 #[test]
-fn rejects_a_crates_io_source_under_a_configured_registry() {
+fn accepts_a_crates_io_source_under_a_configured_registry() {
     let lockfile = r#"
 [[package]]
 name = "serde"
@@ -82,10 +84,10 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9a8e94ea7f378bd32cbbd37198a4a91436180c5bb472411e48b5ec2e2124ae9e"
 "#;
 
-    let error =
-        parse_lockfile(lockfile, "https://registry.example.test/index/").unwrap_err().to_string();
-
-    assert!(error.contains("does not match the configured Cargo registry"), "{error}");
+    assert_eq!(
+        parse_lockfile(lockfile, "https://registry.example.test/index/").unwrap().crates.len(),
+        1,
+    );
 }
 
 #[test]

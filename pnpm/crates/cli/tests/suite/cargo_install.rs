@@ -3,6 +3,7 @@
 
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
+use pnpm_cargo_resolver::CRATES_IO_SOURCE;
 use pnpm_testing_utils::git_repo::GitRepoFixture;
 use sha2::{Digest, Sha256};
 use std::{fs, path::Path, process::Command};
@@ -105,7 +106,9 @@ fn install_resolves_and_downloads_through_the_configured_registry() {
 
     let lockfile =
         std::fs::read_to_string(root.path().join("Cargo.lock")).expect("read Cargo.lock");
-    assert!(lockfile.contains(&format!(r#"source = "sparse+{}/""#, registry.url())), "{lockfile}");
+    // pnpm reaches the configured registry by replacing `[source.crates-io]`,
+    // and a lockfile records the replaced source rather than its replacement.
+    assert!(lockfile.contains(&format!(r#"source = "{CRATES_IO_SOURCE}""#)), "{lockfile}");
     assert!(
         root.path()
             .join(".pnpm/crates/crates-io/demo-1.0.0/src/lib.rs")
@@ -113,9 +116,13 @@ fn install_resolves_and_downloads_through_the_configured_registry() {
     );
     Command::new("cargo")
         .with_current_dir(root.path())
-        .with_args(["check", "--offline"])
+        .with_args(["check", "--locked", "--offline"])
         .assert()
         .success();
+    assert_eq!(
+        std::fs::read_to_string(root.path().join("Cargo.lock")).expect("read Cargo.lock"),
+        lockfile,
+    );
 
     index_mock.assert();
     download_mock.assert();
@@ -200,9 +207,67 @@ fn install_resolves_past_a_candidate_whose_dependency_is_yanked() {
     // Offline, so the graph cargo reads is the one the install vendored.
     Command::new("cargo")
         .with_current_dir(root.path())
-        .with_args(["metadata", "--offline", "--format-version", "1"])
+        .with_args(["metadata", "--locked", "--offline", "--format-version", "1"])
         .assert()
         .success();
+}
+
+/// A dependency that names the configured registry is locked against it,
+/// not against the crates.io source that replacement serves it through.
+#[test]
+fn install_keeps_the_source_a_named_registry_dependency_declares() {
+    let mut registry = mockito::Server::new();
+    let demo = crate_archive("demo", "1.0.0");
+    let _config_mock = registry
+        .mock("GET", "/config.json")
+        .with_body(
+            serde_json::json!({
+                "dl": format!("{}/dl/{{crate}}/{{version}}", registry.url()),
+                "api": registry.url(),
+            })
+            .to_string(),
+        )
+        .create();
+    let _index_mock = registry
+        .mock("GET", "/de/mo/demo")
+        .with_body(format!(
+            "{}\n",
+            serde_json::json!({
+                "name": "demo", "vers": "1.0.0", "deps": [],
+                "cksum": format!("{:x}", Sha256::digest(&demo)),
+                "features": {}, "yanked": false, "v": 1,
+            }),
+        ))
+        .create();
+    let _download_mock = registry
+        .mock("GET", "/dl/demo/1.0.0")
+        .with_body(&demo)
+        .create();
+    let root = cargo_workspace(&registry.url(), "", "");
+    // The registry definition is the user's own; pnpm keeps it and appends
+    // its managed block.
+    fs::create_dir_all(root.path().join(".cargo")).unwrap();
+    fs::write(
+        root.path().join(".cargo/config.toml"),
+        format!("[registries.mock]\nindex = \"sparse+{}/\"\n", registry.url()),
+    )
+    .unwrap();
+    fs::write(
+        root.path().join("Cargo.toml"),
+        "[package]\nname = \"app\"\nversion = \"0.1.0\"\nedition = \"2024\"\n\n[dependencies]\ndemo = { version = \"1\", registry = \"mock\" }\n",
+    )
+    .unwrap();
+
+    install_in(&root, &["install"]);
+
+    let lockfile = fs::read_to_string(root.path().join("Cargo.lock")).expect("read Cargo.lock");
+    assert!(lockfile.contains(&format!(r#"source = "sparse+{}/""#, registry.url())), "{lockfile}");
+    Command::new("cargo")
+        .with_current_dir(root.path())
+        .with_args(["metadata", "--locked", "--offline", "--format-version", "1"])
+        .assert()
+        .success();
+    assert_eq!(fs::read_to_string(root.path().join("Cargo.lock")).unwrap(), lockfile);
 }
 
 #[test]
@@ -287,14 +352,14 @@ fn install_vendors_a_git_patched_crate_beside_the_registry_crates() {
             "[[package]]\nname = \"app\"\nversion = \"0.1.0\"\n",
             "dependencies = [\n \"demo\",\n \"patched\",\n]\n\n",
             "[[package]]\nname = \"demo\"\nversion = \"1.0.0\"\n",
-            "source = \"sparse+{registry}/\"\nchecksum = \"{checksum}\"\n\n",
+            "source = \"{crates_io}\"\nchecksum = \"{checksum}\"\n\n",
             "[[package]]\nname = \"patched\"\nversion = \"1.0.0\"\n",
             "source = \"git+{repository_url}?rev={commit}#{commit}\"\n",
             "dependencies = [\n \"sibling\",\n]\n\n",
             "[[package]]\nname = \"sibling\"\nversion = \"1.0.0\"\n",
             "source = \"git+{repository_url}?rev={commit}#{commit}\"\n",
         ),
-        registry = registry.url(),
+        crates_io = CRATES_IO_SOURCE,
         checksum = checksum,
         repository_url = repository_url,
         commit = commit,
@@ -328,9 +393,10 @@ fn install_vendors_a_git_patched_crate_beside_the_registry_crates() {
     // Offline, so the revision has to come from what the install vendored.
     Command::new("cargo")
         .with_current_dir(root.path())
-        .with_args(["check", "--offline"])
+        .with_args(["check", "--locked", "--offline"])
         .assert()
         .success();
+    assert_eq!(fs::read_to_string(root.path().join("Cargo.lock")).unwrap(), lockfile);
 }
 
 #[test]

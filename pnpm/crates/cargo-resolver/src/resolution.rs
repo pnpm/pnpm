@@ -101,9 +101,10 @@ fn unified_dependencies(
 
 /// Resolve Cargo registry dependencies and serialize a format-v4 `Cargo.lock`.
 ///
-/// `source` identifies the registry the index files came from and is what the
-/// resolved packages are recorded under. Build it with
-/// [`crate::registry_source`].
+/// `source` identifies the registry the index files came from and is what a
+/// dependency naming a registry is checked against. Build it with
+/// [`crate::registry_source`]. It is not what the lockfile records: registry
+/// crates are locked against [`crate::CRATES_IO_SOURCE`].
 pub fn resolve_lockfile(
     metadata: &str,
     index_files: &BTreeMap<String, String>,
