@@ -3,7 +3,6 @@ use miette::{IntoDiagnostic, Result, bail};
 use pnpm_python_resolver::parse_requirement;
 use std::{collections::BTreeSet, path::Path};
 
-/// Require wheel dependencies to match the requirements used for resolution.
 pub(super) fn requires_what_it_declares(
     metadata: &host::WheelMetadata,
     manifest: &Manifest,
