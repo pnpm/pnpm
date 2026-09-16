@@ -4,7 +4,7 @@ use super::{
     fs, io, manifest,
 };
 use miette::WrapErr;
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 
 /// What every project of one [`prepare`](super::prepare) run shares.
 pub(super) struct PythonPrepare<'a> {
@@ -14,12 +14,22 @@ pub(super) struct PythonPrepare<'a> {
     pub(super) environments: &'a Environments,
     pub(super) index: &'a Index,
     pub(super) store: ArtifactStore<'a>,
-    pub(super) resolve: bool,
-    pub(super) selection: manifest::DependencySelection,
+    pub(super) asked: Asked,
+    /// Every distribution a project in this repository declares. A build
+    /// requirement naming one of them is refused rather than taken from
+    /// the index, wherever the backend asked for it.
+    pub(super) members: BTreeSet<pep508_rs::PackageName>,
     /// The environments backends have already been installed into, by the
     /// requirements they hold. Every project using one backend needs the
     /// same environment, and a workspace is mostly one backend.
     pub(super) build_environments: tokio::sync::Mutex<BTreeMap<String, Arc<tempfile::TempDir>>>,
+}
+
+/// What the install asked this run for.
+pub(super) struct Asked {
+    /// Whether a dependency is being added, which resolves again.
+    pub(super) resolve: bool,
+    pub(super) selection: manifest::DependencySelection,
 }
 
 /// The store a run reads verified artifacts from and writes them to.

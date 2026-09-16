@@ -2067,8 +2067,6 @@ async fn a_requirement_the_backend_asks_for_is_approved_too() {
     );
 }
 
-/// uv builds a project with the workspace's own backend. pnpm does not
-/// yet, and the index's package of that name is other code.
 #[tokio::test]
 async fn a_workspace_project_as_a_build_requirement_is_refused() {
     let root = tempfile::tempdir().unwrap();
@@ -2090,8 +2088,6 @@ async fn a_workspace_project_as_a_build_requirement_is_refused() {
     );
 }
 
-/// A backend reads its own configuration, so one that builds for another
-/// interpreter produces a wheel this environment cannot install.
 #[tokio::test]
 async fn a_wheel_built_for_another_interpreter_is_refused() {
     let root = tempfile::tempdir().unwrap();
@@ -2111,5 +2107,60 @@ async fn a_wheel_built_for_another_interpreter_is_refused() {
     assert_failure_contains(
         pacquet_in(root.path()).arg("install"),
         "which this interpreter does not install",
+    );
+}
+
+#[tokio::test]
+async fn a_build_requirement_a_marker_excludes_is_not_refused() {
+    let root = tempfile::tempdir().unwrap();
+    let mut server = mockito::Server::new_async().await;
+    let _backends = serve_backends(&mut server).await;
+    project(root.path(), &server.url(), &[]);
+    python_project(&root.path().join("packages/elsewhere"), "elsewhere", "dependencies = []");
+    fs::write(
+        root.path().join("pyproject.toml"),
+        "[project]\nname = 'app'\nversion = '1.0'\nrequires-python = '>=3.10'\n\
+         dependencies = []\n\n[build-system]\n\
+         requires = ['tinybackend', \"elsewhere; sys_platform == 'nowhere'\"]\n\
+         build-backend = 'tinybuild'\n",
+    )
+    .unwrap();
+    fs::create_dir_all(root.path().join("src/app")).unwrap();
+    fs::write(root.path().join("src/app/__init__.py"), "MARKER = 'built'\n").unwrap();
+
+    pacquet_in(root.path())
+        .arg("install")
+        .assert()
+        .success();
+    python(root.path())
+        .args(["-c", "import app; print(app.MARKER)"])
+        .assert()
+        .success()
+        .stdout(if cfg!(windows) { "built\r\n" } else { "built\n" });
+}
+
+#[tokio::test]
+async fn a_backend_asking_for_a_workspace_project_is_refused() {
+    let root = tempfile::tempdir().unwrap();
+    let mut server = mockito::Server::new_async().await;
+    let asking = format!(
+        "{TINY_BACKEND}\ndef get_requires_for_build_editable(config_settings=None):\n    \
+         return ['elsewhere']\n",
+    );
+    let _backend = serve(
+        &mut server,
+        "tinybackend",
+        &[("80.0", wheel("tinybackend", "80.0", "", &[("tinybuild.py", asking.as_str())]))],
+    )
+    .await;
+    let _elsewhere =
+        serve(&mut server, "elsewhere", &[("1.0", wheel("elsewhere", "1.0", "", &[]))]).await;
+    project(root.path(), &server.url(), &[]);
+    python_project(&root.path().join("packages/elsewhere"), "elsewhere", "dependencies = []");
+    python_project(root.path(), "app", "dependencies = []");
+
+    assert_failure_contains(
+        pacquet_in(root.path()).arg("install"),
+        "which is a project in this workspace",
     );
 }

@@ -199,13 +199,21 @@ impl Manifest {
             .collect()
     }
 
-    /// The distributions this project needs to build at all.
-    pub(super) fn build_requirement_names(&self) -> Result<BTreeSet<PackageName>> {
-        self.build_system
-            .iter()
-            .flat_map(|system| &system.requires)
-            .map(|requirement| Ok(parse_requirement(requirement)?.name))
-            .collect()
+    /// The distributions this project needs to build on `environment`.
+    /// A build requirement a marker excludes is not one this target
+    /// builds with, so it is none of pnpm's business here.
+    pub(super) fn build_requirement_names(
+        &self,
+        environment: &pep508_rs::MarkerEnvironment,
+    ) -> Result<BTreeSet<PackageName>> {
+        let mut names = BTreeSet::new();
+        for requirement in self.build_system.iter().flat_map(|system| &system.requires) {
+            let requirement = parse_requirement(requirement)?;
+            if requirement.marker.evaluate(environment, &[]) {
+                names.insert(requirement.name);
+            }
+        }
+        Ok(names)
     }
 
     /// What a wheel built from this project would state in its

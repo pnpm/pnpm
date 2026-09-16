@@ -211,10 +211,11 @@ impl Workspace {
         root: &Path,
         manifest: &Manifest,
         lock_root: &Path,
+        environment: &pep508_rs::MarkerEnvironment,
     ) -> Result<Vec<LocalProject>> {
         let mut local = Vec::new();
         let mut seen = BTreeMap::<PackageName, Target>::new();
-        let mut frontier = self.targets(root, manifest)?;
+        let mut frontier = self.targets(root, manifest, environment)?;
         while let Some((name, target)) = frontier.pop() {
             if let Some(chosen) = seen.get(&name) {
                 if chosen.root != target.root {
@@ -241,14 +242,19 @@ impl Workspace {
             );
             let manifest = Arc::new(load(&target.root)?);
             local.push(read_project(&name, &target, &manifest, lock_root)?);
-            frontier.extend(self.targets(&target.root, &manifest)?);
+            frontier.extend(self.targets(&target.root, &manifest, environment)?);
         }
         Ok(local)
     }
 
     /// Which of a project's requirements name a project on disk, and where
     /// each one lives.
-    fn targets(&self, root: &Path, manifest: &Manifest) -> Result<Vec<(PackageName, Target)>> {
+    fn targets(
+        &self,
+        root: &Path,
+        manifest: &Manifest,
+        environment: &pep508_rs::MarkerEnvironment,
+    ) -> Result<Vec<(PackageName, Target)>> {
         let mut targets = Vec::new();
         for name in manifest.declared_distributions()? {
             match self.source(root, manifest, &name) {
@@ -259,7 +265,7 @@ impl Workspace {
                 None => self.refuse_shadowed_member(&name, root)?,
             }
         }
-        for name in manifest.build_requirement_names()? {
+        for name in manifest.build_requirement_names(environment)? {
             self.refuse_local_build_requirement(&name, root)?;
         }
         Ok(targets)

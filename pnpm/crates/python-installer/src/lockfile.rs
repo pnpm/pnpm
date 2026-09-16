@@ -26,7 +26,7 @@ impl PythonPrepare<'_> {
         local: &[workspace::LocalProject],
     ) -> Result<Option<Lockfile>> {
         let existing = read_existing_lock(lock_path).await?;
-        let stale = if self.resolve {
+        let stale = if self.asked.resolve {
             Some(miette::miette!("adding a dependency resolves the project again"))
         } else {
             match &existing {

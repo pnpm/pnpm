@@ -91,8 +91,11 @@ async fn prepare<Reporter: self::Reporter + 'static>(
         environments: &environments,
         index: &index,
         store: environment::ArtifactStore { index: store_index, writer: &writer },
-        resolve,
-        selection,
+        asked: environment::Asked { resolve, selection },
+        members: roots
+            .iter()
+            .filter_map(|(_, manifest)| manifest.distribution().cloned())
+            .collect(),
         build_environments: tokio::sync::Mutex::default(),
     };
     let result = prepare_projects::<Reporter>(&prepare, roots).await;
@@ -122,7 +125,12 @@ async fn prepare_projects<Reporter: self::Reporter + 'static>(
         .into_iter()
         .filter(|(_, manifest)| manifest.project.is_some())
         .map(|(root, manifest)| {
-            let local = workspace.local_projects(&root, &manifest, &root)?;
+            let local = workspace.local_projects(
+                &root,
+                &manifest,
+                &root,
+                &prepare.interpreter.target.environment,
+            )?;
             Ok((root, manifest, Arc::from(local)))
         })
         .collect::<Result<Vec<_>>>()?;
@@ -230,7 +238,7 @@ impl PythonPrepare<'_> {
             &mut registry,
             EnvironmentProject { root: &root, manifest: &manifest, local: &local },
             &lock,
-            &manifest.requirements(config, self.selection)?,
+            &manifest.requirements(config, self.asked.selection)?,
         )
         .await?;
         Ok(Prepared {

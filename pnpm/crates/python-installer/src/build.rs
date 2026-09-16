@@ -55,7 +55,7 @@ impl PythonPrepare<'_> {
         manifest: &Manifest,
         editable: bool,
     ) -> Result<Build> {
-        let requires = Self::build_requirements(manifest)?;
+        let requires = self.build_requirements(manifest)?;
         let unapproved = unapproved(self.context.config, &requires);
         if !unapproved.is_empty() {
             return Ok(Build::NotApproved(unapproved));
@@ -139,12 +139,18 @@ impl PythonPrepare<'_> {
         Ok(())
     }
 
-    /// What the project's backend needs installed to run at all.
-    fn build_requirements(manifest: &Manifest) -> Result<Vec<pep508_rs::Requirement>> {
+    /// What the project's backend needs installed to run here. A
+    /// requirement a marker excludes is not installed and does not run,
+    /// so it is not one this target builds with.
+    fn build_requirements(&self, manifest: &Manifest) -> Result<Vec<pep508_rs::Requirement>> {
+        let environment = &self.interpreter.target.environment;
         let mut requires = Vec::new();
         if let Some(system) = manifest.build_system.as_ref() {
             for requirement in &system.requires {
-                requires.push(parse_requirement(requirement)?);
+                let requirement = parse_requirement(requirement)?;
+                if requirement.marker.evaluate(environment, &[]) {
+                    requires.push(requirement);
+                }
             }
         }
         // PEP 517 has a project that names no backend built by setuptools'
@@ -184,7 +190,19 @@ impl PythonPrepare<'_> {
             asked.push(parse_requirement(requirement)?);
         }
         // What a backend asks for once it can see the project runs in the
-        // build too, so it is approved like what the manifest declared.
+        // build too, so it is read the way the manifest's own build
+        // requirements are: refused where it names a project in this
+        // repository, and approved before it runs.
+        for requirement in &asked {
+            if self.members.contains(&requirement.name) {
+                bail!(
+                    "the backend of the Python project asked for `{}` to build, which is a \
+                     project in this workspace. pnpm does not build with a workspace project's \
+                     own backend yet, and will not run the index's package of that name instead.",
+                    requirement.name,
+                );
+            }
+        }
         let unapproved = unapproved(self.context.config, &asked);
         if !unapproved.is_empty() {
             return Ok(BuildEnvironment::NotApproved(unapproved));
