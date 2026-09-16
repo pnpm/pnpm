@@ -223,6 +223,7 @@ new file mode 100644
             patches: Some(&patches),
             requires_build_by_snapshot: None,
             importers: &importers,
+            dependency_groups: None,
         },
         scripts: crate::BuildScriptOptions {
             extra_env: &HashMap::new(),
@@ -352,6 +353,7 @@ new file mode 100644
             patches: Some(&patches),
             requires_build_by_snapshot: None,
             importers: &importers,
+            dependency_groups: None,
         },
         scripts: crate::BuildScriptOptions {
             extra_env: &HashMap::new(),
@@ -450,6 +452,7 @@ async fn missing_patch_file_path_errors_with_diagnostic() {
             patches: Some(&patches),
             requires_build_by_snapshot: None,
             importers: &importers,
+            dependency_groups: None,
         },
         scripts: crate::BuildScriptOptions {
             extra_env: &HashMap::new(),

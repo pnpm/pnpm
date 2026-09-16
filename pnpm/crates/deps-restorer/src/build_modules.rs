@@ -245,6 +245,7 @@ impl BuildModules<'_> {
             self.graph.patches,
             snapshots,
             self.graph.importers,
+            self.graph.dependency_groups,
             self.skipped,
         );
 
@@ -360,6 +361,13 @@ impl BuildModules<'_> {
             has_cache_rows: self.cache.maps_by_snapshot.is_some_and(|map| !map.is_empty()),
         });
         let graph = cache_gate_active.then(|| {
+            // Every requires-build snapshot is a root, including the ones
+            // the install's dependency-group filter keeps out of the build
+            // graph. Narrowing the roots to what will actually build would
+            // make a package inside a dependency cycle hash differently
+            // under `--prod` than under a full install, because
+            // `warm_deps_state_cache` below resolves such a cycle by
+            // whichever walk reaches it first.
             let roots = requires_build_map
                 .iter()
                 .filter(|&(_, &requires_build)| requires_build)

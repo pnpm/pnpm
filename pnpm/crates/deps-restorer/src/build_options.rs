@@ -180,6 +180,7 @@ pub struct BuildGraphInputs<'a> {
     /// materialized package directory.
     pub requires_build_by_snapshot: Option<&'a crate::RequiresBuildBySnapshot>,
     pub importers: &'a HashMap<String, ProjectSnapshot>,
+    pub dependency_groups: Option<&'a [pnpm_package_manifest::DependencyGroup]>,
 }
 
 #[derive(Clone, Copy)]
