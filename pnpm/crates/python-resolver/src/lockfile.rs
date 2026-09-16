@@ -48,6 +48,8 @@ pub struct LockedPackage {
     /// that is not downloaded. PEP 751 calls this a directory package.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub directory: Option<LockedDirectory>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub vcs: Option<LockedVcs>,
 }
 
 /// A project built from a directory in this workspace, as PEP 751 records
@@ -59,6 +61,43 @@ pub struct LockedDirectory {
     pub path: String,
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub editable: bool,
+}
+
+/// A PEP 751 git source pinned to an immutable commit.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case", deny_unknown_fields)]
+pub struct LockedVcs {
+    #[serde(rename = "type")]
+    pub kind: String,
+    pub url: String,
+    pub requested_revision: String,
+    pub commit_id: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub subdirectory: Option<String>,
+}
+
+impl LockedVcs {
+    pub fn validate(&self) -> Result<()> {
+        if self.kind != "git" {
+            bail!("unsupported Python lockfile VCS kind {:?}, expected git", self.kind);
+        }
+        if self.commit_id.len() != 40
+            || !self.commit_id.bytes().all(|byte| byte.is_ascii_hexdigit())
+        {
+            bail!(
+                "Python git lockfile source requires a full commit hash, received {:?}",
+                self.commit_id,
+            );
+        }
+        let crate::Source::Git(source) = crate::Source::parse(&format!("git+{}", self.url))? else {
+            bail!("Python git lockfile source requires a git URL");
+        };
+        if source.url != self.url {
+            bail!("invalid Python git lockfile URL");
+        }
+        crate::source::validate_subdirectory(self.subdirectory.as_deref())?;
+        Ok(())
+    }
 }
 
 impl LockedPackage {
@@ -237,7 +276,10 @@ impl Lockfile {
             bail!("the project's requires-python changed");
         }
         for package in self.selected_packages(&target.environment)? {
-            if package.directory.is_none() {
+            if let Some(vcs) = &package.vcs {
+                vcs.validate()?;
+            }
+            if package.directory.is_none() && package.vcs.is_none() {
                 package.installable_wheel(target)?;
             }
         }
@@ -255,12 +297,19 @@ impl Lockfile {
             bail!("unsupported Python lock-version: {}", self.lock_version);
         }
         for package in self.selected_packages(&target.environment)? {
-            let candidate = match &package.directory {
-                Some(directory) => Candidate::Directory(directory.clone()),
-                None => Candidate::Wheel(IndexCandidate {
+            let candidate = match (&package.vcs, &package.directory) {
+                (Some(vcs), None) if package.wheels.is_empty() => {
+                    vcs.validate()?;
+                    Candidate::Vcs(vcs.clone())
+                }
+                (None, Some(directory)) if package.wheels.is_empty() => {
+                    Candidate::Directory(directory.clone())
+                }
+                (None, None) => Candidate::Wheel(IndexCandidate {
                     wheel: package.installable_wheel(target)?.clone(),
                     core_metadata: None,
                 }),
+                _ => bail!("Python lockfile pins multiple sources for {}", package.name),
             };
             if packages.candidates
                 .insert(
@@ -293,17 +342,21 @@ impl Lockfile {
 /// them install carries no marker: the lockfile's `environments` already
 /// says where it is installed.
 fn merge_packages(solved: &[Solved], markers: &[MarkerTree]) -> Result<Vec<LockedPackage>> {
-    let mut merged = BTreeMap::<(PackageName, Version), Merged>::new();
+    let mut merged = BTreeMap::<(PackageName, Version, String), Merged>::new();
     let mut scope = MarkerTree::FALSE;
     for (environment, marker) in solved.iter().zip(markers) {
         scope.or(marker.clone());
         for (name, version) in &environment.solution {
             let entry = merged
-                .entry((name.clone(), version.clone()))
+                .entry((name.clone(), version.clone(), environment.source_key(name)?))
                 .or_insert_with(Merged::nowhere);
             entry.marker.or(marker.clone());
             // A project in the repository is the same directory on every
             // environment, where a release is the wheel each one takes.
+            if let Some(vcs) = environment.vcs.get(name) {
+                entry.vcs = Some(vcs.clone());
+                continue;
+            }
             if let Some(directory) = environment.directories.get(name) {
                 entry.directory = Some(directory.clone());
                 continue;
@@ -316,12 +369,13 @@ fn merge_packages(solved: &[Solved], markers: &[MarkerTree]) -> Result<Vec<Locke
     }
     let packages = merged
         .into_iter()
-        .map(|((name, version), entry)| LockedPackage {
+        .map(|((name, version, _), entry)| LockedPackage {
             name,
             version,
             marker: (entry.marker != scope).then(|| entry.marker.try_to_string()).flatten(),
             wheels: entry.wheels.into_values().collect(),
             directory: entry.directory,
+            vcs: entry.vcs,
         })
         .collect::<Vec<_>>();
     check_one_version_per_environment(&packages)?;
@@ -334,13 +388,14 @@ struct Merged {
     marker: MarkerTree,
     wheels: BTreeMap<String, LockedWheel>,
     directory: Option<LockedDirectory>,
+    vcs: Option<LockedVcs>,
 }
 
 impl Merged {
     /// A package no environment installs yet. The marker starts false
     /// because each environment adds itself to it.
     fn nowhere() -> Self {
-        Self { marker: MarkerTree::FALSE, wheels: BTreeMap::new(), directory: None }
+        Self { marker: MarkerTree::FALSE, wheels: BTreeMap::new(), directory: None, vcs: None }
     }
 }
 

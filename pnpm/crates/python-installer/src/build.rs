@@ -1,7 +1,9 @@
 pub(super) use validation::{extra_set, requirement_set};
 
+pub(super) use approvals::unapproved;
 pub(super) use metadata::FallbackWheel;
 
+mod approvals;
 mod metadata;
 mod validation;
 use validation::requires_what_it_declares;
@@ -16,19 +18,9 @@ use super::{
 use miette::{IntoDiagnostic, Result, WrapErr, bail};
 use pep508_rs::PackageName;
 use pnpm_python_resolver::{parse_requirement, wheel_identity};
-use std::{
-    collections::{BTreeMap, BTreeSet},
-    path::Path,
-    sync::Arc,
-};
+use std::{collections::BTreeMap, path::Path, sync::Arc};
 
 /// What PEP 517 says a project means when it declares no build system.
-/// How an `allowBuilds` key names a Python distribution: the [Package
-/// URL] type for `PyPI`, which every ecosystem pnpm installs has one of.
-///
-/// [Package URL]: https://github.com/package-url/purl-spec
-const PYPI_PURL: &str = "pkg:pypi/";
-
 const DEFAULT_BACKEND: &str = "setuptools.build_meta:__legacy__";
 const DEFAULT_REQUIRES: &[&str] = &["setuptools>=40.8.0", "wheel"];
 
@@ -63,7 +55,7 @@ impl PythonPrepare<'_> {
         self.build::<Reporter>(root, manifest, true).await
     }
 
-    async fn build<Reporter: pnpm_reporter::Reporter + 'static>(
+    pub(super) async fn build<Reporter: pnpm_reporter::Reporter + 'static>(
         &self,
         root: &Path,
         manifest: &Manifest,
@@ -125,7 +117,7 @@ impl PythonPrepare<'_> {
                 filename: built.wheel.filename,
                 files: built.wheel.files,
                 metadata: built.metadata,
-                direct_url: Some(host::DirectUrl { url: url.to_string(), editable }),
+                direct_url: Some(host::DirectUrl::directory(url.to_string(), editable)),
             },
             output,
         })))
@@ -146,13 +138,9 @@ impl PythonPrepare<'_> {
         let wheel: BuiltWheel = host::run(&interpreter(environment.path()), "build", request)
             .await
             .wrap_err_with(|| format!("build the Python project at {}", root.display()))?;
-        let metadata = host::run(
-            &self.interpreter.executable,
-            "inspect",
-            serde_json::json!({ "files": wheel.files, "filename": wheel.filename }),
-        )
-        .await
-        .wrap_err_with(|| format!("read the wheel built from {}", root.display()))?;
+        let metadata = host::inspect(&self.interpreter.executable, &wheel.files, &wheel.filename)
+            .await
+            .wrap_err_with(|| format!("read the wheel built from {}", root.display()))?;
         Ok(Backend517 { wheel, metadata })
     }
 
@@ -280,24 +268,54 @@ impl PythonPrepare<'_> {
         &self,
         requires: &[pep508_rs::Requirement],
     ) -> Result<Arc<tempfile::TempDir>> {
-        let mut key = requires
+        let key = self.build_environment_key(requires);
+        {
+            let mut environments = self.build_environments.lock().await;
+            match environments.get(&key) {
+                Some(Some(environment)) => return Ok(Arc::clone(environment)),
+                Some(None) => bail!("cyclic Python build requirements: {}", key.1),
+                None => {
+                    environments.insert(key.clone(), None);
+                }
+            }
+        }
+        let result = self.install_build_requirements::<Reporter>(requires).await;
+        let mut environments = self.build_environments.lock().await;
+        match &result {
+            Ok(root) => {
+                environments.insert(key, Some(Arc::clone(root)));
+            }
+            Err(_) => {
+                environments.remove(&key);
+            }
+        }
+        result
+    }
+
+    fn build_environment_key(
+        &self,
+        requires: &[pep508_rs::Requirement],
+    ) -> super::environment::BuildEnvironmentKey {
+        let mut requirements = requires
             .iter()
             .map(ToString::to_string)
             .collect::<Vec<_>>();
-        key.sort();
-        key.dedup();
-        let key = (
+        requirements.sort();
+        requirements.dedup();
+        (
             format!(
                 "{} {}",
                 self.interpreter.executable,
                 self.interpreter.target.environment.python_full_version(),
             ),
-            key.join(" "),
-        );
-        let mut built = self.build_environments.lock().await;
-        if let Some(environment) = built.get(&key) {
-            return Ok(Arc::clone(environment));
-        }
+            requirements.join(" "),
+        )
+    }
+
+    async fn install_build_requirements<Reporter: pnpm_reporter::Reporter + 'static>(
+        &self,
+        requires: &[pep508_rs::Requirement],
+    ) -> Result<Arc<tempfile::TempDir>> {
         let root = tempfile::tempdir().into_diagnostic()?;
         let mut registry = self.registry();
         let solution = resolver::resolve::<Reporter>(&mut registry, requires).await?;
@@ -311,9 +329,7 @@ impl PythonPrepare<'_> {
             serde_json::json!({ "root": root.path(), "packages": wheels }),
         )
         .await?;
-        let root = Arc::new(root);
-        built.insert(key, Arc::clone(&root));
-        Ok(root)
+        Ok(Arc::new(root))
     }
 }
 
@@ -401,74 +417,6 @@ fn identify_identity(
         );
     }
     Ok(())
-}
-
-/// The build requirements the configuration has not approved to run.
-fn unapproved(config: &pnpm_config::Config, requires: &[pep508_rs::Requirement]) -> Vec<String> {
-    if config.dangerously_allow_all_builds {
-        return Vec::new();
-    }
-    let approvals = Approvals::of(config);
-    let mut names = requires
-        .iter()
-        .filter(|requirement| !approvals.any_version.contains(&requirement.name))
-        .map(|requirement| approvals.describe(&requirement.name))
-        .collect::<Vec<_>>();
-    names.sort();
-    names.dedup();
-    names
-}
-
-/// The distributions `allowBuilds` approves to run in a build.
-///
-/// A key says which ecosystem's package it names, as a Package URL.
-/// Approving is a statement about one piece of code, and a bare name is
-/// not one: npm and `PyPI` both publish `esbuild`, `ruff` and `black`, so a
-/// key naming no ecosystem would let approving a build script approve a
-/// build backend nobody looked at.
-///
-/// A key naming no version approves the distribution however it
-/// resolves, which is the only form a check made before resolving can
-/// answer. A version-qualified key names a release, and a build approved
-/// by one says so rather than silently doing nothing.
-struct Approvals {
-    any_version: BTreeSet<pep508_rs::PackageName>,
-    only_a_version: BTreeSet<pep508_rs::PackageName>,
-}
-
-impl Approvals {
-    fn of(config: &pnpm_config::Config) -> Self {
-        let mut approvals = Self { any_version: BTreeSet::new(), only_a_version: BTreeSet::new() };
-        for (spec, allowed) in &config.allow_builds {
-            if !allowed {
-                continue;
-            }
-            let Some(spec) = spec.strip_prefix(PYPI_PURL) else { continue };
-            let (name, version) = spec
-                .rsplit_once('@')
-                .map_or((spec, None), |(name, version)| (name, Some(version)));
-            // The key is read as a distribution name, so it names the
-            // same one however it is spelled.
-            if let Ok(name) = name.parse::<pep508_rs::PackageName>() {
-                if version.is_some() {
-                    approvals.only_a_version.insert(name);
-                } else {
-                    approvals.any_version.insert(name);
-                }
-            }
-        }
-        approvals
-    }
-
-    fn describe(&self, name: &pep508_rs::PackageName) -> String {
-        if self.only_a_version.contains(name) {
-            return format!(
-                "{PYPI_PURL}{name} (approved only for a version, which a Python build is not \
-                 checked against)",
-            );
-        }
-        format!("{PYPI_PURL}{name}")
-    }
 }
 
 struct Backend {

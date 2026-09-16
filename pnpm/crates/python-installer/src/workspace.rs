@@ -269,7 +269,9 @@ impl Workspace {
                 },
             );
             let manifest = self.load(&target.root)?;
-            local.push(read_project(&name, &target, &manifest, lock_root)?);
+            let mut project = read_project(&name, &target, &manifest, lock_root)?;
+            self.project_requirements(&mut project, &target.root, &manifest)?;
+            local.push(project);
             frontier.extend(self.targets(&target.root, &manifest, Some(&target.extras))?);
         }
         Ok(local)
@@ -294,6 +296,11 @@ impl Workspace {
         for (name, extras) in self.selected_distributions(manifest, extras)? {
             match self.source(root, manifest, &name) {
                 Some(Declared { declaration, by }) => {
+                    let source = sole_source(declaration, &name, &by.join("pyproject.toml"))?;
+                    if source.git.is_some() || source.url.is_some() {
+                        reject_unresolvable(source, &name, &by.join("pyproject.toml"))?;
+                        continue;
+                    }
                     let mut target = self.target(&name, declaration, root, by)?;
                     target.extras = extras;
                     targets.push((name, target));
@@ -302,23 +309,6 @@ impl Workspace {
             }
         }
         Ok(targets)
-    }
-
-    /// The source a project resolves a distribution from: its own
-    /// declaration, else the one its workspace root declares. A member
-    /// inherits the root's table, so a workspace can say once where each
-    /// of its projects comes from.
-    fn source<'a>(
-        &'a self,
-        root: &'a Path,
-        manifest: &'a Manifest,
-        name: &PackageName,
-    ) -> Option<Declared<'a>> {
-        if let Some(declaration) = manifest.tool.uv.sources.get(name) {
-            return Some(Declared { declaration, by: root });
-        }
-        let (declaring_root, inherited) = self.inherited.get(root)?;
-        Some(Declared { declaration: inherited.tool.uv.sources.get(name)?, by: declaring_root })
     }
 
     /// Refuse to resolve a workspace project's distribution from the

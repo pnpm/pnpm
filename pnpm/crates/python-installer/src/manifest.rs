@@ -102,7 +102,7 @@ pub(super) struct UvWorkspace {
 #[derive(Clone, Deserialize)]
 #[serde(untagged)]
 pub(super) enum SourceDeclaration {
-    One(Source),
+    One(Box<Source>),
     Many(Vec<Source>),
 }
 
@@ -114,10 +114,20 @@ pub(super) struct Source {
     pub(super) path: Option<String>,
     pub(super) editable: Option<bool>,
     pub(super) git: Option<String>,
+    #[serde(flatten)]
+    pub(super) revision: GitRevision,
     pub(super) url: Option<String>,
     pub(super) index: Option<String>,
     #[serde(flatten)]
     pub(super) narrowing: Narrowing,
+}
+
+#[derive(Clone, Deserialize)]
+pub(super) struct GitRevision {
+    pub(super) rev: Option<String>,
+    pub(super) tag: Option<String>,
+    pub(super) branch: Option<String>,
+    pub(super) subdirectory: Option<String>,
 }
 
 /// What narrows a source to some targets, or to one extra or group. pnpm

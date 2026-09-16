@@ -33,14 +33,21 @@ pub(crate) fn read_protocol_policies(
 /// Without Git on PATH, return an empty allowlist: non-Git resolution can
 /// proceed, and Git started through a configured PATH stays blocked.
 pub fn read_allowed_git_protocols(cwd: &Path) -> Result<String, GitFetcherError> {
-    let policies = match read_protocol_policies(Path::new("git"), Some(cwd)) {
+    read_allowed_git_protocols_with(Path::new("git"), cwd)
+}
+
+pub(crate) fn read_allowed_git_protocols_with(
+    bin: &Path,
+    cwd: &Path,
+) -> Result<String, GitFetcherError> {
+    let policies = match read_protocol_policies(bin, Some(cwd)) {
         Ok(policies) => policies,
         Err(GitFetcherError::GitNotFound) => return Ok(String::new()),
         Err(error) => return Err(error),
     };
     let inherited = env::var_os("GIT_ALLOW_PROTOCOL");
     let from_user = env::var_os("GIT_PROTOCOL_FROM_USER")
-        .map(|value| read_git_boolean(&value, cwd))
+        .map(|value| read_git_boolean(bin, &value, cwd))
         .transpose()?
         .unwrap_or(true);
     Ok(filter_supported_protocols(inherited.as_deref(), |protocol| {
@@ -48,10 +55,10 @@ pub fn read_allowed_git_protocols(cwd: &Path) -> Result<String, GitFetcherError>
     }))
 }
 
-fn read_git_boolean(value: &OsStr, cwd: &Path) -> Result<bool, GitFetcherError> {
+fn read_git_boolean(bin: &Path, value: &OsStr, cwd: &Path) -> Result<bool, GitFetcherError> {
     let setting = format!("pnpm.protocol-from-user={}", value.to_string_lossy());
     exec_git_with(
-        Path::new("git"),
+        bin,
         &["-c", &setting, "config", "--type=bool", "--get", "pnpm.protocol-from-user"],
         Some(cwd),
     )

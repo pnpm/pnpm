@@ -1503,6 +1503,8 @@ async fn locks_one_environment_per_platform_however_it_is_named() {
 
 mod metadata;
 mod selection;
+
+mod sources;
 mod validation;
 
 /// A PEP 517 backend small enough to serve from the mocked index, so a
@@ -1711,13 +1713,13 @@ async fn a_source_pnpm_cannot_resolve_is_refused() {
         root.path().join("pyproject.toml"),
         "[project]\nname = 'app'\nversion = '1.0'\nrequires-python = '>=3.10'\n\
          dependencies = ['talon-core']\n\n[tool.uv.sources]\n\
-         talon-core = { git = 'https://example.invalid/talon.git' }\n",
+         talon-core = { index = 'private' }\n",
     )
     .unwrap();
 
     assert_failure_contains(
         pacquet_in(root.path()).arg("install"),
-        "does not support the git Python source",
+        "does not support the index Python source",
     );
 }
 

@@ -12,6 +12,7 @@ repository.workspace = true
 
 [dependencies]
 miette = { workspace = true }
+percent-encoding = { workspace = true }
 pep440_rs = { workspace = true }
 pep508_rs = { workspace = true }
 pubgrub = { workspace = true }

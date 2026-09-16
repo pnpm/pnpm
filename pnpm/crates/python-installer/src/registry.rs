@@ -5,12 +5,11 @@ use pep440_rs::Version;
 use pep508_rs::PackageName;
 use pnpm_config::Config;
 use pnpm_network::ThrottledClient;
-use pnpm_python_resolver::{Packages, Target, candidates_from_page};
+use pnpm_python_resolver::{LockedWheel, Packages, Target, candidates_from_page};
 use pnpm_reporter::Reporter;
 use pnpm_tarball::{ArchiveStoreProjection, IngestZipArchiveToStore};
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, BTreeSet};
-use tokio::io::AsyncReadExt;
 use url::Url;
 
 const MAX_INDEX_BYTES: usize = 64 * 1024 * 1024;
@@ -29,14 +28,10 @@ pub(super) struct Registry<'a> {
     pub(super) interpreter: &'a Interpreter,
     pub(super) store: pnpm_tarball::ArchiveStoreContext<'a>,
     pub(super) resolution: Resolution,
-    /// The distributions whose index page this run has downloaded. A
-    /// project locking for several environments reads the page once and
-    /// takes every later environment's candidates from the cache that
-    /// download wrote.
-    pub(super) downloaded: BTreeSet<PackageName>,
     /// What installing reads: the store paths of every wheel downloaded so
     /// far, beside the interpreter's full report on it.
     pub(super) wheels: BTreeMap<(PackageName, Version), Wheel>,
+    pub(super) sources: super::sources::Sources<'a>,
 }
 
 /// What a resolution reads and what it is answering for: the environment
@@ -49,11 +44,16 @@ pub(super) struct Resolution {
     /// The candidates each distribution offers this environment, and the
     /// metadata of the wheels the resolution has looked at.
     pub(super) packages: Packages,
+    /// The distributions whose index page this run has downloaded. A
+    /// project locking for several environments reads the page once and
+    /// takes every later environment's candidates from the cache that
+    /// download wrote.
+    pub(super) downloaded: BTreeSet<PackageName>,
 }
 
 impl Resolution {
     pub(super) fn new(target: Target) -> Self {
-        Self { target, packages: Packages::new() }
+        Self { target, packages: Packages::new(), downloaded: BTreeSet::new() }
     }
 
     /// Answer for another environment, which takes its own candidates
@@ -68,6 +68,8 @@ impl Resolution {
                 .values()
                 .all(|candidate| candidate.directory().is_some())
         });
+        self.packages.direct_urls.clear();
+        self.packages.rejected_sources.clear();
     }
 
     /// Offer this environment the candidates an index page holds.
@@ -81,8 +83,19 @@ impl Resolution {
 impl Registry<'_> {
     pub(super) async fn fetch_index(&mut self, name: &PackageName) -> Result<()> {
         let page = self.read_index(name).await?;
-        self.downloaded.insert(name.clone());
-        self.resolution.offer(name, &page)
+        self.resolution.downloaded.insert(name.clone());
+        self.resolution.offer(name, &page)?;
+        if self.resolution.packages.candidates[name]
+            .keys()
+            .any(|version| {
+                self.wheels
+                    .get(&(name.clone(), version.clone()))
+                    .is_some_and(|wheel| wheel.direct_url.is_some())
+            })
+        {
+            self.resolution.packages.metadata.retain(|(distribution, _), _| distribution != name);
+        }
+        Ok(())
     }
 
     /// The Simple JSON index page for `name`: from the cache when this
@@ -95,7 +108,7 @@ impl Registry<'_> {
         let cache = self.config.cache_dir
             .join("python-index-v2")
             .join(format!("{}.json", pnpm_crypto_hash::create_hex_hash(index_url.as_str())));
-        let replayed = self.config.offline || self.downloaded.contains(name);
+        let replayed = self.config.offline || self.resolution.downloaded.contains(name);
         let cached = if replayed {
             read_cached_index(&cache, name).await?
         } else {
@@ -157,7 +170,10 @@ impl Registry<'_> {
     /// already, which after a lockfile is seeded is the wheel each locked
     /// package installs here. Resolving another environment may have read
     /// a different build of the same version.
-    pub(super) async fn fetch_wheels<Reporter: self::Reporter + 'static>(&mut self) -> Result<()> {
+    pub(super) async fn fetch_wheels<Reporter: self::Reporter + 'static>(
+        &mut self,
+        requirements: &[pep508_rs::Requirement],
+    ) -> Result<()> {
         // The stream owns what it walks: a borrowed iterator would have to be
         // `Send` for every lifetime to keep preparation `Send`.
         let mut wanted = Vec::new();
@@ -165,9 +181,10 @@ impl Registry<'_> {
             for (version, candidate) in versions {
                 // A project in this repository is built from its source,
                 // so there is nothing to fetch for it.
-                let Some(offered) = candidate.wheel() else { continue };
-                let downloaded = self.wheels.get(&(name.clone(), version.clone()));
-                if downloaded.is_none_or(|wheel| wheel.filename != offered.name) {
+                if candidate.wheel().is_none() {
+                    continue;
+                }
+                if !self.has_wheel(name, version) {
                     wanted.push((name.clone(), version.clone()));
                 }
             }
@@ -187,12 +204,14 @@ impl Registry<'_> {
         for ((name, version), wheel) in results.into_values().collect::<Result<Vec<_>>>()? {
             self.remember(name, version, wheel);
         }
+        self.record_sources(&[])?;
+        self.fetch_vcs::<Reporter>(requirements).await?;
         Ok(())
     }
 
     /// Keep a downloaded wheel for both readers: the interpreter's full
     /// report for installing it, and the subset resolution reads.
-    fn remember(&mut self, name: PackageName, version: Version, wheel: Wheel) {
+    pub(super) fn remember(&mut self, name: PackageName, version: Version, wheel: Wheel) {
         self.resolution.packages.metadata.insert(
             (name.clone(), version.clone()),
             pnpm_python_resolver::WheelMetadata {
@@ -203,21 +222,42 @@ impl Registry<'_> {
                 provides_extra: wheel.metadata.provides_extra.clone(),
             },
         );
+        self.sources.fetched.insert(
+            (name.clone(), version.clone()),
+            self.resolution.packages.candidates[&name][&version].clone(),
+        );
         self.wheels.insert((name, version), wheel);
     }
 
-    async fn download_wheel<Reporter: self::Reporter + 'static>(
+    pub(super) async fn download_wheel_from_buffer<Reporter: self::Reporter + 'static>(
         &self,
         name: &PackageName,
         version: &Version,
+        buffer: Option<Vec<u8>>,
     ) -> Result<Wheel> {
         let wheel = self.resolution.packages.candidates[name][version]
             .wheel()
             .ok_or_else(|| miette::miette!("Python package {name} {version} is not a wheel"))?;
         validate_wheel_identity(wheel, &self.resolution.target.tags, name, version)?;
+        let files = self.ingest_wheel::<Reporter>(wheel, buffer).await?;
+        let files: BTreeMap<_, _> = files.into_iter().collect();
+        let metadata = host::inspect(&self.interpreter.executable, &files, &wheel.name).await?;
+        validate_wheel_metadata(&metadata, name, version)?;
+        Ok(Wheel {
+            filename: wheel.name.clone(),
+            files,
+            metadata,
+            direct_url: self.source_provenance(name),
+        })
+    }
+    async fn ingest_wheel<Reporter: self::Reporter + 'static>(
+        &self,
+        wheel: &LockedWheel,
+        buffer: Option<Vec<u8>>,
+    ) -> Result<std::collections::HashMap<String, std::path::PathBuf>> {
         let integrity = wheel.integrity()?;
         let package_id = format!("python:{}", wheel.name);
-        let files = IngestZipArchiveToStore {
+        let ingestion = IngestZipArchiveToStore {
             fetching: pnpm_tarball::ArchiveFetchOptions {
                 http_client: self.client,
                 auth_headers: &self.index.auth,
@@ -225,6 +265,7 @@ impl Registry<'_> {
                 offline: self.config.offline,
             },
             package: pnpm_tarball::ZipArchivePackage {
+                max_bytes: Some(super::sources::MAX_WHEEL_BYTES),
                 integrity: &integrity,
                 url: &wheel.url,
                 id: &package_id,
@@ -237,39 +278,29 @@ impl Registry<'_> {
             ignore_file_pattern: None,
 
             store_projection: ArchiveStoreProjection::RawArchive,
+        };
+        match buffer {
+            Some(buffer) => ingestion.run_with_buffer::<Reporter>(buffer).await,
+            None => ingestion.run_without_mem_cache::<Reporter>().await,
         }
-        .run_without_mem_cache::<Reporter>()
-        .await
-        .into_diagnostic()?;
-        let files = files.into_iter().collect::<BTreeMap<_, _>>();
-        let metadata: WheelMetadata = host::run(
-            &self.interpreter.executable,
-            "inspect",
-            serde_json::json!({"files": files, "filename": wheel.name}),
-        )
-        .await?;
-        validate_wheel_metadata(&metadata, name, version)?;
-        Ok(Wheel { filename: wheel.name.clone(), files, metadata, direct_url: None })
+        .into_diagnostic()
+    }
+
+    async fn download_wheel<Reporter: self::Reporter + 'static>(
+        &self,
+        name: &PackageName,
+        version: &Version,
+    ) -> Result<Wheel> {
+        self.download_wheel_from_buffer::<Reporter>(name, version, None).await
     }
 }
 
 /// The index cached from an earlier run, which is the only source an
 /// offline resolution has.
 async fn read_cached_index(cache: &std::path::Path, name: &PackageName) -> Result<CachedIndex> {
-    let file = tokio::fs::File::open(cache).await
-        .into_diagnostic()
-        .wrap_err_with(|| {
-            format!("Python index for {name} is not cached for offline resolution")
-        })?;
-    let mut contents = Vec::new();
-    file.take(MAX_CACHE_BYTES as u64 + 1)
-        .read_to_end(&mut contents)
+    super::cache::read_json(cache, MAX_CACHE_BYTES, &format!("Python index cache for {name}"))
         .await
-        .into_diagnostic()?;
-    if contents.len() > MAX_CACHE_BYTES {
-        bail!("Python index cache for {name} exceeds {MAX_CACHE_BYTES} bytes");
-    }
-    serde_json::from_slice::<CachedIndex>(&contents).into_diagnostic()
+        .wrap_err_with(|| format!("Python index for {name} is not cached for offline resolution"))
 }
 
 fn validate_wheel_metadata(

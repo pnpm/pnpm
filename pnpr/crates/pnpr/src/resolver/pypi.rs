@@ -23,6 +23,7 @@
 //! installed environment.
 
 mod metadata;
+mod response;
 use metadata::{
     CachedDocument, metadata_from_wheel, metadata_url, parse_metadata, parse_page,
     project_page_url, text, verify_digest,
@@ -42,19 +43,16 @@ use std::{
 use axum::{http::StatusCode, response::Response};
 use pnpm_network::{AuthHeaders, MetadataCacheScope, RetryOpts, ThrottledClient};
 use pnpm_python_resolver::{
-    Candidate, IndexCandidate, Inputs, Lockfile, Packages, Step, Target, WheelMetadata,
-    candidates_from_page, parse_requirement, validate_url,
+    Candidate, IndexCandidate, Packages, Step, Target, WheelMetadata, candidates_from_page,
+    parse_requirement, validate_url,
 };
 use pnpr_route::{Footprint, url_has_inline_credentials};
 
 use crate::server::StripedLocks;
 
 use super::{
-    Resolver, json_error,
-    package_route::PackageRoute,
-    protocol::PypiResolveRequest,
+    Resolver, json_error, package_route::PackageRoute, protocol::PypiResolveRequest,
     request_validation::forbidden_off_allowlist,
-    wire::{error_frame, ndjson_single_frame, pypi_done_frame},
 };
 
 /// How many requirements one request may name. A project's manifest
@@ -121,25 +119,18 @@ pub(super) async fn handle_resolve(
         Err(err) => return json_error(StatusCode::BAD_REQUEST, &super::report_message(&err)),
     };
 
-    let reader = IndexReader::new(runtime, identity, index);
-    let inputs = Inputs::new(&requirements, &request.target, reader.index.as_str());
-    match resolve(&reader, &requirements, &request.target).await {
-        Ok(packages) => {
-            let solution = packages.0;
-            match Lockfile::new(
-                &packages.1,
-                &request.target,
-                &requirements,
-                solution,
-                inputs,
-                request.requires_python,
-            ) {
-                Ok(lockfile) => ndjson_single_frame(&pypi_done_frame(&lockfile)),
-                Err(err) => ndjson_single_frame(&error_frame(&super::report_message(&err))),
-            }
-        }
-        Err(err) => ndjson_single_frame(&error_frame(&err)),
+    if requirements
+        .iter()
+        .any(|requirement| {
+            matches!(requirement.version_or_url, Some(pep508_rs::VersionOrUrl::Url(_)))
+        })
+    {
+        return json_error(
+            StatusCode::BAD_REQUEST,
+            "Python direct URL requirements must be resolved by the client",
+        );
     }
+    response::resolve_request(runtime, identity, index, request, requirements).await
 }
 
 type Solved = (BTreeMap<pep508_rs::PackageName, pep440_rs::Version>, Packages);
@@ -158,6 +149,12 @@ async fn resolve(
             .map_err(|err| super::report_message(&err))?;
         match step {
             Step::Solved(solution) => return Ok((solution, packages)),
+            Step::Backtrack(message) => return Err(message),
+            Step::NeedUrl(name, _) => {
+                return Err(format!(
+                    "Python direct URL requirement for {name} must be resolved by the client",
+                ));
+            }
             Step::NeedCandidates(name) => {
                 if packages.candidates.len() >= MAX_DISTRIBUTIONS {
                     return Err(format!(

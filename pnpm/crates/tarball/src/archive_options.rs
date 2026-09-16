@@ -123,6 +123,8 @@ pub struct TarballPackage<'a> {
 
 #[derive(Clone, Copy)]
 pub struct ZipArchivePackage<'a> {
+    /// Reject an advertised or streamed ZIP body above this limit. `None` leaves it unrestricted.
+    pub max_bytes: Option<usize>,
     pub integrity: &'a Integrity,
     pub url: &'a str,
     pub id: &'a str,

@@ -375,9 +375,9 @@ fn a_project_whose_every_release_is_unreadable_reports_why() {
 /// else the same wheel declares, in whatever order, says nothing about
 /// that.
 #[test]
-fn a_direct_url_requirement_is_refused_rather_than_skipped() {
+fn an_unsupported_url_requirement_is_refused_rather_than_skipped() {
     let target = target();
-    let url = "Requires-Dist: helper @ https://files.test/helper-1.0.0-py3-none-any.whl\n";
+    let url = "Requires-Dist: helper @ file:///helper-1.0.0-py3-none-any.whl\n";
     let unreadable = "Requires-Dist: >=1 helper\n";
     for requires_dist in
         [url.to_string(), format!("{unreadable}{url}"), format!("{url}{unreadable}")]
@@ -387,7 +387,10 @@ fn a_direct_url_requirement_is_refused_rather_than_skipped() {
 
         let error = step(&packages, &requirements, &target.environment).expect_err("unsupported");
 
-        assert!(error.to_string().contains("direct URL Python requirements"), "{error}");
+        assert!(
+            error.to_string().contains("unsupported scheme in direct URL Python requirement"),
+            "{error}",
+        );
     }
 }
 
@@ -833,3 +836,39 @@ fn a_declared_environment_that_leaves_a_marker_undecided_is_refused() {
         assert!(error.to_string().contains(undecided), "{error}");
     }
 }
+
+#[test]
+fn git_and_index_sources_of_one_version_remain_distinct_across_environments() {
+    let (metadata, requirements, mut solved) = platform_project();
+    let vcs = crate::LockedVcs {
+        kind: "git".to_string(),
+        url: "https://example.test/demo.git".to_string(),
+        requested_revision: "main".to_string(),
+        commit_id: "a".repeat(40),
+        subdirectory: None,
+    };
+    solved[0].wheels.remove(&name("demo"));
+    solved[0].vcs.insert(name("demo"), vcs.clone());
+    let lock =
+        Lockfile::merged(&metadata, &requirements, &solved, declared_inputs(&requirements), None)
+            .unwrap();
+    assert_eq!(
+        lock.packages
+            .iter()
+            .filter(|package| package.name == name("demo"))
+            .count(),
+        2,
+    );
+    let mut linux = Packages::new();
+    lock.seed(&mut linux, &solved[0].target)
+        .unwrap();
+    assert!(
+        matches!(&linux.candidates[&name("demo")][&version("1.0.0")], crate::Candidate::Vcs(locked) if locked == &vcs),
+    );
+    let mut windows = Packages::new();
+    lock.seed(&mut windows, &solved[1].target)
+        .unwrap();
+    assert!(windows.candidates[&name("demo")][&version("1.0.0")].wheel().is_some());
+}
+
+mod frozen_sources;

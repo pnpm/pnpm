@@ -12,6 +12,12 @@
 #[cfg(test)]
 pub(crate) mod tests;
 
+pub use bundles::{cache_checkout_bundles, checkout_cached_bundles};
+pub use revision::{checkout_existing_revision, checkout_revision, checkout_submodules_offline};
+
+mod bundles;
+mod revision;
+
 use crate::{
     GitSource, GitSourceCache,
     cas_io::{ImportedFiles, import_into_cas},
@@ -477,6 +483,13 @@ pub(crate) fn exec_git_with(
         cmd.arg(arg);
     }
     cmd.args(args);
+    if args.first() == Some(&"clone") {
+        let protocols = crate::protocols::read_allowed_git_protocols_with(
+            bin,
+            cwd.unwrap_or_else(|| Path::new(".")),
+        )?;
+        cmd.env("GIT_ALLOW_PROTOCOL", protocols);
+    }
     if args.first() == Some(&"submodule") {
         // The environment allowlist also constrains nested Git processes and
         // overrides protocol-specific settings in the user's configuration.

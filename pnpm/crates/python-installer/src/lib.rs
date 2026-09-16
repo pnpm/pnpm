@@ -3,6 +3,7 @@ pub use manifest::DependencySelection;
 
 mod add;
 mod build;
+mod cache;
 mod environment;
 mod generation;
 mod host;
@@ -12,6 +13,7 @@ mod manifest;
 mod registry;
 mod requirements;
 mod resolver;
+mod sources;
 mod targets;
 mod workspace;
 
@@ -27,7 +29,7 @@ use pnpm_reporter::Reporter;
 use pnpm_store_dir::{StoreIndex, StoreIndexWriter};
 use registry::Registry;
 use std::{
-    collections::{BTreeMap, BTreeSet},
+    collections::BTreeMap,
     fs, io,
     path::{Path, PathBuf},
     sync::Arc,
@@ -144,7 +146,7 @@ async fn prepare_projects<Reporter: self::Reporter + 'static>(
         let local = Arc::from(workspace.local_projects(&root, &manifest, &root)?);
         prepared.push(
             PythonPrepare::for_project(shared, &interpreter, &environments)
-                .project::<Reporter>(root, manifest, local)
+                .project::<Reporter>(root, manifest, local, &workspace)
                 .await?,
         );
     }
@@ -255,28 +257,22 @@ impl PythonPrepare<'_> {
         root: PathBuf,
         manifest: Arc<manifest::Manifest>,
         local: Arc<[workspace::LocalProject]>,
+        workspace: &workspace::Workspace,
     ) -> Result<Prepared> {
-        let config = self.context.config;
         let project = manifest.project.as_ref().expect("only project manifests were selected");
         self.check_requires_python(&root, project.requires_python.as_deref())?;
-        let requirements = manifest.selected_requirements(config)?;
-        let inputs = self.inputs(&requirements.all);
+        let requirements = manifest.selected_requirements(self.context.config)?;
+        let all_requirements = workspace.requirements(&root, &manifest, requirements.all.clone())?;
+        let inputs = self.inputs(&all_requirements);
         let mut registry = self.registry();
         workspace::offer(&mut registry.resolution.packages, &local);
         let lock_path = root.join("pylock.toml");
-        let existing = self.replayable_lockfile(
-            &lock_path,
-            &inputs,
-            project.requires_python.as_deref(),
-            &local,
-        )
-        .await?;
-        let lock = self.lockfile::<Reporter>(
+        let lock = self.project_lock::<Reporter>(
             &mut registry,
             LockfileInputs {
-                existing,
+                existing: None,
                 lock_path: &lock_path,
-                requirements: &requirements.all,
+                requirements: &all_requirements,
                 inputs,
                 requires_python: project.requires_python.clone(),
                 local: Arc::clone(&local),
@@ -287,7 +283,11 @@ impl PythonPrepare<'_> {
             &mut registry,
             EnvironmentProject { root: &root, manifest: &manifest, local: &local },
             &lock,
-            requirements.selected(self.asked.selection),
+            &workspace.requirements(
+                &root,
+                &manifest,
+                requirements.selected(self.asked.selection).to_vec(),
+            )?,
         )
         .await?;
         Ok(Prepared {
@@ -296,6 +296,21 @@ impl PythonPrepare<'_> {
             environment,
             previous_environment: None,
         })
+    }
+
+    async fn project_lock<Reporter: self::Reporter + 'static>(
+        &self,
+        registry: &mut Registry<'_>,
+        mut inputs: LockfileInputs<'_>,
+    ) -> Result<Lockfile> {
+        inputs.existing = self.replayable_lockfile(
+            inputs.lock_path,
+            &inputs.inputs,
+            inputs.requires_python.as_deref(),
+            &inputs.local,
+        )
+        .await?;
+        self.lockfile::<Reporter>(registry, inputs).await
     }
 
     /// What this install's resolution depends on, which is what decides
@@ -320,7 +335,6 @@ impl PythonPrepare<'_> {
             index: self.index,
             interpreter: self.interpreter,
             resolution: registry::Resolution::new(self.interpreter.target.clone()),
-            downloaded: BTreeSet::new(),
             store: pnpm_tarball::ArchiveStoreContext {
                 dir: &self.context.config.store_dir,
                 index: self.store.index.clone(),
@@ -331,6 +345,7 @@ impl PythonPrepare<'_> {
                 prefetched_cas_paths: None,
             },
             wheels: BTreeMap::new(),
+            sources: sources::Sources::new(self),
         }
     }
 

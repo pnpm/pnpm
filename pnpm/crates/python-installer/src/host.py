@@ -296,10 +296,9 @@ def install_wheel(environment, package):
     # PEP 610 has the installer record where a distribution came from,
     # which a wheel built from a directory cannot carry itself.
     if package.get("direct_url"):
-        origin = package["direct_url"]
         environment.write(
             environment.site / dist_info / "direct_url.json",
-            json.dumps({"url": origin["url"], "dir_info": {"editable": origin["editable"]}}).encode("utf-8"),
+            json.dumps(package["direct_url"]).encode("utf-8"),
         )
     environment.finish(dist_info)
 

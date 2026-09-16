@@ -1,9 +1,12 @@
 //! How one `[tool.uv.sources]` entry is read: which source it names, and
 //! where that leaves the project it points at.
 
-use super::super::manifest::{Source, SourceDeclaration};
-use miette::{Result, bail};
-use pep508_rs::PackageName;
+use super::{
+    super::manifest::{Manifest, Source, SourceDeclaration},
+    LocalProject, parse_requirement,
+};
+use miette::{IntoDiagnostic, Result, bail};
+use pep508_rs::{PackageName, Requirement, VerbatimUrl};
 use std::path::{Path, PathBuf};
 
 /// A source declaration, and the project directory that declared it. A
@@ -41,15 +44,15 @@ pub(super) fn reject_unresolvable(
     name: &PackageName,
     manifest_path: &Path,
 ) -> Result<()> {
-    let kind = if source.git.is_some() {
-        "git"
-    } else if source.url.is_some() {
-        "url"
-    } else if source.index.is_some() {
+    let kind = if source.index.is_some() {
         "index"
     } else if let Some(narrowed) = source.narrowing.kind() {
         narrowed
-    } else if source.path.is_none() && !source.workspace {
+    } else if source.path.is_none()
+        && !source.workspace
+        && source.git.is_none()
+        && source.url.is_none()
+    {
         "empty"
     } else {
         return Ok(());
@@ -107,4 +110,67 @@ pub(super) fn path_target(
         );
     }
     Ok(walked)
+}
+
+impl super::Workspace {
+    /// The source a project resolves a distribution from: its own
+    /// declaration, else the one its workspace root declares. A member
+    /// inherits the root's table, so a workspace can say once where each
+    /// of its projects comes from.
+    pub(super) fn source<'a>(
+        &'a self,
+        root: &'a Path,
+        manifest: &'a Manifest,
+        name: &PackageName,
+    ) -> Option<Declared<'a>> {
+        if let Some(declaration) = manifest.tool.uv.sources.get(name) {
+            return Some(Declared { declaration, by: root });
+        }
+        let (declaring_root, inherited) = self.inherited.get(root)?;
+        Some(Declared { declaration: inherited.tool.uv.sources.get(name)?, by: declaring_root })
+    }
+
+    pub(crate) fn requirements(
+        &self,
+        root: &Path,
+        manifest: &Manifest,
+        requirements: Vec<Requirement>,
+    ) -> Result<Vec<Requirement>> {
+        let mut explicit = Vec::new();
+        for requirement in &requirements {
+            let Some(Declared { declaration, by }) = self.source(root, manifest, &requirement.name)
+            else {
+                continue;
+            };
+            let source = sole_source(declaration, &requirement.name, &by.join("pyproject.toml"))?;
+            reject_unresolvable(source, &requirement.name, &by.join("pyproject.toml"))?;
+            if let Some(url) = super::super::sources::declaration_url(source)? {
+                let mut direct = requirement.clone();
+                direct.version_or_url = Some(pep508_rs::VersionOrUrl::Url(
+                    VerbatimUrl::parse_url(&url).into_diagnostic()?,
+                ));
+                explicit.push(direct);
+            }
+        }
+        explicit.extend(requirements);
+        Ok(explicit)
+    }
+
+    pub(super) fn project_requirements(
+        &self,
+        project: &mut LocalProject,
+        root: &Path,
+        manifest: &Manifest,
+    ) -> Result<()> {
+        let requirements = project.metadata.requires_dist
+            .iter()
+            .map(|requirement| parse_requirement(requirement))
+            .collect::<Result<Vec<_>>>()?;
+        project.metadata.requires_dist = self
+            .requirements(root, manifest, requirements)?
+            .into_iter()
+            .map(|requirement| requirement.to_string())
+            .collect();
+        Ok(())
+    }
 }

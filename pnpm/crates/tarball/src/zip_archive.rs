@@ -317,6 +317,7 @@ pub(crate) async fn fetch_and_extract_zip_once<Reporter: self::Reporter>(
     auth_headers: &AuthHeaders,
     archive_prefix: Option<&str>,
     ignore_file_pattern: Option<Arc<IgnoreEntryFilter>>,
+    max_bytes: Option<usize>,
 ) -> Result<(HashMap<String, PathBuf>, PackageFilesIndex), TarballError> {
     let (client, response_head) = crate::archive_request::request_archive::<Reporter>(
         http_client,
@@ -328,28 +329,19 @@ pub(crate) async fn fetch_and_extract_zip_once<Reporter: self::Reporter>(
         false,
     )
     .await?;
-    let buffer = download_zip_body::<Reporter>(response_head, package_url, package_id).await?;
+    let buffer =
+        download_zip_body::<Reporter>(response_head, package_url, package_id, max_bytes).await?;
     drop(client);
 
-    let post_download_permit = post_download_semaphore()
-        .acquire()
-        .await
-        .expect("post-download semaphore shouldn't be closed this soon");
-
-    tracing::info!(target: "pacquet::download", ?package_url, "Download completed");
-
-    let extraction = ZipExtraction {
+    let result = ZipExtraction {
         buffer,
         package_integrity: package_integrity.clone(),
         package_url: package_url.to_string(),
         archive_prefix: archive_prefix.map(str::to_string),
         ignore_file_pattern,
-    };
-    let result = crate::extraction_task::spawn_extraction(post_download_permit, move || {
-        extraction.extract(store_dir)
-    })
-    .await
-    .map_err(TarballError::TaskJoin)??;
+    }
+    .run(store_dir)
+    .await?;
 
     tracing::info!(target: "pacquet::download", ?package_url, "Checksum verified");
 
@@ -360,9 +352,11 @@ async fn download_zip_body<Reporter: self::Reporter>(
     response_head: reqwest::Response,
     package_url: &str,
     package_id: &str,
+    max_bytes: Option<usize>,
 ) -> Result<Vec<u8>, TarballError> {
     use futures_util::StreamExt;
     let expected_size = response_head.content_length();
+    check_zip_size(expected_size.unwrap_or(0), max_bytes, package_url)?;
     let mut buf = allocate_tarball_buffer(expected_size, package_url)?;
     let mut stream = response_head.bytes_stream();
     let mut progress = crate::download::BodyProgress::new(expected_size, package_id);
@@ -370,6 +364,11 @@ async fn download_zip_body<Reporter: self::Reporter>(
         let chunk = chunk.map_err(|error| {
             TarballError::FetchTarball(NetworkError::new(package_url, error))
         })?;
+        check_zip_size(
+            (buf.len() as u64).saturating_add(chunk.len() as u64),
+            max_bytes,
+            package_url,
+        )?;
         buf.extend_from_slice(&chunk);
         progress.on_chunk::<Reporter>(chunk.len());
     }
@@ -378,15 +377,37 @@ async fn download_zip_body<Reporter: self::Reporter>(
 }
 
 /// A downloaded archive with what its extraction task owns.
-struct ZipExtraction {
-    buffer: Vec<u8>,
-    package_integrity: Integrity,
-    package_url: String,
-    archive_prefix: Option<String>,
-    ignore_file_pattern: Option<Arc<IgnoreEntryFilter>>,
+pub(crate) struct ZipExtraction {
+    pub(crate) buffer: Vec<u8>,
+    pub(crate) package_integrity: Integrity,
+    pub(crate) package_url: String,
+    pub(crate) archive_prefix: Option<String>,
+    pub(crate) ignore_file_pattern: Option<Arc<IgnoreEntryFilter>>,
+}
+
+pub(crate) fn check_zip_size(
+    size: u64,
+    max_bytes: Option<usize>,
+    url: &str,
+) -> Result<(), TarballError> {
+    if max_bytes.is_some_and(|limit| size > limit as u64) {
+        return Err(TarballError::TarballTooLarge { url: url.to_string(), advertised_size: size });
+    }
+    Ok(())
 }
 
 impl ZipExtraction {
+    pub(crate) async fn run(
+        self,
+        store_dir: &'static StoreDir,
+    ) -> Result<(HashMap<String, PathBuf>, PackageFilesIndex), TarballError> {
+        let permit =
+            post_download_semaphore().acquire().await.expect("post-download semaphore stays open");
+        crate::extraction_task::spawn_extraction(permit, move || self.extract(store_dir))
+            .await
+            .map_err(TarballError::TaskJoin)?
+    }
+
     fn extract(
         self,
         store_dir: &'static StoreDir,
@@ -436,6 +457,7 @@ pub(crate) async fn fetch_and_extract_zip_with_retry<Reporter: self::Reporter>(
     auth_headers: &AuthHeaders,
     archive_prefix: Option<&str>,
     ignore_file_pattern: Option<Arc<IgnoreEntryFilter>>,
+    max_bytes: Option<usize>,
 ) -> Result<(HashMap<String, PathBuf>, PackageFilesIndex), TarballError> {
     crate::archive_retry::retry_archive::<Reporter, _, _>(
         package_url,
@@ -454,6 +476,7 @@ pub(crate) async fn fetch_and_extract_zip_with_retry<Reporter: self::Reporter>(
                 auth_headers,
                 archive_prefix,
                 ignore_file_pattern.clone(),
+                max_bytes,
             )
         },
     )
@@ -497,6 +520,24 @@ impl IngestZipArchiveToStore<'_> {
     pub async fn run_without_mem_cache<Reporter: self::Reporter>(
         &self,
     ) -> Result<HashMap<String, PathBuf>, TarballError> {
+        self.ingestion().run::<Reporter>().await
+    }
+
+    /// Verify and publish an already downloaded ZIP through the shared store lifecycle.
+    pub async fn run_with_buffer<Reporter: self::Reporter>(
+        &self,
+        buffer: Vec<u8>,
+    ) -> Result<HashMap<String, PathBuf>, TarballError> {
+        let ingestion = self.ingestion();
+        if let Some(paths) = ingestion.load_cache::<Reporter>().await? {
+            return Ok(paths);
+        }
+        let paths = ingestion.ingest_zip_buffer(buffer).await?;
+        crate::download::emit_progress_fetched::<Reporter>(self.package.id, self.requester, None);
+        Ok(paths)
+    }
+
+    fn ingestion(&self) -> crate::ingestion::ArchiveIngestion<'_> {
         crate::ingestion::ArchiveIngestion {
             store: &self.store,
             fetching: self.fetching,
@@ -517,9 +558,8 @@ impl IngestZipArchiveToStore<'_> {
             format: crate::ingestion::ArchiveFormat::Zip {
                 integrity: self.package.integrity,
                 prefix: self.archive_prefix,
+                max_bytes: self.package.max_bytes,
             },
         }
-        .run::<Reporter>()
-        .await
     }
 }

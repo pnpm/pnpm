@@ -20,12 +20,13 @@ pub use candidates::{
     WheelFilename, candidates_from_page, parse_requirement, validate_url, wheel_identity,
 };
 pub use lockfile::{
-    Inputs, LockedDirectory, LockedPackage, LockedWheel, Lockfile, Metadata, Solved, Target,
-    ToolMetadata, environment_marker,
+    Inputs, LockedDirectory, LockedPackage, LockedVcs, LockedWheel, Lockfile, Metadata, Solved,
+    Target, ToolMetadata, environment_marker,
 };
 pub use metadata::WheelMetadata;
 pub use packages::{Candidate, IndexCandidate, Packages};
-pub use resolve::{Step, locked_solution, step, validate_locked};
+pub use resolve::{Step, active_locked_sources, locked_solution, step, validate_locked};
+pub use source::Source;
 
 mod candidates;
 mod lockfile;
@@ -33,6 +34,7 @@ mod metadata;
 mod packages;
 mod requires_python;
 mod resolve;
+mod source;
 
 #[cfg(test)]
 mod tests;

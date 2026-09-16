@@ -206,36 +206,52 @@ impl Container {
     ) -> Result<HashMap<String, PathBuf>, TarballError> {
         match self {
             Self::TarGz => input.run_without_mem_cache::<SilentReporter>().await,
-            Self::Zip => {
-                IngestZipArchiveToStore {
-                    fetching: input.fetching,
-                    package: crate::ZipArchivePackage {
-                        integrity: input.package.integrity.unwrap(),
-                        url: input.package.url,
-                        id: input.package.id,
-                    },
-                    store: crate::ArchiveStoreContext {
-                        dir: input.store.dir,
-                        index: input.store.index.clone(),
-                        index_writer: input.store.index_writer.clone(),
-                        verify_integrity: input.store.verify_integrity,
-                        strict_pkg_content_check: input.store.strict_pkg_content_check,
-                        verified_files_cache: Arc::clone(&input.store.verified_files_cache),
-                        prefetched_cas_paths: input.store.prefetched_cas_paths,
-                    },
-
-                    requester: input.requester,
-
-                    archive_prefix: Some("artifact"),
-                    ignore_file_pattern: input.ignore_file_pattern.clone(),
-
-                    store_projection: input.store_projection,
-                }
-                .run_without_mem_cache::<SilentReporter>()
-                .await
-            }
+            Self::Zip => zip_ingestion(input).run_without_mem_cache::<SilentReporter>().await,
         }
     }
+}
+
+fn zip_ingestion<'a>(input: &'a IngestTarballToStore<'a>) -> IngestZipArchiveToStore<'a> {
+    IngestZipArchiveToStore {
+        fetching: input.fetching,
+        package: crate::ZipArchivePackage {
+            max_bytes: None,
+            integrity: input.package.integrity.unwrap(),
+            url: input.package.url,
+            id: input.package.id,
+        },
+        store: crate::ArchiveStoreContext {
+            dir: input.store.dir,
+            index: input.store.index.clone(),
+            index_writer: input.store.index_writer.clone(),
+            verify_integrity: input.store.verify_integrity,
+            strict_pkg_content_check: input.store.strict_pkg_content_check,
+            verified_files_cache: Arc::clone(&input.store.verified_files_cache),
+            prefetched_cas_paths: input.store.prefetched_cas_paths,
+        },
+
+        requester: input.requester,
+
+        archive_prefix: Some("artifact"),
+        ignore_file_pattern: input.ignore_file_pattern.clone(),
+
+        store_projection: input.store_projection,
+    }
+}
+
+async fn assert_buffered_cache(
+    container: Container,
+    input: &IngestTarballToStore<'_>,
+    paths: &HashMap<String, PathBuf>,
+) {
+    if !matches!(container, Container::Zip) {
+        return;
+    }
+    let cached = zip_ingestion(input)
+        .run_with_buffer::<SilentReporter>(b"not a ZIP".to_vec())
+        .await
+        .unwrap();
+    assert_eq!(&cached, paths);
 }
 
 #[tokio::test]
@@ -305,6 +321,7 @@ async fn formats_share_projection_offline_replay_and_missing_blob_validation() {
             drop(writer);
             StoreIndexWriter::drain(task, "contract test").await;
             input.store.index = StoreIndex::shared_readonly_in(store);
+            assert_buffered_cache(container, &input, &paths).await;
             input.fetching.offline = true;
             assert_eq!(container.ingest(&input).await.unwrap(), paths);
 
@@ -391,5 +408,38 @@ fn assert_fetch_error(status: usize, error: &TarballError) {
         assert!(matches!(error, TarballError::Checksum(_)));
     } else {
         assert!(matches!(error, TarballError::HttpStatus(_)));
+    }
+}
+
+#[tokio::test]
+async fn zip_download_limits_cover_content_lengths_and_chunked_bodies() {
+    for chunked in [false, true] {
+        let mut server = mockito::Server::new_async().await;
+        let body = build_zip(&[("data.txt", b"artifact")]);
+        let integrity = Integrity::from(body.as_slice());
+        let request = server.mock("GET", "/oversized");
+        let streamed = body.clone();
+        let stream_body = move |writer: &mut dyn std::io::Write| writer.write_all(&streamed);
+        let request =
+            if chunked { request.with_chunked_body(stream_body) } else { request.with_body(body) };
+        let request = request.expect(1).create_async().await;
+        let (_root, store) = tempdir_with_leaked_path();
+        store.init().unwrap();
+        let error = crate::zip_archive::fetch_and_extract_zip_once::<SilentReporter>(
+            &ThrottledClient::default(),
+            &format!("{}/oversized", server.url()),
+            &integrity,
+            "fixture",
+            0,
+            store,
+            &AuthHeaders::default(),
+            None,
+            None,
+            Some(16),
+        )
+        .await
+        .unwrap_err();
+        assert!(matches!(error, TarballError::TarballTooLarge { .. }), "{error}");
+        request.assert_async().await;
     }
 }

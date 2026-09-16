@@ -1,10 +1,11 @@
 use crate::{
-    lockfile::{LockedDirectory, LockedWheel},
+    Source,
+    lockfile::{LockedDirectory, LockedVcs, LockedWheel},
     metadata::WheelMetadata,
 };
 use pep440_rs::Version;
 use pep508_rs::PackageName;
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 
 /// Where one version of a distribution comes from: a wheel an index
 /// serves, or a directory in this workspace.
@@ -14,6 +15,7 @@ pub enum Candidate {
     /// A project in this workspace, which is built from its source rather
     /// than downloaded. Its metadata is read from its own manifest.
     Directory(LockedDirectory),
+    Vcs(LockedVcs),
 }
 
 /// The wheel an index serves for one version, and where its metadata can
@@ -29,13 +31,37 @@ pub struct IndexCandidate {
 }
 
 impl Candidate {
+    #[must_use]
+    pub fn matches_source(&self, source: &Source) -> bool {
+        match (self, source) {
+            (Self::Wheel(candidate), Source::Wheel { url, sha256 }) => {
+                candidate.wheel.url == url.as_str()
+                    && sha256
+                        .as_ref()
+                        .is_none_or(|expected| {
+                            candidate.wheel.hashes
+                                .get("sha256")
+                                .is_some_and(|digest| digest.eq_ignore_ascii_case(expected))
+                        })
+            }
+            (Self::Vcs(vcs), Source::Git(expected)) => {
+                vcs.url == expected.url
+                    && vcs.requested_revision == expected.requested_revision
+                    && vcs.subdirectory == expected.subdirectory
+                    && (expected.commit_id.is_empty()
+                        || vcs.commit_id.eq_ignore_ascii_case(&expected.commit_id))
+            }
+            _ => false,
+        }
+    }
+
     /// What an index serves for this candidate, or `None` for a
     /// directory.
     #[must_use]
     pub fn from_index(&self) -> Option<&IndexCandidate> {
         match self {
             Self::Wheel(candidate) => Some(candidate),
-            Self::Directory(_) => None,
+            Self::Directory(_) | Self::Vcs(_) => None,
         }
     }
 
@@ -44,7 +70,7 @@ impl Candidate {
     pub fn wheel(&self) -> Option<&LockedWheel> {
         match self {
             Self::Wheel(candidate) => Some(&candidate.wheel),
-            Self::Directory(_) => None,
+            Self::Directory(_) | Self::Vcs(_) => None,
         }
     }
 
@@ -54,6 +80,7 @@ impl Candidate {
         match self {
             Self::Wheel(_) => None,
             Self::Directory(directory) => Some(directory),
+            Self::Vcs(_) => None,
         }
     }
 
@@ -64,7 +91,7 @@ impl Candidate {
     pub fn core_metadata(&self) -> Option<&BTreeMap<String, String>> {
         match self {
             Self::Wheel(candidate) => candidate.core_metadata.as_ref(),
-            Self::Directory(_) => None,
+            Self::Directory(_) | Self::Vcs(_) => None,
         }
     }
 
@@ -74,6 +101,7 @@ impl Candidate {
         match self {
             Self::Wheel(candidate) => &candidate.wheel.name,
             Self::Directory(directory) => &directory.path,
+            Self::Vcs(vcs) => &vcs.url,
         }
     }
 }
@@ -88,10 +116,13 @@ impl Candidate {
 /// A workspace project is seeded before the resolution starts: its
 /// version and requirements are in its manifest, so there is nothing to
 /// fetch and nothing for a step to ask for.
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Clone)]
 pub struct Packages {
     pub candidates: BTreeMap<PackageName, BTreeMap<Version, Candidate>>,
     pub metadata: BTreeMap<(PackageName, Version), WheelMetadata>,
+    pub direct_urls: BTreeMap<PackageName, String>,
+    /// Sources excluded while trying an alternative dependency graph.
+    pub rejected_sources: BTreeSet<(PackageName, String)>,
 }
 
 impl Packages {

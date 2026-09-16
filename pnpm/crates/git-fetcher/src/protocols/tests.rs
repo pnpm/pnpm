@@ -67,7 +67,35 @@ fn caller_protocol_flags_use_git_boolean_parsing() {
         ("on", true),
         ("2", true),
     ] {
-        assert_eq!(read_git_boolean(OsStr::new(value), root.path()).unwrap(), expected);
+        assert_eq!(
+            read_git_boolean(std::path::Path::new("git"), OsStr::new(value), root.path()).unwrap(),
+            expected,
+        );
     }
-    assert!(read_git_boolean(OsStr::new("invalid"), root.path()).is_err());
+    assert!(
+        read_git_boolean(std::path::Path::new("git"), OsStr::new("invalid"), root.path()).is_err(),
+    );
+}
+
+#[cfg(unix)]
+#[test]
+fn configured_git_binary_supplies_the_clone_policy() {
+    use std::os::unix::fs::PermissionsExt;
+    let root = tempfile::tempdir().unwrap();
+    let binary = root.path().join("custom-git");
+    std::fs::write(
+        &binary,
+        r"#!/bin/sh
+printf 'protocol.file.allow\nnever\000'
+",
+    )
+    .unwrap();
+    std::fs::set_permissions(&binary, std::fs::Permissions::from_mode(0o755)).unwrap();
+    let protocols = super::read_allowed_git_protocols_with(&binary, root.path()).unwrap();
+    assert!(
+        !protocols
+            .split(':')
+            .any(|protocol| protocol == "file"),
+        "{protocols}",
+    );
 }
