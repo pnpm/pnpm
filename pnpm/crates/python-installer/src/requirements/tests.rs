@@ -45,7 +45,7 @@ fn includes_cannot_escape_the_workspace_or_use_absolute_paths() {
     let path = workspace.join("requirements.txt");
     for include in ["../outside.txt".to_string(), outside.display().to_string()] {
         fs::write(&path, format!("-r {include}\n")).unwrap();
-        let error = format!("{:?}", read(&path, &workspace).unwrap_err());
+        let error = read(&path, &workspace).unwrap_err().to_string();
         assert!(error.contains("requirements.txt:1"), "{error}");
     }
 }
