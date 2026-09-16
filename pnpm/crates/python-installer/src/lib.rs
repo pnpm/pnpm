@@ -135,8 +135,9 @@ async fn read_project_manifests(
     Ok(roots)
 }
 
-/// The Python index a project resolves against, and the credentials
-/// configured for it.
+/// The Python index a project resolves against. Credentials the
+/// configured URL carried are lifted into `auth`, so `url` never holds
+/// any: it is cached under, and locked as, what it reads.
 pub(crate) struct Index {
     pub(crate) url: url::Url,
     pub(crate) auth: pnpm_network::AuthHeaders,

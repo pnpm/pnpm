@@ -141,8 +141,6 @@ fn project(root: &Path, index: &str, dependencies: &[&str]) {
     fs::write(root.join("pyproject.toml"), format!("[project]\nname = 'app'\nversion = '1.0'\nrequires-python = '>=3.10'\ndependencies = {dependencies:?}\n")).unwrap();
 }
 
-/// Serve one release published as a wheel per tag, and the index page
-/// listing them.
 async fn serve_wheels(
     server: &mut mockito::ServerGuard,
     name: &str,
@@ -179,8 +177,7 @@ async fn serve_wheels(
     mocks
 }
 
-/// Add settings to the `python` section [`project`] wrote.
-fn python_settings(root: &Path, settings: &str) {
+fn add_python_settings(root: &Path, settings: &str) {
     let workspace = fs::read_to_string(root.join("pnpm-workspace.yaml")).unwrap();
     fs::write(
         root.join("pnpm-workspace.yaml"),
@@ -1196,7 +1193,7 @@ async fn locks_every_declared_platform_into_one_lockfile() {
     for (platform, _) in &platforms {
         writeln!(declaration, "    - {platform}").unwrap();
     }
-    python_settings(root.path(), &format!("  platforms:\n{declaration}"));
+    add_python_settings(root.path(), &format!("  platforms:\n{declaration}"));
 
     pacquet_in(root.path())
         .arg("install")
@@ -1285,7 +1282,7 @@ async fn refuses_an_interpreter_none_of_the_declared_environments_stand_for() {
     let mut server = mockito::Server::new_async().await;
     let _alpha = serve(&mut server, "alpha", &[("1.0", wheel("alpha", "1.0", "", &[]))]).await;
     project(root.path(), &server.url(), &["alpha>=1"]);
-    python_settings(root.path(), "  pythonVersions:\n    - '3.9'\n");
+    add_python_settings(root.path(), "  pythonVersions:\n    - '3.9'\n");
 
     assert_failure_contains(
         pacquet_in(root.path()).arg("install"),
@@ -1301,7 +1298,7 @@ async fn rejects_a_platform_it_cannot_resolve_for() {
     let mut server = mockito::Server::new_async().await;
     let _alpha = serve(&mut server, "alpha", &[("1.0", wheel("alpha", "1.0", "", &[]))]).await;
     project(root.path(), &server.url(), &["alpha>=1"]);
-    python_settings(root.path(), "  platforms:\n    - x86_64-linux\n");
+    add_python_settings(root.path(), "  platforms:\n    - x86_64-linux\n");
 
     assert_failure_contains(
         pacquet_in(root.path()).arg("install"),
