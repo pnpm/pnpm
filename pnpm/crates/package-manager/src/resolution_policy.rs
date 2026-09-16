@@ -33,10 +33,10 @@ pub struct PickPolicy {
     /// `supportsTimeField` is not charged for full metadata because another
     /// one needs it.
     pub needs_full_metadata_for: NeedsFullMetadataFor,
-    /// When [`Self::full_metadata`] forces the full packument, read and
-    /// write pnpm's filtered full-metadata mirror. The filtered mirror
-    /// drops install-irrelevant fields (`homepage` among them), so a run
-    /// that renders them (`outdated --long`) overrides this to `false`.
+    /// Read and write pnpm's filtered full-metadata mirror when a full
+    /// packument is fetched. The filtered mirror keeps only the fields an
+    /// install reads, so a caller that needs any other field has to clear
+    /// this (see [`Self::force_unfiltered_full_metadata`]).
     pub filter_metadata: bool,
     /// `minimumReleaseAge` cutoff: only versions published at or before
     /// this instant are eligible. `None` disables the maturity filter.
@@ -75,6 +75,22 @@ impl PickPolicy {
         merged.extend(extra.iter().cloned());
         policy.published_by_exclude = Some(create_package_version_policy(&merged)?);
         Ok(policy)
+    }
+
+    /// Read the unfiltered full packument from every registry, whatever
+    /// the config's own metadata policy asks for.
+    ///
+    /// The three metadata knobs only mean "full, verbatim document"
+    /// together: [`Self::needs_full_metadata_for`] outranks
+    /// [`Self::full_metadata`] wherever a registry is in hand, and
+    /// [`Self::filter_metadata`] would strip the fetched document back down
+    /// to the install-relevant fields. Callers after a field outside that
+    /// set — `homepage`, for one — go through here rather than setting any
+    /// of them on their own.
+    pub fn force_unfiltered_full_metadata(&mut self) {
+        self.full_metadata = true;
+        self.needs_full_metadata_for = Arc::new(|_registry| true);
+        self.filter_metadata = false;
     }
 
     /// [`Self::from_config`] with an explicit `now`, so callers that derive

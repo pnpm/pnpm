@@ -320,7 +320,7 @@ impl OutdatedArgs {
         let shared_lockfile =
             if config.shares_one_lockfile() { loaded_lockfile(&state)? } else { None };
         let project_inputs = recursive_project_inputs(config, &selection)?;
-        let run = OutdatedRun::new(config, Arc::clone(&state.http_client), query.full_metadata)?;
+        let run = OutdatedRun::new(config, Arc::clone(&state.http_client), &query)?;
         let mut outdated = workspace_outdated(
             &ProjectOutdatedInputs {
                 config,

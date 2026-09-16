@@ -21,13 +21,11 @@ impl OutdatedRun {
     pub(crate) fn new(
         config: &Config,
         http_client: Arc<ThrottledClient>,
-        full_metadata: bool,
+        query: &OutdatedQuery<'_>,
     ) -> miette::Result<Self> {
         let mut policy = PickPolicy::from_config(config).map_err(miette::Report::new)?;
-        if full_metadata {
-            policy.full_metadata = true;
-            policy.filter_metadata = false;
-            policy.needs_full_metadata_for = Arc::new(|_| true);
+        if query.full_metadata {
+            policy.force_unfiltered_full_metadata();
         }
         let resolver = create_configured_npm_resolver(config, http_client, &policy)
             .map_err(miette::Report::new)?;
@@ -188,7 +186,7 @@ pub(crate) async fn collect_outdated_for_importer(
         lockfile,
         importer_id,
         query,
-        &OutdatedRun::new(config, Arc::clone(http_client), query.full_metadata)?,
+        &OutdatedRun::new(config, Arc::clone(http_client), query)?,
     )
     .await
 }

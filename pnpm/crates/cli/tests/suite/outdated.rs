@@ -414,11 +414,9 @@ fn outdated_list_format() {
     drop((root, anchor));
 }
 
-/// `--long` renders the deprecation reason and the package homepage in
-/// the Details column. Ports pnpm's "--long with only deprecated
-/// packages".
+/// Ports pnpm's "--long with only deprecated packages".
 #[test]
-fn outdated_long_shows_deprecation_details() {
+fn outdated_long_shows_deprecation_and_homepage_details() {
     let (root, workspace, anchor) = setup();
 
     write_manifest(&workspace, &format!(r#"{{ "{DEPRECATED}": "1.0.0" }}"#));
