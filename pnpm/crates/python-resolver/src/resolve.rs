@@ -37,6 +37,8 @@ pub enum Step {
     /// The versions this index offers of a distribution nothing has read
     /// yet — see [`crate::candidates_from_page`].
     NeedCandidates(PackageName),
+    /// An explicit source that must win over index candidates.
+    NeedUrl(PackageName, String),
     /// The `METADATA` of one wheel — see [`WheelMetadata::parse`].
     NeedMetadata(PackageName, Version),
 }
@@ -44,6 +46,7 @@ pub enum Step {
 #[derive(Debug)]
 enum Needed {
     Candidates(PackageName),
+    Url(PackageName, String),
     Metadata(PackageName, Version),
     Invalid(String),
 }
@@ -184,6 +187,35 @@ fn metadata_requirements(
 }
 
 impl Provider<'_> {
+    fn check_source(&self, requirement: &Requirement) -> std::result::Result<(), Needed> {
+        let Some(VersionOrUrl::Url(url)) = &requirement.version_or_url else { return Ok(()) };
+        let source = url.as_str();
+        let parsed =
+            crate::Source::parse(source).map_err(|error| Needed::Invalid(error.to_string()))?;
+        if let Some(chosen) = self.packages.direct_urls.get(&requirement.name) {
+            let chosen_source =
+                crate::Source::parse(chosen).map_err(|error| Needed::Invalid(error.to_string()))?;
+            if !chosen_source.compatible_with(&parsed) {
+                return Err(Needed::Invalid(format!(
+                    "conflicting Python sources for {}",
+                    requirement.name,
+                )));
+            }
+        }
+        if self.packages.candidates
+            .get(&requirement.name)
+            .is_some_and(|versions| {
+                !versions.is_empty()
+                    && versions
+                        .values()
+                        .all(|candidate| candidate.matches_source(&parsed))
+            })
+        {
+            return Ok(());
+        }
+        Err(Needed::Url(requirement.name.clone(), source.to_string()))
+    }
+
     /// Why this interpreter cannot use the wheel, when it cannot: a
     /// `Requires-Python` the running interpreter is outside of.
     fn incompatible_interpreter(&self, metadata: &WheelMetadata) -> Option<String> {
@@ -193,33 +225,53 @@ impl Provider<'_> {
         })
     }
 
+    fn requirement_range(
+        &self,
+        requirement: &Requirement,
+    ) -> std::result::Result<Ranges<Version>, Needed> {
+        let candidates = self.packages.candidates
+            .get(&requirement.name)
+            .ok_or_else(|| Needed::Candidates(requirement.name.clone()))?;
+        let specifiers = requirement_specifiers(requirement)?;
+        let matched = candidates
+            .keys()
+            .filter(|version| specifiers.is_none_or(|specifiers| specifiers.contains(version)))
+            .collect::<Vec<_>>();
+        let allow_prerelease = specifiers.is_some_and(|specifiers| {
+            specifiers.iter().any(pep440_rs::VersionSpecifier::any_prerelease)
+        }) || matched.iter().all(|version| version.any_prerelease());
+        let range = matched
+            .into_iter()
+            .filter(|version| allow_prerelease || !version.any_prerelease())
+            .fold(Ranges::empty(), |range, version| {
+                range.union(&Ranges::singleton(version.clone()))
+            });
+        Ok(range)
+    }
+
     fn constraints(
         &self,
         requirements: &[Requirement],
         extras: &[ExtraName],
         constraints: &mut BTreeMap<Package, Ranges<Version>>,
     ) -> std::result::Result<(), Needed> {
-        for requirement in requirements {
+        let is_url = |requirement: &&Requirement| {
+            matches!(requirement.version_or_url, Some(VersionOrUrl::Url(_)))
+        };
+        for requirement in requirements
+            .iter()
+            .filter(is_url)
+            .chain(
+                requirements
+                    .iter()
+                    .filter(|requirement| !is_url(requirement)),
+            )
+        {
             if !requirement.marker.evaluate(self.environment, extras) {
                 continue;
             }
-            let candidates = self.packages.candidates
-                .get(&requirement.name)
-                .ok_or_else(|| Needed::Candidates(requirement.name.clone()))?;
-            let specifiers = requirement_specifiers(requirement)?;
-            let matched = candidates
-                .keys()
-                .filter(|version| specifiers.is_none_or(|specifiers| specifiers.contains(version)))
-                .collect::<Vec<_>>();
-            let allow_prerelease = specifiers.is_some_and(|specifiers| {
-                specifiers.iter().any(pep440_rs::VersionSpecifier::any_prerelease)
-            }) || matched.iter().all(|version| version.any_prerelease());
-            let range = matched
-                .into_iter()
-                .filter(|version| allow_prerelease || !version.any_prerelease())
-                .fold(Ranges::empty(), |range, version| {
-                    range.union(&Ranges::singleton(version.clone()))
-                });
+            self.check_source(requirement)?;
+            let range = self.requirement_range(requirement)?;
             for extra in std::iter::once(None)
                 .chain(
                     requirement.extras
@@ -245,9 +297,7 @@ fn requirement_specifiers(
     Ok(match &requirement.version_or_url {
         Some(VersionOrUrl::VersionSpecifier(specifiers)) => Some(specifiers),
         None => None,
-        Some(VersionOrUrl::Url(_)) => {
-            return Err(Needed::Invalid("Python URL requirements are not supported".to_string()));
-        }
+        Some(VersionOrUrl::Url(_)) => None,
     })
 }
 
@@ -271,6 +321,7 @@ pub fn step(
             | PubGrubError::ErrorInShouldCancel(source),
         ) => match source {
             Needed::Candidates(name) => Ok(Step::NeedCandidates(name)),
+            Needed::Url(name, url) => Ok(Step::NeedUrl(name, url)),
             Needed::Metadata(name, version) => Ok(Step::NeedMetadata(name, version)),
             Needed::Invalid(message) => bail!("{message}"),
         },

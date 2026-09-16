@@ -63,7 +63,7 @@ impl PythonPrepare<'_> {
         self.build::<Reporter>(root, manifest, true).await
     }
 
-    async fn build<Reporter: pnpm_reporter::Reporter + 'static>(
+    pub(super) async fn build<Reporter: pnpm_reporter::Reporter + 'static>(
         &self,
         root: &Path,
         manifest: &Manifest,
@@ -125,7 +125,7 @@ impl PythonPrepare<'_> {
                 filename: built.wheel.filename,
                 files: built.wheel.files,
                 metadata: built.metadata,
-                direct_url: Some(host::DirectUrl { url: url.to_string(), editable }),
+                direct_url: Some(host::DirectUrl::directory(url.to_string(), editable)),
             },
             output,
         })))
@@ -146,13 +146,9 @@ impl PythonPrepare<'_> {
         let wheel: BuiltWheel = host::run(&interpreter(environment.path()), "build", request)
             .await
             .wrap_err_with(|| format!("build the Python project at {}", root.display()))?;
-        let metadata = host::run(
-            &self.interpreter.executable,
-            "inspect",
-            serde_json::json!({ "files": wheel.files, "filename": wheel.filename }),
-        )
-        .await
-        .wrap_err_with(|| format!("read the wheel built from {}", root.display()))?;
+        let metadata = host::inspect(&self.interpreter.executable, &wheel.files, &wheel.filename)
+            .await
+            .wrap_err_with(|| format!("read the wheel built from {}", root.display()))?;
         Ok(Backend517 { wheel, metadata })
     }
 
@@ -280,24 +276,54 @@ impl PythonPrepare<'_> {
         &self,
         requires: &[pep508_rs::Requirement],
     ) -> Result<Arc<tempfile::TempDir>> {
-        let mut key = requires
+        let key = self.build_environment_key(requires);
+        {
+            let mut environments = self.build_environments.lock().await;
+            match environments.get(&key) {
+                Some(Some(environment)) => return Ok(Arc::clone(environment)),
+                Some(None) => bail!("cyclic Python build requirements: {}", key.1),
+                None => {
+                    environments.insert(key.clone(), None);
+                }
+            }
+        }
+        let result = self.install_build_requirements::<Reporter>(requires).await;
+        let mut environments = self.build_environments.lock().await;
+        match &result {
+            Ok(root) => {
+                environments.insert(key, Some(Arc::clone(root)));
+            }
+            Err(_) => {
+                environments.remove(&key);
+            }
+        }
+        result
+    }
+
+    fn build_environment_key(
+        &self,
+        requires: &[pep508_rs::Requirement],
+    ) -> super::environment::BuildEnvironmentKey {
+        let mut requirements = requires
             .iter()
             .map(ToString::to_string)
             .collect::<Vec<_>>();
-        key.sort();
-        key.dedup();
-        let key = (
+        requirements.sort();
+        requirements.dedup();
+        (
             format!(
                 "{} {}",
                 self.interpreter.executable,
-                self.interpreter.target.environment.python_full_version(),
+                self.interpreter.target.environment.python_full_version()
             ),
-            key.join(" "),
-        );
-        let mut built = self.build_environments.lock().await;
-        if let Some(environment) = built.get(&key) {
-            return Ok(Arc::clone(environment));
-        }
+            requirements.join(" "),
+        )
+    }
+
+    async fn install_build_requirements<Reporter: pnpm_reporter::Reporter + 'static>(
+        &self,
+        requires: &[pep508_rs::Requirement],
+    ) -> Result<Arc<tempfile::TempDir>> {
         let root = tempfile::tempdir().into_diagnostic()?;
         let mut registry = self.registry();
         let solution = resolver::resolve::<Reporter>(&mut registry, requires).await?;
@@ -311,9 +337,7 @@ impl PythonPrepare<'_> {
             serde_json::json!({ "root": root.path(), "packages": wheels }),
         )
         .await?;
-        let root = Arc::new(root);
-        built.insert(key, Arc::clone(&root));
-        Ok(root)
+        Ok(Arc::new(root))
     }
 }
 
@@ -404,7 +428,10 @@ fn identify_identity(
 }
 
 /// The build requirements the configuration has not approved to run.
-fn unapproved(config: &pnpm_config::Config, requires: &[pep508_rs::Requirement]) -> Vec<String> {
+pub(super) fn unapproved(
+    config: &pnpm_config::Config,
+    requires: &[pep508_rs::Requirement],
+) -> Vec<String> {
     if config.dangerously_allow_all_builds {
         return Vec::new();
     }

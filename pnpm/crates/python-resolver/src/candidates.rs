@@ -217,22 +217,22 @@ pub fn validate_url(url: &Url) -> Result<()> {
     Ok(())
 }
 
-/// Parse a PEP 508 requirement, refusing the direct-URL form: pnpm
-/// installs what an index serves, and a URL requirement names something
-/// else.
+/// Parse a PEP 508 requirement.
 pub fn parse_requirement(requirement: &str) -> Result<Requirement> {
     read_requirement(requirement)
         .map_err(|refusal| match refusal {
             Refusal::Unreadable(error) => error,
             Refusal::Unsupported(requirement) => {
-                miette::miette!("direct URL Python requirements are not supported: {requirement}")
+                miette::miette!(
+                    "unsupported scheme in direct URL Python requirements: {requirement}"
+                )
             }
         })
 }
 
 /// Why pnpm cannot use a requirement, which decides whom it is a problem
 /// for: a line pnpm cannot read at all comes from one broken wheel, and a
-/// direct URL is a requirement pnpm does not implement, which every
+/// URL with an unsupported scheme is a requirement pnpm does not implement, which every
 /// release declaring it will name.
 #[derive(Debug)]
 pub(crate) enum Refusal {
@@ -241,14 +241,17 @@ pub(crate) enum Refusal {
 }
 
 /// Read a PEP 508 requirement, telling a line pnpm cannot parse apart
-/// from the direct-URL form it parses and does not support.
+/// from a URL scheme it parses and does not support.
 pub(crate) fn read_requirement(requirement: &str) -> std::result::Result<Requirement, Refusal> {
     let parsed: Requirement = requirement
         .parse()
         .into_diagnostic()
         .map_err(Refusal::Unreadable)?;
-    if matches!(parsed.version_or_url, Some(pep508_rs::VersionOrUrl::Url(_))) {
-        return Err(Refusal::Unsupported(requirement.to_string()));
+    if let Some(pep508_rs::VersionOrUrl::Url(url)) = &parsed.version_or_url {
+        let scheme = url.scheme();
+        if !matches!(scheme, "http" | "https" | "git+https" | "git+ssh" | "git+file") {
+            return Err(Refusal::Unsupported(requirement.to_string()));
+        }
     }
     Ok(parsed)
 }

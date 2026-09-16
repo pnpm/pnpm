@@ -1,7 +1,7 @@
 //! The environments a lockfile is resolved for, and the markers that
 //! name them.
 
-use super::{LockedDirectory, LockedWheel};
+use super::{LockedDirectory, LockedVcs, LockedWheel};
 use crate::{
     candidates::parse_requirement,
     metadata::WheelMetadata,
@@ -44,6 +44,8 @@ pub struct Solved {
     /// The projects in the repository this environment installs from
     /// their source, which pin a directory where the others pin a wheel.
     pub directories: BTreeMap<PackageName, LockedDirectory>,
+    pub vcs: BTreeMap<PackageName, LockedVcs>,
+    pub direct_urls: BTreeMap<PackageName, String>,
     /// The marker variables the environment pins, empty for the running
     /// interpreter. A declared environment names a platform and a Python
     /// version, and its lockfile marker has to say so even when nothing
@@ -63,6 +65,7 @@ impl Solved {
     ) -> Result<Self> {
         let mut wheels = BTreeMap::new();
         let mut directories = BTreeMap::new();
+        let mut vcs = BTreeMap::new();
         for (name, version) in &solution {
             let candidate = packages.candidates
                 .get(name)
@@ -74,12 +77,36 @@ impl Solved {
                 Candidate::Wheel(offered) => {
                     wheels.insert(name.clone(), offered.wheel.clone());
                 }
+                Candidate::Vcs(source) => {
+                    vcs.insert(name.clone(), source.clone());
+                }
                 Candidate::Directory(directory) => {
                     directories.insert(name.clone(), directory.clone());
                 }
             }
         }
-        Ok(Self { target, solution, wheels, directories, declared })
+        Ok(Self {
+            target,
+            solution,
+            wheels,
+            directories,
+            vcs,
+            declared,
+            direct_urls: packages.direct_urls.clone(),
+        })
+    }
+
+    pub(super) fn source_key(&self, name: &PackageName) -> Result<String> {
+        if let Some(vcs) = self.vcs.get(name) {
+            return serde_json::to_string(vcs).into_diagnostic();
+        }
+        if let Some(directory) = self.directories.get(name) {
+            return serde_json::to_string(directory).into_diagnostic();
+        }
+        Ok(self.direct_urls
+            .get(name)
+            .cloned()
+            .unwrap_or_default())
     }
 
     /// The marker naming the environment this was solved for: every

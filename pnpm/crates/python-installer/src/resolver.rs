@@ -52,6 +52,7 @@ pub(super) async fn resolve<Reporter: InstallReporter + 'static>(
         {
             Step::Solved(solution) => return Ok(solution),
             Step::NeedCandidates(name) => registry.fetch_index(&name).await?,
+            Step::NeedUrl(name, url) => registry.fetch_source::<Reporter>(&name, &url).await?,
             Step::NeedMetadata(name, version) => {
                 registry.fetch_wheel::<Reporter>(&name, &version).await?;
             }

@@ -169,6 +169,50 @@ references must exist and cannot form a cycle. Extras use Python's normalized
 names. A dependency on a local project's extra still selects that extra through
 the dependency requirement, independently of the project's install settings.
 
+## Git and URL requirements
+
+`pnpm install` accepts PEP 508 direct wheel and git requirements, including
+requirements a dependency's wheel declares. `[tool.uv.sources]` can also select
+these sources. A member inherits its workspace root's sources table.
+
+```toml
+[project]
+name = "app"
+version = "1.0"
+dependencies = [
+  "fork>=1",
+  "theme @ https://example.org/theme-1.0-py3-none-any.whl",
+]
+
+[tool.uv.sources]
+fork = { git = "https://example.org/fork.git", rev = "e87a64d" }
+```
+
+Git sources accept `rev`, `tag` or `branch`, and an optional `subdirectory`.
+The direct form is `fork @ git+https://example.org/fork.git@e87a64d` with an
+optional `#subdirectory=python` fragment. HTTPS, SSH and local file repositories
+are supported. pnpm records the full commit in `packages.vcs` and replays that
+commit even if a branch or tag moves. The package is built through the same
+isolated PEP 517 flow as workspace packages. Repositories without a
+`pyproject.toml` use PEP 517's default setuptools backend.
+
+Approve the git dependency itself, as well as its build requirements, under
+`allowBuilds`, using `pkg:pypi/fork: true`. A build may execute code shipped in
+the repository, including an in-tree backend, so approving its backend alone
+does not approve the dependency. Resolving git metadata may build a wheel,
+including during `--lockfile-only`.
+
+Direct HTTP(S) wheel URLs record a SHA-256 digest. A `#sha256=...` fragment
+provides the expected digest; without one pnpm computes it from the downloaded
+wheel. Both the artifact identity and the digest are checked before installation.
+Git commits and verified wheels cached by an earlier install can be replayed
+with `--offline --frozen-lockfile`. Installed distributions record their source
+in PEP 610 `direct_url.json`.
+
+URL source archives remain unsupported. Source declarations selected by a
+marker, extra or group are still refused. Direct sources resolve locally;
+a pnpr server does not fetch or build git repositories.
+
 ## Ownership and shared resources
 
 - Python owns PEP 440 versions, PEP 508 requirements, markers and extras.
@@ -296,8 +340,8 @@ multi-directory commit. Automatic generation garbage collection remains open.
 
 This covers the same vertical integration surfaces as the current Cargo
 implementation, not all pip or uv functionality. It supports registry wheels,
-static and dynamic project dependencies, requirements files, and the projects
-in this repository a project depends on. Git/URL requirements, Python
+static and dynamic project dependencies, requirements files, Git and wheel URL
+requirements, and the projects in this repository a project depends on. Python
 installation, HTML-only indexes, pip
 configuration/keyring discovery and recursive/filtered add are not
 implemented, nor is building a project with a backend the workspace itself

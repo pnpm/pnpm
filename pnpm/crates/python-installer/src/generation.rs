@@ -47,6 +47,7 @@ impl PythonPrepare<'_> {
         registry.resolution.packages.candidates.clear();
         lock.seed(&mut registry.resolution.packages, &self.interpreter.target)?;
         workspace::offer_locked(&mut registry.resolution.packages, project.local, lock);
+        registry.record_sources(selected)?;
         registry.fetch_wheels::<Reporter>().await?;
         let solution = resolver::locked_solution(&registry.resolution, selected)?;
         let installed = self.installable::<Reporter>(registry, solution, project).await?;
@@ -79,7 +80,13 @@ impl PythonPrepare<'_> {
                 Some(build::Build::NotApproved(names)) => {
                     unapproved.insert(package.0, names);
                 }
-                None => installable.packages.push(registry.wheels[&package].clone()),
+                None => {
+                    let mut wheel = registry.wheels[&package].clone();
+                    if let Some(provenance) = registry.source_provenance(&package.0) {
+                        wheel.direct_url = Some(provenance);
+                    }
+                    installable.packages.push(wheel);
+                }
             }
         }
         if manifest.is_packaged() {

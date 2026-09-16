@@ -39,7 +39,7 @@ pub(super) struct Wheel {
     pub(super) filename: String,
     pub(super) files: BTreeMap<String, PathBuf>,
     pub(super) metadata: WheelMetadata,
-    /// Where a wheel built from a directory came from, which PEP 610 has
+    /// Where a wheel came from, which PEP 610 has
     /// the installer record rather than the backend.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub(super) direct_url: Option<DirectUrl>,
@@ -47,8 +47,79 @@ pub(super) struct Wheel {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub(super) struct DirectUrl {
-    pub(super) url: String,
-    pub(super) editable: bool,
+    url: String,
+    #[serde(flatten)]
+    origin: DirectUrlOrigin,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(untagged)]
+enum DirectUrlOrigin {
+    Directory {
+        dir_info: DirectoryInfo,
+    },
+    Archive {
+        archive_info: ArchiveInfo,
+    },
+    Vcs {
+        vcs_info: VcsInfo,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        subdirectory: Option<String>,
+    },
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct DirectoryInfo {
+    editable: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct ArchiveInfo {
+    hashes: BTreeMap<String, String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct VcsInfo {
+    vcs: String,
+    requested_revision: String,
+    commit_id: String,
+}
+
+impl DirectUrl {
+    pub(super) fn directory(url: String, editable: bool) -> Self {
+        Self { url, origin: DirectUrlOrigin::Directory { dir_info: DirectoryInfo { editable } } }
+    }
+
+    pub(super) fn git(source: &pnpm_python_resolver::LockedVcs) -> Self {
+        Self {
+            url: source.url.clone(),
+            origin: DirectUrlOrigin::Vcs {
+                vcs_info: VcsInfo {
+                    vcs: "git".to_string(),
+                    requested_revision: source.requested_revision.clone(),
+                    commit_id: source.commit_id.clone(),
+                },
+                subdirectory: source.subdirectory.clone(),
+            },
+        }
+    }
+
+    pub(super) fn archive(wheel: &pnpm_python_resolver::LockedWheel) -> Self {
+        Self {
+            url: wheel.url.clone(),
+            origin: DirectUrlOrigin::Archive {
+                archive_info: ArchiveInfo { hashes: wheel.hashes.clone() },
+            },
+        }
+    }
+}
+
+pub(super) async fn inspect(
+    executable: &str,
+    files: &BTreeMap<String, PathBuf>,
+    filename: &str,
+) -> Result<WheelMetadata> {
+    run(executable, "inspect", serde_json::json!({"files": files, "filename": filename})).await
 }
 
 /// How to start one interpreter: the program, the arguments of its own

@@ -29,7 +29,7 @@ pub(super) struct Shared<'a> {
 pub(super) type BuildEnvironmentKey = (String, String);
 
 pub(super) type BuildEnvironments =
-    tokio::sync::Mutex<BTreeMap<BuildEnvironmentKey, Arc<tempfile::TempDir>>>;
+    tokio::sync::Mutex<BTreeMap<BuildEnvironmentKey, Option<Arc<tempfile::TempDir>>>>;
 
 /// What preparing one project needs: what the run shares, plus the
 /// interpreter that installs this project and the environments it is
@@ -154,21 +154,29 @@ pub(super) async fn resolve_via_pnpr(
     {
         return Ok(None);
     }
-    client
-        .resolve_pypi(PypiResolveOptions {
-            requirements: requirements
-                .iter()
-                .map(ToString::to_string)
-                .collect(),
-            target: target.clone(),
-            index: index.to_string(),
-            requires_python,
-            authorization: config.auth_headers.for_url(pnpr_server),
-        })
-        .await
-        .into_diagnostic()
-        .wrap_err("resolve Python dependencies through the pnpr server")
-        .map(Some)
+    let resolved = client.resolve_pypi(PypiResolveOptions {
+        requirements: requirements
+            .iter()
+            .map(ToString::to_string)
+            .collect(),
+        target: target.clone(),
+        index: index.to_string(),
+        requires_python,
+        authorization: config.auth_headers.for_url(pnpr_server),
+    })
+    .await;
+    match resolved {
+        Err(pnpm_pnpr_client::PnprClientError::Server(message))
+            if message.starts_with("Python direct URL requirement for ")
+                && message.ends_with(" must be resolved by the client") =>
+        {
+            Ok(None)
+        }
+        result => result
+            .into_diagnostic()
+            .wrap_err("resolve Python dependencies through the pnpr server")
+            .map(Some),
+    }
 }
 
 pub(super) fn ensure_environment_parent(root: &Path) -> Result<()> {

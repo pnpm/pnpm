@@ -1,7 +1,10 @@
 //! How one `[tool.uv.sources]` entry is read: which source it names, and
 //! where that leaves the project it points at.
 
-use super::super::manifest::{Source, SourceDeclaration};
+use super::{
+    super::manifest::{Manifest, Source, SourceDeclaration},
+    LocalProject, parse_requirement,
+};
 use miette::{Result, bail};
 use pep508_rs::PackageName;
 use std::path::{Path, PathBuf};
@@ -41,15 +44,15 @@ pub(super) fn reject_unresolvable(
     name: &PackageName,
     manifest_path: &Path,
 ) -> Result<()> {
-    let kind = if source.git.is_some() {
-        "git"
-    } else if source.url.is_some() {
-        "url"
-    } else if source.index.is_some() {
+    let kind = if source.index.is_some() {
         "index"
     } else if let Some(narrowed) = source.narrowing.kind() {
         narrowed
-    } else if source.path.is_none() && !source.workspace {
+    } else if source.path.is_none()
+        && !source.workspace
+        && source.git.is_none()
+        && source.url.is_none()
+    {
         "empty"
     } else {
         return Ok(());
@@ -107,4 +110,24 @@ pub(super) fn path_target(
         );
     }
     Ok(walked)
+}
+
+impl super::Workspace {
+    pub(super) fn project_requirements(
+        &self,
+        project: &mut LocalProject,
+        root: &Path,
+        manifest: &Manifest,
+    ) -> Result<()> {
+        let requirements = project.metadata.requires_dist
+            .iter()
+            .map(|requirement| parse_requirement(requirement))
+            .collect::<Result<Vec<_>>>()?;
+        project.metadata.requires_dist = self
+            .requirements(root, manifest, requirements)?
+            .into_iter()
+            .map(|requirement| requirement.to_string())
+            .collect();
+        Ok(())
+    }
 }
