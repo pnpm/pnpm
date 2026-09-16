@@ -50,6 +50,12 @@ async fn project_overrides_change_lock_inputs_and_preserve_production_projection
         .success();
     python(root.path()).args(["-c", "import beta; import importlib.util; assert importlib.util.find_spec('alpha') is None; assert importlib.util.find_spec('gamma') is None"]).assert().success();
     assert_eq!(fs::read_to_string(root.path().join("pylock.toml")).unwrap(), lock);
+    super::pacquet_in(root.path())
+        .args(["install", "--dev", "--frozen-lockfile"])
+        .assert()
+        .success();
+    python(root.path()).args(["-c", "import gamma; import importlib.util; assert importlib.util.find_spec('alpha') is None; assert importlib.util.find_spec('beta') is None"]).assert().success();
+    assert_eq!(fs::read_to_string(root.path().join("pylock.toml")).unwrap(), lock);
     fs::write(
         root.path().join("pyproject.toml"),
         manifest.replace("extras = ['web']", "extras = []"),

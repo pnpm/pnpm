@@ -25,25 +25,26 @@ impl Manifest {
         config: &Config,
         selection: DependencySelection,
     ) -> Result<Vec<Requirement>> {
-        let Some(project) = &self.project else { return Ok(Vec::new()) };
+        Ok(self.selected_requirements(config)?.into_selected(selection))
+    }
+
+    pub(in super::super) fn selected_requirements(
+        &self,
+        config: &Config,
+    ) -> Result<SelectedRequirements> {
+        let Some(project) = &self.project else { return Ok(SelectedRequirements::default()) };
         if self.metadata.is_none() {
             project.ensure_static_dependencies()?;
         }
         let extras = self.selected_extras(config)?;
-        let mut groups = Vec::new();
-        self.expand_configured_groups(config, &mut groups)?;
-        let mut requirements = if selection.production {
-            self.production_requirements(project, &extras)?
-        } else {
-            Vec::new()
-        };
-        if selection.development {
-            requirements.extend(groups);
-        }
-        requirements
+        let mut requirements = self.production_requirements(project, &extras)?;
+        let production_count = requirements.len();
+        self.expand_configured_groups(config, &mut requirements)?;
+        let all = requirements
             .into_iter()
             .map(|requirement| parse_requirement(&requirement))
-            .collect()
+            .collect::<Result<Vec<_>>>()?;
+        Ok(SelectedRequirements { all, production_count })
     }
 
     fn production_requirements(
@@ -124,6 +125,34 @@ impl Manifest {
         }
         visiting.pop();
         Ok(())
+    }
+}
+
+#[derive(Default)]
+pub(in super::super) struct SelectedRequirements {
+    pub(in super::super) all: Vec<Requirement>,
+    production_count: usize,
+}
+
+impl SelectedRequirements {
+    pub(in super::super) fn selected(&self, selection: DependencySelection) -> &[Requirement] {
+        match (selection.production, selection.development) {
+            (true, true) => &self.all,
+            (true, false) => &self.all[..self.production_count],
+            (false, true) => &self.all[self.production_count..],
+            (false, false) => &[],
+        }
+    }
+
+    fn into_selected(mut self, selection: DependencySelection) -> Vec<Requirement> {
+        if !selection.development {
+            self.all.truncate(self.production_count);
+        }
+        if !selection.production {
+            let count = self.production_count.min(self.all.len());
+            self.all.drain(..count);
+        }
+        self.all
     }
 }
 
