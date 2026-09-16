@@ -195,9 +195,34 @@ pub fn validate_url(url: &Url) -> Result<()> {
 /// installs what an index serves, and a URL requirement names something
 /// else.
 pub fn parse_requirement(requirement: &str) -> Result<Requirement> {
-    let parsed: Requirement = requirement.parse().into_diagnostic()?;
+    read_requirement(requirement)
+        .map_err(|refusal| match refusal {
+            Refusal::Unreadable(error) => error,
+            Refusal::Unsupported(requirement) => {
+                miette::miette!("direct URL Python requirements are not supported: {requirement}")
+            }
+        })
+}
+
+/// Why pnpm cannot use a requirement, which decides whom it is a problem
+/// for: a line pnpm cannot read at all comes from one broken wheel, and a
+/// direct URL is a requirement pnpm does not implement, which every
+/// release declaring it will name.
+#[derive(Debug)]
+pub(crate) enum Refusal {
+    Unreadable(miette::Report),
+    Unsupported(String),
+}
+
+/// Read a PEP 508 requirement, telling a line pnpm cannot parse apart
+/// from the direct-URL form it parses and does not support.
+pub(crate) fn read_requirement(requirement: &str) -> std::result::Result<Requirement, Refusal> {
+    let parsed: Requirement = requirement
+        .parse()
+        .into_diagnostic()
+        .map_err(Refusal::Unreadable)?;
     if matches!(parsed.version_or_url, Some(pep508_rs::VersionOrUrl::Url(_))) {
-        bail!("direct URL Python requirements are not supported: {requirement}");
+        return Err(Refusal::Unsupported(requirement.to_string()));
     }
     Ok(parsed)
 }

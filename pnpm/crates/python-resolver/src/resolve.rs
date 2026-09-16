@@ -1,4 +1,9 @@
-use crate::{metadata::WheelMetadata, packages::Packages, requires_python::declared_range};
+use crate::{
+    candidates::{Refusal, read_requirement},
+    metadata::WheelMetadata,
+    packages::Packages,
+    requires_python::declared_range,
+};
 use miette::{Result, bail};
 use pep440_rs::Version;
 use pep508_rs::{ExtraName, MarkerEnvironment, PackageName, Requirement, VersionOrUrl};
@@ -128,7 +133,19 @@ impl DependencyProvider for Provider<'_> {
                         Ranges::singleton(version.clone()),
                     );
                 }
-                let requirements = metadata_requirements(metadata)?;
+                let requirements = match metadata_requirements(metadata) {
+                    Ok(requirements) => requirements,
+                    Err(Refusal::Unreadable(error)) => {
+                        return Ok(Dependencies::Unavailable(format!(
+                            "because its metadata declares a requirement pnpm cannot read: {error}",
+                        )));
+                    }
+                    Err(Refusal::Unsupported(requirement)) => {
+                        return Err(Needed::Invalid(format!(
+                            "direct URL Python requirements are not supported: {requirement}",
+                        )));
+                    }
+                };
                 self.constraints(&requirements, &extras, &mut constraints)?;
             }
         }
@@ -138,13 +155,10 @@ impl DependencyProvider for Provider<'_> {
 
 fn metadata_requirements(
     metadata: &WheelMetadata,
-) -> std::result::Result<Vec<Requirement>, Needed> {
+) -> std::result::Result<Vec<Requirement>, Refusal> {
     metadata.requires_dist
         .iter()
-        .map(|requirement| {
-            crate::candidates::parse_requirement(requirement)
-                .map_err(|error| Needed::Invalid(error.to_string()))
-        })
+        .map(|requirement| read_requirement(requirement))
         .collect::<std::result::Result<Vec<_>, _>>()
 }
 
