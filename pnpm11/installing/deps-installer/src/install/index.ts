@@ -1234,7 +1234,11 @@ export async function mutateModules (
         pruneDirectDependencies: false,
         ...project,
         updateToLatest,
-        wantedDependencies: wantedDeps.map(wantedDep => ({ ...wantedDep, isNew: !originalBareSpecifiers[wantedDep.alias], updateSpec: true })),
+        wantedDependencies: wantedDeps.map(wantedDep => ({
+          ...wantedDep,
+          isNew: project.update !== true && !originalBareSpecifiers[wantedDep.alias],
+          updateSpec: true,
+        })),
       } as ImporterToUpdate)
     }
 

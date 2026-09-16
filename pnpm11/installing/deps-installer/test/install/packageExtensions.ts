@@ -3,7 +3,7 @@ import { hashObject as _hashObject } from '@pnpm/crypto.object-hasher'
 import { PnpmError } from '@pnpm/error'
 import { addDependenciesToPackage, install, mutateModulesInSingleProject } from '@pnpm/installing.deps-installer'
 import { prepareEmpty } from '@pnpm/prepare'
-import type { PackageExtension, ProjectManifest, ProjectRootDir } from '@pnpm/types'
+import type { PackageExtension, ProjectManifest, ProjectRootDir, ReadPackageHook } from '@pnpm/types'
 
 import {
   testDefaults,
@@ -98,6 +98,77 @@ test('manifests are extended with fields specified by packageExtensions', async 
       'Cannot proceed with the frozen installation. The current "packageExtensionsChecksum" configuration doesn\'t match the value found in the lockfile'
     )
   )
+})
+
+test('update does not save a dependency added by a readPackage hook', async () => {
+  const project = prepareEmpty()
+  const manifest = {
+    name: 'project',
+    version: '1.0.0',
+  }
+  const readPackage: ReadPackageHook = (hookedManifest) => ({
+    ...hookedManifest,
+    dependencies: {
+      ...hookedManifest.dependencies,
+      '@pnpm.e2e/foo': '1.0.0',
+    },
+  })
+  const options = testDefaults({
+    hooks: {
+      readPackage: [readPackage],
+    },
+  })
+
+  await install(manifest, options)
+
+  const { updatedProject } = await mutateModulesInSingleProject({
+    allowNew: false,
+    dependencySelectors: ['@pnpm.e2e/foo@2.0.0'],
+    manifest,
+    mutation: 'installSome',
+    rootDir: process.cwd() as ProjectRootDir,
+    update: true,
+    updatePackageManifest: true,
+  }, options)
+
+  expect(updatedProject.manifest).toStrictEqual({
+    name: 'project',
+    version: '1.0.0',
+  })
+  expect(project.readLockfile().packages['@pnpm.e2e/foo@2.0.0']).toBeDefined()
+})
+
+test('update does not save a dependency added by packageExtensions', async () => {
+  const project = prepareEmpty()
+  const manifest = {
+    name: 'project',
+    version: '1.0.0',
+  }
+  const packageExtensions: Record<string, PackageExtension> = {
+    'project@*': {
+      dependencies: {
+        '@pnpm.e2e/foo': '1.0.0',
+      },
+    },
+  }
+
+  await install(manifest, testDefaults({ packageExtensions }))
+
+  const { updatedProject } = await mutateModulesInSingleProject({
+    allowNew: false,
+    dependencySelectors: ['@pnpm.e2e/foo@2.0.0'],
+    manifest,
+    mutation: 'installSome',
+    rootDir: process.cwd() as ProjectRootDir,
+    update: true,
+    updatePackageManifest: true,
+  }, testDefaults({ packageExtensions }))
+
+  expect(updatedProject.manifest).toStrictEqual({
+    name: 'project',
+    version: '1.0.0',
+  })
+  expect(project.readLockfile().packages['@pnpm.e2e/foo@2.0.0']).toBeDefined()
 })
 
 test('packageExtensionsChecksum does not change regardless of keys order', async () => {
