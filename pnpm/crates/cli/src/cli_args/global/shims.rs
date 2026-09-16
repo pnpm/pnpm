@@ -234,19 +234,25 @@ pub(super) fn restore_virtual_shims(
     Ok(())
 }
 
-/// The set of bin names provided by global package groups other than those
+/// The relevant bin names provided by global package groups other than those
 /// in `exclude_hashes`.
 pub(super) fn bin_names_of_other_groups(
     global_pkg_dir: &Path,
     exclude_hashes: &HashSet<String>,
+    bin_names_to_protect: &HashSet<String>,
 ) -> miette::Result<HashSet<String>> {
+    if bin_names_to_protect.is_empty() {
+        return Ok(HashSet::new());
+    }
     let mut names = HashSet::new();
     for pkg in scan_global_packages(global_pkg_dir).into_diagnostic()? {
         if exclude_hashes.contains(&pkg.hash) {
             continue;
         }
         for bin in get_installed_bin_names(&pkg).map_err(miette::Report::new)? {
-            names.insert(bin);
+            if bin_names_to_protect.contains(&bin) {
+                names.insert(bin);
+            }
         }
     }
     Ok(names)

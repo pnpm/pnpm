@@ -32,6 +32,7 @@ const readInstalledPackages = jest.fn<() => Promise<[]>>().mockResolvedValue([])
 const summaryDebug = jest.fn()
 const activateGlobalInstall = jest.fn<(opts: unknown) => Promise<Set<string>>>().mockResolvedValue(new Set(['pnpm']))
 const cleanupReplacedGlobalInstalls = jest.fn<(opts: unknown) => Promise<void>>().mockResolvedValue(undefined)
+const getActualBinNames = jest.fn<(opts: unknown) => Promise<Set<string>>>().mockResolvedValue(new Set(['pnpm']))
 
 jest.unstable_mockModule('@pnpm/core-loggers', () => ({ summaryLogger: { debug: summaryDebug } }))
 jest.unstable_mockModule('@pnpm/global.packages', () => ({
@@ -51,6 +52,7 @@ jest.unstable_mockModule('../src/installGlobalPackages.js', () => ({ installGlob
 jest.unstable_mockModule('../src/globalActivation.js', () => ({
   activateGlobalInstall,
   cleanupReplacedGlobalInstalls,
+  getActualBinNames,
 }))
 jest.unstable_mockModule('../src/promptApproveGlobalBuilds.js', () => ({ promptApproveGlobalBuilds }))
 jest.unstable_mockModule('../src/readInstalledPackages.js', () => ({ readInstalledPackages }))
@@ -66,6 +68,7 @@ beforeEach(() => {
   findGlobalPackage.mockReturnValue(null)
   getInstalledBinNames.mockResolvedValue(['pnpm'])
   activateGlobalInstall.mockResolvedValue(new Set(['pnpm']))
+  getActualBinNames.mockResolvedValue(new Set(['pnpm']))
   scanGlobalPackages.mockReturnValue([])
 })
 
@@ -111,7 +114,7 @@ test('global add still replaces exact aliases in mixed existing groups', () => {
   }, aliases, replacementAliases)).toBe(true)
 })
 
-test('global add activates before cleaning up a same-hash pnpm replacement', async () => {
+test('global add does not inspect survivors when every replaced bin is retained', async () => {
   const existingPnpm = {
     dependencies: { pnpm: '12.0.0-alpha.2' },
     hash: 'old-pnpm',
@@ -129,7 +132,10 @@ test('global add activates before cleaning up a same-hash pnpm replacement', asy
     return alias === 'pnpm' ? existingPnpm : null
   })
   scanGlobalPackages.mockReturnValue([existingPnpm, survivor])
-  getInstalledBinNames.mockImplementation(async (pkg) => pkg === existingPnpm ? ['pnpm'] : ['eslint'])
+  getInstalledBinNames.mockImplementation(async (pkg) => {
+    if (pkg === existingPnpm) return ['pnpm']
+    throw new Error('unrelated survivor manifest is unreadable')
+  })
   activateGlobalInstall.mockResolvedValue(activatedBins)
   checkGlobalBinConflicts.mockImplementation(async (opts) => {
     expect(opts.shouldSkip(existingPnpm)).toBe(true)
@@ -159,11 +165,11 @@ test('global add activates before cleaning up a same-hash pnpm replacement', asy
     globalBinDir: '/global/bin',
     activeHash: 'old-pnpm',
     activatedBins,
-    protectedBins: new Set(['eslint']),
+    protectedBins: new Set(),
   })
-  expect(getInstalledBinNames).toHaveBeenCalledTimes(2)
+  expect(getInstalledBinNames).toHaveBeenCalledTimes(1)
   expect(getInstalledBinNames).toHaveBeenCalledWith(existingPnpm)
-  expect(getInstalledBinNames).toHaveBeenCalledWith(survivor)
+  expect(scanGlobalPackages).not.toHaveBeenCalled()
   for (const callOrder of getInstalledBinNames.mock.invocationCallOrder) {
     expect(callOrder).toBeLessThan(activateGlobalInstall.mock.invocationCallOrder[0])
   }
@@ -213,6 +219,7 @@ test('global add retries safely and activates from a complete replacement owners
     return alias === 'pnpm' ? existingPnpm : null
   })
   scanGlobalPackages.mockReturnValue([existingPnpm, survivor])
+  getActualBinNames.mockResolvedValue(new Set())
   let ownershipBroken = true
   getInstalledBinNames.mockImplementation(async (pkg) => {
     if (pkg === existingPnpm && ownershipBroken) throw enumerationError
@@ -271,7 +278,7 @@ test('global add retries safely and activates from a complete replacement owners
       globalDir,
       activeHash: 'old-pnpm',
       activatedBins: new Set(['pnpm']),
-      protectedBins: new Set(['eslint']),
+      protectedBins: new Set(),
     })
     expect(getInstalledBinNames).toHaveBeenCalledTimes(ownershipReadsAtSwitch)
     expect(freshInstallDirs).toHaveLength(3)

@@ -58,12 +58,17 @@ fn protected_bins_for_removal(
     global_pkg_dir: &Path,
     groups: &[GlobalPackageBinSnapshot],
 ) -> miette::Result<HashSet<String>> {
+    let bin_names_to_protect = groups
+        .iter()
+        .flat_map(|pkg| pkg.bin_names.iter().cloned())
+        .collect();
     bin_names_of_other_groups(
         global_pkg_dir,
         &groups
             .iter()
             .map(|pkg| pkg.info.hash.clone())
             .collect::<HashSet<_>>(),
+        &bin_names_to_protect,
     )
     .wrap_err("scan global package bin ownership")
 }
@@ -121,6 +126,7 @@ pub(super) fn collect_existing_global_installs(
     global_pkg_dir: &Path,
     aliases: &[String],
     aliases_to_replace: &[String],
+    retained_bin_names: &HashSet<String>,
 ) -> miette::Result<ExistingGlobalInstalls> {
     let mut groups_to_replace = Vec::new();
     let mut seen = HashSet::new();
@@ -140,7 +146,13 @@ pub(super) fn collect_existing_global_installs(
         .iter()
         .map(|pkg| pkg.info.hash.clone())
         .collect();
-    let protected_bins = bin_names_of_other_groups(global_pkg_dir, &exclude)?;
+    let bin_names_to_protect = groups_to_replace
+        .iter()
+        .flat_map(|pkg| pkg.bin_names.iter().cloned())
+        .filter(|bin| !retained_bin_names.contains(bin))
+        .collect();
+    let protected_bins =
+        bin_names_of_other_groups(global_pkg_dir, &exclude, &bin_names_to_protect)?;
     Ok(ExistingGlobalInstalls { groups_to_replace, protected_bins })
 }
 

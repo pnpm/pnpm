@@ -20,6 +20,7 @@ const readInstalledPackages = jest.fn<(installDir: string) => Promise<Array<{ al
 const summaryDebug = jest.fn()
 const activateGlobalInstall = jest.fn<(opts: unknown) => Promise<Set<string>>>().mockResolvedValue(new Set(['fresh']))
 const cleanupReplacedGlobalInstalls = jest.fn<(opts: unknown) => Promise<void>>().mockResolvedValue(undefined)
+const getActualBinNames = jest.fn<(opts: unknown) => Promise<Set<string>>>().mockResolvedValue(new Set(['fresh']))
 
 jest.unstable_mockModule('@pnpm/core-loggers', () => ({ summaryLogger: { debug: summaryDebug } }))
 jest.unstable_mockModule('@pnpm/global.packages', () => ({
@@ -34,6 +35,7 @@ jest.unstable_mockModule('../src/checkGlobalBinConflicts.js', () => ({ checkGlob
 jest.unstable_mockModule('../src/globalActivation.js', () => ({
   activateGlobalInstall,
   cleanupReplacedGlobalInstalls,
+  getActualBinNames,
 }))
 jest.unstable_mockModule('../src/installGlobalPackages.js', () => ({ installGlobalPackages }))
 jest.unstable_mockModule('../src/promptApproveGlobalBuilds.js', () => ({ promptApproveGlobalBuilds }))
@@ -54,6 +56,7 @@ beforeEach(() => {
   })
   readInstalledPackages.mockResolvedValue([])
   activateGlobalInstall.mockResolvedValue(new Set(['fresh']))
+  getActualBinNames.mockResolvedValue(new Set(['fresh']))
 })
 
 test('global update emits a single summary after updating all isolated groups', async () => {
@@ -133,11 +136,10 @@ test('global update emits a single summary after updating all isolated groups', 
     activatedBins: new Set(['fresh']),
     protectedBins: new Set(),
   })
-  const firstActivationOrder = activateGlobalInstall.mock.invocationCallOrder[0]
-  for (const group of groups) {
+  for (const [index, group] of groups.entries()) {
     const ownershipCall = getInstalledBinNames.mock.calls.findIndex(([pkg]) => pkg === group)
     expect(ownershipCall).toBeGreaterThanOrEqual(0)
-    expect(getInstalledBinNames.mock.invocationCallOrder[ownershipCall]).toBeLessThan(firstActivationOrder)
+    expect(getInstalledBinNames.mock.invocationCallOrder[ownershipCall]).toBeLessThan(activateGlobalInstall.mock.invocationCallOrder[index])
   }
   for (const index of [0, 1]) {
     expect(activateGlobalInstall.mock.invocationCallOrder[index]).toBeLessThan(cleanupReplacedGlobalInstalls.mock.invocationCallOrder[index])

@@ -34,7 +34,7 @@ export async function handleGlobalRemove (
 
   // Bins shared with (and owned by) groups that survive this removal must
   // not be unlinked, or we'd delete another global package's bin.
-  const ownership = await getGlobalBinOwnership(globalDir, [...groupsToRemove.values()])
+  const ownership = await getGlobalBinOwnership(globalDir, [...groupsToRemove.values()], new Set())
 
   await Promise.all(
     ownership.groups.map(async ({ info: pkg, binNames }) => {

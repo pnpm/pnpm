@@ -162,9 +162,13 @@ async function swapHashLink (target: string, hashLink: string): Promise<void> {
     return
   }
   await fs.promises.mkdir(path.dirname(hashLink), { recursive: true })
+  const [linkParent, linkTarget] = await Promise.all([
+    fs.promises.realpath(path.dirname(hashLink)),
+    fs.promises.realpath(target),
+  ])
   const stagedLink = `${hashLink}.${process.pid}.tmp`
   await fs.promises.rm(stagedLink, { force: true, recursive: true })
-  await fs.promises.symlink(path.relative(path.dirname(hashLink), target), stagedLink, 'dir')
+  await fs.promises.symlink(path.relative(linkParent, linkTarget), stagedLink, 'dir')
   try {
     await fs.promises.rename(stagedLink, hashLink)
   } catch (err) {
@@ -211,7 +215,9 @@ async function prepareGlobalInstall (
 }
 
 /** The commands the group declares, mapped to the file each one runs. */
-async function getActualBins (opts: ActivateGlobalInstallOptions): Promise<Map<string, string>> {
+async function getActualBins (
+  opts: Pick<ActivateGlobalInstallOptions, 'pkgs' | 'binsToSkip'>
+): Promise<Map<string, string>> {
   const actualBins = new Map<string, string>()
   const binsByPackage = await Promise.all(opts.pkgs.map(async ({ manifest, location }) => {
     return getBinsFromPackageManifest(manifest, location)
@@ -222,6 +228,12 @@ async function getActualBins (opts: ActivateGlobalInstallOptions): Promise<Map<s
     }
   }
   return actualBins
+}
+
+export async function getActualBinNames (
+  opts: Pick<ActivateGlobalInstallOptions, 'pkgs' | 'binsToSkip'>
+): Promise<Set<string>> {
+  return new Set((await getActualBins(opts)).keys())
 }
 
 /**

@@ -16,7 +16,7 @@ import semver from 'semver'
 import { getGlobalBinOwnership } from './binOwnership.js'
 import { checkGlobalBinConflicts } from './checkGlobalBinConflicts.js'
 import { cleanupFailedGlobalInstall } from './cleanupFailedGlobalInstall.js'
-import { activateGlobalInstall, cleanupReplacedGlobalInstalls } from './globalActivation.js'
+import { activateGlobalInstall, cleanupReplacedGlobalInstalls, getActualBinNames } from './globalActivation.js'
 import {
   installGlobalPackages,
   type InstallGlobalPackagesResult,
@@ -119,7 +119,11 @@ async function updateGlobalPackageGroup (
 
   let ownership: Awaited<ReturnType<typeof getGlobalBinOwnership>>
   try {
-    ownership = await getGlobalBinOwnership(globalDir, [pkg])
+    ownership = await getGlobalBinOwnership(
+      globalDir,
+      [pkg],
+      await getActualBinNames({ pkgs, binsToSkip })
+    )
   } catch (err) {
     return cleanupFailedGlobalInstall(installDir, err)
   }
