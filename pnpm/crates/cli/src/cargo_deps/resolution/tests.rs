@@ -74,3 +74,29 @@ incompatible-rust-versions = "command"
         assert!(error.to_string().contains("invalid Cargo resolution setting"));
     }
 }
+
+#[test]
+fn root_source_overrides_are_detected_and_git_transports_are_validated() {
+    let root = TempDir::new().unwrap();
+    for (manifest, expected) in [
+        ("[workspace]\n", false),
+        ("[patch.crates-io]\ndemo = { path = \"dep\" }\n", true),
+        (
+            "[patch.\"https://example.test/index\"]\ndemo = { git = \"https://example.test/demo\", rev = \"abc\" }\n",
+            true,
+        ),
+        ("[replace]\n\"demo:1.0.0\" = { path = \"dep\" }\n", true),
+    ] {
+        fs::write(root.path().join("Cargo.toml"), manifest).unwrap();
+        assert_eq!(super::has_source_overrides(root.path()).unwrap(), expected);
+    }
+    for manifest in [
+        "[patch.crates-io]\ndemo = { git = \"ext://checkout-command\" }\n",
+        "[replace]\n\"demo:1.0.0\" = { git = \"ext://checkout-command\" }\n",
+    ] {
+        fs::write(root.path().join("Cargo.toml"), manifest).unwrap();
+        let error = super::has_source_overrides(root.path()).unwrap_err();
+        eprintln!("Unsupported override transports must fail before Cargo runs: {error:?}");
+        assert!(error.to_string().contains("transport"));
+    }
+}
