@@ -64,6 +64,7 @@ pub(super) fn install_in(root: &TempDir, args: &[&str]) {
     Command::cargo_bin("pnpm")
         .expect("find the pnpm binary")
         .with_current_dir(root.path())
+        .with_env("CARGO_HOME", root.path().join("cargo-home"))
         .with_env("PNPM_CONFIG_CACHE_DIR", root.path().join("cache"))
         .with_env("PNPM_CONFIG_STORE_DIR", root.path().join("store"))
         .with_args(args)
