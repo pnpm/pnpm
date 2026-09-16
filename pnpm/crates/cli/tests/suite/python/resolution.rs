@@ -107,20 +107,30 @@ async fn project_preparation_replenishes_concurrent_slots() {
 
 #[tokio::test]
 async fn different_resolution_inputs_do_not_share_a_fresh_lockfile() {
-    for change_python_range in [false, true] {
-        eprintln!("change_python_range={change_python_range}");
+    for change in ["requirements", "python", "override", "constraint"] {
+        eprintln!("change={change}");
         let root = tempfile::tempdir().unwrap();
         let mut server = mockito::Server::new_async().await;
         let mut requests =
             serve(&mut server, "demo", &[("1.0", wheel("demo", "1.0", "", &[]))]).await;
         let index = requests.pop().unwrap().expect(2);
         project(root.path(), &server.url(), &["demo"]);
-        member(root.path(), "other", &[if change_python_range { "demo" } else { "demo==1.0" }]);
+        member(
+            root.path(),
+            "other",
+            &[if change == "requirements" { "demo==1.0" } else { "demo" }],
+        );
         let manifest = root.path().join("other/pyproject.toml");
-        if change_python_range {
-            let contents = fs::read_to_string(&manifest).unwrap();
-            fs::write(&manifest, contents.replace(">=3.10", ">=3.9")).unwrap();
-        }
+        let contents = fs::read_to_string(&manifest).unwrap();
+        let contents = match change {
+            "python" => contents.replace(">=3.10", ">=3.9"),
+            "override" => format!("{contents}\n[tool.uv]\noverride-dependencies=['demo==1.0']\n"),
+            "constraint" => {
+                format!("{contents}\n[tool.uv]\nconstraint-dependencies=['demo==1.0']\n")
+            }
+            _ => contents,
+        };
+        fs::write(&manifest, contents).unwrap();
         pacquet_in(root.path())
             .args(["install", "--lockfile-only"])
             .assert()
