@@ -360,7 +360,7 @@ describe('alias bins', () => {
     aliasTest(`${name} resolves a drive-letter $0`, () => {
       const sandbox = buildAliasSandbox()
       const arg0 = `C:\\proj\\${name}`
-      fs.copyFileSync(plantAlias(sandbox, name, path.join(sandbox, 'C:', 'proj')), path.join(sandbox, arg0))
+      fs.copyFileSync(plantAliasAndPnpm(sandbox, name, path.join(sandbox, 'C:', 'proj')), path.join(sandbox, arg0))
 
       const result = runNativeAlias(sandbox, arg0)
       expect({ status: result.status, stdout: result.stdout }).toEqual({ status: 0, stdout: expected })
@@ -374,7 +374,7 @@ describe('alias bins', () => {
       const sandbox = buildAliasSandbox()
       const shareDir = path.join(sandbox, 'share')
       const arg0 = `\\${shareDir}/${name}`.replaceAll('/', '\\')
-      fs.copyFileSync(plantAlias(sandbox, name, shareDir), path.join(sandbox, arg0))
+      fs.copyFileSync(plantAliasAndPnpm(sandbox, name, shareDir), path.join(sandbox, arg0))
 
       const result = runNativeAlias(sandbox, arg0)
       expect({ status: result.status, stdout: result.stdout }).toEqual({ status: 0, stdout: expected })
@@ -385,7 +385,7 @@ describe('alias bins', () => {
     aliasTest(`${name} leaves a Unix path holding a backslash alone`, () => {
       const sandbox = buildAliasSandbox()
 
-      const result = runAlias(plantAlias(sandbox, name, path.join(sandbox, 'proj\\dir')), BARE_PATH)
+      const result = runAlias(plantAliasAndPnpm(sandbox, name, path.join(sandbox, 'proj\\dir')), BARE_PATH)
       expect({ status: result.status, stdout: result.stdout }).toEqual({ status: 0, stdout: expected })
     })
 
@@ -417,11 +417,7 @@ function buildAliasSandbox ({ installBinary = true } = {}): string {
   return sandbox
 }
 
-/**
- * Put a copy of the sandbox's `name` alias and a stand-in pnpm in `targetDir`,
- * which is created if missing. Returns the alias's path there.
- */
-function plantAlias (sandbox: string, name: string, targetDir: string): string {
+function plantAliasAndPnpm (sandbox: string, name: string, targetDir: string): string {
   fs.mkdirSync(targetDir, { recursive: true })
   const file = path.join(targetDir, name)
   fs.copyFileSync(path.join(sandbox, name), file)
@@ -449,7 +445,6 @@ function runAlias (alias: string, pathEnv: string) {
   })
 }
 
-/** Run `arg0` from `cwd` as a shell handed a native Windows path does, with no pnpm on PATH. */
 function runNativeAlias (cwd: string, arg0: string) {
   return spawnSync('sh', [arg0, 'add', 'foo'], {
     cwd,

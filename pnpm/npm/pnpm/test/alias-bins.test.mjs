@@ -143,7 +143,7 @@ describe('alias bins', () => {
       it(`${alias} resolves a drive-letter path`, { skip: NO_SH }, async () => {
         const dir = createTmpDir('pnpm native ')
         const arg0 = `C:\\proj\\${alias}`
-        fs.copyFileSync(plantAlias(alias, path.join(dir, 'C:', 'proj')), path.join(dir, arg0))
+        fs.copyFileSync(plantAliasAndPnpm(alias, path.join(dir, 'C:', 'proj')), path.join(dir, arg0))
 
         const result = await run('sh', [arg0, ...ARGS], { cwd: dir, env: { PATH: BARE_PATH } })
         assert.equal(result.status, 0, result.stderr)
@@ -158,7 +158,7 @@ describe('alias bins', () => {
         const dir = createTmpDir('pnpm native ')
         const shareDir = path.join(dir, 'share')
         const arg0 = `\\${shareDir}/${alias}`.replaceAll('/', '\\')
-        fs.copyFileSync(plantAlias(alias, shareDir), path.join(dir, arg0))
+        fs.copyFileSync(plantAliasAndPnpm(alias, shareDir), path.join(dir, arg0))
 
         const result = await run('sh', [arg0, ...ARGS], { cwd: dir, env: { PATH: BARE_PATH } })
         assert.equal(result.status, 0, result.stderr)
@@ -170,7 +170,7 @@ describe('alias bins', () => {
       it(`${alias} leaves a Unix path holding a backslash alone`, { skip: NO_SH }, async () => {
         const dir = createTmpDir('pnpm native ')
 
-        const result = await run(plantAlias(alias, path.join(dir, 'proj\\dir')), ARGS, { env: { PATH: BARE_PATH } })
+        const result = await run(plantAliasAndPnpm(alias, path.join(dir, 'proj\\dir')), ARGS, { env: { PATH: BARE_PATH } })
         assert.equal(result.status, 0, result.stderr)
         assert.equal(result.stdout, expected)
       })
@@ -232,18 +232,13 @@ function run (command, args, { env, cwd } = {}) {
   })
 }
 
-/** A temporary directory named after `prefix`, removed once the file's tests end. */
 function createTmpDir (prefix) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), prefix))
   after(() => fs.rmSync(dir, { force: true, recursive: true }))
   return dir
 }
 
-/**
- * Put `alias` and the stand-in `pnpm` it has to reach in `targetDir`, which is
- * created if missing. Returns the alias's path there.
- */
-function plantAlias (alias, targetDir) {
+function plantAliasAndPnpm (alias, targetDir) {
   fs.mkdirSync(targetDir, { recursive: true })
   const file = path.join(targetDir, alias)
   fs.copyFileSync(path.join(WRAPPER_DIR, alias), file)
