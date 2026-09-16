@@ -143,10 +143,10 @@ pub(super) async fn read_or_resolve_lockfile(
             "Cargo.lock is absent, but --frozen-lockfile forbids generating it"
         ));
     }
-    reject_redirected_workspace(root_dir)?;
-
     let metadata = read_cargo_metadata(root_dir).await?;
-    if super::resolution::has_git_dependencies(&metadata)? {
+    let source_overrides = super::resolution::has_source_overrides(root_dir)?;
+    let git_dependencies = super::resolution::has_git_dependencies(&metadata)?;
+    if source_overrides || git_dependencies {
         return super::resolution::resolve_with_cargo(config, root_dir).await;
     }
     if let Some(lockfile) = resolve_via_pnpr(config, &metadata).await? {
@@ -157,32 +157,6 @@ pub(super) async fn read_or_resolve_lockfile(
     let lockfile = pnpm_cargo_resolver::resolve_lockfile(&metadata, &index_files, &source)
         .wrap_err("resolve Cargo dependencies")?;
     Ok(lockfile)
-}
-
-/// Refuse to resolve a workspace whose root manifest redirects a dependency
-/// to another source.
-///
-/// `[patch]` and `[replace]` change which package a requirement resolves to,
-/// and `cargo metadata` does not report either, so a lockfile resolved from
-/// it would name the replaced package. An existing `Cargo.lock` is read
-/// rather than resolved, which is how a workspace with a patch installs.
-fn reject_redirected_workspace(root_dir: &Path) -> Result<()> {
-    let manifest_path = root_dir.join("Cargo.toml");
-    let manifest = fs::read_to_string(&manifest_path)
-        .into_diagnostic()
-        .wrap_err_with(|| format!("read {}", manifest_path.display()))?;
-    let document: toml::Table = toml::from_str(&manifest)
-        .into_diagnostic()
-        .wrap_err_with(|| format!("parse {}", manifest_path.display()))?;
-    for table in ["patch", "replace"] {
-        if document.contains_key(table) {
-            let manifest_path = manifest_path.display();
-            return Err(miette::miette!(
-                "{manifest_path} declares [{table}], which pnpm cannot resolve. Commit the Cargo.lock that `cargo generate-lockfile` writes for it.",
-            ));
-        }
-    }
-    Ok(())
 }
 
 /// Resolve through the configured pnpr server, which walks the sparse

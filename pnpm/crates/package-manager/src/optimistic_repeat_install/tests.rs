@@ -28,7 +28,7 @@ use pnpm_config::Config;
 use pnpm_lockfile::{Lockfile, MaybeLazyLockfile};
 use pnpm_modules_yaml::IncludedDependencies;
 use pnpm_package_manifest::PackageManifest;
-use pnpm_testing_utils::fs::{backdate_existing_files, set_mtime};
+use pnpm_testing_utils::fs::{MTIME_STEP_MS, backdate_existing_files, set_mtime, set_mtime_ms};
 use pnpm_workspace_state::{
     ProjectEntry, WorkspaceState, WorkspaceStateSettings, load_workspace_state,
     update_workspace_state,
@@ -226,8 +226,21 @@ fn write_state_with_pnpmfiles(
     update_workspace_state(workspace_root, &state).expect("write workspace state");
 }
 
-fn validate_existing_files(workspace_root: &std::path::Path) {
+/// Keep manifests older than the wanted lockfile and the lockfile older
+/// than validation, including when mtimes cover a whole second.
+fn backdate_validated_files(workspace_root: &std::path::Path) -> i64 {
     let timestamp = backdate_existing_files(workspace_root);
+    for entry in walkdir::WalkDir::new(workspace_root) {
+        let entry = entry.expect("read workspace file");
+        if entry.file_type().is_file() && entry.file_name() == "package.json" {
+            set_mtime_ms(entry.path(), timestamp - 2 * MTIME_STEP_MS);
+        }
+    }
+    timestamp
+}
+
+fn validate_existing_files(workspace_root: &std::path::Path) {
+    let timestamp = backdate_validated_files(workspace_root);
     let mut state = load_workspace_state(workspace_root)
         .expect("read workspace state")
         .expect("workspace state on disk");
@@ -298,7 +311,7 @@ fn setup_fresh_install_with_config(
         workspace_root.to_string_lossy().into_owned(),
         ProjectEntry { name: Some(project_name.into()), version: Some(project_version.into()) },
     );
-    write_state(workspace_root, backdate_existing_files(workspace_root), settings, projects);
+    write_state(workspace_root, backdate_validated_files(workspace_root), settings, projects);
 
     (dir, config, manifest)
 }
@@ -362,7 +375,7 @@ fn setup_content_check_project() -> (tempfile::TempDir, &'static Config) {
         workspace_root.to_string_lossy().into_owned(),
         ProjectEntry { name: Some("root".into()), version: Some("1.0.0".into()) },
     );
-    write_state(workspace_root, backdate_existing_files(workspace_root), settings, projects);
+    write_state(workspace_root, backdate_validated_files(workspace_root), settings, projects);
 
     (dir, config)
 }
@@ -592,7 +605,7 @@ importers:
         sibling_dir.to_string_lossy().into_owned(),
         ProjectEntry { name: Some("pkg-a".into()), version: Some(sibling_version.into()) },
     );
-    write_state(workspace_root, backdate_existing_files(workspace_root), settings, projects);
+    write_state(workspace_root, backdate_validated_files(workspace_root), settings, projects);
 
     // Touch the root manifest so the content re-check runs.
     fs::write(

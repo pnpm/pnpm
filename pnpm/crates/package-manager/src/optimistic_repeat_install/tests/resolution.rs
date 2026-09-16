@@ -4,14 +4,13 @@ use super::{
         manifest_agreement::{LinkedPackagesContext, linked_packages_are_up_to_date},
         settings::current_settings,
     },
-    check, isolated_included, linked_sibling_decision, setup_fresh_install_with_config,
-    write_state,
+    backdate_validated_files, check, isolated_included, linked_sibling_decision,
+    setup_fresh_install_with_config, write_state,
 };
 use indexmap::IndexMap;
 use pnpm_config::Config;
 use pnpm_lockfile::Lockfile;
 use pnpm_package_manifest::PackageManifest;
-use pnpm_testing_utils::fs::backdate_existing_files;
 use pnpm_workspace_state::ProjectEntry;
 use std::{collections::BTreeMap, fs};
 use tempfile::tempdir;
@@ -131,7 +130,7 @@ fn returns_skipped_when_overrides_drift() {
         workspace_root.to_string_lossy().into_owned(),
         ProjectEntry { name: Some("root".into()), version: Some("1.0.0".into()) },
     );
-    write_state(workspace_root, backdate_existing_files(workspace_root), stale_settings, projects);
+    write_state(workspace_root, backdate_validated_files(workspace_root), stale_settings, projects);
 
     let decision = check(
         workspace_root,
@@ -171,7 +170,7 @@ fn returns_skipped_when_dedupe_peers_drift() {
         workspace_root.to_string_lossy().into_owned(),
         ProjectEntry { name: Some("root".into()), version: Some("1.0.0".into()) },
     );
-    write_state(workspace_root, backdate_existing_files(workspace_root), stale_settings, projects);
+    write_state(workspace_root, backdate_validated_files(workspace_root), stale_settings, projects);
 
     let decision = check(
         workspace_root,
@@ -210,7 +209,7 @@ fn returns_skipped_when_peers_suffix_max_length_drift() {
         workspace_root.to_string_lossy().into_owned(),
         ProjectEntry { name: Some("root".into()), version: Some("1.0.0".into()) },
     );
-    write_state(workspace_root, backdate_existing_files(workspace_root), stale_settings, projects);
+    write_state(workspace_root, backdate_validated_files(workspace_root), stale_settings, projects);
 
     let decision = check(
         workspace_root,

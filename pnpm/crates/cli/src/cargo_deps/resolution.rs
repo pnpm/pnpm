@@ -12,17 +12,49 @@ pub(super) fn has_git_dependencies(metadata: &str) -> Result<bool> {
     Ok(!sources.is_empty())
 }
 
+pub(super) fn has_source_overrides(root: &Path) -> Result<bool> {
+    let directory = ensure_workspace_directory(root, &[])?;
+    let (manifest, _) = read_workspace_file(&directory, "Cargo.toml")
+        .into_diagnostic()
+        .wrap_err_with(|| format!("read {}", root.join("Cargo.toml").display()))?;
+    let document: toml::Table = toml::from_str(&manifest)
+        .into_diagnostic()
+        .wrap_err_with(|| format!("parse {}", root.join("Cargo.toml").display()))?;
+    let mut has_overrides = false;
+    let patches = document.get("patch").and_then(toml::Value::as_table);
+    for overrides in patches.into_iter().flat_map(|patches| patches.values()) {
+        has_overrides |= has_override_sources(overrides)?;
+    }
+    if let Some(overrides) = document.get("replace") {
+        has_overrides |= has_override_sources(overrides)?;
+    }
+    Ok(has_overrides)
+}
+
+fn has_override_sources(overrides: &toml::Value) -> Result<bool> {
+    let Some(overrides) = overrides.as_table() else { return Ok(false) };
+    for dependency in overrides.values() {
+        let Some(url) = dependency.get("git").and_then(toml::Value::as_str) else { continue };
+        let source = format!("git+{url}")
+            .parse()
+            .into_diagnostic()
+            .wrap_err("parse Cargo source override")?;
+        git::validate_transport(&source)?;
+    }
+    Ok(!overrides.is_empty())
+}
+
 pub(super) async fn resolve_with_cargo(config: &Config, root: &Path) -> Result<String> {
     if !pnpm_cargo_resolver::is_crates_io(&config.cargo.index_url) {
         return Err(miette::miette!(
-            "Resolving Cargo git dependencies requires the default cargo.indexUrl. Use an existing Cargo.lock with a custom Cargo registry.",
+            "Resolving Cargo git dependencies or source overrides requires the default cargo.indexUrl. Use an existing Cargo.lock with a custom Cargo registry.",
         ));
     }
     let root = root.to_path_buf();
     let offline = config.offline;
     tokio::task::spawn_blocking(move || resolve_workspace(&root, offline)).await
         .into_diagnostic()
-        .wrap_err("join Cargo git dependency resolution")?
+        .wrap_err("join Cargo dependency resolution")?
 }
 
 fn resolve_workspace(root: &Path, offline: bool) -> Result<String> {
@@ -63,6 +95,10 @@ fn resolution_command(root: &Path, offline: bool) -> Result<Command> {
         )
         .args(["generate-lockfile", "--manifest-path"])
         .arg(root.join("Cargo.toml"));
+    let protocols = pnpm_git_fetcher::read_allowed_git_protocols(root)
+        .into_diagnostic()
+        .wrap_err("read Cargo Git transport policy")?;
+    command.env("GIT_ALLOW_PROTOCOL", protocols);
     for (key, value) in resolution_settings(root)? {
         command
             .arg("--config")
