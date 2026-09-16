@@ -1,13 +1,13 @@
 //! Reading a lockfile Git left conflicted: splitting it into its two
 //! valid sides and merging what each of them parses to.
 
-use crate::{LoadLockfileError, extract_main_document};
+use crate::LoadLockfileError;
 use std::path::Path;
 
 const MERGE_CONFLICT_PARENT: &str = "|||||||";
 const MERGE_CONFLICT_END: &str = ">>>>>>>";
 const MERGE_CONFLICT_THEIRS: &str = "=======";
-const MERGE_CONFLICT_OURS: &str = "<<<<<<<";
+pub(crate) const MERGE_CONFLICT_OURS: &str = "<<<<<<<";
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum Section {
@@ -116,13 +116,19 @@ pub(crate) struct ParsedWantedFile<Parsed> {
     pub(crate) merged_conflict_files: usize,
 }
 
-/// Parse a wanted-lockfile file, recovering from the Git conflict markers
-/// a merge left in it by parsing both sides and merging the results.
+/// Parse a lockfile file, recovering from the Git conflict markers a
+/// merge left in it by parsing both sides and merging the results.
 ///
 /// The recovery only runs once the file has failed to parse as it stands,
 /// and a side that does not parse on its own leaves the original parse
 /// error in place: a file only looks conflicted until both of the
 /// documents it was merged from are in hand.
+///
+/// The split is of the whole `content`, before any YAML document is
+/// selected out of it, so `parse` sees each side as a complete file.
+/// A combined lockfile can be conflicted in either of its documents, or
+/// across the `---` that separates them, and only a side cut from the
+/// whole file is the file that branch actually had.
 pub(crate) fn parse_wanted_file<Parsed>(
     content: &str,
     file_path: &Path,
@@ -133,8 +139,7 @@ pub(crate) fn parse_wanted_file<Parsed>(
         Ok(value) => return Ok(ParsedWantedFile { value, merged_conflict_files: 0 }),
         Err(error) => error,
     };
-    let main = extract_main_document(content);
-    let Some((ours, theirs)) = split_git_conflict(&main) else { return Err(parse_error) };
+    let Some((ours, theirs)) = split_git_conflict(content) else { return Err(parse_error) };
     let Some(ours) = parse(&ours, file_path)? else { return Err(parse_error) };
     let Some(theirs) = parse(&theirs, file_path)? else { return Err(parse_error) };
     Ok(ParsedWantedFile { value: Some(merge(&ours, &theirs)), merged_conflict_files: 1 })

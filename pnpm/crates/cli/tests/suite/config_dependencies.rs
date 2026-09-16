@@ -405,3 +405,83 @@ fn ignore_pnpmfile_skips_a_config_dependency_plugin_pnpmfile() {
 
     drop((root, mock_instance));
 }
+
+/// Two branches that each added a config dependency conflict inside the
+/// env document — the *first* YAML document of `pnpm-lock.yaml` — where
+/// the main lockfile's own conflict recovery never looks. The install
+/// must merge it, not fail on it, and must not leave the markers behind.
+#[test]
+fn install_merges_a_conflicted_env_document() {
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    fs::write(workspace.join("package.json"), serde_json::json!({}).to_string())
+        .expect("write package.json");
+
+    let ours = env_document_locking(&workspace, "'@pnpm.e2e/foo': 100.0.0");
+    let theirs = env_document_locking(&workspace, "'@pnpm.e2e/bar': 100.0.0");
+    assert_ne!(ours, theirs, "the conflict sides must lock different config dependencies");
+
+    set_config_dependencies(&workspace, "'@pnpm.e2e/foo': 100.0.0\n  '@pnpm.e2e/bar': 100.0.0");
+    let main_document = fs::read_to_string(workspace.join("pnpm-lock.yaml"))
+        .expect("read lockfile")
+        .rsplit_once("\n---\n")
+        .expect("combined lockfile")
+        .1
+        .to_string();
+    fs::write(
+        workspace.join("pnpm-lock.yaml"),
+        format!("---\n<<<<<<< HEAD\n{ours}=======\n{theirs}>>>>>>> branch\n---\n{main_document}"),
+    )
+    .expect("write conflicted lockfile");
+
+    let install = pacquet_at(&workspace)
+        .with_arg("install")
+        .assert()
+        .success();
+    let stdout = String::from_utf8_lossy(&install.get_output().stdout);
+    eprintln!("STDOUT:\n{stdout}");
+    assert!(stdout.contains("Merge conflict detected in pnpm-lock.yaml and successfully merged"));
+
+    let lockfile = fs::read_to_string(workspace.join("pnpm-lock.yaml")).expect("read lockfile");
+    assert!(!lockfile.contains("<<<<<<<"), "the markers must be gone:\n{lockfile}");
+    let env =
+        EnvLockfile::read(&workspace).expect("the env document parses").expect("env document");
+    let config_deps = &env.importers[EnvLockfile::ROOT_IMPORTER_KEY].config_dependencies;
+    dbg!(config_deps);
+    assert!(config_deps.contains_key("@pnpm.e2e/foo"), "our side's config dep survives");
+    assert!(config_deps.contains_key("@pnpm.e2e/bar"), "their side's config dep survives");
+
+    drop((root, mock_instance));
+}
+
+/// Install `config_deps` and return the env document the install wrote,
+/// as the text one side of a conflict would carry.
+fn env_document_locking(workspace: &Path, config_deps: &str) -> String {
+    set_config_dependencies(workspace, config_deps);
+    let _ = fs::remove_file(workspace.join("pnpm-lock.yaml"));
+    pacquet_at(workspace)
+        .with_arg("install")
+        .assert()
+        .success();
+    let lockfile = fs::read_to_string(workspace.join("pnpm-lock.yaml")).expect("read lockfile");
+    let (env, _) = lockfile
+        .strip_prefix("---\n")
+        .expect("env document leads the lockfile")
+        .split_once("\n---\n")
+        .expect("combined lockfile");
+    format!("{env}\n")
+}
+
+fn set_config_dependencies(workspace: &Path, config_deps: &str) {
+    let yaml_path = workspace.join("pnpm-workspace.yaml");
+    let yaml = fs::read_to_string(&yaml_path).expect("read pnpm-workspace.yaml");
+    let base: String = yaml
+        .lines()
+        .take_while(|line| !line.starts_with("configDependencies:"))
+        .collect::<Vec<_>>()
+        .join("\n");
+    fs::write(&yaml_path, format!("{base}\nconfigDependencies:\n  {config_deps}\n"))
+        .expect("write pnpm-workspace.yaml");
+}

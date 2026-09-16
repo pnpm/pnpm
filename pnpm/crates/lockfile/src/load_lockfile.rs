@@ -1,6 +1,7 @@
 use crate::{
-    Lockfile, LockfileResolution, ProjectSnapshot, SnapshotEntry, extract_main_document,
-    git_merge_file::{ParsedWantedFile, parse_wanted_file},
+    Lockfile, ProjectSnapshot, extract_env_document, extract_main_document,
+    git_merge_file::{MERGE_CONFLICT_OURS, ParsedWantedFile, parse_wanted_file},
+    load_lockfile::repair_document::prepare_value_for_fix,
     merge_lockfile_changes,
 };
 use derive_more::{Display, Error};
@@ -85,6 +86,14 @@ fn read_lockfile_text(file_path: &Path) -> Result<Option<String>, LoadLockfileEr
         Err(error) if error.kind() == ErrorKind::NotFound => Ok(None),
         Err(error) => error.pipe(LoadLockfileError::ReadFile).pipe(Err),
     }
+}
+
+/// Whether the combined lockfile's leading env document carries Git
+/// conflict markers. Only the markers matter here, not whether the two
+/// sides merge: [`crate::EnvLockfile::read`] and the lockfile writer each
+/// do that themselves.
+fn env_document_is_conflicted(content: &str) -> bool {
+    extract_env_document(content).is_some_and(|env| env.contains(MERGE_CONFLICT_OURS))
 }
 
 impl Lockfile {
@@ -281,13 +290,24 @@ impl Lockfile {
         Self::parse(&content, file_path)
     }
 
+    /// [`Self::load_from_path`] for the file an install reads and writes
+    /// back, so a Git-conflicted one is merged rather than discarded.
     fn load_wanted_from_path(
         file_path: &Path,
     ) -> Result<ParsedWantedFile<Self>, LoadLockfileError> {
         let Some(content) = read_lockfile_text(file_path)? else {
             return Ok(ParsedWantedFile { value: None, merged_conflict_files: 0 });
         };
-        parse_wanted_file(&content, file_path, Self::parse, merge_lockfile_changes)
+        let mut parsed =
+            parse_wanted_file(&content, file_path, Self::parse, merge_lockfile_changes)?;
+        // A conflict confined to the env document leaves the main one
+        // parsing as it stands, so the recovery above never runs. The file
+        // still holds markers, and only an install that writes it back
+        // clears them, so it counts as conflicted either way.
+        if parsed.merged_conflict_files == 0 && env_document_is_conflicted(&content) {
+            parsed.merged_conflict_files = 1;
+        }
+        Ok(parsed)
     }
 
     /// [`Self::load_from_path`] deriving both repair views from the
@@ -306,6 +326,8 @@ impl Lockfile {
         )
     }
 }
+
+mod repair_document;
 
 #[cfg(test)]
 mod tests;
@@ -465,79 +487,4 @@ fn merge_git_branch_lockfile_repairs(
         }
     }
     Ok((base, merged_conflict_files))
-}
-
-fn prepare_value_for_fix(value: &mut serde_json::Value) {
-    let Some(root) = value.as_object_mut() else { return };
-    for key in [
-        "settings",
-        "catalogs",
-        "overrides",
-        "packageExtensionsChecksum",
-        "pnpmfileChecksum",
-        "ignoredOptionalDependencies",
-        "patchedDependencies",
-        "time",
-    ] {
-        discard_invalid_generated_field(root, key);
-    }
-    if let Some(packages) = root.get_mut("packages").and_then(serde_json::Value::as_object_mut) {
-        packages.retain(|_, metadata| reduce_package_metadata(metadata));
-    }
-    if let Some(snapshots) = root.get_mut("snapshots").and_then(serde_json::Value::as_object_mut) {
-        for snapshot in snapshots.values_mut() {
-            reduce_snapshot(snapshot);
-        }
-    }
-}
-
-/// Keep a `packages:` entry that already decodes, or narrow it to the
-/// resolution alone. An entry with no decodable resolution names nothing and
-/// is dropped.
-fn reduce_package_metadata(metadata: &mut serde_json::Value) -> bool {
-    if serde_json::from_value::<crate::PackageMetadata>(metadata.clone()).is_ok() {
-        return true;
-    }
-    let Some(resolution) = metadata.get("resolution").cloned() else { return false };
-    if serde_json::from_value::<LockfileResolution>(resolution.clone()).is_err() {
-        return false;
-    }
-    *metadata = serde_json::json!({ "resolution": resolution });
-    true
-}
-
-/// Keep a `snapshots:` entry that already decodes, or narrow it to its
-/// dependency edges. An entry whose edges do not decode either is emptied
-/// rather than dropped: the key still names a package the graph reaches.
-fn reduce_snapshot(snapshot: &mut serde_json::Value) {
-    if serde_json::from_value::<SnapshotEntry>(snapshot.clone()).is_ok() {
-        return;
-    }
-    let mut retained = serde_json::Map::new();
-    for key in ["dependencies", "optionalDependencies"] {
-        if let Some(value) = snapshot.get(key).cloned() {
-            retained.insert(key.to_string(), value);
-        }
-    }
-    let candidate = serde_json::Value::Object(retained);
-    *snapshot = if serde_json::from_value::<SnapshotEntry>(candidate.clone()).is_ok() {
-        candidate
-    } else {
-        serde_json::json!({})
-    };
-}
-
-fn discard_invalid_generated_field(
-    root: &mut serde_json::Map<String, serde_json::Value>,
-    key: &str,
-) {
-    let Some(value) = root.get(key).cloned() else { return };
-    let mut candidate = serde_json::Map::from_iter([
-        ("lockfileVersion".to_owned(), serde_json::json!("9.0")),
-        ("importers".to_owned(), serde_json::json!({})),
-    ]);
-    candidate.insert(key.to_owned(), value);
-    if serde_json::from_value::<Lockfile>(serde_json::Value::Object(candidate)).is_err() {
-        root.remove(key);
-    }
 }

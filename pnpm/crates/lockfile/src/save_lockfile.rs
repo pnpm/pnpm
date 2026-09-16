@@ -1,5 +1,7 @@
 use crate::{
-    Lockfile, serialize_yaml,
+    EnvLockfile, Lockfile,
+    git_merge_file::MERGE_CONFLICT_OURS,
+    serialize_yaml,
     yaml_documents::{
         YAML_DOCUMENT_SEPARATOR, YAML_DOCUMENT_START, extract_env_document,
         normalize_lockfile_content,
@@ -8,6 +10,7 @@ use crate::{
 use derive_more::{Display, Error};
 use pnpm_diagnostics::miette::{self, Diagnostic};
 use std::{
+    borrow::Cow,
     env,
     fs::{self, OpenOptions},
     io::{self, Write},
@@ -87,7 +90,10 @@ pub fn save_value_to_path<Document: serde::Serialize>(
         Err(error) => return Err(SaveLockfileError::WriteFile(error)),
     };
     let output = match existing.as_deref().and_then(extract_env_document) {
-        Some(env) => format!("{YAML_DOCUMENT_START}{env}{YAML_DOCUMENT_SEPARATOR}{content}"),
+        Some(env) => {
+            let env = preserved_env_document(&env, path);
+            format!("{YAML_DOCUMENT_START}{env}{YAML_DOCUMENT_SEPARATOR}{content}")
+        }
         None => content,
     };
     if existing.as_deref() == Some(output.as_str()) {
@@ -95,6 +101,32 @@ pub fn save_value_to_path<Document: serde::Serialize>(
     }
     ensure_lockfile_is_not_symlink(path).map_err(SaveLockfileError::WriteFile)?;
     write_atomic(path, output.as_bytes())
+}
+
+/// The env document to re-prepend, as text.
+///
+/// Normally the bytes that were already there: the document is the
+/// env-installer's to write, and reserializing it here would mean every
+/// main-lockfile write round-tripped a document it does not own.
+///
+/// A document Git left conflicted is the exception. Copying it forward
+/// would carry the markers into a file the caller is writing precisely to
+/// replace a conflicted one, and leave the next `EnvLockfile::read`
+/// failing on a lockfile that looks repaired. Merge the two sides
+/// instead. A document that cannot be merged is still copied: a write of
+/// the main document is not where an unparseable env document should
+/// surface.
+fn preserved_env_document<'a>(env: &'a str, path: &Path) -> Cow<'a, str> {
+    if !env.contains(MERGE_CONFLICT_OURS) {
+        return Cow::Borrowed(env);
+    }
+    let merged = EnvLockfile::parse_conflicted_document(env, path)
+        .ok()
+        .filter(|parsed| parsed.merged_conflict_files > 0)
+        .and_then(|parsed| parsed.value)
+        .as_ref()
+        .and_then(|merged| serialize_yaml::to_string(merged).ok());
+    merged.map_or(Cow::Borrowed(env), Cow::Owned)
 }
 
 /// Refuses a symlinked lockfile before a write, which would land on the link's

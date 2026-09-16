@@ -4,6 +4,7 @@ use crate::{
     extract_env_document, extract_main_document,
 };
 use tempfile::TempDir;
+use text_block_macros::text_block_fnl;
 
 fn pkg_metadata(integrity_source: &[u8]) -> PackageMetadata {
     PackageMetadata {
@@ -233,4 +234,87 @@ fn saving_main_lockfile_preserves_env_document() {
     let read_back = EnvLockfile::read(dir.path()).unwrap();
     assert!(read_back.is_some(), "env document must survive a main-lockfile re-save");
     assert_eq!(read_back.unwrap(), env);
+}
+
+/// A combined lockfile whose *env* document Git left conflicted between
+/// two branches that each added a config dependency. The main document
+/// below it is untouched and parses as it stands.
+fn conflicted_env_lockfile() -> &'static str {
+    text_block_fnl! {
+        "---"
+        "lockfileVersion: '9.0'"
+        "importers:"
+        "  .:"
+        "    configDependencies:"
+        "<<<<<<< HEAD"
+        "      ours-config:"
+        "        specifier: 1.0.0"
+        "        version: 1.0.0"
+        "======="
+        "      theirs-config:"
+        "        specifier: 2.0.0"
+        "        version: 2.0.0"
+        ">>>>>>> feature"
+        ""
+        "---"
+        "lockfileVersion: '9.0'"
+        ""
+        "importers:"
+        ""
+        "  .:"
+        "    dependencies:"
+        "      is-odd:"
+        "        specifier: 1.0.0"
+        "        version: 1.0.0"
+    }
+}
+
+#[test]
+fn read_merges_a_conflicted_env_document() {
+    let dir = TempDir::new().unwrap();
+    std::fs::write(dir.path().join(Lockfile::FILE_NAME), conflicted_env_lockfile()).unwrap();
+
+    let env = EnvLockfile::read(dir.path())
+        .expect("a conflicted env document merges")
+        .expect("env document");
+
+    let mut env = env;
+    let config_deps = &env.root_importer_mut().config_dependencies;
+    dbg!(config_deps);
+    assert_eq!(config_deps.len(), 2, "both sides' config dependencies survive");
+    assert_eq!(config_deps["ours-config"].version, "1.0.0");
+    assert_eq!(config_deps["theirs-config"].version, "2.0.0");
+}
+
+#[test]
+fn saving_the_main_lockfile_merges_a_conflicted_env_document() {
+    let dir = TempDir::new().unwrap();
+    let path = dir.path().join(Lockfile::FILE_NAME);
+    std::fs::write(&path, conflicted_env_lockfile()).unwrap();
+
+    // The install path: read the main document, which parses as it
+    // stands, then write it back.
+    let main = Lockfile::load_wanted_from_dir(dir.path()).unwrap().expect("main lockfile loads");
+    main.save_to_path(&path).unwrap();
+
+    let written = std::fs::read_to_string(&path).unwrap();
+    eprintln!("WRITTEN:\n{written}");
+    assert!(!written.contains("<<<<<<<"), "the env document's markers must not be copied forward");
+    let env = EnvLockfile::read(dir.path()).unwrap().expect("env document");
+    assert_eq!(env.importers[EnvLockfile::ROOT_IMPORTER_KEY].config_dependencies.len(), 2);
+}
+
+#[test]
+fn a_conflicted_env_document_makes_the_wanted_load_report_a_merge() {
+    let dir = TempDir::new().unwrap();
+    std::fs::write(dir.path().join(Lockfile::FILE_NAME), conflicted_env_lockfile()).unwrap();
+
+    let loaded =
+        Lockfile::load_wanted_detailed(dir.path(), &crate::WantedLockfileSelection::default())
+            .expect("the main document parses as it stands");
+
+    assert_eq!(
+        loaded.merged_conflict_files, 1,
+        "the install has to write the file back to clear the env document's markers",
+    );
 }
