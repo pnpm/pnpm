@@ -625,7 +625,12 @@ fn cargo_install_uses_a_configured_pnpr_registry_and_accelerator() {
         .success();
 
     let lockfile = fs::read_to_string(root.path().join("Cargo.lock")).expect("read Cargo lockfile");
-    assert!(lockfile.contains(&format!(r#"source = "sparse+{registry_url}index/""#)), "{lockfile}");
+    // pnpm reaches the configured registry by replacing `[source.crates-io]`,
+    // so that is what the crates the server resolved are locked against.
+    assert!(
+        lockfile.contains(&format!(r#"source = "{}""#, pnpm_cargo_resolver::CRATES_IO_SOURCE)),
+        "{lockfile}",
+    );
     assert!(
         root.path()
             .join(".pnpm/crates/crates-io/demo-1.0.0/src/lib.rs")
