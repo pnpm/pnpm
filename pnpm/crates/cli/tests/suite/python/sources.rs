@@ -1,4 +1,5 @@
 mod backtracking;
+mod compatibility;
 
 use super::{
     assert_failure_contains, project, python, python_project, serve, serve_backends, wheel,

@@ -73,7 +73,9 @@ impl Registry<'_> {
                     && a.wheel.url == b.wheel.url
                     && a.wheel.hashes == b.wheel.hashes
             }
-            (Candidate::Vcs(a), Candidate::Vcs(b)) => a == b,
+            (Candidate::Vcs(a), Candidate::Vcs(b)) => {
+                a == b && self.check_source_wheel(wheel, name, version).is_ok()
+            }
             _ => false,
         }
     }
@@ -112,6 +114,7 @@ impl Registry<'_> {
             return Ok(false);
         };
         let Some(wheel) = self.wheels.get(&key).cloned() else { return Ok(false) };
+        self.check_source_wheel(&wheel, name, &key.1)?;
         if let Some(artifact) = candidate.wheel() {
             artifact.check_installable(&self.resolution.target.tags, name, &key.1)?;
         }
@@ -121,6 +124,23 @@ impl Registry<'_> {
         );
         self.remember(name.clone(), key.1, wheel);
         Ok(true)
+    }
+
+    pub(super) fn check_source_wheel(
+        &self,
+        wheel: &host::Wheel,
+        name: &PackageName,
+        version: &Version,
+    ) -> Result<()> {
+        let Some((wheel_name, wheel_version, _)) =
+            pnpm_python_resolver::wheel_identity(&wheel.filename, &self.resolution.target.tags)?
+        else {
+            bail!("Python wheel is incompatible with this interpreter: {}", wheel.filename);
+        };
+        if wheel_name != *name || wheel_version != *version {
+            bail!("Python source wheel identity mismatch: {}", wheel.filename);
+        }
+        Ok(())
     }
 
     pub(super) async fn fetch_vcs<Reporter: self::Reporter + 'static>(&mut self) -> Result<()> {

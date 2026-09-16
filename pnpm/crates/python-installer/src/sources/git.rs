@@ -36,6 +36,7 @@ impl Registry<'_> {
             bail!("Python git dependency {name} built a wheel of {}", built.wheel.metadata.name);
         }
         let version: pep440_rs::Version = built.wheel.metadata.version.parse().into_diagnostic()?;
+        self.check_source_wheel(&built.wheel, name, &version)?;
         built.wheel.direct_url = Some(host::DirectUrl::git(&vcs));
         self.resolution.packages.candidates.insert(
             name.clone(),

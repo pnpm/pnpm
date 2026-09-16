@@ -97,7 +97,11 @@ pub enum GitFetcherError {
     /// the package the resolution belongs to, which [`Self::GitExec`]
     /// alone cannot name — a bare `git clone` failure leaves the user to
     /// work out which of their dependencies it came from.
-    #[display("Failed to fetch {package:?} from the git repository {repo:?}: {stderr}")]
+    #[display(
+        "Failed to fetch {package:?} from the git repository {:?}: {}",
+        pnpm_network::redact_and_sanitize(repo),
+        pnpm_network::redact_and_sanitize_multiline(stderr)
+    )]
     #[diagnostic(code(ERR_PNPM_GIT_FETCH_FAILED))]
     Fetch { package: String, repo: String, stderr: String },
 
@@ -111,7 +115,11 @@ pub enum GitFetcherError {
     /// is skipped while that lockfile stays up to date — so the entry
     /// survives the upgrade that fixed it and the install keeps failing
     /// wherever no SSH key is configured.
-    #[display("Failed to fetch {package:?} from the git repository {repo:?}: {stderr}")]
+    #[display(
+        "Failed to fetch {package:?} from the git repository {:?}: {}",
+        pnpm_network::redact_and_sanitize(repo),
+        pnpm_network::redact_and_sanitize_multiline(stderr)
+    )]
     #[diagnostic(
         code(ERR_PNPM_GIT_FETCH_FAILED),
         help(

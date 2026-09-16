@@ -9,6 +9,17 @@ fn direct_checkout_errors_redact_credentials_without_changing_error_payloads() {
     let repo = "https://secret-user:secret-password@example.test/repo";
     let stderr = format!("fatal: cannot access '{repo}': denied\n\u{1b}[31m");
     let errors = [
+        GitFetcherError::Fetch {
+            package: "demo".to_string(),
+            repo: repo.to_string(),
+            stderr: stderr.clone(),
+        },
+        GitFetcherError::FetchOverSsh {
+            package: "demo".to_string(),
+            repo: repo.to_string(),
+            host: "example.test".to_string(),
+            stderr: stderr.clone(),
+        },
         GitFetcherError::InvalidRepo { repo: repo.to_string() },
         GitFetcherError::InvalidCommit { commit: "invalid".to_string(), repo: repo.to_string() },
         GitFetcherError::GitExec {
@@ -23,7 +34,10 @@ fn direct_checkout_errors_redact_credentials_without_changing_error_payloads() {
         assert!(!diagnostic.contains("secret-password"), "{diagnostic}");
         assert!(!diagnostic.contains('\u{1b}'), "{diagnostic}");
         assert!(diagnostic.contains("example.test/repo"), "{diagnostic}");
-        if let GitFetcherError::GitExec { stderr: original, .. } = error {
+        if let GitFetcherError::GitExec { stderr: original, .. }
+        | GitFetcherError::Fetch { stderr: original, .. }
+        | GitFetcherError::FetchOverSsh { stderr: original, .. } = error
+        {
             assert_eq!(original, stderr);
         }
     }

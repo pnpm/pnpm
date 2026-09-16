@@ -5,17 +5,23 @@ use std::fs;
 
 #[tokio::test]
 async fn rejected_releases_cannot_replace_index_dependencies_with_direct_wheels() {
-    for conflict_in_source in [false, true] {
+    for (conflict_in_source, self_reference) in [(false, false), (true, false), (false, true)] {
         let root = tempfile::tempdir().unwrap();
         let mut server = mockito::Server::new_async().await;
         let url = format!("{}/helper-1.0-py3-none-any.whl", server.url());
-        let source_metadata = if conflict_in_source { "Requires-Dist: conflict>=2\n" } else { "" };
+        let source_metadata = if conflict_in_source {
+            "Requires-Dist: conflict>=2\n".to_string()
+        } else if self_reference {
+            format!("Requires-Dist: helper @ {url}\n")
+        } else {
+            String::new()
+        };
         let artifact = server
             .mock("GET", "/helper-1.0-py3-none-any.whl")
             .with_body(wheel(
                 "helper",
                 "1.0",
-                source_metadata,
+                &source_metadata,
                 &[("helper/origin.py", "SOURCE = 'direct'\n")],
             ))
             .expect(1)
