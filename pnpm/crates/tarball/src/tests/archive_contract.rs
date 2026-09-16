@@ -206,37 +206,52 @@ impl Container {
     ) -> Result<HashMap<String, PathBuf>, TarballError> {
         match self {
             Self::TarGz => input.run_without_mem_cache::<SilentReporter>().await,
-            Self::Zip => {
-                IngestZipArchiveToStore {
-                    fetching: input.fetching,
-                    package: crate::ZipArchivePackage {
-                        max_bytes: None,
-                        integrity: input.package.integrity.unwrap(),
-                        url: input.package.url,
-                        id: input.package.id,
-                    },
-                    store: crate::ArchiveStoreContext {
-                        dir: input.store.dir,
-                        index: input.store.index.clone(),
-                        index_writer: input.store.index_writer.clone(),
-                        verify_integrity: input.store.verify_integrity,
-                        strict_pkg_content_check: input.store.strict_pkg_content_check,
-                        verified_files_cache: Arc::clone(&input.store.verified_files_cache),
-                        prefetched_cas_paths: input.store.prefetched_cas_paths,
-                    },
-
-                    requester: input.requester,
-
-                    archive_prefix: Some("artifact"),
-                    ignore_file_pattern: input.ignore_file_pattern.clone(),
-
-                    store_projection: input.store_projection,
-                }
-                .run_without_mem_cache::<SilentReporter>()
-                .await
-            }
+            Self::Zip => zip_ingestion(input).run_without_mem_cache::<SilentReporter>().await,
         }
     }
+}
+
+fn zip_ingestion<'a>(input: &'a IngestTarballToStore<'a>) -> IngestZipArchiveToStore<'a> {
+    IngestZipArchiveToStore {
+        fetching: input.fetching,
+        package: crate::ZipArchivePackage {
+            max_bytes: None,
+            integrity: input.package.integrity.unwrap(),
+            url: input.package.url,
+            id: input.package.id,
+        },
+        store: crate::ArchiveStoreContext {
+            dir: input.store.dir,
+            index: input.store.index.clone(),
+            index_writer: input.store.index_writer.clone(),
+            verify_integrity: input.store.verify_integrity,
+            strict_pkg_content_check: input.store.strict_pkg_content_check,
+            verified_files_cache: Arc::clone(&input.store.verified_files_cache),
+            prefetched_cas_paths: input.store.prefetched_cas_paths,
+        },
+
+        requester: input.requester,
+
+        archive_prefix: Some("artifact"),
+        ignore_file_pattern: input.ignore_file_pattern.clone(),
+
+        store_projection: input.store_projection,
+    }
+}
+
+async fn assert_buffered_cache(
+    container: Container,
+    input: &IngestTarballToStore<'_>,
+    paths: &HashMap<String, PathBuf>,
+) {
+    if !matches!(container, Container::Zip) {
+        return;
+    }
+    let cached = zip_ingestion(input)
+        .run_with_buffer::<SilentReporter>(b"not a ZIP".to_vec())
+        .await
+        .unwrap();
+    assert_eq!(&cached, paths);
 }
 
 #[tokio::test]
@@ -306,6 +321,7 @@ async fn formats_share_projection_offline_replay_and_missing_blob_validation() {
             drop(writer);
             StoreIndexWriter::drain(task, "contract test").await;
             input.store.index = StoreIndex::shared_readonly_in(store);
+            assert_buffered_cache(container, &input, &paths).await;
             input.fetching.offline = true;
             assert_eq!(container.ingest(&input).await.unwrap(), paths);
 

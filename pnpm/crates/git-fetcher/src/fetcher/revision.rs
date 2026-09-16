@@ -4,6 +4,7 @@ use std::path::Path;
 
 /// Check out a revision and return its full commit hash. The revision
 /// may be a branch, tag or abbreviated commit, but never a Git option.
+/// Full history lets build backends derive versions from tags and commit ancestry.
 pub fn checkout_revision(
     repo: &str,
     revision: &str,

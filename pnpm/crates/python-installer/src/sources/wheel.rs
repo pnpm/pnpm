@@ -3,7 +3,6 @@ use miette::{IntoDiagnostic, Result, bail};
 use pep508_rs::PackageName;
 use pnpm_python_resolver::{Candidate, IndexCandidate, LockedWheel, WheelFilename};
 use pnpm_reporter::Reporter;
-use sha2::{Digest, Sha256};
 use std::collections::BTreeMap;
 use url::Url;
 
@@ -22,6 +21,9 @@ impl Registry<'_> {
         name: &PackageName,
         source: &str,
     ) -> Result<()> {
+        if self.reuse_url_wheel(name, source)? {
+            return Ok(());
+        }
         let (wheel, buffer) = self.url_wheel(source).await?;
         let filename = WheelFilename::parse(&wheel.name)?.expect("URL wheel was parsed");
         if filename.name != *name {
@@ -39,6 +41,30 @@ impl Registry<'_> {
             self.download_wheel_from_buffer::<Reporter>(name, &filename.version, buffer).await?;
         self.remember(name.clone(), filename.version, wheel);
         Ok(())
+    }
+
+    fn reuse_url_wheel(&mut self, name: &PackageName, source: &str) -> Result<bool> {
+        let source = pnpm_python_resolver::Source::parse(source)?;
+        let Some((key, candidate)) = self.sources.fetched
+            .iter()
+            .find(|((distribution, _), candidate)| {
+                distribution == name && candidate.matches_source(&source)
+            })
+            .map(|(key, candidate)| (key.clone(), candidate.clone()))
+        else {
+            return Ok(false);
+        };
+        let Some(wheel) = self.wheels.get(&key).cloned() else { return Ok(false) };
+        candidate
+            .wheel()
+            .expect("wheel sources select wheels")
+            .check_installable(&self.resolution.target.tags, name, &key.1)?;
+        self.resolution.packages.candidates.insert(
+            name.clone(),
+            BTreeMap::from([(key.1.clone(), candidate)]),
+        );
+        self.remember(name.clone(), key.1, wheel);
+        Ok(true)
     }
 
     async fn url_wheel(&self, source: &str) -> Result<(LockedWheel, Option<Vec<u8>>)> {
@@ -59,9 +85,8 @@ impl Registry<'_> {
         }
         let buffer = if expected.is_none() { Some(self.wheel_bytes(&url).await?) } else { None };
         let digest = expected.unwrap_or_else(|| {
-            format!(
-                "{:x}",
-                Sha256::digest(buffer.as_ref().expect("hashless wheels were downloaded")),
+            pnpm_crypto_hash::create_hex_hash_bytes(
+                buffer.as_ref().expect("hashless wheels were downloaded"),
             )
         });
         let wheel = LockedWheel {

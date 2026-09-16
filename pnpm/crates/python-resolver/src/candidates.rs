@@ -217,7 +217,8 @@ pub fn validate_url(url: &Url) -> Result<()> {
     Ok(())
 }
 
-/// Parse a PEP 508 requirement.
+/// Preserves version constraints, extras, and markers. Direct URLs must use
+/// HTTP(S), git+HTTPS, git+SSH, or git+file; other schemes return an error.
 pub fn parse_requirement(requirement: &str) -> Result<Requirement> {
     read_requirement(requirement)
         .map_err(|refusal| match refusal {

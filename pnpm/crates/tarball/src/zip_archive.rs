@@ -528,7 +528,11 @@ impl IngestZipArchiveToStore<'_> {
         &self,
         buffer: Vec<u8>,
     ) -> Result<HashMap<String, PathBuf>, TarballError> {
-        let paths = self.ingestion().ingest_zip_buffer(buffer).await?;
+        let ingestion = self.ingestion();
+        if let Some(paths) = ingestion.load_cache::<Reporter>().await? {
+            return Ok(paths);
+        }
+        let paths = ingestion.ingest_zip_buffer(buffer).await?;
         crate::download::emit_progress_fetched::<Reporter>(self.package.id, self.requester, None);
         Ok(paths)
     }

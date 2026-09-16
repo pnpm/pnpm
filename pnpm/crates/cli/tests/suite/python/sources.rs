@@ -41,6 +41,7 @@ async fn direct_and_uv_url_wheels_are_hashed_and_replayed_offline() {
         } else {
             project(root.path(), &server.url(), &[&format!("alpha @ {url}")]);
         }
+        declare_platforms(root.path());
         pacquet_in(root.path())
             .arg("install")
             .assert()
