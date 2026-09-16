@@ -117,9 +117,8 @@ impl DirectUrl {
 pub(super) async fn inspect(
     executable: &str,
     files: &BTreeMap<String, PathBuf>,
-    filename: &str,
 ) -> Result<WheelMetadata> {
-    run(executable, "inspect", serde_json::json!({"files": files, "filename": filename})).await
+    run(executable, "inspect", serde_json::json!({"files": files})).await
 }
 
 /// How to start one interpreter: the program, the arguments of its own

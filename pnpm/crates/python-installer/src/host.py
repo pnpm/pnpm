@@ -168,13 +168,6 @@ def inspect_wheel(request):
         raise ValueError("unsupported Wheel-Version: " + str(wheel["Wheel-Version"]))
     if wheel["Root-Is-Purelib"] not in ("true", "false"):
         raise ValueError("invalid Root-Is-Purelib")
-    _, tags = packaging_modules()
-    filename_tags = tags.parse_tag("-".join(request["filename"].removesuffix(".whl").rsplit("-", 3)[1:]))
-    declared_tags = set()
-    for tag in wheel.get_all("Tag", []):
-        declared_tags.update(tags.parse_tag(tag))
-    if declared_tags != filename_tags:
-        raise ValueError("wheel Tag fields do not match filename: " + request["filename"])
     metadata = read_headers(files, dist_info + "/METADATA")
     for field in ("Name", "Version", "Metadata-Version"):
         if len(metadata.get_all(field, [])) != 1:

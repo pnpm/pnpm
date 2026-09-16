@@ -765,7 +765,7 @@ async fn python_index_uses_only_its_explicit_credentials() {
 }
 
 #[tokio::test]
-async fn accepts_expanded_internal_tags_for_a_compressed_wheel_filename() {
+async fn installs_a_wheel_whose_filename_compresses_several_tags() {
     let root = tempfile::tempdir().unwrap();
     let mut server = mockito::Server::new_async().await;
     let archive =
@@ -799,6 +799,32 @@ async fn accepts_expanded_internal_tags_for_a_compressed_wheel_filename() {
         .success();
     index.assert_async().await;
     download.assert_async().await;
+}
+
+/// The `Tag:` fields of a wheel's `WHEEL` file are informational, and a wheel
+/// retagged after the build keeps the tags it was built with. Installers
+/// select on the filename, which is what pnpm reads too.
+#[tokio::test]
+async fn installs_a_wheel_whose_tag_fields_disagree_with_its_filename() {
+    let stale =
+        ["", "Tag: cp314-cp314-linux_x86_64\n", "Tag: py3-none-any\nTag: cp311-cp311-win_amd64\n"];
+    for tags in stale {
+        eprintln!("WHEEL tags: {tags:?}");
+        let root = tempfile::tempdir().unwrap();
+        let mut server = mockito::Server::new_async().await;
+        let _alpha =
+            serve(&mut server, "alpha", &[("1.0", wheel_with_tags("alpha", "1.0", "", &[], tags))])
+                .await;
+        project(root.path(), &server.url(), &["alpha"]);
+        pacquet_in(root.path())
+            .arg("install")
+            .assert()
+            .success();
+        python(root.path())
+            .args(["-c", "import alpha"])
+            .assert()
+            .success();
+    }
 }
 
 #[tokio::test]
