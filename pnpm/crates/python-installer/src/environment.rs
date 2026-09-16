@@ -6,12 +6,10 @@ use super::{
 use miette::WrapErr;
 use std::collections::{BTreeMap, BTreeSet};
 
-/// What every project of one [`prepare`](super::prepare) run shares.
-pub(super) struct PythonPrepare<'a> {
+/// What every project of one [`prepare`](super::prepare) run shares,
+/// before the interpreter each one is installed with is known.
+pub(super) struct Shared<'a> {
     pub(super) context: &'a InstallOptions,
-    pub(super) interpreter: &'a Interpreter,
-    /// The environments every project of this run is locked for.
-    pub(super) environments: &'a Environments,
     pub(super) index: &'a Index,
     pub(super) store: ArtifactStore<'a>,
     pub(super) asked: Asked,
@@ -25,7 +23,41 @@ pub(super) struct PythonPrepare<'a> {
     pub(super) build_environments: tokio::sync::Mutex<BTreeMap<String, Arc<tempfile::TempDir>>>,
 }
 
+/// What preparing one project needs: what the run shares, plus the
+/// interpreter that installs this project and the environments it is
+/// locked for.
+pub(super) struct PythonPrepare<'a> {
+    pub(super) context: &'a InstallOptions,
+    pub(super) interpreter: &'a Interpreter,
+    pub(super) environments: &'a Environments,
+    pub(super) index: &'a Index,
+    pub(super) store: ArtifactStore<'a>,
+    pub(super) asked: Asked,
+    pub(super) members: &'a BTreeMap<std::path::PathBuf, BTreeSet<pep508_rs::PackageName>>,
+    pub(super) build_environments: &'a tokio::sync::Mutex<BTreeMap<String, Arc<tempfile::TempDir>>>,
+}
+
+impl<'a> PythonPrepare<'a> {
+    pub(super) fn for_project(
+        shared: &'a Shared<'a>,
+        interpreter: &'a Interpreter,
+        environments: &'a Environments,
+    ) -> Self {
+        Self {
+            context: shared.context,
+            interpreter,
+            environments,
+            index: shared.index,
+            store: ArtifactStore { index: shared.store.index.clone(), writer: shared.store.writer },
+            asked: shared.asked,
+            members: &shared.members,
+            build_environments: &shared.build_environments,
+        }
+    }
+}
+
 /// What the install asked this run for.
+#[derive(Clone, Copy)]
 pub(super) struct Asked {
     /// Whether a dependency is being added, which resolves again.
     pub(super) resolve: bool,

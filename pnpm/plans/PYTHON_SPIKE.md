@@ -11,7 +11,7 @@ opt-in and does not introduce a stable ecosystem adapter API.
 python:
   enabled: true
   # Defaults shown below; all are optional.
-  executable: python3
+  executable: null # pnpm chooses one per project
   indexUrl: https://pypi.org/simple/
   extras: []
   groups: [dev]
@@ -19,10 +19,37 @@ python:
   pythonVersions: []
 ```
 
-On Windows the default executable is `python`. The interpreter needs `venv`
-and either `packaging` or pip's bundled copy of `packaging`. The host helper
-uses these for interpreter tags, environment markers and wheel layout.
-It performs no dependency resolution or network requests.
+The interpreter needs `venv` and either `packaging` or pip's bundled copy of
+`packaging`. The host helper uses these for interpreter tags, environment
+markers and wheel layout. It performs no dependency resolution or network
+requests.
+
+### Choosing an interpreter
+
+`executable` names one interpreter for every project in the workspace. Without
+it, each project gets the first interpreter this machine has that its
+`requires-python` accepts, so projects that support different Python versions
+can live in one workspace.
+
+pnpm tries `python3` and `python` first, then the version a `.python-version`
+file asks for by name, then every `python3.<minor>` on the `PATH`, newest
+first, and on Windows the versions the launcher reports. A project that
+constrains nothing therefore starts one interpreter, as it did before pnpm
+chose them. Each interpreter is a candidate by its own path, so one minor
+version installed in two directories is two candidates.
+
+pnpm starts the interpreter it located rather than the name it looked for,
+and looks only outside the workspace being installed: an install that runs
+from a script has the workspace's own `bin` directories on its `PATH`, where
+a dependency can leave an executable named like an interpreter.
+
+The nearest `.python-version` file, searched from the project up to the
+workspace root, asks for a version: `3.13` asks for every 3.13.x. The file
+belongs to other tools as well, so a line naming a distribution rather than a
+version is reported and ignored. The version it asks for is a preference, not
+a requirement: pnpm warns and installs with an interpreter the project's
+`requires-python` accepts when the machine has no such version. Interpreter
+provisioning, which would make the pin authoritative, is not implemented.
 
 ```sh
 pnpm install
@@ -249,6 +276,13 @@ not from a build backend's `build_editable` hook, so a backend that computes
 its package directories in code or rewrites modules as it builds them is not
 followed. The metadata pnpm records for it is the project's name, version,
 `requires-python` and dependencies; a project extra is not recorded as one.
+
+pnpm chooses among the interpreters a machine already has. It installs none,
+so a project is reported when no interpreter on the machine satisfies its
+`requires-python`, and a `.python-version` naming a version the machine does
+not have is warned about rather than fetched. Interpreters are found by name,
+not by reading the registries and version-manager directories a Python
+installation can hide in.
 
 ## Verification
 

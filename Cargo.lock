@@ -5850,6 +5850,7 @@ dependencies = [
  "toml",
  "url",
  "wax",
+ "which 8.0.4",
 ]
 
 [[package]]

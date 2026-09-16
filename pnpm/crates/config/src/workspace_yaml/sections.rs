@@ -116,7 +116,9 @@ impl Default for CargoSettings {
 #[serde(rename_all = "camelCase", default, deny_unknown_fields)]
 pub struct PythonSettings {
     pub enabled: bool,
-    pub executable: String,
+    /// The interpreter to install every Python project with. `None` lets
+    /// pnpm choose one the project accepts.
+    pub executable: Option<String>,
     pub index_url: String,
     pub extras: Vec<String>,
     pub groups: Vec<String>,
@@ -134,7 +136,7 @@ impl Default for PythonSettings {
     fn default() -> Self {
         Self {
             enabled: false,
-            executable: if cfg!(windows) { "python" } else { "python3" }.to_string(),
+            executable: None,
             index_url: "https://pypi.org/simple/".to_string(),
             extras: Vec::new(),
             groups: vec!["dev".to_string()],
