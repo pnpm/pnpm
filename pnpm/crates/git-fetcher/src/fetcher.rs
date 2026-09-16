@@ -552,8 +552,6 @@ fn submodule_protocol_enabled(protocol: &str, policies: &HashMap<String, String>
         .eq_ignore_ascii_case("always")
 }
 
-/// Return a static subcommand label for error messages, falling back to `git`
-/// for unrecognized commands.
 fn static_operation_label(args: &[&str]) -> &'static str {
     let first = args
         .iter()
