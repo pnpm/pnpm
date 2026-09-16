@@ -787,6 +787,8 @@ mod workspace_flag;
 
 mod cargo;
 
+mod purl;
+
 mod version_specifiers;
 
 mod workspace;

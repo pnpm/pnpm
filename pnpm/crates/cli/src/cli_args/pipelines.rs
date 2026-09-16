@@ -28,6 +28,7 @@ use crate::{
         yarn_workspaces_field::warn_unsupported_workspaces_field,
     },
     config_deps, ecosystem_add, ecosystem_install,
+    package_specifier::EcosystemPackageSpecifier,
 };
 use indexmap::IndexMap;
 

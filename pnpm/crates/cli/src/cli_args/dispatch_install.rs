@@ -46,9 +46,11 @@ use pnpm_default_reporter::DefaultReporter;
 use pnpm_reporter::{NdjsonReporter, SilentReporter};
 use std::path::{Path, PathBuf};
 
-pub(super) fn add<'a>(ctx: &RunCtx<'a>, args: AddArgs) -> miette::Result<CommandFuture<'a>> {
+pub(super) fn add<'a>(ctx: &RunCtx<'a>, mut args: AddArgs) -> miette::Result<CommandFuture<'a>> {
     let package_specifier_plan = PackageSpecifierPlan::parse(&args.package_names)?;
     check_specifier_combination(&args, &package_specifier_plan)?;
+    let PackageSpecifierPlan { node_packages, ecosystem_packages } = package_specifier_plan;
+    args.package_names = node_packages;
     if args.target.global {
         return add_global(ctx, args);
     }
@@ -70,7 +72,7 @@ pub(super) fn add<'a>(ctx: &RunCtx<'a>, args: AddArgs) -> miette::Result<Command
             manifest_path: manifest_path.to_path_buf(),
             recursive_sort,
             config_dependencies,
-            package_specifier_plan,
+            ecosystem_packages,
         };
         let added = match reporter {
             ReporterType::Default | ReporterType::AppendOnly => {

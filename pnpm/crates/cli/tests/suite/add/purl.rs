@@ -1,0 +1,68 @@
+use super::{
+    Command, CommandExtra, TempDir, assert_eq, cargo_add_project, exec_pacquet_in_temp_cwd,
+    get_filenames_in_folder, prod_spec,
+};
+use crate::_utils::flatten_report;
+use assert_cmd::{assert::OutputAssertExt, cargo::CommandCargoExt};
+
+#[test]
+fn add_npm_purl_saves_the_scoped_package_it_names() {
+    let (root, dir, anchor) =
+        exec_pacquet_in_temp_cwd(["add", "pkg:npm/%40pnpm.e2e/hello-world-js-bin@1.0.0"]);
+
+    assert_eq!(prod_spec(&dir, "@pnpm.e2e/hello-world-js-bin"), "1.0.0");
+    assert_eq!(
+        get_filenames_in_folder(&dir.join("node_modules/@pnpm.e2e")),
+        ["hello-world-js-bin"],
+    );
+    drop((root, anchor)); // cleanup
+}
+
+#[test]
+fn add_cargo_purl_writes_the_crate_to_the_cargo_manifest() {
+    let (root, cache_dir) = cargo_add_project();
+    Command::cargo_bin("pnpm")
+        .expect("find the pnpm binary")
+        .with_current_dir(root.path())
+        .with_env("PNPM_CONFIG_CACHE_DIR", &cache_dir)
+        .with_args(["add", "pkg:cargo/foo@1.0.0", "--offline", "--lockfile-only"])
+        .assert()
+        .success();
+
+    let manifest = std::fs::read_to_string(root.path().join("Cargo.toml"))
+        .expect("read updated Cargo manifest");
+    assert!(manifest.contains("[dependencies]\nfoo = \"1.0.0\""), "{manifest}");
+    assert!(
+        !root
+            .path()
+            .join("package.json")
+            .exists(),
+    );
+}
+
+#[test]
+fn add_rejects_an_unsupported_purl_type() {
+    let root = TempDir::new().expect("create project directory");
+    let output = Command::cargo_bin("pnpm")
+        .expect("find the pnpm binary")
+        .with_current_dir(root.path())
+        .with_args(["add", "pkg:maven/org.apache.commons/io@1.3.4"])
+        .assert()
+        .failure();
+
+    let stderr = String::from_utf8_lossy(&output.get_output().stderr);
+    eprintln!("stderr:\n{stderr}");
+    assert!(
+        flatten_report(&stderr)
+            .contains(&flatten_report(
+                "has purl type `maven`, but pnpm can add only `npm`, `cargo`, and `pypi` packages",
+            )),
+        "{stderr}",
+    );
+    assert!(
+        !root
+            .path()
+            .join("package.json")
+            .exists(),
+    );
+}

@@ -1,9 +1,9 @@
 use super::{
-    AddArgs, Arc, BTreeMap, Config, Context, DedicatedProjectRuns, DeployArgs, InstallFamily,
-    InstallFamilyPlan, Path, PathBuf, RemoveArgs, Reporter, State, ThrottledClient, UpdateArgs,
-    UpdateChangesetContext, anchor_active_project, config_deps, dedicated_project_name,
-    ecosystem_add, ecosystem_install, init_shared_state, select_install_family,
-    select_install_family_plan,
+    AddArgs, Arc, BTreeMap, Config, Context, DedicatedProjectRuns, DeployArgs,
+    EcosystemPackageSpecifier, InstallFamily, InstallFamilyPlan, Path, PathBuf, RemoveArgs,
+    Reporter, State, ThrottledClient, UpdateArgs, UpdateChangesetContext, anchor_active_project,
+    config_deps, dedicated_project_name, ecosystem_add, ecosystem_install, init_shared_state,
+    select_install_family, select_install_family_plan,
 };
 use crate::cli_args::recursive::UnmatchedFilters;
 
@@ -18,20 +18,22 @@ pub(crate) struct AddPipeline {
     /// before this pipeline scaffolds a manifest. `Some` exactly when
     /// `--config` was passed.
     pub(crate) config_dependencies: Option<BTreeMap<String, String>>,
-    pub(crate) package_specifier_plan: crate::package_specifier::PackageSpecifierPlan,
+    /// The selectors routed away from the npm add path, which receives
+    /// the rest through [`AddArgs::package_names`].
+    pub(crate) ecosystem_packages: Vec<EcosystemPackageSpecifier>,
 }
 
 impl AddPipeline {
     pub(crate) async fn run<Reporter: self::Reporter + 'static>(self) -> miette::Result<()> {
         config_deps::prepare::<Reporter>(self.cfg, &self.config_root, false).await?;
-        if !self.package_specifier_plan.ecosystem_packages.is_empty() {
+        if !self.ecosystem_packages.is_empty() {
             return EcosystemAdd {
                 args: self.args,
                 cfg: self.cfg,
                 prefix: self.prefix,
                 manifest_path: self.manifest_path,
                 recursive_sort: self.recursive_sort,
-                package_specifier_plan: self.package_specifier_plan,
+                ecosystem_packages: self.ecosystem_packages,
             }
             .run::<Reporter>()
             .await;
@@ -111,14 +113,15 @@ impl AddPipeline {
     }
 }
 
-/// A `pnpm add` that carries at least one `crate:` or `pypi:` package.
+/// A `pnpm add` that carries at least one Cargo or Python package, named
+/// by a `crate:` or `pypi:` selector or by a Package URL.
 struct EcosystemAdd {
     args: AddArgs,
     cfg: &'static mut Config,
     prefix: PathBuf,
     manifest_path: PathBuf,
     recursive_sort: bool,
-    package_specifier_plan: crate::package_specifier::PackageSpecifierPlan,
+    ecosystem_packages: Vec<EcosystemPackageSpecifier>,
 }
 
 /// The npm half of an add that also carries ecosystem packages, enrolled in
@@ -128,12 +131,11 @@ struct NodeAdd {
     cfg: &'static Config,
     manifest_path: PathBuf,
     http_client: Arc<ThrottledClient>,
-    packages: Vec<String>,
 }
 
 impl EcosystemAdd {
     async fn run<Reporter: self::Reporter + 'static>(self) -> miette::Result<()> {
-        let has_node_packages = !self.package_specifier_plan.node_packages.is_empty();
+        let has_node_packages = !self.args.package_names.is_empty();
         let EcosystemAddSetup { cfg, http_client, family } = prepare_ecosystem_add::<Reporter>(
             self.cfg,
             (&self.prefix, &self.manifest_path),
@@ -143,7 +145,7 @@ impl EcosystemAdd {
         let ecosystem = ecosystem_add::plan::<Reporter>(
             add_install_context(cfg, &http_client, &self.args),
             self.prefix,
-            self.package_specifier_plan.ecosystem_packages,
+            self.ecosystem_packages,
             &self.args,
             has_node_packages,
             family.scope.as_ref(),
@@ -157,13 +159,7 @@ impl EcosystemAdd {
         }
         run_mixed_add::<Reporter>(
             ecosystem.plan,
-            NodeAdd {
-                args: self.args,
-                cfg,
-                manifest_path: self.manifest_path,
-                http_client,
-                packages: self.package_specifier_plan.node_packages,
-            },
+            NodeAdd { args: self.args, cfg, manifest_path: self.manifest_path, http_client },
         )
         .await
     }
@@ -233,14 +229,12 @@ async fn run_mixed_add<Reporter: self::Reporter + 'static>(
     node: NodeAdd,
 ) -> miette::Result<()> {
     let NodeAdd {
-        mut args,
+        args,
         cfg,
         manifest_path,
         http_client,
-        packages,
     } = node;
     let metadata = node_add_metadata_paths(cfg, &manifest_path);
-    args.package_names = packages;
     let node_install = async move {
         let state = init_shared_state(manifest_path, cfg, false, None, http_client)?;
         Box::pin(args.run::<Reporter>(state, None)).await

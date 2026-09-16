@@ -1110,6 +1110,28 @@ async fn add_updates_pyproject_and_lockfile_without_creating_node_metadata() {
         .success();
 }
 
+/// A Package URL names one exact version, so it saves as a pinned
+/// requirement without `--save-exact`.
+#[tokio::test]
+async fn add_accepts_a_pypi_purl() {
+    let root = tempfile::tempdir().unwrap();
+    let mut server = mockito::Server::new_async().await;
+    let _alpha = serve(&mut server, "alpha", &[("1.0", wheel("alpha", "1.0", "", &[]))]).await;
+    project(root.path(), &server.url(), &[]);
+    pacquet_in(root.path())
+        .args(["add", "pkg:pypi/Alpha@1.0"])
+        .assert()
+        .success();
+    let updated = fs::read_to_string(root.path().join("pyproject.toml")).unwrap();
+    eprintln!("updated={updated}");
+    let manifest: toml::Value = toml::from_str(&updated).unwrap();
+    assert_eq!(manifest["project"]["dependencies"][0].as_str(), Some("alpha==1.0"));
+    python(root.path())
+        .args(["-c", "import alpha"])
+        .assert()
+        .success();
+}
+
 /// A Python index is a package source like any other, so the credential the
 /// machine holds for its origin reaches it. pnpm resolves credentials by
 /// origin and path prefix and knows no ecosystem, which is how an npm

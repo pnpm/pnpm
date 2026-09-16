@@ -4629,6 +4629,7 @@ dependencies = [
  "owo-colors",
  "p256",
  "pathdiff",
+ "percent-encoding",
  "pipe-trait",
  "pnpm-auth-commands",
  "pnpm-cargo-resolver",
