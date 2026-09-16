@@ -419,6 +419,67 @@ fn lockfile_generation_preserves_legacy_path_replacements() {
         .success();
     index.assert();
 }
+#[cfg(unix)]
+#[test]
+fn path_patched_dependencies_cannot_execute_git_transport_helpers() {
+    use std::os::unix::fs::PermissionsExt;
+
+    let (root, _parent, _repository) = patched_path_workspace();
+    let patched = TempDir::new().unwrap();
+    fs::rename(root.path().join("dep"), patched.path().join("dep")).unwrap();
+    let workspace_manifest = root.path().join("Cargo.toml");
+    let patched_path = patched.path().join("dep");
+    let path_override = format!("path = {:?}", patched_path.to_string_lossy());
+    fs::write(
+        &workspace_manifest,
+        fs::read_to_string(&workspace_manifest).unwrap().replace(r#"path = "dep""#, &path_override),
+    )
+    .unwrap();
+    let manifest = patched.path().join("dep/Cargo.toml");
+    fs::write(
+        &manifest,
+        format!(
+            "{}\n[dependencies]\nhelper = {{ git = \"pnpm-test://invalid.example/repository\" }}\n",
+            fs::read_to_string(&manifest).unwrap(),
+        ),
+    )
+    .unwrap();
+    let helpers = TempDir::new().unwrap();
+    let helper = helpers.path().join("git-remote-pnpm-test");
+    fs::write(&helper, "#!/bin/sh\n: > \"$HELPER_MARKER\"\nexit 1\n").unwrap();
+    fs::set_permissions(&helper, fs::Permissions::from_mode(0o755)).unwrap();
+    let marker = helpers.path().join("executed");
+    let mut registry = mockito::Server::new();
+    let cargo_home = registry_cargo_home(&registry);
+    let _config = registry
+        .mock("GET", "/config.json")
+        .with_body(serde_json::json!({ "dl": format!("{}/dl", registry.url()) }).to_string())
+        .create();
+    let _demo = registry
+        .mock("GET", "/de/mo/demo")
+        .with_status(404)
+        .create();
+
+    let output = pnpm(&root)
+        .env("CARGO_HOME", cargo_home.path())
+        .env("CARGO_NET_GIT_FETCH_WITH_CLI", "true")
+        .env("CARGO_NET_RETRY", "0")
+        .env("GIT_EXEC_PATH", helpers.path())
+        .env("HELPER_MARKER", &marker)
+        .env("GIT_CONFIG_COUNT", "1")
+        .env("GIT_CONFIG_KEY_0", "protocol.pnpm-test.allow")
+        .env("GIT_CONFIG_VALUE_0", "always")
+        .env("GIT_ALLOW_PROTOCOL", "file:pnpm-test")
+        .args(["install", "--lockfile-only", "--no-frozen-lockfile"])
+        .output()
+        .unwrap();
+
+    eprintln!("Transitive helper transports must be rejected before execution: {output:?}");
+    assert!(!output.status.success());
+    assert!(!marker.exists());
+    assert!(String::from_utf8_lossy(&output.stderr).contains("transport 'pnpm-test' not allowed"));
+}
+
 fn add_submodule(parent: &TempDir, name: &str, url: &str, path: &str) {
     Command::new("git")
         .current_dir(

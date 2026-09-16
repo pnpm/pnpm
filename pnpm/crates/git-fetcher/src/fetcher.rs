@@ -19,6 +19,7 @@ use crate::{
     prepare_package::{
         AllowBuildRef, PreparePackageOptions, PreparedPackage, prepare_package, safe_join_path,
     },
+    protocols::{read_protocol_policies, submodule_protocols},
 };
 use pnpm_fs_packlist::packlist;
 use pnpm_network::{redact_and_sanitize, redact_and_sanitize_multiline};
@@ -28,17 +29,11 @@ use pnpm_store_dir::{CafsFileInfo, PackageFilesIndex, StoreIndexWriter};
 use serde_json::Value;
 use std::{
     collections::HashMap,
-    env,
-    ffi::OsStr,
-    fs,
+    env, fs,
     path::{Path, PathBuf},
     process::Command,
     sync::{Arc, LazyLock},
 };
-
-/// Git transports supported by Cargo dependency vendoring. Helper
-/// transports can execute commands selected by repository metadata.
-pub const SUPPORTED_GIT_PROTOCOLS: [&str; 5] = ["file", "git", "http", "https", "ssh"];
 
 /// One-shot fetcher for a single git resolution. Holds borrows for the
 /// duration of the call only.
@@ -471,7 +466,11 @@ fn prefix_git_args() -> &'static [&'static str] {
 /// the call site instead of through `PATH`, keeping the shim's
 /// observability scope to one fetcher instance rather than the whole
 /// process env.
-fn exec_git_with(bin: &Path, args: &[&str], cwd: Option<&Path>) -> Result<String, GitFetcherError> {
+pub(crate) fn exec_git_with(
+    bin: &Path,
+    args: &[&str],
+    cwd: Option<&Path>,
+) -> Result<String, GitFetcherError> {
     let prefix = prefix_git_args();
     let mut cmd = Command::new(bin);
     for arg in prefix {
@@ -503,53 +502,6 @@ fn exec_git_with(bin: &Path, args: &[&str], cwd: Option<&Path>) -> Result<String
         return Err(GitFetcherError::GitExec { operation, stderr, status: output.status });
     }
     Ok(String::from_utf8_lossy(&output.stdout).into_owned())
-}
-
-fn read_protocol_policies(
-    bin: &Path,
-    cwd: Option<&Path>,
-) -> Result<HashMap<String, String>, GitFetcherError> {
-    let output =
-        match exec_git_with(bin, &["config", "--null", "--get-regexp", r"^protocol\."], cwd) {
-            Ok(output) => output,
-            Err(GitFetcherError::GitExec { operation: "config", status, stderr })
-                if status.code() == Some(1) && stderr.is_empty() =>
-            {
-                return Ok(HashMap::new());
-            }
-            Err(error) => return Err(error),
-        };
-    Ok(output
-        .split('\0')
-        .filter_map(|entry| entry.split_once('\n'))
-        .filter(|(key, _)| key.ends_with(".allow"))
-        .map(|(key, value)| (key.to_owned(), value.to_owned()))
-        .collect())
-}
-
-fn submodule_protocols(inherited: Option<&OsStr>, policies: &HashMap<String, String>) -> String {
-    SUPPORTED_GIT_PROTOCOLS
-        .into_iter()
-        .filter(|protocol| submodule_protocol_enabled(protocol, policies))
-        .filter(|protocol| {
-            inherited.is_none_or(|allowed| {
-                allowed
-                    .as_encoded_bytes()
-                    .split(|byte| *byte == b':')
-                    .any(|candidate| candidate == protocol.as_bytes())
-            })
-        })
-        .collect::<Vec<_>>()
-        .join(":")
-}
-
-fn submodule_protocol_enabled(protocol: &str, policies: &HashMap<String, String>) -> bool {
-    let default = if protocol == "file" { "user" } else { "always" };
-    policies
-        .get(&format!("protocol.{protocol}.allow"))
-        .or_else(|| policies.get("protocol.allow"))
-        .map_or(default, String::as_str)
-        .eq_ignore_ascii_case("always")
 }
 
 fn static_operation_label(args: &[&str]) -> &'static str {

@@ -95,6 +95,10 @@ fn resolution_command(root: &Path, offline: bool) -> Result<Command> {
         )
         .args(["generate-lockfile", "--manifest-path"])
         .arg(root.join("Cargo.toml"));
+    let protocols = pnpm_git_fetcher::read_allowed_git_protocols(&sysroot)
+        .into_diagnostic()
+        .wrap_err("read Cargo Git transport policy")?;
+    command.env("GIT_ALLOW_PROTOCOL", protocols);
     for (key, value) in resolution_settings(root)? {
         command
             .arg("--config")
