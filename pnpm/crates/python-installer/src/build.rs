@@ -70,13 +70,9 @@ impl PythonPrepare<'_> {
             .as_ref()
             .filter(|wheel| !editable && wheel.interpreter == self.interpreter.executable);
         let (built, output) = if let Some(cached) = cached {
-            let metadata = host::run(
-                &self.interpreter.executable,
-                "inspect",
-                serde_json::json!({ "files": cached.wheel.files }),
-            )
-            .await
-            .wrap_err_with(|| format!("read the wheel built from {}", root.display()))?;
+            let metadata = host::inspect(&self.interpreter.executable, &cached.wheel.files)
+                .await
+                .wrap_err_with(|| format!("read the wheel built from {}", root.display()))?;
             (Backend517 { wheel: cached.wheel.clone(), metadata }, Arc::clone(&cached.output))
         } else {
             let request = serde_json::json!({
