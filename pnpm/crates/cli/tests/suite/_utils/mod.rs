@@ -664,9 +664,9 @@ fn locked_conflict_side(workspace: &Path, version: &str) -> String {
         .replace(&format!("specifier: {version}"), &format!("specifier: '{CONFLICTED_SPECIFIER}'"))
 }
 
-/// Assert that an install over [`write_conflicted_lockfile_fixture`]
-/// reported the merge, left no markers behind, and kept the merged
-/// version rather than resolving a newer one from the registry.
+/// The registry also publishes 3.1.0, which satisfies the fixture's
+/// range, so the version assertion below is what separates a merge from
+/// a fresh resolution that discarded a side.
 pub fn assert_merged_conflicted_lockfile(workspace: &Path, stdout: &str) {
     eprintln!("STDOUT:\n{stdout}");
     assert!(

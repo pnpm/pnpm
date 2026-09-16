@@ -1,5 +1,5 @@
 use crate::{
-    Lockfile, ProjectSnapshot, extract_env_document, extract_main_document,
+    EnvLockfile, Lockfile, ProjectSnapshot, extract_env_document, extract_main_document,
     git_merge_file::{MERGE_CONFLICT_OURS, ParsedWantedFile, parse_wanted_file},
     load_lockfile::repair_document::prepare_value_for_fix,
     merge_lockfile_changes,
@@ -88,12 +88,25 @@ fn read_lockfile_text(file_path: &Path) -> Result<Option<String>, LoadLockfileEr
     }
 }
 
-/// Whether the combined lockfile's leading env document carries Git
-/// conflict markers. Only the markers matter here, not whether the two
-/// sides merge: [`crate::EnvLockfile::read`] and the lockfile writer each
-/// do that themselves.
-fn env_document_is_conflicted(content: &str) -> bool {
-    extract_env_document(content).is_some_and(|env| env.contains(MERGE_CONFLICT_OURS))
+/// Whether the combined lockfile's leading env document was left
+/// conflicted by Git *and* merges cleanly.
+///
+/// The merge has to be attempted, not guessed at from the markers: a
+/// document whose conflict is malformed, or whose sides do not parse,
+/// is one the lockfile writer will copy back unchanged, and counting it
+/// would have the install report a merge that never happened. A marker
+/// inside a YAML comment or scalar is ruled out the same way, by the
+/// document parsing as it stands.
+///
+/// The substring test only skips that work for the documents that
+/// plainly carry no marker, which is all of them but the conflicted few.
+fn env_document_merges(content: &str, file_path: &Path) -> bool {
+    let Some(env) = extract_env_document(content) else { return false };
+    if !env.contains(MERGE_CONFLICT_OURS) {
+        return false;
+    }
+    EnvLockfile::parse_conflicted_document(&env, file_path)
+        .is_ok_and(|parsed| parsed.merged_conflict_files > 0)
 }
 
 impl Lockfile {
@@ -304,7 +317,7 @@ impl Lockfile {
         // parsing as it stands, so the recovery above never runs. The file
         // still holds markers, and only an install that writes it back
         // clears them, so it counts as conflicted either way.
-        if parsed.merged_conflict_files == 0 && env_document_is_conflicted(&content) {
+        if parsed.merged_conflict_files == 0 && env_document_merges(&content, file_path) {
             parsed.merged_conflict_files = 1;
         }
         Ok(parsed)

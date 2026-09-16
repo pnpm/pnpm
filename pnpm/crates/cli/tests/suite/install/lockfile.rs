@@ -728,3 +728,26 @@ fn frozen_lockfile_setting_drives_the_headless_install() {
 
     drop((root, mock_instance));
 }
+
+/// `add`, `remove` and `update` pass the loaded lockfile on to their
+/// install as an already-loaded document, which leaves the install with
+/// no loader to ask about the merge. They report it at the load instead.
+#[test]
+fn add_over_a_conflicted_lockfile_reports_the_merge() {
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    write_conflicted_lockfile_fixture(&workspace);
+
+    let output = new_pacquet_command(&workspace)
+        .with_args(["add", "@pnpm.e2e/foo@100.0.0", "--lockfile-only"])
+        .assert()
+        .success();
+
+    assert_merged_conflicted_lockfile(
+        &workspace,
+        &String::from_utf8_lossy(&output.get_output().stdout),
+    );
+
+    drop((root, mock_instance));
+}

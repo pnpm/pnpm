@@ -117,6 +117,10 @@ pub fn save_value_to_path<Document: serde::Serialize>(
 /// the main document is not where an unparsable env document should
 /// surface.
 fn preserved_env_document<'a>(env: &'a str, path: &Path) -> Cow<'a, str> {
+    // Skips the parse for the documents that plainly carry no marker,
+    // which is all of them but the conflicted few. A false positive —
+    // a marker inside a comment or a scalar — costs a parse that then
+    // finds nothing to merge, not a wrong answer.
     if !env.contains(MERGE_CONFLICT_OURS) {
         return Cow::Borrowed(env);
     }

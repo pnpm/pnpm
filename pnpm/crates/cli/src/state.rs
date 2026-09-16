@@ -2,9 +2,9 @@ use derive_more::{Display, Error};
 use miette::Diagnostic;
 use pipe_trait::Pipe;
 use pnpm_config::Config;
-use pnpm_lockfile::LazyLockfile;
+use pnpm_lockfile::{LazyLockfile, Lockfile, MaybeLazyLockfile};
 use pnpm_network::{ForInstallsError, ThrottledClient};
-use pnpm_package_manager::ResolvedPackages;
+use pnpm_package_manager::{ResolvedPackages, report_merged_lockfile_conflicts};
 use pnpm_package_manifest::{PackageManifest, PackageManifestError};
 use pnpm_tarball::MemCache;
 use std::{
@@ -37,6 +37,30 @@ pub struct State {
     pub lockfile: LazyLockfile,
     /// In-memory cache for packages that have started resolving dependencies.
     pub resolved_packages: ResolvedPackages,
+}
+
+/// The wanted lockfile, reporting any Git conflict markers its load
+/// merged away.
+///
+/// `add`, `remove` and `update` pass the loaded lockfile on to their
+/// install as [`MaybeLazyLockfile::Loaded`], which leaves the install
+/// holding a document with no loader behind it to ask. The report has to
+/// happen where the load does. A plain install keeps the lazy source all
+/// the way down and reports from there instead.
+pub(crate) fn load_lockfile_reporting_conflicts<'a, Reporter: pnpm_reporter::Reporter>(
+    lockfile: &'a LazyLockfile,
+    lockfile_dir: &Path,
+) -> miette::Result<Option<&'a Lockfile>> {
+    let wrap = |err: pnpm_lockfile::LoadLockfileError| {
+        miette::Report::new(err).wrap_err("load the lockfile")
+    };
+    let source = MaybeLazyLockfile::Lazy(lockfile);
+    let loaded = source.get().map_err(wrap)?;
+    report_merged_lockfile_conflicts::<Reporter>(
+        source.merged_conflict_files().map_err(wrap)?,
+        &lockfile_dir.to_string_lossy(),
+    );
+    Ok(loaded)
 }
 
 /// Error type of [`State::init`].

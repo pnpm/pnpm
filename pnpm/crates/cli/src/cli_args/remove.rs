@@ -1,6 +1,7 @@
 use crate::{
     State,
     cli_args::{lockfile_dir::LockfileDirArg, pipelines::InstallFamilySelection},
+    state::load_lockfile_reporting_conflicts,
 };
 use clap::Args;
 use miette::Context;
@@ -64,6 +65,7 @@ impl RemoveArgs {
         mut state: State,
     ) -> miette::Result<()> {
         let lockfile_path = state.lockfile_path();
+        let lockfile_dir = state.lockfile_dir().to_path_buf();
         let State {
             tarball_mem_cache,
             http_client,
@@ -72,9 +74,7 @@ impl RemoveArgs {
             lockfile,
             resolved_packages,
         } = &mut state;
-        let lockfile = lockfile
-            .get()
-            .map_err(|err| miette::Report::new(err).wrap_err("load the lockfile"))?;
+        let lockfile = load_lockfile_reporting_conflicts::<Reporter>(lockfile, &lockfile_dir)?;
 
         Remove {
             manifest,
@@ -105,6 +105,7 @@ impl RemoveArgs {
         mut selection: InstallFamilySelection,
     ) -> miette::Result<()> {
         let lockfile_path = state.lockfile_path();
+        let lockfile_dir = state.lockfile_dir().to_path_buf();
         let State {
             tarball_mem_cache,
             http_client,
@@ -113,9 +114,7 @@ impl RemoveArgs {
             lockfile,
             resolved_packages,
         } = &mut state;
-        let lockfile = lockfile
-            .get()
-            .map_err(|err| miette::Report::new(err).wrap_err("load the lockfile"))?;
+        let lockfile = load_lockfile_reporting_conflicts::<Reporter>(lockfile, &lockfile_dir)?;
 
         Remove {
             manifest,

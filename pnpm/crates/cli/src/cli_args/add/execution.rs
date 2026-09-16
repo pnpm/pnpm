@@ -5,6 +5,7 @@ use super::{
     describe_pin, record_package_manager_pin, resolve_project_pin, tool_install_selector,
     workspace_link_root, workspace_selectors,
 };
+use crate::state::load_lockfile_reporting_conflicts;
 
 /// The dependency groups one add works with, which are two different
 /// sets: `save_target` names the manifest group the added packages are
@@ -136,6 +137,7 @@ where
     DependencyGroupList: IntoIterator<Item = DependencyGroup>,
 {
     let lockfile_path = state.lockfile_path();
+    let lockfile_dir = state.lockfile_dir().to_path_buf();
     let State {
         tarball_mem_cache,
         http_client,
@@ -144,9 +146,7 @@ where
         lockfile,
         resolved_packages,
     } = &mut state;
-    let lockfile = lockfile
-        .get()
-        .map_err(|err| miette::Report::new(err).wrap_err("load the lockfile"))?;
+    let lockfile = load_lockfile_reporting_conflicts::<Reporter>(lockfile, &lockfile_dir)?;
 
     Add {
         manifest,
@@ -290,9 +290,8 @@ impl AddArgs {
             .save_target();
         let included_groups = self.included_groups(state.config);
         let lockfile_path = state.lockfile_path();
-        let lockfile = state.lockfile
-            .get()
-            .map_err(|err| miette::Report::new(err).wrap_err("load the lockfile"))?;
+        let lockfile =
+            load_lockfile_reporting_conflicts::<Reporter>(&state.lockfile, state.lockfile_dir())?;
 
         Add {
             manifest: &mut state.manifest,
