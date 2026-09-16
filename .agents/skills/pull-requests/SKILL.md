@@ -45,7 +45,9 @@ the PR merges.
    blessing on it. A priority or severity badge is the reviewer's guess, not a
    verdict. Act on what holds. Reply on every thread either way, naming the
    commit that fixed it or the reason you are not acting, and then resolve it:
-   the thread is the record a reviewer checks each fix against. Resolving needs
+   the thread is the record a reviewer checks each fix against. Reply once that
+   commit is on the remote branch, never before — a hash read off a local commit
+   that a rebase or an amend then rewrites names something nobody can look up. Resolving needs
    GraphQL (`resolveReviewThread`); the REST comment API cannot do it.
 4. **Go back to 1** after the push that carries the fixes.
 
@@ -105,11 +107,15 @@ Rebase rather than merging `main` in: the branch protection on `main` requires
 linear history and merge commits are disabled, which is why the script and
 GitHub's update-branch button both rebase.
 
-The force push that follows marks every open inline comment outdated and moves
-its anchor, so answer and resolve the open threads before rebasing, while their
-line numbers still mean something. Fold the rebase into the push that carries
-your fixes when you can, and re-read the diff after it: a conflict resolved
-wrongly is a real bug that arrives with no review comment attached to it.
+Fold the rebase into the push that carries your fixes when you can, and answer
+the threads after that push, not before: the rebase rewrites your fix commits,
+so a hash quoted ahead of it names a commit the branch never receives. The force
+push also marks the open comments outdated and moves their anchors, which is the
+second reason the reply has to carry the hash — the line the comment hangs on no
+longer points at the fix.
+
+Re-read the diff after a rebase. A conflict resolved wrongly is a real bug that
+arrives with no review comment attached to it.
 
 ## Each round's findings land on the previous round's fixes
 
