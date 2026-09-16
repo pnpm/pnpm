@@ -252,6 +252,33 @@ pub(crate) struct FreshLockfileSeeds<'a> {
 }
 
 impl FreshInputs<'_> {
+    /// The direct dependency groups the resolve pass walks.
+    ///
+    /// `pnpm-lock.yaml` describes the manifests, not the `--prod` /
+    /// `--dev` filter the run was invoked under, so a filtered install
+    /// still resolves every group and leaves the filter to
+    /// [`Self::included`], which decides what is materialized
+    /// (pnpm/pnpm#14912). A run that never writes that file owes it
+    /// nothing and resolves only what it installs, keeping the
+    /// deployed virtual store of `pacquet deploy --legacy --prod` free
+    /// of dev dependencies.
+    fn resolved_groups(&self) -> &[DependencyGroup] {
+        if self.execution.save_lockfile {
+            &crate::DIRECT_GROUPS
+        } else {
+            self.projects.dependency_groups
+        }
+    }
+
+    /// Whether [`Self::resolved_groups`] walked groups this run does not
+    /// install, so the materialization closure has to narrow the graph
+    /// back down to [`Self::included`].
+    fn resolve_widened_groups(&self) -> bool {
+        self.resolved_groups()
+            .iter()
+            .any(|group| !self.projects.dependency_groups.contains(group))
+    }
+
     fn included(&self) -> IncludedDependencies {
         IncludedDependencies {
             dependencies: self.projects.dependency_groups.contains(&DependencyGroup::Prod),

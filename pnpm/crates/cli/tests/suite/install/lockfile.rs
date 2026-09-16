@@ -781,3 +781,114 @@ fn a_command_that_installs_nothing_claims_no_merge() {
 
     drop((root, mock_instance));
 }
+
+/// pnpm/pnpm#14912: `pnpm-lock.yaml` describes the manifest, not the
+/// `--prod` / `--dev` filter the run was invoked with, so a filtered
+/// install records every dependency group and a later unfiltered frozen
+/// install accepts what it wrote. The filter reaches the virtual store
+/// instead.
+fn assert_group_filter_reaches_materialization_only(
+    filter: &str,
+    excluded: (&str, &str),
+    expected_added: u64,
+) {
+    const PROD: (&str, &str) = ("@pnpm.e2e/pkg-with-1-dep", "100.0.0");
+    const DEV: (&str, &str) = ("@pnpm.e2e/hello-world-js-bin", "1.0.0");
+
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({
+            "dependencies": { PROD.0: PROD.1 },
+            "devDependencies": { DEV.0: DEV.1 },
+            "optionalDependencies": { "@pnpm.e2e/qar": "100.0.0" },
+        })
+        .to_string(),
+    )
+    .expect("write package.json");
+
+    let install = pacquet
+        .with_args(["install", filter, "--reporter=ndjson"])
+        .assert()
+        .success();
+
+    let wanted = super::read_lockfile(&workspace.join("pnpm-lock.yaml"));
+    dbg!(&wanted);
+    for (group, dependency) in [
+        ("dependencies", PROD.0),
+        ("devDependencies", DEV.0),
+        ("optionalDependencies", "@pnpm.e2e/qar"),
+    ] {
+        assert!(
+            super::importer_has_group_dependency(
+                &wanted,
+                pnpm_lockfile::Lockfile::ROOT_IMPORTER_KEY,
+                group,
+                dependency,
+            ),
+            "`install {filter}` dropped {group} from the wanted lockfile",
+        );
+    }
+
+    let slot = |(name, version): (&str, &str)| {
+        workspace
+            .join("node_modules/.pnpm")
+            .join(format!("{}@{version}", name.replace('/', "+")))
+    };
+    let installed = if excluded == DEV { PROD } else { DEV };
+    assert!(slot(installed).is_dir(), "`install {filter}` must materialize the group it installs");
+    assert!(
+        !slot(excluded).exists(),
+        "`install {filter}` must not materialize the group it excludes",
+    );
+    // The slot assertions above only see the end state. This is the
+    // count the pipeline decided to import, which pnpm renders as
+    // `Packages: +N`, so a group that materializes and is cleaned up
+    // again still fails here.
+    let added: Vec<u64> = super::ndjson_records(install.get_output())
+        .iter()
+        .filter_map(|record| {
+            (record["name"] == "pnpm:stats")
+                .then(|| record["added"].as_u64())
+                .flatten()
+        })
+        .collect();
+    assert_eq!(added, vec![expected_added], "`install {filter}` imported the wrong package count");
+
+    new_pacquet_command(&workspace)
+        .with_args(["install", "--frozen-lockfile", "--lockfile-only"])
+        .assert()
+        .success();
+
+    drop((root, mock_instance));
+}
+
+#[test]
+fn a_prod_install_records_every_group_and_materializes_only_production() {
+    // `@pnpm.e2e/pkg-with-1-dep` plus its dependency, plus the optional
+    // `@pnpm.e2e/qar` a bare `--prod` keeps.
+    assert_group_filter_reaches_materialization_only(
+        "--prod",
+        ("@pnpm.e2e/hello-world-js-bin", "1.0.0"),
+        3,
+    );
+}
+
+#[test]
+fn a_dev_install_records_every_group_and_materializes_only_development() {
+    // `@pnpm.e2e/hello-world-js-bin` alone: a dev-only install drops the
+    // optional dependencies along with the production ones.
+    assert_group_filter_reaches_materialization_only(
+        "--dev",
+        ("@pnpm.e2e/pkg-with-1-dep", "100.0.0"),
+        1,
+    );
+}

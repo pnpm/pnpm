@@ -16,8 +16,9 @@ use std::collections::{BTreeMap, HashSet};
 /// plan computed. The plan borrows the first closure's lockfile, so the
 /// second is a separate value rather than a mutation of the first.
 pub(super) struct MaterializationScope {
-    /// `None` when every importer is materialized: the built lockfile
-    /// is the closure.
+    /// `None` when the built lockfile already is the closure: every
+    /// importer materializes and the resolve pass walked no group this
+    /// run leaves out.
     importer_ids: Option<HashSet<String>>,
     closure: Option<crate::MaterializationClosure>,
 }
@@ -28,8 +29,7 @@ pub(super) struct FinalScope {
 }
 impl MaterializationScope {
     pub(super) fn initial(install: FreshInputs<'_>, is_hoisted: bool, built: &Lockfile) -> Self {
-        let importer_ids =
-            materialization_importer_ids(install.projects.selected_ids, is_hoisted, built);
+        let importer_ids = closure_importer_ids(install, is_hoisted, built);
         let closure = importer_ids
             .as_ref()
             .map(|importer_ids| {
@@ -261,6 +261,31 @@ pub(super) fn include_transitive_optional_dependencies(
     dependency_groups: &[DependencyGroup],
 ) -> bool {
     !is_full_install || dependency_groups.contains(&DependencyGroup::Optional)
+}
+/// The importers the materialization closure walks, or `None` when the
+/// built lockfile needs no narrowing.
+///
+/// A `--filter` selection narrows which importers materialize. A
+/// `--prod` / `--dev` run narrows which of their dependency groups do:
+/// the resolve pass walks every group so `pnpm-lock.yaml` stays
+/// complete, so without this the excluded groups would materialize as
+/// well (pnpm/pnpm#14912).
+fn closure_importer_ids(
+    install: FreshInputs<'_>,
+    is_hoisted: bool,
+    built: &Lockfile,
+) -> Option<HashSet<String>> {
+    materialization_importer_ids(install.projects.selected_ids, is_hoisted, built)
+        .or_else(|| {
+            install
+                .resolve_widened_groups()
+                .then(|| {
+                    built.importers
+                        .keys()
+                        .cloned()
+                        .collect()
+                })
+        })
 }
 /// The importers a selected install materializes. A hoisted linker shares one
 /// tree, so it still materializes every importer.
