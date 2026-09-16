@@ -72,8 +72,13 @@ runs as it runs a workspace project's scripts. What a build environment holds is
 resolved against the index each time rather than pinned in `pylock.toml`, as pip
 and uv also resolve build requirements, so a lockfile does not fix which release
 of a backend a later install runs. A build environment is built once per install
-and shared by every project declaring the same requirements. A Python version is not a semver
-range, so only the name half of an `allowBuilds` key decides a Python build. An
+and shared by every project declaring the same requirements. An `allowBuilds` key names a Python distribution
+as a [Package URL](https://github.com/package-url/purl-spec), as
+`pkg:pypi/hatchling`, because approving is a statement about one piece of code
+and npm and PyPI both publish `esbuild`, `ruff` and `black`. A Python version is
+not a semver range, so a key naming a version approves nothing here and says so:
+a build is approved before its environment is resolved, and there is no version
+to check one against yet. An
 install that has not approved a build requirement does not build the projects
 needing it, which `strictDepBuilds` makes an error rather than a warning.
 

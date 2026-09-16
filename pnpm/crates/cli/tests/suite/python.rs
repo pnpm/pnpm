@@ -137,7 +137,7 @@ async fn serve_files(
 }
 
 fn project(root: &Path, index: &str, dependencies: &[&str]) {
-    fs::write(root.join("pnpm-workspace.yaml"), format!("python:\n  enabled: true\n  indexUrl: '{index}/simple/'\nstoreDir: '{}'\ncacheDir: '{}'\nfetchRetries: 0\nallowBuilds:\n  hatchling: true\n  setuptools: true\n  wheel: true\n  tinybackend: true\n", root.join("store").display(), root.join("cache").display())).unwrap();
+    fs::write(root.join("pnpm-workspace.yaml"), format!("python:\n  enabled: true\n  indexUrl: '{index}/simple/'\nstoreDir: '{}'\ncacheDir: '{}'\nfetchRetries: 0\nallowBuilds:\n  pkg:pypi/hatchling: true\n  pkg:pypi/setuptools: true\n  pkg:pypi/wheel: true\n  pkg:pypi/tinybackend: true\n", root.join("store").display(), root.join("cache").display())).unwrap();
     fs::write(root.join("pyproject.toml"), format!("[project]\nname = 'app'\nversion = '1.0'\nrequires-python = '>=3.10'\ndependencies = {dependencies:?}\n")).unwrap();
 }
 
@@ -1971,7 +1971,7 @@ async fn a_backend_nothing_approved_does_not_build_the_project() {
 
     assert_failure_contains(
         pacquet_in(root.path()).arg("install"),
-        "because the build requirement tinybackend is not approved to run",
+        "because the build requirement pkg:pypi/tinybackend is not approved to run",
     );
 }
 
@@ -2062,7 +2062,7 @@ async fn a_requirement_the_backend_asks_for_is_approved_too() {
 
     assert_failure_contains(
         pacquet_in(root.path()).arg("install"),
-        "because the build requirement helper is not approved to run",
+        "because the build requirement pkg:pypi/helper is not approved to run",
     );
 }
 
@@ -2176,7 +2176,7 @@ async fn an_allow_builds_key_names_the_distribution_however_it_is_written() {
     fs::write(
         root.path().join("pnpm-workspace.yaml"),
         format!(
-            "{}allowBuilds:\n  TinyBackend: true\n",
+            "{}allowBuilds:\n  pkg:pypi/TinyBackend: true\n",
             workspace.split_once("allowBuilds:").expect("the fixture approves builds").0,
         ),
     )
@@ -2192,4 +2192,29 @@ async fn an_allow_builds_key_names_the_distribution_however_it_is_written() {
         .assert()
         .success()
         .stdout(if cfg!(windows) { "workspace app\r\n" } else { "workspace app\n" });
+}
+
+/// npm and `PyPI` both publish `esbuild`, `ruff` and `black`, so approving
+/// a build script must not approve a build backend nobody looked at.
+#[tokio::test]
+async fn an_allow_builds_key_naming_no_ecosystem_approves_no_python_build() {
+    let root = tempfile::tempdir().unwrap();
+    let mut server = mockito::Server::new_async().await;
+    let _backends = serve_backends(&mut server).await;
+    project(root.path(), &server.url(), &[]);
+    let workspace = fs::read_to_string(root.path().join("pnpm-workspace.yaml")).unwrap();
+    fs::write(
+        root.path().join("pnpm-workspace.yaml"),
+        format!(
+            "{}allowBuilds:\n  tinybackend: true\n",
+            workspace.split_once("allowBuilds:").expect("the fixture approves builds").0,
+        ),
+    )
+    .unwrap();
+    python_project(root.path(), "app", "dependencies = []");
+
+    assert_failure_contains(
+        pacquet_in(root.path()).arg("install"),
+        "pkg:pypi/tinybackend is not approved to run",
+    );
 }
