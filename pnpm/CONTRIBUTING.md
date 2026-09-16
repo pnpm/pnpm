@@ -96,13 +96,36 @@ sccache daemons to verify remote reuse and local cache backfill.
 
 ## Automated Checks
 
-Before submitting, run:
+Run this before every commit:
+
+```sh
+typos pnpm pnpr
+just fmt
+just check
+just lint
+```
+
+Then run the tests that cover what you changed:
+
+```sh
+just test-affected
+```
+
+This maps the working tree's changes to crates and runs those crates' tests, with the same sanitized environment `just test` uses. It does not include the CLI end-to-end suite unless you changed `pnpm-cli` itself, so for a user-visible change add the suite modules for the area: `just test-affected -- -p pnpm-cli -E 'test(catalog::)'`. The [`testing-changes`](../.agents/skills/testing-changes/SKILL.md) skill covers picking them.
+
+When crates depend on what changed without being selected themselves, it also runs the `smoke` profile in their place: one end-to-end test per area of CLI behavior, rather than the dependents' full test sets or nothing at all. `--no-smoke` skips that, and `just smoke` runs the same set on its own.
+
+Scope the tests, not the rest. `just check` and `just lint` stay workspace-wide: both cost far less than the test run, and they catch the cross-crate breakage a `-p` selection hides.
+
+CI runs the full suite on Linux, macOS, and Windows for every pull request, so there is no need to reproduce it locally first. Run everything yourself when the change reaches past the crates you can name — a workspace dependency, `Cargo.lock`, `rust-toolchain.toml`, a shared crate such as `pnpm-testing-utils`, or a rename that crosses crate boundaries:
 
 ```sh
 just ready
 ```
 
-This runs `typos`, the pinned formatter, `just check` (which is `cargo check --locked --workspace --all-targets`), `just test` (which is `cargo nextest run`), and `just lint` (which is `cargo clippy --locked --workspace --all-targets -- --deny warnings`), then prints `git status`. CI runs the same commands on Linux, macOS, and Windows.
+`just ready` runs `typos`, the pinned formatter, `just check` (`cargo check --locked --workspace --all-targets`), `just test` (`cargo nextest run` over the whole workspace), and `just lint` (`cargo clippy --locked --workspace --all-targets -- --deny warnings`), then prints `git status`. These are the same commands CI runs.
+
+`just test-pacquet` and `just test-pnpr` split the suite along the product boundary when you want more than one crate but less than everything. Select every `pnpr-*` crate together rather than one alone: cargo's feature unification gives a lone crate a bare feature set, and its backend tests then silently skip.
 
 To let clippy rewrite the lints it can fix automatically, run `just fix` instead of hand-editing each warning:
 
@@ -113,7 +136,7 @@ just fix
 `just fix` runs `cargo fixit --clippy --workspace --all-targets --allow-dirty --allow-staged` (via the pinned `cargo-fixit`). It is faster than `cargo clippy --fix` on repeated runs because `cargo fixit` skips the full re-check compile between fix rounds, so iterating on a lint cleanup does not rebuild the workspace each pass. Run `just lint` afterward to confirm no warnings remain (clippy can't autofix everything).
 
 > [!IMPORTANT]
-> Run `just ready` before every commit. This rule applies to all changes, including documentation edits, comment changes, and config updates. Any change can break formatting, linting, building, or tests across the supported platforms.
+> A change that touches no Rust source — a documentation edit, a comment change, a config tweak — still needs `typos pnpm pnpr` and the formatter. It does not need the test suite.
 
 > [!NOTE]
 > Integration tests that need the local registry mock start `pnpr` automatically. After dependencies are installed, `cargo test`, `cargo nextest run`, and `just test` should not require a separate registry process.
@@ -130,7 +153,12 @@ TRACE=pnpm_tarball just cli add fastify
 
 ```sh
 just install              # install necessary dependencies
-just test                 # run tests
+just test-affected        # the crates the working tree changes
+just smoke                # one end-to-end test per area of CLI behavior
+just test                 # run every test in the workspace
+just test-pacquet         # pacquet crates only
+just test-pnpr            # pnpr crates only
+node pnpm/scripts/run-rust-tests.mjs -p pnpm-lockfile   # one crate
 ```
 
 When porting tests from the upstream `pnpm/pnpm` TypeScript repository, see

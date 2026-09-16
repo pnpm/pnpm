@@ -15,3 +15,43 @@
 # Linux/Windows and ~85s on macOS. 5 × 60s = 300s keeps ~3.5× headroom
 # over the slowest of them.
 slow-timeout = { period = "60s", terminate-after = 5 }
+
+# One end-to-end test per area of CLI behavior, for a run that finishes in
+# seconds rather than an hour. It answers "is anything grossly broken", not
+# "is this change correct": CI runs the full suite on three platforms before
+# a pull request merges.
+#
+# Membership is by behavior area, not by code coverage. Nearly every test here
+# walks the same install path, so a set chosen to maximize covered lines would
+# be a handful of install tests that miss every distinguishing case. One test
+# per command, linker mode, and lockfile policy is what makes the set catch
+# breakage the others would not.
+#
+# `pnpm/scripts/smoke-profile.test.mjs` checks that every entry still names a
+# real test: a renamed test would otherwise match nothing and pass in silence.
+[profile.smoke]
+default-filter = """
+    test(=install::should_install_dependencies)
+  + test(=add::should_add_to_package_json)
+  + test(=remove::should_remove_from_package_json)
+  + test(=update::update_bumps_within_range)
+  + test(=run::run_executes_declared_script)
+  + test(=exec::exec_passes_arguments_to_the_command)
+  + test(=dlx::dlx_installs_and_runs_packages_bin)
+  + test(=publish::dry_run_uploads_nothing)
+  + test(=link::link_succeeds_with_valid_target)
+  + test(=patch::patch_reuses_existing_exact_patch_file_by_default)
+  + test(=store::store_status_reports_an_untouched_store)
+  + test(=dedupe::dedupe_writes_lockfile)
+  + test(=outdated::outdated_reports_newer_version)
+  + test(=licenses::licenses_normalizes_metadata_and_orders_groups_by_package)
+  + test(=why::why_displays_parseable_output)
+  + test(=import::import_from_package_lock_json)
+  + test(=config_get_set::set_writes_the_setting_and_get_reads_it_back)
+  + test(=audit::audit_no_vulnerabilities_exits_successfully)
+  + test(=deploy::deploy_links_workspace_dependency_bins)
+  + test(=ci_frozen_lockfile::ci_rejects_an_outdated_lockfile_by_default)
+  + test(=hoisted_node_linker::installing_with_hoisted_node_linker)
+  + test(=global_virtual_store::using_a_global_virtual_store)
+  + test(=catalog::add_strict_catalogs_a_new_dependency)
+"""

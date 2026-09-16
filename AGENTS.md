@@ -86,9 +86,20 @@ pnpm --filter pnpm run compile
 
 This runs `tsgo --build`, linting, and `pnpm run bundle` (which bundles all TypeScript packages into `pnpm11/pnpm/dist/pnpm.mjs`). Without this step, e2e tests will use a stale bundle and your changes won't be tested.
 
-## Testing (TypeScript only)
+## Testing
 
-Never run all tests in the repository as it takes a lot of time.
+Run the selection that covers what you changed, not the whole repository: the
+full suite takes a lot of time. This applies to every product here, TypeScript
+and Rust alike. Let CI run the rest — it runs the full Rust suite on
+Linux, macOS, and Windows and the full TypeScript suite for every pull request.
+The [`testing-changes`](./.agents/skills/testing-changes/SKILL.md) skill covers
+how to derive that selection from the diff in each product, and
+[`pnpm/CONTRIBUTING.md`](./pnpm/CONTRIBUTING.md#automated-checks) has the Rust
+workspace's checks, including the one case that does call for a full local run:
+a change whose affected set cannot be named, such as the workspace manifest,
+the lockfile, or the toolchain.
+
+The rest of this section is TypeScript only.
 
 Run tests for a specific project instead:
 

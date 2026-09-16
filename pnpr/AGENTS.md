@@ -130,11 +130,23 @@ Follow the repo-wide comment baseline in [`../AGENTS.md`](../AGENTS.md#comments)
 Commit messages use Conventional Commits with `pnpr` as the scope
 (`feat(pnpr): ...`, `fix(pnpr): ...`).
 
-Run the same checks pacquet does before declaring work done:
+Run the same checks pacquet does
+([`../pnpm/CONTRIBUTING.md`](../pnpm/CONTRIBUTING.md#automated-checks)):
 
 ```sh
 just check     # cargo check --locked --workspace --all-targets
-just test      # cargo nextest run
 just lint      # cargo clippy --workspace --all-targets -- --deny warnings
 just fmt       # pinned rustfmt fork + taplo format
+just test-pnpr # the pnpr crates — the usual test selection for a pnpr change
 ```
+
+`just ready` runs the whole workspace suite. CI does that on three platforms
+for every pull request, so run it locally only when the change reaches past the
+`pnpr` crates.
+
+Select the `pnpr-*` crates together, as `just test-pnpr` does, rather than
+passing a single `-p`. Cargo unifies features across the selection, so a lone
+crate builds without the backend features `pnpr` enables by default and its
+backend tests skip without saying so. The
+[`testing-changes`](../.agents/skills/testing-changes/SKILL.md) skill has the
+rest of the selection rules.

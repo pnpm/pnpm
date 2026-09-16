@@ -69,6 +69,25 @@ test:
 sweep-test-temp:
   find "${TMPDIR:-/tmp}" -mindepth 1 -maxdepth 1 -name 'pacquet-test-*' -mmin +60 -exec rm -rf {} + 2>/dev/null || true
 
+# Selection is crate-level: a changed crate's whole test set runs, or none of
+# it. `--base <rev>` sets what the diff is taken against (default: `main`),
+# `--print` shows the selection without running it, and any other argument is
+# passed to nextest: `just test-affected -- -E 'test(catalog::)'`. A change to
+# `Cargo.lock`, the workspace manifest, or the toolchain affects every crate,
+# so the script refuses to guess a subset and points at `just ready` instead.
+
+# Breadth in seconds, where `just test-affected` gives depth on what you
+# changed. Membership is one test per area of CLI behavior; see the comment on
+# the `smoke` profile in `.config/nextest.toml`.
+
+# Run one end-to-end test per area of CLI behavior.
+smoke *args:
+  node pnpm/scripts/run-rust-tests.mjs --profile smoke {{args}}
+
+# Run the tests of the crates the working tree changes.
+test-affected *args:
+  node pnpm/scripts/test-affected.mjs {{args}}
+
 # Run pacquet package tests only.
 test-pacquet:
   node pnpm/scripts/run-rust-tests.mjs --workspace --exclude pnpm-registry-mock --exclude pnpr --exclude pnpr-auth --exclude pnpr-cargo --exclude pnpr-config --exclude pnpr-error --exclude pnpr-fixtures --exclude pnpr-oci --exclude pnpr-osv --exclude pnpr-package-name --exclude pnpr-pipeline-runs --exclude pnpr-policy --exclude pnpr-pypi --exclude pnpr-registry --exclude pnpr-route --exclude pnpr-search --exclude pnpr-shared-artifacts --exclude pnpr-storage --exclude pnpr-upstream
