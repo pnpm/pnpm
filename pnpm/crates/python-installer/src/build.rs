@@ -252,10 +252,8 @@ impl PythonPrepare<'_> {
         self.install_requirements::<Reporter>(&requires).await.map(BuildEnvironment::Ready)
     }
 
-    /// An environment holding exactly these requirements, built once per
-    /// run. Every project declaring one backend needs the same
-    /// environment, and resolving and installing it again for each would
-    /// be most of what a workspace's install does.
+    /// An environment holding exactly these requirements. Top-level builds
+    /// share ready environments across projects.
     ///
     /// One environment belongs to the interpreter that installed it: a
     /// backend runs in the interpreter it was installed for, and what it
@@ -265,27 +263,38 @@ impl PythonPrepare<'_> {
         requires: &[pep508_rs::Requirement],
     ) -> Result<Arc<tempfile::TempDir>> {
         let key = self.build_environment_key(requires);
-        {
-            let mut environments = self.build_environments.lock().await;
-            match environments.get(&key) {
-                Some(Some(environment)) => return Ok(Arc::clone(environment)),
-                Some(None) => bail!("cyclic Python build requirements: {}", key.1),
-                None => {
-                    environments.insert(key.clone(), None);
-                }
-            }
+        if self.state.building.contains(&key) {
+            bail!("cyclic Python build requirements: {}", key.1);
         }
-        let result = self.install_build_requirements::<Reporter>(requires).await;
-        let mut environments = self.build_environments.lock().await;
-        match &result {
-            Ok(root) => {
-                environments.insert(key, Some(Arc::clone(root)));
-            }
-            Err(_) => {
-                environments.remove(&key);
-            }
+        // Nested builds must not wait on a sibling's backend chain, which may
+        // in turn need the environment this chain is currently preparing.
+        if !self.state.building.is_empty() {
+            return self.install_nested_requirements::<Reporter>(requires, key).await;
         }
-        result
+        let entry = Arc::clone(
+            self.state.caches.build_environments
+                .lock()
+                .await
+                .entry(key.clone())
+                .or_default(),
+        );
+        let mut environment = entry.lock().await;
+        if let Some(root) = environment.as_ref() {
+            return Ok(Arc::clone(root));
+        }
+        let root = self.install_nested_requirements::<Reporter>(requires, key).await?;
+        *environment = Some(Arc::clone(&root));
+        Ok(root)
+    }
+
+    async fn install_nested_requirements<Reporter: pnpm_reporter::Reporter + 'static>(
+        &self,
+        requires: &[pep508_rs::Requirement],
+        key: super::environment::BuildEnvironmentKey,
+    ) -> Result<Arc<tempfile::TempDir>> {
+        let mut prepare = self.clone();
+        prepare.state.building.insert(key);
+        prepare.install_build_requirements::<Reporter>(requires).await
     }
 
     fn build_environment_key(

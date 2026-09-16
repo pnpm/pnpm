@@ -1578,6 +1578,7 @@ async fn locks_one_environment_per_platform_however_it_is_named() {
 
 mod indexes;
 mod metadata;
+mod resolution;
 mod selection;
 
 mod sources;

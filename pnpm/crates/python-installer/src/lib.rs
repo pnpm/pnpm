@@ -10,8 +10,10 @@ mod host;
 mod interpreter;
 mod lockfile;
 mod manifest;
+mod projects;
 mod registry;
 mod requirements;
+mod resolutions;
 mod resolver;
 mod settings;
 mod sources;
@@ -111,9 +113,9 @@ async fn prepare<Reporter: self::Reporter + 'static>(
         store: environment::ArtifactStore { index: store_index, writer: &writer },
         asked: environment::Asked { resolve, selection },
         members: workspace.scopes().clone(),
-        build_environments: tokio::sync::Mutex::default(),
+        caches: environment::Caches::default(),
     };
-    let result = prepare_projects::<Reporter>(&shared, workspace, roots).await;
+    let result = projects::prepare::<Reporter>(&shared, workspace, roots).await;
     drop(writer);
     writer_task.await
         .into_diagnostic()
@@ -121,37 +123,6 @@ async fn prepare<Reporter: self::Reporter + 'static>(
         .into_diagnostic()
         .wrap_err("flush Python artifact store index")?;
     result
-}
-
-async fn prepare_projects<Reporter: self::Reporter + 'static>(
-    shared: &Shared<'_>,
-    mut workspace: workspace::Workspace,
-    mut discovered: Vec<(PathBuf, Arc<manifest::Manifest>)>,
-) -> Result<Vec<Prepared>> {
-    let config = shared.context.config;
-    let mut interpreters = Interpreters::new(config);
-    let mut selected =
-        shared.prepare_metadata::<Reporter>(&mut discovered, &mut interpreters).await?;
-    workspace.update_manifests(&discovered);
-    let mut prepared = Vec::new();
-    for (root, manifest) in discovered {
-        if manifest.project.is_none() {
-            continue;
-        }
-        let interpreter = match selected.remove(&root) {
-            Some(interpreter) => interpreter,
-            None => interpreters.select::<Reporter>(&root, &manifest).await?,
-        };
-        let environments = Environments::of(config, &interpreter)?;
-        workspace.for_resolution(config, &environments);
-        let local = Arc::from(workspace.local_projects(&root, &manifest, &root)?);
-        prepared.push(
-            PythonPrepare::for_project(shared, &interpreter, &environments)
-                .project::<Reporter>(root, manifest, local, &workspace)
-                .await?,
-        );
-    }
-    Ok(prepared)
 }
 
 /// Every `pyproject.toml` among `manifests`, parsed. One without a
@@ -227,14 +198,13 @@ impl PythonPrepare<'_> {
         root: PathBuf,
         manifest: Arc<manifest::Manifest>,
         local: Arc<[workspace::LocalProject]>,
-        workspace: &workspace::Workspace,
+        requirements: projects::Requirements,
     ) -> Result<Prepared> {
         let project = manifest.project.as_ref().expect("only project manifests were selected");
         self.check_requires_python(&root, project.requires_python.as_deref())?;
-        let requirements = manifest.selected_requirements(self.context.config)?;
-        let all_requirements = workspace.requirements(&root, &manifest, requirements.all.clone())?;
-        let rules = workspace.resolution_manifest(&root, &manifest);
-        let (mut registry, inputs) = self.configured_registry(&all_requirements, &rules)?;
+        let all_requirements = requirements.all;
+        let (mut registry, inputs) =
+            self.configured_registry(&all_requirements, &requirements.rules)?;
         workspace::offer(&mut registry.resolution.packages, &local);
         let lock_path = root.join("pylock.toml");
         let lock = self.project_lock::<Reporter>(
@@ -253,11 +223,7 @@ impl PythonPrepare<'_> {
             &mut registry,
             EnvironmentProject { root: &root, manifest: &manifest, local: &local },
             &lock,
-            &workspace.requirements(
-                &root,
-                &manifest,
-                requirements.selected(self.asked.selection).to_vec(),
-            )?,
+            &requirements.selected,
         )
         .await?;
         Ok(Prepared {
@@ -280,7 +246,7 @@ impl PythonPrepare<'_> {
             &inputs.local,
         )
         .await?;
-        self.lockfile::<Reporter>(registry, inputs).await
+        self.shared_lockfile::<Reporter>(registry, inputs).await
     }
 
     fn registry(&self) -> Registry<'_> {
