@@ -75,9 +75,14 @@ fn unified_dependencies(
     versions: &[RegistryVersion],
 ) -> Result<Vec<RegistryDependency>> {
     let mut reached = Vec::new();
+    let selection = dependency.feature_selection();
     for (compatibility, _) in matching_lines(versions, &dependency.requirement) {
+        // Only what this dependency could settle on: a version missing a
+        // feature it asks for is not one it can select, even though another
+        // dependency on the same line may select it.
         let selectable = matching_versions(versions, &dependency.requirement)
             .filter(|version| compatibility_line(&version.version) == compatibility)
+            .filter(|version| supports_features(version, &selection))
             .map(|version| version.version.clone())
             .collect::<BTreeSet<_>>();
         let package = PackageKey::Registry { name: dependency.name.clone(), compatibility };
@@ -88,10 +93,12 @@ fn unified_dependencies(
         let unwalked = &selectable - &entry.versions;
         entry.versions.extend(selectable);
         let walk = if entry.selection == previous { unwalked } else { entry.versions.clone() };
+        // The features of every dependency reaching the line, because one
+        // may turn on a weak feature of another's. A version that has none
+        // of them simply activates nothing extra.
         for version in versions
             .iter()
             .filter(|version| walk.contains(&version.version))
-            .filter(|version| supports_features(version, &entry.selection))
         {
             reached.extend(active_dependencies(version, &entry.selection)?);
         }

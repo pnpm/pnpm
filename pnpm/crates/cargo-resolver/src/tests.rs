@@ -940,8 +940,8 @@ fn selects_the_older_line_when_the_newer_lacks_a_requested_feature() {
     );
 }
 
-/// Each line supports one of the two features, so the requirements asking
-/// for them settle on a line each rather than ruling both lines out.
+/// No line supports both features, so one shared choice would rule both
+/// lines out.
 #[test]
 fn lets_requirements_asking_for_different_features_take_different_lines() {
     const METADATA: &str = r#"{
@@ -988,4 +988,48 @@ fn lets_requirements_asking_for_different_features_take_different_lines() {
         .map(|package| package.version.to_string())
         .collect::<Vec<_>>();
     assert_eq!(selected, ["1.0.0", "2.0.0"]);
+}
+
+/// `read` and `write` activate a crate each, on a different line each, so
+/// a line walked only under the features of both would reach neither.
+#[test]
+fn fetches_what_each_requirement_activates_on_its_own_line() {
+    const METADATA: &str = r#"{
+  "packages": [
+    {
+      "id": "path+file:///workspace#reads@0.1.0",
+      "name": "reads",
+      "version": "0.1.0",
+      "dependencies": [{
+        "name": "foo",
+        "source": "registry+https://github.com/rust-lang/crates.io-index",
+        "req": ">=1, <3",
+        "features": ["read"]
+      }]
+    },
+    {
+      "id": "path+file:///workspace#writes@0.1.0",
+      "name": "writes",
+      "version": "0.1.0",
+      "dependencies": [{
+        "name": "foo",
+        "source": "registry+https://github.com/rust-lang/crates.io-index",
+        "req": ">=1, <3",
+        "features": ["write"]
+      }]
+    }
+  ],
+  "workspace_members": [
+    "path+file:///workspace#reads@0.1.0",
+    "path+file:///workspace#writes@0.1.0"
+  ]
+}"#;
+    let foo_index = r#"{"name":"foo","vers":"1.0.0","deps":[{"name":"reader","req":"^1","features":[],"optional":true,"default_features":true,"target":null,"kind":"normal","registry":null}],"cksum":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","features":{"read":["dep:reader"]},"yanked":false}
+{"name":"foo","vers":"2.0.0","deps":[{"name":"writer","req":"^1","features":[],"optional":true,"default_features":true,"target":null,"kind":"normal","registry":null}],"cksum":"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb","features":{"write":["dep:writer"]},"yanked":false}"#;
+    let files = BTreeMap::from([("foo".to_string(), foo_index.to_string())]);
+
+    assert_eq!(
+        missing_index_names(METADATA, &files, CRATES_IO_SOURCE).unwrap(),
+        ["reader", "writer"],
+    );
 }
