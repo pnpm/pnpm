@@ -79,7 +79,7 @@ impl PythonPrepare<'_> {
             resolver::resolve_all::<Reporter>(registry, requirements, &self.environments.list)
                 .await?;
         Lockfile::merged(
-            &registry.packages.metadata,
+            &registry.resolution.packages.metadata,
             requirements,
             &solved,
             inputs,
@@ -103,7 +103,7 @@ impl PythonPrepare<'_> {
             self.context.config,
             requirements,
             &self.interpreter.target,
-            self.index.as_str(),
+            self.index.url.as_str(),
             requires_python,
         )
         .await
@@ -126,9 +126,9 @@ impl PythonPrepare<'_> {
             same_target,
         }: LockfileReplay<'_>,
     ) -> Result<Option<Lockfile>> {
-        lock.seed(&mut registry.packages, &self.interpreter.target)?;
+        lock.seed(&mut registry.resolution.packages, &self.interpreter.target)?;
         let replayed = match registry.fetch_wheels::<Reporter>().await {
-            Ok(()) => resolver::validate_locked(registry, requirements),
+            Ok(()) => resolver::validate_locked(&registry.resolution, requirements),
             Err(error) if same_target => return Err(error),
             Err(error) => Err(error),
         };
@@ -142,7 +142,7 @@ impl PythonPrepare<'_> {
             level: LogLevel::Warn,
             message: format!("Ignoring Python lockfile {}: {error}", lock_path.display()),
         }));
-        registry.packages = pnpm_python_resolver::Packages::new();
+        registry.resolution.packages = pnpm_python_resolver::Packages::new();
         Ok(None)
     }
 
@@ -154,9 +154,9 @@ impl PythonPrepare<'_> {
         lock: Lockfile,
         requirements: &[pep508_rs::Requirement],
     ) -> Result<Lockfile> {
-        lock.seed(&mut registry.packages, &self.interpreter.target)?;
+        lock.seed(&mut registry.resolution.packages, &self.interpreter.target)?;
         registry.fetch_wheels::<Reporter>().await?;
-        resolver::validate_locked(registry, requirements)?;
+        resolver::validate_locked(&registry.resolution, requirements)?;
         Ok(lock)
     }
 }

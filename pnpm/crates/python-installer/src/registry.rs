@@ -1,10 +1,10 @@
-use super::{host, host::Interpreter, host::Wheel, host::WheelMetadata};
+use super::{Index, host, host::Interpreter, host::Wheel, host::WheelMetadata};
 use futures_util::{StreamExt, stream};
 use miette::{IntoDiagnostic, Result, WrapErr, bail};
 use pep440_rs::Version;
 use pep508_rs::PackageName;
 use pnpm_config::Config;
-use pnpm_network::{AuthHeaders, ThrottledClient};
+use pnpm_network::ThrottledClient;
 use pnpm_python_resolver::{Packages, Target, candidates_from_page};
 use pnpm_reporter::Reporter;
 use pnpm_tarball::{ArchiveStoreProjection, IngestZipArchiveToStore};
@@ -25,33 +25,57 @@ pub(super) struct CachedIndex {
 pub(super) struct Registry<'a> {
     pub(super) config: &'static Config,
     pub(super) client: &'a ThrottledClient,
-    pub(super) auth: AuthHeaders,
-    pub(super) index: Url,
+    pub(super) index: &'a Index,
     pub(super) interpreter: &'a Interpreter,
-    /// The environment the registry is answering for: the one being
-    /// resolved while a lockfile is written, and the interpreter running
-    /// the install while its environment is built.
-    pub(super) target: Target,
     pub(super) store: pnpm_tarball::ArchiveStoreContext<'a>,
-    /// What resolution reads: the candidates each distribution offers and
-    /// the metadata of the wheels it has looked at.
-    pub(super) packages: Packages,
-    /// The index pages read so far, kept only while a project locks for
-    /// several environments: each page is then read once and offers every
-    /// environment the candidates it takes from it.
-    pub(super) pages: BTreeMap<PackageName, CachedIndex>,
-    pub(super) keep_pages: bool,
+    pub(super) resolution: Resolution,
     /// What installing reads: the store paths of every wheel downloaded so
     /// far, beside the interpreter's full report on it.
     pub(super) wheels: BTreeMap<(PackageName, Version), Wheel>,
 }
 
-impl Registry<'_> {
-    pub(super) async fn fetch_index(&mut self, name: &PackageName) -> Result<()> {
-        let page = match self.pages.remove(name) {
-            Some(page) => page,
-            None => self.read_index(name).await?,
-        };
+/// What a resolution reads and what it is answering for: the environment
+/// being resolved, the candidates and metadata gathered for it, and the
+/// index pages they were taken from.
+pub(super) struct Resolution {
+    /// The environment the registry is answering for: the one being
+    /// resolved while a lockfile is written, and the interpreter running
+    /// the install while its environment is built.
+    pub(super) target: Target,
+    /// The candidates each distribution offers this environment, and the
+    /// metadata of the wheels the resolution has looked at.
+    pub(super) packages: Packages,
+    /// The index pages read so far, kept only while a project locks for
+    /// several environments: each page is then read once and offers every
+    /// environment the candidates it takes from it.
+    pages: BTreeMap<PackageName, CachedIndex>,
+    keep_pages: bool,
+}
+
+impl Resolution {
+    pub(super) fn new(target: Target, environments: usize) -> Self {
+        Self {
+            target,
+            packages: Packages::new(),
+            pages: BTreeMap::new(),
+            keep_pages: environments > 1,
+        }
+    }
+
+    /// Answer for another environment, which takes its own candidates
+    /// from the pages already read.
+    pub(super) fn answer_for(&mut self, target: Target) {
+        self.target = target;
+        self.packages.candidates.clear();
+    }
+
+    /// Release the pages once every environment has been answered for.
+    pub(super) fn forget_pages(&mut self) {
+        self.pages.clear();
+    }
+
+    /// Offer this environment the candidates an index page holds.
+    fn offer(&mut self, name: &PackageName, page: CachedIndex) -> Result<()> {
         let candidates = candidates_from_page(page.body.get(), &page.url, name, &self.target)?;
         if self.keep_pages {
             self.pages.insert(name.clone(), page);
@@ -59,11 +83,21 @@ impl Registry<'_> {
         self.packages.candidates.insert(name.clone(), candidates);
         Ok(())
     }
+}
+
+impl Registry<'_> {
+    pub(super) async fn fetch_index(&mut self, name: &PackageName) -> Result<()> {
+        let page = match self.resolution.pages.remove(name) {
+            Some(page) => page,
+            None => self.read_index(name).await?,
+        };
+        self.resolution.offer(name, page)
+    }
 
     /// The Simple JSON index page for `name`, from the network or, for an
     /// offline resolution, from the cache an earlier run left behind.
     async fn read_index(&self, name: &PackageName) -> Result<CachedIndex> {
-        let index_url = self.index
+        let index_url = self.index.url
             .join(&format!("{name}/"))
             .into_diagnostic()?;
         let cache = self.config.cache_dir
@@ -95,7 +129,7 @@ impl Registry<'_> {
         let response = self.client
             .get_limited_bytes_with_secure_auth_and_retry(
                 index_url.as_str(),
-                &self.auth,
+                &self.index.auth,
                 Some("application/vnd.pypi.simple.v1+json"),
                 self.config.retry_opts(),
                 MAX_INDEX_BYTES,
@@ -134,7 +168,7 @@ impl Registry<'_> {
         // The stream owns what it walks: a borrowed iterator would have to be
         // `Send` for every lifetime to keep preparation `Send`.
         let mut wanted = Vec::new();
-        for (name, versions) in &self.packages.candidates {
+        for (name, versions) in &self.resolution.packages.candidates {
             for (version, candidate) in versions {
                 let downloaded = self.wheels.get(&(name.clone(), version.clone()));
                 if downloaded.is_none_or(|wheel| {
@@ -165,7 +199,7 @@ impl Registry<'_> {
     /// Keep a downloaded wheel for both readers: the interpreter's full
     /// report for installing it, and the subset resolution reads.
     fn remember(&mut self, name: PackageName, version: Version, wheel: Wheel) {
-        self.packages.metadata.insert(
+        self.resolution.packages.metadata.insert(
             (name.clone(), version.clone()),
             pnpm_python_resolver::WheelMetadata {
                 name: wheel.metadata.name.clone(),
@@ -183,14 +217,14 @@ impl Registry<'_> {
         name: &PackageName,
         version: &Version,
     ) -> Result<Wheel> {
-        let wheel = &self.packages.candidates[name][version].wheel;
-        validate_wheel_identity(wheel, &self.target.tags, name, version)?;
+        let wheel = &self.resolution.packages.candidates[name][version].wheel;
+        validate_wheel_identity(wheel, &self.resolution.target.tags, name, version)?;
         let integrity = wheel.integrity()?;
         let package_id = format!("python:{}", wheel.name);
         let files = IngestZipArchiveToStore {
             fetching: pnpm_tarball::ArchiveFetchOptions {
                 http_client: self.client,
-                auth_headers: &self.auth,
+                auth_headers: &self.index.auth,
                 retry_opts: self.config.retry_opts(),
                 offline: self.config.offline,
             },

@@ -1,4 +1,7 @@
-use super::{registry::Registry, targets::Environment};
+use super::{
+    registry::{Registry, Resolution},
+    targets::Environment,
+};
 use miette::Result;
 use pep440_rs::Version;
 use pep508_rs::{PackageName, Requirement};
@@ -20,18 +23,17 @@ pub(super) async fn resolve_all<Reporter: InstallReporter + 'static>(
 ) -> Result<Vec<Solved>> {
     let mut solved = Vec::new();
     for environment in environments {
-        registry.target = environment.target.clone();
-        registry.packages.candidates.clear();
+        registry.resolution.answer_for(environment.target.clone());
         let solution = resolve::<Reporter>(registry, requirements).await?;
         solved.push(Solved::new(
             environment.target.clone(),
             solution,
-            &registry.packages,
+            &registry.resolution.packages,
             environment.declared.clone(),
         )?);
     }
-    registry.target = registry.interpreter.target.clone();
-    registry.pages.clear();
+    registry.resolution.answer_for(registry.interpreter.target.clone());
+    registry.resolution.forget_pages();
     Ok(solved)
 }
 
@@ -43,8 +45,9 @@ pub(super) async fn resolve<Reporter: InstallReporter + 'static>(
     requirements: &[Requirement],
 ) -> Result<BTreeMap<PackageName, Version>> {
     loop {
-        let environment = registry.target.environment.clone();
-        match pnpm_python_resolver::step(&registry.packages, requirements, &environment)? {
+        let environment = registry.resolution.target.environment.clone();
+        match pnpm_python_resolver::step(&registry.resolution.packages, requirements, &environment)?
+        {
             Step::Solved(solution) => return Ok(solution),
             Step::NeedCandidates(name) => registry.fetch_index(&name).await?,
             Step::NeedMetadata(name, version) => {
@@ -55,21 +58,21 @@ pub(super) async fn resolve<Reporter: InstallReporter + 'static>(
     }
 }
 
-pub(super) fn validate_locked(registry: &Registry<'_>, requirements: &[Requirement]) -> Result<()> {
+pub(super) fn validate_locked(resolution: &Resolution, requirements: &[Requirement]) -> Result<()> {
     pnpm_python_resolver::validate_locked(
-        &registry.packages,
+        &resolution.packages,
         requirements,
-        &registry.target.environment,
+        &resolution.target.environment,
     )
 }
 
 pub(super) fn locked_solution(
-    registry: &Registry<'_>,
+    resolution: &Resolution,
     requirements: &[Requirement],
 ) -> Result<BTreeMap<PackageName, Version>> {
     pnpm_python_resolver::locked_solution(
-        &registry.packages,
+        &resolution.packages,
         requirements,
-        &registry.target.environment,
+        &resolution.target.environment,
     )
 }

@@ -77,7 +77,7 @@ async fn prepare<Reporter: self::Reporter + 'static>(
     let interpreter: Interpreter =
         host::run(&config.python.executable, "probe", targets::probe_request(config)).await?;
     let environments = Environments::of(config, &interpreter)?;
-    let (index, auth) = python_index(config)?;
+    let index = python_index(config)?;
     config.store_dir.init().into_diagnostic()?;
     let store_index = StoreIndex::shared_for(&config.store_dir, config.frozen_store);
     let (writer, writer_task) = StoreIndexWriter::spawn_for(&config.store_dir, config.frozen_store);
@@ -86,7 +86,6 @@ async fn prepare<Reporter: self::Reporter + 'static>(
         interpreter: &interpreter,
         environments: &environments,
         index: &index,
-        auth: &auth,
         store_index,
         writer: &writer,
         resolve,
@@ -136,10 +135,17 @@ async fn read_project_manifests(
     Ok(roots)
 }
 
+/// The Python index a project resolves against, and the credentials
+/// configured for it.
+pub(crate) struct Index {
+    pub(crate) url: url::Url,
+    pub(crate) auth: pnpm_network::AuthHeaders,
+}
+
 /// The configured Python index, with any credentials it carries lifted out
 /// of the URL. A repository-selected Python index must not select
 /// user-level npm credentials.
-fn python_index(config: &pnpm_config::Config) -> Result<(url::Url, pnpm_network::AuthHeaders)> {
+fn python_index(config: &pnpm_config::Config) -> Result<Index> {
     let mut index: url::Url = config.python.index_url.parse().into_diagnostic()?;
     let mut auth = pnpm_network::AuthHeaders::default().with_secure_transport();
     if !index.username().is_empty() || index.password().is_some() {
@@ -160,7 +166,7 @@ fn python_index(config: &pnpm_config::Config) -> Result<(url::Url, pnpm_network:
     if !index.path().ends_with('/') {
         index.set_path(&format!("{}/", index.path()));
     }
-    Ok((index, auth))
+    Ok(Index { url: index, auth })
 }
 
 impl PythonPrepare<'_> {
@@ -217,10 +223,10 @@ impl PythonPrepare<'_> {
                 requirements,
                 &settings.platforms,
                 &settings.python_versions,
-                self.index.as_str(),
+                self.index.url.as_str(),
             )
         } else {
-            Inputs::new(requirements, &self.interpreter.target, self.index.as_str())
+            Inputs::new(requirements, &self.interpreter.target, self.index.url.as_str())
         }
     }
 
@@ -228,12 +234,12 @@ impl PythonPrepare<'_> {
         Registry {
             config: self.context.config,
             client: &self.context.http_client,
-            auth: self.auth.clone(),
-            index: self.index.clone(),
+            index: self.index,
             interpreter: self.interpreter,
-            target: self.interpreter.target.clone(),
-            pages: BTreeMap::new(),
-            keep_pages: self.environments.list.len() > 1,
+            resolution: registry::Resolution::new(
+                self.interpreter.target.clone(),
+                self.environments.list.len(),
+            ),
             store: pnpm_tarball::ArchiveStoreContext {
                 dir: &self.context.config.store_dir,
                 index: self.store_index.clone(),
@@ -243,7 +249,6 @@ impl PythonPrepare<'_> {
                 verified_files_cache: Arc::default(),
                 prefetched_cas_paths: None,
             },
-            packages: pnpm_python_resolver::Packages::new(),
             wheels: BTreeMap::new(),
         }
     }
@@ -261,7 +266,7 @@ impl PythonPrepare<'_> {
             if !specifiers.contains(version) {
                 bail!(
                     "{} requires Python {specifiers}, but {version} was selected",
-                    root.display()
+                    root.display(),
                 );
             }
         }
@@ -293,10 +298,10 @@ impl PythonPrepare<'_> {
             .prefix("env-")
             .tempdir_in(&generations)
             .into_diagnostic()?;
-        registry.packages.candidates.clear();
-        lock.seed(&mut registry.packages, &self.interpreter.target)?;
+        registry.resolution.answer_for(self.interpreter.target.clone());
+        lock.seed(&mut registry.resolution.packages, &self.interpreter.target)?;
         registry.fetch_wheels::<Reporter>().await?;
-        let selected = resolver::locked_solution(registry, selected_requirements)?;
+        let selected = resolver::locked_solution(&registry.resolution, selected_requirements)?;
         let wheels = selected
             .into_iter()
             .map(|package| &registry.wheels[&package])
