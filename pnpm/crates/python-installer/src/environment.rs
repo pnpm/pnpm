@@ -17,10 +17,16 @@ pub(super) struct Shared<'a> {
     /// requirement naming one of them is refused rather than taken from
     /// the index, wherever the backend asked for it.
     pub(super) members: BTreeMap<std::path::PathBuf, BTreeSet<pep508_rs::PackageName>>,
+    pub(super) caches: Caches,
+}
+
+#[derive(Default)]
+pub(super) struct Caches {
     /// The environments backends have already been installed into. Every
     /// project using one backend needs the same environment, and a
     /// workspace is mostly one backend.
     pub(super) build_environments: BuildEnvironments,
+    pub(super) resolutions: super::resolutions::Resolutions,
 }
 
 /// A backend environment belongs to the interpreter that installed it and
@@ -28,12 +34,15 @@ pub(super) struct Shared<'a> {
 /// installed for, and what it compiles is built for that one.
 pub(super) type BuildEnvironmentKey = (String, String);
 
+type BuildEnvironmentEntry = Arc<tokio::sync::Mutex<Option<Arc<tempfile::TempDir>>>>;
+
 pub(super) type BuildEnvironments =
-    tokio::sync::Mutex<BTreeMap<BuildEnvironmentKey, Option<Arc<tempfile::TempDir>>>>;
+    tokio::sync::Mutex<BTreeMap<BuildEnvironmentKey, BuildEnvironmentEntry>>;
 
 /// What preparing one project needs: what the run shares, plus the
 /// interpreter that installs this project and the environments it is
 /// locked for.
+#[derive(Clone)]
 pub(super) struct PythonPrepare<'a> {
     pub(super) context: &'a InstallOptions,
     pub(super) interpreter: &'a Interpreter,
@@ -42,7 +51,13 @@ pub(super) struct PythonPrepare<'a> {
     pub(super) store: ArtifactStore<'a>,
     pub(super) asked: Asked,
     pub(super) members: &'a BTreeMap<std::path::PathBuf, BTreeSet<pep508_rs::PackageName>>,
-    pub(super) build_environments: &'a BuildEnvironments,
+    pub(super) state: PreparationState<'a>,
+}
+
+#[derive(Clone)]
+pub(super) struct PreparationState<'a> {
+    pub(super) caches: &'a Caches,
+    pub(super) building: BTreeSet<BuildEnvironmentKey>,
 }
 
 impl<'a> PythonPrepare<'a> {
@@ -59,7 +74,7 @@ impl<'a> PythonPrepare<'a> {
             store: ArtifactStore { index: shared.store.index.clone(), writer: shared.store.writer },
             asked: shared.asked,
             members: &shared.members,
-            build_environments: &shared.build_environments,
+            state: PreparationState { caches: &shared.caches, building: BTreeSet::new() },
         }
     }
 }
@@ -73,6 +88,7 @@ pub(super) struct Asked {
 }
 
 /// The store a run reads verified artifacts from and writes them to.
+#[derive(Clone)]
 pub(super) struct ArtifactStore<'a> {
     pub(super) index: Option<pnpm_store_dir::SharedReadonlyStoreIndex>,
     pub(super) writer: &'a Arc<StoreIndexWriter>,

@@ -174,7 +174,7 @@ impl PythonPrepare<'_> {
 
     /// Fetch the wheels a ready-made lockfile pins and check that it still
     /// covers the project's requirements.
-    async fn accept_lockfile<Reporter: self::Reporter + 'static>(
+    pub(super) async fn accept_lockfile<Reporter: self::Reporter + 'static>(
         &self,
         registry: &mut Registry<'_>,
         lock: Lockfile,

@@ -477,6 +477,51 @@ async fn git_projects_without_a_pyproject_use_the_legacy_backend() {
 }
 
 #[tokio::test]
+async fn nested_git_builds_reuse_completed_backend_environments() {
+    let root = tempfile::tempdir().unwrap();
+    let first = tempfile::tempdir().unwrap();
+    let second = tempfile::tempdir().unwrap();
+    let (first_url, first_commit) = repository(first.path());
+    let (second_url, _) = repository(second.path());
+    python_project(second.path(), "otherfork", "dependencies = []");
+    git(second.path(), &["add", "."]);
+    git(
+        second.path(),
+        &[
+            "-c",
+            "user.name=Test",
+            "-c",
+            "user.email=test@example.invalid",
+            "commit",
+            "-m",
+            "rename",
+        ],
+    );
+    let second_commit = git(second.path(), &["rev-parse", "HEAD"]);
+    let mut server = mockito::Server::new_async().await;
+    let mut backends = serve_backends(&mut server).await;
+    let index = backends.pop().unwrap().expect(2);
+    project(root.path(), &server.url(), &[]);
+    approve(root.path(), "fork");
+    approve(root.path(), "otherfork");
+    python_project(root.path(), "app", "dependencies = []");
+    let manifest = fs::read_to_string(root.path().join("pyproject.toml")).unwrap();
+    fs::write(root.path().join("pyproject.toml"), manifest.replace(
+        "requires = ['tinybackend']",
+        &format!("requires = ['tinybackend', 'fork @ git+{first_url}@{first_commit}', 'otherfork @ git+{second_url}@{second_commit}']"),
+    )).unwrap();
+    pacquet_in(root.path())
+        .arg("install")
+        .assert()
+        .success();
+    python(root.path())
+        .args(["-c", "import app"])
+        .assert()
+        .success();
+    index.assert_async().await;
+}
+
+#[tokio::test]
 async fn cyclic_git_build_requirements_fail_without_hanging() {
     let root = tempfile::tempdir().unwrap();
     let repo = tempfile::tempdir().unwrap();
