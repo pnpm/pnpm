@@ -1,5 +1,4 @@
 use super::{Inputs, Registry, environment::PythonPrepare, manifest};
-use base64::{Engine as _, engine::general_purpose::STANDARD};
 use derive_more::{Display, Error};
 use pnpm_diagnostics::miette::{Diagnostic, IntoDiagnostic, Result};
 use std::{collections::HashMap, sync::Arc};
@@ -96,7 +95,7 @@ fn parse_index(configured: &str) -> Result<ConfiguredIndex> {
         index
             .set_password(None)
             .map_err(|()| miette::miette!("invalid Python index URL"))?;
-        Some(format!("Basic {}", STANDARD.encode(format!("{username}:{password}"))))
+        Some(format!("Basic {}", pnpm_network::base64_encode(&format!("{username}:{password}"))))
     } else {
         None
     };

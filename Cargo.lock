@@ -5835,7 +5835,6 @@ dependencies = [
 name = "pnpm-python-installer"
 version = "0.0.1"
 dependencies = [
- "base64 0.23.1",
  "derive_more",
  "dunce",
  "futures-util",
