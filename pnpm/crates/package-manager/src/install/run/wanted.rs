@@ -88,7 +88,7 @@ pub(super) async fn settle_wanted_lockfile<'a: 'w, 'w, Reporter: self::Reporter 
     selection: Option<&crate::WorkspaceInstallSelection<'_>>,
 ) -> Result<Lockfiles<'w>, InstallError> {
     let mut lockfiles = Lockfiles::new(
-        loaded.lockfile,
+        loaded.wanted.lockfile,
         &workspace.dirs.workspace_root,
         project_manifests,
         selection,
@@ -103,7 +103,7 @@ pub(super) async fn settle_wanted_lockfile<'a: 'w, 'w, Reporter: self::Reporter 
     )
     .await;
     reconcile_branch_lockfile(&mut lockfiles, loaded, install.context.config);
-    if may_fast_update_lockfile(install, mode.prefer_frozen_lockfile) {
+    if may_fast_update_lockfile(install, mode.prefer_frozen_lockfile, loaded.wanted.had_conflicts) {
         lockfiles.wanted.fast_updated =
             try_fast_update_lockfile::<Reporter>(FastUpdateLockfileOptions {
                 lockfile: lockfiles.wanted.get(),
@@ -131,7 +131,7 @@ pub(super) fn reconcile_branch_lockfile(
     loaded: &Loaded<'_>,
     config: &Config,
 ) {
-    lockfiles.wanted.merged_branch = loaded.pre_merge_importers
+    lockfiles.wanted.merged_branch = loaded.wanted.pre_merge_importers
         .zip(lockfiles.wanted.get())
         .and_then(|(pre_merge_importers, lockfile)| {
             prune_merged_branch_lockfile(
@@ -154,7 +154,7 @@ pub(super) async fn synthesize_wanted(
     synthesize_lockfile_from_current(
         loaded.current.as_ref(),
         SynthesizeScope {
-            lockfile_is_absent: loaded.lockfile.is_none(),
+            lockfile_is_absent: loaded.wanted.lockfile.is_none(),
             frozen_lockfile: install.lockfile_policy.frozen,
             prefer_frozen_lockfile: mode.prefer_frozen_lockfile,
             freshness: LockfileFreshnessInputs {
@@ -195,11 +195,17 @@ pub(super) async fn synthesize_lockfile_from_current(
     }
     check_lockfile_freshness(current, &scope.freshness).await.ok().map(|()| current.clone())
 }
+/// A lockfile whose Git conflict markers were merged away has to be
+/// written back, and only a resolution writes it, so the fast update is
+/// off the table for it — as it is for every other input the update
+/// cannot account for.
 pub(super) fn may_fast_update_lockfile(
     install: InstallView<'_>,
     prefer_frozen_lockfile: bool,
+    lockfile_had_conflicts: bool,
 ) -> bool {
-    !install.lockfile_policy.frozen
+    !lockfile_had_conflicts
+        && !install.lockfile_policy.frozen
         && !install.execution.dry_run
         && prefer_frozen_lockfile
         && install.execution.mutation.may_fast_update_lockfile()

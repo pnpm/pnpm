@@ -1,7 +1,8 @@
 use super::{
-    AddMockedRegistry, CommandExtra, CommandTempCwd, IS_POSITIVE_PATCH, Path, configure_pnpr_auth,
-    fs, get_all_files, is_symlink_or_junction, pacquet_at, point_npmrc_registry_at,
-    read_workspace_lockfile, start_pnpr, text_block_fnl, workspace_importer_version,
+    AddMockedRegistry, CONFLICTED_DEPENDENCY, CommandExtra, CommandTempCwd, IS_POSITIVE_PATCH,
+    Path, assert_merged_conflicted_lockfile, configure_pnpr_auth, fs, get_all_files,
+    is_symlink_or_junction, pacquet_at, point_npmrc_registry_at, read_workspace_lockfile,
+    start_pnpr, write_conflicted_lockfile_fixture,
 };
 use assert_cmd::assert::OutputAssertExt;
 
@@ -51,15 +52,7 @@ fn install_via_pnpr_links_node_modules() {
 }
 
 #[test]
-fn install_via_pnpr_replaces_a_conflicted_lockfile() {
-    const CONFLICTED_LOCKFILE: &str = text_block_fnl! {
-        "<<<<<<< HEAD"
-        "lockfileVersion: '9.0'"
-        "======="
-        "lockfileVersion: '9.0'"
-        ">>>>>>> branch"
-    };
-
+fn install_via_pnpr_merges_a_conflicted_lockfile() {
     let CommandTempCwd {
         pacquet,
         root,
@@ -71,33 +64,32 @@ fn install_via_pnpr_replaces_a_conflicted_lockfile() {
     let (pnpr_url, token) = start_pnpr(&mock_instance.url());
     configure_pnpr_auth(&npmrc_path, &pnpr_url, &token);
 
-    fs::write(
-        workspace.join("package.json"),
-        serde_json::json!({ "dependencies": { "@foo/no-deps": "1.0.0" } }).to_string(),
-    )
-    .expect("write package.json");
-    fs::write(workspace.join("pnpm-lock.yaml"), CONFLICTED_LOCKFILE)
-        .expect("write conflicted lockfile");
+    let conflicted = write_conflicted_lockfile_fixture(&workspace);
 
-    pacquet
+    let install = pacquet
         .with_env("PNPM_CONFIG_REGISTRY", mock_instance.url())
         .with_args(["install", "--pnpr-server", &pnpr_url])
         .assert()
         .success();
+    assert_merged_conflicted_lockfile(
+        &workspace,
+        &String::from_utf8_lossy(&install.get_output().stdout),
+    );
+    assert!(
+        is_symlink_or_junction(&workspace.join("node_modules").join(CONFLICTED_DEPENDENCY))
+            .unwrap(),
+    );
 
-    let lockfile = read_workspace_lockfile(&workspace);
-    assert_eq!(workspace_importer_version(&lockfile, ".", "@foo/no-deps"), "1.0.0");
-    assert!(is_symlink_or_junction(&workspace.join("node_modules/@foo/no-deps")).unwrap());
-
-    fs::write(workspace.join("pnpm-lock.yaml"), CONFLICTED_LOCKFILE)
-        .expect("rewrite conflicted lockfile");
-    pacquet_at(&workspace)
+    fs::write(workspace.join("pnpm-lock.yaml"), &conflicted).expect("rewrite conflicted lockfile");
+    let repair = pacquet_at(&workspace)
         .with_env("PNPM_CONFIG_REGISTRY", mock_instance.url())
         .with_args(["install", "--fix-lockfile", "--pnpr-server", &pnpr_url])
         .assert()
         .success();
-    let repaired = read_workspace_lockfile(&workspace);
-    assert_eq!(workspace_importer_version(&repaired, ".", "@foo/no-deps"), "1.0.0");
+    assert_merged_conflicted_lockfile(
+        &workspace,
+        &String::from_utf8_lossy(&repair.get_output().stdout),
+    );
 
     drop((root, mock_instance));
 }

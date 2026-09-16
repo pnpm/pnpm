@@ -33,6 +33,7 @@ mod env_lockfile;
 mod filter_by_importers;
 mod freshness;
 mod git_branch_lockfile;
+mod git_merge_file;
 mod lazy_lockfile;
 mod load_lockfile;
 mod lockfile_version;

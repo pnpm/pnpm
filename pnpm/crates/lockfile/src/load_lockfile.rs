@@ -1,5 +1,6 @@
 use crate::{
     Lockfile, LockfileResolution, ProjectSnapshot, SnapshotEntry, extract_main_document,
+    git_merge_file::{ParsedWantedFile, parse_wanted_file},
     merge_lockfile_changes,
 };
 use derive_more::{Display, Error};
@@ -118,7 +119,7 @@ impl Lockfile {
     /// `Ok(None)` when the file is absent, same as
     /// [`Self::load_from_current_dir`].
     pub fn load_wanted_from_dir(dir: &Path) -> Result<Option<Self>, LoadLockfileError> {
-        Self::load_from_path(&dir.join(Lockfile::FILE_NAME))
+        Ok(Self::load_wanted_from_path(&dir.join(Lockfile::FILE_NAME))?.value)
     }
 
     /// Load the wanted lockfile an install reads, honoring the per-branch
@@ -144,18 +145,21 @@ impl Lockfile {
     ) -> Result<LoadedWantedLockfile, LoadLockfileError> {
         for file_name in selection.read_order() {
             let path = dir.join(file_name);
-            let Some(lockfile) = Self::load_from_path(&path)? else { continue };
+            let parsed = Self::load_wanted_from_path(&path)?;
+            let Some(lockfile) = parsed.value else { continue };
             return if selection.merge_git_branch_lockfiles {
                 let pre_merge_importers = lockfile.importers.clone();
-                let merged = merge_git_branch_lockfiles(lockfile, dir)?;
+                let (merged, branch_conflict_files) = merge_git_branch_lockfiles(lockfile, dir)?;
                 Ok(LoadedWantedLockfile {
                     lockfile: Some(Arc::new(merged)),
                     pre_merge_importers: Some(pre_merge_importers),
+                    merged_conflict_files: parsed.merged_conflict_files + branch_conflict_files,
                 })
             } else {
                 Ok(LoadedWantedLockfile {
                     lockfile: Some(Arc::new(lockfile)),
                     pre_merge_importers: None,
+                    merged_conflict_files: parsed.merged_conflict_files,
                 })
             };
         }
@@ -171,16 +175,22 @@ impl Lockfile {
     ) -> Result<LoadedRepairLockfile, LoadLockfileError> {
         for file_name in selection.read_order() {
             let path = dir.join(file_name);
-            let Some(views) = Self::load_repair_views_from_path(&path)? else { continue };
+            let parsed = Self::load_repair_views_from_path(&path)?;
+            let Some(views) = parsed.value else { continue };
             return if selection.merge_git_branch_lockfiles {
                 let pre_merge_importers = views.seed.importers.clone();
-                let views = merge_git_branch_lockfile_repairs(views, dir)?;
+                let (views, branch_conflict_files) = merge_git_branch_lockfile_repairs(views, dir)?;
                 Ok(LoadedRepairLockfile {
                     views: Some(views),
                     pre_merge_importers: Some(pre_merge_importers),
+                    merged_conflict_files: parsed.merged_conflict_files + branch_conflict_files,
                 })
             } else {
-                Ok(LoadedRepairLockfile { views: Some(views), pre_merge_importers: None })
+                Ok(LoadedRepairLockfile {
+                    views: Some(views),
+                    pre_merge_importers: None,
+                    merged_conflict_files: parsed.merged_conflict_files,
+                })
             };
         }
         Ok(LoadedRepairLockfile::default())
@@ -271,13 +281,29 @@ impl Lockfile {
         Self::parse(&content, file_path)
     }
 
+    fn load_wanted_from_path(
+        file_path: &Path,
+    ) -> Result<ParsedWantedFile<Self>, LoadLockfileError> {
+        let Some(content) = read_lockfile_text(file_path)? else {
+            return Ok(ParsedWantedFile { value: None, merged_conflict_files: 0 });
+        };
+        parse_wanted_file(&content, file_path, Self::parse, merge_lockfile_changes)
+    }
+
     /// [`Self::load_from_path`] deriving both repair views from the
     /// single read.
     fn load_repair_views_from_path(
         file_path: &Path,
-    ) -> Result<Option<RepairLockfileViews>, LoadLockfileError> {
-        let Some(content) = read_lockfile_text(file_path)? else { return Ok(None) };
-        Self::parse_repair_views(&content, file_path)
+    ) -> Result<ParsedWantedFile<RepairLockfileViews>, LoadLockfileError> {
+        let Some(content) = read_lockfile_text(file_path)? else {
+            return Ok(ParsedWantedFile { value: None, merged_conflict_files: 0 });
+        };
+        parse_wanted_file(
+            &content,
+            file_path,
+            Self::parse_repair_views,
+            merge_repair_lockfile_views,
+        )
     }
 }
 
@@ -299,6 +325,8 @@ pub struct LoadedWantedLockfile {
     /// lockfile.
     pub lockfile: Option<Arc<Lockfile>>,
     pub pre_merge_importers: Option<HashMap<String, ProjectSnapshot>>,
+    /// Number of lockfiles whose Git conflict markers were merged while loading.
+    pub merged_conflict_files: usize,
 }
 
 /// The views a repairing install reads the wanted lockfile for, and the
@@ -312,6 +340,7 @@ pub struct LoadedWantedLockfile {
 pub(crate) struct LoadedRepairLockfile {
     views: Option<RepairLockfileViews>,
     pre_merge_importers: Option<HashMap<String, ProjectSnapshot>>,
+    merged_conflict_files: usize,
 }
 
 impl LoadedRepairLockfile {
@@ -325,7 +354,11 @@ impl LoadedRepairLockfile {
             seed.prepare_for_fix();
             RepairLockfileViews { seed, merge }
         });
-        LoadedRepairLockfile { views, pre_merge_importers: loaded.pre_merge_importers }
+        LoadedRepairLockfile {
+            views,
+            pre_merge_importers: loaded.pre_merge_importers,
+            merged_conflict_files: loaded.merged_conflict_files,
+        }
     }
 
     pub(crate) fn seed(&self) -> Option<&Lockfile> {
@@ -339,6 +372,10 @@ impl LoadedRepairLockfile {
     pub(crate) fn pre_merge_importers(&self) -> Option<&HashMap<String, ProjectSnapshot>> {
         self.pre_merge_importers.as_ref()
     }
+
+    pub(crate) fn merged_conflict_files(&self) -> usize {
+        self.merged_conflict_files
+    }
 }
 
 /// One wanted-lockfile generation seen two ways: `seed` has the fields a
@@ -348,6 +385,16 @@ impl LoadedRepairLockfile {
 struct RepairLockfileViews {
     seed: Lockfile,
     merge: Lockfile,
+}
+
+fn merge_repair_lockfile_views(
+    ours: &RepairLockfileViews,
+    theirs: &RepairLockfileViews,
+) -> RepairLockfileViews {
+    RepairLockfileViews {
+        seed: merge_lockfile_changes(&ours.seed, &theirs.seed),
+        merge: merge_lockfile_changes(&ours.merge, &theirs.merge),
+    }
 }
 
 /// Which wanted-lockfile file an install reads and writes, and whether the
@@ -383,16 +430,22 @@ impl WantedLockfileSelection {
     }
 }
 
-fn merge_git_branch_lockfiles(base: Lockfile, dir: &Path) -> Result<Lockfile, LoadLockfileError> {
+fn merge_git_branch_lockfiles(
+    base: Lockfile,
+    dir: &Path,
+) -> Result<(Lockfile, usize), LoadLockfileError> {
     let branch_lockfiles =
         Lockfile::git_branch_lockfiles(dir).map_err(LoadLockfileError::ReadFile)?;
     let mut merged = base;
+    let mut merged_conflict_files = 0;
     for path in branch_lockfiles {
-        if let Some(branch_lockfile) = Lockfile::load_from_path(&path)? {
+        let parsed = Lockfile::load_wanted_from_path(&path)?;
+        merged_conflict_files += parsed.merged_conflict_files;
+        if let Some(branch_lockfile) = parsed.value {
             merged = merge_lockfile_changes(&merged, &branch_lockfile);
         }
     }
-    Ok(merged)
+    Ok((merged, merged_conflict_files))
 }
 
 /// [`merge_git_branch_lockfiles`] folding each branch lockfile into both
@@ -400,16 +453,18 @@ fn merge_git_branch_lockfiles(base: Lockfile, dir: &Path) -> Result<Lockfile, Lo
 fn merge_git_branch_lockfile_repairs(
     mut base: RepairLockfileViews,
     dir: &Path,
-) -> Result<RepairLockfileViews, LoadLockfileError> {
+) -> Result<(RepairLockfileViews, usize), LoadLockfileError> {
     let branch_lockfiles =
         Lockfile::git_branch_lockfiles(dir).map_err(LoadLockfileError::ReadFile)?;
+    let mut merged_conflict_files = 0;
     for path in branch_lockfiles {
-        if let Some(branch) = Lockfile::load_repair_views_from_path(&path)? {
-            base.seed = merge_lockfile_changes(&base.seed, &branch.seed);
-            base.merge = merge_lockfile_changes(&base.merge, &branch.merge);
+        let parsed = Lockfile::load_repair_views_from_path(&path)?;
+        merged_conflict_files += parsed.merged_conflict_files;
+        if let Some(branch) = parsed.value {
+            base = merge_repair_lockfile_views(&base, &branch);
         }
     }
-    Ok(base)
+    Ok((base, merged_conflict_files))
 }
 
 fn prepare_value_for_fix(value: &mut serde_json::Value) {

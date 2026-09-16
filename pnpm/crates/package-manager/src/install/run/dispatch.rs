@@ -86,6 +86,7 @@ pub(super) async fn dispatch<'install, Reporter: self::Reporter + 'static>(
     let take_frozen_path = decide_frozen_path(&FrozenDispatch {
         dry_run: install.execution.dry_run,
         frozen_lockfile: install.lockfile_policy.frozen,
+        lockfile_had_conflicts: settled.loaded.wanted.had_conflicts,
         update_checksums: install.lockfile_policy.update_checksums,
         prefer_frozen_lockfile: mode.prefer_frozen_lockfile,
         lockfile: lockfiles.wanted.get(),
@@ -237,6 +238,7 @@ pub(super) fn announce_import<Reporter: self::Reporter>(
 pub(super) struct FrozenDispatch<'a> {
     dry_run: bool,
     frozen_lockfile: bool,
+    lockfile_had_conflicts: bool,
     update_checksums: bool,
     prefer_frozen_lockfile: bool,
     lockfile: Option<&'a Lockfile>,
@@ -280,6 +282,13 @@ pub(super) async fn decide_frozen_path(
         };
         check_lockfile_freshness(lockfile, &freshness).await.map_err(InstallError::from)?;
         return Ok(true);
+    }
+    // The wanted lockfile was only usable because its Git conflict markers
+    // were merged away in memory; `pnpm-lock.yaml` still holds them. Only
+    // the fresh-resolve path writes the merge back, so an install that was
+    // not explicitly told to keep the lockfile frozen takes it.
+    if dispatch.lockfile_had_conflicts {
+        return Ok(false);
     }
     if dispatch.update_checksums {
         return Ok(false);

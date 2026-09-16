@@ -320,6 +320,7 @@ impl ReporterState {
             LogEvent::SkippedOptionalDependency(log) => self.on_skipped_optional(log),
             LogEvent::InstallingConfigDeps(log) => self.on_config_deps(log),
             LogEvent::LockfileVerification(log) => self.on_lockfile_verification(&log.message),
+            LogEvent::Lockfile(log) => self.on_pnpm(log.level, &log.message, &log.prefix),
             LogEvent::RequestRetry(log) => self.on_request_retry(log),
             LogEvent::Pnpm(log) => self.on_pnpm(log.level, &log.message, &log.prefix),
             LogEvent::DedupeCheck(log) => self.on_dedupe_check(log),
@@ -347,7 +348,10 @@ impl ReporterState {
     /// `reportError.ts`).
     fn level_permits(&self, event: &LogEvent) -> bool {
         match event {
-            LogEvent::Pnpm(_) | LogEvent::Global(_) | LogEvent::DedupeCheck(_) => true,
+            LogEvent::Lockfile(_)
+            | LogEvent::Pnpm(_)
+            | LogEvent::Global(_)
+            | LogEvent::DedupeCheck(_) => true,
             LogEvent::RequestRetry(_)
             | LogEvent::Deprecation(_)
             | LogEvent::PeerDependencyIssues(_) => self.options.max_log_level >= MaxLogLevel::Warn,

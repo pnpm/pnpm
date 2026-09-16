@@ -2,12 +2,53 @@
 use super::set_dir_modes;
 use super::{
     AddMockedRegistry, BIG_LOCKFILE, BIG_MANIFEST, CommandExtra, CommandTempCwd, OpenOptions,
-    STORE_VERSION, Write, flatten_report, fs, new_pacquet_command,
+    STORE_VERSION, Write, assert_merged_conflicted_lockfile, flatten_report, fs,
+    new_pacquet_command, write_conflicted_lockfile_fixture,
     write_required_incompatible_engine_fixture,
 };
 #[cfg(unix)]
 use super::{enable_gvs_in_workspace_yaml, is_symlink_or_junction};
 use assert_cmd::{assert::OutputAssertExt, cargo::CommandCargoExt};
+
+#[test]
+fn install_merges_git_conflicts_and_keeps_the_locked_version() {
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    write_conflicted_lockfile_fixture(&workspace);
+
+    let output = new_pacquet_command(&workspace)
+        .with_arg("install")
+        .assert()
+        .success();
+
+    assert_merged_conflicted_lockfile(
+        &workspace,
+        &String::from_utf8_lossy(&output.get_output().stdout),
+    );
+
+    drop((root, mock_instance));
+}
+
+#[test]
+fn fix_lockfile_merges_git_conflicts() {
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    write_conflicted_lockfile_fixture(&workspace);
+
+    let output = new_pacquet_command(&workspace)
+        .with_args(["install", "--fix-lockfile", "--lockfile-only"])
+        .assert()
+        .success();
+
+    assert_merged_conflicted_lockfile(
+        &workspace,
+        &String::from_utf8_lossy(&output.get_output().stdout),
+    );
+
+    drop((root, mock_instance));
+}
 
 #[test]
 fn fix_lockfile_regenerates_broken_metadata_without_changing_locked_versions() {
