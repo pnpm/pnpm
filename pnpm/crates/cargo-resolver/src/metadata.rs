@@ -1,5 +1,5 @@
 use crate::{
-    features::active_dependencies_from_parts,
+    features::{DependencyOptions, dependencies_from_parts},
     model::{CargoMetadata, FeatureSelection, MetadataPackage, RegistryDependency},
 };
 use miette::{IntoDiagnostic, Result, WrapErr};
@@ -121,7 +121,7 @@ pub(crate) fn root_dependencies(metadata: &CargoMetadata) -> Result<Vec<Registry
     metadata.packages
         .iter()
         .filter(|package| metadata.workspace_members.contains(&package.id))
-        .map(active_metadata_dependencies)
+        .map(locked_metadata_dependencies)
         .collect::<Result<Vec<_>>>()
         .map(|dependencies| {
             dependencies
@@ -132,7 +132,7 @@ pub(crate) fn root_dependencies(metadata: &CargoMetadata) -> Result<Vec<Registry
         })
 }
 
-pub(crate) fn active_metadata_dependencies(
+pub(crate) fn locked_metadata_dependencies(
     package: &MetadataPackage,
 ) -> Result<Vec<RegistryDependency>> {
     let dependencies = package.dependencies
@@ -151,7 +151,7 @@ pub(crate) fn active_metadata_dependencies(
                 .collect(),
         })
         .collect::<Vec<_>>();
-    active_dependencies_from_parts(
+    dependencies_from_parts(
         &dependencies,
         &package.features,
         &FeatureSelection {
@@ -161,6 +161,6 @@ pub(crate) fn active_metadata_dependencies(
                 .cloned()
                 .collect(),
         },
-        true,
+        DependencyOptions { include_dev: true, lockfile: true },
     )
 }

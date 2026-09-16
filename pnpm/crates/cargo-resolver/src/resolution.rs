@@ -1,6 +1,6 @@
 use crate::{
     features::{
-        active_dependencies, feature_selections_for_solution, indexed_version,
+        feature_selections_for_solution, indexed_version, locked_dependencies,
         root_feature_selections, supports_features,
     },
     lockfile::lockfile_from_solution,
@@ -100,7 +100,7 @@ fn unified_dependencies(
             .iter()
             .filter(|version| walk.contains(&version.version))
         {
-            reached.extend(active_dependencies(version, &entry.selection)?);
+            reached.extend(locked_dependencies(version, &entry.selection)?);
         }
     }
     Ok(reached)
@@ -175,7 +175,7 @@ fn validate_selected_graph(
             return Ok(None);
         }
         validated.insert(package, selected_version.clone());
-        pending.extend(active_dependencies(selected, &selection)?);
+        pending.extend(locked_dependencies(selected, &selection)?);
     }
 
     Ok(Some(validated.into_iter().collect()))
@@ -296,7 +296,7 @@ fn register_candidates(
             !version.yanked && compatibility_line(&version.version) == *compatibility
         });
     for version in candidates {
-        let dependencies = active_dependencies(version, &resolved)?;
+        let dependencies = locked_dependencies(version, &resolved)?;
         let constraints = constraints_for(registry, &dependencies, pending)?;
         provider.add_dependencies(package.clone(), version.version.clone(), constraints);
     }

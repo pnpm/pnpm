@@ -21,7 +21,13 @@ pub struct Workspace {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Expectation {
     Agree,
-    Differ { issue: &'static str },
+    #[cfg_attr(
+        not(test),
+        expect(dead_code, reason = "All corpus workspaces currently agree with Cargo.")
+    )]
+    Differ {
+        issue: &'static str,
+    },
 }
 
 pub const WORKSPACES: &[Workspace] = &[
@@ -135,8 +141,8 @@ syn = { version = "2", default-features = false, features = ["printing", "full"]
     },
     Workspace {
         name: "feature-activated-deps",
-        description: "optional dependencies no selected feature activates",
-        expectation: Expectation::Differ { issue: "https://github.com/pnpm/pnpm/issues/14978" },
+        description: "weak dependency features locked even without optional dependency activation",
+        expectation: Expectation::Agree,
         files: &[(
             "Cargo.toml",
             r#"[package]
@@ -148,6 +154,38 @@ edition = "2021"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 uuid = { version = "1", features = ["v4", "serde"] }
+"#,
+        )],
+    },
+    Workspace {
+        name: "uuid-default",
+        description: "uuid's default std feature weakly references its optional wasm dependencies",
+        expectation: Expectation::Agree,
+        files: &[(
+            "Cargo.toml",
+            r#"[package]
+name = "uuid-default"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+uuid = "1"
+"#,
+        )],
+    },
+    Workspace {
+        name: "uuid-no-default",
+        description: "uuid without std does not lock unactivated optional dependencies",
+        expectation: Expectation::Agree,
+        files: &[(
+            "Cargo.toml",
+            r#"[package]
+name = "uuid-no-default"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+uuid = { version = "1", default-features = false }
 "#,
         )],
     },
