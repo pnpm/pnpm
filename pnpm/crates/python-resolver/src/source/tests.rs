@@ -39,3 +39,17 @@ fn wheel_hash_constraints_allow_an_unhashed_declaration_but_reject_different_has
     assert!(pinned.compatible_with(&plain));
     assert!(!pinned.compatible_with(&different));
 }
+
+#[test]
+fn git_repository_queries_survive_lockfile_validation() {
+    let Source::Git(mut git) =
+        Source::parse("git+https://example.test/repo.git@main?key=value#subdirectory=package")
+            .unwrap()
+    else {
+        panic!("git source expected")
+    };
+    assert_eq!(git.url, "https://example.test/repo.git?key=value");
+    assert_eq!(git.requested_revision, "main");
+    git.commit_id = "a".repeat(40);
+    git.validate().unwrap();
+}

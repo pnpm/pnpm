@@ -42,16 +42,6 @@ fn run_search(
         .expect("spawn pacquet search")
 }
 
-fn unreachable_registry() -> String {
-    let listener = TcpListener::bind("127.0.0.1:0").expect("bind a probe socket");
-    let port = listener
-        .local_addr()
-        .expect("read the probe socket address")
-        .port();
-    drop(listener);
-    format!("http://127.0.0.1:{port}/")
-}
-
 #[test]
 fn missing_query_throws_error() {
     let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
@@ -252,14 +242,20 @@ fn non_ok_registry_response_throws_search_failed() {
 fn fails_on_a_network_failure() {
     let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
     let auth_file = empty_auth_file(root.path());
-    let registry = unreachable_registry();
+    let listener = TcpListener::bind("127.0.0.1:0").expect("bind a failing server");
+    let registry = format!("http://{}/", listener.local_addr().unwrap());
+    let server = std::thread::spawn(move || {
+        let (connection, _) = listener.accept().expect("accept the search request");
+        drop(connection);
+    });
 
     let output = run_search(&workspace, &auth_file, &registry, &["some-package"]);
 
     assert!(!output.status.success());
     let stderr = String::from_utf8_lossy(&output.stderr);
     assert!(stderr.contains("ERR_PNPM_SEARCH_FAILED"));
-    assert!(stderr.contains("Network request failed"));
+    server.join().expect("finish the failing server");
+    assert!(stderr.contains("Network request failed"), "{stderr}");
 
     drop(root);
 }

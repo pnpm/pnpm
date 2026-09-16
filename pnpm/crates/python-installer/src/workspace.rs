@@ -324,6 +324,7 @@ impl Workspace {
                 continue;
             };
             let source = sole_source(declaration, &requirement.name, &by.join("pyproject.toml"))?;
+            reject_unresolvable(source, &requirement.name, &by.join("pyproject.toml"))?;
             if let Some(url) = super::sources::declaration_url(source)? {
                 let mut direct = requirement.clone();
                 direct.version_or_url = Some(pep508_rs::VersionOrUrl::Url(

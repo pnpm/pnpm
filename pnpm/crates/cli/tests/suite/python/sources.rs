@@ -687,3 +687,23 @@ async fn different_git_versions_keep_their_built_files_until_installation() {
         .assert()
         .success();
 }
+
+#[tokio::test]
+async fn narrowed_remote_sources_are_rejected_before_fetching() {
+    for kind in ["url", "git"] {
+        for narrowing in
+            [r#"marker = "sys_platform == 'win32'""#, "extra = 'test'", "group = 'test'"]
+        {
+            let root = tempfile::tempdir().unwrap();
+            let server = mockito::Server::new_async().await;
+            project(root.path(), &server.url(), &["alpha>=1"]);
+            let path = root.path().join("pyproject.toml");
+            let manifest = fs::read_to_string(&path).unwrap();
+            fs::write(&path, format!("{manifest}\n[tool.uv.sources]\nalpha = {{ {kind} = 'https://example.test/alpha', {narrowing} }}\n")).unwrap();
+            assert_failure_contains(
+                pacquet_in(root.path()).arg("install"),
+                "pnpm does not support",
+            );
+        }
+    }
+}

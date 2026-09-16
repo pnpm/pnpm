@@ -84,9 +84,7 @@ impl LockedVcs {
         {
             bail!("Python git lockfile source requires a full commit hash");
         }
-        let crate::Source::Git(source) =
-            crate::Source::parse(&format!("git+{}@{}", self.url, self.commit_id))?
-        else {
+        let crate::Source::Git(source) = crate::Source::parse(&format!("git+{}", self.url))? else {
             bail!("Python git lockfile source requires a git URL");
         };
         if source.url != self.url {

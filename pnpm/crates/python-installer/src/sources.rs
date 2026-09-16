@@ -53,7 +53,9 @@ pub(super) fn declaration_url(source: &Source) -> Result<Option<String>> {
             format!("#subdirectory={}", pnpm_network::encode_uri_component(directory))
         });
     let revision = pnpm_network::encode_uri_component(revision);
-    Ok(Some(format!("git+{git}@{revision}{fragment}")))
+    let mut url: url::Url = git.parse().into_diagnostic()?;
+    url.set_path(&format!("{}@{revision}", url.path()));
+    Ok(Some(format!("git+{url}{fragment}")))
 }
 
 impl Registry<'_> {
@@ -154,3 +156,6 @@ impl Registry<'_> {
         Some(host::DirectUrl::archive(candidate))
     }
 }
+
+#[cfg(test)]
+mod tests;
