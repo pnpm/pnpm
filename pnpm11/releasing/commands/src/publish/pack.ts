@@ -596,17 +596,17 @@ async function packPkg (opts: {
   } = opts
   const mtime = new Date('1985-10-26T08:15:00.000Z')
   const pack = tar.pack()
-  await Promise.all(Object.entries(filesMap).map(async ([name, source]) => {
-    const isExecutable = bins.some((bin) => path.relative(bin, source) === '')
-    const mode = isExecutable ? 0o755 : 0o644
-    if (isManifestEntry(name)) {
-      pack.entry({ mode, mtime, name: 'package/package.json' }, JSON.stringify(manifest, null, 2))
-      return
+  for (const entry of compressionOrderedEntries(filesMap, injectedEntries)) {
+    if ('content' in entry) {
+      pack.entry({ mode: 0o644, mtime, name: entry.name }, entry.content)
+      continue
     }
-    pack.entry({ mode, mtime, name }, fs.readFileSync(source))
-  }))
-  for (const [name, content] of Object.entries(injectedEntries ?? {})) {
-    pack.entry({ mode: 0o644, mtime, name }, content)
+    const isExecutable = bins.some((bin) => path.relative(bin, entry.source) === '')
+    const mode = isExecutable ? 0o755 : 0o644
+    const content = isManifestEntry(entry.name)
+      ? JSON.stringify(manifest, null, 2)
+      : fs.readFileSync(entry.source)
+    pack.entry({ mode, mtime, name: entry.name }, content)
   }
   const tarball = fs.createWriteStream(destFile)
   pack.pipe(createGzip({ level: opts.packGzipLevel })).pipe(tarball)
@@ -616,6 +616,33 @@ async function packPkg (opts: {
       resolve()
     }).on('error', reject)
   })
+}
+
+type PackedEntry =
+  | { name: string, source: string }
+  | { name: string, content: string }
+
+/**
+ * Every tar entry under the name it is packed as, ordered for compression.
+ * `packlist()` already returns its own files that way; sorting here also
+ * places the entries added afterwards, such as a workspace LICENSE or a
+ * composed CHANGELOG.md.
+ */
+function compressionOrderedEntries (filesMap: Record<string, string>, injectedEntries?: Record<string, string>): PackedEntry[] {
+  const entries: PackedEntry[] = [
+    ...Object.entries(filesMap).map(([name, source]) => ({
+      name: isManifestEntry(name) ? 'package/package.json' : name,
+      source,
+    })),
+    ...Object.entries(injectedEntries ?? {}).map(([name, content]) => ({ name, content })),
+  ]
+  return entries.sort((entry1, entry2) => compareForCompression(entry1.name, entry2.name))
+}
+
+function compareForCompression (path1: string, path2: string): number {
+  return path.extname(path1).toLowerCase().localeCompare(path.extname(path2).toLowerCase(), 'en') ||
+    path.basename(path1).toLowerCase().localeCompare(path.basename(path2).toLowerCase(), 'en') ||
+    path1.localeCompare(path2, 'en')
 }
 
 async function createPublishManifest (opts: {

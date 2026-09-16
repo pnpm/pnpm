@@ -123,6 +123,18 @@ fn tarball_entry_content(tarball: &Path, entry_name: &str) -> Option<String> {
     None
 }
 
+fn tarball_entry_mode(tarball: &Path, entry_name: &str) -> u32 {
+    let file = std::fs::File::open(tarball).unwrap();
+    let mut archive = tar::Archive::new(GzDecoder::new(file));
+    for entry in archive.entries().unwrap() {
+        let entry = entry.unwrap();
+        if entry.path().unwrap().to_str() == Some(entry_name) {
+            return entry.header().mode().unwrap();
+        }
+    }
+    panic!("entry {entry_name:?} not found in {}", tarball.display());
+}
+
 #[test]
 fn injected_files_are_packed_and_supersede_an_on_disk_entry() {
     let (dir, mut opts) = fixture(&json!({ "name": "foo", "version": "1.1.0" }));
@@ -146,6 +158,119 @@ fn injected_files_are_packed_and_supersede_an_on_disk_entry() {
         1,
     );
     assert_eq!(tarball_entry_content(&tarball, "package/CHANGELOG.md").as_deref(), Some(composed));
+}
+
+/// The workspace-root LICENSE and the injected `mmm.txt` join the pack
+/// after the packlist walk, so they exercise the ordering of entries the
+/// maps carry last. The expected order is not byte order, which would put
+/// `B.txt` before `a.txt` and `LICENSE` before `dir/`.
+#[test]
+fn tarball_entries_are_written_in_compression_order() {
+    let workspace = tempdir().unwrap();
+    std::fs::write(workspace.path().join("LICENSE"), "MIT").unwrap();
+    let (dir, mut opts) = fixture(&json!({ "name": "foo", "version": "1.0.0" }));
+    touch(dir.path(), "zzz.txt", "z\n");
+    touch(dir.path(), "dir/x.js", "x\n");
+    touch(dir.path(), "B.txt", "B\n");
+    touch(dir.path(), "a.txt", "a\n");
+    opts.workspace_dir = Some(workspace.path().to_path_buf());
+    opts.output.injected_files = vec![("package/mmm.txt".to_string(), b"m\n".to_vec())];
+
+    api::<SilentReporter, Host>(&opts).unwrap();
+
+    let names = tarball_entry_names(&dir.path().join("foo-1.0.0.tgz"));
+    assert_eq!(
+        names,
+        vec![
+            "package/LICENSE".to_string(),
+            "package/dir/x.js".into(),
+            "package/package.json".into(),
+            "package/a.txt".into(),
+            "package/B.txt".into(),
+            "package/mmm.txt".into(),
+            "package/zzz.txt".into(),
+        ],
+    );
+}
+
+/// Template collections carry the same file names in many directories
+/// with identical or near-identical contents. Grouping by extension and
+/// basename keeps those copies adjacent, which is the whole point of the
+/// order: a path-ordered archive scatters them beyond DEFLATE's window.
+#[test]
+fn duplicate_named_files_are_adjacent_for_compression() {
+    let (dir, opts) = fixture(&json!({ "name": "foo", "version": "1.0.0" }));
+    touch(dir.path(), "template-a/hero.png", "png-bytes");
+    touch(dir.path(), "template-b/hero.png", "png-bytes");
+    touch(dir.path(), "template-a/index.html", "<html>a</html>\n");
+    touch(dir.path(), "template-b/index.html", "<html>b</html>\n");
+
+    api::<SilentReporter, Host>(&opts).unwrap();
+
+    let names = tarball_entry_names(&dir.path().join("foo-1.0.0.tgz"));
+    assert_eq!(
+        names,
+        vec![
+            "package/template-a/index.html".to_string(),
+            "package/template-b/index.html".into(),
+            "package/package.json".into(),
+            "package/template-a/hero.png".into(),
+            "package/template-b/hero.png".into(),
+        ],
+    );
+}
+
+/// The verdicts `String.prototype.localeCompare(b, 'en')` gives in Node,
+/// which pnpm 11 sorts packed paths with. Code-point order disagrees with
+/// every one of these but the last two: it puts the digit ahead of `_`,
+/// `-` ahead of `_`, `-` ahead of the space, and every accented letter
+/// past `z`.
+#[test]
+fn en_collator_matches_javascript_locale_compare() {
+    use super::collation::en_collator;
+    use std::cmp::Ordering;
+
+    let collator = en_collator();
+    assert_eq!(collator.compare("é.txt", "z.txt"), Ordering::Less);
+    assert_eq!(collator.compare("ä.txt", "b.txt"), Ordering::Less);
+    assert_eq!(collator.compare("_a.js", "1a.js"), Ordering::Less);
+    assert_eq!(collator.compare("a-b.js", "a_b.js"), Ordering::Greater);
+    assert_eq!(collator.compare("a b.js", "a-b.js"), Ordering::Less);
+    assert_eq!(collator.compare("readme.md", "README.md"), Ordering::Less);
+    assert_eq!(collator.compare("a.txt", "B.txt"), Ordering::Less);
+    assert_eq!(collator.compare("dir/x.js", "LICENSE"), Ordering::Less);
+    assert_eq!(collator.compare("a.txt", "a.txt"), Ordering::Equal);
+}
+
+/// A name ending in a bare dot has the extension `.`, which sorts ahead of
+/// every real extension but behind no extension at all. Such a name cannot
+/// be created on Windows, so the key is pinned directly rather than through
+/// a fixture.
+#[test]
+fn extname_keys_a_trailing_dot_apart_from_no_extension() {
+    use super::tarball::extname;
+
+    assert_eq!(extname("archive."), ".");
+    assert_eq!(extname("archive"), "");
+    assert_eq!(extname(".npmrc"), "");
+    assert_eq!(extname("archive.tar.gz"), ".gz");
+}
+
+/// The packed manifest comes from memory rather than from its on-disk file,
+/// but `publishConfig.executableFiles` names it by source path, so listing
+/// it there must keep marking it executable in the archive.
+#[test]
+fn manifest_named_in_executable_files_is_packed_executable() {
+    let (dir, opts) = fixture(&json!({
+        "name": "foo",
+        "version": "1.0.0",
+        "publishConfig": { "executableFiles": ["package.json"] },
+    }));
+
+    api::<SilentReporter, Host>(&opts).unwrap();
+
+    let mode = tarball_entry_mode(&dir.path().join("foo-1.0.0.tgz"), "package/package.json");
+    assert_eq!(mode, 0o755);
 }
 
 /// A `publishConfig.name` rename has to reach the tarball filename and the

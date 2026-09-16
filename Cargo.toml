@@ -153,6 +153,12 @@ diffy = { version = "0.5.0" }
 dunce = { version = "1.0.5" }
 home = { version = "0.5.12" }
 httpdate = { version = "1.0.3" }
+# Orders packed paths the way JavaScript's `localeCompare(b, 'en')` does, so
+# pnpm 12 and pnpm 11 write a tarball's entries in the same order. ICU4X 2.2
+# is already in the tree through `idna`, so this adds the collator and its
+# CLDR tables rather than a second provider stack.
+icu_collator = { version = "2.2.0", features = ["compiled_data"] }
+icu_locale_core = { version = "2.2.0" }
 ignore = { version = "0.4.25" }
 indexmap = { version = "2.14.0", features = ["serde"] }
 insta = { version = "1.47.2", features = ["yaml", "glob", "walkdir"] }

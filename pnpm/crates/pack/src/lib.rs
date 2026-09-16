@@ -24,6 +24,7 @@ pub use options::{
 pub use output::{format_pack_output, pack_output_path, to_pack_result_json};
 
 mod capabilities;
+mod collation;
 mod manifest_entry;
 mod options;
 mod tarball;
@@ -52,7 +53,6 @@ use pnpm_package_name::is_valid_old_npm_package_name;
 use pnpm_reporter::{HookLog, LogEvent, LogLevel, Reporter};
 use serde_json::Value;
 use std::{
-    cmp::Ordering,
     collections::{HashMap, HashSet},
     io,
     path::{Path, PathBuf},
