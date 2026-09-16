@@ -1706,10 +1706,21 @@ function isWantedDepBareSpecifierSame (
  * catalog — not the dependency — decides which version a `catalog:` reference resolves to.
  */
 function catalogCovers (catalogSpecifier: string, bareSpecifier: string | undefined): boolean {
-  return bareSpecifier != null &&
-    semver.valid(bareSpecifier) != null &&
-    semver.validRange(catalogSpecifier) != null &&
-    semver.satisfies(bareSpecifier, catalogSpecifier)
+  if (bareSpecifier == null) return false
+  if (catalogSpecifier === bareSpecifier) return true
+  if (semver.valid(bareSpecifier) != null && semver.validRange(catalogSpecifier) != null) {
+    return semver.satisfies(bareSpecifier, catalogSpecifier)
+  }
+  const minVersion = semver.minVersion(bareSpecifier)
+  if (minVersion != null) {
+    if (semver.valid(catalogSpecifier) != null) {
+      return semver.satisfies(catalogSpecifier, bareSpecifier)
+    }
+    if (semver.validRange(catalogSpecifier) != null) {
+      return semver.satisfies(minVersion, catalogSpecifier)
+    }
+  }
+  return false
 }
 
 /**

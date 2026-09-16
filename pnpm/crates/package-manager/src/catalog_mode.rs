@@ -229,13 +229,23 @@ fn is_project_relative_path(specifier: &str) -> bool {
 
 /// Whether the catalog entry already covers the wanted specifier, so the
 /// dependency can keep resolving through the catalog: the entry names the
-/// same concrete version, or it is a range the wanted version satisfies.
-///
-/// The wanted specifier has to be a concrete version. A wanted range is
-/// never covered, because the catalog — not the dependency — decides which
-/// version a `catalog:` reference resolves to.
+/// same concrete version, or it is a range the wanted version/range satisfies.
 pub(crate) fn catalog_covers(entry: &str, wanted: &str) -> bool {
-    matches!((Range::parse(entry), Version::parse(wanted)), (Ok(entry), Ok(wanted)) if entry.satisfies(&wanted))
+    if entry == wanted {
+        return true;
+    }
+    if let Ok(wanted_ver) = Version::parse(wanted) {
+        return Range::parse(entry).is_ok_and(|entry_range| entry_range.satisfies(&wanted_ver));
+    }
+    if let Ok(wanted_range) = Range::parse(wanted) {
+        if let Ok(entry_ver) = Version::parse(entry) {
+            return wanted_range.satisfies(&entry_ver);
+        }
+        if let (Ok(entry_range), Some(min_v)) = (Range::parse(entry), wanted_range.min_version()) {
+            return entry_range.satisfies(&min_v);
+        }
+    }
+    false
 }
 
 /// The catalog group a dependency belongs to: a previous `catalog:<name>`

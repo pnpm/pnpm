@@ -807,3 +807,38 @@ fn add_moves_a_catalog_with_a_per_project_lockfile() {
 
     drop((root, anchor));
 }
+
+/// Adding a package without an explicit version when it is already in the catalog
+/// uses the catalog under `catalogMode: prefer` and `catalogMode: strict`.
+/// Regression test for pnpm#14865.
+#[test]
+fn add_without_version_uses_catalog_when_catalog_covers_it() {
+    let (root, workspace, anchor) = setup();
+    write_manifest(&workspace, "{}");
+    append_workspace_yaml(
+        &workspace,
+        &format!("catalogMode: prefer\ncatalog:\n  '{FOO}': ^100.0.0\n"),
+    );
+
+    run_ok(&workspace, &["add", "--lockfile-only", FOO]);
+
+    assert_eq!(dep_spec(&workspace, FOO).as_deref(), Some("catalog:"));
+
+    drop((root, anchor));
+}
+
+#[test]
+fn add_without_version_uses_catalog_strict_when_catalog_covers_it() {
+    let (root, workspace, anchor) = setup();
+    write_manifest(&workspace, "{}");
+    append_workspace_yaml(
+        &workspace,
+        &format!("catalogMode: strict\ncatalog:\n  '{FOO}': ^100.0.0\n"),
+    );
+
+    run_ok(&workspace, &["add", "--lockfile-only", FOO]);
+
+    assert_eq!(dep_spec(&workspace, FOO).as_deref(), Some("catalog:"));
+
+    drop((root, anchor));
+}
