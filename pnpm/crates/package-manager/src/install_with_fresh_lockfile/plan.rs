@@ -265,11 +265,11 @@ pub(super) fn include_transitive_optional_dependencies(
 /// The importers the materialization closure walks, or `None` when the
 /// built lockfile needs no narrowing.
 ///
-/// A `--filter` selection narrows which importers materialize. A
-/// `--prod` / `--dev` run narrows which of their dependency groups do:
-/// the resolve pass walks every group so `pnpm-lock.yaml` stays
-/// complete, so without this the excluded groups would materialize as
-/// well (pnpm/pnpm#14912).
+/// Two things narrow it. A `--filter` selection picks the importers; a
+/// `--prod` / `--dev` run picks their dependency groups. The resolve
+/// pass walks every group to keep `pnpm-lock.yaml` complete, so this
+/// closure is where the graph comes back down to what the run installs
+/// (pnpm/pnpm#14912).
 fn closure_importer_ids(
     install: FreshInputs<'_>,
     is_hoisted: bool,
