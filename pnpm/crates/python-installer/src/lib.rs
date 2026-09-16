@@ -6,6 +6,7 @@ mod build;
 mod environment;
 mod generation;
 mod host;
+mod interpreter;
 mod lockfile;
 mod manifest;
 mod registry;
@@ -14,9 +15,10 @@ mod targets;
 mod workspace;
 
 use base64::{Engine as _, engine::general_purpose::STANDARD};
-use environment::{LockfileInputs, PythonPrepare, publish_link, validate_environment_link};
+use environment::{LockfileInputs, PythonPrepare, Shared, publish_link, validate_environment_link};
 use generation::EnvironmentProject;
 use host::Interpreter;
+use interpreter::Interpreters;
 use miette::{IntoDiagnostic, Result, WrapErr, bail};
 use pnpm_pnpr_client::{PYPI_ECOSYSTEM, PnprClient, PypiResolveOptions};
 use pnpm_python_resolver::{Inputs, Lockfile};
@@ -92,24 +94,19 @@ async fn prepare<Reporter: self::Reporter + 'static>(
     // A manifest that declares only a workspace is still what says which
     // projects that workspace contains and where they come from.
     let workspace = workspace::Workspace::new(&roots)?;
-    let interpreter: Interpreter =
-        host::run(&config.python.executable, "probe", targets::probe_request(config)).await?;
-    let environments = Environments::of(config, &interpreter)?;
     let index = python_index(config)?;
     config.store_dir.init().into_diagnostic()?;
     let store_index = StoreIndex::shared_for(&config.store_dir, config.frozen_store);
     let (writer, writer_task) = StoreIndexWriter::spawn_for(&config.store_dir, config.frozen_store);
-    let prepare = PythonPrepare {
+    let shared = Shared {
         context: &context,
-        interpreter: &interpreter,
-        environments: &environments,
         index: &index,
         store: environment::ArtifactStore { index: store_index, writer: &writer },
         asked: environment::Asked { resolve, selection },
         members: workspace.scopes().clone(),
         build_environments: tokio::sync::Mutex::default(),
     };
-    let result = prepare_projects::<Reporter>(&prepare, &workspace, roots).await;
+    let result = prepare_projects::<Reporter>(&shared, &workspace, roots).await;
     drop(writer);
     writer_task.await
         .into_diagnostic()
@@ -119,8 +116,10 @@ async fn prepare<Reporter: self::Reporter + 'static>(
     result
 }
 
+/// Prepare each project with the interpreter it is installed with: the
+/// one the workspace configures, or the one the project accepts.
 async fn prepare_projects<Reporter: self::Reporter + 'static>(
-    prepare: &PythonPrepare<'_>,
+    shared: &Shared<'_>,
     workspace: &workspace::Workspace,
     discovered: Vec<(PathBuf, Arc<manifest::Manifest>)>,
 ) -> Result<Vec<Prepared>> {
@@ -134,9 +133,17 @@ async fn prepare_projects<Reporter: self::Reporter + 'static>(
             Ok((root, manifest, Arc::from(local)))
         })
         .collect::<Result<Vec<_>>>()?;
+    let config = shared.context.config;
+    let mut interpreters = Interpreters::new(config);
     let mut prepared = Vec::new();
     for (root, manifest, local) in planned {
-        prepared.push(prepare.project::<Reporter>(root, manifest, local).await?);
+        let interpreter = interpreters.select::<Reporter>(&root, &manifest).await?;
+        let environments = Environments::of(config, &interpreter)?;
+        prepared.push(
+            PythonPrepare::for_project(shared, &interpreter, &environments)
+                .project::<Reporter>(root, manifest, local)
+                .await?,
+        );
     }
     Ok(prepared)
 }

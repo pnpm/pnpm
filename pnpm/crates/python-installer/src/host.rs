@@ -1,7 +1,7 @@
 use miette::{IntoDiagnostic, Result, WrapErr, bail};
 use pnpm_python_resolver::Target;
 use serde::{Deserialize, Serialize, de::DeserializeOwned};
-use std::{collections::BTreeMap, path::PathBuf, process::Stdio};
+use std::{collections::BTreeMap, ffi::OsStr, path::PathBuf, process::Stdio};
 use tokio::{io::AsyncWriteExt, process::Command};
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -51,12 +51,42 @@ pub(super) struct DirectUrl {
     pub(super) editable: bool,
 }
 
+/// How to start one interpreter: the program, the arguments of its own
+/// that come before the helper's, such as the Windows launcher's
+/// `-3.13`, and the PATH it resolves a bare program name through.
+pub(super) struct Program<'a> {
+    pub(super) executable: &'a str,
+    pub(super) arguments: &'a [String],
+    /// `None` leaves the child the PATH of this process.
+    pub(super) path: Option<&'a OsStr>,
+}
+
+impl<'a> Program<'a> {
+    pub(super) fn new(executable: &'a str) -> Self {
+        Self { executable, arguments: &[], path: None }
+    }
+}
+
 pub(super) async fn run<Output: DeserializeOwned>(
     executable: &str,
     operation: &str,
     input: serde_json::Value,
 ) -> Result<Output> {
-    let mut child = Command::new(executable)
+    run_program(Program::new(executable), operation, input).await
+}
+
+pub(super) async fn run_program<Output: DeserializeOwned>(
+    program: Program<'_>,
+    operation: &str,
+    input: serde_json::Value,
+) -> Result<Output> {
+    let Program { executable, arguments, path } = program;
+    let mut command = Command::new(executable);
+    if let Some(path) = path {
+        command.env("PATH", path);
+    }
+    let mut child = command
+        .args(arguments)
         .args(["-I", "-c", include_str!("host.py"), operation])
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())

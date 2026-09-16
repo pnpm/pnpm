@@ -319,7 +319,7 @@ fn python_settings_parse_apply_and_remain_workspace_only() {
     let mut config = Config::default();
     settings.apply_to(&mut config, Path::new("/workspace"));
     assert!(config.python.enabled);
-    assert_eq!(config.python.executable, "python3.13");
+    assert_eq!(config.python.executable.as_deref(), Some("python3.13"));
     assert_eq!(config.python.index_url, "https://example.org/simple/");
     assert_eq!(config.python.extras, ["speed"]);
     assert_eq!(config.python.groups, ["test"]);

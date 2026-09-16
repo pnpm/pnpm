@@ -236,6 +236,10 @@ impl PythonPrepare<'_> {
     /// run. Every project declaring one backend needs the same
     /// environment, and resolving and installing it again for each would
     /// be most of what a workspace's install does.
+    ///
+    /// One environment belongs to the interpreter that installed it: a
+    /// backend runs in the interpreter it was installed for, and what it
+    /// compiles is built for that one.
     async fn install_requirements<Reporter: pnpm_reporter::Reporter + 'static>(
         &self,
         requires: &[pep508_rs::Requirement],
@@ -246,7 +250,14 @@ impl PythonPrepare<'_> {
             .collect::<Vec<_>>();
         key.sort();
         key.dedup();
-        let key = key.join(" ");
+        let key = (
+            format!(
+                "{} {}",
+                self.interpreter.executable,
+                self.interpreter.target.environment.python_full_version(),
+            ),
+            key.join(" "),
+        );
         let mut built = self.build_environments.lock().await;
         if let Some(environment) = built.get(&key) {
             return Ok(Arc::clone(environment));

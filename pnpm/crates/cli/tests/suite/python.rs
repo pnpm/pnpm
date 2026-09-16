@@ -408,6 +408,126 @@ async fn installs_real_environment_with_ranges_extras_markers_scripts_and_offlin
 /// The scenario of pnpm/pnpm#14843: an interpreter wrapper that reports the
 /// kernel release `PNPM_TEST_KERNEL_RELEASE` names, with nothing else about
 /// the interpreter, its wheel tags, or the project changing between runs.
+/// An interpreter on the PATH under `name` that reports `version` while
+/// running the real one, so a selection can be observed on a machine that
+/// does not have that version.
+#[cfg(unix)]
+fn interpreter_shim(directory: &Path, name: &str, version: &str) {
+    use std::os::unix::fs::PermissionsExt;
+    // By the interpreter's own path: a shim named `python3` on the PATH it
+    // is started through would otherwise run itself.
+    let interpreter = Command::new("python3")
+        .args(["-c", "import sys; print(sys.executable)"])
+        .output()
+        .unwrap();
+    let interpreter = String::from_utf8(interpreter.stdout).unwrap();
+    fs::create_dir_all(directory).unwrap();
+    let shim = directory.join(name);
+    fs::write(
+        &shim,
+        format!(
+            concat!(
+                "#!{interpreter}\n",
+                "import platform, sys\n",
+                "args = sys.argv[1:]\n",
+                "if args and args[0] == '-I':\n",
+                "    args = args[1:]\n",
+                "assert len(args) >= 2 and args[0] == '-c'\n",
+                "platform.python_version = lambda: '{version}'\n",
+                "platform.python_version_tuple = lambda: tuple('{version}'.split('.'))\n",
+                "sys.argv = ['-c', *args[2:]]\n",
+                "exec(compile(args[1], '<pnpm-shim>', 'exec'), {{'__name__': '__main__'}})\n",
+            ),
+            interpreter = interpreter.trim(),
+            version = version,
+        ),
+    )
+    .unwrap();
+    fs::set_permissions(&shim, fs::Permissions::from_mode(0o755)).unwrap();
+}
+
+#[cfg(unix)]
+fn selected_python(root: &Path) -> String {
+    let lock: toml::Value =
+        toml::from_str(&fs::read_to_string(root.join("pylock.toml")).unwrap()).unwrap();
+    lock["tool"]["pnpm"]["environment"]["python_full_version"]
+        .as_str()
+        .unwrap()
+        .to_string()
+}
+
+/// The interpreter scenarios of pnpm/pnpm#14945: a project the machine's
+/// default interpreter is too new for, and a `.python-version` file.
+#[cfg(unix)]
+#[tokio::test]
+async fn selects_an_interpreter_the_project_accepts_and_its_python_version_file_asks_for() {
+    let root = tempfile::tempdir().unwrap();
+    project(root.path(), "https://unused.invalid", &[]);
+    // Outside the workspace, which an install does not take interpreters from.
+    let outside = tempfile::tempdir().unwrap();
+    let shims = outside.path().join("interpreters");
+    interpreter_shim(&shims, "python3.11", "3.11.9");
+    interpreter_shim(&shims, "python3.12", "3.12.7");
+    let install = |requires_python: &str| {
+        fs::write(
+            root.path().join("pyproject.toml"),
+            format!(
+                "[project]\nname = 'app'\nversion = '1.0'\nrequires-python = '{requires_python}'\ndependencies = []\n",
+            ),
+        )
+        .unwrap();
+        let mut command = pacquet_in(root.path());
+        command
+            .args(["install", "--offline"])
+            .env("PATH", format!("{}:{}", shims.display(), std::env::var("PATH").unwrap()));
+        command
+    };
+
+    install("==3.11.9").assert().success();
+    assert_eq!(selected_python(root.path()), "3.11.9");
+
+    fs::write(root.path().join(".python-version"), "3.12\n").unwrap();
+    install(">=3.11").assert().success();
+    assert_eq!(selected_python(root.path()), "3.12.7");
+
+    fs::write(root.path().join(".python-version"), "3.7\n").unwrap();
+    let output = install(">=3.11").output().unwrap();
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    eprintln!("stdout:\n{stdout}\nstderr:\n{}", String::from_utf8_lossy(&output.stderr));
+    assert!(output.status.success());
+    assert!(stdout.contains("asks for Python 3.7, which was not found"), "{stdout}");
+    assert_ne!(selected_python(root.path()), "3.7");
+
+    // The range is the project's requirement, so no interpreter means no install.
+    fs::remove_file(root.path().join(".python-version")).unwrap();
+    assert_failure_contains(&mut install("==3.99"), "no Python interpreter for");
+
+    // A dependency's own bin directory can be on the PATH of an install that
+    // runs from a script, so no interpreter is resolved through the workspace,
+    // whether it is named there or linked from there.
+    let bin = root.path().join("node_modules/.bin");
+    interpreter_shim(&bin, "python3", "3.13.99");
+    interpreter_shim(&outside.path().join("linked"), "python3.13", "3.13.99");
+    std::os::unix::fs::symlink(outside.path().join("linked/python3.13"), bin.join("python3.13"))
+        .unwrap();
+    // The empty PATH entry below names the directory the install runs in,
+    // which is the workspace this one is planted in.
+    interpreter_shim(root.path(), "python3", "3.13.99");
+    let mut planted = install("==3.13.99");
+    planted.env("PATH", format!(":{}:{}", bin.display(), std::env::var("PATH").unwrap()));
+    assert_failure_contains(&mut planted, "no Python interpreter for");
+
+    // A configured interpreter is the only one, so nothing is searched for.
+    add_python_settings(
+        root.path(),
+        &format!("  executable: '{}'\n", shims.join("python3.11").display()),
+    );
+    assert_failure_contains(
+        &mut install("==3.12.7"),
+        "requires Python ==3.12.7, but 3.11.9 was selected",
+    );
+}
+
 #[cfg(unix)]
 #[tokio::test]
 async fn frozen_lockfile_replays_after_a_kernel_only_marker_change() {
