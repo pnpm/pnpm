@@ -1,5 +1,5 @@
 use super::{InstallOptions, Lockfile, Prepared, Reporter, manifest, prepare};
-use miette::{IntoDiagnostic, Result, bail};
+use miette::{IntoDiagnostic, Result, WrapErr, bail};
 use std::{fs, path::Path};
 
 #[derive(Debug, Clone)]
@@ -22,6 +22,17 @@ pub fn plan_add<Reporter: self::Reporter + 'static>(
         bail!("Python --save-prefix must be >=, ~=, or ==");
     }
     let path = root.join("pyproject.toml");
+    if !path
+        .try_exists()
+        .into_diagnostic()
+        .wrap_err_with(|| format!("read {}", path.display()))?
+    {
+        let missing = path.display();
+        return Err(miette::miette!(
+            help = "Run the command in a directory that has a pyproject.toml, or create one there.",
+            "cannot add a Python dependency because {missing} does not exist",
+        ));
+    }
     let metadata = vec![path.clone(), root.join("pylock.toml")];
     let prepare = async move {
         manifest::add(&path, &options.requirements, options.development)?;
@@ -51,7 +62,11 @@ fn save_added(
     }
     let path = project.root.join("pyproject.toml");
     manifest::add(&path, &requirements, options.development)?;
-    let manifest = manifest::Manifest::parse(&fs::read_to_string(path).into_diagnostic()?)?;
+    let manifest = manifest::Manifest::parse(
+        &fs::read_to_string(&path)
+            .into_diagnostic()
+            .wrap_err_with(|| format!("read {}", path.display()))?,
+    )?;
     lock.tool.pnpm.set_requirements(&manifest.requirements(
         config,
         manifest::DependencySelection::ALL,

@@ -10,7 +10,7 @@ use std::{
     fmt::Write as _,
     fs,
     io::{Cursor, Write},
-    path::Path,
+    path::{Path, PathBuf},
     process::Command,
     sync::{
         Arc, Condvar, Mutex,
@@ -1060,6 +1060,55 @@ fn invalid_python_save_prefix_is_rejected_before_manifest_parsing_or_interpreter
         assert!(!root.path().join("pylock.toml").exists());
         assert!(!root.path().join(".venv").exists());
     }
+}
+
+fn python_add_failure(root: &Path) -> String {
+    let result = pacquet_in(root)
+        .args(["add", "pypi:alpha", "-w"])
+        .assert()
+        .failure();
+    let stderr = String::from_utf8_lossy(&result.get_output().stderr).into_owned();
+    eprintln!("stderr:\n{stderr}");
+    flatten_report(&stderr)
+}
+
+/// The last two components of a temporary project's manifest path. macOS
+/// resolves the leading directories of `TMPDIR` and Windows rewrites their
+/// case, so only the tail is the same in the diagnostic and in the test.
+fn manifest_tail(root: &Path) -> PathBuf {
+    Path::new(root.file_name().expect("the temporary directory has a name")).join("pyproject.toml")
+}
+
+#[test]
+fn python_add_without_a_pyproject_toml_names_the_missing_manifest() {
+    let root = tempfile::tempdir().unwrap();
+    project(root.path(), "https://unused.invalid", &[]);
+    let manifest = root.path().join("pyproject.toml");
+    fs::remove_file(&manifest).unwrap();
+    let report = python_add_failure(root.path());
+    assert!(report.contains(&flatten_report("cannot add a Python dependency because")), "{report}");
+    let named = format!("{} does not exist", manifest_tail(root.path()).display());
+    assert!(report.contains(&flatten_report(&named)), "{report}");
+    let help =
+        "help: Run the command in a directory that has a pyproject.toml, or create one there.";
+    assert!(report.contains(&flatten_report(help)), "{report}");
+    assert!(!manifest.exists());
+    assert!(!root.path().join("pylock.toml").exists());
+}
+
+/// A `pyproject.toml` that is not a regular file exists, so the failure must
+/// name it as what it is rather than as a missing manifest.
+#[test]
+fn python_add_does_not_report_a_present_pyproject_toml_as_missing() {
+    let root = tempfile::tempdir().unwrap();
+    project(root.path(), "https://unused.invalid", &[]);
+    let manifest = root.path().join("pyproject.toml");
+    fs::remove_file(&manifest).unwrap();
+    fs::create_dir(&manifest).unwrap();
+    let report = python_add_failure(root.path());
+    let named = manifest_tail(root.path());
+    assert!(report.contains(&flatten_report(&named.display().to_string())), "{report}");
+    assert!(!report.contains(&flatten_report("does not exist")), "{report}");
 }
 
 #[tokio::test]

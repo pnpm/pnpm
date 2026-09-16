@@ -2,7 +2,7 @@ mod metadata;
 mod selection;
 use selection::Pnpm;
 
-use miette::{IntoDiagnostic, Result, bail};
+use miette::{IntoDiagnostic, Result, WrapErr, bail};
 use pep440_rs::Version;
 use pep508_rs::{PackageName, Requirement};
 use pnpm_python_resolver::parse_requirement;
@@ -282,7 +282,9 @@ impl Manifest {
 }
 
 pub(crate) fn add(path: &Path, requirements: &[String], development: bool) -> Result<()> {
-    let original = std::fs::read_to_string(path).into_diagnostic()?;
+    let original = std::fs::read_to_string(path)
+        .into_diagnostic()
+        .wrap_err_with(|| format!("read {}", path.display()))?;
     let parsed = Manifest::parse(&original)?;
     let Some(project) = &parsed.project else {
         bail!("{} has no [project] table", path.display());
