@@ -1036,6 +1036,23 @@ fn invalid_python_save_prefix_is_rejected_before_manifest_parsing_or_interpreter
     }
 }
 
+#[test]
+fn python_add_without_a_pyproject_toml_names_the_missing_manifest() {
+    let root = tempfile::tempdir().unwrap();
+    project(root.path(), "https://unused.invalid", &[]);
+    let manifest = root.path().join("pyproject.toml");
+    fs::remove_file(&manifest).unwrap();
+    assert_failure_contains(
+        pacquet_in(root.path()).args(["add", "pypi:alpha", "-w"]),
+        &format!(
+            "cannot add a Python dependency because {} does not exist help: Run the command in a directory that has a pyproject.toml, or create one there.",
+            manifest.display(),
+        ),
+    );
+    assert!(!manifest.exists());
+    assert!(!root.path().join("pylock.toml").exists());
+}
+
 #[tokio::test]
 async fn add_supports_empty_and_populated_inline_python_tables() {
     for (manifest, development) in [
