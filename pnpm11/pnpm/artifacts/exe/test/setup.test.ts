@@ -367,11 +367,13 @@ describe('alias bins', () => {
     })
 
     // A UNC path converts to one starting with //, which Linux and macOS read as
-    // /, so the share stands in for the sandbox directory itself.
+    // /, so the share stands in for the sandbox directory itself. `shareDir` is
+    // absolute, so its own leading separator is the second of the two backslashes
+    // that mark the path as UNC.
     aliasTest(`${name} resolves a UNC $0`, () => {
       const sandbox = buildAliasSandbox()
       const shareDir = path.join(sandbox, 'share')
-      const arg0 = `\\${shareDir.replaceAll('/', '\\')}\\${name}`
+      const arg0 = `\\${shareDir}/${name}`.replaceAll('/', '\\')
       fs.copyFileSync(plantAlias(sandbox, name, shareDir), path.join(sandbox, arg0))
 
       const result = runNativeAlias(sandbox, arg0)

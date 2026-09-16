@@ -152,10 +152,12 @@ describe('alias bins', () => {
 
       // A UNC path converts to one starting with `//`, which Linux and macOS
       // read as `/`, so the share stands in for the temporary directory itself.
+      // `shareDir` is absolute, so its own leading separator is the second of
+      // the two backslashes that mark the path as UNC.
       it(`${alias} resolves a UNC path`, { skip: NO_SH }, async () => {
         const dir = createTmpDir('pnpm native ')
         const shareDir = path.join(dir, 'share')
-        const arg0 = `\\${shareDir.replaceAll('/', '\\')}\\${alias}`
+        const arg0 = `\\${shareDir}/${alias}`.replaceAll('/', '\\')
         fs.copyFileSync(plantAlias(alias, shareDir), path.join(dir, arg0))
 
         const result = await run('sh', [arg0, ...ARGS], { cwd: dir, env: { PATH: BARE_PATH } })
