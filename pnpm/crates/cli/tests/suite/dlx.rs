@@ -362,13 +362,13 @@ fn dlx_recovers_ignored_builds() {
         assert_eq!(artifact.exists(), approve);
         assert_eq!(
             std::fs::read_to_string(workspace.join("pnpm-workspace.yaml")).unwrap(),
-            caller_yaml
+            caller_yaml,
         );
         if approve {
             assert!(
                 std::fs::read_to_string(cache_entry.join("pnpm-workspace.yaml"))
                     .expect("read cache approvals")
-                    .contains("allowBuilds:")
+                    .contains("allowBuilds:"),
             );
             pacquet.env_remove("PNPM_AUTO_APPROVE_BUILDS_FOR_TESTS");
             pacquet.assert().success();

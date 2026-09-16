@@ -347,16 +347,12 @@ pub(crate) async fn prompt_approve_install_builds<Reporter: self::Reporter + 'st
         Ok(Config::leak(cfg))
     };
     let state_fn = |require_lockfile: bool| -> miette::Result<State> {
-        let mut cfg = config.clone();
-        if let Some((_, settings)) = WorkspaceSettings::find_and_load(settings_dir)
-            .map_err(miette::Report::new)
-            .wrap_err("load approved install builds")?
-            && let Some(allow_builds) = settings.allow_builds
-        {
-            cfg.allow_builds.extend(decided_allow_builds(allow_builds));
-        }
-        State::init(manifest_path.clone(), Config::leak(cfg), require_lockfile)
-            .wrap_err("initialize the install approve-builds state")
+        State::init(
+            manifest_path.clone(),
+            config_with_install_approvals(config, settings_dir)?,
+            require_lockfile,
+        )
+        .wrap_err("initialize the install approve-builds state")
     };
 
     let args = ApproveBuildsArgs { packages: Vec::new(), all: auto_approve, global: false };
@@ -370,4 +366,19 @@ pub(crate) async fn prompt_approve_install_builds<Reporter: self::Reporter + 'st
         crate::cli_args::rebuild::run_rebuild::<Reporter>(&rebuild_state, selection, None).await?;
     }
     Ok(())
+}
+
+fn config_with_install_approvals(
+    config: &Config,
+    settings_dir: &Path,
+) -> miette::Result<&'static Config> {
+    let mut cfg = config.clone();
+    if let Some((_, settings)) = WorkspaceSettings::find_and_load(settings_dir)
+        .map_err(miette::Report::new)
+        .wrap_err("load approved install builds")?
+        && let Some(allow_builds) = settings.allow_builds
+    {
+        cfg.allow_builds.extend(decided_allow_builds(allow_builds));
+    }
+    Ok(Config::leak(cfg))
 }
