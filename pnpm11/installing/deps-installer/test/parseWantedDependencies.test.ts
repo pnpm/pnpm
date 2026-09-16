@@ -172,3 +172,20 @@ test('readonly aliases preserve empty hook-provided specifiers', () => {
     kept: '',
   }])
 })
+
+test('readonly specifiers are used when current specifiers are ignored', () => {
+  const { wantedDependencies, supersededByKeptRange } = parseWantedDependencies(['hook-owned@1.0.1'], {
+    ...defaults,
+    currentBareSpecifiers: {},
+    readonlySpecifiers: {
+      'hook-owned': '^1.0.0',
+    },
+  })
+
+  expect(wantedDependencies[0].bareSpecifier).toBe('^1.0.0')
+  expect(supersededByKeptRange).toStrictEqual([{
+    alias: 'hook-owned',
+    requested: '1.0.1',
+    kept: '^1.0.0',
+  }])
+})
