@@ -29,10 +29,12 @@ the PR merges.
 
 ## After every push
 
-1. **Wait for the checks.** `gh pr checks <pr> --watch --fail-fast` blocks for
-   longer than a foreground command is usually allowed to run, so run it in the
-   background or poll it. Started in the same breath as the push it can return
-   before the runs exist; give the push a moment first.
+1. **Wait for the checks.** `gh pr checks <pr> --watch` blocks for longer than a
+   foreground command is usually allowed to run, so run it in the background or
+   poll it. Started in the same breath as the push it can return before the runs
+   exist; give the push a moment first. Watch to the end rather than stopping at
+   the first failure: the push that fixes it cancels whatever was still running,
+   so a second failure you never waited for costs another full cycle.
 2. **Read the whole round.** Inline threads are not the whole review. A reviewer
    may post only its worst findings inline and leave the rest in a summary
    comment, so listing the PR's review comments misses findings. Read the issue
@@ -41,11 +43,18 @@ the PR merges.
    the same way, bot or human: a meaningful share of findings are wrong, and a
    fix applied to a finding you did not check is a new bug with a reviewer's
    blessing on it. A priority or severity badge is the reviewer's guess, not a
-   verdict. Act on what holds, reply to the thread declining what does not and
-   why, and resolve the thread either way. Resolving needs GraphQL
-   (`resolveReviewThread`); the REST comment API cannot do it.
-4. **Go back to 1** after the push that carries the fixes. Stop when a round
-   produces no new findings and the checks are green.
+   verdict. Act on what holds. Reply on every thread either way, naming the
+   commit that fixed it or the reason you are not acting, and then resolve it:
+   the thread is the record a reviewer checks each fix against. Resolving needs
+   GraphQL (`resolveReviewThread`); the REST comment API cannot do it.
+4. **Go back to 1** after the push that carries the fixes.
+
+A round is finished only when every reviewer's summary comment names your head
+commit; each one says which commit it reviewed. Green checks and an empty
+comment list prove nothing on their own, because a round that has not started
+yet looks exactly like one that found nothing. Stop when every reviewer has
+reported on the head commit, none of them found anything left to act on, and the
+checks are green.
 
 Report at the end which findings were real, which were not, and anything you
 declined that a human should settle.
@@ -63,6 +72,8 @@ actually exercise the change.
 Push what you find as soon as you find it rather than banking it until the run
 finishes. The main CI workflows cancel a PR branch's in-progress run when the
 next push lands, so waiting for a run you are about to supersede buys nothing.
+Send the fixes in one push, though: a push also restarts a review that is in
+flight, and a trickle of pushes restarts it over and over.
 
 ## Failing checks
 
