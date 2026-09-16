@@ -95,7 +95,6 @@ impl Build {
             .join(format!("cpython-{}+{}-{}", self.version, self.tag, self.triple))
     }
 
-    /// Install this build, and answer with the interpreter it installed.
     /// A build already installed answers without a download.
     pub(super) async fn install(
         &self,
@@ -114,8 +113,8 @@ impl Build {
         Ok(InterpreterCommand::program(executable))
     }
 
-    /// Download this build into the store's temporary directory,
-    /// refusing one whose bytes are not what the release says they are.
+    /// Refuses an archive whose bytes are not what the release says they
+    /// are, before anything is unpacked from it.
     async fn download(
         &self,
         config: &Config,
@@ -155,7 +154,6 @@ impl Build {
     }
 }
 
-/// Whether this run may install an interpreter at all.
 pub(super) fn allowed(config: &Config) -> bool {
     refused(config).is_none()
 }
@@ -170,8 +168,8 @@ pub(super) fn refused(config: &Config) -> Option<&'static str> {
     (config.python.downloads != PythonDownloads::Auto).then_some("python.downloads is never")
 }
 
-/// The index an earlier run cached, while it is recent enough to still
-/// name what the release holds.
+/// The cached index, while it is recent enough to still name what the
+/// release holds.
 fn cached_index(cache: &Path) -> Option<String> {
     let age = cache
         .metadata()
@@ -276,9 +274,9 @@ fn host_triple() -> Option<String> {
     Some(format!("{architecture}-{system}"))
 }
 
-/// Unpack the interpreter beside where it belongs and move it there, so
-/// that a directory under `python` is one an install can use and never a
-/// download that stopped halfway.
+/// Beside where it belongs and moved there, so that a directory under
+/// `python` is one an install can use and never a download that stopped
+/// halfway.
 fn unpack(archive: &Path, directory: &Path) -> Result<()> {
     let parent = directory.parent().expect("an installed interpreter has a parent directory");
     std::fs::create_dir_all(parent).into_diagnostic()?;
