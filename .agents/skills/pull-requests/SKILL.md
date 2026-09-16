@@ -61,8 +61,8 @@ fix landed in every version that has the bug, and confirm the tests you added
 actually exercise the change.
 
 Push what you find as soon as you find it rather than banking it until the run
-finishes: a PR branch's run is superseded by the next push anyway
-(`cancel-in-progress` in the CI workflows).
+finishes. The main CI workflows cancel a PR branch's in-progress run when the
+next push lands, so waiting for a run you are about to supersede buys nothing.
 
 ## Failing checks
 
