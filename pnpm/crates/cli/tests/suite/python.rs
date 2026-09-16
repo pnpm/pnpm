@@ -2066,3 +2066,50 @@ async fn a_requirement_the_backend_asks_for_is_approved_too() {
         "because the build requirement helper is not approved to run",
     );
 }
+
+/// uv builds a project with the workspace's own backend. pnpm does not
+/// yet, and the index's package of that name is other code.
+#[tokio::test]
+async fn a_workspace_project_as_a_build_requirement_is_refused() {
+    let root = tempfile::tempdir().unwrap();
+    let mut server = mockito::Server::new_async().await;
+    let _backends = serve_backends(&mut server).await;
+    project(root.path(), &server.url(), &[]);
+    python_project(&root.path().join("packages/tinybackend"), "tinybackend", "dependencies = []");
+    fs::write(
+        root.path().join("pyproject.toml"),
+        "[project]\nname = 'app'\nversion = '1.0'\nrequires-python = '>=3.10'\n\
+         dependencies = []\n\n[build-system]\nrequires = ['tinybackend']\n\
+         build-backend = 'tinybuild'\n",
+    )
+    .unwrap();
+
+    assert_failure_contains(
+        pacquet_in(root.path()).arg("install"),
+        "which is a project in this workspace",
+    );
+}
+
+/// A backend reads its own configuration, so one that builds for another
+/// interpreter produces a wheel this environment cannot install.
+#[tokio::test]
+async fn a_wheel_built_for_another_interpreter_is_refused() {
+    let root = tempfile::tempdir().unwrap();
+    let mut server = mockito::Server::new_async().await;
+    // A wheel built for another interpreter, and consistent about it, so
+    // what refuses it is the check against this interpreter's tags.
+    let elsewhere = TINY_BACKEND.replace("py3-none-any", "py2-none-any");
+    let _backend = serve(
+        &mut server,
+        "tinybackend",
+        &[("80.0", wheel("tinybackend", "80.0", "", &[("tinybuild.py", elsewhere.as_str())]))],
+    )
+    .await;
+    project(root.path(), &server.url(), &[]);
+    python_project(root.path(), "app", "dependencies = []");
+
+    assert_failure_contains(
+        pacquet_in(root.path()).arg("install"),
+        "which this interpreter does not install",
+    );
+}

@@ -199,6 +199,15 @@ impl Manifest {
             .collect()
     }
 
+    /// The distributions this project needs to build at all.
+    pub(super) fn build_requirement_names(&self) -> Result<BTreeSet<PackageName>> {
+        self.build_system
+            .iter()
+            .flat_map(|system| &system.requires)
+            .map(|requirement| Ok(parse_requirement(requirement)?.name))
+            .collect()
+    }
+
     /// What a wheel built from this project would state in its
     /// `METADATA`: its requirements, and its extras' requirements under
     /// the marker that selects each extra. A dependency group is a

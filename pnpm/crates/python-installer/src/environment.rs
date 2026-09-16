@@ -4,6 +4,7 @@ use super::{
     fs, io, manifest,
 };
 use miette::WrapErr;
+use std::collections::BTreeMap;
 
 /// What every project of one [`prepare`](super::prepare) run shares.
 pub(super) struct PythonPrepare<'a> {
@@ -12,10 +13,19 @@ pub(super) struct PythonPrepare<'a> {
     /// The environments every project of this run is locked for.
     pub(super) environments: &'a Environments,
     pub(super) index: &'a Index,
-    pub(super) store_index: Option<pnpm_store_dir::SharedReadonlyStoreIndex>,
-    pub(super) writer: &'a Arc<StoreIndexWriter>,
+    pub(super) store: ArtifactStore<'a>,
     pub(super) resolve: bool,
     pub(super) selection: manifest::DependencySelection,
+    /// The environments backends have already been installed into, by the
+    /// requirements they hold. Every project using one backend needs the
+    /// same environment, and a workspace is mostly one backend.
+    pub(super) build_environments: tokio::sync::Mutex<BTreeMap<String, Arc<tempfile::TempDir>>>,
+}
+
+/// The store a run reads verified artifacts from and writes them to.
+pub(super) struct ArtifactStore<'a> {
+    pub(super) index: Option<pnpm_store_dir::SharedReadonlyStoreIndex>,
+    pub(super) writer: &'a Arc<StoreIndexWriter>,
 }
 
 /// What [`PythonPrepare::lockfile`] needs about one project.

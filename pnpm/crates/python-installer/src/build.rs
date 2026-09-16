@@ -7,10 +7,11 @@ use super::{
 };
 use miette::{IntoDiagnostic, Result, WrapErr, bail};
 use pep508_rs::PackageName;
-use pnpm_python_resolver::parse_requirement;
+use pnpm_python_resolver::{parse_requirement, wheel_identity};
 use std::{
     collections::{BTreeMap, BTreeSet},
     path::Path,
+    sync::Arc,
 };
 
 /// What PEP 517 says a project means when it declares no build system.
@@ -71,6 +72,7 @@ impl PythonPrepare<'_> {
         };
         let output = tempfile::tempdir().into_diagnostic()?;
         let built = self.run_backend(root, environment, &output, request).await?;
+        self.installable_here(&built, root)?;
         identify(&built.metadata, manifest, root)?;
         let directory = root.display();
         let url = url::Url::from_directory_path(root)
@@ -92,7 +94,7 @@ impl PythonPrepare<'_> {
     async fn run_backend(
         &self,
         root: &Path,
-        environment: tempfile::TempDir,
+        environment: Arc<tempfile::TempDir>,
         output: &tempfile::TempDir,
         request: serde_json::Value,
     ) -> Result<Backend517> {
@@ -109,6 +111,32 @@ impl PythonPrepare<'_> {
         .await
         .wrap_err_with(|| format!("read the wheel built from {}", root.display()))?;
         Ok(Backend517 { wheel, metadata })
+    }
+
+    /// Refuse a wheel this interpreter would not install. A backend
+    /// reads its own configuration, so one told to build for another
+    /// interpreter or platform produces a wheel that is not for the
+    /// environment pnpm is filling.
+    fn installable_here(&self, built: &Backend517, root: &Path) -> Result<()> {
+        let tags = &self.interpreter.target.tags;
+        if wheel_identity(&built.wheel.filename, tags)?.is_none() {
+            bail!(
+                "the Python project at {} built {}, which this interpreter does not install",
+                root.display(),
+                built.wheel.filename,
+            );
+        }
+        let Some(declared) = built.metadata.requires_python.as_deref() else { return Ok(()) };
+        let specifiers: pep440_rs::VersionSpecifiers = declared.parse().into_diagnostic()?;
+        if !specifiers.contains(self.interpreter.target.environment.python_full_version()) {
+            bail!(
+                "the Python project at {} built a wheel requiring Python {specifiers}, but {} was \
+                 selected",
+                root.display(),
+                self.interpreter.target.environment.python_full_version(),
+            );
+        }
+        Ok(())
     }
 
     /// What the project's backend needs installed to run at all.
@@ -165,11 +193,25 @@ impl PythonPrepare<'_> {
         self.install_requirements::<Reporter>(&requires).await.map(BuildEnvironment::Ready)
     }
 
-    /// A fresh environment holding exactly these requirements.
+    /// An environment holding exactly these requirements, built once per
+    /// run. Every project declaring one backend needs the same
+    /// environment, and resolving and installing it again for each would
+    /// be most of what a workspace's install does.
     async fn install_requirements<Reporter: pnpm_reporter::Reporter + 'static>(
         &self,
         requires: &[pep508_rs::Requirement],
-    ) -> Result<tempfile::TempDir> {
+    ) -> Result<Arc<tempfile::TempDir>> {
+        let mut key = requires
+            .iter()
+            .map(ToString::to_string)
+            .collect::<Vec<_>>();
+        key.sort();
+        key.dedup();
+        let key = key.join(" ");
+        let mut built = self.build_environments.lock().await;
+        if let Some(environment) = built.get(&key) {
+            return Ok(Arc::clone(environment));
+        }
         let root = tempfile::tempdir().into_diagnostic()?;
         let mut registry = self.registry();
         let solution = resolver::resolve::<Reporter>(&mut registry, requires).await?;
@@ -183,6 +225,8 @@ impl PythonPrepare<'_> {
             serde_json::json!({ "root": root.path(), "packages": wheels }),
         )
         .await?;
+        let root = Arc::new(root);
+        built.insert(key, Arc::clone(&root));
         Ok(root)
     }
 }
@@ -193,7 +237,7 @@ impl PythonPrepare<'_> {
 /// An environment a backend can run in, or the requirements nothing has
 /// approved to run in one.
 enum BuildEnvironment {
-    Ready(tempfile::TempDir),
+    Ready(Arc<tempfile::TempDir>),
     NotApproved(Vec<String>),
 }
 
@@ -290,13 +334,16 @@ fn requires_what_it_declares(
     manifest: &Manifest,
     root: &Path,
 ) -> Result<()> {
+    // Compared as parsed requirements, so a changed version range, extra
+    // or marker is a difference too: resolution answered with what the
+    // manifest said, and the wheel is what gets installed.
     let declared = manifest
         .distribution_requirements()?
         .iter()
-        .map(|requirement| Ok(parse_requirement(requirement)?.name))
+        .map(|requirement| Ok(parse_requirement(requirement)?.to_string()))
         .collect::<Result<BTreeSet<_>>>()?;
     for requirement in &metadata.requires_dist {
-        let required = parse_requirement(requirement)?.name;
+        let required = parse_requirement(requirement)?.to_string();
         if !declared.contains(&required) {
             let manifest_path = root.join("pyproject.toml");
             let manifest_path = manifest_path.display();

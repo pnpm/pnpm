@@ -28,6 +28,27 @@ pub(super) struct LocalProject {
     metadata: WheelMetadata,
 }
 
+/// Offer only the projects a lockfile already names, so replaying it
+/// cannot install one it does not describe. A project the lockfile has no
+/// entry for is left out, and a resolution that needs it fails as stale
+/// rather than reaching past what was locked.
+pub(super) fn offer_locked(packages: &mut Packages, local: &[LocalProject], lock: &Lockfile) {
+    let locked = lock.packages
+        .iter()
+        .map(|package| package.name.clone())
+        .collect::<BTreeSet<_>>();
+    for project in local {
+        if locked.contains(&project.name) {
+            packages.insert_directory(
+                project.name.clone(),
+                project.version.clone(),
+                project.directory.clone(),
+                project.metadata.clone(),
+            );
+        }
+    }
+}
+
 /// Whether a lockfile still describes the workspace projects it pins.
 ///
 /// What a locked directory package records is where its source is and how
@@ -238,7 +259,28 @@ impl Workspace {
                 None => self.refuse_shadowed_member(&name, root)?,
             }
         }
+        for name in manifest.build_requirement_names()? {
+            self.refuse_local_build_requirement(&name, root)?;
+        }
         Ok(targets)
+    }
+
+    /// Refuse a build requirement a project in this workspace declares.
+    /// uv builds with the workspace's own project; pnpm does not yet, and
+    /// taking the index's package of that name would run other code as
+    /// the backend.
+    fn refuse_local_build_requirement(&self, name: &PackageName, root: &Path) -> Result<()> {
+        let Some(member) = self.member(name, root)? else { return Ok(()) };
+        if member == root {
+            return Ok(());
+        }
+        bail!(
+            "{} needs `{name}` to build, which is a project in this workspace ({}). pnpm does not \
+             build with a workspace project's own backend yet, and will not run the index's \
+             package of that name instead.",
+            root.join("pyproject.toml").display(),
+            member.display(),
+        )
     }
 
     /// The source a project resolves a distribution from: its own

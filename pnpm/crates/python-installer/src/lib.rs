@@ -90,10 +90,10 @@ async fn prepare<Reporter: self::Reporter + 'static>(
         interpreter: &interpreter,
         environments: &environments,
         index: &index,
-        store_index,
-        writer: &writer,
+        store: environment::ArtifactStore { index: store_index, writer: &writer },
         resolve,
         selection,
+        build_environments: tokio::sync::Mutex::default(),
     };
     let result = prepare_projects::<Reporter>(&prepare, roots).await;
     drop(writer);
@@ -266,8 +266,8 @@ impl PythonPrepare<'_> {
             downloaded: BTreeSet::new(),
             store: pnpm_tarball::ArchiveStoreContext {
                 dir: &self.context.config.store_dir,
-                index: self.store_index.clone(),
-                index_writer: Some(Arc::clone(self.writer)),
+                index: self.store.index.clone(),
+                index_writer: Some(Arc::clone(self.store.writer)),
                 verify_integrity: self.context.config.verify_store_integrity,
                 strict_pkg_content_check: self.context.config.strict_store_pkg_content_check,
                 verified_files_cache: Arc::default(),

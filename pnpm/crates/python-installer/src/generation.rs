@@ -46,7 +46,7 @@ impl PythonPrepare<'_> {
         registry.resolution.answer_for(self.interpreter.target.clone());
         registry.resolution.packages.candidates.clear();
         lock.seed(&mut registry.resolution.packages, &self.interpreter.target)?;
-        workspace::offer(&mut registry.resolution.packages, project.local);
+        workspace::offer_locked(&mut registry.resolution.packages, project.local, lock);
         registry.fetch_wheels::<Reporter>().await?;
         let solution = resolver::locked_solution(&registry.resolution, selected)?;
         let installed = self.installable::<Reporter>(registry, solution, project).await?;

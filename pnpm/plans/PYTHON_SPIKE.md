@@ -68,7 +68,11 @@ set. Approval covers the names a build asks pnpm to fetch: what
 the project. What those packages themselves depend on follows from approving
 them, the way a dependency's own closure does for a build script. An in-tree
 backend reached through `backend-path` is the repository's own code, which pnpm
-runs as it runs a workspace project's scripts. A Python version is not a semver
+runs as it runs a workspace project's scripts. What a build environment holds is
+resolved against the index each time rather than pinned in `pylock.toml`, as pip
+and uv also resolve build requirements, so a lockfile does not fix which release
+of a backend a later install runs. A build environment is built once per install
+and shared by every project declaring the same requirements. A Python version is not a semver
 range, so only the name half of an `allowBuilds` key decides a Python build. An
 install that has not approved a build requirement does not build the projects
 needing it, which `strictDepBuilds` makes an error rather than a warning.
@@ -220,8 +224,9 @@ static project dependencies, and the projects in this repository a project
 depends on. Git/URL requirements, Python installation, dynamic dependency
 metadata for a project in this repository, HTML-only indexes, pip
 configuration/keyring discovery and recursive/filtered add are not
-implemented. A distribution an index serves only as a source archive is not
-built. The environments a lockfile covers are resolved one at a
+implemented, nor is building a project with a backend the workspace itself
+declares, which is refused rather than taken from the index. A distribution an
+index serves only as a source archive is not built. The environments a lockfile covers are resolved one at a
 time rather than forked out of one universal solve, so two environments no
 marker tells apart cannot need different versions of a distribution.
 A release's requirements are read once for the version, from the first wheel
