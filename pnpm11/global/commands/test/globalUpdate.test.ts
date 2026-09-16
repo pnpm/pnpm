@@ -151,6 +151,38 @@ test('global update emits a single summary after updating all isolated groups', 
   expect(summaryDebug).toHaveBeenCalledWith({ prefix: '/global/v11' })
 })
 
+test('global update ignores incomplete survivors when every replaced bin is retained', async () => {
+  const target: GlobalPackageInfo = {
+    dependencies: { foo: '^1.0.0' },
+    hash: 'hash-foo',
+    installDir: '/global/v11/old-foo',
+  }
+  const survivor: GlobalPackageInfo = {
+    dependencies: { bar: '^2.0.0' },
+    hash: 'hash-bar',
+    installDir: '/global/v11/old-bar',
+  }
+  const survivorError = Object.assign(new Error('survivor package.json is missing'), { code: 'ENOENT' })
+  createInstallDir.mockReturnValue('/global/v11/install-1')
+  getHashLink.mockReturnValue('/global/v11/hash-foo')
+  scanGlobalPackages.mockReturnValue([target, survivor])
+  getInstalledBinNames.mockImplementation(async (pkg) => {
+    if (pkg === survivor) throw survivorError
+    return ['fresh']
+  })
+
+  await handleGlobalUpdate({
+    bin: '/global/bin',
+    globalPkgDir: '/global/v11',
+  } as any, ['foo'], {}) // eslint-disable-line @typescript-eslint/no-explicit-any
+
+  expect(getInstalledBinNames).toHaveBeenCalledTimes(1)
+  expect(getInstalledBinNames).toHaveBeenCalledWith(target)
+  expect(activateGlobalInstall).toHaveBeenCalledWith(expect.objectContaining({
+    requiredBinNames: new Set(['fresh']),
+  }))
+})
+
 test('global update removes the fresh install and does not activate when target ownership cannot be enumerated', async () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'global-update-ownership-'))
   expect(fs.realpathSync(path.dirname(root))).toBe(fs.realpathSync(os.tmpdir()))
