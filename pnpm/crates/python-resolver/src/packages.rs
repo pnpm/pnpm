@@ -48,6 +48,8 @@ impl Candidate {
                 vcs.url == expected.url
                     && vcs.requested_revision == expected.requested_revision
                     && vcs.subdirectory == expected.subdirectory
+                    && (expected.commit_id.is_empty()
+                        || vcs.commit_id.eq_ignore_ascii_case(&expected.commit_id))
             }
             _ => false,
         }

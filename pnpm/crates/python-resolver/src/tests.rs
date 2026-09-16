@@ -870,3 +870,5 @@ fn git_and_index_sources_of_one_version_remain_distinct_across_environments() {
         .unwrap();
     assert!(windows.candidates[&name("demo")][&version("1.0.0")].wheel().is_some());
 }
+
+mod frozen_sources;

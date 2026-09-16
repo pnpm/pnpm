@@ -48,8 +48,8 @@ impl PythonPrepare<'_> {
         lock.seed(&mut registry.resolution.packages, &self.interpreter.target)?;
         workspace::offer_locked(&mut registry.resolution.packages, project.local, lock);
         registry.record_sources(selected)?;
-        registry.fetch_wheels::<Reporter>().await?;
-        let solution = resolver::locked_solution(&registry.resolution, selected)?;
+        registry.fetch_wheels::<Reporter>(selected).await?;
+        let solution = resolver::selected_solution(&mut registry.resolution, selected)?;
         let installed = self.installable::<Reporter>(registry, solution, project).await?;
         let packages = installed.packages;
         host::run::<serde_json::Value>(

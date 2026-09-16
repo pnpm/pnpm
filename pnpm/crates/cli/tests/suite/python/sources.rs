@@ -1,5 +1,6 @@
 mod backtracking;
 mod compatibility;
+mod frozen;
 
 use super::{
     assert_failure_contains, project, python, python_project, serve, serve_backends, wheel,

@@ -170,10 +170,12 @@ impl Registry<'_> {
     /// already, which after a lockfile is seeded is the wheel each locked
     /// package installs here. Resolving another environment may have read
     /// a different build of the same version.
-    pub(super) async fn fetch_wheels<Reporter: self::Reporter + 'static>(&mut self) -> Result<()> {
+    pub(super) async fn fetch_wheels<Reporter: self::Reporter + 'static>(
+        &mut self,
+        requirements: &[pep508_rs::Requirement],
+    ) -> Result<()> {
         // The stream owns what it walks: a borrowed iterator would have to be
         // `Send` for every lifetime to keep preparation `Send`.
-        self.fetch_vcs::<Reporter>().await?;
         let mut wanted = Vec::new();
         for (name, versions) in &self.resolution.packages.candidates {
             for (version, candidate) in versions {
@@ -203,6 +205,7 @@ impl Registry<'_> {
             self.remember(name, version, wheel);
         }
         self.record_sources(&[])?;
+        self.fetch_vcs::<Reporter>(requirements).await?;
         Ok(())
     }
 

@@ -1,3 +1,5 @@
+pub use sources::active_locked_sources;
+
 mod sources;
 
 use crate::{
@@ -376,7 +378,12 @@ pub fn locked_solution(
 ) -> Result<BTreeMap<PackageName, Version>> {
     let provider = Provider { packages, requirements, environment };
     match pubgrub::resolve(&provider, Package::Root, Version::new([0])) {
-        Ok(solution) => Ok(distributions(solution)),
+        Ok(solution) => {
+            if sources::has_inactive_source(&provider, &solution)? {
+                bail!("Python lockfile selected an inactive source");
+            }
+            Ok(distributions(solution))
+        }
         Err(PubGrubError::NoSolution(tree)) => {
             bail!("Python lockfile does not satisfy the project:\n{}", report_no_solution(tree));
         }

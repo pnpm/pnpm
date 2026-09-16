@@ -75,11 +75,17 @@ fn parse_git(repository: &str) -> Result<LockedVcs> {
         bail!("invalid Python git revision {revision:?}");
     }
     url.set_path(path);
+    let commit_id = if revision.len() == 40 && revision.bytes().all(|byte| byte.is_ascii_hexdigit())
+    {
+        revision.to_ascii_lowercase()
+    } else {
+        String::new()
+    };
     Ok(LockedVcs {
         kind: "git".to_string(),
         url: url.to_string(),
         requested_revision: revision,
-        commit_id: String::new(),
+        commit_id,
         subdirectory,
     })
 }

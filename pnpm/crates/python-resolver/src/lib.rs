@@ -25,7 +25,7 @@ pub use lockfile::{
 };
 pub use metadata::WheelMetadata;
 pub use packages::{Candidate, IndexCandidate, Packages};
-pub use resolve::{Step, locked_solution, step, validate_locked};
+pub use resolve::{Step, active_locked_sources, locked_solution, step, validate_locked};
 pub use source::Source;
 
 mod candidates;

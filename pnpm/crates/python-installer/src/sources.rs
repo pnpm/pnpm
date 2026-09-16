@@ -7,7 +7,7 @@ use super::{build, environment::PythonPrepare, host, manifest::Source, registry:
 use miette::{IntoDiagnostic, Result, bail};
 use pep440_rs::Version;
 use pep508_rs::{PackageName, Requirement, VersionOrUrl};
-use pnpm_python_resolver::Candidate;
+use pnpm_python_resolver::{Candidate, LockedVcs};
 use pnpm_reporter::Reporter;
 use std::collections::BTreeMap;
 
@@ -65,7 +65,12 @@ impl Registry<'_> {
         let key = (name.clone(), version.clone());
         let Some(fetched) = self.sources.fetched.get(&key) else { return false };
         let Some(wheel) = self.wheels.get(&key) else { return false };
-        let selected = &self.resolution.packages.candidates[name][version];
+        let Some(selected) = self.resolution.packages.candidates
+            .get(name)
+            .and_then(|versions| versions.get(version))
+        else {
+            return false;
+        };
         match (fetched, selected) {
             (Candidate::Wheel(a), Candidate::Wheel(b)) => {
                 wheel.filename == b.wheel.name
@@ -143,7 +148,37 @@ impl Registry<'_> {
         Ok(())
     }
 
-    pub(super) async fn fetch_vcs<Reporter: self::Reporter + 'static>(&mut self) -> Result<()> {
+    pub(super) async fn fetch_vcs<Reporter: self::Reporter + 'static>(
+        &mut self,
+        requirements: &[Requirement],
+    ) -> Result<()> {
+        let mut wanted = self.wanted_vcs();
+        for (name, version, _) in &wanted {
+            self.resolution.packages.metadata.remove(&(name.clone(), version.clone()));
+        }
+        while !wanted.is_empty() {
+            let active = pnpm_python_resolver::active_locked_sources(
+                &self.resolution.packages,
+                requirements,
+                &self.resolution.target.environment,
+            )?;
+            let Some(position) = wanted
+                .iter()
+                .position(|(name, _, _)| active.contains(name))
+            else {
+                bail!("Python lockfile selected an inactive source");
+            };
+            let (name, version, vcs) = wanted.remove(position);
+            self.fetch_git::<Reporter>(&name, vcs).await?;
+            if !self.has_wheel(&name, &version) {
+                bail!("the Python git source built a different version of {name}=={version}");
+            }
+            self.record_sources(&[])?;
+        }
+        Ok(())
+    }
+
+    fn wanted_vcs(&self) -> Vec<(PackageName, Version, LockedVcs)> {
         let mut wanted = Vec::new();
         for (name, versions) in &self.resolution.packages.candidates {
             for (version, candidate) in versions {
@@ -154,13 +189,7 @@ impl Registry<'_> {
                 }
             }
         }
-        for (name, version, vcs) in wanted {
-            self.fetch_git::<Reporter>(&name, vcs).await?;
-            if !self.has_wheel(&name, &version) {
-                bail!("the Python git source built a different version of {name}=={version}");
-            }
-        }
-        Ok(())
+        wanted
     }
 
     pub(super) fn record_sources(&mut self, requirements: &[Requirement]) -> Result<()> {

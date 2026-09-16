@@ -89,3 +89,14 @@ pub(super) fn locked_solution(
         &resolution.target.environment,
     )
 }
+
+/// Select dependency groups from a lock graph already validated as a whole.
+pub(super) fn selected_solution(
+    resolution: &mut Resolution,
+    requirements: &[Requirement],
+) -> Result<BTreeMap<PackageName, Version>> {
+    let direct_urls = std::mem::take(&mut resolution.packages.direct_urls);
+    let solution = locked_solution(resolution, requirements);
+    resolution.packages.direct_urls = direct_urls;
+    solution
+}

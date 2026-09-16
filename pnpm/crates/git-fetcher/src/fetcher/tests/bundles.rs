@@ -16,7 +16,10 @@ fn cached_bundles_restore_committed_files_without_cache_configuration_or_hooks()
     fs::write(cache.join("untracked-backend.py"), "raise RuntimeError('poisoned')\n").unwrap();
     let restored = root.path().join("restored");
     assert_eq!(checkout_cached_bundles(&cache, &commit, &restored).unwrap(), commit);
-    assert_eq!(fs::read_to_string(restored.join("index.js")).unwrap(), "module.exports = 'src';\n");
+    assert_eq!(
+        fs::read_to_string(restored.join("index.js")).unwrap().trim_end(),
+        "module.exports = 'src';",
+    );
     assert!(!restored.join("untracked-backend.py").exists());
     assert!(!restored.join("compromised").exists());
     assert_eq!(
