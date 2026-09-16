@@ -73,8 +73,9 @@ pub fn plan<Reporter: self::Reporter + 'static>(
 /// start an interpreter.
 async fn discovered_projects(
     manifests: Vec<PathBuf>,
+    allowed_root: Option<&Path>,
 ) -> Result<Option<Vec<(PathBuf, Arc<manifest::Manifest>)>>> {
-    let roots = read_project_manifests(manifests).await?
+    let roots = read_project_manifests(manifests, allowed_root).await?
         .into_iter()
         .map(|(root, manifest)| (root, Arc::new(manifest)))
         .collect::<Vec<_>>();
@@ -91,7 +92,9 @@ async fn prepare<Reporter: self::Reporter + 'static>(
     selection: manifest::DependencySelection,
 ) -> Result<Vec<Prepared>> {
     let config = context.config;
-    let Some(roots) = discovered_projects(manifests).await? else { return Ok(Vec::new()) };
+    let Some(roots) = discovered_projects(manifests, config.workspace_dir.as_deref()).await? else {
+        return Ok(Vec::new());
+    };
     // A manifest that declares only a workspace is still what says which
     // projects that workspace contains and where they come from.
     let workspace = workspace::Workspace::new(&roots)?;
@@ -107,7 +110,7 @@ async fn prepare<Reporter: self::Reporter + 'static>(
         members: workspace.scopes().clone(),
         build_environments: tokio::sync::Mutex::default(),
     };
-    let result = prepare_discovered::<Reporter>(&shared, workspace, roots).await;
+    let result = prepare_projects::<Reporter>(&shared, workspace, roots).await;
     drop(writer);
     writer_task.await
         .into_diagnostic()
@@ -117,54 +120,24 @@ async fn prepare<Reporter: self::Reporter + 'static>(
     result
 }
 
-async fn prepare_discovered<Reporter: self::Reporter + 'static>(
-    shared: &Shared<'_>,
-    workspace: workspace::Workspace,
-    roots: Vec<(PathBuf, Arc<manifest::Manifest>)>,
-) -> Result<Vec<Prepared>> {
-    if !roots.iter().any(|(_, manifest)| manifest.needs_metadata()) {
-        return prepare_projects::<Reporter>(shared, &workspace, roots).await;
-    }
-    drop(workspace);
-    let mut resolved = Vec::new();
-    let mut interpreters = Interpreters::new(shared.context.config);
-    for (root, mut manifest) in roots {
-        if manifest.needs_metadata() {
-            let interpreter = interpreters.select::<Reporter>(&root, &manifest).await?;
-            let environments = Environments::of(shared.context.config, &interpreter)?;
-            let (metadata, output) = PythonPrepare::for_project(shared, &interpreter, &environments)
-                .metadata::<Reporter>(&root, &manifest).await?;
-            Arc::make_mut(&mut manifest)
-                .set_metadata(metadata, output)
-                .wrap_err_with(|| format!("metadata for {}", root.display()))?;
-        }
-        resolved.push((root, manifest));
-    }
-    let workspace = workspace::Workspace::new(&resolved)?;
-    prepare_projects::<Reporter>(shared, &workspace, resolved).await
-}
-
 async fn prepare_projects<Reporter: self::Reporter + 'static>(
     shared: &Shared<'_>,
-    workspace: &workspace::Workspace,
-    discovered: Vec<(PathBuf, Arc<manifest::Manifest>)>,
+    mut workspace: workspace::Workspace,
+    mut discovered: Vec<(PathBuf, Arc<manifest::Manifest>)>,
 ) -> Result<Vec<Prepared>> {
-    // Every project's workspace dependencies are read before the first
-    // await, so the index itself is not held across one.
-    let planned = discovered
-        .into_iter()
-        .filter(|(_, manifest)| manifest.project.is_some())
-        .map(|(root, manifest)| {
-            let local = workspace.local_projects(&root, &manifest, &root)?;
-            Ok((root, manifest, Arc::from(local)))
-        })
-        .collect::<Result<Vec<_>>>()?;
     let config = shared.context.config;
     let mut interpreters = Interpreters::new(config);
+    shared.prepare_metadata::<Reporter>(&mut discovered, &mut interpreters).await?;
+    workspace.update_manifests(&discovered);
     let mut prepared = Vec::new();
-    for (root, manifest, local) in planned {
+    for (root, manifest) in discovered {
+        if manifest.project.is_none() {
+            continue;
+        }
         let interpreter = interpreters.select::<Reporter>(&root, &manifest).await?;
         let environments = Environments::of(config, &interpreter)?;
+        workspace.for_resolution(config, &environments);
+        let local = Arc::from(workspace.local_projects(&root, &manifest, &root)?);
         prepared.push(
             PythonPrepare::for_project(shared, &interpreter, &environments)
                 .project::<Reporter>(root, manifest, local)
@@ -179,13 +152,23 @@ async fn prepare_projects<Reporter: self::Reporter + 'static>(
 /// which projects a workspace contains and where they come from.
 async fn read_project_manifests(
     manifests: Vec<PathBuf>,
+    allowed_root: Option<&Path>,
 ) -> Result<Vec<(PathBuf, manifest::Manifest)>> {
     let mut roots = Vec::new();
     for path in manifests {
-        let contents = tokio::fs::read_to_string(&path).await
-            .into_diagnostic()
-            .wrap_err_with(|| format!("read {}", path.display()))?;
-        let manifest = read_manifest(&path, &contents).await?;
+        let contents = if path
+            .file_name()
+            .is_some_and(|name| name == "requirements.txt")
+        {
+            String::new()
+        } else {
+            tokio::fs::read_to_string(&path).await
+                .into_diagnostic()
+                .wrap_err_with(|| format!("read {}", path.display()))?
+        };
+        let allowed_root =
+            allowed_root.unwrap_or_else(|| path.parent().expect("manifest has a parent"));
+        let manifest = read_manifest(&path, &contents, allowed_root).await?;
         if manifest.project.is_some() || manifest.tool.uv.workspace.is_some() {
             roots.push((
                 path.parent()
@@ -198,7 +181,11 @@ async fn read_project_manifests(
     Ok(roots)
 }
 
-async fn read_manifest(path: &Path, contents: &str) -> Result<manifest::Manifest> {
+async fn read_manifest(
+    path: &Path,
+    contents: &str,
+    allowed_root: &Path,
+) -> Result<manifest::Manifest> {
     let mut manifest = if path
         .file_name()
         .is_some_and(|name| name == "requirements.txt")
@@ -210,11 +197,13 @@ async fn read_manifest(path: &Path, contents: &str) -> Result<manifest::Manifest
     if manifest.project.is_none() {
         let requirements_path = path.with_file_name("requirements.txt");
         if tokio::fs::try_exists(&requirements_path).await.into_diagnostic()? {
-            let requirements =
-                tokio::task::spawn_blocking(move || requirements::read(&requirements_path))
-                    .await
-                    .into_diagnostic()
-                    .wrap_err("join Python requirements parsing")??;
+            let allowed_root = allowed_root.to_path_buf();
+            let requirements = tokio::task::spawn_blocking(move || {
+                requirements::read(&requirements_path, &allowed_root)
+            })
+            .await
+            .into_diagnostic()
+            .wrap_err("join Python requirements parsing")??;
             manifest.set_requirements_file(requirements);
         }
     }

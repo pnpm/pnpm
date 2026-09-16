@@ -1,4 +1,8 @@
+pub(super) use validation::requirement_set;
+
 mod metadata;
+mod validation;
+use validation::requires_what_it_declares;
 
 use super::{
     environment::PythonPrepare,
@@ -437,50 +441,6 @@ impl Approvals {
         }
         format!("{PYPI_PURL}{name}")
     }
-}
-
-/// Refuse a wheel that requires a distribution its project does not
-/// declare. Resolution answered with what the manifest requires, so such
-/// a wheel would be installed without it.
-fn requires_what_it_declares(
-    metadata: &host::WheelMetadata,
-    manifest: &Manifest,
-    root: &Path,
-) -> Result<()> {
-    // Compared as parsed requirements, so a changed version range, extra
-    // or marker is a difference too: resolution answered with what the
-    // manifest said, and the wheel is what gets installed.
-    let declared = manifest
-        .distribution_requirements()?
-        .iter()
-        .map(|requirement| Ok(parse_requirement(requirement)?.to_string()))
-        .collect::<Result<BTreeSet<_>>>()?;
-    if manifest.metadata.is_some() {
-        let built = metadata.requires_dist
-            .iter()
-            .map(|requirement| Ok(parse_requirement(requirement)?.to_string()))
-            .collect::<Result<BTreeSet<_>>>()?;
-        if declared != built {
-            bail!(
-                "the Python project at {} built dependency metadata that differs from its prepared metadata",
-                root.display(),
-            );
-        }
-        return Ok(());
-    }
-    for requirement in &metadata.requires_dist {
-        let required = parse_requirement(requirement)?.to_string();
-        if !declared.contains(&required) {
-            let manifest_path = root.join("pyproject.toml");
-            let manifest_path = manifest_path.display();
-            bail!(
-                "the wheel built from the Python project at {} requires `{required}`, which \
-                 {manifest_path} does not declare",
-                root.display(),
-            );
-        }
-    }
-    Ok(())
 }
 
 struct Backend {

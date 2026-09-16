@@ -26,7 +26,7 @@ impl Manifest {
     pub(in super::super) fn set_metadata(
         &mut self,
         metadata: WheelMetadata,
-        output: std::sync::Arc<tempfile::TempDir>,
+        output: Option<std::sync::Arc<tempfile::TempDir>>,
     ) -> Result<()> {
         let project = self.project.as_mut().expect("dynamic metadata belongs to a project");
         if project.dynamic
@@ -42,7 +42,45 @@ impl Manifest {
             project.requires_python.clone_from(&metadata.requires_python);
         }
         self.metadata = Some(metadata);
-        self.metadata_output = Some(output);
+        self.metadata_output = output;
+        Ok(())
+    }
+
+    pub(in super::super) fn validate_static_metadata(
+        &self,
+        metadata: &WheelMetadata,
+    ) -> Result<()> {
+        let project = self.project.as_ref().expect("metadata belongs to a project");
+        if !project.dynamic
+            .iter()
+            .any(|field| field == "requires-python")
+        {
+            let declared = project.requires_python
+                .as_deref()
+                .map(str::parse::<pep440_rs::VersionSpecifiers>)
+                .transpose()
+                .into_diagnostic()?;
+            let actual = metadata.requires_python
+                .as_deref()
+                .map(str::parse::<pep440_rs::VersionSpecifiers>)
+                .transpose()
+                .into_diagnostic()?;
+            if declared != actual {
+                bail!("Python backend metadata differs from static project requires-python");
+            }
+        }
+        let actual = crate::build::requirement_set(&metadata.requires_dist)?;
+        let declared = crate::build::requirement_set(&project.distribution_requirements(true)?)?;
+        if !declared.is_subset(&actual) {
+            bail!("Python backend metadata omits static project dependencies");
+        }
+        if !project.dynamic
+            .iter()
+            .any(|field| matches!(field.as_str(), "dependencies" | "optional-dependencies"))
+            && declared != actual
+        {
+            bail!("Python backend metadata differs from static project dependencies");
+        }
         Ok(())
     }
 

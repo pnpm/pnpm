@@ -140,6 +140,31 @@ impl Narrowing {
 }
 
 impl Project {
+    fn distribution_requirements(&self, static_only: bool) -> Result<Vec<String>> {
+        let mut requirements = if static_only
+            && self.dynamic
+                .iter()
+                .any(|field| field == "dependencies")
+        {
+            Vec::new()
+        } else {
+            self.dependencies.clone()
+        };
+        if static_only
+            && self.dynamic
+                .iter()
+                .any(|field| field == "optional-dependencies")
+        {
+            return Ok(requirements);
+        }
+        for (extra, dependencies) in &self.optional_dependencies {
+            for dependency in dependencies {
+                requirements.push(super::workspace::requirement_for_extra(dependency, extra)?);
+            }
+        }
+        Ok(requirements)
+    }
+
     fn ensure_static_dependencies(&self) -> Result<()> {
         if self.dynamic
             .iter()
@@ -244,13 +269,7 @@ impl Manifest {
         if let Some(metadata) = &self.metadata {
             return Ok(metadata.requires_dist.clone());
         }
-        let mut requirements = project.dependencies.clone();
-        for (extra, dependencies) in &project.optional_dependencies {
-            for dependency in dependencies {
-                requirements.push(super::workspace::requirement_for_extra(dependency, extra)?);
-            }
-        }
-        Ok(requirements)
+        project.distribution_requirements(false)
     }
 
     /// The extras this project offers.

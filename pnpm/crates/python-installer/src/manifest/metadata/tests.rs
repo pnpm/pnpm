@@ -11,9 +11,7 @@ fn dynamic_extras_keep_platform_markers_and_dependency_groups() {
         "requires_dist": ["alpha", "beta; extra == 'cli' and sys_platform == 'linux'"]
     }))
     .unwrap();
-    manifest
-        .set_metadata(metadata, std::sync::Arc::new(tempfile::tempdir().unwrap()))
-        .unwrap();
+    manifest.set_metadata(metadata, None).unwrap();
     let mut config = Config::new();
     let requirements = |config: &Config, selection| {
         manifest

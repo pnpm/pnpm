@@ -1543,6 +1543,8 @@ def _build(directory, editable):
         source = os.path.join(_source_dir(manifest), module, "__init__.py")
         entries[module + "/__init__.py"] = open(source).read()
     metadata = "Metadata-Version: 2.4\nName: " + name + "\nVersion: " + version + "\n"
+    if "requires-python" in project:
+        metadata += "Requires-Python: " + project["requires-python"] + "\n"
     for requirement in project.get("dependencies", []):
         metadata += "Requires-Dist: " + requirement + "\n"
     entries[dist_info + "/METADATA"] = metadata

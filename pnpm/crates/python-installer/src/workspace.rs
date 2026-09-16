@@ -1,7 +1,7 @@
 use super::manifest::{Manifest, SourceDeclaration};
 use miette::{IntoDiagnostic, Result, WrapErr, bail};
 use pep440_rs::Version;
-use pep508_rs::{MarkerTree, PackageName, VerbatimUrl};
+use pep508_rs::{ExtraName, MarkerEnvironment, MarkerTree, PackageName, VerbatimUrl};
 use pnpm_python_resolver::{LockedDirectory, Lockfile, Packages, WheelMetadata, parse_requirement};
 use source::{Declared, path_target, reject_unresolvable, sole_source};
 use std::{
@@ -11,7 +11,9 @@ use std::{
 };
 use wax::Program as _;
 
+mod selection;
 mod source;
+use selection::Target;
 
 /// A project in this repository that a resolution installs from its
 /// source rather than from the index.
@@ -113,6 +115,7 @@ pub(super) struct Workspace {
     roots: BTreeMap<PackageName, Vec<PathBuf>>,
     manifests: BTreeMap<PathBuf, Arc<Manifest>>,
     inherited: BTreeMap<PathBuf, (PathBuf, Arc<Manifest>)>,
+    selection: Option<Selection>,
 }
 
 impl Workspace {
@@ -139,8 +142,29 @@ impl Workspace {
             .iter()
             .map(|(root, manifest)| (root.clone(), Arc::clone(manifest)))
             .collect();
-        let workspace = Self { declared, roots, manifests, inherited: BTreeMap::new() };
+        let workspace =
+            Self { declared, roots, manifests, inherited: BTreeMap::new(), selection: None };
         workspace.with_scopes(projects)
+    }
+
+    pub(super) fn update_manifests(&mut self, projects: &[(PathBuf, Arc<Manifest>)]) {
+        self.manifests = projects.iter()
+            .map(|(root, manifest)| (root.clone(), Arc::clone(manifest)))
+            .collect();
+    }
+
+    pub(super) fn for_resolution(
+        &mut self,
+        config: &'static pnpm_config::Config,
+        environments: &super::targets::Environments,
+    ) {
+        self.selection = Some(Selection {
+            config,
+            environments: environments.list
+                .iter()
+                .map(|environment| environment.target.environment.clone())
+                .collect(),
+        });
     }
 
     /// Which distributions each project may take from the repository.
@@ -226,34 +250,26 @@ impl Workspace {
     ) -> Result<Vec<LocalProject>> {
         let mut local = Vec::new();
         let mut seen = BTreeMap::<PackageName, Target>::new();
-        let mut frontier = self.targets(root, manifest)?;
+        let mut frontier = self.targets(root, manifest, None)?;
         while let Some((name, target)) = frontier.pop() {
-            if let Some(chosen) = seen.get(&name) {
-                if chosen.root != target.root {
-                    bail!(
-                        "two Python sources reachable from {} give `{name}`: {} and {}",
-                        root.display(),
-                        chosen.root.display(),
-                        target.root.display(),
-                    );
-                }
-                if chosen.editable != target.editable {
-                    bail!(
-                        "two Python sources reachable from {} install `{name}` from {} \
-                         differently: one editable, one not",
-                        root.display(),
-                        target.root.display(),
-                    );
+            if let Some(chosen) = seen.get_mut(&name) {
+                if chosen.merge(&target, &name, root)? {
+                    let manifest = self.load(&target.root)?;
+                    frontier.extend(self.targets(&target.root, &manifest, Some(&chosen.extras))?);
                 }
                 continue;
             }
             seen.insert(
                 name.clone(),
-                Target { root: target.root.clone(), editable: target.editable },
+                Target {
+                    root: target.root.clone(),
+                    editable: target.editable,
+                    extras: target.extras.clone(),
+                },
             );
             let manifest = self.load(&target.root)?;
             local.push(read_project(&name, &target, &manifest, lock_root)?);
-            frontier.extend(self.targets(&target.root, &manifest)?);
+            frontier.extend(self.targets(&target.root, &manifest, Some(&target.extras))?);
         }
         Ok(local)
     }
@@ -267,12 +283,18 @@ impl Workspace {
 
     /// Which of a project's requirements name a project on disk, and where
     /// each one lives.
-    fn targets(&self, root: &Path, manifest: &Manifest) -> Result<Vec<(PackageName, Target)>> {
+    fn targets(
+        &self,
+        root: &Path,
+        manifest: &Manifest,
+        extras: Option<&BTreeSet<ExtraName>>,
+    ) -> Result<Vec<(PackageName, Target)>> {
         let mut targets = Vec::new();
-        for name in manifest.declared_distributions()? {
+        for (name, extras) in self.selected_distributions(manifest, extras)? {
             match self.source(root, manifest, &name) {
                 Some(Declared { declaration, by }) => {
-                    let target = self.target(&name, declaration, root, by)?;
+                    let mut target = self.target(&name, declaration, root, by)?;
+                    target.extras = extras;
                     targets.push((name, target));
                 }
                 None => self.refuse_shadowed_member(&name, root)?,
@@ -330,6 +352,7 @@ impl Workspace {
             return Ok(Target {
                 root: path_target(declared_by, path, name, &manifest_path)?,
                 editable: source.editable.unwrap_or(false),
+                extras: BTreeSet::new(),
             });
         }
         let Some(member) = self.member(name, root)? else {
@@ -339,13 +362,17 @@ impl Workspace {
                  its workspace declares `{name}`",
             );
         };
-        Ok(Target { root: member.to_path_buf(), editable: source.editable.unwrap_or(true) })
+        Ok(Target {
+            root: member.to_path_buf(),
+            editable: source.editable.unwrap_or(true),
+            extras: BTreeSet::new(),
+        })
     }
 }
 
-struct Target {
-    root: PathBuf,
-    editable: bool,
+struct Selection {
+    config: &'static pnpm_config::Config,
+    environments: Vec<MarkerEnvironment>,
 }
 
 /// The distributions a workspace contains: the root's own, and every

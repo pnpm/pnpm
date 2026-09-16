@@ -68,7 +68,9 @@ the hook is absent. Metadata preparation uses the same isolated environments
 and `allowBuilds` approval checks as project builds. It also runs during
 lockfile-only and frozen installs, since dependency metadata is needed to
 validate the lockfile. Unapproved requirements are an error when metadata
-cannot be read without executing the backend.
+cannot be read without executing the backend. Final wheel dependencies, Python
+compatibility, and declared extras must match the metadata used for resolution.
+Only metadata produced by the preparation hook is passed to a later wheel build.
 
 Directories with `requirements.txt` and no `[project]` table participate too.
 A `[project]` table takes precedence over a neighboring requirements file.
@@ -76,6 +78,9 @@ Requirements files accept PEP 508 requirements, comments, line continuations,
 and local `-r`/`--requirement` includes relative to the containing file. Cyclic
 includes and unsupported pip directives, including constraints, editable
 requirements, index options, and hashes, produce an error with file context.
+Includes must stay inside the discovered workspace, or the project directory
+when no workspace is configured. Only regular files are read. Reads and include
+depth are bounded, and repeated includes are parsed once.
 Direct URL requirements retain the installer's existing restrictions.
 Requirements files do not cause the directory's own package to be built or
 create a `pyproject.toml`.

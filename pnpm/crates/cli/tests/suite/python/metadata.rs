@@ -91,7 +91,7 @@ async fn dynamic_dependencies_use_the_metadata_hook_or_wheel_fallback() {
         let backend = backend.replace(r#"project = dict(manifest["project"])"#, "project = dict(manifest[\"project\"])\n    project[\"dependencies\"] = open(\"requirements.txt\").read().splitlines()");
         let backend = if hook {
             format!(
-                "{backend}\n\ndef prepare_metadata_for_build_wheel(directory, config_settings=None):\n    import pathlib\n    output = pathlib.Path(directory) / 'app-1.0.dist-info'\n    output.mkdir()\n    (output / 'METADATA').write_text('Metadata-Version: 2.4\\nName: app\\nVersion: 1.0\\nRequires-Dist: ' + open('requirements.txt').read().strip() + '\\n')\n    return output.name\n",
+                "{backend}\n\ndef prepare_metadata_for_build_wheel(directory, config_settings=None):\n    import pathlib\n    output = pathlib.Path(directory) / 'app-1.0.dist-info'\n    output.mkdir()\n    (output / 'METADATA').write_text('Metadata-Version: 2.4\\nName: app\\nVersion: 1.0\\nRequires-Python: >=3.10\\nRequires-Dist: ' + open('requirements.txt').read().strip() + '\\n')\n    return output.name\n",
             )
         } else {
             backend
@@ -165,6 +165,14 @@ async fn dynamic_dependencies_and_versions_resolve_workspace_sources() {
         r#"project = manifest["project"]"#,
         "project = dict(manifest[\"project\"])\n    if project[\"name\"] == \"app\":\n        project[\"dependencies\"] = [\"mylib==0.0.1\"]",
     );
+    let backend = format!(
+        r"{backend}
+
+def build_wheel(wheel_directory, config_settings=None, metadata_directory=None):
+    assert metadata_directory is None
+    return _build(wheel_directory, False)
+",
+    );
     let _backend = serve(
         &mut server,
         "tinybackend",
@@ -186,7 +194,7 @@ async fn dynamic_dependencies_and_versions_resolve_workspace_sources() {
     python_project(
         &app,
         "app",
-        "dynamic = ['dependencies']\n[tool.uv.sources]\nmylib = {workspace = true}",
+        "dynamic = ['dependencies']\n[tool.uv.sources]\nmylib = {workspace = true, editable = false}",
     );
     super::pacquet_in(root.path())
         .arg("install")
@@ -210,7 +218,7 @@ def prepare_metadata_for_build_wheel(directory, config_settings=None):
     project = tomllib.load(open("pyproject.toml", "rb"))["project"]
     output = pathlib.Path(directory) / (project["name"] + "-0.0.1.dist-info")
     output.mkdir()
-    (output / "METADATA").write_text("Metadata-Version: 2.4\nName: " + project["name"] + "\nVersion: 0.0.1\n")
+    (output / "METADATA").write_text("Metadata-Version: 2.4\nName: " + project["name"] + "\nVersion: 0.0.1\nRequires-Python: >=3.10\n")
     (output / "sentinel").write_text("prepared")
     return output.name
 
@@ -253,4 +261,152 @@ def build_wheel(wheel_directory, config_settings=None, metadata_directory=None):
         .args(["-c", "import mylib"])
         .assert()
         .success();
+}
+
+#[tokio::test]
+async fn dynamic_metadata_cannot_omit_or_change_static_dependencies() {
+    for declaration in ["dynamic = ['version']", "version = '1.0'\ndynamic = ['requires-python']"] {
+        for dependencies in ["[]", r#"["alpha>=2"]"#] {
+            let root = tempfile::tempdir().unwrap();
+            let mut server = mockito::Server::new_async().await;
+            let backend = TINY_BACKEND.replace(
+                r#"project = manifest["project"]"#,
+                &format!(
+                    r#"project = dict(manifest["project"])
+    project["dependencies"] = {dependencies}"#,
+                ),
+            );
+            let _backend = serve(
+                &mut server,
+                "tinybackend",
+                &[("80.0", wheel("tinybackend", "80.0", "", &[("tinybuild.py", &backend)]))],
+            )
+            .await;
+            project(root.path(), &server.url(), &[]);
+            python_project(root.path(), "app", "dependencies = ['alpha']");
+            let manifest = root.path().join("pyproject.toml");
+            fs::write(
+                &manifest,
+                fs::read_to_string(&manifest).unwrap().replace("version = '1.0'", declaration),
+            )
+            .unwrap();
+            super::assert_failure_contains(
+                super::pacquet_in(root.path()).arg("install"),
+                "omits static project dependencies",
+            );
+            assert!(!root.path().join("pylock.toml").exists());
+        }
+    }
+}
+
+#[tokio::test]
+async fn the_final_wheel_must_preserve_prepared_python_support_and_extras() {
+    for field in ["Requires-Python: >=3.11", "Provides-Extra: cli"] {
+        let root = tempfile::tempdir().unwrap();
+        let mut server = mockito::Server::new_async().await;
+        let backend = TINY_BACKEND.replace(
+            r#"entries[dist_info + "/METADATA"] = metadata"#,
+            &format!(r#"entries[dist_info + "/METADATA"] = metadata.replace("Requires-Python: >=3.10\n", "") + {field:?} + '\n'"#),
+        );
+        let backend = format!(
+            r#"{backend}
+
+def prepare_metadata_for_build_wheel(directory, config_settings=None):
+    import pathlib
+    output = pathlib.Path(directory) / "app-1.0.dist-info"
+    output.mkdir()
+    (output / "METADATA").write_text("Metadata-Version: 2.4\nName: app\nVersion: 1.0\nRequires-Python: >=3.10\n")
+    return output.name
+"#,
+        );
+        let _backend = serve(
+            &mut server,
+            "tinybackend",
+            &[("80.0", wheel("tinybackend", "80.0", "", &[("tinybuild.py", &backend)]))],
+        )
+        .await;
+        project(root.path(), &server.url(), &[]);
+        python_project(root.path(), "app", "dynamic = ['dependencies']");
+        super::assert_failure_contains(
+            super::pacquet_in(root.path()).arg("install"),
+            "differs from its prepared metadata",
+        );
+        assert!(!root.path().join("pylock.toml").exists());
+    }
+}
+
+#[tokio::test]
+async fn inactive_dynamic_dependencies_do_not_shadow_workspace_projects() {
+    let root = tempfile::tempdir().unwrap();
+    let mut server = mockito::Server::new_async().await;
+    let backend = TINY_BACKEND.replace(r#"project = manifest["project"]"#, "project = dict(manifest[\"project\"])\n    if project[\"name\"] == \"app\":\n        project[\"dependencies\"] = [\"mylib; python_version < '2'\", \"mylib; extra == 'cli'\"]");
+    let _backend = serve(
+        &mut server,
+        "tinybackend",
+        &[("80.0", wheel("tinybackend", "80.0", "", &[("tinybuild.py", &backend)]))],
+    )
+    .await;
+    project(root.path(), &server.url(), &[]);
+    fs::remove_file(root.path().join("pyproject.toml")).unwrap();
+    python_project(&root.path().join("packages/mylib"), "mylib", "dependencies = []");
+    python_project(&root.path().join("packages/app"), "app", "dynamic = ['dependencies']");
+    super::pacquet_in(root.path())
+        .arg("install")
+        .assert()
+        .success();
+}
+
+#[tokio::test]
+async fn a_dependency_extra_selects_dynamic_workspace_dependencies() {
+    let root = tempfile::tempdir().unwrap();
+    let mut server = mockito::Server::new_async().await;
+    let backend = TINY_BACKEND.replace(r#"project = manifest["project"]"#, "project = dict(manifest[\"project\"])\n    if project[\"name\"] == \"mylib\":\n        project[\"dependencies\"] = [\"beta; extra == 'foo'\"]");
+    let backend = backend.replace(r#"entries[dist_info + "/METADATA"] = metadata"#, "if name == 'mylib':\n        metadata += 'Provides-Extra: foo\\n'\n    entries[dist_info + \"/METADATA\"] = metadata");
+    let _backend = serve(
+        &mut server,
+        "tinybackend",
+        &[("80.0", wheel("tinybackend", "80.0", "", &[("tinybuild.py", &backend)]))],
+    )
+    .await;
+    project(root.path(), &server.url(), &[]);
+    fs::remove_file(root.path().join("pyproject.toml")).unwrap();
+    python_project(&root.path().join("packages/beta"), "beta", "dependencies = []");
+    python_project(
+        &root.path().join("packages/mylib"),
+        "mylib",
+        "dependencies = []\ndynamic = ['optional-dependencies']\n[tool.uv.sources]\nbeta = {workspace = true}",
+    );
+    python_project(
+        &root.path().join("packages/app"),
+        "app",
+        "dependencies = ['mylib[foo]']\n[tool.uv.sources]\nmylib = {workspace = true}",
+    );
+    super::pacquet_in(root.path())
+        .arg("install")
+        .assert()
+        .success();
+    python(&root.path().join("packages/app"))
+        .args(["-c", "import beta; assert beta.MARKER == 'workspace beta'"])
+        .assert()
+        .success();
+}
+
+#[tokio::test]
+async fn dynamic_dependencies_cannot_change_static_python_support() {
+    let root = tempfile::tempdir().unwrap();
+    let mut server = mockito::Server::new_async().await;
+    let backend = TINY_BACKEND.replace(r#"if "requires-python" in project:"#, "if False:");
+    let _backend = serve(
+        &mut server,
+        "tinybackend",
+        &[("80.0", wheel("tinybackend", "80.0", "", &[("tinybuild.py", &backend)]))],
+    )
+    .await;
+    project(root.path(), &server.url(), &[]);
+    python_project(root.path(), "app", "dynamic = ['dependencies']");
+    super::assert_failure_contains(
+        super::pacquet_in(root.path()).args(["install", "--lockfile-only"]),
+        "differs from static project requires-python",
+    );
+    assert!(!root.path().join("pylock.toml").exists());
 }

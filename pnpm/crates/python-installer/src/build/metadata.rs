@@ -1,17 +1,16 @@
 use super::{
-    BuildEnvironment, PythonPrepare, backend, host, identify_identity, interpreter,
-    requires_what_it_declares, unapproved,
+    BuildEnvironment, PythonPrepare, backend, host, identify_identity, interpreter, unapproved,
 };
-use crate::manifest::Manifest;
+use crate::{environment::Shared, interpreter::Interpreters, manifest::Manifest, targets::Environments};
 use miette::{IntoDiagnostic, Result, WrapErr, bail};
-use std::{path::Path, sync::Arc};
+use std::{path::{Path, PathBuf}, sync::Arc};
 
 impl PythonPrepare<'_> {
     pub(in super::super) async fn metadata<Reporter: pnpm_reporter::Reporter + 'static>(
         &self,
         root: &Path,
         manifest: &Manifest,
-    ) -> Result<(host::WheelMetadata, Arc<tempfile::TempDir>)> {
+    ) -> Result<(host::WheelMetadata, Option<Arc<tempfile::TempDir>>)> {
         let requires = self.build_requirements(root, manifest)?;
         let unapproved = unapproved(self.context.config, &requires);
         if !unapproved.is_empty() {
@@ -39,13 +38,21 @@ impl PythonPrepare<'_> {
         let output = tempfile::tempdir().into_diagnostic()?;
         let mut request = request;
         request["output"] = serde_json::json!(output.path());
-        let metadata: host::WheelMetadata =
+        let response: BackendMetadata =
             host::run(&interpreter(environment.path()), "metadata", request)
                 .await
                 .wrap_err_with(|| format!("prepare Python metadata at {}", root.display()))?;
-        validate_metadata(&metadata, manifest, root)?;
-        Ok((metadata, Arc::new(output)))
+        validate_metadata(&response.metadata, manifest, root)
+            .wrap_err_with(|| format!("validate Python metadata at {}", root.display()))?;
+        let output = response.prepared.then(|| Arc::new(output));
+        Ok((response.metadata, output))
     }
+}
+
+#[derive(serde::Deserialize)]
+struct BackendMetadata {
+    metadata: host::WheelMetadata,
+    prepared: bool,
 }
 
 fn validate_metadata(
@@ -54,20 +61,47 @@ fn validate_metadata(
     root: &Path,
 ) -> Result<()> {
     identify_identity(metadata, manifest, root)?;
-    if !manifest.project
-        .as_ref()
-        .is_some_and(|project| {
-            project.dynamic
-                .iter()
-                .any(|field| {
-                    matches!(
-                        field.as_str(),
-                        "dependencies" | "optional-dependencies" | "requires-python",
-                    )
-                })
-        })
-    {
-        requires_what_it_declares(metadata, manifest, root)?;
-    }
+    manifest.validate_static_metadata(metadata)?;
     Ok(())
+}
+
+impl Shared<'_> {
+    pub(in super::super) async fn prepare_metadata<Reporter: pnpm_reporter::Reporter + 'static>(
+        &self,
+        projects: &mut [(PathBuf, Arc<Manifest>)],
+        interpreters: &mut Interpreters<'_>,
+    ) -> Result<()> {
+        for (root, manifest) in projects {
+            if manifest.needs_metadata() {
+                self.project_metadata::<Reporter>(root, manifest, interpreters).await?;
+            }
+        }
+        Ok(())
+    }
+
+    async fn project_metadata<Reporter: pnpm_reporter::Reporter + 'static>(
+        &self,
+        root: &Path,
+        manifest: &mut Arc<Manifest>,
+        interpreters: &mut Interpreters<'_>,
+    ) -> Result<()> {
+        let original = Arc::clone(manifest);
+        let mut interpreter = interpreters.select::<Reporter>(root, &original).await?;
+        for attempt in 0..3 {
+            let environments = Environments::of(self.context.config, &interpreter)?;
+            let (metadata, output) = PythonPrepare::for_project(self, &interpreter, &environments)
+                .metadata::<Reporter>(root, &original).await?;
+            Arc::make_mut(manifest).set_metadata(metadata, output)
+                .wrap_err_with(|| format!("metadata for {}", root.display()))?;
+            let selected = interpreters.select::<Reporter>(root, manifest).await?;
+            if Arc::ptr_eq(&interpreter, &selected) {
+                return Ok(());
+            }
+            if attempt == 2 {
+                bail!("dynamic Python metadata at {} did not select a stable interpreter", root.display());
+            }
+            interpreter = selected;
+        }
+        unreachable!("metadata selection returns or rejects its last attempt")
+    }
 }

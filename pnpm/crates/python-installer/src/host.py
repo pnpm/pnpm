@@ -393,13 +393,13 @@ def prepare_metadata(request):
         if len(directories) != 1:
             raise ValueError("wheel must contain exactly one dist-info directory")
         dist_info = directories.pop()
-        return core_metadata(read_headers(built["files"], dist_info + "/METADATA"), "unpacked/" + dist_info, True)
+        return {"metadata": core_metadata(read_headers(built["files"], dist_info + "/METADATA"), dist_info, True), "prepared": False}
     directory = hook(str(output))
     located = output.joinpath(directory).resolve()
     if located.parent != output or not located.name.endswith(".dist-info"):
         raise ValueError("metadata hook returned an invalid dist-info directory: " + directory)
     metadata = email.parser.Parser().parsestr((located / "METADATA").read_text(encoding="utf-8"))
-    return core_metadata(metadata, directory, True)
+    return {"metadata": core_metadata(metadata, directory, True), "prepared": True}
 
 
 def install(request):
