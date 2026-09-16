@@ -189,3 +189,23 @@ test('readonly specifiers are used when current specifiers are ignored', () => {
     kept: '^1.0.0',
   }])
 })
+
+test('readonly aliases are allowed when new dependencies are disabled', () => {
+  const { wantedDependencies } = parseWantedDependencies(['hook-owned'], {
+    ...defaults,
+    allowNew: false,
+    currentBareSpecifiers: {},
+    readonlySpecifiers: {
+      'hook-owned': '',
+    },
+  })
+
+  expect(wantedDependencies).toStrictEqual([{
+    alias: 'hook-owned',
+    bareSpecifier: '',
+    dev: false,
+    optional: false,
+    prevSpecifier: '',
+    saveCatalogName: undefined,
+  }])
+})

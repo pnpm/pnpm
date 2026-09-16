@@ -303,6 +303,7 @@ test('a revision refresh pins direct and transitive versions while preserving an
       dev: false,
       optional: false,
       updateDepth: Number.POSITIVE_INFINITY,
+      updateAllowed: false,
     }],
   } satisfies ImporterToResolveGeneric<object>], {
     allowedDeprecatedVersions: {},

@@ -58,7 +58,7 @@ export function parseWantedDependencies (
         Object.hasOwn(opts.readonlySpecifiers, alias)
       const readonlySpecifier = hasReadonlySpecifier ? opts.readonlySpecifiers![alias] : undefined
 
-      if (!opts.allowNew && (!alias || !opts.currentBareSpecifiers[alias])) {
+      if (!opts.allowNew && (!alias || (!hasReadonlySpecifier && !Object.hasOwn(opts.currentBareSpecifiers, alias)))) {
         return null
       }
       if (alias && opts.defaultCatalog?.[alias] && (

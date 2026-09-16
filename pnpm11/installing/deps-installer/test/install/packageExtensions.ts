@@ -142,6 +142,49 @@ test('update does not save a dependency added by a readPackage hook', async () =
   expect(project.readLockfile().packages['@pnpm.e2e/foo@2.0.0']).toBeUndefined()
 })
 
+test('update preserves the original dependency field when a readPackage hook moves it', async () => {
+  const project = prepareEmpty()
+  const manifest = {
+    name: 'project',
+    version: '1.0.0',
+    devDependencies: {
+      '@pnpm.e2e/foo': '^1.0.0',
+    },
+  }
+  const readPackage: ReadPackageHook = (hookedManifest) => {
+    const { devDependencies, ...manifestWithoutDevDependencies } = hookedManifest
+    return {
+      ...manifestWithoutDevDependencies,
+      dependencies: {
+        ...hookedManifest.dependencies,
+        '@pnpm.e2e/foo': devDependencies?.['@pnpm.e2e/foo'] ?? '^1.0.0',
+      },
+    }
+  }
+  const options = testDefaults({
+    hooks: {
+      readPackage: [readPackage],
+    },
+  })
+
+  await install(manifest, options)
+
+  const { updatedProject } = await mutateModulesInSingleProject({
+    allowNew: false,
+    dependencySelectors: ['@pnpm.e2e/foo'],
+    manifest,
+    mutation: 'installSome',
+    rootDir: process.cwd() as ProjectRootDir,
+    update: true,
+    updatePackageManifest: true,
+    updateToLatest: true,
+  }, options)
+
+  expect(updatedProject.manifest).toStrictEqual(manifest)
+  expect(project.readLockfile().importers['.'].dependencies?.['@pnpm.e2e/foo']).toBeDefined()
+  expect(project.readLockfile().importers['.'].devDependencies?.['@pnpm.e2e/foo']).toBeUndefined()
+})
+
 test('update --latest stays within a dependency range rewritten by a readPackage hook', async () => {
   const project = prepareEmpty()
   const manifest = {

@@ -1289,6 +1289,7 @@ export async function mutateModules (
       return new Set(Object.keys(effectiveDependencies).filter((alias) => {
         const originalDependencyType = guessDependencyType(alias, originalManifest)
         if (originalDependencyType == null) return true
+        if (guessDependencyType(alias, project.manifest) !== originalDependencyType) return true
         const originalSpecifier = getSpecFromPackageManifest(originalManifest, alias)
         return effectiveDependencies[alias] !== originalSpecifier ||
           project.isOverriddenDependency?.(alias, originalSpecifier) === true
