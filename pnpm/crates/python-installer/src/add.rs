@@ -22,7 +22,11 @@ pub fn plan_add<Reporter: self::Reporter + 'static>(
         bail!("Python --save-prefix must be >=, ~=, or ==");
     }
     let path = root.join("pyproject.toml");
-    if !path.is_file() {
+    if !path
+        .try_exists()
+        .into_diagnostic()
+        .wrap_err_with(|| format!("read {}", path.display()))?
+    {
         let missing = path.display();
         return Err(miette::miette!(
             help = "Run the command in a directory that has a pyproject.toml, or create one there.",

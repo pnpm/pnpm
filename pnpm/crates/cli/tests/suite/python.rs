@@ -1053,6 +1053,26 @@ fn python_add_without_a_pyproject_toml_names_the_missing_manifest() {
     assert!(!root.path().join("pylock.toml").exists());
 }
 
+/// `pyproject.toml` that is not a regular file exists, so the failure must
+/// name it as what it is rather than as a missing manifest.
+#[test]
+fn python_add_does_not_report_a_present_pyproject_toml_as_missing() {
+    let root = tempfile::tempdir().unwrap();
+    project(root.path(), "https://unused.invalid", &[]);
+    let manifest = root.path().join("pyproject.toml");
+    fs::remove_file(&manifest).unwrap();
+    fs::create_dir(&manifest).unwrap();
+    let result = pacquet_in(root.path())
+        .args(["add", "pypi:alpha", "-w"])
+        .assert()
+        .failure();
+    let stderr = String::from_utf8_lossy(&result.get_output().stderr);
+    eprintln!("stderr:\n{stderr}");
+    let report = flatten_report(&stderr);
+    assert!(report.contains(&flatten_report(&manifest.display().to_string())), "{stderr}");
+    assert!(!report.contains(&flatten_report("does not exist")), "{stderr}");
+}
+
 #[tokio::test]
 async fn add_supports_empty_and_populated_inline_python_tables() {
     for (manifest, development) in [
