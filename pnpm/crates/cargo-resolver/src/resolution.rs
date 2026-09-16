@@ -5,7 +5,7 @@ use crate::{
     },
     lockfile::lockfile_from_solution,
     metadata::{parse_metadata, root_dependencies},
-    model::{FeatureSelection, PackageKey, RegistryDependency},
+    model::{FeatureSelection, PackageKey, RegistryDependency, RegistryVersion},
     registry::{Registry, compatibility_line, matching_versions, newest_compatibility},
 };
 use miette::Result;
@@ -15,8 +15,22 @@ use pubgrub::{
 use semver::Version;
 use std::collections::{BTreeMap, BTreeSet, VecDeque};
 
+/// What discovery has reached a crate with so far: the features every
+/// dependency edge has asked of it together, and the versions those edges
+/// can select.
+#[derive(Default)]
+struct Discovered {
+    selection: FeatureSelection,
+    versions: BTreeSet<Version>,
+}
+
 /// Return sparse-index package names still needed to resolve `metadata`
 /// against the registry identified by `source`.
+///
+/// Edges reaching the same package are unified the way resolution unifies
+/// them, and a package is walked again whenever that union grows. A feature
+/// only the union activates, such as a weak `dep?/feature` whose dependency
+/// another edge turns on, reaches the crates it activates this way.
 pub fn missing_index_names(
     metadata: &str,
     index_files: &BTreeMap<String, String>,
@@ -25,6 +39,7 @@ pub fn missing_index_names(
     let metadata = parse_metadata(metadata)?;
     let registry = Registry::new(index_files, source)?;
     let mut pending = VecDeque::from(root_dependencies(&metadata)?);
+    let mut discovered = BTreeMap::<PackageKey, Discovered>::new();
     let mut visited = BTreeSet::new();
     let mut missing = BTreeSet::new();
 
@@ -43,15 +58,44 @@ pub fn missing_index_names(
             missing.insert(dependency.name);
             continue;
         };
-        let selection = dependency.feature_selection();
-        for version in matching_versions(versions, &dependency.requirement)
-            .filter(|version| supports_features(version, &selection))
-        {
-            pending.extend(active_dependencies(version, &selection)?);
-        }
+        pending.extend(unified_dependencies(&mut discovered, &dependency, versions)?);
     }
 
     Ok(missing.into_iter().collect())
+}
+
+/// Fold what `dependency` asks of its package into what discovery already
+/// knows, and return the dependencies of every version that now needs
+/// walking: the ones this edge brings into range, or all of them when the
+/// unified feature selection grew.
+fn unified_dependencies(
+    discovered: &mut BTreeMap<PackageKey, Discovered>,
+    dependency: &RegistryDependency,
+    versions: &[RegistryVersion],
+) -> Result<Vec<RegistryDependency>> {
+    let Some(compatibility) = newest_compatibility(versions, &dependency.requirement) else {
+        return Ok(Vec::new());
+    };
+    let package = PackageKey::Registry { name: dependency.name.clone(), compatibility };
+    let selectable = matching_versions(versions, &dependency.requirement)
+        .map(|version| version.version.clone())
+        .collect::<BTreeSet<_>>();
+    let entry = discovered.entry(package).or_default();
+    let previous = entry.selection.clone();
+    entry.selection.default_features |= dependency.default_features;
+    entry.selection.features.extend(dependency.features.iter().cloned());
+    let unwalked = &selectable - &entry.versions;
+    entry.versions.extend(selectable);
+    let walk = if entry.selection == previous { unwalked } else { entry.versions.clone() };
+    let mut reached = Vec::new();
+    for version in versions
+        .iter()
+        .filter(|version| walk.contains(&version.version))
+        .filter(|version| supports_features(version, &entry.selection))
+    {
+        reached.extend(active_dependencies(version, &entry.selection)?);
+    }
+    Ok(reached)
 }
 
 /// Resolve Cargo registry dependencies and serialize a format-v4 `Cargo.lock`.
