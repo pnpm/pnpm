@@ -17,11 +17,19 @@ pub(super) struct Shared<'a> {
     /// requirement naming one of them is refused rather than taken from
     /// the index, wherever the backend asked for it.
     pub(super) members: BTreeMap<std::path::PathBuf, BTreeSet<pep508_rs::PackageName>>,
-    /// The environments backends have already been installed into, by the
-    /// requirements they hold. Every project using one backend needs the
-    /// same environment, and a workspace is mostly one backend.
-    pub(super) build_environments: tokio::sync::Mutex<BTreeMap<String, Arc<tempfile::TempDir>>>,
+    /// The environments backends have already been installed into. Every
+    /// project using one backend needs the same environment, and a
+    /// workspace is mostly one backend.
+    pub(super) build_environments: BuildEnvironments,
 }
+
+/// A backend environment belongs to the interpreter that installed it and
+/// the requirements it holds: a backend runs in the interpreter it was
+/// installed for, and what it compiles is built for that one.
+pub(super) type BuildEnvironmentKey = (String, String);
+
+pub(super) type BuildEnvironments =
+    tokio::sync::Mutex<BTreeMap<BuildEnvironmentKey, Arc<tempfile::TempDir>>>;
 
 /// What preparing one project needs: what the run shares, plus the
 /// interpreter that installs this project and the environments it is
@@ -34,7 +42,7 @@ pub(super) struct PythonPrepare<'a> {
     pub(super) store: ArtifactStore<'a>,
     pub(super) asked: Asked,
     pub(super) members: &'a BTreeMap<std::path::PathBuf, BTreeSet<pep508_rs::PackageName>>,
-    pub(super) build_environments: &'a tokio::sync::Mutex<BTreeMap<String, Arc<tempfile::TempDir>>>,
+    pub(super) build_environments: &'a BuildEnvironments,
 }
 
 impl<'a> PythonPrepare<'a> {
