@@ -444,3 +444,49 @@ async fn dynamic_versions_cannot_omit_rename_or_add_static_extras() {
         assert!(!root.path().join("pylock.toml").exists());
     }
 }
+
+#[cfg(unix)]
+#[tokio::test]
+async fn dynamic_python_support_reprepares_metadata_with_the_selected_interpreter() {
+    let root = tempfile::tempdir().unwrap();
+    let outside = tempfile::tempdir().unwrap();
+    let shims = outside.path().join("interpreters");
+    super::interpreter_shim(&shims, "python3.11", "3.11.9");
+    super::interpreter_shim(&shims, "python3.12", "3.12.7");
+    let mut server = mockito::Server::new_async().await;
+    let backend = format!(
+        r#"{TINY_BACKEND}
+
+def prepare_metadata_for_build_wheel(directory, config_settings=None):
+    import pathlib
+    count = pathlib.Path("metadata-count.txt")
+    count.write_text(str(int(count.read_text()) + 1 if count.exists() else 1))
+    output = pathlib.Path(directory) / "app-1.0.dist-info"
+    output.mkdir()
+    (output / "METADATA").write_text("Metadata-Version: 2.4\nName: app\nVersion: 1.0\nRequires-Python: ==3.12.7\n")
+    return output.name
+"#,
+    );
+    let _backend = serve(
+        &mut server,
+        "tinybackend",
+        &[("80.0", wheel("tinybackend", "80.0", "", &[("tinybuild.py", &backend)]))],
+    )
+    .await;
+    project(root.path(), &server.url(), &[]);
+    python_project(root.path(), "app", "dynamic = ['requires-python']");
+    let path = root.path().join("pyproject.toml");
+    fs::write(
+        &path,
+        fs::read_to_string(&path).unwrap().replace("requires-python = '>=3.10'\n", ""),
+    )
+    .unwrap();
+    fs::write(root.path().join(".python-version"), "3.11\n").unwrap();
+    super::pacquet_in(root.path())
+        .args(["install", "--lockfile-only"])
+        .env("PATH", format!("{}:{}", shims.display(), std::env::var("PATH").unwrap()))
+        .assert()
+        .success();
+    assert_eq!(super::selected_python(root.path()), "3.12.7");
+    assert_eq!(fs::read_to_string(root.path().join("metadata-count.txt")).unwrap(), "2");
+}

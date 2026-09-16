@@ -42,3 +42,26 @@ fn dynamic_extras_keep_platform_markers_and_dependency_groups() {
         "1.0",
     );
 }
+
+#[test]
+fn static_extras_select_using_their_normalized_names() {
+    let mut manifest = Manifest::parse("[project]\nname = 'app'\ndynamic = ['version']\n[project.optional-dependencies]\ndev_tools = ['alpha']\n").unwrap();
+    let metadata = serde_json::from_value(serde_json::json!({
+        "name": "app", "version": "1.0", "requires_python": null,
+        "provides_extra": ["dev-tools"], "dist_info": "app-1.0.dist-info", "purelib": true,
+        "requires_dist": ["alpha; extra == 'dev-tools'"]
+    }))
+    .unwrap();
+    manifest.validate_static_metadata(&metadata).unwrap();
+    manifest.set_metadata(metadata, None).unwrap();
+    let mut config = Config::new();
+    config.python.extras.push("dev_tools".to_string());
+    let requirements = manifest.requirements(&config, DependencySelection::ALL).unwrap();
+    assert_eq!(
+        requirements
+            .into_iter()
+            .map(|requirement| requirement.to_string())
+            .collect::<Vec<_>>(),
+        ["alpha"],
+    );
+}

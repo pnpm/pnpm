@@ -1,9 +1,15 @@
 use super::{
     BuildEnvironment, PythonPrepare, backend, host, identify_identity, interpreter, unapproved,
 };
-use crate::{environment::Shared, interpreter::Interpreters, manifest::Manifest, targets::Environments};
+use crate::{
+    environment::Shared, interpreter::Interpreters, manifest::Manifest, targets::Environments,
+};
 use miette::{IntoDiagnostic, Result, WrapErr, bail};
-use std::{path::{Path, PathBuf}, sync::Arc};
+use std::{
+    collections::BTreeMap,
+    path::{Path, PathBuf},
+    sync::Arc,
+};
 
 impl PythonPrepare<'_> {
     pub(in super::super) async fn metadata<Reporter: pnpm_reporter::Reporter + 'static>(
@@ -70,13 +76,16 @@ impl Shared<'_> {
         &self,
         projects: &mut [(PathBuf, Arc<Manifest>)],
         interpreters: &mut Interpreters<'_>,
-    ) -> Result<()> {
+    ) -> Result<BTreeMap<PathBuf, Arc<host::Interpreter>>> {
+        let mut selected = BTreeMap::new();
         for (root, manifest) in projects {
             if manifest.needs_metadata() {
-                self.project_metadata::<Reporter>(root, manifest, interpreters).await?;
+                let interpreter =
+                    self.project_metadata::<Reporter>(root, manifest, interpreters).await?;
+                selected.insert(root.clone(), interpreter);
             }
         }
-        Ok(())
+        Ok(selected)
     }
 
     async fn project_metadata<Reporter: pnpm_reporter::Reporter + 'static>(
@@ -84,24 +93,33 @@ impl Shared<'_> {
         root: &Path,
         manifest: &mut Arc<Manifest>,
         interpreters: &mut Interpreters<'_>,
-    ) -> Result<()> {
+    ) -> Result<Arc<host::Interpreter>> {
         let original = Arc::clone(manifest);
         let mut interpreter = interpreters.select::<Reporter>(root, &original).await?;
-        for attempt in 0..3 {
+        for _ in 0..3 {
+            let requires_python = manifest.project
+                .as_ref()
+                .and_then(|project| project.requires_python.clone());
             let environments = Environments::of(self.context.config, &interpreter)?;
             let (metadata, output) = PythonPrepare::for_project(self, &interpreter, &environments)
-                .metadata::<Reporter>(root, &original).await?;
-            Arc::make_mut(manifest).set_metadata(metadata, output)
+                .metadata::<Reporter>(root, &original)
+                .await?;
+            Arc::make_mut(manifest)
+                .set_metadata(metadata, output)
                 .wrap_err_with(|| format!("metadata for {}", root.display()))?;
+            if manifest.project
+                .as_ref()
+                .and_then(|project| project.requires_python.clone())
+                == requires_python
+            {
+                return Ok(interpreter);
+            }
             let selected = interpreters.select::<Reporter>(root, manifest).await?;
             if Arc::ptr_eq(&interpreter, &selected) {
-                return Ok(());
-            }
-            if attempt == 2 {
-                bail!("dynamic Python metadata at {} did not select a stable interpreter", root.display());
+                return Ok(interpreter);
             }
             interpreter = selected;
         }
-        unreachable!("metadata selection returns or rejects its last attempt")
+        bail!("dynamic Python metadata at {} did not select a stable interpreter", root.display())
     }
 }

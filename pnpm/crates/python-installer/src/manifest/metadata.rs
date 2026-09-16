@@ -94,19 +94,18 @@ impl Manifest {
 
     pub(super) fn metadata_requirements(&self, config: &Config) -> Result<Vec<String>> {
         let metadata = self.metadata.as_ref().expect("dynamic metadata was prepared");
-        for extra in &config.python.extras {
-            if !metadata.provides_extra.contains(extra) {
+        let selected = crate::build::extra_set(&config.python.extras)?;
+        let provided = crate::build::extra_set(&metadata.provides_extra)?;
+        for extra in &selected {
+            if !provided.contains(extra) {
                 bail!("unknown Python project extra: {extra}");
             }
         }
         let mut requirements = Vec::new();
         for requirement in &metadata.requires_dist {
             let mut requirement = parse_requirement(requirement)?;
-            requirement.marker = requirement.marker.simplify_extras_with(|extra| {
-                config.python.extras
-                    .iter()
-                    .any(|selected| selected == extra.as_ref())
-            });
+            requirement.marker =
+                requirement.marker.simplify_extras_with(|extra| selected.contains(extra));
             if requirement.marker.evaluate_extras(&[]) {
                 requirements.push(requirement.to_string());
             }

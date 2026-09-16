@@ -295,7 +295,9 @@ was. Existing lockfiles must use pnpm's supported contract; arbitrary
 third-party pylock imports are not supported. Unsupported forms fail
 explicitly.
 
-Dynamic project metadata is prepared for the selected interpreter. Backends
+Dynamic project metadata is prepared for each project's selected interpreter.
+If dynamic `requires-python` selects another interpreter, pnpm prepares the
+metadata again with that interpreter. Backends
 that generate different dependencies for other interpreters or platforms are
 not queried for each lockfile environment. Path sources outside the discovered
 project inventory still need static metadata. `pnpm add pypi:` writes static

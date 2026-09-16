@@ -127,14 +127,18 @@ async fn prepare_projects<Reporter: self::Reporter + 'static>(
 ) -> Result<Vec<Prepared>> {
     let config = shared.context.config;
     let mut interpreters = Interpreters::new(config);
-    shared.prepare_metadata::<Reporter>(&mut discovered, &mut interpreters).await?;
+    let mut selected =
+        shared.prepare_metadata::<Reporter>(&mut discovered, &mut interpreters).await?;
     workspace.update_manifests(&discovered);
     let mut prepared = Vec::new();
     for (root, manifest) in discovered {
         if manifest.project.is_none() {
             continue;
         }
-        let interpreter = interpreters.select::<Reporter>(&root, &manifest).await?;
+        let interpreter = match selected.remove(&root) {
+            Some(interpreter) => interpreter,
+            None => interpreters.select::<Reporter>(&root, &manifest).await?,
+        };
         let environments = Environments::of(config, &interpreter)?;
         workspace.for_resolution(config, &environments);
         let local = Arc::from(workspace.local_projects(&root, &manifest, &root)?);

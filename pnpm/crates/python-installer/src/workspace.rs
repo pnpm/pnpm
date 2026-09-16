@@ -148,7 +148,8 @@ impl Workspace {
     }
 
     pub(super) fn update_manifests(&mut self, projects: &[(PathBuf, Arc<Manifest>)]) {
-        self.manifests = projects.iter()
+        self.manifests = projects
+            .iter()
             .map(|(root, manifest)| (root.clone(), Arc::clone(manifest)))
             .collect();
     }
