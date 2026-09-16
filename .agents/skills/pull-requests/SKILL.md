@@ -101,10 +101,15 @@ Rebase with `./shell/resolve-pr-conflicts.sh <pr>` (documented under "Resolving
 Conflicts in GitHub PRs" in `AGENTS.md`); it resolves a `pnpm-lock.yaml` conflict
 by reinstalling and stops with the file list when a conflict needs you.
 
-Rebasing force-pushes, and every reviewer starts over on the new commits, so the
-round in flight is lost. Fold the rebase into the push that carries your fixes
-when you can, and re-read the diff after it: a conflict resolved wrongly is a
-real bug that arrives with no review comment attached to it.
+Rebase rather than merging `main` in: the branch protection on `main` requires
+linear history and merge commits are disabled, which is why the script and
+GitHub's update-branch button both rebase.
+
+The force push that follows marks every open inline comment outdated and moves
+its anchor, so answer and resolve the open threads before rebasing, while their
+line numbers still mean something. Fold the rebase into the push that carries
+your fixes when you can, and re-read the diff after it: a conflict resolved
+wrongly is a real bug that arrives with no review comment attached to it.
 
 ## Each round's findings land on the previous round's fixes
 
