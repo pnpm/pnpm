@@ -113,10 +113,14 @@ fn a_purl_namespace_becomes_an_npm_scope() {
     let plan = PackageSpecifierPlan::parse(&[
         "pkg:npm/%40babel/core@7.22.0".into(),
         "pkg:npm/@babel/traverse".into(),
+        "pkg:npm/babel/types@7.22.0".into(),
     ])
     .unwrap();
 
-    assert_eq!(plan.node_packages, ["@babel/core@7.22.0", "@babel/traverse"]);
+    assert_eq!(
+        plan.node_packages,
+        ["@babel/core@7.22.0", "@babel/traverse", "@babel/types@7.22.0"],
+    );
 }
 
 #[test]

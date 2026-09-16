@@ -1,6 +1,6 @@
 use super::{
-    Command, CommandExtra, TempDir, assert_eq, cargo_add_project, exec_pacquet_in_temp_cwd,
-    get_filenames_in_folder, prod_spec,
+    Command, CommandExtra, TempDir, assert_eq, cache_foo_index_versions, cargo_add_project,
+    exec_pacquet_in_temp_cwd, get_filenames_in_folder, prod_spec,
 };
 use crate::_utils::flatten_report;
 use assert_cmd::{assert::OutputAssertExt, cargo::CommandCargoExt};
@@ -21,6 +21,9 @@ fn add_npm_purl_saves_the_scoped_package_it_names() {
 #[test]
 fn add_cargo_purl_writes_the_crate_to_the_cargo_manifest() {
     let (root, cache_dir) = cargo_add_project();
+    // A newer version in the index separates the purl's version from the
+    // one a latest-version lookup would pick.
+    cache_foo_index_versions(&cache_dir, &["1.0.0", "2.0.0"]);
     Command::cargo_bin("pnpm")
         .expect("find the pnpm binary")
         .with_current_dir(root.path())
