@@ -1,4 +1,9 @@
-use crate::{metadata::WheelMetadata, packages::Packages, requires_python::declared_range};
+use crate::{
+    candidates::{Refusal, read_requirement},
+    metadata::WheelMetadata,
+    packages::Packages,
+    requires_python::declared_range,
+};
 use miette::{Result, bail};
 use pep440_rs::Version;
 use pep508_rs::{ExtraName, MarkerEnvironment, PackageName, Requirement, VersionOrUrl};
@@ -109,16 +114,7 @@ impl DependencyProvider for Provider<'_> {
                     .into_iter()
                     .collect::<Vec<_>>();
                 if let Some(extra) = extra {
-                    if !metadata.provides_extra
-                        .iter()
-                        .any(|provided| {
-                            provided
-                                .parse::<ExtraName>()
-                                .ok()
-                                .as_ref()
-                                == Some(extra)
-                        })
-                    {
+                    if !provides_extra(metadata, extra) {
                         return Ok(Dependencies::Unavailable(format!(
                             "extra {extra} is not provided",
                         )));
@@ -128,7 +124,10 @@ impl DependencyProvider for Provider<'_> {
                         Ranges::singleton(version.clone()),
                     );
                 }
-                let requirements = metadata_requirements(metadata)?;
+                let requirements = match metadata_requirements(metadata) {
+                    Ok(requirements) => requirements,
+                    Err(refusal) => return unusable_release(refusal),
+                };
                 self.constraints(&requirements, &extras, &mut constraints)?;
             }
         }
@@ -136,16 +135,52 @@ impl DependencyProvider for Provider<'_> {
     }
 }
 
+fn provides_extra(metadata: &WheelMetadata, extra: &ExtraName) -> bool {
+    metadata.provides_extra
+        .iter()
+        .any(|provided| {
+            provided
+                .parse::<ExtraName>()
+                .ok()
+                .as_ref()
+                == Some(extra)
+        })
+}
+
+/// What a release whose requirements pnpm cannot use offers the solver: a
+/// version to pass over, when one of its requirements is unreadable, and
+/// nothing at all when it names a requirement pnpm does not implement,
+/// which every release declaring it would name too.
+fn unusable_release(
+    refusal: Refusal,
+) -> std::result::Result<Dependencies<Package, Ranges<Version>, String>, Needed> {
+    match refusal {
+        Refusal::Unreadable(error) => Ok(Dependencies::Unavailable(format!(
+            "because its metadata declares a requirement pnpm cannot read: {error}",
+        ))),
+        Refusal::Unsupported(requirement) => Err(Needed::Invalid(format!(
+            "direct URL Python requirements are not supported: {requirement}",
+        ))),
+    }
+}
+
+/// The requirements a wheel declares, or the reason pnpm cannot use them.
+/// A requirement pnpm does not implement outranks one it cannot read
+/// wherever the two appear, so what a release costs a project does not
+/// depend on the order its metadata happens to list them in.
 fn metadata_requirements(
     metadata: &WheelMetadata,
-) -> std::result::Result<Vec<Requirement>, Needed> {
-    metadata.requires_dist
-        .iter()
-        .map(|requirement| {
-            crate::candidates::parse_requirement(requirement)
-                .map_err(|error| Needed::Invalid(error.to_string()))
-        })
-        .collect::<std::result::Result<Vec<_>, _>>()
+) -> std::result::Result<Vec<Requirement>, Refusal> {
+    let mut requirements = Vec::with_capacity(metadata.requires_dist.len());
+    let mut unreadable = None;
+    for declared in &metadata.requires_dist {
+        match read_requirement(declared) {
+            Ok(requirement) => requirements.push(requirement),
+            Err(unsupported @ Refusal::Unsupported(_)) => return Err(unsupported),
+            Err(refusal) => unreadable = unreadable.or(Some(refusal)),
+        }
+    }
+    unreadable.map_or(Ok(requirements), Err)
 }
 
 impl Provider<'_> {

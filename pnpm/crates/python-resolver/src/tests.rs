@@ -316,6 +316,78 @@ fn a_project_with_no_satisfying_version_reports_why() {
     assert!(error.to_string().contains("Python dependency resolution failed"), "{error}");
 }
 
+fn project_whose_newest_release_declares(requires_dist: &str) -> (Packages, Vec<Requirement>) {
+    let target = target();
+    let mut packages = Packages::new();
+    packages.candidates.insert(
+        name("demo"),
+        candidates_from_page(
+            &page(&serde_json::json!([
+                wheel("demo-1.0.0-py3-none-any.whl"),
+                wheel("demo-2.0.0-py3-none-any.whl"),
+            ])),
+            &index_url(),
+            &name("demo"),
+            &target,
+        )
+        .expect("page parses"),
+    );
+    for (version, requires_dist) in [("1.0.0", ""), ("2.0.0", requires_dist)] {
+        packages.metadata.insert(
+            (name("demo"), Version::from_str(version).unwrap()),
+            WheelMetadata::parse(&format!("Name: demo\nVersion: {version}\n{requires_dist}"))
+                .expect("metadata parses"),
+        );
+    }
+    (packages, vec![Requirement::from_str("demo").expect("requirement fixture")])
+}
+
+#[test]
+fn a_release_whose_requirements_cannot_be_read_gives_way_to_one_that_can() {
+    let target = target();
+    let (packages, requirements) =
+        project_whose_newest_release_declares("Requires-Dist: >=1 helper\n");
+
+    let Step::Solved(solution) = step(&packages, &requirements, &target.environment).unwrap()
+    else {
+        panic!("the release before the unreadable one satisfies the project");
+    };
+
+    assert_eq!(solution[&name("demo")].to_string(), "1.0.0");
+}
+
+#[test]
+fn a_project_whose_every_release_is_unreadable_reports_why() {
+    let target = target();
+    let (packages, requirements, _) = solved_project("demo", "Requires-Dist: >=1 helper\n");
+
+    let error = step(&packages, &requirements, &target.environment).expect_err("nothing readable");
+
+    assert!(error.to_string().contains("requirement pnpm cannot read"), "{error}");
+}
+
+/// A requirement pnpm does not implement is not one release's mistake:
+/// every release declaring it names the same thing, so the project hears
+/// about it instead of quietly installing an older release. Whatever
+/// else the same wheel declares, in whatever order, says nothing about
+/// that.
+#[test]
+fn a_direct_url_requirement_is_refused_rather_than_skipped() {
+    let target = target();
+    let url = "Requires-Dist: helper @ https://files.test/helper-1.0.0-py3-none-any.whl\n";
+    let unreadable = "Requires-Dist: >=1 helper\n";
+    for requires_dist in
+        [url.to_string(), format!("{unreadable}{url}"), format!("{url}{unreadable}")]
+    {
+        eprintln!("Requires-Dist:\n{requires_dist}");
+        let (packages, requirements) = project_whose_newest_release_declares(&requires_dist);
+
+        let error = step(&packages, &requirements, &target.environment).expect_err("unsupported");
+
+        assert!(error.to_string().contains("direct URL Python requirements"), "{error}");
+    }
+}
+
 /// The marker environment fixture has to keep parsing as one, or every
 /// test above resolves against something the type would not accept.
 #[test]
