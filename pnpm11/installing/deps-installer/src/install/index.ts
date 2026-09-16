@@ -1117,6 +1117,7 @@ export async function mutateModules (
       projectsToInstall.push({
         pruneDirectDependencies: false,
         ...project,
+        hookOwnedAliases: protectedHookOwnedAliases,
         wantedDependencies,
       } as ImporterToUpdate)
     }

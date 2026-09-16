@@ -310,6 +310,52 @@ test('update --latest stays within exact versions added by packageExtensions', a
   })
 })
 
+test('filtered vulnerability updates preserve dependencies added by packageExtensions', async () => {
+  const vulnerablePackage = '@pnpm.e2e/bar'
+  await addDistTag({ package: vulnerablePackage, version: '100.0.0', distTag: 'latest' })
+  const packageExtensions = {
+    'project@*': {
+      dependencies: {
+        [vulnerablePackage]: '^100.0.0',
+      },
+    },
+  }
+  const project = prepare({
+    name: 'project',
+    version: '1.0.0',
+  })
+
+  await install.handler({
+    ...DEFAULT_OPTS,
+    dir: process.cwd(),
+    packageExtensions,
+  })
+  expect(project.readLockfile().importers['.'].dependencies?.[vulnerablePackage]).toStrictEqual({
+    specifier: '^100.0.0',
+    version: '100.0.0',
+  })
+
+  await addDistTag({ package: vulnerablePackage, version: '100.1.0', distTag: 'latest' })
+
+  await update.handler({
+    ...DEFAULT_OPTS,
+    cliOptions: {
+      dev: true,
+      optional: false,
+      production: false,
+    },
+    dir: process.cwd(),
+    packageExtensions,
+    packageVulnerabilityAudit: createPackageVulnerabilityAudit(vulnerablePackage),
+  })
+
+  expect(loadJsonFileSync<ProjectManifest>('package.json').dependencies).toBeUndefined()
+  expect(project.readLockfile().importers['.'].dependencies?.[vulnerablePackage]).toStrictEqual({
+    specifier: '^100.0.0',
+    version: '100.0.0',
+  })
+})
+
 test('update --latest preserves override-owned dependency resolutions', async () => {
   await addDistTag({ package: '@pnpm.e2e/foo', version: '1.0.0', distTag: 'latest' })
   const overrides = {
