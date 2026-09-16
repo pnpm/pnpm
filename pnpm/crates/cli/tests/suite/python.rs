@@ -4,6 +4,7 @@ use base64::{
     Engine as _,
     engine::general_purpose::{STANDARD, URL_SAFE_NO_PAD},
 };
+use pipe_trait::Pipe;
 use serde_json::json;
 use sha2::{Digest, Sha256};
 use std::{
@@ -1118,7 +1119,8 @@ async fn add_accepts_a_pypi_purl() {
     let mut server = mockito::Server::new_async().await;
     let _alpha = serve(&mut server, "alpha", &[("1.0", wheel("alpha", "1.0", "", &[]))]).await;
     project(root.path(), &server.url(), &[]);
-    pacquet_in(root.path())
+    root.path()
+        .pipe(pacquet_in)
         .args(["add", "pkg:pypi/Alpha@1.0"])
         .assert()
         .success();
@@ -1126,7 +1128,8 @@ async fn add_accepts_a_pypi_purl() {
     eprintln!("updated={updated}");
     let manifest: toml::Value = toml::from_str(&updated).unwrap();
     assert_eq!(manifest["project"]["dependencies"][0].as_str(), Some("alpha==1.0"));
-    python(root.path())
+    root.path()
+        .pipe(python)
         .args(["-c", "import alpha"])
         .assert()
         .success();

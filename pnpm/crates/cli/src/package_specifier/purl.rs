@@ -4,6 +4,7 @@
 
 use miette::Result;
 use percent_encoding::percent_decode_str;
+use pipe_trait::Pipe;
 
 /// The URL scheme every Package URL starts with.
 const SCHEME: &str = "pkg";
@@ -132,7 +133,8 @@ fn decode_namespace(namespace: &str, source: &str) -> Result<String> {
 }
 
 fn decode(component: &str, source: &str) -> Result<String> {
-    percent_decode_str(component)
+    component
+        .pipe(percent_decode_str)
         .decode_utf8()
         .map(std::borrow::Cow::into_owned)
         .map_err(|_| miette::miette!("{source} is not valid UTF-8 once percent-decoded"))
