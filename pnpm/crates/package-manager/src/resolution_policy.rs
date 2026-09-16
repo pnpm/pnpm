@@ -77,17 +77,13 @@ impl PickPolicy {
         Ok(policy)
     }
 
-    /// Read the unfiltered full packument from every registry, whatever
-    /// the config's own metadata policy asks for.
-    ///
-    /// The three metadata knobs only mean "full, verbatim document"
-    /// together: [`Self::needs_full_metadata_for`] outranks
-    /// [`Self::full_metadata`] wherever a registry is in hand, and
-    /// [`Self::filter_metadata`] would strip the fetched document back down
-    /// to the install-relevant fields. Callers after a field outside that
-    /// set — `homepage`, for one — go through here rather than setting any
-    /// of them on their own.
+    /// Read the full packument verbatim from every registry, whatever the
+    /// config's own metadata policy asks for. Keeps the fields install
+    /// metadata drops, `homepage` among them.
     pub fn force_unfiltered_full_metadata(&mut self) {
+        // All three or none: the per-registry answer outranks
+        // `full_metadata` wherever a registry is in hand, and a filtered
+        // fetch keeps only the fields an install reads.
         self.full_metadata = true;
         self.needs_full_metadata_for = Arc::new(|_registry| true);
         self.filter_metadata = false;
