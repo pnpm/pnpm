@@ -6,7 +6,7 @@ mod inputs;
 
 use crate::{
     candidates::{WheelFilename, wheel_identity},
-    packages::{Candidate, Packages},
+    packages::{Candidate, IndexCandidate, Packages},
 };
 use environments::{check_environment_decides, referenced_marker_keys};
 use miette::{IntoDiagnostic, Result, WrapErr, bail};
@@ -42,7 +42,23 @@ pub struct LockedPackage {
     /// when all of them do.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub marker: Option<String>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub wheels: Vec<LockedWheel>,
+    /// The project in this repository the package is built from, for one
+    /// that is not downloaded. PEP 751 calls this a directory package.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub directory: Option<LockedDirectory>,
+}
+
+/// A project built from a directory in this workspace, as PEP 751 records
+/// it: a path relative to the lockfile, and whether it is installed so
+/// that edits to its source take effect without reinstalling it.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct LockedDirectory {
+    pub path: String,
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub editable: bool,
 }
 
 impl LockedPackage {
@@ -221,7 +237,9 @@ impl Lockfile {
             bail!("the project's requires-python changed");
         }
         for package in self.selected_packages(&target.environment)? {
-            package.installable_wheel(target)?;
+            if package.directory.is_none() {
+                package.installable_wheel(target)?;
+            }
         }
         Ok(())
     }
@@ -237,14 +255,17 @@ impl Lockfile {
             bail!("unsupported Python lock-version: {}", self.lock_version);
         }
         for package in self.selected_packages(&target.environment)? {
-            let wheel = package.installable_wheel(target)?.clone();
+            let candidate = match &package.directory {
+                Some(directory) => Candidate::Directory(directory.clone()),
+                None => Candidate::Wheel(IndexCandidate {
+                    wheel: package.installable_wheel(target)?.clone(),
+                    core_metadata: None,
+                }),
+            };
             if packages.candidates
                 .insert(
                     package.name.clone(),
-                    BTreeMap::from([(
-                        package.version.clone(),
-                        Candidate { wheel, core_metadata: None },
-                    )]),
+                    BTreeMap::from([(package.version.clone(), candidate)]),
                 )
                 .is_some()
             {
@@ -272,33 +293,55 @@ impl Lockfile {
 /// them install carries no marker: the lockfile's `environments` already
 /// says where it is installed.
 fn merge_packages(solved: &[Solved], markers: &[MarkerTree]) -> Result<Vec<LockedPackage>> {
-    let mut merged =
-        BTreeMap::<(PackageName, Version), (MarkerTree, BTreeMap<String, LockedWheel>)>::new();
+    let mut merged = BTreeMap::<(PackageName, Version), Merged>::new();
     let mut scope = MarkerTree::FALSE;
     for (environment, marker) in solved.iter().zip(markers) {
         scope.or(marker.clone());
         for (name, version) in &environment.solution {
+            let entry = merged
+                .entry((name.clone(), version.clone()))
+                .or_insert_with(Merged::nowhere);
+            entry.marker.or(marker.clone());
+            // A project in the repository is the same directory on every
+            // environment, where a release is the wheel each one takes.
+            if let Some(directory) = environment.directories.get(name) {
+                entry.directory = Some(directory.clone());
+                continue;
+            }
             let wheel = environment.wheels
                 .get(name)
                 .ok_or_else(|| miette::miette!("solved Python package {name} pins no wheel"))?;
-            let entry = merged
-                .entry((name.clone(), version.clone()))
-                .or_insert_with(|| (MarkerTree::FALSE, BTreeMap::new()));
-            entry.0.or(marker.clone());
-            entry.1.insert(wheel.name.clone(), wheel.clone());
+            entry.wheels.insert(wheel.name.clone(), wheel.clone());
         }
     }
     let packages = merged
         .into_iter()
-        .map(|((name, version), (marker, wheels))| LockedPackage {
+        .map(|((name, version), entry)| LockedPackage {
             name,
             version,
-            marker: (marker != scope).then(|| marker.try_to_string()).flatten(),
-            wheels: wheels.into_values().collect(),
+            marker: (entry.marker != scope).then(|| entry.marker.try_to_string()).flatten(),
+            wheels: entry.wheels.into_values().collect(),
+            directory: entry.directory,
         })
         .collect::<Vec<_>>();
     check_one_version_per_environment(&packages)?;
     Ok(packages)
+}
+
+/// What the environments merged so far say about one package: where it
+/// is installed, and what installs it there.
+struct Merged {
+    marker: MarkerTree,
+    wheels: BTreeMap<String, LockedWheel>,
+    directory: Option<LockedDirectory>,
+}
+
+impl Merged {
+    /// A package no environment installs yet. The marker starts false
+    /// because each environment adds itself to it.
+    fn nowhere() -> Self {
+        Self { marker: MarkerTree::FALSE, wheels: BTreeMap::new(), directory: None }
+    }
 }
 
 /// Refuse a lockfile that offers an environment two versions of the same

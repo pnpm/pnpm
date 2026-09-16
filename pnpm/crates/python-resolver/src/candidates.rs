@@ -1,6 +1,6 @@
 use crate::{
     lockfile::{LockedWheel, Target},
-    packages::Candidate,
+    packages::{Candidate, IndexCandidate},
     requires_python::declared_range,
 };
 use miette::{IntoDiagnostic, Result, bail};
@@ -81,7 +81,7 @@ pub fn candidates_from_page(
         if candidates
             .get(&version)
             .is_none_or(|(previous, existing)| {
-                (rank, &candidate.wheel.name) < (*previous, &existing.wheel.name)
+                (rank, candidate.label()) < (*previous, existing.label())
             })
         {
             candidates.insert(version, (rank, candidate));
@@ -122,7 +122,7 @@ fn installable_candidate(
     let core_metadata = file.metadata_digests();
     let wheel = LockedWheel { name: file.filename, url: url.to_string(), hashes: file.hashes };
     usable(&wheel.name, wheel.integrity())?;
-    Some((version, rank, Candidate { wheel, core_metadata }))
+    Some((version, rank, Candidate::Wheel(IndexCandidate { wheel, core_metadata })))
 }
 
 /// What reading one index file produced, or `None` when the file is one

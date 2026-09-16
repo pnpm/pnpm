@@ -18,16 +18,6 @@ pub(super) struct PythonPrepare<'a> {
     pub(super) selection: manifest::DependencySelection,
 }
 
-/// What [`PythonPrepare::environment`] needs about one project.
-pub(super) struct EnvironmentInputs<'a> {
-    pub(super) root: &'a Path,
-    pub(super) manifest: &'a manifest::Manifest,
-    pub(super) lock: &'a Lockfile,
-    /// The requirements this install materializes, which `--prod` and
-    /// `--dev` narrow.
-    pub(super) selected_requirements: &'a [pep508_rs::Requirement],
-}
-
 /// What [`PythonPrepare::lockfile`] needs about one project.
 pub(super) struct LockfileInputs<'a> {
     /// The lockfile on disk, when it still applies to these inputs on this
@@ -37,6 +27,9 @@ pub(super) struct LockfileInputs<'a> {
     pub(super) requirements: &'a [pep508_rs::Requirement],
     pub(super) inputs: Inputs,
     pub(super) requires_python: Option<String>,
+    /// The projects in this repository the resolution installs from their
+    /// source, which every seeding of it has to offer again.
+    pub(super) local: Arc<[super::workspace::LocalProject]>,
 }
 
 /// What [`PythonPrepare::replay_lockfile`] needs about the lockfile on
@@ -45,6 +38,7 @@ pub(super) struct LockfileReplay<'a> {
     pub(super) lock: Lockfile,
     pub(super) lock_path: &'a Path,
     pub(super) requirements: &'a [pep508_rs::Requirement],
+    pub(super) local: Arc<[super::workspace::LocalProject]>,
     /// Whether the lockfile was resolved for this install's own target,
     /// so that every wheel it pins is one this target needs.
     pub(super) same_target: bool,

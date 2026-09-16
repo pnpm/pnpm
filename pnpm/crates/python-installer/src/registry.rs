@@ -60,7 +60,14 @@ impl Resolution {
     /// from the same index pages.
     pub(super) fn answer_for(&mut self, target: Target) {
         self.target = target;
-        self.packages.candidates.clear();
+        // Only what an index offers is taken per target. A project in this
+        // repository is the same directory on every environment, so it
+        // stays offered rather than being seeded again for each.
+        self.packages.candidates.retain(|_, versions| {
+            versions
+                .values()
+                .all(|candidate| candidate.directory().is_some())
+        });
     }
 
     /// Offer this environment the candidates an index page holds.
@@ -156,10 +163,11 @@ impl Registry<'_> {
         let mut wanted = Vec::new();
         for (name, versions) in &self.resolution.packages.candidates {
             for (version, candidate) in versions {
+                // A project in this repository is built from its source,
+                // so there is nothing to fetch for it.
+                let Some(offered) = candidate.wheel() else { continue };
                 let downloaded = self.wheels.get(&(name.clone(), version.clone()));
-                if downloaded.is_none_or(|wheel| {
-                    wheel.filename != candidate.wheel.name
-                }) {
+                if downloaded.is_none_or(|wheel| wheel.filename != offered.name) {
                     wanted.push((name.clone(), version.clone()));
                 }
             }
@@ -203,7 +211,9 @@ impl Registry<'_> {
         name: &PackageName,
         version: &Version,
     ) -> Result<Wheel> {
-        let wheel = &self.resolution.packages.candidates[name][version].wheel;
+        let wheel = self.resolution.packages.candidates[name][version]
+            .wheel()
+            .ok_or_else(|| miette::miette!("Python package {name} {version} is not a wheel"))?;
         validate_wheel_identity(wheel, &self.resolution.target.tags, name, version)?;
         let integrity = wheel.integrity()?;
         let package_id = format!("python:{}", wheel.name);
@@ -239,7 +249,7 @@ impl Registry<'_> {
         )
         .await?;
         validate_wheel_metadata(&metadata, name, version)?;
-        Ok(Wheel { filename: wheel.name.clone(), files, metadata })
+        Ok(Wheel { filename: wheel.name.clone(), files, metadata, direct_url: None })
     }
 }
 

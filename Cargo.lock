@@ -5849,6 +5849,7 @@ dependencies = [
  "tokio",
  "toml",
  "url",
+ "wax",
 ]
 
 [[package]]

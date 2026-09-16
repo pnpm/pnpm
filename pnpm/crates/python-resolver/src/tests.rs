@@ -95,9 +95,12 @@ fn candidates_prefer_the_first_tag_the_target_lists() {
     .expect("page parses");
 
     let candidate = &candidates[&Version::from_str("1.0.0").unwrap()];
-    assert_eq!(candidate.wheel.name, "demo-1.0.0-cp312-cp312-manylinux_2_17_x86_64.whl");
     assert_eq!(
-        candidate.wheel.url,
+        candidate.wheel().expect("an index file is a wheel").name,
+        "demo-1.0.0-cp312-cp312-manylinux_2_17_x86_64.whl",
+    );
+    assert_eq!(
+        candidate.wheel().expect("an index file is a wheel").url,
         "https://example.test/simple/demo/demo-1.0.0-cp312-cp312-manylinux_2_17_x86_64.whl",
     );
 }
@@ -236,16 +239,16 @@ fn candidates_carry_the_metadata_file_an_index_advertises() {
     )
     .expect("page parses");
 
-    let digests = candidates[&Version::from_str("1.0.0").unwrap()].core_metadata
-        .as_ref()
+    let digests = candidates[&Version::from_str("1.0.0").unwrap()]
+        .core_metadata()
         .expect("declared with digests");
     assert_eq!(digests["sha256"], "c".repeat(64));
     assert_eq!(
-        candidates[&Version::from_str("2.0.0").unwrap()].core_metadata,
+        candidates[&Version::from_str("2.0.0").unwrap()].core_metadata().cloned(),
         Some(BTreeMap::new()),
         "the legacy spelling declares the file without digests",
     );
-    assert_eq!(candidates[&Version::from_str("3.0.0").unwrap()].core_metadata, None);
+    assert_eq!(candidates[&Version::from_str("3.0.0").unwrap()].core_metadata().cloned(), None);
 }
 
 #[test]
@@ -722,7 +725,10 @@ fn an_environment_takes_only_the_packages_and_wheels_the_lockfile_gives_it() {
         .seed(&mut linux, &declared_target("linux", "x86_64", "py3-none-manylinux_2_17_x86_64"))
         .expect("the Linux environment installs");
     assert_eq!(
-        linux.candidates[&name("demo")][&version("1.0.0")].wheel.name,
+        linux.candidates[&name("demo")][&version("1.0.0")]
+            .wheel()
+            .expect("an index file is a wheel")
+            .name,
         "demo-1.0.0-py3-none-manylinux_2_17_x86_64.whl",
     );
     assert!(!linux.candidates.contains_key(&name("helper")), "{:?}", linux.candidates.keys());
@@ -732,7 +738,10 @@ fn an_environment_takes_only_the_packages_and_wheels_the_lockfile_gives_it() {
         .seed(&mut windows, &declared_target("win32", "AMD64", "py3-none-win_amd64"))
         .expect("the Windows environment installs");
     assert_eq!(
-        windows.candidates[&name("demo")][&version("1.0.0")].wheel.name,
+        windows.candidates[&name("demo")][&version("1.0.0")]
+            .wheel()
+            .expect("an index file is a wheel")
+            .name,
         "demo-1.0.0-py3-none-win_amd64.whl",
     );
     assert!(windows.candidates.contains_key(&name("helper")));

@@ -38,19 +38,47 @@ Static PEP 621 dependencies come from each discovered `pyproject.toml`.
 Tool-only manifests are ignored. Each Python project has its own `pylock.toml`
 and `.venv`; environment directories are excluded from discovery.
 
-The environment also holds the project's own package, so the project can be
-imported, its `[project.scripts]` run, and its `[project.entry-points]` found
-from it. pnpm does not build the
-project: the installed distribution is a path entry onto the source tree plus
-the `.dist-info` an installed distribution records, which is what an editable
-install is. A project is packaged when it declares a `[build-system]`, and
-`tool.uv.package` overrides that either way. Modules are imported from the
-package directories the build backend declares in
-`[tool.hatch.build]`/`[tool.hatch.build.targets.wheel]` or
-`[tool.setuptools] package-dir`; a project that declares none uses `src` when
-it has such a directory, and the project directory otherwise. A project whose
-version is dynamic gets its dependencies and a warning, since pnpm cannot
-record a version only a build backend knows.
+A requirement on another project in this repository is declared under
+`[tool.uv.sources]`, the table every Python workspace in the wild already
+writes, and a member inherits the table its workspace root declares:
+
+```toml
+[project]
+dependencies = ["mylib"]
+
+[tool.uv.sources]
+mylib = { workspace = true }
+docs = { path = "./docs", editable = true }
+```
+
+Such a project is built with its PEP 517 backend in an environment holding
+only what that backend asked for, including the requirements the backend names
+only once it can see the project, and installed editable unless the source says
+otherwise. It is recorded in `pylock.toml` as a PEP 751 directory package whose
+path is relative to the lockfile. `[tool.uv.workspace]` says which projects a
+workspace contains; without one, every project pnpm discovered is one pnpm may
+link. A requirement naming a project in the workspace that no source declares is
+refused rather than resolved from the index.
+
+A backend runs code the index served, so pnpm builds a project only where
+`allowBuilds` names its build requirements, or `dangerouslyAllowAllBuilds` is
+set. Approval covers the names a build asks pnpm to fetch: what
+`build-system.requires` declares, and what the backend adds through
+`get_requires_for_build_wheel`/`get_requires_for_build_editable` once it can see
+the project. What those packages themselves depend on follows from approving
+them, the way a dependency's own closure does for a build script. An in-tree
+backend reached through `backend-path` is the repository's own code, which pnpm
+runs as it runs a workspace project's scripts. A Python version is not a semver
+range, so only the name half of an `allowBuilds` key decides a Python build. An
+install that has not approved a build requirement does not build the projects
+needing it, which `strictDepBuilds` makes an error rather than a warning.
+
+The environment also holds the project's own package, built the same way, so the
+project can be imported, its `[project.scripts]` run, and its
+`[project.entry-points]` found from it. A project is packaged when it declares a
+`[build-system]`, and `tool.uv.package` overrides that either way. A project the
+repository only depends on is built whichever it declares, as uv builds one,
+falling back to the backend PEP 517 names when a project declares none.
 Python-only operations do not scaffold Node metadata. Mixed adds can contain
 npm, `crate:` and `pypi:` selectors together.
 
@@ -187,11 +215,13 @@ multi-directory commit. Automatic generation garbage collection remains open.
 ## Deliberate limits
 
 This covers the same vertical integration surfaces as the current Cargo
-implementation, not all pip or uv functionality. It supports registry wheels
-and static project dependencies. Source builds, editable/local/git/URL
-requirements, Python installation, dynamic dependency metadata, HTML-only
-indexes, pip configuration/keyring discovery and recursive/filtered add are
-not implemented. The environments a lockfile covers are resolved one at a
+implementation, not all pip or uv functionality. It supports registry wheels,
+static project dependencies, and the projects in this repository a project
+depends on. Git/URL requirements, Python installation, dynamic dependency
+metadata for a project in this repository, HTML-only indexes, pip
+configuration/keyring discovery and recursive/filtered add are not
+implemented. A distribution an index serves only as a source archive is not
+built. The environments a lockfile covers are resolved one at a
 time rather than forked out of one universal solve, so two environments no
 marker tells apart cannot need different versions of a distribution.
 A release's requirements are read once for the version, from the first wheel
