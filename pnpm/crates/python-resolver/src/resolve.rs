@@ -164,11 +164,10 @@ fn unusable_release(
     }
 }
 
-/// The requirements a wheel declares, or the first reason pnpm cannot use
-/// them. Every line is read before the outcome is settled: a requirement
-/// pnpm does not implement outranks one it cannot read wherever the two
-/// appear, so what a release costs a project does not depend on the order
-/// its metadata happens to list them in.
+/// The requirements a wheel declares, or the reason pnpm cannot use them.
+/// A requirement pnpm does not implement outranks one it cannot read
+/// wherever the two appear, so what a release costs a project does not
+/// depend on the order its metadata happens to list them in.
 fn metadata_requirements(
     metadata: &WheelMetadata,
 ) -> std::result::Result<Vec<Requirement>, Refusal> {
