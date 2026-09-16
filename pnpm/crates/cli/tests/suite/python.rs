@@ -461,7 +461,7 @@ fn selected_python(root: &Path) -> String {
 
 /// A python-build-standalone release serving one interpreter for this
 /// machine: the `SHA256SUMS` naming it, and the archive itself.
-#[cfg(unix)]
+#[cfg(any(target_os = "linux", target_os = "macos"))]
 async fn serve_interpreter(server: &mut mockito::ServerGuard, version: &str) -> Vec<mockito::Mock> {
     use std::io::Write as _;
     let triple = host_triple();
@@ -497,27 +497,25 @@ async fn serve_interpreter(server: &mut mockito::ServerGuard, version: &str) -> 
 /// What python-build-standalone calls the interpreter of this machine,
 /// named the way the installer names it, so these tests serve the archive
 /// it looks for on the machine they run on.
-#[cfg(unix)]
+#[cfg(any(target_os = "linux", target_os = "macos"))]
 fn host_triple() -> String {
     let architecture = match std::env::consts::ARCH {
-        "arm" => "armv7",
-        "powerpc64" => "ppc64le",
-        "x86" => "i686",
+        "powerpc64le" => "ppc64le",
         architecture => architecture,
     };
-    let system = match std::env::consts::OS {
-        "macos" => "apple-darwin",
-        _ if matches!(pnpm_detect_libc::detect(), Some(pnpm_detect_libc::Implementation::Musl)) => {
-            "unknown-linux-musl"
-        }
-        _ => "unknown-linux-gnu",
+    if cfg!(target_os = "macos") {
+        return format!("{architecture}-apple-darwin");
+    }
+    let libc = match pnpm_detect_libc::detect() {
+        Some(pnpm_detect_libc::Implementation::Musl) => "musl",
+        _ => "gnu",
     };
-    format!("{architecture}-{system}")
+    format!("{architecture}-unknown-linux-{libc}")
 }
 
 /// The provisioning half of blocker 4 in pnpm/pnpm#14945: no interpreter
 /// on this machine is the one the project asks for.
-#[cfg(unix)]
+#[cfg(any(target_os = "linux", target_os = "macos"))]
 #[tokio::test]
 async fn installs_an_interpreter_no_machine_has_and_reuses_it() {
     let root = tempfile::tempdir().unwrap();
@@ -559,9 +557,37 @@ async fn installs_an_interpreter_no_machine_has_and_reuses_it() {
     assert_eq!(selected_python(root.path()), "3.13.99");
 }
 
+/// A pin the release has moved past still leaves the project installable:
+/// posthog pins `==3.13.13` where the release now builds 3.13.15.
+#[cfg(any(target_os = "linux", target_os = "macos"))]
+#[tokio::test]
+async fn a_pin_the_release_moved_past_installs_the_version_it_has() {
+    let root = tempfile::tempdir().unwrap();
+    let mut server = mockito::Server::new_async().await;
+    project(root.path(), "https://unused.invalid", &[]);
+    let _release = serve_interpreter(&mut server, "3.13.96").await;
+    fs::write(
+        root.path().join("pyproject.toml"),
+        "[project]\nname = 'app'\nversion = '1.0'\nrequires-python = '>=3.13.90,<3.14'\ndependencies = []\n",
+    )
+    .unwrap();
+    fs::write(root.path().join(".python-version"), "3.13.95\n").unwrap();
+    add_python_settings(root.path(), &format!("  downloadUrl: '{}'\n", server.url()));
+
+    let output = pacquet_in(root.path())
+        .arg("install")
+        .output()
+        .unwrap();
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    eprintln!("stdout:\n{stdout}\nstderr:\n{}", String::from_utf8_lossy(&output.stderr));
+    assert!(output.status.success());
+    assert!(stdout.contains("asks for Python 3.13.95, which is not published"), "{stdout}");
+    assert_eq!(selected_python(root.path()), "3.13.96");
+}
+
 /// An interpreter is code, so pnpm runs one only if it is the one the
 /// release says it is.
-#[cfg(unix)]
+#[cfg(any(target_os = "linux", target_os = "macos"))]
 #[tokio::test]
 async fn refuses_an_interpreter_the_release_does_not_name() {
     let root = tempfile::tempdir().unwrap();
@@ -598,7 +624,7 @@ async fn refuses_an_interpreter_the_release_does_not_name() {
 
 /// A workspace can keep pnpm from installing interpreters, and an
 /// offline install has nowhere to install one from.
-#[cfg(unix)]
+#[cfg(any(target_os = "linux", target_os = "macos"))]
 #[tokio::test]
 async fn an_interpreter_is_installed_only_where_the_install_may_download() {
     let root = tempfile::tempdir().unwrap();

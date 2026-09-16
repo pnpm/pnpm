@@ -252,26 +252,33 @@ fn read_build(line: &str, triple: &str, suffix: &str) -> Option<Build> {
 /// What python-build-standalone calls the interpreter of this machine.
 /// `None` where it builds none, which is where pnpm installs none.
 fn host_triple() -> Option<String> {
-    let architecture = match std::env::consts::ARCH {
-        "x86_64" => "x86_64",
-        "aarch64" => "aarch64",
-        "arm" => "armv7",
-        "powerpc64" => "ppc64le",
-        "riscv64" => "riscv64",
-        "s390x" => "s390x",
-        "x86" => "i686",
-        _ => return None,
-    };
-    let system = match std::env::consts::OS {
-        "linux" => match pnpm_detect_libc::detect() {
-            Some(pnpm_detect_libc::Implementation::Musl) => "unknown-linux-musl",
-            _ => "unknown-linux-gnu",
+    let architecture = std::env::consts::ARCH;
+    Some(match std::env::consts::OS {
+        "linux" => {
+            let architecture = match architecture {
+                "x86_64" | "aarch64" | "riscv64" | "s390x" => architecture,
+                // Only the little-endian PowerPC is built: `powerpc64` is
+                // Rust's name for the big-endian one.
+                "powerpc64le" => "ppc64le",
+                _ => return None,
+            };
+            let libc = match pnpm_detect_libc::detect() {
+                Some(pnpm_detect_libc::Implementation::Musl) => "musl",
+                _ => "gnu",
+            };
+            format!("{architecture}-unknown-linux-{libc}")
+        }
+        "macos" => match architecture {
+            "x86_64" | "aarch64" => format!("{architecture}-apple-darwin"),
+            _ => return None,
         },
-        "macos" => "apple-darwin",
-        "windows" => "pc-windows-msvc",
+        "windows" => match architecture {
+            "x86_64" | "aarch64" => format!("{architecture}-pc-windows-msvc"),
+            "x86" => "i686-pc-windows-msvc".to_string(),
+            _ => return None,
+        },
         _ => return None,
-    };
-    Some(format!("{architecture}-{system}"))
+    })
 }
 
 /// Beside where it belongs and moved there, so that a directory under

@@ -34,6 +34,17 @@ enum Round {
     Scanned,
 }
 
+/// What an install of an interpreter is for.
+struct Install<'a> {
+    requires_python: Option<&'a pep440_rs::VersionSpecifiers>,
+    /// The version a `.python-version` file asks for.
+    request: Option<&'a VersionRequest>,
+    /// Whether a version other than the requested one may be installed,
+    /// which is what a machine holding no interpreter the project accepts
+    /// has to do.
+    any_version: bool,
+}
+
 /// What searching this machine's interpreters found for one project.
 enum Search {
     /// One the project's range and its requested version both accept.
@@ -90,23 +101,24 @@ impl<'a> Interpreters<'a> {
         manifest: &Manifest,
     ) -> Result<Arc<Interpreter>> {
         let requires_python = requires_python(root, manifest)?;
-        if let Some(executable) = &self.config.python.executable {
-            let command = InterpreterCommand::program(executable);
-            let interpreter = match self.probe(&command).await {
-                Probe::Usable(interpreter) => Arc::clone(interpreter),
-                Probe::Unusable(reason) => bail!("{reason}"),
-            };
-            check_requires_python(root, &interpreter, requires_python.as_ref())?;
-            return Ok(interpreter);
+        if self.config.python.executable.is_some() {
+            return self.configured(root, requires_python.as_ref()).await;
         }
         let request = self.version_request::<Reporter>(root)?;
         let found = self.search(requires_python.as_ref(), request.as_ref()).await;
         if let Search::Accepted(interpreter) = found {
             return Ok(interpreter);
         }
-        if let Some(interpreter) =
-            self.install::<Reporter>(root, requires_python.as_ref(), request.as_ref()).await?
-        {
+        // A machine with no interpreter the project accepts takes any
+        // version the release offers that it does accept; one that has
+        // such an interpreter only installs the version asked for by
+        // name, and keeps what it has otherwise.
+        let install = Install {
+            requires_python: requires_python.as_ref(),
+            request: request.as_ref(),
+            any_version: matches!(found, Search::None),
+        };
+        if let Some(interpreter) = self.install::<Reporter>(root, install).await? {
             return Ok(interpreter);
         }
         match found {
@@ -138,14 +150,37 @@ impl<'a> Interpreters<'a> {
     async fn install<Reporter: self::Reporter + 'static>(
         &mut self,
         root: &Path,
-        requires_python: Option<&pep440_rs::VersionSpecifiers>,
-        request: Option<&VersionRequest>,
+        install: Install<'_>,
     ) -> Result<Option<Arc<Interpreter>>> {
         if !download::allowed(self.config) {
             return Ok(None);
         }
+        let Install {
+            requires_python,
+            request,
+            any_version,
+        } = install;
         let releases = download::Releases::read(self.config, self.client).await?;
-        let Some(build) = releases.best(requires_python, request) else { return Ok(None) };
+        let asked_for = releases.best(requires_python, request);
+        let build = match asked_for {
+            Some(build) => Some(build),
+            None if any_version => releases.best(requires_python, None),
+            None => None,
+        };
+        let Some(build) = build else { return Ok(None) };
+        if let Some(request) = request.filter(|_| asked_for.is_none()) {
+            Reporter::emit(&LogEvent::Global(GlobalLog {
+                level: LogLevel::Warn,
+                message: format!(
+                    "Installing Python {} for {}: {} asks for Python {}, which is not published \
+                     for this machine",
+                    build.version(),
+                    root.display(),
+                    request.file.display(),
+                    request.version(),
+                ),
+            }));
+        }
         Reporter::emit(&LogEvent::Global(GlobalLog {
             level: LogLevel::Info,
             message: format!("Installing Python {} for {}", build.version(), root.display()),
@@ -155,6 +190,24 @@ impl<'a> Interpreters<'a> {
             Probe::Usable(interpreter) => Ok(Some(Arc::clone(interpreter))),
             Probe::Unusable(reason) => bail!("{reason}"),
         }
+    }
+
+    /// The interpreter the workspace names, which is the only one a
+    /// project of that workspace is installed with.
+    async fn configured(
+        &mut self,
+        root: &Path,
+        requires_python: Option<&pep440_rs::VersionSpecifiers>,
+    ) -> Result<Arc<Interpreter>> {
+        let executable =
+            self.config.python.executable.as_ref().expect("the workspace names an interpreter");
+        let command = InterpreterCommand::program(executable);
+        let interpreter = match self.probe(&command).await {
+            Probe::Usable(interpreter) => Arc::clone(interpreter),
+            Probe::Unusable(reason) => bail!("{reason}"),
+        };
+        check_requires_python(root, &interpreter, requires_python)?;
+        Ok(interpreter)
     }
 
     /// The first interpreter this machine has that the project accepts.

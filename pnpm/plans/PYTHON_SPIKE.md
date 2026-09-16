@@ -104,9 +104,10 @@ offline install installs none; both report the project instead. `downloadUrl`
 names a mirror of the releases.
 
 A `.python-version` pin is met by installing the version it names. Where the
-release holds no such version, pnpm warns and installs with an interpreter
-the project's `requires-python` accepts, rather than failing over a file
-written for another tool.
+release publishes no such version for this machine, pnpm warns and goes on:
+with an interpreter the machine has that the project's `requires-python`
+accepts, or, where it has none, by installing the newest version the release
+does publish that `requires-python` accepts.
 
 [python-build-standalone]: https://github.com/astral-sh/python-build-standalone
 
@@ -430,9 +431,9 @@ Interpreters already on the machine are found by name, not by reading the
 registries and version-manager directories a Python installation can hide in.
 The ones pnpm installs are the current build of each version line the latest
 python-build-standalone release offers, so a project pinning a patch release
-that release has moved past is installed with the newest patch of its line
-and a warning, rather than with the exact one. pnpm builds no interpreter
-itself, so a platform that release does not publish for has none to install.
+that release has moved past is installed with another patch and a warning,
+rather than with the exact one. pnpm builds no interpreter itself, so a
+platform that release does not publish for has none to install.
 
 ## Verification
 
