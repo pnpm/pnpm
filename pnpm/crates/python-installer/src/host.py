@@ -127,7 +127,10 @@ def declared_target(running_environment, running_tags, entry):
         )
     environment.update(implementation_name="cpython", platform_python_implementation="CPython")
     interpreter = "cp%d%d" % release
-    declared = list(tags.cpython_tags(python_version=release, abis=[interpreter], platforms=platforms))
+    # The stable ABI of a release: CPython before 3.8 carries the pymalloc
+    # flag in its tag, and a free-threaded build is one pnpm cannot be asked for.
+    abi = interpreter + "m" if release < (3, 8) else interpreter
+    declared = list(tags.cpython_tags(python_version=release, abis=[abi], platforms=platforms))
     declared += list(tags.compatible_tags(python_version=release, interpreter=interpreter, platforms=platforms))
     return {"environment": environment, "tags": [str(tag) for tag in declared]}
 

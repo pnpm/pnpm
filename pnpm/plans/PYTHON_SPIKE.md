@@ -107,7 +107,8 @@ python:
   pythonVersions: ['3.12', '3.13']
 ```
 
-A declared environment is a CPython interpreter. A triple ending in
+A declared environment is a CPython interpreter built against the standard
+ABI. A triple ending in
 `-unknown-linux-gnu`, and `linux`, are resolved against glibc 2.17;
 `-unknown-linux-musl` against musl 1.2; an Apple platform against macOS 14.0.
 
