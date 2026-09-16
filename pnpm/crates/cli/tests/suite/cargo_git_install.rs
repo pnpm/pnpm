@@ -480,6 +480,62 @@ fn path_patched_dependencies_cannot_execute_git_transport_helpers() {
     assert!(String::from_utf8_lossy(&output.stderr).contains("transport 'pnpm-test' not allowed"));
 }
 
+#[test]
+fn path_patched_lockfile_resolution_does_not_require_git() {
+    let (root, _parent, _repository) = patched_path_workspace();
+    let sysroot = Command::new("rustc")
+        .args(["--print", "sysroot"])
+        .output()
+        .unwrap();
+    assert!(sysroot.status.success());
+    let sysroot = String::from_utf8(sysroot.stdout).unwrap();
+    let mut registry = mockito::Server::new();
+    let cargo_home = registry_cargo_home(&registry);
+    let _config = registry
+        .mock("GET", "/config.json")
+        .with_body(serde_json::json!({ "dl": format!("{}/dl", registry.url()) }).to_string())
+        .create();
+    let _demo = registry
+        .mock("GET", "/de/mo/demo")
+        .with_status(404)
+        .create();
+
+    pnpm(&root)
+        .env("CARGO_HOME", cargo_home.path())
+        .env("PATH", std::path::Path::new(sysroot.trim()).join("bin"))
+        .args(["install", "--lockfile-only", "--no-frozen-lockfile"])
+        .assert()
+        .success();
+    cargo_check(&root);
+}
+
+#[test]
+fn cargo_resolution_preserves_workspace_local_protocol_bans() {
+    let (root, _parent, _repository) = git_workspace();
+    let setup: [&[&str]; 2] = [&["init", "--quiet"], &["config", "protocol.file.allow", "never"]];
+    for args in setup {
+        Command::new("git")
+            .current_dir(root.path())
+            .args(args)
+            .assert()
+            .success();
+    }
+    let cargo_home = TempDir::new().unwrap();
+
+    let output = pnpm(&root)
+        .env("CARGO_HOME", cargo_home.path())
+        .env("CARGO_NET_GIT_FETCH_WITH_CLI", "true")
+        .env("CARGO_NET_RETRY", "0")
+        .env("GIT_ALLOW_PROTOCOL", "file")
+        .args(["install", "--lockfile-only", "--no-frozen-lockfile"])
+        .output()
+        .unwrap();
+
+    eprintln!("Workspace-local protocol bans must constrain Cargo Git fetching: {output:?}");
+    assert!(!output.status.success());
+    assert!(String::from_utf8_lossy(&output.stderr).contains("transport 'file' not allowed"));
+}
+
 fn add_submodule(parent: &TempDir, name: &str, url: &str, path: &str) {
     Command::new("git")
         .current_dir(

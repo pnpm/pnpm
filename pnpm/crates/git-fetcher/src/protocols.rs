@@ -30,8 +30,14 @@ pub(crate) fn read_protocol_policies(
 /// Read the supported protocols permitted by Git configuration and the
 /// caller's environment for a top-level fetch. The returned allowlist can
 /// constrain nested Git processes without enabling a configured ban.
+/// Without Git on PATH, return an empty allowlist: non-Git resolution can
+/// proceed, and Git started through a configured PATH stays blocked.
 pub fn read_allowed_git_protocols(cwd: &Path) -> Result<String, GitFetcherError> {
-    let policies = read_protocol_policies(Path::new("git"), Some(cwd))?;
+    let policies = match read_protocol_policies(Path::new("git"), Some(cwd)) {
+        Ok(policies) => policies,
+        Err(GitFetcherError::GitNotFound) => return Ok(String::new()),
+        Err(error) => return Err(error),
+    };
     let inherited = env::var_os("GIT_ALLOW_PROTOCOL");
     let from_user = env::var_os("GIT_PROTOCOL_FROM_USER")
         .map(|value| read_git_boolean(&value, cwd))
