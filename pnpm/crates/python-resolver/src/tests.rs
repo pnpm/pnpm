@@ -316,8 +316,6 @@ fn a_project_with_no_satisfying_version_reports_why() {
     assert!(error.to_string().contains("Python dependency resolution failed"), "{error}");
 }
 
-/// A project that takes either release of `demo`, where 2.0.0 declares
-/// `requires_dist` in its wheel metadata and 1.0.0 declares nothing.
 fn project_whose_newest_release_declares(requires_dist: &str) -> (Packages, Vec<Requirement>) {
     let target = target();
     let mut packages = Packages::new();
@@ -370,17 +368,24 @@ fn a_project_whose_every_release_is_unreadable_reports_why() {
 
 /// A requirement pnpm does not implement is not one release's mistake:
 /// every release declaring it names the same thing, so the project hears
-/// about it instead of quietly installing an older release.
+/// about it instead of quietly installing an older release. Whatever
+/// else the same wheel declares, in whatever order, says nothing about
+/// that.
 #[test]
 fn a_direct_url_requirement_is_refused_rather_than_skipped() {
     let target = target();
-    let (packages, requirements) = project_whose_newest_release_declares(
-        "Requires-Dist: helper @ https://files.test/helper-1.0.0-py3-none-any.whl\n",
-    );
+    let url = "Requires-Dist: helper @ https://files.test/helper-1.0.0-py3-none-any.whl\n";
+    let unreadable = "Requires-Dist: >=1 helper\n";
+    for requires_dist in
+        [url.to_string(), format!("{unreadable}{url}"), format!("{url}{unreadable}")]
+    {
+        eprintln!("Requires-Dist:\n{requires_dist}");
+        let (packages, requirements) = project_whose_newest_release_declares(&requires_dist);
 
-    let error = step(&packages, &requirements, &target.environment).expect_err("unsupported");
+        let error = step(&packages, &requirements, &target.environment).expect_err("unsupported");
 
-    assert!(error.to_string().contains("direct URL Python requirements"), "{error}");
+        assert!(error.to_string().contains("direct URL Python requirements"), "{error}");
+    }
 }
 
 /// The marker environment fixture has to keep parsing as one, or every

@@ -164,13 +164,24 @@ fn unusable_release(
     }
 }
 
+/// The requirements a wheel declares, or the first reason pnpm cannot use
+/// them. Every line is read before the outcome is settled: a requirement
+/// pnpm does not implement outranks one it cannot read wherever the two
+/// appear, so what a release costs a project does not depend on the order
+/// its metadata happens to list them in.
 fn metadata_requirements(
     metadata: &WheelMetadata,
 ) -> std::result::Result<Vec<Requirement>, Refusal> {
-    metadata.requires_dist
-        .iter()
-        .map(|requirement| read_requirement(requirement))
-        .collect::<std::result::Result<Vec<_>, _>>()
+    let mut requirements = Vec::with_capacity(metadata.requires_dist.len());
+    let mut unreadable = None;
+    for declared in &metadata.requires_dist {
+        match read_requirement(declared) {
+            Ok(requirement) => requirements.push(requirement),
+            Err(unsupported @ Refusal::Unsupported(_)) => return Err(unsupported),
+            Err(refusal) => unreadable = unreadable.or(Some(refusal)),
+        }
+    }
+    unreadable.map_or(Ok(requirements), Err)
 }
 
 impl Provider<'_> {
