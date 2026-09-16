@@ -28,9 +28,9 @@ struct Discovered {
 /// against the registry identified by `source`.
 ///
 /// Edges reaching the same package are unified the way resolution unifies
-/// them, and a package is walked again whenever that union grows. A feature
-/// only the union activates, such as a weak `dep?/feature` whose dependency
-/// another edge turns on, reaches the crates it activates this way.
+/// them, and a package is walked again whenever that union grows. Feature
+/// activation is not monotone across edges, so a union can reach a crate no
+/// single edge reaches.
 pub fn missing_index_names(
     metadata: &str,
     index_files: &BTreeMap<String, String>,
@@ -76,10 +76,11 @@ fn unified_dependencies(
     let Some(compatibility) = newest_compatibility(versions, &dependency.requirement) else {
         return Ok(Vec::new());
     };
-    let package = PackageKey::Registry { name: dependency.name.clone(), compatibility };
     let selectable = matching_versions(versions, &dependency.requirement)
+        .filter(|version| compatibility_line(&version.version) == compatibility)
         .map(|version| version.version.clone())
         .collect::<BTreeSet<_>>();
+    let package = PackageKey::Registry { name: dependency.name.clone(), compatibility };
     let entry = discovered.entry(package).or_default();
     let previous = entry.selection.clone();
     entry.selection.default_features |= dependency.default_features;

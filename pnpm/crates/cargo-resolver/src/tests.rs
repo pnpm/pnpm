@@ -674,3 +674,38 @@ fn discovers_a_crate_only_unified_features_activate() {
             .any(|package| package.name.as_str() == "d"),
     );
 }
+
+/// The package key holds one compatibility line, so a version outside it
+/// can never be selected and the crates only it needs are not fetched.
+#[test]
+fn leaves_a_crate_only_an_unselectable_version_needs_unfetched() {
+    const METADATA: &str = r#"{
+  "packages": [{
+    "id": "path+file:///workspace#app@0.1.0",
+    "name": "app",
+    "version": "0.1.0",
+    "dependencies": [{
+      "name": "foo",
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "req": ">=0.9"
+    }]
+  }],
+  "workspace_members": ["path+file:///workspace#app@0.1.0"]
+}"#;
+    let foo_index = r#"{"name":"foo","vers":"0.9.0","deps":[{"name":"legacy","req":"^1","features":[],"optional":false,"default_features":true,"target":null,"kind":"normal","registry":null}],"cksum":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","features":{},"yanked":false}
+{"name":"foo","vers":"1.0.0","deps":[],"cksum":"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb","features":{},"yanked":false}"#;
+    let files = BTreeMap::from([("foo".to_string(), foo_index.to_string())]);
+
+    assert!(missing_index_names(METADATA, &files, CRATES_IO_SOURCE).unwrap().is_empty());
+    let lockfile =
+        Lockfile::from_str(&resolve_lockfile(METADATA, &files, CRATES_IO_SOURCE).unwrap()).unwrap();
+
+    dbg!(&lockfile.packages);
+    assert!(
+        lockfile.packages
+            .iter()
+            .any(|package| {
+                package.name.as_str() == "foo" && package.version == semver::Version::new(1, 0, 0)
+            }),
+    );
+}
