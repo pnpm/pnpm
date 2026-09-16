@@ -896,3 +896,46 @@ fn keeps_two_compatibility_lines_of_one_crate_apart() {
         .collect::<Vec<_>>();
     assert_eq!(selected, ["0.6.5", "0.7.3"]);
 }
+
+/// Only the older line carries `extra`, so the newer one is not a choice
+/// this requirement can take, and `baz` comes with the line that is.
+#[test]
+fn selects_the_older_line_when_the_newer_lacks_a_requested_feature() {
+    const METADATA: &str = r#"{
+  "packages": [{
+    "id": "path+file:///workspace#app@0.1.0",
+    "name": "app",
+    "version": "0.1.0",
+    "dependencies": [{
+      "name": "foo",
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "req": ">=0.9",
+      "features": ["extra"]
+    }]
+  }],
+  "workspace_members": ["path+file:///workspace#app@0.1.0"]
+}"#;
+    let foo_index = r#"{"name":"foo","vers":"0.9.0","deps":[{"name":"baz","req":"^1","features":[],"optional":true,"default_features":true,"target":null,"kind":"normal","registry":null}],"cksum":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","features":{"extra":["dep:baz"]},"yanked":false}
+{"name":"foo","vers":"1.0.0","deps":[],"cksum":"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb","features":{},"yanked":false}"#;
+    let files = BTreeMap::from([
+        ("baz".to_string(), BAZ_INDEX.to_string()),
+        ("foo".to_string(), foo_index.to_string()),
+    ]);
+
+    let lockfile =
+        Lockfile::from_str(&resolve_lockfile(METADATA, &files, CRATES_IO_SOURCE).unwrap()).unwrap();
+
+    dbg!(&lockfile.packages);
+    assert!(
+        lockfile.packages
+            .iter()
+            .any(|package| {
+                package.name.as_str() == "foo" && package.version == semver::Version::new(0, 9, 0)
+            }),
+    );
+    assert!(
+        lockfile.packages
+            .iter()
+            .any(|package| package.name.as_str() == "baz"),
+    );
+}

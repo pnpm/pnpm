@@ -1,7 +1,7 @@
 use crate::{
     model::{DependencyKind, FeatureSelection, PackageKey, RegistryDependency, RegistryVersion},
     packages::{newest_line_package, selected_package},
-    registry::Registry,
+    registry::{Registry, matching_lines},
 };
 use miette::Result;
 use pubgrub::SelectedDependencies;
@@ -152,10 +152,24 @@ fn implicit_optional_aliases<'a>(
         .collect()
 }
 
+/// What each compatibility line is asked of.
+///
+/// A line offers only versions supporting `required`, the features of every
+/// dependency that could settle on it, because a line that cannot support
+/// what a requirement asks must not be offered to it. What a line activates
+/// is decided by `resolved`, the features of the dependencies that did
+/// settle on it, so a broad requirement does not turn on an optional
+/// dependency of a line it did not take.
+#[derive(Debug, Default, Clone, PartialEq, Eq)]
+pub(crate) struct FeatureSelections {
+    pub(crate) resolved: BTreeMap<PackageKey, FeatureSelection>,
+    pub(crate) required: BTreeMap<PackageKey, FeatureSelection>,
+}
+
 pub(crate) fn root_feature_selections(
     registry: &Registry,
     root_dependencies: &[RegistryDependency],
-) -> Result<BTreeMap<PackageKey, FeatureSelection>> {
+) -> Result<FeatureSelections> {
     collect_feature_selections(registry, root_dependencies, None)
 }
 
@@ -163,7 +177,7 @@ pub(crate) fn feature_selections_for_solution(
     registry: &Registry,
     root_dependencies: &[RegistryDependency],
     solution: &SelectedDependencies<PackageKey, Version>,
-) -> Result<BTreeMap<PackageKey, FeatureSelection>> {
+) -> Result<FeatureSelections> {
     collect_feature_selections(registry, root_dependencies, Some(solution))
 }
 
@@ -171,13 +185,17 @@ fn collect_feature_selections(
     registry: &Registry,
     root_dependencies: &[RegistryDependency],
     solution: Option<&SelectedDependencies<PackageKey, Version>>,
-) -> Result<BTreeMap<PackageKey, FeatureSelection>> {
-    let mut selections = BTreeMap::<PackageKey, FeatureSelection>::new();
+) -> Result<FeatureSelections> {
+    let mut selections = FeatureSelections::default();
     let mut pending = VecDeque::from(root_dependencies.to_vec());
 
     while let Some(dependency) = pending.pop_front() {
         registry.validate_dependency_source(dependency.registry.as_deref())?;
         let versions = registry.package(&dependency.name)?;
+        for (compatibility, _) in matching_lines(versions, &dependency.requirement) {
+            let line = PackageKey::Registry { name: dependency.name.clone(), compatibility };
+            widen_line_selection(&mut selections.required, &dependency, &line);
+        }
         // Before there is a solution the line is a prediction, and the
         // solver reaches for the newest first. Once there is one, the line
         // it settled on is the only one this dependency asked anything of.
@@ -188,14 +206,14 @@ fn collect_feature_selections(
             None => newest_line_package(registry, &dependency.name, &dependency.requirement)?,
         };
         let Some(package) = package else { continue };
-        if !widen_line_selection(&mut selections, &dependency, &package) {
+        if !widen_line_selection(&mut selections.resolved, &dependency, &package) {
             continue;
         }
         let Some(selected_version) = solution.and_then(|solution| solution.get(&package)) else {
             continue;
         };
         let selected = indexed_version(versions, &dependency.name, selected_version)?;
-        let selection = selections
+        let selection = selections.resolved
             .get(&package)
             .cloned()
             .unwrap_or_default();

@@ -1,6 +1,6 @@
 use crate::{
     features::{
-        active_dependencies, feature_selections_for_solution, indexed_version,
+        FeatureSelections, active_dependencies, feature_selections_for_solution, indexed_version,
         root_feature_selections, supports_features,
     },
     lockfile::lockfile_from_solution,
@@ -124,14 +124,17 @@ pub fn resolve_lockfile(
         let solution = resolve_with_features(&registry, &root_dependencies, &feature_selections)?;
         let selected_features =
             feature_selections_for_solution(&registry, &root_dependencies, &solution)?;
-        if let Some(validated_solution) =
-            validate_selected_graph(&registry, &root_dependencies, &solution, &selected_features)?
-        {
+        if let Some(validated_solution) = validate_selected_graph(
+            &registry,
+            &root_dependencies,
+            &solution,
+            &selected_features.resolved,
+        )? {
             return lockfile_from_solution(
                 &metadata,
                 &registry,
                 &validated_solution,
-                &selected_features,
+                &selected_features.resolved,
                 source,
             );
         }
@@ -217,7 +220,7 @@ fn validated_package(
 fn resolve_with_features(
     registry: &Registry,
     root_dependencies: &[RegistryDependency],
-    feature_selections: &BTreeMap<PackageKey, FeatureSelection>,
+    feature_selections: &FeatureSelections,
 ) -> Result<pubgrub::SelectedDependencies<PackageKey, Version>> {
     let mut provider = OfflineDependencyProvider::<PackageKey, Ranges<Version>>::new();
     let mut pending = VecDeque::new();
@@ -229,19 +232,7 @@ fn resolve_with_features(
         if !registered.insert(package.clone()) {
             continue;
         }
-        match &package {
-            PackageKey::Registry { .. } => {
-                let selection = feature_selections
-                    .get(&package)
-                    .cloned()
-                    .unwrap_or_default();
-                register_candidates(registry, &package, &selection, &mut provider, &mut pending)?;
-            }
-            PackageKey::Requirement { .. } => {
-                register_compatibility_lines(registry, &package, &mut provider, &mut pending)?;
-            }
-            PackageKey::Root | PackageKey::Unsatisfiable { .. } => {}
-        }
+        register(registry, &package, feature_selections, &mut provider, &mut pending)?;
     }
 
     match resolve(&provider, PackageKey::Root, Version::new(0, 0, 0)) {
@@ -258,18 +249,46 @@ fn resolve_with_features(
     }
 }
 
-/// Offer the solver every version of `package` that the selected features
-/// admit, queueing each one's own dependencies.
+/// Tell the solver what `package` offers, which depends on what kind of
+/// package it is.
+fn register(
+    registry: &Registry,
+    package: &PackageKey,
+    feature_selections: &FeatureSelections,
+    provider: &mut OfflineDependencyProvider<PackageKey, Ranges<Version>>,
+    pending: &mut VecDeque<PackageKey>,
+) -> Result<()> {
+    match package {
+        PackageKey::Registry { .. } => {
+            register_candidates(registry, package, feature_selections, provider, pending)
+        }
+        PackageKey::Requirement { .. } => {
+            register_compatibility_lines(registry, package, feature_selections, provider, pending)
+        }
+        PackageKey::Root | PackageKey::Unsatisfiable { .. } => Ok(()),
+    }
+}
+
+/// Offer the solver the versions of `package` that every dependency able to
+/// settle on it can support, queueing each one's own dependencies.
 fn register_candidates(
     registry: &Registry,
     package: &PackageKey,
-    selection: &FeatureSelection,
+    feature_selections: &FeatureSelections,
     provider: &mut OfflineDependencyProvider<PackageKey, Ranges<Version>>,
     pending: &mut VecDeque<PackageKey>,
 ) -> Result<()> {
     let PackageKey::Registry { name, compatibility } = package else {
         return Ok(());
     };
+    let required = feature_selections.required
+        .get(package)
+        .cloned()
+        .unwrap_or_default();
+    let resolved = feature_selections.resolved
+        .get(package)
+        .cloned()
+        .unwrap_or_default();
     let versions = registry.package(name)?;
     let candidates = versions
         .iter()
@@ -277,12 +296,56 @@ fn register_candidates(
             !version.yanked && compatibility_line(&version.version) == *compatibility
         });
     for version in candidates {
-        if !supports_features(version, selection) {
+        if !supports_features(version, &required) {
             continue;
         }
-        let dependencies = active_dependencies(version, selection)?;
+        let dependencies = active_dependencies(version, &resolved)?;
         let constraints = constraints_for(registry, &dependencies, pending)?;
         provider.add_dependencies(package.clone(), version.version.clone(), constraints);
+    }
+    Ok(())
+}
+
+/// Offer the solver one version per compatibility line the requirement is
+/// met on, each standing for that line and depending on the versions it
+/// admits there. Ordered by version, so the solver reaches for the newest
+/// line first and backtracks to an older one, as `cargo` does.
+///
+/// A line is offered only the versions that support what the lines's
+/// dependants ask, so a line that cannot support them is not a choice at
+/// all rather than one the solver takes and later has to leave.
+fn register_compatibility_lines(
+    registry: &Registry,
+    package: &PackageKey,
+    feature_selections: &FeatureSelections,
+    provider: &mut OfflineDependencyProvider<PackageKey, Ranges<Version>>,
+    pending: &mut VecDeque<PackageKey>,
+) -> Result<()> {
+    let PackageKey::Requirement { name, requirement } = package else {
+        return Ok(());
+    };
+    let requirement = VersionReq::parse(requirement)
+        .into_diagnostic()
+        .wrap_err_with(|| format!("parse requirement for {name}"))?;
+    let versions = registry.package(name)?;
+    for (compatibility, representative) in matching_lines(versions, &requirement) {
+        let line =
+            PackageKey::Registry { name: name.clone(), compatibility: compatibility.clone() };
+        let required = feature_selections.required
+            .get(&line)
+            .cloned()
+            .unwrap_or_default();
+        let admitted = matching_versions(versions, &requirement)
+            .filter(|version| compatibility_line(&version.version) == compatibility)
+            .filter(|version| supports_features(version, &required))
+            .fold(Ranges::empty(), |range, version| {
+                range.union(&Ranges::singleton(version.version.clone()))
+            });
+        if admitted == Ranges::empty() {
+            continue;
+        }
+        provider.add_dependencies(package.clone(), representative, [(line.clone(), admitted)]);
+        pending.push_back(line);
     }
     Ok(())
 }
@@ -312,34 +375,4 @@ fn constraints_for(
         pending.push_back(package);
     }
     Ok(constraints.into_iter().collect())
-}
-
-/// Offer the solver one version per compatibility line the requirement is
-/// met on, each standing for that line and depending on the versions it
-/// admits there. Ordered by version, so the solver reaches for the newest
-/// line first and backtracks to an older one, as `cargo` does.
-fn register_compatibility_lines(
-    registry: &Registry,
-    package: &PackageKey,
-    provider: &mut OfflineDependencyProvider<PackageKey, Ranges<Version>>,
-    pending: &mut VecDeque<PackageKey>,
-) -> Result<()> {
-    let PackageKey::Requirement { name, requirement } = package else {
-        return Ok(());
-    };
-    let requirement = VersionReq::parse(requirement)
-        .into_diagnostic()
-        .wrap_err_with(|| format!("parse requirement for {name}"))?;
-    let versions = registry.package(name)?;
-    for (compatibility, representative) in matching_lines(versions, &requirement) {
-        let admitted = matching_versions(versions, &requirement)
-            .filter(|version| compatibility_line(&version.version) == compatibility)
-            .fold(Ranges::empty(), |range, version| {
-                range.union(&Ranges::singleton(version.version.clone()))
-            });
-        let line = PackageKey::Registry { name: name.clone(), compatibility };
-        provider.add_dependencies(package.clone(), representative, [(line.clone(), admitted)]);
-        pending.push_back(line);
-    }
-    Ok(())
 }
