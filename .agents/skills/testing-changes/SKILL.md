@@ -63,10 +63,23 @@ For a crate anywhere near the core, `rdeps()` is the full suite wearing a filter
 
 Changing this — splitting the CLI end-to-end target so selection means something — is tracked in [pnpm/pnpm#14984](https://github.com/pnpm/pnpm/issues/14984).
 
+### Breadth: `just smoke`
+
+`just test-affected` covers what you changed. `just smoke` covers what you did not: one end-to-end test per area of CLI behavior, so a change that breaks `run` while you were editing the resolver does not wait for CI to say so.
+
+```sh
+just smoke
+```
+
+Membership lives in the `smoke` profile in `.config/nextest.toml`, one entry per area, and `pnpm/scripts/smoke-profile.test.mjs` fails if an entry stops naming a real test. Entries are chosen by behavior area, not by code coverage: nearly every end-to-end test walks the same install path, so a set picked to maximize covered lines would be a few install tests that miss every distinguishing case.
+
+Together they make a reasonable pre-push pair. Neither replaces CI, which runs the whole suite on three platforms before a pull request merges.
+
 ### Other selections
 
 ```sh
 just test-affected                                             # crates the diff touches
+just smoke                                                     # one e2e test per area
 node pnpm/scripts/run-rust-tests.mjs -p pnpm-lockfile          # one crate
 node pnpm/scripts/run-rust-tests.mjs -E 'test(resolves_peer)'  # one test by name
 node pnpm/scripts/run-rust-tests.mjs -p pnpm-cli -E 'test(catalog::)'  # one e2e module

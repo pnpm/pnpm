@@ -113,6 +113,8 @@ just test-affected
 
 This maps the working tree's changes to crates and runs those crates' tests, with the same sanitized environment `just test` uses. It does not include the CLI end-to-end suite unless you changed `pnpm-cli` itself, so for a user-visible change add the suite modules for the area: `just test-affected -- -p pnpm-cli -E 'test(catalog::)'`. The [`testing-changes`](../.agents/skills/testing-changes/SKILL.md) skill covers picking them.
 
+`just smoke` complements it by running one end-to-end test per area of CLI behavior, which catches breakage outside the crates you touched without waiting for CI.
+
 Scope the tests, not the rest. `just check` and `just lint` stay workspace-wide: both cost far less than the test run, and they catch the cross-crate breakage a `-p` selection hides.
 
 CI runs the full suite on Linux, macOS, and Windows for every pull request, so there is no need to reproduce it locally first. Run everything yourself when the change reaches past the crates you can name — a workspace dependency, `Cargo.lock`, `rust-toolchain.toml`, a shared crate such as `pnpm-testing-utils`, or a rename that crosses crate boundaries:
@@ -152,6 +154,7 @@ TRACE=pnpm_tarball just cli add fastify
 ```sh
 just install              # install necessary dependencies
 just test-affected        # the crates the working tree changes
+just smoke                # one end-to-end test per area of CLI behavior
 just test                 # run every test in the workspace
 just test-pacquet         # pacquet crates only
 just test-pnpr            # pnpr crates only

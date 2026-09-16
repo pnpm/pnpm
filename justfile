@@ -76,6 +76,14 @@ sweep-test-temp:
 # `Cargo.lock`, the workspace manifest, or the toolchain affects every crate,
 # so the script refuses to guess a subset and points at `just ready` instead.
 
+# Breadth in seconds, where `just test-affected` gives depth on what you
+# changed. Membership is one test per area of CLI behavior; see the comment on
+# the `smoke` profile in `.config/nextest.toml`.
+
+# Run one end-to-end test per area of CLI behavior.
+smoke *args:
+  node pnpm/scripts/run-rust-tests.mjs --profile smoke {{args}}
+
 # Run the tests of the crates the working tree changes.
 test-affected *args:
   node pnpm/scripts/test-affected.mjs {{args}}

@@ -177,6 +177,9 @@ by crate or name — see below).
   selects most of the workspace. The
   [`testing-changes`](../.agents/skills/testing-changes/SKILL.md) skill has the
   measured fan-out and how to pick a selection.
+- `just smoke` — one end-to-end test per area of CLI behavior, listed in the
+  `smoke` profile in `.config/nextest.toml`. Breadth across areas you did not
+  touch, where `just test-affected` gives depth on the ones you did.
 - `just test` — `cargo nextest run` over the whole workspace.
 - `just test-pacquet` / `just test-pnpr` — one product's crates.
 - `just lint` — `cargo clippy --locked --workspace --all-targets -- --deny warnings`.
@@ -289,6 +292,9 @@ configuration the way `just test` does.
 ```sh
 # The crates the working tree changes
 just test-affected
+
+# One end-to-end test per area of CLI behavior
+just smoke
 
 # One crate
 node pnpm/scripts/run-rust-tests.mjs -p pnpm-lockfile
