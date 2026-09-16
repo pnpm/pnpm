@@ -86,7 +86,6 @@ pub fn run(workspace: &Workspace, root: &Path, pnpm: &Path, cargo: &Path) -> Out
     }
 }
 
-/// What a stage concluded.
 #[derive(Debug, PartialEq, Eq)]
 pub enum Finding {
     /// The resolvers produced the same thing.
