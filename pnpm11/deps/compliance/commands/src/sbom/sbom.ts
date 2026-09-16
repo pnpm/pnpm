@@ -586,9 +586,7 @@ function validateSbomSpecVersion (value: string | undefined, format: SbomFormat)
  * A field the project declares stays the project's own even when the value
  * names nobody: blank, `null`, or a form no SBOM can publish. The workspace
  * root's author, repository, or issue tracker would attribute the package to
- * the wrong party. `license` follows the same rule through `declaresLicense`,
- * and only resolves separately because it also probes the project directory
- * for a LICENSE file.
+ * the wrong party.
  */
 function rootComponentField<FieldName extends keyof ProjectManifest> (
   manifest: ProjectManifest,

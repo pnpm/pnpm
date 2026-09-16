@@ -1465,7 +1465,6 @@ test.each([
   expect(spdxRoot.licenseDeclared).toBe('NOASSERTION')
 })
 
-/** Gives the workspace root manifest every metadata field a filtered project may inherit. */
 function writePopulatedWorkspaceRoot (workspaceDir: string): void {
   fs.writeFileSync(
     path.join(workspaceDir, 'package.json'),
@@ -1481,7 +1480,6 @@ function writePopulatedWorkspaceRoot (workspaceDir: string): void {
   )
 }
 
-/** Installs the whole workspace, then returns the options for an SBOM run filtered to `projectDir`. */
 async function installWorkspaceForSbom (workspaceDir: string, storeDir: string, projectDir: string) {
   const { allProjects, allProjectsGraph, selectedProjectsGraph: allSelectedGraph } =
     await filterProjectsBySelectorObjectsFromDir(workspaceDir, [])

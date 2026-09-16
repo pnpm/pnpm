@@ -878,8 +878,6 @@ fn set_dependency_author(workspace: &Path, author_name: &str) {
     .expect("write the package manifest");
 }
 
-/// Gives the workspace root manifest every metadata field a filtered project
-/// may inherit.
 fn write_populated_workspace_root(workspace: &Path) {
     fs::write(
         workspace.join("package.json"),
