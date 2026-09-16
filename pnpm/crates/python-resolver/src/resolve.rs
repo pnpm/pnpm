@@ -114,16 +114,7 @@ impl DependencyProvider for Provider<'_> {
                     .into_iter()
                     .collect::<Vec<_>>();
                 if let Some(extra) = extra {
-                    if !metadata.provides_extra
-                        .iter()
-                        .any(|provided| {
-                            provided
-                                .parse::<ExtraName>()
-                                .ok()
-                                .as_ref()
-                                == Some(extra)
-                        })
-                    {
+                    if !provides_extra(metadata, extra) {
                         return Ok(Dependencies::Unavailable(format!(
                             "extra {extra} is not provided",
                         )));
@@ -135,21 +126,41 @@ impl DependencyProvider for Provider<'_> {
                 }
                 let requirements = match metadata_requirements(metadata) {
                     Ok(requirements) => requirements,
-                    Err(Refusal::Unreadable(error)) => {
-                        return Ok(Dependencies::Unavailable(format!(
-                            "because its metadata declares a requirement pnpm cannot read: {error}",
-                        )));
-                    }
-                    Err(Refusal::Unsupported(requirement)) => {
-                        return Err(Needed::Invalid(format!(
-                            "direct URL Python requirements are not supported: {requirement}",
-                        )));
-                    }
+                    Err(refusal) => return unusable_release(refusal),
                 };
                 self.constraints(&requirements, &extras, &mut constraints)?;
             }
         }
         Ok(Dependencies::Available(DependencyConstraints::from_iter(constraints)))
+    }
+}
+
+fn provides_extra(metadata: &WheelMetadata, extra: &ExtraName) -> bool {
+    metadata.provides_extra
+        .iter()
+        .any(|provided| {
+            provided
+                .parse::<ExtraName>()
+                .ok()
+                .as_ref()
+                == Some(extra)
+        })
+}
+
+/// What a release whose requirements pnpm cannot use offers the solver: a
+/// version to pass over, when one of its requirements is unreadable, and
+/// nothing at all when it names a requirement pnpm does not implement,
+/// which every release declaring it would name too.
+fn unusable_release(
+    refusal: Refusal,
+) -> std::result::Result<Dependencies<Package, Ranges<Version>, String>, Needed> {
+    match refusal {
+        Refusal::Unreadable(error) => Ok(Dependencies::Unavailable(format!(
+            "because its metadata declares a requirement pnpm cannot read: {error}",
+        ))),
+        Refusal::Unsupported(requirement) => Err(Needed::Invalid(format!(
+            "direct URL Python requirements are not supported: {requirement}",
+        ))),
     }
 }
 
