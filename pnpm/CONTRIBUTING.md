@@ -100,7 +100,7 @@ Run this before every commit:
 
 ```sh
 typos pnpm pnpr
-node pnpm/scripts/rustfmt.mjs --all
+just fmt
 just check
 just lint
 ```

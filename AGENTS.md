@@ -88,14 +88,16 @@ This runs `tsgo --build`, linting, and `pnpm run bundle` (which bundles all Type
 
 ## Testing
 
-Never run all tests in the repository as it takes a lot of time. This applies to
-every product here, TypeScript and Rust alike: run the selection that covers
-what you changed, and let CI run the rest — it runs the full Rust suite on
+Run the selection that covers what you changed, not the whole repository: the
+full suite takes a lot of time. This applies to every product here, TypeScript
+and Rust alike. Let CI run the rest — it runs the full Rust suite on
 Linux, macOS, and Windows and the full TypeScript suite for every pull request.
 The [`testing-changes`](./.agents/skills/testing-changes/SKILL.md) skill covers
 how to derive that selection from the diff in each product, and
 [`pnpm/CONTRIBUTING.md`](./pnpm/CONTRIBUTING.md#automated-checks) has the Rust
-workspace's checks.
+workspace's checks, including the one case that does call for a full local run:
+a change whose affected set cannot be named, such as the workspace manifest,
+the lockfile, or the toolchain.
 
 The rest of this section is TypeScript only.
 

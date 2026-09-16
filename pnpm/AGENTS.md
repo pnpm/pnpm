@@ -281,25 +281,33 @@ shows up in the test report; a silent `return` does not.
 
 ### Running tests narrowly
 
-Running the full suite is slow. While iterating, target what you're working
-on:
+Running the full suite is slow. Target what you're working on. Run these
+through `pnpm/scripts/run-rust-tests.mjs` rather than `cargo nextest` directly
+for anything that exercises the CLI: it sanitizes the ambient npm and pnpm
+configuration the way `just test` does.
 
 ```sh
+# The crates the working tree changes
+just test-affected
+
 # One crate
-cargo nextest run -p pnpm-lockfile
+node pnpm/scripts/run-rust-tests.mjs -p pnpm-lockfile
 
 # One test by name substring
-cargo nextest run -p pnpm-lockfile <name_substring>
+node pnpm/scripts/run-rust-tests.mjs -p pnpm-lockfile <name_substring>
 
 # One integration test file
-cargo nextest run -p pnpm-lockfile --test <file_stem>
+node pnpm/scripts/run-rust-tests.mjs -p pnpm-lockfile --test <file_stem>
 
 # One module of pnpm-cli's suite (the suite is a single target, so the
 # former per-file `--test <file_stem>` is a module filter here)
-cargo nextest run -p pnpm-cli -E 'test(/^<file_stem>::/)'
+node pnpm/scripts/run-rust-tests.mjs -p pnpm-cli -E 'test(/^<file_stem>::/)'
 ```
 
-Run `just ready` (full suite) before handing the PR off.
+CI runs the full suite on three platforms for every pull request, so a local
+`just ready` is for changes whose affected set you cannot name, not a step
+before every handoff. See
+[`CONTRIBUTING.md`](./CONTRIBUTING.md#automated-checks).
 
 ## Style
 

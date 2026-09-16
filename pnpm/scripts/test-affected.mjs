@@ -3,7 +3,6 @@ import console from 'node:console'
 import path from 'node:path'
 import process from 'node:process'
 import { fileURLToPath, pathToFileURL } from 'node:url'
-import { parseArgs } from 'node:util'
 
 // Files that change how every crate compiles or how every test runs. A change
 // to one of them can break any test in the workspace, so there is no honest
@@ -16,6 +15,9 @@ const WORKSPACE_WIDE = [
   '.cargo/',
   '.config/nextest.toml',
   'pnpm/scripts/run-rust-tests.mjs',
+  // A dev-dependency of most crates: a change here can alter how any test in
+  // the workspace behaves, not just this crate's own.
+  'pnpm/crates/testing-utils/',
 ]
 
 export function workspaceWideChanges (files) {
@@ -54,16 +56,67 @@ export function isPnprPackage (name) {
   return name.startsWith('pnpr') || name === 'pnpm-registry-mock'
 }
 
+/**
+ * How many crates depend on each selected crate without being selected
+ * themselves, keyed by crate name and counted transitively.
+ *
+ * Selection is crate-level, so a change to a widely used crate leaves its
+ * dependents' tests unrun. Reporting the count is what lets the caller decide
+ * whether to widen the selection or leave those tests to CI.
+ */
+export function unselectedDependents (selected, packages) {
+  const dependents = new Map(packages.map(pkg => [pkg.name, new Set()]))
+  for (const pkg of packages) {
+    for (const dependency of pkg.dependencies) {
+      dependents.get(dependency)?.add(pkg.name)
+    }
+  }
+  const counts = new Map()
+  for (const name of selected) {
+    const seen = new Set()
+    const pending = [name]
+    while (pending.length > 0) {
+      for (const dependent of dependents.get(pending.pop()) ?? []) {
+        if (seen.has(dependent)) continue
+        seen.add(dependent)
+        pending.push(dependent)
+      }
+    }
+    const unselected = [...seen].filter(dependent => !selected.includes(dependent))
+    if (unselected.length > 0) counts.set(name, unselected.length)
+  }
+  return counts
+}
+
+/**
+ * This script's own options, and every other argument in the order it was
+ * given. `node:util`'s `parseArgs` cannot do this: in non-strict mode it
+ * collects unknown flags into `values` and leaves their operands behind as
+ * positionals, so `-p pnpm-cli` would reach nextest as a bare `pnpm-cli` test
+ * name filter.
+ */
+export function parseOptions (argv) {
+  const values = { base: 'main', print: false, help: false }
+  const rest = []
+  for (let index = 0; index < argv.length; index++) {
+    const arg = argv[index]
+    if (arg === '--') {
+      rest.push(...argv.slice(index + 1))
+      break
+    }
+    if (arg === '--print') values.print = true
+    else if (arg === '--help' || arg === '-h') values.help = true
+    else if (arg.startsWith('--base=')) values.base = arg.slice('--base='.length)
+    else if (arg === '--base') {
+      if (index + 1 === argv.length) throw new Error('--base needs a revision')
+      values.base = argv[++index]
+    } else rest.push(arg)
+  }
+  return { values, rest }
+}
+
 function main () {
-  const { values, positionals } = parseArgs({
-    allowPositionals: true,
-    strict: false,
-    options: {
-      base: { type: 'string', default: 'main' },
-      print: { type: 'boolean', default: false },
-      help: { type: 'boolean', default: false },
-    },
-  })
+  const { values, rest } = parseOptions(process.argv.slice(2))
   if (values.help) {
     console.log(`node pnpm/scripts/test-affected.mjs [--base main] [--print] [<nextest args>]
 
@@ -86,14 +139,19 @@ Selection is crate-level: a crate's whole test set runs, or none of it.`)
     return 1
   }
 
-  const packages = selectPackages(changed, workspaceManifests(repo))
+  const manifests = workspaceManifests(repo)
+  const packages = selectPackages(changed, manifests)
   if (packages.length === 0) {
     console.log('No Rust crates changed.')
     return 0
   }
 
   console.log(`Testing ${packages.length} crate(s) changed against ${values.base}:`)
-  for (const name of packages) console.log(`  ${name}`)
+  const dependents = unselectedDependents(packages, manifests)
+  for (const name of packages) {
+    const count = dependents.get(name)
+    console.log(count == null ? `  ${name}` : `  ${name} (${count} crates depend on it; their tests are not selected)`)
+  }
   if (!packages.includes('pnpm-cli') && !packages.every(isPnprPackage)) {
     console.log('\nThe CLI end-to-end suite is not in this selection. For a user-visible change, add')
     console.log("  -p pnpm-cli -E 'test(<area>::)'")
@@ -101,7 +159,7 @@ Selection is crate-level: a crate's whole test set runs, or none of it.`)
   }
 
   const runner = path.join(repo, 'pnpm/scripts/run-rust-tests.mjs')
-  const nextestArgs = packages.flatMap(name => ['-p', name]).concat(positionals)
+  const nextestArgs = packages.flatMap(name => ['-p', name]).concat(rest)
   if (values.print) {
     console.log(`\nnode ${path.relative(repo, runner)} ${nextestArgs.join(' ')}`)
     return 0
@@ -114,15 +172,22 @@ Selection is crate-level: a crate's whole test set runs, or none of it.`)
 
 function workspaceManifests (repo) {
   const metadata = JSON.parse(run(repo, 'cargo', ['metadata', '--format-version', '1', '--no-deps', '--offline']))
+  const names = new Set(metadata.packages.map(pkg => pkg.name))
   return metadata.packages.map(pkg => ({
     name: pkg.name,
     dir: path.relative(repo, path.dirname(pkg.manifest_path)).split(path.sep).join('/'),
+    dependencies: [...new Set(pkg.dependencies.map(dependency => dependency.name).filter(name => names.has(name)))],
   }))
 }
 
 function changedFiles (repo, base) {
+  // A base that git cannot resolve must not read as "nothing changed": that
+  // reports success on a branch whose commits were never tested.
   const merged = run(repo, 'git', ['merge-base', base, 'HEAD'], { allowFailure: true }).trim()
-  const committed = merged === '' ? '' : run(repo, 'git', ['diff', '--name-only', merged, 'HEAD'])
+  if (merged === '') {
+    throw new Error(`no merge base between '${base}' and HEAD. Fetch the branch, or pass --base <revision>.`)
+  }
+  const committed = run(repo, 'git', ['diff', '--name-only', merged, 'HEAD'])
   const working = run(repo, 'git', ['diff', '--name-only', 'HEAD'])
   const untracked = run(repo, 'git', ['ls-files', '--others', '--exclude-standard'])
   return [...new Set(`${committed}\n${working}\n${untracked}`.split('\n').filter(line => line !== ''))]

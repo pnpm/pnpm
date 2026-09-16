@@ -29,7 +29,14 @@ just test-affected --base HEAD~3       # against another revision
 just test-affected --print             # show the selection, run nothing
 ```
 
-It selects every `pnpr-*` crate together when any of them changed, and it refuses to guess a subset when `Cargo.lock`, the workspace manifest, the toolchain, or the nextest config changed — those affect every crate, so it points at `just ready` instead.
+It selects every `pnpr-*` crate together when any of them changed, and it refuses to guess a subset when `Cargo.lock`, the workspace manifest, the toolchain, the nextest config, or `pnpm-testing-utils` changed — those affect every crate, so it points at `just ready` instead.
+
+For each selected crate it also reports how many crates depend on it whose tests are not in the selection, so you can see what you are leaving to CI:
+
+```
+Testing 1 crate(s) changed against main:
+  pnpm-fs (68 crates depend on it; their tests are not selected)
+```
 
 What it cannot decide for you is the CLI end-to-end suite. `pnpm-cli` is only in the selection when you changed it, so for a user-visible change add the suite modules that exercise the area:
 

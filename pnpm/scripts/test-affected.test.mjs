@@ -1,6 +1,13 @@
 import assert from 'node:assert/strict'
+import { spawnSync } from 'node:child_process'
+import fs from 'node:fs'
+import os from 'node:os'
+import path from 'node:path'
 import { test } from 'node:test'
-import { isPnprPackage, selectPackages, workspaceWideChanges } from './test-affected.mjs'
+import { fileURLToPath } from 'node:url'
+import { isPnprPackage, parseOptions, selectPackages, unselectedDependents, workspaceWideChanges } from './test-affected.mjs'
+
+const script = fileURLToPath(new URL('./test-affected.mjs', import.meta.url))
 
 const manifests = [
   { name: 'pnpm-cli', dir: 'pnpm/crates/cli' },
@@ -45,4 +52,52 @@ test('identifies the crates that must be selected together', () => {
   assert.ok(isPnprPackage('pnpr-storage'))
   assert.ok(isPnprPackage('pnpm-registry-mock'))
   assert.ok(!isPnprPackage('pnpm-lockfile'))
+})
+
+test('refuses to scope a change to the shared test harness', () => {
+  assert.deepEqual(workspaceWideChanges(['pnpm/crates/testing-utils/src/bin.rs']), ['pnpm/crates/testing-utils/src/bin.rs'])
+})
+
+test('counts the dependents whose tests the selection leaves out', () => {
+  const packages = [
+    { name: 'fs', dependencies: [] },
+    { name: 'lockfile', dependencies: ['fs'] },
+    { name: 'cli', dependencies: ['lockfile'] },
+    { name: 'unrelated', dependencies: [] },
+  ]
+  assert.deepEqual([...unselectedDependents(['fs'], packages)], [['fs', 2]])
+  assert.deepEqual([...unselectedDependents(['fs', 'lockfile', 'cli'], packages)], [])
+})
+
+test('forwards every argument nextest understands, in order', () => {
+  const { values, rest } = parseOptions(['--base', 'HEAD~1', '-p', 'pnpm-cli', '-E', 'test(catalog::)'])
+  assert.equal(values.base, 'HEAD~1')
+  assert.deepEqual(rest, ['-p', 'pnpm-cli', '-E', 'test(catalog::)'])
+})
+
+test('reads its own options in either spelling', () => {
+  assert.equal(parseOptions(['--base=HEAD']).values.base, 'HEAD')
+  assert.equal(parseOptions(['--print']).values.print, true)
+  assert.equal(parseOptions([]).values.base, 'main')
+})
+
+test('forwards everything after a bare double dash', () => {
+  const { values, rest } = parseOptions(['--print', '--', '--no-capture', '--base', 'not-ours'])
+  assert.equal(values.print, true)
+  assert.deepEqual(rest, ['--no-capture', '--base', 'not-ours'])
+})
+
+test('rejects --base without a revision', () => {
+  assert.throws(() => parseOptions(['--base']), /--base needs a revision/)
+})
+
+test('fails when the base revision cannot be resolved', (context) => {
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'pnpm-test-affected-'))
+  context.after(() => fs.rmSync(repo, { recursive: true, force: true }))
+  for (const args of [['init'], ['commit', '--allow-empty', '-m', 'root', '--no-verify']]) {
+    spawnSync('git', args, { cwd: repo, env: { ...process.env, GIT_AUTHOR_NAME: 't', GIT_AUTHOR_EMAIL: 't@t', GIT_COMMITTER_NAME: 't', GIT_COMMITTER_EMAIL: 't@t' } })
+  }
+  const result = spawnSync('node', [script, '--base', 'no-such-branch'], { cwd: repo, encoding: 'utf8' })
+  assert.equal(result.status, 1)
+  assert.match(result.stderr, /no merge base between 'no-such-branch'/)
 })
