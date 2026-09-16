@@ -33,7 +33,7 @@ pub(crate) fn crate_archive(name: &str, version: &str) -> Vec<u8> {
         .unwrap()
 }
 
-fn cargo_workspace(index_url: &str, dependencies: &str, source: &str) -> TempDir {
+pub(super) fn cargo_workspace(index_url: &str, dependencies: &str, source: &str) -> TempDir {
     let root = TempDir::new().expect("create Cargo workspace");
     std::fs::create_dir(root.path().join("src")).expect("create Cargo source directory");
     std::fs::write(root.path().join("src/lib.rs"), source).expect("write Cargo source");
@@ -52,7 +52,7 @@ fn cargo_workspace(index_url: &str, dependencies: &str, source: &str) -> TempDir
     root
 }
 
-fn install_in(root: &TempDir, args: &[&str]) {
+pub(super) fn install_in(root: &TempDir, args: &[&str]) {
     Command::cargo_bin("pnpm")
         .expect("find the pnpm binary")
         .with_current_dir(root.path())

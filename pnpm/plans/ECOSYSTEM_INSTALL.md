@@ -90,6 +90,21 @@ Its workspace source links, managed source configuration and lockfile publish
 after all participants prepare successfully. Source links are additive cache
 entries; metadata rollback restores the selected graph, not cache contents.
 
+Cargo workspaces with git dependencies use `cargo generate-lockfile` when a
+lockfile must be generated or an added crate requires resolution. This path
+uses Cargo's git, authentication, feature and nightly artifact dependency
+support. It requires the default `cargo.indexUrl`; a custom registry still
+requires an existing lockfile. Frozen installs never enter this path.
+pnpm temporarily removes its managed source blocks from the workspace and
+ancestor Cargo configuration during resolution, then restores them before
+returning. User settings remain in effect. Resolution does not compile crates
+or execute their build scripts.
+
+When workspace or ancestor Cargo configuration enables `unstable.build-std`,
+pnpm also prepares registry dependencies from the active Rust toolchain's
+`rust-src` standard library lockfile. The toolchain must have `rust-src`
+installed. Conflicting package identities or checksums fail preparation.
+
 Python prepares a complete interpreter-specific environment generation. Its
 publication switches the managed environment link and writes `pylock.toml`.
 Rollback restores the previous link. Old successful generations remain alive
