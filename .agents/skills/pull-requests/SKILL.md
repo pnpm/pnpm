@@ -14,9 +14,10 @@ the turn that pushed would otherwise have ended. Stay for it.
 
 ## Opening
 
-Fill in `.github/pull_request_template.md` and pass it as the body; `gh pr
-create` does not apply the template on its own. Keep every section, mark the
-checklist honestly, and drop only the lines the template says to drop.
+Open it as a draft (`gh pr create --draft`). Fill in
+`.github/pull_request_template.md` and pass it as the body; `gh pr create` does
+not apply the template on its own. Keep every section, mark the checklist
+honestly, and drop only the lines the template says to drop.
 
 When the change comes from an issue, link it from the Summary with a closing
 keyword (`Closes pnpm/pnpm#123`) and then comment on the issue itself. The
@@ -27,7 +28,25 @@ and whether it covers the whole issue or one part of it. Say so plainly when it
 is partial. Do not close the issue by hand; the closing keyword does that when
 the PR merges.
 
+## Draft until the change is worth reading
+
+CI runs on a draft here; the reviewers do not. That asymmetry is the whole point
+of opening as one. A failing lint job, a test you forgot to update, a bug your
+own review pass catches — in draft each of those costs a push and nothing else,
+while on a ready PR each one burns a review round and leaves a thread behind.
+
+So stay in draft until the checks are green and your own pass over the diff is
+clean, then `gh pr ready <pr>`. The first round of review then reads a finished
+change instead of a half-fixed one, and its findings are about the design rather
+than the leftovers.
+
+Do not leave a draft behind when you stop. A draft with no note on it reads as
+abandoned: either mark it ready or say in a comment what is left to do.
+
 ## After every push
+
+This is the loop for a PR that is ready for review. Steps 1 and 4 apply while it
+is still a draft too; the review steps start when you mark it ready.
 
 1. **Wait for the checks.** `gh pr checks <pr> --watch` blocks for longer than a
    foreground command is usually allowed to run, so run it in the background or
@@ -63,7 +82,8 @@ declined that a human should settle.
 
 ## While the checks run
 
-Waiting is not idle time. Review your own diff the way the reviewers will, using
+Waiting is not idle time, and in the draft phase this pass is the whole job.
+Review your own diff the way the reviewers will, using
 the checklist in [`REVIEW_GUIDE.md`](../../../REVIEW_GUIDE.md) — security first,
 performance second. A finding you catch here costs one push; the same finding
 caught by a reviewer costs a round, and rounds are where the bugs from the last
