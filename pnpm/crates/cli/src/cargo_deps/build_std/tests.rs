@@ -1,6 +1,5 @@
 use super::{is_enabled, read_packages, requests_build_std};
-use crate::cargo_deps::lockfile::{LockedCrate, LockedPackages};
-use pnpm_cargo_resolver::CRATES_IO_SPARSE_INDEX;
+use crate::cargo_deps::lockfile::{LockedCrate, LockedPackages, parse_lockfile};
 use sha2::{Digest, Sha256};
 use std::fs;
 use tempfile::TempDir;
@@ -48,7 +47,7 @@ fn build_std_dependencies_share_identical_locked_project_crates() {
     };
 
     let merged = project
-        .merge(read_packages(sysroot.path(), CRATES_IO_SPARSE_INDEX).unwrap())
+        .merge(read_packages(sysroot.path()).unwrap())
         .unwrap();
 
     assert_eq!(merged.crates.len(), 1);
@@ -71,4 +70,29 @@ fn conflicting_project_and_standard_library_crates_are_rejected() {
 
     eprintln!("A conflicting checksum must fail: {error:?}");
     assert!(error.to_string().contains("conflicting registry package cfg-if-1.0.4"));
+}
+
+#[test]
+fn standard_library_sources_are_independent_of_the_project_registry() {
+    let sysroot = TempDir::new().unwrap();
+    let library = sysroot.path().join("lib/rustlib/src/rust/library");
+    fs::create_dir_all(&library).unwrap();
+    let checksum = format!("{:x}", Sha256::digest(b"crate source"));
+    let package = format!(
+        "version = 4\n[[package]]\nname = \"cfg-if\"\nversion = \"1.0.4\"\nsource = \"registry+https://github.com/rust-lang/crates.io-index\"\nchecksum = {checksum:?}\n",
+    );
+    fs::write(library.join("Cargo.lock"), &package).unwrap();
+    let index_url = "https://registry.example.test/";
+    let project_lock = package.replace(
+        "registry+https://github.com/rust-lang/crates.io-index",
+        &pnpm_cargo_resolver::registry_source(index_url),
+    );
+    let project = parse_lockfile(&project_lock, index_url).unwrap();
+
+    let merged = project
+        .merge(read_packages(sysroot.path()).unwrap())
+        .unwrap();
+
+    assert_eq!(merged.crates.len(), 1);
+    assert_eq!(merged.crates[0].checksum, checksum);
 }

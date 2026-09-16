@@ -14,17 +14,15 @@ use std::{
 
 pub(super) async fn include_packages(
     root: &Path,
-    index_url: &str,
     packages: LockedPackages,
 ) -> Result<LockedPackages> {
     if !is_enabled(root)? {
         return Ok(packages);
     }
     let root = root.to_path_buf();
-    let index_url = index_url.to_string();
     tokio::task::spawn_blocking(move || {
         let sysroot = sysroot(&root)?;
-        packages.merge(read_packages(&sysroot, &index_url)?)
+        packages.merge(read_packages(&sysroot)?)
     })
     .await
     .into_diagnostic()
@@ -61,7 +59,7 @@ fn requests_build_std(contents: &str) -> Result<bool> {
     Ok(!crates.is_empty())
 }
 
-fn sysroot(root: &Path) -> Result<PathBuf> {
+pub(super) fn sysroot(root: &Path) -> Result<PathBuf> {
     let output = Command::new("rustc")
         .current_dir(root)
         .args(["--print", "sysroot"])
@@ -83,7 +81,7 @@ fn sysroot(root: &Path) -> Result<PathBuf> {
     Ok(PathBuf::from(path.trim()))
 }
 
-fn read_packages(sysroot: &Path, index_url: &str) -> Result<LockedPackages> {
+fn read_packages(sysroot: &Path) -> Result<LockedPackages> {
     let path = sysroot.join("lib/rustlib/src/rust/library/Cargo.lock");
     let contents = fs::read_to_string(&path)
         .into_diagnostic()
@@ -93,7 +91,7 @@ fn read_packages(sysroot: &Path, index_url: &str) -> Result<LockedPackages> {
                 path.display(),
             )
         })?;
-    parse_lockfile(&contents, index_url)
+    parse_lockfile(&contents, pnpm_cargo_resolver::CRATES_IO_SPARSE_INDEX)
         .wrap_err_with(|| format!("parse {} for Cargo build-std", path.display()))
 }
 

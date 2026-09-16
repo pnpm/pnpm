@@ -341,7 +341,7 @@ async fn prepare_workspace_slots<Reporter: self::Reporter + 'static>(
 ) -> Result<WorkspaceSlots> {
     let packages = parse_lockfile(cargo_lock, &config.cargo.index_url)
         .wrap_err_with(|| format!("parse {}", cargo_lock_path.display()))?;
-    let packages = build_std::include_packages(root_dir, &config.cargo.index_url, packages).await?;
+    let packages = build_std::include_packages(root_dir, packages).await?;
     let git_sources = packages.git_sources();
     let logged_methods = Arc::new(AtomicU8::new(0));
     let store_dir = &config.store_dir;

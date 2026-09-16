@@ -1,15 +1,8 @@
-use super::{
-    ManagedDirectory, ensure_workspace_directory, git, managed_config_range, read_workspace_file,
-    write_workspace_file,
-};
+use super::{build_std, ensure_workspace_directory, git, read_workspace_file};
 use miette::{IntoDiagnostic, Result, WrapErr};
 use pnpm_config::Config;
 use pnpm_network::redact_and_sanitize_multiline;
-use std::{fs, io, path::Path, process::Command, sync::Mutex};
-
-// A nested Cargo workspace can inherit its parent's managed sources. Keep
-// configuration removal and restoration together across selected workspaces.
-static RESOLUTION_LOCK: Mutex<()> = Mutex::new(());
+use std::{collections::BTreeMap, env, fs, io, path::Path, process::Command};
 
 pub(super) fn has_git_dependencies(metadata: &str) -> Result<bool> {
     let sources = pnpm_cargo_resolver::git_dependency_sources(metadata)?;
@@ -32,48 +25,93 @@ pub(super) async fn resolve_with_cargo(config: &Config, root: &Path) -> Result<S
         .wrap_err("join Cargo git dependency resolution")?
 }
 
-struct SourceConfig {
-    directory: ManagedDirectory,
-    name: &'static str,
-    contents: String,
-    mode: Option<u32>,
-}
-
 fn resolve_workspace(root: &Path, offline: bool) -> Result<String> {
-    let _lock = RESOLUTION_LOCK
-        .lock()
-        .map_err(|error| miette::miette!("lock Cargo resolution: {error}"))?;
-    let configs = source_configs(root)?;
-    let outcome = resolve_without_managed_sources(root, offline, &configs);
-    let failures = configs
-        .iter()
-        .rev()
-        .filter_map(|config| write_config(config, &config.contents).err())
-        .map(|error| format!("{error:?}"))
-        .collect::<Vec<_>>();
-    if failures.is_empty() {
-        return outcome;
+    let output = resolution_command(root, offline)?
+        .output()
+        .into_diagnostic()
+        .wrap_err("run cargo generate-lockfile")?;
+    if !output.status.success() {
+        let stderr = redact_and_sanitize_multiline(&String::from_utf8_lossy(&output.stderr));
+        let stderr = stderr.trim();
+        let root = root.display();
+        return Err(miette::miette!("cargo generate-lockfile failed for {root}: {stderr}"));
     }
-    let restoration = format!("restore Cargo source configuration: {}", failures.join("; "));
-    match outcome {
-        Ok(_) => Err(miette::miette!(restoration)),
-        Err(error) => Err(error.wrap_err(restoration)),
-    }
+    let directory = ensure_workspace_directory(root, &[])?;
+    read_workspace_file(&directory, "Cargo.lock")
+        .map(|(contents, _)| contents)
+        .into_diagnostic()
+        .wrap_err_with(|| format!("read {}", root.join("Cargo.lock").display()))
 }
 
-fn source_configs(root: &Path) -> Result<Vec<SourceConfig>> {
-    let mut configs = Vec::new();
+fn resolution_command(root: &Path, offline: bool) -> Result<Command> {
+    let sysroot = build_std::sysroot(root)?;
+    let mut command = Command::new(
+        sysroot
+            .join("bin")
+            .join(format!("cargo{}", env::consts::EXE_SUFFIX)),
+    );
+    // Cargo discovers configuration from its working directory, not the manifest.
+    // Use the toolchain directory so checkout-controlled executable helpers and
+    // environment settings are never loaded; user Cargo home settings still apply.
+    command
+        .current_dir(&sysroot)
+        .env(
+            "RUSTC",
+            sysroot
+                .join("bin")
+                .join(format!("rustc{}", env::consts::EXE_SUFFIX)),
+        )
+        .args(["generate-lockfile", "--manifest-path"])
+        .arg(root.join("Cargo.toml"));
+    for (key, value) in resolution_settings(root)? {
+        command
+            .arg("--config")
+            .arg(format!("{key}={value}"));
+    }
+    if offline {
+        command.arg("--offline");
+    }
+    Ok(command)
+}
+
+fn resolution_settings(root: &Path) -> Result<BTreeMap<&'static str, toml::Value>> {
+    let mut settings = BTreeMap::new();
     for ancestor in root.ancestors() {
         let Some(name) = config_name(ancestor)? else { continue };
         let directory = ensure_workspace_directory(ancestor, &[".cargo"])?;
-        let (contents, mode) = read_workspace_file(&directory, name)
+        let (contents, _) = read_workspace_file(&directory, name)
             .into_diagnostic()
             .wrap_err_with(|| format!("read {}", directory.path.join(name).display()))?;
-        if managed_config_range(&contents)?.is_some() {
-            configs.push(SourceConfig { directory, name, contents, mode });
+        let document: toml::Table = toml::from_str(&contents)
+            .into_diagnostic()
+            .wrap_err("parse Cargo resolution configuration")?;
+        for (table, key) in [("unstable", "bindeps"), ("resolver", "incompatible-rust-versions")] {
+            let Some(value) = document
+                .get(table)
+                .and_then(|table| table.get(key))
+            else {
+                continue;
+            };
+            let name = match (table, key) {
+                ("unstable", "bindeps") => "unstable.bindeps",
+                _ => "resolver.incompatible-rust-versions",
+            };
+            validate_setting(name, value)?;
+            settings.entry(name).or_insert_with(|| value.clone());
         }
     }
-    Ok(configs)
+    Ok(settings)
+}
+
+fn validate_setting(key: &str, value: &toml::Value) -> Result<()> {
+    let valid = match key {
+        "unstable.bindeps" => value.is_bool(),
+        _ => matches!(value.as_str(), Some("allow" | "fallback")),
+    };
+    if valid {
+        return Ok(());
+    }
+    Err(miette::miette!("invalid Cargo resolution setting {key}: {value}"))
 }
 
 pub(super) fn config_name(root: &Path) -> Result<Option<&'static str>> {
@@ -92,42 +130,5 @@ pub(super) fn config_name(root: &Path) -> Result<Option<&'static str>> {
     Ok(None)
 }
 
-fn resolve_without_managed_sources(
-    root: &Path,
-    offline: bool,
-    configs: &[SourceConfig],
-) -> Result<String> {
-    for config in configs {
-        let range = managed_config_range(&config.contents)?
-            .ok_or_else(|| miette::miette!("Cargo source configuration has no managed block"))?;
-        let contents =
-            format!("{}{}", &config.contents[..range.start], &config.contents[range.end..]);
-        write_config(config, &contents)?;
-    }
-    let mut command = Command::new("cargo");
-    command.current_dir(root).arg("generate-lockfile");
-    if offline {
-        command.arg("--offline");
-    }
-    let output = command
-        .output()
-        .into_diagnostic()
-        .wrap_err("run cargo generate-lockfile")?;
-    if !output.status.success() {
-        let stderr = redact_and_sanitize_multiline(&String::from_utf8_lossy(&output.stderr));
-        let stderr = stderr.trim();
-        let root = root.display();
-        return Err(miette::miette!("cargo generate-lockfile failed for {root}: {stderr}",));
-    }
-    let directory = ensure_workspace_directory(root, &[])?;
-    read_workspace_file(&directory, "Cargo.lock")
-        .map(|(contents, _)| contents)
-        .into_diagnostic()
-        .wrap_err_with(|| format!("read {}", root.join("Cargo.lock").display()))
-}
-
-fn write_config(config: &SourceConfig, contents: &str) -> Result<()> {
-    write_workspace_file(&config.directory, config.name, contents.as_bytes(), config.mode)
-        .into_diagnostic()
-        .wrap_err_with(|| format!("write {}", config.directory.path.join(config.name).display()))
-}
+#[cfg(test)]
+mod tests;

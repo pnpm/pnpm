@@ -256,3 +256,37 @@ fn failed_git_workspace_resolution_restores_manifest_lockfile_and_sources() {
     cargo_check(&root);
     missing.assert();
 }
+
+#[cfg(unix)]
+#[test]
+fn lockfile_resolution_does_not_execute_checkout_configured_helpers() {
+    use std::os::unix::fs::PermissionsExt;
+
+    let (root, _parent, _repository) = git_workspace();
+    let helper = root.path().join("checkout-rustc");
+    fs::write(&helper, "#!/bin/sh\ntouch \"$0.executed\"\nexit 1\n").unwrap();
+    fs::set_permissions(&helper, fs::Permissions::from_mode(0o755)).unwrap();
+    let config = format!(
+        "[env]\nRUSTC = {{ value = {:?}, force = true }}\n[registry]\nglobal-credential-providers = [{:?}]\n[net]\ngit-fetch-with-cli = true\n",
+        helper.to_string_lossy(),
+        helper.to_string_lossy(),
+    );
+    fs::write(root.path().join(".cargo/config.toml"), &config).unwrap();
+
+    install_in(&root, &["install", "--lockfile-only", "--no-frozen-lockfile"]);
+
+    let marker = root.path().join("checkout-rustc.executed");
+    eprintln!("Checkout helpers must not execute during resolution: {}", marker.display());
+    assert!(!marker.exists());
+    assert_eq!(fs::read_to_string(root.path().join(".cargo/config.toml")).unwrap(), config);
+    let lock: cargo_lock::Lockfile = fs::read_to_string(root.path().join("Cargo.lock"))
+        .unwrap()
+        .parse()
+        .unwrap();
+    eprintln!("Resolution must still preserve the git dependency: {lock:?}");
+    assert!(
+        lock.packages
+            .iter()
+            .any(|package| package.name.as_str() == "demo"),
+    );
+}
