@@ -18,6 +18,22 @@ const WORKSPACE_WIDE = [
   // A dev-dependency of most crates: a change here can alter how any test in
   // the workspace behaves, not just this crate's own.
   'pnpm/crates/testing-utils/',
+  // The packages the mocked registry serves, which nearly every end-to-end
+  // install resolves against.
+  'pnpr/.fixtures/',
+]
+
+/**
+ * Test inputs that live outside the crate that reads them, mapped to the
+ * packages that do.
+ *
+ * Cargo attributes a file to the manifest above it, so these would otherwise
+ * be attributed to no crate at all and report that nothing changed.
+ */
+const EXTERNAL_TEST_INPUTS = [
+  { prefix: 'fixtures/', packages: ['pnpm-deps-restorer'] },
+  { prefix: 'pnpm11/installing/deps-installer/test/fixtures/patch-pkg/', packages: ['pnpm-cli'] },
+  { prefix: 'pnpm11/deps/compliance/commands/test/sbom/fixtures/', packages: ['pnpm-cli'] },
 ]
 
 export function workspaceWideChanges (files) {
@@ -40,6 +56,9 @@ export function selectPackages (files, manifests) {
       .filter(({ dir }) => file === dir || file.startsWith(`${dir}/`))
       .sort((a, b) => b.dir.length - a.dir.length)[0]
     if (owner != null) selected.add(owner.name)
+    for (const input of EXTERNAL_TEST_INPUTS) {
+      if (file.startsWith(input.prefix)) for (const name of input.packages) selected.add(name)
+    }
   }
   // Cargo unifies features across the selected packages, so a lone `pnpr-*`
   // crate builds without the backend features `pnpr` enables by default and

@@ -15,6 +15,7 @@ const manifests = [
   { name: 'pnpm-registry-mock', dir: 'pnpm/tasks/registry-mock' },
   { name: 'pnpr', dir: 'pnpr/crates/pnpr' },
   { name: 'pnpr-storage', dir: 'pnpr/crates/storage' },
+  { name: 'pnpm-deps-restorer', dir: 'pnpm/crates/deps-restorer' },
 ]
 
 test('selects the crate that owns each changed file', () => {
@@ -36,6 +37,18 @@ test('selects every pnpr crate when one of them changes', () => {
 test('prefers the closest crate for a nested manifest', () => {
   const nested = [{ name: 'outer', dir: 'pnpm/crates/cli' }, { name: 'inner', dir: 'pnpm/crates/cli/fixtures/pkg' }]
   assert.deepEqual(selectPackages(['pnpm/crates/cli/fixtures/pkg/src/lib.rs'], nested), ['inner'])
+})
+
+test('selects the crates that read a fixture stored outside them', () => {
+  assert.deepEqual(selectPackages(['fixtures/gvs-link-hash-parity.json'], manifests), ['pnpm-deps-restorer'])
+  assert.deepEqual(
+    selectPackages(['pnpm11/installing/deps-installer/test/fixtures/patch-pkg/is-positive@1.0.0.patch'], manifests),
+    ['pnpm-cli'])
+})
+
+test('refuses to scope a change to the mocked registry packages', () => {
+  assert.deepEqual(workspaceWideChanges(['pnpr/.fixtures/packages/foo/package.json']),
+    ['pnpr/.fixtures/packages/foo/package.json'])
 })
 
 test('reports the changes that affect every crate', () => {
