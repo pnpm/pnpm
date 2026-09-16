@@ -1,6 +1,7 @@
 use crate::{
     model::{DependencyKind, FeatureSelection, PackageKey, RegistryDependency, RegistryVersion},
-    registry::{Registry, newest_compatibility},
+    packages::selected_package,
+    registry::{Registry, matching_lines},
 };
 use miette::Result;
 use pubgrub::SelectedDependencies;
@@ -177,25 +178,51 @@ fn collect_feature_selections(
     while let Some(dependency) = pending.pop_front() {
         registry.validate_dependency_source(dependency.registry.as_deref())?;
         let versions = registry.package(&dependency.name)?;
-        let Some(compatibility) = newest_compatibility(versions, &dependency.requirement) else {
-            continue;
+        let chosen = match solution {
+            Some(solution) => {
+                selected_package(registry, &dependency.name, &dependency.requirement, solution)?
+            }
+            None => None,
         };
-        let package = PackageKey::Registry { name: dependency.name.clone(), compatibility };
-        let requested = dependency.feature_selection();
-        let previous = selections.get(&package).cloned();
-        let selection = selections.entry(package.clone()).or_default();
-        selection.default_features |= requested.default_features;
-        selection.features.extend(requested.features);
-        if previous.as_ref() == Some(selection) {
+        if !widen_line_selections(&mut selections, &dependency, versions, chosen.as_ref()) {
             continue;
         }
+        let Some(package) = chosen else { continue };
         let Some(selected_version) = solution.and_then(|solution| solution.get(&package)) else {
             continue;
         };
         let selected = indexed_version(versions, &dependency.name, selected_version)?;
-        pending.extend(active_dependencies(selected, selection)?);
+        let selection = selections
+            .get(&package)
+            .cloned()
+            .unwrap_or_default();
+        pending.extend(active_dependencies(selected, &selection)?);
     }
     Ok(selections)
+}
+
+/// Fold what `dependency` asks for into the selection of every compatibility
+/// line it could be met on, because the solver may settle on any of them.
+/// Reports whether that changed the selection of `chosen`, the line it
+/// actually settled on, which is the only one worth walking again.
+fn widen_line_selections(
+    selections: &mut BTreeMap<PackageKey, FeatureSelection>,
+    dependency: &RegistryDependency,
+    versions: &[RegistryVersion],
+    chosen: Option<&PackageKey>,
+) -> bool {
+    let mut advanced = false;
+    for (compatibility, _) in matching_lines(versions, &dependency.requirement) {
+        let package = PackageKey::Registry { name: dependency.name.clone(), compatibility };
+        let previous = selections.get(&package).cloned();
+        let selection = selections.entry(package.clone()).or_default();
+        selection.default_features |= dependency.default_features;
+        selection.features.extend(dependency.features.iter().cloned());
+        if previous.as_ref() != Some(selection) && chosen == Some(&package) {
+            advanced = true;
+        }
+    }
+    advanced
 }
 
 pub(crate) fn indexed_version<'v>(

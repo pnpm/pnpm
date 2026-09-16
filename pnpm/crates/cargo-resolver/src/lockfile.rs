@@ -2,9 +2,8 @@ use crate::{
     features::{active_dependencies, indexed_version},
     metadata::{active_metadata_dependencies, root_dependencies},
     model::{CargoMetadata, FeatureSelection, PackageKey, RegistryDependency, RegistryVersion},
-    registry::{
-        CRATES_IO_SOURCE, Registry, compatibility_line, is_crates_io_source, matching_versions,
-    },
+    packages::selected_package,
+    registry::{CRATES_IO_SOURCE, Registry, is_crates_io_source},
 };
 use cargo_lock::{Checksum, Dependency, Lockfile, Metadata, Name, Package, Patch, ResolveVersion};
 use miette::{IntoDiagnostic, Result, WrapErr};
@@ -26,7 +25,7 @@ pub(crate) fn lockfile_from_solution(
     configured: &str,
 ) -> Result<String> {
     let selected = solution.iter().collect::<BTreeMap<_, _>>();
-    let sources = locked_sources(metadata, registry, &selected, feature_selections, configured)?;
+    let sources = locked_sources(metadata, registry, solution, feature_selections, configured)?;
     let mut packages = Vec::new();
 
     for (key, version) in &selected {
@@ -42,7 +41,7 @@ pub(crate) fn lockfile_from_solution(
             registry_version,
             &selection,
             registry,
-            &selected,
+            solution,
             &sources,
         )?;
         packages.push(Package {
@@ -55,7 +54,7 @@ pub(crate) fn lockfile_from_solution(
         });
     }
 
-    packages.extend(workspace_packages(metadata, registry, &selected, &sources)?);
+    packages.extend(workspace_packages(metadata, registry, solution, &sources)?);
 
     packages.sort();
     let lockfile = Lockfile {
@@ -72,7 +71,7 @@ pub(crate) fn lockfile_from_solution(
 fn workspace_packages(
     metadata: &CargoMetadata,
     registry: &Registry,
-    selected: &BTreeMap<&PackageKey, &Version>,
+    solution: &pubgrub::SelectedDependencies<PackageKey, Version>,
     sources: &BTreeMap<PackageKey, String>,
 ) -> Result<Vec<Package>> {
     let mut packages = Vec::new();
@@ -88,7 +87,7 @@ fn workspace_packages(
                         &dependency.name,
                         &dependency.requirement,
                         registry,
-                        selected,
+                        solution,
                         sources,
                     )
                 } else {
@@ -113,7 +112,7 @@ fn locked_registry_dependencies(
     package: &RegistryVersion,
     selection: &FeatureSelection,
     registry: &Registry,
-    selected: &BTreeMap<&PackageKey, &Version>,
+    solution: &pubgrub::SelectedDependencies<PackageKey, Version>,
     sources: &BTreeMap<PackageKey, String>,
 ) -> Result<Vec<Dependency>> {
     let mut dependencies = BTreeSet::new();
@@ -123,7 +122,7 @@ fn locked_registry_dependencies(
             &dependency.name,
             &dependency.requirement,
             registry,
-            selected,
+            solution,
             sources,
         )?);
     }
@@ -134,27 +133,20 @@ fn locked_dependency(
     name: &str,
     requirement: &VersionReq,
     registry: &Registry,
-    selected: &BTreeMap<&PackageKey, &Version>,
+    solution: &pubgrub::SelectedDependencies<PackageKey, Version>,
     sources: &BTreeMap<PackageKey, String>,
 ) -> Result<Dependency> {
-    let key = resolved_key(registry, name, requirement)?;
-    let version = selected
-        .get(&key)
+    let (package, version) = selected_package(registry, name, requirement, solution)?
+        .and_then(|package| {
+            let version = solution.get(&package)?.clone();
+            Some((package, version))
+        })
         .ok_or_else(|| miette::miette!("resolver did not select dependency {name}"))?;
     Ok(Dependency {
         name: Name::from_str(name).into_diagnostic()?,
-        version: (*version).clone(),
-        source: Some(package_source(sources, &key)?),
+        version,
+        source: Some(package_source(sources, &package)?),
     })
-}
-
-/// The package a requirement resolves against.
-fn resolved_key(registry: &Registry, name: &str, requirement: &VersionReq) -> Result<PackageKey> {
-    let compatibility = matching_versions(registry.package(name)?, requirement)
-        .next_back()
-        .map(|version| compatibility_line(&version.version))
-        .ok_or_else(|| miette::miette!("no version of {name} satisfies {requirement}"))?;
-    Ok(PackageKey::Registry { name: name.to_string(), compatibility })
 }
 
 fn package_source(
@@ -180,7 +172,7 @@ fn package_source(
 fn locked_sources(
     metadata: &CargoMetadata,
     registry: &Registry,
-    selected: &BTreeMap<&PackageKey, &Version>,
+    solution: &pubgrub::SelectedDependencies<PackageKey, Version>,
     feature_selections: &BTreeMap<PackageKey, FeatureSelection>,
     configured: &str,
 ) -> Result<BTreeMap<PackageKey, String>> {
@@ -192,8 +184,9 @@ fn locked_sources(
 
     while let Some((dependency, inherited)) = pending.pop_front() {
         let source = declared_source(&dependency, &inherited, configured);
-        let key = resolved_key(registry, &dependency.name, &dependency.requirement)?;
-        let Some(version) = selected.get(&key) else { continue };
+        let key = selected_package(registry, &dependency.name, &dependency.requirement, solution)?;
+        let Some(key) = key else { continue };
+        let Some(version) = solution.get(&key) else { continue };
         match sources.entry(key.clone()) {
             Entry::Occupied(known) if *known.get() == source => continue,
             Entry::Occupied(known) => {

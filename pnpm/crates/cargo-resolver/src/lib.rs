@@ -14,6 +14,7 @@ mod features;
 mod lockfile;
 mod metadata;
 mod model;
+mod packages;
 mod registry;
 mod resolution;
 

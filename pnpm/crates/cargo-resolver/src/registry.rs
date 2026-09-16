@@ -175,15 +175,22 @@ fn registry_dependency_from_index(dependency: IndexDependency<'_>) -> Result<Reg
     })
 }
 
-/// The compatibility line of the newest non-yanked version meeting
-/// `requirement`, or `None` when the index carries no such version.
-pub(crate) fn newest_compatibility(
+/// The compatibility lines `requirement` is met on, oldest first, each
+/// paired with the newest non-yanked version on it.
+///
+/// `cargo` lets semver-incompatible versions of a crate coexist, so a
+/// requirement spanning several lines may be met on any one of them.
+pub(crate) fn matching_lines(
     versions: &[RegistryVersion],
     requirement: &VersionReq,
-) -> Option<String> {
-    matching_versions(versions, requirement)
-        .next_back()
-        .map(|version| compatibility_line(&version.version))
+) -> Vec<(String, Version)> {
+    // Ascending, so the last version recorded for a line is its newest.
+    let newest = matching_versions(versions, requirement)
+        .map(|version| (compatibility_line(&version.version), version.version.clone()))
+        .collect::<BTreeMap<_, _>>();
+    let mut lines = newest.into_iter().collect::<Vec<_>>();
+    lines.sort_by(|left, right| left.1.cmp(&right.1));
+    lines
 }
 
 pub(crate) fn matching_versions<'a>(
