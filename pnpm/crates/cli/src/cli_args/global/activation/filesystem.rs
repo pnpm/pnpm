@@ -1,4 +1,4 @@
-use super::{Path, fs, io, relative_path};
+use super::{PackageBinSource, Path, fs, io, relative_path};
 use miette::{Context, IntoDiagnostic};
 
 /// Point `link` at `target`, replacing any existing link in a single step
@@ -49,4 +49,21 @@ pub(super) fn remove_dir_all_if_exists(path: &Path) -> io::Result<()> {
         Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(()),
         Err(error) => Err(error),
     }
+}
+
+pub(in super::super) fn hash_linked_packages(
+    packages: &[PackageBinSource],
+    install_dir: &Path,
+    hash_link: &Path,
+) -> Vec<PackageBinSource> {
+    packages
+        .iter()
+        .map(|package| match package.location.strip_prefix(install_dir) {
+            Ok(relative) => PackageBinSource::new(
+                hash_link.join(relative),
+                std::sync::Arc::clone(&package.manifest),
+            ),
+            Err(_) => package.clone(),
+        })
+        .collect()
 }

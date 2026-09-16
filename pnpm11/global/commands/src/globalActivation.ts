@@ -20,6 +20,7 @@ export interface ActivateGlobalInstallOptions {
   globalBinDir: string
   pkgs: Array<{ manifest: DependencyManifest, location: string }>
   binsToSkip: Set<string>
+  requiredBinNames?: Set<string>
 }
 
 export interface CleanupReplacedGlobalInstallsOptions {
@@ -56,6 +57,7 @@ export async function activateGlobalInstall (
     // update of the same commands is none of them.
     await swapHashLink(opts.installDir, opts.hashLink)
     await linkBinsOfPackages(hashLinkedPkgs(opts), opts.globalBinDir, { excludeBins: opts.binsToSkip })
+    await ensureRequiredBinTargets(opts)
     await removeSlotsOfMissingBins(opts, prepared.actualBins)
   } catch (activationError) {
     try {
@@ -184,6 +186,7 @@ async function prepareGlobalInstall (
   try {
     const actualBins = await getActualBins(opts)
     const actualBinNames = new Set(actualBins.keys())
+    ensureRequiredBinNames(opts.requiredBinNames, actualBinNames)
     // The backup directory lives in the global bin directory, which the
     // linker would otherwise be the first to create.
     await fs.promises.mkdir(opts.globalBinDir, { recursive: true })
@@ -214,7 +217,10 @@ async function prepareGlobalInstall (
   }
 }
 
-/** The commands the group declares, mapped to the file each one runs. */
+/**
+ * Resolves commands not skipped whose target files exist. Missing targets are
+ * omitted, while package-manifest resolution and filesystem errors propagate.
+ */
 async function getActualBins (
   opts: Pick<ActivateGlobalInstallOptions, 'pkgs' | 'binsToSkip'>
 ): Promise<Map<string, string>> {
@@ -222,10 +228,10 @@ async function getActualBins (
   const binsByPackage = await Promise.all(opts.pkgs.map(async ({ manifest, location }) => {
     return getBinsFromPackageManifest(manifest, location)
   }))
-  for (const bins of binsByPackage) {
-    for (const { name, path: binPath } of bins) {
-      if (!opts.binsToSkip.has(name)) actualBins.set(name, binPath)
-    }
+  const bins = binsByPackage.flat()
+  const existing = await Promise.all(bins.map(async ({ path: binPath }) => pathExists(binPath)))
+  for (const [index, { name, path: binPath }] of bins.entries()) {
+    if (!opts.binsToSkip.has(name) && existing[index]) actualBins.set(name, binPath)
   }
   return actualBins
 }
@@ -236,10 +242,22 @@ export async function getActualBinNames (
   return new Set((await getActualBins(opts)).keys())
 }
 
+async function ensureRequiredBinTargets (opts: ActivateGlobalInstallOptions): Promise<void> {
+  ensureRequiredBinNames(opts.requiredBinNames, await getActualBinNames(opts))
+}
+
+function ensureRequiredBinNames (required: Set<string> | undefined, actual: Set<string>): void {
+  const missing = [...required ?? []].filter((name) => !actual.has(name)).sort()
+  if (missing.length > 0) {
+    throw new PnpmError(
+      'GLOBAL_BIN_TARGET_MISSING',
+      `Global bin targets disappeared during activation: ${missing.join(', ')}`
+    )
+  }
+}
+
 /**
- * Drop the slots of commands the linker could not create because the file
- * the manifest points at is missing, so a replaced install leaves no shim
- * behind for a command that cannot run.
+ * Drop the slots of commands whose target disappeared during activation.
  */
 async function removeSlotsOfMissingBins (
   opts: ActivateGlobalInstallOptions,

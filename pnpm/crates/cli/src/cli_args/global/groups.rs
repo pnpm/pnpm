@@ -1,15 +1,15 @@
 use super::{
-    CmdShimHost, Config, Context, GlobalInstallTarget, GlobalPackageInfo, GroupActivation,
-    GroupInstall, HashSet, IntoDiagnostic, PackageBinSource, Path, RangeSpecStyle,
-    ReplacedGlobalBinPlan, Reporter, SupportedArchitectures, acquire_global_bin_lock,
-    activate_global_install_with_extra_bin_names, bin_names_of_other_groups,
-    check_global_bin_conflicts, check_virtual_shim_conflicts, cleanup_replaced_global_installs,
-    collect_existing_global_installs, create_global_cache_key, create_install_dir,
-    discard_install_dir_on_error, get_actual_bin_names, get_hash_link, hash_linked_packages,
-    link_global_bins, pins_for_downgrades, plan_replaced_global_bins, read_direct_dependencies,
-    read_installed_packages, registries_with_default, replacement_aliases, restore_virtual_shims,
-    run_group_install, should_replace_existing_package, snapshot_global_package, update_selectors,
-    warn_global,
+    ActivationBinSets, ArtifactCleanupError, CmdShimHost, Config, Context, GlobalInstallTarget,
+    GlobalPackageInfo, GroupActivation, GroupInstall, HashSet, IntoDiagnostic, PackageBinSource,
+    Path, RangeSpecStyle, ReplacedGlobalBinPlan, Reporter, SupportedArchitectures,
+    acquire_global_bin_lock, activate_global_install_with_extra_bin_names,
+    bin_names_of_other_groups, check_global_bin_conflicts, check_virtual_shim_conflicts,
+    cleanup_replaced_global_installs, collect_existing_global_installs, create_global_cache_key,
+    create_install_dir, discard_install_dir_on_error, get_actual_bin_names, get_hash_link,
+    hash_linked_packages, link_global_bins, pins_for_downgrades, plan_replaced_global_bins,
+    read_direct_dependencies, read_installed_packages, registries_with_default,
+    replacement_aliases, restore_virtual_shims, run_group_install, should_replace_existing_package,
+    snapshot_global_package, update_selectors, warn_global,
 };
 
 impl GlobalInstallTarget<'_> {
@@ -58,13 +58,17 @@ impl GlobalInstallTarget<'_> {
             should_replace_existing_package(existing, &aliases, &aliases_to_replace)
         })?;
 
+        let retained_bin_names = discard_install_dir_on_error(
+            install_dir,
+            get_actual_bin_names::<CmdShimHost>(&pkgs, &bins_to_skip),
+        )?;
         let existing = discard_install_dir_on_error(
             install_dir,
             collect_existing_global_installs(
                 self.global_pkg_dir,
                 &aliases,
                 &aliases_to_replace,
-                &get_actual_bin_names::<CmdShimHost>(&pkgs, &bins_to_skip),
+                &retained_bin_names,
             )
             .wrap_err("scan existing global installs"),
         )?;
@@ -74,6 +78,7 @@ impl GlobalInstallTarget<'_> {
             pkgs: &pkgs,
             dependencies: &dependencies,
             bins_to_skip: &bins_to_skip,
+            retained_bin_names: &retained_bin_names,
             groups_to_replace: &existing.groups_to_replace,
             protected_bins: &existing.protected_bins,
             hash: &cache_hash,
@@ -134,11 +139,11 @@ impl GlobalInstallTarget<'_> {
             existing.hash == pkg.hash
         })?;
 
-        let (group_to_replace, protected) = discard_install_dir_on_error(
+        let (group_to_replace, protected, retained_bin_names) = discard_install_dir_on_error(
             install_dir,
             (|| {
                 let group_to_replace = snapshot_global_package(pkg.clone())?;
-                let retained_bin_names = get_actual_bin_names::<CmdShimHost>(&pkgs, &bins_to_skip);
+                let retained_bin_names = get_actual_bin_names::<CmdShimHost>(&pkgs, &bins_to_skip)?;
                 let bin_names_to_protect = group_to_replace.bin_names
                     .iter()
                     .filter(|bin| !retained_bin_names.contains(*bin))
@@ -149,7 +154,7 @@ impl GlobalInstallTarget<'_> {
                     &HashSet::from([pkg.hash.clone()]),
                     &bin_names_to_protect,
                 )?;
-                Ok::<_, miette::Report>((group_to_replace, protected))
+                Ok::<_, miette::Report>((group_to_replace, protected, retained_bin_names))
             })()
             .wrap_err("scan global package bin ownership"),
         )?;
@@ -158,6 +163,7 @@ impl GlobalInstallTarget<'_> {
             pkgs: &pkgs,
             dependencies: &dependencies,
             bins_to_skip: &bins_to_skip,
+            retained_bin_names: &retained_bin_names,
             groups_to_replace: std::slice::from_ref(&group_to_replace),
             protected_bins: &protected,
             hash: &pkg.hash,
@@ -191,7 +197,7 @@ impl GlobalInstallTarget<'_> {
         &self,
         activation: &GroupActivation<'_>,
     ) -> miette::Result<()> {
-        let replacement_plan = self.replacement_plan(activation)?;
+        let replacement_plan = self.replacement_plan(activation, activation.retained_bin_names)?;
         let hash_link = get_hash_link(self.global_pkg_dir, activation.hash);
         let linked_pkgs = hash_linked_packages(activation.pkgs, activation.install_dir, &hash_link);
         let activated = activate_global_install_with_extra_bin_names::<CmdShimHost>(
@@ -200,7 +206,10 @@ impl GlobalInstallTarget<'_> {
             self.global_bin_dir,
             activation.pkgs,
             activation.bins_to_skip,
-            &replacement_plan.affected_bin_names,
+            ActivationBinSets {
+                extra: &replacement_plan.affected_bin_names,
+                required: activation.retained_bin_names,
+            },
             || {
                 link_global_bins(
                     self.base_config,
@@ -213,10 +222,8 @@ impl GlobalInstallTarget<'_> {
             },
         )
         .wrap_err("activate global install")?;
-        if let Some(leftover) = &activated.leftover_backup {
-            warn_global::<Reporter>(&leftover.to_string());
-        }
-        if let Some(leftover) = cleanup_replaced_global_installs(
+        warn_on_leftover::<Reporter>(activated.leftover_backup.as_ref());
+        let leftover = cleanup_replaced_global_installs(
             self.global_pkg_dir,
             self.global_bin_dir,
             activation.groups_to_replace,
@@ -225,28 +232,31 @@ impl GlobalInstallTarget<'_> {
             activation.protected_bins,
             &replacement_plan.restored_bin_names(),
         )
-        .wrap_err("remove existing global installs")?
-        {
-            warn_global::<Reporter>(&leftover.to_string());
-        }
+        .wrap_err("remove existing global installs")?;
+        warn_on_leftover::<Reporter>(leftover.as_ref());
         Ok(())
     }
     fn replacement_plan(
         &self,
         activation: &GroupActivation<'_>,
+        prospective_bins: &HashSet<String>,
     ) -> miette::Result<ReplacedGlobalBinPlan> {
-        let prospective_bins =
-            get_actual_bin_names::<CmdShimHost>(activation.pkgs, activation.bins_to_skip);
         discard_install_dir_on_error(
             activation.install_dir,
             plan_replaced_global_bins(
                 activation.groups_to_replace,
                 self.global_bin_dir,
-                &prospective_bins,
+                prospective_bins,
                 activation.protected_bins,
                 &crate::shim_dispatch::global_shims_setting(),
             ),
         )
+    }
+}
+
+fn warn_on_leftover<Reporter: self::Reporter>(leftover: Option<&ArtifactCleanupError>) {
+    if let Some(leftover) = leftover {
+        warn_global::<Reporter>(&leftover.to_string());
     }
 }
 

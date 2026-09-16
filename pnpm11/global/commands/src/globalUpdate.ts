@@ -118,11 +118,13 @@ async function updateGlobalPackageGroup (
   }
 
   let ownership: Awaited<ReturnType<typeof getGlobalBinOwnership>>
+  let retainedBinNames: Set<string>
   try {
+    retainedBinNames = await getActualBinNames({ pkgs, binsToSkip })
     ownership = await getGlobalBinOwnership(
       globalDir,
       [pkg],
-      await getActualBinNames({ pkgs, binsToSkip })
+      retainedBinNames
     )
   } catch (err) {
     return cleanupFailedGlobalInstall(installDir, err)
@@ -134,6 +136,7 @@ async function updateGlobalPackageGroup (
     globalBinDir,
     pkgs,
     binsToSkip,
+    requiredBinNames: retainedBinNames,
   })
   await cleanupReplacedGlobalInstalls({
     groups: ownership.groups,

@@ -20,6 +20,7 @@ let removeBinFailure: { name: string, error: Error } | undefined
 let backupRemovalFailure: Error | undefined
 let obstructBackupCleanup = false
 let skipMissingBinSources = false
+let binSourceToRemoveAfterLink: string | undefined
 let symlinkCallCount = 0
 const linkedBinNames: string[] = []
 const backupSymlinkTypes: Array<string | null | undefined> = []
@@ -69,6 +70,7 @@ const linkBinsOfPackages = jest.fn<LinkBinsOfPackages>(async (pkgs, globalBinDir
     }
   }
   /* eslint-enable no-await-in-loop */
+  if (binSourceToRemoveAfterLink != null) await fs.rm(binSourceToRemoveAfterLink)
   return writtenPkgNames
 })
 
@@ -144,6 +146,7 @@ afterEach(async () => {
     obstructBackupCleanup = false
     removeBinFailure = undefined
     skipMissingBinSources = false
+    binSourceToRemoveAfterLink = undefined
     symlinkCallCount = 0
     backupSymlinkTypes.length = 0
     linkedBinNames.length = 0
@@ -249,6 +252,32 @@ test('restores exact bin slots when linking fails after a partial write', async 
   expect(existsSync(fixture.oldInstallDir)).toBe(true)
   expect(existsSync(fixture.freshInstallDir)).toBe(false)
   expect(await findBackupDirs(fixture.root)).toStrictEqual([])
+})
+
+test('rolls back when a retained bin target disappears during activation', async () => {
+  const manifest: DependencyManifest = {
+    name: 'replacement',
+    version: '2.0.0',
+    bin: { tool: 'bin/tool.js' },
+  }
+  const fixture = await createFixture(manifest)
+  const toolSlot = path.join(fixture.globalBinDir, 'tool')
+  await fs.writeFile(toolSlot, 'old tool\n')
+  const toolSlotBefore = await readSlotState(toolSlot)
+  binSourceToRemoveAfterLink = path.join(fixture.packageDir, 'bin/tool.js')
+
+  await expect(activateGlobalInstall({
+    installDir: fixture.freshInstallDir,
+    hashLink: fixture.hashLink,
+    globalBinDir: fixture.globalBinDir,
+    pkgs: [{ manifest, location: fixture.packageDir }],
+    binsToSkip: new Set(),
+    requiredBinNames: new Set(['tool']),
+  })).rejects.toMatchObject({ code: 'ERR_PNPM_GLOBAL_BIN_TARGET_MISSING' })
+
+  expect(await readSlotState(toolSlot)).toStrictEqual(toolSlotBefore)
+  expect(await fs.realpath(fixture.hashLink)).toBe(await fs.realpath(fixture.oldInstallDir))
+  expect(existsSync(fixture.freshInstallDir)).toBe(false)
 })
 
 test('leaves skipped bins untouched when hash-link activation fails', async () => {
@@ -674,7 +703,7 @@ test('preserves both cleanup errors when backup and fresh-install cleanup fail',
   expect(existsSync(fixture.freshInstallDir)).toBe(true)
 })
 
-test('removes an old bin slot when the linker skips a missing source', async () => {
+test('does not report a bin whose source is missing as activated', async () => {
   const manifest: DependencyManifest = {
     name: 'replacement',
     version: '2.0.0',
@@ -711,7 +740,7 @@ test('removes an old bin slot when the linker skips a missing source', async () 
     protectedBins: new Set(),
   })
 
-  expect(activatedBins).toStrictEqual(new Set(['tool']))
+  expect(activatedBins).toStrictEqual(new Set())
   await expect(fs.lstat(toolSlot)).rejects.toMatchObject({ code: 'ENOENT' })
   expect(existsSync(fixture.oldInstallDir)).toBe(false)
   expect(await fs.realpath(fixture.hashLink)).toBe(await fs.realpath(fixture.freshInstallDir))

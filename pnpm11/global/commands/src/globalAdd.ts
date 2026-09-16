@@ -153,12 +153,14 @@ async function installGroup (
   }
 
   let existingGlobalInstalls: ExistingGlobalInstalls
+  let retainedBinNames: Set<string>
   try {
+    retainedBinNames = await getActualBinNames({ pkgs, binsToSkip })
     existingGlobalInstalls = await collectExistingGlobalInstalls({
       globalDir,
       aliases,
       replacementAliases,
-      retainedBinNames: await getActualBinNames({ pkgs, binsToSkip }),
+      retainedBinNames,
     })
   } catch (err) {
     return cleanupFailedGlobalInstall(installDir, err)
@@ -175,6 +177,7 @@ async function installGroup (
     globalBinDir,
     pkgs,
     binsToSkip,
+    requiredBinNames: retainedBinNames,
   })
   await cleanupReplacedGlobalInstalls({
     groups: existingGlobalInstalls.groups,

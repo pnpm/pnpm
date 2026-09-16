@@ -1,7 +1,6 @@
 use super::{
-    ArtifactCleanupError, BTreeMap, Context, FsRename, FsWalkFiles, GlobalActivationError, HashSet,
-    IntoDiagnostic, PackageBinSource, Path, PathBuf, fs, get_bins_from_package_manifest, io,
-    read_symlink_dir, remove_bin, remove_symlink_dir,
+    ArtifactCleanupError, BTreeMap, Context, FsRename, GlobalActivationError, HashSet,
+    IntoDiagnostic, Path, PathBuf, fs, io, read_symlink_dir, remove_bin, remove_symlink_dir,
 };
 
 #[derive(Debug)]
@@ -183,28 +182,6 @@ pub(super) fn directory_symlink_slots(saved_bin_slots: &[SavedBinSlot]) -> Vec<&
         .filter(|slot| slot.kind == BinSlotKind::DirectorySymlink)
         .map(|slot| slot.original.as_path())
         .collect()
-}
-
-/// The commands the group declares, mapped to the file each one runs.
-pub(super) fn get_actual_bins<Sys: FsWalkFiles>(
-    packages: &[PackageBinSource],
-    bins_to_skip: &HashSet<String>,
-) -> BTreeMap<String, PathBuf> {
-    packages
-        .iter()
-        .flat_map(|package| {
-            get_bins_from_package_manifest::<Sys>(&package.manifest, &package.location)
-        })
-        .filter(|command| !bins_to_skip.contains(&command.name))
-        .map(|command| (command.name, command.path))
-        .collect()
-}
-
-pub(in super::super) fn get_actual_bin_names<Sys: FsWalkFiles>(
-    packages: &[PackageBinSource],
-    bins_to_skip: &HashSet<String>,
-) -> HashSet<String> {
-    get_actual_bins::<Sys>(packages, bins_to_skip).into_keys().collect()
 }
 
 pub(super) fn backup_bin_slots(

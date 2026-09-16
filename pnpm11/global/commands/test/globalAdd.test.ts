@@ -158,6 +158,7 @@ test('global add does not inspect survivors when every replaced bin is retained'
     globalBinDir: '/global/bin',
     pkgs: [],
     binsToSkip: new Set(),
+    requiredBinNames: new Set(['pnpm']),
   })
   expect(cleanupReplacedGlobalInstalls).toHaveBeenCalledWith({
     groups: [{ info: existingPnpm, binNames: ['pnpm'] }],
@@ -175,6 +176,39 @@ test('global add does not inspect survivors when every replaced bin is retained'
   }
   expect(activateGlobalInstall.mock.invocationCallOrder[0]).toBeLessThan(cleanupReplacedGlobalInstalls.mock.invocationCallOrder[0])
   expect(cleanupReplacedGlobalInstalls.mock.invocationCallOrder[0]).toBeLessThan(updateResolutionPolicyManifest.mock.invocationCallOrder[0])
+})
+
+test('global add inspects survivors when a declared retained bin target is missing', async () => {
+  const existingPnpm = {
+    dependencies: { pnpm: '12.0.0-alpha.2' },
+    hash: 'old-pnpm',
+    installDir: '/global/v11/old-pnpm',
+  }
+  const survivor = {
+    dependencies: { 'other-package': '1.0.0' },
+    hash: 'survivor',
+    installDir: '/global/v11/survivor',
+  }
+  const survivorError = Object.assign(new Error('survivor package.json is missing'), { code: 'ENOENT' })
+  findGlobalPackage.mockImplementation((_globalDir: string, alias: string) => {
+    return alias === 'pnpm' ? existingPnpm : null
+  })
+  scanGlobalPackages.mockReturnValue([existingPnpm, survivor])
+  getActualBinNames.mockResolvedValue(new Set())
+  getInstalledBinNames.mockImplementation(async (pkg) => {
+    if (pkg === existingPnpm) return ['pnpm']
+    throw survivorError
+  })
+
+  await expect(handleGlobalAdd({
+    bin: '/global/bin',
+    dir: '/project',
+    globalPkgDir: '/global/v11',
+    registriesByScope: {},
+  } as any, ['file:/tmp/pnpm'], {})).rejects.toBe(survivorError) // eslint-disable-line @typescript-eslint/no-explicit-any
+
+  expect(getInstalledBinNames).toHaveBeenCalledWith(survivor)
+  expect(activateGlobalInstall).not.toHaveBeenCalled()
 })
 
 test('global add retries safely and activates from a complete replacement ownership snapshot after repair', async () => {

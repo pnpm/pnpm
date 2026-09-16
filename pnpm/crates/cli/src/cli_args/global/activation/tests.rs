@@ -3,7 +3,7 @@ use super::{
         GlobalPackageBinSnapshot, cleanup_replaced_global_installs, plan_replaced_global_bins,
         restore_virtual_shims, snapshot_global_package,
     },
-    FsArtifactProbe, FsRename, FsSwapHashLink, SavedBinSlot,
+    ActivationBinSets, FsArtifactProbe, FsRename, FsSwapHashLink, SavedBinSlot,
     activate_global_install_with_extra_bin_names, hash_linked_packages, replace_global_bin_slots,
     restore_bin_slots,
 };
@@ -58,7 +58,7 @@ where
         global_bin_dir,
         packages,
         bins_to_skip,
-        &HashSet::new(),
+        ActivationBinSets { extra: &HashSet::new(), required: &HashSet::new() },
         link_bins,
     )
 }
@@ -385,6 +385,39 @@ fn the_hash_link_is_swapped_before_the_bins_are_linked() {
         },
     )
     .expect("activate global install");
+}
+
+#[test]
+fn a_retained_bin_target_that_disappears_during_activation_rolls_back() {
+    let fixture = ActivationFixture::new(&["tool"]);
+    let old_slot = fixture.seed_file_slot("tool", b"old tool\n", 0o751);
+    let bin_target = fixture.packages[0].location.join("bin/tool.js");
+
+    let error = activate_global_install_with_extra_bin_names::<Host>(
+        &fixture.fresh_install_dir,
+        &fixture.hash_link,
+        &fixture.global_bin_dir,
+        &fixture.packages,
+        &HashSet::new(),
+        ActivationBinSets {
+            extra: &HashSet::new(),
+            required: &HashSet::from(["tool".to_string()]),
+        },
+        || {
+            test_link_bins::<Host>(&fixture.packages, &fixture.global_bin_dir, &HashSet::new())?;
+            fs::remove_file(&bin_target).into_diagnostic()
+        },
+    )
+    .expect_err("a disappearing retained bin target must abort activation");
+
+    let diagnostic: &(dyn miette::Diagnostic + Send + Sync) = error.as_ref();
+    assert_eq!(
+        miette::Diagnostic::code(diagnostic).map(|code| code.to_string()),
+        Some("ERR_PNPM_GLOBAL_BIN_TARGET_MISSING".to_string()),
+    );
+    assert_eq!(slot_state(&fixture.global_bin_dir.join("tool")), old_slot);
+    assert_eq!(resolved_hash_target(&fixture.hash_link), canonical(&fixture.old_install_dir));
+    assert!(!fixture.fresh_install_dir.exists());
 }
 
 #[test]
