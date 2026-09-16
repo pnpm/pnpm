@@ -494,14 +494,25 @@ async fn serve_interpreter(server: &mut mockito::ServerGuard, version: &str) -> 
     ]
 }
 
-/// What python-build-standalone calls the interpreter of this machine.
+/// What python-build-standalone calls the interpreter of this machine,
+/// named the way the installer names it, so these tests serve the archive
+/// it looks for on the machine they run on.
 #[cfg(unix)]
 fn host_triple() -> String {
-    let architecture = std::env::consts::ARCH;
-    match std::env::consts::OS {
-        "macos" => format!("{architecture}-apple-darwin"),
-        _ => format!("{architecture}-unknown-linux-gnu"),
-    }
+    let architecture = match std::env::consts::ARCH {
+        "arm" => "armv7",
+        "powerpc64" => "ppc64le",
+        "x86" => "i686",
+        architecture => architecture,
+    };
+    let system = match std::env::consts::OS {
+        "macos" => "apple-darwin",
+        _ if matches!(pnpm_detect_libc::detect(), Some(pnpm_detect_libc::Implementation::Musl)) => {
+            "unknown-linux-musl"
+        }
+        _ => "unknown-linux-gnu",
+    };
+    format!("{architecture}-{system}")
 }
 
 /// The provisioning half of blocker 4 in pnpm/pnpm#14945: no interpreter

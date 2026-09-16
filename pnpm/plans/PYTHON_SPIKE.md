@@ -97,7 +97,7 @@ release's `SHA256SUMS` is both the list of what pnpm can install and the
 digest each download is checked against, and it is cached for a day.
 
 An interpreter is installed under `<store>/python/`, so every project and
-repository on the machine shares one, and it is found there afterwards like
+repository on the machine shares one, and it is found there afterward like
 any other interpreter: a later install uses it without reading the release,
 offline included. `downloads: never` keeps pnpm from installing any, and an
 offline install installs none; both report the project instead. `downloadUrl`
@@ -404,10 +404,9 @@ multi-directory commit. Automatic generation garbage collection remains open.
 This covers the same vertical integration surfaces as the current Cargo
 implementation, not all pip or uv functionality. It supports registry wheels,
 static and dynamic project dependencies, requirements files, Git and wheel URL
-requirements, and the projects in this repository a project depends on. Python
-installation, HTML-only indexes, pip
-configuration/keyring discovery and recursive/filtered add are not
-implemented, nor is building a project with a backend the workspace itself
+requirements, and the projects in this repository a project depends on.
+HTML-only indexes, pip configuration/keyring discovery and recursive/filtered
+add are not implemented, nor is building a project with a backend the workspace itself
 declares, which is refused rather than taken from the index. A distribution an
 index serves only as a source archive is not built. The environments a lockfile covers are resolved one at a
 time rather than forked out of one universal solve, so two environments no
