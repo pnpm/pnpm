@@ -30,8 +30,7 @@ fn test_update(
             resolved_packages: Box::leak(Box::new(super::ResolvedPackages::default())),
             http_client: Box::leak(Box::new(pnpm_network::ThrottledClient::default())),
             config: Box::leak(Box::new(config)),
-            lockfile: None,
-            lockfile_path: None,
+            lockfile: crate::CommandLockfile::loaded(None, None),
             lockfile_only: false,
             selection: crate::UpdateSelection { packages, depth: 0, workspace_packages: None },
             version: crate::UpdateVersionOptions {

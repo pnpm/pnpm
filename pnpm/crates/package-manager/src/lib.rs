@@ -2,6 +2,7 @@ pub use add::*;
 pub use build_resolution_verifiers::*;
 pub use build_snapshot::*;
 pub use catalog_mode::*;
+pub use command_lockfile::CommandLockfile;
 pub use dependencies_graph_to_lockfile::*;
 pub use install::*;
 pub use install_with_fresh_lockfile::*;
@@ -37,6 +38,7 @@ mod build_snapshot;
 mod catalog_cleanup;
 mod catalog_mode;
 mod check_custom_resolver_force_resolve;
+mod command_lockfile;
 mod compat_package_extensions;
 mod dependencies_graph_to_lockfile;
 mod early_materializer;
@@ -116,6 +118,24 @@ pub(crate) fn emit_initial_package_manifest<Reporter: pnpm_reporter::Reporter>(
             initial: manifest.value().clone(),
         },
     }));
+}
+
+/// Report each wanted lockfile whose Git conflict markers the loader
+/// merged away, one `pnpm:lockfile` line per file.
+pub fn report_merged_lockfile_conflicts<Reporter: pnpm_reporter::Reporter>(
+    merged_conflict_files: usize,
+    prefix: &str,
+) {
+    for _ in 0..merged_conflict_files {
+        Reporter::emit(&pnpm_reporter::LogEvent::Lockfile(pnpm_reporter::LockfileLog {
+            level: pnpm_reporter::LogLevel::Info,
+            message: format!(
+                "Merge conflict detected in {} and successfully merged",
+                pnpm_lockfile::Lockfile::FILE_NAME,
+            ),
+            prefix: prefix.to_owned(),
+        }));
+    }
 }
 
 #[cfg(test)]

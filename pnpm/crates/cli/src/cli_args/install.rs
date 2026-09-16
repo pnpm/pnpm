@@ -34,7 +34,8 @@ use pnpm_package_manager::{
     InstallFrozenLockfileError, LockfileVerificationOverride, PolicyExcludes, SkippedSnapshots,
     TarballPrefetcher, UpToDateFastPathCheck, UpdateSeedPolicy, WantedLockfileSatisfactionCheck,
     WorkspaceInstallSelection, build_resolution_verifiers, install_already_up_to_date,
-    materialization_closure, merge_filtered_wanted_lockfile, wanted_lockfile_satisfies_workspace,
+    materialization_closure, merge_filtered_wanted_lockfile, report_merged_lockfile_conflicts,
+    wanted_lockfile_satisfies_workspace,
 };
 use pnpm_package_manifest::DependencyGroup;
 use pnpm_pnpr_client::{

@@ -7,11 +7,11 @@ use serde_json::Value;
 use crate::{
     AddedRoot, BrokenModulesLog, ContextLog, DedupeCheckLog, DependencyType, DeprecationLog,
     Envelope, FetchingProgressLog, FetchingProgressMessage, GetHostName, GlobalLog, HookLog, Host,
-    IgnoredScriptsLog, LifecycleLog, LifecycleMessage, LifecycleStdio, LockfileVerificationLog,
-    LockfileVerificationMessage, LogEvent, LogLevel, PackageImportMethod, PackageImportMethodLog,
-    PackageManifestLog, PackageManifestMessage, PeerDependencyIssuesLog, PnpmErrorLog, PnpmLog,
-    ProgressLog, ProgressMessage, PromptAction, PromptLog, RemovedRoot, Reporter,
-    RequestRetryError, RequestRetryLog, RootLog, RootMessage, SilentReporter,
+    IgnoredScriptsLog, LifecycleLog, LifecycleMessage, LifecycleStdio, LockfileLog,
+    LockfileVerificationLog, LockfileVerificationMessage, LogEvent, LogLevel, PackageImportMethod,
+    PackageImportMethodLog, PackageManifestLog, PackageManifestMessage, PeerDependencyIssuesLog,
+    PnpmErrorLog, PnpmLog, ProgressLog, ProgressMessage, PromptAction, PromptLog, RemovedRoot,
+    Reporter, RequestRetryError, RequestRetryLog, RootLog, RootMessage, SilentReporter,
     SkippedOptionalDependencyLog, SkippedOptionalPackage, SkippedOptionalParent,
     SkippedOptionalReason, Stage, StageLog, StatsLog, StatsMessage, SummaryLog,
 };

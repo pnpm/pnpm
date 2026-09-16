@@ -1,6 +1,7 @@
 use crate::{
     State,
     cli_args::{lockfile_dir::LockfileDirArg, pipelines::InstallFamilySelection},
+    state::command_lockfile,
 };
 use clap::Args;
 use miette::Context;
@@ -72,9 +73,7 @@ impl RemoveArgs {
             lockfile,
             resolved_packages,
         } = &mut state;
-        let lockfile = lockfile
-            .get()
-            .map_err(|err| miette::Report::new(err).wrap_err("load the lockfile"))?;
+        let lockfile = command_lockfile(lockfile, &lockfile_path)?;
 
         Remove {
             manifest,
@@ -82,7 +81,6 @@ impl RemoveArgs {
                 http_client,
                 config,
                 lockfile,
-                lockfile_path: Some(&lockfile_path),
                 package_names: &self.package_names,
                 save_type: self.dependency_options.save_type(),
                 resolved_packages,
@@ -113,9 +111,7 @@ impl RemoveArgs {
             lockfile,
             resolved_packages,
         } = &mut state;
-        let lockfile = lockfile
-            .get()
-            .map_err(|err| miette::Report::new(err).wrap_err("load the lockfile"))?;
+        let lockfile = command_lockfile(lockfile, &lockfile_path)?;
 
         Remove {
             manifest,
@@ -123,7 +119,6 @@ impl RemoveArgs {
                 http_client,
                 config,
                 lockfile,
-                lockfile_path: Some(&lockfile_path),
                 package_names: &self.package_names,
                 save_type: self.dependency_options.save_type(),
                 resolved_packages,

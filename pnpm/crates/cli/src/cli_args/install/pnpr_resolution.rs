@@ -4,8 +4,9 @@ use super::{
     PnprClientError, PnprLink, PnprRequestInputs, Reporter, ResolveProject, ResolveProjectsOptions,
     State, TarballPrefetcher, WantedLockfileSatisfactionCheck, full_workspace_importer_ids,
     install_from_local_lockfile, link_pnpr_lockfile, merge_and_save_pnpr_lockfile, pnpr_catalogs,
-    pnpr_lockfile_dir, pnpr_request_inputs, resolve_projects_for_pnpr, resolve_projects_options,
-    selection_importer_ids, wanted_lockfile_satisfies_workspace,
+    pnpr_lockfile_dir, pnpr_request_inputs, report_merged_lockfile_conflicts,
+    resolve_projects_for_pnpr, resolve_projects_options, selection_importer_ids,
+    wanted_lockfile_satisfies_workspace,
 };
 
 /// `frozenStore` was enabled together with a configured `pnprServer`.
@@ -182,7 +183,10 @@ async fn prepare_pnpr_session<'a, Reporter: self::Reporter + 'static>(
     link: &PnprLink<'_>,
     lockfile_dir: &std::path::Path,
 ) -> miette::Result<PnprSession<'a>> {
-    let previous_wanted = load_previous_wanted::<Reporter>(state, link, lockfile_dir)?;
+    let PreviousWanted {
+        lockfile: previous_wanted,
+        had_conflicts,
+    } = load_previous_wanted::<Reporter>(state, link, lockfile_dir)?;
     let merge_wanted = merge_source(state, link, previous_wanted)?;
 
     let selection_importer_ids = selection_importer_ids(state, selection);
@@ -197,14 +201,17 @@ async fn prepare_pnpr_session<'a, Reporter: self::Reporter + 'static>(
 
     let catalogs = pnpr_catalogs(state)?;
 
-    let satisfied_without_server = satisfied_without_server(
-        state,
-        link,
-        previous_wanted,
-        catalogs.as_ref(),
-        partial_selection,
-    )
-    .await;
+    // A merged conflict makes the on-disk lockfile a file no install may
+    // leave as it found it, and only the server exchange writes it back.
+    let satisfied_without_server = !had_conflicts
+        && satisfied_without_server(
+            state,
+            link,
+            previous_wanted,
+            catalogs.as_ref(),
+            partial_selection,
+        )
+        .await;
     Ok(PnprSession {
         previous_wanted,
         merge_wanted,
@@ -307,14 +314,26 @@ fn load_previous_wanted<'a, Reporter: self::Reporter + 'static>(
     state: &'a State,
     link: &PnprLink<'_>,
     lockfile_dir: &std::path::Path,
-) -> miette::Result<Option<&'a Lockfile>> {
+) -> miette::Result<PreviousWanted<'a>> {
     if !link.use_state_lockfile {
-        return Ok(None);
+        return Ok(PreviousWanted::default());
     }
-    let loaded =
-        if link.lockfile.fix { state.lockfile.get_for_fix() } else { state.lockfile.get() };
+    let lockfile_source = if link.lockfile.fix {
+        MaybeLazyLockfile::Repair(&state.lockfile)
+    } else {
+        MaybeLazyLockfile::Lazy(&state.lockfile)
+    };
+    let loaded = lockfile_source.get();
     match loaded {
-        Ok(lockfile) => Ok(lockfile),
+        Ok(lockfile) => {
+            let merged_conflict_files =
+                lockfile_source.merged_conflict_files().map_err(miette::Report::new)?;
+            report_merged_lockfile_conflicts::<Reporter>(
+                merged_conflict_files,
+                &lockfile_dir.to_string_lossy(),
+            );
+            Ok(PreviousWanted { lockfile, had_conflicts: merged_conflict_files > 0 })
+        }
         Err(error) if !link.lockfile.frozen => {
             <Reporter as pnpm_reporter::Reporter>::emit(&pnpm_reporter::LogEvent::Pnpm(
                 pnpm_reporter::PnpmLog {
@@ -326,10 +345,19 @@ fn load_previous_wanted<'a, Reporter: self::Reporter + 'static>(
                     prefix: lockfile_dir.to_string_lossy().into_owned(),
                 },
             ));
-            Ok(None)
+            Ok(PreviousWanted::default())
         }
         Err(error) => Err(miette::Report::new(error).wrap_err("load the lockfile")),
     }
+}
+
+/// The lockfile this install starts from, and whether reading it meant
+/// merging Git conflict markers away. The markers are still in the file,
+/// so a run that reused this lockfile unchanged would leave them there.
+#[derive(Default)]
+struct PreviousWanted<'a> {
+    lockfile: Option<&'a Lockfile>,
+    had_conflicts: bool,
 }
 
 /// The lockfile the filtered merge below reuses entries from. A

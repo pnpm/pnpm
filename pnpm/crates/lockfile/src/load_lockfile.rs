@@ -1,5 +1,7 @@
 use crate::{
-    Lockfile, LockfileResolution, ProjectSnapshot, SnapshotEntry, extract_main_document,
+    EnvLockfile, Lockfile, ProjectSnapshot, extract_env_document, extract_main_document,
+    git_merge_file::{MERGE_CONFLICT_OURS, ParsedWantedFile, parse_wanted_file},
+    load_lockfile::repair_document::prepare_value_for_fix,
     merge_lockfile_changes,
 };
 use derive_more::{Display, Error};
@@ -86,6 +88,26 @@ fn read_lockfile_text(file_path: &Path) -> Result<Option<String>, LoadLockfileEr
     }
 }
 
+/// Whether the combined lockfile's leading env document was left
+/// conflicted by Git *and* merges cleanly.
+///
+/// The merge has to be attempted, not guessed at from the markers:
+/// counting a conflict the merge cannot resolve would have the install
+/// report a merge that never happened. A marker inside a YAML comment or
+/// scalar is ruled out the same way, by the document parsing as it
+/// stands.
+///
+/// The substring test only skips that work for the documents that
+/// plainly carry no marker, which is all of them but the conflicted few.
+fn env_document_merges(content: &str, file_path: &Path) -> bool {
+    let Some(env) = extract_env_document(content) else { return false };
+    if !env.contains(MERGE_CONFLICT_OURS) {
+        return false;
+    }
+    EnvLockfile::parse_conflicted_document(&env, file_path)
+        .is_ok_and(|parsed| parsed.merged_conflict_files > 0)
+}
+
 impl Lockfile {
     /// Load lockfile from the current directory.
     pub fn load_from_current_dir() -> Result<Option<Self>, LoadLockfileError> {
@@ -118,7 +140,7 @@ impl Lockfile {
     /// `Ok(None)` when the file is absent, same as
     /// [`Self::load_from_current_dir`].
     pub fn load_wanted_from_dir(dir: &Path) -> Result<Option<Self>, LoadLockfileError> {
-        Self::load_from_path(&dir.join(Lockfile::FILE_NAME))
+        Ok(Self::load_wanted_from_path(&dir.join(Lockfile::FILE_NAME))?.value)
     }
 
     /// Load the wanted lockfile an install reads, honoring the per-branch
@@ -144,18 +166,21 @@ impl Lockfile {
     ) -> Result<LoadedWantedLockfile, LoadLockfileError> {
         for file_name in selection.read_order() {
             let path = dir.join(file_name);
-            let Some(lockfile) = Self::load_from_path(&path)? else { continue };
+            let parsed = Self::load_wanted_from_path(&path)?;
+            let Some(lockfile) = parsed.value else { continue };
             return if selection.merge_git_branch_lockfiles {
                 let pre_merge_importers = lockfile.importers.clone();
-                let merged = merge_git_branch_lockfiles(lockfile, dir)?;
+                let (merged, branch_conflict_files) = merge_git_branch_lockfiles(lockfile, dir)?;
                 Ok(LoadedWantedLockfile {
                     lockfile: Some(Arc::new(merged)),
                     pre_merge_importers: Some(pre_merge_importers),
+                    merged_conflict_files: parsed.merged_conflict_files + branch_conflict_files,
                 })
             } else {
                 Ok(LoadedWantedLockfile {
                     lockfile: Some(Arc::new(lockfile)),
                     pre_merge_importers: None,
+                    merged_conflict_files: parsed.merged_conflict_files,
                 })
             };
         }
@@ -171,16 +196,22 @@ impl Lockfile {
     ) -> Result<LoadedRepairLockfile, LoadLockfileError> {
         for file_name in selection.read_order() {
             let path = dir.join(file_name);
-            let Some(views) = Self::load_repair_views_from_path(&path)? else { continue };
+            let parsed = Self::load_repair_views_from_path(&path)?;
+            let Some(views) = parsed.value else { continue };
             return if selection.merge_git_branch_lockfiles {
                 let pre_merge_importers = views.seed.importers.clone();
-                let views = merge_git_branch_lockfile_repairs(views, dir)?;
+                let (views, branch_conflict_files) = merge_git_branch_lockfile_repairs(views, dir)?;
                 Ok(LoadedRepairLockfile {
                     views: Some(views),
                     pre_merge_importers: Some(pre_merge_importers),
+                    merged_conflict_files: parsed.merged_conflict_files + branch_conflict_files,
                 })
             } else {
-                Ok(LoadedRepairLockfile { views: Some(views), pre_merge_importers: None })
+                Ok(LoadedRepairLockfile {
+                    views: Some(views),
+                    pre_merge_importers: None,
+                    merged_conflict_files: parsed.merged_conflict_files,
+                })
             };
         }
         Ok(LoadedRepairLockfile::default())
@@ -271,15 +302,44 @@ impl Lockfile {
         Self::parse(&content, file_path)
     }
 
+    /// [`Self::load_from_path`] for the file an install reads and writes
+    /// back, so a Git-conflicted one is merged rather than discarded.
+    fn load_wanted_from_path(
+        file_path: &Path,
+    ) -> Result<ParsedWantedFile<Self>, LoadLockfileError> {
+        let Some(content) = read_lockfile_text(file_path)? else {
+            return Ok(ParsedWantedFile { value: None, merged_conflict_files: 0 });
+        };
+        let mut parsed =
+            parse_wanted_file(&content, file_path, Self::parse, merge_lockfile_changes)?;
+        // A conflict confined to the env document leaves the main one
+        // parsing as it stands, so the recovery above never runs. The file
+        // still holds markers, and only an install that writes it back
+        // clears them, so it counts as conflicted either way.
+        if parsed.merged_conflict_files == 0 && env_document_merges(&content, file_path) {
+            parsed.merged_conflict_files = 1;
+        }
+        Ok(parsed)
+    }
+
     /// [`Self::load_from_path`] deriving both repair views from the
     /// single read.
     fn load_repair_views_from_path(
         file_path: &Path,
-    ) -> Result<Option<RepairLockfileViews>, LoadLockfileError> {
-        let Some(content) = read_lockfile_text(file_path)? else { return Ok(None) };
-        Self::parse_repair_views(&content, file_path)
+    ) -> Result<ParsedWantedFile<RepairLockfileViews>, LoadLockfileError> {
+        let Some(content) = read_lockfile_text(file_path)? else {
+            return Ok(ParsedWantedFile { value: None, merged_conflict_files: 0 });
+        };
+        parse_wanted_file(
+            &content,
+            file_path,
+            Self::parse_repair_views,
+            merge_repair_lockfile_views,
+        )
     }
 }
+
+mod repair_document;
 
 #[cfg(test)]
 mod tests;
@@ -299,6 +359,8 @@ pub struct LoadedWantedLockfile {
     /// lockfile.
     pub lockfile: Option<Arc<Lockfile>>,
     pub pre_merge_importers: Option<HashMap<String, ProjectSnapshot>>,
+    /// Number of lockfiles whose Git conflict markers were merged while loading.
+    pub merged_conflict_files: usize,
 }
 
 /// The views a repairing install reads the wanted lockfile for, and the
@@ -312,6 +374,7 @@ pub struct LoadedWantedLockfile {
 pub(crate) struct LoadedRepairLockfile {
     views: Option<RepairLockfileViews>,
     pre_merge_importers: Option<HashMap<String, ProjectSnapshot>>,
+    merged_conflict_files: usize,
 }
 
 impl LoadedRepairLockfile {
@@ -325,7 +388,11 @@ impl LoadedRepairLockfile {
             seed.prepare_for_fix();
             RepairLockfileViews { seed, merge }
         });
-        LoadedRepairLockfile { views, pre_merge_importers: loaded.pre_merge_importers }
+        LoadedRepairLockfile {
+            views,
+            pre_merge_importers: loaded.pre_merge_importers,
+            merged_conflict_files: loaded.merged_conflict_files,
+        }
     }
 
     pub(crate) fn seed(&self) -> Option<&Lockfile> {
@@ -339,6 +406,10 @@ impl LoadedRepairLockfile {
     pub(crate) fn pre_merge_importers(&self) -> Option<&HashMap<String, ProjectSnapshot>> {
         self.pre_merge_importers.as_ref()
     }
+
+    pub(crate) fn merged_conflict_files(&self) -> usize {
+        self.merged_conflict_files
+    }
 }
 
 /// One wanted-lockfile generation seen two ways: `seed` has the fields a
@@ -348,6 +419,16 @@ impl LoadedRepairLockfile {
 struct RepairLockfileViews {
     seed: Lockfile,
     merge: Lockfile,
+}
+
+fn merge_repair_lockfile_views(
+    ours: &RepairLockfileViews,
+    theirs: &RepairLockfileViews,
+) -> RepairLockfileViews {
+    RepairLockfileViews {
+        seed: merge_lockfile_changes(&ours.seed, &theirs.seed),
+        merge: merge_lockfile_changes(&ours.merge, &theirs.merge),
+    }
 }
 
 /// Which wanted-lockfile file an install reads and writes, and whether the
@@ -383,16 +464,22 @@ impl WantedLockfileSelection {
     }
 }
 
-fn merge_git_branch_lockfiles(base: Lockfile, dir: &Path) -> Result<Lockfile, LoadLockfileError> {
+fn merge_git_branch_lockfiles(
+    base: Lockfile,
+    dir: &Path,
+) -> Result<(Lockfile, usize), LoadLockfileError> {
     let branch_lockfiles =
         Lockfile::git_branch_lockfiles(dir).map_err(LoadLockfileError::ReadFile)?;
     let mut merged = base;
+    let mut merged_conflict_files = 0;
     for path in branch_lockfiles {
-        if let Some(branch_lockfile) = Lockfile::load_from_path(&path)? {
+        let parsed = Lockfile::load_wanted_from_path(&path)?;
+        merged_conflict_files += parsed.merged_conflict_files;
+        if let Some(branch_lockfile) = parsed.value {
             merged = merge_lockfile_changes(&merged, &branch_lockfile);
         }
     }
-    Ok(merged)
+    Ok((merged, merged_conflict_files))
 }
 
 /// [`merge_git_branch_lockfiles`] folding each branch lockfile into both
@@ -400,89 +487,16 @@ fn merge_git_branch_lockfiles(base: Lockfile, dir: &Path) -> Result<Lockfile, Lo
 fn merge_git_branch_lockfile_repairs(
     mut base: RepairLockfileViews,
     dir: &Path,
-) -> Result<RepairLockfileViews, LoadLockfileError> {
+) -> Result<(RepairLockfileViews, usize), LoadLockfileError> {
     let branch_lockfiles =
         Lockfile::git_branch_lockfiles(dir).map_err(LoadLockfileError::ReadFile)?;
+    let mut merged_conflict_files = 0;
     for path in branch_lockfiles {
-        if let Some(branch) = Lockfile::load_repair_views_from_path(&path)? {
-            base.seed = merge_lockfile_changes(&base.seed, &branch.seed);
-            base.merge = merge_lockfile_changes(&base.merge, &branch.merge);
+        let parsed = Lockfile::load_repair_views_from_path(&path)?;
+        merged_conflict_files += parsed.merged_conflict_files;
+        if let Some(branch) = parsed.value {
+            base = merge_repair_lockfile_views(&base, &branch);
         }
     }
-    Ok(base)
-}
-
-fn prepare_value_for_fix(value: &mut serde_json::Value) {
-    let Some(root) = value.as_object_mut() else { return };
-    for key in [
-        "settings",
-        "catalogs",
-        "overrides",
-        "packageExtensionsChecksum",
-        "pnpmfileChecksum",
-        "ignoredOptionalDependencies",
-        "patchedDependencies",
-        "time",
-    ] {
-        discard_invalid_generated_field(root, key);
-    }
-    if let Some(packages) = root.get_mut("packages").and_then(serde_json::Value::as_object_mut) {
-        packages.retain(|_, metadata| reduce_package_metadata(metadata));
-    }
-    if let Some(snapshots) = root.get_mut("snapshots").and_then(serde_json::Value::as_object_mut) {
-        for snapshot in snapshots.values_mut() {
-            reduce_snapshot(snapshot);
-        }
-    }
-}
-
-/// Keep a `packages:` entry that already decodes, or narrow it to the
-/// resolution alone. An entry with no decodable resolution names nothing and
-/// is dropped.
-fn reduce_package_metadata(metadata: &mut serde_json::Value) -> bool {
-    if serde_json::from_value::<crate::PackageMetadata>(metadata.clone()).is_ok() {
-        return true;
-    }
-    let Some(resolution) = metadata.get("resolution").cloned() else { return false };
-    if serde_json::from_value::<LockfileResolution>(resolution.clone()).is_err() {
-        return false;
-    }
-    *metadata = serde_json::json!({ "resolution": resolution });
-    true
-}
-
-/// Keep a `snapshots:` entry that already decodes, or narrow it to its
-/// dependency edges. An entry whose edges do not decode either is emptied
-/// rather than dropped: the key still names a package the graph reaches.
-fn reduce_snapshot(snapshot: &mut serde_json::Value) {
-    if serde_json::from_value::<SnapshotEntry>(snapshot.clone()).is_ok() {
-        return;
-    }
-    let mut retained = serde_json::Map::new();
-    for key in ["dependencies", "optionalDependencies"] {
-        if let Some(value) = snapshot.get(key).cloned() {
-            retained.insert(key.to_string(), value);
-        }
-    }
-    let candidate = serde_json::Value::Object(retained);
-    *snapshot = if serde_json::from_value::<SnapshotEntry>(candidate.clone()).is_ok() {
-        candidate
-    } else {
-        serde_json::json!({})
-    };
-}
-
-fn discard_invalid_generated_field(
-    root: &mut serde_json::Map<String, serde_json::Value>,
-    key: &str,
-) {
-    let Some(value) = root.get(key).cloned() else { return };
-    let mut candidate = serde_json::Map::from_iter([
-        ("lockfileVersion".to_owned(), serde_json::json!("9.0")),
-        ("importers".to_owned(), serde_json::json!({})),
-    ]);
-    candidate.insert(key.to_owned(), value);
-    if serde_json::from_value::<Lockfile>(serde_json::Value::Object(candidate)).is_err() {
-        root.remove(key);
-    }
+    Ok((base, merged_conflict_files))
 }

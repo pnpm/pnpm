@@ -2,12 +2,53 @@
 use super::set_dir_modes;
 use super::{
     AddMockedRegistry, BIG_LOCKFILE, BIG_MANIFEST, CommandExtra, CommandTempCwd, OpenOptions,
-    STORE_VERSION, Write, flatten_report, fs, new_pacquet_command,
+    STORE_VERSION, Write, assert_merged_conflicted_lockfile, flatten_report, fs,
+    new_pacquet_command, write_conflicted_lockfile_fixture,
     write_required_incompatible_engine_fixture,
 };
 #[cfg(unix)]
 use super::{enable_gvs_in_workspace_yaml, is_symlink_or_junction};
 use assert_cmd::{assert::OutputAssertExt, cargo::CommandCargoExt};
+
+#[test]
+fn install_merges_git_conflicts_and_keeps_the_locked_version() {
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    write_conflicted_lockfile_fixture(&workspace);
+
+    let output = new_pacquet_command(&workspace)
+        .with_arg("install")
+        .assert()
+        .success();
+
+    assert_merged_conflicted_lockfile(
+        &workspace,
+        &String::from_utf8_lossy(&output.get_output().stdout),
+    );
+
+    drop((root, mock_instance));
+}
+
+#[test]
+fn fix_lockfile_merges_git_conflicts() {
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    write_conflicted_lockfile_fixture(&workspace);
+
+    let output = new_pacquet_command(&workspace)
+        .with_args(["install", "--fix-lockfile", "--lockfile-only"])
+        .assert()
+        .success();
+
+    assert_merged_conflicted_lockfile(
+        &workspace,
+        &String::from_utf8_lossy(&output.get_output().stdout),
+    );
+
+    drop((root, mock_instance));
+}
 
 #[test]
 fn fix_lockfile_regenerates_broken_metadata_without_changing_locked_versions() {
@@ -684,6 +725,59 @@ fn frozen_lockfile_setting_drives_the_headless_install() {
         .assert()
         .success();
     assert!(workspace.join("pnpm-lock.yaml").is_file(), "--no-frozen-lockfile must overrule");
+
+    drop((root, mock_instance));
+}
+
+/// `add`, `remove` and `update` pass their install the loader rather
+/// than the document it loaded, so the install reports the merge from
+/// its own load the way a plain install does.
+#[test]
+fn add_over_a_conflicted_lockfile_reports_the_merge() {
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    write_conflicted_lockfile_fixture(&workspace);
+
+    let output = new_pacquet_command(&workspace)
+        .with_args(["add", "@pnpm.e2e/foo@100.0.0", "--lockfile-only"])
+        .assert()
+        .success();
+
+    assert_merged_conflicted_lockfile(
+        &workspace,
+        &String::from_utf8_lossy(&output.get_output().stdout),
+    );
+
+    drop((root, mock_instance));
+}
+
+/// The merge is reported by the install that performs it, not by the
+/// command's own load, so a run that returns before installing anything
+/// leaves the file conflicted without claiming to have merged it.
+#[test]
+fn a_command_that_installs_nothing_claims_no_merge() {
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    write_conflicted_lockfile_fixture(&workspace);
+    let conflicted = fs::read_to_string(workspace.join("pnpm-lock.yaml")).expect("read lockfile");
+
+    let output = new_pacquet_command(&workspace)
+        .with_args(["remove", "@pnpm.e2e/not-a-dependency", "--lockfile-only"])
+        .assert();
+    let stdout = String::from_utf8_lossy(&output.get_output().stdout);
+    eprintln!("STDOUT:\n{stdout}");
+
+    assert!(
+        !stdout.contains("Merge conflict detected"),
+        "nothing was installed, so nothing merged",
+    );
+    assert_eq!(
+        fs::read_to_string(workspace.join("pnpm-lock.yaml")).expect("read lockfile"),
+        conflicted,
+        "the lockfile is left exactly as it was found",
+    );
 
     drop((root, mock_instance));
 }

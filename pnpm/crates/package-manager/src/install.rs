@@ -31,7 +31,7 @@ use crate::{
     RebuildOptions, ResolvedPackages, UpdateSeedPolicy, build_resolution_verifiers,
     check_optimistic_repeat_install, emit_initial_package_manifest, link_project_bins,
     optimistic_repeat_install::Decision as OptimisticRepeatInstallDecision,
-    prune_merged_branch_lockfile::prune_merged_branch_lockfile,
+    prune_merged_branch_lockfile::prune_merged_branch_lockfile, report_merged_lockfile_conflicts,
 };
 use derive_more::{Display, Error};
 use miette::Diagnostic;

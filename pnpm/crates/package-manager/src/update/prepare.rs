@@ -220,7 +220,7 @@ pub(super) fn update_scope<'a>(
     UpdateScope {
         selectors,
         direct,
-        lockfile: update.lockfile,
+        lockfile: update.lockfile.document,
         config: update.config,
         version: update.version,
         depth: update.selection.depth,

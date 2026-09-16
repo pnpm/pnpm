@@ -8,7 +8,12 @@
 //! client-supplied registry. The client then links `node_modules` from the
 //! server-produced lockfile.
 
-use crate::cargo_install::crate_archive;
+use crate::{
+    _utils::{
+        CONFLICTED_DEPENDENCY, assert_merged_conflicted_lockfile, write_conflicted_lockfile_fixture,
+    },
+    cargo_install::crate_archive,
+};
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
 use pnpm_crypto_hash::integrity_addressed_tarball_path;
@@ -29,7 +34,6 @@ use std::{
     thread,
     time::Duration,
 };
-use text_block_macros::text_block_fnl;
 
 const IS_POSITIVE_PATCH: &str = include_str!(
     "../../../../../pnpm11/installing/deps-installer/test/fixtures/patch-pkg/is-positive@1.0.0.patch"

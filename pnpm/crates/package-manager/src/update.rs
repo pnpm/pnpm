@@ -33,7 +33,7 @@ mod selectors;
 use selectors::{parse_selectors, reject_versions_of_indirect_update_specs};
 
 use crate::{
-    CatalogVersionMismatchError, InstallError, ProjectMutation, ResolvedPackages,
+    CatalogVersionMismatchError, CommandLockfile, InstallError, ProjectMutation, ResolvedPackages,
     WorkspaceInstallSelection, catalog_cleanup::WriteWorkspaceCatalogsError,
     package_manifest_prefix, selected_project_indices,
 };
@@ -41,7 +41,6 @@ use derive_more::{Display, Error};
 use miette::Diagnostic;
 use pnpm_catalogs_config::InvalidCatalogsConfigurationError;
 use pnpm_config::Config;
-use pnpm_lockfile::Lockfile;
 use pnpm_network::ThrottledClient;
 use pnpm_package_manifest::{DependencyGroup, PackageManifest, PackageManifestError};
 use pnpm_reporter::Reporter;
@@ -283,8 +282,9 @@ pub struct UpdateOptions<'a> {
     pub resolved_packages: &'a ResolvedPackages,
     pub http_client: &'a ThrottledClient,
     pub config: &'static Config,
-    pub lockfile: Option<&'a Lockfile>,
-    pub lockfile_path: Option<&'a Path>,
+    /// The wanted lockfile, as the command reads it and as the
+    /// install it runs needs it.
+    pub lockfile: CommandLockfile<'a>,
     /// `--lockfile-only`: re-resolve and rewrite `pnpm-lock.yaml` without
     /// materializing `node_modules`. Forwarded to the install.
     pub lockfile_only: bool,

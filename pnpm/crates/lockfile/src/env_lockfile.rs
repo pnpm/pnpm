@@ -15,6 +15,8 @@
 use crate::{
     LoadLockfileError, Lockfile, PackageKey, PackageMetadata, SaveLockfileError, SnapshotEntry,
     extract_main_document,
+    git_merge_file::{ParsedWantedFile, parse_wanted_file},
+    merge_env_lockfile_changes,
     save_lockfile::ensure_lockfile_is_not_symlink,
     serialize_yaml,
     yaml_documents::{
@@ -110,13 +112,31 @@ impl EnvLockfile {
     ///
     /// Only the leading document is read: the dependency graph that
     /// follows it never reaches memory.
+    ///
+    /// Two branches that each added a config dependency conflict inside
+    /// this document, where the main lockfile's own recovery never looks,
+    /// so the same merge runs here.
     pub fn read(root_dir: &Path) -> Result<Option<Self>, LoadLockfileError> {
         let path = root_dir.join(Lockfile::FILE_NAME);
         let Some(env_doc) = read_env_document(&path).map_err(LoadLockfileError::ReadFile)? else {
             return Ok(None);
         };
-        let mut env: EnvLockfile = serde_saphyr::from_str(&env_doc)
-            .map_err(|source| LoadLockfileError::parse_yaml(&path, &source))?;
+        Ok(Self::parse_conflicted_document(&env_doc, &path)?.value)
+    }
+
+    /// [`Self::read`]'s parse of one env document, with the number of
+    /// files its Git conflict markers had to be merged out of — 1 or 0,
+    /// since it is handed a single document.
+    pub(crate) fn parse_conflicted_document(
+        env_doc: &str,
+        path: &Path,
+    ) -> Result<ParsedWantedFile<Self>, LoadLockfileError> {
+        parse_wanted_file(env_doc, path, Self::parse_document, merge_env_lockfile_changes)
+    }
+
+    fn parse_document(env_doc: &str, path: &Path) -> Result<Option<Self>, LoadLockfileError> {
+        let mut env: EnvLockfile = serde_saphyr::from_str(env_doc)
+            .map_err(|source| LoadLockfileError::parse_yaml(path, &source))?;
         env.root_importer_mut();
         Ok(Some(env))
     }

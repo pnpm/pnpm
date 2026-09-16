@@ -1,9 +1,9 @@
 use super::{
     AddedRoot, BrokenModulesLog, ContextLog, DedupeCheckLog, DependencyType, DeprecationLog,
-    Envelope, GetHostName, GlobalLog, HookLog, Host, LogEvent, LogLevel, PackageImportMethod,
-    PackageImportMethodLog, Pipe, PnpmErrorLog, PnpmLog, PromptAction, PromptLog, RemovedRoot,
-    RequestRetryError, RequestRetryLog, RootLog, RootMessage, Stage, StageLog, StatsLog,
-    StatsMessage, Value, assert_eq,
+    Envelope, GetHostName, GlobalLog, HookLog, Host, LockfileLog, LogEvent, LogLevel,
+    PackageImportMethod, PackageImportMethodLog, Pipe, PnpmErrorLog, PnpmLog, PromptAction,
+    PromptLog, RemovedRoot, RequestRetryError, RequestRetryLog, RootLog, RootMessage, Stage,
+    StageLog, StatsLog, StatsMessage, Value, assert_eq,
 };
 
 #[test]
@@ -99,6 +99,29 @@ fn pnpm_event_matches_pnpm_wire_shape() {
     assert_eq!(json["name"], "pnpm");
     assert_eq!(json["level"], "info");
     assert_eq!(json["message"], "Lockfile is up to date, resolution step is skipped");
+    assert_eq!(json["prefix"], "/some/project");
+}
+
+#[test]
+fn lockfile_event_matches_pnpm_wire_shape() {
+    let event = LogEvent::Lockfile(LockfileLog {
+        level: LogLevel::Info,
+        message: "Merge conflict detected in pnpm-lock.yaml and successfully merged".to_string(),
+        prefix: "/some/project".to_string(),
+    });
+    let envelope = Envelope { time: 1_700_000_000_000, hostname: "host", pid: 4242, event: &event };
+    let json: Value = envelope
+        .pipe_ref(serde_json::to_string)
+        .expect("serialize envelope")
+        .pipe_as_ref(serde_json::from_str)
+        .expect("parse JSON");
+
+    assert_eq!(json["name"], "pnpm:lockfile");
+    assert_eq!(json["level"], "info");
+    assert_eq!(
+        json["message"],
+        "Merge conflict detected in pnpm-lock.yaml and successfully merged",
+    );
     assert_eq!(json["prefix"], "/some/project");
 }
 

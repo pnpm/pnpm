@@ -177,6 +177,12 @@ pub enum LogEvent {
     #[serde(rename = "pnpm:lockfile-verification")]
     LockfileVerification(LockfileVerificationLog),
 
+    /// Lockfile reader messages (`pnpm:lockfile`). This channel reports
+    /// events such as the automatic recovery of Git-conflicted wanted
+    /// lockfiles.
+    #[serde(rename = "pnpm:lockfile")]
+    Lockfile(LockfileLog),
+
     /// Generic global-logger message (`name: "pnpm"`). Carries a
     /// `{ message, prefix }` payload — for example, the "Lockfile is
     /// up to date, resolution step is skipped" line the frozen-install
@@ -413,6 +419,14 @@ pub struct LockfileVerificationLog {
     pub level: LogLevel,
     #[serde(flatten)]
     pub message: LockfileVerificationMessage,
+}
+
+/// Lockfile-reader message (`pnpm:lockfile`).
+#[derive(Debug, Clone, Serialize)]
+pub struct LockfileLog {
+    pub level: LogLevel,
+    pub message: String,
+    pub prefix: String,
 }
 
 /// `pnpm:lockfile-verification` discriminated payload. `Started`

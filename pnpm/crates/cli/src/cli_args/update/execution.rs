@@ -2,6 +2,7 @@ use super::{
     Config, Context, DependencyGroup, InstallFamilySelection, Matcher, Path, Reporter, State,
     Update, UpdateArgs, build_workspace_packages_map, github_actions, recursive,
 };
+use crate::state::command_lockfile;
 
 fn manifest_root(manifest: &pnpm_package_manifest::PackageManifest) -> std::path::PathBuf {
     manifest
@@ -9,16 +10,6 @@ fn manifest_root(manifest: &pnpm_package_manifest::PackageManifest) -> std::path
         .parent()
         .expect("manifest path always has a parent directory")
         .to_path_buf()
-}
-
-/// The matcher for the workflow selectors, when this run updates
-/// workflow files at all.
-fn loaded_lockfile(
-    lockfile: &pnpm_lockfile::LazyLockfile,
-) -> miette::Result<Option<&pnpm_lockfile::Lockfile>> {
-    lockfile
-        .get()
-        .map_err(|err| miette::Report::new(err).wrap_err("load the lockfile"))
 }
 
 /// The workspace's packages when the update runs inside one.
@@ -186,7 +177,7 @@ impl UpdateArgs {
             .await?;
             return Ok(None);
         }
-        let lockfile = loaded_lockfile(&state.lockfile)?;
+        let lockfile = command_lockfile(&state.lockfile, &inputs.lockfile_path)?.document;
         let prompt = self.interactive_options(&inputs.include_direct, inputs.update_actions);
         match selection {
             Some(selection) => {
@@ -225,8 +216,7 @@ impl UpdateArgs {
                 resolved_packages: &state.resolved_packages,
                 http_client: &state.http_client,
                 config: state.config,
-                lockfile: loaded_lockfile(&state.lockfile)?,
-                lockfile_path: Some(&inputs.lockfile_path),
+                lockfile: command_lockfile(&state.lockfile, &inputs.lockfile_path)?,
                 lockfile_only: self.install.lockfile_only,
                 selection: pnpm_package_manager::UpdateSelection {
                     packages,

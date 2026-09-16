@@ -2,9 +2,9 @@ use derive_more::{Display, Error};
 use miette::Diagnostic;
 use pipe_trait::Pipe;
 use pnpm_config::Config;
-use pnpm_lockfile::LazyLockfile;
+use pnpm_lockfile::{LazyLockfile, MaybeLazyLockfile};
 use pnpm_network::{ForInstallsError, ThrottledClient};
-use pnpm_package_manager::ResolvedPackages;
+use pnpm_package_manager::{CommandLockfile, ResolvedPackages};
 use pnpm_package_manifest::{PackageManifest, PackageManifestError};
 use pnpm_tarball::MemCache;
 use std::{
@@ -37,6 +37,25 @@ pub struct State {
     pub lockfile: LazyLockfile,
     /// In-memory cache for packages that have started resolving dependencies.
     pub resolved_packages: ResolvedPackages,
+}
+
+/// The wanted lockfile as a manifest-mutating command receives it: the
+/// document, resolved once here so the command's own reads stay
+/// infallible, together with the loader that produced it and its path.
+///
+/// The loader travels on to the install, which is what lets the install
+/// report and gate on a Git-conflict merge this load performed.
+/// Reporting here instead would announce a merge before anything knows
+/// whether the run writes the file back.
+pub(crate) fn command_lockfile<'a>(
+    lockfile: &'a LazyLockfile,
+    path: &'a Path,
+) -> miette::Result<CommandLockfile<'a>> {
+    let source = MaybeLazyLockfile::Lazy(lockfile);
+    let document = source
+        .get()
+        .map_err(|err| miette::Report::new(err).wrap_err("load the lockfile"))?;
+    Ok(CommandLockfile { document, source, path: Some(path) })
 }
 
 /// Error type of [`State::init`].

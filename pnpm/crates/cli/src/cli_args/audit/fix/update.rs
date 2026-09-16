@@ -361,9 +361,7 @@ async fn update_non_vulnerable<Reporter: self::Reporter + 'static>(
     age_excludes: &[String],
 ) -> miette::Result<()> {
     let lockfile_path = state.lockfile_path();
-    let lockfile = state.lockfile
-        .get()
-        .map_err(|err| miette::Report::new(err).wrap_err("load the lockfile"))?;
+    let lockfile = crate::state::command_lockfile(&state.lockfile, &lockfile_path)?;
     let resources = update_resources(state, classification, age_excludes);
     Update {
         manifest: &mut state.manifest,
@@ -372,7 +370,6 @@ async fn update_non_vulnerable<Reporter: self::Reporter + 'static>(
             http_client: &state.http_client,
             config: state.config,
             lockfile,
-            lockfile_path: Some(&lockfile_path),
             lockfile_only: false,
             selection: pnpm_package_manager::UpdateSelection {
                 packages: &[],

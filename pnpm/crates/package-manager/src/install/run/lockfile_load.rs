@@ -1,7 +1,7 @@
 use super::{
     super::{
         Arc, HashSet, InstallError, Lockfile, LogEvent, LogLevel, Path, PathBuf, PnpmLog, Reporter,
-        emit_initial_package_manifest,
+        emit_initial_package_manifest, report_merged_lockfile_conflicts,
     },
     HookedManifests, InstallOwned, InstallView, RunMode, resolve_pnpmfile_hook,
     workspace::{InstallScope, InstallWorkspace, report_install_scope_cycles, workspace_projects},
@@ -12,11 +12,7 @@ use pnpm_config::Config;
 /// host probe, the pnpmfile, and the project manifests as its hooks
 /// rewrote them.
 pub(super) struct Loaded<'a> {
-    pub(super) lockfile: Option<&'a Lockfile>,
-    pub(super) shared: Option<Arc<Lockfile>>,
-    pub(super) merge_wanted_lockfile: Option<&'a Lockfile>,
-    pub(super) pre_merge_importers:
-        Option<&'a std::collections::HashMap<String, pnpm_lockfile::ProjectSnapshot>>,
+    pub(super) wanted: LoadedWantedLockfile<'a>,
     pub(super) current: Option<Lockfile>,
     pub(super) early_host_detection:
         Option<pnpm_deps_restorer::materialization_plan::HostDetection>,
@@ -51,10 +47,7 @@ pub(super) async fn load_lockfiles<'a, Reporter: self::Reporter + 'static>(
         load_hooked_manifests::<Reporter>(install, owned, workspace, scope, pre_hooked_paths)
             .await?;
     Ok(Loaded {
-        lockfile: wanted.lockfile,
-        shared: wanted.shared,
-        merge_wanted_lockfile: wanted.merge,
-        pre_merge_importers: wanted.pre_merge_importers,
+        wanted,
         current: join_current_lockfile_load::<Reporter>(
             current_lockfile_task,
             install.context.config,
@@ -185,11 +178,15 @@ pub(super) async fn join_current_lockfile_load<Reporter: self::Reporter>(
 /// folded in.
 #[derive(Default)]
 pub(super) struct LoadedWantedLockfile<'a> {
-    lockfile: Option<&'a Lockfile>,
-    shared: Option<Arc<Lockfile>>,
-    merge: Option<&'a Lockfile>,
-    pre_merge_importers:
+    pub(super) lockfile: Option<&'a Lockfile>,
+    pub(super) shared: Option<Arc<Lockfile>>,
+    pub(super) merge: Option<&'a Lockfile>,
+    pub(super) pre_merge_importers:
         Option<&'a std::collections::HashMap<String, pnpm_lockfile::ProjectSnapshot>>,
+    /// Whether the file only parsed because its Git conflict markers were
+    /// merged away. The file on disk still holds them, so the install may
+    /// not settle on a path that leaves it unwritten.
+    pub(super) had_conflicts: bool,
 }
 pub(super) fn load_wanted_lockfile<'a, Reporter: self::Reporter>(
     lockfile_source: super::super::MaybeLazyLockfile<'a>,
@@ -198,14 +195,21 @@ pub(super) fn load_wanted_lockfile<'a, Reporter: self::Reporter>(
 ) -> Result<LoadedWantedLockfile<'a>, InstallError> {
     let (workspace_root, prefix) = context;
     match lockfile_source.get() {
-        Ok(lockfile) => Ok(LoadedWantedLockfile {
-            lockfile,
-            shared: lockfile_source.shared().map_err(InstallError::LoadWantedLockfile)?,
-            merge: lockfile_source.get_for_merge().map_err(InstallError::LoadWantedLockfile)?,
-            pre_merge_importers: lockfile_source
-                .pre_merge_importers()
-                .map_err(InstallError::LoadWantedLockfile)?,
-        }),
+        Ok(lockfile) => {
+            let merged_conflict_files = lockfile_source
+                .merged_conflict_files()
+                .map_err(InstallError::LoadWantedLockfile)?;
+            report_merged_lockfile_conflicts::<Reporter>(merged_conflict_files, prefix);
+            Ok(LoadedWantedLockfile {
+                lockfile,
+                shared: lockfile_source.shared().map_err(InstallError::LoadWantedLockfile)?,
+                merge: lockfile_source.get_for_merge().map_err(InstallError::LoadWantedLockfile)?,
+                pre_merge_importers: lockfile_source
+                    .pre_merge_importers()
+                    .map_err(InstallError::LoadWantedLockfile)?,
+                had_conflicts: merged_conflict_files > 0,
+            })
+        }
         Err(error) if !frozen_lockfile => {
             Reporter::emit(&LogEvent::Pnpm(PnpmLog {
                 level: LogLevel::Warn,

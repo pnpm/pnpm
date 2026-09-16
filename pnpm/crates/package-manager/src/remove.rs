@@ -1,6 +1,6 @@
 use crate::{
-    Install, InstallError, PolicyExcludes, ProjectMutation, ResolvedPackages, SelectedProjects,
-    UpdateSeedPolicy,
+    CommandLockfile, Install, InstallError, PolicyExcludes, ProjectMutation, ResolvedPackages,
+    SelectedProjects, UpdateSeedPolicy,
     catalog_cleanup::{
         WriteWorkspaceCatalogsError, post_install_prune, write_workspace_catalogs,
         write_workspace_catalogs_selected,
@@ -13,7 +13,6 @@ use miette::Diagnostic;
 use pipe_trait::Pipe;
 use pnpm_catalogs_types::Catalogs;
 use pnpm_config::Config;
-use pnpm_lockfile::{Lockfile, MaybeLazyLockfile};
 use pnpm_network::ThrottledClient;
 use pnpm_package_manifest::{DependencyGroup, PackageManifest, PackageManifestError};
 use pnpm_reporter::{LogEvent, LogLevel, PackageManifestLog, PackageManifestMessage, Reporter};
@@ -155,8 +154,9 @@ pub struct RemoveOptions<'a> {
     pub resolved_packages: &'a ResolvedPackages,
     pub http_client: &'a ThrottledClient,
     pub config: &'static Config,
-    pub lockfile: Option<&'a Lockfile>,
-    pub lockfile_path: Option<&'a std::path::Path>,
+    /// The wanted lockfile, as the command reads it and as the
+    /// install it runs needs it.
+    pub lockfile: CommandLockfile<'a>,
     /// Names to remove.
     pub package_names: &'a [String],
     /// Dependency field to restrict removal to, or `None` to remove from
@@ -222,8 +222,8 @@ fn remove_install<'i>(
             config: remove.config,
             manifest,
             emit_initial_manifest: false,
-            lockfile: MaybeLazyLockfile::Loaded(remove.lockfile),
-            lockfile_path: remove.lockfile_path,
+            lockfile: remove.lockfile.source,
+            lockfile_path: remove.lockfile.path,
         },
         fetching: crate::InstallFetching {
             tarball_mem_cache: owned.tarball_mem_cache,
