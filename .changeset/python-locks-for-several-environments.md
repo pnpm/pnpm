@@ -14,4 +14,4 @@ python:
   pythonVersions: ['3.12', '3.13']
 ```
 
-The lockfile pins the wheel each environment takes for a distribution. It marks a package only some environments install. `pnpm install` takes the packages and wheels of the environment its interpreter matches, and refuses an interpreter none of them stand for. A project that declares environments is resolved locally, not through the server `pnprServer` names. Declaring neither setting locks for the interpreter running the install.
+The lockfile pins the wheel each environment takes for a distribution. It marks a package only some environments install. `pnpm install` takes the packages and wheels of the environment its interpreter matches, and refuses an interpreter none of them stand for. pnpm resolves a project that declares environments itself, not through the server `pnprServer` names. Declaring neither setting locks for the interpreter running the install.
