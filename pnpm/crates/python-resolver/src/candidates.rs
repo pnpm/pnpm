@@ -7,7 +7,7 @@ use miette::{IntoDiagnostic, Result, bail};
 use pep440_rs::Version;
 use pep508_rs::{PackageName, Requirement};
 use serde::Deserialize;
-use std::collections::BTreeMap;
+use std::{collections::BTreeMap, fmt};
 use url::Url;
 
 #[derive(Deserialize)]
@@ -74,7 +74,7 @@ pub fn candidates_from_page(
         .map_err(|err| err.wrap_err("Python index must support the Simple JSON API"))?;
     let mut candidates = BTreeMap::<Version, (usize, Candidate)>::new();
     for file in page.files {
-        let Some((version, rank, candidate)) = installable_candidate(file, page_url, name, target)?
+        let Some((version, rank, candidate)) = installable_candidate(file, page_url, name, target)
         else {
             continue;
         };
@@ -95,34 +95,55 @@ pub fn candidates_from_page(
 
 /// The candidate one index file offers, with the version and tag rank it
 /// competes under. `None` for a file this target cannot install: a yanked
-/// release, a non-wheel, or a wheel whose `Requires-Python` excludes the
-/// target interpreter.
+/// release, a non-wheel, a wheel whose `Requires-Python` excludes the
+/// target interpreter, or one of the [unusable](usable) files an index
+/// serves.
 fn installable_candidate(
     file: IndexFile,
     page_url: &Url,
     name: &PackageName,
     target: &Target,
-) -> Result<Option<(Version, usize, Candidate)>> {
+) -> Option<(Version, usize, Candidate)> {
     if !matches!(file.yanked, serde_json::Value::Null | serde_json::Value::Bool(false)) {
-        return Ok(None);
+        return None;
     }
-    let Some((wheel_name, version, rank)) = wheel_identity(&file.filename, &target.tags)? else {
-        return Ok(None);
-    };
+    let (wheel_name, version, rank) =
+        usable(&file.filename, wheel_identity(&file.filename, &target.tags))??;
     if wheel_name != *name {
-        bail!("Python index for {name} contains a wheel for {wheel_name}");
+        return unusable(&file.filename, format_args!("wheel for {wheel_name}, not for {name}"));
     }
     if let Some(specifiers) = file.requires_python.as_deref().and_then(declared_range)
         && !specifiers.contains(target.environment.python_full_version())
     {
-        return Ok(None);
+        return None;
     }
-    let url = page_url.join(&file.url).into_diagnostic()?;
-    validate_url(&url)?;
+    let url = usable(&file.filename, page_url.join(&file.url).into_diagnostic())?;
+    usable(&file.filename, validate_url(&url))?;
     let core_metadata = file.metadata_digests();
     let wheel = LockedWheel { name: file.filename, url: url.to_string(), hashes: file.hashes };
-    wheel.integrity()?;
-    Ok(Some((version, rank, Candidate { wheel, core_metadata })))
+    usable(&wheel.name, wheel.integrity())?;
+    Some((version, rank, Candidate { wheel, core_metadata }))
+}
+
+/// What reading one index file produced, or `None` when the file is one
+/// pnpm cannot use.
+///
+/// A page lists every release a distribution ever published, and a project
+/// needs one of them. A file pnpm cannot read is therefore left out rather
+/// than failing the page, the way a wheel built for another interpreter
+/// is: an immutable old release is no reason a project cannot install the
+/// version it asks for.
+fn usable<T>(filename: &str, read: Result<T>) -> Option<T> {
+    match read {
+        Ok(value) => Some(value),
+        Err(error) => unusable(filename, error),
+    }
+}
+
+/// Leave one index file out, recording why it cannot be used.
+fn unusable<T>(filename: &str, reason: impl fmt::Display) -> Option<T> {
+    tracing::debug!("skipping Python file {filename}: {reason}");
+    None
 }
 
 /// The distribution, version, and tag rank a wheel filename names, or

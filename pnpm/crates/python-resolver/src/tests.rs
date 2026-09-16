@@ -137,6 +137,41 @@ fn candidates_leave_out_what_the_target_cannot_install() {
     );
 }
 
+/// Files a release published that pnpm cannot use, beside the one the
+/// project wants: the whole page has to survive them, or one bad release
+/// puts the distribution out of reach at every version.
+#[test]
+fn candidates_leave_out_a_file_they_cannot_read() {
+    let mut unhashed = wheel("demo-2.0.0-py3-none-any.whl");
+    unhashed["hashes"] = serde_json::json!({ "md5": "d".repeat(32) });
+    let mut elsewhere = wheel("demo-3.0.0-py3-none-any.whl");
+    elsewhere["url"] = serde_json::json!("ftp://files.test/demo-3.0.0-py3-none-any.whl");
+
+    let candidates = candidates_from_page(
+        &page(&serde_json::json!([
+            wheel("demo-1.0.0-py3-none-any.whl"),
+            unhashed,
+            elsewhere,
+            wheel("demo-4.0.0-py3-none.whl"),
+            wheel("other-5.0.0-py3-none-any.whl"),
+        ])),
+        &index_url(),
+        &name("demo"),
+        &target(),
+    )
+    .expect("page parses");
+
+    assert_eq!(
+        candidates
+            .keys()
+            .map(ToString::to_string)
+            .collect::<Vec<_>>(),
+        ["1.0.0"],
+        "files with no SHA-256, a non-HTTP URL, an unreadable filename, or another \
+         distribution's wheel are left out",
+    );
+}
+
 /// The scenario of pnpm/pnpm#14910: releases whose `Requires-Python` is
 /// not a version specifier, in the index page and in the wheel's own
 /// metadata. Every reader of the field has to agree that it says nothing,
