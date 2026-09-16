@@ -203,8 +203,8 @@ fn running_platform() -> (&'static str, &'static str) {
     }
 }
 
-/// The platforms a multi-platform test locks for: an Apple and a Windows
-/// one, plus whichever platform is running the test.
+/// The platform running the test is always among these: an install
+/// refuses an interpreter no declared environment stands for.
 fn declared_platforms() -> Vec<(&'static str, &'static str)> {
     let mut platforms = vec![running_platform()];
     for platform in [
