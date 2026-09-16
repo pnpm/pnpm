@@ -8,13 +8,23 @@ use percent_encoding::percent_decode_str;
 /// The URL scheme every Package URL starts with.
 const SCHEME: &str = "pkg";
 
+/// The package types pnpm installs, which are the only ones a selector may
+/// name. The specification registers many more.
+#[derive(Debug, strum::Display, Clone, Copy, PartialEq, Eq, strum::EnumString)]
+#[strum(serialize_all = "lowercase")]
+pub(super) enum PurlType {
+    Npm,
+    Cargo,
+    Pypi,
+}
+
 /// The components of a Package URL that pnpm can map onto a dependency.
 ///
 /// Qualifiers and subpaths are rejected by [`Purl::parse`] instead of being
 /// stored, because pnpm has no dependency field to put them in.
 #[derive(Debug, PartialEq, Eq)]
 pub(super) struct Purl {
-    pub(super) package_type: String,
+    pub(super) package_type: PurlType,
     pub(super) namespace: Option<String>,
     pub(super) name: String,
     pub(super) version: Option<String>,
@@ -70,7 +80,7 @@ fn reject_unsupported_components(body: &str, source: &str) -> Result<()> {
     Ok(())
 }
 
-fn parse_type(package_type: &str, source: &str) -> Result<String> {
+fn parse_type(package_type: &str, source: &str) -> Result<PurlType> {
     let well_formed = package_type.starts_with(|ch: char| ch.is_ascii_alphabetic())
         && package_type
             .bytes()
@@ -78,7 +88,12 @@ fn parse_type(package_type: &str, source: &str) -> Result<String> {
     if !well_formed {
         return Err(miette::miette!("{source} has an invalid purl type `{package_type}`"));
     }
-    Ok(package_type.to_ascii_lowercase())
+    let package_type = package_type.to_ascii_lowercase();
+    package_type.parse::<PurlType>().map_err(|_| {
+        miette::miette!(
+            "{source} has purl type `{package_type}`, but pnpm can add only `npm`, `cargo`, and `pypi` packages"
+        )
+    })
 }
 
 /// Splits the path that follows the type into its namespace and the segment

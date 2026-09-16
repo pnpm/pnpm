@@ -1,7 +1,7 @@
 mod purl;
 
 use miette::Result;
-use purl::Purl;
+use purl::{Purl, PurlType};
 
 const CARGO_PROTOCOL: &str = "crate:";
 const PYTHON_PROTOCOL: &str = "pypi:";
@@ -82,13 +82,10 @@ fn parse_specifier(specifier: &str) -> Result<ParsedSpecifier> {
 /// component is therefore validated before it is joined, so a decoded
 /// separator cannot rewrite the selector into one for another package.
 fn parse_purl(purl: &Purl, source: &str) -> Result<ParsedSpecifier> {
-    match purl.package_type.as_str() {
-        "npm" => purl_node_specifier(purl, source).map(ParsedSpecifier::Node),
-        "cargo" => purl_registry_specifier(purl, source).map(cargo_specifier),
-        "pypi" => purl_python_specifier(purl, source).map(python_specifier),
-        package_type => Err(miette::miette!(
-            "{source} has purl type `{package_type}`, but pnpm can add only `npm`, `cargo`, and `pypi` packages"
-        )),
+    match purl.package_type {
+        PurlType::Npm => purl_node_specifier(purl, source).map(ParsedSpecifier::Node),
+        PurlType::Cargo => purl_registry_specifier(purl, source).map(cargo_specifier),
+        PurlType::Pypi => purl_python_specifier(purl, source).map(python_specifier),
     }
 }
 

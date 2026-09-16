@@ -1,4 +1,4 @@
-use super::{Purl, strip_scheme};
+use super::{Purl, PurlType, strip_scheme};
 use pretty_assertions::assert_eq;
 
 fn purl(specifier: &str) -> Purl {
@@ -11,9 +11,14 @@ fn error(specifier: &str) -> String {
     Purl::parse(body, specifier).expect_err("reject the purl").to_string()
 }
 
-fn expect(package_type: &str, namespace: Option<&str>, name: &str, version: Option<&str>) -> Purl {
+fn expect(
+    package_type: PurlType,
+    namespace: Option<&str>,
+    name: &str,
+    version: Option<&str>,
+) -> Purl {
     Purl {
-        package_type: package_type.to_string(),
+        package_type,
         namespace: namespace.map(str::to_string),
         name: name.to_string(),
         version: version.map(str::to_string),
@@ -32,27 +37,30 @@ fn recognizes_only_the_pkg_scheme() {
 
 #[test]
 fn parses_the_type_name_and_version() {
-    assert_eq!(purl("pkg:cargo/serde@1.0.188"), expect("cargo", None, "serde", Some("1.0.188")));
+    assert_eq!(
+        purl("pkg:cargo/serde@1.0.188"),
+        expect(PurlType::Cargo, None, "serde", Some("1.0.188")),
+    );
 }
 
 #[test]
 fn lowercases_the_type_and_keeps_the_version_opaque() {
     assert_eq!(
         purl("pkg:PyPI/requests@2.31.0rc1"),
-        expect("pypi", None, "requests", Some("2.31.0rc1")),
+        expect(PurlType::Pypi, None, "requests", Some("2.31.0rc1")),
     );
 }
 
 #[test]
 fn version_is_optional() {
-    assert_eq!(purl("pkg:npm/express"), expect("npm", None, "express", None));
+    assert_eq!(purl("pkg:npm/express"), expect(PurlType::Npm, None, "express", None));
 }
 
 #[test]
 fn percent_decodes_every_component() {
     assert_eq!(
         purl("pkg:npm/%40babel/core@7.22.0"),
-        expect("npm", Some("@babel"), "core", Some("7.22.0")),
+        expect(PurlType::Npm, Some("@babel"), "core", Some("7.22.0")),
     );
 }
 
@@ -60,23 +68,23 @@ fn percent_decodes_every_component() {
 /// scope cannot be mistaken for the version separator.
 #[test]
 fn reads_an_unencoded_scope_as_a_namespace() {
-    assert_eq!(purl("pkg:npm/@babel/core"), expect("npm", Some("@babel"), "core", None));
+    assert_eq!(purl("pkg:npm/@babel/core"), expect(PurlType::Npm, Some("@babel"), "core", None));
 }
 
 #[test]
 fn ignores_insignificant_slashes() {
     assert_eq!(
         purl("pkg://npm//%40babel/core@7.22.0"),
-        expect("npm", Some("@babel"), "core", Some("7.22.0")),
+        expect(PurlType::Npm, Some("@babel"), "core", Some("7.22.0")),
     );
-    assert_eq!(purl("pkg:npm/express/"), expect("npm", None, "express", None));
+    assert_eq!(purl("pkg:npm/express/"), expect(PurlType::Npm, None, "express", None));
 }
 
 #[test]
 fn keeps_multi_segment_namespaces() {
     assert_eq!(
-        purl("pkg:golang/github.com/gorilla/mux@1.8.0"),
-        expect("golang", Some("github.com/gorilla"), "mux", Some("1.8.0")),
+        purl("pkg:npm/%40scope/nested/name@1.8.0"),
+        expect(PurlType::Npm, Some("@scope/nested"), "name", Some("1.8.0")),
     );
 }
 
@@ -87,8 +95,8 @@ fn rejects_qualifiers_and_subpaths() {
         "pkg:pypi/django@1.11.1?file_name=Django-1.11.1.tar.gz carries purl qualifiers, which pnpm cannot honor",
     );
     assert_eq!(
-        error("pkg:golang/gorilla/mux@1.8.0#subpath"),
-        "pkg:golang/gorilla/mux@1.8.0#subpath carries a purl subpath, which pnpm cannot honor",
+        error("pkg:npm/lodash@4.17.21#lib"),
+        "pkg:npm/lodash@4.17.21#lib carries a purl subpath, which pnpm cannot honor",
     );
 }
 
