@@ -146,6 +146,52 @@ fn unusable<Item>(filename: &str, reason: impl fmt::Display) -> Option<Item> {
     None
 }
 
+/// What a wheel filename names: the distribution and version it carries,
+/// and the compressed tag sets an interpreter has to accept to install it.
+#[derive(Debug)]
+pub struct WheelFilename {
+    pub name: PackageName,
+    pub version: Version,
+    tags: [String; 3],
+}
+
+impl WheelFilename {
+    /// Read a wheel filename, or `None` when the file is not a wheel at
+    /// all — an index page lists sdists and signatures beside wheels.
+    pub fn parse(filename: &str) -> Result<Option<Self>> {
+        let Some(stem) = filename.strip_suffix(".whl") else { return Ok(None) };
+        let parts = stem.split('-').collect::<Vec<_>>();
+        if !(parts.len() == 5 || parts.len() == 6) || filename.contains(['/', '\\']) {
+            bail!("invalid Python wheel filename: {filename}");
+        }
+        let tags = &parts[parts.len() - 3..];
+        Ok(Some(Self {
+            name: parts[0].parse().into_diagnostic()?,
+            version: parts[1].parse().into_diagnostic()?,
+            tags: [tags[0].to_string(), tags[1].to_string(), tags[2].to_string()],
+        }))
+    }
+
+    /// The preference a target gives this wheel, or `None` when it accepts
+    /// none of the wheel's tags. A lower rank is a tag the target prefers.
+    #[must_use]
+    pub fn rank(&self, tags: &[String]) -> Option<usize> {
+        tags.iter()
+            .position(|tag| {
+                let accepted = tag.split('-').collect::<Vec<_>>();
+                accepted.len() == 3
+                    && self.tags
+                        .iter()
+                        .zip(accepted)
+                        .all(|(declared, accepted)| {
+                            declared
+                                .split('.')
+                                .any(|declared| declared == accepted)
+                        })
+            })
+    }
+}
+
 /// The distribution, version, and tag rank a wheel filename names, or
 /// `None` when the file is not a wheel this target can install. A lower
 /// rank is a tag the target prefers.
@@ -153,30 +199,10 @@ pub fn wheel_identity(
     filename: &str,
     tags: &[String],
 ) -> Result<Option<(PackageName, Version, usize)>> {
-    let Some(stem) = filename.strip_suffix(".whl") else { return Ok(None) };
-    let parts = stem.split('-').collect::<Vec<_>>();
-    if !(parts.len() == 5 || parts.len() == 6) || filename.contains(['/', '\\']) {
-        bail!("invalid Python wheel filename: {filename}");
-    }
-    let wheel_tags = &parts[parts.len() - 3..];
-    let rank = tags
-        .iter()
-        .position(|tag| {
-            let actual = tag.split('-').collect::<Vec<_>>();
-            actual.len() == 3
-                && wheel_tags
-                    .iter()
-                    .zip(actual)
-                    .all(|(supported, actual)| {
-                        supported
-                            .split('.')
-                            .any(|supported| supported == actual)
-                    })
-        });
-    rank.map(|rank| {
-        Ok((parts[0].parse().into_diagnostic()?, parts[1].parse().into_diagnostic()?, rank))
-    })
-    .transpose()
+    let Some(wheel) = WheelFilename::parse(filename)? else { return Ok(None) };
+    Ok(wheel
+        .rank(tags)
+        .map(|rank| (wheel.name, wheel.version, rank)))
 }
 
 /// Refuse a URL a Python artifact must not be fetched from: a scheme

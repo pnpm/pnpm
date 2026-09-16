@@ -120,6 +120,14 @@ pub struct PythonSettings {
     pub index_url: String,
     pub extras: Vec<String>,
     pub groups: Vec<String>,
+    /// The platforms `pylock.toml` is resolved for, as Rust target
+    /// triples or the `manylinux`/`musllinux` spellings that name a libc
+    /// baseline. Empty locks for the platform the install runs on.
+    pub platforms: Vec<String>,
+    /// The Python versions `pylock.toml` is resolved for, each a minor
+    /// version such as `3.12` or a full one such as `3.12.7`. Empty locks
+    /// for the version of the interpreter the install runs on.
+    pub python_versions: Vec<String>,
 }
 
 impl Default for PythonSettings {
@@ -130,6 +138,8 @@ impl Default for PythonSettings {
             index_url: "https://pypi.org/simple/".to_string(),
             extras: Vec::new(),
             groups: vec!["dev".to_string()],
+            platforms: Vec::new(),
+            python_versions: Vec::new(),
         }
     }
 }

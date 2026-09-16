@@ -1,6 +1,7 @@
 use super::{
-    Arc, Inputs, InstallOptions, Interpreter, IntoDiagnostic, Lockfile, PYPI_ECOSYSTEM, Path,
-    PathBuf, PnprClient, PypiResolveOptions, Result, StoreIndexWriter, bail, fs, io, manifest,
+    Arc, Environments, Inputs, InstallOptions, Interpreter, IntoDiagnostic, Lockfile,
+    PYPI_ECOSYSTEM, Path, PathBuf, PnprClient, PypiResolveOptions, Result, StoreIndexWriter, bail,
+    fs, io, manifest,
 };
 use miette::WrapErr;
 
@@ -8,6 +9,8 @@ use miette::WrapErr;
 pub(super) struct PythonPrepare<'a> {
     pub(super) context: &'a InstallOptions,
     pub(super) interpreter: &'a Interpreter,
+    /// The environments every project of this run is locked for.
+    pub(super) environments: &'a Environments,
     pub(super) index: &'a url::Url,
     pub(super) auth: &'a pnpm_network::AuthHeaders,
     pub(super) store_index: Option<pnpm_store_dir::SharedReadonlyStoreIndex>,
