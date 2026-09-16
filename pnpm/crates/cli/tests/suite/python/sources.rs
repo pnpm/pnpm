@@ -1,3 +1,5 @@
+mod backtracking;
+
 use super::{
     assert_failure_contains, project, python, python_project, serve, serve_backends, wheel,
 };
@@ -195,10 +197,15 @@ async fn git_revisions_and_direct_requirements_pin_commits_and_replay_offline() 
             )
         };
         fs::write(root.path().join("pyproject.toml"), &manifest).unwrap();
+        declare_platforms(root.path());
+        let trace = root.path().join("git-trace");
         pacquet_in(root.path())
+            .env("GIT_TRACE", &trace)
             .arg("install")
             .assert()
             .success();
+        let invocations = fs::read_to_string(&trace).unwrap();
+        assert_eq!(invocations.matches("built-in: git clone").count(), 1, "{invocations}");
         let lock = fs::read_to_string(root.path().join("pylock.toml")).unwrap();
         assert!(lock.contains(&format!(r#"commit-id = "{commit}""#)), "lock: {lock}");
         assert!(!lock.contains("packages.directory"), "git source locked as a directory: {lock}");
@@ -692,9 +699,11 @@ async fn different_git_versions_keep_their_built_files_until_installation() {
 #[tokio::test]
 async fn narrowed_remote_sources_are_rejected_before_fetching() {
     for kind in ["url", "git"] {
-        for narrowing in
-            [r#"marker = "sys_platform == 'win32'""#, "extra = 'test'", "group = 'test'"]
-        {
+        for (narrowing, diagnostic) in [
+            (r#"marker = "sys_platform == 'win32'""#, "conditional"),
+            ("extra = 'test'", "extra-qualified"),
+            ("group = 'test'", "group-qualified"),
+        ] {
             let root = tempfile::tempdir().unwrap();
             let server = mockito::Server::new_async().await;
             project(root.path(), &server.url(), &["alpha>=1"]);
@@ -703,7 +712,7 @@ async fn narrowed_remote_sources_are_rejected_before_fetching() {
             fs::write(&path, format!("{manifest}\n[tool.uv.sources]\nalpha = {{ {kind} = 'https://example.test/alpha', {narrowing} }}\n")).unwrap();
             assert_failure_contains(
                 pacquet_in(root.path()).arg("install"),
-                "pnpm does not support",
+                &format!("pnpm does not support the {diagnostic} Python source"),
             );
         }
     }

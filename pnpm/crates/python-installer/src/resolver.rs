@@ -2,7 +2,7 @@ use super::{
     registry::{Registry, Resolution},
     targets::Environment,
 };
-use miette::Result;
+use miette::{Result, bail};
 use pep440_rs::Version;
 use pep508_rs::{PackageName, Requirement};
 use pnpm_python_resolver::{Solved, Step};
@@ -46,13 +46,23 @@ pub(super) async fn resolve<Reporter: InstallReporter + 'static>(
     registry: &mut Registry<'_>,
     requirements: &[Requirement],
 ) -> Result<BTreeMap<PackageName, Version>> {
+    let mut alternatives = Vec::new();
     loop {
         let environment = registry.resolution.target.environment.clone();
         match pnpm_python_resolver::step(&registry.resolution.packages, requirements, &environment)?
         {
             Step::Solved(solution) => return Ok(solution),
             Step::NeedCandidates(name) => registry.fetch_index(&name).await?,
-            Step::NeedUrl(name, url) => registry.fetch_source::<Reporter>(&name, &url).await?,
+            Step::NeedUrl(name, url) => {
+                let mut alternative = registry.resolution.packages.clone();
+                alternative.rejected_sources.insert((name.clone(), url.clone()));
+                alternatives.push(alternative);
+                registry.fetch_source::<Reporter>(&name, &url).await?;
+            }
+            Step::Backtrack(message) => {
+                let Some(alternative) = alternatives.pop() else { bail!("{message}") };
+                registry.resolution.packages = alternative;
+            }
             Step::NeedMetadata(name, version) => {
                 registry.fetch_wheel::<Reporter>(&name, &version).await?;
             }

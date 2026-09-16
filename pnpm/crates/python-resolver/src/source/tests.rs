@@ -53,3 +53,20 @@ fn git_repository_queries_survive_lockfile_validation() {
     git.commit_id = "a".repeat(40);
     git.validate().unwrap();
 }
+
+#[test]
+fn lockfile_vcs_errors_identify_the_invalid_field() {
+    let Source::Git(mut git) = Source::parse("git+https://example.test/repo@main").unwrap() else {
+        panic!("git source expected")
+    };
+    git.commit_id = "a".repeat(40);
+    git.kind = "hg".to_string();
+    let error = git.validate().unwrap_err().to_string();
+    assert!(error.contains(r#"VCS kind "hg""#), "{error}");
+    assert!(!error.contains("commit hash"), "{error}");
+    git.kind = "git".to_string();
+    git.commit_id = "bad-hash".to_string();
+    let error = git.validate().unwrap_err().to_string();
+    assert!(error.contains("full commit hash"), "{error}");
+    assert!(error.contains("bad-hash"), "{error}");
+}

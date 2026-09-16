@@ -1,3 +1,5 @@
+mod sources;
+
 use crate::{
     candidates::{Refusal, read_requirement},
     metadata::WheelMetadata,
@@ -34,6 +36,8 @@ impl fmt::Display for Package {
 #[derive(Debug)]
 pub enum Step {
     Solved(BTreeMap<PackageName, Version>),
+    /// The tentative sources cannot satisfy the selected dependency graph.
+    Backtrack(String),
     /// The versions this index offers of a distribution nothing has read
     /// yet — see [`crate::candidates_from_page`].
     NeedCandidates(PackageName),
@@ -49,6 +53,7 @@ enum Needed {
     Url(PackageName, String),
     Metadata(PackageName, Version),
     Invalid(String),
+    RejectedSource(String),
 }
 
 impl fmt::Display for Needed {
@@ -103,8 +108,8 @@ impl DependencyProvider for Provider<'_> {
         version: &Version,
     ) -> std::result::Result<Dependencies<Package, Self::VS, String>, Needed> {
         let mut constraints = BTreeMap::<Package, Ranges<Version>>::new();
-        match package {
-            Package::Root => self.constraints(self.requirements, &[], &mut constraints)?,
+        let result = match package {
+            Package::Root => self.constraints(self.requirements, &[], &mut constraints),
             Package::Distribution(name, extra) => {
                 let metadata = self.packages.metadata
                     .get(&(name.clone(), version.clone()))
@@ -131,10 +136,21 @@ impl DependencyProvider for Provider<'_> {
                     Ok(requirements) => requirements,
                     Err(refusal) => return unusable_release(refusal),
                 };
-                self.constraints(&requirements, &extras, &mut constraints)?;
+                self.constraints(&requirements, &extras, &mut constraints)
             }
-        }
-        Ok(Dependencies::Available(DependencyConstraints::from_iter(constraints)))
+        };
+        source_dependencies(result, constraints)
+    }
+}
+
+fn source_dependencies(
+    result: std::result::Result<(), Needed>,
+    constraints: BTreeMap<Package, Ranges<Version>>,
+) -> std::result::Result<Dependencies<Package, Ranges<Version>, String>, Needed> {
+    match result {
+        Err(Needed::RejectedSource(message)) => Ok(Dependencies::Unavailable(message)),
+        Err(error) => Err(error),
+        Ok(()) => Ok(Dependencies::Available(DependencyConstraints::from_iter(constraints))),
     }
 }
 
@@ -190,13 +206,20 @@ impl Provider<'_> {
     fn check_source(&self, requirement: &Requirement) -> std::result::Result<(), Needed> {
         let Some(VersionOrUrl::Url(url)) = &requirement.version_or_url else { return Ok(()) };
         let source = url.as_str();
+        if self.packages.rejected_sources.contains(&(requirement.name.clone(), source.to_string()))
+        {
+            return Err(Needed::RejectedSource(format!(
+                "unavailable Python source for {}",
+                requirement.name,
+            )));
+        }
         let parsed =
             crate::Source::parse(source).map_err(|error| Needed::Invalid(error.to_string()))?;
         if let Some(chosen) = self.packages.direct_urls.get(&requirement.name) {
             let chosen_source =
                 crate::Source::parse(chosen).map_err(|error| Needed::Invalid(error.to_string()))?;
             if !chosen_source.compatible_with(&parsed) {
-                return Err(Needed::Invalid(format!(
+                return Err(Needed::RejectedSource(format!(
                     "conflicting Python sources for {}",
                     requirement.name,
                 )));
@@ -314,7 +337,14 @@ pub fn step(
 ) -> Result<Step> {
     let provider = Provider { packages, requirements, environment };
     match pubgrub::resolve(&provider, Package::Root, Version::new([0])) {
-        Ok(solution) => Ok(Step::Solved(distributions(solution))),
+        Ok(solution) => {
+            if sources::has_inactive_source(&provider, &solution)? {
+                return Ok(Step::Backtrack(
+                    "Python dependency resolution selected an inactive source".to_string(),
+                ));
+            }
+            Ok(Step::Solved(distributions(solution)))
+        }
         Err(
             PubGrubError::ErrorRetrievingDependencies { source, .. }
             | PubGrubError::ErrorChoosingVersion { source, .. }
@@ -323,10 +353,15 @@ pub fn step(
             Needed::Candidates(name) => Ok(Step::NeedCandidates(name)),
             Needed::Url(name, url) => Ok(Step::NeedUrl(name, url)),
             Needed::Metadata(name, version) => Ok(Step::NeedMetadata(name, version)),
-            Needed::Invalid(message) => bail!("{message}"),
+            Needed::Invalid(message) | Needed::RejectedSource(message) => bail!("{message}"),
         },
         Err(PubGrubError::NoSolution(tree)) => {
-            bail!("Python dependency resolution failed:\n{}", report_no_solution(tree));
+            let message =
+                format!("Python dependency resolution failed:\n{}", report_no_solution(tree));
+            if !packages.direct_urls.is_empty() {
+                return Ok(Step::Backtrack(message));
+            }
+            bail!("{message}");
         }
     }
 }

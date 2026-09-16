@@ -69,6 +69,7 @@ impl Resolution {
                 .all(|candidate| candidate.directory().is_some())
         });
         self.packages.direct_urls.clear();
+        self.packages.rejected_sources.clear();
     }
 
     /// Offer this environment the candidates an index page holds.

@@ -204,7 +204,8 @@ the repository, including an in-tree backend, so approving its backend alone
 does not approve the dependency. Resolving git metadata may build a wheel,
 including during `--lockfile-only`.
 
-Direct HTTP(S) wheel URLs record a SHA-256 digest. A `#sha256=...` fragment
+Direct HTTP(S) wheel URLs record a SHA-256 digest. Public HTTP URLs require a
+`#sha256=...` pin. HTTPS and loopback HTTP URLs can be used without a pin. A `#sha256=...` fragment
 provides the expected digest; without one pnpm computes it from the downloaded
 wheel. Both the artifact identity and the digest are checked before installation.
 Git commits and verified wheels cached by an earlier install can be replayed

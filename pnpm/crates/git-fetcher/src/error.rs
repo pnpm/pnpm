@@ -1,3 +1,6 @@
+#[cfg(test)]
+mod tests;
+
 use derive_more::{Display, Error};
 use pnpm_diagnostics::miette::{self, Diagnostic};
 
@@ -83,7 +86,10 @@ pub enum GitFetcherError {
     /// `git` exited non-zero on `clone` / `fetch` / `checkout` /
     /// `rev-parse`. `operation` is the subcommand, `stderr` is captured
     /// from the child so the failure surfaces in the install log.
-    #[display("`git {operation}` failed ({status}): {stderr}")]
+    #[display(
+        "`git {operation}` failed ({status}): {}",
+        pnpm_network::redact_and_sanitize_multiline(stderr)
+    )]
     #[diagnostic(code(ERR_PNPM_GIT_FETCHER_GIT_EXEC_FAILED))]
     GitExec { operation: &'static str, stderr: String, status: std::process::ExitStatus },
 
@@ -132,7 +138,8 @@ If its specifier does not ask for SSH (for example "github:owner/repo"), the loc
     /// allowing a malicious lockfile to execute arbitrary commands on
     /// SSH or local-file transports.
     #[display(
-        "Invalid git commit hash {commit:?} for repository {repo:?}. Expected a 40-character hexadecimal SHA."
+        "Invalid git commit hash {commit:?} for repository {:?}. Expected a 40-character hexadecimal SHA.",
+        pnpm_network::redact_and_sanitize(repo)
     )]
     #[diagnostic(code(ERR_PNPM_INVALID_GIT_COMMIT))]
     InvalidCommit { commit: String, repo: String },
@@ -143,7 +150,10 @@ If its specifier does not ask for SSH (for example "github:owner/repo"), the loc
     /// transport and runs `<cmd>`. The `--` end-of-options marker is
     /// passed as well; this rejects the value outright rather than rely
     /// on every subcommand honoring it.
-    #[display("Invalid git repository {repo:?}. A repository must not begin with '-'.")]
+    #[display(
+        "Invalid git repository {:?}. A repository must not begin with '-'.",
+        pnpm_network::redact_and_sanitize(repo)
+    )]
     #[diagnostic(code(INVALID_GIT_REPOSITORY))]
     InvalidRepo { repo: String },
 

@@ -21,9 +21,6 @@ impl Registry<'_> {
         name: &PackageName,
         source: &str,
     ) -> Result<()> {
-        if self.reuse_url_wheel(name, source)? {
-            return Ok(());
-        }
         let (wheel, buffer) = self.url_wheel(source).await?;
         let filename = WheelFilename::parse(&wheel.name)?.expect("URL wheel was parsed");
         if filename.name != *name {
@@ -43,30 +40,6 @@ impl Registry<'_> {
         Ok(())
     }
 
-    fn reuse_url_wheel(&mut self, name: &PackageName, source: &str) -> Result<bool> {
-        let source = pnpm_python_resolver::Source::parse(source)?;
-        let Some((key, candidate)) = self.sources.fetched
-            .iter()
-            .find(|((distribution, _), candidate)| {
-                distribution == name && candidate.matches_source(&source)
-            })
-            .map(|(key, candidate)| (key.clone(), candidate.clone()))
-        else {
-            return Ok(false);
-        };
-        let Some(wheel) = self.wheels.get(&key).cloned() else { return Ok(false) };
-        candidate
-            .wheel()
-            .expect("wheel sources select wheels")
-            .check_installable(&self.resolution.target.tags, name, &key.1)?;
-        self.resolution.packages.candidates.insert(
-            name.clone(),
-            BTreeMap::from([(key.1.clone(), candidate)]),
-        );
-        self.remember(name.clone(), key.1, wheel);
-        Ok(true)
-    }
-
     async fn url_wheel(&self, source: &str) -> Result<(LockedWheel, Option<Vec<u8>>)> {
         let (url, expected) = artifact_url(source)?;
         let name = pnpm_network::percent_decode_str(
@@ -82,6 +55,12 @@ impl Registry<'_> {
             .join(format!("{}.json", pnpm_crypto_hash::create_hex_hash(source)));
         if self.config.offline {
             return Ok((self.cached_url_wheel(&cache, source).await?, None));
+        }
+        if expected.is_none() && !pnpm_network::is_url_secure_for_credentials(url.as_str()) {
+            bail!(
+                "Python wheel URLs over public HTTP require a sha256 hash: {}",
+                pnpm_network::redact_url_for_display(url.as_str()),
+            );
         }
         let buffer = if expected.is_none() { Some(self.wheel_bytes(&url).await?) } else { None };
         let digest = expected.unwrap_or_else(|| {
@@ -132,6 +111,9 @@ impl Registry<'_> {
             )
             .await
             .into_diagnostic()?;
+        if !pnpm_network::is_url_secure_for_credentials(&response.url) {
+            bail!("an unhashed Python wheel URL redirected to public HTTP");
+        }
         if !response.status.is_success() {
             bail!("Python wheel request returned {} for {url}", response.status);
         }

@@ -84,13 +84,43 @@ impl Registry<'_> {
         source: &str,
     ) -> Result<()> {
         self.resolution.packages.direct_urls.insert(name.clone(), source.to_string());
-        match pnpm_python_resolver::Source::parse(source)? {
+        let parsed = pnpm_python_resolver::Source::parse(source)?;
+        if self.reuse_source(name, &parsed)? {
+            return Ok(());
+        }
+        match parsed {
             pnpm_python_resolver::Source::Git(vcs) => self.fetch_git::<Reporter>(name, vcs).await?,
             pnpm_python_resolver::Source::Wheel { .. } => {
                 self.fetch_url_wheel::<Reporter>(name, source).await?;
             }
         }
         Ok(())
+    }
+
+    fn reuse_source(
+        &mut self,
+        name: &PackageName,
+        source: &pnpm_python_resolver::Source,
+    ) -> Result<bool> {
+        let Some((key, candidate)) = self.sources.fetched
+            .iter()
+            .find(|((distribution, _), candidate)| {
+                distribution == name && candidate.matches_source(source)
+            })
+            .map(|(key, candidate)| (key.clone(), candidate.clone()))
+        else {
+            return Ok(false);
+        };
+        let Some(wheel) = self.wheels.get(&key).cloned() else { return Ok(false) };
+        if let Some(artifact) = candidate.wheel() {
+            artifact.check_installable(&self.resolution.target.tags, name, &key.1)?;
+        }
+        self.resolution.packages.candidates.insert(
+            name.clone(),
+            BTreeMap::from([(key.1.clone(), candidate)]),
+        );
+        self.remember(name.clone(), key.1, wheel);
+        Ok(true)
     }
 
     pub(super) async fn fetch_vcs<Reporter: self::Reporter + 'static>(&mut self) -> Result<()> {

@@ -78,11 +78,16 @@ pub struct LockedVcs {
 
 impl LockedVcs {
     pub fn validate(&self) -> Result<()> {
-        if self.kind != "git"
-            || self.commit_id.len() != 40
+        if self.kind != "git" {
+            bail!("unsupported Python lockfile VCS kind {:?}, expected git", self.kind);
+        }
+        if self.commit_id.len() != 40
             || !self.commit_id.bytes().all(|byte| byte.is_ascii_hexdigit())
         {
-            bail!("Python git lockfile source requires a full commit hash");
+            bail!(
+                "Python git lockfile source requires a full commit hash, received {:?}",
+                self.commit_id,
+            );
         }
         let crate::Source::Git(source) = crate::Source::parse(&format!("git+{}", self.url))? else {
             bail!("Python git lockfile source requires a git URL");

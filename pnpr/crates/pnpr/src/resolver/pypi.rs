@@ -149,6 +149,7 @@ async fn resolve(
             .map_err(|err| super::report_message(&err))?;
         match step {
             Step::Solved(solution) => return Ok((solution, packages)),
+            Step::Backtrack(message) => return Err(message),
             Step::NeedUrl(name, _) => {
                 return Err(format!(
                     "Python direct URL requirement for {name} must be resolved by the client",

@@ -5,7 +5,7 @@ use crate::{
 };
 use pep440_rs::Version;
 use pep508_rs::PackageName;
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 
 /// Where one version of a distribution comes from: a wheel an index
 /// serves, or a directory in this workspace.
@@ -114,11 +114,13 @@ impl Candidate {
 /// A workspace project is seeded before the resolution starts: its
 /// version and requirements are in its manifest, so there is nothing to
 /// fetch and nothing for a step to ask for.
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Clone)]
 pub struct Packages {
     pub candidates: BTreeMap<PackageName, BTreeMap<Version, Candidate>>,
     pub metadata: BTreeMap<(PackageName, Version), WheelMetadata>,
     pub direct_urls: BTreeMap<PackageName, String>,
+    /// Sources excluded while trying an alternative dependency graph.
+    pub rejected_sources: BTreeSet<(PackageName, String)>,
 }
 
 impl Packages {
