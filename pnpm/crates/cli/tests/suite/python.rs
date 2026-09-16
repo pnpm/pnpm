@@ -141,6 +141,94 @@ fn project(root: &Path, index: &str, dependencies: &[&str]) {
     fs::write(root.join("pyproject.toml"), format!("[project]\nname = 'app'\nversion = '1.0'\nrequires-python = '>=3.10'\ndependencies = {dependencies:?}\n")).unwrap();
 }
 
+async fn serve_wheels(
+    server: &mut mockito::ServerGuard,
+    name: &str,
+    version: &str,
+    tags: &[&str],
+) -> Vec<mockito::Mock> {
+    let mut mocks = Vec::new();
+    let mut files = Vec::new();
+    for tag in tags {
+        let archive = wheel_with_tags(name, version, "", &[], &format!("Tag: {tag}\n"));
+        let filename = format!("{name}-{version}-{tag}.whl");
+        files.push(json!({"filename": filename, "url": format!("/files/{filename}"), "hashes": {"sha256": format!("{:x}", Sha256::digest(&archive))}}));
+        mocks.push(
+            server
+                .mock("GET", format!("/files/{filename}").as_str())
+                .with_body(archive)
+                .expect_at_least(0)
+                .create_async()
+                .await,
+        );
+    }
+    mocks.push(
+        server
+            .mock("GET", format!("/simple/{name}/").as_str())
+            .match_header("accept", "application/vnd.pypi.simple.v1+json")
+            .with_header("content-type", "application/vnd.pypi.simple.v1+json")
+            .with_body(
+                json!({"meta": {"api-version": "1.0"}, "name": name, "files": files}).to_string(),
+            )
+            .expect_at_least(1)
+            .create_async()
+            .await,
+    );
+    mocks
+}
+
+fn add_python_settings(root: &Path, settings: &str) {
+    let workspace = fs::read_to_string(root.join("pnpm-workspace.yaml")).unwrap();
+    fs::write(
+        root.join("pnpm-workspace.yaml"),
+        workspace.replace(
+            "python:\n  enabled: true\n",
+            &format!("python:\n  enabled: true\n{settings}"),
+        ),
+    )
+    .unwrap();
+}
+
+/// The platform of the machine running the tests, as `python.platforms`
+/// names it, and the tag a wheel built for it carries.
+fn running_platform() -> (&'static str, &'static str) {
+    match (std::env::consts::OS, std::env::consts::ARCH) {
+        ("linux", "x86_64") => ("x86_64-manylinux_2_17", "py3-none-manylinux_2_17_x86_64"),
+        ("linux", "aarch64") => ("aarch64-manylinux_2_17", "py3-none-manylinux_2_17_aarch64"),
+        ("macos", "x86_64") => ("x86_64-apple-darwin", "py3-none-macosx_11_0_x86_64"),
+        ("macos", "aarch64") => ("aarch64-apple-darwin", "py3-none-macosx_11_0_arm64"),
+        ("windows", "x86_64") => ("x86_64-pc-windows-msvc", "py3-none-win_amd64"),
+        ("windows", "aarch64") => ("aarch64-pc-windows-msvc", "py3-none-win_arm64"),
+        (os, architecture) => panic!("these tests do not name the platform {os} {architecture}"),
+    }
+}
+
+/// The short name `python.platforms` also accepts for the platform
+/// running the test, when one of them stands for it.
+fn running_platform_alias() -> Option<&'static str> {
+    match running_platform().0 {
+        "x86_64-manylinux_2_17" => Some("linux"),
+        "aarch64-apple-darwin" => Some("macos"),
+        "x86_64-pc-windows-msvc" => Some("windows"),
+        _ => None,
+    }
+}
+
+/// The platform running the test is always among these: an install
+/// refuses an interpreter no declared environment stands for.
+fn declared_platforms() -> Vec<(&'static str, &'static str)> {
+    let mut platforms = vec![running_platform()];
+    for platform in [
+        ("aarch64-apple-darwin", "py3-none-macosx_11_0_arm64"),
+        ("x86_64-pc-windows-msvc", "py3-none-win_amd64"),
+    ] {
+        if !platforms.contains(&platform) {
+            platforms.push(platform);
+        }
+    }
+    platforms
+}
+
 fn python(root: &Path) -> Command {
     Command::new(root.join(if cfg!(windows) {
         ".venv/Scripts/python.exe"
@@ -1085,6 +1173,210 @@ async fn disabled_python_and_tool_only_pyprojects_do_not_probe_an_interpreter() 
         .assert()
         .success();
     assert!(!root.path().join("pylock.toml").exists());
+}
+
+/// Blocker 3 of pnpm/pnpm#14945: a committed lockfile has to serve every
+/// machine that installs from it, not only the one that resolved it.
+#[tokio::test]
+async fn locks_every_declared_platform_into_one_lockfile() {
+    let root = tempfile::tempdir().unwrap();
+    let mut server = mockito::Server::new_async().await;
+    let platforms = declared_platforms();
+    let _alpha = serve(
+        &mut server,
+        "alpha",
+        &[("1.0", wheel("alpha", "1.0", "Requires-Dist: beta; sys_platform == 'win32'", &[]))],
+    )
+    .await;
+    let _beta = serve(&mut server, "beta", &[("1.0", wheel("beta", "1.0", "", &[]))]).await;
+    let _gamma = serve_wheels(
+        &mut server,
+        "gamma",
+        "1.0",
+        &platforms
+            .iter()
+            .map(|(_, tag)| *tag)
+            .collect::<Vec<_>>(),
+    )
+    .await;
+    project(root.path(), &server.url(), &["alpha>=1", "gamma>=1"]);
+    let mut declaration = String::new();
+    for (platform, _) in &platforms {
+        writeln!(declaration, "    - {platform}").unwrap();
+    }
+    add_python_settings(root.path(), &format!("  platforms:\n{declaration}"));
+
+    pacquet_in(root.path())
+        .arg("install")
+        .assert()
+        .success();
+
+    let lock = fs::read_to_string(root.path().join("pylock.toml")).unwrap();
+    eprintln!("LOCK:\n{lock}");
+    let parsed: toml::Value = toml::from_str(&lock).unwrap();
+    let environments = parsed["environments"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|marker| marker.as_str().unwrap())
+        .collect::<Vec<_>>();
+    assert_eq!(environments.len(), platforms.len());
+    assert!(
+        environments
+            .iter()
+            .any(|marker| marker.contains("sys_platform == 'win32'")
+                && marker.contains("platform_machine == 'AMD64'")),
+        "{environments:?}",
+    );
+    assert!(
+        environments
+            .iter()
+            .any(|marker| marker.contains("sys_platform == 'darwin'")
+                && marker.contains("platform_machine == 'arm64'")),
+        "{environments:?}",
+    );
+    let packages = parsed["packages"].as_array().unwrap();
+    let package = |name: &str| {
+        packages
+            .iter()
+            .find(|package| package["name"].as_str() == Some(name))
+            .unwrap_or_else(|| panic!("{name} is locked"))
+    };
+    assert!(package("alpha").get("marker").is_none(), "{:?}", package("alpha"));
+    assert!(
+        package("beta")["marker"]
+            .as_str()
+            .unwrap()
+            .contains("sys_platform == 'win32'"),
+        "{:?}",
+        package("beta"),
+    );
+    assert!(package("gamma").get("marker").is_none(), "{:?}", package("gamma"));
+    assert_eq!(
+        package("gamma")["wheels"]
+            .as_array()
+            .unwrap()
+            .len(),
+        platforms.len(),
+    );
+
+    python(root.path())
+        .args(["-c", "import alpha, gamma"])
+        .assert()
+        .success();
+    let beta = python(root.path())
+        .args(["-c", "import beta"])
+        .assert();
+    if cfg!(windows) {
+        beta.success();
+    } else {
+        beta.failure();
+    }
+
+    pnpm_fs::remove_symlink_dir(&root.path().join(".venv")).unwrap();
+    pacquet_in(root.path())
+        .args(["install", "--offline", "--frozen-lockfile"])
+        .assert()
+        .success();
+    assert_eq!(fs::read_to_string(root.path().join("pylock.toml")).unwrap(), lock);
+    python(root.path())
+        .args(["-c", "import alpha, gamma"])
+        .assert()
+        .success();
+}
+
+/// A lockfile resolved for declared environments says nothing about an
+/// interpreter none of them stand for.
+#[tokio::test]
+async fn refuses_an_interpreter_none_of_the_declared_environments_stand_for() {
+    let root = tempfile::tempdir().unwrap();
+    let mut server = mockito::Server::new_async().await;
+    let _alpha = serve(&mut server, "alpha", &[("1.0", wheel("alpha", "1.0", "", &[]))]).await;
+    project(root.path(), &server.url(), &["alpha>=1"]);
+    add_python_settings(root.path(), "  pythonVersions:\n    - '3.9'\n");
+
+    assert_failure_contains(
+        pacquet_in(root.path()).arg("install"),
+        "is not one of the environments this project locks for",
+    );
+}
+
+/// A name pnpm cannot resolve for is a typo, not a platform whose wheels
+/// are all missing.
+#[tokio::test]
+async fn rejects_a_platform_it_cannot_resolve_for() {
+    let cases = [
+        ("x86_64-linux", "pnpm does not know the Python platform x86_64-linux"),
+        (
+            "x86_64-manylinux_2_100000000",
+            "pnpm does not know the Python libc baseline manylinux_2_100000000",
+        ),
+        ("x86_64-musllinux_9_9", "pnpm does not know the Python libc baseline musllinux_9_9"),
+    ];
+    for (platform, expected) in cases {
+        eprintln!("platform {platform:?}");
+        let root = tempfile::tempdir().unwrap();
+        let mut server = mockito::Server::new_async().await;
+        let _alpha = serve(&mut server, "alpha", &[("1.0", wheel("alpha", "1.0", "", &[]))]).await;
+        project(root.path(), &server.url(), &["alpha>=1"]);
+        add_python_settings(root.path(), &format!("  platforms:\n    - {platform}\n"));
+
+        assert_failure_contains(pacquet_in(root.path()).arg("install"), expected);
+    }
+}
+
+/// Dropping a repeat leaves a lockfile that still answers the project:
+/// what it records is the environments it resolved, not the spellings.
+#[tokio::test]
+async fn locks_one_environment_per_platform_however_it_is_named() {
+    let root = tempfile::tempdir().unwrap();
+    let mut server = mockito::Server::new_async().await;
+    let (platform, tag) = running_platform();
+    let _alpha = serve_wheels(&mut server, "alpha", "1.0", &[tag]).await;
+    let alias = running_platform_alias();
+    let names = |repeated: bool| {
+        let mut declaration = String::new();
+        for _ in 0..if repeated { 2 } else { 1 } {
+            writeln!(declaration, "    - {platform}").unwrap();
+        }
+        if let Some(alias) = alias {
+            writeln!(declaration, "    - {alias}").unwrap();
+        }
+        format!("  platforms:\n{declaration}")
+    };
+    project(root.path(), &server.url(), &["alpha>=1"]);
+    add_python_settings(root.path(), &names(true));
+
+    pacquet_in(root.path())
+        .arg("install")
+        .assert()
+        .success();
+
+    let lock = fs::read_to_string(root.path().join("pylock.toml")).unwrap();
+    eprintln!("LOCK:\n{lock}");
+    let parsed: toml::Value = toml::from_str(&lock).unwrap();
+    assert_eq!(
+        parsed["environments"]
+            .as_array()
+            .unwrap()
+            .len(),
+        1,
+    );
+    assert_eq!(
+        parsed["tool"]["pnpm"]["platforms"]
+            .as_array()
+            .unwrap()
+            .len(),
+        1 + usize::from(alias.is_some()),
+    );
+
+    project(root.path(), &server.url(), &["alpha>=1"]);
+    add_python_settings(root.path(), &names(false));
+    pacquet_in(root.path())
+        .args(["install", "--offline", "--frozen-lockfile"])
+        .assert()
+        .success();
+    assert_eq!(fs::read_to_string(root.path().join("pylock.toml")).unwrap(), lock);
 }
 
 mod validation;

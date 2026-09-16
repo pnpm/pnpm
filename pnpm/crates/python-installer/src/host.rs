@@ -11,6 +11,10 @@ pub(super) struct Interpreter {
     /// wheel tags it accepts, in preference order.
     #[serde(flatten)]
     pub(super) target: Target,
+    /// What the environments the project declares resolve as, in the
+    /// order they were asked for. Empty when it declares none.
+    #[serde(default)]
+    pub(super) targets: Vec<Target>,
 }
 
 /// Everything the interpreter reports about a wheel: what resolution
@@ -29,6 +33,10 @@ pub(super) struct WheelMetadata {
 
 #[derive(Debug, Clone, Serialize)]
 pub(super) struct Wheel {
+    /// The name of the wheel file this was unpacked from, which says
+    /// which build of the version it is.
+    #[serde(skip)]
+    pub(super) filename: String,
     pub(super) files: BTreeMap<String, PathBuf>,
     pub(super) metadata: WheelMetadata,
 }

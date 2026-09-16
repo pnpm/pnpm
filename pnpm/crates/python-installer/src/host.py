@@ -28,13 +28,122 @@ def packaging_modules():
     return markers, tags
 
 
-def probe():
+def probe(request):
     markers, tags = packaging_modules()
+    environment = markers.default_environment()
+    running = [str(tag) for tag in tags.sys_tags()]
     return {
         "executable": sys.executable,
-        "environment": markers.default_environment(),
-        "tags": [str(tag) for tag in tags.sys_tags()],
+        "environment": environment,
+        "tags": running,
+        "targets": [declared_target(environment, running, entry) for entry in request.get("targets", [])],
     }
+
+
+# The oldest glibc, musl and macOS a declared environment is resolved for
+# when its name does not say. A wheel built for a newer one is not offered
+# to that environment.
+DEFAULT_LIBC = {"gnu": "manylinux_2_17", "musl": "musllinux_1_2"}
+MACOS_VERSION = (14, 0)
+PLATFORM_ALIASES = {
+    "linux": "x86_64-unknown-linux-gnu",
+    "macos": "aarch64-apple-darwin",
+    "windows": "x86_64-pc-windows-msvc",
+}
+# The glibc versions that also have a pre-PEP 600 tag, and the
+# architectures each of those tags was ever defined for.
+MANYLINUX_LEGACY = {5: "manylinux1", 12: "manylinux2010", 17: "manylinux2014"}
+LEGACY_ARCHITECTURES = {
+    "manylinux1": {"x86_64", "i686"},
+    "manylinux2010": {"x86_64", "i686"},
+    "manylinux2014": {"x86_64", "i686", "aarch64", "armv7l", "ppc64", "ppc64le", "s390x"},
+}
+# The libc series wheels are tagged for, with the oldest and newest release
+# of each a platform can name. A number outside them is a typo rather than a
+# baseline, and counting down from it would take unbounded time and memory.
+LIBC_BASELINES = {"manylinux": ("2", 5, 99), "musllinux": ("1", 0, 99)}
+# Python's wheel tags spell some architectures differently from the Rust
+# target triple that names the same machine.
+WHEEL_ARCHITECTURES = {"powerpc64": "ppc64", "powerpc64le": "ppc64le", "riscv64gc": "riscv64"}
+DARWIN_MACHINES = {"x86_64": "x86_64", "aarch64": "arm64"}
+WINDOWS_MACHINES = {"x86_64": ("AMD64", "win_amd64"), "aarch64": ("ARM64", "win_arm64"), "i686": ("x86", "win32")}
+
+
+def describe_platform(name):
+    """The marker variables a declared platform fixes, and the wheel platform tags it accepts."""
+    _, tags = packaging_modules()
+    architecture, separator, system = PLATFORM_ALIASES.get(name, name).partition("-")
+    architecture = WHEEL_ARCHITECTURES.get(architecture, architecture)
+    system = DEFAULT_LIBC.get(system.removeprefix("unknown-linux-"), system)
+    if separator and (system.startswith("manylinux_") or system.startswith("musllinux_")):
+        return linux_platform(architecture, system)
+    if system == "apple-darwin" and architecture in DARWIN_MACHINES:
+        machine = DARWIN_MACHINES[architecture]
+        variables = {"os_name": "posix", "sys_platform": "darwin", "platform_system": "Darwin", "platform_machine": machine}
+        return variables, [str(platform) for platform in tags.mac_platforms(MACOS_VERSION, machine)]
+    if system == "pc-windows-msvc" and architecture in WINDOWS_MACHINES:
+        machine, platform_tag = WINDOWS_MACHINES[architecture]
+        variables = {"os_name": "nt", "sys_platform": "win32", "platform_system": "Windows", "platform_machine": machine}
+        return variables, [platform_tag]
+    raise ValueError("pnpm does not know the Python platform " + name)
+
+
+def linux_platform(architecture, libc):
+    """A glibc or musl Linux platform, with every libc release its wheels may be built against."""
+    kind, major, minor = libc.rsplit("_", 2)
+    series = LIBC_BASELINES[kind]
+    if major != series[0] or not minor.isdigit() or not series[1] <= int(minor) <= series[2]:
+        raise ValueError("pnpm does not know the Python libc baseline " + libc)
+    platforms = []
+    oldest = series[1]
+    for release in range(int(minor), oldest - 1, -1):
+        platforms.append("%s_%s_%d_%s" % (kind, major, release, architecture))
+        legacy = MANYLINUX_LEGACY.get(release) if kind == "manylinux" and major == "2" else None
+        if legacy and architecture in LEGACY_ARCHITECTURES[legacy]:
+            platforms.append(legacy + "_" + architecture)
+    platforms.append("linux_" + architecture)
+    variables = {"os_name": "posix", "sys_platform": "linux", "platform_system": "Linux", "platform_machine": architecture}
+    return variables, platforms
+
+
+def declared_target(running_environment, running_tags, entry):
+    """What one environment the project declares resolves as: its markers and the wheels it takes.
+
+    A declared environment is a CPython interpreter on a named platform.
+    A platform pnpm never runs on reports no kernel release or build.
+    """
+    _, tags = packaging_modules()
+    platform_name, version = entry.get("platform"), entry.get("python")
+    if platform_name is None and version is None:
+        return {"environment": running_environment, "tags": running_tags}
+    environment = dict(running_environment)
+    if platform_name is None:
+        # "any" is not a platform: compatible_tags adds the tags carrying it.
+        running_platforms = (tag.rsplit("-", 1)[-1] for tag in running_tags)
+        platforms = list(dict.fromkeys(tag for tag in running_platforms if tag != "any"))
+    else:
+        variables, platforms = describe_platform(platform_name)
+        environment.update(variables, platform_release="", platform_version="")
+    if version is None:
+        release = tuple(int(part) for part in running_environment["python_version"].split("."))[:2]
+    else:
+        parts = version.split(".")
+        if len(parts) not in (2, 3) or not all(part.isdigit() for part in parts):
+            raise ValueError("a Python version pnpm locks for reads 3.12 or 3.12.7, not " + version)
+        release = (int(parts[0]), int(parts[1]))
+        environment.update(
+            python_version="%d.%d" % release,
+            python_full_version=version if len(parts) == 3 else version + ".0",
+            implementation_version=version if len(parts) == 3 else version + ".0",
+        )
+    environment.update(implementation_name="cpython", platform_python_implementation="CPython")
+    interpreter = "cp%d%d" % release
+    # The stable ABI of a release: CPython before 3.8 carries the pymalloc
+    # flag in its tag, and a free-threaded build is one pnpm cannot be asked for.
+    abi = interpreter + "m" if release < (3, 8) else interpreter
+    declared = list(tags.cpython_tags(python_version=release, abis=[abi], platforms=platforms))
+    declared += list(tags.compatible_tags(python_version=release, interpreter=interpreter, platforms=platforms))
+    return {"environment": environment, "tags": [str(tag) for tag in declared]}
 
 
 def read_headers(files, name):
@@ -234,5 +343,5 @@ def install(request):
 
 
 request = json.load(sys.stdin)
-result = {"probe": probe, "inspect": lambda: inspect_wheel(request), "install": lambda: install(request)}[sys.argv[1]]()
+result = {"probe": probe, "inspect": inspect_wheel, "install": install}[sys.argv[1]](request)
 json.dump(result, sys.stdout)

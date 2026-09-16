@@ -8,6 +8,7 @@ mod lockfile;
 mod manifest;
 mod registry;
 mod resolver;
+mod targets;
 
 use base64::{Engine as _, engine::general_purpose::STANDARD};
 use environment::{
@@ -22,11 +23,12 @@ use pnpm_reporter::{GlobalLog, LogEvent, LogLevel, Reporter};
 use pnpm_store_dir::{StoreIndex, StoreIndexWriter};
 use registry::Registry;
 use std::{
-    collections::BTreeMap,
+    collections::{BTreeMap, BTreeSet},
     fs, io,
     path::{Path, PathBuf},
     sync::Arc,
 };
+use targets::Environments;
 
 /// Inputs shared by the Python projects participating in one install plan.
 #[derive(Clone)]
@@ -73,16 +75,17 @@ async fn prepare<Reporter: self::Reporter + 'static>(
         return Ok(Vec::new());
     }
     let interpreter: Interpreter =
-        host::run(&config.python.executable, "probe", serde_json::json!({})).await?;
-    let (index, auth) = python_index(config)?;
+        host::run(&config.python.executable, "probe", targets::probe_request(config)).await?;
+    let environments = Environments::of(config, &interpreter)?;
+    let index = python_index(config)?;
     config.store_dir.init().into_diagnostic()?;
     let store_index = StoreIndex::shared_for(&config.store_dir, config.frozen_store);
     let (writer, writer_task) = StoreIndexWriter::spawn_for(&config.store_dir, config.frozen_store);
     let prepare = PythonPrepare {
         context: &context,
         interpreter: &interpreter,
+        environments: &environments,
         index: &index,
-        auth: &auth,
         store_index,
         writer: &writer,
         resolve,
@@ -132,10 +135,18 @@ async fn read_project_manifests(
     Ok(roots)
 }
 
+/// The Python index a project resolves against. Credentials the
+/// configured URL carried are lifted into `auth`, so `url` never holds
+/// any: it is cached under, and locked as, what it reads.
+pub(crate) struct Index {
+    pub(crate) url: url::Url,
+    pub(crate) auth: pnpm_network::AuthHeaders,
+}
+
 /// The configured Python index, with any credentials it carries lifted out
 /// of the URL. A repository-selected Python index must not select
 /// user-level npm credentials.
-fn python_index(config: &pnpm_config::Config) -> Result<(url::Url, pnpm_network::AuthHeaders)> {
+fn python_index(config: &pnpm_config::Config) -> Result<Index> {
     let mut index: url::Url = config.python.index_url.parse().into_diagnostic()?;
     let mut auth = pnpm_network::AuthHeaders::default().with_secure_transport();
     if !index.username().is_empty() || index.password().is_some() {
@@ -156,7 +167,7 @@ fn python_index(config: &pnpm_config::Config) -> Result<(url::Url, pnpm_network:
     if !index.path().ends_with('/') {
         index.set_path(&format!("{}/", index.path()));
     }
-    Ok((index, auth))
+    Ok(Index { url: index, auth })
 }
 
 impl PythonPrepare<'_> {
@@ -169,7 +180,7 @@ impl PythonPrepare<'_> {
         let project = manifest.project.as_ref().expect("only project manifests were selected");
         self.check_requires_python(&root, project.requires_python.as_deref())?;
         let requirements = manifest.requirements(config, manifest::DependencySelection::ALL)?;
-        let inputs = Inputs::new(&requirements, &self.interpreter.target, self.index.as_str());
+        let inputs = self.inputs(&requirements);
         let mut registry = self.registry();
         let lock_path = root.join("pylock.toml");
         let existing =
@@ -204,13 +215,29 @@ impl PythonPrepare<'_> {
         })
     }
 
+    /// What this install's resolution depends on, which is what decides
+    /// whether the lockfile on disk still answers it.
+    fn inputs(&self, requirements: &[pep508_rs::Requirement]) -> Inputs {
+        if self.environments.declared {
+            Inputs::declared(
+                requirements,
+                &self.environments.platforms,
+                &self.environments.python_versions,
+                self.index.url.as_str(),
+            )
+        } else {
+            Inputs::new(requirements, &self.interpreter.target, self.index.url.as_str())
+        }
+    }
+
     fn registry(&self) -> Registry<'_> {
         Registry {
             config: self.context.config,
             client: &self.context.http_client,
-            auth: self.auth.clone(),
-            index: self.index.clone(),
+            index: self.index,
             interpreter: self.interpreter,
+            resolution: registry::Resolution::new(self.interpreter.target.clone()),
+            downloaded: BTreeSet::new(),
             store: pnpm_tarball::ArchiveStoreContext {
                 dir: &self.context.config.store_dir,
                 index: self.store_index.clone(),
@@ -220,24 +247,26 @@ impl PythonPrepare<'_> {
                 verified_files_cache: Arc::default(),
                 prefetched_cas_paths: None,
             },
-            packages: pnpm_python_resolver::Packages::new(),
             wheels: BTreeMap::new(),
         }
     }
 
-    /// A project that pins an interpreter range cannot be installed with an
-    /// interpreter outside it.
+    /// A project that pins an interpreter range cannot be locked for an
+    /// environment outside it, which for a project that declares none is
+    /// the interpreter running the install.
     fn check_requires_python(&self, root: &Path, requires_python: Option<&str>) -> Result<()> {
         let Some(specifiers) = requires_python else {
             return Ok(());
         };
         let specifiers: pep440_rs::VersionSpecifiers = specifiers.parse().into_diagnostic()?;
-        if !specifiers.contains(self.interpreter.target.environment.python_full_version()) {
-            bail!(
-                "{} requires Python {specifiers}, but {} was selected",
-                root.display(),
-                self.interpreter.target.environment.python_full_version(),
-            );
+        for environment in &self.environments.list {
+            let version = environment.target.environment.python_full_version();
+            if !specifiers.contains(version) {
+                bail!(
+                    "{} requires Python {specifiers}, but {version} was selected",
+                    root.display(),
+                );
+            }
         }
         Ok(())
     }
@@ -267,9 +296,10 @@ impl PythonPrepare<'_> {
             .prefix("env-")
             .tempdir_in(&generations)
             .into_diagnostic()?;
-        registry.packages.candidates.clear();
-        lock.seed(&mut registry.packages)?;
-        let selected = resolver::locked_solution(registry, selected_requirements)?;
+        registry.resolution.answer_for(self.interpreter.target.clone());
+        lock.seed(&mut registry.resolution.packages, &self.interpreter.target)?;
+        registry.fetch_wheels::<Reporter>().await?;
+        let selected = resolver::locked_solution(&registry.resolution, selected_requirements)?;
         let wheels = selected
             .into_iter()
             .map(|package| &registry.wheels[&package])

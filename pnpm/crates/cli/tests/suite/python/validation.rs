@@ -467,7 +467,7 @@ async fn frozen_lockfile_rejects_wheels_the_target_cannot_install() {
     );
     assert_failure_contains(
         pacquet_in(root.path()).args(["install", "--offline", "--frozen-lockfile"]),
-        "Python wheel is incompatible with this interpreter: alpha-1.0-cp27-cp27m-win32.whl",
+        "the Python lockfile pins no wheel of alpha==1.0 this interpreter can install",
     );
     assert_eq!(fs::read_to_string(root.path().join("pylock.toml")).unwrap(), foreign);
     assert_eq!(environment, pnpm_fs::read_symlink_dir(&root.path().join(".venv")).unwrap());

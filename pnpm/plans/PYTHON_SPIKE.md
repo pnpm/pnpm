@@ -15,6 +15,8 @@ python:
   indexUrl: https://pypi.org/simple/
   extras: []
   groups: [dev]
+  platforms: []
+  pythonVersions: []
 ```
 
 On Windows the default executable is `python`. The interpreter needs `venv`
@@ -83,23 +85,72 @@ without changing the complete lockfile. `--lockfile-only` creates no environment
 - `pnpm run` and `pnpm exec` add environment executables to PATH only when
   Python is enabled. npm-only installs retain the early dispatch path.
 
+## The environments a lockfile covers
+
+`platforms` and `pythonVersions` name the environments `pylock.toml` is
+resolved for. Every platform is paired with every Python version, and a list
+left empty is the platform or the Python version of the interpreter running
+the install. Declaring neither locks for that interpreter alone.
+
+A platform names an architecture and a system, either as a Rust target
+triple or as an architecture and the libc baseline its wheels are built
+against. `linux`, `macos` and `windows` are short names for the most common
+three:
+
+```yaml
+python:
+  enabled: true
+  platforms:
+    - x86_64-manylinux_2_28
+    - aarch64-apple-darwin
+    - x86_64-pc-windows-msvc
+  pythonVersions: ['3.12', '3.13']
+```
+
+A declared environment is a CPython interpreter built against the standard
+ABI. A triple ending in
+`-unknown-linux-gnu`, and `linux`, are resolved against glibc 2.17;
+`-unknown-linux-musl` against musl 1.2; an Apple platform against macOS 14.0.
+
+A Python version written as a minor version is resolved as that minor's first
+release, which is the oldest interpreter the environment covers. A release
+that requires a later patch release is therefore not locked for it, and a
+project that wants one names the version in full. A requirement whose marker
+reads a patch release is refused outright rather than locked for part of the
+series.
+
+An install refuses an interpreter none of the declared environments stand
+for: which packages that interpreter installs, and which wheels it takes, are
+exactly what a declared environment answers. Declared environments are
+resolved locally rather than through a pnpr server, which answers for one
+interpreter.
+
 ## Lockfile contract
 
 The standard [PEP 751 pylock format](https://packaging.python.org/en/latest/specifications/pylock-toml/)
-stays separate from `pnpm-lock.yaml`. This implementation writes a lockfile
-resolved for one target, with one compatible wheel per distribution.
-`[tool.pnpm]` records the resolver inputs, including the marker environment and
-wheel tags the lockfile was resolved for. The `environments` marker names the interpreter
-version and the marker variables the solved graph reads, which is what a PEP 751
-installer checks before installing it. The version is the minor one unless a
-locked package's `Requires-Python` tells patch releases apart.
+stays separate from `pnpm-lock.yaml`. A lockfile pins the wheel every
+environment it covers takes for each distribution, and carries the marker
+saying which of them install it; a package every environment installs carries
+none. `[tool.pnpm]` records the resolver inputs, including the declared
+environments, or the marker environment and wheel tags of the interpreter a
+project that declares none was resolved for. Each `environments` marker names
+the interpreter version, the marker variables the solved graph reads, and
+whatever a declared environment fixes, which is what a PEP 751 installer
+checks before installing it. For the running interpreter the version is the
+minor one unless a locked package's `Requires-Python` tells patch releases
+apart.
 
-A lockfile is replayed on any target that still installs it: the requirements,
-index and `requires-python` must be the ones it was resolved for, every pinned
-wheel must carry tags the interpreter accepts, and the locked graph must be
-exactly what the interpreter's markers select. The recorded environment is not
-compared, so a kernel update or a different tag order does not invalidate the
-lockfile, while a requirement gated on `platform_release` still does when the
+A declared environment answers for a platform and a Python version and
+nothing else. A requirement whose marker it leaves undecided, a kernel
+release among them, is refused rather than locked under a claim the
+resolution did not make.
+
+A lockfile is replayed on any target that still installs it: the
+requirements, index and `requires-python` must be the ones it was resolved
+for, every package the interpreter's markers select must pin a wheel carrying
+tags it accepts, and the locked graph must be exactly what those markers
+select. The recorded environment is not compared, so a kernel update or a
+different tag order does not invalidate the lockfile, while a requirement gated on `platform_release` still does when the
 markers now select another graph. A lockfile whose graph no longer matches is
 resolved again with a warning, and so is one resolved for another target that
 pins a wheel the install cannot fetch; under `--frozen-lockfile` both are
@@ -139,10 +190,16 @@ This covers the same vertical integration surfaces as the current Cargo
 implementation, not all pip or uv functionality. It supports registry wheels
 and static project dependencies. Source builds, editable/local/git/URL
 requirements, Python installation, dynamic dependency metadata, HTML-only
-indexes, pip configuration/keyring discovery, universal multi-target locking
-and recursive/filtered add are not implemented. Existing lockfiles must use
-pnpm's supported single-target contract; arbitrary third-party pylock imports
-are not supported. Unsupported forms fail explicitly.
+indexes, pip configuration/keyring discovery and recursive/filtered add are
+not implemented. The environments a lockfile covers are resolved one at a
+time rather than forked out of one universal solve, so two environments no
+marker tells apart cannot need different versions of a distribution.
+A release's requirements are read once for the version, from the first wheel
+of it that pnpm downloads, so a release whose wheels carry different
+`Requires-Dist` or `Requires-Python` is locked from whichever of them that
+was. Existing lockfiles must use pnpm's supported contract; arbitrary
+third-party pylock imports are not supported. Unsupported forms fail
+explicitly.
 
 The project's own package is installed from the layout its manifest declares,
 not from a build backend's `build_editable` hook, so a backend that computes
@@ -160,8 +217,8 @@ just ready
 CLI tests use real commands and interpreters. Coverage includes mixed
 npm/Cargo/Python installation, imports and console scripts, backtracking,
 cycles, extras/markers, group inclusion errors, independent projects,
-frozen/offline/prod replay, add freshness and formatting, failed mixed-add
-rollback, archive/RECORD corruption, lockfile closure tampering, unmanaged
+frozen/offline/prod replay, locking for several platforms at once, add
+freshness and formatting, failed mixed-add rollback, archive/RECORD corruption, lockfile closure tampering, unmanaged
 environments, symlinked generation parents and disabled fast paths.
 CI explicitly provisions Python instead of skipping tests when it is absent.
 

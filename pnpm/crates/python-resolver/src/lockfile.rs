@@ -1,23 +1,19 @@
-use crate::{
-    candidates::{parse_requirement, wheel_identity},
-    packages::{Candidate, Packages},
-    requires_python::declared_range,
-};
-use miette::{IntoDiagnostic, Result, bail};
-use pep440_rs::{Operator, Version, VersionSpecifiers};
-use pep508_rs::{MarkerEnvironment, MarkerTree, MarkerTreeKind, PackageName, Requirement};
-use serde::{Deserialize, Serialize};
-use std::collections::{BTreeMap, BTreeSet};
+pub use environments::{Metadata, Solved, Target, environment_marker};
+pub use inputs::Inputs;
 
-/// What a resolution is for: the interpreter's marker environment and the
-/// wheel tags it accepts, in the order it prefers them. Both come from the
-/// interpreter that will run the environment. A lockfile records the pair
-/// it was resolved for and replays on any target that still installs it.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct Target {
-    pub environment: MarkerEnvironment,
-    pub tags: Vec<String>,
-}
+mod environments;
+mod inputs;
+
+use crate::{
+    candidates::{WheelFilename, wheel_identity},
+    packages::{Candidate, Packages},
+};
+use environments::{check_environment_decides, referenced_marker_keys};
+use miette::{IntoDiagnostic, Result, WrapErr, bail};
+use pep440_rs::Version;
+use pep508_rs::{MarkerEnvironment, MarkerTree, PackageName, Requirement};
+use serde::{Deserialize, Serialize};
+use std::collections::BTreeMap;
 
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case", deny_unknown_fields)]
@@ -37,52 +33,52 @@ pub struct ToolMetadata {
     pub pnpm: Inputs,
 }
 
-/// Everything a resolution depended on: what the project asked for, and
-/// the target it was answered for. A server's answer is accepted only
-/// when it was for exactly these; a lockfile on disk is replayed on
-/// whatever target still installs it — see [`Lockfile::applies_to`].
-#[derive(Debug, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "kebab-case", deny_unknown_fields)]
-pub struct Inputs {
-    requirements: Vec<String>,
-    environment: MarkerEnvironment,
-    tags: Vec<String>,
-    index: String,
-}
-
-impl Inputs {
-    pub fn set_requirements(&mut self, requirements: &[Requirement]) {
-        self.requirements = requirements
-            .iter()
-            .map(ToString::to_string)
-            .collect();
-        self.requirements.sort();
-        self.requirements.dedup();
-    }
-
-    #[must_use]
-    pub fn new(requirements: &[Requirement], target: &Target, index: &str) -> Self {
-        let mut requirements = requirements
-            .iter()
-            .map(ToString::to_string)
-            .collect::<Vec<_>>();
-        requirements.sort();
-        requirements.dedup();
-        Self {
-            requirements,
-            environment: target.environment.clone(),
-            tags: target.tags.clone(),
-            index: index.to_string(),
-        }
-    }
-}
-
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct LockedPackage {
     pub name: PackageName,
     pub version: Version,
+    /// Which of the lockfile's environments install the package, left out
+    /// when all of them do.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub marker: Option<String>,
     pub wheels: Vec<LockedWheel>,
+}
+
+impl LockedPackage {
+    /// Whether an environment installs this package at all.
+    fn selected_by(&self, environment: &MarkerEnvironment) -> Result<bool> {
+        let Some(marker) = &self.marker else { return Ok(true) };
+        let marker: MarkerTree = marker
+            .parse()
+            .into_diagnostic()
+            .wrap_err_with(|| format!("read the marker of Python package {}", self.name))?;
+        Ok(marker.evaluate(environment, &[]))
+    }
+
+    /// The wheel a target installs, of the ones the lockfile pins for the
+    /// package. Every pinned wheel has to be a file of this package; the
+    /// target then takes whichever of them it prefers.
+    fn installable_wheel(&self, target: &Target) -> Result<&LockedWheel> {
+        let mut installable: Option<(usize, &LockedWheel)> = None;
+        for wheel in &self.wheels {
+            wheel.integrity()?;
+            let filename = wheel.filename(&self.name, &self.version)?;
+            let Some(rank) = filename.rank(&target.tags) else { continue };
+            if installable.is_none_or(|(preferred, _)| rank < preferred) {
+                installable = Some((rank, wheel));
+            }
+        }
+        installable
+            .map(|(_, wheel)| wheel)
+            .ok_or_else(|| {
+                miette::miette!(
+                    "the Python lockfile pins no wheel of {}=={} this interpreter can install",
+                    self.name,
+                    self.version,
+                )
+            })
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -94,6 +90,20 @@ pub struct LockedWheel {
 }
 
 impl LockedWheel {
+    /// Read the wheel's filename, refusing a file that is not a wheel of
+    /// `name==version`: what a lockfile pins under a package has to be
+    /// that package.
+    fn filename(&self, name: &PackageName, version: &Version) -> Result<WheelFilename> {
+        let filename = WheelFilename::parse(&self.name)?
+            .ok_or_else(|| {
+                miette::miette!("Python lockfile pins a file that is not a wheel: {}", self.name)
+            })?;
+        if filename.name != *name || filename.version != *version {
+            bail!("Python lockfile wheel identity mismatch: {}", self.name);
+        }
+        Ok(filename)
+    }
+
     /// Refuse a wheel that is not `name==version` in a build `tags`
     /// accept: what a lockfile pins under a package has to be that
     /// package, and installable where it is being replayed.
@@ -127,15 +137,7 @@ impl LockedWheel {
 }
 
 impl Lockfile {
-    /// The lockfile a solved project produces: one wheel per package, the
-    /// markers it was solved under, and the inputs that chose it.
-    ///
-    /// The `environments` marker names the interpreter version and every
-    /// marker variable a requirement in the solved graph reads. Those are
-    /// the parts of the target the solution can depend on, so a PEP 751
-    /// installer refuses the lockfile where they differ and nowhere else.
-    /// The version is the minor one, unless a locked package's
-    /// `Requires-Python` tells patch releases of it apart.
+    /// The lockfile one solved environment produces.
     pub fn new(
         packages: &Packages,
         target: &Target,
@@ -144,45 +146,61 @@ impl Lockfile {
         inputs: Inputs,
         requires_python: Option<String>,
     ) -> Result<Self> {
-        let referenced =
-            referenced_marker_keys(packages, requirements, &solution, &target.environment)?;
-        let environment = serde_json::to_value(&target.environment).into_diagnostic()?;
-        let marker = environment
-            .as_object()
-            .expect("marker environment serializes to an object")
+        let solved = Solved::new(target.clone(), solution, packages, Vec::new())?;
+        Self::merged(&packages.metadata, requirements, &[solved], inputs, requires_python)
+    }
+
+    /// The lockfile the solved environments produce together: every
+    /// package any of them installs, each pinning the wheels those
+    /// environments take and carrying the marker that says which of them
+    /// install it.
+    ///
+    /// An environment's marker names the interpreter version, the marker
+    /// variables the solved graph reads, and whatever a declared
+    /// environment pins. Those are the parts of a target a solution can
+    /// depend on, so a PEP 751 installer refuses the lockfile where they
+    /// differ and nowhere else. For the running interpreter the version
+    /// is the minor one, unless a locked package's `Requires-Python`
+    /// tells patch releases apart.
+    pub fn merged(
+        metadata: &Metadata,
+        requirements: &[Requirement],
+        solved: &[Solved],
+        inputs: Inputs,
+        requires_python: Option<String>,
+    ) -> Result<Self> {
+        let referenced = referenced_marker_keys(metadata, requirements, solved)?;
+        let environments = solved
             .iter()
-            .filter(|(key, _)| referenced.contains(key.as_str()))
-            .map(|(key, value)| {
-                let value = value.as_str().expect("marker environment values are strings");
-                if value.contains(['\'', '"', '\n', '\r']) {
-                    bail!(
-                        "Python environment value cannot be represented as a lockfile marker: {key}",
-                    );
-                }
-                Ok(format!("{key} == '{value}'"))
-            })
-            .collect::<Result<Vec<_>>>()?
-            .join(" and ");
+            .map(|environment| environment.marker(&referenced, metadata))
+            .collect::<Result<Vec<_>>>()?;
+        let markers = environments
+            .iter()
+            .map(|marker| marker.parse::<MarkerTree>().into_diagnostic())
+            .collect::<Result<Vec<_>>>()?;
+        for ((environment, marker), written) in solved
+            .iter()
+            .zip(&markers)
+            .zip(&environments)
+        {
+            if !environment.declared.is_empty() {
+                check_environment_decides(environment, marker, written, metadata, requirements)?;
+            }
+        }
         Ok(Self {
             lock_version: "1.0".to_string(),
             created_by: "pnpm".to_string(),
-            environments: vec![marker],
+            packages: merge_packages(solved, &markers)?,
+            environments,
             requires_python,
-            packages: solution
-                .into_iter()
-                .map(|(name, version)| {
-                    let wheel = packages.candidates[&name][&version].wheel.clone();
-                    LockedPackage { name, version, wheels: vec![wheel] }
-                })
-                .collect(),
             tool: ToolMetadata { pnpm: inputs },
         })
     }
 
     /// Refuse to replay this lockfile for a project or on a target it
-    /// does not cover: the requirements or index it was resolved for
-    /// changed, the interpreter range did, or a wheel it pins is one this
-    /// target cannot install.
+    /// does not cover: the requirements, index or declared environments
+    /// it was resolved for changed, the interpreter range did, or it pins
+    /// no wheel this target can install for a package this target needs.
     ///
     /// The markers it was resolved under are not compared. A wheel that
     /// installs here is the same wheel wherever it was chosen, and
@@ -196,40 +214,36 @@ impl Lockfile {
         requires_python: Option<&str>,
         target: &Target,
     ) -> Result<()> {
-        if self.tool.pnpm.requirements != inputs.requirements {
-            bail!("the project's Python requirements changed");
-        }
-        if self.tool.pnpm.index != inputs.index {
-            bail!("the Python index changed");
+        if let Some(reason) = self.tool.pnpm.differs_from(inputs) {
+            bail!("{reason}");
         }
         if self.requires_python.as_deref() != requires_python {
             bail!("the project's requires-python changed");
         }
-        for package in &self.packages {
-            for wheel in &package.wheels {
-                wheel.check_installable(&target.tags, &package.name, &package.version)?;
-            }
+        for package in self.selected_packages(&target.environment)? {
+            package.installable_wheel(target)?;
         }
         Ok(())
     }
 
     /// Load this lockfile's packages as the only candidates a resolution
     /// may pick, so a locked install solves to exactly what was locked.
-    pub fn seed(&self, packages: &mut Packages) -> Result<()> {
+    /// A lockfile covering several environments is narrowed to the one
+    /// being installed: a package another environment installs is not a
+    /// candidate here, and the wheel taken for each package is the one
+    /// this target prefers.
+    pub fn seed(&self, packages: &mut Packages, target: &Target) -> Result<()> {
         if self.lock_version != "1.0" {
             bail!("unsupported Python lock-version: {}", self.lock_version);
         }
-        for package in &self.packages {
-            let [wheel] = package.wheels.as_slice() else {
-                bail!("pnpm requires one target-compatible wheel per locked Python package")
-            };
-            wheel.integrity()?;
+        for package in self.selected_packages(&target.environment)? {
+            let wheel = package.installable_wheel(target)?.clone();
             if packages.candidates
                 .insert(
                     package.name.clone(),
                     BTreeMap::from([(
                         package.version.clone(),
-                        Candidate { wheel: wheel.clone(), core_metadata: None },
+                        Candidate { wheel, core_metadata: None },
                     )]),
                 )
                 .is_some()
@@ -239,132 +253,79 @@ impl Lockfile {
         }
         Ok(())
     }
+
+    fn selected_packages(&self, environment: &MarkerEnvironment) -> Result<Vec<&LockedPackage>> {
+        self.packages
+            .iter()
+            .filter_map(|package| {
+                package
+                    .selected_by(environment)
+                    .map(|selected| selected.then_some(package))
+                    .transpose()
+            })
+            .collect()
+    }
 }
 
-/// The marker variables the solved graph reads, plus the interpreter
-/// version: the variables in the markers of the root requirements and of
-/// every solved package's `Requires-Dist`, which are all a target
-/// contributes to the solution besides the wheels it accepts.
-fn referenced_marker_keys(
-    packages: &Packages,
-    requirements: &[Requirement],
-    solution: &BTreeMap<PackageName, Version>,
-    environment: &MarkerEnvironment,
-) -> Result<BTreeSet<String>> {
-    let mut keys = BTreeSet::from(["python_version".to_string()]);
-    for requirement in requirements {
-        collect_marker_keys(&requirement.marker, &mut keys);
-    }
-    for (name, version) in solution {
-        let metadata = packages.metadata
-            .get(&(name.clone(), version.clone()))
-            .ok_or_else(|| {
-                miette::miette!("solved Python package {name} {version} was never read")
-            })?;
-        for requirement in &metadata.requires_dist {
-            collect_marker_keys(&parse_requirement(requirement)?.marker, &mut keys);
-        }
-        if let Some(specifiers) = metadata.requires_python.as_deref().and_then(declared_range)
-            && !admits_every_patch_release(&specifiers, &environment.python_full_version().version)
-        {
-            keys.insert("python_full_version".to_string());
+/// Every package the solved environments install, with the wheels they
+/// take and the marker saying which of them install it. A package all of
+/// them install carries no marker: the lockfile's `environments` already
+/// says where it is installed.
+fn merge_packages(solved: &[Solved], markers: &[MarkerTree]) -> Result<Vec<LockedPackage>> {
+    let mut merged =
+        BTreeMap::<(PackageName, Version), (MarkerTree, BTreeMap<String, LockedWheel>)>::new();
+    let mut scope = MarkerTree::FALSE;
+    for (environment, marker) in solved.iter().zip(markers) {
+        scope.or(marker.clone());
+        for (name, version) in &environment.solution {
+            let wheel = environment.wheels
+                .get(name)
+                .ok_or_else(|| miette::miette!("solved Python package {name} pins no wheel"))?;
+            let entry = merged
+                .entry((name.clone(), version.clone()))
+                .or_insert_with(|| (MarkerTree::FALSE, BTreeMap::new()));
+            entry.0.or(marker.clone());
+            entry.1.insert(wheel.name.clone(), wheel.clone());
         }
     }
-    Ok(keys)
-}
-
-/// Whether `specifiers`, which `running` satisfies, admit every patch
-/// release of the minor version `running` belongs to. When they do, the
-/// minor version says everything they can about a target; when they do
-/// not, only the full version does. A bound in another minor version
-/// cannot split this one; one in this minor version does unless it is
-/// the minor version itself, taken whole.
-fn admits_every_patch_release(specifiers: &VersionSpecifiers, running: &Version) -> bool {
-    let minor = |version: &Version| {
-        let release = version.release();
-        [release.first().copied().unwrap_or(0), release.get(1).copied().unwrap_or(0)]
-    };
-    let running_minor = minor(running);
-    specifiers
-        .iter()
-        .all(|specifier| {
-            if minor(specifier.version()) != running_minor {
-                return true;
-            }
-            if significant_release_segments(specifier) > 2 {
-                return false;
-            }
-            matches!(
-                specifier.operator(),
-                Operator::GreaterThanEqual
-                    | Operator::TildeEqual
-                    | Operator::EqualStar
-                    | Operator::NotEqualStar
-                    | Operator::LessThan,
-            )
+    let packages = merged
+        .into_iter()
+        .map(|((name, version), (marker, wheels))| LockedPackage {
+            name,
+            version,
+            marker: (marker != scope).then(|| marker.try_to_string()).flatten(),
+            wheels: wheels.into_values().collect(),
         })
+        .collect::<Vec<_>>();
+    check_one_version_per_environment(&packages)?;
+    Ok(packages)
 }
 
-/// How many release segments of a specifier's version can tell versions
-/// apart. PEP 440 zero-pads the ordered comparisons, so `>=3.12.0` is
-/// `>=3.12`; a wildcard keeps every segment, so `==3.12.0.*` is not
-/// `==3.12.*`; a compatible release is its lower bound and the wildcard
-/// on all but its last segment, so `~=3.12.0.0` is `==3.12.0.*`.
-fn significant_release_segments(specifier: &pep440_rs::VersionSpecifier) -> usize {
-    let release = specifier.version().release();
-    let zero_padded = release
-        .iter()
-        .rposition(|&segment| segment != 0)
-        .map_or(0, |last| last + 1);
-    match specifier.operator() {
-        Operator::EqualStar | Operator::NotEqualStar => release.len(),
-        Operator::TildeEqual => zero_padded.max(release.len() - 1),
-        _ => zero_padded,
+/// Refuse a lockfile that offers an environment two versions of the same
+/// distribution. A PEP 751 installer picks packages by name and marker,
+/// so two entries an environment both selects leave it no answer.
+fn check_one_version_per_environment(packages: &[LockedPackage]) -> Result<()> {
+    for (position, package) in packages.iter().enumerate() {
+        for other in &packages[position + 1..] {
+            if other.name != package.name {
+                continue;
+            }
+            if !marker_tree(package)?.is_disjoint(&marker_tree(other)?) {
+                bail!(
+                    "the environments this project locks for need {} at both {} and {}, \
+                     and nothing in their markers tells them apart",
+                    package.name,
+                    package.version,
+                    other.version,
+                );
+            }
+        }
     }
+    Ok(())
 }
 
-fn collect_marker_keys(marker: &MarkerTree, keys: &mut BTreeSet<String>) {
-    let (key, children) = marker_node(marker);
-    keys.extend(key);
-    for child in &children {
-        collect_marker_keys(child, keys);
-    }
-}
-
-/// The environment variable a marker node reads, when it reads one, and
-/// the nodes below it.
-fn marker_node(marker: &MarkerTree) -> (Option<String>, Vec<MarkerTree>) {
-    match marker.kind() {
-        MarkerTreeKind::True | MarkerTreeKind::False => (None, Vec::new()),
-        MarkerTreeKind::Version(node) => (
-            Some(node.key().to_string()),
-            node.edges()
-                .map(|(_, child)| child)
-                .collect(),
-        ),
-        MarkerTreeKind::String(node) => (
-            Some(node.key().to_string()),
-            node.children()
-                .map(|(_, child)| child)
-                .collect(),
-        ),
-        MarkerTreeKind::In(node) => (
-            Some(node.key().to_string()),
-            node.children()
-                .map(|(_, child)| child)
-                .collect(),
-        ),
-        MarkerTreeKind::Contains(node) => (
-            Some(node.key().to_string()),
-            node.children()
-                .map(|(_, child)| child)
-                .collect(),
-        ),
-        MarkerTreeKind::Extra(node) => (
-            None,
-            node.children()
-                .map(|(_, child)| child)
-                .collect(),
-        ),
-    }
+fn marker_tree(package: &LockedPackage) -> Result<MarkerTree> {
+    package.marker
+        .as_deref()
+        .map_or(Ok(MarkerTree::TRUE), |marker| marker.parse().into_diagnostic())
 }

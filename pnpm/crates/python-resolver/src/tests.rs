@@ -1,6 +1,6 @@
 use crate::{
     candidates::{candidates_from_page, wheel_identity},
-    lockfile::{Inputs, Lockfile, Target},
+    lockfile::{Inputs, Lockfile, Metadata, Solved, Target},
     metadata::WheelMetadata,
     packages::Packages,
     resolve::{Step, step},
@@ -485,7 +485,7 @@ fn a_lockfile_applies_wherever_its_wheels_install() {
     let error = lockfile
         .applies_to(&inputs, Some(">=3.10"), &native_only)
         .expect_err("no tag");
-    assert!(error.to_string().contains("incompatible with this interpreter"), "{error}");
+    assert!(error.to_string().contains("pins no wheel of demo==1.0.0"), "{error}");
 
     let other_requirements = [Requirement::from_str("demo>=1").unwrap()];
     let error = lockfile
@@ -549,6 +549,9 @@ fn a_lockfile_pins_the_full_interpreter_version_when_a_package_tells_patch_relea
         ("~=3.12.0.0", true),
         ("==3.12.0", true),
         ("==3.12.0.*", true),
+        ("<3.12.0.post1", true),
+        (">=3.12.0rc1", false),
+        ("<3.13.0.post1", false),
     ];
     for (requires_python, pins_full_version) in cases {
         eprintln!("Requires-Python: {requires_python}");
@@ -560,5 +563,264 @@ fn a_lockfile_pins_the_full_interpreter_version_when_a_package_tells_patch_relea
             lockfile.environments[0],
         );
         assert!(lockfile.environments[0].contains("python_version == '3.12'"));
+    }
+}
+
+/// A `CPython` 3.12 environment a project declares, which reports no
+/// kernel and takes wheels built for `tag`.
+fn declared_target(sys_platform: &str, machine: &str, tag: &str) -> Target {
+    let environment = serde_json::from_value(serde_json::json!({
+        "implementation_name": "cpython",
+        "implementation_version": "3.12.0",
+        "os_name": if sys_platform == "win32" { "nt" } else { "posix" },
+        "platform_machine": machine,
+        "platform_release": "",
+        "platform_system": if sys_platform == "win32" { "Windows" } else { "Linux" },
+        "platform_version": "",
+        "python_full_version": "3.12.0",
+        "platform_python_implementation": "CPython",
+        "python_version": "3.12",
+        "sys_platform": sys_platform,
+    }))
+    .expect("marker environment fixture");
+    Target { environment, tags: vec![tag.to_string(), "py3-none-any".to_string()] }
+}
+
+/// The marker variables a declared environment pins.
+fn declared_keys() -> Vec<String> {
+    ["implementation_name", "platform_machine", "python_version", "sys_platform"]
+        .map(ToString::to_string)
+        .to_vec()
+}
+
+fn version(release: &str) -> Version {
+    Version::from_str(release).expect("version fixture")
+}
+
+/// What an index offers a target: every distribution published as the
+/// wheel files named.
+fn offered(target: &Target, distributions: &[(&str, &[&str])]) -> Packages {
+    let mut packages = Packages::new();
+    for (distribution, filenames) in distributions {
+        let files = filenames
+            .iter()
+            .map(|filename| wheel(filename))
+            .collect::<Vec<_>>();
+        packages.candidates.insert(
+            name(distribution),
+            candidates_from_page(
+                &page(&serde_json::json!(files)),
+                &index_url(),
+                &name(distribution),
+                target,
+            )
+            .expect("page parses"),
+        );
+    }
+    packages
+}
+
+/// `demo 1.0.0`, which needs `helper` on Windows only, published as one
+/// wheel per platform.
+fn platform_project() -> (Metadata, Vec<Requirement>, Vec<Solved>) {
+    let demo: &[&str] =
+        &["demo-1.0.0-py3-none-manylinux_2_17_x86_64.whl", "demo-1.0.0-py3-none-win_amd64.whl"];
+    let helper: &[&str] = &["helper-1.0.0-py3-none-any.whl"];
+    let mut metadata = Metadata::new();
+    metadata.insert(
+        (name("demo"), version("1.0.0")),
+        WheelMetadata::parse(
+            "Name: demo\nVersion: 1.0.0\nRequires-Dist: helper; sys_platform == 'win32'\n",
+        )
+        .expect("metadata parses"),
+    );
+    metadata.insert(
+        (name("helper"), version("1.0.0")),
+        WheelMetadata::parse("Name: helper\nVersion: 1.0.0\n").expect("metadata parses"),
+    );
+    let linux = declared_target("linux", "x86_64", "py3-none-manylinux_2_17_x86_64");
+    let windows = declared_target("win32", "AMD64", "py3-none-win_amd64");
+    let solved = vec![
+        Solved::new(
+            linux.clone(),
+            BTreeMap::from([(name("demo"), version("1.0.0"))]),
+            &offered(&linux, &[("demo", demo)]),
+            declared_keys(),
+        )
+        .expect("the Linux environment solves"),
+        Solved::new(
+            windows.clone(),
+            BTreeMap::from([(name("demo"), version("1.0.0")), (name("helper"), version("1.0.0"))]),
+            &offered(&windows, &[("demo", demo), ("helper", helper)]),
+            declared_keys(),
+        )
+        .expect("the Windows environment solves"),
+    ];
+    (metadata, vec![Requirement::from_str("demo").expect("requirement fixture")], solved)
+}
+
+fn declared_inputs(requirements: &[Requirement]) -> Inputs {
+    Inputs::declared(
+        requirements,
+        &["x86_64-manylinux_2_17".to_string(), "x86_64-pc-windows-msvc".to_string()],
+        &[],
+        index_url().as_str(),
+    )
+}
+
+#[test]
+fn a_lockfile_for_several_environments_pins_the_wheel_each_of_them_takes() {
+    let (metadata, requirements, solved) = platform_project();
+    let inputs = declared_inputs(&requirements);
+
+    let lockfile =
+        Lockfile::merged(&metadata, &requirements, &solved, inputs, Some(">=3.10".to_string()))
+            .expect("lockfile builds");
+
+    dbg!(&lockfile);
+    assert_eq!(
+        lockfile.environments,
+        [
+            "implementation_name == 'cpython' and platform_machine == 'x86_64' \
+             and python_version == '3.12' and sys_platform == 'linux'",
+            "implementation_name == 'cpython' and platform_machine == 'AMD64' \
+             and python_version == '3.12' and sys_platform == 'win32'",
+        ],
+    );
+    let demo = &lockfile.packages[0];
+    assert_eq!(demo.name.to_string(), "demo");
+    assert_eq!(demo.marker, None);
+    assert_eq!(
+        demo.wheels
+            .iter()
+            .map(|wheel| wheel.name.as_str())
+            .collect::<Vec<_>>(),
+        ["demo-1.0.0-py3-none-manylinux_2_17_x86_64.whl", "demo-1.0.0-py3-none-win_amd64.whl"],
+    );
+    let helper = &lockfile.packages[1];
+    assert_eq!(helper.name.to_string(), "helper");
+    assert!(
+        helper.marker
+            .as_deref()
+            .expect("helper is installed on Windows alone")
+            .contains("sys_platform == 'win32'"),
+        "{:?}",
+        helper.marker,
+    );
+}
+
+#[test]
+fn an_environment_takes_only_the_packages_and_wheels_the_lockfile_gives_it() {
+    let (metadata, requirements, solved) = platform_project();
+    let inputs = declared_inputs(&requirements);
+    let lockfile =
+        Lockfile::merged(&metadata, &requirements, &solved, inputs, Some(">=3.10".to_string()))
+            .expect("lockfile builds");
+
+    let mut linux = Packages::new();
+    lockfile
+        .seed(&mut linux, &declared_target("linux", "x86_64", "py3-none-manylinux_2_17_x86_64"))
+        .expect("the Linux environment installs");
+    assert_eq!(
+        linux.candidates[&name("demo")][&version("1.0.0")].wheel.name,
+        "demo-1.0.0-py3-none-manylinux_2_17_x86_64.whl",
+    );
+    assert!(!linux.candidates.contains_key(&name("helper")), "{:?}", linux.candidates.keys());
+
+    let mut windows = Packages::new();
+    lockfile
+        .seed(&mut windows, &declared_target("win32", "AMD64", "py3-none-win_amd64"))
+        .expect("the Windows environment installs");
+    assert_eq!(
+        windows.candidates[&name("demo")][&version("1.0.0")].wheel.name,
+        "demo-1.0.0-py3-none-win_amd64.whl",
+    );
+    assert!(windows.candidates.contains_key(&name("helper")));
+}
+
+#[test]
+fn two_environments_nothing_tells_apart_cannot_need_different_versions() {
+    let glibc = declared_target("linux", "x86_64", "py3-none-manylinux_2_17_x86_64");
+    let musl = declared_target("linux", "x86_64", "py3-none-musllinux_1_2_x86_64");
+    let demo: &[&str] = &[
+        "demo-1.0.0-py3-none-musllinux_1_2_x86_64.whl",
+        "demo-2.0.0-py3-none-manylinux_2_17_x86_64.whl",
+    ];
+    let mut metadata = Metadata::new();
+    for release in ["1.0.0", "2.0.0"] {
+        metadata.insert(
+            (name("demo"), version(release)),
+            WheelMetadata::parse(&format!("Name: demo\nVersion: {release}\n"))
+                .expect("metadata parses"),
+        );
+    }
+    let requirements = vec![Requirement::from_str("demo").expect("requirement fixture")];
+    let solved = vec![
+        Solved::new(
+            glibc.clone(),
+            BTreeMap::from([(name("demo"), version("2.0.0"))]),
+            &offered(&glibc, &[("demo", demo)]),
+            declared_keys(),
+        )
+        .expect("the glibc environment solves"),
+        Solved::new(
+            musl.clone(),
+            BTreeMap::from([(name("demo"), version("1.0.0"))]),
+            &offered(&musl, &[("demo", demo)]),
+            declared_keys(),
+        )
+        .expect("the musl environment solves"),
+    ];
+
+    let error = Lockfile::merged(
+        &metadata,
+        &requirements,
+        &solved,
+        declared_inputs(&requirements),
+        Some(">=3.10".to_string()),
+    )
+    .expect_err("one environment, two versions");
+
+    assert!(error.to_string().contains("nothing in their markers tells them apart"), "{error}");
+}
+
+#[test]
+fn a_declared_environment_that_leaves_a_marker_undecided_is_refused() {
+    let cases = [
+        ("demo; platform_release >= '9'", "", "platform_release"),
+        ("demo", "Requires-Dist: helper; python_full_version >= '3.12.4'\n", "python_full_version"),
+        ("demo", "Requires-Python: <3.12.9\n", "python_full_version"),
+    ];
+    for (requirement, requires_dist, undecided) in cases {
+        eprintln!("requirement {requirement:?}, metadata {requires_dist:?}");
+        let target = declared_target("linux", "x86_64", "py3-none-manylinux_2_17_x86_64");
+        let mut metadata = Metadata::new();
+        metadata.insert(
+            (name("demo"), version("1.0.0")),
+            WheelMetadata::parse(&format!("Name: demo\nVersion: 1.0.0\n{requires_dist}"))
+                .expect("metadata parses"),
+        );
+        let requirements = vec![Requirement::from_str(requirement).expect("requirement fixture")];
+        let solved = vec![
+            Solved::new(
+                target.clone(),
+                BTreeMap::from([(name("demo"), version("1.0.0"))]),
+                &offered(&target, &[("demo", &["demo-1.0.0-py3-none-any.whl"])]),
+                declared_keys(),
+            )
+            .expect("the environment solves"),
+        ];
+
+        let error = Lockfile::merged(
+            &metadata,
+            &requirements,
+            &solved,
+            declared_inputs(&requirements),
+            Some(">=3.10".to_string()),
+        )
+        .expect_err("undecided marker");
+
+        assert!(error.to_string().contains("undecided"), "{error}");
+        assert!(error.to_string().contains(undecided), "{error}");
     }
 }

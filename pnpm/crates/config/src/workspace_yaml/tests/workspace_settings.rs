@@ -314,7 +314,7 @@ cargo:
 
 #[test]
 fn python_settings_parse_apply_and_remain_workspace_only() {
-    let yaml = "python:\n  enabled: true\n  executable: python3.13\n  indexUrl: https://example.org/simple/\n  extras: [speed]\n  groups: [test]\n";
+    let yaml = "python:\n  enabled: true\n  executable: python3.13\n  indexUrl: https://example.org/simple/\n  extras: [speed]\n  groups: [test]\n  platforms: [x86_64-manylinux_2_28, aarch64-apple-darwin]\n  pythonVersions: ['3.12', '3.13']\n";
     let settings: WorkspaceSettings = serde_saphyr::from_str(yaml).unwrap();
     let mut config = Config::default();
     settings.apply_to(&mut config, Path::new("/workspace"));
@@ -323,6 +323,8 @@ fn python_settings_parse_apply_and_remain_workspace_only() {
     assert_eq!(config.python.index_url, "https://example.org/simple/");
     assert_eq!(config.python.extras, ["speed"]);
     assert_eq!(config.python.groups, ["test"]);
+    assert_eq!(config.python.platforms, ["x86_64-manylinux_2_28", "aarch64-apple-darwin"]);
+    assert_eq!(config.python.python_versions, ["3.12", "3.13"]);
     let mut settings: WorkspaceSettings = serde_saphyr::from_str(yaml).unwrap();
     settings.clear_workspace_only_fields();
     assert!(settings.python.is_none());
