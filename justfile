@@ -133,7 +133,7 @@ registry-mock +args:
   cargo nextest run --no-run
   cargo run --bin=pnpm-registry-mock -- {{args}}
 
-# Compare pnpm's Cargo resolution against cargo's own, on the live index
+# Compare pnpm's Cargo resolution against cargo's own, on the live index.
 cargo-equivalence +args:
   cargo run --bin=cargo-equivalence -- {{args}}
 

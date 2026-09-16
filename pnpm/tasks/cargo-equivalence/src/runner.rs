@@ -179,7 +179,6 @@ fn accepts_locked(
     })
 }
 
-/// Compare what each resolver locked, crate by crate.
 fn compare(cargo_dir: &Path, pnpm_dir: &Path) -> Result<Finding, String> {
     let expected = locked_crates(cargo_dir)?;
     let received = locked_crates(pnpm_dir)?;
