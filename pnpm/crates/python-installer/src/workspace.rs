@@ -1,7 +1,7 @@
 use super::manifest::{Manifest, SourceDeclaration};
 use miette::{IntoDiagnostic, Result, WrapErr, bail};
 use pep440_rs::Version;
-use pep508_rs::{ExtraName, MarkerEnvironment, MarkerTree, PackageName, Requirement, VerbatimUrl};
+use pep508_rs::{ExtraName, MarkerEnvironment, MarkerTree, PackageName, VerbatimUrl};
 use pnpm_python_resolver::{LockedDirectory, Lockfile, Packages, WheelMetadata, parse_requirement};
 use source::{Declared, path_target, reject_unresolvable, sole_source};
 use std::{
@@ -309,49 +309,6 @@ impl Workspace {
             }
         }
         Ok(targets)
-    }
-
-    pub(super) fn requirements(
-        &self,
-        root: &Path,
-        manifest: &Manifest,
-        requirements: Vec<Requirement>,
-    ) -> Result<Vec<Requirement>> {
-        let mut explicit = Vec::new();
-        for requirement in &requirements {
-            let Some(Declared { declaration, by }) = self.source(root, manifest, &requirement.name)
-            else {
-                continue;
-            };
-            let source = sole_source(declaration, &requirement.name, &by.join("pyproject.toml"))?;
-            reject_unresolvable(source, &requirement.name, &by.join("pyproject.toml"))?;
-            if let Some(url) = super::sources::declaration_url(source)? {
-                let mut direct = requirement.clone();
-                direct.version_or_url = Some(pep508_rs::VersionOrUrl::Url(
-                    VerbatimUrl::parse_url(&url).into_diagnostic()?,
-                ));
-                explicit.push(direct);
-            }
-        }
-        explicit.extend(requirements);
-        Ok(explicit)
-    }
-
-    /// The source a project resolves a distribution from: its own
-    /// declaration, else the one its workspace root declares. A member
-    /// inherits the root's table, so a workspace can say once where each
-    /// of its projects comes from.
-    fn source<'a>(
-        &'a self,
-        root: &'a Path,
-        manifest: &'a Manifest,
-        name: &PackageName,
-    ) -> Option<Declared<'a>> {
-        if let Some(declaration) = manifest.tool.uv.sources.get(name) {
-            return Some(Declared { declaration, by: root });
-        }
-        let (declaring_root, inherited) = self.inherited.get(root)?;
-        Some(Declared { declaration: inherited.tool.uv.sources.get(name)?, by: declaring_root })
     }
 
     /// Refuse to resolve a workspace project's distribution from the

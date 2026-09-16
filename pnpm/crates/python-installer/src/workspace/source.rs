@@ -5,8 +5,8 @@ use super::{
     super::manifest::{Manifest, Source, SourceDeclaration},
     LocalProject, parse_requirement,
 };
-use miette::{Result, bail};
-use pep508_rs::PackageName;
+use miette::{IntoDiagnostic, Result, bail};
+use pep508_rs::{PackageName, Requirement, VerbatimUrl};
 use std::path::{Path, PathBuf};
 
 /// A source declaration, and the project directory that declared it. A
@@ -113,6 +113,49 @@ pub(super) fn path_target(
 }
 
 impl super::Workspace {
+    /// The source a project resolves a distribution from: its own
+    /// declaration, else the one its workspace root declares. A member
+    /// inherits the root's table, so a workspace can say once where each
+    /// of its projects comes from.
+    pub(super) fn source<'a>(
+        &'a self,
+        root: &'a Path,
+        manifest: &'a Manifest,
+        name: &PackageName,
+    ) -> Option<Declared<'a>> {
+        if let Some(declaration) = manifest.tool.uv.sources.get(name) {
+            return Some(Declared { declaration, by: root });
+        }
+        let (declaring_root, inherited) = self.inherited.get(root)?;
+        Some(Declared { declaration: inherited.tool.uv.sources.get(name)?, by: declaring_root })
+    }
+
+    pub(crate) fn requirements(
+        &self,
+        root: &Path,
+        manifest: &Manifest,
+        requirements: Vec<Requirement>,
+    ) -> Result<Vec<Requirement>> {
+        let mut explicit = Vec::new();
+        for requirement in &requirements {
+            let Some(Declared { declaration, by }) = self.source(root, manifest, &requirement.name)
+            else {
+                continue;
+            };
+            let source = sole_source(declaration, &requirement.name, &by.join("pyproject.toml"))?;
+            reject_unresolvable(source, &requirement.name, &by.join("pyproject.toml"))?;
+            if let Some(url) = super::super::sources::declaration_url(source)? {
+                let mut direct = requirement.clone();
+                direct.version_or_url = Some(pep508_rs::VersionOrUrl::Url(
+                    VerbatimUrl::parse_url(&url).into_diagnostic()?,
+                ));
+                explicit.push(direct);
+            }
+        }
+        explicit.extend(requirements);
+        Ok(explicit)
+    }
+
     pub(super) fn project_requirements(
         &self,
         project: &mut LocalProject,
