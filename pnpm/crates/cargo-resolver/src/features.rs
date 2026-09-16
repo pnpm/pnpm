@@ -1,6 +1,7 @@
 use crate::{
     model::{DependencyKind, FeatureSelection, PackageKey, RegistryDependency, RegistryVersion},
-    registry::{Registry, newest_compatibility},
+    packages::{newest_line_package, selected_package},
+    registry::Registry,
 };
 use miette::Result;
 use pubgrub::SelectedDependencies;
@@ -177,25 +178,42 @@ fn collect_feature_selections(
     while let Some(dependency) = pending.pop_front() {
         registry.validate_dependency_source(dependency.registry.as_deref())?;
         let versions = registry.package(&dependency.name)?;
-        let Some(compatibility) = newest_compatibility(versions, &dependency.requirement) else {
-            continue;
+        // Before there is a solution the line is a prediction, and the
+        // solver reaches for the newest first. Once there is one, the line
+        // it settled on is the only one this dependency asked anything of.
+        let package = match solution {
+            Some(solution) => selected_package(registry, &dependency, solution)?,
+            None => newest_line_package(registry, &dependency)?,
         };
-        let package = PackageKey::Registry { name: dependency.name.clone(), compatibility };
-        let requested = dependency.feature_selection();
-        let previous = selections.get(&package).cloned();
-        let selection = selections.entry(package.clone()).or_default();
-        selection.default_features |= requested.default_features;
-        selection.features.extend(requested.features);
-        if previous.as_ref() == Some(selection) {
+        let Some(package) = package else { continue };
+        if !widen_line_selection(&mut selections, &dependency, &package) {
             continue;
         }
         let Some(selected_version) = solution.and_then(|solution| solution.get(&package)) else {
             continue;
         };
         let selected = indexed_version(versions, &dependency.name, selected_version)?;
-        pending.extend(active_dependencies(selected, selection)?);
+        let selection = selections
+            .get(&package)
+            .cloned()
+            .unwrap_or_default();
+        pending.extend(active_dependencies(selected, &selection)?);
     }
     Ok(selections)
+}
+
+/// Fold what `dependency` asks for into `package`'s selection, reporting
+/// whether that added anything, which is what makes it worth walking again.
+fn widen_line_selection(
+    selections: &mut BTreeMap<PackageKey, FeatureSelection>,
+    dependency: &RegistryDependency,
+    package: &PackageKey,
+) -> bool {
+    let previous = selections.get(package).cloned();
+    let selection = selections.entry(package.clone()).or_default();
+    selection.default_features |= dependency.default_features;
+    selection.features.extend(dependency.features.iter().cloned());
+    previous.as_ref() != Some(selection)
 }
 
 pub(crate) fn indexed_version<'v>(

@@ -518,6 +518,26 @@ fn rejects_a_dependency_from_a_third_party_registry() {
     assert!(error.contains("other.example.test"), "{error}");
 }
 
+/// A workspace asking for `foo` across two compatibility lines.
+const SPANNING_METADATA: &str = r#"{
+  "packages": [{
+    "id": "path+file:///workspace#app@0.1.0",
+    "name": "app",
+    "version": "0.1.0",
+    "dependencies": [{
+      "name": "foo",
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "req": ">=1, <3"
+    }]
+  }],
+  "workspace_members": ["path+file:///workspace#app@0.1.0"]
+}"#;
+
+/// `foo` 2.0.0 needs a `bar` that does not exist, so only `foo` 1.0.0 and
+/// the `bar ^2` it needs can resolve.
+const SPANNING_FOO_INDEX: &str = r#"{"name":"foo","vers":"1.0.0","deps":[{"name":"bar","req":"^2","features":[],"optional":false,"default_features":true,"target":null,"kind":"normal","registry":null}],"cksum":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","features":{},"yanked":false}
+{"name":"foo","vers":"2.0.0","deps":[{"name":"bar","req":"^9","features":[],"optional":false,"default_features":true,"target":null,"kind":"normal","registry":null}],"cksum":"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb","features":{},"yanked":false}"#;
+
 /// `bar` 2.0.0 resolves, while the whole 3 compatibility line is yanked.
 const PARTLY_YANKED_BAR_INDEX: &str = r#"{"name":"bar","vers":"2.0.0","deps":[],"cksum":"cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc","features":{},"yanked":false}
 {"name":"bar","vers":"3.0.0","deps":[],"cksum":"dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd","features":{},"yanked":true}"#;
@@ -706,30 +726,30 @@ fn discovers_a_crate_only_unified_features_activate() {
     );
 }
 
-/// The package key holds one compatibility line, so a version outside it
-/// can never be selected and the crates only it needs are not fetched.
 #[test]
-fn leaves_a_crate_only_an_unselectable_version_needs_unfetched() {
-    const METADATA: &str = r#"{
-  "packages": [{
-    "id": "path+file:///workspace#app@0.1.0",
-    "name": "app",
-    "version": "0.1.0",
-    "dependencies": [{
-      "name": "foo",
-      "source": "registry+https://github.com/rust-lang/crates.io-index",
-      "req": ">=0.9"
-    }]
-  }],
-  "workspace_members": ["path+file:///workspace#app@0.1.0"]
-}"#;
-    let foo_index = r#"{"name":"foo","vers":"0.9.0","deps":[{"name":"legacy","req":"^1","features":[],"optional":false,"default_features":true,"target":null,"kind":"normal","registry":null}],"cksum":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","features":{},"yanked":false}
-{"name":"foo","vers":"1.0.0","deps":[],"cksum":"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb","features":{},"yanked":false}"#;
+fn fetches_what_every_admissible_line_needs() {
+    // Each line needs a crate of its own, so walking only the newest would
+    // leave the other unfetched.
+    let foo_index = r#"{"name":"foo","vers":"1.0.0","deps":[{"name":"legacy","req":"^1","features":[],"optional":false,"default_features":true,"target":null,"kind":"normal","registry":null}],"cksum":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","features":{},"yanked":false}
+{"name":"foo","vers":"2.0.0","deps":[{"name":"modern","req":"^1","features":[],"optional":false,"default_features":true,"target":null,"kind":"normal","registry":null}],"cksum":"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb","features":{},"yanked":false}"#;
     let files = BTreeMap::from([("foo".to_string(), foo_index.to_string())]);
 
-    assert!(missing_index_names(METADATA, &files, CRATES_IO_SOURCE).unwrap().is_empty());
+    assert_eq!(
+        missing_index_names(SPANNING_METADATA, &files, CRATES_IO_SOURCE).unwrap(),
+        ["legacy", "modern"],
+    );
+}
+
+#[test]
+fn backtracks_to_an_older_compatibility_line() {
+    let files = BTreeMap::from([
+        ("bar".to_string(), BAR_INDEX.to_string()),
+        ("foo".to_string(), SPANNING_FOO_INDEX.to_string()),
+    ]);
+
     let lockfile =
-        Lockfile::from_str(&resolve_lockfile(METADATA, &files, CRATES_IO_SOURCE).unwrap()).unwrap();
+        Lockfile::from_str(&resolve_lockfile(SPANNING_METADATA, &files, CRATES_IO_SOURCE).unwrap())
+            .unwrap();
 
     dbg!(&lockfile.packages);
     assert!(
@@ -738,5 +758,278 @@ fn leaves_a_crate_only_an_unselectable_version_needs_unfetched() {
             .any(|package| {
                 package.name.as_str() == "foo" && package.version == semver::Version::new(1, 0, 0)
             }),
+    );
+    assert!(
+        lockfile.packages
+            .iter()
+            .any(|package| {
+                package.name.as_str() == "bar" && package.version == semver::Version::new(2, 0, 0)
+            }),
+    );
+}
+
+#[test]
+fn prefers_the_newest_compatibility_line_that_resolves() {
+    let foo_index = SPANNING_FOO_INDEX.replace(r#""req":"^9""#, r#""req":"^2""#);
+    let files = BTreeMap::from([
+        ("bar".to_string(), BAR_INDEX.to_string()),
+        ("foo".to_string(), foo_index),
+    ]);
+
+    let lockfile =
+        Lockfile::from_str(&resolve_lockfile(SPANNING_METADATA, &files, CRATES_IO_SOURCE).unwrap())
+            .unwrap();
+
+    dbg!(&lockfile.packages);
+    assert!(
+        lockfile.packages
+            .iter()
+            .any(|package| {
+                package.name.as_str() == "foo" && package.version == semver::Version::new(2, 0, 0)
+            }),
+    );
+}
+
+/// Both lines of `foo` carry an `extra` feature, so only the selection each
+/// line was actually asked for decides whether `baz` is activated there.
+#[test]
+fn keeps_requested_features_on_the_line_that_asked_for_them() {
+    const METADATA: &str = r#"{
+  "packages": [
+    {
+      "id": "path+file:///workspace#wide@0.1.0",
+      "name": "wide",
+      "version": "0.1.0",
+      "dependencies": [{
+        "name": "foo",
+        "source": "registry+https://github.com/rust-lang/crates.io-index",
+        "req": ">=0.9",
+        "features": ["extra"]
+      }]
+    },
+    {
+      "id": "path+file:///workspace#narrow@0.1.0",
+      "name": "narrow",
+      "version": "0.1.0",
+      "dependencies": [{
+        "name": "foo",
+        "source": "registry+https://github.com/rust-lang/crates.io-index",
+        "req": "^0.9"
+      }]
+    }
+  ],
+  "workspace_members": [
+    "path+file:///workspace#wide@0.1.0",
+    "path+file:///workspace#narrow@0.1.0"
+  ]
+}"#;
+    let foo_index = r#"{"name":"foo","vers":"0.9.0","deps":[{"name":"baz","req":"^1","features":[],"optional":true,"default_features":true,"target":null,"kind":"normal","registry":null}],"cksum":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","features":{"extra":["dep:baz"]},"yanked":false}
+{"name":"foo","vers":"1.0.0","deps":[{"name":"baz","req":"^1","features":[],"optional":true,"default_features":true,"target":null,"kind":"normal","registry":null}],"cksum":"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb","features":{"extra":["dep:baz"]},"yanked":false}"#;
+    let files = BTreeMap::from([
+        ("baz".to_string(), BAZ_INDEX.to_string()),
+        ("foo".to_string(), foo_index.to_string()),
+    ]);
+
+    let lockfile =
+        Lockfile::from_str(&resolve_lockfile(METADATA, &files, CRATES_IO_SOURCE).unwrap()).unwrap();
+
+    dbg!(&lockfile.packages);
+    let dependencies = |version: semver::Version| {
+        lockfile.packages
+            .iter()
+            .find(|package| package.name.as_str() == "foo" && package.version == version)
+            .map(|package| {
+                package.dependencies
+                    .iter()
+                    .map(|dependency| dependency.name.to_string())
+                    .collect::<Vec<_>>()
+            })
+    };
+    assert_eq!(dependencies(semver::Version::new(1, 0, 0)), Some(vec!["baz".to_string()]));
+    assert_eq!(dependencies(semver::Version::new(0, 9, 0)), Some(Vec::new()));
+}
+
+/// The `rand` example from the Cargo book: a requirement spanning two lines
+/// and one pinned to the older line do not unify, and `cargo` builds both.
+#[test]
+fn keeps_two_compatibility_lines_of_one_crate_apart() {
+    const METADATA: &str = r#"{
+  "packages": [
+    {
+      "id": "path+file:///workspace#wide@0.1.0",
+      "name": "wide",
+      "version": "0.1.0",
+      "dependencies": [{
+        "name": "rand",
+        "source": "registry+https://github.com/rust-lang/crates.io-index",
+        "req": ">=0.6, <0.8.0"
+      }]
+    },
+    {
+      "id": "path+file:///workspace#narrow@0.1.0",
+      "name": "narrow",
+      "version": "0.1.0",
+      "dependencies": [{
+        "name": "rand",
+        "source": "registry+https://github.com/rust-lang/crates.io-index",
+        "req": "^0.6"
+      }]
+    }
+  ],
+  "workspace_members": [
+    "path+file:///workspace#wide@0.1.0",
+    "path+file:///workspace#narrow@0.1.0"
+  ]
+}"#;
+    let rand_index = r#"{"name":"rand","vers":"0.6.5","deps":[],"cksum":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","features":{},"yanked":false}
+{"name":"rand","vers":"0.7.3","deps":[],"cksum":"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb","features":{},"yanked":false}"#;
+    let files = BTreeMap::from([("rand".to_string(), rand_index.to_string())]);
+
+    let lockfile =
+        Lockfile::from_str(&resolve_lockfile(METADATA, &files, CRATES_IO_SOURCE).unwrap()).unwrap();
+
+    dbg!(&lockfile.packages);
+    let selected = lockfile.packages
+        .iter()
+        .filter(|package| package.name.as_str() == "rand")
+        .map(|package| package.version.to_string())
+        .collect::<Vec<_>>();
+    assert_eq!(selected, ["0.6.5", "0.7.3"]);
+}
+
+/// Only the older line carries `extra`, so the newer one is not a choice
+/// this requirement can take, and `baz` comes with the line that is.
+#[test]
+fn selects_the_older_line_when_the_newer_lacks_a_requested_feature() {
+    const METADATA: &str = r#"{
+  "packages": [{
+    "id": "path+file:///workspace#app@0.1.0",
+    "name": "app",
+    "version": "0.1.0",
+    "dependencies": [{
+      "name": "foo",
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "req": ">=0.9",
+      "features": ["extra"]
+    }]
+  }],
+  "workspace_members": ["path+file:///workspace#app@0.1.0"]
+}"#;
+    let foo_index = r#"{"name":"foo","vers":"0.9.0","deps":[{"name":"baz","req":"^1","features":[],"optional":true,"default_features":true,"target":null,"kind":"normal","registry":null}],"cksum":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","features":{"extra":["dep:baz"]},"yanked":false}
+{"name":"foo","vers":"1.0.0","deps":[],"cksum":"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb","features":{},"yanked":false}"#;
+    let files = BTreeMap::from([
+        ("baz".to_string(), BAZ_INDEX.to_string()),
+        ("foo".to_string(), foo_index.to_string()),
+    ]);
+
+    let lockfile =
+        Lockfile::from_str(&resolve_lockfile(METADATA, &files, CRATES_IO_SOURCE).unwrap()).unwrap();
+
+    dbg!(&lockfile.packages);
+    assert!(
+        lockfile.packages
+            .iter()
+            .any(|package| {
+                package.name.as_str() == "foo" && package.version == semver::Version::new(0, 9, 0)
+            }),
+    );
+    assert!(
+        lockfile.packages
+            .iter()
+            .any(|package| package.name.as_str() == "baz"),
+    );
+}
+
+/// No line supports both features, so one shared choice would rule both
+/// lines out.
+#[test]
+fn lets_requirements_asking_for_different_features_take_different_lines() {
+    const METADATA: &str = r#"{
+  "packages": [
+    {
+      "id": "path+file:///workspace#reads@0.1.0",
+      "name": "reads",
+      "version": "0.1.0",
+      "dependencies": [{
+        "name": "foo",
+        "source": "registry+https://github.com/rust-lang/crates.io-index",
+        "req": ">=1, <3",
+        "features": ["read"]
+      }]
+    },
+    {
+      "id": "path+file:///workspace#writes@0.1.0",
+      "name": "writes",
+      "version": "0.1.0",
+      "dependencies": [{
+        "name": "foo",
+        "source": "registry+https://github.com/rust-lang/crates.io-index",
+        "req": ">=1, <3",
+        "features": ["write"]
+      }]
+    }
+  ],
+  "workspace_members": [
+    "path+file:///workspace#reads@0.1.0",
+    "path+file:///workspace#writes@0.1.0"
+  ]
+}"#;
+    let foo_index = r#"{"name":"foo","vers":"1.0.0","deps":[],"cksum":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","features":{"read":[]},"yanked":false}
+{"name":"foo","vers":"2.0.0","deps":[],"cksum":"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb","features":{"write":[]},"yanked":false}"#;
+    let files = BTreeMap::from([("foo".to_string(), foo_index.to_string())]);
+
+    let lockfile =
+        Lockfile::from_str(&resolve_lockfile(METADATA, &files, CRATES_IO_SOURCE).unwrap()).unwrap();
+
+    dbg!(&lockfile.packages);
+    let selected = lockfile.packages
+        .iter()
+        .filter(|package| package.name.as_str() == "foo")
+        .map(|package| package.version.to_string())
+        .collect::<Vec<_>>();
+    assert_eq!(selected, ["1.0.0", "2.0.0"]);
+}
+
+/// A line walked only under the features of every requirement reaching it
+/// would reach neither crate.
+#[test]
+fn fetches_what_each_requirement_activates_on_its_own_line() {
+    const METADATA: &str = r#"{
+  "packages": [
+    {
+      "id": "path+file:///workspace#reads@0.1.0",
+      "name": "reads",
+      "version": "0.1.0",
+      "dependencies": [{
+        "name": "foo",
+        "source": "registry+https://github.com/rust-lang/crates.io-index",
+        "req": ">=1, <3",
+        "features": ["read"]
+      }]
+    },
+    {
+      "id": "path+file:///workspace#writes@0.1.0",
+      "name": "writes",
+      "version": "0.1.0",
+      "dependencies": [{
+        "name": "foo",
+        "source": "registry+https://github.com/rust-lang/crates.io-index",
+        "req": ">=1, <3",
+        "features": ["write"]
+      }]
+    }
+  ],
+  "workspace_members": [
+    "path+file:///workspace#reads@0.1.0",
+    "path+file:///workspace#writes@0.1.0"
+  ]
+}"#;
+    let foo_index = r#"{"name":"foo","vers":"1.0.0","deps":[{"name":"reader","req":"^1","features":[],"optional":true,"default_features":true,"target":null,"kind":"normal","registry":null}],"cksum":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","features":{"read":["dep:reader"]},"yanked":false}
+{"name":"foo","vers":"2.0.0","deps":[{"name":"writer","req":"^1","features":[],"optional":true,"default_features":true,"target":null,"kind":"normal","registry":null}],"cksum":"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb","features":{"write":["dep:writer"]},"yanked":false}"#;
+    let files = BTreeMap::from([("foo".to_string(), foo_index.to_string())]);
+
+    assert_eq!(
+        missing_index_names(METADATA, &files, CRATES_IO_SOURCE).unwrap(),
+        ["reader", "writer"],
     );
 }

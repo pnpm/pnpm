@@ -1,18 +1,19 @@
 use crate::{
     features::{
-        active_dependencies, feature_selections_for_solution, root_feature_selections,
-        supports_features,
+        active_dependencies, feature_selections_for_solution, indexed_version,
+        root_feature_selections, supports_features,
     },
     lockfile::lockfile_from_solution,
     metadata::{parse_metadata, root_dependencies},
     model::{FeatureSelection, PackageKey, RegistryDependency, RegistryVersion},
-    registry::{Registry, compatibility_line, matching_versions, newest_compatibility},
+    packages::{chosen_line, package_key},
+    registry::{Registry, compatibility_line, matching_lines, matching_versions},
 };
-use miette::Result;
+use miette::{IntoDiagnostic, Result, WrapErr};
 use pubgrub::{
     DefaultStringReporter, OfflineDependencyProvider, PubGrubError, Ranges, Reporter, resolve,
 };
-use semver::Version;
+use semver::{Version, VersionReq};
 use std::collections::{BTreeMap, BTreeSet, VecDeque};
 
 /// What discovery has reached a crate with so far: the features every
@@ -73,28 +74,34 @@ fn unified_dependencies(
     dependency: &RegistryDependency,
     versions: &[RegistryVersion],
 ) -> Result<Vec<RegistryDependency>> {
-    let Some(compatibility) = newest_compatibility(versions, &dependency.requirement) else {
-        return Ok(Vec::new());
-    };
-    let selectable = matching_versions(versions, &dependency.requirement)
-        .filter(|version| compatibility_line(&version.version) == compatibility)
-        .map(|version| version.version.clone())
-        .collect::<BTreeSet<_>>();
-    let package = PackageKey::Registry { name: dependency.name.clone(), compatibility };
-    let entry = discovered.entry(package).or_default();
-    let previous = entry.selection.clone();
-    entry.selection.default_features |= dependency.default_features;
-    entry.selection.features.extend(dependency.features.iter().cloned());
-    let unwalked = &selectable - &entry.versions;
-    entry.versions.extend(selectable);
-    let walk = if entry.selection == previous { unwalked } else { entry.versions.clone() };
     let mut reached = Vec::new();
-    for version in versions
-        .iter()
-        .filter(|version| walk.contains(&version.version))
-        .filter(|version| supports_features(version, &entry.selection))
-    {
-        reached.extend(active_dependencies(version, &entry.selection)?);
+    let selection = dependency.feature_selection();
+    for (compatibility, _) in matching_lines(versions, &dependency.requirement) {
+        // Only what this dependency could settle on: a version missing a
+        // feature it asks for is not one it can select, even though another
+        // dependency on the same line may select it.
+        let selectable = matching_versions(versions, &dependency.requirement)
+            .filter(|version| compatibility_line(&version.version) == compatibility)
+            .filter(|version| supports_features(version, &selection))
+            .map(|version| version.version.clone())
+            .collect::<BTreeSet<_>>();
+        let package = PackageKey::Registry { name: dependency.name.clone(), compatibility };
+        let entry = discovered.entry(package).or_default();
+        let previous = entry.selection.clone();
+        entry.selection.default_features |= dependency.default_features;
+        entry.selection.features.extend(dependency.features.iter().cloned());
+        let unwalked = &selectable - &entry.versions;
+        entry.versions.extend(selectable);
+        let walk = if entry.selection == previous { unwalked } else { entry.versions.clone() };
+        // The features of every dependency reaching the line, because one
+        // may turn on a weak feature of another's. A version that has none
+        // of them simply activates nothing extra.
+        for version in versions
+            .iter()
+            .filter(|version| walk.contains(&version.version))
+        {
+            reached.extend(active_dependencies(version, &entry.selection)?);
+        }
     }
     Ok(reached)
 }
@@ -150,7 +157,8 @@ fn validate_selected_graph(
     let mut pending = VecDeque::from(root_dependencies.to_vec());
 
     while let Some(dependency) = pending.pop_front() {
-        let package = package_key(registry, &dependency)?;
+        let package = validated_package(registry, &dependency, solution, &mut validated)?;
+        let Some(package) = package else { return Ok(None) };
         let Some(selected_version) = solution.get(&package) else { return Ok(None) };
         if !dependency.requirement.matches(selected_version) {
             return Ok(None);
@@ -158,17 +166,7 @@ fn validate_selected_graph(
         if validated.contains_key(&package) {
             continue;
         }
-        let selected = registry
-            .package(&dependency.name)?
-            .iter()
-            .find(|candidate| !candidate.yanked && candidate.version == *selected_version)
-            .ok_or_else(|| {
-                miette::miette!(
-                    "selected {} {} is absent from the index",
-                    dependency.name,
-                    selected_version,
-                )
-            })?;
+        let selected = offered_version(registry, &dependency.name, selected_version)?;
         let selection = feature_selections
             .get(&package)
             .cloned()
@@ -181,6 +179,46 @@ fn validate_selected_graph(
     }
 
     Ok(Some(validated.into_iter().collect()))
+}
+
+/// The line package `dependency` settled on.
+///
+/// A requirement spanning several compatibility lines resolves through its
+/// choice package, whose entry is recorded in `validated` so the lockfile
+/// can read the chosen line back out.
+/// The index entry for a version the solver selected. Only versions the
+/// index still offers are registered, so a yanked one means the index the
+/// solution was built against is not the one being read.
+fn offered_version<'v>(
+    registry: &'v Registry,
+    name: &str,
+    version: &Version,
+) -> Result<&'v RegistryVersion> {
+    let offered = indexed_version(registry.package(name)?, name, version)?;
+    if offered.yanked {
+        return Err(miette::miette!("selected {name} {version} is yanked"));
+    }
+    Ok(offered)
+}
+
+fn validated_package(
+    registry: &Registry,
+    dependency: &RegistryDependency,
+    solution: &pubgrub::SelectedDependencies<PackageKey, Version>,
+    validated: &mut BTreeMap<PackageKey, Version>,
+) -> Result<Option<PackageKey>> {
+    registry.validate_dependency_source(dependency.registry.as_deref())?;
+    Ok(match package_key(registry, dependency)? {
+        line @ PackageKey::Registry { .. } => Some(line),
+        choice @ PackageKey::Requirement { .. } => solution
+            .get(&choice)
+            .map(|representative| {
+                let line = chosen_line(&dependency.name, representative);
+                validated.insert(choice.clone(), representative.clone());
+                line
+            }),
+        PackageKey::Root | PackageKey::Unsatisfiable { .. } => None,
+    })
 }
 
 fn resolve_with_features(
@@ -198,11 +236,7 @@ fn resolve_with_features(
         if !registered.insert(package.clone()) {
             continue;
         }
-        let selection = feature_selections
-            .get(&package)
-            .cloned()
-            .unwrap_or_default();
-        register_candidates(registry, &package, &selection, &mut provider, &mut pending)?;
+        register(registry, &package, feature_selections, &mut provider, &mut pending)?;
     }
 
     match resolve(&provider, PackageKey::Root, Version::new(0, 0, 0)) {
@@ -219,18 +253,42 @@ fn resolve_with_features(
     }
 }
 
-/// Offer the solver every version of `package` that the selected features
-/// admit, queueing each one's own dependencies.
+/// Tell the solver what `package` offers, which depends on what kind of
+/// package it is.
+fn register(
+    registry: &Registry,
+    package: &PackageKey,
+    feature_selections: &BTreeMap<PackageKey, FeatureSelection>,
+    provider: &mut OfflineDependencyProvider<PackageKey, Ranges<Version>>,
+    pending: &mut VecDeque<PackageKey>,
+) -> Result<()> {
+    match package {
+        PackageKey::Registry { .. } => {
+            register_candidates(registry, package, feature_selections, provider, pending)
+        }
+        PackageKey::Requirement { .. } => {
+            register_compatibility_lines(registry, package, provider, pending)
+        }
+        PackageKey::Root | PackageKey::Unsatisfiable { .. } => Ok(()),
+    }
+}
+
+/// Offer the solver the versions of `package` that every dependency able to
+/// settle on it can support, queueing each one's own dependencies.
 fn register_candidates(
     registry: &Registry,
     package: &PackageKey,
-    selection: &FeatureSelection,
+    feature_selections: &BTreeMap<PackageKey, FeatureSelection>,
     provider: &mut OfflineDependencyProvider<PackageKey, Ranges<Version>>,
     pending: &mut VecDeque<PackageKey>,
 ) -> Result<()> {
     let PackageKey::Registry { name, compatibility } = package else {
         return Ok(());
     };
+    let resolved = feature_selections
+        .get(package)
+        .cloned()
+        .unwrap_or_default();
     let versions = registry.package(name)?;
     let candidates = versions
         .iter()
@@ -238,12 +296,58 @@ fn register_candidates(
             !version.yanked && compatibility_line(&version.version) == *compatibility
         });
     for version in candidates {
-        if !supports_features(version, selection) {
-            continue;
-        }
-        let dependencies = active_dependencies(version, selection)?;
+        let dependencies = active_dependencies(version, &resolved)?;
         let constraints = constraints_for(registry, &dependencies, pending)?;
         provider.add_dependencies(package.clone(), version.version.clone(), constraints);
+    }
+    Ok(())
+}
+
+/// Offer the solver one version per compatibility line the requirement is
+/// met on, each standing for that line and depending on the versions it
+/// admits there. Ordered by version, so the solver reaches for the newest
+/// line first and backtracks to an older one, as `cargo` does.
+///
+/// A line is offered only the versions that support what the lines's
+/// dependants ask, so a line that cannot support them is not a choice at
+/// all rather than one the solver takes and later has to leave.
+fn register_compatibility_lines(
+    registry: &Registry,
+    package: &PackageKey,
+    provider: &mut OfflineDependencyProvider<PackageKey, Ranges<Version>>,
+    pending: &mut VecDeque<PackageKey>,
+) -> Result<()> {
+    let PackageKey::Requirement {
+        name,
+        requirement,
+        default_features,
+        features,
+    } = package
+    else {
+        return Ok(());
+    };
+    let requested = FeatureSelection {
+        default_features: *default_features,
+        features: features.iter().cloned().collect(),
+    };
+    let requirement = VersionReq::parse(requirement)
+        .into_diagnostic()
+        .wrap_err_with(|| format!("parse requirement for {name}"))?;
+    let versions = registry.package(name)?;
+    for (compatibility, representative) in matching_lines(versions, &requirement) {
+        let line =
+            PackageKey::Registry { name: name.clone(), compatibility: compatibility.clone() };
+        let admitted = matching_versions(versions, &requirement)
+            .filter(|version| compatibility_line(&version.version) == compatibility)
+            .filter(|version| supports_features(version, &requested))
+            .fold(Ranges::empty(), |range, version| {
+                range.union(&Ranges::singleton(version.version.clone()))
+            });
+        if admitted == Ranges::empty() {
+            continue;
+        }
+        provider.add_dependencies(package.clone(), representative, [(line.clone(), admitted)]);
+        pending.push_back(line);
     }
     Ok(())
 }
@@ -255,10 +359,16 @@ fn constraints_for(
 ) -> Result<Vec<(PackageKey, Ranges<Version>)>> {
     let mut constraints = BTreeMap::<PackageKey, Ranges<Version>>::new();
     for dependency in dependencies {
+        registry.validate_dependency_source(dependency.registry.as_deref())?;
         let package = package_key(registry, dependency)?;
+        // A version missing a feature this dependency asks for is not one it
+        // can settle on, which is how a requirement reaches past a line to an
+        // older one.
+        let selection = dependency.feature_selection();
         let allowed = if let PackageKey::Registry { compatibility, .. } = &package {
             matching_versions(registry.package(&dependency.name)?, &dependency.requirement)
                 .filter(|version| compatibility_line(&version.version) == *compatibility)
+                .filter(|version| supports_features(version, &selection))
                 .fold(Ranges::empty(), |range, version| {
                     range.union(&Ranges::singleton(version.version.clone()))
                 })
@@ -272,26 +382,4 @@ fn constraints_for(
         pending.push_back(package);
     }
     Ok(constraints.into_iter().collect())
-}
-
-/// The solver package `dependency` resolves against.
-///
-/// A dependency the index cannot meet still gets a package of its own, one
-/// the solver finds no version under. That keeps a dead-end candidate a
-/// plain incompatibility the solver backtracks over and can name in its
-/// report, rather than a failure of the whole resolution.
-fn package_key(registry: &Registry, dependency: &RegistryDependency) -> Result<PackageKey> {
-    registry.validate_dependency_source(dependency.registry.as_deref())?;
-    let compatibility = registry
-        .versions(&dependency.name)
-        .and_then(|versions| newest_compatibility(versions, &dependency.requirement));
-    Ok(match compatibility {
-        Some(compatibility) => {
-            PackageKey::Registry { name: dependency.name.clone(), compatibility }
-        }
-        None => PackageKey::Unsatisfiable {
-            name: dependency.name.clone(),
-            requirement: dependency.requirement.to_string(),
-        },
-    })
 }

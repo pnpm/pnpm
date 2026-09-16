@@ -60,6 +60,15 @@ pub(crate) struct RegistryDependency {
     pub(crate) features: BTreeSet<String>,
 }
 
+impl RegistryDependency {
+    pub(crate) fn feature_selection(&self) -> FeatureSelection {
+        FeatureSelection {
+            default_features: self.default_features,
+            features: self.features.clone(),
+        }
+    }
+}
+
 #[derive(Debug, Default, Clone, PartialEq, Eq)]
 pub(crate) struct FeatureSelection {
     pub(crate) default_features: bool,
@@ -96,21 +105,26 @@ impl<'de> Deserialize<'de> for DependencyKind {
     }
 }
 
-impl RegistryDependency {
-    pub(crate) fn feature_selection(&self) -> FeatureSelection {
-        FeatureSelection {
-            default_features: self.default_features,
-            features: self.features.clone(),
-        }
-    }
-}
-
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub(crate) enum PackageKey {
     Root,
     Registry {
         name: String,
         compatibility: String,
+    },
+    /// A requirement met on more than one compatibility line. Its versions
+    /// stand for those lines, each depending on the line it names, so the
+    /// solver can try the newest and backtrack to an older one.
+    ///
+    /// The features are part of the key: two dependencies asking the same
+    /// crate for different features may need different lines, and a version
+    /// that suits both still unifies them, because both choices lead to the
+    /// same line package.
+    Requirement {
+        name: String,
+        requirement: String,
+        default_features: bool,
+        features: Vec<String>,
     },
     /// A dependency nothing in the index meets. Nothing is ever registered
     /// under it, so the solver finds no version to pick.
@@ -125,6 +139,9 @@ impl fmt::Display for PackageKey {
         match self {
             Self::Root => formatter.write_str("pnpm Cargo workspace"),
             Self::Registry { name, compatibility } => write!(formatter, "{name}@{compatibility}"),
+            Self::Requirement { name, requirement, .. } => {
+                write!(formatter, "{name} {requirement}")
+            }
             Self::Unsatisfiable { name, requirement } => {
                 write!(formatter, "{name} {requirement} (no version available)")
             }
