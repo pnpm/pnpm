@@ -18,6 +18,15 @@ Fill in `.github/pull_request_template.md` and pass it as the body; `gh pr
 create` does not apply the template on its own. Keep every section, mark the
 checklist honestly, and drop only the lines the template says to drop.
 
+When the change comes from an issue, link it from the Summary with a closing
+keyword (`Closes pnpm/pnpm#123`) and then comment on the issue itself. The
+cross-reference GitHub adds to the issue timeline is silent and says nothing
+about what was done, so the people waiting on the issue learn nothing from it.
+The comment carries what they need: that a PR is open, the approach it takes,
+and whether it covers the whole issue or one part of it. Say so plainly when it
+is partial. Do not close the issue by hand; the closing keyword does that when
+the PR merges.
+
 ## After every push
 
 1. **Wait for the checks.** `gh pr checks <pr> --watch --fail-fast` blocks for
