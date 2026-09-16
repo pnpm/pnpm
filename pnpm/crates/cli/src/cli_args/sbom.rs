@@ -18,10 +18,10 @@ use collection::collect_components;
 use cyclonedx::{CycloneDxOpts, serialize_cyclonedx};
 use indexmap::IndexMap;
 use metadata::{
-    base64_to_hex, build_purl, classify_license, extract_bugs_url, extract_repository,
-    generate_uuid_v4, integrity_string, normalize_link_path, peer_names_from_manifest,
-    platform_incompatible_optional, read_pkg_metadata_from_store, sanitize_package_name,
-    sanitize_path_segment, tarball_url_for_component,
+    base64_to_hex, build_purl, classify_license, extract_bugs_url, extract_description,
+    extract_repository, generate_uuid_v4, integrity_string, normalize_link_path,
+    peer_names_from_manifest, platform_incompatible_optional, read_pkg_metadata_from_store,
+    sanitize_package_name, sanitize_path_segment, tarball_url_for_component,
 };
 use pnpm_config::Config;
 use pnpm_lockfile::{
@@ -32,7 +32,9 @@ use pnpm_package_is_installable::{
     InstallabilityOptions, WantedPlatformRef, platform_is_supported_with_inference,
 };
 use pnpm_package_manager::{importer_root_dir, validate_importer_id};
-use pnpm_package_manifest::{extract_author, extract_homepage, safe_read_package_json_from_dir};
+use pnpm_package_manifest::{
+    extract_author, extract_homepage, extract_license, safe_read_package_json_from_dir,
+};
 use pnpm_resolving_git_resolver::{HostedGit, HostedOpts};
 use spdx::serialize_spdx;
 use std::{

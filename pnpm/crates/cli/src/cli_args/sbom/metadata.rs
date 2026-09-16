@@ -74,6 +74,17 @@ fn percent_escapes_are_complete(url: &str) -> bool {
         })
 }
 
+/// The manifest's `description` as an SBOM may publish it. A blank one
+/// describes nothing, so it is dropped rather than serialized as an empty
+/// string.
+pub(super) fn extract_description(manifest: &serde_json::Value) -> Option<String> {
+    manifest
+        .get("description")
+        .and_then(|v| v.as_str())
+        .filter(|description| !description.is_empty())
+        .map(ToString::to_string)
+}
+
 pub(super) fn extract_bugs_url(manifest: &serde_json::Value) -> Option<String> {
     let bugs = manifest.get("bugs")?;
     let raw = if let Some(s) = bugs.as_str() { s } else { bugs.get("url")?.as_str()? };
@@ -203,10 +214,7 @@ pub(super) fn read_pkg_metadata_from_store(
                     .get("license")
                     .and_then(|v| v.as_str())
                     .map(ToString::to_string),
-                description: manifest
-                    .get("description")
-                    .and_then(|v| v.as_str())
-                    .map(ToString::to_string),
+                description: extract_description(&manifest),
                 author: extract_author(&manifest),
                 homepage: extract_homepage(&manifest),
                 repository: extract_repository(&manifest),

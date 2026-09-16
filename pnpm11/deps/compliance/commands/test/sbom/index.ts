@@ -1394,11 +1394,79 @@ test('pnpm sbom excludes platform-incompatible optional packages instead of emit
   expect(onlyBindings[0].licenses).toEqual([{ license: { id: 'MIT' } }])
 })
 
-test('pnpm sbom filtered single project inherits workspace root metadata when absent, but drops declared unusable values', async () => {
+test('pnpm sbom filtered to a single project inherits the workspace root metadata it declares no value for', async () => {
   const workspaceDir = tempDir()
   f.copy('workspace-sbom', workspaceDir)
   const storeDir = path.join(workspaceDir, 'store')
 
+  writePopulatedWorkspaceRoot(workspaceDir)
+
+  const appADir = path.join(workspaceDir, 'app-a')
+  fs.writeFileSync(
+    path.join(appADir, 'package.json'),
+    JSON.stringify({
+      name: 'app-a',
+      version: '2.0.0',
+    })
+  )
+
+  const sbomOpts = await installWorkspaceForSbom(workspaceDir, storeDir, appADir)
+
+  const cyclonedx = JSON.parse((await sbom.handler(sbomOpts)).output)
+  const root = cyclonedx.metadata.component
+  expect(root.name).toBe('app-a')
+  expect(root.version).toBe('2.0.0')
+  expect(root.authors).toStrictEqual([{ name: 'Acme Engineering' }])
+  expect(root.description).toBe('The workspace root')
+  expect(root.licenses).toStrictEqual([{ license: { id: 'MIT' } }])
+  expect(root.externalReferences).toContainEqual({ type: 'vcs', url: 'https://github.com/acme/workspace' })
+  expect(root.externalReferences).toContainEqual({ type: 'issue-tracker', url: 'https://github.com/acme/workspace/issues' })
+
+  const spdx = JSON.parse((await sbom.handler({ ...sbomOpts, sbomFormat: 'spdx' })).output)
+  const spdxRoot = spdx.packages.find((pkg: { name: string }) => pkg.name === 'app-a')
+  expect(spdxRoot.supplier).toBe('Person: Acme Engineering')
+  expect(spdxRoot.description).toBe('The workspace root')
+  expect(spdxRoot.homepage).toBe('https://github.com/acme/workspace')
+  expect(spdxRoot.licenseConcluded).toBe('MIT')
+  expect(spdxRoot.licenseDeclared).toBe('MIT')
+})
+
+test.each([
+  ['blank', { author: '', description: '', license: '', repository: { type: 'git', url: '' }, bugs: { url: '' } }],
+  ['null', { author: null, description: null, license: null, repository: null, bugs: null }],
+])('pnpm sbom filtered to a single project declaring %s metadata inherits none of the workspace root\'s', async (_, declared) => {
+  const workspaceDir = tempDir()
+  f.copy('workspace-sbom', workspaceDir)
+  const storeDir = path.join(workspaceDir, 'store')
+
+  writePopulatedWorkspaceRoot(workspaceDir)
+
+  const appADir = path.join(workspaceDir, 'app-a')
+  fs.writeFileSync(
+    path.join(appADir, 'package.json'),
+    JSON.stringify({ name: 'app-a', version: '2.0.0', ...declared })
+  )
+
+  const sbomOpts = await installWorkspaceForSbom(workspaceDir, storeDir, appADir)
+
+  const cyclonedx = JSON.parse((await sbom.handler(sbomOpts)).output)
+  const root = cyclonedx.metadata.component
+  expect(root.authors).toBeUndefined()
+  expect(root.description).toBeUndefined()
+  expect(root.licenses).toBeUndefined()
+  expect(root.externalReferences).toBeUndefined()
+
+  const spdx = JSON.parse((await sbom.handler({ ...sbomOpts, sbomFormat: 'spdx' })).output)
+  const spdxRoot = spdx.packages.find((pkg: { name: string }) => pkg.name === 'app-a')
+  expect(spdxRoot.supplier).toBeUndefined()
+  expect(spdxRoot.description).toBeUndefined()
+  expect(spdxRoot.homepage).toBeUndefined()
+  expect(spdxRoot.licenseConcluded).toBe('NOASSERTION')
+  expect(spdxRoot.licenseDeclared).toBe('NOASSERTION')
+})
+
+/** Gives the workspace root manifest every metadata field a filtered project may inherit. */
+function writePopulatedWorkspaceRoot (workspaceDir: string): void {
   fs.writeFileSync(
     path.join(workspaceDir, 'package.json'),
     JSON.stringify({
@@ -1411,16 +1479,10 @@ test('pnpm sbom filtered single project inherits workspace root metadata when ab
       bugs: { url: 'https://github.com/acme/workspace/issues' },
     })
   )
+}
 
-  const appADir = path.join(workspaceDir, 'app-a')
-  fs.writeFileSync(
-    path.join(appADir, 'package.json'),
-    JSON.stringify({
-      name: 'app-a',
-      version: '2.0.0',
-    })
-  )
-
+/** Installs the whole workspace, then returns the options for an SBOM run filtered to `projectDir`. */
+async function installWorkspaceForSbom (workspaceDir: string, storeDir: string, projectDir: string) {
   const { allProjects, allProjectsGraph, selectedProjectsGraph: allSelectedGraph } =
     await filterProjectsBySelectorObjectsFromDir(workspaceDir, [])
 
@@ -1436,12 +1498,14 @@ test('pnpm sbom filtered single project inherits workspace root metadata when ab
     selectedProjectsGraph: allSelectedGraph,
   })
 
-  const { selectedProjectsGraph } =
-    await filterProjectsBySelectorObjectsFromDir(workspaceDir, [{ namePattern: 'app-a' }])
+  const { selectedProjectsGraph } = await filterProjectsBySelectorObjectsFromDir(
+    workspaceDir,
+    [{ namePattern: path.basename(projectDir) }]
+  )
 
-  const sbomOpts = {
+  return {
     ...DEFAULT_OPTS,
-    dir: appADir,
+    dir: projectDir,
     lockfileDir: workspaceDir,
     pnpmHomeDir: '',
     sbomFormat: 'cyclonedx' as const,
@@ -1449,49 +1513,4 @@ test('pnpm sbom filtered single project inherits workspace root metadata when ab
     selectedProjectsGraph,
     lockfileOnly: true,
   }
-
-  const outputInherited = JSON.parse((await sbom.handler(sbomOpts)).output)
-  const root = outputInherited.metadata.component
-  expect(root.name).toBe('app-a')
-  expect(root.authors).toStrictEqual([{ name: 'Acme Engineering' }])
-  expect(root.description).toBe('The workspace root')
-  expect(root.licenses).toStrictEqual([{ license: { id: 'MIT' } }])
-  expect(root.externalReferences).toContainEqual({ type: 'vcs', url: 'https://github.com/acme/workspace' })
-  expect(root.externalReferences).toContainEqual({ type: 'issue-tracker', url: 'https://github.com/acme/workspace/issues' })
-
-  // Declared-but-unusable fields on app-a do not fall back to workspace root values
-  fs.writeFileSync(
-    path.join(appADir, 'package.json'),
-    JSON.stringify({
-      name: 'app-a',
-      version: '2.0.0',
-      author: '',
-      license: '',
-      repository: { type: 'git', url: '' },
-      bugs: { url: '' },
-    })
-  )
-
-  const { selectedProjectsGraph: selectedProjectsGraphDeclared } =
-    await filterProjectsBySelectorObjectsFromDir(workspaceDir, [{ namePattern: 'app-a' }])
-
-  const outputDeclared = JSON.parse((await sbom.handler({
-    ...sbomOpts,
-    selectedProjectsGraph: selectedProjectsGraphDeclared,
-  })).output)
-  const rootDeclared = outputDeclared.metadata.component
-  expect(rootDeclared.authors).toBeUndefined()
-  expect(rootDeclared.licenses).toBeUndefined()
-  expect(rootDeclared.externalReferences).toBeUndefined()
-
-  const outputSpdxDeclared = JSON.parse((await sbom.handler({
-    ...sbomOpts,
-    sbomFormat: 'spdx',
-    selectedProjectsGraph: selectedProjectsGraphDeclared,
-  })).output)
-  expect(outputSpdxDeclared.creationInfo.creators).not.toContain('Person: Acme Engineering')
-  const spdxRoot = outputSpdxDeclared.packages.find((p: { name: string }) => p.name === 'app-a')
-  expect(spdxRoot.licenseConcluded).not.toBe('MIT')
-  expect(spdxRoot.licenseDeclared).not.toBe('MIT')
-  expect(spdxRoot.homepage).toBeUndefined()
-})
+}
