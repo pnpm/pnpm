@@ -283,7 +283,10 @@ Before you submit your Pull Request (PR) consider the following guidelines:
 
 - Create your patch, following [code style guidelines](#coding-style-guidelines), and **including appropriate test cases**.
 - Run `pnpm change` in the root of the repository and describe your changes. The resulting files should be committed as they will be used during release. Write the description for pnpm users and keep it concise — it becomes a release note. Implementation rationale belongs in the commit message, not the changeset. The wording rules are in [Changeset style](AGENTS.md#changeset-style).
-- Run the full test suite and ensure that all tests pass.
+- Run the tests that cover your change and ensure they pass, along with the
+  linters. You do not need to run the whole suite locally: CI runs it on every
+  pull request. For the Rust workspace, see
+  [`pnpm/CONTRIBUTING.md`](pnpm/CONTRIBUTING.md#automated-checks).
 - Commit your changes using a descriptive commit message that follows our
   [commit message conventions](#commit-message-guidelines). Adherence to these conventions
   is necessary because release notes are automatically generated from these messages.
@@ -307,7 +310,7 @@ Before you submit your Pull Request (PR) consider the following guidelines:
 - If we suggest changes then:
 
   - Make the required updates.
-  - Re-run the test suites to ensure tests are still passing.
+  - Re-run the tests that cover the updated code to ensure they still pass.
   - Rebase your branch and force push to your GitHub repository (this will update your Pull Request):
 
     ```shell

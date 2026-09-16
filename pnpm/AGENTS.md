@@ -160,8 +160,25 @@ directly when you need flags the recipe doesn't expose (e.g. filtering tests
 by crate or name — see below).
 
 - `just ready` — run the same checks CI runs (typos, fmt, check, test, lint).
-  Run this before declaring a task complete.
-- `just test` — `cargo nextest run`.
+  It runs all ~11,000 tests in the workspace. CI already does that on three
+  platforms for every pull request, so run it locally only when a change
+  reaches past the crates you can name (see
+  [`CONTRIBUTING.md`](./CONTRIBUTING.md#automated-checks)).
+- `just test-affected` — the tests of the crates the working tree changes.
+  `--print` shows the selection without running it. This is the default way to
+  test a change; it excludes the CLI end-to-end suite unless `pnpm-cli` itself
+  changed.
+- `node pnpm/scripts/run-rust-tests.mjs -p <crate>` — one crate's tests, with
+  the sanitized environment `just test` uses. `-E '<filterset>'` narrows
+  further: `test(<substring>)` for one test. Prefer `-p` over a `package()`
+  filterset when picking crates by hand: `-p` restricts what cargo builds,
+  a filterset only selects among what was built. Reach for
+  `rdeps()` only at the edge of the dependency graph — for a core crate it
+  selects most of the workspace. The
+  [`testing-changes`](../.agents/skills/testing-changes/SKILL.md) skill has the
+  measured fan-out and how to pick a selection.
+- `just test` — `cargo nextest run` over the whole workspace.
+- `just test-pacquet` / `just test-pnpr` — one product's crates.
 - `just lint` — `cargo clippy --locked --workspace --all-targets -- --deny warnings`.
 - `just check` — `cargo check --locked --workspace --all-targets`.
 - `just fmt` — the pinned fork (`node pnpm/scripts/rustfmt.mjs --all`) + `taplo format`.
@@ -395,7 +412,12 @@ are part of the public contract, not implementation detail. See
 - When a bug fix also applies to pnpm v11, land both implementations together;
   if they must be split, cross-reference the matching PR so a reviewer can
   confirm both versions are fixed.
-- Run `just ready` before pushing.
+- Before pushing, run `typos`, the formatter, `just check`, `just lint`, and the
+  tests for the crates you touched. Keep `check` and `lint` workspace-wide;
+  scope the tests. Reach for the full `just ready` only when the change reaches
+  past the crates you can name — CI runs the whole suite on three platforms
+  anyway. See [`CONTRIBUTING.md`](./CONTRIBUTING.md#automated-checks) and the
+  [`testing-changes`](../.agents/skills/testing-changes/SKILL.md) skill.
 - The repo-wide husky `pre-push` hook runs `pnpm/scripts/pre-push-rust.sh`,
   which checks `rustfmt`, `taplo`, `cargo clippy` (with `--all-targets -D
   warnings`), `cargo doc` (with `RUSTDOCFLAGS=-D warnings`), and `cargo
