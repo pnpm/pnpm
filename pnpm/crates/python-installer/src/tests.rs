@@ -182,11 +182,12 @@ fn a_lockfile_answering_another_question_is_refused() {
     assert!(error.to_string().contains("for other inputs"), "{error}");
 }
 
+fn parse_project_package(root: &Path, contents: &str) -> miette::Result<ProjectPackage> {
+    Manifest::parse(contents).expect("manifest fixture").project_package(root)
+}
+
 fn project_package(root: &Path, contents: &str) -> ProjectPackage {
-    Manifest::parse(contents)
-        .expect("manifest fixture")
-        .project_package(root)
-        .expect("the project package")
+    parse_project_package(root, contents).expect("the project package")
 }
 
 fn own_package(root: &Path, contents: &str) -> serde_json::Value {
@@ -195,7 +196,21 @@ fn own_package(root: &Path, contents: &str) -> serde_json::Value {
             serde_json::to_value(*package).expect("serialize the project package")
         }
         ProjectPackage::Virtual => panic!("the manifest declares a package"),
-        ProjectPackage::DynamicVersion => panic!("the manifest declares a version"),
+        ProjectPackage::Unsupported(reason) => panic!("the package is installable: {reason}"),
+    }
+}
+
+fn refusal(root: &Path, contents: &str) -> miette::Report {
+    match parse_project_package(root, contents) {
+        Err(error) => error,
+        Ok(_) => panic!("pnpm refuses this manifest"),
+    }
+}
+
+fn unsupported_reason(root: &Path, contents: &str) -> String {
+    match project_package(root, contents) {
+        ProjectPackage::Unsupported(reason) => reason,
+        _ => panic!("pnpm cannot install this package"),
     }
 }
 
@@ -254,6 +269,59 @@ fn the_build_backends_package_directories_are_where_the_projects_modules_are_imp
         &packaged("dependencies = []\n\n[tool.setuptools]\npackage-dir = { '' = 'lib' }\n"),
     );
     assert_eq!(setuptools["paths"], serde_json::json!([root.path().join("lib")]));
+
+    let package_dir = own_package(
+        root.path(),
+        &packaged(
+            "dependencies = []\n\n[tool.setuptools]\npackage-dir = { 'my_app' = 'lib/my_app' }\n",
+        ),
+    );
+    assert_eq!(package_dir["paths"], serde_json::json!([root.path().join("lib")]));
+
+    let reason = unsupported_reason(
+        root.path(),
+        &packaged("dependencies = []\n\n[tool.setuptools]\npackage-dir = { 'my_app' = 'lib' }\n"),
+    );
+    assert!(reason.contains("puts my_app in lib"), "{reason}");
+}
+
+/// A `.pth` file names one directory per line, and Python runs a line of
+/// one that starts with `import`.
+#[test]
+fn a_package_directory_that_would_write_more_than_one_pth_line_is_refused() {
+    let root = tempfile::tempdir().expect("project directory");
+    for directory in [r"lib\nimport os", "../outside", "/etc"] {
+        let error = refusal(
+            root.path(),
+            &packaged(&format!(
+                "dependencies = []\n\n[tool.hatch.build.targets.wheel]\npackages = [\"{directory}/my_app\"]\n",
+            )),
+        );
+        eprintln!("{error}");
+        assert!(
+            error
+                .to_string()
+                .contains(
+                    root.path()
+                        .to_str()
+                        .expect("a printable path")
+                ),
+            "{error}",
+        );
+    }
+}
+
+#[test]
+fn the_script_tables_cannot_also_be_declared_as_entry_point_groups() {
+    let root = tempfile::tempdir().expect("project directory");
+    let error = refusal(
+        root.path(),
+        &packaged(
+            "dependencies = []\n\n[project.entry-points.console_scripts]\nmy-app = 'my_app:main'\n",
+        ),
+    );
+    eprintln!("{error}");
+    assert!(error.to_string().contains("[project.scripts]"), "{error}");
 }
 
 #[test]
@@ -276,11 +344,9 @@ fn only_a_project_a_build_backend_builds_has_a_package_to_install() {
         ),
         ProjectPackage::Virtual,
     ));
-    assert!(matches!(
-        project_package(
-            root.path(),
-            "[project]\nname = 'app'\ndynamic = ['version']\ndependencies = []\n[build-system]\nrequires = ['hatchling']\n",
-        ),
-        ProjectPackage::DynamicVersion,
-    ));
+    let reason = unsupported_reason(
+        root.path(),
+        "[project]\nname = 'app'\ndynamic = ['version']\ndependencies = []\n[build-system]\nrequires = ['hatchling']\n",
+    );
+    assert_eq!(reason, "its version is dynamic");
 }

@@ -297,11 +297,11 @@ fn project_package<Reporter: self::Reporter + 'static>(
     match manifest.project_package(root)? {
         manifest::ProjectPackage::Installable(package) => Ok(Some(*package)),
         manifest::ProjectPackage::Virtual => Ok(None),
-        manifest::ProjectPackage::DynamicVersion => {
+        manifest::ProjectPackage::Unsupported(reason) => {
             Reporter::emit(&LogEvent::Global(GlobalLog {
                 level: LogLevel::Warn,
                 message: format!(
-                    "Installing only the dependencies of {}: pnpm cannot install a project whose version is dynamic",
+                    "Installing only the dependencies of {}, not the project itself, because {reason}",
                     root.display(),
                 ),
             }));

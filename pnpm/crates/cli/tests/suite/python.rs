@@ -937,8 +937,7 @@ async fn installs_node_cargo_and_python_through_the_real_coordinator() {
         .success();
 }
 
-/// The scenario of pnpm/pnpm#14945: an install leaves behind an
-/// environment the project itself can be imported and run from.
+/// The scenario of pnpm/pnpm#14945.
 #[tokio::test]
 async fn installs_the_projects_own_package_from_its_source_tree() {
     let root = tempfile::tempdir().unwrap();
@@ -1046,7 +1045,11 @@ async fn a_dynamic_version_leaves_the_projects_own_package_uninstalled() {
     let stdout = String::from_utf8_lossy(&output.stdout);
     eprintln!("stdout:\n{stdout}\nstderr:\n{}", String::from_utf8_lossy(&output.stderr));
     assert!(output.status.success());
-    assert!(stdout.contains("[WARN] Installing only the dependencies of"), "{stdout}");
+    assert!(
+        stdout.contains("[WARN] Installing only the dependencies of")
+            && stdout.contains("because its version is dynamic"),
+        "{stdout}",
+    );
     python(root.path())
         .args(["-c", "import alpha"])
         .assert()

@@ -196,6 +196,10 @@ def install_project(environment, project):
     """Install the project's own package: a path entry onto its source tree, with the metadata of an installed distribution."""
     environment.start(True)
     dist_info = project["dist_info"]
+    for path in project["paths"]:
+        # Python runs a .pth line that starts with "import", so one path must not become two lines.
+        if "\n" in path or "\r" in path:
+            raise ValueError("unsafe Python source path: " + path)
     environment.write(environment.site / project["pth"], "".join(path + "\n" for path in project["paths"]).encode("utf-8"))
     environment.write(environment.site / dist_info / "METADATA", project["metadata"].encode("utf-8"))
     direct_url = {"url": Path(project["directory"]).as_uri(), "dir_info": {"editable": True}}
