@@ -152,14 +152,13 @@ test('update preserves the original dependency field when a readPackage hook mov
     },
   }
   const readPackage: ReadPackageHook = (hookedManifest) => {
-    const { devDependencies, ...manifestWithoutDevDependencies } = hookedManifest
-    return {
-      ...manifestWithoutDevDependencies,
-      dependencies: {
-        ...hookedManifest.dependencies,
-        '@pnpm.e2e/foo': devDependencies?.['@pnpm.e2e/foo'] ?? '^1.0.0',
-      },
+    const specifier = hookedManifest.devDependencies?.['@pnpm.e2e/foo'] ?? '^1.0.0'
+    delete hookedManifest.devDependencies
+    hookedManifest.dependencies = {
+      ...hookedManifest.dependencies,
+      '@pnpm.e2e/foo': specifier,
     }
+    return hookedManifest
   }
   const options = testDefaults({
     hooks: {

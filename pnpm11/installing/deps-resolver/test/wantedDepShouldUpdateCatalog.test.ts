@@ -1,3 +1,5 @@
+import { expect, test } from '@jest/globals'
+
 import { wantedDepShouldUpdateCatalog } from '../src/wantedDepShouldUpdateCatalog.js'
 
 test('catalog updates require a persistable updated specifier', () => {
