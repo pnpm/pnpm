@@ -624,17 +624,12 @@ fn dummy_binary_resolution() -> BinaryResolution {
     }
 }
 
-/// `build_has_bin_set` must include runtime resolutions
-/// (`Binary` / `Variations`) unconditionally, *regardless of*
-/// `meta.has_bin`. Pnpm v11 doesn't emit `hasBin: true` for
-/// runtime entries in `pnpm-lock.yaml` (the bin info lives on
-/// `resolution.bin`, not at the metadata level), so the existing
-/// `has_bin == Some(true)` filter would drop runtime slots from
-/// the bin-link dispatch and the synthesized `package.json`
-/// (from `install_package_by_snapshot::synthesize_runtime_manifest_bytes`)
-/// would go unread.
+/// Runtime resolutions must be included without `has_bin` because pnpm v11
+/// records their bin in the resolution instead of emitting `hasBin: true`.
+/// Directory resolutions need the same fallback because deploy lockfiles can
+/// omit `hasBin` for workspace packages.
 #[test]
-fn build_has_bin_set_includes_runtime_resolutions_even_when_has_bin_is_absent() {
+fn build_has_bin_set_includes_resolutions_with_implicit_bin_metadata() {
     let registry_with_bin: PackageKey = "react@18.0.0".parse().expect("parse react key");
     let registry_no_bin: PackageKey = "lodash@4.17.0".parse().expect("parse lodash key");
     let runtime_binary: PackageKey = "node@22.0.0".parse().expect("parse node key");
@@ -664,8 +659,6 @@ fn build_has_bin_set_includes_runtime_resolutions_even_when_has_bin_is_absent() 
     );
     packages.insert(
         runtime_binary.clone(),
-        // Runtime entry without `has_bin: true` (pnpm v11 does
-        // not emit it for runtimes). Must still land in the set.
         metadata_with_resolution(LockfileResolution::Binary(dummy_binary_resolution()), None),
     );
     packages.insert(
@@ -702,7 +695,7 @@ fn build_has_bin_set_includes_runtime_resolutions_even_when_has_bin_is_absent() 
         set.contains(&runtime_variations),
         "Variations runtime must be in the set unconditionally",
     );
-    assert!(!set.contains(&directory), "directory without has_bin must be filtered out");
+    assert!(set.contains(&directory), "directory without has_bin must be probed for bins");
 }
 
 #[test]

@@ -154,6 +154,7 @@ fn create_file_url_key_prefers_workspace_project_name() {
         ProjectPathKey::new(&project_root),
         ProjectInfo {
             name: Some("workspace-name".to_string()),
+            has_bin: false,
             peer_dependencies: Vec::new(),
             declared_dependencies: HashSet::default(),
         },

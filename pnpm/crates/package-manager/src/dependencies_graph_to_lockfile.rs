@@ -7,8 +7,7 @@
 //! fanning it out on write.
 
 pub(crate) use importers::manifest_publish_config;
-pub use packages::PackageMetadataSources;
-pub(crate) use packages::manifest_has_bin;
+pub use packages::{PackageMetadataSources, manifest_has_bin};
 
 mod packages;
 

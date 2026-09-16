@@ -26,7 +26,9 @@ use pnpm_lockfile::{
     WantedLockfileSelection,
 };
 use pnpm_lockfile_preferred_versions::get_preferred_versions_from_lockfile_and_manifests;
-use pnpm_package_manager::{ImportIndexedDirOpts, apply_deploy_manifest_hook, import_indexed_dir};
+use pnpm_package_manager::{
+    ImportIndexedDirOpts, apply_deploy_manifest_hook, import_indexed_dir, manifest_has_bin,
+};
 use pnpm_package_manifest::{DependencyGroup, PackageManifest};
 use pnpm_reporter::{LogEvent, LogLevel, PnpmLog, Reporter};
 use pnpm_resolving_resolver_base::PreferredVersions;
@@ -125,6 +127,7 @@ enum DeployError {
 #[derive(Clone)]
 struct ProjectInfo {
     name: Option<String>,
+    has_bin: bool,
     peer_dependencies: Vec<PkgName>,
     /// Names the project declares as prod or optional dependencies. A peer it
     /// depends on itself is already bound by that edge, whether or not the
@@ -135,6 +138,16 @@ struct ProjectInfo {
 struct SelectedProject {
     project: Project,
     projects_by_path: HashMap<ProjectPathKey, ProjectInfo>,
+}
+
+impl SelectedProject {
+    fn project_info(&self, root: &Path) -> Option<&ProjectInfo> {
+        self.projects_by_path.get(&ProjectPathKey::new(root))
+    }
+
+    fn has_bin(&self, root: &Path) -> Option<bool> {
+        self.project_info(root).map(|project| project.has_bin)
+    }
 }
 
 struct DeployWorkspaceConfig {
@@ -347,6 +360,7 @@ fn index_projects(projects: &[Project]) -> HashMap<ProjectPathKey, ProjectInfo> 
                     .get("name")
                     .and_then(Value::as_str)
                     .map(str::to_string),
+                has_bin: manifest_has_bin(Some(project.manifest.value())).is_some(),
                 peer_dependencies: manifest_dependency_names(
                     &project.manifest,
                     &["peerDependencies"],
