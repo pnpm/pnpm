@@ -1,9 +1,13 @@
 use crate::{
-    cargo_deps, cli_args::add::AddArgs, ecosystem_install::InstallContext,
+    cargo_deps,
+    cli_args::{add::AddArgs, pipelines::WorkspaceScope},
+    ecosystem_install::{
+        EcosystemPlan, EcosystemWorkspaceInventory, InstallContext, PythonProjects, python,
+    },
     package_specifier::EcosystemPackageSpecifier,
 };
 use pnpm_install_coordinator::InstallPlan;
-use std::path::PathBuf;
+use std::{collections::BTreeSet, path::PathBuf};
 
 pub(crate) async fn plan<Reporter: pnpm_reporter::Reporter + 'static>(
     context: InstallContext,
@@ -11,10 +15,16 @@ pub(crate) async fn plan<Reporter: pnpm_reporter::Reporter + 'static>(
     packages: Vec<EcosystemPackageSpecifier>,
     args: &AddArgs,
     has_node_packages: bool,
-) -> miette::Result<InstallPlan<'static>> {
-    validate_add_options(&context, args)?;
+    scope: Option<&WorkspaceScope>,
+) -> miette::Result<EcosystemPlan> {
     let (crates, requirements) = partition_packages(packages);
+    validate_add_options(
+        &context,
+        args,
+        AddedPackages { crates: !crates.is_empty(), node: has_node_packages },
+    )?;
     let mut tasks = Vec::new();
+    let mut python = PythonProjects::default();
     let mut cargo_transaction_root = None;
     if !crates.is_empty() {
         let (cargo_root, task) = cargo_deps::add::plan::<Reporter>(
@@ -32,10 +42,29 @@ pub(crate) async fn plan<Reporter: pnpm_reporter::Reporter + 'static>(
         tasks.push(task);
     }
     if !requirements.is_empty() {
+        let config = context.config;
+        // Before the discovery below parses a manifest: an add pnpm refuses
+        // must not fail on what it was going to read.
+        let options = python_add_options(args, requirements)?;
+        options.validate(config)?;
+        let workspace_root = config.workspace_dir.clone().unwrap_or_else(|| root.clone());
+        let inventory = EcosystemWorkspaceInventory::new(workspace_root, config);
+        let discovery = python::discover(config, &inventory).await?;
+        // Without a `--filter` selection the add acts on the project the
+        // command was run in, the way the npm add does.
+        let selected = match scope {
+            Some(scope) => python::selected_projects(config, &root, &discovery, Some(scope))?,
+            None => BTreeSet::from([root.clone()]),
+        };
+        python = PythonProjects {
+            discovered: discovery.project_roots().count(),
+            selected: selected.len(),
+        };
         tasks.push(pnpm_python_installer::plan_add::<Reporter>(
             context.clone().into(),
-            &root,
-            python_add_options(args, requirements)?,
+            discovery,
+            selected,
+            options,
         )?);
     }
     let mut plan = InstallPlan::new(
@@ -47,13 +76,31 @@ pub(crate) async fn plan<Reporter: pnpm_reporter::Reporter + 'static>(
     for task in tasks {
         plan = plan.with_task(task);
     }
-    Ok(plan)
+    Ok(EcosystemPlan { plan, python })
 }
 
-fn validate_add_options(context: &InstallContext, args: &AddArgs) -> miette::Result<()> {
-    if context.config.recursive {
+/// Which kinds of package an ecosystem add carries beside its `pypi:`
+/// requirements. Neither kind can be added to a selection yet.
+#[derive(Clone, Copy)]
+struct AddedPackages {
+    crates: bool,
+    node: bool,
+}
+
+fn validate_add_options(
+    context: &InstallContext,
+    args: &AddArgs,
+    added: AddedPackages,
+) -> miette::Result<()> {
+    if context.config.recursive && added.crates {
         return Err(miette::miette!(
-            "crate: and pypi: dependencies cannot yet be added through a recursive or filtered selection"
+            "crate: dependencies cannot yet be added through a recursive or filtered selection"
+        ));
+    }
+    if context.config.recursive && added.node {
+        return Err(miette::miette!(
+            "an npm dependency cannot yet be added alongside a pypi: dependency through a \
+             recursive or filtered selection"
         ));
     }
     if args.save.catalog || args.save.catalog_name.is_some() {

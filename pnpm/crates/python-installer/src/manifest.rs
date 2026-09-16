@@ -110,6 +110,19 @@ pub(super) enum SourceDeclaration {
     Many(Vec<Source>),
 }
 
+impl SourceDeclaration {
+    /// Every source this declaration names. Resolving a requirement
+    /// through a declaration that names several is refused, while reading
+    /// where they all point is not: the workspace graph covers a manifest
+    /// an install would go on to reject.
+    pub(super) fn sources(&self) -> &[Source] {
+        match self {
+            Self::One(source) => std::slice::from_ref(&**source),
+            Self::Many(sources) => sources,
+        }
+    }
+}
+
 #[derive(Clone, Deserialize)]
 #[serde(rename_all = "kebab-case")]
 pub(super) struct Source {

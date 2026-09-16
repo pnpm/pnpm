@@ -5835,6 +5835,7 @@ dependencies = [
 name = "pnpm-python-installer"
 version = "0.0.1"
 dependencies = [
+ "base64 0.23.1",
  "derive_more",
  "dunce",
  "flate2",
@@ -5857,6 +5858,7 @@ dependencies = [
  "pnpm-reporter",
  "pnpm-store-dir",
  "pnpm-tarball",
+ "pnpm-workspace-projects-graph",
  "serde",
  "serde_json",
  "ssri",

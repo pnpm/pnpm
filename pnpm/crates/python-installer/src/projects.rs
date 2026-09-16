@@ -7,7 +7,7 @@ use futures_util::{StreamExt, stream};
 use miette::Result;
 use pnpm_reporter::Reporter;
 use std::{
-    collections::BTreeMap,
+    collections::{BTreeMap, BTreeSet},
     path::{Path, PathBuf},
     sync::Arc,
 };
@@ -16,9 +16,10 @@ pub(super) async fn prepare<Reporter: self::Reporter + 'static>(
     shared: &Shared<'_>,
     workspace: workspace::Workspace,
     discovered: Vec<(PathBuf, Arc<manifest::Manifest>)>,
+    selected: &BTreeSet<PathBuf>,
 ) -> Result<Vec<Prepared>> {
     let config = shared.context.config;
-    let projects = select::<Reporter>(shared, workspace, discovered).await?;
+    let projects = select::<Reporter>(shared, workspace, discovered, selected).await?;
     let results =
         stream::iter(projects.into_iter().enumerate())
             .map(|(position, project)| async move {
@@ -30,22 +31,27 @@ pub(super) async fn prepare<Reporter: self::Reporter + 'static>(
     results.into_values().collect()
 }
 
+/// The projects the install prepares: those the workspace selection asked
+/// for. The others are read for what a selected project's declared sources
+/// need, and nothing else.
 async fn select<Reporter: self::Reporter + 'static>(
     shared: &Shared<'_>,
     mut workspace: workspace::Workspace,
     mut discovered: Vec<(PathBuf, Arc<manifest::Manifest>)>,
+    selected: &BTreeSet<PathBuf>,
 ) -> Result<Vec<Project>> {
     let config = shared.context.config;
     let mut interpreters = Interpreters::new(config, &shared.context.http_client);
-    let mut selected =
-        shared.prepare_metadata::<Reporter>(&mut discovered, &mut interpreters).await?;
+    let needed = workspace.reachable_from(selected);
+    let mut interpreters_by_root =
+        shared.prepare_metadata::<Reporter>(&mut discovered, &mut interpreters, &needed).await?;
     workspace.update_manifests(&discovered);
     let mut projects = Vec::new();
     for (root, manifest) in discovered {
-        if manifest.project.is_none() {
+        if manifest.project.is_none() || !selected.contains(&root) {
             continue;
         }
-        let interpreter = match selected.remove(&root) {
+        let interpreter = match interpreters_by_root.remove(&root) {
             Some(interpreter) => interpreter,
             None => interpreters.select::<Reporter>(&root, &manifest).await?,
         };

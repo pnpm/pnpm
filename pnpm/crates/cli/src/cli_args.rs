@@ -112,7 +112,7 @@ mod dispatch;
 mod dispatch_install;
 mod dispatch_query;
 mod dispatch_script;
-mod pipelines;
+pub(crate) mod pipelines;
 mod task_run_state;
 mod update_changeset;
 mod verify_deps;

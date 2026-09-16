@@ -11,8 +11,8 @@ use super::{
     package_manager::read_manifest_json,
     prune::PruneArgs,
     recursive::{
-        AutoExcludeRoot, discover_workspace_projects, filtered_projects_dependencies,
-        select_recursive_projects,
+        AutoExcludeRoot, UnmatchedFilters, discover_workspace_projects,
+        filtered_projects_dependencies, select_recursive_projects_deferring_no_match,
     },
     remove::RemoveArgs,
     update::UpdateArgs,
@@ -77,6 +77,29 @@ impl InstallFamilySelection {
             active_manifest_is_standin: self.active_manifest_is_standin,
         }
     }
+}
+
+/// A dispatched install-family selection: how to run it, what the other
+/// ecosystems narrow themselves by, and whether the selectors matched no
+/// npm project at all.
+pub(crate) struct InstallFamily {
+    pub(crate) plan: InstallFamilyPlan,
+    pub(crate) scope: Option<WorkspaceScope>,
+    pub(crate) unmatched: Option<UnmatchedFilters>,
+}
+
+/// What a `--filter` selection resolved to among the npm workspace
+/// projects.
+///
+/// The other ecosystems narrow themselves by it: a project of theirs that
+/// shares a directory with one of `projects` is installed exactly when that
+/// project is selected, which is the only identity the workspace knows that
+/// directory by. One in a directory of its own is selected by its own name
+/// and path instead.
+#[derive(Clone)]
+pub(crate) struct WorkspaceScope {
+    pub(crate) projects: Arc<HashSet<PathBuf>>,
+    pub(crate) selected: Arc<HashSet<PathBuf>>,
 }
 
 /// How a recursive / filtered install-family command should be dispatched,
@@ -213,7 +236,32 @@ fn select_install_family_plan<Reporter: self::Reporter>(
     auto_exclude_root: bool,
     precompute_workspace_cycles: bool,
 ) -> miette::Result<InstallFamilyPlan> {
-    let Some(selection) = select_workspace_projects_with_cycles(
+    let family = select_install_family::<Reporter>(
+        cfg,
+        prefix,
+        manifest_path,
+        recursive_sort,
+        auto_exclude_root,
+        precompute_workspace_cycles,
+    )?;
+    match family.unmatched {
+        Some(unmatched) => Err(unmatched.report()),
+        None => Ok(family.plan),
+    }
+}
+
+/// [`select_install_family_plan`], with the workspace scope the other
+/// ecosystems narrow themselves by and an empty `--filter` selection left
+/// for the caller to resolve.
+fn select_install_family<Reporter: self::Reporter>(
+    cfg: &Config,
+    prefix: &Path,
+    manifest_path: &Path,
+    recursive_sort: bool,
+    auto_exclude_root: bool,
+    precompute_workspace_cycles: bool,
+) -> miette::Result<InstallFamily> {
+    let Some((selection, unmatched)) = select_workspace_projects_with_cycles(
         cfg,
         prefix,
         manifest_path,
@@ -222,8 +270,17 @@ fn select_install_family_plan<Reporter: self::Reporter>(
         precompute_workspace_cycles,
     )?
     else {
-        return Ok(InstallFamilyPlan::Single);
+        return Ok(InstallFamily { plan: InstallFamilyPlan::Single, scope: None, unmatched: None });
     };
+    let scope = Some(WorkspaceScope {
+        projects: Arc::new(
+            selection.projects
+                .iter()
+                .map(|project| project.root_dir.clone())
+                .collect(),
+        ),
+        selected: Arc::clone(&selection.selected_dirs),
+    });
     // Report what the `--filter` / `-r` selection resolved to, so the user
     // can confirm it before the install acts on it. Emitted once here for
     // every plan shape below — a `PerProject` plan installs each selected
@@ -237,10 +294,12 @@ fn select_install_family_plan<Reporter: self::Reporter>(
         total: Some(selection.projects.len()),
         workspace_prefix: Some(selection.workspace_root.to_string_lossy().into_owned()),
     }));
-    if !cfg.shares_one_lockfile() {
-        return Ok(InstallFamilyPlan::PerProject(DedicatedProjects::new(cfg, selection)));
-    }
-    Ok(InstallFamilyPlan::Shared(Box::new(selection)))
+    let plan = if cfg.shares_one_lockfile() {
+        InstallFamilyPlan::Shared(Box::new(selection))
+    } else {
+        InstallFamilyPlan::PerProject(DedicatedProjects::new(cfg, selection))
+    };
+    Ok(InstallFamily { plan, scope, unmatched })
 }
 
 pub(crate) fn select_workspace_projects(
@@ -250,14 +309,19 @@ pub(crate) fn select_workspace_projects(
     recursive_sort: bool,
     auto_exclude_root: bool,
 ) -> miette::Result<Option<InstallFamilySelection>> {
-    select_workspace_projects_with_cycles(
+    let selected = select_workspace_projects_with_cycles(
         cfg,
         prefix,
         manifest_path,
         recursive_sort,
         auto_exclude_root,
         false,
-    )
+    )?;
+    match selected {
+        Some((_, Some(unmatched))) => Err(unmatched.report()),
+        Some((selection, None)) => Ok(Some(selection)),
+        None => Ok(None),
+    }
 }
 
 fn select_workspace_projects_with_cycles(
@@ -267,7 +331,7 @@ fn select_workspace_projects_with_cycles(
     recursive_sort: bool,
     auto_exclude_root: bool,
     precompute_workspace_cycles: bool,
-) -> miette::Result<Option<InstallFamilySelection>> {
+) -> miette::Result<Option<(InstallFamilySelection, Option<UnmatchedFilters>)>> {
     if !cfg.recursive {
         return Ok(None);
     }
@@ -275,8 +339,8 @@ fn select_workspace_projects_with_cycles(
     let workspace_root = cfg.workspace_dir.clone().unwrap_or_else(|| prefix.to_path_buf());
     let (mut projects, workspace_patterns) = discover_workspace_projects(&workspace_root, cfg)?;
     apply_runtime_on_fail(cfg, &mut projects);
-    let (project_dependencies, ordered_dirs, selected_dirs, workspace_cycles) = {
-        let selection = select_recursive_projects(
+    let (project_dependencies, ordered_dirs, selected_dirs, workspace_cycles, unmatched) = {
+        let (selection, unmatched) = select_recursive_projects_deferring_no_match(
             &projects,
             cfg,
             prefix,
@@ -291,7 +355,7 @@ fn select_workspace_projects_with_cycles(
         let project_dependencies = project_dependencies(&selection, recursive_sort);
         let ordered_dirs = sequence_project_dependencies(&project_dependencies);
         let selected_dirs = selected_project_dirs(&selection);
-        (project_dependencies, ordered_dirs, selected_dirs, workspace_cycles)
+        (project_dependencies, ordered_dirs, selected_dirs, workspace_cycles, unmatched)
     };
 
     let active_dir = manifest_path.parent().expect("manifest path always has a parent dir");
@@ -299,16 +363,19 @@ fn select_workspace_projects_with_cycles(
         configuration::active_manifest_is_standin(active_dir, &projects)?;
     let install_dirs = install_dirs(&selected_dirs, &projects, &workspace_root);
 
-    Ok(Some(InstallFamilySelection {
-        workspace_root,
-        projects,
-        project_dependencies,
-        ordered_dirs,
-        selected_dirs,
-        install_dirs: Arc::new(install_dirs),
-        active_manifest_is_standin,
-        workspace_cycles,
-    }))
+    Ok(Some((
+        InstallFamilySelection {
+            workspace_root,
+            projects,
+            project_dependencies,
+            ordered_dirs,
+            selected_dirs,
+            install_dirs: Arc::new(install_dirs),
+            active_manifest_is_standin,
+            workspace_cycles,
+        },
+        unmatched,
+    )))
 }
 
 fn selected_project_dirs(

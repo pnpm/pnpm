@@ -2,7 +2,7 @@ use super::{
     AddArgs, Arc, BTreeMap, Config, Context, DedicatedProjectRuns, DeployArgs, InstallFamilyPlan,
     Path, PathBuf, RemoveArgs, Reporter, State, UpdateArgs, UpdateChangesetContext,
     anchor_active_project, config_deps, dedicated_project_name, ecosystem_add, ecosystem_install,
-    init_shared_state, select_install_family_plan,
+    init_shared_state, select_install_family, select_install_family_plan,
 };
 
 pub(crate) struct AddPipeline {
@@ -23,13 +23,14 @@ impl AddPipeline {
     pub(crate) async fn run<Reporter: self::Reporter + 'static>(self) -> miette::Result<()> {
         config_deps::prepare::<Reporter>(self.cfg, &self.config_root, false).await?;
         if !self.package_specifier_plan.ecosystem_packages.is_empty() {
-            return run_add_with_ecosystems::<Reporter>(
-                self.args,
-                self.cfg,
-                self.prefix,
-                self.manifest_path,
-                self.package_specifier_plan,
-            )
+            return run_add_with_ecosystems::<Reporter>(EcosystemAdd {
+                args: self.args,
+                cfg: self.cfg,
+                prefix: self.prefix,
+                manifest_path: self.manifest_path,
+                recursive_sort: self.recursive_sort,
+                package_specifier_plan: self.package_specifier_plan,
+            })
             .await;
         }
         // `--config` targets the workspace's configuration dependencies, not
@@ -107,13 +108,27 @@ impl AddPipeline {
     }
 }
 
-async fn run_add_with_ecosystems<Reporter: self::Reporter + 'static>(
+/// A `pnpm add` that carries at least one `crate:` or `pypi:` package.
+struct EcosystemAdd {
     args: AddArgs,
     cfg: &'static mut Config,
     prefix: PathBuf,
     manifest_path: PathBuf,
+    recursive_sort: bool,
     package_specifier_plan: crate::package_specifier::PackageSpecifierPlan,
+}
+
+async fn run_add_with_ecosystems<Reporter: self::Reporter + 'static>(
+    add: EcosystemAdd,
 ) -> miette::Result<()> {
+    let EcosystemAdd {
+        args,
+        cfg,
+        prefix,
+        manifest_path,
+        recursive_sort,
+        package_specifier_plan,
+    } = add;
     let has_node_packages = !package_specifier_plan.node_packages.is_empty();
     if !cfg.shares_one_lockfile() && cfg.workspace_dir.is_some() && has_node_packages {
         let manifest_dir = manifest_path
@@ -125,7 +140,17 @@ async fn run_add_with_ecosystems<Reporter: self::Reporter + 'static>(
     }
     let http_client = State::new_http_client(cfg).wrap_err("initialize the add network")?;
     let cfg: &'static Config = cfg;
-    let plan = ecosystem_add::plan::<Reporter>(
+    // The npm projects the selection resolved to, which is what the
+    // ecosystems in the selected directories are added to.
+    let family = select_install_family::<Reporter>(
+        cfg,
+        &prefix,
+        &manifest_path,
+        recursive_sort,
+        true,
+        false,
+    )?;
+    let ecosystem = ecosystem_add::plan::<Reporter>(
         ecosystem_install::InstallContext {
             config: cfg,
             http_client: Arc::clone(&http_client),
@@ -136,8 +161,16 @@ async fn run_add_with_ecosystems<Reporter: self::Reporter + 'static>(
         package_specifier_plan.ecosystem_packages,
         &args,
         has_node_packages,
+        family.scope.as_ref(),
     )
     .await?;
+    // A selector that named no npm project may have named a Python one.
+    if let Some(unmatched) = family.unmatched
+        && ecosystem.python.selected == 0
+    {
+        return Err(unmatched.counting(ecosystem.python.discovered).report());
+    }
+    let plan = ecosystem.plan;
     if !has_node_packages {
         return plan.run().await;
     }
