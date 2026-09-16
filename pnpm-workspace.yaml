@@ -177,7 +177,7 @@ catalog:
   '@pnpm/tabtab': ^0.5.4
   '@pnpm/tgz-fixtures': 0.0.0
   '@reflink/reflink': 0.1.19
-  '@rushstack/worker-pool': 0.7.26
+  '@rushstack/worker-pool': 0.7.27
   '@stylistic/eslint-plugin': ^5.10.0
   '@types/adm-zip': ^0.5.8
   '@types/archy': 0.0.36
@@ -229,7 +229,7 @@ catalog:
   '@zkochan/rimraf': ^4.0.0
   '@zkochan/table': ^2.0.1
   adm-zip: ^0.6.1
-  amaro: ^1.1.11
+  amaro: ^1.2.0
   ansi-diff: ^1.2.0
   archy: ^1.0.0
   better-path-resolve: 2.0.0
@@ -338,7 +338,7 @@ catalog:
   # above pnpm's supported floor of Node.js >=22.13.
   npm-registry-fetch: ^19.0.0
   object-hash: 3.0.0
-  open: ^11.0.3
+  open: ^11.0.4
   openpgp: ^6.3.1
   '@openpgp/web-stream-tools': 0.3.1
   p-defer: ^4.0.1
