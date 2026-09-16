@@ -133,7 +133,7 @@ fn installable_candidate(
 /// than failing the page, the way a wheel built for another interpreter
 /// is: an immutable old release is no reason a project cannot install the
 /// version it asks for.
-fn usable<T>(filename: &str, read: Result<T>) -> Option<T> {
+fn usable<Item>(filename: &str, read: Result<Item>) -> Option<Item> {
     match read {
         Ok(value) => Some(value),
         Err(error) => unusable(filename, error),
@@ -141,7 +141,7 @@ fn usable<T>(filename: &str, read: Result<T>) -> Option<T> {
 }
 
 /// Leave one index file out, recording why it cannot be used.
-fn unusable<T>(filename: &str, reason: impl fmt::Display) -> Option<T> {
+fn unusable<Item>(filename: &str, reason: impl fmt::Display) -> Option<Item> {
     tracing::debug!("skipping Python file {filename}: {reason}");
     None
 }
