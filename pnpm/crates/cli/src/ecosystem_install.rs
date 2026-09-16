@@ -1,6 +1,7 @@
+pub(crate) mod python;
+
 pub(crate) use workspace_inventory::{EcosystemManifest, EcosystemWorkspaceInventory};
 
-pub(crate) mod python;
 mod workspace_inventory;
 
 use crate::{

@@ -11,6 +11,7 @@ use std::{
 };
 use wax::Program as _;
 
+mod graph;
 mod selection;
 mod source;
 use selection::Target;
@@ -195,70 +196,6 @@ impl Workspace {
             self.declared.insert(root.clone(), members);
         }
         Ok(self)
-    }
-
-    /// Every project whose manifest one of `roots` reads: the selected
-    /// projects themselves, and the ones they reach through declared
-    /// sources. A project outside this set takes no part in the install,
-    /// so nothing needs its metadata prepared.
-    pub(super) fn reachable_from(&self, roots: &BTreeSet<PathBuf>) -> BTreeSet<PathBuf> {
-        let mut reachable = BTreeSet::new();
-        let mut frontier = roots
-            .iter()
-            .cloned()
-            .collect::<Vec<_>>();
-        while let Some(root) = frontier.pop() {
-            let Some(manifest) = self.manifests.get(&root) else { continue };
-            if !reachable.insert(root.clone()) {
-                continue;
-            }
-            frontier.extend(self.declared_sources(&root, manifest));
-        }
-        reachable
-    }
-
-    /// The projects in this repository the project at `root` declares a
-    /// source for: the entries of its own `[tool.uv.sources]` table, and
-    /// the ones its workspace root declares for its members.
-    ///
-    /// These are the edges a `--filter` selector follows when it asks for
-    /// a project's dependencies or dependents. They are read from the
-    /// declarations rather than from the requirements that consult them,
-    /// so a project whose requirements a build backend generates is
-    /// covered too.
-    pub(super) fn declared_sources(&self, root: &Path, manifest: &Manifest) -> Vec<PathBuf> {
-        let tables = std::iter::once((root, &manifest.tool.uv.sources))
-            .chain(
-                self.inherited
-                    .get(root)
-                    .map(|(declared_in, manifest)| {
-                        (declared_in.as_path(), &manifest.tool.uv.sources)
-                    }),
-            );
-        let mut targets = Vec::new();
-        for (declared_by, sources) in tables {
-            for (name, declaration) in sources {
-                for source in declaration.sources() {
-                    let target = if let Some(path) = &source.path {
-                        pnpm_fs::lexical_normalize(&declared_by.join(path))
-                    } else if source.workspace {
-                        match self.roots.get(name).and_then(|roots| roots.first()) {
-                            Some(target) => target.clone(),
-                            None => continue,
-                        }
-                    } else {
-                        continue;
-                    };
-                    if target != root
-                        && self.manifests.contains_key(&target)
-                        && !targets.contains(&target)
-                    {
-                        targets.push(target);
-                    }
-                }
-            }
-        }
-        targets
     }
 
     /// Where the project declaring `name` is, for a project at `root` that

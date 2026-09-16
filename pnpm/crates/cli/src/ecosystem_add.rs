@@ -6,8 +6,11 @@ use crate::{
     },
     package_specifier::EcosystemPackageSpecifier,
 };
-use pnpm_install_coordinator::InstallPlan;
-use std::{collections::BTreeSet, path::PathBuf};
+use pnpm_install_coordinator::{InstallPlan, InstallTask};
+use std::{
+    collections::BTreeSet,
+    path::{Path, PathBuf},
+};
 
 pub(crate) async fn plan<Reporter: pnpm_reporter::Reporter + 'static>(
     context: InstallContext,
@@ -27,45 +30,17 @@ pub(crate) async fn plan<Reporter: pnpm_reporter::Reporter + 'static>(
     let mut python = PythonProjects::default();
     let mut cargo_transaction_root = None;
     if !crates.is_empty() {
-        let (cargo_root, task) = cargo_deps::add::plan::<Reporter>(
-            context.clone(),
-            root.join("Cargo.toml"),
-            cargo_deps::add::AddOptions {
-                packages: crates,
-                dependency_kind: args.dependency_options.cargo_dependency_kind(has_node_packages)?,
-                save_exact: args.save.exact,
-                save_prefix: args.save.prefix.clone(),
-            },
-        )
-        .await?;
+        let (cargo_root, task) =
+            cargo_add_task::<Reporter>(context.clone(), &root, crates, (args, has_node_packages))
+                .await?;
         cargo_transaction_root = Some(cargo_root);
         tasks.push(task);
     }
     if !requirements.is_empty() {
-        let config = context.config;
-        // Before the discovery below parses a manifest: an add pnpm refuses
-        // must not fail on what it was going to read.
-        let options = python_add_options(args, requirements)?;
-        options.validate(config)?;
-        let workspace_root = config.workspace_dir.clone().unwrap_or_else(|| root.clone());
-        let inventory = EcosystemWorkspaceInventory::new(workspace_root, config);
-        let discovery = python::discover(config, &inventory).await?;
-        // Without a `--filter` selection the add acts on the project the
-        // command was run in, the way the npm add does.
-        let selected = match scope {
-            Some(scope) => python::selected_projects(config, &root, &discovery, Some(scope))?,
-            None => BTreeSet::from([root.clone()]),
-        };
-        python = PythonProjects {
-            discovered: discovery.project_roots().count(),
-            selected: selected.len(),
-        };
-        tasks.push(pnpm_python_installer::plan_add::<Reporter>(
-            context.clone().into(),
-            discovery,
-            selected,
-            options,
-        )?);
+        let (task, projects) =
+            python_add_task::<Reporter>(context.clone(), &root, requirements, (args, scope)).await?;
+        python = projects;
+        tasks.push(task);
     }
     let mut plan = InstallPlan::new(
         context.config.workspace_dir
@@ -85,6 +60,54 @@ pub(crate) async fn plan<Reporter: pnpm_reporter::Reporter + 'static>(
 struct AddedPackages {
     crates: bool,
     node: bool,
+}
+
+async fn cargo_add_task<Reporter: pnpm_reporter::Reporter + 'static>(
+    context: InstallContext,
+    root: &Path,
+    packages: Vec<crate::package_specifier::RegistryPackageSpecifier>,
+    (args, has_node_packages): (&AddArgs, bool),
+) -> miette::Result<(PathBuf, InstallTask<'static>)> {
+    cargo_deps::add::plan::<Reporter>(
+        context,
+        root.join("Cargo.toml"),
+        cargo_deps::add::AddOptions {
+            packages,
+            dependency_kind: args.dependency_options.cargo_dependency_kind(has_node_packages)?,
+            save_exact: args.save.exact,
+            save_prefix: args.save.prefix.clone(),
+        },
+    )
+    .await
+}
+
+/// The Python half of the add, and the projects it was resolved against.
+///
+/// Without a `--filter` selection the add acts on the project the command
+/// was run in, the way the npm add does.
+async fn python_add_task<Reporter: pnpm_reporter::Reporter + 'static>(
+    context: InstallContext,
+    root: &Path,
+    requirements: Vec<String>,
+    (args, scope): (&AddArgs, Option<&WorkspaceScope>),
+) -> miette::Result<(InstallTask<'static>, PythonProjects)> {
+    let config = context.config;
+    // Before the discovery below parses a manifest: an add pnpm refuses
+    // must not fail on what it was going to read.
+    let options = python_add_options(args, requirements)?;
+    options.validate(config)?;
+    let workspace_root = config.workspace_dir.clone().unwrap_or_else(|| root.to_path_buf());
+    let inventory = EcosystemWorkspaceInventory::new(workspace_root, config);
+    let discovery = python::discover(config, &inventory).await?;
+    let selected = match scope {
+        Some(scope) => python::selected_projects(config, root, &discovery, Some(scope))?,
+        None => BTreeSet::from([root.to_path_buf()]),
+    };
+    let projects =
+        PythonProjects { discovered: discovery.project_roots().count(), selected: selected.len() };
+    let task =
+        pnpm_python_installer::plan_add::<Reporter>(context.into(), discovery, selected, options)?;
+    Ok((task, projects))
 }
 
 fn validate_add_options(

@@ -1,9 +1,11 @@
 use super::{
-    AddArgs, Arc, BTreeMap, Config, Context, DedicatedProjectRuns, DeployArgs, InstallFamilyPlan,
-    Path, PathBuf, RemoveArgs, Reporter, State, UpdateArgs, UpdateChangesetContext,
-    anchor_active_project, config_deps, dedicated_project_name, ecosystem_add, ecosystem_install,
-    init_shared_state, select_install_family, select_install_family_plan,
+    AddArgs, Arc, BTreeMap, Config, Context, DedicatedProjectRuns, DeployArgs, InstallFamily,
+    InstallFamilyPlan, Path, PathBuf, RemoveArgs, Reporter, State, ThrottledClient, UpdateArgs,
+    UpdateChangesetContext, anchor_active_project, config_deps, dedicated_project_name,
+    ecosystem_add, ecosystem_install, init_shared_state, select_install_family,
+    select_install_family_plan,
 };
+use crate::cli_args::recursive::UnmatchedFilters;
 
 pub(crate) struct AddPipeline {
     pub(crate) args: AddArgs,
@@ -23,14 +25,15 @@ impl AddPipeline {
     pub(crate) async fn run<Reporter: self::Reporter + 'static>(self) -> miette::Result<()> {
         config_deps::prepare::<Reporter>(self.cfg, &self.config_root, false).await?;
         if !self.package_specifier_plan.ecosystem_packages.is_empty() {
-            return run_add_with_ecosystems::<Reporter>(EcosystemAdd {
+            return EcosystemAdd {
                 args: self.args,
                 cfg: self.cfg,
                 prefix: self.prefix,
                 manifest_path: self.manifest_path,
                 recursive_sort: self.recursive_sort,
                 package_specifier_plan: self.package_specifier_plan,
-            })
+            }
+            .run::<Reporter>()
             .await;
         }
         // `--config` targets the workspace's configuration dependencies, not
@@ -118,68 +121,131 @@ struct EcosystemAdd {
     package_specifier_plan: crate::package_specifier::PackageSpecifierPlan,
 }
 
-async fn run_add_with_ecosystems<Reporter: self::Reporter + 'static>(
-    add: EcosystemAdd,
-) -> miette::Result<()> {
-    let EcosystemAdd {
-        args,
-        cfg,
-        prefix,
-        manifest_path,
-        recursive_sort,
-        package_specifier_plan,
-    } = add;
-    let has_node_packages = !package_specifier_plan.node_packages.is_empty();
+/// The npm half of an add that also carries ecosystem packages, enrolled in
+/// the same transaction as they are.
+struct NodeAdd {
+    args: AddArgs,
+    cfg: &'static Config,
+    manifest_path: PathBuf,
+    http_client: Arc<ThrottledClient>,
+    packages: Vec<String>,
+}
+
+impl EcosystemAdd {
+    async fn run<Reporter: self::Reporter + 'static>(self) -> miette::Result<()> {
+        let has_node_packages = !self.package_specifier_plan.node_packages.is_empty();
+        let EcosystemAddSetup { cfg, http_client, family } = prepare_ecosystem_add::<Reporter>(
+            self.cfg,
+            (&self.prefix, &self.manifest_path),
+            self.recursive_sort,
+            has_node_packages,
+        )?;
+        let ecosystem = ecosystem_add::plan::<Reporter>(
+            add_install_context(cfg, &http_client, &self.args),
+            self.prefix,
+            self.package_specifier_plan.ecosystem_packages,
+            &self.args,
+            has_node_packages,
+            family.scope.as_ref(),
+        )
+        .await?;
+        if let Some(unmatched) = unmatched_after_ecosystems(family.unmatched, &ecosystem) {
+            return Err(unmatched);
+        }
+        if !has_node_packages {
+            return ecosystem.plan.run().await;
+        }
+        run_mixed_add::<Reporter>(
+            ecosystem.plan,
+            NodeAdd {
+                args: self.args,
+                cfg,
+                manifest_path: self.manifest_path,
+                http_client,
+                packages: self.package_specifier_plan.node_packages,
+            },
+        )
+        .await
+    }
+}
+
+/// What an ecosystem add resolves before it can be planned: the network it
+/// fetches through, and the npm projects the selection named.
+struct EcosystemAddSetup {
+    cfg: &'static Config,
+    http_client: Arc<ThrottledClient>,
+    family: InstallFamily,
+}
+
+fn prepare_ecosystem_add<Reporter: self::Reporter>(
+    cfg: &'static mut Config,
+    (prefix, manifest_path): (&Path, &Path),
+    recursive_sort: bool,
+    has_node_packages: bool,
+) -> miette::Result<EcosystemAddSetup> {
     if !cfg.shares_one_lockfile() && cfg.workspace_dir.is_some() && has_node_packages {
-        let manifest_dir = manifest_path
-            .parent()
-            .expect("manifest path always has a parent dir")
-            .to_path_buf();
-        let name = dedicated_project_name(cfg, &manifest_dir);
-        cfg.anchor_dedicated_project(&manifest_dir, name.as_deref());
+        anchor_dedicated_add_target(cfg, manifest_path);
     }
     let http_client = State::new_http_client(cfg).wrap_err("initialize the add network")?;
     let cfg: &'static Config = cfg;
     // The npm projects the selection resolved to, which is what the
     // ecosystems in the selected directories are added to.
-    let family = select_install_family::<Reporter>(
+    let family =
+        select_install_family::<Reporter>(cfg, prefix, manifest_path, recursive_sort, true, false)?;
+    Ok(EcosystemAddSetup { cfg, http_client, family })
+}
+
+fn add_install_context(
+    cfg: &'static Config,
+    http_client: &Arc<ThrottledClient>,
+    args: &AddArgs,
+) -> ecosystem_install::InstallContext {
+    ecosystem_install::InstallContext {
+        config: cfg,
+        http_client: Arc::clone(http_client),
+        lockfile_only: args.install.lockfile_only,
+        frozen_lockfile: false,
+    }
+}
+
+/// The empty-selection failure the whole command earns, if any. A selector
+/// that named no npm project may have named a Python one.
+fn unmatched_after_ecosystems(
+    unmatched: Option<UnmatchedFilters>,
+    ecosystem: &ecosystem_install::EcosystemPlan,
+) -> Option<miette::Report> {
+    unmatched
+        .filter(|_| ecosystem.python.selected == 0)
+        .map(|unmatched| unmatched.counting(ecosystem.python.discovered).report())
+}
+
+/// Anchor the dedicated-lockfile project the npm half of the add writes to,
+/// so its outputs land beside its own manifest.
+fn anchor_dedicated_add_target(cfg: &mut Config, manifest_path: &Path) {
+    let manifest_dir = manifest_path
+        .parent()
+        .expect("manifest path always has a parent dir")
+        .to_path_buf();
+    let name = dedicated_project_name(cfg, &manifest_dir);
+    cfg.anchor_dedicated_project(&manifest_dir, name.as_deref());
+}
+
+async fn run_mixed_add<Reporter: self::Reporter + 'static>(
+    plan: pnpm_install_coordinator::InstallPlan<'static>,
+    node: NodeAdd,
+) -> miette::Result<()> {
+    let NodeAdd {
+        mut args,
         cfg,
-        &prefix,
-        &manifest_path,
-        recursive_sort,
-        true,
-        false,
-    )?;
-    let ecosystem = ecosystem_add::plan::<Reporter>(
-        ecosystem_install::InstallContext {
-            config: cfg,
-            http_client: Arc::clone(&http_client),
-            lockfile_only: args.install.lockfile_only,
-            frozen_lockfile: false,
-        },
-        prefix,
-        package_specifier_plan.ecosystem_packages,
-        &args,
-        has_node_packages,
-        family.scope.as_ref(),
-    )
-    .await?;
-    // A selector that named no npm project may have named a Python one.
-    if let Some(unmatched) = family.unmatched
-        && ecosystem.python.selected == 0
-    {
-        return Err(unmatched.counting(ecosystem.python.discovered).report());
-    }
-    let plan = ecosystem.plan;
-    if !has_node_packages {
-        return plan.run().await;
-    }
+        manifest_path,
+        http_client,
+        packages,
+    } = node;
     let metadata = node_add_metadata_paths(cfg, &manifest_path);
-    let mut node_args = args;
-    node_args.package_names = package_specifier_plan.node_packages;
+    args.package_names = packages;
     let node_install = async move {
         let state = init_shared_state(manifest_path, cfg, false, None, http_client)?;
-        Box::pin(node_args.run::<Reporter>(state, None)).await
+        Box::pin(args.run::<Reporter>(state, None)).await
     };
     plan.with_task(pnpm_install_coordinator::InstallTask::in_place(metadata, node_install))
         .run()

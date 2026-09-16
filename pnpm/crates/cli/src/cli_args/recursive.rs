@@ -9,8 +9,10 @@
 
 pub use execution_args::RecursiveExecutionArgs;
 pub use summary::{ExecutionStatus, Status, count_failures, write_recursive_summary};
+pub use unmatched::UnmatchedFilters;
 
 mod execution_args;
+mod unmatched;
 
 use derive_more::{Display, Error};
 use indexmap::IndexMap;
@@ -34,6 +36,7 @@ use std::{
     collections::{HashMap, HashSet},
     path::{Path, PathBuf},
 };
+use unmatched::unmatched_filters;
 
 /// `Cannot find package {resume_from}` — raised by both recursive `run`
 /// and recursive `exec` when `--resume-from` names a package that is not
@@ -55,7 +58,7 @@ pub const NO_MATCHING_PROJECTS_CODE: &str = "ERR_PNPM_NO_MATCHING_PROJECTS";
 
 /// `--fail-if-no-match` with an empty workspace-project selection. The
 /// message is already on stdout by the time this is returned; see
-/// [`ensure_projects_matched`].
+/// [`UnmatchedFilters::report`].
 #[derive(Debug, Display, Error, Diagnostic)]
 #[diagnostic(code(ERR_PNPM_NO_MATCHING_PROJECTS))]
 pub struct NoMatchingProjects {
@@ -291,16 +294,7 @@ pub fn select_recursive_projects_deferring_no_match<'a>(
     let root_selector = auto_exclude_root.root_selector(config, prefix);
 
     if config.filter.is_empty() && config.filter_prod.is_empty() && root_selector.is_none() {
-        let unmatched = unmatched_filters(all.len(), all.len(), config, prefix);
-        return Ok((
-            RecursiveSelection {
-                selected: all,
-                all: None,
-                prod_all: None,
-                prod_only_selected: HashSet::new(),
-            },
-            unmatched,
-        ));
+        return Ok(unnarrowed_selection(all, config, prefix));
     }
 
     // Run the filters against the graphs already built here, so nothing is
@@ -340,6 +334,23 @@ pub fn select_recursive_projects_deferring_no_match<'a>(
     Ok((RecursiveSelection { selected, all: Some(all), prod_all, prod_only_selected }, unmatched))
 }
 
+/// Every project, for a run no selector narrowed. `all` already is the full
+/// graph, so the sort has nothing to resolve edges through.
+fn unnarrowed_selection<'a>(
+    all: ProjectGraph<GraphPkg<'a>>,
+    config: &Config,
+    prefix: &Path,
+) -> (RecursiveSelection<'a>, Option<UnmatchedFilters>) {
+    let unmatched = unmatched_filters(all.len(), all.len(), config, prefix);
+    let selection = RecursiveSelection {
+        selected: all,
+        all: None,
+        prod_all: None,
+        prod_only_selected: HashSet::new(),
+    };
+    (selection, unmatched)
+}
+
 /// Assemble the selected graph out of the two passes' results, and name
 /// the projects only the prod pass selected.
 ///
@@ -375,58 +386,6 @@ fn merge_selected_graphs<'a>(
         }
     }
     (selected, prod_only_selected)
-}
-
-/// pnpm's `--fail-if-no-match`: a selection that came back empty ends the
-/// run with exit code 1 instead of letting the command operate on no
-/// project at all.
-pub struct UnmatchedFilters {
-    workspace_dir: PathBuf,
-    /// How many projects the selectors were matched against. A workspace
-    /// holding none at all is reported differently from one whose projects
-    /// the selectors all missed.
-    projects: usize,
-}
-
-impl UnmatchedFilters {
-    /// Count another ecosystem's projects among the ones the selectors were
-    /// matched against, so a workspace holding only those is not reported
-    /// as holding no project at all.
-    #[must_use]
-    pub fn counting(mut self, projects: usize) -> Self {
-        self.projects += projects;
-        self
-    }
-
-    /// End the run the way pnpm does: it prints the sentence to stdout and
-    /// sets `process.exitCode = 1`, so the message is printed here and the
-    /// returned error carries [`NO_MATCHING_PROJECTS_CODE`], which
-    /// `is_reported_error` recognizes as already-printed.
-    pub fn report(self) -> miette::Report {
-        let message = if self.projects == 0 {
-            format!(r#"No projects found in "{}""#, self.workspace_dir.display())
-        } else {
-            no_projects_matched_message(&self.workspace_dir)
-        };
-        println!("{message}");
-        NoMatchingProjects { message }.into()
-    }
-}
-
-/// The `--fail-if-no-match` failure this selection earns, if any.
-fn unmatched_filters(
-    selected_count: usize,
-    all_count: usize,
-    config: &Config,
-    prefix: &Path,
-) -> Option<UnmatchedFilters> {
-    if !config.fail_if_no_match || selected_count != 0 {
-        return None;
-    }
-    Some(UnmatchedFilters {
-        workspace_dir: notice_workspace_dir(config, prefix).to_path_buf(),
-        projects: all_count,
-    })
 }
 
 /// The directory pnpm names in its empty-selection notices: the workspace
