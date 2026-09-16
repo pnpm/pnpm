@@ -1,7 +1,7 @@
 use crate::{
     model::{DependencyKind, FeatureSelection, PackageKey, RegistryDependency, RegistryVersion},
-    packages::selected_package,
-    registry::{Registry, matching_lines},
+    packages::{newest_line_package, selected_package},
+    registry::Registry,
 };
 use miette::Result;
 use pubgrub::SelectedDependencies;
@@ -178,16 +178,19 @@ fn collect_feature_selections(
     while let Some(dependency) = pending.pop_front() {
         registry.validate_dependency_source(dependency.registry.as_deref())?;
         let versions = registry.package(&dependency.name)?;
-        let chosen = match solution {
+        // Before there is a solution the line is a prediction, and the
+        // solver reaches for the newest first. Once there is one, the line
+        // it settled on is the only one this dependency asked anything of.
+        let package = match solution {
             Some(solution) => {
                 selected_package(registry, &dependency.name, &dependency.requirement, solution)?
             }
-            None => None,
+            None => newest_line_package(registry, &dependency.name, &dependency.requirement)?,
         };
-        if !widen_line_selections(&mut selections, &dependency, versions, chosen.as_ref()) {
+        let Some(package) = package else { continue };
+        if !widen_line_selection(&mut selections, &dependency, &package) {
             continue;
         }
-        let Some(package) = chosen else { continue };
         let Some(selected_version) = solution.and_then(|solution| solution.get(&package)) else {
             continue;
         };
@@ -201,28 +204,18 @@ fn collect_feature_selections(
     Ok(selections)
 }
 
-/// Fold what `dependency` asks for into the selection of every compatibility
-/// line it could be met on, because the solver may settle on any of them.
-/// Reports whether that changed the selection of `chosen`, the line it
-/// actually settled on, which is the only one worth walking again.
-fn widen_line_selections(
+/// Fold what `dependency` asks for into `package`'s selection, reporting
+/// whether that added anything, which is what makes it worth walking again.
+fn widen_line_selection(
     selections: &mut BTreeMap<PackageKey, FeatureSelection>,
     dependency: &RegistryDependency,
-    versions: &[RegistryVersion],
-    chosen: Option<&PackageKey>,
+    package: &PackageKey,
 ) -> bool {
-    let mut advanced = false;
-    for (compatibility, _) in matching_lines(versions, &dependency.requirement) {
-        let package = PackageKey::Registry { name: dependency.name.clone(), compatibility };
-        let previous = selections.get(&package).cloned();
-        let selection = selections.entry(package.clone()).or_default();
-        selection.default_features |= dependency.default_features;
-        selection.features.extend(dependency.features.iter().cloned());
-        if previous.as_ref() != Some(selection) && chosen == Some(&package) {
-            advanced = true;
-        }
-    }
-    advanced
+    let previous = selections.get(package).cloned();
+    let selection = selections.entry(package.clone()).or_default();
+    selection.default_features |= dependency.default_features;
+    selection.features.extend(dependency.features.iter().cloned());
+    previous.as_ref() != Some(selection)
 }
 
 pub(crate) fn indexed_version<'v>(

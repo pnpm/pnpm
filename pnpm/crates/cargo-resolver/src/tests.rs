@@ -726,17 +726,20 @@ fn discovers_a_crate_only_unified_features_activate() {
     );
 }
 
-/// A version on an older line the requirement also admits can be selected,
-/// so what it needs is fetched too.
 #[test]
-fn fetches_what_an_older_admissible_line_needs() {
-    let files = BTreeMap::from([("foo".to_string(), SPANNING_FOO_INDEX.to_string())]);
+fn fetches_what_every_admissible_line_needs() {
+    // Each line needs a crate of its own, so walking only the newest would
+    // leave the other unfetched.
+    let foo_index = r#"{"name":"foo","vers":"1.0.0","deps":[{"name":"legacy","req":"^1","features":[],"optional":false,"default_features":true,"target":null,"kind":"normal","registry":null}],"cksum":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","features":{},"yanked":false}
+{"name":"foo","vers":"2.0.0","deps":[{"name":"modern","req":"^1","features":[],"optional":false,"default_features":true,"target":null,"kind":"normal","registry":null}],"cksum":"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb","features":{},"yanked":false}"#;
+    let files = BTreeMap::from([("foo".to_string(), foo_index.to_string())]);
 
-    assert_eq!(missing_index_names(SPANNING_METADATA, &files, CRATES_IO_SOURCE).unwrap(), ["bar"]);
+    assert_eq!(
+        missing_index_names(SPANNING_METADATA, &files, CRATES_IO_SOURCE).unwrap(),
+        ["legacy", "modern"],
+    );
 }
 
-/// `cargo` backtracks from a compatibility line it cannot satisfy to an
-/// older one the requirement also admits.
 #[test]
 fn backtracks_to_an_older_compatibility_line() {
     let files = BTreeMap::from([
@@ -765,8 +768,6 @@ fn backtracks_to_an_older_compatibility_line() {
     );
 }
 
-/// Backtracking is a last resort: the newest line still wins when it
-/// resolves, which is the version `cargo` picks.
 #[test]
 fn prefers_the_newest_compatibility_line_that_resolves() {
     let foo_index = SPANNING_FOO_INDEX.replace(r#""req":"^9""#, r#""req":"^2""#);
@@ -787,6 +788,65 @@ fn prefers_the_newest_compatibility_line_that_resolves() {
                 package.name.as_str() == "foo" && package.version == semver::Version::new(2, 0, 0)
             }),
     );
+}
+
+/// Both lines of `foo` carry an `extra` feature, so only the selection each
+/// line was actually asked for decides whether `baz` is activated there.
+#[test]
+fn keeps_requested_features_on_the_line_that_asked_for_them() {
+    const METADATA: &str = r#"{
+  "packages": [
+    {
+      "id": "path+file:///workspace#wide@0.1.0",
+      "name": "wide",
+      "version": "0.1.0",
+      "dependencies": [{
+        "name": "foo",
+        "source": "registry+https://github.com/rust-lang/crates.io-index",
+        "req": ">=0.9",
+        "features": ["extra"]
+      }]
+    },
+    {
+      "id": "path+file:///workspace#narrow@0.1.0",
+      "name": "narrow",
+      "version": "0.1.0",
+      "dependencies": [{
+        "name": "foo",
+        "source": "registry+https://github.com/rust-lang/crates.io-index",
+        "req": "^0.9"
+      }]
+    }
+  ],
+  "workspace_members": [
+    "path+file:///workspace#wide@0.1.0",
+    "path+file:///workspace#narrow@0.1.0"
+  ]
+}"#;
+    let foo_index = r#"{"name":"foo","vers":"0.9.0","deps":[{"name":"baz","req":"^1","features":[],"optional":true,"default_features":true,"target":null,"kind":"normal","registry":null}],"cksum":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","features":{"extra":["dep:baz"]},"yanked":false}
+{"name":"foo","vers":"1.0.0","deps":[{"name":"baz","req":"^1","features":[],"optional":true,"default_features":true,"target":null,"kind":"normal","registry":null}],"cksum":"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb","features":{"extra":["dep:baz"]},"yanked":false}"#;
+    let files = BTreeMap::from([
+        ("baz".to_string(), BAZ_INDEX.to_string()),
+        ("foo".to_string(), foo_index.to_string()),
+    ]);
+
+    let lockfile =
+        Lockfile::from_str(&resolve_lockfile(METADATA, &files, CRATES_IO_SOURCE).unwrap()).unwrap();
+
+    dbg!(&lockfile.packages);
+    let dependencies = |version: semver::Version| {
+        lockfile.packages
+            .iter()
+            .find(|package| package.name.as_str() == "foo" && package.version == version)
+            .map(|package| {
+                package.dependencies
+                    .iter()
+                    .map(|dependency| dependency.name.to_string())
+                    .collect::<Vec<_>>()
+            })
+    };
+    assert_eq!(dependencies(semver::Version::new(1, 0, 0)), Some(vec!["baz".to_string()]));
+    assert_eq!(dependencies(semver::Version::new(0, 9, 0)), Some(Vec::new()));
 }
 
 /// The `rand` example from the Cargo book: a requirement spanning two lines

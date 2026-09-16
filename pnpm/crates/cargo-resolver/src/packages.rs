@@ -43,6 +43,22 @@ pub(crate) fn package_key(
     }
 }
 
+/// The line package a requirement resolves to before there is a solution to
+/// read the choice from: the newest line it is met on, which is the one the
+/// solver reaches for first.
+pub(crate) fn newest_line_package(
+    registry: &Registry,
+    name: &str,
+    requirement: &VersionReq,
+) -> Result<Option<PackageKey>> {
+    let Some(versions) = registry.versions(name) else {
+        return Ok(None);
+    };
+    Ok(matching_lines(versions, requirement)
+        .pop()
+        .map(|(compatibility, _)| PackageKey::Registry { name: name.to_string(), compatibility }))
+}
+
 /// The line package a [`PackageKey::Requirement`] choice settled on, named
 /// by the version the solver picked for it.
 pub(crate) fn chosen_line(name: &str, representative: &Version) -> PackageKey {
