@@ -55,7 +55,7 @@ fn cache_foo_index_versions(cache_dir: &Path, versions: &[&str]) {
         .iter()
         .map(|version| {
             format!(
-                r#"{{"name":"foo","vers":"{version}","deps":[],"cksum":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","features":{{}},"yanked":false}}"#
+                r#"{{"name":"foo","vers":"{version}","deps":[],"cksum":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","features":{{}},"yanked":false}}"#,
             )
         })
         .collect::<Vec<_>>()
