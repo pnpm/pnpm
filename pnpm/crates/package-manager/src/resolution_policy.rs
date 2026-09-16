@@ -33,6 +33,11 @@ pub struct PickPolicy {
     /// `supportsTimeField` is not charged for full metadata because another
     /// one needs it.
     pub needs_full_metadata_for: NeedsFullMetadataFor,
+    /// Read and write pnpm's filtered full-metadata mirror when a full
+    /// packument is fetched. The filtered mirror keeps only the fields an
+    /// install reads, so a caller that needs any other field has to clear
+    /// this (see [`Self::force_unfiltered_full_metadata`]).
+    pub filter_metadata: bool,
     /// `minimumReleaseAge` cutoff: only versions published at or before
     /// this instant are eligible. `None` disables the maturity filter.
     pub published_by: Option<DateTime<Utc>>,
@@ -72,6 +77,18 @@ impl PickPolicy {
         Ok(policy)
     }
 
+    /// Read the full packument verbatim from every registry, whatever the
+    /// config's own metadata policy asks for. Keeps the fields install
+    /// metadata drops, `homepage` among them.
+    pub fn force_unfiltered_full_metadata(&mut self) {
+        // All three or none: the per-registry answer outranks
+        // `full_metadata` wherever a registry is in hand, and a filtered
+        // fetch keeps only the fields an install reads.
+        self.full_metadata = true;
+        self.needs_full_metadata_for = Arc::new(|_registry| true);
+        self.filter_metadata = false;
+    }
+
     /// [`Self::from_config`] with an explicit `now`, so callers that derive
     /// the policy more than once within an operation can anchor every
     /// `minimumReleaseAge` cutoff to the same instant.
@@ -100,6 +117,7 @@ impl PickPolicy {
             pick_lowest_direct,
             full_metadata,
             needs_full_metadata_for: config.requires_full_metadata_for_registry_fn(),
+            filter_metadata: config.requires_filtered_full_metadata(),
             published_by,
             published_by_exclude,
         })
@@ -144,7 +162,7 @@ pub fn create_configured_npm_resolver(
         format: pnpm_resolving_npm_resolver::RegistryMetadataFormat {
             full_metadata: policy.full_metadata,
             needs_full_metadata_for: Some(Arc::clone(&policy.needs_full_metadata_for)),
-            filter_metadata: config.requires_filtered_full_metadata(),
+            filter_metadata: policy.filter_metadata,
         },
         cache_policy: pnpm_resolving_npm_resolver::MetadataCachePolicy {
             offline: config.offline,
@@ -171,7 +189,7 @@ pub(crate) fn pick_package_context<'a>(
     PickPackageContext {
         full_metadata: policy.full_metadata,
         needs_full_metadata_for: Some(policy.needs_full_metadata_for.as_ref()),
-        filter_metadata: config.requires_filtered_full_metadata(),
+        filter_metadata: policy.filter_metadata,
         cache_policy: pnpm_resolving_npm_resolver::MetadataCachePolicy {
             offline: config.offline,
             prefer_offline: config.prefer_offline,
