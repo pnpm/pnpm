@@ -53,15 +53,9 @@ fn validate_prepared_metadata(
             .transpose()
             .into_diagnostic()
     };
-    let extras = |metadata: &host::WheelMetadata| {
-        metadata.provides_extra
-            .iter()
-            .map(|extra| extra.parse::<pep508_rs::ExtraName>().into_diagnostic())
-            .collect::<Result<BTreeSet<_>>>()
-    };
     if requirement_set(&prepared.requires_dist)? != requirement_set(&built.requires_dist)?
         || python(prepared)? != python(built)?
-        || extras(prepared)? != extras(built)?
+        || extra_set(&prepared.provides_extra)? != extra_set(&built.provides_extra)?
     {
         bail!(
             "the Python project at {} built dependency metadata that differs from its prepared metadata",
@@ -69,4 +63,13 @@ fn validate_prepared_metadata(
         );
     }
     Ok(())
+}
+
+pub(in super::super) fn extra_set(
+    extras: impl IntoIterator<Item = impl AsRef<str>>,
+) -> Result<BTreeSet<pep508_rs::ExtraName>> {
+    extras
+        .into_iter()
+        .map(|extra| extra.as_ref().parse().into_diagnostic())
+        .collect()
 }

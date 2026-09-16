@@ -1,4 +1,4 @@
-pub(super) use validation::requirement_set;
+pub(super) use validation::{extra_set, requirement_set};
 
 mod metadata;
 mod validation;

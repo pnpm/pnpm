@@ -69,6 +69,14 @@ impl Manifest {
                 bail!("Python backend metadata differs from static project requires-python");
             }
         }
+        if !project.dynamic
+            .iter()
+            .any(|field| field == "optional-dependencies")
+            && crate::build::extra_set(project.optional_dependencies.keys())?
+                != crate::build::extra_set(&metadata.provides_extra)?
+        {
+            bail!("Python backend metadata differs from static project extras");
+        }
         let actual = crate::build::requirement_set(&metadata.requires_dist)?;
         let declared = crate::build::requirement_set(&project.distribution_requirements(true)?)?;
         if !declared.is_subset(&actual) {

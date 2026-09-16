@@ -410,3 +410,37 @@ async fn dynamic_dependencies_cannot_change_static_python_support() {
     );
     assert!(!root.path().join("pylock.toml").exists());
 }
+
+#[tokio::test]
+async fn dynamic_versions_cannot_omit_rename_or_add_static_extras() {
+    for extras in ["", "Provides-Extra: other\n", "Provides-Extra: cli\nProvides-Extra: other\n"] {
+        let root = tempfile::tempdir().unwrap();
+        let mut server = mockito::Server::new_async().await;
+        let backend = TINY_BACKEND.replace(
+            r#"entries[dist_info + "/METADATA"] = metadata"#,
+            &format!(
+                r#"metadata += "Requires-Dist: alpha; extra == 'cli'\n" + {extras:?}
+    entries[dist_info + "/METADATA"] = metadata"#,
+            ),
+        );
+        let _backend = serve(
+            &mut server,
+            "tinybackend",
+            &[("80.0", wheel("tinybackend", "80.0", "", &[("tinybuild.py", &backend)]))],
+        )
+        .await;
+        project(root.path(), &server.url(), &[]);
+        python_project(root.path(), "app", "[project.optional-dependencies]\ncli = ['alpha']");
+        let path = root.path().join("pyproject.toml");
+        fs::write(
+            &path,
+            fs::read_to_string(&path).unwrap().replace("version = '1.0'", "dynamic = ['version']"),
+        )
+        .unwrap();
+        super::assert_failure_contains(
+            super::pacquet_in(root.path()).args(["install", "--lockfile-only"]),
+            "differs from static project extras",
+        );
+        assert!(!root.path().join("pylock.toml").exists());
+    }
+}
