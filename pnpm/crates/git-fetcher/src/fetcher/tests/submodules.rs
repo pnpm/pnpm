@@ -1,6 +1,7 @@
 use super::exec_git;
-use crate::checkout_submodules;
+use crate::{checkout_submodules, fetcher::submodule_protocols};
 use pnpm_testing_utils::git_repo::GitRepoFixture;
+use std::ffi::OsStr;
 
 #[test]
 fn helper_transports_are_rejected_even_when_git_configuration_allows_them() {
@@ -23,4 +24,18 @@ fn helper_transports_are_rejected_even_when_git_configuration_allows_them() {
     eprintln!("Unsafe submodule transport must fail: {error:?}");
     assert!(error.to_string().contains("transport 'ext' not allowed"));
     assert!(!work.join("marker").exists());
+}
+
+#[test]
+fn inherited_protocol_allowlists_are_only_narrowed() {
+    for (inherited, expected) in [
+        (None, "file:git:http:https:ssh"),
+        (Some("https"), "https"),
+        (Some("https:ext"), "https"),
+        (Some("ssh:file"), "file:ssh"),
+        (Some(""), ""),
+        (Some("ext"), ""),
+    ] {
+        assert_eq!(submodule_protocols(inherited.map(OsStr::new)), expected);
+    }
 }

@@ -353,3 +353,48 @@ fn recursive_submodules_are_pinned_checksummed_and_reused_offline() {
         .assert()
         .failure();
 }
+
+#[test]
+fn submodule_fetching_preserves_the_callers_transport_allowlist() {
+    let (root, parent, repository) = git_workspace();
+    let cargo_home = TempDir::new().unwrap();
+    Command::new("cargo")
+        .current_dir(root.path())
+        .env("CARGO_HOME", cargo_home.path())
+        .arg("generate-lockfile")
+        .assert()
+        .success();
+    let old_commit = repository.head();
+    let mut server = mockito::Server::new();
+    let requests = server
+        .mock("GET", mockito::Matcher::Any)
+        .expect(0)
+        .create();
+    add_submodule(&parent, "dependency", &repository.file_url(), "demo/native");
+    repository.write_file(
+        ".gitmodules",
+        &format!("[submodule \"native\"]\npath = demo/native\nurl = {}/native.git\n", server.url()),
+    );
+    let commit = repository.commit("add HTTP submodule");
+    for name in ["Cargo.toml", "Cargo.lock"] {
+        let path = root.path().join(name);
+        fs::write(&path, fs::read_to_string(&path).unwrap().replace(&old_commit, &commit)).unwrap();
+    }
+
+    let output = pnpm(&root)
+        .env("GIT_ALLOW_PROTOCOL", "file")
+        .args(["install", "--frozen-lockfile"])
+        .output()
+        .unwrap();
+
+    eprintln!("A file-only caller must reject an HTTP submodule: {output:?}");
+    assert!(!output.status.success());
+    assert!(String::from_utf8_lossy(&output.stderr).contains("transport 'http' not allowed"));
+    assert!(
+        !root
+            .path()
+            .join(".pnpm/crates/git/demo-0.0.0/.cargo-checksum.json")
+            .exists(),
+    );
+    requests.assert();
+}

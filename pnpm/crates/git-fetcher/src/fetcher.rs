@@ -28,11 +28,17 @@ use pnpm_store_dir::{CafsFileInfo, PackageFilesIndex, StoreIndexWriter};
 use serde_json::Value;
 use std::{
     collections::HashMap,
+    env,
+    ffi::OsStr,
     fs,
     path::{Path, PathBuf},
     process::Command,
     sync::{Arc, LazyLock},
 };
+
+/// Git transports supported by Cargo dependency vendoring. Helper
+/// transports can execute commands selected by repository metadata.
+pub const SUPPORTED_GIT_PROTOCOLS: [&str; 5] = ["file", "git", "http", "https", "ssh"];
 
 /// One-shot fetcher for a single git resolution. Holds borrows for the
 /// duration of the call only.
@@ -475,7 +481,8 @@ fn exec_git_with(bin: &Path, args: &[&str], cwd: Option<&Path>) -> Result<String
     if args.first() == Some(&"submodule") {
         // The environment allowlist also constrains nested Git processes and
         // overrides protocol-specific settings in the user's configuration.
-        cmd.env("GIT_ALLOW_PROTOCOL", "file:git:http:https:ssh");
+        let inherited = env::var_os("GIT_ALLOW_PROTOCOL");
+        cmd.env("GIT_ALLOW_PROTOCOL", submodule_protocols(inherited.as_deref()));
     }
     if let Some(dir) = cwd {
         cmd.current_dir(dir);
@@ -495,6 +502,21 @@ fn exec_git_with(bin: &Path, args: &[&str], cwd: Option<&Path>) -> Result<String
         return Err(GitFetcherError::GitExec { operation, stderr, status: output.status });
     }
     Ok(String::from_utf8_lossy(&output.stdout).into_owned())
+}
+
+fn submodule_protocols(inherited: Option<&OsStr>) -> String {
+    SUPPORTED_GIT_PROTOCOLS
+        .into_iter()
+        .filter(|protocol| {
+            inherited.is_none_or(|allowed| {
+                allowed
+                    .as_encoded_bytes()
+                    .split(|byte| *byte == b':')
+                    .any(|candidate| candidate == protocol.as_bytes())
+            })
+        })
+        .collect::<Vec<_>>()
+        .join(":")
 }
 
 /// Return a `'static` label for the git subcommand. Used in error
