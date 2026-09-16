@@ -1,9 +1,10 @@
 mod metadata;
+mod selection;
+use selection::Pnpm;
 
 use miette::{IntoDiagnostic, Result, bail};
 use pep440_rs::Version;
 use pep508_rs::{PackageName, Requirement};
-use pnpm_config::Config;
 use pnpm_python_resolver::parse_requirement;
 use serde::Deserialize;
 use std::{
@@ -70,6 +71,8 @@ pub(super) struct BuildSystem {
 pub(super) struct Tool {
     #[serde(default)]
     pub(super) uv: Uv,
+    #[serde(default)]
+    pnpm: Pnpm,
 }
 
 /// The parts of uv's table pnpm reads. A project that declares a
@@ -200,38 +203,6 @@ impl Manifest {
         toml::from_str(contents).into_diagnostic()
     }
 
-    pub(super) fn requirements(
-        &self,
-        config: &Config,
-        selection: DependencySelection,
-    ) -> Result<Vec<Requirement>> {
-        let Some(project) = &self.project else { return Ok(Vec::new()) };
-        if self.metadata.is_none() {
-            project.ensure_static_dependencies()?;
-        }
-        let mut requirements =
-            if selection.production { project.dependencies.clone() } else { Vec::new() };
-        if self.metadata.is_some() && selection.production {
-            requirements = self.metadata_requirements(config)?;
-        }
-        for extra in config.python.extras
-            .iter()
-            .filter(|_| selection.production && self.metadata.is_none())
-        {
-            let dependencies = project.optional_dependencies
-                .get(extra)
-                .ok_or_else(|| miette::miette!("unknown Python project extra: {extra}"))?;
-            requirements.extend(dependencies.iter().cloned());
-        }
-        if selection.development {
-            self.expand_configured_groups(config, &mut requirements)?;
-        }
-        requirements
-            .into_iter()
-            .map(|requirement| parse_requirement(&requirement))
-            .collect()
-    }
-
     /// Every distribution this project declares a requirement on,
     /// wherever it declares it. Which source satisfies a requirement is
     /// decided per distribution, so a name is reported once.
@@ -297,55 +268,6 @@ impl Manifest {
     /// distribution.
     pub(super) fn is_packaged(&self) -> bool {
         self.tool.uv.package.unwrap_or_else(|| self.build_system.is_some())
-    }
-
-    /// Expand every dependency group the config asks for. The `dev` group
-    /// is asked for by default, so a project that declares no such group
-    /// simply has none.
-    fn expand_configured_groups(
-        &self,
-        config: &Config,
-        requirements: &mut Vec<String>,
-    ) -> Result<()> {
-        for group in &config.python.groups {
-            if group == "dev" && !self.groups.contains_key(group) {
-                continue;
-            }
-            self.expand_group(group, &mut Vec::new(), requirements)?;
-        }
-        Ok(())
-    }
-
-    fn expand_group(
-        &self,
-        group: &str,
-        visiting: &mut Vec<String>,
-        requirements: &mut Vec<String>,
-    ) -> Result<()> {
-        if visiting
-            .iter()
-            .any(|name| name == group)
-        {
-            bail!("cyclic Python dependency group: {group}");
-        }
-        let entries = self.groups
-            .get(group)
-            .ok_or_else(|| miette::miette!("unknown Python dependency group: {group}"))?;
-        visiting.push(group.to_string());
-        for entry in entries {
-            if let Some(requirement) = entry.as_str() {
-                requirements.push(requirement.to_string());
-            } else if let Some(table) = entry.as_table()
-                && table.len() == 1
-                && let Some(include) = table.get("include-group").and_then(toml::Value::as_str)
-            {
-                self.expand_group(include, visiting, requirements)?;
-            } else {
-                bail!("invalid entry in Python dependency group {group}");
-            }
-        }
-        visiting.pop();
-        Ok(())
     }
 }
 

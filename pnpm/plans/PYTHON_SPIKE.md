@@ -152,6 +152,23 @@ Selected project extras and dependency groups, including group inclusion,
 participate in locking. `--prod` and `--dev` select the installed projection
 without changing the complete lockfile. `--lockfile-only` creates no environment.
 
+Workspace `python.extras` and `python.groups` are defaults. Each project selects
+only the names it defines, so a workspace can request `groups: [dev, test]` when
+some members have only `dev`. Projects override either list independently in
+their `pyproject.toml`:
+
+```toml
+[tool.pnpm.python]
+extras = ["cli"]
+groups = ["test"]
+```
+
+An empty list disables that workspace default for the project. Explicit project
+selections must exist in that project. A selected group's `include-group`
+references must exist and cannot form a cycle. Extras use Python's normalized
+names. A dependency on a local project's extra still selects that extra through
+the dependency requirement, independently of the project's install settings.
+
 ## Ownership and shared resources
 
 - Python owns PEP 440 versions, PEP 508 requirements, markers and extras.
