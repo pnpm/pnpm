@@ -72,9 +72,8 @@ pub(super) async fn scan_for_interpreters(
     found
 }
 
-/// The interpreters pnpm installed itself, newest first. They are found
-/// like any other, so an install that needed one last time does not read
-/// the release index to use it again.
+/// The interpreters pnpm installed itself, newest first: an install that
+/// needed one last time uses it again without reading the release.
 fn installed_interpreters(directory: &Path) -> Vec<InterpreterCommand> {
     let Ok(entries) = fs::read_dir(directory) else { return Vec::new() };
     let mut installed = entries
@@ -84,7 +83,7 @@ fn installed_interpreters(directory: &Path) -> Vec<InterpreterCommand> {
             if !interpreter.is_file() {
                 return None;
             }
-            Some((entry.file_name(), interpreter.to_str()?.to_string()))
+            Some((installed_version(&entry.file_name()), interpreter.to_str()?.to_string()))
         })
         .collect::<Vec<_>>();
     installed.sort_by(|(one, _), (other, _)| other.cmp(one));
@@ -92,6 +91,18 @@ fn installed_interpreters(directory: &Path) -> Vec<InterpreterCommand> {
         .into_iter()
         .map(|(_, interpreter)| InterpreterCommand::program(interpreter))
         .collect()
+}
+
+/// The version a directory pnpm installed a build into holds, so that
+/// newest first orders interpreters by what they are rather than by how
+/// their names sort: `3.9` reads as newer than `3.13` as a string.
+fn installed_version(name: &std::ffi::OsStr) -> Option<pep440_rs::Version> {
+    name.to_str()?
+        .strip_prefix("cpython-")?
+        .split('+')
+        .next()?
+        .parse()
+        .ok()
 }
 
 /// Where the interpreter is in a build pnpm installed, which every

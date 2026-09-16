@@ -37,18 +37,23 @@ pub(super) struct Releases {
 
 /// One interpreter a release offers: the file it is downloaded as, and
 /// the digest that file has to have.
+///
+/// Every part is validated as it is read, because a release index is a
+/// download naming what pnpm will run and where it will put it.
 pub(super) struct Build {
     version: pep440_rs::Version,
     /// The `20260901` of `cpython-3.13.15+20260901-…`, which is the
     /// release the file belongs to.
     tag: String,
+    /// What python-build-standalone calls the machine this build runs
+    /// on, which pnpm knows before it reads any index.
+    triple: String,
     file: String,
     sha256: String,
 }
 
 impl Releases {
-    /// The interpreters pnpm can install, read from the cache when this
-    /// machine has a recent index and from the release otherwise.
+    /// The interpreters pnpm can install.
     pub(super) async fn read(config: &Config, client: &ThrottledClient) -> Result<Self> {
         let cache = config.cache_dir.join("python-runtimes").join("SHA256SUMS");
         let index = match cached_index(&cache) {
@@ -81,12 +86,13 @@ impl Build {
     }
 
     /// Where this build is installed, which is where an earlier install
-    /// of it already put it.
+    /// of it already put it. The name is the one pnpm read the build as,
+    /// so no index can name a directory of its own.
     fn directory(&self, config: &Config) -> PathBuf {
         config.store_dir
             .root()
             .join("python")
-            .join(self.file.trim_end_matches(".tar.gz"))
+            .join(format!("cpython-{}+{}-{}", self.version, self.tag, self.triple))
     }
 
     /// Install this build, and answer with the interpreter it installed.
@@ -216,18 +222,33 @@ fn builds_in(index: &str) -> Vec<Build> {
     let suffix = format!("-{triple}-install_only_stripped.tar.gz");
     index
         .lines()
-        .filter_map(|line| {
-            let (sha256, file) = line.split_once("  ")?;
-            let named = file.strip_prefix("cpython-")?.strip_suffix(&suffix)?;
-            let (version, tag) = named.split_once('+')?;
-            Some(Build {
-                version: version.parse().ok()?,
-                tag: tag.to_string(),
-                file: file.to_string(),
-                sha256: sha256.to_string(),
-            })
-        })
+        .filter_map(|line| read_build(line, &triple, &suffix))
         .collect()
+}
+
+/// One line of the index, as the build it names, or nothing when it
+/// names something else or names it in a way pnpm will not use as a file
+/// name: the index decides what pnpm downloads and where it puts it, so
+/// every part of it is checked rather than trusted.
+fn read_build(line: &str, triple: &str, suffix: &str) -> Option<Build> {
+    let (sha256, file) = line.split_once("  ")?;
+    if sha256.len() != 64 || !sha256.chars().all(|digit| digit.is_ascii_hexdigit()) {
+        return None;
+    }
+    let named = file.strip_prefix("cpython-")?.strip_suffix(suffix)?;
+    let (version, tag) = named.split_once('+')?;
+    // A release is named by the day it was built, which is also what
+    // keeps the name pnpm installs the build under a name and not a path.
+    if tag.is_empty() || !tag.chars().all(|digit| digit.is_ascii_digit()) {
+        return None;
+    }
+    Some(Build {
+        version: version.parse().ok()?,
+        tag: tag.to_string(),
+        triple: triple.to_string(),
+        file: file.to_string(),
+        sha256: sha256.to_string(),
+    })
 }
 
 /// What python-build-standalone calls the interpreter of this machine.

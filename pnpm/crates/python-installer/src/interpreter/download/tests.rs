@@ -43,6 +43,23 @@ fn the_index_offers_the_ordinary_interpreter_of_this_machine() {
     assert_eq!(offered, ["3.13.15", "3.14.7"]);
 }
 
+/// A release index names what pnpm downloads and where it puts it.
+#[test]
+fn an_index_naming_a_path_rather_than_a_build_offers_nothing() {
+    let triple = host_triple().expect("these tests run where interpreters are built");
+    for named in [
+        "cpython-3.13.15+../../../elsewhere",
+        "cpython-3.13.15+tag/../..",
+        "cpython-3.13.15+",
+        "cpython-3.13.15+2026-09-01",
+    ] {
+        let index = sums(&[format!("{named}-{triple}-install_only_stripped.tar.gz")]);
+        assert!(builds_in(&index).is_empty(), "{named}");
+    }
+    let short = format!("aa  cpython-3.13.15+20260901-{triple}-install_only_stripped.tar.gz\n");
+    assert!(builds_in(&short).is_empty());
+}
+
 #[test]
 fn the_build_installed_is_the_newest_one_the_project_accepts() {
     let triple = host_triple().expect("these tests run where interpreters are built");

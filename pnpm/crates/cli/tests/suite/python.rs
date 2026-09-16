@@ -531,12 +531,10 @@ async fn installs_an_interpreter_no_machine_has_and_reuses_it() {
     let installed = root
         .path()
         .join("store/v11/python")
-        .join(format!("cpython-3.13.99+20260901-{}-install_only_stripped", host_triple()))
+        .join(format!("cpython-3.13.99+20260901-{}", host_triple()))
         .join("python/bin/python3");
     assert!(installed.is_file(), "{}", installed.display());
 
-    // The interpreter is installed once: a later install finds it where
-    // pnpm put it, without the release or its index.
     for mock in release {
         mock.assert_async().await;
     }
