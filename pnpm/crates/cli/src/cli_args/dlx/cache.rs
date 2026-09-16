@@ -72,9 +72,8 @@ async fn install_into_cache<Reporter: self::Reporter + 'static>(
     // inside that dir (the installer picks `global_virtual_store_dir`
     // when this is on — see virtual_store_layout.rs).
     config.enable_global_virtual_store = false;
-    // The cache install is always fresh, so no lockfile is loaded from
-    // the process working directory.
-    config.lockfile = false;
+    // Keep a cache-local lockfile so approved builds can be rebuilt.
+    config.lockfile = true;
     resolve_cache_overrides(config)?;
     // The throwaway cache project is not part of the caller's
     // workspace. If a caller has a settings-only pnpm-workspace.yaml,
@@ -101,6 +100,7 @@ async fn install_into_cache<Reporter: self::Reporter + 'static>(
     // also leave the cache key (which hashes only pkgs + CLI allow_build)
     // unable to distinguish two callers with different policies.
     apply_dlx_build_policy(config, pkgs, allow_build);
+    config.strict_dep_builds = false;
     let config: &Config = config;
 
     for pkg in pkgs {
@@ -120,6 +120,12 @@ async fn install_into_cache<Reporter: self::Reporter + 'static>(
         )
         .await?;
     }
+    crate::cli_args::approve_builds::prompt_approve_install_builds::<Reporter>(
+        config,
+        prepare_dir,
+        prepare_dir,
+    )
+    .await?;
     Ok(())
 }
 
