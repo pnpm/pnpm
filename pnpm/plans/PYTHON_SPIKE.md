@@ -63,9 +63,12 @@ refused rather than resolved from the index.
 A backend runs code the index served, so pnpm builds a project only where
 `allowBuilds` names its build requirements, or `dangerouslyAllowAllBuilds` is
 set. Approval covers the names a build asks pnpm to fetch: what
-`build-system.requires` declares, and what the backend adds through
+`build-system.requires` declares, PEP 517's setuptools defaults where a project
+names no backend, and what the backend adds through
 `get_requires_for_build_wheel`/`get_requires_for_build_editable` once it can see
-the project. What those packages themselves depend on follows from approving
+the project. All three are read the same way: a requirement a marker excludes is
+not one this target builds with, and one naming a project in the same workspace
+is refused rather than taken from the index. What those packages themselves depend on follows from approving
 them, the way a dependency's own closure does for a build script. An in-tree
 backend reached through `backend-path` is the repository's own code, which pnpm
 runs as it runs a workspace project's scripts. What a build environment holds is
