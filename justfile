@@ -133,6 +133,10 @@ registry-mock +args:
   cargo nextest run --no-run
   cargo run --bin=pnpm-registry-mock -- {{args}}
 
+# Compare pnpm's Cargo resolution against cargo's own, on the live index
+cargo-equivalence +args:
+  cargo run --bin=cargo-equivalence -- {{args}}
+
 # The benchmark may auto-spawn the registry mock (via
 # `AutoMockInstance::load_or_init()`), so make sure `pnpr`
 # is built before the executor runs — otherwise the spawn step

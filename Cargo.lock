@@ -4548,6 +4548,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "pnpm-cargo-equivalence"
+version = "0.0.0"
+dependencies = [
+ "cargo-lock",
+ "clap",
+ "which 8.0.4",
+]
+
+[[package]]
 name = "pnpm-cargo-resolver"
 version = "0.0.1"
 dependencies = [
