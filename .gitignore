@@ -62,6 +62,9 @@ RELEASE.md
 .turbo
 .eslintcache
 .claude
+!/.claude/
+/.claude/*
+!/.claude/skills
 .local-settings
 .pnpm-typecheck.json
 
