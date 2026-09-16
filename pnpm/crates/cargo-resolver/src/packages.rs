@@ -1,6 +1,7 @@
 use crate::{
-    model::PackageKey,
-    registry::{Registry, compatibility_line, matching_lines},
+    features::supports_features,
+    model::{FeatureSelection, PackageKey, RegistryDependency},
+    registry::{Registry, compatibility_line, matching_lines, matching_versions},
 };
 use miette::Result;
 use pubgrub::SelectedDependencies;
@@ -18,9 +19,10 @@ use semver::{Version, VersionReq};
 /// this only maps a name and a requirement onto a package.
 pub(crate) fn package_key(
     registry: &Registry,
-    name: &str,
-    requirement: &VersionReq,
+    dependency: &RegistryDependency,
 ) -> Result<PackageKey> {
+    let name = dependency.name.as_str();
+    let requirement = &dependency.requirement;
     let unsatisfiable = || PackageKey::Unsatisfiable {
         name: name.to_string(),
         requirement: requirement.to_string(),
@@ -33,6 +35,11 @@ pub(crate) fn package_key(
         return Ok(PackageKey::Requirement {
             name: name.to_string(),
             requirement: requirement.to_string(),
+            default_features: dependency.default_features,
+            features: dependency.features
+                .iter()
+                .cloned()
+                .collect(),
         });
     }
     match lines.pop() {
@@ -48,15 +55,35 @@ pub(crate) fn package_key(
 /// solver reaches for first.
 pub(crate) fn newest_line_package(
     registry: &Registry,
-    name: &str,
-    requirement: &VersionReq,
+    dependency: &RegistryDependency,
 ) -> Result<Option<PackageKey>> {
-    let Some(versions) = registry.versions(name) else {
+    let Some(versions) = registry.versions(&dependency.name) else {
         return Ok(None);
     };
-    Ok(matching_lines(versions, requirement)
-        .pop()
-        .map(|(compatibility, _)| PackageKey::Registry { name: name.to_string(), compatibility }))
+    let selection = dependency.feature_selection();
+    Ok(matching_lines(versions, &dependency.requirement)
+        .into_iter()
+        .rfind(|(compatibility, _)| {
+            admits_features(versions, &dependency.requirement, compatibility, &selection)
+        })
+        .map(|(compatibility, _)| PackageKey::Registry {
+            name: dependency.name.clone(),
+            compatibility,
+        }))
+}
+
+/// Whether `compatibility` carries a version meeting `requirement` that
+/// supports `selection`. A line that does not is not a line the dependency
+/// asking for those features can settle on.
+pub(crate) fn admits_features(
+    versions: &[crate::model::RegistryVersion],
+    requirement: &VersionReq,
+    compatibility: &str,
+    selection: &FeatureSelection,
+) -> bool {
+    matching_versions(versions, requirement)
+        .filter(|version| compatibility_line(&version.version) == compatibility)
+        .any(|version| supports_features(version, selection))
 }
 
 /// The line package a [`PackageKey::Requirement`] choice settled on, named
@@ -73,15 +100,14 @@ pub(crate) fn chosen_line(name: &str, representative: &Version) -> PackageKey {
 /// `None` when the solution does not reach it.
 pub(crate) fn selected_package(
     registry: &Registry,
-    name: &str,
-    requirement: &VersionReq,
+    dependency: &RegistryDependency,
     solution: &SelectedDependencies<PackageKey, Version>,
 ) -> Result<Option<PackageKey>> {
-    Ok(match package_key(registry, name, requirement)? {
+    Ok(match package_key(registry, dependency)? {
         line @ PackageKey::Registry { .. } => Some(line),
-        choice @ PackageKey::Requirement { .. } => {
-            solution.get(&choice).map(|representative| chosen_line(name, representative))
-        }
+        choice @ PackageKey::Requirement { .. } => solution
+            .get(&choice)
+            .map(|representative| chosen_line(&dependency.name, representative)),
         PackageKey::Root | PackageKey::Unsatisfiable { .. } => None,
     })
 }

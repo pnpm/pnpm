@@ -83,13 +83,7 @@ fn workspace_packages(
             .iter()
             .map(|dependency| {
                 if dependency.registry.is_some() {
-                    locked_dependency(
-                        &dependency.name,
-                        &dependency.requirement,
-                        registry,
-                        solution,
-                        sources,
-                    )
+                    locked_dependency(dependency, registry, solution, sources)
                 } else {
                     locked_workspace_dependency(&dependency.name, &dependency.requirement, metadata)
                 }
@@ -118,25 +112,19 @@ fn locked_registry_dependencies(
     let mut dependencies = BTreeSet::new();
     for dependency in active_dependencies(package, selection)? {
         registry.validate_dependency_source(dependency.registry.as_deref())?;
-        dependencies.insert(locked_dependency(
-            &dependency.name,
-            &dependency.requirement,
-            registry,
-            solution,
-            sources,
-        )?);
+        dependencies.insert(locked_dependency(&dependency, registry, solution, sources)?);
     }
     Ok(dependencies.into_iter().collect())
 }
 
 fn locked_dependency(
-    name: &str,
-    requirement: &VersionReq,
+    dependency: &RegistryDependency,
     registry: &Registry,
     solution: &pubgrub::SelectedDependencies<PackageKey, Version>,
     sources: &BTreeMap<PackageKey, String>,
 ) -> Result<Dependency> {
-    let (package, version) = selected_package(registry, name, requirement, solution)?
+    let name = dependency.name.as_str();
+    let (package, version) = selected_package(registry, dependency, solution)?
         .and_then(|package| {
             let version = solution.get(&package)?.clone();
             Some((package, version))
@@ -184,7 +172,7 @@ fn locked_sources(
 
     while let Some((dependency, inherited)) = pending.pop_front() {
         let source = declared_source(&dependency, &inherited, configured);
-        let key = selected_package(registry, &dependency.name, &dependency.requirement, solution)?;
+        let key = selected_package(registry, &dependency, solution)?;
         let Some(key) = key else { continue };
         let Some(version) = solution.get(&key) else { continue };
         match sources.entry(key.clone()) {

@@ -1,6 +1,6 @@
 use crate::{
     features::{
-        FeatureSelections, active_dependencies, feature_selections_for_solution, indexed_version,
+        active_dependencies, feature_selections_for_solution, indexed_version,
         root_feature_selections, supports_features,
     },
     lockfile::lockfile_from_solution,
@@ -124,17 +124,14 @@ pub fn resolve_lockfile(
         let solution = resolve_with_features(&registry, &root_dependencies, &feature_selections)?;
         let selected_features =
             feature_selections_for_solution(&registry, &root_dependencies, &solution)?;
-        if let Some(validated_solution) = validate_selected_graph(
-            &registry,
-            &root_dependencies,
-            &solution,
-            &selected_features.resolved,
-        )? {
+        if let Some(validated_solution) =
+            validate_selected_graph(&registry, &root_dependencies, &solution, &selected_features)?
+        {
             return lockfile_from_solution(
                 &metadata,
                 &registry,
                 &validated_solution,
-                &selected_features.resolved,
+                &selected_features,
                 source,
             );
         }
@@ -204,7 +201,7 @@ fn validated_package(
     validated: &mut BTreeMap<PackageKey, Version>,
 ) -> Result<Option<PackageKey>> {
     registry.validate_dependency_source(dependency.registry.as_deref())?;
-    Ok(match package_key(registry, &dependency.name, &dependency.requirement)? {
+    Ok(match package_key(registry, dependency)? {
         line @ PackageKey::Registry { .. } => Some(line),
         choice @ PackageKey::Requirement { .. } => solution
             .get(&choice)
@@ -220,7 +217,7 @@ fn validated_package(
 fn resolve_with_features(
     registry: &Registry,
     root_dependencies: &[RegistryDependency],
-    feature_selections: &FeatureSelections,
+    feature_selections: &BTreeMap<PackageKey, FeatureSelection>,
 ) -> Result<pubgrub::SelectedDependencies<PackageKey, Version>> {
     let mut provider = OfflineDependencyProvider::<PackageKey, Ranges<Version>>::new();
     let mut pending = VecDeque::new();
@@ -254,7 +251,7 @@ fn resolve_with_features(
 fn register(
     registry: &Registry,
     package: &PackageKey,
-    feature_selections: &FeatureSelections,
+    feature_selections: &BTreeMap<PackageKey, FeatureSelection>,
     provider: &mut OfflineDependencyProvider<PackageKey, Ranges<Version>>,
     pending: &mut VecDeque<PackageKey>,
 ) -> Result<()> {
@@ -263,7 +260,7 @@ fn register(
             register_candidates(registry, package, feature_selections, provider, pending)
         }
         PackageKey::Requirement { .. } => {
-            register_compatibility_lines(registry, package, feature_selections, provider, pending)
+            register_compatibility_lines(registry, package, provider, pending)
         }
         PackageKey::Root | PackageKey::Unsatisfiable { .. } => Ok(()),
     }
@@ -274,18 +271,14 @@ fn register(
 fn register_candidates(
     registry: &Registry,
     package: &PackageKey,
-    feature_selections: &FeatureSelections,
+    feature_selections: &BTreeMap<PackageKey, FeatureSelection>,
     provider: &mut OfflineDependencyProvider<PackageKey, Ranges<Version>>,
     pending: &mut VecDeque<PackageKey>,
 ) -> Result<()> {
     let PackageKey::Registry { name, compatibility } = package else {
         return Ok(());
     };
-    let required = feature_selections.required
-        .get(package)
-        .cloned()
-        .unwrap_or_default();
-    let resolved = feature_selections.resolved
+    let resolved = feature_selections
         .get(package)
         .cloned()
         .unwrap_or_default();
@@ -296,9 +289,6 @@ fn register_candidates(
             !version.yanked && compatibility_line(&version.version) == *compatibility
         });
     for version in candidates {
-        if !supports_features(version, &required) {
-            continue;
-        }
         let dependencies = active_dependencies(version, &resolved)?;
         let constraints = constraints_for(registry, &dependencies, pending)?;
         provider.add_dependencies(package.clone(), version.version.clone(), constraints);
@@ -317,12 +307,21 @@ fn register_candidates(
 fn register_compatibility_lines(
     registry: &Registry,
     package: &PackageKey,
-    feature_selections: &FeatureSelections,
     provider: &mut OfflineDependencyProvider<PackageKey, Ranges<Version>>,
     pending: &mut VecDeque<PackageKey>,
 ) -> Result<()> {
-    let PackageKey::Requirement { name, requirement } = package else {
+    let PackageKey::Requirement {
+        name,
+        requirement,
+        default_features,
+        features,
+    } = package
+    else {
         return Ok(());
+    };
+    let requested = FeatureSelection {
+        default_features: *default_features,
+        features: features.iter().cloned().collect(),
     };
     let requirement = VersionReq::parse(requirement)
         .into_diagnostic()
@@ -331,13 +330,9 @@ fn register_compatibility_lines(
     for (compatibility, representative) in matching_lines(versions, &requirement) {
         let line =
             PackageKey::Registry { name: name.clone(), compatibility: compatibility.clone() };
-        let required = feature_selections.required
-            .get(&line)
-            .cloned()
-            .unwrap_or_default();
         let admitted = matching_versions(versions, &requirement)
             .filter(|version| compatibility_line(&version.version) == compatibility)
-            .filter(|version| supports_features(version, &required))
+            .filter(|version| supports_features(version, &requested))
             .fold(Ranges::empty(), |range, version| {
                 range.union(&Ranges::singleton(version.version.clone()))
             });
@@ -358,10 +353,15 @@ fn constraints_for(
     let mut constraints = BTreeMap::<PackageKey, Ranges<Version>>::new();
     for dependency in dependencies {
         registry.validate_dependency_source(dependency.registry.as_deref())?;
-        let package = package_key(registry, &dependency.name, &dependency.requirement)?;
+        let package = package_key(registry, dependency)?;
+        // A version missing a feature this dependency asks for is not one it
+        // can settle on, which is how a requirement reaches past a line to an
+        // older one.
+        let selection = dependency.feature_selection();
         let allowed = if let PackageKey::Registry { compatibility, .. } = &package {
             matching_versions(registry.package(&dependency.name)?, &dependency.requirement)
                 .filter(|version| compatibility_line(&version.version) == *compatibility)
+                .filter(|version| supports_features(version, &selection))
                 .fold(Ranges::empty(), |range, version| {
                     range.union(&Ranges::singleton(version.version.clone()))
                 })
