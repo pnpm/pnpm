@@ -257,7 +257,7 @@ fn admits_every_patch_release(specifiers: &VersionSpecifiers, running: &Version)
             if minor(specifier.version()) != running_minor {
                 return true;
             }
-            if significant_release_segments(specifier) > 2 {
+            if significant_release_segments(specifier) > 2 || falls_between_releases(specifier) {
                 return false;
             }
             matches!(
@@ -269,6 +269,16 @@ fn admits_every_patch_release(specifiers: &VersionSpecifiers, running: &Version)
                     | Operator::LessThan,
             )
         })
+}
+
+/// Whether a specifier's version falls between two releases. A post or
+/// local component puts it above the release it names, so a bound there
+/// tells that release apart from the next one; a pre-release or
+/// development component puts it below, which under the operators that
+/// reach here cannot.
+fn falls_between_releases(specifier: &pep440_rs::VersionSpecifier) -> bool {
+    let version = specifier.version();
+    *version > Version::new(version.release().iter().copied())
 }
 
 /// How many release segments of a specifier's version can tell versions

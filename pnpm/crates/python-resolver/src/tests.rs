@@ -549,6 +549,9 @@ fn a_lockfile_pins_the_full_interpreter_version_when_a_package_tells_patch_relea
         ("~=3.12.0.0", true),
         ("==3.12.0", true),
         ("==3.12.0.*", true),
+        ("<3.12.0.post1", true),
+        (">=3.12.0rc1", false),
+        ("<3.13.0.post1", false),
     ];
     for (requires_python, pins_full_version) in cases {
         eprintln!("Requires-Python: {requires_python}");
