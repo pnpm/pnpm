@@ -1325,9 +1325,8 @@ async fn rejects_a_platform_it_cannot_resolve_for() {
     }
 }
 
-/// A platform named twice, or under two names standing for one machine,
-/// is one environment. Dropping the repeat leaves a lockfile that still
-/// answers the project.
+/// Dropping a repeat leaves a lockfile that still answers the project:
+/// what it records is the environments it resolved, not the spellings.
 #[tokio::test]
 async fn locks_one_environment_per_platform_however_it_is_named() {
     let root = tempfile::tempdir().unwrap();
