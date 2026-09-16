@@ -170,6 +170,17 @@ fn registry_dependency_from_index(dependency: IndexDependency<'_>) -> Result<Reg
     })
 }
 
+/// The compatibility line of the newest non-yanked version meeting
+/// `requirement`, or `None` when the index carries no such version.
+pub(crate) fn newest_compatibility(
+    versions: &[RegistryVersion],
+    requirement: &VersionReq,
+) -> Option<String> {
+    matching_versions(versions, requirement)
+        .next_back()
+        .map(|version| compatibility_line(&version.version))
+}
+
 pub(crate) fn matching_versions<'a>(
     versions: &'a [RegistryVersion],
     requirement: &'a VersionReq,

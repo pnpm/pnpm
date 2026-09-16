@@ -6,7 +6,7 @@ use crate::{
     lockfile::lockfile_from_solution,
     metadata::{parse_metadata, root_dependencies},
     model::{FeatureSelection, PackageKey, RegistryDependency},
-    registry::{Registry, compatibility_line, matching_versions},
+    registry::{Registry, compatibility_line, matching_versions, newest_compatibility},
 };
 use miette::Result;
 use pubgrub::{
@@ -175,9 +175,6 @@ fn resolve_with_features(
 
 /// Offer the solver every version of `package` that the selected features
 /// admit, queueing each one's own dependencies.
-///
-/// A version whose dependencies name a crate the registry does not carry is
-/// skipped rather than failing: another version of the same crate may resolve.
 fn register_candidates(
     registry: &Registry,
     package: &PackageKey,
@@ -199,12 +196,6 @@ fn register_candidates(
             continue;
         }
         let dependencies = active_dependencies(version, selection)?;
-        if dependencies
-            .iter()
-            .any(|dependency| registry.versions(&dependency.name).is_none())
-        {
-            continue;
-        }
         let constraints = constraints_for(registry, &dependencies, pending)?;
         provider.add_dependencies(package.clone(), version.version.clone(), constraints);
     }
@@ -219,13 +210,15 @@ fn constraints_for(
     let mut constraints = BTreeMap::<PackageKey, Ranges<Version>>::new();
     for dependency in dependencies {
         let package = package_key(registry, dependency)?;
-        let versions = registry.package(&dependency.name)?;
-        let PackageKey::Registry { compatibility, .. } = &package else { unreachable!() };
-        let allowed = matching_versions(versions, &dependency.requirement)
-            .filter(|version| compatibility_line(&version.version) == *compatibility)
-            .fold(Ranges::empty(), |range, version| {
-                range.union(&Ranges::singleton(version.version.clone()))
-            });
+        let allowed = if let PackageKey::Registry { compatibility, .. } = &package {
+            matching_versions(registry.package(&dependency.name)?, &dependency.requirement)
+                .filter(|version| compatibility_line(&version.version) == *compatibility)
+                .fold(Ranges::empty(), |range, version| {
+                    range.union(&Ranges::singleton(version.version.clone()))
+                })
+        } else {
+            Ranges::full()
+        };
         constraints
             .entry(package.clone())
             .and_modify(|range| *range = range.intersection(&allowed))
@@ -235,18 +228,24 @@ fn constraints_for(
     Ok(constraints.into_iter().collect())
 }
 
+/// The solver package `dependency` resolves against.
+///
+/// A dependency the index cannot meet still gets a package of its own, one
+/// the solver finds no version under. That keeps a dead-end candidate a
+/// plain incompatibility the solver backtracks over and can name in its
+/// report, rather than a failure of the whole resolution.
 fn package_key(registry: &Registry, dependency: &RegistryDependency) -> Result<PackageKey> {
     registry.validate_dependency_source(dependency.registry.as_deref())?;
-    let compatibility =
-        matching_versions(registry.package(&dependency.name)?, &dependency.requirement)
-            .next_back()
-            .map(|version| compatibility_line(&version.version))
-            .ok_or_else(|| {
-                miette::miette!(
-                    "no non-yanked version of {} satisfies {}",
-                    dependency.name,
-                    dependency.requirement,
-                )
-            })?;
-    Ok(PackageKey::Registry { name: dependency.name.clone(), compatibility })
+    let compatibility = registry
+        .versions(&dependency.name)
+        .and_then(|versions| newest_compatibility(versions, &dependency.requirement));
+    Ok(match compatibility {
+        Some(compatibility) => {
+            PackageKey::Registry { name: dependency.name.clone(), compatibility }
+        }
+        None => PackageKey::Unsatisfiable {
+            name: dependency.name.clone(),
+            requirement: dependency.requirement.to_string(),
+        },
+    })
 }

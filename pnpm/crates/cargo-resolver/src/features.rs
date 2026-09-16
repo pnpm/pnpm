@@ -1,6 +1,6 @@
 use crate::{
     model::{DependencyKind, FeatureSelection, PackageKey, RegistryDependency, RegistryVersion},
-    registry::{Registry, compatibility_line, matching_versions},
+    registry::{Registry, newest_compatibility},
 };
 use miette::Result;
 use pubgrub::SelectedDependencies;
@@ -177,10 +177,10 @@ fn collect_feature_selections(
     while let Some(dependency) = pending.pop_front() {
         registry.validate_dependency_source(dependency.registry.as_deref())?;
         let versions = registry.package(&dependency.name)?;
-        let package = PackageKey::Registry {
-            name: dependency.name.clone(),
-            compatibility: newest_compatibility(versions, &dependency)?,
+        let Some(compatibility) = newest_compatibility(versions, &dependency.requirement) else {
+            continue;
         };
+        let package = PackageKey::Registry { name: dependency.name.clone(), compatibility };
         let requested = dependency.feature_selection();
         let previous = selections.get(&package).cloned();
         let selection = selections.entry(package.clone()).or_default();
@@ -196,24 +196,6 @@ fn collect_feature_selections(
         pending.extend(active_dependencies(selected, selection)?);
     }
     Ok(selections)
-}
-
-/// The compatibility line of the newest non-yanked version satisfying the
-/// dependency's requirement.
-fn newest_compatibility(
-    versions: &[RegistryVersion],
-    dependency: &RegistryDependency,
-) -> Result<String> {
-    matching_versions(versions, &dependency.requirement)
-        .next_back()
-        .map(|version| compatibility_line(&version.version))
-        .ok_or_else(|| {
-            miette::miette!(
-                "no non-yanked version of {} satisfies {}",
-                dependency.name,
-                dependency.requirement,
-            )
-        })
 }
 
 pub(crate) fn indexed_version<'v>(

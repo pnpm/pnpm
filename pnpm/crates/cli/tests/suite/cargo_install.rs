@@ -122,6 +122,90 @@ fn install_resolves_and_downloads_through_the_configured_registry() {
 }
 
 #[test]
+fn install_resolves_past_a_candidate_whose_dependency_is_yanked() {
+    let mut registry = mockito::Server::new();
+    let demo = crate_archive("demo", "1.0.0");
+    let helper = crate_archive("helper", "1.0.0");
+    let _config_mock = registry
+        .mock("GET", "/config.json")
+        .with_body(
+            serde_json::json!({
+                "dl": format!("{}/dl/{{crate}}/{{version}}", registry.url()),
+                "api": registry.url(),
+            })
+            .to_string(),
+        )
+        .create();
+    // `demo` 1.0.0-beta.1 shares a compatibility line with the version the
+    // workspace asks for, so the solver weighs it, and the `helper` it needs
+    // is in the index only as a yanked release. The workspace depends on
+    // `helper` itself, which is what fetches that index entry.
+    let _demo_index_mock = registry
+        .mock("GET", "/de/mo/demo")
+        .with_body(format!(
+            "{}\n{}\n",
+            serde_json::json!({
+                "name": "demo", "vers": "1.0.0-beta.1",
+                "deps": [{
+                    "name": "helper", "req": "^2", "features": [], "optional": false,
+                    "default_features": true, "target": null, "kind": "normal",
+                }],
+                "cksum": format!("{:x}", Sha256::digest("demo 1.0.0-beta.1")),
+                "features": {}, "yanked": false, "v": 1,
+            }),
+            serde_json::json!({
+                "name": "demo", "vers": "1.0.0", "deps": [],
+                "cksum": format!("{:x}", Sha256::digest(&demo)),
+                "features": {}, "yanked": false, "v": 1,
+            }),
+        ))
+        .create();
+    let _helper_index_mock = registry
+        .mock("GET", "/he/lp/helper")
+        .with_body(format!(
+            "{}\n{}\n",
+            serde_json::json!({
+                "name": "helper", "vers": "1.0.0", "deps": [],
+                "cksum": format!("{:x}", Sha256::digest(&helper)),
+                "features": {}, "yanked": false, "v": 1,
+            }),
+            serde_json::json!({
+                "name": "helper", "vers": "2.0.0", "deps": [],
+                "cksum": format!("{:x}", Sha256::digest("helper 2.0.0")),
+                "features": {}, "yanked": true, "v": 1,
+            }),
+        ))
+        .create();
+    let _demo_download_mock = registry
+        .mock("GET", "/dl/demo/1.0.0")
+        .with_body(&demo)
+        .create();
+    let _helper_download_mock = registry
+        .mock("GET", "/dl/helper/1.0.0")
+        .with_body(&helper)
+        .create();
+    let root = cargo_workspace(
+        &registry.url(),
+        "demo = \"1\"\nhelper = \"1\"\n",
+        "pub use demo::answer;\n",
+    );
+
+    install_in(&root, &["install"]);
+
+    let lockfile =
+        std::fs::read_to_string(root.path().join("Cargo.lock")).expect("read Cargo.lock");
+    assert!(lockfile.contains(r#"name = "demo""#), "{lockfile}");
+    assert!(lockfile.contains(r#"name = "helper""#), "{lockfile}");
+    assert!(!lockfile.contains("beta"), "{lockfile}");
+    // Offline, so the graph cargo reads is the one the install vendored.
+    Command::new("cargo")
+        .with_current_dir(root.path())
+        .with_args(["metadata", "--offline", "--format-version", "1"])
+        .assert()
+        .success();
+}
+
+#[test]
 fn offline_install_without_registry_crates_never_reads_the_registry_config() {
     let root = cargo_workspace("https://registry.example.test/index/", "", "");
 
