@@ -990,8 +990,8 @@ fn lets_requirements_asking_for_different_features_take_different_lines() {
     assert_eq!(selected, ["1.0.0", "2.0.0"]);
 }
 
-/// `read` and `write` activate a crate each, on a different line each, so
-/// a line walked only under the features of both would reach neither.
+/// A line walked only under the features of every requirement reaching it
+/// would reach neither crate.
 #[test]
 fn fetches_what_each_requirement_activates_on_its_own_line() {
     const METADATA: &str = r#"{
