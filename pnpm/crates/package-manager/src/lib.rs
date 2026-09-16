@@ -118,6 +118,24 @@ pub(crate) fn emit_initial_package_manifest<Reporter: pnpm_reporter::Reporter>(
     }));
 }
 
+/// Report each wanted lockfile whose Git conflict markers the loader
+/// merged away, one `pnpm:lockfile` line per file.
+pub fn report_merged_lockfile_conflicts<Reporter: pnpm_reporter::Reporter>(
+    merged_conflict_files: usize,
+    prefix: &str,
+) {
+    for _ in 0..merged_conflict_files {
+        Reporter::emit(&pnpm_reporter::LogEvent::Lockfile(pnpm_reporter::LockfileLog {
+            level: pnpm_reporter::LogLevel::Info,
+            message: format!(
+                "Merge conflict detected in {} and successfully merged",
+                pnpm_lockfile::Lockfile::FILE_NAME,
+            ),
+            prefix: prefix.to_owned(),
+        }));
+    }
+}
+
 #[cfg(test)]
 mod tests;
 

@@ -120,7 +120,7 @@ fn lockfile_event_matches_pnpm_wire_shape() {
     assert_eq!(json["level"], "info");
     assert_eq!(
         json["message"],
-        "Merge conflict detected in pnpm-lock.yaml and successfully merged"
+        "Merge conflict detected in pnpm-lock.yaml and successfully merged",
     );
     assert_eq!(json["prefix"], "/some/project");
 }

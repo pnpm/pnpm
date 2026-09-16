@@ -619,3 +619,69 @@ pub fn importer_has_group_dependency(
     }
     .is_some_and(|dependencies| dependencies.contains_key(&name))
 }
+
+/// The dependency the Git-conflict fixtures lock. The mocked registry also
+/// publishes 3.1.0, which satisfies [`CONFLICTED_SPECIFIER`] and is what a
+/// resolution that discarded the conflicted lockfile would pick.
+pub const CONFLICTED_DEPENDENCY: &str = "@pnpm.e2e/multi-version-b";
+pub const CONFLICTED_SPECIFIER: &str = ">=2.0.0 <3.1.1";
+/// The version merging the two conflict sides keeps: the newer of the
+/// two they locked.
+pub const CONFLICTED_MERGED_VERSION: &str = "3.0.0";
+
+/// Leave `workspace` holding a `pnpm-lock.yaml` Git left conflicted
+/// between two valid lockfiles, and a manifest both sides satisfy. The
+/// sides lock different versions of [`CONFLICTED_DEPENDENCY`], so a run
+/// that dropped one of them is visible in what ends up locked.
+///
+/// Returns the conflicted text, which a test that installs more than once
+/// writes back to restore the conflict.
+pub fn write_conflicted_lockfile_fixture(workspace: &Path) -> String {
+    let ours = locked_conflict_side(workspace, "2.0.0");
+    let theirs = locked_conflict_side(workspace, CONFLICTED_MERGED_VERSION);
+    assert_ne!(ours, theirs, "the conflict sides must lock different graphs");
+    write_manifest_value(
+        workspace,
+        &json!({ "dependencies": { CONFLICTED_DEPENDENCY: CONFLICTED_SPECIFIER } }),
+    );
+    let conflicted = format!("<<<<<<< HEAD\n{ours}=======\n{theirs}>>>>>>> branch\n");
+    fs::write(workspace.join("pnpm-lock.yaml"), &conflicted).expect("write conflicted lockfile");
+    conflicted
+}
+
+/// Lock `version` for [`CONFLICTED_DEPENDENCY`] in `workspace`, then
+/// restate the importer's specifier as [`CONFLICTED_SPECIFIER`]. Both
+/// sides have to agree on the specifier the way two branches that only
+/// moved the locked version do.
+fn locked_conflict_side(workspace: &Path, version: &str) -> String {
+    write_manifest_value(workspace, &json!({ "dependencies": { CONFLICTED_DEPENDENCY: version } }));
+    pacquet_in(workspace)
+        .with_args(["install", "--lockfile-only"])
+        .assert()
+        .success();
+    fs::read_to_string(workspace.join("pnpm-lock.yaml"))
+        .expect("read locked side")
+        .replace(&format!("specifier: {version}"), &format!("specifier: '{CONFLICTED_SPECIFIER}'"))
+}
+
+/// Assert that an install over [`write_conflicted_lockfile_fixture`]
+/// reported the merge, left no markers behind, and kept the merged
+/// version rather than resolving a newer one from the registry.
+pub fn assert_merged_conflicted_lockfile(workspace: &Path, stdout: &str) {
+    eprintln!("STDOUT:\n{stdout}");
+    assert!(
+        stdout.contains("Merge conflict detected in pnpm-lock.yaml and successfully merged"),
+        "the merge must be reported",
+    );
+    assert!(!stdout.contains("Ignoring broken lockfile"), "the lockfile must not be discarded");
+    let written = fs::read_to_string(workspace.join("pnpm-lock.yaml")).expect("read lockfile");
+    assert!(!written.contains("<<<<<<<"), "the conflict markers must be gone:\n{written}");
+    assert_eq!(
+        importer_version(
+            &read_lockfile(&workspace.join("pnpm-lock.yaml")),
+            ".",
+            CONFLICTED_DEPENDENCY
+        ),
+        CONFLICTED_MERGED_VERSION,
+    );
+}

@@ -31,7 +31,7 @@ use crate::{
     RebuildOptions, ResolvedPackages, UpdateSeedPolicy, build_resolution_verifiers,
     check_optimistic_repeat_install, emit_initial_package_manifest, link_project_bins,
     optimistic_repeat_install::Decision as OptimisticRepeatInstallDecision,
-    prune_merged_branch_lockfile::prune_merged_branch_lockfile,
+    prune_merged_branch_lockfile::prune_merged_branch_lockfile, report_merged_lockfile_conflicts,
 };
 use derive_more::{Display, Error};
 use miette::Diagnostic;
@@ -57,8 +57,8 @@ use pnpm_modules_yaml::{
 use pnpm_network::{AuthHeaders, ThrottledClient};
 use pnpm_package_manifest::{DependencyGroup, PackageManifest, node_version_from_engines_runtime};
 use pnpm_reporter::{
-    ContextLog, GlobalLog, LockfileLog, LogEvent, LogLevel, PnpmLog, Reporter, ScopeLog, Stage,
-    StageLog, SummaryLog,
+    ContextLog, GlobalLog, LogEvent, LogLevel, PnpmLog, Reporter, ScopeLog, Stage, StageLog,
+    SummaryLog,
 };
 use pnpm_resolving_npm_resolver::InMemoryPackageMetaCache;
 use pnpm_resolving_resolver_base::ResolutionVerifier;

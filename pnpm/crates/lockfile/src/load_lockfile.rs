@@ -1,6 +1,7 @@
 use crate::{
     Lockfile, LockfileResolution, ProjectSnapshot, SnapshotEntry, extract_main_document,
-    git_merge_file::split_git_conflict, merge_lockfile_changes,
+    git_merge_file::{ParsedWantedFile, parse_wanted_file},
+    merge_lockfile_changes,
 };
 use derive_more::{Display, Error};
 use pipe_trait::Pipe;
@@ -84,28 +85,6 @@ fn read_lockfile_text(file_path: &Path) -> Result<Option<String>, LoadLockfileEr
         Err(error) if error.kind() == ErrorKind::NotFound => Ok(None),
         Err(error) => error.pipe(LoadLockfileError::ReadFile).pipe(Err),
     }
-}
-
-struct ParsedWantedFile<T> {
-    value: Option<T>,
-    merged_conflict_files: usize,
-}
-
-fn parse_wanted_file<T>(
-    content: &str,
-    file_path: &Path,
-    parse: impl Fn(&str, &Path) -> Result<Option<T>, LoadLockfileError>,
-    merge: impl FnOnce(&T, &T) -> T,
-) -> Result<ParsedWantedFile<T>, LoadLockfileError> {
-    let parse_error = match parse(content, file_path) {
-        Ok(value) => return Ok(ParsedWantedFile { value, merged_conflict_files: 0 }),
-        Err(error) => error,
-    };
-    let main = extract_main_document(content);
-    let Some((ours, theirs)) = split_git_conflict(&main) else { return Err(parse_error) };
-    let Some(ours) = parse(&ours, file_path)? else { return Err(parse_error) };
-    let Some(theirs) = parse(&theirs, file_path)? else { return Err(parse_error) };
-    Ok(ParsedWantedFile { value: Some(merge(&ours, &theirs)), merged_conflict_files: 1 })
 }
 
 impl Lockfile {
