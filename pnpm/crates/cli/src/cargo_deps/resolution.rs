@@ -20,18 +20,19 @@ pub(super) fn has_source_overrides(root: &Path) -> Result<bool> {
     let document: toml::Table = toml::from_str(&manifest)
         .into_diagnostic()
         .wrap_err_with(|| format!("parse {}", root.join("Cargo.toml").display()))?;
+    let mut has_overrides = false;
     let patches = document.get("patch").and_then(toml::Value::as_table);
     for overrides in patches.into_iter().flat_map(|patches| patches.values()) {
-        validate_override_sources(overrides)?;
+        has_overrides |= has_override_sources(overrides)?;
     }
     if let Some(overrides) = document.get("replace") {
-        validate_override_sources(overrides)?;
+        has_overrides |= has_override_sources(overrides)?;
     }
-    Ok(document.contains_key("patch") || document.contains_key("replace"))
+    Ok(has_overrides)
 }
 
-fn validate_override_sources(overrides: &toml::Value) -> Result<()> {
-    let Some(overrides) = overrides.as_table() else { return Ok(()) };
+fn has_override_sources(overrides: &toml::Value) -> Result<bool> {
+    let Some(overrides) = overrides.as_table() else { return Ok(false) };
     for dependency in overrides.values() {
         let Some(url) = dependency.get("git").and_then(toml::Value::as_str) else { continue };
         let source = format!("git+{url}")
@@ -40,7 +41,7 @@ fn validate_override_sources(overrides: &toml::Value) -> Result<()> {
             .wrap_err("parse Cargo source override")?;
         git::validate_transport(&source)?;
     }
-    Ok(())
+    Ok(!overrides.is_empty())
 }
 
 pub(super) async fn resolve_with_cargo(config: &Config, root: &Path) -> Result<String> {

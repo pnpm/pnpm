@@ -80,6 +80,11 @@ fn root_source_overrides_are_detected_and_git_transports_are_validated() {
     let root = TempDir::new().unwrap();
     for (manifest, expected) in [
         ("[workspace]\n", false),
+        ("[patch]\n", false),
+        ("[patch.crates-io]\n", false),
+        ("[patch.crates-io]\n[patch.\"https://example.test/index\"]\n", false),
+        ("[replace]\n", false),
+        ("[patch.crates-io]\n[replace]\n", false),
         ("[patch.crates-io]\ndemo = { path = \"dep\" }\n", true),
         (
             "[patch.\"https://example.test/index\"]\ndemo = { git = \"https://example.test/demo\", rev = \"abc\" }\n",
