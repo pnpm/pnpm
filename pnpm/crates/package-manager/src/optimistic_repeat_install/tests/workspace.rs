@@ -3,15 +3,15 @@ use super::{
         Decision, OptimisticRepeatInstallCheck, check_optimistic_repeat_install,
         settings::current_settings,
     },
-    FOO_MANIFEST, assert_content_check_converges_after_collision, check, check_with_lockfile,
-    collide_mtimes_with_recorded_state, content_check_decision, isolated_included,
-    linked_sibling_decision_for_spec, setup_content_check_project, setup_fresh_install,
-    validate_existing_files, write_local_tarball_lockfile, write_state,
+    FOO_MANIFEST, assert_content_check_converges_after_collision, backdate_validated_files, check,
+    check_with_lockfile, collide_mtimes_with_recorded_state, content_check_decision,
+    isolated_included, linked_sibling_decision_for_spec, setup_content_check_project,
+    setup_fresh_install, validate_existing_files, write_local_tarball_lockfile, write_state,
 };
 use pnpm_config::Config;
 use pnpm_lockfile::MaybeLazyLockfile;
 use pnpm_package_manifest::PackageManifest;
-use pnpm_testing_utils::fs::{backdate_existing_files, set_mtime};
+use pnpm_testing_utils::fs::set_mtime;
 use pnpm_workspace_state::{ProjectEntry, load_workspace_state, update_workspace_state};
 use std::{collections::BTreeMap, fs};
 use tempfile::tempdir;
@@ -250,7 +250,7 @@ fn returns_skipped_when_workspace_project_set_changes() {
     );
     // Re-stamp so every file reads as validated and the mtime branch
     // cannot fire. This test is about the project-list branch.
-    write_state(dir.path(), backdate_existing_files(dir.path()), settings, projects);
+    write_state(dir.path(), backdate_validated_files(dir.path()), settings, projects);
 
     let decision = check(
         dir.path(),
@@ -294,7 +294,7 @@ fn returns_skipped_when_inject_workspace_packages_drifts() {
         workspace_root.to_string_lossy().into_owned(),
         ProjectEntry { name: Some("root".into()), version: Some("1.0.0".into()) },
     );
-    write_state(workspace_root, backdate_existing_files(workspace_root), stale_settings, projects);
+    write_state(workspace_root, backdate_validated_files(workspace_root), stale_settings, projects);
 
     let decision = check(
         workspace_root,
@@ -334,7 +334,7 @@ fn returns_skipped_when_prefer_workspace_packages_drift() {
         workspace_root.to_string_lossy().into_owned(),
         ProjectEntry { name: Some("root".into()), version: Some("1.0.0".into()) },
     );
-    write_state(workspace_root, backdate_existing_files(workspace_root), stale_settings, projects);
+    write_state(workspace_root, backdate_validated_files(workspace_root), stale_settings, projects);
 
     let decision = check(
         workspace_root,
@@ -384,7 +384,7 @@ fn returns_skipped_when_sibling_node_modules_missing_for_project_with_deps() {
         sibling_dir.to_string_lossy().into_owned(),
         ProjectEntry { name: Some("pkg-a".into()), version: Some("1.0.0".into()) },
     );
-    write_state(dir.path(), backdate_existing_files(dir.path()), settings, projects);
+    write_state(dir.path(), backdate_validated_files(dir.path()), settings, projects);
 
     let decision = check_optimistic_repeat_install(&OptimisticRepeatInstallCheck {
         workspace_root: dir.path(),

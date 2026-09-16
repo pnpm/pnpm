@@ -5,17 +5,16 @@ use super::{
         settings::current_settings,
         timestamps::{FileMtime, modified_at_or_after},
     },
-    assert_deps_status_converges_after_collision, check, check_with_lockfile,
-    content_check_decision, isolated_included, setup_content_check_project, setup_fresh_install,
-    setup_fresh_install_with_config, validate_existing_files, write_empty_lockfile,
-    write_registry_lockfile, write_state,
+    assert_deps_status_converges_after_collision, backdate_validated_files, check,
+    check_with_lockfile, content_check_decision, isolated_included, setup_content_check_project,
+    setup_fresh_install, setup_fresh_install_with_config, validate_existing_files,
+    write_empty_lockfile, write_registry_lockfile, write_state,
 };
 use indexmap::IndexMap;
 use pnpm_config::Config;
 use pnpm_lockfile::MaybeLazyLockfile;
 use pnpm_modules_yaml::IncludedDependencies;
 use pnpm_package_manifest::PackageManifest;
-use pnpm_testing_utils::fs::backdate_existing_files;
 use pnpm_workspace_state::{ProjectEntry, WorkspaceState, WorkspaceStateSettings};
 use std::{collections::BTreeMap, fs};
 use tempfile::tempdir;
@@ -112,7 +111,7 @@ fn returns_up_to_date_when_the_local_file_dependency_is_in_an_excluded_group() {
             .into_owned(),
         ProjectEntry { name: Some("root".into()), version: Some("1.0.0".into()) },
     );
-    write_state(dir.path(), backdate_existing_files(dir.path()), settings, projects);
+    write_state(dir.path(), backdate_validated_files(dir.path()), settings, projects);
 
     let decision = check_optimistic_repeat_install(&OptimisticRepeatInstallCheck {
         workspace_root: dir.path(),
@@ -153,7 +152,7 @@ fn returns_skipped_when_the_local_file_dependency_is_in_an_included_group() {
             .into_owned(),
         ProjectEntry { name: Some("root".into()), version: Some("1.0.0".into()) },
     );
-    write_state(dir.path(), backdate_existing_files(dir.path()), settings, projects);
+    write_state(dir.path(), backdate_validated_files(dir.path()), settings, projects);
 
     let decision = check_optimistic_repeat_install(&OptimisticRepeatInstallCheck {
         workspace_root: dir.path(),
@@ -244,7 +243,7 @@ fn returns_up_to_date_when_a_package_extension_optional_dependency_is_excluded()
             .into_owned(),
         ProjectEntry { name: Some("root".into()), version: Some("1.0.0".into()) },
     );
-    write_state(dir.path(), backdate_existing_files(dir.path()), settings, projects);
+    write_state(dir.path(), backdate_validated_files(dir.path()), settings, projects);
 
     let decision = check_optimistic_repeat_install(&OptimisticRepeatInstallCheck {
         workspace_root: dir.path(),
@@ -387,7 +386,7 @@ fn returns_skipped_when_minimum_release_age_drifts() {
         workspace_root.to_string_lossy().into_owned(),
         ProjectEntry { name: Some("root".into()), version: Some("1.0.0".into()) },
     );
-    write_state(workspace_root, backdate_existing_files(workspace_root), stale_settings, projects);
+    write_state(workspace_root, backdate_validated_files(workspace_root), stale_settings, projects);
 
     let decision = check(
         workspace_root,
@@ -428,7 +427,7 @@ fn returns_skipped_when_minimum_release_age_ignore_missing_time_drifts() {
         workspace_root.to_string_lossy().into_owned(),
         ProjectEntry { name: Some("root".into()), version: Some("1.0.0".into()) },
     );
-    write_state(workspace_root, backdate_existing_files(workspace_root), stale_settings, projects);
+    write_state(workspace_root, backdate_validated_files(workspace_root), stale_settings, projects);
 
     let decision = check(
         workspace_root,
@@ -468,7 +467,7 @@ fn returns_skipped_when_ignored_optional_dependencies_drift() {
         workspace_root.to_string_lossy().into_owned(),
         ProjectEntry { name: Some("root".into()), version: Some("1.0.0".into()) },
     );
-    write_state(workspace_root, backdate_existing_files(workspace_root), stale_settings, projects);
+    write_state(workspace_root, backdate_validated_files(workspace_root), stale_settings, projects);
 
     let decision = check(
         workspace_root,
@@ -521,7 +520,7 @@ fn returns_skipped_when_package_extensions_drift() {
         workspace_root.to_string_lossy().into_owned(),
         ProjectEntry { name: Some("root".into()), version: Some("1.0.0".into()) },
     );
-    write_state(workspace_root, backdate_existing_files(workspace_root), stale_settings, projects);
+    write_state(workspace_root, backdate_validated_files(workspace_root), stale_settings, projects);
 
     let decision = check(
         workspace_root,
@@ -563,7 +562,7 @@ fn returns_skipped_when_dedupe_direct_deps_drifts() {
         workspace_root.to_string_lossy().into_owned(),
         ProjectEntry { name: Some("root".into()), version: Some("1.0.0".into()) },
     );
-    write_state(workspace_root, backdate_existing_files(workspace_root), stale_settings, projects);
+    write_state(workspace_root, backdate_validated_files(workspace_root), stale_settings, projects);
 
     let decision = check(
         workspace_root,
@@ -616,7 +615,7 @@ fn returns_up_to_date_when_state_carries_unported_pnpm_settings() {
         workspace_root.to_string_lossy().into_owned(),
         ProjectEntry { name: Some("root".into()), version: Some("1.0.0".into()) },
     );
-    write_state(workspace_root, backdate_existing_files(workspace_root), settings, projects);
+    write_state(workspace_root, backdate_validated_files(workspace_root), settings, projects);
 
     let decision = check(
         workspace_root,

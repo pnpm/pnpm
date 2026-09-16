@@ -3,12 +3,11 @@ use super::{
         Decision, OptimisticRepeatInstallCheck, check_optimistic_repeat_install_ignoring,
         settings::current_settings,
     },
-    check, isolated_included, write_empty_lockfile, write_state,
+    backdate_validated_files, check, isolated_included, write_empty_lockfile, write_state,
 };
 use pnpm_config::Config;
 use pnpm_lockfile::MaybeLazyLockfile;
 use pnpm_package_manifest::PackageManifest;
-use pnpm_testing_utils::fs::backdate_existing_files;
 use pnpm_workspace_state::ProjectEntry;
 use std::{collections::BTreeMap, fs};
 use tempfile::tempdir;
@@ -46,7 +45,7 @@ fn returns_skipped_when_patched_dependencies_drift() {
         workspace_root.to_string_lossy().into_owned(),
         ProjectEntry { name: Some("root".into()), version: Some("1.0.0".into()) },
     );
-    write_state(workspace_root, backdate_existing_files(workspace_root), stale_settings, projects);
+    write_state(workspace_root, backdate_validated_files(workspace_root), stale_settings, projects);
 
     let decision = check(
         workspace_root,
@@ -89,7 +88,7 @@ fn returns_skipped_when_patch_file_modified_after_validation() {
         ProjectEntry { name: Some("root".into()), version: Some("1.0.0".into()) },
     );
     // Validate everything on disk, then bump the patch past that timestamp.
-    write_state(workspace_root, backdate_existing_files(workspace_root), settings, projects);
+    write_state(workspace_root, backdate_validated_files(workspace_root), settings, projects);
     fs::write(&patch_path, "--- a\n+++ b\n+edited\n").unwrap();
 
     let decision = check(
@@ -132,7 +131,7 @@ fn returns_up_to_date_when_patch_file_unchanged() {
         ProjectEntry { name: Some("root".into()), version: Some("1.0.0".into()) },
     );
     // Both the manifest and patch were written before this timestamp.
-    write_state(workspace_root, backdate_existing_files(workspace_root), settings, projects);
+    write_state(workspace_root, backdate_validated_files(workspace_root), settings, projects);
 
     let decision = check(
         workspace_root,
@@ -172,7 +171,7 @@ fn returns_skipped_when_allow_builds_drift() {
         workspace_root.to_string_lossy().into_owned(),
         ProjectEntry { name: Some("root".into()), version: Some("1.0.0".into()) },
     );
-    write_state(workspace_root, backdate_existing_files(workspace_root), stale_settings, projects);
+    write_state(workspace_root, backdate_validated_files(workspace_root), stale_settings, projects);
 
     let decision = check(
         workspace_root,
@@ -232,7 +231,7 @@ fn returns_up_to_date_when_state_has_empty_allow_builds_and_current_has_none() {
         workspace_root.to_string_lossy().into_owned(),
         ProjectEntry { name: Some("root".into()), version: Some("1.0.0".into()) },
     );
-    write_state(workspace_root, backdate_existing_files(workspace_root), settings, projects);
+    write_state(workspace_root, backdate_validated_files(workspace_root), settings, projects);
 
     let decision = check(
         workspace_root,

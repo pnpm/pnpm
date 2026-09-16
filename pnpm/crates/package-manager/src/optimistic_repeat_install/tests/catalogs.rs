@@ -3,16 +3,16 @@ use super::{
         Decision, OptimisticRepeatInstallCheck, check_optimistic_repeat_install,
         settings::current_settings_with_catalogs,
     },
-    check_with_catalogs, check_workspace, isolated_included, setup_fresh_install,
-    setup_fresh_install_with_config, write_empty_lockfile, write_state,
+    backdate_validated_files, check_with_catalogs, check_workspace, isolated_included,
+    setup_fresh_install, setup_fresh_install_with_config, write_empty_lockfile, write_state,
 };
 use indexmap::IndexMap;
 use pnpm_catalogs_types::Catalogs;
 use pnpm_config::Config;
 use pnpm_lockfile::{Lockfile, MaybeLazyLockfile};
 use pnpm_package_manifest::PackageManifest;
-use pnpm_testing_utils::fs::{MTIME_STEP_MS, backdate_existing_files, set_mtime_ms};
-use pnpm_workspace_state::ProjectEntry;
+use pnpm_testing_utils::fs::set_mtime_ms;
+use pnpm_workspace_state::{ProjectEntry, WORKSPACE_STATE_FILENAME};
 use std::{collections::BTreeMap, fs};
 use tempfile::tempdir;
 
@@ -84,10 +84,11 @@ fn returns_up_to_date_when_a_catalog_dependency_resolves_to_a_registry_range() {
             .into_owned(),
         ProjectEntry { name: Some("root".into()), version: Some("1.0.0".into()) },
     );
-    const LOCKFILE_MS: i64 = 1_700_000_000_000;
-    set_mtime_ms(&dir.path().join(Lockfile::FILE_NAME), LOCKFILE_MS);
-    set_mtime_ms(manifest.path(), LOCKFILE_MS - MTIME_STEP_MS);
-    write_state(dir.path(), LOCKFILE_MS + MTIME_STEP_MS, settings, projects);
+    const WHOLE_SECOND_MS: i64 = 1_700_000_000_000;
+    set_mtime_ms(&dir.path().join(Lockfile::FILE_NAME), WHOLE_SECOND_MS);
+    set_mtime_ms(manifest.path(), WHOLE_SECOND_MS);
+    set_mtime_ms(&config.modules_dir.join(WORKSPACE_STATE_FILENAME), WHOLE_SECOND_MS);
+    write_state(dir.path(), backdate_validated_files(dir.path()), settings, projects);
 
     let decision = check_optimistic_repeat_install(&OptimisticRepeatInstallCheck {
         workspace_root: dir.path(),
@@ -173,7 +174,7 @@ fn returns_outdated_when_workspace_catalog_cache_changes() {
         workspace_root.to_string_lossy().into_owned(),
         ProjectEntry { name: Some("root".into()), version: Some("1.0.0".into()) },
     );
-    write_state(workspace_root, backdate_existing_files(workspace_root), settings, projects);
+    write_state(workspace_root, backdate_validated_files(workspace_root), settings, projects);
 
     let current_catalogs = Catalogs::from([(
         "default".to_string(),
@@ -219,7 +220,7 @@ fn returns_outdated_when_single_project_catalog_cache_changes() {
         workspace_root.to_string_lossy().into_owned(),
         ProjectEntry { name: Some("root".into()), version: Some("1.0.0".into()) },
     );
-    write_state(workspace_root, backdate_existing_files(workspace_root), settings, projects);
+    write_state(workspace_root, backdate_validated_files(workspace_root), settings, projects);
 
     let current_catalogs = Catalogs::from([(
         "default".to_string(),
