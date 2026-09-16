@@ -624,6 +624,10 @@ fn dummy_binary_resolution() -> BinaryResolution {
     }
 }
 
+/// Runtime resolutions must be included without `has_bin` because pnpm v11
+/// records their bin in the resolution instead of emitting `hasBin: true`.
+/// Directory resolutions need the same fallback because deploy lockfiles can
+/// omit `hasBin` for workspace packages.
 #[test]
 fn build_has_bin_set_includes_resolutions_with_implicit_bin_metadata() {
     let registry_with_bin: PackageKey = "react@18.0.0".parse().expect("parse react key");
@@ -655,8 +659,6 @@ fn build_has_bin_set_includes_resolutions_with_implicit_bin_metadata() {
     );
     packages.insert(
         runtime_binary.clone(),
-        // Runtime entry without `has_bin: true` (pnpm v11 does
-        // not emit it for runtimes). Must still land in the set.
         metadata_with_resolution(LockfileResolution::Binary(dummy_binary_resolution()), None),
     );
     packages.insert(

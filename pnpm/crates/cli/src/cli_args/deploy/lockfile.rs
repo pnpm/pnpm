@@ -219,7 +219,7 @@ fn convert_deploy_packages(
                 os: None,
                 libc: None,
                 deprecated: None,
-                has_bin: None,
+                has_bin: selected.has_bin(&project_root),
                 prepare: None,
                 bundled_dependencies: None,
                 peer_dependencies: None,
@@ -258,7 +258,7 @@ fn convert_deploy_snapshots(
             validate_lockfile_local_path(&lockfile_dir.join(importer_path), lockfile_dir)?;
         let bases = ResolveBases { file_base: lockfile_dir, link_base: &project_root };
         let package_key = create_file_url_key(&project_root, "", &selected.projects_by_path, None)?;
-        if let Some(project) = selected.projects_by_path.get(&ProjectPathKey::new(&project_root))
+        if let Some(project) = selected.project_info(&project_root)
             && !project.peer_dependencies.is_empty()
         {
             linked_workspace_projects.insert(package_key.clone(), project.clone());

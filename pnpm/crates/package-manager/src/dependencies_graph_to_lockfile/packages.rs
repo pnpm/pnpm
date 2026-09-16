@@ -279,7 +279,7 @@ pub(super) fn read_string_or_list(
 }
 /// `Some(true)` when the manifest declares executable files, recorded as
 /// the `hasBin: true` signal; the field is dropped entirely when absent.
-pub(crate) fn manifest_has_bin(manifest: Option<&Value>) -> Option<bool> {
+pub fn manifest_has_bin(manifest: Option<&Value>) -> Option<bool> {
     let manifest = manifest?;
     let has_bin = manifest
         .get("bin")

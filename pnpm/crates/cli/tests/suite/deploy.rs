@@ -132,6 +132,16 @@ fn deploy_links_workspace_dependency_bins() {
             "version": "1.0.0",
             "files": ["index.js", "bin.js"],
             "bin": { "lib-cli": "bin.js" },
+            "dependencies": { "binless": "workspace:*" },
+        }),
+    );
+    write_project(
+        &workspace,
+        "binless",
+        &serde_json::json!({
+            "name": "binless",
+            "version": "1.0.0",
+            "files": ["index.js"],
         }),
     );
     fs::write(workspace.join("packages/lib/bin.js"), "#!/usr/bin/env node\n").unwrap();
@@ -156,9 +166,23 @@ fn deploy_links_workspace_dependency_bins() {
                 .exists(),
             "{deploy_dir} must link the workspace dependency's bin",
         );
+        if deploy_dir == "deploy" {
+            let lockfile =
+                Lockfile::load_wanted_from_dir(&workspace.join(deploy_dir)).unwrap().unwrap();
+            assert_eq!(package_has_bin(&lockfile, "lib"), Some(Some(true)));
+            assert_eq!(package_has_bin(&lockfile, "binless"), Some(Some(false)));
+        }
     }
 
     drop((root, mock_instance));
+}
+
+fn package_has_bin(lockfile: &Lockfile, name: &str) -> Option<Option<bool>> {
+    lockfile.packages
+        .as_ref()?
+        .iter()
+        .find(|(key, _)| key.name.to_string() == name)
+        .map(|(_, metadata)| metadata.has_bin)
 }
 
 /// A pinned `lockfileDir` moves the shared lockfile `deploy` reads and
