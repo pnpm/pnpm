@@ -73,7 +73,7 @@ impl PythonPrepare<'_> {
             let metadata = host::run(
                 &self.interpreter.executable,
                 "inspect",
-                serde_json::json!({ "files": cached.wheel.files, "filename": cached.wheel.filename }),
+                serde_json::json!({ "files": cached.wheel.files }),
             )
             .await
             .wrap_err_with(|| format!("read the wheel built from {}", root.display()))?;
@@ -138,7 +138,7 @@ impl PythonPrepare<'_> {
         let wheel: BuiltWheel = host::run(&interpreter(environment.path()), "build", request)
             .await
             .wrap_err_with(|| format!("build the Python project at {}", root.display()))?;
-        let metadata = host::inspect(&self.interpreter.executable, &wheel.files, &wheel.filename)
+        let metadata = host::inspect(&self.interpreter.executable, &wheel.files)
             .await
             .wrap_err_with(|| format!("read the wheel built from {}", root.display()))?;
         Ok(Backend517 { wheel, metadata })

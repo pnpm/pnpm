@@ -1,6 +1,6 @@
 use super::{
     Cursor, SimpleFileOptions, Write, ZipWriter, assert_failure_contains, cargo_project,
-    flatten_report, fs, json, pacquet_in, project, python, serve, wheel, wheel_with_tags,
+    flatten_report, fs, json, pacquet_in, project, python, serve, wheel,
 };
 use assert_cmd::assert::OutputAssertExt;
 
@@ -195,25 +195,6 @@ async fn backtracks_instead_of_rejecting_conflicting_latest_versions() {
         .args(["-c", "import alpha, beta; assert alpha.VERSION == beta.VERSION == '1.0'"])
         .assert()
         .success();
-}
-
-#[tokio::test]
-async fn rejects_wheel_tags_that_disagree_with_the_filename() {
-    for tags in ["", "Tag: py2-none-any\n", "Tag: py3-none-any\nTag: cp311-cp311-win_amd64\n"] {
-        eprintln!("WHEEL tags: {tags:?}");
-        let root = tempfile::tempdir().unwrap();
-        let mut server = mockito::Server::new_async().await;
-        let _alpha =
-            serve(&mut server, "alpha", &[("1.0", wheel_with_tags("alpha", "1.0", "", &[], tags))])
-                .await;
-        project(root.path(), &server.url(), &["alpha"]);
-        assert_failure_contains(
-            pacquet_in(root.path()).arg("install"),
-            "wheel Tag fields do not match filename",
-        );
-        assert!(!root.path().join("pylock.toml").exists(), "published rejected wheel lockfile");
-        assert!(!root.path().join(".venv").exists(), "published rejected wheel environment");
-    }
 }
 
 #[tokio::test]

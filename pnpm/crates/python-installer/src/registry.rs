@@ -241,7 +241,7 @@ impl Registry<'_> {
         validate_wheel_identity(wheel, &self.resolution.target.tags, name, version)?;
         let files = self.ingest_wheel::<Reporter>(wheel, buffer).await?;
         let files: BTreeMap<_, _> = files.into_iter().collect();
-        let metadata = host::inspect(&self.interpreter.executable, &files, &wheel.name).await?;
+        let metadata = host::inspect(&self.interpreter.executable, &files).await?;
         validate_wheel_metadata(&metadata, name, version)?;
         Ok(Wheel {
             filename: wheel.name.clone(),
