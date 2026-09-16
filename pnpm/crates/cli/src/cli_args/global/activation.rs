@@ -166,8 +166,6 @@ where
         hash_link,
         global_bin_dir,
         link_bins,
-        packages,
-        bins_to_skip,
         &prepared,
     );
     if let Err(activation_error) = activation_result {
@@ -203,8 +201,6 @@ fn activate_prepared_global_install<Sys>(
     hash_link: &Path,
     global_bin_dir: &Path,
     link_bins: impl FnOnce() -> miette::Result<()>,
-    packages: &[PackageBinSource],
-    bins_to_skip: &HashSet<String>,
     prepared: &PreparedGlobalInstall,
 ) -> miette::Result<()>
 where
@@ -221,7 +217,7 @@ where
             format!("link the global package install directory at {}", hash_link.display())
         })?;
     link_bins().wrap_err("link global package bins")?;
-    ensure_required_bin_targets::<Sys>(packages, bins_to_skip, &prepared.required_bin_names)?;
+    ensure_required_bin_targets(&prepared.required_bin_names, &prepared.actual_bins)?;
     remove_slots_of_missing_bins(global_bin_dir, &prepared.actual_bins)
 }
 

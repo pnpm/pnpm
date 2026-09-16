@@ -2,9 +2,8 @@ import fs from 'node:fs'
 import path from 'node:path'
 import util from 'node:util'
 
-import { linkBinsOfPackages } from '@pnpm/bins.linker'
+import { getBinsToLink, linkBinsOfPackages } from '@pnpm/bins.linker'
 import { removeBin } from '@pnpm/bins.remover'
-import { getBinsFromPackageManifest } from '@pnpm/bins.resolver'
 import { PnpmError } from '@pnpm/error'
 import { getHashLink, type GlobalPackageBinSnapshot } from '@pnpm/global.packages'
 import { globalWarn } from '@pnpm/logger'
@@ -57,7 +56,7 @@ export async function activateGlobalInstall (
     // update of the same commands is none of them.
     await swapHashLink(opts.installDir, opts.hashLink)
     await linkBinsOfPackages(hashLinkedPkgs(opts), opts.globalBinDir, { excludeBins: opts.binsToSkip })
-    await ensureRequiredBinTargets(opts)
+    await ensureRequiredBinTargets(opts.requiredBinNames, prepared.actualBins)
     await removeSlotsOfMissingBins(opts, prepared.actualBins)
   } catch (activationError) {
     try {
@@ -225,13 +224,10 @@ async function getActualBins (
   opts: Pick<ActivateGlobalInstallOptions, 'pkgs' | 'binsToSkip'>
 ): Promise<Map<string, string>> {
   const actualBins = new Map<string, string>()
-  const binsByPackage = await Promise.all(opts.pkgs.map(async ({ manifest, location }) => {
-    return getBinsFromPackageManifest(manifest, location)
-  }))
-  const bins = binsByPackage.flat()
+  const bins = await getBinsToLink(opts.pkgs, opts.binsToSkip)
   const existing = await Promise.all(bins.map(async ({ path: binPath }) => pathExists(binPath)))
   for (const [index, { name, path: binPath }] of bins.entries()) {
-    if (!opts.binsToSkip.has(name) && existing[index]) actualBins.set(name, binPath)
+    if (existing[index]) actualBins.set(name, binPath)
   }
   return actualBins
 }
@@ -242,18 +238,29 @@ export async function getActualBinNames (
   return new Set((await getActualBins(opts)).keys())
 }
 
-async function ensureRequiredBinTargets (opts: ActivateGlobalInstallOptions): Promise<void> {
-  ensureRequiredBinNames(opts.requiredBinNames, await getActualBinNames(opts))
+async function ensureRequiredBinTargets (
+  required: Set<string> | undefined,
+  actualBins: Map<string, string>
+): Promise<void> {
+  const requiredBins = [...required ?? []].map((name) => [name, actualBins.get(name)] as const)
+  const existing = await Promise.all(requiredBins.map(async ([, binPath]) => binPath != null && pathExists(binPath)))
+  const missing = requiredBins
+    .filter(([, binPath], index) => binPath == null || !existing[index])
+    .map(([name]) => name)
+    .sort()
+  if (missing.length > 0) throwMissingBinTargets(missing)
 }
 
 function ensureRequiredBinNames (required: Set<string> | undefined, actual: Set<string>): void {
   const missing = [...required ?? []].filter((name) => !actual.has(name)).sort()
-  if (missing.length > 0) {
-    throw new PnpmError(
-      'GLOBAL_BIN_TARGET_MISSING',
-      `Global bin targets disappeared during activation: ${missing.join(', ')}`
-    )
-  }
+  if (missing.length > 0) throwMissingBinTargets(missing)
+}
+
+function throwMissingBinTargets (missing: string[]): never {
+  throw new PnpmError(
+    'GLOBAL_BIN_TARGET_MISSING',
+    `Global bin targets disappeared during activation: ${missing.join(', ')}`
+  )
 }
 
 /**

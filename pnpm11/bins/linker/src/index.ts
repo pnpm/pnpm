@@ -107,20 +107,33 @@ export async function linkBinsOfPackages (
   opts: LinkBinOptions & { excludeBins?: Set<string> } = {}
 ): Promise<string[]> {
   if (pkgs.length === 0) return []
+  return _linkBins(await getCommandsToLink(pkgs, opts.excludeBins), binsTarget, opts)
+}
 
-  let allCmds = unnest(
+export async function getBinsToLink (
+  pkgs: Array<{
+    manifest: DependencyManifest
+    location: string
+  }>,
+  excludeBins: Set<string> = new Set()
+): Promise<Command[]> {
+  return deduplicateCommands(await getCommandsToLink(pkgs, excludeBins))
+    .map(({ name, path }) => ({ name, path }))
+}
+
+async function getCommandsToLink (
+  pkgs: Array<{
+    manifest: DependencyManifest
+    location: string
+  }>,
+  excludeBins: Set<string> = new Set()
+): Promise<CommandInfo[]> {
+  return unnest(
     (await Promise.all(
-      pkgs
-        .map(async (pkg) => getPackageBinsFromManifest(pkg.manifest, pkg.location))
+      pkgs.map(async (pkg) => getPackageBinsFromManifest(pkg.manifest, pkg.location))
     ))
       .filter((cmds: Command[]) => cmds.length)
-  )
-  const excludeBins = opts.excludeBins
-  if (excludeBins?.size) {
-    allCmds = allCmds.filter((cmd) => !excludeBins.has(cmd.name))
-  }
-
-  return _linkBins(allCmds, binsTarget, opts)
+  ).filter((cmd) => !excludeBins.has(cmd.name))
 }
 
 interface CommandInfo extends Command {
@@ -161,17 +174,17 @@ async function _linkBins (
   return allCmds.map(cmd => cmd.pkgName)
 }
 
-function deduplicateCommands (commands: CommandInfo[], binsDir: string): CommandInfo[] {
+function deduplicateCommands (commands: CommandInfo[], binsDir?: string): CommandInfo[] {
   const cmdGroups = groupBy(cmd => cmd.name, commands)
   return Object.values(cmdGroups)
     .filter((group): group is CommandInfo[] => group !== undefined && group.length !== 0)
     .map(group => resolveCommandConflicts(group, binsDir))
 }
 
-function resolveCommandConflicts (group: CommandInfo[], binsDir: string): CommandInfo {
+function resolveCommandConflicts (group: CommandInfo[], binsDir?: string): CommandInfo {
   return group.reduce((a, b) => {
     const [chosen, skipped] = compareCommandsInConflict(a, b) >= 0 ? [a, b] : [b, a]
-    logCommandConflict(chosen, skipped, binsDir)
+    if (binsDir != null) logCommandConflict(chosen, skipped, binsDir)
     return chosen
   })
 }

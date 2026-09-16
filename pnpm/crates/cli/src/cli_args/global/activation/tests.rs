@@ -421,6 +421,51 @@ fn a_retained_bin_target_that_disappears_during_activation_rolls_back() {
 }
 
 #[test]
+fn a_selected_duplicate_bin_target_that_disappears_during_activation_rolls_back() {
+    let mut fixture = ActivationFixture::new(&["tool"]);
+    let old_slot = fixture.seed_file_slot("tool", b"old tool\n", 0o751);
+    let winner_dir = fixture.fresh_install_dir.join("node_modules/tool");
+    let winner_target = winner_dir.join("bin/tool.js");
+    fs::create_dir_all(winner_target.parent().expect("winner target parent"))
+        .expect("create winning package bin directory");
+    fs::write(&winner_target, b"#!/usr/bin/env node\n").expect("write winning bin target");
+    fixture.packages.push(PackageBinSource::new(
+        winner_dir,
+        Arc::new(json!({
+            "name": "tool",
+            "version": "2.0.0",
+            "bin": { "tool": "bin/tool.js" },
+        })),
+    ));
+
+    let error = activate_global_install_with_extra_bin_names::<Host>(
+        &fixture.fresh_install_dir,
+        &fixture.hash_link,
+        &fixture.global_bin_dir,
+        &fixture.packages,
+        &HashSet::new(),
+        ActivationBinSets {
+            extra: &HashSet::new(),
+            required: &HashSet::from(["tool".to_string()]),
+        },
+        || {
+            test_link_bins::<Host>(&fixture.packages, &fixture.global_bin_dir, &HashSet::new())?;
+            fs::remove_file(&winner_target).into_diagnostic()
+        },
+    )
+    .expect_err("a disappearing selected duplicate target must abort activation");
+
+    let diagnostic: &(dyn miette::Diagnostic + Send + Sync) = error.as_ref();
+    assert_eq!(
+        miette::Diagnostic::code(diagnostic).map(|code| code.to_string()),
+        Some("ERR_PNPM_GLOBAL_BIN_TARGET_MISSING".to_string()),
+    );
+    assert_eq!(slot_state(&fixture.global_bin_dir.join("tool")), old_slot);
+    assert_eq!(resolved_hash_target(&fixture.hash_link), canonical(&fixture.old_install_dir));
+    assert!(!fixture.fresh_install_dir.exists());
+}
+
+#[test]
 fn only_directory_symlink_slots_need_pre_removal() {
     let slots = vec![
         SavedBinSlot {

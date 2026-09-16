@@ -1,7 +1,7 @@
 use super::{BTreeMap, Context, FsWalkFiles, HashSet, IntoDiagnostic, PackageBinSource, PathBuf};
 use derive_more::{Display, Error};
 use miette::Diagnostic;
-use pnpm_cmd_shim::get_bins_from_package_manifest;
+use pnpm_cmd_shim::choose_bins;
 
 #[derive(Debug, Display, Error, Diagnostic)]
 #[display("Global bin targets disappeared during activation: {}", bin_names.join(", "))]
@@ -21,19 +21,11 @@ pub(super) fn get_actual_bins<Sys: FsWalkFiles>(
     bins_to_skip: &HashSet<String>,
 ) -> miette::Result<BTreeMap<String, PathBuf>> {
     let mut actual_bins = BTreeMap::new();
-    for command in packages
-        .iter()
-        .flat_map(|package| {
-            get_bins_from_package_manifest::<Sys>(&package.manifest, &package.location)
-        })
-    {
-        if !bins_to_skip.contains(&command.name)
-            && command.path
-                .try_exists()
-                .into_diagnostic()
-                .wrap_err_with(|| {
-                    format!("inspect global bin target at {}", command.path.display())
-                })?
+    for (command, _) in choose_bins::<Sys>(packages, bins_to_skip) {
+        if command.path
+            .try_exists()
+            .into_diagnostic()
+            .wrap_err_with(|| format!("inspect global bin target at {}", command.path.display()))?
         {
             actual_bins.insert(command.name, command.path);
         }
@@ -48,15 +40,22 @@ pub(in super::super) fn get_actual_bin_names<Sys: FsWalkFiles>(
     Ok(get_actual_bins::<Sys>(packages, bins_to_skip)?.into_keys().collect())
 }
 
-pub(super) fn ensure_required_bin_targets<Sys: FsWalkFiles>(
-    packages: &[PackageBinSource],
-    bins_to_skip: &HashSet<String>,
+pub(super) fn ensure_required_bin_targets(
     required_bin_names: &HashSet<String>,
+    actual_bins: &BTreeMap<String, PathBuf>,
 ) -> miette::Result<()> {
-    ensure_required_bin_names(
-        required_bin_names,
-        &get_actual_bin_names::<Sys>(packages, bins_to_skip)?,
-    )
+    let mut actual_bin_names = HashSet::new();
+    for name in required_bin_names {
+        let Some(path) = actual_bins.get(name) else { continue };
+        if path
+            .try_exists()
+            .into_diagnostic()
+            .wrap_err_with(|| format!("inspect global bin target at {}", path.display()))?
+        {
+            actual_bin_names.insert(name.clone());
+        }
+    }
+    ensure_required_bin_names(required_bin_names, &actual_bin_names)
 }
 
 pub(super) fn ensure_required_bin_names(
