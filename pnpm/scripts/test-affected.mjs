@@ -153,13 +153,20 @@ export function parseOptions (argv) {
 function main () {
   const { values, rest } = parseOptions(process.argv.slice(2))
   if (values.help) {
-    console.log(`node pnpm/scripts/test-affected.mjs [--base main] [--print] [<nextest args>]
+    console.log(`just test-affected [options] [-- <nextest args>]
 
-Runs the tests of every crate the working tree changes relative to --base.
-Selection is crate-level: a crate's whole test set runs, or none of it.
+Runs the tests of every crate the working tree changes. Selection is
+crate-level: a crate's whole test set runs, or none of it. When crates depend
+on what changed without being selected themselves, the smoke profile runs in
+their place, one end-to-end test per area of CLI behavior.
 
-When crates depend on what changed without being selected themselves, the
-smoke profile runs in their place. --no-smoke skips that.`)
+  --base <revision>  what the diff is taken against (default: main)
+  --print            print the runs without executing them
+  --no-smoke         skip the smoke run
+  --help             this message
+
+Anything else is passed to \`cargo nextest run\`, so a hand-picked addition
+looks like: just test-affected -- -p pnpm-cli -E 'test(catalog::)'`)
     return 0
   }
 

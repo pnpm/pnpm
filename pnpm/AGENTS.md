@@ -165,9 +165,8 @@ by crate or name — see below).
   reaches past the crates you can name (see
   [`CONTRIBUTING.md`](./CONTRIBUTING.md#automated-checks)).
 - `just test-affected` — the tests of the crates the working tree changes,
-  plus the smoke profile when unselected crates depend on them. `--print`
-  shows the selection without running it, `--no-smoke` drops the smoke run.
-  This is the default way to test a change.
+  plus the smoke profile when unselected crates depend on them. The default way
+  to test a change; `--help` lists its flags.
 - `node pnpm/scripts/run-rust-tests.mjs -p <crate>` — one crate's tests, with
   the sanitized environment `just test` uses. `-E '<filterset>'` narrows
   further: `test(<substring>)` for one test. Prefer `-p` over a `package()`
@@ -294,20 +293,10 @@ configuration the way `just test` does.
 # The crates the working tree changes
 just test-affected
 
-# One end-to-end test per area of CLI behavior
-just smoke
-
-# One crate
+# One crate, one test, one module of pnpm-cli's suite. The suite is a single
+# target, so a module filter replaces the per-file `--test <file_stem>`.
 node pnpm/scripts/run-rust-tests.mjs -p pnpm-lockfile
-
-# One test by name substring
-node pnpm/scripts/run-rust-tests.mjs -p pnpm-lockfile <name_substring>
-
-# One integration test file
-node pnpm/scripts/run-rust-tests.mjs -p pnpm-lockfile --test <file_stem>
-
-# One module of pnpm-cli's suite (the suite is a single target, so the
-# former per-file `--test <file_stem>` is a module filter here)
+node pnpm/scripts/run-rust-tests.mjs -E 'test(<name_substring>)'
 node pnpm/scripts/run-rust-tests.mjs -p pnpm-cli -E 'test(/^<file_stem>::/)'
 ```
 

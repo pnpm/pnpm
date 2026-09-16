@@ -11,14 +11,7 @@ Run what the change affects. CI runs the full suite on three platforms for every
 
 Run `cargo` and `just` from the repository root; the Rust workspace lives there, not inside `pnpm/`.
 
-```sh
-just test-affected                 # crates the working tree changes, against main
-just test-affected --base HEAD~3   # against another revision
-just test-affected --print         # show what it would run
-just smoke                         # one end-to-end test per area of CLI behavior
-```
-
-`just test-affected` decides three things for you: it selects every `pnpr-*` crate together, it refuses to scope a change that reaches files every crate compiles against and points at `just ready` instead, and it runs the smoke profile in place of dependents it did not select. It prints what it selected and what it left out.
+Run `just test-affected`. It decides three things for you: it selects every `pnpr-*` crate together, it refuses to scope a change that reaches files every crate compiles against and points at `just ready` instead, and it runs the smoke profile in place of dependents it did not select. It prints what it selected and what it left out; `--help` lists its flags.
 
 What it cannot decide is which end-to-end tests exercise *your* change. Smoke gives breadth across areas, not depth in the one you touched, so for a user-visible change add the suite modules for that area:
 
