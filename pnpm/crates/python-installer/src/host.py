@@ -58,6 +58,13 @@ LEGACY_ARCHITECTURES = {
     "manylinux2010": {"x86_64", "i686"},
     "manylinux2014": {"x86_64", "i686", "aarch64", "armv7l", "ppc64", "ppc64le", "s390x"},
 }
+# The libc series wheels are tagged for, with the oldest and newest release
+# of each a platform can name. A number outside them is a typo rather than a
+# baseline, and counting down from it would take unbounded time and memory.
+LIBC_BASELINES = {"manylinux": ("2", 5, 99), "musllinux": ("1", 0, 99)}
+# Python's wheel tags spell some architectures differently from the Rust
+# target triple that names the same machine.
+WHEEL_ARCHITECTURES = {"powerpc64": "ppc64", "powerpc64le": "ppc64le", "riscv64gc": "riscv64"}
 DARWIN_MACHINES = {"x86_64": "x86_64", "aarch64": "arm64"}
 WINDOWS_MACHINES = {"x86_64": ("AMD64", "win_amd64"), "aarch64": ("ARM64", "win_arm64"), "i686": ("x86", "win32")}
 
@@ -66,6 +73,7 @@ def describe_platform(name):
     """The marker variables a declared platform fixes, and the wheel platform tags it accepts."""
     _, tags = packaging_modules()
     architecture, separator, system = PLATFORM_ALIASES.get(name, name).partition("-")
+    architecture = WHEEL_ARCHITECTURES.get(architecture, architecture)
     system = DEFAULT_LIBC.get(system.removeprefix("unknown-linux-"), system)
     if separator and (system.startswith("manylinux_") or system.startswith("musllinux_")):
         return linux_platform(architecture, system)
@@ -83,8 +91,11 @@ def describe_platform(name):
 def linux_platform(architecture, libc):
     """A glibc or musl Linux platform, with every libc release its wheels may be built against."""
     kind, major, minor = libc.rsplit("_", 2)
+    series = LIBC_BASELINES[kind]
+    if major != series[0] or not minor.isdigit() or not series[1] <= int(minor) <= series[2]:
+        raise ValueError("pnpm does not know the Python libc baseline " + libc)
     platforms = []
-    oldest = 5 if kind == "manylinux" else 0
+    oldest = series[1]
     for release in range(int(minor), oldest - 1, -1):
         platforms.append("%s_%s_%d_%s" % (kind, major, release, architecture))
         legacy = MANYLINUX_LEGACY.get(release) if kind == "manylinux" and major == "2" else None

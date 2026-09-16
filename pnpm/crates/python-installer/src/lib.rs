@@ -23,7 +23,7 @@ use pnpm_reporter::{GlobalLog, LogEvent, LogLevel, Reporter};
 use pnpm_store_dir::{StoreIndex, StoreIndexWriter};
 use registry::Registry;
 use std::{
-    collections::BTreeMap,
+    collections::{BTreeMap, BTreeSet},
     fs, io,
     path::{Path, PathBuf},
     sync::Arc,
@@ -237,10 +237,8 @@ impl PythonPrepare<'_> {
             client: &self.context.http_client,
             index: self.index,
             interpreter: self.interpreter,
-            resolution: registry::Resolution::new(
-                self.interpreter.target.clone(),
-                self.environments.list.len(),
-            ),
+            resolution: registry::Resolution::new(self.interpreter.target.clone()),
+            downloaded: BTreeSet::new(),
             store: pnpm_tarball::ArchiveStoreContext {
                 dir: &self.context.config.store_dir,
                 index: self.store_index.clone(),

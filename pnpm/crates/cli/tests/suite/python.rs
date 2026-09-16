@@ -1294,16 +1294,24 @@ async fn refuses_an_interpreter_none_of_the_declared_environments_stand_for() {
 /// are all missing.
 #[tokio::test]
 async fn rejects_a_platform_it_cannot_resolve_for() {
-    let root = tempfile::tempdir().unwrap();
-    let mut server = mockito::Server::new_async().await;
-    let _alpha = serve(&mut server, "alpha", &[("1.0", wheel("alpha", "1.0", "", &[]))]).await;
-    project(root.path(), &server.url(), &["alpha>=1"]);
-    add_python_settings(root.path(), "  platforms:\n    - x86_64-linux\n");
+    let cases = [
+        ("x86_64-linux", "pnpm does not know the Python platform x86_64-linux"),
+        (
+            "x86_64-manylinux_2_100000000",
+            "pnpm does not know the Python libc baseline manylinux_2_100000000",
+        ),
+        ("x86_64-musllinux_9_9", "pnpm does not know the Python libc baseline musllinux_9_9"),
+    ];
+    for (platform, expected) in cases {
+        eprintln!("platform {platform:?}");
+        let root = tempfile::tempdir().unwrap();
+        let mut server = mockito::Server::new_async().await;
+        let _alpha = serve(&mut server, "alpha", &[("1.0", wheel("alpha", "1.0", "", &[]))]).await;
+        project(root.path(), &server.url(), &["alpha>=1"]);
+        add_python_settings(root.path(), &format!("  platforms:\n    - {platform}\n"));
 
-    assert_failure_contains(
-        pacquet_in(root.path()).arg("install"),
-        "pnpm does not know the Python platform x86_64-linux",
-    );
+        assert_failure_contains(pacquet_in(root.path()).arg("install"), expected);
+    }
 }
 
 mod validation;

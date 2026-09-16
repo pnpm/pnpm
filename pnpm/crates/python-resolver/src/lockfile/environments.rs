@@ -198,7 +198,11 @@ pub(super) fn referenced_marker_keys(
     for requirement in requirements {
         collect_marker_keys(&requirement.marker, &mut keys);
     }
-    for (name, version) in solved.iter().flat_map(|solved| &solved.solution) {
+    let solved_versions = solved
+        .iter()
+        .flat_map(|solved| &solved.solution)
+        .collect::<BTreeSet<_>>();
+    for (name, version) in solved_versions {
         let metadata = metadata
             .get(&(name.clone(), version.clone()))
             .ok_or_else(|| {

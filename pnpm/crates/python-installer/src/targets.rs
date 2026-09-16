@@ -102,10 +102,20 @@ fn declarations(config: &Config) -> Vec<(Option<&String>, Option<&String>)> {
     declarations
 }
 
-/// The configured values, or the one unconfigured value standing for
-/// whatever the interpreter running the install reports.
+/// The configured values with repeats dropped, or the one unconfigured
+/// value standing for whatever the interpreter running the install
+/// reports. A platform or version named twice is one environment, and
+/// locking for it twice would write its marker into the lockfile twice.
 fn configured(values: &[String]) -> Vec<Option<&String>> {
-    if values.is_empty() { vec![None] } else { values.iter().map(Some).collect() }
+    if values.is_empty() {
+        return vec![None];
+    }
+    let mut named = BTreeSet::new();
+    values
+        .iter()
+        .filter(|value| named.insert(*value))
+        .map(Some)
+        .collect()
 }
 
 /// A declared Python version is locked for as the release it names: a

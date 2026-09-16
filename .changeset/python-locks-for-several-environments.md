@@ -2,7 +2,7 @@
 "pacquet": minor
 ---
 
-`pylock.toml` can now be resolved for several platforms and Python versions at once. `python.platforms` and `python.pythonVersions` name the environments to lock for. Every platform is paired with every version. One committed lockfile then serves Linux CI and macOS or Windows contributors [#14945](https://github.com/pnpm/pnpm/issues/14945).
+pnpm can now resolve `pylock.toml` for several platforms and Python versions at once. `python.platforms` and `python.pythonVersions` name the environments to lock for. Every platform is paired with every version. One committed lockfile then serves Linux CI and macOS or Windows contributors [#14945](https://github.com/pnpm/pnpm/issues/14945).
 
 ```yaml
 python:

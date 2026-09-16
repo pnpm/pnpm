@@ -36,7 +36,6 @@ pub(super) async fn resolve_all<Reporter: InstallReporter + 'static>(
         )?);
     }
     registry.resolution.answer_for(registry.interpreter.target.clone());
-    registry.resolution.forget_pages();
     Ok(solved)
 }
 

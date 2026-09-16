@@ -9,7 +9,7 @@ use pnpm_python_resolver::{Packages, Target, candidates_from_page};
 use pnpm_reporter::Reporter;
 use pnpm_tarball::{ArchiveStoreProjection, IngestZipArchiveToStore};
 use serde::{Deserialize, Serialize};
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use tokio::io::AsyncReadExt;
 use url::Url;
 
@@ -29,14 +29,18 @@ pub(super) struct Registry<'a> {
     pub(super) interpreter: &'a Interpreter,
     pub(super) store: pnpm_tarball::ArchiveStoreContext<'a>,
     pub(super) resolution: Resolution,
+    /// The distributions whose index page this run has downloaded. A
+    /// project locking for several environments reads the page once and
+    /// takes every later environment's candidates from the cache that
+    /// download wrote.
+    pub(super) downloaded: BTreeSet<PackageName>,
     /// What installing reads: the store paths of every wheel downloaded so
     /// far, beside the interpreter's full report on it.
     pub(super) wheels: BTreeMap<(PackageName, Version), Wheel>,
 }
 
 /// What a resolution reads and what it is answering for: the environment
-/// being resolved, the candidates and metadata gathered for it, and the
-/// index pages they were taken from.
+/// being resolved, and the candidates and metadata gathered for it.
 pub(super) struct Resolution {
     /// The environment the registry is answering for: the one being
     /// resolved while a lockfile is written, and the interpreter running
@@ -45,41 +49,23 @@ pub(super) struct Resolution {
     /// The candidates each distribution offers this environment, and the
     /// metadata of the wheels the resolution has looked at.
     pub(super) packages: Packages,
-    /// The index pages read so far, kept only while a project locks for
-    /// several environments: each page is then read once and offers every
-    /// environment the candidates it takes from it.
-    pages: BTreeMap<PackageName, CachedIndex>,
-    keep_pages: bool,
 }
 
 impl Resolution {
-    pub(super) fn new(target: Target, environments: usize) -> Self {
-        Self {
-            target,
-            packages: Packages::new(),
-            pages: BTreeMap::new(),
-            keep_pages: environments > 1,
-        }
+    pub(super) fn new(target: Target) -> Self {
+        Self { target, packages: Packages::new() }
     }
 
     /// Answer for another environment, which takes its own candidates
-    /// from the pages already read.
+    /// from the same index pages.
     pub(super) fn answer_for(&mut self, target: Target) {
         self.target = target;
         self.packages.candidates.clear();
     }
 
-    /// Release the pages once every environment has been answered for.
-    pub(super) fn forget_pages(&mut self) {
-        self.pages.clear();
-    }
-
     /// Offer this environment the candidates an index page holds.
-    fn offer(&mut self, name: &PackageName, page: CachedIndex) -> Result<()> {
+    fn offer(&mut self, name: &PackageName, page: &CachedIndex) -> Result<()> {
         let candidates = candidates_from_page(page.body.get(), &page.url, name, &self.target)?;
-        if self.keep_pages {
-            self.pages.insert(name.clone(), page);
-        }
         self.packages.candidates.insert(name.clone(), candidates);
         Ok(())
     }
@@ -87,15 +73,14 @@ impl Resolution {
 
 impl Registry<'_> {
     pub(super) async fn fetch_index(&mut self, name: &PackageName) -> Result<()> {
-        let page = match self.resolution.pages.remove(name) {
-            Some(page) => page,
-            None => self.read_index(name).await?,
-        };
-        self.resolution.offer(name, page)
+        let page = self.read_index(name).await?;
+        self.downloaded.insert(name.clone());
+        self.resolution.offer(name, &page)
     }
 
-    /// The Simple JSON index page for `name`, from the network or, for an
-    /// offline resolution, from the cache an earlier run left behind.
+    /// The Simple JSON index page for `name`: from the cache when this
+    /// run already downloaded it, or an offline resolution is reading
+    /// what an earlier run left behind, and from the index otherwise.
     async fn read_index(&self, name: &PackageName) -> Result<CachedIndex> {
         let index_url = self.index.url
             .join(&format!("{name}/"))
@@ -103,7 +88,7 @@ impl Registry<'_> {
         let cache = self.config.cache_dir
             .join("python-index-v2")
             .join(format!("{}.json", pnpm_crypto_hash::create_hex_hash(index_url.as_str())));
-        let cached = if self.config.offline {
+        let cached = if self.config.offline || self.downloaded.contains(name) {
             read_cached_index(&cache, name).await?
         } else {
             self.download_index(&index_url, name).await?
