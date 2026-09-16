@@ -605,3 +605,107 @@ fn reports_a_transitive_requirement_the_index_cannot_meet() {
 
     assert!(error.contains("foo@1 1.0.0 depends on bar ^3 (no version available)"), "{error}");
 }
+
+/// `a` asks for the weak `c?/deep`, which does nothing on its own, and `b`
+/// activates `c` without asking for `deep`. Only the union of the two edges
+/// activates `d`.
+#[test]
+fn discovers_a_crate_only_unified_features_activate() {
+    const METADATA: &str = r#"{
+  "packages": [{
+    "id": "path+file:///workspace#app@0.1.0",
+    "name": "app",
+    "version": "0.1.0",
+    "dependencies": [
+      {
+        "name": "a",
+        "source": "registry+https://github.com/rust-lang/crates.io-index",
+        "req": "^1.0",
+        "features": ["x"]
+      },
+      {
+        "name": "b",
+        "source": "registry+https://github.com/rust-lang/crates.io-index",
+        "req": "^1.0"
+      }
+    ]
+  }],
+  "workspace_members": ["path+file:///workspace#app@0.1.0"]
+}"#;
+    let index = BTreeMap::from([
+        (
+            "a",
+            r#"{"name":"a","vers":"1.0.0","deps":[{"name":"c","req":"^1","features":[],"optional":true,"default_features":true,"target":null,"kind":"normal","registry":null}],"cksum":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","features":{"x":["c?/deep"]},"yanked":false}"#,
+        ),
+        (
+            "b",
+            r#"{"name":"b","vers":"1.0.0","deps":[{"name":"a","req":"^1","features":["c"],"optional":false,"default_features":true,"target":null,"kind":"normal","registry":null}],"cksum":"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb","features":{},"yanked":false}"#,
+        ),
+        (
+            "c",
+            r#"{"name":"c","vers":"1.0.0","deps":[{"name":"d","req":"^1","features":[],"optional":true,"default_features":true,"target":null,"kind":"normal","registry":null}],"cksum":"cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc","features":{"deep":["dep:d"]},"yanked":false}"#,
+        ),
+        (
+            "d",
+            r#"{"name":"d","vers":"1.0.0","deps":[],"cksum":"dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd","features":{},"yanked":false}"#,
+        ),
+    ]);
+
+    let mut files = BTreeMap::new();
+    loop {
+        let missing = missing_index_names(METADATA, &files, CRATES_IO_SOURCE).unwrap();
+        if missing.is_empty() {
+            break;
+        }
+        for name in missing {
+            let contents = index[name.as_str()];
+            files.insert(name, contents.to_string());
+        }
+    }
+
+    dbg!(files.keys().collect::<Vec<_>>());
+    assert!(files.contains_key("d"));
+    let lockfile =
+        Lockfile::from_str(&resolve_lockfile(METADATA, &files, CRATES_IO_SOURCE).unwrap()).unwrap();
+    dbg!(&lockfile.packages);
+    assert!(
+        lockfile.packages
+            .iter()
+            .any(|package| package.name.as_str() == "d"),
+    );
+}
+
+/// The package key holds one compatibility line, so a version outside it
+/// can never be selected and the crates only it needs are not fetched.
+#[test]
+fn leaves_a_crate_only_an_unselectable_version_needs_unfetched() {
+    const METADATA: &str = r#"{
+  "packages": [{
+    "id": "path+file:///workspace#app@0.1.0",
+    "name": "app",
+    "version": "0.1.0",
+    "dependencies": [{
+      "name": "foo",
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "req": ">=0.9"
+    }]
+  }],
+  "workspace_members": ["path+file:///workspace#app@0.1.0"]
+}"#;
+    let foo_index = r#"{"name":"foo","vers":"0.9.0","deps":[{"name":"legacy","req":"^1","features":[],"optional":false,"default_features":true,"target":null,"kind":"normal","registry":null}],"cksum":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","features":{},"yanked":false}
+{"name":"foo","vers":"1.0.0","deps":[],"cksum":"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb","features":{},"yanked":false}"#;
+    let files = BTreeMap::from([("foo".to_string(), foo_index.to_string())]);
+
+    assert!(missing_index_names(METADATA, &files, CRATES_IO_SOURCE).unwrap().is_empty());
+    let lockfile =
+        Lockfile::from_str(&resolve_lockfile(METADATA, &files, CRATES_IO_SOURCE).unwrap()).unwrap();
+
+    dbg!(&lockfile.packages);
+    assert!(
+        lockfile.packages
+            .iter()
+            .any(|package| {
+                package.name.as_str() == "foo" && package.version == semver::Version::new(1, 0, 0)
+            }),
+    );
+}
