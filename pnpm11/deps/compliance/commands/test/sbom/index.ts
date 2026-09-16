@@ -1393,3 +1393,124 @@ test('pnpm sbom excludes platform-incompatible optional packages instead of emit
   // The installed binding carries a resolvable license from its manifest.
   expect(onlyBindings[0].licenses).toEqual([{ license: { id: 'MIT' } }])
 })
+
+test('pnpm sbom filtered to a single project inherits the workspace root metadata it declares no value for', async () => {
+  const workspaceDir = tempDir()
+  f.copy('workspace-sbom', workspaceDir)
+  const storeDir = path.join(workspaceDir, 'store')
+
+  writePopulatedWorkspaceRoot(workspaceDir)
+
+  const appADir = path.join(workspaceDir, 'app-a')
+  fs.writeFileSync(
+    path.join(appADir, 'package.json'),
+    JSON.stringify({
+      name: 'app-a',
+      version: '2.0.0',
+    })
+  )
+
+  const sbomOpts = await installWorkspaceForSbom(workspaceDir, storeDir, appADir)
+
+  const cyclonedx = JSON.parse((await sbom.handler(sbomOpts)).output)
+  const root = cyclonedx.metadata.component
+  expect(root.name).toBe('app-a')
+  expect(root.version).toBe('2.0.0')
+  expect(root.authors).toStrictEqual([{ name: 'Acme Engineering' }])
+  expect(root.description).toBe('The workspace root')
+  expect(root.licenses).toStrictEqual([{ license: { id: 'MIT' } }])
+  expect(root.externalReferences).toContainEqual({ type: 'vcs', url: 'https://github.com/acme/workspace' })
+  expect(root.externalReferences).toContainEqual({ type: 'issue-tracker', url: 'https://github.com/acme/workspace/issues' })
+
+  const spdx = JSON.parse((await sbom.handler({ ...sbomOpts, sbomFormat: 'spdx' })).output)
+  const spdxRoot = spdx.packages.find((pkg: { name: string }) => pkg.name === 'app-a')
+  expect(spdxRoot.supplier).toBe('Person: Acme Engineering')
+  expect(spdxRoot.description).toBe('The workspace root')
+  expect(spdxRoot.homepage).toBe('https://github.com/acme/workspace')
+  expect(spdxRoot.licenseConcluded).toBe('MIT')
+  expect(spdxRoot.licenseDeclared).toBe('MIT')
+})
+
+test.each([
+  ['blank', { author: '', description: '', license: '', repository: { type: 'git', url: '' }, bugs: { url: '' } }],
+  ['null', { author: null, description: null, license: null, repository: null, bugs: null }],
+])('pnpm sbom filtered to a single project declaring %s metadata inherits none of the workspace root\'s', async (_, declared) => {
+  const workspaceDir = tempDir()
+  f.copy('workspace-sbom', workspaceDir)
+  const storeDir = path.join(workspaceDir, 'store')
+
+  writePopulatedWorkspaceRoot(workspaceDir)
+
+  const appADir = path.join(workspaceDir, 'app-a')
+  fs.writeFileSync(
+    path.join(appADir, 'package.json'),
+    JSON.stringify({ name: 'app-a', version: '2.0.0', ...declared })
+  )
+
+  const sbomOpts = await installWorkspaceForSbom(workspaceDir, storeDir, appADir)
+
+  const cyclonedx = JSON.parse((await sbom.handler(sbomOpts)).output)
+  const root = cyclonedx.metadata.component
+  expect(root.authors).toBeUndefined()
+  expect(root.description).toBeUndefined()
+  expect(root.licenses).toBeUndefined()
+  expect(root.externalReferences).toBeUndefined()
+
+  const spdx = JSON.parse((await sbom.handler({ ...sbomOpts, sbomFormat: 'spdx' })).output)
+  const spdxRoot = spdx.packages.find((pkg: { name: string }) => pkg.name === 'app-a')
+  expect(spdxRoot.supplier).toBeUndefined()
+  expect(spdxRoot.description).toBeUndefined()
+  expect(spdxRoot.homepage).toBeUndefined()
+  expect(spdxRoot.licenseConcluded).toBe('NOASSERTION')
+  expect(spdxRoot.licenseDeclared).toBe('NOASSERTION')
+})
+
+/** Gives the workspace root manifest every metadata field a filtered project may inherit. */
+function writePopulatedWorkspaceRoot (workspaceDir: string): void {
+  fs.writeFileSync(
+    path.join(workspaceDir, 'package.json'),
+    JSON.stringify({
+      name: 'workspace-root',
+      version: '1.0.0',
+      author: 'Acme Engineering',
+      description: 'The workspace root',
+      license: 'MIT',
+      repository: 'https://github.com/acme/workspace',
+      bugs: { url: 'https://github.com/acme/workspace/issues' },
+    })
+  )
+}
+
+/** Installs the whole workspace, then returns the options for an SBOM run filtered to `projectDir`. */
+async function installWorkspaceForSbom (workspaceDir: string, storeDir: string, projectDir: string) {
+  const { allProjects, allProjectsGraph, selectedProjectsGraph: allSelectedGraph } =
+    await filterProjectsBySelectorObjectsFromDir(workspaceDir, [])
+
+  await install.handler({
+    ...DEFAULT_OPTS,
+    dir: workspaceDir,
+    workspaceDir,
+    lockfileDir: workspaceDir,
+    pnpmHomeDir: '',
+    storeDir,
+    allProjects,
+    allProjectsGraph,
+    selectedProjectsGraph: allSelectedGraph,
+  })
+
+  const { selectedProjectsGraph } = await filterProjectsBySelectorObjectsFromDir(
+    workspaceDir,
+    [{ namePattern: path.basename(projectDir) }]
+  )
+
+  return {
+    ...DEFAULT_OPTS,
+    dir: projectDir,
+    lockfileDir: workspaceDir,
+    pnpmHomeDir: '',
+    sbomFormat: 'cyclonedx' as const,
+    storeDir: path.resolve(storeDir, STORE_VERSION),
+    selectedProjectsGraph,
+    lockfileOnly: true,
+  }
+}

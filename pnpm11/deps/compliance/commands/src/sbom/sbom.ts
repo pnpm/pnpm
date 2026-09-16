@@ -467,24 +467,14 @@ async function generateSbomForProject (
 
   const rootName = manifest.name ?? 'unknown'
   const rootVersion = manifest.version ?? '0.0.0'
+  const declaresLicense = 'license' in manifest || 'licenses' in manifest
   const rootLicense = singleProject
-    ? (await resolveRootLicense(manifest, projectDir) ?? cachedRootLicense)
+    ? (await resolveRootLicense(manifest, projectDir) ?? (declaresLicense ? undefined : cachedRootLicense))
     : cachedRootLicense
-  // Only a project that declares no `author` at all inherits the workspace
-  // root's. A declared name that is blank names nobody, and putting someone
-  // else's name there would attribute the package to the wrong person.
-  const rootAuthor = authorNameFromField(
-    manifest.author ?? (singleProject ? rootManifest.author : undefined)
-  )
-  // The fallback is on the raw field, as for `author` above: a declared value
-  // that cannot be published is dropped, not replaced by the workspace root's.
-  const rootRepository = repositoryFromField(
-    manifest.repository ?? (singleProject ? rootManifest.repository : undefined)
-  )
-  const rootDescription = manifest.description
-    ?? (singleProject ? rootManifest.description : undefined)
-  const rootBugsUrl = bugsUrlFromField(manifest.bugs)
-    ?? (singleProject ? bugsUrlFromField(rootManifest.bugs) : undefined)
+  const rootAuthor = authorNameFromField(rootComponentField(manifest, rootManifest, 'author'))
+  const rootRepository = repositoryFromField(rootComponentField(manifest, rootManifest, 'repository'))
+  const rootDescription = rootComponentField(manifest, rootManifest, 'description')
+  const rootBugsUrl = bugsUrlFromField(rootComponentField(manifest, rootManifest, 'bugs'))
 
   const lockfileDir = opts.lockfileDir ?? opts.dir
   const includedImporterIds = opts.selectedProjectsGraph
@@ -586,6 +576,26 @@ function validateSbomSpecVersion (value: string | undefined, format: SbomFormat)
     )
   }
   return normalized
+}
+
+/**
+ * The value the SBOM's root component publishes for one manifest field. A
+ * `--filter` that narrows the run to a single project inherits the workspace
+ * root manifest's value for a field that project omits entirely.
+ *
+ * A field the project declares stays the project's own even when the value
+ * names nobody: blank, `null`, or a form no SBOM can publish. The workspace
+ * root's author, repository, or issue tracker would attribute the package to
+ * the wrong party. `license` follows the same rule through `declaresLicense`,
+ * and only resolves separately because it also probes the project directory
+ * for a LICENSE file.
+ */
+function rootComponentField<FieldName extends keyof ProjectManifest> (
+  manifest: ProjectManifest,
+  rootManifest: ProjectManifest,
+  field: FieldName
+): ProjectManifest[FieldName] {
+  return field in manifest ? manifest[field] : rootManifest[field]
 }
 
 async function resolveRootLicense (manifest: Parameters<typeof resolveLicenseFromDir>[0]['manifest'], dir: string): Promise<string | undefined> {
