@@ -1036,7 +1036,6 @@ fn invalid_python_save_prefix_is_rejected_before_manifest_parsing_or_interpreter
     }
 }
 
-/// The flattened diagnostic `pnpm add pypi:` fails with at `root`.
 fn python_add_failure(root: &Path) -> String {
     let result = pacquet_in(root)
         .args(["add", "pypi:alpha", "-w"])
