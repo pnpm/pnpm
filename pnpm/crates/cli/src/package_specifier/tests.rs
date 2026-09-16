@@ -160,8 +160,9 @@ fn rejects_purls_pnpm_cannot_add() {
     }
 }
 
-/// `name@spec` is how pnpm spells an npm alias, so a decoded component that
-/// smuggles one in has to be rejected rather than resolved.
+/// Each ecosystem's selector has a grammar a decoded component could reach
+/// into: `name@spec` is an npm alias, and a PEP 508 requirement carries
+/// extras and markers. Smuggling one in has to be rejected, not resolved.
 #[test]
 fn rejects_a_purl_whose_components_would_rewrite_the_selector() {
     for (specifier, message) in [
@@ -173,6 +174,14 @@ fn rejects_a_purl_whose_components_would_rewrite_the_selector() {
         (
             "pkg:npm/express@npm%3Aevil%401.0.0",
             "pkg:npm/express@npm%3Aevil%401.0.0 does not carry a valid npm version",
+        ),
+        (
+            "pkg:pypi/requests%5Bsecurity%5D@2.31.0",
+            "pkg:pypi/requests%5Bsecurity%5D@2.31.0 does not name a valid PyPI project",
+        ),
+        (
+            "pkg:pypi/requests@2.31.0%20%3B%20os_name%3D%3D%22nt%22",
+            "pkg:pypi/requests@2.31.0%20%3B%20os_name%3D%3D%22nt%22 does not carry a valid PyPI version",
         ),
     ] {
         let message_received =

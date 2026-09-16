@@ -75,6 +75,12 @@ fn parse_specifier(specifier: &str) -> Result<ParsedSpecifier> {
 
 /// Routes a Package URL to the ecosystem its type names, spelling it the way
 /// that ecosystem's own protocol would.
+///
+/// Every ecosystem here builds its selector by joining the purl's decoded
+/// components, and each spelling has a grammar of its own: `name@spec` is an
+/// npm alias, and a PEP 508 requirement carries extras and markers. Each
+/// component is therefore validated before it is joined, so a decoded
+/// separator cannot rewrite the selector into one for another package.
 fn parse_purl(purl: &Purl, source: &str) -> Result<ParsedSpecifier> {
     match purl.package_type.as_str() {
         "npm" => purl_node_specifier(purl, source).map(ParsedSpecifier::Node),
@@ -86,8 +92,6 @@ fn parse_purl(purl: &Purl, source: &str) -> Result<ParsedSpecifier> {
     }
 }
 
-/// Both components are validated before they are joined, so a decoded `@`
-/// or `:` cannot turn the selector into an npm alias for another package.
 fn purl_node_specifier(purl: &Purl, source: &str) -> Result<String> {
     let name = npm_name(purl, source)?;
     let Some(version) = purl.version.as_deref() else {
@@ -138,10 +142,29 @@ fn purl_registry_specifier(purl: &Purl, source: &str) -> Result<RegistryPackageS
 /// becomes a pinned requirement.
 fn purl_python_specifier(purl: &Purl, source: &str) -> Result<String> {
     reject_namespace(purl, source)?;
+    let name = pypi_project_name(purl, source)?;
     let Some(version) = &purl.version else {
-        return python_requirement(&purl.name);
+        return python_requirement(name);
     };
-    python_requirement(&format!("{}=={version}", purl.name))
+    if version.parse::<pep440_rs::Version>().is_err() {
+        return Err(miette::miette!("{source} does not carry a valid PyPI version"));
+    }
+    python_requirement(&format!("{name}=={version}"))
+}
+
+/// A project name as PEP 508 spells it: ASCII alphanumerics joined by
+/// `.`, `-`, or `_`, starting and ending with an alphanumeric.
+fn pypi_project_name<'a>(purl: &'a Purl, source: &str) -> Result<&'a str> {
+    let name = purl.name.as_str();
+    if name.starts_with(|ch: char| ch.is_ascii_alphanumeric())
+        && name.ends_with(|ch: char| ch.is_ascii_alphanumeric())
+        && name
+            .bytes()
+            .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'.' | b'_' | b'-'))
+    {
+        return Ok(name);
+    }
+    Err(miette::miette!("{source} does not name a valid PyPI project"))
 }
 
 fn reject_namespace(purl: &Purl, source: &str) -> Result<()> {
