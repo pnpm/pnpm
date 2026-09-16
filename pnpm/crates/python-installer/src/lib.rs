@@ -64,6 +64,23 @@ pub fn plan<Reporter: self::Reporter + 'static>(
     )
 }
 
+/// The manifests a run prepares from, or `None` when none of them
+/// declares a project. A manifest that only declares a workspace is read
+/// for what it says about the others, so it is not by itself a reason to
+/// start an interpreter.
+async fn discovered_projects(
+    manifests: Vec<PathBuf>,
+) -> Result<Option<Vec<(PathBuf, Arc<manifest::Manifest>)>>> {
+    let roots = read_project_manifests(manifests).await?
+        .into_iter()
+        .map(|(root, manifest)| (root, Arc::new(manifest)))
+        .collect::<Vec<_>>();
+    Ok(roots
+        .iter()
+        .any(|(_, manifest)| manifest.project.is_some())
+        .then_some(roots))
+}
+
 async fn prepare<Reporter: self::Reporter + 'static>(
     context: InstallOptions,
     manifests: Vec<PathBuf>,
@@ -71,13 +88,10 @@ async fn prepare<Reporter: self::Reporter + 'static>(
     selection: manifest::DependencySelection,
 ) -> Result<Vec<Prepared>> {
     let config = context.config;
-    let roots = read_project_manifests(manifests).await?;
-    // A manifest that only declares a workspace is read for what it says
-    // about the others, so it is not by itself a reason to start an
-    // interpreter.
-    if !roots.iter().any(|(_, manifest)| manifest.project.is_some()) {
-        return Ok(Vec::new());
-    }
+    let Some(roots) = discovered_projects(manifests).await? else { return Ok(Vec::new()) };
+    // A manifest that declares only a workspace is still what says which
+    // projects that workspace contains and where they come from.
+    let workspace = workspace::Workspace::new(&roots)?;
     let interpreter: Interpreter =
         host::run(&config.python.executable, "probe", targets::probe_request(config)).await?;
     let environments = Environments::of(config, &interpreter)?;
@@ -92,13 +106,10 @@ async fn prepare<Reporter: self::Reporter + 'static>(
         index: &index,
         store: environment::ArtifactStore { index: store_index, writer: &writer },
         asked: environment::Asked { resolve, selection },
-        members: roots
-            .iter()
-            .filter_map(|(_, manifest)| manifest.distribution().cloned())
-            .collect(),
+        members: workspace.scopes().clone(),
         build_environments: tokio::sync::Mutex::default(),
     };
-    let result = prepare_projects::<Reporter>(&prepare, roots).await;
+    let result = prepare_projects::<Reporter>(&prepare, &workspace, roots).await;
     drop(writer);
     writer_task.await
         .into_diagnostic()
@@ -110,27 +121,16 @@ async fn prepare<Reporter: self::Reporter + 'static>(
 
 async fn prepare_projects<Reporter: self::Reporter + 'static>(
     prepare: &PythonPrepare<'_>,
-    discovered: Vec<(PathBuf, manifest::Manifest)>,
+    workspace: &workspace::Workspace,
+    discovered: Vec<(PathBuf, Arc<manifest::Manifest>)>,
 ) -> Result<Vec<Prepared>> {
-    let discovered = discovered
-        .into_iter()
-        .map(|(root, manifest)| (root, Arc::new(manifest)))
-        .collect::<Vec<_>>();
-    // A manifest that declares only a workspace is still what says which
-    // projects that workspace contains and where they come from.
-    let workspace = workspace::Workspace::new(&discovered)?;
     // Every project's workspace dependencies are read before the first
     // await, so the index itself is not held across one.
     let planned = discovered
         .into_iter()
         .filter(|(_, manifest)| manifest.project.is_some())
         .map(|(root, manifest)| {
-            let local = workspace.local_projects(
-                &root,
-                &manifest,
-                &root,
-                &prepare.interpreter.target.environment,
-            )?;
+            let local = workspace.local_projects(&root, &manifest, &root)?;
             Ok((root, manifest, Arc::from(local)))
         })
         .collect::<Result<Vec<_>>>()?;

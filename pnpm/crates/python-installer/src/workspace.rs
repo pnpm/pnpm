@@ -115,6 +115,13 @@ pub(super) struct Workspace {
 }
 
 impl Workspace {
+    /// Which distributions each discovered project may take from the
+    /// repository, which is what a build requirement of that project is
+    /// read against too.
+    pub(super) fn scopes(&self) -> &BTreeMap<PathBuf, BTreeSet<PackageName>> {
+        &self.declared
+    }
+
     pub(super) fn new(projects: &[(PathBuf, Arc<Manifest>)]) -> Result<Self> {
         let mut roots = BTreeMap::<PackageName, Vec<PathBuf>>::new();
         let mut declared = BTreeMap::new();
@@ -211,11 +218,10 @@ impl Workspace {
         root: &Path,
         manifest: &Manifest,
         lock_root: &Path,
-        environment: &pep508_rs::MarkerEnvironment,
     ) -> Result<Vec<LocalProject>> {
         let mut local = Vec::new();
         let mut seen = BTreeMap::<PackageName, Target>::new();
-        let mut frontier = self.targets(root, manifest, environment)?;
+        let mut frontier = self.targets(root, manifest)?;
         while let Some((name, target)) = frontier.pop() {
             if let Some(chosen) = seen.get(&name) {
                 if chosen.root != target.root {
@@ -242,19 +248,14 @@ impl Workspace {
             );
             let manifest = Arc::new(load(&target.root)?);
             local.push(read_project(&name, &target, &manifest, lock_root)?);
-            frontier.extend(self.targets(&target.root, &manifest, environment)?);
+            frontier.extend(self.targets(&target.root, &manifest)?);
         }
         Ok(local)
     }
 
     /// Which of a project's requirements name a project on disk, and where
     /// each one lives.
-    fn targets(
-        &self,
-        root: &Path,
-        manifest: &Manifest,
-        environment: &pep508_rs::MarkerEnvironment,
-    ) -> Result<Vec<(PackageName, Target)>> {
+    fn targets(&self, root: &Path, manifest: &Manifest) -> Result<Vec<(PackageName, Target)>> {
         let mut targets = Vec::new();
         for name in manifest.declared_distributions()? {
             match self.source(root, manifest, &name) {
@@ -265,28 +266,7 @@ impl Workspace {
                 None => self.refuse_shadowed_member(&name, root)?,
             }
         }
-        for name in manifest.build_requirement_names(environment)? {
-            self.refuse_local_build_requirement(&name, root)?;
-        }
         Ok(targets)
-    }
-
-    /// Refuse a build requirement a project in this workspace declares.
-    /// uv builds with the workspace's own project; pnpm does not yet, and
-    /// taking the index's package of that name would run other code as
-    /// the backend.
-    fn refuse_local_build_requirement(&self, name: &PackageName, root: &Path) -> Result<()> {
-        let Some(member) = self.member(name, root)? else { return Ok(()) };
-        if member == root {
-            return Ok(());
-        }
-        bail!(
-            "{} needs `{name}` to build, which is a project in this workspace ({}). pnpm does not \
-             build with a workspace project's own backend yet, and will not run the index's \
-             package of that name instead.",
-            root.join("pyproject.toml").display(),
-            member.display(),
-        )
     }
 
     /// The source a project resolves a distribution from: its own

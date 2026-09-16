@@ -2003,7 +2003,6 @@ async fn an_unapproved_backend_warns_when_builds_are_not_strict() {
     eprintln!("stdout:\n{stdout}\nstderr:\n{}", String::from_utf8_lossy(&output.stderr));
     assert!(output.status.success());
     assert!(stdout.contains("is not approved to run"), "{stdout}");
-    // The dependencies are still installed; only the project is left out.
     python(root.path())
         .args(["-c", "import alpha"])
         .assert()
@@ -2084,7 +2083,7 @@ async fn a_workspace_project_as_a_build_requirement_is_refused() {
 
     assert_failure_contains(
         pacquet_in(root.path()).arg("install"),
-        "which is a project in this workspace",
+        "which is a project in its workspace",
     );
 }
 
@@ -2161,7 +2160,7 @@ async fn a_backend_asking_for_a_workspace_project_is_refused() {
 
     assert_failure_contains(
         pacquet_in(root.path()).arg("install"),
-        "which is a project in this workspace",
+        "which is a project in its workspace",
     );
 }
 

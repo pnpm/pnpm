@@ -18,7 +18,7 @@ pub(super) struct PythonPrepare<'a> {
     /// Every distribution a project in this repository declares. A build
     /// requirement naming one of them is refused rather than taken from
     /// the index, wherever the backend asked for it.
-    pub(super) members: BTreeSet<pep508_rs::PackageName>,
+    pub(super) members: BTreeMap<std::path::PathBuf, BTreeSet<pep508_rs::PackageName>>,
     /// The environments backends have already been installed into, by the
     /// requirements they hold. Every project using one backend needs the
     /// same environment, and a workspace is mostly one backend.

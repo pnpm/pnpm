@@ -55,7 +55,7 @@ impl PythonPrepare<'_> {
         manifest: &Manifest,
         editable: bool,
     ) -> Result<Build> {
-        let requires = self.build_requirements(manifest)?;
+        let requires = self.build_requirements(root, manifest)?;
         let unapproved = unapproved(self.context.config, &requires);
         if !unapproved.is_empty() {
             return Ok(Build::NotApproved(unapproved));
@@ -66,7 +66,8 @@ impl PythonPrepare<'_> {
             "backend_path": backend(manifest).path,
             "editable": editable,
         });
-        let environment = match self.build_environment::<Reporter>(requires, &request).await? {
+        let environment = match self.build_environment::<Reporter>(root, requires, &request).await?
+        {
             BuildEnvironment::Ready(environment) => environment,
             BuildEnvironment::NotApproved(names) => return Ok(Build::NotApproved(names)),
         };
@@ -142,17 +143,18 @@ impl PythonPrepare<'_> {
     /// What the project's backend needs installed to run here. A
     /// requirement a marker excludes is not installed and does not run,
     /// so it is not one this target builds with.
-    fn build_requirements(&self, manifest: &Manifest) -> Result<Vec<pep508_rs::Requirement>> {
-        let environment = &self.interpreter.target.environment;
-        let mut requires = Vec::new();
-        if let Some(system) = manifest.build_system.as_ref() {
-            for requirement in &system.requires {
-                let requirement = parse_requirement(requirement)?;
-                if requirement.marker.evaluate(environment, &[]) {
-                    requires.push(requirement);
-                }
-            }
-        }
+    /// What the project declares it needs to build, with PEP 517's
+    /// defaults where it names no backend.
+    fn build_requirements(
+        &self,
+        root: &Path,
+        manifest: &Manifest,
+    ) -> Result<Vec<pep508_rs::Requirement>> {
+        let declared = manifest.build_system
+            .as_ref()
+            .map(|system| system.requires.clone())
+            .unwrap_or_default();
+        let mut requires = self.usable_build_requirements(root, declared.iter())?;
         // PEP 517 has a project that names no backend built by setuptools'
         // legacy one, whether or not it thought to require it.
         if manifest.build_system
@@ -167,6 +169,37 @@ impl PythonPrepare<'_> {
         Ok(requires)
     }
 
+    /// A build requirement read the same way wherever it was written: one
+    /// a marker excludes is not installed and does not run, and one
+    /// naming a project in this project's workspace is refused rather
+    /// than taken from the index.
+    fn usable_build_requirements<'a>(
+        &self,
+        root: &Path,
+        requires: impl IntoIterator<Item = &'a String>,
+    ) -> Result<Vec<pep508_rs::Requirement>> {
+        let environment = &self.interpreter.target.environment;
+        let members = self.members.get(root);
+        let mut usable = Vec::new();
+        for requirement in requires {
+            let requirement = parse_requirement(requirement)?;
+            if !requirement.marker.evaluate(environment, &[]) {
+                continue;
+            }
+            if members.is_some_and(|members| members.contains(&requirement.name)) {
+                bail!(
+                    "the Python project at {} needs `{}` to build, which is a project in its \
+                     workspace. pnpm does not build with a workspace project's own backend yet, \
+                     and will not run the index's package of that name instead.",
+                    root.display(),
+                    requirement.name,
+                );
+            }
+            usable.push(requirement);
+        }
+        Ok(usable)
+    }
+
     /// An environment holding the project's build requirements and nothing
     /// else. The interpreter is the one the project installs for, so a
     /// backend that compiles against it compiles against the right one.
@@ -176,6 +209,7 @@ impl PythonPrepare<'_> {
     /// asked what else this build needs.
     async fn build_environment<Reporter: pnpm_reporter::Reporter + 'static>(
         &self,
+        root: &Path,
         mut requires: Vec<pep508_rs::Requirement>,
         request: &serde_json::Value,
     ) -> Result<BuildEnvironment> {
@@ -185,23 +219,9 @@ impl PythonPrepare<'_> {
         if extra.is_empty() {
             return Ok(BuildEnvironment::Ready(declared));
         }
-        let mut asked = Vec::new();
-        for requirement in &extra {
-            asked.push(parse_requirement(requirement)?);
-        }
-        // What a backend asks for once it can see the project runs in the
-        // build too, so it is read the way the manifest's own build
-        // requirements are: refused where it names a project in this
-        // repository, and approved before it runs.
-        for requirement in &asked {
-            if self.members.contains(&requirement.name) {
-                bail!(
-                    "the backend of the Python project asked for `{}` to build, which is a \
-                     project in this workspace. pnpm does not build with a workspace project's \
-                     own backend yet, and will not run the index's package of that name instead.",
-                    requirement.name,
-                );
-            }
+        let asked = self.usable_build_requirements(root, extra.iter())?;
+        if asked.is_empty() {
+            return Ok(BuildEnvironment::Ready(declared));
         }
         let unapproved = unapproved(self.context.config, &asked);
         if !unapproved.is_empty() {
@@ -332,22 +352,59 @@ fn unapproved(config: &pnpm_config::Config, requires: &[pep508_rs::Requirement])
     if config.dangerously_allow_all_builds {
         return Vec::new();
     }
-    // A Python version is not a semver range, so only the name half of an
-    // `allowBuilds` key decides a Python build. The key is read as a
-    // distribution name, so it names the same one however it is spelled.
-    let approved = config.allow_builds
-        .iter()
-        .filter(|(_, allowed)| **allowed)
-        .filter_map(|(spec, _)| spec.parse::<pep508_rs::PackageName>().ok())
-        .collect::<BTreeSet<_>>();
+    let approvals = Approvals::of(config);
     let mut names = requires
         .iter()
-        .filter(|requirement| !approved.contains(&requirement.name))
-        .map(|requirement| requirement.name.to_string())
+        .filter(|requirement| !approvals.any_version.contains(&requirement.name))
+        .map(|requirement| approvals.describe(&requirement.name))
         .collect::<Vec<_>>();
     names.sort();
     names.dedup();
     names
+}
+
+/// The distributions `allowBuilds` approves to run in a build.
+///
+/// A key naming no version approves the distribution however it
+/// resolves, which is the only form a check made before resolving can
+/// answer. A version-qualified key names a release, and a build approved
+/// by one says so rather than silently doing nothing.
+struct Approvals {
+    any_version: BTreeSet<pep508_rs::PackageName>,
+    only_a_version: BTreeSet<pep508_rs::PackageName>,
+}
+
+impl Approvals {
+    fn of(config: &pnpm_config::Config) -> Self {
+        let mut approvals = Self { any_version: BTreeSet::new(), only_a_version: BTreeSet::new() };
+        for (spec, allowed) in &config.allow_builds {
+            if !allowed {
+                continue;
+            }
+            let (name, version) = spec
+                .rsplit_once('@')
+                .map_or((spec.as_str(), None), |(name, version)| (name, Some(version)));
+            // The key is read as a distribution name, so it names the
+            // same one however it is spelled.
+            if let Ok(name) = name.parse::<pep508_rs::PackageName>() {
+                if version.is_some() {
+                    approvals.only_a_version.insert(name);
+                } else {
+                    approvals.any_version.insert(name);
+                }
+            }
+        }
+        approvals
+    }
+
+    fn describe(&self, name: &pep508_rs::PackageName) -> String {
+        if self.only_a_version.contains(name) {
+            return format!(
+                "{name} (approved only for a version, which a Python build is not checked against)",
+            );
+        }
+        name.to_string()
+    }
 }
 
 /// Refuse a wheel that requires a distribution its project does not
