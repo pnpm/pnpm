@@ -170,6 +170,9 @@ async fn dynamic_dependencies_and_versions_resolve_workspace_sources() {
 
 def build_wheel(wheel_directory, config_settings=None, metadata_directory=None):
     assert metadata_directory is None
+    import pathlib
+    count = pathlib.Path('wheel-build-count')
+    count.write_text(str(int(count.read_text()) + 1 if count.exists() else 1))
     return _build(wheel_directory, False)
 ",
     );
@@ -204,6 +207,7 @@ def build_wheel(wheel_directory, config_settings=None, metadata_directory=None):
         .args(["-c", "import mylib; assert mylib.MARKER == 'workspace mylib'"])
         .assert()
         .success();
+    assert_eq!(fs::read_to_string(library.join("wheel-build-count")).unwrap(), "1");
 }
 
 #[tokio::test]

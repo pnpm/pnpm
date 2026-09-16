@@ -28,6 +28,8 @@ pub(super) struct Manifest {
     #[serde(skip)]
     pub(super) metadata: Option<super::host::WheelMetadata>,
     #[serde(skip)]
+    pub(super) metadata_wheel: Option<std::sync::Arc<super::build::FallbackWheel>>,
+    #[serde(skip)]
     pub(super) metadata_output: Option<std::sync::Arc<tempfile::TempDir>>,
     #[serde(default, rename = "dependency-groups")]
     groups: BTreeMap<String, Vec<toml::Value>>,

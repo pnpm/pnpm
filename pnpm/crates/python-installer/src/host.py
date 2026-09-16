@@ -393,7 +393,7 @@ def prepare_metadata(request):
         if len(directories) != 1:
             raise ValueError("wheel must contain exactly one dist-info directory")
         dist_info = directories.pop()
-        return {"metadata": core_metadata(read_headers(built["files"], dist_info + "/METADATA"), dist_info, True), "prepared": False}
+        return {"metadata": core_metadata(read_headers(built["files"], dist_info + "/METADATA"), dist_info, True), "prepared": False, "wheel": built}
     directory = hook(str(output))
     located = output.joinpath(directory).resolve()
     if located.parent != output or not located.name.endswith(".dist-info"):

@@ -1,5 +1,6 @@
 use super::{
-    BuildEnvironment, PythonPrepare, backend, host, identify_identity, interpreter, unapproved,
+    BuildEnvironment, BuiltWheel, PythonPrepare, backend, host, identify_identity, interpreter,
+    unapproved,
 };
 use crate::{
     environment::Shared, interpreter::Interpreters, manifest::Manifest, targets::Environments,
@@ -16,7 +17,8 @@ impl PythonPrepare<'_> {
         &self,
         root: &Path,
         manifest: &Manifest,
-    ) -> Result<(host::WheelMetadata, Option<Arc<tempfile::TempDir>>)> {
+    ) -> Result<(host::WheelMetadata, Option<Arc<tempfile::TempDir>>, Option<Arc<FallbackWheel>>)>
+    {
         let requires = self.build_requirements(root, manifest)?;
         let unapproved = unapproved(self.context.config, &requires);
         if !unapproved.is_empty() {
@@ -50,8 +52,7 @@ impl PythonPrepare<'_> {
                 .wrap_err_with(|| format!("prepare Python metadata at {}", root.display()))?;
         validate_metadata(&response.metadata, manifest, root)
             .wrap_err_with(|| format!("validate Python metadata at {}", root.display()))?;
-        let output = response.prepared.then(|| Arc::new(output));
-        Ok((response.metadata, output))
+        Ok(response.retain(output, &self.interpreter.executable))
     }
 }
 
@@ -59,6 +60,25 @@ impl PythonPrepare<'_> {
 struct BackendMetadata {
     metadata: host::WheelMetadata,
     prepared: bool,
+    wheel: Option<BuiltWheel>,
+}
+
+impl BackendMetadata {
+    fn retain(
+        self,
+        output: tempfile::TempDir,
+        interpreter: &str,
+    ) -> (host::WheelMetadata, Option<Arc<tempfile::TempDir>>, Option<Arc<FallbackWheel>>) {
+        let output = Arc::new(output);
+        let fallback = self.wheel.map(|wheel| {
+            Arc::new(FallbackWheel {
+                wheel,
+                output: Arc::clone(&output),
+                interpreter: interpreter.to_owned(),
+            })
+        });
+        (self.metadata, self.prepared.then_some(output), fallback)
+    }
 }
 
 fn validate_metadata(
@@ -101,12 +121,14 @@ impl Shared<'_> {
                 .as_ref()
                 .and_then(|project| project.requires_python.clone());
             let environments = Environments::of(self.context.config, &interpreter)?;
-            let (metadata, output) = PythonPrepare::for_project(self, &interpreter, &environments)
-                .metadata::<Reporter>(root, &original)
-                .await?;
+            let (metadata, output, fallback) =
+                PythonPrepare::for_project(self, &interpreter, &environments)
+                    .metadata::<Reporter>(root, &original)
+                    .await?;
             Arc::make_mut(manifest)
                 .set_metadata(metadata, output)
                 .wrap_err_with(|| format!("metadata for {}", root.display()))?;
+            Arc::make_mut(manifest).metadata_wheel = fallback;
             if manifest.project
                 .as_ref()
                 .and_then(|project| project.requires_python.clone())
@@ -122,4 +144,10 @@ impl Shared<'_> {
         }
         bail!("dynamic Python metadata at {} did not select a stable interpreter", root.display())
     }
+}
+
+pub(in super::super) struct FallbackWheel {
+    pub(super) wheel: BuiltWheel,
+    pub(super) output: Arc<tempfile::TempDir>,
+    pub(super) interpreter: String,
 }

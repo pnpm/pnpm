@@ -1,5 +1,7 @@
 pub(super) use validation::{extra_set, requirement_set};
 
+pub(super) use metadata::FallbackWheel;
+
 mod metadata;
 mod validation;
 use validation::requires_what_it_declares;
@@ -72,21 +74,47 @@ impl PythonPrepare<'_> {
         if !unapproved.is_empty() {
             return Ok(Build::NotApproved(unapproved));
         }
-        let request = serde_json::json!({
-            "root": root,
-            "backend": backend(manifest).module,
-            "backend_path": backend(manifest).path,
-            "editable": editable,
-            "metadata_directory": manifest.metadata_output.as_ref().zip(manifest.metadata.as_ref())
-                .map(|(output, metadata)| output.path().join(&metadata.dist_info)),
-        });
-        let environment = match self.build_environment::<Reporter>(root, requires, &request).await?
-        {
-            BuildEnvironment::Ready(environment) => environment,
-            BuildEnvironment::NotApproved(names) => return Ok(Build::NotApproved(names)),
+        let cached = manifest.metadata_wheel
+            .as_ref()
+            .filter(|wheel| !editable && wheel.interpreter == self.interpreter.executable);
+        let (built, output) = if let Some(cached) = cached {
+            let metadata = host::run(
+                &self.interpreter.executable,
+                "inspect",
+                serde_json::json!({ "files": cached.wheel.files, "filename": cached.wheel.filename }),
+            )
+            .await
+            .wrap_err_with(|| format!("read the wheel built from {}", root.display()))?;
+            (Backend517 { wheel: cached.wheel.clone(), metadata }, Arc::clone(&cached.output))
+        } else {
+            let request = serde_json::json!({
+                "root": root,
+                "backend": backend(manifest).module,
+                "backend_path": backend(manifest).path,
+                "editable": editable,
+                "metadata_directory": manifest.metadata_output.as_ref().zip(manifest.metadata.as_ref())
+                    .map(|(output, metadata)| output.path().join(&metadata.dist_info)),
+            });
+            let environment =
+                match self.build_environment::<Reporter>(root, requires, &request).await? {
+                    BuildEnvironment::Ready(environment) => environment,
+                    BuildEnvironment::NotApproved(names) => return Ok(Build::NotApproved(names)),
+                };
+            let output = tempfile::tempdir().into_diagnostic()?;
+            let built = self.run_backend(root, environment, &output, request).await?;
+            (built, Arc::new(output))
         };
-        let output = tempfile::tempdir().into_diagnostic()?;
-        let built = self.run_backend(root, environment, &output, request).await?;
+        self.finish_build(root, manifest, editable, built, output)
+    }
+
+    fn finish_build(
+        &self,
+        root: &Path,
+        manifest: &Manifest,
+        editable: bool,
+        built: Backend517,
+        output: Arc<tempfile::TempDir>,
+    ) -> Result<Build> {
         self.installable_here(&built, root)?;
         identify(&built.metadata, manifest, root)?;
         let directory = root.display();
@@ -310,7 +338,7 @@ pub(super) enum Build {
 
 pub(super) struct Built {
     pub(super) wheel: Wheel,
-    pub(super) output: tempfile::TempDir,
+    pub(super) output: Arc<tempfile::TempDir>,
 }
 
 /// The wheel a backend produced, and what the target interpreter reads
@@ -320,7 +348,7 @@ struct Backend517 {
     metadata: host::WheelMetadata,
 }
 
-#[derive(serde::Deserialize)]
+#[derive(Clone, serde::Deserialize)]
 struct BuiltWheel {
     files: BTreeMap<String, std::path::PathBuf>,
     filename: String,

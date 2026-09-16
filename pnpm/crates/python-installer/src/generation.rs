@@ -157,7 +157,7 @@ fn new_generation(root: &Path) -> Result<tempfile::TempDir> {
 #[derive(Default)]
 struct Installable {
     packages: Vec<host::Wheel>,
-    unpacked: Vec<tempfile::TempDir>,
+    unpacked: Vec<std::sync::Arc<tempfile::TempDir>>,
 }
 
 impl Installable {
