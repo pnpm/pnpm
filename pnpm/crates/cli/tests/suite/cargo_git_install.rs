@@ -503,6 +503,11 @@ fn path_patched_lockfile_resolution_does_not_require_git() {
     pnpm(&root)
         .env("CARGO_HOME", cargo_home.path())
         .env("PATH", std::path::Path::new(sysroot.trim()).join("bin"))
+        // The PATH above carries `cargo` and `rustc` and nothing else. A
+        // `build.rustc-wrapper` in the developer's own Cargo configuration
+        // reaches this far as `RUSTC_WRAPPER`, and its binary is not on that
+        // PATH; an empty value turns it off.
+        .env("RUSTC_WRAPPER", "")
         .args(["install", "--lockfile-only", "--no-frozen-lockfile"])
         .assert()
         .success();
