@@ -140,6 +140,25 @@ pub struct PythonSettings {
     /// version such as `3.12` or a full one such as `3.12.7`. Empty locks
     /// for the version of the interpreter the install runs on.
     pub python_versions: Vec<String>,
+    /// Whether pnpm installs an interpreter a project needs and this
+    /// machine does not have.
+    pub downloads: PythonDownloads,
+    /// Where the interpreters pnpm installs are downloaded from, as the
+    /// releases URL of a [python-build-standalone] mirror.
+    ///
+    /// [python-build-standalone]: https://github.com/astral-sh/python-build-standalone
+    pub download_url: String,
+}
+
+/// When pnpm installs a Python interpreter itself.
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, serde::Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum PythonDownloads {
+    /// Install one when no interpreter this machine has fits the project.
+    #[default]
+    Auto,
+    /// Never install one, and report the project instead.
+    Never,
 }
 
 impl Default for PythonSettings {
@@ -155,9 +174,18 @@ impl Default for PythonSettings {
             groups: vec!["dev".to_string()],
             platforms: Vec::new(),
             python_versions: Vec::new(),
+            downloads: PythonDownloads::default(),
+            download_url: DEFAULT_PYTHON_DOWNLOAD_URL.to_string(),
         }
     }
 }
+
+/// The releases of [python-build-standalone], the interpreter builds uv,
+/// rye, hatch and mise install too.
+///
+/// [python-build-standalone]: https://github.com/astral-sh/python-build-standalone
+pub const DEFAULT_PYTHON_DOWNLOAD_URL: &str =
+    "https://github.com/astral-sh/python-build-standalone/releases";
 
 /// `sideEffectsCache` as written: either a bare boolean, or the declaration
 /// carrying all three parts.

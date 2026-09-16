@@ -20,6 +20,8 @@ python:
   groups: [dev]
   platforms: []
   pythonVersions: []
+  downloads: auto # or never
+  downloadUrl: https://github.com/astral-sh/python-build-standalone/releases
 ```
 
 The interpreter needs `venv` and either `packaging` or pip's bundled copy of
@@ -85,10 +87,28 @@ a dependency can leave an executable named like an interpreter.
 The nearest `.python-version` file, searched from the project up to the
 workspace root, asks for a version: `3.13` asks for every 3.13.x. The file
 belongs to other tools as well, so a line naming a distribution rather than a
-version is reported and ignored. The version it asks for is a preference, not
-a requirement: pnpm warns and installs with an interpreter the project's
-`requires-python` accepts when the machine has no such version. Interpreter
-provisioning, which would make the pin authoritative, is not implemented.
+version is reported and ignored.
+
+### Installing an interpreter
+
+A project no interpreter on the machine fits gets one installed, from the
+[python-build-standalone] builds uv, rye, hatch and mise install too. The
+release's `SHA256SUMS` is both the list of what pnpm can install and the
+digest each download is checked against, and it is cached for a day.
+
+An interpreter is installed under `<store>/python/`, so every project and
+repository on the machine shares one, and it is found there afterwards like
+any other interpreter: a later install uses it without reading the release,
+offline included. `downloads: never` keeps pnpm from installing any, and an
+offline install installs none; both report the project instead. `downloadUrl`
+names a mirror of the releases.
+
+A `.python-version` pin is met by installing the version it names. Where the
+release holds no such version, pnpm warns and installs with an interpreter
+the project's `requires-python` accepts, rather than failing over a file
+written for another tool.
+
+[python-build-standalone]: https://github.com/astral-sh/python-build-standalone
 
 ```sh
 pnpm install
@@ -407,12 +427,13 @@ not queried for each lockfile environment. Path sources outside the discovered
 project inventory still need static metadata. `pnpm add pypi:` writes static
 manifest dependencies and does not edit backend-owned dynamic metadata.
 
-pnpm chooses among the interpreters a machine already has. It installs none,
-so a project is reported when no interpreter on the machine satisfies its
-`requires-python`, and a `.python-version` naming a version the machine does
-not have is warned about rather than fetched. Interpreters are found by name,
-not by reading the registries and version-manager directories a Python
-installation can hide in.
+Interpreters already on the machine are found by name, not by reading the
+registries and version-manager directories a Python installation can hide in.
+The ones pnpm installs are the current build of each version line the latest
+python-build-standalone release offers, so a project pinning a patch release
+that release has moved past is installed with the newest patch of its line
+and a warning, rather than with the exact one. pnpm builds no interpreter
+itself, so a platform that release does not publish for has none to install.
 
 ## Verification
 

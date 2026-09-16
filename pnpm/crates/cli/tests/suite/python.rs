@@ -408,41 +408,44 @@ async fn installs_real_environment_with_ranges_extras_markers_scripts_and_offlin
 /// The scenario of pnpm/pnpm#14843: an interpreter wrapper that reports the
 /// kernel release `PNPM_TEST_KERNEL_RELEASE` names, with nothing else about
 /// the interpreter, its wheel tags, or the project changing between runs.
-/// An interpreter on the PATH under `name` that reports `version` while
-/// running the real one, so a selection can be observed on a machine that
-/// does not have that version.
+/// An interpreter that reports `version` while running the real one, so
+/// a selection can be observed on a machine that does not have that
+/// version.
+///
+/// It names the real interpreter by path: a shim called `python3` on the
+/// PATH it is started through would otherwise run itself.
 #[cfg(unix)]
-fn interpreter_shim(directory: &Path, name: &str, version: &str) {
-    use std::os::unix::fs::PermissionsExt;
-    // By the interpreter's own path: a shim named `python3` on the PATH it
-    // is started through would otherwise run itself.
+fn interpreter_shim_source(version: &str) -> String {
     let interpreter = Command::new("python3")
         .args(["-c", "import sys; print(sys.executable)"])
         .output()
         .unwrap();
     let interpreter = String::from_utf8(interpreter.stdout).unwrap();
+    format!(
+        concat!(
+            "#!{interpreter}\n",
+            "import platform, sys\n",
+            "args = sys.argv[1:]\n",
+            "if args and args[0] == '-I':\n",
+            "    args = args[1:]\n",
+            "assert len(args) >= 2 and args[0] == '-c'\n",
+            "platform.python_version = lambda: '{version}'\n",
+            "platform.python_version_tuple = lambda: tuple('{version}'.split('.'))\n",
+            "sys.argv = ['-c', *args[2:]]\n",
+            "exec(compile(args[1], '<pnpm-shim>', 'exec'), {{'__name__': '__main__'}})\n",
+        ),
+        interpreter = interpreter.trim(),
+        version = version,
+    )
+}
+
+/// An interpreter on the PATH under `name`.
+#[cfg(unix)]
+fn interpreter_shim(directory: &Path, name: &str, version: &str) {
+    use std::os::unix::fs::PermissionsExt;
     fs::create_dir_all(directory).unwrap();
     let shim = directory.join(name);
-    fs::write(
-        &shim,
-        format!(
-            concat!(
-                "#!{interpreter}\n",
-                "import platform, sys\n",
-                "args = sys.argv[1:]\n",
-                "if args and args[0] == '-I':\n",
-                "    args = args[1:]\n",
-                "assert len(args) >= 2 and args[0] == '-c'\n",
-                "platform.python_version = lambda: '{version}'\n",
-                "platform.python_version_tuple = lambda: tuple('{version}'.split('.'))\n",
-                "sys.argv = ['-c', *args[2:]]\n",
-                "exec(compile(args[1], '<pnpm-shim>', 'exec'), {{'__name__': '__main__'}})\n",
-            ),
-            interpreter = interpreter.trim(),
-            version = version,
-        ),
-    )
-    .unwrap();
+    fs::write(&shim, interpreter_shim_source(version)).unwrap();
     fs::set_permissions(&shim, fs::Permissions::from_mode(0o755)).unwrap();
 }
 
@@ -454,6 +457,171 @@ fn selected_python(root: &Path) -> String {
         .as_str()
         .unwrap()
         .to_string()
+}
+
+/// A python-build-standalone release serving one interpreter for this
+/// machine: the `SHA256SUMS` naming it, and the archive itself.
+#[cfg(unix)]
+async fn serve_interpreter(server: &mut mockito::ServerGuard, version: &str) -> Vec<mockito::Mock> {
+    use std::io::Write as _;
+    let triple = host_triple();
+    let mut archive =
+        tar::Builder::new(flate2::write::GzEncoder::new(Vec::new(), flate2::Compression::fast()));
+    let shim = interpreter_shim_source(version);
+    let mut header = tar::Header::new_gnu();
+    header.set_size(shim.len() as u64);
+    header.set_mode(0o755);
+    header.set_cksum();
+    archive.append_data(&mut header, "python/bin/python3", shim.as_bytes()).unwrap();
+    let mut encoder = archive.into_inner().unwrap();
+    encoder.flush().unwrap();
+    let archive = encoder.finish().unwrap();
+    let file = format!("cpython-{version}+20260901-{triple}-install_only_stripped.tar.gz");
+    let sums = format!("{:x}  {file}\n", Sha256::digest(&archive));
+    vec![
+        server
+            .mock("GET", "/latest/download/SHA256SUMS")
+            .with_body(sums)
+            .expect_at_least(1)
+            .create_async()
+            .await,
+        server
+            .mock("GET", format!("/download/20260901/{file}").as_str())
+            .with_body(archive)
+            .expect_at_least(1)
+            .create_async()
+            .await,
+    ]
+}
+
+/// What python-build-standalone calls the interpreter of this machine.
+#[cfg(unix)]
+fn host_triple() -> String {
+    let architecture = std::env::consts::ARCH;
+    match std::env::consts::OS {
+        "macos" => format!("{architecture}-apple-darwin"),
+        _ => format!("{architecture}-unknown-linux-gnu"),
+    }
+}
+
+/// The provisioning half of blocker 4 in pnpm/pnpm#14945: no interpreter
+/// on this machine is the one the project asks for.
+#[cfg(unix)]
+#[tokio::test]
+async fn installs_an_interpreter_no_machine_has_and_reuses_it() {
+    let root = tempfile::tempdir().unwrap();
+    let mut server = mockito::Server::new_async().await;
+    project(root.path(), "https://unused.invalid", &[]);
+    let release = serve_interpreter(&mut server, "3.13.99").await;
+    add_python_settings(root.path(), &format!("  downloadUrl: '{}'\n", server.url()));
+    let install = || {
+        fs::write(
+            root.path().join("pyproject.toml"),
+            "[project]\nname = 'app'\nversion = '1.0'\nrequires-python = '==3.13.99'\ndependencies = []\n",
+        )
+        .unwrap();
+        pacquet_in(root.path())
+    };
+
+    install()
+        .arg("install")
+        .assert()
+        .success();
+    assert_eq!(selected_python(root.path()), "3.13.99");
+    let installed = root
+        .path()
+        .join("store/v11/python")
+        .join(format!("cpython-3.13.99+20260901-{}-install_only_stripped", host_triple()))
+        .join("python/bin/python3");
+    assert!(installed.is_file(), "{}", installed.display());
+
+    // The interpreter is installed once: a later install finds it where
+    // pnpm put it, without the release or its index.
+    for mock in release {
+        mock.assert_async().await;
+    }
+    drop(server);
+    pnpm_fs::remove_symlink_dir(&root.path().join(".venv")).unwrap();
+    fs::remove_dir_all(root.path().join("cache")).unwrap();
+    install()
+        .args(["install", "--offline"])
+        .assert()
+        .success();
+    assert_eq!(selected_python(root.path()), "3.13.99");
+}
+
+/// An interpreter is code, so pnpm runs one only if it is the one the
+/// release says it is.
+#[cfg(unix)]
+#[tokio::test]
+async fn refuses_an_interpreter_the_release_does_not_name() {
+    let root = tempfile::tempdir().unwrap();
+    let mut server = mockito::Server::new_async().await;
+    project(root.path(), "https://unused.invalid", &[]);
+    let file = format!("cpython-3.13.97+20260901-{}-install_only_stripped.tar.gz", host_triple());
+    let _index = server
+        .mock("GET", "/latest/download/SHA256SUMS")
+        .with_body(format!("{}  {file}\n", "b".repeat(64)))
+        .create_async()
+        .await;
+    let _archive = server
+        .mock("GET", format!("/download/20260901/{file}").as_str())
+        .with_body("not the interpreter the release names")
+        .create_async()
+        .await;
+    fs::write(
+        root.path().join("pyproject.toml"),
+        "[project]\nname = 'app'\nversion = '1.0'\nrequires-python = '==3.13.97'\ndependencies = []\n",
+    )
+    .unwrap();
+    add_python_settings(root.path(), &format!("  downloadUrl: '{}'\n", server.url()));
+    assert_failure_contains(
+        pacquet_in(root.path()).arg("install"),
+        "is not the one the release names",
+    );
+    assert!(
+        !root
+            .path()
+            .join("store/v11/python")
+            .exists(),
+    );
+}
+
+/// A workspace can keep pnpm from installing interpreters, and an
+/// offline install has nowhere to install one from.
+#[cfg(unix)]
+#[tokio::test]
+async fn an_interpreter_is_installed_only_where_the_install_may_download() {
+    let root = tempfile::tempdir().unwrap();
+    let mut server = mockito::Server::new_async().await;
+    project(root.path(), "https://unused.invalid", &[]);
+    let _release = serve_interpreter(&mut server, "3.13.98").await;
+    fs::write(
+        root.path().join("pyproject.toml"),
+        "[project]\nname = 'app'\nversion = '1.0'\nrequires-python = '==3.13.98'\ndependencies = []\n",
+    )
+    .unwrap();
+    add_python_settings(
+        root.path(),
+        &format!("  downloadUrl: '{}'\n  downloads: never\n", server.url()),
+    );
+    assert_failure_contains(pacquet_in(root.path()).arg("install"), "no Python interpreter for");
+
+    let workspace = fs::read_to_string(root.path().join("pnpm-workspace.yaml")).unwrap();
+    fs::write(
+        root.path().join("pnpm-workspace.yaml"),
+        workspace.replace("  downloads: never\n", ""),
+    )
+    .unwrap();
+    assert_failure_contains(
+        pacquet_in(root.path()).args(["install", "--offline"]),
+        "no Python interpreter for",
+    );
+    pacquet_in(root.path())
+        .arg("install")
+        .assert()
+        .success();
+    assert_eq!(selected_python(root.path()), "3.13.98");
 }
 
 /// The interpreter scenarios of pnpm/pnpm#14945: a project the machine's

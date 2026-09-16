@@ -13,6 +13,7 @@ repository.workspace = true
 [dependencies]
 pnpm-crypto-hash = { workspace = true }
 pnpm-config = { workspace = true }
+pnpm-detect-libc = { workspace = true }
 pnpm-diagnostics = { workspace = true }
 pnpm-fs = { workspace = true }
 pnpm-git-fetcher = { workspace = true }
@@ -25,12 +26,14 @@ pnpm-store-dir = { workspace = true }
 pnpm-tarball = { workspace = true }
 derive_more = { workspace = true }
 dunce = { workspace = true }
+flate2 = { workspace = true }
 futures-util = { workspace = true }
 miette = { workspace = true }
 pep440_rs = { workspace = true }
 pep508_rs = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
+tar = { workspace = true }
 tempfile = { workspace = true }
 tokio = { workspace = true }
 toml = { workspace = true }

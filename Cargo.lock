@@ -5837,6 +5837,7 @@ version = "0.0.1"
 dependencies = [
  "derive_more",
  "dunce",
+ "flate2",
  "futures-util",
  "miette 7.6.0",
  "mockito",
@@ -5844,6 +5845,7 @@ dependencies = [
  "pep508_rs",
  "pnpm-config",
  "pnpm-crypto-hash",
+ "pnpm-detect-libc",
  "pnpm-diagnostics",
  "pnpm-fs",
  "pnpm-git-fetcher",
@@ -5856,6 +5858,7 @@ dependencies = [
  "pnpm-tarball",
  "serde",
  "serde_json",
+ "tar",
  "tempfile",
  "tokio",
  "toml",

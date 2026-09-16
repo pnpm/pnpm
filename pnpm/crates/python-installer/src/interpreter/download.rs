@@ -1,0 +1,286 @@
+//! Installing an interpreter this machine does not have.
+//!
+//! The builds are [python-build-standalone]'s, the ones uv, rye, hatch
+//! and mise install too. One release holds an interpreter of every
+//! supported version line, and its `SHA256SUMS` names them all, so
+//! choosing a build and verifying what was downloaded read one file.
+//!
+//! [python-build-standalone]: https://github.com/astral-sh/python-build-standalone
+
+use super::{InterpreterCommand, VersionRequest, command::interpreter_in};
+use miette::{IntoDiagnostic, Result, WrapErr, bail};
+use pnpm_config::{Config, PythonDownloads};
+use pnpm_network::{AuthHeaders, ThrottledClient};
+use std::{
+    io::Write as _,
+    path::{Path, PathBuf},
+    time::Duration,
+};
+
+/// How long the release index is read from the cache before pnpm asks
+/// whether a newer release has come out.
+const INDEX_MAX_AGE: Duration = Duration::from_hours(24);
+
+/// A release names one interpreter per version line for every platform it
+/// builds for, so the index stays far below this.
+const MAX_INDEX_BYTES: usize = 8 * 1024 * 1024;
+
+/// An interpreter is tens of megabytes, and a mirror serving something
+/// else entirely is not read to the end to find that out.
+const MAX_ARCHIVE_BYTES: usize = 256 * 1024 * 1024;
+
+/// The interpreters pnpm can install, as one release's `SHA256SUMS` names
+/// them.
+pub(super) struct Releases {
+    builds: Vec<Build>,
+}
+
+/// One interpreter a release offers: the file it is downloaded as, and
+/// the digest that file has to have.
+pub(super) struct Build {
+    version: pep440_rs::Version,
+    /// The `20260901` of `cpython-3.13.15+20260901-…`, which is the
+    /// release the file belongs to.
+    tag: String,
+    file: String,
+    sha256: String,
+}
+
+impl Releases {
+    /// The interpreters pnpm can install, read from the cache when this
+    /// machine has a recent index and from the release otherwise.
+    pub(super) async fn read(config: &Config, client: &ThrottledClient) -> Result<Self> {
+        let cache = config.cache_dir.join("python-runtimes").join("SHA256SUMS");
+        let index = match cached_index(&cache) {
+            Some(index) => index,
+            None => download_index(config, client, &cache).await?,
+        };
+        Ok(Self { builds: builds_in(&index) })
+    }
+
+    /// The newest interpreter the project accepts, or `None` when no
+    /// build the release offers is one.
+    pub(super) fn best(
+        &self,
+        requires_python: Option<&pep440_rs::VersionSpecifiers>,
+        request: Option<&VersionRequest>,
+    ) -> Option<&Build> {
+        self.builds
+            .iter()
+            .filter(|build| {
+                requires_python.is_none_or(|specifiers| specifiers.contains(&build.version))
+                    && request.is_none_or(|request| request.accepts(&build.version))
+            })
+            .max_by_key(|build| &build.version)
+    }
+}
+
+impl Build {
+    pub(super) fn version(&self) -> &pep440_rs::Version {
+        &self.version
+    }
+
+    /// Where this build is installed, which is where an earlier install
+    /// of it already put it.
+    fn directory(&self, config: &Config) -> PathBuf {
+        config.store_dir
+            .root()
+            .join("python")
+            .join(self.file.trim_end_matches(".tar.gz"))
+    }
+
+    /// Install this build, and answer with the interpreter it installed.
+    /// A build already installed answers without a download.
+    pub(super) async fn install(
+        &self,
+        config: &Config,
+        client: &ThrottledClient,
+    ) -> Result<InterpreterCommand> {
+        let directory = self.directory(config);
+        if !directory.is_dir() {
+            let archive = self.download(config, client).await?;
+            unpack(archive.path(), &directory)?;
+        }
+        let executable = interpreter_in(&directory);
+        let Some(executable) = executable.to_str().filter(|_| executable.is_file()) else {
+            bail!("the Python interpreter pnpm installed has no {}", executable.display());
+        };
+        Ok(InterpreterCommand::program(executable))
+    }
+
+    /// Download this build into the store's temporary directory,
+    /// refusing one whose bytes are not what the release says they are.
+    async fn download(
+        &self,
+        config: &Config,
+        client: &ThrottledClient,
+    ) -> Result<tempfile::NamedTempFile> {
+        let url = format!("{}/download/{}/{}", config.python.download_url, self.tag, self.file);
+        let response = client
+            .get_limited_bytes_with_secure_auth_and_retry(
+                &url,
+                &AuthHeaders::default(),
+                None,
+                config.retry_opts(),
+                MAX_ARCHIVE_BYTES,
+            )
+            .await
+            .into_diagnostic()
+            .wrap_err_with(|| format!("download the Python interpreter {url}"))?;
+        if response.body_truncated {
+            bail!("the Python interpreter at {url} exceeds {MAX_ARCHIVE_BYTES} bytes");
+        }
+        if !response.status.is_success() {
+            bail!("downloading the Python interpreter {url} returned {}", response.status);
+        }
+        let digest = pnpm_crypto_hash::create_hex_hash_bytes(&response.body);
+        if digest != self.sha256 {
+            bail!(
+                "the Python interpreter downloaded from {url} is not the one the release names: \
+                 its sha256 is {digest}, not {}",
+                self.sha256,
+            );
+        }
+        let directory = config.store_dir.tmp();
+        std::fs::create_dir_all(&directory).into_diagnostic()?;
+        let mut file = tempfile::NamedTempFile::new_in(&directory).into_diagnostic()?;
+        file.write_all(&response.body).into_diagnostic()?;
+        Ok(file)
+    }
+}
+
+/// Whether this run may install an interpreter at all.
+pub(super) fn allowed(config: &Config) -> bool {
+    refused(config).is_none()
+}
+
+/// Why this run installs no interpreter, for the install that needed
+/// one. An offline install has nowhere to download from, and a workspace
+/// can turn downloads off.
+pub(super) fn refused(config: &Config) -> Option<&'static str> {
+    if config.offline {
+        return Some("the install is offline");
+    }
+    (config.python.downloads != PythonDownloads::Auto).then_some("python.downloads is never")
+}
+
+/// The index an earlier run cached, while it is recent enough to still
+/// name what the release holds.
+fn cached_index(cache: &Path) -> Option<String> {
+    let age = cache
+        .metadata()
+        .ok()?
+        .modified()
+        .ok()?
+        .elapsed()
+        .ok()?;
+    (age < INDEX_MAX_AGE)
+        .then(|| std::fs::read_to_string(cache).ok())
+        .flatten()
+}
+
+async fn download_index(config: &Config, client: &ThrottledClient, cache: &Path) -> Result<String> {
+    let url = format!("{}/latest/download/SHA256SUMS", config.python.download_url);
+    let response = client
+        .get_limited_bytes_with_secure_auth_and_retry(
+            &url,
+            &AuthHeaders::default(),
+            None,
+            config.retry_opts(),
+            MAX_INDEX_BYTES,
+        )
+        .await
+        .into_diagnostic()
+        .wrap_err_with(|| format!("read the Python interpreters {url} offers"))?;
+    if response.body_truncated {
+        bail!("the Python interpreter index at {url} exceeds {MAX_INDEX_BYTES} bytes");
+    }
+    if !response.status.is_success() {
+        bail!("reading the Python interpreter index {url} returned {}", response.status);
+    }
+    let index = String::from_utf8(response.body)
+        .into_diagnostic()
+        .wrap_err_with(|| format!("read the Python interpreters {url} offers"))?;
+    if let Some(parent) = cache.parent() {
+        std::fs::create_dir_all(parent).into_diagnostic()?;
+    }
+    pnpm_fs::write_atomic(cache, index.as_bytes()).into_diagnostic()?;
+    Ok(index)
+}
+
+/// The builds of the index that install on this machine: the ordinary
+/// interpreter of one platform, without the variants a project asks for
+/// by name rather than by version.
+fn builds_in(index: &str) -> Vec<Build> {
+    let Some(triple) = host_triple() else { return Vec::new() };
+    let suffix = format!("-{triple}-install_only_stripped.tar.gz");
+    index
+        .lines()
+        .filter_map(|line| {
+            let (sha256, file) = line.split_once("  ")?;
+            let named = file.strip_prefix("cpython-")?.strip_suffix(&suffix)?;
+            let (version, tag) = named.split_once('+')?;
+            Some(Build {
+                version: version.parse().ok()?,
+                tag: tag.to_string(),
+                file: file.to_string(),
+                sha256: sha256.to_string(),
+            })
+        })
+        .collect()
+}
+
+/// What python-build-standalone calls the interpreter of this machine.
+/// `None` where it builds none, which is where pnpm installs none.
+fn host_triple() -> Option<String> {
+    let architecture = match std::env::consts::ARCH {
+        "x86_64" => "x86_64",
+        "aarch64" => "aarch64",
+        "arm" => "armv7",
+        "powerpc64" => "ppc64le",
+        "riscv64" => "riscv64",
+        "s390x" => "s390x",
+        "x86" => "i686",
+        _ => return None,
+    };
+    let system = match std::env::consts::OS {
+        "linux" => match pnpm_detect_libc::detect() {
+            Some(pnpm_detect_libc::Implementation::Musl) => "unknown-linux-musl",
+            _ => "unknown-linux-gnu",
+        },
+        "macos" => "apple-darwin",
+        "windows" => "pc-windows-msvc",
+        _ => return None,
+    };
+    Some(format!("{architecture}-{system}"))
+}
+
+/// Unpack the interpreter beside where it belongs and move it there, so
+/// that a directory under `python` is one an install can use and never a
+/// download that stopped halfway.
+fn unpack(archive: &Path, directory: &Path) -> Result<()> {
+    let parent = directory.parent().expect("an installed interpreter has a parent directory");
+    std::fs::create_dir_all(parent).into_diagnostic()?;
+    let staged = tempfile::TempDir::new_in(parent).into_diagnostic()?;
+    let file = std::fs::File::open(archive).into_diagnostic()?;
+    let mut unpacked = tar::Archive::new(flate2::read::GzDecoder::new(file));
+    unpacked.set_preserve_permissions(true);
+    unpacked
+        .unpack(staged.path())
+        .into_diagnostic()
+        .wrap_err("unpack the Python interpreter pnpm downloaded")?;
+    match std::fs::rename(staged.keep(), directory) {
+        Ok(()) => Ok(()),
+        // Another install of the same build won the race, which unpacked
+        // the same interpreter this one did.
+        Err(_) if directory.is_dir() => Ok(()),
+        Err(error) => Err(error)
+            .into_diagnostic()
+            .wrap_err_with(|| {
+                format!("install the Python interpreter into {}", directory.display())
+            }),
+    }
+}
+
+#[cfg(test)]
+mod tests;

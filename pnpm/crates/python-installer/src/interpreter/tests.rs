@@ -1,7 +1,8 @@
-use super::{InterpreterCommand, Interpreters, VersionRequest, parse_version_request};
-use pnpm_config::Config;
+use super::{
+    InterpreterCommand, Interpreters, VersionRequest, parse_version_request, version_request,
+};
 use pnpm_reporter::SilentReporter;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 
 fn request(line: &str) -> Option<VersionRequest> {
     parse_version_request(line, PathBuf::from(".python-version"))
@@ -47,21 +48,16 @@ fn the_nearest_python_version_file_wins_and_the_search_stops_at_the_workspace() 
     std::fs::create_dir_all(&project).expect("project directory");
     std::fs::write(workspace.path().join(".python-version"), "3.12\n").expect("workspace pin");
 
-    let mut config = Config::new();
-    config.workspace_dir = Some(workspace.path().to_path_buf());
-    let interpreters = Interpreters::new(&config);
-    let found =
-        interpreters.version_request::<SilentReporter>(&project).expect("the workspace pin");
+    let stop = Some(workspace.path());
+    let found = version_request::<SilentReporter>(stop, &project).expect("the workspace pin");
     assert_eq!(found.map(|request| request.version()).as_deref(), Some("3.12"));
 
     std::fs::write(project.join(".python-version"), "3.13\n").expect("project pin");
-    let found = interpreters.version_request::<SilentReporter>(&project).expect("the project pin");
+    let found = version_request::<SilentReporter>(stop, &project).expect("the project pin");
     assert_eq!(found.map(|request| request.version()).as_deref(), Some("3.13"));
 
-    let outside = Interpreters::new(&config);
-    let found = outside
-        .version_request::<SilentReporter>(Path::new(workspace.path()))
-        .expect("the workspace pin");
+    let found =
+        version_request::<SilentReporter>(stop, workspace.path()).expect("the workspace pin");
     assert_eq!(found.map(|request| request.version()).as_deref(), Some("3.12"));
 }
 
