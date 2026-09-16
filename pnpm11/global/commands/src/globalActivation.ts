@@ -225,7 +225,7 @@ async function getActualBins (
 ): Promise<Map<string, string>> {
   const actualBins = new Map<string, string>()
   const bins = await getBinsToLink(opts.pkgs, opts.binsToSkip)
-  const existing = await Promise.all(bins.map(async ({ path: binPath }) => pathExists(binPath)))
+  const existing = await Promise.all(bins.map(async ({ path: binPath }) => binTargetExists(binPath)))
   for (const [index, { name, path: binPath }] of bins.entries()) {
     if (existing[index]) actualBins.set(name, binPath)
   }
@@ -243,7 +243,7 @@ async function ensureRequiredBinTargets (
   actualBins: Map<string, string>
 ): Promise<void> {
   const requiredBins = [...required ?? []].map((name) => [name, actualBins.get(name)] as const)
-  const existing = await Promise.all(requiredBins.map(async ([, binPath]) => binPath != null && pathExists(binPath)))
+  const existing = await Promise.all(requiredBins.map(async ([, binPath]) => binPath != null && binTargetExists(binPath)))
   const missing = requiredBins
     .filter(([, binPath], index) => binPath == null || !existing[index])
     .map(([name]) => name)
@@ -271,7 +271,7 @@ async function removeSlotsOfMissingBins (
   actualBins: Map<string, string>
 ): Promise<void> {
   const missing = (await Promise.all([...actualBins].map(async ([name, binPath]) => {
-    return await pathExists(binPath) ? [] : [name]
+    return await binTargetExists(binPath) ? [] : [name]
   }))).flat()
   for (const name of missing) {
     await removeBin(path.join(opts.globalBinDir, name)) // eslint-disable-line no-await-in-loop -- Each removal must settle before the next.
@@ -401,6 +401,16 @@ async function cleanupFailedGlobalActivation (
 async function pathExists (target: string): Promise<boolean> {
   try {
     await fs.promises.lstat(target)
+    return true
+  } catch (err) {
+    if (isErrorWithCode(err, 'ENOENT')) return false
+    throw err
+  }
+}
+
+async function binTargetExists (target: string): Promise<boolean> {
+  try {
+    await fs.promises.stat(target)
     return true
   } catch (err) {
     if (isErrorWithCode(err, 'ENOENT')) return false
