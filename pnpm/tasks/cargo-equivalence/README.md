@@ -55,6 +55,13 @@ lists what it expects:
 That second state is what keeps a tracked gap from turning the whole run
 red, and stops it from being quietly forgotten once it is fixed.
 
+A gap excuses a *disagreement* and nothing else. A workspace that will not
+lay out, a resolver that will not run, a lockfile that will not parse — none
+of those are a conclusion about what the two resolvers produce, so they fail
+the run whatever the workspace expects. Otherwise a tracked gap would be a
+blind spot: any regression reaching the same stage would be waved through as
+the known difference.
+
 ## Adding a workspace
 
 Append a `Workspace` to `WORKSPACES` in `src/workspaces.rs`. A fixture is

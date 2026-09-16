@@ -47,8 +47,8 @@ impl Outcome {
 /// that fails.
 pub fn run(workspace: &Workspace, root: &Path, pnpm: &Path, cargo: &Path) -> Outcome {
     let started = Instant::now();
-    let finish = |stage, message: String| {
-        let (verdict, message) = judge(workspace.expectation, stage, message);
+    let finish = |stage, finding| {
+        let (verdict, message) = judge(workspace.expectation, finding);
         Outcome {
             verdict,
             duration_secs: started.elapsed().as_secs_f64(),
@@ -62,46 +62,57 @@ pub fn run(workspace: &Workspace, root: &Path, pnpm: &Path, cargo: &Path) -> Out
     let pnpm_dir = root.join("pnpm");
     for directory in [&cargo_dir, &pnpm_dir] {
         if let Err(error) = lay_out(workspace, directory) {
-            return finish("prepare", error);
+            return finish("prepare", Finding::Broken(error));
         }
     }
     if let Err(error) = enable_cargo_support(&pnpm_dir) {
-        return finish("prepare", error);
+        return finish("prepare", Finding::Broken(error));
     }
 
     if let Err(error) = resolve_with_cargo(cargo, &cargo_dir) {
-        return finish("cargo", error);
+        return finish("cargo", Finding::Broken(error));
     }
     if let Err(error) = resolve_with_pnpm(pnpm, &pnpm_dir) {
-        return finish("pnpm", error);
+        return finish("pnpm", Finding::Broken(error));
     }
 
     match compare(&cargo_dir, &pnpm_dir) {
-        Err(error) => finish("compare", error),
-        Ok(()) => match accepts_locked(workspace, cargo, root, &pnpm_dir) {
-            Err(error) => finish("locked", error),
-            Ok(()) => finish("compare", String::new()),
+        Err(broken) => finish("compare", Finding::Broken(broken)),
+        Ok(Finding::Agree) => match accepts_locked(workspace, cargo, root, &pnpm_dir) {
+            Err(broken) => finish("locked", Finding::Broken(broken)),
+            Ok(finding) => finish("locked", finding),
         },
+        Ok(finding) => finish("compare", finding),
     }
 }
 
-/// Read a comparison against what the workspace is expected to show.
-///
-/// Only the stages that compare the two resolvers can be a known
-/// difference. A workspace that fails to lay out or to resolve at all is a
-/// broken run whatever is expected of it.
-fn judge(expectation: Expectation, stage: &'static str, message: String) -> (Verdict, String) {
-    let comparing = matches!(stage, "compare" | "locked");
-    match (expectation, message.is_empty()) {
-        (Expectation::Agree, true) => (Verdict::Agree, message),
-        (Expectation::Differ { issue }, true) => (
+/// What a stage concluded.
+#[derive(Debug, PartialEq, Eq)]
+pub enum Finding {
+    /// The resolvers produced the same thing.
+    Agree,
+    /// The resolvers produced different things, which is the only finding a
+    /// known gap is allowed to be.
+    Differ(String),
+    /// The stage could not reach a conclusion: a workspace that would not
+    /// lay out, a resolver that would not run, a lockfile that would not
+    /// parse. Never a known gap, whatever is expected of the workspace.
+    Broken(String),
+}
+
+/// Read a finding against what the workspace is expected to show.
+fn judge(expectation: Expectation, finding: Finding) -> (Verdict, String) {
+    match (expectation, finding) {
+        (_, Finding::Broken(message)) => (Verdict::Unexpected, message),
+        (Expectation::Agree, Finding::Agree) => (Verdict::Agree, String::new()),
+        (Expectation::Agree, Finding::Differ(message)) => (Verdict::Unexpected, message),
+        (Expectation::Differ { issue }, Finding::Agree) => (
             Verdict::Unexpected,
             format!("agrees with cargo, so {issue} looks fixed; expect agreement instead"),
         ),
-        (Expectation::Differ { issue }, false) if comparing => {
+        (Expectation::Differ { issue }, Finding::Differ(message)) => {
             (Verdict::KnownDifference, format!("{message} ({issue})"))
         }
-        (_, false) => (Verdict::Unexpected, message),
     }
 }
 
@@ -152,21 +163,25 @@ fn accepts_locked(
     cargo: &Path,
     root: &Path,
     pnpm_dir: &Path,
-) -> Result<(), String> {
+) -> Result<Finding, String> {
     let directory = root.join("locked");
     lay_out(workspace, &directory)?;
     let lockfile = pnpm_dir.join("Cargo.lock");
     fs::copy(&lockfile, directory.join("Cargo.lock"))
         .map_err(|error| format!("copy {lockfile:?}: {error}"))?;
-    run_command(
+    let refused = command_outcome(
         Command::new(cargo)
             .current_dir(&directory)
             .args(["metadata", "--locked", "--format-version", "1"]),
-    )
+    )?;
+    Ok(match refused {
+        None => Finding::Agree,
+        Some(stderr) => Finding::Differ(format!("cargo rejected pnpm's lockfile: {stderr}")),
+    })
 }
 
 /// Compare what each resolver locked, crate by crate.
-fn compare(cargo_dir: &Path, pnpm_dir: &Path) -> Result<(), String> {
+fn compare(cargo_dir: &Path, pnpm_dir: &Path) -> Result<Finding, String> {
     let expected = locked_crates(cargo_dir)?;
     let received = locked_crates(pnpm_dir)?;
     let differences = expected
@@ -180,10 +195,11 @@ fn compare(cargo_dir: &Path, pnpm_dir: &Path) -> Result<(), String> {
                 .map(|crate_| format!("pnpm locked {crate_}, cargo did not")),
         )
         .collect::<Vec<_>>();
-    if differences.is_empty() {
-        return Ok(());
-    }
-    Err(differences.join("; "))
+    Ok(if differences.is_empty() {
+        Finding::Agree
+    } else {
+        Finding::Differ(differences.join("; "))
+    })
 }
 
 fn locked_crates(directory: &Path) -> Result<Vec<String>, String> {
@@ -200,12 +216,23 @@ fn locked_crates(directory: &Path) -> Result<Vec<String>, String> {
 }
 
 fn run_command(command: &mut Command) -> Result<(), String> {
+    match command_outcome(command)? {
+        None => Ok(()),
+        Some(stderr) => Err(format!("{:?} failed: {stderr}", command.get_program())),
+    }
+}
+
+/// Run a command, telling "it would not start" from "it said no": the
+/// first is a broken run, the second can be a finding about the lockfile.
+fn command_outcome(command: &mut Command) -> Result<Option<String>, String> {
     let output = command
         .output()
         .map_err(|error| format!("run {:?}: {error}", command.get_program()))?;
     if output.status.success() {
-        return Ok(());
+        return Ok(None);
     }
-    let stderr = String::from_utf8_lossy(&output.stderr);
-    Err(format!("{:?} failed: {}", command.get_program(), stderr.trim()))
+    Ok(Some(String::from_utf8_lossy(&output.stderr).trim().to_string()))
 }
+
+#[cfg(test)]
+mod tests;
