@@ -109,7 +109,13 @@ case `command -p uname -a` in"#
     );
     // `shim_execution_ignores_helpers_from_the_callers_path` runs a shim against
     // decoys of these; this is what pins them for the platforms it cannot run on.
-    for helper in ["command -p readlink", "command -p sed", "command -p uname"] {
+    for helper in [
+        "command -p readlink",
+        "command -p sed",
+        "command -p uname",
+        "command -p cygpath",
+        "command -p wslpath",
+    ] {
         assert!(body.contains(helper), "the header must reach {helper}, body was:\n{body}");
     }
     assert!(!body.contains("dirname"), "the header must not fork dirname, body was:\n{body}");
