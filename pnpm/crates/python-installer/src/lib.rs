@@ -259,8 +259,8 @@ impl PythonPrepare<'_> {
         let config = self.context.config;
         let project = manifest.project.as_ref().expect("only project manifests were selected");
         self.check_requires_python(&root, project.requires_python.as_deref())?;
-        let requirements = manifest.requirements(config, manifest::DependencySelection::ALL)?;
-        let inputs = self.inputs(&requirements);
+        let requirements = manifest.selected_requirements(config)?;
+        let inputs = self.inputs(&requirements.all);
         let mut registry = self.registry();
         workspace::offer(&mut registry.resolution.packages, &local);
         let lock_path = root.join("pylock.toml");
@@ -276,7 +276,7 @@ impl PythonPrepare<'_> {
             LockfileInputs {
                 existing,
                 lock_path: &lock_path,
-                requirements: &requirements,
+                requirements: &requirements.all,
                 inputs,
                 requires_python: project.requires_python.clone(),
                 local: Arc::clone(&local),
@@ -287,7 +287,7 @@ impl PythonPrepare<'_> {
             &mut registry,
             EnvironmentProject { root: &root, manifest: &manifest, local: &local },
             &lock,
-            &manifest.requirements(config, self.asked.selection)?,
+            requirements.selected(self.asked.selection),
         )
         .await?;
         Ok(Prepared {

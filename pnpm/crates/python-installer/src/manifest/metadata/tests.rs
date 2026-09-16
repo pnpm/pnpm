@@ -65,3 +65,37 @@ fn static_extras_select_using_their_normalized_names() {
         ["alpha"],
     );
 }
+
+#[test]
+fn dynamic_extras_use_project_overrides_and_skip_missing_workspace_defaults() {
+    let contents =
+        "[project]\nname = 'app'\ndynamic = ['version', 'dependencies', 'optional-dependencies']\n";
+    let metadata = serde_json::from_value(serde_json::json!({
+        "name": "app", "version": "1.0", "requires_python": null,
+        "provides_extra": ["web"], "dist_info": "app-1.0.dist-info", "purelib": true,
+        "requires_dist": ["alpha", "beta; extra == 'web'"]
+    }))
+    .unwrap();
+    let mut manifest = Manifest::parse(contents).unwrap();
+    manifest.set_metadata(metadata, None).unwrap();
+    let mut config = Config::new();
+    config.python.extras = vec!["cli".into()];
+    assert_eq!(
+        manifest
+            .requirements(&config, DependencySelection::ALL)
+            .unwrap()
+            .len(),
+        1,
+    );
+    let metadata = manifest.metadata.clone().unwrap();
+    let mut manifest =
+        Manifest::parse(&format!("{contents}\n[tool.pnpm.python]\nextras = ['web']\n")).unwrap();
+    manifest.set_metadata(metadata, None).unwrap();
+    assert_eq!(
+        manifest
+            .requirements(&config, DependencySelection::ALL)
+            .unwrap()
+            .len(),
+        2,
+    );
+}

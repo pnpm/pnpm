@@ -1502,6 +1502,7 @@ async fn locks_one_environment_per_platform_however_it_is_named() {
 }
 
 mod metadata;
+mod selection;
 mod validation;
 
 /// A PEP 517 backend small enough to serve from the mocked index, so a
