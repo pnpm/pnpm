@@ -78,7 +78,7 @@ pub(super) async fn resolve_explicit_registry_spec(
     // an unlocked sibling declaration may still differ — never an
     // inconsistency, since the install resolves the rewritten range.
     let preferred_versions = get_preferred_versions_from_lockfile_and_manifests(
-        add.lockfile.and_then(|lockfile| lockfile.snapshots.as_ref()),
+        add.lockfile.document.and_then(|lockfile| lockfile.snapshots.as_ref()),
         &[manifest],
     );
     let ctx = pick_package_context(

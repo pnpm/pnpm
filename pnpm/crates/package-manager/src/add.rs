@@ -17,7 +17,7 @@ use manifest::{
 };
 
 use crate::{
-    CatalogVersionMismatchError, InstallError, ResolvedPackages, SelectedProjects,
+    CatalogVersionMismatchError, CommandLockfile, InstallError, ResolvedPackages, SelectedProjects,
     catalog_cleanup::{WriteWorkspaceCatalogsError, post_install_prune},
     defer_ignored_builds,
     resolve_latest::LatestPicker,
@@ -30,7 +30,6 @@ use pnpm_catalogs_config::InvalidCatalogsConfigurationError;
 use pnpm_catalogs_types::Catalogs;
 use pnpm_config::Config;
 use pnpm_engine_runtime_node_resolver::NodeResolverError;
-use pnpm_lockfile::Lockfile;
 use pnpm_network::ThrottledClient;
 use pnpm_package_manifest::{DependencyGroup, PackageManifest, PackageManifestError};
 use pnpm_registry::RangeSpecStyle;
@@ -210,7 +209,7 @@ where
             add.package_names,
             manifest,
             &catalog_ctx.catalogs,
-            add.lockfile,
+            add.lockfile.document,
             add.config,
             owned.save_catalog_name.as_deref(),
         );
@@ -292,8 +291,9 @@ pub struct AddOptions<'a> {
     pub resolved_packages: &'a ResolvedPackages,
     pub http_client: &'a ThrottledClient,
     pub config: &'static Config,
-    pub lockfile: Option<&'a Lockfile>,
-    pub lockfile_path: Option<&'a std::path::Path>,
+    /// The wanted lockfile, as the command reads it and as the
+    /// install it runs needs it.
+    pub lockfile: CommandLockfile<'a>,
     /// Package selectors, each of which may carry an `@<version>` suffix.
     pub package_names: &'a [String],
     /// How the freshly-resolved version is pinned into the manifest range,

@@ -8,7 +8,6 @@ use crate::{
 };
 use pnpm_catalogs_types::Catalogs;
 use pnpm_config::Config;
-use pnpm_lockfile::MaybeLazyLockfile;
 use pnpm_package_manifest::{DependencyGroup, PackageManifest};
 use pnpm_resolving_deps_resolver::{UpdateDepth, UpdateTargets};
 use pnpm_resolving_resolver_base::PreferredVersions;
@@ -71,7 +70,7 @@ pub(super) fn selected_add_seed(
             add.package_names,
             &projects[index].manifest,
             catalogs,
-            add.lockfile,
+            add.lockfile.document,
             add.config,
             owned.save_catalog_name.as_deref(),
         );
@@ -129,7 +128,7 @@ pub(super) fn add_install<'i>(
         (add.http_client, owned.http_client_arc),
         add.config,
         manifest,
-        MaybeLazyLockfile::Loaded(add.lockfile),
+        add.lockfile.source,
         included_groups,
     );
     install.lockfile_policy.prefer_frozen = named_a_version.then_some(false);
@@ -147,7 +146,7 @@ pub(super) fn add_install<'i>(
     };
     install.resolution.preferred_versions_override = Some(seed.preferred_versions_override);
     install.context.emit_initial_manifest = false;
-    install.context.lockfile_path = add.lockfile_path;
+    install.context.lockfile_path = add.lockfile.path;
     install.projects.supported_architectures = owned.supported_architectures;
     install.projects.catalogs_override = seed.catalogs_override;
     install

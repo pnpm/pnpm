@@ -2,7 +2,7 @@ use super::{
     Config, Context, DependencyGroup, InstallFamilySelection, Matcher, Path, Reporter, State,
     Update, UpdateArgs, build_workspace_packages_map, github_actions, recursive,
 };
-use crate::state::load_lockfile_reporting_conflicts;
+use crate::state::command_lockfile;
 
 fn manifest_root(manifest: &pnpm_package_manifest::PackageManifest) -> std::path::PathBuf {
     manifest
@@ -142,7 +142,7 @@ impl UpdateArgs {
         };
         let packages = filter_package_selectors(&packages, inputs.update_actions);
         if self.updates_packages(&packages) {
-            let update = self.prepare_update::<Reporter>(&mut state, inputs, &packages)?;
+            let update = self.prepare_update(&mut state, inputs, &packages)?;
             match &mut selection {
                 Some(selection) => {
                     update.run_selected::<Reporter>(selection.selected_projects()).await
@@ -177,8 +177,7 @@ impl UpdateArgs {
             .await?;
             return Ok(None);
         }
-        let lockfile =
-            load_lockfile_reporting_conflicts::<Reporter>(&state.lockfile, state.lockfile_dir())?;
+        let lockfile = command_lockfile(&state.lockfile, &inputs.lockfile_path)?.document;
         let prompt = self.interactive_options(&inputs.include_direct, inputs.update_actions);
         match selection {
             Some(selection) => {
@@ -205,24 +204,19 @@ impl UpdateArgs {
         }
     }
 
-    fn prepare_update<'a, Reporter: self::Reporter>(
+    fn prepare_update<'a>(
         &self,
         state: &'a mut State,
         inputs: &'a UpdateInputs,
         packages: &'a [String],
     ) -> miette::Result<Update<'a>> {
-        let lockfile_dir = state.lockfile_dir().to_path_buf();
         Ok(Update {
             manifest: &mut state.manifest,
             options: pnpm_package_manager::UpdateOptions {
                 resolved_packages: &state.resolved_packages,
                 http_client: &state.http_client,
                 config: state.config,
-                lockfile: load_lockfile_reporting_conflicts::<Reporter>(
-                    &state.lockfile,
-                    &lockfile_dir,
-                )?,
-                lockfile_path: Some(&inputs.lockfile_path),
+                lockfile: command_lockfile(&state.lockfile, &inputs.lockfile_path)?,
                 lockfile_only: self.install.lockfile_only,
                 selection: pnpm_package_manager::UpdateSelection {
                     packages,

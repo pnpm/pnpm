@@ -751,3 +751,33 @@ fn add_over_a_conflicted_lockfile_reports_the_merge() {
 
     drop((root, mock_instance));
 }
+
+/// The merge is reported by the install that performs it, not by the
+/// command's own load, so a run that returns before installing anything
+/// leaves the file conflicted without claiming to have merged it.
+#[test]
+fn a_command_that_installs_nothing_claims_no_merge() {
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    write_conflicted_lockfile_fixture(&workspace);
+    let conflicted = fs::read_to_string(workspace.join("pnpm-lock.yaml")).expect("read lockfile");
+
+    let output = new_pacquet_command(&workspace)
+        .with_args(["remove", "@pnpm.e2e/not-a-dependency", "--lockfile-only"])
+        .assert();
+    let stdout = String::from_utf8_lossy(&output.get_output().stdout);
+    eprintln!("STDOUT:\n{stdout}");
+
+    assert!(
+        !stdout.contains("Merge conflict detected"),
+        "nothing was installed, so nothing merged",
+    );
+    assert_eq!(
+        fs::read_to_string(workspace.join("pnpm-lock.yaml")).expect("read lockfile"),
+        conflicted,
+        "the lockfile is left exactly as it was found",
+    );
+
+    drop((root, mock_instance));
+}

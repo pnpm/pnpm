@@ -17,7 +17,6 @@ use crate::{
 };
 use pipe_trait::Pipe;
 use pnpm_catalogs_types::Catalogs;
-use pnpm_lockfile::MaybeLazyLockfile;
 use pnpm_package_manifest::{DependencyGroup, PackageManifest};
 use pnpm_registry::RangeSpecStyle;
 use pnpm_reporter::Reporter;
@@ -178,8 +177,8 @@ pub(super) fn update_install<'i>(
             config: update.config,
             manifest,
             emit_initial_manifest: false,
-            lockfile: MaybeLazyLockfile::Loaded(update.lockfile),
-            lockfile_path: update.lockfile_path,
+            lockfile: update.lockfile.source,
+            lockfile_path: update.lockfile.path,
         },
         fetching: crate::InstallFetching {
             tarball_mem_cache: owned.tarball_mem_cache,

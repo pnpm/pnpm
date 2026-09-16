@@ -5,7 +5,7 @@ use super::{
     describe_pin, record_package_manager_pin, resolve_project_pin, tool_install_selector,
     workspace_link_root, workspace_selectors,
 };
-use crate::state::load_lockfile_reporting_conflicts;
+use crate::state::command_lockfile;
 
 /// The dependency groups one add works with, which are two different
 /// sets: `save_target` names the manifest group the added packages are
@@ -137,7 +137,6 @@ where
     DependencyGroupList: IntoIterator<Item = DependencyGroup>,
 {
     let lockfile_path = state.lockfile_path();
-    let lockfile_dir = state.lockfile_dir().to_path_buf();
     let State {
         tarball_mem_cache,
         http_client,
@@ -146,7 +145,7 @@ where
         lockfile,
         resolved_packages,
     } = &mut state;
-    let lockfile = load_lockfile_reporting_conflicts::<Reporter>(lockfile, &lockfile_dir)?;
+    let lockfile = command_lockfile(lockfile, &lockfile_path)?;
 
     Add {
         manifest,
@@ -154,7 +153,6 @@ where
             http_client,
             config,
             lockfile,
-            lockfile_path: Some(&lockfile_path),
             package_names,
             range_spec_style,
             resolved_packages,
@@ -290,8 +288,7 @@ impl AddArgs {
             .save_target();
         let included_groups = self.included_groups(state.config);
         let lockfile_path = state.lockfile_path();
-        let lockfile =
-            load_lockfile_reporting_conflicts::<Reporter>(&state.lockfile, state.lockfile_dir())?;
+        let lockfile = command_lockfile(&state.lockfile, &lockfile_path)?;
 
         Add {
             manifest: &mut state.manifest,
@@ -299,7 +296,6 @@ impl AddArgs {
                 http_client: &state.http_client,
                 config: state.config,
                 lockfile,
-                lockfile_path: Some(&lockfile_path),
                 package_names: &package_names,
                 range_spec_style: self.range_spec_style(state.config),
                 resolved_packages: &state.resolved_packages,
