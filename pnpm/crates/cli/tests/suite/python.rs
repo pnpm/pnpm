@@ -2164,3 +2164,33 @@ async fn a_backend_asking_for_a_workspace_project_is_refused() {
         "which is a project in this workspace",
     );
 }
+
+/// PEP 503 has one distribution name however it is spelled, and an
+/// approval names a distribution.
+#[tokio::test]
+async fn an_allow_builds_key_names_the_distribution_however_it_is_written() {
+    let root = tempfile::tempdir().unwrap();
+    let mut server = mockito::Server::new_async().await;
+    let _backends = serve_backends(&mut server).await;
+    project(root.path(), &server.url(), &[]);
+    let workspace = fs::read_to_string(root.path().join("pnpm-workspace.yaml")).unwrap();
+    fs::write(
+        root.path().join("pnpm-workspace.yaml"),
+        format!(
+            "{}allowBuilds:\n  TinyBackend: true\n",
+            workspace.split_once("allowBuilds:").expect("the fixture approves builds").0,
+        ),
+    )
+    .unwrap();
+    python_project(root.path(), "app", "dependencies = []");
+
+    pacquet_in(root.path())
+        .arg("install")
+        .assert()
+        .success();
+    python(root.path())
+        .args(["-c", "import app; print(app.MARKER)"])
+        .assert()
+        .success()
+        .stdout(if cfg!(windows) { "workspace app\r\n" } else { "workspace app\n" });
+}

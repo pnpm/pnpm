@@ -461,36 +461,16 @@ pub(super) fn requirement_for_extra(requirement: &str, extra: &str) -> Result<St
     Ok(parsed.to_string())
 }
 
-/// How a lockfile at `from` spells the project at `to`, in the relative
+/// How a lockfile in `from` spells the project at `to`, in the relative
 /// POSIX form PEP 751 records. Relative is what makes the lockfile mean
 /// the same thing in another checkout, so only a project on another
-/// filesystem root keeps an absolute path.
+/// filesystem root keeps an absolute path, which is what
+/// [`pnpm_fs::relative_path`] falls back to.
 pub(super) fn relative(from: &Path, to: &Path) -> String {
-    let from = from.components().collect::<Vec<_>>();
-    let to = to.components().collect::<Vec<_>>();
-    let shared = from
-        .iter()
-        .zip(&to)
-        .take_while(|(here, there)| here == there)
-        .count();
-    if shared == 0 {
-        return to
-            .iter()
-            .collect::<PathBuf>()
-            .display()
-            .to_string();
-    }
-    let mut parts = vec![".."; from.len() - shared]
-        .into_iter()
-        .map(ToString::to_string)
-        .collect::<Vec<_>>();
-    for component in &to[shared..] {
-        parts.push(
-            component
-                .as_os_str()
-                .to_string_lossy()
-                .into_owned(),
-        );
-    }
-    if parts.is_empty() { ".".to_string() } else { parts.join("/") }
+    let relative = pnpm_fs::relative_path(from, to)
+        .components()
+        .map(|component| component.as_os_str().to_string_lossy())
+        .collect::<Vec<_>>()
+        .join("/");
+    pnpm_fs::lexical_normalize_posix(&relative)
 }

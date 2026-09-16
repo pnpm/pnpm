@@ -332,12 +332,18 @@ fn unapproved(config: &pnpm_config::Config, requires: &[pep508_rs::Requirement])
     if config.dangerously_allow_all_builds {
         return Vec::new();
     }
+    // A Python version is not a semver range, so only the name half of an
+    // `allowBuilds` key decides a Python build. The key is read as a
+    // distribution name, so it names the same one however it is spelled.
+    let approved = config.allow_builds
+        .iter()
+        .filter(|(_, allowed)| **allowed)
+        .filter_map(|(spec, _)| spec.parse::<pep508_rs::PackageName>().ok())
+        .collect::<BTreeSet<_>>();
     let mut names = requires
         .iter()
+        .filter(|requirement| !approved.contains(&requirement.name))
         .map(|requirement| requirement.name.to_string())
-        // A Python version is not a semver range, so only the name half of
-        // an `allowBuilds` key decides a Python build.
-        .filter(|name| config.allow_builds.get(name) != Some(&true))
         .collect::<Vec<_>>();
     names.sort();
     names.dedup();
