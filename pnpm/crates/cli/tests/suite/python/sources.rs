@@ -19,7 +19,7 @@ async fn direct_and_uv_url_wheels_are_hashed_and_replayed_offline() {
             .mock("GET", "/files/alpha-1.0-py3-none-any.whl")
             .match_header("authorization", mockito::Matcher::Missing)
             .with_body(archive)
-            .expect(2)
+            .expect(1)
             .create_async()
             .await;
         let index = server
@@ -99,7 +99,7 @@ async fn a_transitive_direct_wheel_is_not_resolved_from_the_index() {
     let artifact = server
         .mock("GET", "/helper-1.0-py3-none-any.whl")
         .with_body(wheel("helper", "1.0", "", &[]))
-        .expect(2)
+        .expect(1)
         .create_async()
         .await;
     project(root.path(), &server.url(), &["alpha"]);
@@ -275,7 +275,7 @@ async fn transitive_urls_selected_by_extras_replay_from_the_lockfile() {
     let artifact = server
         .mock("GET", "/helper-1.0-py3-none-any.whl")
         .with_body(wheel("helper", "1.0", "", &[]))
-        .expect(2)
+        .expect(1)
         .create_async()
         .await;
     project(root.path(), &server.url(), &["alpha[helpers]"]);
@@ -706,4 +706,20 @@ async fn narrowed_remote_sources_are_rejected_before_fetching() {
             );
         }
     }
+}
+
+#[tokio::test]
+async fn offline_git_cache_errors_redact_ssh_userinfo() {
+    let root = tempfile::tempdir().unwrap();
+    let server = mockito::Server::new_async().await;
+    project(root.path(), &server.url(), &["alpha @ git+ssh://secret-token@example.test/repo@main"]);
+    approve(root.path(), "alpha");
+    let output = pacquet_in(root.path())
+        .args(["install", "--offline"])
+        .output()
+        .unwrap();
+    assert!(!output.status.success());
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(stderr.contains("is not cached for offline"), "{stderr}");
+    assert!(!stderr.contains("secret-token"), "{stderr}");
 }

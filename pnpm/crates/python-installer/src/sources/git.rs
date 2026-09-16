@@ -112,7 +112,10 @@ fn checkout_repository(
         pnpm_git_fetcher::checkout_existing_revision(revision, dest).into_diagnostic()?
     } else {
         if config.offline {
-            bail!("Python git repository {} is not cached for offline installation", vcs.url);
+            bail!(
+                "Python git repository {} is not cached for offline installation",
+                pnpm_network::redact_and_sanitize(&vcs.url),
+            );
         }
         pnpm_git_fetcher::checkout_revision(&vcs.url, revision, dest).into_diagnostic()?
     };

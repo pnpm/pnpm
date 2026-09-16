@@ -162,7 +162,7 @@ fn unusable_release(
             "because its metadata declares a requirement pnpm cannot read: {error}",
         ))),
         Refusal::Unsupported(requirement) => Err(Needed::Invalid(format!(
-            "direct URL Python requirements are not supported: {requirement}",
+            "unsupported scheme in direct URL Python requirement: {requirement}",
         ))),
     }
 }

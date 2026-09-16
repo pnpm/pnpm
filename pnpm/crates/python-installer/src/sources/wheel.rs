@@ -1,4 +1,4 @@
-use super::super::registry::Registry;
+use super::{super::registry::Registry, MAX_WHEEL_BYTES};
 use miette::{IntoDiagnostic, Result, bail};
 use pep508_rs::PackageName;
 use pnpm_python_resolver::{Candidate, IndexCandidate, LockedWheel, WheelFilename};
@@ -6,8 +6,6 @@ use pnpm_reporter::Reporter;
 use sha2::{Digest, Sha256};
 use std::collections::BTreeMap;
 use url::Url;
-
-const MAX_WHEEL_BYTES: usize = 512 * 1024 * 1024;
 
 fn artifact_url(source: &str) -> Result<(Url, Option<String>)> {
     let pnpm_python_resolver::Source::Wheel { url, sha256 } =
@@ -24,7 +22,7 @@ impl Registry<'_> {
         name: &PackageName,
         source: &str,
     ) -> Result<()> {
-        let wheel = self.url_wheel(source).await?;
+        let (wheel, buffer) = self.url_wheel(source).await?;
         let filename = WheelFilename::parse(&wheel.name)?.expect("URL wheel was parsed");
         if filename.name != *name {
             bail!("Python URL requirement {name} names a wheel of {}", filename.name);
@@ -37,10 +35,13 @@ impl Registry<'_> {
                 Candidate::Wheel(IndexCandidate { wheel, core_metadata: None }),
             )]),
         );
-        self.fetch_wheel::<Reporter>(name, &filename.version).await
+        let wheel =
+            self.download_wheel_from_buffer::<Reporter>(name, &filename.version, buffer).await?;
+        self.remember(name.clone(), filename.version, wheel);
+        Ok(())
     }
 
-    async fn url_wheel(&self, source: &str) -> Result<LockedWheel> {
+    async fn url_wheel(&self, source: &str) -> Result<(LockedWheel, Option<Vec<u8>>)> {
         let (url, expected) = artifact_url(source)?;
         let name = pnpm_network::percent_decode_str(
             url.path_segments()
@@ -54,12 +55,15 @@ impl Registry<'_> {
             .join("python-url-v1")
             .join(format!("{}.json", pnpm_crypto_hash::create_hex_hash(source)));
         if self.config.offline {
-            return self.cached_url_wheel(&cache, source).await;
+            return Ok((self.cached_url_wheel(&cache, source).await?, None));
         }
-        let digest = match expected {
-            Some(digest) => digest,
-            None => self.wheel_digest(&url).await?,
-        };
+        let buffer = if expected.is_none() { Some(self.wheel_bytes(&url).await?) } else { None };
+        let digest = expected.unwrap_or_else(|| {
+            format!(
+                "{:x}",
+                Sha256::digest(buffer.as_ref().expect("hashless wheels were downloaded")),
+            )
+        });
         let wheel = LockedWheel {
             name,
             url: url.to_string(),
@@ -71,7 +75,7 @@ impl Registry<'_> {
             .into_diagnostic()?;
         pnpm_fs::write_atomic(&cache, &serde_json::to_vec(&wheel).into_diagnostic()?)
             .into_diagnostic()?;
-        Ok(wheel)
+        Ok((wheel, buffer))
     }
 
     async fn cached_url_wheel(&self, cache: &std::path::Path, source: &str) -> Result<LockedWheel> {
@@ -92,7 +96,7 @@ impl Registry<'_> {
         Ok(wheel)
     }
 
-    async fn wheel_digest(&self, url: &Url) -> Result<String> {
+    async fn wheel_bytes(&self, url: &Url) -> Result<Vec<u8>> {
         let response = self.client
             .get_limited_bytes_with_secure_auth_and_retry(
                 url.as_str(),
@@ -109,6 +113,6 @@ impl Registry<'_> {
         if response.body_truncated {
             bail!("Python URL wheel exceeds {MAX_WHEEL_BYTES} bytes: {url}");
         }
-        Ok(format!("{:x}", Sha256::digest(&response.body)))
+        Ok(response.body)
     }
 }

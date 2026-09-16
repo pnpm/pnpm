@@ -307,6 +307,7 @@ impl BinaryArchiveFetch<'_> {
                 offline: self.config.offline,
             },
             package: pnpm_tarball::ZipArchivePackage {
+                max_bytes: None,
                 integrity: &self.binary.integrity,
                 url: &self.binary.url,
                 id: self.package_id,

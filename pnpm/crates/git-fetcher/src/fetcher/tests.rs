@@ -283,10 +283,13 @@ fn write_failing_git_shim(dir: &Path) -> PathBuf {
     use std::os::unix::fs::PermissionsExt;
     fs::create_dir_all(dir).unwrap();
     let shim_path = dir.join("git");
-    let body = r"#!/bin/sh
+    let body = r#"#!/bin/sh
+for arg; do
+    if [ "$arg" = config ]; then exit 1; fi
+done
 printf 'ssh: connect to host port 22: Connection refused\n' >&2
 exit 128
-";
+"#;
     fs::write(&shim_path, body).unwrap();
     fs::set_permissions(&shim_path, fs::Permissions::from_mode(0o755)).unwrap();
     shim_path

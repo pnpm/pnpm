@@ -314,7 +314,7 @@ impl PythonPrepare<'_> {
             format!(
                 "{} {}",
                 self.interpreter.executable,
-                self.interpreter.target.environment.python_full_version()
+                self.interpreter.target.environment.python_full_version(),
             ),
             requirements.join(" "),
         )

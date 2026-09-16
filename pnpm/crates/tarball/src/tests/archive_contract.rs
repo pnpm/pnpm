@@ -210,6 +210,7 @@ impl Container {
                 IngestZipArchiveToStore {
                     fetching: input.fetching,
                     package: crate::ZipArchivePackage {
+                        max_bytes: None,
                         integrity: input.package.integrity.unwrap(),
                         url: input.package.url,
                         id: input.package.id,
@@ -391,5 +392,38 @@ fn assert_fetch_error(status: usize, error: &TarballError) {
         assert!(matches!(error, TarballError::Checksum(_)));
     } else {
         assert!(matches!(error, TarballError::HttpStatus(_)));
+    }
+}
+
+#[tokio::test]
+async fn zip_download_limits_cover_content_lengths_and_chunked_bodies() {
+    for chunked in [false, true] {
+        let mut server = mockito::Server::new_async().await;
+        let body = build_zip(&[("data.txt", b"artifact")]);
+        let integrity = Integrity::from(body.as_slice());
+        let request = server.mock("GET", "/oversized");
+        let streamed = body.clone();
+        let stream_body = move |writer: &mut dyn std::io::Write| writer.write_all(&streamed);
+        let request =
+            if chunked { request.with_chunked_body(stream_body) } else { request.with_body(body) };
+        let request = request.expect(1).create_async().await;
+        let (_root, store) = tempdir_with_leaked_path();
+        store.init().unwrap();
+        let error = crate::zip_archive::fetch_and_extract_zip_once::<SilentReporter>(
+            &ThrottledClient::default(),
+            &format!("{}/oversized", server.url()),
+            &integrity,
+            "fixture",
+            0,
+            store,
+            &AuthHeaders::default(),
+            None,
+            None,
+            Some(16),
+        )
+        .await
+        .unwrap_err();
+        assert!(matches!(error, TarballError::TarballTooLarge { .. }), "{error}");
+        request.assert_async().await;
     }
 }

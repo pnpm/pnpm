@@ -14,7 +14,7 @@ use std::{collections::HashMap, path::PathBuf, sync::Arc};
 #[derive(Clone, Copy)]
 pub(crate) enum ArchiveFormat<'a> {
     TarGz { unpacked_size: Option<usize>, file_count: Option<usize>, revision_addressed: bool },
-    Zip { integrity: &'a Integrity, prefix: Option<&'a str> },
+    Zip { integrity: &'a Integrity, prefix: Option<&'a str>, max_bytes: Option<usize> },
 }
 
 impl ArchiveFormat<'_> {
@@ -79,6 +79,28 @@ impl ArchiveIngestion<'_> {
             }
         }
         self.fetch::<Reporter>(false).await.map(|result| result.files_map)
+    }
+
+    pub(crate) async fn ingest_zip_buffer(
+        &self,
+        buffer: Vec<u8>,
+    ) -> Result<HashMap<String, PathBuf>, TarballError> {
+        let ArchiveFormat::Zip { integrity, prefix, max_bytes } = self.format else {
+            unreachable!("ZIP buffers require ZIP ingestion")
+        };
+        crate::zip_archive::check_zip_size(buffer.len() as u64, max_bytes, self.package.url)?;
+        let (mut paths, mut index) = crate::zip_archive::ZipExtraction {
+            buffer,
+            package_integrity: integrity.clone(),
+            package_url: self.package.url.to_string(),
+            archive_prefix: prefix.map(str::to_string),
+            ignore_file_pattern: self.ignore_file_pattern.clone(),
+        }
+        .run(self.store.dir)
+        .await?;
+        self.project_files(&mut paths, &mut index)?;
+        self.queue_index_row(self.cache_key(), index);
+        Ok(paths)
     }
 
     async fn load_legacy_cache<Reporter: self::Reporter>(
@@ -201,23 +223,33 @@ impl ArchiveIngestion<'_> {
                 )
                 .await
             }
-            ArchiveFormat::Zip { integrity, prefix } => {
-                let (paths, index) = fetch_and_extract_zip_with_retry::<Reporter>(
-                    self.fetching.http_client,
-                    self.package.url,
-                    integrity,
-                    self.package.id,
-                    self.requester,
-                    self.store.dir,
-                    self.fetching.retry_opts,
-                    self.fetching.auth_headers,
-                    prefix,
-                    self.ignore_file_pattern.clone(),
-                )
-                .await?;
-                Ok((integrity.clone(), paths, index))
+            ArchiveFormat::Zip { integrity, prefix, max_bytes } => {
+                self.fetch_zip::<Reporter>(integrity, prefix, max_bytes).await
             }
         }
+    }
+
+    async fn fetch_zip<Reporter: self::Reporter>(
+        &self,
+        integrity: &Integrity,
+        prefix: Option<&str>,
+        max_bytes: Option<usize>,
+    ) -> Result<(Integrity, HashMap<String, PathBuf>, PackageFilesIndex), TarballError> {
+        let (paths, index) = fetch_and_extract_zip_with_retry::<Reporter>(
+            self.fetching.http_client,
+            self.package.url,
+            integrity,
+            self.package.id,
+            self.requester,
+            self.store.dir,
+            self.fetching.retry_opts,
+            self.fetching.auth_headers,
+            prefix,
+            self.ignore_file_pattern.clone(),
+            max_bytes,
+        )
+        .await?;
+        Ok((integrity.clone(), paths, index))
     }
 
     fn project_files(

@@ -1,6 +1,8 @@
 mod git;
 mod wheel;
 
+pub(super) const MAX_WHEEL_BYTES: usize = 512 * 1024 * 1024;
+
 use super::{build, environment::PythonPrepare, host, manifest::Source, registry::Registry};
 use miette::{IntoDiagnostic, Result, bail};
 use pep440_rs::Version;

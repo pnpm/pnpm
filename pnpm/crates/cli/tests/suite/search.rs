@@ -244,10 +244,8 @@ fn fails_on_a_network_failure() {
     let auth_file = empty_auth_file(root.path());
     let listener = TcpListener::bind("127.0.0.1:0").expect("bind a failing server");
     let registry = format!("http://{}/", listener.local_addr().unwrap());
-    let server = std::thread::spawn(move || {
-        let (connection, _) = listener.accept().expect("accept the search request");
-        drop(connection);
-    });
+    listener.set_nonblocking(true).expect("make the failing server nonblocking");
+    let server = std::thread::spawn(move || refuse_search_request(&listener));
 
     let output = run_search(&workspace, &auth_file, &registry, &["some-package"]);
 
@@ -258,4 +256,17 @@ fn fails_on_a_network_failure() {
     assert!(stderr.contains("Network request failed"), "{stderr}");
 
     drop(root);
+}
+
+fn refuse_search_request(listener: &TcpListener) {
+    for _ in 0..1000 {
+        let result = listener.accept().map(|(connection, _)| drop(connection));
+        if result.is_ok() {
+            return;
+        }
+        let error = result.unwrap_err();
+        assert_eq!(error.kind(), std::io::ErrorKind::WouldBlock, "{error}");
+        std::thread::sleep(std::time::Duration::from_millis(10));
+    }
+    panic!("the search request did not connect within ten seconds");
 }

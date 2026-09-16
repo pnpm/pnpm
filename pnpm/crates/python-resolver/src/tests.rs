@@ -387,7 +387,10 @@ fn an_unsupported_url_requirement_is_refused_rather_than_skipped() {
 
         let error = step(&packages, &requirements, &target.environment).expect_err("unsupported");
 
-        assert!(error.to_string().contains("direct URL Python requirements"), "{error}");
+        assert!(
+            error.to_string().contains("unsupported scheme in direct URL Python requirement"),
+            "{error}",
+        );
     }
 }
 

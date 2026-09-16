@@ -482,7 +482,10 @@ pub(crate) fn exec_git_with(
     }
     cmd.args(args);
     if args.first() == Some(&"clone") {
-        let protocols = crate::read_allowed_git_protocols(cwd.unwrap_or_else(|| Path::new(".")))?;
+        let protocols = crate::protocols::read_allowed_git_protocols_with(
+            bin,
+            cwd.unwrap_or_else(|| Path::new(".")),
+        )?;
         cmd.env("GIT_ALLOW_PROTOCOL", protocols);
     }
     if args.first() == Some(&"submodule") {

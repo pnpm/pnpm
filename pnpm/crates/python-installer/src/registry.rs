@@ -5,7 +5,7 @@ use pep440_rs::Version;
 use pep508_rs::PackageName;
 use pnpm_config::Config;
 use pnpm_network::ThrottledClient;
-use pnpm_python_resolver::{Packages, Target, candidates_from_page};
+use pnpm_python_resolver::{LockedWheel, Packages, Target, candidates_from_page};
 use pnpm_reporter::Reporter;
 use pnpm_tarball::{ArchiveStoreProjection, IngestZipArchiveToStore};
 use serde::{Deserialize, Serialize};
@@ -225,18 +225,35 @@ impl Registry<'_> {
         self.wheels.insert((name, version), wheel);
     }
 
-    async fn download_wheel<Reporter: self::Reporter + 'static>(
+    pub(super) async fn download_wheel_from_buffer<Reporter: self::Reporter + 'static>(
         &self,
         name: &PackageName,
         version: &Version,
+        buffer: Option<Vec<u8>>,
     ) -> Result<Wheel> {
         let wheel = self.resolution.packages.candidates[name][version]
             .wheel()
             .ok_or_else(|| miette::miette!("Python package {name} {version} is not a wheel"))?;
         validate_wheel_identity(wheel, &self.resolution.target.tags, name, version)?;
+        let files = self.ingest_wheel::<Reporter>(wheel, buffer).await?;
+        let files: BTreeMap<_, _> = files.into_iter().collect();
+        let metadata = host::inspect(&self.interpreter.executable, &files, &wheel.name).await?;
+        validate_wheel_metadata(&metadata, name, version)?;
+        Ok(Wheel {
+            filename: wheel.name.clone(),
+            files,
+            metadata,
+            direct_url: self.source_provenance(name),
+        })
+    }
+    async fn ingest_wheel<Reporter: self::Reporter + 'static>(
+        &self,
+        wheel: &LockedWheel,
+        buffer: Option<Vec<u8>>,
+    ) -> Result<std::collections::HashMap<String, std::path::PathBuf>> {
         let integrity = wheel.integrity()?;
         let package_id = format!("python:{}", wheel.name);
-        let files = IngestZipArchiveToStore {
+        let ingestion = IngestZipArchiveToStore {
             fetching: pnpm_tarball::ArchiveFetchOptions {
                 http_client: self.client,
                 auth_headers: &self.index.auth,
@@ -244,6 +261,7 @@ impl Registry<'_> {
                 offline: self.config.offline,
             },
             package: pnpm_tarball::ZipArchivePackage {
+                max_bytes: Some(super::sources::MAX_WHEEL_BYTES),
                 integrity: &integrity,
                 url: &wheel.url,
                 id: &package_id,
@@ -256,19 +274,20 @@ impl Registry<'_> {
             ignore_file_pattern: None,
 
             store_projection: ArchiveStoreProjection::RawArchive,
+        };
+        match buffer {
+            Some(buffer) => ingestion.run_with_buffer::<Reporter>(buffer).await,
+            None => ingestion.run_without_mem_cache::<Reporter>().await,
         }
-        .run_without_mem_cache::<Reporter>()
-        .await
-        .into_diagnostic()?;
-        let files: BTreeMap<_, _> = files.into_iter().collect();
-        let metadata = host::inspect(&self.interpreter.executable, &files, &wheel.name).await?;
-        validate_wheel_metadata(&metadata, name, version)?;
-        Ok(Wheel {
-            filename: wheel.name.clone(),
-            files,
-            metadata,
-            direct_url: self.source_provenance(name),
-        })
+        .into_diagnostic()
+    }
+
+    async fn download_wheel<Reporter: self::Reporter + 'static>(
+        &self,
+        name: &PackageName,
+        version: &Version,
+    ) -> Result<Wheel> {
+        self.download_wheel_from_buffer::<Reporter>(name, version, None).await
     }
 }
 
