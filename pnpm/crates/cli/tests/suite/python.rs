@@ -405,9 +405,6 @@ async fn installs_real_environment_with_ranges_extras_markers_scripts_and_offlin
     assert_eq!(lock, replayed_lock);
 }
 
-/// The scenario of pnpm/pnpm#14843: an interpreter wrapper that reports the
-/// kernel release `PNPM_TEST_KERNEL_RELEASE` names, with nothing else about
-/// the interpreter, its wheel tags, or the project changing between runs.
 /// An interpreter that reports `version` while running the real one, so
 /// a selection can be observed on a machine that does not have that
 /// version.
@@ -731,6 +728,9 @@ async fn selects_an_interpreter_the_project_accepts_and_its_python_version_file_
     );
 }
 
+/// The scenario of pnpm/pnpm#14843: an interpreter wrapper that reports the
+/// kernel release `PNPM_TEST_KERNEL_RELEASE` names, with nothing else about
+/// the interpreter, its wheel tags, or the project changing between runs.
 #[cfg(unix)]
 #[tokio::test]
 async fn frozen_lockfile_replays_after_a_kernel_only_marker_change() {
