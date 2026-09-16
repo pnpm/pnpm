@@ -114,12 +114,22 @@ impl Default for CargoSettings {
 
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", default, deny_unknown_fields)]
+#[cfg_attr(
+    dylint_lib = "perfectionist",
+    expect(
+        perfectionist::too_many_struct_fields,
+        reason = "PythonSettings matches the public python configuration table in pnpm-workspace.yaml."
+    )
+)]
 pub struct PythonSettings {
     pub enabled: bool,
     /// The interpreter to install every Python project with. `None` lets
     /// pnpm choose one the project accepts.
     pub executable: Option<String>,
     pub index_url: String,
+    pub extra_index_urls: Vec<String>,
+    pub overrides: Vec<String>,
+    pub constraints: Vec<String>,
     pub extras: Vec<String>,
     pub groups: Vec<String>,
     /// The platforms `pylock.toml` is resolved for, as Rust target
@@ -138,6 +148,9 @@ impl Default for PythonSettings {
             enabled: false,
             executable: None,
             index_url: "https://pypi.org/simple/".to_string(),
+            extra_index_urls: Vec::new(),
+            overrides: Vec::new(),
+            constraints: Vec::new(),
             extras: Vec::new(),
             groups: vec!["dev".to_string()],
             platforms: Vec::new(),

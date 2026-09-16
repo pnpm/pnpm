@@ -4,7 +4,7 @@ use crate::{
     metadata::WheelMetadata,
 };
 use pep440_rs::Version;
-use pep508_rs::PackageName;
+use pep508_rs::{PackageName, Requirement};
 use std::collections::{BTreeMap, BTreeSet};
 
 /// Where one version of a distribution comes from: a wheel an index
@@ -118,6 +118,8 @@ impl Candidate {
 /// fetch and nothing for a step to ask for.
 #[derive(Debug, Default, Clone)]
 pub struct Packages {
+    pub overrides: Vec<Requirement>,
+    pub constraints: Vec<Requirement>,
     pub candidates: BTreeMap<PackageName, BTreeMap<Version, Candidate>>,
     pub metadata: BTreeMap<(PackageName, Version), WheelMetadata>,
     pub direct_urls: BTreeMap<PackageName, String>,

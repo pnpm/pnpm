@@ -75,8 +75,10 @@ impl PythonPrepare<'_> {
                 return Ok(lock);
             }
         }
-        if let Some(lock) =
-            self.resolve_remotely(requirements, requires_python.clone(), &local).await?
+        if registry.resolution.packages.overrides.is_empty()
+            && registry.resolution.packages.constraints.is_empty()
+            && let Some(lock) =
+                self.resolve_remotely(requirements, requires_python.clone(), &local).await?
         {
             accept_server_lockfile(&lock, &inputs, requires_python.as_deref())?;
             return self.accept_lockfile::<Reporter>(registry, lock, requirements, &local).await;
@@ -111,6 +113,7 @@ impl PythonPrepare<'_> {
                 .any(|requirement| {
                     matches!(requirement.version_or_url, Some(pep508_rs::VersionOrUrl::Url(_)))
                 })
+            || !self.index.extra_urls.is_empty()
         {
             return Ok(None);
         }
@@ -161,7 +164,10 @@ impl PythonPrepare<'_> {
             level: LogLevel::Warn,
             message: format!("Ignoring Python lockfile {}: {error}", lock_path.display()),
         }));
-        registry.resolution.packages = pnpm_python_resolver::Packages::new();
+        registry.resolution.packages.candidates.clear();
+        registry.resolution.packages.metadata.clear();
+        registry.resolution.packages.direct_urls.clear();
+        registry.resolution.packages.rejected_sources.clear();
         workspace::offer(&mut registry.resolution.packages, &local);
         Ok(None)
     }

@@ -24,6 +24,39 @@ The interpreter needs `venv` and either `packaging` or pip's bundled copy of
 markers and wheel layout. It performs no dependency resolution or network
 requests.
 
+### Indexes and dependency rules
+
+`python.extraIndexUrls` adds Simple JSON indexes, searched in listed order before
+`python.indexUrl`. The first index containing a distribution supplies all of its
+versions. Only a 404 tries the next index; authentication failures and other
+errors stop resolution. Versions from different indexes are never combined.
+Credentials in each URL are scoped to that URL and removed from lockfiles and
+cache keys. Missing index pages are cached for offline resolution too.
+
+`python.overrides` and `python.constraints` accept lists of PEP 508 registry
+requirements. An override replaces the version requirement for a matching
+name throughout the dependency graph. Constraints intersect the permitted
+versions without adding a dependency. Markers select where a rule applies.
+URL requirements are not accepted in these lists. Version rules preserve the
+source of dependencies declared as Git repositories or direct wheel URLs.
+For example:
+
+```yaml
+python:
+  enabled: true
+  extraIndexUrls: [https://download.example.org/simple/]
+  overrides: ['urllib3>=2']
+  constraints: ['urllib3<3']
+```
+
+pnpm also reads `[tool.uv]` `override-dependencies` and
+`constraint-dependencies`. Within a declared uv workspace these lists come
+from its root manifest, and otherwise from the project's manifest. They are
+combined with the pnpm workspace settings. These rules apply to project
+dependencies, not isolated build-backend dependencies. Changes to the index
+list or dependency rules invalidate the lockfile. These projects resolve
+locally when a pnpr server is configured.
+
 ### Choosing an interpreter
 
 `executable` names one interpreter for every project in the workspace. Without

@@ -1,5 +1,6 @@
 pub use sources::active_locked_sources;
 
+mod rules;
 mod sources;
 
 use crate::{
@@ -250,30 +251,6 @@ impl Provider<'_> {
         })
     }
 
-    fn requirement_range(
-        &self,
-        requirement: &Requirement,
-    ) -> std::result::Result<Ranges<Version>, Needed> {
-        let candidates = self.packages.candidates
-            .get(&requirement.name)
-            .ok_or_else(|| Needed::Candidates(requirement.name.clone()))?;
-        let specifiers = requirement_specifiers(requirement)?;
-        let matched = candidates
-            .keys()
-            .filter(|version| specifiers.is_none_or(|specifiers| specifiers.contains(version)))
-            .collect::<Vec<_>>();
-        let allow_prerelease = specifiers.is_some_and(|specifiers| {
-            specifiers.iter().any(pep440_rs::VersionSpecifier::any_prerelease)
-        }) || matched.iter().all(|version| version.any_prerelease());
-        let range = matched
-            .into_iter()
-            .filter(|version| allow_prerelease || !version.any_prerelease())
-            .fold(Ranges::empty(), |range, version| {
-                range.union(&Ranges::singleton(version.clone()))
-            });
-        Ok(range)
-    }
-
     fn constraints(
         &self,
         requirements: &[Requirement],
@@ -296,12 +273,11 @@ impl Provider<'_> {
                 continue;
             }
             self.check_source(requirement)?;
-            let range = self.requirement_range(requirement)?;
+            let range = self.requirement_range(requirement, extras)?;
             for extra in std::iter::once(None)
                 .chain(
-                    requirement.extras
-                        .iter()
-                        .cloned()
+                    self.requirement_extras(requirement, extras)
+                        .into_iter()
                         .map(Some),
                 )
             {
@@ -314,16 +290,6 @@ impl Provider<'_> {
         }
         Ok(())
     }
-}
-
-fn requirement_specifiers(
-    requirement: &Requirement,
-) -> std::result::Result<Option<&pep440_rs::VersionSpecifiers>, Needed> {
-    Ok(match &requirement.version_or_url {
-        Some(VersionOrUrl::VersionSpecifier(specifiers)) => Some(specifiers),
-        None => None,
-        Some(VersionOrUrl::Url(_)) => None,
-    })
 }
 
 /// Run one pubgrub pass over what `packages` holds so far.

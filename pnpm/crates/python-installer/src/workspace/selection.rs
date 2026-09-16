@@ -5,9 +5,18 @@ use pnpm_python_resolver::parse_requirement;
 use std::{
     collections::{BTreeMap, BTreeSet},
     path::{Path, PathBuf},
+    sync::Arc,
 };
 
 impl Workspace {
+    pub(crate) fn resolution_manifest(
+        &self,
+        root: &Path,
+        manifest: &Arc<Manifest>,
+    ) -> Arc<Manifest> {
+        Arc::clone(self.inherited.get(root).map_or(manifest, |(_, manifest)| manifest))
+    }
+
     pub(super) fn selected_distributions(
         &self,
         manifest: &Manifest,
