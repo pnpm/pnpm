@@ -415,3 +415,58 @@ fn a_marker_in_an_env_document_comment_is_not_a_conflict() {
     assert_eq!(loaded.merged_conflict_files, 0);
     assert!(EnvLockfile::read(dir.path()).unwrap().is_some(), "the env document is fine");
 }
+
+/// Both documents conflicted, with the env document's two sides
+/// structurally well formed but one of them not a valid env document.
+/// The main document merges, so the install reports the merge and takes
+/// the write path — which must not then produce a file that still
+/// carries markers.
+#[test]
+fn a_write_refuses_an_env_document_whose_conflict_cannot_be_merged() {
+    let dir = TempDir::new().unwrap();
+    let path = dir.path().join(Lockfile::FILE_NAME);
+    let content = text_block_fnl! {
+        "---"
+        "lockfileVersion: '9.0'"
+        "importers:"
+        "  .:"
+        "    configDependencies:"
+        "<<<<<<< HEAD"
+        "      ours-config:"
+        "        specifier: 1.0.0"
+        "        version: 1.0.0"
+        "======="
+        "      theirs-config: just-a-string"
+        ">>>>>>> feature"
+        ""
+        "---"
+        "lockfileVersion: '9.0'"
+        ""
+        "importers:"
+        ""
+        "  .:"
+        "    dependencies:"
+        "      is-odd:"
+        "<<<<<<< HEAD"
+        "        specifier: 1.0.0"
+        "        version: 1.0.0"
+        "======="
+        "        specifier: 2.0.0"
+        "        version: 2.0.0"
+        ">>>>>>> feature"
+    };
+    std::fs::write(&path, content).unwrap();
+
+    let merged = Lockfile::load_wanted_from_dir(dir.path())
+        .expect("the main document merges")
+        .expect("main lockfile");
+
+    let error = merged.save_to_path(&path).expect_err("the env document is still conflicted");
+    eprintln!("ERROR: {error}");
+    assert!(matches!(error, crate::SaveLockfileError::UnmergeableEnvDocument { .. }));
+    assert_eq!(
+        std::fs::read_to_string(&path).unwrap(),
+        content,
+        "a refused write leaves the file untouched",
+    );
+}

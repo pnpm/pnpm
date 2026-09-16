@@ -34,6 +34,18 @@ pub enum SaveLockfileError {
     #[diagnostic(code(ERR_PNPM_LOCKFILE_WRITE_FILE))]
     WriteFile(io::Error),
 
+    #[display(
+        "The lockfile at \"{}\" still has Git conflict markers in its leading document, which records the config dependencies. Its two sides cannot be merged.",
+        path.display()
+    )]
+    #[diagnostic(
+        code(ERR_PNPM_BROKEN_LOCKFILE),
+        help(
+            "Resolve the conflict in the first YAML document of the lockfile by hand, then run the command again."
+        )
+    )]
+    UnmergeableEnvDocument { path: PathBuf },
+
     #[display("Failed to create virtual-store directory {dir:?}: {error}")]
     #[diagnostic(code(ERR_PNPM_LOCKFILE_CREATE_DIR))]
     CreateDir {
@@ -91,7 +103,7 @@ pub fn save_value_to_path<Document: serde::Serialize>(
     };
     let output = match existing.as_deref().and_then(extract_env_document) {
         Some(env) => {
-            let env = preserved_env_document(&env, path);
+            let env = preserved_env_document(&env, path)?;
             format!("{YAML_DOCUMENT_START}{env}{YAML_DOCUMENT_SEPARATOR}{content}")
         }
         None => content,
@@ -113,24 +125,33 @@ pub fn save_value_to_path<Document: serde::Serialize>(
 /// would carry the markers into a file the caller is writing precisely to
 /// replace a conflicted one, and leave the next `EnvLockfile::read`
 /// failing on a lockfile that looks repaired. Merge the two sides
-/// instead. A document that cannot be merged is still copied: a write of
-/// the main document is not where an unparsable env document should
-/// surface.
-fn preserved_env_document<'a>(env: &'a str, path: &Path) -> Cow<'a, str> {
+/// instead.
+///
+/// A conflicted document whose sides do not merge is an error rather
+/// than something to copy. The write would otherwise produce a file that
+/// is still conflicted, after an install that has already reported the
+/// merge it made in the main document.
+fn preserved_env_document<'a>(
+    env: &'a str,
+    path: &Path,
+) -> Result<Cow<'a, str>, SaveLockfileError> {
     // Skips the parse for the documents that plainly carry no marker,
     // which is all of them but the conflicted few. A false positive —
     // a marker inside a comment or a scalar — costs a parse that then
-    // finds nothing to merge, not a wrong answer.
+    // finds nothing to merge, and the document is written back as it is.
     if !env.contains(MERGE_CONFLICT_OURS) {
-        return Cow::Borrowed(env);
+        return Ok(Cow::Borrowed(env));
     }
-    let merged = EnvLockfile::parse_conflicted_document(env, path)
-        .ok()
-        .filter(|parsed| parsed.merged_conflict_files > 0)
-        .and_then(|parsed| parsed.value)
-        .as_ref()
-        .and_then(|merged| serialize_yaml::to_string(merged).ok());
-    merged.map_or(Cow::Borrowed(env), Cow::Owned)
+    let Ok(parsed) = EnvLockfile::parse_conflicted_document(env, path) else {
+        return Err(SaveLockfileError::UnmergeableEnvDocument { path: path.to_path_buf() });
+    };
+    let merged_conflict_files = parsed.merged_conflict_files;
+    let Some(merged) = parsed.value.filter(|_| merged_conflict_files > 0) else {
+        // Nothing was merged, so the document parsed as it stands: the
+        // markers are inside a comment or a scalar. Preserve its bytes.
+        return Ok(Cow::Borrowed(env));
+    };
+    serialize_yaml::to_string(&merged).map(Cow::Owned).map_err(SaveLockfileError::SerializeYaml)
 }
 
 /// Refuses a symlinked lockfile before a write, which would land on the link's
