@@ -486,3 +486,122 @@ fn rejects_a_dependency_from_a_third_party_registry() {
 
     assert!(error.contains("other.example.test"), "{error}");
 }
+
+/// `bar` 2.0.0 resolves, while the whole 3 compatibility line is yanked.
+const PARTLY_YANKED_BAR_INDEX: &str = r#"{"name":"bar","vers":"2.0.0","deps":[],"cksum":"cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc","features":{},"yanked":false}
+{"name":"bar","vers":"3.0.0","deps":[],"cksum":"dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd","features":{},"yanked":true}"#;
+
+#[test]
+fn resolves_past_a_prerelease_candidate_whose_dependency_is_yanked() {
+    let foo_index = r#"{"name":"foo","vers":"1.0.0-beta.1","deps":[{"name":"bar","req":"^3","features":[],"optional":false,"default_features":true,"target":null,"kind":"normal","registry":null}],"cksum":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","features":{},"yanked":false}
+{"name":"foo","vers":"1.1.0","deps":[{"name":"bar","req":"^2","features":[],"optional":false,"default_features":true,"target":null,"kind":"normal","registry":null}],"cksum":"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb","features":{},"yanked":false}"#;
+    let files = BTreeMap::from([
+        ("bar".to_string(), PARTLY_YANKED_BAR_INDEX.to_string()),
+        ("foo".to_string(), foo_index.to_string()),
+    ]);
+
+    let lockfile =
+        Lockfile::from_str(&resolve_lockfile(METADATA, &files, CRATES_IO_SOURCE).unwrap()).unwrap();
+
+    dbg!(&lockfile.packages);
+    assert!(
+        lockfile.packages
+            .iter()
+            .any(|package| {
+                package.name.as_str() == "foo" && package.version == semver::Version::new(1, 1, 0)
+            }),
+    );
+    assert!(
+        lockfile.packages
+            .iter()
+            .any(|package| {
+                package.name.as_str() == "bar" && package.version == semver::Version::new(2, 0, 0)
+            }),
+    );
+}
+
+#[test]
+fn backtracks_to_a_candidate_whose_dependency_is_not_yanked() {
+    let foo_index = r#"{"name":"foo","vers":"1.0.0","deps":[{"name":"bar","req":"^2","features":[],"optional":false,"default_features":true,"target":null,"kind":"normal","registry":null}],"cksum":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","features":{},"yanked":false}
+{"name":"foo","vers":"1.1.0","deps":[{"name":"bar","req":"^3","features":[],"optional":false,"default_features":true,"target":null,"kind":"normal","registry":null}],"cksum":"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb","features":{},"yanked":false}"#;
+    let files = BTreeMap::from([
+        ("bar".to_string(), PARTLY_YANKED_BAR_INDEX.to_string()),
+        ("foo".to_string(), foo_index.to_string()),
+    ]);
+
+    let lockfile =
+        Lockfile::from_str(&resolve_lockfile(METADATA, &files, CRATES_IO_SOURCE).unwrap()).unwrap();
+
+    dbg!(&lockfile.packages);
+    assert!(
+        lockfile.packages
+            .iter()
+            .any(|package| {
+                package.name.as_str() == "foo" && package.version == semver::Version::new(1, 0, 0)
+            }),
+    );
+}
+
+#[test]
+fn backtracks_when_a_unified_feature_activates_a_yanked_dependency() {
+    let metadata = METADATA.replacen(
+        "]\n  }],",
+        r#", {
+      "name": "qux",
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "req": "^1.0"
+    }]
+  }],"#,
+        1,
+    );
+    let foo_index = r#"{"name":"foo","vers":"1.0.0","deps":[{"name":"baz","req":"^1","features":[],"optional":true,"default_features":true,"target":null,"kind":"normal","registry":null}],"cksum":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","features":{"extra":["dep:baz"]},"yanked":false}
+{"name":"foo","vers":"1.1.0","deps":[{"name":"bar","req":"^3","features":[],"optional":true,"default_features":true,"target":null,"kind":"normal","registry":null}],"cksum":"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb","features":{"extra":["dep:bar"]},"yanked":false}"#;
+    let qux_index = r#"{"name":"qux","vers":"1.0.0","deps":[{"name":"foo","req":"^1","features":["extra"],"optional":false,"default_features":true,"target":null,"kind":"normal","registry":null}],"cksum":"eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee","features":{},"yanked":false}"#;
+    let files = BTreeMap::from([
+        ("bar".to_string(), PARTLY_YANKED_BAR_INDEX.to_string()),
+        ("baz".to_string(), BAZ_INDEX.to_string()),
+        ("foo".to_string(), foo_index.to_string()),
+        ("qux".to_string(), qux_index.to_string()),
+    ]);
+
+    let lockfile =
+        Lockfile::from_str(&resolve_lockfile(&metadata, &files, CRATES_IO_SOURCE).unwrap())
+            .unwrap();
+
+    dbg!(&lockfile.packages);
+    assert!(
+        lockfile.packages
+            .iter()
+            .any(|package| {
+                package.name.as_str() == "foo" && package.version == semver::Version::new(1, 0, 0)
+            }),
+    );
+    assert!(
+        lockfile.packages
+            .iter()
+            .any(|package| package.name.as_str() == "baz"),
+    );
+}
+
+#[test]
+fn reports_a_requirement_the_index_cannot_meet() {
+    let foo_index = r#"{"name":"foo","vers":"1.0.0","deps":[],"cksum":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","features":{},"yanked":true}"#;
+    let files = BTreeMap::from([("foo".to_string(), foo_index.to_string())]);
+
+    let error = resolve_lockfile(METADATA, &files, CRATES_IO_SOURCE).unwrap_err().to_string();
+
+    assert!(error.contains("foo ^1.0 (no version available)"), "{error}");
+}
+
+#[test]
+fn reports_a_transitive_requirement_the_index_cannot_meet() {
+    let foo_index = r#"{"name":"foo","vers":"1.0.0","deps":[{"name":"bar","req":"^3","features":[],"optional":false,"default_features":true,"target":null,"kind":"normal","registry":null}],"cksum":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","features":{},"yanked":false}"#;
+    let files = BTreeMap::from([
+        ("bar".to_string(), PARTLY_YANKED_BAR_INDEX.to_string()),
+        ("foo".to_string(), foo_index.to_string()),
+    ]);
+
+    let error = resolve_lockfile(METADATA, &files, CRATES_IO_SOURCE).unwrap_err().to_string();
+
+    assert!(error.contains("foo@1 1.0.0 depends on bar ^3 (no version available)"), "{error}");
+}

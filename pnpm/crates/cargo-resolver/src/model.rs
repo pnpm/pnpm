@@ -108,7 +108,16 @@ impl RegistryDependency {
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub(crate) enum PackageKey {
     Root,
-    Registry { name: String, compatibility: String },
+    Registry {
+        name: String,
+        compatibility: String,
+    },
+    /// A dependency nothing in the index meets. Nothing is ever registered
+    /// under it, so the solver finds no version to pick.
+    Unsatisfiable {
+        name: String,
+        requirement: String,
+    },
 }
 
 impl fmt::Display for PackageKey {
@@ -116,6 +125,9 @@ impl fmt::Display for PackageKey {
         match self {
             Self::Root => formatter.write_str("pnpm Cargo workspace"),
             Self::Registry { name, compatibility } => write!(formatter, "{name}@{compatibility}"),
+            Self::Unsatisfiable { name, requirement } => {
+                write!(formatter, "{name} {requirement} (no version available)")
+            }
         }
     }
 }
