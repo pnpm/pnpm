@@ -19,6 +19,8 @@ const MAX_CACHE_BYTES: usize = MAX_INDEX_BYTES + 64 * 1024;
 pub(super) struct CachedIndex {
     url: Url,
     body: Box<serde_json::value::RawValue>,
+    #[serde(default)]
+    missing: bool,
 }
 
 pub(super) struct Registry<'a> {
@@ -49,6 +51,35 @@ pub(super) struct Resolution {
     /// takes every later environment's candidates from the cache that
     /// download wrote.
     pub(super) downloaded: BTreeSet<PackageName>,
+}
+
+impl CachedIndex {
+    fn from_response(
+        name: &PackageName,
+        response: &pnpm_network::SecureAuthResponse,
+    ) -> Result<Self> {
+        if response.status.as_u16() == 404 {
+            return Ok(CachedIndex {
+                url: response.url.parse().into_diagnostic()?,
+                body: serde_json::value::RawValue::from_string(r#"{"files":[]}"#.to_string())
+                    .into_diagnostic()?,
+                missing: true,
+            });
+        }
+        if response.body_truncated {
+            bail!("Python index response for {name} exceeds {MAX_INDEX_BYTES} bytes");
+        }
+        if !response.status.is_success() {
+            bail!("Python index request for {name} returned {}", response.status);
+        }
+        Ok(CachedIndex {
+            missing: false,
+            url: response.url.parse().into_diagnostic()?,
+            body: serde_json::from_slice(&response.body)
+                .into_diagnostic()
+                .wrap_err("Python index must support the Simple JSON API")?,
+        })
+    }
 }
 
 impl Resolution {
@@ -82,9 +113,18 @@ impl Resolution {
 
 impl Registry<'_> {
     pub(super) async fn fetch_index(&mut self, name: &PackageName) -> Result<()> {
-        let page = self.read_index(name).await?;
+        self.resolution.packages.candidates.insert(name.clone(), BTreeMap::new());
+        for index in self.index.extra_urls
+            .iter()
+            .chain(std::iter::once(&self.index.url))
+        {
+            let page = self.read_index(index, name).await?;
+            if !page.missing {
+                self.resolution.offer(name, &page)?;
+                break;
+            }
+        }
         self.resolution.downloaded.insert(name.clone());
-        self.resolution.offer(name, &page)?;
         if self.resolution.packages.candidates[name]
             .keys()
             .any(|version| {
@@ -101,13 +141,13 @@ impl Registry<'_> {
     /// The Simple JSON index page for `name`: from the cache when this
     /// run already downloaded it, or an offline resolution is reading
     /// what an earlier run left behind, and from the index otherwise.
-    async fn read_index(&self, name: &PackageName) -> Result<CachedIndex> {
-        let index_url = self.index.url
+    async fn read_index(&self, index: &Url, name: &PackageName) -> Result<CachedIndex> {
+        let index_url = index
             .join(&format!("{name}/"))
             .into_diagnostic()?;
         let cache = self.config.cache_dir
-            .join("python-index-v2")
-            .join(format!("{}.json", pnpm_crypto_hash::create_hex_hash(index_url.as_str())));
+            .join("python-index-v3")
+            .join(format!("{}.json", self.index.cache_key(&index_url)));
         let replayed = self.config.offline || self.resolution.downloaded.contains(name);
         let cached = if replayed {
             read_cached_index(&cache, name).await?
@@ -142,18 +182,7 @@ impl Registry<'_> {
             )
             .await
             .into_diagnostic()?;
-        if response.body_truncated {
-            bail!("Python index response for {name} exceeds {MAX_INDEX_BYTES} bytes");
-        }
-        if !response.status.is_success() {
-            bail!("Python index request for {name} returned {}", response.status);
-        }
-        Ok(CachedIndex {
-            url: response.url.parse().into_diagnostic()?,
-            body: serde_json::from_slice(&response.body)
-                .into_diagnostic()
-                .wrap_err("Python index must support the Simple JSON API")?,
-        })
+        CachedIndex::from_response(name, &response)
     }
 
     pub(super) async fn fetch_wheel<Reporter: self::Reporter + 'static>(
@@ -336,3 +365,6 @@ fn validate_wheel_identity(
     pnpm_python_resolver::validate_url(&Url::parse(&wheel.url).into_diagnostic()?)?;
     wheel.check_installable(tags, name, version)
 }
+
+#[cfg(test)]
+mod tests;

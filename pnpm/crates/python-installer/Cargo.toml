@@ -13,6 +13,7 @@ repository.workspace = true
 [dependencies]
 pnpm-crypto-hash = { workspace = true }
 pnpm-config = { workspace = true }
+pnpm-diagnostics = { workspace = true }
 pnpm-fs = { workspace = true }
 pnpm-git-fetcher = { workspace = true }
 pnpm-install-coordinator = { workspace = true }
@@ -22,7 +23,7 @@ pnpm-python-resolver = { workspace = true }
 pnpm-reporter = { workspace = true }
 pnpm-store-dir = { workspace = true }
 pnpm-tarball = { workspace = true }
-base64 = { workspace = true }
+derive_more = { workspace = true }
 dunce = { workspace = true }
 futures-util = { workspace = true }
 miette = { workspace = true }

@@ -221,7 +221,7 @@ async fn rejects_oversized_python_index_without_caching_or_publication() {
     assert!(
         !root
             .path()
-            .join("cache/python-index-v2")
+            .join("cache/python-index-v3")
             .exists(),
         "cached oversized response",
     );
@@ -233,7 +233,7 @@ fn rejects_oversized_python_index_cache_before_parsing() {
     let root = tempfile::tempdir().unwrap();
     let index = "https://unused.invalid";
     project(root.path(), index, &["alpha"]);
-    let cache = root.path().join("cache/python-index-v2");
+    let cache = root.path().join("cache/python-index-v3");
     fs::create_dir_all(&cache).unwrap();
     fs::File::create(cache.join(format!(
         "{}.json",

@@ -13,11 +13,11 @@ mod manifest;
 mod registry;
 mod requirements;
 mod resolver;
+mod settings;
 mod sources;
 mod targets;
 mod workspace;
 
-use base64::{Engine as _, engine::general_purpose::STANDARD};
 use environment::{LockfileInputs, PythonPrepare, Shared, publish_link, validate_environment_link};
 use generation::EnvironmentProject;
 use host::Interpreter;
@@ -28,6 +28,7 @@ use pnpm_python_resolver::{Inputs, Lockfile};
 use pnpm_reporter::Reporter;
 use pnpm_store_dir::{StoreIndex, StoreIndexWriter};
 use registry::Registry;
+use settings::{Index, python_index};
 use std::{
     collections::BTreeMap,
     fs, io,
@@ -175,7 +176,11 @@ async fn read_project_manifests(
         let allowed_root =
             allowed_root.unwrap_or_else(|| path.parent().expect("manifest has a parent"));
         let manifest = read_manifest(&path, &contents, allowed_root).await?;
-        if manifest.project.is_some() || manifest.tool.uv.workspace.is_some() {
+        if manifest.project.is_some()
+            || manifest.tool.uv.workspace.is_some()
+            || !manifest.tool.uv.overrides.is_empty()
+            || !manifest.tool.uv.constraints.is_empty()
+        {
             roots.push((
                 path.parent()
                     .expect("manifest has a parent")
@@ -216,41 +221,6 @@ async fn read_manifest(
     Ok(manifest)
 }
 
-/// The Python index a project resolves against. Credentials the
-/// configured URL carried are lifted into `auth`, so `url` never holds
-/// any: it is cached under, and locked as, what it reads.
-pub(crate) struct Index {
-    pub(crate) url: url::Url,
-    pub(crate) auth: pnpm_network::AuthHeaders,
-}
-
-/// The configured Python index, with any credentials it carries lifted out
-/// of the URL. A repository-selected Python index must not select
-/// user-level npm credentials.
-fn python_index(config: &pnpm_config::Config) -> Result<Index> {
-    let mut index: url::Url = config.python.index_url.parse().into_diagnostic()?;
-    let mut auth = pnpm_network::AuthHeaders::default().with_secure_transport();
-    if !index.username().is_empty() || index.password().is_some() {
-        let username = pnpm_network::percent_decode_str(index.username());
-        let password = pnpm_network::percent_decode_str(index.password().unwrap_or(""));
-        index
-            .set_username("")
-            .map_err(|()| miette::miette!("invalid Python index URL"))?;
-        index
-            .set_password(None)
-            .map_err(|()| miette::miette!("invalid Python index URL"))?;
-        auth.insert_url_header(
-            index.as_str(),
-            format!("Basic {}", STANDARD.encode(format!("{username}:{password}"))),
-        );
-    }
-    pnpm_python_resolver::validate_url(&index)?;
-    if !index.path().ends_with('/') {
-        index.set_path(&format!("{}/", index.path()));
-    }
-    Ok(Index { url: index, auth })
-}
-
 impl PythonPrepare<'_> {
     async fn project<Reporter: self::Reporter + 'static>(
         &self,
@@ -263,8 +233,8 @@ impl PythonPrepare<'_> {
         self.check_requires_python(&root, project.requires_python.as_deref())?;
         let requirements = manifest.selected_requirements(self.context.config)?;
         let all_requirements = workspace.requirements(&root, &manifest, requirements.all.clone())?;
-        let inputs = self.inputs(&all_requirements);
-        let mut registry = self.registry();
+        let rules = workspace.resolution_manifest(&root, &manifest);
+        let (mut registry, inputs) = self.configured_registry(&all_requirements, &rules)?;
         workspace::offer(&mut registry.resolution.packages, &local);
         let lock_path = root.join("pylock.toml");
         let lock = self.project_lock::<Reporter>(
@@ -311,21 +281,6 @@ impl PythonPrepare<'_> {
         )
         .await?;
         self.lockfile::<Reporter>(registry, inputs).await
-    }
-
-    /// What this install's resolution depends on, which is what decides
-    /// whether the lockfile on disk still answers it.
-    fn inputs(&self, requirements: &[pep508_rs::Requirement]) -> Inputs {
-        if self.environments.declared {
-            Inputs::declared(
-                requirements,
-                &self.environments.platforms,
-                &self.environments.python_versions,
-                self.index.url.as_str(),
-            )
-        } else {
-            Inputs::new(requirements, &self.interpreter.target, self.index.url.as_str())
-        }
     }
 
     fn registry(&self) -> Registry<'_> {

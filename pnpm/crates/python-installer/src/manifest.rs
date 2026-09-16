@@ -80,6 +80,10 @@ pub(super) struct Tool {
 /// where every Python workspace in the wild already writes it.
 #[derive(Default, Clone, Deserialize)]
 pub(super) struct Uv {
+    #[serde(default, rename = "override-dependencies")]
+    pub(super) overrides: Vec<String>,
+    #[serde(default, rename = "constraint-dependencies")]
+    pub(super) constraints: Vec<String>,
     #[serde(default)]
     pub(super) sources: BTreeMap<PackageName, SourceDeclaration>,
     /// Whether this project is built and installed at all. A project that

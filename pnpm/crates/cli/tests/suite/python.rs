@@ -837,7 +837,7 @@ async fn caches_python_index_as_raw_json_and_reuses_it_offline() {
         .arg("install")
         .assert()
         .success();
-    let cache = fs::read_dir(root.path().join("cache/python-index-v2"))
+    let cache = fs::read_dir(root.path().join("cache/python-index-v3"))
         .unwrap()
         .next()
         .unwrap()
@@ -1576,6 +1576,7 @@ async fn locks_one_environment_per_platform_however_it_is_named() {
     assert_eq!(fs::read_to_string(root.path().join("pylock.toml")).unwrap(), lock);
 }
 
+mod indexes;
 mod metadata;
 mod selection;
 

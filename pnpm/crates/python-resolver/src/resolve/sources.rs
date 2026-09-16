@@ -26,7 +26,7 @@ pub(super) fn has_inactive_source(
             continue;
         }
         let (requirements, extras) = selected_requirements(provider, solution, &package)?;
-        graph.enqueue_requirements(&requirements, &extras, provider.environment);
+        graph.enqueue_requirements(&requirements, &extras, provider);
     }
     Ok(provider.packages.direct_urls
         .keys()
@@ -52,10 +52,10 @@ impl SourceGraph {
         &mut self,
         requirements: &[Requirement],
         extras: &[ExtraName],
-        environment: &MarkerEnvironment,
+        provider: &Provider<'_>,
     ) {
         for requirement in requirements {
-            if !requirement.marker.evaluate(environment, extras) {
+            if !requirement.marker.evaluate(provider.environment, extras) {
                 continue;
             }
             if matches!(requirement.version_or_url, Some(VersionOrUrl::Url(_))) {
@@ -65,9 +65,9 @@ impl SourceGraph {
             self.frontier.extend(
                 std::iter::once(None)
                     .chain(
-                        requirement.extras
-                            .iter()
-                            .cloned()
+                        provider
+                            .requirement_extras(requirement, extras)
+                            .into_iter()
                             .map(Some),
                     )
                     .map(|extra| Package::Distribution(requirement.name.clone(), extra)),
@@ -106,7 +106,7 @@ pub fn active_locked_sources(
             continue;
         };
         verify_locked_sources(&provider, &requirements, &extras)?;
-        graph.enqueue_requirements(&requirements, &extras, environment);
+        graph.enqueue_requirements(&requirements, &extras, &provider);
     }
     Ok(graph.active)
 }

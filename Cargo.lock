@@ -5835,7 +5835,7 @@ dependencies = [
 name = "pnpm-python-installer"
 version = "0.0.1"
 dependencies = [
- "base64 0.23.1",
+ "derive_more",
  "dunce",
  "futures-util",
  "miette 7.6.0",
@@ -5844,6 +5844,7 @@ dependencies = [
  "pep508_rs",
  "pnpm-config",
  "pnpm-crypto-hash",
+ "pnpm-diagnostics",
  "pnpm-fs",
  "pnpm-git-fetcher",
  "pnpm-install-coordinator",

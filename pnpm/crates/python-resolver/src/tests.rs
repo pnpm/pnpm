@@ -872,3 +872,47 @@ fn git_and_index_sources_of_one_version_remain_distinct_across_environments() {
 }
 
 mod frozen_sources;
+#[test]
+fn overrides_replace_transitive_ranges_and_constraints_only_narrow_reached_packages() {
+    let target = target();
+    let mut packages = offered(
+        &target,
+        &[
+            ("demo", &["demo-1.0-py3-none-any.whl"]),
+            (
+                "helper",
+                &[
+                    "helper-1.0-py3-none-any.whl",
+                    "helper-2.0-py3-none-any.whl",
+                    "helper-3.0-py3-none-any.whl",
+                ],
+            ),
+        ],
+    );
+    packages.metadata.insert(
+        (name("demo"), version("1.0")),
+        WheelMetadata::parse("Name: demo\nVersion: 1.0\nRequires-Dist: helper<2\n").unwrap(),
+    );
+    for release in ["1.0", "2.0", "3.0"] {
+        packages.metadata.insert(
+            (name("helper"), version(release)),
+            WheelMetadata::parse(&format!("Name: helper\nVersion: {release}\n")).unwrap(),
+        );
+    }
+    let requirements = vec!["demo".parse::<Requirement>().unwrap()];
+    packages.overrides = vec!["helper>=2; sys_platform == 'linux'".parse().unwrap()];
+    packages.constraints = vec!["helper<3".parse().unwrap(), "absent==1".parse().unwrap()];
+    let solved = crate::locked_solution(&packages, &requirements, &target.environment).unwrap();
+    assert_eq!(
+        solved,
+        BTreeMap::from([(name("demo"), version("1.0")), (name("helper"), version("2.0"))]),
+    );
+    crate::validate_locked(&packages, &requirements, &target.environment).unwrap();
+    packages.overrides = vec!["helper>=2; sys_platform == 'win32'".parse().unwrap()];
+    let solved = crate::locked_solution(&packages, &requirements, &target.environment).unwrap();
+    assert_eq!(solved[&name("helper")], version("1.0"));
+    packages.constraints = vec!["helper>=2".parse().unwrap()];
+    let error = crate::locked_solution(&packages, &requirements, &target.environment).unwrap_err();
+    eprintln!("{error}");
+    assert!(error.to_string().contains("does not satisfy"));
+}
