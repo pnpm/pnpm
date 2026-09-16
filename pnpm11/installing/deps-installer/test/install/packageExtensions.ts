@@ -129,7 +129,10 @@ test('update does not save a dependency added by a readPackage hook', async () =
     rootDir: process.cwd() as ProjectRootDir,
     update: true,
     updatePackageManifest: true,
-  }, options)
+  }, {
+    ...options,
+    ignoreCurrentSpecifiers: true,
+  })
 
   expect(updatedProject.manifest).toStrictEqual({
     name: 'project',
@@ -181,7 +184,7 @@ test('update --latest stays within a dependency range rewritten by a readPackage
   })
 })
 
-test('update selectors do not move dependencies added by a readPackage hook', async () => {
+test('update selectors use the hook specifier when current specifiers are ignored', async () => {
   const project = prepareEmpty()
   const manifest = {
     name: 'project',
@@ -213,8 +216,10 @@ test('update selectors do not move dependencies added by a readPackage hook', as
   }, options)
 
   expect(updatedProject.manifest).toStrictEqual(manifest)
-  expect(project.readLockfile().packages['@pnpm.e2e/foo@1.0.0']).toBeDefined()
-  expect(project.readLockfile().packages['@pnpm.e2e/foo@1.0.1']).toBeUndefined()
+  expect(project.readLockfile().importers['.'].dependencies?.['@pnpm.e2e/foo']).toStrictEqual({
+    specifier: '^1.0.0',
+    version: '1.3.0',
+  })
 })
 
 test('add saves a dependency when the requested specifier matches a readPackage rewrite', async () => {

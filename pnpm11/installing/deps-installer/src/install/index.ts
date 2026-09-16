@@ -87,6 +87,7 @@ import {
 import { lexCompare } from '@pnpm/text.ordinal-comparator'
 import type {
   AllowBuild,
+  Dependencies,
   DependenciesField,
   DependencyManifest,
   DepPath,
@@ -1145,14 +1146,22 @@ export async function mutateModules (
       // on has to satisfy them, or the lockfile importer entry contradicts itself and the next
       // frozen install rejects it.
       const readonlyManifest = project.update === true && !project.updatePackageManifest
+      const effectiveBareSpecifiers = getAllDependenciesFromManifest(project.manifest, {
+        autoInstallPeers: opts.autoInstallPeers,
+      })
       const currentBareSpecifiers = opts.ignoreCurrentSpecifiers
         ? {}
-        : getAllDependenciesFromManifest(project.manifest, { autoInstallPeers: opts.autoInstallPeers })
+        : effectiveBareSpecifiers
       const originalBareSpecifiers = project.originalManifest == null
         ? currentBareSpecifiers
         : getAllDependenciesFromManifest(project.originalManifest, { autoInstallPeers: opts.autoInstallPeers })
       const hookOwnedAliases = getHookOwnedAliases(project)
       const readonlyAliases = project.update === true ? hookOwnedAliases : undefined
+      const readonlySpecifiers = readonlyAliases == null
+        ? undefined
+        : Object.fromEntries(
+          Array.from(readonlyAliases, (alias) => [alias, effectiveBareSpecifiers[alias]])
+        ) as Dependencies
       const optionalDependencies = project.targetDependenciesField ? {} : project.manifest.optionalDependencies ?? {}
       const devDependencies = project.targetDependenciesField ? {} : project.manifest.devDependencies ?? {}
       if (preferredSpecs == null) {
@@ -1177,7 +1186,7 @@ export async function mutateModules (
         saveCatalogName: opts.saveCatalogName,
         overrides: opts.overrides,
         defaultCatalog: opts.catalogs?.default,
-        readonlyAliases,
+        readonlySpecifiers,
         readonlyManifest,
       })
 

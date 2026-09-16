@@ -45,7 +45,7 @@ export function parseWantedDependencies (
      * the declared one — the lockfile importer entry has to keep satisfying its own specifier.
      */
     readonlyManifest?: boolean
-    readonlyAliases?: Set<string>
+    readonlySpecifiers?: Dependencies
   }
 ): ParsedWantedDependencies {
   const wantedDeps = rawWantedDependencies
@@ -53,6 +53,10 @@ export function parseWantedDependencies (
       const parsed = parseWantedDependency(rawWantedDependency)
       const alias = parsed['alias']
       let bareSpecifier = parsed['bareSpecifier']
+      const hasReadonlySpecifier = alias != null &&
+        opts.readonlySpecifiers != null &&
+        Object.hasOwn(opts.readonlySpecifiers, alias)
+      const readonlySpecifier = hasReadonlySpecifier ? opts.readonlySpecifiers![alias] : undefined
 
       if (!opts.allowNew && (!alias || !opts.currentBareSpecifiers[alias])) {
         return null
@@ -71,7 +75,7 @@ export function parseWantedDependencies (
         alias,
         dev: Boolean(opts.dev || alias && !!opts.devDependencies[alias]),
         optional: Boolean(opts.optional || alias && !!opts.optionalDependencies[alias]),
-        prevSpecifier: alias && opts.currentBareSpecifiers[alias],
+        prevSpecifier: hasReadonlySpecifier ? readonlySpecifier : alias && opts.currentBareSpecifiers[alias],
         saveCatalogName: opts.saveCatalogName,
       } satisfies Partial<WantedDependency>
       if (bareSpecifier) {
@@ -99,7 +103,7 @@ export function parseWantedDependencies (
     })
     .filter((wd) => wd !== null) as WantedDependency[]
 
-  if (!opts.readonlyManifest && opts.readonlyAliases == null) {
+  if (!opts.readonlyManifest && opts.readonlySpecifiers == null) {
     return { wantedDependencies: wantedDeps, outsideKeptRange: [], supersededByKeptRange: [] }
   }
   const wantedDependencies: WantedDependency[] = []
@@ -107,8 +111,8 @@ export function parseWantedDependencies (
   const supersededByKeptRange: KeptRangeConflict[] = []
   for (const wantedDep of wantedDeps) {
     const { alias, bareSpecifier, prevSpecifier } = wantedDep
-    if (opts.readonlyAliases?.has(alias)) {
-      if (!prevSpecifier || bareSpecifier === prevSpecifier) {
+    if (opts.readonlySpecifiers != null && Object.hasOwn(opts.readonlySpecifiers, alias)) {
+      if (prevSpecifier == null || bareSpecifier === prevSpecifier) {
         wantedDependencies.push(wantedDep)
       } else {
         supersededByKeptRange.push({ alias, requested: bareSpecifier, kept: prevSpecifier })

@@ -118,7 +118,9 @@ test('readonly aliases use their hook-provided specifiers', () => {
       'hook-owned': '^1.0.0',
       declared: '^1.0.0',
     },
-    readonlyAliases: new Set(['hook-owned']),
+    readonlySpecifiers: {
+      'hook-owned': '^1.0.0',
+    },
   })
 
   expect(wantedDependencies).toStrictEqual([
@@ -144,5 +146,29 @@ test('readonly aliases use their hook-provided specifiers', () => {
     alias: 'hook-owned',
     requested: '2.0.0',
     kept: '^1.0.0',
+  }])
+})
+
+test('readonly aliases preserve empty hook-provided specifiers', () => {
+  const { wantedDependencies, supersededByKeptRange } = parseWantedDependencies(['hook-owned@2.0.0'], {
+    ...defaults,
+    currentBareSpecifiers: {},
+    readonlySpecifiers: {
+      'hook-owned': '',
+    },
+  })
+
+  expect(wantedDependencies).toStrictEqual([{
+    alias: 'hook-owned',
+    bareSpecifier: '',
+    dev: false,
+    optional: false,
+    prevSpecifier: '',
+    saveCatalogName: undefined,
+  }])
+  expect(supersededByKeptRange).toStrictEqual([{
+    alias: 'hook-owned',
+    requested: '2.0.0',
+    kept: '',
   }])
 })
