@@ -110,9 +110,13 @@ python:
 A declared environment is a CPython interpreter. A triple ending in
 `-unknown-linux-gnu`, and `linux`, are resolved against glibc 2.17;
 `-unknown-linux-musl` against musl 1.2; an Apple platform against macOS 14.0.
+
 A Python version written as a minor version is resolved as that minor's first
-release, so a project whose dependencies tell patch releases apart names the
-version in full.
+release, which is the oldest interpreter the environment covers. A release
+that requires a later patch release is therefore not locked for it, and a
+project that wants one names the version in full. A requirement whose marker
+reads a patch release is refused outright rather than locked for part of the
+series.
 
 An install refuses an interpreter none of the declared environments stand
 for: which packages that interpreter installs, and which wheels it takes, are
@@ -189,8 +193,12 @@ indexes, pip configuration/keyring discovery and recursive/filtered add are
 not implemented. The environments a lockfile covers are resolved one at a
 time rather than forked out of one universal solve, so two environments no
 marker tells apart cannot need different versions of a distribution.
-Existing lockfiles must use pnpm's supported contract; arbitrary third-party
-pylock imports are not supported. Unsupported forms fail explicitly.
+A release's requirements are read once for the version, from the first wheel
+of it that pnpm downloads, so a release whose wheels carry different
+`Requires-Dist` or `Requires-Python` is locked from whichever of them that
+was. Existing lockfiles must use pnpm's supported contract; arbitrary
+third-party pylock imports are not supported. Unsupported forms fail
+explicitly.
 
 The project's own package is installed from the layout its manifest declares,
 not from a build backend's `build_editable` hook, so a backend that computes

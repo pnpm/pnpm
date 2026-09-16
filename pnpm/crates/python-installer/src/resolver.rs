@@ -13,9 +13,12 @@ use std::collections::BTreeMap;
 /// the registry answering for the interpreter running the install again.
 ///
 /// Each environment gets its own candidates, since the wheel a version
-/// offers is the one that environment takes, while the metadata every
-/// wheel declares is read once and shared: a release requires the same
-/// distributions wherever it is installed.
+/// offers is the one that environment takes. The metadata is read once
+/// for the version and shared: a release declares its requirements in
+/// the `pyproject.toml` every one of its wheels is built from, so
+/// downloading each environment's wheel to read them again would buy
+/// nothing. Two wheels of a version whose `METADATA` disagrees are a
+/// broken release, and pnpm reads whichever it downloaded first.
 pub(super) async fn resolve_all<Reporter: InstallReporter + 'static>(
     registry: &mut Registry<'_>,
     requirements: &[Requirement],

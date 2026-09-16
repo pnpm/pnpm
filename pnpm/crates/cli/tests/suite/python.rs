@@ -1278,8 +1278,7 @@ async fn locks_every_declared_platform_into_one_lockfile() {
 }
 
 /// A lockfile resolved for declared environments says nothing about an
-/// interpreter none of them stand for, so the install refuses it rather
-/// than building an environment the lockfile does not cover.
+/// interpreter none of them stand for.
 #[tokio::test]
 async fn refuses_an_interpreter_none_of_the_declared_environments_stand_for() {
     let root = tempfile::tempdir().unwrap();
@@ -1294,8 +1293,8 @@ async fn refuses_an_interpreter_none_of_the_declared_environments_stand_for() {
     );
 }
 
-/// `python.platforms` names the platforms pnpm knows how to resolve for;
-/// anything else is a typo rather than a platform with no wheels.
+/// A name pnpm cannot resolve for is a typo, not a platform whose wheels
+/// are all missing.
 #[tokio::test]
 async fn rejects_a_platform_it_cannot_resolve_for() {
     let root = tempfile::tempdir().unwrap();
