@@ -213,7 +213,10 @@ test('update selectors use the hook specifier when current specifiers are ignore
     rootDir: process.cwd() as ProjectRootDir,
     update: true,
     updatePackageManifest: true,
-  }, options)
+  }, {
+    ...options,
+    ignoreCurrentSpecifiers: true,
+  })
 
   expect(updatedProject.manifest).toStrictEqual(manifest)
   expect(project.readLockfile().importers['.'].dependencies?.['@pnpm.e2e/foo']).toStrictEqual({
