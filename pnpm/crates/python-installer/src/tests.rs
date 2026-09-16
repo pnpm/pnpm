@@ -1,6 +1,10 @@
-use super::environment::{accept_server_lockfile, resolve_via_pnpr};
+use super::{
+    environment::{accept_server_lockfile, resolve_via_pnpr},
+    manifest::{Manifest, ProjectPackage},
+};
 use pnpm_config::Config;
 use pnpm_python_resolver::Target;
+use std::path::Path;
 
 fn target() -> Target {
     let environment = serde_json::from_value(serde_json::json!({
@@ -176,4 +180,107 @@ fn a_lockfile_answering_another_question_is_refused() {
     let error = accept_server_lockfile(&answered, &inputs, Some(">=3.12"))
         .expect_err("another requires-python");
     assert!(error.to_string().contains("for other inputs"), "{error}");
+}
+
+fn project_package(root: &Path, contents: &str) -> ProjectPackage {
+    Manifest::parse(contents)
+        .expect("manifest fixture")
+        .project_package(root)
+        .expect("the project package")
+}
+
+fn own_package(root: &Path, contents: &str) -> serde_json::Value {
+    match project_package(root, contents) {
+        ProjectPackage::Installable(package) => {
+            serde_json::to_value(*package).expect("serialize the project package")
+        }
+        ProjectPackage::Virtual => panic!("the manifest declares a package"),
+        ProjectPackage::DynamicVersion => panic!("the manifest declares a version"),
+    }
+}
+
+fn packaged(body: &str) -> String {
+    format!(
+        "[project]\nname = 'My.App'\nversion = '1.0+Local.1'\n{body}\n[build-system]\nrequires = ['hatchling']\n"
+    )
+}
+
+#[test]
+fn the_projects_own_package_is_named_and_described_as_an_installed_distribution_is() {
+    let root = tempfile::tempdir().expect("project directory");
+    let package = own_package(
+        root.path(),
+        &packaged(
+            "requires-python = '>=3.10'\ndependencies = ['alpha >= 1']\n\n[project.scripts]\nmy-app = 'my_app:main'\n\n[project.entry-points.pytest11]\nmy-app = 'my_app.plugin'\n",
+        ),
+    );
+    dbg!(&package);
+    assert_eq!(package["dist_info"], "my_app-1.0_local.1.dist-info");
+    assert_eq!(package["pth"], "__pnpm__my_app.pth");
+    assert_eq!(
+        package["directory"],
+        root.path()
+            .to_str()
+            .expect("a printable path")
+    );
+    assert_eq!(
+        package["metadata"],
+        "Metadata-Version: 2.1\nName: my-app\nVersion: 1.0+local.1\nRequires-Python: >=3.10\nRequires-Dist: alpha>=1\n",
+    );
+    assert_eq!(package["entry_points"]["console_scripts"]["my-app"], "my_app:main");
+    assert_eq!(package["entry_points"]["pytest11"]["my-app"], "my_app.plugin");
+}
+
+#[test]
+fn the_build_backends_package_directories_are_where_the_projects_modules_are_imported_from() {
+    let root = tempfile::tempdir().expect("project directory");
+    let flat = own_package(root.path(), &packaged("dependencies = []\n"));
+    assert_eq!(flat["paths"], serde_json::json!([root.path()]));
+
+    std::fs::create_dir(root.path().join("src")).expect("a src layout");
+    let src = own_package(root.path(), &packaged("dependencies = []\n"));
+    assert_eq!(src["paths"], serde_json::json!([root.path().join("src")]));
+
+    let hatch = own_package(
+        root.path(),
+        &packaged(
+            "dependencies = []\n\n[tool.hatch.build.targets.wheel]\npackages = ['modules/one', 'modules/two']\n",
+        ),
+    );
+    assert_eq!(hatch["paths"], serde_json::json!([root.path().join("modules")]));
+
+    let setuptools = own_package(
+        root.path(),
+        &packaged("dependencies = []\n\n[tool.setuptools]\npackage-dir = { '' = 'lib' }\n"),
+    );
+    assert_eq!(setuptools["paths"], serde_json::json!([root.path().join("lib")]));
+}
+
+#[test]
+fn only_a_project_a_build_backend_builds_has_a_package_to_install() {
+    let root = tempfile::tempdir().expect("project directory");
+    let backend_only = "[project]\nname = 'app'\nversion = '1.0'\ndependencies = []\n";
+    assert!(matches!(project_package(root.path(), backend_only), ProjectPackage::Virtual,));
+    assert!(matches!(
+        project_package(root.path(), &format!("{backend_only}\n[tool.uv]\npackage = true\n")),
+        ProjectPackage::Installable(_),
+    ));
+    assert!(matches!(
+        project_package(root.path(), &packaged("dependencies = []\n")),
+        ProjectPackage::Installable(_),
+    ));
+    assert!(matches!(
+        project_package(
+            root.path(),
+            &format!("{}\n[tool.uv]\npackage = false\n", packaged("dependencies = []\n"))
+        ),
+        ProjectPackage::Virtual,
+    ));
+    assert!(matches!(
+        project_package(
+            root.path(),
+            "[project]\nname = 'app'\ndynamic = ['version']\ndependencies = []\n[build-system]\nrequires = ['hatchling']\n",
+        ),
+        ProjectPackage::DynamicVersion,
+    ));
 }

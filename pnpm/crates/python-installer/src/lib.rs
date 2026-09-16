@@ -11,14 +11,14 @@ mod resolver;
 
 use base64::{Engine as _, engine::general_purpose::STANDARD};
 use environment::{
-    LockfileInputs, PythonPrepare, ensure_environment_parent, publish_link,
+    EnvironmentInputs, LockfileInputs, PythonPrepare, ensure_environment_parent, publish_link,
     validate_environment_link,
 };
 use host::Interpreter;
 use miette::{IntoDiagnostic, Result, WrapErr, bail};
 use pnpm_pnpr_client::{PYPI_ECOSYSTEM, PnprClient, PypiResolveOptions};
 use pnpm_python_resolver::{Inputs, Lockfile};
-use pnpm_reporter::Reporter;
+use pnpm_reporter::{GlobalLog, LogEvent, LogLevel, Reporter};
 use pnpm_store_dir::{StoreIndex, StoreIndexWriter};
 use registry::Registry;
 use std::{
@@ -186,11 +186,14 @@ impl PythonPrepare<'_> {
             },
         )
         .await?;
-        let environment = self.environment(
+        let environment = self.environment::<Reporter>(
             &mut registry,
-            &root,
-            &lock,
-            &manifest.requirements(config, self.selection)?,
+            EnvironmentInputs {
+                root: &root,
+                manifest: &manifest,
+                lock: &lock,
+                selected_requirements: &manifest.requirements(config, self.selection)?,
+            },
         )
         .await?;
         Ok(Prepared {
@@ -239,18 +242,24 @@ impl PythonPrepare<'_> {
         Ok(())
     }
 
-    /// Install the locked wheels the project selects into a fresh
-    /// environment generation. A lockfile-only run builds none.
-    async fn environment(
+    /// Install the locked wheels the project selects, and the project's
+    /// own package, into a fresh environment generation. A lockfile-only
+    /// run builds none.
+    async fn environment<Reporter: self::Reporter + 'static>(
         &self,
         registry: &mut Registry<'_>,
-        root: &Path,
-        lock: &Lockfile,
-        selected_requirements: &[pep508_rs::Requirement],
+        inputs: EnvironmentInputs<'_>,
     ) -> Result<Option<tempfile::TempDir>> {
         if self.context.lockfile_only {
             return Ok(None);
         }
+        let EnvironmentInputs {
+            root,
+            manifest,
+            lock,
+            selected_requirements,
+        } = inputs;
+        let project = project_package::<Reporter>(root, manifest)?;
         validate_environment_link(root)?;
         let generations = root.join(".pnpm/python-envs");
         ensure_environment_parent(root)?;
@@ -268,10 +277,36 @@ impl PythonPrepare<'_> {
         host::run::<serde_json::Value>(
             &self.interpreter.executable,
             "install",
-            serde_json::json!({"root": environment.path(), "packages": wheels}),
+            serde_json::json!({
+                "root": environment.path(),
+                "packages": wheels,
+                "project": project,
+            }),
         )
         .await?;
         Ok(Some(environment))
+    }
+}
+
+/// The project's own package, when pnpm can install one without building
+/// the project.
+fn project_package<Reporter: self::Reporter + 'static>(
+    root: &Path,
+    manifest: &manifest::Manifest,
+) -> Result<Option<manifest::OwnPackage>> {
+    match manifest.project_package(root)? {
+        manifest::ProjectPackage::Installable(package) => Ok(Some(*package)),
+        manifest::ProjectPackage::Virtual => Ok(None),
+        manifest::ProjectPackage::DynamicVersion => {
+            Reporter::emit(&LogEvent::Global(GlobalLog {
+                level: LogLevel::Warn,
+                message: format!(
+                    "Installing only the dependencies of {}: pnpm cannot install a project whose version is dynamic",
+                    root.display(),
+                ),
+            }));
+            Ok(None)
+        }
     }
 }
 
