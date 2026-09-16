@@ -3,9 +3,7 @@ use miette::{IntoDiagnostic, Result, bail};
 use pnpm_python_resolver::parse_requirement;
 use std::{collections::BTreeSet, path::Path};
 
-/// Refuse a wheel that requires a distribution its project does not
-/// declare. Resolution answered with what the manifest requires, so such
-/// a wheel would be installed without it.
+/// Require wheel dependencies to match the requirements used for resolution.
 pub(super) fn requires_what_it_declares(
     metadata: &host::WheelMetadata,
     manifest: &Manifest,
@@ -18,6 +16,13 @@ pub(super) fn requires_what_it_declares(
     if let Some(prepared) = &manifest.metadata {
         validate_prepared_metadata(prepared, metadata, root)?;
         return Ok(());
+    }
+    let built = requirement_set(&metadata.requires_dist)?;
+    if !declared.is_subset(&built) {
+        bail!(
+            "the wheel built from the Python project at {} omits static project dependencies",
+            root.display(),
+        );
     }
     for requirement in &metadata.requires_dist {
         let required = parse_requirement(requirement)?.to_string();

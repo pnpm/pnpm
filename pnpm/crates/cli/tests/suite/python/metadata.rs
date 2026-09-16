@@ -301,12 +301,14 @@ async fn dynamic_metadata_cannot_omit_or_change_static_dependencies() {
 
 #[tokio::test]
 async fn the_final_wheel_must_preserve_prepared_python_support_and_extras() {
-    for field in ["Requires-Python: >=3.11", "Provides-Extra: cli"] {
+    for (remove, field) in
+        [("Requires-Python: >=3.10\n", "Requires-Python: >=3.11"), ("", "Provides-Extra: cli")]
+    {
         let root = tempfile::tempdir().unwrap();
         let mut server = mockito::Server::new_async().await;
         let backend = TINY_BACKEND.replace(
             r#"entries[dist_info + "/METADATA"] = metadata"#,
-            &format!(r#"entries[dist_info + "/METADATA"] = metadata.replace("Requires-Python: >=3.10\n", "") + {field:?} + '\n'"#),
+            &format!(r#"entries[dist_info + "/METADATA"] = metadata.replace({remove:?}, "") + {field:?} + '\n'"#),
         );
         let backend = format!(
             r#"{backend}
@@ -489,4 +491,27 @@ def prepare_metadata_for_build_wheel(directory, config_settings=None):
         .success();
     assert_eq!(super::selected_python(root.path()), "3.12.7");
     assert_eq!(fs::read_to_string(root.path().join("metadata-count.txt")).unwrap(), "2");
+}
+
+#[tokio::test]
+async fn the_final_wheel_must_preserve_static_dependencies() {
+    let root = tempfile::tempdir().unwrap();
+    let mut server = mockito::Server::new_async().await;
+    let backend = TINY_BACKEND.replace(
+        r#"project = manifest["project"]"#,
+        "project = dict(manifest[\"project\"])\n    project[\"dependencies\"] = []",
+    );
+    let _backend = serve(
+        &mut server,
+        "tinybackend",
+        &[("80.0", wheel("tinybackend", "80.0", "", &[("tinybuild.py", &backend)]))],
+    )
+    .await;
+    let _dependency = serve(&mut server, "alpha", &[("1.0", wheel("alpha", "1.0", "", &[]))]).await;
+    project(root.path(), &server.url(), &[]);
+    python_project(root.path(), "app", "dependencies = ['alpha']");
+    super::assert_failure_contains(
+        super::pacquet_in(root.path()).arg("install"),
+        "omits static project dependencies",
+    );
 }
