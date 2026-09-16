@@ -9,9 +9,9 @@ use super::{
 use indexmap::IndexMap;
 use pnpm_catalogs_types::Catalogs;
 use pnpm_config::Config;
-use pnpm_lockfile::MaybeLazyLockfile;
+use pnpm_lockfile::{Lockfile, MaybeLazyLockfile};
 use pnpm_package_manifest::PackageManifest;
-use pnpm_testing_utils::fs::backdate_existing_files;
+use pnpm_testing_utils::fs::{MTIME_STEP_MS, backdate_existing_files, set_mtime_ms};
 use pnpm_workspace_state::ProjectEntry;
 use std::{collections::BTreeMap, fs};
 use tempfile::tempdir;
@@ -84,7 +84,10 @@ fn returns_up_to_date_when_a_catalog_dependency_resolves_to_a_registry_range() {
             .into_owned(),
         ProjectEntry { name: Some("root".into()), version: Some("1.0.0".into()) },
     );
-    write_state(dir.path(), backdate_existing_files(dir.path()), settings, projects);
+    const LOCKFILE_MS: i64 = 1_700_000_000_000;
+    set_mtime_ms(&dir.path().join(Lockfile::FILE_NAME), LOCKFILE_MS);
+    set_mtime_ms(manifest.path(), LOCKFILE_MS - MTIME_STEP_MS);
+    write_state(dir.path(), LOCKFILE_MS + MTIME_STEP_MS, settings, projects);
 
     let decision = check_optimistic_repeat_install(&OptimisticRepeatInstallCheck {
         workspace_root: dir.path(),
