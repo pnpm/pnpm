@@ -327,7 +327,13 @@ fn recursive_submodules_are_pinned_checksummed_and_reused_offline() {
         repository.file_url(),
     )).unwrap();
 
-    install_in(&root, &["install", "--no-frozen-lockfile"]);
+    pnpm(&root)
+        .env("GIT_CONFIG_COUNT", "1")
+        .env("GIT_CONFIG_KEY_0", "protocol.file.allow")
+        .env("GIT_CONFIG_VALUE_0", "always")
+        .args(["install", "--no-frozen-lockfile"])
+        .assert()
+        .success();
     let slot = root.path().join(".pnpm/crates/git/demo-0.0.0");
     let checksum: serde_json::Value =
         serde_json::from_slice(&fs::read(slot.join(".cargo-checksum.json")).unwrap()).unwrap();

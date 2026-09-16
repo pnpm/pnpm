@@ -482,7 +482,8 @@ fn exec_git_with(bin: &Path, args: &[&str], cwd: Option<&Path>) -> Result<String
         // The environment allowlist also constrains nested Git processes and
         // overrides protocol-specific settings in the user's configuration.
         let inherited = env::var_os("GIT_ALLOW_PROTOCOL");
-        cmd.env("GIT_ALLOW_PROTOCOL", submodule_protocols(inherited.as_deref()));
+        let policies = read_protocol_policies(bin, cwd)?;
+        cmd.env("GIT_ALLOW_PROTOCOL", submodule_protocols(inherited.as_deref(), &policies));
     }
     if let Some(dir) = cwd {
         cmd.current_dir(dir);
@@ -504,9 +505,32 @@ fn exec_git_with(bin: &Path, args: &[&str], cwd: Option<&Path>) -> Result<String
     Ok(String::from_utf8_lossy(&output.stdout).into_owned())
 }
 
-fn submodule_protocols(inherited: Option<&OsStr>) -> String {
+fn read_protocol_policies(
+    bin: &Path,
+    cwd: Option<&Path>,
+) -> Result<HashMap<String, String>, GitFetcherError> {
+    let output =
+        match exec_git_with(bin, &["config", "--null", "--get-regexp", r"^protocol\."], cwd) {
+            Ok(output) => output,
+            Err(GitFetcherError::GitExec { operation: "config", status, stderr })
+                if status.code() == Some(1) && stderr.is_empty() =>
+            {
+                return Ok(HashMap::new());
+            }
+            Err(error) => return Err(error),
+        };
+    Ok(output
+        .split('\0')
+        .filter_map(|entry| entry.split_once('\n'))
+        .filter(|(key, _)| key.ends_with(".allow"))
+        .map(|(key, value)| (key.to_owned(), value.to_owned()))
+        .collect())
+}
+
+fn submodule_protocols(inherited: Option<&OsStr>, policies: &HashMap<String, String>) -> String {
     SUPPORTED_GIT_PROTOCOLS
         .into_iter()
+        .filter(|protocol| submodule_protocol_enabled(protocol, policies))
         .filter(|protocol| {
             inherited.is_none_or(|allowed| {
                 allowed
@@ -517,6 +541,15 @@ fn submodule_protocols(inherited: Option<&OsStr>) -> String {
         })
         .collect::<Vec<_>>()
         .join(":")
+}
+
+fn submodule_protocol_enabled(protocol: &str, policies: &HashMap<String, String>) -> bool {
+    let default = if protocol == "file" { "user" } else { "always" };
+    policies
+        .get(&format!("protocol.{protocol}.allow"))
+        .or_else(|| policies.get("protocol.allow"))
+        .map_or(default, String::as_str)
+        == "always"
 }
 
 /// Return a `'static` label for the git subcommand. Used in error
@@ -536,6 +569,7 @@ fn static_operation_label(args: &[&str]) -> &'static str {
         "checkout" => "checkout",
         "rev-parse" => "rev-parse",
         "submodule" => "submodule",
+        "config" => "config",
         _ => "git",
     }
 }
