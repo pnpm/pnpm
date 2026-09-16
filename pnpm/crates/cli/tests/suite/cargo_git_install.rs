@@ -278,7 +278,9 @@ fn lockfile_resolution_does_not_execute_checkout_configured_helpers() {
     let marker = root.path().join("checkout-rustc.executed");
     eprintln!("Checkout helpers must not execute during resolution: {}", marker.display());
     assert!(!marker.exists());
-    assert_eq!(fs::read_to_string(root.path().join(".cargo/config.toml")).unwrap(), config);
+    let config_after = fs::read_to_string(root.path().join(".cargo/config.toml")).unwrap();
+    eprintln!("Config after resolution:\n{config_after}\n");
+    assert_eq!(config_after, config);
     let lock: cargo_lock::Lockfile = fs::read_to_string(root.path().join("Cargo.lock"))
         .unwrap()
         .parse()
