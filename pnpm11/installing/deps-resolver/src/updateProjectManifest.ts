@@ -21,7 +21,6 @@ export async function updateProjectManifest (
     throw new Error('Cannot save because no package.json found')
   }
   const specsToUpsert: PackageSpecObject[] = []
-  const specsToUpsertInOriginalManifest: PackageSpecObject[] = []
   const declaredSpecifiers = new Map<string, string>()
   for (const rdd of opts.directDependencies) {
     const wantedDep = rdd.wantedDependency
@@ -40,9 +39,8 @@ export async function updateProjectManifest (
       rangeSpecStyle: importer.rangeSpecStyle,
       saveType: importer.targetDependenciesField,
     }
-    specsToUpsert.push(spec)
-    if (shouldUpdateOriginalManifest(importer, rdd.alias, wantedDep.isNew)) {
-      specsToUpsertInOriginalManifest.push(spec)
+    if (shouldUpdateDependencySpecifier(importer, rdd.alias, wantedDep.isNew)) {
+      specsToUpsert.push(spec)
     }
   }
   // Re-save a dependency flagged for update that failed to resolve (e.g. a
@@ -56,9 +54,8 @@ export async function updateProjectManifest (
         peer: importer.peer,
         saveType: importer.targetDependenciesField,
       }
-      specsToUpsert.push(spec)
-      if (shouldUpdateOriginalManifest(importer, pkgToInstall.alias, pkgToInstall.isNew)) {
-        specsToUpsertInOriginalManifest.push(spec)
+      if (shouldUpdateDependencySpecifier(importer, pkgToInstall.alias, pkgToInstall.isNew)) {
+        specsToUpsert.push(spec)
       }
     }
   }
@@ -72,8 +69,8 @@ export async function updateProjectManifest (
       importer.rootDir,
       importer.originalManifest,
       declaredSpecifiers.size === 0
-        ? specsToUpsertInOriginalManifest
-        : specsToUpsertInOriginalManifest.map((spec) => declaredSpecifiers.has(spec.alias)
+        ? specsToUpsert
+        : specsToUpsert.map((spec) => declaredSpecifiers.has(spec.alias)
           ? { ...spec, bareSpecifier: declaredSpecifiers.get(spec.alias) }
           : spec)
     )
@@ -81,7 +78,7 @@ export async function updateProjectManifest (
   return [hookedManifest, originalManifest]
 }
 
-function shouldUpdateOriginalManifest (
+function shouldUpdateDependencySpecifier (
   importer: ImporterToResolve,
   alias: string,
   isNew: boolean | undefined

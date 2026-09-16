@@ -155,24 +155,100 @@ test('vulnerability updates do not save dependencies added by packageExtensions'
     packageExtensions,
   })
 
-  const packageVulnerabilityAudit = {
-    isVulnerable: (packageName: string, version: string) => packageName === vulnerablePackage && version === '100.0.0',
-    getVulnerabilities: () => new Map([
-      [vulnerablePackage, [{ severity: 'high', versionRange: '<100.1.0' }]],
-    ]),
-  } satisfies PackageVulnerabilityAudit
-
   await update.handler({
     ...DEFAULT_OPTS,
     dir: process.cwd(),
     packageExtensions,
-    packageVulnerabilityAudit,
+    packageVulnerabilityAudit: createPackageVulnerabilityAudit(vulnerablePackage),
   })
 
   expect(loadJsonFileSync<ProjectManifest>('package.json').dependencies).toStrictEqual({
     [vulnerablePackage]: '100.1.0',
   })
   expect(project.readLockfile().importers['.'].dependencies?.['@pnpm.e2e/foo']).toBeDefined()
+
+  await install.handler({
+    ...DEFAULT_OPTS,
+    dir: process.cwd(),
+    frozenLockfile: true,
+    packageExtensions,
+  })
+})
+
+test('vulnerability updates do not widen pinned dependencies added by packageExtensions', async () => {
+  const vulnerablePackage = '@pnpm.e2e/pkg-with-1-dep'
+  const packageExtensions = {
+    'project@*': {
+      dependencies: {
+        [vulnerablePackage]: '100.0.0',
+      },
+    },
+  }
+  const project = prepare({
+    name: 'project',
+    version: '1.0.0',
+  })
+
+  await install.handler({
+    ...DEFAULT_OPTS,
+    dir: process.cwd(),
+    packageExtensions,
+  })
+
+  await update.handler({
+    ...DEFAULT_OPTS,
+    dir: process.cwd(),
+    packageExtensions,
+    packageVulnerabilityAudit: createPackageVulnerabilityAudit(vulnerablePackage),
+  })
+
+  expect(loadJsonFileSync<ProjectManifest>('package.json').dependencies).toBeUndefined()
+  expect(project.readLockfile().importers['.'].dependencies?.[vulnerablePackage]).toStrictEqual({
+    specifier: '100.0.0',
+    version: '100.0.0',
+  })
+
+  await install.handler({
+    ...DEFAULT_OPTS,
+    dir: process.cwd(),
+    frozenLockfile: true,
+    packageExtensions,
+  })
+})
+
+test('vulnerability updates can update ranged dependencies added by packageExtensions', async () => {
+  const vulnerablePackage = '@pnpm.e2e/pkg-with-1-dep'
+  const packageExtensions = {
+    'project@*': {
+      dependencies: {
+        [vulnerablePackage]: '100.0.0',
+      },
+    },
+  }
+  const project = prepare({
+    name: 'project',
+    version: '1.0.0',
+  })
+
+  await install.handler({
+    ...DEFAULT_OPTS,
+    dir: process.cwd(),
+    packageExtensions,
+  })
+
+  packageExtensions['project@*'].dependencies[vulnerablePackage] = '^100.0.0'
+  await update.handler({
+    ...DEFAULT_OPTS,
+    dir: process.cwd(),
+    packageExtensions,
+    packageVulnerabilityAudit: createPackageVulnerabilityAudit(vulnerablePackage),
+  })
+
+  expect(loadJsonFileSync<ProjectManifest>('package.json').dependencies).toBeUndefined()
+  expect(project.readLockfile().importers['.'].dependencies?.[vulnerablePackage]).toStrictEqual({
+    specifier: '^100.0.0',
+    version: '100.1.0',
+  })
 
   await install.handler({
     ...DEFAULT_OPTS,
@@ -826,3 +902,12 @@ test('cliOptionsTypes registers the supply-chain policy options', () => {
   expect(optionTypes).toHaveProperty('trust-policy-exclude')
   expect(optionTypes).toHaveProperty('trust-policy-ignore-after')
 })
+
+function createPackageVulnerabilityAudit (vulnerablePackage: string): PackageVulnerabilityAudit {
+  return {
+    isVulnerable: (packageName, version) => packageName === vulnerablePackage && version === '100.0.0',
+    getVulnerabilities: () => new Map([
+      [vulnerablePackage, [{ severity: 'high', versionRange: '<100.1.0' }]],
+    ]),
+  }
+}

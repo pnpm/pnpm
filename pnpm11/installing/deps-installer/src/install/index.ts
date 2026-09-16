@@ -76,7 +76,7 @@ import { PACKAGE_MAP_FILENAME, removePackageMap, writePackageMap, writePnpFile }
 import { allProjectsAreUpToDate, catalogResolutionIsStale, catalogResolutionsAreUpToDate, satisfiesPackageManifest } from '@pnpm/lockfile.verification'
 import { logger, streamParser } from '@pnpm/logger'
 import { groupPatchedDependencies, type PatchGroupRecord } from '@pnpm/patching.config'
-import { createVersionSpecFromResolvedVersion, getAllDependenciesFromManifest, getAllUniqueSpecs } from '@pnpm/pkg-manifest.utils'
+import { createVersionSpecFromResolvedVersion, getAllDependenciesFromManifest, getAllUniqueSpecs, guessDependencyType } from '@pnpm/pkg-manifest.utils'
 import { isLocalFilesystemSpecifier } from '@pnpm/resolving.local-resolver'
 import { parseWantedDependency } from '@pnpm/resolving.parse-wanted-dependency'
 import {
@@ -1034,6 +1034,7 @@ export async function mutateModules (
     | 'manifest'
     | 'modulesDir'
     | 'mutation'
+    | 'originalManifest'
     | 'rootDir'
     | 'updatePackageManifest'
     >
@@ -1056,6 +1057,9 @@ export async function mutateModules (
           // Only proceed if the specifier is a pinned version, not a range
           if (!validVersion) continue
           if (opts.packageVulnerabilityAudit.isVulnerable(dep.alias, validVersion)) {
+            if (project.originalManifest != null && guessDependencyType(dep.alias, project.originalManifest) == null) {
+              continue
+            }
             // If the current version is pinned and vulnerable, expand the specifier to a range
             // that will allow updating to a non-vulnerable, semver-compatible version, if available.
             if (catalogName != null && opts.catalogs?.[catalogName]) {
