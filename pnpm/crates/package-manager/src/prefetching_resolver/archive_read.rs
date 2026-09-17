@@ -36,8 +36,8 @@ impl<Reporter: self::Reporter + 'static> PrefetchingResolver<Reporter> {
         } else if missing.integrity
             && let LockfileResolution::Tarball(tarball) = &mut result.resolution
         {
-            // An unpinned tarball is cached by URL alone; each edge keeps
-            // its other fields.
+            // An unpinned read is shared by URL alone, since the hash is what
+            // it is there to learn; each edge keeps its other fields.
             tarball.integrity = metadata.resolution.integrity().cloned();
         }
         if missing.manifest
@@ -86,7 +86,10 @@ impl<Reporter: self::Reporter + 'static> PrefetchingResolver<Reporter> {
     /// Custom fetchers can choose different content for the same URL for
     /// different packages. The native key carries the pinned hash as well
     /// as the URL, so a read that verifies is never served the bytes of
-    /// one that could not.
+    /// one that could not, and the network policy the read runs under,
+    /// since that is what the extraction it publishes is keyed by. An
+    /// unpinned read names neither: the hash is what it is there to learn,
+    /// and a revision cannot be recorded without one.
     ///
     /// Each kind of key leads with its own tag and separates its parts
     /// with a tab, which neither a URL, an integrity nor a package id can
@@ -102,7 +105,10 @@ impl<Reporter: self::Reporter + 'static> PrefetchingResolver<Reporter> {
             format!("custom\t{package_id}\t{}", serde_json::to_string(&result.resolution)?)
         } else {
             match tarball.integrity.as_ref() {
-                Some(integrity) => format!("pinned\t{integrity}\t{}", tarball.tarball),
+                Some(integrity) => {
+                    let policy = if tarball.revision.is_some() { "revision" } else { "direct" };
+                    format!("pinned\t{policy}\t{integrity}\t{}", tarball.tarball)
+                }
                 None => format!("unpinned\t{}", tarball.tarball),
             }
         })
@@ -138,26 +144,22 @@ impl<Reporter: self::Reporter + 'static> PrefetchingResolver<Reporter> {
             .map_err(|error| Box::new(error) as ResolveError)
     }
 
-    /// Read a tarball by fetching it into the store.
+    /// Read a tarball by fetching it into the store, and share the
+    /// extraction with the install pass through the mem cache.
     async fn read_archive(
         &self,
         tarball: &pnpm_lockfile::TarballResolution,
         package_url: &str,
         package_id: &str,
     ) -> Result<ResolvedTarballMetadata, ResolveError> {
-        // Only a read that discovers the hash publishes its extraction. The
-        // mem cache is keyed by URL alone and the install pass takes whatever
-        // it finds there without rechecking, so publishing a pinned read of a
-        // URL another edge pins differently would hand that edge bytes
-        // verified against the wrong hash. The cost is that a pinned read
-        // downloads its archive again during installation, which an
-        // integrity-aware key would remove:
-        // <https://github.com/pnpm/pnpm/issues/15021>.
-        let mem_cache = tarball.integrity.is_none().then_some(&*self.ctx.mem_cache);
-        if mem_cache.is_some() {
-            // This fetch warms the mem cache, so the prefetch path should not
-            // spawn another task for the same URL.
-            self.spawned_urls.insert(package_url.to_string());
+        let revision_addressed = tarball.revision.is_some();
+        // A pinned resolution names the archive before the fetch, so claim the
+        // download now. A concurrent edge whose own resolution needs no read
+        // would otherwise reach `maybe_kickoff_download` while this fetch is in
+        // flight and spend a second request on the same archive, which a
+        // revision's one-GET protocol does not allow.
+        if let Some(integrity) = tarball.integrity.as_ref() {
+            self.claim_download(package_url, integrity, revision_addressed);
         }
         let resolved = FetchTarballForResolution {
             http_client: &self.ctx.fetching.http_client,
@@ -178,10 +180,17 @@ impl<Reporter: self::Reporter + 'static> PrefetchingResolver<Reporter> {
             // git-hosted archives, the sole subdirectory-bearing shape,
             // are filtered out above.
             manifest_subdir: None,
+            revision_addressed,
         }
-        .run::<SilentReporter>(mem_cache)
+        .run::<SilentReporter>(Some(&self.ctx.mem_cache))
         .await
         .map_err(|err| Box::new(err) as ResolveError)?;
+        // The read published its extraction under the hash the resolution
+        // below records, so the install pass finds it there instead of
+        // downloading the archive a second time. Claiming that identity keeps
+        // the prefetch path off it too; for an unpinned archive this is the
+        // first point at which the hash that names it is known.
+        self.claim_download(package_url, &resolved.integrity, revision_addressed);
         let mut resolution = tarball.clone();
         resolution.integrity = Some(resolved.integrity);
         Ok::<_, ResolveError>(ResolvedTarballMetadata {

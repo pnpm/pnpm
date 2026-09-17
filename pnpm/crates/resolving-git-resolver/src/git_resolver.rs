@@ -239,6 +239,9 @@ async fn read_archive(
         // archive spans the whole repo, so its root `package.json` is
         // the repo's, not this package's.
         manifest_subdir: tarball.path.as_deref(),
+        // A git host's archive is addressed by commit, not by a registry
+        // revision.
+        revision_addressed: false,
     }
     .run::<SilentReporter>(None)
     .await

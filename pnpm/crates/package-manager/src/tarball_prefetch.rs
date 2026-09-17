@@ -8,10 +8,10 @@
 //! one runs silently and lets the frozen materialization install emit
 //! progress as it consumes each tarball.
 //!
-//! Each download lands its result in the shared [`MemCache`] keyed by
-//! tarball URL and fetch policy; the later install pass picks it up via
+//! Each download lands its result in the shared [`MemCache`] under the
+//! archive's cache identity; the later install pass picks it up via
 //! [`IngestTarballToStore::run_with_mem_cache`] (an immediate
-//! `CacheValue::Available` hit, or a brief park on the per-URL `Notify`
+//! `CacheValue::Available` hit, or a brief park on the slot's `Notify`
 //! while the prefetch finishes).
 
 use crate::{
@@ -103,7 +103,7 @@ pub(crate) struct TarballDownloadPackage {
 /// [`tokio::spawn`] a single tarball download into the shared mem cache
 /// and store. The task's result is discarded — the [`MemCache`] carries
 /// `CacheValue::Available` (success) or `CacheValue::Failed` (error) to
-/// the install pass that later looks up the same URL. The download is
+/// the install pass that later looks up the same archive. The download is
 /// routed through [`SilentReporter`]: the pnpr client's frozen
 /// materialization install emits the `resolved → fetched/found_in_store
 /// → imported` progress itself as it consumes each tarball, so the
@@ -152,8 +152,8 @@ async fn run_tarball_download(
 /// finished lockfile.
 ///
 /// Mirrors the local fresh-install [`crate::PrefetchingResolver`] —
-/// each download lands in the shared [`MemCache`] keyed by tarball URL and
-/// fetch policy,
+/// each download lands in the shared [`MemCache`] under the archive's
+/// cache identity,
 /// and the frozen materialization install the client runs afterward
 /// picks it up from the cache. It carries its own store-index writer so
 /// freshly-downloaded tarballs are recorded in `index.db` (the frozen
@@ -164,10 +164,10 @@ pub struct TarballPrefetcher {
     mem_cache: Arc<MemCache>,
     writer_task: tokio::task::JoinHandle<Result<(), StoreIndexError>>,
     requester: Arc<str>,
-    /// URLs already spawned, so repeated frames for the same tarball
-    /// (the resolver yields one per dependent edge) collapse to a single
-    /// download. Mirrors `PrefetchingResolver::spawned_urls`.
-    spawned_urls: DashSet<String>,
+    /// Cache identities already spawned, so repeated frames for the same
+    /// tarball (the resolver yields one per dependent edge) collapse to a
+    /// single download. Mirrors `PrefetchingResolver::spawned_downloads`.
+    spawned_downloads: DashSet<String>,
     store: pnpm_tarball::ArchiveStoreContext<'static>,
     fetching: crate::tarball_prefetch::PrefetchHttpClient,
 }
@@ -207,7 +207,7 @@ impl TarballPrefetcher {
             mem_cache: Arc::clone(mem_cache),
             writer_task,
             requester: Arc::<str>::from(requester),
-            spawned_urls: DashSet::new(),
+            spawned_downloads: DashSet::new(),
             store: pnpm_tarball::ArchiveStoreContext {
                 dir: store_dir,
                 index: store_index,
@@ -221,10 +221,10 @@ impl TarballPrefetcher {
         }
     }
 
-    /// Fire a background download of one resolved tarball. Deduplicated
-    /// by URL; a no-op when the same URL was already prefetched or when
-    /// `integrity` doesn't parse (the materialization install fetches
-    /// that package the normal way). `unpacked_size` (the frame's
+    /// Fire a background download of one resolved tarball. A no-op when
+    /// the same archive was already prefetched or when `integrity` doesn't
+    /// parse (the materialization install fetches that package the normal
+    /// way). `unpacked_size` (the frame's
     /// `unpackedSize`, when the registry published one) sizes the
     /// decompression buffer and acts as the download's queueing
     /// priority — largest pending archives start first.
@@ -249,7 +249,11 @@ impl TarballPrefetcher {
                 return;
             }
         };
-        if !self.spawned_urls.insert(package_url.clone()) {
+        if !self.spawned_downloads.insert(pnpm_tarball::package_mem_cache_key(
+            &package_url,
+            Some(&integrity),
+            revision_addressed,
+        )) {
             return;
         }
         spawn_tarball_download(TarballDownload {

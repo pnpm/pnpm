@@ -183,6 +183,8 @@ impl TarballResolver {
             auth_headers: &ctx.auth_headers,
             retry_opts: ctx.retry_opts,
             manifest_subdir: None,
+            // A direct URL tarball carries no registry revision.
+            revision_addressed: false,
         }
     }
 

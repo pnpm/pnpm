@@ -16,7 +16,7 @@
 //!
 //! The download lands its result in the shared [`MemCache`]. Later, when
 //! [`crate::InstallPackageFromRegistry`] calls
-//! [`IngestTarballToStore::run_with_mem_cache`] for the same URL, the
+//! [`IngestTarballToStore::run_with_mem_cache`] for the same archive, the
 //! `MemCache` either returns `CacheValue::Available` immediately (the
 //! prefetch is already done) or briefly blocks on the `Notify` (the
 //! prefetch is still in flight). Errors are surfaced to the install
@@ -26,8 +26,10 @@
 //! ([`PrefetchPolicy::downloads`]). Reading an archive whose resolution
 //! describes it only partly is not speculative — the lockfile records
 //! the hash the bytes yield, and the dependency walk reads the
-//! package's children out of the manifest inside. A custom fetcher must
-//! decline an unpinned tarball before that read can download it.
+//! package's children out of the manifest inside. Such a read publishes
+//! its extraction too, so the install pass never downloads the archive a
+//! second time. A custom fetcher must decline an unpinned tarball before
+//! that read can download it.
 
 use crate::install_package_from_registry::{
     extract_tarball, manifest_file_count, manifest_unpacked_size,
@@ -46,7 +48,10 @@ use pnpm_resolving_resolver_base::{
     WantedDependency,
 };
 use pnpm_store_dir::{SharedReadonlyStoreIndex, SharedVerifiedFilesCache, StoreIndexWriter};
-use pnpm_tarball::{IngestTarballToStore, MemCache, SharedReportedProgressKeys};
+use pnpm_tarball::{
+    ArchiveStoreProjection, IngestTarballToStore, MemCache, SharedReportedProgressKeys,
+    package_mem_cache_key,
+};
 use std::{marker::PhantomData, sync::Arc};
 use tokio::sync::OnceCell;
 
@@ -129,17 +134,22 @@ struct PrefetchRunPolicy {
 /// `PhantomData` carries the type through.
 pub struct PrefetchingResolver<Reporter: self::Reporter> {
     inner: Box<dyn Resolver>,
-    /// Set of URLs that already had a prefetch task spawned, used as
-    /// an atomic check-and-claim gate so concurrent resolves for the
-    /// same tarball can't both pass a non-atomic `MemCache` lookup and
-    /// race two spawns into the cache. [`DashSet::insert`] returns
-    /// `true` only for the caller that wins the slot; later callers
-    /// observe `false` and skip the spawn entirely. The
-    /// [`MemCache`]-side dedup still backstops correctness (the loser
-    /// would have parked on `Notify` instead of doing work), but
-    /// without this gate the bench saw ~3-5k redundant spawns per
-    /// install on the alotta-files fixture (one per dependent edge).
-    spawned_urls: DashSet<String>,
+    /// Cache identities that already had a download claimed, used as an
+    /// atomic check-and-claim gate so concurrent resolves for the same
+    /// archive can't both pass a non-atomic `MemCache` lookup and race
+    /// two spawns into the cache. [`DashSet::insert`] returns `true`
+    /// only for the caller that wins the slot; later callers observe
+    /// `false` and skip the spawn entirely. The [`MemCache`]-side dedup
+    /// still backstops correctness (the loser would have parked on
+    /// `Notify` instead of doing work), but without this gate the bench
+    /// saw ~3-5k redundant spawns per install on the alotta-files
+    /// fixture (one per dependent edge).
+    ///
+    /// Entries are [`package_mem_cache_key`]s, the same identity the
+    /// download publishes under, so a resolve-time read that already
+    /// warmed the cache claims exactly the slot the prefetch would have
+    /// filled.
+    spawned_downloads: DashSet<String>,
     /// Shares completed archive reads, including custom resolution rewrites.
     tarball_metadata_cache: DashMap<String, Arc<OnceCell<ResolvedTarballMetadata>>>,
     /// Shared with every prefetch task the resolver spawns.
@@ -157,7 +167,7 @@ impl<Reporter: self::Reporter + 'static> PrefetchingResolver<Reporter> {
         let ctx = owned_fetch_context(&prefetch_ctx);
         PrefetchingResolver {
             inner,
-            spawned_urls: DashSet::new(),
+            spawned_downloads: DashSet::new(),
             tarball_metadata_cache: DashMap::new(),
             ctx: Arc::new(ctx),
             _phantom: PhantomData,
@@ -173,7 +183,7 @@ impl<Reporter: self::Reporter + 'static> PrefetchingResolver<Reporter> {
     /// `name@version` fall through to a no-op — the install path's
     /// per-protocol code path handles them.
     ///
-    /// The spawned task's result is dropped: the per-URL `MemCache`
+    /// The spawned task's result is dropped: the `MemCache` slot
     /// stores `CacheValue::Available` (on success) or
     /// `CacheValue::Failed` (on error) and any later
     /// `run_with_mem_cache` call observes the right value. Surfacing
@@ -214,7 +224,7 @@ impl<Reporter: self::Reporter + 'static> PrefetchingResolver<Reporter> {
         // `MemCache` is *not* atomic for this purpose — its
         // `contains_key` + `insert` is a TOCTOU pair under racing
         // resolvers.
-        if !self.spawned_urls.insert(package_url.to_string()) {
+        if !self.claim_download(package_url, &integrity, revision_addressed) {
             return;
         }
 
@@ -249,6 +259,21 @@ impl<Reporter: self::Reporter + 'static> PrefetchingResolver<Reporter> {
                 download.run_with_mem_cache::<Reporter>(&ctx.mem_cache).await
             };
         });
+    }
+
+    /// Take the single download of this archive, returning `false` when
+    /// another resolve or a resolve-time read already holds it.
+    fn claim_download(
+        &self,
+        package_url: &str,
+        integrity: &ssri::Integrity,
+        revision_addressed: bool,
+    ) -> bool {
+        self.spawned_downloads.insert(package_mem_cache_key(
+            package_url,
+            Some(integrity),
+            revision_addressed,
+        ))
     }
 
     fn should_skip_prefetch(
@@ -303,9 +328,7 @@ impl OwnedFetchCtx {
             ignore_file_pattern: None,
 
             progress_reported: Some(Arc::clone(&self.progress_reported)),
-            store_projection: pnpm_tarball::ArchiveStoreProjection::Package {
-                append_manifest: None,
-            },
+            store_projection: ArchiveStoreProjection::Package { append_manifest: None },
         }
     }
 }

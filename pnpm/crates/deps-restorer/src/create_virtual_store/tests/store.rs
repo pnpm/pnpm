@@ -20,7 +20,7 @@ async fn cold_batch_links_slots_in_parallel() {
     use crate::{AllowBuildPolicy, SkippedSnapshots, VirtualStoreLayout};
     use pnpm_config::{Config, NodeLinker, PackageImportMethod};
     use pnpm_store_dir::StoreIndexWriter;
-    use pnpm_tarball::{CacheValue, MemCache, SharedReportedProgressKeys};
+    use pnpm_tarball::{CacheValue, MemCache, SharedReportedProgressKeys, package_mem_cache_key};
 
     if rayon::current_num_threads() < 2 {
         eprintln!(
@@ -70,7 +70,11 @@ async fn cold_batch_links_slots_in_parallel() {
             ("index.js".to_string(), index_path),
         ]);
         mem_cache.insert(
-            format!("https://registry.test/{package_name}/-/{package_name}-1.0.0.tgz"),
+            package_mem_cache_key(
+                &format!("https://registry.test/{package_name}/-/{package_name}-1.0.0.tgz"),
+                Some(&DUMMY_SHA512.parse().expect("parse integrity")),
+                false,
+            ),
             Arc::new(tokio::sync::RwLock::new(CacheValue::Available(Arc::new(cas_paths)))),
         );
 
@@ -217,7 +221,7 @@ async fn gvs_link_pass_materializes_shared_slot_once() {
     use crate::{AllowBuildPolicy, SkippedSnapshots, VirtualStoreLayout};
     use pnpm_config::{Config, NodeLinker, PackageImportMethod};
     use pnpm_store_dir::StoreIndexWriter;
-    use pnpm_tarball::{CacheValue, MemCache, SharedReportedProgressKeys};
+    use pnpm_tarball::{CacheValue, MemCache, SharedReportedProgressKeys, package_mem_cache_key};
 
     let root = tempfile::tempdir().expect("create temp dir");
     let workspace_root = root.path().join("workspace");
@@ -247,7 +251,11 @@ async fn gvs_link_pass_materializes_shared_slot_once() {
             .expect("write package manifest");
         let cas_paths = HashMap::from([("package.json".to_string(), manifest_path)]);
         mem_cache.insert(
-            format!("https://registry.test/{package_name}/-/{package_name}-1.0.0.tgz"),
+            package_mem_cache_key(
+                &format!("https://registry.test/{package_name}/-/{package_name}-1.0.0.tgz"),
+                Some(&DUMMY_SHA512.parse().expect("parse integrity")),
+                false,
+            ),
             Arc::new(tokio::sync::RwLock::new(CacheValue::Available(Arc::new(cas_paths)))),
         );
         packages.insert(

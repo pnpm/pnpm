@@ -22,7 +22,7 @@ use pnpm_lockfile::{
     LockfileResolution, PackageKey, PkgName, SnapshotDepRef, is_git_hosted_tarball_url,
 };
 use pnpm_resolving_deps_resolver::{FinalizedPackage, FinalizedPackageFn};
-use pnpm_tarball::{CacheValue, MemCache};
+use pnpm_tarball::{CacheValue, MemCache, package_mem_cache_key};
 use std::{
     collections::HashMap,
     marker::PhantomData,
@@ -91,9 +91,11 @@ impl<Reporter: pnpm_reporter::Reporter + 'static> EarlyMaterializer<Reporter> {
 
     fn schedule(&self, package: &FinalizedPackage) {
         let Some(name_ver) = package.result.package.name_ver.as_ref() else { return };
-        let Ok((package_url, _)) = extract_tarball(&package.result.resolution) else { return };
-        // The prefetch keys its cache by the plain URL and skips these
-        // shapes altogether; see `PrefetchingResolver::maybe_kickoff_download`.
+        let Ok((package_url, integrity)) = extract_tarball(&package.result.resolution) else {
+            return;
+        };
+        // The prefetch skips these shapes altogether; see
+        // `PrefetchingResolver::maybe_kickoff_download`.
         let revision_addressed = matches!(
             &package.result.resolution,
             LockfileResolution::Tarball(tarball) if tarball.revision.is_some(),
@@ -117,6 +119,7 @@ impl<Reporter: pnpm_reporter::Reporter + 'static> EarlyMaterializer<Reporter> {
             return;
         };
         let job = SlotJob {
+            mem_cache_key: package_mem_cache_key(package_url, Some(&integrity), false),
             package_url: package_url.to_string(),
             self_name: name_ver.name.clone(),
             virtual_node_modules_dir,
@@ -178,6 +181,7 @@ fn required_dependencies(
 }
 
 struct SlotJob {
+    mem_cache_key: String,
     package_url: String,
     self_name: PkgName,
     virtual_node_modules_dir: PathBuf,
@@ -187,7 +191,7 @@ struct SlotJob {
 
 impl SlotJob {
     async fn run<Reporter: pnpm_reporter::Reporter>(mut self, shared: &Arc<Shared>) {
-        let Some(cas_paths) = wait_for_cas_paths(shared, &self.package_url).await else {
+        let Some(cas_paths) = wait_for_cas_paths(shared, &self.mem_cache_key).await else {
             return;
         };
         let Ok(_permit) = shared.permits.acquire().await else { return };
@@ -248,17 +252,17 @@ impl SlotJob {
     }
 }
 
-/// Wait for the prefetch of `package_url` to land its CAS path map in
+/// Wait for the prefetch of `mem_cache_key` to land its CAS path map in
 /// the tarball cache. `None` when the fetch failed or when the
 /// materializer closes first, which covers both a tarball the prefetch
 /// skipped (it never registers) and one still in flight when the
 /// install starts linking.
 async fn wait_for_cas_paths(
     shared: &Shared,
-    package_url: &str,
+    mem_cache_key: &str,
 ) -> Option<Arc<HashMap<String, PathBuf>>> {
     loop {
-        let slot = shared.mem_cache.get(package_url).map(|entry| Arc::clone(entry.value()));
+        let slot = shared.mem_cache.get(mem_cache_key).map(|entry| Arc::clone(entry.value()));
         let Some(slot) = slot else {
             if shared.closing.load(Ordering::Acquire) {
                 return None;

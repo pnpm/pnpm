@@ -39,7 +39,7 @@ use dashmap::{DashMap, DashSet};
 use pipe_trait::Pipe;
 use pnpm_network::{AuthHeaders, ThrottledClient, UNPRIORITIZED};
 use pnpm_reporter::Reporter;
-use pnpm_store_dir::{StoreDir, StoreIndexWriter, store_index_key};
+use pnpm_store_dir::{PackageFilesIndex, StoreDir, StoreIndexWriter, store_index_key};
 use rayon::prelude::*;
 use ssri::Integrity;
 use tokio::sync::{Notify, RwLock, Semaphore};
@@ -204,15 +204,14 @@ pub struct FetchedTarball {
 impl<'a> IngestTarballToStore<'a> {
     /// Execute the subroutine with an in-memory cache.
     ///
-    /// # Caller invariant: stable filter per URL
+    /// # Caller invariant: stable filter per archive
     ///
-    /// The cache is keyed on `package_url`, the archive projection, and
-    /// whether the request uses the revision-addressed network policy. Within
-    /// one key, a second caller fetching the same URL with a different
+    /// The cache is keyed on [`ArchiveStoreProjection::mem_cache_key`]. Within
+    /// one key, a second caller fetching the same archive with a different
     /// [`ignore_file_pattern`] silently receives the map the first caller's
-    /// filter produced. Every fetch of a URL must use the same filter. Nothing
-    /// enforces this; today it holds because URLs encode
-    /// `(name, version, integrity)` and filters are keyed by package name.
+    /// filter produced. Every fetch of an archive must use the same filter.
+    /// Nothing enforces this; today it holds because an archive's identity
+    /// determines its package name and filters are keyed by package name.
     ///
     /// [`ignore_file_pattern`]: IngestTarballToStore::ignore_file_pattern
     pub async fn run_with_mem_cache<Reporter: self::Reporter>(
@@ -236,8 +235,11 @@ impl<'a> IngestTarballToStore<'a> {
         mem_cache: &'a MemCache,
         revision_addressed: bool,
     ) -> Result<Arc<HashMap<String, PathBuf>>, TarballError> {
-        let mem_cache_key =
-            self.store_projection.mem_cache_key(self.package.url, revision_addressed);
+        let mem_cache_key = self.store_projection.mem_cache_key(
+            self.package.url,
+            self.package.integrity,
+            revision_addressed,
+        );
         let cache_key =
             store_index_cache_key(self.package.integrity, self.package.id, self.store_projection);
         let progress_key = self.progress_reported.as_ref().zip(cache_key.as_deref());
@@ -275,8 +277,8 @@ impl<'a> IngestTarballToStore<'a> {
 
     /// Hands the `Arc` on without deep-cloning the per-file map: on a warm
     /// install every snapshot takes this path, and by 1k+ snapshots that
-    /// clone dominates the memory traffic. The `Arc` is also stashed under a
-    /// projection-aware URL key so peer-resolved variants of one package
+    /// clone dominates the memory traffic. The `Arc` is also stashed under the
+    /// archive's cache identity so peer-resolved variants of one package
     /// share it.
     fn reuse_prefetched<Reporter: self::Reporter>(
         &self,
@@ -465,8 +467,9 @@ impl<'a> IngestTarballToStore<'a> {
 /// Outcome of [`FetchTarballForResolution::run`]: the sha512 integrity
 /// computed from the downloaded tarball and the bundled manifest read
 /// from its `package.json`. The extracted CAFS paths are not returned —
-/// they are stashed in the shared [`MemCache`] keyed by URL so the
-/// install pass reuses them without re-downloading.
+/// they are stashed in the shared [`MemCache`] under the archive's
+/// computed integrity so the install pass, which records that same hash
+/// in the lockfile, reuses them without re-downloading.
 #[derive(Debug)]
 pub struct ResolvedTarball {
     pub integrity: Integrity,
@@ -482,8 +485,8 @@ pub struct ResolvedTarball {
 /// `package.json`, learned only after the fetch. pacquet builds the
 /// lockfile before the install pass, so the `TarballResolver` must
 /// fetch here to fill `manifest` + `integrity` into its
-/// `ResolveResult`. Passing a `mem_cache` warms it (keyed by URL) so
-/// the install pass's
+/// `ResolveResult`. Passing a `mem_cache` warms it under the hash this
+/// fetch settles, so the install pass's
 /// [`IngestTarballToStore::run_with_mem_cache`] reuses the extraction
 /// without a second download.
 pub struct FetchTarballForResolution<'a> {
@@ -517,6 +520,12 @@ pub struct FetchTarballForResolution<'a> {
     /// index describes the archive, not the named subpackage, so
     /// there is no row to write that the key would honestly describe.
     pub manifest_subdir: Option<&'a str>,
+    /// Whether the resolution pins a registry revision, whose protocol
+    /// allows exactly one GET and rejects redirects. This read is that
+    /// GET, so it publishes under the revision-addressed cache identity
+    /// the install pass looks the archive up by, and the install spends
+    /// no second one.
+    pub revision_addressed: bool,
 }
 
 impl FetchTarballForResolution<'_> {
@@ -541,7 +550,7 @@ impl FetchTarballForResolution<'_> {
                 self.auth_headers,
                 None,
                 None,
-                false,
+                self.revision_addressed,
             )
             .await?;
         apply_placeholder_manifest(self.store_dir, &mut cas_paths, &mut pkg_files_idx)?;
@@ -551,42 +560,50 @@ impl FetchTarballForResolution<'_> {
             None => pkg_files_idx.manifest.clone(),
         };
 
-        // A subdirectory package gets no row. Its key would name the
-        // subpackage while `pkg_files_idx` describes the whole archive
-        // — the repo's manifest and every repo file — and a row whose
-        // key and payload disagree is worse than none: consumers that
-        // trust `PackageFilesIndex.manifest` / `files` to match the key
-        // (bin linking, file materialization) would read the repo.
-        // Nothing needs this row. A git-hosted archive — the only shape
-        // carrying a subdirectory — is addressed by
-        // `git_hosted_store_index_key` once the install pass has run
-        // `prepare` over it, and both the graph prefetch and the
-        // warm-store reuse map skip git-hosted entries.
-        if self.manifest_subdir.is_none() {
-            // Key the row by the caller's `package_id` — the same
-            // `pkg_id` the install pass derives from the lockfile entry.
-            // Deriving a `name@version` from the bundled manifest instead
-            // would file a remote tarball under a key nothing ever reads,
-            // leaving the install pass to write a second row for the same
-            // content.
-            let index_key = store_index_key(&integrity.to_string(), self.package.id);
-            if let Some(writer) = self.store_index_writer {
-                writer.queue(index_key, pkg_files_idx);
-            } else {
-                tracing::warn!(
-                    target: "pacquet::download",
-                    ?index_key,
-                    "no shared store-index writer; skipping index row for this resolve-time tarball",
-                );
-            }
-        }
+        self.record_store_index_row(&integrity, pkg_files_idx);
 
         if let Some(mem_cache) = mem_cache {
             let cache_lock = Arc::new(RwLock::new(CacheValue::Available(Arc::new(cas_paths))));
-            mem_cache.insert(self.package.url.to_string(), cache_lock);
+            mem_cache.insert(
+                package_mem_cache_key(self.package.url, Some(&integrity), self.revision_addressed),
+                cache_lock,
+            );
         }
 
         Ok(ResolvedTarball { integrity, manifest })
+    }
+
+    /// File this extraction under the caller's `package_id` — the same
+    /// `pkg_id` the install pass derives from the lockfile entry. Deriving
+    /// a `name@version` from the bundled manifest instead would file a
+    /// remote tarball under a key nothing ever reads, leaving the install
+    /// pass to write a second row for the same content.
+    ///
+    /// A subdirectory package gets no row. Its key would name the
+    /// subpackage while `pkg_files_idx` describes the whole archive
+    /// — the repo's manifest and every repo file — and a row whose
+    /// key and payload disagree is worse than none: consumers that
+    /// trust `PackageFilesIndex.manifest` / `files` to match the key
+    /// (bin linking, file materialization) would read the repo.
+    /// Nothing needs this row. A git-hosted archive — the only shape
+    /// carrying a subdirectory — is addressed by
+    /// `git_hosted_store_index_key` once the install pass has run
+    /// `prepare` over it, and both the graph prefetch and the
+    /// warm-store reuse map skip git-hosted entries.
+    fn record_store_index_row(&self, integrity: &Integrity, pkg_files_idx: PackageFilesIndex) {
+        if self.manifest_subdir.is_some() {
+            return;
+        }
+        let index_key = store_index_key(&integrity.to_string(), self.package.id);
+        if let Some(writer) = &self.store_index_writer {
+            writer.queue(index_key, pkg_files_idx);
+        } else {
+            tracing::warn!(
+                target: "pacquet::download",
+                ?index_key,
+                "no shared store-index writer; skipping index row for this resolve-time tarball",
+            );
+        }
     }
 }
 

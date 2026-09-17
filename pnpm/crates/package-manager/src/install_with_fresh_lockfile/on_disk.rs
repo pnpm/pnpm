@@ -148,7 +148,7 @@ impl<'a> OnDiskInputs<'a> {
             dir_clone_cache: self.store.dir_clone_cache,
             // Share the resolve-time prefetcher's in-flight downloads with
             // the cold batch. The `PrefetchingResolver` streams each
-            // tarball into `tarball_mem_cache` keyed by URL; the cold
+            // tarball into `tarball_mem_cache`; the cold
             // batch's only on-disk dedup is the store-index row, which the
             // prefetcher's writer commits asynchronously. Without the
             // shared cache a snapshot whose prefetch hasn't committed its
