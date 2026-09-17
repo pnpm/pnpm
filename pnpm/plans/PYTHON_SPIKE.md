@@ -47,6 +47,9 @@ Constraints intersect the permitted versions without adding a dependency.
 Markers select where a rule applies.
 URL requirements are not accepted in these lists. Version rules preserve the
 source of dependencies declared as Git repositories or direct wheel URLs.
+Override entries may also use a `pkg:pypi/<distribution>[@<version>]` PURL.
+pnpm converts that package identity to the same PEP 508 requirement before
+resolution; PURL qualifiers and namespaces are not accepted.
 For example:
 
 ```yaml

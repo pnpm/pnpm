@@ -128,7 +128,7 @@ impl PythonPrepare<'_> {
         packages.overrides = config.python.overrides
             .iter()
             .chain(&rules.tool.uv.overrides)
-            .map(|requirement| parse_rule(requirement))
+            .map(|requirement| parse_override_rule(requirement))
             .collect::<Result<_>>()?;
         packages.constraints = config.python.constraints
             .iter()
@@ -168,6 +168,40 @@ fn parse_rule(declared: &str) -> Result<pep508_rs::Requirement> {
         return Err(UnsupportedRule { requirement: declared.to_string() }.into());
     }
     Ok(requirement)
+}
+
+fn parse_override_rule(declared: &str) -> Result<pep508_rs::Requirement> {
+    parse_rule(&normalize_python_override(declared)?)
+}
+
+/// Turn the PURL form used by pnpm's package policies into the PEP 508 form
+/// used by the Python resolver. PURLs identify the `PyPI` package at the
+/// configuration boundary; requirements remain the resolver's one rule
+/// representation.
+fn normalize_python_override(declared: &str) -> Result<String> {
+    let Some(package) = declared.strip_prefix("pkg:pypi/") else {
+        return Ok(declared.to_string());
+    };
+    if package.contains(['?', '#']) || package.is_empty() || package.contains('/') {
+        return Err(UnsupportedPurl { purl: declared.to_string() }.into());
+    }
+    let (name, version) = package
+        .split_once('@')
+        .map_or((package, None), |(name, version)| (name, Some(version)));
+    if name.is_empty() || version.is_some_and(str::is_empty) {
+        return Err(UnsupportedPurl { purl: declared.to_string() }.into());
+    }
+    let name = name
+        .parse::<pep508_rs::PackageName>()
+        .map_err(|_| UnsupportedPurl { purl: declared.to_string() })?;
+    Ok(version.map_or_else(|| name.to_string(), |version| format!("{name}=={version}")))
+}
+
+#[derive(Debug, Display, Error, Diagnostic)]
+#[display("Python override is not a valid PyPI package PURL: {purl}")]
+#[diagnostic(code(ERR_PNPM_UNSUPPORTED_PYTHON_PURL))]
+struct UnsupportedPurl {
+    purl: String,
 }
 
 #[derive(Debug, Display, Error, Diagnostic)]

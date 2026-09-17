@@ -1,4 +1,4 @@
-use super::{IndexAuth, parse_index, validate_index_credentials};
+use super::{IndexAuth, normalize_python_override, parse_index, validate_index_credentials};
 use pnpm_network::{AuthHeaders, UpstreamRouteHook};
 use std::sync::Arc;
 
@@ -64,4 +64,18 @@ fn duplicate_index_paths_reject_conflicting_logins_without_disclosing_credential
         parse_index(url).unwrap()
     });
     validate_index_credentials(&indexes).unwrap();
+}
+
+#[test]
+fn python_override_purls_normalize_to_pep508_requirements() {
+    assert_eq!(normalize_python_override("pkg:pypi/Requests").unwrap(), "requests");
+    assert_eq!(normalize_python_override("pkg:pypi/requests@2.32.0").unwrap(), "requests==2.32.0");
+    assert_eq!(normalize_python_override("requests>=2").unwrap(), "requests>=2");
+}
+
+#[test]
+fn python_override_purls_reject_qualifiers_and_namespaces() {
+    for purl in ["pkg:pypi/requests?vers=2", "pkg:pypi/acme/requests", "pkg:pypi/requests@"] {
+        assert!(normalize_python_override(purl).is_err(), "{purl}");
+    }
 }
