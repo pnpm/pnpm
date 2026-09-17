@@ -1,5 +1,8 @@
 //! Dependency paths reported alongside each advisory.
 
+mod live_graph;
+use live_graph::LiveGraph;
+
 use super::{
     AuditGraph, BTreeMap, DepClass, Edge, EnvLockfile, HashMap, HashSet, Include, Lockfile,
     MAX_PATHS_PER_FINDING, PackageKey, Rc, classify_graph, root_included,
@@ -76,46 +79,8 @@ pub(crate) struct PathWalk<'a> {
     vulnerable_names: &'a HashSet<String>,
     include: Include,
     classes: HashMap<PackageKey, DepClass>,
-    parents: HashMap<PackageKey, Vec<PackageKey>>,
-    pending: HashSet<PackageKey>,
-    needed: HashSet<PackageKey>,
-}
-
-fn reverse_edges(
-    graph: &AuditGraph<'_>,
-    include: Include,
-    classes: &HashMap<PackageKey, DepClass>,
-) -> HashMap<PackageKey, Vec<PackageKey>> {
-    let mut parents: HashMap<PackageKey, Vec<PackageKey>> = HashMap::new();
-    for key in classes.keys() {
-        for child in graph.children(key, include.optional_dependencies) {
-            parents
-                .entry(child.key)
-                .or_default()
-                .push(key.clone());
-        }
-    }
-    parents
-}
-
-fn ancestors(
-    parents: &HashMap<PackageKey, Vec<PackageKey>>,
-    targets: &HashSet<PackageKey>,
-) -> HashSet<PackageKey> {
-    let mut seen = HashSet::new();
-    let mut stack = targets
-        .iter()
-        .cloned()
-        .collect::<Vec<_>>();
-    while let Some(key) = stack.pop() {
-        if !seen.insert(key.clone()) {
-            continue;
-        }
-        if let Some(parents) = parents.get(&key) {
-            stack.extend(parents.iter().cloned());
-        }
-    }
-    seen
+    pending: BTreeMap<String, BTreeMap<String, Vec<PackageKey>>>,
+    live: LiveGraph,
 }
 
 fn finding_saturated(key: &PackageKey, class: DepClass, paths: &AuditPathIndex) -> bool {
@@ -139,8 +104,7 @@ impl<'a> PathWalk<'a> {
         paths: &AuditPathIndex,
     ) -> Self {
         let classes = classify_graph(graph, include);
-        let parents = reverse_edges(graph, include, &classes);
-        let pending = classes
+        let targets = classes
             .iter()
             .filter(|(key, class)| {
                 vulnerable_names.contains(&key.name.to_string())
@@ -148,21 +112,36 @@ impl<'a> PathWalk<'a> {
                     && !finding_saturated(key, **class, paths)
             })
             .map(|(key, _)| key.clone())
-            .collect();
-        let needed = ancestors(&parents, &pending);
-        Self { graph, vulnerable_names, include, classes, parents, pending, needed }
+            .collect::<Vec<_>>();
+        let live = LiveGraph::new(graph, include, &classes, &targets);
+        let mut pending: BTreeMap<String, BTreeMap<String, Vec<PackageKey>>> = BTreeMap::new();
+        for key in targets {
+            let version = package_version(&key).expect("vulnerable target has a version");
+            pending
+                .entry(key.name.to_string())
+                .or_default()
+                .entry(version)
+                .or_default()
+                .push(key);
+        }
+        Self { graph, vulnerable_names, include, classes, pending, live }
     }
 
-    fn prune_saturated_findings(&mut self, paths: &AuditPathIndex) {
-        let previous_count = self.pending.len();
-        self.pending.retain(|key| !finding_saturated(key, self.classes[key], paths));
-        if self.pending.len() != previous_count {
-            self.needed = ancestors(&self.parents, &self.pending);
+    fn prune_saturated_findings(&mut self, name: &str, version: &str, paths: &AuditPathIndex) {
+        let targets = self.pending
+            .get_mut(name)
+            .and_then(|versions| versions.get_mut(version))
+            .expect("recorded finding has pending targets");
+        for key in std::mem::take(targets) {
+            if finding_saturated(&key, self.classes[&key], paths) {
+                self.live.remove_target(&key);
+            } else {
+                targets.push(key);
+            }
         }
     }
 }
 
-/// Collect dependency paths depth-first without recursion.
 fn drain_path_stack(
     walk: &mut PathWalk<'_>,
     paths: &mut AuditPathIndex,
@@ -190,7 +169,7 @@ pub(crate) fn open_path_node(
     in_trail: &mut HashSet<PackageKey>,
     stack: &mut Vec<PathFrame>,
 ) {
-    if in_trail.contains(&key) || !walk.needed.contains(&key) {
+    if in_trail.contains(&key) || !walk.live.contains(&key) {
         return;
     }
     let name = key.name.to_string();
@@ -210,10 +189,10 @@ pub(crate) fn open_path_node(
             class.dev_only,
             class.optional_only,
         ) {
-            walk.prune_saturated_findings(paths);
+            walk.prune_saturated_findings(&name, &version, paths);
         }
     }
-    if !walk.needed.contains(&key) {
+    if !walk.live.contains(&key) {
         return;
     }
     let children = walk.graph.children(&key, walk.include.optional_dependencies);

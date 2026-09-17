@@ -14,7 +14,9 @@ pub use graph::{
     is_serial_task_graph, render_task_graph_dry_run, resume_task_graph_from, reverse_task_graph,
     sequence_tasks, task_graph_to_json, task_summary_key,
 };
-pub use graph_sequencer::{GraphSequencerResult, PathNode, graph_sequencer};
+pub use graph_sequencer::{
+    GraphSequencerResult, PathNode, StronglyConnectedComponents, graph_sequencer,
+};
 pub use synchronous::{schedule_graph, schedule_tasks};
 
 use derive_more::{Display, Error};

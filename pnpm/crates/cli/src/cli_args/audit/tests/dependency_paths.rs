@@ -768,3 +768,60 @@ fn build_audit_path_index_bounds_paths_across_many_peer_contexts_of_one_finding(
         MAX_PATHS_PER_FINDING + 1,
     );
 }
+
+#[test]
+fn build_audit_path_index_handles_sequential_saturation_of_many_versions() {
+    let size = 128;
+    let mut importers = String::new();
+    for i in 0..MAX_PATHS_PER_FINDING {
+        write!(importers, "\n  project-{i}:\n    dependencies:\n      vuln: {{specifier: '1.0.0', version: '1.0.0'}}\n").unwrap();
+    }
+    let mut lockfile = parse_lockfile(&format!("lockfileVersion: '9.0'\nimporters:\n{importers}"));
+    let snapshots = lockfile.snapshots.get_or_insert_with(Default::default);
+    for i in 0..size {
+        let entry = if i + 1 < size {
+            snapshot(&[("vuln", &format!("1.0.{}", i + 1))], &[])
+        } else {
+            SnapshotEntry::default()
+        };
+        snapshots.insert(format!("vuln@1.0.{i}").parse().unwrap(), entry);
+    }
+    let index =
+        build_audit_path_index(&lockfile, None, &vulnerable_names(&["vuln"]), all_dependencies());
+    assert_eq!(index["vuln"].len(), size);
+    for i in 0..size {
+        assert_eq!(
+            path_info(&index, "vuln", &format!("1.0.{i}")).paths.len(),
+            MAX_PATHS_PER_FINDING,
+        );
+    }
+}
+
+#[test]
+fn build_audit_path_index_prunes_saturated_findings_reached_through_cycles() {
+    let mut importers = String::new();
+    for i in 0..150 {
+        write!(importers, "\n  project-{i}:\n    dependencies:\n      a: {{specifier: '1.0.0', version: '1.0.0'}}\n").unwrap();
+    }
+    let lockfile = parse_lockfile(&format!(
+        "lockfileVersion: '9.0'\nimporters:\n{importers}
+snapshots:
+  a@1.0.0:
+    dependencies:
+      b: '1.0.0'
+  b@1.0.0:
+    dependencies:
+      a: '1.0.0'
+      vuln: '1.0.0'
+  vuln@1.0.0: {{}}
+",
+    ));
+    let index = build_audit_path_index(
+        &lockfile,
+        None,
+        &vulnerable_names(&["a", "vuln"]),
+        all_dependencies(),
+    );
+    assert_eq!(path_info(&index, "a", "1.0.0").paths.len(), MAX_PATHS_PER_FINDING);
+    assert_eq!(path_info(&index, "vuln", "1.0.0").paths.len(), MAX_PATHS_PER_FINDING);
+}
