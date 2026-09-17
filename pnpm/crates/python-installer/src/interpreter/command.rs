@@ -58,12 +58,64 @@ impl std::fmt::Display for InterpreterCommand {
 
 /// Every interpreter this machine offers under a version, newest first:
 /// what it has beyond the conventional names.
-pub(super) async fn scan_for_interpreters(path: &OsString) -> Vec<InterpreterCommand> {
+pub(super) async fn scan_for_interpreters(
+    path: &OsString,
+    installed: &Path,
+) -> Vec<InterpreterCommand> {
     let mut found = versioned_interpreters_on_path(path);
     if cfg!(windows) {
         found.extend(launcher_interpreters(path).await);
     }
+    // Last, because an interpreter the machine came with is the one its
+    // user knows about; pnpm installed these because none of those fit.
+    found.extend(installed_interpreters(installed));
     found
+}
+
+/// The interpreters pnpm installed itself, newest first: an install that
+/// needed one last time uses it again without reading the release.
+fn installed_interpreters(directory: &Path) -> Vec<InterpreterCommand> {
+    let Ok(entries) = fs::read_dir(directory) else { return Vec::new() };
+    let mut installed = entries
+        .flatten()
+        .filter_map(|entry| {
+            let interpreter = interpreter_in(&entry.path());
+            if !interpreter.is_file() {
+                return None;
+            }
+            Some((installed_version(&entry.file_name()), interpreter.to_str()?.to_string()))
+        })
+        .collect::<Vec<_>>();
+    installed.sort_by(|(one, _), (other, _)| other.cmp(one));
+    installed
+        .into_iter()
+        .map(|(_, interpreter)| InterpreterCommand::program(interpreter))
+        .collect()
+}
+
+/// The version a directory pnpm installed a build into holds, so that
+/// newest first orders interpreters by what they are rather than by how
+/// their names sort: `3.9` reads as newer than `3.13` as a string.
+fn installed_version(name: &std::ffi::OsStr) -> Option<pep440_rs::Version> {
+    name.to_str()?
+        .strip_prefix("cpython-")?
+        .split('+')
+        .next()?
+        .parse()
+        .ok()
+}
+
+/// Where the interpreter is in a build pnpm installed, which every
+/// python-build-standalone archive holds under one `python` directory.
+pub(super) fn interpreter_in(directory: &Path) -> PathBuf {
+    if cfg!(windows) {
+        directory.join("python").join("python.exe")
+    } else {
+        directory
+            .join("python")
+            .join("bin")
+            .join("python3")
+    }
 }
 
 /// This process's PATH, without the directories inside the workspace

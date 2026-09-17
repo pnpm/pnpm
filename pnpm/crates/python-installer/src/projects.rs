@@ -36,7 +36,7 @@ async fn select<Reporter: self::Reporter + 'static>(
     mut discovered: Vec<(PathBuf, Arc<manifest::Manifest>)>,
 ) -> Result<Vec<Project>> {
     let config = shared.context.config;
-    let mut interpreters = Interpreters::new(config);
+    let mut interpreters = Interpreters::new(config, &shared.context.http_client);
     let mut selected =
         shared.prepare_metadata::<Reporter>(&mut discovered, &mut interpreters).await?;
     workspace.update_manifests(&discovered);

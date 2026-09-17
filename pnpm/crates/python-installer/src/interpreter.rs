@@ -6,12 +6,14 @@
 //! `.python-version` file asks for.
 
 mod command;
+mod download;
 
 use super::{host, manifest::Manifest, targets};
 use command::{InterpreterCommand, path_outside, scan_for_interpreters};
 use host::Interpreter;
 use miette::{IntoDiagnostic, Result, WrapErr, bail};
 use pnpm_config::Config;
+use pnpm_network::ThrottledClient;
 use pnpm_reporter::{GlobalLog, LogEvent, LogLevel, Reporter};
 use std::{
     ffi::OsString,
@@ -30,6 +32,17 @@ const WRITE_TO_STRING: &str = "writing to a String cannot fail";
 enum Round {
     Named,
     Scanned,
+}
+
+/// What an install of an interpreter is for.
+struct Install<'a> {
+    requires_python: Option<&'a pep440_rs::VersionSpecifiers>,
+    /// The version a `.python-version` file asks for.
+    request: Option<&'a VersionRequest>,
+    /// Whether a version other than the requested one may be installed,
+    /// which is what a machine holding no interpreter the project accepts
+    /// has to do.
+    any_version: bool,
 }
 
 /// What searching this machine's interpreters found for one project.
@@ -59,6 +72,7 @@ struct VersionRequest {
 /// The interpreters one install has looked at, in the order it looked.
 pub(super) struct Interpreters<'a> {
     config: &'a Config,
+    client: &'a ThrottledClient,
     probed: Vec<(InterpreterCommand, Probe)>,
     /// The interpreters the machine offers under a version, scanned for
     /// once however many projects need them.
@@ -70,9 +84,10 @@ pub(super) struct Interpreters<'a> {
 }
 
 impl<'a> Interpreters<'a> {
-    pub(super) fn new(config: &'a Config) -> Self {
+    pub(super) fn new(config: &'a Config, client: &'a ThrottledClient) -> Self {
         Self {
             config,
+            client,
             probed: Vec::new(),
             scanned: None,
             path: path_outside(config.workspace_dir.as_deref()),
@@ -86,17 +101,27 @@ impl<'a> Interpreters<'a> {
         manifest: &Manifest,
     ) -> Result<Arc<Interpreter>> {
         let requires_python = requires_python(root, manifest)?;
-        if let Some(executable) = &self.config.python.executable {
-            let command = InterpreterCommand::program(executable);
-            let interpreter = match self.probe(&command).await {
-                Probe::Usable(interpreter) => Arc::clone(interpreter),
-                Probe::Unusable(reason) => bail!("{reason}"),
-            };
-            check_requires_python(root, &interpreter, requires_python.as_ref())?;
-            return Ok(interpreter);
+        if self.config.python.executable.is_some() {
+            return self.configured(root, requires_python.as_ref()).await;
         }
         let request = self.version_request::<Reporter>(root)?;
-        match self.search(requires_python.as_ref(), request.as_ref()).await {
+        let found = self.search(requires_python.as_ref(), request.as_ref()).await;
+        if let Search::Accepted(interpreter) = found {
+            return Ok(interpreter);
+        }
+        // A machine with no interpreter the project accepts takes any
+        // version the release offers that it does accept; one that has
+        // such an interpreter only installs the version asked for by
+        // name, and keeps what it has otherwise.
+        let install = Install {
+            requires_python: requires_python.as_ref(),
+            request: request.as_ref(),
+            any_version: matches!(found, Search::None),
+        };
+        if let Some(interpreter) = self.install::<Reporter>(root, install).await? {
+            return Ok(interpreter);
+        }
+        match found {
             Search::Accepted(interpreter) => Ok(interpreter),
             Search::OtherVersion(interpreter) => {
                 let request = request.expect("only a version request can go unmet");
@@ -116,6 +141,63 @@ impl<'a> Interpreters<'a> {
                 bail!("{}", self.no_interpreter(root, requires_python.as_ref(), request.as_ref()))
             }
         }
+    }
+
+    /// Install an interpreter the project accepts, when this machine has
+    /// none and the workspace lets pnpm install one. `None` when it does
+    /// not, or when the builds pnpm can install hold nothing the project
+    /// accepts.
+    async fn install<Reporter: self::Reporter + 'static>(
+        &mut self,
+        root: &Path,
+        install: Install<'_>,
+    ) -> Result<Option<Arc<Interpreter>>> {
+        if !download::allowed(self.config) {
+            return Ok(None);
+        }
+        let Install {
+            requires_python,
+            request,
+            any_version,
+        } = install;
+        let releases = download::Releases::read(self.config, self.client).await?;
+        let asked_for = releases.best(requires_python, request);
+        let build = match asked_for {
+            Some(build) => Some(build),
+            None if any_version => releases.best(requires_python, None),
+            None => None,
+        };
+        let Some(build) = build else { return Ok(None) };
+        if let Some(request) = request.filter(|_| asked_for.is_none()) {
+            download::report_unmet_request::<Reporter>(&releases, root, request, build.version());
+        }
+        Reporter::emit(&LogEvent::Global(GlobalLog {
+            level: LogLevel::Info,
+            message: format!("Installing Python {} for {}", build.version(), root.display()),
+        }));
+        let command = build.install(self.config, self.client).await?;
+        match self.probe(&command).await {
+            Probe::Usable(interpreter) => Ok(Some(Arc::clone(interpreter))),
+            Probe::Unusable(reason) => bail!("{reason}"),
+        }
+    }
+
+    /// The interpreter the workspace names, which is the only one a
+    /// project of that workspace is installed with.
+    async fn configured(
+        &mut self,
+        root: &Path,
+        requires_python: Option<&pep440_rs::VersionSpecifiers>,
+    ) -> Result<Arc<Interpreter>> {
+        let executable =
+            self.config.python.executable.as_ref().expect("the workspace names an interpreter");
+        let command = InterpreterCommand::program(executable);
+        let interpreter = match self.probe(&command).await {
+            Probe::Usable(interpreter) => Arc::clone(interpreter),
+            Probe::Unusable(reason) => bail!("{reason}"),
+        };
+        check_requires_python(root, &interpreter, requires_python)?;
+        Ok(interpreter)
     }
 
     /// The first interpreter this machine has that the project accepts.
@@ -166,7 +248,8 @@ impl<'a> Interpreters<'a> {
     ) -> Vec<InterpreterCommand> {
         if matches!(round, Round::Scanned) {
             if self.scanned.is_none() {
-                self.scanned = Some(scan_for_interpreters(&self.path).await);
+                let installed = self.config.store_dir.root().join("python");
+                self.scanned = Some(scan_for_interpreters(&self.path, &installed).await);
             }
             return self.scanned.clone().expect("the machine was just scanned");
         }
@@ -224,42 +307,12 @@ impl<'a> Interpreters<'a> {
         &self.probed[index.expect("the interpreter was just probed")].1
     }
 
-    /// The version the nearest `.python-version` file asks for. The file
-    /// belongs to other tools too, so a line pnpm cannot read is reported
-    /// and ignored rather than failing the install.
+    /// The version the nearest `.python-version` file asks for.
     fn version_request<Reporter: self::Reporter + 'static>(
         &self,
         root: &Path,
     ) -> Result<Option<VersionRequest>> {
-        let stop = self.config.workspace_dir.as_deref();
-        let mut directory = Some(root);
-        while let Some(current) = directory {
-            let file = current.join(".python-version");
-            let contents = match fs::read_to_string(&file) {
-                Ok(contents) => Some(contents),
-                Err(error) if error.kind() == io::ErrorKind::NotFound => None,
-                Err(error) => {
-                    return Err(error)
-                        .into_diagnostic()
-                        .wrap_err_with(|| format!("read {}", file.display()));
-                }
-            };
-            if let Some(contents) = contents {
-                let request = parse_version_request(&contents, file.clone());
-                if request.is_none() {
-                    Reporter::emit(&LogEvent::Global(GlobalLog {
-                        level: LogLevel::Warn,
-                        message: format!(
-                            "Ignoring {}: pnpm reads a plain Python version such as 3.13 from it",
-                            file.display(),
-                        ),
-                    }));
-                }
-                return Ok(request);
-            }
-            directory = (Some(current) != stop).then(|| current.parent()).flatten();
-        }
-        Ok(None)
+        version_request::<Reporter>(self.config.workspace_dir.as_deref(), root)
     }
 
     /// What was asked for and what this machine has, for the install that
@@ -301,6 +354,9 @@ impl<'a> Interpreters<'a> {
             }
             .expect(WRITE_TO_STRING);
         }
+        if let Some(reason) = download::refused(self.config) {
+            write!(report, "\n  pnpm installed none because {reason}").expect(WRITE_TO_STRING);
+        }
         report.push_str(
             "\n  install an interpreter it accepts, or set python.executable in pnpm-workspace.yaml",
         );
@@ -309,6 +365,13 @@ impl<'a> Interpreters<'a> {
 }
 
 impl VersionRequest {
+    /// A request for the release this names, for a test that has no
+    /// `.python-version` file to read one from.
+    #[cfg(test)]
+    fn asking_for(release: &[u64]) -> Self {
+        Self { release: release.to_vec(), file: PathBuf::from(".python-version") }
+    }
+
     /// Whether an interpreter's version starts with the requested one,
     /// which is how `3.13` asks for every 3.13.x.
     fn accepts(&self, version: &pep440_rs::Version) -> bool {
@@ -343,6 +406,44 @@ fn parse_version_request(contents: &str, file: PathBuf) -> Option<VersionRequest
         .collect::<Result<Vec<_>, _>>()
         .ok()?;
     (!release.is_empty()).then_some(VersionRequest { release, file })
+}
+
+/// The version the nearest `.python-version` file asks for, searched
+/// from the project up to the workspace. The file belongs to other tools
+/// too, so a line pnpm cannot read is reported and ignored rather than
+/// failing the install.
+fn version_request<Reporter: self::Reporter + 'static>(
+    stop: Option<&Path>,
+    root: &Path,
+) -> Result<Option<VersionRequest>> {
+    let mut directory = Some(root);
+    while let Some(current) = directory {
+        let file = current.join(".python-version");
+        let contents = match fs::read_to_string(&file) {
+            Ok(contents) => Some(contents),
+            Err(error) if error.kind() == io::ErrorKind::NotFound => None,
+            Err(error) => {
+                return Err(error)
+                    .into_diagnostic()
+                    .wrap_err_with(|| format!("read {}", file.display()));
+            }
+        };
+        if let Some(contents) = contents {
+            let request = parse_version_request(&contents, file.clone());
+            if request.is_none() {
+                Reporter::emit(&LogEvent::Global(GlobalLog {
+                    level: LogLevel::Warn,
+                    message: format!(
+                        "Ignoring {}: pnpm reads a plain Python version such as 3.13 from it",
+                        file.display(),
+                    ),
+                }));
+            }
+            return Ok(request);
+        }
+        directory = (Some(current) != stop).then(|| current.parent()).flatten();
+    }
+    Ok(None)
 }
 
 /// A project that pins an interpreter range cannot be installed with the
