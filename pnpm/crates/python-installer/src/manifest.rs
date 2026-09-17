@@ -238,6 +238,32 @@ impl Manifest {
         toml::from_str(contents).into_diagnostic()
     }
 
+    /// The distributions only a dependency group of this project requires.
+    ///
+    /// A dependency group is a development input. Groups are always written
+    /// out, so this is knowable even for a project whose dependencies a
+    /// build backend generates, which is why a production reader can leave
+    /// these out without waiting for that backend.
+    pub(super) fn development_only_names(&self) -> BTreeSet<PackageName> {
+        let mut names = self.groups
+            .values()
+            .flatten()
+            .filter_map(toml::Value::as_str)
+            .filter_map(|requirement| parse_requirement(requirement).ok())
+            .map(|requirement| requirement.name)
+            .collect::<BTreeSet<_>>();
+        let Some(project) = self.project.as_ref() else { return names };
+        for requirement in project.dependencies
+            .iter()
+            .chain(project.optional_dependencies.values().flatten())
+        {
+            if let Ok(requirement) = parse_requirement(requirement) {
+                names.remove(&requirement.name);
+            }
+        }
+        names
+    }
+
     /// Every distribution this project names in a requirement its own
     /// manifest declares, or `None` when a build backend generates them and
     /// the manifest does not say which they are.

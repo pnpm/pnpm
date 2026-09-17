@@ -50,11 +50,21 @@ impl Workspace {
         scope: RequirementScope,
     ) -> Vec<PathBuf> {
         let required = manifest.declared_requirement_names(scope);
+        // A project whose requirements a build backend generates names none
+        // of them, so every entry stays. Which of them only a dependency
+        // group requires is written out either way, and a production reader
+        // leaves those out.
+        let development_only = matches!(scope, RequirementScope::Production).then(|| {
+            manifest.development_only_names()
+        });
         let mut targets = BTreeSet::new();
         for (declared_by, name, declaration) in self.source_entries(root, manifest) {
             if required
                 .as_ref()
                 .is_some_and(|required| !required.contains(name))
+                || development_only
+                    .as_ref()
+                    .is_some_and(|names| names.contains(name))
             {
                 continue;
             }

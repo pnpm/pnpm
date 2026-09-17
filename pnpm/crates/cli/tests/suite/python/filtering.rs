@@ -203,35 +203,43 @@ async fn a_filtered_add_writes_the_requirement_to_the_selected_project_only() {
 }
 
 /// A dependency group is a development input, so a production selector does
-/// not follow a source only a group requires, while a regular one does.
+/// not follow a source only a group requires, while a regular one does. A
+/// group is written out even when a build backend generates the project's
+/// other requirements, so the rule holds for a dynamic project too.
 #[tokio::test]
 async fn a_production_filter_does_not_follow_a_development_source() {
-    let root = tempfile::tempdir().unwrap();
-    let mut server = mockito::Server::new_async().await;
-    let _backends = serve_backends(&mut server).await;
-    project(root.path(), &server.url(), &[]);
-    fs::remove_file(root.path().join("pyproject.toml")).unwrap();
-    python_project(&root.path().join("packages/tool"), "tool", "dependencies = []");
-    python_project(
-        &root.path().join("packages/app"),
-        "app",
-        "dependencies = []\n\n[dependency-groups]\ndev = ['tool']\n\n\
-         [tool.uv.sources]\ntool = { workspace = true }\n",
-    );
+    for dynamic in [false, true] {
+        eprintln!("dynamic optional dependencies: {dynamic}");
+        let root = tempfile::tempdir().unwrap();
+        let mut server = mockito::Server::new_async().await;
+        let _backends = serve_backends(&mut server).await;
+        project(root.path(), &server.url(), &[]);
+        fs::remove_file(root.path().join("pyproject.toml")).unwrap();
+        python_project(&root.path().join("packages/tool"), "tool", "dependencies = []");
+        let declared = if dynamic { "dynamic = ['optional-dependencies']" } else { "" };
+        python_project(
+            &root.path().join("packages/app"),
+            "app",
+            &format!(
+                "dependencies = []\n{declared}\n\n[dependency-groups]\ndev = ['tool']\n\n\
+                 [tool.uv.sources]\ntool = {{ workspace = true }}\n",
+            ),
+        );
 
-    pacquet_in(root.path())
-        .args(["install", "--filter-prod", "app..."])
-        .assert()
-        .success();
+        pacquet_in(root.path())
+            .args(["install", "--filter-prod", "app..."])
+            .assert()
+            .success();
 
-    assert!(installed(root.path(), "packages/app"));
-    assert!(!installed(root.path(), "packages/tool"), "only a dependency group requires it");
+        assert!(installed(root.path(), "packages/app"));
+        assert!(!installed(root.path(), "packages/tool"), "only a dependency group requires it");
 
-    pacquet_in(root.path())
-        .args(["install", "--filter", "app..."])
-        .assert()
-        .success();
-    assert!(installed(root.path(), "packages/tool"));
+        pacquet_in(root.path())
+            .args(["install", "--filter", "app..."])
+            .assert()
+            .success();
+        assert!(installed(root.path(), "packages/tool"));
+    }
 }
 
 /// A recursive add leaves the workspace root out, the way the npm add does,
