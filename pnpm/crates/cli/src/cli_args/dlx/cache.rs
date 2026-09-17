@@ -187,10 +187,13 @@ pub(super) fn create_cache_key(
 /// key.
 ///
 /// The axes are recorded one axis at a time, each named once and sorted,
-/// since rewriting them in another order asks for the same install. A
-/// platform list keeps the order it was written in: which platform comes
+/// since rewriting them in another order asks for the same install.
+///
+/// A platform list is recorded as the platforms it resolves to, in the
+/// order it named them. The order matters because which platform comes
 /// first decides which runtime archive the install takes when this
-/// machine is none of them.
+/// machine is none of them, and resolving matters because `current` is a
+/// different platform on each machine while the word is the same.
 fn architecture_key_inputs(supported: Option<&SupportedArchitectures>) -> Vec<Value> {
     match supported {
         None => Vec::new(),
@@ -205,14 +208,16 @@ fn architecture_key_inputs(supported: Option<&SupportedArchitectures>) -> Vec<Va
                 })
                 .collect()
         }
-        Some(SupportedArchitectures::Platforms(platforms)) => {
-            let mut named = Vec::new();
-            for platform in platforms {
-                let platform = platform.to_string();
-                if !named.contains(&platform) {
-                    named.push(platform);
-                }
-            }
+        Some(supported @ SupportedArchitectures::Platforms(_)) => {
+            let named: Vec<String> = supported
+                .platforms(
+                    pnpm_detect_libc::host_platform(),
+                    pnpm_detect_libc::host_arch(),
+                    pnpm_detect_libc::detect().map_or("unknown", |libc| libc.as_str()),
+                )
+                .iter()
+                .map(ToString::to_string)
+                .collect();
             vec![json!({ "supportedArchitectures": named })]
         }
     }

@@ -163,6 +163,15 @@ fn create_cache_key_changes_with_the_platforms_it_names() {
         "the first platform decides the runtime archive, so the order must change the key",
     );
 
+    let here = listed(&["current"]);
+    let elsewhere = listed(&["linux-arm64-musl"]);
+    assert_ne!(base, key(&here), "the platform the install runs on must change the key");
+    assert_ne!(
+        key(&here),
+        key(&elsewhere),
+        "current must be recorded as the platform it resolves to, not as the word",
+    );
+
     let axes = SupportedArchitectures::Axes(ArchitectureAxes {
         os: Some(vec!["linux".to_string()]),
         cpu: Some(vec!["x64".to_string()]),

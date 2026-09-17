@@ -201,19 +201,22 @@ const ARCHITECTURES: &[ArchitectureNames] = &[
         wheel: "armv7l",
         aliases: &["armv7"],
     },
-    ArchitectureNames {
-        architecture: Architecture::Ppc64,
-        platform: "ppc64",
-        cpu: "ppc64",
-        wheel: "ppc64",
-        aliases: &["powerpc64"],
-    },
+    // Little-endian comes first so that a bare `ppc64`, which is the
+    // name Node reports for either and the one a package declares,
+    // reads as the endianness every POWER machine pnpm runs on has.
     ArchitectureNames {
         architecture: Architecture::Ppc64Le,
         platform: "ppc64le",
         cpu: "ppc64",
         wheel: "ppc64le",
         aliases: &["powerpc64le"],
+    },
+    ArchitectureNames {
+        architecture: Architecture::Ppc64Be,
+        platform: "ppc64be",
+        cpu: "ppc64",
+        wheel: "ppc64",
+        aliases: &["powerpc64"],
     },
     ArchitectureNames {
         architecture: Architecture::S390x,
@@ -239,11 +242,12 @@ pub enum Architecture {
     Arm64,
     Ia32,
     Arm,
-    /// Big-endian, which Node reports as `ppc64` the same way it reports
-    /// [`Self::Ppc64Le`]: the two are one name to a package and two
-    /// platforms to a wheel.
-    Ppc64,
     Ppc64Le,
+    /// Big-endian POWER, which a platform has to name `ppc64be` to ask
+    /// for. Node reports `ppc64` for either endianness, so that is the
+    /// one name a package declares and it reads as the little-endian
+    /// platform, which is the one wheels are published for.
+    Ppc64Be,
     S390x,
     Riscv64,
 }

@@ -29,7 +29,7 @@ fn a_platform_reads_the_same_in_either_spelling() {
         ("aarch64-apple-darwin", "darwin-arm64"),
         ("x86_64-pc-windows-msvc", "win32-x64"),
         ("i686-pc-windows-msvc", "win32-ia32"),
-        ("powerpc64-unknown-linux-gnu", "linux-ppc64"),
+        ("powerpc64-unknown-linux-gnu", "linux-ppc64be"),
         ("powerpc64le-unknown-linux-gnu", "linux-ppc64le"),
         ("riscv64gc-unknown-linux-musl", "linux-riscv64-musl"),
     ] {
@@ -60,7 +60,7 @@ fn a_libc_baseline_survives_the_spelling() {
 /// one name Node has for them, and each keeps its own wheel spelling.
 #[test]
 fn both_powerpc_platforms_are_one_name_to_a_package() {
-    let platforms = listed(&["linux-ppc64", "linux-ppc64le"]);
+    let platforms = listed(&["linux-ppc64le", "linux-ppc64be"]);
     assert!(takes(&platforms, "linux", "ppc64", "glibc"));
     assert_eq!(
         platforms
@@ -68,7 +68,24 @@ fn both_powerpc_platforms_are_one_name_to_a_package() {
             .iter()
             .map(|platform| platform.architecture.wheel())
             .collect::<Vec<_>>(),
-        ["ppc64", "ppc64le"],
+        ["ppc64le", "ppc64"],
+    );
+}
+
+/// `ppc64` is what Node reports on a little-endian POWER machine, which
+/// is every POWER machine pnpm runs on, so a host reporting it must lock
+/// for the wheels that exist rather than for big-endian ones.
+#[test]
+fn a_bare_ppc64_is_the_little_endian_platform() {
+    assert_eq!(spelled("linux-ppc64"), "linux-ppc64le");
+    assert_eq!(crossed(&["linux"], &["ppc64"], &[]), ["linux-ppc64le"]);
+    let host = SupportedArchitectures::Platforms(vec!["current".parse().unwrap()]);
+    assert_eq!(
+        host.platforms("linux", "ppc64", "glibc")
+            .iter()
+            .map(|platform| platform.architecture.wheel())
+            .collect::<Vec<_>>(),
+        ["ppc64le"],
     );
 }
 
