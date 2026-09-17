@@ -26,7 +26,7 @@ mod workspace;
 use environment::{Generation, LockfileInputs, PythonPrepare, Shared, publish_link};
 use generation::EnvironmentProject;
 use host::Interpreter;
-use interpreter::Interpreters;
+use interpreter::{Interpreters, Mismatch};
 use miette::{IntoDiagnostic, Result, WrapErr, bail};
 use pnpm_pnpr_client::{PYPI_ECOSYSTEM, PnprClient, PypiResolveOptions};
 use pnpm_python_resolver::{Inputs, Lockfile};
@@ -201,7 +201,16 @@ impl PythonPrepare<'_> {
     /// A project that pins an interpreter range cannot be locked for an
     /// environment outside it, which for a project that declares none is
     /// the interpreter running the install.
+    ///
+    /// A declared environment outside the range is a configuration the
+    /// resolution cannot satisfy, so it is reported whatever
+    /// `runtimeOnFail` says. The undeclared environment is the selected
+    /// interpreter, which the selection has already reported on under
+    /// that setting.
     fn check_requires_python(&self, root: &Path, requires_python: Option<&str>) -> Result<()> {
+        if !self.environments.declared && Mismatch::of(self.context.config).bypassed() {
+            return Ok(());
+        }
         let Some(specifiers) = requires_python else {
             return Ok(());
         };

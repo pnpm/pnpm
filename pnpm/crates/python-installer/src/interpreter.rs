@@ -4,19 +4,30 @@
 //! project. Otherwise each project gets the first interpreter this machine
 //! has that its `requires-python` accepts, preferring the version a
 //! `.python-version` file asks for.
+//!
+//! `requires-python` is to an interpreter what `engines.runtime` is to a
+//! Node.js runtime, so `runtimeOnFail` decides what an install with no
+//! interpreter that accepts it does: install one, report the project, or
+//! go on with an interpreter the machine has.
+
+pub(crate) use mismatch::Mismatch;
 
 mod command;
 mod download;
+mod mismatch;
 mod request;
+mod search;
 
 use super::{host, manifest::Manifest, targets};
 use command::{InterpreterCommand, path_outside, scan_for_interpreters};
 use host::Interpreter;
 use miette::{IntoDiagnostic, Result, WrapErr, bail};
+use mismatch::check_requires_python;
 use pnpm_config::Config;
 use pnpm_network::ThrottledClient;
 use pnpm_reporter::{GlobalLog, LogEvent, LogLevel, Reporter};
 use request::VersionRequest;
+use search::{Fallbacks, Search};
 use std::{ffi::OsString, fmt::Write as _, path::Path, sync::Arc};
 
 const WRITE_TO_STRING: &str = "writing to a String cannot fail";
@@ -39,15 +50,6 @@ struct Install<'a> {
     /// which is what a machine holding no interpreter the project accepts
     /// has to do.
     any_version: bool,
-}
-
-/// What searching this machine's interpreters found for one project.
-enum Search {
-    /// One the project's range and its requested version both accept.
-    Accepted(Arc<Interpreter>),
-    /// One the range accepts, for a version this machine does not have.
-    OtherVersion(Arc<Interpreter>),
-    None,
 }
 
 /// What probing one interpreter found.
@@ -103,7 +105,7 @@ impl<'a> Interpreters<'a> {
         requires_python: Option<&pep440_rs::VersionSpecifiers>,
     ) -> Result<Arc<Interpreter>> {
         if self.config.python.executable.is_some() {
-            return self.configured(root, requires_python).await;
+            return self.configured::<Reporter>(root, requires_python).await;
         }
         let request = self.version_request::<Reporter>(root)?;
         let found = self.search(requires_python, request.as_ref()).await;
@@ -117,13 +119,27 @@ impl<'a> Interpreters<'a> {
         let install = Install {
             requires_python,
             request: request.as_ref(),
-            any_version: matches!(found, Search::None),
+            any_version: matches!(found, Search::None | Search::Unaccepted(_)),
         };
         if let Some(interpreter) = self.install::<Reporter>(root, install).await? {
             return Ok(interpreter);
         }
-        match found {
-            Search::Accepted(interpreter) => Ok(interpreter),
+        self.fall_back::<Reporter>(root, found, requires_python, request.as_ref())
+    }
+
+    /// The interpreter an install goes on with when the search found none
+    /// the project accepts and none was installed: one the project asked
+    /// for another version of, or one its range rejects that
+    /// `runtimeOnFail` lets through.
+    fn fall_back<Reporter: self::Reporter + 'static>(
+        &self,
+        root: &Path,
+        found: Search,
+        requires_python: Option<&pep440_rs::VersionSpecifiers>,
+        request: Option<&VersionRequest>,
+    ) -> Result<Arc<Interpreter>> {
+        let interpreter = match found {
+            Search::Accepted(interpreter) => return Ok(interpreter),
             Search::OtherVersion(interpreter) => {
                 let request = request.expect("only a version request can go unmet");
                 Reporter::emit(&LogEvent::Global(GlobalLog {
@@ -136,12 +152,21 @@ impl<'a> Interpreters<'a> {
                         request.version(),
                     ),
                 }));
-                Ok(interpreter)
+                return Ok(interpreter);
             }
-            Search::None => {
-                bail!("{}", self.no_interpreter(root, requires_python, request.as_ref()))
-            }
+            Search::Unaccepted(interpreter) => interpreter,
+            Search::None => bail!("{}", self.no_interpreter(root, requires_python, request)),
+        };
+        let accepted = mismatch::accepted::<Reporter>(
+            root,
+            interpreter.target.environment.python_full_version(),
+            requires_python.expect("only a declared range can go unmet"),
+            Mismatch::of(self.config),
+        );
+        if accepted {
+            return Ok(interpreter);
         }
+        bail!("{}", self.no_interpreter(root, requires_python, request))
     }
 
     /// Install an interpreter the project accepts, when this machine has
@@ -185,7 +210,7 @@ impl<'a> Interpreters<'a> {
 
     /// The interpreter the workspace names, which is the only one a
     /// project of that workspace is installed with.
-    async fn configured(
+    async fn configured<Reporter: self::Reporter + 'static>(
         &mut self,
         root: &Path,
         requires_python: Option<&pep440_rs::VersionSpecifiers>,
@@ -197,7 +222,12 @@ impl<'a> Interpreters<'a> {
             Probe::Usable(interpreter) => Arc::clone(interpreter),
             Probe::Unusable(reason) => bail!("{reason}"),
         };
-        check_requires_python(root, &interpreter, requires_python)?;
+        check_requires_python::<Reporter>(
+            root,
+            &interpreter,
+            requires_python,
+            Mismatch::of(self.config),
+        )?;
         Ok(interpreter)
     }
 
@@ -207,17 +237,17 @@ impl<'a> Interpreters<'a> {
         requires_python: Option<&pep440_rs::VersionSpecifiers>,
         request: Option<&VersionRequest>,
     ) -> Search {
-        let mut other_version = None;
+        let mut fallbacks = Fallbacks::default();
         for round in [Round::Named, Round::Scanned] {
             for command in self.candidates(round, request).await {
-                match self.consider(&command, requires_python, request).await {
-                    Search::Accepted(interpreter) => return Search::Accepted(interpreter),
-                    Search::OtherVersion(interpreter) => other_version.get_or_insert(interpreter),
-                    Search::None => continue,
-                };
+                let found = self.consider(&command, requires_python, request).await;
+                if let Search::Accepted(interpreter) = found {
+                    return Search::Accepted(interpreter);
+                }
+                fallbacks.keep(found, request);
             }
         }
-        other_version.map_or(Search::None, Search::OtherVersion)
+        fallbacks.best()
     }
 
     /// What one interpreter is to the project: the one to install it, one
@@ -232,7 +262,7 @@ impl<'a> Interpreters<'a> {
         let interpreter = Arc::clone(interpreter);
         let version = interpreter.target.environment.python_full_version();
         if requires_python.is_some_and(|specifiers| !specifiers.contains(version)) {
-            return Search::None;
+            return Search::Unaccepted(interpreter);
         }
         if request.is_some_and(|request| !request.accepts(version)) {
             return Search::OtherVersion(interpreter);
@@ -358,27 +388,23 @@ impl<'a> Interpreters<'a> {
         if let Some(reason) = download::refused(self.config) {
             write!(report, "\n  pnpm installed none because {reason}").expect(WRITE_TO_STRING);
         }
-        report.push_str(
-            "\n  install an interpreter it accepts, or set python.executable in pnpm-workspace.yaml",
-        );
+        report.push_str(advice(
+            self.probed
+                .iter()
+                .any(|(_, probe)| matches!(probe, Probe::Usable(_))),
+        ));
         report
     }
 }
 
-/// A project that pins an interpreter range cannot be installed with the
-/// interpreter a workspace names outside it.
-fn check_requires_python(
-    root: &Path,
-    interpreter: &Interpreter,
-    requires_python: Option<&pep440_rs::VersionSpecifiers>,
-) -> Result<()> {
-    let version = interpreter.target.environment.python_full_version();
-    match requires_python {
-        Some(specifiers) if !specifiers.contains(version) => {
-            bail!("{} requires Python {specifiers}, but {version} was selected", root.display())
-        }
-        _ => Ok(()),
+/// What the report tells the reader to do. An install that ran an
+/// interpreter can also go on with the one it ran, which one that ran
+/// none cannot.
+fn advice(ran_one: bool) -> &'static str {
+    if ran_one {
+        return "\n  install an interpreter it accepts, set python.executable in pnpm-workspace.yaml, or set runtimeOnFail to warn or ignore to install with one it rejects";
     }
+    "\n  install an interpreter it accepts, or set python.executable in pnpm-workspace.yaml"
 }
 
 /// The interpreter range every one of `members` declares, as one range:
