@@ -181,3 +181,44 @@ pub(super) async fn run_program<Output: DeserializeOwned>(
     written?;
     serde_json::from_slice(&output.stdout).into_diagnostic()
 }
+
+/// Create a private environment layout, then import its unchanged wheel files.
+pub(super) async fn install(
+    executable: &str,
+    root: &std::path::Path,
+    packages: impl Serialize,
+    mode: pnpm_config::PythonLinkMode,
+) -> Result<()> {
+    let imports: Installation = run(
+        executable,
+        "install",
+        serde_json::json!({"root": root, "packages": packages, "defer_files": true}),
+    )
+    .await?;
+    let method = match mode {
+        pnpm_config::PythonLinkMode::Copy => pnpm_config::PackageImportMethod::Copy,
+        pnpm_config::PythonLinkMode::Hardlink => pnpm_config::PackageImportMethod::Hardlink,
+        pnpm_config::PythonLinkMode::Reflink => pnpm_config::PackageImportMethod::CloneOrCopy,
+    };
+    let logged = std::sync::atomic::AtomicU8::new(0);
+    for file in imports.imports {
+        pnpm_deps_restorer::import_into_fresh_target::<pnpm_reporter::SilentReporter>(
+            &logged,
+            method,
+            &file.source,
+            &file.destination,
+        )?;
+    }
+    Ok(())
+}
+
+#[derive(Deserialize)]
+struct Installation {
+    imports: Vec<FileImport>,
+}
+
+#[derive(Deserialize)]
+struct FileImport {
+    source: PathBuf,
+    destination: PathBuf,
+}

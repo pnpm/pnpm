@@ -5847,6 +5847,7 @@ dependencies = [
  "pnpm-config",
  "pnpm-crypto-hash",
  "pnpm-crypto-shasums-file",
+ "pnpm-deps-restorer",
  "pnpm-detect-libc",
  "pnpm-diagnostics",
  "pnpm-fs",

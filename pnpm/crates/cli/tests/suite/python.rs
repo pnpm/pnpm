@@ -2702,3 +2702,164 @@ async fn an_allow_builds_key_naming_no_ecosystem_approves_no_python_build() {
         "pkg:pypi/tinybackend is not approved to run",
     );
 }
+
+#[tokio::test]
+async fn wheel_link_modes_share_only_when_requested() {
+    let root = tempfile::tempdir().unwrap();
+    let mut server = mockito::Server::new_async().await;
+    let mocks = serve(
+        &mut server,
+        "alpha",
+        &[(
+            "1.0",
+            wheel(
+                "alpha",
+                "1.0",
+                "",
+                &[
+                    (
+                        "alpha-1.0.dist-info/entry_points.txt",
+                        "[console_scripts]\nalpha-cli = alpha:main\n",
+                    ),
+                    ("alpha-1.0.data/scripts/raw-script", "#!python\nprint('raw')\n"),
+                ],
+            ),
+        )],
+    )
+    .await;
+    project(root.path(), &server.url(), &["alpha"]);
+    add_python_settings(root.path(), "  linkMode: hardlink\n");
+    pacquet_in(root.path())
+        .arg("install")
+        .assert()
+        .success();
+    let first = installed_module(root.path(), "alpha");
+    let site = first
+        .parent()
+        .unwrap()
+        .parent()
+        .unwrap();
+    let first_record = site.join("alpha-1.0.dist-info/RECORD");
+    let scripts = if cfg!(windows) { ".venv/Scripts" } else { ".venv/bin" };
+    let first_raw = root
+        .path()
+        .join(scripts)
+        .join("raw-script")
+        .canonicalize()
+        .unwrap();
+    python(root.path())
+        .arg(&first_raw)
+        .assert()
+        .success()
+        .stdout(if cfg!(windows) { "raw\r\n" } else { "raw\n" });
+    let first_script = root
+        .path()
+        .join(if cfg!(windows) {
+            ".venv/Scripts/alpha-cli-script.py"
+        } else {
+            ".venv/bin/alpha-cli"
+        })
+        .canonicalize()
+        .unwrap();
+    pacquet_in(root.path())
+        .args(["install", "--offline", "--frozen-lockfile"])
+        .assert()
+        .success();
+    let second = installed_module(root.path(), "alpha");
+    eprintln!("hardlinked modules: {first:?}, {second:?}");
+    assert!(same_file::is_same_file(&first, &second).unwrap());
+    let second_site = second
+        .parent()
+        .unwrap()
+        .parent()
+        .unwrap();
+    eprintln!("rewritten wheel scripts must be private");
+    assert!(
+        !same_file::is_same_file(
+            &first_raw,
+            root.path()
+                .join(scripts)
+                .join("raw-script")
+        )
+        .unwrap(),
+    );
+    eprintln!("generated metadata and scripts must be private");
+    assert!(
+        !same_file::is_same_file(&first_record, second_site.join("alpha-1.0.dist-info/RECORD"))
+            .unwrap(),
+    );
+    assert!(
+        !same_file::is_same_file(
+            &first_script,
+            root.path()
+                .join(if cfg!(windows) {
+                    ".venv/Scripts/alpha-cli-script.py"
+                } else {
+                    ".venv/bin/alpha-cli"
+                })
+        )
+        .unwrap(),
+    );
+    for mode in ["copy", "reflink"] {
+        let workspace = root.path().join("pnpm-workspace.yaml");
+        let settings = fs::read_to_string(&workspace).unwrap();
+        fs::write(
+            &workspace,
+            settings
+                .replace("linkMode: hardlink", &format!("linkMode: {mode}"))
+                .replace("linkMode: copy", &format!("linkMode: {mode}")),
+        )
+        .unwrap();
+        pacquet_in(root.path())
+            .args(["install", "--offline", "--frozen-lockfile"])
+            .assert()
+            .success();
+        let private = installed_module(root.path(), "alpha");
+        eprintln!("{mode} module: {private:?}");
+        assert!(!same_file::is_same_file(&first, &private).unwrap());
+        fs::write(&private, "modified").unwrap();
+        eprintln!("store-linked module must remain unchanged after {mode} writes");
+        assert!(fs::read_to_string(&first).unwrap().contains("VERSION"));
+    }
+    for mock in mocks {
+        mock.assert_async().await;
+    }
+}
+
+fn installed_module(root: &Path, name: &str) -> PathBuf {
+    let output = python(root)
+        .args(["-c", &format!("import {name}; print({name}.__file__)")])
+        .output()
+        .unwrap();
+    eprintln!("Python module lookup: {output:?}");
+    assert!(output.status.success());
+    PathBuf::from(String::from_utf8(output.stdout).unwrap().trim()).canonicalize().unwrap()
+}
+
+#[tokio::test]
+async fn deferred_wheel_files_cannot_replace_generated_record() {
+    let root = tempfile::tempdir().unwrap();
+    let mut server = mockito::Server::new_async().await;
+    let _mocks = serve(
+        &mut server,
+        "alpha",
+        &[(
+            "1.0",
+            wheel(
+                "alpha",
+                "1.0",
+                "",
+                &[("alpha-1.0.data/purelib/alpha-1.0.dist-info/RECORD", "untrusted record")],
+            ),
+        )],
+    )
+    .await;
+    project(root.path(), &server.url(), &["alpha"]);
+    add_python_settings(root.path(), "  linkMode: hardlink\n");
+    assert_failure_contains(
+        pacquet_in(root.path()).arg("install"),
+        "Python package file collision",
+    );
+    eprintln!("failed environment must not be published");
+    assert!(!root.path().join(".venv").exists());
+}

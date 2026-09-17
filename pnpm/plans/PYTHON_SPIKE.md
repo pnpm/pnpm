@@ -10,6 +10,7 @@ opt-in and does not introduce a stable ecosystem adapter API.
 # pnpm-workspace.yaml
 python:
   enabled: true
+  linkMode: reflink
   # Defaults shown below; all are optional.
   executable: null # pnpm chooses one per project
   indexUrl: https://pypi.org/simple/
@@ -298,8 +299,9 @@ a pnpr server does not fetch or build git repositories.
   downloader, artifact cache or network budget.
 - Python verifies wheel identity and RECORD, selects native or pure wheels,
   relocates `.data`, creates entry points, and writes installed RECORD/INSTALLER
-  metadata. Environment files are copies, so interpreter writes cannot
-  mutate CAS blobs.
+  metadata. `python.linkMode` defaults to `reflink`, with a copy fallback.
+  Interpreter writes remain isolated from CAS blobs in `reflink` and `copy`
+  modes. Opting into `hardlink` shares those writes with the store.
 - `pnpm run` and `pnpm exec` add environment executables to PATH only when
   Python is enabled. npm-only installs retain the early dispatch path.
 

@@ -332,10 +332,11 @@ impl PythonPrepare<'_> {
         for package in solution {
             wheels.push(&registry.wheels[&package]);
         }
-        host::run::<serde_json::Value>(
+        host::install(
             &self.interpreter.executable,
-            "install",
-            serde_json::json!({ "root": root.path(), "packages": wheels }),
+            root.path(),
+            wheels,
+            self.context.config.python.link_mode,
         )
         .await?;
         Ok(Arc::new(root))
