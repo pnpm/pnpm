@@ -50,9 +50,7 @@ pub(crate) fn walk_for_paths(
     include: Include,
     paths: &mut AuditPathIndex,
 ) {
-    let classes = classify_graph(graph, include);
-    let reachable = reachable_vulnerabilities(graph, vulnerable_names, include, &classes);
-    let walk = PathWalk { graph, vulnerable_names, include, classes, reachable };
+    let mut walk = PathWalk::new(graph, vulnerable_names, include, paths);
     for importer in &graph.importers {
         let importer_trail =
             Rc::new(TrailNode { name: importer.path_segment.clone(), parent: None });
@@ -60,14 +58,14 @@ pub(crate) fn walk_for_paths(
         let mut stack: Vec<PathFrame> = Vec::new();
         for (_, root) in importer.roots.iter().filter(|(kind, _)| root_included(*kind, include)) {
             open_path_node(
-                &walk,
+                &mut walk,
                 root.key.clone(),
                 Rc::clone(&importer_trail),
                 paths,
                 &mut in_trail,
                 &mut stack,
             );
-            drain_path_stack(&walk, paths, &mut in_trail, &mut stack);
+            drain_path_stack(&mut walk, paths, &mut in_trail, &mut stack);
         }
     }
 }
@@ -78,15 +76,16 @@ pub(crate) struct PathWalk<'a> {
     vulnerable_names: &'a HashSet<String>,
     include: Include,
     classes: HashMap<PackageKey, DepClass>,
-    reachable: HashMap<PackageKey, HashSet<PackageKey>>,
+    parents: HashMap<PackageKey, Vec<PackageKey>>,
+    pending: HashSet<PackageKey>,
+    needed: HashSet<PackageKey>,
 }
 
-fn reachable_vulnerabilities(
+fn reverse_edges(
     graph: &AuditGraph<'_>,
-    vulnerable_names: &HashSet<String>,
     include: Include,
     classes: &HashMap<PackageKey, DepClass>,
-) -> HashMap<PackageKey, HashSet<PackageKey>> {
+) -> HashMap<PackageKey, Vec<PackageKey>> {
     let mut parents: HashMap<PackageKey, Vec<PackageKey>> = HashMap::new();
     for key in classes.keys() {
         for child in graph.children(key, include.optional_dependencies) {
@@ -96,67 +95,76 @@ fn reachable_vulnerabilities(
                 .push(key.clone());
         }
     }
-    let mut reachable: HashMap<PackageKey, HashSet<PackageKey>> = HashMap::new();
-    for target in classes
-        .keys()
-        .filter(|key| vulnerable_names.contains(&key.name.to_string()))
-    {
-        if package_version(target).is_none() {
-            continue;
-        }
-        register_reachable_target(target, &parents, &mut reachable);
-    }
-    reachable
+    parents
 }
 
-fn register_reachable_target(
-    target: &PackageKey,
+fn ancestors(
     parents: &HashMap<PackageKey, Vec<PackageKey>>,
-    reachable: &mut HashMap<PackageKey, HashSet<PackageKey>>,
-) {
+    targets: &HashSet<PackageKey>,
+) -> HashSet<PackageKey> {
     let mut seen = HashSet::new();
-    let mut stack = vec![target.clone()];
+    let mut stack = targets
+        .iter()
+        .cloned()
+        .collect::<Vec<_>>();
     while let Some(key) = stack.pop() {
         if !seen.insert(key.clone()) {
             continue;
         }
-        reachable
-            .entry(key.clone())
-            .or_default()
-            .insert(target.clone());
         if let Some(parents) = parents.get(&key) {
             stack.extend(parents.iter().cloned());
         }
     }
+    seen
 }
 
-impl PathWalk<'_> {
-    fn all_findings_saturated(&self, key: &PackageKey, paths: &AuditPathIndex) -> bool {
-        let Some(reachable) = self.reachable.get(key) else { return true };
-        for target in reachable {
-            let version = package_version(target).expect("vulnerable target has a version");
-            let Some(info) = paths
-                .get(&target.name.to_string())
-                .and_then(|versions| versions.get(&version))
-            else {
-                return false;
-            };
-            let class = self.classes.get(target).expect("vulnerable target is reachable");
-            if info.paths.len() < MAX_PATHS_PER_FINDING
-                || (!class.dev_only && info.dev)
-                || (!class.optional_only && info.optional)
-            {
-                return false;
-            }
+fn finding_saturated(key: &PackageKey, class: DepClass, paths: &AuditPathIndex) -> bool {
+    let version = package_version(key).expect("vulnerable target has a version");
+    let Some(info) = paths
+        .get(&key.name.to_string())
+        .and_then(|versions| versions.get(&version))
+    else {
+        return false;
+    };
+    info.paths.len() >= MAX_PATHS_PER_FINDING
+        && (class.dev_only || !info.dev)
+        && (class.optional_only || !info.optional)
+}
+
+impl<'a> PathWalk<'a> {
+    fn new(
+        graph: &'a AuditGraph<'a>,
+        vulnerable_names: &'a HashSet<String>,
+        include: Include,
+        paths: &AuditPathIndex,
+    ) -> Self {
+        let classes = classify_graph(graph, include);
+        let parents = reverse_edges(graph, include, &classes);
+        let pending = classes
+            .iter()
+            .filter(|(key, class)| {
+                vulnerable_names.contains(&key.name.to_string())
+                    && package_version(key).is_some()
+                    && !finding_saturated(key, **class, paths)
+            })
+            .map(|(key, _)| key.clone())
+            .collect();
+        let needed = ancestors(&parents, &pending);
+        Self { graph, vulnerable_names, include, classes, parents, pending, needed }
+    }
+
+    fn prune_saturated_findings(&mut self, paths: &AuditPathIndex) {
+        let previous_count = self.pending.len();
+        self.pending.retain(|key| !finding_saturated(key, self.classes[key], paths));
+        if self.pending.len() != previous_count {
+            self.needed = ancestors(&self.parents, &self.pending);
         }
-        true
     }
 }
 
-/// Visit every node the opened root reaches, depth-first, popping each
-/// frame once its children are exhausted.
+/// Collect dependency paths depth-first without recursion.
 fn drain_path_stack(
-    walk: &PathWalk<'_>,
+    walk: &mut PathWalk<'_>,
     paths: &mut AuditPathIndex,
     in_trail: &mut HashSet<PackageKey>,
     stack: &mut Vec<PathFrame>,
@@ -175,14 +183,14 @@ fn drain_path_stack(
 }
 
 pub(crate) fn open_path_node(
-    walk: &PathWalk<'_>,
+    walk: &mut PathWalk<'_>,
     key: PackageKey,
     parent_trail: Rc<TrailNode>,
     paths: &mut AuditPathIndex,
     in_trail: &mut HashSet<PackageKey>,
     stack: &mut Vec<PathFrame>,
 ) {
-    if in_trail.contains(&key) || walk.all_findings_saturated(&key, paths) {
+    if in_trail.contains(&key) || !walk.needed.contains(&key) {
         return;
     }
     let name = key.name.to_string();
@@ -194,16 +202,18 @@ pub(crate) fn open_path_node(
             .get(&key)
             .copied()
             .unwrap_or(DepClass { dev_only: false, optional_only: false });
-        record_path(
+        if record_path(
             paths,
             &name,
             &version,
             join_trail(&trail),
             class.dev_only,
             class.optional_only,
-        );
+        ) {
+            walk.prune_saturated_findings(paths);
+        }
     }
-    if walk.all_findings_saturated(&key, paths) {
+    if !walk.needed.contains(&key) {
         return;
     }
     let children = walk.graph.children(&key, walk.include.optional_dependencies);
@@ -214,6 +224,7 @@ pub(crate) fn open_path_node(
     stack.push(PathFrame { key, trail, children, next: 0 });
 }
 
+/// Returns whether the finding became saturated or its saturated classification changed.
 pub(crate) fn record_path(
     paths: &mut AuditPathIndex,
     name: &str,
@@ -221,21 +232,23 @@ pub(crate) fn record_path(
     joined: String,
     is_dev: bool,
     is_optional: bool,
-) {
+) -> bool {
     let by_version = paths.entry(name.to_string()).or_default();
     let info = by_version
         .entry(version.to_string())
         .or_insert_with(|| PathInfo { paths: Vec::new(), dev: is_dev, optional: is_optional });
-    if !is_dev {
-        info.dev = false;
+    let previous_count = info.paths.len();
+    let previous_dev = info.dev;
+    let previous_optional = info.optional;
+    info.dev &= is_dev;
+    info.optional &= is_optional;
+    if info.paths.len() < MAX_PATHS_PER_FINDING && !info.paths.contains(&joined) {
+        info.paths.push(joined);
     }
-    if !is_optional {
-        info.optional = false;
-    }
-    if info.paths.len() >= MAX_PATHS_PER_FINDING || info.paths.contains(&joined) {
-        return;
-    }
-    info.paths.push(joined);
+    info.paths.len() >= MAX_PATHS_PER_FINDING
+        && (previous_count < MAX_PATHS_PER_FINDING
+            || previous_dev != info.dev
+            || previous_optional != info.optional)
 }
 
 pub(crate) fn join_trail(node: &Rc<TrailNode>) -> String {
