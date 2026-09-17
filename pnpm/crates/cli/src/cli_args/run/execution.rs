@@ -6,7 +6,9 @@ use super::{
     package_map_path_for_execution, pnp_path_for_execution, run_script, schedule_graph,
     sync_injected_deps, throw_or_filter_hidden_scripts,
 };
-use crate::cli_args::concurrency_group::{acquire_concurrency_group_slot, with_held_group};
+use crate::cli_args::concurrency_group::{
+    SlotOutcome, acquire_concurrency_group_slot, with_held_group,
+};
 use pnpm_reporter::LogEvent;
 
 /// Shared inputs for running a script, threaded through
@@ -301,8 +303,13 @@ pub(in super::super) fn run_stages(
 ) -> miette::Result<ScriptExit> {
     // Held across every stage, so a `pre` script cannot hand the slot
     // to another process between it and the main script.
-    let Some(slot) = acquire_concurrency_group_slot(ctx.config, name, ctx.emit)? else {
-        return run_script_stages(ctx, name, main_body, args);
+    let cancelled = || ctx.process_tracker.is_some_and(ProcessTracker::is_cancelled);
+    let slot = match acquire_concurrency_group_slot(ctx.config, name, ctx.emit, &cancelled)? {
+        SlotOutcome::Ungated => return run_script_stages(ctx, name, main_body, args),
+        SlotOutcome::Held(slot) => slot,
+        // The callers read the tracker after a script ends, as they do for
+        // a child the cancellation killed.
+        SlotOutcome::Cancelled => return Ok(ScriptExit::Emulated(1)),
     };
     let held_env = with_held_group(ctx.extra_env, slot.group());
     run_script_stages(&RunContext { extra_env: &held_env, ..*ctx }, name, main_body, args)

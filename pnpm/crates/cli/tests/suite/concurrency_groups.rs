@@ -16,9 +16,6 @@ use std::{
 
 const HOLD: Duration = Duration::from_millis(700);
 
-/// `hold.js` announces itself with a marker file under `MARKER_DIR`,
-/// records an `overlap` file there if another `hold` is running, and
-/// keeps its slot for `HOLD_MS`.
 const HOLD_SCRIPT: &str = r"
     const fs = require('fs');
     const path = require('path');
@@ -30,9 +27,6 @@ const HOLD_SCRIPT: &str = r"
     setTimeout(() => fs.unlinkSync(marker), Number(process.env.HOLD_MS));
 ";
 
-/// A project whose `hold` and `outer` scripts are in group `test`, limited
-/// to `limit` slots, and whose `free` script is in no group. `outer` runs
-/// `hold` through a nested `pnpm run`.
 fn write_project(workspace: &Path, pacquet: &Path, limit: u32) {
     fs::write(workspace.join("hold.js"), HOLD_SCRIPT).expect("write hold.js");
     let pacquet = serde_json::to_string(&pacquet.to_string_lossy()).expect("quote pacquet path");
@@ -56,8 +50,8 @@ fn write_project(workspace: &Path, pacquet: &Path, limit: u32) {
     .expect("write pnpm-workspace.yaml");
 }
 
-/// The slot pool of a test lives under its own workspace, so the tests
-/// neither queue on one another nor touch the developer's state directory.
+/// Under the test's own workspace, so the tests neither queue on one
+/// another nor touch the developer's state directory.
 fn state_dir(workspace: &Path) -> PathBuf {
     workspace.join("state")
 }

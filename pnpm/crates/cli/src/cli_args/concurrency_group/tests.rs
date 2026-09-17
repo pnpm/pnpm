@@ -1,5 +1,6 @@
 use super::{
-    HELD_CONCURRENCY_GROUPS_ENV, SlotPool, acquire_concurrency_group_slot, with_held_group,
+    HELD_CONCURRENCY_GROUPS_ENV, SlotOutcome, SlotPool, acquire_concurrency_group_slot,
+    with_held_group,
 };
 use pnpm_config::{Config, TaskSettings};
 use pnpm_reporter::LogEvent;
@@ -11,6 +12,14 @@ use std::{
 };
 
 fn no_emit(_: &LogEvent) {}
+
+fn never() -> bool {
+    false
+}
+
+fn acquire(config: &Config, script: &str) -> SlotOutcome {
+    acquire_concurrency_group_slot(config, script, no_emit, &never).expect("acquire")
+}
 
 /// A config whose `build` task is in group `cargo`, limited to `limit`
 /// slots under `state_dir`.
@@ -89,8 +98,9 @@ fn acquire_waits_for_a_slot_to_free_up() {
     let mut notices = 0;
     let started = Instant::now();
     let slot = pool
-        .acquire(|| notices += 1)
-        .expect("acquire after the release");
+        .acquire(|| notices += 1, &never)
+        .expect("acquire after the release")
+        .expect("the wait ended with a slot");
     let acquired_at = Instant::now();
     holder.join().expect("holder thread");
     let released_at = on_release.recv().expect("release time");
@@ -103,16 +113,36 @@ fn acquire_waits_for_a_slot_to_free_up() {
 }
 
 #[test]
+fn a_cancelled_wait_ends_without_a_slot() {
+    let dir = tempfile::tempdir().expect("create temp dir");
+    let pool = SlotPool { dir: dir.path().to_path_buf(), limit: 1 };
+    let held = pool
+        .try_acquire()
+        .expect("try first")
+        .expect("the slot is free");
+
+    let started = Instant::now();
+    let cancel_after = Duration::from_millis(200);
+    let cancelled = || started.elapsed() >= cancel_after;
+    let outcome = pool
+        .acquire(|| {}, &cancelled)
+        .expect("the wait itself succeeds");
+
+    dbg!(started.elapsed());
+    assert!(outcome.is_none(), "a cancelled wait hands out no slot");
+    assert!(started.elapsed() >= cancel_after);
+    drop(held);
+}
+
+#[test]
 fn a_task_without_a_limited_group_takes_no_slot() {
     let dir = tempfile::tempdir().expect("create temp dir");
     for limit in [None, Some(0)] {
         let config = config(dir.path(), limit);
-        assert!(
-            acquire_concurrency_group_slot(&config, "build", no_emit).expect("acquire").is_none(),
-        );
+        assert!(matches!(acquire(&config, "build"), SlotOutcome::Ungated));
     }
     let config = config(dir.path(), Some(1));
-    assert!(acquire_concurrency_group_slot(&config, "lint", no_emit).expect("acquire").is_none());
+    assert!(matches!(acquire(&config, "lint"), SlotOutcome::Ungated));
     assert!(!dir.path().join("run-slots").exists(), "no pool is created without a limit");
 }
 
@@ -120,9 +150,9 @@ fn a_task_without_a_limited_group_takes_no_slot() {
 fn a_limited_group_creates_its_pool_under_the_state_dir() {
     let dir = tempfile::tempdir().expect("create temp dir");
     let config = config(dir.path(), Some(1));
-    let slot = acquire_concurrency_group_slot(&config, "build", no_emit)
-        .expect("acquire")
-        .expect("a slot");
+    let SlotOutcome::Held(slot) = acquire(&config, "build") else {
+        panic!("a limited group hands out a slot");
+    };
     let pool = dir
         .path()
         .join("run-slots")
@@ -159,7 +189,7 @@ fn a_nested_task_of_a_held_group_reuses_the_parent_slot() {
     // through this one function, and nothing else in the process reads
     // `HELD_CONCURRENCY_GROUPS_ENV` while it runs.
     unsafe { std::env::set_var(HELD_CONCURRENCY_GROUPS_ENV, "node,cargo") };
-    let held_group = acquire_concurrency_group_slot(&config, "build", no_emit);
+    let held_group = acquire(&config, "build");
     let spawned = with_held_group(&HashMap::new(), "cargo");
     // SAFETY: see above.
     unsafe {
@@ -169,7 +199,7 @@ fn a_nested_task_of_a_held_group_reuses_the_parent_slot() {
         }
     }
 
-    assert!(held_group.expect("acquire").is_none(), "the parent's slot covers this task");
+    assert!(matches!(held_group, SlotOutcome::Ungated), "the parent's slot covers this task");
     assert_eq!(
         spawned.get(HELD_CONCURRENCY_GROUPS_ENV).map(String::as_str),
         Some("node,cargo"),

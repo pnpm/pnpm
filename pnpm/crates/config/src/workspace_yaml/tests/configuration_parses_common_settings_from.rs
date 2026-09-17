@@ -815,7 +815,7 @@ fn concurrency_groups_merge_across_layers() {
 /// that could leave it is refused before anything is created.
 #[test]
 fn rejects_a_task_concurrency_group_that_is_not_a_plain_name() {
-    for group in ["../escape", "a/b", "", ".", "..", "with space"] {
+    for group in ["../escape", "a/b", "", ".", "..", "with space", "nul", "COM1.x", "trailing."] {
         let dir = tempfile::tempdir().unwrap();
         fs::write(
             dir.path().join(WORKSPACE_MANIFEST_FILENAME),

@@ -1196,7 +1196,8 @@ pub struct Config {
     /// how many of the group's tasks may run at once on this machine,
     /// counted across every pnpm process. A task past its group's limit
     /// waits for a running one to finish. A group no entry names has no
-    /// limit.
+    /// limit, and neither has a group whose entry is `0`, which is how a
+    /// higher layer lifts a limit a lower one set.
     ///
     /// Each configuration layer merges its entries into the map, so a
     /// workspace can raise or lower one group's limit without restating

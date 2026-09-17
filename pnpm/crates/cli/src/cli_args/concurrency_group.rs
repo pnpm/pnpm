@@ -58,10 +58,20 @@ impl ConcurrencyGroupSlot {
     }
 }
 
+/// What taking a slot for a task came to.
+pub(crate) enum SlotOutcome {
+    /// The task names no limited group, or a parent invocation already
+    /// holds a slot of its group.
+    Ungated,
+    Held(ConcurrencyGroupSlot),
+    /// The run was cancelled while the task was waiting for a slot.
+    Cancelled,
+}
+
 /// Take a slot of the group the task named `script` belongs to, waiting
-/// for one to free up when they are all held. `None` when the task names
-/// no group, the group has no limit, or a parent invocation already holds
-/// a slot of the group.
+/// for one to free up when they are all held. `cancelled` is consulted
+/// between attempts, so a run that bails does not wait out a holder in
+/// another process.
 ///
 /// `emit` receives a notice when the wait starts and every
 /// [`WAIT_NOTICE_EVERY`] after, naming who holds the slots.
@@ -69,26 +79,18 @@ pub(crate) fn acquire_concurrency_group_slot(
     config: &Config,
     script: &str,
     emit: fn(&LogEvent),
-) -> Result<Option<ConcurrencyGroupSlot>, ConcurrencyGroupSlotError> {
-    let Some(group) =
-        config.tasks.get(script).and_then(|task| task.concurrency_group.as_deref())
-    else {
-        return Ok(None);
-    };
-    let Some(limit) = config.concurrency_groups
-        .get(group)
-        .copied()
-        .filter(|limit| *limit > 0)
-    else {
-        return Ok(None);
+    cancelled: &dyn Fn() -> bool,
+) -> Result<SlotOutcome, ConcurrencyGroupSlotError> {
+    let Some((group, limit)) = limited_group(config, script) else {
+        return Ok(SlotOutcome::Ungated);
     };
     if held_groups(std::env::var(HELD_CONCURRENCY_GROUPS_ENV).ok().as_deref())
         .any(|held| held == group)
     {
-        return Ok(None);
+        return Ok(SlotOutcome::Ungated);
     }
     let pool = SlotPool { dir: config.state_dir.join("run-slots").join(group), limit };
-    pool.acquire(|| {
+    let on_wait = || {
         let holders = pool.holders();
         emit(&LogEvent::Global(GlobalLog {
             level: LogLevel::Warn,
@@ -98,13 +100,30 @@ pub(crate) fn acquire_concurrency_group_slot(
                 if holders.is_empty() { "unknown".to_string() } else { holders.join("; ") },
             ),
         }));
-    })
-    .map(|file| Some(ConcurrencyGroupSlot { group: group.to_string(), _file: file }))
-    .map_err(|source| ConcurrencyGroupSlotError {
-        group: group.to_string(),
-        pool: pool.dir.clone(),
-        source,
-    })
+    };
+    pool.acquire(on_wait, cancelled)
+        .map(|file| match file {
+            Some(file) => {
+                SlotOutcome::Held(ConcurrencyGroupSlot { group: group.to_string(), _file: file })
+            }
+            None => SlotOutcome::Cancelled,
+        })
+        .map_err(|source| ConcurrencyGroupSlotError {
+            group: group.to_string(),
+            pool: pool.dir.clone(),
+            source,
+        })
+}
+
+/// The group the task named `script` is in, with its limit, when both
+/// are configured and the limit is positive.
+fn limited_group<'a>(config: &'a Config, script: &str) -> Option<(&'a str, u32)> {
+    let group = config.tasks.get(script)?.concurrency_group.as_deref()?;
+    let limit = config.concurrency_groups
+        .get(group)
+        .copied()
+        .filter(|limit| *limit > 0)?;
+    Some((group, limit))
 }
 
 /// `extra_env` with `group` added to the held groups the spawned script
@@ -136,13 +155,21 @@ struct SlotPool {
 }
 
 impl SlotPool {
-    fn acquire(&self, mut on_wait: impl FnMut()) -> io::Result<File> {
+    /// `None` once `cancelled` says so, checked before every attempt.
+    fn acquire(
+        &self,
+        mut on_wait: impl FnMut(),
+        cancelled: &dyn Fn() -> bool,
+    ) -> io::Result<Option<File>> {
         fs::create_dir_all(&self.dir)?;
         let mut poll = FIRST_POLL;
         let mut last_notice: Option<Instant> = None;
         loop {
+            if cancelled() {
+                return Ok(None);
+            }
             if let Some(file) = self.try_acquire()? {
-                return Ok(file);
+                return Ok(Some(file));
             }
             if last_notice.is_none_or(|at| at.elapsed() >= WAIT_NOTICE_EVERY) {
                 on_wait();
