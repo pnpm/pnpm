@@ -63,6 +63,21 @@ fn changed_entries(before: &TreeSnapshot, after: &TreeSnapshot, root: &Path) -> 
         .collect()
 }
 
+/// The files under `root` whose bytes mention `path`.
+fn files_mentioning(root: &Path, path: &Path) -> Vec<PathBuf> {
+    let needle = path.to_string_lossy().into_owned();
+    WalkDir::new(root)
+        .into_iter()
+        .map(|entry| entry.expect("walk the tree"))
+        .filter(|entry| entry.file_type().is_file())
+        .filter(|entry| {
+            let bytes = fs::read(entry.path()).expect("read the file");
+            String::from_utf8_lossy(&bytes).contains(&needle)
+        })
+        .map(walkdir::DirEntry::into_path)
+        .collect()
+}
+
 /// A workspace whose relative store and cache are pinned to the same
 /// directories by their canonical absolute paths, so nothing in the tree
 /// names the store through the project dir and a move to another depth
@@ -334,6 +349,85 @@ fn moved_tree_with_a_stale_slot_bin_is_not_up_to_date() {
         output.contains("resolution step is skipped"),
         "the stale bin must refuse the move before the install pipeline runs: {output}",
     );
+
+    drop(temp_cwd);
+}
+
+/// The shim for `@pnpm.e2e/hello-world-js-bin` in its parent's slot.
+const SLOT_SHIM: &str = "node_modules/.pnpm/@pnpm.e2e+hello-world-js-bin-parent@1.0.0/node_modules/@pnpm.e2e/hello-world-js-bin-parent/node_modules/.bin/hello-world-js-bin";
+
+/// Rewrite every kind of shim a workspace holds to name its `NODE_PATH` by
+/// absolute paths, as every shim an earlier pnpm wrote does, then move the
+/// tree to `name` beside it.
+fn make_shims_absolute_and_move(location: &Path, name: &str) -> PathBuf {
+    for shim in [
+        "b/node_modules/.bin/hello-world-js-bin",
+        "node_modules/.pnpm/node_modules/.bin/hello-world-js-bin",
+        SLOT_SHIM,
+    ] {
+        let shim = location.join(shim);
+        let shim_dir = format!(
+            "{}/",
+            shim.parent()
+                .expect("the shim's dir")
+                .display(),
+        );
+        let body = fs::read_to_string(&shim).expect("read the shim");
+        assert!(body.contains("$basedir_abs/"), "a relocatable shim: {body}");
+        fs::write(&shim, body.replace("$basedir_abs/", &shim_dir)).expect("write an absolute shim");
+    }
+    let moved = location.with_file_name(name);
+    fs::rename(location, &moved).expect("move the workspace");
+    moved
+}
+
+/// A moved tree whose bins name where the tree was is not reused. A filtered
+/// install relinks only the bins its selection reaches, so the install after
+/// it still sees the move and relinks the bins of every project and slot it
+/// left out, after which the tree is up to date. A fresh resolve relinks the
+/// same way.
+#[test]
+fn moved_tree_with_absolute_shims_converges_after_one_unfiltered_install() {
+    let (temp_cwd, workspace) = pinned_workspace();
+    append_workspace_yaml_key(&workspace, "packages", "[a, b]");
+    write_project_manifest(&workspace, "root", ManifestDeps::default());
+    for (project, dependency) in
+        [("a", "is-positive"), ("b", "@pnpm.e2e/hello-world-js-bin-parent")]
+    {
+        let prod = [(dependency, "1.0.0")];
+        let deps = ManifestDeps { prod: &prod, ..ManifestDeps::default() };
+        write_project_manifest(&workspace.join(project), project, deps);
+    }
+    pacquet_in(&workspace)
+        .with_arg("install")
+        .assert()
+        .success();
+
+    let moved = make_shims_absolute_and_move(&workspace, "first-move");
+    pacquet_in(&moved)
+        .with_args(["--filter", "a", "install"])
+        .assert()
+        .success();
+    pacquet_in(&moved)
+        .with_arg("install")
+        .assert()
+        .success();
+    let mentions = files_mentioning(&moved, &workspace);
+    assert!(mentions.is_empty(), "files naming where the tree was: {mentions:?}");
+    let relinked = tree_snapshot(&moved);
+    pacquet_in(&moved)
+        .with_arg("install")
+        .assert()
+        .success();
+    assert_eq!(changed_entries(&relinked, &tree_snapshot(&moved), &moved), BTreeSet::new());
+
+    let moved_again = make_shims_absolute_and_move(&moved, "second-move");
+    pacquet_in(&moved_again)
+        .with_args(["install", "--no-prefer-frozen-lockfile"])
+        .assert()
+        .success();
+    let mentions = files_mentioning(&moved_again, &moved);
+    assert!(mentions.is_empty(), "files naming where the tree was: {mentions:?}");
 
     drop(temp_cwd);
 }

@@ -10,7 +10,9 @@ pub(crate) use lockfile_freshness::{
 pub use lockfile_freshness::{
     WantedLockfileSatisfactionCheck, wanted_lockfile_satisfies_workspace,
 };
-pub(crate) use modules_state::{modules_layout_consistent_with, moved_tree_is_reusable};
+pub(crate) use modules_state::{
+    modules_layout_consistent_with, moved_tree_is_reusable, tree_may_move,
+};
 pub(crate) use prepare_modules_state::materialized_shape_matches;
 pub use run::{InstallExecution, InstallLockfilePolicy, ResolutionInputs};
 pub use workspace_state::{

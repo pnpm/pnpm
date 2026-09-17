@@ -72,6 +72,7 @@ pub(crate) use manifest_agreement::{
     ManifestStat, materialized_shape_matches, modified_manifests_match_lockfile, stat_manifests,
     unstatted_manifests,
 };
+pub(crate) use relocation::recorded_elsewhere;
 pub(crate) use settings::{
     catalogs_cache_matches, current_settings_with_catalogs, first_setting_drift,
     recorded_supported_architectures_match, settings_match,

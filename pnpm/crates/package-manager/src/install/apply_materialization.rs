@@ -235,7 +235,12 @@ fn finish_apply<Reporter: self::Reporter>(
         inputs.prior.lockfile.take(),
     ));
 
-    write_applied_workspace_state(&inputs)?;
+    // A filtered install relinks only the bins its selection reaches, so a
+    // moved tree keeps its state keyed where it was until an install relinks
+    // every bin.
+    if !(inputs.prior.tree_moved && inputs.projects.filtered_install) {
+        write_applied_workspace_state(&inputs)?;
+    }
 
     let completion = report_install_completion::<Reporter>(ReportInstallCompletionInputs {
         workspace: crate::install::state_options::CompletionWorkspace {

@@ -3,7 +3,8 @@ use super::super::{
     ResolutionVerifier, Stage, StageLog, SummaryLog, SystemTime, build_workspace_state,
     frozen_tree_intact, gvs_build_marker_present, has_newly_allowed_ignored_builds,
     has_revoked_allowed_builds, map_frozen_lockfile_error, modules_consistent_with,
-    unapproved_recorded_ignored_builds, update_workspace_state, verify_lockfile_eagerly,
+    moved_tree_is_reusable, unapproved_recorded_ignored_builds, update_workspace_state,
+    verify_lockfile_eagerly,
 };
 use crate::optimistic_repeat_install::{filesystem_now_ms, materialized_shape_matches};
 
@@ -27,6 +28,7 @@ pub(super) struct FrozenTreeUpToDate<'a> {
     pub(super) lockfile: Option<&'a Lockfile>,
     pub(super) current_lockfile: Option<&'a Lockfile>,
     pub(super) modules_manifest: Option<&'a pnpm_modules_yaml::ModulesLayout>,
+    pub(crate) recorded: crate::install::state_options::RecordedWorkspace<'a>,
 }
 /// The lockfile and modules manifest of a tree nothing has to be done to, or
 /// `None` when the install has to materialize.
@@ -68,7 +70,7 @@ pub(super) fn frozen_tree_up_to_date<'a>(
     // premise doesn't hold and the platform packages must be re-evaluated.
     if !modules_consistent_with(modules, config, context.tree.node_linker, context.tree.included)
         || !crate::optimistic_repeat_install::recorded_supported_architectures_match(
-            context.tree.workspace_root,
+            context.recorded.state,
             context.repeat.supported_architectures,
         )
         || !build_state_unchanged(context, current, modules)
@@ -85,8 +87,19 @@ pub(super) fn frozen_tree_up_to_date<'a>(
             config,
             context.tree.workspace_root,
             context.tree.node_linker,
-        );
+        )
+        && bins_resolve_where_the_tree_is(context, current);
     tree_intact.then_some((wanted_lockfile, modules))
+}
+
+fn bins_resolve_where_the_tree_is(context: &FrozenTreeUpToDate<'_>, current: &Lockfile) -> bool {
+    !context.recorded.moved
+        || moved_tree_is_reusable(
+            context.tree.config,
+            context.tree.node_linker,
+            context.recorded.projects,
+            current,
+        )
 }
 
 /// Whether the builds the tree already ran are still the builds this

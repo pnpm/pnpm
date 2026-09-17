@@ -10,9 +10,13 @@ use purge::{
 };
 
 use super::{
-    Config, Host, InstallError, Lockfile, Modules, NodeLinker, Reporter,
-    modules_layout_consistent_with,
+    Config, Host, InstallError, Lockfile, Modules, NodeLinker, PackageManifest, PathBuf, Reporter,
+    WorkspaceState, modules_layout_consistent_with, tree_may_move,
 };
+use crate::{
+    install::state_options::RecordedWorkspace, optimistic_repeat_install::recorded_elsewhere,
+};
+use pnpm_workspace_state::load_workspace_state;
 
 pub(super) struct PrepareModulesStateInputs<'a, 'install> {
     pub(crate) tree: crate::install::state_options::ModulesTreeContext<'a>,
@@ -32,6 +36,7 @@ pub(super) struct PreparedModulesState<'install> {
     pub(super) is_inconsistent: bool,
     pub(super) lockfile_verification_override:
         Option<super::LockfileVerificationOverride<'install>>,
+    pub(super) tree_moved: bool,
 }
 
 pub(super) fn prior_hoisted_dependencies(
@@ -64,7 +69,14 @@ pub(super) async fn prepare_modules_state<'install, Reporter: self::Reporter + '
 
     prepare_modules_layout(&inputs, modules_manifest, is_inconsistent)?;
 
-    let up_to_date = frozen_tree_inputs(&inputs, modules_manifest);
+    let recorded_state = load_workspace_state(inputs.tree.workspace_root).ok().flatten();
+    let recorded = recorded_workspace(
+        recorded_state.as_ref(),
+        inputs.tree.config,
+        inputs.tree.node_linker,
+        inputs.projects.manifests,
+    );
+    let up_to_date = frozen_tree_inputs(&inputs, modules_manifest, recorded);
     if let Some((wanted_lockfile, modules)) = frozen_tree_up_to_date(&up_to_date) {
         report_prepared_up_to_date::<Reporter>(inputs, wanted_lockfile, modules).await?;
         return Ok(None);
@@ -75,7 +87,25 @@ pub(super) async fn prepare_modules_state<'install, Reporter: self::Reporter + '
         previous_modules_metadata,
         is_inconsistent,
         lockfile_verification_override: inputs.verification.override_check,
+        tree_moved: recorded.moved,
     }))
+}
+
+/// The workspace state, read once for the recorded `supportedArchitectures`
+/// and to tell a tree that moved with its project. Where a moved tree is
+/// never reused ([`tree_may_move`]), one is not told from a tree in place.
+fn recorded_workspace<'a>(
+    state: Option<&'a WorkspaceState>,
+    config: &Config,
+    node_linker: NodeLinker,
+    projects: &'a [(PathBuf, &'a PackageManifest)],
+) -> RecordedWorkspace<'a> {
+    RecordedWorkspace {
+        state,
+        moved: tree_may_move(config, node_linker)
+            && state.is_some_and(|state| recorded_elsewhere(state, projects)),
+        projects,
+    }
 }
 
 fn prepare_modules_layout(
@@ -151,6 +181,7 @@ async fn report_prepared_up_to_date<Reporter: self::Reporter + 'static>(
 fn frozen_tree_inputs<'a>(
     inputs: &PrepareModulesStateInputs<'a, '_>,
     modules_manifest: Option<&'a pnpm_modules_yaml::ModulesLayout>,
+    recorded: RecordedWorkspace<'a>,
 ) -> FrozenTreeUpToDate<'a> {
     FrozenTreeUpToDate {
         tree: crate::install::state_options::ModulesTreeContext {
@@ -171,6 +202,7 @@ fn frozen_tree_inputs<'a>(
         lockfile: inputs.lockfiles.wanted,
         current_lockfile: inputs.lockfiles.current,
         modules_manifest,
+        recorded,
     }
 }
 

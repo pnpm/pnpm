@@ -1,9 +1,9 @@
 //! Comparing the settings a previous install recorded against the current ones.
 
 use super::{
-    Catalogs, Config, IncludedDependencies, LinkWorkspacePackages, NodeLinker, Path,
+    Catalogs, Config, IncludedDependencies, LinkWorkspacePackages, NodeLinker,
     SupportedArchitectures, TrustPolicy, WorkspaceState, WorkspaceStateNodeLinker,
-    WorkspaceStateSettings, WorkspaceStateTrustPolicy, load_workspace_state,
+    WorkspaceStateSettings, WorkspaceStateTrustPolicy,
 };
 
 /// Whether the `supportedArchitectures` recorded by the last install
@@ -11,18 +11,19 @@ use super::{
 /// state for the frozen path's lockfile-up-to-date early return, whose
 /// other guards (`wanted == current`, `.modules.yaml` consistency) cannot
 /// see an architecture change: the skip set it would produce differs, so
-/// the shortcut must not fire. A missing state file or an unreadable one
+/// the shortcut must not fire. A missing or unreadable state (`None`)
 /// reports a match only when `live` is also unset — the conservative
 /// direction is a full install.
 pub(crate) fn recorded_supported_architectures_match(
-    workspace_root: &Path,
+    recorded: Option<&WorkspaceState>,
     live: Option<&SupportedArchitectures>,
 ) -> bool {
-    let recorded = match load_workspace_state(workspace_root) {
-        Ok(Some(state)) => state.settings.supported_architectures,
-        _ => None,
-    };
-    recorded == live.and_then(|value| serde_json::to_value(value).ok())
+    let recorded =
+        recorded.and_then(|state| state.settings.supported_architectures.as_ref());
+    recorded
+        == live
+            .and_then(|value| serde_json::to_value(value).ok())
+            .as_ref()
 }
 
 pub(crate) fn settings_match(
