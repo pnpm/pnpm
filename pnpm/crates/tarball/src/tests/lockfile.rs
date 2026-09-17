@@ -41,6 +41,7 @@ async fn fetch_for_resolution_writes_no_index_row_for_a_subdirectory_package() {
         auth_headers: &AuthHeaders::default(),
         retry_opts: fast_retry_opts(),
         manifest_subdir: Some("/packages/foo"),
+        revision_addressed: false,
     }
     .run::<SilentReporter>(None)
     .await

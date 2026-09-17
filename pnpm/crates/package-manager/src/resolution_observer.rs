@@ -88,9 +88,12 @@ pub trait ResolutionObserver: Send + Sync {
 pub struct ObservingResolver {
     inner: Box<dyn Resolver>,
     observer: Arc<dyn ResolutionObserver>,
-    /// Tarball URLs already reported. The deps-resolver calls `resolve`
-    /// once per `(parent, child)` edge, so the same package surfaces many
-    /// times; dedup by URL collapses those to a single frame. Mirrors
+    /// Cache identities already reported. The deps-resolver calls
+    /// `resolve` once per `(parent, child)` edge, so the same package
+    /// surfaces many times; dedup collapses those to a single frame.
+    /// Two resolutions naming one URL are two archives when they pin
+    /// different hashes, and the prefetch the frame starts keys them
+    /// apart, so the identity is what dedups here too. Mirrors
     /// `PrefetchingResolver::spawned_downloads`.
     seen: DashSet<String>,
 }
@@ -109,19 +112,23 @@ impl ObservingResolver {
         let Some(name_ver) = result.package.name_ver.as_ref() else {
             return;
         };
-        if !self.seen.insert(tarball_url.to_string()) {
-            return;
-        }
-        let id = name_ver.to_string();
-        let name = name_ver.name.to_string();
-        let version = name_ver.suffix.to_string();
-        let integrity = integrity.to_string();
         let revision = match &result.resolution {
             pnpm_lockfile::LockfileResolution::Tarball(tarball) => {
                 tarball.revision.map(pnpm_lockfile::TarballRevision::get)
             }
             _ => None,
         };
+        if !self.seen.insert(pnpm_tarball::package_mem_cache_key(
+            tarball_url,
+            Some(&integrity),
+            revision.is_some(),
+        )) {
+            return;
+        }
+        let id = name_ver.to_string();
+        let name = name_ver.name.to_string();
+        let version = name_ver.suffix.to_string();
+        let integrity = integrity.to_string();
         self.observer.on_resolved(ResolvedPackageHint {
             integrity: &integrity,
             tarball_url,

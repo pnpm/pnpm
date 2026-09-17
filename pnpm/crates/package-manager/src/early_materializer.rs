@@ -181,7 +181,6 @@ fn required_dependencies(
 }
 
 struct SlotJob {
-    /// Slot the prefetch leaves this archive's CAS path map in.
     mem_cache_key: String,
     package_url: String,
     self_name: PkgName,

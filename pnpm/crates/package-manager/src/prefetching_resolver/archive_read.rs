@@ -146,6 +146,7 @@ impl<Reporter: self::Reporter + 'static> PrefetchingResolver<Reporter> {
         package_url: &str,
         package_id: &str,
     ) -> Result<ResolvedTarballMetadata, ResolveError> {
+        let revision_addressed = tarball.revision.is_some();
         let resolved = FetchTarballForResolution {
             http_client: &self.ctx.fetching.http_client,
             store_dir: self.ctx.store.dir,
@@ -165,6 +166,7 @@ impl<Reporter: self::Reporter + 'static> PrefetchingResolver<Reporter> {
             // git-hosted archives, the sole subdirectory-bearing shape,
             // are filtered out above.
             manifest_subdir: None,
+            revision_addressed,
         }
         .run::<SilentReporter>(Some(&self.ctx.mem_cache))
         .await
@@ -173,10 +175,7 @@ impl<Reporter: self::Reporter + 'static> PrefetchingResolver<Reporter> {
         // below records, so the install pass finds it there instead of
         // downloading the archive a second time. Claim that identity for the
         // prefetch path too, which resolves this edge once this call returns.
-        // The claim names the resolution's own network policy, so a
-        // revision-addressed edge still gets the single GET that protocol
-        // owes it rather than reusing this direct read.
-        self.claim_download(package_url, &resolved.integrity, tarball.revision.is_some());
+        self.claim_download(package_url, &resolved.integrity, revision_addressed);
         let mut resolution = tarball.clone();
         resolution.integrity = Some(resolved.integrity);
         Ok::<_, ResolveError>(ResolvedTarballMetadata {

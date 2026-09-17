@@ -339,6 +339,7 @@ async fn fetch_for_resolution_computes_integrity_when_none_is_expected() {
         auth_headers: &AuthHeaders::default(),
         retry_opts: fast_retry_opts(),
         manifest_subdir: None,
+        revision_addressed: false,
     }
     .run::<SilentReporter>(None)
     .await

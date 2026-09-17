@@ -458,6 +458,7 @@ async fn fetch_for_resolution_reads_manifest_from_subdirectory() {
         retry_opts: fast_retry_opts(),
         // Leading slash, exactly as the resolution records it.
         manifest_subdir: Some("/packages/foo"),
+        revision_addressed: false,
     }
     .run::<SilentReporter>(None)
     .await
@@ -505,6 +506,7 @@ async fn fetch_for_resolution_returns_no_manifest_for_subdirectory_without_one()
         auth_headers: &AuthHeaders::default(),
         retry_opts: fast_retry_opts(),
         manifest_subdir: Some("/packages/foo"),
+        revision_addressed: false,
     }
     .run::<SilentReporter>(None)
     .await

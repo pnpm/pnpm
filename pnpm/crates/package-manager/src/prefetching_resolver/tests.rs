@@ -442,15 +442,69 @@ fn tarball_with_a_dependency(name: &str) -> Vec<u8> {
 }
 
 fn manifestless_tarball_result(tarball_url: &str, integrity: &str) -> ResolveResult {
+    manifestless_tarball_result_with_revision(tarball_url, integrity, None)
+}
+
+fn manifestless_tarball_result_with_revision(
+    tarball_url: &str,
+    integrity: &str,
+    revision: Option<u64>,
+) -> ResolveResult {
     let mut result = result_without_manifest("pinned");
     result.resolution = LockfileResolution::Tarball(TarballResolution {
         integrity: Some(integrity.parse().expect("parse integrity")),
         tarball: tarball_url.to_string(),
-        revision: None,
+        revision: revision.map(|revision| revision.try_into().expect("build revision")),
         git_hosted: None,
         path: None,
     });
     result
+}
+
+/// A revision's protocol allows exactly one GET, so the read that
+/// recovers the manifest has to be that GET and has to publish where the
+/// install pass looks. <https://github.com/pnpm/pnpm/issues/15021>
+#[tokio::test]
+async fn reads_a_revision_addressed_tarball_under_its_own_network_policy() {
+    let dir = tempdir().unwrap();
+    let mut server = mockito::Server::new_async().await;
+    let tarball_path = "/revision-1.0.0.tgz";
+    let body = tarball_with_a_dependency("revision");
+    let integrity = ssri::IntegrityOpts::new()
+        .algorithm(ssri::Algorithm::Sha512)
+        .chain(&body)
+        .result()
+        .to_string();
+    let tarball_url = format!("{}{tarball_path}", server.url());
+    let get_mock = server
+        .mock("GET", tarball_path)
+        .with_status(200)
+        .with_body(body)
+        .expect(1)
+        .create_async()
+        .await;
+    let result = manifestless_tarball_result_with_revision(&tarball_url, &integrity, Some(1));
+    let resolver = resolver_with_inner(dir.path(), Box::new(FixedResolver { result }));
+
+    let resolved = resolver
+        .resolve(&WantedDependency::default(), &ResolveOptions::default())
+        .await
+        .expect("resolve succeeds")
+        .expect("resolver returns a result");
+
+    let manifest = resolved.package.manifest.expect("the bundled manifest fills the gap");
+    assert_eq!(dbg!(&manifest)["dependencies"]["ms"], json!("2.1.2"));
+    get_mock.assert_async().await;
+    let cache_key =
+        package_mem_cache_key(&tarball_url, Some(&integrity.parse().expect("integrity")), true);
+    assert!(
+        resolver.ctx.mem_cache.contains_key(&cache_key),
+        "the read publishes under the revision-addressed identity",
+    );
+    assert!(
+        resolver.spawned_downloads.contains(&cache_key),
+        "and claims it, so the prefetch spends no second GET",
+    );
 }
 
 /// <https://github.com/pnpm/pnpm/issues/15000>

@@ -520,6 +520,12 @@ pub struct FetchTarballForResolution<'a> {
     /// index describes the archive, not the named subpackage, so
     /// there is no row to write that the key would honestly describe.
     pub manifest_subdir: Option<&'a str>,
+    /// Whether the resolution pins a registry revision, whose protocol
+    /// allows exactly one GET and rejects redirects. This read is that
+    /// GET, so it publishes under the revision-addressed cache identity
+    /// the install pass looks the archive up by, and the install spends
+    /// no second one.
+    pub revision_addressed: bool,
 }
 
 impl FetchTarballForResolution<'_> {
@@ -544,7 +550,7 @@ impl FetchTarballForResolution<'_> {
                 self.auth_headers,
                 None,
                 None,
-                false,
+                self.revision_addressed,
             )
             .await?;
         apply_placeholder_manifest(self.store_dir, &mut cas_paths, &mut pkg_files_idx)?;
@@ -559,7 +565,7 @@ impl FetchTarballForResolution<'_> {
         if let Some(mem_cache) = mem_cache {
             let cache_lock = Arc::new(RwLock::new(CacheValue::Available(Arc::new(cas_paths))));
             mem_cache.insert(
-                package_mem_cache_key(self.package.url, Some(&integrity), false),
+                package_mem_cache_key(self.package.url, Some(&integrity), self.revision_addressed),
                 cache_lock,
             );
         }

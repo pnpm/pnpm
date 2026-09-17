@@ -66,6 +66,7 @@ async fn fetch_for_resolution_uses_package_id_for_scoped_auth() {
         auth_headers: &auth_headers,
         retry_opts: fast_retry_opts(),
         manifest_subdir: None,
+        revision_addressed: false,
     }
     .run::<SilentReporter>(None)
     .await
