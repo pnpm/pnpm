@@ -125,8 +125,9 @@ impl PythonPrepare<'_> {
         rules: &manifest::Manifest,
     ) -> Result<()> {
         let config = self.context.config;
-        packages.overrides = rules.tool.uv.overrides
+        packages.overrides = config.python.overrides
             .iter()
+            .chain(&rules.tool.uv.overrides)
             .map(|requirement| parse_rule(requirement))
             .collect::<Result<_>>()?;
         packages.constraints = config.python.constraints
