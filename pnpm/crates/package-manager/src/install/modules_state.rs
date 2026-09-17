@@ -78,7 +78,7 @@ pub(super) fn modules_consistent_with(
 /// Under a global virtual store the slot paths depend on graph hashes
 /// the short-circuit doesn't compute, and the hoisted linker has no
 /// virtual-store slots; both probe only the importer links.
-pub(super) fn frozen_tree_intact(
+pub(crate) fn frozen_tree_intact(
     wanted: &Lockfile,
     modules: &pnpm_modules_yaml::ModulesLayout,
     config: &Config,

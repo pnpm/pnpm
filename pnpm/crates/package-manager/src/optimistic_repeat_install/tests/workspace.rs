@@ -320,17 +320,8 @@ fn a_moved_tree_leaves_a_newer_patch_to_the_move_proof() {
 #[test]
 fn a_moved_tree_with_unreachable_lockfile_snapshots_is_up_to_date() {
     let (dir, config) = setup_content_check_project();
-    let layout = serde_json::json!({
-        "layoutVersion": 5,
-        "nodeLinker": "isolated",
-        "hoistPattern": config.hoist_pattern,
-        "publicHoistPattern": config.public_hoist_pattern,
-        "storeDir": config.store_dir.display().to_string(),
-        "virtualStoreDir": config.effective_virtual_store_dir().to_string_lossy(),
-        "virtualStoreDirMaxLength": config.virtual_store_dir_max_length,
-    });
-    fs::write(config.modules_dir.join(pnpm_modules_yaml::MODULES_FILENAME), layout.to_string())
-        .unwrap();
+    write_relocatable_layout(config);
+    install_foo_slot(config);
     // A snapshot the only importer does not reach, as a lockfile keeps until
     // something prunes it.
     let wanted = format!("{FOO_LOCKFILE}  bar@1.0.0: {{}}\n");
@@ -342,6 +333,119 @@ fn a_moved_tree_with_unreachable_lockfile_snapshots_is_up_to_date() {
         content_check_decision(&dir, config, false, &[(dir.path().to_path_buf(), &manifest)]);
     assert_eq!(decision, Decision::UpToDate);
 }
+#[cfg(unix)]
+fn write_relocatable_layout(config: &Config) {
+    let layout = serde_json::json!({
+        "layoutVersion": 5,
+        "nodeLinker": "isolated",
+        "included": isolated_included(),
+        "hoistPattern": config.hoist_pattern,
+        "publicHoistPattern": config.public_hoist_pattern,
+        "storeDir": config.store_dir.display().to_string(),
+        "virtualStoreDir": config.effective_virtual_store_dir().to_string_lossy(),
+        "virtualStoreDirMaxLength": config.virtual_store_dir_max_length,
+    });
+    fs::write(config.modules_dir.join(pnpm_modules_yaml::MODULES_FILENAME), layout.to_string())
+        .unwrap();
+}
+
+#[cfg(unix)]
+fn install_foo_slot(config: &Config) {
+    let slot = config.virtual_store_dir.join("foo@1.0.0/node_modules/foo");
+    fs::create_dir_all(&slot).unwrap();
+    std::os::unix::fs::symlink(".pnpm/foo@1.0.0/node_modules/foo", config.modules_dir.join("foo"))
+        .unwrap();
+}
+
+#[cfg(unix)]
+#[test]
+fn a_moved_tree_with_a_missing_dependency_is_not_up_to_date() {
+    for missing in ["link", "slot"] {
+        let (dir, config) = setup_content_check_project();
+        write_relocatable_layout(config);
+        install_foo_slot(config);
+        match missing {
+            "link" => fs::remove_file(config.modules_dir.join("foo")).unwrap(),
+            _ => fs::remove_dir_all(config.virtual_store_dir.join("foo@1.0.0")).unwrap(),
+        }
+        record_projects_elsewhere(dir.path());
+        let manifest = PackageManifest::from_path(dir.path().join("package.json")).unwrap();
+        let projects = [(dir.path().to_path_buf(), &manifest)];
+        let decision = content_check_decision(&dir, config, false, &projects);
+        assert!(matches!(decision, Decision::Skipped { .. }), "missing {missing}: {decision:?}");
+        let status = workspace_deps_status(&dir, config, &projects);
+        assert!(matches!(status, RunDepsStatus::Outdated { .. }), "missing {missing}: {status:?}");
+    }
+}
+
+#[cfg(unix)]
+#[test]
+fn a_moved_tree_cannot_trust_a_pnpmfile_with_an_older_mtime() {
+    let (dir, config) = setup_content_check_project();
+    write_relocatable_layout(config);
+    install_foo_slot(config);
+    let elsewhere = record_projects_elsewhere(dir.path());
+    let hook = dir.path().join(".pnpmfile.cjs");
+    fs::write(&hook, "module.exports = { hooks: { readPackage(pkg) { pkg.dependencies = {}; return pkg; } } };\n")
+        .unwrap();
+    let mut state = load_workspace_state(dir.path()).unwrap().unwrap();
+    state.pnpmfiles = vec![
+        std::path::Path::new(&elsewhere)
+            .join(".pnpmfile.cjs")
+            .to_string_lossy()
+            .into_owned(),
+    ];
+    update_workspace_state(dir.path(), &state).unwrap();
+    pnpm_testing_utils::fs::set_mtime_ms(&hook, state.last_validated_timestamp - 2_000);
+    let manifest = PackageManifest::from_path(dir.path().join("package.json")).unwrap();
+    let projects = [(dir.path().to_path_buf(), &manifest)];
+    let decision = content_check_decision(&dir, config, false, &projects);
+    assert!(matches!(decision, Decision::Skipped { .. }), "unexpected decision: {decision:?}");
+    let status = workspace_deps_status(&dir, config, &projects);
+    assert!(matches!(status, RunDepsStatus::Outdated { .. }), "unexpected status: {status:?}");
+}
+
+#[cfg(unix)]
+#[test]
+fn a_moved_production_install_passes_the_run_gate() {
+    let (dir, config) = setup_content_check_project();
+    write_relocatable_layout(config);
+    let included = pnpm_modules_yaml::IncludedDependencies {
+        dependencies: true,
+        dev_dependencies: false,
+        optional_dependencies: true,
+    };
+    let layout_path = config.modules_dir.join(pnpm_modules_yaml::MODULES_FILENAME);
+    let mut layout: serde_json::Value =
+        serde_json::from_str(&fs::read_to_string(&layout_path).unwrap()).unwrap();
+    layout["included"] = serde_json::to_value(included).unwrap();
+    fs::write(layout_path, layout.to_string()).unwrap();
+    fs::write(
+        dir.path().join("package.json"),
+        FOO_MANIFEST.replace("dependencies", "devDependencies"),
+    )
+    .unwrap();
+    fs::write(
+        dir.path().join(Lockfile::FILE_NAME),
+        FOO_LOCKFILE.replace("dependencies:", "devDependencies:"),
+    )
+    .unwrap();
+    let wanted = Lockfile::load_wanted_from_dir(dir.path()).unwrap().unwrap();
+    let current =
+        crate::filter_lockfile_for_current(&wanted, included, &crate::SkippedSnapshots::new());
+    current
+        .save_to_path(&config.virtual_store_dir.join(Lockfile::CURRENT_FILE_NAME))
+        .unwrap();
+    record_projects_elsewhere(dir.path());
+    let mut state = load_workspace_state(dir.path()).unwrap().unwrap();
+    state.settings.dev = Some(false);
+    update_workspace_state(dir.path(), &state).unwrap();
+    let manifest = PackageManifest::from_path(dir.path().join("package.json")).unwrap();
+    let status = workspace_deps_status(&dir, config, &[(dir.path().to_path_buf(), &manifest)]);
+    assert_eq!(status, RunDepsStatus::UpToDate);
+    assert_eq!(load_workspace_state(dir.path()).unwrap().unwrap().settings.dev, Some(false));
+}
+
 /// Drift in `injectWorkspacePackages` invalidates the cached state.
 /// Toggling the flag changes whether workspace resolutions land as
 /// `link:` symlinks or `file:` hard-linked copies, so the previous

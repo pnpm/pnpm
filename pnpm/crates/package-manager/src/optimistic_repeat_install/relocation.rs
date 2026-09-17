@@ -4,7 +4,7 @@
 
 use super::{
     Decision, Host, Lockfile, ManifestDrift, OptimisticRepeatInstallCheck, PackageManifest, Path,
-    PathBuf, WorkspaceState, filesystem_now_ms,
+    PathBuf, WorkspaceState, current_pnpmfiles, filesystem_now_ms,
     manifest_agreement::{assert_loaded_current_lockfile_records, check_projects_content},
     project_structure_matches, settle_repeat_install,
 };
@@ -100,8 +100,8 @@ pub(super) fn rekeyed_validation_now(
 
 /// Read-only proof that a tree which moved with its project is the one this
 /// checkout wants, and resolves everything from where it is now. Its
-/// pnpmfiles are trusted by their mtimes, as in place. `Err` carries the
-/// reason it cannot be reused.
+/// pnpmfiles require a full install to validate their content. `Err`
+/// carries the reason it cannot be reused.
 pub(super) fn prove_move(
     check: &OptimisticRepeatInstallCheck<'_>,
     drift: &ManifestDrift<'_>,
@@ -109,31 +109,17 @@ pub(super) fn prove_move(
     let &OptimisticRepeatInstallCheck {
         config,
         project_manifests,
-        layout: crate::RepeatInstallLayout { node_linker, included, .. },
+        layout: crate::RepeatInstallLayout { node_linker, .. },
         ..
     } = check;
+    if !current_pnpmfiles(check.workspace_root, config).is_empty() {
+        return Err("a moved tree requires pnpmfile content validation");
+    }
     // Both lockfiles are read here, and a refusal below falls through to the
     // full install, which reads the wanted one too, so the prefetch is never
     // spent for nothing: it parses while this thread does the rest.
     check.lockfile.prefetch();
-    let layout_resolves = pnpm_modules_yaml::read_modules_layout::<Host>(&config.modules_dir)
-        .ok()
-        .flatten()
-        .is_some_and(|modules| {
-            crate::install::modules_layout_consistent_with(&modules, config, node_linker)
-        });
-    if !layout_resolves {
-        return Err("the moved tree's store or virtual store does not resolve from where it is");
-    }
-    let current = Lockfile::load_current_from_virtual_store_dir(&config.virtual_store_dir)
-        .map_err(|_| "the current lockfile cannot be loaded")?;
-    let wanted = check.lockfile
-        .get()
-        .map_err(|_| "the wanted lockfile cannot be read or parsed")?
-        .ok_or("a moved tree has no wanted lockfile to compare against")?;
-    assert_loaded_current_lockfile_records(wanted, current.as_ref(), |current| {
-        crate::install::materialized_shape_matches(wanted, current, included)
-    })?;
+    let wanted = validated_moved_lockfile(check)?;
     check_projects_content(
         check,
         wanted,
@@ -146,6 +132,41 @@ pub(super) fn prove_move(
         return Err("a bin in the moved tree names a path outside it");
     }
     Ok(())
+}
+
+fn validated_moved_lockfile<'a>(
+    check: &'a OptimisticRepeatInstallCheck<'_>,
+) -> Result<&'a Lockfile, &'static str> {
+    let config = check.config;
+    let node_linker = check.layout.node_linker;
+    let modules = pnpm_modules_yaml::read_modules_layout::<Host>(&config.modules_dir)
+        .ok()
+        .flatten()
+        .filter(|modules| {
+            crate::install::modules_layout_consistent_with(modules, config, node_linker)
+        })
+        .ok_or("the moved tree's store or virtual store does not resolve from where it is")?;
+    let current = Lockfile::load_current_from_virtual_store_dir(&config.virtual_store_dir)
+        .map_err(|_| "the current lockfile cannot be loaded")?;
+    let wanted = check.lockfile
+        .get()
+        .map_err(|_| "the wanted lockfile cannot be read or parsed")?
+        .ok_or("a moved tree has no wanted lockfile to compare against")?;
+    assert_loaded_current_lockfile_records(wanted, current.as_ref(), |current| {
+        crate::install::materialized_shape_matches(wanted, current, modules.included)
+    })?;
+    if let Some(current) = current.as_ref()
+        && !crate::install::frozen_tree_intact(
+            current,
+            &modules,
+            config,
+            check.workspace_root,
+            node_linker,
+        )
+    {
+        return Err("the moved tree is missing an installed dependency");
+    }
+    Ok(wanted)
 }
 
 #[cfg(test)]

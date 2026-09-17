@@ -103,45 +103,58 @@ fn pinned_workspace() -> (CommandTempCwd<AddMockedRegistry>, PathBuf) {
 /// where the copy is and writes nothing else.
 #[test]
 fn copied_workspace_is_up_to_date_after_one_state_write() {
-    let (temp_cwd, workspace) = pinned_workspace();
-    pacquet_in(&workspace)
-        .with_args(["add", "@pnpm.e2e/hello-world-js-bin-parent@1.0.0"])
-        .assert()
-        .success();
-    let copy = workspace.with_file_name("copy");
-    Command::new("cp")
-        .arg("-Rp")
-        .arg(&workspace)
-        .arg(&copy)
-        .assert()
-        .success();
-    let before = tree_snapshot(&copy);
+    for node_linker in ["isolated", "hoisted"] {
+        let (temp_cwd, workspace) = pinned_workspace();
+        append_workspace_yaml_key(&workspace, "nodeLinker", node_linker);
+        pacquet_in(&workspace)
+            .with_args(["add", "@pnpm.e2e/hello-world-js-bin-parent@1.0.0"])
+            .assert()
+            .success();
+        let copy = workspace.with_file_name("copy");
+        Command::new("cp")
+            .arg("-Rp")
+            .arg(&workspace)
+            .arg(&copy)
+            .assert()
+            .success();
+        let bin = copy.join("node_modules/.bin/hello-world-js-bin");
+        assert!(bin.is_file(), "{node_linker}: the fixture must contain a bin");
+        let before = tree_snapshot(&copy);
 
-    let first = pacquet_in(&copy)
-        .with_arg("install")
-        .assert()
-        .success();
-    let first_output = String::from_utf8_lossy(&first.get_output().stdout).into_owned();
-    assert!(
-        first_output.contains("Already up to date")
-            && !first_output.contains("resolution step is skipped"),
-        "the copy must be up to date before the install pipeline runs: {first_output}",
-    );
-    let after_first = tree_snapshot(&copy);
-    assert_eq!(
-        changed_entries(&before, &after_first, &copy),
-        BTreeSet::from([
-            "node_modules".to_string(),
-            format!("node_modules/{WORKSPACE_STATE_FILENAME}"),
-        ]),
-    );
-    pacquet_in(&copy)
-        .with_arg("install")
-        .assert()
-        .success();
-    assert_eq!(changed_entries(&after_first, &tree_snapshot(&copy), &copy), BTreeSet::new());
+        let first = pacquet_in(&copy)
+            .with_arg("install")
+            .assert()
+            .success();
+        let first_output = String::from_utf8_lossy(&first.get_output().stdout).into_owned();
+        assert!(
+            first_output.contains("Already up to date")
+                && !first_output.contains("resolution step is skipped"),
+            "the copy must be up to date before the install pipeline runs: {first_output}",
+        );
+        assert_state_recorded_at(&copy);
+        let after_first = tree_snapshot(&copy);
+        assert_eq!(
+            changed_entries(&before, &after_first, &copy),
+            BTreeSet::from([
+                "node_modules".to_string(),
+                format!("node_modules/{WORKSPACE_STATE_FILENAME}"),
+            ]),
+        );
+        pacquet_in(&copy)
+            .with_arg("install")
+            .assert()
+            .success();
+        assert_eq!(changed_entries(&after_first, &tree_snapshot(&copy), &copy), BTreeSet::new());
 
-    drop(temp_cwd);
+        let run = Command::new(&bin).assert().success();
+        let stdout = String::from_utf8_lossy(&run.get_output().stdout);
+        assert!(
+            stdout.contains("Hello world from hello-world-js-bin-parent!"),
+            "{node_linker}: copied bin output: {stdout}",
+        );
+
+        drop(temp_cwd);
+    }
 }
 
 /// A `node_modules` copied into another checkout of the project, whose

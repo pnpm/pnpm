@@ -101,9 +101,9 @@ pub(super) fn check_projects_content(
             parsed_overrides: parsed_overrides.as_deref(),
             // `pnpmfileChecksum` is not compared here: every caller already
             // compared the pnpmfile list and trusted their contents by their
-            // mtimes (`pnpmfiles_drift`), which on a moved tree come from
-            // wherever it was validated. Computing the checksum instead
-            // would cost a Node worker on the path that exists to avoid
+            // mtimes (`pnpmfiles_drift`). The move proof refuses active
+            // pnpmfiles because their mtimes cannot prove content. Computing
+            // the checksum would cost a Node worker on the path that exists to avoid
             // starting one.
             pnpmfile_checksum: pnpm_lockfile::PnpmfileChecksumCheck::Skip,
             dedupe_peers,

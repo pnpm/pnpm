@@ -601,5 +601,4 @@ fn bin_dir_is_relocatable_accepts_generated_and_rejects_absolute_symlinks() {
         assert!(!bin_dir_is_relocatable(&bin_dir, &root), "{outside_link:?}");
         fs::remove_file(&link).unwrap();
     }
-
 }
