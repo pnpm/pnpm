@@ -748,21 +748,25 @@ async fn an_install_that_bypasses_the_range_still_takes_the_requested_version() 
     // Outside the workspace, which an install does not take interpreters from.
     let outside = tempfile::tempdir().unwrap();
     let shims = outside.path().join("interpreters");
-    // `python3` is looked at before `python3.13`, and the range rejects both.
+    // The conventional names are looked at before `python3.88`, and the
+    // range rejects every one of them. They are all shimmed, and the
+    // requested version is one no real interpreter has, so whatever this
+    // machine installed cannot be what the request accepts.
     interpreter_shim(&shims, "python3", "3.12.5");
-    interpreter_shim(&shims, "python3.13", "3.13.4");
+    interpreter_shim(&shims, "python", "3.12.9");
+    interpreter_shim(&shims, "python3.88", "3.88.1");
     fs::write(
         root.path().join("pyproject.toml"),
         "[project]\nname = 'app'\nversion = '1.0'\nrequires-python = '==3.99'\ndependencies = []\n",
     )
     .unwrap();
-    fs::write(root.path().join(".python-version"), "3.13\n").unwrap();
+    fs::write(root.path().join(".python-version"), "3.88\n").unwrap();
     pacquet_in(root.path())
         .args(["install", "--offline", "--runtime-on-fail=ignore"])
         .env("PATH", format!("{}:{}", shims.display(), std::env::var("PATH").unwrap()))
         .assert()
         .success();
-    assert_eq!(selected_python(root.path()), "3.13.4");
+    assert_eq!(selected_python(root.path()), "3.88.1");
 }
 
 /// The interpreter scenarios of pnpm/pnpm#14945: a project the machine's
