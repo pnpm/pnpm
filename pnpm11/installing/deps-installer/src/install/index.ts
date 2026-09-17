@@ -1954,8 +1954,6 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
       })
   )
 
-  // Only the projects whose manifest this run writes need the answer. Bind to
-  // the post-hook project identity that parent-scoped overrides matched.
   const overriddenDependencyMatcherFor = createOverriddenDependencyMatcher(opts.parsedOverrides, opts.lockfileDir)
   if (overriddenDependencyMatcherFor != null) {
     for (const project of projects) {

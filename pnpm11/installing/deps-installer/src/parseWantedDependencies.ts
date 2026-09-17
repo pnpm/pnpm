@@ -19,8 +19,8 @@ export interface ParsedWantedDependencies {
   outsideKeptRange: KeptRangeConflict[]
   /**
    * The selectors resolution can't be trusted to honor — a range or a dist tag, which only names a
-   * version once resolution has run — so the specifier the manifest keeps was used instead. Only
-   * ever non-empty under `readonlyManifest`.
+   * version once resolution has run — so the specifier the manifest or a hook/override keeps was
+   * used instead. Only ever non-empty under `readonlyManifest` or for `readonlySpecifiers`.
    */
   supersededByKeptRange: KeptRangeConflict[]
 }
