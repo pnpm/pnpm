@@ -188,6 +188,13 @@ const ARCHITECTURES: &[ArchitectureNames] = &[
         aliases: &["armv7"],
     },
     ArchitectureNames {
+        architecture: Architecture::Ppc64,
+        platform: "ppc64",
+        cpu: "ppc64",
+        wheel: "ppc64",
+        aliases: &["powerpc64"],
+    },
+    ArchitectureNames {
         architecture: Architecture::Ppc64Le,
         platform: "ppc64le",
         cpu: "ppc64",
@@ -218,6 +225,10 @@ pub enum Architecture {
     Arm64,
     Ia32,
     Arm,
+    /// Big-endian, which Node reports as `ppc64` the same way it reports
+    /// [`Self::Ppc64Le`]: the two are one name to a package and two
+    /// platforms to a wheel.
+    Ppc64,
     Ppc64Le,
     S390x,
     Riscv64,

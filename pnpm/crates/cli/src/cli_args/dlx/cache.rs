@@ -179,28 +179,43 @@ pub(super) fn create_cache_key(
         sorted_allow.sort_unstable();
         args.push(json!({ "allowBuild": sorted_allow }));
     }
-    match supported_architectures {
+    args.extend(architecture_key_inputs(supported_architectures));
+    create_short_hash(&serde_json::to_string(&args).expect("serialize cache key inputs"))
+}
+
+/// What the platforms an install prepares for contribute to its cache
+/// key.
+///
+/// The axes are recorded one axis at a time, each named once and sorted,
+/// since rewriting them in another order asks for the same install. A
+/// platform list keeps the order it was written in: which platform comes
+/// first decides which runtime archive the install takes when this
+/// machine is none of them.
+fn architecture_key_inputs(supported: Option<&SupportedArchitectures>) -> Vec<Value> {
+    match supported {
+        None => Vec::new(),
         Some(SupportedArchitectures::Axes(axes)) => {
-            for (key, values) in [("cpu", &axes.cpu), ("libc", &axes.libc), ("os", &axes.os)] {
-                let Some(values) = values
-                    .as_ref()
-                    .filter(|values| !values.is_empty())
-                else {
-                    continue;
-                };
-                args.push(json!({ "supportedArchitectures": { key: sorted_once(values) } }));
-            }
+            [("cpu", &axes.cpu), ("libc", &axes.libc), ("os", &axes.os)]
+                .into_iter()
+                .filter_map(|(key, values)| {
+                    let values = values
+                        .as_ref()
+                        .filter(|values| !values.is_empty())?;
+                    Some(json!({ "supportedArchitectures": { key: sorted_once(values) } }))
+                })
+                .collect()
         }
         Some(SupportedArchitectures::Platforms(platforms)) => {
-            let named: Vec<String> = platforms
-                .iter()
-                .map(ToString::to_string)
-                .collect();
-            args.push(json!({ "supportedArchitectures": sorted_once(&named) }));
+            let mut named = Vec::new();
+            for platform in platforms {
+                let platform = platform.to_string();
+                if !named.contains(&platform) {
+                    named.push(platform);
+                }
+            }
+            vec![json!({ "supportedArchitectures": named })]
         }
-        None => {}
     }
-    create_short_hash(&serde_json::to_string(&args).expect("serialize cache key inputs"))
 }
 
 /// The values as the cache key records them: named once, in an order

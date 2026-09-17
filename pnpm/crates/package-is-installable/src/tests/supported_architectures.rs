@@ -29,6 +29,7 @@ fn a_platform_reads_the_same_in_either_spelling() {
         ("aarch64-apple-darwin", "darwin-arm64"),
         ("x86_64-pc-windows-msvc", "win32-x64"),
         ("i686-pc-windows-msvc", "win32-ia32"),
+        ("powerpc64-unknown-linux-gnu", "linux-ppc64"),
         ("powerpc64le-unknown-linux-gnu", "linux-ppc64le"),
         ("riscv64gc-unknown-linux-musl", "linux-riscv64-musl"),
     ] {
@@ -53,6 +54,22 @@ fn a_libc_baseline_survives_the_spelling() {
     assert_eq!(spelled("linux-x64-manylinux_2_28"), "linux-x64-manylinux_2_28");
     assert_eq!(spelled("x86_64-manylinux_2_28"), "linux-x64-manylinux_2_28");
     assert_eq!(spelled("linux-arm64-musllinux_1_1"), "linux-arm64-musllinux_1_1");
+}
+
+/// Both PowerPC platforms are `ppc64` to a package, since that is the
+/// one name Node has for them, and each keeps its own wheel spelling.
+#[test]
+fn both_powerpc_platforms_are_one_name_to_a_package() {
+    let platforms = listed(&["linux-ppc64", "linux-ppc64le"]);
+    assert!(takes(&platforms, "linux", "ppc64", "glibc"));
+    assert_eq!(
+        platforms
+            .platforms(HOST.0, HOST.1, HOST.2)
+            .iter()
+            .map(|platform| platform.architecture.wheel())
+            .collect::<Vec<_>>(),
+        ["ppc64", "ppc64le"],
+    );
 }
 
 #[test]
@@ -166,6 +183,37 @@ fn a_platform_list_names_the_platforms_themselves() {
 #[test]
 fn a_platform_named_twice_is_one_platform() {
     assert_eq!(named(&listed(&["linux-x64", "x86_64-unknown-linux-gnu"])), ["linux-x64"]);
+}
+
+fn unnamed(supported: &SupportedArchitectures) -> Vec<&str> {
+    supported.unnamed_platform_values(HOST.0, HOST.1, HOST.2)
+}
+
+/// A caller that prepares per platform has to tell the user which of the
+/// names it could not prepare for, since `platforms` leaves them out
+/// without a word.
+#[test]
+fn names_the_axis_values_no_platform_stands_for() {
+    assert_eq!(
+        unnamed(&SupportedArchitectures::Axes(ArchitectureAxes {
+            os: axis(&["linux", "freebsd"]),
+            cpu: axis(&["x64", "sparc"]),
+            libc: axis(&["musl", "uclibc"]),
+        })),
+        ["freebsd", "sparc", "uclibc"],
+    );
+}
+
+/// Every value of these names a platform, so there is nothing to say.
+#[test]
+fn names_nothing_when_every_value_stands_for_a_platform() {
+    let axes = SupportedArchitectures::Axes(ArchitectureAxes {
+        os: axis(&["linux", "current"]),
+        cpu: axis(&["x64"]),
+        libc: axis(&["current", "manylinux_2_28"]),
+    });
+    assert!(unnamed(&axes).is_empty());
+    assert!(unnamed(&listed(&["linux-x64", "current"])).is_empty());
 }
 
 fn takes(supported: &SupportedArchitectures, os: &str, cpu: &str, libc: &str) -> bool {

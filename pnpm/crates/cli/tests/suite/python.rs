@@ -1857,6 +1857,48 @@ async fn rejects_a_platform_it_cannot_resolve_for() {
     }
 }
 
+/// `supportedArchitectures` is read by the npm side too, so a system it
+/// names that pnpm has no wheel tags for is not an error. It does mean
+/// `pylock.toml` covers less than the workspace says it supports, which
+/// the install has to say rather than leave to be inferred.
+#[tokio::test]
+async fn reports_a_platform_it_cannot_resolve_python_for() {
+    let (platform, tag) = running_platform();
+    let (os, cpu) = platform.split_once('-').expect("a platform names an os and a cpu");
+    let cases = [
+        (
+            vec![format!("os: [{os}, freebsd]"), format!("cpu: [{cpu}]")],
+            "pnpm cannot resolve Python for freebsd, so pylock.toml does not cover it",
+        ),
+        (
+            vec!["os: [freebsd]".to_string()],
+            "supportedArchitectures names no platform pnpm can resolve Python for: freebsd",
+        ),
+    ];
+    for (axes, expected) in cases {
+        eprintln!("axes {axes:?}");
+        let root = tempfile::tempdir().unwrap();
+        let mut server = mockito::Server::new_async().await;
+        let _alpha = serve_wheels(&mut server, "alpha", "1.0", &[tag]).await;
+        project(root.path(), &server.url(), &["alpha>=1"]);
+        let mut workspace = fs::read_to_string(root.path().join("pnpm-workspace.yaml")).unwrap();
+        workspace.push_str("supportedArchitectures:\n");
+        for axis in axes {
+            writeln!(workspace, "  {axis}").unwrap();
+        }
+        fs::write(root.path().join("pnpm-workspace.yaml"), workspace).unwrap();
+
+        let result = pacquet_in(root.path())
+            .arg("install")
+            .assert()
+            .success();
+        let mut output = String::from_utf8_lossy(&result.get_output().stdout).into_owned();
+        output.push_str(&String::from_utf8_lossy(&result.get_output().stderr));
+        eprintln!("output:\n{output}");
+        assert!(output.contains(expected), "expected: {expected}");
+    }
+}
+
 /// Renaming a platform leaves a lockfile that still answers the project:
 /// what it records is the platform, not the spelling it was written in.
 #[tokio::test]

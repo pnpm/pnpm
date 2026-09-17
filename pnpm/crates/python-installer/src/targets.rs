@@ -138,6 +138,24 @@ fn declarations<'a>(
     declarations
 }
 
+/// Whether any platform this install prepares for is one pnpm can
+/// resolve Python for.
+pub(super) fn declares_platforms(config: &Config) -> bool {
+    !named(config).0.is_empty()
+}
+
+/// The values `supportedArchitectures` names that pnpm cannot resolve
+/// Python for, as the interpreter running the install reads them.
+pub(super) fn platform_values_without_python(
+    supported: &pnpm_package_is_installable::SupportedArchitectures,
+) -> Vec<&str> {
+    supported.unnamed_platform_values(
+        pnpm_detect_libc::host_platform(),
+        pnpm_detect_libc::host_arch(),
+        pnpm_detect_libc::detect().map_or("unknown", |libc| libc.as_str()),
+    )
+}
+
 /// The platforms and Python versions the project declares, each named
 /// once.
 ///

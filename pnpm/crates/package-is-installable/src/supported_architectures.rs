@@ -83,6 +83,66 @@ impl SupportedArchitectures {
     }
 }
 
+impl SupportedArchitectures {
+    /// The values this setting names that no platform pnpm knows can
+    /// stand for, in the order they were written.
+    ///
+    /// [`Self::platforms`] leaves these out rather than refusing them,
+    /// because the axes are read by the optional-dependency check too,
+    /// where a system pnpm has no platform model for is still a name a
+    /// package declares. A caller that prepares per platform has to say
+    /// what it could not prepare for, since dropping them quietly reads
+    /// as having covered them.
+    #[must_use]
+    pub fn unnamed_platform_values(
+        &self,
+        current_os: &str,
+        current_cpu: &str,
+        current_libc: &str,
+    ) -> Vec<&str> {
+        match self {
+            Self::Platforms(platforms) => platforms
+                .iter()
+                .filter(|platform| {
+                    **platform == SupportedPlatform::Current
+                        && host(current_os, current_cpu, current_libc).is_none()
+                })
+                .map(|_| "current")
+                .collect(),
+            Self::Axes(axes) => {
+                let mut unnamed = Vec::new();
+                unnamed.extend(unread(axes.os.as_deref(), current_os, Os::parse));
+                unnamed.extend(unread(axes.cpu.as_deref(), current_cpu, Architecture::parse));
+                unnamed.extend(unread(axes.libc.as_deref(), current_libc, Libc::parse));
+                unnamed
+            }
+        }
+    }
+}
+
+/// The values of one axis that name nothing a platform can be built
+/// from, which is what [`named`] leaves out.
+fn unread<'a, Value>(
+    values: Option<&'a [String]>,
+    current: &str,
+    parse: impl Fn(&str) -> Option<Value>,
+) -> Vec<&'a str> {
+    let Some(values) = values else {
+        return Vec::new();
+    };
+    values
+        .iter()
+        .map(String::as_str)
+        .filter(|value| !reads(value, current, &parse))
+        .collect()
+}
+
+/// Whether an axis value names something a platform can be built from.
+/// `current` names whatever the install runs on.
+fn reads<Value>(value: &str, current: &str, parse: impl Fn(&str) -> Option<Value>) -> bool {
+    parse(if value == "current" { current } else { value }).is_some()
+}
+
 /// The platform the install runs on, or `None` on one pnpm cannot name.
 fn host(current_os: &str, current_cpu: &str, current_libc: &str) -> Option<NamedPlatform> {
     let os = Os::parse(current_os)?;

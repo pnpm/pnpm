@@ -46,6 +46,57 @@ fn runtime_platform_selector_expands_current_to_the_host() {
 
     assert_eq!(selector, host_platform_selector());
 }
+/// A platform list names whole platforms, so the archive is one of them
+/// rather than one axis of each.
+#[test]
+fn runtime_platform_selector_takes_the_first_platform_the_list_names() {
+    let supported = SupportedArchitectures::Platforms(vec!["linux-ppc64le-musl".parse().unwrap()]);
+
+    let selector = runtime_platform_selector(Some(&supported));
+
+    assert_eq!(selector.os, "linux");
+    assert_eq!(selector.cpu, "ppc64");
+    assert_eq!(selector.libc.as_deref(), Some("musl"));
+}
+
+/// An archive built for another platform cannot run here, so a list that
+/// names this machine asks for this machine's own.
+#[test]
+fn runtime_platform_selector_prefers_the_host_among_the_platforms_a_list_names() {
+    let host = host_platform_selector();
+    let listed = format!(
+        "{}-{}{}",
+        host.os,
+        host.cpu,
+        host.libc
+            .as_deref()
+            .map_or(String::new(), |libc| format!("-{libc}")),
+    );
+    let supported = SupportedArchitectures::Platforms(vec![
+        "linux-ppc64le-musl".parse().unwrap(),
+        listed
+            .parse()
+            .unwrap_or_else(|error| panic!("{listed}: {error}")),
+    ]);
+
+    let selector = runtime_platform_selector(Some(&supported));
+
+    assert_eq!(selector, host);
+}
+
+/// `current` is this machine whichever platform it is listed beside.
+#[test]
+fn runtime_platform_selector_reads_current_in_a_list_as_the_host() {
+    let supported = SupportedArchitectures::Platforms(vec![
+        "linux-ppc64le-musl".parse().unwrap(),
+        "current".parse().unwrap(),
+    ]);
+
+    let selector = runtime_platform_selector(Some(&supported));
+
+    assert_eq!(selector, host_platform_selector());
+}
+
 #[test]
 fn synthesize_runtime_manifest_emits_name_version_and_bin_single() {
     let key: PackageKey = "node@22.0.0".parse().expect("parse node key");

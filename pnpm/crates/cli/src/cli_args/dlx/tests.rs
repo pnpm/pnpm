@@ -127,6 +127,54 @@ fn create_cache_key_changes_with_supported_architectures() {
     );
 }
 
+/// The platforms a run prepared for decide what its cache holds, and two
+/// spellings of one platform are one platform.
+#[test]
+fn create_cache_key_changes_with_the_platforms_it_names() {
+    let pkgs = ["cowsay".to_string()];
+    let registry = "https://registry.npmjs.org/";
+    let base = create_cache_key(&pkgs, &regs(registry), &[], None);
+    let listed = |platforms: &[&str]| {
+        SupportedArchitectures::Platforms(
+            platforms
+                .iter()
+                .map(|platform| platform.parse().unwrap())
+                .collect(),
+        )
+    };
+    let key = |supported| create_cache_key(&pkgs, &regs(registry), &[], Some(supported));
+
+    let linux = listed(&["linux-x64"]);
+    let darwin = listed(&["darwin-arm64"]);
+    assert_ne!(base, key(&linux), "naming a platform must change the key");
+    assert_ne!(key(&linux), key(&darwin), "different platforms must produce different keys");
+
+    let spelled_twice = listed(&["x86_64-unknown-linux-gnu", "linux-x64"]);
+    assert_eq!(
+        key(&linux),
+        key(&spelled_twice),
+        "two spellings of one platform must not change the key",
+    );
+    let written = listed(&["linux-x64", "darwin-arm64"]);
+    let reversed = listed(&["darwin-arm64", "linux-x64"]);
+    assert_ne!(
+        key(&written),
+        key(&reversed),
+        "the first platform decides the runtime archive, so the order must change the key",
+    );
+
+    let axes = SupportedArchitectures::Axes(ArchitectureAxes {
+        os: Some(vec!["linux".to_string()]),
+        cpu: Some(vec!["x64".to_string()]),
+        ..Default::default()
+    });
+    assert_ne!(
+        key(&linux),
+        key(&axes),
+        "naming a platform and crossing the axes into it are different installs",
+    );
+}
+
 #[test]
 fn get_prepare_dir_encodes_time_and_pid_in_base36() {
     let base = std::path::Path::new("/cache/dlx/key");
