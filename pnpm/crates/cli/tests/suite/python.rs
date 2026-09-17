@@ -457,8 +457,7 @@ fn selected_python(root: &Path) -> String {
 }
 
 /// A python-build-standalone release serving an interpreter of every
-/// version for this machine: the `SHA256SUMS` naming them, and the
-/// archives themselves.
+/// version for this machine.
 #[cfg(any(target_os = "linux", target_os = "macos"))]
 async fn serve_interpreter(
     server: &mut mockito::ServerGuard,
@@ -492,7 +491,7 @@ async fn serve_interpreter(
 }
 
 /// The archive one of those interpreters is downloaded as, laid out the
-/// way python-build-standalone lays a build out.
+/// way python-build-standalone lays a build out: one `python` directory.
 #[cfg(any(target_os = "linux", target_os = "macos"))]
 fn interpreter_archive(version: &str) -> Vec<u8> {
     use std::io::Write as _;

@@ -33,11 +33,6 @@ const SHA256_INTEGRITY_LEN: usize = "sha256-".len() + 44;
 /// else entirely is not read to the end to find that out.
 const MAX_ARCHIVE_BYTES: usize = 256 * 1024 * 1024;
 
-/// An interpreter unpacks to a little over a hundred megabytes. What a
-/// mirror compressed those megabytes out of is what this bounds: a gzip
-/// archive under [`MAX_ARCHIVE_BYTES`] can hold hundreds of gigabytes.
-const MAX_UNPACKED_BYTES: u64 = 512 * 1024 * 1024;
-
 /// The interpreters pnpm can install, as one release's `SHA256SUMS` names
 /// them.
 pub(super) struct Releases {
@@ -170,9 +165,7 @@ impl Build {
 }
 
 /// What an install says when it installs a version other than the one a
-/// `.python-version` file asks for: the release publishes no such version
-/// for this machine, or the project's own range refuses the one it does
-/// publish.
+/// `.python-version` file asks for.
 pub(super) fn report_unmet_request<Reporter: self::Reporter + 'static>(
     releases: &Releases,
     root: &Path,
@@ -284,12 +277,11 @@ fn host_triple() -> Option<String> {
 /// `python` is one an install can use and never a download that stopped
 /// halfway.
 fn unpack(archive: &Path, directory: &Path) -> Result<()> {
+    within(archive, INTERPRETER_BOUNDS)?;
     let parent = directory.parent().expect("an installed interpreter has a parent directory");
     std::fs::create_dir_all(parent).into_diagnostic()?;
     let staged = tempfile::TempDir::new_in(parent).into_diagnostic()?;
-    let file = std::fs::File::open(archive).into_diagnostic()?;
-    let bounded = Bounded { inner: flate2::read::GzDecoder::new(file), left: MAX_UNPACKED_BYTES };
-    let mut unpacked = tar::Archive::new(bounded);
+    let mut unpacked = tar::Archive::new(reader(archive, INTERPRETER_BOUNDS)?);
     unpacked.set_preserve_permissions(true);
     unpacked
         .unpack(staged.path())
@@ -308,11 +300,50 @@ fn unpack(archive: &Path, directory: &Path) -> Result<()> {
     }
 }
 
+/// What an archive may hold to be an interpreter, in the two costs that
+/// its compressed size does not bound: a gzip archive of a few hundred
+/// megabytes holds hundreds of gigabytes, or a million empty files, and
+/// a file costs an inode whatever it holds.
+#[derive(Clone, Copy)]
+struct Bounds {
+    bytes: u64,
+    entries: usize,
+}
+
+/// An interpreter unpacks to a little over a hundred megabytes in a few
+/// thousand files. Both leave the room a build may still grow into.
+const INTERPRETER_BOUNDS: Bounds = Bounds { bytes: 512 * 1024 * 1024, entries: 50_000 };
+
+/// Whether the archive is one, read through to the end before anything
+/// is written, so an archive that is not stops the install rather than
+/// leaving a partial unpacking to be cleaned up.
+fn within(archive: &Path, bounds: Bounds) -> Result<()> {
+    let mut read = tar::Archive::new(reader(archive, bounds)?);
+    let entries = read
+        .entries()
+        .into_diagnostic()
+        .wrap_err(READ)?;
+    for (count, entry) in entries.enumerate() {
+        entry.into_diagnostic().wrap_err(READ)?;
+        if count >= bounds.entries {
+            bail!("{READ}: it holds more than {} entries", bounds.entries);
+        }
+    }
+    Ok(())
+}
+
+const READ: &str = "read the Python interpreter pnpm downloaded";
+
+fn reader(
+    archive: &Path,
+    bounds: Bounds,
+) -> Result<Bounded<flate2::read::GzDecoder<std::fs::File>>> {
+    let file = std::fs::File::open(archive).into_diagnostic().wrap_err(READ)?;
+    Ok(Bounded { inner: flate2::read::GzDecoder::new(file), left: bounds.bytes })
+}
+
 /// A stream that ends in an error once it has given out more than it was
-/// allowed to. Reading the archive through one is what keeps unpacking
-/// it bounded: every entry costs a header of its own, so the same limit
-/// bounds how many entries an archive holds as well as how large they
-/// are.
+/// allowed to.
 struct Bounded<Stream> {
     inner: Stream,
     left: u64,
@@ -323,9 +354,7 @@ impl<Stream: std::io::Read> std::io::Read for Bounded<Stream> {
         let read = self.inner.read(buffer)?;
         self.left = self.left
             .checked_sub(read as u64)
-            .ok_or_else(|| {
-                std::io::Error::other(format!("it unpacks to more than {MAX_UNPACKED_BYTES} bytes"))
-            })?;
+            .ok_or_else(|| std::io::Error::other("it unpacks to more than it may"))?;
         Ok(read)
     }
 }

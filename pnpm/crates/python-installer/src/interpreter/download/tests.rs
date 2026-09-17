@@ -1,6 +1,5 @@
-use super::{Bounded, MAX_UNPACKED_BYTES, Releases, ShasumsFileItem, builds_in, host_triple};
+use super::{Bounds, Releases, ShasumsFileItem, builds_in, host_triple, within};
 use crate::interpreter::VersionRequest;
-use std::io::Read as _;
 
 /// A python-build-standalone `SHA256SUMS`, as the release writes it and
 /// as the shared parser hands it back.
@@ -100,19 +99,38 @@ fn the_build_installed_is_the_newest_one_the_project_accepts() {
     );
 }
 
-/// What an archive holds is what it expands to, which is not what a
-/// mirror had to send to hold it.
+/// What an archive holds is what it expands to and how many files that
+/// is, neither of which is what a mirror had to send to hold it.
 #[test]
-fn an_archive_expanding_past_what_an_interpreter_is_ends_in_an_error() {
-    let interpreter = "an interpreter".repeat(8);
-    let mut unpacked = String::new();
-    Bounded { inner: interpreter.as_bytes(), left: MAX_UNPACKED_BYTES }
-        .read_to_string(&mut unpacked)
-        .expect("an interpreter is smaller than the limit");
-    assert_eq!(unpacked, interpreter);
+fn an_archive_past_what_an_interpreter_is_never_reaches_the_store() {
+    let archive = tempfile::NamedTempFile::new().expect("an archive");
+    let mut written =
+        tar::Builder::new(flate2::write::GzEncoder::new(Vec::new(), flate2::Compression::fast()));
+    for entry in 0..4 {
+        let file = "an interpreter".repeat(8);
+        let mut header = tar::Header::new_gnu();
+        header.set_size(file.len() as u64);
+        header.set_mode(0o644);
+        header.set_cksum();
+        written
+            .append_data(&mut header, format!("python/lib/{entry}"), file.as_bytes())
+            .expect("an entry");
+    }
+    let compressed = written
+        .into_inner()
+        .expect("the archive")
+        .finish()
+        .expect("the archive");
+    std::fs::write(archive.path(), &compressed).expect("write the archive");
 
-    let error = Bounded { inner: interpreter.as_bytes(), left: 8 }
-        .read_to_string(&mut unpacked)
-        .expect_err("a stream past the limit");
-    assert!(error.to_string().contains("unpacks to more than"), "{error}");
+    within(archive.path(), Bounds { bytes: 64 * 1024, entries: 4 })
+        .expect("an archive within both bounds");
+
+    let past_bytes = within(archive.path(), Bounds { bytes: 64, entries: 4 })
+        .expect_err("an archive past the bytes it may unpack to");
+    assert!(format!("{past_bytes:?}").contains("unpacks to more than"), "{past_bytes:?}");
+
+    let past_entries = within(archive.path(), Bounds { bytes: 64 * 1024, entries: 3 })
+        .expect_err("an archive past the entries it may hold");
+    assert!(format!("{past_entries:?}").contains("more than 3 entries"), "{past_entries:?}");
 }
