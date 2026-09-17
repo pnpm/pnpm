@@ -4,7 +4,9 @@
 //!
 //! pubgrub reports the conflict as a chain of terms, which names the
 //! project as one root. The members are what the reader has to change, so
-//! the two that disagree are named ahead of that report.
+//! the two that disagree are named ahead of that report. The search is
+//! bounded by the distinct ranges the members ask for, not by how many
+//! members ask them.
 
 use super::Member;
 use crate::registry::Resolution;
@@ -34,7 +36,10 @@ struct Asked<'a> {
 
 fn find(resolution: &Resolution, members: &[Member]) -> Option<String> {
     let environment = &resolution.target.environment;
-    let mut by_name = BTreeMap::<&PackageName, Vec<Asked<'_>>>::new();
+    // One entry per distinct range: two members asking the same range
+    // cannot disagree with each other, and a third disagrees with both or
+    // neither, so the pairs compared are of distinct ranges only.
+    let mut by_name = BTreeMap::<&PackageName, BTreeMap<String, Asked<'_>>>::new();
     for member in members {
         for requirement in &member.requirements.all {
             let Some(VersionOrUrl::VersionSpecifier(specifiers)) = &requirement.version_or_url
@@ -45,7 +50,8 @@ fn find(resolution: &Resolution, members: &[Member]) -> Option<String> {
                 by_name
                     .entry(&requirement.name)
                     .or_default()
-                    .push(Asked { root: &member.root, requirement, specifiers });
+                    .entry(specifiers.to_string())
+                    .or_insert(Asked { root: &member.root, requirement, specifiers });
             }
         }
     }
@@ -55,6 +61,7 @@ fn find(resolution: &Resolution, members: &[Member]) -> Option<String> {
             let offered = resolution.packages.candidates
                 .get(name)
                 .filter(|offered| !offered.is_empty())?;
+            let asked = asked.into_values().collect::<Vec<_>>();
             conflicting_pair(name, &asked, &offered.keys().collect::<Vec<_>>())
         })
 }

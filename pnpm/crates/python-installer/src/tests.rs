@@ -366,3 +366,23 @@ fn a_command_uses_the_environment_its_project_shares_or_its_own() {
     let inner = root.join("packages/inner");
     assert_eq!(environment_of(&inner), inner.join(".venv"), "its own workspace root");
 }
+
+/// The workspace may be configured through a link to the directory the
+/// command runs in, and the lookup compares the two as one path.
+#[cfg(unix)]
+#[test]
+fn a_workspace_reached_through_a_link_still_shares_its_environment() {
+    let outside = tempfile::tempdir().expect("outside directory");
+    let real = outside.path().join("real");
+    let member = real.join("packages/app");
+    std::fs::create_dir_all(&member).expect("member directory");
+    std::fs::write(real.join("pyproject.toml"), SHARED_ROOT).expect("shared workspace");
+    std::fs::write(member.join("pyproject.toml"), MEMBER).expect("member");
+    let link = outside.path().join("link");
+    std::os::unix::fs::symlink(&real, &link).expect("workspace link");
+    let canonical = dunce::canonicalize(&real).expect("canonical workspace");
+
+    assert_eq!(super::environment_dir(Some(&link), &member), canonical.join(".venv"));
+    assert!(super::in_declared_workspace(&link, &member));
+    assert!(!super::in_declared_workspace(&link, outside.path()), "outside the workspace");
+}
