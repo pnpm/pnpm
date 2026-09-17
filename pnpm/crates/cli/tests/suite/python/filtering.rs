@@ -263,7 +263,7 @@ async fn a_production_filter_follows_a_source_a_backend_may_require() {
     assert!(installed(root.path(), "packages/tool"));
 }
 
-/// A recursive add leaves the workspace root out, the way the npm add does,/// A recursive add leaves the workspace root out, the way the npm add does,
+/// A recursive add leaves the workspace root out, the way the npm add does,
 /// so a Python project at the root keeps its requirements.
 #[tokio::test]
 async fn a_recursive_add_leaves_the_workspace_root_alone() {
