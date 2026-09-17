@@ -47,7 +47,8 @@ agent-authored GitHub content as required by that skill.
 For ready PRs, finish only when the checks are green and the reviewers have
 reported on the current head with nothing left to act on. For draft PRs,
 preserve draft status and finish when checks are green and your own review is
-complete. Before finishing, post a signed GitHub PR comment stating that
-external review was not started because the PR is a draft and listing any
-remaining work, or confirming that none remains within the requested scope. If an external prerequisite prevents completion, report it concretely. Summarize the fixes, conflicts resolved,
+complete. Before finishing, post a signed GitHub PR comment describing the
+actual external review status and explaining that draft status was preserved
+without starting a new automated review round. List any remaining work, or
+confirm that none remains within the requested scope. If an external prerequisite prevents completion, report it concretely. Summarize the fixes, conflicts resolved,
 findings declined and why, validation, and final CI and review status.
