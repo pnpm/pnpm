@@ -334,7 +334,10 @@ const UNSHARED_ROOT: &str = "[tool.uv.workspace]\nmembers = ['libs/*']\n";
 #[test]
 fn a_command_uses_the_environment_its_project_shares_or_its_own() {
     let workspace = tempfile::tempdir().expect("workspace directory");
-    let root = workspace.path();
+    // The lookup answers with links resolved, and a temporary directory
+    // may be reached through one.
+    let root = dunce::canonicalize(workspace.path()).expect("canonical workspace");
+    let root = root.as_path();
     let environment_of = |dir: &std::path::Path| super::environment_dir(Some(root), dir);
     for project in ["packages/app", "packages/tool", "packages/nested/libs/x", "packages/inner"] {
         std::fs::create_dir_all(root.join(project).join("src")).expect("project directory");
