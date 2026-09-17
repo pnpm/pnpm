@@ -1,5 +1,6 @@
 use super::{
     Cursor, SimpleFileOptions, Write, ZipWriter, assert_failure_contains, cargo_project,
+    environments::{generations, project_directories},
     flatten_report, fs, json, pacquet_in, project, python, serve, wheel,
 };
 use assert_cmd::assert::OutputAssertExt;
@@ -62,7 +63,8 @@ fn failed_publication_restores_prior_cargo_workspaces_and_discards_python_genera
         let path = root.path().join(relative);
         assert!(!path.exists(), "failed publication must restore {path:?}");
     }
-    assert_eq!(fs::read_dir(root.path().join(".pnpm/python-envs")).unwrap().count(), 0);
+    assert_eq!(project_directories(root.path()).len(), 1, "Python prepared no generation");
+    assert!(generations(root.path()).is_empty(), "failed publication kept a generation");
 }
 
 #[tokio::test]
@@ -151,22 +153,6 @@ async fn dependency_cycles_resolve_and_tampered_lockfile_closure_is_rejected() {
     assert_eq!(environment, pnpm_fs::read_symlink_dir(&root.path().join(".venv")).unwrap());
 }
 
-#[cfg(unix)]
-#[tokio::test]
-async fn rejects_symlinked_generation_parent_without_writing_outside_the_project() {
-    let root = tempfile::tempdir().unwrap();
-    let outside = tempfile::tempdir().unwrap();
-    let server = mockito::Server::new_async().await;
-    project(root.path(), &server.url(), &[]);
-    std::os::unix::fs::symlink(outside.path(), root.path().join(".pnpm")).unwrap();
-    pacquet_in(root.path())
-        .arg("install")
-        .assert()
-        .failure();
-    assert_eq!(fs::read_dir(outside.path()).unwrap().count(), 0);
-    assert!(!root.path().join("pylock.toml").exists());
-}
-
 #[tokio::test]
 async fn backtracks_instead_of_rejecting_conflicting_latest_versions() {
     let root = tempfile::tempdir().unwrap();
@@ -248,33 +234,48 @@ fn rejects_oversized_python_index_cache_before_parsing() {
     );
 }
 
+/// pnpm 12.4 published nothing through a symlinked `.pnpm`, so an
+/// environment reached through one is not one it made.
+#[cfg(unix)]
 #[test]
-fn broken_python_environment_errors_identify_the_missing_path() {
-    for missing_target in [false, true] {
-        eprintln!("missing_target={missing_target}");
-        let root = tempfile::tempdir().unwrap();
-        let project_root = dunce::canonicalize(root.path()).unwrap();
-        project(&project_root, "https://unused.invalid", &[]);
-        let target = if missing_target {
-            project_root
-                .join(".pnpm")
-                .join("python-envs")
-                .join("env-missing")
-        } else {
-            project_root.join("unmanaged")
-        };
-        fs::create_dir_all(&target).unwrap();
-        pnpm_fs::force_symlink_dir(&target, &project_root.join(".venv")).unwrap();
-        if missing_target {
-            fs::remove_dir(&target).unwrap();
-        }
-        let missing = if missing_target { target } else { project_root.join(".pnpm/python-envs") };
-        assert_failure_contains(
-            pacquet_in(root.path()).args(["install", "--offline"]),
-            &format!("{} for {}", missing.display(), project_root.join(".venv").display()),
-        );
-        assert!(!root.path().join("pylock.toml").exists(), "published failed environment metadata");
-    }
+fn refuses_to_replace_an_environment_behind_a_symlinked_pnpm_directory() {
+    let root = tempfile::tempdir().unwrap();
+    let outside = tempfile::tempdir().unwrap();
+    let project_root = dunce::canonicalize(root.path()).unwrap();
+    project(&project_root, "https://unused.invalid", &[]);
+    let environment = outside.path().join("python-envs/env-user");
+    fs::create_dir_all(&environment).unwrap();
+    fs::write(environment.join("owned-by-user"), "preserve").unwrap();
+    std::os::unix::fs::symlink(outside.path(), project_root.join(".pnpm")).unwrap();
+    let link = project_root.join(".venv");
+    std::os::unix::fs::symlink(".pnpm/python-envs/env-user", &link).unwrap();
+    assert_failure_contains(
+        pacquet_in(root.path()).args(["install", "--offline"]),
+        &format!("pnpm will not replace an unmanaged Python environment: {}", link.display()),
+    );
+    assert_eq!(fs::read_link(&link).unwrap(), std::path::Path::new(".pnpm/python-envs/env-user"));
+    assert_eq!(fs::read_to_string(environment.join("owned-by-user")).unwrap(), "preserve");
+    assert!(!root.path().join("pylock.toml").exists(), "published failed environment metadata");
+}
+
+#[test]
+fn refuses_to_replace_a_link_to_an_environment_outside_the_store() {
+    let root = tempfile::tempdir().unwrap();
+    let project_root = dunce::canonicalize(root.path()).unwrap();
+    project(&project_root, "https://unused.invalid", &[]);
+    let target = project_root.join("unmanaged");
+    fs::create_dir_all(&target).unwrap();
+    fs::write(target.join("owned-by-user"), "preserve").unwrap();
+    pnpm_fs::force_symlink_dir(&target, &project_root.join(".venv")).unwrap();
+    assert_failure_contains(
+        pacquet_in(root.path()).args(["install", "--offline"]),
+        &format!(
+            "pnpm will not replace an unmanaged Python environment: {}",
+            project_root.join(".venv").display(),
+        ),
+    );
+    assert_eq!(fs::read_to_string(target.join("owned-by-user")).unwrap(), "preserve");
+    assert!(!root.path().join("pylock.toml").exists(), "published failed environment metadata");
 }
 
 #[tokio::test]

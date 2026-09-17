@@ -1,10 +1,14 @@
+pub(super) use store::{EnvironmentStore, Generation, publish_link};
+
 use super::{
     Arc, Environments, Index, Inputs, InstallOptions, Interpreter, IntoDiagnostic, Lockfile,
-    PYPI_ECOSYSTEM, Path, PathBuf, PnprClient, PypiResolveOptions, Result, StoreIndexWriter, bail,
-    fs, io, manifest,
+    PYPI_ECOSYSTEM, Path, PnprClient, PypiResolveOptions, Result, StoreIndexWriter, bail, io,
+    manifest,
 };
 use miette::WrapErr;
 use std::collections::{BTreeMap, BTreeSet};
+
+mod store;
 
 /// What every project of one [`prepare`](super::prepare) run shares,
 /// before the interpreter each one is installed with is known.
@@ -199,83 +203,5 @@ pub(super) async fn resolve_via_pnpr(
             .into_diagnostic()
             .wrap_err("resolve Python dependencies through the pnpr server")
             .map(Some),
-    }
-}
-
-pub(super) fn ensure_environment_parent(root: &Path) -> Result<()> {
-    let mut path = root.to_path_buf();
-    for component in [".pnpm", "python-envs"] {
-        path.push(component);
-        match fs::create_dir(&path) {
-            Ok(()) => {}
-            Err(error) if error.kind() == io::ErrorKind::AlreadyExists => {}
-            Err(error) => return Err(error).into_diagnostic(),
-        }
-        if !fs::symlink_metadata(&path).into_diagnostic()?.is_dir()
-            || pnpm_fs::is_symlink_or_junction(&path).into_diagnostic()?
-        {
-            bail!("managed Python directory must be a real directory: {}", path.display());
-        }
-    }
-    Ok(())
-}
-
-pub(super) fn validate_environment_link(root: &Path) -> Result<Option<PathBuf>> {
-    let link = root.join(".venv");
-    match fs::symlink_metadata(&link) {
-        Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(None),
-        Err(error) => Err(error).into_diagnostic(),
-        Ok(_) => {
-            if !pnpm_fs::is_symlink_or_junction(&link).into_diagnostic()? {
-                bail!("pnpm will not replace an unmanaged Python environment: {}", link.display());
-            }
-            let target = root.join(pnpm_fs::read_symlink_dir(&link).into_diagnostic()?);
-            let target = dunce::canonicalize(&target)
-                .into_diagnostic()
-                .wrap_err_with(|| {
-                    format!(
-                        "resolve Python environment target {} for {}",
-                        target.display(),
-                        link.display(),
-                    )
-                })?;
-            let managed = root.join(".pnpm/python-envs");
-            let managed = dunce::canonicalize(&managed)
-                .into_diagnostic()
-                .wrap_err_with(|| {
-                    format!(
-                        "resolve managed Python directory {} for {}",
-                        managed.display(),
-                        link.display(),
-                    )
-                })?;
-            if target.parent() != Some(managed.as_path()) {
-                bail!("pnpm will not replace an unmanaged Python environment: {}", link.display());
-            }
-            Ok(Some(target))
-        }
-    }
-}
-
-pub(super) fn publish_link(root: &Path, target: &Path) -> Result<()> {
-    #[cfg(windows)]
-    {
-        let outcome = pnpm_fs::force_symlink_dir(target, &root.join(".venv")).into_diagnostic()?;
-        if let Some(warning) = outcome.warning {
-            bail!("{warning}");
-        }
-        Ok(())
-    }
-    #[cfg(unix)]
-    {
-        let temporary = tempfile::Builder::new()
-            .prefix(".pnpm-python-link-")
-            .tempdir_in(root)
-            .into_diagnostic()?;
-        let staged = temporary.path().join(".venv");
-        // The link is moved up one level when published, so relative links must
-        // be computed from their final location, not from the temporary directory.
-        std::os::unix::fs::symlink(target, &staged).into_diagnostic()?;
-        fs::rename(&staged, root.join(".venv")).into_diagnostic()
     }
 }

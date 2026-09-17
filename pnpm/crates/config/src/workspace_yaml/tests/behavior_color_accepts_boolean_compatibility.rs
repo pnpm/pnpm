@@ -2,7 +2,6 @@ use super::{
     AllowBuild, ColorMode, Config, Path, RegistryEntry, SideEffectsCacheSetting,
     WORKSPACE_MANIFEST_FILENAME, WorkspaceSettings, assert_eq, fs,
 };
-use crate::workspace_yaml::OverridesSetting;
 
 #[test]
 fn color_accepts_boolean_compatibility_values() {
@@ -742,52 +741,6 @@ overrides:
     assert_eq!(applied.get("baz>qux").map(String::as_str), Some("-"));
 }
 
-#[test]
-fn parses_ecosystem_overrides_and_applies_python_rules() {
-    let settings: WorkspaceSettings = serde_saphyr::from_str(
-        "overrides:\n  npm:\n    foo: '1.2.3'\n  pypi:\n    - 'requests>=2,<3'\n",
-    )
-    .unwrap();
-    let mut config = Config::new();
-    settings.apply_to(&mut config, Path::new("/irrelevant"));
-    assert_eq!(
-        config.overrides
-            .unwrap()
-            .get("foo")
-            .map(String::as_str),
-        Some("1.2.3"),
-    );
-    assert_eq!(config.python.overrides, ["requests>=2,<3"]);
-}
-
-#[test]
-fn python_settings_layer_preserves_shared_pypi_overrides() {
-    let mut config = Config::new();
-    serde_saphyr::from_str::<WorkspaceSettings>("overrides:\n  pypi:\n    - 'requests>=2,<3'\n")
-        .unwrap()
-        .apply_to(&mut config, Path::new("/irrelevant"));
-    serde_saphyr::from_str::<WorkspaceSettings>("python:\n  enabled: true\n")
-        .unwrap()
-        .apply_to(&mut config, Path::new("/irrelevant"));
-    assert_eq!(config.python.overrides, ["requests>=2,<3"]);
-}
-
-#[test]
-fn resolved_settings_include_pypi_overrides() {
-    let mut config = Config::new();
-    serde_saphyr::from_str::<WorkspaceSettings>("overrides:\n  pypi:\n    - 'requests>=2,<3'\n")
-        .unwrap()
-        .apply_to(&mut config, Path::new("/irrelevant"));
-    let resolved = WorkspaceSettings::from_resolved(&config);
-    assert_eq!(
-        resolved.overrides
-            .as_ref()
-            .unwrap()
-            .pypi(),
-        ["requests>=2,<3"],
-    );
-}
-
 /// An empty `overrides:` map collapses to `None` on `Config`, matching
 /// upstream's `delete settings.overrides` short-circuit in
 /// `getOptionsFromPnpmSettings`. Without this collapse, an empty
@@ -797,7 +750,7 @@ fn resolved_settings_include_pypi_overrides() {
 fn empty_overrides_map_collapses_to_none() {
     let yaml = "overrides: {}\n";
     let settings: WorkspaceSettings = serde_saphyr::from_str(yaml).unwrap();
-    assert!(settings.overrides.as_ref().is_some_and(OverridesSetting::is_empty));
+    assert!(settings.overrides.as_ref().is_some_and(indexmap::IndexMap::is_empty));
 
     let mut config = Config::new();
     settings.apply_to(&mut config, Path::new("/irrelevant"));

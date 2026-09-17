@@ -163,11 +163,7 @@ impl WorkspaceSettings {
         overlay_some(&mut config.scope, self.scope.take());
         overlay_some(&mut config.pnpr_server, self.pnpr_server.take());
         overlay(&mut config.cargo, self.cargo.take());
-        if let Some(python) = self.python.take() {
-            let overrides = config.python.overrides.clone();
-            config.python = python;
-            config.python.overrides = overrides;
-        }
+        overlay(&mut config.python, self.python.take());
         if let Some(v) = self.remote_side_effects_cache.take() {
             config.remote_side_effects_cache.get_or_insert_default().overlay(v);
         }
@@ -298,9 +294,7 @@ impl WorkspaceSettings {
         // once the cascade knows the workspace root, whose manifest
         // carries the direct dependencies they point at.
         if let Some(v) = self.overrides.take() {
-            let npm = v.npm();
-            config.overrides = (!npm.is_empty()).then_some(npm);
-            config.python.overrides = v.pypi().to_vec();
+            config.overrides = (!v.is_empty()).then_some(v);
         }
         if let Some(v) = self.package_extensions.take() {
             config.package_extensions = (!v.is_empty()).then_some(v);

@@ -40,15 +40,13 @@ A credential fingerprint separates authenticated index caches, and raw
 credentials never appear in cache keys.
 Missing index pages are cached for offline resolution too.
 
-`overrides.pypi` and `python.constraints` accept lists of PEP 508 registry
+`python.overrides` and `python.constraints` accept lists of PEP 508 registry
 requirements. An override replaces the version requirement for a matching
 name throughout the dependency graph, including its requested extras.
 Constraints intersect the permitted versions without adding a dependency.
 Markers select where a rule applies.
 URL requirements are not accepted in these lists. Version rules preserve the
 source of dependencies declared as Git repositories or direct wheel URLs.
-The shared `overrides` setting has an `npm` map and a `pypi` list. The legacy
-flat map remains the npm form.
 For example:
 
 ```yaml
@@ -150,8 +148,11 @@ Requirements files do not cause the directory's own package to be built or
 create a `pyproject.toml`.
 
 Tool-only manifests without requirements are ignored. Each Python project has
-its own `pylock.toml` and `.venv` unless its workspace shares one, and
-environment directories are excluded from discovery.
+its own `pylock.toml` and `.venv` unless its workspace shares one. The `.venv`
+is a link into the store, where `<store>/python-envs/<project>/` holds the
+project's environment generations, so a repository of many Python projects
+holds one link per project and no environment directory. A project that moves
+keeps its environment. Environment directories are excluded from discovery.
 
 A requirement on another project in this repository is declared under
 `[tool.uv.sources]`, the table every Python workspace in the wild already
@@ -479,10 +480,14 @@ the same seven distributions, including native `orjson`.
 
 ## Publication and failure semantics
 
-The interpreter creates a complete generation under `.pnpm/python-envs/`.
-The coordinator settles all participants before publishing Python environments.
-A failed sibling discards staged generations. Existing user-owned `.venv`
-directories are never replaced.
+The interpreter creates a complete generation under the project's directory
+in `<store>/python-envs/`. The coordinator settles all participants before
+publishing Python environments. A failed sibling discards staged generations.
+Existing user-owned `.venv` directories, and links to environments outside the
+store, are never replaced. A link into the project's own `.pnpm/python-envs`,
+where pnpm 12.4 published environments and an install from a frozen store
+still does, is replaced like one into the store, and so is a link whose target
+no longer exists.
 
 Unix publication uses an atomic symlink rename. Windows uses pnpm's directory
 link/junction helper. Publication failures restore previous Python links;
@@ -547,7 +552,8 @@ npm/Cargo/Python installation, imports and console scripts, backtracking,
 cycles, extras/markers, group inclusion errors, independent projects,
 frozen/offline/prod replay, locking for several platforms at once, add
 freshness and formatting, failed mixed-add rollback, archive/RECORD corruption, lockfile closure tampering, unmanaged
-environments, symlinked generation parents and disabled fast paths.
+environments, generations kept in the store, moved projects and disabled fast
+paths.
 CI explicitly provisions Python instead of skipping tests when it is absent.
 
 A real PyPI smoke project used `requests[socks]>=2,<3` and `orjson>=3`.

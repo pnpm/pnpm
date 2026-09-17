@@ -1,3 +1,5 @@
+pub use absolute::force_absolute_symlink_dir;
+
 use std::{
     borrow::Cow,
     error::Error,
@@ -392,30 +394,35 @@ mod windows {
     static JUNCTION_STAGING_ID: AtomicU64 = AtomicU64::new(0);
     static JUNCTION_COMMIT_LOCK: Mutex<()> = Mutex::new(());
 
+    /// True symlinks on Windows take a relative target —
+    /// `path.relative(dirname(dest), src)`, the same form used on Unix.
+    /// Junctions take the absolute path with a trailing backslash, but
+    /// the `junction` crate handles that internally so we pass
+    /// `original` through unchanged for the junction branch.
     pub fn create(original: &Path, link: &Path) -> io::Result<()> {
+        create_with_contents(original, &super::relative_target_for(original, link), link)
+    }
+
+    /// [`create`] with a true symlink holding `original` as given. A
+    /// junction holds the absolute path either way.
+    pub fn create_absolute(original: &Path, link: &Path) -> io::Result<()> {
+        create_with_contents(original, original, link)
+    }
+
+    fn create_with_contents(original: &Path, contents: &Path, link: &Path) -> io::Result<()> {
         match MODE.load(Ordering::Relaxed) {
-            USE_SYMLINK => match create_true_symlink(original, link) {
+            USE_SYMLINK => match std::os::windows::fs::symlink_dir(contents, link) {
                 Err(error) if should_fallback_to_junction(&error) => {
                     create_and_cache_junction(original, link)
                 }
                 result => result,
             },
             USE_JUNCTION => create_junction(original, link),
-            _ => probe_and_cache(original, link),
+            _ => probe_and_cache(original, contents, link),
         }
     }
 
-    /// True symlinks on Windows take a relative target —
-    /// `path.relative(dirname(dest), src)`, the same form used on Unix.
-    /// Junctions take the absolute path with a trailing backslash, but
-    /// the `junction` crate handles that internally so we pass
-    /// `original` through unchanged for the junction branch.
-    fn create_true_symlink(original: &Path, link: &Path) -> io::Result<()> {
-        let rel = super::relative_target_for(original, link);
-        std::os::windows::fs::symlink_dir(&rel, link)
-    }
-
-    fn probe_and_cache(original: &Path, link: &Path) -> io::Result<()> {
+    fn probe_and_cache(original: &Path, contents: &Path, link: &Path) -> io::Result<()> {
         // Try the true directory symlink first — that's what users
         // running in Developer Mode (or as Administrator) get, and
         // true symlinks are preferred over junctions when allowed.
@@ -423,7 +430,7 @@ mod windows {
         // `ERROR_PRIVILEGE_NOT_HELD` when the process can't create
         // symlinks; junctions don't carry that constraint, so fall
         // back to those.
-        match create_true_symlink(original, link) {
+        match std::os::windows::fs::symlink_dir(contents, link) {
             Ok(()) => {
                 MODE.store(USE_SYMLINK, Ordering::Relaxed);
                 Ok(())
@@ -623,5 +630,6 @@ mod windows {
 #[cfg(test)]
 mod tests;
 
+mod absolute;
 mod replace;
 use replace::{remove_occupant, rename_overwrite};

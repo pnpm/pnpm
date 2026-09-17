@@ -121,7 +121,9 @@ writing an installed file changes the store and other hardlinked environments.
 Generated metadata and scripts whose shebang or permissions need changing always
 remain independent files. Isolated build environments use the same setting but
 replace `auto` and `hardlink` with `clone-or-copy` to keep backend writes private.
-Environment generations remain under each project's `.pnpm/python-envs`, with `.venv` as its managed link.
+Environment generations live in the store under `python-envs/<project>/`, with
+the project's `.venv` as its managed link, so an environment shares the store's
+filesystem.
 
 npm explicitly enrolls as an in-place installer. Its existing materialization
 and lifecycle-script behavior remains intact; mixed add supplies metadata for
