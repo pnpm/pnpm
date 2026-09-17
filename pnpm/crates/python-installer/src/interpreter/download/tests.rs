@@ -1,15 +1,16 @@
-use super::{Bounded, MAX_UNPACKED_BYTES, Releases, builds_in, host_triple};
+use super::{Bounded, MAX_UNPACKED_BYTES, Releases, ShasumsFileItem, builds_in, host_triple};
 use crate::interpreter::VersionRequest;
 use std::io::Read as _;
 
-/// A python-build-standalone `SHA256SUMS`, as the release writes it.
-fn sums(files: &[String]) -> String {
+/// A python-build-standalone `SHA256SUMS`, as the release writes it and
+/// as the shared parser hands it back.
+fn sums(files: &[String]) -> Vec<ShasumsFileItem> {
     use std::fmt::Write as _;
     let mut index = String::new();
     for file in files {
         writeln!(index, "{}  {file}", "a".repeat(64)).expect("writing to a String cannot fail");
     }
-    index
+    pnpm_crypto_shasums_file::parse_shasums_file(&index)
 }
 
 fn built(versions: &[&str], triple: &str) -> Vec<String> {
@@ -57,7 +58,9 @@ fn an_index_naming_a_path_rather_than_a_build_offers_nothing() {
         let index = sums(&[format!("{named}-{triple}-install_only_stripped.tar.gz")]);
         assert!(builds_in(&index).is_empty(), "{named}");
     }
-    let short = format!("aa  cpython-3.13.15+20260901-{triple}-install_only_stripped.tar.gz\n");
+    let short = pnpm_crypto_shasums_file::parse_shasums_file(&format!(
+        "aa  cpython-3.13.15+20260901-{triple}-install_only_stripped.tar.gz\n",
+    ));
     assert!(builds_in(&short).is_empty());
 }
 
@@ -81,6 +84,7 @@ fn the_build_installed_is_the_newest_one_the_project_accepts() {
     assert_eq!(accepted.version().to_string(), "3.13.15");
     assert_eq!(accepted.file, files[2]);
     assert_eq!(accepted.tag, "20260901");
+    assert_eq!(accepted.integrity.to_string(), sums(&files)[2].integrity);
     assert_eq!(
         releases
             .best(None, Some(&VersionRequest::asking_for(&[3, 12])))

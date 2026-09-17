@@ -432,7 +432,8 @@ async fn authenticated_plain_fetch_ignores_and_preserves_the_url_cache() {
 
     assert_eq!(fetched[0].file_name, "fresh.tar.gz");
     assert_eq!(
-        read_cached_shasums(Some(cache_dir.path()), ShasumsTrust::Unverified, &url).as_deref(),
+        read_cached_shasums(Some(cache_dir.path()), ShasumsTrust::Unverified, &url, None)
+            .as_deref(),
         Some(cached_body),
     );
     shasums.assert_async().await;
@@ -514,7 +515,8 @@ async fn auth_aware_plain_fetch_bypasses_cache_before_authenticated_redirect() {
 
     assert_eq!(fetched[0].file_name, "fresh.tar.gz");
     assert_eq!(
-        read_cached_shasums(Some(cache_dir.path()), ShasumsTrust::Unverified, &url).as_deref(),
+        read_cached_shasums(Some(cache_dir.path()), ShasumsTrust::Unverified, &url, None)
+            .as_deref(),
         Some(cached_body),
     );
     redirect.assert_async().await;

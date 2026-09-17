@@ -9,9 +9,15 @@
 //! the registry metadata mirror. The layout is shared with pnpm, which
 //! reads and writes the same files.
 //!
-//! Only hand immutable URLs to this cache. The cache directory is
-//! *project-configurable* (`cacheDir`), so entries under it must never
-//! carry more authority than the project that could have written them:
+//! A URL that names a release rather than a version
+//! (`.../releases/latest/download/SHA256SUMS`) is a different list every
+//! time the release moves, so it is read back only while the entry is
+//! younger than the caller's `max_age`. Every other caller passes
+//! `None` and reads its immutable body back for as long as it is there.
+//!
+//! The cache directory is *project-configurable* (`cacheDir`), so
+//! entries under it must never carry more authority than the project
+//! that could have written them:
 //!
 //! - Signed-channel readers persist the detached signature next to the
 //!   body and re-verify it against the embedded release keys on every
@@ -36,6 +42,7 @@ use std::{
     io::Write as _,
     path::{Path, PathBuf},
     sync::atomic::{AtomicU64, Ordering},
+    time::Duration,
 };
 
 /// Directory under the pnpm cache dir holding the cached SHASUMS
@@ -68,25 +75,28 @@ impl ShasumsTrust {
 /// Upper bound on a cache entry's size. Real SHASUMS bodies are a few
 /// kilobytes; anything past this bound is not a release asset list and
 /// is never read into memory or written.
-const MAX_CACHED_SHASUMS_LEN: u64 = 1024 * 1024;
+pub(crate) const MAX_CACHED_SHASUMS_LEN: u64 = 1024 * 1024;
 
 /// The cached body for `url` as UTF-8 text, via [`read_cached_bytes`].
 pub(crate) fn read_cached_shasums(
     cache_dir: Option<&Path>,
     trust: ShasumsTrust,
     url: &str,
+    max_age: Option<Duration>,
 ) -> Option<String> {
-    String::from_utf8(read_cached_bytes(cache_dir, trust, url)?).ok()
+    String::from_utf8(read_cached_bytes(cache_dir, trust, url, max_age)?).ok()
 }
 
 /// The cached bytes for `url`, or `None` on any miss — a URL the
 /// mapping cannot represent, a missing or non-regular file, unreadable
 /// content, an empty file (never a valid entry, so it only signals a
-/// torn write), or a file over [`MAX_CACHED_SHASUMS_LEN`].
+/// torn write), a file over [`MAX_CACHED_SHASUMS_LEN`], or, where the
+/// caller gives one, an entry older than `max_age`.
 pub(crate) fn read_cached_bytes(
     cache_dir: Option<&Path>,
     trust: ShasumsTrust,
     url: &str,
+    max_age: Option<Duration>,
 ) -> Option<Vec<u8>> {
     use std::io::Read as _;
 
@@ -104,9 +114,21 @@ pub(crate) fn read_cached_bytes(
     }
     let file = options.open(&path).ok()?;
     // Checked on the opened handle, so nothing can swap the regular
-    // file for a special one between check and read.
-    if !file.metadata().ok()?.is_file() {
+    // file for a special one between check and read, and so the age is
+    // the age of the bytes this read returns.
+    let metadata = file.metadata().ok()?;
+    if !metadata.is_file() {
         return None;
+    }
+    if let Some(max_age) = max_age {
+        let age = metadata
+            .modified()
+            .ok()?
+            .elapsed()
+            .ok()?;
+        if age >= max_age {
+            return None;
+        }
     }
     // A bounded reader rather than a metadata check keeps the cap
     // race-free: at most one byte past the bound is ever read,

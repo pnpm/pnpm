@@ -94,7 +94,8 @@ version is reported and ignored.
 A project no interpreter on the machine fits gets one installed, from the
 [python-build-standalone] builds uv, rye, hatch and mise install too. The
 release's `SHA256SUMS` is both the list of what pnpm can install and the
-digest each download is checked against, and it is cached for a day.
+digest each download is checked against. It is cached for a day, beside the
+integrity files pnpm caches for the Node.js and Bun runtimes.
 
 An interpreter is installed under `<store>/python/`, so every project and
 repository on the machine shares one, and it is found there afterward like

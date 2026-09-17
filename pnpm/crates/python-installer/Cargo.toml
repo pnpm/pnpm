@@ -12,6 +12,7 @@ repository.workspace = true
 
 [dependencies]
 pnpm-crypto-hash = { workspace = true }
+pnpm-crypto-shasums-file = { workspace = true }
 pnpm-config = { workspace = true }
 pnpm-detect-libc = { workspace = true }
 pnpm-diagnostics = { workspace = true }
@@ -33,6 +34,7 @@ pep440_rs = { workspace = true }
 pep508_rs = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
+ssri = { workspace = true }
 tar = { workspace = true }
 tempfile = { workspace = true }
 tokio = { workspace = true }

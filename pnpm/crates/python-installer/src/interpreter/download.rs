@@ -10,6 +10,7 @@
 use super::{InterpreterCommand, VersionRequest, command::interpreter_in};
 use miette::{IntoDiagnostic, Result, WrapErr, bail};
 use pnpm_config::{Config, PythonDownloads};
+use pnpm_crypto_shasums_file::{ShasumsFileItem, fetch_moving_shasums_file_cached};
 use pnpm_network::{AuthHeaders, ThrottledClient};
 use pnpm_reporter::{GlobalLog, LogEvent, LogLevel, Reporter};
 use std::{
@@ -19,12 +20,14 @@ use std::{
 };
 
 /// How long the release index is read from the cache before pnpm asks
-/// whether a newer release has come out.
+/// whether a newer release has come out. The URL names the newest
+/// release rather than a version, so what it answers changes.
 const INDEX_MAX_AGE: Duration = Duration::from_hours(24);
 
-/// A release names one interpreter per version line for every platform it
-/// builds for, so the index stays far below this.
-const MAX_INDEX_BYTES: usize = 8 * 1024 * 1024;
+/// A sha256 as the index carries it, which is what a row whose hash
+/// pnpm could not read is not: an unreadable one parses to an empty
+/// digest, and an empty digest is no build.
+const SHA256_INTEGRITY_LEN: usize = "sha256-".len() + 44;
 
 /// An interpreter is tens of megabytes, and a mirror serving something
 /// else entirely is not read to the end to find that out.
@@ -55,17 +58,22 @@ pub(super) struct Build {
     /// on, which pnpm knows before it reads any index.
     triple: String,
     file: String,
-    sha256: String,
+    integrity: ssri::Integrity,
 }
 
 impl Releases {
     /// The interpreters pnpm can install.
     pub(super) async fn read(config: &Config, client: &ThrottledClient) -> Result<Self> {
-        let cache = config.cache_dir.join("python-runtimes").join("SHA256SUMS");
-        let index = match cached_index(&cache) {
-            Some(index) => index,
-            None => download_index(config, client, &cache).await?,
-        };
+        let url = format!("{}/latest/download/SHA256SUMS", config.python.download_url);
+        let index = fetch_moving_shasums_file_cached(
+            client,
+            &url,
+            Some(&config.cache_dir),
+            INDEX_MAX_AGE,
+            config.retry_opts(),
+        )
+        .await
+        .wrap_err_with(|| format!("read the Python interpreters {url} offers"))?;
         Ok(Self { builds: builds_in(&index) })
     }
 
@@ -144,12 +152,13 @@ impl Build {
         if !response.status.is_success() {
             bail!("downloading the Python interpreter {url} returned {}", response.status);
         }
-        let digest = pnpm_crypto_hash::create_hex_hash_bytes(&response.body);
-        if digest != self.sha256 {
+        let mut checker = ssri::IntegrityChecker::new(self.integrity.clone());
+        checker.input(&response.body);
+        if checker.result().is_err() {
             bail!(
-                "the Python interpreter downloaded from {url} is not the one the release names: \
-                 its sha256 is {digest}, not {}",
-                self.sha256,
+                "the Python interpreter downloaded from {url} is not the one the release names, \
+                 which is the one hashing to {}",
+                self.integrity,
             );
         }
         let directory = config.store_dir.tmp();
@@ -203,72 +212,27 @@ pub(super) fn refused(config: &Config) -> Option<&'static str> {
     (config.python.downloads != PythonDownloads::Auto).then_some("python.downloads is never")
 }
 
-/// The cached index, while it is recent enough to still name what the
-/// release holds.
-fn cached_index(cache: &Path) -> Option<String> {
-    let age = cache
-        .metadata()
-        .ok()?
-        .modified()
-        .ok()?
-        .elapsed()
-        .ok()?;
-    (age < INDEX_MAX_AGE)
-        .then(|| std::fs::read_to_string(cache).ok())
-        .flatten()
-}
-
-async fn download_index(config: &Config, client: &ThrottledClient, cache: &Path) -> Result<String> {
-    let url = format!("{}/latest/download/SHA256SUMS", config.python.download_url);
-    let response = client
-        .get_limited_bytes_with_secure_auth_and_retry(
-            &url,
-            &AuthHeaders::default(),
-            None,
-            config.retry_opts(),
-            MAX_INDEX_BYTES,
-        )
-        .await
-        .into_diagnostic()
-        .wrap_err_with(|| format!("read the Python interpreters {url} offers"))?;
-    if response.body_truncated {
-        bail!("the Python interpreter index at {url} exceeds {MAX_INDEX_BYTES} bytes");
-    }
-    if !response.status.is_success() {
-        bail!("reading the Python interpreter index {url} returned {}", response.status);
-    }
-    let index = String::from_utf8(response.body)
-        .into_diagnostic()
-        .wrap_err_with(|| format!("read the Python interpreters {url} offers"))?;
-    if let Some(parent) = cache.parent() {
-        std::fs::create_dir_all(parent).into_diagnostic()?;
-    }
-    pnpm_fs::write_atomic(cache, index.as_bytes()).into_diagnostic()?;
-    Ok(index)
-}
-
 /// The builds of the index that install on this machine: the ordinary
 /// interpreter of one platform, without the variants a project asks for
 /// by name rather than by version.
-fn builds_in(index: &str) -> Vec<Build> {
+fn builds_in(index: &[ShasumsFileItem]) -> Vec<Build> {
     let Some(triple) = host_triple() else { return Vec::new() };
     let suffix = format!("-{triple}-install_only_stripped.tar.gz");
     index
-        .lines()
-        .filter_map(|line| read_build(line, &triple, &suffix))
+        .iter()
+        .filter_map(|item| read_build(item, &triple, &suffix))
         .collect()
 }
 
-/// One line of the index, as the build it names, or nothing when it
-/// names something else or names it in a way pnpm will not use as a file
-/// name: the index decides what pnpm downloads and where it puts it, so
-/// every part of it is checked rather than trusted.
-fn read_build(line: &str, triple: &str, suffix: &str) -> Option<Build> {
-    let (sha256, file) = line.split_once("  ")?;
-    if sha256.len() != 64 || !sha256.chars().all(|digit| digit.is_ascii_hexdigit()) {
+/// One row of the index, as the build it names, or nothing when it names
+/// something else or names it in a way pnpm will not use as a file name:
+/// the index decides what pnpm downloads and where it puts it, so every
+/// part of it is checked rather than trusted.
+fn read_build(item: &ShasumsFileItem, triple: &str, suffix: &str) -> Option<Build> {
+    if item.integrity.len() != SHA256_INTEGRITY_LEN {
         return None;
     }
-    let named = file.strip_prefix("cpython-")?.strip_suffix(suffix)?;
+    let named = item.file_name.strip_prefix("cpython-")?.strip_suffix(suffix)?;
     let (version, tag) = named.split_once('+')?;
     // A release is named by the day it was built, which is also what
     // keeps the name pnpm installs the build under a name and not a path.
@@ -279,8 +243,8 @@ fn read_build(line: &str, triple: &str, suffix: &str) -> Option<Build> {
         version: version.parse().ok()?,
         tag: tag.to_string(),
         triple: triple.to_string(),
-        file: file.to_string(),
-        sha256: sha256.to_string(),
+        file: item.file_name.clone(),
+        integrity: item.integrity.parse().ok()?,
     })
 }
 
