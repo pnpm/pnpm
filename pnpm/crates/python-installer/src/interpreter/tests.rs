@@ -1,5 +1,6 @@
 use super::{
-    InterpreterCommand, Interpreters, VersionRequest, parse_version_request, version_request,
+    InterpreterCommand, Interpreters, VersionRequest,
+    request::{parse_version_request, version_request},
 };
 use pnpm_reporter::SilentReporter;
 use std::path::PathBuf;

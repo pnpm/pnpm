@@ -33,6 +33,10 @@ pub struct Inputs {
     /// The Python versions the project declares, as configured.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     python_versions: Vec<String>,
+    /// The projects sharing the environment this lockfile answers for,
+    /// as paths relative to it. Empty for a project resolved on its own.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    members: Vec<String>,
     index: String,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     extra_indexes: Vec<String>,
@@ -58,6 +62,9 @@ impl Inputs {
         if self.platforms != wanted.platforms || self.python_versions != wanted.python_versions {
             return Some("the environments the project locks for changed");
         }
+        if self.members != wanted.members {
+            return Some("the projects sharing the Python environment changed");
+        }
         None
     }
 
@@ -76,6 +83,12 @@ impl Inputs {
         self.requirements = normalized(requirements);
     }
 
+    /// Record the projects whose requirements this resolution answered
+    /// together, so a lockfile says which environment it is for.
+    pub fn set_members(&mut self, members: Vec<String>) {
+        self.members = members;
+    }
+
     /// The inputs of a resolution answered for one interpreter.
     #[must_use]
     pub fn new(requirements: &[Requirement], target: &Target, index: &str) -> Self {
@@ -85,6 +98,7 @@ impl Inputs {
             tags: Some(target.tags.clone()),
             platforms: Vec::new(),
             python_versions: Vec::new(),
+            members: Vec::new(),
             index: index.to_string(),
             extra_indexes: Vec::new(),
             overrides: Vec::new(),
@@ -107,6 +121,7 @@ impl Inputs {
             tags: None,
             platforms: platforms.to_vec(),
             python_versions: python_versions.to_vec(),
+            members: Vec::new(),
             index: index.to_string(),
             extra_indexes: Vec::new(),
             overrides: Vec::new(),

@@ -8,7 +8,7 @@ use super::{
         LockfileInputs, LockfileReplay, PythonPrepare, accept_server_lockfile, read_existing_lock,
         resolve_via_pnpr,
     },
-    resolver, workspace,
+    projects, resolver, workspace,
 };
 use miette::Result;
 use pnpm_reporter::{GlobalLog, LogEvent, LogLevel, Reporter};
@@ -62,6 +62,7 @@ impl PythonPrepare<'_> {
             inputs,
             requires_python,
             local,
+            members,
         } = inputs;
         if let Some(lock) = existing {
             let replay = LockfileReplay {
@@ -85,7 +86,8 @@ impl PythonPrepare<'_> {
         }
         let solved =
             resolver::resolve_all::<Reporter>(registry, requirements, &self.environments.list)
-                .await?;
+                .await
+                .map_err(|error| projects::disagreement(&registry.resolution, members, error))?;
         Lockfile::merged(
             &registry.resolution.packages.metadata,
             requirements,

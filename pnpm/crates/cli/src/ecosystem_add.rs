@@ -84,7 +84,9 @@ async fn cargo_add_task<Reporter: pnpm_reporter::Reporter + 'static>(
 /// The Python half of the add, and the projects it was resolved against.
 ///
 /// Without a `--filter` selection the add acts on the project the command
-/// was run in, the way the npm add does, and reads that project alone.
+/// was run in, the way the npm add does. In a workspace it still reads the
+/// other projects: what that project may take from the repository, and
+/// whether it shares an environment, is declared around it.
 async fn python_add_task<Reporter: pnpm_reporter::Reporter + 'static>(
     context: InstallContext,
     root: &Path,
@@ -96,16 +98,23 @@ async fn python_add_task<Reporter: pnpm_reporter::Reporter + 'static>(
     // must not fail on what it was going to read.
     let options = python_add_options(args, requirements)?;
     options.validate(config)?;
+    let inventory =
+        |workspace_root: PathBuf| EcosystemWorkspaceInventory::new(workspace_root, config);
     let (discovery, selected) = if let Some(scope) = scope {
         let workspace_root = config.workspace_dir.clone().unwrap_or_else(|| root.to_path_buf());
-        let inventory = EcosystemWorkspaceInventory::new(workspace_root, config);
-        let discovery = python::discover(config, &inventory).await?;
+        let discovery = python::discover(config, &inventory(workspace_root)).await?;
         let selected = python::selected_projects(config, root, &discovery, Some(scope))?;
         (discovery, selected)
     } else {
         let project = pnpm_python_installer::writable_project(root)?;
-        let manifests = [project.join("pyproject.toml")];
-        let discovery = pnpm_python_installer::discover(config, &manifests).await?;
+        let discovery = match config.workspace_dir.clone() {
+            Some(workspace_root) => {
+                python::discover_around(config, &inventory(workspace_root), &project).await?
+            }
+            None => {
+                pnpm_python_installer::discover(config, &[project.join("pyproject.toml")]).await?
+            }
+        };
         (discovery, BTreeSet::from([project]))
     };
     let projects =
