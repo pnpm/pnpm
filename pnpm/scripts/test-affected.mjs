@@ -237,14 +237,22 @@ function workspaceManifests (repo) {
   }))
 }
 
-// A local branch is only as current as the last time someone checked it
-// out, and `main` usually lives in another worktree here, so it lags. Every
-// commit it lags by is read as a change of this branch: the crates someone
-// else touched get tested, and a file every crate compiles against, landing
-// upstream, makes the whole run refuse to scope. The remote-tracking ref
-// says what the branch actually is, so prefer it where one exists.
-function trackedBase (repo, base) {
-  if (base.includes('/')) return base
+// Anything git reads as a revision expression rather than a bare branch name.
+// `origin/HEAD` exists in an ordinary clone, so without this a `--base HEAD`
+// would silently retarget the diff at the default branch.
+const REVISION_SYNTAX = ['/', '~', '^', ':', '@', '\\']
+
+/**
+ * The remote-tracking counterpart of a bare branch name, where one exists.
+ *
+ * A local branch is only as current as the last time someone checked it out,
+ * and `main` usually lives in another worktree here, so it lags. Every commit
+ * it lags by is read as a change of this branch: the crates someone else
+ * touched get tested, and a file every crate compiles against, landing
+ * upstream, makes the whole run refuse to scope.
+ */
+export function trackedBase (repo, base) {
+  if (base === 'HEAD' || REVISION_SYNTAX.some(character => base.includes(character))) return base
   const remote = run(repo, 'git', ['rev-parse', '--verify', '--quiet', `refs/remotes/origin/${base}`], {
     allowFailure: true,
   }).trim()

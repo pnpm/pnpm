@@ -5,9 +5,18 @@ import os from 'node:os'
 import path from 'node:path'
 import { test } from 'node:test'
 import { fileURLToPath } from 'node:url'
-import { isPnprPackage, parseOptions, selectPackages, smokeStandIns, unselectedDependents, workspaceWideChanges } from './test-affected.mjs'
+import { isPnprPackage, parseOptions, selectPackages, smokeStandIns, trackedBase, unselectedDependents, workspaceWideChanges } from './test-affected.mjs'
 
 const script = fileURLToPath(new URL('./test-affected.mjs', import.meta.url))
+
+function temporaryRepo (context) {
+  const repo = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'pnpm-test-affected-')))
+  context.after(() => fs.rmSync(repo, { recursive: true, force: true }))
+  for (const args of [['init'], ['commit', '--allow-empty', '-m', 'root', '--no-verify']]) {
+    spawnSync('git', args, { cwd: repo, env: { ...process.env, GIT_AUTHOR_NAME: 't', GIT_AUTHOR_EMAIL: 't@t', GIT_COMMITTER_NAME: 't', GIT_COMMITTER_EMAIL: 't@t' } })
+  }
+  return repo
+}
 
 const manifests = [
   { name: 'pnpm-cli', dir: 'pnpm/crates/cli' },
@@ -125,12 +134,25 @@ test('rejects --base without a revision', () => {
   assert.throws(() => parseOptions(['--base']), /--base needs a revision/)
 })
 
-test('fails when the base revision cannot be resolved', (context) => {
-  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'pnpm-test-affected-'))
-  context.after(() => fs.rmSync(repo, { recursive: true, force: true }))
-  for (const args of [['init'], ['commit', '--allow-empty', '-m', 'root', '--no-verify']]) {
-    spawnSync('git', args, { cwd: repo, env: { ...process.env, GIT_AUTHOR_NAME: 't', GIT_AUTHOR_EMAIL: 't@t', GIT_COMMITTER_NAME: 't', GIT_COMMITTER_EMAIL: 't@t' } })
+test('diffs a bare branch name against its remote-tracking ref', (context) => {
+  const repo = temporaryRepo(context)
+  assert.equal(trackedBase(repo, 'main'), 'main')
+  spawnSync('git', ['update-ref', 'refs/remotes/origin/main', 'HEAD'], { cwd: repo })
+  assert.equal(trackedBase(repo, 'main'), 'origin/main')
+})
+
+test('diffs against a revision that is not a bare branch name as given', (context) => {
+  const repo = temporaryRepo(context)
+  for (const ref of ['refs/remotes/origin/HEAD', 'refs/remotes/origin/main']) {
+    spawnSync('git', ['update-ref', ref, 'HEAD'], { cwd: repo })
   }
+  assert.equal(trackedBase(repo, 'HEAD'), 'HEAD')
+  assert.equal(trackedBase(repo, 'main~1'), 'main~1')
+  assert.equal(trackedBase(repo, 'origin/main'), 'origin/main')
+})
+
+test('fails when the base revision cannot be resolved', (context) => {
+  const repo = temporaryRepo(context)
   const result = spawnSync('node', [script, '--base', 'no-such-branch'], { cwd: repo, encoding: 'utf8' })
   assert.equal(result.status, 1)
   assert.match(result.stderr, /no merge base between 'no-such-branch'/)
