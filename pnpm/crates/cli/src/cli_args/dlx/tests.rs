@@ -127,8 +127,6 @@ fn create_cache_key_changes_with_supported_architectures() {
     );
 }
 
-/// The platforms a run prepared for decide what its cache holds, and two
-/// spellings of one platform are one platform.
 #[test]
 fn create_cache_key_changes_with_the_platforms_it_names() {
     let pkgs = ["cowsay".to_string()];

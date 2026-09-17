@@ -47,8 +47,8 @@ fn a_linux_platform_defaults_to_glibc() {
     assert_eq!(spelled("linux-x64-glibc"), "linux-x64");
 }
 
-/// A wheel ABI baseline is kept as written: it says which glibc or musl
-/// releases a wheel may be built against, which the family alone does not.
+/// The family alone does not say which glibc or musl releases a wheel may
+/// be built against, so a baseline cannot be normalized down to one.
 #[test]
 fn a_libc_baseline_survives_the_spelling() {
     assert_eq!(spelled("linux-x64-manylinux_2_28"), "linux-x64-manylinux_2_28");

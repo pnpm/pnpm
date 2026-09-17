@@ -46,8 +46,8 @@ fn runtime_platform_selector_expands_current_to_the_host() {
 
     assert_eq!(selector, host_platform_selector());
 }
-/// A platform list names whole platforms, so the archive is one of them
-/// rather than one axis of each.
+/// An archive is built for a whole platform, so a list picks one of the
+/// platforms it names where the axes above pick a value of each axis.
 #[test]
 fn runtime_platform_selector_takes_the_first_platform_the_list_names() {
     let supported = SupportedArchitectures::Platforms(vec!["linux-ppc64le-musl".parse().unwrap()]);
