@@ -87,6 +87,11 @@ impl<Reporter: self::Reporter + 'static> PrefetchingResolver<Reporter> {
     /// different packages. The native key carries the pinned hash as well
     /// as the URL, so a read that verifies is never served the bytes of
     /// one that could not.
+    ///
+    /// Each kind of key leads with its own tag and separates its parts
+    /// with a tab, which neither a URL, an integrity nor a package id can
+    /// contain. Concatenating the parts alone would let a bare URL spell
+    /// another URL followed by an integrity.
     fn tarball_metadata_cache_key(
         &self,
         result: &ResolveResult,
@@ -94,11 +99,11 @@ impl<Reporter: self::Reporter + 'static> PrefetchingResolver<Reporter> {
         package_id: &str,
     ) -> Result<String, ResolveError> {
         Ok(if self.ctx.policy.custom_session.is_some() {
-            format!("{package_id}:{}", serde_json::to_string(&result.resolution)?)
+            format!("custom\t{package_id}\t{}", serde_json::to_string(&result.resolution)?)
         } else {
             match tarball.integrity.as_ref() {
-                Some(integrity) => format!("{}:{integrity}", tarball.tarball),
-                None => tarball.tarball.clone(),
+                Some(integrity) => format!("pinned\t{integrity}\t{}", tarball.tarball),
+                None => format!("unpinned\t{}", tarball.tarball),
             }
         })
     }
@@ -144,9 +149,10 @@ impl<Reporter: self::Reporter + 'static> PrefetchingResolver<Reporter> {
         // mem cache is keyed by URL alone and the install pass takes whatever
         // it finds there without rechecking, so publishing a pinned read of a
         // URL another edge pins differently would hand that edge bytes
-        // verified against the wrong hash. A pinned read is rare enough
-        // (a resolver that supplies an integrity but no manifest) to pay for
-        // its own download.
+        // verified against the wrong hash. The cost is that a pinned read
+        // downloads its archive again during installation, which an
+        // integrity-aware key would remove:
+        // <https://github.com/pnpm/pnpm/issues/15021>.
         let mem_cache = tarball.integrity.is_none().then_some(&*self.ctx.mem_cache);
         if mem_cache.is_some() {
             // This fetch warms the mem cache, so the prefetch path should not
