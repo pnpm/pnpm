@@ -1,7 +1,7 @@
 import { FILTERING, OPTIONS, UNIVERSAL_OPTIONS } from '@pnpm/cli.common-cli-options-help'
 import { docsUrl } from '@pnpm/cli.utils'
 import { type Config, type ConfigContext, types as allTypes } from '@pnpm/config.reader'
-import { list, listForPackages } from '@pnpm/deps.inspection.list'
+import { getPackagesForListing, list, listForPackages, type PackageDependencyHierarchy, searchForPackages } from '@pnpm/deps.inspection.list'
 import { PnpmError } from '@pnpm/error'
 import { findGlobalInstallDirs, listGlobalPackages } from '@pnpm/global.commands'
 import type { Finder, IncludedDependencies } from '@pnpm/types'
@@ -177,25 +177,45 @@ export async function handler (
 export async function render (
   prefixes: string[],
   params: string[],
-  opts: {
-    alwaysPrintRootPackage?: boolean
-    depth?: number
-    excludePeers?: boolean
-    include: IncludedDependencies
-    lockfileDir: string
-    checkWantedLockfileOnly?: boolean
-    long?: boolean
-    json?: boolean
-    onlyProjects?: boolean
-    parseable?: boolean
-    modulesDir?: string
-    virtualStoreDirMaxLength: number
-    finders?: Record<string, Finder>
-    findBy?: string[]
-  }
+  opts: RenderOptions
 ): Promise<string> {
+  const listOpts = getListOptions(opts)
+  return (params.length > 0) || listOpts.finders.length > 0
+    ? listForPackages(params, prefixes, listOpts)
+    : list(prefixes, listOpts)
+}
+
+export async function loadProjects (
+  prefixes: string[],
+  params: string[],
+  opts: RenderOptions
+): Promise<PackageDependencyHierarchy[]> {
+  const listOpts = getListOptions(opts)
+  return (params.length > 0) || listOpts.finders.length > 0
+    ? searchForPackages(params, prefixes, listOpts)
+    : getPackagesForListing(prefixes, listOpts)
+}
+
+interface RenderOptions {
+  alwaysPrintRootPackage?: boolean
+  depth?: number
+  excludePeers?: boolean
+  include: IncludedDependencies
+  lockfileDir: string
+  checkWantedLockfileOnly?: boolean
+  long?: boolean
+  json?: boolean
+  onlyProjects?: boolean
+  parseable?: boolean
+  modulesDir?: string
+  virtualStoreDirMaxLength: number
+  finders?: Record<string, Finder>
+  findBy?: string[]
+}
+
+function getListOptions (opts: RenderOptions) {
   const finders = resolveFinders(opts)
-  const listOpts = {
+  return {
     alwaysPrintRootPackage: opts.alwaysPrintRootPackage,
     depth: opts.depth ?? 0,
     excludePeerDependencies: opts.excludePeers,
@@ -211,7 +231,4 @@ export async function render (
     virtualStoreDirMaxLength: opts.virtualStoreDirMaxLength,
     finders,
   }
-  return (params.length > 0) || listOpts.finders.length > 0
-    ? listForPackages(params, prefixes, listOpts)
-    : list(prefixes, listOpts)
 }

@@ -7,6 +7,67 @@ import { writeYamlFileSync } from 'write-yaml-file'
 
 import { execPnpm, execPnpmSync } from './utils/index.js'
 
+test('recursive JSON combines projects with separate lockfiles', async () => {
+  preparePackages([
+    {
+      location: 'packages/project-1',
+      package: { name: 'project-1', version: '1.0.0', dependencies: { '@pnpm.e2e/pkg-with-1-dep': '100.0.0' } },
+    },
+    {
+      location: 'packages/project-2',
+      package: { name: 'project-2', version: '1.0.0', dependencies: { '@pnpm.e2e/hello-world-js-bin': '1.0.0' } },
+    },
+  ])
+  writeYamlFileSync('pnpm-workspace.yaml', {
+    packages: ['packages/*'],
+    sharedWorkspaceLockfile: false,
+  })
+  await execPnpm(['install'])
+
+  const { stdout } = execPnpmSync(['-r', '--filter', 'project-*', 'list', '--json'], { expectSuccess: true })
+  expect(JSON.parse(stdout.toString())).toMatchObject([
+    {
+      name: 'project-1',
+      path: fs.realpathSync('packages/project-1'),
+      dependencies: { '@pnpm.e2e/pkg-with-1-dep': { version: '100.0.0' } },
+    },
+    {
+      name: 'project-2',
+      path: fs.realpathSync('packages/project-2'),
+      dependencies: { '@pnpm.e2e/hello-world-js-bin': { version: '1.0.0' } },
+    },
+  ])
+
+  const projectOnly = execPnpmSync(['-r', '--filter', 'project-*', 'list', '--json', '--depth', '-1'], { expectSuccess: true })
+  expect(JSON.parse(projectOnly.stdout.toString())).toStrictEqual([
+    { name: 'project-1', version: '1.0.0', path: fs.realpathSync('packages/project-1'), private: false },
+    { name: 'project-2', version: '1.0.0', path: fs.realpathSync('packages/project-2'), private: false },
+  ])
+
+  const single = execPnpmSync(['-r', '--filter', 'project-2', 'list', '--json', '--long'], { expectSuccess: true })
+  expect(JSON.parse(single.stdout.toString())).toMatchObject([
+    {
+      name: 'project-2',
+      dependencies: {
+        '@pnpm.e2e/hello-world-js-bin': {
+          version: '1.0.0',
+          description: 'A package with a hello world js bin',
+        },
+      },
+    },
+  ])
+
+  const search = execPnpmSync(['-r', '--filter', 'project-*', 'list', '@pnpm.e2e/pkg-with-1-dep', '--json'], { expectSuccess: true })
+  const searchedProjects = JSON.parse(search.stdout.toString())
+  expect(searchedProjects).toHaveLength(2)
+  expect(searchedProjects[0].dependencies).toHaveProperty(['@pnpm.e2e/pkg-with-1-dep'])
+  expect(searchedProjects[1]).not.toHaveProperty('dependencies')
+
+  const parseable = execPnpmSync(['-r', '--filter', 'project-*', 'list', '--parseable'], { expectSuccess: true })
+  const bothFormats = execPnpmSync(['-r', '--filter', 'project-*', 'list', '--parseable', '--json'], { expectSuccess: true })
+  expect(bothFormats.stdout.toString()).toBe(parseable.stdout.toString())
+})
+
 test('ls --filter=not-exist --json should prints an empty array (#9672)', async () => {
   preparePackages([
     {
