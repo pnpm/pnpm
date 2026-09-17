@@ -179,14 +179,23 @@ async fn serve_wheels(
 
 fn add_python_settings(root: &Path, settings: &str) {
     let workspace = fs::read_to_string(root.join("pnpm-workspace.yaml")).unwrap();
-    fs::write(
-        root.join("pnpm-workspace.yaml"),
-        workspace.replace(
-            "python:\n  enabled: true\n",
-            &format!("python:\n  enabled: true\n{settings}"),
-        ),
-    )
-    .unwrap();
+    let mut python_settings = String::new();
+    let mut pypi_overrides = None;
+    for line in settings.lines() {
+        if let Some(value) = line.strip_prefix("  overrides: ") {
+            pypi_overrides = Some(value);
+        } else {
+            writeln!(python_settings, "{line}").unwrap();
+        }
+    }
+    let workspace = workspace.replace(
+        "python:\n  enabled: true\n",
+        &format!("python:\n  enabled: true\n{python_settings}"),
+    );
+    let workspace = pypi_overrides.map_or(workspace.clone(), |overrides| {
+        format!("{workspace}\noverrides:\n  pypi: {overrides}\n")
+    });
+    fs::write(root.join("pnpm-workspace.yaml"), workspace).unwrap();
 }
 
 /// The platform of the machine running the tests, as `python.platforms`

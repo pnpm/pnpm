@@ -174,12 +174,13 @@ impl Default for CargoSettings {
 )]
 pub struct PythonSettings {
     pub enabled: bool,
+    #[serde(skip)]
+    pub overrides: Vec<String>,
     /// The interpreter to install every Python project with. `None` lets
     /// pnpm choose one the project accepts.
     pub executable: Option<String>,
     pub index_url: String,
     pub extra_index_urls: Vec<String>,
-    pub overrides: Vec<String>,
     pub constraints: Vec<String>,
     pub extras: Vec<String>,
     pub groups: Vec<String>,
@@ -216,10 +217,10 @@ impl Default for PythonSettings {
     fn default() -> Self {
         Self {
             enabled: false,
+            overrides: Vec::new(),
             executable: None,
             index_url: "https://pypi.org/simple/".to_string(),
             extra_index_urls: Vec::new(),
-            overrides: Vec::new(),
             constraints: Vec::new(),
             extras: Vec::new(),
             groups: vec!["dev".to_string()],

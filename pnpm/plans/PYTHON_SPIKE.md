@@ -48,8 +48,7 @@ Markers select where a rule applies.
 URL requirements are not accepted in these lists. Version rules preserve the
 source of dependencies declared as Git repositories or direct wheel URLs.
 The shared `overrides` setting has an `npm` map and a `pypi` list. The legacy
-flat map remains the npm form, and `python.overrides` remains accepted for
-compatibility.
+flat map remains the npm form.
 For example:
 
 ```yaml
