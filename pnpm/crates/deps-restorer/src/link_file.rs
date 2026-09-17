@@ -322,41 +322,9 @@ impl ImportState {
             PackageImportMethod::Auto => {
                 auto_link::<Reporter, Sys>(logged, &self.auto, source_file, target_link)
             }
-            // pnpm's explicit `hardlink` method uses `hardlinkPkg(linkOrCopy)`,
-            // which copies on any link failure other than `EEXIST`. Only
-            // `EXDEV` copies here: a store on a different device from
-            // `node_modules` is a placement the user can change, and one
-            // package's copy is cheap. A source that has run out of names
-            // ([`is_too_many_links`]) copies for the same reason: it costs
-            // one file, not the install. Everything else surfaces, `EPERM`
-            // included — a filesystem that refuses links would copy every
-            // package, which is the disk cost `hardlink` was chosen to
-            // avoid, so the user gets an error naming the method instead of
-            // a silent whole-install copy. No caching — the `fs::hard_link`
-            // syscall itself is already cheap; pnpm doesn't cache this path
-            // either.
-            PackageImportMethod::Hardlink => match Sys::hard_link(source_file, target_link) {
-                Ok(()) => {
-                    log_method_once::<Reporter>(
-                        logged,
-                        LOG_FLAG_HARDLINK,
-                        WireImportMethod::Hardlink,
-                    );
-                    Ok(WireImportMethod::Hardlink)
-                }
-                Err(error) if is_cross_device(&error) || is_too_many_links(&error) => {
-                    copy_file(source_file, target_link)
-                        .inspect(|()| {
-                            log_method_once::<Reporter>(
-                                logged,
-                                LOG_FLAG_COPY,
-                                WireImportMethod::Copy,
-                            );
-                        })
-                        .map(|()| WireImportMethod::Copy)
-                }
-                Err(error) => Err(error),
-            },
+            PackageImportMethod::Hardlink => {
+                hardlink_file::<Reporter, Sys>(logged, source_file, target_link)
+            }
             PackageImportMethod::Clone => clone_file::<Sys>(source_file, target_link)
                 .inspect(|()| {
                     log_method_once::<Reporter>(logged, LOG_FLAG_CLONE, WireImportMethod::Clone);
@@ -380,6 +348,40 @@ impl ImportState {
 impl Default for ImportState {
     fn default() -> Self {
         Self::new()
+    }
+}
+
+fn hardlink_file<Reporter: self::Reporter, Sys: FsHardLink>(
+    logged: &AtomicU8,
+    source_file: &Path,
+    target_link: &Path,
+) -> io::Result<WireImportMethod> {
+    // pnpm's explicit `hardlink` method uses `hardlinkPkg(linkOrCopy)`,
+    // which copies on any link failure other than `EEXIST`. Only
+    // `EXDEV` copies here: a store on a different device from
+    // `node_modules` is a placement the user can change, and one
+    // package's copy is cheap. A source that has run out of names
+    // ([`is_too_many_links`]) copies for the same reason: it costs
+    // one file, not the install. Everything else surfaces, `EPERM`
+    // included — a filesystem that refuses links would copy every
+    // package, which is the disk cost `hardlink` was chosen to
+    // avoid, so the user gets an error naming the method instead of
+    // a silent whole-install copy. No caching — the `fs::hard_link`
+    // syscall itself is already cheap; pnpm doesn't cache this path
+    // either.
+    match Sys::hard_link(source_file, target_link) {
+        Ok(()) => {
+            log_method_once::<Reporter>(logged, LOG_FLAG_HARDLINK, WireImportMethod::Hardlink);
+            Ok(WireImportMethod::Hardlink)
+        }
+        Err(error) if is_cross_device(&error) || is_too_many_links(&error) => {
+            copy_file(source_file, target_link)
+                .inspect(|()| {
+                    log_method_once::<Reporter>(logged, LOG_FLAG_COPY, WireImportMethod::Copy);
+                })
+                .map(|()| WireImportMethod::Copy)
+        }
+        Err(error) => Err(error),
     }
 }
 
