@@ -32,7 +32,7 @@ fn write_project(workspace: &Path, pacquet: &Path, limit: u32) {
     fs::write(workspace.join("hold.js"), hold_script).expect("write hold.js");
     let pacquet = serde_json::to_string(&pacquet.to_string_lossy()).expect("quote pacquet path");
     let outer_script = format!(
-        "require('child_process').execFileSync({pacquet}, ['run', 'hold'], {{ stdio: 'inherit' }})"
+        "require('child_process').execFileSync({pacquet}, ['run', 'hold'], {{ stdio: 'inherit' }})",
     );
     fs::write(workspace.join("outer.js"), outer_script).expect("write outer.js");
     let manifest = json!({
@@ -97,7 +97,7 @@ fn concurrent_runs_past_the_limit_wait_for_a_slot() {
             .join("run-slots")
             .join("test")
             .join("0")
-            .is_file()
+            .is_file(),
     );
 
     drop(root);

@@ -70,7 +70,7 @@ pub(crate) fn acquire_machine_run_slot(
         emit(&LogEvent::Global(GlobalLog {
             level: LogLevel::Warn,
             message: format!(
-                "Waiting for a free run slot: all {limit} slots of group \"{group}\" are held ({}). Holders: {}",
+                r#"Waiting for a free run slot: all {limit} slots of group "{group}" are held ({}). Holders: {}"#,
                 pool.dir.display(),
                 if holders.is_empty() { "unknown".to_string() } else { holders.join("; ") },
             ),

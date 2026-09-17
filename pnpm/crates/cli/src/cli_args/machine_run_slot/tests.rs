@@ -26,7 +26,7 @@ fn a_pool_hands_out_exactly_its_limit() {
         pool.try_acquire()
             .expect("try third")
             .is_none(),
-        "both slots are held"
+        "both slots are held",
     );
 
     let holders = pool.holders();
@@ -35,7 +35,7 @@ fn a_pool_hands_out_exactly_its_limit() {
     assert!(
         holders
             .iter()
-            .all(|holder| holder.starts_with("pid "))
+            .all(|holder| holder.starts_with("pid ")),
     );
 
     drop(first);
@@ -116,7 +116,7 @@ fn a_limit_creates_the_group_pool_under_the_state_dir() {
             .try_acquire()
             .expect("try")
             .is_none(),
-        "the slot is held through the config path"
+        "the slot is held through the config path",
     );
     drop(slot);
 }
