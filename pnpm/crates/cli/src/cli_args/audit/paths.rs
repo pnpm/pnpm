@@ -50,8 +50,9 @@ pub(crate) fn walk_for_paths(
     include: Include,
     paths: &mut AuditPathIndex,
 ) {
-    let walk =
-        PathWalk { graph, vulnerable_names, include, classes: classify_graph(graph, include) };
+    let classes = classify_graph(graph, include);
+    let reachable = reachable_vulnerabilities(graph, vulnerable_names, include, &classes);
+    let walk = PathWalk { graph, vulnerable_names, include, classes, reachable };
     for importer in &graph.importers {
         let importer_trail =
             Rc::new(TrailNode { name: importer.path_segment.clone(), parent: None });
@@ -77,6 +78,79 @@ pub(crate) struct PathWalk<'a> {
     vulnerable_names: &'a HashSet<String>,
     include: Include,
     classes: HashMap<PackageKey, DepClass>,
+    reachable: HashMap<PackageKey, HashSet<PackageKey>>,
+}
+
+fn reachable_vulnerabilities(
+    graph: &AuditGraph<'_>,
+    vulnerable_names: &HashSet<String>,
+    include: Include,
+    classes: &HashMap<PackageKey, DepClass>,
+) -> HashMap<PackageKey, HashSet<PackageKey>> {
+    let mut parents: HashMap<PackageKey, Vec<PackageKey>> = HashMap::new();
+    for key in classes.keys() {
+        for child in graph.children(key, include.optional_dependencies) {
+            parents
+                .entry(child.key)
+                .or_default()
+                .push(key.clone());
+        }
+    }
+    let mut reachable: HashMap<PackageKey, HashSet<PackageKey>> = HashMap::new();
+    for target in classes
+        .keys()
+        .filter(|key| vulnerable_names.contains(&key.name.to_string()))
+    {
+        if package_version(target).is_none() {
+            continue;
+        }
+        register_reachable_target(target, &parents, &mut reachable);
+    }
+    reachable
+}
+
+fn register_reachable_target(
+    target: &PackageKey,
+    parents: &HashMap<PackageKey, Vec<PackageKey>>,
+    reachable: &mut HashMap<PackageKey, HashSet<PackageKey>>,
+) {
+    let mut seen = HashSet::new();
+    let mut stack = vec![target.clone()];
+    while let Some(key) = stack.pop() {
+        if !seen.insert(key.clone()) {
+            continue;
+        }
+        reachable
+            .entry(key.clone())
+            .or_default()
+            .insert(target.clone());
+        if let Some(parents) = parents.get(&key) {
+            stack.extend(parents.iter().cloned());
+        }
+    }
+}
+
+impl PathWalk<'_> {
+    fn all_findings_saturated(&self, key: &PackageKey, paths: &AuditPathIndex) -> bool {
+        let Some(reachable) = self.reachable.get(key) else { return true };
+        for target in reachable {
+            let version = package_version(target).expect("vulnerable target has a version");
+            let Some(info) = paths
+                .get(&target.name.to_string())
+                .and_then(|versions| versions.get(&version))
+            else {
+                return false;
+            };
+            let class = self.classes.get(target).expect("vulnerable target is reachable");
+            if info.paths.len() < MAX_PATHS_PER_FINDING
+                || (!class.dev_only && info.dev)
+                || (!class.optional_only && info.optional)
+            {
+                return false;
+            }
+        }
+        true
+    }
 }
 
 /// Visit every node the opened root reaches, depth-first, popping each
@@ -108,7 +182,7 @@ pub(crate) fn open_path_node(
     in_trail: &mut HashSet<PackageKey>,
     stack: &mut Vec<PathFrame>,
 ) {
-    if in_trail.contains(&key) {
+    if in_trail.contains(&key) || walk.all_findings_saturated(&key, paths) {
         return;
     }
     let name = key.name.to_string();
@@ -128,6 +202,9 @@ pub(crate) fn open_path_node(
             class.dev_only,
             class.optional_only,
         );
+    }
+    if walk.all_findings_saturated(&key, paths) {
+        return;
     }
     let children = walk.graph.children(&key, walk.include.optional_dependencies);
     if children.is_empty() {
