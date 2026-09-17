@@ -110,9 +110,6 @@ fn a_declaration_without_a_range_is_left_alone() {
     assert_eq!(bump("npm:is-positive", "is-positive@3.1.0"), None);
 }
 
-/// A `runtime:` declaration is the folded form of a `devEngines.runtime` /
-/// `engines.runtime` entry, so its range moves under the prefix the manifest
-/// writer folds back.
 #[test]
 fn a_runtime_range_moves_under_its_prefix() {
     assert_eq!(bump("runtime:^26.8.2", "runtime:26.9.0").as_deref(), Some("runtime:^26.9.0"));

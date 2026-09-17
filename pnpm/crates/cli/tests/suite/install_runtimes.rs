@@ -208,10 +208,8 @@ fn update_latest_keeps_runtime_dependency_on_the_runtime_resolver() {
     );
 }
 
-/// A channel-qualified `devEngines.runtime` range is a `runtime:` dependency
-/// too, so a compatible update moves it onto the resolved version. The pick is
-/// a prerelease, which the runtime resolver pins exactly, so the declaration
-/// keeps the rc channel `parse_node_specifier` reads back out of the version.
+/// The pick is a prerelease, which the runtime resolver pins exactly so the rc
+/// channel survives in the version.
 #[test]
 fn update_moves_a_channel_qualified_devengines_runtime_range() {
     let root = tempfile::tempdir().unwrap();
