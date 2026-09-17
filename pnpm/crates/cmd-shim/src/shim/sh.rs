@@ -1,18 +1,30 @@
-use super::{Path, ScriptRuntime, normalize_node_path_env_var, relative_target};
+use super::{
+    Path, ScriptRuntime, normalize_node_path_env_var, relative_target,
+    relocatable::{
+        BASEDIR_ABS, BASEDIR_ABS_PRELUDE, marker_target, sh_node_path_entries, shim_target_markers,
+    },
+};
 use std::fmt::Write as _;
 
 /// Generate the Unix shell-shim contents for `target_path`, written to
 /// `shim_path`. `node_path` entries (empty for a plain shim) become the
 /// cmd-shim `NODE_PATH` export block.
+///
+/// A shim inside `relocatable_root` names its target marker and every
+/// `NODE_PATH` entry inside that root relative to its own directory, so the
+/// tree keeps working after the root moves. `None`, or any root on Windows,
+/// writes the absolute paths `@zkochan/cmd-shim` writes.
 #[must_use]
 pub fn generate_sh_shim(
     target_path: &Path,
     shim_path: &Path,
     runtime: Option<&ScriptRuntime>,
     node_path: &[String],
+    relocatable_root: Option<&Path>,
 ) -> String {
+    let shim_dir = shim_path.parent().unwrap_or_else(|| Path::new(""));
     let mut sh = String::from(SH_SHIM_HEADER);
-    write_sh_node_path(&mut sh, node_path);
+    write_sh_node_path(&mut sh, &sh_node_path_entries(node_path, shim_dir, relocatable_root));
 
     let sh_target = relative_target(target_path, shim_path);
     let absolute = Path::new(&sh_target).is_absolute();
@@ -35,7 +47,7 @@ pub fn generate_sh_shim(
         }
         // The trailing `exit $?` is unreachable after the `exec`. It is
         // emitted anyway because upstream emits it, which is what keeps
-        // the two stacks' shims byte-identical.
+        // shims outside a relocatable root byte-identical to upstream's.
         runtime_opt => {
             let args = runtime_opt.map_or("", |runtime| runtime.args.as_str());
             let quoted_target = &quoted.posix;
@@ -43,7 +55,8 @@ pub fn generate_sh_shim(
         }
     }
 
-    writeln!(sh, "# {}", shim_target_marker(&target_path.to_string_lossy())).unwrap();
+    let marker = marker_target(target_path, &sh_target, shim_dir, relocatable_root);
+    writeln!(sh, "# {}", shim_target_marker(&marker)).unwrap();
     sh
 }
 
@@ -60,6 +73,12 @@ fn write_sh_node_path(sh: &mut String, node_path: &[String]) {
     let sh_node_path = normalize_node_path_env_var(node_path).posix;
     if sh_node_path.is_empty() {
         return;
+    }
+    if node_path
+        .iter()
+        .any(|entry| entry.starts_with(BASEDIR_ABS))
+    {
+        sh.push_str(BASEDIR_ABS_PRELUDE);
     }
     writeln!(
         sh,
@@ -228,19 +247,24 @@ pub(super) fn strip_exe_suffix(prog: &str) -> Option<&str> {
         .then(|| &prog[..suffix_start])
 }
 
-/// Trailing `# cmd-shim-target=<rel>` marker. [`is_shim_pointing_at`]
-/// reads it to detect whether an existing shim already targets the same
-/// source without re-parsing its body, short-circuiting warm reinstalls.
+/// Trailing `# cmd-shim-target=<target>` marker, naming the target relative
+/// to the shim inside a relocatable root and absolutely otherwise.
+/// [`is_shim_pointing_at`] reads it to detect whether an existing shim
+/// already targets the same source without re-parsing its body,
+/// short-circuiting warm reinstalls.
 fn shim_target_marker(target: &str) -> String {
     format!("cmd-shim-target={}", target.replace('\\', "/"))
 }
 
-/// Whether an already-on-disk shim targets `target_path`. The check looks
-/// for the trailing marker line so the header text never has to be
-/// byte-identical between cmd-shim versions.
+/// Whether an already-on-disk shim at `shim_path` targets `target_path`. The
+/// check looks for the trailing marker line so the header text never has to
+/// be byte-identical between cmd-shim versions. A relative marker resolves
+/// against the shim's directory.
 #[must_use]
-pub fn is_shim_pointing_at(shim_content: &str, target_path: &Path) -> bool {
-    is_shim_carrying_target(shim_content, &target_path.to_string_lossy())
+pub fn is_shim_pointing_at(shim_content: &str, shim_path: &Path, target_path: &Path) -> bool {
+    let target = target_path.to_string_lossy().replace('\\', "/");
+    shim_target_markers(shim_content)
+        .any(|marker| marker == target || marker == relative_target(target_path, shim_path))
 }
 
 /// The line the header resolves `readlink` through. Taken verbatim from
@@ -270,11 +294,4 @@ pub fn is_sh_shim_hardened(shim_content: &str) -> bool {
         && shim_content
             .lines()
             .any(|line| line == SH_SHIM_PATH_PRINTF_LINE)
-}
-
-fn is_shim_carrying_target(shim_content: &str, target: &str) -> bool {
-    let marker = format!("# {}", shim_target_marker(target));
-    shim_content
-        .lines()
-        .any(|line| line == marker)
 }

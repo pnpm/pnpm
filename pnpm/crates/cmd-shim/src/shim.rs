@@ -9,6 +9,9 @@ use std::{
     path::{Path, PathBuf},
 };
 
+#[cfg(unix)]
+pub(crate) use relocatable::is_within_root;
+
 /// Detected runtime for a target script.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ScriptRuntime {
@@ -324,3 +327,5 @@ mod powershell;
 mod quoting;
 
 mod sh;
+
+mod relocatable;

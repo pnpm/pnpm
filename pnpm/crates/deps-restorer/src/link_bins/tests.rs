@@ -452,7 +452,7 @@ fn link_direct_dep_bins_writes_shims_for_each_dep() {
     let shim = modules.join(".bin/foo");
     assert!(shim.exists(), "shim should be created at {shim:?}");
     let body = read_to_string(&shim).unwrap();
-    assert!(is_shim_pointing_at(&body, &foo_dir.join("cli.js")));
+    assert!(is_shim_pointing_at(&body, &shim, &foo_dir.join("cli.js")));
 }
 
 /// [`link_direct_dep_bins`] with no deps is a no-op. It must not even
@@ -759,7 +759,7 @@ fn prefetched_bin_pass_reads_a_may_build_dep_from_disk() {
     )
     .unwrap();
     let body = read_to_string(modules.join(".bin/foo")).expect("may-build dep read from disk");
-    assert!(is_shim_pointing_at(&body, &foo_dir.join("cli.js")));
+    assert!(is_shim_pointing_at(&body, &modules.join(".bin/foo"), &foo_dir.join("cli.js")));
 }
 
 #[test]
@@ -794,7 +794,7 @@ fn prefetched_bin_pass_links_from_the_prefetched_manifest_without_a_disk_manifes
     .unwrap();
     let shim = modules.join(".bin/foo");
     let body = read_to_string(&shim).expect("shim written from the prefetched manifest");
-    assert!(is_shim_pointing_at(&body, &foo_dir.join("cli.js")));
+    assert!(is_shim_pointing_at(&body, &shim, &foo_dir.join("cli.js")));
 }
 
 #[test]
@@ -820,5 +820,5 @@ fn prefetched_bin_pass_reads_a_link_dep_from_disk() {
     )
     .unwrap();
     let body = read_to_string(modules.join(".bin/sibling")).expect("link: dep read from disk");
-    assert!(is_shim_pointing_at(&body, &sibling_dir.join("cli.js")));
+    assert!(is_shim_pointing_at(&body, &modules.join(".bin/sibling"), &sibling_dir.join("cli.js")));
 }

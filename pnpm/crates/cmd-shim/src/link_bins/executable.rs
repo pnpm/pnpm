@@ -3,6 +3,8 @@ use super::is_shim_pointing_at;
 #[cfg(windows)]
 use super::shim_writer::with_extension_appended;
 use super::{FsEnsureExecutableBits, FsReadToString, LinkBinsError, Path, io, remove_stale_bin};
+#[cfg(unix)]
+use crate::shim::is_within_root;
 
 /// Make the underlying script executable: apply a minimum mode of
 /// 0o755 without rewriting CRLF shebangs. Targets shipped by npm
@@ -95,10 +97,11 @@ pub(super) fn is_node_bin_name(shim_path: &Path) -> bool {
 ///
 /// Two halves, by platform:
 ///
-/// - **Unix** symlinks `shim_path` → absolute `target_path`. The
-///   existing dirent (if any) is removed first because `fs::symlink`
-///   rejects with `AlreadyExists` and we don't want to silently leave
-///   a stale shim in place.
+/// - **Unix** symlinks `shim_path` → `target_path`, relative to the bin
+///   directory when both lie inside `relocatable_root` and absolute
+///   otherwise. The existing dirent (if any) is removed first because
+///   `fs::symlink` rejects with `AlreadyExists` and we don't want to
+///   silently leave a stale shim in place.
 /// - **Windows** hardlinks `target_path` to `<shim_path>.exe`, falling
 ///   back to `fs::copy` on hardlink failure (cross-device, ACL deny,
 ///   ...). The source must end in `.exe`; otherwise the caller falls
@@ -110,10 +113,20 @@ pub(super) fn is_node_bin_name(shim_path: &Path) -> bool {
 /// the hardlink would corrupt the binary itself. Removing the dirent
 /// leaves the hardlinked content intact.
 #[cfg(unix)]
-pub(super) fn link_node_bin(target_path: &Path, shim_path: &Path) -> Result<bool, LinkBinsError> {
+pub(super) fn link_node_bin(
+    target_path: &Path,
+    shim_path: &Path,
+    relocatable_root: Option<&Path>,
+) -> Result<bool, LinkBinsError> {
     use std::os::unix::fs::symlink;
+    let link_target = match shim_path.parent() {
+        Some(bins_dir) if is_within_root(relocatable_root, bins_dir, target_path) => {
+            pnpm_fs::relative_path(bins_dir, target_path)
+        }
+        _ => target_path.to_path_buf(),
+    };
     remove_stale_bin(shim_path)?;
-    symlink(target_path, shim_path)
+    symlink(link_target, shim_path)
         .map_err(|error| LinkBinsError::LinkNodeBin {
             src: target_path.to_path_buf(),
             dst: shim_path.to_path_buf(),
@@ -123,7 +136,11 @@ pub(super) fn link_node_bin(target_path: &Path, shim_path: &Path) -> Result<bool
 }
 
 #[cfg(windows)]
-pub(super) fn link_node_bin(target_path: &Path, shim_path: &Path) -> Result<bool, LinkBinsError> {
+pub(super) fn link_node_bin(
+    target_path: &Path,
+    shim_path: &Path,
+    _relocatable_root: Option<&Path>,
+) -> Result<bool, LinkBinsError> {
     use std::fs;
     let is_exe = target_path
         .extension()
@@ -153,9 +170,9 @@ pub(super) fn link_node_bin(target_path: &Path, shim_path: &Path) -> Result<bool
 /// pnpm's `preferSymlinkedExecutables` bin materialization: a relative
 /// symlink from the `.bin` entry to the target file, matching pnpm's
 /// `symlink-dir` call (relative so a moved project keeps working; the
-/// node runtime handled by [`link_node_bin`] keeps its absolute link,
-/// also like pnpm). The target file — not the link — gets its
-/// executable bits raised, and a dangling target is tolerated: the
+/// node runtime handled by [`link_node_bin`] links relatively only inside
+/// a relocatable root). The target file gets its executable bits
+/// raised, and a dangling target is tolerated: the
 /// symlink is created anyway with a warning, pnpm's
 /// warn-and-continue.
 ///
@@ -178,7 +195,7 @@ where
     // accepted before this branch was reached.)
     if matches!(
         Sys::read_to_string(shim_path),
-        Ok(existing) if is_shim_pointing_at(&existing, target_path),
+        Ok(existing) if is_shim_pointing_at(&existing, shim_path, target_path),
     ) {
         ensure_target_executable::<Sys>(target_path)?;
         return Ok(true);

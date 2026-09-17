@@ -36,9 +36,22 @@ pub(super) struct ShimSpec<'a> {
     pub(super) node_path: &'a [String],
     pub(super) prefer_symlinked_executables: bool,
     pub(super) make_powershell_shim: bool,
+    pub(super) relocatable_root: Option<&'a Path>,
     /// Whether this run created the bin directory. Read by
     /// [`read_or_create_shim`], which documents what it is worth.
     pub(super) bin_dir: DirCreation,
+}
+
+impl ShimSpec<'_> {
+    fn sh_body(&self, runtime: Option<&ScriptRuntime>) -> String {
+        generate_sh_shim(
+            self.target_path,
+            self.shim_path,
+            runtime,
+            self.node_path,
+            self.relocatable_root,
+        )
+    }
 }
 
 pub(super) fn write_shim<Sys>(
@@ -92,7 +105,9 @@ where
     //    (`$basedir/../node/bin/../node/bin/node` — the `node` segment
     //    appears twice). A direct symlink / hardlink bypasses the
     //    parser entirely.
-    if is_node_bin_name(spec.shim_path) && link_node_bin(spec.target_path, spec.shim_path)? {
+    if is_node_bin_name(spec.shim_path)
+        && link_node_bin(spec.target_path, spec.shim_path, spec.relocatable_root)?
+    {
         return Ok(());
     }
 
@@ -114,8 +129,7 @@ where
             error,
         })?;
 
-    let sh_body =
-        generate_sh_shim(spec.target_path, spec.shim_path, runtime.as_ref(), spec.node_path);
+    let sh_body = spec.sh_body(runtime.as_ref());
     let windows_shims = windows_shim_bodies(&spec, runtime.as_ref());
 
     let current = shim_body_matches(existing_shim.as_deref(), &sh_body, &spec)
@@ -230,7 +244,7 @@ fn shim_body_matches(existing: Option<&str>, sh_body: &str, spec: &ShimSpec<'_>)
     if !spec.node_path.is_empty() {
         return existing == sh_body;
     }
-    is_shim_pointing_at(existing, spec.target_path)
+    is_shim_pointing_at(existing, spec.shim_path, spec.target_path)
         && is_sh_shim_hardened(existing)
         && !existing.contains("export NODE_PATH=")
 }
@@ -308,7 +322,7 @@ where
             path: probe_path.to_path_buf(),
             error,
         })?;
-    let sh_body = generate_sh_shim(target_path, shim_path, runtime.as_ref(), node_path);
+    let sh_body = spec.sh_body(runtime.as_ref());
     // Any failure — a lost race, a dangling symlink squatting on the
     // path, a `Sys` without exclusive creation — goes to the general
     // path, whose replacement is atomic. No content is ever read back

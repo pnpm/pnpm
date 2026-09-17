@@ -44,6 +44,7 @@ pub fn shim_link_options(config: &Config, node_linker: NodeLinker) -> LinkBinsOp
     LinkBinsOptions {
         extra_node_paths,
         prefer_symlinked_executables: config.prefer_symlinked_executables.unwrap_or(false),
+        relocatable_root: config.modules_dir.parent().map(Path::to_path_buf),
     }
 }
 /// Read the `package.json` of every direct dependency under `modules_dir`

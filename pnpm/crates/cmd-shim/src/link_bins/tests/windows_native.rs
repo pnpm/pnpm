@@ -95,7 +95,7 @@ fn shim_replacement_recovers_after_transient_lock() {
 
     let body = fs::read_to_string(&shim).unwrap();
     eprintln!("replacement shim:\n{body}");
-    assert!(is_shim_pointing_at(&body, &target));
+    assert!(is_shim_pointing_at(&body, &shim, &target));
     assert_eq!(fs::read_to_string(target).unwrap(), content);
 }
 

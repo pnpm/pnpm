@@ -17,7 +17,7 @@ mod dir_patcher;
 use derive_more::{Display, Error};
 use miette::Diagnostic;
 use pnpm_cmd_shim::{
-    LinkBinsError, PackageBinSource, get_bins_from_package_manifest, link_bins,
+    LinkBinsError, LinkBinsOptions, PackageBinSource, get_bins_from_package_manifest, link_bins,
     link_bins_of_packages, remove_bin,
 };
 use pnpm_modules_yaml::{ReadModulesError, read_modules_manifest};
@@ -240,6 +240,7 @@ fn sync_bin_links(opts: &SyncBinLinks<'_>) -> Result<(), SyncInjectedDepsError> 
 
     let has_bins = manifest.get("bin").is_some();
     let manifest = Arc::new(manifest);
+    let link_options = workspace_link_options(opts.workspace_dir);
 
     for target_dir in opts.resolved_targets {
         let Some(parent_modules_dir) = target_dir.parent() else {
@@ -259,12 +260,21 @@ fn sync_bin_links(opts: &SyncBinLinks<'_>) -> Result<(), SyncInjectedDepsError> 
         link_bins_of_packages::<pnpm_cmd_shim::Host>(
             &packages,
             &parent_modules_dir.join(".bin"),
-            &pnpm_cmd_shim::LinkBinsOptions::default(),
+            &link_options,
         )
         .map_err(SyncInjectedDepsError::LinkBins)?;
     }
 
     relink_project_bins(opts.workspace_dir, &stale_bin_names)
+}
+
+/// The workspace's bins name the paths inside it relative to themselves,
+/// as the install writes them.
+fn workspace_link_options(workspace_dir: &Path) -> LinkBinsOptions {
+    LinkBinsOptions {
+        relocatable_root: Some(workspace_dir.to_path_buf()),
+        ..LinkBinsOptions::default()
+    }
 }
 
 /// Any project in the workspace may consume the injected package, so
@@ -277,6 +287,7 @@ fn relink_project_bins(
     let projects =
         find_workspace_projects_no_check(workspace_dir, &FindWorkspaceProjectsOpts::default())
             .map_err(|error| SyncInjectedDepsError::FindProjects { error })?;
+    let link_options = workspace_link_options(workspace_dir);
     for project in projects {
         let project_modules_dir = project.root_dir.join("node_modules");
         // A stale name another package legitimately owns is put back by the
@@ -293,7 +304,7 @@ fn relink_project_bins(
         link_bins::<pnpm_cmd_shim::Host>(
             &project_modules_dir,
             &project_modules_dir.join(".bin"),
-            &pnpm_cmd_shim::LinkBinsOptions::default(),
+            &link_options,
         )
         .map_err(SyncInjectedDepsError::LinkBins)?;
     }

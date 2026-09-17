@@ -39,3 +39,6 @@ mod manifests;
 mod workspace_settings;
 
 mod security;
+
+#[cfg(unix)]
+mod relocatable;
