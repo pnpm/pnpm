@@ -12,10 +12,7 @@ use super::Member;
 use crate::registry::Resolution;
 use pep440_rs::{Version, VersionSpecifiers};
 use pep508_rs::{PackageName, Requirement, VersionOrUrl};
-use std::{
-    collections::{BTreeMap, BTreeSet},
-    path::Path,
-};
+use std::{collections::BTreeMap, path::Path};
 
 /// The resolution failure, naming the two members that disagree when two
 /// of them do.
@@ -30,25 +27,25 @@ pub(crate) fn disagreement(
     }
 }
 
-/// One version range members declare on this environment, and every
-/// member that declares it.
+/// One version range members declare on this environment, and what
+/// each member asking it wrote, by member.
 struct Asked<'a> {
-    requirement: &'a Requirement,
     specifiers: &'a VersionSpecifiers,
-    roots: BTreeSet<&'a Path>,
+    by_root: BTreeMap<&'a Path, &'a Requirement>,
 }
 
 impl<'a> Asked<'a> {
     /// A member asking this range and a different member asking `other`,
-    /// or `None` when one member alone asks both.
-    fn distinct_roots(&self, other: &Self) -> Option<(&'a Path, &'a Path)> {
-        self.roots
+    /// each with the requirement it wrote, or `None` when one member
+    /// alone asks both.
+    fn distinct_roots(&self, other: &Self) -> Option<[(&'a Path, &'a Requirement); 2]> {
+        self.by_root
             .iter()
-            .find_map(|root| {
-                other.roots
+            .find_map(|(root, requirement)| {
+                other.by_root
                     .iter()
-                    .find(|second| *second != root)
-                    .map(|second| (*root, *second))
+                    .find(|(second, _)| *second != root)
+                    .map(|(second, theirs)| [(*root, *requirement), (*second, *theirs)])
             })
     }
 }
@@ -73,9 +70,10 @@ fn find(resolution: &Resolution, members: &[Member]) -> Option<String> {
                 .entry(&requirement.name)
                 .or_default()
                 .entry(specifiers.to_string())
-                .or_insert_with(|| Asked { requirement, specifiers, roots: BTreeSet::new() })
-                .roots
-                .insert(&member.root);
+                .or_insert_with(|| Asked { specifiers, by_root: BTreeMap::new() })
+                .by_root
+                .entry(&member.root)
+                .or_insert(requirement);
         }
     }
     by_name
@@ -111,15 +109,13 @@ fn conflicting_pair(
                                 && second.specifiers.contains(version)
                         })
                 })
-                .map(|(second, (root, other))| {
+                .map(|(_, [(root, requirement), (other, theirs)])| {
                     format!(
                         "the Python projects sharing one environment cannot be installed together: \
-                         {} requires `{}` and {} requires `{}`, and no version of {name} the index \
-                         offers satisfies both",
+                         {} requires `{requirement}` and {} requires `{theirs}`, and no version of \
+                         {name} the index offers satisfies both",
                         root.display(),
-                        first.requirement,
                         other.display(),
-                        second.requirement,
                     )
                 })
         })
