@@ -810,3 +810,27 @@ fn concurrency_groups_merge_across_layers() {
     dbg!(&limits);
     assert_eq!(limits, vec![("cargo", 1), ("node", 4)]);
 }
+
+/// The group names a slot directory under the state directory, so a name
+/// that could leave it is refused before anything is created.
+#[test]
+fn rejects_a_task_concurrency_group_that_is_not_a_plain_name() {
+    for group in ["../escape", "a/b", "", ".", "..", "with space"] {
+        let dir = tempfile::tempdir().unwrap();
+        fs::write(
+            dir.path().join(WORKSPACE_MANIFEST_FILENAME),
+            format!(
+                "packages:\n  - packages/*\ntasks:\n  build:\n    concurrencyGroup: {group:?}\n",
+            ),
+        )
+        .unwrap();
+
+        let error = WorkspaceSettings::load_at(dir.path()).unwrap_err();
+        dbg!(group, &error);
+        assert!(matches!(
+            error,
+            LoadWorkspaceYamlError::InvalidTaskConcurrencyGroup { ref task, group: ref found }
+                if task == "build" && found == group
+        ));
+    }
+}

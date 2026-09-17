@@ -91,6 +91,16 @@ pub enum LoadWorkspaceYamlError {
     #[diagnostic(code(ERR_PNPM_INVALID_SETTING))]
     InvalidTaskConcurrency { task: String, concurrency: String },
     #[display(
+        "The \"tasks['{task}'].concurrencyGroup\" setting is not a valid group name: {group:?}"
+    )]
+    #[diagnostic(
+        code(ERR_PNPM_INVALID_SETTING),
+        help(
+            "A group name is one or more letters, digits, '.', '_' or '-', and names a slot directory of its own, so it cannot be '.', '..', or contain a path separator."
+        )
+    )]
+    InvalidTaskConcurrencyGroup { task: String, group: String },
+    #[display(
         "The \"tasks['{task}'].dependsOn\" setting contains an entry with no task name: {entry:?}"
     )]
     #[diagnostic(code(ERR_PNPM_INVALID_SETTING))]
