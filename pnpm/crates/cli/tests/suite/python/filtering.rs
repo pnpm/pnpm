@@ -202,6 +202,34 @@ async fn a_filtered_add_writes_the_requirement_to_the_selected_project_only() {
     assert!(!installed(root.path(), "b"), "b was not selected");
 }
 
+/// A recursive add leaves the workspace root out, the way the npm add does,
+/// so a Python project at the root keeps its requirements.
+#[tokio::test]
+async fn a_recursive_add_leaves_the_workspace_root_alone() {
+    let root = tempfile::tempdir().unwrap();
+    let mut server = mockito::Server::new_async().await;
+    let _alpha = serve(&mut server, "alpha", &[("1.0", wheel("alpha", "1.0", "", &[]))]).await;
+    project(root.path(), &server.url(), &[]);
+    let workspace = fs::read_to_string(root.path().join("pnpm-workspace.yaml")).unwrap();
+    fs::write(
+        root.path().join("pnpm-workspace.yaml"),
+        format!("{workspace}packages:\n  - '.'\n  - 'a'\n"),
+    )
+    .unwrap();
+    requirements_project(root.path(), "a", &[]);
+
+    pacquet_in(root.path())
+        .args(["add", "--recursive", "pypi:alpha"])
+        .assert()
+        .success();
+
+    assert!(fs::read_to_string(root.path().join("a/pyproject.toml")).unwrap().contains("alpha"),);
+    assert!(
+        !fs::read_to_string(root.path().join("pyproject.toml")).unwrap().contains("alpha"),
+        "the root is not part of a recursive add",
+    );
+}
+
 /// A project the workspace excludes is not reached through a member's
 /// `[tool.uv.sources]` entry, the way resolving that entry would not reach
 /// it either.

@@ -496,7 +496,7 @@ impl AutoExcludeRoot<'_> {
     /// augmentation applies. [`select_recursive_projects`] routes it into
     /// the pass whose `follow_prod_deps_only` matches (the prod pass when
     /// a `--filter-prod` selector is present, else the regular pass).
-    fn root_selector(&self, config: &Config, prefix: &Path) -> Option<String> {
+    pub fn root_selector(&self, config: &Config, prefix: &Path) -> Option<String> {
         // pnpm pushes this inclusion onto the `--filter` list rather than
         // replacing it, and for every recursive command — so unlike the
         // exclusion below it is ungated, and it is additive.

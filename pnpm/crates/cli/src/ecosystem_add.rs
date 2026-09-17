@@ -104,8 +104,8 @@ async fn python_add_task<Reporter: pnpm_reporter::Reporter + 'static>(
         (discovery, selected)
     } else {
         let project = pnpm_python_installer::writable_project(root)?;
-        let discovery =
-            pnpm_python_installer::discover(config, vec![project.join("pyproject.toml")]).await?;
+        let manifests = [project.join("pyproject.toml")];
+        let discovery = pnpm_python_installer::discover(config, &manifests).await?;
         (discovery, BTreeSet::from([project]))
     };
     let projects =

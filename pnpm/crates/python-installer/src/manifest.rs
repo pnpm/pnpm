@@ -230,6 +230,37 @@ impl Manifest {
         toml::from_str(contents).into_diagnostic()
     }
 
+    /// Every distribution this project names in a requirement its own
+    /// manifest declares, or `None` when a build backend generates them and
+    /// the manifest does not say which they are.
+    ///
+    /// A requirement pnpm cannot parse is left out: the resolution that
+    /// reads it reports it, and this is read where a name that is not there
+    /// only means one source fewer to consider.
+    pub(super) fn declared_requirement_names(&self) -> Option<BTreeSet<PackageName>> {
+        let project = self.project.as_ref()?;
+        if project.dynamic
+            .iter()
+            .any(|field| matches!(field.as_str(), "dependencies" | "optional-dependencies"))
+        {
+            return None;
+        }
+        let groups = self.groups
+            .values()
+            .flatten()
+            .filter_map(toml::Value::as_str);
+        Some(
+            project.dependencies
+                .iter()
+                .chain(project.optional_dependencies.values().flatten())
+                .map(String::as_str)
+                .chain(groups)
+                .filter_map(|requirement| parse_requirement(requirement).ok())
+                .map(|requirement| requirement.name)
+                .collect(),
+        )
+    }
+
     /// Every distribution this project declares a requirement on,
     /// wherever it declares it. Which source satisfies a requirement is
     /// decided per distribution, so a name is reported once.

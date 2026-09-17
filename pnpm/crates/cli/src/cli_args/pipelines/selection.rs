@@ -40,6 +40,10 @@ pub(crate) struct InstallFamily {
 pub(crate) struct WorkspaceScope {
     pub(crate) projects: Arc<HashSet<PathBuf>>,
     pub(crate) selected: Arc<HashSet<PathBuf>>,
+    /// The `{<workspace-root>}` selector pnpm appends to the run's own,
+    /// which decides the workspace root for them the way it decides it for
+    /// npm: a recursive `add` leaves it out, an install keeps it.
+    pub(crate) root_selector: Option<String>,
 }
 
 pub(super) fn select_install_family_plan<Reporter: self::Reporter>(
@@ -75,7 +79,7 @@ pub(super) fn select_install_family<Reporter: self::Reporter>(
     auto_exclude_root: bool,
     precompute_workspace_cycles: bool,
 ) -> miette::Result<InstallFamily> {
-    let Some((selection, unmatched)) = select_workspace_projects_with_cycles(
+    let Some(narrowed) = select_workspace_projects_with_cycles(
         cfg,
         prefix,
         manifest_path,
@@ -86,6 +90,7 @@ pub(super) fn select_install_family<Reporter: self::Reporter>(
     else {
         return Ok(InstallFamily { plan: InstallFamilyPlan::Single, scope: None, unmatched: None });
     };
+    let NarrowedWorkspace { selection, unmatched, root_selector } = narrowed;
     // Only an install another ecosystem takes part in reads the scope. The
     // npm install reads the selection itself, so it pays nothing for this.
     let scope = crate::ecosystem_install::is_enabled(cfg)
@@ -97,6 +102,7 @@ pub(super) fn select_install_family<Reporter: self::Reporter>(
                     .collect(),
             ),
             selected: Arc::clone(&selection.selected_dirs),
+            root_selector,
         });
     // Report what the `--filter` / `-r` selection resolved to, so the user
     // can confirm it before the install acts on it. Emitted once here for
@@ -135,8 +141,8 @@ pub(crate) fn select_workspace_projects(
         false,
     )?;
     match selected {
-        Some((_, Some(unmatched))) => Err(unmatched.report()),
-        Some((selection, None)) => Ok(Some(selection)),
+        Some(NarrowedWorkspace { unmatched: Some(unmatched), .. }) => Err(unmatched.report()),
+        Some(NarrowedWorkspace { selection, .. }) => Ok(Some(selection)),
         None => Ok(None),
     }
 }
@@ -148,7 +154,7 @@ fn select_workspace_projects_with_cycles(
     recursive_sort: bool,
     auto_exclude_root: bool,
     precompute_workspace_cycles: bool,
-) -> miette::Result<Option<(InstallFamilySelection, Option<UnmatchedFilters>)>> {
+) -> miette::Result<Option<NarrowedWorkspace>> {
     if !cfg.recursive {
         return Ok(None);
     }
@@ -173,8 +179,8 @@ fn select_workspace_projects_with_cycles(
         configuration::active_manifest_is_standin(active_dir, &projects)?;
     let install_dirs = install_dirs(&resolved.selected_dirs, &projects, &workspace_root);
 
-    Ok(Some((
-        InstallFamilySelection {
+    Ok(Some(NarrowedWorkspace {
+        selection: InstallFamilySelection {
             workspace_root,
             projects,
             project_dependencies: resolved.project_dependencies,
@@ -184,8 +190,16 @@ fn select_workspace_projects_with_cycles(
             active_manifest_is_standin,
             workspace_cycles: resolved.workspace_cycles,
         },
-        resolved.unmatched,
-    )))
+        unmatched: resolved.unmatched,
+        root_selector: resolved.root_selector,
+    }))
+}
+
+/// A workspace a `--filter` / `-r` selection narrowed.
+struct NarrowedWorkspace {
+    selection: InstallFamilySelection,
+    unmatched: Option<UnmatchedFilters>,
+    root_selector: Option<String>,
 }
 
 struct ResolvedSelection {
@@ -194,6 +208,7 @@ struct ResolvedSelection {
     selected_dirs: Arc<HashSet<PathBuf>>,
     workspace_cycles: Option<Vec<Vec<PathBuf>>>,
     unmatched: Option<UnmatchedFilters>,
+    root_selector: Option<String>,
 }
 
 fn resolve_selection(
@@ -203,6 +218,7 @@ fn resolve_selection(
     auto_exclude_root: AutoExcludeRoot<'_>,
     (recursive_sort, precompute_workspace_cycles): (bool, bool),
 ) -> miette::Result<ResolvedSelection> {
+    let root_selector = auto_exclude_root.root_selector(cfg, prefix);
     let (selection, unmatched) =
         select_recursive_projects_deferring_no_match(projects, cfg, prefix, auto_exclude_root)?;
     let workspace_cycles =
@@ -214,6 +230,7 @@ fn resolve_selection(
         project_dependencies,
         workspace_cycles,
         unmatched,
+        root_selector,
     })
 }
 

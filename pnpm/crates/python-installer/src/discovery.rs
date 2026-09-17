@@ -40,8 +40,8 @@ impl BaseProject for PythonProject<'_> {
 }
 
 /// Read every `pyproject.toml` and `requirements.txt` among `manifests`.
-pub async fn discover(config: &pnpm_config::Config, manifests: Vec<PathBuf>) -> Result<Discovery> {
-    let roots = read_project_manifests(&manifests, config.workspace_dir.as_deref())
+pub async fn discover(config: &pnpm_config::Config, manifests: &[PathBuf]) -> Result<Discovery> {
+    let roots = read_project_manifests(manifests, config.workspace_dir.as_deref())
         .await?
         .into_iter()
         .map(|(root, manifest)| (root, Arc::new(manifest)))

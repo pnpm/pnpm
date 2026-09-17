@@ -8,7 +8,7 @@ use super::{
 };
 use pep508_rs::PackageName;
 use std::{
-    collections::{BTreeMap, BTreeSet},
+    collections::BTreeSet,
     path::{Path, PathBuf},
 };
 
@@ -47,27 +47,42 @@ impl Workspace {
         manifest: &Manifest,
     ) -> Vec<PathBuf> {
         let mut targets = BTreeSet::new();
-        for (declared_by, sources) in self.source_tables(root, manifest) {
-            for (name, declaration) in sources {
-                self.collect_targets(root, declared_by, (name, declaration), &mut targets);
-            }
+        for (declared_by, name, declaration) in self.source_entries(root, manifest) {
+            self.collect_targets(root, declared_by, (name, declaration), &mut targets);
         }
         targets.into_iter().collect()
     }
 
-    /// The `[tool.uv.sources]` tables the project at `root` resolves
-    /// through: its own, and the one its workspace root declares for its
-    /// members.
-    fn source_tables<'a>(
+    /// The `[tool.uv.sources]` entries the project at `root` resolves
+    /// through: its own, and the ones its workspace root declares for the
+    /// names it requires.
+    ///
+    /// A member reads its root's whole table, so taking all of it would
+    /// give every member an edge to every project the workspace declares a
+    /// source for. A project whose requirements a build backend generates
+    /// names none of them here, and keeps the whole table.
+    fn source_entries<'a>(
         &'a self,
         root: &'a Path,
         manifest: &'a Manifest,
-    ) -> Vec<(&'a Path, &'a BTreeMap<PackageName, SourceDeclaration>)> {
-        let mut tables = vec![(root, &manifest.tool.uv.sources)];
-        if let Some((declared_in, inherited)) = self.inherited.get(root) {
-            tables.push((declared_in.as_path(), &inherited.tool.uv.sources));
-        }
-        tables
+    ) -> Vec<(&'a Path, &'a PackageName, &'a SourceDeclaration)> {
+        let mut entries = manifest.tool.uv.sources
+            .iter()
+            .map(|(name, declaration)| (root, name, declaration))
+            .collect::<Vec<_>>();
+        let Some((declared_in, inherited)) = self.inherited.get(root) else { return entries };
+        let required = manifest.declared_requirement_names();
+        entries.extend(
+            inherited.tool.uv.sources
+                .iter()
+                .filter(|(name, _)| {
+                    required
+                        .as_ref()
+                        .is_none_or(|required| required.contains(*name))
+                })
+                .map(|(name, declaration)| (declared_in.as_path(), name, declaration)),
+        );
+        entries
     }
 
     /// Add the discovered projects one declaration points at, leaving out

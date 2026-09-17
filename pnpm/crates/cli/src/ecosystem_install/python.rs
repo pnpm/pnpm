@@ -27,7 +27,7 @@ pub(crate) async fn discover(
             manifests.push(path.clone());
         }
     }
-    pnpm_python_installer::discover(config, manifests).await
+    pnpm_python_installer::discover(config, &manifests).await
 }
 
 /// The Python projects the workspace selection asks for.
@@ -49,7 +49,7 @@ pub(crate) fn selected_projects(
             .map(Path::to_path_buf)
             .collect());
     };
-    let matched = matching_projects(config, prefix, discovery)?;
+    let matched = matching_projects(config, prefix, discovery, scope.root_selector.as_deref())?;
     Ok(discovery
         .project_roots()
         .filter(|root| {
@@ -63,15 +63,17 @@ pub(crate) fn selected_projects(
         .collect())
 }
 
-/// The Python projects the `--filter` / `--filter-prod` selectors select. A
-/// recursive run without a selector selects every one of them, as it does
-/// every npm project.
+/// The Python projects the `--filter` / `--filter-prod` selectors select,
+/// together with the `{<workspace-root>}` selector pnpm generates for the
+/// run. A recursive run those leave unnarrowed selects every Python project,
+/// as it does every npm project.
 fn matching_projects(
     config: &Config,
     prefix: &Path,
     discovery: &Discovery,
+    root_selector: Option<&str>,
 ) -> Result<HashSet<PathBuf>> {
-    if config.filter.is_empty() && config.filter_prod.is_empty() {
+    if config.filter.is_empty() && config.filter_prod.is_empty() && root_selector.is_none() {
         return Ok(discovery
             .project_roots()
             .map(Path::to_path_buf)
@@ -79,13 +81,29 @@ fn matching_projects(
     }
     let graph = discovery.graph();
     let options = recursive_filter_options(config, prefix);
-    let mut selected: HashSet<PathBuf> =
-        filter_against(&graph, &config.filter, None, false, prefix, &options)?
-            .into_iter()
-            .collect();
+    // The generated selector follows the pass a `--filter-prod` selector
+    // routes the run through, as it does for npm.
+    let prod = !config.filter_prod.is_empty();
+    let mut selected: HashSet<PathBuf> = filter_against(
+        &graph,
+        &config.filter,
+        root_selector.filter(|_| !prod),
+        false,
+        prefix,
+        &options,
+    )?
+    .into_iter()
+    .collect();
     // `[tool.uv.sources]` says where a requirement comes from, not which
     // dependency group declares it, so a production selector reaches the
     // same projects a regular one does.
-    selected.extend(filter_against(&graph, &config.filter_prod, None, true, prefix, &options)?);
+    selected.extend(filter_against(
+        &graph,
+        &config.filter_prod,
+        root_selector.filter(|_| prod),
+        true,
+        prefix,
+        &options,
+    )?);
     Ok(selected)
 }
