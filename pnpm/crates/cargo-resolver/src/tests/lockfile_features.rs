@@ -24,7 +24,7 @@ fn discovers_and_locks_weak_dependencies_recursively_across_targets() {
     );
     assert_eq!(
         missing_index_names(METADATA, &files, CRATES_IO_SOURCE).unwrap(),
-        Vec::<String>::new()
+        Vec::<String>::new(),
     );
 
     let encoded = resolve_lockfile(METADATA, &files, CRATES_IO_SOURCE).unwrap();
@@ -69,7 +69,7 @@ fn unselected_weak_features_do_not_add_lock_entries() {
     let files = BTreeMap::from([("foo".to_string(), WEAK_FOO_INDEX.to_string())]);
     assert_eq!(
         missing_index_names(&metadata, &files, CRATES_IO_SOURCE).unwrap(),
-        Vec::<String>::new()
+        Vec::<String>::new(),
     );
     let encoded = resolve_lockfile(&metadata, &files, CRATES_IO_SOURCE).unwrap();
     eprintln!("LOCKFILE:\n{encoded}");

@@ -8,7 +8,7 @@ use pubgrub::SelectedDependencies;
 use semver::Version;
 use std::collections::{BTreeMap, BTreeSet, VecDeque};
 
-#[derive(Clone, Copy, Default)]
+#[derive(Default, Clone, Copy)]
 pub(crate) struct DependencyOptions {
     pub(crate) include_dev: bool,
     pub(crate) lockfile: bool,
