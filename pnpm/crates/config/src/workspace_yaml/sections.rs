@@ -342,6 +342,13 @@ pub struct TaskSettings {
     #[serde(skip)]
     pub(super) invalid_concurrency: Option<serde_json::Value>,
 
+    /// The concurrency group the task counts against: at most
+    /// `concurrencyGroups.<group>` tasks of the group run at once on the
+    /// machine, across every pnpm process. See
+    /// [`Config::concurrency_groups`](crate::settings::Config::concurrency_groups).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub concurrency_group: Option<String>,
+
     /// The tasks that must complete before this one may start. A `^name`
     /// entry names the task in each of the project's workspace
     /// dependencies; a bare `name` entry names the task in the same
@@ -391,8 +398,16 @@ pub struct TaskSettings {
 
 #[derive(Default, Deserialize)]
 #[serde(rename_all = "camelCase", default)]
+#[cfg_attr(
+    dylint_lib = "perfectionist",
+    expect(
+        perfectionist::too_many_struct_fields,
+        reason = "The fields mirror a pnpm-workspace.yaml configuration section."
+    )
+)]
 struct RawTaskSettings {
     concurrency: Option<serde_json::Value>,
+    concurrency_group: Option<String>,
     depends_on: Option<Vec<String>>,
     outputs: Option<Vec<String>>,
     inputs: Option<Vec<String>>,
@@ -411,6 +426,7 @@ impl<'de> Deserialize<'de> for TaskSettings {
         Ok(Self {
             concurrency,
             invalid_concurrency,
+            concurrency_group: raw.concurrency_group,
             depends_on: raw.depends_on,
             outputs: raw.outputs,
             inputs: raw.inputs,

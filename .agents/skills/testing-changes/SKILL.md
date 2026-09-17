@@ -9,23 +9,23 @@ Run what the change affects. CI runs the full suite on three platforms for every
 
 ## Rust (`pnpm/`, `pnpr/`)
 
-Run `cargo` and `just` from the repository root; the Rust workspace lives there, not inside `pnpm/`.
+Run the tests through the root `package.json` scripts from the repository root: `pnpm test:rust-affected`, `pnpm test:rust`, `pnpm test:rust-smoke`. They wrap the `just` recipes and node scripts named below, pass their arguments through, and let a task concurrency group (`concurrencyGroups` in `pnpm-workspace.yaml`) hold the runs of every worktree on the machine to a limit it can carry. A bare `cargo` or `just` slips past that limit.
 
-Run `just test-affected`. It decides three things for you: it selects every `pnpr-*` crate together, it refuses to scope a change that reaches files every crate compiles against and points at `just ready` instead, and it runs the smoke profile in place of dependents it did not select. It prints what it selected and what it left out; `--help` lists its flags.
+Run `pnpm test:rust-affected` (`just test-affected`). It decides three things for you: it selects every `pnpr-*` crate together, it refuses to scope a change that reaches files every crate compiles against and points at `just ready` instead, and it runs the smoke profile in place of dependents it did not select. It prints what it selected and what it left out; `--help` lists its flags.
 
 What it cannot decide is which end-to-end tests exercise *your* change. Smoke gives breadth across areas, not depth in the one you touched, so for a user-visible change add the suite modules for that area:
 
 ```sh
-just test-affected -- -p pnpm-cli -E 'test(catalog::)'
+pnpm test:rust-affected -- -p pnpm-cli -E 'test(catalog::)'
 ```
 
 Each file under `crates/cli/tests/suite/` is a module of one test target, so `test(<file_stem>::)` selects that file's tests.
 
-For anything narrower, `node pnpm/scripts/run-rust-tests.mjs` takes the same arguments `cargo nextest run` does — `-p <crate>` for one crate, `-E 'test(<name>)'` for one test. Prefer `-p` over a `package()` filterset: `-p` restricts what cargo builds, a filterset only selects among binaries that were built anyway.
+For anything narrower, `pnpm test:rust` (`node pnpm/scripts/run-rust-tests.mjs`) takes the same arguments `cargo nextest run` does — `-p <crate>` for one crate, `-E 'test(<name>)'` for one test. Prefer `-p` over a `package()` filterset: `-p` restricts what cargo builds, a filterset only selects among binaries that were built anyway.
 
 ### Gotchas that make a scoped run lie
 
-- **Run the CLI's tests through `run-rust-tests.mjs`, not bare `cargo nextest`.** It strips `npm_config_*` and `pnpm_config_*` and points `XDG_CONFIG_HOME` and the auth npmrc at a throwaway directory, as `just test` does. A bare run lets your own npmrc reach the tests, which fails for you and nobody else.
+- **Run the CLI's tests through `pnpm test:rust`, not bare `cargo nextest`.** It strips `npm_config_*` and `pnpm_config_*` and points `XDG_CONFIG_HOME` and the auth npmrc at a throwaway directory, as `just test` does. A bare run lets your own npmrc reach the tests, which fails for you and nobody else.
 - **`pnpr-*` crates must be selected together.** Cargo unifies features across the selection, so a lone `pnpr-*` crate builds without `pnpr`'s default backend features and its backend tests skip silently. `just test-pnpr` selects the whole set.
 - **Snapshots.** `insta` snapshots change only for a reason. Read the diff, then `cargo insta review`. Never accept blindly.
 - **Killed runs leak fixtures.** An interrupted run abandons temp trees, each holding a per-test store. `just sweep-test-temp` clears the ones older than an hour.

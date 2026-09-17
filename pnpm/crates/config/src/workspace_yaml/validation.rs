@@ -52,6 +52,15 @@ impl WorkspaceSettings {
                 concurrency,
             });
         }
+        if let Some(group) = settings.concurrency_group
+            .as_deref()
+            .filter(|group| !is_valid_concurrency_group_name(group))
+        {
+            return Err(LoadWorkspaceYamlError::InvalidTaskConcurrencyGroup {
+                task: task.to_string(),
+                group: group.to_string(),
+            });
+        }
         for entry in settings.depends_on.iter().flatten() {
             if entry.is_empty() || entry == "^" {
                 return Err(LoadWorkspaceYamlError::EmptyTaskDependsOnEntry {
@@ -217,4 +226,30 @@ impl WorkspaceSettings {
                         || is_refused_by_a_project_manifest(key))
             })
     }
+}
+
+/// A group name becomes the name of the group's slot directory under the
+/// state directory, so it is held to a portable file name that cannot
+/// leave that directory: the Windows device names are refused whatever
+/// follows their first dot, and a trailing dot would be dropped there.
+fn is_valid_concurrency_group_name(group: &str) -> bool {
+    !group.is_empty()
+        && !group.ends_with('.')
+        && group
+            .chars()
+            .all(|char| char.is_ascii_alphanumeric() || matches!(char, '.' | '_' | '-'))
+        && !is_windows_device_name(
+            group
+                .split('.')
+                .next()
+                .unwrap_or_default(),
+        )
+}
+
+fn is_windows_device_name(stem: &str) -> bool {
+    let stem = stem.to_ascii_uppercase();
+    matches!(stem.as_str(), "CON" | "PRN" | "AUX" | "NUL" | "CLOCK$")
+        || (stem.len() == 4
+            && (stem.starts_with("COM") || stem.starts_with("LPT"))
+            && stem.ends_with(|char: char| char.is_ascii_digit() && char != '0'))
 }

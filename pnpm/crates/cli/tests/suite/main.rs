@@ -26,6 +26,7 @@ mod change;
 mod ci_frozen_lockfile;
 mod clean;
 mod completion;
+mod concurrency_groups;
 mod config_dependencies;
 mod config_get_set;
 mod convergence_overrides;

@@ -367,6 +367,7 @@ impl RunProjectOptions<'_, '_> {
             silent: self.output.silent,
             output: script_output(self.output.inherit_output, root_str, self.output.emit),
             process_tracker: self.process.process_tracker,
+            emit: self.output.emit,
         }
     }
 }

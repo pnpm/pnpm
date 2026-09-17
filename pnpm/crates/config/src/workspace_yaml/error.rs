@@ -78,7 +78,7 @@ pub enum LoadWorkspaceYamlError {
     #[diagnostic(
         code(ERR_PNPM_INVALID_SETTING),
         help(
-            r#"A task declares "concurrency", "dependsOn", "outputs", "inputs", "env", "cache", or "cargoTargetDir"."#
+            r#"A task declares "concurrency", "concurrencyGroup", "dependsOn", "outputs", "inputs", "env", "cache", or "cargoTargetDir"."#
         )
     )]
     UnknownTaskSettingField { task: String, field: String },
@@ -90,6 +90,16 @@ pub enum LoadWorkspaceYamlError {
     )]
     #[diagnostic(code(ERR_PNPM_INVALID_SETTING))]
     InvalidTaskConcurrency { task: String, concurrency: String },
+    #[display(
+        "The \"tasks['{task}'].concurrencyGroup\" setting is not a valid group name: {group:?}"
+    )]
+    #[diagnostic(
+        code(ERR_PNPM_INVALID_SETTING),
+        help(
+            "A group name is one or more letters, digits, '.', '_' or '-', and names a slot directory of its own, so it cannot be '.', '..', a Windows device name, end with '.', or contain a path separator."
+        )
+    )]
+    InvalidTaskConcurrencyGroup { task: String, group: String },
     #[display(
         "The \"tasks['{task}'].dependsOn\" setting contains an entry with no task name: {entry:?}"
     )]

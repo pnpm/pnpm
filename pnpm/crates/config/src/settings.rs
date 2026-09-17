@@ -1189,6 +1189,21 @@ pub struct Config {
     #[default(_code = "default_workspace_concurrency()")]
     pub workspace_concurrency: u32,
 
+    /// `concurrencyGroups` from `pnpm-workspace.yaml` / global
+    /// `config.yaml` / `PNPM_CONFIG_CONCURRENCY_GROUPS`: for each group a
+    /// task names through
+    /// [`TaskSettings::concurrency_group`](workspace_yaml::TaskSettings::concurrency_group),
+    /// how many of the group's tasks may run at once on this machine,
+    /// counted across every pnpm process. A task past its group's limit
+    /// waits for a running one to finish. A group no entry names has no
+    /// limit, and neither has a group whose entry is `0`, which is how a
+    /// higher layer lifts a limit a lower one set.
+    ///
+    /// Each configuration layer merges its entries into the map, so a
+    /// workspace can raise or lower one group's limit without restating
+    /// the rest.
+    pub concurrency_groups: IndexMap<String, u32>,
+
     /// `--recursive` / `-r`. When set, a command operates on every
     /// project in the workspace rather than only the project in the
     /// current directory. A CLI-only boolean: it is not a `.npmrc` /
