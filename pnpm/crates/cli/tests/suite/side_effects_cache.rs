@@ -237,9 +237,7 @@ fn a_forced_install_does_not_revert_a_built_package_under_the_global_virtual_sto
         "the postinstall must run on the first install",
     );
 
-    Command::cargo_bin("pnpm")
-        .expect("find the pnpm binary")
-        .with_current_dir(&workspace)
+    crate::_utils::pacquet_in(&workspace)
         .with_args(["install", "--force"])
         .assert()
         .success();
