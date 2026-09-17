@@ -227,16 +227,28 @@ class Environment:
         destination.parent.mkdir(parents=True, exist_ok=True)
         return destination
 
-    def write(self, destination, contents, executable=False, source=None):
+    def record(self, destination, digest, size):
+        self.records.append([os.path.relpath(destination, self.site).replace(os.sep, "/"), digest, str(size)])
+
+    def write(self, destination, contents, executable=False):
         destination = self.reserve(destination)
-        if source is not None and self.defer_files:
-            self.imports.append({"source": str(source), "destination": str(destination)})
+        destination.write_bytes(contents)
+        if executable:
+            destination.chmod(0o755)
+        digest = base64.urlsafe_b64encode(hashlib.sha256(contents).digest()).rstrip(b"=").decode()
+        self.record(destination, "sha256=" + digest, len(contents))
+
+    def import_file(self, destination, source, metadata, recorded):
+        """Import an unchanged file using its verified wheel RECORD entry."""
+        destination = self.reserve(destination)
+        executable = bool(metadata.st_mode & 0o111)
+        if self.defer_files:
+            self.imports.append({"source": str(source), "destination": str(destination), "executable": executable, "device": metadata.st_dev})
         else:
-            destination.write_bytes(contents)
+            destination.write_bytes(Path(source).read_bytes())
             if executable:
                 destination.chmod(0o755)
-        digest = base64.urlsafe_b64encode(hashlib.sha256(contents).digest()).rstrip(b"=").decode()
-        self.records.append([os.path.relpath(destination, self.site).replace(os.sep, "/"), "sha256=" + digest, str(len(contents))])
+        self.record(destination, recorded[1], recorded[2])
 
     def write_entry_points(self, entries):
         for group in ("console_scripts", "gui_scripts"):
@@ -269,11 +281,13 @@ def install_wheel(environment, package):
     files, metadata = package["files"], package["metadata"]
     dist_info = metadata["dist_info"]
     environment.start(metadata["purelib"])
+    recorded = {row[0]: row for row in csv.reader(io.StringIO(Path(files[dist_info + "/RECORD"]).read_text(encoding="utf-8")))}
     for name, source in files.items():
         if name in (dist_info + "/RECORD", dist_info + "/RECORD.jws", dist_info + "/RECORD.p7s", dist_info + "/INSTALLER"):
             continue
         parts = PurePosixPath(name).parts
-        source_executable = bool(Path(source).stat().st_mode & 0o111)
+        source_metadata = Path(source).stat()
+        source_executable = bool(source_metadata.st_mode & 0o111)
         executable = source_executable
         if parts[0].endswith(".data"):
             if parts[0] != dist_info.removesuffix(".dist-info") + ".data" or len(parts) < 3 or parts[1] not in environment.scheme:
@@ -282,14 +296,20 @@ def install_wheel(environment, package):
             executable = executable or parts[1] == "scripts"
         else:
             destination = environment.site.joinpath(*parts)
-        contents = Path(source).read_bytes()
-        original = contents
-        if executable and contents.startswith(b"#!python"):
-            first_line, newline, body = contents.partition(b"\n")
+        prefix = None
+        if executable:
+            with Path(source).open("rb") as file:
+                header = file.read(11)
+            first_line, newline, _ = header.partition(b"\n")
             if first_line.removesuffix(b"\r") in (b"#!python", b"#!pythonw"):
-                contents = ("#!" + str(environment.interpreter)).encode() + newline + body
-        import_source = source if contents == original and executable == source_executable else None
-        environment.write(destination, contents, executable, import_source)
+                prefix = ("#!" + str(environment.interpreter)).encode() + newline
+        if prefix is not None or executable != source_executable:
+            contents = Path(source).read_bytes()
+            if prefix is not None:
+                contents = prefix + contents.partition(b"\n")[2]
+            environment.write(destination, contents, executable)
+        else:
+            environment.import_file(destination, source, source_metadata, recorded[name])
 
     entry_points = files.get(dist_info + "/entry_points.txt")
     if entry_points:
