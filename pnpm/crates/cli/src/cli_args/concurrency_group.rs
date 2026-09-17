@@ -81,12 +81,23 @@ pub(crate) fn acquire_concurrency_group_slot(
     emit: fn(&LogEvent),
     cancelled: &dyn Fn() -> bool,
 ) -> Result<SlotOutcome, ConcurrencyGroupSlotError> {
+    let inherited = std::env::var(HELD_CONCURRENCY_GROUPS_ENV).ok();
+    acquire_slot(config, script, emit, cancelled, inherited.as_deref())
+}
+
+/// [`acquire_concurrency_group_slot`] with the inherited held groups
+/// passed in, so a test needs no process environment.
+fn acquire_slot(
+    config: &Config,
+    script: &str,
+    emit: fn(&LogEvent),
+    cancelled: &dyn Fn() -> bool,
+    inherited: Option<&str>,
+) -> Result<SlotOutcome, ConcurrencyGroupSlotError> {
     let Some((group, limit)) = limited_group(config, script) else {
         return Ok(SlotOutcome::Ungated);
     };
-    if held_groups(std::env::var(HELD_CONCURRENCY_GROUPS_ENV).ok().as_deref())
-        .any(|held| held == group)
-    {
+    if held_groups(inherited).any(|held| held == group) {
         return Ok(SlotOutcome::Ungated);
     }
     let pool = SlotPool { dir: config.state_dir.join("run-slots").join(group), limit };
@@ -133,7 +144,15 @@ pub(crate) fn with_held_group(
     group: &str,
 ) -> HashMap<String, String> {
     let inherited = std::env::var(HELD_CONCURRENCY_GROUPS_ENV).ok();
-    let held: Vec<&str> = held_groups(inherited.as_deref())
+    add_held_group(extra_env, inherited.as_deref(), group)
+}
+
+fn add_held_group(
+    extra_env: &HashMap<String, String>,
+    inherited: Option<&str>,
+    group: &str,
+) -> HashMap<String, String> {
+    let held: Vec<&str> = held_groups(inherited)
         .filter(|held| *held != group)
         .chain(std::iter::once(group))
         .collect();

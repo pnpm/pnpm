@@ -422,14 +422,15 @@ are part of the public contract, not implementation detail. See
 - When a bug fix also applies to pnpm v11, land both implementations together;
   if they must be split, cross-reference the matching PR so a reviewer can
   confirm both versions are fixed.
-- Before pushing, run `typos`, the formatter, `just check`, `just lint`, and the
-  tests for the crates you touched. Keep `check` and `lint` workspace-wide;
-  scope the tests. Reach for the full `just ready` only when the change reaches
-  past the crates you can name — CI runs the whole suite on three platforms
-  anyway. See [`CONTRIBUTING.md`](./CONTRIBUTING.md#automated-checks) and the
+- Before pushing, run `typos`, the formatter, `pnpm check:rust`,
+  `pnpm lint:rust`, and the tests for the crates you touched. Keep `check` and
+  `lint` workspace-wide; scope the tests. Reach for the full `pnpm ready:rust`
+  only when the change reaches past the crates you can name — CI runs the
+  whole suite on three platforms anyway. See
+  [`CONTRIBUTING.md`](./CONTRIBUTING.md#automated-checks) and the
   [`testing-changes`](../.agents/skills/testing-changes/SKILL.md) skill.
-- The repo-wide husky `pre-push` hook runs `pnpm/scripts/pre-push-rust.sh`,
-  which checks `rustfmt`, `taplo`, `cargo clippy` (with `--all-targets -D
+- The repo-wide husky `pre-push` hook runs `pnpm run pre-push:rust`
+  (`pnpm/scripts/pre-push-rust.sh`), which checks `rustfmt`, `taplo`, `cargo clippy` (with `--all-targets -D
   warnings`), `cargo doc` (with `RUSTDOCFLAGS=-D warnings`), and `cargo
   dylint`. Make sure your environment
   can run cargo (the hook needs it) before pushing; `cargo-dylint` is

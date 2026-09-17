@@ -234,7 +234,6 @@ impl WorkspaceSettings {
 /// follows their first dot, and a trailing dot would be dropped there.
 fn is_valid_concurrency_group_name(group: &str) -> bool {
     !group.is_empty()
-        && !group.starts_with("..")
         && !group.ends_with('.')
         && group
             .chars()

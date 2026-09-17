@@ -14,7 +14,7 @@ use std::{
     time::{Duration, Instant},
 };
 
-const HOLD: Duration = Duration::from_millis(700);
+const HOLD: Duration = Duration::from_secs(1);
 
 const HOLD_SCRIPT: &str = r"
     const fs = require('fs');
@@ -77,6 +77,27 @@ fn hold(pacquet: &Command) -> Command {
     pnpm_run(pacquet, "hold")
 }
 
+/// The holder owns its slot once its script has written the marker.
+fn wait_for_holder(workspace: &Path) {
+    let deadline = Instant::now() + Duration::from_secs(30);
+    while Instant::now() < deadline {
+        let running = fs::read_dir(workspace)
+            .expect("list the workspace")
+            .filter_map(Result::ok)
+            .any(|entry| {
+                entry
+                    .file_name()
+                    .to_string_lossy()
+                    .starts_with("running-")
+            });
+        if running {
+            return;
+        }
+        thread::sleep(Duration::from_millis(20));
+    }
+    panic!("the holder never started its script");
+}
+
 #[test]
 fn concurrent_tasks_past_the_limit_wait_for_a_slot() {
     let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
@@ -129,15 +150,17 @@ fn a_task_outside_the_group_runs_while_the_slots_are_held() {
     write_project(&workspace, Path::new(pacquet.get_program()), 1);
 
     let mut holder = hold(&pacquet).spawn().expect("spawn the holding run");
-    thread::sleep(HOLD / 2);
-    let started = Instant::now();
+    wait_for_holder(&workspace);
     let free = pnpm_run(&pacquet, "free").status().expect("run the free script");
-    let elapsed = started.elapsed();
+    let holder_still_running = holder
+        .try_wait()
+        .expect("poll the holding run")
+        .is_none();
     holder.wait().expect("wait for the holding run");
 
-    dbg!(free, elapsed);
+    dbg!(free, holder_still_running);
     assert!(free.success());
-    assert!(elapsed < HOLD / 2, "the ungrouped script waited for the slot");
+    assert!(holder_still_running, "the ungrouped script waited for the slot");
 
     drop(root);
 }
@@ -148,7 +171,7 @@ fn a_waiting_task_reports_who_holds_the_slots() {
     write_project(&workspace, Path::new(pacquet.get_program()), 1);
 
     let mut holder = hold(&pacquet).spawn().expect("spawn the holding run");
-    thread::sleep(HOLD / 2);
+    wait_for_holder(&workspace);
     let output = hold(&pacquet).output().expect("run the waiting run");
     holder.wait().expect("wait for the holding run");
 

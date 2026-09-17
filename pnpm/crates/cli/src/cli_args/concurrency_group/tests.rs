@@ -1,5 +1,5 @@
 use super::{
-    HELD_CONCURRENCY_GROUPS_ENV, SlotOutcome, SlotPool, acquire_concurrency_group_slot,
+    HELD_CONCURRENCY_GROUPS_ENV, SlotOutcome, SlotPool, acquire_slot, add_held_group,
     with_held_group,
 };
 use pnpm_config::{Config, TaskSettings};
@@ -18,7 +18,7 @@ fn never() -> bool {
 }
 
 fn acquire(config: &Config, script: &str) -> SlotOutcome {
-    acquire_concurrency_group_slot(config, script, no_emit, &never).expect("acquire")
+    acquire_slot(config, script, no_emit, &never, None).expect("acquire")
 }
 
 /// A config whose `build` task is in group `cargo`, limited to `limit`
@@ -178,26 +178,14 @@ fn the_held_group_is_added_to_the_spawned_environment() {
     assert_eq!(env.get("NODE_OPTIONS").map(String::as_str), Some("--flag"));
 }
 
-/// `HELD_CONCURRENCY_GROUPS_ENV` is process-global, so this is the one test
-/// that sets it, and it restores the previous value before returning.
 #[test]
 fn a_nested_task_of_a_held_group_reuses_the_parent_slot() {
     let dir = tempfile::tempdir().expect("create temp dir");
     let config = config(dir.path(), Some(1));
-    let previous = std::env::var_os(HELD_CONCURRENCY_GROUPS_ENV);
-    // SAFETY: the tests of this crate that touch the environment run
-    // through this one function, and nothing else in the process reads
-    // `HELD_CONCURRENCY_GROUPS_ENV` while it runs.
-    unsafe { std::env::set_var(HELD_CONCURRENCY_GROUPS_ENV, "node,cargo") };
-    let held_group = acquire(&config, "build");
-    let spawned = with_held_group(&HashMap::new(), "cargo");
-    // SAFETY: see above.
-    unsafe {
-        match previous {
-            Some(previous) => std::env::set_var(HELD_CONCURRENCY_GROUPS_ENV, previous),
-            None => std::env::remove_var(HELD_CONCURRENCY_GROUPS_ENV),
-        }
-    }
+    let inherited = Some("node,cargo");
+
+    let held_group = acquire_slot(&config, "build", no_emit, &never, inherited).expect("acquire");
+    let spawned = add_held_group(&HashMap::new(), inherited, "cargo");
 
     assert!(matches!(held_group, SlotOutcome::Ungated), "the parent's slot covers this task");
     assert_eq!(
