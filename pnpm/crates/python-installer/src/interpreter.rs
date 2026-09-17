@@ -16,6 +16,7 @@ mod command;
 mod download;
 mod mismatch;
 mod request;
+mod search;
 
 use super::{host, manifest::Manifest, targets};
 use command::{InterpreterCommand, path_outside, scan_for_interpreters};
@@ -26,6 +27,7 @@ use pnpm_config::Config;
 use pnpm_network::ThrottledClient;
 use pnpm_reporter::{GlobalLog, LogEvent, LogLevel, Reporter};
 use request::VersionRequest;
+use search::{Fallbacks, Search};
 use std::{ffi::OsString, fmt::Write as _, path::Path, sync::Arc};
 
 const WRITE_TO_STRING: &str = "writing to a String cannot fail";
@@ -48,18 +50,6 @@ struct Install<'a> {
     /// which is what a machine holding no interpreter the project accepts
     /// has to do.
     any_version: bool,
-}
-
-/// What searching this machine's interpreters found for one project.
-enum Search {
-    /// One the project's range and its requested version both accept.
-    Accepted(Arc<Interpreter>),
-    /// One the range accepts, for a version this machine does not have.
-    OtherVersion(Arc<Interpreter>),
-    /// One the project's range rejects, which only a `runtimeOnFail` that
-    /// bypasses the check installs with.
-    Unaccepted(Arc<Interpreter>),
-    None,
 }
 
 /// What probing one interpreter found.
@@ -247,25 +237,17 @@ impl<'a> Interpreters<'a> {
         requires_python: Option<&pep440_rs::VersionSpecifiers>,
         request: Option<&VersionRequest>,
     ) -> Search {
-        let mut other_version = None;
-        let mut unaccepted = None;
+        let mut fallbacks = Fallbacks::default();
         for round in [Round::Named, Round::Scanned] {
             for command in self.candidates(round, request).await {
-                match self.consider(&command, requires_python, request).await {
-                    Search::Accepted(interpreter) => return Search::Accepted(interpreter),
-                    Search::OtherVersion(interpreter) => other_version.get_or_insert(interpreter),
-                    Search::Unaccepted(interpreter) => unaccepted.get_or_insert(interpreter),
-                    Search::None => continue,
-                };
+                let found = self.consider(&command, requires_python, request).await;
+                if let Search::Accepted(interpreter) = found {
+                    return Search::Accepted(interpreter);
+                }
+                fallbacks.keep(found, request);
             }
         }
-        // An interpreter the range accepts is the better fallback: it
-        // only misses the version a `.python-version` file asks for.
-        match (other_version, unaccepted) {
-            (Some(interpreter), _) => Search::OtherVersion(interpreter),
-            (None, Some(interpreter)) => Search::Unaccepted(interpreter),
-            (None, None) => Search::None,
-        }
+        fallbacks.best()
     }
 
     /// What one interpreter is to the project: the one to install it, one

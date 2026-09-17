@@ -705,9 +705,8 @@ async fn an_interpreter_is_installed_only_where_the_install_may_download() {
     assert_eq!(selected_python(root.path()), "3.13.98");
 }
 
-/// `runtimeOnFail` also decides what an install with no interpreter the
-/// project accepts does with the ones the machine has, as it does for a
-/// Node.js runtime `engines.runtime` rejects.
+/// `runtimeOnFail` bypasses the `requires-python` check the way it
+/// bypasses the check on a Node.js runtime `engines.runtime` rejects.
 #[cfg(unix)]
 #[tokio::test]
 async fn an_interpreter_the_project_rejects_installs_it_only_under_runtime_on_fail() {
@@ -736,6 +735,34 @@ async fn an_interpreter_the_project_rejects_installs_it_only_under_runtime_on_fa
     let quiet = install("ignore").assert().success();
     let stdout = String::from_utf8_lossy(&quiet.get_output().stdout).into_owned();
     assert!(!stdout.contains("requires-python ==3.99 rejects"), "{stdout}");
+}
+
+/// An install that goes on with an interpreter the range rejects still
+/// takes the version asked for by name, which is not the one the
+/// conventional names reach first.
+#[cfg(unix)]
+#[tokio::test]
+async fn an_install_that_bypasses_the_range_still_takes_the_requested_version() {
+    let root = tempfile::tempdir().unwrap();
+    project(root.path(), "https://unused.invalid", &[]);
+    // Outside the workspace, which an install does not take interpreters from.
+    let outside = tempfile::tempdir().unwrap();
+    let shims = outside.path().join("interpreters");
+    // `python3` is looked at before `python3.13`, and the range rejects both.
+    interpreter_shim(&shims, "python3", "3.12.5");
+    interpreter_shim(&shims, "python3.13", "3.13.4");
+    fs::write(
+        root.path().join("pyproject.toml"),
+        "[project]\nname = 'app'\nversion = '1.0'\nrequires-python = '==3.99'\ndependencies = []\n",
+    )
+    .unwrap();
+    fs::write(root.path().join(".python-version"), "3.13\n").unwrap();
+    pacquet_in(root.path())
+        .args(["install", "--offline", "--runtime-on-fail=ignore"])
+        .env("PATH", format!("{}:{}", shims.display(), std::env::var("PATH").unwrap()))
+        .assert()
+        .success();
+    assert_eq!(selected_python(root.path()), "3.13.4");
 }
 
 /// The interpreter scenarios of pnpm/pnpm#14945: a project the machine's
