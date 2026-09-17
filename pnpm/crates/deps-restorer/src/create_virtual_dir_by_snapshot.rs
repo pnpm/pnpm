@@ -173,9 +173,16 @@ impl CreateVirtualDirBySnapshot<'_> {
         cas_paths: &HashMap<String, PathBuf>,
         interrupted_build: bool,
     ) -> Result<(), CreateVirtualDirError> {
-        // A slot with an interrupted build re-imports with `force`,
-        // which the cache's fresh-destination clone cannot serve.
+        // An interrupted build and a forced import both re-import with
+        // `force`, which the cache's fresh-destination clone cannot serve.
+        // For the forced one that is also a correctness bar, not just a
+        // capability one: `DirCloneCache::canonical_slot_ready` materializes
+        // the canonical slot with `force: false`, so cloning from it could
+        // reproduce the very stale bytes `--force` is meant to replace. Both
+        // callers already withhold the cache through `dir_clone_cacheable`;
+        // repeating it here keeps the guarantee off a caller's memory.
         if !interrupted_build
+            && !self.source.force
             && let Some(cache) = self.dir_clone_cache
             && cache.try_import::<Reporter>(
                 self.import.logged_methods,
