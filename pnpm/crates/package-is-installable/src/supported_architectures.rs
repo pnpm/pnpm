@@ -51,6 +51,11 @@ impl SupportedArchitectures {
     /// runs on. Resolving it here is what lets a caller record which
     /// platforms a piece of work was done for.
     ///
+    /// `current_cpu` is the architecture the install runs on, named as
+    /// precisely as the caller can name it: the Node name a package
+    /// declares is one name for both POWER endiannesses, so a caller
+    /// with the machine's own target-triple spelling should pass that.
+    ///
     /// A platform list is validated as it is read, so every entry of one
     /// is here. The axes are read by the optional-dependency check too,
     /// where any name a package may declare is meaningful, so a

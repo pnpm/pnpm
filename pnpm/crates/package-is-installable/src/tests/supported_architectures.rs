@@ -72,21 +72,29 @@ fn both_powerpc_platforms_are_one_name_to_a_package() {
     );
 }
 
-/// `ppc64` is what Node reports on a little-endian POWER machine, which
-/// is every POWER machine pnpm runs on, so a host reporting it must lock
-/// for the wheels that exist rather than for big-endian ones.
+/// `ppc64` is the one name Node has for either endianness, and wheels
+/// are published for the little-endian one, so that is what a package's
+/// own name reads as.
 #[test]
 fn a_bare_ppc64_is_the_little_endian_platform() {
     assert_eq!(spelled("linux-ppc64"), "linux-ppc64le");
     assert_eq!(crossed(&["linux"], &["ppc64"], &[]), ["linux-ppc64le"]);
+}
+
+/// A POWER host keeps the endianness it is, which the Node name cannot
+/// carry. Its callers pass [`pnpm_detect_libc::host_target_arch`], the
+/// machine's own target-triple spelling, for exactly this reason.
+#[test]
+fn current_keeps_the_endianness_the_host_is() {
     let host = SupportedArchitectures::Platforms(vec!["current".parse().unwrap()]);
-    assert_eq!(
-        host.platforms("linux", "ppc64", "glibc")
+    let wheel = |architecture| {
+        host.platforms("linux", architecture, "glibc")
             .iter()
             .map(|platform| platform.architecture.wheel())
-            .collect::<Vec<_>>(),
-        ["ppc64le"],
-    );
+            .collect::<Vec<_>>()
+    };
+    assert_eq!(wheel("powerpc64le"), ["ppc64le"]);
+    assert_eq!(wheel("powerpc64"), ["ppc64"]);
 }
 
 /// A baseline carries the two numbers of a libc release. Which releases

@@ -168,7 +168,7 @@ fn named(config: &Config) -> (Vec<NamedPlatform>, Vec<String>) {
         .map(|supported| {
             supported.platforms(
                 pnpm_detect_libc::host_platform(),
-                pnpm_detect_libc::host_arch(),
+                pnpm_detect_libc::host_target_arch(),
                 pnpm_detect_libc::detect().map_or("unknown", |libc| libc.as_str()),
             )
         })

@@ -110,5 +110,16 @@ pub fn host_arch() -> &'static str {
     }
 }
 
+/// The architecture this build runs on, spelled as the Rust target
+/// triple of the machine spells it.
+///
+/// [`host_arch`] reports the name Node and a package manifest use, which
+/// is one name for both POWER endiannesses. Naming the platform the
+/// install runs on needs the two told apart, so that reads this instead.
+#[must_use]
+pub fn host_target_arch() -> &'static str {
+    std::env::consts::ARCH
+}
+
 #[cfg(test)]
 mod tests;
