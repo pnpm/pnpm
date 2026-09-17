@@ -617,3 +617,211 @@ snapshots:
 
     assert_eq!(path_info(&index, "foo", "1.0.0").paths, vec!["packages__foo>foo"]);
 }
+
+#[test]
+fn build_audit_path_index_prunes_layered_diamonds_after_finding_is_saturated() {
+    let mut lockfile = empty_lockfile();
+    lockfile.importers.get_mut(".").unwrap().dependencies =
+        Some(serde_saphyr::from_str("a0: {specifier: '1.0.0', version: '1.0.0'}").unwrap());
+    let snapshots = lockfile.snapshots.get_or_insert_with(Default::default);
+    for i in 0..28 {
+        for prefix in ["a", "b"] {
+            let children = if i == 27 {
+                vec![("vuln".to_string(), "1.0.0")]
+            } else {
+                vec![(format!("a{}", i + 1), "1.0.0"), (format!("b{}", i + 1), "1.0.0")]
+            };
+            let children = children
+                .iter()
+                .map(|(name, version)| (name.as_str(), *version))
+                .collect::<Vec<_>>();
+            snapshots.insert(
+                format!("{prefix}{i}@1.0.0").parse().unwrap(),
+                snapshot(&children, &[]),
+            );
+        }
+    }
+    snapshots.insert("vuln@1.0.0".parse().unwrap(), snapshot(&[("other", "2.0.0")], &[]));
+    snapshots.insert("other@2.0.0".parse().unwrap(), SnapshotEntry::default());
+    let index = build_audit_path_index(
+        &lockfile,
+        None,
+        &vulnerable_names(&["vuln", "other"]),
+        all_dependencies(),
+    );
+    assert_eq!(path_info(&index, "vuln", "1.0.0").paths.len(), MAX_PATHS_PER_FINDING);
+    assert_eq!(path_info(&index, "other", "2.0.0").paths.len(), MAX_PATHS_PER_FINDING);
+
+    let index =
+        build_audit_path_index(&lockfile, None, &vulnerable_names(&["a0"]), all_dependencies());
+    assert_eq!(path_info(&index, "a0", "1.0.0").paths, vec![".>a0"]);
+}
+
+#[test]
+fn build_audit_path_index_keeps_other_versions_and_classifications_after_saturation() {
+    let mut importers = String::new();
+    for i in 0..150 {
+        write!(
+            importers,
+            "\n  dev-{i:03}:\n    devDependencies:\n      vuln:\n        specifier: '1.0.0'\n        version: '1.0.0(peer@1.0.0)'\n",
+        )
+        .unwrap();
+    }
+    let lockfile = parse_lockfile(&format!(
+        "
+lockfileVersion: '9.0'
+importers:
+{importers}
+  z-prod:
+    dependencies:
+      vuln:
+        specifier: '1.0.0'
+        version: '1.0.0(peer@2.0.0)'
+      parent:
+        specifier: '1.0.0'
+        version: '1.0.0'
+snapshots:
+  vuln@1.0.0(peer@1.0.0): {{}}
+  vuln@1.0.0(peer@2.0.0):
+    dependencies:
+      nested: '1.0.0'
+  parent@1.0.0:
+    dependencies:
+      vuln: '2.0.0'
+  vuln@2.0.0: {{}}
+  nested@1.0.0: {{}}
+",
+    ));
+    let index = build_audit_path_index(
+        &lockfile,
+        None,
+        &vulnerable_names(&["vuln", "nested"]),
+        all_dependencies(),
+    );
+    let info = path_info(&index, "vuln", "1.0.0");
+    assert_eq!(info.paths.len(), MAX_PATHS_PER_FINDING);
+    dbg!(info.dev);
+    assert!(!info.dev);
+    assert_eq!(path_info(&index, "vuln", "2.0.0").paths, vec!["z-prod>parent>vuln"]);
+    assert_eq!(path_info(&index, "nested", "1.0.0").paths, vec!["z-prod>vuln>nested"]);
+}
+
+#[test]
+fn build_audit_path_index_handles_deep_chain_with_many_vulnerable_targets() {
+    let size = 1_500;
+    let mut lockfile = parse_lockfile(
+        "lockfileVersion: '9.0'\nimporters:\n  .:\n    dependencies:\n      n0: {specifier: '1.0.0', version: '1.0.0'}\n",
+    );
+    let snapshots = lockfile.snapshots.get_or_insert_with(Default::default);
+    let mut names = Vec::new();
+    for i in 0..size {
+        let name = format!("n{i}");
+        let entry = if i + 1 < size {
+            snapshot(&[(&format!("n{}", i + 1), "1.0.0")], &[])
+        } else {
+            SnapshotEntry::default()
+        };
+        snapshots.insert(format!("{name}@1.0.0").parse().unwrap(), entry);
+        names.push(name);
+    }
+    let index = build_audit_path_index(
+        &lockfile,
+        None,
+        &names.iter().cloned().collect(),
+        all_dependencies(),
+    );
+    assert_eq!(index.len(), size);
+    for name in &names {
+        assert_eq!(path_info(&index, name, "1.0.0").paths.len(), 1);
+    }
+    assert_eq!(path_info(&index, "n0", "1.0.0").paths, vec![".>n0"]);
+    assert_eq!(path_info(&index, "n1499", "1.0.0").paths[0].split('>').count(), size + 1);
+}
+
+#[test]
+fn build_audit_path_index_bounds_paths_across_many_peer_contexts_of_one_finding() {
+    let size = 1_500;
+    let mut lockfile = parse_lockfile(
+        "lockfileVersion: '9.0'\nimporters:\n  .:\n    dependencies:\n      vuln: {specifier: '1.0.0', version: '1.0.0(peer@0.0.0)'}\n",
+    );
+    let snapshots = lockfile.snapshots.get_or_insert_with(Default::default);
+    for i in 0..size {
+        let entry = if i + 1 < size {
+            snapshot(&[("vuln", &format!("1.0.0(peer@0.0.{})", i + 1))], &[])
+        } else {
+            SnapshotEntry::default()
+        };
+        snapshots.insert(format!("vuln@1.0.0(peer@0.0.{i})").parse().unwrap(), entry);
+    }
+    let index =
+        build_audit_path_index(&lockfile, None, &vulnerable_names(&["vuln"]), all_dependencies());
+    assert_eq!(index.len(), 1);
+    let info = path_info(&index, "vuln", "1.0.0");
+    assert_eq!(info.paths.len(), MAX_PATHS_PER_FINDING);
+    assert_eq!(info.paths[0], ".>vuln");
+    assert_eq!(
+        info.paths
+            .last()
+            .unwrap()
+            .split('>')
+            .count(),
+        MAX_PATHS_PER_FINDING + 1,
+    );
+}
+
+#[test]
+fn build_audit_path_index_handles_sequential_saturation_of_many_versions() {
+    let size = 128;
+    let mut importers = String::new();
+    for i in 0..MAX_PATHS_PER_FINDING {
+        write!(importers, "\n  project-{i}:\n    dependencies:\n      vuln: {{specifier: '1.0.0', version: '1.0.0'}}\n").unwrap();
+    }
+    let mut lockfile = parse_lockfile(&format!("lockfileVersion: '9.0'\nimporters:\n{importers}"));
+    let snapshots = lockfile.snapshots.get_or_insert_with(Default::default);
+    for i in 0..size {
+        let entry = if i + 1 < size {
+            snapshot(&[("vuln", &format!("1.0.{}", i + 1))], &[])
+        } else {
+            SnapshotEntry::default()
+        };
+        snapshots.insert(format!("vuln@1.0.{i}").parse().unwrap(), entry);
+    }
+    let index =
+        build_audit_path_index(&lockfile, None, &vulnerable_names(&["vuln"]), all_dependencies());
+    assert_eq!(index["vuln"].len(), size);
+    for i in 0..size {
+        assert_eq!(
+            path_info(&index, "vuln", &format!("1.0.{i}")).paths.len(),
+            MAX_PATHS_PER_FINDING,
+        );
+    }
+}
+
+#[test]
+fn build_audit_path_index_prunes_saturated_findings_reached_through_cycles() {
+    let mut importers = String::new();
+    for i in 0..150 {
+        write!(importers, "\n  project-{i}:\n    dependencies:\n      a: {{specifier: '1.0.0', version: '1.0.0'}}\n").unwrap();
+    }
+    let lockfile = parse_lockfile(&format!(
+        "lockfileVersion: '9.0'\nimporters:\n{importers}
+snapshots:
+  a@1.0.0:
+    dependencies:
+      b: '1.0.0'
+  b@1.0.0:
+    dependencies:
+      a: '1.0.0'
+      vuln: '1.0.0'
+  vuln@1.0.0: {{}}
+",
+    ));
+    let index = build_audit_path_index(
+        &lockfile,
+        None,
+        &vulnerable_names(&["a", "vuln"]),
+        all_dependencies(),
+    );
+    assert_eq!(path_info(&index, "a", "1.0.0").paths.len(), MAX_PATHS_PER_FINDING);
+    assert_eq!(path_info(&index, "vuln", "1.0.0").paths.len(), MAX_PATHS_PER_FINDING);
+}
