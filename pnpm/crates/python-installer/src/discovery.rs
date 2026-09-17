@@ -1,7 +1,11 @@
 //! The Python projects an install plan may act on, read once so that both
 //! the workspace selection and the install itself see the same manifests.
 
-use super::{manifest::Manifest, requirements, workspace::Workspace};
+use super::{
+    manifest::{Manifest, RequirementScope},
+    requirements,
+    workspace::Workspace,
+};
 use miette::{IntoDiagnostic, Result, WrapErr};
 use pep508_rs::PackageName;
 use pnpm_workspace_projects_graph::{BaseProject, ProjectGraph, ProjectGraphNode};
@@ -98,6 +102,17 @@ impl Discovery {
     /// `--filter` selector resolves against, keyed by project directory.
     #[must_use]
     pub fn graph(&self) -> ProjectGraph<PythonProject<'_>> {
+        self.graph_of(RequirementScope::All)
+    }
+
+    /// [`Self::graph`] for a `--filter-prod` selector: a dependency group is
+    /// a development input, so a source only a group requires is no edge.
+    #[must_use]
+    pub fn production_graph(&self) -> ProjectGraph<PythonProject<'_>> {
+        self.graph_of(RequirementScope::Production)
+    }
+
+    fn graph_of(&self, scope: RequirementScope) -> ProjectGraph<PythonProject<'_>> {
         self.roots
             .iter()
             .filter(|(_, manifest)| manifest.project.is_some())
@@ -106,7 +121,7 @@ impl Discovery {
                     PythonProject { root, name: manifest.distribution().map(PackageName::as_ref) };
                 let node = ProjectGraphNode {
                     package,
-                    dependencies: self.workspace.declared_sources(root, manifest),
+                    dependencies: self.workspace.declared_sources(root, manifest, scope),
                 };
                 (root.clone(), node)
             })

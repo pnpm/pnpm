@@ -79,13 +79,12 @@ fn matching_projects(
             .map(Path::to_path_buf)
             .collect());
     }
-    let graph = discovery.graph();
     let options = recursive_filter_options(config, prefix);
     // The generated selector follows the pass a `--filter-prod` selector
     // routes the run through, as it does for npm.
     let prod = !config.filter_prod.is_empty();
     let mut selected: HashSet<PathBuf> = filter_against(
-        &graph,
+        &discovery.graph(),
         &config.filter,
         root_selector.filter(|_| !prod),
         false,
@@ -94,16 +93,15 @@ fn matching_projects(
     )?
     .into_iter()
     .collect();
-    // `[tool.uv.sources]` says where a requirement comes from, not which
-    // dependency group declares it, so a production selector reaches the
-    // same projects a regular one does.
-    selected.extend(filter_against(
-        &graph,
-        &config.filter_prod,
-        root_selector.filter(|_| prod),
-        true,
-        prefix,
-        &options,
-    )?);
+    if prod {
+        selected.extend(filter_against(
+            &discovery.production_graph(),
+            &config.filter_prod,
+            root_selector.filter(|_| prod),
+            true,
+            prefix,
+            &options,
+        )?);
+    }
     Ok(selected)
 }

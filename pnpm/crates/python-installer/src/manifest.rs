@@ -23,6 +23,14 @@ impl DependencySelection {
     pub const ALL: Self = Self { production: true, development: true };
 }
 
+/// Which of a project's requirement lists a reader counts. A dependency
+/// group is a development input, so a production reader leaves it out.
+#[derive(Clone, Copy)]
+pub(super) enum RequirementScope {
+    All,
+    Production,
+}
+
 #[derive(Clone, Deserialize)]
 pub(super) struct Manifest {
     pub(super) project: Option<Project>,
@@ -237,7 +245,10 @@ impl Manifest {
     /// A requirement pnpm cannot parse is left out: the resolution that
     /// reads it reports it, and this is read where a name that is not there
     /// only means one source fewer to consider.
-    pub(super) fn declared_requirement_names(&self) -> Option<BTreeSet<PackageName>> {
+    pub(super) fn declared_requirement_names(
+        &self,
+        scope: RequirementScope,
+    ) -> Option<BTreeSet<PackageName>> {
         let project = self.project.as_ref()?;
         if project.dynamic
             .iter()
@@ -245,10 +256,18 @@ impl Manifest {
         {
             return None;
         }
-        let groups = self.groups
-            .values()
-            .flatten()
-            .filter_map(toml::Value::as_str);
+        // Every group's own requirements are read, so a `{ include-group }`
+        // entry names nothing this does not already have: PEP 735 includes
+        // a group of this same table.
+        let groups = matches!(scope, RequirementScope::All)
+            .then(|| {
+                self.groups
+                    .values()
+                    .flatten()
+                    .filter_map(toml::Value::as_str)
+            })
+            .into_iter()
+            .flatten();
         Some(
             project.dependencies
                 .iter()
