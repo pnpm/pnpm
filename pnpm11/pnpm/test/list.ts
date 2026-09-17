@@ -68,6 +68,41 @@ test('recursive JSON combines projects with separate lockfiles', async () => {
   expect(bothFormats.stdout.toString()).toBe(parseable.stdout.toString())
 })
 
+test('recursive list uses each project modules directory in every output format', async () => {
+  const dependency = '@pnpm.e2e/hello-world-js-bin'
+  preparePackages(['project-1', 'project-2'].map((name) => ({
+    location: `packages/${name}`,
+    package: { name, version: '1.0.0', dependencies: { [dependency]: '1.0.0' } },
+  })))
+  writeYamlFileSync('pnpm-workspace.yaml', {
+    packages: ['packages/*'],
+    sharedWorkspaceLockfile: false,
+    packageConfigs: { 'project-1': { modulesDir: 'custom_modules' } },
+  })
+  await execPnpm(['install'])
+
+  const packagePaths = [
+    fs.realpathSync(`packages/project-1/custom_modules/${dependency}`),
+    fs.realpathSync(`packages/project-2/node_modules/${dependency}`),
+  ]
+  const json = execPnpmSync(['-r', '--filter', 'project-*', 'list', '--json', '--long'], { expectSuccess: true })
+  const projects = JSON.parse(json.stdout.toString())
+  expect(projects).toHaveLength(2)
+  expect(projects.map((project: { dependencies: Record<string, { path: string }> }) => fs.realpathSync(project.dependencies[dependency].path))).toEqual(packagePaths)
+  expect(projects).toMatchObject(packagePaths.map(() => ({
+    dependencies: { [dependency]: { description: 'A package with a hello world js bin' } },
+  })))
+
+  const long = execPnpmSync(['-r', '--filter', 'project-*', 'list', '--long'], { expectSuccess: true })
+  expect(long.stdout.toString().match(/A package with a hello world js bin/g)).toHaveLength(2)
+
+  const parseable = execPnpmSync(['-r', '--filter', 'project-*', 'list', '--parseable'], { expectSuccess: true })
+  expect(parseable.stdout.toString().trim().split(/\r?\n/).filter(Boolean).map((value) => fs.realpathSync(value))).toEqual([
+    fs.realpathSync('packages/project-1'), packagePaths[0],
+    fs.realpathSync('packages/project-2'), packagePaths[1],
+  ])
+})
+
 test('ls --filter=not-exist --json should prints an empty array (#9672)', async () => {
   preparePackages([
     {

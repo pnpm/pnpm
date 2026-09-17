@@ -1,6 +1,7 @@
 use super::{
     BTreeSet, Command, CommandCargoExt, CommandExtra, CommandTempCwd, DEP, HELLO, LEGEND, PKG,
-    Value, canonical, fs, json, recursive_project_names, run_ok, setup_registry, write_workspace,
+    Path, Value, canonical, fs, json, recursive_project_names, run_ok, setup_registry,
+    write_workspace,
 };
 
 #[test]
@@ -51,7 +52,7 @@ fn recursive_json_combines_projects_with_separate_lockfiles() {
     assert_eq!(projects[0]["name"], "project-2");
     assert_eq!(projects[0]["dependencies"][HELLO]["version"], "1.0.0");
     assert_eq!(
-        projects[0]["dependencies"][HELLO]["path"],
+        canonical(Path::new(projects[0]["dependencies"][HELLO]["path"].as_str().unwrap())),
         canonical(&workspace.join("packages/project-2/node_modules").join(HELLO)),
     );
     assert_eq!(
@@ -72,7 +73,7 @@ fn recursive_json_combines_projects_with_separate_lockfiles() {
 }
 
 #[test]
-fn recursive_json_uses_each_projects_modules_directory() {
+fn recursive_list_uses_each_projects_modules_directory() {
     let (_root, workspace, _registry) = setup_registry();
     let workspace_yaml = workspace.join("pnpm-workspace.yaml");
     let registry_config = fs::read_to_string(&workspace_yaml).unwrap();
@@ -98,7 +99,7 @@ fn recursive_json_uses_each_projects_modules_directory() {
         .zip(["packages/project-1/custom_modules", "packages/project-2/node_modules"])
     {
         assert_eq!(
-            project["dependencies"][HELLO]["path"],
+            canonical(Path::new(project["dependencies"][HELLO]["path"].as_str().unwrap())),
             canonical(&workspace.join(modules_path).join(HELLO)),
         );
         assert_eq!(
@@ -106,6 +107,29 @@ fn recursive_json_uses_each_projects_modules_directory() {
             "A package with a hello world js bin",
         );
     }
+
+    let output = run_ok(&workspace, &["-r", "--filter", "project-*", "list", "--long"]);
+    eprintln!("long output: {output}");
+    assert_eq!(output.matches("A package with a hello world js bin").count(), 2);
+
+    let output = run_ok(&workspace, &["-r", "--filter", "project-*", "list", "--parseable"]);
+    eprintln!("parseable output: {output}");
+    let paths: Vec<_> = output
+        .lines()
+        .filter(|line| !line.is_empty())
+        .map(Path::new)
+        .map(canonical)
+        .collect();
+    dbg!(&paths);
+    assert_eq!(
+        paths,
+        vec![
+            canonical(&workspace.join("packages/project-1")),
+            canonical(&workspace.join("packages/project-1/custom_modules").join(HELLO)),
+            canonical(&workspace.join("packages/project-2")),
+            canonical(&workspace.join("packages/project-2/node_modules").join(HELLO)),
+        ],
+    );
 }
 
 #[test]

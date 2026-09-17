@@ -41,12 +41,14 @@ impl ListArgs {
         // Per-project lockfiles: each project renders independently
         // (with its own legend and summary).
         let mut outputs = Vec::new();
-        for project_dir in project_dirs {
+        for (project_dir, project) in &selection.selected {
+            let mut project_config = config.clone();
+            project_config.anchor_dedicated_project(project_dir, project.package.manifest_name());
             let output = self.render_projects(
-                config,
-                std::slice::from_ref(&project_dir),
+                &project_config,
+                std::slice::from_ref(project_dir),
                 &self.packages,
-                &project_dir,
+                project_dir,
                 always_print_root_package,
             )
             .await?;

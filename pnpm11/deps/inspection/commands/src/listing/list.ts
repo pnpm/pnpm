@@ -107,7 +107,7 @@ export type ListCommandOptions = Pick<Config,
   onlyProjects?: boolean
   recursive?: boolean
   findBy?: string[]
-} & Partial<Pick<Config, 'global' | 'globalPkgDir'>>
+} & Partial<Pick<Config, 'global' | 'globalPkgDir' | 'packageConfigs'>>
 
 export async function handler (
   opts: ListCommandOptions,

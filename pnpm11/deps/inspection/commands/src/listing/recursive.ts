@@ -1,7 +1,7 @@
 import assert from 'node:assert'
 import util from 'node:util'
 
-import type { Config } from '@pnpm/config.reader'
+import { type Config, createProjectConfigRecord } from '@pnpm/config.reader'
 import { renderJson } from '@pnpm/deps.inspection.list'
 import { logger } from '@pnpm/logger'
 import type { IncludedDependencies, Project } from '@pnpm/types'
@@ -12,7 +12,7 @@ import { loadProjects, render } from './list.js'
 export async function listRecursive (
   pkgs: Project[],
   params: string[],
-  opts: Pick<Config, 'lockfileDir' | 'virtualStoreDirMaxLength'> & {
+  opts: Pick<Config, 'lockfileDir' | 'virtualStoreDirMaxLength' | 'modulesDir' | 'packageConfigs'> & {
     depth?: number
     include: IncludedDependencies
     long?: boolean
@@ -31,18 +31,21 @@ export async function listRecursive (
       lockfileDir: opts.lockfileDir,
     })
   }
+  const projectConfigRecord = createProjectConfigRecord(opts)
   if (determineReportAs(opts) === 'json') {
-    const projects = await Promise.all(pkgs.map(({ rootDir }) =>
+    const projects = await Promise.all(pkgs.map(({ rootDir, manifest }) =>
       withProjectError(rootDir, () => loadProjects([rootDir], params, {
         ...opts,
+        modulesDir: projectConfigRecord?.[manifest.name ?? '']?.modulesDir ?? opts.modulesDir,
         lockfileDir: rootDir,
       }))
     ))
     return renderJson(projects.flat(), { depth, long: opts.long ?? false, search: params.length > 0 })
   }
-  const outputs = (await Promise.all(pkgs.map(({ rootDir }) =>
+  const outputs = (await Promise.all(pkgs.map(({ rootDir, manifest }) =>
     withProjectError(rootDir, () => render([rootDir], params, {
       ...opts,
+      modulesDir: projectConfigRecord?.[manifest.name ?? '']?.modulesDir ?? opts.modulesDir,
       alwaysPrintRootPackage: depth === -1,
       lockfileDir: rootDir,
     }))
