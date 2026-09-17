@@ -349,7 +349,13 @@ impl PythonPrepare<'_> {
             &self.interpreter.executable,
             root.path(),
             wheels,
-            self.context.config.python.link_mode,
+            match self.context.config.package_import_method {
+                pnpm_config::PackageImportMethod::Auto
+                | pnpm_config::PackageImportMethod::Hardlink => {
+                    pnpm_config::PackageImportMethod::CloneOrCopy
+                }
+                method => method,
+            },
         )
         .await?;
         Ok(Arc::new(root))

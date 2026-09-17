@@ -3,7 +3,7 @@ use base64::{
     Engine as _,
     engine::general_purpose::{STANDARD, URL_SAFE_NO_PAD},
 };
-use pnpm_config::PythonLinkMode;
+use pnpm_config::PackageImportMethod;
 use std::{
     collections::BTreeMap,
     fmt::Write as _,
@@ -54,7 +54,12 @@ async fn unpacked_executables_keep_permissions_without_cas_names() {
     let files = unpacked_wheel(&temporary.path().join("wheel"));
     let metadata = inspect("python3", &files).await.unwrap();
     let packages = serde_json::json!([{ "files": files, "metadata": metadata }]);
-    for mode in [PythonLinkMode::Reflink, PythonLinkMode::Hardlink, PythonLinkMode::Copy] {
+    for mode in [
+        PackageImportMethod::Auto,
+        PackageImportMethod::CloneOrCopy,
+        PackageImportMethod::Hardlink,
+        PackageImportMethod::Copy,
+    ] {
         let root = temporary
             .path()
             .join(format!("{mode:?}"));

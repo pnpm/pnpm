@@ -314,13 +314,12 @@ cargo:
 
 #[test]
 fn python_settings_parse_apply_and_remain_workspace_only() {
-    let yaml = "python:\n  enabled: true\n  executable: python3.13\n  linkMode: hardlink\n  indexUrl: https://example.org/simple/\n  extraIndexUrls: [https://extra.example.org/simple/]\n  overrides: [demo>=2]\n  constraints: [demo<3]\n  extras: [speed]\n  groups: [test]\n  platforms: [x86_64-manylinux_2_28, aarch64-apple-darwin]\n  pythonVersions: ['3.12', '3.13']\n  downloads: never\n  downloadUrl: https://mirror.example.test/releases\n";
+    let yaml = "python:\n  enabled: true\n  executable: python3.13\n  indexUrl: https://example.org/simple/\n  extraIndexUrls: [https://extra.example.org/simple/]\n  overrides: [demo>=2]\n  constraints: [demo<3]\n  extras: [speed]\n  groups: [test]\n  platforms: [x86_64-manylinux_2_28, aarch64-apple-darwin]\n  pythonVersions: ['3.12', '3.13']\n  downloads: never\n  downloadUrl: https://mirror.example.test/releases\n";
     let settings: WorkspaceSettings = serde_saphyr::from_str(yaml).unwrap();
     let mut config = Config::default();
     settings.apply_to(&mut config, Path::new("/workspace"));
     assert!(config.python.enabled);
     assert_eq!(config.python.executable.as_deref(), Some("python3.13"));
-    assert_eq!(config.python.link_mode, crate::PythonLinkMode::Hardlink);
     assert_eq!(config.python.index_url, "https://example.org/simple/");
     assert_eq!(config.python.extra_index_urls, ["https://extra.example.org/simple/"]);
     assert_eq!(config.python.overrides, ["demo>=2"]);
@@ -747,13 +746,4 @@ fn reset_setting_to_default_keeps_virtual_store_only_hoisting_empty() {
     assert!(!config.virtual_store_only);
     assert_eq!(config.hoist_pattern, Some(vec!["eslint-*".to_string()]));
     assert_eq!(config.public_hoist_pattern, defaults.public_hoist_pattern);
-}
-
-#[test]
-fn python_link_mode_defaults_to_reflink_and_rejects_unknown_modes() {
-    let settings: WorkspaceSettings = serde_saphyr::from_str("python: {enabled: true}").unwrap();
-    assert_eq!(settings.python.unwrap().link_mode, crate::PythonLinkMode::Reflink);
-    let invalid = serde_saphyr::from_str::<WorkspaceSettings>("python: {linkMode: auto}");
-    eprintln!("Unknown Python link mode: {invalid:?}");
-    assert!(invalid.is_err());
 }

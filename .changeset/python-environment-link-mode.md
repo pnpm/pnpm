@@ -2,4 +2,6 @@
 "pacquet": minor
 ---
 
-Python environments now use copy-on-write clones of wheel files when the filesystem supports them. Set `python.linkMode` to `copy`, `hardlink`, or `reflink` to choose how files are imported from the store. Reflink mode falls back to copies when cloning is unavailable. Hardlink mode shares file writes with the store and other environments.
+Python environments now use `packageImportMethod` to import wheel files from the store. Use `clone-or-copy` for copy-on-write clones with a copy fallback, or `copy` for independent files. Hardlinked files share writes with the store and other environments.
+
+Isolated Python build environments keep backend writes private with copy-on-write clones or copies.

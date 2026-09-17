@@ -2021,6 +2021,60 @@ def build_editable(wheel_directory, config_settings=None, metadata_directory=Non
     return _build(wheel_directory, True)
 "#;
 
+#[tokio::test]
+async fn build_backend_writes_do_not_modify_shared_wheel_files() {
+    let root = tempfile::tempdir().unwrap();
+    let mut server = mockito::Server::new_async().await;
+    let _alpha = serve(&mut server, "alpha", &[("1.0", wheel("alpha", "1.0", "", &[]))]).await;
+    let backend = format!(
+        "{TINY_BACKEND}\nimport alpha\nfrom pathlib import Path\np = Path(alpha.__file__)\nstat = p.stat()\np.write_text(\"VERSION = 'modified by backend'\\n\")\nPath('backend-mutation').write_text(p.read_text())\nos.utime(p, ns=(stat.st_atime_ns, stat.st_mtime_ns))\n",
+    );
+    let _backend = serve(
+        &mut server,
+        "tinybackend",
+        &[("80.0", wheel("tinybackend", "80.0", "", &[("tinybuild.py", backend.as_str())]))],
+    )
+    .await;
+    project(root.path(), &server.url(), &["alpha"]);
+    python_project(root.path(), "app", "dependencies = ['alpha']");
+    let manifest = root.path().join("pyproject.toml");
+    let body = fs::read_to_string(&manifest)
+        .unwrap()
+        .replace("requires = ['tinybackend']", "requires = ['tinybackend', 'alpha']");
+    fs::write(&manifest, body).unwrap();
+    let workspace = root.path().join("pnpm-workspace.yaml");
+    let settings = fs::read_to_string(&workspace)
+        .unwrap()
+        .replace(
+            "  pkg:pypi/tinybackend: true",
+            "  pkg:pypi/tinybackend: true\n  pkg:pypi/alpha: true",
+        );
+    for method in ["auto", "hardlink"] {
+        fs::write(&workspace, format!("{settings}\npackageImportMethod: {method}\n")).unwrap();
+        fs::write(root.path().join("backend-mutation"), "not run").unwrap();
+        pacquet_in(root.path())
+            .arg("install")
+            .assert()
+            .success();
+        assert_eq!(
+            fs::read_to_string(root.path().join("backend-mutation")).unwrap().trim_end(),
+            "VERSION = 'modified by backend'",
+        );
+        python(root.path())
+            .args(["-c", "import alpha; assert alpha.VERSION == '1.0', alpha.VERSION"])
+            .assert()
+            .success();
+        pacquet_in(root.path())
+            .args(["install", "--offline", "--frozen-lockfile"])
+            .assert()
+            .success();
+        python(root.path())
+            .args(["-c", "import alpha; assert alpha.VERSION == '1.0', alpha.VERSION"])
+            .assert()
+            .success();
+    }
+}
+
 /// The backends the fixtures declare, served so a build can run. What
 /// these tests exercise is the build frontend; which wheel a real backend
 /// would produce is that backend's own business.
@@ -2818,7 +2872,7 @@ async fn an_allow_builds_key_naming_no_ecosystem_approves_no_python_build() {
 }
 
 #[tokio::test]
-async fn wheel_link_modes_share_only_when_requested() {
+async fn wheel_package_import_methods_control_sharing() {
     let root = tempfile::tempdir().unwrap();
     let mut server = mockito::Server::new_async().await;
     let mocks = serve(
@@ -2842,7 +2896,9 @@ async fn wheel_link_modes_share_only_when_requested() {
     )
     .await;
     project(root.path(), &server.url(), &["alpha"]);
-    add_python_settings(root.path(), "  linkMode: hardlink\n");
+    let workspace = root.path().join("pnpm-workspace.yaml");
+    let settings = fs::read_to_string(&workspace).unwrap();
+    fs::write(&workspace, format!("{settings}\npackageImportMethod: hardlink\n")).unwrap();
     pacquet_in(root.path())
         .arg("install")
         .assert()
@@ -2914,14 +2970,31 @@ async fn wheel_link_modes_share_only_when_requested() {
         )
         .unwrap(),
     );
-    for mode in ["copy", "reflink"] {
+    pacquet_in(root.path())
+        .args(["install", "--offline", "--frozen-lockfile", "--package-import-method=copy"])
+        .assert()
+        .success();
+    let overridden = installed_module(root.path(), "alpha");
+    eprintln!("CLI copy override must create an independent file");
+    assert!(!same_file::is_same_file(&first, &overridden).unwrap());
+    pacquet_in(root.path())
+        .args(["install", "--offline", "--frozen-lockfile", "--package-import-method=auto"])
+        .assert()
+        .success();
+    #[cfg(target_os = "linux")]
+    {
+        let automatic = installed_module(root.path(), "alpha");
+        eprintln!("auto uses the existing hardlink-first policy on Linux");
+        assert!(same_file::is_same_file(&first, &automatic).unwrap());
+    }
+    for mode in ["copy", "clone-or-copy"] {
         let workspace = root.path().join("pnpm-workspace.yaml");
         let settings = fs::read_to_string(&workspace).unwrap();
         fs::write(
             &workspace,
             settings
-                .replace("linkMode: hardlink", &format!("linkMode: {mode}"))
-                .replace("linkMode: copy", &format!("linkMode: {mode}")),
+                .replace("packageImportMethod: hardlink", &format!("packageImportMethod: {mode}"))
+                .replace("packageImportMethod: copy", &format!("packageImportMethod: {mode}")),
         )
         .unwrap();
         pacquet_in(root.path())
@@ -2969,7 +3042,9 @@ async fn deferred_wheel_files_cannot_replace_generated_record() {
     )
     .await;
     project(root.path(), &server.url(), &["alpha"]);
-    add_python_settings(root.path(), "  linkMode: hardlink\n");
+    let workspace = root.path().join("pnpm-workspace.yaml");
+    let settings = fs::read_to_string(&workspace).unwrap();
+    fs::write(&workspace, format!("{settings}\npackageImportMethod: hardlink\n")).unwrap();
     assert_failure_contains(
         pacquet_in(root.path()).arg("install"),
         "Python package file collision",

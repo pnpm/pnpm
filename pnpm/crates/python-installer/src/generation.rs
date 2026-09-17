@@ -56,7 +56,7 @@ impl PythonPrepare<'_> {
             &self.interpreter.executable,
             environment.path(),
             packages,
-            self.context.config.python.link_mode,
+            self.context.config.package_import_method,
         )
         .await?;
         drop(installed.unpacked);
