@@ -53,8 +53,12 @@ pub(crate) async fn plan<Reporter: pnpm_reporter::Reporter + 'static>(
     dependencies: &InstallDependencyOptions,
     scope: Option<&WorkspaceScope>,
 ) -> miette::Result<EcosystemPlan> {
-    let inventory = EcosystemWorkspaceInventory::new(root.clone(), context.config);
     let config = context.config;
+    // The workspace the npm selection reads, so a project of another
+    // ecosystem is discovered where that selection would name it.
+    // `lockfileDir` moves the lockfile, not the projects.
+    let workspace_root = config.workspace_dir.clone().unwrap_or_else(|| prefix.to_path_buf());
+    let inventory = EcosystemWorkspaceInventory::new(workspace_root, config);
     let mut plan = InstallPlan::new(config.workspace_dir.clone().unwrap_or(root));
     let mut python = PythonProjects::default();
     if config.cargo.enabled {
