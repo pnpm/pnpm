@@ -2,7 +2,7 @@ use super::{
     ActivationBinSets, ArtifactCleanupError, CmdShimHost, Config, Context, GlobalInstallTarget,
     GlobalPackageInfo, GlobalUpdateMaterializationReporter, GlobalUpdateResolutionReporter,
     GroupActivation, GroupInstall, HashSet, IntoDiagnostic, Lockfile, PackageBinSource, Path,
-    RangeSpecStyle, ReplacedGlobalBinPlan, Reporter, SupportedArchitectures,
+    PathBuf, RangeSpecStyle, ReplacedGlobalBinPlan, Reporter, SupportedArchitectures,
     acquire_global_bin_lock, activate_global_install_with_extra_bin_names,
     bin_names_of_other_groups, check_global_bin_conflicts, check_virtual_shim_conflicts,
     cleanup_replaced_global_installs, collect_existing_global_installs, create_global_cache_key,
@@ -96,6 +96,42 @@ impl GlobalInstallTarget<'_> {
         range_spec_style: RangeSpecStyle,
         supported_architectures: Option<SupportedArchitectures>,
     ) -> miette::Result<bool> {
+        let (install_dir, selectors) = self.prepare_update_candidate::<Reporter>(
+            pkg,
+            latest,
+            range_spec_style,
+            supported_architectures.clone(),
+        )
+        .await?;
+
+        if self.discard_unchanged_update::<Reporter>(
+            pkg,
+            &install_dir,
+            supported_architectures.clone(),
+        )
+        .await?
+        {
+            return Ok(false);
+        }
+
+        self.materialize_update::<Reporter>(
+            pkg,
+            &install_dir,
+            &selectors,
+            range_spec_style,
+            supported_architectures,
+        )
+        .await?;
+        Ok(true)
+    }
+
+    async fn prepare_update_candidate<Reporter: self::Reporter + 'static>(
+        &self,
+        pkg: &GlobalPackageInfo,
+        latest: bool,
+        range_spec_style: RangeSpecStyle,
+        supported_architectures: Option<SupportedArchitectures>,
+    ) -> miette::Result<(PathBuf, Vec<String>)> {
         let install_dir = create_install_dir(self.global_pkg_dir)
             .into_diagnostic()
             .wrap_err("create global install dir")?;
@@ -127,32 +163,50 @@ impl GlobalInstallTarget<'_> {
             }))
             .await?;
         }
+        Ok((install_dir, selectors))
+    }
 
-        if lockfiles_are_equal(&pkg.install_dir, &install_dir) {
-            fs::remove_dir_all(&install_dir)
-                .into_diagnostic()
-                .wrap_err("remove unchanged global install candidate")?;
-            let active_config = Config::leak(global_group_config(
-                self.base_config,
-                &pkg.install_dir,
-                self.global_pkg_dir,
-                supported_architectures.clone(),
-            )?);
-            prompt_approve_install_builds::<Reporter>(
-                active_config,
-                &pkg.install_dir,
-                self.global_pkg_dir,
-            )
-            .await?;
+    async fn discard_unchanged_update<Reporter: self::Reporter + 'static>(
+        &self,
+        pkg: &GlobalPackageInfo,
+        install_dir: &Path,
+        supported_architectures: Option<SupportedArchitectures>,
+    ) -> miette::Result<bool> {
+        if !lockfiles_are_equal(&pkg.install_dir, install_dir) {
             return Ok(false);
         }
+        fs::remove_dir_all(install_dir)
+            .into_diagnostic()
+            .wrap_err("remove unchanged global install candidate")?;
+        let active_config = Config::leak(global_group_config(
+            self.base_config,
+            &pkg.install_dir,
+            self.global_pkg_dir,
+            supported_architectures,
+        )?);
+        prompt_approve_install_builds::<Reporter>(
+            active_config,
+            &pkg.install_dir,
+            self.global_pkg_dir,
+        )
+        .await?;
+        Ok(true)
+    }
 
+    async fn materialize_update<Reporter: self::Reporter + 'static>(
+        &self,
+        pkg: &GlobalPackageInfo,
+        install_dir: &Path,
+        selectors: &[String],
+        range_spec_style: RangeSpecStyle,
+        supported_architectures: Option<SupportedArchitectures>,
+    ) -> miette::Result<()> {
         Box::pin(run_group_install::<GlobalUpdateMaterializationReporter<Reporter>>(
             GroupInstall {
                 base_config: self.base_config,
                 global_pkg_dir: self.global_pkg_dir,
-                install_dir: &install_dir,
-                selectors: &selectors,
+                install_dir,
+                selectors,
                 range_spec_style,
                 supported_architectures,
                 // `update -g` takes no `--allow-build`; the build policy comes
@@ -163,8 +217,7 @@ impl GlobalInstallTarget<'_> {
         ))
         .await?;
 
-        self.activate_updated_group::<Reporter>(&install_dir, pkg)?;
-        Ok(true)
+        self.activate_updated_group::<Reporter>(install_dir, pkg)
     }
 
     fn activate_updated_group<Reporter: self::Reporter>(

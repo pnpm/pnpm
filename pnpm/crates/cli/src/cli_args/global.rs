@@ -96,7 +96,7 @@ impl<Sink: Reporter> Reporter for GlobalUpdateResolutionReporter<Sink> {
     fn emit(event: &LogEvent) {
         let is_terminal_up_to_date = matches!(
             event,
-            LogEvent::Pnpm(PnpmLog { message, .. }) if message == "Already up to date"
+            LogEvent::Pnpm(PnpmLog { message, .. }) if message == "Already up to date",
         );
         if !is_terminal_up_to_date
             && !matches!(
@@ -104,7 +104,7 @@ impl<Sink: Reporter> Reporter for GlobalUpdateResolutionReporter<Sink> {
                 LogEvent::PackageManifest(_)
                     | LogEvent::Root(_)
                     | LogEvent::Stats(_)
-                    | LogEvent::Summary(_)
+                    | LogEvent::Summary(_),
             )
         {
             Sink::emit(event);
@@ -285,7 +285,11 @@ pub async fn handle_global_update<Reporter: self::Reporter + 'static>(
         )
         .await?;
     }
-    let prefix = global_pkg_dir.to_string_lossy().into_owned();
+    emit_global_update_result::<Reporter>(&global_pkg_dir, changed);
+    Ok(())
+}
+
+fn emit_global_update_result<Reporter: self::Reporter>(global_pkg_dir: &Path, changed: bool) {
     if !changed {
         Reporter::emit(&LogEvent::Pnpm(PnpmLog {
             level: LogLevel::Info,
@@ -293,8 +297,8 @@ pub async fn handle_global_update<Reporter: self::Reporter + 'static>(
             prefix: String::new(),
         }));
     }
+    let prefix = global_pkg_dir.to_string_lossy().into_owned();
     Reporter::emit(&LogEvent::Summary(SummaryLog { level: LogLevel::Debug, prefix }));
-    Ok(())
 }
 
 /// Surface a non-fatal problem on the `pnpm:global` channel, matching
