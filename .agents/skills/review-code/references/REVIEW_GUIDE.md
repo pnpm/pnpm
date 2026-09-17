@@ -15,6 +15,9 @@ automated reviewers — CodeRabbit ([`.coderabbit.yaml`](../../../../.coderabbit
 CodeRabbit leads correctness and conventions, Qodo leads security and performance — but every
 reviewer applies the same priority order below. [`AGENTS.md`](../../../../AGENTS.md) points here.
 
+Apply [PHILOSOPHY.md](../../../../PHILOSOPHY.md) when assessing product fit,
+architectural changes, compatibility, and tradeoffs.
+
 ## Review priorities
 
 1. **Security first** (§1).
@@ -186,13 +189,15 @@ npm's command sprawl.
 
 ### Interop features must actually match
 
-Prior art from npm, Yarn, vlt, etc. is useful but not automatic justification. Check that
-syntax and semantics genuinely match pnpm. Steer users to the right existing mechanism instead.
+Agreement among several package managers is evidence worth considering, not an obligation.
+npm compatibility is not required when pnpm has a clear reason to differ. Preserve security,
+performance, efficient disk usage, and predictability. When claiming compatibility, verify the
+actual semantics. Check whether existing pnpm capabilities already solve the problem.
 
 ### Defaults and contracts are hard to change
 
-Changing a default usually needs a major version, a strong user signal (a poll or widespread
-demand), or an opt-in setting first.
+Breaking changes to stable behavior require a major version bump. Experimental areas can
+change sooner. An opt-in setting can expose a new behavior without breaking the stable default.
 
 ### Avoid user-visible noise
 
