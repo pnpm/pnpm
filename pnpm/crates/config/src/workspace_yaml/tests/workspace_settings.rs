@@ -316,7 +316,7 @@ cargo:
 /// the setting takes a runtime, an interpreter and a package manager
 /// without telling them apart.
 #[test]
-fn tool_settings_parse_apply_and_remain_workspace_only() {
+fn tool_settings_parse_and_apply() {
     let yaml = "tools:\n  node:\n    mirror: https://mirror.example.test/node/download\n  python:\n    mirror: https://mirror.example.test/python-build-standalone/releases\n  bun:\n    mirror: https://mirror.example.test/bun\n";
     let settings: WorkspaceSettings = serde_saphyr::from_str(yaml).unwrap();
     let mut config = Config::default();
@@ -329,9 +329,11 @@ fn tool_settings_parse_apply_and_remain_workspace_only() {
     assert_eq!(config.tool_mirror("bun"), Some("https://mirror.example.test/bun"));
     assert_eq!(config.tool_mirror("deno"), None);
 
+    // A mirror says what this machine can reach, which is the user's to
+    // say, so it survives the filter the global config is read through.
     let mut settings: WorkspaceSettings = serde_saphyr::from_str(yaml).unwrap();
     settings.clear_workspace_only_fields();
-    assert!(settings.tools.is_none());
+    assert!(settings.tools.is_some());
     let unknown =
         serde_saphyr::from_str::<WorkspaceSettings>("tools:\n  node:\n    unknown: true\n");
     assert!(unknown.is_err());
