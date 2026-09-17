@@ -238,30 +238,26 @@ impl Manifest {
         toml::from_str(contents).into_diagnostic()
     }
 
-    /// The distributions only a dependency group of this project requires.
+    /// The distributions this project requires for development and nothing
+    /// else, which a production reader leaves out.
     ///
-    /// A dependency group is a development input. Groups are always written
-    /// out, so this is knowable even for a project whose dependencies a
-    /// build backend generates, which is why a production reader can leave
-    /// these out without waiting for that backend.
+    /// A dependency group is a development input, so a name only a group
+    /// requires is one. Saying that needs the requirements the group is
+    /// compared against: a project whose own a build backend generates
+    /// names none here, because that backend may require the same
+    /// distribution to run.
     pub(super) fn development_only_names(&self) -> BTreeSet<PackageName> {
-        let mut names = self.groups
+        let Some(names) = self.declared_requirement_names(RequirementScope::Production) else {
+            return BTreeSet::new();
+        };
+        self.groups
             .values()
             .flatten()
             .filter_map(toml::Value::as_str)
             .filter_map(|requirement| parse_requirement(requirement).ok())
             .map(|requirement| requirement.name)
-            .collect::<BTreeSet<_>>();
-        let Some(project) = self.project.as_ref() else { return names };
-        for requirement in project.dependencies
-            .iter()
-            .chain(project.optional_dependencies.values().flatten())
-        {
-            if let Ok(requirement) = parse_requirement(requirement) {
-                names.remove(&requirement.name);
-            }
-        }
-        names
+            .filter(|name| !names.contains(name))
+            .collect()
     }
 
     /// Every distribution this project names in a requirement its own

@@ -51,8 +51,9 @@ impl Workspace {
     ) -> Vec<PathBuf> {
         let required = manifest.declared_requirement_names(scope);
         // A project whose requirements a build backend generates names none
-        // of them, so every entry stays. Which of them only a dependency
-        // group requires is written out either way, and a production reader
+        // of them, so every entry stays: that backend may require the
+        // distribution to run. A project that writes its own out says which
+        // of them only a dependency group requires, and a production reader
         // leaves those out.
         let development_only = matches!(scope, RequirementScope::Production).then(|| {
             manifest.development_only_names()

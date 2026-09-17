@@ -203,46 +203,67 @@ async fn a_filtered_add_writes_the_requirement_to_the_selected_project_only() {
 }
 
 /// A dependency group is a development input, so a production selector does
-/// not follow a source only a group requires, while a regular one does. A
-/// group is written out even when a build backend generates the project's
-/// other requirements, so the rule holds for a dynamic project too.
+/// not follow a source only a group requires, while a regular one does.
 #[tokio::test]
 async fn a_production_filter_does_not_follow_a_development_source() {
-    for dynamic in [false, true] {
-        eprintln!("dynamic optional dependencies: {dynamic}");
-        let root = tempfile::tempdir().unwrap();
-        let mut server = mockito::Server::new_async().await;
-        let _backends = serve_backends(&mut server).await;
-        project(root.path(), &server.url(), &[]);
-        fs::remove_file(root.path().join("pyproject.toml")).unwrap();
-        python_project(&root.path().join("packages/tool"), "tool", "dependencies = []");
-        let declared = if dynamic { "dynamic = ['optional-dependencies']" } else { "" };
-        python_project(
-            &root.path().join("packages/app"),
-            "app",
-            &format!(
-                "dependencies = []\n{declared}\n\n[dependency-groups]\ndev = ['tool']\n\n\
-                 [tool.uv.sources]\ntool = {{ workspace = true }}\n",
-            ),
-        );
+    let root = tempfile::tempdir().unwrap();
+    let mut server = mockito::Server::new_async().await;
+    let _backends = serve_backends(&mut server).await;
+    project(root.path(), &server.url(), &[]);
+    fs::remove_file(root.path().join("pyproject.toml")).unwrap();
+    python_project(&root.path().join("packages/tool"), "tool", "dependencies = []");
+    python_project(
+        &root.path().join("packages/app"),
+        "app",
+        "dependencies = []\n\n[dependency-groups]\ndev = ['tool']\n\n\
+         [tool.uv.sources]\ntool = { workspace = true }\n",
+    );
 
-        pacquet_in(root.path())
-            .args(["install", "--filter-prod", "app..."])
-            .assert()
-            .success();
+    pacquet_in(root.path())
+        .args(["install", "--filter-prod", "app..."])
+        .assert()
+        .success();
 
-        assert!(installed(root.path(), "packages/app"));
-        assert!(!installed(root.path(), "packages/tool"), "only a dependency group requires it");
+    assert!(installed(root.path(), "packages/app"));
+    assert!(!installed(root.path(), "packages/tool"), "only a dependency group requires it");
 
-        pacquet_in(root.path())
-            .args(["install", "--filter", "app..."])
-            .assert()
-            .success();
-        assert!(installed(root.path(), "packages/tool"));
-    }
+    pacquet_in(root.path())
+        .args(["install", "--filter", "app..."])
+        .assert()
+        .success();
+    assert!(installed(root.path(), "packages/tool"));
 }
 
-/// A recursive add leaves the workspace root out, the way the npm add does,
+/// Naming a source development-only takes the requirements to compare it
+/// against. A project whose own a build backend generates has none to
+/// compare yet, and that backend may require the distribution to run, so a
+/// production selector keeps following the source.
+#[tokio::test]
+async fn a_production_filter_follows_a_source_a_backend_may_require() {
+    let root = tempfile::tempdir().unwrap();
+    let mut server = mockito::Server::new_async().await;
+    let _backends = serve_backends(&mut server).await;
+    project(root.path(), &server.url(), &[]);
+    fs::remove_file(root.path().join("pyproject.toml")).unwrap();
+    python_project(&root.path().join("packages/tool"), "tool", "dependencies = []");
+    python_project(
+        &root.path().join("packages/app"),
+        "app",
+        "dynamic = ['dependencies']\n\n[dependency-groups]\ndev = ['tool']\n\n\
+         [tool.uv.sources]\ntool = { workspace = true }\n",
+    );
+    fs::write(root.path().join("packages/app/requirements.txt"), "tool\n").unwrap();
+
+    pacquet_in(root.path())
+        .args(["install", "--filter-prod", "app..."])
+        .assert()
+        .success();
+
+    assert!(installed(root.path(), "packages/app"));
+    assert!(installed(root.path(), "packages/tool"));
+}
+
+/// A recursive add leaves the workspace root out, the way the npm add does,/// A recursive add leaves the workspace root out, the way the npm add does,
 /// so a Python project at the root keeps its requirements.
 #[tokio::test]
 async fn a_recursive_add_leaves_the_workspace_root_alone() {
