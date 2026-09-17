@@ -182,8 +182,7 @@ fn registry_aliases_split_into_the_prefix_they_keep() {
 
 /// `devEngines.runtime` reaches the update as a `runtime:` dependency under
 /// `devDependencies`, and its range moves through the same path a registry
-/// dependency's does: the lockfile entry and the range the manifest writer
-/// folds back into `devEngines.runtime` both move.
+/// dependency's does.
 #[test]
 fn a_runtime_bump_moves_the_lockfile_entry_and_reports_the_new_range() {
     let mut lockfile = lockfile(
