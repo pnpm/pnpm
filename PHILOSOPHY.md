@@ -34,7 +34,10 @@ can be consolidated immediately.
 ## Compatibility and releases
 
 Breaking changes to stable behavior require a major version bump. Experimental
-areas can change before the next major release.
+areas can change before the next major release. Apply this exception only when
+project documentation, release notes, or feature metadata explicitly identifies
+the affected feature as experimental. Treat areas without that designation as
+stable; novelty or implementation language alone does not make them experimental.
 
 npm compatibility is useful evidence, not a requirement. pnpm can choose its
 own behavior for a clear reason. Agreement among several alternative package
