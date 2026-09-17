@@ -11,18 +11,23 @@ pub const UNOFFICIAL_NODE_MIRROR_BASE_URL: &str =
 
 /// Resolve the base URL for a given release channel.
 ///
-/// `node_download_mirrors` is the user's `.npmrc`/config override map
-/// keyed by channel (`release`, `nightly`, `rc`, `test`, `v8-canary`).
-/// A missing entry falls back to the official nodejs.org tree. The
-/// returned URL always ends with `/` so callers can concatenate
+/// `mirror` is `tools.node.mirror`, the base the channels hang off the
+/// way nodejs.org lays them out. `node_download_mirrors` is the older
+/// `node-mirror:<channel>` spelling, kept because it has shipped, and it
+/// wins for a channel it names: it says where one channel comes from,
+/// where the base says where all of them do.
+///
+/// The returned URL always ends with `/` so callers can concatenate
 /// `v<version>/...` without a defensive check.
 #[must_use]
 pub fn get_node_mirror(
+    mirror: Option<&str>,
     node_download_mirrors: Option<&HashMap<String, String>>,
     release_channel: &str,
 ) -> String {
     let mirror = node_download_mirrors
         .and_then(|map| map.get(release_channel).cloned())
+        .or_else(|| mirror.map(|base| format!("{}/{release_channel}", base.trim_end_matches('/'))))
         .unwrap_or_else(|| format!("https://nodejs.org/download/{release_channel}/"));
     normalize_node_mirror(&mirror)
 }

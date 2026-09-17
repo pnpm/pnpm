@@ -164,6 +164,7 @@ impl WorkspaceSettings {
         overlay_some(&mut config.pnpr_server, self.pnpr_server.take());
         overlay(&mut config.cargo, self.cargo.take());
         overlay(&mut config.python, self.python.take());
+        overlay(&mut config.tools, self.tools.take());
         if let Some(v) = self.remote_side_effects_cache.take() {
             config.remote_side_effects_cache.get_or_insert_default().overlay(v);
         }

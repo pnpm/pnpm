@@ -312,9 +312,46 @@ cargo:
     assert!(settings.cargo.is_none());
 }
 
+/// A tool is named by what it is, not by what kind of thing it is, so
+/// the setting takes a runtime, an interpreter and a package manager
+/// without telling them apart.
+#[test]
+fn tool_settings_parse_apply_and_remain_workspace_only() {
+    let yaml = "tools:\n  node:\n    mirror: https://mirror.example.test/node/download\n  python:\n    mirror: https://mirror.example.test/python-build-standalone/releases\n  bun:\n    mirror: https://mirror.example.test/bun\n";
+    let settings: WorkspaceSettings = serde_saphyr::from_str(yaml).unwrap();
+    let mut config = Config::default();
+    settings.apply_to(&mut config, Path::new("/workspace"));
+    assert_eq!(config.tool_mirror("node"), Some("https://mirror.example.test/node/download"));
+    assert_eq!(
+        config.tool_mirror("python"),
+        Some("https://mirror.example.test/python-build-standalone/releases"),
+    );
+    assert_eq!(config.tool_mirror("bun"), Some("https://mirror.example.test/bun"));
+    assert_eq!(config.tool_mirror("deno"), None);
+
+    let mut settings: WorkspaceSettings = serde_saphyr::from_str(yaml).unwrap();
+    settings.clear_workspace_only_fields();
+    assert!(settings.tools.is_none());
+    let unknown =
+        serde_saphyr::from_str::<WorkspaceSettings>("tools:\n  node:\n    unknown: true\n");
+    assert!(unknown.is_err());
+}
+
+/// A caller joins a path onto what it is given, so the trailing slash a
+/// user may or may not have written cannot reach it.
+#[test]
+fn a_tool_mirror_is_read_without_its_trailing_slash() {
+    let mut config = Config::default();
+    let settings: WorkspaceSettings =
+        serde_saphyr::from_str("tools:\n  bun:\n    mirror: https://mirror.example.test/bun/\n")
+            .unwrap();
+    settings.apply_to(&mut config, Path::new("/workspace"));
+    assert_eq!(config.tool_mirror("bun"), Some("https://mirror.example.test/bun"));
+}
+
 #[test]
 fn python_settings_parse_apply_and_remain_workspace_only() {
-    let yaml = "python:\n  enabled: true\n  executable: python3.13\n  indexUrl: https://example.org/simple/\n  extraIndexUrls: [https://extra.example.org/simple/]\n  overrides: [demo>=2]\n  constraints: [demo<3]\n  extras: [speed]\n  groups: [test]\n  pythonVersions: ['3.12', '3.13']\n  downloadUrl: https://mirror.example.test/releases\n";
+    let yaml = "python:\n  enabled: true\n  executable: python3.13\n  indexUrl: https://example.org/simple/\n  extraIndexUrls: [https://extra.example.org/simple/]\n  overrides: [demo>=2]\n  constraints: [demo<3]\n  extras: [speed]\n  groups: [test]\n  pythonVersions: ['3.12', '3.13']\n";
     let settings: WorkspaceSettings = serde_saphyr::from_str(yaml).unwrap();
     let mut config = Config::default();
     settings.apply_to(&mut config, Path::new("/workspace"));
@@ -327,7 +364,6 @@ fn python_settings_parse_apply_and_remain_workspace_only() {
     assert_eq!(config.python.extras, ["speed"]);
     assert_eq!(config.python.groups, ["test"]);
     assert_eq!(config.python.python_versions, ["3.12", "3.13"]);
-    assert_eq!(config.python.download_url, "https://mirror.example.test/releases");
     let mut settings: WorkspaceSettings = serde_saphyr::from_str(yaml).unwrap();
     settings.clear_workspace_only_fields();
     assert!(settings.python.is_none());

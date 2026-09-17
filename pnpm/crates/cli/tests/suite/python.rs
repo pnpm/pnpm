@@ -189,6 +189,14 @@ fn add_python_settings(root: &Path, settings: &str) {
     .unwrap();
 }
 
+/// Point pnpm at a mirror of python-build-standalone's releases.
+fn add_python_mirror(root: &Path, mirror: &str) {
+    let path = root.join("pnpm-workspace.yaml");
+    let mut workspace = fs::read_to_string(&path).unwrap();
+    writeln!(workspace, "tools:\n  python:\n    mirror: '{mirror}'").unwrap();
+    fs::write(&path, workspace).unwrap();
+}
+
 fn add_supported_architectures(root: &Path, platforms: &[&str]) {
     let path = root.join("pnpm-workspace.yaml");
     let mut workspace = fs::read_to_string(&path).unwrap();
@@ -554,7 +562,7 @@ async fn installs_an_interpreter_no_machine_has_and_reuses_it() {
     let mut server = mockito::Server::new_async().await;
     project(root.path(), "https://unused.invalid", &[]);
     let release = serve_interpreter(&mut server, &["3.13.99"]).await;
-    add_python_settings(root.path(), &format!("  downloadUrl: '{}'\n", server.url()));
+    add_python_mirror(root.path(), &server.url());
     let install = || {
         fs::write(
             root.path().join("pyproject.toml"),
@@ -604,7 +612,7 @@ async fn a_pin_the_release_moved_past_installs_the_version_it_has() {
     )
     .unwrap();
     fs::write(root.path().join(".python-version"), "3.13.95\n").unwrap();
-    add_python_settings(root.path(), &format!("  downloadUrl: '{}'\n", server.url()));
+    add_python_mirror(root.path(), &server.url());
 
     let output = pacquet_in(root.path())
         .arg("install")
@@ -632,7 +640,7 @@ async fn a_pin_the_project_refuses_installs_a_version_it_accepts() {
     )
     .unwrap();
     fs::write(root.path().join(".python-version"), "3.13.93\n").unwrap();
-    add_python_settings(root.path(), &format!("  downloadUrl: '{}'\n", server.url()));
+    add_python_mirror(root.path(), &server.url());
 
     let output = pacquet_in(root.path())
         .arg("install")
@@ -672,7 +680,7 @@ async fn refuses_an_interpreter_the_release_does_not_name() {
         "[project]\nname = 'app'\nversion = '1.0'\nrequires-python = '==3.13.97'\ndependencies = []\n",
     )
     .unwrap();
-    add_python_settings(root.path(), &format!("  downloadUrl: '{}'\n", server.url()));
+    add_python_mirror(root.path(), &server.url());
     assert_failure_contains(
         pacquet_in(root.path()).arg("install"),
         "is not the one the release names",
@@ -700,7 +708,7 @@ async fn an_interpreter_is_installed_only_where_the_install_may_download() {
         "[project]\nname = 'app'\nversion = '1.0'\nrequires-python = '==3.13.98'\ndependencies = []\n",
     )
     .unwrap();
-    add_python_settings(root.path(), &format!("  downloadUrl: '{}'\n", server.url()));
+    add_python_mirror(root.path(), &server.url());
     assert_failure_contains(
         pacquet_in(root.path()).args(["install", "--runtime-on-fail=error"]),
         "no Python interpreter for",

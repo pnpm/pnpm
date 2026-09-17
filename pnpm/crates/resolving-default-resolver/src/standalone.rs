@@ -84,7 +84,10 @@ pub fn build_standalone_chain(
         Box::new(LocalSchemeResolver::new(local_ctx)),
         Box::new(build_node_resolver(config, http_client)),
         Box::new(DenoResolver::new(Arc::clone(http_client), Arc::clone(&npm_resolver))),
-        Box::new(BunResolver::new(Arc::clone(http_client), Arc::clone(&npm_resolver))),
+        Box::new(
+            BunResolver::new(Arc::clone(http_client), Arc::clone(&npm_resolver))
+                .with_mirror(config.tool_mirror("bun")),
+        ),
         Box::new(YarnResolver::new(Arc::clone(http_client), config.tls.strict_ssl.unwrap_or(true))),
         Box::new(build_named_registry_resolver(opts, retry_opts)?),
         Box::new(LocalPathResolver::new(local_ctx)),

@@ -7,8 +7,8 @@ use super::{
     PeerDependencyRules, Pipe, PmOnFail, PnpmfileSetting, PythonSettings, RegistryEntry,
     RemoteSideEffectsCacheSettings, ResolutionMode, RuntimeOnFail, SCHEMA_DIRECTIVE_KEY,
     SaveWorkspaceProtocol, ScriptsPrependNodePath, SideEffectsCacheSetting, SupportedArchitectures,
-    TaskSettings, TrustPolicy, UpdateConfig, UpdateSettings, VerifyDepsBeforeRun, VirtualStoreType,
-    WORKSPACE_MANIFEST_FILENAME, WorkspaceKeyIssues, fs, redact_and_sanitize,
+    TaskSettings, ToolSettings, TrustPolicy, UpdateConfig, UpdateSettings, VerifyDepsBeforeRun,
+    VirtualStoreType, WORKSPACE_MANIFEST_FILENAME, WorkspaceKeyIssues, fs, redact_and_sanitize,
 };
 
 /// `serde` helper for fields that need to distinguish "missing key"
@@ -165,6 +165,9 @@ pub struct WorkspaceSettings {
     pub pnpr_server: Option<String>,
     pub cargo: Option<CargoSettings>,
     pub python: Option<PythonSettings>,
+    /// `tools` from `pnpm-workspace.yaml`: what pnpm is told about the
+    /// programs it downloads, keyed by tool name. See [`ToolSettings`].
+    pub tools: Option<BTreeMap<String, ToolSettings>>,
     pub remote_side_effects_cache: Option<RemoteSideEffectsCacheSettings>,
     pub https_proxy: Option<String>,
     pub http_proxy: Option<String>,

@@ -97,6 +97,8 @@ pub struct NodeResolver {
     pub http_client: Arc<ThrottledClient>,
     pub auth_headers: Arc<AuthHeaders>,
     pub node_download_mirrors: HashMap<String, String>,
+    /// `tools.node.mirror`: the base every release channel hangs off.
+    pub mirror: Option<String>,
     pub offline: bool,
     /// The pnpm cache directory backing the per-version SHASUMS disk
     /// cache. `None` disables the cache and every resolve fetches the
@@ -119,6 +121,7 @@ impl NodeResolver {
             http_client,
             auth_headers,
             node_download_mirrors: HashMap::new(),
+            mirror: None,
             offline: false,
             cache_dir: None,
         }
@@ -240,7 +243,11 @@ impl NodeResolver {
         }
         let parsed =
             parse_node_specifier(version_spec).map_err(NodeResolverError::InvalidReleaseChannel)?;
-        let mirror = get_node_mirror(Some(&self.node_download_mirrors), &parsed.release_channel);
+        let mirror = get_node_mirror(
+            self.mirror.as_deref(),
+            Some(&self.node_download_mirrors),
+            &parsed.release_channel,
+        );
         if let Some(version) = exact_release_version(&parsed) {
             return Ok(PickedNodeVersion {
                 version,
@@ -312,7 +319,11 @@ impl NodeResolver {
             .map_err(|err| {
                 Box::new(NodeResolverError::InvalidReleaseChannel(err)) as ResolveError
             })?;
-        let mirror = get_node_mirror(Some(&self.node_download_mirrors), &parsed.release_channel);
+        let mirror = get_node_mirror(
+            self.mirror.as_deref(),
+            Some(&self.node_download_mirrors),
+            &parsed.release_channel,
+        );
         let version = resolve_node_version_with_auth(
             &self.http_client,
             &self.auth_headers,

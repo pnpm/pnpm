@@ -31,6 +31,7 @@ fn create_config(
     cache_dir: &Path,
 ) -> Config {
     Config {
+        tools: std::collections::BTreeMap::new(),
         bail: true,
         ci: false,
         update_notifier: true,

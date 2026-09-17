@@ -56,6 +56,7 @@ impl WorkspaceSettings {
         self.versioning = None;
         self.cargo = None;
         self.python = None;
+        self.tools = None;
         self.packages = None;
         self.catalog = None;
         // Task declarations describe the workspace's own scripts; pnpm's

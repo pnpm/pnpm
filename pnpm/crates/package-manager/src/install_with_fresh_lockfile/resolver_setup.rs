@@ -339,6 +339,7 @@ impl ResolverChainInputs<'_> {
             Arc::clone(self.fetching.auth_headers),
         );
         node_resolver.node_download_mirrors.clone_from(&self.config.node_download_mirrors);
+        node_resolver.mirror = self.config.tool_mirror("node").map(ToString::to_string);
         node_resolver.offline = self.config.offline;
         node_resolver.cache_dir = Some(self.config.cache_dir.clone());
         node_resolver
@@ -407,10 +408,10 @@ impl ResolverChainInputs<'_> {
                 Arc::clone(self.fetching.http_client),
                 Arc::clone(npm_resolver),
             )),
-            Box::new(BunResolver::new(
-                Arc::clone(self.fetching.http_client),
-                Arc::clone(npm_resolver),
-            )),
+            Box::new(
+                BunResolver::new(Arc::clone(self.fetching.http_client), Arc::clone(npm_resolver))
+                    .with_mirror(self.config.tool_mirror("bun")),
+            ),
             Box::new(YarnResolver::new(
                 Arc::clone(self.fetching.http_client),
                 self.config.tls.strict_ssl.unwrap_or(true),

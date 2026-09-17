@@ -107,6 +107,7 @@ impl WorkspaceSettings {
             pnpr_server: config.pnpr_server.clone(),
             cargo: Some(config.cargo.clone()),
             python: Some(config.python.clone()),
+            tools: Some(config.tools.clone()),
             remote_side_effects_cache: config.remote_side_effects_cache.clone(),
             reporter_hide_prefix: config.reporter_hide_prefix,
             max_sockets: config.max_sockets,

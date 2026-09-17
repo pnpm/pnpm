@@ -9,7 +9,7 @@
 
 use super::{InterpreterCommand, VersionRequest, command::interpreter_in};
 use miette::{IntoDiagnostic, Result, WrapErr, bail};
-use pnpm_config::{Config, RuntimeOnFail};
+use pnpm_config::{Config, DEFAULT_PYTHON_DOWNLOAD_URL, RuntimeOnFail};
 use pnpm_crypto_shasums_file::{ShasumsFileItem, fetch_moving_shasums_file_cached};
 use pnpm_network::{AuthHeaders, ThrottledClient};
 use pnpm_reporter::{GlobalLog, LogEvent, LogLevel, Reporter};
@@ -56,10 +56,18 @@ pub(super) struct Build {
     integrity: ssri::Integrity,
 }
 
+/// Where the interpreter builds are downloaded from: the mirror
+/// `tools.python.mirror` names, or python-build-standalone's own
+/// releases. A mirror lays a release out the way that project does, so
+/// only the host above it differs.
+fn releases_url(config: &Config) -> &str {
+    config.tool_mirror("python").unwrap_or(DEFAULT_PYTHON_DOWNLOAD_URL)
+}
+
 impl Releases {
     /// The interpreters pnpm can install.
     pub(super) async fn read(config: &Config, client: &ThrottledClient) -> Result<Self> {
-        let url = format!("{}/latest/download/SHA256SUMS", config.python.download_url);
+        let url = format!("{}/latest/download/SHA256SUMS", releases_url(config));
         let index = fetch_moving_shasums_file_cached(
             client,
             &url,
@@ -129,7 +137,7 @@ impl Build {
         config: &Config,
         client: &ThrottledClient,
     ) -> Result<tempfile::NamedTempFile> {
-        let url = format!("{}/download/{}/{}", config.python.download_url, self.tag, self.file);
+        let url = format!("{}/download/{}/{}", releases_url(config), self.tag, self.file);
         let response = client
             .get_limited_bytes_with_secure_auth_and_retry(
                 &url,

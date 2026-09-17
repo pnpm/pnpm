@@ -1,6 +1,6 @@
 use pretty_assertions::assert_eq;
 
-use super::parse_asset_name;
+use super::{parse_asset_name, release_base};
 
 #[test]
 fn parses_apple_silicon_zip() {
@@ -31,4 +31,22 @@ fn ignores_unrelated_assets() {
     assert!(parse_asset_name("SHASUMS256.txt").is_none());
     assert!(parse_asset_name("bun-linux.zip").is_none());
     assert!(parse_asset_name("bun-linux-x64.tar.gz").is_none());
+}
+
+/// A mirror carries Bun's own layout below it, so both the checksums
+/// file and every asset of a release are found by swapping the host.
+#[test]
+fn a_release_is_laid_out_the_same_under_a_mirror() {
+    assert_eq!(
+        release_base(None, "1.2.3"),
+        "https://github.com/oven-sh/bun/releases/download/bun-v1.2.3",
+    );
+    assert_eq!(
+        release_base(Some("https://mirror.example.test/bun"), "1.2.3"),
+        "https://mirror.example.test/bun/bun-v1.2.3",
+    );
+    assert_eq!(
+        release_base(Some("https://mirror.example.test/bun/"), "1.2.3"),
+        "https://mirror.example.test/bun/bun-v1.2.3",
+    );
 }

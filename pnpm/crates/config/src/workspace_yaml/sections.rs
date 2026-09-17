@@ -99,6 +99,24 @@ pub struct RemoteSideEffectsCacheSettings {
     pub private_key: Option<String>,
 }
 
+/// What pnpm is told about one tool it downloads, keyed by the tool's
+/// name under `tools` in `pnpm-workspace.yaml`.
+///
+/// A tool here is a program pnpm fetches to run something with: a
+/// JavaScript runtime, a Python interpreter, another package manager.
+/// Where the packages of an ecosystem come from is a separate question,
+/// answered by `registry`, `python.indexUrl` and `cargo.indexUrl`.
+#[derive(Debug, Default, Clone, PartialEq, Eq, serde::Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", default, deny_unknown_fields)]
+pub struct ToolSettings {
+    /// Where this tool's builds are downloaded from, in place of the
+    /// project that publishes them, as the base URL its own layout hangs
+    /// off. A tool that publishes several lines of builds, which only
+    /// Node.js does, has the line below this base the way its own tree
+    /// lays them out.
+    pub mirror: Option<String>,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", default, deny_unknown_fields)]
 pub struct CargoSettings {
@@ -136,11 +154,6 @@ pub struct PythonSettings {
     /// version such as `3.12` or a full one such as `3.12.7`. Empty locks
     /// for the version of the interpreter the install runs on.
     pub python_versions: Vec<String>,
-    /// Where the interpreters pnpm installs are downloaded from, as the
-    /// releases URL of a [python-build-standalone] mirror.
-    ///
-    /// [python-build-standalone]: https://github.com/astral-sh/python-build-standalone
-    pub download_url: String,
 }
 
 impl Default for PythonSettings {
@@ -155,7 +168,6 @@ impl Default for PythonSettings {
             extras: Vec::new(),
             groups: vec!["dev".to_string()],
             python_versions: Vec::new(),
-            download_url: DEFAULT_PYTHON_DOWNLOAD_URL.to_string(),
         }
     }
 }

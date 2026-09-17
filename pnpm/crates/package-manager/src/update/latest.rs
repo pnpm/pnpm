@@ -180,13 +180,17 @@ pub(super) fn ensure_latest_resolver_chain<'chain>(
             Arc::clone(&ctx.config.auth_headers),
         );
         node_resolver.node_download_mirrors.clone_from(&ctx.config.node_download_mirrors);
+        node_resolver.mirror = ctx.config.tool_mirror("node").map(ToString::to_string);
         node_resolver.offline = ctx.config.offline;
         node_resolver.cache_dir = Some(ctx.config.cache_dir.clone());
         let resolver = DefaultResolver::new(vec![
             Box::new(Arc::clone(&npm_resolver)) as Box<dyn Resolver>,
             Box::new(node_resolver),
             Box::new(DenoResolver::new(Arc::clone(ctx.http_client_arc), Arc::clone(&npm_resolver))),
-            Box::new(BunResolver::new(Arc::clone(ctx.http_client_arc), Arc::clone(&npm_resolver))),
+            Box::new(
+                BunResolver::new(Arc::clone(ctx.http_client_arc), Arc::clone(&npm_resolver))
+                    .with_mirror(ctx.config.tool_mirror("bun")),
+            ),
             Box::new(YarnResolver::new(
                 Arc::clone(ctx.http_client_arc),
                 ctx.config.tls.strict_ssl.unwrap_or(true),

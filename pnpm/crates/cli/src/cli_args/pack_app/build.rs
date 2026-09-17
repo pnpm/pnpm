@@ -159,10 +159,11 @@ fn node_binary_path(node_dir: &Path, platform: &str) -> PathBuf {
 
 pub(super) async fn resolve_version(config: &Config, specifier: &str) -> miette::Result<String> {
     let parsed = parse_node_specifier(specifier).map_err(miette::Report::new)?;
-    // pacquet has no `node-download-mirrors` config field yet, so the
-    // override map is always absent and the official nodejs.org tree is
-    // used. Matches pnpm's default when `nodeDownloadMirrors` is unset.
-    let mirror = get_node_mirror(None, &parsed.release_channel);
+    let mirror = get_node_mirror(
+        config.tool_mirror("node"),
+        Some(&config.node_download_mirrors),
+        &parsed.release_channel,
+    );
     let http_client = build_http_client(config)?;
     let version = resolve_node_version(&http_client, &parsed.version_specifier, Some(&mirror))
         .await
