@@ -1,7 +1,7 @@
 pub(super) use validation::{extra_set, requirement_set};
 
 pub(super) use approvals::unapproved;
-pub(super) use metadata::FallbackWheel;
+pub(super) use metadata::{FallbackWheel, MetadataScope};
 
 mod approvals;
 mod metadata;

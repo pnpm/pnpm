@@ -268,13 +268,8 @@ pub fn execution_paths<'a>(
     std::borrow::Cow::Owned(paths)
 }
 
-/// The environment a command run in `dir` uses: the one at the workspace
-/// root when `dir` is a member of a workspace sharing it, and its own
-/// otherwise, which is where an install would create it.
 fn environment_dir(workspace: Option<&Path>, dir: &Path) -> PathBuf {
-    workspace::members::shared_root_of(workspace, dir)
-        .unwrap_or_else(|| dir.to_path_buf())
-        .join(".venv")
+    workspace::members::environment_root_of(workspace, dir).join(".venv")
 }
 
 #[cfg(test)]

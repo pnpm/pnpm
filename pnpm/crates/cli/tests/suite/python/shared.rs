@@ -182,3 +182,37 @@ async fn adding_to_a_member_updates_its_manifest_and_the_shared_lockfile() {
         .assert()
         .success();
 }
+
+#[tokio::test]
+async fn a_shared_member_with_dynamic_metadata_is_prepared_with_the_shared_interpreter() {
+    let root = tempfile::tempdir().unwrap();
+    let mut server = mockito::Server::new_async().await;
+    let _backends = serve_backends(&mut server).await;
+    let _alpha = serve(&mut server, "alpha", &[("1.0", wheel("alpha", "1.0", "", &[]))]).await;
+    shared_workspace(root.path(), &server.url());
+    python_project(&root.path().join("packages/lib"), "lib", "dependencies = ['alpha']");
+    let app = root.path().join("packages/app");
+    fs::create_dir_all(app.join("app")).unwrap();
+    fs::write(app.join("app/__init__.py"), "VALUE = 'source'\n").unwrap();
+    fs::write(
+        app.join("pyproject.toml"),
+        "[project]\nname = 'app'\ndynamic = ['version']\nrequires-python = '>=3.10'\n\
+         dependencies = ['lib']\n\n[tool.uv.sources]\nlib = { workspace = true }\n\n\
+         [build-system]\nrequires = ['hatchling']\nbuild-backend = 'hatchling.build'\n",
+    )
+    .unwrap();
+
+    pacquet_in(root.path())
+        .arg("install")
+        .assert()
+        .success();
+
+    python(root.path())
+        .args(["-c", "import alpha, lib; import importlib.metadata as m; print(m.version('app'))"])
+        .assert()
+        .success()
+        .stdout(line("0.0.1"));
+    let lock: toml::Value =
+        toml::from_str(&fs::read_to_string(root.path().join("pylock.toml")).unwrap()).unwrap();
+    assert_eq!(lock["tool"]["pnpm"]["members"], list(&["packages/app", "packages/lib"]));
+}

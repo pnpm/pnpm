@@ -304,32 +304,45 @@ fn the_members_of_a_shared_environment_share_the_interpreter_range_all_accept() 
     assert!(undeclared.is_none());
 }
 
-/// A command run in a member of a shared environment finds the
-/// environment at the workspace root; one run in a member of a workspace
-/// that shares none, or where no workspace is configured, uses the
-/// directory's own.
-#[test]
-fn a_command_uses_the_environment_its_workspace_shares_or_its_own() {
-    let workspace = tempfile::tempdir().expect("workspace directory");
-    let member = workspace.path().join("packages/app");
-    std::fs::create_dir_all(&member).expect("member directory");
-    std::fs::create_dir(workspace.path().join(".venv")).expect("root environment");
-    let own = member.join(".venv");
-    let root_manifest = workspace.path().join("pyproject.toml");
-    std::fs::write(&root_manifest, "[tool.uv.workspace]\nmembers = ['packages/*']\n")
-        .expect("unshared workspace");
-    assert_eq!(super::environment_dir(Some(workspace.path()), &member), own);
+const UNSHARED_ROOT: &str = "[tool.uv.workspace]\nmembers = ['libs/*']\n";
 
-    std::fs::write(&root_manifest, SHARED_ROOT).expect("shared workspace");
+/// A command run in a member of a shared environment, or anywhere under
+/// it, finds the environment at the workspace root. One run in a member
+/// of a workspace that shares none, in a project the declaration
+/// excludes, or where no workspace is configured, uses the project's own.
+/// A nested workspace is the one its own members belong to.
+#[test]
+fn a_command_uses_the_environment_its_project_shares_or_its_own() {
+    let workspace = tempfile::tempdir().expect("workspace directory");
+    let root = workspace.path();
+    let environment_of = |dir: &std::path::Path| super::environment_dir(Some(root), dir);
+    for project in ["packages/app", "packages/tool", "packages/nested/libs/x", "packages/inner"] {
+        std::fs::create_dir_all(root.join(project).join("src")).expect("project directory");
+        std::fs::write(root.join(project).join("pyproject.toml"), MEMBER).expect("member");
+    }
+    let app = root.join("packages/app");
+    std::fs::write(root.join("pyproject.toml"), UNSHARED_ROOT.replace("libs", "packages"))
+        .expect("unshared workspace");
+    assert_eq!(environment_of(&app), app.join(".venv"));
+
+    std::fs::write(root.join("pyproject.toml"), SHARED_ROOT).expect("shared workspace");
+    assert_eq!(environment_of(&app), root.join(".venv"));
+    assert_eq!(environment_of(&app.join("src")), root.join(".venv"), "under a member");
+    assert_eq!(super::environment_dir(None, &app), app.join(".venv"), "no workspace");
+    let tool = root.join("packages/tool");
+    assert_eq!(environment_of(&tool), tool.join(".venv"), "excluded");
+    assert_eq!(environment_of(root), root.join(".venv"), "the root itself");
+
+    std::fs::write(root.join("packages/nested/pyproject.toml"), UNSHARED_ROOT)
+        .expect("nested unshared workspace");
+    let nested_member = root.join("packages/nested/libs/x");
     assert_eq!(
-        super::environment_dir(Some(workspace.path()), &member),
-        workspace.path().join(".venv"),
+        environment_of(&nested_member),
+        nested_member.join(".venv"),
+        "a member of the nearer workspace",
     );
-    assert_eq!(super::environment_dir(None, &member), own, "no workspace to share one");
-    let excluded = workspace.path().join("packages/tool");
-    assert_eq!(super::environment_dir(Some(workspace.path()), &excluded), excluded.join(".venv"));
-    assert_eq!(
-        super::environment_dir(Some(workspace.path()), workspace.path()),
-        workspace.path().join(".venv"),
-    );
+    std::fs::write(root.join("packages/inner/pyproject.toml"), SHARED_ROOT)
+        .expect("nested shared workspace");
+    let inner = root.join("packages/inner");
+    assert_eq!(environment_of(&inner), inner.join(".venv"), "its own workspace root");
 }

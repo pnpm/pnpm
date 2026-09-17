@@ -152,26 +152,39 @@ impl Patterns {
     }
 }
 
-/// The root of the workspace whose environment the project at `dir`
-/// shares, read from the manifests above it up to `workspace`, or `None`
-/// when `dir` installs into an environment of its own. A command run in
-/// a project reads this without an install's discovery, so a manifest
-/// that does not parse counts for nothing here and is reported by the
-/// next install.
-pub(crate) fn shared_root_of(workspace: Option<&Path>, dir: &Path) -> Option<PathBuf> {
-    let stop = workspace?;
-    dir.ancestors()
-        .skip(1)
+/// The directory whose environment a command run in `dir` uses: the root
+/// of the workspace the project containing `dir` shares an environment
+/// with, else that project's own directory. Read from the manifests
+/// between `dir` and `workspace`, the way an install reads them: the
+/// project is the nearest directory with a manifest, and the workspace it
+/// belongs to is the nearest one declared at or above it. A command reads
+/// this without an install's discovery, so a manifest that does not
+/// parse counts for nothing here and is reported by the next install.
+pub(crate) fn environment_root_of(workspace: Option<&Path>, dir: &Path) -> PathBuf {
+    let Some(stop) = workspace else { return dir.to_path_buf() };
+    let project = dir
+        .ancestors()
         .take_while(|ancestor| ancestor.starts_with(stop))
-        .find(|ancestor| {
-            std::fs::read_to_string(ancestor.join("pyproject.toml"))
-                .ok()
-                .and_then(|contents| Manifest::parse(&contents).ok())
-                .filter(Manifest::shares_environment)
-                .and_then(|manifest| manifest.tool.uv.workspace.as_ref().map(Patterns::of))
-                .is_some_and(|patterns| patterns.contain(ancestor, dir))
-        })
-        .map(Path::to_path_buf)
+        .find(|ancestor| ancestor.join("pyproject.toml").is_file())
+        .unwrap_or(dir);
+    let declared = project
+        .ancestors()
+        .take_while(|ancestor| ancestor.starts_with(stop))
+        .find_map(|ancestor| Some((ancestor, workspace_declaration(ancestor)?)));
+    match declared {
+        Some((root, (true, patterns))) if patterns.contain(root, project) => root.to_path_buf(),
+        _ => project.to_path_buf(),
+    }
+}
+
+/// Whether the manifest at `root` shares its environment, and which
+/// projects it contains, for one that declares a workspace.
+fn workspace_declaration(root: &Path) -> Option<(bool, Patterns)> {
+    let manifest = std::fs::read_to_string(root.join("pyproject.toml"))
+        .ok()
+        .and_then(|contents| Manifest::parse(&contents).ok())?;
+    let declaration = manifest.tool.uv.workspace.as_ref()?;
+    Some((manifest.shares_environment(), Patterns::of(declaration)))
 }
 
 /// A pattern that cannot be read matches nothing, the way a member

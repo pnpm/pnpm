@@ -251,9 +251,10 @@ workspace, into one `pylock.toml` and one `.venv` at the workspace root.
 Each member still selects its own extras and dependency groups, and the
 environment holds the union. Every member that builds a package is installed
 into it, and a member another member requires through `[tool.uv.sources]`
-is installed as that source asks. One interpreter serves all of them: the
-first this machine has that every member's `requires-python` accepts,
-preferring the version the root's `.python-version` asks for. The lockfile
+is installed as that source asks. One interpreter serves all of them, the
+dynamic metadata of any member included: the first this machine has that
+every member's `requires-python` accepts, preferring the version the root's
+`.python-version` asks for. The lockfile
 records the members it answers for under `tool.pnpm.members`, and its
 `requires-python` is the range they accept together.
 
@@ -262,8 +263,9 @@ at once are refused, with an error naming the distribution and both members,
 rather than resolved to one of the versions silently. A shared environment is
 one thing, so `--filter` selecting any member installs it whole, and
 `pnpm add` in a member writes that member's manifest and the shared lockfile.
-`pnpm run` and `pnpm exec` in a member use the `.venv` at the workspace
-root, which they find by reading the manifests above the member.
+`pnpm run` and `pnpm exec` in a member, or anywhere under one, use the
+`.venv` at the workspace root, which they find by reading the manifests
+above the directory.
 
 Sharing is opt-in, which is the difference from uv worth keeping: a
 repository takes the shared environment where its projects agree and keeps

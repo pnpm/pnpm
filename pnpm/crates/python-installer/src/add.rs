@@ -42,16 +42,7 @@ pub fn plan_add<Reporter: self::Reporter + 'static>(
         .iter()
         .map(|root| writable_project(root))
         .collect::<Result<Vec<_>>>()?;
-    let metadata = projects
-        .iter()
-        .map(|root| root.join("pyproject.toml"))
-        .chain(
-            discovery.workspace
-                .memberships(&selected)
-                .iter()
-                .map(|membership| membership.root.join("pylock.toml")),
-        )
-        .collect();
+    let metadata = metadata_paths(&discovery, &projects, &selected);
     let prepare = async move {
         for root in &projects {
             manifest::add(
@@ -61,7 +52,14 @@ pub fn plan_add<Reporter: self::Reporter + 'static>(
             )?;
         }
         let config = context.config;
-        let discovery = discovery.reread(config, &selected).await?;
+        // Every member's manifest is read again, not only the edited ones:
+        // the discovery above ran before the workspace lock was taken.
+        let members = discovery.workspace
+            .memberships(&selected)
+            .into_iter()
+            .flat_map(|membership| membership.members)
+            .collect();
+        let discovery = discovery.reread(config, &members).await?;
         let mut prepared = prepare::<Reporter>(
             context,
             discovery,
@@ -74,6 +72,25 @@ pub fn plan_add<Reporter: self::Reporter + 'static>(
         Ok(prepared)
     };
     Ok(pnpm_install_coordinator::InstallTask::new(metadata, prepare))
+}
+
+/// The files an add may change: each edited manifest, and the lockfile of
+/// every unit the edited projects install into.
+fn metadata_paths(
+    discovery: &Discovery,
+    projects: &[PathBuf],
+    selected: &BTreeSet<PathBuf>,
+) -> Vec<PathBuf> {
+    projects
+        .iter()
+        .map(|root| root.join("pyproject.toml"))
+        .chain(
+            discovery.workspace
+                .memberships(selected)
+                .iter()
+                .map(|membership| membership.root.join("pylock.toml")),
+        )
+        .collect()
 }
 
 /// A directory `pnpm add` can write a requirement to. A directory without a

@@ -7,6 +7,7 @@ mod disagreement;
 
 use super::{
     Environments, Interpreter, Interpreters, Prepared,
+    build::MetadataScope,
     environment::{PythonPrepare, Shared},
     interpreter, manifest,
     workspace::{self, members::Membership},
@@ -55,7 +56,7 @@ async fn select<Reporter: self::Reporter + 'static>(
     let prepared_with = shared.prepare_metadata::<Reporter>(
         &mut discovered,
         &mut interpreters,
-        &workspace.reachable_from(&needed),
+        MetadataScope { needed: &workspace.reachable_from(&needed), memberships: &memberships },
     )
     .await?;
     workspace.update_manifests(&discovered);
@@ -79,8 +80,9 @@ struct Selecting<'a> {
     workspace: workspace::Workspace,
     manifests: BTreeMap<PathBuf, Arc<manifest::Manifest>>,
     interpreters: Interpreters<'a>,
-    /// The interpreter each project with dynamic metadata was prepared
-    /// with, which a project on its own is then installed with too.
+    /// The interpreter the dynamic metadata of each unit was prepared
+    /// with, keyed by the unit's root, which the unit is then installed
+    /// with too.
     prepared_with: BTreeMap<PathBuf, Arc<Interpreter>>,
 }
 
@@ -145,17 +147,15 @@ impl Selecting<'_> {
             .collect()
     }
 
-    /// The interpreter the members are installed with: one every member
-    /// accepts. A project on its own keeps the one its dynamic metadata
-    /// was prepared with, which its manifest already selected.
+    /// The interpreter the members are installed with: the one their
+    /// dynamic metadata was prepared with, which their manifests already
+    /// selected, else one every member accepts.
     async fn interpreter<Reporter: self::Reporter + 'static>(
         &mut self,
         root: &Path,
         members: &[(PathBuf, Arc<manifest::Manifest>)],
     ) -> Result<Arc<Interpreter>> {
-        if let [(member, _)] = members
-            && let Some(interpreter) = self.prepared_with.remove(member)
-        {
+        if let Some(interpreter) = self.prepared_with.remove(root) {
             return Ok(interpreter);
         }
         let requires_python = interpreter::requires_python_of(
