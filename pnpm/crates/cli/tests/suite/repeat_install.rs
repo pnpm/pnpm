@@ -632,6 +632,52 @@ fn forced_install_replaces_a_drifted_global_virtual_store_slot() {
     drop((root, mock_instance));
 }
 
+/// `--force` and `frozenStore` are rejected before the install starts.
+///
+/// The forced re-import's `.pnpm-needs-build` marker is created only when the
+/// store is writable (`create_build_marker_source`), so under `frozenStore` a
+/// forced import would restore a built package's pristine files with no marker
+/// to tell the build phase, and `slot_carries_overlay` would report a cache
+/// hit. This conflict is what makes that unreachable, so it is load-bearing
+/// rather than a convenience.
+#[test]
+fn a_forced_install_is_rejected_against_a_frozen_store() {
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({ "dependencies": { "@pnpm.e2e/pkg-with-1-dep": "100.0.0" } }).to_string(
+        ),
+    )
+    .expect("write package.json");
+    enable_gvs_in_workspace_yaml(&workspace, "frozenStore: true\n");
+
+    let output = pacquet
+        .with_args(["install", "--force"])
+        .output()
+        .expect("spawn pacquet install");
+
+    assert!(
+        !output.status.success(),
+        "--force with frozenStore must fail (stderr: {})",
+        String::from_utf8_lossy(&output.stderr),
+    );
+    let stderr = String::from_utf8_lossy(&output.stderr).into_owned();
+    assert!(
+        stderr.contains("ERR_PNPM_CONFIG_CONFLICT_FROZEN_STORE_WITH_FORCE"),
+        "stderr must name the upstream config-conflict code; got:\n{stderr}",
+    );
+
+    drop((root, mock_instance));
+}
+
 /// pnpm's `file:` is a copy taken at install time, not a symlink, so
 /// each install must re-copy: the source can change with no lockfile
 /// change to signal it.

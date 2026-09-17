@@ -186,6 +186,30 @@ fn frozen_install_command(workspace: &Path) -> Command {
         .with_args(["install", "--frozen-lockfile"])
 }
 
+/// A workspace whose only dependency is approved to build under the global
+/// virtual store.
+///
+/// `@pnpm/postinstall-modifies-source` appends to a file that *is* in its
+/// tarball, so a slot reverted to its pristine files is visible in the file's
+/// contents. A package whose build only adds files would look correct, because
+/// `slot_carries_overlay` tests only that each overlay path exists.
+fn write_gvs_build_workspace(workspace: &Path) {
+    crate::_utils::enable_gvs_in_workspace_yaml(
+        workspace,
+        "allowBuilds:\n  '@pnpm/postinstall-modifies-source': true\n",
+    );
+    fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({
+            "dependencies": { "@pnpm/postinstall-modifies-source": "1.0.0" },
+        })
+        .to_string(),
+    )
+    .expect("write package.json");
+}
+
+const BUILT_PACKAGE_DIR: &str = "node_modules/@pnpm/postinstall-modifies-source";
+
 /// A forced re-import must not revert a built package to its pristine
 /// files and then skip the rebuild.
 ///
@@ -196,10 +220,6 @@ fn frozen_install_command(workspace: &Path) -> Command {
 /// `.pnpm-needs-build` is for, per `slot_carries_overlay`. Without the
 /// marker the cache hit reports the build as already on disk and the
 /// package keeps whatever the re-import left.
-///
-/// `@pnpm/postinstall-modifies-source` appends to a file that *is* in its
-/// tarball, so a reverted import is visible: a package whose build only
-/// adds files would look fine here.
 #[test]
 fn a_forced_install_does_not_revert_a_built_package_under_the_global_virtual_store() {
     let CommandTempCwd {
@@ -211,21 +231,9 @@ fn a_forced_install_does_not_revert_a_built_package_under_the_global_virtual_sto
     } = CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
 
-    crate::_utils::enable_gvs_in_workspace_yaml(
-        &workspace,
-        "allowBuilds:\n  '@pnpm/postinstall-modifies-source': true\n",
-    );
-    fs::write(
-        workspace.join("package.json"),
-        serde_json::json!({
-            "dependencies": { "@pnpm/postinstall-modifies-source": "1.0.0" },
-        })
-        .to_string(),
-    )
-    .expect("write package.json");
+    write_gvs_build_workspace(&workspace);
 
-    let built_file =
-        workspace.join("node_modules/@pnpm/postinstall-modifies-source/empty-file.txt");
+    let built_file = workspace.join(BUILT_PACKAGE_DIR).join("empty-file.txt");
 
     pacquet
         .with_arg("install")
@@ -246,6 +254,67 @@ fn a_forced_install_does_not_revert_a_built_package_under_the_global_virtual_sto
         "hello",
         "the forced install must not leave the package reverted to its pristine files",
     );
+
+    drop((root, mock_instance));
+}
+
+/// The marker a forced re-import writes must not outlive the install that
+/// wrote it, or every later install would read it as an interrupted build:
+/// re-importing the slot to its pristine files each time and keeping it out
+/// of the warm skip set, repaired only for as long as the cache row lives.
+///
+/// Nothing clears it explicitly on this path — `build_one_snapshot` removes it
+/// only from `build_candidate`, which the cache hit returns before reaching.
+/// What settles it is that a cache overlay is the whole post-build file set,
+/// imported with `force`, so materializing it replaces the directory's
+/// contents and takes the marker with them. The third install is here to hold
+/// that: it is a plain warm install, and it would re-import the slot if the
+/// marker had survived.
+#[test]
+fn a_forced_install_leaves_no_build_marker_behind_under_the_global_virtual_store() {
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    write_gvs_build_workspace(&workspace);
+
+    let package_dir = workspace.join(BUILT_PACKAGE_DIR);
+    let marker = package_dir.join(".pnpm-needs-build");
+
+    pacquet
+        .with_arg("install")
+        .assert()
+        .success();
+    assert!(!marker.exists(), "a completed build must not leave the marker behind");
+
+    crate::_utils::pacquet_in(&workspace)
+        .with_args(["install", "--force"])
+        .assert()
+        .success();
+    assert_eq!(
+        fs::read_to_string(package_dir.join("empty-file.txt"))
+            .expect("read the built file after the forced install"),
+        "hello",
+        "the forced install must restore the build",
+    );
+    assert!(!marker.exists(), "the restored build must not leave the forced import's marker");
+
+    crate::_utils::pacquet_in(&workspace)
+        .with_arg("install")
+        .assert()
+        .success();
+    assert_eq!(
+        fs::read_to_string(package_dir.join("empty-file.txt"))
+            .expect("read the built file after the following install"),
+        "hello",
+        "the install after a forced one must leave the build in place",
+    );
+    assert!(!marker.exists(), "no later install may reintroduce the marker");
 
     drop((root, mock_instance));
 }
