@@ -22,7 +22,7 @@ mod sources;
 mod targets;
 mod workspace;
 
-use environment::{LockfileInputs, PythonPrepare, Shared, publish_link, validate_environment_link};
+use environment::{Generation, LockfileInputs, PythonPrepare, Shared, publish_link};
 use generation::EnvironmentProject;
 use host::Interpreter;
 use interpreter::Interpreters;
@@ -57,7 +57,7 @@ struct Prepared {
     /// members sharing the environment at it.
     members: Vec<PathBuf>,
     lock: String,
-    environment: Option<tempfile::TempDir>,
+    environment: Option<Generation>,
     previous_environment: Option<Option<PathBuf>>,
 }
 
@@ -220,9 +220,9 @@ impl PythonPrepare<'_> {
 
 impl pnpm_install_coordinator::PreparedInstall for Prepared {
     fn publish(&mut self) -> Result<()> {
-        if let Some(environment) = &self.environment {
-            self.previous_environment = Some(validate_environment_link(&self.root)?);
-            publish_link(&self.root, environment.path())?;
+        if let Some(generation) = &self.environment {
+            self.previous_environment = Some(generation.store.validate_link(&self.root)?);
+            publish_link(&self.root, generation.directory.path())?;
         }
         let lock_path = self.root.join("pylock.toml");
         let previous = match fs::read_to_string(&lock_path) {
@@ -249,8 +249,8 @@ impl pnpm_install_coordinator::PreparedInstall for Prepared {
     }
 
     fn retain(self: Box<Self>) {
-        if let Some(environment) = self.environment {
-            let _ = environment.keep();
+        if let Some(generation) = self.environment {
+            let _ = generation.directory.keep();
         }
     }
 }

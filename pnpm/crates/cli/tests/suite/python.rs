@@ -179,25 +179,14 @@ async fn serve_wheels(
 
 fn add_python_settings(root: &Path, settings: &str) {
     let workspace = fs::read_to_string(root.join("pnpm-workspace.yaml")).unwrap();
-    let mut python_settings = String::new();
-    let mut pypi_overrides = None;
-    for line in settings.lines() {
-        if let Some(value) = line.strip_prefix("  overrides: ") {
-            pypi_overrides = Some(value);
-        } else {
-            writeln!(python_settings, "{line}").unwrap();
-        }
-    }
-    let workspace = workspace.replace(
-        "python:\n  enabled: true\n",
-        &format!("python:\n  enabled: true\n{python_settings}"),
-    );
-    let workspace = if let Some(overrides) = pypi_overrides {
-        format!("{workspace}\noverrides:\n  pypi: {overrides}\n")
-    } else {
-        workspace
-    };
-    fs::write(root.join("pnpm-workspace.yaml"), workspace).unwrap();
+    fs::write(
+        root.join("pnpm-workspace.yaml"),
+        workspace.replace(
+            "python:\n  enabled: true\n",
+            &format!("python:\n  enabled: true\n{settings}"),
+        ),
+    )
+    .unwrap();
 }
 
 /// The platform of the machine running the tests, as `python.platforms`
@@ -1845,6 +1834,7 @@ async fn locks_one_environment_per_platform_however_it_is_named() {
     assert_eq!(fs::read_to_string(root.path().join("pylock.toml")).unwrap(), lock);
 }
 
+mod environments;
 mod filtering;
 mod indexes;
 mod metadata;

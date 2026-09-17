@@ -8,7 +8,7 @@
 use super::symlink_dir;
 #[cfg(windows)]
 use super::to_native_separators;
-use super::{ForceSymlinkOutcome, force_symlink_dir, read_symlink_dir};
+use super::{ForceSymlinkOutcome, force_absolute_symlink_dir, force_symlink_dir, read_symlink_dir};
 #[cfg(windows)]
 use super::{is_reparse_point, relative_target_for};
 use std::fs;
@@ -38,6 +38,31 @@ fn unix_symlink_contents_are_relative_to_link_parent() {
         "symlink contents must be the relative path from link parent to target",
     );
     assert!(link.exists(), "symlink must resolve to an existing directory");
+}
+
+#[test]
+fn force_absolute_symlink_dir_keeps_the_target_as_given() {
+    let root = tempdir().expect("create temp dir");
+    let target = root.path().join("store").join("env");
+    let link = root
+        .path()
+        .join("project")
+        .join(".venv");
+    fs::create_dir_all(&target).expect("create target dir");
+    fs::create_dir_all(link.parent().unwrap()).expect("create link parent");
+
+    force_absolute_symlink_dir(&target, &link).expect("first link");
+    let outcome = force_absolute_symlink_dir(&target, &link).expect("second link");
+    assert!(outcome.reused, "an up-to-date absolute link is reused");
+
+    let contents = read_symlink_dir(&link).expect("read the link");
+    eprintln!("contents: {}", contents.display());
+    assert!(contents.is_absolute(), "link contents must be the target as given");
+    assert_eq!(
+        dunce::canonicalize(&contents).unwrap(),
+        dunce::canonicalize(&target).unwrap(),
+        "link contents must resolve to the target",
+    );
 }
 
 #[test]

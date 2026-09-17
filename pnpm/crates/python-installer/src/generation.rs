@@ -3,10 +3,10 @@
 
 use super::{
     Lockfile, Registry, Reporter, build,
-    environment::{PythonPrepare, ensure_environment_parent, validate_environment_link},
+    environment::{EnvironmentStore, Generation, PythonPrepare},
     host, projects, resolver, workspace,
 };
-use miette::{IntoDiagnostic, Result, bail};
+use miette::{Result, bail};
 use pnpm_reporter::{GlobalLog, LogEvent, LogLevel};
 use std::{
     collections::{BTreeMap, BTreeSet},
@@ -39,11 +39,11 @@ impl PythonPrepare<'_> {
         project: EnvironmentProject<'_>,
         lock: &Lockfile,
         selected: &[pep508_rs::Requirement],
-    ) -> Result<Option<tempfile::TempDir>> {
+    ) -> Result<Option<Generation>> {
         if self.context.lockfile_only {
             return Ok(None);
         }
-        let environment = new_generation(project.root)?;
+        let environment = EnvironmentStore::new(self.context.config).new_generation(project.root)?;
         // The lockfile may cover several environments; this one installs
         // for the interpreter that is running.
         registry.resolution.answer_for(self.interpreter.target.clone());
@@ -57,7 +57,7 @@ impl PythonPrepare<'_> {
         let packages = installed.packages;
         host::install(
             &self.interpreter.executable,
-            environment.path(),
+            environment.directory.path(),
             packages,
             self.context.config.package_import_method,
         )
@@ -140,17 +140,6 @@ fn report_unapproved_builds<Reporter: self::Reporter + 'static>(
     }
     Reporter::emit(&LogEvent::Global(GlobalLog { level: LogLevel::Warn, message }));
     Ok(())
-}
-
-/// A fresh environment generation beside the project, which publication
-/// makes the project's own once every participant has prepared.
-fn new_generation(root: &Path) -> Result<tempfile::TempDir> {
-    validate_environment_link(root)?;
-    ensure_environment_parent(root)?;
-    tempfile::Builder::new()
-        .prefix("env-")
-        .tempdir_in(root.join(".pnpm/python-envs"))
-        .into_diagnostic()
 }
 
 /// What an environment installs, and the directories the built wheels
