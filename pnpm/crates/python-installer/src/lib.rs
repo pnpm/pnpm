@@ -51,7 +51,11 @@ pub struct InstallOptions {
 }
 
 struct Prepared {
+    /// Where the lockfile and the environment are published.
     root: PathBuf,
+    /// The projects the lockfile answers for: `root` alone, or the
+    /// members sharing the environment at it.
+    members: Vec<PathBuf>,
     lock: String,
     environment: Option<tempfile::TempDir>,
     previous_environment: Option<Option<PathBuf>>,
@@ -65,9 +69,10 @@ pub fn plan<Reporter: self::Reporter + 'static>(
     selection: DependencySelection,
     selected: BTreeSet<PathBuf>,
 ) -> pnpm_install_coordinator::InstallTask<'static> {
-    let metadata = selected
+    let metadata = discovery.workspace
+        .memberships(&selected)
         .iter()
-        .map(|root| root.join("pylock.toml"))
+        .map(|membership| membership.root.join("pylock.toml"))
         .collect();
     pnpm_install_coordinator::InstallTask::new(
         metadata,
@@ -110,18 +115,18 @@ async fn prepare<Reporter: self::Reporter + 'static>(
 }
 
 impl PythonPrepare<'_> {
-    async fn project<Reporter: self::Reporter + 'static>(
+    async fn projects<Reporter: self::Reporter + 'static>(
         &self,
-        root: PathBuf,
-        manifest: Arc<manifest::Manifest>,
-        local: Arc<[workspace::LocalProject]>,
-        requirements: projects::Requirements,
+        projects: projects::Projects,
     ) -> Result<Prepared> {
-        let project = manifest.project.as_ref().expect("only project manifests were selected");
-        self.check_requires_python(&root, project.requires_python.as_deref())?;
-        let all_requirements = requirements.all;
-        let (mut registry, inputs) =
-            self.configured_registry(&all_requirements, &requirements.rules)?;
+        let recorded_members = projects.recorded_members();
+        let projects::Projects { root, members, local, rules, .. } = projects;
+        for member in &members {
+            self.check_requires_python(&member.root, member.requires_python())?;
+        }
+        let requirements = projects::Requirements::merged(&members);
+        let (mut registry, mut inputs) = self.configured_registry(&requirements.all, &rules)?;
+        inputs.set_members(recorded_members);
         workspace::offer(&mut registry.resolution.packages, &local);
         let lock_path = root.join("pylock.toml");
         let lock = self.project_lock::<Reporter>(
@@ -129,22 +134,27 @@ impl PythonPrepare<'_> {
             LockfileInputs {
                 existing: None,
                 lock_path: &lock_path,
-                requirements: &all_requirements,
+                requirements: &requirements.all,
                 inputs,
-                requires_python: project.requires_python.clone(),
+                requires_python: projects::requires_python_of(&members)?,
                 local: Arc::clone(&local),
+                members: &members,
             },
         )
         .await?;
         let environment = self.environment::<Reporter>(
             &mut registry,
-            EnvironmentProject { root: &root, manifest: &manifest, local: &local },
+            EnvironmentProject { root: &root, members: &members, local: &local },
             &lock,
             &requirements.selected,
         )
         .await?;
         Ok(Prepared {
             root,
+            members: members
+                .into_iter()
+                .map(|member| member.root)
+                .collect(),
             lock: toml::to_string_pretty(&lock).into_diagnostic()?,
             environment,
             previous_environment: None,
@@ -252,9 +262,14 @@ pub fn execution_paths<'a>(
     if !config.python.enabled {
         return std::borrow::Cow::Borrowed(&config.extra_bin_paths);
     }
-    let mut paths = vec![dir.join(if cfg!(windows) { ".venv/Scripts" } else { ".venv/bin" })];
+    let environment = environment_dir(config.workspace_dir.as_deref(), dir);
+    let mut paths = vec![environment.join(if cfg!(windows) { "Scripts" } else { "bin" })];
     paths.extend(config.extra_bin_paths.iter().cloned());
     std::borrow::Cow::Owned(paths)
+}
+
+fn environment_dir(workspace: Option<&Path>, dir: &Path) -> PathBuf {
+    workspace::members::environment_root_of(workspace, dir).join(".venv")
 }
 
 #[cfg(test)]

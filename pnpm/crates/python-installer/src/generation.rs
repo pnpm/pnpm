@@ -4,11 +4,14 @@
 use super::{
     Lockfile, Registry, Reporter, build,
     environment::{PythonPrepare, ensure_environment_parent, validate_environment_link},
-    host, manifest, resolver, workspace,
+    host, projects, resolver, workspace,
 };
 use miette::{IntoDiagnostic, Result, bail};
 use pnpm_reporter::{GlobalLog, LogEvent, LogLevel};
-use std::{collections::BTreeMap, path::Path};
+use std::{
+    collections::{BTreeMap, BTreeSet},
+    path::Path,
+};
 
 impl PythonPrepare<'_> {
     /// Build every project in this repository the solution selected.
@@ -63,46 +66,36 @@ impl PythonPrepare<'_> {
         Ok(Some(environment))
     }
 
-    /// The wheels an environment installs: the ones the lockfile pins, and
-    /// the ones built from the projects in this repository it selects.
+    /// The wheels an environment installs: the ones the lockfile pins, the
+    /// ones built from the projects in this repository it selects, and
+    /// the members that build a package.
     async fn installable<Reporter: self::Reporter + 'static>(
         &self,
         registry: &Registry<'_>,
         solution: BTreeMap<pep508_rs::PackageName, pep440_rs::Version>,
         project: EnvironmentProject<'_>,
     ) -> Result<Installable> {
-        let EnvironmentProject { root, manifest, local } = project;
-        let mut built = self.build_solved::<Reporter>(&solution, local).await?;
+        let EnvironmentProject { members, local, .. } = project;
+        let built = self.build_solved::<Reporter>(&solution, local).await?;
+        // A member another member requires from its source is installed
+        // as that requirement asks, so it is not built a second time.
+        let from_source = local
+            .iter()
+            .filter(|project| solution.get(&project.name) == Some(&project.version))
+            .map(|project| project.root.as_path())
+            .collect::<BTreeSet<_>>();
         let mut installable = Installable::default();
-        let mut unapproved = BTreeMap::new();
-        for package in solution {
-            match built.remove(&package.0) {
-                Some(build::Build::Made(build)) => installable.made(*build),
-                Some(build::Build::NotApproved(names)) => {
-                    unapproved.insert(package.0, names);
-                }
-                None => {
-                    let mut wheel = registry.wheels[&package].clone();
-                    if let Some(provenance) = registry.source_provenance(&package.0) {
-                        wheel.direct_url = Some(provenance);
-                    }
-                    installable.packages.push(wheel);
-                }
+        installable.take_solved(registry, solution, built);
+        for member in members {
+            if member.manifest.is_packaged() && !from_source.contains(member.root.as_path()) {
+                let name = member.manifest
+                    .distribution()
+                    .expect("a packaged project declares a distribution");
+                let build = self.build_self::<Reporter>(&member.root, &member.manifest).await?;
+                installable.take_build(name, build);
             }
         }
-        if manifest.is_packaged() {
-            match self.build_self::<Reporter>(root, manifest).await? {
-                build::Build::Made(build) => installable.made(*build),
-                build::Build::NotApproved(names) => {
-                    let name = manifest
-                        .distribution()
-                        .cloned()
-                        .expect("a packaged project declares a distribution");
-                    unapproved.insert(name, names);
-                }
-            }
-        }
-        report_unapproved_builds::<Reporter>(self.context.config, &unapproved)?;
+        report_unapproved_builds::<Reporter>(self.context.config, &installable.unapproved)?;
         Ok(installable)
     }
 }
@@ -166,18 +159,52 @@ fn new_generation(root: &Path) -> Result<tempfile::TempDir> {
 struct Installable {
     packages: Vec<host::Wheel>,
     unpacked: Vec<std::sync::Arc<tempfile::TempDir>>,
+    /// The projects pnpm did not build, by the build requirements nothing
+    /// has approved to run.
+    unapproved: BTreeMap<pep508_rs::PackageName, Vec<String>>,
 }
 
 impl Installable {
+    /// Take what the solution installs: the build of each project in this
+    /// repository it selected, and the wheel of every other package.
+    fn take_solved(
+        &mut self,
+        registry: &Registry<'_>,
+        solution: BTreeMap<pep508_rs::PackageName, pep440_rs::Version>,
+        mut built: BTreeMap<pep508_rs::PackageName, build::Build>,
+    ) {
+        for package in solution {
+            if let Some(build) = built.remove(&package.0) {
+                self.take_build(&package.0, build);
+                continue;
+            }
+            let mut wheel = registry.wheels[&package].clone();
+            if let Some(provenance) = registry.source_provenance(&package.0) {
+                wheel.direct_url = Some(provenance);
+            }
+            self.packages.push(wheel);
+        }
+    }
+
+    fn take_build(&mut self, name: &pep508_rs::PackageName, build: build::Build) {
+        match build {
+            build::Build::Made(build) => self.made(*build),
+            build::Build::NotApproved(names) => {
+                self.unapproved.insert(name.clone(), names);
+            }
+        }
+    }
+
     fn made(&mut self, build: build::Built) {
         self.packages.push(build.wheel);
         self.unpacked.push(build.output);
     }
 }
 
-/// The project an environment is being built for.
+/// The projects an environment is being built for.
 pub(super) struct EnvironmentProject<'a> {
+    /// Where the environment lives.
     pub(super) root: &'a Path,
-    pub(super) manifest: &'a manifest::Manifest,
+    pub(super) members: &'a [projects::Member],
     pub(super) local: &'a [workspace::LocalProject],
 }

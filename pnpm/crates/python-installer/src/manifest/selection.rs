@@ -13,13 +13,24 @@ pub(super) struct Pnpm {
 }
 
 #[derive(Default, Clone, Deserialize)]
-#[serde(deny_unknown_fields)]
+#[serde(rename_all = "kebab-case", deny_unknown_fields)]
 pub(super) struct PythonSelection {
     pub(super) extras: Option<Vec<String>>,
     pub(super) groups: Option<Vec<String>>,
+    /// Whether the members of the workspace this manifest declares are
+    /// resolved as one graph and install into one environment at its
+    /// root, rather than each into one of its own.
+    #[serde(default)]
+    pub(super) shared_environment: bool,
 }
 
 impl Manifest {
+    /// Whether the workspace this manifest declares asks for one
+    /// environment shared by every member.
+    pub(in super::super) fn shares_environment(&self) -> bool {
+        self.tool.pnpm.python.shared_environment
+    }
+
     pub(in super::super) fn requirements(
         &self,
         config: &Config,

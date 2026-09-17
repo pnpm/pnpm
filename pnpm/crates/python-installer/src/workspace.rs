@@ -1,4 +1,7 @@
+pub(crate) mod members;
+
 use super::manifest::{Manifest, SourceDeclaration};
+use members::members_of;
 use miette::{IntoDiagnostic, Result, WrapErr, bail};
 use pep440_rs::Version;
 use pep508_rs::{ExtraName, MarkerEnvironment, MarkerTree, PackageName, VerbatimUrl};
@@ -9,7 +12,6 @@ use std::{
     path::{Path, PathBuf},
     sync::Arc,
 };
-use wax::Program as _;
 
 mod graph;
 mod selection;
@@ -116,6 +118,9 @@ pub(super) struct Workspace {
     roots: BTreeMap<PackageName, Vec<PathBuf>>,
     manifests: BTreeMap<PathBuf, Arc<Manifest>>,
     inherited: BTreeMap<PathBuf, (PathBuf, Arc<Manifest>)>,
+    /// The workspace root whose environment each project shares, for the
+    /// members of a workspace that asks for one — see [`members`].
+    shared: BTreeMap<PathBuf, PathBuf>,
     selection: Option<Selection>,
 }
 
@@ -143,9 +148,15 @@ impl Workspace {
             .iter()
             .map(|(root, manifest)| (root.clone(), Arc::clone(manifest)))
             .collect();
-        let workspace =
-            Self { declared, roots, manifests, inherited: BTreeMap::new(), selection: None };
-        workspace.with_scopes(projects)
+        let workspace = Self {
+            declared,
+            roots,
+            manifests,
+            inherited: BTreeMap::new(),
+            shared: BTreeMap::new(),
+            selection: None,
+        };
+        workspace.with_scopes(projects)?.with_shared(projects)
     }
 
     pub(super) fn update_manifests(&mut self, projects: &[(PathBuf, Arc<Manifest>)]) {
@@ -236,7 +247,7 @@ impl Workspace {
         None
     }
 
-    /// Every workspace project the project at `root` reaches through its
+    /// Every workspace project the `members` reach through their
     /// requirements, and theirs.
     ///
     /// Only a project's own requirements consult its `[tool.uv.sources]`,
@@ -246,16 +257,18 @@ impl Workspace {
     /// their recorded paths are relative to.
     pub(super) fn local_projects(
         &self,
-        root: &Path,
-        manifest: &Manifest,
+        members: &[(&Path, &Manifest)],
         lock_root: &Path,
     ) -> Result<Vec<LocalProject>> {
         let mut local = Vec::new();
         let mut seen = BTreeMap::<PackageName, Target>::new();
-        let mut frontier = self.targets(root, manifest, None)?;
+        let mut frontier = Vec::new();
+        for (root, manifest) in members {
+            frontier.extend(self.targets(root, manifest, None)?);
+        }
         while let Some((name, target)) = frontier.pop() {
             if let Some(chosen) = seen.get_mut(&name) {
-                if chosen.merge(&target, &name, root)? {
+                if chosen.merge(&target, &name, lock_root)? {
                     let manifest = self.load(&target.root)?;
                     frontier.extend(self.targets(&target.root, &manifest, Some(&chosen.extras))?);
                 }
@@ -365,44 +378,6 @@ impl Workspace {
 struct Selection {
     config: &'static pnpm_config::Config,
     environments: Vec<MarkerEnvironment>,
-}
-
-/// The distributions a workspace contains: the root's own, and every
-/// discovered project under a `members` pattern that no `exclude` pattern
-/// takes back.
-fn members_of(
-    root: &Path,
-    declaration: &crate::manifest::UvWorkspace,
-    projects: &[(PathBuf, Arc<Manifest>)],
-) -> BTreeSet<PackageName> {
-    let included = compile(&declaration.members);
-    let excluded = compile(&declaration.exclude);
-    let mut members = BTreeSet::new();
-    for (candidate, manifest) in projects {
-        let Some(name) = manifest.distribution() else { continue };
-        let Ok(relative) = candidate.strip_prefix(root) else { continue };
-        let relative = if relative.as_os_str().is_empty() { Path::new(".") } else { relative };
-        if candidate == root
-            || (included
-                .iter()
-                .any(|glob| glob.is_match(relative))
-                && !excluded
-                    .iter()
-                    .any(|glob| glob.is_match(relative)))
-        {
-            members.insert(name.clone());
-        }
-    }
-    members
-}
-
-/// A pattern that cannot be read matches nothing, the way a member
-/// directory that is not there contains no project.
-fn compile(patterns: &[String]) -> Vec<wax::Glob<'static>> {
-    patterns
-        .iter()
-        .filter_map(|pattern| wax::Glob::new(pattern).ok().map(wax::Glob::into_owned))
-        .collect()
 }
 
 fn load(root: &Path) -> Result<Manifest> {

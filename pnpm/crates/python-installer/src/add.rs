@@ -42,10 +42,7 @@ pub fn plan_add<Reporter: self::Reporter + 'static>(
         .iter()
         .map(|root| writable_project(root))
         .collect::<Result<Vec<_>>>()?;
-    let metadata = projects
-        .iter()
-        .flat_map(|root| [root.join("pyproject.toml"), root.join("pylock.toml")])
-        .collect();
+    let metadata = metadata_paths(&discovery, &projects, &selected);
     let prepare = async move {
         for root in &projects {
             manifest::add(
@@ -55,19 +52,45 @@ pub fn plan_add<Reporter: self::Reporter + 'static>(
             )?;
         }
         let config = context.config;
-        let discovery = discovery.reread(config, &selected).await?;
+        // Every member's manifest is read again, not only the edited ones:
+        // the discovery above ran before the workspace lock was taken.
+        let members = discovery.workspace
+            .memberships(&selected)
+            .into_iter()
+            .flat_map(|membership| membership.members)
+            .collect();
+        let discovery = discovery.reread(config, &members).await?;
         let mut prepared = prepare::<Reporter>(
             context,
             discovery,
             true,
             manifest::DependencySelection::ALL,
-            selected,
+            selected.clone(),
         )
         .await?;
-        save_added(&mut prepared, config, &options)?;
+        save_added(&mut prepared, config, &options, &selected)?;
         Ok(prepared)
     };
     Ok(pnpm_install_coordinator::InstallTask::new(metadata, prepare))
+}
+
+/// The files an add may change: each edited manifest, and the lockfile of
+/// every unit the edited projects install into.
+fn metadata_paths(
+    discovery: &Discovery,
+    projects: &[PathBuf],
+    selected: &BTreeSet<PathBuf>,
+) -> Vec<PathBuf> {
+    projects
+        .iter()
+        .map(|root| root.join("pyproject.toml"))
+        .chain(
+            discovery.workspace
+                .memberships(selected)
+                .iter()
+                .map(|membership| membership.root.join("pylock.toml")),
+        )
+        .collect()
 }
 
 /// A directory `pnpm add` can write a requirement to. A directory without a
@@ -92,10 +115,13 @@ pub fn writable_project(root: &Path) -> Result<PathBuf> {
     Ok(root.to_path_buf())
 }
 
+/// Write the versions the lockfile resolved back to the manifests the add
+/// edited, and record what the members require now in the lockfile.
 fn save_added(
     prepared: &mut [Prepared],
     config: &pnpm_config::Config,
     options: &AddOptions,
+    edited: &BTreeSet<PathBuf>,
 ) -> Result<()> {
     let prefix = options.prefix.as_deref().unwrap_or(">=");
     for project in prepared {
@@ -106,20 +132,30 @@ fn save_added(
             pin_to_locked_version(&mut requirement, &lock, options, prefix)?;
             requirements.push(requirement.to_string());
         }
-        let path = project.root.join("pyproject.toml");
-        manifest::add(&path, &requirements, options.development)?;
-        let manifest = manifest::Manifest::parse(
-            &fs::read_to_string(&path)
-                .into_diagnostic()
-                .wrap_err_with(|| format!("read {}", path.display()))?,
-        )?;
-        lock.tool.pnpm.set_requirements(&manifest.requirements(
-            config,
-            manifest::DependencySelection::ALL,
-        )?);
+        let mut recorded = Vec::new();
+        for member in &project.members {
+            let path = member.join("pyproject.toml");
+            if edited.contains(member) {
+                manifest::add(&path, &requirements, options.development)?;
+            }
+            recorded.extend(read_requirements(&path, config)?);
+        }
+        lock.tool.pnpm.set_requirements(&recorded);
         project.lock = toml::to_string_pretty(&lock).into_diagnostic()?;
     }
     Ok(())
+}
+
+fn read_requirements(
+    path: &Path,
+    config: &pnpm_config::Config,
+) -> Result<Vec<pep508_rs::Requirement>> {
+    let manifest = manifest::Manifest::parse(
+        &fs::read_to_string(path)
+            .into_diagnostic()
+            .wrap_err_with(|| format!("read {}", path.display()))?,
+    )?;
+    manifest.requirements(config, manifest::DependencySelection::ALL)
 }
 
 /// Give a requirement the version the lockfile resolved, when the command

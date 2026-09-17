@@ -19,6 +19,28 @@ pub(crate) async fn discover(
     config: &'static Config,
     inventory: &EcosystemWorkspaceInventory,
 ) -> Result<Discovery> {
+    let manifests = workspace_manifests(inventory).await?;
+    pnpm_python_installer::discover(config, &manifests).await
+}
+
+/// Every Python project in the workspace, and the one at `project` whether
+/// or not the walk reached it. An add edits that one, and reads the
+/// workspace around it for the members it may take from the repository
+/// and the environment it may share.
+pub(crate) async fn discover_around(
+    config: &'static Config,
+    inventory: &EcosystemWorkspaceInventory,
+    project: &Path,
+) -> Result<Discovery> {
+    let mut manifests = workspace_manifests(inventory).await?;
+    let manifest = project.join("pyproject.toml");
+    if !manifests.contains(&manifest) {
+        manifests.push(manifest);
+    }
+    pnpm_python_installer::discover(config, &manifests).await
+}
+
+async fn workspace_manifests(inventory: &EcosystemWorkspaceInventory) -> Result<Vec<PathBuf>> {
     let mut manifests = inventory.manifests(EcosystemManifest::Python).await?.to_vec();
     for path in inventory.manifests(EcosystemManifest::Requirements).await? {
         // A `requirements.txt` beside a `pyproject.toml` is that project's
@@ -27,7 +49,7 @@ pub(crate) async fn discover(
             manifests.push(path.clone());
         }
     }
-    pnpm_python_installer::discover(config, &manifests).await
+    Ok(manifests)
 }
 
 /// The Python projects the workspace selection asks for.

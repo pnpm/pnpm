@@ -1840,7 +1840,7 @@ mod metadata;
 mod resolution;
 mod sdists;
 mod selection;
-
+mod shared;
 mod sources;
 mod validation;
 

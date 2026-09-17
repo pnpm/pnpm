@@ -12,6 +12,7 @@ repository.workspace = true
 
 [dependencies]
 pnpm-diagnostics = { workspace = true }
+pnpm-fs = { workspace = true }
 
 derive_more = { workspace = true }
 indexmap = { workspace = true }

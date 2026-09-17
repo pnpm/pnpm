@@ -106,6 +106,9 @@ pub(super) struct LockfileInputs<'a> {
     /// The projects in this repository the resolution installs from their
     /// source, which every seeding of it has to offer again.
     pub(super) local: Arc<[super::workspace::LocalProject]>,
+    /// The projects the requirements were collected from, which a failed
+    /// resolution is explained in terms of.
+    pub(super) members: &'a [super::projects::Member],
 }
 
 /// What [`PythonPrepare::replay_lockfile`] needs about the lockfile on

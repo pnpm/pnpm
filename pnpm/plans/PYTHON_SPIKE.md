@@ -148,8 +148,8 @@ Requirements files do not cause the directory's own package to be built or
 create a `pyproject.toml`.
 
 Tool-only manifests without requirements are ignored. Each Python project has
-its own `pylock.toml` and `.venv`; environment directories are excluded from
-discovery.
+its own `pylock.toml` and `.venv` unless its workspace shares one, and
+environment directories are excluded from discovery.
 
 A requirement on another project in this repository is declared under
 `[tool.uv.sources]`, the table every Python workspace in the wild already
@@ -230,6 +230,46 @@ selections must exist in that project. A selected group's `include-group`
 references must exist and cannot form a cycle. Extras use Python's normalized
 names. A dependency on a local project's extra still selects that extra through
 the dependency requirement, independently of the project's install settings.
+
+## Sharing one environment
+
+A workspace's members can install into one environment rather than one
+each. The workspace root asks for it beside the declaration that says which
+projects the workspace contains:
+
+```toml
+[tool.uv.workspace]
+members = ["packages/*"]
+
+[tool.pnpm.python]
+shared-environment = true
+```
+
+The members are then resolved as one graph, the way uv resolves a
+workspace, into one `pylock.toml` and one `.venv` at the workspace root.
+Each member still selects its own extras and dependency groups, and the
+environment holds the union. Every member that builds a package is installed
+into it, and a member another member requires through `[tool.uv.sources]`
+is installed as that source asks. One interpreter serves all of them, the
+dynamic metadata of any member included: the first this machine has that
+every member's `requires-python` accepts, preferring the version the root's
+`.python-version` asks for. The lockfile
+records the members it answers for under `tool.pnpm.members`, and its
+`requires-python` is the range they accept together.
+
+Two members that require versions of one distribution no release satisfies
+at once are refused, with an error naming the distribution and both members,
+rather than resolved to one of the versions silently. A shared environment is
+one thing, so `--filter` selecting any member installs it whole, and
+`pnpm add` in a member writes that member's manifest and the shared lockfile.
+`pnpm run` and `pnpm exec` in a member, or anywhere under one, use the
+`.venv` at the workspace root, which they find by reading the manifests
+above the directory.
+
+Sharing is opt-in, which is the difference from uv worth keeping: a
+repository takes the shared environment where its projects agree and keeps
+independent ones where they do not, without splitting into separate
+workspaces. Only the manifest that declares a workspace may ask for it.
 
 ## Git and URL requirements
 

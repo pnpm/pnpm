@@ -22,3 +22,16 @@ fn lockfile_resolution_settings_invalidate_replay() {
     );
     assert_eq!(previous.differs_from(&wanted), Some("the Python overrides or constraints changed"));
 }
+
+#[test]
+fn the_members_sharing_an_environment_invalidate_replay() {
+    let requirements = vec!["demo".parse::<Requirement>().unwrap()];
+    let previous = Inputs::declared(&requirements, &[], &[], "https://example.test/simple/");
+    let mut wanted = Inputs::declared(&requirements, &[], &[], "https://example.test/simple/");
+    assert_eq!(previous.differs_from(&wanted), None);
+    wanted.set_members(vec!["packages/a".to_string()]);
+    assert_eq!(
+        previous.differs_from(&wanted),
+        Some("the projects sharing the Python environment changed"),
+    );
+}

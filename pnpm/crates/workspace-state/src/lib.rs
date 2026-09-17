@@ -235,7 +235,10 @@ pub enum UpdateWorkspaceStateError {
 /// Writes to a temporary file in the same directory, then atomically
 /// renames it into place, so a concurrent reader — pnpm or pacquet —
 /// never observes a half-written file
-/// ([#12020](https://github.com/pnpm/pnpm/issues/12020)).
+/// ([#12020](https://github.com/pnpm/pnpm/issues/12020)). Two pnpm
+/// processes installing one workspace at once both write it, so the
+/// rename retries the transient lock errors Windows raises for the other
+/// writer's handle.
 ///
 /// The serialized bytes are `JSON.stringify(state, undefined, 2) + '\n'`:
 /// `serde_json`'s pretty printer uses the same 2-space indent and `": "`
@@ -255,22 +258,11 @@ pub fn update_workspace_state(
     let mut serialized =
         serde_json::to_string_pretty(state).map_err(UpdateWorkspaceStateError::SerializeJson)?;
     serialized.push('\n');
-    let mut temp = NamedTempFile::new_in(parent)
-        .map_err(|source| UpdateWorkspaceStateError::WriteFile {
-            path: file_path.clone(),
-            source,
-        })?;
-    temp.write_all(serialized.as_bytes())
-        .map_err(|source| UpdateWorkspaceStateError::WriteFile {
-            path: file_path.clone(),
-            source,
-        })?;
-    temp.persist(&file_path)
-        .map_err(|error| UpdateWorkspaceStateError::WriteFile {
-            path: file_path,
-            source: error.error,
-        })?;
-    Ok(())
+    let write = |source| UpdateWorkspaceStateError::WriteFile { path: file_path.clone(), source };
+    let mut temp = NamedTempFile::new_in(parent).map_err(write)?;
+    temp.write_all(serialized.as_bytes()).map_err(write)?;
+    let temp = temp.into_temp_path();
+    pnpm_fs::rename_with_retry(&temp, &file_path).map_err(write)
 }
 
 /// Read the workspace state file at `<workspace_dir>/node_modules/.pnpm-workspace-state-v1.json`.
