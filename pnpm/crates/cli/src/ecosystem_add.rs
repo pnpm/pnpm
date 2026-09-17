@@ -84,7 +84,7 @@ async fn cargo_add_task<Reporter: pnpm_reporter::Reporter + 'static>(
 /// The Python half of the add, and the projects it was resolved against.
 ///
 /// Without a `--filter` selection the add acts on the project the command
-/// was run in, the way the npm add does.
+/// was run in, the way the npm add does, and reads that project alone.
 async fn python_add_task<Reporter: pnpm_reporter::Reporter + 'static>(
     context: InstallContext,
     root: &Path,
@@ -96,12 +96,17 @@ async fn python_add_task<Reporter: pnpm_reporter::Reporter + 'static>(
     // must not fail on what it was going to read.
     let options = python_add_options(args, requirements)?;
     options.validate(config)?;
-    let workspace_root = config.workspace_dir.clone().unwrap_or_else(|| root.to_path_buf());
-    let inventory = EcosystemWorkspaceInventory::new(workspace_root, config);
-    let discovery = python::discover(config, &inventory).await?;
-    let selected = match scope {
-        Some(scope) => python::selected_projects(config, root, &discovery, Some(scope))?,
-        None => BTreeSet::from([root.to_path_buf()]),
+    let (discovery, selected) = if let Some(scope) = scope {
+        let workspace_root = config.workspace_dir.clone().unwrap_or_else(|| root.to_path_buf());
+        let inventory = EcosystemWorkspaceInventory::new(workspace_root, config);
+        let discovery = python::discover(config, &inventory).await?;
+        let selected = python::selected_projects(config, root, &discovery, Some(scope))?;
+        (discovery, selected)
+    } else {
+        let project = pnpm_python_installer::writable_project(root)?;
+        let discovery =
+            pnpm_python_installer::discover(config, vec![project.join("pyproject.toml")]).await?;
+        (discovery, BTreeSet::from([project]))
     };
     let projects =
         PythonProjects { discovered: discovery.project_roots().count(), selected: selected.len() };

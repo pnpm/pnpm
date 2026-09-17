@@ -1,4 +1,4 @@
-pub use add::{AddOptions, plan_add};
+pub use add::{AddOptions, plan_add, writable_project};
 pub use discovery::{Discovery, PythonProject, discover};
 pub use manifest::DependencySelection;
 

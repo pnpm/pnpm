@@ -80,7 +80,9 @@ impl Workspace {
         targets: &mut Vec<PathBuf>,
     ) {
         for source in declaration.sources() {
-            let Some(target) = self.source_target(declared_by, name, source) else { continue };
+            let Some(target) = self.source_target(root, declared_by, name, source) else {
+                continue;
+            };
             if target != root && self.manifests.contains_key(&target) && !targets.contains(&target)
             {
                 targets.push(target);
@@ -91,8 +93,14 @@ impl Workspace {
     /// Where one source points, for a path or workspace source. A source
     /// pnpm resolves from somewhere other than this repository points at no
     /// project in it.
+    ///
+    /// A workspace source reaches only what the project at `root` may take
+    /// from the repository, which is what resolving it will allow. A
+    /// workspace two projects declare one distribution in is refused there,
+    /// with the context that refusal needs, so it contributes no edge here.
     fn source_target(
         &self,
+        root: &Path,
         declared_by: &Path,
         name: &PackageName,
         source: &Source,
@@ -103,6 +111,9 @@ impl Workspace {
         if !source.workspace {
             return None;
         }
-        self.roots.get(name)?.first().cloned()
+        self.member(name, root)
+            .ok()
+            .flatten()
+            .map(Path::to_path_buf)
     }
 }

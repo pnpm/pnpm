@@ -1,4 +1,4 @@
-use super::{Discovery, InstallOptions, Lockfile, Prepared, Reporter, discover, manifest, prepare};
+use super::{Discovery, InstallOptions, Lockfile, Prepared, Reporter, manifest, prepare};
 use miette::{IntoDiagnostic, Result, WrapErr, bail};
 use std::{
     collections::BTreeSet,
@@ -40,7 +40,7 @@ pub fn plan_add<Reporter: self::Reporter + 'static>(
     options.validate(context.config)?;
     let projects = selected
         .iter()
-        .map(|root| writable_project(&discovery, root))
+        .map(|root| writable_project(root))
         .collect::<Result<Vec<_>>>()?;
     let metadata = projects
         .iter()
@@ -55,9 +55,7 @@ pub fn plan_add<Reporter: self::Reporter + 'static>(
             )?;
         }
         let config = context.config;
-        // The manifests the discovery parsed are the ones just edited, so
-        // the install reads them again.
-        let discovery = discover(config, discovery.manifests).await?;
+        let discovery = discovery.reread(config, &selected).await?;
         let mut prepared = prepare::<Reporter>(
             context,
             discovery,
@@ -72,11 +70,13 @@ pub fn plan_add<Reporter: self::Reporter + 'static>(
     Ok(pnpm_install_coordinator::InstallTask::new(metadata, prepare))
 }
 
-/// A selected project `pnpm add` can write a requirement to. A requirement
-/// is declared in a project manifest, so a directory without one, or with
-/// one that declares no project, is named rather than reported as a missing
-/// file.
-fn writable_project(discovery: &Discovery, root: &Path) -> Result<PathBuf> {
+/// A directory `pnpm add` can write a requirement to. A directory without a
+/// manifest is named here; one whose manifest declares no project is named
+/// by the edit itself.
+///
+/// Call it before reading the manifest, so a directory that has none is
+/// named rather than reported as a file that could not be read.
+pub fn writable_project(root: &Path) -> Result<PathBuf> {
     let path = root.join("pyproject.toml");
     if !path
         .try_exists()
@@ -88,15 +88,6 @@ fn writable_project(discovery: &Discovery, root: &Path) -> Result<PathBuf> {
             help = "Run the command in a directory that has a pyproject.toml, or create one there.",
             "cannot add a Python dependency because {missing} does not exist",
         ));
-    }
-    if !discovery
-        .project_roots()
-        .any(|project| project == root)
-    {
-        bail!(
-            "the Python manifest at {} declares no project to add a requirement to",
-            path.display()
-        );
     }
     Ok(root.to_path_buf())
 }

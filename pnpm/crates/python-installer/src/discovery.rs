@@ -6,6 +6,7 @@ use miette::{IntoDiagnostic, Result, WrapErr};
 use pep508_rs::PackageName;
 use pnpm_workspace_projects_graph::{BaseProject, ProjectGraph, ProjectGraphNode};
 use std::{
+    collections::BTreeSet,
     path::{Path, PathBuf},
     sync::Arc,
 };
@@ -17,9 +18,6 @@ use std::{
 /// it declares a source for, so what those declare belongs to its own
 /// resolution.
 pub struct Discovery {
-    /// The manifest paths this was read from, so a command that edits one
-    /// can read the set again.
-    pub(super) manifests: Vec<PathBuf>,
     pub(super) roots: Vec<(PathBuf, Arc<Manifest>)>,
     pub(super) workspace: Workspace,
 }
@@ -49,7 +47,7 @@ pub async fn discover(config: &pnpm_config::Config, manifests: Vec<PathBuf>) -> 
         .map(|(root, manifest)| (root, Arc::new(manifest)))
         .collect::<Vec<_>>();
     let workspace = Workspace::new(&roots)?;
-    Ok(Discovery { manifests, roots, workspace })
+    Ok(Discovery { roots, workspace })
 }
 
 impl Discovery {
@@ -67,6 +65,33 @@ impl Discovery {
             .iter()
             .filter(|(_, manifest)| manifest.project.is_some())
             .map(|(root, _)| root.as_path())
+    }
+
+    /// Read the manifests of `edited` again, for a command that changed
+    /// them. Only those are read: the rest were parsed once and say the
+    /// same thing they said then.
+    pub(super) async fn reread(
+        mut self,
+        config: &pnpm_config::Config,
+        edited: &BTreeSet<PathBuf>,
+    ) -> Result<Self> {
+        for root in edited {
+            let path = root.join("pyproject.toml");
+            let contents = tokio::fs::read_to_string(&path).await
+                .into_diagnostic()
+                .wrap_err_with(|| format!("read {}", path.display()))?;
+            let allowed_root = config.workspace_dir.as_deref().unwrap_or(root);
+            let manifest = Arc::new(read_manifest(&path, &contents, allowed_root).await?);
+            match self.roots
+                .iter_mut()
+                .find(|(discovered, _)| discovered == root)
+            {
+                Some((_, discovered)) => *discovered = manifest,
+                None => self.roots.push((root.clone(), manifest)),
+            }
+        }
+        self.workspace = Workspace::new(&self.roots)?;
+        Ok(self)
     }
 
     /// The discovered projects as the workspace dependency graph a

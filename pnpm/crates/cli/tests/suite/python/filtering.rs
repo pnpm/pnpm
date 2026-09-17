@@ -1,6 +1,4 @@
-use super::{
-    assert_failure_contains, project, python, python_project, serve, serve_backends, wheel,
-};
+use super::{project, python, python_project, serve, serve_backends, wheel};
 use crate::_utils::pacquet_in;
 use assert_cmd::prelude::*;
 use std::{fs, path::Path, process::Command};
@@ -204,17 +202,35 @@ async fn a_filtered_add_writes_the_requirement_to_the_selected_project_only() {
     assert!(!installed(root.path(), "b"), "b was not selected");
 }
 
+/// A project the workspace excludes is not reached through a member's
+/// `[tool.uv.sources]` entry, the way resolving that entry would not reach
+/// it either.
 #[tokio::test]
-async fn an_add_naming_a_directory_without_a_python_project_says_so() {
+async fn a_filter_does_not_reach_a_project_outside_the_declared_workspace() {
     let root = tempfile::tempdir().unwrap();
     let mut server = mockito::Server::new_async().await;
-    let _alpha = serve(&mut server, "alpha", &[("1.0", wheel("alpha", "1.0", "", &[]))]).await;
+    let _backends = serve_backends(&mut server).await;
     project(root.path(), &server.url(), &[]);
-    fs::remove_file(root.path().join("pyproject.toml")).unwrap();
-    requirements_project(root.path(), "a", &[]);
+    fs::write(
+        root.path().join("pyproject.toml"),
+        "[tool.uv.workspace]\nmembers = ['packages/*']\nexclude = ['packages/excluded']\n",
+    )
+    .unwrap();
+    python_project(&root.path().join("packages/excluded"), "excluded", "dependencies = []");
+    python_project(
+        &root.path().join("packages/app"),
+        "app",
+        "dependencies = []\n\n[tool.uv.sources]\nexcluded = { workspace = true }\n",
+    );
 
-    assert_failure_contains(
-        pacquet_in(root.path()).args(["add", "pypi:alpha"]),
-        "there is no Python project at",
+    pacquet_in(root.path())
+        .args(["install", "--filter", "app..."])
+        .assert()
+        .success();
+
+    assert!(installed(root.path(), "packages/app"));
+    assert!(
+        !installed(root.path(), "packages/excluded"),
+        "the workspace excludes it, so app does not reach it",
     );
 }
