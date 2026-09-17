@@ -52,10 +52,11 @@ impl PythonPrepare<'_> {
         let solution = resolver::selected_solution(&mut registry.resolution, selected)?;
         let installed = self.installable::<Reporter>(registry, solution, project).await?;
         let packages = installed.packages;
-        host::run::<serde_json::Value>(
+        host::install(
             &self.interpreter.executable,
-            "install",
-            serde_json::json!({"root": environment.path(), "packages": packages}),
+            environment.path(),
+            packages,
+            self.context.config.python.link_mode,
         )
         .await?;
         drop(installed.unpacked);

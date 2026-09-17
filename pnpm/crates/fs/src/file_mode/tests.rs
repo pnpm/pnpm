@@ -26,6 +26,39 @@ fn cas_path_is_executable_matches_trailing_suffix() {
 
 #[cfg(unix)]
 #[test]
+fn set_path_permissions_refuses_symlinks() {
+    use std::{
+        fs,
+        os::unix::fs::{PermissionsExt, symlink},
+    };
+    let temporary = tempfile::tempdir().unwrap();
+    let target = temporary.path().join("target");
+    let link = temporary.path().join("link");
+    fs::write(&target, "data").unwrap();
+    fs::set_permissions(&target, fs::Permissions::from_mode(0o600)).unwrap();
+    symlink(&target, &link).unwrap();
+    assert!(super::set_path_permissions(&link, 0o755).is_err());
+    assert_eq!(
+        fs::metadata(&target)
+            .unwrap()
+            .permissions()
+            .mode()
+            & 0o777,
+        0o600,
+    );
+    super::set_path_permissions(&target, 0o755).unwrap();
+    assert_eq!(
+        fs::metadata(&target)
+            .unwrap()
+            .permissions()
+            .mode()
+            & 0o777,
+        0o755,
+    );
+}
+
+#[cfg(unix)]
+#[test]
 fn make_file_executable_sets_exec_bits() {
     use super::make_file_executable;
     use std::os::unix::fs::PermissionsExt;

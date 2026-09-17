@@ -27,7 +27,20 @@ pub trait FsRemoveDirent {
     fn remove_dirent(path: &Path) -> io::Result<()>;
 }
 
+/// Clone a filesystem entry using copy-on-write, as [`reflink_copy::reflink`].
+/// The destination must not exist. Restricted containers may deny cloning
+/// while allowing ordinary copies, including pnpm/pnpm#14722.
+pub trait FsReflink {
+    fn reflink(source: &Path, target: &Path) -> io::Result<()>;
+}
+
 pub struct Host;
+
+impl FsReflink for Host {
+    fn reflink(source: &Path, target: &Path) -> io::Result<()> {
+        reflink_copy::reflink(source, target)
+    }
+}
 
 impl FsRename for Host {
     fn rename(src: &Path, dst: &Path) -> io::Result<()> {

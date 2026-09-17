@@ -27,11 +27,10 @@ pub fn cas_path_is_executable(path: &Path) -> bool {
         .is_some_and(|name| name.ends_with("-exec"))
 }
 
-/// Open `path` for the chmod in [`restore_exec_bit_from_cas_suffix`],
+/// Open `path` for permission changes,
 /// refusing to traverse a final symlink.
 ///
-/// Every caller is materializing a CAS blob at a path that has to be a
-/// regular file. A symlink there is corruption or a squatter, and
+/// Callers require a regular file. A symlink there is corruption or a squatter, and
 /// following it would hand the referent an execute bit it never had:
 /// `O_NOFOLLOW` answers `ELOOP` instead, and the caller reports it.
 #[cfg(unix)]
@@ -69,6 +68,21 @@ pub fn restore_exec_bit_from_cas_suffix(cas_path: &Path, target: &Path) -> io::R
     }
     #[cfg(not(unix))]
     let _ = (cas_path, target);
+    Ok(())
+}
+
+/// Set Unix permission bits without following a final symlink. No-op on Windows.
+pub fn set_path_permissions(path: &Path, mode: u32) -> io::Result<()> {
+    #[cfg(unix)]
+    {
+        use std::{fs::Permissions, os::unix::fs::PermissionsExt};
+        let file = crate::ensure_file::retry_on_fd_pressure(|| open_without_following(path))?;
+        if file.metadata()?.permissions().mode() & 0o7777 != mode {
+            file.set_permissions(Permissions::from_mode(mode))?;
+        }
+    }
+    #[cfg(not(unix))]
+    let _ = (path, mode);
     Ok(())
 }
 

@@ -5183,6 +5183,7 @@ dependencies = [
  "libc",
  "miette 7.6.0",
  "pathdiff",
+ "reflink-copy",
  "sha2",
  "tempfile",
  "tracing",

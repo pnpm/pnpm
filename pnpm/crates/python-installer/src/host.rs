@@ -181,3 +181,102 @@ pub(super) async fn run_program<Output: DeserializeOwned>(
     written?;
     serde_json::from_slice(&output.stdout).into_diagnostic()
 }
+
+pub(super) async fn install(
+    executable: &str,
+    root: &std::path::Path,
+    packages: impl Serialize,
+    mode: pnpm_config::PythonLinkMode,
+) -> Result<()> {
+    let imports: Installation = run(
+        executable,
+        "install",
+        serde_json::json!({"root": root, "packages": packages, "defer_files": mode != pnpm_config::PythonLinkMode::Copy}),
+    )
+    .await?;
+    tokio::task::spawn_blocking(move || import_files(imports.imports, mode))
+        .await
+        .into_diagnostic()
+        .wrap_err("join Python wheel imports")?
+}
+
+fn import_files(files: Vec<FileImport>, mode: pnpm_config::PythonLinkMode) -> Result<()> {
+    let mut copy_devices = std::collections::BTreeSet::new();
+    for file in files {
+        let method = if copy_devices.contains(&file.device) {
+            pnpm_config::PythonLinkMode::Copy
+        } else {
+            mode
+        };
+        let copied = file
+            .import::<pnpm_fs::Host>(method)
+            .into_diagnostic()
+            .wrap_err_with(|| {
+                format!(
+                    "import Python wheel file {} to {} ({mode:?})",
+                    file.source.display(),
+                    file.destination.display(),
+                )
+            })?;
+        if copied {
+            copy_devices.insert(file.device);
+        }
+    }
+    Ok(())
+}
+
+#[derive(Deserialize)]
+struct Installation {
+    imports: Vec<FileImport>,
+}
+
+#[derive(Deserialize)]
+struct FileImport {
+    source: PathBuf,
+    destination: PathBuf,
+    executable: bool,
+    device: u64,
+}
+
+impl FileImport {
+    fn import<Sys: pnpm_fs::FsReflink>(
+        &self,
+        mode: pnpm_config::PythonLinkMode,
+    ) -> std::io::Result<bool> {
+        use pnpm_config::PythonLinkMode;
+        use std::fs;
+        let copied = match mode {
+            PythonLinkMode::Copy => fs::copy(&self.source, &self.destination).map(|_| true)?,
+            PythonLinkMode::Hardlink => match fs::hard_link(&self.source, &self.destination) {
+                Ok(()) => false,
+                Err(error) if pnpm_fs::is_cross_device(&error) => {
+                    fs::copy(&self.source, &self.destination)?;
+                    true
+                }
+                Err(error) => return Err(error),
+            },
+            PythonLinkMode::Reflink => match Sys::reflink(&self.source, &self.destination) {
+                Ok(()) => false,
+                Err(error)
+                    if matches!(
+                        error.kind(),
+                        std::io::ErrorKind::NotFound | std::io::ErrorKind::AlreadyExists,
+                    ) =>
+                {
+                    return Err(error);
+                }
+                Err(_) => {
+                    fs::copy(&self.source, &self.destination)?;
+                    true
+                }
+            },
+        };
+        if self.executable && (mode != PythonLinkMode::Hardlink || copied) {
+            pnpm_fs::file_mode::set_path_permissions(&self.destination, 0o755)?;
+        }
+        Ok(copied)
+    }
+}
+
+#[cfg(test)]
+mod tests;

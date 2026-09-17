@@ -203,18 +203,20 @@ def inspect_wheel(request):
 class Environment:
     """One environment's files: what is written where, and what each installed distribution records."""
 
-    def __init__(self, root, scheme):
+    def __init__(self, root, scheme, defer_files=False):
         self.root = root
         self.scheme = scheme
         self.scripts = Path(scheme["scripts"])
         self.interpreter = self.scripts / ("python.exe" if os.name == "nt" else "python")
         self.occupied = set()
+        self.defer_files = defer_files
+        self.imports = []
 
     def start(self, purelib):
         self.site = Path(self.scheme["purelib" if purelib else "platlib"])
         self.records = []
 
-    def write(self, destination, contents, executable=False):
+    def reserve(self, destination):
         destination = Path(destination)
         if not destination.is_relative_to(self.root):
             raise ValueError("wheel destination escapes environment")
@@ -223,11 +225,30 @@ class Environment:
             raise ValueError("Python package file collision: " + str(destination.relative_to(self.root)))
         self.occupied.add(key)
         destination.parent.mkdir(parents=True, exist_ok=True)
+        return destination
+
+    def record(self, destination, digest, size):
+        self.records.append([os.path.relpath(destination, self.site).replace(os.sep, "/"), digest, str(size)])
+
+    def write(self, destination, contents, executable=False):
+        destination = self.reserve(destination)
         destination.write_bytes(contents)
         if executable:
             destination.chmod(0o755)
         digest = base64.urlsafe_b64encode(hashlib.sha256(contents).digest()).rstrip(b"=").decode()
-        self.records.append([os.path.relpath(destination, self.site).replace(os.sep, "/"), "sha256=" + digest, str(len(contents))])
+        self.record(destination, "sha256=" + digest, len(contents))
+
+    def import_file(self, destination, source, metadata, recorded):
+        """Import an unchanged file using its verified wheel RECORD entry."""
+        destination = self.reserve(destination)
+        executable = bool(metadata.st_mode & 0o111)
+        if self.defer_files:
+            self.imports.append({"source": str(source), "destination": str(destination), "executable": executable, "device": metadata.st_dev})
+        else:
+            destination.write_bytes(Path(source).read_bytes())
+            if executable:
+                destination.chmod(0o755)
+        self.record(destination, recorded[1], recorded[2])
 
     def write_entry_points(self, entries):
         for group in ("console_scripts", "gui_scripts"):
@@ -251,8 +272,7 @@ class Environment:
     def finish(self, dist_info):
         self.write(self.site / dist_info / "INSTALLER", b"pnpm\n")
         self.records.append([dist_info + "/RECORD", "", ""])
-        record_path = self.site / dist_info / "RECORD"
-        record_path.parent.mkdir(parents=True, exist_ok=True)
+        record_path = self.reserve(self.site / dist_info / "RECORD")
         with record_path.open("w", encoding="utf-8", newline="") as record:
             csv.writer(record).writerows(sorted(self.records))
 
@@ -261,11 +281,14 @@ def install_wheel(environment, package):
     files, metadata = package["files"], package["metadata"]
     dist_info = metadata["dist_info"]
     environment.start(metadata["purelib"])
+    recorded = {row[0]: row for row in csv.reader(io.StringIO(Path(files[dist_info + "/RECORD"]).read_text(encoding="utf-8")))}
     for name, source in files.items():
         if name in (dist_info + "/RECORD", dist_info + "/RECORD.jws", dist_info + "/RECORD.p7s", dist_info + "/INSTALLER"):
             continue
         parts = PurePosixPath(name).parts
-        executable = bool(Path(source).stat().st_mode & 0o111)
+        source_metadata = Path(source).stat()
+        source_executable = bool(source_metadata.st_mode & 0o111)
+        executable = source_executable
         if parts[0].endswith(".data"):
             if parts[0] != dist_info.removesuffix(".dist-info") + ".data" or len(parts) < 3 or parts[1] not in environment.scheme:
                 raise ValueError("invalid wheel data path: " + name)
@@ -273,12 +296,20 @@ def install_wheel(environment, package):
             executable = executable or parts[1] == "scripts"
         else:
             destination = environment.site.joinpath(*parts)
-        contents = Path(source).read_bytes()
-        if executable and contents.startswith(b"#!python"):
-            first_line, newline, body = contents.partition(b"\n")
+        prefix = None
+        if executable:
+            with Path(source).open("rb") as file:
+                header = file.read(11)
+            first_line, newline, _ = header.partition(b"\n")
             if first_line.removesuffix(b"\r") in (b"#!python", b"#!pythonw"):
-                contents = ("#!" + str(environment.interpreter)).encode() + newline + body
-        environment.write(destination, contents, executable)
+                prefix = ("#!" + str(environment.interpreter)).encode() + newline
+        if prefix is not None or executable != source_executable:
+            contents = Path(source).read_bytes()
+            if prefix is not None:
+                contents = prefix + contents.partition(b"\n")[2]
+            environment.write(destination, contents, executable)
+        else:
+            environment.import_file(destination, source, source_metadata, recorded[name])
 
     entry_points = files.get(dist_info + "/entry_points.txt")
     if entry_points:
@@ -401,10 +432,10 @@ def install(request):
     scheme_name = "venv" if "venv" in sysconfig.get_scheme_names() else ("nt" if os.name == "nt" else "posix_prefix")
     scheme = sysconfig.get_paths(scheme=scheme_name, vars=variables)
     scheme["headers"] = str(root / "include" / "site" / ("python" + sysconfig.get_python_version()))
-    environment = Environment(root, scheme)
+    environment = Environment(root, scheme, request.get("defer_files", False))
     for package in request["packages"]:
         install_wheel(environment, package)
-    return {"root": str(root)}
+    return {"root": str(root), "imports": environment.imports}
 
 
 request = json.load(sys.stdin)

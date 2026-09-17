@@ -1,7 +1,7 @@
 use derive_more::{Display, Error};
 use miette::Diagnostic;
 use pnpm_config::PackageImportMethod;
-use pnpm_fs::{Host, is_cross_device};
+use pnpm_fs::{FsReflink, Host, is_cross_device};
 use pnpm_reporter::{
     LogEvent, LogLevel, PackageImportMethod as WireImportMethod, PackageImportMethodLog, Reporter,
 };
@@ -491,23 +491,9 @@ trait FsHardLink {
     fn hard_link(source: &Path, target: &Path) -> io::Result<()>;
 }
 
-/// The reflink syscall the import methods issue. Same purpose as
-/// [`FsHardLink`]: `FICLONE` is answered with `EPERM` inside the
-/// user-namespace containers of pnpm/pnpm#14722, and the CI runners do
-/// not provide one.
-trait FsReflink {
-    fn reflink(source: &Path, target: &Path) -> io::Result<()>;
-}
-
 impl FsHardLink for Host {
     fn hard_link(source: &Path, target: &Path) -> io::Result<()> {
         fs::hard_link(source, target)
-    }
-}
-
-impl FsReflink for Host {
-    fn reflink(source: &Path, target: &Path) -> io::Result<()> {
-        reflink_copy::reflink(source, target)
     }
 }
 

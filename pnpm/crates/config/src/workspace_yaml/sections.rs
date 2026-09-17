@@ -126,6 +126,8 @@ pub struct PythonSettings {
     /// The interpreter to install every Python project with. `None` lets
     /// pnpm choose one the project accepts.
     pub executable: Option<String>,
+    /// How wheel files are imported from the store into environments.
+    pub link_mode: PythonLinkMode,
     pub index_url: String,
     pub extra_index_urls: Vec<String>,
     pub overrides: Vec<String>,
@@ -150,6 +152,18 @@ pub struct PythonSettings {
     pub download_url: String,
 }
 
+/// How Python environments share wheel files with the store.
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, serde::Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum PythonLinkMode {
+    Copy,
+    /// Share inodes. Writes in an environment also modify the store.
+    Hardlink,
+    /// Share data through copy-on-write, falling back to independent copies.
+    #[default]
+    Reflink,
+}
+
 /// When pnpm installs a Python interpreter itself.
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq, serde::Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
@@ -166,6 +180,7 @@ impl Default for PythonSettings {
         Self {
             enabled: false,
             executable: None,
+            link_mode: PythonLinkMode::default(),
             index_url: "https://pypi.org/simple/".to_string(),
             extra_index_urls: Vec::new(),
             overrides: Vec::new(),
