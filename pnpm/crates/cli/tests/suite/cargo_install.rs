@@ -61,10 +61,11 @@ pub(super) fn cargo_workspace(index_url: &str, dependencies: &str, source: &str)
 }
 
 pub(super) fn install_in(root: &TempDir, args: &[&str]) {
+    let cargo_home = TempDir::new().expect("create isolated Cargo home");
     Command::cargo_bin("pnpm")
         .expect("find the pnpm binary")
         .with_current_dir(root.path())
-        .with_env("CARGO_HOME", root.path().join("cargo-home"))
+        .with_env("CARGO_HOME", cargo_home.path())
         .with_env("PNPM_CONFIG_CACHE_DIR", root.path().join("cache"))
         .with_env("PNPM_CONFIG_STORE_DIR", root.path().join("store"))
         .with_args(args)
