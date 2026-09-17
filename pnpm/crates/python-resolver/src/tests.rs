@@ -7,10 +7,7 @@ use crate::{
 };
 use pep440_rs::Version;
 use pep508_rs::{MarkerEnvironment, PackageName, Requirement};
-use std::{
-    collections::{BTreeMap, BTreeSet},
-    str::FromStr,
-};
+use std::{collections::BTreeMap, str::FromStr};
 use url::Url;
 
 /// A `CPython` 3.12 target that takes a pure-Python wheel, preferring a
@@ -147,9 +144,39 @@ fn candidates_leave_out_what_the_target_cannot_install() {
         candidates.excluded,
         Excluded {
             published: true,
-            other_interpreters: BTreeSet::from([Version::from_str("3.0.0").unwrap()]),
-            other_targets: BTreeSet::from([Version::from_str("4.0.0").unwrap()]),
+            other_interpreters: std::iter::once(Version::from_str("3.0.0").unwrap()).collect(),
+            other_targets: std::iter::once(Version::from_str("4.0.0").unwrap()).collect(),
         },
+    );
+}
+
+/// A page names every release a distribution ever published, and what a
+/// failure says about it names a few. Holding the rest would put a
+/// resolution's memory at the mercy of whatever an index serves, which
+/// on a pnpr server is whatever a request asks it to read.
+#[test]
+fn the_releases_kept_for_a_failure_do_not_follow_the_size_of_the_page() {
+    let files = (1..=40)
+        .map(|minor| wheel(&format!("demo-1.{minor}.0-cp39-cp39-manylinux_2_17_x86_64.whl")))
+        .collect::<Vec<_>>();
+
+    let offered = candidates_from_page(
+        &page(&serde_json::json!(files)),
+        &index_url(),
+        &name("demo"),
+        &target(),
+    )
+    .expect("page parses");
+
+    assert!(offered.candidates.is_empty());
+    assert_eq!(offered.excluded.releases(), 40, "every release is counted");
+    assert_eq!(
+        offered.excluded.other_targets
+            .newest()
+            .map(ToString::to_string)
+            .collect::<Vec<_>>(),
+        ["1.40.0", "1.39.0", "1.38.0", "1.37.0", "1.36.0", "1.35.0", "1.34.0", "1.33.0"],
+        "only the newest are kept, newest first",
     );
 }
 

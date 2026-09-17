@@ -1,16 +1,13 @@
 use crate::{
     lockfile::{LockedSdist, LockedWheel, Target},
-    packages::{Candidate, Excluded, IndexCandidate, Offered},
+    packages::{Candidate, Excluded, IndexCandidate, Offered, Releases},
     requires_python::declared_range,
 };
 use miette::{IntoDiagnostic, Result, bail};
 use pep440_rs::Version;
 use pep508_rs::{PackageName, Requirement};
 use serde::Deserialize;
-use std::{
-    collections::{BTreeMap, BTreeSet},
-    fmt,
-};
+use std::{collections::BTreeMap, fmt};
 use url::Url;
 
 /// The containers a source distribution is published in that pnpm
@@ -124,7 +121,7 @@ pub fn candidates_from_page(
     })
 }
 
-fn releases(excluded: &BTreeMap<Version, Exclusion>, reason: Exclusion) -> BTreeSet<Version> {
+fn releases(excluded: &BTreeMap<Version, Exclusion>, reason: Exclusion) -> Releases {
     excluded
         .iter()
         .filter(|(_, kept)| **kept == reason)

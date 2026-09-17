@@ -8,16 +8,11 @@
 //! version nobody released. The lines added here say which it was.
 
 use super::Package;
-use crate::Packages;
+use crate::{Packages, packages::NAMED_RELEASES};
 use pep440_rs::Version;
 use pep508_rs::PackageName;
 use pubgrub::{DerivationTree, External, Ranges};
 use std::{collections::BTreeSet, fmt::Write as _};
-
-/// How many releases one line names before it says how many more there
-/// are. A page lists every release ever published, and the failure is
-/// about the project, not the history.
-const NAMED_RELEASES: usize = 8;
 
 /// What a failed resolution adds to pubgrub's report: one line per
 /// distribution it was left with no version of.
@@ -80,7 +75,7 @@ fn describe(name: &PackageName, packages: &Packages) -> Option<String> {
     {
         return Some(format!(
             "{name} is offered at {}, and this project's requirements select none of them.",
-            named_releases(offered.keys()),
+            named_releases(offered.keys().rev(), offered.len()),
         ));
     }
     let excluded = packages.excluded.get(name)?;
@@ -96,7 +91,10 @@ fn describe(name: &PackageName, packages: &Packages) -> Option<String> {
     let mut described = format!(
         "{name} publishes {releases} releases ({}), none of which publishes a wheel this \
          interpreter installs or a source distribution pnpm can build.",
-        named_releases(excluded.other_targets.iter().chain(&excluded.other_interpreters),),
+        named_releases(
+            excluded.other_targets.newest().chain(excluded.other_interpreters.newest()),
+            releases,
+        ),
     );
     if !excluded.other_interpreters.is_empty() {
         write!(
@@ -109,19 +107,19 @@ fn describe(name: &PackageName, packages: &Packages) -> Option<String> {
     Some(described)
 }
 
-/// The newest releases first, which is the end a project reaches for.
-fn named_releases<'a>(releases: impl IntoIterator<Item = &'a Version>) -> String {
-    let mut releases = releases.into_iter().collect::<Vec<_>>();
-    releases.sort_unstable();
-    releases.reverse();
-    let named = releases
+/// The newest releases of `total`, named as far as a line names them.
+fn named_releases<'a>(newest: impl IntoIterator<Item = &'a Version>, total: usize) -> String {
+    let mut named = newest.into_iter().collect::<Vec<_>>();
+    named.sort_unstable();
+    named.reverse();
+    named.truncate(NAMED_RELEASES);
+    let listed = named
         .iter()
-        .take(NAMED_RELEASES)
         .map(ToString::to_string)
         .collect::<Vec<_>>()
         .join(", ");
-    match releases.len().saturating_sub(NAMED_RELEASES) {
-        0 => named,
-        rest => format!("{named} and {rest} older"),
+    match total.saturating_sub(named.len()) {
+        0 => listed,
+        rest => format!("{listed} and {rest} older"),
     }
 }

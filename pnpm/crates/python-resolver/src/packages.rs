@@ -190,10 +190,10 @@ pub struct Excluded {
     pub published: bool,
     /// Releases every file of which declares an interpreter range this
     /// target's Python is outside of.
-    pub other_interpreters: BTreeSet<Version>,
+    pub other_interpreters: Releases,
     /// Releases that publish no wheel this target installs and no source
     /// distribution pnpm can unpack.
-    pub other_targets: BTreeSet<Version>,
+    pub other_targets: Releases,
 }
 
 impl Excluded {
@@ -202,5 +202,60 @@ impl Excluded {
     #[must_use]
     pub fn releases(&self) -> usize {
         self.other_interpreters.len() + self.other_targets.len()
+    }
+}
+
+/// How many releases were left out for one reason, and the newest of
+/// them by name.
+///
+/// Only the names a failure prints are kept. A page lists every release a
+/// distribution ever published, and reading one is not a reason to hold
+/// that many versions for a message that names [`NAMED_RELEASES`] of
+/// them — least of all on a server answering requests.
+#[derive(Debug, Default, Clone, PartialEq, Eq)]
+pub struct Releases {
+    count: usize,
+    newest: BTreeSet<Version>,
+}
+
+/// How many releases one failure line names before it says how many more
+/// there are.
+pub const NAMED_RELEASES: usize = 8;
+
+impl Releases {
+    pub fn insert(&mut self, version: Version) {
+        if !self.newest.insert(version) {
+            return;
+        }
+        self.count += 1;
+        if self.newest.len() > NAMED_RELEASES {
+            self.newest.pop_first();
+        }
+    }
+
+    #[must_use]
+    pub fn len(&self) -> usize {
+        self.count
+    }
+
+    #[must_use]
+    pub fn is_empty(&self) -> bool {
+        self.count == 0
+    }
+
+    /// The newest releases first, which is the end a project reaches for.
+    #[must_use]
+    pub fn newest(&self) -> impl DoubleEndedIterator<Item = &Version> {
+        self.newest.iter().rev()
+    }
+}
+
+impl FromIterator<Version> for Releases {
+    fn from_iter<Versions: IntoIterator<Item = Version>>(versions: Versions) -> Self {
+        let mut releases = Self::default();
+        for version in versions {
+            releases.insert(version);
+        }
+        releases
     }
 }

@@ -25,7 +25,9 @@ pub use lockfile::{
     Metadata, Solved, Target, ToolMetadata, environment_marker,
 };
 pub use metadata::WheelMetadata;
-pub use packages::{Candidate, Excluded, IndexCandidate, Offered, Packages};
+pub use packages::{
+    Candidate, Excluded, IndexCandidate, NAMED_RELEASES, Offered, Packages, Releases,
+};
 pub use resolve::{Step, active_locked_sources, locked_solution, step, validate_locked};
 pub use source::Source;
 
