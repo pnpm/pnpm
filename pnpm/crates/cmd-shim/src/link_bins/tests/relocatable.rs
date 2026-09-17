@@ -9,9 +9,6 @@ use std::{
     process::Command,
 };
 
-/// Link a package whose bin prints `NODE_PATH` into `<root>/node_modules/.bin`,
-/// with three existing `NODE_PATH` entries: the package's own `node_modules`,
-/// its slot's, and the hidden hoisted one.
 fn link_node_path_printer(root: &Path, relocatable_root: Option<PathBuf>) -> PathBuf {
     let pkg_dir = root.join("node_modules/.pnpm/foo@1.0.0/node_modules/foo");
     let hoisted = root.join("node_modules/.pnpm/node_modules");
