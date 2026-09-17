@@ -8,14 +8,9 @@ use super::relative_path_from;
 use pnpm_fs::is_subdir;
 use std::{borrow::Cow, path::Path};
 
-/// Sets `$basedir_abs` to the shim's directory as an absolute path. Node
-/// collapses the `..` in a `NODE_PATH` entry lexically, so a relative
-/// `$basedir` is resolved physically, past any symlink in `$PWD`. An absolute
-/// one, as `pnpm run` and `pnpm exec` invoke shims, is used without a fork.
-pub(super) const BASEDIR_ABS_PRELUDE: &str = r#"case "$basedir" in
-  /*) basedir_abs="$basedir" ;;
-  *) basedir_abs=$(CDPATH= cd -P -- "$basedir" && pwd -P) ;;
-esac
+/// Sets `$basedir_abs` to the shim's physical directory so Node's lexical
+/// normalization of `..` cannot escape through a directory symlink.
+pub(super) const BASEDIR_ABS_PRELUDE: &str = r#"basedir_abs=$(CDPATH= cd -P -- "$basedir" && pwd -P) || exit $?
 "#;
 
 pub(super) const BASEDIR_ABS: &str = "$basedir_abs/";

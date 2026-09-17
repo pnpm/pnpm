@@ -55,7 +55,7 @@ fn relative_node_path_segments_are_sh_escaped() {
     assert!(output.status.success());
     assert_eq!(
         String::from_utf8(output.stdout).unwrap(),
-        format!("{}/../{hostile}", bin_dir.display()),
+        format!("{}/../{hostile}", fs::canonicalize(&bin_dir).unwrap().display()),
     );
     assert!(!root.join("pwned").exists(), "the directory name ran as a command");
 }

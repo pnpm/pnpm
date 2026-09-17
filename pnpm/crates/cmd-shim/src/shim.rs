@@ -1,5 +1,6 @@
 pub use powershell::generate_pwsh_shim;
 pub use quoting::{cmd_escape, sh_single_quote};
+pub(crate) use relocatable::is_within_root;
 pub use sh::{generate_sh_shim, is_sh_shim_hardened, is_shim_pointing_at};
 
 use crate::{capabilities::FsReadHead, path_util::lexical_normalize};
@@ -8,9 +9,6 @@ use std::{
     io,
     path::{Path, PathBuf},
 };
-
-#[cfg(unix)]
-pub(crate) use relocatable::is_within_root;
 
 /// Detected runtime for a target script.
 #[derive(Debug, Clone, PartialEq, Eq)]

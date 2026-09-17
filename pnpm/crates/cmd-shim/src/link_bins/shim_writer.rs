@@ -82,7 +82,7 @@ where
     // carry the setting (the injected-deps syncer's workspace-wide
     // relink, for one) leaves symlinked bins alone instead of
     // rewriting them into shims.
-    if symlink_already_points_at(spec.shim_path, spec.target_path) {
+    if symlink_already_points_at(spec.shim_path, spec.target_path, spec.relocatable_root) {
         return cache.ensure_target_executable_once::<Sys>(spec.probe_path);
     }
 

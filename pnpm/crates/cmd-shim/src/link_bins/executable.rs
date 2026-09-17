@@ -3,7 +3,6 @@ use super::is_shim_pointing_at;
 #[cfg(windows)]
 use super::shim_writer::with_extension_appended;
 use super::{FsEnsureExecutableBits, FsReadToString, LinkBinsError, Path, io, remove_stale_bin};
-#[cfg(unix)]
 use crate::shim::is_within_root;
 
 /// Make the underlying script executable: apply a minimum mode of
@@ -250,11 +249,24 @@ where
 
 /// Whether the dirent at `shim_path` is a symlink that already resolves
 /// to `target_path` — raw, or resolved against the bin dir — pnpm's
-/// warm-install short-circuit arm for symlinked bins.
-pub(super) fn symlink_already_points_at(shim_path: &Path, target_path: &Path) -> bool {
+/// warm-install short-circuit arm for symlinked bins. An absolute node
+/// link inside the relocatable root must be rewritten before it can move.
+pub(super) fn symlink_already_points_at(
+    shim_path: &Path,
+    target_path: &Path,
+    relocatable_root: Option<&Path>,
+) -> bool {
     let Ok(existing) = std::fs::read_link(shim_path) else {
         return false;
     };
+    if existing.is_absolute()
+        && is_node_bin_name(shim_path)
+        && shim_path
+            .parent()
+            .is_some_and(|bins_dir| is_within_root(relocatable_root, bins_dir, target_path))
+    {
+        return false;
+    }
     if existing == target_path {
         return true;
     }

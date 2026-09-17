@@ -3,7 +3,11 @@ use super::{
     link_bins_of_packages, read_to_string, tempdir, write_file,
 };
 use pnpm_fs::lexical_normalize;
-use std::{fs, os::unix::fs::symlink, process::Command};
+use std::{
+    fs,
+    os::unix::fs::{MetadataExt, symlink},
+    process::Command,
+};
 
 /// Link a package whose bin prints `NODE_PATH` into `<root>/node_modules/.bin`,
 /// with three existing `NODE_PATH` entries: the package's own `node_modules`,
@@ -53,7 +57,10 @@ fn relocated_shim_resolves_node_path_from_its_new_location() {
     let mut through_a_dir_symlink = Command::new("/bin/sh");
     through_a_dir_symlink.arg("bin-link/foo").current_dir(&base);
 
+    let mut through_absolute_dir_symlink = Command::new(base.join("bin-link/foo"));
+    through_absolute_dir_symlink.current_dir(&base);
     let invocations = [
+        ("absolute through directory symlink", through_absolute_dir_symlink),
         ("absolute $0", by_absolute_path),
         ("relative $0 with a hostile $CDPATH", with_a_hostile_cdpath),
         ("relative $0 through a directory symlink", through_a_dir_symlink),
@@ -102,4 +109,43 @@ fn node_bin_symlink_is_relative_under_the_root() {
     let moved = tmp.path().join("moved");
     fs::rename(&root, &moved).unwrap();
     assert_eq!(read_to_string(moved.join("node_modules/.bin/node")).unwrap(), "fake-node-binary");
+}
+
+#[test]
+fn warm_install_upgrades_absolute_node_symlink_before_relocation() {
+    let tmp = tempdir().unwrap();
+    let root = tmp.path().join("project");
+    let node_dir = root.join("node_modules/node");
+    fs::create_dir_all(node_dir.join("bin")).unwrap();
+    fs::write(node_dir.join("bin/node"), "fake-node-binary").unwrap();
+    let packages = [PackageBinSource::new(
+        node_dir,
+        Arc::new(json!({
+            "name": "node", "version": "20.0.0", "bin": {"node": "bin/node"}
+        })),
+    )];
+    let bin_dir = root.join("node_modules/.bin");
+    link_bins_of_packages::<Host>(&packages, &bin_dir, &LinkBinsOptions::default()).unwrap();
+    assert!(fs::read_link(bin_dir.join("node")).unwrap().is_absolute());
+    link_bins_of_packages::<Host>(
+        &packages,
+        &bin_dir,
+        &LinkBinsOptions { relocatable_root: Some(root.clone()), ..LinkBinsOptions::default() },
+    )
+    .unwrap();
+    assert_eq!(fs::read_link(bin_dir.join("node")).unwrap(), Path::new("../node/bin/node"));
+    let original = fs::symlink_metadata(bin_dir.join("node")).unwrap();
+    link_bins_of_packages::<Host>(
+        &packages,
+        &bin_dir,
+        &LinkBinsOptions { relocatable_root: Some(root.clone()), ..LinkBinsOptions::default() },
+    )
+    .unwrap();
+    assert_eq!(fs::symlink_metadata(bin_dir.join("node")).unwrap().ino(), original.ino());
+    let moved = tmp.path().join("moved");
+    fs::rename(root, &moved).unwrap();
+    assert_eq!(
+        fs::read_to_string(moved.join("node_modules/.bin/node")).unwrap(),
+        "fake-node-binary",
+    );
 }
