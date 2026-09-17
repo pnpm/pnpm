@@ -41,8 +41,8 @@ fn appends_trailing_slash_when_missing() {
     );
 }
 
-/// `tools.node.mirror` names where every channel comes from, so the
-/// channel goes below it the way nodejs.org lays its own tree out.
+/// nodejs.org lays its channels out below one base, which is the shape
+/// a mirror of it carries.
 #[test]
 fn the_tool_mirror_is_the_base_every_channel_hangs_off() {
     for channel in ["release", "nightly", "v8-canary"] {
@@ -57,9 +57,6 @@ fn the_tool_mirror_is_the_base_every_channel_hangs_off() {
     );
 }
 
-/// `node-mirror:<channel>` names one channel where the base names them
-/// all, so it decides the channel it names and leaves the rest to the
-/// base.
 #[test]
 fn a_channel_named_outright_wins_over_the_base() {
     let mirrors = HashMap::from([("nightly".to_string(), "http://nightly.localhost".to_string())]);
@@ -73,8 +70,6 @@ fn a_channel_named_outright_wins_over_the_base() {
     );
 }
 
-/// A channel and a base answer different questions, so naming both sends
-/// that channel one way and everything else the other.
 #[test]
 fn a_channel_overrides_the_base_it_is_named_beside() {
     assert_eq!(
@@ -92,9 +87,7 @@ fn a_channel_overrides_the_base_it_is_named_beside() {
     );
 }
 
-/// `tools.node.channels` is the canonical spelling and
-/// `node-mirror:<channel>` the older one, so the canonical one decides a
-/// channel both name.
+/// `node-mirror:<channel>` is the older spelling of the same thing.
 #[test]
 fn the_canonical_channel_wins_over_the_older_spelling() {
     let mirrors = HashMap::from([("nightly".to_string(), "http://older.localhost".to_string())]);

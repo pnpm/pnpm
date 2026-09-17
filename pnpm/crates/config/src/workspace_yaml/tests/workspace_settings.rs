@@ -312,9 +312,6 @@ cargo:
     assert!(settings.cargo.is_none());
 }
 
-/// A tool is named by what it is, not by what kind of thing it is, so
-/// the setting takes a runtime, an interpreter and a package manager
-/// without telling them apart.
 #[test]
 fn tool_settings_parse_and_apply() {
     let yaml = "tools:\n  node:\n    mirror: https://mirror.example.test/node/download\n  python:\n    mirror: https://mirror.example.test/python-build-standalone/releases\n  bun:\n    mirror: https://mirror.example.test/bun\n";
@@ -339,8 +336,41 @@ fn tool_settings_parse_and_apply() {
     assert!(unknown.is_err());
 }
 
-/// A base and a channel answer different questions, so a tool can name
-/// where its builds come from and still send one line of them elsewhere.
+/// A name pnpm has no downloader for would sit in the file doing
+/// nothing, which reads as a mirror in use.
+#[test]
+fn refuses_a_tool_pnpm_does_not_download() {
+    let settings: WorkspaceSettings =
+        serde_saphyr::from_str("tools:\n  deno:\n    mirror: https://mirror.example.test/deno\n")
+            .unwrap();
+    let error =
+        settings.validate_tools().expect_err("deno is not a tool pnpm downloads through a mirror");
+    assert!(format!("{error}").contains("tools['deno']"), "{error}");
+
+    let settings: WorkspaceSettings =
+        serde_saphyr::from_str("tools:\n  node:\n    mirror: https://mirror.example.test/node\n")
+            .unwrap();
+    assert!(settings.validate_tools().is_ok());
+}
+
+/// Each tool is answered for separately, so naming one leaves the
+/// mirrors the machine's own config names for the others alone.
+#[test]
+fn a_workspace_tool_keeps_the_mirrors_named_elsewhere() {
+    let mut config = Config::default();
+    let global: WorkspaceSettings =
+        serde_saphyr::from_str("tools:\n  node:\n    mirror: https://global.example.test/node\n")
+            .unwrap();
+    global.apply_to(&mut config, Path::new("/workspace"));
+    let workspace: WorkspaceSettings =
+        serde_saphyr::from_str("tools:\n  bun:\n    mirror: https://workspace.example.test/bun\n")
+            .unwrap();
+    workspace.apply_to(&mut config, Path::new("/workspace"));
+
+    assert_eq!(config.tool_mirror("node"), Some("https://global.example.test/node"));
+    assert_eq!(config.tool_mirror("bun"), Some("https://workspace.example.test/bun"));
+}
+
 #[test]
 fn a_tool_channel_is_read_beside_the_base_it_refines() {
     let yaml = "tools:\n  node:\n    mirror: https://mirror.example.test/node/download\n    channels:\n      nightly: https://nightly.example.test/\n";
@@ -359,8 +389,7 @@ fn a_tool_channel_is_read_beside_the_base_it_refines() {
     assert!(config.tool_channel_mirrors("bun").is_empty());
 }
 
-/// A caller joins a path onto what it is given, so the trailing slash a
-/// user may or may not have written cannot reach it.
+/// A caller joins a path onto what it is given.
 #[test]
 fn a_tool_mirror_is_read_without_its_trailing_slash() {
     let mut config = Config::default();

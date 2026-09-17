@@ -363,6 +363,7 @@ impl WorkspaceSettings {
         );
         json_field!(settings, Sys, changed_files_ignore_pattern, "CHANGED_FILES_IGNORE_PATTERN");
         json_field!(settings, Sys, supported_architectures, "SUPPORTED_ARCHITECTURES");
+        json_field!(settings, Sys, tools, "TOOLS");
         json_field!(settings, Sys, ignored_optional_dependencies, "IGNORED_OPTIONAL_DEPENDENCIES");
         json_field!(settings, Sys, overrides, "OVERRIDES");
         json_field!(settings, Sys, package_extensions, "PACKAGE_EXTENSIONS");

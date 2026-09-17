@@ -33,8 +33,8 @@ fn ignores_unrelated_assets() {
     assert!(parse_asset_name("bun-linux-x64.tar.gz").is_none());
 }
 
-/// A mirror carries Bun's own layout below it, so both the checksums
-/// file and every asset of a release are found by swapping the host.
+/// A release's checksums and its assets share one base, so both move
+/// with the host.
 #[test]
 fn a_release_is_laid_out_the_same_under_a_mirror() {
     assert_eq!(

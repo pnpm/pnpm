@@ -768,6 +768,7 @@ impl WorkspaceSettings {
             .map_err(Box::new)
             .map_err(|source| LoadWorkspaceYamlError::ParseYaml { path: path.clone(), source })?;
         settings.validate_registries()?;
+        settings.validate_tools()?;
         settings.validate_tasks()?;
         settings.validate_pipelines()?;
         settings.clear_workspace_only_fields();
@@ -831,6 +832,7 @@ impl WorkspaceSettings {
             .map_err(Box::new)
             .map_err(|source| LoadWorkspaceYamlError::ParseYaml { path: path.clone(), source })?;
         settings.validate_registries()?;
+        settings.validate_tools()?;
         settings.validate_tasks()?;
         settings.validate_pipelines()?;
         settings.reject_repo_controlled_trust_material(&path)?;

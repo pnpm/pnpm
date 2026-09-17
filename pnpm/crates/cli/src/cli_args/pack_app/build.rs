@@ -10,10 +10,20 @@ pub(super) struct SeaBuild<'a> {
     pub(super) output_dir: PathBuf,
     pub(super) output_name: String,
     pub(super) entry: PathBuf,
-    pub(super) build_root: PathBuf,
-    pub(super) target_version: String,
+    pub(super) runtime: EmbeddedRuntime,
     pub(super) builder_bin: PathBuf,
     pub(super) pacquet_bin: PathBuf,
+}
+
+/// The Node.js the executables embed: which build, where the copies of
+/// it are kept, and where it may be downloaded from.
+pub(super) struct EmbeddedRuntime {
+    pub(super) build_root: PathBuf,
+    pub(super) version: String,
+    /// The `tools` settings the install that fetches a runtime is given,
+    /// since it runs under the pnpm home and would otherwise discover
+    /// none of this project's configuration.
+    pub(super) tools: Option<String>,
 }
 
 /// Reject a pre-existing symlink (or any non-regular file) at any
@@ -49,13 +59,11 @@ pub(super) fn print_built(results: &[String]) {
 /// Unlike pnpm — which reuses its own running interpreter when it already
 /// matches — pacquet has no host Node.js, so it always downloads a
 /// host-arch Node.js of the target version.
-pub(super) fn resolve_builder_binary(
-    build_root: &Path,
-    target_version: &str,
-) -> miette::Result<PathBuf> {
+pub(super) fn resolve_builder_binary(runtime: &EmbeddedRuntime) -> miette::Result<PathBuf> {
+    let target_version = &runtime.version;
     if !builder_version_can_build_sea(target_version) {
         return Err(PackAppError::RuntimeTooOld {
-            version: target_version.to_string(),
+            version: target_version.clone(),
             major: MIN_BUILDER_VERSION.0,
             minor: MIN_BUILDER_VERSION.1,
         }
@@ -65,8 +73,7 @@ pub(super) fn resolve_builder_binary(
         std::env::current_exe().into_diagnostic().wrap_err("resolving the pnpm executable path")?;
     ensure_node_runtime(
         &pacquet_bin,
-        build_root,
-        target_version,
+        runtime,
         pnpm_detect_libc::host_platform(),
         pnpm_detect_libc::host_arch(),
         // Pin libc to the host's. Otherwise a caller that set
@@ -104,14 +111,23 @@ fn builder_version_can_build_sea(version: &str) -> bool {
 ///
 /// Re-invokes the pacquet binary with `add` against an isolated install
 /// directory.
+/// The `tools` settings to hand an install that runs outside this
+/// project, as the value of `PNPM_CONFIG_TOOLS`.
+pub(super) fn tools_env(config: &Config) -> Option<String> {
+    if config.tools.is_empty() {
+        return None;
+    }
+    serde_json::to_string(&config.tools).ok()
+}
+
 pub(super) fn ensure_node_runtime(
     pacquet_bin: &Path,
-    build_root: &Path,
-    version: &str,
+    runtime: &EmbeddedRuntime,
     platform: &str,
     arch: &str,
     libc: Option<&str>,
 ) -> miette::Result<PathBuf> {
+    let EmbeddedRuntime { build_root, version, tools } = runtime;
     // Linux variants always need a libc pin (glibc or musl) so variant
     // selection is deterministic and doesn't depend on the host's detected
     // libc or the user's supportedArchitectures.libc config.
@@ -140,13 +156,20 @@ pub(super) fn ensure_node_runtime(
     if let Some(libc) = libc {
         command.arg(format!("--libc={libc}"));
     }
+    // The install runs under the pnpm home, so it walks up from there
+    // and finds no `pnpm-workspace.yaml` of this project. A mirror named
+    // there has to be handed over, or the version would resolve through
+    // it and the download would go to the official host anyway.
+    if let Some(tools) = tools {
+        command.env("PNPM_CONFIG_TOOLS", tools);
+    }
     command.arg(format!("node@runtime:{version}"));
     run_command(&mut command, "pnpm add node@runtime")?;
 
     if !binary_path.exists() {
         return Err(PackAppError::NodeBinaryMissing {
             path: binary_path.display().to_string(),
-            version: version.to_string(),
+            version: version.clone(),
         }
         .into());
     }

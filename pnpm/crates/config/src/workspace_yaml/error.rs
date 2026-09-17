@@ -82,6 +82,14 @@ pub enum LoadWorkspaceYamlError {
         )
     )]
     UnknownTaskSettingField { task: String, field: String },
+    #[display("The \"tools['{tool}']\" setting names a tool pnpm does not download")]
+    #[diagnostic(
+        code(ERR_PNPM_INVALID_SETTING),
+        help(
+            r#"pnpm downloads "node", "bun" and "python". Deno and Yarn come from the GitHub API, which a mirror cannot stand in for."#
+        )
+    )]
+    UnknownTool { tool: String },
     #[display("The \"pipelines['{pipeline}']\" setting contains an entry with no task name")]
     #[diagnostic(code(ERR_PNPM_INVALID_SETTING))]
     EmptyPipelineTaskName { pipeline: String },

@@ -75,6 +75,28 @@ fn overlay<Setting>(target: &mut Setting, value: Option<Setting>) {
     }
 }
 
+/// [`overlay`] for the tools, which every layer answers for separately.
+///
+/// The tools are independent of one another, so a workspace naming a Bun
+/// mirror has said nothing about Node.js and must not drop the one the
+/// machine's own config names. The same holds a level down: a layer that
+/// names a tool's release channels has not said where the rest of its
+/// builds come from.
+fn overlay_tools(
+    target: &mut BTreeMap<String, ToolSettings>,
+    value: Option<BTreeMap<String, ToolSettings>>,
+) {
+    for (tool, named) in value.into_iter().flatten() {
+        let settings = target.entry(tool).or_default();
+        overlay_some(&mut settings.mirror, named.mirror);
+        match (&mut settings.channels, named.channels) {
+            (Some(channels), Some(named)) => channels.extend(named),
+            (channels @ None, named @ Some(_)) => *channels = named,
+            (_, None) => {}
+        }
+    }
+}
+
 /// [`overlay`] for a target that is itself optional: an unset field leaves
 /// whatever the previous layer recorded, including its absence.
 fn overlay_some<Setting>(target: &mut Option<Setting>, value: Option<Setting>) {

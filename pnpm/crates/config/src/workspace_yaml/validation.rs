@@ -5,6 +5,11 @@ use super::{
     registries,
 };
 
+/// The tools pnpm downloads through a base URL, which is what a mirror
+/// can replace. Deno and Yarn read the GitHub API for their release
+/// metadata, so naming one would promise something a mirror cannot do.
+const MIRRORED_TOOLS: &[&str] = &["bun", "node", "python"];
+
 impl WorkspaceSettings {
     /// Reject a `registries` map pnpm would read as something other than what
     /// it says. See [`registries::validate`] for the rules.
@@ -16,6 +21,23 @@ impl WorkspaceSettings {
     pub(super) fn validate_registries(&self) -> Result<(), LoadWorkspaceYamlError> {
         let Some(entries) = self.registries.as_ref() else { return Ok(()) };
         registries::validate(entries)
+    }
+
+    /// Reject a `tools` entry for something pnpm does not download.
+    ///
+    /// The map is keyed by tool name and nothing else reads it, so a name
+    /// pnpm has no downloader for would sit there doing nothing: a typo,
+    /// or a mirror the user believes is in use. Deno and Yarn are named
+    /// in the help because they are the two a reader most reasonably
+    /// expects to work.
+    pub(super) fn validate_tools(&self) -> Result<(), LoadWorkspaceYamlError> {
+        let Some(tools) = self.tools.as_ref() else { return Ok(()) };
+        for tool in tools.keys() {
+            if !MIRRORED_TOOLS.contains(&tool.as_str()) {
+                return Err(LoadWorkspaceYamlError::UnknownTool { tool: tool.clone() });
+            }
+        }
+        Ok(())
     }
 
     /// The `tasks` section feeds the task-graph builder of `pnpm -r run`,
