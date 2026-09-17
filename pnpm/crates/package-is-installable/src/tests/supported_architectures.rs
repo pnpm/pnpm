@@ -18,9 +18,7 @@ fn spelled(entry: &str) -> String {
         .to_string()
 }
 
-/// pnpm's own `<os>-<cpu>[-<libc>]` spelling and the Rust target triple
-/// of the same machine name one platform, so a lockfile resolved for one
-/// spelling still answers for the other.
+/// A lockfile resolved for one spelling still answers for the other.
 #[test]
 fn a_platform_reads_the_same_in_either_spelling() {
     for (triple, platform) in [
@@ -38,8 +36,7 @@ fn a_platform_reads_the_same_in_either_spelling() {
     }
 }
 
-/// A Linux platform that names no C library is the glibc platform, which
-/// is what `linux-x64` means everywhere else in pnpm.
+/// `linux-x64` means the glibc build everywhere else in pnpm.
 #[test]
 fn a_linux_platform_defaults_to_glibc() {
     assert_eq!(spelled("linux-x64"), "linux-x64");
@@ -56,8 +53,7 @@ fn a_libc_baseline_survives_the_spelling() {
     assert_eq!(spelled("linux-arm64-musllinux_1_1"), "linux-arm64-musllinux_1_1");
 }
 
-/// Both PowerPC platforms are `ppc64` to a package, since that is the
-/// one name Node has for them, and each keeps its own wheel spelling.
+/// `ppc64` is the one name Node has for either endianness.
 #[test]
 fn both_powerpc_platforms_are_one_name_to_a_package() {
     let platforms = listed(&["linux-ppc64le", "linux-ppc64be"]);
@@ -81,9 +77,24 @@ fn a_bare_ppc64_is_the_little_endian_platform() {
     assert_eq!(crossed(&["linux"], &["ppc64"], &[]), ["linux-ppc64le"]);
 }
 
+/// The running platform is read from the architecture spelling that
+/// tells the two POWER endiannesses apart. No machine pnpm builds on is
+/// one, so this equality is all that holds the callers to it there.
+#[test]
+fn the_host_is_read_from_the_architecture_that_names_it_exactly() {
+    let host = SupportedArchitectures::Platforms(vec!["current".parse().unwrap()]);
+    assert_eq!(
+        host.host_platforms(),
+        host.platforms(
+            pnpm_detect_libc::host_platform(),
+            std::env::consts::ARCH,
+            pnpm_detect_libc::detect().map_or("unknown", |libc| libc.as_str()),
+        ),
+    );
+}
+
 /// A POWER host keeps the endianness it is, which the Node name cannot
-/// carry. Its callers pass [`pnpm_detect_libc::host_target_arch`], the
-/// machine's own target-triple spelling, for exactly this reason.
+/// carry.
 #[test]
 fn current_keeps_the_endianness_the_host_is() {
     let host = SupportedArchitectures::Platforms(vec!["current".parse().unwrap()]);
@@ -184,9 +195,8 @@ fn named(supported: &SupportedArchitectures) -> Vec<String> {
         .collect()
 }
 
-/// The axes stand for every combination they name, which is what an
-/// `os` and a `cpu` list have always meant to the optional-dependency
-/// check.
+/// A cross product is what an `os` and a `cpu` list have always meant
+/// to the optional-dependency check.
 #[test]
 fn the_axes_stand_for_every_platform_they_cross_into() {
     assert_eq!(
@@ -195,8 +205,7 @@ fn the_axes_stand_for_every_platform_they_cross_into() {
     );
 }
 
-/// Only Linux has a C library, so a `libc` axis does not multiply the
-/// platforms of a system that has none.
+/// Only Linux has a C library.
 #[test]
 fn a_libc_axis_only_reaches_linux() {
     assert_eq!(
@@ -213,8 +222,6 @@ fn an_axis_value_that_names_no_platform_is_left_out() {
     assert_eq!(crossed(&["linux", "freebsd"], &["x64", "sparc"], &[]), ["linux-x64"]);
 }
 
-/// An unset axis, and the `current` sentinel, are the platform the
-/// install runs on.
 #[test]
 fn current_is_the_platform_the_install_runs_on() {
     assert_eq!(crossed(&["current"], &["arm64"], &[]), ["linux-arm64"]);
@@ -222,8 +229,6 @@ fn current_is_the_platform_the_install_runs_on() {
     assert_eq!(named(&listed(&["current", "darwin-arm64"])), ["linux-x64", "darwin-arm64"]);
 }
 
-/// A list names the platforms themselves, so it prepares for three
-/// rather than for the six an `os` and a `cpu` list cross into.
 #[test]
 fn a_platform_list_names_the_platforms_themselves() {
     assert_eq!(
@@ -256,7 +261,6 @@ fn names_the_axis_values_no_platform_stands_for() {
     );
 }
 
-/// Every value of these names a platform, so there is nothing to say.
 #[test]
 fn names_nothing_when_every_value_stands_for_a_platform() {
     let axes = SupportedArchitectures::Axes(ArchitectureAxes {
@@ -279,9 +283,8 @@ fn takes(supported: &SupportedArchitectures, os: &str, cpu: &str, libc: &str) ->
     )
 }
 
-/// A named platform judges the whole package at once, so a package built
-/// for a combination no listed platform is does not install. The axes
-/// take it, because each of them matches on its own.
+/// The axes take a combination no listed platform is, because each of
+/// them matches on its own.
 #[test]
 fn a_platform_list_refuses_a_combination_no_platform_of_it_is() {
     let platforms = listed(&["linux-x64", "darwin-arm64"]);
@@ -298,8 +301,7 @@ fn a_platform_list_refuses_a_combination_no_platform_of_it_is() {
     assert!(takes(&crossed, "darwin", "x64", "glibc"));
 }
 
-/// A platform's own C library decides the `libc` axis, and a platform
-/// that has none leaves the axis to the package.
+/// A platform that has no C library leaves the axis to the package.
 #[test]
 fn a_named_platform_answers_for_its_own_c_library() {
     let platforms = listed(&["linux-x64-musl", "win32-x64"]);

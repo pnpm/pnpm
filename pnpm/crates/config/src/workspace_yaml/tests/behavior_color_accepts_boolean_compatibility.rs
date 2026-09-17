@@ -692,9 +692,6 @@ fn axes(
     }
 }
 
-/// A platform list names the platforms themselves, so an `os` and a
-/// `cpu` list do not have to be crossed to find out which ones an
-/// install prepares for.
 #[test]
 fn parses_supported_architectures_written_as_a_platform_list() {
     let yaml = r"
@@ -717,16 +714,16 @@ supportedArchitectures:
     );
 }
 
-/// A list that names no platform prepares for nothing, which no
-/// workspace means.
+/// Refused rather than read as unset: a list that names no platform
+/// prepares for nothing.
 #[test]
 fn refuses_a_platform_list_that_names_no_platform() {
     serde_saphyr::from_str::<WorkspaceSettings>("supportedArchitectures: []\n")
         .expect_err("an empty list names no platform");
 }
 
-/// A platform pnpm cannot resolve for is a typo, and the file says
-/// where it is.
+/// A platform pnpm does not know is a typo, not a name to leave out
+/// the way an axis value it cannot read is.
 #[test]
 fn refuses_a_platform_it_does_not_know() {
     let error =

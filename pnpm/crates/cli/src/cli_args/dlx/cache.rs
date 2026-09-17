@@ -210,11 +210,7 @@ fn architecture_key_inputs(supported: Option<&SupportedArchitectures>) -> Vec<Va
         }
         Some(supported @ SupportedArchitectures::Platforms(_)) => {
             let named: Vec<String> = supported
-                .platforms(
-                    pnpm_detect_libc::host_platform(),
-                    pnpm_detect_libc::host_target_arch(),
-                    pnpm_detect_libc::detect().map_or("unknown", |libc| libc.as_str()),
-                )
+                .host_platforms()
                 .iter()
                 .map(ToString::to_string)
                 .collect();

@@ -148,6 +148,24 @@ fn reads<Value>(value: &str, current: &str, parse: impl Fn(&str) -> Option<Value
     parse(if value == "current" { current } else { value }).is_some()
 }
 
+impl SupportedArchitectures {
+    /// [`Self::platforms`] for the machine this install runs on.
+    ///
+    /// Naming that machine takes more care than naming any other: the
+    /// architecture has to be read from the spelling that tells the two
+    /// POWER endiannesses apart, which the name a package declares does
+    /// not. Every caller that prepares per platform goes through here so
+    /// that there is one place to get it right.
+    #[must_use]
+    pub fn host_platforms(&self) -> Vec<NamedPlatform> {
+        self.platforms(
+            pnpm_detect_libc::host_platform(),
+            pnpm_detect_libc::host_target_arch(),
+            pnpm_detect_libc::detect().map_or("unknown", |libc| libc.as_str()),
+        )
+    }
+}
+
 /// The platform the install runs on, or `None` on one pnpm cannot name.
 fn host(current_os: &str, current_cpu: &str, current_libc: &str) -> Option<NamedPlatform> {
     let os = Os::parse(current_os)?;

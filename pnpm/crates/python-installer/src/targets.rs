@@ -6,7 +6,7 @@ use super::host::Interpreter;
 use miette::{IntoDiagnostic, Result, bail};
 use pep508_rs::MarkerTree;
 use pnpm_config::Config;
-use pnpm_package_is_installable::{Libc, LibcFamily, NamedPlatform, Os};
+use pnpm_package_is_installable::{Libc, LibcFamily, NamedPlatform, Os, SupportedArchitectures};
 use pnpm_python_resolver::{Target, environment_marker};
 use std::collections::BTreeSet;
 
@@ -146,12 +146,10 @@ pub(super) fn declares_platforms(config: &Config) -> bool {
 
 /// The values `supportedArchitectures` names that pnpm cannot resolve
 /// Python for, as the interpreter running the install reads them.
-pub(super) fn platform_values_without_python(
-    supported: &pnpm_package_is_installable::SupportedArchitectures,
-) -> Vec<&str> {
+pub(super) fn platform_values_without_python(supported: &SupportedArchitectures) -> Vec<&str> {
     supported.unnamed_platform_values(
         pnpm_detect_libc::host_platform(),
-        pnpm_detect_libc::host_arch(),
+        pnpm_detect_libc::host_target_arch(),
         pnpm_detect_libc::detect().map_or("unknown", |libc| libc.as_str()),
     )
 }
@@ -165,13 +163,7 @@ pub(super) fn platform_values_without_python(
 fn named(config: &Config) -> (Vec<NamedPlatform>, Vec<String>) {
     let platforms = config.supported_architectures
         .as_ref()
-        .map(|supported| {
-            supported.platforms(
-                pnpm_detect_libc::host_platform(),
-                pnpm_detect_libc::host_target_arch(),
-                pnpm_detect_libc::detect().map_or("unknown", |libc| libc.as_str()),
-            )
-        })
+        .map(SupportedArchitectures::host_platforms)
         .unwrap_or_default();
     let mut seen = BTreeSet::new();
     let python_versions = config.python.python_versions
