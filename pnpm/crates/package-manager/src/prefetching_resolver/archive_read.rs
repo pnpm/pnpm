@@ -92,7 +92,7 @@ impl<Reporter: self::Reporter + 'static> PrefetchingResolver<Reporter> {
     /// with a tab, which neither a URL, an integrity nor a package id can
     /// contain. Concatenating the parts alone would let a bare URL spell
     /// another URL followed by an integrity.
-    fn tarball_metadata_cache_key(
+    pub(super) fn tarball_metadata_cache_key(
         &self,
         result: &ResolveResult,
         tarball: &pnpm_lockfile::TarballResolution,

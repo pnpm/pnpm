@@ -509,3 +509,31 @@ async fn refuses_a_manifest_read_from_a_tarball_that_fails_its_integrity() {
     assert!(dbg!(error.to_string()).contains("Integrity check failed"), "got: {error}");
     get_mock.assert_async().await;
 }
+
+/// A tarball URL may itself end in `:sha512-…`, so concatenating a URL and
+/// an integrity is not enough to tell a pinned read from an unpinned one.
+#[tokio::test]
+async fn a_url_spelling_another_url_and_its_integrity_gets_its_own_cache_cell() {
+    let dir = tempdir().unwrap();
+    let integrity = "sha512-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==";
+    let pinned = manifestless_tarball_result("https://registry.example/x.tgz", integrity);
+    let mut unpinned = result_without_manifest("collider");
+    unpinned.resolution = LockfileResolution::Tarball(TarballResolution {
+        integrity: None,
+        tarball: format!("https://registry.example/x.tgz:{integrity}"),
+        revision: None,
+        git_hosted: None,
+        path: None,
+    });
+    let resolver =
+        resolver_with_prefetch(dir.path(), Box::new(DefaultResolver::new(Vec::new())), false);
+
+    let key = |result: &ResolveResult| {
+        let LockfileResolution::Tarball(tarball) = &result.resolution else {
+            panic!("expected tarball resolution");
+        };
+        resolver.tarball_metadata_cache_key(result, tarball, "collider@1.0.0").expect("build key")
+    };
+
+    assert_ne!(dbg!(key(&pinned)), dbg!(key(&unpinned)));
+}
