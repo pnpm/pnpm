@@ -111,7 +111,7 @@ impl CreateVirtualDirBySnapshot<'_> {
             self.cas_paths,
             &slot.save_path,
             self.source.build_marker,
-            interrupted_build,
+            (interrupted_build, self.source.force),
         );
         let cas_paths = marked_cas_paths.as_ref().unwrap_or(self.cas_paths);
 
@@ -306,14 +306,23 @@ fn create_slot_dirs(
 
 /// The CAS paths plus a `.pnpm-needs-build` marker, when the slot has to carry
 /// one it does not already have.
+///
+/// A finished slot's completion marker is normally proof that its build
+/// ran too, so the marker is left out. Two cases break that and have to
+/// carry it anyway: a build this install interrupted, and a forced
+/// re-import, which replaces the slot's files with the pristine base map
+/// and so undoes whatever the build did to them. Without the marker
+/// [`slot_carries_overlay`](crate::build_modules::slot_carries_overlay) would read the re-imported files as a
+/// cache hit and skip the rebuild.
 fn cas_paths_with_build_marker(
     cas_paths: &HashMap<String, PathBuf>,
     save_path: &Path,
     needs_build_marker_source: Option<&Path>,
-    interrupted_build: bool,
+    rebuilt: (bool, bool),
 ) -> Option<HashMap<String, PathBuf>> {
+    let (interrupted_build, force_import) = rebuilt;
     let source = needs_build_marker_source?;
-    if !interrupted_build && marker_present(save_path, cas_paths) {
+    if !interrupted_build && !force_import && marker_present(save_path, cas_paths) {
         return None;
     }
     let mut paths = cas_paths.clone();

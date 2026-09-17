@@ -185,3 +185,69 @@ fn frozen_install_command(workspace: &Path) -> Command {
         .with_current_dir(workspace)
         .with_args(["install", "--frozen-lockfile"])
 }
+
+/// A forced re-import must not revert a built package to its pristine
+/// files and then skip the rebuild.
+///
+/// Under the global virtual store a forced import heals the shared slot
+/// in place from the pristine base file map, because the side-effects
+/// overlay is applied later by the build phase. The build phase then has
+/// to be told the slot needs rebuilding — which is what
+/// `.pnpm-needs-build` is for, per `slot_carries_overlay`. Without the
+/// marker the cache hit reports the build as already on disk and the
+/// package keeps whatever the re-import left.
+///
+/// `@pnpm/postinstall-modifies-source` appends to a file that *is* in its
+/// tarball, so a reverted import is visible: a package whose build only
+/// adds files would look fine here.
+#[test]
+fn a_forced_install_does_not_revert_a_built_package_under_the_global_virtual_store() {
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    crate::_utils::enable_gvs_in_workspace_yaml(
+        &workspace,
+        "allowBuilds:\n  '@pnpm/postinstall-modifies-source': true\n",
+    );
+    fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({
+            "dependencies": { "@pnpm/postinstall-modifies-source": "1.0.0" },
+        })
+        .to_string(),
+    )
+    .expect("write package.json");
+
+    let built_file =
+        workspace.join("node_modules/@pnpm/postinstall-modifies-source/empty-file.txt");
+
+    pacquet
+        .with_arg("install")
+        .assert()
+        .success();
+    assert_eq!(
+        fs::read_to_string(&built_file).expect("read the built file"),
+        "hello",
+        "the postinstall must run on the first install",
+    );
+
+    Command::cargo_bin("pnpm")
+        .expect("find the pnpm binary")
+        .with_current_dir(&workspace)
+        .with_args(["install", "--force"])
+        .assert()
+        .success();
+    assert_eq!(
+        fs::read_to_string(&built_file).expect("read the built file after the forced install"),
+        "hello",
+        "the forced install must not leave the package reverted to its pristine files",
+    );
+
+    drop((root, mock_instance));
+}
