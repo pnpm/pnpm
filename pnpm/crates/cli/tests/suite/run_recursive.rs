@@ -896,6 +896,8 @@ mod task_graph;
 
 mod recovery;
 
+mod concurrency;
+
 mod output;
 
 mod environment;

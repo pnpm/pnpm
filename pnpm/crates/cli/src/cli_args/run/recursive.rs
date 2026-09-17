@@ -9,12 +9,15 @@
 //! order under `workspaceConcurrency`, with no barrier between
 //! dependency-independent tasks. `--no-sort` drops the ordering entirely,
 //! `--reverse` runs the reverse graph, and `--parallel` starts every task
-//! concurrently. The main-dispatch auto-exclusion of the workspace root is
-//! applied via [`AutoExcludeRoot::Enabled`].
+//! concurrently. A task whose selector matched several scripts runs them
+//! the same way relative to each other: all at once under `--parallel`,
+//! otherwise up to `workspaceConcurrency`, and one at a time under
+//! `--sequential`. The main-dispatch auto-exclusion of the workspace root
+//! is applied via [`AutoExcludeRoot::Enabled`].
 
 use super::{
     RunArgs, RunContext, ScriptSelector, get_run_script_commands, render_project_commands,
-    run_stages, throw_or_filter_hidden_scripts,
+    run_stages, script_concurrency, throw_or_filter_hidden_scripts,
 };
 use crate::cli_args::{
     recursive::{
