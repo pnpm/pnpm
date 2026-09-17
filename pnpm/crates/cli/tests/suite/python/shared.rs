@@ -284,3 +284,62 @@ async fn a_shared_members_metadata_is_prepared_with_the_interpreter_the_root_ask
         .success()
         .stdout(line("0.0.1"));
 }
+
+/// The workspace is declared under `api`, and `tools/x` sits outside it.
+/// An add there reads that project alone, so the manifest under the
+/// workspace that does not parse is never read; an add in a member reads
+/// the workspace around it and fails on that manifest, as an install does.
+#[tokio::test]
+async fn an_add_outside_the_declared_workspace_reads_the_project_alone() {
+    let root = tempfile::tempdir().unwrap();
+    let mut server = mockito::Server::new_async().await;
+    let _alpha = serve(&mut server, "alpha", &[("1.0", wheel("alpha", "1.0", "", &[]))]).await;
+    project(root.path(), &server.url(), &[]);
+    fs::remove_file(root.path().join("pyproject.toml")).unwrap();
+    let plain = |name: &str| {
+        format!(
+            "[project]\nname = '{name}'\nversion = '1.0'\nrequires-python = '>=3.10'\n\
+             dependencies = []\n",
+        )
+    };
+    for (directory, manifest) in [
+        (
+            "api",
+            "[tool.uv.workspace]\nmembers = ['providers/*']\n\n[tool.pnpm.python]\n\
+         shared-environment = true\n"
+                .to_string(),
+        ),
+        ("api/providers/good", plain("good")),
+        ("api/providers/broken", "[project\n".to_string()),
+        ("tools/x", plain("x")),
+    ] {
+        fs::create_dir_all(root.path().join(directory)).unwrap();
+        fs::write(
+            root.path()
+                .join(directory)
+                .join("pyproject.toml"),
+            manifest,
+        )
+        .unwrap();
+    }
+    let outside = root.path().join("tools/x");
+
+    pacquet_in(&outside)
+        .args(["add", "pypi:alpha"])
+        .assert()
+        .success();
+
+    assert!(fs::read_to_string(outside.join("pyproject.toml")).unwrap().contains("alpha>=1.0"));
+    assert!(outside.join("pylock.toml").is_file(), "an environment of its own");
+    assert!(
+        !root
+            .path()
+            .join("api/pylock.toml")
+            .exists(),
+        "the workspace was not installed",
+    );
+    pacquet_in(&root.path().join("api/providers/good"))
+        .args(["add", "pypi:alpha"])
+        .assert()
+        .failure();
+}
