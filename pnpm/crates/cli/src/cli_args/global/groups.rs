@@ -1,15 +1,17 @@
 use super::{
     ActivationBinSets, ArtifactCleanupError, CmdShimHost, Config, Context, GlobalInstallTarget,
-    GlobalPackageInfo, GroupActivation, GroupInstall, HashSet, IntoDiagnostic, PackageBinSource,
-    Path, RangeSpecStyle, ReplacedGlobalBinPlan, Reporter, SupportedArchitectures,
+    GlobalPackageInfo, GlobalUpdateMaterializationReporter, GlobalUpdateResolutionReporter,
+    GroupActivation, GroupInstall, HashSet, IntoDiagnostic, Lockfile, PackageBinSource, Path,
+    RangeSpecStyle, ReplacedGlobalBinPlan, Reporter, SupportedArchitectures,
     acquire_global_bin_lock, activate_global_install_with_extra_bin_names,
     bin_names_of_other_groups, check_global_bin_conflicts, check_virtual_shim_conflicts,
     cleanup_replaced_global_installs, collect_existing_global_installs, create_global_cache_key,
-    create_install_dir, discard_install_dir_on_error, get_actual_bin_names, get_hash_link,
-    hash_linked_packages, link_global_bins, pins_for_downgrades, plan_replaced_global_bins,
-    read_direct_dependencies, read_installed_packages, registries_with_default,
-    replacement_aliases, restore_virtual_shims, run_group_install, should_replace_existing_package,
-    snapshot_global_package, update_selectors, warn_global,
+    create_install_dir, discard_install_dir_on_error, fs, get_actual_bin_names, get_hash_link,
+    global_group_config, hash_linked_packages, link_global_bins, pins_for_downgrades,
+    plan_replaced_global_bins, prompt_approve_install_builds, read_direct_dependencies,
+    read_installed_packages, registries_with_default, replacement_aliases, restore_virtual_shims,
+    run_group_install, should_replace_existing_package, snapshot_global_package, update_selectors,
+    warn_global,
 };
 
 impl GlobalInstallTarget<'_> {
@@ -93,35 +95,76 @@ impl GlobalInstallTarget<'_> {
         latest: bool,
         range_spec_style: RangeSpecStyle,
         supported_architectures: Option<SupportedArchitectures>,
-    ) -> miette::Result<()> {
+    ) -> miette::Result<bool> {
         let install_dir = create_install_dir(self.global_pkg_dir)
             .into_diagnostic()
             .wrap_err("create global install dir")?;
-        let pins = Box::pin(pins_for_downgrades::<Reporter>(
-            self.base_config,
-            self.global_pkg_dir,
-            &install_dir,
-            pkg,
-            latest,
-            range_spec_style,
-            supported_architectures.clone(),
+        fs::copy(pkg.install_dir.join("package.json"), install_dir.join("package.json"))
+            .into_diagnostic()
+            .wrap_err("seed global update manifest")?;
+        let downgrade_check =
+            Box::pin(pins_for_downgrades::<GlobalUpdateResolutionReporter<Reporter>>(
+                self.base_config,
+                self.global_pkg_dir,
+                &install_dir,
+                pkg,
+                latest,
+                range_spec_style,
+                supported_architectures.clone(),
+            ))
+            .await?;
+        let selectors = update_selectors(&pkg.dependencies, latest, &downgrade_check.pins);
+        if !downgrade_check.candidate_resolved || !downgrade_check.pins.is_empty() {
+            Box::pin(run_group_install::<GlobalUpdateResolutionReporter<Reporter>>(GroupInstall {
+                base_config: self.base_config,
+                global_pkg_dir: self.global_pkg_dir,
+                install_dir: &install_dir,
+                selectors: &selectors,
+                range_spec_style,
+                supported_architectures: supported_architectures.clone(),
+                allow_build: &[],
+                lockfile_only: true,
+            }))
+            .await?;
+        }
+
+        if lockfiles_are_equal(&pkg.install_dir, &install_dir) {
+            fs::remove_dir_all(&install_dir)
+                .into_diagnostic()
+                .wrap_err("remove unchanged global install candidate")?;
+            let active_config = Config::leak(global_group_config(
+                self.base_config,
+                &pkg.install_dir,
+                self.global_pkg_dir,
+                supported_architectures.clone(),
+            )?);
+            prompt_approve_install_builds::<Reporter>(
+                active_config,
+                &pkg.install_dir,
+                self.global_pkg_dir,
+            )
+            .await?;
+            return Ok(false);
+        }
+
+        Box::pin(run_group_install::<GlobalUpdateMaterializationReporter<Reporter>>(
+            GroupInstall {
+                base_config: self.base_config,
+                global_pkg_dir: self.global_pkg_dir,
+                install_dir: &install_dir,
+                selectors: &selectors,
+                range_spec_style,
+                supported_architectures,
+                // `update -g` takes no `--allow-build`; the build policy comes
+                // from the global `allowBuilds` loaded in `run_group_install`.
+                allow_build: &[],
+                lockfile_only: false,
+            },
         ))
         .await?;
-        Box::pin(run_group_install::<Reporter>(GroupInstall {
-            base_config: self.base_config,
-            global_pkg_dir: self.global_pkg_dir,
-            install_dir: &install_dir,
-            selectors: &update_selectors(&pkg.dependencies, latest, &pins),
-            range_spec_style,
-            supported_architectures,
-            // `update -g` takes no `--allow-build`; the build policy comes
-            // from the global `allowBuilds` loaded in `run_group_install`.
-            allow_build: &[],
-            lockfile_only: false,
-        }))
-        .await?;
 
-        self.activate_updated_group::<Reporter>(&install_dir, pkg)
+        self.activate_updated_group::<Reporter>(&install_dir, pkg)?;
+        Ok(true)
     }
 
     fn activate_updated_group<Reporter: self::Reporter>(
@@ -252,6 +295,17 @@ impl GlobalInstallTarget<'_> {
             ),
         )
     }
+}
+
+fn lockfiles_are_equal(active_dir: &Path, candidate_dir: &Path) -> bool {
+    let Ok(Some(active)) = Lockfile::load_from_path(&active_dir.join(Lockfile::FILE_NAME)) else {
+        return false;
+    };
+    let Ok(Some(candidate)) = Lockfile::load_from_path(&candidate_dir.join(Lockfile::FILE_NAME))
+    else {
+        return false;
+    };
+    active == candidate
 }
 
 fn warn_on_leftover<Reporter: self::Reporter>(leftover: Option<&ArtifactCleanupError>) {

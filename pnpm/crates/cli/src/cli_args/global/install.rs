@@ -13,6 +13,11 @@ pub(super) struct GlobalInstallTarget<'a> {
     pub(super) global_bin_dir: &'a Path,
 }
 
+pub(super) struct DowngradeCheck {
+    pub(super) candidate_resolved: bool,
+    pub(super) pins: HashMap<String, String>,
+}
+
 /// A freshly installed group, ready to take over the global bins of the
 /// groups it replaces.
 pub(super) struct GroupActivation<'a> {
@@ -47,12 +52,12 @@ pub(super) async fn pins_for_downgrades<Reporter: self::Reporter + 'static>(
     latest: bool,
     range_spec_style: RangeSpecStyle,
     supported_architectures: Option<SupportedArchitectures>,
-) -> miette::Result<HashMap<String, String>> {
+) -> miette::Result<DowngradeCheck> {
     // Only `--latest` can pick a version outside the recorded range, and only a
     // plain version spec is dropped for it. Everything else resolves within a
     // range the installed version already satisfies.
     if !latest {
-        return Ok(HashMap::new());
+        return Ok(DowngradeCheck { candidate_resolved: false, pins: HashMap::new() });
     }
     let versions_before = installed_versions(&pkg.install_dir);
     // Nothing to compare a resolution against, so nothing to resolve.
@@ -60,7 +65,7 @@ pub(super) async fn pins_for_downgrades<Reporter: self::Reporter + 'static>(
         .iter()
         .any(|(alias, spec)| is_plain_version_spec(spec) && versions_before.contains_key(alias))
     {
-        return Ok(HashMap::new());
+        return Ok(DowngradeCheck { candidate_resolved: false, pins: HashMap::new() });
     }
     run_group_install::<Reporter>(GroupInstall {
         base_config,
@@ -75,7 +80,7 @@ pub(super) async fn pins_for_downgrades<Reporter: self::Reporter + 'static>(
     .await?;
     let resolved = resolved_direct_versions(install_dir);
 
-    Ok(pkg.dependencies
+    let pins = pkg.dependencies
         .iter()
         .filter(|(_, spec)| is_plain_version_spec(spec))
         .filter_map(|(alias, _)| {
@@ -83,7 +88,8 @@ pub(super) async fn pins_for_downgrades<Reporter: self::Reporter + 'static>(
             let now = resolved.get(alias)?;
             (*now < before).then(|| (alias.clone(), before.to_string()))
         })
-        .collect())
+        .collect();
+    Ok(DowngradeCheck { candidate_resolved: true, pins })
 }
 
 /// The version each direct dependency resolved to, read from the lockfile the

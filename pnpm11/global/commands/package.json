@@ -44,6 +44,8 @@
     "@pnpm/error": "workspace:*",
     "@pnpm/global.packages": "workspace:*",
     "@pnpm/installing.deps-installer": "workspace:*",
+    "@pnpm/installing.modules-yaml": "workspace:*",
+    "@pnpm/lockfile.fs": "workspace:*",
     "@pnpm/pkg-manifest.reader": "workspace:*",
     "@pnpm/pkg-manifest.utils": "workspace:*",
     "@pnpm/resolving.parse-wanted-dependency": "workspace:*",
