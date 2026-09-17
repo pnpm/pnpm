@@ -224,9 +224,14 @@ fn linux_libc(current_libc: &str) -> Libc {
     Libc::parse(current_libc).unwrap_or_else(|| Libc::family(LibcFamily::Glibc))
 }
 
-/// The values one axis names, with `current` read as the install's own
-/// and anything the axis may name but a platform may not left out.
-fn named<Value>(
+/// The values one axis names, each once, with `current` read as the
+/// install's own and anything the axis may name but a platform may not
+/// left out.
+///
+/// Naming one value twice asks for the same platform twice, and the
+/// axes are crossed, so a repeat left in here would be multiplied by
+/// every repeat of every other axis before the crossing is over.
+fn named<Value: PartialEq>(
     values: Option<&[String]>,
     current: &str,
     parse: impl Fn(&str) -> Option<Value>,
@@ -234,10 +239,16 @@ fn named<Value>(
     let Some(values) = values.filter(|values| !values.is_empty()) else {
         return parse(current).into_iter().collect();
     };
-    values
-        .iter()
-        .filter_map(|value| parse(if value == "current" { current } else { value }))
-        .collect()
+    let mut named = Vec::new();
+    for value in values {
+        let Some(value) = parse(if value == "current" { current } else { value }) else {
+            continue;
+        };
+        if !named.contains(&value) {
+            named.push(value);
+        }
+    }
+    named
 }
 
 impl<'de> Deserialize<'de> for SupportedArchitectures {

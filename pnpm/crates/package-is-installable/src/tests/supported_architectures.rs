@@ -197,11 +197,18 @@ fn named(supported: &SupportedArchitectures) -> Vec<String> {
 
 /// A cross product is what an `os` and a `cpu` list have always meant
 /// to the optional-dependency check.
+///
+/// Each axis is named once first, since crossing three axes multiplies
+/// every repeat left in one by every repeat left in the others.
 #[test]
 fn the_axes_stand_for_every_platform_they_cross_into() {
     assert_eq!(
         crossed(&["linux", "darwin"], &["x64", "arm64"], &[]),
         ["linux-x64", "linux-arm64", "darwin-x64", "darwin-arm64"],
+    );
+    assert_eq!(
+        crossed(&["linux", "linux", "darwin"], &["x64", "x86_64"], &["glibc", "gnu"]),
+        ["linux-x64", "darwin-x64"],
     );
 }
 

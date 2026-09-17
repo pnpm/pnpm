@@ -1899,8 +1899,9 @@ async fn reports_a_platform_it_cannot_resolve_python_for() {
     }
 }
 
-/// Renaming a platform leaves a lockfile that still answers the project:
-/// what it records is the platform, not the spelling it was written in.
+/// The drift check compares the platforms the lockfile recorded against
+/// the ones wanted, so a spelling left in either would read as a project
+/// that changed.
 #[tokio::test]
 async fn locks_one_environment_per_platform_however_it_is_named() {
     let root = tempfile::tempdir().unwrap();

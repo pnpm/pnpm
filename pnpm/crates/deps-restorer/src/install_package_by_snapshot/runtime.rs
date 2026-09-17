@@ -103,7 +103,7 @@ pub fn runtime_platform_selector(supported: Option<&SupportedArchitectures>) -> 
 
 /// The archive a platform list asks for: this machine's own platform
 /// when the list names it, and the first platform it names otherwise.
-fn runtime_platform_of(
+pub(super) fn runtime_platform_of(
     platforms: &[SupportedPlatform],
     host: PlatformSelector,
 ) -> PlatformSelector {
@@ -117,12 +117,26 @@ fn runtime_platform_of(
                 .as_ref()
                 .map(|libc| libc.name().to_string()),
         };
-        if selector == host {
+        if is_host(&selector, &host) {
             return host;
         }
         first.get_or_insert(selector);
     }
     first.unwrap_or(host)
+}
+
+/// Whether a named platform is the machine this runs on.
+///
+/// A C library pnpm could not read leaves the host without one, and a
+/// Linux platform always names one, so comparing the two whole would
+/// find no match and reach for an archive from another platform. Which
+/// C library this machine has is the one thing that cannot be guessed
+/// from an archive that fails to run, so an unreadable one settles for
+/// the system and the architecture.
+fn is_host(selector: &PlatformSelector, host: &PlatformSelector) -> bool {
+    selector.os == host.os
+        && selector.cpu == host.cpu
+        && (host.libc.is_none() || selector.libc == host.libc)
 }
 pub(super) fn pick_supported<'a>(
     requested: Option<&'a [String]>,

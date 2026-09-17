@@ -2,8 +2,12 @@ use super::{
     super::{host_platform_selector, runtime_platform_selector},
     build_runtime_tarball_fixture, leaked_offline_config,
 };
-use crate::install_package_by_snapshot::runtime::synthesize_runtime_manifest_bytes;
-use pnpm_lockfile::{BinaryArchive, BinaryResolution, BinarySpec, LockfileResolution, PackageKey};
+use crate::install_package_by_snapshot::runtime::{
+    runtime_platform_of, synthesize_runtime_manifest_bytes,
+};
+use pnpm_lockfile::{
+    BinaryArchive, BinaryResolution, BinarySpec, LockfileResolution, PackageKey, PlatformSelector,
+};
 use pnpm_package_is_installable::{ArchitectureAxes, SupportedArchitectures};
 use pretty_assertions::assert_eq;
 
@@ -82,6 +86,17 @@ fn runtime_platform_selector_prefers_the_host_among_the_platforms_a_list_names()
     let selector = runtime_platform_selector(Some(&supported));
 
     assert_eq!(selector, host);
+}
+
+/// An archive built against the other C library cannot run here, and a
+/// host whose own is unreadable would otherwise match no Linux platform
+/// at all and take the first one named.
+#[test]
+fn runtime_platform_selector_keeps_the_host_when_its_c_library_is_unreadable() {
+    let host = PlatformSelector { os: "linux".to_string(), cpu: "x64".to_string(), libc: None };
+    let platforms = vec!["linux-x64-musl".parse().unwrap(), "linux-x64".parse().unwrap()];
+
+    assert_eq!(runtime_platform_of(&platforms, host.clone()), host);
 }
 
 /// `current` is this machine whichever platform it is listed beside.
