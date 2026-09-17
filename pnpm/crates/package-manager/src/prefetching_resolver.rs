@@ -23,17 +23,18 @@
 //! path as `TarballError::SiblingFetchFailed`.
 //!
 //! That prefetch is speculative, and a run may switch it off
-//! ([`PrefetchPolicy::downloads`]). Hashing a resolution
-//! that carries no integrity is not speculative — the lockfile records
-//! that hash. A custom fetcher must decline an unpinned tarball before
-//! native integrity discovery can download it.
+//! ([`PrefetchPolicy::downloads`]). Reading an archive whose resolution
+//! describes it only partly is not speculative — the lockfile records
+//! the hash the bytes yield, and the dependency walk reads the
+//! package's children out of the manifest inside. A custom fetcher must
+//! decline an unpinned tarball before that read can download it.
 
 use crate::install_package_from_registry::{
     extract_tarball, manifest_file_count, manifest_unpacked_size,
 };
 use dashmap::{DashMap, DashSet};
 use pnpm_config::Config;
-use pnpm_deps_restorer::CustomFetcherSession;
+use pnpm_deps_restorer::{CustomFetcherSession, ResolvedTarballMetadata};
 use pnpm_lockfile::{LockfileResolution, is_git_hosted_tarball_url};
 use pnpm_network::ThrottledClient;
 use pnpm_package_is_installable::{
@@ -141,8 +142,8 @@ pub struct PrefetchingResolver<Reporter: self::Reporter> {
     /// without this gate the bench saw ~3-5k redundant spawns per
     /// install on the alotta-files fixture (one per dependent edge).
     spawned_urls: DashSet<String>,
-    /// Shares completed integrity discovery, including custom resolution rewrites.
-    integrity_cache: DashMap<String, Arc<OnceCell<LockfileResolution>>>,
+    /// Shares completed archive reads, including custom resolution rewrites.
+    tarball_metadata_cache: DashMap<String, Arc<OnceCell<ResolvedTarballMetadata>>>,
     /// Shared with every prefetch task the resolver spawns.
     ctx: Arc<OwnedFetchCtx>,
     _phantom: PhantomData<fn() -> Reporter>,
@@ -159,48 +160,67 @@ impl<Reporter: self::Reporter + 'static> PrefetchingResolver<Reporter> {
         PrefetchingResolver {
             inner,
             spawned_urls: DashSet::new(),
-            integrity_cache: DashMap::new(),
+            tarball_metadata_cache: DashMap::new(),
             ctx: Arc::new(ctx),
             _phantom: PhantomData,
         }
     }
 
-    /// Populate remote tarball resolutions whose integrity can only be
-    /// learned from the downloaded bytes. `file:` and git-hosted tarballs
-    /// are anchored by local bytes or a commit SHA and remain unchanged.
-    async fn populate_missing_integrity(
+    /// Fill in the parts of a remote tarball resolution that only the
+    /// archive's bytes carry: the integrity the lockfile records and the
+    /// manifest the dependency walk reads the package's children from. A
+    /// resolver may supply neither — `manifest` is optional in the
+    /// pnpmfile `resolvers` contract — and one fetch settles both.
+    ///
+    /// `file:` and git-hosted tarballs are anchored by local bytes or a
+    /// commit SHA and are left to the resolvers that own those shapes.
+    async fn populate_missing_tarball_metadata(
         &self,
         result: &mut ResolveResult,
         lockfile_dir: &Path,
     ) -> Result<(), ResolveError> {
-        let LockfileResolution::Tarball(tarball) = &result.resolution else {
+        let Some((missing, tarball)) = MissingTarballMetadata::of(result) else {
             return Ok(());
         };
-        if tarball.integrity.is_some()
-            // git-hosted tarballs are anchored by their commit SHA, not an integrity. Detect
-            // them by URL, NOT by the `git_hosted` flag: the flag is tamper-prone lockfile
-            // input, so trusting it would let a forged `git_hosted: true` on an arbitrary URL
-            // skip the integrity computation. A real git-hosted archive (codeload/gitlab/
-            // bitbucket) always has a matching URL.
-            || is_git_hosted_tarball_url(&tarball.tarball)
-            || tarball.tarball.starts_with("file:")
-        {
-            return Ok(());
+        let metadata = self.read_archive_once(result, tarball, lockfile_dir).await?;
+        if missing.integrity {
+            if self.ctx.policy.custom_session.is_some() {
+                result.resolution = metadata.resolution.clone();
+            } else if let LockfileResolution::Tarball(tarball) = &mut result.resolution {
+                // An unpinned tarball is cached by URL alone; each edge keeps
+                // its other fields.
+                tarball.integrity = metadata.resolution.integrity().cloned();
+            }
         }
+        if missing.manifest
+            && let Some(manifest) = metadata.manifest
+        {
+            result.package.manifest = Some(manifest);
+        }
+        Ok(())
+    }
+
+    /// Read the archive once per distinct content and share the result
+    /// with every other edge that resolves to it. Concurrent first-callers
+    /// park on the same [`OnceCell`] rather than both downloading.
+    async fn read_archive_once(
+        &self,
+        result: &ResolveResult,
+        tarball: &pnpm_lockfile::TarballResolution,
+        lockfile_dir: &Path,
+    ) -> Result<ResolvedTarballMetadata, ResolveError> {
         let package_url = tarball.tarball.clone();
         // Scope credentials are selected from `name@version` when the
         // resolver knows it; direct URL tarballs fall back to URL identity.
         let package_id = result.package.name_ver
             .as_ref()
             .map_or_else(|| package_url.clone(), |nv| format!("{}@{}", nv.name, nv.suffix));
-        // Hooks can select different content for the same URL. Native discovery
-        // shares by URL; custom discovery also includes the package and resolution.
-        let cache_key = self.integrity_cache_key(result, &package_url, &package_id)?;
-        let cell = Arc::clone(&self.integrity_cache.entry(cache_key).or_default());
-        let resolution = cell.get_or_try_init(|| async {
+        let cache_key = self.tarball_metadata_cache_key(result, tarball, &package_id)?;
+        let cell = Arc::clone(&self.tarball_metadata_cache.entry(cache_key).or_default());
+        cell.get_or_try_init(|| async {
             match self.ctx.policy.custom_session.as_ref() {
                 Some(session) => {
-                    self.discover_integrity_by_custom_fetcher(
+                    self.read_archive_by_custom_fetcher(
                         session,
                         result,
                         (&package_url, &package_id),
@@ -208,42 +228,42 @@ impl<Reporter: self::Reporter + 'static> PrefetchingResolver<Reporter> {
                     )
                     .await
                 }
-                None => self.fetch_tarball_integrity(tarball, &package_url, &package_id).await,
+                None => self.read_archive(tarball, &package_url, &package_id).await,
             }
         })
-        .await?;
-        if self.ctx.policy.custom_session.is_some() {
-            result.resolution = resolution.clone();
-        } else if let LockfileResolution::Tarball(tarball) = &mut result.resolution {
-            // The native cache is URL-keyed; each edge keeps its other fields.
-            tarball.integrity = resolution.integrity().cloned();
-        }
-        Ok(())
+        .await
+        .cloned()
     }
 
-    // Custom fetchers can choose different content for the same URL for different packages.
-    fn integrity_cache_key(
+    /// Custom fetchers can choose different content for the same URL for
+    /// different packages. The native key carries the pinned hash as well
+    /// as the URL, so a read that verifies is never served the bytes of
+    /// one that could not.
+    fn tarball_metadata_cache_key(
         &self,
         result: &ResolveResult,
-        package_url: &str,
+        tarball: &pnpm_lockfile::TarballResolution,
         package_id: &str,
     ) -> Result<String, ResolveError> {
         Ok(if self.ctx.policy.custom_session.is_some() {
             format!("{package_id}:{}", serde_json::to_string(&result.resolution)?)
         } else {
-            package_url.to_string()
+            match tarball.integrity.as_ref() {
+                Some(integrity) => format!("{}:{integrity}", tarball.tarball),
+                None => tarball.tarball.clone(),
+            }
         })
     }
 
-    /// Discover a tarball's integrity through the pnpmfile's custom
-    /// fetcher, which may select different content for the same URL.
-    async fn discover_integrity_by_custom_fetcher(
+    /// Read a tarball through the pnpmfile's custom fetcher, which may
+    /// select different content for the same URL.
+    async fn read_archive_by_custom_fetcher(
         &self,
         session: &CustomFetcherSession,
         result: &ResolveResult,
         package: (&str, &str),
         lockfile_dir: &Path,
-    ) -> Result<LockfileResolution, ResolveError> {
+    ) -> Result<ResolvedTarballMetadata, ResolveError> {
         let (package_url, package_id) = package;
         let download = self.ctx.tarball_download(package_url, package_id, None, None, None);
         let opts = serde_json::json!({
@@ -260,18 +280,18 @@ impl<Reporter: self::Reporter + 'static> PrefetchingResolver<Reporter> {
             ),
         });
         session
-            .resolve_tarball_integrity::<Reporter>(download, &result.resolution, opts)
+            .resolve_tarball_metadata::<Reporter>(download, &result.resolution, opts)
             .await
             .map_err(|error| Box::new(error) as ResolveError)
     }
 
-    /// Discover a tarball's integrity by fetching it into the store.
-    async fn fetch_tarball_integrity(
+    /// Read a tarball by fetching it into the store.
+    async fn read_archive(
         &self,
         tarball: &pnpm_lockfile::TarballResolution,
         package_url: &str,
         package_id: &str,
-    ) -> Result<LockfileResolution, ResolveError> {
+    ) -> Result<ResolvedTarballMetadata, ResolveError> {
         // This fetch warms the mem cache, so the prefetch path should not
         // spawn another task for the same URL.
         self.spawned_urls.insert(package_url.to_string());
@@ -279,13 +299,20 @@ impl<Reporter: self::Reporter + 'static> PrefetchingResolver<Reporter> {
             http_client: &self.ctx.fetching.http_client,
             store_dir: self.ctx.store.dir,
             store_index_writer: self.ctx.store.index_writer.clone(),
-            package_url,
-            package_id,
+            package: pnpm_tarball::TarballPackage {
+                // A resolution that already pins a hash is only read here
+                // for its manifest, and an unchecked archive would put
+                // attacker content in charge of the dependency walk.
+                integrity: tarball.integrity.as_ref(),
+                unpacked_size: None,
+                file_count: None,
+                url: package_url,
+                id: package_id,
+            },
             auth_headers: &self.ctx.fetching.auth_headers,
             retry_opts: self.ctx.fetching.retry_opts,
-            // Only integrity is read off this fetch, and
-            // git-hosted archives (the sole subdirectory-bearing
-            // shape) are filtered out above.
+            // git-hosted archives, the sole subdirectory-bearing shape,
+            // are filtered out above.
             manifest_subdir: None,
         }
         .run::<SilentReporter>(Some(&self.ctx.mem_cache))
@@ -293,7 +320,10 @@ impl<Reporter: self::Reporter + 'static> PrefetchingResolver<Reporter> {
         .map_err(|err| Box::new(err) as ResolveError)?;
         let mut resolution = tarball.clone();
         resolution.integrity = Some(resolved.integrity);
-        Ok::<_, ResolveError>(LockfileResolution::Tarball(resolution))
+        Ok::<_, ResolveError>(ResolvedTarballMetadata {
+            resolution: LockfileResolution::Tarball(resolution),
+            manifest: resolved.manifest.map(Arc::new),
+        })
     }
 
     /// Inspect a fresh `ResolveResult` and, if it carries a tarball
@@ -486,7 +516,8 @@ impl<Reporter: self::Reporter + 'static> Resolver for PrefetchingResolver<Report
         Box::pin(async move {
             let mut result = self.inner.resolve(wanted_dependency, opts).await?;
             if let Some(result_mut) = result.as_mut() {
-                self.populate_missing_integrity(result_mut, &opts.project.lockfile_dir).await?;
+                self.populate_missing_tarball_metadata(result_mut, &opts.project.lockfile_dir)
+                    .await?;
                 if self.ctx.policy.downloads
                     && !self.should_skip_prefetch(wanted_dependency, result_mut)
                 {
@@ -503,6 +534,38 @@ impl<Reporter: self::Reporter + 'static> Resolver for PrefetchingResolver<Report
         opts: &'a ResolveOptions,
     ) -> ResolveLatestFuture<'a> {
         self.inner.resolve_latest(query, opts)
+    }
+}
+
+/// Which halves of a tarball resolution the resolver left for the
+/// archive itself to supply.
+#[derive(Clone, Copy)]
+struct MissingTarballMetadata {
+    integrity: bool,
+    manifest: bool,
+}
+
+impl MissingTarballMetadata {
+    /// `None` when the resolution needs nothing from the archive, and
+    /// when it is a shape whose own resolver already completes it: a
+    /// non-tarball resolution, a `file:` archive, or a git-hosted one.
+    fn of(result: &ResolveResult) -> Option<(Self, &pnpm_lockfile::TarballResolution)> {
+        let LockfileResolution::Tarball(tarball) = &result.resolution else {
+            return None;
+        };
+        // git-hosted tarballs are anchored by their commit SHA, not an integrity. Detect
+        // them by URL, NOT by the `git_hosted` flag: the flag is tamper-prone lockfile
+        // input, so trusting it would let a forged `git_hosted: true` on an arbitrary URL
+        // skip the integrity computation. A real git-hosted archive (codeload/gitlab/
+        // bitbucket) always has a matching URL.
+        if is_git_hosted_tarball_url(&tarball.tarball) || tarball.tarball.starts_with("file:") {
+            return None;
+        }
+        let missing = MissingTarballMetadata {
+            integrity: tarball.integrity.is_none(),
+            manifest: result.package.manifest.is_none(),
+        };
+        (missing.integrity || missing.manifest).then_some((missing, tarball))
     }
 }
 

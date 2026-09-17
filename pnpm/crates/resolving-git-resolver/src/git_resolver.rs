@@ -158,32 +158,7 @@ impl<Probe: GitProbe + 'static, Runner: GitCommandRunner + 'static> GitResolver<
         let Some(ctx) = self.fetch_context.as_ref() else { return Ok(()) };
         match &result.resolution {
             LockfileResolution::Tarball(tarball) => {
-                let tarball_url = tarball.tarball.clone();
-                // `#path:/packages/foo` points at one directory of the
-                // repo; the archive spans the whole repo, so its root
-                // `package.json` is the repo's, not this package's.
-                let manifest_subdir = tarball.path.clone();
-
-                // Silent reporter: the install pass owns the
-                // `resolved → found_in_store → imported` event ordering.
-                let resolved = FetchTarballForResolution {
-                    http_client: &ctx.http_client,
-                    store_dir: ctx.store_dir,
-                    store_index_writer: ctx.store_index_writer.clone(),
-                    package_url: &tarball_url,
-                    // A git host's archive URL is the package's only
-                    // identifier at this point — its name is what this
-                    // fetch is here to learn — and such archives carry
-                    // no scoped-registry auth.
-                    package_id: &tarball_url,
-                    auth_headers: &ctx.auth_headers,
-                    retry_opts: ctx.retry_opts,
-                    manifest_subdir: manifest_subdir.as_deref(),
-                }
-                .run::<SilentReporter>(None)
-                .await
-                .map_err(|err| Box::new(err) as ResolveError)?;
-
+                let resolved = read_archive(ctx, tarball).await?;
                 result.package.manifest = resolved.manifest.map(Arc::new);
                 if let LockfileResolution::Tarball(tarball) = &mut result.resolution {
                     // A git host's archive carries no integrity of its
@@ -234,6 +209,40 @@ impl<Probe: GitProbe + 'static, Runner: GitCommandRunner + 'static> GitResolver<
         }
         Ok(Some(LatestInfo::default()))
     }
+}
+
+/// Download a git host's archive, hash it, and read the manifest of the
+/// package it holds.
+async fn read_archive(
+    ctx: &GitFetchContext,
+    tarball: &pnpm_lockfile::TarballResolution,
+) -> Result<pnpm_tarball::ResolvedTarball, ResolveError> {
+    // Silent reporter: the install pass owns the
+    // `resolved → found_in_store → imported` event ordering.
+    FetchTarballForResolution {
+        http_client: &ctx.http_client,
+        store_dir: ctx.store_dir,
+        store_index_writer: ctx.store_index_writer.clone(),
+        // A git host's archive URL is the package's only identifier at
+        // this point — its name is what this fetch is here to learn —
+        // and such archives carry no scoped-registry auth or pinned hash.
+        package: pnpm_tarball::TarballPackage {
+            integrity: None,
+            unpacked_size: None,
+            file_count: None,
+            url: &tarball.tarball,
+            id: &tarball.tarball,
+        },
+        auth_headers: &ctx.auth_headers,
+        retry_opts: ctx.retry_opts,
+        // `#path:/packages/foo` points at one directory of the repo; the
+        // archive spans the whole repo, so its root `package.json` is
+        // the repo's, not this package's.
+        manifest_subdir: tarball.path.as_deref(),
+    }
+    .run::<SilentReporter>(None)
+    .await
+    .map_err(|err| Box::new(err) as ResolveError)
 }
 
 async fn build_resolve_result<Probe: GitProbe + ?Sized, Runner: GitCommandRunner + ?Sized>(

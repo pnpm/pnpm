@@ -22,6 +22,17 @@ pub(crate) enum CustomFetchOutcome {
     Fetched { resolution: LockfileResolution, tarball: Arc<FetchedTarball> },
 }
 
+/// What a resolve-time archive fetch settles for a tarball-shaped
+/// resolution: the resolution the lockfile records and the manifest the
+/// dependency walk reads the package's children from.
+#[derive(Debug, Clone)]
+pub struct ResolvedTarballMetadata {
+    pub resolution: LockfileResolution,
+    /// `None` when no archive was fetched, or when the archive ships no
+    /// readable `package.json`.
+    pub manifest: Option<Arc<Value>>,
+}
+
 /// Shares verified custom fetches between fresh resolution and materialization.
 pub struct CustomFetcherSession {
     picker: CustomFetcherPicker,
@@ -34,12 +45,12 @@ impl CustomFetcherSession {
         Self { picker: CustomFetcherPicker::new(fetchers), completed: Mutex::new(HashMap::new()) }
     }
 
-    pub async fn resolve_tarball_integrity<Reporter: self::Reporter>(
+    pub async fn resolve_tarball_metadata<Reporter: self::Reporter>(
         &self,
         download: IngestTarballToStore<'_>,
         original: &LockfileResolution,
         opts: Value,
-    ) -> Result<LockfileResolution, InstallPackageBySnapshotError> {
+    ) -> Result<ResolvedTarballMetadata, InstallPackageBySnapshotError> {
         let lockfile_dir = PathBuf::from(
             opts.get("lockfileDir")
                 .and_then(Value::as_str)
@@ -54,7 +65,7 @@ impl CustomFetcherSession {
                     fetch_custom_tarball::<Reporter>(download.clone(), &resolution, &lockfile_dir)
                         .await?
                 else {
-                    return Ok(resolution);
+                    return Ok(ResolvedTarballMetadata { resolution, manifest: None });
                 };
                 (resolution, tarball)
             }
@@ -63,7 +74,7 @@ impl CustomFetcherSession {
                     fetch_custom_tarball::<Reporter>(download.clone(), &delegate, &lockfile_dir)
                         .await?
                 else {
-                    return Ok(resolution);
+                    return Ok(ResolvedTarballMetadata { resolution, manifest: None });
                 };
                 (resolution, tarball)
             }
@@ -73,11 +84,12 @@ impl CustomFetcherSession {
             Some(&tarball.integrity),
             download.package.id,
         )?;
+        let manifest = tarball.manifest.clone().map(Arc::new);
         self.completed
             .lock()
             .unwrap()
             .insert((download.package.id.to_owned(), tarball.integrity.to_string()), tarball);
-        Ok(resolution)
+        Ok(ResolvedTarballMetadata { resolution, manifest })
     }
 
     pub(crate) async fn fetch<Reporter: self::Reporter>(

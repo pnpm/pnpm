@@ -473,8 +473,9 @@ pub struct ResolvedTarball {
     pub manifest: Option<serde_json::Value>,
 }
 
-/// Download a remote tarball during *resolution*, compute its sha512
-/// integrity, extract it to the store, and read its bundled manifest.
+/// Download a remote tarball during *resolution*, settle its sha512
+/// integrity (computed from the bytes, or checked against the one the
+/// caller pins), extract it to the store, and read its bundled manifest.
 ///
 /// Remote (non-registry) https-tarball direct dependencies carry no
 /// name/version/integrity at resolve time — those live in the tarball's
@@ -489,13 +490,18 @@ pub struct FetchTarballForResolution<'a> {
     pub http_client: &'a ThrottledClient,
     pub store_dir: &'static StoreDir,
     pub store_index_writer: Option<Arc<StoreIndexWriter>>,
-    pub package_url: &'a str,
-    /// Package identity used for scoped auth lookup and for the
-    /// store-index row this fetch writes. Must be the `pkg_id` the
-    /// install pass derives from the lockfile entry — the bare URL for a
-    /// remote tarball — or the two passes file the same content under
-    /// two rows.
-    pub package_id: &'a str,
+    /// The archive to read and what is already known about it.
+    ///
+    /// `id` is used for scoped auth lookup and for the store-index row
+    /// this fetch writes; it must be the `pkg_id` the install pass
+    /// derives from the lockfile entry — the bare URL for a remote
+    /// tarball — or the two passes file the same content under two rows.
+    ///
+    /// `integrity` is `None` when this fetch is what discovers the hash,
+    /// and `Some` when the resolution already pins one and the fetch
+    /// only reads the bundled manifest. Leaving a pinned hash out would
+    /// let a tampered archive drive the dependency walk.
+    pub package: TarballPackage<'a>,
     pub auth_headers: &'a AuthHeaders,
     pub retry_opts: RetryOpts,
     /// Directory *within* the archive holding the package, for a
@@ -524,12 +530,12 @@ impl FetchTarballForResolution<'_> {
         let (integrity, mut cas_paths, mut pkg_files_idx) =
             fetch_and_extract_with_retry::<Reporter>(
                 self.http_client,
-                self.package_url,
-                None,
-                None,
+                self.package.url,
+                self.package.integrity,
+                self.package.unpacked_size,
                 UNPRIORITIZED,
-                self.package_id,
-                self.package_url,
+                self.package.id,
+                self.package.url,
                 self.store_dir,
                 self.retry_opts,
                 self.auth_headers,
@@ -563,7 +569,7 @@ impl FetchTarballForResolution<'_> {
             // would file a remote tarball under a key nothing ever reads,
             // leaving the install pass to write a second row for the same
             // content.
-            let index_key = store_index_key(&integrity.to_string(), self.package_id);
+            let index_key = store_index_key(&integrity.to_string(), self.package.id);
             if let Some(writer) = self.store_index_writer {
                 writer.queue(index_key, pkg_files_idx);
             } else {
@@ -577,7 +583,7 @@ impl FetchTarballForResolution<'_> {
 
         if let Some(mem_cache) = mem_cache {
             let cache_lock = Arc::new(RwLock::new(CacheValue::Available(Arc::new(cas_paths))));
-            mem_cache.insert(self.package_url.to_string(), cache_lock);
+            mem_cache.insert(self.package.url.to_string(), cache_lock);
         }
 
         Ok(ResolvedTarball { integrity, manifest })

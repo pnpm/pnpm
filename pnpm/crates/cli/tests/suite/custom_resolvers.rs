@@ -53,6 +53,33 @@ fn overriding_pnpmfile(registry_url: &str, should_refresh: &str) -> String {
     )
 }
 
+/// A resolver that claims `@pnpm.e2e/pkg-with-1-dep` and returns only the
+/// two required fields of a `ResolveResult`. `manifest` is optional, so
+/// the package's own dependencies have to come from the fetched tarball.
+fn manifest_less_pnpmfile(registry_url: &str) -> String {
+    format!(
+        r"module.exports = {{
+  resolvers: [
+    {{
+      canResolve (wanted) {{
+        return wanted.alias === '@pnpm.e2e/pkg-with-1-dep';
+      }},
+      async resolve () {{
+        const response = await fetch('{registry_url}@pnpm.e2e%2Fpkg-with-1-dep');
+        const meta = await response.json();
+        const dist = meta.versions['100.0.0'].dist;
+        return {{
+          id: '@pnpm.e2e/pkg-with-1-dep@100.0.0',
+          resolution: {{ tarball: dist.tarball, integrity: dist.integrity }},
+        }};
+      }},
+    }},
+  ],
+}}
+",
+    )
+}
+
 fn installed_version(workspace: &Path) -> String {
     let manifest_path = workspace.join("node_modules/@pnpm.e2e/dep-of-pkg-with-1-dep/package.json");
     let manifest: serde_json::Value =
@@ -284,6 +311,48 @@ module.exports = {
     assert!(
         current_pkg["resolution"]["integrity"].is_string(),
         "the recorded integrity carries over: {current_pkg}",
+    );
+
+    drop((root, mock_instance)); // cleanup
+}
+
+/// Regression test for pnpm/pnpm#15000.
+#[test]
+fn custom_resolver_without_a_manifest_installs_the_package_with_its_dependencies() {
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({
+            "dependencies": { "@pnpm.e2e/pkg-with-1-dep": "100.0.0" },
+        })
+        .to_string(),
+    )
+    .expect("write package.json");
+    fs::write(workspace.join(".pnpmfile.cjs"), manifest_less_pnpmfile(&mock_instance.url()))
+        .expect("write pnpmfile");
+
+    pacquet
+        .with_arg("install")
+        .assert()
+        .success();
+
+    let dependency = workspace.join(
+        "node_modules/.pnpm/@pnpm.e2e+pkg-with-1-dep@100.0.0/node_modules/@pnpm.e2e/dep-of-pkg-with-1-dep",
+    );
+    assert!(dependency.is_dir(), "the resolved package's own dependency is installed");
+
+    let lockfile = fs::read_to_string(workspace.join("pnpm-lock.yaml")).expect("read lockfile");
+    assert!(
+        lockfile.contains("@pnpm.e2e/dep-of-pkg-with-1-dep@100.1.0"),
+        "the lockfile records the dependency read from the tarball: {lockfile}",
     );
 
     drop((root, mock_instance)); // cleanup
