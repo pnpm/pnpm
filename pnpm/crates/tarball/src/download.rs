@@ -61,21 +61,10 @@ impl<'a> ArchiveStoreProjection<'a> {
         }
     }
 
-    /// Identity of the archive a shared [`crate::MemCache`] slot holds.
-    ///
-    /// The expected hash is part of it: a slot's bytes were verified against
-    /// one integrity, and a request pinning a different one must not be
-    /// served them. An archive whose hash the fetch discovers is published
-    /// under the computed hash, which is the one its resolution then records.
-    /// Projections that can produce a different file set carry their own
-    /// discriminator; synthesized manifests are content-addressed so equal
-    /// projections still share work.
-    ///
-    /// The parts are tab-separated, and neither a URL, an integrity, nor a
-    /// projection tag can contain a tab, so two distinct identities cannot
-    /// spell the same key.
-    #[must_use]
-    pub fn mem_cache_key(
+    /// Identity of the archive a shared [`crate::MemCache`] slot holds. See
+    /// [`package_mem_cache_key`], the shape every caller outside this crate
+    /// uses.
+    pub(crate) fn mem_cache_key(
         self,
         package_url: &str,
         integrity: Option<&Integrity>,
@@ -117,7 +106,20 @@ impl<'a> ArchiveStoreProjection<'a> {
 
 /// Cache identity of an ordinary package archive, the projection every
 /// resolve-time publisher, speculative prefetch and install-time lookup
-/// has to agree on. See [`ArchiveStoreProjection::mem_cache_key`].
+/// has to agree on.
+///
+/// The expected hash is part of it: a slot's bytes were verified against
+/// one integrity, and a request pinning a different one must not be served
+/// them. An archive whose hash the fetch discovers is published under the
+/// computed hash, which is the one its resolution then records. The network
+/// policy is part of it too, since a revision-addressed fetch and a direct
+/// one are different requests for the same URL. Projections that can produce
+/// a different file set carry their own discriminator; synthesized manifests
+/// are content-addressed so equal projections still share work.
+///
+/// The parts are tab-separated, and neither a URL, an integrity, nor a
+/// projection tag can contain a tab, so two distinct identities cannot spell
+/// the same key.
 #[must_use]
 pub fn package_mem_cache_key(
     package_url: &str,

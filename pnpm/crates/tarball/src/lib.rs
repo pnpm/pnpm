@@ -206,7 +206,8 @@ impl<'a> IngestTarballToStore<'a> {
     ///
     /// # Caller invariant: stable filter per archive
     ///
-    /// The cache is keyed on [`ArchiveStoreProjection::mem_cache_key`]. Within
+    /// The cache is keyed on the archive's identity, which
+    /// [`package_mem_cache_key`] spells for an ordinary package. Within
     /// one key, a second caller fetching the same archive with a different
     /// [`ignore_file_pattern`] silently receives the map the first caller's
     /// filter produced. Every fetch of an archive must use the same filter.
