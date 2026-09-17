@@ -566,10 +566,8 @@ async fn refuses_a_manifest_read_from_a_tarball_that_fails_its_integrity() {
         .with_body(tarball_with_a_dependency("tampered"))
         .create_async()
         .await;
-    let result = manifestless_tarball_result(
-        &format!("{}{tarball_path}", server.url()),
-        "sha512-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==",
-    );
+    let result =
+        manifestless_tarball_result(&format!("{}{tarball_path}", server.url()), PINNED_INTEGRITY);
     let resolver = resolver_with_prefetch(dir.path(), Box::new(FixedResolver { result }), false);
 
     let error = resolver
@@ -579,6 +577,18 @@ async fn refuses_a_manifest_read_from_a_tarball_that_fails_its_integrity() {
 
     assert!(dbg!(error.to_string()).contains("Integrity check failed"), "got: {error}");
     get_mock.assert_async().await;
+    // A pinned read claims its download before fetching, so a concurrent edge
+    // that needs no read of its own cannot spend a second request on the same
+    // archive while this one is in flight. The failure proves the claim does
+    // not wait on the fetch. <https://github.com/pnpm/pnpm/issues/15021>
+    assert!(
+        resolver.spawned_downloads.contains(&package_mem_cache_key(
+            &format!("{}{tarball_path}", server.url()),
+            Some(&PINNED_INTEGRITY.parse().expect("parse integrity")),
+            false,
+        )),
+        "the download is claimed before the fetch, not after it",
+    );
 }
 
 /// A tarball URL may itself end in `:sha512-…`, so concatenating a URL and

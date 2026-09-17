@@ -147,6 +147,14 @@ impl<Reporter: self::Reporter + 'static> PrefetchingResolver<Reporter> {
         package_id: &str,
     ) -> Result<ResolvedTarballMetadata, ResolveError> {
         let revision_addressed = tarball.revision.is_some();
+        // A pinned resolution names the archive before the fetch, so claim the
+        // download now. A concurrent edge whose own resolution needs no read
+        // would otherwise reach `maybe_kickoff_download` while this fetch is in
+        // flight and spend a second request on the same archive, which a
+        // revision's one-GET protocol does not allow.
+        if let Some(integrity) = tarball.integrity.as_ref() {
+            self.claim_download(package_url, integrity, revision_addressed);
+        }
         let resolved = FetchTarballForResolution {
             http_client: &self.ctx.fetching.http_client,
             store_dir: self.ctx.store.dir,
@@ -173,8 +181,9 @@ impl<Reporter: self::Reporter + 'static> PrefetchingResolver<Reporter> {
         .map_err(|err| Box::new(err) as ResolveError)?;
         // The read published its extraction under the hash the resolution
         // below records, so the install pass finds it there instead of
-        // downloading the archive a second time. Claim that identity for the
-        // prefetch path too, which resolves this edge once this call returns.
+        // downloading the archive a second time. Claiming that identity keeps
+        // the prefetch path off it too; for an unpinned archive this is the
+        // first point at which the hash that names it is known.
         self.claim_download(package_url, &resolved.integrity, revision_addressed);
         let mut resolution = tarball.clone();
         resolution.integrity = Some(resolved.integrity);
