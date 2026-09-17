@@ -26,10 +26,9 @@ does not authorize merging the PR.
    then run `./.agents/skills/pull-requests/scripts/resolve-pr-conflicts.sh <pr> --continue`. Re-read the diff
    after rebasing. A `git-wt` checkout may be named `pr-<pr>`; the script can
    switch it to the PR's actual head branch.
-3. Address verified review findings and review the full change against
-   [REVIEW_GUIDE.md](../../../REVIEW_GUIDE.md), with security first and
-   performance second. Apply the repository and relevant product instructions
-   and style guides. Check version coverage and changeset requirements.
+3. Use the [review-code skill](../review-code/SKILL.md) to review the full
+   change and verify existing review findings. Fix the actionable issues it
+   identifies.
 4. Use the [testing-changes skill](../testing-changes/SKILL.md) to select and
    run the checks covering your fixes. Investigate and fix failures.
 5. Ensure the repository's git hooks are installed as required by `AGENTS.md`.
