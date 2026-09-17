@@ -156,6 +156,20 @@ impl pnpm_deps_restorer::FsHardLink for Unlinkable {
     }
 }
 
+struct Linkable;
+
+impl FsReflink for Linkable {
+    fn reflink(_: &Path, _: &Path) -> io::Result<()> {
+        Err(io::ErrorKind::Unsupported.into())
+    }
+}
+
+impl pnpm_deps_restorer::FsHardLink for Linkable {
+    fn hard_link(source: &Path, destination: &Path) -> io::Result<()> {
+        fs::copy(source, destination).map(|_| ())
+    }
+}
+
 #[test]
 fn fallback_in_one_filesystem_pair_does_not_disable_other_importers() {
     let temporary = tempfile::tempdir().unwrap();
@@ -173,7 +187,7 @@ fn fallback_in_one_filesystem_pair_does_not_disable_other_importers() {
         .unwrap();
     assert_eq!(method, pnpm_reporter::PackageImportMethod::Copy);
     let method = state
-        .import::<pnpm_reporter::SilentReporter, pnpm_fs::Host>(
+        .import::<pnpm_reporter::SilentReporter, Linkable>(
             PackageImportMethod::Auto,
             &logged,
             &source,
@@ -183,13 +197,12 @@ fn fallback_in_one_filesystem_pair_does_not_disable_other_importers() {
     assert_eq!(method, pnpm_reporter::PackageImportMethod::Copy);
     let fresh = pnpm_deps_restorer::ImportState::new();
     let method = fresh
-        .import::<pnpm_reporter::SilentReporter, pnpm_fs::Host>(
+        .import::<pnpm_reporter::SilentReporter, Linkable>(
             PackageImportMethod::Auto,
             &logged,
             &source,
             &temporary.path().join("available"),
         )
         .unwrap();
-    eprintln!("fresh filesystem pair selected {method:?}");
-    assert_ne!(method, pnpm_reporter::PackageImportMethod::Copy);
+    assert_eq!(method, pnpm_reporter::PackageImportMethod::Hardlink);
 }
