@@ -6,8 +6,7 @@ description: Review and fix an existing pnpm pull request, rebase it, commit and
 # Review and fix an existing PR
 
 The supplied PR already exists. Work on its branch, commit and push the fixes,
-and follow it until checks are green and the review round has nothing left to
-act on. Do not pause for the user's review of local fixes.
+and follow it until checks are green and the applicable review is complete. Do not pause for the user's review of local fixes.
 
 Read the [pull-requests skill](../pull-requests/SKILL.md) and use its workflow
 from "After every push" onward, including its guidance for failing checks,
@@ -45,7 +44,9 @@ push corrections, and reply to and resolve review threads after the fixes are
 on the remote branch. Keep the PR title and description accurate and sign
 agent-authored GitHub content as required by that skill.
 
-Finish only when the checks are green and the reviewers have reported on the
-current head with nothing left to act on. If an external prerequisite prevents
-completion, report it concretely. Summarize the fixes, conflicts resolved,
+For ready PRs, finish only when the checks are green and the reviewers have
+reported on the current head with nothing left to act on. For draft PRs,
+preserve draft status and finish when checks are green and your own review is
+complete. Report that external review was not started because the PR is a
+draft. If an external prerequisite prevents completion, report it concretely. Summarize the fixes, conflicts resolved,
 findings declined and why, validation, and final CI and review status.
