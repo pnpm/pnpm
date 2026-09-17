@@ -350,7 +350,8 @@ three.
   downloader, artifact cache or network budget.
 - Python verifies wheel identity and RECORD, selects native or pure wheels,
   relocates `.data`, creates entry points, and writes installed RECORD/INSTALLER
-  metadata. `packageImportMethod` controls wheel imports, including isolated build environments.
+  metadata. `packageImportMethod` controls wheel imports. Isolated build environments
+  use `clone-or-copy` for `auto` and `hardlink` to keep backend writes private.
   Interpreter writes remain isolated from CAS blobs in `clone`, `clone-or-copy`, and `copy`
   modes. Opting into `hardlink` shares those writes with the store.
 - `pnpm run` and `pnpm exec` add environment executables to PATH only when

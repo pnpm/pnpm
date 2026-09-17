@@ -243,7 +243,7 @@ class Environment:
         destination = self.reserve(destination)
         executable = bool(metadata.st_mode & 0o111)
         if self.defer_files:
-            self.imports.append({"source": str(source), "destination": str(destination), "executable": executable})
+            self.imports.append({"source": str(source), "destination": str(destination), "executable": executable, "device": metadata.st_dev})
         else:
             destination.write_bytes(Path(source).read_bytes())
             if executable:

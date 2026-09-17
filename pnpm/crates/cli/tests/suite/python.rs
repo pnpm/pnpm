@@ -2021,6 +2021,59 @@ def build_editable(wheel_directory, config_settings=None, metadata_directory=Non
     return _build(wheel_directory, True)
 "#;
 
+#[tokio::test]
+async fn build_backend_writes_do_not_modify_shared_wheel_files() {
+    let root = tempfile::tempdir().unwrap();
+    let mut server = mockito::Server::new_async().await;
+    let _alpha = serve(&mut server, "alpha", &[("1.0", wheel("alpha", "1.0", "", &[]))]).await;
+    let backend = format!(
+        "{TINY_BACKEND}\nimport alpha\nfrom pathlib import Path\np = Path(alpha.__file__)\nstat = p.stat()\np.write_text(\"VERSION = 'modified by backend'\\n\")\nPath('backend-mutation').write_text(p.read_text())\nos.utime(p, ns=(stat.st_atime_ns, stat.st_mtime_ns))\n"
+    );
+    let _backend = serve(
+        &mut server,
+        "tinybackend",
+        &[("80.0", wheel("tinybackend", "80.0", "", &[("tinybuild.py", backend.as_str())]))],
+    )
+    .await;
+    project(root.path(), &server.url(), &["alpha"]);
+    python_project(root.path(), "app", "dependencies = ['alpha']");
+    let manifest = root.path().join("pyproject.toml");
+    let body = fs::read_to_string(&manifest)
+        .unwrap()
+        .replace("requires = ['tinybackend']", "requires = ['tinybackend', 'alpha']");
+    fs::write(&manifest, body).unwrap();
+    let workspace = root.path().join("pnpm-workspace.yaml");
+    let settings = fs::read_to_string(&workspace)
+        .unwrap()
+        .replace(
+            "  pkg:pypi/tinybackend: true",
+            "  pkg:pypi/tinybackend: true\n  pkg:pypi/alpha: true",
+        );
+    for method in ["auto", "hardlink"] {
+        fs::write(&workspace, format!("{settings}\npackageImportMethod: {method}\n")).unwrap();
+        pacquet_in(root.path())
+            .arg("install")
+            .assert()
+            .success();
+        assert_eq!(
+            fs::read_to_string(root.path().join("backend-mutation")).unwrap(),
+            "VERSION = 'modified by backend'\n"
+        );
+        python(root.path())
+            .args(["-c", "import alpha; assert alpha.VERSION == '1.0', alpha.VERSION"])
+            .assert()
+            .success();
+        pacquet_in(root.path())
+            .args(["install", "--offline", "--frozen-lockfile"])
+            .assert()
+            .success();
+        python(root.path())
+            .args(["-c", "import alpha; assert alpha.VERSION == '1.0', alpha.VERSION"])
+            .assert()
+            .success();
+    }
+}
+
 /// The backends the fixtures declare, served so a build can run. What
 /// these tests exercise is the build frontend; which wheel a real backend
 /// would produce is that backend's own business.

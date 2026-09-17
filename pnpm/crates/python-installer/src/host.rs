@@ -202,8 +202,9 @@ pub(super) async fn install(
 
 fn import_files(files: Vec<FileImport>, mode: pnpm_config::PackageImportMethod) -> Result<()> {
     let logged = std::sync::atomic::AtomicU8::new(0);
+    let mut states = BTreeMap::<u64, pnpm_deps_restorer::ImportState>::new();
     for file in files {
-        file.import::<pnpm_fs::Host>(&logged, mode)
+        file.import::<pnpm_fs::Host>(states.entry(file.device).or_default(), &logged, mode)
             .into_diagnostic()
             .wrap_err_with(|| {
                 format!(
@@ -226,15 +227,17 @@ struct FileImport {
     source: PathBuf,
     destination: PathBuf,
     executable: bool,
+    device: u64,
 }
 
 impl FileImport {
     fn import<Sys: pnpm_fs::FsReflink + pnpm_deps_restorer::FsHardLink>(
         &self,
+        state: &pnpm_deps_restorer::ImportState,
         logged: &std::sync::atomic::AtomicU8,
         mode: pnpm_config::PackageImportMethod,
     ) -> std::io::Result<()> {
-        let method = pnpm_deps_restorer::try_import::<pnpm_reporter::SilentReporter, Sys>(
+        let method = state.import::<pnpm_reporter::SilentReporter, Sys>(
             mode,
             logged,
             &self.source,
