@@ -349,7 +349,7 @@ impl PythonPrepare<'_> {
             &self.interpreter.executable,
             root.path(),
             wheels,
-            self.context.config.python.link_mode,
+            self.context.config.package_import_method,
         )
         .await?;
         Ok(Arc::new(root))

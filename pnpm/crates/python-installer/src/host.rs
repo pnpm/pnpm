@@ -186,12 +186,12 @@ pub(super) async fn install(
     executable: &str,
     root: &std::path::Path,
     packages: impl Serialize,
-    mode: pnpm_config::PythonLinkMode,
+    mode: pnpm_config::PackageImportMethod,
 ) -> Result<()> {
     let imports: Installation = run(
         executable,
         "install",
-        serde_json::json!({"root": root, "packages": packages, "defer_files": mode != pnpm_config::PythonLinkMode::Copy}),
+        serde_json::json!({"root": root, "packages": packages, "defer_files": mode != pnpm_config::PackageImportMethod::Copy}),
     )
     .await?;
     tokio::task::spawn_blocking(move || import_files(imports.imports, mode))
@@ -200,16 +200,10 @@ pub(super) async fn install(
         .wrap_err("join Python wheel imports")?
 }
 
-fn import_files(files: Vec<FileImport>, mode: pnpm_config::PythonLinkMode) -> Result<()> {
-    let mut copy_devices = std::collections::BTreeSet::new();
+fn import_files(files: Vec<FileImport>, mode: pnpm_config::PackageImportMethod) -> Result<()> {
+    let logged = std::sync::atomic::AtomicU8::new(0);
     for file in files {
-        let method = if copy_devices.contains(&file.device) {
-            pnpm_config::PythonLinkMode::Copy
-        } else {
-            mode
-        };
-        let copied = file
-            .import::<pnpm_fs::Host>(method)
+        file.import::<pnpm_fs::Host>(&logged, mode)
             .into_diagnostic()
             .wrap_err_with(|| {
                 format!(
@@ -218,9 +212,6 @@ fn import_files(files: Vec<FileImport>, mode: pnpm_config::PythonLinkMode) -> Re
                     file.destination.display(),
                 )
             })?;
-        if copied {
-            copy_devices.insert(file.device);
-        }
     }
     Ok(())
 }
@@ -235,46 +226,24 @@ struct FileImport {
     source: PathBuf,
     destination: PathBuf,
     executable: bool,
-    device: u64,
 }
 
 impl FileImport {
-    fn import<Sys: pnpm_fs::FsReflink>(
+    fn import<Sys: pnpm_fs::FsReflink + pnpm_deps_restorer::FsHardLink>(
         &self,
-        mode: pnpm_config::PythonLinkMode,
-    ) -> std::io::Result<bool> {
-        use pnpm_config::PythonLinkMode;
-        use std::fs;
-        let copied = match mode {
-            PythonLinkMode::Copy => fs::copy(&self.source, &self.destination).map(|_| true)?,
-            PythonLinkMode::Hardlink => match fs::hard_link(&self.source, &self.destination) {
-                Ok(()) => false,
-                Err(error) if pnpm_fs::is_cross_device(&error) => {
-                    fs::copy(&self.source, &self.destination)?;
-                    true
-                }
-                Err(error) => return Err(error),
-            },
-            PythonLinkMode::Reflink => match Sys::reflink(&self.source, &self.destination) {
-                Ok(()) => false,
-                Err(error)
-                    if matches!(
-                        error.kind(),
-                        std::io::ErrorKind::NotFound | std::io::ErrorKind::AlreadyExists,
-                    ) =>
-                {
-                    return Err(error);
-                }
-                Err(_) => {
-                    fs::copy(&self.source, &self.destination)?;
-                    true
-                }
-            },
-        };
-        if self.executable && (mode != PythonLinkMode::Hardlink || copied) {
+        logged: &std::sync::atomic::AtomicU8,
+        mode: pnpm_config::PackageImportMethod,
+    ) -> std::io::Result<()> {
+        let method = pnpm_deps_restorer::try_import::<pnpm_reporter::SilentReporter, Sys>(
+            mode,
+            logged,
+            &self.source,
+            &self.destination,
+        )?;
+        if self.executable && method != pnpm_reporter::PackageImportMethod::Hardlink {
             pnpm_fs::file_mode::set_path_permissions(&self.destination, 0o755)?;
         }
-        Ok(copied)
+        Ok(())
     }
 }
 

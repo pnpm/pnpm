@@ -235,6 +235,7 @@ pub fn import_into_fresh_target<Reporter: self::Reporter>(
     // either — postinstall handling lives in the script runner, not the
     // import layer — so there's nothing to gate on here.
     try_import::<Reporter, Host>(method, logged, source_file, target_link)
+        .map(|_| ())
         .or_else(|error| recover_from_concurrent_import(error, source_file, target_link))
 }
 
@@ -309,15 +310,14 @@ fn recover_from_concurrent_import(
     }
 }
 
-/// Run the import syscall for the configured `method`. Surfaces
-/// the raw `io::Error` so the caller can dispatch on
-/// `ErrorKind::AlreadyExists` for the EEXIST recovery path.
-fn try_import<Reporter: self::Reporter, Sys: FsHardLink + FsReflink>(
+/// Import a file using the configured method and return the method actually used.
+/// Existing destinations and missing sources are errors; no existing file is adopted.
+pub fn try_import<Reporter: self::Reporter, Sys: FsHardLink + FsReflink>(
     method: PackageImportMethod,
     logged: &AtomicU8,
     source_file: &Path,
     target_link: &Path,
-) -> io::Result<()> {
+) -> io::Result<WireImportMethod> {
     match method {
         PackageImportMethod::Auto => {
             static AUTO_STATE: AtomicU8 = AtomicU8::new(AUTO_FIRST_TIER);
@@ -339,20 +339,22 @@ fn try_import<Reporter: self::Reporter, Sys: FsHardLink + FsReflink>(
         PackageImportMethod::Hardlink => match Sys::hard_link(source_file, target_link) {
             Ok(()) => {
                 log_method_once::<Reporter>(logged, LOG_FLAG_HARDLINK, WireImportMethod::Hardlink);
-                Ok(())
+                Ok(WireImportMethod::Hardlink)
             }
             Err(error) if is_cross_device(&error) || is_too_many_links(&error) => {
                 copy_file(source_file, target_link)
                     .inspect(|()| {
                         log_method_once::<Reporter>(logged, LOG_FLAG_COPY, WireImportMethod::Copy);
                     })
+                    .map(|()| WireImportMethod::Copy)
             }
             Err(error) => Err(error),
         },
         PackageImportMethod::Clone => clone_file::<Sys>(source_file, target_link)
             .inspect(|()| {
                 log_method_once::<Reporter>(logged, LOG_FLAG_CLONE, WireImportMethod::Clone);
-            }),
+            })
+            .map(|()| WireImportMethod::Clone),
         PackageImportMethod::CloneOrCopy => {
             static CLONE_OR_COPY_STATE: AtomicU8 = AtomicU8::new(LINK_STATE_CLONE);
             clone_or_copy_link::<Reporter, Sys>(
@@ -365,7 +367,8 @@ fn try_import<Reporter: self::Reporter, Sys: FsHardLink + FsReflink>(
         PackageImportMethod::Copy => copy_file(source_file, target_link)
             .inspect(|()| {
                 log_method_once::<Reporter>(logged, LOG_FLAG_COPY, WireImportMethod::Copy);
-            }),
+            })
+            .map(|()| WireImportMethod::Copy),
     }
 }
 
@@ -487,7 +490,7 @@ fn clone_file<Sys: FsReflink>(source_file: &Path, target_link: &Path) -> io::Res
 /// tests can hand them the errors only some filesystems return
 /// (`EPERM` from a FUSE mount that has no hardlinks), which a temp dir
 /// on the CI runner's disk cannot reproduce.
-trait FsHardLink {
+pub trait FsHardLink {
     fn hard_link(source: &Path, target: &Path) -> io::Result<()>;
 }
 
@@ -555,18 +558,18 @@ fn auto_link<Reporter: self::Reporter, Sys: FsHardLink + FsReflink>(
     state: &AtomicU8,
     source: &Path,
     target: &Path,
-) -> io::Result<()> {
+) -> io::Result<WireImportMethod> {
     loop {
         match state.load(Ordering::Relaxed) {
             LINK_STATE_CLONE => {
                 if clone_tier::<Reporter, Sys>(logged, source, target)? {
-                    return Ok(());
+                    return Ok(WireImportMethod::Clone);
                 }
                 downgrade_auto_tier(state, LINK_STATE_CLONE);
             }
             LINK_STATE_HARDLINK => {
-                if hardlink_tier::<Reporter, Sys>(logged, source, target)? {
-                    return Ok(());
+                if let Some(method) = hardlink_tier::<Reporter, Sys>(logged, source, target)? {
+                    return Ok(method);
                 }
                 downgrade_auto_tier(state, LINK_STATE_HARDLINK);
             }
@@ -574,7 +577,8 @@ fn auto_link<Reporter: self::Reporter, Sys: FsHardLink + FsReflink>(
                 return copy_file(source, target)
                     .inspect(|()| {
                         log_method_once::<Reporter>(logged, LOG_FLAG_COPY, WireImportMethod::Copy);
-                    });
+                    })
+                    .map(|()| WireImportMethod::Copy);
             }
         }
     }
@@ -613,19 +617,19 @@ fn hardlink_tier<Reporter: self::Reporter, Sys: FsHardLink>(
     logged: &AtomicU8,
     source: &Path,
     target: &Path,
-) -> io::Result<bool> {
+) -> io::Result<Option<WireImportMethod>> {
     match Sys::hard_link(source, target) {
         Ok(()) => {
             log_method_once::<Reporter>(logged, LOG_FLAG_HARDLINK, WireImportMethod::Hardlink);
-            Ok(true)
+            Ok(Some(WireImportMethod::Hardlink))
         }
         Err(err) if is_too_many_links(&err) => copy_file(source, target)
             .inspect(|()| {
                 log_method_once::<Reporter>(logged, LOG_FLAG_COPY, WireImportMethod::Copy);
             })
-            .map(|()| true),
+            .map(|()| Some(WireImportMethod::Copy)),
         Err(err) if is_call_error(&err) => Err(err),
-        Err(_) => Ok(false),
+        Err(_) => Ok(None),
     }
 }
 
@@ -640,12 +644,12 @@ fn clone_or_copy_link<Reporter: self::Reporter, Sys: FsReflink>(
     state: &AtomicU8,
     source: &Path,
     target: &Path,
-) -> io::Result<()> {
+) -> io::Result<WireImportMethod> {
     loop {
         match state.load(Ordering::Relaxed) {
             LINK_STATE_CLONE => {
                 if clone_tier::<Reporter, Sys>(logged, source, target)? {
-                    return Ok(());
+                    return Ok(WireImportMethod::Clone);
                 }
                 state.fetch_max(LINK_STATE_COPY, Ordering::Relaxed);
             }
@@ -653,7 +657,8 @@ fn clone_or_copy_link<Reporter: self::Reporter, Sys: FsReflink>(
                 return copy_file(source, target)
                     .inspect(|()| {
                         log_method_once::<Reporter>(logged, LOG_FLAG_COPY, WireImportMethod::Copy);
-                    });
+                    })
+                    .map(|()| WireImportMethod::Copy);
             }
         }
     }

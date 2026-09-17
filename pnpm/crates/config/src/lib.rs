@@ -37,7 +37,7 @@ pub use shim_policy::{
 pub use workspace_yaml::{
     AllowBuild, AuditSettings, CargoSettings, DEFAULT_PYTHON_DOWNLOAD_URL,
     GLOBAL_CONFIG_YAML_FILENAME, LoadWorkspaceYamlError, PackageExtension, PeerDependencyMeta,
-    PeerDependencyRules, PnpmfileSetting, PythonDownloads, PythonLinkMode, PythonSettings,
+    PeerDependencyRules, PnpmfileSetting, PythonDownloads, PythonSettings,
     RemoteSideEffectsCacheSettings, TaskSettings, UpdateConfig, UpdateSettings,
     WORKSPACE_MANIFEST_FILENAME, WorkspaceKeyIssues, WorkspaceSettings, decided_allow_builds,
     package_configs::{self, PackageConfigsSetting, ProjectConfig, ProjectConfigMultiMatch},

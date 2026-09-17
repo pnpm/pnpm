@@ -14,6 +14,7 @@ repository.workspace = true
 pnpm-crypto-hash = { workspace = true }
 pnpm-crypto-shasums-file = { workspace = true }
 pnpm-config = { workspace = true }
+pnpm-deps-restorer = { workspace = true }
 pnpm-detect-libc = { workspace = true }
 pnpm-diagnostics = { workspace = true }
 pnpm-fs = { workspace = true }

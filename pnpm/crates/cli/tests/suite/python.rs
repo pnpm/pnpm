@@ -2818,7 +2818,7 @@ async fn an_allow_builds_key_naming_no_ecosystem_approves_no_python_build() {
 }
 
 #[tokio::test]
-async fn wheel_link_modes_share_only_when_requested() {
+async fn wheel_package_import_methods_control_sharing() {
     let root = tempfile::tempdir().unwrap();
     let mut server = mockito::Server::new_async().await;
     let mocks = serve(
@@ -2842,7 +2842,9 @@ async fn wheel_link_modes_share_only_when_requested() {
     )
     .await;
     project(root.path(), &server.url(), &["alpha"]);
-    add_python_settings(root.path(), "  linkMode: hardlink\n");
+    let workspace = root.path().join("pnpm-workspace.yaml");
+    let settings = fs::read_to_string(&workspace).unwrap();
+    fs::write(&workspace, format!("{settings}\npackageImportMethod: hardlink\n")).unwrap();
     pacquet_in(root.path())
         .arg("install")
         .assert()
@@ -2914,14 +2916,30 @@ async fn wheel_link_modes_share_only_when_requested() {
         )
         .unwrap(),
     );
-    for mode in ["copy", "reflink"] {
+    pacquet_in(root.path())
+        .args(["install", "--offline", "--frozen-lockfile", "--package-import-method=copy"])
+        .assert()
+        .success();
+    let overridden = installed_module(root.path(), "alpha");
+    eprintln!("CLI copy override must create an independent file");
+    assert!(!same_file::is_same_file(&first, &overridden).unwrap());
+    pacquet_in(root.path())
+        .args(["install", "--offline", "--frozen-lockfile", "--package-import-method=auto"])
+        .assert()
+        .success();
+    let automatic = installed_module(root.path(), "alpha");
+    if cfg!(target_os = "linux") {
+        eprintln!("auto uses the existing hardlink-first policy on Linux");
+        assert!(same_file::is_same_file(&first, &automatic).unwrap());
+    }
+    for mode in ["copy", "clone-or-copy"] {
         let workspace = root.path().join("pnpm-workspace.yaml");
         let settings = fs::read_to_string(&workspace).unwrap();
         fs::write(
             &workspace,
             settings
-                .replace("linkMode: hardlink", &format!("linkMode: {mode}"))
-                .replace("linkMode: copy", &format!("linkMode: {mode}")),
+                .replace("packageImportMethod: hardlink", &format!("packageImportMethod: {mode}"))
+                .replace("packageImportMethod: copy", &format!("packageImportMethod: {mode}")),
         )
         .unwrap();
         pacquet_in(root.path())
@@ -2969,7 +2987,9 @@ async fn deferred_wheel_files_cannot_replace_generated_record() {
     )
     .await;
     project(root.path(), &server.url(), &["alpha"]);
-    add_python_settings(root.path(), "  linkMode: hardlink\n");
+    let workspace = root.path().join("pnpm-workspace.yaml");
+    let settings = fs::read_to_string(&workspace).unwrap();
+    fs::write(&workspace, format!("{settings}\npackageImportMethod: hardlink\n")).unwrap();
     assert_failure_contains(
         pacquet_in(root.path()).arg("install"),
         "Python package file collision",
