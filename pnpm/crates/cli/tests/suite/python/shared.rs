@@ -216,3 +216,71 @@ async fn a_shared_member_with_dynamic_metadata_is_prepared_with_the_shared_inter
         toml::from_str(&fs::read_to_string(root.path().join("pylock.toml")).unwrap()).unwrap();
     assert_eq!(lock["tool"]["pnpm"]["members"], list(&["packages/app", "packages/lib"]));
 }
+
+/// An interpreter on the PATH under `name` that records each start in
+/// `log`, so a test can tell which interpreters an install ran.
+#[cfg(unix)]
+fn logging_shim(directory: &Path, name: &str, version: &str, log: &Path) {
+    use std::os::unix::fs::PermissionsExt;
+    fs::create_dir_all(directory).unwrap();
+    let source = super::interpreter_shim_source(version)
+        .replace(
+            "import platform, sys\n",
+            &format!(
+                "import os, platform, sys\nopen('{}', 'a').write('{name}\\n')\n",
+                log.display()
+            ),
+        );
+    fs::write(directory.join(name), source).unwrap();
+    fs::set_permissions(directory.join(name), fs::Permissions::from_mode(0o755)).unwrap();
+}
+
+/// The member asks for Python 3.12 in its own `.python-version`, which
+/// would select it for the member's dynamic metadata on its own. Sharing
+/// an environment, the metadata is prepared with the interpreter the
+/// root asks for, and the member's own choice is never started.
+#[cfg(unix)]
+#[tokio::test]
+async fn a_shared_members_metadata_is_prepared_with_the_interpreter_the_root_asks_for() {
+    let root = tempfile::tempdir().unwrap();
+    let mut server = mockito::Server::new_async().await;
+    let _backends = serve_backends(&mut server).await;
+    let _alpha = serve(&mut server, "alpha", &[("1.0", wheel("alpha", "1.0", "", &[]))]).await;
+    shared_workspace(root.path(), &server.url());
+    fs::write(root.path().join(".python-version"), "3.11\n").unwrap();
+    python_project(&root.path().join("packages/lib"), "lib", "dependencies = ['alpha']");
+    let app = root.path().join("packages/app");
+    fs::create_dir_all(app.join("app")).unwrap();
+    fs::write(app.join("app/__init__.py"), "VALUE = 'source'\n").unwrap();
+    fs::write(
+        app.join("pyproject.toml"),
+        "[project]\nname = 'app'\ndynamic = ['version']\nrequires-python = '>=3.10'\n\
+         dependencies = []\n\n[build-system]\nrequires = ['hatchling']\n\
+         build-backend = 'hatchling.build'\n",
+    )
+    .unwrap();
+    fs::write(app.join(".python-version"), "3.12\n").unwrap();
+    // Outside the workspace, which an install does not take interpreters from.
+    let outside = tempfile::tempdir().unwrap();
+    let shims = outside.path().join("interpreters");
+    let log = outside.path().join("started");
+    logging_shim(&shims, "python3.11", "3.11.9", &log);
+    logging_shim(&shims, "python3.12", "3.12.7", &log);
+
+    pacquet_in(root.path())
+        .arg("install")
+        .env("PATH", format!("{}:{}", shims.display(), std::env::var("PATH").unwrap()))
+        .assert()
+        .success();
+
+    assert_eq!(super::selected_python(root.path()), "3.11.9");
+    let started = fs::read_to_string(&log).unwrap();
+    eprintln!("started:\n{started}");
+    assert!(started.contains("python3.11"), "the shared interpreter prepared the metadata");
+    assert!(!started.contains("python3.12"), "the member's own choice was never started");
+    python(root.path())
+        .args(["-c", "import alpha, lib; import importlib.metadata as m; print(m.version('app'))"])
+        .assert()
+        .success()
+        .stdout(line("0.0.1"));
+}
