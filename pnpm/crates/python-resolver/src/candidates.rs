@@ -1,6 +1,6 @@
 use crate::{
-    lockfile::{LockedWheel, Target},
-    packages::{Candidate, IndexCandidate},
+    lockfile::{LockedSdist, LockedWheel, Target},
+    packages::{Candidate, Excluded, IndexCandidate, Offered, Releases},
     requires_python::declared_range,
 };
 use miette::{IntoDiagnostic, Result, bail};
@@ -9,6 +9,15 @@ use pep508_rs::{PackageName, Requirement};
 use serde::Deserialize;
 use std::{collections::BTreeMap, fmt};
 use url::Url;
+
+/// The containers a source distribution is published in that pnpm
+/// unpacks, as PEP 625 and its predecessors name them.
+const SOURCE_SUFFIXES: [&str; 2] = [".tar.gz", ".zip"];
+
+/// The preference a target gives a source distribution, which is after
+/// every wheel it accepts: a wheel is downloaded, and a source
+/// distribution has to be built.
+const SOURCE_RANK: usize = usize::MAX;
 
 #[derive(Deserialize)]
 struct SimplePage {
@@ -52,14 +61,15 @@ impl IndexFile {
     }
 }
 
-/// The versions of `name` a target can install, read from one PEP 691
-/// Simple API page.
+/// The versions of `name` one PEP 691 Simple API page offers a target,
+/// and the releases it leaves out.
 ///
-/// A version is offered by whichever of its wheels the target prefers: the
-/// tags are ranked, and the first one that fits wins. Versions with no
-/// wheel for this target, wheels the interpreter's version is outside
-/// `requires_python` for, and yanked files are all left out, so the
-/// resolution never picks something the environment cannot install.
+/// A version is offered by whichever of its files the target prefers: the
+/// wheel tags are ranked, the first one that fits wins, and a release with
+/// no wheel for this target is offered as its source distribution. Wheels
+/// the interpreter's version is outside `requires_python` for, and yanked
+/// files, are left out, so the resolution never picks something the
+/// environment cannot install.
 ///
 /// `page_url` is the URL the page was read from, which relative file URLs
 /// resolve against.
@@ -68,61 +78,187 @@ pub fn candidates_from_page(
     page_url: &Url,
     name: &PackageName,
     target: &Target,
-) -> Result<BTreeMap<Version, Candidate>> {
+) -> Result<Offered> {
     let page: SimplePage = serde_json::from_str(page)
         .into_diagnostic()
         .map_err(|err| err.wrap_err("Python index must support the Simple JSON API"))?;
     let mut candidates = BTreeMap::<Version, (usize, Candidate)>::new();
+    let mut excluded = BTreeMap::<Version, Exclusion>::new();
     for file in page.files {
-        let Some((version, rank, candidate)) = installable_candidate(file, page_url, name, target)
-        else {
-            continue;
-        };
-        if candidates
-            .get(&version)
-            .is_none_or(|(previous, existing)| {
-                (rank, candidate.label()) < (*previous, existing.label())
-            })
-        {
-            candidates.insert(version, (rank, candidate));
+        match read_file(file, page_url, name, target) {
+            Read::Ignored => {}
+            Read::Excluded(version, reason) => {
+                excluded
+                    .entry(version)
+                    .and_modify(|kept| *kept = (*kept).min(reason))
+                    .or_insert(reason);
+            }
+            Read::Candidate(version, rank, candidate) => {
+                if candidates
+                    .get(&version)
+                    .is_none_or(|(previous, existing)| {
+                        (rank, candidate.label()) < (*previous, existing.label())
+                    })
+                {
+                    candidates.insert(version, (rank, candidate));
+                }
+            }
         }
     }
-    Ok(candidates
-        .into_iter()
-        .map(|(version, (_, candidate))| (version, candidate))
-        .collect())
+    // A release with one file this target installs is not left out,
+    // whatever its other files are for.
+    excluded.retain(|version, _| !candidates.contains_key(version));
+    Ok(Offered {
+        candidates: candidates
+            .into_iter()
+            .map(|(version, (_, candidate))| (version, candidate))
+            .collect(),
+        excluded: Excluded {
+            published: true,
+            other_interpreters: releases(&excluded, Exclusion::OtherInterpreter),
+            other_targets: releases(&excluded, Exclusion::OtherTarget),
+        },
+    })
 }
 
-/// The candidate one index file offers, with the version and tag rank it
-/// competes under. `None` for a file this target cannot install: a yanked
-/// release, a non-wheel, a wheel whose `Requires-Python` excludes the
-/// target interpreter, or one of the [unusable](usable) files an index
-/// serves.
-fn installable_candidate(
-    file: IndexFile,
-    page_url: &Url,
-    name: &PackageName,
-    target: &Target,
-) -> Option<(Version, usize, Candidate)> {
+fn releases(excluded: &BTreeMap<Version, Exclusion>, reason: Exclusion) -> Releases {
+    excluded
+        .iter()
+        .filter(|(_, kept)| **kept == reason)
+        .map(|(version, _)| version.clone())
+        .collect()
+}
+
+/// What one index file offers this target.
+enum Read {
+    /// The candidate it offers, and the rank it competes under with the
+    /// other files of its release. A lower rank is one the target prefers.
+    Candidate(Version, usize, Candidate),
+    /// A release this target cannot install this file of, and why.
+    Excluded(Version, Exclusion),
+    /// A file resolution does not consider: a yanked release, a file that
+    /// is neither a wheel nor a source distribution, or one of the
+    /// [unusable](usable) files an index serves.
+    Ignored,
+}
+
+/// Why a release is not a candidate. Ordered by how precisely it names
+/// what a project can do about it, so a release left out for several
+/// reasons is reported under the most precise one.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+enum Exclusion {
+    /// Every file of the release declares an interpreter range this
+    /// target's Python is outside of.
+    OtherInterpreter,
+    /// The release publishes no wheel this target installs and no source
+    /// distribution pnpm can unpack.
+    OtherTarget,
+}
+
+fn read_file(file: IndexFile, page_url: &Url, name: &PackageName, target: &Target) -> Read {
     if !matches!(file.yanked, serde_json::Value::Null | serde_json::Value::Bool(false)) {
-        return None;
+        return Read::Ignored;
     }
-    let (wheel_name, version, rank) =
-        usable(&file.filename, wheel_identity(&file.filename, &target.tags))??;
-    if wheel_name != *name {
-        return unusable(&file.filename, format_args!("wheel for {wheel_name}, not for {name}"));
-    }
+    let Some(Some(published)) =
+        usable(&file.filename, published_file(&file.filename, name, &target.tags))
+    else {
+        return Read::Ignored;
+    };
+    // Asked before the tags, so a file this target is outside the
+    // interpreter range of is reported as that rather than as one more
+    // wheel for another machine.
     if let Some(specifiers) = file.requires_python.as_deref().and_then(declared_range)
         && !specifiers.contains(target.environment.python_full_version())
     {
-        return None;
+        return Read::Excluded(published.version, Exclusion::OtherInterpreter);
     }
-    let url = usable(&file.filename, page_url.join(&file.url).into_diagnostic())?;
-    usable(&file.filename, validate_url(&url))?;
+    let Some(rank) = published.rank else {
+        return Read::Excluded(published.version, Exclusion::OtherTarget);
+    };
+    let Some(url) = usable(&file.filename, page_url.join(&file.url).into_diagnostic()) else {
+        return Read::Ignored;
+    };
+    if usable(&file.filename, validate_url(&url)).is_none() {
+        return Read::Ignored;
+    }
+    // The digest check names the file it refuses, so the reason it is
+    // left out carries the filename without being told it.
+    match index_candidate(file, &url, published.source) {
+        Ok(candidate) => Read::Candidate(published.version, rank, candidate),
+        Err(reason) => {
+            tracing::debug!("skipping Python file: {reason}");
+            Read::Ignored
+        }
+    }
+}
+
+fn index_candidate(file: IndexFile, url: &Url, source: bool) -> Result<Candidate> {
+    if source {
+        let sdist = LockedSdist { name: file.filename, url: url.to_string(), hashes: file.hashes };
+        sdist.integrity()?;
+        return Ok(Candidate::Sdist(sdist));
+    }
     let core_metadata = file.metadata_digests();
     let wheel = LockedWheel { name: file.filename, url: url.to_string(), hashes: file.hashes };
-    usable(&wheel.name, wheel.integrity())?;
-    Some((version, rank, Candidate::Wheel(IndexCandidate { wheel, core_metadata })))
+    wheel.integrity()?;
+    Ok(Candidate::Wheel(IndexCandidate { wheel, core_metadata }))
+}
+
+/// What a published file's name says it is, or `None` for a file that is
+/// neither a wheel nor a source distribution of `name` — an index page
+/// lists signatures, eggs and installers beside them.
+struct PublishedFile {
+    version: Version,
+    /// `None` for a wheel this target accepts no tag of.
+    rank: Option<usize>,
+    source: bool,
+}
+
+fn published_file(
+    filename: &str,
+    name: &PackageName,
+    tags: &[String],
+) -> Result<Option<PublishedFile>> {
+    if let Some(wheel) = WheelFilename::parse(filename)? {
+        if wheel.name != *name {
+            bail!("wheel for {}, not for {name}", wheel.name);
+        }
+        let rank = wheel.rank(tags);
+        return Ok(Some(PublishedFile { version: wheel.version, rank, source: false }));
+    }
+    Ok(source_version(filename, name)?
+        .map(|version| PublishedFile { version, rank: Some(SOURCE_RANK), source: true }))
+}
+
+/// The release a source distribution of `name` carries, or `None` when
+/// the file is not one.
+///
+/// A source distribution is named `{distribution}-{version}` in a
+/// container pnpm unpacks, and the distribution is spelled however
+/// whoever built it spelled it. Which dash separates the two is
+/// therefore decided by the distribution: the name is read back and
+/// compared to the one whose page this is, so `python-u2flib-server`
+/// carries `5.0.0` and not `server-5.0.0`.
+pub fn source_version(filename: &str, name: &PackageName) -> Result<Option<Version>> {
+    let Some(stem) = SOURCE_SUFFIXES
+        .iter()
+        .find_map(|suffix| filename.strip_suffix(suffix))
+    else {
+        return Ok(None);
+    };
+    if filename.contains(['/', '\\']) {
+        bail!("invalid Python source distribution filename: {filename}");
+    }
+    Ok(stem
+        .match_indices('-')
+        .filter(|(index, _)| {
+            stem[..*index]
+                .parse::<PackageName>()
+                .ok()
+                .as_ref()
+                == Some(name)
+        })
+        .find_map(|(index, _)| stem[index + 1..].parse::<Version>().ok()))
 }
 
 /// What reading one index file produced, or `None` when the file is one

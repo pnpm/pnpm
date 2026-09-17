@@ -1,8 +1,8 @@
 use crate::{
-    candidates::{candidates_from_page, wheel_identity},
-    lockfile::{Inputs, Lockfile, Metadata, Solved, Target},
+    candidates::{candidates_from_page, source_version, wheel_identity},
+    lockfile::{Inputs, LockedSdist, Lockfile, Metadata, Solved, Target},
     metadata::WheelMetadata,
-    packages::Packages,
+    packages::{Excluded, Packages},
     resolve::{Step, step},
 };
 use pep440_rs::Version;
@@ -92,7 +92,8 @@ fn candidates_prefer_the_first_tag_the_target_lists() {
         &name("demo"),
         &target(),
     )
-    .expect("page parses");
+    .expect("page parses")
+    .candidates;
 
     let candidate = &candidates[&Version::from_str("1.0.0").unwrap()];
     assert_eq!(
@@ -131,12 +132,51 @@ fn candidates_leave_out_what_the_target_cannot_install() {
     .expect("page parses");
 
     assert_eq!(
-        candidates
+        candidates.candidates
             .keys()
             .map(ToString::to_string)
             .collect::<Vec<_>>(),
-        ["1.0.0"],
-        "yanked, interpreter-incompatible, foreign-tag, and non-wheel files are left out",
+        ["1.0.0", "5.0.0"],
+        "yanked, interpreter-incompatible and foreign-tag files are left out, \
+         and a release with only a source distribution is offered it",
+    );
+    assert_eq!(
+        candidates.excluded,
+        Excluded {
+            published: true,
+            other_interpreters: std::iter::once(Version::from_str("3.0.0").unwrap()).collect(),
+            other_targets: std::iter::once(Version::from_str("4.0.0").unwrap()).collect(),
+        },
+    );
+}
+
+/// A page names every release a distribution ever published, and what a
+/// failure says about it names a few. Holding the rest would put a
+/// resolution's memory at the mercy of whatever an index serves, which
+/// on a pnpr server is whatever a request asks it to read.
+#[test]
+fn the_releases_kept_for_a_failure_do_not_follow_the_size_of_the_page() {
+    let files = (1..=40)
+        .map(|minor| wheel(&format!("demo-1.{minor}.0-cp39-cp39-manylinux_2_17_x86_64.whl")))
+        .collect::<Vec<_>>();
+
+    let offered = candidates_from_page(
+        &page(&serde_json::json!(files)),
+        &index_url(),
+        &name("demo"),
+        &target(),
+    )
+    .expect("page parses");
+
+    assert!(offered.candidates.is_empty());
+    assert_eq!(offered.excluded.releases(), 40, "every release is counted");
+    assert_eq!(
+        offered.excluded.other_targets
+            .newest()
+            .map(ToString::to_string)
+            .collect::<Vec<_>>(),
+        ["1.40.0", "1.39.0", "1.38.0", "1.37.0", "1.36.0", "1.35.0", "1.34.0", "1.33.0"],
+        "only the newest are kept, newest first",
     );
 }
 
@@ -162,7 +202,8 @@ fn candidates_leave_out_a_file_they_cannot_read() {
         &name("demo"),
         &target(),
     )
-    .expect("page parses");
+    .expect("page parses")
+    .candidates;
 
     assert_eq!(
         candidates
@@ -192,7 +233,8 @@ fn a_requires_python_that_does_not_parse_is_read_as_none_at_all() {
         &name("demo"),
         &target,
     )
-    .expect("page parses");
+    .expect("page parses")
+    .candidates;
     assert_eq!(
         candidates
             .keys()
@@ -237,7 +279,8 @@ fn candidates_carry_the_metadata_file_an_index_advertises() {
         &name("demo"),
         &target(),
     )
-    .expect("page parses");
+    .expect("page parses")
+    .candidates;
 
     let digests = candidates[&Version::from_str("1.0.0").unwrap()]
         .core_metadata()
@@ -278,7 +321,8 @@ fn a_resolution_asks_for_each_distribution_then_each_wheel_then_solves() {
             &name("demo"),
             &target,
         )
-        .expect("page parses"),
+        .expect("page parses")
+        .candidates,
     );
     let Step::NeedMetadata(needed, version) =
         step(&packages, &requirements, &target.environment).unwrap()
@@ -311,7 +355,8 @@ fn a_project_with_no_satisfying_version_reports_why() {
             &name("demo"),
             &target,
         )
-        .expect("page parses"),
+        .expect("page parses")
+        .candidates,
     );
 
     let error = step(&packages, &requirements, &target.environment).expect_err("nothing satisfies");
@@ -333,7 +378,8 @@ fn project_whose_newest_release_declares(requires_dist: &str) -> (Packages, Vec<
             &name("demo"),
             &target,
         )
-        .expect("page parses"),
+        .expect("page parses")
+        .candidates,
     );
     for (version, requires_dist) in [("1.0.0", ""), ("2.0.0", requires_dist)] {
         packages.metadata.insert(
@@ -418,7 +464,8 @@ fn solved_project(
             &name("demo"),
             &target,
         )
-        .expect("page parses"),
+        .expect("page parses")
+        .candidates,
     );
     packages.metadata.insert(
         (name("demo"), Version::from_str("1.0.0").unwrap()),
@@ -620,7 +667,8 @@ fn offered(target: &Target, distributions: &[(&str, &[&str])]) -> Packages {
                 &name(distribution),
                 target,
             )
-            .expect("page parses"),
+            .expect("page parses")
+            .candidates,
         );
     }
     packages
@@ -915,4 +963,251 @@ fn overrides_replace_transitive_ranges_and_constraints_only_narrow_reached_packa
     let error = crate::locked_solution(&packages, &requirements, &target.environment).unwrap_err();
     eprintln!("{error}");
     assert!(error.to_string().contains("does not satisfy"));
+}
+
+fn sdist(filename: &str) -> serde_json::Value {
+    serde_json::json!({
+        "filename": filename,
+        "url": filename,
+        "hashes": { "sha256": "b".repeat(64) },
+    })
+}
+
+#[test]
+fn a_release_is_offered_its_source_distribution_only_where_no_wheel_fits() {
+    let offered = candidates_from_page(
+        &page(&serde_json::json!([
+            wheel("demo-1.0.0-py3-none-any.whl"),
+            sdist("demo-1.0.0.tar.gz"),
+            sdist("demo-2.0.0.zip"),
+            wheel("demo-3.0.0-cp39-cp39-manylinux_2_17_x86_64.whl"),
+            sdist("demo-3.0.0.tar.gz"),
+        ])),
+        &index_url(),
+        &name("demo"),
+        &target(),
+    )
+    .expect("page parses");
+
+    dbg!(&offered.candidates);
+    assert_eq!(
+        offered.candidates[&Version::from_str("1.0.0").unwrap()]
+            .wheel()
+            .expect("a wheel wins over the source distribution of its release")
+            .name,
+        "demo-1.0.0-py3-none-any.whl",
+    );
+    for (version, filename) in [("2.0.0", "demo-2.0.0.zip"), ("3.0.0", "demo-3.0.0.tar.gz")] {
+        assert_eq!(
+            offered.candidates[&Version::from_str(version).unwrap()]
+                .sdist()
+                .expect("a release with no wheel for this target is offered its source")
+                .name,
+            filename,
+        );
+    }
+    assert_eq!(offered.excluded.releases(), 0);
+}
+
+/// The distribution that stops `getsentry/sentry`, whose name holds the
+/// dashes that separate the version from it.
+#[test]
+fn a_source_distribution_filename_is_read_against_the_distribution_it_is_published_under() {
+    assert_eq!(
+        source_version("python-u2flib-server-5.0.0.tar.gz", &name("python-u2flib-server"))
+            .expect("filename parses")
+            .expect("a source distribution of the distribution")
+            .to_string(),
+        "5.0.0",
+    );
+    assert_eq!(
+        source_version("Demo_Project-1.0.tar.gz", &name("demo-project"))
+            .expect("filename parses")
+            .expect("the name is compared as a distribution name, not as text")
+            .to_string(),
+        "1.0",
+    );
+    for filename in ["other-1.0.tar.gz", "demo-1.0.tar.bz2", "demo.tar.gz", "demo-1.0-py3.egg"] {
+        assert!(
+            source_version(filename, &name("demo")).expect("filename parses").is_none(),
+            "read {filename} as a source distribution of demo",
+        );
+    }
+}
+
+/// Item 5 of pnpm/pnpm#14945: an empty version set says nothing about
+/// whether the distribution exists, publishes anything installable, or
+/// simply has no version the project asked for.
+#[test]
+fn a_resolution_failure_says_why_a_distribution_offered_nothing() {
+    let target = target();
+    let unknown = {
+        let mut packages = Packages::new();
+        packages.candidates.insert(name("demo"), BTreeMap::new());
+        packages.excluded.insert(name("demo"), Excluded::default());
+        packages
+    };
+    let offered_by_page = |files: serde_json::Value| {
+        let mut packages = Packages::new();
+        let offered = candidates_from_page(&page(&files), &index_url(), &name("demo"), &target)
+            .expect("page parses");
+        packages.candidates.insert(name("demo"), offered.candidates);
+        packages.excluded.insert(name("demo"), offered.excluded);
+        packages
+    };
+    let elsewhere = offered_by_page(serde_json::json!([wheel(
+        "demo-1.0.0-cp39-cp39-manylinux_2_17_x86_64.whl"
+    )]));
+    let many = offered_by_page(serde_json::json!(
+        (1..=10)
+            .map(|minor| {
+                wheel(&format!("demo-1.{minor}.0-cp39-cp39-manylinux_2_17_x86_64.whl"))
+            })
+            .collect::<Vec<_>>()
+    ));
+    let (unselected, _, _) = solved_project("demo>=1", "");
+
+    for (packages, requirement, expected) in [
+        (unknown, "demo>=1", "No index pnpm reads publishes a distribution named demo."),
+        (
+            elsewhere,
+            "demo>=1",
+            "demo publishes 1 releases (1.0.0), none of which publishes a wheel this interpreter \
+             installs or a source distribution pnpm can build.",
+        ),
+        (
+            unselected,
+            "demo>=2",
+            "demo is offered at 1.0.0, and this project's requirements select none of them.",
+        ),
+        (
+            many,
+            "demo>=1",
+            "demo publishes 10 releases (1.10.0, 1.9.0, 1.8.0, 1.7.0, 1.6.0, 1.5.0, 1.4.0, \
+             1.3.0 and 2 older), none of which",
+        ),
+    ] {
+        let requirements = [Requirement::from_str(requirement).expect("requirement fixture")];
+        let error = step(&packages, &requirements, &target.environment)
+            .expect_err("no version satisfies the project");
+        let message = error.to_string();
+        assert!(message.contains(expected), "{message}");
+    }
+}
+
+/// Which archive of a release a target takes can differ when the files
+/// declare different interpreter ranges, and one PEP 751 entry pins one
+/// archive. Merging the two silently would replay an archive the other
+/// environment's own resolution rejected.
+#[test]
+fn environments_that_take_different_archives_of_one_release_are_refused() {
+    let target = target();
+    let solved = |filename: &str| {
+        let mut packages = Packages::new();
+        let offered = candidates_from_page(
+            &page(&serde_json::json!([sdist(filename)])),
+            &index_url(),
+            &name("demo"),
+            &target,
+        )
+        .expect("page parses");
+        packages.candidates.insert(name("demo"), offered.candidates);
+        let version = Version::from_str("1.0.0").unwrap();
+        packages.metadata.insert(
+            (name("demo"), version.clone()),
+            WheelMetadata::parse("Name: demo\nVersion: 1.0.0\n").expect("metadata parses"),
+        );
+        Solved::new(
+            target.clone(),
+            BTreeMap::from([(name("demo"), version)]),
+            &packages,
+            vec!["python_version".to_string()],
+        )
+        .expect("the environment solved")
+    };
+    let requirements = vec![Requirement::from_str("demo>=1").expect("requirement fixture")];
+    let solved = [solved("demo-1.0.0.tar.gz"), solved("demo-1.0.0.zip")];
+    let metadata = Metadata::from([(
+        (name("demo"), Version::from_str("1.0.0").unwrap()),
+        WheelMetadata::parse("Name: demo\nVersion: 1.0.0\n").expect("metadata parses"),
+    )]);
+
+    let error = Lockfile::merged(
+        &metadata,
+        &requirements,
+        &solved,
+        Inputs::new(&requirements, &target, index_url().as_str()),
+        None,
+    )
+    .expect_err("one entry cannot pin both archives");
+
+    dbg!(&error);
+    assert!(error.to_string().contains("different archives of demo"), "{error}");
+}
+
+#[test]
+fn a_lockfile_pins_the_source_distribution_a_release_is_built_from() {
+    let target = target();
+    let mut packages = Packages::new();
+    let offered = candidates_from_page(
+        &page(&serde_json::json!([sdist("demo-1.0.0.tar.gz")])),
+        &index_url(),
+        &name("demo"),
+        &target,
+    )
+    .expect("page parses");
+    packages.candidates.insert(name("demo"), offered.candidates);
+    packages.metadata.insert(
+        (name("demo"), Version::from_str("1.0.0").unwrap()),
+        WheelMetadata::parse("Name: demo\nVersion: 1.0.0\n").expect("metadata parses"),
+    );
+    let requirements = vec![Requirement::from_str("demo>=1").expect("requirement fixture")];
+    let Step::Solved(solution) = step(&packages, &requirements, &target.environment).unwrap()
+    else {
+        panic!("the source distribution is the only candidate the project needs");
+    };
+    let inputs = || Inputs::new(&requirements, &target, index_url().as_str());
+    let locked = || {
+        Lockfile::new(&packages, &target, &requirements, solution.clone(), inputs(), None)
+            .expect("lockfile builds")
+    };
+
+    let lockfile = locked();
+    let [package] = lockfile.packages.as_slice() else { panic!("one package was solved") };
+    assert!(package.wheels.is_empty());
+    assert_eq!(
+        package.sdist.as_ref().expect("the release pins its source distribution").name,
+        "demo-1.0.0.tar.gz",
+    );
+
+    lockfile
+        .applies_to(&inputs(), None, &target)
+        .expect("the lockfile applies to this target");
+    let mut seeded = Packages::new();
+    lockfile.seed(&mut seeded, &target).expect("the lockfile seeds its own candidates");
+    assert_eq!(
+        seeded.candidates[&name("demo")][&Version::from_str("1.0.0").unwrap()]
+            .sdist()
+            .expect("a package pinning a source distribution is offered it")
+            .name,
+        "demo-1.0.0.tar.gz",
+    );
+
+    // A lockfile is untrusted input, and the store fetches a `file:` URL
+    // from this machine rather than from the index.
+    for tamper in [
+        |sdist: &mut LockedSdist| sdist.url = "file:///etc/shadow".to_string(),
+        |sdist: &mut LockedSdist| sdist.name = "other-1.0.0.tar.gz".to_string(),
+        |sdist: &mut LockedSdist| sdist.name = "demo-2.0.0.tar.gz".to_string(),
+    ] {
+        let mut tampered = locked();
+        tamper(
+            tampered.packages[0].sdist.as_mut().expect("the release pins its source distribution"),
+        );
+        let error = tampered
+            .applies_to(&inputs(), None, &target)
+            .expect_err("a lockfile pointing the archive elsewhere is refused");
+        dbg!(&error);
+        assert!(error.to_string().contains("Python"), "{error}");
+    }
 }

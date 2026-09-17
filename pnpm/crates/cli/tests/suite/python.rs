@@ -237,6 +237,13 @@ fn python(root: &Path) -> Command {
     }))
 }
 
+fn approve(root: &Path, name: &str) {
+    let config = root.join("pnpm-workspace.yaml");
+    let mut contents = fs::read_to_string(&config).unwrap();
+    writeln!(contents, "  pkg:pypi/{name}: true").unwrap();
+    fs::write(config, contents).unwrap();
+}
+
 fn assert_failure_contains(command: &mut Command, expected: &str) {
     let result = command.assert().failure();
     let stderr = String::from_utf8_lossy(&result.get_output().stderr);
@@ -1831,10 +1838,117 @@ mod filtering;
 mod indexes;
 mod metadata;
 mod resolution;
+mod sdists;
 mod selection;
 
 mod sources;
 mod validation;
+
+fn sdist_files(name: &str, version: &str, dependencies: &[&str]) -> Vec<(String, String)> {
+    let module = name.replace('-', "_");
+    let manifest = format!(
+        "[project]\nname = '{name}'\nversion = '{version}'\ndependencies = {dependencies:?}\n\n\
+         [build-system]\nrequires = ['setuptools']\nbuild-backend = 'setuptools.build_meta'\n",
+    );
+    vec![
+        ("pyproject.toml".to_string(), manifest),
+        (format!("{module}/__init__.py"), format!("VERSION = '{version}'\n")),
+    ]
+}
+
+fn sdist(name: &str, version: &str, dependencies: &[&str]) -> Vec<u8> {
+    let root = format!("{}-{version}", name.replace('-', "_"));
+    let mut archive =
+        tar::Builder::new(flate2::write::GzEncoder::new(Vec::new(), flate2::Compression::fast()));
+    for (path, contents) in sdist_files(name, version, dependencies) {
+        let mut header = tar::Header::new_gnu();
+        header.set_size(contents.len() as u64);
+        header.set_mode(0o644);
+        header.set_cksum();
+        archive
+            .append_data(&mut header, format!("{root}/{path}"), contents.as_bytes())
+            .unwrap();
+    }
+    archive
+        .into_inner()
+        .unwrap()
+        .finish()
+        .unwrap()
+}
+
+/// GNU tar writes a `./` prefix, which spends the extractor's one
+/// stripped component on itself. `set_path` drops such a component, so
+/// the name goes into the header field directly.
+fn sdist_dot_prefixed(name: &str, version: &str, dependencies: &[&str]) -> Vec<u8> {
+    let root = format!("{}-{version}", name.replace('-', "_"));
+    let mut archive =
+        tar::Builder::new(flate2::write::GzEncoder::new(Vec::new(), flate2::Compression::fast()));
+    for (path, contents) in sdist_files(name, version, dependencies) {
+        let mut header = tar::Header::new_gnu();
+        header.set_size(contents.len() as u64);
+        header.set_mode(0o644);
+        header.set_cksum();
+        // `set_path` drops a `./` component, so the name is written into
+        // the header as the archiver on the other end wrote it.
+        let name = format!("./{root}/{path}");
+        let field = &mut header.as_old_mut().name;
+        field[..name.len()].copy_from_slice(name.as_bytes());
+        header.set_cksum();
+        archive.append(&header, contents.as_bytes()).unwrap();
+    }
+    archive
+        .into_inner()
+        .unwrap()
+        .finish()
+        .unwrap()
+}
+
+/// Older build tooling publishes a zip, which the extractor strips a
+/// named prefix from rather than stripping whatever comes first.
+fn sdist_zip(name: &str, version: &str, dependencies: &[&str]) -> Vec<u8> {
+    let root = format!("{}-{version}", name.replace('-', "_"));
+    let mut archive = ZipWriter::new(Cursor::new(Vec::new()));
+    for (path, contents) in sdist_files(name, version, dependencies) {
+        archive
+            .start_file(format!("{root}/{path}"), SimpleFileOptions::default())
+            .unwrap();
+        archive.write_all(contents.as_bytes()).unwrap();
+    }
+    archive.finish().unwrap().into_inner()
+}
+
+async fn serve_archives(
+    server: &mut mockito::ServerGuard,
+    name: &str,
+    archives: &[(String, Vec<u8>)],
+) -> Vec<mockito::Mock> {
+    let mut mocks = Vec::new();
+    let mut files = Vec::new();
+    for (filename, archive) in archives {
+        files.push(json!({"filename": filename, "url": format!("/files/{filename}"), "hashes": {"sha256": format!("{:x}", Sha256::digest(archive))}}));
+        mocks.push(
+            server
+                .mock("GET", format!("/files/{filename}").as_str())
+                .with_body(archive)
+                .expect_at_least(0)
+                .create_async()
+                .await,
+        );
+    }
+    mocks.push(
+        server
+            .mock("GET", format!("/simple/{name}/").as_str())
+            .match_header("accept", "application/vnd.pypi.simple.v1+json")
+            .with_header("content-type", "application/vnd.pypi.simple.v1+json")
+            .with_body(
+                json!({"meta": {"api-version": "1.0"}, "name": name, "files": files}).to_string(),
+            )
+            .expect_at_least(1)
+            .create_async()
+            .await,
+    );
+    mocks
+}
 
 /// A PEP 517 backend small enough to serve from the mocked index, so a
 /// build in these tests runs the real hooks without a real backend.

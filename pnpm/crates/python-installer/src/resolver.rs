@@ -64,7 +64,7 @@ pub(super) async fn resolve<Reporter: InstallReporter + 'static>(
                 registry.resolution.packages = alternative;
             }
             Step::NeedMetadata(name, version) => {
-                registry.fetch_wheel::<Reporter>(&name, &version).await?;
+                registry.fetch_metadata::<Reporter>(&name, &version).await?;
             }
         }
         tokio::task::yield_now().await;

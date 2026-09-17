@@ -1,17 +1,22 @@
 use crate::{
     Source,
-    lockfile::{LockedDirectory, LockedVcs, LockedWheel},
+    lockfile::{LockedDirectory, LockedSdist, LockedVcs, LockedWheel},
     metadata::WheelMetadata,
 };
 use pep440_rs::Version;
 use pep508_rs::{PackageName, Requirement};
 use std::collections::{BTreeMap, BTreeSet};
 
-/// Where one version of a distribution comes from: a wheel an index
-/// serves, or a directory in this workspace.
+/// Where one version of a distribution comes from: a file an index
+/// serves, a directory in this workspace, or a repository.
 #[derive(Debug, Clone)]
 pub enum Candidate {
     Wheel(IndexCandidate),
+    /// The source distribution an index serves for a release that
+    /// publishes no wheel this target installs. What it requires is read
+    /// from the wheel it builds, so offering it commits the caller to
+    /// building it.
+    Sdist(LockedSdist),
     /// A project in this workspace, which is built from its source rather
     /// than downloaded. Its metadata is read from its own manifest.
     Directory(LockedDirectory),
@@ -55,22 +60,32 @@ impl Candidate {
         }
     }
 
-    /// What an index serves for this candidate, or `None` for a
-    /// directory.
+    /// What an index serves for this candidate, or `None` for anything
+    /// pnpm builds.
     #[must_use]
     pub fn from_index(&self) -> Option<&IndexCandidate> {
         match self {
             Self::Wheel(candidate) => Some(candidate),
-            Self::Directory(_) | Self::Vcs(_) => None,
+            Self::Sdist(_) | Self::Directory(_) | Self::Vcs(_) => None,
         }
     }
 
-    /// The wheel this candidate installs, or `None` for a directory.
+    /// The wheel this candidate installs, or `None` for one pnpm builds.
     #[must_use]
     pub fn wheel(&self) -> Option<&LockedWheel> {
         match self {
             Self::Wheel(candidate) => Some(&candidate.wheel),
-            Self::Directory(_) | Self::Vcs(_) => None,
+            Self::Sdist(_) | Self::Directory(_) | Self::Vcs(_) => None,
+        }
+    }
+
+    /// The source distribution this candidate is built from, or `None`
+    /// for one that is not.
+    #[must_use]
+    pub fn sdist(&self) -> Option<&LockedSdist> {
+        match self {
+            Self::Sdist(sdist) => Some(sdist),
+            Self::Wheel(_) | Self::Directory(_) | Self::Vcs(_) => None,
         }
     }
 
@@ -78,9 +93,8 @@ impl Candidate {
     #[must_use]
     pub fn directory(&self) -> Option<&LockedDirectory> {
         match self {
-            Self::Wheel(_) => None,
             Self::Directory(directory) => Some(directory),
-            Self::Vcs(_) => None,
+            Self::Wheel(_) | Self::Sdist(_) | Self::Vcs(_) => None,
         }
     }
 
@@ -91,7 +105,7 @@ impl Candidate {
     pub fn core_metadata(&self) -> Option<&BTreeMap<String, String>> {
         match self {
             Self::Wheel(candidate) => candidate.core_metadata.as_ref(),
-            Self::Directory(_) | Self::Vcs(_) => None,
+            Self::Sdist(_) | Self::Directory(_) | Self::Vcs(_) => None,
         }
     }
 
@@ -100,6 +114,7 @@ impl Candidate {
     pub fn label(&self) -> &str {
         match self {
             Self::Wheel(candidate) => &candidate.wheel.name,
+            Self::Sdist(sdist) => &sdist.name,
             Self::Directory(directory) => &directory.path,
             Self::Vcs(vcs) => &vcs.url,
         }
@@ -121,6 +136,10 @@ pub struct Packages {
     pub overrides: Vec<Requirement>,
     pub constraints: Vec<Requirement>,
     pub candidates: BTreeMap<PackageName, BTreeMap<Version, Candidate>>,
+    /// What the index pages a resolution read held besides the candidates
+    /// they offered, which is what a failure says about a distribution
+    /// that offered it nothing.
+    pub excluded: BTreeMap<PackageName, Excluded>,
     pub metadata: BTreeMap<(PackageName, Version), WheelMetadata>,
     pub direct_urls: BTreeMap<PackageName, String>,
     /// Sources excluded while trying an alternative dependency graph.
@@ -147,5 +166,96 @@ impl Packages {
             BTreeMap::from([(version.clone(), Candidate::Directory(directory))]),
         );
         self.metadata.insert((name, version), metadata);
+    }
+}
+
+/// What one index page offers a target.
+pub struct Offered {
+    /// The version of each release this target can install, and what it
+    /// installs it from.
+    pub candidates: BTreeMap<Version, Candidate>,
+    pub excluded: Excluded,
+}
+
+/// The releases an index publishes that a target cannot install, and why.
+///
+/// A resolution that reaches for a distribution it has no candidate of
+/// fails with an empty version set, which says nothing about whether the
+/// distribution exists, whether it publishes anything for this machine,
+/// or whether the project simply asked for a version nobody released.
+/// This is what tells those apart.
+#[derive(Debug, Default, Clone, PartialEq, Eq)]
+pub struct Excluded {
+    /// Whether any index pnpm read publishes the distribution at all.
+    pub published: bool,
+    /// Releases every file of which declares an interpreter range this
+    /// target's Python is outside of.
+    pub other_interpreters: Releases,
+    /// Releases that publish no wheel this target installs and no source
+    /// distribution pnpm can unpack.
+    pub other_targets: Releases,
+}
+
+impl Excluded {
+    /// How many releases the distribution publishes that this target
+    /// cannot install.
+    #[must_use]
+    pub fn releases(&self) -> usize {
+        self.other_interpreters.len() + self.other_targets.len()
+    }
+}
+
+/// How many releases were left out for one reason, and the newest of
+/// them by name.
+///
+/// Only the names a failure prints are kept. A page lists every release a
+/// distribution ever published, and reading one is not a reason to hold
+/// that many versions for a message that names [`NAMED_RELEASES`] of
+/// them — least of all on a server answering requests.
+#[derive(Debug, Default, Clone, PartialEq, Eq)]
+pub struct Releases {
+    count: usize,
+    newest: BTreeSet<Version>,
+}
+
+/// How many releases one failure line names before it says how many more
+/// there are.
+pub const NAMED_RELEASES: usize = 8;
+
+impl Releases {
+    pub fn insert(&mut self, version: Version) {
+        if !self.newest.insert(version) {
+            return;
+        }
+        self.count += 1;
+        if self.newest.len() > NAMED_RELEASES {
+            self.newest.pop_first();
+        }
+    }
+
+    #[must_use]
+    pub fn len(&self) -> usize {
+        self.count
+    }
+
+    #[must_use]
+    pub fn is_empty(&self) -> bool {
+        self.count == 0
+    }
+
+    /// The newest releases first, which is the end a project reaches for.
+    #[must_use]
+    pub fn newest(&self) -> impl DoubleEndedIterator<Item = &Version> {
+        self.newest.iter().rev()
+    }
+}
+
+impl FromIterator<Version> for Releases {
+    fn from_iter<Versions: IntoIterator<Item = Version>>(versions: Versions) -> Self {
+        let mut releases = Self::default();
+        for version in versions {
+            releases.insert(version);
+        }
+        releases
     }
 }

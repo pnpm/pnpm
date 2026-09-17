@@ -1,15 +1,22 @@
 mod git;
+mod sdist;
 mod wheel;
 
 pub(super) const MAX_WHEEL_BYTES: usize = 512 * 1024 * 1024;
 
-use super::{build, environment::PythonPrepare, host, manifest::Source, registry::Registry};
-use miette::{IntoDiagnostic, Result, bail};
+use super::{
+    build,
+    environment::PythonPrepare,
+    host,
+    manifest::{Manifest, Source},
+    registry::Registry,
+};
+use miette::{IntoDiagnostic, Result, WrapErr, bail};
 use pep440_rs::Version;
 use pep508_rs::{PackageName, Requirement, VersionOrUrl};
 use pnpm_python_resolver::{Candidate, LockedVcs};
 use pnpm_reporter::Reporter;
-use std::collections::BTreeMap;
+use std::{collections::BTreeMap, path::Path};
 
 pub(super) struct Sources<'a> {
     pub(super) prepare: &'a PythonPrepare<'a>,
@@ -81,8 +88,51 @@ impl Registry<'_> {
             (Candidate::Vcs(a), Candidate::Vcs(b)) => {
                 a == b && self.check_source_wheel(wheel, name, version).is_ok()
             }
+            (Candidate::Sdist(a), Candidate::Sdist(b)) => {
+                a == b && self.check_source_wheel(wheel, name, version).is_ok()
+            }
             _ => false,
         }
+    }
+
+    /// What the resolution asked for when it named a version: the
+    /// wheel's own `METADATA`, or the metadata of the wheel the release's
+    /// source distribution builds.
+    pub(super) async fn fetch_metadata<Reporter: self::Reporter + 'static>(
+        &mut self,
+        name: &PackageName,
+        version: &Version,
+    ) -> Result<()> {
+        if self.resolution.packages.candidates
+            .get(name)
+            .and_then(|versions| versions.get(version))
+            .is_some_and(|candidate| candidate.sdist().is_some())
+        {
+            return self.build_sdist::<Reporter>(name, version).await;
+        }
+        self.fetch_wheel::<Reporter>(name, version).await
+    }
+
+    /// Build every source distribution the selected candidates hold that
+    /// this run has not built already, which after a lockfile is seeded
+    /// is each release it pins no wheel for.
+    pub(super) async fn build_sdists<Reporter: self::Reporter + 'static>(&mut self) -> Result<()> {
+        for (name, version) in self.wanted_sdists() {
+            self.build_sdist::<Reporter>(&name, &version).await?;
+        }
+        Ok(())
+    }
+
+    fn wanted_sdists(&self) -> Vec<(PackageName, Version)> {
+        let mut wanted = Vec::new();
+        for (name, versions) in &self.resolution.packages.candidates {
+            for (version, candidate) in versions {
+                if candidate.sdist().is_some() && !self.has_wheel(name, version) {
+                    wanted.push((name.clone(), version.clone()));
+                }
+            }
+        }
+        wanted
     }
 
     pub(super) async fn fetch_source<Reporter: self::Reporter + 'static>(
@@ -235,6 +285,19 @@ impl Registry<'_> {
             .next()?
             .wheel()?;
         Some(host::DirectUrl::archive(candidate))
+    }
+}
+
+/// The manifest of a source pnpm downloaded, which a project built by a
+/// `setup.py` alone does not have: PEP 517 has such a project built by
+/// setuptools' legacy backend, as if it declared nothing.
+pub(super) async fn read_manifest(root: &Path) -> Result<Manifest> {
+    match tokio::fs::read_to_string(root.join("pyproject.toml")).await {
+        Ok(contents) => Manifest::parse(&contents),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Manifest::parse(""),
+        Err(error) => Err(error)
+            .into_diagnostic()
+            .wrap_err_with(|| format!("read {}/pyproject.toml", root.display())),
     }
 }
 

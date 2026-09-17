@@ -280,6 +280,58 @@ URL source archives remain unsupported. Source declarations selected by a
 marker, extra or group are still refused. Direct sources resolve locally;
 a pnpr server does not fetch or build git repositories.
 
+## Source distributions
+
+A release that publishes no wheel this interpreter accepts is installed by
+building the source distribution the index serves beside it. `.tar.gz` and
+`.zip` archives are read; a wheel always wins over the source distribution of
+the same release, so the archive is downloaded only where nothing else
+installs.
+
+What the release requires is read from the wheel the build produces, because a
+source distribution declares it nowhere else. That build therefore runs while
+the project resolves, including under `--lockfile-only`, through the same
+isolated PEP 517 flow as a workspace package and a git dependency. An archive
+without a `pyproject.toml` uses PEP 517's default setuptools backend, and the
+manifest beside it is not held against what the wheel declares.
+
+Building one runs the release's own code, so it is approved the way a git
+dependency is, with `pkg:pypi/<distribution>: true` under `allowBuilds`.
+`pylock.toml` records the archive as a PEP 751 `packages.sdist` entry with its
+name, URL and SHA-256. The archive lands in the shared store, so a later
+install and an `--offline --frozen-lockfile` replay read it from there, though
+each of them builds it again. An index release is not a direct URL
+requirement, so the installed distribution records no PEP 610
+`direct_url.json`.
+
+pnpm builds a source distribution only with the interpreter running the
+install. Where that interpreter reaches the release too, its build answers for
+every environment the lockfile covers, under the same read-once-per-release
+limit that applies to a release's wheels; a replay on another environment
+builds the archive again and is re-solved against what that build declares, so
+a disagreement is caught there rather than installed. Where only an environment
+other than the running one asks for the release, there is nothing to build with
+and the install is refused. Two environments that would take different archives
+of one release, which the files' own interpreter ranges can produce, are
+refused as well: one lockfile entry cannot pin both.
+
+Locking a graph that contains a source distribution builds it even when the
+install is production-only, because the lockfile covers every dependency group
+and its requirements are only in the wheel the archive builds. This is what a
+production install already does for the wheels and repositories the lockfile
+names.
+
+A pnpr server has no interpreter, so it hands such a project back for the
+client to resolve.
+
+## Resolution failures
+
+A resolution that finds no version of a distribution says which of its causes
+that was: no index publishes the distribution, its releases publish nothing
+this interpreter can install, or the project's own requirements select none of
+the versions it offers. pubgrub prints the same empty version set for all
+three.
+
 ## Ownership and shared resources
 
 - Python owns PEP 440 versions, PEP 508 requirements, markers and extras.
@@ -407,13 +459,15 @@ multi-directory commit. Automatic generation garbage collection remains open.
 ## Deliberate limits
 
 This covers the same vertical integration surfaces as the current Cargo
-implementation, not all pip or uv functionality. It supports registry wheels,
-static and dynamic project dependencies, requirements files, Git and wheel URL
-requirements, and the projects in this repository a project depends on.
+implementation, not all pip or uv functionality. It supports registry wheels
+and source distributions, static and dynamic project dependencies,
+requirements files, Git and wheel URL requirements, and the projects in this
+repository a project depends on.
 HTML-only indexes, pip configuration/keyring discovery and recursive/filtered
 add are not implemented, nor is building a project with a backend the workspace itself
-declares, which is refused rather than taken from the index. A distribution an
-index serves only as a source archive is not built. The environments a lockfile covers are resolved one at a
+declares, which is refused rather than taken from the index. A source
+distribution is built again on every install rather than kept as the wheel it
+produced. The environments a lockfile covers are resolved one at a
 time rather than forked out of one universal solve, so two environments no
 marker tells apart cannot need different versions of a distribution.
 A release's requirements are read once for the version, from the first wheel

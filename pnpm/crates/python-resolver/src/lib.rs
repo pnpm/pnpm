@@ -17,14 +17,17 @@
 #![cfg_attr(dylint_lib = "perfectionist", register_tool(perfectionist))]
 
 pub use candidates::{
-    WheelFilename, candidates_from_page, parse_requirement, validate_url, wheel_identity,
+    WheelFilename, candidates_from_page, parse_requirement, source_version, validate_url,
+    wheel_identity,
 };
 pub use lockfile::{
-    Inputs, LockedDirectory, LockedPackage, LockedVcs, LockedWheel, Lockfile, Metadata, Solved,
-    Target, ToolMetadata, environment_marker,
+    Inputs, LockedDirectory, LockedPackage, LockedSdist, LockedVcs, LockedWheel, Lockfile,
+    Metadata, Solved, Target, ToolMetadata, environment_marker,
 };
 pub use metadata::WheelMetadata;
-pub use packages::{Candidate, IndexCandidate, Packages};
+pub use packages::{
+    Candidate, Excluded, IndexCandidate, NAMED_RELEASES, Offered, Packages, Releases,
+};
 pub use resolve::{Step, active_locked_sources, locked_solution, step, validate_locked};
 pub use source::Source;
 

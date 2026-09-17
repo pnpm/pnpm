@@ -1,5 +1,6 @@
 pub use sources::active_locked_sources;
 
+mod explain;
 mod rules;
 mod sources;
 
@@ -324,8 +325,10 @@ pub fn step(
             Needed::Invalid(message) | Needed::RejectedSource(message) => bail!("{message}"),
         },
         Err(PubGrubError::NoSolution(tree)) => {
-            let message =
-                format!("Python dependency resolution failed:\n{}", report_no_solution(tree));
+            let message = format!(
+                "Python dependency resolution failed:\n{}",
+                report_no_solution(tree, packages),
+            );
             if !packages.direct_urls.is_empty() {
                 return Ok(Step::Backtrack(message));
             }
@@ -351,7 +354,10 @@ pub fn locked_solution(
             Ok(distributions(solution))
         }
         Err(PubGrubError::NoSolution(tree)) => {
-            bail!("Python lockfile does not satisfy the project:\n{}", report_no_solution(tree));
+            bail!(
+                "Python lockfile does not satisfy the project:\n{}",
+                report_no_solution(tree, packages),
+            );
         }
         Err(error) => bail!("Python lockfile does not satisfy the project: {error:?}"),
     }
@@ -384,7 +390,16 @@ fn distributions(
         .collect()
 }
 
-fn report_no_solution(mut tree: DerivationTree<Package, Ranges<Version>, String>) -> String {
+/// pubgrub's own explanation, with a line for each distribution it was
+/// left with no version of.
+fn report_no_solution(
+    mut tree: DerivationTree<Package, Ranges<Version>, String>,
+    packages: &Packages,
+) -> String {
     tree.collapse_no_versions();
-    DefaultStringReporter::report(&tree)
+    format!(
+        "{}{}",
+        DefaultStringReporter::report(&tree),
+        explain::unoffered_distributions(&tree, packages),
+    )
 }
