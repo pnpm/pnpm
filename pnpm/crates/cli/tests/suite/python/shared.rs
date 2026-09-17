@@ -109,13 +109,16 @@ async fn members_that_cannot_be_installed_together_are_refused() {
     python_project(&root.path().join("packages/a"), "a", "dependencies = ['alpha==1.0']");
     python_project(&root.path().join("packages/b"), "b", "dependencies = ['alpha==2.0']");
 
+    // The projects are named by the path pnpm read them at, which is the
+    // canonical one where the temporary directory is reached through a link.
+    let packages = dunce::canonicalize(root.path()).unwrap().join("packages");
     assert_failure_contains(
         pacquet_in(root.path()).arg("install"),
         &format!(
             "cannot be installed together: {} requires `alpha==1.0` and {} requires `alpha==2.0`, \
              and no version of alpha the index offers satisfies both",
-            root.path().join("packages/a").display(),
-            root.path().join("packages/b").display(),
+            packages.join("a").display(),
+            packages.join("b").display(),
         ),
     );
     assert!(!root.path().join("pylock.toml").exists());
