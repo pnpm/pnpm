@@ -189,8 +189,6 @@ fn add_python_settings(root: &Path, settings: &str) {
     .unwrap();
 }
 
-/// Declare the platforms this workspace prepares for, which is what
-/// `pylock.toml` is resolved for.
 fn add_supported_architectures(root: &Path, platforms: &[&str]) {
     let path = root.join("pnpm-workspace.yaml");
     let mut workspace = fs::read_to_string(&path).unwrap();
@@ -216,8 +214,6 @@ fn running_platform() -> (&'static str, &'static str) {
     }
 }
 
-/// The Rust target triple of the platform running the test, which is the
-/// other spelling `supportedArchitectures` accepts for it.
 fn running_platform_triple() -> &'static str {
     match running_platform().0 {
         "linux-x64" => "x86_64-unknown-linux-gnu",
