@@ -240,8 +240,14 @@ impl FileImport {
             &self.source,
             &self.destination,
         )?;
-        if self.executable && method != pnpm_reporter::PackageImportMethod::Hardlink {
-            pnpm_fs::file_mode::set_path_permissions(&self.destination, 0o755)?;
+        // Unpacked wheels use their file modes, even when a name has the CAS -exec suffix.
+        if method != pnpm_reporter::PackageImportMethod::Hardlink
+            && (self.executable || pnpm_fs::file_mode::cas_path_is_executable(&self.source))
+        {
+            pnpm_fs::file_mode::set_path_permissions(
+                &self.destination,
+                if self.executable { 0o755 } else { 0o644 },
+            )?;
         }
         Ok(())
     }
