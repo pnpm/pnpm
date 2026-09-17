@@ -274,12 +274,16 @@ function runtimeHasNodeDownloaded (runtime: EngineDependency | EngineDependency[
 }
 
 export interface LinkBinOptions {
+  relocatableRoot?: string
   extraNodePaths?: string[]
   preferSymlinkedExecutables?: boolean
 }
 
 async function linkBin (cmd: CommandInfo, binsDir: string, opts?: LinkBinOptions): Promise<void> {
   const externalBinPath = path.join(binsDir, cmd.name)
+  const relocatableTarget = !IS_WINDOWS && opts?.relocatableRoot != null &&
+    isSubdir(opts.relocatableRoot, binsDir) && isSubdir(opts.relocatableRoot, cmd.path)
+  const nodeLinkTarget = relocatableTarget ? path.relative(binsDir, cmd.path) : cmd.path
   // Not writing a PowerShell shim is not enough to keep one out of the bin
   // directory: an install that did want one leaves it behind, and PowerShell
   // keeps preferring it over the .cmd shim. This runs above the short-circuits
@@ -296,10 +300,11 @@ async function linkBin (cmd: CommandInfo, binsDir: string, opts?: LinkBinOptions
     const stat = await fs.lstat(externalBinPath)
     if (stat.isSymbolicLink()) {
       const target = await fs.readlink(externalBinPath)
-      isCorrectlyLinked = target === cmd.path || path.resolve(binsDir, target) === path.resolve(cmd.path)
+      isCorrectlyLinked = (target === cmd.path || path.resolve(binsDir, target) === path.resolve(cmd.path)) &&
+        !(cmd.name === 'node' && relocatableTarget && path.isAbsolute(target))
     } else if (stat.isFile() && stat.size < CMD_SHIM_MAX_SIZE) {
       const content = await fs.readFile(externalBinPath, 'utf8')
-      isCorrectlyLinked = isShimPointingAt(content, cmd.path) && isShimHardened(content)
+      isCorrectlyLinked = isShimPointingAt(content, cmd.path, { shimPath: externalBinPath, relocatableRoot: opts?.relocatableRoot }) && isShimHardened(content)
     }
   } catch {}
   if (isCorrectlyLinked) {
@@ -344,7 +349,7 @@ async function linkBin (cmd: CommandInfo, binsDir: string, opts?: LinkBinOptions
     // existsSync follows symlinks and returns false for broken symlinks,
     // causing EEXIST when the dangling symlink still exists on disk.
     await rimraf(externalBinPath)
-    await fs.symlink(cmd.path, externalBinPath, 'file')
+    await fs.symlink(nodeLinkTarget, externalBinPath, 'file')
     return
   }
 
@@ -380,6 +385,7 @@ async function linkBin (cmd: CommandInfo, binsDir: string, opts?: LinkBinOptions
       createPwshFile: POWER_SHELL_IS_SUPPORTED && cmd.makePowerShellShim,
       nodePath,
       nodeExecPath: cmd.nodeExecPath,
+      relocatableRoot: opts?.relocatableRoot,
     })
   } catch (err: any) { // eslint-disable-line
     if (err.code === 'ENOENT' || err.code === 'EISDIR') {

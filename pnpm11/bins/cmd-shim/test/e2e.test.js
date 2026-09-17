@@ -8,6 +8,7 @@ snapshot.setDefaultSnapshotSerializers([
   (value) => typeof value === 'string' ? `\n${value.replaceAll('\r', '')}` : JSON.stringify(value),
 ])
 import { temporaryDirectory } from 'tempy'
+import { cmdExtension } from 'cmd-extension'
 import { cmdShim } from '@pnpm/bins.cmd-shim'
 
 const describeOnWindows = process.platform === 'win32' ? describe : describe.skip
@@ -315,4 +316,72 @@ describeOnPosix('sh shim converts a Windows-form path', () => {
     assert.equal(r.status, 0, `sh exited ${r.status}\nstderr: ${r.stderr}`)
     assert.equal(r.stdout, 'C:/node_modules/.bin/tsc')
   })
+})
+
+describeOnPosix('relocatable project shims', () => {
+  for (const externalTarget of [false, true]) {
+    test(`moves scoped NODE_PATH and runtime paths with an ${externalTarget ? 'external' : 'internal'} target`, async (t) => {
+      const tempDir = temporaryDirectory()
+      t.after(() => fs.rmSync(tempDir, { recursive: true, force: true }))
+      const project = path.join(tempDir, 'project')
+      const moved = path.join(tempDir, 'moved project')
+      const bins = path.join(project, 'node_modules', '.bin')
+      const special = 'paths $value `echo injected` "quoted" \\literal'
+      const targetDir = path.join(externalTarget ? tempDir : project, special.replaceAll('\\', ''))
+      const target = path.join(targetDir, 'tool.js')
+      const runtime = path.join(project, 'runtime node')
+      const nodePaths = [path.join(project, special, 'node_modules'), path.join(tempDir, 'external $literal')]
+      fs.mkdirSync(bins, { recursive: true })
+      fs.mkdirSync(targetDir, { recursive: true })
+      fs.writeFileSync(target, '#!/usr/bin/env node\nconsole.log(JSON.stringify({ paths: process.env.NODE_PATH.split(":"), args: process.argv.slice(2) }))\n')
+      fs.symlinkSync(process.execPath, runtime)
+      const shim = path.join(bins, 'tool')
+      await cmdShim(target, shim, {
+        relocatableRoot: project,
+        nodePath: nodePaths,
+        nodeExecPath: runtime,
+        createPwshFile: false,
+      })
+      const content = fs.readFileSync(shim, 'utf8')
+      assert.ok(!content.includes(project))
+      if (externalTarget) {
+        assert.ok(content.includes('cmd-shim-target=' + target.split('\\').join('/')))
+        assert.ok(content.includes('$basedir/../../../'))
+      }
+      fs.renameSync(project, moved)
+      const alias = path.join(tempDir, 'alias')
+      fs.symlinkSync(path.join(moved, 'node_modules'), alias)
+      const invokedShims = [path.join(moved, 'node_modules', '.bin', 'tool')]
+      if (!externalTarget) invokedShims.push(path.join(alias, '.bin', 'tool'))
+      for (const invokedShim of invokedShims) {
+        const result = spawnSync('/bin/sh', [invokedShim, 'argument with spaces'], {
+          cwd: tempDir,
+          encoding: 'utf8',
+          env: { ...process.env, NODE_PATH: '/inherited/path' },
+        })
+        assert.equal(result.status, 0, result.stderr)
+        const output = JSON.parse(result.stdout)
+        assert.deepEqual(output.paths.map(entry => path.resolve(entry)), [
+          path.join(moved, special, 'node_modules'),
+          nodePaths[1],
+          '/inherited/path',
+        ])
+        assert.deepEqual(output.args, ['argument with spaces'])
+      }
+    })
+  }
+})
+
+test('shims outside the relocatable root keep their existing content', async (t) => {
+  const tempDir = temporaryDirectory()
+  t.after(() => fs.rmSync(tempDir, { recursive: true, force: true }))
+  const target = path.join(tempDir, 'tool.js')
+  const shim = path.join(tempDir, 'tool')
+  fs.writeFileSync(target, '#!/usr/bin/env node\n')
+  const opts = { createCmdFile: true, nodeExecPath: process.execPath, nodePath: [path.join(tempDir, 'node_modules')] }
+  await cmdShim(target, shim, opts)
+  const files = [shim, shim + cmdExtension, shim + '.ps1']
+  const content = files.map(file => fs.readFileSync(file, 'utf8'))
+  await cmdShim(target, shim, { ...opts, relocatableRoot: path.join(tempDir, 'project') })
+  assert.deepEqual(files.map(file => fs.readFileSync(file, 'utf8')), content)
 })

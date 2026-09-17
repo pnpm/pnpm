@@ -61,6 +61,9 @@ export interface Options {
   nodeExecPath?: string
 
   prependToPath?: string
+
+  /** Project or workspace root whose Unix shim paths move together. */
+  relocatableRoot?: string
 }
 
 /**
@@ -152,8 +155,13 @@ export function cmdShimIfExists (src: string, to: string, opts?: Options): Promi
  * @param src The expected source path (the executable the shim should point to).
  * @return `true` if the shim contains a matching target marker.
  */
-export function isShimPointingAt (shimContent: string, src: string): boolean {
-  return shimContent.includes(`# ${shimTarget(src)}\n`)
+export function isShimPointingAt (shimContent: string, src: string, opts?: { shimPath: string, relocatableRoot?: string }): boolean {
+  const target = opts && isRelocatablePath(src, opts.shimPath, opts.relocatableRoot)
+    ? path.relative(path.dirname(opts.shimPath), src)
+    : src
+  return shimContent.includes(`# ${shimTarget(target)}\n`) &&
+    (!opts || !isRelocatablePath(path.dirname(opts.shimPath), opts.shimPath, opts.relocatableRoot) ||
+      shimContent.includes(`# ${relocatableRootMarker(opts.shimPath, opts.relocatableRoot!)}\n`))
 }
 
 /**
@@ -352,25 +360,33 @@ function generateCmdShim (src: string, to: string, opts: InternalOptions): strin
  * @return The content of shim.
  */
 function generateShShim (src: string, to: string, opts: InternalOptions): string {
+  const scopedShim = isRelocatablePath(path.dirname(to), to, opts.relocatableRoot)
+  const relocatableTarget = isRelocatablePath(src, to, opts.relocatableRoot)
   let shTarget = path.relative(path.dirname(to), src)
   let shProg = opts.prog && opts.prog.split('\\').join('/')
   let shLongProg: string | undefined
   let shLongProgExe = ''
   let shProgExe = ''
   let shProgHasExe = false
-  shTarget = shTarget.split('\\').join('/')
-  const quotedPathToTarget = path.isAbsolute(shTarget) ? `"${shTarget}"` : `"$basedir/${shTarget}"`
+  if (!scopedShim) shTarget = shTarget.split('\\').join('/')
+  const escapedTarget = scopedShim ? escapeShDoubleQuoted(shTarget) : shTarget
+  const quotedPathToTarget = path.isAbsolute(shTarget) ? `"${escapedTarget}"` : `"${relocatableTarget ? '$basedir_abs' : '$basedir'}/${escapedTarget}"`
   const quotedPathToTargetWin = path.isAbsolute(shTarget) ? `"${shTarget}"` : `"$basedir_win/${shTarget}"`
   let shTargetWin = ''
   let args = opts.args || ''
   const isCmdRuntime = opts.prog === 'cmd' || opts.prog === 'cmd.exe'
-  const shNodePath = normalizePathEnvVar(opts.nodePath).posix
+  const nodePaths = typeof opts.nodePath === 'string' ? opts.nodePath.split(path.delimiter) : opts.nodePath
+  const shNodePath = scopedShim
+    ? nodePaths?.map(entry => shPath(entry, to, opts.relocatableRoot)).join(':')
+    : normalizePathEnvVar(opts.nodePath).posix
+  const relocatableNode = opts.nodeExecPath != null && isRelocatablePath(opts.nodeExecPath, to, opts.relocatableRoot)
+  const needsAbsoluteBasedir = relocatableTarget || relocatableNode || nodePaths?.some(entry => isRelocatablePath(entry, to, opts.relocatableRoot))
   if (!shProg) {
     shProg = quotedPathToTarget
     args = ''
     shTarget = ''
   } else if (opts.prog === 'node' && opts.nodeExecPath) {
-    shProg = `"${opts.nodeExecPath}"`
+    shProg = `"${shPath(opts.nodeExecPath, to, opts.relocatableRoot)}"`
     shTarget = /\.exe$/.test(opts.nodeExecPath) ? quotedPathToTargetWin : quotedPathToTarget
   } else {
     shProgHasExe = /\.exe$/i.test(shProg)
@@ -436,6 +452,9 @@ case \`command -p uname -a\` in
 esac
 
 `
+  if (needsAbsoluteBasedir) {
+    sh += 'basedir_abs=$(CDPATH= cd -P -- "$basedir" && pwd -P) || exit $?\n'
+  }
   if (opts.prependToPath) {
     sh += `\
 export PATH="${opts.prependToPath}:$PATH"
@@ -499,7 +518,10 @@ fi
 
   // Marker used by consumers to detect whether the shim is up-to-date
   // without parsing the script content.
-  sh += `# ${shimTarget(src)}\n`
+  sh += `# ${shimTarget(relocatableTarget ? path.relative(path.dirname(to), src) : src)}\n`
+  if (isRelocatablePath(path.dirname(to), to, opts.relocatableRoot)) {
+    sh += `# ${relocatableRootMarker(to, opts.relocatableRoot!)}\n`
+  }
 
   return sh
 }
@@ -660,4 +682,28 @@ function normalizePathEnvVar (nodePath: undefined | string | string[]): Normaliz
 
 function shimTarget (src: string): string {
   return `cmd-shim-target=${src.split('\\').join('/')}`
+}
+
+function isRelocatablePath (target: string, shimPath: string, root?: string): boolean {
+  return !isWindows && root != null && isWithinRoot(root, path.dirname(shimPath)) && isWithinRoot(root, target)
+}
+
+function isWithinRoot (root: string, target: string): boolean {
+  const relative = path.relative(root, target)
+  return relative !== '..' && !relative.startsWith(`..${path.sep}`) && !path.isAbsolute(relative)
+}
+
+function shPath (target: string, shimPath: string, root?: string): string {
+  if (isRelocatablePath(target, shimPath, root)) {
+    return `$basedir_abs/${escapeShDoubleQuoted(path.relative(path.dirname(shimPath), target))}`
+  }
+  return isRelocatablePath(path.dirname(shimPath), shimPath, root) ? escapeShDoubleQuoted(target) : target
+}
+
+function escapeShDoubleQuoted (text: string): string {
+  return Array.from(text, character => ['\\', '"', '$', '`'].includes(character) ? `\\${character}` : character).join('')
+}
+
+function relocatableRootMarker (shimPath: string, root: string): string {
+  return `cmd-shim-relocatable-root=${path.relative(path.dirname(shimPath), root)}`
 }

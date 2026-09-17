@@ -1072,3 +1072,76 @@ describe('generated POSIX shim resolves its helpers off the caller\'s PATH', () 
     expectShimToReachItsTarget(projectDir, 'sh', ['tsc-link'], binDir)
   })
 })
+
+testOnPosix('project node links migrate from absolute targets and survive relocation', async () => {
+  const tempDir = temporaryDirectory()
+  try {
+    const project = path.join(tempDir, 'project')
+    const pkgDir = path.join(project, 'node_modules', 'node')
+    const binsDir = path.join(project, 'node_modules', '.bin')
+    fs.mkdirSync(pkgDir, { recursive: true })
+    fs.writeFileSync(path.join(pkgDir, 'node'), '#!/bin/sh\nprintf runtime', { mode: 0o755 })
+    const pkgs = [{ manifest: { name: 'node', version: '1.0.0', bin: { node: 'node' } }, location: pkgDir }]
+    await linkBinsOfPackages(pkgs, binsDir)
+    expect(path.isAbsolute(fs.readlinkSync(path.join(binsDir, 'node')))).toBe(true)
+    await linkBinsOfPackages(pkgs, binsDir, { relocatableRoot: project })
+    expect(fs.readlinkSync(path.join(binsDir, 'node'))).toBe('../node/node')
+    const moved = path.join(tempDir, 'moved')
+    fs.renameSync(project, moved)
+    const result = spawnSync(path.join(moved, 'node_modules', '.bin', 'node'), { encoding: 'utf8' })
+    expect(result.status).toBe(0)
+    expect(result.stdout).toBe('runtime')
+  } finally {
+    fs.rmSync(tempDir, { recursive: true, force: true })
+  }
+})
+
+testOnPosix('warm linking replaces absolute NODE_PATH with project-relative paths for an external target', async () => {
+  const tempDir = temporaryDirectory()
+  try {
+    const project = path.join(tempDir, 'project')
+    const pkgDir = path.join(tempDir, 'external')
+    const binsDir = path.join(project, 'node_modules', '.bin')
+    const extraNodePaths = [path.join(project, 'node_modules')]
+    fs.mkdirSync(pkgDir, { recursive: true })
+    fs.writeFileSync(path.join(pkgDir, 'tool.js'), '#!/usr/bin/env node\nconsole.log(process.env.NODE_PATH)\n')
+    const pkgs = [{ manifest: { name: 'tool', version: '1.0.0', bin: { tool: 'tool.js' } }, location: pkgDir }]
+    await linkBinsOfPackages(pkgs, binsDir, { extraNodePaths })
+    const shim = path.join(binsDir, 'tool')
+    expect(fs.readFileSync(shim, 'utf8')).toContain(project)
+    const opts = { extraNodePaths, relocatableRoot: project }
+    await linkBinsOfPackages(pkgs, binsDir, opts)
+    expect(fs.readFileSync(shim, 'utf8')).not.toContain(project)
+    const oldTime = new Date('2000-01-01T00:00:00Z')
+    fs.utimesSync(shim, oldTime, oldTime)
+    await linkBinsOfPackages(pkgs, binsDir, opts)
+    expect(fs.statSync(shim).mtimeMs).toBe(oldTime.getTime())
+    const moved = path.join(tempDir, 'moved')
+    fs.renameSync(project, moved)
+    const result = spawnSync(path.join(moved, 'node_modules', '.bin', 'tool'), {
+      encoding: 'utf8',
+      env: { ...process.env, NODE_PATH: '' },
+    })
+    expect(result.status).toBe(0)
+    expect(result.stdout).not.toContain(project)
+    expect(result.stdout.trim().split(path.delimiter).map(entry => path.resolve(entry))).toContain(path.join(moved, 'node_modules'))
+  } finally {
+    fs.rmSync(tempDir, { recursive: true, force: true })
+  }
+})
+
+testOnPosix('node targets outside the relocatable root retain absolute links', async () => {
+  const tempDir = temporaryDirectory()
+  try {
+    const project = path.join(tempDir, 'project')
+    const pkgDir = path.join(tempDir, 'external-node')
+    const binsDir = path.join(project, 'node_modules', '.bin')
+    fs.mkdirSync(pkgDir, { recursive: true })
+    const target = path.join(pkgDir, 'node')
+    fs.writeFileSync(target, '')
+    await linkBinsOfPackages([{ manifest: { name: 'node', version: '1.0.0', bin: { node: 'node' } }, location: pkgDir }], binsDir, { relocatableRoot: project })
+    expect(fs.readlinkSync(path.join(binsDir, 'node'))).toBe(target)
+  } finally {
+    fs.rmSync(tempDir, { recursive: true, force: true })
+  }
+})

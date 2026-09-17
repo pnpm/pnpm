@@ -359,6 +359,7 @@ async function installFromLockfile (
   fs.writeFileSync(path.join(installDir, 'package.json'), JSON.stringify({ dependencies }))
 
   await headlessInstall({
+    global: true,
     wantedLockfile: opts.wantedLockfile,
     lockfileDir: installDir,
     storeController: opts.storeController,

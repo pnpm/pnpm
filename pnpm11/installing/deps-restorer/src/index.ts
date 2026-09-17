@@ -111,6 +111,7 @@ export interface Project {
 }
 
 export interface HeadlessOptions extends RegistryContext {
+  global?: boolean
   projectDependencies?: Map<ProjectRootDir, ProjectRootDir[]>
   allowBuilds?: Record<string, boolean | string>
   autoInstallPeers?: boolean
@@ -263,6 +264,7 @@ export async function headlessInstall (opts: HeadlessOptions): Promise<Installat
     extraBinPaths: opts.extraBinPaths,
     extraNodePaths: opts.extraNodePaths,
     preferSymlinkedExecutables: opts.preferSymlinkedExecutables,
+    relocatableRoot: opts.global ? undefined : opts.lockfileDir,
     extraEnv: opts.extraEnv,
     configByUri: opts.configByUri,
     resolveSymlinksInInjectedDirs: opts.resolveSymlinksInInjectedDirs,
@@ -454,6 +456,7 @@ export async function headlessInstall (opts: HeadlessOptions): Promise<Installat
         ignoreScripts: opts.ignoreScripts,
         lockfileDir: opts.lockfileDir,
         preferSymlinkedExecutables: opts.preferSymlinkedExecutables,
+        relocatableRoot: opts.global ? undefined : opts.lockfileDir,
         sideEffectsCacheRead: opts.sideEffectsCacheRead,
         remoteSideEffectsCache: opts.remoteSideEffectsCache,
         pnprServer: opts.pnprServer,
@@ -526,6 +529,7 @@ export async function headlessInstall (opts: HeadlessOptions): Promise<Installat
         ])),
         importerIds,
         preferSymlinkedExecutables: opts.preferSymlinkedExecutables,
+        relocatableRoot: opts.global ? undefined : opts.lockfileDir,
         privateHoistedModulesDir: hoistedModulesDir,
         privateHoistPattern: opts.hoistPattern ?? [],
         publicHoistedModulesDir,
@@ -564,6 +568,7 @@ export async function headlessInstall (opts: HeadlessOptions): Promise<Installat
         extraNodePaths: opts.extraNodePaths,
         optional: opts.include.optionalDependencies,
         preferSymlinkedExecutables: opts.preferSymlinkedExecutables,
+        relocatableRoot: opts.global ? undefined : opts.lockfileDir,
         warn,
       })
     }
@@ -683,6 +688,7 @@ export async function headlessInstall (opts: HeadlessOptions): Promise<Installat
         extraNodePaths: opts.extraNodePaths,
         graph,
         preferSymlinkedExecutables: opts.preferSymlinkedExecutables,
+        relocatableRoot: opts.global ? undefined : opts.lockfileDir,
         projects: selectedProjects,
       })
     }
@@ -699,6 +705,7 @@ export async function headlessInstall (opts: HeadlessOptions): Promise<Installat
       lockfileDir,
       optional: opts.include.optionalDependencies,
       preferSymlinkedExecutables: opts.preferSymlinkedExecutables,
+      relocatableRoot: opts.global ? undefined : opts.lockfileDir,
       rootModulesDir: virtualStoreDir,
       scriptsPrependNodePath: opts.scriptsPrependNodePath,
       scriptShell: opts.scriptShell,
@@ -735,6 +742,7 @@ export async function headlessInstall (opts: HeadlessOptions): Promise<Installat
             await linkBinsOfImporter(project, {
               extraNodePaths: opts.extraNodePaths,
               preferSymlinkedExecutables: opts.preferSymlinkedExecutables,
+              relocatableRoot: opts.global ? undefined : opts.lockfileDir,
             })
           } else {
             let directPkgDirs: string[]
@@ -765,6 +773,7 @@ export async function headlessInstall (opts: HeadlessOptions): Promise<Installat
               {
                 extraNodePaths: opts.extraNodePaths,
                 preferSymlinkedExecutables: opts.preferSymlinkedExecutables,
+                relocatableRoot: opts.global ? undefined : opts.lockfileDir,
               }
             )
           }
@@ -919,7 +928,7 @@ async function linkBinsOfImporter (
     modulesDir: string
     rootDir: ProjectRootDir
   },
-  { extraNodePaths, preferSymlinkedExecutables }: { extraNodePaths?: string[], preferSymlinkedExecutables?: boolean } = {}
+  { extraNodePaths, preferSymlinkedExecutables, relocatableRoot }: { extraNodePaths?: string[], preferSymlinkedExecutables?: boolean, relocatableRoot?: string } = {}
 ): Promise<string[]> {
   const warn = (message: string) => {
     logger.info({ message, prefix: rootDir })
@@ -928,6 +937,7 @@ async function linkBinsOfImporter (
     extraNodePaths,
     allowExoticManifests: true,
     preferSymlinkedExecutables,
+    relocatableRoot,
     projectManifest: manifest,
     warn,
   })
@@ -938,6 +948,7 @@ async function linkRuntimeBinsOfImporters (opts: {
   extraNodePaths?: string[]
   graph: DependenciesGraph
   preferSymlinkedExecutables?: boolean
+  relocatableRoot?: string
   projects: Project[]
 }
 ): Promise<void> {
@@ -948,6 +959,7 @@ async function linkRuntimeBinsOfImporters (opts: {
       {
         extraNodePaths: opts.extraNodePaths,
         preferSymlinkedExecutables: opts.preferSymlinkedExecutables,
+        relocatableRoot: opts.relocatableRoot,
       }
     )
   )))
@@ -1188,6 +1200,7 @@ async function linkAllBins (
     extraNodePaths?: string[]
     optional: boolean
     preferSymlinkedExecutables?: boolean
+    relocatableRoot?: string
     warn: (message: string) => void
   }
 ): Promise<void> {
@@ -1205,6 +1218,7 @@ async function linkAllBins (
           await linkBins(depNode.modules, binPath, {
             extraNodePaths: opts.extraNodePaths,
             preferSymlinkedExecutables: opts.preferSymlinkedExecutables,
+            relocatableRoot: opts.relocatableRoot,
             warn: opts.warn,
           })
         } else {
@@ -1220,6 +1234,7 @@ async function linkAllBins (
           await linkBinsOfPackages(pkgs, binPath, {
             extraNodePaths: opts.extraNodePaths,
             preferSymlinkedExecutables: opts.preferSymlinkedExecutables,
+            relocatableRoot: opts.relocatableRoot,
           })
         }
 
@@ -1229,6 +1244,7 @@ async function linkAllBins (
           await linkBins(bundledModules, binPath, {
             extraNodePaths: opts.extraNodePaths,
             preferSymlinkedExecutables: opts.preferSymlinkedExecutables,
+            relocatableRoot: opts.relocatableRoot,
             warn: opts.warn,
           })
         }
