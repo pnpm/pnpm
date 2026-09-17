@@ -327,7 +327,7 @@ pub fn step(
         Err(PubGrubError::NoSolution(tree)) => {
             let message = format!(
                 "Python dependency resolution failed:\n{}",
-                report_no_solution(tree, packages)
+                report_no_solution(tree, packages),
             );
             if !packages.direct_urls.is_empty() {
                 return Ok(Step::Backtrack(message));

@@ -1020,19 +1020,24 @@ fn a_resolution_failure_says_why_a_distribution_offered_nothing() {
         packages.excluded.insert(name("demo"), Excluded::default());
         packages
     };
-    let elsewhere = {
+    let offered_by_page = |files: serde_json::Value| {
         let mut packages = Packages::new();
-        let offered = candidates_from_page(
-            &page(&serde_json::json!([wheel("demo-1.0.0-cp39-cp39-manylinux_2_17_x86_64.whl")])),
-            &index_url(),
-            &name("demo"),
-            &target,
-        )
-        .expect("page parses");
+        let offered = candidates_from_page(&page(&files), &index_url(), &name("demo"), &target)
+            .expect("page parses");
         packages.candidates.insert(name("demo"), offered.candidates);
         packages.excluded.insert(name("demo"), offered.excluded);
         packages
     };
+    let elsewhere = offered_by_page(serde_json::json!([wheel(
+        "demo-1.0.0-cp39-cp39-manylinux_2_17_x86_64.whl"
+    )]));
+    let many = offered_by_page(serde_json::json!(
+        (1..=10)
+            .map(|minor| {
+                wheel(&format!("demo-1.{minor}.0-cp39-cp39-manylinux_2_17_x86_64.whl"))
+            })
+            .collect::<Vec<_>>()
+    ));
     let (unselected, _, _) = solved_project("demo>=1", "");
 
     for (packages, requirement, expected) in [
@@ -1047,6 +1052,12 @@ fn a_resolution_failure_says_why_a_distribution_offered_nothing() {
             unselected,
             "demo>=2",
             "demo is offered at 1.0.0, and this project's requirements select none of them.",
+        ),
+        (
+            many,
+            "demo>=1",
+            "demo publishes 10 releases (1.10.0, 1.9.0, 1.8.0, 1.7.0, 1.6.0, 1.5.0, 1.4.0, \
+             1.3.0 and 2 older), none of which",
         ),
     ] {
         let requirements = [Requirement::from_str(requirement).expect("requirement fixture")];

@@ -70,7 +70,7 @@ impl PythonPrepare<'_> {
         &self,
         source: Buildable<'_>,
     ) -> Result<Build> {
-        let Buildable { root, manifest, editable, .. } = source;
+        let Buildable { root, manifest, .. } = source;
         let requires = self.build_requirements(root, manifest)?;
         let unapproved = unapproved(self.context.config, &requires);
         if !unapproved.is_empty() {
@@ -78,7 +78,9 @@ impl PythonPrepare<'_> {
         }
         let cached = manifest.metadata_wheel
             .as_ref()
-            .filter(|wheel| !editable && wheel.interpreter == self.interpreter.executable);
+            .filter(|wheel| {
+                !source.editable && wheel.interpreter == self.interpreter.executable
+            });
         let (built, output) = if let Some(cached) = cached {
             let metadata = host::inspect(&self.interpreter.executable, &cached.wheel.files)
                 .await
@@ -89,7 +91,7 @@ impl PythonPrepare<'_> {
                 "root": root,
                 "backend": backend(manifest).module,
                 "backend_path": backend(manifest).path,
-                "editable": editable,
+                "editable": source.editable,
                 "metadata_directory": manifest.metadata_output.as_ref().zip(manifest.metadata.as_ref())
                     .map(|(output, metadata)| output.path().join(&metadata.dist_info)),
             });

@@ -237,7 +237,7 @@ async fn one_release_pins_the_wheel_an_environment_takes_beside_the_archive_the_
 
     let lock = fs::read_to_string(root.path().join("pylock.toml")).unwrap();
     eprintln!("pylock.toml:\n{lock}");
-    assert!(lock.contains(&format!("name = \"alpha-1.0-{tag}.whl\"")), "no wheel was pinned");
+    assert!(lock.contains(&format!(r#"name = "alpha-1.0-{tag}.whl""#)), "no wheel was pinned");
     assert!(lock.contains("[packages.sdist]"), "no source distribution was pinned");
     python(root.path())
         .args(["-c", "import alpha"])

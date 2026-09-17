@@ -22,6 +22,10 @@ use std::{
     path::{Component, Path, PathBuf},
 };
 
+/// What the store's progress reporting calls a Python download, the
+/// same for every artifact a Python install fetches.
+const REQUESTER: &str = "Python environment";
+
 impl Registry<'_> {
     /// Build the release's source distribution, leaving the wheel it
     /// produced where a locked wheel of the same release would be: read
@@ -114,23 +118,8 @@ impl Registry<'_> {
             offline: self.config.offline,
         };
         if sdist.is_zip() {
-            return IngestZipArchiveToStore {
-                fetching,
-                package: pnpm_tarball::ZipArchivePackage {
-                    max_bytes: Some(MAX_WHEEL_BYTES),
-                    integrity: &integrity,
-                    url: &sdist.url,
-                    id: &package_id,
-                },
-                store: self.store.clone(),
-                requester: "Python environment",
-                archive_prefix: Some(sdist.root()),
-                ignore_file_pattern: None,
-                store_projection: ArchiveStoreProjection::RawArchive,
-            }
-            .run_without_mem_cache::<Reporter>()
-            .await
-            .into_diagnostic();
+            return self.fetch_source_zip::<Reporter>(sdist, fetching, &integrity, &package_id)
+                .await;
         }
         // A tar archive of a source distribution holds one directory
         // named after the release, which the extractor strips the way it
@@ -145,9 +134,37 @@ impl Registry<'_> {
                 id: &package_id,
             },
             store: self.store.clone(),
-            requester: "Python environment",
+            requester: REQUESTER,
             ignore_file_pattern: None,
             progress_reported: None,
+            store_projection: ArchiveStoreProjection::RawArchive,
+        }
+        .run_without_mem_cache::<Reporter>()
+        .await
+        .into_diagnostic()
+    }
+
+    /// The zip container, whose extractor is told the directory to strip
+    /// rather than stripping whatever comes first.
+    async fn fetch_source_zip<Reporter: self::Reporter + 'static>(
+        &self,
+        sdist: &LockedSdist,
+        fetching: pnpm_tarball::ArchiveFetchOptions<'_>,
+        integrity: &ssri::Integrity,
+        package_id: &str,
+    ) -> Result<HashMap<String, PathBuf>> {
+        IngestZipArchiveToStore {
+            fetching,
+            package: pnpm_tarball::ZipArchivePackage {
+                max_bytes: Some(MAX_WHEEL_BYTES),
+                integrity,
+                url: &sdist.url,
+                id: package_id,
+            },
+            store: self.store.clone(),
+            requester: REQUESTER,
+            archive_prefix: Some(sdist.root()),
+            ignore_file_pattern: None,
             store_projection: ArchiveStoreProjection::RawArchive,
         }
         .run_without_mem_cache::<Reporter>()

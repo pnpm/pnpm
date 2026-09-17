@@ -165,30 +165,44 @@ async fn resolve(
                 packages.candidates.insert(name, candidates);
             }
             Step::NeedMetadata(name, version) => {
-                if packages.metadata.len() >= MAX_METADATA_READS {
-                    return Err(format!(
-                        "resolving this project needs the metadata of more than \
-                         {MAX_METADATA_READS} wheels",
-                    ));
-                }
-                let offered = packages.candidates
-                    .get(&name)
-                    .and_then(|versions| versions.get(&version))
-                    .ok_or_else(|| format!("{name} {version} is not a candidate"))?;
-                if offered.sdist().is_some() {
-                    return Err(format!(
-                        "Python source distribution for {name} must be resolved by the client",
-                    ));
-                }
-                let candidate = offered
-                    .from_index()
-                    .ok_or_else(|| format!("{name} {version} is not a candidate"))?;
+                let candidate = readable_wheel(&packages, &name, &version)?;
                 let metadata = reader.metadata(&name, &version, candidate).await?;
                 packages.metadata.insert((name, version), metadata);
             }
         }
         tokio::task::yield_now().await;
     }
+}
+
+/// The wheel whose `METADATA` the resolution asked for.
+///
+/// A server answers from an index and the metadata published beside a
+/// wheel. A release whose requirements are in the wheel its source
+/// distribution builds needs an interpreter and a build, which a client
+/// has and a server does not, so the project goes back to the client.
+fn readable_wheel<'a>(
+    packages: &'a Packages,
+    name: &pep508_rs::PackageName,
+    version: &pep440_rs::Version,
+) -> Result<&'a IndexCandidate, String> {
+    if packages.metadata.len() >= MAX_METADATA_READS {
+        return Err(format!(
+            "resolving this project needs the metadata of more than \
+             {MAX_METADATA_READS} wheels",
+        ));
+    }
+    let offered = packages.candidates
+        .get(name)
+        .and_then(|versions| versions.get(version))
+        .ok_or_else(|| format!("{name} {version} is not a candidate"))?;
+    if offered.sdist().is_some() {
+        return Err(format!(
+            "Python source distribution for {name} must be resolved by the client",
+        ));
+    }
+    offered
+        .from_index()
+        .ok_or_else(|| format!("{name} {version} is not a candidate"))
 }
 
 /// Reads a Python index for one resolve: cache first, then the index.
