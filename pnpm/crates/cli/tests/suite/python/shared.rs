@@ -228,7 +228,7 @@ fn logging_shim(directory: &Path, name: &str, version: &str, log: &Path) {
             "import platform, sys\n",
             &format!(
                 "import os, platform, sys\nopen('{}', 'a').write('{name}\\n')\n",
-                log.display()
+                log.display(),
             ),
         );
     fs::write(directory.join(name), source).unwrap();
