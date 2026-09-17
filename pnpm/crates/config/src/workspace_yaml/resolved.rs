@@ -1,6 +1,6 @@
 use super::{
-    AllowBuild, Config, PackageConfigsSetting, PnpmfileSetting, WorkspaceSettings, as_set,
-    global_shims_setting, opt_path, path, side_effects_cache_setting,
+    AllowBuild, Config, OverridesSetting, PackageConfigsSetting, PnpmfileSetting,
+    WorkspaceSettings, as_set, global_shims_setting, opt_path, path, side_effects_cache_setting,
 };
 
 impl WorkspaceSettings {
@@ -135,7 +135,7 @@ impl WorkspaceSettings {
             unsafe_perm: Some(config.unsafe_perm),
             supported_architectures: config.supported_architectures.clone(),
             ignored_optional_dependencies: config.ignored_optional_dependencies.clone(),
-            overrides: config.overrides.clone(),
+            overrides: config.overrides.clone().map(OverridesSetting::Legacy),
             package_extensions: config.package_extensions.clone(),
             // The flattened lookup, which is the by-name form of the setting
             // whichever of the two forms the file wrote it in.

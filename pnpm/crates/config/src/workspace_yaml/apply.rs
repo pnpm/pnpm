@@ -294,7 +294,11 @@ impl WorkspaceSettings {
         // once the cascade knows the workspace root, whose manifest
         // carries the direct dependencies they point at.
         if let Some(v) = self.overrides.take() {
-            config.overrides = (!v.is_empty()).then_some(v);
+            let npm = v.npm();
+            config.overrides = (!npm.is_empty()).then_some(npm);
+            if !v.pypi().is_empty() {
+                config.python.overrides = v.pypi().to_vec();
+            }
         }
         if let Some(v) = self.package_extensions.take() {
             config.package_extensions = (!v.is_empty()).then_some(v);

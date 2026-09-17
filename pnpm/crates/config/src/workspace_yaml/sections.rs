@@ -15,6 +15,57 @@ pub enum AllowBuild {
     Undecided(String),
 }
 
+/// Ecosystem-specific dependency overrides. The legacy flat map remains
+/// accepted as the npm form.
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum OverridesSetting {
+    Legacy(IndexMap<String, String>),
+    Ecosystems(EcosystemOverrides),
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub struct EcosystemOverrides {
+    #[serde(default)]
+    pub npm: IndexMap<String, String>,
+    #[serde(default)]
+    pub pypi: Vec<String>,
+}
+
+impl OverridesSetting {
+    pub fn iter(&self) -> Box<dyn Iterator<Item = (&String, &String)> + '_> {
+        match self {
+            Self::Legacy(overrides) => Box::new(overrides.iter()),
+            Self::Ecosystems(overrides) => Box::new(overrides.npm.iter()),
+        }
+    }
+
+    #[must_use]
+    pub fn is_empty(&self) -> bool {
+        match self {
+            Self::Legacy(overrides) => overrides.is_empty(),
+            Self::Ecosystems(overrides) => {
+                overrides.npm.is_empty() && overrides.pypi.is_empty()
+            }
+        }
+    }
+
+    pub fn npm(&self) -> IndexMap<String, String> {
+        match self {
+            Self::Legacy(overrides) => overrides.clone(),
+            Self::Ecosystems(overrides) => overrides.npm.clone(),
+        }
+    }
+
+    pub fn pypi(&self) -> &[String] {
+        match self {
+            Self::Legacy(_) => &[],
+            Self::Ecosystems(overrides) => &overrides.pypi,
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum PnpmfileSetting {

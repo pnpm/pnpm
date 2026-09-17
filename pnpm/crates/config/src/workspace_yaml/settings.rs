@@ -3,7 +3,7 @@ use super::{
     CatalogMode, ConfigDependency, Deserialize, Deserializer, DroppedKeys, ErrorKind,
     GLOBAL_CONFIG_YAML_FILENAME, HashMap, HoistingLimits, IgnoredAny, IndexMap, InitType,
     LinkWorkspacePackages, LoadWorkspaceYamlError, NodeLinker, NodePackageMapType,
-    PackageConfigsSetting, PackageExtension, PackageImportMethod, Path, PathBuf,
+    OverridesSetting, PackageConfigsSetting, PackageExtension, PackageImportMethod, Path, PathBuf,
     PeerDependencyRules, Pipe, PmOnFail, PnpmfileSetting, PythonSettings, RegistryEntry,
     RemoteSideEffectsCacheSettings, ResolutionMode, RuntimeOnFail, SCHEMA_DIRECTIVE_KEY,
     SaveWorkspaceProtocol, ScriptsPrependNodePath, SideEffectsCacheSetting, SupportedArchitectures,
@@ -512,7 +512,7 @@ pub struct WorkspaceSettings {
     /// `pnpm_lockfile::check_lockfile_settings` compares this
     /// against `lockfile.overrides` and raises `OverridesChanged`
     /// on mismatch.
-    pub overrides: Option<IndexMap<String, String>>,
+    pub overrides: Option<OverridesSetting>,
 
     /// `cacheDir` from `pnpm-workspace.yaml`. Resolved against the
     /// workspace dir like the other path-valued fields. Drives
