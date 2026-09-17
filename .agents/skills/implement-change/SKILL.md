@@ -18,8 +18,11 @@ request, reproduction, or specification. Determine which products and versions
 are affected using the repository's development policy. Reproduce bugs before
 choosing a fix when practical.
 
-Always assess whether existing pnpm features can solve the problem, including
-combinations of commands, configuration, hooks, and workspace capabilities.
+Always assess whether existing capabilities available to the affected product
+can solve the problem. For pnpm CLI work, consider combinations of commands,
+configuration, hooks, and workspace capabilities. For pnpr, assess its registry
+architecture, flags, and configuration. Consider applicable shared components
+across the repository as reuse candidates.
 Check their actual behavior against the success criteria. Prefer an existing
 capability when it fully solves the problem; explain how to use it and any
 limits. If it only partly solves the problem, identify the gap and extend the
