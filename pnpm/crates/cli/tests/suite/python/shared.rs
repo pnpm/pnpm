@@ -117,6 +117,23 @@ async fn members_that_cannot_be_installed_together_are_refused() {
         ),
     );
     assert!(!root.path().join("pylock.toml").exists());
+
+    // A member asking both ranges does not hide the other member asking
+    // one of them.
+    python_project(
+        &root.path().join("packages/a"),
+        "a",
+        "dependencies = ['alpha==1.0', 'alpha==2.0']",
+    );
+    python_project(&root.path().join("packages/b"), "b", "dependencies = ['alpha==1.0']");
+    assert_failure_contains(
+        pacquet_in(root.path()).arg("install"),
+        &format!(
+            "{} requires `alpha==1.0` and {} requires `alpha==2.0`",
+            packages.join("b").display(),
+            packages.join("a").display(),
+        ),
+    );
 }
 
 #[tokio::test]
