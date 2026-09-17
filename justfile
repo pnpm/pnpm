@@ -70,7 +70,8 @@ sweep-test-temp:
   find "${TMPDIR:-/tmp}" -mindepth 1 -maxdepth 1 -name 'pacquet-test-*' -mmin +60 -exec rm -rf {} + 2>/dev/null || true
 
 # Selection is crate-level: a changed crate's whole test set runs, or none of
-# it. `--base <rev>` sets what the diff is taken against (default: `main`),
+# it. `--base <rev>` sets what the diff is taken against (default: the
+# remote-tracking `main`, or the local one where no such ref exists),
 # `--print` shows the selection without running it, and any other argument is
 # passed to nextest: `just test-affected -- -E 'test(catalog::)'`. A change to
 # `Cargo.lock`, the workspace manifest, or the toolchain affects every crate,
@@ -128,6 +129,10 @@ fix:
 # library is pinned in `dylint.toml`.
 dylint:
   env RUSTFLAGS="-D warnings" cargo dylint --all -- --all-targets --workspace
+
+# Apply the dylint suggestions that carry a machine-applicable fix.
+dylint-fix:
+  cargo dylint --all --fix -- --all-targets --workspace --allow-dirty --allow-staged
 
 # Get code coverage
 codecov:

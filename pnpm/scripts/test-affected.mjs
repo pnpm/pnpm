@@ -237,13 +237,10 @@ function workspaceManifests (repo) {
   }))
 }
 
-// Anything git reads as a revision expression rather than a bare branch name.
-// `origin/HEAD` exists in an ordinary clone, so without this a `--base HEAD`
-// would silently retarget the diff at the default branch.
-const REVISION_SYNTAX = ['/', '~', '^', ':', '@', '\\']
+const REVISION_SYNTAX = ['~', '^', ':', '@', '\\']
 
 /**
- * The remote-tracking counterpart of a bare branch name, where one exists.
+ * The remote-tracking counterpart of a branch name, where one exists.
  *
  * A local branch is only as current as the last time someone checked it out,
  * and `main` usually lives in another worktree here, so it lags. Every commit
@@ -252,11 +249,23 @@ const REVISION_SYNTAX = ['/', '~', '^', ':', '@', '\\']
  * upstream, makes the whole run refuse to scope.
  */
 export function trackedBase (repo, base) {
-  if (base === 'HEAD' || REVISION_SYNTAX.some(character => base.includes(character))) return base
+  if (!namesABranch(repo, base)) return base
   const remote = run(repo, 'git', ['rev-parse', '--verify', '--quiet', `refs/remotes/origin/${base}`], {
     allowFailure: true,
   }).trim()
   return remote === '' ? base : `origin/${base}`
+}
+
+// A tag, a revision expression, and an already-qualified ref each name one
+// commit, so only a branch name is ambiguous between the local branch and what
+// the remote has. `HEAD` resolves to the current branch and has to be excluded
+// by name, or an ordinary clone's `refs/remotes/origin/HEAD` would retarget it
+// at the default branch. A name that resolves to nothing may still be a branch
+// that lives upstream and was never fetched under that name.
+function namesABranch (repo, base) {
+  if (base === 'HEAD' || REVISION_SYNTAX.some(character => base.includes(character))) return false
+  const ref = run(repo, 'git', ['rev-parse', '--symbolic-full-name', base], { allowFailure: true }).trim()
+  return ['', `refs/heads/${base}`, `refs/remotes/origin/${base}`].includes(ref)
 }
 
 function changedFiles (repo, base) {

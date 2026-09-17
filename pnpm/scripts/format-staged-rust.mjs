@@ -32,7 +32,10 @@ export function partitionStaged (staged, unstaged) {
  * their cost is paid once per push rather than once per commit.
  */
 export function formatStagedRust (repo, { format = pinnedRustfmt } = {}) {
-  const staged = gitPaths(repo, ['diff', '--cached', '--name-only', '--diff-filter=ACM', '-z', '--', '*.rs'])
+  // `R` is load-bearing: git reports a renamed file that was edited as one
+  // rename rather than an addition, so without it the destination of a
+  // `git mv` is committed unformatted.
+  const staged = gitPaths(repo, ['diff', '--cached', '--name-only', '--diff-filter=ACMR', '-z', '--', '*.rs'])
   if (staged.length === 0) return 0
 
   const unstaged = gitPaths(repo, ['diff', '--name-only', '-z', '--', '*.rs'])

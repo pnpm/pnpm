@@ -71,7 +71,7 @@ Every crate reaches the build this way, in CI as well as locally. Cargo resolves
 
 The block is a function of `Cargo.lock`, so an install regenerates it byte for byte and leaves `git status` clean. It changes only when a git-sourced dependency moves to a new revision, and that change belongs in the same commit as the lockfile. Rust CI fails if the two drift apart.
 
-Make sure `~/.cargo/bin` is on your `PATH`, ahead of any system-wide Rust in `/usr/bin`. `rustup`'s installer adds this entry through `~/.cargo/env`; ensure your shell sources it. This matters for the git hooks. The `pnpm install` step above wires up husky, and its `pre-push` hook runs the Rust checks in `pnpm/scripts/pre-push-rust.sh` (format, doc, dylint, typos) alongside the TypeScript compile and lint. That script locates `cargo`, `rustup`, `taplo`, `typos`, and `cargo-dylint` through `PATH`, and it **skips** a check when the tool is not found rather than failing. A push that appears to pass locally with the tools off `PATH` has silently skipped the format, doc, and dylint checks, so those problems surface only in CI.
+Make sure `~/.cargo/bin` is on your `PATH`, ahead of any system-wide Rust in `/usr/bin`. `rustup`'s installer adds this entry through `~/.cargo/env`; ensure your shell sources it. This matters for the git hooks. The `pnpm install` step above wires up husky. Its `pre-commit` hook formats the Rust files being committed, as described under [Rust formatting](#rust-formatting), and its `pre-push` hook runs the Rust checks in `pnpm/scripts/pre-push-rust.sh` (format, doc, dylint, typos) alongside the TypeScript compile and lint. That script locates `cargo`, `rustup`, `taplo`, `typos`, and `cargo-dylint` through `PATH`, and it **skips** a check when the tool is not found rather than failing. A push that appears to pass locally with the tools off `PATH` has silently skipped the format, doc, and dylint checks, so those problems surface only in CI.
 
 For the full Rust development workflow (checks, tests, benchmarks, and the code style guide), see [`pnpm/CONTRIBUTING.md`](./pnpm/CONTRIBUTING.md).
 
@@ -84,6 +84,8 @@ node pnpm/scripts/rustfmt.mjs --all
 node pnpm/scripts/rustfmt.mjs --all -- --check
 ```
 
+Committing a Rust file formats it. The `pre-commit` hook runs the pinned formatter over the `.rs` files in the index and stages what it changed, so a commit is formatted whether or not you ran `just fmt` first. A file that has unstaged changes as well is named and left alone: formatting the working tree and staging the result would commit the part of that file you held back.
+
 The wrapper uses the [pnpm rustfmt fork](https://github.com/pnpm/rustfmt), pinned by full commit SHA in [`pnpm/scripts/rustfmt.json`](./pnpm/scripts/rustfmt.json). `use_small_heuristics = "Max"` keeps ordinary calls and short struct literals compact within the 100-column line limit.
 
 With `chain_complexity_layout = true`, a chain of at most `chain_width = 40` columns of expression text stays inline when it fits the available line and head-width limits. Beyond that allowance, up to two method calls with simple arguments can stay inline if the expression fits the line. Zero-argument methods on simple receivers and short expression closures count as simple arguments. Longer chains and chains with complex arguments wrap vertically. These rules also apply in conditions.
@@ -94,7 +96,7 @@ Leading field accesses stay with their receiver while the prefix fits within `ch
 
 Destructuring uses `struct_pattern_width = 35`, keeping short patterns such as `EnvSubcommand::Use { package_name }` inline.
 
-Ordinary `cargo fmt` uses the toolchain's upstream formatter and does not apply this rule. The task runner, CI, and git hook all use the wrapper.
+Ordinary `cargo fmt` uses the toolchain's upstream formatter and does not apply this rule. The task runner, CI, and the git hooks all use the wrapper.
 
 The first run installs the formatter's dated nightly toolchain with `rustc-dev` and LLVM tools, then builds the two formatter binaries with `cargo install --locked`. This needs network access, disk space for the compiler components, and the platform's Rust build prerequisites. Run `node pnpm/scripts/rustfmt.mjs --install` ahead of time to prepare the formatter. The project still builds with the stable compiler in `rust-toolchain.toml`; the formatter has its own runtime and does not replace any global binaries.
 

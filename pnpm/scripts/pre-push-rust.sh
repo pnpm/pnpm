@@ -39,7 +39,7 @@ if command -v cargo >/dev/null 2>&1; then
     if command -v cargo-dylint >/dev/null 2>&1; then
         yellow '▸ RUSTFLAGS="-D warnings" cargo dylint --all -- --all-targets --workspace'
         if ! RUSTFLAGS='-D warnings' cargo dylint --all -- --all-targets --workspace; then
-            red '✗ cargo dylint reported lints — `cargo dylint --all --fix -- --all-targets --workspace` applies the ones it can, then commit.'
+            red '✗ cargo dylint reported lints — `just dylint-fix` applies the ones it can, then commit.'
             failed=1
         fi
     else

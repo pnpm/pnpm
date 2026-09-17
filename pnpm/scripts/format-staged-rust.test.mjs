@@ -26,7 +26,10 @@ function temporaryRepo (context, files) {
   const repo = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'pnpm-format-staged-')))
   context.after(() => fs.rmSync(repo, { recursive: true, force: true }))
   git(repo, 'init')
-  for (const name of files) fs.writeFileSync(path.join(repo, name), 'fn original() {}\n')
+  // Enough lines that appending one leaves a renamed file similar enough for
+  // git to report it as a rename rather than a delete and an add.
+  const seed = Array.from({ length: 10 }, (item, index) => `fn original_${index}() {}\n`).join('')
+  for (const name of files) fs.writeFileSync(path.join(repo, name), seed)
   git(repo, 'add', '--all')
   git(repo, 'commit', '-m', 'root', '--no-verify')
   return repo
@@ -62,6 +65,20 @@ test('formats every staged Rust file and stages what changed', (context) => {
   assert.deepEqual(seen.sort(), AWKWARD.map(name => path.join(repo, name)).sort())
   for (const name of AWKWARD) assert.match(git(repo, 'show', `:${name}`), /\/\/ reformatted/)
   assert.doesNotMatch(git(repo, 'show', ':kept.txt'), /\/\/ reformatted/)
+})
+
+test('formats the destination of a staged rename', (context) => {
+  const repo = temporaryRepo(context, ['before.rs'])
+  git(repo, 'mv', 'before.rs', 'after.rs')
+  fs.appendFileSync(path.join(repo, 'after.rs'), 'fn staged() {}\n')
+  git(repo, 'add', '--all')
+  assert.match(git(repo, 'diff', '--cached', '--name-status'), /^R/)
+
+  const { seen, format } = reformatter()
+  assert.equal(formatStagedRust(repo, { format }), 0)
+
+  assert.deepEqual(seen, [path.join(repo, 'after.rs')])
+  assert.match(git(repo, 'show', ':after.rs'), /\/\/ reformatted/)
 })
 
 test('leaves a staged file that has unstaged changes as well', (context) => {

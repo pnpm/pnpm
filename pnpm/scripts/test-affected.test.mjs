@@ -134,20 +134,26 @@ test('rejects --base without a revision', () => {
   assert.throws(() => parseOptions(['--base']), /--base needs a revision/)
 })
 
-test('diffs a bare branch name against its remote-tracking ref', (context) => {
+test('diffs a branch name against its remote-tracking ref', (context) => {
   const repo = temporaryRepo(context)
+  spawnSync('git', ['branch', 'release/1.0'], { cwd: repo })
   assert.equal(trackedBase(repo, 'main'), 'main')
-  spawnSync('git', ['update-ref', 'refs/remotes/origin/main', 'HEAD'], { cwd: repo })
+  assert.equal(trackedBase(repo, 'release/1.0'), 'release/1.0')
+  for (const ref of ['refs/remotes/origin/main', 'refs/remotes/origin/release/1.0']) {
+    spawnSync('git', ['update-ref', ref, 'HEAD'], { cwd: repo })
+  }
   assert.equal(trackedBase(repo, 'main'), 'origin/main')
+  assert.equal(trackedBase(repo, 'release/1.0'), 'origin/release/1.0')
 })
 
-test('diffs against a revision that is not a bare branch name as given', (context) => {
+test('diffs against a revision that is not a branch name as given', (context) => {
   const repo = temporaryRepo(context)
-  for (const ref of ['refs/remotes/origin/HEAD', 'refs/remotes/origin/main']) {
+  for (const ref of ['refs/tags/v1', 'refs/remotes/origin/HEAD', 'refs/remotes/origin/main', 'refs/remotes/origin/v1']) {
     spawnSync('git', ['update-ref', ref, 'HEAD'], { cwd: repo })
   }
   assert.equal(trackedBase(repo, 'HEAD'), 'HEAD')
   assert.equal(trackedBase(repo, 'main~1'), 'main~1')
+  assert.equal(trackedBase(repo, 'v1'), 'v1')
   assert.equal(trackedBase(repo, 'origin/main'), 'origin/main')
 })
 
