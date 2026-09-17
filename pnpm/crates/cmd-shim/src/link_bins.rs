@@ -406,7 +406,7 @@ where
     let bin_dir = Sys::create_dir_all_reporting(bins_dir)
         .map_err(|error| LinkBinsError::CreateBinDir { dir: bins_dir.to_path_buf(), error })?;
 
-    let paths = LinkingPaths::new(bins_dir, options)?;
+    let paths = linking_paths::LinkingPaths::new(bins_dir, options)?;
 
     // Each shim's read-shebang + write-file + chmod sequence is independent
     // across bin names. There is no shared state, so drive them on rayon.
@@ -440,7 +440,7 @@ where
                 .unwrap_or_else(|| command.path.clone());
             write_shim::<Sys>(
                 ShimSpec {
-                    target_path: &paths.target(&command.path)?,
+                    target_path: &paths.target(&command.path, options.relocatable_root.as_deref())?,
                     probe_path: &probe_path,
                     shim_path: &paths.bins_dir.join(&command.name),
                     node_path: &node_path,
@@ -575,4 +575,3 @@ use executable::{
 mod discovery;
 
 mod linking_paths;
-use linking_paths::LinkingPaths;

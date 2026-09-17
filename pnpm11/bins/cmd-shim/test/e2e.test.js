@@ -421,7 +421,28 @@ describeOnPosix('relocatable shims generated through directory symlinks', () => 
 })
 
 describeOnPosix('unresolvable relocatable paths', () => {
-  test('does not treat a dangling NODE_PATH symlink as a missing directory', async (t) => {
+  test('keeps dangling optional NODE_PATH entries without blocking the executable', async (t) => {
+    const tempDir = temporaryDirectory()
+    t.after(() => fs.rmSync(tempDir, { recursive: true, force: true }))
+    const target = path.join(tempDir, 'tool.js')
+    fs.writeFileSync(target, '#!/usr/bin/env node\nconsole.log(process.env.NODE_PATH)\n')
+    const dangling = path.join(tempDir, 'dangling')
+    fs.symlinkSync('missing', dangling)
+    const shim = path.join(tempDir, '.bin', 'tool')
+    await cmdShim(target, shim, {
+      relocatableRoot: tempDir,
+      nodePath: [dangling],
+      createPwshFile: false,
+    })
+    const result = spawnSync('/bin/sh', [shim], {
+      encoding: 'utf8',
+      env: { ...process.env, NODE_PATH: '', NODE_OPTIONS: '' },
+    })
+    assert.equal(result.status, 0, result.stderr)
+    assert.equal(result.stdout.trim(), dangling)
+  })
+
+  test('rejects an unresolvable required root', async (t) => {
     const tempDir = temporaryDirectory()
     t.after(() => fs.rmSync(tempDir, { recursive: true, force: true }))
     const target = path.join(tempDir, 'tool.js')
@@ -429,8 +450,7 @@ describeOnPosix('unresolvable relocatable paths', () => {
     const dangling = path.join(tempDir, 'dangling')
     fs.symlinkSync('missing', dangling)
     await assert.rejects(cmdShim(target, path.join(tempDir, '.bin', 'tool'), {
-      relocatableRoot: tempDir,
-      nodePath: [dangling],
+      relocatableRoot: dangling,
       createPwshFile: false,
     }), { code: 'ENOENT' })
   })
@@ -455,5 +475,44 @@ describeOnPosix('NODE_PATH entries outside physical relocation scope', () => {
     assert.ok(fs.readFileSync(shim, 'utf8').includes(`export NODE_PATH="${outside}:${outsideAlias}:relative-modules"`))
     await cmdShim(target, shim, { relocatableRoot: project, nodePath: '', createPwshFile: false })
     assert.ok(!fs.readFileSync(shim, 'utf8').includes('export NODE_PATH='))
+  })
+})
+
+describeOnPosix('external executable aliases', () => {
+  test('follows retargeted external source and Node runtime directories', async (t) => {
+    const tempDir = temporaryDirectory()
+    t.after(() => fs.rmSync(tempDir, { recursive: true, force: true }))
+    const project = path.join(tempDir, 'project')
+    fs.mkdirSync(project)
+    for (const version of ['one', 'two']) {
+      const dir = path.join(tempDir, version)
+      fs.mkdirSync(dir)
+      fs.writeFileSync(path.join(dir, 'tool.js'), `#!/usr/bin/env node\nconsole.log('${version}')\n`)
+      fs.writeFileSync(path.join(dir, 'node'), `#!/bin/sh\nprintf '${version}\\n'\n`, { mode: 0o755 })
+    }
+    const alias = path.join(tempDir, 'current')
+    fs.symlinkSync('one', alias)
+    const target = path.join(project, 'tool.js')
+    fs.writeFileSync(target, '#!/usr/bin/env node\n')
+    await cmdShim(path.join(alias, 'tool.js'), path.join(project, 'source'), { relocatableRoot: project, createPwshFile: false })
+    await cmdShim(target, path.join(project, 'runtime'), { relocatableRoot: project, nodeExecPath: path.join(alias, 'node'), createPwshFile: false })
+    fs.unlinkSync(alias)
+    fs.symlinkSync('two', alias)
+    for (const name of ['source', 'runtime']) {
+      const result = spawnSync('/bin/sh', [path.join(project, name)], { encoding: 'utf8', env: { ...process.env, NODE_OPTIONS: '' } })
+      assert.equal(result.status, 0, result.stderr)
+      assert.equal(result.stdout, 'two\n')
+    }
+    fs.unlinkSync(alias)
+    fs.symlinkSync('missing', alias)
+    await cmdShim(target, path.join(project, 'unavailable-runtime'), { relocatableRoot: project, nodeExecPath: path.join(alias, 'node'), createPwshFile: false })
+    assert.ok(fs.readFileSync(path.join(project, 'unavailable-runtime'), 'utf8').includes(path.join(alias, 'node')))
+    const internalRuntime = path.join(project, 'internal-runtime')
+    fs.symlinkSync('missing', internalRuntime)
+    await assert.rejects(cmdShim(target, path.join(project, 'invalid-runtime'), {
+      relocatableRoot: project,
+      nodeExecPath: path.join(internalRuntime, 'node'),
+      createPwshFile: false,
+    }), { code: 'ENOENT' })
   })
 })

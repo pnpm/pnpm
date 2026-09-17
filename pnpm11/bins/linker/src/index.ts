@@ -179,11 +179,14 @@ async function _linkBins (
   }
   const results = await Promise.allSettled(allCmds.map(async cmd => {
     if (resolveCommandPaths) {
+      const withinRoot = isSubdir(opts.relocatableRoot!, cmd.path) || isSubdir(opts.shimRelocatableRoot!, cmd.path)
       const sourceDir = await fs.realpath(path.dirname(cmd.path)).catch((err: unknown) => {
-        if (util.types.isNativeError(err) && 'code' in err && err.code === 'ENOENT') return path.dirname(cmd.path)
+        if (util.types.isNativeError(err) && 'code' in err && (!withinRoot || err.code === 'ENOENT')) return path.dirname(cmd.path)
         throw err
       })
-      cmd = { ...cmd, path: path.join(sourceDir, path.basename(cmd.path)) }
+      if (withinRoot || isSubdir(opts.relocatableRoot!, sourceDir)) {
+        cmd = { ...cmd, path: path.join(sourceDir, path.basename(cmd.path)) }
+      }
     }
     return linkBin(cmd, binsDir, opts)
   }))

@@ -1209,3 +1209,26 @@ testOnPosix('physical bin aliases run external targets and migrate lexical shims
     fs.rmSync(tempDir, { recursive: true, force: true })
   }
 })
+
+testOnPosix('project bins follow external package aliases after their targets change', async () => {
+  const tempDir = temporaryDirectory()
+  try {
+    const project = path.join(tempDir, 'project')
+    for (const version of ['one', 'two']) {
+      const dir = path.join(tempDir, version)
+      fs.mkdirSync(dir)
+      fs.writeFileSync(path.join(dir, 'tool.js'), `#!/usr/bin/env node\nconsole.log('${version}')\n`)
+    }
+    const alias = path.join(tempDir, 'current')
+    fs.symlinkSync('one', alias)
+    const bins = path.join(project, '.bin')
+    await linkBinsOfPackages([{ manifest: { name: 'tool', version: '1.0.0', bin: { tool: 'tool.js' } }, location: alias }], bins, { relocatableRoot: project })
+    fs.unlinkSync(alias)
+    fs.symlinkSync('two', alias)
+    const result = spawnSync(path.join(bins, 'tool'), { encoding: 'utf8', env: { ...process.env, NODE_OPTIONS: '' } })
+    expect(result.status).toBe(0)
+    expect(result.stdout).toBe('two\n')
+  } finally {
+    fs.rmSync(tempDir, { recursive: true, force: true })
+  }
+})

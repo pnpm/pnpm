@@ -185,18 +185,18 @@ async function cmdShim_ (src: string, to: string, opts: InternalOptions) {
     ])
     if (isWithinRoot(root, shimDir)) {
       const nodePaths = typeof opts.nodePath === 'string' ? opts.nodePath.split(path.delimiter) : opts.nodePath
-      const [sourceDir, nodePath, nodeExecDir] = await Promise.all([
-        resolveExistingAncestors(path.dirname(src), opts),
-        nodePaths && Promise.all(nodePaths.map(entry => path.isAbsolute(entry) ? resolveExistingAncestors(entry, opts) : entry)),
-        opts.nodeExecPath && resolveExistingAncestors(path.dirname(opts.nodeExecPath), opts),
+      const [source, nodePath, nodeExecPath] = await Promise.all([
+        resolveScopedTarget(src, root, opts),
+        nodePaths && Promise.all(nodePaths.map(entry => resolveOptionalNodePath(entry, opts))),
+        opts.nodeExecPath && resolveScopedTarget(opts.nodeExecPath, root, opts),
       ])
-      src = path.join(sourceDir, path.basename(src))
+      src = source
       to = path.join(shimDir, path.basename(to))
       opts = {
         ...opts,
         relocatableRoot: root,
-        resolvedNodePaths: nodePath?.map((entry, index) => path.isAbsolute(entry) && (isWithinRoot(root, entry) || isWithinRoot(root, nodePaths![index]) || isWithinRoot(opts.relocatableRoot!, nodePaths![index])) ? entry : undefined),
-        nodeExecPath: nodeExecDir && path.join(nodeExecDir, path.basename(opts.nodeExecPath!)),
+        resolvedNodePaths: nodePath?.map((entry, index) => entry != null && path.isAbsolute(entry) && (isWithinRoot(root, entry) || isWithinRoot(root, nodePaths![index]) || isWithinRoot(opts.relocatableRoot!, nodePaths![index])) ? entry : undefined),
+        nodeExecPath,
       }
     } else {
       opts = { ...opts, relocatableRoot: undefined }
@@ -749,5 +749,26 @@ async function resolveExistingAncestors (target: string, opts: InternalOptions):
     const parent = path.dirname(target)
     if (parent === target) throw err
     return path.join(await resolveExistingAncestors(parent, opts), path.basename(target))
+  }
+}
+
+async function resolveOptionalNodePath (entry: string, opts: InternalOptions): Promise<string | undefined> {
+  if (!path.isAbsolute(entry)) return entry
+  try {
+    return await resolveExistingAncestors(entry, opts)
+  } catch (err: unknown) {
+    if (util.types.isNativeError(err) && 'code' in err) return undefined
+    throw err
+  }
+}
+
+async function resolveScopedTarget (target: string, root: string, opts: InternalOptions): Promise<string> {
+  const withinRoot = isWithinRoot(root, target) || isWithinRoot(opts.relocatableRoot!, target)
+  try {
+    const parent = await resolveExistingAncestors(path.dirname(target), opts)
+    return withinRoot || isWithinRoot(root, parent) ? path.join(parent, path.basename(target)) : target
+  } catch (err: unknown) {
+    if (!withinRoot && util.types.isNativeError(err) && 'code' in err) return target
+    throw err
   }
 }

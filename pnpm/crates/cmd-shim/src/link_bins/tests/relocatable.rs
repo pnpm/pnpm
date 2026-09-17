@@ -480,3 +480,98 @@ fn external_target_runs_through_a_physical_bin_directory() {
     assert!(output.status.success());
     assert_eq!(String::from_utf8(output.stdout).unwrap().trim(), "external-target");
 }
+
+#[test]
+fn unresolved_optional_node_paths_do_not_prevent_linking_bins() {
+    for destination in ["missing-modules", "extra"] {
+        let tmp = tempdir().unwrap();
+        let root = dunce::canonicalize(tmp.path()).unwrap().join("project");
+        create_dir_all(root.join("package")).unwrap();
+        let extra = root.join("extra");
+        symlink(destination, &extra).unwrap();
+        write_file(
+            root.join("package/cli.js"),
+            "#!/usr/bin/env node\nconsole.log(process.argv[2] === 'require' ? require('late') : 'linked')\n",
+        ).unwrap();
+        let bins = root.join(".bin");
+        link_bins_of_packages::<Host>(
+            &[PackageBinSource::new(
+                root.join("package"),
+                Arc::new(json!({
+                    "name": "tools", "version": "1.0.0", "bin": {"foo": "cli.js", "bar": "cli.js"}
+                })),
+            )],
+            &bins,
+            &LinkBinsOptions {
+                extra_node_paths: vec![extra.to_string_lossy().into_owned()],
+                relocatable_root: Some(root.clone()),
+                ..LinkBinsOptions::default()
+            },
+        )
+        .unwrap();
+        for name in ["foo", "bar"] {
+            let body = read_to_string(bins.join(name)).unwrap();
+            eprintln!("destination={destination}, body={body}");
+            assert!(body.contains("$basedir_abs/../extra"), "optional path remains in NODE_PATH");
+            let output = Command::new(bins.join(name))
+                .env_remove("NODE_PATH")
+                .env_remove("NODE_OPTIONS")
+                .output()
+                .unwrap();
+            eprintln!("destination={destination}, name={name}, output={output:?}");
+            assert!(output.status.success());
+            assert_eq!(String::from_utf8(output.stdout).unwrap().trim(), "linked");
+        }
+        fs::remove_file(&extra).unwrap();
+        symlink("missing-modules", &extra).unwrap();
+        create_dir_all(root.join("missing-modules/late")).unwrap();
+        write_file(root.join("missing-modules/late/index.js"), "module.exports = 'loaded-later'\n")
+            .unwrap();
+        let output = Command::new(bins.join("foo"))
+            .arg("require")
+            .env_remove("NODE_PATH")
+            .env_remove("NODE_OPTIONS")
+            .output()
+            .unwrap();
+        eprintln!("destination={destination}, repaired output={output:?}");
+        assert!(output.status.success());
+        assert_eq!(String::from_utf8(output.stdout).unwrap().trim(), "loaded-later");
+    }
+}
+
+#[test]
+fn external_target_directory_alias_can_be_retargeted_after_linking() {
+    let tmp = tempdir().unwrap();
+    let base = dunce::canonicalize(tmp.path()).unwrap();
+    let root = base.join("project");
+    for name in ["first", "second"] {
+        create_dir_all(base.join(name)).unwrap();
+        write_file(
+            base.join(name).join("cli.js"),
+            format!("#!/usr/bin/env node\nconsole.log('{name}')\n"),
+        )
+        .unwrap();
+    }
+    let alias = base.join("external-alias");
+    symlink("first", &alias).unwrap();
+    let bins = root.join(".bin");
+    link_bins_of_packages::<Host>(
+        &[PackageBinSource::new(
+            alias.clone(),
+            Arc::new(json!({"name": "foo", "version": "1.0.0", "bin": "cli.js"})),
+        )],
+        &bins,
+        &LinkBinsOptions { relocatable_root: Some(root), ..LinkBinsOptions::default() },
+    )
+    .unwrap();
+    fs::remove_file(&alias).unwrap();
+    symlink("second", &alias).unwrap();
+    let output = Command::new(bins.join("foo"))
+        .env_remove("NODE_PATH")
+        .env_remove("NODE_OPTIONS")
+        .output()
+        .unwrap();
+    eprintln!("{output:?}");
+    assert!(output.status.success());
+    assert_eq!(String::from_utf8(output.stdout).unwrap().trim(), "second");
+}

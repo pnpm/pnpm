@@ -36,7 +36,7 @@ impl<'a> LinkingPaths<'a> {
         paths.extra_node_paths = options.extra_node_paths
             .iter()
             .map(|entry| resolve_extra(entry, root, &physical_root))
-            .collect::<Result<Vec<_>, _>>()?
+            .collect::<Vec<_>>()
             .into();
         paths.relocatable_root = Some(physical_root);
         Ok(paths)
@@ -45,16 +45,27 @@ impl<'a> LinkingPaths<'a> {
     pub(super) fn target<'target>(
         &self,
         target: &'target Path,
+        original_root: Option<&Path>,
     ) -> Result<Cow<'target, Path>, LinkBinsError> {
-        if self.relocatable_root.is_none() {
+        let Some(root) = self.relocatable_root.as_deref() else {
             return Ok(Cow::Borrowed(target));
-        }
+        };
         let Some((parent, name)) = target.parent().zip(target.file_name()) else {
             return Ok(Cow::Borrowed(target));
         };
+        let lexical_inside =
+            is_subdir(root, target) || original_root.is_some_and(|root| is_subdir(root, target));
+        let physical_parent = match resolve(parent) {
+            Ok(parent) => parent,
+            Err(error) if lexical_inside => return Err(error),
+            Err(_) => return Ok(Cow::Borrowed(target)),
+        };
+        if !lexical_inside && !is_subdir(root, &physical_parent) {
+            return Ok(Cow::Borrowed(target));
+        }
         // Keep the final dirent: a runtime binary can itself be a symlink
         // whose path inside the project must remain relocatable.
-        Ok(Cow::Owned(resolve(parent)?.join(name)))
+        Ok(Cow::Owned(physical_parent.join(name)))
     }
 }
 
@@ -63,17 +74,20 @@ fn resolve(path: &Path) -> Result<PathBuf, LinkBinsError> {
         .map_err(|error| LinkBinsError::ResolvePath { path: path.to_path_buf(), error })
 }
 
-fn resolve_extra(entry: &str, root: &Path, physical_root: &Path) -> Result<String, LinkBinsError> {
+fn resolve_extra(entry: &str, root: &Path, physical_root: &Path) -> String {
     if !Path::new(entry).is_absolute() {
-        return Ok(entry.to_string());
+        return entry.to_string();
     }
-    let physical = resolve(Path::new(entry))?;
+    // Extra module paths are optional and may not resolve until a later install step.
+    let Ok(physical) = realpath_missing(Path::new(entry)) else {
+        return entry.to_string();
+    };
     if is_subdir(physical_root, &physical)
         || is_subdir(root, Path::new(entry))
         || is_subdir(physical_root, Path::new(entry))
     {
-        Ok(physical.to_string_lossy().into_owned())
+        physical.to_string_lossy().into_owned()
     } else {
-        Ok(entry.to_string())
+        entry.to_string()
     }
 }
