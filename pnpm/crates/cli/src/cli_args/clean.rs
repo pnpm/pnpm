@@ -1,9 +1,7 @@
-use super::{dispatch::RunCtx, recursive::discover_workspace_projects, run::RunArgs};
-use derive_more::{Display, Error};
-use miette::{Context, Diagnostic, IntoDiagnostic};
+use super::{dispatch::RunCtx, recursive::discover_workspace_projects, script_override};
+use miette::{Context, IntoDiagnostic};
 use pnpm_config::Config;
-use pnpm_fs::{is_subdir, lexical_normalize, relative_path, remove_dirent};
-use pnpm_workspace::read_project_manifest_only;
+use pnpm_fs::{is_subdir, relative_path, remove_dirent};
 use serde_json::Value;
 use std::path::{Path, PathBuf};
 
@@ -20,23 +18,6 @@ pub struct CleanArgs {
     pub lockfile: bool,
 }
 
-/// `pnpm clean` was invoked from a subdirectory of a workspace
-/// whose root `package.json` declares a `clean` / `purge` script.
-/// pnpm refuses to run the built-in from the subdirectory in that
-/// case (it would shadow the root script), and directs the user to
-/// `pnpm run <script>` at the root.
-#[derive(Debug, Display, Error, Diagnostic)]
-#[display(
-    "The workspace root has a \"{command}\" script, so the built-in \"pnpm {command}\" command cannot run from a subdirectory"
-)]
-#[diagnostic(
-    code(ERR_PNPM_SCRIPT_OVERRIDE_IN_WORKSPACE_ROOT),
-    help("Run \"pnpm run {command}\" from the workspace root to execute the script")
-)]
-struct ScriptOverrideInWorkspaceRoot {
-    command: String,
-}
-
 /// The pnpm hidden entries inside `node_modules` that `clean` removes
 /// alongside the regular package directories. Any other dotfile (e.g.
 /// `.cache`) is left in place.
@@ -46,61 +27,13 @@ const PNPM_HIDDEN_ENTRIES: &[&str] =
 impl CleanArgs {
     pub(super) fn run(self, ctx: &RunCtx<'_>, command_name: &str) -> miette::Result<()> {
         let config = (ctx.loaders.config)()?;
-        if ctx.builtin_command_forced {
-            return clean_builtin(ctx, config, self.lockfile);
-        }
         // A `<command_name>` script in the current project's `package.json`
         // replaces the built-in command.
-        if let Some(script) =
-            script_of(read_project_manifest_only(ctx.locations.dir).ok(), command_name)
-            && !script.is_empty()
-        {
-            return RunArgs {
-                script: RunArgs::script(command_name, []),
-                if_present: false,
-                sequential: false,
-                dry_run: false,
-                json: false,
-                workspace: crate::cli_args::recursive::RecursiveExecutionArgs {
-                    resume_from: None,
-                    report_summary: false,
-                    no_bail: false,
-                    sort: true,
-                    reverse: false,
-                    parallel: false,
-                },
-            }
-            .run(ctx.locations.dir, config, ctx.reporter);
-        }
-        // Inside a workspace subdirectory, a `<command_name>` script at the
-        // workspace root must be run from the root rather than shadowed by
-        // the built-in command here.
-        if let Some(workspace_dir) = config.workspace_dir.as_deref()
-            && lexical_normalize(workspace_dir) != lexical_normalize(ctx.locations.dir)
-            && let Some(script) =
-                script_of(read_project_manifest_only(workspace_dir).ok(), command_name)
-            && !script.is_empty()
-        {
-            return Err(ScriptOverrideInWorkspaceRoot { command: command_name.to_string() }.into());
+        if let Some(run_args) = script_override::resolve(ctx, config, command_name, Vec::new())? {
+            return run_args.run(ctx.locations.dir, config, ctx.reporter);
         }
         clean_builtin(ctx, config, self.lockfile)
     }
-}
-
-/// Resolve the `<command_name>` script body from an optional manifest
-/// (`None` when the manifest is absent), mirroring pnpm's
-/// `safeReadProjectManifestOnly` tolerance for a missing `package.json`.
-fn script_of(
-    manifest: Option<pnpm_package_manifest::PackageManifest>,
-    command_name: &str,
-) -> Option<String> {
-    manifest?
-        .value()
-        .get("scripts")
-        .and_then(Value::as_object)
-        .and_then(|scripts| scripts.get(command_name))
-        .and_then(Value::as_str)
-        .map(str::to_string)
 }
 
 /// Remove `node_modules` contents and (optionally) lockfiles from the

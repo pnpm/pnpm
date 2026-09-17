@@ -78,6 +78,7 @@ pub mod run;
 pub mod runtime;
 pub mod sanitize;
 pub mod sbom;
+pub(crate) mod script_override;
 pub mod script_shortcut;
 pub mod search;
 pub mod self_update;
