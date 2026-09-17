@@ -58,6 +58,7 @@ fn a_pool_hands_out_exactly_its_limit() {
     );
 
     drop(first);
+    assert_eq!(pool.holders().len(), 1, "a freed slot's stale stamp is not listed");
     let third = pool
         .try_acquire()
         .expect("try again")

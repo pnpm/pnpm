@@ -23,7 +23,7 @@ use pnpm_reporter::{GlobalLog, LogEvent, LogLevel};
 use std::{
     collections::HashMap,
     fs::{self, File, OpenOptions},
-    io::{self, Seek, Write},
+    io,
     path::PathBuf,
     time::{Duration, Instant},
 };
@@ -155,16 +155,11 @@ impl SlotPool {
 
     fn try_acquire(&self) -> io::Result<Option<File>> {
         for index in 0..self.limit {
-            let mut file = OpenOptions::new()
-                .read(true)
-                .write(true)
-                .create(true)
-                .truncate(false)
-                .open(self.slot_path(index))?;
+            let file = self.open_slot(index)?;
             match file.try_lock() {
                 Ok(()) => {
                     // Best effort: the stamp only feeds the waiting notice.
-                    let _ = write_holder(&mut file);
+                    let _ = self.write_holder(index);
                     return Ok(Some(file));
                 }
                 Err(std::fs::TryLockError::WouldBlock) => continue,
@@ -174,31 +169,45 @@ impl SlotPool {
         Ok(None)
     }
 
-    fn slot_path(&self, index: u32) -> PathBuf {
-        self.dir.join(index.to_string())
+    fn open_slot(&self, index: u32) -> io::Result<File> {
+        OpenOptions::new()
+            .read(true)
+            .write(true)
+            .create(true)
+            .truncate(false)
+            .open(self.dir.join(index.to_string()))
     }
 
-    /// What the holders stamped into the slot files, one entry per slot
-    /// that could be read. A slot is read without taking its lock, which
-    /// works on the platforms where the lock is advisory and yields nothing
-    /// where it is not.
+    /// The holder stamp lives beside the slot rather than in it: a held
+    /// slot cannot be read on the platforms where the lock is mandatory.
+    fn holder_path(&self, index: u32) -> PathBuf {
+        self.dir.join(format!("{index}.holder"))
+    }
+
+    fn write_holder(&self, index: u32) -> io::Result<()> {
+        let cwd = std::env::current_dir().unwrap_or_default();
+        fs::write(
+            self.holder_path(index),
+            format!("pid {} in {}", std::process::id(), cwd.display()),
+        )
+    }
+
+    /// The stamps of the slots that are held right now. A slot whose lock
+    /// this probe can take is free, and its stale stamp is left out.
     fn holders(&self) -> Vec<String> {
         (0..self.limit)
             .filter_map(|index| {
-                let holder = fs::read_to_string(self.slot_path(index)).ok()?;
+                let file = self.open_slot(index).ok()?;
+                match file.try_lock() {
+                    Err(std::fs::TryLockError::WouldBlock) => {}
+                    Ok(()) | Err(std::fs::TryLockError::Error(_)) => return None,
+                }
+                let holder = fs::read_to_string(self.holder_path(index)).ok()?;
                 let holder = holder.trim();
                 (!holder.is_empty()).then(|| holder.to_string())
             })
             .collect()
     }
-}
-
-fn write_holder(file: &mut File) -> io::Result<()> {
-    file.set_len(0)?;
-    file.rewind()?;
-    let cwd = std::env::current_dir().unwrap_or_default();
-    write!(file, "pid {} in {}", std::process::id(), cwd.display())?;
-    file.flush()
 }
 
 #[cfg(test)]
