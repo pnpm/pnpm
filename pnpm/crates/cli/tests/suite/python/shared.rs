@@ -73,7 +73,6 @@ async fn members_of_a_shared_workspace_install_into_one_environment() {
         .assert()
         .success()
         .stdout(line("workspace lib workspace app"));
-    // A command run in a member finds the environment its workspace shares.
     pacquet_in(&app)
         .args(["exec", "python", "-c", "import alpha, app; print(app.MARKER)"])
         .assert()
@@ -122,8 +121,6 @@ async fn members_that_cannot_be_installed_together_are_refused() {
     assert!(!root.path().join("pylock.toml").exists());
 }
 
-/// A shared environment is one thing, so selecting a member installs it
-/// whole rather than an environment holding that member alone.
 #[tokio::test]
 async fn selecting_one_member_installs_the_environment_they_share() {
     let root = tempfile::tempdir().unwrap();
