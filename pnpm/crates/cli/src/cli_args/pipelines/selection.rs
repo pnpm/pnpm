@@ -188,9 +188,6 @@ fn select_workspace_projects_with_cycles(
     )))
 }
 
-/// What the `--filter` selection resolved to: the selected projects' edges,
-/// their build order, their directories, the cycles among them, and the
-/// empty-selection failure it earns.
 struct ResolvedSelection {
     project_dependencies: IndexMap<PathBuf, Vec<PathBuf>>,
     ordered_dirs: Vec<PathBuf>,
