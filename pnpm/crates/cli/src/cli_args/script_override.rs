@@ -1,7 +1,5 @@
-//! A same-named script in the project's `package.json` takes precedence
-//! over the built-in commands pnpm documents as overridable — `clean`,
-//! `setup`, `deploy`, and `rebuild`
-//! (<https://pnpm.io/scripts#built-in-command-and-script-name-conflicts>).
+//! Script overrides for built-in commands, per
+//! <https://pnpm.io/scripts#built-in-command-and-script-conflicts>.
 //! The `pm` prefix forces the built-in command instead (see
 //! [`crate::pm_prefix`]).
 
@@ -11,7 +9,7 @@ use miette::Diagnostic;
 use pnpm_config::Config;
 use pnpm_fs::lexical_normalize;
 use pnpm_package_manifest::PackageManifest;
-use pnpm_workspace::read_project_manifest_only;
+use pnpm_workspace::safe_read_project_manifest_only;
 
 /// `pnpm <command>` was invoked from a subdirectory of a workspace whose
 /// root `package.json` declares a `<command>` script. pnpm refuses to run
@@ -46,7 +44,7 @@ pub(crate) fn resolve(
         return Ok(None);
     }
     let dir = ctx.locations.dir;
-    if overriding_script(read_project_manifest_only(dir).ok(), command_name).is_some() {
+    if overriding_script(safe_read_project_manifest_only(dir)?, command_name).is_some() {
         return Ok(Some(RunArgs {
             script: RunArgs::script(command_name, script_args),
             if_present: false,
@@ -63,22 +61,17 @@ pub(crate) fn resolve(
             },
         }));
     }
-    // Inside a workspace subdirectory, a same-named script at the workspace
-    // root must be run from the root rather than shadowed by the built-in
-    // command here.
     if let Some(workspace_dir) = config.workspace_dir.as_deref()
         && lexical_normalize(workspace_dir) != lexical_normalize(dir)
-        && overriding_script(read_project_manifest_only(workspace_dir).ok(), command_name).is_some()
+        && overriding_script(safe_read_project_manifest_only(workspace_dir)?, command_name).is_some()
     {
         return Err(ScriptOverrideInWorkspaceRoot { command: command_name.to_string() }.into());
     }
     Ok(None)
 }
 
-/// The `<command_name>` script of an optional manifest (`None` when the
-/// manifest is absent), mirroring pnpm's `safeReadProjectManifestOnly`
-/// tolerance for a missing `package.json`. An empty script body is "no
-/// script", matching pnpm's truthiness check.
+/// The `<command_name>` script of an optional manifest, mirroring pnpm's
+/// `safeReadProjectManifestOnly` tolerance for a missing `package.json`.
 fn overriding_script(manifest: Option<PackageManifest>, command_name: &str) -> Option<String> {
     manifest
         .and_then(|manifest| {

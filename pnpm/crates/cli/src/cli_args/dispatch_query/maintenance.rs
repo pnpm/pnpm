@@ -179,15 +179,14 @@ pub(in super::super) fn self_update<'a>(
 // PATH into the user's shell rc file (POSIX) or registry (Windows). It needs
 // a reporter for the "Installing pnpm CLI globally" log but no project
 // config or lockfile, so it dispatches off `ctx.locations.dir` like the other
-// reporter-typed commands. A `setup` script in the current project's
-// `package.json` overrides the built-in (the config load exists for that
-// check); `pnpm pm setup` forces the built-in.
+// reporter-typed commands.
 pub(in super::super) fn setup<'a>(
     ctx: &RunCtx<'a>,
     args: SetupArgs,
 ) -> miette::Result<CommandFuture<'a>> {
-    if let Some(run_args) =
-        script_override::resolve(ctx, (ctx.loaders.config)()?, "setup", Vec::new())?
+    if !ctx.builtin_command_forced
+        && let Some(run_args) =
+            script_override::resolve(ctx, (ctx.loaders.config)()?, "setup", Vec::new())?
     {
         return dispatch_script::run(ctx, run_args);
     }
