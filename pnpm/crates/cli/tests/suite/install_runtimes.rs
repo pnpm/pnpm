@@ -208,6 +208,41 @@ fn update_latest_keeps_runtime_dependency_on_the_runtime_resolver() {
     );
 }
 
+/// A channel-qualified `devEngines.runtime` range is a `runtime:` dependency
+/// too, so a compatible update moves it onto the resolved version and drops
+/// the channel the way the runtime resolver does.
+#[test]
+fn update_moves_a_channel_qualified_devengines_runtime_range() {
+    let root = tempfile::tempdir().unwrap();
+    let mut server = mockito::Server::new();
+    let _mocks = mock_node_releases(&mut server, &["24.0.0-rc.3", "24.0.0-rc.4"], None);
+    let workspace = prepare_workspace(
+        &root,
+        format!("nodeDownloadMirrors:\n  rc: '{}/'\n", server.url()).as_str(),
+    );
+    write_devengines_manifest(&workspace, "rc/^24.0.0-rc.3", Some("download"));
+
+    command(&workspace)
+        .with_arg("install")
+        .assert()
+        .success();
+    command(&workspace)
+        .with_arg("update")
+        .assert()
+        .success();
+
+    let manifest = fs::read_to_string(workspace.join("package.json")).unwrap();
+    assert!(
+        manifest.contains(r#""version":"^24.0.0-rc.4""#),
+        "the declared runtime range moved onto the resolved version: {manifest}",
+    );
+    let lockfile = fs::read_to_string(workspace.join("pnpm-lock.yaml")).unwrap();
+    assert!(
+        lockfile.contains("specifier: runtime:^24.0.0-rc.4"),
+        "the lockfile specifier agrees with the manifest: {lockfile}",
+    );
+}
+
 #[test]
 fn fresh_install_with_no_runtime_resolves_but_does_not_fetch_the_runtime() {
     let root = tempfile::tempdir().unwrap();
@@ -771,38 +806,58 @@ fn mock_node_release_with_auth(
     version: &str,
     authorization: Option<&str>,
 ) -> [mockito::Mock; 3] {
-    let archive_name = node_archive_name(version, host_platform(), host_arch());
-    let archive = if host_platform() == "win32" {
-        let prefix = archive_name.strip_suffix(".zip").unwrap();
-        build_zip("node", "win32", Some(prefix), true)
-    } else {
-        build_tarball("node", version, true)
-    };
-    let digest = format!("{:x}", Sha256::digest(&archive));
+    mock_node_releases(server, &[version], authorization)
+        .try_into()
+        .expect("one version serves an index, its sums and its archive")
+}
+
+/// Serve a release index listing every version, with the sums and archive of
+/// each, so a run can resolve the newest one and a later update find it.
+fn mock_node_releases(
+    server: &mut mockito::Server,
+    versions: &[&str],
+    authorization: Option<&str>,
+) -> Vec<mockito::Mock> {
+    let entries = versions
+        .iter()
+        .map(|version| format!(r#"{{"version":"v{version}","lts":false}}"#))
+        .collect::<Vec<_>>()
+        .join(",");
     let mut index = server
         .mock("GET", "/index.json")
         .with_status(200)
-        .with_body(format!(r#"[{{"version":"v{version}","lts":false}}]"#));
+        .with_body(format!("[{entries}]"));
     if let Some(authorization) = authorization {
         index = index.match_header("authorization", authorization);
     }
-    let index = index.create();
-    let mut shasums = server
-        .mock("GET", format!("/v{version}/SHASUMS256.txt").as_str())
-        .with_status(200)
-        .with_body(format!("{digest}  {archive_name}\n"));
-    if let Some(authorization) = authorization {
-        shasums = shasums.match_header("authorization", authorization);
+    let mut mocks = vec![index.create()];
+    for version in versions {
+        let archive_name = node_archive_name(version, host_platform(), host_arch());
+        let archive = if host_platform() == "win32" {
+            let prefix = archive_name.strip_suffix(".zip").unwrap();
+            build_zip("node", "win32", Some(prefix), true)
+        } else {
+            build_tarball("node", version, true)
+        };
+        let digest = format!("{:x}", Sha256::digest(&archive));
+        let mut shasums = server
+            .mock("GET", format!("/v{version}/SHASUMS256.txt").as_str())
+            .with_status(200)
+            .with_body(format!("{digest}  {archive_name}\n"));
+        if let Some(authorization) = authorization {
+            shasums = shasums.match_header("authorization", authorization);
+        }
+        mocks.push(shasums.create());
+        let mut archive_mock = server
+            .mock("GET", format!("/v{version}/{archive_name}").as_str())
+            .with_status(200)
+            .with_body(archive);
+        if let Some(authorization) = authorization {
+            archive_mock = archive_mock.match_header("authorization", authorization);
+        }
+        mocks.push(archive_mock.create());
     }
-    let shasums = shasums.create();
-    let mut archive = server
-        .mock("GET", format!("/v{version}/{archive_name}").as_str())
-        .with_status(200)
-        .with_body(archive);
-    if let Some(authorization) = authorization {
-        archive = archive.match_header("authorization", authorization);
-    }
-    [index, shasums, archive.create()]
+    mocks
 }
 
 fn command(workspace: &Path) -> Command {

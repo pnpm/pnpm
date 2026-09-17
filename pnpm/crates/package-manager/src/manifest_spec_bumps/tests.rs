@@ -125,11 +125,19 @@ fn a_runtime_declaration_that_already_names_the_version_is_left_alone() {
     assert_eq!(bump("runtime:26.8.2", "runtime:26.8.2"), None);
 }
 
-/// A release-channel specifier and a dist tag name no version of their own,
-/// so they keep the text they were declared with.
+/// A release channel in front of the range names the mirror the version comes
+/// from, so it is dropped and the range moves as it does without one. The node
+/// resolver's own save path does the same.
 #[test]
-fn a_runtime_channel_or_tag_keeps_its_text() {
-    assert_eq!(bump("runtime:rc/26.9.0", "runtime:26.9.0"), None);
+fn a_runtime_channel_is_dropped_before_the_range() {
+    assert_eq!(bump("runtime:rc/^26.8.2", "runtime:26.9.0").as_deref(), Some("runtime:^26.9.0"));
+    assert_eq!(bump("runtime:nightly/26.8.2", "runtime:26.8.2").as_deref(), Some("runtime:26.8.2"));
+}
+
+/// A dist tag names no version of its own, so it keeps the text it was
+/// declared with.
+#[test]
+fn a_runtime_tag_keeps_its_text() {
     assert_eq!(bump("runtime:latest", "runtime:26.9.0"), None);
 }
 
@@ -175,7 +183,9 @@ fn registry_aliases_split_into_the_prefix_they_keep() {
     assert_eq!(split("jsr:@scope/foo@^1.0.0"), some("jsr:@scope/foo@", "^1.0.0"));
     assert_eq!(split("jsr:@scope/foo"), some("jsr:@scope/foo@", ""));
     assert_eq!(split("runtime:^1.0.0"), some("runtime:", "^1.0.0"));
-    assert_eq!(split("runtime:rc/1.0.0"), None);
+    assert_eq!(split("runtime:rc/^1.0.0"), some("runtime:", "^1.0.0"));
+    assert_eq!(split("runtime:rc/1.0.0"), some("runtime:", "1.0.0"));
+    assert_eq!(split("runtime:latest"), None);
     assert_eq!(split("workspace:^1.0.0"), None);
     assert_eq!(split("gh:^1.0.0"), None);
 }
