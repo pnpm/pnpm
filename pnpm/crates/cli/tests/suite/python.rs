@@ -2927,8 +2927,9 @@ async fn wheel_package_import_methods_control_sharing() {
         .args(["install", "--offline", "--frozen-lockfile", "--package-import-method=auto"])
         .assert()
         .success();
-    let automatic = installed_module(root.path(), "alpha");
-    if cfg!(target_os = "linux") {
+    #[cfg(target_os = "linux")]
+    {
+        let automatic = installed_module(root.path(), "alpha");
         eprintln!("auto uses the existing hardlink-first policy on Linux");
         assert!(same_file::is_same_file(&first, &automatic).unwrap());
     }
