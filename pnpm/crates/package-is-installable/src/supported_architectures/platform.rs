@@ -133,15 +133,29 @@ impl Libc {
     }
 }
 
-/// The C library a Python wheel baseline is built against.
+/// The C library a Python wheel baseline is built against, for a value
+/// that reads as one: a family and the two numbers of a libc release.
+///
+/// Which releases were ever published is the interpreter's to know, and
+/// it reports a number outside them. That a baseline carries two numbers
+/// at all is what tells one from a typo, and catching that here is what
+/// keeps a typo a configuration error rather than something the
+/// interpreter is asked to make sense of.
 fn baseline_family(token: &str) -> Option<LibcFamily> {
-    if token.starts_with("manylinux_") {
-        Some(LibcFamily::Glibc)
-    } else if token.starts_with("musllinux_") {
-        Some(LibcFamily::Musl)
-    } else {
-        None
+    let (family, release) = token.split_once('_')?;
+    let (major, minor) = release.split_once('_')?;
+    if !is_number(major) || !is_number(minor) {
+        return None;
     }
+    match family {
+        "manylinux" => Some(LibcFamily::Glibc),
+        "musllinux" => Some(LibcFamily::Musl),
+        _ => None,
+    }
+}
+
+fn is_number(value: &str) -> bool {
+    !value.is_empty() && value.bytes().all(|byte| byte.is_ascii_digit())
 }
 
 /// How one architecture is spelled, since the three worlds a platform is

@@ -72,6 +72,33 @@ fn both_powerpc_platforms_are_one_name_to_a_package() {
     );
 }
 
+/// A baseline carries the two numbers of a libc release. Which releases
+/// exist is the interpreter's to say; that a value is not a baseline at
+/// all is a configuration error, and reads as one here.
+#[test]
+fn refuses_a_wheel_baseline_that_names_no_release() {
+    for entry in [
+        "linux-x64-manylinux",
+        "linux-x64-manylinux_2",
+        "linux-x64-manylinux_bad",
+        "linux-x64-musllinux_1_bad",
+        "linux-x64-musllinux__2",
+    ] {
+        entry.parse::<SupportedPlatform>().expect_err(entry);
+    }
+    assert_eq!(spelled("linux-x64-manylinux_2_28"), "linux-x64-manylinux_2_28");
+}
+
+/// The running platform is one platform however it is reached, so a host
+/// whose C library pnpm cannot detect still reads as the platform an
+/// explicit `linux-x64` names.
+#[test]
+fn current_is_one_platform_with_the_name_it_also_has() {
+    let listed = listed(&["current", "linux-x64"]);
+    assert_eq!(listed.platforms("linux", "x64", "unknown").len(), 1);
+    assert_eq!(named(&listed), ["linux-x64"]);
+}
+
 #[test]
 fn refuses_an_entry_that_does_not_name_a_platform() {
     for entry in ["x86_64-linux", "linux", "linux-enten", "enten-x64", "linux-x64-enten"] {

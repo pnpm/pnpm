@@ -147,7 +147,7 @@ fn reads<Value>(value: &str, current: &str, parse: impl Fn(&str) -> Option<Value
 fn host(current_os: &str, current_cpu: &str, current_libc: &str) -> Option<NamedPlatform> {
     let os = Os::parse(current_os)?;
     let architecture = Architecture::parse(current_cpu)?;
-    let libc = (os == Os::Linux).then(|| Libc::parse(current_libc)).flatten();
+    let libc = (os == Os::Linux).then(|| linux_libc(current_libc));
     Some(NamedPlatform { os, architecture, libc })
 }
 
@@ -184,15 +184,21 @@ impl ArchitectureAxes {
             .as_deref()
             .filter(|values| !values.is_empty());
         let Some(values) = values else {
-            return vec![Some(
-                Libc::parse(current_libc).unwrap_or_else(|| Libc::family(LibcFamily::Glibc)),
-            )];
+            return vec![Some(linux_libc(current_libc))];
         };
         named(Some(values), current_libc, Libc::parse)
             .into_iter()
             .map(Some)
             .collect()
     }
+}
+
+/// The C library a Linux platform is built against when its name does
+/// not say: the install's own, or glibc where it runs on neither. Both
+/// ways of naming the running platform have to reach the same answer, or
+/// two spellings of it would be two platforms.
+fn linux_libc(current_libc: &str) -> Libc {
+    Libc::parse(current_libc).unwrap_or_else(|| Libc::family(LibcFamily::Glibc))
 }
 
 /// The values one axis names, with `current` read as the install's own
