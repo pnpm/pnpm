@@ -1199,7 +1199,7 @@ export async function mutateModules (
       }
       for (const { alias, requested, kept } of supersededByKeptRange) {
         const message = readonlySpecifiers != null && Object.hasOwn(readonlySpecifiers, alias)
-          ? `Ignoring "${alias}@${requested}": "${alias}" is controlled by a package extension, readPackage hook, or override, so its specification "${kept}" was used instead.`
+          ? `Ignoring "${alias}@${requested}": "${alias}" is controlled by a package extension, readPackage hook, or override, so its specifier "${kept}" was used instead.`
           : `Ignoring "${alias}@${requested}": the manifest keeps "${kept}" when updating without saving, so "${alias}" was updated within that range instead.`
         logger.warn({
           message,
@@ -1852,7 +1852,7 @@ export type ImporterToUpdate = {
   pruneDirectDependencies: boolean
   removePackages?: string[]
   updatePackageManifest: boolean
-  wantedDependencies: Array<WantedDependency & { isNew?: boolean, updateSpec?: boolean }>
+  wantedDependencies: WantedDependency[]
 } & DependenciesMutation
 
 export interface UpdatedProject {

@@ -92,7 +92,6 @@ interface ProjectToLink {
 }
 
 export interface ImporterToResolve extends Importer<{
-  isNew?: boolean
   nodeExecPath?: string
   rangeSpecStyle?: RangeSpecStyle
   updateSpec?: boolean

@@ -107,7 +107,7 @@ test('does not add dependencies injected by a readPackage hook to the original m
 })
 
 test('adds an explicitly requested dependency to the original manifest', async () => {
-  const newWantedDependency: WantedDependency & { isNew: true } = {
+  const newWantedDependency: WantedDependency = {
     alias: 'new-dependency',
     bareSpecifier: '^1.0.0',
     dev: false,

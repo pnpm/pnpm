@@ -14,9 +14,8 @@ import { safeIsInnerLink } from './safeIsInnerLink.js'
 import { unwrapPackageName } from './unwrapPackageName.js'
 import { validatePeerDependencies } from './validatePeerDependencies.js'
 
-export interface ResolveImporter extends ImporterToResolve, ImporterToResolveGeneric<{ isNew?: boolean }> {
+export interface ResolveImporter extends ImporterToResolve, ImporterToResolveGeneric<object> {
   wantedDependencies: Array<WantedDependency & {
-    isNew?: boolean
     updateDepth: number
   }>
 }
@@ -59,7 +58,7 @@ export async function toResolveImporter (
       dep.updateSpec = true
     }
   }
-  let wantedDependencies!: Array<WantedDependency & { isNew?: boolean, updateDepth: number }>
+  let wantedDependencies!: Array<WantedDependency & { updateDepth: number }>
   if (!project.manifest) {
     wantedDependencies = [
       ...project.wantedDependencies,

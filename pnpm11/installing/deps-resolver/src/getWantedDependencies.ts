@@ -12,6 +12,7 @@ export interface WantedDependency {
   alias: string
   bareSpecifier: string // package reference
   dev: boolean
+  isNew?: boolean
   optional: boolean
   saveCatalogName?: string
   saveSpec?: boolean
