@@ -5,3 +5,45 @@ if [ -n "$CLAUDECODE" ] && [ "$(git rev-parse --abbrev-ref HEAD)" = "main" ]; th
   echo "error: Committing directly to the main branch is not allowed. Create a new branch and open a pull request instead." >&2
   exit 1
 fi
+
+# Format the Rust files being committed, with the pinned rustfmt.
+#
+# Formatting is the one Rust check that needs no compile, so it is the one
+# that belongs here; clippy and dylint stay in pre-push, where their cost is
+# paid once per push rather than once per commit. What those two find is
+# applied by `just fix` and `cargo dylint --fix`.
+staged=$(git diff --cached --name-only --diff-filter=ACM -- '*.rs')
+[ -z "$staged" ] && exit 0
+
+# A file that also has unstaged changes is left alone: formatting the working
+# tree and staging the result would commit the part of it the author held
+# back.
+unstaged=$(git diff --name-only -- '*.rs')
+formattable=
+withheld=
+for file in $staged; do
+  if printf '%s\n' "$unstaged" | grep -qxF "$file"; then
+    withheld="$withheld $file"
+  else
+    formattable="$formattable $file"
+  fi
+done
+
+if [ -n "$withheld" ]; then
+  echo "pre-commit: not formatting$withheld — each has unstaged changes too" >&2
+fi
+[ -n "$formattable" ] || exit 0
+
+# shellcheck disable=SC2086
+node pnpm/scripts/rustfmt.mjs --rustfmt --edition 2024 $formattable || exit 1
+
+reformatted=
+for file in $formattable; do
+  if ! git diff --quiet -- "$file"; then
+    git add -- "$file"
+    reformatted="$reformatted $file"
+  fi
+done
+
+[ -n "$reformatted" ] && echo "pre-commit: formatted and staged$reformatted"
+exit 0

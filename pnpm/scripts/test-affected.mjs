@@ -160,7 +160,8 @@ crate-level: a crate's whole test set runs, or none of it. When crates depend
 on what changed without being selected themselves, the smoke profile runs in
 their place, one end-to-end test per area of CLI behavior.
 
-  --base <revision>  what the diff is taken against (default: main)
+  --base <revision>  what the diff is taken against (default: origin/main,
+                     or main where no remote-tracking ref exists)
   --print            print the runs without executing them
   --no-smoke         skip the smoke run
   --help             this message
@@ -171,6 +172,7 @@ looks like: just test-affected -- -p pnpm-cli -E 'test(catalog::)'`)
   }
 
   const repo = spawnSync('git', ['rev-parse', '--show-toplevel'], { encoding: 'utf8' }).stdout.trim()
+  values.base = trackedBase(repo, values.base)
   const changed = changedFiles(repo, values.base)
   if (changed.length === 0) {
     console.log(`No files changed against ${values.base}.`)
@@ -233,6 +235,20 @@ function workspaceManifests (repo) {
     dir: path.relative(repo, path.dirname(pkg.manifest_path)).split(path.sep).join('/'),
     dependencies: [...new Set(pkg.dependencies.map(dependency => dependency.name).filter(name => names.has(name)))],
   }))
+}
+
+// A local branch is only as current as the last time someone checked it
+// out, and `main` usually lives in another worktree here, so it lags. Every
+// commit it lags by is read as a change of this branch: the crates someone
+// else touched get tested, and a file every crate compiles against, landing
+// upstream, makes the whole run refuse to scope. The remote-tracking ref
+// says what the branch actually is, so prefer it where one exists.
+function trackedBase (repo, base) {
+  if (base.includes('/')) return base
+  const remote = run(repo, 'git', ['rev-parse', '--verify', '--quiet', `refs/remotes/origin/${base}`], {
+    allowFailure: true,
+  }).trim()
+  return remote === '' ? base : `origin/${base}`
 }
 
 function changedFiles (repo, base) {
