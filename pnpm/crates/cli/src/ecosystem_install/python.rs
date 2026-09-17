@@ -14,15 +14,15 @@ use std::{
 };
 
 /// Every Python project in the workspace, read once for both the selection
-/// and the install. A `requirements.txt` beside a `pyproject.toml` is that
-/// project's own file, so only a directory without one is a project of its
-/// own.
+/// and the install.
 pub(crate) async fn discover(
     config: &'static Config,
     inventory: &EcosystemWorkspaceInventory,
 ) -> Result<Discovery> {
     let mut manifests = inventory.manifests(EcosystemManifest::Python).await?.to_vec();
     for path in inventory.manifests(EcosystemManifest::Requirements).await? {
+        // A `requirements.txt` beside a `pyproject.toml` is that project's
+        // own file, so only a directory without one is a project of its own.
         if !manifests.contains(&path.with_file_name("pyproject.toml")) {
             manifests.push(path.clone());
         }
