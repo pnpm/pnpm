@@ -760,6 +760,34 @@ fn parses_ecosystem_overrides_and_applies_python_rules() {
     assert_eq!(config.python.overrides, ["requests>=2,<3"]);
 }
 
+#[test]
+fn python_settings_layer_preserves_shared_pypi_overrides() {
+    let mut config = Config::new();
+    serde_saphyr::from_str::<WorkspaceSettings>("overrides:\n  pypi:\n    - 'requests>=2,<3'\n")
+        .unwrap()
+        .apply_to(&mut config, Path::new("/irrelevant"));
+    serde_saphyr::from_str::<WorkspaceSettings>("python:\n  enabled: true\n")
+        .unwrap()
+        .apply_to(&mut config, Path::new("/irrelevant"));
+    assert_eq!(config.python.overrides, ["requests>=2,<3"]);
+}
+
+#[test]
+fn resolved_settings_include_pypi_overrides() {
+    let mut config = Config::new();
+    serde_saphyr::from_str::<WorkspaceSettings>("overrides:\n  pypi:\n    - 'requests>=2,<3'\n")
+        .unwrap()
+        .apply_to(&mut config, Path::new("/irrelevant"));
+    let resolved = WorkspaceSettings::from_resolved(&config);
+    assert_eq!(
+        resolved.overrides
+            .as_ref()
+            .unwrap()
+            .pypi(),
+        ["requests>=2,<3"],
+    );
+}
+
 /// An empty `overrides:` map collapses to `None` on `Config`, matching
 /// upstream's `delete settings.overrides` short-circuit in
 /// `getOptionsFromPnpmSettings`. Without this collapse, an empty
