@@ -209,8 +209,9 @@ fn update_latest_keeps_runtime_dependency_on_the_runtime_resolver() {
 }
 
 /// A channel-qualified `devEngines.runtime` range is a `runtime:` dependency
-/// too, so a compatible update moves it onto the resolved version and drops
-/// the channel the way the runtime resolver does.
+/// too, so a compatible update moves it onto the resolved version. The pick is
+/// a prerelease, which the runtime resolver pins exactly, so the declaration
+/// keeps the rc channel `parse_node_specifier` reads back out of the version.
 #[test]
 fn update_moves_a_channel_qualified_devengines_runtime_range() {
     let root = tempfile::tempdir().unwrap();
@@ -233,12 +234,12 @@ fn update_moves_a_channel_qualified_devengines_runtime_range() {
 
     let manifest = fs::read_to_string(workspace.join("package.json")).unwrap();
     assert!(
-        manifest.contains(r#""version":"^24.0.0-rc.4""#),
+        manifest.contains(r#""version":"24.0.0-rc.4""#),
         "the declared runtime range moved onto the resolved version: {manifest}",
     );
     let lockfile = fs::read_to_string(workspace.join("pnpm-lock.yaml")).unwrap();
     assert!(
-        lockfile.contains("specifier: runtime:^24.0.0-rc.4"),
+        lockfile.contains("specifier: runtime:24.0.0-rc.4"),
         "the lockfile specifier agrees with the manifest: {lockfile}",
     );
 }

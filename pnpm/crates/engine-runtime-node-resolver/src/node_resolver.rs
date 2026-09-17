@@ -430,7 +430,19 @@ fn bare_runtime_spec<'a>(wanted: &'a WantedDependency, expected_alias: &str) -> 
         .and_then(|spec| spec.strip_prefix(BARE_SPEC_PREFIX))
 }
 
-fn normalize_node_runtime_version_specifier(
+/// The selector a `runtime:` declaration saves for `resolved_version`.
+///
+/// A stable pick keeps the `^`/`~` operator the previous specifier (or the
+/// requested one) pins. A prerelease is pinned exactly, which is what keeps the
+/// release channel it came from: `parse_node_specifier` reads that channel back
+/// out of an `X.Y.Z-<channel>...` version. A release channel written in front
+/// of the selector is not part of what gets saved.
+///
+/// This is the same normalization [`Resolver::resolve`] reports through
+/// `normalized_bare_specifier`, computed without fetching the platform asset
+/// list.
+#[must_use]
+pub fn normalize_node_runtime_version_specifier(
     version_spec: &str,
     resolved_version: &str,
     prev_specifier: Option<&str>,

@@ -3,6 +3,7 @@
 use crate::{OverriddenDependencyMatcher, VersionsOverrider};
 use node_semver::Range;
 use pnpm_catalogs_protocol_parser::parse_catalog_protocol;
+use pnpm_engine_runtime_node_resolver::normalize_node_runtime_version_specifier;
 use pnpm_lockfile::{
     ImporterDepVersion, Lockfile, PkgName, ProjectSnapshot, ResolvedDependencyMap,
     ResolvedDependencySpec,
@@ -305,6 +306,28 @@ fn bumped_range(
     version: &ImporterDepVersion,
     default_style: RangeSpecStyle,
 ) -> Option<String> {
+    let resolved = match version {
+        ImporterDepVersion::Regular(version) => version.version_semver()?,
+        ImporterDepVersion::Alias(alias) => alias.suffix.version_semver()?,
+        // A link or an injected directory has no version to pin.
+        ImporterDepVersion::Link(_) | ImporterDepVersion::File(_) => return None,
+    };
+    // A `runtime:` declaration is a reified `devEngines.runtime` /
+    // `engines.runtime` entry, and the node resolver owns how its specifier is
+    // written back: a stable pick keeps the declared operator, a prerelease is
+    // pinned exactly so the release channel it came from survives. `add` and
+    // `--latest` save through that same rule.
+    if let Some(version_spec) = declared.strip_prefix("runtime:") {
+        let bumped = format!(
+            "runtime:{}",
+            normalize_node_runtime_version_specifier(
+                version_spec,
+                &resolved.to_string(),
+                Some(declared),
+            ),
+        );
+        return (bumped != declared).then_some(bumped);
+    }
     let (prefix, declared_range) = split_registry_alias(declared)?;
     // A dist-tag names no version of its own, so the version behind it
     // moving leaves the declaration saying exactly what was asked for. A
@@ -315,36 +338,19 @@ fn bumped_range(
     {
         return None;
     }
-    let resolved = match version {
-        ImporterDepVersion::Regular(version) => version.version_semver()?,
-        ImporterDepVersion::Alias(alias) => alias.suffix.version_semver()?,
-        // A link or an injected directory has no version to pin.
-        ImporterDepVersion::Link(_) | ImporterDepVersion::File(_) => return None,
-    };
     let range =
         calc_version_range(resolved, infer_range_spec_style(declared_range), None, default_style);
     let bumped = format!("{prefix}{range}");
     (bumped != declared).then_some(bumped)
 }
 
-/// A declared specifier split into the `npm:<name>@`, `jsr:<name>@` or
-/// `runtime:` prefix it keeps and the range behind it. A declaration naming
-/// only the package (`jsr:@scope/pkg`, `npm:foo`) keeps the whole name as its
-/// prefix and declares an empty range. A `runtime:` release channel is not
-/// part of the range and is dropped. `None` for any other protocol — a
+/// A declared specifier split into the `npm:<name>@` or `jsr:<name>@`
+/// prefix it keeps and the range behind it. A declaration naming only the
+/// package (`jsr:@scope/pkg`, `npm:foo`) keeps the whole name as its prefix
+/// and declares an empty range. `None` for any other protocol — a
 /// `workspace:`, `link:`, `file:`, git, tarball or named-registry
 /// dependency declares no registry range to move.
 pub(crate) fn split_registry_alias(declared: &str) -> Option<(Cow<'_, str>, &str)> {
-    // A `runtime:` declaration is a reified `devEngines.runtime` /
-    // `engines.runtime` entry. Its range moves like a registry one, and a
-    // release channel in front of it (`rc/^22`) is dropped the way the node
-    // resolver drops it when it saves a picked version.
-    if let Some(body) = declared.strip_prefix("runtime:") {
-        let range = body.split_once('/').map_or(body, |(_, range)| range);
-        if range.parse::<Range>().is_ok() {
-            return Some((Cow::Borrowed("runtime:"), range));
-        }
-    }
     let Some((protocol, rest)) = ["npm:", "jsr:"]
         .into_iter()
         .find_map(|protocol| {

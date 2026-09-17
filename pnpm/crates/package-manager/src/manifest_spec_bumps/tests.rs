@@ -126,19 +126,23 @@ fn a_runtime_declaration_that_already_names_the_version_is_left_alone() {
 }
 
 /// A release channel in front of the range names the mirror the version comes
-/// from, so it is dropped and the range moves as it does without one. The node
-/// resolver's own save path does the same.
+/// from, so it is not part of what gets saved. A prerelease is pinned exactly
+/// instead, which is what keeps that channel: the resolver reads it back out of
+/// the `X.Y.Z-<channel>...` version.
 #[test]
-fn a_runtime_channel_is_dropped_before_the_range() {
+fn a_runtime_channel_is_dropped_unless_the_pick_is_a_prerelease() {
     assert_eq!(bump("runtime:rc/^26.8.2", "runtime:26.9.0").as_deref(), Some("runtime:^26.9.0"));
-    assert_eq!(bump("runtime:nightly/26.8.2", "runtime:26.8.2").as_deref(), Some("runtime:26.8.2"));
+    assert_eq!(
+        bump("runtime:rc/^24.0.0-rc.3", "runtime:24.0.0-rc.4").as_deref(),
+        Some("runtime:24.0.0-rc.4"),
+    );
 }
 
-/// A dist tag names no version of its own, so it keeps the text it was
-/// declared with.
+/// The node resolver has no notion of a dist tag behind a `runtime:` specifier,
+/// so a tag is pinned to the version it resolved, the way `add` saves it.
 #[test]
-fn a_runtime_tag_keeps_its_text() {
-    assert_eq!(bump("runtime:latest", "runtime:26.9.0"), None);
+fn a_runtime_tag_is_pinned_to_the_pick() {
+    assert_eq!(bump("runtime:latest", "runtime:26.9.0").as_deref(), Some("runtime:26.9.0"));
 }
 
 #[test]
@@ -182,10 +186,6 @@ fn registry_aliases_split_into_the_prefix_they_keep() {
     assert_eq!(split("jsr:^1.0.0"), some("jsr:", "^1.0.0"));
     assert_eq!(split("jsr:@scope/foo@^1.0.0"), some("jsr:@scope/foo@", "^1.0.0"));
     assert_eq!(split("jsr:@scope/foo"), some("jsr:@scope/foo@", ""));
-    assert_eq!(split("runtime:^1.0.0"), some("runtime:", "^1.0.0"));
-    assert_eq!(split("runtime:rc/^1.0.0"), some("runtime:", "^1.0.0"));
-    assert_eq!(split("runtime:rc/1.0.0"), some("runtime:", "1.0.0"));
-    assert_eq!(split("runtime:latest"), None);
     assert_eq!(split("workspace:^1.0.0"), None);
     assert_eq!(split("gh:^1.0.0"), None);
 }

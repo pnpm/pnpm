@@ -167,6 +167,31 @@ fn a_requested_version_is_recorded_under_the_declared_operator() {
     assert_eq!(requested_version_rewrite("next", "^100.0.0", RangeSpecStyle::Major), "next");
 }
 
+/// A `runtime:` declaration is written back by the node resolver's own rule: a
+/// stable version keeps the declared operator, a prerelease is pinned exactly
+/// so the channel it came from survives, and an unknown channel is left for the
+/// resolver to reject rather than rewritten into a different one.
+#[test]
+fn a_requested_version_on_a_runtime_declaration_uses_the_runtime_rule() {
+    use pnpm_registry::RangeSpecStyle;
+
+    for (previous, expected) in [
+        ("runtime:^26.8.2", "runtime:^26.9.0"),
+        ("runtime:26.8.2", "runtime:26.9.0"),
+        ("runtime:unknown/^26.8.2", "runtime:unknown/^26.8.2"),
+    ] {
+        assert_eq!(
+            requested_version_rewrite("26.9.0", previous, RangeSpecStyle::Major),
+            expected,
+            "rewrite over {previous}",
+        );
+    }
+    assert_eq!(
+        requested_version_rewrite("24.0.0-rc.4", "runtime:rc/^24.0.0-rc.3", RangeSpecStyle::Major),
+        "runtime:24.0.0-rc.4",
+    );
+}
+
 #[test]
 fn workspace_local_path_specifiers_are_detected() {
     for spec in [

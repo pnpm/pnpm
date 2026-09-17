@@ -6,6 +6,9 @@ use super::{
 };
 use crate::{manifest_spec_bumps::split_registry_alias, package_manifest_prefix};
 use node_semver::Version;
+use pnpm_engine_runtime_node_resolver::{
+    normalize_node_runtime_version_specifier, parse_node_specifier,
+};
 use pnpm_lockfile_preferred_versions::get_version_selector_type;
 use pnpm_package_manifest::DependencyGroup;
 use pnpm_registry::RangeSpecStyle;
@@ -151,6 +154,19 @@ pub(super) fn requested_version_rewrite(
     let Ok(version) = Version::parse(requested) else {
         return requested.to_string();
     };
+    // The node resolver owns how a `runtime:` declaration is written back: a
+    // concrete version is pinned exactly, which is what keeps the release
+    // channel a prerelease came from. An unknown release channel is left for
+    // the resolver to reject rather than rewritten into a different one.
+    if let Some(version_spec) = previous.strip_prefix("runtime:") {
+        if parse_node_specifier(version_spec).is_err() {
+            return previous.to_string();
+        }
+        return format!(
+            "runtime:{}",
+            normalize_node_runtime_version_specifier(version_spec, requested, Some(previous)),
+        );
+    }
     let Some((prefix, declared_range)) = split_registry_alias(previous) else {
         return requested.to_string();
     };
