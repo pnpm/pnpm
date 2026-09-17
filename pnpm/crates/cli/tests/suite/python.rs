@@ -2027,7 +2027,7 @@ async fn build_backend_writes_do_not_modify_shared_wheel_files() {
     let mut server = mockito::Server::new_async().await;
     let _alpha = serve(&mut server, "alpha", &[("1.0", wheel("alpha", "1.0", "", &[]))]).await;
     let backend = format!(
-        "{TINY_BACKEND}\nimport alpha\nfrom pathlib import Path\np = Path(alpha.__file__)\nstat = p.stat()\np.write_text(\"VERSION = 'modified by backend'\\n\")\nPath('backend-mutation').write_text(p.read_text())\nos.utime(p, ns=(stat.st_atime_ns, stat.st_mtime_ns))\n"
+        "{TINY_BACKEND}\nimport alpha\nfrom pathlib import Path\np = Path(alpha.__file__)\nstat = p.stat()\np.write_text(\"VERSION = 'modified by backend'\\n\")\nPath('backend-mutation').write_text(p.read_text())\nos.utime(p, ns=(stat.st_atime_ns, stat.st_mtime_ns))\n",
     );
     let _backend = serve(
         &mut server,
@@ -2057,7 +2057,7 @@ async fn build_backend_writes_do_not_modify_shared_wheel_files() {
             .success();
         assert_eq!(
             fs::read_to_string(root.path().join("backend-mutation")).unwrap(),
-            "VERSION = 'modified by backend'\n"
+            "VERSION = 'modified by backend'\n",
         );
         python(root.path())
             .args(["-c", "import alpha; assert alpha.VERSION == '1.0', alpha.VERSION"])
