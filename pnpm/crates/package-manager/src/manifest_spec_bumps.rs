@@ -3,7 +3,9 @@
 use crate::{OverriddenDependencyMatcher, VersionsOverrider};
 use node_semver::Range;
 use pnpm_catalogs_protocol_parser::parse_catalog_protocol;
-use pnpm_engine_runtime_node_resolver::normalize_node_runtime_version_specifier;
+use pnpm_engine_runtime_node_resolver::{
+    normalize_node_runtime_version_specifier, parse_node_specifier,
+};
 use pnpm_lockfile::{
     ImporterDepVersion, Lockfile, PkgName, ProjectSnapshot, ResolvedDependencyMap,
     ResolvedDependencySpec,
@@ -318,6 +320,11 @@ fn bumped_range(
     // pinned exactly so the release channel it came from survives. `add` and
     // `--latest` save through that same rule.
     if let Some(version_spec) = declared.strip_prefix("runtime:") {
+        // A declaration naming an unknown release channel is left for the
+        // resolver to reject instead of being rewritten without it.
+        if parse_node_specifier(version_spec).is_err() {
+            return None;
+        }
         let bumped = format!(
             "runtime:{}",
             normalize_node_runtime_version_specifier(

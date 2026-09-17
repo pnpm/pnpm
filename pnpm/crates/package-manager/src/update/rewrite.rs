@@ -151,22 +151,31 @@ pub(super) fn requested_version_rewrite(
     previous: &str,
     default_style: RangeSpecStyle,
 ) -> String {
-    let Ok(version) = Version::parse(requested) else {
-        return requested.to_string();
-    };
-    // The node resolver owns how a `runtime:` declaration is written back: a
-    // concrete version is pinned exactly, which is what keeps the release
-    // channel a prerelease came from. An unknown release channel is left for
-    // the resolver to reject rather than rewritten into a different one.
+    // A `runtime:` declaration keeps its protocol whatever the selector is.
+    // Rewriting it without the prefix would hand the entry to the npm resolver
+    // and drop it out of `devEngines.runtime`. An unknown release channel is
+    // left for the resolver to reject.
     if let Some(version_spec) = previous.strip_prefix("runtime:") {
         if parse_node_specifier(version_spec).is_err() {
             return previous.to_string();
         }
+        // A concrete version is pinned exactly by the node resolver's rule,
+        // which is what keeps the release channel a prerelease came from.
+        let Ok(version) = Version::parse(requested) else {
+            return format!("runtime:{requested}");
+        };
         return format!(
             "runtime:{}",
-            normalize_node_runtime_version_specifier(version_spec, requested, Some(previous)),
+            normalize_node_runtime_version_specifier(
+                version_spec,
+                &version.to_string(),
+                Some(previous),
+            ),
         );
     }
+    let Ok(version) = Version::parse(requested) else {
+        return requested.to_string();
+    };
     let Some((prefix, declared_range)) = split_registry_alias(previous) else {
         return requested.to_string();
     };

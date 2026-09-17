@@ -190,6 +190,10 @@ fn a_requested_version_on_a_runtime_declaration_uses_the_runtime_rule() {
         requested_version_rewrite("24.0.0-rc.4", "runtime:rc/^24.0.0-rc.3", RangeSpecStyle::Major),
         "runtime:24.0.0-rc.4",
     );
+    assert_eq!(
+        requested_version_rewrite("^26", "runtime:^26.8.2", RangeSpecStyle::Major),
+        "runtime:^26",
+    );
 }
 
 #[test]

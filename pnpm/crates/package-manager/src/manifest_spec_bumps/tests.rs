@@ -142,6 +142,13 @@ fn a_runtime_tag_is_pinned_to_the_pick() {
     assert_eq!(bump("runtime:latest", "runtime:26.9.0").as_deref(), Some("runtime:26.9.0"));
 }
 
+/// The resolver rejects a release channel it does not know, so a rewrite leaves
+/// the declaration alone rather than turning it into a different one.
+#[test]
+fn a_runtime_declaration_with_an_unknown_channel_is_left_alone() {
+    assert_eq!(bump("runtime:unknown/^26.8.2", "runtime:26.9.0"), None);
+}
+
 #[test]
 fn declarations_of_other_protocols_are_left_alone() {
     for declared in [
