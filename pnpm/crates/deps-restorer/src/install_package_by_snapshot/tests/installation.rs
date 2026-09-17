@@ -503,8 +503,8 @@ async fn an_unpinned_delegate_to_a_directory_keeps_its_resolution() {
         path: None,
     });
 
-    let resolution = session
-        .resolve_tarball_integrity::<pnpm_reporter::SilentReporter>(
+    let metadata = session
+        .resolve_tarball_metadata::<pnpm_reporter::SilentReporter>(
             pnpm_tarball::IngestTarballToStore {
                 fetching: pnpm_tarball::ArchiveFetchOptions {
                     http_client: &pnpm_network::ThrottledClient::default(),
@@ -544,6 +544,7 @@ async fn an_unpinned_delegate_to_a_directory_keeps_its_resolution() {
         .await
         .expect("a digest-less delegate is not an integrity failure");
 
+    let resolution = metadata.resolution;
     assert!(
         matches!(resolution, LockfileResolution::Tarball(ref tarball) if tarball.integrity.is_none()),
         "the unpinned resolution is recorded unchanged: {resolution:?}",

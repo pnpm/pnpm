@@ -44,7 +44,7 @@ pub use create_symlink_layout::*;
 pub use create_virtual_dir_by_snapshot::*;
 pub use create_virtual_store::*;
 pub use current_lockfile::*;
-pub use custom_fetcher::CustomFetcherSession;
+pub use custom_fetcher::{CustomFetcherSession, ResolvedTarballMetadata};
 pub use deps_graph::*;
 pub use dir_clone_cache::*;
 pub use frozen_install_options::{

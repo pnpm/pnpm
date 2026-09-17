@@ -130,6 +130,9 @@ fn resolver_with_prefetch(
     let mut config = Config::new();
     config.store_dir = dir.join("store").into();
     config.cache_dir = dir.join("cache");
+    // A test that drives the fetch to a failure should report it, not
+    // spend a minute backing off from a mock server.
+    config.fetch_retries = 0;
     let config = Box::leak(Box::new(config));
     let http_client = Arc::new(ThrottledClient::default());
     let mem_cache = Arc::new(MemCache::default());
@@ -404,4 +407,133 @@ async fn claims_the_background_download_with_prefetching_on() {
         .expect("resolver returns a result");
 
     assert!(resolver.spawned_urls.contains(tarball_url), "the download must be claimed");
+}
+
+fn tarball_with_a_dependency(name: &str) -> Vec<u8> {
+    let manifest = serde_json::json!({
+        "name": name,
+        "version": "1.0.0",
+        "dependencies": { "ms": "2.1.2" },
+    })
+    .to_string();
+    let manifest = manifest.as_bytes();
+
+    let mut builder = tar::Builder::new(Vec::new());
+    let mut header = tar::Header::new_gnu();
+    header.set_path("package/package.json").expect("set tar entry path");
+    header.set_size(manifest.len() as u64);
+    header.set_mode(0o644);
+    header.set_cksum();
+    builder.append(&header, manifest).expect("append package.json to tar");
+    let tar_bytes = builder.into_inner().expect("finish tar");
+
+    let mut encoder = flate2::write::GzEncoder::new(Vec::new(), flate2::Compression::default());
+    encoder.write_all(&tar_bytes).expect("gzip tar");
+    encoder.finish().expect("finish gzip")
+}
+
+fn manifestless_tarball_result(tarball_url: &str, integrity: &str) -> ResolveResult {
+    let mut result = result_without_manifest("pinned");
+    result.resolution = LockfileResolution::Tarball(TarballResolution {
+        integrity: Some(integrity.parse().expect("parse integrity")),
+        tarball: tarball_url.to_string(),
+        revision: None,
+        git_hosted: None,
+        path: None,
+    });
+    result
+}
+
+/// <https://github.com/pnpm/pnpm/issues/15000>
+#[tokio::test]
+async fn reads_the_manifest_of_a_pinned_tarball_the_resolver_left_without_one() {
+    let dir = tempdir().unwrap();
+    let mut server = mockito::Server::new_async().await;
+    let tarball_path = "/pinned-1.0.0.tgz";
+    let body = tarball_with_a_dependency("pinned");
+    let integrity = ssri::IntegrityOpts::new()
+        .algorithm(ssri::Algorithm::Sha512)
+        .chain(&body)
+        .result()
+        .to_string();
+    let get_mock = server
+        .mock("GET", tarball_path)
+        .with_status(200)
+        .with_body(body)
+        .expect(1)
+        .create_async()
+        .await;
+    let result =
+        manifestless_tarball_result(&format!("{}{tarball_path}", server.url()), &integrity);
+    let resolver = resolver_with_prefetch(dir.path(), Box::new(FixedResolver { result }), false);
+
+    let resolved = resolver
+        .resolve(&WantedDependency::default(), &ResolveOptions::default())
+        .await
+        .expect("resolve succeeds")
+        .expect("resolver returns a result");
+
+    let manifest = resolved.package.manifest.expect("the bundled manifest fills the gap");
+    assert_eq!(dbg!(&manifest)["dependencies"]["ms"], json!("2.1.2"));
+    get_mock.assert_async().await;
+    // The mem cache is keyed by URL alone and the install pass takes what it
+    // finds there unchecked, so a read of an already-pinned tarball must not
+    // publish into it: another edge pinning the same URL differently would be
+    // handed these bytes.
+    assert!(resolver.ctx.mem_cache.is_empty(), "a pinned read publishes no extraction");
+    assert!(resolver.spawned_urls.is_empty(), "and claims no URL from the prefetch path");
+}
+
+#[tokio::test]
+async fn refuses_a_manifest_read_from_a_tarball_that_fails_its_integrity() {
+    let dir = tempdir().unwrap();
+    let mut server = mockito::Server::new_async().await;
+    let tarball_path = "/tampered-1.0.0.tgz";
+    let get_mock = server
+        .mock("GET", tarball_path)
+        .with_status(200)
+        .with_body(tarball_with_a_dependency("tampered"))
+        .create_async()
+        .await;
+    let result = manifestless_tarball_result(
+        &format!("{}{tarball_path}", server.url()),
+        "sha512-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==",
+    );
+    let resolver = resolver_with_prefetch(dir.path(), Box::new(FixedResolver { result }), false);
+
+    let error = resolver
+        .resolve(&WantedDependency::default(), &ResolveOptions::default())
+        .await
+        .expect_err("a tarball that fails its pinned hash must not supply a manifest");
+
+    assert!(dbg!(error.to_string()).contains("Integrity check failed"), "got: {error}");
+    get_mock.assert_async().await;
+}
+
+/// A tarball URL may itself end in `:sha512-…`, so concatenating a URL and
+/// an integrity is not enough to tell a pinned read from an unpinned one.
+#[tokio::test]
+async fn a_url_spelling_another_url_and_its_integrity_gets_its_own_cache_cell() {
+    let dir = tempdir().unwrap();
+    let integrity = "sha512-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==";
+    let pinned = manifestless_tarball_result("https://registry.example/x.tgz", integrity);
+    let mut unpinned = result_without_manifest("collider");
+    unpinned.resolution = LockfileResolution::Tarball(TarballResolution {
+        integrity: None,
+        tarball: format!("https://registry.example/x.tgz:{integrity}"),
+        revision: None,
+        git_hosted: None,
+        path: None,
+    });
+    let resolver =
+        resolver_with_prefetch(dir.path(), Box::new(DefaultResolver::new(Vec::new())), false);
+
+    let key = |result: &ResolveResult| {
+        let LockfileResolution::Tarball(tarball) = &result.resolution else {
+            panic!("expected tarball resolution");
+        };
+        resolver.tarball_metadata_cache_key(result, tarball, "collider@1.0.0").expect("build key")
+    };
+
+    assert_ne!(dbg!(key(&pinned)), dbg!(key(&unpinned)));
 }
