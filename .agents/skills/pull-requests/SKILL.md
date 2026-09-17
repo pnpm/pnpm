@@ -125,7 +125,7 @@ check it each time round the loop: `gh pr view <pr> --json mergeable,mergeStateS
 is what you see right after a push, so ask again rather than reading it as a
 verdict. `BLOCKED` is about required checks and reviews, not conflicts.
 
-Rebase with `./shell/resolve-pr-conflicts.sh <pr>` (documented under "Resolving
+Rebase with `./.agents/skills/pull-requests/scripts/resolve-pr-conflicts.sh <pr>` (documented under "Resolving
 Conflicts in GitHub PRs" in `AGENTS.md`); it resolves a `pnpm-lock.yaml` conflict
 by reinstalling and stops with the file list when a conflict needs you.
 
