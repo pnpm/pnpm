@@ -57,11 +57,13 @@ impl Registry<'_> {
             contract: Contract::Interpreter,
         }))
         .await?;
-        let build::Build::Made(mut built) = built else {
-            bail!(
-                "the build requirements of the Python source distribution of {name} are not \
-                 approved under allowBuilds",
-            );
+        let mut built = match built {
+            build::Build::Made(built) => built,
+            build::Build::NotApproved(names) => bail!(
+                "building the Python source distribution of {name} needs approved build \
+                 requirements: {}. Add them under allowBuilds in pnpm-workspace.yaml.",
+                names.join(", "),
+            ),
         };
         self.check_source_wheel(&built.wheel, name, version)?;
         check_identity(&built.wheel.metadata, name, version, &sdist)?;
@@ -73,15 +75,20 @@ impl Registry<'_> {
         Ok(())
     }
 
-    /// Refuse a source distribution pnpm will not build: one nothing has
-    /// approved to run, and one a project needs for an environment other
-    /// than the one running the install.
+    /// Refuse a source distribution pnpm will not build: one served from
+    /// somewhere a Python artifact may not be fetched from, one nothing
+    /// has approved to run, and one a project needs for an environment
+    /// other than the one running the install.
     fn check_buildable(
         &self,
         name: &PackageName,
         version: &Version,
         sdist: &LockedSdist,
     ) -> Result<()> {
+        // The store fetches a `file:` URL from the filesystem, so the
+        // scheme decides whether a build reads this machine rather than
+        // the index.
+        pnpm_python_resolver::validate_url(&sdist.url.parse().into_diagnostic()?)?;
         if self.resolution.target != self.interpreter.target {
             bail!(
                 "the Python release {name}=={version} publishes no wheel for every environment \

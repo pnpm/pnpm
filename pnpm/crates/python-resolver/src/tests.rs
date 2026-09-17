@@ -1,6 +1,6 @@
 use crate::{
     candidates::{candidates_from_page, source_version, wheel_identity},
-    lockfile::{Inputs, Lockfile, Metadata, Solved, Target},
+    lockfile::{Inputs, LockedSdist, Lockfile, Metadata, Solved, Target},
     metadata::WheelMetadata,
     packages::{Excluded, Packages},
     resolve::{Step, step},
@@ -1089,17 +1089,13 @@ fn a_lockfile_pins_the_source_distribution_a_release_is_built_from() {
     else {
         panic!("the source distribution is the only candidate the project needs");
     };
-    let inputs = Inputs::new(&requirements, &target, index_url().as_str());
-    let lockfile = Lockfile::new(
-        &packages,
-        &target,
-        &requirements,
-        solution,
-        Inputs::new(&requirements, &target, index_url().as_str()),
-        None,
-    )
-    .expect("lockfile builds");
+    let inputs = || Inputs::new(&requirements, &target, index_url().as_str());
+    let locked = || {
+        Lockfile::new(&packages, &target, &requirements, solution.clone(), inputs(), None)
+            .expect("lockfile builds")
+    };
 
+    let lockfile = locked();
     let [package] = lockfile.packages.as_slice() else { panic!("one package was solved") };
     assert!(package.wheels.is_empty());
     assert_eq!(
@@ -1107,7 +1103,9 @@ fn a_lockfile_pins_the_source_distribution_a_release_is_built_from() {
         "demo-1.0.0.tar.gz",
     );
 
-    lockfile.applies_to(&inputs, None, &target).expect("the lockfile applies to this target");
+    lockfile
+        .applies_to(&inputs(), None, &target)
+        .expect("the lockfile applies to this target");
     let mut seeded = Packages::new();
     lockfile.seed(&mut seeded, &target).expect("the lockfile seeds its own candidates");
     assert_eq!(
@@ -1117,4 +1115,22 @@ fn a_lockfile_pins_the_source_distribution_a_release_is_built_from() {
             .name,
         "demo-1.0.0.tar.gz",
     );
+
+    // A lockfile is untrusted input, and the store fetches a `file:` URL
+    // from this machine rather than from the index.
+    for tamper in [
+        |sdist: &mut LockedSdist| sdist.url = "file:///etc/shadow".to_string(),
+        |sdist: &mut LockedSdist| sdist.name = "other-1.0.0.tar.gz".to_string(),
+        |sdist: &mut LockedSdist| sdist.name = "demo-2.0.0.tar.gz".to_string(),
+    ] {
+        let mut tampered = locked();
+        tamper(
+            tampered.packages[0].sdist.as_mut().expect("the release pins its source distribution"),
+        );
+        let error = tampered
+            .applies_to(&inputs(), None, &target)
+            .expect_err("a lockfile pointing the archive elsewhere is refused");
+        dbg!(&error);
+        assert!(error.to_string().contains("Python"), "{error}");
+    }
 }

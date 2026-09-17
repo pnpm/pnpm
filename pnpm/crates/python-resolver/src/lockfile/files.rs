@@ -74,10 +74,12 @@ impl LockedSdist {
     }
 
     /// Refuse an archive that is not a source distribution of
-    /// `name==version`: what a lockfile pins under a package has to be
-    /// that package, and a build reads its identity from the archive's
-    /// own name before running anything in it.
+    /// `name==version` served over HTTP(S): what a lockfile pins under a
+    /// package has to be that package, fetched the way every other
+    /// Python artifact is, and a build reads its identity from the
+    /// archive's own name before running anything in it.
     pub fn check_published(&self, name: &PackageName, version: &Version) -> Result<()> {
+        crate::validate_url(&self.url.parse().into_diagnostic()?)?;
         self.integrity()?;
         let carried = source_version(&self.name, name)?
             .ok_or_else(|| {

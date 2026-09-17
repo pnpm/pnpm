@@ -165,6 +165,7 @@ impl PythonPrepare<'_> {
             message: format!("Ignoring Python lockfile {}: {error}", lock_path.display()),
         }));
         registry.resolution.packages.candidates.clear();
+        registry.resolution.packages.excluded.clear();
         registry.resolution.packages.metadata.clear();
         registry.resolution.packages.direct_urls.clear();
         registry.resolution.packages.rejected_sources.clear();
