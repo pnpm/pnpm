@@ -167,14 +167,17 @@ fn read_file(file: IndexFile, page_url: &Url, name: &PackageName, target: &Targe
     else {
         return Read::Ignored;
     };
-    let Some(rank) = published.rank else {
-        return Read::Excluded(published.version, Exclusion::OtherTarget);
-    };
+    // Asked before the tags, so a file this target is outside the
+    // interpreter range of is reported as that rather than as one more
+    // wheel for another machine.
     if let Some(specifiers) = file.requires_python.as_deref().and_then(declared_range)
         && !specifiers.contains(target.environment.python_full_version())
     {
         return Read::Excluded(published.version, Exclusion::OtherInterpreter);
     }
+    let Some(rank) = published.rank else {
+        return Read::Excluded(published.version, Exclusion::OtherTarget);
+    };
     let Some(url) = usable(&file.filename, page_url.join(&file.url).into_diagnostic()) else {
         return Read::Ignored;
     };

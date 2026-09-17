@@ -1,17 +1,19 @@
 use super::{
-    BTreeMap, Candidate, Cursor, MAX_METADATA_BYTES, Target, WheelMetadata, candidates_from_page,
+    BTreeMap, Cursor, MAX_METADATA_BYTES, Offered, Target, WheelMetadata, candidates_from_page,
 };
 use std::io::Read;
 
-/// The candidates a project page offers, refusing a page that is not one.
+/// What a project page offers, refusing a page that is not one. The
+/// releases it leaves out travel with the candidates: they are what a
+/// resolution failure tells the client about a distribution that offered
+/// it nothing.
 pub(super) fn parse_page(
     page: &str,
     page_url: &url::Url,
     name: &pep508_rs::PackageName,
     target: &Target,
-) -> Result<BTreeMap<pep440_rs::Version, Candidate>, String> {
+) -> Result<Offered, String> {
     candidates_from_page(page, page_url, name, target)
-        .map(|offered| offered.candidates)
         .map_err(|err| super::super::report_message(&err))
 }
 

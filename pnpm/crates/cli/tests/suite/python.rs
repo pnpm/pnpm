@@ -237,8 +237,6 @@ fn python(root: &Path) -> Command {
     }))
 }
 
-/// Approve a distribution's build, which running a build backend from
-/// the index needs.
 fn approve(root: &Path, name: &str) {
     let config = root.join("pnpm-workspace.yaml");
     let mut contents = fs::read_to_string(&config).unwrap();
@@ -1846,8 +1844,6 @@ mod selection;
 mod sources;
 mod validation;
 
-/// The files a source distribution of `name` holds: the manifest a PEP
-/// 517 backend reads and the module it packages.
 fn sdist_files(name: &str, version: &str, dependencies: &[&str]) -> Vec<(String, String)> {
     let module = name.replace('-', "_");
     let manifest = format!(
@@ -1860,8 +1856,6 @@ fn sdist_files(name: &str, version: &str, dependencies: &[&str]) -> Vec<(String,
     ]
 }
 
-/// A source distribution as PEP 625 publishes one: a gzipped tar holding
-/// a single directory named after the release.
 fn sdist(name: &str, version: &str, dependencies: &[&str]) -> Vec<u8> {
     let root = format!("{}-{version}", name.replace('-', "_"));
     let mut archive =
@@ -1882,8 +1876,35 @@ fn sdist(name: &str, version: &str, dependencies: &[&str]) -> Vec<u8> {
         .unwrap()
 }
 
-/// The same release published as a zip, which older build tooling still
-/// produces.
+/// GNU tar writes a `./` prefix, which spends the extractor's one
+/// stripped component on itself. `set_path` drops such a component, so
+/// the name goes into the header field directly.
+fn sdist_dot_prefixed(name: &str, version: &str, dependencies: &[&str]) -> Vec<u8> {
+    let root = format!("{}-{version}", name.replace('-', "_"));
+    let mut archive =
+        tar::Builder::new(flate2::write::GzEncoder::new(Vec::new(), flate2::Compression::fast()));
+    for (path, contents) in sdist_files(name, version, dependencies) {
+        let mut header = tar::Header::new_gnu();
+        header.set_size(contents.len() as u64);
+        header.set_mode(0o644);
+        header.set_cksum();
+        // `set_path` drops a `./` component, so the name is written into
+        // the header as the archiver on the other end wrote it.
+        let name = format!("./{root}/{path}");
+        let field = &mut header.as_old_mut().name;
+        field[..name.len()].copy_from_slice(name.as_bytes());
+        header.set_cksum();
+        archive.append(&header, contents.as_bytes()).unwrap();
+    }
+    archive
+        .into_inner()
+        .unwrap()
+        .finish()
+        .unwrap()
+}
+
+/// Older build tooling publishes a zip, which the extractor strips a
+/// named prefix from rather than stripping whatever comes first.
 fn sdist_zip(name: &str, version: &str, dependencies: &[&str]) -> Vec<u8> {
     let root = format!("{}-{version}", name.replace('-', "_"));
     let mut archive = ZipWriter::new(Cursor::new(Vec::new()));
@@ -1896,8 +1917,6 @@ fn sdist_zip(name: &str, version: &str, dependencies: &[&str]) -> Vec<u8> {
     archive.finish().unwrap().into_inner()
 }
 
-/// Serve a distribution whose only published files are the ones given,
-/// each named as the index names it.
 async fn serve_archives(
     server: &mut mockito::ServerGuard,
     name: &str,

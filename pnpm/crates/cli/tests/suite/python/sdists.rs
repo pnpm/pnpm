@@ -244,3 +244,36 @@ async fn one_release_pins_the_wheel_an_environment_takes_beside_the_archive_the_
         .assert()
         .success();
 }
+
+/// GNU tar writes its entries with a `./` prefix, and the shared
+/// extractor spends its one stripped component on that prefix rather
+/// than on the release directory. The source tree has to be rooted at
+/// the manifest either way, or the backend runs somewhere that has none.
+#[tokio::test]
+async fn a_source_distribution_whose_entries_are_dot_prefixed_builds() {
+    let root = tempfile::tempdir().unwrap();
+    let mut server = mockito::Server::new_async().await;
+    let _alpha = serve_archives(
+        &mut server,
+        "alpha",
+        &[(
+            "alpha-1.0.tar.gz".to_string(),
+            super::sdist_dot_prefixed("alpha", "1.0", &["helper>=1"]),
+        )],
+    )
+    .await;
+    let _helper = serve(&mut server, "helper", &[("1.0", wheel("helper", "1.0", "", &[]))]).await;
+    let _backends = serve_backends(&mut server).await;
+    project(root.path(), &server.url(), &["alpha>=1"]);
+    approve(root.path(), "alpha");
+
+    pacquet_in(root.path())
+        .arg("install")
+        .assert()
+        .success();
+
+    python(root.path())
+        .args(["-c", "import alpha, helper"])
+        .assert()
+        .success();
+}

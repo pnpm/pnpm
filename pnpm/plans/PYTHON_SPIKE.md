@@ -304,10 +304,24 @@ requirement, so the installed distribution records no PEP 610
 `direct_url.json`.
 
 pnpm builds a source distribution only with the interpreter running the
-install. A project that locks for several environments and reaches a release
-no wheel of which any of them installs is refused rather than locked from a
-wheel built for the wrong one. A pnpr server has no interpreter, so it hands
-such a project back for the client to resolve.
+install. Where that interpreter reaches the release too, its build answers for
+every environment the lockfile covers, under the same read-once-per-release
+limit that applies to a release's wheels; a replay on another environment
+builds the archive again and is re-solved against what that build declares, so
+a disagreement is caught there rather than installed. Where only an environment
+other than the running one asks for the release, there is nothing to build with
+and the install is refused. Two environments that would take different archives
+of one release, which the files' own interpreter ranges can produce, are
+refused as well: one lockfile entry cannot pin both.
+
+Locking a graph that contains a source distribution builds it even when the
+install is production-only, because the lockfile covers every dependency group
+and its requirements are only in the wheel the archive builds. This is what a
+production install already does for the wheels and repositories the lockfile
+names.
+
+A pnpr server has no interpreter, so it hands such a project back for the
+client to resolve.
 
 ## Resolution failures
 

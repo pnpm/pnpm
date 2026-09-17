@@ -352,6 +352,16 @@ impl Merged {
         } else if let Some(directory) = environment.directories.get(name) {
             self.directory = Some(directory.clone());
         } else if let Some(sdist) = environment.sdists.get(name) {
+            // A release publishes at most one archive this target can
+            // build, but which one that is can differ between targets
+            // when the files declare different interpreter ranges. One
+            // entry cannot pin both.
+            if self.sdist
+                .as_ref()
+                .is_some_and(|pinned| pinned != sdist)
+            {
+                bail!("the environments this project locks for need different archives of {name}");
+            }
             self.sdist = Some(sdist.clone());
         } else {
             let wheel = environment.wheels

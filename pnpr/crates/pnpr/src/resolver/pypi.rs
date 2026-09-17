@@ -43,7 +43,7 @@ use std::{
 use axum::{http::StatusCode, response::Response};
 use pnpm_network::{AuthHeaders, MetadataCacheScope, RetryOpts, ThrottledClient};
 use pnpm_python_resolver::{
-    Candidate, IndexCandidate, Packages, Step, Target, WheelMetadata, candidates_from_page,
+    IndexCandidate, Offered, Packages, Step, Target, WheelMetadata, candidates_from_page,
     parse_requirement, validate_url,
 };
 use pnpr_route::{Footprint, url_has_inline_credentials};
@@ -161,8 +161,9 @@ async fn resolve(
                         "resolving this project needs more than {MAX_DISTRIBUTIONS} distributions",
                     ));
                 }
-                let candidates = reader.candidates(&name, target).await?;
-                packages.candidates.insert(name, candidates);
+                let offered = reader.candidates(&name, target).await?;
+                packages.candidates.insert(name.clone(), offered.candidates);
+                packages.excluded.insert(name, offered.excluded);
             }
             Step::NeedMetadata(name, version) => {
                 let candidate = readable_wheel(&packages, &name, &version)?;
@@ -185,19 +186,22 @@ fn readable_wheel<'a>(
     name: &pep508_rs::PackageName,
     version: &pep440_rs::Version,
 ) -> Result<&'a IndexCandidate, String> {
-    if packages.metadata.len() >= MAX_METADATA_READS {
-        return Err(format!(
-            "resolving this project needs the metadata of more than \
-             {MAX_METADATA_READS} wheels",
-        ));
-    }
     let offered = packages.candidates
         .get(name)
         .and_then(|versions| versions.get(version))
         .ok_or_else(|| format!("{name} {version} is not a candidate"))?;
+    // Answered before the read budget, so a project this server cannot
+    // resolve at all is handed back rather than refused for a limit
+    // that was never the reason.
     if offered.sdist().is_some() {
         return Err(format!(
             "Python source distribution for {name} must be resolved by the client",
+        ));
+    }
+    if packages.metadata.len() >= MAX_METADATA_READS {
+        return Err(format!(
+            "resolving this project needs the metadata of more than \
+             {MAX_METADATA_READS} wheels",
         ));
     }
     offered
@@ -242,7 +246,7 @@ impl IndexReader {
         &self,
         name: &pep508_rs::PackageName,
         target: &Target,
-    ) -> Result<BTreeMap<pep440_rs::Version, Candidate>, String> {
+    ) -> Result<Offered, String> {
         let canonical_name = canonical_project_name(name)?;
         let page_url = project_page_url(&self.index, &canonical_name)?;
         let auth = self.auth_for(&canonical_name);

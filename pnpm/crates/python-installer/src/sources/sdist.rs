@@ -46,7 +46,9 @@ impl Registry<'_> {
             .clone();
         self.check_buildable(name, version, &sdist)?;
         let files = self.fetch_sdist::<Reporter>(&sdist).await?;
-        let source = tokio::task::spawn_blocking(move || unpack(&files)).await
+        let root = sdist.root().to_owned();
+        let source = tokio::task::spawn_blocking(move || unpack(&files, &root))
+            .await
             .into_diagnostic()?
             .wrap_err_with(|| format!("unpack the Python source distribution {}", sdist.name))?;
         let manifest = read_manifest(source.path()).await?;
@@ -77,8 +79,15 @@ impl Registry<'_> {
 
     /// Refuse a source distribution pnpm will not build: one served from
     /// somewhere a Python artifact may not be fetched from, one nothing
-    /// has approved to run, and one a project needs for an environment
-    /// other than the one running the install.
+    /// has approved to run, and one only an environment other than the
+    /// running one asked for.
+    ///
+    /// That last case is what is left of the interpreter restriction
+    /// once a release's requirements are read once per version, as they
+    /// are for wheels: where the running interpreter reaches the release
+    /// too, its build answers for every environment, and a replay
+    /// elsewhere builds the archive again and is re-solved against what
+    /// that build declares.
     fn check_buildable(
         &self,
         name: &PackageName,
@@ -91,9 +100,9 @@ impl Registry<'_> {
         pnpm_python_resolver::validate_url(&sdist.url.parse().into_diagnostic()?)?;
         if self.resolution.target != self.interpreter.target {
             bail!(
-                "the Python release {name}=={version} publishes no wheel for every environment \
-                 this project locks for, and pnpm builds {} only for the interpreter running the \
-                 install",
+                "only an environment other than the running one needs {name}=={version}, which \
+                 publishes no wheel it installs, and pnpm builds {} only with the interpreter \
+                 running the install",
                 sdist.name,
             );
         }
@@ -183,16 +192,52 @@ impl Registry<'_> {
 /// The source tree a build runs in: the archive's files copied out of the
 /// store, so a backend that writes beside them is not writing into
 /// content every project on this machine shares.
-fn unpack(files: &HashMap<String, PathBuf>) -> Result<tempfile::TempDir> {
+///
+/// Each file is streamed rather than read whole, so the memory this
+/// holds does not follow the size of whatever an index served. The
+/// destination is created fresh, which is what leaves the tree writable:
+/// a store blob is read-only, and a copy that carried its mode over
+/// would hand the backend a source tree it cannot build in.
+fn unpack(files: &HashMap<String, PathBuf>, root: &str) -> Result<tempfile::TempDir> {
     let source = tempfile::tempdir().into_diagnostic()?;
+    let nested = nested_in_its_release_directory(files, root);
     for (entry, stored) in files {
-        let path = entry_path(source.path(), entry)?;
+        let path = entry_path(source.path(), strip_release_directory(entry, root, nested))?;
         std::fs::create_dir_all(path.parent().expect("an entry path has a parent"))
             .into_diagnostic()?;
-        std::fs::write(&path, std::fs::read(stored).into_diagnostic()?).into_diagnostic()?;
+        let mut blob = std::fs::File::open(stored)
+            .into_diagnostic()
+            .wrap_err_with(|| format!("read the stored Python source file {entry}"))?;
+        let mut file = std::fs::File::create(&path).into_diagnostic()?;
+        std::io::copy(&mut blob, &mut file).into_diagnostic()?;
         pnpm_fs::file_mode::restore_exec_bit_from_cas_suffix(stored, &path).into_diagnostic()?;
     }
     Ok(source)
+}
+
+/// Whether the extractor left the release directory on every entry.
+///
+/// It strips one leading component, which an entry written with the `./`
+/// prefix GNU tar emits spends on that prefix instead of on the release
+/// directory. A zip whose entries carry that prefix misses its own strip
+/// for the same reason. Both shapes have to end up rooted at the
+/// manifest, or the backend runs in a directory that has none.
+///
+/// The release directory is named after the archive, so an archive whose
+/// entries say otherwise is left exactly as the extractor produced it.
+fn nested_in_its_release_directory(files: &HashMap<String, PathBuf>, root: &str) -> bool {
+    !files.is_empty()
+        && files
+            .keys()
+            .all(|entry| {
+                entry
+                    .strip_prefix(root)
+                    .is_some_and(|rest| rest.starts_with('/'))
+            })
+}
+
+fn strip_release_directory<'a>(entry: &'a str, root: &str, nested: bool) -> &'a str {
+    if nested { &entry[root.len() + 1..] } else { entry }
 }
 
 fn entry_path(source: &Path, entry: &str) -> Result<PathBuf> {

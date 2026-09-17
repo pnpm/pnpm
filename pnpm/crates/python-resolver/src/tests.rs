@@ -1068,6 +1068,56 @@ fn a_resolution_failure_says_why_a_distribution_offered_nothing() {
     }
 }
 
+/// Which archive of a release a target takes can differ when the files
+/// declare different interpreter ranges, and one PEP 751 entry pins one
+/// archive. Merging the two silently would replay an archive the other
+/// environment's own resolution rejected.
+#[test]
+fn environments_that_take_different_archives_of_one_release_are_refused() {
+    let target = target();
+    let solved = |filename: &str| {
+        let mut packages = Packages::new();
+        let offered = candidates_from_page(
+            &page(&serde_json::json!([sdist(filename)])),
+            &index_url(),
+            &name("demo"),
+            &target,
+        )
+        .expect("page parses");
+        packages.candidates.insert(name("demo"), offered.candidates);
+        let version = Version::from_str("1.0.0").unwrap();
+        packages.metadata.insert(
+            (name("demo"), version.clone()),
+            WheelMetadata::parse("Name: demo\nVersion: 1.0.0\n").expect("metadata parses"),
+        );
+        Solved::new(
+            target.clone(),
+            BTreeMap::from([(name("demo"), version)]),
+            &packages,
+            vec!["python_version".to_string()],
+        )
+        .expect("the environment solved")
+    };
+    let requirements = vec![Requirement::from_str("demo>=1").expect("requirement fixture")];
+    let solved = [solved("demo-1.0.0.tar.gz"), solved("demo-1.0.0.zip")];
+    let metadata = Metadata::from([(
+        (name("demo"), Version::from_str("1.0.0").unwrap()),
+        WheelMetadata::parse("Name: demo\nVersion: 1.0.0\n").expect("metadata parses"),
+    )]);
+
+    let error = Lockfile::merged(
+        &metadata,
+        &requirements,
+        &solved,
+        Inputs::new(&requirements, &target, index_url().as_str()),
+        None,
+    )
+    .expect_err("one entry cannot pin both archives");
+
+    dbg!(&error);
+    assert!(error.to_string().contains("different archives of demo"), "{error}");
+}
+
 #[test]
 fn a_lockfile_pins_the_source_distribution_a_release_is_built_from() {
     let target = target();
