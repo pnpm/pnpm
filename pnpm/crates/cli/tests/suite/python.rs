@@ -2051,6 +2051,7 @@ async fn build_backend_writes_do_not_modify_shared_wheel_files() {
         );
     for method in ["auto", "hardlink"] {
         fs::write(&workspace, format!("{settings}\npackageImportMethod: {method}\n")).unwrap();
+        fs::write(root.path().join("backend-mutation"), "not run").unwrap();
         pacquet_in(root.path())
             .arg("install")
             .assert()
