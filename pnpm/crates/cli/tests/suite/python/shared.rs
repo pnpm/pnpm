@@ -302,10 +302,6 @@ async fn a_shared_members_metadata_is_prepared_with_the_interpreter_the_root_ask
         .stdout(line("0.0.1"));
 }
 
-/// The workspace is declared under `api`, and `tools/x` sits outside it.
-/// An add there reads that project alone, so the manifest under the
-/// workspace that does not parse is never read; an add in a member reads
-/// the workspace around it and fails on that manifest, as an install does.
 #[tokio::test]
 async fn an_add_outside_the_declared_workspace_reads_the_project_alone() {
     let root = tempfile::tempdir().unwrap();
