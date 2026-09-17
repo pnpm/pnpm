@@ -88,15 +88,21 @@ fn runtime_platform_selector_prefers_the_host_among_the_platforms_a_list_names()
     assert_eq!(selector, host);
 }
 
-/// An archive built against the other C library cannot run here, and a
-/// host whose own is unreadable would otherwise match no Linux platform
-/// at all and take the first one named.
+/// A host whose C library could not be read is not a reason to install
+/// an archive for a platform nobody named.
 #[test]
-fn runtime_platform_selector_keeps_the_host_when_its_c_library_is_unreadable() {
+fn runtime_platform_selector_stays_among_the_platforms_named() {
     let host = PlatformSelector { os: "linux".to_string(), cpu: "x64".to_string(), libc: None };
-    let platforms = vec!["linux-x64-musl".parse().unwrap(), "linux-x64".parse().unwrap()];
+    let platforms = vec!["linux-x64-musl".parse().unwrap()];
 
-    assert_eq!(runtime_platform_of(&platforms, host.clone()), host);
+    assert_eq!(
+        runtime_platform_of(&platforms, host),
+        PlatformSelector {
+            os: "linux".to_string(),
+            cpu: "x64".to_string(),
+            libc: Some("musl".to_string()),
+        },
+    );
 }
 
 /// `current` is this machine whichever platform it is listed beside.
