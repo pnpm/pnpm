@@ -62,13 +62,12 @@ fn parallel_run_runs_regexp_scripts_of_one_package_concurrently() {
         .get_output()
         .clone();
 
-    assert!(
-        workspace
-            .join("project-1")
-            .join("saw-parallel")
-            .exists(),
-        "the scripts of one package should overlap under --parallel",
-    );
+    let saw_parallel = workspace
+        .join("project-1")
+        .join("saw-parallel")
+        .exists();
+    eprintln!("saw-parallel exists: {saw_parallel}");
+    assert!(saw_parallel, "the scripts of one package should overlap under --parallel");
     let stdout = String::from_utf8_lossy(&output.stdout);
     eprintln!("STDOUT:\n{stdout}\n");
     assert!(stdout.contains("dev:one: finished-one"));
@@ -90,11 +89,13 @@ fn recursive_run_runs_regexp_scripts_concurrently_under_workspace_concurrency() 
         .assert()
         .success();
 
+    let saw_parallel = workspace
+        .join("project-1")
+        .join("saw-parallel")
+        .exists();
+    eprintln!("saw-parallel exists: {saw_parallel}");
     assert!(
-        workspace
-            .join("project-1")
-            .join("saw-parallel")
-            .exists(),
+        saw_parallel,
         "the scripts of one package should overlap under workspace-concurrency=2",
     );
 
@@ -118,13 +119,12 @@ fn recursive_run_runs_regexp_scripts_sequentially_below_concurrency_two() {
             .get_output()
             .clone();
 
-        assert!(
-            !workspace
-                .join("project-1")
-                .join("saw-parallel")
-                .exists(),
-            "the scripts must not overlap with {flags:?}",
-        );
+        let saw_parallel = workspace
+            .join("project-1")
+            .join("saw-parallel")
+            .exists();
+        eprintln!("saw-parallel exists: {saw_parallel} (flags: {flags:?})");
+        assert!(!saw_parallel, "the scripts must not overlap with {flags:?}");
         let stdout = String::from_utf8_lossy(&output.stdout);
         eprintln!("STDOUT:\n{stdout}\n");
         assert!(stdout.contains("finished-one"), "flags: {flags:?}");
@@ -160,20 +160,17 @@ fn bail_cancels_the_sibling_script_of_the_same_package() {
         .assert()
         .failure();
 
-    assert!(
-        workspace
-            .join("project-1")
-            .join("slow-started")
-            .exists(),
-        "the slow script must have started beside the failing one",
-    );
-    assert!(
-        !workspace
-            .join("project-1")
-            .join("slow-finished")
-            .exists(),
-        "the slow script must be cancelled before its watchdog completes",
-    );
+    let slow_started = workspace
+        .join("project-1")
+        .join("slow-started")
+        .exists();
+    let slow_finished = workspace
+        .join("project-1")
+        .join("slow-finished")
+        .exists();
+    eprintln!("slow-started exists: {slow_started}, slow-finished exists: {slow_finished}");
+    assert!(slow_started, "the slow script must have started beside the failing one");
+    assert!(!slow_finished, "the slow script must be cancelled before its watchdog completes");
 
     drop(root);
 }
@@ -206,13 +203,12 @@ fn no_bail_runs_every_regexp_script_of_the_same_package() {
         .get_output()
         .clone();
 
-    assert!(
-        workspace
-            .join("project-1")
-            .join("passed.txt")
-            .exists(),
-        "the passing script must run beside the failing one",
-    );
+    let passed = workspace
+        .join("project-1")
+        .join("passed.txt")
+        .exists();
+    eprintln!("passed.txt exists: {passed}");
+    assert!(passed, "the passing script must run beside the failing one");
     let stderr = String::from_utf8_lossy(&output.stderr);
     assert!(stderr.contains("failed in 1 packages"), "stderr: {stderr}");
 

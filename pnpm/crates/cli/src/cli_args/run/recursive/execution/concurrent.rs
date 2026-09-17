@@ -1,6 +1,7 @@
 use super::{
-    Instant, Mutex, ProjectExecution, ProjectScripts, RunContext, ScriptRunState, TaskCompletion,
-    apply_script_result, reenters_running_script, run_stages, runnable_project_script,
+    Instant, Mutex, ProcessTracker, ProjectExecution, ProjectScripts, RunContext, ScriptRunState,
+    TaskCompletion, apply_script_result, reenters_running_script, run_stages,
+    runnable_project_script,
 };
 use indexmap::IndexMap;
 use miette::IntoDiagnostic;
@@ -49,7 +50,7 @@ fn run_one_script(
 ) -> TaskCompletion {
     let Some(script) = (match runnable_project_script(run.manifest, selected, run.options.args) {
         Ok(script) => script,
-        Err(error) => return abort_run(abort, error),
+        Err(error) => return abort_run(run.options.process.process_tracker, abort, error),
     }) else {
         return TaskCompletion::Passed;
     };
@@ -68,7 +69,7 @@ fn run_one_script(
     let start = Instant::now();
     match run_stages(ctx, selected, &script, run.options.args.script_args()) {
         Ok(status) => settle_script(ctx, state, status, start.elapsed().as_secs_f64() * 1e3),
-        Err(error) => abort_run(abort, error),
+        Err(error) => abort_run(run.options.process.process_tracker, abort, error),
     }
 }
 
@@ -90,11 +91,19 @@ fn settle_script(
 
 /// Hold the run's first infrastructure failure for rethrow and stop the
 /// remaining scripts from dispatching, like `RunOutcome::abort` does
-/// for a task.
-fn abort_run(abort: &Mutex<Option<miette::Report>>, error: miette::Report) -> TaskCompletion {
+/// for a task. The tracker cancellation is what stops the siblings
+/// still running beside the aborted script.
+fn abort_run(
+    process_tracker: Option<&ProcessTracker>,
+    abort: &Mutex<Option<miette::Report>>,
+    error: miette::Report,
+) -> TaskCompletion {
     let mut abort = abort.lock().expect("run abort lock is not poisoned");
     if abort.is_none() {
         *abort = Some(error);
+    }
+    if let Some(process_tracker) = process_tracker {
+        process_tracker.cancel();
     }
     TaskCompletion::Aborted
 }
