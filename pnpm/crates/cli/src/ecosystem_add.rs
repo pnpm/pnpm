@@ -84,9 +84,10 @@ async fn cargo_add_task<Reporter: pnpm_reporter::Reporter + 'static>(
 /// The Python half of the add, and the projects it was resolved against.
 ///
 /// Without a `--filter` selection the add acts on the project the command
-/// was run in, the way the npm add does. In a workspace it still reads the
-/// other projects: what that project may take from the repository, and
-/// whether it shares an environment, is declared around it.
+/// was run in, the way the npm add does. Under a declared uv workspace it
+/// still reads the other projects: what that project may take from the
+/// repository, and whether it shares an environment, is declared around
+/// it. A project outside any is read alone.
 async fn python_add_task<Reporter: pnpm_reporter::Reporter + 'static>(
     context: InstallContext,
     root: &Path,
@@ -108,12 +109,12 @@ async fn python_add_task<Reporter: pnpm_reporter::Reporter + 'static>(
     } else {
         let project = pnpm_python_installer::writable_project(root)?;
         let discovery = match config.workspace_dir.clone() {
-            Some(workspace_root) => {
+            Some(workspace_root)
+                if pnpm_python_installer::in_declared_workspace(&workspace_root, &project) =>
+            {
                 python::discover_around(config, &inventory(workspace_root), &project).await?
             }
-            None => {
-                pnpm_python_installer::discover(config, &[project.join("pyproject.toml")]).await?
-            }
+            _ => pnpm_python_installer::discover(config, &[project.join("pyproject.toml")]).await?,
         };
         (discovery, BTreeSet::from([project]))
     };

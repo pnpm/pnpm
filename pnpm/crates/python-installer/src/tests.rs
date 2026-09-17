@@ -334,7 +334,10 @@ const UNSHARED_ROOT: &str = "[tool.uv.workspace]\nmembers = ['libs/*']\n";
 #[test]
 fn a_command_uses_the_environment_its_project_shares_or_its_own() {
     let workspace = tempfile::tempdir().expect("workspace directory");
-    let root = workspace.path();
+    // The lookup answers with links resolved, and a temporary directory
+    // may be reached through one.
+    let root = dunce::canonicalize(workspace.path()).expect("canonical workspace");
+    let root = root.as_path();
     let environment_of = |dir: &std::path::Path| super::environment_dir(Some(root), dir);
     for project in ["packages/app", "packages/tool", "packages/nested/libs/x", "packages/inner"] {
         std::fs::create_dir_all(root.join(project).join("src")).expect("project directory");
@@ -365,4 +368,21 @@ fn a_command_uses_the_environment_its_project_shares_or_its_own() {
         .expect("nested shared workspace");
     let inner = root.join("packages/inner");
     assert_eq!(environment_of(&inner), inner.join(".venv"), "its own workspace root");
+}
+
+#[test]
+fn a_workspace_reached_through_a_link_still_shares_its_environment() {
+    let outside = tempfile::tempdir().expect("outside directory");
+    let real = outside.path().join("real");
+    let member = real.join("packages/app");
+    std::fs::create_dir_all(&member).expect("member directory");
+    std::fs::write(real.join("pyproject.toml"), SHARED_ROOT).expect("shared workspace");
+    std::fs::write(member.join("pyproject.toml"), MEMBER).expect("member");
+    let link = outside.path().join("link");
+    pnpm_fs::force_symlink_dir(&real, &link).expect("workspace link");
+    let canonical = dunce::canonicalize(&real).expect("canonical workspace");
+
+    assert_eq!(super::environment_dir(Some(&link), &member), canonical.join(".venv"));
+    assert!(super::in_declared_workspace(&link, &member));
+    assert!(!super::in_declared_workspace(&link, outside.path()), "outside the workspace");
 }

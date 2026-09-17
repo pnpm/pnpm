@@ -1,6 +1,7 @@
 pub use add::{AddOptions, plan_add, writable_project};
 pub use discovery::{Discovery, PythonProject, discover};
 pub use manifest::DependencySelection;
+pub use workspace::members::in_declared_workspace;
 
 mod add;
 mod build;

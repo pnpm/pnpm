@@ -117,6 +117,23 @@ async fn members_that_cannot_be_installed_together_are_refused() {
         ),
     );
     assert!(!root.path().join("pylock.toml").exists());
+
+    // A member asking both ranges does not hide the other member asking
+    // one of them.
+    python_project(
+        &root.path().join("packages/a"),
+        "a",
+        "dependencies = ['alpha==1.0', 'alpha==2.0']",
+    );
+    python_project(&root.path().join("packages/b"), "b", "dependencies = ['alpha==1.0']");
+    assert_failure_contains(
+        pacquet_in(root.path()).arg("install"),
+        &format!(
+            "{} requires `alpha==1.0` and {} requires `alpha==2.0`",
+            packages.join("b").display(),
+            packages.join("a").display(),
+        ),
+    );
 }
 
 #[tokio::test]
@@ -283,4 +300,59 @@ async fn a_shared_members_metadata_is_prepared_with_the_interpreter_the_root_ask
         .assert()
         .success()
         .stdout(line("0.0.1"));
+}
+
+#[tokio::test]
+async fn an_add_outside_the_declared_workspace_reads_the_project_alone() {
+    let root = tempfile::tempdir().unwrap();
+    let mut server = mockito::Server::new_async().await;
+    let _alpha = serve(&mut server, "alpha", &[("1.0", wheel("alpha", "1.0", "", &[]))]).await;
+    project(root.path(), &server.url(), &[]);
+    fs::remove_file(root.path().join("pyproject.toml")).unwrap();
+    let plain = |name: &str| {
+        format!(
+            "[project]\nname = '{name}'\nversion = '1.0'\nrequires-python = '>=3.10'\n\
+             dependencies = []\n",
+        )
+    };
+    for (directory, manifest) in [
+        (
+            "api",
+            "[tool.uv.workspace]\nmembers = ['providers/*']\n\n[tool.pnpm.python]\n\
+         shared-environment = true\n"
+                .to_string(),
+        ),
+        ("api/providers/good", plain("good")),
+        ("api/providers/broken", "[project\n".to_string()),
+        ("tools/x", plain("x")),
+    ] {
+        fs::create_dir_all(root.path().join(directory)).unwrap();
+        fs::write(
+            root.path()
+                .join(directory)
+                .join("pyproject.toml"),
+            manifest,
+        )
+        .unwrap();
+    }
+    let outside = root.path().join("tools/x");
+
+    pacquet_in(&outside)
+        .args(["add", "pypi:alpha"])
+        .assert()
+        .success();
+
+    assert!(fs::read_to_string(outside.join("pyproject.toml")).unwrap().contains("alpha>=1.0"));
+    assert!(outside.join("pylock.toml").is_file(), "an environment of its own");
+    assert!(
+        !root
+            .path()
+            .join("api/pylock.toml")
+            .exists(),
+        "the workspace was not installed",
+    );
+    pacquet_in(&root.path().join("api/providers/good"))
+        .args(["add", "pypi:alpha"])
+        .assert()
+        .failure();
 }

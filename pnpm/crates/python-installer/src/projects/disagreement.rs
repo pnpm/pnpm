@@ -4,7 +4,9 @@
 //!
 //! pubgrub reports the conflict as a chain of terms, which names the
 //! project as one root. The members are what the reader has to change, so
-//! the two that disagree are named ahead of that report.
+//! the two that disagree are named ahead of that report. The search is
+//! bounded by the distinct ranges the members ask for, not by how many
+//! members ask them.
 
 use super::Member;
 use crate::registry::Resolution;
@@ -25,28 +27,53 @@ pub(crate) fn disagreement(
     }
 }
 
-/// A version requirement one member declares on this environment.
+/// One version range members declare on this environment, and what
+/// each member asking it wrote, by member.
 struct Asked<'a> {
-    root: &'a Path,
-    requirement: &'a Requirement,
     specifiers: &'a VersionSpecifiers,
+    by_root: BTreeMap<&'a Path, &'a Requirement>,
+}
+
+impl<'a> Asked<'a> {
+    /// A member asking this range and a different member asking `other`,
+    /// each with the requirement it wrote, or `None` when one member
+    /// alone asks both.
+    fn distinct_roots(&self, other: &Self) -> Option<[(&'a Path, &'a Requirement); 2]> {
+        self.by_root
+            .iter()
+            .find_map(|(root, requirement)| {
+                other.by_root
+                    .iter()
+                    .find(|(second, _)| *second != root)
+                    .map(|(second, theirs)| [(*root, *requirement), (*second, *theirs)])
+            })
+    }
 }
 
 fn find(resolution: &Resolution, members: &[Member]) -> Option<String> {
     let environment = &resolution.target.environment;
-    let mut by_name = BTreeMap::<&PackageName, Vec<Asked<'_>>>::new();
+    // One entry per distinct range, with every member asking it: two
+    // members asking the same range cannot disagree with each other, so
+    // the pairs compared are of distinct ranges, each reported for a
+    // member of its own.
+    let mut by_name = BTreeMap::<&PackageName, BTreeMap<String, Asked<'_>>>::new();
     for member in members {
         for requirement in &member.requirements.all {
             let Some(VersionOrUrl::VersionSpecifier(specifiers)) = &requirement.version_or_url
             else {
                 continue;
             };
-            if requirement.marker.evaluate(environment, &[]) {
-                by_name
-                    .entry(&requirement.name)
-                    .or_default()
-                    .push(Asked { root: &member.root, requirement, specifiers });
+            if !requirement.marker.evaluate(environment, &[]) {
+                continue;
             }
+            by_name
+                .entry(&requirement.name)
+                .or_default()
+                .entry(specifiers.to_string())
+                .or_insert_with(|| Asked { specifiers, by_root: BTreeMap::new() })
+                .by_root
+                .entry(&member.root)
+                .or_insert(requirement);
         }
     }
     by_name
@@ -55,6 +82,7 @@ fn find(resolution: &Resolution, members: &[Member]) -> Option<String> {
             let offered = resolution.packages.candidates
                 .get(name)
                 .filter(|offered| !offered.is_empty())?;
+            let asked = asked.into_values().collect::<Vec<_>>();
             conflicting_pair(name, &asked, &offered.keys().collect::<Vec<_>>())
         })
 }
@@ -72,8 +100,8 @@ fn conflicting_pair(
         .find_map(|(position, first)| {
             asked[position + 1..]
                 .iter()
-                .filter(|second| second.root != first.root)
-                .find(|second| {
+                .filter_map(|second| Some((second, first.distinct_roots(second)?)))
+                .find(|(second, _)| {
                     !offered
                         .iter()
                         .any(|version| {
@@ -81,15 +109,13 @@ fn conflicting_pair(
                                 && second.specifiers.contains(version)
                         })
                 })
-                .map(|second| {
+                .map(|(_, [(root, requirement), (other, theirs)])| {
                     format!(
                         "the Python projects sharing one environment cannot be installed together: \
-                         {} requires `{}` and {} requires `{}`, and no version of {name} the index \
-                         offers satisfies both",
-                        first.root.display(),
-                        first.requirement,
-                        second.root.display(),
-                        second.requirement,
+                         {} requires `{requirement}` and {} requires `{theirs}`, and no version of \
+                         {name} the index offers satisfies both",
+                        root.display(),
+                        other.display(),
                     )
                 })
         })

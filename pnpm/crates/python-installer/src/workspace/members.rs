@@ -61,7 +61,7 @@ impl Workspace {
     ) -> Result<()> {
         let mut declared = BTreeMap::<&PackageName, &Path>::new();
         for (member, manifest) in member_projects(root, declaration, projects) {
-            if manifest.project.is_none() || !Self::declared_in(member, projects, root) {
+            if manifest.project.is_none() || self.declared_by(member) != Some(root) {
                 continue;
             }
             if let Some(name) = manifest.distribution()
@@ -80,11 +80,16 @@ impl Workspace {
         Ok(())
     }
 
-    /// Whether `root` is the workspace the project at `member` belongs
-    /// to: the nearest one declared at or above it.
-    fn declared_in(member: &Path, projects: &[(PathBuf, Arc<Manifest>)], root: &Path) -> bool {
-        Self::declaring_root(member, projects)
-            .is_some_and(|(declared_in, _, _)| declared_in == root)
+    /// The workspace the project at `member` belongs to: the nearest one
+    /// declared at or above it, which reading the scopes already found.
+    fn declared_by<'a>(&'a self, member: &'a Path) -> Option<&'a Path> {
+        if let Some((declared_in, _)) = self.inherited.get(member) {
+            return Some(declared_in);
+        }
+        self.manifests
+            .get(member)
+            .filter(|manifest| manifest.tool.uv.workspace.is_some())
+            .map(|_| member)
     }
 
     /// The directory whose lockfile and environment the project at `root`
@@ -189,19 +194,42 @@ impl Patterns {
 /// parse counts for nothing here and is reported by the next install.
 pub(crate) fn environment_root_of(workspace: Option<&Path>, dir: &Path) -> PathBuf {
     let Some(stop) = workspace else { return dir.to_path_buf() };
+    // The workspace may be configured by a path that reaches it through
+    // a link, while the command's directory is canonical.
+    let stop = canonical(stop);
+    let dir = canonical(dir);
     let project = dir
         .ancestors()
-        .take_while(|ancestor| ancestor.starts_with(stop))
+        .take_while(|ancestor| ancestor.starts_with(&stop))
         .find(|ancestor| ancestor.join("pyproject.toml").is_file())
-        .unwrap_or(dir);
+        .unwrap_or(&dir);
     let declared = project
         .ancestors()
-        .take_while(|ancestor| ancestor.starts_with(stop))
+        .take_while(|ancestor| ancestor.starts_with(&stop))
         .find_map(|ancestor| Some((ancestor, workspace_declaration(ancestor)?)));
     match declared {
         Some((root, (true, patterns))) if patterns.contain(root, project) => root.to_path_buf(),
         _ => project.to_path_buf(),
     }
+}
+
+/// Whether a `[tool.uv.workspace]` is declared at or above `project`, up
+/// to `workspace`. A project in one may take its siblings from the
+/// repository and may share their environment, so an add there reads
+/// the workspace around it; a project outside any reads itself alone.
+#[must_use]
+pub fn in_declared_workspace(workspace: &Path, project: &Path) -> bool {
+    let stop = canonical(workspace);
+    canonical(project)
+        .ancestors()
+        .take_while(|ancestor| ancestor.starts_with(&stop))
+        .any(|ancestor| workspace_declaration(ancestor).is_some())
+}
+
+/// The path with links resolved, or as given where that fails: a path
+/// that cannot be resolved is still the one the caller means.
+fn canonical(path: &Path) -> PathBuf {
+    dunce::canonicalize(path).unwrap_or_else(|_| path.to_path_buf())
 }
 
 /// Whether the manifest at `root` shares its environment, and which
