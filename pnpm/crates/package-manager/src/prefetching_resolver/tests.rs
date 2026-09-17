@@ -507,7 +507,8 @@ async fn reads_a_revision_addressed_tarball_under_its_own_network_policy() {
     );
 }
 
-/// <https://github.com/pnpm/pnpm/issues/15000>
+/// <https://github.com/pnpm/pnpm/issues/15000>,
+/// <https://github.com/pnpm/pnpm/issues/15021>
 #[tokio::test]
 async fn reads_the_manifest_of_a_pinned_tarball_the_resolver_left_without_one() {
     let dir = tempdir().unwrap();
@@ -539,10 +540,6 @@ async fn reads_the_manifest_of_a_pinned_tarball_the_resolver_left_without_one() 
     let manifest = resolved.package.manifest.expect("the bundled manifest fills the gap");
     assert_eq!(dbg!(&manifest)["dependencies"]["ms"], json!("2.1.2"));
     get_mock.assert_async().await;
-    // One download, not two: the read publishes its extraction under the hash
-    // the resolution records, and claims that identity so the prefetch path
-    // does not fetch the same archive again.
-    // <https://github.com/pnpm/pnpm/issues/15021>
     let cache_key = package_mem_cache_key(
         &format!("{}{tarball_path}", server.url()),
         Some(&integrity.parse().expect("parse integrity")),
@@ -555,6 +552,10 @@ async fn reads_the_manifest_of_a_pinned_tarball_the_resolver_left_without_one() 
     assert!(resolver.spawned_downloads.contains(&cache_key), "and claims the download");
 }
 
+/// The failing read is also what shows the download is claimed before the
+/// fetch is attempted: a concurrent edge needing no read of its own would
+/// otherwise reach the prefetch while this fetch is in flight and spend a
+/// second request on the archive. <https://github.com/pnpm/pnpm/issues/15021>
 #[tokio::test]
 async fn refuses_a_manifest_read_from_a_tarball_that_fails_its_integrity() {
     let dir = tempdir().unwrap();
@@ -577,10 +578,6 @@ async fn refuses_a_manifest_read_from_a_tarball_that_fails_its_integrity() {
 
     assert!(dbg!(error.to_string()).contains("Integrity check failed"), "got: {error}");
     get_mock.assert_async().await;
-    // A pinned read claims its download before fetching, so a concurrent edge
-    // that needs no read of its own cannot spend a second request on the same
-    // archive while this one is in flight. The failure proves the claim does
-    // not wait on the fetch. <https://github.com/pnpm/pnpm/issues/15021>
     assert!(
         resolver.spawned_downloads.contains(&package_mem_cache_key(
             &format!("{}{tarball_path}", server.url()),
