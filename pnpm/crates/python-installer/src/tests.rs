@@ -228,6 +228,7 @@ fn workspace_of(
 
 const SHARED_ROOT: &str = "[tool.uv.workspace]\nmembers = ['packages/*']\nexclude = ['packages/tool']\n\n[tool.pnpm.python]\nshared-environment = true\n";
 const MEMBER: &str = "[project]\nname = 'member'\nversion = '1.0'\n";
+const OTHER: &str = "[project]\nname = 'other'\nversion = '1.0'\n";
 
 /// The members of a workspace whose root asks for a shared environment
 /// install into the root; a project the declaration excludes, and one
@@ -237,7 +238,7 @@ fn a_shared_workspace_groups_its_members_and_leaves_the_others_alone() {
     let (workspace, roots) = workspace_of(&[
         ("/repo", SHARED_ROOT),
         ("/repo/packages/a", MEMBER),
-        ("/repo/packages/b", MEMBER),
+        ("/repo/packages/b", OTHER),
         ("/repo/packages/tool", MEMBER),
         ("/repo/vendor/c", MEMBER),
     ])
@@ -265,6 +266,25 @@ fn a_shared_workspace_groups_its_members_and_leaves_the_others_alone() {
     // A root without a project of its own is nobody's member, and a root
     // that declares one is its own.
     assert_eq!(memberships[0].members, roots[1..3]);
+}
+
+#[test]
+fn two_shared_members_declaring_one_distribution_are_refused() {
+    let error = workspace_of(&[
+        ("/repo", SHARED_ROOT),
+        ("/repo/packages/a", MEMBER),
+        ("/repo/packages/b", MEMBER),
+    ])
+    .err()
+    .expect("refused");
+    assert!(error.to_string().contains("both declare `member`"), "{error}");
+    // Unshared, each installs its own environment, so the names may clash.
+    workspace_of(&[
+        ("/repo", "[tool.uv.workspace]\nmembers = ['packages/*']\n"),
+        ("/repo/packages/a", MEMBER),
+        ("/repo/packages/b", MEMBER),
+    ])
+    .expect("two environments");
 }
 
 #[test]

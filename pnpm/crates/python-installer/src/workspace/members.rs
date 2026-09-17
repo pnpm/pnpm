@@ -32,6 +32,8 @@ impl Workspace {
     /// Read which projects share an environment. A workspace root asks
     /// for that with `shared-environment` under `[tool.pnpm.python]`, and
     /// only a manifest that declares a workspace has members to share it.
+    /// Two members declaring one distribution are refused: each would be
+    /// installed as itself, and an environment holds one of a name.
     pub(super) fn with_shared(mut self, projects: &[(PathBuf, Arc<Manifest>)]) -> Result<Self> {
         for (root, manifest) in projects {
             if !manifest.shares_environment() {
@@ -44,13 +46,38 @@ impl Workspace {
                     root.join("pyproject.toml").display(),
                 );
             };
-            for (member, member_manifest) in member_projects(root, declaration, projects) {
-                if member_manifest.project.is_some() && Self::declared_in(member, projects, root) {
-                    self.shared.insert(member.clone(), root.clone());
-                }
-            }
+            self.share_members(root, declaration, projects)?;
         }
         Ok(self)
+    }
+
+    /// Record every project the workspace at `root` contains as sharing
+    /// its environment.
+    fn share_members(
+        &mut self,
+        root: &Path,
+        declaration: &UvWorkspace,
+        projects: &[(PathBuf, Arc<Manifest>)],
+    ) -> Result<()> {
+        let mut declared = BTreeMap::<&PackageName, &Path>::new();
+        for (member, manifest) in member_projects(root, declaration, projects) {
+            if manifest.project.is_none() || !Self::declared_in(member, projects, root) {
+                continue;
+            }
+            if let Some(name) = manifest.distribution()
+                && let Some(other) = declared.insert(name, member)
+            {
+                bail!(
+                    "the Python projects at {} and {} both declare `{name}`, and one environment \
+                     cannot install both; they share the environment at {}",
+                    other.display(),
+                    member.display(),
+                    root.display(),
+                );
+            }
+            self.shared.insert(member.clone(), root.to_path_buf());
+        }
+        Ok(())
     }
 
     /// Whether `root` is the workspace the project at `member` belongs
