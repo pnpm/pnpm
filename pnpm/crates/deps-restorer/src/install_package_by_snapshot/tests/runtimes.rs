@@ -2,18 +2,22 @@ use super::{
     super::{host_platform_selector, runtime_platform_selector},
     build_runtime_tarball_fixture, leaked_offline_config,
 };
-use crate::install_package_by_snapshot::runtime::synthesize_runtime_manifest_bytes;
-use pnpm_lockfile::{BinaryArchive, BinaryResolution, BinarySpec, LockfileResolution, PackageKey};
-use pnpm_package_is_installable::SupportedArchitectures;
+use crate::install_package_by_snapshot::runtime::{
+    runtime_platform_of, synthesize_runtime_manifest_bytes,
+};
+use pnpm_lockfile::{
+    BinaryArchive, BinaryResolution, BinarySpec, LockfileResolution, PackageKey, PlatformSelector,
+};
+use pnpm_package_is_installable::{ArchitectureAxes, SupportedArchitectures};
 use pretty_assertions::assert_eq;
 
 #[test]
 fn runtime_platform_selector_falls_back_to_the_first_configured_target_the_host_is_absent_from() {
-    let supported = SupportedArchitectures {
+    let supported = SupportedArchitectures::Axes(ArchitectureAxes {
         os: Some(vec!["freebsd".to_string(), "openbsd".to_string()]),
         cpu: Some(vec!["ppc64".to_string(), "s390x".to_string()]),
         libc: Some(vec!["current".to_string(), "musl".to_string()]),
-    };
+    });
 
     let selector = runtime_platform_selector(Some(&supported));
 
@@ -24,11 +28,11 @@ fn runtime_platform_selector_falls_back_to_the_first_configured_target_the_host_
 #[test]
 fn runtime_platform_selector_prefers_the_host_over_the_other_configured_targets() {
     let host = host_platform_selector();
-    let supported = SupportedArchitectures {
+    let supported = SupportedArchitectures::Axes(ArchitectureAxes {
         os: Some(vec!["freebsd".to_string(), host.os.clone()]),
         cpu: Some(vec!["ppc64".to_string(), host.cpu.clone()]),
         libc: None,
-    };
+    });
 
     let selector = runtime_platform_selector(Some(&supported));
 
@@ -36,16 +40,84 @@ fn runtime_platform_selector_prefers_the_host_over_the_other_configured_targets(
 }
 #[test]
 fn runtime_platform_selector_expands_current_to_the_host() {
-    let supported = SupportedArchitectures {
+    let supported = SupportedArchitectures::Axes(ArchitectureAxes {
         os: Some(vec!["freebsd".to_string(), "current".to_string()]),
         cpu: Some(vec!["current".to_string()]),
         libc: Some(vec!["current".to_string()]),
-    };
+    });
 
     let selector = runtime_platform_selector(Some(&supported));
 
     assert_eq!(selector, host_platform_selector());
 }
+/// An archive is built for a whole platform, so a list picks one of the
+/// platforms it names where the axes above pick a value of each axis.
+#[test]
+fn runtime_platform_selector_takes_the_first_platform_the_list_names() {
+    let supported = SupportedArchitectures::Platforms(vec!["linux-ppc64le-musl".parse().unwrap()]);
+
+    let selector = runtime_platform_selector(Some(&supported));
+
+    assert_eq!(selector.os, "linux");
+    assert_eq!(selector.cpu, "ppc64");
+    assert_eq!(selector.libc.as_deref(), Some("musl"));
+}
+
+/// An archive built for another platform cannot run here, so a list that
+/// names this machine asks for this machine's own.
+#[test]
+fn runtime_platform_selector_prefers_the_host_among_the_platforms_a_list_names() {
+    let host = host_platform_selector();
+    let listed = format!(
+        "{}-{}{}",
+        host.os,
+        host.cpu,
+        host.libc
+            .as_deref()
+            .map_or(String::new(), |libc| format!("-{libc}")),
+    );
+    let supported = SupportedArchitectures::Platforms(vec![
+        "linux-ppc64le-musl".parse().unwrap(),
+        listed
+            .parse()
+            .unwrap_or_else(|error| panic!("{listed}: {error}")),
+    ]);
+
+    let selector = runtime_platform_selector(Some(&supported));
+
+    assert_eq!(selector, host);
+}
+
+/// A host whose C library could not be read is not a reason to install
+/// an archive for a platform nobody named.
+#[test]
+fn runtime_platform_selector_stays_among_the_platforms_named() {
+    let host = PlatformSelector { os: "linux".to_string(), cpu: "x64".to_string(), libc: None };
+    let platforms = vec!["linux-x64-musl".parse().unwrap()];
+
+    assert_eq!(
+        runtime_platform_of(&platforms, host),
+        PlatformSelector {
+            os: "linux".to_string(),
+            cpu: "x64".to_string(),
+            libc: Some("musl".to_string()),
+        },
+    );
+}
+
+/// `current` is this machine whichever platform it is listed beside.
+#[test]
+fn runtime_platform_selector_reads_current_in_a_list_as_the_host() {
+    let supported = SupportedArchitectures::Platforms(vec![
+        "linux-ppc64le-musl".parse().unwrap(),
+        "current".parse().unwrap(),
+    ]);
+
+    let selector = runtime_platform_selector(Some(&supported));
+
+    assert_eq!(selector, host_platform_selector());
+}
+
 #[test]
 fn synthesize_runtime_manifest_emits_name_version_and_bin_single() {
     let key: PackageKey = "node@22.0.0".parse().expect("parse node key");

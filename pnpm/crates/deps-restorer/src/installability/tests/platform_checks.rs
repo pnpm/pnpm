@@ -207,11 +207,13 @@ fn supported_architectures_widens_accept_set_so_optional_stays() {
     packages.insert(key, synthetic_metadata(None, None, Some(&["darwin"]), None));
 
     let mut host = host("20.10.0", "linux", "x64");
-    host.supported_architectures = Some(pnpm_package_is_installable::SupportedArchitectures {
-        os: Some(vec!["darwin".to_string()]),
-        cpu: None,
-        libc: None,
-    });
+    host.supported_architectures = Some(pnpm_package_is_installable::SupportedArchitectures::Axes(
+        pnpm_package_is_installable::ArchitectureAxes {
+            os: Some(vec!["darwin".to_string()]),
+            cpu: None,
+            libc: None,
+        },
+    ));
 
     let skipped = compute_skipped_snapshots::<RecordingReporter>(
         &no_importers(),
@@ -243,11 +245,13 @@ fn supported_architectures_does_not_implicitly_include_host() {
     packages.insert(key.clone(), synthetic_metadata(None, None, Some(&["darwin"]), None));
 
     let mut host = host("20.10.0", "linux", "x64");
-    host.supported_architectures = Some(pnpm_package_is_installable::SupportedArchitectures {
-        os: Some(vec!["linux".to_string()]),
-        cpu: None,
-        libc: None,
-    });
+    host.supported_architectures = Some(pnpm_package_is_installable::SupportedArchitectures::Axes(
+        pnpm_package_is_installable::ArchitectureAxes {
+            os: Some(vec!["linux".to_string()]),
+            cpu: None,
+            libc: None,
+        },
+    ));
 
     let skipped = compute_skipped_snapshots::<RecordingReporter>(
         &no_importers(),
@@ -518,11 +522,13 @@ fn missing_libc_is_inferred_from_name() {
 
     let mut host = host("20.10.0", "linux", "x64");
     host.libc = "glibc";
-    host.supported_architectures = Some(pnpm_package_is_installable::SupportedArchitectures {
-        os: Some(vec!["linux".to_string()]),
-        cpu: Some(vec!["x64".to_string()]),
-        libc: Some(vec!["glibc".to_string()]),
-    });
+    host.supported_architectures = Some(pnpm_package_is_installable::SupportedArchitectures::Axes(
+        pnpm_package_is_installable::ArchitectureAxes {
+            os: Some(vec!["linux".to_string()]),
+            cpu: Some(vec!["x64".to_string()]),
+            libc: Some(vec!["glibc".to_string()]),
+        },
+    ));
 
     let skipped = compute_skipped_snapshots::<RecordingReporter>(
         &no_importers(),

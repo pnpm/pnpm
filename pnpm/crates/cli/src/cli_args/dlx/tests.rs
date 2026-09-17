@@ -1,7 +1,7 @@
 use super::{DlxArgs, DlxError, get_bin_name, scopeless};
 use crate::cli_args::dlx::cache::{create_cache_key, get_prepare_dir, get_valid_cache_dir};
 use clap::Parser;
-use pnpm_package_is_installable::SupportedArchitectures;
+use pnpm_package_is_installable::{ArchitectureAxes, SupportedArchitectures};
 use std::{
     collections::BTreeMap,
     fs,
@@ -102,22 +102,83 @@ fn create_cache_key_changes_with_supported_architectures() {
     let registry = "https://registry.npmjs.org/";
     let base = create_cache_key(&pkgs, &regs(registry), &[], None);
 
-    let arm = SupportedArchitectures { cpu: Some(vec!["arm64".to_string()]), ..Default::default() };
-    let x64 = SupportedArchitectures { cpu: Some(vec!["x64".to_string()]), ..Default::default() };
+    let arm = SupportedArchitectures::Axes(ArchitectureAxes {
+        cpu: Some(vec!["arm64".to_string()]),
+        ..Default::default()
+    });
+    let x64 = SupportedArchitectures::Axes(ArchitectureAxes {
+        cpu: Some(vec!["x64".to_string()]),
+        ..Default::default()
+    });
     let key_arm = create_cache_key(&pkgs, &regs(registry), &[], Some(&arm));
     let key_x64 = create_cache_key(&pkgs, &regs(registry), &[], Some(&x64));
 
     assert_ne!(base, key_arm, "an architecture override must change the key");
     assert_ne!(key_arm, key_x64, "different --cpu values must produce different keys");
 
-    let arm_dup = SupportedArchitectures {
+    let arm_dup = SupportedArchitectures::Axes(ArchitectureAxes {
         cpu: Some(vec!["arm64".to_string(), "arm64".to_string()]),
         ..Default::default()
-    };
+    });
     assert_eq!(
         key_arm,
         create_cache_key(&pkgs, &regs(registry), &[], Some(&arm_dup)),
         "duplicate cpu values must not change the key",
+    );
+}
+
+#[test]
+fn create_cache_key_changes_with_the_platforms_it_names() {
+    let pkgs = ["cowsay".to_string()];
+    let registry = "https://registry.npmjs.org/";
+    let base = create_cache_key(&pkgs, &regs(registry), &[], None);
+    let listed = |platforms: &[&str]| {
+        SupportedArchitectures::Platforms(
+            platforms
+                .iter()
+                .map(|platform| platform.parse().unwrap())
+                .collect(),
+        )
+    };
+    let key = |supported| create_cache_key(&pkgs, &regs(registry), &[], Some(supported));
+
+    let linux = listed(&["linux-x64"]);
+    let darwin = listed(&["darwin-arm64"]);
+    assert_ne!(base, key(&linux), "naming a platform must change the key");
+    assert_ne!(key(&linux), key(&darwin), "different platforms must produce different keys");
+
+    let spelled_twice = listed(&["x86_64-unknown-linux-gnu", "linux-x64"]);
+    assert_eq!(
+        key(&linux),
+        key(&spelled_twice),
+        "two spellings of one platform must not change the key",
+    );
+    let written = listed(&["linux-x64", "darwin-arm64"]);
+    let reversed = listed(&["darwin-arm64", "linux-x64"]);
+    assert_ne!(
+        key(&written),
+        key(&reversed),
+        "the first platform decides the runtime archive, so the order must change the key",
+    );
+
+    let here = listed(&["current"]);
+    let elsewhere = listed(&["linux-arm64-musl"]);
+    assert_ne!(base, key(&here), "the platform the install runs on must change the key");
+    assert_ne!(
+        key(&here),
+        key(&elsewhere),
+        "current must be recorded as the platform it resolves to, not as the word",
+    );
+
+    let axes = SupportedArchitectures::Axes(ArchitectureAxes {
+        os: Some(vec!["linux".to_string()]),
+        cpu: Some(vec!["x64".to_string()]),
+        ..Default::default()
+    });
+    assert_ne!(
+        key(&linux),
+        key(&axes),
+        "naming a platform and crossing the axes into it are different installs",
     );
 }
 

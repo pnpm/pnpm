@@ -5,8 +5,8 @@
 //! any global state.
 
 use crate::{
-    SupportedArchitectures, UnsupportedPlatformError, WantedPlatform, WantedPlatformRef,
-    check_platform,
+    ArchitectureAxes, SupportedArchitectures, UnsupportedPlatformError, WantedPlatform,
+    WantedPlatformRef, check_platform,
 };
 
 const PACKAGE_ID: &str = "registry.npmjs.org/foo/1.0.0";
@@ -61,7 +61,11 @@ fn supported(
                 .collect()
         })
     }
-    SupportedArchitectures { os: vec_opt(os), cpu: vec_opt(cpu), libc: vec_opt(libc) }
+    SupportedArchitectures::Axes(ArchitectureAxes {
+        os: vec_opt(os),
+        cpu: vec_opt(cpu),
+        libc: vec_opt(libc),
+    })
 }
 
 #[test]

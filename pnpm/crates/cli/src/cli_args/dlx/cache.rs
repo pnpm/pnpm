@@ -179,24 +179,56 @@ pub(super) fn create_cache_key(
         sorted_allow.sort_unstable();
         args.push(json!({ "allowBuild": sorted_allow }));
     }
-    if let Some(arch) = supported_architectures {
-        for (key, values) in [("cpu", &arch.cpu), ("libc", &arch.libc), ("os", &arch.os)] {
-            let Some(values) = values
-                .as_ref()
-                .filter(|values| !values.is_empty())
-            else {
-                continue;
-            };
-            let mut deduped: Vec<&str> = values
+    args.extend(architecture_key_inputs(supported_architectures));
+    create_short_hash(&serde_json::to_string(&args).expect("serialize cache key inputs"))
+}
+
+/// What the platforms an install prepares for contribute to its cache
+/// key.
+///
+/// The axes are recorded one axis at a time, each named once and sorted,
+/// since rewriting them in another order asks for the same install.
+///
+/// A platform list is recorded as the platforms it resolves to, in the
+/// order it named them. The order matters because which platform comes
+/// first decides which runtime archive the install takes when this
+/// machine is none of them, and resolving matters because `current` is a
+/// different platform on each machine while the word is the same.
+fn architecture_key_inputs(supported: Option<&SupportedArchitectures>) -> Vec<Value> {
+    match supported {
+        None => Vec::new(),
+        Some(SupportedArchitectures::Axes(axes)) => {
+            [("cpu", &axes.cpu), ("libc", &axes.libc), ("os", &axes.os)]
+                .into_iter()
+                .filter_map(|(key, values)| {
+                    let values = values
+                        .as_ref()
+                        .filter(|values| !values.is_empty())?;
+                    Some(json!({ "supportedArchitectures": { key: sorted_once(values) } }))
+                })
+                .collect()
+        }
+        Some(supported @ SupportedArchitectures::Platforms(_)) => {
+            let named: Vec<String> = supported
+                .host_platforms()
                 .iter()
-                .map(String::as_str)
+                .map(ToString::to_string)
                 .collect();
-            deduped.sort_unstable();
-            deduped.dedup();
-            args.push(json!({ "supportedArchitectures": { key: deduped } }));
+            vec![json!({ "supportedArchitectures": named })]
         }
     }
-    create_short_hash(&serde_json::to_string(&args).expect("serialize cache key inputs"))
+}
+
+/// The values as the cache key records them: named once, in an order
+/// rewriting the configuration cannot change.
+fn sorted_once(values: &[String]) -> Vec<&str> {
+    let mut deduped: Vec<&str> = values
+        .iter()
+        .map(String::as_str)
+        .collect();
+    deduped.sort_unstable();
+    deduped.dedup();
+    deduped
 }
 
 /// Return the cache target behind `cache_link` when it is a symlink whose

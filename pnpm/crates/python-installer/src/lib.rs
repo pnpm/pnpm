@@ -30,7 +30,7 @@ use interpreter::{Interpreters, Mismatch};
 use miette::{IntoDiagnostic, Result, WrapErr, bail};
 use pnpm_pnpr_client::{PYPI_ECOSYSTEM, PnprClient, PypiResolveOptions};
 use pnpm_python_resolver::{Inputs, Lockfile};
-use pnpm_reporter::Reporter;
+use pnpm_reporter::{GlobalLog, LogEvent, LogLevel, Reporter};
 use pnpm_store_dir::{StoreIndex, StoreIndexWriter};
 use registry::Registry;
 use settings::{Index, python_index};
@@ -81,6 +81,36 @@ pub fn plan<Reporter: self::Reporter + 'static>(
     )
 }
 
+/// Say which of the platforms this install prepares for pnpm cannot
+/// resolve Python for.
+///
+/// `supportedArchitectures` is read by the npm side too, where a system
+/// pnpm has no wheel tags for is still a name a package declares, so one
+/// is not an error. It does mean `pylock.toml` covers less than the
+/// workspace says it supports, and saying nothing about that reads as
+/// having covered it.
+fn report_platforms_without_python<Reporter: self::Reporter + 'static>(
+    config: &pnpm_config::Config,
+) {
+    let Some(supported) = config.supported_architectures.as_ref() else {
+        return;
+    };
+    let unnamed = targets::platform_values_without_python(supported);
+    if unnamed.is_empty() {
+        return;
+    }
+    let names = unnamed.join(", ");
+    let message = if targets::declares_platforms(config) {
+        format!("pnpm cannot resolve Python for {names}, so pylock.toml does not cover it.")
+    } else {
+        format!(
+            "supportedArchitectures names no platform pnpm can resolve Python for: {names}. \
+             pylock.toml is resolved for the platform the install runs on.",
+        )
+    };
+    Reporter::emit(&LogEvent::Global(GlobalLog { level: LogLevel::Warn, message }));
+}
+
 async fn prepare<Reporter: self::Reporter + 'static>(
     context: InstallOptions,
     discovery: Discovery,
@@ -92,6 +122,7 @@ async fn prepare<Reporter: self::Reporter + 'static>(
     if !discovery.has_projects() {
         return Ok(Vec::new());
     }
+    report_platforms_without_python::<Reporter>(config);
     let Discovery { roots, workspace, .. } = discovery;
     let index = python_index(config)?;
     config.store_dir.init().into_diagnostic()?;

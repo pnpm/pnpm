@@ -4,7 +4,7 @@ use super::{
 };
 use crate::_utils::pacquet_in;
 use assert_cmd::prelude::*;
-use std::{fmt::Write as _, fs};
+use std::fs;
 
 /// The `getsentry/sentry` and `marimo-team/marimo` case of item 5 of
 /// pnpm/pnpm#14945: a requirement whose distribution has never published
@@ -224,11 +224,13 @@ async fn one_release_pins_the_wheel_an_environment_takes_beside_the_archive_the_
     )
     .await;
     project(root.path(), &server.url(), &["alpha>=1"]);
-    let mut platforms = String::new();
-    for (platform, _) in super::declared_platforms() {
-        writeln!(platforms, "    - {platform}").unwrap();
-    }
-    super::add_python_settings(root.path(), &format!("  platforms:\n{platforms}"));
+    super::add_supported_architectures(
+        root.path(),
+        &super::declared_platforms()
+            .iter()
+            .map(|(platform, _)| *platform)
+            .collect::<Vec<_>>(),
+    );
 
     pacquet_in(root.path())
         .arg("install")

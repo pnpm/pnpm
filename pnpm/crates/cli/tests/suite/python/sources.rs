@@ -8,7 +8,7 @@ use super::{
 use crate::_utils::pacquet_in;
 use assert_cmd::prelude::*;
 use sha2::{Digest, Sha256};
-use std::{fmt::Write as _, fs, path::Path, process::Command};
+use std::{fs, path::Path, process::Command};
 use url::Url;
 
 #[tokio::test]
@@ -589,11 +589,13 @@ async fn git_submodules_are_preserved_in_offline_checkouts() {
 }
 
 fn declare_platforms(root: &Path) {
-    let mut platforms = String::new();
-    for (platform, _) in super::declared_platforms() {
-        writeln!(platforms, "    - {platform}").unwrap();
-    }
-    super::add_python_settings(root, &format!("  platforms:\n{platforms}"));
+    super::add_supported_architectures(
+        root,
+        &super::declared_platforms()
+            .iter()
+            .map(|(platform, _)| *platform)
+            .collect::<Vec<_>>(),
+    );
 }
 
 #[tokio::test]

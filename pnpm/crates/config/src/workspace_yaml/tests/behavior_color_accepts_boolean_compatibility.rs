@@ -666,7 +666,7 @@ supportedArchitectures:
   libc: [glibc]
 ";
     let settings: WorkspaceSettings = serde_saphyr::from_str(yaml).unwrap();
-    let raw = settings.supported_architectures.clone().expect("field present");
+    let raw = axes(settings.supported_architectures.clone().expect("field present"));
     assert_eq!(raw.os.as_deref(), Some(&["darwin".to_string(), "linux".to_string()][..]));
     assert_eq!(raw.cpu.as_deref(), Some(&["arm64".to_string(), "x64".to_string()][..]));
     assert_eq!(raw.libc.as_deref(), Some(&["glibc".to_string()][..]));
@@ -674,10 +674,62 @@ supportedArchitectures:
     let mut config = Config::new();
     assert!(config.supported_architectures.is_none(), "default is None");
     settings.apply_to(&mut config, Path::new("/irrelevant"));
-    let applied = config.supported_architectures.expect("set after apply_to");
+    let applied = axes(config.supported_architectures.expect("set after apply_to"));
     assert_eq!(applied.os.as_deref(), Some(&["darwin".to_string(), "linux".to_string()][..]));
     assert_eq!(applied.cpu.as_deref(), Some(&["arm64".to_string(), "x64".to_string()][..]));
     assert_eq!(applied.libc.as_deref(), Some(&["glibc".to_string()][..]));
+}
+
+/// The three axes of a `supportedArchitectures` written as a mapping.
+fn axes(
+    supported: pnpm_package_is_installable::SupportedArchitectures,
+) -> pnpm_package_is_installable::ArchitectureAxes {
+    match supported {
+        pnpm_package_is_installable::SupportedArchitectures::Axes(axes) => axes,
+        pnpm_package_is_installable::SupportedArchitectures::Platforms(platforms) => {
+            panic!("{platforms:?} was written as a mapping")
+        }
+    }
+}
+
+#[test]
+fn parses_supported_architectures_written_as_a_platform_list() {
+    let yaml = r"
+supportedArchitectures:
+  - linux-x64-manylinux_2_28
+  - aarch64-apple-darwin
+  - win32-x64
+";
+    let settings: WorkspaceSettings = serde_saphyr::from_str(yaml).unwrap();
+    let mut config = Config::new();
+    settings.apply_to(&mut config, Path::new("/irrelevant"));
+    let applied = config.supported_architectures.expect("set after apply_to");
+    assert_eq!(
+        applied
+            .platforms("linux", "x64", "glibc")
+            .iter()
+            .map(ToString::to_string)
+            .collect::<Vec<_>>(),
+        ["linux-x64-manylinux_2_28", "darwin-arm64", "win32-x64"],
+    );
+}
+
+/// Refused rather than read as unset: a list that names no platform
+/// prepares for nothing.
+#[test]
+fn refuses_a_platform_list_that_names_no_platform() {
+    serde_saphyr::from_str::<WorkspaceSettings>("supportedArchitectures: []\n")
+        .expect_err("an empty list names no platform");
+}
+
+/// A platform pnpm does not know is a typo, not a name to leave out
+/// the way an axis value it cannot read is.
+#[test]
+fn refuses_a_platform_it_does_not_know() {
+    let error =
+        serde_saphyr::from_str::<WorkspaceSettings>("supportedArchitectures:\n  - x86_64-linux\n")
+            .expect_err("an unknown platform is refused");
+    assert!(format!("{error}").contains("pnpm does not know the platform x86_64-linux"), "{error}");
 }
 
 /// Absent `supportedArchitectures` leaves the config field at
@@ -705,7 +757,7 @@ supportedArchitectures:
   os: [darwin]
 ";
     let settings: WorkspaceSettings = serde_saphyr::from_str(yaml).unwrap();
-    let raw = settings.supported_architectures.expect("field present");
+    let raw = axes(settings.supported_architectures.expect("field present"));
     assert_eq!(raw.os.as_deref(), Some(&["darwin".to_string()][..]));
     assert!(raw.cpu.is_none());
     assert!(raw.libc.is_none());

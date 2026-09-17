@@ -7,6 +7,7 @@ use pnpm_lockfile::{
     select_platform_variant,
 };
 use pnpm_network::ThrottledClient;
+use pnpm_package_is_installable::{SupportedArchitectures, SupportedPlatform};
 use pnpm_reporter::Reporter;
 use pnpm_store_dir::{SharedReadonlyStoreIndex, SharedVerifiedFilesCache, StoreIndexWriter};
 use pnpm_tarball::{
@@ -79,27 +80,55 @@ pub fn host_platform_selector() -> PlatformSelector {
 }
 /// Resolve the runtime archive selector from `supportedArchitectures`.
 ///
-/// Exactly one archive is installed per runtime, so each axis prefers
-/// the host's own value: an archive built for another platform cannot
+/// Exactly one archive is installed per runtime, so the host's own
+/// platform is preferred: an archive built for another platform cannot
 /// run here.
 ///
 /// <https://github.com/pnpm/pnpm/issues/13898>
 #[must_use]
-pub fn runtime_platform_selector(
-    supported: Option<&pnpm_package_is_installable::SupportedArchitectures>,
-) -> PlatformSelector {
+pub fn runtime_platform_selector(supported: Option<&SupportedArchitectures>) -> PlatformSelector {
     let host = host_platform_selector();
-    let (requested_os, requested_cpu, requested_libc) = match supported {
-        Some(supported) => {
-            (supported.os.as_deref(), supported.cpu.as_deref(), supported.libc.as_deref())
-        }
-        None => (None, None, None),
-    };
-    PlatformSelector {
-        os: pick_supported(requested_os, Some(&host.os)).unwrap_or(&host.os).to_string(),
-        cpu: pick_supported(requested_cpu, Some(&host.cpu)).unwrap_or(&host.cpu).to_string(),
-        libc: pick_supported(requested_libc, host.libc.as_deref()).map(str::to_string),
+    match supported {
+        Some(SupportedArchitectures::Platforms(platforms)) => runtime_platform_of(platforms, host),
+        Some(SupportedArchitectures::Axes(axes)) => PlatformSelector {
+            os: pick_supported(axes.os.as_deref(), Some(&host.os)).unwrap_or(&host.os).to_string(),
+            cpu: pick_supported(axes.cpu.as_deref(), Some(&host.cpu))
+                .unwrap_or(&host.cpu)
+                .to_string(),
+            libc: pick_supported(axes.libc.as_deref(), host.libc.as_deref()).map(str::to_string),
+        },
+        None => host,
     }
+}
+
+/// The archive a platform list asks for: this machine's own platform
+/// when the list names it, and the first platform it names otherwise.
+///
+/// A C library pnpm could not read leaves the host without one, so it
+/// matches no Linux platform and the first named one is taken. That is
+/// the right way to be wrong: which C library this machine has is
+/// exactly what could not be determined, and a platform the list names
+/// is at least one the workspace prepared for.
+pub(super) fn runtime_platform_of(
+    platforms: &[SupportedPlatform],
+    host: PlatformSelector,
+) -> PlatformSelector {
+    let mut first = None;
+    for platform in platforms {
+        let SupportedPlatform::Named(named) = platform else { return host };
+        let selector = PlatformSelector {
+            os: named.os.name().to_string(),
+            cpu: named.architecture.cpu().to_string(),
+            libc: named.libc
+                .as_ref()
+                .map(|libc| libc.name().to_string()),
+        };
+        if selector == host {
+            return host;
+        }
+        first.get_or_insert(selector);
+    }
+    first.unwrap_or(host)
 }
 pub(super) fn pick_supported<'a>(
     requested: Option<&'a [String]>,

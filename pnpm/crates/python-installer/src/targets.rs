@@ -6,6 +6,7 @@ use super::host::Interpreter;
 use miette::{IntoDiagnostic, Result, bail};
 use pep508_rs::MarkerTree;
 use pnpm_config::Config;
+use pnpm_package_is_installable::{Libc, LibcFamily, NamedPlatform, Os, SupportedArchitectures};
 use pnpm_python_resolver::{Target, environment_marker};
 use std::collections::BTreeSet;
 
@@ -28,7 +29,10 @@ pub(super) fn probe_request(config: &Config) -> serde_json::Value {
     serde_json::json!({
         "targets": declarations(&platforms, &python_versions)
             .into_iter()
-            .map(|(platform, version)| serde_json::json!({"platform": platform, "python": version}))
+            .map(|(platform, version)| serde_json::json!({
+                "platform": platform.map(interpreter_platform),
+                "python": version,
+            }))
             .collect::<Vec<_>>(),
     })
 }
@@ -42,9 +46,10 @@ pub(super) struct Environments {
     pub(super) declared: bool,
     pub(super) list: Vec<Environment>,
     /// The platforms and Python versions the project declares, as the
-    /// lockfile records what it was answered for. Repeats are dropped, so
-    /// removing one from the configuration does not make a lockfile that
-    /// still answers the project look like one that does not.
+    /// lockfile records what it was answered for. Two spellings of one
+    /// platform are recorded as the one platform they name, so rewriting
+    /// the configuration does not make a lockfile that still answers the
+    /// project look like one that does not.
     pub(super) platforms: Vec<String>,
     pub(super) python_versions: Vec<String>,
 }
@@ -53,10 +58,14 @@ impl Environments {
     pub(super) fn of(config: &Config, interpreter: &Interpreter) -> Result<Self> {
         let (platforms, python_versions) = named(config);
         let declarations = declarations(&platforms, &python_versions);
+        let recorded = platforms
+            .iter()
+            .map(ToString::to_string)
+            .collect();
         if declarations.is_empty() {
             let target = interpreter.target.clone();
             let list = vec![Environment { target, declared: Vec::new() }];
-            return Ok(Self { declared: false, list, platforms, python_versions });
+            return Ok(Self { declared: false, list, platforms: recorded, python_versions });
         }
         if declarations.len() != interpreter.targets.len() {
             bail!(
@@ -76,8 +85,9 @@ impl Environments {
                     "sys_platform".to_string(),
                 ],
             };
-            // Two names for one environment, such as `linux` and the triple
-            // it stands for, are what the interpreter reports them as.
+            // Two spellings of one platform, such as `linux-x64` and the
+            // baseline it defaults to, are one environment, which is
+            // what the interpreter reports them as.
             if !list
                 .iter()
                 .any(|kept| {
@@ -88,7 +98,7 @@ impl Environments {
             }
         }
         check_interpreter_is_declared(&list, interpreter)?;
-        Ok(Self { declared: true, list, platforms, python_versions })
+        Ok(Self { declared: true, list, platforms: recorded, python_versions })
     }
 }
 
@@ -106,39 +116,87 @@ fn marker(environment: &Environment) -> Result<MarkerTree> {
 /// `None` is a dimension the project leaves to the interpreter running
 /// the install.
 fn declarations<'a>(
-    platforms: &'a [String],
+    platforms: &'a [NamedPlatform],
     python_versions: &'a [String],
-) -> Vec<(Option<&'a String>, Option<&'a String>)> {
+) -> Vec<(Option<&'a NamedPlatform>, Option<&'a String>)> {
     if platforms.is_empty() && python_versions.is_empty() {
         return Vec::new();
     }
+    let named = or_running(platforms.iter().map(Some).collect());
+    let versions = or_running(
+        python_versions
+            .iter()
+            .map(Some)
+            .collect(),
+    );
     let mut declarations = Vec::new();
-    for platform in configured(platforms) {
-        for version in configured(python_versions) {
-            declarations.push((platform, version));
+    for platform in named {
+        for version in &versions {
+            declarations.push((platform, *version));
         }
     }
     declarations
 }
 
+/// Whether any platform this install prepares for is one pnpm can
+/// resolve Python for.
+pub(super) fn declares_platforms(config: &Config) -> bool {
+    !named(config).0.is_empty()
+}
+
+/// The values `supportedArchitectures` names that pnpm cannot resolve
+/// Python for, as the interpreter running the install reads them.
+pub(super) fn platform_values_without_python(supported: &SupportedArchitectures) -> Vec<&str> {
+    supported.unnamed_platform_values(
+        pnpm_detect_libc::host_platform(),
+        pnpm_detect_libc::host_target_arch(),
+        pnpm_detect_libc::detect().map_or("unknown", |libc| libc.as_str()),
+    )
+}
+
 /// The platforms and Python versions the project declares, each named
-/// once. A value repeated in the configuration is one environment.
-fn named(config: &Config) -> (Vec<String>, Vec<String>) {
-    let once = |values: &[String]| {
-        let mut named = BTreeSet::new();
-        values
-            .iter()
-            .filter(|value| named.insert(*value))
-            .cloned()
-            .collect()
-    };
-    (once(&config.python.platforms), once(&config.python.python_versions))
+/// once.
+///
+/// `supportedArchitectures` says which platforms the whole install
+/// prepares for, so `pylock.toml` is resolved for those. A repeat, and a
+/// second spelling of one platform, is one environment.
+fn named(config: &Config) -> (Vec<NamedPlatform>, Vec<String>) {
+    let platforms = config.supported_architectures
+        .as_ref()
+        .map(SupportedArchitectures::host_platforms)
+        .unwrap_or_default();
+    let mut seen = BTreeSet::new();
+    let python_versions = config.python.python_versions
+        .iter()
+        .filter(|version| seen.insert(*version))
+        .cloned()
+        .collect();
+    (platforms, python_versions)
 }
 
 /// The configured values, or the one unconfigured value standing for
 /// whatever the interpreter running the install reports.
-fn configured(values: &[String]) -> Vec<Option<&String>> {
-    if values.is_empty() { vec![None] } else { values.iter().map(Some).collect() }
+fn or_running<Value>(values: Vec<Option<Value>>) -> Vec<Option<Value>> {
+    if values.is_empty() { vec![None] } else { values }
+}
+
+/// How the interpreter is asked about a platform: the Rust target triple
+/// of the machine, or the `manylinux` or `musllinux` baseline when the
+/// platform names one, since that is what a wheel tag carries.
+fn interpreter_platform(platform: &NamedPlatform) -> String {
+    let architecture = platform.architecture.wheel();
+    match (platform.os, &platform.libc) {
+        (Os::Darwin, _) => format!("{architecture}-apple-darwin"),
+        (Os::Windows, _) => format!("{architecture}-pc-windows-msvc"),
+        (Os::Linux, Some(Libc { baseline: Some(baseline), .. })) => {
+            format!("{architecture}-{baseline}")
+        }
+        (Os::Linux, libc) => {
+            let family = libc.as_ref().map_or(LibcFamily::Glibc, |libc| libc.family);
+            let abi = if family == LibcFamily::Musl { "musl" } else { "gnu" };
+            format!("{architecture}-unknown-linux-{abi}")
+        }
+    }
 }
 
 /// A declared Python version is locked for as the release it names: a
@@ -166,7 +224,7 @@ fn check_interpreter_is_declared(
     let running = &interpreter.target.environment;
     bail!(
         "Python {} on {} {} is not one of the environments this project locks for; \
-         add it to python.platforms and python.pythonVersions, \
+         add it to supportedArchitectures and python.pythonVersions, \
          or install with an interpreter that is one of them",
         running.python_full_version(),
         running.sys_platform(),
