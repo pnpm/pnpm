@@ -407,5 +407,6 @@ fn pipeline_script_context<'a>(
         // The pipeline never bails, so there is no cancellation to
         // propagate into running children.
         process_tracker: None,
+        emit: options.reporting.emit,
     }
 }

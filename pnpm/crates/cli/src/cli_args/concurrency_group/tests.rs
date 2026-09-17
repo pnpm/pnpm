@@ -1,13 +1,32 @@
-use super::{MACHINE_RUN_SLOT_ENV, SlotPool, acquire_machine_run_slot};
-use pnpm_config::Config;
+use super::{
+    HELD_CONCURRENCY_GROUPS_ENV, SlotPool, acquire_concurrency_group_slot, with_held_group,
+};
+use pnpm_config::{Config, TaskSettings};
 use pnpm_reporter::LogEvent;
 use std::{
+    collections::HashMap,
     sync::mpsc,
     thread,
     time::{Duration, Instant},
 };
 
 fn no_emit(_: &LogEvent) {}
+
+/// A config whose `build` task is in group `cargo`, limited to `limit`
+/// slots under `state_dir`.
+fn config(state_dir: &std::path::Path, limit: Option<u32>) -> Config {
+    let mut build = TaskSettings::default();
+    build.concurrency_group = Some("cargo".to_string());
+    Config {
+        tasks: std::iter::once(("build".to_string(), build)).collect(),
+        concurrency_groups: limit
+            .map(|limit| ("cargo".to_string(), limit))
+            .into_iter()
+            .collect(),
+        state_dir: state_dir.to_path_buf(),
+        ..Config::default()
+    }
+}
 
 #[test]
 fn a_pool_hands_out_exactly_its_limit() {
@@ -83,33 +102,31 @@ fn acquire_waits_for_a_slot_to_free_up() {
 }
 
 #[test]
-fn no_limit_takes_no_slot() {
+fn a_task_without_a_limited_group_takes_no_slot() {
     let dir = tempfile::tempdir().expect("create temp dir");
     for limit in [None, Some(0)] {
-        let config = Config {
-            machine_run_concurrency: limit,
-            state_dir: dir.path().to_path_buf(),
-            ..Config::default()
-        };
-        assert!(acquire_machine_run_slot(&config, no_emit).expect("acquire").is_none());
+        let config = config(dir.path(), limit);
+        assert!(
+            acquire_concurrency_group_slot(&config, "build", no_emit).expect("acquire").is_none(),
+        );
     }
+    let config = config(dir.path(), Some(1));
+    assert!(acquire_concurrency_group_slot(&config, "lint", no_emit).expect("acquire").is_none());
     assert!(!dir.path().join("run-slots").exists(), "no pool is created without a limit");
 }
 
 #[test]
-fn a_limit_creates_the_group_pool_under_the_state_dir() {
+fn a_limited_group_creates_its_pool_under_the_state_dir() {
     let dir = tempfile::tempdir().expect("create temp dir");
-    let config = Config {
-        machine_run_concurrency: Some(1),
-        machine_run_concurrency_group: "agents".to_string(),
-        state_dir: dir.path().to_path_buf(),
-        ..Config::default()
-    };
-    let slot = acquire_machine_run_slot(&config, no_emit).expect("acquire").expect("a slot");
+    let config = config(dir.path(), Some(1));
+    let slot = acquire_concurrency_group_slot(&config, "build", no_emit)
+        .expect("acquire")
+        .expect("a slot");
     let pool = dir
         .path()
         .join("run-slots")
-        .join("agents");
+        .join("cargo");
+    assert_eq!(slot.group(), "cargo");
     assert!(pool.join("0").is_file());
     assert!(
         SlotPool { dir: pool, limit: 1 }
@@ -121,35 +138,40 @@ fn a_limit_creates_the_group_pool_under_the_state_dir() {
     drop(slot);
 }
 
-/// `MACHINE_RUN_SLOT_ENV` is process-global, so this is the one test that
-/// sets it, and it restores the previous value before returning.
 #[test]
-fn a_nested_invocation_of_the_same_group_reuses_the_parent_slot() {
+fn the_held_group_is_added_to_the_spawned_environment() {
+    let extra_env: HashMap<String, String> =
+        std::iter::once(("NODE_OPTIONS".to_string(), "--flag".to_string())).collect();
+    let env = with_held_group(&extra_env, "cargo");
+    assert_eq!(env.get(HELD_CONCURRENCY_GROUPS_ENV).map(String::as_str), Some("cargo"));
+    assert_eq!(env.get("NODE_OPTIONS").map(String::as_str), Some("--flag"));
+}
+
+/// `HELD_CONCURRENCY_GROUPS_ENV` is process-global, so this is the one test
+/// that sets it, and it restores the previous value before returning.
+#[test]
+fn a_nested_task_of_a_held_group_reuses_the_parent_slot() {
     let dir = tempfile::tempdir().expect("create temp dir");
-    let config = Config {
-        machine_run_concurrency: Some(1),
-        machine_run_concurrency_group: "agents".to_string(),
-        state_dir: dir.path().to_path_buf(),
-        ..Config::default()
-    };
-    let previous = std::env::var_os(MACHINE_RUN_SLOT_ENV);
+    let config = config(dir.path(), Some(1));
+    let previous = std::env::var_os(HELD_CONCURRENCY_GROUPS_ENV);
     // SAFETY: the tests of this crate that touch the environment run
     // through this one function, and nothing else in the process reads
-    // `MACHINE_RUN_SLOT_ENV` while it runs.
-    unsafe { std::env::set_var(MACHINE_RUN_SLOT_ENV, "agents") };
-    let same_group = acquire_machine_run_slot(&config, no_emit);
-    let other_group = acquire_machine_run_slot(
-        &Config { machine_run_concurrency_group: "other".to_string(), ..config },
-        no_emit,
-    );
+    // `HELD_CONCURRENCY_GROUPS_ENV` while it runs.
+    unsafe { std::env::set_var(HELD_CONCURRENCY_GROUPS_ENV, "node,cargo") };
+    let held_group = acquire_concurrency_group_slot(&config, "build", no_emit);
+    let spawned = with_held_group(&HashMap::new(), "cargo");
     // SAFETY: see above.
     unsafe {
         match previous {
-            Some(previous) => std::env::set_var(MACHINE_RUN_SLOT_ENV, previous),
-            None => std::env::remove_var(MACHINE_RUN_SLOT_ENV),
+            Some(previous) => std::env::set_var(HELD_CONCURRENCY_GROUPS_ENV, previous),
+            None => std::env::remove_var(HELD_CONCURRENCY_GROUPS_ENV),
         }
     }
 
-    assert!(same_group.expect("acquire").is_none(), "the parent's slot covers this run");
-    assert!(other_group.expect("acquire").is_some(), "another group has its own pool");
+    assert!(held_group.expect("acquire").is_none(), "the parent's slot covers this task");
+    assert_eq!(
+        spawned.get(HELD_CONCURRENCY_GROUPS_ENV).map(String::as_str),
+        Some("node,cargo"),
+        "a held group is listed once",
+    );
 }

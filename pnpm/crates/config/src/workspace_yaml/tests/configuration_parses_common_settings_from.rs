@@ -755,3 +755,58 @@ fn rejects_string_task_concurrency_as_an_invalid_setting() {
             if task == "build" && concurrency == r#""2""#
     ));
 }
+
+#[test]
+fn parses_task_concurrency_groups() {
+    let dir = tempfile::tempdir().unwrap();
+    fs::write(
+        dir.path().join(WORKSPACE_MANIFEST_FILENAME),
+        "packages:\n  - packages/*\ntasks:\n  build:\n    concurrencyGroup: cargo\nconcurrencyGroups:\n  cargo: 2\n  node: 4\n",
+    )
+    .unwrap();
+
+    let settings = WorkspaceSettings::load_at(dir.path())
+        .expect("load pnpm-workspace.yaml")
+        .expect("pnpm-workspace.yaml is present");
+
+    assert_eq!(
+        settings.tasks.as_ref().unwrap()["build"].concurrency_group.as_deref(),
+        Some("cargo"),
+    );
+    assert_eq!(
+        settings.concurrency_groups
+            .as_ref()
+            .unwrap()
+            .get("cargo")
+            .copied(),
+        Some(2),
+    );
+    assert_eq!(
+        settings.concurrency_groups
+            .as_ref()
+            .unwrap()
+            .get("node")
+            .copied(),
+        Some(4),
+    );
+}
+
+/// A layer restating one group's limit leaves the other groups as the
+/// layers below set them.
+#[test]
+fn concurrency_groups_merge_across_layers() {
+    let mut config = Config::default();
+    let dir = Path::new("/workspace");
+    for yaml in ["concurrencyGroups:\n  cargo: 2\n  node: 4\n", "concurrencyGroups:\n  cargo: 1\n"]
+    {
+        let settings: WorkspaceSettings = serde_saphyr::from_str(yaml).unwrap();
+        settings.apply_to(&mut config, dir);
+    }
+
+    let limits: Vec<(&str, u32)> = config.concurrency_groups
+        .iter()
+        .map(|(group, limit)| (group.as_str(), *limit))
+        .collect();
+    dbg!(&limits);
+    assert_eq!(limits, vec![("cargo", 1), ("node", 4)]);
+}

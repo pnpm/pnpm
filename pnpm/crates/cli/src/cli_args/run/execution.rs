@@ -6,12 +6,21 @@ use super::{
     package_map_path_for_execution, pnp_path_for_execution, run_script, schedule_graph,
     sync_injected_deps, throw_or_filter_hidden_scripts,
 };
+use crate::cli_args::concurrency_group::{acquire_concurrency_group_slot, with_held_group};
+use pnpm_reporter::LogEvent;
 
 /// Shared inputs for running a script, threaded through
 /// [`run_stages`] and [`run_stage`] so neither grows an unwieldy
 /// argument list. The submodule `recursive` builds a per-project
 /// [`RunContext`] and reuses [`run_stages`], so the type and its
 /// fields are visible up to the parent module.
+#[cfg_attr(
+    dylint_lib = "perfectionist",
+    expect(
+        perfectionist::too_many_struct_fields,
+        reason = "The fields are every input of a script spawn, bundled so the stage runners keep a short argument list."
+    )
+)]
 pub(in super::super) struct RunContext<'a> {
     pub(in super::super) manifest: &'a PackageManifest,
     pub(in super::super) dir: &'a Path,
@@ -21,6 +30,9 @@ pub(in super::super) struct RunContext<'a> {
     pub(in super::super) silent: bool,
     pub(in super::super) output: ScriptOutput<'a>,
     pub(in super::super) process_tracker: Option<&'a ProcessTracker>,
+    /// Where pnpm's own notices about the run go. Distinct from the
+    /// streamed script output, which a pipeline may be capturing.
+    pub(in super::super) emit: fn(&LogEvent),
 }
 
 /// Resolve `name` to a runnable main script body, or `Ok(None)` when
@@ -282,6 +294,21 @@ impl ScriptOutcome<'_> {
 }
 
 pub(in super::super) fn run_stages(
+    ctx: &RunContext<'_>,
+    name: &str,
+    main_body: &str,
+    args: &[String],
+) -> miette::Result<ScriptExit> {
+    // Held across every stage, so a `pre` script cannot hand the slot
+    // to another process between it and the main script.
+    let Some(slot) = acquire_concurrency_group_slot(ctx.config, name, ctx.emit)? else {
+        return run_script_stages(ctx, name, main_body, args);
+    };
+    let held_env = with_held_group(ctx.extra_env, slot.group());
+    run_script_stages(&RunContext { extra_env: &held_env, ..*ctx }, name, main_body, args)
+}
+
+fn run_script_stages(
     ctx: &RunContext<'_>,
     name: &str,
     main_body: &str,

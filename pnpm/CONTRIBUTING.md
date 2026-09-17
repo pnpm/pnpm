@@ -111,7 +111,7 @@ Then run the tests that cover what you changed:
 pnpm test:rust-affected
 ```
 
-The root `package.json` scripts (`test:rust-affected`, `test:rust`, `test:rust-smoke`, `check:rust`, `lint:rust`, `ready:rust`, `build:pnpm`) wrap the `just` recipes and node scripts this section names, and they are the way to invoke them: the `machineRunConcurrency` setting holds the builds and test runs of every worktree on a machine to a limit it can carry, and only a run that starts as `pnpm <script>` is counted.
+The root `package.json` scripts (`test:rust-affected`, `test:rust`, `test:rust-smoke`, `check:rust`, `lint:rust`, `ready:rust`, `build:pnpm`) wrap the `just` recipes and node scripts this section names, and they are the way to invoke them: a task concurrency group (`concurrencyGroup` on the task and a limit under `concurrencyGroups` in `pnpm-workspace.yaml`) holds the builds and test runs of every worktree on a machine to a limit it can carry, and only a run that starts as `pnpm <script>` is counted. Override a limit for your machine with `PNPM_CONFIG_CONCURRENCY_GROUPS='{"cargo":1}'` in your environment.
 
 This maps the working tree's changes to crates and runs those crates' tests, with the same sanitized environment `just test` uses. It does not include the CLI end-to-end suite unless you changed `pnpm-cli` itself, so for a user-visible change add the suite modules for the area: `pnpm test:rust-affected -- -p pnpm-cli -E 'test(catalog::)'`. The [`testing-changes`](../.agents/skills/testing-changes/SKILL.md) skill covers picking them.
 

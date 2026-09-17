@@ -255,6 +255,7 @@ impl RunArgs {
                 ScriptOutput::Inherit
             },
             process_tracker: process_tracker.as_ref(),
+            emit: reporter_emit(reporter),
         };
         let outcome = ScriptOutcome {
             failures: Mutex::new(Vec::new()),

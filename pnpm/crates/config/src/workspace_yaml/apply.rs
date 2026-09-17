@@ -49,7 +49,9 @@ impl WorkspaceSettings {
         identically_named_settings!(apply);
 
         overlay_some(&mut config.pipeline_base, self.pipeline_base.take());
-        overlay_some(&mut config.machine_run_concurrency, self.machine_run_concurrency.take());
+        if let Some(concurrency_groups) = self.concurrency_groups.take() {
+            config.concurrency_groups.extend(concurrency_groups);
+        }
 
         if let Some(virtual_store_type) = virtual_store_type {
             config.enable_global_virtual_store = virtual_store_type.is_global();

@@ -9,7 +9,7 @@ Run what the change affects. CI runs the full suite on three platforms for every
 
 ## Rust (`pnpm/`, `pnpr/`)
 
-Run the tests through the root `package.json` scripts from the repository root: `pnpm test:rust-affected`, `pnpm test:rust`, `pnpm test:rust-smoke`. They wrap the `just` recipes and node scripts named below, pass their arguments through, and let the `machineRunConcurrency` setting hold the runs of every worktree on the machine to a limit it can carry. A bare `cargo` or `just` slips past that limit.
+Run the tests through the root `package.json` scripts from the repository root: `pnpm test:rust-affected`, `pnpm test:rust`, `pnpm test:rust-smoke`. They wrap the `just` recipes and node scripts named below, pass their arguments through, and let a task concurrency group (`concurrencyGroups` in `pnpm-workspace.yaml`) hold the runs of every worktree on the machine to a limit it can carry. A bare `cargo` or `just` slips past that limit.
 
 Run `pnpm test:rust-affected` (`just test-affected`). It decides three things for you: it selects every `pnpr-*` crate together, it refuses to scope a change that reaches files every crate compiles against and points at `just ready` instead, and it runs the smoke profile in place of dependents it did not select. It prints what it selected and what it left out; `--help` lists its flags.
 

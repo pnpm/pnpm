@@ -158,9 +158,9 @@ inside `pnpm/`. Run `cargo` and `just` from the repo root.
 Build, check, lint, and test through the root `package.json` scripts, not by
 calling `cargo` or `just` yourself. Each script wraps the `just` recipe or
 node script it is listed with below and passes its arguments through. Going
-through `pnpm` is what lets the `machineRunConcurrency` setting hold the
-builds and test runs of every worktree on a machine to a limit it can carry;
-a bare `cargo` slips past it. Drop down to `cargo` / `taplo` / etc. only for a
+through `pnpm` is what lets a task concurrency group (`concurrencyGroups`
+in `pnpm-workspace.yaml`) hold the builds and test runs of every worktree on
+a machine to a limit it can carry; a bare `cargo` slips past it. Drop down to `cargo` / `taplo` / etc. only for a
 one-off that no script covers.
 
 - `pnpm ready:rust` (`just ready`) — run the same checks CI runs (typos, fmt,

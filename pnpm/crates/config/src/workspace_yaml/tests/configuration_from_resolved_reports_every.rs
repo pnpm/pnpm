@@ -23,7 +23,6 @@ fn from_resolved_reports_every_setting() {
         reporter_hide_prefix: Some(true),
         prefer_symlinked_executables: Some(true),
         max_sockets: Some(4),
-        machine_run_concurrency: Some(2),
         node_version: Some("24.0.0".to_string()),
         script_shell: Some("/bin/bash".to_string()),
         node_options: Some("--max-old-space-size=8192".to_string()),

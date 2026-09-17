@@ -78,7 +78,7 @@ pub enum LoadWorkspaceYamlError {
     #[diagnostic(
         code(ERR_PNPM_INVALID_SETTING),
         help(
-            r#"A task declares "concurrency", "dependsOn", "outputs", "inputs", "env", "cache", or "cargoTargetDir"."#
+            r#"A task declares "concurrency", "concurrencyGroup", "dependsOn", "outputs", "inputs", "env", "cache", or "cargoTargetDir"."#
         )
     )]
     UnknownTaskSettingField { task: String, field: String },
