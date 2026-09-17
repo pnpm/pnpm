@@ -192,9 +192,11 @@ fn add_python_settings(root: &Path, settings: &str) {
         "python:\n  enabled: true\n",
         &format!("python:\n  enabled: true\n{python_settings}"),
     );
-    let workspace = pypi_overrides.map_or(workspace.clone(), |overrides| {
+    let workspace = if let Some(overrides) = pypi_overrides {
         format!("{workspace}\noverrides:\n  pypi: {overrides}\n")
-    });
+    } else {
+        workspace
+    };
     fs::write(root.join("pnpm-workspace.yaml"), workspace).unwrap();
 }
 
