@@ -1,5 +1,3 @@
-//! A workspace whose root asks for one environment shared by its members.
-
 use super::{
     assert_failure_contains, project, python, python_project, serve, serve_backends, wheel,
 };
@@ -235,10 +233,12 @@ fn logging_shim(directory: &Path, name: &str, version: &str, log: &Path) {
     fs::set_permissions(directory.join(name), fs::Permissions::from_mode(0o755)).unwrap();
 }
 
-/// The member asks for Python 3.12 in its own `.python-version`, which
+/// The member asks for Python 3.12.7 in its own `.python-version`, which
 /// would select it for the member's dynamic metadata on its own. Sharing
 /// an environment, the metadata is prepared with the interpreter the
-/// root asks for, and the member's own choice is never started.
+/// root asks for, and the member's own choice is never started. The pins
+/// name patch releases so that a host interpreter of the same minor
+/// version is not taken before the shim.
 #[cfg(unix)]
 #[tokio::test]
 async fn a_shared_members_metadata_is_prepared_with_the_interpreter_the_root_asks_for() {
@@ -247,7 +247,7 @@ async fn a_shared_members_metadata_is_prepared_with_the_interpreter_the_root_ask
     let _backends = serve_backends(&mut server).await;
     let _alpha = serve(&mut server, "alpha", &[("1.0", wheel("alpha", "1.0", "", &[]))]).await;
     shared_workspace(root.path(), &server.url());
-    fs::write(root.path().join(".python-version"), "3.11\n").unwrap();
+    fs::write(root.path().join(".python-version"), "3.11.9\n").unwrap();
     python_project(&root.path().join("packages/lib"), "lib", "dependencies = ['alpha']");
     let app = root.path().join("packages/app");
     fs::create_dir_all(app.join("app")).unwrap();
@@ -259,7 +259,7 @@ async fn a_shared_members_metadata_is_prepared_with_the_interpreter_the_root_ask
          build-backend = 'hatchling.build'\n",
     )
     .unwrap();
-    fs::write(app.join(".python-version"), "3.12\n").unwrap();
+    fs::write(app.join(".python-version"), "3.12.7\n").unwrap();
     // Outside the workspace, which an install does not take interpreters from.
     let outside = tempfile::tempdir().unwrap();
     let shims = outside.path().join("interpreters");
