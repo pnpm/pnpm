@@ -2,7 +2,9 @@ use super::{
     dispatch::{CommandFuture, RunCtx, apply_update_config},
     exec::{ExecArgs, ExecDirs},
     init::InitArgs,
+    machine_run_slot::{MachineRunSlot, acquire_machine_run_slot, stamp_held_slot},
     pkg::PkgArgs,
+    reporter::{ReporterType, reporter_emit},
     restart::RestartArgs,
     run::RunArgs,
     script_shortcut::ScriptShortcutArgs,
@@ -86,6 +88,11 @@ pub(super) fn run<'a>(ctx: &RunCtx<'a>, args: RunArgs) -> miette::Result<Command
     let recursive = ctx.workspace.recursive;
     Ok(Box::pin(async move {
         apply_update_config(config, dir, reporter).await?;
+        let _slot = if args.dry_run || args.script_name().is_none() {
+            None
+        } else {
+            take_machine_run_slot(config, reporter)?
+        };
         let config: &'static Config = config;
         let args = with_recursive_run_options(cli_options, args, config);
         if recursive {
@@ -94,6 +101,18 @@ pub(super) fn run<'a>(ctx: &RunCtx<'a>, args: RunArgs) -> miette::Result<Command
             args.run(dir, config, reporter)
         }
     }))
+}
+
+/// Hold a slot of the machine-wide run pool for the rest of the command,
+/// and stamp it into the environment of the scripts and commands the
+/// command spawns.
+fn take_machine_run_slot(
+    config: &mut Config,
+    reporter: ReporterType,
+) -> miette::Result<Option<MachineRunSlot>> {
+    let slot = acquire_machine_run_slot(config, reporter_emit(reporter))?;
+    stamp_held_slot(config, slot.as_ref());
+    Ok(slot)
 }
 
 pub(super) fn fallback<'a>(
@@ -123,6 +142,7 @@ pub(super) fn fallback<'a>(
     let recursive = ctx.workspace.recursive;
     Ok(Box::pin(async move {
         apply_update_config(config, dir, reporter).await?;
+        let _slot = take_machine_run_slot(config, reporter)?;
         let config: &'static Config = config;
         let args = with_recursive_run_options(cli_options, args, config);
         if recursive {
@@ -142,6 +162,7 @@ pub(super) fn exec<'a>(ctx: &RunCtx<'a>, args: ExecArgs) -> miette::Result<Comma
     let recursive = ctx.workspace.recursive;
     Ok(Box::pin(async move {
         apply_update_config(config, dir, reporter).await?;
+        let _slot = take_machine_run_slot(config, reporter)?;
         let config: &'static Config = config;
         let args = with_recursive_exec_options(cli_options, args, config);
         if recursive {
@@ -224,6 +245,7 @@ pub(super) fn stop<'a>(
         let if_present = ctx.workspace.if_present;
         Ok(Box::pin(async move {
             apply_update_config(config, dir, reporter).await?;
+            let _slot = take_machine_run_slot(config, reporter)?;
             args.run("stop", if_present, dir, config, reporter)
         }))
     }
@@ -239,6 +261,7 @@ pub(super) fn restart<'a>(
     let reporter = ctx.reporter;
     Ok(Box::pin(async move {
         apply_update_config(config, dir, reporter).await?;
+        let _slot = take_machine_run_slot(config, reporter)?;
         args.run(dir, config, reporter)
     }))
 }

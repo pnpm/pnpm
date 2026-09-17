@@ -228,6 +228,8 @@ fn create_config(
         tasks: Default::default(),
         pipelines: Default::default(),
         pipeline_base: Default::default(),
+        machine_run_concurrency: Default::default(),
+        machine_run_concurrency_group: "default".to_string(),
         peer_dependency_rules: Default::default(),
         auth_headers: Default::default(),
         auth_tokens_by_uri: Default::default(),

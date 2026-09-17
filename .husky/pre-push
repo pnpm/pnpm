@@ -28,4 +28,4 @@ if [ -z "$rust_changed" ]; then
   exit 0
 fi
 
-bash pnpm/scripts/pre-push-rust.sh
+pnpm run pre-push:rust

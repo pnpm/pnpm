@@ -440,6 +440,16 @@ pub struct WorkspaceSettings {
     /// [`Self::clear_workspace_only_fields`]).
     pub workspace_concurrency: Option<i32>,
 
+    /// `machineRunConcurrency` from `pnpm-workspace.yaml` / global
+    /// `config.yaml`. See
+    /// [`Config::machine_run_concurrency`](crate::settings::Config::machine_run_concurrency).
+    pub machine_run_concurrency: Option<u32>,
+
+    /// `machineRunConcurrencyGroup` from `pnpm-workspace.yaml` / global
+    /// `config.yaml`. See
+    /// [`Config::machine_run_concurrency_group`](crate::settings::Config::machine_run_concurrency_group).
+    pub machine_run_concurrency_group: Option<String>,
+
     /// `gitShallowHosts` from `pnpm-workspace.yaml`. Overrides
     /// [`Config::git_shallow_hosts`](crate::settings::Config::git_shallow_hosts) wholesale when set —
     /// `pnpm-workspace.yaml` replaces the built-in defaults rather

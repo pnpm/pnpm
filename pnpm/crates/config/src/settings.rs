@@ -1189,6 +1189,27 @@ pub struct Config {
     #[default(_code = "default_workspace_concurrency()")]
     pub workspace_concurrency: u32,
 
+    /// `machineRunConcurrency` from `pnpm-workspace.yaml` / global
+    /// `config.yaml` / `PNPM_CONFIG_MACHINE_RUN_CONCURRENCY`. The
+    /// maximum number of `pnpm run` / `pnpm exec` invocations (and the
+    /// script shortcuts) that may execute at once on this machine among
+    /// every pnpm process sharing the same
+    /// [`Self::machine_run_concurrency_group`]. An invocation past the
+    /// limit waits for a slot to free up. A nested invocation spawned by
+    /// a script that already holds a slot runs under that slot.
+    ///
+    /// `None` or `0` means no limit.
+    pub machine_run_concurrency: Option<u32>,
+
+    /// `machineRunConcurrencyGroup` from `pnpm-workspace.yaml` / global
+    /// `config.yaml` / `PNPM_CONFIG_MACHINE_RUN_CONCURRENCY_GROUP`. Names
+    /// the pool of slots [`Self::machine_run_concurrency`] draws from, so
+    /// separate workspaces can share one limit or keep their own.
+    ///
+    /// Default: `default`.
+    #[default = "default"]
+    pub machine_run_concurrency_group: String,
+
     /// `--recursive` / `-r`. When set, a command operates on every
     /// project in the workspace rather than only the project in the
     /// current directory. A CLI-only boolean: it is not a `.npmrc` /

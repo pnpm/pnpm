@@ -108,10 +108,12 @@ just lint
 Then run the tests that cover what you changed:
 
 ```sh
-just test-affected
+pnpm test:rust-affected
 ```
 
-This maps the working tree's changes to crates and runs those crates' tests, with the same sanitized environment `just test` uses. It does not include the CLI end-to-end suite unless you changed `pnpm-cli` itself, so for a user-visible change add the suite modules for the area: `just test-affected -- -p pnpm-cli -E 'test(catalog::)'`. The [`testing-changes`](../.agents/skills/testing-changes/SKILL.md) skill covers picking them.
+The root `package.json` scripts (`test:rust-affected`, `test:rust`, `test:rust-smoke`, `check:rust`, `lint:rust`, `ready:rust`, `build:pnpm`) wrap the `just` recipes and node scripts this section names, and they are the way to invoke them: the `machineRunConcurrency` setting holds the builds and test runs of every worktree on a machine to a limit it can carry, and only a run that starts as `pnpm <script>` is counted.
+
+This maps the working tree's changes to crates and runs those crates' tests, with the same sanitized environment `just test` uses. It does not include the CLI end-to-end suite unless you changed `pnpm-cli` itself, so for a user-visible change add the suite modules for the area: `pnpm test:rust-affected -- -p pnpm-cli -E 'test(catalog::)'`. The [`testing-changes`](../.agents/skills/testing-changes/SKILL.md) skill covers picking them.
 
 When crates depend on what changed without being selected themselves, it also runs the `smoke` profile in their place: one end-to-end test per area of CLI behavior, rather than the dependents' full test sets or nothing at all. `--no-smoke` skips that, and `just smoke` runs the same set on its own.
 

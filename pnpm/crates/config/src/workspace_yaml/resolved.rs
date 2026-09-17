@@ -166,6 +166,8 @@ impl WorkspaceSettings {
             save_catalog_name: config.save_catalog_name.clone(),
             save_prefix: config.save_prefix.clone(),
             pipeline_base: config.pipeline_base.clone(),
+            machine_run_concurrency: config.machine_run_concurrency,
+            machine_run_concurrency_group: Some(config.machine_run_concurrency_group.clone()),
 
             // `child_concurrency` / `workspace_concurrency` are resolved to
             // a positive count on `Config`, which the settings hold as the

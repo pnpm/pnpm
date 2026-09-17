@@ -214,6 +214,7 @@ macro_rules! identically_named_settings {
             allowed_deprecated_versions, update_config, peer_dependency_rules,
             enable_pre_post_scripts, dlx_cache_max_age,
             allow_unused_patches, tasks, pipelines,
+            machine_run_concurrency_group,
         }
     };
 }

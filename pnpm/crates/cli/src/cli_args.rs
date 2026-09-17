@@ -45,6 +45,7 @@ pub mod list;
 pub mod lockfile_dir;
 pub mod login;
 pub mod logout;
+pub(crate) mod machine_run_slot;
 pub mod not_implemented;
 pub mod outdated;
 pub(crate) mod override_version_references;

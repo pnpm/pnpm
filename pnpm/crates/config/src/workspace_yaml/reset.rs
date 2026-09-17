@@ -134,7 +134,7 @@ impl WorkspaceSettings {
             trust_policy_ignore_after, init_author_name, init_author_email, init_author_url,
             init_license, init_version, pm_on_fail, versioning, save_catalog_name,
             save_prefix, pipeline_base, child_concurrency, workspace_concurrency, catalogs,
-            allow_builds,
+            allow_builds, machine_run_concurrency,
         });
         if Self::reset_derived_setting_to_default::<Sys>(config, defaults, key, base_dir) {
             return true;

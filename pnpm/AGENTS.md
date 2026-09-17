@@ -155,35 +155,41 @@ inside `pnpm/`. Run `cargo` and `just` from the repo root.
 
 ## Commands
 
-Prefer `just` recipes when one fits; drop down to `cargo` / `taplo` / etc.
-directly when you need flags the recipe doesn't expose (e.g. filtering tests
-by crate or name — see below).
+Build, check, lint, and test through the root `package.json` scripts, not by
+calling `cargo` or `just` yourself. Each script wraps the `just` recipe or
+node script it is listed with below and passes its arguments through. Going
+through `pnpm` is what lets the `machineRunConcurrency` setting hold the
+builds and test runs of every worktree on a machine to a limit it can carry;
+a bare `cargo` slips past it. Drop down to `cargo` / `taplo` / etc. only for a
+one-off that no script covers.
 
-- `just ready` — run the same checks CI runs (typos, fmt, check, test, lint).
-  It runs all ~11,000 tests in the workspace. CI already does that on three
-  platforms for every pull request, so run it locally only when a change
-  reaches past the crates you can name (see
+- `pnpm ready:rust` (`just ready`) — run the same checks CI runs (typos, fmt,
+  check, test, lint). It runs all ~11,000 tests in the workspace. CI already
+  does that on three platforms for every pull request, so run it locally only
+  when a change reaches past the crates you can name (see
   [`CONTRIBUTING.md`](./CONTRIBUTING.md#automated-checks)).
-- `just test-affected` — the tests of the crates the working tree changes,
-  plus the smoke profile when unselected crates depend on them. The default way
-  to test a change; `--help` lists its flags.
-- `node pnpm/scripts/run-rust-tests.mjs -p <crate>` — one crate's tests, with
-  the sanitized environment `just test` uses. `-E '<filterset>'` narrows
-  further: `test(<substring>)` for one test. Prefer `-p` over a `package()`
-  filterset when picking crates by hand: `-p` restricts what cargo builds,
-  a filterset only selects among what was built. Reach for
-  `rdeps()` only at the edge of the dependency graph — for a core crate it
-  selects most of the workspace. The
+- `pnpm test:rust-affected` (`just test-affected`) — the tests of the crates
+  the working tree changes, plus the smoke profile when unselected crates
+  depend on them. The default way to test a change; `--help` lists its flags.
+- `pnpm test:rust -p <crate>` (`node pnpm/scripts/run-rust-tests.mjs`) — one
+  crate's tests, with the sanitized environment `just test` uses.
+  `-E '<filterset>'` narrows further: `test(<substring>)` for one test. Prefer
+  `-p` over a `package()` filterset when picking crates by hand: `-p`
+  restricts what cargo builds, a filterset only selects among what was built.
+  Reach for `rdeps()` only at the edge of the dependency graph — for a core
+  crate it selects most of the workspace. The
   [`testing-changes`](../.agents/skills/testing-changes/SKILL.md) skill has the
   measured fan-out and how to pick a selection.
-- `just smoke` — one end-to-end test per area of CLI behavior, listed in the
-  `smoke` profile in `.config/nextest.toml`. `just test-affected` runs it
-  automatically when unselected crates depend on what changed, standing in for
-  their full test sets; this runs it on its own.
-- `just test` — `cargo nextest run` over the whole workspace.
-- `just test-pacquet` / `just test-pnpr` — one product's crates.
-- `just lint` — `cargo clippy --locked --workspace --all-targets -- --deny warnings`.
-- `just check` — `cargo check --locked --workspace --all-targets`.
+- `pnpm test:rust-smoke` (`just smoke`) — one end-to-end test per area of CLI
+  behavior, listed in the `smoke` profile in `.config/nextest.toml`.
+  `test:rust-affected` runs it automatically when unselected crates depend on
+  what changed, standing in for their full test sets; this runs it on its own.
+- `pnpm test:rust` (`just test`) — `cargo nextest run` over the whole workspace.
+- `pnpm ci:rust-test` / `pnpm ci:pnpr-test` (`just test-pacquet` /
+  `just test-pnpr`) — one product's crates.
+- `pnpm lint:rust` (`just lint`) — `cargo clippy --locked --workspace --all-targets -- --deny warnings`.
+- `pnpm check:rust` (`just check`) — `cargo check --locked --workspace --all-targets`.
+- `pnpm build:pnpm` — `cargo build --release --bin pnpm`.
 - `just fmt` — the pinned fork (`node pnpm/scripts/rustfmt.mjs --all`) + `taplo format`.
 - `just cli -- <args>` — run the pacquet binary.
 - `just registry-mock <args>` — manage the mock registry used by tests.
@@ -285,24 +291,24 @@ shows up in the test report; a silent `return` does not.
 ### Running tests narrowly
 
 Running the full suite is slow. Target what you're working on. Run these
-through `pnpm/scripts/run-rust-tests.mjs` rather than `cargo nextest` directly
-for anything that exercises the CLI: it sanitizes the ambient npm and pnpm
-configuration the way `just test` does.
+through `pnpm test:rust` rather than `cargo nextest` directly for anything
+that exercises the CLI: it sanitizes the ambient npm and pnpm configuration
+the way `just test` does.
 
 ```sh
 # The crates the working tree changes
-just test-affected
+pnpm test:rust-affected
 
 # One crate, one test, one module of pnpm-cli's suite. The suite is a single
 # target, so a module filter replaces the per-file `--test <file_stem>`.
-node pnpm/scripts/run-rust-tests.mjs -p pnpm-lockfile
-node pnpm/scripts/run-rust-tests.mjs -E 'test(<name_substring>)'
-node pnpm/scripts/run-rust-tests.mjs -p pnpm-cli -E 'test(/^<file_stem>::/)'
+pnpm test:rust -p pnpm-lockfile
+pnpm test:rust -E 'test(<name_substring>)'
+pnpm test:rust -p pnpm-cli -E 'test(/^<file_stem>::/)'
 ```
 
 CI runs the full suite on three platforms for every pull request, so a local
-`just ready` is for changes whose affected set you cannot name, not a step
-before every handoff. See
+`pnpm ready:rust` is for changes whose affected set you cannot name, not a
+step before every handoff. See
 [`CONTRIBUTING.md`](./CONTRIBUTING.md#automated-checks).
 
 ## Style

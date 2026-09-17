@@ -347,6 +347,13 @@ impl WorkspaceSettings {
         json_field!(settings, Sys, unsafe_perm, "UNSAFE_PERM");
         json_field!(settings, Sys, child_concurrency, "CHILD_CONCURRENCY");
         json_field!(settings, Sys, workspace_concurrency, "WORKSPACE_CONCURRENCY");
+        json_field!(settings, Sys, machine_run_concurrency, "MACHINE_RUN_CONCURRENCY");
+        string_field!(
+            settings,
+            Sys,
+            machine_run_concurrency_group,
+            "MACHINE_RUN_CONCURRENCY_GROUP"
+        );
         json_field!(settings, Sys, git_shallow_hosts, "GIT_SHALLOW_HOSTS");
     }
 
