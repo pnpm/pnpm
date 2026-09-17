@@ -53,9 +53,9 @@ fn overriding_pnpmfile(registry_url: &str, should_refresh: &str) -> String {
     )
 }
 
-/// A resolver that claims `@pnpm.e2e/pkg-with-1-dep` and returns only the
-/// two required fields of a `ResolveResult`. `manifest` is optional, so
-/// the package's own dependencies have to come from the fetched tarball.
+/// `manifest` is optional in a resolver's result, so omitting it leaves
+/// the fetched tarball as the only source of the package's own
+/// dependencies.
 fn manifest_less_pnpmfile(registry_url: &str) -> String {
     format!(
         r"module.exports = {{

@@ -476,6 +476,12 @@ async fn reads_the_manifest_of_a_pinned_tarball_the_resolver_left_without_one() 
     let manifest = resolved.package.manifest.expect("the bundled manifest fills the gap");
     assert_eq!(dbg!(&manifest)["dependencies"]["ms"], json!("2.1.2"));
     get_mock.assert_async().await;
+    // The mem cache is keyed by URL alone and the install pass takes what it
+    // finds there unchecked, so a read of an already-pinned tarball must not
+    // publish into it: another edge pinning the same URL differently would be
+    // handed these bytes.
+    assert!(resolver.ctx.mem_cache.is_empty(), "a pinned read publishes no extraction");
+    assert!(resolver.spawned_urls.is_empty(), "and claims no URL from the prefetch path");
 }
 
 #[tokio::test]
