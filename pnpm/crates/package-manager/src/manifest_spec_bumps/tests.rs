@@ -110,6 +110,29 @@ fn a_declaration_without_a_range_is_left_alone() {
     assert_eq!(bump("npm:is-positive", "is-positive@3.1.0"), None);
 }
 
+/// A `runtime:` declaration is the folded form of a `devEngines.runtime` /
+/// `engines.runtime` entry, so its range moves under the prefix the manifest
+/// writer folds back.
+#[test]
+fn a_runtime_range_moves_under_its_prefix() {
+    assert_eq!(bump("runtime:^26.8.2", "runtime:26.9.0").as_deref(), Some("runtime:^26.9.0"));
+    assert_eq!(bump("runtime:~26.8.2", "runtime:26.8.5").as_deref(), Some("runtime:~26.8.5"));
+}
+
+#[test]
+fn a_runtime_declaration_that_already_names_the_version_is_left_alone() {
+    assert_eq!(bump("runtime:^26.9.0", "runtime:26.9.0"), None);
+    assert_eq!(bump("runtime:26.8.2", "runtime:26.8.2"), None);
+}
+
+/// A release-channel specifier and a dist tag name no version of their own,
+/// so they keep the text they were declared with.
+#[test]
+fn a_runtime_channel_or_tag_keeps_its_text() {
+    assert_eq!(bump("runtime:rc/26.9.0", "runtime:26.9.0"), None);
+    assert_eq!(bump("runtime:latest", "runtime:26.9.0"), None);
+}
+
 #[test]
 fn declarations_of_other_protocols_are_left_alone() {
     for declared in [
@@ -151,8 +174,38 @@ fn registry_aliases_split_into_the_prefix_they_keep() {
     assert_eq!(split("jsr:^1.0.0"), some("jsr:", "^1.0.0"));
     assert_eq!(split("jsr:@scope/foo@^1.0.0"), some("jsr:@scope/foo@", "^1.0.0"));
     assert_eq!(split("jsr:@scope/foo"), some("jsr:@scope/foo@", ""));
+    assert_eq!(split("runtime:^1.0.0"), some("runtime:", "^1.0.0"));
+    assert_eq!(split("runtime:rc/1.0.0"), None);
     assert_eq!(split("workspace:^1.0.0"), None);
     assert_eq!(split("gh:^1.0.0"), None);
+}
+
+/// `devEngines.runtime` reaches the update as a `runtime:` dependency under
+/// `devDependencies`, and its range moves through the same path a registry
+/// dependency's does: the lockfile entry and the range the manifest writer
+/// folds back into `devEngines.runtime` both move.
+#[test]
+fn a_runtime_bump_moves_the_lockfile_entry_and_reports_the_new_range() {
+    let mut lockfile = lockfile(
+        r"
+lockfileVersion: '9.0'
+importers:
+  .:
+    devDependencies:
+      node:
+        specifier: runtime:^26.8.2
+        version: runtime:26.9.0
+",
+    );
+
+    let bumps = bumps(&[("node", DependencyGroup::Dev, "runtime:^26.8.2")]);
+    apply_manifest_spec_bumps(&mut lockfile, &bumps, None);
+
+    let importer = &lockfile.importers["."];
+    assert_eq!(specifier_of(importer.dev_dependencies.as_ref(), "node"), "runtime:^26.9.0");
+    let applied = bumps.applied.into_inner().expect("never poisoned");
+    let expected = (DependencyGroup::Dev, "runtime:^26.9.0".to_string());
+    assert_eq!(applied.manifests["."]["node"], expected);
 }
 
 /// A package declared in more than one direct group has one entry per group,

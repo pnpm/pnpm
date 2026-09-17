@@ -327,13 +327,22 @@ fn bumped_range(
     (bumped != declared).then_some(bumped)
 }
 
-/// A declared specifier split into the `npm:<name>@` or `jsr:<name>@`
-/// prefix it keeps and the range behind it. A declaration naming only the
-/// package (`jsr:@scope/pkg`, `npm:foo`) keeps the whole name as its prefix
-/// and declares an empty range. `None` for any other protocol — a
+/// A declared specifier split into the `npm:<name>@`, `jsr:<name>@` or
+/// `runtime:` prefix it keeps and the range behind it. A declaration naming
+/// only the package (`jsr:@scope/pkg`, `npm:foo`) keeps the whole name as its
+/// prefix and declares an empty range. `None` for any other protocol — a
 /// `workspace:`, `link:`, `file:`, git, tarball or named-registry
-/// dependency declares no registry range to move.
+/// dependency declares no registry range to move, and neither does a
+/// `runtime:` release channel, which names a version only once its mirror's
+/// index is read.
 pub(crate) fn split_registry_alias(declared: &str) -> Option<(Cow<'_, str>, &str)> {
+    // A `runtime:` declaration is a reified `devEngines.runtime` /
+    // `engines.runtime` entry, and its range moves like a registry one.
+    if let Some(range) = declared.strip_prefix("runtime:")
+        && range.parse::<Range>().is_ok()
+    {
+        return Some((Cow::Borrowed("runtime:"), range));
+    }
     let Some((protocol, rest)) = ["npm:", "jsr:"]
         .into_iter()
         .find_map(|protocol| {
