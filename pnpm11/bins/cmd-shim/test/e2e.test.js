@@ -346,7 +346,7 @@ describeOnPosix('relocatable project shims', () => {
       assert.ok(!content.includes(project))
       if (externalTarget) {
         assert.ok(content.includes('cmd-shim-target=' + target.split('\\').join('/')))
-        assert.ok(content.includes('$basedir/../../../'))
+        assert.ok(content.includes('$basedir_abs/../../../'))
       }
       fs.renameSync(project, moved)
       const alias = path.join(tempDir, 'alias')
@@ -384,4 +384,76 @@ test('shims outside the relocatable root keep their existing content', async (t)
   const content = files.map(file => fs.readFileSync(file, 'utf8'))
   await cmdShim(target, shim, { ...opts, relocatableRoot: path.join(tempDir, 'project') })
   assert.deepEqual(files.map(file => fs.readFileSync(file, 'utf8')), content)
+})
+
+describeOnPosix('relocatable shims generated through directory symlinks', () => {
+  for (const terminal of [false, true]) {
+    test(`resolves a ${terminal ? 'terminal' : 'interior'} bin symlink and missing NODE_PATH tails`, async (t) => {
+      const tempDir = temporaryDirectory()
+      t.after(() => fs.rmSync(tempDir, { recursive: true, force: true }))
+      const project = path.join(tempDir, 'project')
+      const physical = path.join(project, 'deep', 'physical')
+      fs.mkdirSync(physical, { recursive: true })
+      const alias = path.join(project, 'alias')
+      fs.symlinkSync('deep/physical', alias)
+      const bins = terminal ? alias : path.join(alias, '.bin')
+      const target = path.join(project, 'tool.js')
+      fs.writeFileSync(target, '#!/usr/bin/env node\nconsole.log(require("relocation-probe"))\n')
+      const nodePathAlias = path.join(project, 'node-path-alias')
+      fs.symlinkSync(physical, nodePathAlias)
+      const lexicalModules = path.join(nodePathAlias, 'missing', 'node_modules')
+      const shim = path.join(bins, 'tool')
+      await cmdShim(target, shim, { relocatableRoot: project, nodePath: [lexicalModules], createPwshFile: false })
+      const probeDir = path.join(lexicalModules, 'relocation-probe')
+      fs.mkdirSync(probeDir, { recursive: true })
+      fs.writeFileSync(path.join(probeDir, 'index.js'), 'module.exports = "found"\n')
+      const moved = path.join(tempDir, 'moved')
+      fs.renameSync(project, moved)
+      const result = spawnSync('/bin/sh', [path.join(moved, path.relative(project, shim))], {
+        encoding: 'utf8',
+        cwd: tempDir,
+        env: { ...process.env, NODE_PATH: '', NODE_OPTIONS: '' },
+      })
+      assert.equal(result.status, 0, result.stderr)
+      assert.equal(result.stdout, 'found\n')
+    })
+  }
+})
+
+describeOnPosix('unresolvable relocatable paths', () => {
+  test('does not treat a dangling NODE_PATH symlink as a missing directory', async (t) => {
+    const tempDir = temporaryDirectory()
+    t.after(() => fs.rmSync(tempDir, { recursive: true, force: true }))
+    const target = path.join(tempDir, 'tool.js')
+    fs.writeFileSync(target, '#!/usr/bin/env node\n')
+    const dangling = path.join(tempDir, 'dangling')
+    fs.symlinkSync('missing', dangling)
+    await assert.rejects(cmdShim(target, path.join(tempDir, '.bin', 'tool'), {
+      relocatableRoot: tempDir,
+      nodePath: [dangling],
+      createPwshFile: false,
+    }), { code: 'ENOENT' })
+  })
+})
+
+describeOnPosix('NODE_PATH entries outside physical relocation scope', () => {
+  test('resolves escaping aliases but preserves external aliases and legacy relative entries', async (t) => {
+    const tempDir = temporaryDirectory()
+    t.after(() => fs.rmSync(tempDir, { recursive: true, force: true }))
+    const project = path.join(tempDir, 'project')
+    const outside = path.join(tempDir, 'outside')
+    fs.mkdirSync(project)
+    fs.mkdirSync(outside)
+    const alias = path.join(project, 'external-alias')
+    fs.symlinkSync(outside, alias)
+    const outsideAlias = path.join(tempDir, 'outside-alias')
+    fs.symlinkSync(outside, outsideAlias)
+    const target = path.join(project, 'tool.js')
+    const shim = path.join(project, '.bin', 'tool')
+    fs.writeFileSync(target, '#!/usr/bin/env node\n')
+    await cmdShim(target, shim, { relocatableRoot: project, nodePath: [alias, outsideAlias, 'relative-modules'], createPwshFile: false })
+    assert.ok(fs.readFileSync(shim, 'utf8').includes(`export NODE_PATH="${outside}:${outsideAlias}:relative-modules"`))
+    await cmdShim(target, shim, { relocatableRoot: project, nodePath: '', createPwshFile: false })
+    assert.ok(!fs.readFileSync(shim, 'utf8').includes('export NODE_PATH='))
+  })
 })

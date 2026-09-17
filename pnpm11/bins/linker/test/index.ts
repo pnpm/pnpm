@@ -1145,3 +1145,67 @@ testOnPosix('node targets outside the relocatable root retain absolute links', a
     fs.rmSync(tempDir, { recursive: true, force: true })
   }
 })
+
+for (const terminal of [false, true]) {
+  testOnPosix(`relative node links use the physical ${terminal ? 'terminal' : 'interior'} bin directory`, async () => {
+    const tempDir = temporaryDirectory()
+    try {
+      const project = path.join(tempDir, 'project')
+      const physicalBins = path.join(project, 'deep', 'physical-bins')
+      const pkgDir = path.join(project, 'node-package')
+      fs.mkdirSync(physicalBins, { recursive: true })
+      fs.mkdirSync(pkgDir, { recursive: true })
+      fs.writeFileSync(path.join(pkgDir, 'node'), '#!/bin/sh\nprintf runtime', { mode: 0o755 })
+      const alias = path.join(project, 'alias')
+      fs.symlinkSync('deep/physical-bins', alias)
+      const binsDir = terminal ? alias : path.join(alias, '.bin')
+      const pkgs = [{ manifest: { name: 'node', version: '1.0.0', bin: { node: 'node' } }, location: pkgDir }]
+      await linkBinsOfPackages(pkgs, binsDir, { relocatableRoot: project })
+      expect(fs.readlinkSync(path.join(binsDir, 'node'))).toBe(`${terminal ? '../..' : '../../..'}/node-package/node`)
+      const moved = path.join(tempDir, 'moved')
+      fs.renameSync(project, moved)
+      const result = spawnSync(path.join(moved, path.relative(project, binsDir), 'node'), { encoding: 'utf8' })
+      expect(result.status).toBe(0)
+      expect(result.stdout).toBe('runtime')
+    } finally {
+      fs.rmSync(tempDir, { recursive: true, force: true })
+    }
+  })
+}
+
+testOnPosix('physical bin aliases run external targets and migrate lexical shims', async () => {
+  const tempDir = temporaryDirectory()
+  try {
+    const project = path.join(tempDir, 'project')
+    const rootAlias = path.join(tempDir, 'workspace')
+    const physicalBins = path.join(project, 'deep', 'bins')
+    const external = path.join(tempDir, 'external')
+    fs.mkdirSync(physicalBins, { recursive: true })
+    fs.mkdirSync(external)
+    fs.symlinkSync(project, rootAlias)
+    fs.symlinkSync('deep/bins', path.join(project, 'bin-alias'))
+    fs.symlinkSync(external, path.join(project, 'external-alias'))
+    fs.writeFileSync(path.join(external, 'tool.js'), '#!/usr/bin/env node\nconsole.log(JSON.stringify((process.env.NODE_PATH || "").split(":")))\n')
+    const pkgs = [{ manifest: { name: 'tool', version: '1.0.0', bin: { tool: 'tool.js' } }, location: external }]
+    const bins = path.join(rootAlias, 'bin-alias')
+    const opts = { relocatableRoot: rootAlias, extraNodePaths: [path.join(rootAlias, 'external-alias')] }
+    await linkBinsOfPackages(pkgs, bins, opts)
+    const shim = path.join(bins, 'tool')
+    const content = fs.readFileSync(shim, 'utf8')
+    expect(content).toContain('$basedir_abs/../../../external/tool.js')
+    expect(content).not.toContain(path.join(rootAlias, 'external-alias'))
+    fs.writeFileSync(shim, content.replaceAll('$basedir_abs/', '$basedir/').replace('cmd-shim-physical-root=', 'cmd-shim-relocatable-root='))
+    await linkBinsOfPackages(pkgs, bins, opts)
+    expect(fs.readFileSync(shim, 'utf8')).toBe(content)
+    const moved = path.join(tempDir, 'moved')
+    fs.renameSync(project, moved)
+    const result = spawnSync(path.join(moved, 'bin-alias', 'tool'), {
+      encoding: 'utf8',
+      env: { ...process.env, NODE_PATH: '' },
+    })
+    expect(result.status).toBe(0)
+    expect(JSON.parse(result.stdout)).toContain(external)
+  } finally {
+    fs.rmSync(tempDir, { recursive: true, force: true })
+  }
+})

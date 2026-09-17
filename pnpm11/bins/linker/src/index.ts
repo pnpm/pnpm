@@ -1,6 +1,7 @@
 import { existsSync, promises as fs } from 'node:fs'
 import { createRequire } from 'node:module'
 import path from 'node:path'
+import util from 'node:util'
 
 import { cmdShim, getExeExtension, isShimPointingAt } from '@pnpm/bins.cmd-shim'
 import { type Command, getBinsFromPackageManifest, pkgOwnsBin } from '@pnpm/bins.resolver'
@@ -153,7 +154,7 @@ interface CommandInfo extends Command {
 async function _linkBins (
   allCmds: CommandInfo[],
   binsDir: string,
-  opts: LinkBinOptions
+  opts: InternalLinkBinOptions
 ): Promise<string[]> {
   if (allCmds.length === 0) return [] as string[]
 
@@ -162,7 +163,30 @@ async function _linkBins (
 
   await fs.mkdir(binsDir, { recursive: true })
 
-  const results = await Promise.allSettled(allCmds.map(async cmd => linkBin(cmd, binsDir, opts)))
+  let resolveCommandPaths = false
+  if (!IS_WINDOWS && opts.relocatableRoot != null) {
+    const [root, physicalBinsDir] = await Promise.all([
+      fs.realpath(opts.relocatableRoot),
+      fs.realpath(binsDir),
+    ])
+    if (isSubdir(root, physicalBinsDir)) {
+      binsDir = physicalBinsDir
+      opts = { ...opts, relocatableRoot: root, shimRelocatableRoot: opts.relocatableRoot }
+      resolveCommandPaths = true
+    } else {
+      opts = { ...opts, relocatableRoot: undefined }
+    }
+  }
+  const results = await Promise.allSettled(allCmds.map(async cmd => {
+    if (resolveCommandPaths) {
+      const sourceDir = await fs.realpath(path.dirname(cmd.path)).catch((err: unknown) => {
+        if (util.types.isNativeError(err) && 'code' in err && err.code === 'ENOENT') return path.dirname(cmd.path)
+        throw err
+      })
+      cmd = { ...cmd, path: path.join(sourceDir, path.basename(cmd.path)) }
+    }
+    return linkBin(cmd, binsDir, opts)
+  }))
 
   // We want to create all commands that we can create before throwing an exception
   for (const result of results) {
@@ -279,7 +303,9 @@ export interface LinkBinOptions {
   preferSymlinkedExecutables?: boolean
 }
 
-async function linkBin (cmd: CommandInfo, binsDir: string, opts?: LinkBinOptions): Promise<void> {
+type InternalLinkBinOptions = LinkBinOptions & { shimRelocatableRoot?: string }
+
+async function linkBin (cmd: CommandInfo, binsDir: string, opts?: InternalLinkBinOptions): Promise<void> {
   const externalBinPath = path.join(binsDir, cmd.name)
   const relocatableTarget = !IS_WINDOWS && opts?.relocatableRoot != null &&
     isSubdir(opts.relocatableRoot, binsDir) && isSubdir(opts.relocatableRoot, cmd.path)
@@ -385,7 +411,7 @@ async function linkBin (cmd: CommandInfo, binsDir: string, opts?: LinkBinOptions
       createPwshFile: POWER_SHELL_IS_SUPPORTED && cmd.makePowerShellShim,
       nodePath,
       nodeExecPath: cmd.nodeExecPath,
-      relocatableRoot: opts?.relocatableRoot,
+      relocatableRoot: opts?.shimRelocatableRoot ?? opts?.relocatableRoot,
     })
   } catch (err: any) { // eslint-disable-line
     if (err.code === 'ENOENT' || err.code === 'EISDIR') {

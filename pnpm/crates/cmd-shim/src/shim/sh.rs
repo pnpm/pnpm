@@ -1,7 +1,8 @@
 use super::{
     Path, ScriptRuntime, normalize_node_path_env_var, relative_target,
     relocatable::{
-        BASEDIR_ABS, BASEDIR_ABS_PRELUDE, marker_target, sh_node_path_entries, shim_target_markers,
+        BASEDIR_ABS_PRELUDE, is_within_root, marker_target, sh_node_path_entries,
+        shim_target_markers,
     },
 };
 use std::fmt::Write as _;
@@ -24,6 +25,10 @@ pub fn generate_sh_shim(
 ) -> String {
     let shim_dir = shim_path.parent().unwrap_or_else(|| Path::new(""));
     let mut sh = String::from(SH_SHIM_HEADER);
+    let physical_basedir = is_within_root(relocatable_root, shim_dir, shim_dir);
+    if physical_basedir {
+        sh.push_str(BASEDIR_ABS_PRELUDE);
+    }
     write_sh_node_path(&mut sh, &sh_node_path_entries(node_path, shim_dir, relocatable_root));
 
     let sh_target = relative_target(target_path, shim_path);
@@ -31,6 +36,8 @@ pub fn generate_sh_shim(
     let quoted = QuotedTarget {
         posix: if absolute {
             format!(r#""{sh_target}""#)
+        } else if physical_basedir {
+            format!(r#""$basedir_abs/{sh_target}""#)
         } else {
             format!(r#""$basedir/{sh_target}""#)
         },
@@ -73,12 +80,6 @@ fn write_sh_node_path(sh: &mut String, node_path: &[String]) {
     let sh_node_path = normalize_node_path_env_var(node_path).posix;
     if sh_node_path.is_empty() {
         return;
-    }
-    if node_path
-        .iter()
-        .any(|entry| entry.starts_with(BASEDIR_ABS))
-    {
-        sh.push_str(BASEDIR_ABS_PRELUDE);
     }
     writeln!(
         sh,

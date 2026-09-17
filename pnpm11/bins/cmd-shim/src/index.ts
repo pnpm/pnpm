@@ -71,6 +71,7 @@ export interface Options {
  */
 type InternalOptions = Options & Required<Pick<Options, keyof typeof DEFAULT_OPTIONS>> & {
   fs_: FsPromises
+  resolvedNodePaths?: Array<string | undefined>
 }
 
 type FsPromises = Pick<typeof fs.promises, 'chmod' | 'mkdir' | 'readFile' | 'stat' | 'unlink' | 'writeFile'>
@@ -177,6 +178,30 @@ function rm (path: string, opts: InternalOptions): Promise<void> {
 async function cmdShim_ (src: string, to: string, opts: InternalOptions) {
   const srcRuntimeInfo = await searchScriptRuntime(src, opts)
   await writeShimsPreCommon(to, opts)
+  if (!isWindows && opts.relocatableRoot != null) {
+    const [root, shimDir] = await Promise.all([
+      resolveExistingAncestors(opts.relocatableRoot, opts),
+      resolveExistingAncestors(path.dirname(to), opts),
+    ])
+    if (isWithinRoot(root, shimDir)) {
+      const nodePaths = typeof opts.nodePath === 'string' ? opts.nodePath.split(path.delimiter) : opts.nodePath
+      const [sourceDir, nodePath, nodeExecDir] = await Promise.all([
+        resolveExistingAncestors(path.dirname(src), opts),
+        nodePaths && Promise.all(nodePaths.map(entry => path.isAbsolute(entry) ? resolveExistingAncestors(entry, opts) : entry)),
+        opts.nodeExecPath && resolveExistingAncestors(path.dirname(opts.nodeExecPath), opts),
+      ])
+      src = path.join(sourceDir, path.basename(src))
+      to = path.join(shimDir, path.basename(to))
+      opts = {
+        ...opts,
+        relocatableRoot: root,
+        resolvedNodePaths: nodePath?.map((entry, index) => path.isAbsolute(entry) && (isWithinRoot(root, entry) || isWithinRoot(root, nodePaths![index]) || isWithinRoot(opts.relocatableRoot!, nodePaths![index])) ? entry : undefined),
+        nodeExecPath: nodeExecDir && path.join(nodeExecDir, path.basename(opts.nodeExecPath!)),
+      }
+    } else {
+      opts = { ...opts, relocatableRoot: undefined }
+    }
+  }
   return writeAllShims(src, to, srcRuntimeInfo, opts)
 }
 
@@ -370,17 +395,20 @@ function generateShShim (src: string, to: string, opts: InternalOptions): string
   let shProgHasExe = false
   if (!scopedShim) shTarget = shTarget.split('\\').join('/')
   const escapedTarget = scopedShim ? escapeShDoubleQuoted(shTarget) : shTarget
-  const quotedPathToTarget = path.isAbsolute(shTarget) ? `"${escapedTarget}"` : `"${relocatableTarget ? '$basedir_abs' : '$basedir'}/${escapedTarget}"`
+  const quotedPathToTarget = path.isAbsolute(shTarget) ? `"${escapedTarget}"` : `"${scopedShim ? '$basedir_abs' : '$basedir'}/${escapedTarget}"`
   const quotedPathToTargetWin = path.isAbsolute(shTarget) ? `"${shTarget}"` : `"$basedir_win/${shTarget}"`
   let shTargetWin = ''
   let args = opts.args || ''
   const isCmdRuntime = opts.prog === 'cmd' || opts.prog === 'cmd.exe'
   const nodePaths = typeof opts.nodePath === 'string' ? opts.nodePath.split(path.delimiter) : opts.nodePath
   const shNodePath = scopedShim
-    ? nodePaths?.map(entry => shPath(entry, to, opts.relocatableRoot)).join(':')
+    ? nodePaths?.map((entry, index) => {
+      if (opts.resolvedNodePaths == null) return shPath(entry, to, opts.relocatableRoot)
+      const resolved = opts.resolvedNodePaths[index]
+      return resolved == null ? escapeShDoubleQuoted(entry) : shPath(resolved, to, opts.relocatableRoot)
+    }).join(':')
     : normalizePathEnvVar(opts.nodePath).posix
-  const relocatableNode = opts.nodeExecPath != null && isRelocatablePath(opts.nodeExecPath, to, opts.relocatableRoot)
-  const needsAbsoluteBasedir = relocatableTarget || relocatableNode || nodePaths?.some(entry => isRelocatablePath(entry, to, opts.relocatableRoot))
+  const needsAbsoluteBasedir = scopedShim
   if (!shProg) {
     shProg = quotedPathToTarget
     args = ''
@@ -685,7 +713,7 @@ function shimTarget (src: string): string {
 }
 
 function isRelocatablePath (target: string, shimPath: string, root?: string): boolean {
-  return !isWindows && root != null && isWithinRoot(root, path.dirname(shimPath)) && isWithinRoot(root, target)
+  return !isWindows && root != null && path.isAbsolute(target) && isWithinRoot(root, path.dirname(shimPath)) && isWithinRoot(root, target)
 }
 
 function isWithinRoot (root: string, target: string): boolean {
@@ -705,5 +733,21 @@ function escapeShDoubleQuoted (text: string): string {
 }
 
 function relocatableRootMarker (shimPath: string, root: string): string {
-  return `cmd-shim-relocatable-root=${path.relative(path.dirname(shimPath), root)}`
+  return `cmd-shim-physical-root=${path.relative(path.dirname(shimPath), root)}`
+}
+
+async function resolveExistingAncestors (target: string, opts: InternalOptions): Promise<string> {
+  try {
+    return await (opts.fs ?? fs).promises.realpath(target)
+  } catch (err: unknown) {
+    if (!util.types.isNativeError(err) || !('code' in err) || err.code !== 'ENOENT') throw err
+    const exists = await (opts.fs ?? fs).promises.lstat(target).then(() => true, (statError: unknown) => {
+      if (util.types.isNativeError(statError) && 'code' in statError && statError.code === 'ENOENT') return false
+      throw statError
+    })
+    if (exists) throw err
+    const parent = path.dirname(target)
+    if (parent === target) throw err
+    return path.join(await resolveExistingAncestors(parent, opts), path.basename(target))
+  }
 }

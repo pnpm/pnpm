@@ -146,3 +146,337 @@ fn warm_install_upgrades_absolute_node_symlink_before_relocation() {
         "fake-node-binary",
     );
 }
+
+#[test]
+fn node_bin_link_uses_the_physical_bin_directory() {
+    for terminal in [false, true] {
+        let tmp = tempdir().unwrap();
+        let root = dunce::canonicalize(tmp.path()).unwrap().join("project");
+        create_dir_all(root.join("deep/physical/.bin")).unwrap();
+        create_dir_all(root.join("node-package")).unwrap();
+        let runtime = tmp.path().join("external-node");
+        write_file(&runtime, "fake-node-binary").unwrap();
+        symlink(&runtime, root.join("node-package/node")).unwrap();
+        let (alias_target, bin_dir) = if terminal {
+            ("deep/physical/.bin", root.join("alias"))
+        } else {
+            ("deep/physical", root.join("alias/.bin"))
+        };
+        symlink(alias_target, root.join("alias")).unwrap();
+        let packages = [PackageBinSource::new(
+            root.join("node-package"),
+            Arc::new(json!({"name": "node", "version": "20.0.0", "bin": "node"})),
+        )];
+        link_bins_of_packages::<Host>(
+            &packages,
+            &bin_dir,
+            &LinkBinsOptions { relocatable_root: Some(root.clone()), ..LinkBinsOptions::default() },
+        )
+        .unwrap();
+        assert_eq!(
+            fs::read_link(bin_dir.join("node")).unwrap(),
+            Path::new("../../../node-package/node"),
+        );
+        assert_eq!(read_to_string(bin_dir.join("node")).unwrap(), "fake-node-binary");
+        let relative_bin = bin_dir.strip_prefix(&root).unwrap();
+        let moved = tmp.path().join("moved");
+        fs::rename(&root, &moved).unwrap();
+        assert_eq!(
+            read_to_string(moved.join(relative_bin).join("node")).unwrap(),
+            "fake-node-binary",
+        );
+    }
+}
+
+#[test]
+fn extra_node_path_through_directory_symlinks_resolves_before_and_after_move() {
+    for terminal in [false, true] {
+        let tmp = tempdir().unwrap();
+        let root = dunce::canonicalize(tmp.path()).unwrap().join("project");
+        create_dir_all(root.join("deep/physical/.bin")).unwrap();
+        create_dir_all(root.join("package")).unwrap();
+        symlink("deep/physical", root.join("alias")).unwrap();
+        create_dir_all(root.join("deep/extras")).unwrap();
+        symlink("deep/extras", root.join("extra-alias")).unwrap();
+        let bin_dir = if terminal {
+            symlink("deep/physical/.bin", root.join("bin-alias")).unwrap();
+            root.join("bin-alias")
+        } else {
+            root.join("alias/.bin")
+        };
+        write_file(
+            root.join("package/cli.js"),
+            "#!/usr/bin/env node\nconsole.log(require('only-extra'))\n",
+        )
+        .unwrap();
+        link_bins_of_packages::<Host>(
+            &[PackageBinSource::new(
+                root.join("package"),
+                Arc::new(json!({"name": "foo", "version": "1.0.0", "bin": "cli.js"})),
+            )],
+            &bin_dir,
+            &LinkBinsOptions {
+                extra_node_paths: vec![
+                    root.join("extra-alias/missing/modules")
+                        .to_string_lossy()
+                        .into_owned(),
+                ],
+                relocatable_root: Some(root.clone()),
+                ..LinkBinsOptions::default()
+            },
+        )
+        .unwrap();
+        // The extra path may be materialized after the bins are linked.
+        create_dir_all(root.join("deep/extras/missing/modules/only-extra")).unwrap();
+        write_file(
+            root.join("deep/extras/missing/modules/only-extra/index.js"),
+            "module.exports = 'resolved-extra'\n",
+        )
+        .unwrap();
+        let relative_bin = bin_dir
+            .strip_prefix(&root)
+            .unwrap()
+            .to_path_buf();
+        let moved = tmp.path().join("moved");
+        for current in [&root, &moved] {
+            if current == &moved {
+                fs::rename(&root, &moved).unwrap();
+            }
+            let output = Command::new(current.join(&relative_bin).join("foo"))
+                .env_remove("NODE_PATH")
+                .env_remove("NODE_OPTIONS")
+                .output()
+                .unwrap();
+            eprintln!("terminal={terminal}, root={current:?}, output={output:?}");
+            assert!(output.status.success());
+            assert_eq!(String::from_utf8(output.stdout).unwrap().trim(), "resolved-extra");
+        }
+    }
+}
+
+#[test]
+fn physical_paths_use_the_resolved_relocation_root() {
+    let tmp = tempdir().unwrap();
+    let physical_root = dunce::canonicalize(tmp.path()).unwrap().join("project");
+    create_dir_all(&physical_root).unwrap();
+    let alias = tmp.path().join("project-alias");
+    symlink(&physical_root, &alias).unwrap();
+    let bin_dir = link_node_path_printer(&alias, Some(alias.clone()));
+    let body = read_to_string(bin_dir.join("foo")).unwrap();
+    eprintln!("{body}");
+    assert!(!body.contains(physical_root.to_str().unwrap()));
+    assert!(!body.contains(alias.to_str().unwrap()));
+    let moved = tmp.path().join("moved");
+    fs::rename(&physical_root, &moved).unwrap();
+    let output = Command::new(moved.join("node_modules/.bin/foo"))
+        .env_remove("NODE_PATH")
+        .output()
+        .unwrap();
+    eprintln!("{output:?}");
+    assert!(output.status.success());
+    for entry in String::from_utf8(output.stdout).unwrap().split(':') {
+        assert!(Path::new(entry).is_dir(), "NODE_PATH entry does not exist: {entry}");
+    }
+}
+
+#[test]
+fn bins_outside_the_physical_root_keep_the_global_shim_body() {
+    let tmp = tempdir().unwrap();
+    let base = dunce::canonicalize(tmp.path()).unwrap();
+    let root = base.join("project");
+    let outside = base.join("outside");
+    create_dir_all(&root).unwrap();
+    create_dir_all(&outside).unwrap();
+    symlink("../outside", root.join("alias")).unwrap();
+    let bin_dir = link_node_path_printer(&root.join("alias"), None);
+    let original = read_to_string(bin_dir.join("foo")).unwrap();
+    fs::remove_file(bin_dir.join("foo")).unwrap();
+    link_node_path_printer(&root.join("alias"), Some(root));
+    assert_eq!(read_to_string(bin_dir.join("foo")).unwrap(), original);
+}
+
+#[test]
+fn external_node_path_alias_keeps_its_original_spelling() {
+    let tmp = tempdir().unwrap();
+    let base = dunce::canonicalize(tmp.path()).unwrap();
+    let root = base.join("project");
+    create_dir_all(root.join("package")).unwrap();
+    create_dir_all(base.join("external")).unwrap();
+    symlink("external", base.join("external-alias")).unwrap();
+    let extra = base
+        .join("external-alias/modules")
+        .to_string_lossy()
+        .into_owned();
+    write_file(root.join("package/cli"), "#!/bin/sh\nprintf '%s' \"$NODE_PATH\"\n").unwrap();
+    let bins = root.join(".bin");
+    link_bins_of_packages::<Host>(
+        &[PackageBinSource::new(
+            root.join("package"),
+            Arc::new(json!({"name": "foo", "version": "1.0.0", "bin": "cli"})),
+        )],
+        &bins,
+        &LinkBinsOptions {
+            extra_node_paths: vec![extra.clone()],
+            relocatable_root: Some(root),
+            ..LinkBinsOptions::default()
+        },
+    )
+    .unwrap();
+    let output = Command::new(bins.join("foo"))
+        .env_remove("NODE_PATH")
+        .output()
+        .unwrap();
+    eprintln!("{output:?}");
+    assert!(output.status.success());
+    assert_eq!(
+        String::from_utf8(output.stdout)
+            .unwrap()
+            .split(':')
+            .next_back(),
+        Some(extra.as_str()),
+    );
+}
+
+#[test]
+fn physical_target_without_node_path_runs_through_a_directory_symlink() {
+    let tmp = tempdir().unwrap();
+    let root = dunce::canonicalize(tmp.path()).unwrap().join("project");
+    create_dir_all(root.join("deep/physical/.bin")).unwrap();
+    create_dir_all(root.join("package")).unwrap();
+    symlink("deep/physical", root.join("alias")).unwrap();
+    write_file(
+        root.join("package/cli.js"),
+        "#!/usr/bin/env node\nconsole.log('physical-target')\n",
+    )
+    .unwrap();
+    link_bins_of_packages::<Host>(
+        &[PackageBinSource::new(
+            root.join("package"),
+            Arc::new(json!({"name": "foo", "version": "1.0.0", "bin": "cli.js"})),
+        )],
+        &root.join("alias/.bin"),
+        &LinkBinsOptions { relocatable_root: Some(root.clone()), ..LinkBinsOptions::default() },
+    )
+    .unwrap();
+    let moved = tmp.path().join("moved");
+    fs::rename(&root, &moved).unwrap();
+    let output = Command::new(moved.join("alias/.bin/foo"))
+        .env_remove("NODE_PATH")
+        .env_remove("NODE_OPTIONS")
+        .output()
+        .unwrap();
+    eprintln!("{output:?}");
+    assert!(output.status.success());
+    assert_eq!(String::from_utf8(output.stdout).unwrap().trim(), "physical-target");
+}
+
+#[test]
+fn extra_node_path_escaping_root_stays_absolute() {
+    let tmp = tempdir().unwrap();
+    let base = dunce::canonicalize(tmp.path()).unwrap();
+    let root = base.join("project");
+    create_dir_all(root.join("package")).unwrap();
+    let external = base.join("external");
+    create_dir_all(&external).unwrap();
+    symlink(&external, root.join("external-alias")).unwrap();
+    let root_alias = base.join("project-alias");
+    symlink(&root, &root_alias).unwrap();
+    write_file(root.join("package/cli"), "#!/bin/sh\nprintf '%s' \"$NODE_PATH\"\n").unwrap();
+    link_bins_of_packages::<Host>(
+        &[PackageBinSource::new(
+            root.join("package"),
+            Arc::new(json!({"name": "foo", "version": "1.0.0", "bin": "cli"})),
+        )],
+        &root.join(".bin"),
+        &LinkBinsOptions {
+            extra_node_paths: vec![
+                root_alias
+                    .join("external-alias/modules")
+                    .to_string_lossy()
+                    .into_owned(),
+            ],
+            relocatable_root: Some(root_alias),
+            ..LinkBinsOptions::default()
+        },
+    )
+    .unwrap();
+    let moved = base.join("moved");
+    fs::rename(&root, &moved).unwrap();
+    let output = Command::new(moved.join(".bin/foo"))
+        .env_remove("NODE_PATH")
+        .output()
+        .unwrap();
+    eprintln!("{output:?}");
+    assert!(output.status.success());
+    assert_eq!(
+        String::from_utf8(output.stdout)
+            .unwrap()
+            .split(':')
+            .next_back(),
+        external.join("modules").to_str(),
+    );
+}
+
+#[test]
+fn warm_install_upgrades_physical_target_anchor_without_node_path() {
+    let tmp = tempdir().unwrap();
+    let root = dunce::canonicalize(tmp.path()).unwrap().join("project");
+    create_dir_all(root.join("package")).unwrap();
+    write_file(root.join("package/cli.js"), "#!/usr/bin/env node\nconsole.log('upgraded')\n")
+        .unwrap();
+    let packages = [PackageBinSource::new(
+        root.join("package"),
+        Arc::new(json!({"name": "foo", "version": "1.0.0", "bin": "cli.js"})),
+    )];
+    let bins = root.join(".bin");
+    let options = LinkBinsOptions { relocatable_root: Some(root), ..LinkBinsOptions::default() };
+    link_bins_of_packages::<Host>(&packages, &bins, &options).unwrap();
+    let shim = bins.join("foo");
+    let current = read_to_string(&shim).unwrap();
+    let old = current.replace("$basedir_abs/", "$basedir/");
+    write_file(&shim, &old).unwrap();
+    link_bins_of_packages::<Host>(&packages, &bins, &options).unwrap();
+    assert_eq!(read_to_string(&shim).unwrap(), current);
+    let inode = fs::symlink_metadata(&shim).unwrap().ino();
+    link_bins_of_packages::<Host>(&packages, &bins, &options).unwrap();
+    assert_eq!(fs::symlink_metadata(&shim).unwrap().ino(), inode);
+}
+
+#[test]
+fn external_target_runs_through_a_physical_bin_directory() {
+    let tmp = tempdir().unwrap();
+    let base = dunce::canonicalize(tmp.path()).unwrap();
+    let root = base.join("project");
+    create_dir_all(root.join("deep/physical/.bin")).unwrap();
+    create_dir_all(base.join("external-package")).unwrap();
+    symlink("deep/physical", root.join("alias")).unwrap();
+    write_file(
+        base.join("external-package/cli.js"),
+        "#!/usr/bin/env node\nconsole.log('external-target')\n",
+    )
+    .unwrap();
+    link_bins_of_packages::<Host>(
+        &[PackageBinSource::new(
+            base.join("external-package"),
+            Arc::new(json!({"name": "foo", "version": "1.0.0", "bin": "cli.js"})),
+        )],
+        &root.join("alias/.bin"),
+        &LinkBinsOptions { relocatable_root: Some(root.clone()), ..LinkBinsOptions::default() },
+    )
+    .unwrap();
+    let shim = root.join("alias/.bin/foo");
+    let body = read_to_string(&shim).unwrap();
+    eprintln!("{body}");
+    assert!(body.ends_with(&format!(
+        "# cmd-shim-target={}\n",
+        base.join("external-package/cli.js").display()
+    )));
+    let output = Command::new(&shim)
+        .env_remove("NODE_PATH")
+        .env_remove("NODE_OPTIONS")
+        .output()
+        .unwrap();
+    eprintln!("{output:?}");
+    assert!(output.status.success());
+    assert_eq!(String::from_utf8(output.stdout).unwrap().trim(), "external-target");
+}

@@ -25,8 +25,8 @@ use super::{
 /// The per-bin inputs one [`write_shim`] call consumes.
 #[derive(Clone, Copy)]
 pub(super) struct ShimSpec<'a> {
-    /// The bin file the shim executes, reached through the package's
-    /// `node_modules` location — the path the shim body embeds.
+    /// The bin file the shim executes. Relocatable linking resolves its
+    /// parent directory while retaining the final dirent.
     pub(super) target_path: &'a Path,
     /// [`target_path`](Self::target_path) with the package symlink
     /// resolved, used for the per-target probes (script runtime,
@@ -228,7 +228,8 @@ fn windows_shim_bodies(
 /// The `.sh` flavor carries a `# cmd-shim-target=<path>` trailer that
 /// [`is_shim_pointing_at`] reads. When a `NODE_PATH` block is expected the
 /// marker alone cannot prove the shim carries the right (or any) block, so
-/// byte equality is required; the marker-only branch additionally rejects a
+/// byte equality is required. Relocatable shims also require equality so their
+/// physical directory anchor is upgraded. The marker-only branch rejects a
 /// stale `NODE_PATH` block when none is expected. The probe looks for the
 /// exact export the block opens with, so a target path that merely mentions
 /// `NODE_PATH` cannot force a rewrite.
@@ -241,7 +242,7 @@ fn shim_body_matches(existing: Option<&str>, sh_body: &str, spec: &ShimSpec<'_>)
     let Some(existing) = existing else {
         return false;
     };
-    if !spec.node_path.is_empty() {
+    if !spec.node_path.is_empty() || spec.relocatable_root.is_some() {
         return existing == sh_body;
     }
     is_shim_pointing_at(existing, spec.shim_path, spec.target_path)

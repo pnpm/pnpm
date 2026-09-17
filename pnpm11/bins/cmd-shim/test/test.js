@@ -282,3 +282,20 @@ describe('batch script', () => {
     await testFile(t, `${to}.ps1`)
   })
 })
+
+test('relocatable paths use the supplied filesystem', { skip: process.platform === 'win32' }, async () => {
+  const root = path.join(fixtures, 'relocatable')
+  const physical = path.join(root, 'deep', 'bins')
+  await fs.promises.mkdir(physical, { recursive: true })
+  await fs.promises.symlink('deep/bins', path.join(root, 'alias'))
+  const target = path.join(root, 'tool.js')
+  await fs.promises.writeFile(target, '#!/usr/bin/env node\n')
+  await cmdShim(target, path.join(root, 'alias', 'tool'), {
+    fs,
+    relocatableRoot: root,
+    nodePath: [path.join(root, 'missing', 'node_modules')],
+    createPwshFile: false,
+  })
+  const content = await fs.promises.readFile(path.join(physical, 'tool'), 'utf8')
+  assert.ok(content.includes('export NODE_PATH="$basedir_abs/../../missing/node_modules"'))
+})
