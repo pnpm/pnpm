@@ -674,8 +674,9 @@ async fn refuses_an_interpreter_the_release_does_not_name() {
     );
 }
 
-/// A workspace can keep pnpm from installing interpreters, and an
-/// offline install has nowhere to install one from.
+/// `runtimeOnFail` keeps pnpm from installing an interpreter the way it
+/// keeps pnpm from installing a Node.js runtime, and an offline install
+/// has nowhere to install one from.
 #[cfg(any(target_os = "linux", target_os = "macos"))]
 #[tokio::test]
 async fn an_interpreter_is_installed_only_where_the_install_may_download() {
@@ -688,18 +689,11 @@ async fn an_interpreter_is_installed_only_where_the_install_may_download() {
         "[project]\nname = 'app'\nversion = '1.0'\nrequires-python = '==3.13.98'\ndependencies = []\n",
     )
     .unwrap();
-    add_python_settings(
-        root.path(),
-        &format!("  downloadUrl: '{}'\n  downloads: never\n", server.url()),
+    add_python_settings(root.path(), &format!("  downloadUrl: '{}'\n", server.url()));
+    assert_failure_contains(
+        pacquet_in(root.path()).args(["install", "--runtime-on-fail=error"]),
+        "no Python interpreter for",
     );
-    assert_failure_contains(pacquet_in(root.path()).arg("install"), "no Python interpreter for");
-
-    let workspace = fs::read_to_string(root.path().join("pnpm-workspace.yaml")).unwrap();
-    fs::write(
-        root.path().join("pnpm-workspace.yaml"),
-        workspace.replace("  downloads: never\n", ""),
-    )
-    .unwrap();
     assert_failure_contains(
         pacquet_in(root.path()).args(["install", "--offline"]),
         "no Python interpreter for",
@@ -709,6 +703,39 @@ async fn an_interpreter_is_installed_only_where_the_install_may_download() {
         .assert()
         .success();
     assert_eq!(selected_python(root.path()), "3.13.98");
+}
+
+/// `runtimeOnFail` also decides what an install with no interpreter the
+/// project accepts does with the ones the machine has, as it does for a
+/// Node.js runtime `engines.runtime` rejects.
+#[cfg(unix)]
+#[tokio::test]
+async fn an_interpreter_the_project_rejects_installs_it_only_under_runtime_on_fail() {
+    let root = tempfile::tempdir().unwrap();
+    project(root.path(), "https://unused.invalid", &[]);
+    // A version no machine has, so only the modes that bypass the check
+    // reach an interpreter, and `--offline` installs none.
+    fs::write(
+        root.path().join("pyproject.toml"),
+        "[project]\nname = 'app'\nversion = '1.0'\nrequires-python = '==3.99'\ndependencies = []\n",
+    )
+    .unwrap();
+    let install = |mode: &str| {
+        let mut command = pacquet_in(root.path());
+        command.args(["install", "--offline"]);
+        if !mode.is_empty() {
+            command.arg(format!("--runtime-on-fail={mode}"));
+        }
+        command
+    };
+    assert_failure_contains(&mut install(""), "no Python interpreter for");
+    assert_failure_contains(&mut install(""), "set runtimeOnFail to warn or ignore");
+    let warned = install("warn").assert().success();
+    let stdout = String::from_utf8_lossy(&warned.get_output().stdout).into_owned();
+    assert!(stdout.contains("which the project's requires-python ==3.99 rejects"), "{stdout}");
+    let quiet = install("ignore").assert().success();
+    let stdout = String::from_utf8_lossy(&quiet.get_output().stdout).into_owned();
+    assert!(!stdout.contains("requires-python ==3.99 rejects"), "{stdout}");
 }
 
 /// The interpreter scenarios of pnpm/pnpm#14945: a project the machine's

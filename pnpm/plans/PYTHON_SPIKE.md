@@ -100,8 +100,10 @@ integrity files pnpm caches for the Node.js and Bun runtimes.
 An interpreter is installed under `<store>/python/`, so every project and
 repository on the machine shares one, and it is found there afterward like
 any other interpreter: a later install uses it without reading the release,
-offline included. `downloads: never` keeps pnpm from installing any, and an
-offline install installs none; both report the project instead. `downloadUrl`
+offline included. `runtimeOnFail` decides what happens when no interpreter
+fits: `download`, which is the default, installs one, `error` reports the
+project, and `warn` and `ignore` install with an interpreter the machine has
+that `requires-python` rejects. An offline install installs none. `downloadUrl`
 names a mirror of the releases.
 
 A `.python-version` pin is met by installing the version it names. Where the

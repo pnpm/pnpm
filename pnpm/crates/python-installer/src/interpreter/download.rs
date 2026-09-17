@@ -9,7 +9,7 @@
 
 use super::{InterpreterCommand, VersionRequest, command::interpreter_in};
 use miette::{IntoDiagnostic, Result, WrapErr, bail};
-use pnpm_config::{Config, PythonDownloads};
+use pnpm_config::{Config, RuntimeOnFail};
 use pnpm_crypto_shasums_file::{ShasumsFileItem, fetch_moving_shasums_file_cached};
 use pnpm_network::{AuthHeaders, ThrottledClient};
 use pnpm_reporter::{GlobalLog, LogEvent, LogLevel, Reporter};
@@ -196,13 +196,19 @@ pub(super) fn allowed(config: &Config) -> bool {
 }
 
 /// Why this run installs no interpreter, for the install that needed
-/// one. An offline install has nowhere to download from, and a workspace
-/// can turn downloads off.
+/// one. An offline install has nowhere to download from, and every
+/// `runtimeOnFail` mode but `download` asks pnpm to report an unmet
+/// runtime rather than install it.
 pub(super) fn refused(config: &Config) -> Option<&'static str> {
     if config.offline {
         return Some("the install is offline");
     }
-    (config.python.downloads != PythonDownloads::Auto).then_some("python.downloads is never")
+    match config.runtime_on_fail {
+        None | Some(RuntimeOnFail::Download) => None,
+        Some(RuntimeOnFail::Error) => Some("runtimeOnFail is error"),
+        Some(RuntimeOnFail::Warn) => Some("runtimeOnFail is warn"),
+        Some(RuntimeOnFail::Ignore) => Some("runtimeOnFail is ignore"),
+    }
 }
 
 /// The builds of the index that install on this machine: the ordinary

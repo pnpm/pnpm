@@ -3,7 +3,7 @@ pub mod registries;
 pub use error::LoadWorkspaceYamlError;
 pub use sections::{
     AllowBuild, AuditSettings, CargoSettings, DEFAULT_PYTHON_DOWNLOAD_URL, PackageExtension,
-    PeerDependencyMeta, PeerDependencyRules, PnpmfileSetting, PythonDownloads, PythonSettings,
+    PeerDependencyMeta, PeerDependencyRules, PnpmfileSetting, PythonSettings,
     RemoteSideEffectsCacheSettings, SideEffectsCacheSetting, SideEffectsCacheSettings,
     TaskSettings, UpdateConfig, UpdateSettings, decided_allow_builds,
 };
