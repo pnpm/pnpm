@@ -82,6 +82,7 @@ pub(crate) use timestamps::{
     validation_baseline_ms, wanted_lockfile_mtime,
 };
 
+mod relocation;
 mod settle;
 use settle::{
     current_lockfile_file_has_content, current_lockfile_unusable_with_non_empty_wanted,
@@ -218,7 +219,11 @@ pub(crate) fn check_optimistic_repeat_install_ignoring(
     let Ok(Some(state)) = load_workspace_state(check.workspace_root) else {
         return Decision::Skipped { reason: "no workspace state on disk" };
     };
-    if let Some(reason) = state_blocks_fast_path(check, &state, ignored_workspace_state_settings) {
+    let (state, moved) =
+        relocation::relocated_state(&state, check.workspace_root, check.project_manifests)
+            .map_or((state, false), |relocated| (relocated, true));
+    let blocked = state_blocks_fast_path(check, &state, ignored_workspace_state_settings, moved);
+    if let Some(reason) = blocked {
         return Decision::Skipped { reason };
     }
     // The fast-path conclusion: walk every manifest and report up to
@@ -229,6 +234,9 @@ pub(crate) fn check_optimistic_repeat_install_ignoring(
     let Some(drift) = ManifestDrift::stat(check, &state) else {
         return Decision::Skipped { reason: "failed to stat a project manifest" };
     };
+    if moved {
+        return relocation::moved_tree_decision(check, &state, &drift);
+    }
     let modified = drift.modified();
     if let Some(decision) = early_repeat_verdict(check, &modified, drift.lockfile_modified) {
         return decision;
@@ -249,7 +257,7 @@ pub(crate) fn check_optimistic_repeat_install_ignoring(
         check.config.dedupe_peers,
     ) {
         Ok(loaded_current) => {
-            match settle_repeat_install(check, &state, loaded_current, filesystem_now) {
+            match settle_repeat_install(check, &state, loaded_current, filesystem_now, false) {
                 Ok(()) => Decision::UpToDate,
                 Err(reason) => Decision::Skipped { reason },
             }
@@ -335,11 +343,12 @@ fn config_blocks_fast_path(config: &Config) -> Option<&'static str> {
 }
 
 /// The first reason the recorded workspace state cannot prove this install is
-/// a no-op.
+/// a no-op. `moved` marks a state [`relocation::relocated_state`] re-keyed.
 fn state_blocks_fast_path(
     check: &OptimisticRepeatInstallCheck<'_>,
     state: &WorkspaceState,
     ignored_workspace_state_settings: &[&str],
+    moved: bool,
 ) -> Option<&'static str> {
     // A filtered install refreshes `lastValidatedTimestamp` while
     // materializing only the projects it selected, so its state cannot
@@ -357,7 +366,7 @@ fn state_blocks_fast_path(
     }
     local_file_blocks_fast_path(check)
         .or_else(|| settings_block_fast_path(check, state, ignored_workspace_state_settings))
-        .or_else(|| lockfile_inputs_block_fast_path(check, state))
+        .or_else(|| lockfile_inputs_block_fast_path(check, state, moved))
 }
 
 /// A local file dependency's contents can change with nothing in the manifest
@@ -444,10 +453,13 @@ fn settings_block_fast_path(
 
 /// The lockfile and the resolution inputs beside the manifests: a missing
 /// lockfile the current one may not stand in for, an edited patch, an edited
-/// pnpmfile.
+/// pnpmfile. The patch mtimes of a `moved` tree come from where it was
+/// validated, so its patches are left to the content proof, which hashes
+/// them.
 fn lockfile_inputs_block_fast_path(
     check: &OptimisticRepeatInstallCheck<'_>,
     state: &WorkspaceState,
+    moved: bool,
 ) -> Option<&'static str> {
     let &OptimisticRepeatInstallCheck {
         workspace_root,
@@ -491,7 +503,7 @@ fn lockfile_inputs_block_fast_path(
     // changes the patched output and the patch hash. This check runs
     // before the manifest-modified exit so the patch reason wins when
     // both a patch and a manifest are newer than the last validation.
-    if patches_modified_since(workspace_root, config, state.last_validated_timestamp) {
+    if !moved && patches_modified_since(workspace_root, config, state.last_validated_timestamp) {
         return Some("a patch file is newer than the last validation");
     }
     // A pnpmfile added, removed, or edited in place can change

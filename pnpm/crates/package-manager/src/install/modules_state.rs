@@ -8,10 +8,12 @@ mod build_markers;
 mod merge_metadata;
 
 use super::{
-    BTreeMap, Config, HoistedDependencies, IncludedDependencies, InstallError, LayoutVersion,
-    Lockfile, Modules, ModulesNodeLinker, NodeLinker, PNPM_VERSION, PackageManifest, Path,
+    BTreeMap, Config, HoistedDependencies, Host, IncludedDependencies, InstallError, LayoutVersion,
+    Lockfile, Modules, ModulesNodeLinker, NodeLinker, PNPM_VERSION, PackageManifest, Path, PathBuf,
     write_modules_manifest,
 };
+use pnpm_cmd_shim::bin_dir_is_relocatable;
+use rayon::prelude::*;
 
 /// Translate pacquet's [`Config::node_linker`] into the
 /// [`pnpm_modules_yaml::NodeLinker`] enum used on disk. The two
@@ -179,6 +181,114 @@ fn direct_dep_link_resolves(modules_dir: &Path, name: &str) -> bool {
     }
 }
 
+/// Whether a tree that moved with its project can be reused at all: only on
+/// unix, where directory links are relative symlinks rather than junctions,
+/// and only for an isolated or hoisted tree outside a global virtual store,
+/// whose links point into a store that registers projects by their path.
+pub(crate) fn tree_may_move(config: &Config, node_linker: NodeLinker) -> bool {
+    cfg!(unix) && !config.enable_global_virtual_store && node_linker != NodeLinker::Pnp
+}
+
+/// Whether a tree that moved with its project keeps working where it is now:
+/// [`tree_may_move`], and every importer, hoist, virtual-store slot and
+/// hoisted-package `.bin` holds only bins that name their paths relative to
+/// themselves, inside the directory holding `config.modules_dir`.
+pub(crate) fn moved_tree_is_reusable(
+    config: &Config,
+    node_linker: NodeLinker,
+    project_manifests: &[(PathBuf, &PackageManifest)],
+    lockfile: &Lockfile,
+) -> bool {
+    let Some(root) = config.modules_dir.parent() else { return false };
+    tree_may_move(config, node_linker)
+        && importer_bins_are_relocatable(config, project_manifests, root)
+        && match node_linker {
+            NodeLinker::Hoisted => hoisted_bins_are_relocatable(config, root),
+            _ => virtual_store_bins_are_relocatable(config, lockfile, root),
+        }
+}
+
+fn importer_bins_are_relocatable(
+    config: &Config,
+    project_manifests: &[(PathBuf, &PackageManifest)],
+    root: &Path,
+) -> bool {
+    let modules_dir_name: &std::ffi::OsStr =
+        config.modules_dir.file_name().unwrap_or_else(|| std::ffi::OsStr::new("node_modules"));
+    bin_dir_is_relocatable(&config.modules_dir.join(".bin"), root)
+        && project_manifests
+            .iter()
+            .filter(|(project_dir, _)| project_dir != root)
+            .all(|(project_dir, _)| {
+                bin_dir_is_relocatable(&project_dir.join(modules_dir_name).join(".bin"), root)
+            })
+}
+
+/// The bins of the packages hoisted into the virtual store, and each slot's
+/// own.
+fn virtual_store_bins_are_relocatable(config: &Config, lockfile: &Lockfile, root: &Path) -> bool {
+    let layout = crate::VirtualStoreLayout::legacy(
+        config.virtual_store_dir.clone(),
+        config.virtual_store_dir_max_length as usize,
+    );
+    bin_dir_is_relocatable(&config.virtual_store_dir.join("node_modules").join(".bin"), root)
+        // Each slot's probes read a directory of its own, so a
+        // workspace-scale snapshot list fans out across the rayon pool
+        // instead of serializing thousands of directory reads.
+        && lockfile.snapshots
+            .as_ref()
+            .is_none_or(|snapshots| {
+                snapshots
+                    .par_iter()
+                    .all(|(key, _)| {
+                        slot_bins_are_relocatable(
+                            &layout.slot_dir(key).join("node_modules"),
+                            key,
+                            root,
+                        )
+                    })
+            })
+}
+
+/// The `.bin` dirs the hoisted linker writes inside the packages it placed,
+/// enumerated from the `hoistedLocations` the install recorded. A record that
+/// cannot be read, or a location naming a directory outside the tree, refuses
+/// the move.
+fn hoisted_bins_are_relocatable(config: &Config, root: &Path) -> bool {
+    let Ok(Some(modules)) = pnpm_modules_yaml::read_modules_manifest::<Host>(&config.modules_dir)
+    else {
+        return false;
+    };
+    modules.hoisted_locations
+        .iter()
+        .flat_map(BTreeMap::values)
+        .flatten()
+        .all(|location| {
+            let package_dir = root.join(location);
+            pnpm_fs::is_subdir(root, &package_dir)
+                && bin_dir_is_relocatable(&package_dir.join("node_modules").join(".bin"), root)
+        })
+}
+
+/// The `.bin` the install links into the slot's package, and the one next
+/// to the package, which the injected-deps syncer links a package's own
+/// bins into.
+fn slot_bins_are_relocatable(
+    slot_modules_dir: &Path,
+    key: &pnpm_lockfile::PackageKey,
+    root: &Path,
+) -> bool {
+    bin_dir_is_relocatable(&slot_modules_dir.join(".bin"), root)
+        // A malformed lockfile-controlled name fails closed.
+        && crate::safe_join_modules_dir::safe_join_modules_dir(
+            slot_modules_dir,
+            &key.name.to_string(),
+        )
+        .is_ok_and(|package_dir| {
+            bin_dir_is_relocatable(&package_dir.join("node_modules").join(".bin"), root)
+        })
+}
+
 /// The `validateModules` half pacquet enforces: when the mutation is
 /// not a plain install (upstream `installsOnly === false`), a drift in
 /// the persisted layout settings fails with the upstream `*_DIFF`
@@ -212,7 +322,7 @@ pub(super) fn normalized_pattern(pattern: Option<&[String]>) -> &[String] {
     pattern.unwrap_or(&[])
 }
 
-pub(super) fn modules_layout_consistent_with(
+pub(crate) fn modules_layout_consistent_with(
     modules: &pnpm_modules_yaml::ModulesLayout,
     config: &Config,
     node_linker: NodeLinker,

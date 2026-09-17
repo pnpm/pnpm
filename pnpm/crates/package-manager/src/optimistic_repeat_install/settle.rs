@@ -42,13 +42,15 @@ pub(super) fn early_repeat_verdict(
 ///
 /// The workspace branch rewrites the state; the single-project branch keys
 /// its comparisons off the lockfile mtimes instead and leaves the state
-/// alone. A failed write only costs the next run a repeat of the content
+/// alone, unless the tree `moved` and the state has to be recorded where it
+/// is now. A failed write only costs the next run a repeat of the content
 /// check, so it degrades rather than fails.
 pub(super) fn settle_repeat_install(
     check: &OptimisticRepeatInstallCheck<'_>,
     state: &WorkspaceState,
     loaded_current: Option<Lockfile>,
     filesystem_now: Option<i64>,
+    moved: bool,
 ) -> Result<(), &'static str> {
     let &OptimisticRepeatInstallCheck {
         workspace_root,
@@ -66,7 +68,7 @@ pub(super) fn settle_repeat_install(
         ..
     } = check;
     regenerate_wanted_lockfile_if_missing(check, loaded_current)?;
-    if !is_workspace_install {
+    if !is_workspace_install && !moved {
         return Ok(());
     }
     // This path refreshes the timestamp without materializing anything, so

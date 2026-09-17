@@ -6,7 +6,9 @@ use super::{
     current_lockfile_file_has_content, current_lockfile_unusable_with_non_empty_wanted,
     filesystem_now_ms, first_lockfile_requiring_conflict_safe_install,
     first_project_missing_modules_dir, first_setting_drift, modified_manifests_match_lockfile,
-    patches_modified_since, pnpmfiles_drift, project_structure_matches, update_workspace_state,
+    patches_modified_since, pnpmfiles_drift, project_structure_matches,
+    relocation::{prove_move, rekeyed_validation_now, relocated_state},
+    update_workspace_state,
 };
 
 /// Outcome of [`check_deps_status_before_run`].
@@ -51,13 +53,19 @@ pub fn check_deps_status_before_run(
     if check.layout.node_linker == NodeLinker::Pnp {
         return RunDepsStatus::SkippedPnp;
     }
-    if let Some(issue) = first_static_drift(check, state) {
+    let relocated = relocated_state(state, check.workspace_root, check.project_manifests);
+    let moved = relocated.is_some();
+    let state = relocated.as_ref().unwrap_or(state);
+    if let Some(issue) = first_static_drift(check, state, moved) {
         return outdated(issue);
     }
 
     let Some(drift) = super::ManifestDrift::stat(check, state) else {
         return outdated("Cannot check whether dependencies are outdated".to_string());
     };
+    if moved {
+        return moved_tree_status(check, state, &drift, &outdated);
+    }
     let modified = drift.modified();
     if let Some(status) =
         early_content_verdict(check, &modified, drift.lockfile_modified, &outdated)
@@ -72,7 +80,7 @@ pub fn check_deps_status_before_run(
     // into `checkDepsStatus`, so its pre-run lockfile check uses the
     // false default even when the workspace setting is true.
     match modified_manifests_match_lockfile(check, state, &projects_to_check, false) {
-        Ok(_) => match settle_content_check(check, state, filesystem_now) {
+        Ok(_) => match settle_content_check(check, state, filesystem_now, false) {
             Ok(()) => RunDepsStatus::UpToDate,
             Err(reason) => outdated(reason),
         },
@@ -80,12 +88,35 @@ pub fn check_deps_status_before_run(
     }
 }
 
+/// The gate's verdict on a tree whose `state` was re-keyed by
+/// [`relocated_state`]: a tree [`prove_move`] refuses reports the structure
+/// change an unrecognized move would.
+fn moved_tree_status(
+    check: &OptimisticRepeatInstallCheck<'_>,
+    state: &WorkspaceState,
+    drift: &super::ManifestDrift<'_>,
+    outdated: &impl Fn(String) -> RunDepsStatus,
+) -> RunDepsStatus {
+    let filesystem_now = rekeyed_validation_now(check, state, drift);
+    if prove_move(check, drift).is_err() {
+        return outdated(WORKSPACE_STRUCTURE_CHANGED.to_string());
+    }
+    match settle_content_check(check, state, filesystem_now, true) {
+        Ok(()) => RunDepsStatus::UpToDate,
+        Err(reason) => outdated(reason),
+    }
+}
+
+const WORKSPACE_STRUCTURE_CHANGED: &str = "The workspace structure has changed since last install";
+
 /// The first drift the gate can decide before stat-ing any manifest.
 fn first_static_drift(
     check: &OptimisticRepeatInstallCheck<'_>,
     state: &WorkspaceState,
+    moved: bool,
 ) -> Option<String> {
-    first_lockfile_or_setting_drift(check, state).or_else(|| first_workspace_drift(check, state))
+    first_lockfile_or_setting_drift(check, state)
+        .or_else(|| first_workspace_drift(check, state, moved))
 }
 
 fn first_lockfile_or_setting_drift(
@@ -126,9 +157,12 @@ fn first_lockfile_or_setting_drift(
     None
 }
 
+/// A `moved` tree leaves its patches to the content proof, as the install
+/// fast path does.
 fn first_workspace_drift(
     check: &OptimisticRepeatInstallCheck<'_>,
     state: &WorkspaceState,
+    moved: bool,
 ) -> Option<String> {
     let &OptimisticRepeatInstallCheck {
         workspace_root,
@@ -138,7 +172,7 @@ fn first_workspace_drift(
         ..
     } = check;
     if !project_structure_matches(state, project_manifests) {
-        return Some("The workspace structure has changed since last install".to_string());
+        return Some(WORKSPACE_STRUCTURE_CHANGED.to_string());
     }
     // A filtered install legitimately leaves unselected projects
     // without a modules directory.
@@ -155,7 +189,7 @@ fn first_workspace_drift(
     {
         return Some(format!("Cannot find a lockfile in {}", workspace_root.display()));
     }
-    if patches_modified_since(workspace_root, config, state.last_validated_timestamp) {
+    if !moved && patches_modified_since(workspace_root, config, state.last_validated_timestamp) {
         return Some("Patches were modified".to_string());
     }
     pnpmfiles_drift(workspace_root, config, &state.pnpmfiles, state.last_validated_timestamp)
@@ -188,11 +222,13 @@ fn early_content_verdict(
 }
 
 /// Record the passing content check so the next run's gate can short-circuit
-/// on the refreshed timestamp.
+/// on the refreshed timestamp. A single project records it only when its tree
+/// `moved`, like [`settle_repeat_install`](super::settle::settle_repeat_install).
 fn settle_content_check(
     check: &OptimisticRepeatInstallCheck<'_>,
     state: &WorkspaceState,
     filesystem_now: Option<i64>,
+    moved: bool,
 ) -> Result<(), String> {
     let &OptimisticRepeatInstallCheck {
         workspace_root,
@@ -210,7 +246,7 @@ fn settle_content_check(
         ..
     } = check;
     missing_wanted_lockfile_stand_in_ok(check)?;
-    if !is_workspace_install {
+    if !is_workspace_install && !moved {
         return Ok(());
     }
     let mut new_state = crate::install::build_workspace_state::<Host>(

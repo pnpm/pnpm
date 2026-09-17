@@ -10,6 +10,8 @@ pub(crate) use lockfile_freshness::{
 pub use lockfile_freshness::{
     WantedLockfileSatisfactionCheck, wanted_lockfile_satisfies_workspace,
 };
+pub(crate) use modules_state::{modules_layout_consistent_with, moved_tree_is_reusable};
+pub(crate) use prepare_modules_state::materialized_shape_matches;
 pub use run::{InstallExecution, InstallLockfilePolicy, ResolutionInputs};
 pub use workspace_state::{
     UpToDateFastPathCheck, UpToDateWorkspace, build_workspace_packages_map,
@@ -105,8 +107,8 @@ use modules_state::{
     drain_settled_projects, frozen_tree_intact, gvs_build_marker_present,
     gvs_build_markers_may_require_recovery, has_newly_allowed_ignored_builds,
     has_revoked_allowed_builds, manifest_string_field, merge_filtered_modules_metadata,
-    merge_pending_builds, modules_consistent_with, modules_layout_consistent_with,
-    project_requires_lifecycle_scripts, unapproved_recorded_ignored_builds,
+    merge_pending_builds, modules_consistent_with, project_requires_lifecycle_scripts,
+    unapproved_recorded_ignored_builds,
 };
 use prepare_modules_state::{
     PrepareModulesStateInputs, PreparedModulesState, prepare_modules_state,

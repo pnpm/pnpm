@@ -3,11 +3,11 @@ use super::{
         Decision, OptimisticRepeatInstallCheck, check_optimistic_repeat_install,
         settings::current_settings,
     },
-    FOO_MANIFEST, assert_content_check_converges_after_collision, backdate_validated_files, check,
-    check_with_lockfile, collide_mtimes_with_recorded_state, content_check_decision,
-    isolated_included, linked_sibling_decision_for_spec, setup_content_check_project,
-    setup_fresh_install, setup_fresh_install_with_config, validate_existing_files,
-    write_local_tarball_lockfile, write_state,
+    FOO_LOCKFILE, FOO_MANIFEST, RunDepsStatus, assert_content_check_converges_after_collision,
+    backdate_validated_files, check, check_with_lockfile, collide_mtimes_with_recorded_state,
+    content_check_decision, isolated_included, linked_sibling_decision_for_spec,
+    setup_content_check_project, setup_fresh_install, setup_fresh_install_with_config,
+    validate_existing_files, workspace_deps_status, write_local_tarball_lockfile, write_state,
 };
 use pnpm_config::Config;
 use pnpm_lockfile::{Lockfile, MaybeLazyLockfile};
@@ -262,6 +262,86 @@ fn returns_skipped_when_workspace_project_set_changes() {
     );
     assert!(matches!(decision, Decision::Skipped { reason } if reason.contains("project list")));
 }
+/// Record the only project under a sibling of `workspace_root`, as a tree
+/// copied from there carries it. Returns the recorded dir.
+fn record_projects_elsewhere(workspace_root: &std::path::Path) -> String {
+    let mut state =
+        load_workspace_state(workspace_root).expect("read state").expect("state on disk");
+    let (_, entry) = state.projects.pop_first().expect("the recorded project");
+    let elsewhere = workspace_root
+        .with_file_name("elsewhere")
+        .to_string_lossy()
+        .into_owned();
+    state.projects.insert(elsewhere.clone(), entry);
+    update_workspace_state(workspace_root, &state).expect("write workspace state");
+    elsewhere
+}
+/// The patch mtimes of a moved tree come from wherever it was validated, so
+/// a newer patch file leaves the verdict to the proof of the move, at the
+/// fast path and at the gate alike. This tree has no `.modules.yaml` for
+/// that proof to get past, so both refuse it for the move it cannot prove.
+#[test]
+fn a_moved_tree_leaves_a_newer_patch_to_the_move_proof() {
+    let (dir, config, manifest) = setup_fresh_install_with_config(
+        pnpm_config::NodeLinker::Isolated,
+        "root",
+        "1.0.0",
+        "",
+        |config| {
+            let patch = ("foo@1.0.0".to_string(), "patches/foo.patch".to_string());
+            config.patched_dependencies = Some(indexmap::IndexMap::from([patch]));
+        },
+    );
+    let elsewhere = record_projects_elsewhere(dir.path());
+    fs::create_dir_all(dir.path().join("patches")).unwrap();
+    fs::write(dir.path().join("patches/foo.patch"), "--- a\n+++ b\n").unwrap();
+    let projects = [(dir.path().to_path_buf(), &manifest)];
+
+    let decision = check(dir.path(), config, pnpm_config::NodeLinker::Isolated, &projects);
+    assert_eq!(
+        decision,
+        Decision::Skipped {
+            reason: "the moved tree's store or virtual store does not resolve from where it is",
+        },
+    );
+    let status = workspace_deps_status(&dir, config, &projects);
+    assert!(
+        matches!(&status, RunDepsStatus::Outdated { issue, .. } if issue == "The workspace structure has changed since last install"),
+        "unexpected status: {status:?}",
+    );
+    let state = load_workspace_state(dir.path()).expect("read state").expect("state on disk");
+    assert!(state.projects.contains_key(&elsewhere), "the refused move must not re-key the state");
+}
+/// The current lockfile keeps only what the importers reach, so a wanted
+/// lockfile still carrying a snapshot no importer reaches never equals it.
+/// The proof of a move compares the shape a materialization would settle on,
+/// as the in-place short-circuit does, so such a tree is reused.
+#[cfg(unix)]
+#[test]
+fn a_moved_tree_with_unreachable_lockfile_snapshots_is_up_to_date() {
+    let (dir, config) = setup_content_check_project();
+    let layout = serde_json::json!({
+        "layoutVersion": 5,
+        "nodeLinker": "isolated",
+        "hoistPattern": config.hoist_pattern,
+        "publicHoistPattern": config.public_hoist_pattern,
+        "storeDir": config.store_dir.display().to_string(),
+        "virtualStoreDir": config.effective_virtual_store_dir().to_string_lossy(),
+        "virtualStoreDirMaxLength": config.virtual_store_dir_max_length,
+    });
+    fs::write(config.modules_dir.join(pnpm_modules_yaml::MODULES_FILENAME), layout.to_string())
+        .unwrap();
+    // A snapshot the only importer does not reach, as a lockfile keeps until
+    // something prunes it.
+    let wanted = format!("{FOO_LOCKFILE}  bar@1.0.0: {{}}\n");
+    fs::write(dir.path().join(Lockfile::FILE_NAME), wanted).unwrap();
+    record_projects_elsewhere(dir.path());
+    let manifest = PackageManifest::from_path(dir.path().join("package.json")).unwrap();
+
+    let decision =
+        content_check_decision(&dir, config, false, &[(dir.path().to_path_buf(), &manifest)]);
+    assert_eq!(decision, Decision::UpToDate);
+}
 /// Drift in `injectWorkspacePackages` invalidates the cached state.
 /// Toggling the flag changes whether workspace resolutions land as
 /// `link:` symlinks or `file:` hard-linked copies, so the previous
@@ -430,6 +510,39 @@ fn workspace_content_check_refreshes_last_validated_timestamp() {
         .unwrap()
         .last_validated_timestamp;
     assert!(after > before, "expected the state timestamp to advance ({before} -> {after})");
+}
+/// Every project the content check takes is checked, not only the first: a
+/// project the lockfile no longer records is refused however current the root
+/// is.
+#[test]
+fn workspace_content_check_refuses_a_project_after_the_first() {
+    let (dir, config) = setup_content_check_project();
+    let dropped_dir = dir.path().join("packages").join("b");
+    fs::create_dir_all(&dropped_dir).unwrap();
+    fs::write(dropped_dir.join("package.json"), r#"{"name":"b","version":"1.0.0"}"#).unwrap();
+    // Rewritten so both manifests are newer than the recorded validation and
+    // both reach the content check, the root's first.
+    fs::write(dir.path().join("package.json"), FOO_MANIFEST).unwrap();
+    let mut state = load_workspace_state(dir.path()).unwrap().unwrap();
+    state.projects.insert(
+        dropped_dir.to_string_lossy().into_owned(),
+        ProjectEntry { name: Some("b".into()), version: Some("1.0.0".into()) },
+    );
+    update_workspace_state(dir.path(), &state).unwrap();
+    let root = PackageManifest::from_path(dir.path().join("package.json")).unwrap();
+    let dropped = PackageManifest::from_path(dropped_dir.join("package.json")).unwrap();
+
+    let decision = content_check_decision(
+        &dir,
+        config,
+        true,
+        &[(dir.path().to_path_buf(), &root), (dropped_dir, &dropped)],
+    );
+
+    assert_eq!(
+        decision,
+        Decision::Skipped { reason: "a modified manifest is no longer satisfied by the lockfile" },
+    );
 }
 #[test]
 fn workspace_content_check_converges_after_a_same_millisecond_mtime_collision() {

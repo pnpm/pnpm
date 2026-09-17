@@ -84,3 +84,30 @@ fn escape_sh_double_quoted(text: &str) -> String {
     }
     escaped
 }
+
+/// Whether `shim_content`, a shim in `shim_dir`, names its target and every
+/// `NODE_PATH` entry relative to itself, each resolving inside `root`. A shim
+/// without a target marker, or with a `NODE_PATH` export it cannot read,
+/// fails.
+#[must_use]
+pub(crate) fn is_relocatable_shim(shim_content: &str, shim_dir: &Path, root: &Path) -> bool {
+    // Escaping never adds or removes a `/`, so an escaped entry resolves to
+    // the same place relative to the root as the path it spells.
+    let resolves_in_root = |relative: &str| {
+        Path::new(relative).is_relative() && is_subdir(root, &shim_dir.join(relative))
+    };
+    let entries_resolve_in_root = |value: &str| {
+        value
+            .split(':')
+            .filter(|entry| *entry != "$NODE_PATH")
+            .all(|entry| entry.strip_prefix(BASEDIR_ABS).is_some_and(resolves_in_root))
+    };
+    let mut markers = shim_target_markers(shim_content).peekable();
+    markers.peek().is_some()
+        && markers.all(resolves_in_root)
+        && shim_content
+            .lines()
+            .filter_map(|line| line.trim_start().strip_prefix("export NODE_PATH="))
+            .map(|value| value.strip_prefix('"')?.strip_suffix('"'))
+            .all(|value| value.is_some_and(entries_resolve_in_root))
+}

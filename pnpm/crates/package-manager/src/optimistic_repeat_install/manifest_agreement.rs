@@ -6,6 +6,7 @@ use super::{
     modified_at_or_after, mtime_ms,
 };
 use pnpm_modules_yaml::IncludedDependencies;
+use rayon::prelude::*;
 
 /// One project manifest's stat outcome, paired with the inputs the
 /// content re-check needs.
@@ -84,7 +85,7 @@ pub(crate) fn modified_manifests_match_lockfile(
 
 /// The full content check of the modified projects against the wanted
 /// lockfile, once its settings are known not to have drifted.
-fn check_projects_content(
+pub(super) fn check_projects_content(
     check: &OptimisticRepeatInstallCheck<'_>,
     wanted: &Lockfile,
     to_check: &[&ManifestStat<'_>],
@@ -98,11 +99,12 @@ fn check_projects_content(
         check.catalogs,
         crate::install::CheckLockfileSettingsDriftOptions {
             parsed_overrides: parsed_overrides.as_deref(),
-            // `pnpmfileChecksum` needs no comparison here: reaching this
-            // point means `pnpmfiles_modified_since` already proved the
-            // pnpmfile list and contents are what the install that wrote
-            // this lockfile saw. Computing the checksum instead would cost
-            // a Node worker on the path that exists to avoid starting one.
+            // `pnpmfileChecksum` is not compared here: every caller already
+            // compared the pnpmfile list and trusted their contents by their
+            // mtimes (`pnpmfiles_drift`), which on a moved tree come from
+            // wherever it was validated. Computing the checksum instead
+            // would cost a Node worker on the path that exists to avoid
+            // starting one.
             pnpmfile_checksum: pnpm_lockfile::PnpmfileChecksumCheck::Skip,
             dedupe_peers,
         },
@@ -123,8 +125,15 @@ fn check_projects_content(
         ignored_optional_matcher: &ignored_optional_matcher,
         parsed_overrides: parsed_overrides.as_deref(),
     };
-    for project in to_check {
-        project_content_check(&content_check, project)?;
+    // Each project's check reads only shared references, so a workspace-scale
+    // project list fans out across the rayon pool; the serial fold keeps the
+    // first error in input order, like the loop it replaces.
+    let results: Vec<Result<(), &'static str>> = to_check
+        .par_iter()
+        .map(|project| project_content_check(&content_check, project))
+        .collect();
+    for result in results {
+        result?;
     }
     Ok(())
 }
@@ -252,8 +261,31 @@ pub(crate) fn assert_wanted_lockfile_equals_current(
     config: &Config,
     included: IncludedDependencies,
 ) -> Result<(), &'static str> {
+    assert_current_lockfile_records(wanted, config, |current| {
+        materialized_shape_matches(wanted, current, included)
+    })
+}
+
+/// [`assert_wanted_lockfile_equals_current`] with `records` deciding
+/// whether the parsed current lockfile is up to date with the wanted one,
+/// for a caller that accepts a current lockfile of another shape.
+pub(crate) fn assert_current_lockfile_records(
+    wanted: &Lockfile,
+    config: &Config,
+    records: impl FnOnce(&Lockfile) -> bool,
+) -> Result<(), &'static str> {
     let current = Lockfile::load_current_from_virtual_store_dir(&config.virtual_store_dir)
         .map_err(|_| "the current lockfile cannot be loaded")?;
+    assert_loaded_current_lockfile_records(wanted, current.as_ref(), records)
+}
+
+/// [`assert_current_lockfile_records`] for a caller that already holds the
+/// parsed current lockfile.
+pub(crate) fn assert_loaded_current_lockfile_records(
+    wanted: &Lockfile,
+    current: Option<&Lockfile>,
+    records: impl FnOnce(&Lockfile) -> bool,
+) -> Result<(), &'static str> {
     match current {
         None => {
             let any_deps = wanted.importers
@@ -275,7 +307,7 @@ pub(crate) fn assert_wanted_lockfile_equals_current(
             }
         }
         Some(current) => {
-            if materialized_shape_matches(wanted, &current, included) {
+            if records(current) {
                 Ok(())
             } else {
                 Err("the installed dependencies are not up to date with the lockfile")

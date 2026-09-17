@@ -2,6 +2,7 @@ use super::{
     Arc, Host, LinkBinsOptions, PackageBinSource, Path, PathBuf, create_dir_all, json,
     link_bins_of_packages, read_to_string, tempdir, write_file,
 };
+use crate::link_bins::bin_dir_is_relocatable;
 use pnpm_fs::lexical_normalize;
 use std::{
     fs,
@@ -574,4 +575,31 @@ fn external_target_directory_alias_can_be_retargeted_after_linking() {
     eprintln!("{output:?}");
     assert!(output.status.success());
     assert_eq!(String::from_utf8(output.stdout).unwrap().trim(), "second");
+}
+
+#[test]
+fn bin_dir_is_relocatable_accepts_generated_and_rejects_absolute_symlinks() {
+    let tmp = tempdir().unwrap();
+    let root = dunce::canonicalize(tmp.path()).unwrap();
+    let bin_dir = link_node_path_printer(&root, Some(root.clone()));
+    symlink("../.pnpm/foo@1.0.0/node_modules/foo/print.sh", bin_dir.join("linked")).unwrap();
+    assert!(bin_dir_is_relocatable(&bin_dir, &root));
+    assert!(bin_dir_is_relocatable(&root.join("missing/.bin"), &root), "nothing to move");
+    assert!(!bin_dir_is_relocatable(&bin_dir.join("foo"), &root), "unreadable, so it fails closed");
+
+    let legacy_root = root.join("legacy");
+    let legacy_bin_dir = link_node_path_printer(&legacy_root, None);
+    assert!(!bin_dir_is_relocatable(&legacy_bin_dir, &legacy_root), "absolute shims");
+
+    let outside_links = [
+        root.join("node_modules/.pnpm/foo@1.0.0/node_modules/foo/print.sh"),
+        PathBuf::from("../../../outside"),
+    ];
+    for outside_link in outside_links {
+        let link = bin_dir.join("outside");
+        symlink(&outside_link, &link).unwrap();
+        assert!(!bin_dir_is_relocatable(&bin_dir, &root), "{outside_link:?}");
+        fs::remove_file(&link).unwrap();
+    }
+
 }

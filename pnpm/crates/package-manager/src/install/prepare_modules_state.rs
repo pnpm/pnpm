@@ -1,3 +1,5 @@
+pub(crate) use up_to_date::materialized_shape_matches;
+
 mod up_to_date;
 use up_to_date::{FrozenTreeUpToDate, UpToDateInstall, frozen_tree_up_to_date, report_up_to_date};
 
