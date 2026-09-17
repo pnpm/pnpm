@@ -2056,8 +2056,8 @@ async fn build_backend_writes_do_not_modify_shared_wheel_files() {
             .assert()
             .success();
         assert_eq!(
-            fs::read_to_string(root.path().join("backend-mutation")).unwrap(),
-            "VERSION = 'modified by backend'\n",
+            fs::read_to_string(root.path().join("backend-mutation")).unwrap().trim_end(),
+            "VERSION = 'modified by backend'",
         );
         python(root.path())
             .args(["-c", "import alpha; assert alpha.VERSION == '1.0', alpha.VERSION"])
