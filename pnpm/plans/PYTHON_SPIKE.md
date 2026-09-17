@@ -40,13 +40,15 @@ A credential fingerprint separates authenticated index caches, and raw
 credentials never appear in cache keys.
 Missing index pages are cached for offline resolution too.
 
-`python.overrides` and `python.constraints` accept lists of PEP 508 registry
+`overrides.pypi` and `python.constraints` accept lists of PEP 508 registry
 requirements. An override replaces the version requirement for a matching
 name throughout the dependency graph, including its requested extras.
 Constraints intersect the permitted versions without adding a dependency.
 Markers select where a rule applies.
 URL requirements are not accepted in these lists. Version rules preserve the
 source of dependencies declared as Git repositories or direct wheel URLs.
+The shared `overrides` setting has an `npm` map and a `pypi` list. The legacy
+flat map remains the npm form.
 For example:
 
 ```yaml

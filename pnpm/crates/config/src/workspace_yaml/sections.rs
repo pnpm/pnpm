@@ -15,6 +15,57 @@ pub enum AllowBuild {
     Undecided(String),
 }
 
+/// Ecosystem-specific dependency overrides. The legacy flat map remains
+/// accepted as the npm form.
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum OverridesSetting {
+    Legacy(IndexMap<String, String>),
+    Ecosystems(EcosystemOverrides),
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub struct EcosystemOverrides {
+    #[serde(default)]
+    pub npm: IndexMap<String, String>,
+    #[serde(default)]
+    pub pypi: Vec<String>,
+}
+
+impl OverridesSetting {
+    pub fn iter(&self) -> Box<dyn Iterator<Item = (&String, &String)> + '_> {
+        match self {
+            Self::Legacy(overrides) => Box::new(overrides.iter()),
+            Self::Ecosystems(overrides) => Box::new(overrides.npm.iter()),
+        }
+    }
+
+    #[must_use]
+    pub fn is_empty(&self) -> bool {
+        match self {
+            Self::Legacy(overrides) => overrides.is_empty(),
+            Self::Ecosystems(overrides) => {
+                overrides.npm.is_empty() && overrides.pypi.is_empty()
+            }
+        }
+    }
+
+    pub fn npm(&self) -> IndexMap<String, String> {
+        match self {
+            Self::Legacy(overrides) => overrides.clone(),
+            Self::Ecosystems(overrides) => overrides.npm.clone(),
+        }
+    }
+
+    pub fn pypi(&self) -> &[String] {
+        match self {
+            Self::Legacy(_) => &[],
+            Self::Ecosystems(overrides) => &overrides.pypi,
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum PnpmfileSetting {
@@ -123,12 +174,13 @@ impl Default for CargoSettings {
 )]
 pub struct PythonSettings {
     pub enabled: bool,
+    #[serde(skip)]
+    pub overrides: Vec<String>,
     /// The interpreter to install every Python project with. `None` lets
     /// pnpm choose one the project accepts.
     pub executable: Option<String>,
     pub index_url: String,
     pub extra_index_urls: Vec<String>,
-    pub overrides: Vec<String>,
     pub constraints: Vec<String>,
     pub extras: Vec<String>,
     pub groups: Vec<String>,
@@ -165,10 +217,10 @@ impl Default for PythonSettings {
     fn default() -> Self {
         Self {
             enabled: false,
+            overrides: Vec::new(),
             executable: None,
             index_url: "https://pypi.org/simple/".to_string(),
             extra_index_urls: Vec::new(),
-            overrides: Vec::new(),
             constraints: Vec::new(),
             extras: Vec::new(),
             groups: vec!["dev".to_string()],
