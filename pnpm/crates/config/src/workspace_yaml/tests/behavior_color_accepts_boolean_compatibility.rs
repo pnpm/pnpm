@@ -755,7 +755,7 @@ fn parses_ecosystem_overrides_and_applies_python_rules() {
             .unwrap()
             .get("foo")
             .map(String::as_str),
-        Some("1.2.3")
+        Some("1.2.3"),
     );
     assert_eq!(config.python.overrides, ["requests>=2,<3"]);
 }
