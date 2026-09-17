@@ -584,7 +584,11 @@ impl PatchExtractFixture {
         ]);
         let mem_cache = pnpm_tarball::MemCache::default();
         mem_cache.insert(
-            tarball_url,
+            pnpm_tarball::package_mem_cache_key(
+                &tarball_url,
+                Some(&"sha512-aGVsbG8=".parse().expect("parse integrity")),
+                false,
+            ),
             Arc::new(tokio::sync::RwLock::new(CacheValue::Available(Arc::new(seeded)))),
         );
 

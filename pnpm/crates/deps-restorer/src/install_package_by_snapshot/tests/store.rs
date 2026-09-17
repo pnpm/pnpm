@@ -1,4 +1,6 @@
-use super::{super::host_platform_selector, leaked_offline_config, registry_metadata};
+use super::{
+    super::host_platform_selector, DUMMY_SHA512, leaked_offline_config, registry_metadata,
+};
 use pnpm_lockfile::PackageKey;
 use pretty_assertions::assert_eq;
 
@@ -9,13 +11,14 @@ use pretty_assertions::assert_eq;
 /// a second fetch of the same bytes.
 ///
 /// Seed the mem cache with a finished download keyed by the exact URL
-/// the registry resolution derives, then run the cold-batch installer
+/// and integrity the registry resolution derives, then run the
+/// cold-batch installer
 /// with `tarball_mem_cache: Some(..)`. It must return the seeded CAS
 /// map without touching the network — proven here by `offline: true`,
 /// which makes any fall-through to the download path error out.
 #[tokio::test]
 async fn cold_batch_reuses_in_flight_prefetch_from_mem_cache() {
-    use pnpm_tarball::{CacheValue, MemCache};
+    use pnpm_tarball::{CacheValue, MemCache, package_mem_cache_key};
     use std::{
         collections::HashMap,
         path::PathBuf,
@@ -34,7 +37,11 @@ async fn cold_batch_reuses_in_flight_prefetch_from_mem_cache() {
         HashMap::from([("package.json".to_string(), store_tmp.path().join("blob"))]);
     let mem_cache = Arc::new(MemCache::default());
     mem_cache.insert(
-        tarball_url,
+        package_mem_cache_key(
+            &tarball_url,
+            Some(&DUMMY_SHA512.parse().expect("parse integrity")),
+            false,
+        ),
         Arc::new(tokio::sync::RwLock::new(CacheValue::Available(Arc::new(seeded.clone())))),
     );
 
@@ -104,7 +111,7 @@ async fn cold_batch_reuses_in_flight_prefetch_from_mem_cache() {
 #[tokio::test]
 async fn without_mem_cache_skips_coordination_and_downloads() {
     use crate::InstallPackageBySnapshotError;
-    use pnpm_tarball::{CacheValue, MemCache, TarballError};
+    use pnpm_tarball::{CacheValue, MemCache, TarballError, package_mem_cache_key};
     use std::{
         collections::HashMap,
         path::PathBuf,
@@ -121,7 +128,11 @@ async fn without_mem_cache_skips_coordination_and_downloads() {
         HashMap::from([("package.json".to_string(), store_tmp.path().join("blob"))]);
     let mem_cache = Arc::new(MemCache::default());
     mem_cache.insert(
-        "https://registry.test/foo/-/foo-1.0.0.tgz".to_string(),
+        package_mem_cache_key(
+            "https://registry.test/foo/-/foo-1.0.0.tgz",
+            Some(&DUMMY_SHA512.parse().expect("parse integrity")),
+            false,
+        ),
         Arc::new(tokio::sync::RwLock::new(CacheValue::Available(Arc::new(seeded)))),
     );
 

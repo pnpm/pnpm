@@ -583,18 +583,26 @@ async fn falls_through_when_cafs_path_is_a_directory() {
 #[test]
 fn mem_cache_keys_include_every_file_set_discriminator() {
     let package_url = "https://example.test/artifact.tgz";
-    let raw = ArchiveStoreProjection::RawArchive.mem_cache_key(package_url, false);
+    let integrity = None;
+    let raw = ArchiveStoreProjection::RawArchive.mem_cache_key(package_url, integrity, false);
+    let package = ArchiveStoreProjection::Package { append_manifest: None }.mem_cache_key(
+        package_url,
+        integrity,
+        false,
+    );
     let first_manifest =
         ArchiveStoreProjection::Package { append_manifest: Some(br#"{"name":"first"}"#) }
-            .mem_cache_key(package_url, false);
+            .mem_cache_key(package_url, integrity, false);
     let same_manifest =
         ArchiveStoreProjection::Package { append_manifest: Some(br#"{"name":"first"}"#) }
-            .mem_cache_key(package_url, false);
+            .mem_cache_key(package_url, integrity, false);
     let second_manifest =
         ArchiveStoreProjection::Package { append_manifest: Some(br#"{"name":"second"}"#) }
-            .mem_cache_key(package_url, false);
+            .mem_cache_key(package_url, integrity, false);
 
-    assert_ne!(raw, package_url);
+    assert_ne!(raw, package);
+    assert_ne!(raw, first_manifest);
+    assert_ne!(package, first_manifest);
     assert_eq!(first_manifest, same_manifest);
     assert_ne!(first_manifest, second_manifest);
 }

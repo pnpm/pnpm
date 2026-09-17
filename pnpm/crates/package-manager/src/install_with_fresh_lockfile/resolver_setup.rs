@@ -197,8 +197,8 @@ pub(super) async fn build_resolver_chain<Reporter: pnpm_reporter::Reporter + 'st
         load_pnpmfile(inputs.config, inputs.project.root, inputs.hooks.pnpmfile.take()).await?;
     let chain = inputs.chain(&npm_resolver, &pnpmfile.custom_resolvers, &caches);
     // The install pass later calls `IngestTarballToStore::run_with_mem_cache`
-    // for the same URLs and either picks up `CacheValue::Available`
-    // immediately or briefly blocks on the per-URL `Notify`. See
+    // for the same archives and either picks up `CacheValue::Available`
+    // immediately or briefly blocks on the slot's `Notify`. See
     // `prefetching_resolver.rs` for the full design rationale.
     let resolver: Box<dyn Resolver> = Box::new(PrefetchingResolver::<Reporter>::new(
         Box::new(DefaultResolver::new(chain)),
@@ -307,9 +307,9 @@ impl ResolverChainInputs<'_> {
     // A remote (non-registry) tarball *direct* dependency carries no
     // name/version/integrity at resolve time — they live in the
     // tarball's `package.json`. The resolver downloads + extracts it here
-    // (warming `tarball_mem_cache` keyed by URL) so the lockfile builder
-    // gets the manifest + integrity and the install pass reuses the
-    // extraction without a second download. Wired in both the
+    // (warming `tarball_mem_cache` under the hash it settles) so the
+    // lockfile builder gets the manifest + integrity and the install pass
+    // reuses the extraction without a second download. Wired in both the
     // materializing and `--lockfile-only` paths: the lockfile needs the
     // integrity regardless of whether `node_modules` is built.
     fn tarball_resolver(&self) -> TarballResolver {

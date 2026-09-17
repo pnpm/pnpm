@@ -10,7 +10,7 @@ use pnpm_resolving_resolver_base::{
     WantedDependency,
 };
 use pnpm_store_dir::{SharedVerifiedFilesCache, StoreIndexWriter};
-use pnpm_tarball::{MemCache, SharedReportedProgressKeys};
+use pnpm_tarball::{MemCache, SharedReportedProgressKeys, package_mem_cache_key};
 use serde_json::json;
 use std::{io::Write, path::Path, sync::Arc};
 use tempfile::tempdir;
@@ -323,11 +323,13 @@ async fn keeps_prefetch_for_required_manifest() {
     assert!(!resolver.should_skip_prefetch(&wanted, &result));
 }
 
+const PINNED_INTEGRITY: &str = "sha512-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==";
+
 fn integrity_pinned_result(tarball_url: &str) -> ResolveResult {
     let mut result =
         result_with_manifest("pinned", json!({ "name": "pinned", "version": "1.0.0" }));
     result.resolution = LockfileResolution::Tarball(TarballResolution {
-        integrity: Some("sha512-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==".parse().unwrap()),
+        integrity: Some(PINNED_INTEGRITY.parse().unwrap()),
         tarball: tarball_url.to_string(),
         revision: None,
         git_hosted: None,
@@ -388,7 +390,7 @@ async fn skips_the_background_download_with_prefetching_off() {
         .expect("resolve succeeds")
         .expect("resolver returns a result");
 
-    assert!(resolver.spawned_urls.is_empty(), "no download may be claimed");
+    assert!(resolver.spawned_downloads.is_empty(), "no download may be claimed");
 }
 
 #[tokio::test]
@@ -406,7 +408,14 @@ async fn claims_the_background_download_with_prefetching_on() {
         .expect("resolve succeeds")
         .expect("resolver returns a result");
 
-    assert!(resolver.spawned_urls.contains(tarball_url), "the download must be claimed");
+    assert!(
+        resolver.spawned_downloads.contains(&package_mem_cache_key(
+            tarball_url,
+            Some(&PINNED_INTEGRITY.parse().expect("parse integrity")),
+            false,
+        )),
+        "the download must be claimed",
+    );
 }
 
 fn tarball_with_a_dependency(name: &str) -> Vec<u8> {
@@ -476,12 +485,20 @@ async fn reads_the_manifest_of_a_pinned_tarball_the_resolver_left_without_one() 
     let manifest = resolved.package.manifest.expect("the bundled manifest fills the gap");
     assert_eq!(dbg!(&manifest)["dependencies"]["ms"], json!("2.1.2"));
     get_mock.assert_async().await;
-    // The mem cache is keyed by URL alone and the install pass takes what it
-    // finds there unchecked, so a read of an already-pinned tarball must not
-    // publish into it: another edge pinning the same URL differently would be
-    // handed these bytes.
-    assert!(resolver.ctx.mem_cache.is_empty(), "a pinned read publishes no extraction");
-    assert!(resolver.spawned_urls.is_empty(), "and claims no URL from the prefetch path");
+    // One download, not two: the read publishes its extraction under the hash
+    // the resolution records, and claims that identity so the prefetch path
+    // does not fetch the same archive again.
+    // <https://github.com/pnpm/pnpm/issues/15021>
+    let cache_key = package_mem_cache_key(
+        &format!("{}{tarball_path}", server.url()),
+        Some(&integrity.parse().expect("parse integrity")),
+        false,
+    );
+    assert!(
+        resolver.ctx.mem_cache.contains_key(&cache_key),
+        "the read publishes its extraction under the archive's own hash",
+    );
+    assert!(resolver.spawned_downloads.contains(&cache_key), "and claims the download");
 }
 
 #[tokio::test]

@@ -260,15 +260,29 @@ fn package_projection_preserves_existing_store_index_keys() {
     );
 }
 
+/// <https://github.com/pnpm/pnpm/issues/15021>
 #[test]
-fn ordinary_package_projection_preserves_existing_mem_cache_keys() {
+fn mem_cache_keys_separate_two_integrities_pinned_to_one_url() {
     let package_url = "https://example.test/artifact.tgz";
+    let first = integrity("sha256-q80k8iD1xuGM3a48ipTFD+P7KQnhs4e5Blnos+dQpJM=");
+    let second = integrity("sha256-6WwHtTJTiQQcZeNSCPC+XaKFyZoF9DP1D0AhWvNdSFY=");
     let package = ArchiveStoreProjection::Package { append_manifest: None };
 
-    assert_eq!(package.mem_cache_key(package_url, false), package_url);
+    assert_ne!(
+        package.mem_cache_key(package_url, Some(&first), false),
+        package.mem_cache_key(package_url, Some(&second), false),
+    );
     assert_eq!(
-        package.mem_cache_key(package_url, true),
-        format!("revision-addressed:{package_url}"),
+        package.mem_cache_key(package_url, Some(&first), false),
+        package.mem_cache_key(package_url, Some(&first), false),
+    );
+    assert_ne!(
+        package.mem_cache_key(package_url, Some(&first), false),
+        package.mem_cache_key(package_url, None, false),
+    );
+    assert_ne!(
+        package.mem_cache_key(package_url, Some(&first), false),
+        package.mem_cache_key(package_url, Some(&first), true),
     );
 }
 

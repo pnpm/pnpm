@@ -159,7 +159,7 @@ fn render_variant_targets_formats_each_triple_with_optional_libc() {
 #[tokio::test]
 async fn cold_batch_falls_back_when_prefetch_failed() {
     use crate::InstallPackageBySnapshotError;
-    use pnpm_tarball::{CacheValue, MemCache, TarballError};
+    use pnpm_tarball::{CacheValue, MemCache, TarballError, package_mem_cache_key};
     use std::sync::{Arc, atomic::AtomicU8};
 
     let store_tmp = tempfile::tempdir().expect("tempdir");
@@ -169,7 +169,11 @@ async fn cold_batch_falls_back_when_prefetch_failed() {
 
     let mem_cache = Arc::new(MemCache::default());
     mem_cache.insert(
-        "https://registry.test/foo/-/foo-1.0.0.tgz".to_string(),
+        package_mem_cache_key(
+            "https://registry.test/foo/-/foo-1.0.0.tgz",
+            Some(&DUMMY_SHA512.parse().expect("parse integrity")),
+            false,
+        ),
         Arc::new(tokio::sync::RwLock::new(CacheValue::Failed)),
     );
 
@@ -242,7 +246,7 @@ async fn cold_batch_falls_back_when_prefetch_failed() {
 /// original URL was never seeded).
 #[tokio::test]
 async fn custom_fetcher_delegate_rewrites_the_resolution() {
-    use pnpm_tarball::{CacheValue, MemCache};
+    use pnpm_tarball::{CacheValue, MemCache, package_mem_cache_key};
     use std::{collections::HashMap, path::PathBuf, sync::Arc};
 
     let store_tmp = tempfile::tempdir().expect("tempdir");
@@ -261,7 +265,11 @@ async fn custom_fetcher_delegate_rewrites_the_resolution() {
         HashMap::from([("package.json".to_string(), store_tmp.path().join("blob"))]);
     let mem_cache = Arc::new(MemCache::default());
     mem_cache.insert(
-        "https://registry.test/foo/-/foo-1.0.0.tgz".to_string(),
+        package_mem_cache_key(
+            "https://registry.test/foo/-/foo-1.0.0.tgz",
+            Some(&DUMMY_SHA512.parse().expect("parse integrity")),
+            false,
+        ),
         Arc::new(tokio::sync::RwLock::new(CacheValue::Available(Arc::new(seeded.clone())))),
     );
 
@@ -290,7 +298,7 @@ async fn custom_fetcher_delegate_rewrites_the_resolution() {
 /// `fetch` ran (`can_fetch = false` must short-circuit it).
 #[tokio::test]
 async fn custom_fetcher_declining_falls_through_to_the_original_resolution() {
-    use pnpm_tarball::{CacheValue, MemCache};
+    use pnpm_tarball::{CacheValue, MemCache, package_mem_cache_key};
     use std::{collections::HashMap, path::PathBuf, sync::Arc};
 
     let store_tmp = tempfile::tempdir().expect("tempdir");
@@ -301,7 +309,11 @@ async fn custom_fetcher_declining_falls_through_to_the_original_resolution() {
         HashMap::from([("package.json".to_string(), store_tmp.path().join("blob"))]);
     let mem_cache = Arc::new(MemCache::default());
     mem_cache.insert(
-        "https://registry.test/foo/-/foo-1.0.0.tgz".to_string(),
+        package_mem_cache_key(
+            "https://registry.test/foo/-/foo-1.0.0.tgz",
+            Some(&DUMMY_SHA512.parse().expect("parse integrity")),
+            false,
+        ),
         Arc::new(tokio::sync::RwLock::new(CacheValue::Available(Arc::new(seeded.clone())))),
     );
 
@@ -415,7 +427,7 @@ async fn custom_fetcher_custom_typed_delegate_is_rejected() {
 /// the custom `type` tag exactly as the lockfile spells it.
 #[tokio::test]
 async fn custom_typed_resolution_installs_via_delegating_fetcher() {
-    use pnpm_tarball::{CacheValue, MemCache};
+    use pnpm_tarball::{CacheValue, MemCache, package_mem_cache_key};
     use std::{collections::HashMap, path::PathBuf, sync::Arc};
 
     let store_tmp = tempfile::tempdir().expect("tempdir");
@@ -426,7 +438,11 @@ async fn custom_typed_resolution_installs_via_delegating_fetcher() {
         HashMap::from([("package.json".to_string(), store_tmp.path().join("blob"))]);
     let mem_cache = Arc::new(MemCache::default());
     mem_cache.insert(
-        "https://registry.test/foo/-/foo-1.0.0.tgz".to_string(),
+        package_mem_cache_key(
+            "https://registry.test/foo/-/foo-1.0.0.tgz",
+            Some(&DUMMY_SHA512.parse().expect("parse integrity")),
+            false,
+        ),
         Arc::new(tokio::sync::RwLock::new(CacheValue::Available(Arc::new(seeded.clone())))),
     );
 

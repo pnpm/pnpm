@@ -61,26 +61,36 @@ impl<'a> ArchiveStoreProjection<'a> {
         }
     }
 
-    /// Ordinary package keys stay byte-for-byte compatible with the URL keys
-    /// inserted by resolve-time fetches. Only projections that can produce a
-    /// different file set receive a discriminator; synthesized manifests are
-    /// content-addressed so equal projections still share work.
-    pub(crate) fn mem_cache_key(self, package_url: &str, revision_addressed: bool) -> String {
-        match (self, revision_addressed) {
-            (Self::Package { append_manifest: None }, false) => package_url.to_string(),
-            (Self::Package { append_manifest: None }, true) => {
-                format!("revision-addressed:{package_url}")
+    /// Identity of the archive a shared [`crate::MemCache`] slot holds.
+    ///
+    /// The expected hash is part of it: a slot's bytes were verified against
+    /// one integrity, and a request pinning a different one must not be
+    /// served them. An archive whose hash the fetch discovers is published
+    /// under the computed hash, which is the one its resolution then records.
+    /// Projections that can produce a different file set carry their own
+    /// discriminator; synthesized manifests are content-addressed so equal
+    /// projections still share work.
+    ///
+    /// The parts are tab-separated, and neither a URL, an integrity, nor a
+    /// projection tag can contain a tab, so two distinct identities cannot
+    /// spell the same key.
+    #[must_use]
+    pub fn mem_cache_key(
+        self,
+        package_url: &str,
+        integrity: Option<&Integrity>,
+        revision_addressed: bool,
+    ) -> String {
+        let projection = match self {
+            Self::Package { append_manifest: None } => "package".to_string(),
+            Self::Package { append_manifest: Some(manifest) } => {
+                format!("package-manifest:{}", manifest_integrity(manifest))
             }
-            (Self::RawArchive, false) => format!("raw-archive:{package_url}"),
-            (Self::RawArchive, true) => format!("revision-addressed:raw-archive:{package_url}"),
-            (Self::Package { append_manifest: Some(manifest) }, revision_addressed) => {
-                let revision_prefix = if revision_addressed { "revision-addressed:" } else { "" };
-                format!(
-                    "{revision_prefix}package-manifest:{}:{package_url}",
-                    manifest_integrity(manifest),
-                )
-            }
-        }
+            Self::RawArchive => "raw-archive".to_string(),
+        };
+        let network_policy = if revision_addressed { "revision-addressed" } else { "direct" };
+        let integrity = integrity.map_or_else(String::new, Integrity::to_string);
+        format!("{projection}\t{network_policy}\t{integrity}\t{package_url}")
     }
 
     pub(crate) fn package_content_check(self, strict: bool) -> PackageContentCheck {
@@ -103,6 +113,22 @@ impl<'a> ArchiveStoreProjection<'a> {
             Self::Package { append_manifest: None } | Self::RawArchive => None,
         }
     }
+}
+
+/// Cache identity of an ordinary package archive, the projection every
+/// resolve-time publisher, speculative prefetch and install-time lookup
+/// has to agree on. See [`ArchiveStoreProjection::mem_cache_key`].
+#[must_use]
+pub fn package_mem_cache_key(
+    package_url: &str,
+    integrity: Option<&Integrity>,
+    revision_addressed: bool,
+) -> String {
+    ArchiveStoreProjection::Package { append_manifest: None }.mem_cache_key(
+        package_url,
+        integrity,
+        revision_addressed,
+    )
 }
 
 fn manifest_integrity(manifest: &[u8]) -> Integrity {
