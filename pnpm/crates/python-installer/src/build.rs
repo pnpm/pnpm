@@ -38,8 +38,13 @@ impl PythonPrepare<'_> {
     ) -> Result<BTreeMap<PackageName, Build>> {
         let mut built = BTreeMap::new();
         for project in projects {
-            let wheel =
-                self.build::<Reporter>(&project.root, &project.manifest, project.editable).await?;
+            let wheel = self.build::<Reporter>(Buildable {
+                root: &project.root,
+                manifest: &project.manifest,
+                editable: project.editable,
+                contract: Contract::Manifest,
+            })
+            .await?;
             built.insert(project.name.clone(), wheel);
         }
         Ok(built)
@@ -52,15 +57,20 @@ impl PythonPrepare<'_> {
         root: &Path,
         manifest: &Manifest,
     ) -> Result<Build> {
-        self.build::<Reporter>(root, manifest, true).await
+        self.build::<Reporter>(Buildable {
+            root,
+            manifest,
+            editable: true,
+            contract: Contract::Manifest,
+        })
+        .await
     }
 
     pub(super) async fn build<Reporter: pnpm_reporter::Reporter + 'static>(
         &self,
-        root: &Path,
-        manifest: &Manifest,
-        editable: bool,
+        source: Buildable<'_>,
     ) -> Result<Build> {
+        let Buildable { root, manifest, editable, .. } = source;
         let requires = self.build_requirements(root, manifest)?;
         let unapproved = unapproved(self.context.config, &requires);
         if !unapproved.is_empty() {
@@ -92,19 +102,20 @@ impl PythonPrepare<'_> {
             let built = self.run_backend(root, environment, &output, request).await?;
             (built, Arc::new(output))
         };
-        self.finish_build(root, manifest, editable, built, output)
+        self.finish_build(source, built, output)
     }
 
     fn finish_build(
         &self,
-        root: &Path,
-        manifest: &Manifest,
-        editable: bool,
+        source: Buildable<'_>,
         built: Backend517,
         output: Arc<tempfile::TempDir>,
     ) -> Result<Build> {
+        let Buildable { root, manifest, editable, contract } = source;
         self.installable_here(&built, root)?;
-        identify(&built.metadata, manifest, root)?;
+        if contract == Contract::Manifest {
+            identify(&built.metadata, manifest, root)?;
+        }
         let directory = root.display();
         let url = url::Url::from_directory_path(root)
             .map_err(|()| miette::miette!("the Python project at {directory} has no URL"))?;
@@ -340,6 +351,33 @@ impl PythonPrepare<'_> {
         .await?;
         Ok(Arc::new(root))
     }
+}
+
+/// What one build is for: the project directory to run the backend in,
+/// the manifest that directory declares, and what the wheel it produces
+/// is held to.
+#[derive(Clone, Copy)]
+pub(super) struct Buildable<'a> {
+    pub(super) root: &'a Path,
+    pub(super) manifest: &'a Manifest,
+    /// Whether the wheel installs the source in place, so edits to it
+    /// take effect without installing again.
+    pub(super) editable: bool,
+    pub(super) contract: Contract,
+}
+
+/// What a built wheel has to agree with.
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub(super) enum Contract {
+    /// The manifest of the directory it was built from. Resolution
+    /// answered with what that manifest declares, so a wheel declaring
+    /// something else is not what the lockfile describes.
+    Manifest,
+    /// The interpreter alone. A source pnpm downloaded declares its
+    /// requirements in the wheel it builds, and that wheel is what
+    /// resolution then reads, so its manifest is not a second answer to
+    /// hold it to.
+    Interpreter,
 }
 
 /// A wheel built from a project's source, and the directory it was

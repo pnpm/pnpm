@@ -11,6 +11,7 @@ pub(super) fn parse_page(
     target: &Target,
 ) -> Result<BTreeMap<pep440_rs::Version, Candidate>, String> {
     candidates_from_page(page, page_url, name, target)
+        .map(|offered| offered.candidates)
         .map_err(|err| super::super::report_message(&err))
 }
 

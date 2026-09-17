@@ -5,7 +5,7 @@ use pep440_rs::Version;
 use pep508_rs::PackageName;
 use pnpm_config::Config;
 use pnpm_network::ThrottledClient;
-use pnpm_python_resolver::{LockedWheel, Packages, Target, candidates_from_page};
+use pnpm_python_resolver::{Excluded, LockedWheel, Packages, Target, candidates_from_page};
 use pnpm_reporter::Reporter;
 use pnpm_tarball::{ArchiveStoreProjection, IngestZipArchiveToStore};
 use serde::{Deserialize, Serialize};
@@ -91,6 +91,7 @@ impl Resolution {
     /// from the same index pages.
     pub(super) fn answer_for(&mut self, target: Target) {
         self.target = target;
+        self.packages.excluded.clear();
         // Only what an index offers is taken per target. A project in this
         // repository is the same directory on every environment, so it
         // stays offered rather than being seeded again for each.
@@ -103,10 +104,13 @@ impl Resolution {
         self.packages.rejected_sources.clear();
     }
 
-    /// Offer this environment the candidates an index page holds.
+    /// Offer this environment the candidates an index page holds, keeping
+    /// what the page held besides them for the failure that may name the
+    /// distribution.
     fn offer(&mut self, name: &PackageName, page: &CachedIndex) -> Result<()> {
-        let candidates = candidates_from_page(page.body.get(), &page.url, name, &self.target)?;
-        self.packages.candidates.insert(name.clone(), candidates);
+        let offered = candidates_from_page(page.body.get(), &page.url, name, &self.target)?;
+        self.packages.candidates.insert(name.clone(), offered.candidates);
+        self.packages.excluded.insert(name.clone(), offered.excluded);
         Ok(())
     }
 }
@@ -114,6 +118,7 @@ impl Resolution {
 impl Registry<'_> {
     pub(super) async fn fetch_index(&mut self, name: &PackageName) -> Result<()> {
         self.resolution.packages.candidates.insert(name.clone(), BTreeMap::new());
+        self.resolution.packages.excluded.insert(name.clone(), Excluded::default());
         for index in self.index.extra_urls
             .iter()
             .chain(std::iter::once(&self.index.url))
@@ -195,9 +200,10 @@ impl Registry<'_> {
         Ok(())
     }
 
-    /// Download the wheel every candidate holds that is not downloaded
-    /// already, which after a lockfile is seeded is the wheel each locked
-    /// package installs here. Resolving another environment may have read
+    /// Get the wheel every candidate holds that this run does not have
+    /// already, which after a lockfile is seeded is what each locked
+    /// package installs here: a download, or the build of a repository or
+    /// a source distribution. Resolving another environment may have read
     /// a different build of the same version.
     pub(super) async fn fetch_wheels<Reporter: self::Reporter + 'static>(
         &mut self,
@@ -235,6 +241,7 @@ impl Registry<'_> {
         }
         self.record_sources(&[])?;
         self.fetch_vcs::<Reporter>(requirements).await?;
+        self.build_sdists::<Reporter>().await?;
         Ok(())
     }
 

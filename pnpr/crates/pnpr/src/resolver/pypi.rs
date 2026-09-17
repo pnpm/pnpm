@@ -171,10 +171,17 @@ async fn resolve(
                          {MAX_METADATA_READS} wheels",
                     ));
                 }
-                let candidate = packages.candidates
+                let offered = packages.candidates
                     .get(&name)
                     .and_then(|versions| versions.get(&version))
-                    .and_then(Candidate::from_index)
+                    .ok_or_else(|| format!("{name} {version} is not a candidate"))?;
+                if offered.sdist().is_some() {
+                    return Err(format!(
+                        "Python source distribution for {name} must be resolved by the client",
+                    ));
+                }
+                let candidate = offered
+                    .from_index()
                     .ok_or_else(|| format!("{name} {version} is not a candidate"))?;
                 let metadata = reader.metadata(&name, &version, candidate).await?;
                 packages.metadata.insert((name, version), metadata);

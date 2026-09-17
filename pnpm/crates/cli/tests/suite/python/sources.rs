@@ -3,7 +3,7 @@ mod compatibility;
 mod frozen;
 
 use super::{
-    assert_failure_contains, project, python, python_project, serve, serve_backends, wheel,
+    approve, assert_failure_contains, project, python, python_project, serve, serve_backends, wheel,
 };
 use crate::_utils::pacquet_in;
 use assert_cmd::prelude::*;
@@ -157,13 +157,6 @@ fn repository(root: &Path) -> (String, String) {
     git(root, &["tag", "v1"]);
     git(root, &["tag", "v1#fork"]);
     (Url::from_directory_path(root).unwrap().to_string(), commit)
-}
-
-fn approve(root: &Path, name: &str) {
-    let config = root.join("pnpm-workspace.yaml");
-    let mut contents = fs::read_to_string(&config).unwrap();
-    writeln!(contents, "  pkg:pypi/{name}: true").unwrap();
-    fs::write(config, contents).unwrap();
 }
 
 #[tokio::test]

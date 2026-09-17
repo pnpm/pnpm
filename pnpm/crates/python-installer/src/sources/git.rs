@@ -1,5 +1,12 @@
-use super::super::{build, host, manifest::Manifest, registry::Registry};
-use miette::{IntoDiagnostic, Result, WrapErr, bail};
+use super::{
+    super::{
+        build::{self, Buildable, Contract},
+        host,
+        registry::Registry,
+    },
+    read_manifest,
+};
+use miette::{IntoDiagnostic, Result, bail};
 use pep508_rs::PackageName;
 use pnpm_python_resolver::{Candidate, LockedVcs, parse_requirement};
 use pnpm_reporter::Reporter;
@@ -25,8 +32,13 @@ impl Registry<'_> {
         vcs.commit_id = commit;
         let root = project_root(checkout.path(), vcs.subdirectory.as_deref())?;
         let manifest = read_manifest(&root).await?;
-        let built =
-            Box::pin(self.sources.prepare.build::<Reporter>(&root, &manifest, false)).await?;
+        let built = Box::pin(self.sources.prepare.build::<Reporter>(Buildable {
+            root: &root,
+            manifest: &manifest,
+            editable: false,
+            contract: Contract::Manifest,
+        }))
+        .await?;
         let build::Build::Made(mut built) = built else {
             bail!(
                 "the build requirements of Python git dependency {name} are not approved under allowBuilds",
@@ -45,16 +57,6 @@ impl Registry<'_> {
         self.remember(name.clone(), version.clone(), built.wheel.clone());
         self.sources.built.insert((name.clone(), version), *built);
         Ok(())
-    }
-}
-
-async fn read_manifest(root: &Path) -> Result<Manifest> {
-    match tokio::fs::read_to_string(root.join("pyproject.toml")).await {
-        Ok(contents) => Manifest::parse(&contents),
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Manifest::parse(""),
-        Err(error) => Err(error)
-            .into_diagnostic()
-            .wrap_err_with(|| format!("read {}/pyproject.toml", root.display())),
     }
 }
 

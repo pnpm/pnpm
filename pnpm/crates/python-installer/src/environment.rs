@@ -182,8 +182,12 @@ pub(super) async fn resolve_via_pnpr(
     })
     .await;
     match resolved {
+        // A server answers from an index and the metadata published
+        // beside a wheel. What needs this machine instead — an explicit
+        // source, or a release whose metadata is in the wheel its source
+        // distribution builds — is resolved here.
         Err(pnpm_pnpr_client::PnprClientError::Server(message))
-            if message.starts_with("Python direct URL requirement for ")
+            if message.starts_with("Python ")
                 && message.ends_with(" must be resolved by the client") =>
         {
             Ok(None)

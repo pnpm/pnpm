@@ -5,7 +5,7 @@ mod environments;
 mod inputs;
 
 use crate::{
-    candidates::{WheelFilename, wheel_identity},
+    candidates::{WheelFilename, source_version, wheel_identity},
     packages::{Candidate, IndexCandidate, Packages},
 };
 use environments::{check_environment_decides, referenced_marker_keys};
@@ -44,6 +44,11 @@ pub struct LockedPackage {
     pub marker: Option<String>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub wheels: Vec<LockedWheel>,
+    /// The source distribution the package is built from, for a release
+    /// that publishes no wheel the environments this lockfile covers
+    /// install.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub sdist: Option<LockedSdist>,
     /// The project in this repository the package is built from, for one
     /// that is not downloaded. PEP 751 calls this a directory package.
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -101,6 +106,43 @@ impl LockedVcs {
 }
 
 impl LockedPackage {
+    /// What a target installs this package from.
+    ///
+    /// A wheel is preferred to the source distribution beside it, as
+    /// PEP 751 has an installer prefer one; a package that pins neither
+    /// is built from the directory or repository it names.
+    fn source(&self, target: &Target) -> Result<Candidate> {
+        let from_index = !self.wheels.is_empty() || self.sdist.is_some();
+        if usize::from(from_index)
+            + usize::from(self.directory.is_some())
+            + usize::from(self.vcs.is_some())
+            > 1
+        {
+            bail!("Python lockfile pins multiple sources for {}", self.name);
+        }
+        if let Some(vcs) = &self.vcs {
+            vcs.validate()?;
+            return Ok(Candidate::Vcs(vcs.clone()));
+        }
+        if let Some(directory) = &self.directory {
+            return Ok(Candidate::Directory(directory.clone()));
+        }
+        match (self.installable_wheel(target)?, &self.sdist) {
+            (Some(wheel), _) => {
+                Ok(Candidate::Wheel(IndexCandidate { wheel: wheel.clone(), core_metadata: None }))
+            }
+            (None, Some(sdist)) => {
+                sdist.check_published(&self.name, &self.version)?;
+                Ok(Candidate::Sdist(sdist.clone()))
+            }
+            (None, None) => bail!(
+                "the Python lockfile pins no wheel of {}=={} this interpreter can install",
+                self.name,
+                self.version,
+            ),
+        }
+    }
+
     /// Whether an environment installs this package at all.
     fn selected_by(&self, environment: &MarkerEnvironment) -> Result<bool> {
         let Some(marker) = &self.marker else { return Ok(true) };
@@ -112,9 +154,10 @@ impl LockedPackage {
     }
 
     /// The wheel a target installs, of the ones the lockfile pins for the
-    /// package. Every pinned wheel has to be a file of this package; the
-    /// target then takes whichever of them it prefers.
-    fn installable_wheel(&self, target: &Target) -> Result<&LockedWheel> {
+    /// package, or `None` when it pins none this target accepts. Every
+    /// pinned wheel has to be a file of this package; the target then
+    /// takes whichever of them it prefers.
+    fn installable_wheel(&self, target: &Target) -> Result<Option<&LockedWheel>> {
         let mut installable: Option<(usize, &LockedWheel)> = None;
         for wheel in &self.wheels {
             wheel.integrity()?;
@@ -124,15 +167,7 @@ impl LockedPackage {
                 installable = Some((rank, wheel));
             }
         }
-        installable
-            .map(|(_, wheel)| wheel)
-            .ok_or_else(|| {
-                miette::miette!(
-                    "the Python lockfile pins no wheel of {}=={} this interpreter can install",
-                    self.name,
-                    self.version,
-                )
-            })
+        Ok(installable.map(|(_, wheel)| wheel))
     }
 }
 
@@ -177,18 +212,80 @@ impl LockedWheel {
         Ok(())
     }
 
-    /// The wheel's SHA-256 digest as an integrity string. A wheel with no
-    /// SHA-256 is refused: it is the digest every index publishes and the
-    /// only one a download is checked against.
+    /// The wheel's SHA-256 digest as an integrity string.
     pub fn integrity(&self) -> Result<ssri::Integrity> {
-        let digest = self.hashes
-            .get("sha256")
-            .ok_or_else(|| miette::miette!("Python wheel {} has no SHA-256 digest", self.name))?;
-        if digest.len() != 64 || !digest.bytes().all(|byte| byte.is_ascii_hexdigit()) {
-            bail!("invalid Python wheel SHA-256 digest for {}", self.name);
-        }
-        ssri::Integrity::from_hex(digest, ssri::Algorithm::Sha256).into_diagnostic()
+        published_integrity(&self.hashes, &self.name)
     }
+}
+
+/// The source distribution a release is built from, as PEP 751 records
+/// it. What it requires is whatever the wheel built from it declares, so
+/// a lockfile pins the archive and its digest and nothing more.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct LockedSdist {
+    pub name: String,
+    pub url: String,
+    pub hashes: BTreeMap<String, String>,
+}
+
+impl LockedSdist {
+    /// The archive's SHA-256 digest as an integrity string.
+    pub fn integrity(&self) -> Result<ssri::Integrity> {
+        published_integrity(&self.hashes, &self.name)
+    }
+
+    /// Refuse an archive that is not a source distribution of
+    /// `name==version`: what a lockfile pins under a package has to be
+    /// that package, and a build reads its identity from the archive's
+    /// own name before running anything in it.
+    pub fn check_published(&self, name: &PackageName, version: &Version) -> Result<()> {
+        self.integrity()?;
+        let carried = source_version(&self.name, name)?
+            .ok_or_else(|| {
+                miette::miette!(
+                    "Python lockfile pins a file that is not a source distribution of {name}: {}",
+                    self.name,
+                )
+            })?;
+        if carried != *version {
+            bail!("Python lockfile source distribution identity mismatch: {}", self.name);
+        }
+        Ok(())
+    }
+
+    /// The container the archive is published in, which is what
+    /// unpacking it reads.
+    #[must_use]
+    pub fn is_zip(&self) -> bool {
+        self.name.ends_with(".zip")
+    }
+
+    /// The directory a PEP 517 source distribution unpacks into, which
+    /// is the only entry its archive may hold at the top level.
+    #[must_use]
+    pub fn root(&self) -> &str {
+        self.name
+            .strip_suffix(".zip")
+            .or_else(|| self.name.strip_suffix(".tar.gz"))
+            .unwrap_or(&self.name)
+    }
+}
+
+/// The SHA-256 digest a published file is checked against. A file with no
+/// SHA-256 is refused: it is the digest every index publishes and the only
+/// one a download is checked against.
+fn published_integrity(
+    hashes: &BTreeMap<String, String>,
+    filename: &str,
+) -> Result<ssri::Integrity> {
+    let digest = hashes
+        .get("sha256")
+        .ok_or_else(|| miette::miette!("Python file {filename} has no SHA-256 digest"))?;
+    if digest.len() != 64 || !digest.bytes().all(|byte| byte.is_ascii_hexdigit()) {
+        bail!("invalid Python SHA-256 digest for {filename}");
+    }
+    ssri::Integrity::from_hex(digest, ssri::Algorithm::Sha256).into_diagnostic()
 }
 
 impl Lockfile {
@@ -276,12 +373,7 @@ impl Lockfile {
             bail!("the project's requires-python changed");
         }
         for package in self.selected_packages(&target.environment)? {
-            if let Some(vcs) = &package.vcs {
-                vcs.validate()?;
-            }
-            if package.directory.is_none() && package.vcs.is_none() {
-                package.installable_wheel(target)?;
-            }
+            package.source(target)?;
         }
         Ok(())
     }
@@ -297,20 +389,7 @@ impl Lockfile {
             bail!("unsupported Python lock-version: {}", self.lock_version);
         }
         for package in self.selected_packages(&target.environment)? {
-            let candidate = match (&package.vcs, &package.directory) {
-                (Some(vcs), None) if package.wheels.is_empty() => {
-                    vcs.validate()?;
-                    Candidate::Vcs(vcs.clone())
-                }
-                (None, Some(directory)) if package.wheels.is_empty() => {
-                    Candidate::Directory(directory.clone())
-                }
-                (None, None) => Candidate::Wheel(IndexCandidate {
-                    wheel: package.installable_wheel(target)?.clone(),
-                    core_metadata: None,
-                }),
-                _ => bail!("Python lockfile pins multiple sources for {}", package.name),
-            };
+            let candidate = package.source(target)?;
             if packages.candidates
                 .insert(
                     package.name.clone(),
@@ -361,6 +440,10 @@ fn merge_packages(solved: &[Solved], markers: &[MarkerTree]) -> Result<Vec<Locke
                 entry.directory = Some(directory.clone());
                 continue;
             }
+            if let Some(sdist) = environment.sdists.get(name) {
+                entry.sdist = Some(sdist.clone());
+                continue;
+            }
             let wheel = environment.wheels
                 .get(name)
                 .ok_or_else(|| miette::miette!("solved Python package {name} pins no wheel"))?;
@@ -374,6 +457,7 @@ fn merge_packages(solved: &[Solved], markers: &[MarkerTree]) -> Result<Vec<Locke
             version,
             marker: (entry.marker != scope).then(|| entry.marker.try_to_string()).flatten(),
             wheels: entry.wheels.into_values().collect(),
+            sdist: entry.sdist,
             directory: entry.directory,
             vcs: entry.vcs,
         })
@@ -387,6 +471,7 @@ fn merge_packages(solved: &[Solved], markers: &[MarkerTree]) -> Result<Vec<Locke
 struct Merged {
     marker: MarkerTree,
     wheels: BTreeMap<String, LockedWheel>,
+    sdist: Option<LockedSdist>,
     directory: Option<LockedDirectory>,
     vcs: Option<LockedVcs>,
 }
@@ -395,7 +480,13 @@ impl Merged {
     /// A package no environment installs yet. The marker starts false
     /// because each environment adds itself to it.
     fn nowhere() -> Self {
-        Self { marker: MarkerTree::FALSE, wheels: BTreeMap::new(), directory: None, vcs: None }
+        Self {
+            marker: MarkerTree::FALSE,
+            wheels: BTreeMap::new(),
+            sdist: None,
+            directory: None,
+            vcs: None,
+        }
     }
 }
 

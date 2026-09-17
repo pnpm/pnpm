@@ -1,7 +1,7 @@
 //! The environments a lockfile is resolved for, and the markers that
 //! name them.
 
-use super::{LockedDirectory, LockedVcs, LockedWheel};
+use super::{LockedDirectory, LockedSdist, LockedVcs, LockedWheel};
 use crate::{
     candidates::parse_requirement,
     metadata::WheelMetadata,
@@ -41,6 +41,9 @@ pub struct Solved {
     pub target: Target,
     pub solution: BTreeMap<PackageName, Version>,
     pub wheels: BTreeMap<PackageName, LockedWheel>,
+    /// The releases this environment builds from their source
+    /// distribution, for want of a wheel it installs.
+    pub sdists: BTreeMap<PackageName, LockedSdist>,
     /// The projects in the repository this environment installs from
     /// their source, which pin a directory where the others pin a wheel.
     pub directories: BTreeMap<PackageName, LockedDirectory>,
@@ -64,6 +67,7 @@ impl Solved {
         declared: Vec<String>,
     ) -> Result<Self> {
         let mut wheels = BTreeMap::new();
+        let mut sdists = BTreeMap::new();
         let mut directories = BTreeMap::new();
         let mut vcs = BTreeMap::new();
         for (name, version) in &solution {
@@ -77,6 +81,9 @@ impl Solved {
                 Candidate::Wheel(offered) => {
                     wheels.insert(name.clone(), offered.wheel.clone());
                 }
+                Candidate::Sdist(sdist) => {
+                    sdists.insert(name.clone(), sdist.clone());
+                }
                 Candidate::Vcs(source) => {
                     vcs.insert(name.clone(), source.clone());
                 }
@@ -89,6 +96,7 @@ impl Solved {
             target,
             solution,
             wheels,
+            sdists,
             directories,
             vcs,
             declared,
