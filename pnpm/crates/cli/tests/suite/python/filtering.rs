@@ -292,6 +292,39 @@ async fn a_recursive_add_leaves_the_workspace_root_alone() {
     );
 }
 
+/// A project declaring a source itself resolves that name from its own
+/// entry, so a selector follows that one rather than the entry its workspace
+/// root declares for the members that have none.
+#[tokio::test]
+async fn a_filter_follows_the_source_a_project_declares_over_its_roots() {
+    let root = tempfile::tempdir().unwrap();
+    let mut server = mockito::Server::new_async().await;
+    let _backends = serve_backends(&mut server).await;
+    project(root.path(), &server.url(), &[]);
+    fs::write(
+        root.path().join("pyproject.toml"),
+        "[tool.uv.workspace]\nmembers = ['packages/*']\n\n\
+         [tool.uv.sources]\nmylib = { path = 'vendor/mylib' }\n",
+    )
+    .unwrap();
+    python_project(&root.path().join("packages/mylib"), "mylib", "dependencies = []");
+    python_project(&root.path().join("vendor/mylib"), "mylib", "dependencies = []");
+    python_project(
+        &root.path().join("packages/app"),
+        "app",
+        "dependencies = ['mylib']\n\n[tool.uv.sources]\nmylib = { path = '../mylib' }\n",
+    );
+
+    pacquet_in(root.path())
+        .args(["install", "--filter", "app..."])
+        .assert()
+        .success();
+
+    assert!(installed(root.path(), "packages/app"));
+    assert!(installed(root.path(), "packages/mylib"));
+    assert!(!installed(root.path(), "vendor/mylib"), "app declares where it takes mylib from");
+}
+
 /// A project the workspace excludes is not reached through a member's
 /// `[tool.uv.sources]` entry, the way resolving that entry would not reach
 /// it either.

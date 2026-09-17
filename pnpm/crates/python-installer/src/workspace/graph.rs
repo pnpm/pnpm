@@ -75,14 +75,19 @@ impl Workspace {
     }
 
     /// The `[tool.uv.sources]` entries the project at `root` resolves
-    /// through: its own, and the ones its workspace root declares for its
-    /// members.
+    /// through: its own, and the ones its workspace root declares for the
+    /// names it does not.
+    ///
+    /// A project that declares a name itself resolves that name from its own
+    /// entry, so the root's entry for the same name says nothing about where
+    /// this project takes it from.
     fn source_entries<'a>(
         &'a self,
         root: &'a Path,
         manifest: &'a Manifest,
     ) -> Vec<(&'a Path, &'a PackageName, &'a SourceDeclaration)> {
-        let mut entries = manifest.tool.uv.sources
+        let own = &manifest.tool.uv.sources;
+        let mut entries = own
             .iter()
             .map(|(name, declaration)| (root, name, declaration))
             .collect::<Vec<_>>();
@@ -90,6 +95,7 @@ impl Workspace {
             entries.extend(
                 inherited.tool.uv.sources
                     .iter()
+                    .filter(|(name, _)| !own.contains_key(*name))
                     .map(|(name, declaration)| (declared_in.as_path(), name, declaration)),
             );
         }
