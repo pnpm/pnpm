@@ -10,6 +10,12 @@ The repository contains three products:
 
 Sections below marked "(TypeScript only)" apply to TypeScript code only; they do not apply to Rust code in `pnpm/` or `pnpr/`. Everything else applies repo-wide unless a nested `AGENTS.md` specializes it.
 
+## Project philosophy
+
+Apply [PHILOSOPHY.md](./PHILOSOPHY.md) when implementing, triaging, or reviewing
+changes. It defines the core requirements and the approach to existing
+capabilities, abstractions, compatibility, and releases.
+
 ## pnpm v12 and v11 development policy
 
 pnpm v12, implemented in Rust under `pnpm/`, is the target for new development. pnpm v11, implemented in TypeScript under `pnpm11/`, is maintained for bug fixes.
