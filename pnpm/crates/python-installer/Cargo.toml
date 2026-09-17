@@ -25,6 +25,8 @@ pnpm-python-resolver = { workspace = true }
 pnpm-reporter = { workspace = true }
 pnpm-store-dir = { workspace = true }
 pnpm-tarball = { workspace = true }
+pnpm-workspace-projects-graph = { workspace = true }
+base64 = { workspace = true }
 derive_more = { workspace = true }
 dunce = { workspace = true }
 flate2 = { workspace = true }

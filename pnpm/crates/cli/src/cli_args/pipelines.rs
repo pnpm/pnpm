@@ -2,6 +2,9 @@ pub(crate) use configuration::{apply_install_cli_config, derive_config_root};
 pub(crate) use install::InstallPipeline;
 pub(crate) use maintenance::{DedupePipeline, PrunePipeline};
 pub(crate) use mutation::{AddPipeline, DeployPipeline, RemovePipeline, UpdatePipeline};
+pub(crate) use selection::{WorkspaceScope, select_workspace_projects};
+
+use selection::{InstallFamily, select_install_family, select_install_family_plan};
 
 use super::{
     add::AddArgs,
@@ -10,10 +13,7 @@ use super::{
     install::{InstallArgs, resolve_bool_override},
     package_manager::read_manifest_json,
     prune::PruneArgs,
-    recursive::{
-        AutoExcludeRoot, discover_workspace_projects, filtered_projects_dependencies,
-        select_recursive_projects,
-    },
+    recursive::{discover_workspace_projects, filtered_projects_dependencies},
     remove::RemoveArgs,
     update::UpdateArgs,
     update_changeset::UpdateChangesetContext,
@@ -29,8 +29,6 @@ use crate::{
     },
     config_deps, ecosystem_add, ecosystem_install,
 };
-use configuration::apply_runtime_on_fail;
-
 use indexmap::IndexMap;
 
 use install::init_shared_state;
@@ -40,7 +38,7 @@ use miette::Context;
 use pnpm_config::{Config, Host};
 use pnpm_network::ThrottledClient;
 use pnpm_package_manager::{PathNode, graph_sequencer};
-use pnpm_reporter::{LogEvent, LogLevel, Reporter, ScopeLog};
+use pnpm_reporter::Reporter;
 use pnpm_workspace_task_scheduler::{
     ScheduleGraphAsyncOptions, TaskCompletion, schedule_graph_async,
 };
@@ -205,123 +203,6 @@ impl DedicatedProjectRuns<'_> {
     }
 }
 
-fn select_install_family_plan<Reporter: self::Reporter>(
-    cfg: &Config,
-    prefix: &Path,
-    manifest_path: &Path,
-    recursive_sort: bool,
-    auto_exclude_root: bool,
-    precompute_workspace_cycles: bool,
-) -> miette::Result<InstallFamilyPlan> {
-    let Some(selection) = select_workspace_projects_with_cycles(
-        cfg,
-        prefix,
-        manifest_path,
-        recursive_sort,
-        auto_exclude_root,
-        precompute_workspace_cycles,
-    )?
-    else {
-        return Ok(InstallFamilyPlan::Single);
-    };
-    // Report what the `--filter` / `-r` selection resolved to, so the user
-    // can confirm it before the install acts on it. Emitted once here for
-    // every plan shape below — a `PerProject` plan installs each selected
-    // project separately, and those child installs must not each report
-    // the workspace again. The unnarrowed install reports its own scope
-    // from inside the installer, where the workspace walk it already does
-    // supplies the count.
-    Reporter::emit(&LogEvent::Scope(ScopeLog {
-        level: LogLevel::Debug,
-        selected: selection.selected_dirs.len(),
-        total: Some(selection.projects.len()),
-        workspace_prefix: Some(selection.workspace_root.to_string_lossy().into_owned()),
-    }));
-    if !cfg.shares_one_lockfile() {
-        return Ok(InstallFamilyPlan::PerProject(DedicatedProjects::new(cfg, selection)));
-    }
-    Ok(InstallFamilyPlan::Shared(Box::new(selection)))
-}
-
-pub(crate) fn select_workspace_projects(
-    cfg: &Config,
-    prefix: &Path,
-    manifest_path: &Path,
-    recursive_sort: bool,
-    auto_exclude_root: bool,
-) -> miette::Result<Option<InstallFamilySelection>> {
-    select_workspace_projects_with_cycles(
-        cfg,
-        prefix,
-        manifest_path,
-        recursive_sort,
-        auto_exclude_root,
-        false,
-    )
-}
-
-fn select_workspace_projects_with_cycles(
-    cfg: &Config,
-    prefix: &Path,
-    manifest_path: &Path,
-    recursive_sort: bool,
-    auto_exclude_root: bool,
-    precompute_workspace_cycles: bool,
-) -> miette::Result<Option<InstallFamilySelection>> {
-    if !cfg.recursive {
-        return Ok(None);
-    }
-
-    let workspace_root = cfg.workspace_dir.clone().unwrap_or_else(|| prefix.to_path_buf());
-    let (mut projects, workspace_patterns) = discover_workspace_projects(&workspace_root, cfg)?;
-    apply_runtime_on_fail(cfg, &mut projects);
-    let (project_dependencies, ordered_dirs, selected_dirs, workspace_cycles) = {
-        let selection = select_recursive_projects(
-            &projects,
-            cfg,
-            prefix,
-            if auto_exclude_root {
-                AutoExcludeRoot::Enabled { workspace_patterns: workspace_patterns.as_deref() }
-            } else {
-                AutoExcludeRoot::Disabled
-            },
-        )?;
-        let workspace_cycles =
-            precomputed_workspace_cycles(&selection, cfg, precompute_workspace_cycles);
-        let project_dependencies = project_dependencies(&selection, recursive_sort);
-        let ordered_dirs = sequence_project_dependencies(&project_dependencies);
-        let selected_dirs = selected_project_dirs(&selection);
-        (project_dependencies, ordered_dirs, selected_dirs, workspace_cycles)
-    };
-
-    let active_dir = manifest_path.parent().expect("manifest path always has a parent dir");
-    let active_manifest_is_standin =
-        configuration::active_manifest_is_standin(active_dir, &projects)?;
-    let install_dirs = install_dirs(&selected_dirs, &projects, &workspace_root);
-
-    Ok(Some(InstallFamilySelection {
-        workspace_root,
-        projects,
-        project_dependencies,
-        ordered_dirs,
-        selected_dirs,
-        install_dirs: Arc::new(install_dirs),
-        active_manifest_is_standin,
-        workspace_cycles,
-    }))
-}
-
-fn selected_project_dirs(
-    selection: &crate::cli_args::recursive::RecursiveSelection<'_>,
-) -> Arc<HashSet<PathBuf>> {
-    Arc::new(
-        selection.selected
-            .keys()
-            .cloned()
-            .collect(),
-    )
-}
-
 /// The selection in build order. Sequenced over borrowed paths: cloning a
 /// workspace-scale edge map just to sort it cost more than the sort.
 fn sequence_project_dependencies(
@@ -349,24 +230,6 @@ fn sequence_project_dependencies(
     .into_iter()
     .map(|node| node.0.to_path_buf())
     .collect()
-}
-
-/// The selected projects plus the workspace root project, when the
-/// workspace root is a project.
-fn install_dirs(
-    selected_dirs: &HashSet<PathBuf>,
-    projects: &[pnpm_workspace::Project],
-    workspace_root: &Path,
-) -> HashSet<PathBuf> {
-    let normalized_workspace_root = pnpm_fs::lexical_normalize(workspace_root);
-    let mut install_dirs = selected_dirs.clone();
-    if let Some(workspace_root_project) = projects
-        .iter()
-        .find(|project| pnpm_fs::lexical_normalize(&project.root_dir) == normalized_workspace_root)
-    {
-        install_dirs.insert(workspace_root_project.root_dir.clone());
-    }
-    install_dirs
 }
 
 /// The edges the sequencer orders the selection by. Without `--sort`
@@ -462,6 +325,7 @@ fn precomputed_workspace_cycles(
 }
 
 mod install;
+mod selection;
 
 mod mutation;
 

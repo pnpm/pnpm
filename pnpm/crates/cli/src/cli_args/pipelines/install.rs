@@ -1,8 +1,8 @@
 use super::{
-    Arc, Config, Context, DedicatedProjectRuns, InstallArgs, InstallFamilyPlan, Path, PathBuf,
-    Reporter, State, ThrottledClient, config_deps, dedicated_project_name,
+    Arc, Config, Context, DedicatedProjectRuns, InstallArgs, InstallFamily, InstallFamilyPlan,
+    Path, PathBuf, Reporter, State, ThrottledClient, config_deps, dedicated_project_name,
     discover_workspace_projects, ecosystem_install, init_dedicated_project_state, project_names,
-    select_install_family_plan,
+    select_install_family,
 };
 
 /// The reporter-generic body of `pacquet install`: it threads one `Reporter`
@@ -51,7 +51,7 @@ impl InstallPipeline {
         {
             lockfile.prefetch();
         }
-        let plan = select_install_family_plan::<Reporter>(
+        let family = select_install_family::<Reporter>(
             self.cfg,
             &self.prefix,
             &self.manifest_path,
@@ -59,28 +59,33 @@ impl InstallPipeline {
             false,
             certain_full_install,
         )?;
-        let installs_node = match &plan {
+        let installs_node = match &family.plan {
             InstallFamilyPlan::PerProject(projects) => !projects.is_empty(),
             InstallFamilyPlan::Shared(selection) => !selection.selected_dirs.is_empty(),
             InstallFamilyPlan::Single => true,
         };
-        if !installs_node && !ecosystem_install::is_enabled(self.cfg) {
-            return Ok(self.cfg);
+        if !ecosystem_install::is_enabled(self.cfg) {
+            if let Some(unmatched) = family.unmatched {
+                return Err(unmatched.report());
+            }
+            if !installs_node {
+                return Ok(self.cfg);
+            }
         }
 
-        self.run_prepared::<Reporter>(plan, lockfile).await
+        self.run_prepared::<Reporter>(family, lockfile).await
     }
 
     async fn run_prepared<Reporter: self::Reporter + 'static>(
         self,
-        plan: InstallFamilyPlan,
+        family: InstallFamily,
         lockfile: Option<pnpm_lockfile::LazyLockfile>,
     ) -> miette::Result<&'static Config> {
         let http_client =
             State::new_http_client(self.cfg).wrap_err("initialize the install network")?;
         if !ecosystem_install::is_enabled(self.cfg) {
             run_node_install::<Reporter>(
-                plan,
+                family.plan,
                 self.args,
                 self.cfg,
                 self.manifest_path,
@@ -91,7 +96,16 @@ impl InstallPipeline {
             .await?;
             return Ok(self.cfg);
         }
-        let ecosystem_plan = ecosystem_install::plan::<Reporter>(
+        self.run_with_ecosystems::<Reporter>(family, lockfile, http_client).await
+    }
+
+    async fn run_with_ecosystems<Reporter: self::Reporter + 'static>(
+        self,
+        family: InstallFamily,
+        lockfile: Option<pnpm_lockfile::LazyLockfile>,
+        http_client: Arc<ThrottledClient>,
+    ) -> miette::Result<&'static Config> {
+        let ecosystem = ecosystem_install::plan::<Reporter>(
             ecosystem_install::InstallContext {
                 config: self.cfg,
                 http_client: Arc::clone(&http_client),
@@ -99,11 +113,19 @@ impl InstallPipeline {
                 frozen_lockfile: self.frozen_lockfile,
             },
             self.config_root,
+            &self.prefix,
             &self.args.dependency_options,
+            family.scope.as_ref(),
         )
         .await?;
+        // A selector that named no npm project may have named a Python one.
+        if let Some(unmatched) = family.unmatched
+            && ecosystem.python.selected == 0
+        {
+            return Err(unmatched.counting(ecosystem.python.discovered).report());
+        }
         let node_install = run_node_install::<Reporter>(
-            plan,
+            family.plan,
             self.args,
             self.cfg,
             self.manifest_path,
@@ -111,7 +133,7 @@ impl InstallPipeline {
             lockfile,
             http_client,
         );
-        ecosystem_plan
+        ecosystem.plan
             .with_task(pnpm_install_coordinator::InstallTask::in_place(Vec::new(), node_install))
             .run()
             .await?;

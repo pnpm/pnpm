@@ -7,7 +7,7 @@ use crate::{
 };
 use miette::{IntoDiagnostic, Result, WrapErr, bail};
 use std::{
-    collections::BTreeMap,
+    collections::{BTreeMap, BTreeSet},
     path::{Path, PathBuf},
     sync::Arc,
 };
@@ -92,14 +92,20 @@ fn validate_metadata(
 }
 
 impl Shared<'_> {
+    /// Prepare the dynamic metadata of the projects this install reads,
+    /// and report the interpreter each one was prepared with. `needed`
+    /// names those projects: a project the selection left out, and that no
+    /// selected project reaches, is not built to find out what it
+    /// declares.
     pub(in super::super) async fn prepare_metadata<Reporter: pnpm_reporter::Reporter + 'static>(
         &self,
         projects: &mut [(PathBuf, Arc<Manifest>)],
         interpreters: &mut Interpreters<'_>,
+        needed: &BTreeSet<PathBuf>,
     ) -> Result<BTreeMap<PathBuf, Arc<host::Interpreter>>> {
         let mut selected = BTreeMap::new();
         for (root, manifest) in projects {
-            if manifest.needs_metadata() {
+            if manifest.needs_metadata() && needed.contains(root) {
                 let interpreter =
                     self.project_metadata::<Reporter>(root, manifest, interpreters).await?;
                 selected.insert(root.clone(), interpreter);

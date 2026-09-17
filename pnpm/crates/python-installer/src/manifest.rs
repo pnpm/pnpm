@@ -23,6 +23,14 @@ impl DependencySelection {
     pub const ALL: Self = Self { production: true, development: true };
 }
 
+/// Which of a project's requirement lists a reader counts. A dependency
+/// group is a development input, so a production reader leaves it out.
+#[derive(Clone, Copy)]
+pub(super) enum RequirementScope {
+    All,
+    Production,
+}
+
 #[derive(Clone, Deserialize)]
 pub(super) struct Manifest {
     pub(super) project: Option<Project>,
@@ -108,6 +116,19 @@ pub(super) struct UvWorkspace {
 pub(super) enum SourceDeclaration {
     One(Box<Source>),
     Many(Vec<Source>),
+}
+
+impl SourceDeclaration {
+    /// Every source this declaration names. Resolving a requirement
+    /// through a declaration that names several is refused, while reading
+    /// where they all point is not: the workspace graph covers a manifest
+    /// an install would go on to reject.
+    pub(super) fn sources(&self) -> &[Source] {
+        match self {
+            Self::One(source) => std::slice::from_ref(&**source),
+            Self::Many(sources) => sources,
+        }
+    }
 }
 
 #[derive(Clone, Deserialize)]
@@ -215,6 +236,70 @@ impl Manifest {
 
     pub(super) fn parse(contents: &str) -> Result<Self> {
         toml::from_str(contents).into_diagnostic()
+    }
+
+    /// The distributions this project requires for development and nothing
+    /// else, which a production reader leaves out.
+    ///
+    /// A dependency group is a development input, so a name only a group
+    /// requires is one. Saying that needs the requirements the group is
+    /// compared against: a project whose own a build backend generates
+    /// names none here, because that backend may require the same
+    /// distribution to run.
+    pub(super) fn development_only_names(&self) -> BTreeSet<PackageName> {
+        let Some(names) = self.declared_requirement_names(RequirementScope::Production) else {
+            return BTreeSet::new();
+        };
+        self.groups
+            .values()
+            .flatten()
+            .filter_map(toml::Value::as_str)
+            .filter_map(|requirement| parse_requirement(requirement).ok())
+            .map(|requirement| requirement.name)
+            .filter(|name| !names.contains(name))
+            .collect()
+    }
+
+    /// Every distribution this project names in a requirement its own
+    /// manifest declares, or `None` when a build backend generates them and
+    /// the manifest does not say which they are.
+    ///
+    /// A requirement pnpm cannot parse is left out: the resolution that
+    /// reads it reports it, and this is read where a name that is not there
+    /// only means one source fewer to consider.
+    pub(super) fn declared_requirement_names(
+        &self,
+        scope: RequirementScope,
+    ) -> Option<BTreeSet<PackageName>> {
+        let project = self.project.as_ref()?;
+        if project.dynamic
+            .iter()
+            .any(|field| matches!(field.as_str(), "dependencies" | "optional-dependencies"))
+        {
+            return None;
+        }
+        // Every group's own requirements are read, so a `{ include-group }`
+        // entry names nothing this does not already have: PEP 735 includes
+        // a group of this same table.
+        let groups = matches!(scope, RequirementScope::All)
+            .then(|| {
+                self.groups
+                    .values()
+                    .flatten()
+                    .filter_map(toml::Value::as_str)
+            })
+            .into_iter()
+            .flatten();
+        Some(
+            project.dependencies
+                .iter()
+                .chain(project.optional_dependencies.values().flatten())
+                .map(String::as_str)
+                .chain(groups)
+                .filter_map(|requirement| parse_requirement(requirement).ok())
+                .map(|requirement| requirement.name)
+                .collect(),
+        )
     }
 
     /// Every distribution this project declares a requirement on,

@@ -11,6 +11,7 @@ use std::{
 };
 use wax::Program as _;
 
+mod graph;
 mod selection;
 mod source;
 use selection::Target;
@@ -199,7 +200,7 @@ impl Workspace {
 
     /// Where the project declaring `name` is, for a project at `root` that
     /// may depend on it.
-    fn member(&self, name: &PackageName, root: &Path) -> Result<Option<&Path>> {
+    pub(super) fn member(&self, name: &PackageName, root: &Path) -> Result<Option<&Path>> {
         if !self.declared
             .get(root)
             .is_some_and(|members| members.contains(name))

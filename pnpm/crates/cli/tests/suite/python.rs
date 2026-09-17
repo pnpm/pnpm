@@ -1827,6 +1827,7 @@ async fn locks_one_environment_per_platform_however_it_is_named() {
     assert_eq!(fs::read_to_string(root.path().join("pylock.toml")).unwrap(), lock);
 }
 
+mod filtering;
 mod indexes;
 mod metadata;
 mod resolution;

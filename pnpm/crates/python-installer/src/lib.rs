@@ -1,9 +1,11 @@
-pub use add::{AddOptions, plan_add};
+pub use add::{AddOptions, plan_add, writable_project};
+pub use discovery::{Discovery, PythonProject, discover};
 pub use manifest::DependencySelection;
 
 mod add;
 mod build;
 mod cache;
+mod discovery;
 mod environment;
 mod generation;
 mod host;
@@ -32,7 +34,7 @@ use pnpm_store_dir::{StoreIndex, StoreIndexWriter};
 use registry::Registry;
 use settings::{Index, python_index};
 use std::{
-    collections::BTreeMap,
+    collections::{BTreeMap, BTreeSet},
     fs, io,
     path::{Path, PathBuf},
     sync::Arc,
@@ -59,50 +61,32 @@ struct Prepared {
 /// Environment publication and rollback are managed by the install coordinator.
 pub fn plan<Reporter: self::Reporter + 'static>(
     context: InstallOptions,
-    manifests: Vec<PathBuf>,
+    discovery: Discovery,
     selection: DependencySelection,
+    selected: BTreeSet<PathBuf>,
 ) -> pnpm_install_coordinator::InstallTask<'static> {
-    let metadata = manifests
+    let metadata = selected
         .iter()
-        .map(|path| path.with_file_name("pylock.toml"))
+        .map(|root| root.join("pylock.toml"))
         .collect();
     pnpm_install_coordinator::InstallTask::new(
         metadata,
-        prepare::<Reporter>(context, manifests, false, selection),
+        prepare::<Reporter>(context, discovery, false, selection, selected),
     )
-}
-
-/// The manifests a run prepares from, or `None` when none of them
-/// declares a project. A manifest that only declares a workspace is read
-/// for what it says about the others, so it is not by itself a reason to
-/// start an interpreter.
-async fn discovered_projects(
-    manifests: Vec<PathBuf>,
-    allowed_root: Option<&Path>,
-) -> Result<Option<Vec<(PathBuf, Arc<manifest::Manifest>)>>> {
-    let roots = read_project_manifests(manifests, allowed_root).await?
-        .into_iter()
-        .map(|(root, manifest)| (root, Arc::new(manifest)))
-        .collect::<Vec<_>>();
-    Ok(roots
-        .iter()
-        .any(|(_, manifest)| manifest.project.is_some())
-        .then_some(roots))
 }
 
 async fn prepare<Reporter: self::Reporter + 'static>(
     context: InstallOptions,
-    manifests: Vec<PathBuf>,
+    discovery: Discovery,
     resolve: bool,
     selection: manifest::DependencySelection,
+    selected: BTreeSet<PathBuf>,
 ) -> Result<Vec<Prepared>> {
     let config = context.config;
-    let Some(roots) = discovered_projects(manifests, config.workspace_dir.as_deref()).await? else {
+    if !discovery.has_projects() {
         return Ok(Vec::new());
-    };
-    // A manifest that declares only a workspace is still what says which
-    // projects that workspace contains and where they come from.
-    let workspace = workspace::Workspace::new(&roots)?;
+    }
+    let Discovery { roots, workspace, .. } = discovery;
     let index = python_index(config)?;
     config.store_dir.init().into_diagnostic()?;
     let store_index = StoreIndex::shared_for(&config.store_dir, config.frozen_store);
@@ -115,7 +99,7 @@ async fn prepare<Reporter: self::Reporter + 'static>(
         members: workspace.scopes().clone(),
         caches: environment::Caches::default(),
     };
-    let result = projects::prepare::<Reporter>(&shared, workspace, roots).await;
+    let result = projects::prepare::<Reporter>(&shared, workspace, roots, &selected).await;
     drop(writer);
     writer_task.await
         .into_diagnostic()
@@ -123,73 +107,6 @@ async fn prepare<Reporter: self::Reporter + 'static>(
         .into_diagnostic()
         .wrap_err("flush Python artifact store index")?;
     result
-}
-
-/// Every `pyproject.toml` among `manifests`, parsed. One without a
-/// `[project]` table declares no package of its own, but may still say
-/// which projects a workspace contains and where they come from.
-async fn read_project_manifests(
-    manifests: Vec<PathBuf>,
-    allowed_root: Option<&Path>,
-) -> Result<Vec<(PathBuf, manifest::Manifest)>> {
-    let mut roots = Vec::new();
-    for path in manifests {
-        let contents = if path
-            .file_name()
-            .is_some_and(|name| name == "requirements.txt")
-        {
-            String::new()
-        } else {
-            tokio::fs::read_to_string(&path).await
-                .into_diagnostic()
-                .wrap_err_with(|| format!("read {}", path.display()))?
-        };
-        let allowed_root =
-            allowed_root.unwrap_or_else(|| path.parent().expect("manifest has a parent"));
-        let manifest = read_manifest(&path, &contents, allowed_root).await?;
-        if manifest.project.is_some()
-            || manifest.tool.uv.workspace.is_some()
-            || !manifest.tool.uv.overrides.is_empty()
-            || !manifest.tool.uv.constraints.is_empty()
-        {
-            roots.push((
-                path.parent()
-                    .expect("manifest has a parent")
-                    .to_path_buf(),
-                manifest,
-            ));
-        }
-    }
-    Ok(roots)
-}
-
-async fn read_manifest(
-    path: &Path,
-    contents: &str,
-    allowed_root: &Path,
-) -> Result<manifest::Manifest> {
-    let mut manifest = if path
-        .file_name()
-        .is_some_and(|name| name == "requirements.txt")
-    {
-        manifest::Manifest::parse("")?
-    } else {
-        manifest::Manifest::parse(contents)?
-    };
-    if manifest.project.is_none() {
-        let requirements_path = path.with_file_name("requirements.txt");
-        if tokio::fs::try_exists(&requirements_path).await.into_diagnostic()? {
-            let allowed_root = allowed_root.to_path_buf();
-            let requirements = tokio::task::spawn_blocking(move || {
-                requirements::read(&requirements_path, &allowed_root)
-            })
-            .await
-            .into_diagnostic()
-            .wrap_err("join Python requirements parsing")??;
-            manifest.set_requirements_file(requirements);
-        }
-    }
-    Ok(manifest)
 }
 
 impl PythonPrepare<'_> {

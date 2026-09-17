@@ -1,6 +1,10 @@
-use super::{InstallOptions, Lockfile, Prepared, Reporter, manifest, prepare};
+use super::{Discovery, InstallOptions, Lockfile, Prepared, Reporter, manifest, prepare};
 use miette::{IntoDiagnostic, Result, WrapErr, bail};
-use std::{fs, path::Path};
+use std::{
+    collections::BTreeSet,
+    fs,
+    path::{Path, PathBuf},
+};
 
 #[derive(Debug, Clone)]
 pub struct AddOptions {
@@ -10,17 +14,69 @@ pub struct AddOptions {
     pub prefix: Option<String>,
 }
 
+impl AddOptions {
+    /// Refuse an add pnpm cannot carry out. Call it before reading a
+    /// manifest, so an add pnpm will not carry out leaves the workspace as
+    /// it found it.
+    pub fn validate(&self, config: &pnpm_config::Config) -> Result<()> {
+        if !config.python.enabled {
+            bail!("pypi: dependencies require `python.enabled: true` in pnpm-workspace.yaml");
+        }
+        if !matches!(self.prefix.as_deref().unwrap_or(">="), ">=" | "~=" | "==") {
+            bail!("Python --save-prefix must be >=, ~=, or ==");
+        }
+        Ok(())
+    }
+}
+
+/// Add requirements to each selected Python project, then prepare those
+/// projects as one participant in an install plan.
 pub fn plan_add<Reporter: self::Reporter + 'static>(
     context: InstallOptions,
-    root: &Path,
+    discovery: Discovery,
+    selected: BTreeSet<PathBuf>,
     options: AddOptions,
 ) -> Result<pnpm_install_coordinator::InstallTask<'static>> {
-    if !context.config.python.enabled {
-        bail!("pypi: dependencies require `python.enabled: true` in pnpm-workspace.yaml");
-    }
-    if !matches!(options.prefix.as_deref().unwrap_or(">="), ">=" | "~=" | "==") {
-        bail!("Python --save-prefix must be >=, ~=, or ==");
-    }
+    options.validate(context.config)?;
+    let projects = selected
+        .iter()
+        .map(|root| writable_project(root))
+        .collect::<Result<Vec<_>>>()?;
+    let metadata = projects
+        .iter()
+        .flat_map(|root| [root.join("pyproject.toml"), root.join("pylock.toml")])
+        .collect();
+    let prepare = async move {
+        for root in &projects {
+            manifest::add(
+                &root.join("pyproject.toml"),
+                &options.requirements,
+                options.development,
+            )?;
+        }
+        let config = context.config;
+        let discovery = discovery.reread(config, &selected).await?;
+        let mut prepared = prepare::<Reporter>(
+            context,
+            discovery,
+            true,
+            manifest::DependencySelection::ALL,
+            selected,
+        )
+        .await?;
+        save_added(&mut prepared, config, &options)?;
+        Ok(prepared)
+    };
+    Ok(pnpm_install_coordinator::InstallTask::new(metadata, prepare))
+}
+
+/// A directory `pnpm add` can write a requirement to. A directory without a
+/// manifest is named here; one whose manifest declares no project is named
+/// by the edit itself.
+///
+/// Call it before reading the manifest, so a directory that has none is
+/// named rather than reported as a file that could not be read.
+pub fn writable_project(root: &Path) -> Result<PathBuf> {
     let path = root.join("pyproject.toml");
     if !path
         .try_exists()
@@ -33,17 +89,7 @@ pub fn plan_add<Reporter: self::Reporter + 'static>(
             "cannot add a Python dependency because {missing} does not exist",
         ));
     }
-    let metadata = vec![path.clone(), root.join("pylock.toml")];
-    let prepare = async move {
-        manifest::add(&path, &options.requirements, options.development)?;
-        let config = context.config;
-        let mut prepared =
-            prepare::<Reporter>(context, vec![path], true, manifest::DependencySelection::ALL)
-                .await?;
-        save_added(&mut prepared, config, &options)?;
-        Ok(prepared)
-    };
-    Ok(pnpm_install_coordinator::InstallTask::new(metadata, prepare))
+    Ok(root.to_path_buf())
 }
 
 fn save_added(
@@ -52,26 +98,27 @@ fn save_added(
     options: &AddOptions,
 ) -> Result<()> {
     let prefix = options.prefix.as_deref().unwrap_or(">=");
-    let [project] = prepared else { bail!("Python add requires exactly one project") };
-    let mut lock: Lockfile = toml::from_str(&project.lock).into_diagnostic()?;
-    let mut requirements = Vec::new();
-    for requirement in &options.requirements {
-        let mut requirement = pnpm_python_resolver::parse_requirement(requirement)?;
-        pin_to_locked_version(&mut requirement, &lock, options, prefix)?;
-        requirements.push(requirement.to_string());
+    for project in prepared {
+        let mut lock: Lockfile = toml::from_str(&project.lock).into_diagnostic()?;
+        let mut requirements = Vec::new();
+        for requirement in &options.requirements {
+            let mut requirement = pnpm_python_resolver::parse_requirement(requirement)?;
+            pin_to_locked_version(&mut requirement, &lock, options, prefix)?;
+            requirements.push(requirement.to_string());
+        }
+        let path = project.root.join("pyproject.toml");
+        manifest::add(&path, &requirements, options.development)?;
+        let manifest = manifest::Manifest::parse(
+            &fs::read_to_string(&path)
+                .into_diagnostic()
+                .wrap_err_with(|| format!("read {}", path.display()))?,
+        )?;
+        lock.tool.pnpm.set_requirements(&manifest.requirements(
+            config,
+            manifest::DependencySelection::ALL,
+        )?);
+        project.lock = toml::to_string_pretty(&lock).into_diagnostic()?;
     }
-    let path = project.root.join("pyproject.toml");
-    manifest::add(&path, &requirements, options.development)?;
-    let manifest = manifest::Manifest::parse(
-        &fs::read_to_string(&path)
-            .into_diagnostic()
-            .wrap_err_with(|| format!("read {}", path.display()))?,
-    )?;
-    lock.tool.pnpm.set_requirements(&manifest.requirements(
-        config,
-        manifest::DependencySelection::ALL,
-    )?);
-    project.lock = toml::to_string_pretty(&lock).into_diagnostic()?;
     Ok(())
 }
 
