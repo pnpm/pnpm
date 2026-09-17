@@ -46,13 +46,13 @@ impl Workspace {
         root: &Path,
         manifest: &Manifest,
     ) -> Vec<PathBuf> {
-        let mut targets = Vec::new();
+        let mut targets = BTreeSet::new();
         for (declared_by, sources) in self.source_tables(root, manifest) {
             for (name, declaration) in sources {
                 self.collect_targets(root, declared_by, (name, declaration), &mut targets);
             }
         }
-        targets
+        targets.into_iter().collect()
     }
 
     /// The `[tool.uv.sources]` tables the project at `root` resolves
@@ -72,20 +72,23 @@ impl Workspace {
 
     /// Add the discovered projects one declaration points at, leaving out
     /// the declaring project itself and anything pnpm did not discover.
+    ///
+    /// A member of a workspace reads the root's whole source table, so the
+    /// set the targets collect into is what keeps a workspace of many
+    /// members from comparing every target against every other one.
     fn collect_targets(
         &self,
         root: &Path,
         declared_by: &Path,
         (name, declaration): (&PackageName, &SourceDeclaration),
-        targets: &mut Vec<PathBuf>,
+        targets: &mut BTreeSet<PathBuf>,
     ) {
         for source in declaration.sources() {
             let Some(target) = self.source_target(root, declared_by, name, source) else {
                 continue;
             };
-            if target != root && self.manifests.contains_key(&target) && !targets.contains(&target)
-            {
-                targets.push(target);
+            if target != root && self.manifests.contains_key(&target) {
+                targets.insert(target);
             }
         }
     }
