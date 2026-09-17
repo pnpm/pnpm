@@ -328,6 +328,8 @@ fn tool_settings_parse_and_apply() {
 
     // A mirror says what this machine can reach, which is the user's to
     // say, so it survives the filter the global config is read through.
+    // The workspace layer drops it; `a_repository_cannot_name_a_mirror`
+    // covers that end.
     let mut settings: WorkspaceSettings = serde_saphyr::from_str(yaml).unwrap();
     settings.clear_workspace_only_fields();
     assert!(settings.tools.is_some());

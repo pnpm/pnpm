@@ -106,6 +106,11 @@ pub struct RemoteSideEffectsCacheSettings {
 /// JavaScript runtime, a Python interpreter, another package manager.
 /// Where the packages of an ecosystem come from is a separate question,
 /// answered by `registry`, `python.indexUrl` and `cargo.indexUrl`.
+///
+/// Read from the global `config.yaml` and `PNPM_CONFIG_TOOLS` only. A
+/// `pnpm-workspace.yaml` that names one is ignored, because naming a
+/// mirror chooses which program runs on the machine of everyone who
+/// clones the repository.
 #[derive(Debug, Default, Clone, PartialEq, Eq, serde::Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", default, deny_unknown_fields)]
 pub struct ToolSettings {

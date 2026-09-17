@@ -15,15 +15,11 @@ pub(super) struct SeaBuild<'a> {
     pub(super) pacquet_bin: PathBuf,
 }
 
-/// The Node.js the executables embed: which build, where the copies of
-/// it are kept, and where it may be downloaded from.
+/// The Node.js the executables embed: which build, and where the copies
+/// of it are kept.
 pub(super) struct EmbeddedRuntime {
     pub(super) build_root: PathBuf,
     pub(super) version: String,
-    /// The `tools` settings the install that fetches a runtime is given,
-    /// since it runs under the pnpm home and would otherwise discover
-    /// none of this project's configuration.
-    pub(super) tools: Option<String>,
 }
 
 /// Reject a pre-existing symlink (or any non-regular file) at any
@@ -111,15 +107,6 @@ fn builder_version_can_build_sea(version: &str) -> bool {
 ///
 /// Re-invokes the pacquet binary with `add` against an isolated install
 /// directory.
-/// The `tools` settings to hand an install that runs outside this
-/// project, as the value of `PNPM_CONFIG_TOOLS`.
-pub(super) fn tools_env(config: &Config) -> Option<String> {
-    if config.tools.is_empty() {
-        return None;
-    }
-    serde_json::to_string(&config.tools).ok()
-}
-
 pub(super) fn ensure_node_runtime(
     pacquet_bin: &Path,
     runtime: &EmbeddedRuntime,
@@ -127,7 +114,7 @@ pub(super) fn ensure_node_runtime(
     arch: &str,
     libc: Option<&str>,
 ) -> miette::Result<PathBuf> {
-    let EmbeddedRuntime { build_root, version, tools } = runtime;
+    let EmbeddedRuntime { build_root, version } = runtime;
     // Linux variants always need a libc pin (glibc or musl) so variant
     // selection is deterministic and doesn't depend on the host's detected
     // libc or the user's supportedArchitectures.libc config.
@@ -155,13 +142,6 @@ pub(super) fn ensure_node_runtime(
         .arg(format!("--cpu={arch}"));
     if let Some(libc) = libc {
         command.arg(format!("--libc={libc}"));
-    }
-    // The install runs under the pnpm home, so it walks up from there
-    // and finds no `pnpm-workspace.yaml` of this project. A mirror named
-    // there has to be handed over, or the version would resolve through
-    // it and the download would go to the official host anyway.
-    if let Some(tools) = tools {
-        command.env("PNPM_CONFIG_TOOLS", tools);
     }
     command.arg(format!("node@runtime:{version}"));
     run_command(&mut command, "pnpm add node@runtime")?;

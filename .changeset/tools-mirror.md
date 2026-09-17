@@ -18,6 +18,8 @@ tools:
 
 `node`, `bun` and `python` can be named. Any other tool is refused.
 
-`mirror` is the base a tool's own layout hangs off. `channels` sends one release channel elsewhere and leaves the rest to `mirror`. Both can be set in `pnpm-workspace.yaml` and in the global `config.yaml`.
+`mirror` is the base a tool's own layout hangs off. `channels` sends one release channel elsewhere and leaves the rest to `mirror`.
+
+Set it in the global `config.yaml`, or in `PNPM_CONFIG_TOOLS`. A `pnpm-workspace.yaml` that names a tool mirror is ignored: the mirror decides which program pnpm runs an ecosystem with, and a release's checksums come from the mirror that serves its files, so the download is verified only against that mirror.
 
 Bun had no mirror setting before. `pnpm pack-app` downloads the Node.js it embeds through the configured mirror. `node-mirror:<channel>` keeps working and names the same thing as an entry under `channels`.
