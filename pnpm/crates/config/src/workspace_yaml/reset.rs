@@ -4,6 +4,12 @@ use super::{
 };
 
 type Reset = fn(&mut Config, &Config);
+
+fn reset_overrides(config: &mut Config, defaults: &Config) {
+    config.overrides.clone_from(&defaults.overrides);
+    config.python.overrides.clone_from(&defaults.python.overrides);
+}
+
 fn apply_named_reset(
     config: &mut Config,
     defaults: &Config,
@@ -128,7 +134,7 @@ impl WorkspaceSettings {
             ignore_scripts, ignore_pnpmfile, git_checks, engine_strict, node_version,
             runtime_on_fail, node_download_mirrors, scripts_prepend_node_path, script_shell,
             node_options, unsafe_perm, supported_architectures, ignored_optional_dependencies,
-            overrides, package_extensions, package_configs, minimum_release_age_exclude,
+            package_extensions, package_configs, minimum_release_age_exclude,
             minimum_release_age_ignore_missing_time, minimum_release_age_strict,
             trust_lockfile, trust_policy, trust_policy_exclude, trust_policy_exclude_prune,
             trust_policy_ignore_after, init_author_name, init_author_email, init_author_url,
@@ -136,6 +142,7 @@ impl WorkspaceSettings {
             save_prefix, pipeline_base, child_concurrency, workspace_concurrency, catalogs,
             allow_builds, concurrency_groups,
         });
+        resets.push(("overrides".to_string(), reset_overrides as Reset));
         if Self::reset_derived_setting_to_default::<Sys>(config, defaults, key, base_dir) {
             return true;
         }

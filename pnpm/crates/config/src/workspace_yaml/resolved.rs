@@ -1,7 +1,21 @@
 use super::{
-    AllowBuild, Config, OverridesSetting, PackageConfigsSetting, PnpmfileSetting,
-    WorkspaceSettings, as_set, global_shims_setting, opt_path, path, side_effects_cache_setting,
+    AllowBuild, Config, EcosystemOverrides, OverridesSetting, PackageConfigsSetting,
+    PnpmfileSetting, WorkspaceSettings, as_set, global_shims_setting, opt_path, path,
+    side_effects_cache_setting,
 };
+
+fn resolved_overrides(config: &Config) -> Option<OverridesSetting> {
+    let npm = config.overrides.clone().unwrap_or_default();
+    let pypi = config.python.overrides.clone();
+    if npm.is_empty() && pypi.is_empty() {
+        return None;
+    }
+    if pypi.is_empty() {
+        Some(OverridesSetting::Legacy(npm))
+    } else {
+        Some(OverridesSetting::Ecosystems(EcosystemOverrides { npm, pypi }))
+    }
+}
 
 impl WorkspaceSettings {
     /// Every setting at the value `config` resolved it to, for a consumer
@@ -135,7 +149,7 @@ impl WorkspaceSettings {
             unsafe_perm: Some(config.unsafe_perm),
             supported_architectures: config.supported_architectures.clone(),
             ignored_optional_dependencies: config.ignored_optional_dependencies.clone(),
-            overrides: config.overrides.clone().map(OverridesSetting::Legacy),
+            overrides: resolved_overrides(config),
             package_extensions: config.package_extensions.clone(),
             // The flattened lookup, which is the by-name form of the setting
             // whichever of the two forms the file wrote it in.
