@@ -91,7 +91,7 @@ pub struct ObservingResolver {
     /// Tarball URLs already reported. The deps-resolver calls `resolve`
     /// once per `(parent, child)` edge, so the same package surfaces many
     /// times; dedup by URL collapses those to a single frame. Mirrors
-    /// `PrefetchingResolver::spawned_urls`.
+    /// `PrefetchingResolver::spawned_downloads`.
     seen: DashSet<String>,
 }
 

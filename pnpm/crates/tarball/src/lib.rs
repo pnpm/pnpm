@@ -210,8 +210,8 @@ impl<'a> IngestTarballToStore<'a> {
     /// one key, a second caller fetching the same archive with a different
     /// [`ignore_file_pattern`] silently receives the map the first caller's
     /// filter produced. Every fetch of an archive must use the same filter.
-    /// Nothing enforces this; today it holds because filters are keyed by
-    /// package name.
+    /// Nothing enforces this; today it holds because an archive's identity
+    /// determines its package name and filters are keyed by package name.
     ///
     /// [`ignore_file_pattern`]: IngestTarballToStore::ignore_file_pattern
     pub async fn run_with_mem_cache<Reporter: self::Reporter>(
