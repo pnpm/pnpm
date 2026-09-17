@@ -91,10 +91,9 @@ impl<Reporter: self::Reporter + 'static> PrefetchingResolver<Reporter> {
     /// unpinned read names neither: the hash is what it is there to learn,
     /// and a revision cannot be recorded without one.
     ///
-    /// Each kind of key leads with its own tag and separates its parts
-    /// with a tab, which neither a URL, an integrity nor a package id can
-    /// contain. Concatenating the parts alone would let a bare URL spell
-    /// another URL followed by an integrity.
+    /// Each key leads with its kind and separates its parts with a tab,
+    /// which neither a URL, an integrity nor a package id can contain, so
+    /// no key of one kind can spell a key of another.
     pub(super) fn tarball_metadata_cache_key(
         &self,
         result: &ResolveResult,
