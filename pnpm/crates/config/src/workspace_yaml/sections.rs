@@ -111,10 +111,15 @@ pub struct RemoteSideEffectsCacheSettings {
 pub struct ToolSettings {
     /// Where this tool's builds are downloaded from, in place of the
     /// project that publishes them, as the base URL its own layout hangs
-    /// off. A tool that publishes several lines of builds, which only
-    /// Node.js does, has the line below this base the way its own tree
-    /// lays them out.
+    /// off. A tool that publishes several lines of builds has the line
+    /// below this base, the way its own tree lays them out.
     pub mirror: Option<String>,
+    /// Where one line of this tool's builds comes from, for a tool that
+    /// publishes more than one and a line that does not come from the
+    /// same place as the rest. Node.js calls these release channels, and
+    /// so does Rust. An entry here answers for the channel it names;
+    /// every other channel is left to [`Self::mirror`].
+    pub channels: Option<BTreeMap<String, String>>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, Deserialize)]

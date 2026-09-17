@@ -190,6 +190,7 @@ fn add_python_settings(root: &Path, settings: &str) {
 }
 
 /// Point pnpm at a mirror of python-build-standalone's releases.
+#[cfg(any(target_os = "linux", target_os = "macos"))]
 fn add_python_mirror(root: &Path, mirror: &str) {
     let path = root.join("pnpm-workspace.yaml");
     let mut workspace = fs::read_to_string(&path).unwrap();

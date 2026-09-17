@@ -159,8 +159,10 @@ fn node_binary_path(node_dir: &Path, platform: &str) -> PathBuf {
 
 pub(super) async fn resolve_version(config: &Config, specifier: &str) -> miette::Result<String> {
     let parsed = parse_node_specifier(specifier).map_err(miette::Report::new)?;
+    let channels = config.tool_channel_mirrors("node");
     let mirror = get_node_mirror(
         config.tool_mirror("node"),
+        channels.get(&parsed.release_channel).map(String::as_str),
         Some(&config.node_download_mirrors),
         &parsed.release_channel,
     );

@@ -99,6 +99,9 @@ pub struct NodeResolver {
     pub node_download_mirrors: HashMap<String, String>,
     /// `tools.node.mirror`: the base every release channel hangs off.
     pub mirror: Option<String>,
+    /// `tools.node.channels`: where one release channel comes from when
+    /// it does not come from the same place as the rest.
+    pub channel_mirrors: HashMap<String, String>,
     pub offline: bool,
     /// The pnpm cache directory backing the per-version SHASUMS disk
     /// cache. `None` disables the cache and every resolve fetches the
@@ -122,6 +125,7 @@ impl NodeResolver {
             auth_headers,
             node_download_mirrors: HashMap::new(),
             mirror: None,
+            channel_mirrors: HashMap::new(),
             offline: false,
             cache_dir: None,
         }
@@ -245,6 +249,7 @@ impl NodeResolver {
             parse_node_specifier(version_spec).map_err(NodeResolverError::InvalidReleaseChannel)?;
         let mirror = get_node_mirror(
             self.mirror.as_deref(),
+            self.channel_mirrors.get(&parsed.release_channel).map(String::as_str),
             Some(&self.node_download_mirrors),
             &parsed.release_channel,
         );
@@ -321,6 +326,7 @@ impl NodeResolver {
             })?;
         let mirror = get_node_mirror(
             self.mirror.as_deref(),
+            self.channel_mirrors.get(&parsed.release_channel).map(String::as_str),
             Some(&self.node_download_mirrors),
             &parsed.release_channel,
         );

@@ -145,8 +145,10 @@ impl EnvArgs {
     pub async fn run_list(version_spec: Option<String>, config: &Config) -> miette::Result<String> {
         let specifier = parse_node_specifier(version_spec.as_deref().unwrap_or_default())
             .map_err(miette::Report::new)?;
+        let channels = config.tool_channel_mirrors("node");
         let mirror = get_node_mirror(
             config.tool_mirror("node"),
+            channels.get(&specifier.release_channel).map(String::as_str),
             Some(&config.node_download_mirrors),
             &specifier.release_channel,
         );

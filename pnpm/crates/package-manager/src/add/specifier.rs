@@ -200,6 +200,7 @@ pub(super) async fn resolve_node_runtime_specifier(
     );
     node_resolver.node_download_mirrors.clone_from(&config.node_download_mirrors);
     node_resolver.mirror = config.tool_mirror("node").map(ToString::to_string);
+    node_resolver.channel_mirrors = config.tool_channel_mirrors("node");
     node_resolver.offline = config.offline;
     node_resolver.cache_dir = Some(config.cache_dir.clone());
     node_resolver

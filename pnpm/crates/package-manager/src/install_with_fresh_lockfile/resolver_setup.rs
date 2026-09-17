@@ -340,6 +340,7 @@ impl ResolverChainInputs<'_> {
         );
         node_resolver.node_download_mirrors.clone_from(&self.config.node_download_mirrors);
         node_resolver.mirror = self.config.tool_mirror("node").map(ToString::to_string);
+        node_resolver.channel_mirrors = self.config.tool_channel_mirrors("node");
         node_resolver.offline = self.config.offline;
         node_resolver.cache_dir = Some(self.config.cache_dir.clone());
         node_resolver

@@ -337,6 +337,26 @@ fn tool_settings_parse_apply_and_remain_workspace_only() {
     assert!(unknown.is_err());
 }
 
+/// A base and a channel answer different questions, so a tool can name
+/// where its builds come from and still send one line of them elsewhere.
+#[test]
+fn a_tool_channel_is_read_beside_the_base_it_refines() {
+    let yaml = "tools:\n  node:\n    mirror: https://mirror.example.test/node/download\n    channels:\n      nightly: https://nightly.example.test/\n";
+    let settings: WorkspaceSettings = serde_saphyr::from_str(yaml).unwrap();
+    let mut config = Config::default();
+    settings.apply_to(&mut config, Path::new("/workspace"));
+    assert_eq!(config.tool_mirror("node"), Some("https://mirror.example.test/node/download"));
+    assert_eq!(
+        config
+            .tool_channel_mirrors("node")
+            .get("nightly")
+            .map(String::as_str),
+        Some("https://nightly.example.test"),
+    );
+    assert!(!config.tool_channel_mirrors("node").contains_key("release"));
+    assert!(config.tool_channel_mirrors("bun").is_empty());
+}
+
 /// A caller joins a path onto what it is given, so the trailing slash a
 /// user may or may not have written cannot reach it.
 #[test]

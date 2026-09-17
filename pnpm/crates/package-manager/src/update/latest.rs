@@ -181,6 +181,7 @@ pub(super) fn ensure_latest_resolver_chain<'chain>(
         );
         node_resolver.node_download_mirrors.clone_from(&ctx.config.node_download_mirrors);
         node_resolver.mirror = ctx.config.tool_mirror("node").map(ToString::to_string);
+        node_resolver.channel_mirrors = ctx.config.tool_channel_mirrors("node");
         node_resolver.offline = ctx.config.offline;
         node_resolver.cache_dir = Some(ctx.config.cache_dir.clone());
         let resolver = DefaultResolver::new(vec![
