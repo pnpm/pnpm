@@ -223,7 +223,8 @@ async fn a_recursive_add_leaves_the_workspace_root_alone() {
         .assert()
         .success();
 
-    assert!(fs::read_to_string(root.path().join("a/pyproject.toml")).unwrap().contains("alpha"),);
+    let added = fs::read_to_string(root.path().join("a/pyproject.toml")).unwrap();
+    assert!(added.contains("alpha"), "{added}");
     assert!(
         !fs::read_to_string(root.path().join("pyproject.toml")).unwrap().contains("alpha"),
         "the root is not part of a recursive add",
