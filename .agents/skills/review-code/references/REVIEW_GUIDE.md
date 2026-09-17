@@ -10,10 +10,10 @@ The central question for any PR:
 > maintenance cost — and is it the *smallest correct version* of itself?
 
 This is the canonical review guide for the repository, applied by human reviewers and by two
-automated reviewers — CodeRabbit ([`.coderabbit.yaml`](./.coderabbit.yaml)) and Qodo
-([`.pr_agent.toml`](./.pr_agent.toml)). To cut duplicate comments the bots divide review depth —
+automated reviewers — CodeRabbit ([`.coderabbit.yaml`](../../../../.coderabbit.yaml)) and Qodo
+([`.pr_agent.toml`](../../../../.pr_agent.toml)). To cut duplicate comments the bots divide review depth —
 CodeRabbit leads correctness and conventions, Qodo leads security and performance — but every
-reviewer applies the same priority order below. [`AGENTS.md`](./AGENTS.md) points here.
+reviewer applies the same priority order below. [`AGENTS.md`](../../../../AGENTS.md) points here.
 
 ## Review priorities
 

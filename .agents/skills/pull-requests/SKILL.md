@@ -89,13 +89,9 @@ declined that a human should settle.
 ## While the checks run
 
 Waiting is not idle time, and in the draft phase this pass is the whole job.
-Review your own diff the way the reviewers will, using
-the checklist in [`REVIEW_GUIDE.md`](../../../REVIEW_GUIDE.md) — security first,
-performance second. A finding you catch here costs one push; the same finding
-caught by a reviewer costs a round, and rounds are where the bugs from the last
-round get written. Read the changeset back as a release note, check that a bug
-fix landed in every version that has the bug, and confirm the tests you added
-actually exercise the change.
+Use the [review-code skill](../review-code/SKILL.md) to review your own diff.
+A finding you catch here costs one push; the same finding caught by a reviewer
+costs a round, and rounds are where the bugs from the last round get written.
 
 Push what you find as soon as you find it rather than banking it until the run
 finishes. The main CI workflows cancel a PR branch's in-progress run when the
