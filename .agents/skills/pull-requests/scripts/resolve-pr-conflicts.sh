@@ -2,8 +2,8 @@
 # Resolves merge conflicts for a GitHub PR by rebasing onto the latest base branch.
 #
 # Usage:
-#   ./shell/resolve-pr-conflicts.sh <PR_NUMBER>            # full run
-#   ./shell/resolve-pr-conflicts.sh <PR_NUMBER> --continue  # finish after manual resolution
+#   ./.agents/skills/pull-requests/scripts/resolve-pr-conflicts.sh <PR_NUMBER>            # full run
+#   ./.agents/skills/pull-requests/scripts/resolve-pr-conflicts.sh <PR_NUMBER> --continue  # finish after manual resolution
 #
 # Prerequisites:
 # - gh CLI authenticated with access to pnpm/pnpm
