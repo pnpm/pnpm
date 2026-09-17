@@ -259,6 +259,13 @@ impl<'a> LockfileEntries<'a> {
     /// nothing — pnpm's `lockfileToDepGraph(..., opts.force ? null :
     /// currentLockfile)`. The current lockfile itself still reaches the
     /// prune, which runs on the real one even under `--force`.
+    ///
+    /// Every other reader of these entries has to state its own `--force`
+    /// rule, because withholding the records leaves them unable to see a
+    /// change rather than telling them one happened. The skip and the
+    /// link phase's slot replacement both do; the per-slot child-alias
+    /// diff does not, so it unlinks nothing under `--force`
+    /// (<https://github.com/pnpm/pnpm/issues/15039>).
     pub fn of_previous_install(lockfile: Option<&'a Lockfile>, force: bool) -> Self {
         if force {
             LockfileEntries::default()

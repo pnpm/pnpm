@@ -1,7 +1,7 @@
 use super::{
     CasIndexes, CasPrefetch, CreateVirtualStore, CreateVirtualStoreError, CreateVirtualStoreOutput,
     CreateVirtualStoreStoreContext, LinkPlan, WantedEntries,
-    cache_keys::SnapshotCacheKey,
+    cache_keys::{SlotReuse, SnapshotCacheKey},
     cold::{ColdBatch, ColdBatchState, ColdInputs, run_cold_batch},
     create_build_marker_source, init_store_dir_unless_frozen, nothing_to_materialize, partition,
     publish_planned_canonical_fetches, removed_aliases_by_key,
@@ -120,6 +120,14 @@ impl<'a> CreateVirtualStore<'a> {
 
     fn is_hoisted(&self) -> bool {
         matches!(self.ctx.linker.kind, NodeLinker::Hoisted)
+    }
+
+    fn slot_reuse(&self, packages: &'a HashMap<PackageKey, PackageMetadata>) -> SlotReuse<'a> {
+        SlotReuse {
+            packages,
+            current_packages: self.current_entries.packages,
+            force: self.ctx.config.force,
+        }
     }
 
     fn wanted(&self) -> Result<Option<WantedEntries<'a>>, CreateVirtualStoreError> {
@@ -345,8 +353,7 @@ impl<'a> CreateVirtualStore<'a> {
         link_warm_batch::<Reporter>(
             &partition.warm,
             &WarmLinkBatch {
-                packages: wanted.packages,
-                current_packages: self.current_entries.packages,
+                reuse: self.slot_reuse(wanted.packages),
                 is_hoisted: self.is_hoisted(),
                 needs_build_marker_source: marker_source,
                 removed_aliases_by_key: &links.removed_aliases_by_key,
@@ -378,8 +385,7 @@ impl<'a> CreateVirtualStore<'a> {
             ColdBatch {
                 cold: &partition.cold,
                 installer: self.cold_installer(&inputs, &runtime_platform_selector),
-                packages: inputs.wanted.packages,
-                current_packages: self.current_entries.packages,
+                reuse: self.slot_reuse(inputs.wanted.packages),
                 marker_source: inputs.marker_source,
                 removed_aliases_by_key: &inputs.links.removed_aliases_by_key,
                 link_template: &inputs.links.template,

@@ -454,6 +454,184 @@ fn available_packages_are_relinked_during_forced_install() {
     drop((root, mock_instance));
 }
 
+/// Replace a materialized package's non-marker file with different
+/// bytes, leaving its `package.json` in place. Returns the path of the
+/// damaged file and the content it should be restored to.
+///
+/// `slot_relative` names a file inside the virtual-store slot, so the
+/// caller's manifest and the file it damages stay visible together.
+fn plant_stale_bytes(workspace: &Path, slot_relative: &str) -> (std::path::PathBuf, String) {
+    let body = workspace.join("node_modules/.pnpm").join(slot_relative);
+    let original = fs::read_to_string(&body).expect("read the materialized package's body");
+    // A slot that already holds the stale bytes is one another test left
+    // behind, which would make the assertion compare stale to stale and
+    // pass for the wrong reason.
+    assert_ne!(original, STALE_BYTES, "the slot must start from its real contents");
+    // Removing before writing breaks the link to the store's copy, so
+    // the damage stays local to the slot.
+    fs::remove_file(&body).expect("remove the materialized body");
+    fs::write(&body, STALE_BYTES).expect("write stale bytes into the slot");
+    (body, original)
+}
+
+/// Recognizably not any package's real content, so a slot still holding
+/// it after a forced install is unambiguous.
+const STALE_BYTES: &str = "throw new Error('stale')\n";
+
+const PKG_WITH_1_DEP_BODY: &str =
+    "@pnpm.e2e+pkg-with-1-dep@100.0.0/node_modules/@pnpm.e2e/pkg-with-1-dep/index.js";
+
+/// The two tests above damage a package's `package.json`, which is the
+/// completion marker itself, so the import cannot mistake the slot for a
+/// finished one. These two leave the marker in place and damage a file it
+/// does not cover: the slot then looks complete, and only the forced
+/// re-import replaces what drifted
+/// (<https://github.com/pnpm/pnpm/issues/15030>).
+#[test]
+fn forced_install_replaces_a_slot_the_completion_marker_still_vouches_for() {
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({ "dependencies": { "@pnpm.e2e/pkg-with-1-dep": "100.0.0" } }).to_string(
+        ),
+    )
+    .expect("write package.json");
+    pacquet
+        .with_arg("install")
+        .assert()
+        .success();
+
+    let (body, original) = plant_stale_bytes(&workspace, PKG_WITH_1_DEP_BODY);
+
+    pacquet_in(&workspace)
+        .with_args(["install", "--frozen-lockfile", "--force"])
+        .assert()
+        .success();
+
+    assert_eq!(
+        fs::read_to_string(&body).expect("read the re-imported body"),
+        original,
+        "the forced install must replace the slot's stale bytes",
+    );
+
+    drop((root, mock_instance));
+}
+
+/// The same forced re-import on the path that has to resolve: the
+/// lockfile is stale, so the fresh path materializes.
+#[test]
+fn forced_fresh_install_replaces_a_slot_the_completion_marker_still_vouches_for() {
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({ "dependencies": { "@pnpm.e2e/pkg-with-1-dep": "100.0.0" } }).to_string(
+        ),
+    )
+    .expect("write package.json");
+    pacquet
+        .with_arg("install")
+        .assert()
+        .success();
+
+    let (body, original) = plant_stale_bytes(&workspace, PKG_WITH_1_DEP_BODY);
+
+    // Extend the manifest only, so the wanted lockfile is stale and the
+    // next install resolves rather than taking the frozen path.
+    fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({
+            "dependencies": {
+                "@pnpm.e2e/pkg-with-1-dep": "100.0.0",
+                "@pnpm.e2e/foobarqar": "1.0.0",
+            },
+        })
+        .to_string(),
+    )
+    .expect("extend package.json");
+
+    pacquet_in(&workspace)
+        .with_args(["install", "--force"])
+        .assert()
+        .success();
+
+    assert!(workspace.join("node_modules/@pnpm.e2e/foobarqar").exists());
+    assert_eq!(
+        fs::read_to_string(&body).expect("read the re-imported body"),
+        original,
+        "the forced install must replace the slot's stale bytes",
+    );
+
+    drop((root, mock_instance));
+}
+
+/// The global virtual store repairs a drifted slot through a different
+/// path: its slots are shared, so the import compares the slot's files
+/// against the store instead of staging a replacement.
+#[test]
+fn forced_install_replaces_a_drifted_global_virtual_store_slot() {
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({ "dependencies": { "@pnpm.e2e/pkg-with-1-dep": "100.0.0" } }).to_string(
+        ),
+    )
+    .expect("write package.json");
+    // Flipping the harness's own line keeps `storeDir` pointed at this
+    // test's temp store. Writing this file from scratch would send the
+    // shared slots to the caller's real global store.
+    enable_gvs_in_workspace_yaml(&workspace, "");
+    pacquet
+        .with_arg("install")
+        .assert()
+        .success();
+
+    let body = workspace
+        .join("node_modules/@pnpm.e2e/pkg-with-1-dep/index.js")
+        .canonicalize()
+        .expect("resolve the global virtual store slot");
+    let original = fs::read_to_string(&body).expect("read the materialized body");
+    assert_ne!(original, STALE_BYTES, "the slot must start from its real contents");
+    fs::remove_file(&body).expect("remove the materialized body");
+    fs::write(&body, STALE_BYTES).expect("write stale bytes into the slot");
+
+    pacquet_in(&workspace)
+        .with_args(["install", "--force"])
+        .assert()
+        .success();
+
+    assert_eq!(
+        fs::read_to_string(&body).expect("read the re-imported body"),
+        original,
+        "the forced install must replace the shared slot's stale bytes",
+    );
+
+    drop((root, mock_instance));
+}
+
 /// pnpm's `file:` is a copy taken at install time, not a symlink, so
 /// each install must re-copy: the source can change with no lockfile
 /// change to signal it.
