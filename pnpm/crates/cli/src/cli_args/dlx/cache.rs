@@ -179,24 +179,40 @@ pub(super) fn create_cache_key(
         sorted_allow.sort_unstable();
         args.push(json!({ "allowBuild": sorted_allow }));
     }
-    if let Some(arch) = supported_architectures {
-        for (key, values) in [("cpu", &arch.cpu), ("libc", &arch.libc), ("os", &arch.os)] {
-            let Some(values) = values
-                .as_ref()
-                .filter(|values| !values.is_empty())
-            else {
-                continue;
-            };
-            let mut deduped: Vec<&str> = values
-                .iter()
-                .map(String::as_str)
-                .collect();
-            deduped.sort_unstable();
-            deduped.dedup();
-            args.push(json!({ "supportedArchitectures": { key: deduped } }));
+    match supported_architectures {
+        Some(SupportedArchitectures::Axes(axes)) => {
+            for (key, values) in [("cpu", &axes.cpu), ("libc", &axes.libc), ("os", &axes.os)] {
+                let Some(values) = values
+                    .as_ref()
+                    .filter(|values| !values.is_empty())
+                else {
+                    continue;
+                };
+                args.push(json!({ "supportedArchitectures": { key: sorted_once(values) } }));
+            }
         }
+        Some(SupportedArchitectures::Platforms(platforms)) => {
+            let named: Vec<String> = platforms
+                .iter()
+                .map(ToString::to_string)
+                .collect();
+            args.push(json!({ "supportedArchitectures": sorted_once(&named) }));
+        }
+        None => {}
     }
     create_short_hash(&serde_json::to_string(&args).expect("serialize cache key inputs"))
+}
+
+/// The values as the cache key records them: named once, in an order
+/// rewriting the configuration cannot change.
+fn sorted_once(values: &[String]) -> Vec<&str> {
+    let mut deduped: Vec<&str> = values
+        .iter()
+        .map(String::as_str)
+        .collect();
+    deduped.sort_unstable();
+    deduped.dedup();
+    deduped
 }
 
 /// Return the cache target behind `cache_link` when it is a symlink whose

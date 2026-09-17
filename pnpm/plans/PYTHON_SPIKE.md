@@ -18,7 +18,6 @@ python:
   constraints: []
   extras: []
   groups: [dev]
-  platforms: []
   pythonVersions: []
   downloads: auto # or never
   downloadUrl: https://github.com/astral-sh/python-build-standalone/releases
@@ -404,30 +403,34 @@ three.
 
 ## The environments a lockfile covers
 
-`platforms` and `pythonVersions` name the environments `pylock.toml` is
-resolved for. Every platform is paired with every Python version, and a list
-left empty is the platform or the Python version of the interpreter running
-the install. Declaring neither locks for that interpreter alone.
+`supportedArchitectures` and `python.pythonVersions` name the environments
+`pylock.toml` is resolved for. Every platform is paired with every Python
+version, and a setting left out is the platform or the Python version of the
+interpreter running the install. Declaring neither locks for that interpreter
+alone.
 
-A platform names an architecture and a system, either as a Rust target
-triple or as an architecture and the libc baseline its wheels are built
-against. `linux`, `macos` and `windows` are short names for the most common
-three:
+`supportedArchitectures` is the setting that says which platforms the whole
+install prepares for, npm dependencies included. Written as a list it names
+the platforms themselves, each as `<os>-<cpu>[-<libc>]` or as the Rust target
+triple of the same machine. A Linux platform may name the libc baseline its
+wheels are built against in place of the C library:
 
 ```yaml
+supportedArchitectures:
+  - linux-x64-manylinux_2_28
+  - darwin-arm64
+  - win32-x64
 python:
   enabled: true
-  platforms:
-    - x86_64-manylinux_2_28
-    - aarch64-apple-darwin
-    - x86_64-pc-windows-msvc
   pythonVersions: ['3.12', '3.13']
 ```
 
+Written as the `os`, `cpu` and `libc` axes instead, it stands for every
+combination of the values they name.
+
 A declared environment is a CPython interpreter built against the standard
-ABI. A triple ending in
-`-unknown-linux-gnu`, and `linux`, are resolved against glibc 2.17;
-`-unknown-linux-musl` against musl 1.2; an Apple platform against macOS 14.0.
+ABI. A Linux platform that names no baseline is resolved against glibc 2.17,
+or musl 1.2 when it names musl; an Apple platform against macOS 14.0.
 
 A Python version written as a minor version is resolved as that minor's first
 release, which is the oldest interpreter the environment covers. A release

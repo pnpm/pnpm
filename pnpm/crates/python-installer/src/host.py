@@ -48,11 +48,6 @@ def probe(request):
 # to that environment.
 DEFAULT_LIBC = {"gnu": "manylinux_2_17", "musl": "musllinux_1_2"}
 MACOS_VERSION = (14, 0)
-PLATFORM_ALIASES = {
-    "linux": "x86_64-unknown-linux-gnu",
-    "macos": "aarch64-apple-darwin",
-    "windows": "x86_64-pc-windows-msvc",
-}
 # The glibc versions that also have a pre-PEP 600 tag, and the
 # architectures each of those tags was ever defined for.
 MANYLINUX_LEGACY = {5: "manylinux1", 12: "manylinux2010", 17: "manylinux2014"}
@@ -65,9 +60,6 @@ LEGACY_ARCHITECTURES = {
 # of each a platform can name. A number outside them is a typo rather than a
 # baseline, and counting down from it would take unbounded time and memory.
 LIBC_BASELINES = {"manylinux": ("2", 5, 99), "musllinux": ("1", 0, 99)}
-# Python's wheel tags spell some architectures differently from the Rust
-# target triple that names the same machine.
-WHEEL_ARCHITECTURES = {"powerpc64": "ppc64", "powerpc64le": "ppc64le", "riscv64gc": "riscv64"}
 DARWIN_MACHINES = {"x86_64": "x86_64", "aarch64": "arm64"}
 WINDOWS_MACHINES = {"x86_64": ("AMD64", "win_amd64"), "aarch64": ("ARM64", "win_arm64"), "i686": ("x86", "win32")}
 
@@ -75,8 +67,7 @@ WINDOWS_MACHINES = {"x86_64": ("AMD64", "win_amd64"), "aarch64": ("ARM64", "win_
 def describe_platform(name):
     """The marker variables a declared platform fixes, and the wheel platform tags it accepts."""
     _, tags = packaging_modules()
-    architecture, separator, system = PLATFORM_ALIASES.get(name, name).partition("-")
-    architecture = WHEEL_ARCHITECTURES.get(architecture, architecture)
+    architecture, separator, system = name.partition("-")
     system = DEFAULT_LIBC.get(system.removeprefix("unknown-linux-"), system)
     if separator and (system.startswith("manylinux_") or system.startswith("musllinux_")):
         return linux_platform(architecture, system)

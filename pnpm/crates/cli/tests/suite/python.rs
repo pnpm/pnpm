@@ -189,28 +189,44 @@ fn add_python_settings(root: &Path, settings: &str) {
     .unwrap();
 }
 
-/// The platform of the machine running the tests, as `python.platforms`
-/// names it, and the tag a wheel built for it carries.
+/// Declare the platforms this workspace prepares for, which is what
+/// `pylock.toml` is resolved for.
+fn add_supported_architectures(root: &Path, platforms: &[&str]) {
+    let path = root.join("pnpm-workspace.yaml");
+    let mut workspace = fs::read_to_string(&path).unwrap();
+    workspace.push_str("supportedArchitectures:\n");
+    for platform in platforms {
+        writeln!(workspace, "  - {platform}").unwrap();
+    }
+    fs::write(&path, workspace).unwrap();
+}
+
+/// The platform of the machine running the tests, as
+/// `supportedArchitectures` names it, and the tag a wheel built for it
+/// carries.
 fn running_platform() -> (&'static str, &'static str) {
     match (std::env::consts::OS, std::env::consts::ARCH) {
-        ("linux", "x86_64") => ("x86_64-manylinux_2_17", "py3-none-manylinux_2_17_x86_64"),
-        ("linux", "aarch64") => ("aarch64-manylinux_2_17", "py3-none-manylinux_2_17_aarch64"),
-        ("macos", "x86_64") => ("x86_64-apple-darwin", "py3-none-macosx_11_0_x86_64"),
-        ("macos", "aarch64") => ("aarch64-apple-darwin", "py3-none-macosx_11_0_arm64"),
-        ("windows", "x86_64") => ("x86_64-pc-windows-msvc", "py3-none-win_amd64"),
-        ("windows", "aarch64") => ("aarch64-pc-windows-msvc", "py3-none-win_arm64"),
+        ("linux", "x86_64") => ("linux-x64", "py3-none-manylinux_2_17_x86_64"),
+        ("linux", "aarch64") => ("linux-arm64", "py3-none-manylinux_2_17_aarch64"),
+        ("macos", "x86_64") => ("darwin-x64", "py3-none-macosx_11_0_x86_64"),
+        ("macos", "aarch64") => ("darwin-arm64", "py3-none-macosx_11_0_arm64"),
+        ("windows", "x86_64") => ("win32-x64", "py3-none-win_amd64"),
+        ("windows", "aarch64") => ("win32-arm64", "py3-none-win_arm64"),
         (os, architecture) => panic!("these tests do not name the platform {os} {architecture}"),
     }
 }
 
-/// The short name `python.platforms` also accepts for the platform
-/// running the test, when one of them stands for it.
-fn running_platform_alias() -> Option<&'static str> {
+/// The Rust target triple of the platform running the test, which is the
+/// other spelling `supportedArchitectures` accepts for it.
+fn running_platform_triple() -> &'static str {
     match running_platform().0 {
-        "x86_64-manylinux_2_17" => Some("linux"),
-        "aarch64-apple-darwin" => Some("macos"),
-        "x86_64-pc-windows-msvc" => Some("windows"),
-        _ => None,
+        "linux-x64" => "x86_64-unknown-linux-gnu",
+        "linux-arm64" => "aarch64-unknown-linux-gnu",
+        "darwin-x64" => "x86_64-apple-darwin",
+        "darwin-arm64" => "aarch64-apple-darwin",
+        "win32-x64" => "x86_64-pc-windows-msvc",
+        "win32-arm64" => "aarch64-pc-windows-msvc",
+        platform => panic!("these tests do not name a triple for {platform}"),
     }
 }
 
@@ -218,10 +234,9 @@ fn running_platform_alias() -> Option<&'static str> {
 /// refuses an interpreter no declared environment stands for.
 fn declared_platforms() -> Vec<(&'static str, &'static str)> {
     let mut platforms = vec![running_platform()];
-    for platform in [
-        ("aarch64-apple-darwin", "py3-none-macosx_11_0_arm64"),
-        ("x86_64-pc-windows-msvc", "py3-none-win_amd64"),
-    ] {
+    for platform in
+        [("darwin-arm64", "py3-none-macosx_11_0_arm64"), ("win32-x64", "py3-none-win_amd64")]
+    {
         if !platforms.contains(&platform) {
             platforms.push(platform);
         }
@@ -1713,11 +1728,13 @@ async fn locks_every_declared_platform_into_one_lockfile() {
     )
     .await;
     project(root.path(), &server.url(), &["alpha>=1", "gamma>=1"]);
-    let mut declaration = String::new();
-    for (platform, _) in &platforms {
-        writeln!(declaration, "    - {platform}").unwrap();
-    }
-    add_python_settings(root.path(), &format!("  platforms:\n{declaration}"));
+    add_supported_architectures(
+        root.path(),
+        &platforms
+            .iter()
+            .map(|(platform, _)| *platform)
+            .collect::<Vec<_>>(),
+    );
 
     pacquet_in(root.path())
         .arg("install")
@@ -1819,12 +1836,14 @@ async fn refuses_an_interpreter_none_of_the_declared_environments_stand_for() {
 #[tokio::test]
 async fn rejects_a_platform_it_cannot_resolve_for() {
     let cases = [
-        ("x86_64-linux", "pnpm does not know the Python platform x86_64-linux"),
+        ("x86_64-linux", "pnpm does not know the platform x86_64-linux"),
+        ("darwin-arm64-musl", "only a Linux platform names a C library"),
+        ("darwin-ia32", "pnpm does not know the Python platform i686-apple-darwin"),
         (
-            "x86_64-manylinux_2_100000000",
+            "linux-x64-manylinux_2_100000000",
             "pnpm does not know the Python libc baseline manylinux_2_100000000",
         ),
-        ("x86_64-musllinux_9_9", "pnpm does not know the Python libc baseline musllinux_9_9"),
+        ("linux-x64-musllinux_9_9", "pnpm does not know the Python libc baseline musllinux_9_9"),
     ];
     for (platform, expected) in cases {
         eprintln!("platform {platform:?}");
@@ -1832,33 +1851,23 @@ async fn rejects_a_platform_it_cannot_resolve_for() {
         let mut server = mockito::Server::new_async().await;
         let _alpha = serve(&mut server, "alpha", &[("1.0", wheel("alpha", "1.0", "", &[]))]).await;
         project(root.path(), &server.url(), &["alpha>=1"]);
-        add_python_settings(root.path(), &format!("  platforms:\n    - {platform}\n"));
+        add_supported_architectures(root.path(), &[platform]);
 
         assert_failure_contains(pacquet_in(root.path()).arg("install"), expected);
     }
 }
 
-/// Dropping a repeat leaves a lockfile that still answers the project:
-/// what it records is the environments it resolved, not the spellings.
+/// Renaming a platform leaves a lockfile that still answers the project:
+/// what it records is the platform, not the spelling it was written in.
 #[tokio::test]
 async fn locks_one_environment_per_platform_however_it_is_named() {
     let root = tempfile::tempdir().unwrap();
     let mut server = mockito::Server::new_async().await;
     let (platform, tag) = running_platform();
+    let triple = running_platform_triple();
     let _alpha = serve_wheels(&mut server, "alpha", "1.0", &[tag]).await;
-    let alias = running_platform_alias();
-    let names = |repeated: bool| {
-        let mut declaration = String::new();
-        for _ in 0..if repeated { 2 } else { 1 } {
-            writeln!(declaration, "    - {platform}").unwrap();
-        }
-        if let Some(alias) = alias {
-            writeln!(declaration, "    - {alias}").unwrap();
-        }
-        format!("  platforms:\n{declaration}")
-    };
     project(root.path(), &server.url(), &["alpha>=1"]);
-    add_python_settings(root.path(), &names(true));
+    add_supported_architectures(root.path(), &[platform, platform, triple]);
 
     pacquet_in(root.path())
         .arg("install")
@@ -1875,16 +1884,10 @@ async fn locks_one_environment_per_platform_however_it_is_named() {
             .len(),
         1,
     );
-    assert_eq!(
-        parsed["tool"]["pnpm"]["platforms"]
-            .as_array()
-            .unwrap()
-            .len(),
-        1 + usize::from(alias.is_some()),
-    );
+    assert_eq!(parsed["tool"]["pnpm"]["platforms"].as_array().unwrap(), &[platform.into()]);
 
     project(root.path(), &server.url(), &["alpha>=1"]);
-    add_python_settings(root.path(), &names(false));
+    add_supported_architectures(root.path(), &[triple]);
     pacquet_in(root.path())
         .args(["install", "--offline", "--frozen-lockfile"])
         .assert()

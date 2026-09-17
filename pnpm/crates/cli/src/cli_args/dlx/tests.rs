@@ -1,7 +1,7 @@
 use super::{DlxArgs, DlxError, get_bin_name, scopeless};
 use crate::cli_args::dlx::cache::{create_cache_key, get_prepare_dir, get_valid_cache_dir};
 use clap::Parser;
-use pnpm_package_is_installable::SupportedArchitectures;
+use pnpm_package_is_installable::{ArchitectureAxes, SupportedArchitectures};
 use std::{
     collections::BTreeMap,
     fs,
@@ -102,18 +102,24 @@ fn create_cache_key_changes_with_supported_architectures() {
     let registry = "https://registry.npmjs.org/";
     let base = create_cache_key(&pkgs, &regs(registry), &[], None);
 
-    let arm = SupportedArchitectures { cpu: Some(vec!["arm64".to_string()]), ..Default::default() };
-    let x64 = SupportedArchitectures { cpu: Some(vec!["x64".to_string()]), ..Default::default() };
+    let arm = SupportedArchitectures::Axes(ArchitectureAxes {
+        cpu: Some(vec!["arm64".to_string()]),
+        ..Default::default()
+    });
+    let x64 = SupportedArchitectures::Axes(ArchitectureAxes {
+        cpu: Some(vec!["x64".to_string()]),
+        ..Default::default()
+    });
     let key_arm = create_cache_key(&pkgs, &regs(registry), &[], Some(&arm));
     let key_x64 = create_cache_key(&pkgs, &regs(registry), &[], Some(&x64));
 
     assert_ne!(base, key_arm, "an architecture override must change the key");
     assert_ne!(key_arm, key_x64, "different --cpu values must produce different keys");
 
-    let arm_dup = SupportedArchitectures {
+    let arm_dup = SupportedArchitectures::Axes(ArchitectureAxes {
         cpu: Some(vec!["arm64".to_string(), "arm64".to_string()]),
         ..Default::default()
-    };
+    });
     assert_eq!(
         key_arm,
         create_cache_key(&pkgs, &regs(registry), &[], Some(&arm_dup)),

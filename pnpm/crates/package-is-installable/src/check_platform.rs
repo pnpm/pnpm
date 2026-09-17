@@ -1,23 +1,12 @@
 //! Checks a package's wanted `os` / `cpu` / `libc` against the host.
 
+use crate::supported_architectures::{
+    ArchitectureAxes, SupportedArchitectures,
+    platform::{NamedPlatform, SupportedPlatform},
+};
 use derive_more::{Display, Error};
 use miette::Diagnostic;
-use serde::{Deserialize, Serialize};
-
-/// Caller-supplied override for the `os` / `cpu` / `libc` triples
-/// against which a package's wanted platform is evaluated. Each list
-/// defaults to `['current']` at the call site (read from the config
-/// setting, falling back to `['current']` if absent). The `'current'`
-/// sentinel is compared as the concrete host triple.
-#[derive(Debug, Default, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct SupportedArchitectures {
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub os: Option<Vec<String>>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub cpu: Option<Vec<String>>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub libc: Option<Vec<String>>,
-}
+use serde::Serialize;
 
 /// Wanted platform triple as declared by a package's manifest
 /// (`os`, `cpu`, `libc`). Each is optional; absent means "any".
@@ -130,7 +119,8 @@ fn json_string_array(values: &[String]) -> String {
 /// (for diagnostic display via the
 /// [`UnsupportedPlatformError`]).
 ///
-/// `supported_architectures` substitutes for `['current']` per axis.
+/// `supported` substitutes for `['current']`: per axis when it names the
+/// axes, and as a whole when it names the platforms themselves.
 ///
 /// `current_os`, `current_cpu`, and `current_libc` are passed in
 /// rather than read from the environment so this function stays
@@ -164,6 +154,59 @@ pub fn check_platform(
 pub fn platform_is_supported(
     wanted: WantedPlatformRef<'_>,
     supported: Option<&SupportedArchitectures>,
+    current_os: &str,
+    current_cpu: &str,
+    current_libc: &str,
+) -> bool {
+    match supported {
+        Some(SupportedArchitectures::Platforms(platforms)) => platforms
+            .iter()
+            .any(|platform| {
+                platform_allows(platform, wanted, current_os, current_cpu, current_libc)
+            }),
+        Some(SupportedArchitectures::Axes(axes)) => {
+            axes_allow(Some(axes), wanted, current_os, current_cpu, current_libc)
+        }
+        None => axes_allow(None, wanted, current_os, current_cpu, current_libc),
+    }
+}
+
+/// Whether one platform of a platform list takes the package.
+fn platform_allows(
+    platform: &SupportedPlatform,
+    wanted: WantedPlatformRef<'_>,
+    current_os: &str,
+    current_cpu: &str,
+    current_libc: &str,
+) -> bool {
+    match platform {
+        SupportedPlatform::Current => {
+            axes_allow(None, wanted, current_os, current_cpu, current_libc)
+        }
+        SupportedPlatform::Named(named) => named_platform_allows(named, wanted),
+    }
+}
+
+/// Whether a platform named outright takes the package. Every axis is
+/// judged against that one platform's own value, so the package is taken
+/// only where the whole platform suits it, rather than where each axis
+/// suits it on its own. A platform that has no C library places no
+/// constraint on one.
+fn named_platform_allows(platform: &NamedPlatform, wanted: WantedPlatformRef<'_>) -> bool {
+    wanted.os.is_none_or(|wanted_os| axis_is_supported(platform.os.name(), None, wanted_os))
+        && wanted.cpu.is_none_or(|wanted_cpu| {
+            axis_is_supported(platform.architecture.cpu(), None, wanted_cpu)
+        })
+        && wanted.libc.is_none_or(|wanted_libc| {
+            platform.libc
+                .as_ref()
+                .is_none_or(|libc| axis_is_supported(libc.name(), None, wanted_libc))
+        })
+}
+
+fn axes_allow(
+    supported: Option<&ArchitectureAxes>,
+    wanted: WantedPlatformRef<'_>,
     current_os: &str,
     current_cpu: &str,
     current_libc: &str,

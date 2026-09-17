@@ -5855,6 +5855,7 @@ dependencies = [
  "pnpm-git-fetcher",
  "pnpm-install-coordinator",
  "pnpm-network",
+ "pnpm-package-is-installable",
  "pnpm-pnpr-client",
  "pnpm-python-resolver",
  "pnpm-reporter",

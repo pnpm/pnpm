@@ -4,16 +4,16 @@ use super::{
 };
 use crate::install_package_by_snapshot::runtime::synthesize_runtime_manifest_bytes;
 use pnpm_lockfile::{BinaryArchive, BinaryResolution, BinarySpec, LockfileResolution, PackageKey};
-use pnpm_package_is_installable::SupportedArchitectures;
+use pnpm_package_is_installable::{ArchitectureAxes, SupportedArchitectures};
 use pretty_assertions::assert_eq;
 
 #[test]
 fn runtime_platform_selector_falls_back_to_the_first_configured_target_the_host_is_absent_from() {
-    let supported = SupportedArchitectures {
+    let supported = SupportedArchitectures::Axes(ArchitectureAxes {
         os: Some(vec!["freebsd".to_string(), "openbsd".to_string()]),
         cpu: Some(vec!["ppc64".to_string(), "s390x".to_string()]),
         libc: Some(vec!["current".to_string(), "musl".to_string()]),
-    };
+    });
 
     let selector = runtime_platform_selector(Some(&supported));
 
@@ -24,11 +24,11 @@ fn runtime_platform_selector_falls_back_to_the_first_configured_target_the_host_
 #[test]
 fn runtime_platform_selector_prefers_the_host_over_the_other_configured_targets() {
     let host = host_platform_selector();
-    let supported = SupportedArchitectures {
+    let supported = SupportedArchitectures::Axes(ArchitectureAxes {
         os: Some(vec!["freebsd".to_string(), host.os.clone()]),
         cpu: Some(vec!["ppc64".to_string(), host.cpu.clone()]),
         libc: None,
-    };
+    });
 
     let selector = runtime_platform_selector(Some(&supported));
 
@@ -36,11 +36,11 @@ fn runtime_platform_selector_prefers_the_host_over_the_other_configured_targets(
 }
 #[test]
 fn runtime_platform_selector_expands_current_to_the_host() {
-    let supported = SupportedArchitectures {
+    let supported = SupportedArchitectures::Axes(ArchitectureAxes {
         os: Some(vec!["freebsd".to_string(), "current".to_string()]),
         cpu: Some(vec!["current".to_string()]),
         libc: Some(vec!["current".to_string()]),
-    };
+    });
 
     let selector = runtime_platform_selector(Some(&supported));
 

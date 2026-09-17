@@ -6,3 +6,4 @@ mod check_engine;
 mod check_platform;
 mod infer_platform_from_package_name;
 mod package_is_installable;
+mod supported_architectures;

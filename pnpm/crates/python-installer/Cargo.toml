@@ -21,6 +21,7 @@ pnpm-fs = { workspace = true }
 pnpm-git-fetcher = { workspace = true }
 pnpm-install-coordinator = { workspace = true }
 pnpm-network = { workspace = true }
+pnpm-package-is-installable = { workspace = true }
 pnpm-pnpr-client = { workspace = true }
 pnpm-python-resolver = { workspace = true }
 pnpm-reporter = { workspace = true }
