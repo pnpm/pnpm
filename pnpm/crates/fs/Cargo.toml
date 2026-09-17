@@ -18,6 +18,7 @@ derive_more = { workspace = true }
 dunce = { workspace = true }
 miette = { workspace = true }
 pathdiff = { workspace = true }
+reflink-copy = { workspace = true }
 tempfile = { workspace = true }
 tracing = { workspace = true }
 

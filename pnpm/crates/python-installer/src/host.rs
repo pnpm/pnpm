@@ -209,7 +209,7 @@ fn import_files(files: Vec<FileImport>, mode: pnpm_config::PythonLinkMode) -> Re
             mode
         };
         let copied = file
-            .import(method)
+            .import::<pnpm_fs::Host>(method)
             .into_diagnostic()
             .wrap_err_with(|| {
                 format!(
@@ -239,7 +239,10 @@ struct FileImport {
 }
 
 impl FileImport {
-    fn import(&self, mode: pnpm_config::PythonLinkMode) -> std::io::Result<bool> {
+    fn import<Sys: pnpm_fs::FsReflink>(
+        &self,
+        mode: pnpm_config::PythonLinkMode,
+    ) -> std::io::Result<bool> {
         use pnpm_config::PythonLinkMode;
         use std::fs;
         let copied = match mode {
@@ -252,9 +255,21 @@ impl FileImport {
                 }
                 Err(error) => return Err(error),
             },
-            PythonLinkMode::Reflink => {
-                reflink_copy::reflink_or_copy(&self.source, &self.destination)?.is_some()
-            }
+            PythonLinkMode::Reflink => match Sys::reflink(&self.source, &self.destination) {
+                Ok(()) => false,
+                Err(error)
+                    if matches!(
+                        error.kind(),
+                        std::io::ErrorKind::NotFound | std::io::ErrorKind::AlreadyExists,
+                    ) =>
+                {
+                    return Err(error);
+                }
+                Err(_) => {
+                    fs::copy(&self.source, &self.destination)?;
+                    true
+                }
+            },
         };
         if self.executable && (mode != PythonLinkMode::Hardlink || copied) {
             pnpm_fs::file_mode::set_path_permissions(&self.destination, 0o755)?;
@@ -263,5 +278,5 @@ impl FileImport {
     }
 }
 
-#[cfg(all(test, unix))]
+#[cfg(test)]
 mod tests;

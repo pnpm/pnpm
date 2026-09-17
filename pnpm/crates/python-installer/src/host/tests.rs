@@ -1,70 +1,81 @@
-use super::{inspect, install};
-use base64::{
-    Engine as _,
-    engine::general_purpose::{STANDARD, URL_SAFE_NO_PAD},
-};
+use super::FileImport;
 use pnpm_config::PythonLinkMode;
-use std::{
-    collections::BTreeMap,
-    fmt::Write as _,
-    fs,
-    os::unix::fs::PermissionsExt,
-    path::{Path, PathBuf},
-};
+use pnpm_fs::FsReflink;
+use std::{fs, io, path::Path};
 
-fn unpacked_wheel(root: &Path) -> BTreeMap<String, PathBuf> {
-    let mut files = BTreeMap::new();
-    let mut record = String::new();
-    for (name, body) in [
-        ("alpha-1.0.dist-info/METADATA", "Metadata-Version: 2.4\nName: alpha\nVersion: 1.0\n"),
-        (
-            "alpha-1.0.dist-info/WHEEL",
-            "Wheel-Version: 1.0\nRoot-Is-Purelib: true\nTag: py3-none-any\n",
-        ),
-        ("alpha-1.0.data/scripts/native", "#!/bin/sh\nprintf native\n"),
-        ("alpha/plain-exec", "private data\n"),
-    ] {
-        let path = root.join(name);
-        fs::create_dir_all(path.parent().unwrap()).unwrap();
-        fs::write(&path, body).unwrap();
-        fs::set_permissions(
-            &path,
-            fs::Permissions::from_mode(if name.ends_with("/native") { 0o755 } else { 0o644 }),
-        )
-        .unwrap();
-        let hash = pnpm_crypto_hash::create_hash(body);
-        let digest = STANDARD
-            .decode(hash.strip_prefix("sha256-").unwrap())
-            .unwrap();
-        writeln!(record, "{name},sha256={},{}", URL_SAFE_NO_PAD.encode(digest), body.len()).unwrap(
-        );
-        files.insert(name.to_string(), path);
+#[cfg(unix)]
+mod unix;
+
+struct PermissionDenied;
+
+impl FsReflink for PermissionDenied {
+    fn reflink(_: &Path, _: &Path) -> io::Result<()> {
+        Err(io::ErrorKind::PermissionDenied.into())
     }
-    let name = "alpha-1.0.dist-info/RECORD";
-    writeln!(record, "{name},,").unwrap();
-    let path = root.join(name);
-    fs::write(&path, record).unwrap();
-    files.insert(name.to_string(), path);
-    files
 }
 
-#[tokio::test]
-async fn unpacked_executables_keep_permissions_without_cas_names() {
-    let temporary = tempfile::tempdir().unwrap();
-    let files = unpacked_wheel(&temporary.path().join("wheel"));
-    let metadata = inspect("python3", &files).await.unwrap();
-    let packages = serde_json::json!([{ "files": files, "metadata": metadata }]);
-    for mode in [PythonLinkMode::Reflink, PythonLinkMode::Hardlink, PythonLinkMode::Copy] {
-        let root = temporary
-            .path()
-            .join(format!("{mode:?}"));
-        install("python3", &root, &packages, mode).await.unwrap();
-        let output = tokio::process::Command::new(root.join("bin/native")).output().await.unwrap();
-        assert!(output.status.success());
-        assert_eq!(output.stdout, b"native");
-        let output = tokio::process::Command::new(root.join("bin/python"))
-            .args(["-I", "-c", "import os, sysconfig; from pathlib import Path; p = Path(sysconfig.get_path('purelib')) / 'alpha/plain-exec'; assert not os.access(p, os.X_OK)"])
-            .output().await.unwrap();
-        assert!(output.status.success(), "{}", String::from_utf8_lossy(&output.stderr));
+struct Missing;
+
+impl FsReflink for Missing {
+    fn reflink(_: &Path, _: &Path) -> io::Result<()> {
+        Err(io::ErrorKind::NotFound.into())
     }
+}
+
+struct Occupied;
+
+impl FsReflink for Occupied {
+    fn reflink(_: &Path, _: &Path) -> io::Result<()> {
+        Err(io::ErrorKind::AlreadyExists.into())
+    }
+}
+
+#[test]
+fn denied_reflinks_fall_back_to_private_copies_and_report_copy_errors() {
+    let temporary = tempfile::tempdir().unwrap();
+    let file = FileImport {
+        source: temporary.path().join("source"),
+        destination: temporary.path().join("destination"),
+        executable: false,
+        device: 0,
+    };
+    fs::write(&file.source, "unchanged").unwrap();
+    assert!(file.import::<PermissionDenied>(PythonLinkMode::Reflink).unwrap());
+    assert_eq!(fs::read_to_string(&file.destination).unwrap(), "unchanged");
+    fs::write(&file.destination, "changed").unwrap();
+    assert_eq!(fs::read_to_string(&file.source).unwrap(), "unchanged");
+    fs::remove_file(&file.source).unwrap();
+    let error = file.import::<PermissionDenied>(PythonLinkMode::Reflink).unwrap_err();
+    assert_eq!(error.kind(), io::ErrorKind::NotFound);
+}
+
+#[test]
+fn missing_reflink_sources_do_not_trigger_copy_fallback() {
+    let temporary = tempfile::tempdir().unwrap();
+    let file = FileImport {
+        source: temporary.path().join("source"),
+        destination: temporary.path().join("destination"),
+        executable: false,
+        device: 0,
+    };
+    fs::write(&file.source, "unchanged").unwrap();
+    let error = file.import::<Missing>(PythonLinkMode::Reflink).unwrap_err();
+    assert_eq!(error.kind(), io::ErrorKind::NotFound);
+    assert!(!file.destination.exists());
+}
+
+#[test]
+fn existing_reflink_targets_are_not_overwritten_by_copy_fallback() {
+    let temporary = tempfile::tempdir().unwrap();
+    let file = FileImport {
+        source: temporary.path().join("source"),
+        destination: temporary.path().join("destination"),
+        executable: false,
+        device: 0,
+    };
+    fs::write(&file.source, "source").unwrap();
+    fs::write(&file.destination, "private").unwrap();
+    let error = file.import::<Occupied>(PythonLinkMode::Reflink).unwrap_err();
+    assert_eq!(error.kind(), io::ErrorKind::AlreadyExists);
+    assert_eq!(fs::read_to_string(&file.destination).unwrap(), "private");
 }
