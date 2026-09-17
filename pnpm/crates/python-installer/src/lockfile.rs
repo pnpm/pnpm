@@ -79,9 +79,9 @@ impl PythonPrepare<'_> {
         if registry.resolution.packages.overrides.is_empty()
             && registry.resolution.packages.constraints.is_empty()
             && let Some(lock) =
-                self.resolve_remotely(requirements, requires_python.clone(), &local).await?
+                self.resolve_remotely(requirements, (&inputs, requires_python.as_deref()), &local)
+                    .await?
         {
-            accept_server_lockfile(&lock, &inputs, requires_python.as_deref())?;
             return self.accept_lockfile::<Reporter>(registry, lock, requirements, &local).await;
         }
         let solved =
@@ -98,14 +98,14 @@ impl PythonPrepare<'_> {
     }
 
     /// The lockfile a pnpr server resolves, when one can answer this
-    /// project. A server resolves one interpreter's environment from an
-    /// index, so a project that declares the environments it locks for is
-    /// resolved here instead, as is one that installs a project from this
-    /// repository.
+    /// project, checked to answer `inputs`. A server resolves one
+    /// interpreter's environment from an index, so a project that declares
+    /// the environments it locks for is resolved here instead, as is one
+    /// that installs a project from this repository.
     async fn resolve_remotely(
         &self,
         requirements: &[pep508_rs::Requirement],
-        requires_python: Option<String>,
+        (inputs, requires_python): (&Inputs, Option<&str>),
         local: &[workspace::LocalProject],
     ) -> Result<Option<Lockfile>> {
         if self.environments.declared
@@ -119,14 +119,22 @@ impl PythonPrepare<'_> {
         {
             return Ok(None);
         }
-        resolve_via_pnpr(
+        let Some(mut lock) = resolve_via_pnpr(
             self.context.config,
             requirements,
             &self.interpreter.target,
             self.index.url.as_str(),
-            requires_python,
+            requires_python.map(str::to_string),
         )
-        .await
+        .await?
+        else {
+            return Ok(None);
+        };
+        // A server answers for the requirements, not for which projects
+        // asked them together: the members are this install's to record.
+        lock.tool.pnpm.set_members(inputs.members().to_vec());
+        accept_server_lockfile(&lock, inputs, requires_python)?;
+        Ok(Some(lock))
     }
 
     /// Replay the lockfile on disk, or `None` when an install that may

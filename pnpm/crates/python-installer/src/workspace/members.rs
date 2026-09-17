@@ -120,22 +120,58 @@ fn member_projects<'a>(
     declaration: &UvWorkspace,
     projects: &'a [(PathBuf, Arc<Manifest>)],
 ) -> impl Iterator<Item = (&'a PathBuf, &'a Arc<Manifest>)> {
-    let included = compile(&declaration.members);
-    let excluded = compile(&declaration.exclude);
+    let patterns = Patterns::of(declaration);
     projects
         .iter()
-        .filter(move |(candidate, _)| {
-            let Ok(relative) = candidate.strip_prefix(root) else { return false };
-            let relative = if relative.as_os_str().is_empty() { Path::new(".") } else { relative };
-            candidate == root
-                || (included
-                    .iter()
-                    .any(|glob| glob.is_match(relative))
-                    && !excluded
-                        .iter()
-                        .any(|glob| glob.is_match(relative)))
-        })
+        .filter(move |(candidate, _)| patterns.contain(root, candidate))
         .map(|(candidate, manifest)| (candidate, manifest))
+}
+
+/// The `members` and `exclude` patterns of one workspace declaration.
+struct Patterns {
+    included: Vec<wax::Glob<'static>>,
+    excluded: Vec<wax::Glob<'static>>,
+}
+
+impl Patterns {
+    fn of(declaration: &UvWorkspace) -> Self {
+        Self { included: compile(&declaration.members), excluded: compile(&declaration.exclude) }
+    }
+
+    /// Whether the workspace at `root` contains the project at `candidate`.
+    fn contain(&self, root: &Path, candidate: &Path) -> bool {
+        let Ok(relative) = candidate.strip_prefix(root) else { return false };
+        let relative = if relative.as_os_str().is_empty() { Path::new(".") } else { relative };
+        candidate == root
+            || (self.included
+                .iter()
+                .any(|glob| glob.is_match(relative))
+                && !self.excluded
+                    .iter()
+                    .any(|glob| glob.is_match(relative)))
+    }
+}
+
+/// The root of the workspace whose environment the project at `dir`
+/// shares, read from the manifests above it up to `workspace`, or `None`
+/// when `dir` installs into an environment of its own. A command run in
+/// a project reads this without an install's discovery, so a manifest
+/// that does not parse counts for nothing here and is reported by the
+/// next install.
+pub(crate) fn shared_root_of(workspace: Option<&Path>, dir: &Path) -> Option<PathBuf> {
+    let stop = workspace?;
+    dir.ancestors()
+        .skip(1)
+        .take_while(|ancestor| ancestor.starts_with(stop))
+        .find(|ancestor| {
+            std::fs::read_to_string(ancestor.join("pyproject.toml"))
+                .ok()
+                .and_then(|contents| Manifest::parse(&contents).ok())
+                .filter(Manifest::shares_environment)
+                .and_then(|manifest| manifest.tool.uv.workspace.as_ref().map(Patterns::of))
+                .is_some_and(|patterns| patterns.contain(ancestor, dir))
+        })
+        .map(Path::to_path_buf)
 }
 
 /// A pattern that cannot be read matches nothing, the way a member

@@ -89,6 +89,12 @@ impl Inputs {
         self.members = members;
     }
 
+    /// The projects sharing the environment this resolution answers for.
+    #[must_use]
+    pub fn members(&self) -> &[String] {
+        &self.members
+    }
+
     /// The inputs of a resolution answered for one interpreter.
     #[must_use]
     pub fn new(requirements: &[Requirement], target: &Target, index: &str) -> Self {

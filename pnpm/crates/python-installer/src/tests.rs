@@ -179,6 +179,23 @@ fn a_lockfile_answering_another_question_is_refused() {
     assert!(error.to_string().contains("for other inputs"), "{error}");
 }
 
+/// A server answers for the requirements alone, so the members that asked
+/// them together are the install's to record before its answer is held
+/// against the inputs.
+#[test]
+fn a_server_lockfile_is_accepted_once_the_members_are_recorded() {
+    let index = "https://index.example.test/simple/";
+    let mut inputs = pnpm_python_resolver::Inputs::new(&requirements(&["demo"]), &target(), index);
+    inputs.set_members(vec!["packages/a".to_string(), "packages/b".to_string()]);
+    let mut answered: pnpm_python_resolver::Lockfile =
+        serde_json::from_value(server_lockfile(index)).expect("lockfile fixture");
+
+    let error = accept_server_lockfile(&answered, &inputs, None).expect_err("no members yet");
+    assert!(error.to_string().contains("for other inputs"), "{error}");
+    answered.tool.pnpm.set_members(inputs.members().to_vec());
+    accept_server_lockfile(&answered, &inputs, None).expect("the same question");
+}
+
 /// A lockfile records a workspace project by a path that still means the
 /// same project in another checkout of the repository.
 #[test]
@@ -288,24 +305,31 @@ fn the_members_of_a_shared_environment_share_the_interpreter_range_all_accept() 
 }
 
 /// A command run in a member of a shared environment finds the
-/// environment at the workspace root; one run where nothing shares uses
-/// the directory's own.
+/// environment at the workspace root; one run in a member of a workspace
+/// that shares none, or where no workspace is configured, uses the
+/// directory's own.
 #[test]
-fn a_command_uses_the_nearest_environment_up_to_the_workspace() {
+fn a_command_uses_the_environment_its_workspace_shares_or_its_own() {
     let workspace = tempfile::tempdir().expect("workspace directory");
     let member = workspace.path().join("packages/app");
     std::fs::create_dir_all(&member).expect("member directory");
+    std::fs::create_dir(workspace.path().join(".venv")).expect("root environment");
     let own = member.join(".venv");
+    let root_manifest = workspace.path().join("pyproject.toml");
+    std::fs::write(&root_manifest, "[tool.uv.workspace]\nmembers = ['packages/*']\n")
+        .expect("unshared workspace");
     assert_eq!(super::environment_dir(Some(workspace.path()), &member), own);
-    assert_eq!(super::environment_dir(None, &member), own);
 
-    std::fs::create_dir(workspace.path().join(".venv")).expect("shared environment");
+    std::fs::write(&root_manifest, SHARED_ROOT).expect("shared workspace");
     assert_eq!(
         super::environment_dir(Some(workspace.path()), &member),
         workspace.path().join(".venv"),
     );
     assert_eq!(super::environment_dir(None, &member), own, "no workspace to share one");
-
-    std::fs::create_dir(&own).expect("own environment");
-    assert_eq!(super::environment_dir(Some(workspace.path()), &member), own);
+    let excluded = workspace.path().join("packages/tool");
+    assert_eq!(super::environment_dir(Some(workspace.path()), &excluded), excluded.join(".venv"));
+    assert_eq!(
+        super::environment_dir(Some(workspace.path()), workspace.path()),
+        workspace.path().join(".venv"),
+    );
 }

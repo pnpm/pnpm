@@ -7,8 +7,6 @@ use crate::_utils::pacquet_in;
 use assert_cmd::prelude::*;
 use std::{fs, path::Path};
 
-/// A workspace root that declares no project of its own and asks its
-/// members to share one environment.
 fn shared_workspace(root: &Path, index: &str) {
     project(root, index, &[]);
     fs::write(

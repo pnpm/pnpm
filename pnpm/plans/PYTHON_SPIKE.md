@@ -262,8 +262,8 @@ at once are refused, with an error naming the distribution and both members,
 rather than resolved to one of the versions silently. A shared environment is
 one thing, so `--filter` selecting any member installs it whole, and
 `pnpm add` in a member writes that member's manifest and the shared lockfile.
-`pnpm run` and `pnpm exec` in a member use the nearest `.venv` at or above
-the directory, up to the workspace root.
+`pnpm run` and `pnpm exec` in a member use the `.venv` at the workspace
+root, which they find by reading the manifests above the member.
 
 Sharing is opt-in, which is the difference from uv worth keeping: a
 repository takes the shared environment where its projects agree and keeps

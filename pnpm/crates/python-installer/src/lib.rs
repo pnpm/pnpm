@@ -268,17 +268,13 @@ pub fn execution_paths<'a>(
     std::borrow::Cow::Owned(paths)
 }
 
-/// The environment a command run in `dir` uses: the nearest `.venv` at or
-/// above it, up to the workspace root, which is where the environment a
-/// directory shares with its workspace is. Without one, `dir`'s own,
-/// which is where an install would create it.
+/// The environment a command run in `dir` uses: the one at the workspace
+/// root when `dir` is a member of a workspace sharing it, and its own
+/// otherwise, which is where an install would create it.
 fn environment_dir(workspace: Option<&Path>, dir: &Path) -> PathBuf {
-    let stop = workspace.unwrap_or(dir);
-    dir.ancestors()
-        .take_while(|directory| directory.starts_with(stop))
-        .map(|directory| directory.join(".venv"))
-        .find(|environment| environment.exists())
-        .unwrap_or_else(|| dir.join(".venv"))
+    workspace::members::shared_root_of(workspace, dir)
+        .unwrap_or_else(|| dir.to_path_buf())
+        .join(".venv")
 }
 
 #[cfg(test)]
