@@ -618,3 +618,27 @@ async fn a_url_spelling_another_url_and_its_integrity_gets_its_own_cache_cell() 
 
     assert_ne!(dbg!(key(&pinned)), dbg!(key(&unpinned)));
 }
+
+/// The read publishes its extraction under a key that names the network
+/// policy, so two resolutions that share this cell would leave one of them
+/// looking the archive up where nothing published it.
+/// <https://github.com/pnpm/pnpm/issues/15021>
+#[tokio::test]
+async fn a_revision_addressed_resolution_gets_its_own_cache_cell() {
+    let dir = tempdir().unwrap();
+    let tarball_url = "https://registry.example/x.tgz";
+    let direct = manifestless_tarball_result(tarball_url, PINNED_INTEGRITY);
+    let revision =
+        manifestless_tarball_result_with_revision(tarball_url, PINNED_INTEGRITY, Some(1));
+    let resolver =
+        resolver_with_prefetch(dir.path(), Box::new(DefaultResolver::new(Vec::new())), false);
+
+    let key = |result: &ResolveResult| {
+        let LockfileResolution::Tarball(tarball) = &result.resolution else {
+            panic!("expected tarball resolution");
+        };
+        resolver.tarball_metadata_cache_key(result, tarball, "pinned@1.0.0").expect("build key")
+    };
+
+    assert_ne!(dbg!(key(&direct)), dbg!(key(&revision)));
+}

@@ -2,4 +2,4 @@
 "pacquet": patch
 ---
 
-pnpm now checks the expected hash before reusing a tarball that another resolution downloaded earlier in the same install. Two resolutions that name one URL but pin different integrities no longer share one download [#15021](https://github.com/pnpm/pnpm/issues/15021).
+pnpm no longer reuses one package's downloaded tarball for another package whose resolution pins a different integrity hash to the same URL [#15021](https://github.com/pnpm/pnpm/issues/15021).

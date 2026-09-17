@@ -86,7 +86,10 @@ impl<Reporter: self::Reporter + 'static> PrefetchingResolver<Reporter> {
     /// Custom fetchers can choose different content for the same URL for
     /// different packages. The native key carries the pinned hash as well
     /// as the URL, so a read that verifies is never served the bytes of
-    /// one that could not.
+    /// one that could not, and the network policy the read runs under,
+    /// since that is what the extraction it publishes is keyed by. An
+    /// unpinned read names neither: the hash is what it is there to learn,
+    /// and a revision cannot be recorded without one.
     ///
     /// Each kind of key leads with its own tag and separates its parts
     /// with a tab, which neither a URL, an integrity nor a package id can
@@ -102,7 +105,10 @@ impl<Reporter: self::Reporter + 'static> PrefetchingResolver<Reporter> {
             format!("custom\t{package_id}\t{}", serde_json::to_string(&result.resolution)?)
         } else {
             match tarball.integrity.as_ref() {
-                Some(integrity) => format!("pinned\t{integrity}\t{}", tarball.tarball),
+                Some(integrity) => {
+                    let policy = if tarball.revision.is_some() { "revision" } else { "direct" };
+                    format!("pinned\t{policy}\t{integrity}\t{}", tarball.tarball)
+                }
                 None => format!("unpinned\t{}", tarball.tarball),
             }
         })
