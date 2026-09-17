@@ -1033,3 +1033,5 @@ fn fetches_what_each_requirement_activates_on_its_own_line() {
         ["reader", "writer"],
     );
 }
+
+mod lockfile_features;

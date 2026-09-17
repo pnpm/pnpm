@@ -1,6 +1,6 @@
 use crate::{
-    features::{active_dependencies, indexed_version},
-    metadata::{active_metadata_dependencies, root_dependencies},
+    features::{indexed_version, locked_dependencies},
+    metadata::{locked_metadata_dependencies, root_dependencies},
     model::{CargoMetadata, FeatureSelection, PackageKey, RegistryDependency, RegistryVersion},
     packages::selected_package,
     registry::{CRATES_IO_SOURCE, Registry, is_crates_io_source},
@@ -79,7 +79,7 @@ fn workspace_packages(
         .iter()
         .filter(|package| metadata.workspace_members.contains(&package.id))
     {
-        let dependencies = active_metadata_dependencies(package)?
+        let dependencies = locked_metadata_dependencies(package)?
             .iter()
             .map(|dependency| {
                 if dependency.registry.is_some() {
@@ -110,7 +110,7 @@ fn locked_registry_dependencies(
     sources: &BTreeMap<PackageKey, String>,
 ) -> Result<Vec<Dependency>> {
     let mut dependencies = BTreeSet::new();
-    for dependency in active_dependencies(package, selection)? {
+    for dependency in locked_dependencies(package, selection)? {
         registry.validate_dependency_source(dependency.registry.as_deref())?;
         dependencies.insert(locked_dependency(&dependency, registry, solution, sources)?);
     }
@@ -193,7 +193,7 @@ fn locked_sources(
             .cloned()
             .unwrap_or_default();
         pending.extend(
-            active_dependencies(entry, &selection)?
+            locked_dependencies(entry, &selection)?
                 .into_iter()
                 .map(|dependency| (dependency, source.clone())),
         );

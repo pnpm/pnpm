@@ -12,13 +12,20 @@ use tempfile::TempDir;
 /// A `.crate` archive holding the one source file a dependent needs, laid
 /// out under the `<name>-<version>` root `cargo` expects.
 pub(crate) fn crate_archive(name: &str, version: &str) -> Vec<u8> {
+    crate_archive_with_manifest(
+        name,
+        version,
+        &format!("[package]\nname = \"{name}\"\nversion = \"{version}\"\n"),
+    )
+}
+
+fn crate_archive_with_manifest(name: &str, version: &str, manifest: &str) -> Vec<u8> {
     let root = format!("{name}-{version}");
     let encoder = flate2::write::GzEncoder::new(Vec::new(), flate2::Compression::fast());
     let mut builder = tar::Builder::new(encoder);
-    for (path, contents) in [
-        ("Cargo.toml", format!("[package]\nname = \"{name}\"\nversion = \"{version}\"\n")),
-        ("src/lib.rs", "pub fn answer() -> u8 { 42 }\n".to_string()),
-    ] {
+    for (path, contents) in
+        [("Cargo.toml", manifest), ("src/lib.rs", "pub fn answer() -> u8 { 42 }\n")]
+    {
         let mut header = tar::Header::new_gnu();
         header.set_size(contents.len() as u64);
         header.set_mode(0o644);
@@ -54,9 +61,11 @@ pub(super) fn cargo_workspace(index_url: &str, dependencies: &str, source: &str)
 }
 
 pub(super) fn install_in(root: &TempDir, args: &[&str]) {
+    let cargo_home = TempDir::new().expect("create isolated Cargo home");
     Command::cargo_bin("pnpm")
         .expect("find the pnpm binary")
         .with_current_dir(root.path())
+        .with_env("CARGO_HOME", cargo_home.path())
         .with_env("PNPM_CONFIG_CACHE_DIR", root.path().join("cache"))
         .with_env("PNPM_CONFIG_STORE_DIR", root.path().join("store"))
         .with_args(args)
@@ -545,3 +554,5 @@ fn install_does_not_parse_or_modify_excluded_cargo_workspaces() {
     assert!(!excluded.join(".cargo").exists());
     assert!(!excluded.join(".pnpm").exists());
 }
+
+mod lockfile_features;

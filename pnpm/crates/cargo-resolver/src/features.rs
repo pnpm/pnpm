@@ -8,6 +8,12 @@ use pubgrub::SelectedDependencies;
 use semver::Version;
 use std::collections::{BTreeMap, BTreeSet, VecDeque};
 
+#[derive(Default, Clone, Copy)]
+pub(crate) struct DependencyOptions {
+    pub(crate) include_dev: bool,
+    pub(crate) lockfile: bool,
+}
+
 #[derive(Debug, Default)]
 struct FeatureActivations {
     active_aliases: BTreeSet<String>,
@@ -42,9 +48,10 @@ impl FeatureActivations {
         }
     }
 
-    fn activate_weak_dependency_features(&mut self) {
+    fn activate_weak_dependency_features(&mut self, lockfile: bool) {
         for (alias, feature) in std::mem::take(&mut self.weak_dependency_features) {
-            if self.active_aliases.contains(&alias) {
+            if lockfile || self.active_aliases.contains(&alias) {
+                self.active_aliases.insert(alias.clone());
                 self.dependency_features
                     .entry(alias)
                     .or_default()
@@ -54,11 +61,19 @@ impl FeatureActivations {
     }
 }
 
-pub(crate) fn active_dependencies(
+/// Dependencies Cargo records in its target-independent lockfile graph.
+/// Weak dependency features also require a lock entry, even when the build
+/// feature graph leaves that optional dependency inactive.
+pub(crate) fn locked_dependencies(
     package: &RegistryVersion,
     selection: &FeatureSelection,
 ) -> Result<Vec<RegistryDependency>> {
-    active_dependencies_from_parts(&package.dependencies, &package.features, selection, false)
+    dependencies_from_parts(
+        &package.dependencies,
+        &package.features,
+        selection,
+        DependencyOptions { lockfile: true, ..DependencyOptions::default() },
+    )
 }
 
 pub(crate) fn supports_features(package: &RegistryVersion, selection: &FeatureSelection) -> bool {
@@ -72,16 +87,17 @@ pub(crate) fn supports_features(package: &RegistryVersion, selection: &FeatureSe
         })
 }
 
-pub(crate) fn active_dependencies_from_parts(
+pub(crate) fn dependencies_from_parts(
     dependencies: &[RegistryDependency],
     features: &BTreeMap<String, Vec<String>>,
     selection: &FeatureSelection,
-    include_dev: bool,
+    options: DependencyOptions,
 ) -> Result<Vec<RegistryDependency>> {
-    let activations = collect_feature_activations(dependencies, features, selection);
+    let activations =
+        collect_feature_activations(dependencies, features, selection, options.lockfile);
     Ok(dependencies
         .iter()
-        .filter(|dependency| include_dev || dependency.kind != DependencyKind::Dev)
+        .filter(|dependency| options.include_dev || dependency.kind != DependencyKind::Dev)
         .filter(|dependency| {
             !dependency.optional || activations.active_aliases.contains(&dependency.alias)
         })
@@ -99,6 +115,7 @@ fn collect_feature_activations(
     dependencies: &[RegistryDependency],
     features: &BTreeMap<String, Vec<String>>,
     selection: &FeatureSelection,
+    lockfile: bool,
 ) -> FeatureActivations {
     let implicit_optional_aliases = implicit_optional_aliases(dependencies, features);
     let mut pending = selection.features
@@ -130,7 +147,7 @@ fn collect_feature_activations(
             );
         }
     }
-    activations.activate_weak_dependency_features();
+    activations.activate_weak_dependency_features(lockfile);
     activations
 }
 
@@ -197,7 +214,7 @@ fn collect_feature_selections(
             .get(&package)
             .cloned()
             .unwrap_or_default();
-        pending.extend(active_dependencies(selected, &selection)?);
+        pending.extend(locked_dependencies(selected, &selection)?);
     }
     Ok(selections)
 }
