@@ -370,8 +370,6 @@ fn a_command_uses_the_environment_its_project_shares_or_its_own() {
     assert_eq!(environment_of(&inner), inner.join(".venv"), "its own workspace root");
 }
 
-/// The workspace may be configured through a link to the directory the
-/// command runs in, and the lookup compares the two as one path.
 #[cfg(unix)]
 #[test]
 fn a_workspace_reached_through_a_link_still_shares_its_environment() {
