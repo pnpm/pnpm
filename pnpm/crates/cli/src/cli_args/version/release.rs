@@ -166,7 +166,12 @@ impl PlannedWorkspaceRelease {
         }
 
         let confirmed = self.confirmed_published_versions(config, workspace_dir).await?;
-        let Self { plan, projects: engine_projects, intents, .. } = self;
+        let Self {
+            plan,
+            projects: engine_projects,
+            intents,
+            ..
+        } = self;
         let applied = apply_release_plan(
             &plan,
             workspace_dir,
