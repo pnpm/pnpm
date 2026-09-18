@@ -31,14 +31,14 @@ export function formatStagedRust (repo, { format = pinnedRustfmt } = {}) {
     console.error(`pre-commit: not formatting these files, each has unstaged changes too:\n${indent(withheld)}`)
   }
   if (foreign.length > 0) {
-    console.error(`pre-commit: not formatting these paths, none is a regular file in the checkout:\n${indent(foreign)}`)
+    console.error(`pre-commit: not formatting these paths, each must name one regular file inside the checkout:\n${indent(foreign)}`)
   }
-  if (formattable.length === 0) return 0
+  if (formattable.size === 0) return 0
 
-  const status = format(formattable.map(file => path.join(root, file)))
+  const status = format([...formattable.values()])
   if (status !== 0) return status
 
-  const reformatted = formattable.filter(file => git(repo, ['diff', '--quiet', '--', literal(file)]).status !== 0)
+  const reformatted = [...formattable.keys()].filter(file => git(repo, ['diff', '--quiet', '--', literal(file)]).status !== 0)
   if (reformatted.length === 0) return 0
 
   checkedGit(repo, ['add', '--', ...reformatted.map(literal)])
@@ -51,29 +51,51 @@ export function formatStagedRust (repo, { format = pinnedRustfmt } = {}) {
  *
  * A file that also has unstaged changes is held back: formatting the working
  * tree and staging the result would commit the part of that file the author
- * deliberately kept out of this commit. A path that is not a regular file is
- * not a source at all — rustfmt writes through a symlink, so a staged `.rs`
- * link pointing out of the checkout would have it rewrite a file the commit
- * never touches, and the repository would show nothing changed.
+ * deliberately kept out of this commit. A path that does not lead to a regular
+ * file inside the checkout is not a source at all — rustfmt writes through a
+ * symlink, so such a path would have it rewrite a file the commit never
+ * touches, and the repository would show nothing changed.
  */
 function partitionStaged (root, staged, unstaged) {
   const alsoUnstaged = new Set(unstaged)
-  const formattable = []
+  const formattable = new Map()
   const withheld = []
   const foreign = []
   for (const file of staged) {
-    if (!isRegularFile(path.join(root, file))) foreign.push(file)
+    const source = checkedOutSource(root, file)
+    if (source == null) foreign.push(file)
     else if (alsoUnstaged.has(file)) withheld.push(file)
-    else formattable.push(file)
+    else formattable.set(file, source)
   }
   return { formattable, withheld, foreign }
 }
 
-function isRegularFile (absolute) {
+/**
+ * The resolved path of a staged file that the formatter may rewrite in place,
+ * or null when the staged path is not one.
+ *
+ * rustfmt truncates the file it is given, so every other name that reaches the
+ * same bytes is rewritten with it. A path qualifies only when it names one
+ * regular file inside the checkout: not a symbolic link, not a second name for
+ * an inode that something outside the repository also holds, and not a path
+ * that resolves beyond `root`, which must already be resolved itself.
+ *
+ * The resolved path is what the caller hands the formatter. Passing the staged
+ * path on instead would have the formatter walk the links again, which is a
+ * second chance to arrive somewhere else.
+ */
+export function checkedOutSource (root, file) {
+  const absolute = path.join(root, file)
   try {
-    return fs.lstatSync(absolute).isFile()
+    const stats = fs.lstatSync(absolute)
+    if (!stats.isFile() || stats.nlink > 1) return null
+    const real = fs.realpathSync(absolute)
+    return real.startsWith(root + path.sep) ? real : null
   } catch (error) {
-    if (error.code === 'ENOENT') return false
+    // The three ways a path can fail to lead anywhere: nothing of that name,
+    // a non-directory used as one, a cycle of links. Each is a staged path to
+    // reject and report, not a reason to fail the commit.
+    if (['ENOENT', 'ENOTDIR', 'ELOOP'].includes(error.code)) return null
     throw error
   }
 }
