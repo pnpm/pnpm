@@ -127,6 +127,7 @@ export async function handler (
     if (hint) globalWarn(hint)
   }
 
+  let projectPinMessage: string | undefined
   if (opts.wantedPackageManager?.name === packageManager.name) {
     if (opts.wantedPackageManager?.version !== targetVersion) {
       if (isImplicitLatest) {
@@ -185,9 +186,9 @@ export async function handler (
         manifest.packageManager = `pnpm@${targetVersion}`
         await writeProjectManifest(manifest)
       }
-      return `The current project has been updated to use pnpm v${targetVersion}`
+      projectPinMessage = `The current project has been updated to use pnpm v${targetVersion}`
     } else {
-      return `The current project is already set to use pnpm v${targetVersion}`
+      projectPinMessage = `The current project is already set to use pnpm v${targetVersion}`
     }
   }
   // Version equality with the running binary alone must not skip the
@@ -197,11 +198,11 @@ export async function handler (
     targetVersion === packageManager.version &&
     await findGlobalPnpmInstallDir(opts.globalPkgDir, pnpmPackageNameToInstall(targetVersion), targetVersion) != null
   ) {
-    return `The currently active ${packageManager.name} v${packageManager.version} is already "${bareSpecifier}" and doesn't need an update`
+    return projectPinMessage ?? `The currently active ${packageManager.name} v${packageManager.version} is already "${bareSpecifier}" and doesn't need an update`
   }
 
   if (isImplicitLatest && semver.lt(targetVersion, packageManager.version)) {
-    return `The currently active ${packageManager.name} v${packageManager.version} is newer than the "latest" version on the registry (v${targetVersion}). No update performed. Run "pnpm self-update latest" to downgrade.`
+    return projectPinMessage ?? `The currently active ${packageManager.name} v${packageManager.version} is newer than the "latest" version on the registry (v${targetVersion}). No update performed. Run "pnpm self-update latest" to downgrade.`
   }
 
   globalInfo(`Switching pnpm from v${packageManager.version} to v${targetVersion}...`)
@@ -243,10 +244,12 @@ export async function handler (
     )
   }
 
-  if (alreadyExisted) {
-    return `The ${bareSpecifier} version, v${targetVersion}, is already present on the system. It was activated by linking it from ${baseDir}.`
-  }
-  return `Successfully updated pnpm to v${targetVersion}`
+  const globalMessage = alreadyExisted
+    ? `The ${bareSpecifier} version, v${targetVersion}, is already present on the system. It was activated by linking it from ${baseDir}.`
+    : `Successfully updated pnpm to v${targetVersion}`
+  // A pin that was already up to date would otherwise hide the global switch
+  // that `self-update` was run for.
+  return projectPinMessage != null ? `${projectPinMessage}\n${globalMessage}` : globalMessage
 }
 
 /**
