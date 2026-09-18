@@ -468,8 +468,13 @@ async fn git_projects_without_a_pyproject_use_legacy_backend_dependencies() {
         .args(["-c", "import fork, helper"])
         .assert()
         .success();
+    pnpm_fs::remove_symlink_dir(&root.path().join(".venv")).unwrap();
     pacquet_in(root.path())
         .args(["install", "--offline", "--frozen-lockfile"])
+        .assert()
+        .success();
+    python(root.path())
+        .args(["-c", "import fork, helper"])
         .assert()
         .success();
 }
