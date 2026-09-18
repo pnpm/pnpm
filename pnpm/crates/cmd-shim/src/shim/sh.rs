@@ -259,22 +259,36 @@ pub(super) const SH_SHIM_HARDENED_HELPER_LINE: &str = r#"  target=$(command -p r
 pub(super) const SH_SHIM_PATH_PRINTF_LINE: &str =
     r#"basedir=$(command -p printf '%s\n' "$link" | command -p sed -e 's,\\,/,g')"#;
 
+/// The line the header converts `$basedir` through on Cygwin, MinGW, and MSYS.
+/// Pinned the same way as [`SH_SHIM_HARDENED_HELPER_LINE`].
+pub(super) const SH_SHIM_CYGPATH_LINE: &str =
+    r#"    if converted=$(command -p cygpath -w "$basedir" 2>/dev/null) && [ -n "$converted" ]; then"#;
+
+/// The line the header converts `$basedir` through on WSL2. Pinned the same
+/// way as [`SH_SHIM_HARDENED_HELPER_LINE`].
+pub(super) const SH_SHIM_WSLPATH_LINE: &str =
+    r#"    if converted=$(command -p wslpath -w "$basedir" 2>/dev/null) && [ -n "$converted" ]; then"#;
+
 /// Whether an already-on-disk POSIX shim has the header a warm reinstall can
 /// leave in place.
 ///
 /// The trailing target marker does not describe the header, so a shim whose
-/// target has not moved can still be stale. This looks for the `command -p`
-/// `readlink` lookup and the `printf` path conversion. Missing either means
-/// the next install rewrites the shim: a helper taken from `PATH` can redirect
-/// it, and a POSIX `echo` eats backslash escapes in a Windows-form `$0`.
+/// target has not moved can still be stale. A shim runs with
+/// `node_modules/.bin` at the front of `PATH`, so one written before a helper
+/// moved to `command -p` can be redirected by a dependency that ships a bin
+/// under that helper's name, and a POSIX `echo` eats backslash escapes in a
+/// Windows-form `$0`. Missing any of the pinned lines means the next install
+/// rewrites the shim.
 #[must_use]
 pub fn is_sh_shim_hardened(shim_content: &str) -> bool {
-    shim_content
-        .lines()
-        .any(|line| line == SH_SHIM_HARDENED_HELPER_LINE)
-        && shim_content
-            .lines()
-            .any(|line| line == SH_SHIM_PATH_PRINTF_LINE)
+    [
+        SH_SHIM_HARDENED_HELPER_LINE,
+        SH_SHIM_PATH_PRINTF_LINE,
+        SH_SHIM_CYGPATH_LINE,
+        SH_SHIM_WSLPATH_LINE,
+    ]
+    .iter()
+    .all(|pinned| shim_content.lines().any(|line| line == *pinned))
 }
 
 fn is_shim_carrying_target(shim_content: &str, target: &str) -> bool {

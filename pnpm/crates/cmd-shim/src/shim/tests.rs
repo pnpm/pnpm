@@ -3,8 +3,8 @@ use super::{
     is_sh_shim_hardened, is_shim_pointing_at, parse_shebang, parse_shebang_from_bytes,
     read_head_filled, relative_target, search_script_runtime,
     sh::{
-        SH_SHIM_HARDENED_HELPER_LINE, SH_SHIM_PATH_PRINTF_LINE, escape_msys_cmd_switches,
-        strip_exe_suffix,
+        SH_SHIM_CYGPATH_LINE, SH_SHIM_HARDENED_HELPER_LINE, SH_SHIM_PATH_PRINTF_LINE,
+        SH_SHIM_WSLPATH_LINE, escape_msys_cmd_switches, strip_exe_suffix,
     },
 };
 use crate::{
@@ -86,6 +86,18 @@ fn generate_sh_shim_header_carries_the_hardened_helper_line() {
             r#"basedir=$(echo "$link" | command -p sed -e 's,\\,/,g')"#,
         )),
         "a shim that pipes $link through echo must not count as hardened",
+    );
+    assert!(
+        !is_sh_shim_hardened(
+            &body.replace(SH_SHIM_CYGPATH_LINE, r#"    if command -v cygpath > /dev/null 2>&1; then"#)
+        ),
+        "a shim that looks up cygpath on PATH must not count as hardened",
+    );
+    assert!(
+        !is_sh_shim_hardened(
+            &body.replace(SH_SHIM_WSLPATH_LINE, r#"    if command -v wslpath > /dev/null 2>&1; then"#)
+        ),
+        "a shim that looks up wslpath on PATH must not count as hardened",
     );
 }
 
