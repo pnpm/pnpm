@@ -31,7 +31,9 @@ export function usableMemory (totalMemoryBytes, constrainedMemoryBytes) {
 
 /**
  * How many rustc jobs or test processes a machine can hold at once: one per
- * [`GIB_PER_JOB`] of memory, never more than it has cores to run.
+ * [`GIB_PER_JOB`] of memory, never more than it has cores to run, and never
+ * fewer than one. A machine whose whole budget is under [`GIB_PER_JOB`], as a
+ * small container is, still has to build with something.
  */
 export function jobsForMachine (cpus, totalMemoryBytes) {
   return Math.max(1, Math.min(cpus, Math.floor(totalMemoryBytes / GIB / GIB_PER_JOB)))
