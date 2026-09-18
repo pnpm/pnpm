@@ -99,10 +99,13 @@ async fn plan_workspace_release(
         )
     };
     let unpublished_dirs = unpublished_release_dirs(
-        config,
         &assemble(HashSet::new())?,
-        &published_names,
-        &private_dirs,
+        &changelog::ReleaseRegistryOptions {
+            config,
+            workspace_dir,
+            published_names: &published_names,
+            private_dirs: &private_dirs,
+        },
     )
     .await?;
     let plan = assemble(unpublished_dirs)?;
@@ -124,11 +127,13 @@ impl PlannedWorkspaceRelease {
         workspace_dir: &Path,
     ) -> miette::Result<HashSet<String>> {
         confirmed_published_versions(
-            config,
-            workspace_dir,
-            &self.published_names,
+            &changelog::ReleaseRegistryOptions {
+                config,
+                workspace_dir,
+                published_names: &self.published_names,
+                private_dirs: &self.private_dirs,
+            },
             &self.projects,
-            &self.private_dirs,
         )
         .await
     }
