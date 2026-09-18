@@ -186,18 +186,26 @@ test('refuses to format a staged hardlink to a file outside the checkout', { ski
   assert.equal(fs.readFileSync(outside, 'utf8'), 'fn outside() {}\n')
 })
 
-test('reports a staged path whose directory became a file', { skip: process.platform === 'win32' }, (context) => {
-  const repo = repoWithSources(context, ['real.rs'])
-  fs.mkdirSync(path.join(repo, 'dir'))
-  fs.writeFileSync(path.join(repo, 'dir', 'nested.rs'), 'fn nested() {}\n')
-  git(repo, 'add', '--all')
-  fs.rmSync(path.join(repo, 'dir'), { recursive: true })
-  fs.writeFileSync(path.join(repo, 'dir'), 'no longer a directory\n')
+// Each replacement makes `dir/nested.rs` fail to resolve with a different
+// errno, and every one of them used to abort the commit.
+for (const [errno, replaceDirectory] of [
+  ['ENOTDIR', (dir) => fs.writeFileSync(dir, 'no longer a directory\n')],
+  ['ELOOP', (dir) => fs.symlinkSync(path.basename(dir), dir)],
+]) {
+  test(`reports a staged path that stops resolving with ${errno}`, { skip: process.platform === 'win32' }, (context) => {
+    const repo = repoWithSources(context, ['real.rs'])
+    fs.mkdirSync(path.join(repo, 'dir'))
+    fs.writeFileSync(path.join(repo, 'dir', 'nested.rs'), 'fn nested() {}\n')
+    git(repo, 'add', '--all')
+    fs.rmSync(path.join(repo, 'dir'), { recursive: true })
+    replaceDirectory(path.join(repo, 'dir'))
+    assert.throws(() => fs.lstatSync(path.join(repo, 'dir', 'nested.rs')), { code: errno })
 
-  const reported = context.mock.method(console, 'error', () => {})
-  const { seen, format } = reformatter()
-  assert.equal(formatStagedRust(repo, { format }), 0)
+    const reported = context.mock.method(console, 'error', () => {})
+    const { seen, format } = reformatter()
+    assert.equal(formatStagedRust(repo, { format }), 0)
 
-  assert.deepEqual(seen, [])
-  assert.match(reported.mock.calls[0].arguments[0], /must name one regular file inside the checkout:\n {2}dir\/nested\.rs/)
-})
+    assert.deepEqual(seen, [])
+    assert.match(reported.mock.calls[0].arguments[0], /must name one regular file inside the checkout:\n {2}dir\/nested\.rs/)
+  })
+}
