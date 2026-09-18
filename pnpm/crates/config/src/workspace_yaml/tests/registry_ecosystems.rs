@@ -151,7 +151,7 @@ fn two_spellings_of_one_index_are_refused() {
 /// one URL in two roles and rebuild into an entry no layer could have
 /// written.
 #[test]
-fn a_reclassified_url_loses_the_npm_routes_an_earlier_layer_gave_it() {
+fn a_url_a_layer_serves_to_pypi_loses_the_npm_routes_it_had() {
     let dir = tempfile::tempdir().unwrap();
     fs::write(
         dir.path().join(WORKSPACE_MANIFEST_FILENAME),
@@ -183,4 +183,62 @@ fn a_reclassified_url_loses_the_npm_routes_an_earlier_layer_gave_it() {
     assert!(entry.scopes.is_none(), "{entry:?}");
     assert!(entry.prefix.is_none(), "{entry:?}");
     assert!(entry.server_type.is_none(), "{entry:?}");
+}
+
+/// The mirror image, which the machine hits when a repository routes npm
+/// scopes to a URL the machine had declared an index: the later layer has to
+/// win here too, or its scopes are deleted as though they were the stale
+/// role.
+#[test]
+fn a_url_a_layer_routes_to_npm_loses_the_index_role_it_had() {
+    let dir = tempfile::tempdir().unwrap();
+    fs::write(
+        dir.path().join(WORKSPACE_MANIFEST_FILENAME),
+        "registries:\n  https://one.example.com/:\n    scopes: ['@acme']\n",
+    )
+    .unwrap();
+    let mut config = Config::default();
+    config.indexes_by_ecosystem.insert(
+        Ecosystem::Pypi,
+        vec!["https://one.example.com/".to_string()],
+    );
+    WorkspaceSettings::load_at(dir.path())
+        .unwrap()
+        .expect("the workspace manifest was just written")
+        .apply_to(&mut config, Path::new("/workspace"));
+
+    assert_eq!(
+        config.registries_by_scope.get("@acme").map(String::as_str),
+        Some("https://one.example.com/"),
+        "the scope the later layer routed was dropped",
+    );
+    assert_eq!(config.python_indexes(), [crate::DEFAULT_PYPI_INDEX_URL]);
+}
+
+/// One URL cannot be two ecosystems' index at once, or `cargo_index_url` and
+/// `python_indexes` would both answer with it.
+#[test]
+fn a_url_reclassified_to_another_ecosystem_leaves_the_first_one() {
+    let dir = tempfile::tempdir().unwrap();
+    fs::write(
+        dir.path().join(WORKSPACE_MANIFEST_FILENAME),
+        "registries:\n  https://one.example.com/:\n    ecosystem: pypi\n",
+    )
+    .unwrap();
+    let mut config = Config::default();
+    config.indexes_by_ecosystem.insert(
+        Ecosystem::Cargo,
+        vec!["https://one.example.com/".to_string()],
+    );
+    WorkspaceSettings::load_at(dir.path())
+        .unwrap()
+        .expect("the workspace manifest was just written")
+        .apply_to(&mut config, Path::new("/workspace"));
+
+    assert_eq!(config.python_indexes(), ["https://one.example.com/"]);
+    assert_eq!(
+        config.cargo_index_url(),
+        crate::DEFAULT_CARGO_INDEX_URL,
+        "the URL stayed the Cargo index as well as the PyPI one",
+    );
 }

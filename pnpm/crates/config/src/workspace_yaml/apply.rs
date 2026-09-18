@@ -180,6 +180,13 @@ impl WorkspaceSettings {
             return false;
         };
         let lookups = registries::into_lookups(entries);
+        registries::take_roles_from_earlier_layers(
+            &mut config.registries_by_scope,
+            &mut config.registries_by_prefix,
+            &mut config.registry_options_by_url,
+            &mut config.indexes_by_ecosystem,
+            &lookups,
+        );
         if let Some(registry) = lookups.default_registry {
             config.registry = registry;
         }
@@ -191,12 +198,6 @@ impl WorkspaceSettings {
         // search order, and a layer that names an ecosystem's indexes is
         // naming that whole order, not adding to someone else's.
         config.indexes_by_ecosystem.extend(lookups.indexes_by_ecosystem);
-        registries::drop_stale_roles(
-            &mut config.registries_by_scope,
-            &mut config.registries_by_prefix,
-            &mut config.registry_options_by_url,
-            &config.indexes_by_ecosystem,
-        );
         declared_prefixes
     }
 
