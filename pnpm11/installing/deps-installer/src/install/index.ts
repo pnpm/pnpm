@@ -1699,28 +1699,19 @@ function isWantedDepBareSpecifierSame (
 
 /**
  * Whether the catalog entry already covers the wanted specifier, so the dependency can keep
- * resolving through the catalog: the entry names the same concrete version, or it is a range the
- * wanted version satisfies.
+ * resolving through the catalog: the entry is a range that holds the wanted version, or that holds
+ * every version the wanted range allows.
  *
- * The wanted specifier has to be a concrete version. A wanted range is never covered, because the
- * catalog — not the dependency — decides which version a `catalog:` reference resolves to.
+ * Coverage runs in that direction because the catalog — not the dependency — decides which version
+ * a `catalog:` reference resolves to. A wanted range wider than the entry is not covered: swapping
+ * it for `catalog:` would narrow what the dependency accepts.
  */
 function catalogCovers (catalogSpecifier: string, bareSpecifier: string | undefined): boolean {
-  if (bareSpecifier == null) return false
-  if (catalogSpecifier === bareSpecifier) return true
-  if (semver.valid(bareSpecifier) != null && semver.validRange(catalogSpecifier) != null) {
+  if (bareSpecifier == null || semver.validRange(catalogSpecifier) == null) return false
+  if (semver.valid(bareSpecifier) != null) {
     return semver.satisfies(bareSpecifier, catalogSpecifier)
   }
-  const minVersion = semver.minVersion(bareSpecifier)
-  if (minVersion != null) {
-    if (semver.valid(catalogSpecifier) != null) {
-      return semver.satisfies(catalogSpecifier, bareSpecifier)
-    }
-    if (semver.validRange(catalogSpecifier) != null) {
-      return semver.satisfies(minVersion, catalogSpecifier)
-    }
-  }
-  return false
+  return semver.validRange(bareSpecifier) != null && semver.subset(bareSpecifier, catalogSpecifier)
 }
 
 /**

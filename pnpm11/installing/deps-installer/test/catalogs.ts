@@ -1700,26 +1700,22 @@ describe('add', () => {
     })
   })
 
-  test('adding a range specifier within the catalog range uses the catalog with catalogMode: strict', async () => {
+  test('adding a range the catalog range covers uses the catalog with catalogMode: strict', async () => {
     const { options, projects } = preparePackagesAndReturnObjects([{
       name: 'project1',
       dependencies: {},
     }])
 
-    const mutateOpts = {
-      ...options,
-      lockfileOnly: true,
-      catalogs: {
-        default: { '@pnpm.e2e/foo': '^1.0.0' },
-      },
-      catalogMode: 'strict' as const,
-    }
-
     const { updatedManifest } = await addDependenciesToPackage(
       projects['project1' as ProjectId],
-      ['@pnpm.e2e/foo@^1.0.0'],
+      ['@pnpm.e2e/foo@^1.1.0'],
       {
-        ...mutateOpts,
+        ...options,
+        lockfileOnly: true,
+        catalogs: {
+          default: { '@pnpm.e2e/foo': '^1.0.0' },
+        },
+        catalogMode: 'strict',
         dir: path.join(options.lockfileDir, 'project1'),
         allowNew: true,
       })
@@ -1730,6 +1726,50 @@ describe('add', () => {
         '@pnpm.e2e/foo': 'catalog:',
       },
     })
+  })
+
+  test('adding a range broader than the catalog range with catalogMode: strict will error', async () => {
+    const { options, projects } = preparePackagesAndReturnObjects([{
+      name: 'project1',
+    }])
+
+    await expect(
+      addDependenciesToPackage(
+        projects['project1' as ProjectId],
+        ['@pnpm.e2e/foo@^1.1.0'],
+        {
+          ...options,
+          catalogs: {
+            default: { '@pnpm.e2e/foo': '~1.1.0' },
+          },
+          catalogMode: 'strict',
+          dir: path.join(options.lockfileDir, 'project1'),
+          allowNew: true,
+        }
+      )
+    ).rejects.toThrow('Wanted dependency outside the version range defined in catalog')
+  })
+
+  test('adding a range with catalogMode: strict errors when the catalog pins one version', async () => {
+    const { options, projects } = preparePackagesAndReturnObjects([{
+      name: 'project1',
+    }])
+
+    await expect(
+      addDependenciesToPackage(
+        projects['project1' as ProjectId],
+        ['@pnpm.e2e/foo@^1.0.0'],
+        {
+          ...options,
+          catalogs: {
+            default: { '@pnpm.e2e/foo': '1.0.0' },
+          },
+          catalogMode: 'strict',
+          dir: path.join(options.lockfileDir, 'project1'),
+          allowNew: true,
+        }
+      )
+    ).rejects.toThrow('Wanted dependency outside the version range defined in catalog')
   })
 
   test('adding a version the catalog range covers moves a catalog locked on another version', async () => {

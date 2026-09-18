@@ -125,16 +125,74 @@ fn strict_uses_the_catalog_when_its_range_covers_the_wanted_range() {
 }
 
 #[test]
+fn strict_errors_when_the_catalog_range_is_narrower_than_the_wanted_range() {
+    let catalogs = catalogs(&[("default", &[("is-positive", "~2.1.0")])]);
+    let err = decide(CatalogMode::Strict, &catalogs, &dep("is-positive", "^2.1.0"))
+        .expect_err(
+            "a catalog range that is narrower than wanted range must error under strict mode",
+        );
+    assert_eq!(
+        err,
+        CatalogVersionMismatchError {
+            catalog_dep: "is-positive@~2.1.0".to_string(),
+            wanted_dep: "is-positive@^2.1.0".to_string(),
+        },
+    );
+}
+
+#[test]
 fn prefer_uses_the_catalog_when_its_range_covers_the_wanted_range() {
-    let catalogs = catalogs(&[("default", &[("tailwindcss", "^4.3.3")])]);
-    let decision = decide(CatalogMode::Prefer, &catalogs, &dep("tailwindcss", "^4.3.3")).unwrap();
+    let catalogs = catalogs(&[("default", &[("is-positive", "^2.0.0")])]);
+    let decision = decide(CatalogMode::Prefer, &catalogs, &dep("is-positive", "^2.1.0")).unwrap();
     assert_eq!(
         decision,
         CatalogDecision::Catalog {
             manifest_specifier: "catalog:".to_string(),
             updated_entry: None
         },
-        "identical range reuses the existing catalog entry without warning",
+        "a range inside the catalog range reuses the existing catalog entry",
+    );
+}
+
+#[test]
+fn strict_uses_the_catalog_on_a_matching_range() {
+    let catalogs = catalogs(&[("default", &[("tailwindcss", "^4.3.3")])]);
+    let decision = decide(CatalogMode::Strict, &catalogs, &dep("tailwindcss", "^4.3.3")).unwrap();
+    assert_eq!(
+        decision,
+        CatalogDecision::Catalog {
+            manifest_specifier: "catalog:".to_string(),
+            updated_entry: None
+        },
+        "a range equal to the catalog range reuses the existing catalog entry",
+    );
+}
+
+#[test]
+fn strict_errors_when_the_catalog_covers_only_part_of_a_wanted_union() {
+    let catalogs = catalogs(&[("default", &[("is-positive", "^1.0.0")])]);
+    let err = decide(CatalogMode::Strict, &catalogs, &dep("is-positive", "^1.0.0 || ^3.0.0"))
+        .expect_err("every alternative of the wanted range has to fall inside the catalog range");
+    assert_eq!(
+        err,
+        CatalogVersionMismatchError {
+            catalog_dep: "is-positive@^1.0.0".to_string(),
+            wanted_dep: "is-positive@^1.0.0 || ^3.0.0".to_string(),
+        },
+    );
+}
+
+#[test]
+fn strict_errors_when_the_catalog_pins_a_version_inside_the_wanted_range() {
+    let catalogs = catalogs(&[("default", &[("is-positive", "2.5.0")])]);
+    let err = decide(CatalogMode::Strict, &catalogs, &dep("is-positive", "^2.1.0"))
+        .expect_err("a catalog pinned to one version cannot stand in for a range that allows more");
+    assert_eq!(
+        err,
+        CatalogVersionMismatchError {
+            catalog_dep: "is-positive@2.5.0".to_string(),
+            wanted_dep: "is-positive@^2.1.0".to_string(),
+        },
     );
 }
 

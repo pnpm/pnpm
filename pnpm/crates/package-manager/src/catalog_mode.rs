@@ -228,24 +228,29 @@ fn is_project_relative_path(specifier: &str) -> bool {
 }
 
 /// Whether the catalog entry already covers the wanted specifier, so the
-/// dependency can keep resolving through the catalog: the entry names the
-/// same concrete version, or it is a range the wanted version/range satisfies.
+/// dependency can keep resolving through the catalog: the entry is a range
+/// that holds the wanted version, or that holds every version the wanted
+/// range allows.
+///
+/// Coverage runs in that direction because the catalog — not the dependency —
+/// decides which version a `catalog:` reference resolves to. A wanted range
+/// wider than the entry is not covered: swapping it for `catalog:` would
+/// narrow what the dependency accepts.
 pub(crate) fn catalog_covers(entry: &str, wanted: &str) -> bool {
-    if entry == wanted {
-        return true;
+    let Ok(entry_range) = Range::parse(entry) else {
+        return false;
+    };
+    if let Ok(wanted_version) = Version::parse(wanted) {
+        return entry_range.satisfies(&wanted_version);
     }
-    if let Ok(wanted_ver) = Version::parse(wanted) {
-        return Range::parse(entry).is_ok_and(|entry_range| entry_range.satisfies(&wanted_ver));
-    }
-    if let Ok(wanted_range) = Range::parse(wanted) {
-        if let Ok(entry_ver) = Version::parse(entry) {
-            return wanted_range.satisfies(&entry_ver);
-        }
-        if let (Ok(entry_range), Some(min_v)) = (Range::parse(entry), wanted_range.min_version()) {
-            return entry_range.satisfies(&min_v);
-        }
-    }
-    false
+    // `Range::allows_all` only asks whether *some* alternative of the entry
+    // holds *some* alternative of the wanted range, so a union such as
+    // `^1 || ^3` would pass on its first branch alone. Ask per alternative.
+    wanted
+        .split("||")
+        .all(|alternative| {
+            Range::parse(alternative).is_ok_and(|alternative| entry_range.allows_all(&alternative))
+        })
 }
 
 /// The catalog group a dependency belongs to: a previous `catalog:<name>`
