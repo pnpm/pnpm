@@ -89,8 +89,17 @@ pub enum CliCommand {
     #[clap(visible_aliases = ["s", "se", "find"])]
     Search(SearchArgs),
     /// Rebuild a package.
-    #[clap(visible_alias = "rb")]
     Rebuild(RebuildArgs),
+    // A variant of its own rather than a `visible_alias` of `rebuild`,
+    // because the script that overrides a built-in command is looked up
+    // under the name that was typed.
+    /// Rebuild a package.
+    ///
+    /// An `rb` script in `package.json` replaces this command, the way a
+    /// `rebuild` script replaces `pnpm rebuild`. Run `pnpm pm rb` for the
+    /// built-in command regardless.
+    #[clap(name = "rb")]
+    Rb(RebuildArgs),
     /// Create a tarball from a package
     Pack(PackArgs),
     /// Publish a package to the registry
@@ -334,6 +343,7 @@ impl CliCommand {
                 | CliCommand::Link(_)
                 | CliCommand::Prune(_)
                 | CliCommand::Rebuild(_)
+                | CliCommand::Rb(_)
                 | CliCommand::Remove(_)
                 | CliCommand::Unlink(_)
                 | CliCommand::Update(_)

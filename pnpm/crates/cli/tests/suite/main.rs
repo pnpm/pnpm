@@ -116,6 +116,7 @@ mod run_recursive;
 mod runtime;
 mod sbom;
 mod scope_report;
+mod script_override;
 mod search;
 mod self_update;
 mod set_script;

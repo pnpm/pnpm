@@ -1,10 +1,10 @@
 use super::{
-    super::rebuild, ApproveBuildsArgs, CommandFuture, Config, Context, DedupeArgs, DedupePipeline,
-    DefaultReporter, DeployArgs, DeployPipeline, EnvArgs, EnvSubcommand, FetchArgs, ImportArgs,
-    InstallArgs, InstallPipeline, LinkArgs, NdjsonReporter, Path, PruneArgs, PrunePipeline,
-    RebuildArgs, ReporterType, RunCtx, RuntimeArgs, SilentReporter, State, UnlinkArgs,
-    apply_install_cli_config, apply_update_config, derive_config_root, global,
-    resolve_bool_override,
+    super::{dispatch_script, rebuild, script_override},
+    ApproveBuildsArgs, CommandFuture, Config, Context, DedupeArgs, DedupePipeline, DefaultReporter,
+    DeployArgs, DeployPipeline, EnvArgs, EnvSubcommand, FetchArgs, ImportArgs, InstallArgs,
+    InstallPipeline, LinkArgs, NdjsonReporter, Path, PruneArgs, PrunePipeline, RebuildArgs,
+    ReporterType, RunCtx, RuntimeArgs, SilentReporter, State, UnlinkArgs, apply_install_cli_config,
+    apply_update_config, derive_config_root, global, resolve_bool_override,
 };
 
 pub(in super::super) fn deploy<'a>(
@@ -14,13 +14,22 @@ pub(in super::super) fn deploy<'a>(
     let dir = ctx.locations.dir;
     let reporter = ctx.reporter;
     let config = ctx.loaders.config;
+    let cfg = config()?;
+    // Ahead of the target validation, so a project with a `deploy` script
+    // never has to name a target it does not deploy to.
+    let script_args = args.target_dirs
+        .iter()
+        .map(|target| target.to_string_lossy().into_owned())
+        .collect();
+    if let Some(run_args) = script_override::resolve(ctx, cfg, "deploy", script_args)? {
+        return dispatch_script::run(ctx, run_args);
+    }
+    apply_install_cli_config(cfg, &args.install_args);
     Ok(Box::pin(async move {
         // Boxed for `clippy::large_stack_frames`: the three monomorphized
         // deploy futures would otherwise each reserve their full size in
         // this frame.
         {
-            let cfg = config()?;
-            apply_install_cli_config(cfg, &args.install_args);
             let config_root = derive_config_root(cfg, dir, reporter)
                 .wrap_err("derive workspace root and package manager policy")?;
             let pipeline = DeployPipeline { args, cfg, config_root };
@@ -213,13 +222,18 @@ pub(in super::super) fn unlink<'a>(
 pub(in super::super) fn rebuild<'a>(
     ctx: &RunCtx<'a>,
     mut args: RebuildArgs,
+    command_name: &'static str,
 ) -> miette::Result<CommandFuture<'a>> {
     let dir = ctx.locations.dir;
     let manifest_path = ctx.locations.manifest_path;
     let reporter = ctx.reporter;
     let config = ctx.loaders.config;
+    let cfg = config()?;
+    if let Some(run_args) = script_override::resolve(ctx, cfg, command_name, args.packages.clone())?
+    {
+        return dispatch_script::run(ctx, run_args);
+    }
     Ok(Box::pin(async move {
-        let cfg = config()?;
         apply_update_config(cfg, dir, reporter).await?;
         let recursive_sort = cfg.sort;
         let recursive_no_bail = !cfg.bail;

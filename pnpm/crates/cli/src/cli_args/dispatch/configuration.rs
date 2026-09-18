@@ -89,6 +89,7 @@ impl RunSetup {
                     // the same progress events, so it shares the `Done in ...`
                     // footer.
                     | CliCommand::Rebuild(_)
+                    | CliCommand::Rb(_)
                     | CliCommand::PatchCommit(_)
                     | CliCommand::PatchRemove(_),
             ),

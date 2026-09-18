@@ -1,4 +1,5 @@
 use super::{
+    super::{clean::run as clean_builtin, dispatch_script, script_override},
     BinArgs, BugsArgs, CacheCommand, CatFileArgs, CatIndexArgs, CleanArgs, CommandFuture, Config,
     ConfigArgs, ConfigGetAliasArgs, ConfigSetAliasArgs, ConfigSubcommand, DefaultReporter,
     DocsArgs, DoctorArgs, DoctorOutcome, FindHashArgs, IgnoredBuildsArgs, NdjsonReporter,
@@ -40,10 +41,14 @@ pub(in super::super) fn bin<'a>(
 
 pub(in super::super) fn clean<'a>(
     ctx: &RunCtx<'a>,
-    args: CleanArgs,
+    CleanArgs { lockfile }: CleanArgs,
     command_name: &'a str,
 ) -> miette::Result<CommandFuture<'a>> {
-    args.run(ctx, command_name)?;
+    let config = (ctx.loaders.config)()?;
+    if let Some(run_args) = script_override::resolve(ctx, config, command_name, Vec::new())? {
+        return dispatch_script::run(ctx, run_args);
+    }
+    clean_builtin(ctx, config, lockfile)?;
     Ok(Box::pin(std::future::ready(Ok(()))))
 }
 
@@ -183,6 +188,15 @@ pub(in super::super) fn setup<'a>(
     ctx: &RunCtx<'a>,
     args: SetupArgs,
 ) -> miette::Result<CommandFuture<'a>> {
+    // The `pm` check is repeated ahead of `resolve` so that forcing the
+    // built-in needs no project configuration: `pnpm pm setup` has to
+    // install the CLI even where that configuration cannot be read.
+    if !ctx.builtin_command_forced
+        && let Some(run_args) =
+            script_override::resolve(ctx, (ctx.loaders.config)()?, "setup", Vec::new())?
+    {
+        return dispatch_script::run(ctx, run_args);
+    }
     let dir = ctx.locations.dir;
     macro_rules! run_setup {
         ($reporter:ty) => {

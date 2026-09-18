@@ -31,6 +31,7 @@ use std::{
     future::Future,
     path::{Path, PathBuf},
     pin::Pin,
+    sync::atomic::{AtomicBool, Ordering},
 };
 
 pub(crate) type CommandFuture<'a, Output = ()> =
@@ -54,6 +55,11 @@ pub(crate) struct RunCtx<'a> {
     /// command, so a `package.json` script of the same name must not
     /// override it. See [`crate::pm_prefix`].
     pub(crate) builtin_command_forced: bool,
+    /// Set by [`super::script_override::resolve`] when a same-named
+    /// `package.json` script replaces the built-in command. The run then
+    /// prints what `pnpm run` prints, so the install-family `Done in ...`
+    /// footer of the command that was typed has to stay out of it.
+    pub(crate) builtin_replaced_by_script: &'a AtomicBool,
     pub(crate) locations: CommandLocations<'a>,
     pub(crate) workspace: WorkspaceInvocation<'a>,
     pub(crate) loaders: CommandLoaders<'a>,
@@ -223,13 +229,14 @@ impl CliArgs {
         let setup = RunSetup::of(&self);
         let command = std::mem::replace(&mut self.command, CliCommand::Recursive);
 
-        self.run_command(command, config_overrides, builtin_command_forced, &setup, &anchors)
-            .await?;
+        let builtin_replaced_by_script =
+            self.run_command(command, config_overrides, builtin_command_forced, &setup, &anchors)
+                .await?;
 
         // The `Done in ...` footer covers the whole command, mirroring pnpm's
         // `pnpm:execution-time` emit in `main.ts`. Only the install-family
         // commands drive the visual reporter, so the rest stay silent.
-        if setup.is_install_family {
+        if setup.is_install_family && !builtin_replaced_by_script {
             emit_execution_time(reporter_emit(setup.reporter), setup.started_at);
         }
 
@@ -242,7 +249,7 @@ impl CliArgs {
         builtin_command_forced: bool,
         setup: &RunSetup,
         anchors: &RunAnchors,
-    ) -> miette::Result<()> {
+    ) -> miette::Result<bool> {
         // Load config anchored at `anchor`, reading `.npmrc` /
         // `pnpm-workspace.yaml` from there.
         let load_config = |anchor: &Path| -> miette::Result<&'static mut Config> {
@@ -279,9 +286,11 @@ impl CliArgs {
                 .wrap_err("initialize the state")
         };
 
+        let builtin_replaced_by_script = AtomicBool::new(false);
         let ctx = RunCtx {
             reporter: setup.reporter,
             builtin_command_forced,
+            builtin_replaced_by_script: &builtin_replaced_by_script,
             locations: CommandLocations::from(anchors),
             workspace: WorkspaceInvocation::from(&self.workspace),
             loaders: CommandLoaders {
@@ -291,7 +300,8 @@ impl CliArgs {
                 state: &state,
             },
         };
-        exit_on_json_error(run_routed_command(command, &ctx).await, setup.print_json_errors)
+        exit_on_json_error(run_routed_command(command, &ctx).await, setup.print_json_errors)?;
+        Ok(builtin_replaced_by_script.load(Ordering::Relaxed))
     }
 
     fn finalize_run_config(
