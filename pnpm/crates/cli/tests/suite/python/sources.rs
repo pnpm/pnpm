@@ -415,13 +415,17 @@ async fn git_sources_are_inherited_from_a_workspace_root() {
 }
 
 #[tokio::test]
-async fn git_projects_without_a_pyproject_use_the_legacy_backend() {
+async fn git_projects_without_a_pyproject_use_legacy_backend_dependencies() {
     let root = tempfile::tempdir().unwrap();
     let repo = tempfile::tempdir().unwrap();
     let (url, _) = repository(repo.path());
     fs::remove_file(repo.path().join("pyproject.toml")).unwrap();
     fs::rename(repo.path().join("src/fork"), repo.path().join("fork")).unwrap();
-    fs::write(repo.path().join("setup.py"), "# legacy Python project\n").unwrap();
+    fs::write(
+        repo.path().join("setup.py"),
+        "from setuptools import setup\nsetup(install_requires=['helper'])\n",
+    )
+    .unwrap();
     git(repo.path(), &["add", "."]);
     git(
         repo.path(),
@@ -440,7 +444,7 @@ async fn git_projects_without_a_pyproject_use_the_legacy_backend() {
     let backend = super::TINY_BACKEND
         .replace(
             r#"manifest = tomllib.load(open("pyproject.toml", "rb"))"#,
-            "manifest = {'project': {'name': 'fork', 'version': '1.0'}}",
+            "manifest = {'project': {'name': 'fork', 'version': '1.0', 'dependencies': ['helper']}}",
         )
         .replace(r#"return "src" if os.path.isdir("src") else ".""#, r#"return ".""#);
     let backend = format!(
@@ -453,6 +457,7 @@ async fn git_projects_without_a_pyproject_use_the_legacy_backend() {
     )
     .await;
     let _wheel = serve(&mut server, "wheel", &[("1.0", wheel("wheel", "1.0", "", &[]))]).await;
+    let _helper = serve(&mut server, "helper", &[("1.0", wheel("helper", "1.0", "", &[]))]).await;
     project(root.path(), &server.url(), &[&format!("fork @ git+{url}@{commit}")]);
     approve(root.path(), "fork");
     pacquet_in(root.path())
@@ -460,11 +465,16 @@ async fn git_projects_without_a_pyproject_use_the_legacy_backend() {
         .assert()
         .success();
     python(root.path())
-        .args(["-c", "import fork"])
+        .args(["-c", "import fork, helper"])
         .assert()
         .success();
+    pnpm_fs::remove_symlink_dir(&root.path().join(".venv")).unwrap();
     pacquet_in(root.path())
         .args(["install", "--offline", "--frozen-lockfile"])
+        .assert()
+        .success();
+    python(root.path())
+        .args(["-c", "import fork, helper"])
         .assert()
         .success();
 }
