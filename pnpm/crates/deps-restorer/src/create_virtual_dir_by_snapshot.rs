@@ -325,9 +325,9 @@ fn cas_paths_with_build_marker(
     cas_paths: &HashMap<String, PathBuf>,
     save_path: &Path,
     needs_build_marker_source: Option<&Path>,
-    rebuilt: (bool, bool),
+    forced: (bool, bool),
 ) -> Option<HashMap<String, PathBuf>> {
-    let (interrupted_build, force_import) = rebuilt;
+    let (interrupted_build, force_import) = forced;
     let source = needs_build_marker_source?;
     if !interrupted_build && !force_import && marker_present(save_path, cas_paths) {
         return None;
