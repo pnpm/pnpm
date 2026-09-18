@@ -6173,6 +6173,7 @@ dependencies = [
  "dashmap",
  "derive_more",
  "dunce",
+ "junction 2.0.0",
  "miette 7.6.0",
  "node-semver",
  "pipe-trait",
