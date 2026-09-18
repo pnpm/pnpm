@@ -5,4 +5,4 @@
 "pacquet": patch
 ---
 
-POSIX bin shims now convert Windows paths with the system `cygpath` and `wslpath` on Cygwin, MSYS2, and WSL. The shims looked those helpers up on `PATH`, which starts with `node_modules/.bin`, so a dependency shipping a bin under either name could redirect another package's shim. A host that has neither helper on the system default path still falls back to `PATH`. Installing again replaces the shims already in `node_modules` [#14866](https://github.com/pnpm/pnpm/issues/14866).
+POSIX bin shims now take `cygpath` and `wslpath` from the system default path on Cygwin, MSYS2, and WSL2. The shims looked both helpers up on `PATH`, where a dependency's own bins come first, so a dependency could redirect another package's shim. Installing again replaces the shims already in `node_modules` [#14866](https://github.com/pnpm/pnpm/issues/14866).

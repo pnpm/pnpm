@@ -869,16 +869,13 @@ fn the_platform_branch_prefers_the_system_path_converter_and_still_falls_back() 
     );
 }
 
-/// The POSIX directory the platform branch under test converts.
 #[cfg(unix)]
 const BRANCH_BASEDIR: &str = "/proj/node_modules/.bin";
 
-/// Runs the header's platform branch, lifted out of `body` so the test drives
-/// the text pnpm writes, and reports the `basedir_win` and `exe` it leaves
-/// behind. No test host reports itself as Cygwin or WSL2, and `command -p`
-/// searches the system default path, which a test cannot plant into, so the
-/// `uname` and the two converters are the one thing rewritten here:
-/// `system_converter` stands in for what `command -p` would reach and
+/// No test host reports itself as Cygwin or WSL2, and `command -p` searches the
+/// system default path, which a test cannot plant into. So the branch is taken
+/// from `body` and only its `uname` and its two converters are rewritten:
+/// `system_converter` stands in for what `command -p` would reach, and
 /// `callers_path` for what the fallback finds. That the real header reaches
 /// them through `command -p` is what
 /// [`generate_sh_shim_matches_pnpm_typical_case`] pins.

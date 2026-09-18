@@ -330,7 +330,6 @@ describeOnPosix('sh shim picks its Windows path converter', () => {
     fs.chmodSync(file, 0o755)
   }
 
-  // Returns the basedir_win and exe the branch leaves behind.
   const runPlatformBranch = (shimBody, uname, systemConverter, callersPath) => {
     const caseHead = 'case `command -p uname -a` in'
     const start = shimBody.indexOf(caseHead)
