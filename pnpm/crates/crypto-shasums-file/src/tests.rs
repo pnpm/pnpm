@@ -1,9 +1,10 @@
 use pretty_assertions::assert_eq;
 
 use super::{
-    FetchVerifiedNodeShasumsError, PickFileChecksumError, ShasumsFileItem, ShasumsTrust,
-    fetch_shasums_file_cached, fetch_shasums_file_cached_with_auth_headers,
-    fetch_verified_node_shasums, fetch_verified_node_shasums_file_cached,
+    FetchShasumsFileError, FetchVerifiedNodeShasumsError, MAX_CACHED_SHASUMS_LEN,
+    PickFileChecksumError, ShasumsFileItem, ShasumsTrust, fetch_shasums_file_cached,
+    fetch_shasums_file_cached_with_auth_headers, fetch_verified_node_shasums,
+    fetch_verified_node_shasums_file_cached,
     fetch_verified_node_shasums_file_cached_with_auth_headers,
     is_signed_by_trusted_node_release_key, parse_shasums_file,
     pick_file_checksum_from_shasums_file, read_cached_shasums, write_cached_shasums,
@@ -391,6 +392,28 @@ async fn plain_fetch_caches_the_body() {
 
     assert_eq!(fetched, cached);
     assert_eq!(fetched.len(), 1);
+    shasums.assert_async().await;
+}
+
+#[tokio::test]
+async fn plain_fetch_refuses_a_body_too_large_for_the_cache() {
+    let mut server = mockito::Server::new_async().await;
+    let shasums = server
+        .mock("GET", "/download/v1.2.3/SHASUMS256.txt")
+        .with_status(200)
+        .with_body(vec![b'a'; MAX_CACHED_SHASUMS_LEN as usize + 1])
+        .expect(1)
+        .create_async()
+        .await;
+    let cache_dir = tempfile::tempdir().expect("create temp cache dir");
+    let client = pnpm_network::ThrottledClient::new_for_installs();
+    let url = format!("{}/download/v1.2.3/SHASUMS256.txt", server.url());
+
+    let error = fetch_shasums_file_cached(&client, &url, Some(cache_dir.path()))
+        .await
+        .expect_err("refuse an oversized body");
+
+    assert!(matches!(error, FetchShasumsFileError::TooLarge { .. }));
     shasums.assert_async().await;
 }
 

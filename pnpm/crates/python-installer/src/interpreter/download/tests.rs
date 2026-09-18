@@ -1,5 +1,9 @@
-use super::{Bounds, Releases, ShasumsFileItem, builds_in, host_triple, within};
+use super::{
+    Bounds, Releases, ShasumsFileItem, Source, builds_in, exact_version, host_triple, within,
+};
 use crate::interpreter::VersionRequest;
+use pnpm_config::{Config, Tool, ToolSettings};
+use pnpm_network::ThrottledClient;
 
 /// A python-build-standalone `SHA256SUMS`, as the release writes it and
 /// as the shared parser hands it back.
@@ -97,6 +101,335 @@ fn the_build_installed_is_the_newest_one_the_project_accepts() {
             .best(Some(&requires("==3.9.1")), None)
             .is_none(),
     );
+}
+
+#[test]
+fn an_exact_patch_pin_names_the_historical_version_to_find() {
+    assert_eq!(
+        exact_version(Some(&requires("==3.13.13")), None)
+            .expect("an exact requires-python")
+            .to_string(),
+        "3.13.13",
+    );
+    assert_eq!(
+        exact_version(None, Some(&VersionRequest::asking_for(&[3, 13, 13])))
+            .expect("an exact .python-version request")
+            .to_string(),
+        "3.13.13",
+    );
+    assert!(exact_version(None, Some(&VersionRequest::asking_for(&[3, 13]))).is_none());
+    assert_eq!(
+        exact_version(
+            Some(&requires("==3.13.13")),
+            Some(&VersionRequest::asking_for(&[3, 12, 12])),
+        )
+        .expect("the project's exact requirement outranks an incompatible request")
+        .to_string(),
+        "3.13.13",
+    );
+}
+
+#[tokio::test]
+async fn an_exact_patch_pin_reads_the_release_that_published_it() {
+    let triple = host_triple().expect("these tests run where interpreters are built");
+    let mut server = mockito::Server::new_async().await;
+    let latest_file = built(&["3.13.15"], &triple).remove(0);
+    let pinned_file = format!("cpython-3.13.13+20260602-{triple}-install_only_stripped.tar.gz");
+    let latest = server
+        .mock("GET", "/latest/download/SHA256SUMS")
+        .with_body(format!("{}  {latest_file}\n", "a".repeat(64)))
+        .expect(1)
+        .create_async()
+        .await;
+    let tags = server
+        .mock("GET", "/tags")
+        .match_query(mockito::Matcher::AllOf(vec![
+            mockito::Matcher::UrlEncoded("per_page".into(), "100".into()),
+            mockito::Matcher::UrlEncoded("page".into(), "1".into()),
+        ]))
+        .with_body(r#"[{"name":"20260501"},{"name":"20260901"},{"name":"20260602"}]"#)
+        .expect(1)
+        .create_async()
+        .await;
+    let pinned = server
+        .mock("GET", "/download/20260602/SHA256SUMS")
+        .with_body(format!("{}  {pinned_file}\n", "b".repeat(64)))
+        .expect(1)
+        .create_async()
+        .await;
+    let config = Config::new();
+    let exact: pep440_rs::Version = "3.13.13".parse().expect("version fixture");
+
+    let releases = Releases::read_from(
+        &config,
+        &ThrottledClient::new_for_installs(),
+        Source::from_urls(&server.url(), &format!("{}/tags", server.url())),
+        Some(&exact),
+    )
+    .await
+    .expect("read the historical release");
+
+    assert_eq!(
+        releases
+            .best(Some(&requires("==3.13.13")), None)
+            .expect("the pinned build")
+            .file,
+        pinned_file,
+    );
+    latest.assert_async().await;
+    tags.assert_async().await;
+    pinned.assert_async().await;
+}
+
+#[tokio::test]
+async fn an_exact_patch_pin_checks_neighboring_releases_for_this_machine() {
+    let triple = host_triple().expect("these tests run where interpreters are built");
+    let other_triple = if triple == "x86_64-pc-windows-msvc" {
+        "aarch64-apple-darwin"
+    } else {
+        "x86_64-pc-windows-msvc"
+    };
+    let mut server = mockito::Server::new_async().await;
+    let latest_file = built(&["3.13.15"], &triple).remove(0);
+    let other_file =
+        format!("cpython-3.13.13+20260501-{other_triple}-install_only_stripped.tar.gz");
+    let pinned_file = format!("cpython-3.13.13+20260602-{triple}-install_only_stripped.tar.gz");
+    let latest = server
+        .mock("GET", "/latest/download/SHA256SUMS")
+        .with_body(format!("{}  {latest_file}\n", "a".repeat(64)))
+        .expect(1)
+        .create_async()
+        .await;
+    let tags = server
+        .mock("GET", "/tags")
+        .match_query(mockito::Matcher::AllOf(vec![
+            mockito::Matcher::UrlEncoded("per_page".into(), "100".into()),
+            mockito::Matcher::UrlEncoded("page".into(), "1".into()),
+        ]))
+        .with_body(
+            r#"[{"name":"20260401"},{"name":"20260901"},{"name":"20260501"},{"name":"20260602"}]"#,
+        )
+        .expect(1)
+        .create_async()
+        .await;
+    let other = server
+        .mock("GET", "/download/20260501/SHA256SUMS")
+        .with_body(format!("{}  {other_file}\n", "b".repeat(64)))
+        .expect(1)
+        .create_async()
+        .await;
+    let pinned = server
+        .mock("GET", "/download/20260602/SHA256SUMS")
+        .with_body(format!("{}  {pinned_file}\n", "c".repeat(64)))
+        .expect(1)
+        .create_async()
+        .await;
+    let config = Config::new();
+    let exact: pep440_rs::Version = "3.13.13".parse().expect("version fixture");
+
+    let releases = Releases::read_from(
+        &config,
+        &ThrottledClient::new_for_installs(),
+        Source::from_urls(&server.url(), &format!("{}/tags", server.url())),
+        Some(&exact),
+    )
+    .await
+    .expect("read the neighboring historical release");
+
+    assert_eq!(
+        releases
+            .best(Some(&requires("==3.13.13")), None)
+            .expect("the pinned build")
+            .file,
+        pinned_file,
+    );
+    latest.assert_async().await;
+    tags.assert_async().await;
+    other.assert_async().await;
+    pinned.assert_async().await;
+}
+
+#[tokio::test]
+async fn other_machines_do_not_choose_the_historical_search_direction() {
+    let triple = host_triple().expect("these tests run where interpreters are built");
+    let other_triple = if triple == "x86_64-pc-windows-msvc" {
+        "aarch64-apple-darwin"
+    } else {
+        "x86_64-pc-windows-msvc"
+    };
+    let mut server = mockito::Server::new_async().await;
+    let latest_file = built(&["3.13.15"], &triple).remove(0);
+    let midpoint_file = format!("cpython-3.13.12+20260501-{triple}-install_only_stripped.tar.gz");
+    let other_file =
+        format!("cpython-3.13.14+20260501-{other_triple}-install_only_stripped.tar.gz");
+    let pinned_file = format!("cpython-3.13.13+20260602-{triple}-install_only_stripped.tar.gz");
+    let latest = server
+        .mock("GET", "/latest/download/SHA256SUMS")
+        .with_body(format!("{}  {latest_file}\n", "a".repeat(64)))
+        .expect(1)
+        .create_async()
+        .await;
+    let tags = server
+        .mock("GET", "/tags")
+        .match_query(mockito::Matcher::AllOf(vec![
+            mockito::Matcher::UrlEncoded("per_page".into(), "100".into()),
+            mockito::Matcher::UrlEncoded("page".into(), "1".into()),
+        ]))
+        .with_body(
+            r#"[{"name":"20260401"},{"name":"20260901"},{"name":"20260501"},{"name":"20260602"}]"#,
+        )
+        .expect(1)
+        .create_async()
+        .await;
+    let midpoint = server
+        .mock("GET", "/download/20260501/SHA256SUMS")
+        .with_body(format!(
+            "{}  {midpoint_file}\n{}  {other_file}\n",
+            "b".repeat(64),
+            "c".repeat(64),
+        ))
+        .expect(1)
+        .create_async()
+        .await;
+    let pinned = server
+        .mock("GET", "/download/20260602/SHA256SUMS")
+        .with_body(format!("{}  {pinned_file}\n", "d".repeat(64)))
+        .expect(1)
+        .create_async()
+        .await;
+    let config = Config::new();
+    let exact: pep440_rs::Version = "3.13.13".parse().expect("version fixture");
+
+    let releases = Releases::read_from(
+        &config,
+        &ThrottledClient::new_for_installs(),
+        Source::from_urls(&server.url(), &format!("{}/tags", server.url())),
+        Some(&exact),
+    )
+    .await
+    .expect("read the historical release for this machine");
+
+    assert_eq!(
+        releases
+            .best(Some(&requires("==3.13.13")), None)
+            .expect("the pinned build")
+            .file,
+        pinned_file,
+    );
+    latest.assert_async().await;
+    tags.assert_async().await;
+    midpoint.assert_async().await;
+    pinned.assert_async().await;
+}
+
+#[tokio::test]
+async fn a_release_without_this_machine_does_not_end_the_historical_search() {
+    let triple = host_triple().expect("these tests run where interpreters are built");
+    let other_triple = if triple == "x86_64-pc-windows-msvc" {
+        "aarch64-apple-darwin"
+    } else {
+        "x86_64-pc-windows-msvc"
+    };
+    let mut server = mockito::Server::new_async().await;
+    let latest_file = built(&["3.13.15"], &triple).remove(0);
+    let gap_file = format!("cpython-3.13.13+20260701-{other_triple}-install_only_stripped.tar.gz");
+    let nearer_file = format!("cpython-3.13.12+20260801-{triple}-install_only_stripped.tar.gz");
+    let pinned_file = format!("cpython-3.13.13+20260901-{triple}-install_only_stripped.tar.gz");
+    let latest = server
+        .mock("GET", "/latest/download/SHA256SUMS")
+        .with_body(format!("{}  {latest_file}\n", "a".repeat(64)))
+        .expect(1)
+        .create_async()
+        .await;
+    let tags = server
+        .mock("GET", "/tags")
+        .match_query(mockito::Matcher::AllOf(vec![
+            mockito::Matcher::UrlEncoded("per_page".into(), "100".into()),
+            mockito::Matcher::UrlEncoded("page".into(), "1".into()),
+        ]))
+        .with_body(
+            r#"[{"name":"20260501"},{"name":"20260701"},{"name":"20260901"},{"name":"20260601"},{"name":"20260801"}]"#,
+        )
+        .expect(1)
+        .create_async()
+        .await;
+    let gap = server
+        .mock("GET", "/download/20260701/SHA256SUMS")
+        .with_body(format!("{}  {gap_file}\n", "b".repeat(64)))
+        .expect(1)
+        .create_async()
+        .await;
+    let nearer = server
+        .mock("GET", "/download/20260801/SHA256SUMS")
+        .with_body(format!("{}  {nearer_file}\n", "c".repeat(64)))
+        .expect(1)
+        .create_async()
+        .await;
+    let pinned = server
+        .mock("GET", "/download/20260901/SHA256SUMS")
+        .with_body(format!("{}  {pinned_file}\n", "d".repeat(64)))
+        .expect(1)
+        .create_async()
+        .await;
+    let config = Config::new();
+    let exact: pep440_rs::Version = "3.13.13".parse().expect("version fixture");
+
+    let releases = Releases::read_from(
+        &config,
+        &ThrottledClient::new_for_installs(),
+        Source::from_urls(&server.url(), &format!("{}/tags", server.url())),
+        Some(&exact),
+    )
+    .await
+    .expect("search past a release without a build for this machine");
+
+    assert_eq!(
+        releases
+            .best(Some(&requires("==3.13.13")), None)
+            .expect("the pinned build")
+            .file,
+        pinned_file,
+    );
+    latest.assert_async().await;
+    tags.assert_async().await;
+    gap.assert_async().await;
+    nearer.assert_async().await;
+    pinned.assert_async().await;
+}
+
+#[tokio::test]
+async fn a_mirror_does_not_require_the_upstream_release_list() {
+    let triple = host_triple().expect("these tests run where interpreters are built");
+    let mut server = mockito::Server::new_async().await;
+    let latest_file = built(&["3.13.15"], &triple).remove(0);
+    let latest = server
+        .mock("GET", "/latest/download/SHA256SUMS")
+        .with_body(format!("{}  {latest_file}\n", "a".repeat(64)))
+        .expect(1)
+        .create_async()
+        .await;
+    let mut config = Config::new();
+    config.tools.insert(
+        Tool::Python,
+        ToolSettings { mirror: Some(server.url()), ..ToolSettings::default() },
+    );
+    let exact: pep440_rs::Version = "3.13.13".parse().expect("version fixture");
+
+    let releases = Releases::read_from(
+        &config,
+        &ThrottledClient::new_for_installs(),
+        Source::configured(&config),
+        Some(&exact),
+    )
+    .await
+    .expect("read the mirror's latest release");
+
+    assert!(
+        releases
+            .best(Some(&requires("==3.13.13")), None)
+            .is_none(),
+    );
+    latest.assert_async().await;
 }
 
 /// What an archive holds is what it expands to and how many files that

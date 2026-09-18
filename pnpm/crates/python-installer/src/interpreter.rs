@@ -64,6 +64,7 @@ enum Probe {
 pub(super) struct Interpreters<'a> {
     config: &'a Config,
     client: &'a ThrottledClient,
+    source: download::Source<'a>,
     probed: Vec<(InterpreterCommand, Probe)>,
     /// The interpreters the machine offers under a version, scanned for
     /// once however many projects need them.
@@ -79,6 +80,7 @@ impl<'a> Interpreters<'a> {
         Self {
             config,
             client,
+            source: download::Source::configured(config),
             probed: Vec::new(),
             scanned: None,
             path: path_outside(config.workspace_dir.as_deref()),
@@ -186,7 +188,10 @@ impl<'a> Interpreters<'a> {
             request,
             any_version,
         } = install;
-        let releases = download::Releases::read(self.config, self.client).await?;
+        let exact = download::exact_version(requires_python, request);
+        let releases =
+            download::Releases::read_from(self.config, self.client, self.source, exact.as_ref())
+                .await?;
         let asked_for = releases.best(requires_python, request);
         let build = match asked_for {
             Some(build) => Some(build),

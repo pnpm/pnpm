@@ -284,43 +284,33 @@ async fn fetch_shasums_file_raw_with_auth(
     shasums_url: &str,
     auth_headers: Option<&AuthHeaders>,
 ) -> Result<String, FetchShasumsFileError> {
-    let (status, body) = if let Some(auth_headers) = auth_headers {
-        let response = http_client
-            .get_bytes_with_secure_auth_headers(shasums_url, auth_headers)
-            .await
-            .map_err(|error| FetchShasumsFileError::Network {
-                url: shasums_url.to_string(),
-                error: Arc::new(error),
-            })?;
-        (response.status, response.body)
-    } else {
-        let response = http_client
-            .acquire_for_url(shasums_url)
-            .await
-            .get(shasums_url)
-            .send()
-            .await
-            .map_err(|error| FetchShasumsFileError::Network {
-                url: shasums_url.to_string(),
-                error: Arc::new(error),
-            })?;
-        let status = response.status();
-        let body = response
-            .bytes()
-            .await
-            .map_err(|error| FetchShasumsFileError::Network {
-                url: shasums_url.to_string(),
-                error: Arc::new(error),
-            })?;
-        (status, body.to_vec())
-    };
-    if !status.is_success() {
-        return Err(FetchShasumsFileError::StatusNotOk {
+    let default_auth_headers = AuthHeaders::default();
+    let response = http_client
+        .get_limited_bytes_with_secure_auth_and_retry(
+            shasums_url,
+            auth_headers.unwrap_or(&default_auth_headers),
+            None,
+            RetryOpts { retries: 0, ..RetryOpts::default() },
+            MAX_SHASUMS_BYTES,
+        )
+        .await
+        .map_err(|error| FetchShasumsFileError::Network {
             url: shasums_url.to_string(),
-            status: status.as_u16(),
+            error: Arc::new(error),
+        })?;
+    if response.body_truncated {
+        return Err(FetchShasumsFileError::TooLarge {
+            url: shasums_url.to_string(),
+            limit: MAX_SHASUMS_BYTES,
         });
     }
-    Ok(String::from_utf8_lossy(&body).into_owned())
+    if !response.status.is_success() {
+        return Err(FetchShasumsFileError::StatusNotOk {
+            url: shasums_url.to_string(),
+            status: response.status.as_u16(),
+        });
+    }
+    Ok(String::from_utf8_lossy(&response.body).into_owned())
 }
 
 async fn fetch_node_shasums_bytes(
