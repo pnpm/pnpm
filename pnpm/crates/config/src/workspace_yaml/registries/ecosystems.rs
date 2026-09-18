@@ -205,3 +205,18 @@ pub fn take_roles_from_earlier_layers(
     });
     registry_options_by_url.retain(|registry, _| !declared_as_index.contains(registry.as_str()));
 }
+
+/// Whether `registry` is an index of an ecosystem other than npm, comparing
+/// the normalized URL because a declaration's key is normalized and a
+/// `namedRegistries` alias is kept as written.
+#[must_use]
+pub fn serves_another_ecosystem(
+    indexes_by_ecosystem: &BTreeMap<Ecosystem, Vec<String>>,
+    registry: &str,
+) -> bool {
+    let normalized = normalize_registry_url(registry);
+    indexes_by_ecosystem
+        .values()
+        .flatten()
+        .any(|index| index == &normalized)
+}

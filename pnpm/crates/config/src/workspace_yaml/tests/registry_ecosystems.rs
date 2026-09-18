@@ -242,3 +242,25 @@ fn a_url_reclassified_to_another_ecosystem_leaves_the_first_one() {
         "the URL stayed the Cargo index as well as the PyPI one",
     );
 }
+
+/// `namedRegistries` is applied after the roles are settled, so an alias
+/// addressing an index would otherwise put that URL in two roles: an index of
+/// its ecosystem and a bare-specifier prefix for npm.
+#[test]
+fn a_named_registry_alias_does_not_address_an_index() {
+    let config = load(
+        "registries:\n  https://pypi.example.com/simple/:\n    ecosystem: pypi\nnamedRegistries:\n  work: https://pypi.example.com/simple\n  other: https://npm.example.com/\n",
+    )
+    .unwrap();
+    assert_eq!(config.python_indexes(), ["https://pypi.example.com/simple/"]);
+    assert!(
+        !config.registries_by_prefix.contains_key("work"),
+        "the alias addressed the PyPI index: {:?}",
+        config.registries_by_prefix,
+    );
+    assert_eq!(
+        config.registries_by_prefix.get("other").map(String::as_str),
+        Some("https://npm.example.com/"),
+        "an alias addressing an npm registry is still declared",
+    );
+}

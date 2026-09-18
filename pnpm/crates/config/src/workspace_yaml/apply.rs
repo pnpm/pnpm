@@ -234,6 +234,17 @@ impl WorkspaceSettings {
             );
         }
         for (name, registry) in named {
+            // An alias addressing a URL `registries` serves to another
+            // ecosystem would put that URL in two roles, which the entries
+            // themselves cannot express and nothing downstream expects.
+            if registries::serves_another_ecosystem(&config.indexes_by_ecosystem, &registry) {
+                tracing::warn!(
+                    target: "pacquet::config",
+                    prefix = name,
+                    r#"The deprecated "namedRegistries" setting addresses a registry that "registries" declares an index of another ecosystem. The prefix is not declared."#,
+                );
+                continue;
+            }
             config.registries_by_prefix.entry(name).or_insert(registry);
         }
     }

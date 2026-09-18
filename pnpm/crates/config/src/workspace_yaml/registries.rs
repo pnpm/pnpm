@@ -6,7 +6,7 @@
 //! the routes, because a scope resolves to exactly one registry while a
 //! registry serves many.
 
-pub use ecosystems::{Ecosystem, take_roles_from_earlier_layers};
+pub use ecosystems::{Ecosystem, serves_another_ecosystem, take_roles_from_earlier_layers};
 
 use super::LoadWorkspaceYamlError;
 use crate::workspace_yaml::{
