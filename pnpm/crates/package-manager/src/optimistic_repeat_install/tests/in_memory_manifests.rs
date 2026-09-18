@@ -114,8 +114,5 @@ fn content_mode_refreshes_the_workspace_state_after_a_passing_check() {
         .unwrap()
         .unwrap()
         .last_validated_timestamp;
-    assert!(
-        after >= before,
-        "expected the state timestamp to hold or advance ({before} -> {after})",
-    );
+    assert!(after > before, "expected the state timestamp to advance ({before} -> {after})");
 }

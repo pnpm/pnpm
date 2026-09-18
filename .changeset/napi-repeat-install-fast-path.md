@@ -3,4 +3,4 @@
 "@pnpm/napi": patch
 ---
 
-An `install` through the Node-API bindings now returns "Already up to date" without running the install when nothing changed since the previous install. The bindings receive the project manifests in memory, so the check compares every manifest with `pnpm-lock.yaml` by content instead of by the `package.json` modification time. A repeat install that reaches the lockfile check no longer re-installs when the wanted lockfile differs from the installed one only by a package no project depends on or by a top-level key pnpm does not define.
+Repeat installs through the Node-API bindings now return "Already up to date" when the project manifests still match `pnpm-lock.yaml`. Before, every such install reinstalled the whole tree. An install also no longer reinstalls when `pnpm-lock.yaml` differs from the installed dependencies only by packages no project depends on or by top-level keys pnpm does not define.

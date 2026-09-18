@@ -271,13 +271,9 @@ fn repeat_install_uses_changed_in_memory_manifest() {
     );
 }
 
-/// A repeat install whose in-memory manifest still matches the lockfile is
-/// "Already up to date" before any install setup runs. The manifest never
-/// touched `package.json`, so the mtime-based check could not have judged
-/// it; the content check does. The second run has no registry and no
-/// metadata cache: every other path (a resolve, the lockfile-verification
-/// fan-out, a tarball fetch) would have to reach the dead registry and
-/// fail.
+/// The second run has no registry and no metadata cache: every path but the
+/// repeat-install fast path (a resolve, the lockfile-verification fan-out, a
+/// tarball fetch) would have to reach the dead registry and fail.
 #[test]
 fn repeat_install_with_unchanged_in_memory_manifest_needs_no_registry() {
     let registry = TestRegistry::start();
