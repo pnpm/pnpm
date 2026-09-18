@@ -124,6 +124,14 @@ pub enum LinkBinsError {
         error: io::Error,
     },
 
+    #[display("Failed to resolve bin-link path {path:?}: {error}")]
+    #[diagnostic(code(ERR_PNPM_CMD_SHIM_RESOLVE_PATH))]
+    ResolvePath {
+        path: PathBuf,
+        #[error(source)]
+        error: io::Error,
+    },
+
     #[display("Failed to read modules directory at {dir:?}: {error}")]
     #[diagnostic(code(ERR_PNPM_CMD_SHIM_READ_MODULES_DIR))]
     ReadModulesDir {
@@ -277,6 +285,11 @@ pub struct LinkBinsOptions {
     /// shim. Inert on Windows, where bins always get shims. The node
     /// runtime binary is symlinked regardless of this setting.
     pub prefer_symlinked_executables: bool,
+    /// Bins written inside this directory name the paths inside it relative
+    /// to themselves: the shim target marker, the shim `NODE_PATH` entries,
+    /// and the node runtime symlink. `None` writes absolute paths. Inert on
+    /// Windows.
+    pub relocatable_root: Option<PathBuf>,
 }
 
 /// Read `<location>/package.json` for each entry under `modules_dir` and link
@@ -393,6 +406,8 @@ where
     let bin_dir = Sys::create_dir_all_reporting(bins_dir)
         .map_err(|error| LinkBinsError::CreateBinDir { dir: bins_dir.to_path_buf(), error })?;
 
+    let paths = linking_paths::LinkingPaths::new(bins_dir, options)?;
+
     // Each shim's read-shebang + write-file + chmod sequence is independent
     // across bin names. There is no shared state, so drive them on rayon.
     // The hot path is per-package-bin; without parallelism the per-shim
@@ -406,7 +421,7 @@ where
             let node_path = if options.prefer_symlinked_executables && cfg!(unix) {
                 Vec::new()
             } else {
-                shim_node_path(pkg, &options.extra_node_paths)
+                shim_node_path(pkg, &paths.extra_node_paths)
             };
             let pkg_name = package_name(pkg);
             // The target's symlink-resolved path doubles as the memo key
@@ -425,12 +440,13 @@ where
                 .unwrap_or_else(|| command.path.clone());
             write_shim::<Sys>(
                 ShimSpec {
-                    target_path: &command.path,
+                    target_path: &paths.target(&command.path, options.relocatable_root.as_deref())?,
                     probe_path: &probe_path,
-                    shim_path: &bins_dir.join(&command.name),
+                    shim_path: &paths.bins_dir.join(&command.name),
                     node_path: &node_path,
                     prefer_symlinked_executables: options.prefer_symlinked_executables,
                     make_powershell_shim: wants_powershell_shim(pkg_name),
+                    relocatable_root: paths.relocatable_root.as_deref(),
                     bin_dir,
                 },
                 cache,
@@ -557,3 +573,5 @@ use executable::{
 };
 
 mod discovery;
+
+mod linking_paths;

@@ -16,6 +16,8 @@ use std::{
     path::{Path, PathBuf},
 };
 
+mod relocatable;
+
 #[test]
 fn parses_env_node_shebang() {
     let rt = parse_shebang("#!/usr/bin/env node").unwrap();
@@ -70,7 +72,7 @@ fn relative_target_traverses_into_sibling_package() {
 fn generate_sh_shim_header_carries_the_hardened_helper_line() {
     let target = Path::new("/proj/node_modules/typescript/bin/tsc");
     let shim = Path::new("/proj/node_modules/.bin/tsc");
-    let body = generate_sh_shim(target, shim, None, &[]);
+    let body = generate_sh_shim(target, shim, None, &[], None);
 
     assert!(
         is_sh_shim_hardened(&body),
@@ -94,7 +96,7 @@ fn generate_sh_shim_matches_pnpm_typical_case() {
     let target = Path::new("/proj/node_modules/typescript/bin/tsc");
     let shim = Path::new("/proj/node_modules/.bin/tsc");
     let runtime = ScriptRuntime { prog: Some("node".into()), args: String::new() };
-    let body = generate_sh_shim(target, shim, Some(&runtime), &[]);
+    let body = generate_sh_shim(target, shim, Some(&runtime), &[], None);
 
     assert!(body.starts_with("#!/bin/sh\n"), "shebang must come first");
     assert!(
@@ -165,7 +167,7 @@ case `command -p uname -a` in"#
 fn posix_shim_header_normalizes_windows_backslash_paths_without_echo_escapes() {
     let target = Path::new("/proj/node_modules/typescript/bin/tsc");
     let shim = Path::new("/proj/node_modules/.bin/tsc");
-    let body = generate_sh_shim(target, shim, None, &[]);
+    let body = generate_sh_shim(target, shim, None, &[], None);
     let conversion = body
         .lines()
         .find(|line| line.starts_with("basedir=$("))
@@ -185,13 +187,29 @@ fn posix_shim_header_normalizes_windows_backslash_paths_without_echo_escapes() {
 }
 
 #[test]
-fn is_shim_pointing_at_round_trips_through_marker() {
+#[cfg_attr(not(unix), ignore = "relocatable shims are only written on Unix")]
+fn is_shim_pointing_at_accepts_relative_and_absolute_markers() {
     let target = Path::new("/p/node_modules/typescript/bin/tsc");
     let shim = Path::new("/p/node_modules/.bin/tsc");
     let runtime = ScriptRuntime { prog: Some("node".into()), args: String::new() };
-    let body = generate_sh_shim(target, shim, Some(&runtime), &[]);
-    assert!(is_shim_pointing_at(&body, target));
-    assert!(!is_shim_pointing_at(&body, Path::new("/elsewhere")));
+    for relocatable_root in [None, Some(Path::new("/p"))] {
+        let body = generate_sh_shim(target, shim, Some(&runtime), &[], relocatable_root);
+        assert!(is_shim_pointing_at(&body, shim, target), "{relocatable_root:?}:\n{body}");
+        assert!(!is_shim_pointing_at(&body, shim, Path::new("/elsewhere")), "{body}");
+    }
+
+    let body = generate_sh_shim(target, shim, Some(&runtime), &[], Some(Path::new("/p")));
+    let moved_shim = Path::new("/q/node_modules/.bin/tsc");
+    let moved_target = Path::new("/q/node_modules/typescript/bin/tsc");
+    assert!(
+        is_shim_pointing_at(&body, moved_shim, moved_target),
+        "a relative marker must follow the shim to its new location:\n{body}",
+    );
+
+    // The relative marker and `is_shim_pointing_at` must normalize `\` alike.
+    let backslash_target = Path::new(r"/p/node_modules/a\b/tsc");
+    let body = generate_sh_shim(backslash_target, shim, Some(&runtime), &[], Some(Path::new("/p")));
+    assert!(is_shim_pointing_at(&body, shim, backslash_target), "{body}");
 }
 
 #[test]
@@ -230,7 +248,7 @@ fn parse_shebang_from_bytes_handles_crlf_and_lossy_utf8() {
 fn generate_sh_shim_emits_direct_exec_when_no_runtime() {
     let target = Path::new("/proj/node_modules/foo/bin/cli");
     let shim = Path::new("/proj/node_modules/.bin/cli");
-    let body = generate_sh_shim(target, shim, None, &[]);
+    let body = generate_sh_shim(target, shim, None, &[], None);
     assert!(
         body.contains("exec \"$basedir/../foo/bin/cli\"  \"$@\"\nexit $?\n"),
         "no-runtime arm must exec the target directly, body:\n{body}",
@@ -243,7 +261,7 @@ fn generate_sh_shim_threads_args_when_prog_is_none() {
     let target = Path::new("/p/cli");
     let shim = Path::new("/p/.bin/cli");
     let runtime = ScriptRuntime { prog: None, args: "--flag".to_string() };
-    let body = generate_sh_shim(target, shim, Some(&runtime), &[]);
+    let body = generate_sh_shim(target, shim, Some(&runtime), &[], None);
     assert!(
         body.contains("exec \"$basedir/../cli\" --flag \"$@\"\nexit $?\n"),
         "args must be threaded into the no-prog arm, body:\n{body}",
@@ -266,7 +284,7 @@ fn generate_sh_shim_uses_absolute_target_when_no_common_prefix() {
     let target = Path::new("/abs/elsewhere/cli");
     let shim = Path::new("local-shim");
     let runtime = ScriptRuntime { prog: Some("node".into()), args: String::new() };
-    let body = generate_sh_shim(target, shim, Some(&runtime), &[]);
+    let body = generate_sh_shim(target, shim, Some(&runtime), &[], None);
     assert!(
         body.contains(r#""/abs/elsewhere/cli""#),
         "absolute-target branch must skip $basedir prefix, body:\n{body}",
@@ -386,7 +404,7 @@ fn generate_sh_shim_uses_windows_target_only_for_exe_branches() {
     let target = Path::new("/proj/node_modules/foo/src.bat");
     let shim = Path::new("/proj/node_modules/.bin/foo");
     let runtime = ScriptRuntime { prog: Some("cmd".into()), args: "/C".into() };
-    let body = generate_sh_shim(target, shim, Some(&runtime), &[]);
+    let body = generate_sh_shim(target, shim, Some(&runtime), &[], None);
 
     assert!(
         body.contains("if [ -n \"$msys\" ]; then\n  if [ -n \"$exe\" ] && [ -x \"$basedir/cmd.exe\" ]; then\n    exec \"$basedir/cmd.exe\" //C \"$basedir_win/../foo/src.bat\" \"$@\"\n  elif [ -x \"$basedir/cmd\" ]; then\n    exec \"$basedir/cmd\" //C \"$basedir/../foo/src.bat\" \"$@\"\n  elif command -v cmd >/dev/null 2>&1; then\n    exec cmd //C \"$basedir/../foo/src.bat\" \"$@\"\n  elif [ -n \"$exe\" ] && command -v cmd.exe >/dev/null 2>&1; then\n    exec cmd.exe //C \"$basedir_win/../foo/src.bat\" \"$@\"\n  else\n    exec cmd //C \"$basedir/../foo/src.bat\" \"$@\"\n  fi\nelse\n  if [ -n \"$exe\" ] && [ -x \"$basedir/cmd.exe\" ]; then\n    exec \"$basedir/cmd.exe\" /C \"$basedir_win/../foo/src.bat\" \"$@\"\n  elif [ -x \"$basedir/cmd\" ]; then\n    exec \"$basedir/cmd\" /C \"$basedir/../foo/src.bat\" \"$@\"\n  elif command -v cmd >/dev/null 2>&1; then\n    exec cmd /C \"$basedir/../foo/src.bat\" \"$@\"\n  elif [ -n \"$exe\" ] && command -v cmd.exe >/dev/null 2>&1; then\n    exec cmd.exe /C \"$basedir_win/../foo/src.bat\" \"$@\"\n  else\n    exec cmd /C \"$basedir/../foo/src.bat\" \"$@\"\n  fi\nfi\n"),
@@ -399,7 +417,7 @@ fn generate_sh_shim_checks_path_before_exe_fallback() {
     let target = Path::new("/proj/node_modules/foo/src.sh");
     let shim = Path::new("/proj/node_modules/.bin/foo");
     let runtime = ScriptRuntime { prog: Some("sh".into()), args: String::new() };
-    let body = generate_sh_shim(target, shim, Some(&runtime), &[]);
+    let body = generate_sh_shim(target, shim, Some(&runtime), &[], None);
 
     assert!(
         body.contains("elif command -v sh >/dev/null 2>&1; then\n  exec sh  \"$basedir/../foo/src.sh\" \"$@\"\nelif [ -n \"$exe\" ] && command -v sh.exe >/dev/null 2>&1; then\n  exec sh.exe  \"$basedir_win/../foo/src.sh\" \"$@\"\nelse\n  exec sh  \"$basedir/../foo/src.sh\" \"$@\"\nfi\n"),
@@ -412,7 +430,7 @@ fn generate_sh_shim_does_not_append_exe_twice() {
     let target = Path::new("/proj/node_modules/foo/src.bat");
     let shim = Path::new("/proj/node_modules/.bin/foo");
     let runtime = ScriptRuntime { prog: Some("cmd.exe".into()), args: "/C".into() };
-    let body = generate_sh_shim(target, shim, Some(&runtime), &[]);
+    let body = generate_sh_shim(target, shim, Some(&runtime), &[], None);
 
     assert!(!body.contains("cmd.exe.exe"), "explicit .exe runtime must not double suffix:\n{body}");
     assert!(
@@ -685,7 +703,7 @@ fn shim_execution_resolves_symlink_chain() {
     write_executable(&target_path, "#!/bin/sh\necho \"tsc-output\"\n");
 
     let shim_path = bin_dir.join("tsc");
-    write_executable(&shim_path, &generate_sh_shim(&target_path, &shim_path, None, &[]));
+    write_executable(&shim_path, &generate_sh_shim(&target_path, &shim_path, None, &[], None));
 
     // hop2's relative target exercises the shim's directory-composition
     // branch; hop1's absolute target exercises the other.
@@ -750,7 +768,7 @@ fn plant_shimmed_tool(root: &Path) -> PathBuf {
 
     let shim = bin_dir.join("tsc");
     let runtime = ScriptRuntime { prog: Some("node".into()), args: String::new() };
-    write_executable(&shim, &generate_sh_shim(&target, &shim, Some(&runtime), &[]));
+    write_executable(&shim, &generate_sh_shim(&target, &shim, Some(&runtime), &[], None));
     std::os::unix::fs::symlink("tsc", bin_dir.join("tsc-link")).unwrap();
     bin_dir
 }
@@ -822,7 +840,7 @@ fn a_shim_lets_the_targets_signal_death_reach_the_caller() {
     std::fs::copy("/bin/sh", &target).expect("copy /bin/sh");
 
     let shim = dir.path().join("shim");
-    let body = generate_sh_shim(&target, &shim, None, &[]);
+    let body = generate_sh_shim(&target, &shim, None, &[], None);
     std::fs::write(&shim, body).expect("write the shim");
     std::fs::set_permissions(&shim, std::fs::Permissions::from_mode(0o755))
         .expect("make the shim executable");

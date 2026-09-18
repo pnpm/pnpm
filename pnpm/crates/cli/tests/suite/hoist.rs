@@ -924,8 +924,8 @@ fn should_add_extra_node_paths_to_command_shims() {
     let shim = fs::read_to_string(workspace.join("node_modules/.bin/hello-world-js-bin"))
         .expect("read the command shim");
     assert!(
-        shim.contains("node_modules/.pnpm/node_modules"),
-        "the shim must extend NODE_PATH with the hidden hoisted modules dir:\n{shim}",
+        shim.contains("$basedir_abs/../.pnpm/node_modules"),
+        "the shim must extend NODE_PATH with the hidden hoisted modules dir, relative to itself:\n{shim}",
     );
 
     // The fresh install's own `packages:` rows must record `hasBin` —
@@ -963,7 +963,7 @@ fn should_not_add_extra_node_paths_when_extend_node_path_false() {
     let shim = fs::read_to_string(workspace.join("node_modules/.bin/hello-world-js-bin"))
         .expect("read the command shim");
     assert!(
-        !shim.contains("node_modules/.pnpm/node_modules"),
+        !shim.contains("export NODE_PATH="),
         "`extendNodePath: false` must keep NODE_PATH out of the shim:\n{shim}",
     );
 
