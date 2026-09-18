@@ -4,7 +4,7 @@ import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import { test } from 'node:test'
-import { formatStagedRust, isCheckedOutSource } from './format-staged-rust.mjs'
+import { checkedOutSource, formatStagedRust } from './format-staged-rust.mjs'
 import { git, temporaryRepo } from './git-fixture.mjs'
 
 // Names git hands back verbatim that a shell would have split or expanded, or
@@ -157,7 +157,14 @@ test('rejects a source path that resolves outside the checkout', { skip: process
   fs.writeFileSync(outside, 'fn outside() {}\n')
   context.after(() => fs.rmSync(outside, { force: true }))
 
-  assert.equal(isCheckedOutSource(repo, 'inside.rs'), true)
-  assert.equal(isCheckedOutSource(repo, `../${path.basename(outside)}`), false)
-  assert.equal(isCheckedOutSource(repo, 'missing.rs'), false)
+  fs.mkdirSync(path.join(repo, 'real-dir'))
+  fs.writeFileSync(path.join(repo, 'real-dir', 'nested.rs'), 'fn nested() {}\n')
+  fs.symlinkSync(path.join(repo, 'real-dir'), path.join(repo, 'link-dir'))
+
+  assert.equal(checkedOutSource(repo, 'inside.rs'), path.join(repo, 'inside.rs'))
+  // The path the formatter is handed is the resolved one, not the one that
+  // still has a link to walk.
+  assert.equal(checkedOutSource(repo, 'link-dir/nested.rs'), path.join(repo, 'real-dir', 'nested.rs'))
+  assert.equal(checkedOutSource(repo, `../${path.basename(outside)}`), null)
+  assert.equal(checkedOutSource(repo, 'missing.rs'), null)
 })

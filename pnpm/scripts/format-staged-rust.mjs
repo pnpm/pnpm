@@ -33,12 +33,12 @@ export function formatStagedRust (repo, { format = pinnedRustfmt } = {}) {
   if (foreign.length > 0) {
     console.error(`pre-commit: not formatting these paths, none is a regular file in the checkout:\n${indent(foreign)}`)
   }
-  if (formattable.length === 0) return 0
+  if (formattable.size === 0) return 0
 
-  const status = format(formattable.map(file => path.join(root, file)))
+  const status = format([...formattable.values()])
   if (status !== 0) return status
 
-  const reformatted = formattable.filter(file => git(repo, ['diff', '--quiet', '--', literal(file)]).status !== 0)
+  const reformatted = [...formattable.keys()].filter(file => git(repo, ['diff', '--quiet', '--', literal(file)]).status !== 0)
   if (reformatted.length === 0) return 0
 
   checkedGit(repo, ['add', '--', ...reformatted.map(literal)])
@@ -58,32 +58,39 @@ export function formatStagedRust (repo, { format = pinnedRustfmt } = {}) {
  */
 function partitionStaged (root, staged, unstaged) {
   const alsoUnstaged = new Set(unstaged)
-  const formattable = []
+  const formattable = new Map()
   const withheld = []
   const foreign = []
   for (const file of staged) {
-    if (!isCheckedOutSource(root, file)) foreign.push(file)
+    const source = checkedOutSource(root, file)
+    if (source == null) foreign.push(file)
     else if (alsoUnstaged.has(file)) withheld.push(file)
-    else formattable.push(file)
+    else formattable.set(file, source)
   }
   return { formattable, withheld, foreign }
 }
 
 /**
- * Whether a staged path leads to a regular file inside the checkout.
+ * The resolved path of a staged file inside the checkout, or null when the
+ * staged path does not lead to a regular file within it.
  *
  * Git will not index a path beyond a symbolic link, and reports one whose
  * directory became a link afterwards as deleted from the working tree. This
  * states the invariant those two behaviors happen to give rather than leaving
  * it to them, so `root` must already be a resolved path.
+ *
+ * The resolved path is what the caller should hand the formatter. Passing the
+ * staged path on instead would have the formatter walk the links again, which
+ * is a second chance to arrive somewhere else.
  */
-export function isCheckedOutSource (root, file) {
+export function checkedOutSource (root, file) {
   const absolute = path.join(root, file)
   try {
-    if (!fs.lstatSync(absolute).isFile()) return false
-    return fs.realpathSync(absolute).startsWith(root + path.sep)
+    if (!fs.lstatSync(absolute).isFile()) return null
+    const real = fs.realpathSync(absolute)
+    return real.startsWith(root + path.sep) ? real : null
   } catch (error) {
-    if (error.code === 'ENOENT') return false
+    if (error.code === 'ENOENT') return null
     throw error
   }
 }
