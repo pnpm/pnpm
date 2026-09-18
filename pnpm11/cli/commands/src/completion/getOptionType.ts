@@ -33,7 +33,7 @@ function optionTypeToCompletion (optionType: unknown): undefined | string[] {
   if (optionType.length === 1) {
     return optionTypeToCompletion(optionType)
   }
-  return optionType.filter((option) => typeof option === 'string')
+  return optionType.filter((ot) => typeof ot === 'string')
 }
 
 function getOptionType (

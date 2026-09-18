@@ -171,29 +171,32 @@ impl<'a> CompletionContext<'a> {
             return self.scan_short_options(rest, next);
         }
         self.workspace_root |= word == "--workspace-root";
-        if let Some(directory) = scripts::directory_option(word, next) {
+        let width = option_word_width(self, word, next);
+        if let Some(directory) = scripts::directory_option(word, next.filter(|_| width == 2)) {
             self.directory = Some(directory);
         }
-        option_word_width(self.root, self.command, word)
+        width
     }
 
     fn scan_short_options(&mut self, rest: &'a str, next: Option<&'a str>) -> usize {
         let mut remaining = rest;
+        let mut accepts_next = false;
         let consumes_value = short_cluster_consumes_value(rest, |short| {
             remaining = remaining.strip_prefix(short).expect("scanner visits each short in order");
             let argument = find_short_option_argument(self.command, short)
                 .or_else(|| find_short_option_argument(self.root, short))?;
             self.workspace_root |= argument.get_id() == "workspace_root";
+            accepts_next = option_value_is_allowed(argument, next);
             if argument.get_id() == "dir" {
                 self.directory = if remaining.is_empty() {
-                    next
+                    next.filter(|_| accepts_next)
                 } else {
                     Some(remaining.strip_prefix('=').unwrap_or(remaining))
                 };
             }
             Some(argument_takes_separate_value(argument))
         });
-        if consumes_value { 2 } else { 1 }
+        if consumes_value && accepts_next { 2 } else { 1 }
     }
 
     fn new(root: &'a Command, words: &'a [String]) -> Self {
@@ -230,14 +233,19 @@ impl<'a> CompletionContext<'a> {
     }
 }
 
-/// How many words an option consumes: two when it takes its value as a
-/// separate word, one otherwise.
-fn option_word_width(root: &Command, command: &Command, word: &str) -> usize {
+fn option_word_width(context: &CompletionContext<'_>, word: &str, next: Option<&str>) -> usize {
     let takes_separate_value = option_has_separate_value(word)
-        && find_option_argument_in_command(command, word)
-            .or_else(|| find_option_argument_in_command(root, word))
-            .is_some_and(argument_takes_separate_value);
+        && find_option_argument(context, word)
+            .is_some_and(|argument| {
+                argument_takes_separate_value(argument) && option_value_is_allowed(argument, next)
+            });
     if takes_separate_value { 2 } else { 1 }
+}
+
+fn option_value_is_allowed(argument: &Arg, next: Option<&str>) -> bool {
+    next.is_none_or(|value| {
+        !value.starts_with('-') || value == "-" || argument.is_allow_hyphen_values_set()
+    })
 }
 
 fn command_for_completion() -> Command {

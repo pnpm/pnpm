@@ -585,13 +585,27 @@ fn completion_server_respects_workspace_root_selection() {
     std::fs::write(project.path().join("package.json"), r#"{"scripts":{"root":"echo root"}}"#)
         .unwrap();
     std::fs::write(child.join("package.json"), r#"{"scripts":{"child":"echo child"}}"#).unwrap();
-    for flag in ["--workspace-root", "-w", "-rw", "-wC."] {
-        let output = pacquet()
-            .current_dir(&child)
-            .args(["completion-server", "--", "pnpm", flag, "run", ""])
-            .output()
-            .unwrap();
-        assert_eq!(stdout(output), "root\n", "{flag}");
+    for flags in [
+        &["--workspace-root"][..],
+        &["-w"],
+        &["-rw"],
+        &["-wC."],
+        &["--dir", "--workspace-root"],
+        &["-C", "--workspace-root"],
+    ] {
+        for after_command in [false, true] {
+            let mut command = pacquet();
+            command
+                .current_dir(&child)
+                .args(["completion-server", "--", "pnpm"]);
+            if after_command {
+                command.arg("run").args(flags);
+            } else {
+                command.args(flags).arg("run");
+            }
+            let output = command.arg("").output().unwrap();
+            assert_eq!(stdout(output), "root\n", "{flags:?}, after_command={after_command}");
+        }
     }
 }
 
@@ -632,9 +646,9 @@ fn completion_powershell_preserves_literal_script_names() {
         .unwrap();
     let reply = stdout(output);
     let mut actual: Vec<_> = reply.lines().collect();
-    actual.sort();
+    actual.sort_unstable();
     let mut expected = names.to_vec();
-    expected.sort();
+    expected.sort_unstable();
     assert_eq!(actual, expected);
 }
 
@@ -679,4 +693,20 @@ printf '%s\n' "${COMPREPLY[@]}"
         .output()
         .unwrap();
     assert_eq!(stdout(output), "*literal\n");
+}
+
+#[test]
+fn completion_server_accepts_attached_hyphen_prefixed_directories() {
+    let project = TempDir::new().unwrap();
+    let target = project.path().join("-target");
+    std::fs::create_dir(&target).unwrap();
+    std::fs::write(target.join("package.json"), r#"{"scripts":{"hello":"echo hi"}}"#).unwrap();
+    for option in ["--dir=-target", "--prefix=-target", "-C-target", "-rC-target"] {
+        let output = pacquet()
+            .current_dir(project.path())
+            .args(["completion-server", "--", "pnpm", "run", option, ""])
+            .output()
+            .unwrap();
+        assert_eq!(stdout(output), "hello\n", "{option}");
+    }
 }
