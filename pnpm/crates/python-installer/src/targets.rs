@@ -166,7 +166,7 @@ fn named(config: &Config) -> (Vec<NamedPlatform>, Vec<String>) {
         .map(SupportedArchitectures::host_platforms)
         .unwrap_or_default();
     let mut seen = BTreeSet::new();
-    let python_versions = config.python.python_versions
+    let python_versions = config.python.versions
         .iter()
         .filter(|version| seen.insert(*version))
         .cloned()
@@ -224,7 +224,7 @@ fn check_interpreter_is_declared(
     let running = &interpreter.target.environment;
     bail!(
         "Python {} on {} {} is not one of the environments this project locks for; \
-         add it to supportedArchitectures and python.pythonVersions, \
+         add it to supportedArchitectures and python.versions, \
          or install with an interpreter that is one of them",
         running.python_full_version(),
         running.sys_platform(),

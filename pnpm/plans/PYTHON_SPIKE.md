@@ -18,7 +18,7 @@ python:
   constraints: []
   extras: []
   groups: [dev]
-  pythonVersions: []
+  versions: []
   downloads: auto # or never
   downloadUrl: https://github.com/astral-sh/python-build-standalone/releases
 ```
@@ -403,7 +403,7 @@ three.
 
 ## The environments a lockfile covers
 
-`supportedArchitectures` and `python.pythonVersions` name the environments
+`supportedArchitectures` and `python.versions` name the environments
 `pylock.toml` is resolved for. Every platform is paired with every Python
 version, and a setting left out is the platform or the Python version of the
 interpreter running the install. Declaring neither locks for that interpreter
@@ -422,7 +422,7 @@ supportedArchitectures:
   - win32-x64
 python:
   enabled: true
-  pythonVersions: ['3.12', '3.13']
+  versions: ['3.12', '3.13']
 ```
 
 Written as the `os`, `cpu` and `libc` axes instead, it stands for every

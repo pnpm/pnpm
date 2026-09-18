@@ -425,7 +425,7 @@ fn a_tool_mirror_is_read_without_its_trailing_slash() {
 
 #[test]
 fn python_settings_parse_apply_and_remain_workspace_only() {
-    let yaml = "python:\n  enabled: true\n  executable: python3.13\n  indexUrl: https://example.org/simple/\n  extraIndexUrls: [https://extra.example.org/simple/]\n  overrides: [demo>=2]\n  constraints: [demo<3]\n  extras: [speed]\n  groups: [test]\n  pythonVersions: ['3.12', '3.13']\n";
+    let yaml = "python:\n  enabled: true\n  executable: python3.13\n  indexUrl: https://example.org/simple/\n  extraIndexUrls: [https://extra.example.org/simple/]\n  overrides: [demo>=2]\n  constraints: [demo<3]\n  extras: [speed]\n  groups: [test]\n  versions: ['3.12', '3.13']\n";
     let settings: WorkspaceSettings = serde_saphyr::from_str(yaml).unwrap();
     let mut config = Config::default();
     settings.apply_to(&mut config, Path::new("/workspace"));
@@ -437,7 +437,7 @@ fn python_settings_parse_apply_and_remain_workspace_only() {
     assert_eq!(config.python.constraints, ["demo<3"]);
     assert_eq!(config.python.extras, ["speed"]);
     assert_eq!(config.python.groups, ["test"]);
-    assert_eq!(config.python.python_versions, ["3.12", "3.13"]);
+    assert_eq!(config.python.versions, ["3.12", "3.13"]);
     let mut settings: WorkspaceSettings = serde_saphyr::from_str(yaml).unwrap();
     settings.clear_workspace_only_fields();
     assert!(settings.python.is_none());
