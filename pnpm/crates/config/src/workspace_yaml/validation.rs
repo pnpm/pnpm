@@ -1,8 +1,8 @@
 use super::{
-    IgnoredAny, IndexMap, LoadWorkspaceYamlError, Path, RemoteSideEffectsCacheSettings,
-    SCHEMA_DIRECTIVE_KEY, SideEffectsCacheSetting, TaskSettings, WorkspaceKeyIssues,
-    WorkspaceSettings, is_camel_case, is_known_setting_key, is_refused_by_a_project_manifest,
-    registries,
+    IgnoredAny, IndexMap, LoadWorkspaceYamlError, NAMED_UNRECOGNIZED_TASK_SETTINGS, Path,
+    RemoteSideEffectsCacheSettings, SCHEMA_DIRECTIVE_KEY, SideEffectsCacheSetting, TaskSettings,
+    UnrecognizedTaskSettings, WorkspaceKeyIssues, WorkspaceSettings, is_camel_case,
+    is_known_setting_key, is_refused_by_a_project_manifest, registries,
 };
 
 impl WorkspaceSettings {
@@ -30,18 +30,14 @@ impl WorkspaceSettings {
         Ok(())
     }
 
-    /// One task's settings: an unrecognized field, a non-positive
-    /// concurrency, or an empty `dependsOn` entry is a hard error.
+    /// One task's settings: a non-positive concurrency, a group name that
+    /// cannot be a slot directory, or an empty `dependsOn` entry is a hard
+    /// error. A field this version does not read is not — see
+    /// [`Self::take_unknown_task_settings`].
     pub(super) fn validate_task(
         task: &str,
         settings: &TaskSettings,
     ) -> Result<(), LoadWorkspaceYamlError> {
-        if let Some(field) = settings.unknown.keys().next() {
-            return Err(LoadWorkspaceYamlError::UnknownTaskSettingField {
-                task: task.to_string(),
-                field: field.clone(),
-            });
-        }
         let concurrency = settings.concurrency
             .filter(|concurrency| *concurrency < 1)
             .map(|concurrency| concurrency.to_string())
@@ -70,6 +66,36 @@ impl WorkspaceSettings {
             }
         }
         Ok(())
+    }
+
+    /// Take the fields of the `tasks` entries this version of pnpm does not
+    /// read, as the paths that name them. A project may pin a pnpm that
+    /// reads them, so they are reported rather than refused.
+    ///
+    /// Taking them is what makes the report true: a field left in place
+    /// would reach the configuration record and be printed back by
+    /// `pnpm config`, as a setting pnpm had said it ignored. An entry that
+    /// carried nothing else goes with them, so a setting this pnpm does not
+    /// read cannot quietly reorder its tasks.
+    fn take_unknown_task_settings(&mut self) -> UnrecognizedTaskSettings {
+        let mut report = UnrecognizedTaskSettings::default();
+        let Some(tasks) = self.tasks.as_mut() else { return report };
+        tasks.retain(|task, settings| {
+            if settings.unknown.is_empty() {
+                return true;
+            }
+            report.total += settings.unknown.len();
+            let named = settings.unknown
+                .keys()
+                .take(NAMED_UNRECOGNIZED_TASK_SETTINGS.saturating_sub(report.named.len()));
+            report.named.extend(named.map(|field| format!("tasks['{task}'].{field}")));
+            settings.unknown.clear();
+            // An entry left with nothing declares nothing, and a task with no
+            // entry is the one that keeps the default `^<name>` ordering. A
+            // setting the running pnpm cannot read must not reorder tasks.
+            *settings != TaskSettings::default()
+        });
+        report
     }
 
     /// The `pipelines` section feeds `pnpm pipeline`'s task requests, which
@@ -146,19 +172,29 @@ impl WorkspaceSettings {
 
     /// Bucket the file's keys that set nothing into [`Self::key_issues`],
     /// under the project-file rules: refused values, keys naming no setting
-    /// any supported pnpm reads, and kebab-case spellings of known settings.
+    /// any supported pnpm reads, kebab-case spellings of known settings, and
+    /// the `tasks` entries' own unknown fields.
     /// Reporting is the caller's job — how severe an unrecognized key is
     /// depends on whether the running pnpm is the project's pinned version,
     /// which only the CLI layer knows.
     pub fn collect_key_issues(&mut self, text: &str) {
+        let unrecognized_task_settings = self.take_unknown_task_settings();
+        let mut issues = Self::top_level_key_issues(text);
+        issues.unrecognized_task_settings = unrecognized_task_settings;
+        self.key_issues = issues;
+    }
+
+    /// The top-level keys of `text` that set nothing, in the three buckets
+    /// they are reported under.
+    fn top_level_key_issues(text: &str) -> WorkspaceKeyIssues {
+        let mut issues = WorkspaceKeyIssues::default();
         if !Self::may_have_key_issues(text) {
-            return;
+            return issues;
         }
         let Ok(document) = serde_saphyr::from_str::<IndexMap<String, Option<IgnoredAny>>>(text)
         else {
-            return;
+            return issues;
         };
-        let mut issues = WorkspaceKeyIssues::default();
         for key in document
             .iter()
             .filter(|(_, value)| value.is_some())
@@ -175,7 +211,7 @@ impl WorkspaceSettings {
                 issues.non_camel_case.push(key.clone());
             }
         }
-        self.key_issues = issues;
+        issues
     }
 
     /// Whether `text` may carry a key [`WorkspaceSettings::collect_key_issues`]

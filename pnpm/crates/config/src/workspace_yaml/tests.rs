@@ -1,6 +1,7 @@
 use super::{
-    AllowBuild, LoadWorkspaceYamlError, RemoteSideEffectsCacheSettings, SideEffectsCacheSetting,
-    UpdateConfig, WORKSPACE_MANIFEST_FILENAME, WorkspaceSettings,
+    AllowBuild, LoadWorkspaceYamlError, NAMED_UNRECOGNIZED_TASK_SETTINGS,
+    RemoteSideEffectsCacheSettings, SideEffectsCacheSetting, UpdateConfig,
+    WORKSPACE_MANIFEST_FILENAME, WorkspaceSettings,
     package_configs::ProjectConfig,
     registries::{RegistryDeclaration, RegistryEntry},
 };

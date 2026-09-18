@@ -1,9 +1,11 @@
-//! Reporting of `pnpm-workspace.yaml` keys that set nothing: unrecognized
-//! settings warn, harden into an error when the running pnpm is the version
-//! the project pins, and stay off `pnpm config get <key>` entirely.
+//! Reporting of `pnpm-workspace.yaml` keys that set nothing, the `tasks`
+//! entries' own fields included: unrecognized settings warn, harden into an
+//! error when the running pnpm is the version the project pins, and stay off
+//! `pnpm config get <key>` entirely.
 
 use pnpm_testing_utils::{
-    bin::CommandTempCwd, diagnostics::assert_diagnostic_contains as assert_contains,
+    bin::{AddMockedRegistry, CommandTempCwd},
+    diagnostics::assert_diagnostic_contains as assert_contains,
 };
 use std::{
     fs,
@@ -42,6 +44,98 @@ fn an_unrecognized_workspace_setting_fails_when_the_running_pnpm_is_the_pinned_v
         &stderr,
         r#"The following settings in pnpm-workspace.yaml are not recognized by this version of pnpm: "minimumReleaseAg" (did you mean "minimumReleaseAge"?)."#,
     );
+}
+
+#[test]
+fn an_unrecognized_task_setting_warns_without_a_pin() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    write_plain_manifest(&workspace);
+    write_workspace_yaml(&workspace, "packages:\n  - .\ntasks:\n  build:\n    laterSetting: 1\n");
+
+    let output = run(pacquet, root.path(), &["install", "--lockfile-only"]);
+
+    assert_success(&output);
+    assert_contains(
+        &stderr(&output),
+        r#"[WARN] The following task settings in pnpm-workspace.yaml are not recognized by this version of pnpm and were ignored: "tasks['build'].laterSetting"."#,
+    );
+}
+
+/// The pin is resolved after the configuration loads, so a task setting only
+/// the pinned pnpm reads must not stop this pnpm from switching to it: the
+/// version that answers is the pinned one, not this one.
+#[test]
+fn an_unrecognized_task_setting_does_not_stop_the_switch_to_the_pinned_version() {
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    fs::write(workspace.join("package.json"), r#"{"packageManager":"pnpm@9.3.0"}"#)
+        .expect("write package.json");
+    write_workspace_yaml(&workspace, "packages:\n  - .\ntasks:\n  build:\n    laterSetting: 1\n");
+    let mut pacquet = pacquet;
+    pacquet.env("PNPM_CONFIG_REGISTRY", mock_instance.url());
+
+    let output = run(pacquet, root.path(), &["--version"]);
+
+    assert_success(&output);
+    assert_eq!(stdout(&output), "9.3.0\n");
+    // The pinned pnpm reads the file for itself, so the one handing over says
+    // nothing about a setting it does not understand.
+    let stderr = stderr(&output);
+    assert!(!stderr.contains("not recognized"), "the switching pnpm should stay quiet: {stderr}");
+
+    drop((root, mock_instance));
+}
+
+#[test]
+fn an_unrecognized_task_setting_fails_when_the_running_pnpm_is_the_pinned_version() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    write_workspace_yaml(
+        &workspace,
+        "packages:\n  - .\ntasks:\n  build:\n    dependson: ['^build']\n",
+    );
+    write_package_manager_pin(&workspace);
+
+    let output =
+        run(pacquet, root.path(), &["install", "--lockfile-only", "--config.pm-on-fail=error"]);
+
+    assert_failure(&output);
+    let stderr = stderr(&output);
+    assert_contains(&stderr, "ERR_PNPM_UNRECOGNIZED_WORKSPACE_SETTINGS");
+    assert_contains(
+        &stderr,
+        r#"The following task settings in pnpm-workspace.yaml are not recognized by this version of pnpm: "tasks['build'].dependson"."#,
+    );
+}
+
+/// Both reports have to come out of the same run: the key is what fails the
+/// command, so a task setting left for the run that fixes the key would not
+/// be seen until then.
+#[test]
+fn a_task_setting_is_reported_when_an_unrecognized_key_takes_the_error() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    write_workspace_yaml(
+        &workspace,
+        "minimumReleaseAg: 100\npackages:\n  - .\ntasks:\n  build:\n    laterSetting: 1\n",
+    );
+    write_package_manager_pin(&workspace);
+
+    let output =
+        run(pacquet, root.path(), &["install", "--lockfile-only", "--config.pm-on-fail=error"]);
+
+    assert_failure(&output);
+    let stderr = stderr(&output);
+    assert_contains(
+        &stderr,
+        r#"[WARN] The following task settings in pnpm-workspace.yaml are not recognized by this version of pnpm and were ignored: "tasks['build'].laterSetting"."#,
+    );
+    assert_contains(&stderr, "ERR_PNPM_UNRECOGNIZED_WORKSPACE_SETTINGS");
+    assert_contains(&stderr, r#""minimumReleaseAg""#);
 }
 
 #[test]
