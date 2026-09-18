@@ -183,6 +183,9 @@ pub(super) fn requested_version_rewrite(
 /// `devEngines.runtime`. A version the node resolver answers is recorded
 /// through that resolver's own rule.
 fn requested_runtime_rewrite(alias: &str, requested: &str, previous: &str) -> String {
+    // The selector may name the protocol itself (`pnpm update node@runtime:22`),
+    // and the declaration carries it either way.
+    let requested = requested.strip_prefix(RUNTIME_PROTOCOL).unwrap_or(requested);
     let as_requested = || format!("{RUNTIME_PROTOCOL}{requested}");
     let Some(selector) = node_runtime_version_spec(alias, previous) else {
         // A deno or bun declaration records the selector as asked, which is

@@ -195,6 +195,19 @@ fn a_requested_version_on_a_node_runtime_declaration_uses_the_runtime_rule() {
         requested_version_rewrite("node", "^26", "runtime:^26.8.2", RangeSpecStyle::Major),
         "runtime:^26",
     );
+    assert_eq!(
+        requested_version_rewrite("node", "runtime:26", "runtime:^26.8.2", RangeSpecStyle::Major),
+        "runtime:26",
+    );
+    assert_eq!(
+        requested_version_rewrite(
+            "node",
+            "runtime:26.9.0",
+            "runtime:^26.8.2",
+            RangeSpecStyle::Major,
+        ),
+        "runtime:^26.9.0",
+    );
 }
 
 /// The deno and bun resolvers report a `runtime:` declaration back as written,
@@ -210,6 +223,8 @@ fn a_requested_version_on_a_deno_or_bun_runtime_declaration_is_recorded_as_asked
             ("^1.3", "runtime:^1.2.0", "runtime:^1.3"),
             ("1.2.5", "runtime:latest", "runtime:1.2.5"),
             ("canary", "runtime:latest", "runtime:canary"),
+            ("runtime:1.2.5", "runtime:^1.2.0", "runtime:1.2.5"),
+            ("runtime:canary", "runtime:latest", "runtime:canary"),
         ] {
             assert_eq!(
                 requested_version_rewrite(alias, requested, previous, RangeSpecStyle::Major),
