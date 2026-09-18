@@ -111,10 +111,8 @@ async function updateGlobalPackageGroup (
       depSpecs
     )
 
-  // An equal lockfile says the group needs no new packages, not that the tree
-  // that lockfile describes is still on disk. The modules manifest is what an
-  // install leaves behind, so a group without one is installed again whatever
-  // its resolution came out to.
+  // Equal lockfiles mean no new packages, not that the tree they describe is
+  // still on disk. The modules manifest is what an install leaves behind.
   const activeModules = await readModulesManifest(path.join(pkg.installDir, 'node_modules'))
   if (activeModules != null && await lockfilesAreEqual(pkg.installDir, installDir)) {
     await fs.promises.rm(installDir, { recursive: true, force: true })

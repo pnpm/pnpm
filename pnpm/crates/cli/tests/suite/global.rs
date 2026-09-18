@@ -994,9 +994,14 @@ fn unchanged_global_update_still_approves_a_pending_build() {
     drop((root, npmrc_info));
 }
 
+/// A group whose `node_modules` was removed holds nothing to run, so an
+/// unchanged resolution must not report it as current. The update cannot put
+/// the tree back either: activation reads the manifests of the group it
+/// replaces, and those went with the tree. It says so instead of claiming the
+/// group is up to date.
 #[cfg(unix)]
 #[test]
-fn global_update_reinstalls_a_group_whose_node_modules_is_gone() {
+fn global_update_does_not_call_a_group_without_node_modules_up_to_date() {
     use assert_cmd::assert::OutputAssertExt;
 
     let CommandTempCwd { root, workspace, npmrc_info, .. } =
@@ -1012,20 +1017,18 @@ fn global_update_reinstalls_a_group_whose_node_modules_is_gone() {
     let install_before = pnpm_global::find_global_package(&global_dir, "@foo/touch-file-one-bin")
         .expect("scan global packages")
         .expect("find the touch-file group");
-    let modules_dir = install_before.install_dir.join("node_modules");
-    fs::remove_dir_all(&modules_dir).expect("remove the group's node_modules");
+    fs::remove_dir_all(install_before.install_dir.join("node_modules"))
+        .expect("remove the group's node_modules");
 
     let output = global_command(&workspace, &pnpm_home)
         .with_args(["update", "-g"])
         .output()
         .expect("run global update over a removed tree");
-    assert!(output.status.success(), "{}", String::from_utf8_lossy(&output.stderr));
     let stdout = String::from_utf8_lossy(&output.stdout);
+    let stderr = String::from_utf8_lossy(&output.stderr);
     assert!(!stdout.contains("Already up to date"), "{stdout}");
-    let install_after = pnpm_global::find_global_package(&global_dir, "@foo/touch-file-one-bin")
-        .expect("scan global packages")
-        .expect("find the reinstalled touch-file group");
-    assert!(install_after.install_dir.join("node_modules").is_dir());
+    assert!(!output.status.success(), "{stdout}\n{stderr}");
+    assert!(stderr.contains("ERR_PNPM_PACKAGE_MANIFEST_IO_ERROR"), "{stderr}");
 
     drop((root, npmrc_info));
 }

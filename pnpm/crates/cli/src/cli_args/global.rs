@@ -112,7 +112,8 @@ impl<Sink: Reporter> Reporter for GlobalUpdateResolutionReporter<Sink> {
     }
 }
 
-/// Keep every materialization event except the per-group terminal summary.
+/// `update -g` closes with one completion summary of its own, so the groups it
+/// materializes along the way must not each close with theirs.
 struct GlobalUpdateMaterializationReporter<Sink>(PhantomData<Sink>);
 
 impl<Sink: Reporter> Reporter for GlobalUpdateMaterializationReporter<Sink> {

@@ -360,9 +360,8 @@ impl GlobalInstallTarget<'_> {
     }
 }
 
-/// Whether the group's `node_modules` still carries the modules manifest an
-/// install leaves behind. An equal lockfile says the group needs no new
-/// packages, not that the tree that lockfile describes is still on disk.
+/// The modules manifest is what an install leaves behind, so it answers what
+/// equal lockfiles cannot: whether the tree they describe is still on disk.
 fn is_materialized(install_dir: &Path) -> bool {
     read_modules_manifest::<ModulesHost>(&install_dir.join("node_modules"))
         .is_ok_and(|manifest| manifest.is_some())

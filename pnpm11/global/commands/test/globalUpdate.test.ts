@@ -219,7 +219,7 @@ test('global update reports already up to date without replacing an equal candid
   }
 })
 
-test('global update reinstalls an equal candidate when the active group lost its node_modules', async () => {
+test('global update does not report already up to date when the active group lost its node_modules', async () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'global-update-no-modules-'))
   const globalDir = path.join(root, 'global')
   const oldInstallDir = path.join(globalDir, 'old-install')
