@@ -246,31 +246,31 @@ pub(crate) fn catalog_covers(entry: &str, wanted: &str) -> bool {
     // `Range::allows_all` only asks whether *some* alternative of the entry
     // holds *some* alternative of the wanted range, so a union such as
     // `^1 || ^3` would pass on its first branch alone. Ask per alternative.
-    wanted
-        .split("||")
-        .all(|alternative| {
-            Range::parse(alternative)
-                .is_ok_and(|alternative| entry_covers_alternative(&entry_range, &alternative))
-        })
+    wanted.split("||").all(|alternative| entry_covers_alternative(&entry_range, alternative))
 }
 
-/// Whether `entry` holds every version `alternative` allows.
+/// Whether `entry` holds every version the range alternative `wanted` allows.
 ///
 /// [`Range::allows_all`] compares endpoints, which misses npm's rule that a
 /// prerelease is eligible only for a comparator carrying a prerelease of the
 /// same `major.minor.patch`: by endpoints alone `^1.0.0` looks wide enough for
-/// `^1.2.0-beta.1`, though it admits no `1.2.0` prerelease. Asking
-/// [`Range::satisfies`] about the lowest version the alternative allows
-/// restores that rule wherever the alternative's own lower bound carries the
-/// prerelease.
-fn entry_covers_alternative(entry: &Range, alternative: &Range) -> bool {
-    if !entry.allows_all(alternative) {
+/// `^1.2.0-beta.1`, though it admits no `1.2.0` prerelease. The prereleases an
+/// alternative can admit are the ones its own comparators name, so ask
+/// [`Range::satisfies`] about each of those.
+fn entry_covers_alternative(entry: &Range, wanted: &str) -> bool {
+    let Ok(wanted_range) = Range::parse(wanted) else {
+        return false;
+    };
+    if !entry.allows_all(&wanted_range) {
         return false;
     }
-    match alternative.min_version() {
-        Some(lowest) if lowest.is_prerelease() => entry.satisfies(&lowest),
-        _ => true,
-    }
+    wanted
+        .split_whitespace()
+        .filter_map(|token| {
+            Version::parse(token.trim_start_matches(['>', '<', '=', '^', '~', 'v'])).ok()
+        })
+        .filter(Version::is_prerelease)
+        .all(|named| entry.satisfies(&named))
 }
 
 /// The catalog group a dependency belongs to: a previous `catalog:<name>`

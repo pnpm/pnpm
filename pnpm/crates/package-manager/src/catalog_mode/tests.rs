@@ -435,3 +435,32 @@ fn prefer_warns_and_keeps_the_direct_version_on_mismatch() {
     );
     assert_eq!(warning.prefix, "/repo");
 }
+
+/// Coverage answers what `semver.subset(wanted, entry)` answers on pnpm 11,
+/// so a catalog decided in one stack is decided the same way in the other.
+#[test]
+fn coverage_agrees_with_npm_subset() {
+    for (entry, wanted, covered) in [
+        ("^2.0.0", "^2.1.0", true),
+        ("~2.1.0", "^2.1.0", false),
+        ("2.5.0", "^2.1.0", false),
+        ("^1.0.0", "^1.0.0 || ^3.0.0", false),
+        // npm matches each wanted alternative against one entry alternative
+        // rather than against their union, and so does this.
+        (">=1.0.0 <2.0.0 || >=2.0.0 <3.0.0", ">=1.0.0 <3.0.0", false),
+        ("^1.0.0", ">=1.1.0-beta.1 <1.1.0", false),
+        ("^1.0.0", "^1.2.0-beta.1", false),
+        ("^1.0.0", ">=1.0.0 <2.0.0-beta", false),
+        (">=0.0.0", "<1.2.0-beta.2", false),
+        ("^1.2.0-beta.1", "^1.2.0-beta.3", true),
+        ("^1.2.3-beta.1", "~1.2.3-beta.2", true),
+        ("^1.2.3-beta.1", "1.2.3-beta.1 - 1.5.0", true),
+        ("^1.0.0-beta.1", "^1.0.0", true),
+    ] {
+        assert_eq!(
+            super::catalog_covers(entry, wanted),
+            covered,
+            "catalog {entry:?} covering {wanted:?}",
+        );
+    }
+}
