@@ -99,8 +99,8 @@ impl VerdictCache {
     /// Record a successful whole-lockfile verification under the merged
     /// policy snapshot. Best-effort: a DB error is swallowed (the next
     /// install just re-verifies). Callers must record only *passes*.
-    pub(crate) fn record(&self, hash: &str, policy: &Map<String, Value>) {
-        let policy_json = Value::Object(policy.clone()).to_string();
+    pub(crate) fn record(&self, hash: &str, policy: Map<String, Value>) {
+        let policy_json = Value::Object(policy).to_string();
         let now_ms = now_ms();
         let conn = self.conn.lock().expect("verdict cache poisoned");
         let _ = conn.execute(
