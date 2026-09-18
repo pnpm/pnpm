@@ -1777,3 +1777,98 @@ describe('checkDepsStatus - workspace discovery', () => {
     }
   })
 })
+
+describe('checkDepsStatus - deduped sibling without a modules directory', () => {
+  beforeEach(() => {
+    jest.resetModules()
+    jest.clearAllMocks()
+  })
+
+  // A root and a sibling that both declare foo@1.0.0; only the root has a
+  // node_modules directory, which is what dedupeDirectDeps leaves behind.
+  async function checkWithDedupe (dedupeDirectDeps: boolean) {
+    const workspaceDir = await fs.mkdtemp(path.join(os.tmpdir(), 'pnpm-check-deps-dedupe-'))
+    try {
+      const lastValidatedTimestamp = Date.now() - 10_000
+      const beforeLastValidation = lastValidatedTimestamp - 10_000
+      const rootDir = workspaceDir as ProjectRootDir
+      const rootDirRealPath = await fs.realpath(workspaceDir) as ProjectRootDirRealPath
+      const siblingDir = path.join(workspaceDir, 'pkg-a') as ProjectRootDir
+      const rootManifest = { name: 'root', version: '1.0.0', dependencies: { foo: '1.0.0' } }
+      const siblingManifest = { name: 'pkg-a', version: '1.0.0', devDependencies: { foo: '1.0.0' } }
+      const mockWorkspaceState: WorkspaceState = {
+        lastValidatedTimestamp,
+        pnpmfiles: [],
+        settings: {
+          dedupeDirectDeps,
+          excludeLinksFromLockfile: false,
+          linkWorkspacePackages: true,
+          preferWorkspacePackages: true,
+        },
+        projects: {
+          [rootDir]: { name: 'root', version: '1.0.0' },
+          [siblingDir]: { name: 'pkg-a', version: '1.0.0' },
+        },
+        filteredInstall: false,
+      }
+      const lockfilePath = path.join(workspaceDir, 'pnpm-lock.yaml')
+      await fs.writeFile(lockfilePath, "lockfileVersion: '9.0'\n")
+      await fs.utimes(lockfilePath, beforeLastValidation / 1000, beforeLastValidation / 1000)
+
+      const beforeValidation = {
+        mtime: new Date(beforeLastValidation),
+        mtimeMs: beforeLastValidation,
+      } as Stats
+      jest.mocked(loadWorkspaceState).mockReturnValue(mockWorkspaceState)
+      jest.mocked(fsUtils.safeStatSync).mockImplementation((filePath: string) =>
+        filePath.endsWith('pnpm-lock.yaml') ? beforeValidation : undefined)
+      jest.mocked(fsUtils.safeStat).mockImplementation(async (filePath: string) => {
+        if (filePath === path.join(workspaceDir, 'node_modules')) return beforeValidation
+        if (filePath.endsWith('pnpm-lock.yaml')) return beforeValidation
+        return undefined
+      })
+      jest.mocked(statManifestFileUtils.statManifestFile).mockResolvedValue(beforeValidation)
+      const lockfile: LockfileObject = {
+        lockfileVersion: '9.0',
+        importers: {
+          ['.' as ProjectId]: { specifiers: { foo: '1.0.0' }, dependencies: { foo: '1.0.0' } },
+          ['pkg-a' as ProjectId]: { specifiers: { foo: '1.0.0' }, devDependencies: { foo: '1.0.0' } },
+        },
+      }
+      jest.mocked(lockfileFs.readWantedLockfile).mockResolvedValue(lockfile)
+      jest.mocked(lockfileFs.readCurrentLockfile).mockResolvedValue(lockfile)
+
+      const opts: CheckDepsStatusOptions = {
+        allProjects: [
+          { rootDir, rootDirRealPath, manifest: rootManifest, writeProjectManifest: async () => {} },
+          {
+            rootDir: siblingDir,
+            rootDirRealPath: siblingDir as unknown as ProjectRootDirRealPath,
+            manifest: siblingManifest,
+            writeProjectManifest: async () => {},
+          },
+        ],
+        workspaceDir,
+        rootProjectManifest: rootManifest,
+        rootProjectManifestDir: workspaceDir,
+        pnpmfile: [],
+        ...mockWorkspaceState.settings,
+      }
+      return await checkDepsStatus(opts)
+    } finally {
+      await fs.rm(workspaceDir, { force: true, recursive: true })
+    }
+  }
+
+  it('is up to date when dedupeDirectDeps left the sibling nothing to link', async () => {
+    const result = await checkWithDedupe(true)
+    expect(result.issue).toBeUndefined()
+    expect(result.upToDate).toBe(true)
+  })
+
+  it('is outdated when the sibling was not deduped', async () => {
+    const result = await checkWithDedupe(false)
+    expect(result.upToDate).toBe(false)
+    expect(result.issue).toBe('Workspace package pkg-a has dependencies but does not have a modules directory')
+  })
+})

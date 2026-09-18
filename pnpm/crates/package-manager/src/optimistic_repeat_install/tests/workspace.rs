@@ -6,7 +6,8 @@ use super::{
     FOO_MANIFEST, assert_content_check_converges_after_collision, backdate_validated_files, check,
     check_with_lockfile, collide_mtimes_with_recorded_state, content_check_decision,
     isolated_included, linked_sibling_decision_for_spec, setup_content_check_project,
-    setup_fresh_install, validate_existing_files, write_local_tarball_lockfile, write_state,
+    setup_fresh_install, setup_fresh_install_with_config, validate_existing_files,
+    write_local_tarball_lockfile, write_state,
 };
 use pnpm_config::Config;
 use pnpm_lockfile::MaybeLazyLockfile;
@@ -516,4 +517,68 @@ fn returns_up_to_date_for_registry_resolution_when_workspace_linking_is_off() {
         ),
         Decision::UpToDate,
     );
+}
+/// Under `dedupeDirectDeps` a sibling whose direct dependencies the root
+/// declares identically gets nothing linked and no modules directory, so
+/// the missing directory is not evidence of a missing install.
+#[test]
+fn returns_up_to_date_when_a_deduped_sibling_has_no_node_modules() {
+    assert_eq!(deduped_sibling_decision(true), Decision::UpToDate);
+}
+#[test]
+fn returns_skipped_when_a_sibling_without_dedupe_has_no_node_modules() {
+    let decision = deduped_sibling_decision(false);
+    assert!(matches!(decision, Decision::Skipped { reason } if reason.contains("node_modules")));
+}
+/// A root and a sibling that both declare `foo@1.0.0`; the sibling has no
+/// `node_modules`.
+fn deduped_sibling_decision(dedupe_direct_deps: bool) -> Decision {
+    let (dir, config, root_manifest) = setup_fresh_install_with_config(
+        pnpm_config::NodeLinker::Isolated,
+        "root",
+        "1.0.0",
+        r#""dependencies":{"foo":"1.0.0"}"#,
+        |config| config.dedupe_direct_deps = dedupe_direct_deps,
+    );
+    let sibling_dir = dir.path().join("pkg-a");
+    fs::create_dir_all(&sibling_dir).unwrap();
+    let sibling_manifest_path = sibling_dir.join("package.json");
+    fs::write(
+        &sibling_manifest_path,
+        r#"{"name":"pkg-a","version":"1.0.0","devDependencies":{"foo":"1.0.0"}}"#,
+    )
+    .unwrap();
+    let sibling_manifest = PackageManifest::from_path(sibling_manifest_path).unwrap();
+    let settings =
+        current_settings(config, pnpm_config::NodeLinker::Isolated, isolated_included(), None);
+    let mut projects = BTreeMap::new();
+    projects.insert(
+        dir.path()
+            .to_string_lossy()
+            .into_owned(),
+        ProjectEntry { name: Some("root".into()), version: Some("1.0.0".into()) },
+    );
+    projects.insert(
+        sibling_dir.to_string_lossy().into_owned(),
+        ProjectEntry { name: Some("pkg-a".into()), version: Some("1.0.0".into()) },
+    );
+    write_state(dir.path(), backdate_validated_files(dir.path()), settings, projects);
+
+    check_optimistic_repeat_install(&OptimisticRepeatInstallCheck {
+        workspace_root: dir.path(),
+        config,
+        project_manifests: &[
+            (dir.path().to_path_buf(), &root_manifest),
+            (sibling_dir, &sibling_manifest),
+        ],
+        is_workspace_install: true,
+        lockfile: MaybeLazyLockfile::Loaded(None),
+        catalogs: &BTreeMap::default(),
+        layout: crate::RepeatInstallLayout {
+            node_linker: pnpm_config::NodeLinker::Isolated,
+            included: isolated_included(),
+            supported_architectures: None,
+        },
+        manifest_freshness: crate::ManifestFreshness::Mtime,
+    })
 }

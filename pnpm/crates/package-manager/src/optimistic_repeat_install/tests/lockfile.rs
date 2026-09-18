@@ -1,7 +1,6 @@
 use super::{
     super::{
         Decision, OptimisticRepeatInstallCheck, check_optimistic_repeat_install,
-        conflict_markers::MAX_LOCKFILE_CONFLICT_SCAN_BYTES,
         deps_status::{RunDepsStatus, check_deps_status_before_run},
         settings::current_settings,
         timestamps::{FileMtime, lockfile_modified_since, modified_at_or_after},
@@ -286,16 +285,35 @@ fn returns_skipped_without_following_a_lockfile_symlink() {
         Decision::Skipped { reason } if reason.contains("cannot be checked")
     ));
 }
+/// A changed lockfile is scanned whole, however large: every one that
+/// passes the scan is parsed in full next, so no size budget can save
+/// anything. Here the file is a valid lockfile padded past 16 MiB with a
+/// comment.
 #[test]
-fn returns_skipped_without_scanning_an_oversized_changed_lockfile() {
+fn scans_a_large_changed_lockfile_to_the_end() {
     let (dir, config, manifest) =
         setup_fresh_install(pnpm_config::NodeLinker::Isolated, "root", "1.0.0", "");
-    let lockfile = fs::OpenOptions::new()
-        .write(true)
-        .truncate(true)
-        .open(dir.path().join(Lockfile::FILE_NAME))
-        .expect("open lockfile");
-    lockfile.set_len(MAX_LOCKFILE_CONFLICT_SCAN_BYTES).expect("resize lockfile");
+    fs::write(dir.path().join(Lockfile::FILE_NAME), large_lockfile(None)).expect("write lockfile");
+    let lockfile = Lockfile::load_wanted_from_dir(dir.path())
+        .expect("parse the padded lockfile")
+        .expect("padded lockfile on disk");
+
+    let decision = check_with_lockfile(
+        dir.path(),
+        config,
+        pnpm_config::NodeLinker::Isolated,
+        &[(dir.path().to_path_buf(), &manifest)],
+        &lockfile,
+    );
+
+    assert_eq!(decision, Decision::UpToDate);
+}
+#[test]
+fn finds_a_conflict_marker_deep_in_a_large_changed_lockfile() {
+    let (dir, config, manifest) =
+        setup_fresh_install(pnpm_config::NodeLinker::Isolated, "root", "1.0.0", "");
+    fs::write(dir.path().join(Lockfile::FILE_NAME), large_lockfile(Some("<<<<<<< HEAD\n")))
+        .expect("write lockfile");
 
     let decision = check(
         dir.path(),
@@ -304,11 +322,20 @@ fn returns_skipped_without_scanning_an_oversized_changed_lockfile() {
         &[(dir.path().to_path_buf(), &manifest)],
     );
 
-    dbg!(&decision);
-    assert!(matches!(
-        decision,
-        Decision::Skipped { reason } if reason.contains("cannot be checked")
-    ));
+    assert!(matches!(decision, Decision::Skipped { reason } if reason.contains("conflict")));
+}
+/// An empty lockfile followed by 17 MiB of comment lines, then `tail`.
+fn large_lockfile(tail: Option<&str>) -> String {
+    const COMMENT_LINE: &str =
+        "# padding padding padding padding padding padding padding padding\n";
+    let mut lockfile = String::from("lockfileVersion: '9.0'\n");
+    let target = 17 * 1024 * 1024;
+    lockfile.reserve(target + COMMENT_LINE.len());
+    while lockfile.len() < target {
+        lockfile.push_str(COMMENT_LINE);
+    }
+    lockfile.push_str(tail.unwrap_or_default());
+    lockfile
 }
 #[test]
 fn returns_skipped_when_current_lockfile_missing_for_non_empty_wanted_lockfile() {

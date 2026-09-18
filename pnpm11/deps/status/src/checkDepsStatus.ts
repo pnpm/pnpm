@@ -52,6 +52,7 @@ import { statManifestFile } from './statManifestFile.js'
 export type CheckDepsStatusOptions = Pick<Config,
 | 'autoInstallPeers'
 | 'catalogs'
+| 'dedupeDirectDeps'
 | 'excludeLinksFromLockfile'
 | 'injectWorkspacePackages'
 | 'linkWorkspacePackages'
@@ -328,12 +329,23 @@ async function _checkDepsStatus (opts: CheckDepsStatusOptions, workspaceState: W
     }))
 
     if (!workspaceState.filteredInstall) {
+      const rootModulesDirExists = allManifestStats.some(({ modulesDirStats, project }) =>
+        modulesDirStats != null && project.rootDir === rootProjectManifestDir)
       for (const { modulesDirStats, project } of allManifestStats) {
         if (modulesDirStats) continue
         if (isEmpty({
           ...project.manifest.dependencies,
           ...project.manifest.devDependencies,
         })) continue
+        // Under dedupeDirectDeps a project whose direct dependencies the root
+        // declares identically gets nothing linked, so the linker never creates
+        // its modules directory; it is installed all the same.
+        if (
+          opts.dedupeDirectDeps &&
+          rootModulesDirExists &&
+          project.rootDir !== rootProjectManifestDir &&
+          directDepsAllDeclaredBy(rootProjectManifest ?? {}, project.manifest)
+        ) continue
         const id = project.manifest.name ?? project.rootDir
         return {
           upToDate: false,
@@ -979,4 +991,19 @@ function modifiedAtOrAfter (stats: fs.Stats, referenceMs: number): boolean {
   const wholeSecond = stats.mtimeMs % 1000 === 0
   const mtimeMs = stats.mtime.valueOf()
   return wholeSecond ? mtimeMs + 1000 > referenceMs : mtimeMs > referenceMs
+}
+
+/**
+ * Whether `root` declares every direct dependency of `project` under the same
+ * alias with the same specifier, in any dependency group. That is what
+ * `dedupeDirectDeps` compares resolutions against: an identical declaration
+ * resolves identically within one lockfile, so the linker skips the project's
+ * own symlink for it.
+ */
+function directDepsAllDeclaredBy (root: ProjectManifest, project: ProjectManifest): boolean {
+  const rootSpecifier = (alias: string): string | undefined =>
+    root.dependencies?.[alias] ?? root.devDependencies?.[alias] ?? root.optionalDependencies?.[alias]
+  return [project.dependencies, project.devDependencies, project.optionalDependencies]
+    .flatMap((deps) => Object.entries(deps ?? {}))
+    .every(([alias, specifier]) => rootSpecifier(alias) === specifier)
 }

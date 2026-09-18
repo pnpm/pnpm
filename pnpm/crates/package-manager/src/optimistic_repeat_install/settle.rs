@@ -216,38 +216,95 @@ pub(super) fn modules_dirs_present(
 /// The id (`name` field, falling back to the root dir) of the first
 /// project that declares dependencies but has no modules directory, or
 /// `None` when every project with dependencies has one.
+///
+/// Under `dedupeDirectDeps` a sibling whose every direct dependency the
+/// root declares with the same specifier gets nothing linked, so the
+/// linker never creates its modules directory; such a sibling is
+/// installed all the same and does not count as missing one.
 pub(super) fn first_project_missing_modules_dir(
     config: &Config,
     node_linker: NodeLinker,
     project_manifests: &[(PathBuf, &PackageManifest)],
 ) -> Option<String> {
     let root_modules_dir_exists = config.modules_dir.exists();
+    let root_manifest = project_manifests
+        .iter()
+        .find(|(root_dir, _)| *root_dir == workspace_dir_of(config, root_dir))
+        .map(|(_, manifest)| *manifest);
 
     project_manifests
         .iter()
         .find_map(|(root_dir, manifest)| {
-            if !manifest_has_runtime_deps(manifest) {
-                return None;
-            }
-            // The root importer uses `config.modules_dir`; siblings use
-            // their own `<root>/node_modules`. Matches the isolated-linker
-            // default — `config.modules_dir` is `<workspace_root>/node_modules`
-            // unless the user overrode it explicitly.
-            let modules_dir_exists = match node_linker {
-                NodeLinker::Hoisted => root_modules_dir_exists,
-                NodeLinker::Isolated | NodeLinker::Pnp => {
-                    if *root_dir == workspace_dir_of(config, root_dir) {
-                        root_modules_dir_exists
-                    } else {
-                        root_dir.join("node_modules").exists()
-                    }
-                }
-            };
-
-            (!modules_dir_exists).then(|| {
+            let is_root = *root_dir == workspace_dir_of(config, root_dir);
+            let installed = !manifest_has_runtime_deps(manifest)
+                || modules_dir_exists(node_linker, root_dir, is_root, root_modules_dir_exists)
+                || (!is_root
+                    && root_modules_dir_exists
+                    && dedupe_links_nothing(config, root_manifest, manifest));
+            (!installed).then(|| {
                 manifest_string_field(manifest, "name")
                     .unwrap_or_else(|| root_dir.to_string_lossy().into_owned())
             })
+        })
+}
+
+/// The root importer uses `config.modules_dir`; siblings use their own
+/// `<root>/node_modules`. Matches the isolated-linker default —
+/// `config.modules_dir` is `<workspace_root>/node_modules` unless the user
+/// overrode it explicitly.
+fn modules_dir_exists(
+    node_linker: NodeLinker,
+    root_dir: &Path,
+    is_root: bool,
+    root_modules_dir_exists: bool,
+) -> bool {
+    match node_linker {
+        NodeLinker::Hoisted => root_modules_dir_exists,
+        NodeLinker::Isolated | NodeLinker::Pnp => {
+            if is_root {
+                root_modules_dir_exists
+            } else {
+                root_dir.join("node_modules").exists()
+            }
+        }
+    }
+}
+
+/// Whether `dedupeDirectDeps` would link nothing into `sibling`, leaving it
+/// without a modules directory of its own.
+fn dedupe_links_nothing(
+    config: &Config,
+    root_manifest: Option<&PackageManifest>,
+    sibling: &PackageManifest,
+) -> bool {
+    config.dedupe_direct_deps
+        && root_manifest.is_some_and(|root| direct_deps_all_declared_by(root, sibling))
+}
+
+/// Whether `root` declares every direct dependency of `sibling` under the
+/// same alias with the same specifier, in any dependency group. That is
+/// what `dedupeDirectDeps` compares resolutions against: an identical
+/// declaration resolves identically within one lockfile, so the linker
+/// skips the sibling's symlink for it.
+fn direct_deps_all_declared_by(root: &PackageManifest, sibling: &PackageManifest) -> bool {
+    const GROUPS: [&str; 3] = ["dependencies", "devDependencies", "optionalDependencies"];
+    let root_spec = |alias: &str| {
+        GROUPS
+            .iter()
+            .find_map(|group| {
+                root.value()
+                    .get(group)?
+                    .get(alias)?
+                    .as_str()
+            })
+    };
+    GROUPS
+        .iter()
+        .filter_map(|group| sibling.value().get(group)?.as_object())
+        .flat_map(|deps| deps.iter())
+        .all(|(alias, spec)| {
+            spec.as_str()
+                .is_some_and(|spec| root_spec(alias) == Some(spec))
         })
 }
 /// Recover the workspace root from `config.modules_dir`. The root
