@@ -8,8 +8,6 @@ test('spends the cgroup limit, not the host memory, inside a container', () => {
 })
 
 test('spends the host memory when nothing constrains it', () => {
-  // An unconstrained host reports UINT64_MAX, a runtime that cannot read the
-  // limit reports 0, and neither means "no memory".
   assert.equal(usableMemory(64 * 1024 ** 3, 2 ** 64), 64 * 1024 ** 3)
   assert.equal(usableMemory(64 * 1024 ** 3, 0), 64 * 1024 ** 3)
 })
