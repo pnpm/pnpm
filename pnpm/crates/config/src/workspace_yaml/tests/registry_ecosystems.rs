@@ -264,3 +264,32 @@ fn a_named_registry_alias_does_not_address_an_index() {
         "an alias addressing an npm registry is still declared",
     );
 }
+
+/// `registries` outranks its deprecated spelling in whichever layer each of
+/// them is written: only a `registries` entry can say a URL has stopped being
+/// an index, so an alias in a later layer meets a role that is still in force.
+#[test]
+fn a_later_alias_does_not_address_an_index_an_earlier_layer_declared() {
+    let dir = tempfile::tempdir().unwrap();
+    fs::write(
+        dir.path().join(WORKSPACE_MANIFEST_FILENAME),
+        "namedRegistries:\n  work: https://pypi.example.com/simple\n",
+    )
+    .unwrap();
+    let mut config = Config::default();
+    config.indexes_by_ecosystem.insert(
+        Ecosystem::Pypi,
+        vec!["https://pypi.example.com/simple/".to_string()],
+    );
+    WorkspaceSettings::load_at(dir.path())
+        .unwrap()
+        .expect("the workspace manifest was just written")
+        .apply_to(&mut config, Path::new("/workspace"));
+
+    assert_eq!(config.python_indexes(), ["https://pypi.example.com/simple/"]);
+    assert!(
+        !config.registries_by_prefix.contains_key("work"),
+        "the alias addressed the PyPI index: {:?}",
+        config.registries_by_prefix,
+    );
+}
