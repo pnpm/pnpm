@@ -7,19 +7,19 @@ pub(in super::super) fn patch<'a>(
     ctx: &RunCtx<'a>,
     args: PatchArgs,
 ) -> miette::Result<CommandFuture<'a>> {
-    let command_state = (ctx.loaders.state)(false)?;
+    let command_state = ctx.prepared_state(false);
     let dir = ctx.locations.dir;
     Ok(match ctx.reporter {
         ReporterType::Default | ReporterType::AppendOnly => Box::pin(async move {
-            args.run::<DefaultReporter>(dir, command_state).await?;
+            args.run::<DefaultReporter>(dir, command_state.await?).await?;
             Ok(())
         }),
         ReporterType::Ndjson => Box::pin(async move {
-            args.run::<NdjsonReporter>(dir, command_state).await?;
+            args.run::<NdjsonReporter>(dir, command_state.await?).await?;
             Ok(())
         }),
         ReporterType::Silent => Box::pin(async move {
-            args.run::<SilentReporter>(dir, command_state).await?;
+            args.run::<SilentReporter>(dir, command_state.await?).await?;
             Ok(())
         }),
     })
