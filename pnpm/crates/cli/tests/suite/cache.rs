@@ -1,9 +1,11 @@
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
 use pnpm_testing_utils::bin::{AddMockedRegistry, CommandTempCwd};
+#[cfg(unix)]
+use std::path::Path;
 use std::{
     fs,
-    path::{Component, Path, PathBuf},
+    path::{Component, PathBuf},
 };
 
 #[test]
