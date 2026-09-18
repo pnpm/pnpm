@@ -1,5 +1,6 @@
 use super::{
-    Bounds, Releases, ShasumsFileItem, Source, builds_in, exact_version, host_triple, within,
+    Bounds, Releases, ShasumsFileItem, Source, builds_in, exact_version, host_triple,
+    releases::read_cached_release_tags, within,
 };
 use crate::interpreter::VersionRequest;
 use pnpm_config::{Config, Tool, ToolSettings};
@@ -25,6 +26,18 @@ fn built(versions: &[&str], triple: &str) -> Vec<String> {
 
 fn requires(specifiers: &str) -> pep440_rs::VersionSpecifiers {
     specifiers.parse().expect("requires-python fixture")
+}
+
+#[tokio::test]
+async fn release_tag_cache_obeys_its_freshness_window() {
+    let cache = tempfile::NamedTempFile::new().expect("release tag cache");
+    tokio::fs::write(cache.path(), r#"["20260101"]"#).await.expect("write release tag cache");
+
+    assert!(read_cached_release_tags(cache.path(), std::time::Duration::ZERO).await.is_none());
+    assert_eq!(
+        read_cached_release_tags(cache.path(), std::time::Duration::from_mins(1)).await,
+        Some(vec!["20260101".to_string()]),
+    );
 }
 
 #[test]
@@ -157,7 +170,62 @@ async fn an_exact_patch_pin_reads_the_release_that_published_it() {
         .expect(1)
         .create_async()
         .await;
-    let config = Config::new();
+    let cache = tempfile::tempdir().expect("cache directory");
+    let mut config = Config::new();
+    config.cache_dir = cache.path().to_path_buf();
+    let exact: pep440_rs::Version = "3.13.13".parse().expect("version fixture");
+
+    for _ in 0..2 {
+        let releases = Releases::read_from(
+            &config,
+            &ThrottledClient::new_for_installs(),
+            Source::from_urls(&server.url(), &format!("{}/tags", server.url())),
+            Some(&exact),
+        )
+        .await
+        .expect("read the historical release");
+
+        assert_eq!(
+            releases
+                .best(Some(&requires("==3.13.13")), None)
+                .expect("the pinned build")
+                .file,
+            pinned_file,
+        );
+    }
+    latest.assert_async().await;
+    tags.assert_async().await;
+    pinned.assert_async().await;
+}
+
+#[tokio::test]
+async fn a_cached_tag_list_refreshes_after_a_historical_miss() {
+    let triple = host_triple().expect("these tests run where interpreters are built");
+    let mut server = mockito::Server::new_async().await;
+    let latest_file = built(&["3.13.15"], &triple).remove(0);
+    let latest = server
+        .mock("GET", "/latest/download/SHA256SUMS")
+        .with_body(format!("{}  {latest_file}\n", "a".repeat(64)))
+        .expect(1)
+        .create_async()
+        .await;
+    let initial_tags = server
+        .mock("GET", "/tags")
+        .match_query(mockito::Matcher::Any)
+        .with_body(r#"[{"name":"20260601"}]"#)
+        .expect(1)
+        .create_async()
+        .await;
+    let old_file = built(&["3.13.12"], &triple).remove(0);
+    let old = server
+        .mock("GET", "/download/20260601/SHA256SUMS")
+        .with_body(format!("{}  {old_file}\n", "b".repeat(64)))
+        .expect(1)
+        .create_async()
+        .await;
+    let cache = tempfile::tempdir().expect("cache directory");
+    let mut config = Config::new();
+    config.cache_dir = cache.path().to_path_buf();
     let exact: pep440_rs::Version = "3.13.13".parse().expect("version fixture");
 
     let releases = Releases::read_from(
@@ -167,18 +235,96 @@ async fn an_exact_patch_pin_reads_the_release_that_published_it() {
         Some(&exact),
     )
     .await
-    .expect("read the historical release");
+    .expect("read the initial historical releases");
+    assert!(
+        releases
+            .best(Some(&requires("==3.13.13")), None)
+            .is_none(),
+    );
+    initial_tags.assert_async().await;
+    initial_tags.remove_async().await;
+
+    let refreshed_tags = server
+        .mock("GET", "/tags")
+        .match_query(mockito::Matcher::Any)
+        .with_body(r#"[{"name":"20260602"},{"name":"20260601"}]"#)
+        .expect(1)
+        .create_async()
+        .await;
+    let pinned_file = built(&["3.13.13"], &triple).remove(0);
+    let pinned = server
+        .mock("GET", "/download/20260602/SHA256SUMS")
+        .with_body(format!("{}  {pinned_file}\n", "c".repeat(64)))
+        .expect(1)
+        .create_async()
+        .await;
+
+    let releases = Releases::read_from(
+        &config,
+        &ThrottledClient::new_for_installs(),
+        Source::from_urls(&server.url(), &format!("{}/tags", server.url())),
+        Some(&exact),
+    )
+    .await
+    .expect("refresh the historical release tags");
 
     assert_eq!(
         releases
             .best(Some(&requires("==3.13.13")), None)
-            .expect("the pinned build")
+            .expect("the newly published pinned build")
             .file,
         pinned_file,
     );
     latest.assert_async().await;
-    tags.assert_async().await;
+    old.assert_async().await;
+    refreshed_tags.assert_async().await;
     pinned.assert_async().await;
+}
+
+#[tokio::test]
+async fn historical_manifests_honor_the_configured_retry_policy() {
+    let triple = host_triple().expect("these tests run where interpreters are built");
+    let mut server = mockito::Server::new_async().await;
+    let latest_file = built(&["3.13.15"], &triple).remove(0);
+    let latest = server
+        .mock("GET", "/latest/download/SHA256SUMS")
+        .with_body(format!("{}  {latest_file}\n", "a".repeat(64)))
+        .expect(1)
+        .create_async()
+        .await;
+    let tags = server
+        .mock("GET", "/tags")
+        .match_query(mockito::Matcher::Any)
+        .with_body(r#"[{"name":"20260602"}]"#)
+        .expect(1)
+        .create_async()
+        .await;
+    let historical = server
+        .mock("GET", "/download/20260602/SHA256SUMS")
+        .with_status(500)
+        .expect(3)
+        .create_async()
+        .await;
+    let cache = tempfile::tempdir().expect("cache directory");
+    let mut config = Config::new();
+    config.cache_dir = cache.path().to_path_buf();
+    config.fetch_retries = 2;
+    config.fetch_retry_mintimeout = 0;
+    config.fetch_retry_maxtimeout = 0;
+    let exact: pep440_rs::Version = "3.13.13".parse().expect("version fixture");
+
+    let result = Releases::read_from(
+        &config,
+        &ThrottledClient::new_for_installs(),
+        Source::from_urls(&server.url(), &format!("{}/tags", server.url())),
+        Some(&exact),
+    )
+    .await;
+    result.err().expect("permanent failures exhaust the configured retry budget");
+
+    latest.assert_async().await;
+    tags.assert_async().await;
+    historical.assert_async().await;
 }
 
 #[tokio::test]
@@ -395,6 +541,82 @@ async fn a_release_without_this_machine_does_not_end_the_historical_search() {
     gap.assert_async().await;
     nearer.assert_async().await;
     pinned.assert_async().await;
+}
+
+#[tokio::test]
+async fn a_long_host_gap_has_a_fixed_request_budget() {
+    let triple = host_triple().expect("these tests run where interpreters are built");
+    let other_triple = if triple == "x86_64-pc-windows-msvc" {
+        "aarch64-apple-darwin"
+    } else {
+        "x86_64-pc-windows-msvc"
+    };
+    let mut server = mockito::Server::new_async().await;
+    let latest_file = built(&["3.13.15"], &triple).remove(0);
+    let latest = server
+        .mock("GET", "/latest/download/SHA256SUMS")
+        .with_body(format!("{}  {latest_file}\n", "a".repeat(64)))
+        .expect(1)
+        .create_async()
+        .await;
+    let release_tags = [
+        "20260111", "20260110", "20260109", "20260108", "20260107", "20260106", "20260105",
+        "20260104", "20260103", "20260102", "20260101",
+    ];
+    let tags = server
+        .mock("GET", "/tags")
+        .match_query(mockito::Matcher::Any)
+        .with_body(
+            serde_json::to_string(
+                &release_tags
+                    .iter()
+                    .map(|tag| serde_json::json!({ "name": tag }))
+                    .collect::<Vec<_>>(),
+            )
+            .expect("serialize release tags"),
+        )
+        .expect(1)
+        .create_async()
+        .await;
+    let mut manifests = Vec::new();
+    for tag in [
+        "20260106", "20260107", "20260105", "20260108", "20260104", "20260109", "20260103",
+        "20260110", "20260102",
+    ] {
+        let file = format!("cpython-3.13.13+{tag}-{other_triple}-install_only_stripped.tar.gz");
+        manifests.push(
+            server
+                .mock("GET", format!("/download/{tag}/SHA256SUMS").as_str())
+                .with_body(format!("{}  {file}\n", "b".repeat(64)))
+                .expect(1)
+                .create_async()
+                .await,
+        );
+    }
+    let cache = tempfile::tempdir().expect("cache directory");
+    let mut config = Config::new();
+    config.cache_dir = cache.path().to_path_buf();
+    let exact: pep440_rs::Version = "3.13.13".parse().expect("version fixture");
+
+    let releases = Releases::read_from(
+        &config,
+        &ThrottledClient::new_for_installs(),
+        Source::from_urls(&server.url(), &format!("{}/tags", server.url())),
+        Some(&exact),
+    )
+    .await
+    .expect("stop after the host-gap request budget");
+
+    assert!(
+        releases
+            .best(Some(&requires("==3.13.13")), None)
+            .is_none(),
+    );
+    latest.assert_async().await;
+    tags.assert_async().await;
+    for manifest in manifests {
+        manifest.assert_async().await;
+    }
 }
 
 #[tokio::test]
