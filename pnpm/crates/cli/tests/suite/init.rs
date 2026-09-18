@@ -26,6 +26,7 @@ fn pinning_fixture(served_pnpm_version: &str) -> CommandTempCwd<AddMockedRegistr
         CommandTempCwd::init().add_mocked_registry_with_pnpm_version(served_pnpm_version);
     let registry = fixture.npmrc_info.mock_instance.url();
     fixture.pacquet.env("PNPM_CONFIG_REGISTRY", registry);
+    fixture.pacquet.env("PNPM_CONFIG_CACHE_DIR", &fixture.npmrc_info.cache_dir);
     fixture
 }
 

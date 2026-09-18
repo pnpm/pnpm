@@ -5,9 +5,12 @@ use command_extra::CommandExtra;
 use pnpm_config::WorkspaceSettings;
 use pnpm_lockfile::EnvLockfile;
 use pnpm_modules_yaml::{Host, NodeLinker, read_modules_manifest};
-use pnpm_testing_utils::bin::{AddMockedRegistry, CommandTempCwd};
 #[cfg(unix)]
 use pnpm_testing_utils::fs::is_symlink_or_junction;
+use pnpm_testing_utils::{
+    bin::{AddMockedRegistry, CommandTempCwd},
+    fs::bump_mtime,
+};
 use pnpm_workspace_state::ConfigDependency;
 use std::{fs, path::Path, process::Command};
 
@@ -434,6 +437,7 @@ fn install_merges_a_conflicted_env_document() {
         format!("---\n<<<<<<< HEAD\n{ours}=======\n{theirs}>>>>>>> branch\n---\n{main_document}"),
     )
     .expect("write conflicted lockfile");
+    bump_mtime(&workspace.join("pnpm-lock.yaml"));
 
     let install = pacquet_at(&workspace)
         .with_arg("install")
