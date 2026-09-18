@@ -121,6 +121,7 @@ pub enum CliCommand {
     #[clap(visible_aliases = ["t", "tst"])]
     Test(ScriptShortcutArgs),
     /// Runs a defined package script.
+    #[clap(visible_alias = "run-script")]
     Run(RunArgs),
     /// Runs a named pipeline of workspace tasks the way a CI run would:
     /// a frozen install, affected-since-base selection, the task graph in

@@ -433,3 +433,124 @@ fn completion_does_not_require_a_project_or_existing_dir_argument() {
     let script = stdout(output);
     assert!(script.contains("#compdef pnpm"), "{script}");
 }
+
+#[test]
+fn completion_server_completes_project_scripts() {
+    let project = TempDir::new().unwrap();
+    std::fs::write(
+        project.path().join("package.json"),
+        r#"{"scripts":{"hello":"echo hi","build":"echo b","build:watch":"echo w"}}"#,
+    )
+    .unwrap();
+    for shell in ["bash", "fish", "pwsh", "zsh"] {
+        for (words, expected) in [
+            (vec!["pnpm", "run", ""], "build\nbuild:watch\nhello\n"),
+            (vec!["pnpm", "run", "bu"], "build\nbuild:watch\n"),
+            (vec!["pn", "run-script", "he"], "hello\n"),
+            (vec!["pnpm", "--filter", "run", "run", "--if-present", "he"], "hello\n"),
+            (vec!["pnpm", "run", "hello", ""], ""),
+            (vec!["pnpm", "run", "--", ""], ""),
+        ] {
+            let output = pacquet()
+                .current_dir(project.path())
+                .env("SHELL", shell)
+                .args(["completion-server", "--"])
+                .args(&words)
+                .output()
+                .unwrap();
+            assert_eq!(stdout(output), expected, "{shell}: {words:?}");
+        }
+    }
+}
+
+#[test]
+fn completion_server_finds_scripts_from_project_subdirectories() {
+    let project = TempDir::new().unwrap();
+    let nested = project.path().join("src/nested");
+    std::fs::create_dir_all(&nested).unwrap();
+    std::fs::write(project.path().join("package.json"), r#"{"scripts":{"hello":"echo hi"}}"#)
+        .unwrap();
+    let output = pacquet()
+        .current_dir(nested)
+        .args(["completion-server", "--", "pnpm", "run", ""])
+        .output()
+        .unwrap();
+    assert_eq!(stdout(output), "hello\n");
+}
+
+#[test]
+fn completion_server_handles_projects_without_scripts() {
+    for manifest in [None, Some("{}"), Some(r#"{"scripts":{}}"#)] {
+        let project = TempDir::new().unwrap();
+        if let Some(manifest) = manifest {
+            std::fs::write(project.path().join("package.json"), manifest).unwrap();
+        }
+        let output = pacquet()
+            .current_dir(project.path())
+            .args(["completion-server", "--", "pnpm", "run", ""])
+            .output()
+            .unwrap();
+        assert_eq!(stdout(output), "");
+    }
+}
+
+#[test]
+fn completion_server_respects_project_directory_options() {
+    let project = TempDir::new().unwrap();
+    let target = project.path().join("target-project");
+    std::fs::create_dir_all(&target).unwrap();
+    std::fs::write(project.path().join("package.json"), r#"{"scripts":{"wrong":"echo wrong"}}"#)
+        .unwrap();
+    std::fs::write(target.join("package.json"), r#"{"scripts":{"hello":"echo hi"}}"#).unwrap();
+    for words in [
+        vec!["pnpm", "--dir", "target-project", "run", ""],
+        vec!["pnpm", "run", "--dir=target-project", ""],
+        vec!["pnpm", "-C", "target-project", "run-script", ""],
+        vec!["pnpm", "-Ctarget-project", "run", ""],
+        vec!["pnpm", "--prefix=target-project", "run", ""],
+    ] {
+        let output = pacquet()
+            .current_dir(project.path())
+            .args(["completion-server", "--"])
+            .args(&words)
+            .output()
+            .unwrap();
+        assert_eq!(stdout(output), "hello\n", "{words:?}");
+    }
+    let output = pacquet()
+        .current_dir(project.path())
+        .args(["completion-server", "--", "pnpm", "run", "--dir", ""])
+        .output()
+        .unwrap();
+    assert_eq!(stdout(output), "");
+}
+
+#[test]
+fn completion_server_reports_invalid_script_manifests() {
+    let project = TempDir::new().unwrap();
+    std::fs::write(project.path().join("package.json"), "{").unwrap();
+    let output = pacquet()
+        .current_dir(project.path())
+        .args(["completion-server", "--", "pnpm", "run", ""])
+        .output()
+        .unwrap();
+    let error = stderr(output);
+    assert!(error.contains("package.json"), "{error}");
+}
+
+#[test]
+fn completion_server_uses_the_nearest_project_manifest() {
+    let project = TempDir::new().unwrap();
+    let child = project.path().join("child");
+    let nested = child.join("src");
+    std::fs::create_dir_all(&nested).unwrap();
+    std::fs::write(project.path().join("package.json"), r#"{"scripts":{"parent":"echo parent"}}"#)
+        .unwrap();
+    std::fs::write(child.join("package.yaml"), "scripts:\n  child: echo child\n").unwrap();
+    let output = pacquet()
+        .current_dir(nested)
+        .args(["completion-server", "--", "pnpm", "run", ""])
+        .output()
+        .unwrap();
+    assert_eq!(stdout(output), "child\n");
+}

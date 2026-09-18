@@ -93,7 +93,7 @@ impl CompletionArgs {
 
 impl CompletionServerArgs {
     pub fn run(&self) -> miette::Result<()> {
-        for completion in complete_words(&self.words) {
+        for completion in complete_words(&self.words)? {
             println!("{completion}");
         }
         Ok(())
@@ -106,55 +106,62 @@ pub fn generate_completion(shell: CompletionShell, output: &mut dyn Write) -> mi
         .into_diagnostic()
 }
 
-pub fn complete_words(words: &[String]) -> Vec<String> {
+pub fn complete_words(words: &[String]) -> miette::Result<Vec<String>> {
     let words = words_without_binary(words);
     let (before_current, current_word) = split_current_word(&words);
     if before_current
         .iter()
         .any(|word| word == "--")
     {
-        return Vec::new();
+        return Ok(Vec::new());
     }
 
     let command = command_for_completion();
     let context = CompletionContext::new(&command, before_current);
 
     if let Some(values) = equals_option_values(&context, current_word) {
-        return values;
+        return Ok(values);
     }
 
     if let Some(values) = option_values(&context, before_current) {
-        return filter_by_prefix(values, current_word);
+        return Ok(filter_by_prefix(values, current_word));
     }
 
     if current_word.starts_with('-') {
-        return filter_by_prefix(visible_options(&context), current_word);
+        return Ok(filter_by_prefix(visible_options(&context), current_word));
     }
 
-    if context.command_name == Some("completion") {
-        return filter_by_prefix(
-            SUPPORTED_SHELLS
-                .iter()
-                .map(|shell| (*shell).to_string())
-                .collect(),
-            current_word,
-        );
-    }
-
-    filter_by_prefix(visible_subcommands(context.command), current_word)
+    Ok(filter_by_prefix(context.positional_candidates()?, current_word))
 }
 
 struct CompletionContext<'a> {
     root: &'a Command,
     command: &'a Command,
     command_name: Option<&'a str>,
+    has_positional: bool,
+    directory: Option<&'a str>,
+    awaiting_option_value: bool,
 }
 
 impl<'a> CompletionContext<'a> {
-    fn new(root: &'a Command, words: &[String]) -> Self {
+    fn positional_candidates(&self) -> miette::Result<Vec<String>> {
+        match self.command_name {
+            Some("completion") => Ok(SUPPORTED_SHELLS
+                .iter()
+                .map(|shell| (*shell).to_string())
+                .collect()),
+            Some("run") => scripts::complete_scripts(self),
+            _ => Ok(visible_subcommands(self.command)),
+        }
+    }
+
+    fn new(root: &'a Command, words: &'a [String]) -> Self {
         let mut command = root;
         let mut command_name = None;
         let mut index = 0;
+        let mut has_positional = false;
+        let mut directory = None;
+        let mut awaiting_option_value = false;
 
         while let Some(word) = words.get(index) {
             if let Some(subcommand) = command
@@ -168,14 +175,20 @@ impl<'a> CompletionContext<'a> {
             }
 
             if word.starts_with('-') {
-                index += option_word_width(root, command, word);
+                let width = option_word_width(root, command, word);
+                awaiting_option_value = width == 2 && index + 1 == words.len();
+                if let Some(value) = scripts::directory_option(word, words.get(index + 1)) {
+                    directory = Some(value);
+                }
+                index += width;
                 continue;
             }
 
+            has_positional = true;
             index += 1;
         }
 
-        Self { root, command, command_name }
+        Self { root, command, command_name, has_positional, directory, awaiting_option_value }
     }
 }
 
@@ -190,7 +203,9 @@ fn option_word_width(root: &Command, command: &Command, word: &str) -> usize {
 }
 
 fn command_for_completion() -> Command {
-    super::CliArgs::command()
+    let mut command = super::CliArgs::command();
+    command.build();
+    command
 }
 
 fn words_without_binary(words: &[String]) -> Vec<String> {
@@ -415,6 +430,8 @@ _pnpm_completion() {
 compdef _pnpm_completion pnpm pn
 ###-end-pnpm-completion-###
 "#;
+
+mod scripts;
 
 #[cfg(test)]
 mod tests;
