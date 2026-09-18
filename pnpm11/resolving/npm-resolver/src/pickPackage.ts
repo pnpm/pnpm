@@ -671,19 +671,21 @@ async function maybeUpgradeAbbreviatedMetaForReleaseAge (
   // When `modified` is missing or malformed we fall through to the upgrade
   // fetch: prefer correctness (run the maturity check on real `time` data)
   // over saving a network call when our cached freshness signal is unusable.
-  // Do not forward etag/modified: `meta` is the abbreviated packument, so its
-  // validator cannot validate a full packument representation. Forwarding it
-  // causes registries that reuse ETags across representations to return 304
-  // without per-version publish dates.
+  // No validators: an ETag and a `Last-Modified` date describe one
+  // representation, and `meta` holds the abbreviated one. A registry that
+  // reuses them across both forms answers 304, which leaves the maturity check
+  // without the per-version publish dates it asked for.
   const fullFetchResult = await ctx.fetch(spec.name, {
     authHeaderValue: opts.authHeaderValue,
     fullMetadata: true,
     registry: opts.registry,
   })
   if (fullFetchResult.notModified) {
-    // Upgrade fetch came back 304: the registry has no fuller form of this
-    // document, so keep it and let `pickMatchingVersionFinal` fall through to
-    // its warn-and-skip path. Remember the outcome against the packument
+    // Out of reach while the request carries no validators: the fetcher
+    // retries an unsolicited 304 as a cold cache would and then throws.
+    // Degrading beats failing the install if one ever arrives, so keep the
+    // abbreviated document, let `pickMatchingVersionFinal` fall through to its
+    // warn-and-skip path, and remember the outcome against the packument
     // itself so no other pick in this resolver repeats the request.
     ctx.releaseAgeUpgradeCheckedPackuments?.add(meta)
     return { meta }
@@ -705,8 +707,8 @@ async function maybeUpgradeAbbreviatedMetaForReleaseAge (
  * {@link maybeUpgradeAbbreviatedMetaForReleaseAge} because persisting the
  * response to the mirror can hand back a different object, and only the one
  * that reaches the cache is worth remembering. A registry whose full form is
- * no more complete than its abbreviated one answers `200` rather than `304`,
- * so both outcomes have to be marked — otherwise every dependency edge
+ * no more complete than its abbreviated one still answers `200`, so a
+ * successful upgrade has to be marked too — otherwise every dependency edge
  * re-asks for the same full document.
  */
 function upgradeMetaForCache (

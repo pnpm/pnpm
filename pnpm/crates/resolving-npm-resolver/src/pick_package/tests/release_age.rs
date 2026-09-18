@@ -292,15 +292,20 @@ async fn published_by_exclude_skips_upgrade_for_abbreviated_meta_without_time() 
     abbrev_mock.assert_async().await;
 }
 
-/// A `304 Not Modified` answer to the release-age upgrade is remembered within
-/// one install, but not by a metadata cache reused by the next install.
+/// A release-age upgrade is remembered within one install, but not by a
+/// metadata cache reused by the next install.
+///
+/// The upgrade also sends neither of the seeded document's validators: both
+/// describe the abbreviated representation it is trying to leave behind, and a
+/// registry that reuses them across forms would answer `304`.
 #[tokio::test]
-async fn published_by_upgrade_not_modified_marker_is_scoped_to_install() {
+async fn published_by_upgrade_marker_is_scoped_to_install() {
     let mut server = mockito::Server::new_async().await;
     let full_mock = server
         .mock("GET", "/acme")
         .match_header("accept", "application/json; q=1.0, */*")
         .match_header("if-none-match", mockito::Matcher::Missing)
+        .match_header("if-modified-since", mockito::Matcher::Missing)
         .with_status(200)
         .with_body(PARTIAL_TIME_PACKAGE_BODY)
         .expect(2)
@@ -313,7 +318,7 @@ async fn published_by_upgrade_not_modified_marker_is_scoped_to_install() {
     let auth_headers = AuthHeaders::default();
     let meta_cache = InMemoryPackageMetaCache::default();
     // The document a prior mirror load would have produced: abbreviated
-    // (no `time`), carrying the mirror's etag as the upgrade validator.
+    // (no `time`), carrying the mirror's etag next to the fixture's `modified`.
     let mut seeded: pnpm_registry::Package =
         serde_json::from_str(ABBREVIATED_BODY).expect("parse fixture");
     seeded.etag = Some(r#""acme-etag""#.to_string());
@@ -450,15 +455,16 @@ async fn published_by_upgrade_answering_200_is_remembered_across_picks() {
 }
 
 /// A same-install checksum refresh can replace an abbreviated packument while
-/// retaining its cache key. A prior document's `304` marker must not suppress
-/// the full-metadata check for that new response.
+/// retaining its cache key. A prior document's upgrade marker must not
+/// suppress the full-metadata check for that new response.
 #[tokio::test]
-async fn published_by_upgrade_not_modified_marker_is_scoped_to_document() {
+async fn published_by_upgrade_marker_is_scoped_to_document() {
     let mut server = mockito::Server::new_async().await;
     let first_full_mock = server
         .mock("GET", "/acme")
         .match_header("accept", "application/json; q=1.0, */*")
         .match_header("if-none-match", mockito::Matcher::Missing)
+        .match_header("if-modified-since", mockito::Matcher::Missing)
         .with_status(200)
         .with_body(PARTIAL_TIME_PACKAGE_BODY)
         .expect(1)
@@ -480,6 +486,7 @@ async fn published_by_upgrade_not_modified_marker_is_scoped_to_document() {
         .mock("GET", "/acme")
         .match_header("accept", "application/json; q=1.0, */*")
         .match_header("if-none-match", mockito::Matcher::Missing)
+        .match_header("if-modified-since", mockito::Matcher::Missing)
         .with_status(200)
         .with_body(PARTIAL_TIME_PACKAGE_BODY)
         .expect(1)

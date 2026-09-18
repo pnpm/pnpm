@@ -44,6 +44,10 @@ pub(super) async fn maybe_upgrade_abbreviated_meta_for_release_age<Cache: Packag
     {
         return Ok(UpgradeOutcome { meta, upgraded: false });
     }
+    // No validators: an entity tag and a `Last-Modified` date describe one
+    // representation, and `meta` holds the abbreviated one. A registry that
+    // reuses them across both forms answers `304`, which leaves the maturity
+    // check without the `time` map it asked for.
     let fetch_opts = FetchFullMetadataOptions {
         registry: opts.registry,
         full_metadata: true,
@@ -55,13 +59,14 @@ pub(super) async fn maybe_upgrade_abbreviated_meta_for_release_age<Cache: Packag
         FetchFullMetadataOutcome::Modified(upgraded) => {
             Ok(UpgradeOutcome { meta: Arc::new(*upgraded), upgraded: true })
         }
-        // 304: the full-form representation matched the conditional
-        // headers, so the abbreviated meta is still the freshest
-        // signal we have. Keep it (the downstream picker falls through
-        // to its warn-and-skip path on the missing `time` map) and
-        // mark it so no later pick in this install repeats the round trip.
-        // The 304 also registry-validated the document, so it may enter the
-        // shared metadata cache as verified.
+        // Out of reach while the request carries no validators:
+        // `fetch_full_metadata` retries an unsolicited `304` with intermediary
+        // cache reuse disabled and then errors. Degrading beats failing the
+        // install if one ever arrives, so keep the abbreviated meta (the
+        // downstream picker falls through to its warn-and-skip path on the
+        // missing `time` map) and mark it so no later pick in this install
+        // repeats the round trip. The `304` registry-validated the document,
+        // so it may enter the shared metadata cache as verified.
         FetchFullMetadataOutcome::NotModified => {
             ctx.metadata.fetch_locker.mark_release_age_upgrade_checked(cache_key, &meta);
             // A `Modified` outcome is marked by the caller instead: it persists
@@ -98,9 +103,9 @@ pub(super) async fn maybe_upgrade_abbreviated_meta_for_release_age<Cache: Packag
 ///   normalized to `None` at the parse boundary (see
 ///   [`Package::drop_incomplete_publish_times`]), so a map that is here
 ///   is complete. Nothing to upgrade.
-/// - this document already got a `304` from an upgrade fetch earlier in
-///   the install (see [`PackumentFetchState`](super::metadata_cache::PackumentFetchState)): the registry has no
-///   fuller form of it, so asking again is pure waste.
+/// - an upgrade fetch already ran for this document earlier in the
+///   install (see [`PackumentFetchState`](super::metadata_cache::PackumentFetchState)): its outcome stands for
+///   every later pick, so asking again is pure waste.
 /// - `opts.published_by_exclude` matches the package: caller has
 ///   opted this package out of the policy.
 /// - `meta.modified.is_some()` and parses as a date `<= cutoff`:
@@ -114,10 +119,6 @@ pub(super) async fn maybe_upgrade_abbreviated_meta_for_release_age<Cache: Packag
 /// abbreviated mirror via [`persist_upgraded_to_mirror`], which
 /// intentionally updates the *abbreviated* cache file with full data so
 /// the next install sees `time` populated and skips the upgrade fetch.
-///
-/// The upgrade fetch intentionally omits `meta.etag` and `meta.modified`
-/// validators because `meta` is the abbreviated packument, so its validator
-/// cannot validate a full packument representation.
 pub(super) fn release_age_upgrade_needed<Cache: PackageMetaCache>(
     ctx: &PickPackageContext<'_, Cache>,
     spec: &RegistryPackageSpec,

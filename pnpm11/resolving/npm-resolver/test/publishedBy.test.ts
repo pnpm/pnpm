@@ -269,7 +269,7 @@ test('re-fetch full metadata when per-version publish times are incomplete', asy
   expect(resolveResult!.id).toBe('is-positive@2.0.0')
 })
 
-test('scopes a 304 full-metadata upgrade marker to one resolver', async () => {
+test('scopes the full-metadata upgrade marker to one resolver', async () => {
   const agent = getMockAgent().get(registriesByScope.default.replace(/\/$/, ''))
   agent.intercept({ path: '/is-positive', method: 'GET' })
     .reply(200, partialTimeMeta(), { headers: { etag: '"partial-time"' } })
@@ -290,22 +290,23 @@ test('scopes a 304 full-metadata upgrade marker to one resolver', async () => {
   const wantedDependency = { alias: 'is-positive', bareSpecifier: '^3.0.0' }
 
   // Seed the install-scoped cache with an incomplete time map, then make two
-  // release-age picks. The first gets a 304 while trying to upgrade it; the
-  // second must reuse that outcome instead of repeating the registry request.
+  // release-age picks. The first upgrades it to a document that is still
+  // incomplete; the second must reuse that outcome instead of repeating the
+  // registry request.
   await resolveFromNpm(wantedDependency, {})
   const first = await resolveFromNpm(wantedDependency, {
     publishedBy: new Date('2015-07-01T00:00:00.000Z'),
   })
   // Drop the resolver's fetch memo while keeping the caller-owned packument
   // cache, so the second pick reaches the release-age upgrade again with the
-  // very packument the first pick got a 304 for.
+  // very packument the first pick already upgraded.
   clearCache()
   const second = await resolveFromNpm(wantedDependency, {
     publishedBy: new Date('2015-07-01T00:00:00.000Z'),
   })
 
   // A new resolver represents a new install. Reusing the caller-owned
-  // metadata cache must not carry the first install's 304 marker forward.
+  // metadata cache must not carry the first install's upgrade marker forward.
   const nextInstall = createResolveFromNpm({
     storeDir: temporaryDirectory(),
     cacheDir,
@@ -860,12 +861,14 @@ test('latest is suppressed when all versions are immature (fallback case)', asyn
   expect(resolveResult!.latest).toBeUndefined()
 })
 
-test('release-age upgrade fetch for fullMetadata does not pass abbreviated etag/modified as conditional headers', async () => {
+test('the release-age upgrade sends no validator from the abbreviated cache', async () => {
   const cacheDir = temporaryDirectory()
   const abbrevCacheDir = path.join(cacheDir, `${ABBREVIATED_META_DIR}/https%3A+registry.npmjs.org`)
   fs.mkdirSync(abbrevCacheDir, { recursive: true })
   const cachePath = path.join(abbrevCacheDir, 'is-positive.jsonl')
 
+  // An abbreviated mirror without `time`, modified after the cutoff below, so
+  // the maturity check has to upgrade it to the full document.
   const { time: _time, ...abbreviatedWithoutTime } = isPositiveAbbreviatedMeta
   const cachedMeta = {
     ...abbreviatedWithoutTime,
@@ -874,21 +877,20 @@ test('release-age upgrade fetch for fullMetadata does not pass abbreviated etag/
   const cacheHeaders = JSON.stringify({ etag: '"abbreviated-etag"', modified: cachedMeta.modified })
   fs.writeFileSync(cachePath, `${cacheHeaders}\n${JSON.stringify(cachedMeta)}`, 'utf8')
 
-  let upgradeHeadersReceived: Record<string, string> | undefined
+  let upgradeHeaders: Record<string, string> | undefined
   const agent = getMockAgent().get(registriesByScope.default.replace(/\/$/, ''))
-  // 1. First fetch: conditional request for abbreviated metadata -> 304 Not Modified
+  // The abbreviated fetch validates the mirror and gets a 304, so the upgrade
+  // starts from the cached document that has no `time`.
   agent.intercept({
     path: '/is-positive',
     method: 'GET',
     headers: { 'if-none-match': '"abbreviated-etag"' },
   }).reply(304, '')
-
-  // 2. Second fetch: upgrade request for full metadata -> MUST NOT send if-none-match
   agent.intercept({
     path: '/is-positive',
     method: 'GET',
   }).reply(200, (options) => {
-    upgradeHeadersReceived = options.headers as Record<string, string>
+    upgradeHeaders = lowercaseKeys(options.headers as Record<string, string>)
     return isPositiveMeta
   })
 
@@ -903,9 +905,16 @@ test('release-age upgrade fetch for fullMetadata does not pass abbreviated etag/
   })
 
   expect(resolveResult!.id).toBe('is-positive@1.0.0')
-  expect(upgradeHeadersReceived?.['if-none-match']).toBeUndefined()
-  expect(upgradeHeadersReceived?.['if-modified-since']).toBeUndefined()
+  // Without this the negative assertions below would also hold when the
+  // upgrade never reached the registry at all.
+  expect(upgradeHeaders).toBeDefined()
+  expect(upgradeHeaders!['if-none-match']).toBeUndefined()
+  expect(upgradeHeaders!['if-modified-since']).toBeUndefined()
 })
+
+function lowercaseKeys (headers: Record<string, string>): Record<string, string> {
+  return Object.fromEntries(Object.entries(headers).map(([name, value]) => [name.toLowerCase(), value]))
+}
 
 /**
  * The abbreviated packument as a registry that reports publish times for only
