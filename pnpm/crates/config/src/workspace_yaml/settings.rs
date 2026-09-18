@@ -384,6 +384,12 @@ pub struct WorkspaceSettings {
     /// `true`.
     pub git_checks: Option<bool>,
 
+    /// `tagVersionPrefix` from `pnpm-workspace.yaml`. See
+    /// [`Config::tag_version_prefix`](crate::settings::Config::tag_version_prefix).
+    /// Unset falls through to the `"v"` default. An empty string removes
+    /// the prefix.
+    pub tag_version_prefix: Option<String>,
+
     /// `engineStrict` from `pnpm-workspace.yaml` / global `config.yaml`.
     /// See [`Config::engine_strict`](crate::settings::Config::engine_strict). Default `false`.
     pub engine_strict: Option<bool>,

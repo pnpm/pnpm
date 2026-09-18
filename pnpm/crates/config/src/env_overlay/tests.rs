@@ -316,3 +316,24 @@ sideEffectsCache:
     assert!(!config.side_effects_cache_write());
     assert_eq!(config.remote_side_effects_cache.expect("shared cache config").org, "acme");
 }
+
+#[test]
+fn tag_version_prefix_reads_from_the_environment() {
+    struct EnvPrefix;
+    impl EnvVar for EnvPrefix {
+        fn var(name: &str) -> Option<String> {
+            (name == "PNPM_CONFIG_TAG_VERSION_PREFIX").then(|| "release-".to_owned())
+        }
+    }
+    let settings = WorkspaceSettings::from_pnpm_config_env::<EnvPrefix>();
+    assert_eq!(settings.tag_version_prefix.as_deref(), Some("release-"));
+
+    struct EnvEmptyPrefix;
+    impl EnvVar for EnvEmptyPrefix {
+        fn var(name: &str) -> Option<String> {
+            (name == "PNPM_CONFIG_TAG_VERSION_PREFIX").then(String::new)
+        }
+    }
+    let settings = WorkspaceSettings::from_pnpm_config_env::<EnvEmptyPrefix>();
+    assert_eq!(settings.tag_version_prefix.as_deref(), Some(""));
+}
