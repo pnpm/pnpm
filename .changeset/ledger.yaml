@@ -1734,6 +1734,11 @@
   dir: pnpm/npm/napi
   intents:
     - napi-repeat-install-fast-path
+"@pnpm/napi@12.5.1":
+  dir: pnpm/npm/napi
+  intents:
+    - repeat-install-deduped-siblings
+    - repeat-install-large-lockfile-scan
 "@pnpm/network.auth-header@1101.1.4":
   dir: pnpm11/network/auth-header
   intents:
@@ -4097,6 +4102,15 @@ pacquet@12.5.0:
     - task-concurrency-groups
     - tools-mirror
     - workspace-state-concurrent-writers
+pacquet@12.5.1:
+  dir: pnpm/npm/pnpm
+  intents:
+    - defer-unknown-task-settings
+    - python-history-network-bounds
+    - python-registry-package-routing
+    - read-ancestor-cargo-config-symlinks
+    - repeat-install-deduped-siblings
+    - repeat-install-large-lockfile-scan
 pnpm@11.13.0:
   dir: pnpm11/pnpm
   intents:
