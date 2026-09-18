@@ -1,12 +1,15 @@
 import path from 'node:path'
 
 import { afterEach, beforeEach, expect, jest, test } from '@jest/globals'
+import { readWantedLockfile } from '@pnpm/lockfile.fs'
 import { fixtures } from '@pnpm/test-fixtures'
 import { getMockAgent, setupMockAgent, teardownMockAgent } from '@pnpm/testing.mock-agent'
+import type { DepPath } from '@pnpm/types'
 import chalk from 'chalk'
+import { loadJsonFile } from 'load-json-file'
 import { readYamlFileSync } from 'read-yaml-file'
 
-import { AUDIT_REGISTRY, AUDIT_REGISTRY_OPTS } from './utils/options.js'
+import { AUDIT_REGISTRY, AUDIT_REGISTRY_OPTS, MOCK_REGISTRY, MOCK_REGISTRY_OPTS } from './utils/options.js'
 import * as responses from './utils/responses/index.js'
 
 jest.unstable_mockModule('@inquirer/prompts', () => {
@@ -72,6 +75,44 @@ test('audit --fix -i shows interactive prompt and only fixes selected vulnerabil
   expect(manifest.overrides?.['axios@<=0.18.0']).toBeFalsy()
   expect(manifest.overrides?.['nodemailer@<6.4.16']).toBeFalsy()
   expect(manifest.overrides?.['cryptiles@<4.1.2']).toBeFalsy()
+})
+
+test('audit --fix=update -i does not open the interactive update prompt', async () => {
+  const tmp = f.prepare('update-single-depth-2')
+  const mockResponse = await loadJsonFile<Record<string, unknown[]>>(path.join(tmp, 'responses', 'top-level-vulnerability.json'))
+  const vulnerablePkgId = '@pnpm.e2e/pkg-with-1-dep@100.0.0' as DepPath
+  const patchedPkgId = '@pnpm.e2e/pkg-with-1-dep@100.1.0' as DepPath
+  const unchangedPkgId = '@pnpm.e2e/bar@100.0.0' as DepPath
+
+  const originalLockfile = await readWantedLockfile(tmp, { ignoreIncompatible: true })
+  expect(originalLockfile?.packages?.[vulnerablePkgId]).toBeDefined()
+  expect(originalLockfile?.packages?.[patchedPkgId]).toBeUndefined()
+  expect(originalLockfile?.packages?.[unchangedPkgId]).toBeDefined()
+
+  getMockAgent().enableNetConnect(/localhost/)
+  getMockAgent().get(MOCK_REGISTRY)
+    .intercept({ path: '/-/npm/v1/security/advisories/bulk', method: 'POST' })
+    .reply(200, mockResponse)
+
+  mockCheckbox.mockResolvedValueOnce(['@pnpm.e2e/pkg-with-1-dep@<100.1.0'])
+
+  const { exitCode } = await audit.handler({
+    ...MOCK_REGISTRY_OPTS,
+    dir: tmp,
+    rootProjectManifestDir: tmp,
+    auditLevel: 'moderate',
+    fix: 'update',
+    interactive: true,
+    lockfileOnly: true,
+  })
+
+  expect(exitCode).toBe(0)
+  expect(mockCheckbox).toHaveBeenCalledTimes(1)
+
+  const updatedLockfile = await readWantedLockfile(tmp, { ignoreIncompatible: true })
+  expect(updatedLockfile?.packages?.[vulnerablePkgId]).toBeUndefined()
+  expect(updatedLockfile?.packages?.[patchedPkgId]).toBeDefined()
+  expect(updatedLockfile?.packages?.[unchangedPkgId]).toBeDefined()
 })
 
 test('audit --fix -i prompt is called with correct structure', async () => {

@@ -113,6 +113,10 @@ export async function fixWithUpdate (auditReport: AuditReport, opts: FixWithUpda
 
   await update.handler({
     ...updateOpts as FixWithUpdateOptions,
+    // The audit command already ran its own prompt to select which
+    // vulnerabilities to fix. Forwarding `--interactive` would open the update
+    // command's dependency picker on top of that selection.
+    interactive: false,
     packageVulnerabilityAudit,
   }, [])
 
