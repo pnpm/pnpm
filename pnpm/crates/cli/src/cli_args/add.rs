@@ -1,4 +1,4 @@
-pub use arguments::{AddIncludeArgs, AddInstallArgs, AddSaveArgs, AddTargetArgs};
+pub use arguments::{AddIncludeArgs, AddInstallArgs, AddRequests, AddSaveArgs, AddTargetArgs};
 
 pub(crate) use execution::{AddGroups, add_package, add_packages};
 
@@ -190,9 +190,8 @@ impl AddDependencyOptions {
 
 #[derive(Debug, Clone, Args)]
 pub struct AddArgs {
-    /// Names of the packages to add.
-    #[clap(required = true)]
-    pub package_names: Vec<String>,
+    #[clap(flatten)]
+    pub requests: AddRequests,
     /// --save-prod, --save-dev, --save-optional, --save-peer
     #[clap(flatten)]
     pub dependency_options: AddDependencyOptions,
@@ -272,7 +271,7 @@ impl AddArgs {
         }
 
         let mut added = BTreeMap::new();
-        for package_name in &self.package_names {
+        for package_name in &self.requests.package_names {
             let parsed = parse_wanted_dependency(package_name);
             let Some(name) = parsed.alias else {
                 return Err(miette::miette!(

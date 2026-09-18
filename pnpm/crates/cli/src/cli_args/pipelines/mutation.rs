@@ -19,7 +19,7 @@ pub(crate) struct AddPipeline {
     /// `--config` was passed.
     pub(crate) config_dependencies: Option<BTreeMap<String, String>>,
     /// The selectors routed away from the npm add path, which receives
-    /// the rest through [`AddArgs::package_names`].
+    /// the rest through [`AddArgs::requests`].
     pub(crate) ecosystem_packages: Vec<EcosystemPackageSpecifier>,
 }
 
@@ -135,7 +135,7 @@ struct NodeAdd {
 
 impl EcosystemAdd {
     async fn run<Reporter: self::Reporter + 'static>(self) -> miette::Result<()> {
-        let has_node_packages = !self.args.package_names.is_empty();
+        let has_node_packages = !self.args.requests.package_names.is_empty();
         let EcosystemAddSetup { cfg, http_client, family } = prepare_ecosystem_add::<Reporter>(
             self.cfg,
             (&self.prefix, &self.manifest_path),

@@ -26,20 +26,31 @@ pub(crate) struct RegistryPackageSpecifier {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct PackageSpecifierPlan {
     pub(crate) node_packages: Vec<String>,
+    /// The members of [`Self::node_packages`] a Package URL was rewritten
+    /// into. A purl names a package in a registry, so such a selector is
+    /// installed rather than read as a request for the package manager or
+    /// the runtime that shares its name.
+    pub(crate) purl_selectors: Vec<String>,
     pub(crate) ecosystem_packages: Vec<EcosystemPackageSpecifier>,
 }
 
 impl PackageSpecifierPlan {
     pub(crate) fn parse(package_names: &[String]) -> Result<Self> {
         let mut node_packages = Vec::new();
+        let mut purl_selectors = Vec::new();
         let mut ecosystem_packages = Vec::new();
         for package_name in package_names {
             match parse_specifier(package_name)? {
-                ParsedSpecifier::Node(package) => node_packages.push(package),
+                ParsedSpecifier::Node { selector, from_purl } => {
+                    if from_purl {
+                        purl_selectors.push(selector.clone());
+                    }
+                    node_packages.push(selector);
+                }
                 ParsedSpecifier::Ecosystem(package) => ecosystem_packages.push(package),
             }
         }
-        Ok(Self { node_packages, ecosystem_packages })
+        Ok(Self { node_packages, purl_selectors, ecosystem_packages })
     }
 
     pub(crate) fn has_cargo(&self) -> bool {
@@ -114,7 +125,7 @@ fn without_authority_breaks(text: &str) -> String {
 
 /// One `pnpm add` selector once its protocol has been resolved.
 enum ParsedSpecifier {
-    Node(String),
+    Node { selector: String, from_purl: bool },
     Ecosystem(EcosystemPackageSpecifier),
 }
 
@@ -127,7 +138,7 @@ fn parse_specifier(specifier: &str) -> Result<ParsedSpecifier> {
         return parse_python_specifier(rest, source).map(python_specifier);
     }
     let Some(body) = purl::strip_scheme(specifier) else {
-        return Ok(ParsedSpecifier::Node(specifier.to_string()));
+        return Ok(ParsedSpecifier::Node { selector: specifier.to_string(), from_purl: false });
     };
     parse_purl(&Purl::parse(body, source)?, source)
 }
@@ -145,7 +156,8 @@ fn parse_specifier(specifier: &str) -> Result<ParsedSpecifier> {
 /// a version its ecosystem would read as a range and pins the one it names.
 fn parse_purl(purl: &Purl, source: Shown<'_>) -> Result<ParsedSpecifier> {
     match purl.package_type {
-        PurlType::Npm => purl_node_specifier(purl, source).map(ParsedSpecifier::Node),
+        PurlType::Npm => purl_node_specifier(purl, source)
+            .map(|selector| ParsedSpecifier::Node { selector, from_purl: true }),
         PurlType::Cargo => purl_registry_specifier(purl, source).map(cargo_specifier),
         PurlType::Pypi => purl_python_specifier(purl, source).map(python_specifier),
     }

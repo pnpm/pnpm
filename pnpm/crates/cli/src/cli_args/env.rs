@@ -1,7 +1,7 @@
 //! `pacquet env` — the deprecated Node.js-only front end to
 //! [`super::runtime`], kept because pnpm still ships it.
 
-use super::{global::handle_global_add, registry_client::build_registry_client};
+use super::{add::AddRequests, global::handle_global_add, registry_client::build_registry_client};
 use clap::Args;
 use derive_more::{Display, Error};
 use miette::Diagnostic;
@@ -126,7 +126,7 @@ impl EnvArgs {
     ) -> miette::Result<()> {
         Box::pin(handle_global_add::<Reporter>(
             config,
-            std::slice::from_ref(&package_name),
+            &AddRequests::one(package_name),
             RangeSpecStyle::Major,
             config.supported_architectures.clone(),
             // A runtime install has no user packages, so no `--allow-build`.

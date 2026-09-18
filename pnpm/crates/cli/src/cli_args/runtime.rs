@@ -1,6 +1,9 @@
 use crate::{
     State,
-    cli_args::{add::add_package, global::handle_global_add},
+    cli_args::{
+        add::{AddRequests, add_package},
+        global::handle_global_add,
+    },
 };
 use clap::Args;
 use derive_more::{Display, Error};
@@ -123,7 +126,7 @@ impl RuntimeArgs {
         let request = self.set_request()?;
         Box::pin(handle_global_add::<Reporter>(
             config,
-            std::slice::from_ref(&request.package_name),
+            &AddRequests::one(request.package_name.clone()),
             RangeSpecStyle::Major,
             config.supported_architectures.clone(),
             // `pnpm runtime` installs a runtime, not user packages; it has

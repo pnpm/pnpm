@@ -20,7 +20,7 @@ use self::activation::{
 use crate::{
     State,
     cli_args::{
-        add::{AddGroups, add_packages, apply_allow_build},
+        add::{AddGroups, AddRequests, add_packages, apply_allow_build},
         approve_builds::{
             ApproveBuildsArgs, clear_decided_ignored_builds, prompt_approve_install_builds,
             write_approval_settings,
@@ -154,7 +154,7 @@ fn check_bin_dir(global_bin_dir: &Path) -> miette::Result<()> {
 /// directory, and records a cache-keyed hash symlink.
 pub async fn handle_global_add<Reporter: self::Reporter + 'static>(
     base_config: &'static Config,
-    params: &[String],
+    requests: &AddRequests,
     range_spec_style: RangeSpecStyle,
     supported_architectures: Option<SupportedArchitectures>,
     allow_build: &[String],
@@ -163,13 +163,13 @@ pub async fn handle_global_add<Reporter: self::Reporter + 'static>(
     // Both of the rules below apply to what actually gets installed, so
     // they run on the tokens a comma-separated group splits into rather
     // than on the group: `pnpm,lodash` is a request to install pnpm.
-    let groups = split_into_groups(params, cwd);
+    let groups = split_into_groups(&requests.package_names, cwd);
     // Each selector is read as its package name, so versioned forms like
     // `pnpm@9` or `@pnpm/exe@1` can't bypass the self-install guard.
     if selects_pnpm_cli(groups.iter().flatten()) {
         return Err(GlobalError::GlobalPnpmInstall.into());
     }
-    let groups = tool_install_selectors(groups);
+    let groups = tool_install_selectors(groups, &requests.purl_selectors);
 
     let (global_pkg_dir, global_bin_dir) = global_dirs(base_config)?;
     check_bin_dir(&global_bin_dir)?;

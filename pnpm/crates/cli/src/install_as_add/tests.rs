@@ -102,7 +102,7 @@ fn the_rewritten_invocation_parses_as_add() {
     let CliCommand::Add(add) = args.command else {
         panic!("expected add");
     };
-    assert_eq!(add.package_names, ["valibot", "vitest"]);
+    assert_eq!(add.requests.package_names, ["valibot", "vitest"]);
 }
 
 #[test]
@@ -112,7 +112,7 @@ fn the_separator_spelling_parses_as_add() {
     let CliCommand::Add(add) = args.command else {
         panic!("expected add");
     };
-    assert_eq!(add.package_names, ["valibot"]);
+    assert_eq!(add.requests.package_names, ["valibot"]);
 }
 
 /// `--offline` is `install`'s own option and not `add`'s, so on a command
@@ -128,7 +128,7 @@ fn install_with_offline_after_the_package_parses_as_add() {
     let CliCommand::Add(add) = args.command else {
         panic!("expected add");
     };
-    assert_eq!(add.package_names, ["valibot"]);
+    assert_eq!(add.requests.package_names, ["valibot"]);
     assert!(add.scripts.ignore);
     let mut config = Config::default();
     overrides.apply(&mut config, Path::new("/workspace"));
@@ -169,7 +169,7 @@ fn a_dependency_group_filter_survives_the_rewrite_to_add() {
         let CliCommand::Add(add) = args.command else {
             panic!("expected add for {spelling}");
         };
-        assert_eq!(add.package_names, ["valibot"], "{spelling}");
+        assert_eq!(add.requests.package_names, ["valibot"], "{spelling}");
         assert_eq!((add.include.prod, add.include.dev), (prod, dev), "{spelling}");
     }
 }

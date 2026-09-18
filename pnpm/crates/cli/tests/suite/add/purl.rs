@@ -1,6 +1,6 @@
 use super::{
-    Command, CommandExtra, TempDir, assert_eq, cache_foo_index_versions, cargo_add_project,
-    exec_pacquet_in_temp_cwd, get_filenames_in_folder, prod_spec,
+    Command, CommandExtra, CommandTempCwd, TempDir, assert_eq, cache_foo_index_versions,
+    cargo_add_project, exec_pacquet_in_temp_cwd, get_filenames_in_folder, prod_spec,
 };
 use crate::_utils::flatten_report;
 use assert_cmd::{assert::OutputAssertExt, cargo::CommandCargoExt};
@@ -68,4 +68,35 @@ fn add_rejects_an_unsupported_purl_type() {
             .join("package.json")
             .exists(),
     );
+}
+
+/// `pnpm add npm@11.0.0` declares which package manager the project uses,
+/// and `pnpm add node@22.0.0` records a runtime. A purl names a package in
+/// the npm registry, so the same version becomes a dependency instead.
+#[test]
+fn an_npm_purl_that_names_a_tool_is_installed_rather_than_declared() {
+    for (selector, name, version) in
+        [("pkg:npm/npm@11.0.0", "npm", "11.0.0"), ("pkg:npm/node@22.0.0", "node", "22.0.0")]
+    {
+        let CommandTempCwd {
+            pacquet,
+            root,
+            workspace,
+            npmrc_info,
+            ..
+        } = CommandTempCwd::init().add_mocked_registry();
+        pacquet
+            .with_args(["add", selector, "--lockfile-only"])
+            .assert()
+            .success();
+
+        assert_eq!(prod_spec(&workspace, name), version, "{selector}");
+        let manifest = std::fs::read_to_string(workspace.join("package.json"))
+            .expect("read the updated manifest");
+        let declarations: serde_json::Value =
+            serde_json::from_str(&manifest).expect("parse the updated manifest");
+        assert_eq!(declarations.get("devEngines"), None, "{selector}: {manifest}");
+        assert_eq!(declarations.get("engines"), None, "{selector}: {manifest}");
+        drop((root, npmrc_info)); // cleanup
+    }
 }

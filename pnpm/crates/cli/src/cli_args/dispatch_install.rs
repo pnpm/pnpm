@@ -87,11 +87,12 @@ pub(super) fn add<'a>(ctx: &RunCtx<'a>, mut args: AddArgs) -> miette::Result<Com
 }
 
 /// Resolve each selector to the spelling its ecosystem's add path reads,
-/// leaving the npm ones in [`AddArgs::package_names`] and returning the rest.
+/// leaving the npm ones in [`AddArgs::requests`] and returning the rest.
 fn route_package_specifiers(args: &mut AddArgs) -> miette::Result<Vec<EcosystemPackageSpecifier>> {
-    let plan = PackageSpecifierPlan::parse(&args.package_names)?;
+    let plan = PackageSpecifierPlan::parse(&args.requests.package_names)?;
     check_specifier_combination(args, &plan)?;
-    args.package_names = plan.node_packages;
+    args.requests.package_names = plan.node_packages;
+    args.requests.purl_selectors = plan.purl_selectors;
     Ok(plan.ecosystem_packages)
 }
 

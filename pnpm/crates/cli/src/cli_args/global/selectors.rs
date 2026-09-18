@@ -7,13 +7,24 @@ use super::{
 /// A tool name becomes the selector that installs the tool itself, which
 /// the ordinary pipeline then handles — so the result stays a normal global
 /// install that `pnpm ls -g` and `pnpm remove -g` see.
-pub(super) fn tool_install_selectors(groups: Vec<Vec<String>>) -> Vec<Vec<String>> {
+///
+/// A token in `purl_selectors` is left alone: a Package URL names a package
+/// in a registry, so it is installed even when it reads like a tool name.
+pub(super) fn tool_install_selectors(
+    groups: Vec<Vec<String>>,
+    purl_selectors: &[String],
+) -> Vec<Vec<String>> {
     groups
         .into_iter()
         .map(|group| {
             group
                 .into_iter()
-                .map(|token| tool_install_selector(&token).unwrap_or(token))
+                .map(|token| {
+                    if purl_selectors.contains(&token) {
+                        return token;
+                    }
+                    tool_install_selector(&token).unwrap_or(token)
+                })
                 .collect()
         })
         .collect()

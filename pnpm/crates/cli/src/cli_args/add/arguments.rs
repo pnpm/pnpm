@@ -1,5 +1,38 @@
 use super::LockfileDirArg;
 
+/// The packages an `add` was asked for.
+#[derive(Debug, Clone, clap::Args)]
+pub struct AddRequests {
+    /// Names of the packages to add.
+    #[clap(required = true)]
+    pub package_names: Vec<String>,
+    /// The members of `package_names` a Package URL was rewritten into.
+    /// The command line carries none of these: the dispatch fills them in
+    /// when it routes the selectors it was given.
+    #[clap(skip)]
+    pub(crate) purl_selectors: Vec<String>,
+}
+
+impl AddRequests {
+    /// One package to install, for a command that builds its own request
+    /// instead of parsing one, such as `pnpm runtime use`.
+    pub(crate) fn one(package_name: String) -> Self {
+        Self { package_names: vec![package_name], purl_selectors: Vec::new() }
+    }
+
+    /// Whether `request` may name a package manager or a runtime rather
+    /// than a package to install.
+    ///
+    /// A Package URL names a package in a registry, so the selector it was
+    /// rewritten into keeps naming one even when it reads like a request
+    /// for the tool that shares its name.
+    pub(crate) fn may_name_a_tool(&self, request: &str) -> bool {
+        !self.purl_selectors
+            .iter()
+            .any(|purl_selector| purl_selector == request)
+    }
+}
+
 /// Which dependency groups the install that follows the manifest edit
 /// materializes.
 ///

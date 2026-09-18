@@ -163,6 +163,22 @@ fn rejects_purls_pnpm_cannot_add() {
     }
 }
 
+/// A purl names a package in a registry, so the selector it becomes is
+/// marked, and the add path installs it rather than reading it as the
+/// package manager or the runtime that shares its name.
+#[test]
+fn a_purl_marks_the_selector_it_becomes_as_a_package_to_install() {
+    let plan = PackageSpecifierPlan::parse(&[
+        "node@22.0.0".into(),
+        "pkg:npm/npm@11.0.0".into(),
+        "lodash@4".into(),
+    ])
+    .unwrap();
+
+    assert_eq!(plan.node_packages, ["node@22.0.0", "npm@11.0.0", "lodash@4"]);
+    assert_eq!(plan.purl_selectors, ["npm@11.0.0"]);
+}
+
 /// Each ecosystem's selector has a grammar a decoded component could reach
 /// into: `name@spec` is an npm alias, and a PEP 508 requirement carries
 /// extras and markers. Smuggling one in has to be rejected, not resolved.
