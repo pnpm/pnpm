@@ -32,13 +32,9 @@ pub(super) fn complete_scripts(context: &CompletionContext<'_>) -> miette::Resul
 }
 
 pub(super) fn directory_option<'a>(word: &'a str, next: Option<&'a str>) -> Option<&'a str> {
-    if matches!(word, "--dir" | "--prefix" | "-C") {
+    if matches!(word, "--dir" | "--prefix") {
         return next;
     }
     word.strip_prefix("--dir=")
         .or_else(|| word.strip_prefix("--prefix="))
-        .or_else(|| {
-            word.strip_prefix("-C=")
-                .or_else(|| word.strip_prefix("-C"))
-        })
 }

@@ -512,6 +512,8 @@ fn completion_server_respects_project_directory_options() {
         vec!["pnpm", "run", "--dir=target-project", ""],
         vec!["pnpm", "-C", "target-project", "run-script", ""],
         vec!["pnpm", "-Ctarget-project", "run", ""],
+        vec!["pnpm", "-rCtarget-project", "run", ""],
+        vec!["pnpm", "-rC", "target-project", "run", ""],
         vec!["pnpm", "--prefix=target-project", "run", ""],
     ] {
         let output = pacquet()
@@ -583,7 +585,7 @@ fn completion_server_respects_workspace_root_selection() {
     std::fs::write(project.path().join("package.json"), r#"{"scripts":{"root":"echo root"}}"#)
         .unwrap();
     std::fs::write(child.join("package.json"), r#"{"scripts":{"child":"echo child"}}"#).unwrap();
-    for flag in ["--workspace-root", "-w"] {
+    for flag in ["--workspace-root", "-w", "-rw", "-wC."] {
         let output = pacquet()
             .current_dir(&child)
             .args(["completion-server", "--", "pnpm", flag, "run", ""])
@@ -591,4 +593,90 @@ fn completion_server_respects_workspace_root_selection() {
             .unwrap();
         assert_eq!(stdout(output), "root\n", "{flag}");
     }
+}
+
+#[cfg(windows)]
+#[test]
+fn completion_powershell_preserves_literal_script_names() {
+    let project = TempDir::new().unwrap();
+    let names = [
+        "semi;colon",
+        "pipe|name",
+        "dollar$name",
+        "space name",
+        "quote'name",
+        "tick`name",
+        "$(Write-Output injected)",
+    ];
+    let scripts: serde_json::Map<String, serde_json::Value> = names
+        .iter()
+        .map(|name| (name.to_string(), serde_json::Value::String("echo safe".to_string())))
+        .collect();
+    std::fs::write(
+        project.path().join("package.json"),
+        serde_json::to_vec(&serde_json::json!({"scripts": scripts})).unwrap(),
+    )
+    .unwrap();
+    let mut script = stdout(
+        pacquet()
+            .args(["completion", "pwsh"])
+            .output()
+            .unwrap(),
+    );
+    script.push_str(include_str!("completion/powershell_safety.ps1"));
+    let output = Command::new("pwsh")
+        .current_dir(project.path())
+        .env("PATH", prepend_binary_dir_to_path())
+        .args(["-NoProfile", "-NonInteractive", "-Command", &script])
+        .output()
+        .unwrap();
+    let reply = stdout(output);
+    let mut actual: Vec<_> = reply.lines().collect();
+    actual.sort();
+    let mut expected = names.to_vec();
+    expected.sort();
+    assert_eq!(actual, expected);
+}
+
+fn prepend_binary_dir_to_path() -> std::ffi::OsString {
+    let binary = pacquet().get_program().to_owned();
+    let directory = std::path::Path::new(&binary)
+        .parent()
+        .unwrap()
+        .to_path_buf();
+    let original = std::env::var_os("PATH").unwrap();
+    std::env::join_paths(std::iter::once(directory).chain(std::env::split_paths(&original)))
+        .unwrap()
+}
+
+#[cfg(unix)]
+#[test]
+fn completion_bash_preserves_literal_glob_script_names() {
+    let project = TempDir::new().unwrap();
+    std::fs::write(project.path().join("package.json"), r#"{"scripts":{"*literal":"echo safe"}}"#)
+        .unwrap();
+    std::fs::write(project.path().join("expanded-literal"), "").unwrap();
+    let mut script = stdout(
+        pacquet()
+            .args(["completion", "bash"])
+            .output()
+            .unwrap(),
+    );
+    script.push_str(
+        r#"
+COMP_WORDS=(pnpm run "")
+COMP_CWORD=2
+COMP_LINE='pnpm run '
+COMP_POINT=9
+_pnpm_completion
+printf '%s\n' "${COMPREPLY[@]}"
+"#,
+    );
+    let output = Command::new("bash")
+        .current_dir(project.path())
+        .env("PATH", prepend_binary_dir_to_path())
+        .args(["--noprofile", "--norc", "-c", &script])
+        .output()
+        .unwrap();
+    assert_eq!(stdout(output), "*literal\n");
 }

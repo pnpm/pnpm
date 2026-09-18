@@ -32,8 +32,21 @@ export function createCompletionGenerator (ctx: Context): CompletionGenerator {
   return async function handler (_opts: unknown, params: string[]): Promise<void> {
     const shell = getShellFromParams(params)
     const output = await getCompletionScript({ name: PNPM_COMMAND, completer: PNPM_COMMAND, shell })
-    ctx.log(registerShortAlias(output, shell))
+    ctx.log(registerShortAlias(shell === 'bash' ? preserveBashCompletionCandidates(output) : output, shell))
   }
+}
+
+function preserveBashCompletionCandidates (output: string): string {
+  return output
+    .replace("    IFS=$'\\n' COMPREPLY=($(COMP_CWORD=", () => "    local completions completion\n    IFS=$'\\n' completions=$(COMP_CWORD=")
+    .replace('2>/dev/null)) || return $?\n    IFS="$si"', () => `2>/dev/null) || return $?
+    COMPREPLY=()
+    if [ -n "$completions" ]; then
+      while IFS= read -r completion; do
+        COMPREPLY+=("$completion")
+      done <<< "$completions"
+    fi
+    IFS="$si"`)
 }
 
 function registerShortAlias (output: string, shell: SupportedShell): string {

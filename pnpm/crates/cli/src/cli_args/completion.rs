@@ -1,3 +1,4 @@
+use crate::flag_relocation::short_cluster_consumes_value;
 use clap::{Arg, ArgAction, Args, Command, CommandFactory};
 use derive_more::{Display, Error};
 use miette::{Diagnostic, IntoDiagnostic};
@@ -162,6 +163,39 @@ impl<'a> CompletionContext<'a> {
         }
     }
 
+    fn scan_option(&mut self, word: &'a str, next: Option<&'a str>) -> usize {
+        if let Some(rest) = word
+            .strip_prefix('-')
+            .filter(|rest| !rest.starts_with('-'))
+        {
+            return self.scan_short_options(rest, next);
+        }
+        self.workspace_root |= word == "--workspace-root";
+        if let Some(directory) = scripts::directory_option(word, next) {
+            self.directory = Some(directory);
+        }
+        option_word_width(self.root, self.command, word)
+    }
+
+    fn scan_short_options(&mut self, rest: &'a str, next: Option<&'a str>) -> usize {
+        let mut remaining = rest;
+        let consumes_value = short_cluster_consumes_value(rest, |short| {
+            remaining = remaining.strip_prefix(short).expect("scanner visits each short in order");
+            let argument = find_short_option_argument(self.command, short)
+                .or_else(|| find_short_option_argument(self.root, short))?;
+            self.workspace_root |= argument.get_id() == "workspace_root";
+            if argument.get_id() == "dir" {
+                self.directory = if remaining.is_empty() {
+                    next
+                } else {
+                    Some(remaining.strip_prefix('=').unwrap_or(remaining))
+                };
+            }
+            Some(argument_takes_separate_value(argument))
+        });
+        if consumes_value { 2 } else { 1 }
+    }
+
     fn new(root: &'a Command, words: &'a [String]) -> Self {
         let mut context = Self {
             root,
@@ -184,14 +218,8 @@ impl<'a> CompletionContext<'a> {
                 continue;
             }
             if word.starts_with('-') {
-                context.workspace_root |= matches!(word.as_str(), "--workspace-root" | "-w");
-                let width = option_word_width(root, context.command, word);
+                let width = context.scan_option(word, words.get(index + 1).map(String::as_str));
                 context.awaiting_option_value = width == 2 && index + 1 == words.len();
-                if let Some(value) =
-                    scripts::directory_option(word, words.get(index + 1).map(String::as_str))
-                {
-                    context.directory = Some(value);
-                }
                 index += width;
                 continue;
             }
@@ -352,6 +380,12 @@ fn visible_possible_values(argument: &Arg) -> Vec<String> {
 fn find_option_argument<'a>(context: &'a CompletionContext<'_>, option: &str) -> Option<&'a Arg> {
     find_option_argument_in_command(context.command, option)
         .or_else(|| find_option_argument_in_command(context.root, option))
+}
+
+fn find_short_option_argument(command: &Command, short: char) -> Option<&Arg> {
+    command
+        .get_arguments()
+        .find(|argument| argument.get_short() == Some(short))
 }
 
 fn find_option_argument_in_command<'a>(command: &'a Command, option: &str) -> Option<&'a Arg> {
