@@ -3,10 +3,11 @@ pub mod registries;
 pub use error::LoadWorkspaceYamlError;
 pub(crate) use sections::deserialize_tools;
 pub use sections::{
-    AllowBuild, AuditSettings, CargoSettings, DEFAULT_PYTHON_DOWNLOAD_URL, PackageExtension,
-    PeerDependencyMeta, PeerDependencyRules, PnpmfileSetting, PythonSettings,
-    RemoteSideEffectsCacheSettings, SideEffectsCacheSetting, SideEffectsCacheSettings,
-    TaskSettings, Tool, ToolSettings, UpdateConfig, UpdateSettings, decided_allow_builds,
+    AllowBuild, AuditSettings, CargoSettings, DEFAULT_CARGO_INDEX_URL, DEFAULT_PYPI_INDEX_URL,
+    DEFAULT_PYTHON_DOWNLOAD_URL, PackageExtension, PeerDependencyMeta, PeerDependencyRules,
+    PnpmfileSetting, PythonSettings, RemoteSideEffectsCacheSettings, SideEffectsCacheSetting,
+    SideEffectsCacheSettings, TaskSettings, Tool, ToolSettings, UpdateConfig, UpdateSettings,
+    decided_allow_builds,
 };
 pub use settings::WorkspaceSettings;
 

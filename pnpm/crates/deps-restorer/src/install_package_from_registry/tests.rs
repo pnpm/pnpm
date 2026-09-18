@@ -32,6 +32,7 @@ fn create_config(
 ) -> Config {
     Config {
         tools: std::collections::BTreeMap::new(),
+        indexes_by_ecosystem: std::collections::BTreeMap::new(),
         bail: true,
         ci: false,
         update_notifier: true,

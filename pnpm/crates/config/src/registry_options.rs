@@ -1,7 +1,8 @@
 use super::{
-    Arc, AuditSettings, BTreeMap, BUILTIN_REGISTRIES_BY_PREFIX, Config, DEFAULT_JSR_REGISTRY,
-    NeedsFullMetadataFor, RegistryDeclaration, RegistryLookups, ResolutionMode, UpdateSettings,
-    full_metadata_policy, registries,
+    Arc, AuditSettings, BTreeMap, BUILTIN_REGISTRIES_BY_PREFIX, Config, DEFAULT_CARGO_INDEX_URL,
+    DEFAULT_JSR_REGISTRY, DEFAULT_PYPI_INDEX_URL, Ecosystem, NeedsFullMetadataFor,
+    RegistryDeclaration, RegistryLookups, ResolutionMode, UpdateSettings, full_metadata_policy,
+    registries,
 };
 
 impl Config {
@@ -50,6 +51,36 @@ impl Config {
         registries::to_resolved_declarations(&self.resolved_registry_lookups())
     }
 
+    /// The `PyPI` indexes to resolve Python packages from, the one searched
+    /// first at the head.
+    ///
+    /// The `registries` entries that name `ecosystem: pypi`, or
+    /// [`DEFAULT_PYPI_INDEX_URL`] when none do.
+    #[must_use]
+    pub fn python_indexes(&self) -> Vec<&str> {
+        let declared = self.indexes_by_ecosystem.get(&Ecosystem::Pypi);
+        match declared.filter(|indexes| !indexes.is_empty()) {
+            Some(indexes) => indexes
+                .iter()
+                .map(String::as_str)
+                .collect(),
+            None => vec![DEFAULT_PYPI_INDEX_URL],
+        }
+    }
+
+    /// The sparse index to resolve Cargo dependencies from.
+    ///
+    /// The one `registries` entry that names `ecosystem: cargo`, or
+    /// [`DEFAULT_CARGO_INDEX_URL`] when none does. `registries` may name
+    /// only one, so there is no order to pick from here.
+    #[must_use]
+    pub fn cargo_index_url(&self) -> &str {
+        self.indexes_by_ecosystem
+            .get(&Ecosystem::Cargo)
+            .and_then(|indexes| indexes.first())
+            .map_or(DEFAULT_CARGO_INDEX_URL, String::as_str)
+    }
+
     /// The scope and prefix routes the CLI resolves a package's registry
     /// through, including the built-in ones pnpm answers without being
     /// told: the `@jsr` scope and the [`BUILTIN_REGISTRIES_BY_PREFIX`]
@@ -74,6 +105,7 @@ impl Config {
             default_registry,
             registries_by_prefix: self.registries_by_prefix.clone(),
             registry_options_by_url: self.registry_options_by_url.clone(),
+            indexes_by_ecosystem: self.indexes_by_ecosystem.clone(),
         }
     }
 

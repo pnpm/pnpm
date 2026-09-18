@@ -1,7 +1,7 @@
 use super::{
     AuditConfig, AuditLevel, BTreeMap, BTreeSet, CalcPatchHashError, CargoSettings, CatalogMode,
-    ColorMode, ConfigDependency, EnvVar, GlobalShims, HashMap, HoistingLimits, Host, IndexMap,
-    InitType, LinkWorkspacePackages, NodeLinker, NodePackageMapType, PackageImportMethod,
+    ColorMode, ConfigDependency, Ecosystem, EnvVar, GlobalShims, HashMap, HoistingLimits, Host,
+    IndexMap, InitType, LinkWorkspacePackages, NodeLinker, NodePackageMapType, PackageImportMethod,
     PackageManagerBootstrap, PatchGroupRecord, PatchInput, Path, PathBuf, Pipe, PmOnFail,
     ProjectConfig, PythonSettings, RegistryOptions, RemoteSideEffectsCacheSettings, ResolutionMode,
     ResolvePatchedDependenciesError, RuntimeOnFail, SaveWorkspaceProtocol, ScriptsPrependNodePath,
@@ -620,6 +620,16 @@ pub struct Config {
     ///
     /// The `registries` setting.
     pub registry_options_by_url: BTreeMap<String, RegistryOptions>,
+
+    /// The indexes each non-npm ecosystem resolves from, in the order they
+    /// are searched, from the `registries` entries that name an `ecosystem`.
+    /// npm is absent: its registries are the three lookups above, which
+    /// carry the scope and prefix routing npm packages are addressed by.
+    ///
+    /// Read through [`Config::python_indexes`] and
+    /// [`Config::cargo_index_url`], which answer with the ecosystem's
+    /// default index when the configuration names none.
+    pub indexes_by_ecosystem: BTreeMap<Ecosystem, Vec<String>>,
 
     /// Resolved proxy configuration — `https-proxy`, `http-proxy`, and
     /// `no-proxy` (plus the legacy `proxy` key and env-var fallbacks),

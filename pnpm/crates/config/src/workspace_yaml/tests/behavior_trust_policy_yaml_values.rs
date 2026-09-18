@@ -326,7 +326,7 @@ fn rebuilds_the_declarations_from_the_lookups() {
             prefix: Some("work".to_owned()),
             server_type: Some(RegistryServerType::Artifactory),
             supports_time_field: None,
-            unknown: BTreeMap::new(),
+            ..RegistryDeclaration::default()
         }),
     );
     assert_eq!(

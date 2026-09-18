@@ -6,10 +6,15 @@
 //! the routes, because a scope resolves to exactly one registry while a
 //! registry serves many.
 
+mod ecosystems;
+
+pub use ecosystems::Ecosystem;
+
 use super::LoadWorkspaceYamlError;
 use crate::workspace_yaml::{
     normalize_registry_url, redact_registry_url, registry_url_has_userinfo,
 };
+use ecosystems::DeclaredIndexes;
 use pnpm_lockfile::{RegistryOptions, RegistryServerType};
 use serde::{
     Deserialize, Deserializer,
@@ -73,11 +78,36 @@ pub struct RegistryDeclaration {
     /// `"foo": "work:^1.0.0"`.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub prefix: Option<String>,
+    /// Which ecosystem's packages this registry serves. Absent is
+    /// [`Ecosystem::Npm`], so every entry written before there was anything
+    /// else to serve means what it did.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub ecosystem: Option<Ecosystem>,
+    /// Marks the index its ecosystem resolves from first, where the others
+    /// are searched after it. npm says this with the `registry` setting or
+    /// the bare `@` scope instead, so it is refused on an npm entry.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub default: Option<bool>,
     #[serde(flatten)]
     pub unknown: BTreeMap<String, serde_json::Value>,
 }
 
 impl Eq for RegistryDeclaration {}
+
+impl RegistryDeclaration {
+    /// The ecosystem this entry serves, with the absent field read as
+    /// [`Ecosystem::Npm`].
+    #[must_use]
+    pub fn ecosystem(&self) -> Ecosystem {
+        self.ecosystem.unwrap_or_default()
+    }
+
+    /// Whether this entry is the one its ecosystem resolves from first.
+    #[must_use]
+    pub fn is_default(&self) -> bool {
+        self.default.unwrap_or(false)
+    }
+}
 
 impl<'de> Deserialize<'de> for RegistryEntry {
     fn deserialize<Deser: Deserializer<'de>>(deserializer: Deser) -> Result<Self, Deser::Error> {
@@ -120,6 +150,10 @@ pub struct RegistryLookups {
     /// verifies against.
     pub registries_by_prefix: BTreeMap<String, String>,
     pub registry_options_by_url: BTreeMap<String, RegistryOptions>,
+    /// The indexes declared for each ecosystem other than npm, the one the
+    /// ecosystem resolves from first at the head. npm is absent because its
+    /// registries are the three lookups above.
+    pub indexes_by_ecosystem: BTreeMap<Ecosystem, Vec<String>>,
 }
 
 /// The scopes `entries` routes, `@`-prefixed, with the bare `@` among them
@@ -193,8 +227,10 @@ pub fn validate_declarations<'a>(
 ) -> Result<(), LoadWorkspaceYamlError> {
     let mut routed_scopes: BTreeMap<&'a str, String> = BTreeMap::new();
     let mut declared_prefixes: BTreeSet<&'a str> = BTreeSet::new();
+    let mut indexes = DeclaredIndexes::default();
     for (registry, declaration) in entries {
         validate_declaration_fields(registry, declaration)?;
+        indexes.add(registry, declaration)?;
         let normalized = normalize_registry_url(registry);
         validate_scopes(registry, declaration, &normalized, &mut routed_scopes)?;
         if let Some(prefix) = declaration.prefix.as_deref()
@@ -203,7 +239,7 @@ pub fn validate_declarations<'a>(
             return Err(LoadWorkspaceYamlError::PrefixDeclaredTwice { prefix: prefix.to_owned() });
         }
     }
-    Ok(())
+    indexes.finish()
 }
 
 /// The declaration's own fields: it carries no credential, in a field or in
@@ -307,17 +343,33 @@ fn extend_lookups_with_declarations(
 ) {
     for (registry, declaration) in entries {
         let normalized = normalize_registry_url(&registry);
-        extend_registry_options(lookups, &normalized, &declaration);
-        for scope in declaration.scopes.into_iter().flatten() {
-            if scope == DEFAULT_REGISTRY_SCOPE {
-                lookups.default_registry = Some(normalized.clone());
-            } else {
-                lookups.registries_by_scope.insert(scope, normalized.clone());
-            }
+        if !ecosystems::collect_index(&mut lookups.indexes_by_ecosystem, &normalized, &declaration)
+        {
+            extend_npm_routes(lookups, registry, &normalized, declaration);
         }
-        if let Some(prefix) = declaration.prefix {
-            lookups.registries_by_prefix.insert(prefix, registry);
+    }
+}
+
+/// The routes and server facts an npm registry declares: which scopes reach
+/// it, which bare-specifier prefix addresses it, and how it lays out tarball
+/// URLs. No other ecosystem has them, which is why an entry that names one is
+/// refused rather than read here.
+fn extend_npm_routes(
+    lookups: &mut RegistryLookups,
+    registry: String,
+    normalized: &str,
+    declaration: RegistryDeclaration,
+) {
+    extend_registry_options(lookups, normalized, &declaration);
+    for scope in declaration.scopes.into_iter().flatten() {
+        if scope == DEFAULT_REGISTRY_SCOPE {
+            lookups.default_registry = Some(normalized.to_owned());
+        } else {
+            lookups.registries_by_scope.insert(scope, normalized.to_owned());
         }
+    }
+    if let Some(prefix) = declaration.prefix {
+        lookups.registries_by_prefix.insert(prefix, registry);
     }
 }
 
@@ -372,6 +424,7 @@ pub fn to_declarations(lookups: &RegistryLookups) -> BTreeMap<String, RegistryDe
         declaration.server_type = options.server_type;
         declaration.supports_time_field = options.supports_time_field;
     }
+    ecosystems::extend_with_indexes(&mut declarations, &lookups.indexes_by_ecosystem);
     declarations
 }
 
@@ -411,7 +464,7 @@ fn looks_like_registry_url(key: &str) -> bool {
     key.contains("://") || key.starts_with("//")
 }
 
-fn quote_and_join<'a>(values: impl IntoIterator<Item = &'a str>) -> String {
+pub(super) fn quote_and_join<'a>(values: impl IntoIterator<Item = &'a str>) -> String {
     values
         .into_iter()
         .map(|value| format!("{value:?}"))

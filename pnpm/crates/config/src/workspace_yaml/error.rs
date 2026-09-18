@@ -74,6 +74,40 @@ pub enum LoadWorkspaceYamlError {
     #[display("The prefix {prefix:?} is declared by two registries")]
     #[diagnostic(code(ERR_PNPM_INVALID_SETTING))]
     PrefixDeclaredTwice { prefix: String },
+    /// The registry URL is redacted before it reaches this variant.
+    #[display(r#"The "registries[{registry:?}].default" setting is for an ecosystem with several indexes, not for an npm registry"#)]
+    #[diagnostic(
+        code(ERR_PNPM_INVALID_SETTING),
+        help(r#"An npm registry is named the default by the "registry" setting, or by listing the bare "@" scope under "scopes"."#)
+    )]
+    NpmRegistryDeclaresDefault { registry: String },
+    /// The registry URL is redacted before it reaches this variant.
+    #[display(r#"The "registries[{registry:?}].{field}" setting is for an npm registry, but the entry serves {ecosystem}"#)]
+    #[diagnostic(
+        code(ERR_PNPM_INVALID_SETTING),
+        help(r#"Scopes, bare-specifier prefixes and server descriptions are npm's. Drop the field, or drop "ecosystem" to declare an npm registry."#)
+    )]
+    EcosystemRegistryDeclaresNpmField { registry: String, ecosystem: String, field: String },
+    /// The registry URLs are redacted before they reach this variant.
+    #[display("Two {ecosystem} registries are declared the default: {registries}")]
+    #[diagnostic(
+        code(ERR_PNPM_INVALID_SETTING),
+        help(r#"An ecosystem resolves from one index first. Set "default" on that one alone."#)
+    )]
+    EcosystemDefaultDeclaredTwice { ecosystem: String, registries: String },
+    #[display("{count} {ecosystem} registries are declared and none of them is the default")]
+    #[diagnostic(
+        code(ERR_PNPM_INVALID_SETTING),
+        help(r#"Set "default: true" on the index to resolve from first. The rest are searched after it."#)
+    )]
+    EcosystemDefaultNotDeclared { ecosystem: String, count: usize },
+    /// The registry URLs are redacted before they reach this variant.
+    #[display("Two Cargo registries are declared: {registries}")]
+    #[diagnostic(
+        code(ERR_PNPM_INVALID_SETTING),
+        help("pnpm resolves Cargo dependencies from one sparse index. Declare the one to use.")
+    )]
+    CargoIndexDeclaredTwice { registries: String },
     #[display("The \"tasks['{task}'].{field}\" setting is not a known task setting")]
     #[diagnostic(
         code(ERR_PNPM_INVALID_SETTING),
