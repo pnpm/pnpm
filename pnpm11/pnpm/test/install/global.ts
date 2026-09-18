@@ -407,6 +407,55 @@ test('global update to latest', async () => {
   expect(pkgJson.version).toBe('3.1.0')
 })
 
+test('unchanged global update reports already up to date without replacing the group', async () => {
+  prepare()
+  const global = path.resolve('..', 'global')
+  const pnpmHome = path.join(global, 'pnpm')
+  fs.mkdirSync(global)
+
+  const env = { [PATH_NAME]: path.join(pnpmHome, 'bin'), PNPM_HOME: pnpmHome, XDG_DATA_HOME: global }
+  await execPnpm(['add', '--global', 'is-positive@3.1.0'], { env })
+  const globalDir = globalPkgDir(pnpmHome)
+  const installDirBefore = findGlobalPkg(globalDir, 'is-positive')
+
+  const result = execPnpmSync(['update', '--global'], { env, expectSuccess: true })
+  const output = `${result.stdout.toString()}\n${result.stderr.toString()}`
+
+  expect(output).toContain('Already up to date')
+  expect(output).not.toMatch(/Packages:\s+\+\d/)
+  expect(output).not.toContain('+ is-positive')
+  expect(output.match(/Done in /g)).toHaveLength(1)
+  expect(findGlobalPkg(globalDir, 'is-positive')).toBe(installDirBefore)
+})
+
+test('unchanged global update still approves a pending build', async () => {
+  prepare()
+  const global = path.resolve('..', 'global')
+  const pnpmHome = path.join(global, 'pnpm')
+  fs.mkdirSync(global)
+
+  const env = {
+    [PATH_NAME]: `${path.join(pnpmHome, 'bin')}${path.delimiter}${process.env[PATH_NAME]!}`,
+    PNPM_HOME: pnpmHome,
+    XDG_DATA_HOME: global,
+  }
+  await execPnpm(['add', '--global', '@pnpm.e2e/install-script-example@1.0.0'], { env })
+  const globalDir = globalPkgDir(pnpmHome)
+  const installBefore = findGlobalPkgInstall(globalDir, '@pnpm.e2e/install-script-example')!
+  const buildArtifact = path.join(installBefore.pkgPath, 'generated-by-install.js')
+  expect(fs.existsSync(buildArtifact)).toBe(false)
+
+  const result = execPnpmSync(['update', '--global'], {
+    env: { ...env, PNPM_AUTO_APPROVE_BUILDS_FOR_TESTS: '1' },
+    expectSuccess: true,
+  })
+  const output = `${result.stdout.toString()}\n${result.stderr.toString()}`
+
+  expect(output).toContain('Already up to date')
+  expect(fs.existsSync(buildArtifact)).toBe(true)
+  expect(findGlobalPkgInstall(globalDir, '@pnpm.e2e/install-script-example')?.installDir).toBe(installBefore.installDir)
+})
+
 test('global update should not crash if there are no global packages', async () => {
   prepare()
   const global = path.resolve('..', 'global')

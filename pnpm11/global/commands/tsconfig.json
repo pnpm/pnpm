@@ -49,6 +49,12 @@
       "path": "../../installing/deps-installer"
     },
     {
+      "path": "../../installing/modules-yaml"
+    },
+    {
+      "path": "../../lockfile/fs"
+    },
+    {
       "path": "../../pkg-manifest/reader"
     },
     {

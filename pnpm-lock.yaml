@@ -5107,6 +5107,12 @@ importers:
       '@pnpm/installing.deps-installer':
         specifier: workspace:*
         version: link:../../installing/deps-installer
+      '@pnpm/installing.modules-yaml':
+        specifier: workspace:*
+        version: link:../../installing/modules-yaml
+      '@pnpm/lockfile.fs':
+        specifier: workspace:*
+        version: link:../../lockfile/fs
       '@pnpm/pkg-manifest.reader':
         specifier: workspace:*
         version: link:../../pkg-manifest/reader

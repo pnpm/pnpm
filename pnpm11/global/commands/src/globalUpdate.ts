@@ -1,4 +1,6 @@
+import fs from 'node:fs'
 import path from 'node:path'
+import { isDeepStrictEqual } from 'node:util'
 
 import type { CommandHandlerMap } from '@pnpm/cli.command'
 import { summaryLogger } from '@pnpm/core-loggers'
@@ -10,7 +12,11 @@ import {
   type GlobalPackageInfo,
   scanGlobalPackages,
 } from '@pnpm/global.packages'
+import { readModulesManifest } from '@pnpm/installing.modules-yaml'
+import { readWantedLockfile } from '@pnpm/lockfile.fs'
+import { logger } from '@pnpm/logger'
 import type { CreateStoreControllerOptions } from '@pnpm/store.connection-manager'
+import type { ProjectManifest } from '@pnpm/types'
 import semver from 'semver'
 
 import { getGlobalBinOwnership } from './binOwnership.js'
@@ -33,7 +39,7 @@ export type GlobalUpdateOptions = CreateStoreControllerOptions & {
   allowBuilds?: Record<string, string | boolean>
   saveExact?: boolean
   savePrefix?: string
-  rootProjectManifest?: unknown
+  rootProjectManifest?: ProjectManifest
   handleResolutionPolicyViolations?: (violations: readonly ResolutionPolicyViolation[]) => Promise<void>
   updateResolutionPolicyManifest?: (violations: readonly ResolutionPolicyViolation[], dir: string) => Promise<void>
   selectedPackageHashes?: Set<string>
@@ -76,8 +82,12 @@ export async function handleGlobalUpdate (
 
   // Update each package group sequentially to avoid overwhelming the system
 
+  let changed = false
   for (const pkg of packagesToUpdate) {
-    await updateGlobalPackageGroup(opts, globalDir, globalBinDir, pkg, commands) // eslint-disable-line no-await-in-loop
+    changed = await updateGlobalPackageGroup(opts, globalDir, globalBinDir, pkg, commands) || changed // eslint-disable-line no-await-in-loop
+  }
+  if (!changed) {
+    logger.info({ message: 'Already up to date', prefix: opts.dir })
   }
   summaryLogger.debug({ prefix: globalDir })
   return undefined
@@ -89,11 +99,35 @@ async function updateGlobalPackageGroup (
   globalBinDir: string,
   pkg: GlobalPackageInfo,
   commands: CommandHandlerMap
-): Promise<void> {
+): Promise<boolean> {
   const installDir = createInstallDir(globalDir)
-  const pins = await pinsForDowngrades(opts, installDir, pkg)
-  const { ignoredBuilds, resolutionPolicyViolations } =
-    await installGroup(opts, installDir, depSpecsForUpdate(pkg.dependencies, opts.latest, pins))
+  const downgradeCheck = await pinsForDowngrades(opts, installDir, pkg)
+  const depSpecs = depSpecsForUpdate(pkg.dependencies, opts.latest, downgradeCheck.pins)
+  const comparison = downgradeCheck.candidate != null && downgradeCheck.pins.size === 0
+    ? downgradeCheck.candidate
+    : await installGroup(
+      { ...opts, lockfileOnly: true, groupDependencies: pkg.dependencies },
+      installDir,
+      depSpecs
+    )
+
+  // Equal lockfiles mean no new packages, not that the tree they describe is
+  // still on disk. The modules manifest is what an install leaves behind.
+  const activeModules = await readModulesManifest(path.join(pkg.installDir, 'node_modules'))
+  if (activeModules != null && await lockfilesAreEqual(pkg.installDir, installDir)) {
+    await fs.promises.rm(installDir, { recursive: true, force: true })
+    await promptApproveGlobalBuilds({
+      globalPkgDir: globalDir,
+      installDir: pkg.installDir,
+      ignoredBuilds: activeModules.ignoredBuilds,
+      allowBuilds: opts.allowBuilds ?? {},
+      inheritedOpts: opts,
+    }, commands)
+    await opts.updateResolutionPolicyManifest?.(comparison.resolutionPolicyViolations, globalDir)
+    return false
+  }
+
+  const { ignoredBuilds } = await installGroup(opts, installDir, depSpecs)
 
   await promptApproveGlobalBuilds({
     globalPkgDir: globalDir,
@@ -146,16 +180,27 @@ async function updateGlobalPackageGroup (
     activatedBins,
     protectedBins: ownership.protectedBins,
   })
-  await opts.updateResolutionPolicyManifest?.(resolutionPolicyViolations, globalDir)
+  await opts.updateResolutionPolicyManifest?.(comparison.resolutionPolicyViolations, globalDir)
+  return true
+}
+
+type InstallGroupOptions = GlobalUpdateOptions & {
+  lockfileOnly?: boolean
+  groupDependencies?: Record<string, string>
 }
 
 /**
  * Installs `depSpecs` into `installDir`, which the caller has already created
  * under the global packages dir. The manifest and lockfile are written there;
  * with `lockfileOnly` nothing else is, so `node_modules` stays absent.
+ *
+ * `groupDependencies` is the manifest the install starts from. The first call
+ * into a fresh `installDir` passes the group's recorded dependencies, without
+ * which the lockfile would carry no specifiers to compare against the group's
+ * own. Omitting it starts from the manifest written by an earlier call.
  */
 async function installGroup (
-  opts: GlobalUpdateOptions & { lockfileOnly?: boolean },
+  opts: InstallGroupOptions,
   installDir: string,
   depSpecs: string[]
 ): Promise<InstallGlobalPackagesResult> {
@@ -171,7 +216,7 @@ async function installGroup (
     dir: installDir,
     lockfileDir: installDir,
     rootProjectManifestDir: installDir,
-    rootProjectManifest: undefined,
+    rootProjectManifest: opts.groupDependencies == null ? undefined : { dependencies: opts.groupDependencies },
     saveProd: true,
     saveDev: false,
     saveOptional: false,
@@ -222,26 +267,27 @@ async function pinsForDowngrades (
   opts: GlobalUpdateOptions,
   installDir: string,
   pkg: GlobalPackageInfo
-): Promise<Map<string, string>> {
+): Promise<{ candidate?: InstallGlobalPackagesResult, pins: Map<string, string> }> {
   const pins = new Map<string, string>()
   // Only `--latest` can pick a version outside the recorded range, and only a
   // plain version spec is dropped for it. Everything else resolves within a
   // range the installed version already satisfies, so nothing below — not even
   // reading the group's installed versions — is worth doing.
-  if (opts.latest !== true) return pins
+  if (opts.latest !== true) return { pins }
   const versionsBefore = new Map(
     (await getGlobalPackageDetails(pkg))
       .filter(({ alias }) => isPlainVersionSpec(pkg.dependencies[alias] ?? ''))
       .map(({ alias, version }) => [alias, version])
   )
   // Nothing to compare a resolution against, so nothing to resolve.
-  if (versionsBefore.size === 0) return pins
+  if (versionsBefore.size === 0) return { pins }
 
-  const { resolvedVersions } = await installGroup(
-    { ...opts, lockfileOnly: true },
+  const candidate = await installGroup(
+    { ...opts, lockfileOnly: true, groupDependencies: pkg.dependencies },
     installDir,
     depSpecsForUpdate(pkg.dependencies, opts.latest)
   )
+  const { resolvedVersions } = candidate
   for (const [alias, before] of versionsBefore) {
     const resolved = resolvedVersions[alias]
     if (semver.valid(before) == null || semver.valid(resolved) == null) continue
@@ -249,7 +295,19 @@ async function pinsForDowngrades (
       pins.set(alias, before)
     }
   }
-  return pins
+  return { candidate, pins }
+}
+
+async function lockfilesAreEqual (activeDir: string, candidateDir: string): Promise<boolean> {
+  try {
+    const [active, candidate] = await Promise.all([
+      readWantedLockfile(activeDir, { ignoreIncompatible: false }),
+      readWantedLockfile(candidateDir, { ignoreIncompatible: false }),
+    ])
+    return active != null && candidate != null && isDeepStrictEqual(active, candidate)
+  } catch {
+    return false
+  }
 }
 
 // Only a plain version range may be dropped in favor of the bare alias.

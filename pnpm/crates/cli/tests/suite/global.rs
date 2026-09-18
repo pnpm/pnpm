@@ -909,6 +909,162 @@ fn global_update_latest_keeps_a_package_that_latest_would_downgrade() {
     drop((root, npmrc_info));
 }
 
+#[cfg(unix)]
+#[test]
+fn unchanged_global_update_reports_already_up_to_date_without_replacing_the_group() {
+    use assert_cmd::assert::OutputAssertExt;
+
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let pnpm_home = root.path().join("pnpm-home");
+    prepare_global_home(&pnpm_home, &npmrc_info);
+
+    global_command(&workspace, &pnpm_home)
+        .with_args(["add", "-g", "@foo/touch-file-one-bin"])
+        .assert()
+        .success();
+    let global_dir = pnpm_home.join("global").join("v11");
+    let links_before: Vec<_> = symlink_entries(&global_dir)
+        .into_iter()
+        .map(|link| {
+            let target = fs::read_link(&link).expect("read global hash link");
+            (link, target)
+        })
+        .collect();
+
+    let output = global_command(&workspace, &pnpm_home)
+        .with_args(["update", "-g"])
+        .output()
+        .expect("run unchanged global update");
+    assert!(output.status.success(), "{}", String::from_utf8_lossy(&output.stderr));
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(stdout.contains("Already up to date"), "{stdout}");
+    assert!(!stdout.contains("dependencies:\n+"), "{stdout}");
+    let links_after: Vec<_> = symlink_entries(&global_dir)
+        .into_iter()
+        .map(|link| {
+            let target = fs::read_link(&link).expect("read global hash link");
+            (link, target)
+        })
+        .collect();
+    assert_eq!(links_after, links_before);
+
+    drop((root, npmrc_info));
+}
+
+#[cfg(unix)]
+#[test]
+fn unchanged_global_update_still_approves_a_pending_build() {
+    use assert_cmd::assert::OutputAssertExt;
+
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let pnpm_home = root.path().join("pnpm-home");
+    prepare_global_home(&pnpm_home, &npmrc_info);
+
+    global_command(&workspace, &pnpm_home)
+        .with_args(["add", "-g", "@pnpm.e2e/install-script-example@1.0.0"])
+        .assert()
+        .success();
+    let global_dir = pnpm_home.join("global").join("v11");
+    let install_before =
+        pnpm_global::find_global_package(&global_dir, "@pnpm.e2e/install-script-example")
+            .expect("scan global packages")
+            .expect("find install-script group");
+    let build_artifact = install_before.install_dir.join(
+        "node_modules/@pnpm.e2e/install-script-example/generated-by-install.js",
+    );
+    assert!(!build_artifact.exists());
+
+    let output = global_command(&workspace, &pnpm_home)
+        .with_env("PNPM_AUTO_APPROVE_BUILDS_FOR_TESTS", "1")
+        .with_args(["update", "-g"])
+        .output()
+        .expect("run unchanged global update with pending build approval");
+    assert!(output.status.success(), "{}", String::from_utf8_lossy(&output.stderr));
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(stdout.contains("Already up to date"), "{stdout}");
+    assert!(build_artifact.exists());
+    let install_after =
+        pnpm_global::find_global_package(&global_dir, "@pnpm.e2e/install-script-example")
+            .expect("scan global packages")
+            .expect("find install-script group");
+    assert_eq!(install_after.install_dir, install_before.install_dir);
+
+    drop((root, npmrc_info));
+}
+
+/// A group whose `node_modules` was removed holds nothing to run, so an
+/// unchanged resolution must not report it as current. The update cannot put
+/// the tree back either: activation reads the manifests of the group it
+/// replaces, and those went with the tree. It says so instead of claiming the
+/// group is up to date.
+#[cfg(unix)]
+#[test]
+fn global_update_does_not_call_a_group_without_node_modules_up_to_date() {
+    use assert_cmd::assert::OutputAssertExt;
+
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let pnpm_home = root.path().join("pnpm-home");
+    prepare_global_home(&pnpm_home, &npmrc_info);
+
+    global_command(&workspace, &pnpm_home)
+        .with_args(["add", "-g", "@foo/touch-file-one-bin"])
+        .assert()
+        .success();
+    let global_dir = pnpm_home.join("global").join("v11");
+    let install_before = pnpm_global::find_global_package(&global_dir, "@foo/touch-file-one-bin")
+        .expect("scan global packages")
+        .expect("find the touch-file group");
+    fs::remove_dir_all(install_before.install_dir.join("node_modules"))
+        .expect("remove the group's node_modules");
+
+    let output = global_command(&workspace, &pnpm_home)
+        .with_args(["update", "-g"])
+        .output()
+        .expect("run global update over a removed tree");
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(!stdout.contains("Already up to date"), "{stdout}");
+    assert!(!output.status.success(), "{stdout}\n{stderr}");
+    assert!(stderr.contains("ERR_PNPM_PACKAGE_MANIFEST_IO_ERROR"), "{stderr}");
+
+    drop((root, npmrc_info));
+}
+
+#[cfg(unix)]
+#[test]
+fn global_update_renders_both_changed_groups_with_one_completion_summary() {
+    use assert_cmd::assert::OutputAssertExt;
+
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry_with_own_storage();
+    let pnpm_home = root.path().join("pnpm-home");
+    prepare_global_home(&pnpm_home, &npmrc_info);
+
+    npmrc_info.set_dist_tag("@pnpm.e2e/multi-version-a", "1.0.0", "latest");
+    npmrc_info.set_dist_tag("@pnpm.e2e/multi-version-b", "3.0.0", "latest");
+    global_command(&workspace, &pnpm_home)
+        .with_args(["add", "-g", "@pnpm.e2e/multi-version-a", "@pnpm.e2e/multi-version-b"])
+        .assert()
+        .success();
+    npmrc_info.set_dist_tag("@pnpm.e2e/multi-version-a", "2.1.0", "latest");
+    npmrc_info.set_dist_tag("@pnpm.e2e/multi-version-b", "3.1.0", "latest");
+
+    let output = global_command(&workspace, &pnpm_home)
+        .with_args(["update", "-g", "--latest"])
+        .output()
+        .expect("run two-group global update");
+    assert!(output.status.success(), "{}", String::from_utf8_lossy(&output.stderr));
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(stdout.contains("@pnpm.e2e/multi-version-a"), "{stdout}");
+    assert!(stdout.contains("@pnpm.e2e/multi-version-b"), "{stdout}");
+    assert_eq!(stdout.matches("Done in ").count(), 1, "{stdout}");
+
+    drop((root, npmrc_info));
+}
+
 mod shims;
 
 mod ownership;
