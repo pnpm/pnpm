@@ -188,11 +188,7 @@ impl<'a> CompletionContext<'a> {
             self.workspace_root |= argument.get_id() == "workspace_root";
             accepts_next = option_value_is_allowed(argument, next);
             if argument.get_id() == "dir" {
-                self.directory = if remaining.is_empty() {
-                    next.filter(|_| accepts_next)
-                } else {
-                    Some(remaining.strip_prefix('=').unwrap_or(remaining))
-                };
+                self.directory = short_option_value(remaining, next, accepts_next);
             }
             Some(argument_takes_separate_value(argument))
         });
@@ -231,6 +227,17 @@ impl<'a> CompletionContext<'a> {
         }
         context
     }
+}
+
+fn short_option_value<'a>(
+    attached: &'a str,
+    next: Option<&'a str>,
+    accepts_next: bool,
+) -> Option<&'a str> {
+    if !attached.is_empty() {
+        return Some(attached.strip_prefix('=').unwrap_or(attached));
+    }
+    if accepts_next { next } else { None }
 }
 
 fn option_word_width(context: &CompletionContext<'_>, word: &str, next: Option<&str>) -> usize {

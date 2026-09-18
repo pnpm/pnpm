@@ -43,6 +43,7 @@ function preserveBashCompletionCandidates (output: string): string {
     COMPREPLY=()
     if [ -n "$completions" ]; then
       while IFS= read -r completion; do
+        printf -v completion '%q' "$completion"
         COMPREPLY+=("$completion")
       done <<< "$completions"
     fi

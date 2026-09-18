@@ -612,7 +612,6 @@ fn completion_server_respects_workspace_root_selection() {
 #[cfg(windows)]
 #[test]
 fn completion_powershell_preserves_literal_script_names() {
-    let project = TempDir::new().unwrap();
     let names = [
         "semi;colon",
         "pipe|name",
@@ -622,15 +621,7 @@ fn completion_powershell_preserves_literal_script_names() {
         "tick`name",
         "$(Write-Output injected)",
     ];
-    let scripts: serde_json::Map<String, serde_json::Value> = names
-        .iter()
-        .map(|name| (name.to_string(), serde_json::Value::String("echo safe".to_string())))
-        .collect();
-    std::fs::write(
-        project.path().join("package.json"),
-        serde_json::to_vec(&serde_json::json!({"scripts": scripts})).unwrap(),
-    )
-    .unwrap();
+    let project = project_with_scripts(&names);
     let mut script = stdout(
         pacquet()
             .args(["completion", "pwsh"])
@@ -665,10 +656,16 @@ fn prepend_binary_dir_to_path() -> std::ffi::OsString {
 
 #[cfg(unix)]
 #[test]
-fn completion_bash_preserves_literal_glob_script_names() {
-    let project = TempDir::new().unwrap();
-    std::fs::write(project.path().join("package.json"), r#"{"scripts":{"*literal":"echo safe"}}"#)
-        .unwrap();
+fn completion_bash_preserves_literal_script_names() {
+    let names = [
+        "*literal",
+        "semi;printf injected",
+        "dollar$(printf injected)",
+        "space name",
+        "quote'name",
+        "tick`name",
+    ];
+    let project = project_with_scripts(&names);
     std::fs::write(project.path().join("expanded-literal"), "").unwrap();
     let mut script = stdout(
         pacquet()
@@ -683,7 +680,8 @@ COMP_CWORD=2
 COMP_LINE='pnpm run '
 COMP_POINT=9
 _pnpm_completion
-printf '%s\n' "${COMPREPLY[@]}"
+eval "set -- ${COMPREPLY[*]}"
+printf '%s\n' "$@"
 "#,
     );
     let output = Command::new("bash")
@@ -692,7 +690,11 @@ printf '%s\n' "${COMPREPLY[@]}"
         .args(["--noprofile", "--norc", "-c", &script])
         .output()
         .unwrap();
-    assert_eq!(stdout(output), "*literal\n");
+    let reply = stdout(output);
+    let actual: Vec<_> = reply.lines().collect();
+    let mut expected = names.to_vec();
+    expected.sort_unstable();
+    assert_eq!(actual, expected);
 }
 
 #[test]
@@ -709,4 +711,18 @@ fn completion_server_accepts_attached_hyphen_prefixed_directories() {
             .unwrap();
         assert_eq!(stdout(output), "hello\n", "{option}");
     }
+}
+
+fn project_with_scripts(names: &[&str]) -> TempDir {
+    let project = TempDir::new().unwrap();
+    let scripts: serde_json::Map<String, serde_json::Value> = names
+        .iter()
+        .map(|name| (name.to_string(), serde_json::Value::String("echo safe".to_string())))
+        .collect();
+    std::fs::write(
+        project.path().join("package.json"),
+        serde_json::to_vec(&serde_json::json!({"scripts": scripts})).unwrap(),
+    )
+    .unwrap();
+    project
 }
