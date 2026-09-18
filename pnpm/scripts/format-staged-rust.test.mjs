@@ -1,31 +1,23 @@
 import assert from 'node:assert/strict'
-import { spawnSync } from 'node:child_process'
 import fs from 'node:fs'
-import os from 'node:os'
 import path from 'node:path'
 import { test } from 'node:test'
-import { formatStagedRust, partitionStaged } from './format-staged-rust.mjs'
+import { formatStagedRust } from './format-staged-rust.mjs'
+import { git, temporaryRepo } from './git-fixture.mjs'
 
-// Names git hands back verbatim that a shell would have split, expanded, or
-// handed to rustfmt as an option. Windows has no file of the last kind.
+// Names git hands back verbatim that a shell would have split or expanded, or
+// that rustfmt would have read as an option. Windows has no file of the last
+// kind, and `git add` reads a pathspec as a glob, so `star*.rs` is also the
+// name that could stage `starX.rs` along with it.
 const AWKWARD = process.platform === 'win32'
   ? ['-dash.rs', 'a b.rs']
   : ['-dash.rs', 'a b.rs', 'star*.rs']
 
-function git (repo, ...args) {
-  const result = spawnSync('git', args, {
-    cwd: repo,
-    encoding: 'utf8',
-    env: { ...process.env, GIT_AUTHOR_NAME: 't', GIT_AUTHOR_EMAIL: 't@t', GIT_COMMITTER_NAME: 't', GIT_COMMITTER_EMAIL: 't@t' },
-  })
-  assert.equal(result.status, 0, `git ${args.join(' ')} failed: ${result.stderr}`)
-  return result.stdout
-}
-
-function temporaryRepo (context, files) {
-  const repo = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'pnpm-format-staged-')))
-  context.after(() => fs.rmSync(repo, { recursive: true, force: true }))
-  git(repo, 'init')
+function repoWithSources (context, files) {
+  const repo = temporaryRepo(context, 'pnpm-format-staged-')
+  // The rename case only arises where git detects renames. That is the
+  // default, but it is a setting a temporary repository inherits.
+  git(repo, 'config', 'diff.renames', 'true')
   // Enough lines that appending one leaves a renamed file similar enough for
   // git to report it as a rename rather than a delete and an add.
   const seed = Array.from({ length: 10 }, (item, index) => `fn original_${index}() {}\n`).join('')
@@ -47,15 +39,8 @@ function reformatter () {
   }
 }
 
-test('splits the staged files by whether the working tree holds more', () => {
-  assert.deepEqual(partitionStaged(['a.rs', 'b.rs', 'c.rs'], ['b.rs', 'd.rs']), {
-    formattable: ['a.rs', 'c.rs'],
-    withheld: ['b.rs'],
-  })
-})
-
 test('formats every staged Rust file and stages what changed', (context) => {
-  const repo = temporaryRepo(context, [...AWKWARD, 'kept.txt'])
+  const repo = repoWithSources(context, [...AWKWARD, 'kept.txt'])
   for (const name of [...AWKWARD, 'kept.txt']) fs.appendFileSync(path.join(repo, name), 'fn staged() {}\n')
   git(repo, 'add', '--all')
 
@@ -68,7 +53,7 @@ test('formats every staged Rust file and stages what changed', (context) => {
 })
 
 test('formats the destination of a staged rename', (context) => {
-  const repo = temporaryRepo(context, ['before.rs'])
+  const repo = repoWithSources(context, ['before.rs'])
   git(repo, 'mv', 'before.rs', 'after.rs')
   fs.appendFileSync(path.join(repo, 'after.rs'), 'fn staged() {}\n')
   git(repo, 'add', '--all')
@@ -82,7 +67,7 @@ test('formats the destination of a staged rename', (context) => {
 })
 
 test('leaves a staged file that has unstaged changes as well', (context) => {
-  const repo = temporaryRepo(context, ['held.rs', 'clean.rs'])
+  const repo = repoWithSources(context, ['held.rs', 'clean.rs'])
   for (const name of ['held.rs', 'clean.rs']) fs.appendFileSync(path.join(repo, name), 'fn staged() {}\n')
   git(repo, 'add', '--all')
   fs.appendFileSync(path.join(repo, 'held.rs'), 'fn withheld() {}\n')
@@ -95,7 +80,7 @@ test('leaves a staged file that has unstaged changes as well', (context) => {
 })
 
 test('reports nothing to do when no Rust file is staged', (context) => {
-  const repo = temporaryRepo(context, ['untouched.rs'])
+  const repo = repoWithSources(context, ['untouched.rs'])
   fs.writeFileSync(path.join(repo, 'notes.txt'), 'text\n')
   git(repo, 'add', '--all')
 
@@ -105,11 +90,39 @@ test('reports nothing to do when no Rust file is staged', (context) => {
 })
 
 test('stages nothing when the formatter fails', (context) => {
-  const repo = temporaryRepo(context, ['broken.rs'])
+  const repo = repoWithSources(context, ['broken.rs'])
   fs.appendFileSync(path.join(repo, 'broken.rs'), 'fn staged( {}\n')
   git(repo, 'add', '--all')
   const staged = git(repo, 'show', ':broken.rs')
 
   assert.equal(formatStagedRust(repo, { format: () => 1 }), 1)
   assert.equal(git(repo, 'show', ':broken.rs'), staged)
+})
+
+test('stages only the file the pathspec names literally', { skip: process.platform === 'win32' }, (context) => {
+  const repo = repoWithSources(context, ['star*.rs', 'starX.rs'])
+  fs.appendFileSync(path.join(repo, 'star*.rs'), 'fn staged() {}\n')
+  git(repo, 'add', '--all')
+  fs.appendFileSync(path.join(repo, 'starX.rs'), 'fn never_staged() {}\n')
+
+  const { format } = reformatter()
+  assert.equal(formatStagedRust(repo, { format }), 0)
+
+  assert.match(git(repo, 'show', ':star*.rs'), /\/\/ reformatted/)
+  assert.doesNotMatch(git(repo, 'show', ':starX.rs'), /never_staged/)
+})
+
+test('refuses to format a staged symlink', { skip: process.platform === 'win32' }, (context) => {
+  const repo = repoWithSources(context, ['real.rs'])
+  const outside = path.join(repo, '..', path.basename(repo) + '-outside.rs')
+  fs.writeFileSync(outside, 'fn outside() {}\n')
+  context.after(() => fs.rmSync(outside, { force: true }))
+  fs.symlinkSync(outside, path.join(repo, 'escape.rs'))
+  git(repo, 'add', '--all')
+
+  const { seen, format } = reformatter()
+  assert.equal(formatStagedRust(repo, { format }), 0)
+
+  assert.deepEqual(seen, [])
+  assert.equal(fs.readFileSync(outside, 'utf8'), 'fn outside() {}\n')
 })

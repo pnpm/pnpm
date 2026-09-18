@@ -1,5 +1,6 @@
 import { spawnSync } from 'node:child_process'
 import console from 'node:console'
+import fs from 'node:fs'
 import path from 'node:path'
 import process from 'node:process'
 import { fileURLToPath, pathToFileURL } from 'node:url'
@@ -8,21 +9,6 @@ import { fileURLToPath, pathToFileURL } from 'node:url'
 // has to be told, and every crate here inherits the one the workspace manifest
 // sets.
 const EDITION = '2024'
-
-/**
- * The staged files to format, and the ones held back.
- *
- * A file that also has unstaged changes is left alone: formatting the working
- * tree and staging the result would commit the part of that file the author
- * deliberately kept out of this commit.
- */
-export function partitionStaged (staged, unstaged) {
-  const alsoUnstaged = new Set(unstaged)
-  return {
-    formattable: staged.filter(file => !alsoUnstaged.has(file)),
-    withheld: staged.filter(file => alsoUnstaged.has(file)),
-  }
-}
 
 /**
  * Formats the Rust files being committed and stages the result.
@@ -38,24 +24,58 @@ export function formatStagedRust (repo, { format = pinnedRustfmt } = {}) {
   const staged = gitPaths(repo, ['diff', '--cached', '--name-only', '--diff-filter=ACMR', '-z', '--', '*.rs'])
   if (staged.length === 0) return 0
 
+  const root = fs.realpathSync(repo)
   const unstaged = gitPaths(repo, ['diff', '--name-only', '-z', '--', '*.rs'])
-  const { formattable, withheld } = partitionStaged(staged, unstaged)
+  const { formattable, withheld, foreign } = partitionStaged(root, staged, unstaged)
   if (withheld.length > 0) {
     console.error(`pre-commit: not formatting these files, each has unstaged changes too:\n${indent(withheld)}`)
   }
+  if (foreign.length > 0) {
+    console.error(`pre-commit: not formatting these paths, none is a regular file in the checkout:\n${indent(foreign)}`)
+  }
   if (formattable.length === 0) return 0
 
-  // Absolute paths: a repository-relative path that begins with `-` would
-  // otherwise reach rustfmt as an option.
-  const status = format(formattable.map(file => path.join(repo, file)))
+  const status = format(formattable.map(file => path.join(root, file)))
   if (status !== 0) return status
 
-  const reformatted = formattable.filter(file => git(repo, ['diff', '--quiet', '--', file]).status !== 0)
+  const reformatted = formattable.filter(file => git(repo, ['diff', '--quiet', '--', literal(file)]).status !== 0)
   if (reformatted.length === 0) return 0
 
-  checkedGit(repo, ['add', '--', ...reformatted])
+  checkedGit(repo, ['add', '--', ...reformatted.map(literal)])
   console.log(`pre-commit: formatted and staged:\n${indent(reformatted)}`)
   return 0
+}
+
+/**
+ * The staged files to format, and the ones to leave alone.
+ *
+ * A file that also has unstaged changes is held back: formatting the working
+ * tree and staging the result would commit the part of that file the author
+ * deliberately kept out of this commit. A path that is not a regular file is
+ * not a source at all — rustfmt writes through a symlink, so a staged `.rs`
+ * link pointing out of the checkout would have it rewrite a file the commit
+ * never touches, and the repository would show nothing changed.
+ */
+function partitionStaged (root, staged, unstaged) {
+  const alsoUnstaged = new Set(unstaged)
+  const formattable = []
+  const withheld = []
+  const foreign = []
+  for (const file of staged) {
+    if (!isRegularFile(path.join(root, file))) foreign.push(file)
+    else if (alsoUnstaged.has(file)) withheld.push(file)
+    else formattable.push(file)
+  }
+  return { formattable, withheld, foreign }
+}
+
+function isRegularFile (absolute) {
+  try {
+    return fs.lstatSync(absolute).isFile()
+  } catch (error) {
+    if (error.code === 'ENOENT') return false
+    throw error
+  }
 }
 
 function pinnedRustfmt (files) {
@@ -63,6 +83,11 @@ function pinnedRustfmt (files) {
   const result = spawnSync(process.execPath, [script, '--rustfmt', '--edition', EDITION, ...files], { stdio: 'inherit' })
   if (result.error != null) throw result.error
   return result.status ?? 1
+}
+
+// git reads a pathspec as a glob, so `star*.rs` would name `starX.rs` as well.
+function literal (file) {
+  return `:(literal)${file}`
 }
 
 function gitPaths (repo, args) {

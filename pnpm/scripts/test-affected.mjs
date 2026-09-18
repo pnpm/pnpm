@@ -141,13 +141,20 @@ export function parseOptions (argv) {
     if (arg === '--print') values.print = true
     else if (arg === '--no-smoke') values.smoke = false
     else if (arg === '--help' || arg === '-h') values.help = true
-    else if (arg.startsWith('--base=')) values.base = arg.slice('--base='.length)
+    else if (arg.startsWith('--base=')) values.base = revision(arg.slice('--base='.length))
     else if (arg === '--base') {
       if (index + 1 === argv.length) throw new Error('--base needs a revision')
-      values.base = argv[++index]
+      values.base = revision(argv[++index])
     } else rest.push(arg)
   }
   return { values, rest }
+}
+
+// No git ref name starts with `-`, so an operand that does is a mistyped flag.
+// Passing it on would reach `git rev-parse` and `git merge-base` as an option.
+function revision (value) {
+  if (value === '' || value.startsWith('-')) throw new Error(`--base needs a revision, not '${value}'`)
+  return value
 }
 
 function main () {
