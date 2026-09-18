@@ -29,6 +29,22 @@ pub fn is_reserved_version_prefix(name: &str) -> bool {
     RESERVED_VERSION_PREFIXES.contains(&name)
 }
 
+/// Whether `name` is one of [`RESERVED_VERSION_PREFIXES`] in any case, which
+/// is what a named-registry alias may not be.
+///
+/// A dep path carries the prefix pnpm wrote, so reading one back matches it
+/// exactly ([`is_reserved_version_prefix`]). An alias is chosen by a user,
+/// and a specifier's prefix is read case-insensitively wherever the notation
+/// it comes from is: a URL scheme is, so `PKG:npm/lodash` is a Package URL.
+/// An alias that any of those spellings would shadow is rejected whatever
+/// case it is written in.
+#[must_use]
+pub fn shadows_reserved_version_prefix(name: &str) -> bool {
+    RESERVED_VERSION_PREFIXES
+        .iter()
+        .any(|prefix| prefix.eq_ignore_ascii_case(name))
+}
+
 /// Whether `name` is syntactically usable as a named-registry alias in a
 /// registry-qualified dep path. Does not check the reserved list —
 /// see [`is_reserved_version_prefix`] for that.
