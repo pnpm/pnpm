@@ -249,8 +249,28 @@ pub(crate) fn catalog_covers(entry: &str, wanted: &str) -> bool {
     wanted
         .split("||")
         .all(|alternative| {
-            Range::parse(alternative).is_ok_and(|alternative| entry_range.allows_all(&alternative))
+            Range::parse(alternative)
+                .is_ok_and(|alternative| entry_covers_alternative(&entry_range, &alternative))
         })
+}
+
+/// Whether `entry` holds every version `alternative` allows.
+///
+/// [`Range::allows_all`] compares endpoints, which misses npm's rule that a
+/// prerelease is eligible only for a comparator carrying a prerelease of the
+/// same `major.minor.patch`: by endpoints alone `^1.0.0` looks wide enough for
+/// `^1.2.0-beta.1`, though it admits no `1.2.0` prerelease. Asking
+/// [`Range::satisfies`] about the lowest version the alternative allows
+/// restores that rule wherever the alternative's own lower bound carries the
+/// prerelease.
+fn entry_covers_alternative(entry: &Range, alternative: &Range) -> bool {
+    if !entry.allows_all(alternative) {
+        return false;
+    }
+    match alternative.min_version() {
+        Some(lowest) if lowest.is_prerelease() => entry.satisfies(&lowest),
+        _ => true,
+    }
 }
 
 /// The catalog group a dependency belongs to: a previous `catalog:<name>`

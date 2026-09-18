@@ -1700,6 +1700,34 @@ describe('add', () => {
     })
   })
 
+  test('adding a package without a version keeps the catalog when its range covers the resolved range', async () => {
+    const { options, projects } = preparePackagesAndReturnObjects([{
+      name: 'project1',
+      dependencies: {},
+    }])
+
+    const { updatedManifest } = await addDependenciesToPackage(
+      projects['project1' as ProjectId],
+      ['@pnpm.e2e/foo'],
+      {
+        ...options,
+        lockfileOnly: true,
+        catalogs: {
+          default: { '@pnpm.e2e/foo': '^1.0.0' },
+        },
+        catalogMode: 'strict',
+        dir: path.join(options.lockfileDir, 'project1'),
+        allowNew: true,
+      })
+
+    expect(updatedManifest).toEqual({
+      name: 'project1',
+      dependencies: {
+        '@pnpm.e2e/foo': 'catalog:',
+      },
+    })
+  })
+
   test('adding a range the catalog range covers uses the catalog with catalogMode: strict', async () => {
     const { options, projects } = preparePackagesAndReturnObjects([{
       name: 'project1',

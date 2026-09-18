@@ -169,6 +169,35 @@ fn strict_uses_the_catalog_on_a_matching_range() {
 }
 
 #[test]
+fn strict_errors_when_the_catalog_range_admits_no_prerelease_of_the_wanted_range() {
+    let catalogs = catalogs(&[("default", &[("is-positive", "^1.0.0")])]);
+    let err = decide(CatalogMode::Strict, &catalogs, &dep("is-positive", "^1.2.0-beta.1"))
+        .expect_err("a caret range over a release admits no prerelease of a later version");
+    assert_eq!(
+        err,
+        CatalogVersionMismatchError {
+            catalog_dep: "is-positive@^1.0.0".to_string(),
+            wanted_dep: "is-positive@^1.2.0-beta.1".to_string(),
+        },
+    );
+}
+
+#[test]
+fn strict_uses_the_catalog_when_its_prerelease_range_covers_the_wanted_prerelease() {
+    let catalogs = catalogs(&[("default", &[("is-positive", "^1.2.0-beta.1")])]);
+    let decision =
+        decide(CatalogMode::Strict, &catalogs, &dep("is-positive", "^1.2.0-beta.3")).unwrap();
+    assert_eq!(
+        decision,
+        CatalogDecision::Catalog {
+            manifest_specifier: "catalog:".to_string(),
+            updated_entry: None
+        },
+        "a prerelease range inside the catalog's own prerelease range reuses the entry",
+    );
+}
+
+#[test]
 fn strict_errors_when_the_catalog_covers_only_part_of_a_wanted_union() {
     let catalogs = catalogs(&[("default", &[("is-positive", "^1.0.0")])]);
     let err = decide(CatalogMode::Strict, &catalogs, &dep("is-positive", "^1.0.0 || ^3.0.0"))
