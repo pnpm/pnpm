@@ -26,7 +26,7 @@ fn an_entry_that_names_no_ecosystem_is_an_npm_registry() {
 }
 
 #[test]
-fn the_indexes_of_an_ecosystem_are_read_with_the_default_one_first() {
+fn the_index_an_ecosystem_falls_back_to_heads_its_list() {
     let config = load(
         "registries:\n  https://extra.example.com/simple/:\n    ecosystem: pypi\n  https://pypi.example.com/simple/:\n    ecosystem: pypi\n    default: true\n",
     )
@@ -39,7 +39,7 @@ fn the_indexes_of_an_ecosystem_are_read_with_the_default_one_first() {
 }
 
 #[test]
-fn a_lone_index_is_the_one_its_ecosystem_resolves_from() {
+fn a_lone_index_needs_no_default() {
     let config = load("registries:\n  https://index.example.com:\n    ecosystem: cargo\n").unwrap();
     assert_eq!(config.cargo_index_url(), "https://index.example.com/");
 }
@@ -128,4 +128,56 @@ fn the_declared_indexes_round_trip_through_the_resolved_view() {
         declarations.get("https://extra.example.com/simple/").expect("the extra index is declared");
     assert_eq!(extra.ecosystem(), Ecosystem::Pypi);
     assert!(!extra.is_default());
+}
+
+/// Keyed by URL, the map cannot see that two spellings address one index, so
+/// it would count them as two: asking for a `default` that means nothing, or
+/// filling both the fallback slot and a searched-first one with one endpoint.
+#[test]
+fn two_spellings_of_one_index_are_refused() {
+    let error = load(
+        "registries:\n  https://pypi.example.com/simple:\n    ecosystem: pypi\n  https://pypi.example.com/simple/:\n    ecosystem: pypi\n    default: true\n",
+    )
+    .unwrap_err();
+    assert!(error.contains("declared twice"), "{error}");
+    assert!(error.contains("pypi.example.com/simple/"), "{error}");
+}
+
+/// Each layer is validated on its own, so the machine may have routed npm
+/// scopes to a URL the repository serves to `PyPI`. Keeping both would leave
+/// one URL in two roles and rebuild into an entry no layer could have
+/// written.
+#[test]
+fn a_reclassified_url_loses_the_npm_routes_an_earlier_layer_gave_it() {
+    let dir = tempfile::tempdir().unwrap();
+    fs::write(
+        dir.path().join(WORKSPACE_MANIFEST_FILENAME),
+        "registries:\n  https://one.example.com/:\n    ecosystem: pypi\n",
+    )
+    .unwrap();
+    let mut config = Config::default();
+    config.registries_by_scope.insert("@acme".to_string(), "https://one.example.com/".to_string());
+    config.registries_by_prefix.insert("work".to_string(), "https://one.example.com/".to_string());
+    config.registry_options_by_url.insert(
+        "https://one.example.com/".to_string(),
+        pnpm_lockfile::RegistryOptions {
+            server_type: Some(pnpm_lockfile::RegistryServerType::Artifactory),
+            supports_time_field: None,
+        },
+    );
+    WorkspaceSettings::load_at(dir.path())
+        .unwrap()
+        .expect("the workspace manifest was just written")
+        .apply_to(&mut config, Path::new("/workspace"));
+
+    assert_eq!(config.python_indexes(), ["https://one.example.com/"]);
+    assert!(config.registries_by_scope.is_empty(), "{:?}", config.registries_by_scope);
+    assert!(config.registries_by_prefix.is_empty(), "{:?}", config.registries_by_prefix);
+    assert!(config.registry_options_by_url.is_empty(), "{:?}", config.registry_options_by_url);
+    let declarations = config.resolved_registry_declarations();
+    let entry = declarations.get("https://one.example.com/").expect("the index is declared");
+    assert_eq!(entry.ecosystem(), Ecosystem::Pypi);
+    assert!(entry.scopes.is_none(), "{entry:?}");
+    assert!(entry.prefix.is_none(), "{entry:?}");
+    assert!(entry.server_type.is_none(), "{entry:?}");
 }

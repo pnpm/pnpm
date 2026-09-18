@@ -98,9 +98,18 @@ pub enum LoadWorkspaceYamlError {
     #[display("{count} {ecosystem} registries are declared and none of them is the default")]
     #[diagnostic(
         code(ERR_PNPM_INVALID_SETTING),
-        help(r#"Set "default: true" on the index to resolve from first. The rest are searched after it."#)
+        help(r#"Set "default: true" on the index to fall back to. The others are searched before it."#)
     )]
     EcosystemDefaultNotDeclared { ecosystem: String, count: usize },
+    /// The registry URL is redacted before it reaches this variant.
+    #[display("The {ecosystem} index {registry:?} is declared twice")]
+    #[diagnostic(
+        code(ERR_PNPM_INVALID_SETTING),
+        help(
+            "Two keys that differ only by a trailing slash address the same index. Declare it once."
+        )
+    )]
+    EcosystemIndexDeclaredTwice { ecosystem: String, registry: String },
     /// The registry URLs are redacted before they reach this variant.
     #[display("Two Cargo registries are declared: {registries}")]
     #[diagnostic(

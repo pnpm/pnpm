@@ -6,7 +6,7 @@
 //! the routes, because a scope resolves to exactly one registry while a
 //! registry serves many.
 
-pub use ecosystems::Ecosystem;
+pub use ecosystems::{Ecosystem, drop_stale_roles};
 
 use super::LoadWorkspaceYamlError;
 use crate::workspace_yaml::{
@@ -81,9 +81,11 @@ pub struct RegistryDeclaration {
     /// else to serve means what it did.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub ecosystem: Option<Ecosystem>,
-    /// Marks the index its ecosystem resolves from first, where the others
-    /// are searched after it. npm says this with the `registry` setting or
-    /// the bare `@` scope instead, so it is refused on an npm entry.
+    /// Marks the index its ecosystem falls back to: the others are searched
+    /// before it, and it answers what none of them had. uv means the same by
+    /// `default` — "the default index is always treated as lowest priority".
+    /// npm says which registry is its default with the `registry` setting or
+    /// the bare `@` scope, so `default` is refused on an npm entry.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub default: Option<bool>,
     #[serde(flatten)]
@@ -100,7 +102,7 @@ impl RegistryDeclaration {
         self.ecosystem.unwrap_or_default()
     }
 
-    /// Whether this entry is the one its ecosystem resolves from first.
+    /// Whether this entry is the one its ecosystem falls back to.
     #[must_use]
     pub fn is_default(&self) -> bool {
         self.default.unwrap_or(false)
@@ -148,8 +150,9 @@ pub struct RegistryLookups {
     /// verifies against.
     pub registries_by_prefix: BTreeMap<String, String>,
     pub registry_options_by_url: BTreeMap<String, RegistryOptions>,
-    /// The indexes declared for each ecosystem other than npm, the one the
-    /// ecosystem resolves from first at the head. npm is absent because its
+    /// The indexes declared for each ecosystem other than npm, the one it
+    /// falls back to at the head. That one is searched last, so the list is
+    /// in declaration order, not search order. npm is absent because its
     /// registries are the three lookups above.
     pub indexes_by_ecosystem: BTreeMap<Ecosystem, Vec<String>>,
 }

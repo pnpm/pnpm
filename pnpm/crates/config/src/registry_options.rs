@@ -51,8 +51,11 @@ impl Config {
         registries::to_resolved_declarations(&self.resolved_registry_lookups())
     }
 
-    /// The `PyPI` indexes to resolve Python packages from, the one searched
-    /// first at the head.
+    /// The `PyPI` indexes to resolve Python packages from, the one the
+    /// install falls back to at the head.
+    ///
+    /// That one is searched last: `Registry::fetch_index` reads the others
+    /// first and takes the first index that has the distribution.
     ///
     /// The `registries` entries that name `ecosystem: pypi`, or
     /// [`DEFAULT_PYPI_INDEX_URL`] when none do.

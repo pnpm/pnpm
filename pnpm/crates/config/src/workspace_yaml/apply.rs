@@ -189,8 +189,14 @@ impl WorkspaceSettings {
         config.registry_options_by_url.extend(lookups.registry_options_by_url);
         // Replaced per ecosystem rather than appended to: the list is
         // ordered, and a layer that names an ecosystem's indexes is naming
-        // the order they are searched in, not adding to someone else's.
+        // that whole list, not adding to someone else's.
         config.indexes_by_ecosystem.extend(lookups.indexes_by_ecosystem);
+        registries::drop_stale_roles(
+            &mut config.registries_by_scope,
+            &mut config.registries_by_prefix,
+            &mut config.registry_options_by_url,
+            &config.indexes_by_ecosystem,
+        );
         declared_prefixes
     }
 

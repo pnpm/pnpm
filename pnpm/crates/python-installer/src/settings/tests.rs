@@ -15,8 +15,10 @@ fn config_with_pypi_indexes(indexes: &[&str]) -> Config {
     config
 }
 
+/// The head of the list is the index the install falls back to, which
+/// `Registry::fetch_index` searches after `extra_urls`.
 #[test]
-fn the_declared_indexes_are_read_in_order_with_the_default_one_first() {
+fn the_index_the_install_falls_back_to_is_separated_from_the_rest() {
     let config = config_with_pypi_indexes(&[
         "https://example.test/simple/",
         "https://extra.test/simple/",

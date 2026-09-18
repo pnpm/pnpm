@@ -4,13 +4,21 @@
 //! npm is absent from those lists: its registries are addressed by the scope
 //! and prefix routes in [`super::RegistryLookups`], while every other
 //! ecosystem resolves from an ordered list of indexes.
+//!
+//! A list is held with the `default` index at its head, and that index is
+//! searched last: the others answer first and the default answers what none
+//! of them had.
 
 use super::{
     LoadWorkspaceYamlError, RegistryDeclaration, normalize_registry_url, quote_and_join,
     redact_registry_url,
 };
+use pnpm_lockfile::RegistryOptions;
 use serde::Deserialize;
-use std::{collections::BTreeMap, fmt};
+use std::{
+    collections::{BTreeMap, BTreeSet},
+    fmt,
+};
 
 /// The package ecosystem whose packages a registry serves.
 ///
@@ -78,11 +86,18 @@ impl DeclaredIndexes {
                 field: field.to_owned(),
             });
         }
+        // Keyed by URL, the map cannot tell that `.../simple` and
+        // `.../simple/` are one index, so two spellings would be counted as
+        // two and could fill both the fallback slot and a searched-first one.
         let normalized = normalize_registry_url(registry);
-        self.urls
-            .entry(ecosystem)
-            .or_default()
-            .push(normalized.clone());
+        let declared = self.urls.entry(ecosystem).or_default();
+        if declared.contains(&normalized) {
+            return Err(LoadWorkspaceYamlError::EcosystemIndexDeclaredTwice {
+                ecosystem: ecosystem.to_string(),
+                registry: redact_registry_url(&normalized),
+            });
+        }
+        declared.push(normalized.clone());
         if declaration.is_default()
             && let Some(other) = self.defaults.insert(ecosystem, normalized.clone())
         {
@@ -130,9 +145,9 @@ fn npm_only_field(declaration: &RegistryDeclaration) -> Option<&'static str> {
 
 /// Record a non-npm entry's index, answering whether it was one.
 ///
-/// The default index goes to the head, because that is the order the
-/// ecosystem searches them in and a map keyed by URL carries no order of its
-/// own.
+/// The default index goes to the head, so that a caller splitting the list
+/// finds it without searching. A map keyed by URL carries no order of its
+/// own, which is why `default` has to be written rather than inferred.
 pub(super) fn collect_index(
     indexes_by_ecosystem: &mut BTreeMap<Ecosystem, Vec<String>>,
     normalized: &str,
@@ -157,7 +172,7 @@ pub(super) fn extend_with_indexes(
     indexes_by_ecosystem: &BTreeMap<Ecosystem, Vec<String>>,
 ) {
     for (&ecosystem, indexes) in indexes_by_ecosystem {
-        // A lone index is the one its ecosystem resolves from whether or not
+        // A lone index is the one its ecosystem falls back to whether or not
         // the map says so, so `default` is written only where it
         // distinguishes this index from another.
         let names_a_default = indexes.len() > 1;
@@ -169,4 +184,33 @@ pub(super) fn extend_with_indexes(
             }
         }
     }
+}
+
+/// Forget the npm routes of a URL a later layer gave to another ecosystem.
+///
+/// Each layer is validated on its own, so a repository may serve a URL to
+/// `PyPI` that the machine had routed npm scopes to. Merging those field by
+/// field would leave one URL in both roles, and rebuilding the declarations
+/// would then produce a `registries` entry that no layer could have written.
+/// The layer that reclassified the URL wins, as it does for every other
+/// setting.
+pub fn drop_stale_roles(
+    registries_by_scope: &mut BTreeMap<String, String>,
+    registries_by_prefix: &mut BTreeMap<String, String>,
+    registry_options_by_url: &mut BTreeMap<String, RegistryOptions>,
+    indexes_by_ecosystem: &BTreeMap<Ecosystem, Vec<String>>,
+) {
+    let indexes: BTreeSet<&str> = indexes_by_ecosystem
+        .values()
+        .flatten()
+        .map(String::as_str)
+        .collect();
+    if indexes.is_empty() {
+        return;
+    }
+    registries_by_scope.retain(|_, registry| !indexes.contains(registry.as_str()));
+    registries_by_prefix.retain(|_, registry| {
+        !indexes.contains(normalize_registry_url(registry).as_str())
+    });
+    registry_options_by_url.retain(|registry, _| !indexes.contains(registry.as_str()));
 }
