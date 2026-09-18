@@ -20,7 +20,7 @@ tools:
 
 `mirror` is the base a tool's own layout hangs off.
 
-`channels` sends one release channel elsewhere. Every channel it does not name is left to `mirror`. Only `node` publishes channels, so naming them for another tool is refused.
+`channels` sends one release channel elsewhere. A channel neither it nor `node-mirror:<channel>` names is left to `mirror`. Only `node` publishes channels, so naming them for another tool is refused.
 
 Set it in the global `config.yaml` or in `PNPM_CONFIG_TOOLS`. A `pnpm-workspace.yaml` that names a tool mirror is ignored.
 
