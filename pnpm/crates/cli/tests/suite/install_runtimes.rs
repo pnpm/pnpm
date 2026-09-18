@@ -208,6 +208,41 @@ fn update_latest_keeps_runtime_dependency_on_the_runtime_resolver() {
     );
 }
 
+/// The pick is stable, so it keeps the declared operator and the channel it
+/// came from is not saved. The mirror is the rc one because only the `release`
+/// channel verifies a detached signature, which no mock can produce.
+#[test]
+fn update_moves_a_devengines_runtime_range_onto_a_stable_pick() {
+    let root = tempfile::tempdir().unwrap();
+    let mut server = mockito::Server::new();
+    let _mocks = mock_node_releases(&mut server, &["24.0.0", "24.1.0"], None);
+    let workspace = prepare_workspace(
+        &root,
+        format!("nodeDownloadMirrors:\n  rc: '{}/'\n", server.url()).as_str(),
+    );
+    write_devengines_manifest(&workspace, "rc/^24.0.0", Some("download"));
+
+    command(&workspace)
+        .with_arg("install")
+        .assert()
+        .success();
+    command(&workspace)
+        .with_arg("update")
+        .assert()
+        .success();
+
+    let manifest = fs::read_to_string(workspace.join("package.json")).unwrap();
+    assert!(
+        manifest.contains(r#""version":"^24.1.0""#),
+        "the declared runtime range moved onto the resolved version: {manifest}",
+    );
+    let lockfile = fs::read_to_string(workspace.join("pnpm-lock.yaml")).unwrap();
+    assert!(
+        lockfile.contains("specifier: runtime:^24.1.0"),
+        "the lockfile specifier agrees with the manifest: {lockfile}",
+    );
+}
+
 /// The pick is a prerelease, which the runtime resolver pins exactly so the rc
 /// channel survives in the version.
 #[test]
