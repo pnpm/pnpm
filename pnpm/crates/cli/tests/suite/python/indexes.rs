@@ -31,6 +31,13 @@ async fn package_routes_cover_transitive_dependencies_and_offline_resolution() {
         .create_async()
         .await;
     project(root.path(), &primary.url(), &["alpha"]);
+    let workspace = root.path().join("pnpm-workspace.yaml");
+    let yaml = fs::read_to_string(&workspace).unwrap();
+    fs::write(
+        &workspace,
+        yaml.replace("    ecosystem: pypi\n", "    ecosystem: pypi\n    packages: ['*']\n"),
+    )
+    .unwrap();
     add_python_registry(root.path(), &format!("{}/simple/", extra.url()), &["alpha"]);
     write_index_credentials(root.path(), &extra.url(), "extra-user:extra-secret");
     pacquet_in(root.path())

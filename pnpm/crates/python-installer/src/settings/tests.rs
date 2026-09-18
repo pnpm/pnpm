@@ -29,7 +29,10 @@ fn package_routes_select_one_index_independent_of_declaration_order() {
                 url: "https://private.test/simple/".to_string(),
                 packages: Some(vec!["Company_*".to_string()]),
             },
-            "https://public.test/simple/".to_string().into(),
+            pnpm_config::EcosystemIndex {
+                url: "https://public.test/simple/".to_string(),
+                packages: Some(vec!["*".to_string()]),
+            },
         ];
         if reverse {
             indexes.reverse();

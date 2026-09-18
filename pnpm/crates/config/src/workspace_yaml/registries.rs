@@ -85,7 +85,7 @@ pub struct RegistryDeclaration {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub ecosystem: Option<Ecosystem>,
     /// Python package names or trailing-prefix patterns routed exclusively here.
-    /// Omitted, or `**`, declares the default Python index.
+    /// Omitted, or `*`, declares the default Python index.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub packages: Option<Vec<String>>,
     #[serde(flatten)]

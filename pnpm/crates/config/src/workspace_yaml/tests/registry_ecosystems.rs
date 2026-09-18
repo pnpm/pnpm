@@ -287,6 +287,8 @@ fn overlapping_python_namespaces_are_rejected_before_resolution() {
         ("alpha", "Alpha"),
         ("Company-*", "company_tools"),
         ("company-*", "company-tool*"),
+        ("*", "*"),
+        ("*", "**"),
         ("**", "**"),
     ] {
         let error = load(&format!("registries:\n  https://one.example.com/:\n    ecosystem: pypi\n    packages: ['{first}']\n  https://two.example.com/:\n    ecosystem: pypi\n    packages: ['{second}']\n")).unwrap_err();
@@ -296,9 +298,14 @@ fn overlapping_python_namespaces_are_rejected_before_resolution() {
 
 #[test]
 fn invalid_python_package_patterns_are_rejected() {
-    for packages in
-        ["[]", "['*']", "['company-**']", "['@scope/*']", "['alpha', 'ALPHA']", "['**', 'alpha']"]
-    {
+    for packages in [
+        "[]",
+        "['company-**']",
+        "['@scope/*']",
+        "['alpha', 'ALPHA']",
+        "['*', 'alpha']",
+        "['**', 'alpha']",
+    ] {
         let error = load(&format!("registries:\n  https://private.example.com/:\n    ecosystem: pypi\n    packages: {packages}\n")).unwrap_err();
         assert!(error.contains("Invalid Python package routes"), "{packages}: {error}");
     }

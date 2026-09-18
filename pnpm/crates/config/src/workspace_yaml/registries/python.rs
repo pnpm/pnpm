@@ -62,7 +62,7 @@ pub(super) enum PythonPattern {
 impl PythonPattern {
     pub(super) fn parse(pattern: &str) -> Result<Self, String> {
         if pattern == "*" {
-            return Err("use ** to declare the default index".to_string());
+            return Ok(Self::Name(PackagePattern::All));
         }
         if pattern != "**"
             && let Some(prefix) = pattern.strip_suffix('*')
@@ -108,6 +108,7 @@ impl PythonPattern {
 
     pub(super) fn normalized(&self) -> String {
         match self {
+            Self::Name(PackagePattern::All) => "*".to_string(),
             Self::Name(pattern) => pattern.to_string(),
             Self::Prefix(prefix) => format!("{prefix}*"),
         }
