@@ -16,6 +16,20 @@ const GIB = 1024 ** 3
 const GIB_PER_JOB = 4
 
 /**
+ * The memory a build may actually use, which inside a container or a cgroup
+ * is the limit rather than what the host has.
+ *
+ * An unconstrained host reports `UINT64_MAX` here, and a runtime that cannot
+ * read the limit reports 0, so only a positive value below the host total is
+ * a real constraint.
+ */
+export function usableMemory (totalMemoryBytes, constrainedMemoryBytes) {
+  return constrainedMemoryBytes > 0 && constrainedMemoryBytes < totalMemoryBytes
+    ? constrainedMemoryBytes
+    : totalMemoryBytes
+}
+
+/**
  * How many rustc jobs or test processes a machine can hold at once: one per
  * [`GIB_PER_JOB`] of memory, never more than it has cores to run.
  */
@@ -31,7 +45,8 @@ export function jobsForMachine (cpus, totalMemoryBytes) {
  * `NEXTEST_TEST_THREADS` still wins for the test phase alone.
  */
 export function parallelismEnv (env = process.env) {
-  const jobs = env.CARGO_BUILD_JOBS ?? String(jobsForMachine(os.availableParallelism(), os.totalmem()))
+  const memory = usableMemory(os.totalmem(), process.constrainedMemory())
+  const jobs = env.CARGO_BUILD_JOBS ?? String(jobsForMachine(os.availableParallelism(), memory))
   return {
     CARGO_BUILD_JOBS: jobs,
     NEXTEST_TEST_THREADS: env.NEXTEST_TEST_THREADS ?? jobs,
