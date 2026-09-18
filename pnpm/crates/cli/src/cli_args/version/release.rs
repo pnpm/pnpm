@@ -94,12 +94,44 @@ async fn plan_workspace_release(
     } = workspace_release_inputs(config, workspace_dir)?;
 
     let filter = filtered_project_dirs(&workspace_projects, config, workspace_dir)?;
+    let plan = assemble_workspace_release_plan(
+        config,
+        workspace_dir,
+        WorkspaceReleaseInputs {
+            intents,
+            ledger,
+            workspace_projects,
+            projects: engine_projects,
+            published_names,
+            private_dirs,
+        },
+        filter.clone(),
+    )
+    .await?;
+    let (plan, inputs) = plan;
+
+    Ok(PlannedWorkspaceRelease {
+        plan,
+        projects: inputs.projects,
+        intents: inputs.intents,
+        published_names: inputs.published_names,
+        private_dirs: inputs.private_dirs,
+        unfiltered: filter.is_none(),
+    })
+}
+
+async fn assemble_workspace_release_plan(
+    config: &Config,
+    workspace_dir: &Path,
+    inputs: WorkspaceReleaseInputs,
+    filter: Option<HashSet<String>>,
+) -> miette::Result<(pnpm_versioning::ReleasePlan, WorkspaceReleaseInputs)> {
     let assemble = |unpublished_dirs: HashSet<String>| {
         assemble_release_plan(
-            &engine_projects,
+            &inputs.projects,
             workspace_dir,
-            &intents,
-            &ledger,
+            &inputs.intents,
+            &inputs.ledger,
             Some(&config.versioning),
             &AssembleReleasePlanOptions {
                 filter: filter.clone(),
@@ -114,21 +146,12 @@ async fn plan_workspace_release(
         &changelog::ReleaseRegistryOptions {
             config,
             workspace_dir,
-            published_names: &published_names,
-            private_dirs: &private_dirs,
+            published_names: &inputs.published_names,
+            private_dirs: &inputs.private_dirs,
         },
     )
     .await?;
-    let plan = assemble(unpublished_dirs)?;
-
-    Ok(PlannedWorkspaceRelease {
-        plan,
-        projects: engine_projects,
-        intents,
-        published_names,
-        private_dirs,
-        unfiltered: filter.is_none(),
-    })
+    Ok((assemble(unpublished_dirs)?, inputs))
 }
 
 fn workspace_release_inputs(
