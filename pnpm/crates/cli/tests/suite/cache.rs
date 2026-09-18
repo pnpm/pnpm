@@ -284,6 +284,61 @@ fn should_report_but_keep_stale_registries_on_a_dry_run() {
     assert!(stale.join("is-positive.jsonl").exists(), "a dry run must remove nothing");
 }
 
+/// A root it cannot read must not cost the user the roots it can. The failure
+/// also has to name the directory: `Permission denied` on its own leaves nobody
+/// anything to fix.
+#[cfg(unix)]
+#[test]
+fn should_prune_the_readable_roots_when_another_root_cannot_be_read() {
+    use std::os::unix::fs::PermissionsExt as _;
+
+    let cwd = CommandTempCwd::init().add_mocked_registry();
+
+    let sealed =
+        cwd.npmrc_info.cache_dir.join(pnpm_resolving_npm_resolver::mirror::ABBREVIATED_META_DIR);
+    fs::create_dir_all(sealed.join("registry.npmjs.org")).unwrap();
+    let reachable = cwd.npmrc_info.cache_dir
+        .join(pnpm_resolving_npm_resolver::mirror::FULL_META_DIR)
+        .join("registry.yarnpkg.com");
+    fs::create_dir_all(&reachable).unwrap();
+    fs::set_permissions(&sealed, fs::Permissions::from_mode(0o000)).unwrap();
+
+    let assertion = cwd.pacquet
+        .with_arg("cache")
+        .with_arg("prune")
+        .assert()
+        .failure();
+    let output = assertion.get_output();
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let stderr = String::from_utf8_lossy(&output.stderr);
+
+    // Restore access before any assertion can panic, so the TempDir's own
+    // cleanup can still descend into it.
+    fs::set_permissions(&sealed, fs::Permissions::from_mode(0o755)).unwrap();
+
+    // miette hard-wraps a long message and gutters the continuations, so the
+    // path arrives split across lines. Compare with every space and gutter
+    // dropped rather than depending on the terminal width it chose.
+    let unwrapped = |text: &str| {
+        text.chars()
+            .filter(|character| !character.is_whitespace() && *character != '│')
+            .collect::<String>()
+    };
+    // The root it names, not the whole absolute path: the message reports the
+    // canonicalized `/private/var` form of a macOS temp dir, where `cache_dir`
+    // holds the `/var` symlink it was built from.
+    assert!(
+        unwrapped(&stderr)
+            .contains(&unwrapped(pnpm_resolving_npm_resolver::mirror::ABBREVIATED_META_DIR)),
+        "failure must name the unreadable directory, got: {stderr}",
+    );
+    assert!(
+        stdout.contains("registry.yarnpkg.com"),
+        "the readable root must still be reclaimed, got: {stdout}",
+    );
+    assert!(!reachable.exists(), "expected {reachable:?} to be pruned");
+}
+
 /// Nothing to reclaim must be a quiet success, not an error or a stray blank
 /// line, because a user runs this to find out whether there is anything there.
 #[test]

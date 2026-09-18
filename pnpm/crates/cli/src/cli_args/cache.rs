@@ -28,7 +28,8 @@ pub enum CacheCommand {
     /// Deletes metadata cache for the specified package(s). Supports patterns.
     Delete { packages: Vec<String> },
     /// Deletes registry metadata cache directories that this version of pnpm
-    /// can no longer read.
+    /// can no longer read. Leaves the descriptor-scoped caches under
+    /// `metadata-private` alone, as the other subcommands do.
     Prune {
         /// Lists what would be deleted without removing anything.
         #[arg(long)]
@@ -238,50 +239,77 @@ impl CacheCommand {
     /// registry key rather than its decoded URL because that is the name on
     /// disk. `dry_run` prints the same list and removes nothing.
     ///
-    /// One root failing does not abandon the others, and the directories
-    /// already removed are still reported, so an interrupted prune says what it
-    /// managed to reclaim rather than only what stopped it.
+    /// A root that cannot be read or a directory that cannot be removed does
+    /// not abandon the remaining roots, and every such failure is reported
+    /// rather than only the first, so one unwritable directory does not turn
+    /// reclaiming a cache into a rerun for each of them. The directories that
+    /// did go are still printed.
     ///
     /// The descriptor-scoped roots under `v11/metadata-private` are left alone,
     /// as every other `pnpm cache` subcommand leaves them alone.
     fn prune(config: &Config, dry_run: bool) -> miette::Result<()> {
-        let mut pruned: Vec<String> = Vec::new();
-        let mut failure = None;
-        for (label, path) in Self::prune_candidates(config)? {
-            match remove_pruned_dir(&path, dry_run) {
-                Ok(()) => pruned.push(label),
-                Err(error) => failure = failure.or(Some(error)),
-            }
-        }
-        pruned.sort();
-        if !pruned.is_empty() {
-            println!("{}", pruned.join("\n"));
-        }
-        failure.map_or(Ok(()), Err)
-    }
-
-    /// Every unreadable mirror directory across the roots `delete` also walks,
-    /// each labelled `<meta-dir>/<registry-key>`.
-    fn prune_candidates(config: &Config) -> miette::Result<Vec<(String, PathBuf)>> {
-        let mut candidates = Vec::new();
+        let mut outcome = PruneOutcome::default();
         for meta_dir in [ABBREVIATED_META_DIR, FULL_META_DIR, FULL_FILTERED_META_DIR] {
-            let dir = config.cache_dir.join(meta_dir);
-            for (registry_key, path) in unreadable_registry_dirs(&dir)? {
-                candidates.push((format!("{meta_dir}/{registry_key}"), path));
-            }
+            outcome.prune_root(&config.cache_dir.join(meta_dir), meta_dir, dry_run);
         }
-        Ok(candidates)
+        outcome.report(dry_run)
     }
 }
 
-fn remove_pruned_dir(path: &Path, dry_run: bool) -> miette::Result<()> {
+/// What one `pnpm cache prune` managed and what it could not.
+#[derive(Default)]
+struct PruneOutcome {
+    pruned: Vec<String>,
+    failures: Vec<String>,
+}
+
+impl PruneOutcome {
+    /// Reclaim one mirror root, recording each directory removed and each
+    /// failure. Reading the root is itself a failure that leaves the other
+    /// roots to the caller.
+    fn prune_root(&mut self, dir: &Path, meta_dir: &str, dry_run: bool) {
+        let candidates = match unreadable_registry_dirs(dir) {
+            Ok(candidates) => candidates,
+            Err(error) => return self.failures.push(error),
+        };
+        for (registry_key, path) in candidates {
+            match remove_pruned_dir(&path, dry_run) {
+                Ok(()) => self.pruned.push(format!("{meta_dir}/{registry_key}")),
+                Err(error) => self.failures.push(error),
+            }
+        }
+    }
+
+    /// Print the reclaimed directories on stdout, and fail if anything could
+    /// not be reclaimed.
+    ///
+    /// A dry run's stdout is byte-identical to the real thing so the two can be
+    /// diffed and the list piped onward; the notice that nothing was deleted
+    /// goes to stderr, where it reaches a reader without entering that list.
+    fn report(mut self, dry_run: bool) -> miette::Result<()> {
+        self.pruned.sort();
+        if !self.pruned.is_empty() {
+            if dry_run {
+                eprintln!("Dry run: {} directories would be deleted.", self.pruned.len());
+            }
+            println!("{}", self.pruned.join("\n"));
+        }
+        if self.failures.is_empty() {
+            return Ok(());
+        }
+        let report = self.failures.join("\n");
+        Err(miette::miette!("{report}"))
+    }
+}
+
+/// `Err` carries the message to report, naming the directory, because a bare
+/// `Permission denied` leaves the user nothing to act on.
+fn remove_pruned_dir(path: &Path, dry_run: bool) -> Result<(), String> {
     if dry_run {
         return Ok(());
     }
     fs::remove_dir_all(path)
-        .map_err(|error| {
-            miette::miette!("Failed to remove metadata cache directory {path:?}: {error}")
-        })
+        .map_err(|error| format!("Failed to remove metadata cache directory {path:?}: {error}"))
 }
 
 /// The `(registry key, path)` of every directory in one mirror root that
@@ -291,14 +319,12 @@ fn remove_pruned_dir(path: &Path, dry_run: bool) -> miette::Result<()> {
 /// has nothing to reclaim. Any other read failure is an error: reporting it as
 /// an empty result would tell the user there is nothing stale to reclaim when
 /// the directory was never read.
-fn unreadable_registry_dirs(dir: &Path) -> miette::Result<Vec<(String, PathBuf)>> {
+fn unreadable_registry_dirs(dir: &Path) -> Result<Vec<(String, PathBuf)>, String> {
     let entries = match fs::read_dir(dir) {
         Ok(entries) => entries,
         Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(Vec::new()),
         Err(error) => {
-            return Err(miette::miette!(
-                "Failed to read metadata cache directory {dir:?}: {error}"
-            ));
+            return Err(format!("Failed to read metadata cache directory {dir:?}: {error}"));
         }
     };
     Ok(entries

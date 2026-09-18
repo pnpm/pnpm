@@ -13,4 +13,4 @@ The first install after upgrading refetches registry metadata once. The package 
 
 `pnpm cache view` now labels each entry with the full registry URL. It printed `registry.npmjs.org` before and prints `https://registry.npmjs.org/` now.
 
-`pnpm cache list-registries` and `pnpm cache list` print the new directory names. Scripts that parse either command need updating.
+`pnpm cache list` prints the new directory names. Scripts that parse it need updating.
