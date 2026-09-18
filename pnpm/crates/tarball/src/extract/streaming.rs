@@ -1,7 +1,7 @@
 use super::{
-    Archive, CafsFileInfo, HashMap, IgnoreEntryFilter, PackageFilesIndex, PathBuf, PendingFile,
-    Read, StoreDir, TarballError, clean_archive_entry_path, file_mode,
-    files_include_install_scripts, write_pending_files,
+    Archive, BuildTriggers, CafsFileInfo, HashMap, IgnoreEntryFilter, PackageFilesIndex, PathBuf,
+    PendingFile, Read, StoreDir, TarballError, clean_archive_entry_path, file_mode,
+    write_pending_files,
 };
 
 /// Body chunks in flight between the download loop and the extractor.
@@ -159,7 +159,7 @@ pub(crate) fn extract_tarball_entries_streaming(
         let Some(meta) = entry_meta(&entry, ignore_file_pattern)? else {
             continue;
         };
-        extract.build_hooks |= files_include_install_scripts([meta.cleaned_path.as_str()]);
+        extract.triggers.add_file(&meta.cleaned_path);
         extract.add_entry(&mut entry, meta)?;
     }
     extract.finish()
@@ -211,7 +211,7 @@ pub(super) struct StreamingExtract<'a> {
     pub(super) batch: Vec<PendingFile<'static>>,
     pub(super) batch_bytes: usize,
     pub(super) manifest: Option<serde_json::Value>,
-    pub(super) build_hooks: bool,
+    pub(super) triggers: BuildTriggers,
 }
 
 pub(super) fn truncated_entry_error() -> TarballError {

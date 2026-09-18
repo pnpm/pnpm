@@ -240,6 +240,18 @@ test('runLifecycleHook() should throw an error while missing script start or fil
   ).rejects.toThrow(new PnpmError('NO_SCRIPT_OR_SERVER', 'Missing script start or file server.js'))
 })
 
+test('gypfile: false does not trigger node-gyp rebuild', async () => {
+  const ranAScript = await runPostinstallHooks({
+    depPath: '/gyp-with-gypfile-false/1.0.0',
+    optional: false,
+    pkgRoot: f.find('gyp-with-gypfile-false'),
+    rootModulesDir,
+    unsafePerm: true,
+  })
+
+  expect(ranAScript).toBe(false)
+})
+
 test('preinstall script does not trigger node-gyp rebuild', async () => {
   const pkgRoot = f.find('gyp-with-preinstall')
   await using server = await createTestIpcServer(path.join(pkgRoot, 'test.sock'))

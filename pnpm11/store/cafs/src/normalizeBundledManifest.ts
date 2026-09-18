@@ -10,6 +10,7 @@ const BUNDLED_MANIFEST_FIELDS: Array<keyof BaseManifest> = [
   'devDependencies',
   'directories',
   'engines',
+  'gypfile',
   'libc',
   'name',
   'optionalDependencies',

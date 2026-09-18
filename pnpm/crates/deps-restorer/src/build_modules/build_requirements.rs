@@ -1,9 +1,9 @@
 use super::slots::PkgRoots;
 use pnpm_lockfile::{PackageKey, SnapshotEntry};
 use pnpm_package_manifest::{
-    file_path_requires_build, manifest_requires_build, parse_manifest, pkg_requires_build,
+    BINDING_GYP, files_build_triggers, parse_manifest, pkg_build_triggers, pkg_requires_build,
 };
-use pnpm_patching::{ExtendedPatchInfo, preview_patch};
+use pnpm_patching::{ExtendedPatchInfo, MANIFEST_FILE_NAME, preview_patch};
 use std::collections::HashMap;
 
 /// Whether each configured patch adds build work its package's published
@@ -138,11 +138,18 @@ pub(super) fn patch_added_build_by_package(
     }
     answers
 }
-/// Whether previewing the configured patch shows it adding build work.
+/// Whether the package the configured patch would leave needs a build pass.
 ///
-/// The same two triggers `pkg_requires_build` reads off an extracted package:
-/// the manifest's install scripts, and the presence of `binding.gyp` /
-/// `.hooks/`. A patch can add either. `None` when nothing can be previewed.
+/// The same triggers `pkg_requires_build` reads off an extracted package: the
+/// manifest's install scripts, and the presence of `.hooks/` or a `binding.gyp`
+/// the manifest does not opt out of. `None` when nothing can be previewed.
+///
+/// Answered for the whole patched package rather than for the patch alone,
+/// because the `gypfile` opt-out couples the two: a package can ship a
+/// `binding.gyp` *and* `gypfile: false`, which leaves it build-free until a
+/// patch rewrites the manifest. The `binding.gyp` the build then needs is one
+/// the package already had, so a trigger set built only from the patch's own
+/// written paths would miss it.
 pub(super) fn previewed_patch_adds_build(
     patches: &HashMap<PackageKey, ExtendedPatchInfo>,
     metadata_key: &PackageKey,
@@ -152,12 +159,30 @@ pub(super) fn previewed_patch_adds_build(
     let patch_file_path = patches.get(metadata_key)?.patch_file_path.as_deref()?;
     let pkg_root = pkg_roots.canonical(key)?;
     let preview = preview_patch(&pkg_root, patch_file_path).ok()?;
-    Some(
-        preview.written_paths.iter().any(|path| file_path_requires_build(path))
-            || preview.manifest.is_some_and(|manifest| {
-                parse_manifest(&manifest).is_ok_and(|manifest| manifest_requires_build(&manifest))
-            }),
-    )
+    let mut triggers = pkg_build_triggers(&pkg_root);
+    // A `binding.gyp` the patch deletes leaves no gyp build to synthesize, and a
+    // manifest it deletes leaves no scripts and no `gypfile` to opt a surviving
+    // `binding.gyp` out. `.hooks/` is not subtracted the same way: one deleted
+    // entry does not empty the directory, and a package that ships one already
+    // answers `true` to `published_requires_build`, so it never reaches this
+    // preview.
+    for removed in &preview.removed_paths {
+        match removed.as_str() {
+            BINDING_GYP => triggers.binding_gyp = false,
+            MANIFEST_FILE_NAME => triggers.forget_manifest(),
+            _ => {}
+        }
+    }
+    triggers.add_files(files_build_triggers(&preview.written_paths));
+    // A rewritten manifest replaces the published one the triggers were read
+    // from, so its scripts and its `gypfile` value are what the build sees.
+    if let Some(patched) = preview.manifest
+        .as_deref()
+        .and_then(|raw| parse_manifest(raw).ok())
+    {
+        triggers.read_manifest(&patched);
+    }
+    Some(triggers.requires_build())
 }
 /// The snapshots `--ignore-scripts` kept from building, sorted for a
 /// stable `.modules.yaml`.
