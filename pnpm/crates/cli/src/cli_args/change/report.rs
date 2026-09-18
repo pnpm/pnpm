@@ -41,6 +41,13 @@ pub(super) async fn render_status(options: RenderStatusOptions<'_>) -> miette::R
     if plan.releases.is_empty() {
         return Ok("No pending changes.".to_string());
     }
+    Ok(render_pending_change_intents(&intents, &plan))
+}
+
+fn render_pending_change_intents(
+    intents: &[pnpm_versioning::ChangeIntent],
+    plan: &ReleasePlan,
+) -> String {
     let consumed_ids: std::collections::HashSet<&str> = plan.releases
         .iter()
         .flat_map(|release| release.intents.iter().map(|intent| intent.id.as_str()))
@@ -55,7 +62,7 @@ pub(super) async fn render_status(options: RenderStatusOptions<'_>) -> miette::R
     }
     output.push('\n');
     output.push_str(&render_release_plan(&plan));
-    Ok(output)
+    output
 }
 
 /// Fails with every violation [`check_versioning_invariants`] found, listed.

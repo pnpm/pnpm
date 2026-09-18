@@ -71,18 +71,29 @@ struct PlannedWorkspaceRelease {
     unfiltered: bool,
 }
 
+struct WorkspaceReleaseInputs {
+    intents: Vec<pnpm_versioning::ChangeIntent>,
+    ledger: pnpm_versioning::Ledger,
+    workspace_projects: Vec<pnpm_workspace::Project>,
+    projects: Vec<pnpm_versioning::WorkspaceProject>,
+    published_names: HashMap<String, String>,
+    private_dirs: HashSet<String>,
+}
+
 async fn plan_workspace_release(
     config: &Config,
     workspace_dir: &Path,
 ) -> miette::Result<PlannedWorkspaceRelease> {
-    let intents = read_change_intents(workspace_dir)?;
-    let ledger = read_ledger(workspace_dir)?;
-    let (projects, _) = discover_workspace_projects(workspace_dir, config)?;
-    let engine_projects = to_engine_projects(&projects);
-    let published_names = changelog::published_names(&projects);
-    let private_dirs = private_project_dirs(&projects, workspace_dir);
+    let WorkspaceReleaseInputs {
+        intents,
+        ledger,
+        workspace_projects,
+        projects: engine_projects,
+        published_names,
+        private_dirs,
+    } = workspace_release_inputs(config, workspace_dir)?;
 
-    let filter = filtered_project_dirs(&projects, config, workspace_dir)?;
+    let filter = filtered_project_dirs(&workspace_projects, config, workspace_dir)?;
     let assemble = |unpublished_dirs: HashSet<String>| {
         assemble_release_plan(
             &engine_projects,
@@ -117,6 +128,26 @@ async fn plan_workspace_release(
         published_names,
         private_dirs,
         unfiltered: filter.is_none(),
+    })
+}
+
+fn workspace_release_inputs(
+    config: &Config,
+    workspace_dir: &Path,
+) -> miette::Result<WorkspaceReleaseInputs> {
+    let intents = read_change_intents(workspace_dir)?;
+    let ledger = read_ledger(workspace_dir)?;
+    let (projects, _) = discover_workspace_projects(workspace_dir, config)?;
+    let engine_projects = to_engine_projects(&projects);
+    let published_names = changelog::published_names(&projects);
+    let private_dirs = private_project_dirs(&projects, workspace_dir);
+    Ok(WorkspaceReleaseInputs {
+        intents,
+        ledger,
+        workspace_projects: projects,
+        projects: engine_projects,
+        published_names,
+        private_dirs,
     })
 }
 
