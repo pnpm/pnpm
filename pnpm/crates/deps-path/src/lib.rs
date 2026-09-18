@@ -17,7 +17,7 @@ pub use link_path_to_peer_version::link_path_to_peer_version;
 pub use peer_id::PeerId;
 pub use registry_qualified::{
     RESERVED_VERSION_PREFIXES, is_reserved_version_prefix, is_well_formed_registry_name,
-    parse_registry_qualified_version,
+    parse_registry_qualified_version, shadows_reserved_version_prefix,
 };
 pub use suffix_index::{
     DepPathSuffixIndex, get_pkg_id_with_patch_hash, index_of_dep_path_suffix, remove_suffix,

@@ -73,7 +73,7 @@ pub fn merge_named_registries(
     user_defined: &HashMap<String, String>,
 ) -> Result<HashMap<String, String>, MergeNamedRegistriesError> {
     for (alias, url) in user_defined {
-        if pnpm_deps_path::is_reserved_version_prefix(alias) {
+        if pnpm_deps_path::shadows_reserved_version_prefix(alias) {
             return Err(MergeNamedRegistriesError::ReservedAlias { alias: alias.clone() });
         }
         if !pnpm_deps_path::is_well_formed_registry_name(alias) {

@@ -151,11 +151,11 @@ fn add_global<'a>(ctx: &RunCtx<'a>, args: AddArgs) -> miette::Result<CommandFutu
 /// before that.
 fn check_specifier_combination(args: &AddArgs, plan: &PackageSpecifierPlan) -> miette::Result<()> {
     if args.dependency_options.save_build() && !plan.has_cargo() {
-        return Err(miette::miette!("--save-build requires at least one crate: dependency"));
+        return Err(miette::miette!("--save-build requires at least one Cargo dependency"));
     }
     if args.target.workspace && (plan.has_cargo() || plan.has_python()) {
         return Err(miette::miette!(
-            "--workspace cannot be combined with crate: or pypi: dependencies"
+            "--workspace cannot be combined with Cargo or Python dependencies"
         ));
     }
     if args.target.workspace && args.target.config {
@@ -169,20 +169,20 @@ fn check_specifier_combination(args: &AddArgs, plan: &PackageSpecifierPlan) -> m
 fn check_non_npm_targets(args: &AddArgs, plan: &PackageSpecifierPlan) -> miette::Result<()> {
     if args.target.global {
         if plan.has_cargo() {
-            return Err(miette::miette!("crate: dependencies cannot be installed globally"));
+            return Err(miette::miette!("Cargo dependencies cannot be installed globally"));
         }
         if plan.has_python() {
-            return Err(miette::miette!("pypi: dependencies cannot be installed globally"));
+            return Err(miette::miette!("Python dependencies cannot be installed globally"));
         }
     }
     if args.target.config {
         if plan.has_cargo() {
-            return Err(miette::miette!(
-                "crate: dependencies cannot be configuration dependencies"
-            ));
+            return Err(miette::miette!("Cargo dependencies cannot be configuration dependencies"));
         }
         if plan.has_python() {
-            return Err(miette::miette!("pypi: dependencies cannot be configuration dependencies"));
+            return Err(miette::miette!(
+                "Python dependencies cannot be configuration dependencies"
+            ));
         }
     }
     Ok(())

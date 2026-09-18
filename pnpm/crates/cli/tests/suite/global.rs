@@ -297,6 +297,43 @@ fn global_add_creates_a_missing_global_bin_dir() {
     drop(root);
 }
 
+/// `pnpm add -g node@22.0.0` installs the Node.js runtime, because a bare
+/// tool name names the tool. A Package URL names a package in a registry,
+/// so the global path has to install that package instead — the mark a purl
+/// carries reaches `tool_install_selectors` through the group each request
+/// splits into.
+#[cfg(unix)]
+#[test]
+fn global_add_installs_the_npm_package_a_purl_names() {
+    use assert_cmd::assert::OutputAssertExt;
+
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+
+    let pnpm_home = root.path().join("pnpm-home");
+    let global_pkg_dir = pnpm_home.join("global").join("v11");
+    prepare_global_home(&pnpm_home, &npmrc_info);
+
+    global_command(&workspace, &pnpm_home)
+        .with_args(["add", "-g", "pkg:npm/node@22.0.0"])
+        .assert()
+        .success();
+
+    let links = symlink_entries(&global_pkg_dir);
+    assert_eq!(links.len(), 1, "exactly one cache-keyed hash symlink should exist: {links:?}");
+    let install_dir = global_pkg_dir.join(fs::read_link(&links[0]).expect("read the hash symlink"));
+    let manifest = fs::read_to_string(install_dir.join("package.json"))
+        .expect("read the global group manifest");
+    assert!(manifest.contains(r#""node": "22.0.0""#), "{manifest}");
+    assert!(
+        install_dir.join("node_modules/.pnpm/node@22.0.0").exists(),
+        "the npm package the purl names must be the one installed",
+    );
+
+    drop(npmrc_info);
+    drop(root);
+}
+
 /// A global add must materialize the added package's transitive
 /// `optionalDependencies` in the group's virtual store: a missing slot
 /// dangles the alias symlink, and the globally installed bin then fails at

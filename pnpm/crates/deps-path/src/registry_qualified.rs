@@ -29,9 +29,29 @@ pub fn is_reserved_version_prefix(name: &str) -> bool {
     RESERVED_VERSION_PREFIXES.contains(&name)
 }
 
+/// The reserved prefixes a selector may spell in any case, because the
+/// notation they are read as is case-insensitive.
+const CASE_INSENSITIVE_PREFIXES: &[&str] = &["pkg"];
+
+/// Whether `name` would shadow a reserved prefix if a named registry were
+/// called that.
+///
+/// A prefix pnpm writes itself is read back exactly
+/// ([`is_reserved_version_prefix`]), so an alias shadows one only by
+/// spelling it exactly. A Package URL's `pkg` is a URL scheme, and a URL
+/// scheme is case-insensitive, so `PKG:npm/lodash` is a purl and an alias
+/// may not spell that one in any case either.
+#[must_use]
+pub fn shadows_reserved_version_prefix(name: &str) -> bool {
+    is_reserved_version_prefix(name)
+        || CASE_INSENSITIVE_PREFIXES
+            .iter()
+            .any(|prefix| prefix.eq_ignore_ascii_case(name))
+}
+
 /// Whether `name` is syntactically usable as a named-registry alias in a
 /// registry-qualified dep path. Does not check the reserved list —
-/// see [`is_reserved_version_prefix`] for that.
+/// see [`shadows_reserved_version_prefix`] for that.
 #[must_use]
 pub fn is_well_formed_registry_name(name: &str) -> bool {
     let mut chars = name.chars();
