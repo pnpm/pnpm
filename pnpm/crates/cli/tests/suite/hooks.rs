@@ -387,7 +387,9 @@ fn update_config_applies_to_patch_commit_and_patch_remove() {
 
 /// Without a `pnpm-workspace.yaml` or a pnpmfile, `patch-commit` creates
 /// the workspace manifest for the `patchedDependencies` it records, and
-/// the install that follows resolves the patch against it.
+/// the install that follows resolves the patch against it. Run from
+/// outside the project through `--dir`, so the manifest is anchored at
+/// the project rather than the working directory.
 #[test]
 fn patch_commit_without_a_workspace_manifest_applies_the_patch() {
     assert_patch_commit_and_remove_apply_the_patch(PatchProject::Bare);
@@ -397,7 +399,8 @@ fn patch_commit_without_a_workspace_manifest_applies_the_patch() {
 enum PatchProject {
     /// The harness workspace manifest plus the marker hook.
     HookedWorkspace,
-    /// No workspace manifest and no pnpmfile.
+    /// No workspace manifest and no pnpmfile, run from the parent
+    /// directory with `--dir`.
     Bare,
 }
 
@@ -428,7 +431,8 @@ fn assert_patch_commit_and_remove_apply_the_patch(project: PatchProject) {
         if hooked {
             run_with_marker_hook(&workspace, args)
         } else {
-            pacquet_in(&workspace)
+            pacquet_in(root.path())
+                .with_args(["--dir", workspace.to_str().expect("utf8 workspace")])
                 .with_args(args)
                 .output()
                 .expect("run the command")
@@ -461,6 +465,16 @@ fn assert_patch_commit_and_remove_apply_the_patch(project: PatchProject) {
     assert_success(&commit_args, &output);
     let installed = fs::read_to_string(&installed_index).expect("read the installed package");
     assert!(installed.contains("patched"), "the install after patch-commit applies the patch");
+    let manifest = fs::read_to_string(workspace.join("pnpm-workspace.yaml"))
+        .expect("patch-commit records the patch in the project's workspace manifest");
+    assert!(manifest.contains(&patched), "the workspace manifest lists the patch:\n{manifest}");
+    assert!(
+        !root
+            .path()
+            .join("pnpm-workspace.yaml")
+            .exists(),
+        "nothing is written to the working directory",
+    );
 
     let remove_args = ["patch-remove", &patched];
     let output = run(&remove_args);
