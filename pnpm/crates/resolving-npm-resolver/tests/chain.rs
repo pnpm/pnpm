@@ -25,3 +25,15 @@ fn reserved_scheme_aliases_are_rejected() {
         );
     }
 }
+
+/// Only a prefix a selector may spell in any case is reserved that way: a
+/// `npm:` specifier is read exactly, so `Npm` stays usable as an alias.
+#[test]
+fn a_mixed_case_alias_is_reserved_only_where_its_prefix_is() {
+    let mut user = HashMap::new();
+    user.insert("Npm".to_string(), "https://npm.work.example.com/".to_string());
+
+    let merged = merge_named_registries(&user).expect("Npm does not shadow a reserved prefix");
+
+    assert_eq!(merged.get("Npm").map(String::as_str), Some("https://npm.work.example.com/"));
+}

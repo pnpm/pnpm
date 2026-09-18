@@ -34,12 +34,16 @@ fn well_formed_registry_names() {
 }
 
 /// A dep path carries the prefix pnpm wrote, so reading one back matches it
-/// exactly, while an alias a user chose is rejected in any case.
+/// exactly. An alias is rejected in any case only for a prefix a selector
+/// may spell in any case.
 #[test]
-fn an_alias_shadows_a_reserved_prefix_in_any_case() {
+fn an_alias_shadows_a_case_insensitive_prefix_in_any_case() {
     assert!(shadows_reserved_version_prefix("pkg"));
     assert!(shadows_reserved_version_prefix("PKG"));
-    assert!(shadows_reserved_version_prefix("Npm"));
+    assert!(shadows_reserved_version_prefix("Pkg"));
+    assert!(shadows_reserved_version_prefix("npm"));
+    // `npm:` is read exactly, so `Npm:lodash` names a registry called `Npm`.
+    assert!(!shadows_reserved_version_prefix("Npm"));
     assert!(!shadows_reserved_version_prefix("work"));
     assert!(!shadows_reserved_version_prefix("pkgs"));
     assert_eq!(parse_registry_qualified_version("PKG:1.0.0").map(|(name, _)| name), Some("PKG"));

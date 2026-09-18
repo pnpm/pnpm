@@ -2,4 +2,4 @@
 "pacquet": patch
 ---
 
-pnpm rejects a `registries` entry whose name matches a reserved specifier prefix in any case, such as `PKG` or `Npm`. A selector like `pnpm add PKG:foo` reads the prefix rather than the registry, so such an entry could not be used.
+pnpm rejects a `registries` entry named `pkg` in any case, such as `PKG` or `Pkg`. A Package URL's scheme is case-insensitive, so `pnpm add PKG:foo` reads the scheme rather than the registry, and such an entry could not be used.
