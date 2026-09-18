@@ -97,6 +97,12 @@ pub enum LoadWorkspaceYamlError {
         help("pnpm resolves Cargo dependencies from one sparse index. Declare the one to use.")
     )]
     CargoIndexDeclaredTwice { registries: String },
+    #[display("Invalid Python package routes for {registry:?}: {reason}")]
+    #[diagnostic(code(ERR_PNPM_INVALID_SETTING))]
+    InvalidPythonRegistryPackages { registry: String, reason: String },
+    #[display("The Python package pattern {pattern:?} is routed to two registries: {registries}")]
+    #[diagnostic(code(ERR_PNPM_INVALID_SETTING))]
+    PythonPackageRoutedTwice { pattern: String, registries: String },
     #[display("The \"pipelines['{pipeline}']\" setting contains an entry with no task name")]
     #[diagnostic(code(ERR_PNPM_INVALID_SETTING))]
     EmptyPipelineTaskName { pipeline: String },

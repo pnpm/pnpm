@@ -119,15 +119,10 @@ impl Registry<'_> {
     pub(super) async fn fetch_index(&mut self, name: &PackageName) -> Result<()> {
         self.resolution.packages.candidates.insert(name.clone(), BTreeMap::new());
         self.resolution.packages.excluded.insert(name.clone(), Excluded::default());
-        for index in self.index.extra_urls
-            .iter()
-            .chain(std::iter::once(&self.index.url))
-        {
-            let page = self.read_index(index, name).await?;
-            if !page.missing {
-                self.resolution.offer(name, &page)?;
-                break;
-            }
+        let index = self.index.select(name.as_ref())?;
+        let page = self.read_index(index, name).await?;
+        if !page.missing {
+            self.resolution.offer(name, &page)?;
         }
         self.resolution.downloaded.insert(name.clone());
         if self.resolution.packages.candidates[name]

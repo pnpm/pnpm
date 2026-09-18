@@ -42,7 +42,10 @@ pub use workspace_yaml::{
     ToolSettings, UnrecognizedTaskSettings, UpdateConfig, UpdateSettings,
     WORKSPACE_MANIFEST_FILENAME, WorkspaceKeyIssues, WorkspaceSettings, decided_allow_builds,
     package_configs::{self, PackageConfigsSetting, ProjectConfig, ProjectConfigMultiMatch},
-    registries::{self, Ecosystem, RegistryDeclaration, RegistryEntry, RegistryLookups},
+    registries::{
+        self, Ecosystem, EcosystemIndex, PythonRegistryRoute, RegistryDeclaration, RegistryEntry,
+        RegistryLookups,
+    },
     workspace_root_or,
 };
 

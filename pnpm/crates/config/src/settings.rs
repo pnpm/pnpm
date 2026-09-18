@@ -621,16 +621,9 @@ pub struct Config {
     /// The `registries` setting.
     pub registry_options_by_url: BTreeMap<String, RegistryOptions>,
 
-    /// The indexes each non-npm ecosystem resolves from, in the order the
-    /// configuration declares them, which is the order they are searched.
-    /// From the `registries` entries that name an `ecosystem`.
-    /// npm is absent: its registries are the three lookups above, which
-    /// carry the scope and prefix routing npm packages are addressed by.
-    ///
-    /// Read through [`Config::python_indexes`] and
-    /// [`Config::cargo_index_url`], which answer with the ecosystem's
-    /// default index when the configuration names none.
-    pub indexes_by_ecosystem: BTreeMap<Ecosystem, Vec<String>>,
+    /// The indexes and exclusive package routes declared for non-npm ecosystems.
+    /// Read through `python_indexes` and `cargo_index_url`.
+    pub indexes_by_ecosystem: BTreeMap<Ecosystem, Vec<crate::EcosystemIndex>>,
 
     /// Resolved proxy configuration — `https-proxy`, `http-proxy`, and
     /// `no-proxy` (plus the legacy `proxy` key and env-var fallbacks),

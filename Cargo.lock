@@ -4782,6 +4782,7 @@ dependencies = [
  "pnpm-testing-utils",
  "pnpm-versioning",
  "pnpm-workspace-state",
+ "pnpr-registry",
  "pretty_assertions",
  "serde",
  "serde-saphyr",

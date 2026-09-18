@@ -8,36 +8,81 @@ fn config_with_pypi_indexes(indexes: &[&str]) -> Config {
             Ecosystem::Pypi,
             indexes
                 .iter()
-                .map(|index| (*index).to_string())
+                .map(|index| (*index).to_string().into())
                 .collect(),
         );
+    }
+    if let Some(indexes) = config.indexes_by_ecosystem.get_mut(&Ecosystem::Pypi) {
+        for (i, index) in indexes.iter_mut().enumerate().skip(1) {
+            index.packages = Some(vec![format!("package{i}")]);
+        }
     }
     config
 }
 
-/// `Registry::fetch_index` reads `extra_urls` and then `url`, so the index
-/// declared last is the one that answers what none before it had.
 #[test]
-fn the_index_declared_last_is_the_one_searched_last() {
-    let config = config_with_pypi_indexes(&[
-        "https://first.test/simple/",
-        "https://second.test/simple/",
-        "https://last.test/simple/",
-    ]);
+fn package_routes_select_one_index_independent_of_declaration_order() {
+    for reverse in [false, true] {
+        let mut config = Config::default();
+        let mut indexes = vec![
+            pnpm_config::EcosystemIndex {
+                url: "https://private.test/simple/".to_string(),
+                packages: Some(vec!["Company_*".to_string()]),
+            },
+            pnpm_config::EcosystemIndex {
+                url: "https://public.test/simple/".to_string(),
+                packages: Some(vec!["*".to_string()]),
+            },
+        ];
+        if reverse {
+            indexes.reverse();
+        }
+        config.indexes_by_ecosystem.insert(Ecosystem::Pypi, indexes);
+        let index = python_index(&config).unwrap();
+        assert_eq!(
+            index
+                .select("company-tools")
+                .unwrap()
+                .as_str(),
+            "https://private.test/simple/",
+        );
+        assert_eq!(
+            index
+                .select("requests")
+                .unwrap()
+                .as_str(),
+            "https://public.test/simple/",
+        );
+        assert_eq!(index.url.as_str(), "https://public.test/simple/");
+        assert!(!index.can_resolve_remotely());
+    }
+}
+
+#[test]
+fn restricted_indexes_do_not_implicitly_enable_pypi() {
+    let mut config = Config::default();
+    config.indexes_by_ecosystem.insert(
+        Ecosystem::Pypi,
+        vec![pnpm_config::EcosystemIndex {
+            url: "https://private.test/simple/".to_string(),
+            packages: Some(vec!["alpha".to_string()]),
+        }],
+    );
     let index = python_index(&config).unwrap();
-    assert_eq!(index.url.as_str(), "https://last.test/simple/");
-    let extras: Vec<&str> = index.extra_urls
-        .iter()
-        .map(url::Url::as_str)
-        .collect();
-    assert_eq!(extras, ["https://first.test/simple/", "https://second.test/simple/"]);
+    assert!(
+        index
+            .select("beta")
+            .unwrap_err()
+            .to_string()
+            .contains("No Python registry claims"),
+    );
 }
 
 #[test]
 fn a_configuration_naming_no_index_resolves_from_pypi() {
     let index = python_index(&config_with_pypi_indexes(&[])).unwrap();
     assert_eq!(index.url.as_str(), pnpm_config::DEFAULT_PYPI_INDEX_URL);
-    assert!(index.extra_urls.is_empty());
+    assert!(index.can_resolve_remotely());
 }
 
 #[test]
