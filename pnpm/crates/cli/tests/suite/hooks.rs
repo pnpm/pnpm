@@ -387,9 +387,7 @@ fn update_config_applies_to_patch_commit_and_patch_remove() {
 
 /// Without a `pnpm-workspace.yaml` or a pnpmfile, `patch-commit` creates
 /// the workspace manifest for the `patchedDependencies` it records, and
-/// the install that follows resolves the patch against it. Run from
-/// outside the project through `--dir`, so the manifest is anchored at
-/// the project rather than the working directory.
+/// the install that follows resolves the patch against it.
 #[test]
 fn patch_commit_without_a_workspace_manifest_applies_the_patch() {
     assert_patch_commit_and_remove_apply_the_patch(PatchProject::Bare);
@@ -399,8 +397,7 @@ fn patch_commit_without_a_workspace_manifest_applies_the_patch() {
 enum PatchProject {
     /// The harness workspace manifest plus the marker hook.
     HookedWorkspace,
-    /// No workspace manifest and no pnpmfile, run from the parent
-    /// directory with `--dir`.
+    /// No workspace manifest and no pnpmfile.
     Bare,
 }
 
