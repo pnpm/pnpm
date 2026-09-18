@@ -130,3 +130,39 @@ fn a_bare_package_manager_request_beside_its_purl_keeps_its_own_meaning() {
     );
     drop((root, npmrc_info)); // cleanup
 }
+
+/// A Cargo or Python dependency has no global install and no
+/// configuration-dependency form. The refusal names the ecosystem, so a
+/// Package URL reaches the same message as the protocol spelling.
+#[test]
+fn add_refuses_a_cargo_or_python_dependency_by_naming_its_ecosystem() {
+    for (selector, target, message) in [
+        ("crate:serde", "--global", "Cargo dependencies cannot be installed globally"),
+        ("pkg:cargo/serde", "--global", "Cargo dependencies cannot be installed globally"),
+        ("pypi:requests", "--global", "Python dependencies cannot be installed globally"),
+        ("pkg:pypi/requests", "--global", "Python dependencies cannot be installed globally"),
+        ("crate:serde", "--config", "Cargo dependencies cannot be configuration dependencies"),
+        ("pkg:cargo/serde", "--config", "Cargo dependencies cannot be configuration dependencies"),
+        ("pypi:requests", "--config", "Python dependencies cannot be configuration dependencies"),
+        (
+            "pkg:pypi/requests",
+            "--config",
+            "Python dependencies cannot be configuration dependencies",
+        ),
+    ] {
+        let root = TempDir::new().expect("create project directory");
+        let output = Command::cargo_bin("pnpm")
+            .expect("find the pnpm binary")
+            .with_current_dir(root.path())
+            .with_args(["add", selector, target])
+            .assert()
+            .failure();
+
+        let stderr = String::from_utf8_lossy(&output.get_output().stderr);
+        eprintln!("{selector} {target} stderr:\n{stderr}");
+        assert!(
+            flatten_report(&stderr).contains(&flatten_report(message)),
+            "{selector} {target}: {stderr}",
+        );
+    }
+}

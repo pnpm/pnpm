@@ -26,8 +26,8 @@ fn reserved_scheme_aliases_are_rejected() {
     }
 }
 
-/// Only a prefix a selector may spell in any case is reserved that way: a
-/// `npm:` specifier is read exactly, so `Npm` stays usable as an alias.
+/// A `npm:` specifier is read exactly, so `Npm:lodash` names a registry
+/// called `Npm` rather than shadowing the prefix.
 #[test]
 fn a_mixed_case_alias_is_reserved_only_where_its_prefix_is() {
     let mut user = HashMap::new();
