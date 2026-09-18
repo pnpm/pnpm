@@ -3,13 +3,13 @@ use pretty_assertions::assert_eq;
 use super::{
     FetchShasumsFileError, FetchVerifiedNodeShasumsError, MAX_CACHED_SHASUMS_LEN,
     PickFileChecksumError, ShasumsFileItem, ShasumsTrust, fetch_shasums_file_cached,
-    fetch_shasums_file_cached_with_auth_headers, fetch_verified_node_shasums,
-    fetch_verified_node_shasums_file_cached,
+    fetch_shasums_file_cached_with_auth_headers, fetch_shasums_file_cached_with_retry,
+    fetch_verified_node_shasums, fetch_verified_node_shasums_file_cached,
     fetch_verified_node_shasums_file_cached_with_auth_headers,
     is_signed_by_trusted_node_release_key, parse_shasums_file,
     pick_file_checksum_from_shasums_file, read_cached_shasums, write_cached_shasums,
 };
-use pnpm_network::{AuthHeaders, nerf_dart};
+use pnpm_network::{AuthHeaders, RetryOpts, nerf_dart};
 
 #[test]
 fn parses_rows_into_sri_encoded_integrities() {
@@ -392,6 +392,35 @@ async fn plain_fetch_caches_the_body() {
 
     assert_eq!(fetched, cached);
     assert_eq!(fetched.len(), 1);
+    shasums.assert_async().await;
+}
+
+#[tokio::test]
+async fn plain_cached_fetch_honors_the_retry_policy() {
+    let mut server = mockito::Server::new_async().await;
+    let shasums = server
+        .mock("GET", "/download/v1.2.3/SHASUMS256.txt")
+        .with_status(500)
+        .expect(3)
+        .create_async()
+        .await;
+    let client = pnpm_network::ThrottledClient::new_for_installs();
+    let url = format!("{}/download/v1.2.3/SHASUMS256.txt", server.url());
+
+    fetch_shasums_file_cached_with_retry(
+        &client,
+        &url,
+        None,
+        RetryOpts {
+            retries: 2,
+            min_timeout: std::time::Duration::ZERO,
+            max_timeout: std::time::Duration::ZERO,
+            ..RetryOpts::default()
+        },
+    )
+    .await
+    .expect_err("permanent failures exhaust the retry budget");
+
     shasums.assert_async().await;
 }
 
