@@ -80,6 +80,7 @@ mod lockfile_resolution_reuse;
 mod lockfile_verification;
 mod login;
 mod logout;
+mod minimum_release_age;
 mod multiple_importers;
 mod named_registry_install;
 mod nested_file_dependencies;
