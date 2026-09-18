@@ -17,9 +17,10 @@ use clap::Args;
 use collection::collect_components;
 use cyclonedx::{CycloneDxOpts, serialize_cyclonedx};
 use indexmap::IndexMap;
+use license::classify_license;
 use metadata::{
-    base64_to_hex, build_purl, classify_license, extract_bugs_url, extract_repository,
-    generate_uuid_v4, integrity_string, normalize_link_path, peer_names_from_manifest,
+    base64_to_hex, build_purl, extract_bugs_url, extract_repository, generate_uuid_v4,
+    integrity_string, normalize_link_path, peer_names_from_manifest,
     platform_incompatible_optional, read_pkg_metadata_from_store, sanitize_package_name,
     sanitize_path_segment, tarball_url_for_component,
 };
@@ -458,6 +459,8 @@ mod spdx;
 mod workspace;
 
 mod walk;
+
+mod license;
 
 mod metadata;
 
