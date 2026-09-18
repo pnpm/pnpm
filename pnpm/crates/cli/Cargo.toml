@@ -101,6 +101,8 @@ miette = { workspace = true }
 owo-colors.workspace = true
 p256 = { workspace = true }
 pathdiff = { workspace = true }
+pep440_rs = { workspace = true }
+percent-encoding = { workspace = true }
 pipe-trait = { workspace = true }
 pubgrub = { workspace = true }
 rayon = { workspace = true }

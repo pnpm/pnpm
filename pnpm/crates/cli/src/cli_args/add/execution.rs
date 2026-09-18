@@ -1,5 +1,5 @@
 use super::{
-    Add, AddArgs, AddError, BTreeMap, Config, Context, DependencyGroup, EngineError,
+    Add, AddArgs, AddError, AddRequest, BTreeMap, Config, Context, DependencyGroup, EngineError,
     InstallFamilySelection, LogEvent, LogLevel, Path, PathBuf, PnpmLog, RangeSpecStyle, Reporter,
     State, WorkspacePackages, build_workspace_packages_map, config_deps, declared_package_manager,
     describe_pin, record_package_manager_pin, resolve_project_pin, tool_install_selector,
@@ -76,12 +76,17 @@ struct RecordedPins {
 /// to do deliberately rather than an `add`'s to do as a side effect.
 async fn record_package_manager_pins(
     state: &mut State,
-    package_names: &[String],
+    requests: &[AddRequest],
 ) -> miette::Result<RecordedPins> {
     let mut remaining = Vec::new();
     let mut recorded = Vec::new();
-    for request in package_names {
-        if let Some((pm, version_spec)) = declared_package_manager(request) {
+    for request in requests {
+        let selector = request.selector();
+        if !request.may_name_a_tool() {
+            remaining.push(selector.to_string());
+            continue;
+        }
+        if let Some((pm, version_spec)) = declared_package_manager(selector) {
             let reference = resolve_project_pin(state.config, pm, version_spec.as_deref()).await?;
             let reference = reference.as_deref();
             let manifest = state.manifest
@@ -91,8 +96,8 @@ async fn record_package_manager_pins(
             record_package_manager_pin(manifest, pm, reference);
             recorded.push(describe_pin(pm, reference));
         } else {
-            let selector = tool_install_selector(request);
-            remaining.push(selector.unwrap_or_else(|| request.clone()));
+            let tool = tool_install_selector(selector);
+            remaining.push(tool.unwrap_or_else(|| selector.to_string()));
         }
     }
     Ok(RecordedPins { remaining, recorded })
@@ -323,17 +328,24 @@ impl AddArgs {
     ) -> miette::Result<Vec<String>> {
         if let Some(request) = self.package_names
             .iter()
-            .find(|request| declared_package_manager(request).is_some())
+            .find(|request| {
+                request.may_name_a_tool() && declared_package_manager(request.selector()).is_some()
+            })
         {
-            return Err(AddError::PackageManagerInSelection { request: request.clone() }.into());
+            let request = request.selector().to_string();
+            return Err(AddError::PackageManagerInSelection { request }.into());
         }
+        let selectors: Vec<String> = self.package_names
+            .iter()
+            .map(|request| request.selector().to_string())
+            .collect();
         let package_names =
             match workspace_link_root(self.target.workspace, config.workspace_dir.as_deref())? {
                 Some(_) => workspace_selectors(
-                    &self.package_names,
+                    &selectors,
                     &build_workspace_packages_map(Some(&selection.projects)).unwrap_or_default(),
                 )?,
-                None => self.package_names.clone(),
+                None => selectors,
             };
         Ok(package_names)
     }

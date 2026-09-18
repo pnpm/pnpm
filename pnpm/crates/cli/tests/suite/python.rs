@@ -4,6 +4,7 @@ use base64::{
     Engine as _,
     engine::general_purpose::{STANDARD, URL_SAFE_NO_PAD},
 };
+use pipe_trait::Pipe;
 use serde_json::json;
 use sha2::{Digest, Sha256};
 use std::{
@@ -1106,6 +1107,28 @@ async fn add_updates_pyproject_and_lockfile_without_creating_node_metadata() {
         .success();
     python(root.path())
         .args(["-c", "import importlib.util; assert importlib.util.find_spec('alpha') is None"])
+        .assert()
+        .success();
+}
+
+#[tokio::test]
+async fn add_accepts_a_pypi_purl() {
+    let root = tempfile::tempdir().unwrap();
+    let mut server = mockito::Server::new_async().await;
+    let _alpha = serve(&mut server, "alpha", &[("1.0", wheel("alpha", "1.0", "", &[]))]).await;
+    project(root.path(), &server.url(), &[]);
+    root.path()
+        .pipe(pacquet_in)
+        .args(["add", "pkg:pypi/Alpha@1.0"])
+        .assert()
+        .success();
+    let updated = fs::read_to_string(root.path().join("pyproject.toml")).unwrap();
+    eprintln!("updated={updated}");
+    let manifest: toml::Value = toml::from_str(&updated).unwrap();
+    assert_eq!(manifest["project"]["dependencies"][0].as_str(), Some("alpha==1.0"));
+    root.path()
+        .pipe(python)
+        .args(["-c", "import alpha"])
         .assert()
         .success();
 }

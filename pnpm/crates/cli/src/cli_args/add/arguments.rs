@@ -1,5 +1,53 @@
 use super::LockfileDirArg;
 
+/// One selector an `add` was given.
+///
+/// A selector a Package URL was rewritten into is marked, because the
+/// spelling alone no longer says where it came from, and where it came from
+/// decides what it means: `pnpm add node@22.0.0` records a runtime and
+/// `pnpm add npm@11.0.0` the project's package manager, while a Package URL
+/// names a package in a registry.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct AddRequest {
+    selector: String,
+    from_purl: bool,
+}
+
+impl AddRequest {
+    /// A selector a Package URL was rewritten into.
+    pub(crate) fn from_package_url(selector: String) -> Self {
+        Self { selector, from_purl: true }
+    }
+
+    /// The selector as the ecosystem's add path reads it.
+    #[must_use]
+    pub fn selector(&self) -> &str {
+        &self.selector
+    }
+
+    /// Whether this request may name a package manager or a runtime rather
+    /// than a package to install.
+    pub(crate) fn may_name_a_tool(&self) -> bool {
+        !self.from_purl
+    }
+}
+
+impl From<&str> for AddRequest {
+    /// A selector as the command line carries it, which names a package to
+    /// install until the dispatch routes it.
+    fn from(selector: &str) -> Self {
+        Self { selector: selector.to_string(), from_purl: false }
+    }
+}
+
+impl std::str::FromStr for AddRequest {
+    type Err = std::convert::Infallible;
+
+    fn from_str(selector: &str) -> Result<Self, Self::Err> {
+        Ok(selector.into())
+    }
+}
+
 /// Which dependency groups the install that follows the manifest edit
 /// materializes.
 ///

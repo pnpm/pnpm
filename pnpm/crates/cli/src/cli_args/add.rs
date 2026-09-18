@@ -1,4 +1,4 @@
-pub use arguments::{AddIncludeArgs, AddInstallArgs, AddSaveArgs, AddTargetArgs};
+pub use arguments::{AddIncludeArgs, AddInstallArgs, AddRequest, AddSaveArgs, AddTargetArgs};
 
 pub(crate) use execution::{AddGroups, add_package, add_packages};
 
@@ -192,7 +192,7 @@ impl AddDependencyOptions {
 pub struct AddArgs {
     /// Names of the packages to add.
     #[clap(required = true)]
-    pub package_names: Vec<String>,
+    pub package_names: Vec<AddRequest>,
     /// --save-prod, --save-dev, --save-optional, --save-peer
     #[clap(flatten)]
     pub dependency_options: AddDependencyOptions,
@@ -273,10 +273,11 @@ impl AddArgs {
 
         let mut added = BTreeMap::new();
         for package_name in &self.package_names {
-            let parsed = parse_wanted_dependency(package_name);
+            let selector = package_name.selector();
+            let parsed = parse_wanted_dependency(selector);
             let Some(name) = parsed.alias else {
                 return Err(miette::miette!(
-                    "'{package_name}' is not a valid package name for a configuration dependency",
+                    "'{selector}' is not a valid package name for a configuration dependency",
                 ));
             };
             let specifier = parsed.bare_specifier.unwrap_or_else(|| "latest".to_string());

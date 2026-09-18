@@ -37,7 +37,10 @@ use super::{
     update_notifier,
     workspace_option::workspace_link_root,
 };
-use crate::{State, package_specifier::PackageSpecifierPlan};
+use crate::{
+    State,
+    package_specifier::{EcosystemPackageSpecifier, PackageSpecifierPlan},
+};
 
 use miette::Context;
 
@@ -46,9 +49,8 @@ use pnpm_default_reporter::DefaultReporter;
 use pnpm_reporter::{NdjsonReporter, SilentReporter};
 use std::path::{Path, PathBuf};
 
-pub(super) fn add<'a>(ctx: &RunCtx<'a>, args: AddArgs) -> miette::Result<CommandFuture<'a>> {
-    let package_specifier_plan = PackageSpecifierPlan::parse(&args.package_names)?;
-    check_specifier_combination(&args, &package_specifier_plan)?;
+pub(super) fn add<'a>(ctx: &RunCtx<'a>, mut args: AddArgs) -> miette::Result<CommandFuture<'a>> {
+    let ecosystem_packages = route_package_specifiers(&mut args)?;
     if args.target.global {
         return add_global(ctx, args);
     }
@@ -70,7 +72,7 @@ pub(super) fn add<'a>(ctx: &RunCtx<'a>, args: AddArgs) -> miette::Result<Command
             manifest_path: manifest_path.to_path_buf(),
             recursive_sort,
             config_dependencies,
-            package_specifier_plan,
+            ecosystem_packages,
         };
         let added = match reporter {
             ReporterType::Default | ReporterType::AppendOnly => {
@@ -82,6 +84,15 @@ pub(super) fn add<'a>(ctx: &RunCtx<'a>, args: AddArgs) -> miette::Result<Command
         update_notifier::settle(update_check, &added).await;
         added
     }))
+}
+
+/// Resolve each selector to the spelling its ecosystem's add path reads,
+/// leaving the npm ones in [`AddArgs::package_names`] and returning the rest.
+fn route_package_specifiers(args: &mut AddArgs) -> miette::Result<Vec<EcosystemPackageSpecifier>> {
+    let plan = PackageSpecifierPlan::parse(&args.package_names)?;
+    check_specifier_combination(args, &plan)?;
+    args.package_names = plan.node_packages;
+    Ok(plan.ecosystem_packages)
 }
 
 /// Apply the add's settings to the config and derive its root. Returns the
@@ -153,8 +164,8 @@ fn check_specifier_combination(args: &AddArgs, plan: &PackageSpecifierPlan) -> m
     check_non_npm_targets(args, plan)
 }
 
-/// A `crate:` or `pypi:` specifier has no global install and no
-/// configuration-dependency form.
+/// A Cargo or Python specifier has no global install and no
+/// configuration-dependency form, however its selector spelled it.
 fn check_non_npm_targets(args: &AddArgs, plan: &PackageSpecifierPlan) -> miette::Result<()> {
     if args.target.global {
         if plan.has_cargo() {

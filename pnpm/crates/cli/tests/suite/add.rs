@@ -44,13 +44,22 @@ where
 }
 
 fn cache_foo_index(cache_dir: &Path) {
+    cache_foo_index_versions(cache_dir, &["1.0.0"]);
+}
+
+fn cache_foo_index_versions(cache_dir: &Path, versions: &[&str]) {
     let index_dir = cache_dir.join("v11/cargo-index/crates-io/3/f");
     std::fs::create_dir_all(&index_dir).expect("create sparse-index cache");
-    std::fs::write(
-        index_dir.join("foo"),
-        r#"{"name":"foo","vers":"1.0.0","deps":[],"cksum":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","features":{},"yanked":false}"#,
-    )
-    .expect("cache sparse-index entry");
+    let entry = versions
+        .iter()
+        .map(|version| {
+            format!(
+                r#"{{"name":"foo","vers":"{version}","deps":[],"cksum":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","features":{{}},"yanked":false}}"#,
+            )
+        })
+        .collect::<Vec<_>>()
+        .join("\n");
+    std::fs::write(index_dir.join("foo"), entry).expect("cache sparse-index entry");
 }
 
 fn cargo_add_project() -> (TempDir, PathBuf) {
@@ -786,6 +795,8 @@ mod aliasless_selectors;
 mod workspace_flag;
 
 mod cargo;
+
+mod purl;
 
 mod version_specifiers;
 

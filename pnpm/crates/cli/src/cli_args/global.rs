@@ -20,7 +20,7 @@ use self::activation::{
 use crate::{
     State,
     cli_args::{
-        add::{AddGroups, add_packages, apply_allow_build},
+        add::{AddGroups, AddRequest, add_packages, apply_allow_build},
         approve_builds::{
             ApproveBuildsArgs, clear_decided_ignored_builds, prompt_approve_install_builds,
             write_approval_settings,
@@ -72,7 +72,7 @@ use remove::{
     collect_existing_global_installs, snapshot_global_package,
 };
 use selectors::{
-    groups_matching_params, infer_local_package_alias, replacement_aliases,
+    SelectorGroup, groups_matching_params, infer_local_package_alias, replacement_aliases,
     should_replace_existing_package, split_into_groups, tool_install_selectors, update_selectors,
 };
 
@@ -154,7 +154,7 @@ fn check_bin_dir(global_bin_dir: &Path) -> miette::Result<()> {
 /// directory, and records a cache-keyed hash symlink.
 pub async fn handle_global_add<Reporter: self::Reporter + 'static>(
     base_config: &'static Config,
-    params: &[String],
+    params: &[AddRequest],
     range_spec_style: RangeSpecStyle,
     supported_architectures: Option<SupportedArchitectures>,
     allow_build: &[String],
@@ -166,7 +166,7 @@ pub async fn handle_global_add<Reporter: self::Reporter + 'static>(
     let groups = split_into_groups(params, cwd);
     // Each selector is read as its package name, so versioned forms like
     // `pnpm@9` or `@pnpm/exe@1` can't bypass the self-install guard.
-    if selects_pnpm_cli(groups.iter().flatten()) {
+    if selects_pnpm_cli(groups.iter().flat_map(SelectorGroup::tokens)) {
         return Err(GlobalError::GlobalPnpmInstall.into());
     }
     let groups = tool_install_selectors(groups);
