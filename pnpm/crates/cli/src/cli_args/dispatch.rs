@@ -39,16 +39,13 @@ pub(crate) type CommandFuture<'a, Output = ()> =
 
 /// The shared context every subcommand handler needs: the canonicalized
 /// `--dir`, the derived `package.json` path, the selected reporter, the
-/// `--recursive` flag, and the two lazily-loaded resources (`config` /
-/// `state`) the handlers pull from on demand.
+/// `--recursive` flag, and the lazily-loaded config loaders the handlers
+/// pull from on demand.
 ///
-/// `config` and `state` are passed as `&dyn Fn` rather than eagerly loaded
-/// so a handler that never needs them (`pacquet init`) doesn't pay for the
-/// `.npmrc` / lockfile read, and so each call re-loads a fresh
-/// `&'static mut Config` (some handlers, like `patch-commit`, deliberately
-/// initialize state more than once). The closures are built in
-/// [`CliArgs::run`]; their `&dyn Fn` shape matches what
-/// [`super::approve_builds::ApproveBuildsArgs::prepare`] already consumes.
+/// The loaders are passed as `&dyn Fn` rather than eagerly loaded so a
+/// handler that never needs them (`pacquet init`) doesn't pay for the
+/// `.npmrc` read, and so each call re-loads a fresh `&'static mut Config`.
+/// The closures are built in [`CliArgs::run`].
 pub(crate) struct RunCtx<'a> {
     pub(crate) reporter: ReporterType,
     /// Whether a `pm` prefix (`pnpm pm clean`) forced the built-in
@@ -96,39 +93,36 @@ pub(crate) struct CommandLoaders<'a> {
     /// `pnpm-workspace.yaml` can only tighten the release-age policy that
     /// governs the pnpm download.
     pub(crate) config_self_update: &'a (dyn Fn() -> miette::Result<&'static mut Config> + Sync),
-    /// Builds the command's [`State`] without running the `updateConfig`
-    /// hooks, which are async. Prefer [`RunCtx::prepared_state`]; this
-    /// closure is for the handlers that build state more than once per
-    /// invocation, where the hooks would run once per build instead of
-    /// once per invocation. Those handlers reach the hooks through the
-    /// install they end in.
-    pub(crate) state: &'a (dyn Fn(bool) -> miette::Result<State> + Sync),
 }
 
 impl<'a> RunCtx<'a> {
-    /// The command's [`State`], built from a config the `updateConfig` hooks
-    /// have already been applied to — the awaitable counterpart of
-    /// [`CommandLoaders::state`], which cannot run the async hook pass
-    /// itself. `require_lockfile` means the same thing there.
-    ///
-    /// A [`State`] owns the `Config` it resolves the manifest against, so a
-    /// state built before the pass carries pre-hook settings for the rest of
-    /// the command: a `catalog:` specifier the hooks supplied the entry for
-    /// fails to resolve, and every other setting a hook changed is silently
-    /// dropped. The returned future borrows nothing from `self`, so a handler
-    /// can move it into the [`CommandFuture`] it dispatches.
-    pub(super) fn prepared_state(
+    /// The command's [`Config`] with the `updateConfig` hooks applied, as a
+    /// future a handler can move into the [`CommandFuture`] it dispatches.
+    /// The hooks run once per call, so a handler that needs more than one
+    /// [`State`] builds each from the one config this yields.
+    pub(super) fn prepared_config(
         &self,
-        require_lockfile: bool,
-    ) -> impl Future<Output = miette::Result<State>> + Send + 'a {
+    ) -> impl Future<Output = miette::Result<&'static Config>> + Send + 'a {
         let load_config = self.loaders.config;
-        let manifest_path = self.locations.manifest_path;
         let dir = self.locations.dir;
         let reporter = self.reporter;
         async move {
             let config = load_config()?;
             apply_update_config(config, dir, reporter).await?;
-            State::init(manifest_path.to_path_buf(), config, require_lockfile)
+            Ok(&*config)
+        }
+    }
+
+    /// The command's [`State`], built on [`Self::prepared_config`].
+    /// `require_lockfile` is [`State::init`]'s.
+    pub(super) fn prepared_state(
+        &self,
+        require_lockfile: bool,
+    ) -> impl Future<Output = miette::Result<State>> + Send + 'a {
+        let config = self.prepared_config();
+        let manifest_path = self.locations.manifest_path;
+        async move {
+            State::init(manifest_path.to_path_buf(), config.await?, require_lockfile)
                 .wrap_err("initialize the state")
         }
     }
@@ -324,18 +318,6 @@ impl CliArgs {
                     self.finalize_run_config(cfg, &anchors.dir, config_overrides, setup, anchors)
                 })
         };
-        // `require_lockfile` is the "this subcommand cannot run without a
-        // lockfile loaded" signal, used by `State::init` to override
-        // `config.lockfile=false`. Only `install --frozen-lockfile` needs
-        // it today; other subcommands follow `config.lockfile`. Matches
-        // pnpm's CLI: `--frozen-lockfile` is the strongest signal and
-        // must not be silently dropped because `lockfile=false` was set
-        // (or defaulted) in config.
-        let state = |require_lockfile: bool| -> miette::Result<State> {
-            State::init(anchors.manifest_path.clone(), config()?, require_lockfile)
-                .wrap_err("initialize the state")
-        };
-
         let builtin_replaced_by_script = AtomicBool::new(false);
         let ctx = RunCtx {
             reporter: setup.reporter,
@@ -347,7 +329,6 @@ impl CliArgs {
                 config: &config,
                 global_config: &|| load_config(&anchors.global_config),
                 config_self_update: &config_self_update,
-                state: &state,
             },
         };
         exit_on_json_error(run_routed_command(command, &ctx).await, setup.print_json_errors)?;

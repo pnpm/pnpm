@@ -326,36 +326,27 @@ pub(in super::super) fn approve_builds<'a>(
         let config = (ctx.loaders.global_config)()?;
         return Ok(approve_global_builds(config, args, ctx.reporter));
     }
-    // The settings/prompt work is synchronous; only the rebuild is async, so
-    // the non-`Send` `config` / `state` closures stay out of the awaited
-    // future.
-    let prepared = match ctx.reporter {
-        ReporterType::Default | ReporterType::AppendOnly => args.prepare::<DefaultReporter>(
-            ctx.locations.dir,
-            ctx.loaders.config,
-            ctx.loaders.state,
-        ),
-        ReporterType::Ndjson => {
-            args.prepare::<NdjsonReporter>(ctx.locations.dir, ctx.loaders.config, ctx.loaders.state)
-        }
-        ReporterType::Silent => {
-            args.prepare::<SilentReporter>(ctx.locations.dir, ctx.loaders.config, ctx.loaders.state)
-        }
-    };
-    let Some((rebuild_state, build_packages)) = prepared? else {
-        return Ok(Box::pin(std::future::ready(Ok(()))));
-    };
-    let selected = rebuild::RebuildSelection { names: Some(build_packages), projects: Vec::new() };
+    let config = ctx.prepared_config();
+    let dir = ctx.locations.dir;
+    let manifest_path = ctx.locations.manifest_path;
+    macro_rules! run_approve_builds {
+        ($reporter:ty) => {
+            Box::pin(async move {
+                let Some((rebuild_state, build_packages)) =
+                    args.prepare::<$reporter>(dir, config.await?, manifest_path)?
+                else {
+                    return Ok(());
+                };
+                let selected =
+                    rebuild::RebuildSelection { names: Some(build_packages), projects: Vec::new() };
+                rebuild::run_rebuild::<$reporter>(&rebuild_state, selected, None).await
+            })
+        };
+    }
     Ok(match ctx.reporter {
-        ReporterType::Default | ReporterType::AppendOnly => Box::pin(async move {
-            rebuild::run_rebuild::<DefaultReporter>(&rebuild_state, selected, None).await
-        }),
-        ReporterType::Ndjson => Box::pin(async move {
-            rebuild::run_rebuild::<NdjsonReporter>(&rebuild_state, selected, None).await
-        }),
-        ReporterType::Silent => Box::pin(async move {
-            rebuild::run_rebuild::<SilentReporter>(&rebuild_state, selected, None).await
-        }),
+        ReporterType::Default | ReporterType::AppendOnly => run_approve_builds!(DefaultReporter),
+        ReporterType::Ndjson => run_approve_builds!(NdjsonReporter),
+        ReporterType::Silent => run_approve_builds!(SilentReporter),
     })
 }
 
