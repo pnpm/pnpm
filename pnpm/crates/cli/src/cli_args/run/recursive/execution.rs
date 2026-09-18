@@ -417,3 +417,6 @@ impl RunProjectOptions<'_, '_> {
 mod concurrent;
 
 mod sequential;
+
+#[cfg(test)]
+mod tests;

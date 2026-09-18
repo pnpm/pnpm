@@ -14,6 +14,12 @@ pub(super) struct ScriptBudget {
 }
 
 impl ScriptBudget {
+    /// A budget of `limit` scripts at once, and of one when `limit` is
+    /// zero: a run that starts nothing makes no progress.
+    pub(super) fn new(limit: usize) -> Self {
+        ScriptBudget { free: Mutex::new(limit.max(1)), freed: Condvar::new() }
+    }
+
     /// Wait for a permit, then hold it until the returned guard drops.
     pub(super) fn acquire(&self) -> ScriptPermit<'_> {
         let mut free = self.free.lock().expect("script budget lock is not poisoned");
@@ -49,6 +55,5 @@ pub(super) fn run_script_budget(
         .values()
         .map(|node| node.scripts.len())
         .sum();
-    let limit = script_concurrency(config, scripts, args.workspace.parallel, args.sequential);
-    ScriptBudget { free: Mutex::new(limit.max(1)), freed: Condvar::new() }
+    ScriptBudget::new(script_concurrency(config, scripts, args.workspace.parallel, args.sequential))
 }
