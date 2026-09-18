@@ -382,13 +382,58 @@ fn assert_runs_update_config_and_succeeds(args: &[&str]) -> String {
 /// re-resolves the project; the hook runs once for the whole command.
 #[test]
 fn update_config_applies_to_patch_commit_and_patch_remove() {
+    assert_patch_commit_and_remove_apply_the_patch(PatchProject::HookedWorkspace);
+}
+
+/// Without a `pnpm-workspace.yaml` or a pnpmfile, `patch-commit` creates
+/// the workspace manifest for the `patchedDependencies` it records, and
+/// the install that follows resolves the patch against it.
+#[test]
+fn patch_commit_without_a_workspace_manifest_applies_the_patch() {
+    assert_patch_commit_and_remove_apply_the_patch(PatchProject::Bare);
+}
+
+#[derive(Clone, Copy)]
+enum PatchProject {
+    /// The harness workspace manifest plus the marker hook.
+    HookedWorkspace,
+    /// No workspace manifest and no pnpmfile.
+    Bare,
+}
+
+fn assert_patch_commit_and_remove_apply_the_patch(project: PatchProject) {
     let CommandTempCwd { root, workspace, npmrc_info, .. } =
         CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
-    write_marker_hook_project(
-        &workspace,
-        &serde_json::json!({ (CATALOG_DEP): "catalog:", (PATCHABLE_DEP): "1.0.0" }),
-    );
+    let hooked = match project {
+        PatchProject::HookedWorkspace => {
+            write_marker_hook_project(
+                &workspace,
+                &serde_json::json!({ (CATALOG_DEP): "catalog:", (PATCHABLE_DEP): "1.0.0" }),
+            );
+            true
+        }
+        PatchProject::Bare => {
+            fs::remove_file(workspace.join("pnpm-workspace.yaml"))
+                .expect("remove pnpm-workspace.yaml");
+            fs::write(
+                workspace.join("package.json"),
+                serde_json::json!({ "dependencies": { (PATCHABLE_DEP): "1.0.0" } }).to_string(),
+            )
+            .expect("write package.json");
+            false
+        }
+    };
+    let run = |args: &[&str]| {
+        if hooked {
+            run_with_marker_hook(&workspace, args)
+        } else {
+            pacquet_in(&workspace)
+                .with_args(args)
+                .output()
+                .expect("run the command")
+        }
+    };
     pacquet_in(&workspace)
         .with_arg("install")
         .assert()
@@ -406,14 +451,19 @@ fn update_config_applies_to_patch_commit_and_patch_remove() {
         .join("node_modules")
         .join(PATCHABLE_DEP)
         .join("index.js");
+    assert_eq!(
+        workspace.join("pnpm-workspace.yaml").exists(),
+        hooked,
+        "the bare project has no workspace manifest before patch-commit",
+    );
     let commit_args = ["patch-commit", edit_dir.to_str().expect("utf8 edit dir")];
-    let output = run_with_marker_hook(&workspace, &commit_args);
+    let output = run(&commit_args);
     assert_success(&commit_args, &output);
     let installed = fs::read_to_string(&installed_index).expect("read the installed package");
     assert!(installed.contains("patched"), "the install after patch-commit applies the patch");
 
     let remove_args = ["patch-remove", &patched];
-    let output = run_with_marker_hook(&workspace, &remove_args);
+    let output = run(&remove_args);
     assert_success(&remove_args, &output);
     let installed = fs::read_to_string(&installed_index).expect("read the installed package");
     assert!(!installed.contains("patched"), "the install after patch-remove drops the patch");
@@ -481,6 +531,7 @@ fn fetch_ignore_pnpmfile_skips_update_config() {
 
     assert_eq!(hook_runs(&workspace), 0, "--ignore-pnpmfile should skip the hook");
     let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(!output.status.success(), "the frozen fetch should stop at the lockfile check");
     assert!(stderr.contains("ERR_PNPM_LOCKFILE_CONFIG_MISMATCH"), "STDERR:\n{stderr}");
     drop((root, mock_instance));
 }
