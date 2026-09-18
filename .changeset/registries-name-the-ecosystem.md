@@ -19,6 +19,4 @@ registries:
 
 `default` marks the index an ecosystem resolves from first, where the rest are searched after it. It is needed once an ecosystem has more than one index. An npm registry is named the default by the `registry` setting instead.
 
-Python indexes now take their credentials from `.npmrc`, resolved by origin the way every other package source does. A `registries` entry may not carry credentials of its own, so a password no longer has to be written into the committed `pnpm-workspace.yaml`.
-
-`registries` replaces `python.indexUrl`, `python.extraIndexUrls` and `cargo.indexUrl`, which are gone.
+A `registries` entry may not carry credentials. pnpm reads them from `.npmrc`, matched by origin, for a PyPI index as for every other package source.
