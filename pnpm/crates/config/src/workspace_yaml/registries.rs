@@ -6,8 +6,6 @@
 //! the routes, because a scope resolves to exactly one registry while a
 //! registry serves many.
 
-mod ecosystems;
-
 pub use ecosystems::Ecosystem;
 
 use super::LoadWorkspaceYamlError;
@@ -471,3 +469,5 @@ pub(super) fn quote_and_join<'a>(values: impl IntoIterator<Item = &'a str>) -> S
         .collect::<Vec<_>>()
         .join(", ")
 }
+
+mod ecosystems;
