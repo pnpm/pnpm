@@ -164,8 +164,8 @@ fn check_specifier_combination(args: &AddArgs, plan: &PackageSpecifierPlan) -> m
     check_non_npm_targets(args, plan)
 }
 
-/// A `crate:` or `pypi:` specifier has no global install and no
-/// configuration-dependency form.
+/// A Cargo or Python specifier has no global install and no
+/// configuration-dependency form, however its selector spelled it.
 fn check_non_npm_targets(args: &AddArgs, plan: &PackageSpecifierPlan) -> miette::Result<()> {
     if args.target.global {
         if plan.has_cargo() {
