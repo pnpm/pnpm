@@ -85,7 +85,7 @@ mod workspace_key_issues {
         non_camel_case_workspace_keys_warning, refused_workspace_keys_warning,
         report_workspace_key_issues,
     };
-    use pnpm_config::WorkspaceKeyIssues;
+    use pnpm_config::{UnrecognizedTaskSettings, WorkspaceKeyIssues};
     use pretty_assertions::assert_eq;
 
     #[test]
@@ -121,6 +121,64 @@ mod workspace_key_issues {
             "The following settings in pnpm-workspace.yaml are not recognized by this version of \
              pnpm: \"minimumReleaseAg\" (did you mean \"minimumReleaseAge\"?).",
         );
+    }
+
+    #[test]
+    fn unrecognized_task_settings_error_only_when_strict() {
+        let issues = WorkspaceKeyIssues {
+            unrecognized_task_settings: UnrecognizedTaskSettings {
+                named: vec!["tasks['build'].dependson".to_string()],
+                total: 1,
+            },
+            ..WorkspaceKeyIssues::default()
+        };
+        report_workspace_key_issues(&issues, false).expect("a warning, not an error");
+        let error =
+            report_workspace_key_issues(&issues, true).expect_err("strict must fail").to_string();
+        assert_eq!(
+            error,
+            "The following task settings in pnpm-workspace.yaml are not recognized by this \
+             version of pnpm: \"tasks['build'].dependson\".",
+        );
+    }
+
+    /// A file may name more unrecognized task settings than a message can
+    /// usefully carry, and the count is what tells the reader so.
+    #[test]
+    fn a_report_says_how_many_task_settings_it_did_not_name() {
+        let issues = WorkspaceKeyIssues {
+            unrecognized_task_settings: UnrecognizedTaskSettings {
+                named: vec!["tasks['build'].one".to_string()],
+                total: 4,
+            },
+            ..WorkspaceKeyIssues::default()
+        };
+        let error =
+            report_workspace_key_issues(&issues, true).expect_err("strict must fail").to_string();
+        assert_eq!(
+            error,
+            "The following task settings in pnpm-workspace.yaml are not recognized by this \
+             version of pnpm: \"tasks['build'].one\", and 3 more.",
+        );
+    }
+
+    /// The error is the top-level key's, not the task settings'. That the
+    /// task settings still reach the user is
+    /// `a_task_setting_is_reported_when_an_unrecognized_key_takes_the_error`
+    /// in the end-to-end suite, which can read what was written to stderr.
+    #[test]
+    fn an_unrecognized_key_takes_the_error_over_task_settings() {
+        let issues = WorkspaceKeyIssues {
+            unrecognized: vec!["minimumReleaseAg".to_string()],
+            unrecognized_task_settings: UnrecognizedTaskSettings {
+                named: vec!["tasks['build'].dependson".to_string()],
+                total: 1,
+            },
+            ..WorkspaceKeyIssues::default()
+        };
+        let error =
+            report_workspace_key_issues(&issues, true).expect_err("strict must fail").to_string();
+        assert!(error.contains("minimumReleaseAg"), "unexpected error: {error}");
     }
 
     #[test]

@@ -402,8 +402,9 @@ pub struct TaskSettings {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub cargo_target_dir: Option<String>,
 
-    /// Fields this version of pnpm does not read, kept so validation can
-    /// reject a typo instead of silently ignoring it.
+    /// Fields this version of pnpm does not read, kept only until
+    /// [`WorkspaceSettings::collect_key_issues`](super::WorkspaceSettings::collect_key_issues)
+    /// has named them in its report and cleared them.
     #[serde(flatten, skip_serializing_if = "IndexMap::is_empty")]
     pub unknown: IndexMap<String, serde_json::Value>,
 }

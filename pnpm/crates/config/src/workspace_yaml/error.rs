@@ -97,14 +97,6 @@ pub enum LoadWorkspaceYamlError {
         help("pnpm resolves Cargo dependencies from one sparse index. Declare the one to use.")
     )]
     CargoIndexDeclaredTwice { registries: String },
-    #[display("The \"tasks['{task}'].{field}\" setting is not a known task setting")]
-    #[diagnostic(
-        code(ERR_PNPM_INVALID_SETTING),
-        help(
-            r#"A task declares "concurrency", "concurrencyGroup", "dependsOn", "outputs", "inputs", "env", "cache", or "cargoTargetDir"."#
-        )
-    )]
-    UnknownTaskSettingField { task: String, field: String },
     #[display("The \"pipelines['{pipeline}']\" setting contains an entry with no task name")]
     #[diagnostic(code(ERR_PNPM_INVALID_SETTING))]
     EmptyPipelineTaskName { pipeline: String },
