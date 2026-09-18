@@ -13,8 +13,7 @@ pub struct FetchArgs {
     dev: bool,
 
     /// Disable pnpm hooks defined in `.pnpmfile.cjs`, including the
-    /// pnpmfiles of config dependencies. Applied to the config before the
-    /// state is built, so the `updateConfig` pass honors it too.
+    /// pnpmfiles of config dependencies.
     #[clap(long = "ignore-pnpmfile")]
     pub(crate) ignore_pnpmfile: bool,
 }
