@@ -137,7 +137,7 @@ async fn serve_files(
 }
 
 fn project(root: &Path, index: &str, dependencies: &[&str]) {
-    fs::write(root.join("pnpm-workspace.yaml"), format!("python:\n  enabled: true\n  indexUrl: '{index}/simple/'\nstoreDir: '{}'\ncacheDir: '{}'\nfetchRetries: 0\nallowBuilds:\n  pkg:pypi/hatchling: true\n  pkg:pypi/setuptools: true\n  pkg:pypi/wheel: true\n  pkg:pypi/tinybackend: true\n", root.join("store").display(), root.join("cache").display())).unwrap();
+    fs::write(root.join("pnpm-workspace.yaml"), format!("python:\n  enabled: true\nregistries:\n  '{index}/simple/':\n    ecosystem: pypi\n    default: true\nstoreDir: '{}'\ncacheDir: '{}'\nfetchRetries: 0\nallowBuilds:\n  pkg:pypi/hatchling: true\n  pkg:pypi/setuptools: true\n  pkg:pypi/wheel: true\n  pkg:pypi/tinybackend: true\n", root.join("store").display(), root.join("cache").display())).unwrap();
     fs::write(root.join("pyproject.toml"), format!("[project]\nname = 'app'\nversion = '1.0'\nrequires-python = '>=3.10'\ndependencies = {dependencies:?}\n")).unwrap();
 }
 
@@ -175,6 +175,19 @@ async fn serve_wheels(
             .await,
     );
     mocks
+}
+
+/// Declare another `PyPI` index, searched after the one [`project`] named.
+fn add_python_index(root: &Path, index: &str) {
+    let workspace = fs::read_to_string(root.join("pnpm-workspace.yaml")).unwrap();
+    fs::write(
+        root.join("pnpm-workspace.yaml"),
+        workspace.replace(
+            "registries:\n",
+            &format!("registries:\n  '{index}':\n    ecosystem: pypi\n"),
+        ),
+    )
+    .unwrap();
 }
 
 fn add_python_settings(root: &Path, settings: &str) {
@@ -1098,38 +1111,73 @@ async fn add_updates_pyproject_and_lockfile_without_creating_node_metadata() {
         .success();
 }
 
+/// A Python index is a package source like any other, so the credential the
+/// machine holds for its origin reaches it. pnpm resolves credentials by
+/// origin and path prefix and knows no ecosystem, which is how an npm
+/// registry, a Cargo index and a Node.js mirror on that origin are already
+/// authenticated. A host serving more than one ecosystem separates them by
+/// path, the way pnpr serves `/npm/` and `/pypi/`.
 #[tokio::test]
-async fn python_index_and_wheel_requests_do_not_inherit_npm_credentials() {
+async fn python_index_and_wheel_requests_carry_the_credential_held_for_their_origin() {
     let root = tempfile::tempdir().unwrap();
     let mut server = mockito::Server::new_async().await;
-    let _alpha = serve(&mut server, "alpha", &[("1.0", wheel("alpha", "1.0", "", &[]))]).await;
-    let leaked = server
+    let archive = wheel("alpha", "1.0", "", &[]);
+    let filename = "alpha-1.0-py3-none-any.whl";
+    let index = server
+        .mock("GET", "/simple/alpha/")
+        .match_header("authorization", "Bearer index-token")
+        .with_body(
+            json!({"files": [{
+                "filename": filename,
+                "url": format!("/files/{filename}"),
+                "hashes": {"sha256": format!("{:x}", Sha256::digest(&archive))},
+            }]})
+            .to_string(),
+        )
+        .expect_at_least(1)
+        .create_async()
+        .await;
+    let file = server
+        .mock("GET", format!("/files/{filename}").as_str())
+        .match_header("authorization", "Bearer index-token")
+        .with_body(archive)
+        .expect_at_least(1)
+        .create_async()
+        .await;
+    let anonymous = server
         .mock("GET", mockito::Matcher::Any)
-        .match_header("authorization", "Bearer victim-npm-token")
+        .match_header("authorization", mockito::Matcher::Missing)
         .with_status(403)
         .expect(0)
         .create_async()
         .await;
     project(root.path(), &server.url(), &["alpha"]);
+    fs::write(
+        root.path().join(".npmrc"),
+        format!("{}:_authToken=index-token\n", pnpm_network::nerf_dart(&server.url())),
+    )
+    .unwrap();
     pacquet_in(root.path())
-        .env(
-            format!("npm_config_{}:_authToken", pnpm_network::nerf_dart(&server.url())),
-            "victim-npm-token",
-        )
         .arg("install")
         .assert()
         .success();
-    leaked.assert_async().await;
+    index.assert_async().await;
+    file.assert_async().await;
+    anonymous.assert_async().await;
+    let lock = fs::read_to_string(root.path().join("pylock.toml")).unwrap();
+    assert!(!lock.contains("index-token"), "the credential reached the lockfile:\n{lock}");
     python(root.path())
         .args(["-c", "import alpha"])
         .assert()
         .success();
 }
 
+/// `_auth` carries the login base64-encoded, so a password pnpm cannot round
+/// trip would reach the index as the wrong bytes and authenticate nothing.
 #[tokio::test]
-async fn python_index_uses_only_its_explicit_credentials() {
+async fn python_index_credentials_survive_unusual_characters() {
     for (username, password) in
-        [("user", "secret"), ("user&name", "secret&suffix+space"), ("usér", "sëcret")]
+        [("user", "secret"), ("user&name", "secret&suffix+space"), ("us\u{e9}r", "s\u{eb}cret")]
     {
         let root = tempfile::tempdir().unwrap();
         let mut server = mockito::Server::new_async().await;
@@ -1141,15 +1189,16 @@ async fn python_index_uses_only_its_explicit_credentials() {
             Some(&authorization),
         )
         .await;
-        let mut index: url::Url = server.url().parse().unwrap();
-        index.set_username(username).unwrap();
-        index
-            .set_password(Some(password))
-            .unwrap();
-        project(root.path(), index.as_str().trim_end_matches('/'), &["alpha"]);
-        let workspace_path = root.path().join("pnpm-workspace.yaml");
-        let workspace = fs::read_to_string(&workspace_path).unwrap();
-        fs::write(workspace_path, workspace.replace("/simple/'", "/simple'")).unwrap();
+        project(root.path(), &server.url(), &["alpha"]);
+        fs::write(
+            root.path().join(".npmrc"),
+            format!(
+                "{}simple/:_auth={}\n",
+                pnpm_network::nerf_dart(&server.url()),
+                STANDARD.encode(format!("{username}:{password}")),
+            ),
+        )
+        .unwrap();
         pacquet_in(root.path())
             .arg("install")
             .assert()
