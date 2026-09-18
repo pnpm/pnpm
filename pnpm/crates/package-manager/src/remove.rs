@@ -1,6 +1,6 @@
 use crate::{
-    CommandLockfile, Install, InstallError, PolicyExcludes, ProjectMutation, ResolvedPackages,
-    SelectedProjects, UpdateSeedPolicy,
+    CommandLockfile, Install, InstallError, ProjectMutation, ResolvedPackages, SelectedProjects,
+    UpdateSeedPolicy,
     catalog_cleanup::{
         WriteWorkspaceCatalogsError, post_install_prune, write_workspace_catalogs,
         write_workspace_catalogs_selected,
@@ -199,15 +199,7 @@ fn remove_install<'i>(
     manifest: &'i PackageManifest,
 ) -> Install<'i, impl Iterator<Item = DependencyGroup>> {
     Install {
-        lockfile_policy: crate::InstallLockfilePolicy {
-            frozen: false,
-            prefer_frozen: None,
-            ignore_manifest_check: false,
-            trust: remove.config.trust_lockfile,
-            update_checksums: false,
-            excludes: PolicyExcludes::Skip,
-            disable_optimistic_repeat: false,
-        },
+        lockfile_policy: crate::InstallLockfilePolicy::plain(remove.config),
         execution: remove.install_execution(),
         resolution: crate::ResolutionInputs {
             update_seed_policy: UpdateSeedPolicy::KeepAll,

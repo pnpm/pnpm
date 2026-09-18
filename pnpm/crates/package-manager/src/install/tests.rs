@@ -235,6 +235,7 @@ async fn run_purge_regression_install(
             update_checksums: false,
             excludes: PolicyExcludes::Persist,
             disable_optimistic_repeat: true,
+            manifest_freshness: crate::ManifestFreshness::Mtime,
         },
         execution: crate::InstallExecution {
             skip_runtimes: false,
@@ -322,6 +323,7 @@ async fn install_then_go_offline() -> (tempfile::TempDir, &'static Config, Packa
             update_checksums: false,
             excludes: PolicyExcludes::Persist,
             disable_optimistic_repeat: false,
+            manifest_freshness: crate::ManifestFreshness::Mtime,
         },
         execution: crate::InstallExecution {
             skip_runtimes: false,
@@ -437,6 +439,7 @@ async fn fresh_lockfile_only_with_overrides(
             update_checksums: false,
             excludes: PolicyExcludes::Persist,
             disable_optimistic_repeat: false,
+            manifest_freshness: crate::ManifestFreshness::Mtime,
         },
         execution: crate::InstallExecution {
             skip_runtimes: false,
@@ -537,6 +540,7 @@ async fn fresh_lockfile_only_with_compatibility_db(
             update_checksums: false,
             excludes: PolicyExcludes::Persist,
             disable_optimistic_repeat: false,
+            manifest_freshness: crate::ManifestFreshness::Mtime,
         },
         execution: crate::InstallExecution {
             skip_runtimes: false,
@@ -636,6 +640,7 @@ async fn install_with_pnpmfile_reporter<Reporter: self::Reporter + 'static>(
             update_checksums: false,
             excludes: PolicyExcludes::Persist,
             disable_optimistic_repeat: false,
+            manifest_freshness: crate::ManifestFreshness::Mtime,
         },
         execution: crate::InstallExecution {
             skip_runtimes: false,
@@ -737,6 +742,7 @@ async fn install_workspace_member_with_pnpmfile(
             update_checksums: false,
             excludes: PolicyExcludes::Persist,
             disable_optimistic_repeat: false,
+            manifest_freshness: crate::ManifestFreshness::Mtime,
         },
         execution: crate::InstallExecution {
             skip_runtimes: false,

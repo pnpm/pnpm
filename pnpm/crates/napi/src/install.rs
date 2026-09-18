@@ -205,8 +205,13 @@ enum EngineMode {
 }
 
 impl EngineMode {
+    /// A peer-issue query exists to resolve, so it never takes a
+    /// repeat-install short-circuit. An install takes them: the
+    /// workspace-state check compares the caller's in-memory manifests by
+    /// content (see [`InstallShape::configure`]), and the post-verification
+    /// "nothing to materialize" return works from the lockfile alone.
     fn disable_optimistic_repeat_install(&self) -> bool {
-        matches!(self, Self::Install(_) | Self::PeerIssues(_))
+        matches!(self, Self::PeerIssues(_))
     }
 
     fn peer_issues_sink(&self) -> Option<pnpm_package_manager::PeerIssuesSink> {
@@ -250,8 +255,9 @@ impl InstallShape {
             mutation: project_mutation(mode, ignore_package_manifest),
         }
     }
-    /// In-memory manifests require the full freshness check. Peer queries
-    /// resolve without writes and report through their dedicated sink.
+    /// In-memory manifests are checked by content, never by mtime. Peer
+    /// queries resolve without writes and report through their dedicated
+    /// sink.
     fn configure<'a>(
         self,
         install: Install<'a, Vec<DependencyGroup>>,
@@ -265,12 +271,15 @@ impl InstallShape {
                 frozen: self.frozen_lockfile,
                 prefer_frozen: self.prefer_frozen_lockfile,
                 ignore_manifest_check: options.ignore_package_manifest == Some(true),
-                // The optimistic repeat-install fast path uses on-disk
-                // manifest mtimes as its freshness signal. NAPI installs use
-                // caller-supplied manifests that can change without touching
-                // package.json, so they must continue to the lockfile
-                // freshness check. Peer-issue queries must always resolve too.
                 disable_optimistic_repeat: mode.disable_optimistic_repeat_install(),
+                // The repeat-install fast path keys off `package.json` mtimes
+                // by default. NAPI installs use caller-supplied manifests
+                // that can change without touching `package.json` (which may
+                // not exist at all), so every manifest is compared against
+                // the lockfile by content instead; a repeat install with
+                // unchanged manifests still returns "Already up to date"
+                // before any install setup runs.
+                manifest_freshness: pnpm_package_manager::ManifestFreshness::Content,
                 ..install.lockfile_policy
             },
             execution: pnpm_package_manager::InstallExecution {

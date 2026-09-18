@@ -187,6 +187,7 @@ async fn fresh_install_uses_final_peer_suffix_for_transitive_pending_peer() {
             update_checksums: false,
             excludes: PolicyExcludes::Persist,
             disable_optimistic_repeat: false,
+            manifest_freshness: crate::ManifestFreshness::Mtime,
         },
         execution: crate::InstallExecution {
             skip_runtimes: false,

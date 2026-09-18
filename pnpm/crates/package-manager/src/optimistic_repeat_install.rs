@@ -28,6 +28,16 @@
 //! fast path only when their bytes match the integrity in the lockfile.
 //! Local specs introduced through `pnpm.overrides` or package extensions
 //! remain on the full path because their resolution base is graph-dependent.
+//!
+//! An embedder that hands the engine its project manifests in memory (the
+//! Node-API binding) has no `package.json` mtimes to key the check off: the
+//! manifests may not exist on disk at all, and can change without any file
+//! moving. Such a caller selects [`ManifestFreshness::Content`], which skips
+//! the mtime shortcut and puts every project through the content re-check
+//! against the wanted lockfile on every run; everything else the check
+//! consults (settings, workspace structure, the lockfile itself) is on disk
+//! for both kinds of caller.
+//!
 //! The local-file-dependency freshness branch of linked-package
 //! verification is NOT ported here. When this function returns
 //! `Decision::Skipped` the caller proceeds with the full install path,
@@ -59,7 +69,8 @@ pub(crate) use local_file_deps::{
     has_local_file_dep_requiring_install, has_local_file_override, has_local_file_package_extension,
 };
 pub(crate) use manifest_agreement::{
-    ManifestStat, modified_manifests_match_lockfile, stat_manifests,
+    ManifestStat, materialized_shape_matches, modified_manifests_match_lockfile, stat_manifests,
+    unstatted_manifests,
 };
 pub(crate) use settings::{
     catalogs_cache_matches, current_settings_with_catalogs, first_setting_drift,
@@ -109,6 +120,21 @@ pub enum Decision {
     Skipped { reason: &'static str },
 }
 
+/// How the check learns whether a project manifest may have changed since
+/// the previous install validated it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ManifestFreshness {
+    /// The manifests are the `package.json` files on disk: one whose mtime
+    /// is no newer than the recorded `lastValidatedTimestamp` is unchanged,
+    /// and only a newer one is content-checked against the lockfile.
+    Mtime,
+    /// The manifests were supplied in memory (the Node-API binding). Nothing
+    /// on disk records when they changed, and a `package.json` may not even
+    /// exist at the project root, so every one is content-checked against
+    /// the wanted lockfile.
+    Content,
+}
+
 /// Inputs to [`check_optimistic_repeat_install`].
 pub struct OptimisticRepeatInstallCheck<'a> {
     /// The root the install recorded its lockfile and workspace state
@@ -152,6 +178,7 @@ pub struct OptimisticRepeatInstallCheck<'a> {
     /// `pnpm.overrides` before the lockfile settings comparison.
     pub catalogs: &'a Catalogs,
     pub layout: RepeatInstallLayout<'a>,
+    pub manifest_freshness: ManifestFreshness,
 }
 
 #[derive(Clone, Copy)]
@@ -248,14 +275,20 @@ pub(crate) struct ManifestDrift<'a> {
 
 impl<'a> ManifestDrift<'a> {
     /// `None` when a manifest cannot be stat'd, which leaves freshness
-    /// unprovable.
+    /// unprovable. In-memory manifests ([`ManifestFreshness::Content`]) are
+    /// not stat'd: each one counts as possibly modified, so the content
+    /// re-check covers them all.
     pub(crate) fn stat(
         check: &OptimisticRepeatInstallCheck<'a>,
         state: &WorkspaceState,
     ) -> Option<Self> {
         let lockfile_mtime = wanted_lockfile_mtime(check.workspace_root, check.config);
+        let stats = match check.manifest_freshness {
+            ManifestFreshness::Mtime => stat_manifests(check.project_manifests)?,
+            ManifestFreshness::Content => unstatted_manifests(check.project_manifests),
+        };
         Some(Self {
-            stats: stat_manifests(check.project_manifests)?,
+            stats,
             lockfile_modified: lockfile_mtime.is_some_and(|mtime| {
                 lockfile_modified_since(mtime, state.last_validated_timestamp)
             }),
@@ -271,7 +304,7 @@ impl<'a> ManifestDrift<'a> {
     pub(crate) fn modified(&self) -> Vec<&ManifestStat<'a>> {
         self.stats
             .iter()
-            .filter(|stat| modified_at_or_after(stat.mtime, self.manifest_reference_ms))
+            .filter(|stat| stat.possibly_modified_since(self.manifest_reference_ms))
             .collect()
     }
 

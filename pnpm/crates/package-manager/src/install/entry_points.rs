@@ -1,7 +1,7 @@
 use super::{
     Install, InstallRunOptions, ProjectMutation, WorkspaceInstallSelection, errors::InstallError,
 };
-use crate::{LockfileVerificationOverride, PolicyExcludes, RebuildOptions, ResolvedPackages};
+use crate::{LockfileVerificationOverride, RebuildOptions, ResolvedPackages};
 use pnpm_config::Config;
 use pnpm_lockfile::MaybeLazyLockfile;
 use pnpm_network::ThrottledClient;
@@ -26,15 +26,7 @@ where
         dependency_groups: DependencyGroupList,
     ) -> Self {
         Self {
-            lockfile_policy: crate::InstallLockfilePolicy {
-                frozen: false,
-                prefer_frozen: None,
-                ignore_manifest_check: false,
-                trust: config.trust_lockfile,
-                update_checksums: false,
-                excludes: PolicyExcludes::Skip,
-                disable_optimistic_repeat: false,
-            },
+            lockfile_policy: crate::InstallLockfilePolicy::plain(config),
             execution: crate::InstallExecution {
                 skip_runtimes: config.skip_runtimes,
                 mutation: ProjectMutation::InstallWorkspace,

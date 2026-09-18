@@ -311,6 +311,7 @@ impl<'w> InstallScope<'w> {
                         .supported_architectures
                         .as_ref(),
                 },
+                manifest_freshness: install.lockfile_policy.manifest_freshness,
             },
             mutation: install.execution.mutation,
             update_seed_policy: &owned.resolution.update_seed_policy,

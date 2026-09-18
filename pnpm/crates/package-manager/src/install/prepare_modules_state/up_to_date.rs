@@ -5,7 +5,7 @@ use super::super::{
     has_revoked_allowed_builds, map_frozen_lockfile_error, modules_consistent_with,
     unapproved_recorded_ignored_builds, update_workspace_state, verify_lockfile_eagerly,
 };
-use crate::optimistic_repeat_install::filesystem_now_ms;
+use crate::optimistic_repeat_install::{filesystem_now_ms, materialized_shape_matches};
 
 /// Whether any package in the lockfile resolves to a local directory.
 ///
@@ -116,31 +116,6 @@ fn build_state_unchanged(
             context.tree.workspace_root,
             context.repeat.effective_node_version,
         )
-}
-/// Whether `current` already records what materializing `wanted` would
-/// produce.
-///
-/// The current lockfile keeps only what the importers reach
-/// ([`crate::filter_lockfile_for_current`]), so a wanted lockfile carrying a
-/// snapshot no importer reaches any more can never equal it. Comparing the
-/// same shape both sides is what lets such a tree settle instead of
-/// re-materializing on every run.
-///
-/// The equal case is the common one and answers without building the
-/// filtered shape at all.
-fn materialized_shape_matches(
-    wanted: &Lockfile,
-    current: &Lockfile,
-    included: pnpm_modules_yaml::IncludedDependencies,
-) -> bool {
-    if wanted == current {
-        return true;
-    }
-    // A transient skip (a failed optional fetch) prunes the current lockfile
-    // further, and its set is not known here. Such a tree simply falls
-    // through to materialization, which retries the fetch anyway.
-    current
-        == &crate::filter_lockfile_for_current(wanted, included, &crate::SkippedSnapshots::new())
 }
 pub(super) fn modules_cache_prune_due(
     config: &Config,

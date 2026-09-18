@@ -184,7 +184,32 @@ pub struct InstallLockfilePolicy {
     pub trust: bool,
     pub update_checksums: bool,
     pub excludes: PolicyExcludes,
+    /// Turns off both repeat-install short-circuits: the workspace-state
+    /// check before any install setup, and the "nothing to materialize"
+    /// return once the lockfile has been verified against the manifests.
     pub disable_optimistic_repeat: bool,
+    /// How the workspace-state check learns whether a project manifest
+    /// changed: from its `package.json` mtime, or by content when the
+    /// caller supplied the manifests in memory.
+    pub manifest_freshness: crate::ManifestFreshness,
+}
+
+impl InstallLockfilePolicy {
+    /// The starting point a plain `install` and the install a `remove` runs
+    /// share; the specialized entry points override what they change.
+    #[must_use]
+    pub fn plain(config: &Config) -> Self {
+        Self {
+            frozen: false,
+            prefer_frozen: None,
+            ignore_manifest_check: false,
+            trust: config.trust_lockfile,
+            update_checksums: false,
+            excludes: PolicyExcludes::Skip,
+            disable_optimistic_repeat: false,
+            manifest_freshness: crate::ManifestFreshness::Mtime,
+        }
+    }
 }
 
 #[derive(Clone, Copy)]

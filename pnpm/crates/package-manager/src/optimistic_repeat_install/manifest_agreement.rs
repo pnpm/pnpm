@@ -5,13 +5,26 @@ use super::{
     PackageManifest, Path, PathBuf, ProjectSnapshot, WorkspaceState, file_mtime,
     modified_at_or_after, mtime_ms,
 };
+use pnpm_modules_yaml::IncludedDependencies;
 
 /// One project manifest's stat outcome, paired with the inputs the
 /// content re-check needs.
 pub(crate) struct ManifestStat<'a> {
     pub(crate) root_dir: &'a Path,
     pub(crate) manifest: &'a PackageManifest,
-    pub(crate) mtime: FileMtime,
+    /// The manifest file's mtime, or `None` for a manifest supplied in
+    /// memory ([`super::ManifestFreshness::Content`]), whose file may not
+    /// exist and whose mtime would prove nothing about the value the
+    /// install was handed.
+    pub(crate) mtime: Option<FileMtime>,
+}
+
+impl ManifestStat<'_> {
+    /// Whether the manifest may have changed at or after `reference_ms`. A
+    /// manifest without an on-disk mtime always may have.
+    pub(crate) fn possibly_modified_since(&self, reference_ms: i64) -> bool {
+        self.mtime.is_none_or(|mtime| modified_at_or_after(mtime, reference_ms))
+    }
 }
 
 /// The modified-manifests branch: the lockfile-equality assertion plus
@@ -144,17 +157,22 @@ fn projects_to_content_check<'a>(
         // A wanted lockfile newer than the last validation must equal what
         // the previous install materialized.
         if modified_at_or_after(wanted.mtime, state.last_validated_timestamp) {
-            assert_wanted_lockfile_equals_current(wanted.wanted, check.config)?;
+            assert_wanted_lockfile_equals_current(
+                wanted.wanted,
+                check.config,
+                check.layout.included,
+            )?;
         }
         return Ok(modified);
     }
-    single_project_projects_to_check(check.config, modified, wanted)
+    single_project_projects_to_check(check.config, check.layout.included, modified, wanted)
 }
 
 /// The single-project branch keys off the lockfile mtimes instead of
 /// `lastValidatedTimestamp`.
 fn single_project_projects_to_check<'a>(
     config: &Config,
+    included: IncludedDependencies,
     modified: &'a [&'a ManifestStat<'a>],
     wanted: &WantedLockfileStat<'_>,
 ) -> Result<&'a [&'a ManifestStat<'a>], &'static str> {
@@ -162,10 +180,12 @@ fn single_project_projects_to_check<'a>(
     if let Some(current_mtime_ms) = current_mtime_ms
         && modified_at_or_after(wanted.mtime, current_mtime_ms)
     {
-        assert_wanted_lockfile_equals_current(wanted.wanted, config)?;
+        assert_wanted_lockfile_equals_current(wanted.wanted, config, included)?;
     }
     let root = modified.first().expect("modified-manifests branch requires a modified project");
-    if modified_at_or_after(root.mtime, wanted.mtime.ms) {
+    // An in-memory manifest has no mtime to compare with the lockfile's, so
+    // it takes the content check outright.
+    if root.possibly_modified_since(wanted.mtime.ms) {
         return Ok(modified);
     }
     if current_mtime_ms.is_some() {
@@ -224,11 +244,13 @@ fn project_content_check(
 
 /// Assert the wanted lockfile equals the current one: with no current
 /// lockfile every importer of the wanted one must be dependency-free
-/// (`RUN_CHECK_DEPS_NO_DEPS`); otherwise the two parsed lockfiles must
-/// be equal (`RUN_CHECK_DEPS_OUTDATED_DEPS`).
+/// (`RUN_CHECK_DEPS_NO_DEPS`); otherwise the current lockfile must record
+/// what materializing the wanted one produces, per
+/// [`materialized_shape_matches`] (`RUN_CHECK_DEPS_OUTDATED_DEPS`).
 pub(crate) fn assert_wanted_lockfile_equals_current(
     wanted: &Lockfile,
     config: &Config,
+    included: IncludedDependencies,
 ) -> Result<(), &'static str> {
     let current = Lockfile::load_current_from_virtual_store_dir(&config.virtual_store_dir)
         .map_err(|_| "the current lockfile cannot be loaded")?;
@@ -253,13 +275,40 @@ pub(crate) fn assert_wanted_lockfile_equals_current(
             }
         }
         Some(current) => {
-            if &current == wanted {
+            if materialized_shape_matches(wanted, &current, included) {
                 Ok(())
             } else {
                 Err("the installed dependencies are not up to date with the lockfile")
             }
         }
     }
+}
+
+/// Whether `current` already records what materializing `wanted` would
+/// produce.
+///
+/// The current lockfile keeps only what the importers reach
+/// ([`crate::filter_lockfile_for_current`]) and none of the top-level keys
+/// pnpm does not define, so a wanted lockfile carrying a snapshot no
+/// importer reaches any more, or an embedder's extension block, can never
+/// equal it. Comparing the same shape both sides is what lets such a tree
+/// settle instead of re-materializing on every run.
+///
+/// The equal case is the common one and answers without building the
+/// filtered shape at all.
+pub(crate) fn materialized_shape_matches(
+    wanted: &Lockfile,
+    current: &Lockfile,
+    included: IncludedDependencies,
+) -> bool {
+    if wanted == current {
+        return true;
+    }
+    // A transient skip (a failed optional fetch) prunes the current lockfile
+    // further, and its set is not known here. Such a tree simply falls
+    // through to materialization, which retries the fetch anyway.
+    current
+        == &crate::filter_lockfile_for_current(wanted, included, &crate::SkippedSnapshots::new())
 }
 
 /// Shared lookups for [`linked_packages_are_up_to_date`], built once
@@ -449,7 +498,27 @@ pub(crate) fn stat_manifests<'a>(
         .iter()
         .map(|(root_dir, manifest)| {
             file_mtime(manifest.path())
-                .map(|mtime| ManifestStat { root_dir: root_dir.as_path(), manifest, mtime })
+                .map(|mtime| ManifestStat {
+                    root_dir: root_dir.as_path(),
+                    manifest,
+                    mtime: Some(mtime),
+                })
+        })
+        .collect()
+}
+
+/// Every project's manifest without a stat, for manifests supplied in
+/// memory: each one reads as possibly modified, so the content re-check
+/// covers them all.
+pub(crate) fn unstatted_manifests<'a>(
+    project_manifests: &'a [(PathBuf, &'a PackageManifest)],
+) -> Vec<ManifestStat<'a>> {
+    project_manifests
+        .iter()
+        .map(|(root_dir, manifest)| ManifestStat {
+            root_dir: root_dir.as_path(),
+            manifest,
+            mtime: None,
         })
         .collect()
 }

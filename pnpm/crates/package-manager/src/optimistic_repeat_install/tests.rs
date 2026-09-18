@@ -18,6 +18,8 @@ mod installation;
 
 mod hooks;
 
+mod in_memory_manifests;
+
 use super::{
     Decision, OptimisticRepeatInstallCheck, check_optimistic_repeat_install,
     deps_status::{RunDepsStatus, check_deps_status_before_run},
@@ -80,6 +82,7 @@ fn check_with_catalogs(
             included: isolated_included(),
             supported_architectures: None,
         },
+        manifest_freshness: crate::ManifestFreshness::Mtime,
     })
 }
 
@@ -102,6 +105,7 @@ fn check_with_lockfile(
             included: isolated_included(),
             supported_architectures: None,
         },
+        manifest_freshness: crate::ManifestFreshness::Mtime,
     })
 }
 
@@ -386,6 +390,24 @@ fn content_check_decision(
     is_workspace_install: bool,
     project_manifests: &[(std::path::PathBuf, &PackageManifest)],
 ) -> Decision {
+    content_check_decision_for(
+        dir,
+        config,
+        is_workspace_install,
+        project_manifests,
+        crate::ManifestFreshness::Mtime,
+    )
+}
+
+/// [`content_check_decision`] with the manifest freshness source chosen by
+/// the test: on-disk mtimes, or content for manifests handed over in memory.
+fn content_check_decision_for(
+    dir: &tempfile::TempDir,
+    config: &'static Config,
+    is_workspace_install: bool,
+    project_manifests: &[(std::path::PathBuf, &PackageManifest)],
+    manifest_freshness: crate::ManifestFreshness,
+) -> Decision {
     let lockfile = Lockfile::load_wanted_from_dir(dir.path()).expect("parse pnpm-lock.yaml");
     check_optimistic_repeat_install(&OptimisticRepeatInstallCheck {
         workspace_root: dir.path(),
@@ -399,6 +421,7 @@ fn content_check_decision(
             included: isolated_included(),
             supported_architectures: None,
         },
+        manifest_freshness,
     })
 }
 
@@ -502,6 +525,7 @@ fn workspace_deps_status(
                 included: isolated_included(),
                 supported_architectures: None,
             },
+            manifest_freshness: crate::ManifestFreshness::Mtime,
         },
         &state,
     )
@@ -638,5 +662,6 @@ importers:
             included: isolated_included(),
             supported_architectures: None,
         },
+        manifest_freshness: crate::ManifestFreshness::Mtime,
     })
 }

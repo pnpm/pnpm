@@ -88,6 +88,7 @@ pub fn install_already_up_to_date(check: &UpToDateFastPathCheck<'_>) -> Option<U
             included: super::included_dependencies(&check.dependency_groups),
             supported_architectures: check.supported_architectures.as_ref(),
         },
+        manifest_freshness: crate::ManifestFreshness::Mtime,
     }) != OptimisticRepeatInstallDecision::UpToDate
     {
         return None;

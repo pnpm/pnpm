@@ -41,14 +41,22 @@ pub(super) struct UpToDateCheck<'a> {
 pub(super) fn install_is_already_up_to_date<Reporter: self::Reporter>(
     check: &UpToDateCheck<'_>,
 ) -> Result<bool, InstallError> {
-    let decided = check.mutation.is_full_install()
+    let eligible = check.mutation.is_full_install()
         && matches!(check.update_seed_policy, UpdateSeedPolicy::KeepAll)
         && !check.frozen_lockfile
         && !check.workspace.config.force
-        && !check.disable_optimistic_repeat_install
-        && check_optimistic_repeat_install(&check.workspace)
-            == OptimisticRepeatInstallDecision::UpToDate;
-    if !decided {
+        && !check.disable_optimistic_repeat_install;
+    if !eligible {
+        return Ok(false);
+    }
+    if let OptimisticRepeatInstallDecision::Skipped { reason } =
+        check_optimistic_repeat_install(&check.workspace)
+    {
+        tracing::debug!(
+            target: "pacquet::install",
+            reason,
+            "repeat-install fast path skipped; running the full install",
+        );
         return Ok(false);
     }
     if !build_state_allows_short_circuit(check)? {

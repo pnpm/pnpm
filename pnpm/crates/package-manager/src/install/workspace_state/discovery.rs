@@ -127,6 +127,7 @@ pub(super) fn check_discovered_deps(
                     optional_dependencies: true,
                 },
             },
+            manifest_freshness: crate::ManifestFreshness::Mtime,
         },
         workspace_state,
     ))
