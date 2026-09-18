@@ -118,41 +118,41 @@ async fn plan_workspace_release(
 }
 
 impl PlannedWorkspaceRelease {
+    async fn confirmed_published_versions(
+        &self,
+        config: &Config,
+        workspace_dir: &Path,
+    ) -> miette::Result<HashSet<String>> {
+        confirmed_published_versions(
+            config,
+            workspace_dir,
+            &self.published_names,
+            &self.projects,
+            &self.private_dirs,
+        )
+        .await
+    }
+
     pub(super) async fn apply(
         self,
         args: &VersionArgs,
         config: &Config,
         workspace_dir: &Path,
     ) -> miette::Result<()> {
-        let Self {
-            plan,
-            projects: engine_projects,
-            intents,
-            published_names,
-            private_dirs,
-            unfiltered,
-        } = self;
-        if plan.releases.is_empty() {
+        if self.plan.releases.is_empty() {
             // A full (unfiltered) run garbage-collects the intent files an
             // empty plan leaves behind: declined ("none"-only) intents and
             // files a merge resurrected after every named package had already
             // consumed them. A filtered run must not — "nothing pending in
             // this scope" is no reason to delete prose belonging to packages
             // outside the filter.
-            if !args.dry_run && unfiltered {
-                let confirmed = confirmed_published_versions(
-                    config,
-                    workspace_dir,
-                    &published_names,
-                    &engine_projects,
-                    &private_dirs,
-                )
-                .await?;
+            if !args.dry_run && self.unfiltered {
+                let confirmed = self.confirmed_published_versions(config, workspace_dir).await?;
                 apply_release_plan(
-                    &plan,
+                    &self.plan,
                     workspace_dir,
-                    &engine_projects,
-                    &intents,
+                    &self.projects,
+                    &self.intents,
                     Some(&config.versioning),
                     &confirmed,
                 )?;
@@ -161,18 +161,12 @@ impl PlannedWorkspaceRelease {
             return Ok(());
         }
         if args.dry_run {
-            println!("{}", render_release_plan(&plan));
+            println!("{}", render_release_plan(&self.plan));
             return Ok(());
         }
 
-        let confirmed = confirmed_published_versions(
-            config,
-            workspace_dir,
-            &published_names,
-            &engine_projects,
-            &private_dirs,
-        )
-        .await?;
+        let confirmed = self.confirmed_published_versions(config, workspace_dir).await?;
+        let Self { plan, projects: engine_projects, intents, .. } = self;
         let applied = apply_release_plan(
             &plan,
             workspace_dir,
