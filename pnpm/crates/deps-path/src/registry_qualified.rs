@@ -47,7 +47,7 @@ pub fn shadows_reserved_version_prefix(name: &str) -> bool {
 
 /// Whether `name` is syntactically usable as a named-registry alias in a
 /// registry-qualified dep path. Does not check the reserved list —
-/// see [`is_reserved_version_prefix`] for that.
+/// see [`shadows_reserved_version_prefix`] for that.
 #[must_use]
 pub fn is_well_formed_registry_name(name: &str) -> bool {
     let mut chars = name.chars();
