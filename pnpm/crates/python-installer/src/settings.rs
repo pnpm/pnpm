@@ -8,8 +8,8 @@ pub(crate) struct Index {
     pub(crate) auth: pnpm_network::AuthHeaders,
 }
 
-/// The indexes `registries` declares for `PyPI`, with the credentials the
-/// machine holds for them.
+/// The indexes `registries` declares for `PyPI`, in the order they are
+/// searched, with the credentials the machine holds for them.
 ///
 /// Credentials are resolved by origin from the same auth sources every other
 /// package source uses, which is why a `registries` key may carry none of its
@@ -20,8 +20,10 @@ pub(super) fn python_index(config: &pnpm_config::Config) -> Result<Index> {
         .into_iter()
         .map(parse_index)
         .collect::<Result<Vec<_>>>()?;
-    let extra_urls = indexes.split_off(1);
-    let url = indexes.pop().expect("python_indexes answers with at least the default index");
+    // `Registry::fetch_index` reads `extra_urls` and then `url`, so the index
+    // declared last is the one that answers what none before it had.
+    let url = indexes.pop().expect("python_indexes answers with at least one index");
+    let extra_urls = indexes;
     let auth = (*config.auth_headers).clone().with_secure_transport();
     Ok(Index { url, extra_urls, auth })
 }

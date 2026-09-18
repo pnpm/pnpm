@@ -1,6 +1,6 @@
 use super::{
     Arc, AuditSettings, BTreeMap, BUILTIN_REGISTRIES_BY_PREFIX, Config, DEFAULT_CARGO_INDEX_URL,
-    DEFAULT_JSR_REGISTRY, DEFAULT_PYPI_INDEX_URL, Ecosystem, NeedsFullMetadataFor,
+    DEFAULT_JSR_REGISTRY, DEFAULT_PYPI_INDEX_URL, Ecosystem, IndexMap, NeedsFullMetadataFor,
     RegistryDeclaration, RegistryLookups, ResolutionMode, UpdateSettings, full_metadata_policy,
     registries,
 };
@@ -35,7 +35,7 @@ impl Config {
     /// The default registry is not among them: it travels as the request's
     /// own `registry` field.
     #[must_use]
-    pub fn registry_declarations(&self) -> BTreeMap<String, RegistryDeclaration> {
+    pub fn registry_declarations(&self) -> IndexMap<String, RegistryDeclaration> {
         registries::to_declarations(&self.registry_lookups(None))
     }
 
@@ -47,18 +47,18 @@ impl Config {
     /// the `@jsr` scope and the [`BUILTIN_REGISTRIES_BY_PREFIX`] prefixes —
     /// are declared too, unless the user pointed them elsewhere.
     #[must_use]
-    pub fn resolved_registry_declarations(&self) -> BTreeMap<String, RegistryDeclaration> {
+    pub fn resolved_registry_declarations(&self) -> IndexMap<String, RegistryDeclaration> {
         registries::to_resolved_declarations(&self.resolved_registry_lookups())
     }
 
-    /// The `PyPI` indexes to resolve Python packages from, the one the
-    /// install falls back to at the head.
+    /// The `PyPI` indexes to resolve Python packages from, in the order they
+    /// are searched.
     ///
-    /// That one is searched last: `Registry::fetch_index` reads the others
-    /// first and takes the first index that has the distribution.
+    /// The first index that has a distribution supplies it, so the one
+    /// declared last answers what none before it had.
     ///
-    /// The `registries` entries that name `ecosystem: pypi`, or
-    /// [`DEFAULT_PYPI_INDEX_URL`] when none do.
+    /// The `registries` entries that name `ecosystem: pypi`, in declaration
+    /// order, or [`DEFAULT_PYPI_INDEX_URL`] when none do.
     #[must_use]
     pub fn python_indexes(&self) -> Vec<&str> {
         let declared = self.indexes_by_ecosystem.get(&Ecosystem::Pypi);
@@ -74,8 +74,8 @@ impl Config {
     /// The sparse index to resolve Cargo dependencies from.
     ///
     /// The one `registries` entry that names `ecosystem: cargo`, or
-    /// [`DEFAULT_CARGO_INDEX_URL`] when none does. `registries` may name
-    /// only one, so there is no order to pick from here.
+    /// [`DEFAULT_CARGO_INDEX_URL`] when none does. `registries` may name only
+    /// one, which is why this answers with an index rather than a list.
     #[must_use]
     pub fn cargo_index_url(&self) -> &str {
         self.indexes_by_ecosystem

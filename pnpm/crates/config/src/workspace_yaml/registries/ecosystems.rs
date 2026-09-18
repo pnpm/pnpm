@@ -5,14 +5,15 @@
 //! and prefix routes in [`super::RegistryLookups`], while every other
 //! ecosystem resolves from an ordered list of indexes.
 //!
-//! A list is held with the `default` index at its head, and that index is
-//! searched last: the others answer first and the default answers what none
-//! of them had.
+//! A list is held in the order the configuration declares it, which is the
+//! order the ecosystem searches: the last index answers what none before it
+//! had.
 
 use super::{
     LoadWorkspaceYamlError, RegistryDeclaration, normalize_registry_url, quote_and_join,
     redact_registry_url,
 };
+use indexmap::IndexMap;
 use pnpm_lockfile::RegistryOptions;
 use serde::Deserialize;
 use std::{
@@ -55,13 +56,12 @@ impl fmt::Display for Ecosystem {
 }
 
 /// What the map has declared for each ecosystem other than npm, so the rules
-/// that span entries are checked once the whole map has been read: an
-/// ecosystem resolves from one index first, and pnpm resolves Cargo
-/// dependencies from a single sparse index.
+/// that span entries are checked once the whole map has been read: one index
+/// is declared once, and pnpm resolves Cargo dependencies from a single
+/// sparse index.
 #[derive(Default)]
 pub(super) struct DeclaredIndexes {
     urls: BTreeMap<Ecosystem, Vec<String>>,
-    defaults: BTreeMap<Ecosystem, String>,
 }
 
 impl DeclaredIndexes {
@@ -72,12 +72,7 @@ impl DeclaredIndexes {
     ) -> Result<(), LoadWorkspaceYamlError> {
         let ecosystem = declaration.ecosystem();
         if ecosystem == Ecosystem::Npm {
-            return match declaration.default {
-                Some(_) => Err(LoadWorkspaceYamlError::NpmRegistryDeclaresDefault {
-                    registry: redact_registry_url(registry),
-                }),
-                None => Ok(()),
-            };
+            return Ok(());
         }
         if let Some(field) = npm_only_field(declaration) {
             return Err(LoadWorkspaceYamlError::EcosystemRegistryDeclaresNpmField {
@@ -87,8 +82,8 @@ impl DeclaredIndexes {
             });
         }
         // Keyed by URL, the map cannot tell that `.../simple` and
-        // `.../simple/` are one index, so two spellings would be counted as
-        // two and could fill both the fallback slot and a searched-first one.
+        // `.../simple/` are one index, so two spellings would take two places
+        // in the search order and the second would never be reached.
         let normalized = normalize_registry_url(registry);
         let declared = self.urls.entry(ecosystem).or_default();
         if declared.contains(&normalized) {
@@ -97,36 +92,17 @@ impl DeclaredIndexes {
                 registry: redact_registry_url(&normalized),
             });
         }
-        declared.push(normalized.clone());
-        if declaration.is_default()
-            && let Some(other) = self.defaults.insert(ecosystem, normalized.clone())
-        {
-            return Err(LoadWorkspaceYamlError::EcosystemDefaultDeclaredTwice {
-                ecosystem: ecosystem.to_string(),
-                registries: quote_and_join([other.as_str(), normalized.as_str()]),
-            });
-        }
+        declared.push(normalized);
         Ok(())
     }
 
     pub(super) fn finish(&self) -> Result<(), LoadWorkspaceYamlError> {
-        for (&ecosystem, urls) in &self.urls {
-            if urls.len() < 2 {
-                continue;
-            }
-            if ecosystem == Ecosystem::Cargo {
-                return Err(LoadWorkspaceYamlError::CargoIndexDeclaredTwice {
-                    registries: quote_and_join(urls.iter().map(String::as_str)),
-                });
-            }
-            if !self.defaults.contains_key(&ecosystem) {
-                return Err(LoadWorkspaceYamlError::EcosystemDefaultNotDeclared {
-                    ecosystem: ecosystem.to_string(),
-                    count: urls.len(),
-                });
-            }
+        match self.urls.get(&Ecosystem::Cargo) {
+            Some(urls) if urls.len() > 1 => Err(LoadWorkspaceYamlError::CargoIndexDeclaredTwice {
+                registries: quote_and_join(urls.iter().map(String::as_str)),
+            }),
+            _ => Ok(()),
         }
-        Ok(())
     }
 }
 
@@ -145,9 +121,8 @@ fn npm_only_field(declaration: &RegistryDeclaration) -> Option<&'static str> {
 
 /// Record a non-npm entry's index, answering whether it was one.
 ///
-/// The default index goes to the head, so that a caller splitting the list
-/// finds it without searching. A map keyed by URL carries no order of its
-/// own, which is why `default` has to be written rather than inferred.
+/// Appended, so the list keeps the order the configuration declares, which is
+/// the order the ecosystem searches.
 pub(super) fn collect_index(
     indexes_by_ecosystem: &mut BTreeMap<Ecosystem, Vec<String>>,
     normalized: &str,
@@ -157,31 +132,24 @@ pub(super) fn collect_index(
     if ecosystem == Ecosystem::Npm {
         return false;
     }
-    let indexes = indexes_by_ecosystem.entry(ecosystem).or_default();
-    if declaration.is_default() {
-        indexes.insert(0, normalized.to_owned());
-    } else {
-        indexes.push(normalized.to_owned());
-    }
+    indexes_by_ecosystem
+        .entry(ecosystem)
+        .or_default()
+        .push(normalized.to_owned());
     true
 }
 
 /// Declare each ecosystem's indexes back into the `registries` shape.
+///
+/// The map they are written into preserves insertion order, so reading the
+/// result back declares the same search order.
 pub(super) fn extend_with_indexes(
-    declarations: &mut BTreeMap<String, RegistryDeclaration>,
+    declarations: &mut IndexMap<String, RegistryDeclaration>,
     indexes_by_ecosystem: &BTreeMap<Ecosystem, Vec<String>>,
 ) {
     for (&ecosystem, indexes) in indexes_by_ecosystem {
-        // A lone index is the one its ecosystem falls back to whether or not
-        // the map says so, so `default` is written only where it
-        // distinguishes this index from another.
-        let names_a_default = indexes.len() > 1;
-        for (position, index) in indexes.iter().enumerate() {
-            let declaration = declarations.entry(index.clone()).or_default();
-            declaration.ecosystem = Some(ecosystem);
-            if position == 0 && names_a_default {
-                declaration.default = Some(true);
-            }
+        for index in indexes {
+            declarations.entry(index.clone()).or_default().ecosystem = Some(ecosystem);
         }
     }
 }

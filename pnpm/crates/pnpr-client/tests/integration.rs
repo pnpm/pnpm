@@ -228,7 +228,7 @@ fn options(
         optional_dependencies: BTreeMap::new(),
         routing: pnpm_pnpr_client::RegistryRouting {
             registry: registry.to_string(),
-            registries: BTreeMap::new(),
+            registries: indexmap::IndexMap::new(),
             authorization: Some(authorization.to_string()),
         },
         transforms: pnpm_pnpr_client::ManifestTransforms {

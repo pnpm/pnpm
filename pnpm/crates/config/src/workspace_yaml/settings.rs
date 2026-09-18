@@ -162,7 +162,7 @@ pub struct WorkspaceSettings {
     /// The registries the project declares. Keyed by registry URL, with the
     /// routes to each registry inside its entry; a map of plain strings is the
     /// older `<scope>: <url>` shape and is read as one.
-    pub registries: Option<BTreeMap<String, RegistryEntry>>,
+    pub registries: Option<IndexMap<String, RegistryEntry>>,
     pub pnpr_server: Option<String>,
     pub cargo: Option<CargoSettings>,
     pub python: Option<PythonSettings>,

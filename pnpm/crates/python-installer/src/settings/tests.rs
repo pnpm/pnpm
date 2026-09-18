@@ -15,22 +15,22 @@ fn config_with_pypi_indexes(indexes: &[&str]) -> Config {
     config
 }
 
-/// The head of the list is the index the install falls back to, which
-/// `Registry::fetch_index` searches after `extra_urls`.
+/// `Registry::fetch_index` reads `extra_urls` and then `url`, so the index
+/// declared last is the one that answers what none before it had.
 #[test]
-fn the_index_the_install_falls_back_to_is_separated_from_the_rest() {
+fn the_index_declared_last_is_the_one_searched_last() {
     let config = config_with_pypi_indexes(&[
-        "https://example.test/simple/",
-        "https://extra.test/simple/",
-        "https://other.test/simple/",
+        "https://first.test/simple/",
+        "https://second.test/simple/",
+        "https://last.test/simple/",
     ]);
     let index = python_index(&config).unwrap();
-    assert_eq!(index.url.as_str(), "https://example.test/simple/");
+    assert_eq!(index.url.as_str(), "https://last.test/simple/");
     let extras: Vec<&str> = index.extra_urls
         .iter()
         .map(url::Url::as_str)
         .collect();
-    assert_eq!(extras, ["https://extra.test/simple/", "https://other.test/simple/"]);
+    assert_eq!(extras, ["https://first.test/simple/", "https://second.test/simple/"]);
 }
 
 #[test]

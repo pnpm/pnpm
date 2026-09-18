@@ -383,7 +383,7 @@ async fn resolves_a_scope_from_the_registry_declared_for_it() {
     .await;
 
     let mut opts = options(dead_default, &pnpr_auth, deps([("@foo/no-deps", "1.0.0")]));
-    opts.routing.registries = BTreeMap::from([(
+    opts.routing.registries = indexmap::IndexMap::from([(
         registry.url().to_string(),
         RegistryDeclaration {
             scopes: Some(vec!["@foo".to_string()]),
@@ -415,7 +415,7 @@ async fn a_declared_registry_the_resolve_never_reaches_is_not_rejected() {
     let (pnpr_url, pnpr_auth, _storage) = start_pnpr(registry.url()).await;
 
     let mut opts = options(registry.url(), &pnpr_auth, deps([("@foo/no-deps", "1.0.0")]));
-    opts.routing.registries = BTreeMap::from([(
+    opts.routing.registries = indexmap::IndexMap::from([(
         "http://169.254.169.254/".to_string(),
         RegistryDeclaration {
             scopes: Some(vec!["@never-resolved".to_string()]),
@@ -440,7 +440,7 @@ async fn a_declared_registry_the_resolve_reaches_is_refused() {
     let (pnpr_url, pnpr_auth, _storage) = start_pnpr(registry.url()).await;
 
     let mut opts = options(registry.url(), &pnpr_auth, deps([("@foo/no-deps", "1.0.0")]));
-    opts.routing.registries = BTreeMap::from([(
+    opts.routing.registries = indexmap::IndexMap::from([(
         "http://169.254.169.254/".to_string(),
         RegistryDeclaration {
             scopes: Some(vec!["@foo".to_string()]),

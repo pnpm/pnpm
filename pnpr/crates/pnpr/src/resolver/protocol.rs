@@ -129,7 +129,7 @@ pub struct ResolveRequest {
     /// a key is always a URL, which is what lets the boundary checks read one
     /// as a fetch target. A request in the older shape fails to parse.
     #[serde(default)]
-    pub registries: BTreeMap<String, RegistryDeclaration>,
+    pub registries: IndexMap<String, RegistryDeclaration>,
     /// The caller's forwarded upstream credentials so the server resolves
     /// and fetches private content as the caller. Keyed as
     /// `auth_headers[registry_uri][scope]`; the `@` scope stores

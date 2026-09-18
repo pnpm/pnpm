@@ -621,10 +621,9 @@ pub struct Config {
     /// The `registries` setting.
     pub registry_options_by_url: BTreeMap<String, RegistryOptions>,
 
-    /// The indexes each non-npm ecosystem resolves from, the one it falls
-    /// back to at the head, from the `registries` entries that name an
-    /// `ecosystem`. The head is searched last, so this is declaration order
-    /// rather than search order.
+    /// The indexes each non-npm ecosystem resolves from, in the order the
+    /// configuration declares them, which is the order they are searched.
+    /// From the `registries` entries that name an `ecosystem`.
     /// npm is absent: its registries are the three lookups above, which
     /// carry the scope and prefix routing npm packages are addressed by.
     ///

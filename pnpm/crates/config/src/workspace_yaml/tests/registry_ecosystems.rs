@@ -26,20 +26,35 @@ fn an_entry_that_names_no_ecosystem_is_an_npm_registry() {
 }
 
 #[test]
-fn the_index_an_ecosystem_falls_back_to_heads_its_list() {
+fn the_indexes_are_read_in_the_order_the_configuration_declares_them() {
     let config = load(
-        "registries:\n  https://extra.example.com/simple/:\n    ecosystem: pypi\n  https://pypi.example.com/simple/:\n    ecosystem: pypi\n    default: true\n",
+        "registries:\n  https://extra.example.com/simple/:\n    ecosystem: pypi\n  https://pypi.example.com/simple/:\n    ecosystem: pypi\n",
     )
     .unwrap();
     assert_eq!(
         config.python_indexes(),
-        ["https://pypi.example.com/simple/", "https://extra.example.com/simple/"],
+        ["https://extra.example.com/simple/", "https://pypi.example.com/simple/"],
     );
     assert!(config.registries_by_scope.is_empty());
 }
 
+/// The map is keyed by URL, so only an insertion-ordered one can answer which
+/// index a lookup reaches first. Sorted by key, `zzz` would be searched after
+/// `aaa` however the file was written.
 #[test]
-fn a_lone_index_needs_no_default() {
+fn declaration_order_survives_a_key_order_that_disagrees_with_it() {
+    let config = load(
+        "registries:\n  https://zzz.example.com/simple/:\n    ecosystem: pypi\n  https://aaa.example.com/simple/:\n    ecosystem: pypi\n",
+    )
+    .unwrap();
+    assert_eq!(
+        config.python_indexes(),
+        ["https://zzz.example.com/simple/", "https://aaa.example.com/simple/"],
+    );
+}
+
+#[test]
+fn a_lone_index_is_the_whole_search_order() {
     let config = load("registries:\n  https://index.example.com:\n    ecosystem: cargo\n").unwrap();
     assert_eq!(config.cargo_index_url(), "https://index.example.com/");
 }
@@ -52,39 +67,12 @@ fn an_ecosystem_no_entry_names_resolves_from_its_own_default() {
 }
 
 #[test]
-fn several_indexes_with_none_of_them_the_default_are_refused() {
-    let error = load(
-        "registries:\n  https://one.example.com/simple/:\n    ecosystem: pypi\n  https://two.example.com/simple/:\n    ecosystem: pypi\n",
-    )
-    .unwrap_err();
-    assert!(error.contains("none of them is the default"), "{error}");
-}
-
-#[test]
-fn two_indexes_of_one_ecosystem_declared_the_default_are_refused() {
-    let error = load(
-        "registries:\n  https://one.example.com/simple/:\n    ecosystem: pypi\n    default: true\n  https://two.example.com/simple/:\n    ecosystem: pypi\n    default: true\n",
-    )
-    .unwrap_err();
-    assert!(error.contains("declared the default"), "{error}");
-    assert!(error.contains("one.example.com"), "{error}");
-    assert!(error.contains("two.example.com"), "{error}");
-}
-
-#[test]
 fn a_second_cargo_index_is_refused() {
     let error = load(
-        "registries:\n  https://one.example.com/:\n    ecosystem: cargo\n    default: true\n  https://two.example.com/:\n    ecosystem: cargo\n",
+        "registries:\n  https://one.example.com/:\n    ecosystem: cargo\n  https://two.example.com/:\n    ecosystem: cargo\n",
     )
     .unwrap_err();
     assert!(error.contains("Two Cargo registries"), "{error}");
-}
-
-#[test]
-fn an_npm_registry_may_not_declare_itself_the_default() {
-    let error = load("registries:\n  https://npm.example.com/:\n    default: true\n").unwrap_err();
-    assert!(error.contains("npm.example.com"), "{error}");
-    assert!(error.contains("not for an npm registry"), "{error}");
 }
 
 /// Every one of these is read only for an npm registry, so an entry serving
@@ -115,28 +103,43 @@ fn an_unknown_ecosystem_is_refused() {
 #[test]
 fn the_declared_indexes_round_trip_through_the_resolved_view() {
     let config = load(
-        "registries:\n  https://extra.example.com/simple/:\n    ecosystem: pypi\n  https://pypi.example.com/simple/:\n    ecosystem: pypi\n    default: true\n",
+        "registries:\n  https://extra.example.com/simple/:\n    ecosystem: pypi\n  https://pypi.example.com/simple/:\n    ecosystem: pypi\n",
     )
     .unwrap();
     let declarations = config.resolved_registry_declarations();
-    let default = declarations
-        .get("https://pypi.example.com/simple/")
-        .expect("the default index is declared");
-    assert_eq!(default.ecosystem(), Ecosystem::Pypi);
-    assert!(default.is_default());
-    let extra =
-        declarations.get("https://extra.example.com/simple/").expect("the extra index is declared");
-    assert_eq!(extra.ecosystem(), Ecosystem::Pypi);
-    assert!(!extra.is_default());
+    let indexes: Vec<&str> = declarations
+        .iter()
+        .filter(|(_, entry)| entry.ecosystem() == Ecosystem::Pypi)
+        .map(|(registry, _)| registry.as_str())
+        .collect();
+    assert_eq!(indexes, ["https://extra.example.com/simple/", "https://pypi.example.com/simple/"]);
+}
+
+/// The declarations a pnpr server is told about carry the search order too,
+/// so a resolution it runs on the client's behalf reaches the same index
+/// first.
+#[test]
+fn the_order_survives_into_the_declarations_sent_to_a_server() {
+    let config = load(
+        "registries:\n  https://zzz.example.com/simple/:\n    ecosystem: pypi\n  https://aaa.example.com/simple/:\n    ecosystem: pypi\n",
+    )
+    .unwrap();
+    let declarations = config.registry_declarations();
+    let declared: Vec<&str> = declarations
+        .iter()
+        .filter(|(_, entry)| entry.ecosystem() == Ecosystem::Pypi)
+        .map(|(registry, _)| registry.as_str())
+        .collect();
+    assert_eq!(declared, ["https://zzz.example.com/simple/", "https://aaa.example.com/simple/"]);
 }
 
 /// Keyed by URL, the map cannot see that two spellings address one index, so
-/// it would count them as two: asking for a `default` that means nothing, or
-/// filling both the fallback slot and a searched-first one with one endpoint.
+/// it would give them two places in the search order and never reach the
+/// second.
 #[test]
 fn two_spellings_of_one_index_are_refused() {
     let error = load(
-        "registries:\n  https://pypi.example.com/simple:\n    ecosystem: pypi\n  https://pypi.example.com/simple/:\n    ecosystem: pypi\n    default: true\n",
+        "registries:\n  https://pypi.example.com/simple:\n    ecosystem: pypi\n  https://pypi.example.com/simple/:\n    ecosystem: pypi\n",
     )
     .unwrap_err();
     assert!(error.contains("declared twice"), "{error}");

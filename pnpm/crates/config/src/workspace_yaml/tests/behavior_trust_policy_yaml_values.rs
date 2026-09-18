@@ -418,7 +418,7 @@ registries:
     settings.apply_to(&mut config, Path::new("/irrelevant"));
 
     let rebuilt = config.registry_declarations();
-    let original: std::collections::BTreeMap<String, RegistryDeclaration> = entries
+    let original: indexmap::IndexMap<String, RegistryDeclaration> = entries
         .into_iter()
         .map(|(registry, entry)| match entry {
             RegistryEntry::Declaration(declaration) => (registry, declaration),

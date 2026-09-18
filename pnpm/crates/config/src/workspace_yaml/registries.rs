@@ -13,6 +13,7 @@ use crate::workspace_yaml::{
     normalize_registry_url, redact_registry_url, registry_url_has_userinfo,
 };
 use ecosystems::DeclaredIndexes;
+use indexmap::IndexMap;
 use pnpm_lockfile::{RegistryOptions, RegistryServerType};
 use serde::{
     Deserialize, Deserializer,
@@ -81,13 +82,6 @@ pub struct RegistryDeclaration {
     /// else to serve means what it did.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub ecosystem: Option<Ecosystem>,
-    /// Marks the index its ecosystem falls back to: the others are searched
-    /// before it, and it answers what none of them had. uv means the same by
-    /// `default` — "the default index is always treated as lowest priority".
-    /// npm says which registry is its default with the `registry` setting or
-    /// the bare `@` scope, so `default` is refused on an npm entry.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub default: Option<bool>,
     #[serde(flatten)]
     pub unknown: BTreeMap<String, serde_json::Value>,
 }
@@ -100,12 +94,6 @@ impl RegistryDeclaration {
     #[must_use]
     pub fn ecosystem(&self) -> Ecosystem {
         self.ecosystem.unwrap_or_default()
-    }
-
-    /// Whether this entry is the one its ecosystem falls back to.
-    #[must_use]
-    pub fn is_default(&self) -> bool {
-        self.default.unwrap_or(false)
     }
 }
 
@@ -150,9 +138,9 @@ pub struct RegistryLookups {
     /// verifies against.
     pub registries_by_prefix: BTreeMap<String, String>,
     pub registry_options_by_url: BTreeMap<String, RegistryOptions>,
-    /// The indexes declared for each ecosystem other than npm, the one it
-    /// falls back to at the head. That one is searched last, so the list is
-    /// in declaration order, not search order. npm is absent because its
+    /// The indexes declared for each ecosystem other than npm, in the order
+    /// they are searched: the last one answers what none before it had.
+    /// npm is absent because its
     /// registries are the three lookups above.
     pub indexes_by_ecosystem: BTreeMap<Ecosystem, Vec<String>>,
 }
@@ -166,7 +154,7 @@ pub struct RegistryLookups {
 /// declaration, and the older `default:` key that [`into_lookups`] reads as
 /// the same thing.
 #[must_use]
-pub fn routed_scopes(entries: &BTreeMap<String, RegistryEntry>) -> BTreeSet<String> {
+pub fn routed_scopes(entries: &IndexMap<String, RegistryEntry>) -> BTreeSet<String> {
     entries
         .iter()
         .flat_map(|(key, entry)| match entry {
@@ -183,7 +171,7 @@ pub fn routed_scopes(entries: &BTreeMap<String, RegistryEntry>) -> BTreeSet<Stri
 
 /// Reject a `registries` map pnpm would otherwise read as something other
 /// than what it says.
-pub fn validate(entries: &BTreeMap<String, RegistryEntry>) -> Result<(), LoadWorkspaceYamlError> {
+pub fn validate(entries: &IndexMap<String, RegistryEntry>) -> Result<(), LoadWorkspaceYamlError> {
     let scope_routes: Vec<&String> = entries
         .iter()
         .filter(|(_, entry)| matches!(entry, RegistryEntry::ScopeRoute(_)))
@@ -305,9 +293,9 @@ fn validate_scopes<'a>(
 /// Split validated declarations into the lookups. Infallible: every rejection
 /// happens in [`validate`], at load time, where the offending file is known.
 #[must_use]
-pub fn into_lookups(entries: BTreeMap<String, RegistryEntry>) -> RegistryLookups {
+pub fn into_lookups(entries: IndexMap<String, RegistryEntry>) -> RegistryLookups {
     let mut lookups = RegistryLookups::default();
-    let mut declarations = BTreeMap::new();
+    let mut declarations = IndexMap::new();
     for (registry, entry) in entries {
         match entry {
             RegistryEntry::ScopeRoute(url) => {
@@ -331,7 +319,7 @@ pub fn into_lookups(entries: BTreeMap<String, RegistryEntry>) -> RegistryLookups
 /// `registries` map is always keyed by URL.
 #[must_use]
 pub fn declarations_into_lookups(
-    entries: BTreeMap<String, RegistryDeclaration>,
+    entries: IndexMap<String, RegistryDeclaration>,
 ) -> RegistryLookups {
     let mut lookups = RegistryLookups::default();
     extend_lookups_with_declarations(&mut lookups, entries);
@@ -340,7 +328,7 @@ pub fn declarations_into_lookups(
 
 fn extend_lookups_with_declarations(
     lookups: &mut RegistryLookups,
-    entries: BTreeMap<String, RegistryDeclaration>,
+    entries: IndexMap<String, RegistryDeclaration>,
 ) {
     for (registry, declaration) in entries {
         let normalized = normalize_registry_url(&registry);
@@ -404,8 +392,8 @@ fn extend_registry_options(
 /// one, so a registry a prefix addresses without a trailing slash stays the
 /// URL the client resolves against.
 #[must_use]
-pub fn to_declarations(lookups: &RegistryLookups) -> BTreeMap<String, RegistryDeclaration> {
-    let mut declarations: BTreeMap<String, RegistryDeclaration> = BTreeMap::new();
+pub fn to_declarations(lookups: &RegistryLookups) -> IndexMap<String, RegistryDeclaration> {
+    let mut declarations: IndexMap<String, RegistryDeclaration> = IndexMap::new();
     for (scope, registry) in &lookups.registries_by_scope {
         if scope == "default" {
             continue;
@@ -435,7 +423,7 @@ pub fn to_declarations(lookups: &RegistryLookups) -> BTreeMap<String, RegistryDe
 #[must_use]
 pub fn to_resolved_declarations(
     lookups: &RegistryLookups,
-) -> BTreeMap<String, RegistryDeclaration> {
+) -> IndexMap<String, RegistryDeclaration> {
     let mut declarations = to_declarations(lookups);
     if let Some(default_registry) = &lookups.default_registry {
         declarations
@@ -452,7 +440,7 @@ pub fn to_resolved_declarations(
 /// The destination is the value of a scope route and the key of a
 /// declaration, so which half is gated follows the entry's shape.
 pub fn retain_without_env_placeholders(
-    entries: &mut BTreeMap<String, RegistryEntry>,
+    entries: &mut IndexMap<String, RegistryEntry>,
     has_env_placeholder: impl Fn(&str) -> bool,
 ) {
     entries.retain(|registry, entry| match entry {

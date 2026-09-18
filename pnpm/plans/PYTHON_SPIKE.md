@@ -34,8 +34,8 @@ requests.
 ### Indexes and dependency rules
 
 A `registries` entry that names `ecosystem: pypi` declares a Simple JSON index.
-The ones that are not the `default` are searched in listed order before it. The
-first index containing a distribution supplies all of its versions. Only a 404
+They are searched in the order they are declared, and the first index
+containing a distribution supplies all of its versions. Only a 404
 tries the next index; authentication failures and other errors stop resolution.
 Versions from different indexes are never combined. Credentials come from the
 machine's auth sources, resolved by origin, and are removed from lockfiles.
@@ -58,8 +58,8 @@ python:
   overrides: ['urllib3>=2']
   constraints: ['urllib3<3']
 registries:
-  https://pypi.org/simple/: { ecosystem: pypi, default: true }
   https://download.example.org/simple/: { ecosystem: pypi }
+  https://pypi.org/simple/: { ecosystem: pypi }
 ```
 
 pnpm also reads `[tool.uv]` `override-dependencies` and

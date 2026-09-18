@@ -137,7 +137,7 @@ async fn serve_files(
 }
 
 fn project(root: &Path, index: &str, dependencies: &[&str]) {
-    fs::write(root.join("pnpm-workspace.yaml"), format!("python:\n  enabled: true\nregistries:\n  '{index}/simple/':\n    ecosystem: pypi\n    default: true\nstoreDir: '{}'\ncacheDir: '{}'\nfetchRetries: 0\nallowBuilds:\n  pkg:pypi/hatchling: true\n  pkg:pypi/setuptools: true\n  pkg:pypi/wheel: true\n  pkg:pypi/tinybackend: true\n", root.join("store").display(), root.join("cache").display())).unwrap();
+    fs::write(root.join("pnpm-workspace.yaml"), format!("python:\n  enabled: true\nregistries:\n  '{index}/simple/':\n    ecosystem: pypi\nstoreDir: '{}'\ncacheDir: '{}'\nfetchRetries: 0\nallowBuilds:\n  pkg:pypi/hatchling: true\n  pkg:pypi/setuptools: true\n  pkg:pypi/wheel: true\n  pkg:pypi/tinybackend: true\n", root.join("store").display(), root.join("cache").display())).unwrap();
     fs::write(root.join("pyproject.toml"), format!("[project]\nname = 'app'\nversion = '1.0'\nrequires-python = '>=3.10'\ndependencies = {dependencies:?}\n")).unwrap();
 }
 
@@ -177,8 +177,8 @@ async fn serve_wheels(
     mocks
 }
 
-/// Declare another `PyPI` index. An extra index is searched *before* the one
-/// [`project`] named, which is the index the install falls back to.
+/// Declare another `PyPI` index ahead of the one [`project`] named, so it is
+/// searched first and [`project`]'s answers what it does not have.
 fn add_python_index(root: &Path, index: &str) {
     let workspace = fs::read_to_string(root.join("pnpm-workspace.yaml")).unwrap();
     fs::write(

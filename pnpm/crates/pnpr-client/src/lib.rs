@@ -56,7 +56,7 @@ use pnpm_shared_artifact_protocol::{
 use reqwest::Client;
 
 /// The `registries` a request declares, keyed by registry URL.
-pub type RegistryDeclarations = BTreeMap<String, RegistryDeclaration>;
+pub type RegistryDeclarations = IndexMap<String, RegistryDeclaration>;
 use serde::{Deserialize, Serialize};
 
 /// Dependency map (`name` -> `version range`).

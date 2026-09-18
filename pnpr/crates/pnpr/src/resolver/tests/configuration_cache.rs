@@ -207,7 +207,7 @@ fn reject_off_allowlist_fetches_blocks_unconfigured_hosts() {
     // reaches. `RouteHook::allows_fetch` refuses the ones it does reach.
     let declared = ResolveRequest {
         registry: Some("https://registry.npmjs.org/".to_string()),
-        registries: BTreeMap::from([(
+        registries: indexmap::IndexMap::from([(
             "http://169.254.169.254/".to_string(),
             RegistryDeclaration {
                 scopes: Some(vec!["@acme".to_string()]),
