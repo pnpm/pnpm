@@ -67,6 +67,7 @@ struct PlannedWorkspaceRelease {
     projects: Vec<pnpm_versioning::WorkspaceProject>,
     intents: Vec<pnpm_versioning::ChangeIntent>,
     published_names: HashMap<String, String>,
+    private_dirs: HashSet<String>,
     unfiltered: bool,
 }
 
@@ -111,6 +112,7 @@ async fn plan_workspace_release(
         projects: engine_projects,
         intents,
         published_names,
+        private_dirs,
         unfiltered: filter.is_none(),
     })
 }
@@ -127,6 +129,7 @@ impl PlannedWorkspaceRelease {
             projects: engine_projects,
             intents,
             published_names,
+            private_dirs,
             unfiltered,
         } = self;
         if plan.releases.is_empty() {
@@ -137,8 +140,14 @@ impl PlannedWorkspaceRelease {
             // this scope" is no reason to delete prose belonging to packages
             // outside the filter.
             if !args.dry_run && unfiltered {
-                let confirmed =
-                    confirmed_published_versions(config, workspace_dir, &published_names).await?;
+                let confirmed = confirmed_published_versions(
+                    config,
+                    workspace_dir,
+                    &published_names,
+                    &engine_projects,
+                    &private_dirs,
+                )
+                .await?;
                 apply_release_plan(
                     &plan,
                     workspace_dir,
@@ -156,8 +165,14 @@ impl PlannedWorkspaceRelease {
             return Ok(());
         }
 
-        let confirmed =
-            confirmed_published_versions(config, workspace_dir, &published_names).await?;
+        let confirmed = confirmed_published_versions(
+            config,
+            workspace_dir,
+            &published_names,
+            &engine_projects,
+            &private_dirs,
+        )
+        .await?;
         let applied = apply_release_plan(
             &plan,
             workspace_dir,

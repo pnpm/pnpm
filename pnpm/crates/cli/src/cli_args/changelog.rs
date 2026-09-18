@@ -13,8 +13,8 @@ use pnpm_network::{ThrottledClient, encode_package_name, redact_url_credentials}
 use pnpm_registry::Package;
 use pnpm_resolving_npm_resolver::pick_registry_for_package;
 use pnpm_versioning::{
-    ChangelogStorage, ReleasePlan, changelog_storage, list_pending_changelogs,
-    read_pending_changelog, render_changelog,
+    ChangelogStorage, ReleasePlan, WorkspaceProject, changelog_storage, list_pending_changelogs,
+    read_pending_changelog, render_changelog, to_project_dir,
 };
 use std::{
     collections::{HashMap, HashSet},
@@ -69,12 +69,20 @@ pub async fn confirmed_published_versions(
     config: &Config,
     workspace_dir: &Path,
     published_names: &HashMap<String, String>,
+    projects: &[WorkspaceProject],
+    private_dirs: &HashSet<String>,
 ) -> miette::Result<HashSet<String>> {
     if changelog_storage(Some(&config.versioning)) != ChangelogStorage::Registry {
         return Ok(HashSet::new());
     }
+    let private_names: HashSet<String> = projects
+        .iter()
+        .filter(|project| private_dirs.contains(&to_project_dir(workspace_dir, &project.root_dir)))
+        .filter_map(|project| project.name.clone())
+        .collect();
     let checks = list_pending_changelogs(workspace_dir)?
         .into_iter()
+        .filter(|(name, _)| !private_names.contains(name))
         .map(|(name, version)| async move {
             let section = read_pending_changelog(workspace_dir, &name, &version).ok()??;
             // The parked file is keyed by the manifest name, which is what the

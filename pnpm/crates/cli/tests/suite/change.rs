@@ -7,6 +7,7 @@
 
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
+use mockito::Matcher;
 use pnpm_testing_utils::bin::CommandTempCwd;
 use std::{fs, path::Path, process::Command};
 
@@ -112,10 +113,9 @@ fn private_package_bumps_without_a_registry_release_probe() {
 
 #[test]
 fn private_only_release_ignores_invalid_registry_configuration() {
-    let CommandTempCwd { workspace, root, .. } = CommandTempCwd::init();
+    let CommandTempCwd { workspace, root, .. } = CommandTempCwd::init().add_mocked_registry();
     fs::write(workspace.join("pnpm-workspace.yaml"), "\n").expect("write workspace yaml");
     setup_mock_workspace(&workspace);
-    fs::write(workspace.join(".npmrc"), "https-proxy=://nonsense\n").expect("write npmrc");
     let pkg_dir = workspace.join("packages").join("app");
     fs::create_dir_all(&pkg_dir).expect("create package dir");
     fs::write(
@@ -130,8 +130,23 @@ fn private_only_release_ignores_invalid_registry_configuration() {
     );
     let status = stdout_of(pnpm_probing(&workspace).with_args(["change", "status"]));
     assert!(status.contains("app: 0.5.0 → 0.6.0"), "unexpected: {status}");
-    let preview = stdout_of(pnpm_probing(&workspace).with_args(["version", "-r", "--dry-run"]));
-    assert!(preview.contains("app: 0.5.0 → 0.6.0"), "unexpected: {preview}");
+
+    let applied = stdout_of(pnpm_probing(&workspace).with_args(["version", "-r"]));
+    assert!(applied.contains("app: 0.5.0 → 0.6.0"), "unexpected: {applied}");
+
+    let mut registry = mockito::Server::new();
+    let no_registry_requests = registry
+        .mock("GET", Matcher::Any)
+        .expect(0)
+        .create();
+    fs::write(workspace.join(".npmrc"), format!("registry={}/\n", registry.url()))
+        .expect("write npmrc");
+    let second = pnpm_probing(&workspace)
+        .with_args(["version", "-r"])
+        .output()
+        .expect("run pnpm");
+    assert!(second.status.success(), "{}", String::from_utf8_lossy(&second.stderr));
+    no_registry_requests.assert();
 
     drop(root);
 }
