@@ -88,15 +88,17 @@ fn generate_sh_shim_header_carries_the_hardened_helper_line() {
         "a shim that pipes $link through echo must not count as hardened",
     );
     assert!(
-        !is_sh_shim_hardened(
-            &body.replace(SH_SHIM_CYGPATH_LINE, r#"    if command -v cygpath > /dev/null 2>&1; then"#)
-        ),
+        !is_sh_shim_hardened(&body.replace(
+            SH_SHIM_CYGPATH_LINE,
+            r"    if command -v cygpath > /dev/null 2>&1; then"
+        )),
         "a shim that looks up cygpath on PATH must not count as hardened",
     );
     assert!(
-        !is_sh_shim_hardened(
-            &body.replace(SH_SHIM_WSLPATH_LINE, r#"    if command -v wslpath > /dev/null 2>&1; then"#)
-        ),
+        !is_sh_shim_hardened(&body.replace(
+            SH_SHIM_WSLPATH_LINE,
+            r"    if command -v wslpath > /dev/null 2>&1; then"
+        )),
         "a shim that looks up wslpath on PATH must not count as hardened",
     );
 }
@@ -119,8 +121,9 @@ case `command -p uname -a` in"#
         ),
         "header must track a Windows-form basedir for WSL2/Cygwin, body was:\n{body}",
     );
-    // `shim_execution_ignores_helpers_from_the_callers_path` runs a shim against
-    // decoys of these; this is what pins them for the platforms it cannot run on.
+    // No test host reports itself as Cygwin, MSYS, or WSL2, so
+    // `shim_execution_ignores_helpers_from_the_callers_path` can only decoy the
+    // helpers outside the platform branch. This is what pins the rest.
     for helper in [
         "command -p readlink",
         "command -p sed",
@@ -813,6 +816,107 @@ fn plant_hijack_tree_and_decoys(root: &Path) -> PathBuf {
     write_executable(&decoy_dir.join("dirname"), &answer(&hijack_bin));
     write_executable(&decoy_dir.join("uname"), "#!/bin/sh\necho MINGW64_NT-10.0\n");
     decoy_dir
+}
+
+/// Cygwin, MSYS, and WSL2 convert `$basedir` to a Windows path through a helper
+/// a dependency can also ship. The system copy answers first, and when none
+/// does the shim falls back to the caller's `PATH` instead of giving up.
+#[cfg(unix)]
+#[test]
+fn the_platform_branch_prefers_the_system_path_converter_and_still_falls_back() {
+    let tmp = tempfile::tempdir().unwrap();
+    let target = Path::new("/proj/node_modules/typescript/bin/tsc");
+    let shim = Path::new("/proj/node_modules/.bin/tsc");
+    let body = generate_sh_shim(target, shim, None, &[]);
+
+    let answering = tmp.path().join("answering");
+    write_executable(&answering, "#!/bin/sh\necho '/system/win'\n");
+    let silent = tmp.path().join("silent");
+    write_executable(&silent, "#!/bin/sh\n");
+    let absent = tmp.path().join("absent");
+    let decoys = tmp.path().join("decoy");
+    std::fs::create_dir_all(&decoys).unwrap();
+    for helper in ["cygpath", "wslpath"] {
+        write_executable(&decoys.join(helper), "#!/bin/sh\necho '/decoy/win'\n");
+    }
+
+    for uname in ["MINGW64_NT-10.0", "Linux 5.15.0 WSL2"] {
+        assert_eq!(
+            run_platform_branch(&body, uname, &answering, &decoys),
+            ("/system/win".to_owned(), ".exe".to_owned()),
+            "{uname}: the system converter must win over the one on PATH",
+        );
+        assert_eq!(
+            run_platform_branch(&body, uname, &silent, &decoys),
+            ("/decoy/win".to_owned(), ".exe".to_owned()),
+            "{uname}: an empty answer from the system converter must fall back to PATH",
+        );
+        assert_eq!(
+            run_platform_branch(&body, uname, &absent, &decoys),
+            ("/decoy/win".to_owned(), ".exe".to_owned()),
+            "{uname}: no system converter must fall back to PATH",
+        );
+    }
+    assert_eq!(
+        run_platform_branch(&body, "MINGW64_NT-10.0", &absent, Path::new("")),
+        (BRANCH_BASEDIR.to_owned(), ".exe".to_owned()),
+        "MSYS with no converter at all must keep the POSIX basedir instead of failing",
+    );
+    assert_eq!(
+        run_platform_branch(&body, "Linux 5.15.0 WSL2", &absent, Path::new("")),
+        (BRANCH_BASEDIR.to_owned(), String::new()),
+        "WSL2 with no converter at all must not claim a Windows exe",
+    );
+}
+
+/// The POSIX directory the platform branch under test converts.
+#[cfg(unix)]
+const BRANCH_BASEDIR: &str = "/proj/node_modules/.bin";
+
+/// Runs the header's platform branch, lifted out of `body` so the test drives
+/// the text pnpm writes, and reports the `basedir_win` and `exe` it leaves
+/// behind. No test host reports itself as Cygwin or WSL2, and `command -p`
+/// searches the system default path, which a test cannot plant into, so the
+/// `uname` and the two converters are the one thing rewritten here:
+/// `system_converter` stands in for what `command -p` would reach and
+/// `callers_path` for what the fallback finds. That the real header reaches
+/// them through `command -p` is what
+/// [`generate_sh_shim_matches_pnpm_typical_case`] pins.
+#[cfg(unix)]
+fn run_platform_branch(
+    body: &str,
+    uname: &str,
+    system_converter: &Path,
+    callers_path: &Path,
+) -> (String, String) {
+    const CASE_HEAD: &str = "case `command -p uname -a` in";
+    let start = body.find(CASE_HEAD).expect("the header must select a platform");
+    let end = start
+        + body[start..].find("\nesac\n").expect("the platform branch must close")
+        + "\nesac\n".len();
+    let branch = body[start..end]
+        .replace("`command -p uname -a`", r#""$fake_uname""#)
+        .replace("command -p cygpath", r#""$system_converter""#)
+        .replace("command -p wslpath", r#""$system_converter""#);
+    let script = format!(
+        "basedir={BRANCH_BASEDIR}\nbasedir_win=\"$basedir\"\nexe=\"\"\nmsys=\"\"\n{branch}\nprintf '%s\\n%s' \"$basedir_win\" \"$exe\"\n",
+    );
+
+    let output = std::process::Command::new("/bin/sh")
+        .arg("-c")
+        .arg(&script)
+        .env("fake_uname", uname)
+        .env("system_converter", system_converter)
+        .env("PATH", callers_path)
+        .output()
+        .expect("run the header's platform branch");
+    assert!(output.status.success(), "stderr:\n{}", String::from_utf8_lossy(&output.stderr));
+
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let (basedir_win, exe) = stdout
+        .split_once('\n')
+        .expect("the branch must report a Windows-form basedir and an exe suffix");
+    (basedir_win.to_owned(), exe.to_owned())
 }
 
 #[cfg(unix)]

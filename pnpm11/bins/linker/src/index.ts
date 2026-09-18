@@ -402,15 +402,18 @@ async function linkBin (cmd: CommandInfo, binsDir: string, opts?: LinkBinOptions
   }
 }
 
-// A warm install rewrites a POSIX shim that is missing either the
-// `command -p` readlink lookup or the printf path conversion. The target
-// marker does not describe the header. pnpm 12 looks for the same two lines.
-const SH_SHIM_HARDENED_HELPER_LINE = '  target=$(command -p readlink "$link")\n'
-const SH_SHIM_PATH_PRINTF_LINE = String.raw`basedir=$(command -p printf '%s\n' "$link" | command -p sed -e 's,\\,/,g')` + '\n'
+// A warm install rewrites a POSIX shim that is missing any of the lines that
+// keep the header's helpers off the caller's PATH. The target marker does not
+// describe the header. pnpm 12 looks for the same lines.
+const SH_SHIM_HARDENED_LINES = [
+  '  target=$(command -p readlink "$link")\n',
+  String.raw`basedir=$(command -p printf '%s\n' "$link" | command -p sed -e 's,\\,/,g')` + '\n',
+  '    if converted=$(command -p cygpath -w "$basedir" 2>/dev/null) && [ -n "$converted" ]; then\n',
+  '    if converted=$(command -p wslpath -w "$basedir" 2>/dev/null) && [ -n "$converted" ]; then\n',
+]
 
 function isShimHardened (content: string): boolean {
-  return content.includes(SH_SHIM_HARDENED_HELPER_LINE) &&
-    content.includes(SH_SHIM_PATH_PRINTF_LINE)
+  return SH_SHIM_HARDENED_LINES.every((line) => content.includes(line))
 }
 
 // Reports whether two paths refer to the same file. A matching inode/device

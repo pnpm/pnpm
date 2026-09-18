@@ -261,13 +261,11 @@ pub(super) const SH_SHIM_PATH_PRINTF_LINE: &str =
 
 /// The line the header converts `$basedir` through on Cygwin, MinGW, and MSYS.
 /// Pinned the same way as [`SH_SHIM_HARDENED_HELPER_LINE`].
-pub(super) const SH_SHIM_CYGPATH_LINE: &str =
-    r#"    if converted=$(command -p cygpath -w "$basedir" 2>/dev/null) && [ -n "$converted" ]; then"#;
+pub(super) const SH_SHIM_CYGPATH_LINE: &str = r#"    if converted=$(command -p cygpath -w "$basedir" 2>/dev/null) && [ -n "$converted" ]; then"#;
 
 /// The line the header converts `$basedir` through on WSL2. Pinned the same
 /// way as [`SH_SHIM_HARDENED_HELPER_LINE`].
-pub(super) const SH_SHIM_WSLPATH_LINE: &str =
-    r#"    if converted=$(command -p wslpath -w "$basedir" 2>/dev/null) && [ -n "$converted" ]; then"#;
+pub(super) const SH_SHIM_WSLPATH_LINE: &str = r#"    if converted=$(command -p wslpath -w "$basedir" 2>/dev/null) && [ -n "$converted" ]; then"#;
 
 /// Whether an already-on-disk POSIX shim has the header a warm reinstall can
 /// leave in place.
@@ -288,7 +286,11 @@ pub fn is_sh_shim_hardened(shim_content: &str) -> bool {
         SH_SHIM_WSLPATH_LINE,
     ]
     .iter()
-    .all(|pinned| shim_content.lines().any(|line| line == *pinned))
+    .all(|pinned| {
+        shim_content
+            .lines()
+            .any(|line| line == *pinned)
+    })
 }
 
 fn is_shim_carrying_target(shim_content: &str, target: &str) -> bool {
