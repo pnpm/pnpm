@@ -96,7 +96,42 @@ pub(crate) struct CommandLoaders<'a> {
     /// `pnpm-workspace.yaml` can only tighten the release-age policy that
     /// governs the pnpm download.
     pub(crate) config_self_update: &'a (dyn Fn() -> miette::Result<&'static mut Config> + Sync),
+    /// Builds the command's [`State`] without running the `updateConfig`
+    /// hooks, which are async. Prefer [`RunCtx::prepared_state`]; this
+    /// closure is for the handlers that build state more than once per
+    /// invocation, where the hooks would run once per build instead of
+    /// once per invocation. Those handlers reach the hooks through the
+    /// install they end in.
     pub(crate) state: &'a (dyn Fn(bool) -> miette::Result<State> + Sync),
+}
+
+impl<'a> RunCtx<'a> {
+    /// The command's [`State`], built from a config the `updateConfig` hooks
+    /// have already been applied to — the awaitable counterpart of
+    /// [`CommandLoaders::state`], which cannot run the async hook pass
+    /// itself. `require_lockfile` means the same thing there.
+    ///
+    /// A [`State`] owns the `Config` it resolves the manifest against, so a
+    /// state built before the pass carries pre-hook settings for the rest of
+    /// the command: a `catalog:` specifier the hooks supplied the entry for
+    /// fails to resolve, and every other setting a hook changed is silently
+    /// dropped. The returned future borrows nothing from `self`, so a handler
+    /// can move it into the [`CommandFuture`] it dispatches.
+    pub(super) fn prepared_state(
+        &self,
+        require_lockfile: bool,
+    ) -> impl Future<Output = miette::Result<State>> + Send + 'a {
+        let load_config = self.loaders.config;
+        let manifest_path = self.locations.manifest_path;
+        let dir = self.locations.dir;
+        let reporter = self.reporter;
+        async move {
+            let config = load_config()?;
+            apply_update_config(config, dir, reporter).await?;
+            State::init(manifest_path.to_path_buf(), config, require_lockfile)
+                .wrap_err("initialize the state")
+        }
+    }
 }
 
 impl CliArgs {

@@ -130,10 +130,10 @@ fn write_linked_peer_workspace(
         ),
     )
     .expect("write pnpmfile");
-    let a = workspace.join("packages/a");
-    let b = workspace.join("packages/b");
-    fs::create_dir_all(&a).expect("create packages/a");
-    fs::create_dir_all(&b).expect("create packages/b");
+    let package_a = workspace.join("packages/a");
+    let package_b = workspace.join("packages/b");
+    fs::create_dir_all(&package_a).expect("create packages/a");
+    fs::create_dir_all(&package_b).expect("create packages/b");
     let mut a_manifest = serde_json::json!({
         "name": "a",
         "version": "1.0.0",
@@ -141,7 +141,7 @@ fn write_linked_peer_workspace(
     });
     if let Some(publish_config) = publish_config {
         let directory = publish_config["directory"].as_str().expect("publishConfig.directory");
-        let publish_dir = a.join(directory);
+        let publish_dir = package_a.join(directory);
         fs::create_dir_all(&publish_dir).expect("create the publish directory");
         fs::write(
             publish_dir.join("package.json"),
@@ -150,9 +150,10 @@ fn write_linked_peer_workspace(
         .expect("write the publish directory manifest");
         a_manifest["publishConfig"] = publish_config;
     }
-    fs::write(a.join("package.json"), a_manifest.to_string()).expect("write packages/a manifest");
+    fs::write(package_a.join("package.json"), a_manifest.to_string())
+        .expect("write packages/a manifest");
     fs::write(
-        b.join("package.json"),
+        package_b.join("package.json"),
         serde_json::json!({
             "name": "b",
             "version": "1.0.0",
@@ -185,7 +186,7 @@ fn assert_peers_check_resolves_hook_catalog(
     let stderr = String::from_utf8_lossy(&output.stderr);
     assert!(
         output.status.success(),
-        "peers check should resolve the hook-provided catalog\nSTDOUT:\n{stdout}\nSTDERR:\n{stderr}"
+        "peers check should resolve the hook-provided catalog\nSTDOUT:\n{stdout}\nSTDERR:\n{stderr}",
     );
     assert!(stdout.contains("No peer dependency issues found"), "STDOUT:\n{stdout}");
 
@@ -224,6 +225,137 @@ fn update_config_catalog_applies_to_peers_with_an_unlinked_publish_directory() {
         Some("true"),
         Some(serde_json::json!({ "directory": "dist", "linkDirectory": false })),
     );
+}
+
+/// The name of the file [`write_marker_hook_project`]'s hook creates next
+/// to the pnpmfile each time it runs.
+const HOOK_MARKER: &str = "hook-ran.txt";
+
+/// Like [`write_catalog_hook_project`], with an ESM pnpmfile whose hook
+/// also writes [`HOOK_MARKER`], so a test can tell that the command it
+/// runs invoked the hook rather than merely succeeded without it.
+fn write_marker_hook_project(workspace: &Path) {
+    fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({
+            "name": "marker-hook-project",
+            "version": "1.0.0",
+            "dependencies": { (CATALOG_DEP): "catalog:" },
+        })
+        .to_string(),
+    )
+    .expect("write package.json");
+    fs::write(
+        workspace.join(".pnpmfile.mjs"),
+        format!(
+            "import fs from 'node:fs'\nexport const hooks = {{ updateConfig (config) {{ fs.writeFileSync(new URL('./{HOOK_MARKER}', import.meta.url), '')\n config.catalogs = {{ default: {{ '{CATALOG_DEP}': '^100.0.0' }} }}; return config }} }}\n",
+        ),
+    )
+    .expect("write pnpmfile");
+}
+
+/// Install with the hook, clear its marker, run `args`, and return the
+/// command's output once the marker proves the command ran the hook.
+fn run_after_install_with_marker_hook(args: &[&str]) -> std::process::Output {
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    write_marker_hook_project(&workspace);
+
+    pacquet_in(&workspace)
+        .with_arg("install")
+        .assert()
+        .success();
+    let marker = workspace.join(HOOK_MARKER);
+    assert!(marker.exists(), "install should run the hook");
+    fs::remove_file(&marker).expect("clear the hook marker");
+
+    let output = pacquet_in(&workspace)
+        .with_args(args)
+        .output()
+        .expect("run the command");
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        marker.exists(),
+        "`pnpm {}` should run the updateConfig hook\nSTDOUT:\n{stdout}\nSTDERR:\n{stderr}",
+        args.join(" "),
+    );
+
+    drop((root, mock_instance));
+    output
+}
+
+fn assert_runs_update_config_and_succeeds(args: &[&str]) -> String {
+    let output = run_after_install_with_marker_hook(args);
+    let stdout = String::from_utf8_lossy(&output.stdout).into_owned();
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        output.status.success(),
+        "`pnpm {}` should succeed\nSTDOUT:\n{stdout}\nSTDERR:\n{stderr}",
+        args.join(" "),
+    );
+    stdout
+}
+
+/// `pnpm fetch` checks the lockfile against the live settings, so without
+/// the hook its config disagrees with what the install recorded and it
+/// fails with `ERR_PNPM_LOCKFILE_CONFIG_MISMATCH`.
+#[test]
+fn update_config_applies_to_fetch() {
+    assert_runs_update_config_and_succeeds(&["fetch"]);
+}
+
+#[test]
+fn update_config_applies_to_why() {
+    let stdout = assert_runs_update_config_and_succeeds(&["why", CATALOG_DEP]);
+    assert!(stdout.contains(CATALOG_DEP), "why should report the dependency:\n{stdout}");
+}
+
+#[test]
+fn update_config_applies_to_list() {
+    let stdout = assert_runs_update_config_and_succeeds(&["list"]);
+    assert!(stdout.contains(CATALOG_DEP), "list should report the dependency:\n{stdout}");
+}
+
+#[test]
+fn update_config_applies_to_ll() {
+    let stdout = assert_runs_update_config_and_succeeds(&["ll"]);
+    assert!(stdout.contains(CATALOG_DEP), "ll should report the dependency:\n{stdout}");
+}
+
+#[test]
+fn update_config_applies_to_licenses() {
+    assert_runs_update_config_and_succeeds(&["licenses", "list"]);
+}
+
+#[test]
+fn update_config_applies_to_sbom() {
+    assert_runs_update_config_and_succeeds(&["sbom", "--sbom-format", "cyclonedx"]);
+}
+
+/// The mocked registry serves no audit endpoint, so the request `audit`
+/// makes after the hook has run is the first thing that fails.
+#[test]
+fn update_config_applies_to_audit() {
+    let output = run_after_install_with_marker_hook(&["audit"]);
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(stderr.contains("ERR_PNPM_AUDIT_ENDPOINT_NOT_EXISTS"), "STDERR:\n{stderr}");
+}
+
+#[test]
+fn update_config_applies_to_patch() {
+    assert_runs_update_config_and_succeeds(&["patch", CATALOG_DEP]);
+}
+
+/// `runtime` builds its state, and so runs the hook, before it looks at
+/// the subcommand, so the unknown-subcommand path shows the hook ran
+/// without needing a runtime download.
+#[test]
+fn update_config_applies_to_runtime() {
+    let output = run_after_install_with_marker_hook(&["runtime", "unknown"]);
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(stderr.contains("ERR_PNPM_RUNTIME_UNKNOWN_SUBCOMMAND"), "STDERR:\n{stderr}");
 }
 
 #[test]
