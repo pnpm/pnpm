@@ -890,7 +890,7 @@ test('the release-age upgrade sends no validator from the abbreviated cache', as
     path: '/is-positive',
     method: 'GET',
   }).reply(200, (options) => {
-    upgradeHeaders = lowercaseKeys(options.headers as Record<string, string>)
+    upgradeHeaders = options.headers as Record<string, string>
     return isPositiveMeta
   })
 
@@ -910,10 +910,6 @@ test('the release-age upgrade sends no validator from the abbreviated cache', as
   expect(upgradeHeaders!['if-none-match']).toBeUndefined()
   expect(upgradeHeaders!['if-modified-since']).toBeUndefined()
 })
-
-function lowercaseKeys (headers: Record<string, string>): Record<string, string> {
-  return Object.fromEntries(Object.entries(headers).map(([name, value]) => [name.toLowerCase(), value]))
-}
 
 /**
  * The abbreviated packument as a registry that reports publish times for only
