@@ -185,7 +185,7 @@ export async function render (
     : list(prefixes, listOpts)
 }
 
-export async function loadProjects (
+export async function loadProjectHierarchies (
   prefixes: string[],
   params: string[],
   opts: RenderOptions

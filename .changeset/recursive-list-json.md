@@ -5,4 +5,6 @@
 "pacquet": patch
 ---
 
-`pnpm -r list --json` now returns one valid JSON array when `sharedWorkspaceLockfile` is `false`. Recursive listing in all output formats now uses each project's installed package paths, including `packageConfigs.modulesDir`, and includes the package details requested by `--long` [#15011](https://github.com/pnpm/pnpm/issues/15011).
+`pnpm -r list --json` now prints one JSON array. It printed a separate array for each project when `sharedWorkspaceLockfile` was `false`, so the output could not be parsed.
+
+`pnpm -r list` now reads each project's own modules directory when the projects keep their own lockfiles, so `--long` and `--parseable` report the packages that project installed [#15011](https://github.com/pnpm/pnpm/issues/15011).

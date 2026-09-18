@@ -7,7 +7,7 @@ import { logger } from '@pnpm/logger'
 import type { IncludedDependencies, Project } from '@pnpm/types'
 
 import { determineReportAs } from './common.js'
-import { loadProjects, render } from './list.js'
+import { loadProjectHierarchies, render } from './list.js'
 
 export async function listRecursive (
   pkgs: Project[],
@@ -32,22 +32,21 @@ export async function listRecursive (
     })
   }
   const projectConfigRecord = createProjectConfigRecord(opts)
+  const projectOpts = ({ rootDir, manifest }: Project) => ({
+    ...opts,
+    modulesDir: (manifest.name ? projectConfigRecord?.[manifest.name]?.modulesDir : undefined) ?? opts.modulesDir,
+    lockfileDir: rootDir,
+  })
   if (determineReportAs(opts) === 'json') {
-    const projects = await Promise.all(pkgs.map(({ rootDir, manifest }) =>
-      withProjectError(rootDir, () => loadProjects([rootDir], params, {
-        ...opts,
-        modulesDir: projectConfigRecord?.[manifest.name ?? '']?.modulesDir ?? opts.modulesDir,
-        lockfileDir: rootDir,
-      }))
+    const projects = await Promise.all(pkgs.map((pkg) =>
+      withProjectError(pkg.rootDir, () => loadProjectHierarchies([pkg.rootDir], params, projectOpts(pkg)))
     ))
     return renderJson(projects.flat(), { depth, long: opts.long ?? false, search: params.length > 0 })
   }
-  const outputs = (await Promise.all(pkgs.map(({ rootDir, manifest }) =>
-    withProjectError(rootDir, () => render([rootDir], params, {
-      ...opts,
-      modulesDir: projectConfigRecord?.[manifest.name ?? '']?.modulesDir ?? opts.modulesDir,
+  const outputs = (await Promise.all(pkgs.map((pkg) =>
+    withProjectError(pkg.rootDir, () => render([pkg.rootDir], params, {
+      ...projectOpts(pkg),
       alwaysPrintRootPackage: depth === -1,
-      lockfileDir: rootDir,
     }))
   ))).filter(Boolean)
   if (outputs.length === 0) return ''

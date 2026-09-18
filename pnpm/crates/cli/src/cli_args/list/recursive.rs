@@ -16,14 +16,14 @@ impl ListArgs {
         let (projects, _) = discover_workspace_projects(&workspace_root, config)?;
         let selection =
             select_recursive_projects(&projects, config, dir, AutoExcludeRoot::Disabled)?;
-        let project_dirs: Vec<PathBuf> = selection.selected
-            .keys()
-            .cloned()
-            .collect();
 
         let always_print_root_package = self.graph.depth == RecursionLimit::ProjectsOnly;
 
         if config.shares_one_lockfile() {
+            let project_dirs: Vec<PathBuf> = selection.selected
+                .keys()
+                .cloned()
+                .collect();
             return self.render_projects(
                 config,
                 &project_dirs,
@@ -42,8 +42,8 @@ impl ListArgs {
         // (with its own legend and summary).
         let mut outputs = Vec::new();
         for (project_dir, project) in &selection.selected {
-            let mut project_config = config.clone();
-            project_config.anchor_dedicated_project(project_dir, project.package.manifest_name());
+            let project_config =
+                dedicated_project_config(config, project_dir, project.package.manifest_name());
             let output = self.render_projects(
                 &project_config,
                 std::slice::from_ref(project_dir),
@@ -60,6 +60,8 @@ impl ListArgs {
         Ok(outputs.join(joiner))
     }
 
+    /// Every selected project's hierarchy in one JSON array. Joining the
+    /// arrays the projects render on their own would not parse.
     async fn render_recursive_json(
         &self,
         config: &Config,
@@ -67,8 +69,8 @@ impl ListArgs {
     ) -> miette::Result<String> {
         let mut projects = Vec::new();
         for (project_dir, project) in &selection.selected {
-            let mut project_config = config.clone();
-            project_config.anchor_dedicated_project(project_dir, project.package.manifest_name());
+            let project_config =
+                dedicated_project_config(config, project_dir, project.package.manifest_name());
             projects.extend(
                 self.load_project_hierarchies(
                     &project_config,
@@ -81,4 +83,17 @@ impl ListArgs {
         }
         Ok(render::render_json(&projects, self.output.long))
     }
+}
+
+/// `config` re-anchored on one project of a workspace whose projects keep
+/// their own lockfiles, so the listing reads the modules directory that
+/// project installed into rather than the workspace-wide one.
+fn dedicated_project_config(
+    config: &Config,
+    project_dir: &Path,
+    project_name: Option<&str>,
+) -> Config {
+    let mut project_config = config.clone();
+    project_config.anchor_dedicated_project(project_dir, project_name);
+    project_config
 }
