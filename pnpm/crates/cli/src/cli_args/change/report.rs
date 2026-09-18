@@ -61,7 +61,7 @@ fn render_pending_change_intents(
         writeln!(output, "  .changeset/{}.md", intent.id).expect("write to string");
     }
     output.push('\n');
-    output.push_str(&render_release_plan(&plan));
+    output.push_str(&render_release_plan(plan));
     output
 }
 
