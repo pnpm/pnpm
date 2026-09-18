@@ -229,6 +229,30 @@ pub(crate) fn package_content_changed(
     let wanted = wanted_packages.get(&snapshot_key.without_peer());
     current.is_some() && !integrity_equal(current, wanted)
 }
+
+/// What the link pass reads to decide a slot's fate: the `packages:`
+/// records it is installing, the previous install's to compare them
+/// against, and whether `--force` settles it outright.
+///
+/// The plan pass's counterpart is [`SnapshotReusePolicy`](super::snapshot_plan::SnapshotReusePolicy); the two `force`
+/// fields mean the same thing at the two phases.
+#[derive(Clone, Copy)]
+pub(super) struct SlotReuse<'a> {
+    pub(super) packages: &'a HashMap<PackageKey, PackageMetadata>,
+    pub(super) current_packages: Option<&'a HashMap<PackageKey, PackageMetadata>>,
+    /// Read here and not inferred from `current_packages`, for the reason
+    /// [`pnpm_lockfile::LockfileEntries::of_previous_install`] gives.
+    pub(super) force: bool,
+}
+
+impl SlotReuse<'_> {
+    /// Whether an existing slot holds a different artifact than the one
+    /// this install wants, so its completion marker must not be taken
+    /// as proof that the slot is already correct.
+    pub(super) fn must_replace(&self, snapshot_key: &PackageKey) -> bool {
+        self.force || package_content_changed(self.current_packages, self.packages, snapshot_key)
+    }
+}
 pub(super) fn variant_cache_key(
     variations: &pnpm_lockfile::VariationsResolution,
     runtime_platform_selector: &PlatformSelector,
