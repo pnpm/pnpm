@@ -4,6 +4,7 @@ use base64::{
     Engine as _,
     engine::general_purpose::{STANDARD, URL_SAFE_NO_PAD},
 };
+use command_extra::CommandExtra;
 use serde_json::json;
 use sha2::{Digest, Sha256};
 use std::{
@@ -193,16 +194,34 @@ fn add_python_settings(root: &Path, settings: &str) {
 /// on the machine of everyone who clones it, and a release's checksums
 /// come from the mirror that serves its files, so the download verifies
 /// only that the mirror agrees with itself.
+///
+/// The machine and the repository name mirrors serving different
+/// releases, and only the repository's serves the pinned one. Honouring
+/// the workspace would install it, so the install failing is what says
+/// the workspace was not read. The machine's mirror is named in the
+/// global `config.yaml` rather than the environment, because the
+/// environment outranks the workspace either way and would prove
+/// nothing.
 #[cfg(any(target_os = "linux", target_os = "macos"))]
 #[tokio::test]
 async fn a_repository_cannot_name_a_mirror() {
     let root = tempfile::tempdir().unwrap();
-    let mut server = mockito::Server::new_async().await;
+    let mut machine = mockito::Server::new_async().await;
+    let mut repository = mockito::Server::new_async().await;
     project(root.path(), "https://unused.invalid", &[]);
-    let _release = serve_interpreter(&mut server, &["3.13.95"]).await;
+    let _other = serve_interpreter(&mut machine, &["3.13.90"]).await;
+    let pinned = serve_interpreter(&mut repository, &["3.13.95"]).await;
+
+    let config = root.path().join(".config/pnpm");
+    fs::create_dir_all(&config).unwrap();
+    fs::write(
+        config.join("config.yaml"),
+        format!("tools:\n  python:\n    mirror: '{}'\n", machine.url()),
+    )
+    .unwrap();
     let path = root.path().join("pnpm-workspace.yaml");
     let mut workspace = fs::read_to_string(&path).unwrap();
-    writeln!(workspace, "tools:\n  python:\n    mirror: '{}'", server.url()).unwrap();
+    writeln!(workspace, "tools:\n  python:\n    mirror: '{}'", repository.url()).unwrap();
     fs::write(&path, workspace).unwrap();
     fs::write(
         root.path().join("pyproject.toml"),
@@ -210,13 +229,15 @@ async fn a_repository_cannot_name_a_mirror() {
     )
     .unwrap();
 
-    // The interpreter the mirror serves is the only one that answers this
-    // pin, so reaching for it anywhere but the mirror is what failing here
-    // means.
-    pacquet_in(root.path())
-        .args(["install", "--offline"])
-        .assert()
-        .failure();
+    assert_failure_contains(
+        pacquet_in(root.path())
+            .with_env("XDG_CONFIG_HOME", root.path().join(".config"))
+            .arg("install"),
+        "3.13.95",
+    );
+    for mock in pinned {
+        assert!(!mock.matched_async().await, "the repository's mirror was read");
+    }
 }
 
 /// A pnpm that downloads interpreters from `mirror`.
