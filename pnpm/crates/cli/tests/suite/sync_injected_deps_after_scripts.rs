@@ -341,7 +341,6 @@ fn a_listed_script_removes_the_link_of_a_bin_it_dropped() {
         !bin_dirs_holding(&workspace, "kept-cli").is_empty(),
         "the bin the script kept should still be linked",
     );
-    // Every `.bin` the syncer writes, the virtual store's included.
     if cfg!(unix) {
         for bin_dir in bin_dirs_holding(&workspace, "kept-cli") {
             let shim =
