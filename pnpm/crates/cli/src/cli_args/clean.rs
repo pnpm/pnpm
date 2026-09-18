@@ -1,4 +1,4 @@
-use super::{dispatch::RunCtx, recursive::discover_workspace_projects, script_override};
+use super::{dispatch::RunCtx, recursive::discover_workspace_projects};
 use miette::{Context, IntoDiagnostic};
 use pnpm_config::Config;
 use pnpm_fs::{is_subdir, relative_path, remove_dirent};
@@ -24,21 +24,9 @@ pub struct CleanArgs {
 const PNPM_HIDDEN_ENTRIES: &[&str] =
     &[".bin", ".modules.yaml", ".pnpm", ".pnpm-workspace-state-v1.json"];
 
-impl CleanArgs {
-    pub(super) fn run(self, ctx: &RunCtx<'_>, command_name: &str) -> miette::Result<()> {
-        let config = (ctx.loaders.config)()?;
-        // A `<command_name>` script in the current project's `package.json`
-        // replaces the built-in command.
-        if let Some(run_args) = script_override::resolve(ctx, config, command_name, Vec::new())? {
-            return run_args.run(ctx.locations.dir, config, ctx.reporter);
-        }
-        clean_builtin(ctx, config, self.lockfile)
-    }
-}
-
 /// Remove `node_modules` contents and (optionally) lockfiles from the
 /// current project or every workspace project.
-fn clean_builtin(ctx: &RunCtx<'_>, config: &Config, remove_lockfile: bool) -> miette::Result<()> {
+pub(super) fn run(ctx: &RunCtx<'_>, config: &Config, remove_lockfile: bool) -> miette::Result<()> {
     // The `Removing <path>` lines render each target relative to the cwd.
     // It is canonicalized once here so it shares the symlink-resolved
     // representation of the paths built from the canonicalized `--dir`; on

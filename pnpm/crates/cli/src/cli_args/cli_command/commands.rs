@@ -90,8 +90,14 @@ pub enum CliCommand {
     Search(SearchArgs),
     /// Rebuild a package.
     Rebuild(RebuildArgs),
-    /// Alias of `rebuild`: same behavior, except an `rb` script
-    /// (not a `rebuild` script) overrides it when present.
+    // A variant of its own rather than a `visible_alias` of `rebuild`,
+    // because the script that overrides a built-in command is looked up
+    // under the name that was typed.
+    /// Rebuild a package.
+    ///
+    /// An `rb` script in `package.json` replaces this command, the way a
+    /// `rebuild` script replaces `pnpm rebuild`. Run `pnpm pm rb` for the
+    /// built-in command regardless.
     #[clap(name = "rb")]
     Rb(RebuildArgs),
     /// Create a tarball from a package

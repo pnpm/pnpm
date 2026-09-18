@@ -15,9 +15,8 @@ pub(in super::super) fn deploy<'a>(
     let reporter = ctx.reporter;
     let config = ctx.loaders.config;
     let cfg = config()?;
-    // Resolved before the target is validated: a `deploy` script in the
-    // current project's `package.json` replaces the built-in command
-    // entirely, target parameter included.
+    // Ahead of the target validation, so a project with a `deploy` script
+    // never has to name a target it does not deploy to.
     let script_args = args.target_dirs
         .iter()
         .map(|target| target.to_string_lossy().into_owned())
@@ -230,8 +229,6 @@ pub(in super::super) fn rebuild<'a>(
     let reporter = ctx.reporter;
     let config = ctx.loaders.config;
     let cfg = config()?;
-    // A `<command_name>` script in the current project's `package.json`
-    // replaces the built-in command, its package arguments included.
     if let Some(run_args) = script_override::resolve(ctx, cfg, command_name, args.packages.clone())?
     {
         return dispatch_script::run(ctx, run_args);
