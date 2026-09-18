@@ -213,4 +213,9 @@ fn a_rejected_selector_is_redacted_and_sanitized_before_it_is_printed() {
 
     let control = message("pkg:maven/foo\u{1b}[31m/bar@1");
     assert!(!control.contains('\u{1b}'), "{control:?}");
+
+    // The rejected type is named alongside the selector, so it is a second
+    // place the raw text reaches a message.
+    let control_type = message("pkg:bad\u{1b}[31m/lodash");
+    assert!(!control_type.contains('\u{1b}'), "{control_type:?}");
 }

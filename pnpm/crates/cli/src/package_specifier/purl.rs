@@ -91,6 +91,7 @@ fn parse_type(package_type: &str, source: Shown<'_>) -> Result<PurlType> {
             .bytes()
             .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'.' | b'-'));
     if !well_formed {
+        let package_type = Shown(package_type);
         return Err(miette::miette!("{source} has an invalid purl type `{package_type}`"));
     }
     let package_type = package_type.to_ascii_lowercase();
