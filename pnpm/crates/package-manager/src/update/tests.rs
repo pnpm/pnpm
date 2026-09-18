@@ -155,24 +155,20 @@ fn a_requested_version_is_recorded_under_the_declared_operator() {
         ("workspace:^", "100.1.0"),
     ] {
         assert_eq!(
-            requested_version_rewrite("100.1.0", previous, RangeSpecStyle::Major),
+            requested_version_rewrite("dep", "100.1.0", previous, RangeSpecStyle::Major),
             expected,
             "rewrite over {previous}",
         );
     }
     assert_eq!(
-        requested_version_rewrite("^100.1.0", "~100.0.0", RangeSpecStyle::Major),
+        requested_version_rewrite("dep", "^100.1.0", "~100.0.0", RangeSpecStyle::Major),
         "^100.1.0",
     );
-    assert_eq!(requested_version_rewrite("next", "^100.0.0", RangeSpecStyle::Major), "next");
+    assert_eq!(requested_version_rewrite("dep", "next", "^100.0.0", RangeSpecStyle::Major), "next");
 }
 
-/// A `runtime:` declaration is written back by the node resolver's own rule: a
-/// stable version keeps the declared operator, a prerelease is pinned exactly
-/// so the channel it came from survives, and an unknown channel is left for the
-/// resolver to reject rather than rewritten into a different one.
 #[test]
-fn a_requested_version_on_a_runtime_declaration_uses_the_runtime_rule() {
+fn a_requested_version_on_a_node_runtime_declaration_uses_the_runtime_rule() {
     use pnpm_registry::RangeSpecStyle;
 
     for (previous, expected) in [
@@ -181,19 +177,47 @@ fn a_requested_version_on_a_runtime_declaration_uses_the_runtime_rule() {
         ("runtime:unknown/^26.8.2", "runtime:unknown/^26.8.2"),
     ] {
         assert_eq!(
-            requested_version_rewrite("26.9.0", previous, RangeSpecStyle::Major),
+            requested_version_rewrite("node", "26.9.0", previous, RangeSpecStyle::Major),
             expected,
             "rewrite over {previous}",
         );
     }
     assert_eq!(
-        requested_version_rewrite("24.0.0-rc.4", "runtime:rc/^24.0.0-rc.3", RangeSpecStyle::Major),
+        requested_version_rewrite(
+            "node",
+            "24.0.0-rc.4",
+            "runtime:rc/^24.0.0-rc.3",
+            RangeSpecStyle::Major,
+        ),
         "runtime:24.0.0-rc.4",
     );
     assert_eq!(
-        requested_version_rewrite("^26", "runtime:^26.8.2", RangeSpecStyle::Major),
+        requested_version_rewrite("node", "^26", "runtime:^26.8.2", RangeSpecStyle::Major),
         "runtime:^26",
     );
+}
+
+/// The deno and bun resolvers report a `runtime:` declaration back as written,
+/// so the selector is recorded as asked rather than moved onto an operator the
+/// next resolve would not report.
+#[test]
+fn a_requested_version_on_a_deno_or_bun_runtime_declaration_is_recorded_as_asked() {
+    use pnpm_registry::RangeSpecStyle;
+
+    for alias in ["deno", "bun"] {
+        for (requested, previous, expected) in [
+            ("1.2.5", "runtime:^1.2.0", "runtime:1.2.5"),
+            ("^1.3", "runtime:^1.2.0", "runtime:^1.3"),
+            ("1.2.5", "runtime:latest", "runtime:1.2.5"),
+            ("canary", "runtime:latest", "runtime:canary"),
+        ] {
+            assert_eq!(
+                requested_version_rewrite(alias, requested, previous, RangeSpecStyle::Major),
+                expected,
+                "rewrite of {previous} to {requested} under {alias}",
+            );
+        }
+    }
 }
 
 #[test]

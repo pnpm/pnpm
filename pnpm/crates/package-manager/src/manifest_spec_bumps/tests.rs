@@ -36,8 +36,12 @@ fn bumps(targets: &[(&str, DependencyGroup, &str)]) -> ManifestSpecBumps {
 }
 
 fn bump(declared: &str, version: &str) -> Option<String> {
+    bump_under("dep", declared, version)
+}
+
+fn bump_under(alias: &str, declared: &str, version: &str) -> Option<String> {
     let version = version.parse::<ImporterDepVersion>().expect("parse the resolved version");
-    bumped_range(declared, &version, RangeSpecStyle::Major)
+    bumped_range(alias, declared, &version, RangeSpecStyle::Major)
 }
 
 #[test]
@@ -111,42 +115,58 @@ fn a_declaration_without_a_range_is_left_alone() {
 }
 
 #[test]
-fn a_runtime_range_moves_under_its_prefix() {
-    assert_eq!(bump("runtime:^26.8.2", "runtime:26.9.0").as_deref(), Some("runtime:^26.9.0"));
-    assert_eq!(bump("runtime:~26.8.2", "runtime:26.8.5").as_deref(), Some("runtime:~26.8.5"));
+fn a_node_runtime_range_moves_under_its_prefix() {
+    let bump_node = |declared, version| bump_under("node", declared, version);
+    assert_eq!(bump_node("runtime:^26.8.2", "runtime:26.9.0").as_deref(), Some("runtime:^26.9.0"));
+    assert_eq!(bump_node("runtime:~26.8.2", "runtime:26.8.5").as_deref(), Some("runtime:~26.8.5"));
 }
 
 #[test]
-fn a_runtime_declaration_that_already_names_the_version_is_left_alone() {
-    assert_eq!(bump("runtime:^26.9.0", "runtime:26.9.0"), None);
-    assert_eq!(bump("runtime:26.8.2", "runtime:26.8.2"), None);
+fn a_node_runtime_declaration_that_already_names_the_version_is_left_alone() {
+    assert_eq!(bump_under("node", "runtime:^26.9.0", "runtime:26.9.0"), None);
+    assert_eq!(bump_under("node", "runtime:26.8.2", "runtime:26.8.2"), None);
 }
 
-/// A release channel in front of the range names the mirror the version comes
-/// from, so it is not part of what gets saved. A prerelease is pinned exactly
-/// instead, which is what keeps that channel: the resolver reads it back out of
-/// the `X.Y.Z-<channel>...` version.
 #[test]
-fn a_runtime_channel_is_dropped_unless_the_pick_is_a_prerelease() {
-    assert_eq!(bump("runtime:rc/^26.8.2", "runtime:26.9.0").as_deref(), Some("runtime:^26.9.0"));
+fn a_node_runtime_channel_is_dropped_unless_the_pick_is_a_prerelease() {
+    let bump_node = |declared, version| bump_under("node", declared, version);
     assert_eq!(
-        bump("runtime:rc/^24.0.0-rc.3", "runtime:24.0.0-rc.4").as_deref(),
+        bump_node("runtime:rc/^26.8.2", "runtime:26.9.0").as_deref(),
+        Some("runtime:^26.9.0"),
+    );
+    assert_eq!(
+        bump_node("runtime:rc/^24.0.0-rc.3", "runtime:24.0.0-rc.4").as_deref(),
         Some("runtime:24.0.0-rc.4"),
     );
 }
 
-/// The node resolver has no notion of a dist tag behind a `runtime:` specifier,
-/// so a tag is pinned to the version it resolved, the way `add` saves it.
 #[test]
-fn a_runtime_tag_is_pinned_to_the_pick() {
-    assert_eq!(bump("runtime:latest", "runtime:26.9.0").as_deref(), Some("runtime:26.9.0"));
+fn a_node_runtime_tag_is_pinned_to_the_pick() {
+    assert_eq!(
+        bump_under("node", "runtime:latest", "runtime:26.9.0").as_deref(),
+        Some("runtime:26.9.0"),
+    );
 }
 
-/// The resolver rejects a release channel it does not know, so a rewrite leaves
-/// the declaration alone rather than turning it into a different one.
 #[test]
-fn a_runtime_declaration_with_an_unknown_channel_is_left_alone() {
-    assert_eq!(bump("runtime:unknown/^26.8.2", "runtime:26.9.0"), None);
+fn a_node_runtime_declaration_with_an_unknown_channel_is_left_alone() {
+    assert_eq!(bump_under("node", "runtime:unknown/^26.8.2", "runtime:26.9.0"), None);
+}
+
+/// The deno and bun resolvers report a `runtime:` declaration back as written,
+/// so an update that moved one would leave the lockfile saying something the
+/// next resolve does not.
+#[test]
+fn a_deno_or_bun_runtime_declaration_is_left_alone() {
+    for alias in ["deno", "bun"] {
+        for declared in ["runtime:^1.2.0", "runtime:1.2.0", "runtime:latest", "runtime:canary"] {
+            assert_eq!(
+                bump_under(alias, declared, "runtime:1.2.5"),
+                None,
+                "bump of {declared} under {alias}",
+            );
+        }
+    }
 }
 
 #[test]
@@ -195,8 +215,7 @@ fn registry_aliases_split_into_the_prefix_they_keep() {
 }
 
 /// `devEngines.runtime` reaches the update as a `runtime:` dependency under
-/// `devDependencies`, and its range moves through the same path a registry
-/// dependency's does.
+/// `devDependencies`.
 #[test]
 fn a_runtime_bump_moves_the_lockfile_entry_and_reports_the_new_range() {
     let mut lockfile = lockfile(

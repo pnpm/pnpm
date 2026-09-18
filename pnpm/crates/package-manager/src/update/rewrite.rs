@@ -4,7 +4,11 @@ use super::{
     selectors::{ParsedSelector, insert_update_target, matcher_one, update_target_name},
     tag_version,
 };
-use crate::{manifest_spec_bumps::split_registry_alias, package_manifest_prefix};
+use crate::{
+    manifest_spec_bumps::split_registry_alias,
+    package_manifest_prefix,
+    runtime_specifier::{RUNTIME_PROTOCOL, node_runtime_version_spec},
+};
 use node_semver::Version;
 use pnpm_engine_runtime_node_resolver::{
     normalize_node_runtime_version_specifier, parse_node_specifier,
@@ -114,6 +118,7 @@ pub(super) fn requested_direct_rewrite(
         return MatchedRewrite::Target(None);
     };
     MatchedRewrite::Target(Some(requested_version_rewrite(
+        name,
         &requested,
         previous,
         scope.range_spec_style(),
@@ -145,33 +150,16 @@ pub(super) fn seed_requested_version(
 /// resolver's `calc_specifier` records a version it has just picked, so
 /// `pnpm update react@19.3.0` moves `^19.2.8` to `^19.3.0`
 /// (pnpm/pnpm#14745). A range, a tag, or an entry that is not a registry
-/// range names no version to pin and is written as requested.
+/// range names no version to pin and is written as requested. A `runtime:`
+/// entry keeps its protocol and follows [`requested_runtime_rewrite`].
 pub(super) fn requested_version_rewrite(
+    alias: &str,
     requested: &str,
     previous: &str,
     default_style: RangeSpecStyle,
 ) -> String {
-    // A `runtime:` declaration keeps its protocol whatever the selector is.
-    // Rewriting it without the prefix would hand the entry to the npm resolver
-    // and drop it out of `devEngines.runtime`. An unknown release channel is
-    // left for the resolver to reject.
-    if let Some(version_spec) = previous.strip_prefix("runtime:") {
-        if parse_node_specifier(version_spec).is_err() {
-            return previous.to_string();
-        }
-        // A concrete version is pinned exactly by the node resolver's rule,
-        // which is what keeps the release channel a prerelease came from.
-        let Ok(version) = Version::parse(requested) else {
-            return format!("runtime:{requested}");
-        };
-        return format!(
-            "runtime:{}",
-            normalize_node_runtime_version_specifier(
-                version_spec,
-                &version.to_string(),
-                Some(previous),
-            ),
-        );
+    if previous.starts_with(RUNTIME_PROTOCOL) {
+        return requested_runtime_rewrite(alias, requested, previous);
     }
     let Ok(version) = Version::parse(requested) else {
         return requested.to_string();
@@ -186,6 +174,33 @@ pub(super) fn requested_version_rewrite(
         default_style,
     );
     format!("{prefix}{range}")
+}
+/// The declaration a `<name>@<requested>` selector writes over the `runtime:`
+/// entry `previous`.
+///
+/// The protocol survives whatever the selector is: writing the bare selector
+/// would hand the entry to the npm resolver and drop it out of
+/// `devEngines.runtime`. A version the node resolver answers is recorded
+/// through that resolver's own rule.
+fn requested_runtime_rewrite(alias: &str, requested: &str, previous: &str) -> String {
+    let as_requested = || format!("{RUNTIME_PROTOCOL}{requested}");
+    let Some(selector) = node_runtime_version_spec(alias, previous) else {
+        // A deno or bun declaration records the selector as asked, which is
+        // what their resolvers report back for it.
+        return as_requested();
+    };
+    // A selector naming a release channel the resolver does not know keeps its
+    // text, so the rejection still names the declaration that was written.
+    if parse_node_specifier(selector).is_err() {
+        return previous.to_string();
+    }
+    let Ok(version) = Version::parse(requested) else {
+        return as_requested();
+    };
+    format!(
+        "{RUNTIME_PROTOCOL}{}",
+        normalize_node_runtime_version_specifier(selector, &version.to_string(), Some(previous)),
+    )
 }
 /// The declaration an update that does not save may write: only a version the
 /// kept range already admits.
