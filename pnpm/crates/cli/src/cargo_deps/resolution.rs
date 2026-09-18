@@ -44,7 +44,11 @@ fn has_override_sources(overrides: &toml::Value) -> Result<bool> {
     Ok(!overrides.is_empty())
 }
 
-pub(super) async fn resolve_with_cargo(config: &Config, root: &Path) -> Result<String> {
+pub(super) async fn resolve_with_cargo(
+    config: &Config,
+    root: &Path,
+    checkout: Option<&Path>,
+) -> Result<String> {
     if !pnpm_cargo_resolver::is_crates_io(config.cargo_index_url()) {
         return Err(miette::miette!(
             r#"Resolving Cargo git dependencies or source overrides requires the default Cargo index. Use an existing Cargo.lock with a Cargo index declared in "registries"."#,
@@ -52,13 +56,15 @@ pub(super) async fn resolve_with_cargo(config: &Config, root: &Path) -> Result<S
     }
     let root = root.to_path_buf();
     let offline = config.offline;
-    tokio::task::spawn_blocking(move || resolve_workspace(&root, offline)).await
+    let checkout = checkout.map(Path::to_path_buf);
+    tokio::task::spawn_blocking(move || resolve_workspace(&root, checkout.as_deref(), offline))
+        .await
         .into_diagnostic()
         .wrap_err("join Cargo dependency resolution")?
 }
 
-fn resolve_workspace(root: &Path, offline: bool) -> Result<String> {
-    let output = resolution_command(root, offline)?
+fn resolve_workspace(root: &Path, checkout: Option<&Path>, offline: bool) -> Result<String> {
+    let output = resolution_command(root, checkout, offline)?
         .output()
         .into_diagnostic()
         .wrap_err("run cargo generate-lockfile")?;
@@ -75,7 +81,7 @@ fn resolve_workspace(root: &Path, offline: bool) -> Result<String> {
         .wrap_err_with(|| format!("read {}", root.join("Cargo.lock").display()))
 }
 
-fn resolution_command(root: &Path, offline: bool) -> Result<Command> {
+fn resolution_command(root: &Path, checkout: Option<&Path>, offline: bool) -> Result<Command> {
     let sysroot = build_std::sysroot(root)?;
     let mut command = Command::new(
         sysroot
@@ -99,7 +105,7 @@ fn resolution_command(root: &Path, offline: bool) -> Result<Command> {
         .into_diagnostic()
         .wrap_err("read Cargo Git transport policy")?;
     command.env("GIT_ALLOW_PROTOCOL", protocols);
-    for (key, value) in resolution_settings(root)? {
+    for (key, value) in resolution_settings(root, checkout)? {
         command
             .arg("--config")
             .arg(format!("{key}={value}"));
@@ -110,30 +116,37 @@ fn resolution_command(root: &Path, offline: bool) -> Result<Command> {
     Ok(command)
 }
 
-fn resolution_settings(root: &Path) -> Result<BTreeMap<&'static str, toml::Value>> {
+/// The Cargo settings pnpm copies onto the resolution command, as the table
+/// and key that carry each one and the name it is passed under.
+const AUDITED_SETTINGS: [(&str, &str, &str); 2] = [
+    ("unstable", "bindeps", "unstable.bindeps"),
+    ("resolver", "incompatible-rust-versions", "resolver.incompatible-rust-versions"),
+];
+
+fn resolution_settings(
+    root: &Path,
+    checkout: Option<&Path>,
+) -> Result<BTreeMap<&'static str, toml::Value>> {
     let mut settings = BTreeMap::new();
-    for ancestor in root.ancestors() {
-        let Some(name) = config_name(ancestor)? else { continue };
-        let directory = ensure_workspace_directory(ancestor, &[".cargo"])?;
-        let (contents, _) = read_workspace_file(&directory, name)
-            .into_diagnostic()
-            .wrap_err_with(|| format!("read {}", directory.path.join(name).display()))?;
-        let document: toml::Table = toml::from_str(&contents)
+    for contents in configs_in_scope(root, checkout) {
+        let document: toml::Table = toml::from_str(&contents?)
             .into_diagnostic()
             .wrap_err("parse Cargo resolution configuration")?;
-        for (table, key) in [("unstable", "bindeps"), ("resolver", "incompatible-rust-versions")] {
+        for (table, key, name) in AUDITED_SETTINGS {
             let Some(value) = document
                 .get(table)
                 .and_then(|table| table.get(key))
             else {
                 continue;
             };
-            let name = match (table, key) {
-                ("unstable", "bindeps") => "unstable.bindeps",
-                _ => "resolver.incompatible-rust-versions",
-            };
             validate_setting(name, value)?;
             settings.entry(name).or_insert_with(|| value.clone());
+        }
+        // The nearest declaration of a setting is the one that counts, so
+        // once every setting has one the files farther up cannot change the
+        // answer, and an unreadable one must not fail the run for nothing.
+        if settings.len() == AUDITED_SETTINGS.len() {
+            break;
         }
     }
     Ok(settings)
@@ -150,7 +163,58 @@ fn validate_setting(key: &str, value: &toml::Value) -> Result<()> {
     Err(miette::miette!("invalid Cargo resolution setting {key}: {value}"))
 }
 
-pub(super) fn config_name(root: &Path) -> Result<Option<&'static str>> {
+/// The text of every Cargo configuration file in scope for `root`, from
+/// `root` upwards, each read as the caller reaches it. A caller that stops
+/// early never opens the files beyond its answer.
+///
+/// `checkout` is the directory the repository controls, which may sit above
+/// a Cargo workspace nested inside it. Its files, `root`'s own among them,
+/// go through the containment-checked reader, so a checkout cannot point one
+/// of them at a file outside itself. What lies above `checkout` is the
+/// machine's: files Cargo itself reads, one of which is commonly a symlink
+/// into a dotfiles repository, so those are read through their path the way
+/// Cargo reads them.
+///
+/// [`None`] is a boundary that could not be resolved, and counts every file
+/// in scope as checkout content: an unknown boundary must not widen what a
+/// checkout can point pnpm at.
+pub(super) fn configs_in_scope<'a>(
+    root: &'a Path,
+    checkout: Option<&'a Path>,
+) -> impl Iterator<Item = Result<String>> + 'a {
+    root.ancestors()
+        .filter_map(move |dir| {
+            let name = match config_name(dir) {
+                Ok(Some(name)) => name,
+                Ok(None) => return None,
+                Err(error) => return Some(Err(error)),
+            };
+            let repository_controlled =
+                dir == root || checkout.is_none_or(|checkout| dir.starts_with(checkout));
+            Some(if repository_controlled {
+                read_config_in_the_checkout(dir, name)
+            } else {
+                read_config_above_the_checkout(dir, name)
+            })
+        })
+}
+
+fn read_config_in_the_checkout(dir: &Path, name: &str) -> Result<String> {
+    let directory = ensure_workspace_directory(dir, &[".cargo"])?;
+    read_workspace_file(&directory, name)
+        .map(|(contents, _)| contents)
+        .into_diagnostic()
+        .wrap_err_with(|| format!("read {}", directory.path.join(name).display()))
+}
+
+fn read_config_above_the_checkout(dir: &Path, name: &str) -> Result<String> {
+    let path = dir.join(".cargo").join(name);
+    fs::read_to_string(&path)
+        .into_diagnostic()
+        .wrap_err_with(|| format!("read {}", path.display()))
+}
+
+fn config_name(root: &Path) -> Result<Option<&'static str>> {
     for name in ["config", "config.toml"] {
         let path = root.join(".cargo").join(name);
         match fs::symlink_metadata(&path) {
