@@ -203,8 +203,9 @@ fn should_delete_packages_from_all_metadata_dirs() {
 fn should_prune_registries_written_before_the_scheme_joined_the_key() {
     let cwd = CommandTempCwd::init().add_mocked_registry();
 
-    let url_str = cwd.npmrc_info.mock_instance.url();
-    let live = pnpm_resolving_npm_resolver::mirror::get_registry_name(url_str.as_str()).unwrap();
+    let live =
+        pnpm_resolving_npm_resolver::mirror::get_registry_name(&cwd.npmrc_info.mock_instance.url())
+            .unwrap();
     let meta_dirs = [
         pnpm_resolving_npm_resolver::mirror::ABBREVIATED_META_DIR,
         pnpm_resolving_npm_resolver::mirror::FULL_META_DIR,
@@ -285,8 +286,9 @@ fn should_report_but_keep_stale_registries_on_a_dry_run() {
 fn should_prune_nothing_when_every_registry_is_readable() {
     let cwd = CommandTempCwd::init().add_mocked_registry();
 
-    let url_str = cwd.npmrc_info.mock_instance.url();
-    let live = pnpm_resolving_npm_resolver::mirror::get_registry_name(url_str.as_str()).unwrap();
+    let live =
+        pnpm_resolving_npm_resolver::mirror::get_registry_name(&cwd.npmrc_info.mock_instance.url())
+            .unwrap();
     let dir = cwd.npmrc_info.cache_dir
         .join(pnpm_resolving_npm_resolver::mirror::ABBREVIATED_META_DIR)
         .join(&live);
