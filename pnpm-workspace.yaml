@@ -78,9 +78,71 @@ pipelines:
   rust-dylint: [ci:rust-dylint]
   build-pnpr: [ci:build-pnpr]
 
+# Every entry names a script the root manifest alone defines. A name a
+# workspace package also defines must not appear here: the entry would drop
+# that task's default `dependsOn: ['^<name>']` ordering, and each project's
+# run of it would take a slot of the group, serializing a recursive run.
 tasks:
+  ci:compile:
+    concurrencyGroup: typescript
   ci:lint:
     dependsOn: [ci:compile]
+    concurrencyGroup: typescript
+  ci:test-all:
+    concurrencyGroup: typescript
+  ci:test-branch:
+    concurrencyGroup: typescript
+  ci:test-chunk:
+    concurrencyGroup: typescript
+  test-all:
+    concurrencyGroup: typescript
+  test-branch:
+    concurrencyGroup: typescript
+  test-pkgs-all:
+    concurrencyGroup: typescript
+  test-pkgs-all-report-summary:
+    concurrencyGroup: typescript
+  test-pkgs-branch:
+    concurrencyGroup: typescript
+  build:pnpm:
+    concurrencyGroup: cargo
+  check:rust:
+    concurrencyGroup: cargo
+  fix:rust:
+    concurrencyGroup: cargo
+  lint:rust:
+    concurrencyGroup: cargo
+  pre-push:rust:
+    concurrencyGroup: cargo
+  ready:rust:
+    concurrencyGroup: cargo
+  test:rust:
+    concurrencyGroup: cargo
+  test:rust-affected:
+    concurrencyGroup: cargo
+  test:rust-smoke:
+    concurrencyGroup: cargo
+  ci:build-pnpr:
+    concurrencyGroup: cargo
+  ci:pnpr-test:
+    concurrencyGroup: cargo
+  ci:rust-clippy:
+    concurrencyGroup: cargo
+  ci:rust-doc:
+    concurrencyGroup: cargo
+  ci:rust-dylint:
+    concurrencyGroup: cargo
+  ci:rust-test:
+    concurrencyGroup: cargo
+
+# The repository is checked out into many worktrees at once, and a second
+# Rust build or TypeScript test run on the same machine only takes cores and
+# memory from the first. The TypeScript test scripts also share the
+# `../pnpm_tmp` scratch directory across worktrees, which one of them wipes
+# on startup. A task past the limit waits for a slot instead of starting.
+concurrencyGroups:
+  cargo: 1
+  typescript: 1
 
 # Native workspace release management (consumed by `pnpm change` / `pnpm version -r`).
 # The Rust CLI wrapper is the workspace package `pacquet` (published to npm as
