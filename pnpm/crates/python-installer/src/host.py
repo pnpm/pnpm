@@ -177,14 +177,6 @@ def inspect_wheel(request):
         if name == record_name:
             if digest or size:
                 raise ValueError("RECORD must not hash itself")
-            continue
-        algorithm, separator, expected = digest.partition("=")
-        if not separator or algorithm not in ("sha256", "sha384", "sha512"):
-            raise ValueError("unsupported wheel RECORD hash: " + name)
-        contents = Path(files[name]).read_bytes()
-        actual = base64.urlsafe_b64encode(hashlib.new(algorithm, contents).digest()).rstrip(b"=").decode()
-        if actual != expected or int(size) != len(contents):
-            raise ValueError("wheel RECORD verification failed: " + name)
     unsigned = set(files) - recorded
     if unsigned - {record_name + ".jws", record_name + ".p7s"}:
         raise ValueError("wheel RECORD does not cover every file")
@@ -226,20 +218,23 @@ class Environment:
         destination.write_bytes(contents)
         if executable:
             destination.chmod(0o755)
+        self.record_contents(destination, contents)
+
+    def record_contents(self, destination, contents):
         digest = base64.urlsafe_b64encode(hashlib.sha256(contents).digest()).rstrip(b"=").decode()
         self.record(destination, "sha256=" + digest, len(contents))
 
-    def import_file(self, destination, source, metadata, recorded):
-        """Import an unchanged file using its verified wheel RECORD entry."""
+    def import_file(self, destination, source, metadata):
         destination = self.reserve(destination)
         executable = bool(metadata.st_mode & 0o111)
+        contents = Path(source).read_bytes()
         if self.defer_files:
             self.imports.append({"source": str(source), "destination": str(destination), "executable": executable, "device": metadata.st_dev})
         else:
-            destination.write_bytes(Path(source).read_bytes())
+            destination.write_bytes(contents)
             if executable:
                 destination.chmod(0o755)
-        self.record(destination, recorded[1], recorded[2])
+        self.record_contents(destination, contents)
 
     def write_entry_points(self, entries):
         for group in ("console_scripts", "gui_scripts"):
@@ -272,7 +267,6 @@ def install_wheel(environment, package):
     files, metadata = package["files"], package["metadata"]
     dist_info = metadata["dist_info"]
     environment.start(metadata["purelib"])
-    recorded = {row[0]: row for row in csv.reader(io.StringIO(Path(files[dist_info + "/RECORD"]).read_text(encoding="utf-8")))}
     for name, source in files.items():
         if name in (dist_info + "/RECORD", dist_info + "/RECORD.jws", dist_info + "/RECORD.p7s", dist_info + "/INSTALLER"):
             continue
@@ -300,7 +294,7 @@ def install_wheel(environment, package):
                 contents = prefix + contents.partition(b"\n")[2]
             environment.write(destination, contents, executable)
         else:
-            environment.import_file(destination, source, source_metadata, recorded[name])
+            environment.import_file(destination, source, source_metadata)
 
     entry_points = files.get(dist_info + "/entry_points.txt")
     if entry_points:

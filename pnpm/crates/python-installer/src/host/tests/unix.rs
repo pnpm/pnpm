@@ -12,7 +12,7 @@ use std::{
     path::{Path, PathBuf},
 };
 
-fn unpacked_wheel(root: &Path) -> BTreeMap<String, PathBuf> {
+fn unpacked_wheel(root: &Path, mismatched_wheel_hash: bool) -> BTreeMap<String, PathBuf> {
     let mut files = BTreeMap::new();
     let mut record = String::new();
     for (name, body) in [
@@ -36,8 +36,13 @@ fn unpacked_wheel(root: &Path) -> BTreeMap<String, PathBuf> {
         let digest = STANDARD
             .decode(hash.strip_prefix("sha256-").unwrap())
             .unwrap();
-        writeln!(record, "{name},sha256={},{}", URL_SAFE_NO_PAD.encode(digest), body.len()).unwrap(
-        );
+        let digest = URL_SAFE_NO_PAD.encode(digest);
+        let digest = if mismatched_wheel_hash && name.ends_with("/WHEEL") {
+            "A".repeat(digest.len())
+        } else {
+            digest
+        };
+        writeln!(record, "{name},sha256={digest},{}", body.len()).unwrap();
         files.insert(name.to_string(), path);
     }
     let name = "alpha-1.0.dist-info/RECORD";
@@ -51,7 +56,7 @@ fn unpacked_wheel(root: &Path) -> BTreeMap<String, PathBuf> {
 #[tokio::test]
 async fn unpacked_executables_keep_permissions_without_cas_names() {
     let temporary = tempfile::tempdir().unwrap();
-    let files = unpacked_wheel(&temporary.path().join("wheel"));
+    let files = unpacked_wheel(&temporary.path().join("wheel"), false);
     let metadata = inspect("python3", &files).await.unwrap();
     let packages = serde_json::json!([{ "files": files, "metadata": metadata }]);
     for mode in [
@@ -71,5 +76,45 @@ async fn unpacked_executables_keep_permissions_without_cas_names() {
             .args(["-I", "-c", "import os, sysconfig; from pathlib import Path; p = Path(sysconfig.get_path('purelib')) / 'alpha/plain-exec'; assert not os.access(p, os.X_OK)"])
             .output().await.unwrap();
         assert!(output.status.success(), "{}", String::from_utf8_lossy(&output.stderr));
+    }
+}
+
+#[tokio::test]
+async fn unpacked_wheels_tolerate_record_hash_mismatches() {
+    let temporary = tempfile::tempdir().unwrap();
+    let files = unpacked_wheel(&temporary.path().join("wheel"), true);
+    let metadata = inspect("python3", &files).await.unwrap();
+    let packages = serde_json::json!([{ "files": files, "metadata": metadata }]);
+    let wheel = fs::read_to_string(files["alpha-1.0.dist-info/WHEEL"].as_path()).unwrap();
+    let hash = pnpm_crypto_hash::create_hash(&wheel);
+    let digest = STANDARD
+        .decode(hash.strip_prefix("sha256-").unwrap())
+        .unwrap();
+    let expected = format!(
+        "alpha-1.0.dist-info/WHEEL,sha256={},{}",
+        URL_SAFE_NO_PAD.encode(digest),
+        wheel.len(),
+    );
+    for mode in [
+        PackageImportMethod::Auto,
+        PackageImportMethod::CloneOrCopy,
+        PackageImportMethod::Hardlink,
+        PackageImportMethod::Copy,
+    ] {
+        let root = temporary
+            .path()
+            .join(format!("bad-record-{mode:?}"));
+        install("python3", &root, &packages, mode).await.unwrap();
+        let output = tokio::process::Command::new(root.join("bin/python"))
+            .args([
+                "-I",
+                "-c",
+                "import importlib.metadata as m; print(next(row for row in m.distribution('alpha').read_text('RECORD').splitlines() if row.startswith('alpha-1.0.dist-info/WHEEL,')))",
+            ])
+            .output()
+            .await
+            .unwrap();
+        assert!(output.status.success(), "{}", String::from_utf8_lossy(&output.stderr));
+        assert_eq!(String::from_utf8(output.stdout).unwrap().trim(), expected);
     }
 }
