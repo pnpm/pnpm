@@ -46,9 +46,8 @@ fn overlapping_scripts() -> serde_json::Value {
     })
 }
 
-/// `pnpm --parallel` starts every script the selector matched at once,
-/// including the ones a single package matched — the reported
-/// regression's exact invocation.
+/// `--parallel` implies `--recursive`, so this bare invocation — the one
+/// the issue reported — is a recursive run.
 #[test]
 fn parallel_run_runs_regexp_scripts_of_one_package_concurrently() {
     let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
@@ -76,8 +75,6 @@ fn parallel_run_runs_regexp_scripts_of_one_package_concurrently() {
     drop(root);
 }
 
-/// The default recursive run schedules a task's scripts up to the
-/// workspace concurrency, the same limit the tasks themselves get.
 #[test]
 fn recursive_run_runs_regexp_scripts_concurrently_under_workspace_concurrency() {
     let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
@@ -102,8 +99,7 @@ fn recursive_run_runs_regexp_scripts_concurrently_under_workspace_concurrency() 
     drop(root);
 }
 
-/// A script-level concurrency of one — `--sequential` or
-/// `--workspace-concurrency=1` — keeps the matched scripts apart.
+/// Both spellings of a concurrency of one reach the same execution mode.
 #[test]
 fn recursive_run_runs_regexp_scripts_sequentially_below_concurrency_two() {
     for flags in [&["--sequential"][..], &["--workspace-concurrency=1"][..]] {
@@ -134,8 +130,6 @@ fn recursive_run_runs_regexp_scripts_sequentially_below_concurrency_two() {
     }
 }
 
-/// Under `--bail` the first failing script cancels the sibling still
-/// running beside it in the same package, like it does across packages.
 #[test]
 fn bail_cancels_the_sibling_script_of_the_same_package() {
     let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
@@ -154,11 +148,19 @@ fn bail_cancels_the_sibling_script_of_the_same_package() {
         )],
     );
 
-    assert_cmd::Command::from_std(pacquet)
+    let output = assert_cmd::Command::from_std(pacquet)
         .args(["--workspace-concurrency=2", "-r", "run", "/^dev:/"])
         .timeout(Duration::from_mins(1))
         .assert()
-        .failure();
+        .failure()
+        .get_output()
+        .clone();
+
+    // The cancelled sibling must not take the failing script's place as
+    // the task's verdict, which is what names the project in the error.
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    eprintln!("STDERR:\n{stderr}\n");
+    assert!(stderr.contains("ERR_PNPM_RECURSIVE_RUN_FIRST_FAIL"), "stderr: {stderr}");
 
     let slow_started = workspace
         .join("project-1")
@@ -175,8 +177,6 @@ fn bail_cancels_the_sibling_script_of_the_same_package() {
     drop(root);
 }
 
-/// Under `--no-bail` a failing script does not stop its sibling in the
-/// same package, and the run reports the failure once all settled.
 #[test]
 fn no_bail_runs_every_regexp_script_of_the_same_package() {
     let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
@@ -188,7 +188,7 @@ fn no_bail_runs_every_regexp_script_of_the_same_package() {
                 "name": "project-1",
                 "version": "1.0.0",
                 "scripts": {
-                    "check:pass": "touch passed.txt",
+                    "check:pass": r#"node -e "require('fs').writeFileSync('passed.txt', '')""#,
                     "check:fail": r#"node -e "process.exit(3)""#,
                 },
             }),
@@ -211,6 +211,91 @@ fn no_bail_runs_every_regexp_script_of_the_same_package() {
     assert!(passed, "the passing script must run beside the failing one");
     let stderr = String::from_utf8_lossy(&output.stderr);
     assert!(stderr.contains("failed in 1 packages"), "stderr: {stderr}");
+
+    drop(root);
+}
+
+const PEAK_DIR: &str = "peak-probe";
+
+/// A script that samples how many of the run's scripts are live while it
+/// runs: it drops an `active-<id>` marker in a directory every package
+/// shares, counts the markers for 300ms, and leaves its own peak behind
+/// as `peak-<id>`.
+fn write_peak_probe(workspace: &std::path::Path) {
+    fs::create_dir(workspace.join(PEAK_DIR)).expect("create the peak-probe directory");
+    fs::write(
+        workspace.join("track-peak.js"),
+        r"const fs = require('fs')
+const path = require('path')
+const dir = path.join('..', 'peak-probe')
+const id = process.argv[2]
+const marker = path.join(dir, `active-${id}`)
+fs.writeFileSync(marker, '')
+let peak = 0
+const sample = () => {
+  const live = fs.readdirSync(dir).filter((entry) => entry.startsWith('active-')).length
+  peak = Math.max(peak, live)
+}
+const timer = setInterval(sample, 5)
+setTimeout(() => {
+  clearInterval(timer)
+  sample()
+  fs.rmSync(marker, { force: true })
+  fs.writeFileSync(path.join(dir, `peak-${id}`), String(peak))
+}, 300)
+",
+    )
+    .expect("write peak probe");
+}
+
+fn peak_scripts(name: &str) -> serde_json::Value {
+    json!({
+        "name": name,
+        "version": "1.0.0",
+        "scripts": {
+            "dev:one": format!("node ../track-peak.js {name}-one"),
+            "dev:two": format!("node ../track-peak.js {name}-two"),
+        },
+    })
+}
+
+/// `workspaceConcurrency` caps the scripts pnpm has running, not the
+/// tasks it has dispatched.
+#[test]
+fn recursive_run_keeps_the_matched_scripts_within_workspace_concurrency() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    write_peak_probe(&workspace);
+    let manifests: Vec<(&str, serde_json::Value)> =
+        ["project-1", "project-2", "project-3", "project-4"]
+            .into_iter()
+            .map(|name| (name, peak_scripts(name)))
+            .collect();
+    write_workspace(&workspace, &manifests);
+
+    assert_cmd::Command::from_std(pacquet)
+        .args(["--workspace-concurrency=2", "-r", "run", "/^dev:/"])
+        .timeout(Duration::from_mins(1))
+        .assert()
+        .success();
+
+    let peaks: Vec<usize> = fs::read_dir(workspace.join(PEAK_DIR))
+        .expect("read the peak-probe directory")
+        .map(|entry| entry.expect("read a peak-probe entry").path())
+        .filter(|path| {
+            path.file_name()
+                .is_some_and(|name| name.to_string_lossy().starts_with("peak-"))
+        })
+        .map(|path| {
+            fs::read_to_string(&path)
+                .expect("read a peak file")
+                .trim()
+                .parse()
+                .expect("a peak file holds a count")
+        })
+        .collect();
+    eprintln!("per-script peaks: {peaks:?}");
+    assert_eq!(peaks.len(), 8);
+    assert_eq!(peaks.iter().max().copied(), Some(2));
 
     drop(root);
 }

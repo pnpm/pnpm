@@ -21,9 +21,11 @@ pub(super) fn run_scripts(run: &ProjectScripts<'_, '_, '_>) -> miette::Result<Pr
             continue;
         }
 
+        let permit = options.process.script_budget.acquire();
         (options.process.on_started)();
         state.before_script();
         let ran = run_one_script(run, selected, &script, &mut state)?;
+        drop(permit);
         // A cancelled run ends the project outright; `--bail` stops it
         // at the first script that failed.
         if !ran || (state.failed && options.process.bail) {

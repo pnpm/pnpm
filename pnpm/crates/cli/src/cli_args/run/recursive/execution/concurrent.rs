@@ -8,10 +8,8 @@ use miette::IntoDiagnostic;
 use pnpm_executor::ScriptExit;
 use pnpm_workspace_task_scheduler::{ScheduleGraphOptions, schedule_graph};
 
-/// Run the task's scripts concurrently — every one at once under
-/// `--parallel`, otherwise up to the workspace concurrency — like the
-/// single-project `run` does with the scripts a `/pattern/` selector
-/// matched.
+/// Dispatch the task's scripts over the shared scheduler, then fold what
+/// each one settled as into the task's single [`ProjectExecution`].
 pub(super) fn run_scripts(run: &ProjectScripts<'_, '_, '_>) -> miette::Result<ProjectExecution> {
     let options = run.options;
     let root = options.node.project.as_path();
@@ -61,6 +59,7 @@ fn run_one_script(
         return TaskCompletion::Passed;
     }
 
+    let _permit = run.options.process.script_budget.acquire();
     (run.options.process.on_started)();
     state
         .lock()

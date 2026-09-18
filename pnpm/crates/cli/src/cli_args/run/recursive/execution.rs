@@ -1,7 +1,7 @@
 use super::{
     AtomicUsize, Config, ExecutionStatus, GraphPkg, HashMap, IndexMap, Instant, LogEvent, Mutex,
     Ordering, Path, ProcessTracker, ProjectGraph, RecursiveRun, RunArgs, RunContext, RunResults,
-    ScriptOutput, Status, TaskCompletion, TaskGraph, TaskKey, TaskNode, env,
+    ScriptBudget, ScriptOutput, Status, TaskCompletion, TaskGraph, TaskKey, TaskNode, env,
     make_node_package_map_option, make_node_require_option, package_map_path_for_execution,
     pnp_path_for_execution, run_stages, script_concurrency, task_summary_key,
 };
@@ -49,6 +49,7 @@ pub(super) struct TaskRunner<'a, 'run, 'project> {
     pub(super) outcome: RunOutcome<'a>,
     pub(super) extra_env: &'a HashMap<String, String>,
     pub(super) bail: bool,
+    pub(super) script_budget: &'a ScriptBudget,
     /// pnpm pipes unless the output cannot interleave: `--stream` off, and
     /// the graph cannot put two scripts in flight at once.
     pub(super) inherit_output: bool,
@@ -77,6 +78,7 @@ impl TaskRunner<'_, '_, '_> {
             process: RunProjectProcess {
                 bail: self.bail,
                 process_tracker: self.outcome.process_tracker,
+                script_budget: self.script_budget,
                 on_started: &on_started,
             },
         });
@@ -180,12 +182,14 @@ pub(crate) struct RunProjectOutput {
 pub(crate) struct RunProjectProcess<'a> {
     bail: bool,
     process_tracker: Option<&'a ProcessTracker>,
+    script_budget: &'a ScriptBudget,
     on_started: &'a (dyn Fn() + Sync),
 }
 
 /// Run the task's scripts — concurrently when the run's script-level
 /// concurrency allows it, one at a time otherwise, like the
-/// single-project `run` does through `run_selected_scripts`.
+/// single-project `run` does through `run_selected_scripts`. Either way
+/// each script waits for a permit from the run's [`ScriptBudget`] first.
 fn run_project(options: &RunProjectOptions<'_, '_>) -> miette::Result<ProjectExecution> {
     let root = options.node.project.as_path();
     let manifest = &options.graph[root].package.project.manifest;
@@ -255,6 +259,16 @@ impl ScriptRunState {
         }
         self.execution.has_command += 1;
     }
+
+    /// Book a script the run's cancellation ended. A task one of whose
+    /// own scripts already failed keeps that verdict: the cancellation
+    /// is what that failure asked for, and the summary reads the task as
+    /// cancelled rather than failed otherwise.
+    fn cancelled_script(&mut self) {
+        if !self.failed {
+            self.execution.cancelled = true;
+        }
+    }
 }
 
 /// Apply one settled script's verdict to the run state. `false` when
@@ -268,7 +282,7 @@ fn apply_script_result(
     duration: f64,
 ) -> bool {
     if ctx.process_tracker.is_some_and(ProcessTracker::is_cancelled) {
-        state.execution.cancelled = true;
+        state.cancelled_script();
         return false;
     }
     if status.success() {
@@ -278,7 +292,7 @@ fn apply_script_result(
         return true;
     }
     if ctx.process_tracker.is_some_and(|process_tracker| !process_tracker.cancel()) {
-        state.execution.cancelled = true;
+        state.cancelled_script();
         return false;
     }
     state.failed = true;
