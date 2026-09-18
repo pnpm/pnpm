@@ -6,7 +6,7 @@ import path from 'node:path'
 import { beforeEach, describe, expect, it, jest } from '@jest/globals'
 import type { CheckDepsStatusOptions } from '@pnpm/deps.status'
 import type { LockfileObject } from '@pnpm/lockfile.fs'
-import type { ProjectId, ProjectRootDir, ProjectRootDirRealPath } from '@pnpm/types'
+import type { IncludedDependencies, ProjectId, ProjectRootDir, ProjectRootDirRealPath } from '@pnpm/types'
 import type { WorkspaceState } from '@pnpm/workspace.state'
 
 {
@@ -1785,9 +1785,29 @@ describe('checkDepsStatus - deduped sibling without a modules directory', () => 
     jest.clearAllMocks()
   })
 
-  // A root and a sibling that both declare foo@1.0.0; only the root has a
+  interface DedupedSibling {
+    dedupeDirectDeps: boolean
+    /** The root's `dependencies.foo` as the lockfile resolved it. */
+    rootVersion?: string
+    /** The root's `devDependencies.foo`, when it declares one. */
+    rootDevVersion?: string
+    /** The sibling's `devDependencies.foo` as the lockfile resolved it. */
+    siblingVersion?: string
+    /** The sibling's `devDependencies.bar`, which the root never declares. */
+    siblingDevBarVersion?: string
+    include?: IncludedDependencies
+  }
+
+  // A root and a sibling that both declare foo; only the root has a
   // node_modules directory, which is what dedupeDirectDeps leaves behind.
-  async function checkWithDedupe (dedupeDirectDeps: boolean, siblingResolvedVersion = '1.0.0') {
+  async function checkWithDedupe ({
+    dedupeDirectDeps,
+    rootVersion = '1.0.0',
+    rootDevVersion,
+    siblingVersion = '1.0.0',
+    siblingDevBarVersion,
+    include,
+  }: DedupedSibling) {
     const workspaceDir = await fs.mkdtemp(path.join(os.tmpdir(), 'pnpm-check-deps-dedupe-'))
     try {
       const lastValidatedTimestamp = Date.now() - 10_000
@@ -1796,7 +1816,11 @@ describe('checkDepsStatus - deduped sibling without a modules directory', () => 
       const rootDirRealPath = await fs.realpath(workspaceDir) as ProjectRootDirRealPath
       const siblingDir = path.join(workspaceDir, 'pkg-a') as ProjectRootDir
       const rootManifest = { name: 'root', version: '1.0.0', dependencies: { foo: '1.0.0' } }
-      const siblingManifest = { name: 'pkg-a', version: '1.0.0', devDependencies: { foo: '1.0.0' } }
+      const siblingManifest = {
+        name: 'pkg-a',
+        version: '1.0.0',
+        devDependencies: { foo: '1.0.0', ...(siblingDevBarVersion == null ? {} : { bar: '2.0.0' }) },
+      }
       const mockWorkspaceState: WorkspaceState = {
         lastValidatedTimestamp,
         pnpmfiles: [],
@@ -1833,8 +1857,18 @@ describe('checkDepsStatus - deduped sibling without a modules directory', () => 
       const lockfile: LockfileObject = {
         lockfileVersion: '9.0',
         importers: {
-          ['.' as ProjectId]: { specifiers: { foo: '1.0.0' }, dependencies: { foo: '1.0.0' } },
-          ['pkg-a' as ProjectId]: { specifiers: { foo: '1.0.0' }, devDependencies: { foo: siblingResolvedVersion } },
+          ['.' as ProjectId]: {
+            specifiers: { foo: '1.0.0' },
+            dependencies: { foo: rootVersion },
+            ...(rootDevVersion == null ? {} : { devDependencies: { foo: rootDevVersion } }),
+          },
+          ['pkg-a' as ProjectId]: {
+            specifiers: { foo: '1.0.0' },
+            devDependencies: {
+              foo: siblingVersion,
+              ...(siblingDevBarVersion == null ? {} : { bar: siblingDevBarVersion }),
+            },
+          },
         },
       }
       jest.mocked(lockfileFs.readWantedLockfile).mockResolvedValue(lockfile)
@@ -1854,6 +1888,7 @@ describe('checkDepsStatus - deduped sibling without a modules directory', () => 
         rootProjectManifest: rootManifest,
         rootProjectManifestDir: workspaceDir,
         pnpmfile: [],
+        include,
         ...mockWorkspaceState.settings,
       }
       return await checkDepsStatus(opts)
@@ -1862,23 +1897,62 @@ describe('checkDepsStatus - deduped sibling without a modules directory', () => 
     }
   }
 
+  const MISSING_MODULES_DIR = 'Workspace package pkg-a has dependencies but does not have a modules directory'
+
   it('is up to date when dedupeDirectDeps left the sibling nothing to link', async () => {
-    const result = await checkWithDedupe(true)
+    const result = await checkWithDedupe({ dedupeDirectDeps: true })
     expect(result.issue).toBeUndefined()
     expect(result.upToDate).toBe(true)
   })
 
   it('is outdated when the sibling was not deduped', async () => {
-    const result = await checkWithDedupe(false)
+    const result = await checkWithDedupe({ dedupeDirectDeps: false })
     expect(result.upToDate).toBe(false)
-    expect(result.issue).toBe('Workspace package pkg-a has dependencies but does not have a modules directory')
+    expect(result.issue).toBe(MISSING_MODULES_DIR)
   })
 
   // The same specifier resolved to another peer set for the sibling: the
   // linker links it into the sibling, so the missing directory is real damage.
   it('is outdated when the shared specifier resolves to another peer set for the sibling', async () => {
-    const result = await checkWithDedupe(true, '1.0.0(bar@1.0.0)')
+    const result = await checkWithDedupe({ dedupeDirectDeps: true, siblingVersion: '1.0.0(bar@1.0.0)' })
     expect(result.upToDate).toBe(false)
-    expect(result.issue).toBe('Workspace package pkg-a has dependencies but does not have a modules directory')
+    expect(result.issue).toBe(MISSING_MODULES_DIR)
+  })
+
+  // link: targets are compared where they point, not as strings.
+  it('is up to date when the sibling links the same directory by another relative path', async () => {
+    const result = await checkWithDedupe({ dedupeDirectDeps: true, rootVersion: 'link:libs/lib', siblingVersion: 'link:../libs/lib' })
+    expect(result.issue).toBeUndefined()
+    expect(result.upToDate).toBe(true)
+  })
+
+  it('is outdated when equal link strings point at different directories', async () => {
+    const result = await checkWithDedupe({ dedupeDirectDeps: true, rootVersion: 'link:libs/lib', siblingVersion: 'link:libs/lib' })
+    expect(result.upToDate).toBe(false)
+    expect(result.issue).toBe(MISSING_MODULES_DIR)
+  })
+
+  // Two root declarations with differing targets have one effective target
+  // the linker picks by group order; the check does not reproduce that choice.
+  it('is outdated when the root declares the alias with differing targets', async () => {
+    const result = await checkWithDedupe({ dedupeDirectDeps: true, rootDevVersion: '2.0.0', siblingVersion: '2.0.0' })
+    expect(result.upToDate).toBe(false)
+    expect(result.issue).toBe(MISSING_MODULES_DIR)
+  })
+
+  it('ignores a dependency in a group the install does not materialize', async () => {
+    const result = await checkWithDedupe({
+      dedupeDirectDeps: true,
+      siblingDevBarVersion: '2.0.0',
+      include: { dependencies: true, devDependencies: false, optionalDependencies: false },
+    })
+    expect(result.issue).toBeUndefined()
+    expect(result.upToDate).toBe(true)
+  })
+
+  it('is outdated when a dependency in a materialized group has no root counterpart', async () => {
+    const result = await checkWithDedupe({ dedupeDirectDeps: true, siblingDevBarVersion: '2.0.0' })
+    expect(result.upToDate).toBe(false)
+    expect(result.issue).toBe(MISSING_MODULES_DIR)
   })
 })

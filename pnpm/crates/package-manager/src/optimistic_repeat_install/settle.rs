@@ -5,8 +5,10 @@ use super::{
 };
 use pnpm_config::{Config, LinkWorkspacePackages, NodeLinker};
 use pnpm_fs::lexical_normalize;
-use pnpm_lockfile::{Lockfile, MaybeLazyLockfile, ResolvedDependencySpec};
-use pnpm_modules_yaml::Host;
+use pnpm_lockfile::{
+    Lockfile, MaybeLazyLockfile, PkgName, ProjectSnapshot, ResolvedDependencySpec,
+};
+use pnpm_modules_yaml::{Host, IncludedDependencies};
 use pnpm_package_manifest::{DependencyGroup, PackageManifest};
 use pnpm_workspace::importer_id_from_root_dir;
 use pnpm_workspace_state::{WorkspaceState, update_workspace_state};
@@ -227,7 +229,7 @@ pub(super) fn first_project_missing_modules_dir(
         config,
         project_manifests,
         lockfile,
-        layout: crate::RepeatInstallLayout { node_linker, .. },
+        layout: crate::RepeatInstallLayout { node_linker, included, .. },
         ..
     } = check;
     let root_modules_dir_exists = config.modules_dir.is_dir();
@@ -242,7 +244,15 @@ pub(super) fn first_project_missing_modules_dir(
                 || (!is_root
                     && root_modules_dir_exists
                     && config.dedupe_direct_deps
-                    && dedupe_links_nothing(lockfile, workspace_root, &root_project_dir, root_dir));
+                    && dedupe_links_nothing(
+                        lockfile,
+                        &included_groups(included),
+                        DedupeImporters {
+                            lockfile_root: workspace_root,
+                            root_dir: &root_project_dir,
+                            sibling_dir: root_dir,
+                        },
+                    ));
             (!installed).then(|| {
                 manifest_string_field(manifest, "name")
                     .unwrap_or_else(|| root_dir.to_string_lossy().into_owned())
@@ -272,35 +282,82 @@ fn modules_dir_exists(
     }
 }
 
-/// Whether `dedupeDirectDeps` links nothing into the sibling at
-/// `sibling_dir`: the wanted lockfile records every one of its direct
-/// dependencies resolving to the target a root dependency of the same alias
-/// resolves to, in whichever group the root declares it, which is what the
-/// linker compares. A lockfile that cannot be loaded, or that lacks either
-/// importer, proves nothing.
+/// The dependency groups this install materializes, the only ones the
+/// linker links and dedupes.
+fn included_groups(included: IncludedDependencies) -> Vec<DependencyGroup> {
+    [
+        (included.dependencies, DependencyGroup::Prod),
+        (included.dev_dependencies, DependencyGroup::Dev),
+        (included.optional_dependencies, DependencyGroup::Optional),
+    ]
+    .into_iter()
+    .filter_map(|(included, group)| included.then_some(group))
+    .collect()
+}
+
+/// The two importers a dedupe verdict compares, as directories.
+#[derive(Clone, Copy)]
+struct DedupeImporters<'a> {
+    /// The directory importer ids are relative to.
+    lockfile_root: &'a Path,
+    root_dir: &'a Path,
+    sibling_dir: &'a Path,
+}
+
+/// Whether `dedupeDirectDeps` links nothing into the sibling: for every
+/// alias the sibling declares in a materialized group, the wanted lockfile
+/// records one target on each side, and the two are the same, which is what
+/// the linker compares. An alias declared with differing targets in several
+/// groups has one effective target the linker picks by group order; that
+/// choice is not reproduced here, so such an alias proves nothing. Neither
+/// does a lockfile that cannot be loaded or lacks either importer.
 fn dedupe_links_nothing(
     lockfile: MaybeLazyLockfile<'_>,
-    lockfile_root: &Path,
-    root_dir: &Path,
-    sibling_dir: &Path,
+    groups: &[DependencyGroup],
+    importers: DedupeImporters<'_>,
 ) -> bool {
-    const GROUPS: [DependencyGroup; 3] =
-        [DependencyGroup::Prod, DependencyGroup::Dev, DependencyGroup::Optional];
+    let DedupeImporters {
+        lockfile_root,
+        root_dir,
+        sibling_dir,
+    } = importers;
     let Ok(Some(lockfile)) = lockfile.get() else { return false };
     let importer =
         |dir: &Path| lockfile.importers.get(&importer_id_from_root_dir(lockfile_root, dir));
     let (Some(root), Some(sibling)) = (importer(root_dir), importer(sibling_dir)) else {
         return false;
     };
+    let mut seen = std::collections::HashSet::new();
     sibling
-        .dependencies_by_groups(GROUPS)
-        .all(|(alias, dep)| {
-            root.dependencies_by_groups(GROUPS)
-                .any(|(root_alias, root_dep)| {
-                    root_alias == alias
-                        && resolves_to_same_target(root_dir, root_dep, sibling_dir, dep)
-                })
+        .dependencies_by_groups(groups.iter().copied())
+        .all(|(alias, _)| {
+            if !seen.insert(alias) {
+                return true;
+            }
+            let (Some(dep), Some(root_dep)) =
+                (sole_target(sibling, groups, alias), sole_target(root, groups, alias))
+            else {
+                return false;
+            };
+            resolves_to_same_target(root_dir, root_dep, sibling_dir, dep)
         })
+}
+
+/// The one target `importer` resolves `alias` to across `groups`, or `None`
+/// when it declares the alias nowhere or with differing targets.
+fn sole_target<'a>(
+    importer: &'a ProjectSnapshot,
+    groups: &[DependencyGroup],
+    alias: &PkgName,
+) -> Option<&'a ResolvedDependencySpec> {
+    let mut declarations = importer
+        .dependencies_by_groups(groups.iter().copied())
+        .filter(|(declared, _)| *declared == alias)
+        .map(|(_, dep)| dep);
+    let first = declarations.next()?;
+    declarations
+        .all(|dep| dep.version == first.version)
+        .then_some(first)
 }
 
 /// Whether two importer dependencies resolve to one target: the same

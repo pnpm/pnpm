@@ -3,4 +3,4 @@
 "@pnpm/napi": patch
 ---
 
-The repeat-install check now scans a changed `pnpm-lock.yaml` for merge conflict markers whatever its size. A lockfile of 16 MiB or more was treated as unverifiable and forced a full install on every run after it changed.
+`pnpm install` now takes the repeat-install fast path after a `pnpm-lock.yaml` of 16 MiB or more changes. Such a lockfile forced a full install on the run after every change.

@@ -15,8 +15,10 @@ import {
   getLockfileImporterId,
   getWantedLockfileName,
   type LockfileObject,
+  type ProjectSnapshot,
   readCurrentLockfile,
   readWantedLockfile,
+  type ResolvedDependencies,
   wantedLockfileHasMergeConflictsSync,
 } from '@pnpm/lockfile.fs'
 import {
@@ -353,7 +355,7 @@ async function _checkDepsStatus (opts: CheckDepsStatusOptions, workspaceState: W
         if (
           wantedLockfileForDedupe != null &&
           mayBeDeduped(project) &&
-          dedupeLinksNothing(wantedLockfileForDedupe, dedupeLockfileDir, rootProjectManifestDir, project.rootDir)
+          dedupeLinksNothing(wantedLockfileForDedupe, dedupeLockfileDir, rootProjectManifestDir, project.rootDir, opts.include)
         ) continue
         const id = project.manifest.name ?? project.rootDir
         return {
@@ -1004,23 +1006,40 @@ function modifiedAtOrAfter (stats: fs.Stats, referenceMs: number): boolean {
 
 /**
  * Whether `dedupeDirectDeps` links nothing into the project at `projectDir`:
- * the wanted lockfile records every one of its direct dependencies resolving
- * to the target the root's dependency of the same alias resolves to, which is
- * what the linker compares. A lockfile that lacks either importer proves
- * nothing.
+ * for every alias the project declares in a materialized group, the wanted
+ * lockfile records one target on each side, and the two are the same, which
+ * is what the linker compares. An alias declared with differing targets in
+ * several groups has one effective target the linker picks by group order;
+ * that choice is not reproduced here, so such an alias proves nothing.
+ * Neither does a lockfile that lacks either importer.
  */
-function dedupeLinksNothing (lockfile: LockfileObject, lockfileDir: string, rootDir: string, projectDir: string): boolean {
+function dedupeLinksNothing (
+  lockfile: LockfileObject,
+  lockfileDir: string,
+  rootDir: string,
+  projectDir: string,
+  include?: IncludedDependencies
+): boolean {
   const root = lockfile.importers[getLockfileImporterId(lockfileDir, rootDir)]
   const project = lockfile.importers[getLockfileImporterId(lockfileDir, projectDir)]
   if (root == null || project == null) return false
-  const rootVersions = (alias: string): string[] =>
-    [root.dependencies, root.devDependencies, root.optionalDependencies]
+  const materializedGroups = (importer: ProjectSnapshot): Array<ResolvedDependencies | undefined> => [
+    include?.dependencies === false ? undefined : importer.dependencies,
+    include?.devDependencies === false ? undefined : importer.devDependencies,
+    include?.optionalDependencies === false ? undefined : importer.optionalDependencies,
+  ]
+  const soleTarget = (importer: ProjectSnapshot, alias: string): string | undefined => {
+    const versions = materializedGroups(importer)
       .map((deps) => deps?.[alias])
       .filter((version): version is string => version != null)
-  return [project.dependencies, project.devDependencies, project.optionalDependencies]
-    .flatMap((deps) => Object.entries(deps ?? {}))
-    .every(([alias, version]) =>
-      rootVersions(alias).some((rootVersion) => resolvesToSameTarget(rootDir, rootVersion, projectDir, version)))
+    return versions.length > 0 && versions.every((version) => version === versions[0]) ? versions[0] : undefined
+  }
+  const aliases = new Set(materializedGroups(project).flatMap((deps) => Object.keys(deps ?? {})))
+  return [...aliases].every((alias) => {
+    const version = soleTarget(project, alias)
+    const rootVersion = soleTarget(root, alias)
+    return version != null && rootVersion != null && resolvesToSameTarget(rootDir, rootVersion, projectDir, version)
+  })
 }
 
 /**
