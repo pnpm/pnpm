@@ -97,6 +97,16 @@ macro_rules! string_field {
         }
     };
 }
+// Like `string_field!`, but keeps an empty value as `Some("")` instead
+// of treating it as unset. For settings where `""` is observably
+// different from unset. See [`read_env_allow_empty`].
+macro_rules! string_field_allow_empty {
+    ($settings:ident, $sys:ty, $field:ident, $suffix:literal) => {
+        if let Some(s) = read_env_allow_empty::<$sys>($suffix) {
+            $settings.$field = Some(s);
+        }
+    };
+}
 macro_rules! enum_field {
     ($settings:ident, $sys:ty, $field:ident, $suffix:literal, $ty:ty) => {
         if let Some(s) = read_env::<$sys>($suffix)
@@ -331,6 +341,8 @@ impl WorkspaceSettings {
         json_field!(settings, Sys, strict_dep_builds, "STRICT_DEP_BUILDS");
         json_field!(settings, Sys, ignore_scripts, "IGNORE_SCRIPTS");
         json_field!(settings, Sys, git_checks, "GIT_CHECKS");
+        // Empty removes the `v` prefix, so an empty env value must survive.
+        string_field_allow_empty!(settings, Sys, tag_version_prefix, "TAG_VERSION_PREFIX");
         json_field!(settings, Sys, engine_strict, "ENGINE_STRICT");
         string_field!(settings, Sys, node_version, "NODE_VERSION");
         enum_field!(settings, Sys, runtime_on_fail, "RUNTIME_ON_FAIL", RuntimeOnFail);
