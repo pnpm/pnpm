@@ -5,7 +5,7 @@ use pnpm_config::{Config, ResolutionMode};
 use pnpm_fs::lexical_normalize;
 use pnpm_resolving_npm_resolver::mirror::{
     ABBREVIATED_META_DIR, FULL_FILTERED_META_DIR, FULL_META_DIR, decode_registry_name,
-    get_registry_name, load_meta,
+    get_registry_name, is_unreadable_registry_key, load_meta,
 };
 use pnpm_store_dir::StoreIndex;
 use serde_json::json;
@@ -27,6 +27,9 @@ pub enum CacheCommand {
     View { package: String },
     /// Deletes metadata cache for the specified package(s). Supports patterns.
     Delete { packages: Vec<String> },
+    /// Deletes metadata cache directories that this version of pnpm can no
+    /// longer read.
+    Prune,
 }
 
 impl CacheCommand {
@@ -122,12 +125,7 @@ impl CacheCommand {
                 let mut registries: Vec<String> = entries
                     .filter_map(std::result::Result::ok)
                     .filter(|entry| entry.file_type().is_ok_and(|file_type| file_type.is_dir()))
-                    .map(|entry| {
-                        entry
-                            .file_name()
-                            .to_string_lossy()
-                            .into_owned()
-                    })
+                    .map(|entry| decode_registry_name(&entry.file_name().to_string_lossy()))
                     .collect();
                 registries.sort();
                 if !registries.is_empty() {
@@ -144,6 +142,7 @@ impl CacheCommand {
                 }
             }
             CacheCommand::Delete { packages } => Self::delete(config, &packages)?,
+            CacheCommand::Prune => Self::prune(config)?,
             CacheCommand::View { package } => Self::view(config, &cache_dir, &package)?,
         }
 
@@ -217,6 +216,48 @@ impl CacheCommand {
         deleted.dedup();
         if !deleted.is_empty() {
             println!("{}", deleted.join("\n"));
+        }
+        Ok(())
+    }
+
+    /// Remove the mirror directories left behind by a pnpm that keyed them on
+    /// the registry's host alone.
+    ///
+    /// Changing the key to carry the scheme and path stranded every directory
+    /// written before it: the same registry now resolves to a different name,
+    /// so the old one is never read and no per-package command reaches it,
+    /// because those all scope their glob to the configured registry's current
+    /// key. Only [`is_unreadable_registry_key`] decides what goes, so a mirror
+    /// this version could still read is never a candidate.
+    ///
+    /// Prints each removed directory as `<meta-dir>/<registry-key>`. The
+    /// registry key rather than its decoded URL, because that is the name on
+    /// disk.
+    fn prune(config: &Config) -> miette::Result<()> {
+        let mut pruned: Vec<String> = Vec::new();
+        for meta_dir in [ABBREVIATED_META_DIR, FULL_META_DIR, FULL_FILTERED_META_DIR] {
+            let dir = config.cache_dir.join(meta_dir);
+            let Ok(entries) = fs::read_dir(&dir) else {
+                continue;
+            };
+            for entry in entries.filter_map(std::result::Result::ok) {
+                if !entry.file_type().is_ok_and(|file_type| file_type.is_dir()) {
+                    continue;
+                }
+                let registry_key = entry
+                    .file_name()
+                    .to_string_lossy()
+                    .into_owned();
+                if !is_unreadable_registry_key(&registry_key) {
+                    continue;
+                }
+                fs::remove_dir_all(entry.path()).into_diagnostic()?;
+                pruned.push(format!("{meta_dir}/{registry_key}"));
+            }
+        }
+        pruned.sort();
+        if !pruned.is_empty() {
+            println!("{}", pruned.join("\n"));
         }
         Ok(())
     }

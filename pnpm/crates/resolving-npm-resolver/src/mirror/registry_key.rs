@@ -208,6 +208,33 @@ pub(super) fn percent_escapes_are_well_formed(text: &str) -> bool {
     true
 }
 
+/// Whether `registry_key` names a mirror directory no resolution can address
+/// any more.
+///
+/// [`get_registry_name`] puts [`SCHEME_SEPARATOR`] in every key it spells out,
+/// so a name without one predates the scheme becoming part of the key and is
+/// dead weight: the registry it holds metadata for now hashes to a different
+/// directory, and nothing reads this one. `pnpm cache prune` removes exactly
+/// these.
+///
+/// A key long enough to exceed [`MAX_KEY_LENGTH`] collapses to a bare sha256
+/// and carries no separator either, so such a name is *not* reported — it may
+/// well be a live registry's. Keeping one unreachable directory is the lesser
+/// harm next to deleting a mirror still in use.
+#[must_use]
+pub fn is_unreadable_registry_key(registry_key: &str) -> bool {
+    !registry_key.contains(SCHEME_SEPARATOR) && !is_sha256_hex(registry_key)
+}
+
+/// Whether `text` is exactly the lowercase hex sha256 [`get_registry_name`]
+/// falls back to for an over-long key.
+fn is_sha256_hex(text: &str) -> bool {
+    text.len() == 64
+        && text
+            .bytes()
+            .all(|byte| byte.is_ascii_hexdigit() && !byte.is_ascii_uppercase())
+}
+
 /// The path a registry addresses, as the segments between its slashes.
 ///
 /// The only spelling difference that does not reach the registry is a

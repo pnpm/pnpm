@@ -43,9 +43,12 @@
 //! - [`get_registry_name`] — a registry URL's host, port and path as
 //!   one filesystem-safe directory name, and [`decode_registry_name`]
 //!   to read it back.
+//! - [`is_unreadable_registry_key`] — whether a directory name in the
+//!   mirror root predates the current key shape, so nothing can read it.
 
 pub use registry_key::{
     EncodeRegistryError, decode_registry_name, encode_pkg_name, get_registry_name,
+    is_unreadable_registry_key,
 };
 
 mod read_records;

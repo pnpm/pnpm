@@ -28,6 +28,34 @@ fn should_list_registries() {
     assert!(stdout.contains("registry.yarnpkg.com"));
 }
 
+/// `cache view` labels a registry with its decoded URL, so listing must too.
+/// Printing the raw key left the two commands disagreeing about what a
+/// registry is called.
+#[test]
+fn should_list_registries_as_decoded_urls() {
+    let cwd = CommandTempCwd::init().add_mocked_registry();
+
+    let cache_dir = cwd.npmrc_info.cache_dir.join("v11").join("metadata");
+    for registry in ["https://registry.npmjs.org/", "https://npm.example:8443/team/a/"] {
+        let registry_name =
+            pnpm_resolving_npm_resolver::mirror::get_registry_name(registry).unwrap();
+        fs::create_dir_all(cache_dir.join(&registry_name)).unwrap();
+    }
+
+    let output = cwd.pacquet
+        .with_arg("cache")
+        .with_arg("list-registries")
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+
+    let stdout = String::from_utf8(output).unwrap();
+    let listed: Vec<&str> = stdout.lines().collect();
+    assert_eq!(listed, ["https://npm.example:8443/team/a/", "https://registry.npmjs.org/"]);
+}
+
 #[test]
 fn should_list_packages() {
     let cwd = CommandTempCwd::init().add_mocked_registry();
@@ -165,6 +193,80 @@ fn should_delete_packages_from_all_metadata_dirs() {
             .join("is-positive.jsonl");
         assert!(!file.exists(), "expected {file:?} to be deleted");
     }
+}
+
+/// Upgrading past the host-only cache key strands the directory it wrote:
+/// the registry now resolves to a different name, and every per-package
+/// command scopes its glob to that new name, so nothing else reaches the old
+/// one.
+#[test]
+fn should_prune_registries_written_before_the_scheme_joined_the_key() {
+    let cwd = CommandTempCwd::init().add_mocked_registry();
+
+    let url_str = cwd.npmrc_info.mock_instance.url();
+    let live = pnpm_resolving_npm_resolver::mirror::get_registry_name(&url_str).unwrap();
+    let meta_dirs = [
+        pnpm_resolving_npm_resolver::mirror::ABBREVIATED_META_DIR,
+        pnpm_resolving_npm_resolver::mirror::FULL_META_DIR,
+        pnpm_resolving_npm_resolver::mirror::FULL_FILTERED_META_DIR,
+    ];
+    for meta_dir in meta_dirs {
+        for registry_name in [live.as_str(), "registry.npmjs.org"] {
+            let dir = cwd.npmrc_info.cache_dir.join(meta_dir).join(registry_name);
+            fs::create_dir_all(&dir).unwrap();
+            fs::write(dir.join("is-positive.jsonl"), "{}").unwrap();
+        }
+    }
+
+    let output = cwd.pacquet
+        .with_arg("cache")
+        .with_arg("prune")
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+
+    let stdout = String::from_utf8(output).unwrap();
+    let pruned: Vec<&str> = stdout.lines().collect();
+    let mut expected = meta_dirs
+        .map(|meta_dir| format!("{meta_dir}/registry.npmjs.org"))
+        .to_vec();
+    expected.sort();
+    assert_eq!(pruned, expected);
+    for meta_dir in meta_dirs {
+        let stale = cwd.npmrc_info.cache_dir.join(meta_dir).join("registry.npmjs.org");
+        assert!(!stale.exists(), "expected {stale:?} to be pruned");
+        let kept = cwd.npmrc_info.cache_dir
+            .join(meta_dir)
+            .join(&live)
+            .join("is-positive.jsonl");
+        assert!(kept.exists(), "expected {kept:?} to survive the prune");
+    }
+}
+
+/// Nothing to reclaim must be a quiet success, not an error or a stray blank
+/// line, because a user runs this to find out whether there is anything there.
+#[test]
+fn should_prune_nothing_when_every_registry_is_readable() {
+    let cwd = CommandTempCwd::init().add_mocked_registry();
+
+    let url_str = cwd.npmrc_info.mock_instance.url();
+    let live = pnpm_resolving_npm_resolver::mirror::get_registry_name(&url_str).unwrap();
+    let dir = cwd.npmrc_info.cache_dir
+        .join(pnpm_resolving_npm_resolver::mirror::ABBREVIATED_META_DIR)
+        .join(&live);
+    fs::create_dir_all(&dir).unwrap();
+    fs::write(dir.join("is-positive.jsonl"), "{}").unwrap();
+
+    cwd.pacquet
+        .with_arg("cache")
+        .with_arg("prune")
+        .assert()
+        .success()
+        .stdout("");
+
+    assert!(dir.join("is-positive.jsonl").exists());
 }
 
 #[test]

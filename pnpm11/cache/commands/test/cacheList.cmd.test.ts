@@ -25,6 +25,10 @@ describe('cache', () => {
       `--store-dir=${storeDir}`,
       `--cache-dir=${cacheDir}`,
       '--config.resolution-mode=highest',
+      // The update check resolves `pnpm@latest` through the same cache, which
+      // would add a `pnpm.jsonl` entry to what these tests expect to find. It
+      // is off under CI, so leaving it on would only fail locally.
+      '--config.update-notifier=false',
       `--registry=${REGISTRY}`,
     ])
     rimrafSync('node_modules')
@@ -37,6 +41,7 @@ describe('cache', () => {
       `--store-dir=${storeDir}`,
       `--cache-dir=${cacheDir}`,
       '--config.resolution-mode=highest',
+      '--config.update-notifier=false',
     ])
   })
   test('list all metadata from the cache', async () => {
@@ -71,14 +76,14 @@ https%3A+registry.npmjs.org/is-positive.jsonl`)
 
     expect(result).toBe('https%3A+registry.npmjs.org/is-positive.jsonl')
   })
-  test('list registries', async () => {
+  test('list registries as decoded URLs, matching cache view', async () => {
     const result = await cache.handler({
       cacheDir,
       cliOptions: {},
       pnpmHomeDir: storeDir,
     }, ['list-registries'])
 
-    expect(result).toBe(`http%3A+localhost+${REGISTRY_MOCK_PORT}
-https%3A+registry.npmjs.org`)
+    expect(result).toBe(`http://localhost:${REGISTRY_MOCK_PORT}/
+https://registry.npmjs.org/`)
   })
 })
