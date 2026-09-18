@@ -103,11 +103,22 @@ impl<'a> RunCtx<'a> {
     pub(super) fn prepared_config(
         &self,
     ) -> impl Future<Output = miette::Result<&'static Config>> + Send + 'a {
+        self.prepared_config_with(|_| {})
+    }
+
+    /// [`Self::prepared_config`] with the command's own settings applied
+    /// first, for a command whose flags decide what the hook pass does,
+    /// such as `--ignore-pnpmfile`.
+    pub(super) fn prepared_config_with(
+        &self,
+        apply_cli_config: impl FnOnce(&mut Config) + Send + 'a,
+    ) -> impl Future<Output = miette::Result<&'static Config>> + Send + 'a {
         let load_config = self.loaders.config;
         let dir = self.locations.dir;
         let reporter = self.reporter;
         async move {
             let config = load_config()?;
+            apply_cli_config(config);
             apply_update_config(config, dir, reporter).await?;
             Ok(&*config)
         }
@@ -119,7 +130,16 @@ impl<'a> RunCtx<'a> {
         &self,
         require_lockfile: bool,
     ) -> impl Future<Output = miette::Result<State>> + Send + 'a {
-        let config = self.prepared_config();
+        self.prepared_state_with(require_lockfile, |_| {})
+    }
+
+    /// [`Self::prepared_state`] on [`Self::prepared_config_with`].
+    pub(super) fn prepared_state_with(
+        &self,
+        require_lockfile: bool,
+        apply_cli_config: impl FnOnce(&mut Config) + Send + 'a,
+    ) -> impl Future<Output = miette::Result<State>> + Send + 'a {
+        let config = self.prepared_config_with(apply_cli_config);
         let manifest_path = self.locations.manifest_path;
         async move {
             State::init(manifest_path.to_path_buf(), config.await?, require_lockfile)

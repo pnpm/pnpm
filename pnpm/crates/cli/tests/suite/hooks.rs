@@ -290,7 +290,7 @@ fn run_with_marker_hook(workspace: &Path, args: &[&str]) -> std::process::Output
         hook_runs(workspace),
         1,
         "`pnpm {}` should run the updateConfig hook once\nSTDOUT:\n{stdout}\nSTDERR:\n{stderr}",
-        args.join(" ")
+        args.join(" "),
     );
     output
 }
@@ -301,7 +301,7 @@ fn assert_success(args: &[&str], output: &std::process::Output) -> String {
     assert!(
         output.status.success(),
         "`pnpm {}` should succeed\nSTDOUT:\n{stdout}\nSTDERR:\n{stderr}",
-        args.join(" ")
+        args.join(" "),
     );
     stdout
 }
@@ -407,6 +407,33 @@ fn update_config_applies_to_fetch() {
             .collect();
         assert_runs_update_config_and_succeeds(&args);
     }
+}
+
+/// `--ignore-pnpmfile` covers the `updateConfig` pass as well as the
+/// hooks the fetch itself would load. The install recorded the pnpmfile's
+/// checksum, so the frozen fetch then stops at the lockfile check, after
+/// the point where the hook would have run.
+#[test]
+fn fetch_ignore_pnpmfile_skips_update_config() {
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    write_marker_hook_project(&workspace, &serde_json::json!({ (PATCHABLE_DEP): "1.0.0" }));
+    pacquet_in(&workspace)
+        .with_arg("install")
+        .assert()
+        .success();
+    clear_hook_marker(&workspace);
+
+    let output = pacquet_in(&workspace)
+        .with_args(["fetch", "--ignore-pnpmfile"])
+        .output()
+        .expect("run fetch");
+
+    assert_eq!(hook_runs(&workspace), 0, "--ignore-pnpmfile should skip the hook");
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(stderr.contains("ERR_PNPM_LOCKFILE_CONFIG_MISMATCH"), "STDERR:\n{stderr}");
+    drop((root, mock_instance));
 }
 
 #[test]

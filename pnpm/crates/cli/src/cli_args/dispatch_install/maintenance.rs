@@ -119,7 +119,10 @@ pub(in super::super) fn fetch<'a>(
     ctx: &RunCtx<'a>,
     args: FetchArgs,
 ) -> miette::Result<CommandFuture<'a>> {
-    let command_state = ctx.prepared_state(true);
+    let ignore_pnpmfile = args.ignore_pnpmfile;
+    let command_state = ctx.prepared_state_with(true, move |config| {
+        config.ignore_pnpmfile |= ignore_pnpmfile;
+    });
     Ok(match ctx.reporter {
         ReporterType::Default | ReporterType::AppendOnly => {
             Box::pin(async move { args.run::<DefaultReporter>(command_state.await?).await })
@@ -332,8 +335,9 @@ pub(in super::super) fn approve_builds<'a>(
     macro_rules! run_approve_builds {
         ($reporter:ty) => {
             Box::pin(async move {
+                let config = config.await?;
                 let Some((rebuild_state, build_packages)) =
-                    args.prepare::<$reporter>(dir, config.await?, manifest_path)?
+                    args.prepare::<$reporter>(dir, config, config, manifest_path)?
                 else {
                     return Ok(());
                 };
