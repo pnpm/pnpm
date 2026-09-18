@@ -777,6 +777,12 @@ test('getOptionsFromPnpmSettings() rejects a tasks entry that is not an object',
   })).toThrow(/The "tasks\['build'\]" setting should be an object, but got array/)
 })
 
+test('getOptionsFromPnpmSettings() rejects a task setting field that misspells one of its own', () => {
+  expect(() => getOptionsFromPnpmSettings(process.cwd(), {
+    tasks: { build: { dependson: ['^build'] } } as never,
+  })).toThrow(/The "tasks\['build'\].dependson" setting is not a known task setting/)
+})
+
 test('getOptionsFromPnpmSettings() keeps task settings that only pnpm 12 reads', () => {
   const tasks = {
     build: {

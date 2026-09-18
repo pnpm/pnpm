@@ -123,18 +123,40 @@ function resolveScriptShell (manifestDir: string, scriptShell: string): string {
   return path.join(manifestDir, scriptShell)
 }
 
+/** The fields of a `tasks` entry that this version of pnpm reads. */
+const TASK_SETTING_FIELDS = ['concurrency', 'dependsOn']
+
+/**
+ * The field of {@link TASK_SETTING_FIELDS} that {@link field} misspells, if
+ * any. `pnpm-workspace.yaml` is one format across pnpm 11 and 12, so a field
+ * this version does not read may simply be one only pnpm 12 acts on, and
+ * rejecting every such field would make a pnpm 12 workspace unreadable here.
+ * A field differing from one of ours only in case is the exception: no pnpm
+ * version declares two settings that close, so it is a typo.
+ */
+function misspelledTaskSettingField (field: string): string | undefined {
+  if (TASK_SETTING_FIELDS.includes(field)) return undefined
+  return TASK_SETTING_FIELDS.find((known) => known.toLowerCase() === field.toLowerCase())
+}
+
 // The section feeds the task-graph builder of `pnpm -r run`, which reads it
 // without further checks — a malformed entry has to be rejected here rather
-// than surface as a scheduling bug far from the setting that produced it.
-//
-// Only the fields this version reads are checked. `pnpm-workspace.yaml` is one
-// format across pnpm 11 and 12, and a task may carry settings that only pnpm 12
-// acts on, so an unrecognized field is left alone rather than rejected.
+// than surface as a scheduling bug far from the setting that produced it. A
+// misspelled `dependsOn` is the costly one: the entry still exists, so the task
+// takes the empty dependency list an entry without `dependsOn` declares, and
+// runs before what it meant to wait for.
 function assertValidTasks (tasks: unknown): asserts tasks is NonNullable<PnpmSettings['tasks']> {
   assertObjectSetting(tasks, 'tasks')
   for (const [taskName, task] of Object.entries(tasks as Record<string, unknown>)) {
     const taskPath = `tasks['${taskName}']`
     assertObjectSetting(task, taskPath)
+    for (const field of Object.keys(task as Record<string, unknown>)) {
+      const misspelled = misspelledTaskSettingField(field)
+      if (misspelled == null) continue
+      throw new PnpmError('INVALID_SETTING',
+        `The "${taskPath}.${field}" setting is not a known task setting.`,
+        { hint: `Did you mean "${misspelled}"?` })
+    }
     const concurrency = (task as { concurrency?: unknown }).concurrency
     if (concurrency != null && (!Number.isInteger(concurrency) || (concurrency as number) < 1)) {
       throw new PnpmError('INVALID_SETTING',
