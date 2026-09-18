@@ -24,4 +24,4 @@ tools:
 
 Set it in the global `config.yaml` or in `PNPM_CONFIG_TOOLS`. A `pnpm-workspace.yaml` that names a tool mirror is ignored.
 
-`tools.python.mirror` replaces `python.downloadUrl`, which is gone. Bun had no mirror setting before. `pnpm pack-app` downloads the Node.js it embeds through the configured mirror. `node-mirror:<channel>` keeps working and names the same thing as an entry under `channels`.
+`tools.python.mirror` replaces `python.downloadUrl`, which is gone. Bun had no mirror setting before. `pnpm pack-app` downloads the Node.js it embeds through `tools.node`. `node-mirror:<channel>` keeps working and names the same thing as an entry under `channels`.
