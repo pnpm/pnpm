@@ -1892,7 +1892,7 @@ async fn refuses_an_interpreter_none_of_the_declared_environments_stand_for() {
     let mut server = mockito::Server::new_async().await;
     let _alpha = serve(&mut server, "alpha", &[("1.0", wheel("alpha", "1.0", "", &[]))]).await;
     project(root.path(), &server.url(), &["alpha>=1"]);
-    add_python_settings(root.path(), "  pythonVersions:\n    - '3.9'\n");
+    add_python_settings(root.path(), "  versions:\n    - '3.9'\n");
 
     assert_failure_contains(
         pacquet_in(root.path()).arg("install"),

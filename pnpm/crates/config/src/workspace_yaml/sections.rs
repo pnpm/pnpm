@@ -193,7 +193,7 @@ pub struct PythonSettings {
     /// The Python versions `pylock.toml` is resolved for, each a minor
     /// version such as `3.12` or a full one such as `3.12.7`. Empty locks
     /// for the version of the interpreter the install runs on.
-    pub python_versions: Vec<String>,
+    pub versions: Vec<String>,
 }
 
 impl Default for PythonSettings {
@@ -207,7 +207,7 @@ impl Default for PythonSettings {
             constraints: Vec::new(),
             extras: Vec::new(),
             groups: vec!["dev".to_string()],
-            python_versions: Vec::new(),
+            versions: Vec::new(),
         }
     }
 }
