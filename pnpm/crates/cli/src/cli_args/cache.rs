@@ -236,22 +236,8 @@ impl CacheCommand {
     fn prune(config: &Config) -> miette::Result<()> {
         let mut pruned: Vec<String> = Vec::new();
         for meta_dir in [ABBREVIATED_META_DIR, FULL_META_DIR, FULL_FILTERED_META_DIR] {
-            let dir = config.cache_dir.join(meta_dir);
-            let Ok(entries) = fs::read_dir(&dir) else {
-                continue;
-            };
-            for entry in entries.filter_map(std::result::Result::ok) {
-                if !entry.file_type().is_ok_and(|file_type| file_type.is_dir()) {
-                    continue;
-                }
-                let registry_key = entry
-                    .file_name()
-                    .to_string_lossy()
-                    .into_owned();
-                if !is_unreadable_registry_key(&registry_key) {
-                    continue;
-                }
-                fs::remove_dir_all(entry.path()).into_diagnostic()?;
+            for (registry_key, path) in unreadable_registry_dirs(&config.cache_dir.join(meta_dir)) {
+                fs::remove_dir_all(path).into_diagnostic()?;
                 pruned.push(format!("{meta_dir}/{registry_key}"));
             }
         }
@@ -261,6 +247,26 @@ impl CacheCommand {
         }
         Ok(())
     }
+}
+
+/// The `(registry key, path)` of every directory in one mirror root that
+/// [`is_unreadable_registry_key`] reports. An unreadable root yields nothing,
+/// because a mirror root pnpm never wrote has nothing to reclaim.
+fn unreadable_registry_dirs(dir: &Path) -> Vec<(String, PathBuf)> {
+    let Ok(entries) = fs::read_dir(dir) else {
+        return Vec::new();
+    };
+    entries
+        .filter_map(std::result::Result::ok)
+        .filter(|entry| entry.file_type().is_ok_and(|file_type| file_type.is_dir()))
+        .filter_map(|entry| {
+            let registry_key = entry
+                .file_name()
+                .to_string_lossy()
+                .into_owned();
+            is_unreadable_registry_key(&registry_key).then(|| (registry_key, entry.path()))
+        })
+        .collect()
 }
 
 /// The registry directory of a cache-relative metadata path: its top-level
