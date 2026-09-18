@@ -3,7 +3,7 @@ import path from 'node:path'
 import util from 'node:util'
 
 import { getBinsFromPackageManifest } from '@pnpm/bins.resolver'
-import { readPackageJsonFromDir, readPackageJsonFromDirRawSync, safeReadPackageJsonFromDir } from '@pnpm/pkg-manifest.reader'
+import { readPackageJsonFromDirRawSync, safeReadPackageJsonFromDir } from '@pnpm/pkg-manifest.reader'
 import type { PackageManifest } from '@pnpm/types'
 
 const RESERVED_ALIASES = new Set(['node_modules', 'favicon.ico'])
@@ -152,6 +152,16 @@ export function cleanOrphanedInstallDirs (globalDir: string): void {
   }
 }
 
+/**
+ * The bin names the group provides right now.
+ *
+ * A dependency whose directory is gone provides none: its manifest is what
+ * named its bins, and with the tree removed there is nothing left for the
+ * group to own. Reporting that rather than failing lets `update -g` and
+ * `remove -g` replace a group whose `node_modules` was deleted. Every other
+ * read or parse error still propagates, so ownership is never guessed at from
+ * a manifest that exists but could not be read.
+ */
 export async function getInstalledBinNames (info: GlobalPackageInfo): Promise<string[]> {
   const bins = new Set<string>()
   const aliases = Object.keys(info.dependencies)
@@ -159,7 +169,8 @@ export async function getInstalledBinNames (info: GlobalPackageInfo): Promise<st
   await Promise.all(
     aliases.map(async (alias) => {
       const depDir = path.join(modulesDir, alias)
-      const manifest = await readPackageJsonFromDir(depDir)
+      const manifest = await safeReadPackageJsonFromDir(depDir)
+      if (manifest == null) return
       const binsOfPkg = await getBinsFromPackageManifest(manifest, depDir)
       for (const bin of binsOfPkg) {
         bins.add(bin.name)

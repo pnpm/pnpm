@@ -995,13 +995,11 @@ fn unchanged_global_update_still_approves_a_pending_build() {
 }
 
 /// A group whose `node_modules` was removed holds nothing to run, so an
-/// unchanged resolution must not report it as current. The update cannot put
-/// the tree back either: activation reads the manifests of the group it
-/// replaces, and those went with the tree. It says so instead of claiming the
-/// group is up to date.
+/// unchanged resolution must not report it as current. The update installs it
+/// again and the group works afterwards.
 #[cfg(unix)]
 #[test]
-fn global_update_does_not_call_a_group_without_node_modules_up_to_date() {
+fn global_update_reinstalls_a_group_whose_node_modules_is_gone() {
     use assert_cmd::assert::OutputAssertExt;
 
     let CommandTempCwd { root, workspace, npmrc_info, .. } =
@@ -1026,9 +1024,20 @@ fn global_update_does_not_call_a_group_without_node_modules_up_to_date() {
         .expect("run global update over a removed tree");
     let stdout = String::from_utf8_lossy(&output.stdout);
     let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(output.status.success(), "{stdout}\n{stderr}");
     assert!(!stdout.contains("Already up to date"), "{stdout}");
-    assert!(!output.status.success(), "{stdout}\n{stderr}");
-    assert!(stderr.contains("ERR_PNPM_PACKAGE_MANIFEST_IO_ERROR"), "{stderr}");
+    let install_after = pnpm_global::find_global_package(&global_dir, "@foo/touch-file-one-bin")
+        .expect("scan global packages")
+        .expect("find the reinstalled touch-file group");
+    assert!(
+        install_after.install_dir.join("node_modules/@foo/touch-file-one-bin").is_dir(),
+        "the package is installed again",
+    );
+    assert!(
+        !pnpm_global::get_installed_bin_names(&install_after)
+            .expect("read the reinstalled group's bins")
+            .is_empty(),
+    );
 
     drop((root, npmrc_info));
 }

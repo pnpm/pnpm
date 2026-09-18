@@ -9,9 +9,12 @@ import {
  * A complete ownership snapshot for the groups about to be replaced or
  * removed, together with the at-risk bins owned by groups that will survive.
  *
- * Every manifest read settles before the caller mutates global state. That
- * makes an incomplete target fail closed. Survivors only need inspecting when
- * a target bin will not be retained, because no other bin can be removed.
+ * Every manifest read settles before the caller mutates global state, so a
+ * target whose manifests cannot be read fails closed. A dependency whose
+ * directory is gone is not that case: it owns no bins, and reading it that way
+ * is what lets a group with a deleted `node_modules` be replaced at all.
+ * Survivors only need inspecting when a target bin will not be retained,
+ * because no other bin can be removed.
  */
 export async function getGlobalBinOwnership (
   globalDir: string,

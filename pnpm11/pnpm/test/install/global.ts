@@ -428,6 +428,27 @@ test('unchanged global update reports already up to date without replacing the g
   expect(findGlobalPkg(globalDir, 'is-positive')).toBe(installDirBefore)
 })
 
+test('global update reinstalls a group whose node_modules is gone', async () => {
+  prepare()
+  const global = path.resolve('..', 'global')
+  const pnpmHome = path.join(global, 'pnpm')
+  fs.mkdirSync(global)
+
+  const env = { [PATH_NAME]: path.join(pnpmHome, 'bin'), PNPM_HOME: pnpmHome, XDG_DATA_HOME: global }
+  await execPnpm(['add', '--global', 'is-positive@3.1.0'], { env })
+  const globalDir = globalPkgDir(pnpmHome)
+  const installBefore = findGlobalPkgInstall(globalDir, 'is-positive')!
+  fs.rmSync(path.join(installBefore.installDir, 'node_modules'), { recursive: true })
+
+  const result = execPnpmSync(['update', '--global'], { env, expectSuccess: true })
+  const output = `${result.stdout.toString()}\n${result.stderr.toString()}`
+
+  expect(output).not.toContain('Already up to date')
+  const installAfter = findGlobalPkgInstall(globalDir, 'is-positive')
+  expect(installAfter).not.toBeNull()
+  expect(fs.existsSync(path.join(installAfter!.pkgPath, 'package.json'))).toBe(true)
+})
+
 test('unchanged global update still approves a pending build', async () => {
   prepare()
   const global = path.resolve('..', 'global')

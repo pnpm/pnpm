@@ -139,11 +139,14 @@ fn installed_packages(
         .collect()
 }
 
-/// The bin names installed by a group (deduplicated).
+/// The bin names a group provides right now (deduplicated).
 ///
-/// Every declared dependency manifest must be readable and valid. Returning
-/// a partial set would make destructive callers mistake unknown ownership for
-/// an unowned bin.
+/// A dependency whose directory is gone provides none: its manifest is what
+/// named its bins, and with the tree removed there is nothing left for the
+/// group to own. Reporting that rather than failing lets `update -g` and
+/// `remove -g` replace a group whose `node_modules` was deleted. Every other
+/// read or parse error still propagates, so destructive callers never mistake
+/// unknown ownership for an unowned bin.
 pub fn get_installed_bin_names(
     info: &GlobalPackageInfo,
 ) -> Result<Vec<String>, PackageManifestError> {
@@ -161,8 +164,13 @@ where
     for (alias, _) in &info.dependencies {
         let dep_dir = modules_dir.join(alias);
         let manifest_path = dep_dir.join("package.json");
-        let bytes = Sys::read_file(&manifest_path)
-            .map_err(|source| PackageManifestError::Read { path: manifest_path.clone(), source })?;
+        let bytes = match Sys::read_file(&manifest_path) {
+            Ok(bytes) => bytes,
+            Err(source) if source.kind() == io::ErrorKind::NotFound => continue,
+            Err(source) => {
+                return Err(PackageManifestError::Read { path: manifest_path, source });
+            }
+        };
         let manifest = parse_manifest_bytes(&bytes)
             .map_err(|source| PackageManifestError::Parse { path: manifest_path, source })?;
         for command in get_bins_from_package_manifest::<Sys>(&manifest, &dep_dir) {

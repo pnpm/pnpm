@@ -101,11 +101,11 @@ fn installed_bin_names_accepts_a_readable_binless_manifest() {
 }
 
 #[test]
-fn installed_bin_names_rejects_a_missing_declared_alias_manifest() {
+fn installed_bin_names_skips_a_declared_alias_whose_directory_is_gone() {
     let tmp = TempDir::new().unwrap();
     let info = package_group(tmp.path(), &["missing"]);
 
-    assert!(get_installed_bin_names(&info).is_err());
+    assert_eq!(get_installed_bin_names(&info).unwrap(), Vec::<String>::new());
 }
 
 #[test]
@@ -120,7 +120,7 @@ fn installed_bin_names_rejects_a_malformed_declared_alias_manifest() {
 }
 
 #[test]
-fn installed_bin_names_does_not_return_a_partial_set_when_one_manifest_is_missing() {
+fn installed_bin_names_reports_only_the_aliases_still_on_disk() {
     let tmp = TempDir::new().unwrap();
     write_json(
         &tmp.path().join("node_modules/readable/package.json"),
@@ -132,7 +132,7 @@ fn installed_bin_names_does_not_return_a_partial_set_when_one_manifest_is_missin
     );
     let info = package_group(tmp.path(), &["readable", "missing"]);
 
-    assert!(get_installed_bin_names(&info).is_err());
+    assert_eq!(get_installed_bin_names(&info).unwrap(), vec!["readable-command".to_string()]);
 
     write_json(
         &tmp.path().join("node_modules/missing/package.json"),
