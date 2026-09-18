@@ -92,11 +92,11 @@ fn keeps_multi_segment_namespaces() {
 fn rejects_qualifiers_and_subpaths() {
     assert_eq!(
         error("pkg:pypi/django@1.11.1?file_name=Django-1.11.1.tar.gz"),
-        "pkg:pypi/django@1.11.1?file_name=Django-1.11.1.tar.gz carries purl qualifiers, which pnpm cannot honor",
+        "pkg:pypi/django@1.11.1 carries purl qualifiers, which pnpm cannot honor",
     );
     assert_eq!(
         error("pkg:npm/lodash@4.17.21#lib"),
-        "pkg:npm/lodash@4.17.21#lib carries a purl subpath, which pnpm cannot honor",
+        "pkg:npm/lodash@4.17.21 carries a purl subpath, which pnpm cannot honor",
     );
 }
 

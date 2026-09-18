@@ -76,6 +76,7 @@ impl Purl {
 /// and a subpath selects a directory inside the package. Honoring either
 /// silently would install something other than what was asked for.
 fn reject_unsupported_components(body: &str, source: Shown<'_>) -> Result<()> {
+    let source = source.without_qualifiers();
     if body.contains('?') {
         return Err(miette::miette!("{source} carries purl qualifiers, which pnpm cannot honor"));
     }

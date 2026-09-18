@@ -207,9 +207,17 @@ fn a_rejected_selector_is_redacted_and_sanitized_before_it_is_printed() {
         PackageSpecifierPlan::parse(&[specifier.to_string()]).expect_err(specifier).to_string()
     };
 
-    let credentials = message("pkg:npm/foo?repository_url=https://user:pass@example.test");
-    assert!(!credentials.contains("pass"), "{credentials}");
-    assert!(credentials.contains("example.test"), "{credentials}");
+    // Percent-encoding either URL separator hides the authority from
+    // `redact_and_sanitize`, so the qualifier is not printed at all.
+    for credentials in [
+        message("pkg:npm/foo?repository_url=https://user:pass@example.test"),
+        message("pkg:npm/foo?repository_url=https:%2F%2Fuser:pass%40example.test"),
+        message("pkg:npm/foo?repository_url=https://user:pass%40example.test"),
+        message("pkg:npm/foo#https:%2F%2Fuser:pass%40example.test"),
+    ] {
+        assert!(!credentials.contains("pass"), "{credentials}");
+        assert!(!credentials.contains("example.test"), "{credentials}");
+    }
 
     let control = message("pkg:maven/foo\u{1b}[31m/bar@1");
     assert!(!control.contains('\u{1b}'), "{control:?}");

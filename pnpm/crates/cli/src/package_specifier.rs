@@ -64,6 +64,22 @@ impl PackageSpecifierPlan {
 #[derive(Clone, Copy)]
 pub(super) struct Shown<'a>(pub(super) &'a str);
 
+impl<'a> Shown<'a> {
+    /// The selector up to its first qualifier or subpath separator.
+    ///
+    /// `redact_and_sanitize` recognizes an authority only when the selector
+    /// spells `://user:pass@` literally, and a purl percent-encodes those
+    /// separators, so a `repository_url` qualifier can carry a password past
+    /// it. Both components are rejected whole, so naming the package the
+    /// selector asked for says everything the message needs.
+    pub(super) fn without_qualifiers(self) -> Self {
+        match self.0.find(['?', '#']) {
+            Some(separator) => Self(&self.0[..separator]),
+            None => self,
+        }
+    }
+}
+
 impl std::fmt::Display for Shown<'_> {
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         formatter.write_str(&pnpm_network::redact_and_sanitize(self.0))
