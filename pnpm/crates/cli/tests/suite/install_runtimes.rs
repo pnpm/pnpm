@@ -845,8 +845,6 @@ fn mock_node_release_with_auth(
         .expect("one version serves an index, its sums and its archive")
 }
 
-/// Serve a release index listing every version, with the sums and archive of
-/// each, so a run can resolve the newest one and a later update find it.
 fn mock_node_releases(
     server: &mut mockito::Server,
     versions: &[&str],
