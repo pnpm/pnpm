@@ -777,10 +777,25 @@ test('getOptionsFromPnpmSettings() rejects a tasks entry that is not an object',
   })).toThrow(/The "tasks\['build'\]" setting should be an object, but got array/)
 })
 
-test('getOptionsFromPnpmSettings() rejects an unknown task setting field', () => {
+test('getOptionsFromPnpmSettings() rejects a task setting field that misspells one of its own', () => {
   expect(() => getOptionsFromPnpmSettings(process.cwd(), {
     tasks: { build: { dependson: ['^build'] } } as never,
   })).toThrow(/The "tasks\['build'\].dependson" setting is not a known task setting/)
+})
+
+test('getOptionsFromPnpmSettings() keeps task settings that only pnpm 12 reads', () => {
+  const tasks = {
+    build: {
+      cache: false,
+      cargoTargetDir: 'target',
+      concurrencyGroup: 'cargo',
+      dependsOn: ['^build'],
+      env: ['CARGO_PROFILE'],
+      inputs: ['src/**'],
+      outputs: ['dist/**'],
+    },
+  }
+  expect(getOptionsFromPnpmSettings(process.cwd(), { tasks } as never).tasks).toStrictEqual(tasks)
 })
 
 test('getOptionsFromPnpmSettings() rejects a dependsOn that is not an array of strings', () => {
