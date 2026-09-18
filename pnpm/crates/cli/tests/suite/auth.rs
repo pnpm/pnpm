@@ -314,6 +314,7 @@ fn tarball_authorization_failure_is_reported() {
 #[test]
 fn scoped_registry_auth_env_requires_a_trusted_source_for_frozen_verification() {
     let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
+    let workspace = dunce::canonicalize(&workspace).expect("canonicalize workspace");
     let mut registry = mockito::Server::new();
     let registry_url = format!("{}/api/v4/projects/96/packages/npm", registry.url());
     let authority = registry_url.strip_prefix("http://").unwrap();
