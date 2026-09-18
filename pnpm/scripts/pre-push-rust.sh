@@ -9,6 +9,10 @@ yellow() { printf '\033[0;33m%s\033[0m\n' "$*" >&2; }
 failed=0
 
 if command -v cargo >/dev/null 2>&1; then
+    # See pnpm/scripts/cargo-jobs.mjs for what the number is and why.
+    CARGO_BUILD_JOBS="$(node pnpm/scripts/cargo-jobs.mjs)"
+    export CARGO_BUILD_JOBS
+
     yellow '▸ node pnpm/scripts/rustfmt.mjs --all -- --check'
     if ! node pnpm/scripts/rustfmt.mjs --all -- --check; then
         red '✗ Rust formatting check failed — run `just fmt` and commit.'
