@@ -12,15 +12,18 @@ python:
   enabled: true
   # Defaults shown below; all are optional.
   executable: null # pnpm chooses one per project
-  indexUrl: https://pypi.org/simple/
-  extraIndexUrls: []
   overrides: []
   constraints: []
   extras: []
   groups: [dev]
   versions: []
-  downloads: auto # or never
-  downloadUrl: https://github.com/astral-sh/python-build-standalone/releases
+
+# Where the interpreter pnpm installs is downloaded from, and what an install
+# with no interpreter that fits does, are not Python's own settings:
+tools:
+  python:
+    mirror: https://github.com/astral-sh/python-build-standalone/releases
+runtimeOnFail: download # or error, warn, ignore
 ```
 
 The interpreter needs `venv` and either `packaging` or pip's bundled copy of
@@ -30,11 +33,12 @@ requests.
 
 ### Indexes and dependency rules
 
-`python.extraIndexUrls` adds Simple JSON indexes, searched in listed order before
-`python.indexUrl`. The first index containing a distribution supplies all of its
-versions. Only a 404 tries the next index; authentication failures and other
-errors stop resolution. Versions from different indexes are never combined.
-Credentials in each URL are scoped to that URL and removed from lockfiles.
+A `registries` entry that names `ecosystem: pypi` declares a Simple JSON index.
+The ones that are not the `default` are searched in listed order before it. The
+first index containing a distribution supplies all of its versions. Only a 404
+tries the next index; authentication failures and other errors stop resolution.
+Versions from different indexes are never combined. Credentials come from the
+machine's auth sources, resolved by origin, and are removed from lockfiles.
 A credential fingerprint separates authenticated index caches, and raw
 credentials never appear in cache keys.
 Missing index pages are cached for offline resolution too.
@@ -51,9 +55,11 @@ For example:
 ```yaml
 python:
   enabled: true
-  extraIndexUrls: [https://download.example.org/simple/]
   overrides: ['urllib3>=2']
   constraints: ['urllib3<3']
+registries:
+  https://pypi.org/simple/: { ecosystem: pypi, default: true }
+  https://download.example.org/simple/: { ecosystem: pypi }
 ```
 
 pnpm also reads `[tool.uv]` `override-dependencies` and
@@ -102,8 +108,8 @@ any other interpreter: a later install uses it without reading the release,
 offline included. `runtimeOnFail` decides what happens when no interpreter
 fits: `download`, which is the default, installs one, `error` reports the
 project, and `warn` and `ignore` install with an interpreter the machine has
-that `requires-python` rejects. An offline install installs none. `downloadUrl`
-names a mirror of the releases.
+that `requires-python` rejects. An offline install installs none.
+`tools.python.mirror` names a mirror of the releases.
 
 A `.python-version` pin is met by installing the version it names. Where the
 release publishes no such version for this machine, or the project's own
