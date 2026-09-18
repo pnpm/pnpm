@@ -62,22 +62,26 @@ function partitionStaged (root, staged, unstaged) {
   const withheld = []
   const foreign = []
   for (const file of staged) {
-    if (!isCheckedOutSource(root, path.join(root, file))) foreign.push(file)
+    if (!isCheckedOutSource(root, file)) foreign.push(file)
     else if (alsoUnstaged.has(file)) withheld.push(file)
     else formattable.push(file)
   }
   return { formattable, withheld, foreign }
 }
 
-// Git will not index a path beyond a symbolic link, and reports one whose
-// directory became a link afterwards as deleted from the working tree. The
-// containment test states the invariant those two behaviors happen to give
-// rather than leaving it to them.
-function isCheckedOutSource (root, absolute) {
+/**
+ * Whether a staged path leads to a regular file inside the checkout.
+ *
+ * Git will not index a path beyond a symbolic link, and reports one whose
+ * directory became a link afterwards as deleted from the working tree. This
+ * states the invariant those two behaviors happen to give rather than leaving
+ * it to them, so `root` must already be a resolved path.
+ */
+export function isCheckedOutSource (root, file) {
+  const absolute = path.join(root, file)
   try {
     if (!fs.lstatSync(absolute).isFile()) return false
-    const real = fs.realpathSync(absolute)
-    return real === absolute || real.startsWith(root + path.sep)
+    return fs.realpathSync(absolute).startsWith(root + path.sep)
   } catch (error) {
     if (error.code === 'ENOENT') return false
     throw error

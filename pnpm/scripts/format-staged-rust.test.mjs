@@ -4,7 +4,7 @@ import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import { test } from 'node:test'
-import { formatStagedRust } from './format-staged-rust.mjs'
+import { formatStagedRust, isCheckedOutSource } from './format-staged-rust.mjs'
 import { git, temporaryRepo } from './git-fixture.mjs'
 
 // Names git hands back verbatim that a shell would have split or expanded, or
@@ -148,4 +148,16 @@ test('refuses a staged path whose directory became a link out of the checkout', 
   assert.deepEqual(seen, [])
   assert.match(reported.mock.calls[0].arguments[0], /none is a regular file in the checkout:\n {2}dir\/nested\.rs/)
   assert.equal(fs.readFileSync(path.join(outside, 'nested.rs'), 'utf8'), 'fn nested() {}\n')
+})
+
+test('rejects a source path that resolves outside the checkout', { skip: process.platform === 'win32' }, (context) => {
+  const repo = temporaryRepo(context, 'pnpm-format-contain-')
+  fs.writeFileSync(path.join(repo, 'inside.rs'), 'fn inside() {}\n')
+  const outside = `${repo}-outside.rs`
+  fs.writeFileSync(outside, 'fn outside() {}\n')
+  context.after(() => fs.rmSync(outside, { force: true }))
+
+  assert.equal(isCheckedOutSource(repo, 'inside.rs'), true)
+  assert.equal(isCheckedOutSource(repo, `../${path.basename(outside)}`), false)
+  assert.equal(isCheckedOutSource(repo, 'missing.rs'), false)
 })
