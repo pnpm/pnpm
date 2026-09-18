@@ -40,10 +40,10 @@ impl CompletionShell {
 
     fn script(self) -> &'static str {
         match self {
-            CompletionShell::Bash => BASH_COMPLETION,
-            CompletionShell::Fish => FISH_COMPLETION,
-            CompletionShell::Pwsh => PWSH_COMPLETION,
-            CompletionShell::Zsh => ZSH_COMPLETION,
+            CompletionShell::Bash => shells::BASH_COMPLETION,
+            CompletionShell::Fish => shells::FISH_COMPLETION,
+            CompletionShell::Pwsh => shells::PWSH_COMPLETION,
+            CompletionShell::Zsh => shells::ZSH_COMPLETION,
         }
     }
 }
@@ -93,7 +93,13 @@ impl CompletionArgs {
 
 impl CompletionServerArgs {
     pub fn run(&self) -> miette::Result<()> {
+        let is_zsh = std::env::var_os("SHELL").is_some_and(|shell| shell == "zsh");
         for completion in complete_words(&self.words)? {
+            let completion = if is_zsh {
+                completion.replace('\\', r"\\").replace(':', r"\:")
+            } else {
+                completion
+            };
             println!("{completion}");
         }
         Ok(())
@@ -141,6 +147,7 @@ struct CompletionContext<'a> {
     has_positional: bool,
     directory: Option<&'a str>,
     awaiting_option_value: bool,
+    workspace_root: bool,
 }
 
 impl<'a> CompletionContext<'a> {
@@ -156,39 +163,42 @@ impl<'a> CompletionContext<'a> {
     }
 
     fn new(root: &'a Command, words: &'a [String]) -> Self {
-        let mut command = root;
-        let mut command_name = None;
+        let mut context = Self {
+            root,
+            command: root,
+            command_name: None,
+            has_positional: false,
+            directory: None,
+            awaiting_option_value: false,
+            workspace_root: false,
+        };
         let mut index = 0;
-        let mut has_positional = false;
-        let mut directory = None;
-        let mut awaiting_option_value = false;
-
         while let Some(word) = words.get(index) {
-            if let Some(subcommand) = command
+            if let Some(subcommand) = context.command
                 .get_subcommands()
                 .find(|subcommand| !subcommand.is_hide_set() && command_matches(subcommand, word))
             {
-                command = subcommand;
-                command_name = Some(subcommand.get_name());
+                context.command = subcommand;
+                context.command_name = Some(subcommand.get_name());
                 index += 1;
                 continue;
             }
-
             if word.starts_with('-') {
-                let width = option_word_width(root, command, word);
-                awaiting_option_value = width == 2 && index + 1 == words.len();
-                if let Some(value) = scripts::directory_option(word, words.get(index + 1)) {
-                    directory = Some(value);
+                context.workspace_root |= matches!(word.as_str(), "--workspace-root" | "-w");
+                let width = option_word_width(root, context.command, word);
+                context.awaiting_option_value = width == 2 && index + 1 == words.len();
+                if let Some(value) =
+                    scripts::directory_option(word, words.get(index + 1).map(String::as_str))
+                {
+                    context.directory = Some(value);
                 }
                 index += width;
                 continue;
             }
-
-            has_positional = true;
+            context.has_positional = true;
             index += 1;
         }
-
-        Self { root, command, command_name, has_positional, directory, awaiting_option_value }
+        context
     }
 }
 
@@ -198,7 +208,7 @@ fn option_word_width(root: &Command, command: &Command, word: &str) -> usize {
     let takes_separate_value = option_has_separate_value(word)
         && find_option_argument_in_command(command, word)
             .or_else(|| find_option_argument_in_command(root, word))
-            .is_some_and(argument_takes_value);
+            .is_some_and(argument_takes_separate_value);
     if takes_separate_value { 2 } else { 1 }
 }
 
@@ -316,6 +326,9 @@ fn option_values(context: &CompletionContext<'_>, words: &[String]) -> Option<Ve
         .last()
         .filter(|word| word.starts_with('-') && option_has_separate_value(word))?;
     let argument = find_option_argument(context, option)?;
+    if !argument_takes_separate_value(argument) {
+        return None;
+    }
     let mut values = visible_possible_values(argument);
 
     if values.is_empty() {
@@ -373,65 +386,16 @@ fn argument_takes_value(argument: &Arg) -> bool {
         || matches!(argument.get_action(), ArgAction::Set | ArgAction::Append)
 }
 
+fn argument_takes_separate_value(argument: &Arg) -> bool {
+    argument_takes_value(argument) && !argument.is_require_equals_set()
+}
+
 fn option_has_separate_value(option: &str) -> bool {
     !option.contains('=')
 }
 
-const BASH_COMPLETION: &str = r#"###-begin-pnpm-completion-###
-_pnpm_completion() {
-  local IFS=$'\n'
-  COMPREPLY=($(COMP_LINE="$COMP_LINE" COMP_POINT="$COMP_POINT" SHELL=bash pnpm completion-server -- "${COMP_WORDS[@]}"))
-}
-complete -F _pnpm_completion pnpm pn
-###-end-pnpm-completion-###
-"#;
-
-const FISH_COMPLETION: &str = r#"###-begin-pnpm-completion-###
-function __pnpm_completion
-  set -lx SHELL fish
-  set -lx COMP_LINE (commandline -cp)
-  set -lx COMP_POINT (string length -- $COMP_LINE)
-  set -l tokens (commandline -opc)
-  set -l current (commandline -ct)
-  if test (count $tokens) -eq 0
-    set -a tokens "$current"
-  else if test "$tokens[-1]" != "$current"
-    set -a tokens "$current"
-  end
-  pnpm completion-server -- $tokens
-end
-complete -c pnpm -f -a "(__pnpm_completion)"
-complete -c pn -f -a "(__pnpm_completion)"
-###-end-pnpm-completion-###
-"#;
-
-const PWSH_COMPLETION: &str = r#"###-begin-pnpm-completion-###
-Register-ArgumentCompleter -Native -CommandName pnpm,pn -ScriptBlock {
-  param($wordToComplete, $commandAst, $cursorPosition)
-  $env:SHELL = "pwsh"
-  $env:COMP_LINE = $commandAst.ToString()
-  $env:COMP_POINT = $cursorPosition
-  $elements = @($commandAst.CommandElements | ForEach-Object { $_.Extent.Text })
-  if ($elements.Count -eq 0 -or $elements[-1] -ne $wordToComplete) {
-    $elements += $wordToComplete
-  }
-  pnpm completion-server -- @elements
-}
-###-end-pnpm-completion-###
-"#;
-
-const ZSH_COMPLETION: &str = r#"#compdef pnpm pn
-###-begin-pnpm-completion-###
-_pnpm_completion() {
-  local reply
-  reply=("${(@f)$(COMP_CWORD=$((CURRENT-1)) COMP_LINE="$BUFFER" COMP_POINT="$CURSOR" SHELL=zsh pnpm completion-server -- "${words[@]}")}")
-  _describe 'values' reply
-}
-compdef _pnpm_completion pnpm pn
-###-end-pnpm-completion-###
-"#;
-
 mod scripts;
+mod shells;
 
 #[cfg(test)]
 mod tests;

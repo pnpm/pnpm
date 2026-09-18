@@ -446,6 +446,9 @@ fn completion_server_completes_project_scripts() {
         for (words, expected) in [
             (vec!["pnpm", "run", ""], "build\nbuild:watch\nhello\n"),
             (vec!["pnpm", "run", "bu"], "build\nbuild:watch\n"),
+            (vec!["pnpm", "run", "build:"], "build:watch\n"),
+            (vec!["pnpm", "--color", "run", "he"], "hello\n"),
+            (vec!["pnpm", "run", "--color", "he"], "hello\n"),
             (vec!["pn", "run-script", "he"], "hello\n"),
             (vec!["pnpm", "--filter", "run", "run", "--if-present", "he"], "hello\n"),
             (vec!["pnpm", "run", "hello", ""], ""),
@@ -458,6 +461,8 @@ fn completion_server_completes_project_scripts() {
                 .args(&words)
                 .output()
                 .unwrap();
+            let expected =
+                if shell == "zsh" { expected.replace(':', r"\:") } else { expected.to_string() };
             assert_eq!(stdout(output), expected, "{shell}: {words:?}");
         }
     }
@@ -553,4 +558,37 @@ fn completion_server_uses_the_nearest_project_manifest() {
         .output()
         .unwrap();
     assert_eq!(stdout(output), "child\n");
+}
+
+#[test]
+fn completion_server_does_not_search_above_explicit_directories() {
+    let project = TempDir::new().unwrap();
+    std::fs::create_dir(project.path().join("subdir")).unwrap();
+    std::fs::write(project.path().join("package.json"), r#"{"scripts":{"parent":"echo parent"}}"#)
+        .unwrap();
+    let output = pacquet()
+        .current_dir(project.path())
+        .args(["completion-server", "--", "pnpm", "--dir", "subdir", "run", ""])
+        .output()
+        .unwrap();
+    assert_eq!(stdout(output), "");
+}
+
+#[test]
+fn completion_server_respects_workspace_root_selection() {
+    let project = TempDir::new().unwrap();
+    let child = project.path().join("child");
+    std::fs::create_dir(&child).unwrap();
+    std::fs::write(project.path().join("pnpm-workspace.yaml"), "packages:\n  - child\n").unwrap();
+    std::fs::write(project.path().join("package.json"), r#"{"scripts":{"root":"echo root"}}"#)
+        .unwrap();
+    std::fs::write(child.join("package.json"), r#"{"scripts":{"child":"echo child"}}"#).unwrap();
+    for flag in ["--workspace-root", "-w"] {
+        let output = pacquet()
+            .current_dir(&child)
+            .args(["completion-server", "--", "pnpm", flag, "run", ""])
+            .output()
+            .unwrap();
+        assert_eq!(stdout(output), "root\n", "{flag}");
+    }
 }

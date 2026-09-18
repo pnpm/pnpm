@@ -1,16 +1,22 @@
 use super::CompletionContext;
-use crate::cli_args::prefix::find_npm_local_prefix;
+use crate::cli_args::{
+    cli_command::options::find_workspace_root_dir, prefix::find_npm_local_prefix,
+};
 use miette::IntoDiagnostic;
 use pnpm_workspace::safe_read_project_manifest_only;
-use std::{env, path::Path};
+use std::env;
 
 pub(super) fn complete_scripts(context: &CompletionContext<'_>) -> miette::Result<Vec<String>> {
     if context.has_positional || context.awaiting_option_value {
         return Ok(Vec::new());
     }
     let cwd = env::current_dir().into_diagnostic()?;
-    let directory = context.directory.map_or(cwd.as_path(), Path::new);
-    let directory = find_npm_local_prefix(&cwd.join(directory))?;
+    let directory = match context.directory {
+        Some(directory) => cwd.join(directory),
+        None => find_npm_local_prefix(&cwd)?,
+    };
+    let directory =
+        if context.workspace_root { find_workspace_root_dir(&directory)? } else { directory };
     let Some(manifest) = safe_read_project_manifest_only(&directory)? else {
         return Ok(Vec::new());
     };
@@ -25,9 +31,9 @@ pub(super) fn complete_scripts(context: &CompletionContext<'_>) -> miette::Resul
     Ok(scripts)
 }
 
-pub(super) fn directory_option<'a>(word: &'a str, next: Option<&'a String>) -> Option<&'a str> {
+pub(super) fn directory_option<'a>(word: &'a str, next: Option<&'a str>) -> Option<&'a str> {
     if matches!(word, "--dir" | "--prefix" | "-C") {
-        return next.map(String::as_str);
+        return next;
     }
     word.strip_prefix("--dir=")
         .or_else(|| word.strip_prefix("--prefix="))
