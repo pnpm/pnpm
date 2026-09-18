@@ -1730,6 +1730,10 @@
   dir: pnpm/npm/napi
   intents:
     - atomic-napi-config-cache
+"@pnpm/napi@12.5.0":
+  dir: pnpm/npm/napi
+  intents:
+    - napi-repeat-install-fast-path
 "@pnpm/network.auth-header@1101.1.4":
   dir: pnpm11/network/auth-header
   intents:
@@ -1923,6 +1927,14 @@
     - python-resolution-through-pnpr
     - rust-compilation-cache
     - serve-container-images
+"@pnpm/pnpr@0.1.0-alpha.12":
+  dir: pnpr/npm/pnpr
+  intents:
+    - cargo-lock-weak-dependencies
+    - pnpr-upstream-search-budget
+    - skip-unreadable-python-requirements
+    - skip-unusable-python-index-files
+    - tolerate-unreadable-requires-python
 "@pnpm/pnpr@0.1.0-alpha.2":
   dir: pnpr/npm/pnpr
   intents:
@@ -4032,6 +4044,59 @@ pacquet@12.4.2:
     - update-no-save-under-strict-release-age
     - update-optional-peer-one-pass
     - validate-peer-dependencies-spec
+pacquet@12.5.0:
+  dir: pnpm/npm/pnpm
+  intents:
+    - add-accepts-package-urls
+    - audit-diamond-paths
+    - backtrack-across-compatibility-lines
+    - cargo-backtracks-over-yanked-dependencies
+    - cargo-build-std-dependencies
+    - cargo-lock-weak-dependencies
+    - cargo-source-overrides
+    - choose-a-python-interpreter-per-project
+    - cuddly-spoons-link
+    - curvy-maps-merge
+    - custom-resolver-without-a-manifest
+    - discover-unified-feature-crates
+    - filtered-install-keeps-the-lockfile-complete
+    - fix-cargo-git-submodules
+    - fix-cargo-git-workspaces
+    - fix-dlx-build-approval
+    - fix-global-retained-bin-scan
+    - install-a-python-interpreter
+    - install-the-python-project-itself
+    - install-wheels-with-bad-record-hashes
+    - integrity-aware-tarball-cache
+    - metadata-snapshot-rejects-named-pipes
+    - name-the-ecosystem-an-add-refuses
+    - napi-repeat-install-fast-path
+    - outdated-long-homepage-details
+    - python-add-names-missing-pyproject
+    - python-discovery-boundaries
+    - python-dynamic-requirements
+    - python-environment-link-mode
+    - python-environments-in-the-store
+    - python-git-url-requirements
+    - python-indexes-and-rules
+    - python-locks-for-several-environments
+    - python-project-selections
+    - python-projects-honor-filters
+    - python-shared-environment
+    - python-source-distributions
+    - python-wheel-tag-mismatch
+    - python-workspace-projects
+    - quiet-python-projects
+    - registries-name-the-ecosystem
+    - reject-a-registry-named-after-a-prefix
+    - shim-printf-path-normalization
+    - skip-unreadable-python-requirements
+    - skip-unusable-python-index-files
+    - sort-packed-tar-entries
+    - supported-architectures-names-platforms
+    - task-concurrency-groups
+    - tools-mirror
+    - workspace-state-concurrent-writers
 pnpm@11.13.0:
   dir: pnpm11/pnpm
   intents:
