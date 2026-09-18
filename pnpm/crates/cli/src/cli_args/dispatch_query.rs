@@ -187,10 +187,12 @@ pub(super) fn sbom<'a>(ctx: &RunCtx<'a>, args: SbomArgs) -> miette::Result<Comma
 }
 
 pub(super) fn peers<'a>(ctx: &RunCtx<'a>, args: PeersArgs) -> miette::Result<CommandFuture<'a>> {
-    let cfg: &Config = (ctx.loaders.config)()?;
+    let cfg = (ctx.loaders.config)()?;
     let recursive = ctx.workspace.recursive;
     let dir = ctx.locations.dir;
+    let reporter = ctx.reporter;
     Ok(Box::pin(async move {
+        apply_update_config(cfg, dir, reporter).await?;
         if args.run(cfg, dir, recursive)? != PeersOutcome::NoIssues {
             #[expect(
                 clippy::exit,

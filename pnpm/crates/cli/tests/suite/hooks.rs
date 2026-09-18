@@ -151,6 +151,130 @@ fn update_config_catalog_applies_to_outdated() {
     drop((root, mock_instance));
 }
 
+/// The workspace shape of pnpm/pnpm#15047: `b` depends on workspace
+/// package `a`, whose `peerDependencies` use a catalog only the
+/// `updateConfig` hook provides. `peers check` resolves that catalog when
+/// it reads `a`'s manifest through the `link:` target, so this is the one
+/// path where the hook's catalogs matter after the install has recorded
+/// everything else.
+fn write_linked_peer_workspace(
+    workspace: &Path,
+    link_workspace_packages: Option<&str>,
+    publish_config: Option<serde_json::Value>,
+) {
+    fs::write(workspace.join("package.json"), r#"{ "name": "root", "private": true }"#)
+        .expect("write root manifest");
+    let link_workspace_packages = link_workspace_packages
+        .map(|value| format!("linkWorkspacePackages: {value}\n"))
+        .unwrap_or_default();
+    fs::write(
+        workspace.join("pnpm-workspace.yaml"),
+        format!("packages:\n  - packages/*\n{link_workspace_packages}"),
+    )
+    .expect("write workspace manifest");
+    fs::write(
+        workspace.join(".pnpmfile.mjs"),
+        format!(
+            "export const hooks = {{ updateConfig (config) {{ config.catalogs = {{ hooked: {{ '{CATALOG_DEP}': '^100.0.0' }} }}; return config }} }}\n",
+        ),
+    )
+    .expect("write pnpmfile");
+    let a = workspace.join("packages/a");
+    let b = workspace.join("packages/b");
+    fs::create_dir_all(&a).expect("create packages/a");
+    fs::create_dir_all(&b).expect("create packages/b");
+    let mut a_manifest = serde_json::json!({
+        "name": "a",
+        "version": "1.0.0",
+        "peerDependencies": { (CATALOG_DEP): "catalog:hooked" },
+    });
+    if let Some(publish_config) = publish_config {
+        let directory = publish_config["directory"].as_str().expect("publishConfig.directory");
+        let publish_dir = a.join(directory);
+        fs::create_dir_all(&publish_dir).expect("create the publish directory");
+        fs::write(
+            publish_dir.join("package.json"),
+            serde_json::json!({ "name": "a", "version": "1.0.0" }).to_string(),
+        )
+        .expect("write the publish directory manifest");
+        a_manifest["publishConfig"] = publish_config;
+    }
+    fs::write(a.join("package.json"), a_manifest.to_string()).expect("write packages/a manifest");
+    fs::write(
+        b.join("package.json"),
+        serde_json::json!({
+            "name": "b",
+            "version": "1.0.0",
+            "dependencies": { "a": "workspace:*", (CATALOG_DEP): "catalog:hooked" },
+        })
+        .to_string(),
+    )
+    .expect("write packages/b manifest");
+}
+
+fn assert_peers_check_resolves_hook_catalog(
+    link_workspace_packages: Option<&str>,
+    publish_config: Option<serde_json::Value>,
+) {
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    write_linked_peer_workspace(&workspace, link_workspace_packages, publish_config);
+
+    pacquet_in(&workspace)
+        .with_arg("install")
+        .assert()
+        .success();
+    let output = pacquet_in(&workspace)
+        .with_args(["peers", "check"])
+        .output()
+        .expect("run peers check");
+
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        output.status.success(),
+        "peers check should resolve the hook-provided catalog\nSTDOUT:\n{stdout}\nSTDERR:\n{stderr}"
+    );
+    assert!(stdout.contains("No peer dependency issues found"), "STDOUT:\n{stdout}");
+
+    drop((root, mock_instance));
+}
+
+#[test]
+fn update_config_catalog_applies_to_peers_of_a_linked_workspace_package() {
+    assert_peers_check_resolves_hook_catalog(None, None);
+}
+
+#[test]
+fn update_config_catalog_applies_to_peers_with_link_workspace_packages_true() {
+    assert_peers_check_resolves_hook_catalog(Some("true"), None);
+}
+
+#[test]
+fn update_config_catalog_applies_to_peers_with_link_workspace_packages_deep() {
+    assert_peers_check_resolves_hook_catalog(Some("deep"), None);
+}
+
+/// With `linkDirectory` on, the `link:` target is the publish directory,
+/// whose manifest carries no `peerDependencies`, so the check has no
+/// catalog spec to resolve. Kept so the permutation stays green.
+#[test]
+fn update_config_catalog_applies_to_peers_with_a_publish_directory() {
+    assert_peers_check_resolves_hook_catalog(
+        Some("true"),
+        Some(serde_json::json!({ "directory": "dist" })),
+    );
+}
+
+#[test]
+fn update_config_catalog_applies_to_peers_with_an_unlinked_publish_directory() {
+    assert_peers_check_resolves_hook_catalog(
+        Some("true"),
+        Some(serde_json::json!({ "directory": "dist", "linkDirectory": false })),
+    );
+}
+
 #[test]
 fn update_config_catalog_applies_to_import() {
     let CommandTempCwd { root, workspace, npmrc_info, .. } =
