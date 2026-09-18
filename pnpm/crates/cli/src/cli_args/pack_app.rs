@@ -19,8 +19,8 @@
 //!   home.
 
 use build::{
-    EmbeddedRuntime, SeaBuild, ad_hoc_sign_mac_binary, ensure_node_runtime, pnpm_home_dir,
-    print_built, reject_non_regular_output_file, reject_non_regular_outputs,
+    EmbeddedRuntime, SeaBuild, ad_hoc_sign_mac_binary, ensure_node_runtime, node_mirrors_env,
+    pnpm_home_dir, print_built, reject_non_regular_output_file, reject_non_regular_outputs,
     resolve_builder_binary, resolve_version, run_command,
 };
 use clap::Args;
@@ -305,6 +305,7 @@ impl PackAppArgs {
         let runtime = EmbeddedRuntime {
             build_root,
             version: resolve_version(config, &requested_node_spec).await?,
+            node_mirrors: node_mirrors_env(config),
         };
         let build = SeaBuild {
             builder_bin: resolve_builder_binary(&runtime)?,

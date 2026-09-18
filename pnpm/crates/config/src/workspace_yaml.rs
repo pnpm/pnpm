@@ -5,7 +5,7 @@ pub use sections::{
     AllowBuild, AuditSettings, CargoSettings, DEFAULT_PYTHON_DOWNLOAD_URL, PackageExtension,
     PeerDependencyMeta, PeerDependencyRules, PnpmfileSetting, PythonSettings,
     RemoteSideEffectsCacheSettings, SideEffectsCacheSetting, SideEffectsCacheSettings,
-    TaskSettings, ToolSettings, UpdateConfig, UpdateSettings, decided_allow_builds,
+    TaskSettings, Tool, ToolSettings, UpdateConfig, UpdateSettings, decided_allow_builds,
 };
 pub use settings::WorkspaceSettings;
 
@@ -83,8 +83,8 @@ fn overlay<Setting>(target: &mut Setting, value: Option<Setting>) {
 /// names a tool's release channels has not said where the rest of its
 /// builds come from.
 fn overlay_tools(
-    target: &mut BTreeMap<String, ToolSettings>,
-    value: Option<BTreeMap<String, ToolSettings>>,
+    target: &mut BTreeMap<Tool, ToolSettings>,
+    value: Option<BTreeMap<Tool, ToolSettings>>,
 ) {
     for (tool, named) in value.into_iter().flatten() {
         let settings = target.entry(tool).or_default();

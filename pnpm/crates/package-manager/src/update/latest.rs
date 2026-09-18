@@ -8,7 +8,7 @@ use crate::{
 };
 use chrono::{DateTime, Utc};
 use node_semver::Version;
-use pnpm_config::{Config, version_policy::PackageVersionPolicy};
+use pnpm_config::{Config, Tool, version_policy::PackageVersionPolicy};
 use pnpm_engine_pm_yarn_resolver::YarnResolver;
 use pnpm_engine_runtime_bun_resolver::BunResolver;
 use pnpm_engine_runtime_deno_resolver::DenoResolver;
@@ -180,8 +180,8 @@ pub(super) fn ensure_latest_resolver_chain<'chain>(
             Arc::clone(&ctx.config.auth_headers),
         );
         node_resolver.node_download_mirrors.clone_from(&ctx.config.node_download_mirrors);
-        node_resolver.mirror = ctx.config.tool_mirror("node").map(ToString::to_string);
-        node_resolver.channel_mirrors = ctx.config.tool_channel_mirrors("node");
+        node_resolver.mirror = ctx.config.tool_mirror(Tool::Node).map(ToString::to_string);
+        node_resolver.channel_mirrors = ctx.config.tool_channel_mirrors(Tool::Node);
         node_resolver.offline = ctx.config.offline;
         node_resolver.cache_dir = Some(ctx.config.cache_dir.clone());
         let resolver = DefaultResolver::new(vec![
@@ -190,7 +190,7 @@ pub(super) fn ensure_latest_resolver_chain<'chain>(
             Box::new(DenoResolver::new(Arc::clone(ctx.http_client_arc), Arc::clone(&npm_resolver))),
             Box::new(
                 BunResolver::new(Arc::clone(ctx.http_client_arc), Arc::clone(&npm_resolver))
-                    .with_mirror(ctx.config.tool_mirror("bun")),
+                    .with_mirror(ctx.config.tool_mirror(Tool::Bun)),
             ),
             Box::new(YarnResolver::new(
                 Arc::clone(ctx.http_client_arc),

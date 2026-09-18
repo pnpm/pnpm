@@ -318,13 +318,15 @@ fn tool_settings_parse_and_apply() {
     let settings: WorkspaceSettings = serde_saphyr::from_str(yaml).unwrap();
     let mut config = Config::default();
     settings.apply_to(&mut config, Path::new("/workspace"));
-    assert_eq!(config.tool_mirror("node"), Some("https://mirror.example.test/node/download"));
     assert_eq!(
-        config.tool_mirror("python"),
+        config.tool_mirror(crate::Tool::Node),
+        Some("https://mirror.example.test/node/download"),
+    );
+    assert_eq!(
+        config.tool_mirror(crate::Tool::Python),
         Some("https://mirror.example.test/python-build-standalone/releases"),
     );
-    assert_eq!(config.tool_mirror("bun"), Some("https://mirror.example.test/bun"));
-    assert_eq!(config.tool_mirror("deno"), None);
+    assert_eq!(config.tool_mirror(crate::Tool::Bun), Some("https://mirror.example.test/bun"));
 
     // A mirror says what this machine can reach, which is the user's to
     // say, so it survives the filter the global config is read through.
@@ -338,21 +340,21 @@ fn tool_settings_parse_and_apply() {
     assert!(unknown.is_err());
 }
 
-/// A name pnpm has no downloader for would sit in the file doing
-/// nothing, which reads as a mirror in use.
+/// Deno and Yarn are not reachable through a base URL at all, so the
+/// setting cannot name one: the closed key set says so where the value
+/// is written, rather than leaving an entry that does nothing.
 #[test]
 fn refuses_a_tool_pnpm_does_not_download() {
-    let settings: WorkspaceSettings =
-        serde_saphyr::from_str("tools:\n  deno:\n    mirror: https://mirror.example.test/deno\n")
-            .unwrap();
-    let error =
-        settings.validate_tools().expect_err("deno is not a tool pnpm downloads through a mirror");
-    assert!(format!("{error}").contains("tools['deno']"), "{error}");
+    let error = serde_saphyr::from_str::<WorkspaceSettings>(
+        "tools:\n  deno:\n    mirror: https://mirror.example.test/deno\n",
+    )
+    .expect_err("deno is not a tool pnpm downloads through a mirror");
+    assert!(format!("{error}").contains("deno"), "{error}");
 
-    let settings: WorkspaceSettings =
-        serde_saphyr::from_str("tools:\n  node:\n    mirror: https://mirror.example.test/node\n")
-            .unwrap();
-    assert!(settings.validate_tools().is_ok());
+    let known = serde_saphyr::from_str::<WorkspaceSettings>(
+        "tools:\n  node:\n    mirror: https://mirror.example.test/node\n",
+    );
+    assert!(known.is_ok());
 }
 
 /// Each tool is answered for separately, so naming one leaves the
@@ -369,8 +371,8 @@ fn a_workspace_tool_keeps_the_mirrors_named_elsewhere() {
             .unwrap();
     workspace.apply_to(&mut config, Path::new("/workspace"));
 
-    assert_eq!(config.tool_mirror("node"), Some("https://global.example.test/node"));
-    assert_eq!(config.tool_mirror("bun"), Some("https://workspace.example.test/bun"));
+    assert_eq!(config.tool_mirror(crate::Tool::Node), Some("https://global.example.test/node"));
+    assert_eq!(config.tool_mirror(crate::Tool::Bun), Some("https://workspace.example.test/bun"));
 }
 
 #[test]
@@ -379,16 +381,19 @@ fn a_tool_channel_is_read_beside_the_base_it_refines() {
     let settings: WorkspaceSettings = serde_saphyr::from_str(yaml).unwrap();
     let mut config = Config::default();
     settings.apply_to(&mut config, Path::new("/workspace"));
-    assert_eq!(config.tool_mirror("node"), Some("https://mirror.example.test/node/download"));
+    assert_eq!(
+        config.tool_mirror(crate::Tool::Node),
+        Some("https://mirror.example.test/node/download"),
+    );
     assert_eq!(
         config
-            .tool_channel_mirrors("node")
+            .tool_channel_mirrors(crate::Tool::Node)
             .get("nightly")
             .map(String::as_str),
         Some("https://nightly.example.test"),
     );
-    assert!(!config.tool_channel_mirrors("node").contains_key("release"));
-    assert!(config.tool_channel_mirrors("bun").is_empty());
+    assert!(!config.tool_channel_mirrors(crate::Tool::Node).contains_key("release"));
+    assert!(config.tool_channel_mirrors(crate::Tool::Bun).is_empty());
 }
 
 /// A caller joins a path onto what it is given.
@@ -399,7 +404,7 @@ fn a_tool_mirror_is_read_without_its_trailing_slash() {
         serde_saphyr::from_str("tools:\n  bun:\n    mirror: https://mirror.example.test/bun/\n")
             .unwrap();
     settings.apply_to(&mut config, Path::new("/workspace"));
-    assert_eq!(config.tool_mirror("bun"), Some("https://mirror.example.test/bun"));
+    assert_eq!(config.tool_mirror(crate::Tool::Bun), Some("https://mirror.example.test/bun"));
 }
 
 #[test]

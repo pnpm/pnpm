@@ -5,7 +5,7 @@ use super::{global::handle_global_add, registry_client::build_registry_client};
 use clap::Args;
 use derive_more::{Display, Error};
 use miette::Diagnostic;
-use pnpm_config::Config;
+use pnpm_config::{Config, Tool};
 use pnpm_engine_runtime_node_resolver::{
     get_node_mirror, parse_node_specifier, resolve_node_versions_with_auth,
 };
@@ -145,9 +145,9 @@ impl EnvArgs {
     pub async fn run_list(version_spec: Option<String>, config: &Config) -> miette::Result<String> {
         let specifier = parse_node_specifier(version_spec.as_deref().unwrap_or_default())
             .map_err(miette::Report::new)?;
-        let channels = config.tool_channel_mirrors("node");
+        let channels = config.tool_channel_mirrors(Tool::Node);
         let mirror = get_node_mirror(
-            config.tool_mirror("node"),
+            config.tool_mirror(Tool::Node),
             channels.get(&specifier.release_channel).map(String::as_str),
             Some(&config.node_download_mirrors),
             &specifier.release_channel,

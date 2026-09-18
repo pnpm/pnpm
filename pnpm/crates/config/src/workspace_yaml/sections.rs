@@ -99,8 +99,24 @@ pub struct RemoteSideEffectsCacheSettings {
     pub private_key: Option<String>,
 }
 
-/// What pnpm is told about one tool it downloads, keyed by the tool's
-/// name under `tools` in `pnpm-workspace.yaml`.
+/// A program pnpm downloads through a base URL, which is what a mirror
+/// can replace.
+///
+/// Deno and Yarn are absent on purpose: both read the GitHub API for
+/// their release metadata and take asset URLs out of the response, so a
+/// base URL cannot stand in for either. Naming one would promise
+/// something pnpm cannot do, and a closed set says so where the
+/// configuration is written rather than after it is read.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, serde::Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum Tool {
+    Node,
+    Bun,
+    Python,
+}
+
+/// What pnpm is told about one tool it downloads, keyed by the tool
+/// under `tools`.
 ///
 /// A tool here is a program pnpm fetches to run something with: a
 /// JavaScript runtime, a Python interpreter, another package manager.

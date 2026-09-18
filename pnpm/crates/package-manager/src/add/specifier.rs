@@ -6,7 +6,7 @@ use super::{
 };
 use crate::{CatalogModeDep, decide_catalog_outcome};
 use pnpm_catalogs_types::Catalogs;
-use pnpm_config::{Config, SaveWorkspaceProtocol};
+use pnpm_config::{Config, SaveWorkspaceProtocol, Tool};
 use pnpm_engine_runtime_node_resolver::NodeResolver;
 use pnpm_package_manifest::{DependencyGroup, PackageManifest};
 use pnpm_package_name::is_valid_dependency_alias;
@@ -199,8 +199,8 @@ pub(super) async fn resolve_node_runtime_specifier(
         std::sync::Arc::clone(&config.auth_headers),
     );
     node_resolver.node_download_mirrors.clone_from(&config.node_download_mirrors);
-    node_resolver.mirror = config.tool_mirror("node").map(ToString::to_string);
-    node_resolver.channel_mirrors = config.tool_channel_mirrors("node");
+    node_resolver.mirror = config.tool_mirror(Tool::Node).map(ToString::to_string);
+    node_resolver.channel_mirrors = config.tool_channel_mirrors(Tool::Node);
     node_resolver.offline = config.offline;
     node_resolver.cache_dir = Some(config.cache_dir.clone());
     node_resolver
