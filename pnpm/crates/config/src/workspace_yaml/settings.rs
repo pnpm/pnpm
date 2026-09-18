@@ -168,6 +168,7 @@ pub struct WorkspaceSettings {
     pub python: Option<PythonSettings>,
     /// `tools` from `pnpm-workspace.yaml`: what pnpm is told about the
     /// programs it downloads, keyed by tool name. See [`ToolSettings`].
+    #[serde(default, deserialize_with = "crate::workspace_yaml::deserialize_tools")]
     pub tools: Option<BTreeMap<Tool, ToolSettings>>,
     pub remote_side_effects_cache: Option<RemoteSideEffectsCacheSettings>,
     pub https_proxy: Option<String>,

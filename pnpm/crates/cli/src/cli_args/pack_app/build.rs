@@ -179,11 +179,16 @@ fn node_binary_path(node_dir: &Path, platform: &str) -> PathBuf {
 
 pub(super) async fn resolve_version(config: &Config, specifier: &str) -> miette::Result<String> {
     let parsed = parse_node_specifier(specifier).map_err(miette::Report::new)?;
+    // `node-mirror:<channel>` is deliberately not read here. A workspace
+    // may name it, and this runtime is executed as the builder and kept
+    // in the shared pack-app cache, so a repository naming it would be
+    // choosing the program that packs everyone's app. `tools` carries no
+    // such risk, being the machine's own.
     let channels = config.tool_channel_mirrors(pnpm_config::Tool::Node);
     let mirror = get_node_mirror(
         config.tool_mirror(pnpm_config::Tool::Node),
         channels.get(&parsed.release_channel).map(String::as_str),
-        Some(&config.node_download_mirrors),
+        None,
         &parsed.release_channel,
     );
     let http_client = build_http_client(config)?;

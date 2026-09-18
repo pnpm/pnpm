@@ -137,10 +137,24 @@ pub struct ToolSettings {
     pub mirror: Option<String>,
     /// Where one line of this tool's builds comes from, for a tool that
     /// publishes more than one and a line that does not come from the
-    /// same place as the rest. Node.js calls these release channels, and
-    /// so does Rust. An entry here answers for the channel it names;
-    /// every other channel is left to [`Self::mirror`].
+    /// same place as the rest. An entry here answers for the channel it
+    /// names; every other channel is left to [`Self::mirror`].
+    ///
+    /// Only Node.js publishes channels of the tools pnpm downloads, so
+    /// naming them for another is refused rather than left to do
+    /// nothing. [`Tool::has_channels`] is what decides.
     pub channels: Option<BTreeMap<String, String>>,
+}
+
+impl Tool {
+    /// Whether this tool publishes more than one line of builds.
+    #[must_use]
+    pub fn has_channels(self) -> bool {
+        match self {
+            Self::Node => true,
+            Self::Bun | Self::Python => false,
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, Deserialize)]
@@ -522,4 +536,25 @@ pub struct PackageExtension {
 pub struct PeerDependencyMeta {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub optional: Option<bool>,
+}
+
+/// Refuse `channels` for a tool that publishes one line of builds, where
+/// it would otherwise sit in the configuration doing nothing.
+///
+/// Checked as the value is read so that every source is covered: the
+/// workspace file, the global `config.yaml` and `PNPM_CONFIG_TOOLS` all
+/// arrive through serde.
+pub(crate) fn deserialize_tools<'de, Deser: Deserializer<'de>>(
+    deserializer: Deser,
+) -> Result<Option<BTreeMap<Tool, ToolSettings>>, Deser::Error> {
+    use serde::de::Error as _;
+    let tools = Option::<BTreeMap<Tool, ToolSettings>>::deserialize(deserializer)?;
+    for (tool, settings) in tools.iter().flatten() {
+        if settings.channels.is_some() && !tool.has_channels() {
+            return Err(Deser::Error::custom(format!(
+                "{tool:?} publishes one line of builds, so it has no channels to name",
+            )));
+        }
+    }
+    Ok(tools)
 }

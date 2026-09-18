@@ -357,6 +357,22 @@ fn refuses_a_tool_pnpm_does_not_download() {
     assert!(known.is_ok());
 }
 
+/// Only Node.js publishes more than one line of builds, so naming
+/// channels for another would sit in the file doing nothing.
+#[test]
+fn refuses_channels_for_a_tool_that_has_none() {
+    let error = serde_saphyr::from_str::<WorkspaceSettings>(
+        "tools:\n  bun:\n    channels:\n      canary: https://mirror.example.test/bun\n",
+    )
+    .expect_err("bun publishes one line of builds");
+    assert!(format!("{error}").contains("channels"), "{error}");
+
+    let node = serde_saphyr::from_str::<WorkspaceSettings>(
+        "tools:\n  node:\n    channels:\n      nightly: https://mirror.example.test/node\n",
+    );
+    assert!(node.is_ok());
+}
+
 /// Each tool is answered for separately, so naming one leaves the
 /// mirrors the machine's own config names for the others alone.
 #[test]

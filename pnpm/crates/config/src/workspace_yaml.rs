@@ -1,6 +1,7 @@
 pub mod package_configs;
 pub mod registries;
 pub use error::LoadWorkspaceYamlError;
+pub(crate) use sections::deserialize_tools;
 pub use sections::{
     AllowBuild, AuditSettings, CargoSettings, DEFAULT_PYTHON_DOWNLOAD_URL, PackageExtension,
     PeerDependencyMeta, PeerDependencyRules, PnpmfileSetting, PythonSettings,
