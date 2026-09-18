@@ -28,8 +28,7 @@ pub enum CacheCommand {
     /// Deletes metadata cache for the specified package(s). Supports patterns.
     Delete { packages: Vec<String> },
     /// Deletes registry metadata cache directories that this version of pnpm
-    /// can no longer read. Leaves the descriptor-scoped caches under
-    /// `metadata-private` alone, as the other subcommands do.
+    /// can no longer read.
     Prune {
         /// Lists what would be deleted without removing anything.
         #[arg(long)]
@@ -235,22 +234,17 @@ impl CacheCommand {
     /// key. Only [`is_unreadable_registry_key`] decides what goes, so a mirror
     /// this version could still read is never a candidate.
     ///
-    /// Prints each removed directory as `<meta-dir>/<registry-key>`, the
-    /// registry key rather than its decoded URL because that is the name on
-    /// disk. `dry_run` prints the same list and removes nothing.
+    /// Prints each removed directory as `<meta-dir>/<registry-key>`, the name
+    /// on disk rather than the decoded URL. `dry_run` prints the same list and
+    /// removes nothing.
     ///
-    /// A root that cannot be read or a directory that cannot be removed does
-    /// not abandon the remaining roots, and every such failure is reported
-    /// rather than only the first, so one unwritable directory does not turn
-    /// reclaiming a cache into a rerun for each of them. The directories that
-    /// did go are still printed.
+    /// A root it cannot read or a directory it cannot remove is reported and
+    /// the sweep carries on, so one unreclaimable directory does not cost the
+    /// user the rest. Every root is confined to the cache directory first; see
+    /// [`confined_meta_root`].
     ///
     /// The descriptor-scoped roots under `v11/metadata-private` are left alone,
     /// as every other `pnpm cache` subcommand leaves them alone.
-    ///
-    /// Every root is resolved against the cache directory before anything is
-    /// removed, so the sweep stays inside the tree the configuration names. See
-    /// [`confined_meta_root`].
     fn prune(config: &Config, dry_run: bool) -> miette::Result<()> {
         let mut outcome = PruneOutcome::default();
         match dunce::canonicalize(&config.cache_dir) {
@@ -281,10 +275,8 @@ struct PruneOutcome {
 impl PruneOutcome {
     /// Reclaim the `meta_dir` root of the resolved `cache_dir`.
     ///
-    /// Failing to read the root is recorded rather than passed over, because
-    /// silence would report that nothing here is stale when the directory was
-    /// never read at all. The remaining roots are the caller's to walk either
-    /// way.
+    /// A root that cannot be read is recorded rather than passed over: silence
+    /// would report it as holding nothing stale when it was never read at all.
     fn prune_root(&mut self, cache_dir: &Path, meta_dir: &str, dry_run: bool) {
         let root = match confined_meta_root(cache_dir, meta_dir) {
             Ok(None) => return,
@@ -308,10 +300,10 @@ impl PruneOutcome {
     /// Reclaim one directory of a mirror root, if it is one this version can no
     /// longer read.
     ///
-    /// An entry that cannot be read or typed is recorded rather than skipped,
-    /// for the same reason an unreadable root is: on a filesystem that reports
-    /// no type up front, `file_type` is the `lstat` that fails, and swallowing
-    /// it would leave the whole root looking empty.
+    /// An entry that cannot be typed is recorded for the same reason an
+    /// unreadable root is: where the filesystem reports no type up front,
+    /// `file_type` is an `lstat`, and swallowing its failure would leave the
+    /// root looking emptier than it is.
     fn prune_entry(&mut self, entry: io::Result<fs::DirEntry>, meta_dir: &str, dry_run: bool) {
         let entry = match entry {
             Ok(entry) => entry,
@@ -347,14 +339,10 @@ impl PruneOutcome {
     /// Print the reclaimed directories on stdout, and fail if anything could
     /// not be reclaimed.
     ///
-    /// When every removal succeeds a dry run's stdout matches the real thing
-    /// byte for byte, so the two can be diffed and the list piped onward. The
-    /// notice that nothing was deleted goes to stderr, where it reaches a reader
-    /// without entering that list.
-    ///
-    /// A dry run always prints that notice, a count of zero included: silence is
-    /// how a real prune says it found nothing, and the mode that exists to answer
-    /// "is there anything here" has to answer out loud.
+    /// A dry run's stdout matches a real prune's byte for byte, so the two can
+    /// be diffed and the list piped onward; its notice goes to stderr to stay
+    /// out of that list. The notice prints a count of zero too, because silence
+    /// is how a real prune says it found nothing.
     ///
     /// Each failure gets its own stderr line and the returned error only counts
     /// them, because a diagnostic long enough to hold several paths comes back
