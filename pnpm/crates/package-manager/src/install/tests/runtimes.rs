@@ -63,6 +63,7 @@ async fn install_skips_prune_when_virtual_store_escapes_node_modules() {
             update_checksums: false,
             excludes: PolicyExcludes::Persist,
             disable_optimistic_repeat: false,
+            manifest_freshness: crate::ManifestFreshness::Mtime,
         },
         execution: crate::InstallExecution {
             skip_runtimes: false,
@@ -159,6 +160,7 @@ async fn hoisted_node_linker_does_not_create_virtual_store_root() {
             update_checksums: false,
             excludes: PolicyExcludes::Persist,
             disable_optimistic_repeat: false,
+            manifest_freshness: crate::ManifestFreshness::Mtime,
         },
         execution: crate::InstallExecution {
             skip_runtimes: false,
@@ -241,6 +243,7 @@ async fn fresh_install_hoisted_node_linker_records_modules_yaml() {
             update_checksums: false,
             excludes: PolicyExcludes::Persist,
             disable_optimistic_repeat: false,
+            manifest_freshness: crate::ManifestFreshness::Mtime,
         },
         execution: crate::InstallExecution {
             skip_runtimes: false,
@@ -331,6 +334,7 @@ async fn fresh_install_honors_skip_runtimes() {
             update_checksums: false,
             excludes: PolicyExcludes::Persist,
             disable_optimistic_repeat: false,
+            manifest_freshness: crate::ManifestFreshness::Mtime,
         },
         execution: crate::InstallExecution {
             skip_runtimes: true,
@@ -546,6 +550,7 @@ async fn test_install_purges_node_modules_on_layout_mismatch() {
             update_checksums: false,
             excludes: PolicyExcludes::Persist,
             disable_optimistic_repeat: false,
+            manifest_freshness: crate::ManifestFreshness::Mtime,
         },
         execution: crate::InstallExecution {
             skip_runtimes: false,
@@ -607,6 +612,7 @@ async fn test_install_purges_node_modules_on_layout_mismatch() {
             update_checksums: false,
             excludes: PolicyExcludes::Persist,
             disable_optimistic_repeat: false,
+            manifest_freshness: crate::ManifestFreshness::Mtime,
         },
         execution: crate::InstallExecution {
             skip_runtimes: false,

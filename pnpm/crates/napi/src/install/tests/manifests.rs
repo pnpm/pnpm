@@ -270,3 +270,53 @@ fn repeat_install_uses_changed_in_memory_manifest() {
         "{}\n",
     );
 }
+
+/// A repeat install whose in-memory manifest still matches the lockfile is
+/// "Already up to date" before any install setup runs. The manifest never
+/// touched `package.json`, so the mtime-based check could not have judged
+/// it; the content check does. The second run has no registry and no
+/// metadata cache: every other path (a resolve, the lockfile-verification
+/// fan-out, a tarball fetch) would have to reach the dead registry and
+/// fail.
+#[test]
+fn repeat_install_with_unchanged_in_memory_manifest_needs_no_registry() {
+    let registry = TestRegistry::start();
+    let temp_dir = tempfile::tempdir().expect("tempdir");
+    let project_dir = temp_dir.path().join("project");
+    let cache_dir = temp_dir.path().join("cache");
+    std::fs::create_dir(&project_dir).expect("create project dir");
+    std::fs::write(project_dir.join("package.json"), "{}\n").expect("write package.json");
+
+    let project_dir_string = project_dir.to_string_lossy().into_owned();
+    let mut options = install_options();
+    options.dir = project_dir_string.clone();
+    options.projects = vec![NodeApiProject {
+        root_dir: project_dir_string,
+        manifest: serde_json::json!({
+            "dependencies": {
+                "@pnpm.e2e/foo": "100.0.0"
+            }
+        }),
+        dependency_manifest: None,
+    }];
+    options.store_dir = Some(
+        temp_dir
+            .path()
+            .join("store")
+            .to_string_lossy()
+            .into_owned(),
+    );
+    options.cache_dir = Some(cache_dir.to_string_lossy().into_owned());
+    options.registries = Some(HashMap::from([("default".to_string(), registry.url().to_string())]));
+
+    run_install_inner(&options, None, EngineMode::Install(None)).expect("first install");
+    assert!(project_dir.join("node_modules/@pnpm.e2e/foo").exists());
+
+    std::fs::remove_dir_all(&cache_dir).expect("wipe the metadata cache");
+    options.registries =
+        Some(HashMap::from([("default".to_string(), "http://127.0.0.1:9/".to_string())]));
+
+    run_install_inner(&options, None, EngineMode::Install(None))
+        .expect("a repeat install with an unchanged in-memory manifest needs no registry");
+    assert!(project_dir.join("node_modules/@pnpm.e2e/foo").exists());
+}

@@ -294,6 +294,7 @@ impl UpdateOptions<'_> {
                 PolicyExcludes::Forbidden
             },
             disable_optimistic_repeat: false,
+            manifest_freshness: crate::ManifestFreshness::Mtime,
         }
     }
 }

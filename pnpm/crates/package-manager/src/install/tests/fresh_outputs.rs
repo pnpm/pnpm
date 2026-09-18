@@ -70,6 +70,7 @@ async fn install_rejects_invalid_minimum_release_age_exclude_pattern() {
             update_checksums: false,
             excludes: PolicyExcludes::Persist,
             disable_optimistic_repeat: false,
+            manifest_freshness: crate::ManifestFreshness::Mtime,
         },
         execution: crate::InstallExecution {
             skip_runtimes: false,
@@ -162,6 +163,7 @@ async fn fresh_install_writes_pnpm_lock_yaml_with_expected_shape() {
             update_checksums: false,
             excludes: PolicyExcludes::Persist,
             disable_optimistic_repeat: false,
+            manifest_freshness: crate::ManifestFreshness::Mtime,
         },
         execution: crate::InstallExecution {
             skip_runtimes: false,
@@ -270,6 +272,7 @@ async fn fresh_install_splits_dev_and_prod_dependency_sections() {
             update_checksums: false,
             excludes: PolicyExcludes::Persist,
             disable_optimistic_repeat: false,
+            manifest_freshness: crate::ManifestFreshness::Mtime,
         },
         execution: crate::InstallExecution {
             skip_runtimes: false,
@@ -367,6 +370,7 @@ async fn fresh_install_marks_optional_snapshots_in_pnpm_lock_yaml() {
             update_checksums: false,
             excludes: PolicyExcludes::Persist,
             disable_optimistic_repeat: false,
+            manifest_freshness: crate::ManifestFreshness::Mtime,
         },
         execution: crate::InstallExecution {
             skip_runtimes: false,
@@ -486,6 +490,7 @@ async fn fresh_install_skips_platform_incompatible_optional_dependency() {
             update_checksums: false,
             excludes: PolicyExcludes::Persist,
             disable_optimistic_repeat: false,
+            manifest_freshness: crate::ManifestFreshness::Mtime,
         },
         execution: crate::InstallExecution {
             skip_runtimes: false,

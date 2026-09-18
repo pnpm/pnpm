@@ -128,6 +128,7 @@ async fn frozen_lockfile_disables_optimistic_short_circuit() {
             update_checksums: false,
             excludes: PolicyExcludes::Persist,
             disable_optimistic_repeat: false,
+            manifest_freshness: crate::ManifestFreshness::Mtime,
         },
         execution: crate::InstallExecution {
             skip_runtimes: false,
@@ -230,6 +231,7 @@ async fn frozen_lockfile_errors_when_package_extensions_drift_from_lockfile() {
             update_checksums: false,
             excludes: PolicyExcludes::Persist,
             disable_optimistic_repeat: false,
+            manifest_freshness: crate::ManifestFreshness::Mtime,
         },
         execution: crate::InstallExecution {
             skip_runtimes: false,
@@ -319,6 +321,7 @@ async fn frozen_lockfile_errors_when_pnpmfile_checksum_drifts() {
             update_checksums: false,
             excludes: PolicyExcludes::Persist,
             disable_optimistic_repeat: false,
+            manifest_freshness: crate::ManifestFreshness::Mtime,
         },
         execution: crate::InstallExecution {
             skip_runtimes: false,

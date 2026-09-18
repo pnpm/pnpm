@@ -401,6 +401,7 @@ fn returns_skipped_when_sibling_node_modules_missing_for_project_with_deps() {
             included: isolated_included(),
             supported_architectures: None,
         },
+        manifest_freshness: crate::ManifestFreshness::Mtime,
     });
     assert!(matches!(decision, Decision::Skipped { reason } if reason.contains("node_modules")));
 }

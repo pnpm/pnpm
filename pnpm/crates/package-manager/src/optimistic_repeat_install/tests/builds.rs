@@ -194,6 +194,7 @@ fn returns_skipped_when_allow_builds_drift() {
                 included: isolated_included(),
                 supported_architectures: None,
             },
+            manifest_freshness: crate::ManifestFreshness::Mtime,
         },
         &["allowBuilds"],
     );

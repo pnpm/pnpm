@@ -152,6 +152,7 @@ fn returns_up_to_date_in_workspace_mode_without_lockfile() {
             included: isolated_included(),
             supported_architectures: None,
         },
+        manifest_freshness: crate::ManifestFreshness::Mtime,
     });
     assert_eq!(decision, Decision::UpToDate);
 }
@@ -198,6 +199,7 @@ fn run_status_reports_wanted_lockfile_merge_conflicts() {
                 included: isolated_included(),
                 supported_architectures: None,
             },
+            manifest_freshness: crate::ManifestFreshness::Mtime,
         },
         &state,
     );
@@ -393,6 +395,56 @@ fn returns_skipped_when_wanted_lockfile_diverged_from_current() {
         "expected Skipped(outdated deps), got {decision:?}",
     );
 }
+/// A wanted lockfile rewritten after the last install may still describe
+/// the tree on disk: a snapshot no importer reaches is never materialized,
+/// and a top-level key pnpm does not define (an embedder's extension block,
+/// as Bit records beside pnpm's keys) is never written to the current
+/// lockfile. Neither difference makes the installed dependencies outdated.
+#[test]
+fn returns_up_to_date_when_the_newer_wanted_lockfile_differs_only_in_unmaterialized_content() {
+    let (dir, config) = setup_content_check_project();
+
+    fs::write(
+        dir.path().join(Lockfile::FILE_NAME),
+        FOO_LOCKFILE_WITH_UNREACHABLE_BAR_AND_EXTENSION,
+    )
+    .unwrap();
+    let manifest = PackageManifest::from_path(dir.path().join("package.json")).unwrap();
+
+    let decision =
+        content_check_decision(&dir, config, false, &[(dir.path().to_path_buf(), &manifest)]);
+    assert_eq!(decision, Decision::UpToDate);
+}
+
+/// [`FOO_LOCKFILE`] plus a `bar@1.0.0` no importer depends on and a `bit:`
+/// block pnpm does not define; what it materializes is [`FOO_LOCKFILE`].
+const FOO_LOCKFILE_WITH_UNREACHABLE_BAR_AND_EXTENSION: &str = "lockfileVersion: '9.0'
+
+importers:
+
+  .:
+    dependencies:
+      foo:
+        specifier: ^1.0.0
+        version: 1.0.0
+
+packages:
+
+  bar@1.0.0:
+    resolution: {integrity: sha512-bbb}
+
+  foo@1.0.0:
+    resolution: {integrity: sha512-aaa}
+
+snapshots:
+
+  bar@1.0.0: {}
+
+  foo@1.0.0: {}
+
+bit:
+  depsRequiringBuild: []
+";
 /// Only the wanted lockfile changed (a `git checkout` / stash-restore of
 /// just `pnpm-lock.yaml`), with every manifest left untouched. The
 /// manifest-mtime fast path must not skip the lockfile change.
@@ -633,6 +685,7 @@ fn run_gate_detects_a_manifest_edit_that_landed_while_the_install_was_committing
                 included: isolated_included(),
                 supported_architectures: None,
             },
+            manifest_freshness: crate::ManifestFreshness::Mtime,
         },
         &state,
     );
