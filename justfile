@@ -45,8 +45,8 @@ install:
   pnpm install --frozen-lockfile --prefer-offline
 
 # Build the release `pnpm` binary.
-build-pnpm:
-  cargo build --release --bin pnpm
+build-pnpm *args:
+  cargo build --release --bin pnpm {{args}}
 
 # Run `cargo watch`
 # --no-vcs-ignores: cargo-watch has a bug loading all .gitignores, including the ones listed in .gitignore
