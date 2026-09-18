@@ -207,9 +207,12 @@ fn rejects_a_purl_whose_components_would_rewrite_the_selector() {
             "pkg:npm/express%40npm%3Aevil",
             "pkg:npm/express%40npm%3Aevil does not name a valid npm package",
         ),
+        // The decoded version spells `npm:evil@1.0.0`, a colon paired with
+        // an at-sign, which is how a URL spells credentials. The message
+        // stops at that colon rather than quote what follows it.
         (
             "pkg:npm/express@npm%3Aevil%401.0.0",
-            "pkg:npm/express@npm%3Aevil%401.0.0 does not carry a valid npm version",
+            "pkg:npm/express@npm does not carry a valid npm version",
         ),
         ("pkg:cargo/foo%401.0.0", "invalid Cargo package name in pkg:cargo/foo%401.0.0"),
         (
@@ -242,9 +245,10 @@ fn a_rejected_selector_is_redacted_and_sanitized_before_it_is_printed() {
 
     // Percent-encoding hides an authority from a check made on the raw
     // text, and encoding the `?` or `#` moves the value out of the
-    // qualifier the message drops, into the name, version, or type.
-    // Encoding a space or an invalid byte instead splits the authority in
-    // the decoded text, where the check that catches the others is made.
+    // qualifier the message drops, into the name, version, or type. What
+    // decoding leaves unreadable to that check, in turn, is anything put
+    // between the scheme and its slashes: a space, a byte that is not
+    // valid UTF-8, a malformed escape, a doubly encoded slash.
     for credentials in [
         message("pkg:npm/foo?repository_url=https://user:pass@example.test"),
         message("pkg:npm/foo?repository_url=https:%2F%2Fuser:pass%40example.test"),
@@ -257,16 +261,20 @@ fn a_rejected_selector_is_redacted_and_sanitized_before_it_is_printed() {
         message("crate:foo@https:%2F%2Fuser:pass%40example.test"),
         message("pkg:npm/foo@https:%FF%2F%2Fuser:pass%40example.test"),
         message("pkg:npm/foo@https:%20%2F%2Fuser:pass%40example.test"),
+        message("pkg:npm/foo@https:%ZZ%2F%2Fuser:pass%40example.test"),
+        message("pkg:npm/foo@https:%1F%20%2F%2Fuser:pass%40example.test"),
+        message("pkg:npm/foo@https:%2F%252F%2Fuser:pass%40example.test"),
+        message("pkg:npm/foo@https%3A%2F%2Fuser%3Apass%40example.test"),
         message("crate:foo@https:%20%2F%2Fuser:pass%40example.test"),
     ] {
         assert!(!credentials.contains("pass"), "{credentials}");
     }
 
-    // A space inside the userinfo splits it in the decoded text too, where
-    // it leaves a password that reads as two innocent words.
+    // A space inside the userinfo hides it from the scan too, where it
+    // leaves a password that reads as two innocent words.
     assert_eq!(
         message("pkg:npm/foo@https:%2F%2Fuser:pa%20ss%40example.test"),
-        "pkg:npm/foo@https://example.test does not carry a valid npm version",
+        "pkg:npm/foo@https does not carry a valid npm version",
     );
 
     // A selector with nothing to redact is still quoted as it was written,

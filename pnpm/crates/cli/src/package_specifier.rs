@@ -86,31 +86,58 @@ impl std::fmt::Display for Shown<'_> {
     /// `redact_and_sanitize` reads an authority only where the text spells
     /// `://user:pass@` literally, and every component of a purl may be
     /// percent-encoded, so the decision is made on the decoded text: a
-    /// selector that encodes any separator hides its credentials from a
-    /// check made on the raw text alone. A selector with nothing to redact
-    /// is quoted as it was written, which is what tells a reader that a
-    /// component was encoded.
+    /// selector that encodes a separator hides its credentials from a check
+    /// made on the raw text alone. What decoding leaves unreadable is
+    /// stopped at instead. A selector with nothing to hide is quoted as it
+    /// was written, which is what tells a reader that a component was
+    /// encoded.
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let decoded = without_authority_breaks(&percent_decode_str(self.0).decode_utf8_lossy());
+        let decoded = percent_decode_str(self.0).decode_utf8_lossy();
         let redacted = pnpm_network::redact_and_sanitize(&decoded);
-        if redacted == decoded {
-            return formatter.write_str(&pnpm_network::redact_and_sanitize(self.0));
+        if let Some(before) = before_embedded_userinfo(&redacted) {
+            return formatter.write_str(before);
         }
-        formatter.write_str(&redacted)
+        if redacted != decoded.as_ref() {
+            return formatter.write_str(&redacted);
+        }
+        formatter.write_str(&pnpm_network::redact_and_sanitize(self.0))
     }
 }
 
-/// `text` without the characters a URL authority cannot hold.
+/// `text` up to the colon of a `user:pass@` that `redact_and_sanitize`
+/// could not read, or [`None`] when it holds no such colon.
 ///
-/// Decoding a selector can put one of them inside `://user:pass@`: `%20`
-/// decodes to a space, and a byte that is not valid UTF-8 decodes to the
-/// replacement character. Either splits the authority across the scan that
-/// looks for it, which is why `redact_and_sanitize` drops control characters
-/// before its own scan.
-fn without_authority_breaks(text: &str) -> String {
-    text.chars()
-        .filter(|character| !character.is_whitespace() && *character != char::REPLACEMENT_CHARACTER)
-        .collect()
+/// That helper recognizes an authority only where the text spells `://`
+/// literally, and a selector can put anything between the colon and the
+/// slashes: a decoded space, a byte that is not valid UTF-8, a malformed
+/// `%ZZ`, a doubly encoded slash. No list of those is ever complete, so
+/// what is looked for here is what credentials cannot do without, a colon
+/// followed by an at-sign. Nothing pnpm installs pairs the two past its
+/// protocol, so the message stops at the colon rather than quote what a
+/// command line may have interpolated after it.
+fn before_embedded_userinfo(text: &str) -> Option<&str> {
+    let (protocol, rest) = past_protocol(text);
+    let colon = rest.find(':')?;
+    rest[colon..]
+        .contains('@')
+        .then(|| &text[..protocol.len() + colon])
+}
+
+/// `text` split into the protocol that introduces it and the rest, which is
+/// where a colon can only come from what the selector carried. A purl type
+/// reaches a message on its own and carries no protocol.
+fn past_protocol(text: &str) -> (&str, &str) {
+    for protocol in [CARGO_PROTOCOL, PYTHON_PROTOCOL] {
+        if let Some(rest) = text.strip_prefix(protocol) {
+            return (protocol, rest);
+        }
+    }
+    match text.split_once(':') {
+        Some((scheme, rest)) if scheme.eq_ignore_ascii_case(purl::SCHEME) => {
+            (&text[..=scheme.len()], rest)
+        }
+        _ => ("", text),
+    }
 }
 
 /// One `pnpm add` selector once its protocol has been resolved.

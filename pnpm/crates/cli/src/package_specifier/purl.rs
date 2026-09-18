@@ -8,7 +8,7 @@ use percent_encoding::percent_decode_str;
 use pipe_trait::Pipe;
 
 /// The URL scheme every Package URL starts with.
-const SCHEME: &str = "pkg";
+pub(super) const SCHEME: &str = "pkg";
 
 /// The package types pnpm installs, which are the only ones a selector may
 /// name. The specification registers many more.
