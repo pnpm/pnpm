@@ -2,10 +2,16 @@
 //!
 //! The builds are [python-build-standalone]'s, the ones uv, rye, hatch
 //! and mise install too. One release holds an interpreter of every
-//! supported version line, and its `SHA256SUMS` names them all, so
-//! choosing a build and verifying what was downloaded read one file.
+//! supported version line, and its `SHA256SUMS` names them all. With the
+//! upstream releases, an exact patch pin may name a build from an older
+//! release; those are found by release tag and their immutable checksum
+//! files stay in pnpm's cache. A configured mirror remains self-contained
+//! and supplies its own latest manifest, because the mirror contract has
+//! no historical release index.
 //!
 //! [python-build-standalone]: https://github.com/astral-sh/python-build-standalone
+
+mod releases;
 
 use super::{InterpreterCommand, VersionRequest, command::interpreter_in};
 use miette::{IntoDiagnostic, Result, WrapErr, bail};
@@ -24,6 +30,9 @@ use std::{
 /// release rather than a version, so what it answers changes.
 const INDEX_MAX_AGE: Duration = Duration::from_hours(24);
 
+const RELEASE_TAGS_URL: &str =
+    "https://api.github.com/repos/astral-sh/python-build-standalone/tags";
+
 /// A sha256 as the index carries it, which is what a row whose hash
 /// pnpm could not read is not: an unreadable one parses to an empty
 /// digest, and an empty digest is no build.
@@ -37,6 +46,29 @@ const MAX_ARCHIVE_BYTES: usize = 256 * 1024 * 1024;
 /// them.
 pub(super) struct Releases {
     builds: Vec<Build>,
+}
+
+#[derive(Clone, Copy)]
+pub(super) struct Source<'a> {
+    releases_url: &'a str,
+    tags_url: Option<&'a str>,
+}
+
+impl<'a> Source<'a> {
+    pub(super) fn configured(config: &'a Config) -> Self {
+        Self {
+            releases_url: releases_url(config),
+            tags_url: config
+                .tool_mirror(Tool::Python)
+                .is_none()
+                .then_some(RELEASE_TAGS_URL),
+        }
+    }
+
+    #[cfg(test)]
+    pub(super) fn from_urls(releases_url: &'a str, tags_url: &'a str) -> Self {
+        Self { releases_url, tags_url: Some(tags_url) }
+    }
 }
 
 /// One interpreter a release offers: the file it is downloaded as, and
@@ -65,9 +97,14 @@ fn releases_url(config: &Config) -> &str {
 }
 
 impl Releases {
-    /// The interpreters pnpm can install.
-    pub(super) async fn read(config: &Config, client: &ThrottledClient) -> Result<Self> {
-        let url = format!("{}/latest/download/SHA256SUMS", releases_url(config));
+    pub(super) async fn read_from(
+        config: &Config,
+        client: &ThrottledClient,
+        source: Source<'_>,
+        exact: Option<&pep440_rs::Version>,
+    ) -> Result<Self> {
+        let Source { releases_url, tags_url } = source;
+        let url = format!("{releases_url}/latest/download/SHA256SUMS");
         let index = fetch_moving_shasums_file_cached(
             client,
             &url,
@@ -77,7 +114,16 @@ impl Releases {
         )
         .await
         .wrap_err_with(|| format!("read the Python interpreters {url} offers"))?;
-        Ok(Self { builds: builds_in(&index) })
+        let mut builds = builds_in(&index);
+        if let Some((exact, tags_url)) = exact
+            .filter(|exact| !has_version(&builds, exact))
+            .zip(tags_url)
+            && let Some(build) =
+                releases::historical_build(config, client, releases_url, tags_url, exact).await?
+        {
+            builds.push(build);
+        }
+        Ok(Self { builds })
     }
 
     /// The newest interpreter the project accepts, or `None` when no
@@ -95,6 +141,37 @@ impl Releases {
             })
             .max_by_key(|build| &build.version)
     }
+}
+
+pub(super) fn exact_version(
+    requires_python: Option<&pep440_rs::VersionSpecifiers>,
+    request: Option<&VersionRequest>,
+) -> Option<pep440_rs::Version> {
+    let requested = request
+        .filter(|request| request.release.len() >= 3)
+        .map(|request| pep440_rs::Version::new(request.release.iter().copied()));
+    let required = requires_python.and_then(|specifiers| {
+        specifiers
+            .iter()
+            .find(|specifier| {
+                matches!(
+                    specifier.operator(),
+                    pep440_rs::Operator::Equal | pep440_rs::Operator::ExactEqual,
+                )
+            })
+            .map(|specifier| specifier.version().clone())
+    });
+    required.or_else(|| {
+        requested.filter(|version| {
+            requires_python.is_none_or(|specifiers| specifiers.contains(version))
+        })
+    })
+}
+
+fn has_version(builds: &[Build], exact: &pep440_rs::Version) -> bool {
+    builds
+        .iter()
+        .any(|build| build.version == *exact)
 }
 
 impl Build {
@@ -257,7 +334,7 @@ fn read_build(item: &ShasumsFileItem, triple: &str, suffix: &str) -> Option<Buil
 
 /// What python-build-standalone calls the interpreter of this machine.
 /// `None` where it builds none, which is where pnpm installs none.
-fn host_triple() -> Option<String> {
+pub(super) fn host_triple() -> Option<String> {
     let architecture = std::env::consts::ARCH;
     Some(match std::env::consts::OS {
         "linux" => {

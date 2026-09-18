@@ -28,9 +28,9 @@ fn handshake_body(ecosystems: &[&str]) -> String {
     .to_string()
 }
 
-fn config_for_pnpr(server: &str) -> Config {
+fn config_for_pnpr(server: &str, test: &str) -> Config {
     let mut config = Config::new();
-    config.pnpr_server = Some(server.to_string());
+    config.pnpr_server = Some(format!("{server}/{test}"));
     config
 }
 
@@ -70,12 +70,12 @@ async fn python_resolution_is_offloaded_to_the_pnpr_server() {
     let mut server = mockito::Server::new_async().await;
     let index = "https://index.example.test/simple/";
     let handshake = server
-        .mock("GET", "/-/pnpr")
+        .mock("GET", "/resolves-python/-/pnpr")
         .with_body(handshake_body(&["npm", "pypi"]))
         .create_async()
         .await;
     let resolve = server
-        .mock("POST", "/-/pnpr/v0/resolve")
+        .mock("POST", "/resolves-python/-/pnpr/v0/resolve")
         .match_body(mockito::Matcher::PartialJson(serde_json::json!({
             "ecosystem": "pypi",
             "requirements": ["demo"],
@@ -91,7 +91,7 @@ async fn python_resolution_is_offloaded_to_the_pnpr_server() {
         .await;
 
     let resolved = resolve_via_pnpr(
-        &config_for_pnpr(&server.url()),
+        &config_for_pnpr(&server.url(), "resolves-python"),
         &requirements(&["demo"]),
         &target(),
         index,
@@ -110,18 +110,18 @@ async fn python_resolution_is_offloaded_to_the_pnpr_server() {
 async fn a_server_without_python_support_leaves_resolution_local() {
     let mut server = mockito::Server::new_async().await;
     let handshake = server
-        .mock("GET", "/-/pnpr")
+        .mock("GET", "/without-python/-/pnpr")
         .with_body(handshake_body(&["npm", "cargo"]))
         .create_async()
         .await;
     let resolve = server
-        .mock("POST", "/-/pnpr/v0/resolve")
+        .mock("POST", "/without-python/-/pnpr/v0/resolve")
         .expect(0)
         .create_async()
         .await;
 
     let resolved = resolve_via_pnpr(
-        &config_for_pnpr(&server.url()),
+        &config_for_pnpr(&server.url(), "without-python"),
         &requirements(&["demo"]),
         &target(),
         "https://index.example.test/simple/",
@@ -139,11 +139,11 @@ async fn a_server_without_python_support_leaves_resolution_local() {
 async fn an_offline_install_does_not_reach_the_pnpr_server() {
     let mut server = mockito::Server::new_async().await;
     let handshake = server
-        .mock("GET", "/-/pnpr")
+        .mock("GET", "/offline/-/pnpr")
         .expect(0)
         .create_async()
         .await;
-    let mut config = config_for_pnpr(&server.url());
+    let mut config = config_for_pnpr(&server.url(), "offline");
     config.offline = true;
 
     let resolved = resolve_via_pnpr(

@@ -206,12 +206,11 @@ fn add_python_settings(root: &Path, settings: &str) {
 /// come from the mirror that serves its files, so the download verifies
 /// only that the mirror agrees with itself.
 ///
-/// The machine and the repository name mirrors serving different
-/// releases, and only the repository's serves the pinned one. Honouring
-/// the workspace would install it, so the install failing is what says
-/// the workspace was not read. The machine's mirror is named in the
-/// global `config.yaml` rather than the environment, because the
-/// environment outranks the workspace either way and would prove
+/// Both mirrors serve the pinned release. Only the machine's may be read,
+/// so installing from it while leaving the repository's mocks untouched
+/// proves the workspace setting was ignored. The machine's mirror is
+/// named in the global `config.yaml` rather than the environment, because
+/// the environment outranks the workspace either way and would prove
 /// nothing.
 #[cfg(any(target_os = "linux", target_os = "macos"))]
 #[tokio::test]
@@ -222,7 +221,7 @@ async fn a_repository_cannot_name_a_mirror() {
     let mut machine = mockito::Server::new_async().await;
     let mut repository = mockito::Server::new_async().await;
     project(root.path(), "https://unused.invalid", &[]);
-    let machines = serve_interpreter(&mut machine, &["3.13.90"]).await;
+    let machines = serve_interpreter(&mut machine, &["3.13.95"]).await;
     let pinned = serve_interpreter(&mut repository, &["3.13.95"]).await;
 
     let config = root.path().join(".config/pnpm");
@@ -242,18 +241,15 @@ async fn a_repository_cannot_name_a_mirror() {
     )
     .unwrap();
 
-    assert_failure_contains(
-        pacquet_in(root.path())
-            .with_env("XDG_CONFIG_HOME", root.path().join(".config"))
-            .arg("install"),
-        "3.13.95",
-    );
+    pacquet_in(root.path())
+        .with_env("XDG_CONFIG_HOME", root.path().join(".config"))
+        .arg("install")
+        .assert()
+        .success();
+    assert_eq!(selected_python(root.path()), "3.13.95");
     for mock in pinned {
         assert!(!mock.matched_async().await, "the repository's mirror was read");
     }
-    // Without this the test would also pass if the machine's mirror were
-    // never found either: the install would reach for the real releases,
-    // fail naming the same version, and leave the repository's untouched.
     let mut read = false;
     for mock in machines {
         read |= mock.matched_async().await;
@@ -673,11 +669,11 @@ async fn installs_an_interpreter_no_machine_has_and_reuses_it() {
     assert_eq!(selected_python(root.path()), "3.13.99");
 }
 
-/// A pin the release has moved past still leaves the project installable:
-/// posthog pins `==3.13.13` where the release now builds 3.13.15.
+/// A minor line the release does not publish still leaves the project
+/// installable with a version its declared range accepts.
 #[cfg(any(target_os = "linux", target_os = "macos"))]
 #[tokio::test]
-async fn a_pin_the_release_moved_past_installs_the_version_it_has() {
+async fn an_unpublished_minor_pin_installs_a_version_the_project_accepts() {
     let root = tempfile::tempdir().unwrap();
     let mut server = mockito::Server::new_async().await;
     project(root.path(), "https://unused.invalid", &[]);
@@ -688,7 +684,7 @@ async fn a_pin_the_release_moved_past_installs_the_version_it_has() {
         "[project]\nname = 'app'\nversion = '1.0'\nrequires-python = '>=3.13.90,<3.14'\ndependencies = []\n",
     )
     .unwrap();
-    fs::write(root.path().join(".python-version"), "3.13.95\n").unwrap();
+    fs::write(root.path().join(".python-version"), "3.12\n").unwrap();
 
     let output = pacquet_with_python_mirror(root.path(), &mirror)
         .arg("install")
@@ -697,7 +693,7 @@ async fn a_pin_the_release_moved_past_installs_the_version_it_has() {
     let stdout = String::from_utf8_lossy(&output.stdout);
     eprintln!("stdout:\n{stdout}\nstderr:\n{}", String::from_utf8_lossy(&output.stderr));
     assert!(output.status.success());
-    assert!(stdout.contains("asks for Python 3.13.95, which is not published"), "{stdout}");
+    assert!(stdout.contains("asks for Python 3.12, which is not published"), "{stdout}");
     assert_eq!(selected_python(root.path()), "3.13.96");
 }
 
