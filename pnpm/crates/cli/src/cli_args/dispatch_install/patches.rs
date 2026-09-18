@@ -30,14 +30,18 @@ pub(in super::super) fn patch<'a>(
 /// The state for the install that re-resolves after `patch-commit` or
 /// `patch-remove`: the prepared config with the `patchedDependencies` the
 /// step just recorded, so the install applies the same patches the
-/// workspace now lists.
+/// workspace now lists. The step records them under the workspace dir, or
+/// under `dir` when there was no workspace manifest before, in which case
+/// there is one now and the install resolves the patches against it.
 fn reresolving_state(
+    dir: &Path,
     manifest_path: &Path,
     config: &Config,
     patched_dependencies: IndexMap<String, String>,
 ) -> miette::Result<State> {
     let mut config = config.clone();
     config.patched_dependencies = Some(patched_dependencies);
+    config.workspace_dir.get_or_insert_with(|| dir.to_path_buf());
     State::init(manifest_path.to_path_buf(), Config::leak(config), false)
         .wrap_err("initialize the state")
 }
@@ -58,7 +62,8 @@ pub(in super::super) fn patch_commit<'a>(
                 if let Some(patched_dependencies) =
                     Box::pin(args.run::<$reporter>(dir, state)).await?
                 {
-                    let state = reresolving_state(manifest_path, config, patched_dependencies)?;
+                    let state =
+                        reresolving_state(dir, manifest_path, config, patched_dependencies)?;
                     Box::pin(InstallArgs::for_reresolving_install().run::<$reporter>(state)).await?;
                 }
                 Ok(())
@@ -86,7 +91,7 @@ pub(in super::super) fn patch_remove<'a>(
                 let state = State::init(manifest_path.to_path_buf(), config, false)
                     .wrap_err("initialize the state")?;
                 let patched_dependencies = Box::pin(args.run(dir, state)).await?;
-                let state = reresolving_state(manifest_path, config, patched_dependencies)?;
+                let state = reresolving_state(dir, manifest_path, config, patched_dependencies)?;
                 Box::pin(InstallArgs::for_reresolving_install().run::<$reporter>(state)).await?;
                 Ok(())
             })
