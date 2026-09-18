@@ -4,6 +4,7 @@ use crate::{
 };
 use clap::Args;
 use derive_more::{Display, Error};
+use indexmap::IndexMap;
 use miette::Diagnostic;
 use paths::{
     PatchFileWriteContext, clean_source_dir, cleanup_after_diff, normalize_patches_dir_name,
@@ -122,11 +123,14 @@ pub(crate) enum PatchCommitError {
 }
 
 impl PatchCommitArgs {
+    /// Commit the edits and return the `patchedDependencies` now recorded
+    /// in the workspace, for the install that follows to run with. `None`
+    /// when the directory holds no changes, so nothing was recorded.
     pub(crate) async fn run<Reporter: self::Reporter + 'static>(
         self,
         dir: &Path,
         state: State,
-    ) -> Result<bool, PatchCommitError> {
+    ) -> Result<Option<IndexMap<String, String>>, PatchCommitError> {
         let patch_dir = resolve_path(dir, &self.patch_dir);
         let (name, version) = patched_identity(&patch_dir)?;
         let state_value = read_edit_dir_state(&state.config.modules_dir, &patch_dir)
@@ -144,15 +148,15 @@ impl PatchCommitArgs {
 
         if patch_content.is_empty() {
             println!("No changes were found to the following directory: {}", patch_dir.display());
-            return Ok(false);
+            return Ok(None);
         }
 
-        self.record_patch(&state, dir, &name, &version, state_value.apply_to_all, &patch_content)?;
-        Ok(true)
+        self.record_patch(&state, dir, &name, &version, state_value.apply_to_all, &patch_content)
+            .map(Some)
     }
 
     /// Write the patch under the patches directory and record it in the
-    /// workspace's `patchedDependencies`.
+    /// workspace's `patchedDependencies`, returning the recorded map.
     fn record_patch(
         &self,
         state: &State,
@@ -161,7 +165,7 @@ impl PatchCommitArgs {
         version: &str,
         apply_to_all: bool,
         patch_content: &str,
-    ) -> Result<(), PatchCommitError> {
+    ) -> Result<IndexMap<String, String>, PatchCommitError> {
         let workspace_dir = state.config.workspace_dir.clone().unwrap_or_else(|| dir.to_path_buf());
         let patches_dir_name = normalize_patches_dir_name(
             self.patches_dir
@@ -193,7 +197,8 @@ impl PatchCommitArgs {
             &workspace_dir,
             &patched_dependencies,
         )
-        .map_err(PatchCommitError::UpdateWorkspaceManifest)
+        .map_err(PatchCommitError::UpdateWorkspaceManifest)?;
+        Ok(patched_dependencies)
     }
 }
 

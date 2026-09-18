@@ -227,20 +227,29 @@ fn update_config_catalog_applies_to_peers_with_an_unlinked_publish_directory() {
     );
 }
 
-/// The name of the file [`write_marker_hook_project`]'s hook creates next
-/// to the pnpmfile each time it runs.
+/// The file [`write_marker_hook_project`]'s hook appends a line to each
+/// time it runs, next to the pnpmfile.
 const HOOK_MARKER: &str = "hook-ran.txt";
 
-/// Like [`write_catalog_hook_project`], with an ESM pnpmfile whose hook
-/// also writes [`HOOK_MARKER`], so a test can tell that the command it
-/// runs invoked the hook rather than merely succeeded without it.
-fn write_marker_hook_project(workspace: &Path) {
+/// A patchable package the mocked registry serves, for the `patch`
+/// family.
+const PATCHABLE_DEP: &str = "is-positive";
+
+/// A package with an install script the mocked registry serves, for
+/// `approve-builds`.
+const BUILD_SCRIPT_DEP: &str = "@pnpm.e2e/install-script-example";
+
+/// Like [`write_catalog_hook_project`] with the given `dependencies`, and
+/// an ESM pnpmfile whose hook also records each run in [`HOOK_MARKER`],
+/// so a test can tell that the command it runs invoked the hook exactly
+/// once rather than merely succeeded without it.
+fn write_marker_hook_project(workspace: &Path, dependencies: &serde_json::Value) {
     fs::write(
         workspace.join("package.json"),
         serde_json::json!({
             "name": "marker-hook-project",
             "version": "1.0.0",
-            "dependencies": { (CATALOG_DEP): "catalog:" },
+            "dependencies": dependencies,
         })
         .to_string(),
     )
@@ -248,39 +257,68 @@ fn write_marker_hook_project(workspace: &Path) {
     fs::write(
         workspace.join(".pnpmfile.mjs"),
         format!(
-            "import fs from 'node:fs'\nexport const hooks = {{ updateConfig (config) {{ fs.writeFileSync(new URL('./{HOOK_MARKER}', import.meta.url), '')\n config.catalogs = {{ default: {{ '{CATALOG_DEP}': '^100.0.0' }} }}; return config }} }}\n",
+            "import fs from 'node:fs'\nexport const hooks = {{ updateConfig (config) {{ fs.appendFileSync(new URL('./{HOOK_MARKER}', import.meta.url), 'ran\\n')\n config.catalogs = {{ default: {{ '{CATALOG_DEP}': '^100.0.0' }} }}; return config }} }}\n",
         ),
     )
     .expect("write pnpmfile");
 }
 
-/// Install with the hook, clear its marker, run `args`, and return the
-/// command's output once the marker proves the command ran the hook.
-fn run_after_install_with_marker_hook(args: &[&str]) -> std::process::Output {
-    let CommandTempCwd { root, workspace, npmrc_info, .. } =
-        CommandTempCwd::init().add_mocked_registry();
-    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
-    write_marker_hook_project(&workspace);
+fn hook_runs(workspace: &Path) -> usize {
+    match fs::read_to_string(workspace.join(HOOK_MARKER)) {
+        Ok(marker) => marker.lines().count(),
+        Err(err) if err.kind() == std::io::ErrorKind::NotFound => 0,
+        Err(err) => panic!("read the hook marker: {err}"),
+    }
+}
 
-    pacquet_in(&workspace)
-        .with_arg("install")
-        .assert()
-        .success();
-    let marker = workspace.join(HOOK_MARKER);
-    assert!(marker.exists(), "install should run the hook");
-    fs::remove_file(&marker).expect("clear the hook marker");
+fn clear_hook_marker(workspace: &Path) {
+    assert!(hook_runs(workspace) > 0, "the install should run the hook");
+    fs::remove_file(workspace.join(HOOK_MARKER)).expect("clear the hook marker");
+}
 
-    let output = pacquet_in(&workspace)
+/// Run `args` in `workspace` with the marker cleared, and return the
+/// output once the marker shows the command ran the hook exactly once.
+fn run_with_marker_hook(workspace: &Path, args: &[&str]) -> std::process::Output {
+    clear_hook_marker(workspace);
+    let output = pacquet_in(workspace)
         .with_args(args)
         .output()
         .expect("run the command");
     let stdout = String::from_utf8_lossy(&output.stdout);
     let stderr = String::from_utf8_lossy(&output.stderr);
-    assert!(
-        marker.exists(),
-        "`pnpm {}` should run the updateConfig hook\nSTDOUT:\n{stdout}\nSTDERR:\n{stderr}",
-        args.join(" "),
+    assert_eq!(
+        hook_runs(workspace),
+        1,
+        "`pnpm {}` should run the updateConfig hook once\nSTDOUT:\n{stdout}\nSTDERR:\n{stderr}",
+        args.join(" ")
     );
+    output
+}
+
+fn assert_success(args: &[&str], output: &std::process::Output) -> String {
+    let stdout = String::from_utf8_lossy(&output.stdout).into_owned();
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        output.status.success(),
+        "`pnpm {}` should succeed\nSTDOUT:\n{stdout}\nSTDERR:\n{stderr}",
+        args.join(" ")
+    );
+    stdout
+}
+
+/// Install the catalog project with the hook, then run `args` through
+/// [`run_with_marker_hook`].
+fn run_after_install_with_marker_hook(args: &[&str]) -> std::process::Output {
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    write_marker_hook_project(&workspace, &serde_json::json!({ (CATALOG_DEP): "catalog:" }));
+
+    pacquet_in(&workspace)
+        .with_arg("install")
+        .assert()
+        .success();
+    let output = run_with_marker_hook(&workspace, args);
 
     drop((root, mock_instance));
     output
@@ -288,14 +326,73 @@ fn run_after_install_with_marker_hook(args: &[&str]) -> std::process::Output {
 
 fn assert_runs_update_config_and_succeeds(args: &[&str]) -> String {
     let output = run_after_install_with_marker_hook(args);
-    let stdout = String::from_utf8_lossy(&output.stdout).into_owned();
-    let stderr = String::from_utf8_lossy(&output.stderr);
-    assert!(
-        output.status.success(),
-        "`pnpm {}` should succeed\nSTDOUT:\n{stdout}\nSTDERR:\n{stderr}",
-        args.join(" "),
+    assert_success(args, &output)
+}
+
+/// `patch-commit` and `patch-remove` each end in an install that
+/// re-resolves the project; the hook runs once for the whole command.
+#[test]
+fn update_config_applies_to_patch_commit_and_patch_remove() {
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    write_marker_hook_project(
+        &workspace,
+        &serde_json::json!({ (CATALOG_DEP): "catalog:", (PATCHABLE_DEP): "1.0.0" }),
     );
-    stdout
+    pacquet_in(&workspace)
+        .with_arg("install")
+        .assert()
+        .success();
+    let patched = format!("{PATCHABLE_DEP}@1.0.0");
+    pacquet_in(&workspace)
+        .with_args(["patch", &patched])
+        .assert()
+        .success();
+    let edit_dir = workspace.join("node_modules/.pnpm_patches").join(&patched);
+    fs::write(edit_dir.join("index.js"), "module.exports = () => 'patched'\n")
+        .expect("edit the package");
+
+    let installed_index = workspace
+        .join("node_modules")
+        .join(PATCHABLE_DEP)
+        .join("index.js");
+    let commit_args = ["patch-commit", edit_dir.to_str().expect("utf8 edit dir")];
+    let output = run_with_marker_hook(&workspace, &commit_args);
+    assert_success(&commit_args, &output);
+    let installed = fs::read_to_string(&installed_index).expect("read the installed package");
+    assert!(installed.contains("patched"), "the install after patch-commit applies the patch");
+
+    let remove_args = ["patch-remove", &patched];
+    let output = run_with_marker_hook(&workspace, &remove_args);
+    assert_success(&remove_args, &output);
+    let installed = fs::read_to_string(&installed_index).expect("read the installed package");
+    assert!(!installed.contains("patched"), "the install after patch-remove drops the patch");
+
+    drop((root, mock_instance));
+}
+
+#[test]
+fn update_config_applies_to_approve_builds() {
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    write_marker_hook_project(
+        &workspace,
+        &serde_json::json!({ (CATALOG_DEP): "catalog:", (BUILD_SCRIPT_DEP): "1.0.0" }),
+    );
+    fs::write(workspace.join("pnpm-workspace.yaml"), "strictDepBuilds: false\n")
+        .expect("write pnpm-workspace.yaml");
+    pacquet_in(&workspace)
+        .with_arg("install")
+        .assert()
+        .success();
+
+    let args = ["approve-builds", BUILD_SCRIPT_DEP];
+    let output = run_with_marker_hook(&workspace, &args);
+    assert_success(&args, &output);
+
+    drop((root, mock_instance));
 }
 
 /// `pnpm fetch` checks the lockfile against the live settings, so without
@@ -303,7 +400,13 @@ fn assert_runs_update_config_and_succeeds(args: &[&str]) -> String {
 /// fails with `ERR_PNPM_LOCKFILE_CONFIG_MISMATCH`.
 #[test]
 fn update_config_applies_to_fetch() {
-    assert_runs_update_config_and_succeeds(&["fetch"]);
+    for reporter in [None, Some("--reporter=ndjson"), Some("--reporter=silent")] {
+        let args: Vec<&str> = reporter
+            .into_iter()
+            .chain(["fetch"])
+            .collect();
+        assert_runs_update_config_and_succeeds(&args);
+    }
 }
 
 #[test]

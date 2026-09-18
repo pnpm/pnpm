@@ -61,22 +61,20 @@ impl ApproveBuildsArgs {
     /// approved to build, or `None` when there is nothing to rebuild; the
     /// caller then drives `run_rebuild` with a reporter.
     ///
-    /// This stays synchronous so the non-`Send` `config` / `state` closure
-    /// references never cross the rebuild's `await`. `config` loads a fresh
-    /// `&Config`; it is called before writing settings (to read the current
-    /// state) and `state` after, so the rebuild's allow-build policy
-    /// reflects the just-written `allowBuilds`. `dir` is the canonicalized
+    /// The rebuild state is built after the settings are written, from
+    /// `config` plus the just-written `allowBuilds`, so the rebuild's
+    /// allow-build policy reflects the approval. `dir` is the canonicalized
     /// `--dir`, the fallback settings target when no `pnpm-workspace.yaml`
-    /// is found.
+    /// is found; `manifest_path` is the project manifest the rebuild state
+    /// is anchored at.
     pub fn prepare<Reporter: self::Reporter>(
         self,
         dir: &Path,
-        config: &(dyn Fn() -> miette::Result<&'static mut Config> + Sync),
-        state: &(dyn Fn(bool) -> miette::Result<State> + Sync),
+        config: &'static Config,
+        manifest_path: &Path,
     ) -> miette::Result<Option<(State, Vec<String>)>> {
         self.validate()?;
-        let initial_config: &Config = config()?;
-        let scan = get_automatically_ignored_builds(initial_config)?;
+        let scan = get_automatically_ignored_builds(config)?;
         let pending = scan.names.unwrap_or_default();
         if pending.is_empty() && self.packages.is_empty() {
             println!("There are no packages awaiting approval");
@@ -86,8 +84,7 @@ impl ApproveBuildsArgs {
             return Ok(None);
         };
 
-        let settings_dir =
-            initial_config.workspace_dir.clone().unwrap_or_else(|| dir.to_path_buf());
+        let settings_dir = config.workspace_dir.clone().unwrap_or_else(|| dir.to_path_buf());
         write_approval_settings(&settings_dir, &decision)?;
         clear_decided_ignored_builds(scan.modules_manifest, &scan.modules_dir, &decision)?;
 
@@ -102,7 +99,13 @@ impl ApproveBuildsArgs {
         if build_packages.is_empty() {
             return Ok(None);
         }
-        Ok(Some((state(true)?, build_packages)))
+        let rebuild_state = State::init(
+            manifest_path.to_path_buf(),
+            config_with_install_approvals(config, &settings_dir)?,
+            true,
+        )
+        .wrap_err("initialize the rebuild state")?;
+        Ok(Some((rebuild_state, build_packages)))
     }
 
     pub(crate) fn decide<Reporter: self::Reporter>(
@@ -341,23 +344,12 @@ pub(crate) async fn prompt_approve_install_builds<Reporter: self::Reporter + 'st
     }
 
     let manifest_path = install_dir.join("package.json");
-    let config_fn = || -> miette::Result<&'static mut Config> {
-        let mut cfg = config.clone();
-        cfg.workspace_dir = Some(settings_dir.to_path_buf());
-        Ok(Config::leak(cfg))
-    };
-    let state_fn = |require_lockfile: bool| -> miette::Result<State> {
-        State::init(
-            manifest_path.clone(),
-            config_with_install_approvals(config, settings_dir)?,
-            require_lockfile,
-        )
-        .wrap_err("initialize the install approve-builds state")
-    };
+    let mut settings_config = config.clone();
+    settings_config.workspace_dir = Some(settings_dir.to_path_buf());
 
     let args = ApproveBuildsArgs { packages: Vec::new(), all: auto_approve, global: false };
     if let Some((rebuild_state, build_packages)) =
-        args.prepare::<Reporter>(settings_dir, &config_fn, &state_fn)?
+        args.prepare::<Reporter>(settings_dir, Config::leak(settings_config), &manifest_path)?
     {
         let selection = crate::cli_args::rebuild::RebuildSelection {
             names: Some(build_packages),
