@@ -90,13 +90,26 @@ impl std::fmt::Display for Shown<'_> {
     /// is quoted as it was written, which is what tells a reader that a
     /// component was encoded.
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let decoded = percent_decode_str(self.0).decode_utf8_lossy();
+        let decoded = without_authority_breaks(&percent_decode_str(self.0).decode_utf8_lossy());
         let redacted = pnpm_network::redact_and_sanitize(&decoded);
-        if redacted == decoded.as_ref() {
+        if redacted == decoded {
             return formatter.write_str(&pnpm_network::redact_and_sanitize(self.0));
         }
         formatter.write_str(&redacted)
     }
+}
+
+/// `text` without the characters a URL authority cannot hold.
+///
+/// Decoding a selector can put one of them inside `://user:pass@`: `%20`
+/// decodes to a space, and a byte that is not valid UTF-8 decodes to the
+/// replacement character. Either splits the authority across the scan that
+/// looks for it, which is why `redact_and_sanitize` drops control characters
+/// before its own scan.
+fn without_authority_breaks(text: &str) -> String {
+    text.chars()
+        .filter(|character| !character.is_whitespace() && *character != char::REPLACEMENT_CHARACTER)
+        .collect()
 }
 
 /// One `pnpm add` selector once its protocol has been resolved.
