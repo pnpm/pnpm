@@ -1684,6 +1684,8 @@ test('project .npmrc does not expand env variables in auth values', async () => 
   const authWarning = warnings.find((w) => w.includes('Ignored project-level auth setting "//attacker.example/:_authToken"')) ?? ''
   expect(authWarning).toContain('pnpm config set "//attacker.example/:_authToken" <value>')
   expect(authWarning).toContain('~/.npmrc')
+  expect(authWarning).toContain('PNPM_CONFIG_NPMRC_AUTH_FILE')
+  expect(authWarning).toContain('trust the project .npmrc')
   expect(authWarning).toContain('https://pnpm.io/npmrc')
 })
 

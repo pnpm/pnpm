@@ -165,6 +165,9 @@ pub struct Config {
     /// workspace manifest or it is clean.
     pub workspace_key_issues: WorkspaceKeyIssues,
 
+    /// Warnings from reading registry credentials and network settings in `.npmrc`, for the CLI to report.
+    pub npmrc_warnings: Vec<String>,
+
     /// When true, all dependencies are hoisted to `node_modules/.pnpm/node_modules`.
     /// This makes unlisted dependencies accessible to all packages inside `node_modules`.
     #[default = true]

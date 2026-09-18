@@ -215,6 +215,7 @@ impl NpmrcAuth {
         config.registries_by_scope.append(&mut self.routes.scoped);
         for message in std::mem::take(&mut self.warnings) {
             tracing::warn!(target: "pacquet::npmrc", "{message}");
+            config.npmrc_warnings.push(message);
         }
     }
 

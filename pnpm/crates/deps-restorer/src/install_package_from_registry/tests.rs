@@ -56,6 +56,7 @@ fn create_config(
         sort: true,
         use_beta_cli: false,
         workspace_key_issues: Default::default(),
+        npmrc_warnings: Vec::new(),
         versioning: Default::default(),
         hoist: false,
         hoist_pattern: None,

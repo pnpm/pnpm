@@ -553,7 +553,9 @@ function warnIgnoredAuthValueEnv (filePath: string, key: string, warnings: strin
     'environment variables are not expanded in registry credentials that come from a project .npmrc, ' +
     'because that file is committed to the repository and could leak the secret to an attacker-controlled registry. ' +
     'Move this credential to a trusted source that pnpm still expands — put the line in your user-level ~/.npmrc, ' +
-    `or set it with pnpm config set${configSetExample(key)}. See ${DOCS_URL}`)
+    `or set it with pnpm config set${configSetExample(key)}. ` +
+    'If you trust the project .npmrc, set PNPM_CONFIG_NPMRC_AUTH_FILE to its path to allow environment variable expansion. ' +
+    `See ${DOCS_URL}`)
 }
 
 // Rewrite any unscoped per-registry keys in `source` to their URL-scoped

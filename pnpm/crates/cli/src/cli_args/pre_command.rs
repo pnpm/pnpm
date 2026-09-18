@@ -27,7 +27,10 @@ use super::{
     with::{PackageManagerCheck, spawn_pnpm},
 };
 use crate::{
-    cli_args::{config_warnings::report_workspace_key_issues, dispatch::seed_config},
+    cli_args::{
+        config_warnings::{emit_config_warning, report_workspace_key_issues},
+        dispatch::seed_config,
+    },
     config_deps,
     config_overrides::{ConfigOverrides, apply_state_dir_override, apply_store_dir_override},
     engine_pm::{
@@ -151,7 +154,7 @@ fn pre_command_plan_from_input(
         PinOutcome::Sync(sync) => sync,
     };
 
-    report_key_issues(input, &config, running_matches_pin)?;
+    report_config_warnings(input, &config, running_matches_pin)?;
 
     if input.check_runtimes
         && !input.skip_pm_handling
@@ -175,13 +178,16 @@ fn pin_matches_running(wanted_pm: Option<&WantedPackageManager>) -> bool {
 
 /// A `--global` invocation does not act on the project, so a satisfied
 /// pin does not harden its unrecognized-key report into an error.
-fn report_key_issues(
+fn report_config_warnings(
     input: &PreCommandInput,
     config: &Config,
     running_matches_pin: bool,
 ) -> miette::Result<()> {
     if input.key_issues == KeyIssueReporting::Skip {
         return Ok(());
+    }
+    for warning in &config.npmrc_warnings {
+        emit_config_warning(&redact_and_sanitize(warning));
     }
     let strict =
         input.key_issues == KeyIssueReporting::Enforce && running_matches_pin && !input.global;

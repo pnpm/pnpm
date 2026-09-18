@@ -262,7 +262,10 @@ impl NpmrcAuth {
 
     pub(super) fn warn_ignored_auth_value_env(&mut self, key: &str) {
         self.warnings.push(format!(
-            "Ignored project-level auth setting {key:?}: environment variables are not expanded in repository-controlled registry credentials.",
+            "Ignored project-level auth setting {key:?}: environment variables are not expanded in repository-controlled registry credentials. \
+             Move this credential to your user-level ~/.npmrc or set it with pnpm config set. \
+             If you trust the project .npmrc, set PNPM_CONFIG_NPMRC_AUTH_FILE to its path to allow environment variable expansion. \
+             See https://pnpm.io/npmrc",
         ));
     }
 }
