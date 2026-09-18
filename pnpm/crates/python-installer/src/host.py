@@ -177,6 +177,18 @@ def inspect_wheel(request):
         if name == record_name:
             if digest or size:
                 raise ValueError("RECORD must not hash itself")
+            continue
+        algorithm, separator, expected = digest.partition("=")
+        if not separator or algorithm not in ("sha256", "sha384", "sha512"):
+            raise ValueError("unsupported wheel RECORD hash: " + name)
+        try:
+            decoded = base64.b64decode(expected + "=" * (-len(expected) % 4), altchars=b"-_", validate=True)
+            expected_size = int(size)
+        except ValueError as error:
+            raise ValueError("invalid wheel RECORD hash or size: " + name) from error
+        canonical = base64.urlsafe_b64encode(decoded).rstrip(b"=").decode()
+        if canonical != expected or len(decoded) != hashlib.new(algorithm).digest_size or expected_size < 0:
+            raise ValueError("invalid wheel RECORD hash or size: " + name)
     unsigned = set(files) - recorded
     if unsigned - {record_name + ".jws", record_name + ".p7s"}:
         raise ValueError("wheel RECORD does not cover every file")

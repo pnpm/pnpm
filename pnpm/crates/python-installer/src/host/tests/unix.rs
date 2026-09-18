@@ -118,3 +118,26 @@ async fn unpacked_wheels_tolerate_record_hash_mismatches() {
         assert_eq!(String::from_utf8(output.stdout).unwrap().trim(), expected);
     }
 }
+
+#[tokio::test]
+async fn unpacked_wheels_reject_malformed_record_hashes_and_sizes() {
+    let temporary = tempfile::tempdir().unwrap();
+    for (index, (digest, size)) in [
+        ("", "1"),
+        ("sha1=AAAAAAAAAAAAAAAAAAAAAAAAAAA", "1"),
+        ("sha256=AAAA", "1"),
+        ("sha256=AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA", "many"),
+        ("sha256=AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA", "-1"),
+    ]
+    .into_iter()
+    .enumerate()
+    {
+        let files = unpacked_wheel(&temporary.path().join(index.to_string()), false);
+        let record_path = files["alpha-1.0.dist-info/RECORD"].as_path();
+        let record = fs::read_to_string(record_path).unwrap();
+        let (first, rest) = record.split_once('\n').unwrap();
+        let name = first.split_once(',').unwrap().0;
+        fs::write(record_path, format!("{name},{digest},{size}\n{rest}")).unwrap();
+        assert!(inspect("python3", &files).await.is_err());
+    }
+}
