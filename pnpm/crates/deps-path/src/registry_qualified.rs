@@ -17,6 +17,7 @@ pub const RESERVED_VERSION_PREFIXES: &[&str] = &[
     "jsr",
     "link",
     "npm",
+    "pkg",
     "runtime",
     "ssh",
     "workspace",
