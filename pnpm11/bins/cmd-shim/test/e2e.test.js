@@ -316,3 +316,86 @@ describeOnPosix('sh shim converts a Windows-form path', () => {
     assert.equal(r.stdout, 'C:/node_modules/.bin/tsc')
   })
 })
+
+describeOnPosix('sh shim picks its Windows path converter', () => {
+  // command -p searches the system default path, which a test cannot plant
+  // into, and no test host reports itself as Cygwin or WSL2. So the branch is
+  // lifted out of a generated shim and run with the uname and the two
+  // converters stood in for. What that leaves unproven — that the header
+  // reaches them through command -p — the snapshots pin.
+  const BASEDIR = '/proj/node_modules/.bin'
+
+  const writeExecutable = (file, body) => {
+    fs.writeFileSync(file, body, 'utf8')
+    fs.chmodSync(file, 0o755)
+  }
+
+  // Returns the basedir_win and exe the branch leaves behind.
+  const runPlatformBranch = (shimBody, uname, systemConverter, callersPath) => {
+    const caseHead = 'case `command -p uname -a` in'
+    const start = shimBody.indexOf(caseHead)
+    assert.notEqual(start, -1, 'the header must select a platform')
+    const end = shimBody.indexOf('\nesac\n', start) + '\nesac\n'.length
+    const branch = shimBody.slice(start, end)
+      .replaceAll('`command -p uname -a`', '"$fake_uname"')
+      .replaceAll('command -p cygpath', '"$system_converter"')
+      .replaceAll('command -p wslpath', '"$system_converter"')
+    const script = `basedir=${BASEDIR}\nbasedir_win="$basedir"\nexe=""\nmsys=""\n${branch}\nprintf '%s\\n%s' "$basedir_win" "$exe"`
+
+    const r = spawnSync('/bin/sh', ['-c', script], {
+      encoding: 'utf8',
+      stdio: ['ignore', 'pipe', 'pipe'],
+      env: { fake_uname: uname, system_converter: systemConverter, PATH: callersPath },
+    })
+    assert.equal(r.status, 0, `sh exited ${r.status}\nstderr: ${r.stderr}`)
+    return r.stdout.split('\n')
+  }
+
+  test('prefers the system converter and still falls back to PATH', async (t) => {
+    const tempDir = temporaryDirectory()
+    const target = path.join(tempDir, 'tool.js')
+    fs.writeFileSync(target, '#!/usr/bin/env node\n', 'utf8')
+    const shim = path.join(tempDir, 'tool')
+    await cmdShim(target, shim, { createCmdFile: false })
+    const shimBody = fs.readFileSync(shim, 'utf8')
+
+    const answering = path.join(tempDir, 'answering')
+    writeExecutable(answering, '#!/bin/sh\necho \'/system/win\'\n')
+    const silent = path.join(tempDir, 'silent')
+    writeExecutable(silent, '#!/bin/sh\n')
+    const absent = path.join(tempDir, 'absent')
+    const decoys = path.join(tempDir, 'decoy')
+    fs.mkdirSync(decoys)
+    for (const helper of ['cygpath', 'wslpath']) {
+      writeExecutable(path.join(decoys, helper), '#!/bin/sh\necho \'/decoy/win\'\n')
+    }
+
+    for (const uname of ['MINGW64_NT-10.0', 'Linux 5.15.0 WSL2']) {
+      t.assert.deepEqual(
+        runPlatformBranch(shimBody, uname, answering, decoys),
+        ['/system/win', '.exe'],
+        `${uname}: the system converter must win over the one on PATH`
+      )
+      t.assert.deepEqual(
+        runPlatformBranch(shimBody, uname, silent, decoys),
+        ['/decoy/win', '.exe'],
+        `${uname}: an empty answer from the system converter must fall back to PATH`
+      )
+      t.assert.deepEqual(
+        runPlatformBranch(shimBody, uname, absent, decoys),
+        ['/decoy/win', '.exe'],
+        `${uname}: no system converter must fall back to PATH`
+      )
+    }
+    t.assert.deepEqual(
+      runPlatformBranch(shimBody, 'MINGW64_NT-10.0', absent, ''),
+      [BASEDIR, '.exe'],
+      'MSYS with no converter at all must keep the POSIX basedir instead of failing'
+    )
+    t.assert.deepEqual(
+      runPlatformBranch(shimBody, 'Linux 5.15.0 WSL2', absent, ''),
+      [BASEDIR, ''],
+      'WSL2 with no converter at all must not claim a Windows exe'
+    )
+  })
+})

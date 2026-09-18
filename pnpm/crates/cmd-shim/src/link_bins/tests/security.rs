@@ -361,9 +361,9 @@ exec node  "$basedir/../foo/cli.js" "$@"
 }
 
 /// A shim can carry the hardened `readlink` and `printf` lines and still take
-/// its Windows path conversion from the caller's `PATH`, which is what pnpm
-/// wrote between the two hardening rounds. The target marker matches, so a warm
-/// reinstall has to notice the conversion helpers and replace the shim.
+/// its Windows path conversion from the caller's `PATH`. The target marker
+/// matches, so a warm reinstall has to notice the conversion helpers and
+/// replace the shim.
 #[cfg(unix)]
 #[test]
 fn a_reinstall_replaces_a_shim_that_converts_paths_with_a_helper_from_the_callers_path() {

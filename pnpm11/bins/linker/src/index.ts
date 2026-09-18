@@ -402,9 +402,9 @@ async function linkBin (cmd: CommandInfo, binsDir: string, opts?: LinkBinOptions
   }
 }
 
-// A warm install rewrites a POSIX shim that is missing any of the lines that
-// keep the header's helpers off the caller's PATH. The target marker does not
-// describe the header. pnpm 12 looks for the same lines.
+// The target marker does not describe the header, so a shim whose target has
+// not moved can still need replacing. Keep these in step with pacquet's
+// `is_sh_shim_hardened`.
 const SH_SHIM_HARDENED_LINES = [
   '  target=$(command -p readlink "$link")\n',
   String.raw`basedir=$(command -p printf '%s\n' "$link" | command -p sed -e 's,\\,/,g')` + '\n',

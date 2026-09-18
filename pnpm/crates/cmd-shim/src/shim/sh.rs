@@ -271,12 +271,12 @@ pub(super) const SH_SHIM_WSLPATH_LINE: &str = r#"    if converted=$(command -p w
 /// leave in place.
 ///
 /// The trailing target marker does not describe the header, so a shim whose
-/// target has not moved can still be stale. A shim runs with
-/// `node_modules/.bin` at the front of `PATH`, so one written before a helper
-/// moved to `command -p` can be redirected by a dependency that ships a bin
-/// under that helper's name, and a POSIX `echo` eats backslash escapes in a
-/// Windows-form `$0`. Missing any of the pinned lines means the next install
-/// rewrites the shim.
+/// target has not moved can still need replacing. A shim runs with
+/// `node_modules/.bin` at the front of `PATH`, where a dependency's own bins
+/// live: a header that resolves a helper there can be redirected, and one that
+/// pipes `$0` through `echo` loses the backslashes of a Windows-form path.
+/// Every pinned line has to be present, and a missing one means the next
+/// install rewrites the shim.
 #[must_use]
 pub fn is_sh_shim_hardened(shim_content: &str) -> bool {
     [
