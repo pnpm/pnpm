@@ -11,10 +11,10 @@
 //! `--reverse` runs the reverse graph, and `--parallel` starts every task
 //! concurrently. A task whose selector matched several scripts runs them
 //! side by side rather than one after another, and every script of the
-//! run draws on one [`ScriptBudget`], so
-//! `workspaceConcurrency` still bounds the processes pnpm has running.
-//! The main-dispatch auto-exclusion of the workspace root is applied via
-//! [`AutoExcludeRoot::Enabled`].
+//! run draws on one [`ScriptBudget`], so `workspaceConcurrency` bounds
+//! the processes a run without `--parallel` has running, not the tasks
+//! it dispatched. The main-dispatch auto-exclusion of the workspace root
+//! is applied via [`AutoExcludeRoot::Enabled`].
 
 use super::{
     RunArgs, RunContext, ScriptSelector, get_run_script_commands, render_project_commands,
@@ -47,7 +47,7 @@ use pnpm_workspace_task_scheduler::{
     resume_task_graph_from, reverse_task_graph, schedule_tasks, sequence_tasks, task_graph_to_json,
     task_summary_key,
 };
-use script_budget::{ScriptBudget, run_script_budget};
+use script_budget::{ScriptBudget, ScriptPermit, run_script_budget};
 use selection::{
     RunReporting, build_run_task_graph, check_a_project_has_the_script,
     filter_hidden_requested_scripts, print_run_dry_run, print_selected_project_commands,

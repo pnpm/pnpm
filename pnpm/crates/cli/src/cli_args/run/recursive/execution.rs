@@ -1,8 +1,8 @@
 use super::{
     AtomicUsize, Config, ExecutionStatus, GraphPkg, HashMap, IndexMap, Instant, LogEvent, Mutex,
     Ordering, Path, ProcessTracker, ProjectGraph, RecursiveRun, RunArgs, RunContext, RunResults,
-    ScriptBudget, ScriptOutput, Status, TaskCompletion, TaskGraph, TaskKey, TaskNode, env,
-    make_node_package_map_option, make_node_require_option, package_map_path_for_execution,
+    ScriptBudget, ScriptOutput, ScriptPermit, Status, TaskCompletion, TaskGraph, TaskKey, TaskNode,
+    env, make_node_package_map_option, make_node_require_option, package_map_path_for_execution,
     pnp_path_for_execution, run_stages, script_concurrency, task_summary_key,
 };
 
@@ -298,6 +298,19 @@ fn apply_script_result(
     state.failed = true;
     record_script_failure(&mut state.execution.status, ctx.dir, status, duration);
     true
+}
+
+/// Take the run's permission to start one more script. `None` when the
+/// run was cancelled while this script waited for a permit: a script
+/// that only reached the front of the queue after the run gave up was
+/// dispatched in name only, and starting it would grow a run that is
+/// already unwinding.
+fn start_script<'a>(process: &RunProjectProcess<'a>) -> Option<ScriptPermit<'a>> {
+    let permit = process.script_budget.acquire();
+    if process.process_tracker.is_some_and(ProcessTracker::is_cancelled) {
+        return None;
+    }
+    Some(permit)
 }
 
 /// The script body to run for one selected name. `None` when the

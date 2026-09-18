@@ -1,7 +1,7 @@
 use super::{
     Instant, Mutex, ProcessTracker, ProjectExecution, ProjectScripts, RunContext, ScriptRunState,
     TaskCompletion, apply_script_result, reenters_running_script, run_stages,
-    runnable_project_script,
+    runnable_project_script, start_script,
 };
 use indexmap::IndexMap;
 use miette::IntoDiagnostic;
@@ -59,7 +59,13 @@ fn run_one_script(
         return TaskCompletion::Passed;
     }
 
-    let _permit = run.options.process.script_budget.acquire();
+    let Some(_permit) = start_script(&run.options.process) else {
+        state
+            .lock()
+            .expect("run state lock is not poisoned")
+            .cancelled_script();
+        return TaskCompletion::Cancelled;
+    };
     (run.options.process.on_started)();
     state
         .lock()

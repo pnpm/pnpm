@@ -1,6 +1,6 @@
 use super::{
     Instant, ProjectExecution, ProjectScripts, RunContext, ScriptRunState, apply_script_result,
-    reenters_running_script, run_stages, runnable_project_script,
+    reenters_running_script, run_stages, runnable_project_script, start_script,
 };
 
 /// Run the task's scripts one at a time, in selection order: the mode a
@@ -21,7 +21,10 @@ pub(super) fn run_scripts(run: &ProjectScripts<'_, '_, '_>) -> miette::Result<Pr
             continue;
         }
 
-        let permit = options.process.script_budget.acquire();
+        let Some(permit) = start_script(&options.process) else {
+            state.cancelled_script();
+            break;
+        };
         (options.process.on_started)();
         state.before_script();
         let ran = run_one_script(run, selected, &script, &mut state)?;
