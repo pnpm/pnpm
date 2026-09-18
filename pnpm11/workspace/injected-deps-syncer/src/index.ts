@@ -136,7 +136,7 @@ async function syncBinLinks (opts: SyncBinLinksOptions): Promise<void> {
         location: resolvedTargetDir,
       }],
       binDir,
-      { relocatableRoot: opts.workspaceDir }
+      {}
     )
   })
 
@@ -157,7 +157,6 @@ async function syncBinLinks (opts: SyncBinLinksOptions): Promise<void> {
 
     // Relink all bins in the project's node_modules
     await linkBins(projectNodeModules, projectBinDir, {
-      relocatableRoot: opts.workspaceDir,
       allowExoticManifests: true,
       projectManifest: project.manifest,
       warn: (msg: string) => {

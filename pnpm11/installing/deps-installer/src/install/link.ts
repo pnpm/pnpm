@@ -63,7 +63,6 @@ export interface LinkPackagesOptions {
   include: IncludedDependencies
   linkedDependenciesByProjectId: Record<string, LinkedDependency[]>
   lockfileDir: string
-  relocatableRoot?: string
   makePartialCurrentLockfile: boolean
   outdatedDependencies: Record<string, string>
   pruneStore: boolean
@@ -234,7 +233,6 @@ export async function linkPackages (projects: ImporterToUpdate[], depGraph: Depe
     newHoistedDependencies = {
       ...opts.hoistedDependencies,
       ...await hoist({
-        relocatableRoot: opts.relocatableRoot,
         extraNodePath: opts.extraNodePaths,
         graph: depGraph,
         directDepsByImporterId: {

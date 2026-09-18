@@ -32,7 +32,6 @@ const hoistLogger = logger('hoist')
 export interface HoistOpts<T extends string> extends GetHoistedDependenciesOpts<T> {
   extraNodePath?: string[]
   preferSymlinkedExecutables?: boolean
-  relocatableRoot?: string
   virtualStoreDir: string
   virtualStoreDirMaxLength: number
 }
@@ -61,7 +60,6 @@ export async function hoist<T extends string> (opts: HoistOpts<T>): Promise<Hois
     extraNodePaths: opts.extraNodePath,
     hoistedAliasesWithBins,
     preferSymlinkedExecutables: opts.preferSymlinkedExecutables,
-    relocatableRoot: opts.relocatableRoot,
   })
 
   return hoistedDependencies
@@ -144,7 +142,6 @@ interface LinkAllBinsOptions {
   extraNodePaths?: string[]
   hoistedAliasesWithBins: string[]
   preferSymlinkedExecutables?: boolean
-  relocatableRoot?: string
 }
 
 async function linkAllBins (modulesDir: string, opts: LinkAllBinsOptions): Promise<void> {
@@ -159,7 +156,6 @@ async function linkAllBins (modulesDir: string, opts: LinkAllBinsOptions): Promi
       extraNodePaths: opts.extraNodePaths,
       modulesDir,
       preferSymlinkedExecutables: opts.preferSymlinkedExecutables,
-      relocatableRoot: opts.relocatableRoot,
       warn,
     })
   } catch (err: any) { // eslint-disable-line

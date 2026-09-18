@@ -18,7 +18,6 @@ export type RunLifecycleHooksConcurrentlyOptions = Omit<RunLifecycleHookOptions,
   storeController: StoreController
   extraNodePaths?: string[]
   preferSymlinkedExecutables?: boolean
-  relocatableRoot?: string
 }
 
 export interface Importer {
@@ -59,7 +58,6 @@ export async function runLifecycleHooksConcurrently (
           extraNodePaths: opts.extraNodePaths,
           allowExoticManifests: true,
           preferSymlinkedExecutables: opts.preferSymlinkedExecutables,
-          relocatableRoot: opts.relocatableRoot,
           projectManifest: manifest,
           warn: (message: string) => {
             logger.warn({ message, prefix: rootDir })

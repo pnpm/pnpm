@@ -1,7 +1,6 @@
 import { existsSync, promises as fs } from 'node:fs'
 import { createRequire } from 'node:module'
 import path from 'node:path'
-import util from 'node:util'
 
 import { cmdShim, getExeExtension, isShimPointingAt } from '@pnpm/bins.cmd-shim'
 import { type Command, getBinsFromPackageManifest, pkgOwnsBin } from '@pnpm/bins.resolver'
@@ -154,7 +153,7 @@ interface CommandInfo extends Command {
 async function _linkBins (
   allCmds: CommandInfo[],
   binsDir: string,
-  opts: InternalLinkBinOptions
+  opts: LinkBinOptions
 ): Promise<string[]> {
   if (allCmds.length === 0) return [] as string[]
 
@@ -163,33 +162,7 @@ async function _linkBins (
 
   await fs.mkdir(binsDir, { recursive: true })
 
-  let resolveCommandPaths = false
-  if (!IS_WINDOWS && opts.relocatableRoot != null) {
-    const [root, physicalBinsDir] = await Promise.all([
-      fs.realpath(opts.relocatableRoot),
-      fs.realpath(binsDir),
-    ])
-    if (isSubdir(root, physicalBinsDir)) {
-      binsDir = physicalBinsDir
-      opts = { ...opts, relocatableRoot: root, shimRelocatableRoot: opts.relocatableRoot }
-      resolveCommandPaths = true
-    } else {
-      opts = { ...opts, relocatableRoot: undefined }
-    }
-  }
-  const results = await Promise.allSettled(allCmds.map(async cmd => {
-    if (resolveCommandPaths) {
-      const withinRoot = isSubdir(opts.relocatableRoot!, cmd.path) || isSubdir(opts.shimRelocatableRoot!, cmd.path)
-      const sourceDir = await fs.realpath(path.dirname(cmd.path)).catch((err: unknown) => {
-        if (util.types.isNativeError(err) && 'code' in err && (!withinRoot || err.code === 'ENOENT')) return path.dirname(cmd.path)
-        throw err
-      })
-      if (withinRoot || isSubdir(opts.relocatableRoot!, sourceDir)) {
-        cmd = { ...cmd, path: path.join(sourceDir, path.basename(cmd.path)) }
-      }
-    }
-    return linkBin(cmd, binsDir, opts)
-  }))
+  const results = await Promise.allSettled(allCmds.map(async cmd => linkBin(cmd, binsDir, opts)))
 
   // We want to create all commands that we can create before throwing an exception
   for (const result of results) {
@@ -301,18 +274,12 @@ function runtimeHasNodeDownloaded (runtime: EngineDependency | EngineDependency[
 }
 
 export interface LinkBinOptions {
-  relocatableRoot?: string
   extraNodePaths?: string[]
   preferSymlinkedExecutables?: boolean
 }
 
-type InternalLinkBinOptions = LinkBinOptions & { shimRelocatableRoot?: string }
-
-async function linkBin (cmd: CommandInfo, binsDir: string, opts?: InternalLinkBinOptions): Promise<void> {
+async function linkBin (cmd: CommandInfo, binsDir: string, opts?: LinkBinOptions): Promise<void> {
   const externalBinPath = path.join(binsDir, cmd.name)
-  const relocatableTarget = !IS_WINDOWS && opts?.relocatableRoot != null &&
-    isSubdir(opts.relocatableRoot, binsDir) && isSubdir(opts.relocatableRoot, cmd.path)
-  const nodeLinkTarget = relocatableTarget ? path.relative(binsDir, cmd.path) : cmd.path
   // Not writing a PowerShell shim is not enough to keep one out of the bin
   // directory: an install that did want one leaves it behind, and PowerShell
   // keeps preferring it over the .cmd shim. This runs above the short-circuits
@@ -329,11 +296,10 @@ async function linkBin (cmd: CommandInfo, binsDir: string, opts?: InternalLinkBi
     const stat = await fs.lstat(externalBinPath)
     if (stat.isSymbolicLink()) {
       const target = await fs.readlink(externalBinPath)
-      isCorrectlyLinked = (target === cmd.path || path.resolve(binsDir, target) === path.resolve(cmd.path)) &&
-        !(cmd.name === 'node' && relocatableTarget && path.isAbsolute(target))
+      isCorrectlyLinked = target === cmd.path || path.resolve(binsDir, target) === path.resolve(cmd.path)
     } else if (stat.isFile() && stat.size < CMD_SHIM_MAX_SIZE) {
       const content = await fs.readFile(externalBinPath, 'utf8')
-      isCorrectlyLinked = isShimPointingAt(content, cmd.path, { shimPath: externalBinPath, relocatableRoot: opts?.relocatableRoot }) && isShimHardened(content)
+      isCorrectlyLinked = isShimPointingAt(content, cmd.path) && isShimHardened(content)
     }
   } catch {}
   if (isCorrectlyLinked) {
@@ -378,7 +344,7 @@ async function linkBin (cmd: CommandInfo, binsDir: string, opts?: InternalLinkBi
     // existsSync follows symlinks and returns false for broken symlinks,
     // causing EEXIST when the dangling symlink still exists on disk.
     await rimraf(externalBinPath)
-    await fs.symlink(nodeLinkTarget, externalBinPath, 'file')
+    await fs.symlink(cmd.path, externalBinPath, 'file')
     return
   }
 
@@ -414,7 +380,6 @@ async function linkBin (cmd: CommandInfo, binsDir: string, opts?: InternalLinkBi
       createPwshFile: POWER_SHELL_IS_SUPPORTED && cmd.makePowerShellShim,
       nodePath,
       nodeExecPath: cmd.nodeExecPath,
-      relocatableRoot: opts?.shimRelocatableRoot ?? opts?.relocatableRoot,
     })
   } catch (err: any) { // eslint-disable-line
     if (err.code === 'ENOENT' || err.code === 'EISDIR') {

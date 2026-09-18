@@ -37,7 +37,6 @@ export async function linkHoistedModules (
     ignoreScripts: boolean
     lockfileDir: string
     preferSymlinkedExecutables?: boolean
-    relocatableRoot?: string
     sideEffectsCacheRead: boolean
     remoteSideEffectsCache?: RemoteSideEffectsCacheSettings
     pnprServer?: string
@@ -127,7 +126,6 @@ async function linkAllPkgsInOrder (
     ignoreScripts: boolean
     lockfileDir: string
     preferSymlinkedExecutables?: boolean
-    relocatableRoot?: string
     sideEffectsCacheRead: boolean
     restorer?: RemoteSideEffectsRestorer<string>
     supportedArchitectures?: SupportedArchitectures
@@ -208,7 +206,6 @@ async function linkAllPkgsInOrder (
   await linkBins(modulesDir, binsDir, {
     allowExoticManifests: true,
     preferSymlinkedExecutables: opts.preferSymlinkedExecutables,
-    relocatableRoot: opts.relocatableRoot,
     warn: opts.warn,
   })
 }

@@ -219,7 +219,6 @@ export async function buildProjects (
     extraNodePaths: ctx.extraNodePaths,
     extraEnv: opts.extraEnv,
     preferSymlinkedExecutables: opts.preferSymlinkedExecutables,
-    relocatableRoot: opts.global ? undefined : opts.lockfileDir,
     scriptsPrependNodePath: opts.scriptsPrependNodePath,
     scriptShell: opts.scriptShell,
     shellEmulator: opts.shellEmulator,
@@ -433,7 +432,7 @@ async function _rebuild (
       if (opts.nodeLinker !== 'hoisted') {
         const modules = pkgModulesDir(depPath)
         const binPath = path.join(pkgRoot, 'node_modules', '.bin')
-        await linkBins(modules, binPath, { extraNodePaths: ctx.extraNodePaths, relocatableRoot: opts.global ? undefined : opts.lockfileDir, warn })
+        await linkBins(modules, binPath, { extraNodePaths: ctx.extraNodePaths, warn })
       } else {
         extraBinPaths.push(...binDirsInAllParentDirs(pkgRoot, opts.lockfileDir))
       }
@@ -556,14 +555,13 @@ async function _rebuild (
           const pkgInfo = nameVerFromPkgSnapshot(depPath, pkgSnapshot)
           const modules = pkgModulesDir(depPath)
           const binPath = path.join(safeJoinModulesDir(modules, pkgInfo.name), 'node_modules', '.bin')
-          return linkBins(modules, binPath, { relocatableRoot: opts.global ? undefined : opts.lockfileDir, warn })
+          return linkBins(modules, binPath, { warn })
         }))
     )
     await Promise.all(Object.values(ctx.projects).map(async ({ rootDir }) => limitLinking(async () => {
       const modules = path.join(rootDir, 'node_modules')
       const binPath = path.join(modules, '.bin')
       return linkBins(modules, binPath, {
-        relocatableRoot: opts.global ? undefined : opts.lockfileDir,
         allowExoticManifests: true,
         warn,
       })

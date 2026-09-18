@@ -682,7 +682,6 @@ export async function mutateModules (
       extraNodePaths: ctx.extraNodePaths,
       extraEnv: opts.extraEnv,
       preferSymlinkedExecutables: opts.preferSymlinkedExecutables,
-      relocatableRoot: opts.global ? undefined : opts.lockfileDir,
       userAgent: opts.userAgent,
       resolveSymlinksInInjectedDirs: opts.resolveSymlinksInInjectedDirs,
       scriptsPrependNodePath: opts.scriptsPrependNodePath,
@@ -2151,7 +2150,6 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
         include: opts.include,
         linkedDependenciesByProjectId,
         lockfileDir: opts.lockfileDir,
-        relocatableRoot: opts.global ? undefined : opts.lockfileDir,
         makePartialCurrentLockfile: opts.makePartialCurrentLockfile,
         outdatedDependencies,
         pruneStore: opts.pruneStore,
@@ -2265,7 +2263,6 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
             dependenciesGraph,
             extraNodePaths: ctx.extraNodePaths,
             preferSymlinkedExecutables: opts.preferSymlinkedExecutables,
-            relocatableRoot: opts.global ? undefined : opts.lockfileDir,
             projects,
           })
         }
@@ -2283,7 +2280,6 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
           lockfileDir: ctx.lockfileDir,
           optional: opts.include.optionalDependencies,
           preferSymlinkedExecutables: opts.preferSymlinkedExecutables,
-          relocatableRoot: opts.global ? undefined : opts.lockfileDir,
           rootModulesDir: ctx.virtualStoreDir,
           scriptsPrependNodePath: opts.scriptsPrependNodePath,
           scriptShell: opts.scriptShell,
@@ -2314,7 +2310,6 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
     if (result.newDepPaths?.length && !opts.virtualStoreOnly) {
       const newPkgs = props<DepPath, DependenciesGraphNode>(result.newDepPaths, dependenciesGraph)
       await linkAllBins(newPkgs, dependenciesGraph, {
-        relocatableRoot: opts.global ? undefined : opts.lockfileDir,
         extraNodePaths: ctx.extraNodePaths,
         optional: opts.include.optionalDependencies,
         warn: binWarn.bind(null, opts.lockfileDir),
@@ -2327,7 +2322,6 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
         linkedPackages = await linkBins(project.modulesDir, project.binsDir, {
           allowExoticManifests: true,
           preferSymlinkedExecutables: opts.preferSymlinkedExecutables,
-          relocatableRoot: opts.global ? undefined : opts.lockfileDir,
           projectManifest: project.manifest,
           extraNodePaths: ctx.extraNodePaths,
           warn: binWarn.bind(null, project.rootDir),
@@ -2360,7 +2354,6 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
           {
             extraNodePaths: ctx.extraNodePaths,
             preferSymlinkedExecutables: opts.preferSymlinkedExecutables,
-            relocatableRoot: opts.global ? undefined : opts.lockfileDir,
           }
         )
       }
@@ -2788,7 +2781,6 @@ async function linkRuntimeBinsOfImporters (opts: {
   dependenciesGraph: DependenciesGraph
   extraNodePaths?: string[]
   preferSymlinkedExecutables?: boolean
-  relocatableRoot?: string
   projects: Array<Pick<ImporterToUpdate, 'binsDir' | 'id'>>
 }
 ): Promise<void> {
@@ -2799,7 +2791,6 @@ async function linkRuntimeBinsOfImporters (opts: {
       {
         extraNodePaths: opts.extraNodePaths,
         preferSymlinkedExecutables: opts.preferSymlinkedExecutables,
-        relocatableRoot: opts.relocatableRoot,
       }
     )
   )))
@@ -2811,7 +2802,6 @@ async function linkAllBins (
   opts: {
     extraNodePaths?: string[]
     preferSymlinkedExecutables?: boolean
-    relocatableRoot?: string
     optional: boolean
     warn: (message: string) => void
   }

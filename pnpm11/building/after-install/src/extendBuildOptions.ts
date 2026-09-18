@@ -14,7 +14,6 @@ export type StrictBuildOptions = {
   excludeLinksFromLockfile: boolean
   extraBinPaths: string[]
   extraEnv: Record<string, string>
-  global?: boolean
   lockfileDir: string
   nodeLinker: 'isolated' | 'hoisted' | 'pnp'
   preferSymlinkedExecutables?: boolean

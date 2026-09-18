@@ -49,7 +49,6 @@ export async function buildModules<T extends string> (
     lockfileDir: string
     optional: boolean
     preferSymlinkedExecutables?: boolean
-    relocatableRoot?: string
     unsafePerm: boolean
     userAgent: string
     scriptsPrependNodePath?: boolean | 'warn-only'
@@ -221,7 +220,6 @@ async function buildDependency<T extends string> (
     lockfileDir: string
     optional: boolean
     preferSymlinkedExecutables?: boolean
-    relocatableRoot?: string
     rootModulesDir: string
     scriptsPrependNodePath?: boolean | 'warn-only'
     scriptShell?: string
@@ -406,7 +404,6 @@ export async function linkBinsOfDependencies<T extends string> (
     extraNodePaths?: string[]
     optional: boolean
     preferSymlinkedExecutables?: boolean
-    relocatableRoot?: string
     warn: (message: string) => void
   }
 ): Promise<void> {
@@ -440,7 +437,6 @@ export async function linkBinsOfDependencies<T extends string> (
   await linkBinsOfPackages(pkgs, binPath, {
     extraNodePaths: opts.extraNodePaths,
     preferSymlinkedExecutables: opts.preferSymlinkedExecutables,
-    relocatableRoot: opts.relocatableRoot,
   })
 
   // link also the bundled dependencies` bins
@@ -449,7 +445,6 @@ export async function linkBinsOfDependencies<T extends string> (
     await linkBins(bundledModules, binPath, {
       extraNodePaths: opts.extraNodePaths,
       preferSymlinkedExecutables: opts.preferSymlinkedExecutables,
-      relocatableRoot: opts.relocatableRoot,
       warn: opts.warn,
     })
   }
@@ -461,7 +456,6 @@ export async function linkBinsOfRuntimeDependencies<T extends string> (
   opts: {
     extraNodePaths?: string[]
     preferSymlinkedExecutables?: boolean
-    relocatableRoot?: string
   }
 ): Promise<void> {
   const runtimeNodes = depNodes.filter((dep): dep is DependenciesGraphNode<T> => dep != null && isRuntimeDepPath(dep.depPath))
