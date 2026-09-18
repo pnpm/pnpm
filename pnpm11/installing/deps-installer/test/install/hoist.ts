@@ -15,6 +15,7 @@ import { prepareEmpty, preparePackages } from '@pnpm/prepare'
 import { addDistTag } from '@pnpm/testing.registry-mock'
 import type { DepPath, ProjectRootDir } from '@pnpm/types'
 import { rimrafSync } from '@zkochan/rimraf'
+import { safeExeca as execa } from 'execa'
 import { resolveLinkTarget } from 'resolve-link-target'
 import { symlinkDir } from 'symlink-dir'
 import { writeYamlFileSync } from 'write-yaml-file'
@@ -859,27 +860,28 @@ test('only hoist packages which is in the dependencies tree of the selected proj
   expect(regeneratorVersion).toBe('0.13.9')
 })
 
-test('should add extra node paths to command shims', async () => {
-  prepareEmpty()
-
-  await addDependenciesToPackage({}, ['@pnpm.e2e/hello-world-js-bin'], testDefaults({ fastUnpack: false, hoistPattern: '*' }))
-
-  const cmdShim = fs.readFileSync(path.join('node_modules', '.bin', 'hello-world-js-bin'), 'utf8')
-  expect(cmdShim).toContain('node_modules/.pnpm/node_modules')
-})
-
-test('should not add extra node paths to command shims, when extend-node-path is set to false', async () => {
+test.each([true, false])('command shims respect extendNodePath=%s', async (extendNodePath) => {
   prepareEmpty()
 
   await addDependenciesToPackage({}, ['@pnpm.e2e/hello-world-js-bin'], testDefaults({
     fastUnpack: false,
-    extendNodePath: false,
+    extendNodePath,
     hoistPattern: '*',
   }))
 
-  const cmdShim = fs.readFileSync(path.join('node_modules', '.bin', 'hello-world-js-bin'), 'utf8')
-  console.log(cmdShim)
-  expect(cmdShim).not.toContain('node_modules/.pnpm/node_modules')
+  const binTarget = path.join('node_modules', '@pnpm.e2e', 'hello-world-js-bin', 'index.js')
+  fs.unlinkSync(binTarget)
+  fs.writeFileSync(binTarget, '#!/usr/bin/env node\nconsole.log(process.env.NODE_PATH || "")\n')
+  const { stdout } = await execa(path.resolve('node_modules', '.bin', 'hello-world-js-bin'), [], {
+    env: { NODE_PATH: '' },
+  })
+
+  if (extendNodePath) {
+    const nodePaths = String(stdout).split(path.delimiter).map(entry => path.resolve(entry))
+    expect(nodePaths).toContain(path.join(fs.realpathSync('.'), 'node_modules', '.pnpm', 'node_modules'))
+  } else {
+    expect(stdout).toBe('')
+  }
 })
 
 test('hoistWorkspacePackages should hoist all workspace projects', async () => {
