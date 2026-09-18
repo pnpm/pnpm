@@ -123,23 +123,18 @@ function resolveScriptShell (manifestDir: string, scriptShell: string): string {
   return path.join(manifestDir, scriptShell)
 }
 
-/** The fields a `tasks` entry may carry. Anything else is a typo. */
-const TASK_SETTING_FIELDS = new Set(['concurrency', 'dependsOn'])
-
 // The section feeds the task-graph builder of `pnpm -r run`, which reads it
 // without further checks — a malformed entry has to be rejected here rather
 // than surface as a scheduling bug far from the setting that produced it.
+//
+// Only the fields this version reads are checked. `pnpm-workspace.yaml` is one
+// format across pnpm 11 and 12, and a task may carry settings that only pnpm 12
+// acts on, so an unrecognized field is left alone rather than rejected.
 function assertValidTasks (tasks: unknown): asserts tasks is NonNullable<PnpmSettings['tasks']> {
   assertObjectSetting(tasks, 'tasks')
   for (const [taskName, task] of Object.entries(tasks as Record<string, unknown>)) {
     const taskPath = `tasks['${taskName}']`
     assertObjectSetting(task, taskPath)
-    for (const field of Object.keys(task as Record<string, unknown>)) {
-      if (TASK_SETTING_FIELDS.has(field)) continue
-      throw new PnpmError('INVALID_SETTING',
-        `The "${taskPath}.${field}" setting is not a known task setting.`,
-        { hint: `A task declares ${quoteAndJoin([...TASK_SETTING_FIELDS])}.` })
-    }
     const concurrency = (task as { concurrency?: unknown }).concurrency
     if (concurrency != null && (!Number.isInteger(concurrency) || (concurrency as number) < 1)) {
       throw new PnpmError('INVALID_SETTING',
