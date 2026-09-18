@@ -25,13 +25,14 @@ export async function updateProjectManifest (
   for (const rdd of opts.directDependencies) {
     const wantedDep = rdd.wantedDependency
     if (wantedDep?.updateSpec !== true || wantedDep.saveSpec === false) continue
+    if (!belongsInTheProjectManifest(importer, rdd.alias, wantedDep.isNew)) continue
     const declaredSpecifier = wantedDep.saveSpec === true
       ? undefined
       : getDeclaredSpecifierOwnedByHook(importer, rdd)
     if (declaredSpecifier != null) {
       declaredSpecifiers.set(rdd.alias, declaredSpecifier)
     }
-    const spec = {
+    specsToUpsert.push({
       alias: rdd.alias,
       peer: importer.peer,
       bareSpecifier: declaredSpecifier == null
@@ -40,25 +41,25 @@ export async function updateProjectManifest (
       resolvedVersion: rdd.version,
       rangeSpecStyle: importer.rangeSpecStyle,
       saveType: importer.targetDependenciesField,
-    }
-    if (shouldUpdateDependencySpecifier(importer, rdd.alias, wantedDep.isNew)) {
-      specsToUpsert.push(spec)
-    }
+    })
   }
   // Re-save a dependency flagged for update that failed to resolve (e.g. a
   // missing optional, hence absent from `directDependencies`) carrying no
   // specifier, so it keeps its existing version under the importer's target
   // field (which is unset for a plain install/update, making this a no-op).
   for (const pkgToInstall of importer.wantedDependencies) {
-    if (pkgToInstall.updateSpec && pkgToInstall.saveSpec !== false && pkgToInstall.alias && !specsToUpsert.some(({ alias }) => alias === pkgToInstall.alias)) {
-      const spec = {
+    if (
+      pkgToInstall.updateSpec &&
+      pkgToInstall.saveSpec !== false &&
+      pkgToInstall.alias &&
+      belongsInTheProjectManifest(importer, pkgToInstall.alias, pkgToInstall.isNew) &&
+      !specsToUpsert.some(({ alias }) => alias === pkgToInstall.alias)
+    ) {
+      specsToUpsert.push({
         alias: pkgToInstall.alias,
         peer: importer.peer,
         saveType: importer.targetDependenciesField,
-      }
-      if (shouldUpdateDependencySpecifier(importer, pkgToInstall.alias, pkgToInstall.isNew)) {
-        specsToUpsert.push(spec)
-      }
+      })
     }
   }
   const hookedManifest = await updateProjectManifestObject(
@@ -80,7 +81,14 @@ export async function updateProjectManifest (
   return [hookedManifest, originalManifest]
 }
 
-function shouldUpdateDependencySpecifier (
+/**
+ * Whether the upsert belongs in the manifest the project keeps on disk. A
+ * dependency a hook injected is declared only in the manifest resolution ran
+ * against, so writing it back would hand the project a dependency it never
+ * asked for. A dependency this run adds (`pnpm add foo`) is the project's from
+ * now on, whether or not a hook already supplied it.
+ */
+function belongsInTheProjectManifest (
   importer: ImporterToResolve,
   alias: string,
   isNew: boolean | undefined

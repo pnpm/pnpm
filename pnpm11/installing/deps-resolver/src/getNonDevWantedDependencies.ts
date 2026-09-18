@@ -7,11 +7,19 @@ export interface WantedDependency {
   alias: string
   bareSpecifier: string // package reference
   dev: boolean
+  /** Whether this run is the one that adds the dependency to the project's manifest. */
   isNew?: boolean
   optional: boolean
   injected?: boolean
   saveCatalogName?: string
+  /**
+   * `false` keeps the spec out of the manifest entirely: something other than the project
+   * declares it — a `packageExtensions` entry, a `readPackage` hook, or an override — and that
+   * declaration is not this run's to move. `true` marks a spec the run was asked for by name,
+   * which outranks such a declaration.
+   */
   saveSpec?: boolean
+  /** `false` resolves the dependency as a plain install would, whatever this run updates. */
   updateAllowed?: boolean
   /** Whether this dependency's spec should be (re)written to the manifest. */
   updateSpec?: boolean

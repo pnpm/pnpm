@@ -997,13 +997,9 @@ export async function mutateModules (
     // TODO: make it concurrent
     /* eslint-disable no-await-in-loop */
     for (const project of projects) {
-      const contextProject = ctx.projects[project.rootDir]
       const projectOpts = {
         ...project,
-        ...contextProject,
-        isOverriddenDependency: contextProject.originalManifest != null && overriddenDependencyMatcherFor != null
-          ? overriddenDependencyMatcherFor(contextProject.manifest)
-          : undefined,
+        ...ctx.projects[project.rootDir],
       }
       switch (project.mutation) {
         case 'uninstallSome':
@@ -1037,7 +1033,6 @@ export async function mutateModules (
     | 'binsDir'
     | 'buildIndex'
     | 'id'
-    | 'isOverriddenDependency'
     | 'manifest'
     | 'modulesDir'
     | 'mutation'
@@ -1048,19 +1043,16 @@ export async function mutateModules (
 
     async function installCase (project: InstallCaseProject) {
       const hookOwnedAliases = getHookOwnedAliases(project)
-      const protectedHookOwnedAliases = project.update === true ? hookOwnedAliases : undefined
       const wantedDependencies = getWantedDependencies(project.manifest, {
         autoInstallPeers: opts.autoInstallPeers,
         includeDirect: opts.includeDirect,
       })
-        .map((wantedDependency) => ({
-          ...wantedDependency,
-          saveSpec: !protectedHookOwnedAliases?.has(wantedDependency.alias),
-          updateAllowed: !protectedHookOwnedAliases?.has(wantedDependency.alias),
-          updateSpec: true,
-        }))
+        .map((wantedDependency) => hookOwnedAliases?.has(wantedDependency.alias)
+          ? { ...wantedDependency, saveSpec: false, updateAllowed: false, updateSpec: true }
+          : { ...wantedDependency, updateSpec: true })
       if (opts.packageVulnerabilityAudit) {
         for (const dep of wantedDependencies) {
+          if (hookOwnedAliases?.has(dep.alias)) continue
           let specifier: string | undefined = dep.bareSpecifier
           const catalogName = specifier ? parseCatalogProtocol(specifier) : null
           if (catalogName != null) {
@@ -1071,9 +1063,6 @@ export async function mutateModules (
           // Only proceed if the specifier is a pinned version, not a range
           if (!validVersion) continue
           if (opts.packageVulnerabilityAudit.isVulnerable(dep.alias, validVersion)) {
-            if (protectedHookOwnedAliases?.has(dep.alias)) {
-              continue
-            }
             // If the current version is pinned and vulnerable, expand the specifier to a range
             // that will allow updating to a non-vulnerable, semver-compatible version, if available.
             if (catalogName != null && opts.catalogs?.[catalogName]) {
@@ -1117,7 +1106,7 @@ export async function mutateModules (
       projectsToInstall.push({
         pruneDirectDependencies: false,
         ...project,
-        hookOwnedAliases: protectedHookOwnedAliases,
+        hookOwnedAliases,
         wantedDependencies,
       } as ImporterToUpdate)
     }
@@ -1126,7 +1115,6 @@ export async function mutateModules (
     | 'binsDir'
     | 'buildIndex'
     | 'id'
-    | 'isOverriddenDependency'
     | 'manifest'
     | 'modulesDir'
     | 'mutation'
@@ -1156,8 +1144,7 @@ export async function mutateModules (
       const originalBareSpecifiers = project.originalManifest == null
         ? currentBareSpecifiers
         : getAllDependenciesFromManifest(project.originalManifest, { autoInstallPeers: opts.autoInstallPeers })
-      const hookOwnedAliases = getHookOwnedAliases(project)
-      const readonlyAliases = project.update === true ? hookOwnedAliases : undefined
+      const readonlyAliases = getHookOwnedAliases(project)
       const readonlySpecifiers = readonlyAliases == null
         ? undefined
         : Object.fromEntries(
@@ -1279,11 +1266,24 @@ export async function mutateModules (
       } as ImporterToUpdate)
     }
 
+    /**
+     * The direct dependencies a `packageExtensions` entry, a `readPackage` hook, or an override
+     * governs rather than the project: absent from the manifest on disk, declared there under
+     * another dependency field, declared there with another specifier, or claimed by an override.
+     *
+     * An update leaves them as the hook supplies them. Resolving them anew moves a version the
+     * project never declared, and writing them to `package.json` hands it a declaration the next
+     * install rewrites, which `--frozen-lockfile` then rejects (pnpm/pnpm#14928).
+     *
+     * `undefined` when nothing is protected: a run that is not an update, or a project whose
+     * manifest no hook rewrote.
+     */
     function getHookOwnedAliases (
-      project: Pick<ImporterToUpdate, 'isOverriddenDependency' | 'manifest' | 'originalManifest'>
+      project: Pick<InstallCaseProject, 'manifest' | 'originalManifest' | 'update'>
     ): Set<string> | undefined {
       const originalManifest = project.originalManifest
-      if (originalManifest == null) return undefined
+      if (project.update !== true || originalManifest == null) return undefined
+      const isOverriddenDependency = overriddenDependencyMatcherFor?.(originalManifest)
       const effectiveDependencies = getAllDependenciesFromManifest(project.manifest, {
         autoInstallPeers: opts.autoInstallPeers,
       })
@@ -1293,7 +1293,7 @@ export async function mutateModules (
         if (guessDependencyType(alias, project.manifest) !== originalDependencyType) return true
         const originalSpecifier = getSpecFromPackageManifest(originalManifest, alias)
         return effectiveDependencies[alias] !== originalSpecifier ||
-          project.isOverriddenDependency?.(alias, originalSpecifier) === true
+          isOverriddenDependency?.(alias, originalSpecifier) === true
       }))
     }
 
@@ -1954,11 +1954,13 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
       })
   )
 
+  // Only the projects whose manifest this run writes need the answer, and only
+  // the manifest on disk — the one the overrides hook read — can give it.
   const overriddenDependencyMatcherFor = createOverriddenDependencyMatcher(opts.parsedOverrides, opts.lockfileDir)
   if (overriddenDependencyMatcherFor != null) {
     for (const project of projects) {
       if (!project.updatePackageManifest) continue
-      project.isOverriddenDependency = overriddenDependencyMatcherFor(project.manifest)
+      project.isOverriddenDependency = overriddenDependencyMatcherFor(project.originalManifest ?? project.manifest)
     }
   }
 
