@@ -204,7 +204,7 @@ async fn prepare_workspace<Reporter: self::Reporter + 'static>(
             root: root_dir.to_path_buf(),
             lock: cargo_lock,
             slots: None,
-            index_url: config.cargo.index_url.clone(),
+            index_url: config.cargo_index_url().to_string(),
         });
     }
     let slots = prepare_workspace_slots::<Reporter>(
@@ -220,7 +220,7 @@ async fn prepare_workspace<Reporter: self::Reporter + 'static>(
         root: root_dir.to_path_buf(),
         lock: cargo_lock,
         slots: Some(slots),
-        index_url: config.cargo.index_url.clone(),
+        index_url: config.cargo_index_url().to_string(),
     })
 }
 
@@ -339,7 +339,7 @@ async fn prepare_workspace_slots<Reporter: self::Reporter + 'static>(
     cargo_lock: &str,
     http_client: Arc<ThrottledClient>,
 ) -> Result<WorkspaceSlots> {
-    let packages = parse_lockfile(cargo_lock, &config.cargo.index_url)
+    let packages = parse_lockfile(cargo_lock, config.cargo_index_url())
         .wrap_err_with(|| format!("parse {}", cargo_lock_path.display()))?;
     let packages = build_std::include_packages(root_dir, packages).await?;
     let git_sources = packages.git_sources();

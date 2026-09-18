@@ -604,7 +604,7 @@ fn cargo_install_uses_a_configured_pnpr_registry_and_accelerator() {
     fs::write(
         root.path().join("pnpm-workspace.yaml"),
         format!(
-            "cargo:\n  enabled: true\n  indexUrl: {registry_url}index/\npnprServer: {pnpr_url}\n",
+            "cargo:\n  enabled: true\nregistries:\n  {registry_url}index/:\n    ecosystem: cargo\npnprServer: {pnpr_url}\n",
         ),
     )
     .expect("configure pnpm");

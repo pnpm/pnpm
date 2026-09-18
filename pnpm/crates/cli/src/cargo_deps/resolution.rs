@@ -45,9 +45,9 @@ fn has_override_sources(overrides: &toml::Value) -> Result<bool> {
 }
 
 pub(super) async fn resolve_with_cargo(config: &Config, root: &Path) -> Result<String> {
-    if !pnpm_cargo_resolver::is_crates_io(&config.cargo.index_url) {
+    if !pnpm_cargo_resolver::is_crates_io(config.cargo_index_url()) {
         return Err(miette::miette!(
-            "Resolving Cargo git dependencies or source overrides requires the default cargo.indexUrl. Use an existing Cargo.lock with a custom Cargo registry.",
+            r#"Resolving Cargo git dependencies or source overrides requires the default Cargo index. Use an existing Cargo.lock with a Cargo index declared in "registries"."#,
         ));
     }
     let root = root.to_path_buf();
