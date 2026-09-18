@@ -1,6 +1,6 @@
 use super::{
-    BuildEnvironment, BuiltWheel, PythonPrepare, backend, host, identify_identity, interpreter,
-    unapproved,
+    BuildEnvironment, BuiltWheel, PythonPrepare, backend, host, interpreter, unapproved,
+    validation::identify_identity,
 };
 use crate::{
     environment::Shared, interpreter::Interpreters, manifest::Manifest, targets::Environments,

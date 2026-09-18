@@ -211,6 +211,29 @@ def build_wheel(wheel_directory, config_settings=None, metadata_directory=None):
 }
 
 #[tokio::test]
+async fn static_local_projects_cannot_add_dependencies_after_resolution() {
+    let root = tempfile::tempdir().unwrap();
+    let mut server = mockito::Server::new_async().await;
+    let backend = TINY_BACKEND.replace(
+        r#"project = manifest["project"]"#,
+        r#"project = dict(manifest["project"])
+    project["dependencies"] = ["helper"]"#,
+    );
+    let _backend = serve(
+        &mut server,
+        "tinybackend",
+        &[("80.0", wheel("tinybackend", "80.0", "", &[("tinybuild.py", &backend)]))],
+    )
+    .await;
+    project(root.path(), &server.url(), &[]);
+    python_project(root.path(), "app", "dependencies = []");
+    super::assert_failure_contains(
+        super::pacquet_in(root.path()).arg("install"),
+        "requires `helper`, which",
+    );
+}
+
+#[tokio::test]
 async fn a_noneditable_dynamic_source_receives_its_prepared_metadata_directory() {
     let root = tempfile::tempdir().unwrap();
     let mut server = mockito::Server::new_async().await;

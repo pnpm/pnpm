@@ -36,7 +36,7 @@ impl Registry<'_> {
             root: &root,
             manifest: &manifest,
             editable: false,
-            contract: Contract::Manifest,
+            contract: Contract::ResolutionSource,
         }))
         .await?;
         let build::Build::Made(mut built) = built else {

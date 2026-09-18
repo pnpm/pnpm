@@ -6,7 +6,7 @@ pub(super) use metadata::{FallbackWheel, MetadataScope};
 mod approvals;
 mod metadata;
 mod validation;
-use validation::requires_what_it_declares;
+use validation::identify;
 
 use super::{
     environment::PythonPrepare,
@@ -115,8 +115,8 @@ impl PythonPrepare<'_> {
     ) -> Result<Build> {
         let Buildable { root, manifest, editable, contract } = source;
         self.installable_here(&built, root)?;
-        if contract == Contract::Manifest {
-            identify(&built.metadata, manifest, root)?;
+        if contract != Contract::Interpreter {
+            identify(&built.metadata, manifest, root, contract == Contract::ResolutionSource)?;
         }
         let directory = root.display();
         let url = url::Url::from_directory_path(root)
@@ -379,9 +379,13 @@ pub(super) struct Buildable<'a> {
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub(super) enum Contract {
     /// The manifest of the directory it was built from. Resolution
-    /// answered with its static requirements, so the wheel must include
-    /// them even when its backend adds requirements of its own.
+    /// answered with its static requirements, so the wheel must agree
+    /// with them.
     Manifest,
+    /// The manifest of a source built during resolution. The wheel must
+    /// preserve its static requirements, and may add requirements that
+    /// resolution reads from the wheel.
+    ResolutionSource,
     /// The interpreter alone. A source pnpm downloaded declares its
     /// requirements in the wheel it builds, and that wheel is what
     /// resolution then reads, so its manifest is not a second answer to
@@ -424,54 +428,6 @@ struct Backend517 {
 struct BuiltWheel {
     files: BTreeMap<String, std::path::PathBuf>,
     filename: String,
-}
-
-/// Refuse a wheel that is not the project it was built from. Resolution
-/// answered with the manifest's identity and static requirements, so the
-/// wheel must preserve both.
-fn identify(metadata: &host::WheelMetadata, manifest: &Manifest, root: &Path) -> Result<()> {
-    identify_identity(metadata, manifest, root)?;
-    requires_what_it_declares(metadata, manifest, root)
-}
-
-fn identify_identity(
-    metadata: &host::WheelMetadata,
-    manifest: &Manifest,
-    root: &Path,
-) -> Result<()> {
-    let Some(name) = manifest.distribution() else { return Ok(()) };
-    if metadata.name
-        .parse::<PackageName>()
-        .ok()
-        .as_ref()
-        != Some(name)
-    {
-        bail!(
-            "the Python project at {} declares `{name}`, but its backend built `{}`",
-            root.display(),
-            metadata.name,
-        );
-    }
-    // A project may leave its version to the backend, and then what the
-    // backend says it is is the only answer there is.
-    let Some(version) =
-        manifest.project.as_ref().and_then(|project| project.version.as_ref())
-    else {
-        return Ok(());
-    };
-    if metadata.version
-        .parse::<pep440_rs::Version>()
-        .ok()
-        .as_ref()
-        != Some(version)
-    {
-        bail!(
-            "the Python project at {} declares `{name}` {version}, but its backend built {}",
-            root.display(),
-            metadata.version,
-        );
-    }
-    Ok(())
 }
 
 struct Backend {
