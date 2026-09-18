@@ -51,10 +51,10 @@ export function formatStagedRust (repo, { format = pinnedRustfmt } = {}) {
  *
  * A file that also has unstaged changes is held back: formatting the working
  * tree and staging the result would commit the part of that file the author
- * deliberately kept out of this commit. A path that is not a regular file is
- * not a source at all — rustfmt writes through a symlink, so a staged `.rs`
- * link pointing out of the checkout would have it rewrite a file the commit
- * never touches, and the repository would show nothing changed.
+ * deliberately kept out of this commit. A path that does not lead to a regular
+ * file inside the checkout is not a source at all — rustfmt writes through a
+ * symlink, so such a path would have it rewrite a file the commit never
+ * touches, and the repository would show nothing changed.
  */
 function partitionStaged (root, staged, unstaged) {
   const alsoUnstaged = new Set(unstaged)
@@ -62,16 +62,22 @@ function partitionStaged (root, staged, unstaged) {
   const withheld = []
   const foreign = []
   for (const file of staged) {
-    if (!isRegularFile(path.join(root, file))) foreign.push(file)
+    if (!isCheckedOutSource(root, path.join(root, file))) foreign.push(file)
     else if (alsoUnstaged.has(file)) withheld.push(file)
     else formattable.push(file)
   }
   return { formattable, withheld, foreign }
 }
 
-function isRegularFile (absolute) {
+// Git will not index a path beyond a symbolic link, and reports one whose
+// directory became a link afterwards as deleted from the working tree. The
+// containment test states the invariant those two behaviors happen to give
+// rather than leaving it to them.
+function isCheckedOutSource (root, absolute) {
   try {
-    return fs.lstatSync(absolute).isFile()
+    if (!fs.lstatSync(absolute).isFile()) return false
+    const real = fs.realpathSync(absolute)
+    return real === absolute || real.startsWith(root + path.sep)
   } catch (error) {
     if (error.code === 'ENOENT') return false
     throw error

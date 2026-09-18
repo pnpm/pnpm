@@ -1,5 +1,7 @@
 import assert from 'node:assert/strict'
+import console from 'node:console'
 import fs from 'node:fs'
+import os from 'node:os'
 import path from 'node:path'
 import { test } from 'node:test'
 import { formatStagedRust } from './format-staged-rust.mjs'
@@ -125,4 +127,25 @@ test('refuses to format a staged symlink', { skip: process.platform === 'win32' 
 
   assert.deepEqual(seen, [])
   assert.equal(fs.readFileSync(outside, 'utf8'), 'fn outside() {}\n')
+})
+
+test('refuses a staged path whose directory became a link out of the checkout', { skip: process.platform === 'win32' }, (context) => {
+  const repo = repoWithSources(context, ['real.rs'])
+  fs.mkdirSync(path.join(repo, 'dir'))
+  fs.writeFileSync(path.join(repo, 'dir', 'nested.rs'), 'fn nested() {}\n')
+  git(repo, 'add', '--all')
+
+  const outside = fs.mkdtempSync(path.join(os.tmpdir(), 'pnpm-format-outside-'))
+  context.after(() => fs.rmSync(outside, { recursive: true, force: true }))
+  fs.writeFileSync(path.join(outside, 'nested.rs'), 'fn nested() {}\n')
+  fs.rmSync(path.join(repo, 'dir'), { recursive: true })
+  fs.symlinkSync(outside, path.join(repo, 'dir'))
+
+  const reported = context.mock.method(console, 'error', () => {})
+  const { seen, format } = reformatter()
+  assert.equal(formatStagedRust(repo, { format }), 0)
+
+  assert.deepEqual(seen, [])
+  assert.match(reported.mock.calls[0].arguments[0], /none is a regular file in the checkout:\n {2}dir\/nested\.rs/)
+  assert.equal(fs.readFileSync(path.join(outside, 'nested.rs'), 'utf8'), 'fn nested() {}\n')
 })
