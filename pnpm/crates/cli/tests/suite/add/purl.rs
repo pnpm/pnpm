@@ -21,9 +21,9 @@ fn add_npm_purl_saves_the_scoped_package_it_names() {
 #[test]
 fn add_cargo_purl_writes_the_crate_to_the_cargo_manifest() {
     let (root, cache_dir) = cargo_add_project();
-    // A newer version in the index separates the purl's version from the
-    // one a latest-version lookup would pick.
-    cache_foo_index_versions(&cache_dir, &["1.0.0", "2.0.0"]);
+    // `1.1.0` is what a caret range would reach and `2.0.0` is what a
+    // latest-version lookup would pick, so neither can pass for `1.0.0`.
+    cache_foo_index_versions(&cache_dir, &["1.0.0", "1.1.0", "2.0.0"]);
     Command::cargo_bin("pnpm")
         .expect("find the pnpm binary")
         .with_current_dir(root.path())
@@ -34,7 +34,7 @@ fn add_cargo_purl_writes_the_crate_to_the_cargo_manifest() {
 
     let manifest = std::fs::read_to_string(root.path().join("Cargo.toml"))
         .expect("read updated Cargo manifest");
-    assert!(manifest.contains("[dependencies]\nfoo = \"1.0.0\""), "{manifest}");
+    assert!(manifest.contains("[dependencies]\nfoo = \"=1.0.0\""), "{manifest}");
     assert!(
         !root
             .path()

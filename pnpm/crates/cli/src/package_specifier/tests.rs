@@ -79,7 +79,7 @@ fn routes_purls_to_the_ecosystem_named_by_their_type() {
         [
             EcosystemPackageSpecifier::Cargo(RegistryPackageSpecifier {
                 name: "serde".to_string(),
-                version_spec: Some("1.0.188".to_string()),
+                version_spec: Some("=1.0.188".to_string()),
             }),
             EcosystemPackageSpecifier::Python("requests==2.31.0".to_string()),
         ],
@@ -152,7 +152,10 @@ fn rejects_purls_pnpm_cannot_add() {
             "pkg:npm/%40babel/types/core",
             "pkg:npm/%40babel/types/core has a multi-segment purl namespace, but an npm scope is a single segment",
         ),
-        ("pkg:cargo/serde@%5e", "invalid Cargo version requirement in pkg:cargo/serde@%5e"),
+        ("pkg:cargo/serde@%5e", "pkg:cargo/serde@%5e does not carry a valid Cargo version"),
+        ("pkg:cargo/serde@%5E1.0", "pkg:cargo/serde@%5E1.0 does not carry a valid Cargo version"),
+        ("pkg:cargo/serde@*", "pkg:cargo/serde@* does not carry a valid Cargo version"),
+        ("pkg:cargo/serde@1.0", "pkg:cargo/serde@1.0 does not carry a valid Cargo version"),
     ] {
         let message_received =
             PackageSpecifierPlan::parse(&[specifier.into()]).expect_err(specifier).to_string();

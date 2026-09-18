@@ -81,6 +81,9 @@ fn parse_specifier(specifier: &str) -> Result<ParsedSpecifier> {
 /// npm alias, and a PEP 508 requirement carries extras and markers. Each
 /// component is therefore validated before it is joined, so a decoded
 /// separator cannot rewrite the selector into one for another package.
+///
+/// A purl version names one release rather than a range, so each arm rejects
+/// a version its ecosystem would read as a range and pins the one it names.
 fn parse_purl(purl: &Purl, source: &str) -> Result<ParsedSpecifier> {
     match purl.package_type {
         PurlType::Npm => purl_node_specifier(purl, source).map(ParsedSpecifier::Node),
@@ -126,17 +129,19 @@ fn npm_scope(namespace: &str, source: &str) -> Result<String> {
     Ok(format!("@{namespace}"))
 }
 
+/// Cargo reads a bare version as a caret range, so the pin needs a leading
+/// `=` that the `crate:` spelling does not.
 fn purl_registry_specifier(purl: &Purl, source: &str) -> Result<RegistryPackageSpecifier> {
     reject_namespace(purl, source)?;
-    let specifier = match &purl.version {
-        Some(version) => format!("{}@{version}", purl.name),
-        None => purl.name.clone(),
+    let Some(version) = &purl.version else {
+        return parse_registry_specifier(&purl.name, source);
     };
-    parse_registry_specifier(&specifier, source)
+    if semver::Version::parse(version).is_err() {
+        return Err(miette::miette!("{source} does not carry a valid Cargo version"));
+    }
+    parse_registry_specifier(&format!("{}@={version}", purl.name), source)
 }
 
-/// A Package URL version is an exact version rather than a range, so it
-/// becomes a pinned requirement.
 fn purl_python_specifier(purl: &Purl, source: &str) -> Result<String> {
     reject_namespace(purl, source)?;
     let name = pypi_project_name(purl, source)?;
