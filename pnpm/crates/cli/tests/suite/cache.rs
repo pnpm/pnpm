@@ -387,6 +387,43 @@ fn should_name_the_directory_it_could_not_remove() {
     assert!(stale.exists(), "a failed removal must leave {stale:?} in place");
 }
 
+/// `cacheDir` is a `pnpm-workspace.yaml` setting, so a checked-out project
+/// chooses where prune deletes from. `read_dir` follows a symlinked root, which
+/// would put every directory behind the link in reach of `remove_dir_all`.
+#[cfg(unix)]
+#[test]
+fn should_refuse_to_prune_through_a_symlinked_metadata_root() {
+    let cwd = CommandTempCwd::init().add_mocked_registry();
+
+    // Outside the cache directory, and named so that prune would take it for a
+    // pre-scheme leftover the moment it reached it.
+    let outside = cwd.root.path().join("outside");
+    let bystander = outside.join("registry.npmjs.org");
+    fs::create_dir_all(&bystander).unwrap();
+    fs::write(bystander.join("keep.txt"), "not pnpm's to delete").unwrap();
+
+    let root =
+        cwd.npmrc_info.cache_dir.join(pnpm_resolving_npm_resolver::mirror::ABBREVIATED_META_DIR);
+    fs::create_dir_all(root.parent().unwrap()).unwrap();
+    std::os::unix::fs::symlink(&outside, &root).unwrap();
+
+    let assertion = cwd.pacquet
+        .with_arg("cache")
+        .with_arg("prune")
+        .assert()
+        .failure();
+    let stderr = String::from_utf8_lossy(&assertion.get_output().stderr).into_owned();
+
+    assert!(
+        stderr.contains("outside the cache directory"),
+        "the refusal must say why the root was skipped, got: {stderr}",
+    );
+    assert!(
+        bystander.join("keep.txt").exists(),
+        "expected {bystander:?} to survive a prune through a symlinked root",
+    );
+}
+
 /// Nothing to reclaim must be a quiet success, not an error or a stray blank
 /// line, because a user runs this to find out whether there is anything there.
 #[test]

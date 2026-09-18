@@ -247,10 +247,25 @@ impl CacheCommand {
     ///
     /// The descriptor-scoped roots under `v11/metadata-private` are left alone,
     /// as every other `pnpm cache` subcommand leaves them alone.
+    ///
+    /// Every root is resolved against the cache directory before anything is
+    /// removed, so the sweep stays inside the tree the configuration names. See
+    /// [`confined_meta_root`].
     fn prune(config: &Config, dry_run: bool) -> miette::Result<()> {
         let mut outcome = PruneOutcome::default();
-        for meta_dir in [ABBREVIATED_META_DIR, FULL_META_DIR, FULL_FILTERED_META_DIR] {
-            outcome.prune_root(&config.cache_dir.join(meta_dir), meta_dir, dry_run);
+        match dunce::canonicalize(&config.cache_dir) {
+            Ok(cache_dir) => {
+                for meta_dir in [ABBREVIATED_META_DIR, FULL_META_DIR, FULL_FILTERED_META_DIR] {
+                    outcome.prune_root(&cache_dir, meta_dir, dry_run);
+                }
+            }
+            // No cache directory at all is nothing to reclaim, as an absent
+            // root is.
+            Err(error) if error.kind() == io::ErrorKind::NotFound => {}
+            Err(error) => outcome.failures.push(format!(
+                "Failed to resolve cache directory {:?}: {error}",
+                config.cache_dir,
+            )),
         }
         outcome.report(dry_run)
     }
@@ -271,13 +286,21 @@ impl PruneOutcome {
     /// read it is recorded, because passing over it silently would report that
     /// there is nothing stale here when the directory was never read. The
     /// remaining roots are the caller's to walk either way.
-    fn prune_root(&mut self, dir: &Path, meta_dir: &str, dry_run: bool) {
-        let entries = match fs::read_dir(dir) {
+    ///
+    /// `cache_dir` is the resolved cache directory, which `meta_dir` must turn
+    /// out to name a root inside.
+    fn prune_root(&mut self, cache_dir: &Path, meta_dir: &str, dry_run: bool) {
+        let root = match confined_meta_root(cache_dir, meta_dir) {
+            Ok(None) => return,
+            Ok(Some(root)) => root,
+            Err(error) => return self.failures.push(error),
+        };
+        let entries = match fs::read_dir(&root) {
             Ok(entries) => entries,
             Err(error) if error.kind() == io::ErrorKind::NotFound => return,
             Err(error) => {
                 return self.failures.push(format!(
-                    "Failed to read metadata cache directory {dir:?}: {error}",
+                    "Failed to read metadata cache directory {root:?}: {error}",
                 ));
             }
         };
@@ -354,6 +377,41 @@ impl PruneOutcome {
         let count = directory_count(self.failures.len());
         Err(miette::miette!("Failed to reclaim {count}"))
     }
+}
+
+/// The metadata root to sweep, resolved, once it is known to lie inside
+/// `cache_dir`. `Ok(None)` when there is no such root, `Err` with the message to
+/// report when it cannot be resolved or resolves outside.
+///
+/// `cacheDir` is a `pnpm-workspace.yaml` setting, so a checked-out project
+/// chooses where this command deletes from. `read_dir` follows a symlinked root,
+/// which would put every directory behind the link in reach of
+/// `remove_dir_all` — and the names prune accepts are broad, being every name
+/// that is not in the current key shape. Requiring the root to resolve inside
+/// the cache directory keeps the sweep in the tree the configuration names.
+///
+/// The resolved path is what gets swept, so a link swapped in after the check
+/// cannot redirect the removals either. This is the containment
+/// `pnpm_deps_restorer`'s `confined_modules_dir` applies before its own sweep.
+///
+/// A `cacheDir` pointing somewhere unwelcome outright is not this check's to
+/// catch: the sweep is then inside the configured directory, which is the
+/// contract every `pnpm cache` subcommand already works to.
+fn confined_meta_root(cache_dir: &Path, meta_dir: &str) -> Result<Option<PathBuf>, String> {
+    let named = cache_dir.join(meta_dir);
+    let root = match dunce::canonicalize(&named) {
+        Ok(root) => root,
+        Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(None),
+        Err(error) => {
+            return Err(format!("Failed to resolve metadata cache directory {named:?}: {error}"));
+        }
+    };
+    if !root.starts_with(cache_dir) {
+        return Err(format!(
+            "Refusing to prune {named:?}: it resolves to {root:?}, outside the cache directory {cache_dir:?}",
+        ));
+    }
+    Ok(Some(root))
 }
 
 /// `count` with the noun it agrees with, so a single stale directory does not
