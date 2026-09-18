@@ -104,7 +104,7 @@ fn global_install_preserves_virtual_shim_ownership_and_restores_it_on_remove() {
     prepare_global_home(&pnpm_home, &npmrc_info);
     let registry = npmrc_info.mock_instance.url();
 
-    global_shim_command(&workspace, &pnpm_home, root.path(), &registry)
+    global_shim_command(&workspace, &pnpm_home, root.path(), registry)
         .with_args(["shim", "add", "@foo/touch-file-one-bin"])
         .assert()
         .success();
@@ -126,7 +126,7 @@ fn global_install_preserves_virtual_shim_ownership_and_restores_it_on_remove() {
     .expect("write unrelated manifest");
     fs::write(unrelated.join("cli.js"), "#!/usr/bin/env node\n").expect("write unrelated bin");
     let unrelated_selector = format!("file:{}", unrelated.display());
-    let collision = global_shim_command(&workspace, &pnpm_home, root.path(), &registry)
+    let collision = global_shim_command(&workspace, &pnpm_home, root.path(), registry)
         .with_args(["add", "-g", &unrelated_selector])
         .assert()
         .failure();
@@ -135,7 +135,7 @@ fn global_install_preserves_virtual_shim_ownership_and_restores_it_on_remove() {
     assert!(stderr.contains("pnpm shim rm @foo/touch-file-one-bin"), "{stderr}");
     assert_eq!(fs::read(&target_file).unwrap(), virtual_target);
 
-    global_shim_command(&workspace, &pnpm_home, root.path(), &registry)
+    global_shim_command(&workspace, &pnpm_home, root.path(), registry)
         .with_args(["add", "-g", "@foo/touch-file-one-bin"])
         .assert()
         .success();
@@ -146,7 +146,7 @@ fn global_install_preserves_virtual_shim_ownership_and_restores_it_on_remove() {
         String::from_utf8_lossy(&backed_target),
     );
 
-    let collision = global_shim_command(&workspace, &pnpm_home, root.path(), &registry)
+    let collision = global_shim_command(&workspace, &pnpm_home, root.path(), registry)
         .with_args(["add", "-g", &unrelated_selector])
         .assert()
         .failure();
@@ -154,7 +154,7 @@ fn global_install_preserves_virtual_shim_ownership_and_restores_it_on_remove() {
     assert!(stderr.contains("pnpm shim rm @foo/touch-file-one-bin"), "{stderr}");
     assert_eq!(fs::read(&target_file).unwrap(), backed_target);
 
-    global_shim_command(&workspace, &pnpm_home, root.path(), &registry)
+    global_shim_command(&workspace, &pnpm_home, root.path(), registry)
         .with_args(["remove", "-g", "@foo/touch-file-one-bin"])
         .assert()
         .success();
@@ -165,15 +165,15 @@ fn global_install_preserves_virtual_shim_ownership_and_restores_it_on_remove() {
     );
     assert!(shim_path.is_file(), "the restored shim must be in place");
 
-    global_shim_command(&workspace, &pnpm_home, root.path(), &registry)
+    global_shim_command(&workspace, &pnpm_home, root.path(), registry)
         .with_args(["add", "-g", "@foo/touch-file-one-bin"])
         .assert()
         .success();
-    global_shim_command(&workspace, &pnpm_home, root.path(), &registry)
+    global_shim_command(&workspace, &pnpm_home, root.path(), registry)
         .with_args(["shim", "rm", "@foo/touch-file-one-bin"])
         .assert()
         .success();
-    global_shim_command(&workspace, &pnpm_home, root.path(), &registry)
+    global_shim_command(&workspace, &pnpm_home, root.path(), registry)
         .with_args(["remove", "-g", "@foo/touch-file-one-bin"])
         .assert()
         .success();
@@ -209,11 +209,11 @@ fn global_replacement_restores_a_virtual_shim_for_a_dropped_bin() {
     )
     .expect("write new package manifest");
 
-    global_shim_command(&workspace, &pnpm_home, root.path(), &registry)
+    global_shim_command(&workspace, &pnpm_home, root.path(), registry)
         .with_args(["shim", "add", "@foo/touch-file-one-bin"])
         .assert()
         .success();
-    global_shim_command(&workspace, &pnpm_home, root.path(), &registry)
+    global_shim_command(&workspace, &pnpm_home, root.path(), registry)
         .with_args(["add", "-g", "@foo/touch-file-one-bin"])
         .assert()
         .success();
@@ -223,7 +223,7 @@ fn global_replacement_restores_a_virtual_shim_for_a_dropped_bin() {
             .starts_with(b"pkg:"),
     );
 
-    global_shim_command(&workspace, &pnpm_home, root.path(), &registry)
+    global_shim_command(&workspace, &pnpm_home, root.path(), registry)
         .with_args(["add", "-g", &format!("file:{}", new_package.display())])
         .assert()
         .success();
@@ -252,18 +252,18 @@ fn failed_virtual_shim_restoration_leaves_global_removal_retryable() {
     prepare_global_home(&pnpm_home, &npmrc_info);
     let registry = npmrc_info.mock_instance.url();
 
-    global_shim_command(&workspace, &pnpm_home, root.path(), &registry)
+    global_shim_command(&workspace, &pnpm_home, root.path(), registry)
         .with_args(["shim", "add", "@foo/touch-file-one-bin"])
         .assert()
         .success();
-    global_shim_command(&workspace, &pnpm_home, root.path(), &registry)
+    global_shim_command(&workspace, &pnpm_home, root.path(), registry)
         .with_args(["add", "-g", "@foo/touch-file-one-bin"])
         .assert()
         .success();
 
     fs::remove_file(&shim_path).expect("remove the global shim");
     fs::create_dir(&shim_path).expect("occupy the shim path with a directory");
-    global_shim_command(&workspace, &pnpm_home, root.path(), &registry)
+    global_shim_command(&workspace, &pnpm_home, root.path(), registry)
         .with_args(["remove", "-g", "@foo/touch-file-one-bin"])
         .assert()
         .failure();
@@ -274,7 +274,7 @@ fn failed_virtual_shim_restoration_leaves_global_removal_retryable() {
     );
 
     fs::remove_dir(&shim_path).expect("release the shim path");
-    global_shim_command(&workspace, &pnpm_home, root.path(), &registry)
+    global_shim_command(&workspace, &pnpm_home, root.path(), registry)
         .with_args(["remove", "-g", "@foo/touch-file-one-bin"])
         .assert()
         .success();

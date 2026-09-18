@@ -67,7 +67,7 @@ fn install_options_for(
             .to_string_lossy()
             .into_owned(),
     );
-    options.registries = Some(HashMap::from([("default".to_string(), registry.url())]));
+    options.registries = Some(HashMap::from([("default".to_string(), registry.url().to_string())]));
     options.return_list_of_deps_requiring_build = Some(true);
     options
 }

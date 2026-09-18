@@ -40,7 +40,7 @@ pub(super) async fn pnpr_request_inputs(
         .as_ref()
         .map_or_else(
             || state.config.registry.clone(),
-            PnprBenchmarkRegistryOverride::resolve_registry,
+            |override_| override_.resolve_registry().to_owned(),
         );
 
     let pnpmfile_hook = load_pnpr_pnpmfile(state, lockfile_dir)?;
@@ -224,8 +224,8 @@ impl PnprBenchmarkRegistryOverride {
         Some(Self { resolve_registry, tarball_rewrite })
     }
 
-    pub(super) fn resolve_registry(&self) -> String {
-        self.resolve_registry.clone()
+    pub(super) fn resolve_registry(&self) -> &str {
+        &self.resolve_registry
     }
 
     pub(super) fn client_tarball_url(&self, url: &str) -> String {

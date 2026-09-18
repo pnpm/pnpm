@@ -163,7 +163,7 @@ pub(crate) struct EmulatedCancellation<'tracker> {
 }
 
 impl EmulatedCancellation<'_> {
-    pub(crate) fn receiver(&self) -> watch::Receiver<bool> {
+    pub(crate) fn to_receiver(&self) -> watch::Receiver<bool> {
         self.receiver.clone()
     }
 }

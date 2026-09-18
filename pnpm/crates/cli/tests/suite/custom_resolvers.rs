@@ -103,7 +103,7 @@ fn custom_resolver_takes_precedence_over_builtin_resolvers() {
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
 
     write_manifest(&workspace);
-    fs::write(workspace.join(".pnpmfile.cjs"), overriding_pnpmfile(&mock_instance.url(), "false"))
+    fs::write(workspace.join(".pnpmfile.cjs"), overriding_pnpmfile(mock_instance.url(), "false"))
         .expect("write pnpmfile");
 
     pacquet
@@ -163,7 +163,7 @@ fn should_refresh_resolution_forces_re_resolution_past_the_frozen_path() {
     // `shouldRefreshResolution` returning true must force the
     // fresh-resolve path, where the custom resolver now overrides the
     // pinned version.
-    fs::write(workspace.join(".pnpmfile.cjs"), overriding_pnpmfile(&mock_instance.url(), "true"))
+    fs::write(workspace.join(".pnpmfile.cjs"), overriding_pnpmfile(mock_instance.url(), "true"))
         .expect("rewrite pnpmfile");
     pacquet_at(&workspace)
         .with_arg("install")
@@ -336,7 +336,7 @@ fn custom_resolver_without_a_manifest_installs_the_package_with_its_dependencies
         .to_string(),
     )
     .expect("write package.json");
-    fs::write(workspace.join(".pnpmfile.cjs"), manifest_less_pnpmfile(&mock_instance.url()))
+    fs::write(workspace.join(".pnpmfile.cjs"), manifest_less_pnpmfile(mock_instance.url()))
         .expect("write pnpmfile");
 
     pacquet

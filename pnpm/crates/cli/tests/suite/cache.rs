@@ -34,7 +34,7 @@ fn should_list_packages() {
 
     let cache_dir = cwd.npmrc_info.cache_dir.join("v11").join("metadata");
     let url_str = cwd.npmrc_info.mock_instance.url();
-    let registry_name = pnpm_resolving_npm_resolver::mirror::get_registry_name(&url_str).unwrap();
+    let registry_name = pnpm_resolving_npm_resolver::mirror::get_registry_name(url_str).unwrap();
     fs::create_dir_all(cache_dir.join(&registry_name)).unwrap();
     fs::write(cache_dir.join(&registry_name).join("is-positive.jsonl"), "{}").unwrap();
     fs::write(cache_dir.join(&registry_name).join("is-negative.jsonl"), "{}").unwrap();
@@ -59,7 +59,7 @@ fn should_list_only_files_not_directories() {
 
     let cache_dir = cwd.npmrc_info.cache_dir.join("v11").join("metadata");
     let url_str = cwd.npmrc_info.mock_instance.url();
-    let registry_name = pnpm_resolving_npm_resolver::mirror::get_registry_name(&url_str).unwrap();
+    let registry_name = pnpm_resolving_npm_resolver::mirror::get_registry_name(url_str).unwrap();
     fs::create_dir_all(cache_dir.join(&registry_name)).unwrap();
     fs::write(cache_dir.join(&registry_name).join("is-positive.jsonl"), "{}").unwrap();
     // A scoped package lives in its own directory, which the glob also matches.
@@ -101,7 +101,7 @@ fn should_delete_packages() {
 
     let cache_dir = cwd.npmrc_info.cache_dir.join("v11").join("metadata");
     let url_str = cwd.npmrc_info.mock_instance.url();
-    let registry_name = pnpm_resolving_npm_resolver::mirror::get_registry_name(&url_str).unwrap();
+    let registry_name = pnpm_resolving_npm_resolver::mirror::get_registry_name(url_str).unwrap();
     fs::create_dir_all(cache_dir.join(&registry_name)).unwrap();
     fs::write(cache_dir.join(&registry_name).join("is-positive.jsonl"), "{}").unwrap();
     fs::write(cache_dir.join(&registry_name).join("is-negative.jsonl"), "{}").unwrap();
@@ -137,7 +137,7 @@ fn should_delete_packages_from_all_metadata_dirs() {
     let cwd = CommandTempCwd::init().add_mocked_registry();
 
     let url_str = cwd.npmrc_info.mock_instance.url();
-    let registry_name = pnpm_resolving_npm_resolver::mirror::get_registry_name(&url_str).unwrap();
+    let registry_name = pnpm_resolving_npm_resolver::mirror::get_registry_name(url_str).unwrap();
     // A package can be cached under any metadata directory depending on the
     // resolution mode used at fetch time, so all of them must be cleared.
     let meta_dirs = [
@@ -172,7 +172,7 @@ fn should_view_package_cache() {
     let cwd = CommandTempCwd::init().add_mocked_registry();
     let cache_dir = cwd.npmrc_info.cache_dir.join("v11").join("metadata");
     let url_str = cwd.npmrc_info.mock_instance.url();
-    let registry_name = pnpm_resolving_npm_resolver::mirror::get_registry_name(&url_str).unwrap();
+    let registry_name = pnpm_resolving_npm_resolver::mirror::get_registry_name(url_str).unwrap();
     fs::create_dir_all(cache_dir.join(&registry_name)).unwrap();
 
     let package_jsonl = "{}\n{\
@@ -249,7 +249,7 @@ fn import_populates_metadata_cache() {
         .success();
 
     let registry_name =
-        pnpm_resolving_npm_resolver::mirror::get_registry_name(&mock_instance.url()).unwrap();
+        pnpm_resolving_npm_resolver::mirror::get_registry_name(mock_instance.url()).unwrap();
     let cache_metadata_dir = cache_dir
         .join("v11")
         .join("metadata")

@@ -51,7 +51,7 @@ async fn install_skips_prune_when_virtual_store_escapes_node_modules() {
     config.store_dir = store_dir.into();
     config.modules_dir = modules_dir.clone();
     config.virtual_store_dir = virtual_store_dir.clone();
-    config.registry = mock_instance.url();
+    config.registry = mock_instance.url().to_string();
     let config = config.leak();
 
     Install {

@@ -34,7 +34,7 @@ async fn fresh_install_reports_strict_minimum_release_age_violations_before_writ
     config.store_dir = dir.path().join("store").into();
     config.modules_dir = modules_dir.clone();
     config.virtual_store_dir = virtual_store_dir;
-    config.registry = mock_instance.url();
+    config.registry = mock_instance.url().to_string();
     config.minimum_release_age = Some(60 * 24 * 365 * 100);
     config.minimum_release_age_strict = Some(true);
     let config = config.leak();

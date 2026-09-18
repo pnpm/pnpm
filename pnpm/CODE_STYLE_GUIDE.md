@@ -52,6 +52,12 @@ Keep function and method bodies within three levels of nesting, including tests.
 
 Keep iterator closures simple. A single expression can make a chain easy to follow. When a closure needs several statements, prefer an explicit loop or a named helper. Preserve lazy evaluation, allocation behavior, and short-circuiting when choosing between them.
 
+### Condition complexity
+
+Keep `if`, `while`, and match-guard conditions within five `&&` or `||` operators, including tests. `perfectionist::overly_complex_condition` enforces this across the Rust workspace through [`dylint.toml`](../dylint.toml).
+
+A longer condition is two predicates the author did not name. Name the whole condition, extract a helper for the group of clauses that names a concept, or split the leading clauses into a guard clause. Keep a helper call inside the short-circuit chain rather than binding its result above the condition, so the clauses after it stay unevaluated until the condition reaches them, and keep a `while` condition's work on every iteration.
+
 ### Method chains
 
 Keep production method chains within nine calls. Consecutive calls to the same method count once; `.await` and `?` do not add to the count. Tests are exempt.
@@ -243,6 +249,14 @@ fn node_bin_dir(workspace: &Path) -> PathBuf {
 let a = node_bin_dir(&my_path_buf);
 let b = node_bin_dir(my_path_ref);
 ```
+
+### Getters return the borrowed form
+
+A getter — an inherent `&self` method named for the field it reads, or one named `get_*` — returns the [borrowed] form of that field: `&str` for a `String`, `&Path` for a `PathBuf`, `&[T]` for a `Vec<T>`, `Option<&T>` for an `Option<T>`.
+
+A getter that copies decides for every caller that they wanted an owned value, and most did not: they compare, print, or pass it on. The borrowed form serves every caller and leaves the one that needs ownership to copy at the call site, where the reader can see it. Where every call site would copy the borrow straight back, name the method `to_*` instead, the prefix for a conversion that costs something.
+
+`perfectionist::cloning_getter` enforces this across the Rust workspace through [`dylint.toml`](../dylint.toml). An `Rc` or `Arc` field is exempt, since cloning one bumps a refcount rather than copying what it points at.
 
 ### Trait Bounds
 

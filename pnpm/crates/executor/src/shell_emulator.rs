@@ -79,7 +79,7 @@ pub fn execute_emulated(
             .map(|(key, value)| (OsString::from(key), OsString::from(value)))
             .collect(),
         cwd,
-        cancellation: cancellation.as_ref().map(EmulatedCancellation::receiver),
+        cancellation: cancellation.as_ref().map(EmulatedCancellation::to_receiver),
     };
     match output {
         EmulatedOutput::Inherit => {

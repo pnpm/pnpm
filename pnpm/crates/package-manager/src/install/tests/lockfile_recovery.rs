@@ -423,7 +423,7 @@ async fn fresh_install_records_lockfile_verification_for_mtime_bypassed_noop() {
     config.store_dir = store_dir.clone().into();
     config.modules_dir = modules_dir.clone();
     config.virtual_store_dir = virtual_store_dir.clone();
-    config.registry = mock_instance.url();
+    config.registry = mock_instance.url().to_string();
     let config = config.leak();
 
     Install {

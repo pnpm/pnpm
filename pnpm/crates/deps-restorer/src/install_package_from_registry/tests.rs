@@ -303,7 +303,7 @@ pub async fn should_install_package_from_pre_resolved_result() {
         virtual_store_dir.path(),
         cache_dir.path(),
     );
-    config.registry = mock_instance.url();
+    config.registry = mock_instance.url().to_string();
     let config: &'static Config = config.pipe(Box::new).pipe(Box::leak);
 
     let http_client = Arc::new(ThrottledClient::new_for_installs());
@@ -394,7 +394,7 @@ async fn second_visit_skips_progress_emits_but_still_links() {
         virtual_store_dir.path(),
         cache_dir.path(),
     );
-    config.registry = mock_instance.url();
+    config.registry = mock_instance.url().to_string();
     let config: &'static Config = config.pipe(Box::new).pipe(Box::leak);
 
     let http_client = Arc::new(ThrottledClient::new_for_installs());
@@ -518,7 +518,7 @@ async fn install_emits_progress_sequence() {
         virtual_store_dir.path(),
         cache_dir.path(),
     );
-    config.registry = mock_instance.url();
+    config.registry = mock_instance.url().to_string();
     let config: &'static Config = config.pipe(Box::new).pipe(Box::leak);
 
     let http_client = Arc::new(ThrottledClient::new_for_installs());

@@ -33,7 +33,7 @@ fn lockfile_records_overrides_in_declaration_order() {
             .to_string_lossy()
             .into_owned(),
     );
-    options.registries = Some(HashMap::from([("default".to_string(), registry.url())]));
+    options.registries = Some(HashMap::from([("default".to_string(), registry.url().to_string())]));
     options.overrides = Some(indexmap::IndexMap::from_iter([
         ("zzz-unmatched".to_string(), "1.0.0".to_string()),
         ("aaa-unmatched".to_string(), "2.0.0".to_string()),

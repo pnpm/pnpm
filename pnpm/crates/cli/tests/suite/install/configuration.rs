@@ -385,7 +385,7 @@ fn install_resolves_env_var_in_user_npmrc_registry() {
 
     eprintln!("Executing command with PACQUET_TEST_REGISTRY set...");
     pacquet
-        .with_env("PACQUET_TEST_REGISTRY", &mocked_registry_url)
+        .with_env("PACQUET_TEST_REGISTRY", mocked_registry_url)
         .with_arg("--npmrc-auth-file")
         .with_arg(user_npmrc_path)
         .with_arg("install")

@@ -121,7 +121,7 @@ struct Harness {
 }
 
 fn harness() -> Harness {
-    let registry_url = TestRegistry::start().url();
+    let registry_url = TestRegistry::start().url().to_string();
     let mut registries = std::collections::HashMap::new();
     registries.insert("default".to_string(), registry_url.clone());
     let store_root = TempDir::new().unwrap();

@@ -22,7 +22,7 @@ fn install_via_pnpr_links_node_modules() {
         ..
     } = npmrc_info;
 
-    let (pnpr_url, token) = start_pnpr(&mock_instance.url());
+    let (pnpr_url, token) = start_pnpr(mock_instance.url());
     configure_pnpr_auth(&npmrc_path, &pnpr_url, &token);
 
     let manifest_path = workspace.join("package.json");
@@ -61,7 +61,7 @@ fn install_via_pnpr_merges_a_conflicted_lockfile() {
         ..
     } = CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { npmrc_path, mock_instance, .. } = npmrc_info;
-    let (pnpr_url, token) = start_pnpr(&mock_instance.url());
+    let (pnpr_url, token) = start_pnpr(mock_instance.url());
     configure_pnpr_auth(&npmrc_path, &pnpr_url, &token);
 
     let conflicted = write_conflicted_lockfile_fixture(&workspace);
@@ -104,7 +104,7 @@ fn patched_dependencies_resolve_via_pnpr() {
         ..
     } = CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { npmrc_path, mock_instance, .. } = npmrc_info;
-    let (pnpr_url, token) = start_pnpr(&mock_instance.url());
+    let (pnpr_url, token) = start_pnpr(mock_instance.url());
     configure_pnpr_auth(&npmrc_path, &pnpr_url, &token);
 
     fs::write(
@@ -149,7 +149,7 @@ fn package_extensions_resolve_via_pnpr() {
         ..
     } = CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { npmrc_path, mock_instance, .. } = npmrc_info;
-    let (pnpr_url, token) = start_pnpr(&mock_instance.url());
+    let (pnpr_url, token) = start_pnpr(mock_instance.url());
     configure_pnpr_auth(&npmrc_path, &pnpr_url, &token);
 
     fs::write(
@@ -189,7 +189,7 @@ fn install_via_pnpr_preserves_the_lockfiles_time_section() {
         CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { npmrc_path, mock_instance, .. } = npmrc_info;
 
-    let (pnpr_url, token) = start_pnpr(&mock_instance.url());
+    let (pnpr_url, token) = start_pnpr(mock_instance.url());
     configure_pnpr_auth(&npmrc_path, &pnpr_url, &token);
 
     let manifest_path = workspace.join("package.json");
@@ -254,7 +254,7 @@ fn frozen_install_via_pnpr_verifies_the_local_lockfile_without_resolving_or_redo
         ..
     } = npmrc_info;
 
-    let (pnpr_url, token) = start_pnpr(&mock_instance.url());
+    let (pnpr_url, token) = start_pnpr(mock_instance.url());
     configure_pnpr_auth(&npmrc_path, &pnpr_url, &token);
 
     let manifest_path = workspace.join("package.json");
@@ -324,7 +324,7 @@ fn repeat_install_via_pnpr_short_circuits_without_contacting_the_server() {
     } = CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { npmrc_path, mock_instance, .. } = npmrc_info;
 
-    let (pnpr_url, token) = start_pnpr(&mock_instance.url());
+    let (pnpr_url, token) = start_pnpr(mock_instance.url());
     configure_pnpr_auth(&npmrc_path, &pnpr_url, &token);
 
     let manifest_path = workspace.join("package.json");
@@ -378,7 +378,7 @@ fn install_via_pnpr_skips_the_server_when_the_lockfile_satisfies_the_manifest() 
     } = CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { npmrc_path, mock_instance, .. } = npmrc_info;
 
-    let (pnpr_url, token) = start_pnpr(&mock_instance.url());
+    let (pnpr_url, token) = start_pnpr(mock_instance.url());
     configure_pnpr_auth(&npmrc_path, &pnpr_url, &token);
 
     let manifest_path = workspace.join("package.json");
@@ -442,7 +442,7 @@ fn satisfied_install_via_pnpr_delegates_verification_when_the_cache_is_cold() {
         ..
     } = npmrc_info;
 
-    let (pnpr_url, token) = start_pnpr(&mock_instance.url());
+    let (pnpr_url, token) = start_pnpr(mock_instance.url());
     configure_pnpr_auth(&npmrc_path, &pnpr_url, &token);
 
     let manifest_path = workspace.join("package.json");
@@ -506,7 +506,7 @@ fn install_via_pnpr_lockfile_only_writes_lockfile_without_linking() {
         ..
     } = npmrc_info;
 
-    let (pnpr_url, token) = start_pnpr(&mock_instance.url());
+    let (pnpr_url, token) = start_pnpr(mock_instance.url());
     configure_pnpr_auth(&npmrc_path, &pnpr_url, &token);
 
     let manifest_path = workspace.join("package.json");
@@ -553,7 +553,7 @@ fn import_ignores_the_pnpr_server_and_resolves_locally() {
         ..
     } = npmrc_info;
 
-    let (pnpr_url, token) = start_pnpr(&mock_instance.url());
+    let (pnpr_url, token) = start_pnpr(mock_instance.url());
     configure_pnpr_auth(&npmrc_path, &pnpr_url, &token);
 
     let manifest_path = workspace.join("package.json");

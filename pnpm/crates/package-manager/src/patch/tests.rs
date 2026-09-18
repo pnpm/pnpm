@@ -249,7 +249,7 @@ async fn patch_extract_records_download_in_store_index() {
     std::fs::create_dir_all(&store_dir).expect("create store dir");
 
     let mut config = pnpm_config::Config::new();
-    config.registry = registry.url();
+    config.registry = registry.url().to_string();
     config.store_dir = StoreDir::new(&store_dir);
     let config: &'static pnpm_config::Config = Box::leak(Box::new(config));
 

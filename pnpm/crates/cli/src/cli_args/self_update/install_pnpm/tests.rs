@@ -47,7 +47,7 @@ async fn run_install_ignores_an_ambient_workspace_manifest_above_the_install_dir
         cache_dir: temp.path().join("cache"),
         ..Config::default()
     };
-    cfg.package_manager_bootstrap.registry = registry.url();
+    cfg.package_manager_bootstrap.registry = registry.url().to_string();
     let config = Config::leak(cfg);
 
     run_install::<SilentReporter>(

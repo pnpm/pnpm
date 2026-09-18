@@ -11,13 +11,13 @@ use super::{
 #[tokio::test]
 async fn an_upstream_resolves_a_private_package() {
     let registry = TestRegistry::start();
-    let token = register_token(&registry.url(), "needs-auth-forwarder").await;
+    let token = register_token(registry.url(), "needs-auth-forwarder").await;
     let (pnpr_url, pnpr_auth, _storage) =
-        start_pnpr_with_upstreams(vec![registry_upstream(&registry.url(), &token)]).await;
+        start_pnpr_with_upstreams(vec![registry_upstream(registry.url(), &token)]).await;
 
     let client = PnprClient::new(pnpr_url);
 
-    let opts = options(&registry.url(), &pnpr_auth, deps([("@pnpm.e2e/needs-auth", "1.0.0")]));
+    let opts = options(registry.url(), &pnpr_auth, deps([("@pnpm.e2e/needs-auth", "1.0.0")]));
     let outcome = client.resolve(opts).await.expect("the upstream should resolve it");
     let packages = outcome.lockfile.packages.as_ref().expect("lockfile has packages");
     assert!(
@@ -39,11 +39,11 @@ async fn an_upstream_resolves_a_private_package() {
 #[tokio::test]
 async fn a_private_package_fails_without_an_upstream() {
     let registry = TestRegistry::start();
-    let (pnpr_url, pnpr_auth, _storage) = start_pnpr(&registry.url()).await;
+    let (pnpr_url, pnpr_auth, _storage) = start_pnpr(registry.url()).await;
 
     let client = PnprClient::new(pnpr_url);
 
-    let opts = options(&registry.url(), &pnpr_auth, deps([("@pnpm.e2e/needs-auth", "1.0.0")]));
+    let opts = options(registry.url(), &pnpr_auth, deps([("@pnpm.e2e/needs-auth", "1.0.0")]));
     let Err(PnprClientError::Server(message)) = client.resolve(opts).await else {
         panic!("expected the gated install to fail with a server error");
     };
@@ -57,10 +57,10 @@ async fn a_private_package_fails_without_an_upstream() {
 #[tokio::test]
 async fn unknown_route_keeps_its_upstream_tarball_url() {
     let registry = TestRegistry::start();
-    let (pnpr_url, pnpr_auth, _storage) = start_pnpr(&registry.url()).await;
+    let (pnpr_url, pnpr_auth, _storage) = start_pnpr(registry.url()).await;
 
     let outcome = PnprClient::new(pnpr_url)
-        .resolve(options(&registry.url(), &pnpr_auth, deps([("@foo/no-deps", "1.0.0")])))
+        .resolve(options(registry.url(), &pnpr_auth, deps([("@foo/no-deps", "1.0.0")])))
         .await
         .expect("install should succeed");
     let lockfile = serde_json::to_value(&outcome.lockfile).expect("lockfile serializes");

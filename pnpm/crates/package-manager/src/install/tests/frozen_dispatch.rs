@@ -297,7 +297,7 @@ async fn frozen_lockfile_gate_rejects_under_huge_minimum_release_age() {
     config.store_dir = dirs.store_dir.clone().into();
     config.modules_dir = dirs.modules_dir.clone();
     config.virtual_store_dir = dirs.virtual_store_dir.clone();
-    config.registry = mock_instance.url();
+    config.registry = mock_instance.url().to_string();
     // 100 years in minutes. Anything the registry has shipped to
     // date is inside the cutoff, so the publish-time check rejects
     // every lockfile entry regardless of what the mocked packument's
@@ -416,7 +416,7 @@ async fn prefer_frozen_install_writes_missing_current_lockfile() {
     config.store_dir = dirs.store_dir.clone().into();
     config.modules_dir = dirs.modules_dir.clone();
     config.virtual_store_dir = dirs.virtual_store_dir.clone();
-    config.registry = mock_instance.url();
+    config.registry = mock_instance.url().to_string();
     let config = config.leak();
 
     Install {

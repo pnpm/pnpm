@@ -57,7 +57,7 @@ fn ignore_package_manifest_populates_the_virtual_store_without_linking() {
             .to_string_lossy()
             .into_owned(),
     );
-    options.registries = Some(HashMap::from([("default".to_string(), registry.url())]));
+    options.registries = Some(HashMap::from([("default".to_string(), registry.url().to_string())]));
 
     // Seed the lockfile with an ordinary install, then throw the linked
     // `node_modules` away so the fetch-shaped run starts from the lockfile
@@ -123,7 +123,7 @@ fn ignore_package_manifest_survives_an_ambient_lockfile_false() {
             .to_string_lossy()
             .into_owned(),
     );
-    options.registries = Some(HashMap::from([("default".to_string(), registry.url())]));
+    options.registries = Some(HashMap::from([("default".to_string(), registry.url().to_string())]));
 
     options.lockfile_only = Some(true);
     run_install_inner(&options, None, EngineMode::Install(None)).expect("seed the lockfile");
@@ -193,7 +193,7 @@ fn ignore_package_manifest_fetches_importers_the_caller_did_not_pass() {
             .to_string_lossy()
             .into_owned(),
     );
-    options.registries = Some(HashMap::from([("default".to_string(), registry.url())]));
+    options.registries = Some(HashMap::from([("default".to_string(), registry.url().to_string())]));
 
     options.lockfile_only = Some(true);
     run_install_inner(&options, None, EngineMode::Install(None)).expect("seed the lockfile");
@@ -251,7 +251,7 @@ fn repeat_install_uses_changed_in_memory_manifest() {
             .to_string_lossy()
             .into_owned(),
     );
-    options.registries = Some(HashMap::from([("default".to_string(), registry.url())]));
+    options.registries = Some(HashMap::from([("default".to_string(), registry.url().to_string())]));
 
     run_install_inner(&options, None, EngineMode::Install(None)).expect("first install");
     assert!(project_dir.join("node_modules/@pnpm.e2e/foo").exists());
