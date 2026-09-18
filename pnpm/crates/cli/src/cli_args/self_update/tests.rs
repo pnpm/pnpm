@@ -1,4 +1,7 @@
-use super::{install_pnpm, is_installed_globally, refresh_global_shims, version_lt};
+use super::{
+    global_bin::refresh_global_shims, install_pnpm, is_installed_globally, join_messages,
+    version_lt,
+};
 use crate::{
     cli_args::self_update::project_pin::{
         package_manager_pin_specifier, update_version_constraint,
@@ -99,6 +102,19 @@ fn is_installed_globally_requires_a_matching_global_install() {
     // the engine yet, so the update proceeds and relinks it.
     seed_global_engine_slot(global_dir, "@pnpm/exe", "12.5.0", false);
     assert!(!is_installed_globally(Some(global_dir), "12.5.0").unwrap());
+}
+
+#[test]
+fn a_project_pin_message_does_not_hide_the_global_switch() {
+    // Guards pnpm/pnpm#14747: `self-update` in a project already pinned to the
+    // resolved version still moves the global install forward, and has to say so.
+    assert_eq!(
+        join_messages(Some("pinned".to_string()), Some("switched".to_string())),
+        Some("pinned\nswitched".to_string()),
+    );
+    assert_eq!(join_messages(Some("pinned".to_string()), None), Some("pinned".to_string()));
+    assert_eq!(join_messages(None, Some("switched".to_string())), Some("switched".to_string()));
+    assert_eq!(join_messages(None, None), None);
 }
 
 #[test]
