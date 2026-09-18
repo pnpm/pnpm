@@ -31,7 +31,7 @@ pub(crate) struct PackageSpecifierPlan {
 }
 
 impl PackageSpecifierPlan {
-    pub(crate) fn parse(package_names: &[AddRequest]) -> Result<Self> {
+    pub(crate) fn parse(package_names: impl IntoIterator<Item = AddRequest>) -> Result<Self> {
         let mut node_packages = Vec::new();
         let mut ecosystem_packages = Vec::new();
         for package_name in package_names {
@@ -146,7 +146,7 @@ enum ParsedSpecifier {
     Ecosystem(EcosystemPackageSpecifier),
 }
 
-fn parse_specifier(request: &AddRequest) -> Result<ParsedSpecifier> {
+fn parse_specifier(request: AddRequest) -> Result<ParsedSpecifier> {
     let specifier = request.selector();
     let source = Shown(specifier);
     if let Some(rest) = specifier.strip_prefix(CARGO_PROTOCOL) {
@@ -156,7 +156,7 @@ fn parse_specifier(request: &AddRequest) -> Result<ParsedSpecifier> {
         return parse_python_specifier(rest, source).map(python_specifier);
     }
     let Some(body) = purl::strip_scheme(specifier) else {
-        return Ok(ParsedSpecifier::Node(request.clone()));
+        return Ok(ParsedSpecifier::Node(request));
     };
     parse_purl(&Purl::parse(body, source)?, source)
 }
