@@ -18,6 +18,8 @@ const SCOPED_AUDIT_REGISTRY = 'http://scope.audit.registry/'
 describe('plugin-commands-audit', () => {
   const hasVulnerabilitiesDir = f.prepare('has-vulnerabilities')
   const hasSignaturesDir = f.prepare('has-signatures')
+  const hasBrokenLockfileDir = f.prepare('has-broken-lockfile')
+  const onlyBrokenLockfileDir = f.prepare('only-broken-lockfile')
   beforeAll(async () => {
     await install.handler({
       ...DEFAULT_OPTS,
@@ -219,6 +221,66 @@ describe('plugin-commands-audit', () => {
     expect(exitCode).toBe(0)
     expect(stripAnsi(output)).toContain('audited 2 packages')
     expect(stripAnsi(output)).toContain('2 packages have verified registry signatures')
+  })
+
+  test('audit signatures reports unresolvable lockfile entries as invalid', async () => {
+    const key = createSigningKey()
+    mockRegistryKey(AUDIT_REGISTRY, key)
+    getMockAgent().get(AUDIT_REGISTRY.replace(/\/$/, ''))
+      .intercept({ path: '/signed-pkg', method: 'GET' })
+      .reply(200, {
+        name: 'signed-pkg',
+        time: { '1.0.0': '2023-01-01T00:00:00.000Z' },
+        versions: {
+          '1.0.0': {
+            dist: {
+              integrity: 'sha512-test-integrity',
+              shasum: 'test-shasum',
+              signatures: [{ keyid: key.keyid, sig: key.sign('signed-pkg@1.0.0', 'sha512-test-integrity') }],
+              tarball: `${AUDIT_REGISTRY}signed-pkg/-/signed-pkg-1.0.0.tgz`,
+            },
+            name: 'signed-pkg',
+            version: '1.0.0',
+          },
+        },
+      })
+
+    const { output, exitCode } = await audit.handler({
+      ...AUDIT_REGISTRY_OPTS,
+      dir: hasBrokenLockfileDir,
+      rootProjectManifestDir: hasBrokenLockfileDir,
+    }, ['signatures'])
+
+    expect(exitCode).toBe(1)
+    const plainOutput = stripAnsi(output)
+    expect(plainOutput).toContain('audited 2 packages')
+    expect(plainOutput).toContain('1 package has a verified registry signature')
+    expect(plainOutput).toContain('1 package has an invalid registry signature')
+    expect(plainOutput).toContain('gone-pkg')
+    expect(plainOutput).toContain('has no corresponding package')
+  })
+
+  test('audit signatures reports a lockfile whose references are all unresolvable instead of claiming there is nothing to audit', async () => {
+    const key = createSigningKey()
+    mockRegistryKey(AUDIT_REGISTRY, key)
+
+    const { output, exitCode } = await audit.handler({
+      ...AUDIT_REGISTRY_OPTS,
+      dir: onlyBrokenLockfileDir,
+      rootProjectManifestDir: onlyBrokenLockfileDir,
+    }, ['signatures'])
+
+    expect(exitCode).toBe(1)
+    const plainOutput = stripAnsi(output)
+    expect(plainOutput).toContain('audited 2 packages')
+    expect(plainOutput).toContain('2 packages have invalid registry signatures')
+    expect(plainOutput).toContain('gone-pkg')
+    expect(plainOutput).toContain('absent-pkg')
+    // The fixture lists gone-pkg before absent-pkg, so the walk records them in
+    // that order. Asserting the rendered order pins that unresolvable entries go
+    // through the same sortIssue ordering as registry-derived issues, rather
+    // than being appended in lockfile order.
+    expect(plainOutput.indexOf('absent-pkg')).toBeLessThan(plainOutput.indexOf('gone-pkg'))
   })
 
   test('audit rejects unknown subcommands', async () => {
