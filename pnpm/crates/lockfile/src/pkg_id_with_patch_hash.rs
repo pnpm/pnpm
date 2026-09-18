@@ -12,7 +12,7 @@ use serde::{Deserialize, Serialize};
 /// fixed by the on-disk contract, so no validating constructor is
 /// appropriate here.
 ///
-/// Per `CLAUDE.md`'s "Modeling branded string types" section rule 3:
+/// Per `AGENTS.md`'s "Modeling branded string types" section rule 3:
 /// non-validating brand → infallible `From<String>` / `From<&str>`
 /// via [`derive_more::From`] / [`derive_more::Into`], plus
 /// `#[serde(transparent)]` so the wire format is identical to
