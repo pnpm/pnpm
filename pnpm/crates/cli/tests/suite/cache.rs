@@ -3,7 +3,7 @@ use command_extra::CommandExtra;
 use pnpm_testing_utils::bin::{AddMockedRegistry, CommandTempCwd};
 use std::{
     fs,
-    path::{Component, PathBuf},
+    path::{Component, Path, PathBuf},
 };
 
 #[test]
@@ -263,17 +263,16 @@ fn should_report_but_keep_stale_registries_on_a_dry_run() {
     fs::create_dir_all(&stale).unwrap();
     fs::write(stale.join("is-positive.jsonl"), "{}").unwrap();
 
-    let output = cwd.pacquet
+    let assertion = cwd.pacquet
         .with_arg("cache")
         .with_arg("prune")
         .with_arg("--dry-run")
         .assert()
-        .success()
-        .get_output()
-        .stdout
-        .clone();
+        .success();
+    let output = assertion.get_output();
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let stderr = String::from_utf8_lossy(&output.stderr);
 
-    let stdout = String::from_utf8(output).unwrap();
     assert_eq!(
         stdout.lines().collect::<Vec<_>>(),
         [format!(
@@ -282,6 +281,28 @@ fn should_report_but_keep_stale_registries_on_a_dry_run() {
         )],
     );
     assert!(stale.join("is-positive.jsonl").exists(), "a dry run must remove nothing");
+    assert!(
+        stderr.contains("1 directory would be deleted"),
+        "the notice must agree in number with the one directory found, got: {stderr}",
+    );
+}
+
+/// Restores a directory this test sealed, on the way out of the test whether it
+/// passed or panicked.
+///
+/// `chmod 000` does not deny uid 0, so under a root-privileged runner the
+/// assertions below fail. Without this the failing assertion would unwind past
+/// the restore and leave the `TempDir` a subtree it cannot remove.
+#[cfg(unix)]
+struct RestoreMode<'a>(&'a Path);
+
+#[cfg(unix)]
+impl Drop for RestoreMode<'_> {
+    fn drop(&mut self) {
+        use std::os::unix::fs::PermissionsExt as _;
+
+        let _ = fs::set_permissions(self.0, fs::Permissions::from_mode(0o755));
+    }
 }
 
 /// A root it cannot read must not cost the user the roots it can. The failure
@@ -302,6 +323,7 @@ fn should_prune_the_readable_roots_when_another_root_cannot_be_read() {
         .join("registry.yarnpkg.com");
     fs::create_dir_all(&reachable).unwrap();
     fs::set_permissions(&sealed, fs::Permissions::from_mode(0o000)).unwrap();
+    let _restore = RestoreMode(&sealed);
 
     let assertion = cwd.pacquet
         .with_arg("cache")
@@ -312,31 +334,55 @@ fn should_prune_the_readable_roots_when_another_root_cannot_be_read() {
     let stdout = String::from_utf8_lossy(&output.stdout);
     let stderr = String::from_utf8_lossy(&output.stderr);
 
-    // Restore access before any assertion can panic, so the TempDir's own
-    // cleanup can still descend into it.
-    fs::set_permissions(&sealed, fs::Permissions::from_mode(0o755)).unwrap();
-
-    // miette hard-wraps a long message and gutters the continuations, so the
-    // path arrives split across lines. Compare with every space and gutter
-    // dropped rather than depending on the terminal width it chose.
-    let unwrapped = |text: &str| {
-        text.chars()
-            .filter(|character| !character.is_whitespace() && *character != '│')
-            .collect::<String>()
-    };
-    // The root it names, not the whole absolute path: the message reports the
-    // canonicalized `/private/var` form of a macOS temp dir, where `cache_dir`
-    // holds the `/var` symlink it was built from.
+    // The trailing quote of the debug-printed path pins which root is named:
+    // `v11/metadata` is otherwise a prefix of the two roots that did not fail.
+    let sealed_root = format!(r#"{}":"#, pnpm_resolving_npm_resolver::mirror::ABBREVIATED_META_DIR);
+    assert!(stderr.contains(&sealed_root), "failure must name the unreadable root, got: {stderr}");
     assert!(
-        unwrapped(&stderr)
-            .contains(&unwrapped(pnpm_resolving_npm_resolver::mirror::ABBREVIATED_META_DIR)),
-        "failure must name the unreadable directory, got: {stderr}",
+        !stderr.contains(pnpm_resolving_npm_resolver::mirror::FULL_META_DIR),
+        "the root that read cleanly must not be reported as failing, got: {stderr}",
     );
     assert!(
         stdout.contains("registry.yarnpkg.com"),
         "the readable root must still be reclaimed, got: {stdout}",
     );
     assert!(!reachable.exists(), "expected {reachable:?} to be pruned");
+}
+
+/// The other half of the same contract: a directory it cannot delete is named
+/// too, and survives.
+#[cfg(unix)]
+#[test]
+fn should_name_the_directory_it_could_not_remove() {
+    use std::os::unix::fs::PermissionsExt as _;
+
+    let cwd = CommandTempCwd::init().add_mocked_registry();
+
+    let root =
+        cwd.npmrc_info.cache_dir.join(pnpm_resolving_npm_resolver::mirror::ABBREVIATED_META_DIR);
+    let stale = root.join("registry.npmjs.org");
+    fs::create_dir_all(&stale).unwrap();
+    // Listing the root stays allowed, so the stale directory is still found;
+    // unlinking it needs write permission on the root, which this denies.
+    fs::set_permissions(&root, fs::Permissions::from_mode(0o555)).unwrap();
+    let _restore = RestoreMode(&root);
+
+    let assertion = cwd.pacquet
+        .with_arg("cache")
+        .with_arg("prune")
+        .assert()
+        .failure();
+    let stderr = String::from_utf8_lossy(&assertion.get_output().stderr).into_owned();
+
+    assert!(
+        stderr.contains("Failed to remove metadata cache directory"),
+        "failure must say what it could not do, got: {stderr}",
+    );
+    assert!(
+        stderr.contains("registry.npmjs.org"),
+        "failure must name the directory it could not remove, got: {stderr}",
+    );
+    assert!(stale.exists(), "a failed removal must leave {stale:?} in place");
 }
 
 /// Nothing to reclaim must be a quiet success, not an error or a stray blank

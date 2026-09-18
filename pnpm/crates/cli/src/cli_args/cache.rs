@@ -264,80 +264,122 @@ struct PruneOutcome {
 }
 
 impl PruneOutcome {
-    /// Reclaim one mirror root, recording each directory removed and each
-    /// failure. Reading the root is itself a failure that leaves the other
-    /// roots to the caller.
+    /// Reclaim one mirror root, recording each directory removed and every
+    /// failure along the way.
+    ///
+    /// A root that does not exist has nothing to reclaim. Any other failure to
+    /// read it is recorded, because passing over it silently would report that
+    /// there is nothing stale here when the directory was never read. The
+    /// remaining roots are the caller's to walk either way.
     fn prune_root(&mut self, dir: &Path, meta_dir: &str, dry_run: bool) {
-        let candidates = match unreadable_registry_dirs(dir) {
-            Ok(candidates) => candidates,
-            Err(error) => return self.failures.push(error),
-        };
-        for (registry_key, path) in candidates {
-            match remove_pruned_dir(&path, dry_run) {
-                Ok(()) => self.pruned.push(format!("{meta_dir}/{registry_key}")),
-                Err(error) => self.failures.push(error),
+        let entries = match fs::read_dir(dir) {
+            Ok(entries) => entries,
+            Err(error) if error.kind() == io::ErrorKind::NotFound => return,
+            Err(error) => {
+                return self.failures.push(format!(
+                    "Failed to read metadata cache directory {dir:?}: {error}",
+                ));
             }
+        };
+        for entry in entries {
+            self.prune_entry(entry, meta_dir, dry_run);
+        }
+    }
+
+    /// Reclaim one directory of a mirror root, if it is one this version can no
+    /// longer read.
+    ///
+    /// An entry that cannot be read or typed is recorded rather than skipped,
+    /// for the same reason an unreadable root is: on a filesystem that reports
+    /// no type up front, `file_type` is the `lstat` that fails, and swallowing
+    /// it would leave the whole root looking empty.
+    fn prune_entry(&mut self, entry: io::Result<fs::DirEntry>, meta_dir: &str, dry_run: bool) {
+        let entry = match entry {
+            Ok(entry) => entry,
+            Err(error) => {
+                return self.failures.push(format!(
+                    "Failed to read a metadata cache entry: {error}",
+                ));
+            }
+        };
+        let path = entry.path();
+        match entry.file_type() {
+            Ok(file_type) if !file_type.is_dir() => return,
+            Ok(_) => {}
+            Err(error) => {
+                return self.failures.push(format!(
+                    "Failed to inspect metadata cache entry {path:?}: {error}",
+                ));
+            }
+        }
+        let registry_key = entry
+            .file_name()
+            .to_string_lossy()
+            .into_owned();
+        if !is_unreadable_registry_key(&registry_key) {
+            return;
+        }
+        match remove_pruned_dir(&path, dry_run) {
+            Ok(()) => self.pruned.push(format!("{meta_dir}/{registry_key}")),
+            Err(error) => self.failures.push(error),
         }
     }
 
     /// Print the reclaimed directories on stdout, and fail if anything could
     /// not be reclaimed.
     ///
-    /// A dry run's stdout is byte-identical to the real thing so the two can be
-    /// diffed and the list piped onward; the notice that nothing was deleted
-    /// goes to stderr, where it reaches a reader without entering that list.
+    /// When every removal succeeds a dry run's stdout matches the real thing
+    /// byte for byte, so the two can be diffed and the list piped onward. The
+    /// notice that nothing was deleted goes to stderr, where it reaches a reader
+    /// without entering that list.
+    ///
+    /// Each failure gets its own stderr line and the returned error only counts
+    /// them, because a diagnostic long enough to hold several paths comes back
+    /// reflowed and guttered, splitting the paths it exists to report.
     fn report(mut self, dry_run: bool) -> miette::Result<()> {
         self.pruned.sort();
         if !self.pruned.is_empty() {
             if dry_run {
-                eprintln!("Dry run: {} directories would be deleted.", self.pruned.len());
+                let count = directory_count(self.pruned.len());
+                eprintln!("Dry run: {count} would be deleted.");
             }
             println!("{}", self.pruned.join("\n"));
         }
         if self.failures.is_empty() {
             return Ok(());
         }
-        let report = self.failures.join("\n");
-        Err(miette::miette!("{report}"))
+        for failure in &self.failures {
+            eprintln!("{failure}");
+        }
+        let count = directory_count(self.failures.len());
+        Err(miette::miette!("Failed to reclaim {count}"))
     }
+}
+
+/// `count` with the noun it agrees with, so a single stale directory does not
+/// report as "1 directories".
+fn directory_count(count: usize) -> String {
+    if count == 1 {
+        return "1 directory".to_string();
+    }
+    format!("{count} directories")
 }
 
 /// `Err` carries the message to report, naming the directory, because a bare
 /// `Permission denied` leaves the user nothing to act on.
+///
+/// A directory already gone counts as reclaimed. The cache is shared, so a
+/// second prune, or one racing `pnpm store prune` from pnpm v11 over the same
+/// `v11` tree, must not fail for having got what it wanted.
 fn remove_pruned_dir(path: &Path, dry_run: bool) -> Result<(), String> {
     if dry_run {
         return Ok(());
     }
-    fs::remove_dir_all(path)
-        .map_err(|error| format!("Failed to remove metadata cache directory {path:?}: {error}"))
-}
-
-/// The `(registry key, path)` of every directory in one mirror root that
-/// [`is_unreadable_registry_key`] reports.
-///
-/// A root that does not exist yields nothing, because a mirror pnpm never wrote
-/// has nothing to reclaim. Any other read failure is an error: reporting it as
-/// an empty result would tell the user there is nothing stale to reclaim when
-/// the directory was never read.
-fn unreadable_registry_dirs(dir: &Path) -> Result<Vec<(String, PathBuf)>, String> {
-    let entries = match fs::read_dir(dir) {
-        Ok(entries) => entries,
-        Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(Vec::new()),
-        Err(error) => {
-            return Err(format!("Failed to read metadata cache directory {dir:?}: {error}"));
-        }
-    };
-    Ok(entries
-        .filter_map(std::result::Result::ok)
-        .filter(|entry| entry.file_type().is_ok_and(|file_type| file_type.is_dir()))
-        .filter_map(|entry| {
-            let registry_key = entry
-                .file_name()
-                .to_string_lossy()
-                .into_owned();
-            is_unreadable_registry_key(&registry_key).then(|| (registry_key, entry.path()))
-        })
-        .collect())
+    match fs::remove_dir_all(path) {
+        Ok(()) => Ok(()),
+        Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(()),
+        Err(error) => Err(format!("Failed to remove metadata cache directory {path:?}: {error}")),
+    }
 }
 
 /// The registry directory of a cache-relative metadata path: its top-level
