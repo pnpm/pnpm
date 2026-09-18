@@ -329,22 +329,31 @@ async function _checkDepsStatus (opts: CheckDepsStatusOptions, workspaceState: W
     }))
 
     if (!workspaceState.filteredInstall) {
-      const rootModulesDirExists = allManifestStats.some(({ modulesDirStats, project }) =>
-        modulesDirStats != null && project.rootDir === rootProjectManifestDir)
-      for (const { modulesDirStats, project } of allManifestStats) {
-        if (modulesDirStats) continue
-        if (isEmpty({
+      const withoutModulesDir = allManifestStats.filter(({ modulesDirStats, project }) =>
+        modulesDirStats?.isDirectory() !== true && !isEmpty({
           ...project.manifest.dependencies,
           ...project.manifest.devDependencies,
-        })) continue
-        // Under dedupeDirectDeps a project whose direct dependencies the root
-        // declares identically gets nothing linked, so the linker never creates
-        // its modules directory; it is installed all the same.
+        }))
+      // Under dedupeDirectDeps a project whose direct dependencies resolve to
+      // the root's targets gets nothing linked, so the linker never creates
+      // its modules directory; it is installed all the same.
+      const rootModulesDirExists = allManifestStats.some(({ modulesDirStats, project }) =>
+        modulesDirStats?.isDirectory() === true && project.rootDir === rootProjectManifestDir)
+      const dedupeLockfileDir = opts.lockfileDir ?? workspaceDir ?? rootProjectManifestDir
+      const mayBeDeduped = (project: Project): boolean =>
+        opts.dedupeDirectDeps === true && rootModulesDirExists && project.rootDir !== rootProjectManifestDir
+      const wantedLockfileForDedupe = withoutModulesDir.some(({ project }) => mayBeDeduped(project))
+        ? await readWantedLockfile(dedupeLockfileDir, {
+          ignoreIncompatible: false,
+          useGitBranchLockfile: opts.useGitBranchLockfile,
+          mergeGitBranchLockfiles: opts.mergeGitBranchLockfiles,
+        })
+        : null
+      for (const { project } of withoutModulesDir) {
         if (
-          opts.dedupeDirectDeps &&
-          rootModulesDirExists &&
-          project.rootDir !== rootProjectManifestDir &&
-          directDepsAllDeclaredBy(rootProjectManifest ?? {}, project.manifest)
+          wantedLockfileForDedupe != null &&
+          mayBeDeduped(project) &&
+          dedupeLinksNothing(wantedLockfileForDedupe, dedupeLockfileDir, rootProjectManifestDir, project.rootDir)
         ) continue
         const id = project.manifest.name ?? project.rootDir
         return {
@@ -994,16 +1003,35 @@ function modifiedAtOrAfter (stats: fs.Stats, referenceMs: number): boolean {
 }
 
 /**
- * Whether `root` declares every direct dependency of `project` under the same
- * alias with the same specifier, in any dependency group. That is what
- * `dedupeDirectDeps` compares resolutions against: an identical declaration
- * resolves identically within one lockfile, so the linker skips the project's
- * own symlink for it.
+ * Whether `dedupeDirectDeps` links nothing into the project at `projectDir`:
+ * the wanted lockfile records every one of its direct dependencies resolving
+ * to the target the root's dependency of the same alias resolves to, which is
+ * what the linker compares. A lockfile that lacks either importer proves
+ * nothing.
  */
-function directDepsAllDeclaredBy (root: ProjectManifest, project: ProjectManifest): boolean {
-  const rootSpecifier = (alias: string): string | undefined =>
-    root.dependencies?.[alias] ?? root.devDependencies?.[alias] ?? root.optionalDependencies?.[alias]
+function dedupeLinksNothing (lockfile: LockfileObject, lockfileDir: string, rootDir: string, projectDir: string): boolean {
+  const root = lockfile.importers[getLockfileImporterId(lockfileDir, rootDir)]
+  const project = lockfile.importers[getLockfileImporterId(lockfileDir, projectDir)]
+  if (root == null || project == null) return false
+  const rootVersions = (alias: string): string[] =>
+    [root.dependencies, root.devDependencies, root.optionalDependencies]
+      .map((deps) => deps?.[alias])
+      .filter((version): version is string => version != null)
   return [project.dependencies, project.devDependencies, project.optionalDependencies]
     .flatMap((deps) => Object.entries(deps ?? {}))
-    .every(([alias, specifier]) => rootSpecifier(alias) === specifier)
+    .every(([alias, version]) =>
+      rootVersions(alias).some((rootVersion) => resolvesToSameTarget(rootDir, rootVersion, projectDir, version)))
+}
+
+/**
+ * Whether two importer dependency versions resolve to one target: the same
+ * snapshot, or `link:` paths that name the same directory once resolved
+ * against their own importer directories.
+ */
+function resolvesToSameTarget (rootDir: string, rootVersion: string, projectDir: string, version: string): boolean {
+  const rootLink = rootVersion.startsWith('link:')
+  const projectLink = version.startsWith('link:')
+  if (rootLink !== projectLink) return false
+  if (!rootLink) return rootVersion === version
+  return path.resolve(rootDir, rootVersion.slice('link:'.length)) === path.resolve(projectDir, version.slice('link:'.length))
 }

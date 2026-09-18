@@ -485,7 +485,8 @@ describe('checkDepsStatus - pnpmfile modification', () => {
       return {
         mtime: new Date(beforeLastValidation),
         mtimeMs: beforeLastValidation,
-      } as Stats
+        isDirectory: () => true,
+      } as unknown as Stats
     })
     jest.mocked(statManifestFileUtils.statManifestFile).mockImplementation(async () => ({
       mtime: new Date(beforeLastValidation),
@@ -1786,7 +1787,7 @@ describe('checkDepsStatus - deduped sibling without a modules directory', () => 
 
   // A root and a sibling that both declare foo@1.0.0; only the root has a
   // node_modules directory, which is what dedupeDirectDeps leaves behind.
-  async function checkWithDedupe (dedupeDirectDeps: boolean) {
+  async function checkWithDedupe (dedupeDirectDeps: boolean, siblingResolvedVersion = '1.0.0') {
     const workspaceDir = await fs.mkdtemp(path.join(os.tmpdir(), 'pnpm-check-deps-dedupe-'))
     try {
       const lastValidatedTimestamp = Date.now() - 10_000
@@ -1818,7 +1819,8 @@ describe('checkDepsStatus - deduped sibling without a modules directory', () => 
       const beforeValidation = {
         mtime: new Date(beforeLastValidation),
         mtimeMs: beforeLastValidation,
-      } as Stats
+        isDirectory: () => true,
+      } as unknown as Stats
       jest.mocked(loadWorkspaceState).mockReturnValue(mockWorkspaceState)
       jest.mocked(fsUtils.safeStatSync).mockImplementation((filePath: string) =>
         filePath.endsWith('pnpm-lock.yaml') ? beforeValidation : undefined)
@@ -1832,7 +1834,7 @@ describe('checkDepsStatus - deduped sibling without a modules directory', () => 
         lockfileVersion: '9.0',
         importers: {
           ['.' as ProjectId]: { specifiers: { foo: '1.0.0' }, dependencies: { foo: '1.0.0' } },
-          ['pkg-a' as ProjectId]: { specifiers: { foo: '1.0.0' }, devDependencies: { foo: '1.0.0' } },
+          ['pkg-a' as ProjectId]: { specifiers: { foo: '1.0.0' }, devDependencies: { foo: siblingResolvedVersion } },
         },
       }
       jest.mocked(lockfileFs.readWantedLockfile).mockResolvedValue(lockfile)
@@ -1868,6 +1870,14 @@ describe('checkDepsStatus - deduped sibling without a modules directory', () => 
 
   it('is outdated when the sibling was not deduped', async () => {
     const result = await checkWithDedupe(false)
+    expect(result.upToDate).toBe(false)
+    expect(result.issue).toBe('Workspace package pkg-a has dependencies but does not have a modules directory')
+  })
+
+  // The same specifier resolved to another peer set for the sibling: the
+  // linker links it into the sibling, so the missing directory is real damage.
+  it('is outdated when the shared specifier resolves to another peer set for the sibling', async () => {
+    const result = await checkWithDedupe(true, '1.0.0(bar@1.0.0)')
     expect(result.upToDate).toBe(false)
     expect(result.issue).toBe('Workspace package pkg-a has dependencies but does not have a modules directory')
   })

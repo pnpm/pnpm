@@ -434,7 +434,7 @@ fn settings_block_fast_path(
     // overrides yet, so check the install-time `config.modules_dir`
     // for the root + `<project_root>/node_modules` for siblings,
     // matching the `isolated`-linker default.
-    if !modules_dirs_present(config, node_linker, project_manifests) {
+    if !modules_dirs_present(check) {
         return Some("project has dependencies but no node_modules directory");
     }
     None
