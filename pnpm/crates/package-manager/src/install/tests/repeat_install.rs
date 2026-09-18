@@ -631,7 +631,7 @@ async fn fresh_install_applies_package_extensions_to_dependency_manifest() {
     config.store_dir = dirs.store_dir.clone().into();
     config.modules_dir = dirs.modules_dir.clone();
     config.virtual_store_dir = dirs.virtual_store_dir.clone();
-    config.registry = mock_instance.url();
+    config.registry = mock_instance.url().to_string();
     // Add a `peerDependencies` entry to the resolved manifest of
     // `@pnpm.e2e/hello-world-js-bin`, marked optional so the missing
     // peer never escalates to a fetch error during this minimal test.

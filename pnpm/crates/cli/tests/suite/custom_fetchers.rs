@@ -76,7 +76,7 @@ fn custom_fetcher_delegates_a_custom_typed_resolution_on_fresh_and_frozen_instal
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
 
     write_manifest(&workspace, "^100.0.0");
-    fs::write(workspace.join(".pnpmfile.cjs"), custom_type_pnpmfile(&mock_instance.url(), true))
+    fs::write(workspace.join(".pnpmfile.cjs"), custom_type_pnpmfile(mock_instance.url(), true))
         .expect("write pnpmfile");
     pacquet_at(&workspace)
         .with_arg("install")
@@ -105,7 +105,7 @@ fn custom_typed_resolution_without_a_fetcher_fails_the_install() {
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
 
     write_manifest(&workspace, "100.0.0");
-    fs::write(workspace.join(".pnpmfile.cjs"), custom_type_pnpmfile(&mock_instance.url(), false))
+    fs::write(workspace.join(".pnpmfile.cjs"), custom_type_pnpmfile(mock_instance.url(), false))
         .expect("write pnpmfile");
 
     let output = pacquet_at(&workspace)
@@ -128,7 +128,7 @@ fn ignore_pnpmfile_skips_the_custom_fetcher_on_fetch() {
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
 
     write_manifest(&workspace, "100.0.0");
-    fs::write(workspace.join(".pnpmfile.cjs"), custom_type_pnpmfile(&mock_instance.url(), true))
+    fs::write(workspace.join(".pnpmfile.cjs"), custom_type_pnpmfile(mock_instance.url(), true))
         .expect("write pnpmfile");
     pacquet_at(&workspace)
         .with_arg("install")
@@ -161,7 +161,7 @@ fn ignore_pnpmfile_skips_the_custom_resolver_on_install() {
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
 
     write_manifest(&workspace, "100.0.0");
-    fs::write(workspace.join(".pnpmfile.cjs"), custom_type_pnpmfile(&mock_instance.url(), true))
+    fs::write(workspace.join(".pnpmfile.cjs"), custom_type_pnpmfile(mock_instance.url(), true))
         .expect("write pnpmfile");
 
     pacquet_at(&workspace)

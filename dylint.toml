@@ -8,7 +8,7 @@
 # or via the `just dylint` recipe.
 [workspace.metadata.dylint]
 libraries = [
-    { git = "https://github.com/KSXGitHub/perfectionist", rev = "0c35544246129aa500668ace4f7f1edc5d07c0c9" },
+    { git = "https://github.com/KSXGitHub/perfectionist", rev = "fba7de2e475558969909e6ffaceb9b626a813b6b" },
 ]
 
 # Project-local DSL / test macros that perfectionist's exactly-once
@@ -102,6 +102,13 @@ prefix = [
 
 ["perfectionist::excessive_cognitive_complexity"]
 max_complexity = 10
+
+# A guard that rejects an input lists every disqualifying clause in one
+# `if`, and the list is the predicate: naming halves of it hides which
+# clauses a reader has to check. Five clauses is as far as that reads;
+# past it the condition is two predicates the author did not name.
+["perfectionist::overly_complex_condition"]
+max_operators = 5
 
 # A test binds its fixtures by nature, and splitting that setup into
 # helpers hides what the assertions read. The cap is for production

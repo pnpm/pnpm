@@ -175,7 +175,7 @@ async fn fresh_install_uses_final_peer_suffix_for_transitive_pending_peer() {
     config.store_dir = dirs.store_dir.clone().into();
     config.modules_dir = dirs.modules_dir.clone();
     config.virtual_store_dir = dirs.virtual_store_dir.clone();
-    config.registry = mock_instance.url();
+    config.registry = mock_instance.url().to_string();
     let config = config.leak();
 
     Install {

@@ -206,7 +206,7 @@ async fn run_purge_regression_install(
     store_dir: &std::path::Path,
     modules_dir: &std::path::Path,
     virtual_store_dir: &std::path::Path,
-    registry: String,
+    registry: &str,
     manifest: &PackageManifest,
     dependency_groups: Vec<DependencyGroup>,
     virtual_store_dir_max_length: u64,
@@ -215,7 +215,7 @@ async fn run_purge_regression_install(
     config.store_dir = store_dir.to_path_buf().into();
     config.modules_dir = modules_dir.to_path_buf();
     config.virtual_store_dir = virtual_store_dir.to_path_buf();
-    config.registry = registry;
+    config.registry = registry.to_string();
     config.virtual_store_dir_max_length = virtual_store_dir_max_length;
     let config = config.leak();
     let mutation = if dependency_groups.contains(&DependencyGroup::Dev) {
@@ -310,7 +310,7 @@ async fn install_then_go_offline() -> (tempfile::TempDir, &'static Config, Packa
     config.store_dir = store_dir.clone().into();
     config.modules_dir = modules_dir.clone();
     config.virtual_store_dir = virtual_store_dir.clone();
-    config.registry = mock_instance.url();
+    config.registry = mock_instance.url().to_string();
     let config = config.leak();
 
     Install {
@@ -418,7 +418,7 @@ async fn fresh_lockfile_only_with_overrides(
     config.store_dir = store_dir.into();
     config.modules_dir = modules_dir;
     config.virtual_store_dir = virtual_store_dir;
-    config.registry = mock_instance.url();
+    config.registry = mock_instance.url().to_string();
     if !overrides.is_empty() {
         let mut map = indexmap::IndexMap::new();
         for (selector, spec) in overrides {
@@ -524,7 +524,7 @@ async fn fresh_lockfile_only_with_compatibility_db(
     config.store_dir = store_dir.into();
     config.modules_dir = modules_dir;
     config.virtual_store_dir = virtual_store_dir;
-    config.registry = mock_instance.url();
+    config.registry = mock_instance.url().to_string();
     config.ignore_compatibility_db = ignore_compatibility_db;
     let config = config.leak();
 
@@ -589,7 +589,7 @@ async fn fresh_lockfile_only_with_compatibility_db(
 /// dependencies and `pnpmfile_src` written to `<root>/.pnpmfile.cjs`, so the
 /// pnpmfile hooks are discovered and run during resolution.
 async fn install_with_pnpmfile(
-    registry_url: String,
+    registry_url: &str,
     root: &std::path::Path,
     root_deps: &[(&str, &str)],
     pnpmfile_src: &str,
@@ -602,7 +602,7 @@ async fn install_with_pnpmfile(
 /// given reporter, so a recording reporter can assert on the `pnpm:hook`
 /// log channel.
 async fn install_with_pnpmfile_reporter<Reporter: self::Reporter + 'static>(
-    registry_url: String,
+    registry_url: &str,
     root: &std::path::Path,
     root_deps: &[(&str, &str)],
     pnpmfile_src: &str,
@@ -623,7 +623,7 @@ async fn install_with_pnpmfile_reporter<Reporter: self::Reporter + 'static>(
     config.store_dir = root.join("pacquet-store").into();
     config.modules_dir = modules_dir;
     config.virtual_store_dir = virtual_store_dir;
-    config.registry = registry_url;
+    config.registry = registry_url.to_string();
     let config = config.leak();
 
     let http_client = Default::default();
@@ -686,7 +686,7 @@ async fn install_with_pnpmfile_reporter<Reporter: self::Reporter + 'static>(
 /// carries the dependencies, so a hook rewriting a member's own
 /// specifier is exercised rather than only the root's.
 async fn install_workspace_member_with_pnpmfile(
-    registry_url: String,
+    registry_url: &str,
     root: &std::path::Path,
     member_deps: &[(&str, &str)],
     pnpmfile_src: &str,
@@ -724,7 +724,7 @@ async fn install_workspace_member_with_pnpmfile(
     config.store_dir = root.join("pacquet-store").into();
     config.virtual_store_dir = modules_dir.join(".pacquet");
     config.modules_dir = modules_dir;
-    config.registry = registry_url;
+    config.registry = registry_url.to_string();
     let config = config.leak();
 
     let http_client = Default::default();

@@ -11,12 +11,12 @@ use sha2::Digest as _;
 #[tokio::test]
 async fn resolves_a_package() {
     let registry = TestRegistry::start();
-    let (pnpr_url, pnpr_auth, _storage) = start_pnpr(&registry.url()).await;
+    let (pnpr_url, pnpr_auth, _storage) = start_pnpr(registry.url()).await;
 
     let client = PnprClient::new(pnpr_url);
 
     let outcome = client
-        .resolve(options(&registry.url(), &pnpr_auth, deps([("@foo/no-deps", "1.0.0")])))
+        .resolve(options(registry.url(), &pnpr_auth, deps([("@foo/no-deps", "1.0.0")])))
         .await
         .expect("install should succeed");
 
@@ -374,13 +374,17 @@ async fn resolves_a_scope_from_the_registry_declared_for_it() {
     // A default registry that is allowlisted but serves nothing: reaching it
     // for the scoped package is the failure this test is looking for.
     let dead_default = "http://127.0.0.1:9/";
-    let (pnpr_url, pnpr_auth, _storage) =
-        start_pnpr_inner(None, Vec::new(), vec![registry.url(), dead_default.to_string()], false)
-            .await;
+    let (pnpr_url, pnpr_auth, _storage) = start_pnpr_inner(
+        None,
+        Vec::new(),
+        vec![registry.url().to_string(), dead_default.to_string()],
+        false,
+    )
+    .await;
 
     let mut opts = options(dead_default, &pnpr_auth, deps([("@foo/no-deps", "1.0.0")]));
     opts.routing.registries = BTreeMap::from([(
-        registry.url(),
+        registry.url().to_string(),
         RegistryDeclaration {
             scopes: Some(vec!["@foo".to_string()]),
             ..RegistryDeclaration::default()
@@ -408,9 +412,9 @@ async fn resolves_a_scope_from_the_registry_declared_for_it() {
 #[tokio::test]
 async fn a_declared_registry_the_resolve_never_reaches_is_not_rejected() {
     let registry = TestRegistry::start();
-    let (pnpr_url, pnpr_auth, _storage) = start_pnpr(&registry.url()).await;
+    let (pnpr_url, pnpr_auth, _storage) = start_pnpr(registry.url()).await;
 
-    let mut opts = options(&registry.url(), &pnpr_auth, deps([("@foo/no-deps", "1.0.0")]));
+    let mut opts = options(registry.url(), &pnpr_auth, deps([("@foo/no-deps", "1.0.0")]));
     opts.routing.registries = BTreeMap::from([(
         "http://169.254.169.254/".to_string(),
         RegistryDeclaration {
@@ -433,9 +437,9 @@ async fn a_declared_registry_the_resolve_never_reaches_is_not_rejected() {
 #[tokio::test]
 async fn a_declared_registry_the_resolve_reaches_is_refused() {
     let registry = TestRegistry::start();
-    let (pnpr_url, pnpr_auth, _storage) = start_pnpr(&registry.url()).await;
+    let (pnpr_url, pnpr_auth, _storage) = start_pnpr(registry.url()).await;
 
-    let mut opts = options(&registry.url(), &pnpr_auth, deps([("@foo/no-deps", "1.0.0")]));
+    let mut opts = options(registry.url(), &pnpr_auth, deps([("@foo/no-deps", "1.0.0")]));
     opts.routing.registries = BTreeMap::from([(
         "http://169.254.169.254/".to_string(),
         RegistryDeclaration {

@@ -61,8 +61,8 @@ impl TestRegistry {
     }
 
     #[must_use]
-    pub fn url(&self) -> String {
-        self.url.clone()
+    pub fn url(&self) -> &str {
+        &self.url
     }
 
     /// Move `tag` to `version`, the way the JS harness's `addDistTag` does.

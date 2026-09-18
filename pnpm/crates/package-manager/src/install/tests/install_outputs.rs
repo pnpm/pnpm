@@ -81,7 +81,7 @@ async fn should_install_dependencies() {
     config.store_dir = store_dir.into();
     config.modules_dir = modules_dir.clone();
     config.virtual_store_dir = virtual_store_dir.clone();
-    config.registry = mock_instance.url();
+    config.registry = mock_instance.url().to_string();
     let config = config.leak();
 
     Install {
@@ -273,7 +273,7 @@ async fn install_prunes_surplus_virtual_store_dir() {
     config.store_dir = dirs.store_dir.clone().into();
     config.modules_dir = dirs.modules_dir.clone();
     config.virtual_store_dir = dirs.virtual_store_dir.clone();
-    config.registry = mock_instance.url();
+    config.registry = mock_instance.url().to_string();
     let config = config.leak();
 
     Install {
@@ -365,7 +365,7 @@ async fn npm_alias_dependency_installs_under_alias_key() {
     config.store_dir = dirs.store_dir.clone().into();
     config.modules_dir = dirs.modules_dir.clone();
     config.virtual_store_dir = dirs.virtual_store_dir.clone();
-    config.registry = mock_instance.url();
+    config.registry = mock_instance.url().to_string();
     let config = config.leak();
 
     Install {
@@ -471,7 +471,7 @@ async fn unversioned_npm_alias_defaults_to_latest() {
     config.store_dir = dirs.store_dir.clone().into();
     config.modules_dir = dirs.modules_dir.clone();
     config.virtual_store_dir = dirs.virtual_store_dir.clone();
-    config.registry = mock_instance.url();
+    config.registry = mock_instance.url().to_string();
     let config = config.leak();
 
     Install {
@@ -706,7 +706,7 @@ async fn install_optional_failing_postinstall_dep_via_registry_mock_succeeds() {
     config.store_dir = dirs.store_dir.clone().into();
     config.modules_dir = dirs.modules_dir.clone();
     config.virtual_store_dir = dirs.virtual_store_dir.clone();
-    config.registry = mock_instance.url();
+    config.registry = mock_instance.url().to_string();
     // Allow the transitive `failing-postinstall` build to actually run so
     // the optional-failure tolerance is exercised (an ignored build would
     // instead trip `strictDepBuilds`, which is unrelated to this test).

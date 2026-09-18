@@ -89,7 +89,7 @@ fn allow_unused_patches_downgrades_an_unmatched_patch_to_a_warning() {
             .to_string_lossy()
             .into_owned(),
     );
-    options.registries = Some(HashMap::from([("default".to_string(), registry.url())]));
+    options.registries = Some(HashMap::from([("default".to_string(), registry.url().to_string())]));
     options.patched_dependencies = Some(indexmap::IndexMap::from_iter([(
         "is-negative@1.0.0".to_string(),
         "patches/unmatched.patch".to_string(),

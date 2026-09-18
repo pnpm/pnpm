@@ -45,7 +45,7 @@ async fn fresh_partial_install_preserves_optional_link_in_warm_gvs_slot() {
     config.modules_dir = modules_dir;
     config.virtual_store_dir = virtual_store_dir;
     config.global_virtual_store_dir = config.store_dir.links();
-    config.registry = registry.url();
+    config.registry = registry.url().to_string();
     let config = config.leak();
     let http_client = std::sync::Arc::new(pnpm_network::ThrottledClient::default());
 

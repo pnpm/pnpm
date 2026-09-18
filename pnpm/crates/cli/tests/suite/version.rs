@@ -221,14 +221,14 @@ fn version_flag_switches_to_the_version_a_range_pin_resolved_to() {
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
     write_dev_engine_pin(&workspace, "9.3.0");
 
-    let output = version_output(root.path(), &workspace, &mock_instance.url());
+    let output = version_output(root.path(), &workspace, mock_instance.url());
     dbg!(&output);
     assert!(output.status.success(), "pacquet --version should succeed");
     assert_eq!(String::from_utf8_lossy(&output.stdout), "9.3.0\n");
 
     write_dev_engine_pin(&workspace, ">=0.0.0");
 
-    let output = version_output(root.path(), &workspace, &mock_instance.url());
+    let output = version_output(root.path(), &workspace, mock_instance.url());
     dbg!(&output);
     assert!(output.status.success(), "pacquet --version should succeed");
     assert_eq!(String::from_utf8_lossy(&output.stdout), "9.3.0\n");

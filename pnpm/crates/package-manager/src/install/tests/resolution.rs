@@ -37,7 +37,7 @@ async fn install_with_drop_all_seed_policy_bumps_dependency_within_range() {
     config.store_dir = dirs.store_dir.clone().into();
     config.modules_dir = dirs.modules_dir.clone();
     config.virtual_store_dir = dirs.virtual_store_dir.clone();
-    config.registry = mock_instance.url();
+    config.registry = mock_instance.url().to_string();
     let config = config.leak();
 
     let lockfile_path = dirs.project_root.join("pnpm-lock.yaml");
@@ -193,7 +193,7 @@ async fn auto_install_peers_does_not_cascade_optional_peers() {
     config.store_dir = dirs.store_dir.clone().into();
     config.modules_dir = dirs.modules_dir.clone();
     config.virtual_store_dir = dirs.virtual_store_dir.clone();
-    config.registry = mock_instance.url();
+    config.registry = mock_instance.url().to_string();
     let config = config.leak();
 
     Install {
@@ -322,7 +322,7 @@ async fn meta_only_optional_peers_absent_from_the_graph_are_not_installed() {
     config.store_dir = dirs.store_dir.clone().into();
     config.modules_dir = dirs.modules_dir.clone();
     config.virtual_store_dir = dirs.virtual_store_dir.clone();
-    config.registry = mock_instance.url();
+    config.registry = mock_instance.url().to_string();
     let config = config.leak();
 
     Install {
@@ -443,7 +443,7 @@ async fn root_dependency_does_not_override_peers_of_self_contained_subtree() {
     config.store_dir = dirs.store_dir.clone().into();
     config.modules_dir = dirs.modules_dir.clone();
     config.virtual_store_dir = dirs.virtual_store_dir.clone();
-    config.registry = mock_instance.url();
+    config.registry = mock_instance.url().to_string();
     let config = config.leak();
 
     Install {
@@ -549,7 +549,7 @@ async fn fresh_install_records_user_written_specifier() {
     config.store_dir = dirs.store_dir.clone().into();
     config.modules_dir = dirs.modules_dir.clone();
     config.virtual_store_dir = dirs.virtual_store_dir.clone();
-    config.registry = mock_instance.url();
+    config.registry = mock_instance.url().to_string();
     let config = config.leak();
 
     Install {

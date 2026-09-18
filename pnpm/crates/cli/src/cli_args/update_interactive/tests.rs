@@ -667,7 +667,7 @@ impl UpdateFixture {
         fs::create_dir_all(&project).expect("create the project dir");
         let cache_dir = dir.path().join("cache");
         let mut config = Config::new();
-        config.registry = registry.url();
+        config.registry = registry.url().to_string();
         config.store_dir = dir.path().join("store").into();
         config.cache_dir = cache_dir.clone();
         config.modules_dir = project.join("node_modules");

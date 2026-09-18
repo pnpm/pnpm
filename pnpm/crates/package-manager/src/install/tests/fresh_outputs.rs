@@ -150,7 +150,7 @@ async fn fresh_install_writes_pnpm_lock_yaml_with_expected_shape() {
     config.store_dir = dirs.store_dir.clone().into();
     config.modules_dir = dirs.modules_dir.clone();
     config.virtual_store_dir = dirs.virtual_store_dir.clone();
-    config.registry = mock_instance.url();
+    config.registry = mock_instance.url().to_string();
     let config = config.leak();
 
     Install {
@@ -258,7 +258,7 @@ async fn fresh_install_splits_dev_and_prod_dependency_sections() {
     config.store_dir = dirs.store_dir.clone().into();
     config.modules_dir = dirs.modules_dir.clone();
     config.virtual_store_dir = dirs.virtual_store_dir.clone();
-    config.registry = mock_instance.url();
+    config.registry = mock_instance.url().to_string();
     let config = config.leak();
 
     Install {
@@ -355,7 +355,7 @@ async fn fresh_install_marks_optional_snapshots_in_pnpm_lock_yaml() {
     config.store_dir = dirs.store_dir.clone().into();
     config.modules_dir = dirs.modules_dir.clone();
     config.virtual_store_dir = dirs.virtual_store_dir.clone();
-    config.registry = mock_instance.url();
+    config.registry = mock_instance.url().to_string();
     let config = config.leak();
 
     Install {
@@ -474,7 +474,7 @@ async fn fresh_install_skips_platform_incompatible_optional_dependency() {
     config.store_dir = dirs.store_dir.clone().into();
     config.modules_dir = dirs.modules_dir.clone();
     config.virtual_store_dir = dirs.virtual_store_dir.clone();
-    config.registry = mock_instance.url();
+    config.registry = mock_instance.url().to_string();
     let config = config.leak();
 
     Install {

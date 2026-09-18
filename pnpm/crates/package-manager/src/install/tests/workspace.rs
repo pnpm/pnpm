@@ -115,7 +115,7 @@ async fn fresh_install_persists_loose_minimum_release_age_picks_to_workspace_man
     config.store_dir = dir.path().join("store").into();
     config.modules_dir = modules_dir.clone();
     config.virtual_store_dir = virtual_store_dir;
-    config.registry = mock_instance.url();
+    config.registry = mock_instance.url().to_string();
     config.minimum_release_age = Some(60 * 24 * 365 * 100);
     let config = config.leak();
 
@@ -538,7 +538,7 @@ async fn optimistic_repeat_install_round_trips_on_single_project_install() {
     config.store_dir = dirs.store_dir.clone().into();
     config.modules_dir = dirs.modules_dir.clone();
     config.virtual_store_dir = dirs.virtual_store_dir.clone();
-    config.registry = mock_instance.url();
+    config.registry = mock_instance.url().to_string();
     let config = config.leak();
 
     // First install: fresh-resolve path. Writes `pnpm-lock.yaml` next

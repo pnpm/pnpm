@@ -112,9 +112,10 @@ impl InstallArgs {
             || self.lockfile.fix
             || self.materialization.force
             || self.materialization.verify_deps_before_run_install
-            || config.cargo.enabled
-            || config.python.enabled
         {
+            return false;
+        }
+        if config.cargo.enabled || config.python.enabled {
             return false;
         }
         // The merge flags reach `config` only in the dispatch, after this

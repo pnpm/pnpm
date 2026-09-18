@@ -370,7 +370,7 @@ fn assert_standard_workspace_pnpr_from(project: Option<&str>) {
     configure_workspace(&workspace);
     write_workspace_project(&workspace, "app", "app", (WORKSPACE_HELLO, "1.0.0"));
     write_workspace_project(&workspace, "lib", "lib", (WORKSPACE_PARENT, "100.0.0"));
-    let (pnpr_url, token) = start_pnpr(&mock_instance.url());
+    let (pnpr_url, token) = start_pnpr(mock_instance.url());
     configure_pnpr_auth(&npmrc_path, &pnpr_url, &token);
 
     let cwd = project.map_or_else(|| workspace.clone(), |project| workspace.join(project));
@@ -444,7 +444,7 @@ fn assert_filtered_workspace_pnpr(lockfile_only: bool) {
     if lockfile_only {
         fs::remove_dir_all(&store_dir).expect("remove baseline client store");
     }
-    let (pnpr_url, token) = start_pnpr(&mock_instance.url());
+    let (pnpr_url, token) = start_pnpr(mock_instance.url());
     configure_pnpr_auth(&npmrc_path, &pnpr_url, &token);
     let mut args = vec!["--filter", "selected", "install", "--pnpr-server", &pnpr_url];
     if lockfile_only {

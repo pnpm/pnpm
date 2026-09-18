@@ -11,14 +11,14 @@ use super::{
 #[tokio::test]
 async fn streams_resolved_packages_before_the_lockfile() {
     let registry = TestRegistry::start();
-    let (pnpr_url, pnpr_auth, _storage) = start_pnpr(&registry.url()).await;
+    let (pnpr_url, pnpr_auth, _storage) = start_pnpr(registry.url()).await;
 
     let client = PnprClient::new(pnpr_url);
 
     let mut streamed: Vec<String> = Vec::new();
     let outcome = client
         .resolve_streaming(
-            options(&registry.url(), &pnpr_auth, deps([("@foo/no-deps", "1.0.0")])),
+            options(registry.url(), &pnpr_auth, deps([("@foo/no-deps", "1.0.0")])),
             |pkg| {
                 assert!(!pkg.integrity.is_empty(), "a package frame carries an integrity");
                 assert!(pkg.tarball.starts_with("http"), "a package frame carries a tarball URL");
@@ -48,20 +48,20 @@ async fn streams_resolved_packages_before_the_lockfile() {
 #[tokio::test]
 async fn verifies_and_accepts_a_clean_input_lockfile() {
     let registry = TestRegistry::start();
-    let (pnpr_url, pnpr_auth, _storage) = start_pnpr(&registry.url()).await;
+    let (pnpr_url, pnpr_auth, _storage) = start_pnpr(registry.url()).await;
 
     let client = PnprClient::new(pnpr_url);
 
     // A first install with no lockfile produces a valid resolved one.
     let first = client
-        .resolve(options(&registry.url(), &pnpr_auth, deps([("@foo/no-deps", "1.0.0")])))
+        .resolve(options(registry.url(), &pnpr_auth, deps([("@foo/no-deps", "1.0.0")])))
         .await
         .expect("first install");
 
     // Sending it back as the input lockfile makes the server verify it
     // under the (default, policy-free) client policy before resolving;
     // a clean lockfile passes and the install succeeds.
-    let mut opts = options(&registry.url(), &pnpr_auth, deps([("@foo/no-deps", "1.0.0")]));
+    let mut opts = options(registry.url(), &pnpr_auth, deps([("@foo/no-deps", "1.0.0")]));
     opts.reuse.lockfile = Some(first.lockfile.clone());
     let second = client.resolve(opts).await.expect("verified-input install should succeed");
     assert!(second.lockfile.packages.is_some(), "resolution still produced a lockfile");
@@ -70,19 +70,19 @@ async fn verifies_and_accepts_a_clean_input_lockfile() {
 #[tokio::test]
 async fn rejects_an_input_lockfile_that_violates_the_clients_policy() {
     let registry = TestRegistry::start();
-    let (pnpr_url, pnpr_auth, _storage) = start_pnpr(&registry.url()).await;
+    let (pnpr_url, pnpr_auth, _storage) = start_pnpr(registry.url()).await;
 
     let client = PnprClient::new(pnpr_url);
 
     let first = client
-        .resolve(options(&registry.url(), &pnpr_auth, deps([("@foo/no-deps", "1.0.0")])))
+        .resolve(options(registry.url(), &pnpr_auth, deps([("@foo/no-deps", "1.0.0")])))
         .await
         .expect("first install");
 
     // Re-send the same lockfile under a ~100-year minimumReleaseAge: no
     // real publish time can satisfy it, so the server rejects the input
     // lockfile and the client rebuilds the identical `VerifyError`.
-    let mut opts = options(&registry.url(), &pnpr_auth, deps([("@foo/no-deps", "1.0.0")]));
+    let mut opts = options(registry.url(), &pnpr_auth, deps([("@foo/no-deps", "1.0.0")]));
     opts.reuse.lockfile = Some(first.lockfile.clone());
     opts.verification.minimum_release_age = Some(60 * 24 * 365 * 100);
     opts.verification.minimum_release_age_ignore_missing_time = false;
@@ -99,16 +99,16 @@ async fn rejects_an_input_lockfile_that_violates_the_clients_policy() {
 #[tokio::test]
 async fn verify_lockfile_endpoint_accepts_a_clean_input_lockfile() {
     let registry = TestRegistry::start();
-    let (pnpr_url, pnpr_auth, _storage) = start_pnpr(&registry.url()).await;
+    let (pnpr_url, pnpr_auth, _storage) = start_pnpr(registry.url()).await;
 
     let client = PnprClient::new(pnpr_url);
 
     let first = client
-        .resolve(options(&registry.url(), &pnpr_auth, deps([("@foo/no-deps", "1.0.0")])))
+        .resolve(options(registry.url(), &pnpr_auth, deps([("@foo/no-deps", "1.0.0")])))
         .await
         .expect("first install");
 
-    let mut opts = options(&registry.url(), &pnpr_auth, deps([("@foo/no-deps", "1.0.0")]));
+    let mut opts = options(registry.url(), &pnpr_auth, deps([("@foo/no-deps", "1.0.0")]));
     opts.reuse.lockfile = Some(first.lockfile);
     let verify_opts =
         VerifyLockfileOptions::from_resolve_options(&opts).expect("lockfile is present");
@@ -119,16 +119,16 @@ async fn verify_lockfile_endpoint_accepts_a_clean_input_lockfile() {
 #[tokio::test]
 async fn verify_lockfile_endpoint_rejects_policy_violation() {
     let registry = TestRegistry::start();
-    let (pnpr_url, pnpr_auth, _storage) = start_pnpr(&registry.url()).await;
+    let (pnpr_url, pnpr_auth, _storage) = start_pnpr(registry.url()).await;
 
     let client = PnprClient::new(pnpr_url);
 
     let first = client
-        .resolve(options(&registry.url(), &pnpr_auth, deps([("@foo/no-deps", "1.0.0")])))
+        .resolve(options(registry.url(), &pnpr_auth, deps([("@foo/no-deps", "1.0.0")])))
         .await
         .expect("first install");
 
-    let mut opts = options(&registry.url(), &pnpr_auth, deps([("@foo/no-deps", "1.0.0")]));
+    let mut opts = options(registry.url(), &pnpr_auth, deps([("@foo/no-deps", "1.0.0")]));
     opts.reuse.lockfile = Some(first.lockfile);
     opts.verification.minimum_release_age = Some(60 * 24 * 365 * 100);
     opts.verification.minimum_release_age_ignore_missing_time = false;
@@ -156,16 +156,16 @@ async fn verify_lockfile_endpoint_rejects_policy_violation() {
 #[tokio::test]
 async fn verify_lockfile_endpoint_uses_upstreams() {
     let registry = TestRegistry::start();
-    let token = register_token(&registry.url(), "needs-auth-verifier").await;
+    let token = register_token(registry.url(), "needs-auth-verifier").await;
     let shared_public_url = "http://pnpr.verify.test";
 
     let (resolve_pnpr_url, resolve_auth, _resolve_storage) = start_pnpr_with_upstreams_at(
         shared_public_url,
-        vec![registry_upstream(&registry.url(), &token)],
+        vec![registry_upstream(registry.url(), &token)],
     )
     .await;
     let mut resolve_opts =
-        options(&registry.url(), &resolve_auth, deps([("@pnpm.e2e/needs-auth", "1.0.0")]));
+        options(registry.url(), &resolve_auth, deps([("@pnpm.e2e/needs-auth", "1.0.0")]));
     let first = PnprClient::new(resolve_pnpr_url)
         .resolve(resolve_opts.clone())
         .await
@@ -179,7 +179,7 @@ async fn verify_lockfile_endpoint_uses_upstreams() {
     // A fresh pnpr that carries the upstream verifies the gated entry.
     let (aliased_pnpr_url, aliased_auth, _aliased_storage) = start_pnpr_with_upstreams_at(
         shared_public_url,
-        vec![registry_upstream(&registry.url(), &token)],
+        vec![registry_upstream(registry.url(), &token)],
     )
     .await;
     let mut aliased_opts = resolve_opts.clone();
@@ -193,7 +193,7 @@ async fn verify_lockfile_endpoint_uses_upstreams() {
 
     // A pnpr without the upstream has no credential to select, so the gated
     // entry's metadata fetch must fail closed.
-    let (plain_pnpr_url, plain_auth, _plain_storage) = start_pnpr(&registry.url()).await;
+    let (plain_pnpr_url, plain_auth, _plain_storage) = start_pnpr(registry.url()).await;
     let mut plain_opts = resolve_opts.clone();
     plain_opts.routing.authorization = Some(plain_auth);
     let plain_verify_opts =
@@ -207,12 +207,12 @@ async fn verify_lockfile_endpoint_uses_upstreams() {
 #[tokio::test]
 async fn trust_lockfile_makes_the_server_skip_verification() {
     let registry = TestRegistry::start();
-    let (pnpr_url, pnpr_auth, _storage) = start_pnpr(&registry.url()).await;
+    let (pnpr_url, pnpr_auth, _storage) = start_pnpr(registry.url()).await;
 
     let client = PnprClient::new(pnpr_url);
 
     let first = client
-        .resolve(options(&registry.url(), &pnpr_auth, deps([("@foo/no-deps", "1.0.0")])))
+        .resolve(options(registry.url(), &pnpr_auth, deps([("@foo/no-deps", "1.0.0")])))
         .await
         .expect("first install");
 
@@ -220,7 +220,7 @@ async fn trust_lockfile_makes_the_server_skip_verification() {
     // trips on, but with the client's `trustLockfile` opt-out set: the
     // server must skip the verify gate and resolve normally, matching the
     // local `--trust-lockfile` path.
-    let mut opts = options(&registry.url(), &pnpr_auth, deps([("@foo/no-deps", "1.0.0")]));
+    let mut opts = options(registry.url(), &pnpr_auth, deps([("@foo/no-deps", "1.0.0")]));
     opts.reuse.lockfile = Some(first.lockfile.clone());
     opts.verification.minimum_release_age = Some(60 * 24 * 365 * 100);
     opts.verification.minimum_release_age_ignore_missing_time = false;
