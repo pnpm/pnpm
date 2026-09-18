@@ -303,7 +303,10 @@ impl PruneOutcome {
     /// An entry that cannot be typed is recorded for the same reason an
     /// unreadable root is: where the filesystem reports no type up front,
     /// `file_type` is an `lstat`, and swallowing its failure would leave the
-    /// root looking emptier than it is.
+    /// root looking emptier than it is. One that vanished between the listing
+    /// and that `lstat` is the exception, as an already-removed directory is in
+    /// [`remove_pruned_dir`]: a prune running alongside this one must not make
+    /// it fail for reaching the same end first.
     fn prune_entry(&mut self, entry: io::Result<fs::DirEntry>, meta_dir: &str, dry_run: bool) {
         let entry = match entry {
             Ok(entry) => entry,
@@ -317,6 +320,7 @@ impl PruneOutcome {
         match entry.file_type() {
             Ok(file_type) if !file_type.is_dir() => return,
             Ok(_) => {}
+            Err(error) if error.kind() == io::ErrorKind::NotFound => return,
             Err(error) => {
                 return self.failures.push(format!(
                     "Failed to inspect metadata cache entry {path:?}: {error}",
@@ -378,9 +382,11 @@ impl PruneOutcome {
 /// that is not in the current key shape. Requiring the root to resolve inside
 /// the cache directory keeps the sweep in the tree the configuration names.
 ///
-/// The resolved path is what gets swept, so a link swapped in after the check
-/// cannot redirect the removals either. This is the containment
-/// `pnpm_deps_restorer`'s `confined_modules_dir` applies before its own sweep.
+/// The sweep runs against the resolved path, so replacing the configured root
+/// with a link afterwards redirects nothing. This is the containment
+/// `pnpm_deps_restorer`'s `confined_modules_dir` applies before its own sweep,
+/// and it shares that check's limit: both re-resolve the path they were handed,
+/// so neither defends against a process rewriting the tree as the sweep runs.
 ///
 /// A `cacheDir` pointing somewhere unwelcome outright is not this check's to
 /// catch: the sweep is then inside the configured directory, which is the
