@@ -29,10 +29,7 @@ pub(in super::super) fn patch<'a>(
 
 /// The state for the install that re-resolves after `patch-commit` or
 /// `patch-remove`: the prepared config with the `patchedDependencies` the
-/// step just recorded, so the install applies the same patches the
-/// workspace now lists. The step records them under the workspace dir, or
-/// under `dir` when there was no workspace manifest before, in which case
-/// there is one now and the install resolves the patches against it.
+/// step just recorded, anchored at the directory it recorded them under.
 fn reresolving_state(
     dir: &Path,
     manifest_path: &Path,
