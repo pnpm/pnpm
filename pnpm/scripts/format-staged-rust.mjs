@@ -92,7 +92,10 @@ export function checkedOutSource (root, file) {
     const real = fs.realpathSync(absolute)
     return real.startsWith(root + path.sep) ? real : null
   } catch (error) {
-    if (error.code === 'ENOENT') return null
+    // The three ways a path can fail to lead anywhere: nothing of that name,
+    // a non-directory used as one, a cycle of links. Each is a staged path to
+    // reject and report, not a reason to fail the commit.
+    if (['ENOENT', 'ENOTDIR', 'ELOOP'].includes(error.code)) return null
     throw error
   }
 }

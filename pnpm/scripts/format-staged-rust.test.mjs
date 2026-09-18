@@ -185,3 +185,19 @@ test('refuses to format a staged hardlink to a file outside the checkout', { ski
   assert.match(reported.mock.calls[0].arguments[0], /must name one regular file inside the checkout:\n {2}linked\.rs/)
   assert.equal(fs.readFileSync(outside, 'utf8'), 'fn outside() {}\n')
 })
+
+test('reports a staged path whose directory became a file', { skip: process.platform === 'win32' }, (context) => {
+  const repo = repoWithSources(context, ['real.rs'])
+  fs.mkdirSync(path.join(repo, 'dir'))
+  fs.writeFileSync(path.join(repo, 'dir', 'nested.rs'), 'fn nested() {}\n')
+  git(repo, 'add', '--all')
+  fs.rmSync(path.join(repo, 'dir'), { recursive: true })
+  fs.writeFileSync(path.join(repo, 'dir'), 'no longer a directory\n')
+
+  const reported = context.mock.method(console, 'error', () => {})
+  const { seen, format } = reformatter()
+  assert.equal(formatStagedRust(repo, { format }), 0)
+
+  assert.deepEqual(seen, [])
+  assert.match(reported.mock.calls[0].arguments[0], /must name one regular file inside the checkout:\n {2}dir\/nested\.rs/)
+})
