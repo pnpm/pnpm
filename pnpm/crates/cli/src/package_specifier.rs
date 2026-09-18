@@ -133,6 +133,7 @@ fn npm_scope(namespace: &str, source: &str) -> Result<String> {
 /// `=` that the `crate:` spelling does not.
 fn purl_registry_specifier(purl: &Purl, source: &str) -> Result<RegistryPackageSpecifier> {
     reject_namespace(purl, source)?;
+    reject_invalid_cargo_name(&purl.name, source)?;
     let Some(version) = &purl.version else {
         return parse_registry_specifier(&purl.name, source);
     };
@@ -205,10 +206,12 @@ fn python_requirement(requirement: &str) -> Result<String> {
     Ok(pnpm_python_resolver::parse_requirement(requirement)?.to_string())
 }
 
-fn parse_registry_specifier(specifier: &str, source: &str) -> Result<RegistryPackageSpecifier> {
-    let (name, version_spec) = specifier
-        .rsplit_once('@')
-        .map_or((specifier, None), |(name, version)| (name, Some(version)));
+/// A crates.io package name: ASCII alphanumerics joined by `-` or `_`.
+///
+/// A purl carries the name as its own component, so it is checked before
+/// the `@` is appended: a decoded `@` would otherwise read back as the
+/// version separator and name a different crate.
+fn reject_invalid_cargo_name(name: &str, source: &str) -> Result<()> {
     if name.is_empty()
         || !name
             .bytes()
@@ -216,6 +219,14 @@ fn parse_registry_specifier(specifier: &str, source: &str) -> Result<RegistryPac
     {
         return Err(miette::miette!("invalid Cargo package name in {source}"));
     }
+    Ok(())
+}
+
+fn parse_registry_specifier(specifier: &str, source: &str) -> Result<RegistryPackageSpecifier> {
+    let (name, version_spec) = specifier
+        .rsplit_once('@')
+        .map_or((specifier, None), |(name, version)| (name, Some(version)));
+    reject_invalid_cargo_name(name, source)?;
     if version_spec == Some("") {
         return Err(miette::miette!("missing version after `@` in {source}"));
     }

@@ -178,6 +178,7 @@ fn rejects_a_purl_whose_components_would_rewrite_the_selector() {
             "pkg:npm/express@npm%3Aevil%401.0.0",
             "pkg:npm/express@npm%3Aevil%401.0.0 does not carry a valid npm version",
         ),
+        ("pkg:cargo/foo%401.0.0", "invalid Cargo package name in pkg:cargo/foo%401.0.0"),
         (
             "pkg:pypi/requests%5Bsecurity%5D@2.31.0",
             "pkg:pypi/requests%5Bsecurity%5D@2.31.0 does not name a valid PyPI project",
