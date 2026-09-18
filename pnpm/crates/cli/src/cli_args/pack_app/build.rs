@@ -20,11 +20,6 @@ pub(super) struct SeaBuild<'a> {
 pub(super) struct EmbeddedRuntime {
     pub(super) build_root: PathBuf,
     pub(super) version: String,
-    /// `node-mirror:<channel>` as this project names it, which the
-    /// install that fetches the runtime cannot read for itself: it runs
-    /// under the pnpm home, and that setting is one a workspace may name.
-    /// `tools` needs no such hand-over, being the machine's own.
-    pub(super) node_mirrors: Option<String>,
 }
 
 /// Reject a pre-existing symlink (or any non-regular file) at any
@@ -112,15 +107,6 @@ fn builder_version_can_build_sea(version: &str) -> bool {
 ///
 /// Re-invokes the pacquet binary with `add` against an isolated install
 /// directory.
-/// `node-mirror:<channel>` as JSON, for the install that fetches a
-/// runtime in a directory of its own.
-pub(super) fn node_mirrors_env(config: &Config) -> Option<String> {
-    if config.node_download_mirrors.is_empty() {
-        return None;
-    }
-    serde_json::to_string(&config.node_download_mirrors).ok()
-}
-
 pub(super) fn ensure_node_runtime(
     pacquet_bin: &Path,
     runtime: &EmbeddedRuntime,
@@ -128,7 +114,7 @@ pub(super) fn ensure_node_runtime(
     arch: &str,
     libc: Option<&str>,
 ) -> miette::Result<PathBuf> {
-    let EmbeddedRuntime { build_root, version, node_mirrors } = runtime;
+    let EmbeddedRuntime { build_root, version } = runtime;
     // Linux variants always need a libc pin (glibc or musl) so variant
     // selection is deterministic and doesn't depend on the host's detected
     // libc or the user's supportedArchitectures.libc config.
@@ -156,9 +142,6 @@ pub(super) fn ensure_node_runtime(
         .arg(format!("--cpu={arch}"));
     if let Some(libc) = libc {
         command.arg(format!("--libc={libc}"));
-    }
-    if let Some(mirrors) = node_mirrors {
-        command.env("PNPM_CONFIG_NODE_DOWNLOAD_MIRRORS", mirrors);
     }
     command.arg(format!("node@runtime:{version}"));
     run_command(&mut command, "pnpm add node@runtime")?;
