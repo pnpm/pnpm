@@ -20,6 +20,8 @@ fn approval_prints_the_version_list_once_and_persists_excludes() {
     append_workspace_yaml_key(&workspace, "minimumReleaseAgeStrict", true);
 
     let output = without_colors(Command::new("python3").without_ambient_pnpm_config())
+        .env("CI", "false")
+        .env_remove("GITHUB_ACTION")
         .arg("-c")
         .arg(include_str!("../fixtures/minimum_release_age_prompt.py"))
         .arg(pacquet.get_program())
