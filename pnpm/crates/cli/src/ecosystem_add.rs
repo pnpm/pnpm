@@ -114,7 +114,10 @@ async fn python_add_task<Reporter: pnpm_reporter::Reporter + 'static>(
             {
                 python::discover_around(config, &inventory(workspace_root), &project).await?
             }
-            _ => pnpm_python_installer::discover(config, &[project.join("pyproject.toml")]).await?,
+            _ => {
+                pnpm_python_installer::discover(config, &project, &[project.join("pyproject.toml")])
+                    .await?
+            }
         };
         (discovery, BTreeSet::from([project]))
     };
