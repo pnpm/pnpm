@@ -177,9 +177,7 @@ async fn serve_wheels(
     mocks
 }
 
-/// Declare another `PyPI` index ahead of the one [`project`] named, so it is
-/// searched first and [`project`]'s answers what it does not have.
-fn add_python_index(root: &Path, index: &str) {
+fn add_python_index_searched_first(root: &Path, index: &str) {
     let workspace = fs::read_to_string(root.join("pnpm-workspace.yaml")).unwrap();
     fs::write(
         root.join("pnpm-workspace.yaml"),

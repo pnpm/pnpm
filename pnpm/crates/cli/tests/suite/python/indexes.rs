@@ -1,8 +1,8 @@
 mod rules;
 
 use super::{
-    add_python_index, add_python_settings, assert_failure_contains, pacquet_in, project, python,
-    serve, serve_with_index_auth, wheel,
+    add_python_index_searched_first, add_python_settings, assert_failure_contains, pacquet_in,
+    project, python, serve, serve_with_index_auth, wheel,
 };
 use assert_cmd::assert::OutputAssertExt;
 use base64::{Engine as _, engine::general_purpose::STANDARD};
@@ -33,7 +33,7 @@ async fn extra_indexes_have_priority_and_cache_missing_packages_for_offline_reso
         .create_async()
         .await;
     project(root.path(), &primary.url(), &["alpha"]);
-    add_python_index(root.path(), &format!("{}/simple/", extra.url()));
+    add_python_index_searched_first(root.path(), &format!("{}/simple/", extra.url()));
     write_index_credentials(root.path(), &extra.url(), "extra-user:extra-secret");
     pacquet_in(root.path())
         .arg("install")
@@ -80,7 +80,7 @@ async fn extra_index_errors_do_not_fall_back_to_another_index() {
         .create_async()
         .await;
     project(root.path(), &primary.url(), &["alpha"]);
-    add_python_index(root.path(), &format!("{}/simple/", extra.url()));
+    add_python_index_searched_first(root.path(), &format!("{}/simple/", extra.url()));
     assert_failure_contains(pacquet_in(root.path()).arg("install"), "403 Forbidden");
     unused.assert_async().await;
     denied.assert_async().await;
@@ -121,7 +121,7 @@ async fn an_index_credential_does_not_travel_to_an_index_on_another_origin() {
     )
     .await;
     project(root.path(), &primary.url(), &["alpha"]);
-    add_python_index(root.path(), &format!("{}/simple/", extra.url()));
+    add_python_index_searched_first(root.path(), &format!("{}/simple/", extra.url()));
     write_index_credentials(root.path(), &primary.url(), "parent:secret");
     pacquet_in(root.path())
         .arg("install")
@@ -155,7 +155,7 @@ async fn authenticated_index_caches_do_not_cross_credential_identities() {
     )
     .await;
     project(root.path(), &primary.url(), &["alpha"]);
-    add_python_index(root.path(), &format!("{}/simple/", extra.url()));
+    add_python_index_searched_first(root.path(), &format!("{}/simple/", extra.url()));
     write_index_credentials(root.path(), &extra.url(), "user:alice-secret");
     pacquet_in(root.path())
         .arg("install")
@@ -198,7 +198,7 @@ async fn authenticated_index_caches_do_not_cross_credential_identities() {
 fn an_index_may_not_carry_its_own_credentials() {
     let root = tempfile::tempdir().unwrap();
     project(root.path(), "http://localhost:1", &["alpha"]);
-    add_python_index(root.path(), "http://alice:private-secret@localhost:1/simple/");
+    add_python_index_searched_first(root.path(), "http://alice:private-secret@localhost:1/simple/");
     let output = pacquet_in(root.path())
         .arg("install")
         .assert()
@@ -212,9 +212,8 @@ fn an_index_may_not_carry_its_own_credentials() {
     assert!(!message.contains("private-secret"), "{message}");
 }
 
-/// Give the machine a credential for `index`, as an `.npmrc` beside the
-/// project. `registries` refuses one in the setting itself, so this is where
-/// a Python index's credential lives.
+/// `registries` refuses a credential in the setting itself, so an `.npmrc`
+/// beside the project is where a Python index's credential lives.
 fn write_index_credentials(root: &std::path::Path, index: &str, user_and_password: &str) {
     let authority = index
         .strip_prefix("http://")
