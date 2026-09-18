@@ -31,7 +31,7 @@ export function formatStagedRust (repo, { format = pinnedRustfmt } = {}) {
     console.error(`pre-commit: not formatting these files, each has unstaged changes too:\n${indent(withheld)}`)
   }
   if (foreign.length > 0) {
-    console.error(`pre-commit: not formatting these paths, none is a regular file in the checkout:\n${indent(foreign)}`)
+    console.error(`pre-commit: not formatting these paths, each must name one regular file inside the checkout:\n${indent(foreign)}`)
   }
   if (formattable.size === 0) return 0
 
@@ -71,22 +71,24 @@ function partitionStaged (root, staged, unstaged) {
 }
 
 /**
- * The resolved path of a staged file inside the checkout, or null when the
- * staged path does not lead to a regular file within it.
+ * The resolved path of a staged file that the formatter may rewrite in place,
+ * or null when the staged path is not one.
  *
- * Git will not index a path beyond a symbolic link, and reports one whose
- * directory became a link afterwards as deleted from the working tree. This
- * states the invariant those two behaviors happen to give rather than leaving
- * it to them, so `root` must already be a resolved path.
+ * rustfmt truncates the file it is given, so every other name that reaches the
+ * same bytes is rewritten with it. A path qualifies only when it names one
+ * regular file inside the checkout: not a symbolic link, not a second name for
+ * an inode that something outside the repository also holds, and not a path
+ * that resolves beyond `root`, which must already be resolved itself.
  *
- * The resolved path is what the caller should hand the formatter. Passing the
- * staged path on instead would have the formatter walk the links again, which
- * is a second chance to arrive somewhere else.
+ * The resolved path is what the caller hands the formatter. Passing the staged
+ * path on instead would have the formatter walk the links again, which is a
+ * second chance to arrive somewhere else.
  */
 export function checkedOutSource (root, file) {
   const absolute = path.join(root, file)
   try {
-    if (!fs.lstatSync(absolute).isFile()) return null
+    const stats = fs.lstatSync(absolute)
+    if (!stats.isFile() || stats.nlink > 1) return null
     const real = fs.realpathSync(absolute)
     return real.startsWith(root + path.sep) ? real : null
   } catch (error) {

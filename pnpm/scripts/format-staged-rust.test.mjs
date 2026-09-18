@@ -146,7 +146,7 @@ test('refuses a staged path whose directory became a link out of the checkout', 
   assert.equal(formatStagedRust(repo, { format }), 0)
 
   assert.deepEqual(seen, [])
-  assert.match(reported.mock.calls[0].arguments[0], /none is a regular file in the checkout:\n {2}dir\/nested\.rs/)
+  assert.match(reported.mock.calls[0].arguments[0], /each must name one regular file inside the checkout:\n {2}dir\/nested\.rs/)
   assert.equal(fs.readFileSync(path.join(outside, 'nested.rs'), 'utf8'), 'fn nested() {}\n')
 })
 
@@ -167,4 +167,21 @@ test('rejects a source path that resolves outside the checkout', { skip: process
   assert.equal(checkedOutSource(repo, 'link-dir/nested.rs'), path.join(repo, 'real-dir', 'nested.rs'))
   assert.equal(checkedOutSource(repo, `../${path.basename(outside)}`), null)
   assert.equal(checkedOutSource(repo, 'missing.rs'), null)
+})
+
+test('refuses to format a staged hardlink to a file outside the checkout', { skip: process.platform === 'win32' }, (context) => {
+  const repo = repoWithSources(context, ['real.rs'])
+  const outside = `${repo}-outside.rs`
+  fs.writeFileSync(outside, 'fn outside() {}\n')
+  context.after(() => fs.rmSync(outside, { force: true }))
+  fs.linkSync(outside, path.join(repo, 'linked.rs'))
+  git(repo, 'add', '--all')
+
+  const reported = context.mock.method(console, 'error', () => {})
+  const { seen, format } = reformatter()
+  assert.equal(formatStagedRust(repo, { format }), 0)
+
+  assert.deepEqual(seen, [])
+  assert.match(reported.mock.calls[0].arguments[0], /must name one regular file inside the checkout:\n {2}linked\.rs/)
+  assert.equal(fs.readFileSync(outside, 'utf8'), 'fn outside() {}\n')
 })
