@@ -1,7 +1,7 @@
 use super::{
-    BTreeMap, HashMap, HashSet, Lockfile, Mutex, PacquetConfig, PathBuf, RegistryDeclaration,
-    ResolutionMode, ResolveRequest, ResolveRequestProject, RouteContext, config, deps, lockfile,
-    registry_config, reject_off_allowlist_fetches, resolution_cache_key,
+    HashMap, HashSet, Lockfile, Mutex, PacquetConfig, PathBuf, RegistryDeclaration, ResolutionMode,
+    ResolveRequest, ResolveRequestProject, RouteContext, config, deps, lockfile, registry_config,
+    reject_off_allowlist_fetches, resolution_cache_key,
 };
 
 #[test]
