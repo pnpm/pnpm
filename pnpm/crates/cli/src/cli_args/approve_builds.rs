@@ -62,13 +62,10 @@ impl ApproveBuildsArgs {
     /// caller then drives `run_rebuild` with a reporter.
     ///
     /// `config` locates the pending approvals and the settings file. The
-    /// rebuild state is built after the settings are written, from
-    /// `rebuild_config` plus the just-written `allowBuilds`, so the
-    /// rebuild's allow-build policy reflects the approval; the global path
-    /// anchors the two configs differently, the local path passes one
-    /// config for both. `dir` is the canonicalized `--dir`, the fallback
-    /// settings target when no `pnpm-workspace.yaml` is found;
-    /// `manifest_path` is the project manifest the rebuild is anchored at.
+    /// returned rebuild state is `rebuild_config` plus the `allowBuilds`
+    /// this call wrote, anchored at `manifest_path`. `dir` is the
+    /// canonicalized `--dir`, the fallback settings target when no
+    /// `pnpm-workspace.yaml` is found.
     pub fn prepare<Reporter: self::Reporter>(
         self,
         dir: &Path,
