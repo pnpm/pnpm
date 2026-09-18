@@ -4,9 +4,13 @@ use super::{
     manifest_has_runtime_deps, manifest_string_field,
 };
 use pnpm_config::{Config, LinkWorkspacePackages, NodeLinker};
-use pnpm_lockfile::Lockfile;
-use pnpm_modules_yaml::Host;
-use pnpm_package_manifest::PackageManifest;
+use pnpm_fs::lexical_normalize;
+use pnpm_lockfile::{
+    Lockfile, MaybeLazyLockfile, PkgName, ProjectSnapshot, ResolvedDependencySpec,
+};
+use pnpm_modules_yaml::{Host, IncludedDependencies};
+use pnpm_package_manifest::{DependencyGroup, PackageManifest};
+use pnpm_workspace::importer_id_from_root_dir;
 use pnpm_workspace_state::{WorkspaceState, update_workspace_state};
 use std::{
     fs,
@@ -206,49 +210,173 @@ pub(super) fn project_structure_matches(
                     == manifest_string_field(manifest, "version").as_deref().unwrap_or("0.0.0")
         })
 }
-pub(super) fn modules_dirs_present(
-    config: &Config,
-    node_linker: NodeLinker,
-    project_manifests: &[(PathBuf, &PackageManifest)],
-) -> bool {
-    first_project_missing_modules_dir(config, node_linker, project_manifests).is_none()
+pub(super) fn modules_dirs_present(check: &OptimisticRepeatInstallCheck<'_>) -> bool {
+    first_project_missing_modules_dir(check).is_none()
 }
 /// The id (`name` field, falling back to the root dir) of the first
 /// project that declares dependencies but has no modules directory, or
 /// `None` when every project with dependencies has one.
+///
+/// Under `dedupeDirectDeps` a sibling whose every direct dependency
+/// resolves to the same target as the root's gets nothing linked, so the
+/// linker never creates its modules directory; such a sibling is installed
+/// all the same and does not count as missing one.
 pub(super) fn first_project_missing_modules_dir(
-    config: &Config,
-    node_linker: NodeLinker,
-    project_manifests: &[(PathBuf, &PackageManifest)],
+    check: &OptimisticRepeatInstallCheck<'_>,
 ) -> Option<String> {
-    let root_modules_dir_exists = config.modules_dir.exists();
+    let &OptimisticRepeatInstallCheck {
+        workspace_root,
+        config,
+        project_manifests,
+        lockfile,
+        layout: crate::RepeatInstallLayout { node_linker, included, .. },
+        ..
+    } = check;
+    let root_modules_dir_exists = config.modules_dir.is_dir();
 
     project_manifests
         .iter()
         .find_map(|(root_dir, manifest)| {
-            if !manifest_has_runtime_deps(manifest) {
-                return None;
-            }
-            // The root importer uses `config.modules_dir`; siblings use
-            // their own `<root>/node_modules`. Matches the isolated-linker
-            // default — `config.modules_dir` is `<workspace_root>/node_modules`
-            // unless the user overrode it explicitly.
-            let modules_dir_exists = match node_linker {
-                NodeLinker::Hoisted => root_modules_dir_exists,
-                NodeLinker::Isolated | NodeLinker::Pnp => {
-                    if *root_dir == workspace_dir_of(config, root_dir) {
-                        root_modules_dir_exists
-                    } else {
-                        root_dir.join("node_modules").exists()
-                    }
-                }
-            };
-
-            (!modules_dir_exists).then(|| {
+            let root_project_dir = workspace_dir_of(config, root_dir);
+            let is_root = *root_dir == root_project_dir;
+            let installed = !manifest_has_runtime_deps(manifest)
+                || modules_dir_exists(node_linker, root_dir, is_root, root_modules_dir_exists)
+                || (!is_root
+                    && root_modules_dir_exists
+                    && config.dedupe_direct_deps
+                    && dedupe_links_nothing(
+                        lockfile,
+                        &included_groups(included),
+                        DedupeImporters {
+                            lockfile_root: workspace_root,
+                            root_dir: &root_project_dir,
+                            sibling_dir: root_dir,
+                        },
+                    ));
+            (!installed).then(|| {
                 manifest_string_field(manifest, "name")
                     .unwrap_or_else(|| root_dir.to_string_lossy().into_owned())
             })
         })
+}
+
+/// The root importer uses `config.modules_dir`; siblings use their own
+/// `<root>/node_modules`. Matches the isolated-linker default —
+/// `config.modules_dir` is `<workspace_root>/node_modules` unless the user
+/// overrode it explicitly.
+fn modules_dir_exists(
+    node_linker: NodeLinker,
+    root_dir: &Path,
+    is_root: bool,
+    root_modules_dir_exists: bool,
+) -> bool {
+    match node_linker {
+        NodeLinker::Hoisted => root_modules_dir_exists,
+        NodeLinker::Isolated | NodeLinker::Pnp => {
+            if is_root {
+                root_modules_dir_exists
+            } else {
+                root_dir.join("node_modules").is_dir()
+            }
+        }
+    }
+}
+
+/// The dependency groups this install materializes, the only ones the
+/// linker links and dedupes.
+fn included_groups(included: IncludedDependencies) -> Vec<DependencyGroup> {
+    [
+        (included.dependencies, DependencyGroup::Prod),
+        (included.dev_dependencies, DependencyGroup::Dev),
+        (included.optional_dependencies, DependencyGroup::Optional),
+    ]
+    .into_iter()
+    .filter_map(|(included, group)| included.then_some(group))
+    .collect()
+}
+
+/// The two importers a dedupe verdict compares, as directories.
+#[derive(Clone, Copy)]
+struct DedupeImporters<'a> {
+    /// The directory importer ids are relative to.
+    lockfile_root: &'a Path,
+    root_dir: &'a Path,
+    sibling_dir: &'a Path,
+}
+
+/// Whether `dedupeDirectDeps` links nothing into the sibling: for every
+/// alias the sibling declares in a materialized group, the wanted lockfile
+/// records one target on each side, and the two are the same, which is what
+/// the linker compares. An alias declared with differing targets in several
+/// groups has one effective target the linker picks by group order; that
+/// choice is not reproduced here, so such an alias proves nothing. Neither
+/// does a lockfile that cannot be loaded or lacks either importer.
+fn dedupe_links_nothing(
+    lockfile: MaybeLazyLockfile<'_>,
+    groups: &[DependencyGroup],
+    importers: DedupeImporters<'_>,
+) -> bool {
+    let DedupeImporters {
+        lockfile_root,
+        root_dir,
+        sibling_dir,
+    } = importers;
+    let Ok(Some(lockfile)) = lockfile.get() else { return false };
+    let importer =
+        |dir: &Path| lockfile.importers.get(&importer_id_from_root_dir(lockfile_root, dir));
+    let (Some(root), Some(sibling)) = (importer(root_dir), importer(sibling_dir)) else {
+        return false;
+    };
+    let mut seen = std::collections::HashSet::new();
+    sibling
+        .dependencies_by_groups(groups.iter().copied())
+        .all(|(alias, _)| {
+            if !seen.insert(alias) {
+                return true;
+            }
+            let (Some(dep), Some(root_dep)) =
+                (sole_target(sibling, groups, alias), sole_target(root, groups, alias))
+            else {
+                return false;
+            };
+            resolves_to_same_target(root_dir, root_dep, sibling_dir, dep)
+        })
+}
+
+/// The one target `importer` resolves `alias` to across `groups`, or `None`
+/// when it declares the alias nowhere or with differing targets.
+fn sole_target<'a>(
+    importer: &'a ProjectSnapshot,
+    groups: &[DependencyGroup],
+    alias: &PkgName,
+) -> Option<&'a ResolvedDependencySpec> {
+    let mut declarations = importer
+        .dependencies_by_groups(groups.iter().copied())
+        .filter(|(declared, _)| *declared == alias)
+        .map(|(_, dep)| dep);
+    let first = declarations.next()?;
+    declarations
+        .all(|dep| dep.version == first.version)
+        .then_some(first)
+}
+
+/// Whether two importer dependencies resolve to one target: the same
+/// snapshot, or `link:` paths that name the same directory once resolved
+/// against their own importer directories.
+fn resolves_to_same_target(
+    root_dir: &Path,
+    root_dep: &ResolvedDependencySpec,
+    sibling_dir: &Path,
+    dep: &ResolvedDependencySpec,
+) -> bool {
+    match (root_dep.version.as_link_target(), dep.version.as_link_target()) {
+        (Some(root_target), Some(target)) => {
+            lexical_normalize(&root_dir.join(root_target))
+                == lexical_normalize(&sibling_dir.join(target))
+        }
+        (None, None) => root_dep.version == dep.version,
+        _ => false,
+    }
 }
 /// Recover the workspace root from `config.modules_dir`. The root
 /// importer's `root_dir` equals `config.modules_dir.parent()` because

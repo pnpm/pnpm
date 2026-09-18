@@ -6,10 +6,12 @@ use super::{
     FOO_MANIFEST, assert_content_check_converges_after_collision, backdate_validated_files, check,
     check_with_lockfile, collide_mtimes_with_recorded_state, content_check_decision,
     isolated_included, linked_sibling_decision_for_spec, setup_content_check_project,
-    setup_fresh_install, validate_existing_files, write_local_tarball_lockfile, write_state,
+    setup_fresh_install, setup_fresh_install_with_config, validate_existing_files,
+    write_local_tarball_lockfile, write_state,
 };
 use pnpm_config::Config;
-use pnpm_lockfile::MaybeLazyLockfile;
+use pnpm_lockfile::{Lockfile, MaybeLazyLockfile};
+use pnpm_modules_yaml::IncludedDependencies;
 use pnpm_package_manifest::PackageManifest;
 use pnpm_testing_utils::fs::set_mtime;
 use pnpm_workspace_state::{ProjectEntry, load_workspace_state, update_workspace_state};
@@ -516,4 +518,207 @@ fn returns_up_to_date_for_registry_resolution_when_workspace_linking_is_off() {
         ),
         Decision::UpToDate,
     );
+}
+/// Under `dedupeDirectDeps` a sibling whose direct dependencies resolve to
+/// the root's targets gets nothing linked and no modules directory, so the
+/// missing directory is not evidence of a missing install.
+#[test]
+fn returns_up_to_date_when_a_deduped_sibling_has_no_node_modules() {
+    assert_eq!(deduped_sibling_decision(true, "1.0.0", "1.0.0"), Decision::UpToDate);
+}
+#[test]
+fn returns_skipped_when_a_sibling_without_dedupe_has_no_node_modules() {
+    let decision = deduped_sibling_decision(false, "1.0.0", "1.0.0");
+    assert!(matches!(decision, Decision::Skipped { reason } if reason.contains("node_modules")));
+}
+/// The same specifier can resolve to another peer set for the sibling; the
+/// linker then links it into the sibling, so its missing `node_modules` is
+/// real damage.
+#[test]
+fn returns_skipped_when_a_sibling_resolves_a_shared_specifier_to_another_peer_set() {
+    let decision = deduped_sibling_decision(true, "1.0.0", "1.0.0(bar@1.0.0)");
+    assert!(matches!(decision, Decision::Skipped { reason } if reason.contains("node_modules")));
+}
+/// `link:` targets are compared where they point, not as strings: the root's
+/// `link:libs/lib` and the sibling's `link:../libs/lib` are one directory.
+#[test]
+fn returns_up_to_date_when_a_deduped_sibling_links_the_same_directory_by_another_path() {
+    assert_eq!(
+        deduped_sibling_decision(true, "link:libs/lib", "link:../libs/lib"),
+        Decision::UpToDate,
+    );
+}
+#[test]
+fn returns_skipped_when_a_sibling_links_another_directory_under_the_same_specifier() {
+    let decision = deduped_sibling_decision(true, "link:libs/lib", "link:libs/lib");
+    assert!(matches!(decision, Decision::Skipped { reason } if reason.contains("node_modules")));
+}
+/// The root declares `foo` in two groups with one target: still one target,
+/// so the sibling matches it.
+#[test]
+fn returns_up_to_date_when_the_root_declares_the_alias_in_two_groups_with_one_target() {
+    assert_eq!(
+        deduped_sibling_decision_with_root_dev("1.0.0", Some("1.0.0"), "1.0.0"),
+        Decision::UpToDate,
+    );
+}
+/// Two root declarations with differing targets have one effective target
+/// the linker picks by group order; the check does not reproduce that
+/// choice and falls through.
+#[test]
+fn returns_skipped_when_the_root_declares_the_alias_with_differing_targets() {
+    let decision = deduped_sibling_decision_with_root_dev("1.0.0", Some("2.0.0"), "2.0.0");
+    assert!(matches!(decision, Decision::Skipped { reason } if reason.contains("node_modules")));
+}
+/// A production-only install never links dev dependencies, so a sibling dev
+/// dependency the root lacks does not make the sibling incomplete.
+#[test]
+fn returns_up_to_date_when_an_unmatched_dependency_is_in_an_excluded_group() {
+    let production_only = IncludedDependencies {
+        dependencies: true,
+        dev_dependencies: false,
+        optional_dependencies: false,
+    };
+    assert_eq!(
+        deduped_sibling_decision_in(DedupedSibling {
+            dedupe_direct_deps: true,
+            root_version: "1.0.0",
+            root_dev_version: None,
+            sibling_version: "1.0.0",
+            sibling_dev_bar_version: Some("2.0.0"),
+            included: production_only,
+        }),
+        Decision::UpToDate,
+    );
+}
+/// The same sibling dev dependency blocks the exemption once dev
+/// dependencies are installed.
+#[test]
+fn returns_skipped_when_an_unmatched_dependency_is_in_an_included_group() {
+    let decision = deduped_sibling_decision_in(DedupedSibling {
+        dedupe_direct_deps: true,
+        root_version: "1.0.0",
+        root_dev_version: None,
+        sibling_version: "1.0.0",
+        sibling_dev_bar_version: Some("2.0.0"),
+        included: isolated_included(),
+    });
+    assert!(matches!(decision, Decision::Skipped { reason } if reason.contains("node_modules")));
+}
+fn deduped_sibling_decision(
+    dedupe_direct_deps: bool,
+    root_version: &str,
+    sibling_version: &str,
+) -> Decision {
+    deduped_sibling_decision_in(DedupedSibling {
+        dedupe_direct_deps,
+        root_version,
+        root_dev_version: None,
+        sibling_version,
+        sibling_dev_bar_version: None,
+        included: isolated_included(),
+    })
+}
+fn deduped_sibling_decision_with_root_dev(
+    root_version: &str,
+    root_dev_version: Option<&str>,
+    sibling_version: &str,
+) -> Decision {
+    deduped_sibling_decision_in(DedupedSibling {
+        dedupe_direct_deps: true,
+        root_version,
+        root_dev_version,
+        sibling_version,
+        sibling_dev_bar_version: None,
+        included: isolated_included(),
+    })
+}
+#[derive(Clone, Copy)]
+struct DedupedSibling<'a> {
+    dedupe_direct_deps: bool,
+    /// The root's `dependencies.foo`.
+    root_version: &'a str,
+    /// The root's `devDependencies.foo`, when it declares one.
+    root_dev_version: Option<&'a str>,
+    /// The sibling's `devDependencies.foo`.
+    sibling_version: &'a str,
+    /// The sibling's `devDependencies.bar`, which the root never declares.
+    sibling_dev_bar_version: Option<&'a str>,
+    included: IncludedDependencies,
+}
+fn deduped_sibling_decision_in(sibling: DedupedSibling<'_>) -> Decision {
+    let DedupedSibling {
+        dedupe_direct_deps,
+        root_version,
+        root_dev_version,
+        sibling_version,
+        sibling_dev_bar_version,
+        included,
+    } = sibling;
+    let (dir, config, root_manifest) = setup_fresh_install_with_config(
+        pnpm_config::NodeLinker::Isolated,
+        "root",
+        "1.0.0",
+        r#""dependencies":{"foo":"1.0.0"}"#,
+        |config| config.dedupe_direct_deps = dedupe_direct_deps,
+    );
+    let sibling_dir = dir.path().join("pkg-a");
+    fs::create_dir_all(&sibling_dir).unwrap();
+    let sibling_manifest_path = sibling_dir.join("package.json");
+    let sibling_bar_manifest = sibling_dev_bar_version.map_or("", |_| r#","bar":"2.0.0""#);
+    fs::write(
+        &sibling_manifest_path,
+        format!(
+            r#"{{"name":"pkg-a","version":"1.0.0","devDependencies":{{"foo":"1.0.0"{sibling_bar_manifest}}}}}"#,
+        ),
+    )
+    .unwrap();
+    let sibling_manifest = PackageManifest::from_path(sibling_manifest_path).unwrap();
+    let root_dev_block = root_dev_version.map_or_else(String::new, |version| {
+        format!("    devDependencies:\n      foo:\n        specifier: 1.0.0\n        version: {version}\n")
+    });
+    let sibling_bar_block = sibling_dev_bar_version.map_or_else(String::new, |version| {
+        format!("      bar:\n        specifier: 2.0.0\n        version: {version}\n")
+    });
+    fs::write(
+        dir.path().join(Lockfile::FILE_NAME),
+        format!(
+            "lockfileVersion: '9.0'\n\nimporters:\n\n  .:\n    dependencies:\n      foo:\n        specifier: 1.0.0\n        version: {root_version}\n{root_dev_block}\n  pkg-a:\n    devDependencies:\n      foo:\n        specifier: 1.0.0\n        version: {sibling_version}\n{sibling_bar_block}",
+        ),
+    )
+    .unwrap();
+    let lockfile = Lockfile::load_wanted_from_dir(dir.path())
+        .expect("parse the two-importer lockfile")
+        .expect("lockfile on disk");
+    let settings = current_settings(config, pnpm_config::NodeLinker::Isolated, included, None);
+    let mut projects = BTreeMap::new();
+    projects.insert(
+        dir.path()
+            .to_string_lossy()
+            .into_owned(),
+        ProjectEntry { name: Some("root".into()), version: Some("1.0.0".into()) },
+    );
+    projects.insert(
+        sibling_dir.to_string_lossy().into_owned(),
+        ProjectEntry { name: Some("pkg-a".into()), version: Some("1.0.0".into()) },
+    );
+    write_state(dir.path(), backdate_validated_files(dir.path()), settings, projects);
+
+    check_optimistic_repeat_install(&OptimisticRepeatInstallCheck {
+        workspace_root: dir.path(),
+        config,
+        project_manifests: &[
+            (dir.path().to_path_buf(), &root_manifest),
+            (sibling_dir, &sibling_manifest),
+        ],
+        is_workspace_install: true,
+        lockfile: MaybeLazyLockfile::Loaded(Some(&lockfile)),
+        catalogs: &BTreeMap::default(),
+        layout: crate::RepeatInstallLayout {
+            node_linker: pnpm_config::NodeLinker::Isolated,
+            included,
+            supported_architectures: None,
+        },
+        manifest_freshness: crate::ManifestFreshness::Mtime,
+    })
 }

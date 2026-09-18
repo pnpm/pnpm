@@ -135,7 +135,6 @@ fn first_workspace_drift(
         config,
         project_manifests,
         is_workspace_install,
-        layout: crate::RepeatInstallLayout { node_linker, .. },
         ..
     } = check;
     if !project_structure_matches(state, project_manifests) {
@@ -144,7 +143,7 @@ fn first_workspace_drift(
     // A filtered install legitimately leaves unselected projects
     // without a modules directory.
     if !state.filtered_install
-        && let Some(id) = first_project_missing_modules_dir(config, node_linker, project_manifests)
+        && let Some(id) = first_project_missing_modules_dir(check)
     {
         return Some(format!(
             "Workspace package {id} has dependencies but does not have a modules directory",

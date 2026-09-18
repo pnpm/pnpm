@@ -40,8 +40,6 @@ pub(crate) const CONFLICT_MARKER: &[u8] = b"<<<<<<<";
 
 pub(crate) const LOCKFILE_CONFLICT_SCAN_BUFFER_SIZE: usize = 8 * 1024;
 
-pub(crate) const MAX_LOCKFILE_CONFLICT_SCAN_BYTES: u64 = 16 * 1024 * 1024;
-
 pub(crate) fn lockfile_conflict_check_failure(
     path: &Path,
     last_validated_timestamp: i64,
@@ -60,9 +58,6 @@ pub(crate) fn lockfile_conflict_check_failure(
     if !lockfile_modified_since(mtime, last_validated_timestamp) {
         return None;
     }
-    if metadata.len() >= MAX_LOCKFILE_CONFLICT_SCAN_BYTES {
-        return Some(LockfileConflictCheckFailure::Unsafe);
-    }
     modified_lockfile_conflict_check_failure(path)
 }
 
@@ -72,22 +67,20 @@ pub(crate) fn modified_lockfile_conflict_check_failure(
     let Some(mut file) = open_for_conflict_scan(path) else {
         return Some(LockfileConflictCheckFailure::Unsafe);
     };
+    // The scan streams the whole file through one buffer, whatever its
+    // size: every changed lockfile that passes it is parsed in full next,
+    // so a size budget here could only refuse what the parse would read
+    // anyway.
     let mut buffer = [0; LOCKFILE_CONFLICT_SCAN_BUFFER_SIZE + CONFLICT_MARKER.len() - 1];
     let mut carried = 0;
-    let mut scanned = 0_u64;
     loop {
-        let remaining = MAX_LOCKFILE_CONFLICT_SCAN_BYTES.saturating_sub(scanned);
-        if remaining == 0 {
-            return Some(LockfileConflictCheckFailure::Unsafe);
-        }
-        let read_capacity = LOCKFILE_CONFLICT_SCAN_BUFFER_SIZE.min(remaining as usize);
-        let read = match file.read(&mut buffer[carried..carried + read_capacity]) {
-            Ok(0) => return None,
-            Ok(read) => read,
-            Err(error) if error.kind() == ErrorKind::Interrupted => continue,
-            Err(_) => return Some(LockfileConflictCheckFailure::Unsafe),
-        };
-        scanned += read as u64;
+        let read =
+            match file.read(&mut buffer[carried..carried + LOCKFILE_CONFLICT_SCAN_BUFFER_SIZE]) {
+                Ok(0) => return None,
+                Ok(read) => read,
+                Err(error) if error.kind() == ErrorKind::Interrupted => continue,
+                Err(_) => return Some(LockfileConflictCheckFailure::Unsafe),
+            };
         let end = carried + read;
         if chunk_contains_marker(&buffer[..end]) {
             return Some(LockfileConflictCheckFailure::MergeConflict);
@@ -100,14 +93,14 @@ pub(crate) fn modified_lockfile_conflict_check_failure(
 }
 
 /// The lockfile, opened for the conflict scan. `None` for anything the scan
-/// cannot read to a verdict: a missing or unreadable path, a non-file, or a
-/// file too large to scan within the budget.
+/// cannot read to a verdict: a missing or unreadable path, or a non-file.
 fn open_for_conflict_scan(path: &Path) -> Option<fs::File> {
     let file = fs::File::open(path).ok()?;
     let metadata = file.metadata().ok()?;
-    (metadata.file_type().is_file() && metadata.len() < MAX_LOCKFILE_CONFLICT_SCAN_BYTES).then_some(
-        file,
-    )
+    metadata
+        .file_type()
+        .is_file()
+        .then_some(file)
 }
 
 fn chunk_contains_marker(bytes: &[u8]) -> bool {
