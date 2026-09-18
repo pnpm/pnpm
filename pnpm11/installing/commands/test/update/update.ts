@@ -5,6 +5,7 @@ import { promisify } from 'node:util'
 import { beforeAll, describe, expect, it, test } from '@jest/globals'
 import type { PnpmError } from '@pnpm/error'
 import { add, install, update } from '@pnpm/installing.commands'
+import { streamParser } from '@pnpm/logger'
 import { prepare, preparePackages } from '@pnpm/prepare'
 import { createTestIpcServer } from '@pnpm/test-ipc-server'
 import { addDistTag, REGISTRY_MOCK_PORT } from '@pnpm/testing.registry-mock'
@@ -195,18 +196,29 @@ test('vulnerability updates do not widen pinned dependencies added by packageExt
     packageExtensions,
   })
 
-  await update.handler({
-    ...DEFAULT_OPTS,
-    dir: process.cwd(),
-    packageExtensions,
-    packageVulnerabilityAudit: createPackageVulnerabilityAudit(vulnerablePackage),
-  })
+  const warnings: string[] = []
+  const reporter = (log: { level?: string, message?: string }) => {
+    if (log.level === 'warn' && log.message != null) warnings.push(log.message)
+  }
+  streamParser.on('data', reporter as never)
+  try {
+    await update.handler({
+      ...DEFAULT_OPTS,
+      dir: process.cwd(),
+      packageExtensions,
+      packageVulnerabilityAudit: createPackageVulnerabilityAudit(vulnerablePackage),
+    })
+  } finally {
+    streamParser.removeListener('data', reporter as never)
+  }
 
   expect(loadJsonFileSync<ProjectManifest>('package.json').dependencies).toBeUndefined()
   expect(project.readLockfile().importers['.'].dependencies?.[vulnerablePackage]).toStrictEqual({
     specifier: '100.0.0',
     version: '100.0.0',
   })
+  expect(warnings).toContainEqual(expect.stringContaining(`Cannot update "${vulnerablePackage}" away from 100.0.0`))
+  expect(warnings).toContainEqual(expect.stringContaining('Run "pnpm audit --fix" to add an override for it instead.'))
 
   await install.handler({
     ...DEFAULT_OPTS,
@@ -216,7 +228,7 @@ test('vulnerability updates do not widen pinned dependencies added by packageExt
   })
 })
 
-test('vulnerability updates do not update ranged dependencies added by packageExtensions', async () => {
+test('vulnerability updates move a ranged dependency added by packageExtensions within its range', async () => {
   const vulnerablePackage = '@pnpm.e2e/pkg-with-1-dep'
   const packageExtensions = {
     'project@*': {
@@ -247,7 +259,7 @@ test('vulnerability updates do not update ranged dependencies added by packageEx
   expect(loadJsonFileSync<ProjectManifest>('package.json').dependencies).toBeUndefined()
   expect(project.readLockfile().importers['.'].dependencies?.[vulnerablePackage]).toStrictEqual({
     specifier: '^100.0.0',
-    version: '100.0.0',
+    version: '100.1.0',
   })
 
   await install.handler({
@@ -310,7 +322,7 @@ test('update --latest stays within exact versions added by packageExtensions', a
   })
 })
 
-test('filtered vulnerability updates preserve dependencies added by packageExtensions', async () => {
+test('filtered vulnerability updates keep the specifier a packageExtensions entry supplies', async () => {
   const vulnerablePackage = '@pnpm.e2e/bar'
   await addDistTag({ package: vulnerablePackage, version: '100.0.0', distTag: 'latest' })
   const packageExtensions = {
@@ -352,7 +364,7 @@ test('filtered vulnerability updates preserve dependencies added by packageExten
   expect(loadJsonFileSync<ProjectManifest>('package.json').dependencies).toBeUndefined()
   expect(project.readLockfile().importers['.'].dependencies?.[vulnerablePackage]).toStrictEqual({
     specifier: '^100.0.0',
-    version: '100.0.0',
+    version: '100.1.0',
   })
 })
 

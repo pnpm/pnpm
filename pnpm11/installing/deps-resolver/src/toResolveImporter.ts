@@ -50,7 +50,7 @@ export async function toResolveImporter (
       ? {
         ...dependency,
         saveSpec: false,
-        updateAllowed: false,
+        updateToLatestAllowed: false,
       }
       : dependency)
   if (opts.updateToLatest && opts.noDependencySelectors) {
@@ -73,11 +73,9 @@ export async function toResolveImporter (
     // so their update depth should be at least 0
     const updateLocalTarballs = (dep: WantedDependency) => ({
       ...dep,
-      updateDepth: dep.updateAllowed === false
-        ? -1
-        : project.updateMatching != null
-          ? defaultUpdateDepth
-          : (prefIsLocalTarball(dep.bareSpecifier) ? 0 : defaultUpdateDepth),
+      updateDepth: project.updateMatching != null
+        ? defaultUpdateDepth
+        : (prefIsLocalTarball(dep.bareSpecifier) ? 0 : defaultUpdateDepth),
     })
     wantedDependencies = [
       ...project.wantedDependencies.map(

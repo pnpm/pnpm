@@ -1048,11 +1048,10 @@ export async function mutateModules (
         includeDirect: opts.includeDirect,
       })
         .map((wantedDependency) => hookOwnedAliases?.has(wantedDependency.alias)
-          ? { ...wantedDependency, saveSpec: false, updateAllowed: false, updateSpec: true }
+          ? { ...wantedDependency, saveSpec: false, updateToLatestAllowed: false, updateSpec: true }
           : { ...wantedDependency, updateSpec: true })
       if (opts.packageVulnerabilityAudit) {
         for (const dep of wantedDependencies) {
-          if (hookOwnedAliases?.has(dep.alias)) continue
           let specifier: string | undefined = dep.bareSpecifier
           const catalogName = specifier ? parseCatalogProtocol(specifier) : null
           if (catalogName != null) {
@@ -1063,6 +1062,16 @@ export async function mutateModules (
           // Only proceed if the specifier is a pinned version, not a range
           if (!validVersion) continue
           if (opts.packageVulnerabilityAudit.isVulnerable(dep.alias, validVersion)) {
+            if (hookOwnedAliases?.has(dep.alias)) {
+              // An update reaches a vulnerable version by widening the specifier the project
+              // declares, and this one is not the project's to widen. An override outranks every
+              // other hook, so that is the fix to point at.
+              logger.warn({
+                message: `Cannot update "${dep.alias}" away from ${validVersion}: its specifier "${specifier!}" comes from a package extension, readPackage hook, or override, not from the project manifest. Run "pnpm audit --fix" to add an override for it instead.`,
+                prefix: project.rootDir,
+              })
+              continue
+            }
             // If the current version is pinned and vulnerable, expand the specifier to a range
             // that will allow updating to a non-vulnerable, semver-compatible version, if available.
             if (catalogName != null && opts.catalogs?.[catalogName]) {
@@ -1260,7 +1269,7 @@ export async function mutateModules (
           ...wantedDep,
           isNew: project.update !== true && !Object.hasOwn(originalBareSpecifiers, wantedDep.alias),
           saveSpec: !readonlyAliases?.has(wantedDep.alias),
-          updateAllowed: !readonlyAliases?.has(wantedDep.alias),
+          updateToLatestAllowed: !readonlyAliases?.has(wantedDep.alias),
           updateSpec: true,
         })),
       } as ImporterToUpdate)

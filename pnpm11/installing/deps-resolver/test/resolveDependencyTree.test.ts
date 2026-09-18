@@ -303,7 +303,6 @@ test('a revision refresh pins direct and transitive versions while preserving an
       dev: false,
       optional: false,
       updateDepth: Number.POSITIVE_INFINITY,
-      updateAllowed: false,
     }],
   } satisfies ImporterToResolveGeneric<object>], {
     allowedDeprecatedVersions: {},
@@ -417,7 +416,7 @@ test('updateRequested matches an npm-alias dependency without a lockfile referen
   expect(otherResolution?.updateRequested).toBe(false)
 })
 
-test('a dependency can opt out of the importer update mode', async () => {
+test('a dependency can opt out of resolving past its own specifier', async () => {
   const updates: Array<false | 'compatible' | 'latest' | undefined> = []
   const storeController = createStoreController(async (wantedDependency, options) => {
     updates.push(options.update)
@@ -443,7 +442,7 @@ test('a dependency can opt out of the importer update mode', async () => {
         dev: false,
         optional: false,
         updateDepth: Number.POSITIVE_INFINITY,
-        updateAllowed: false,
+        updateToLatestAllowed: false,
       }],
     } satisfies ImporterToResolveGeneric<object>,
   ], {
@@ -471,7 +470,9 @@ test('a dependency can opt out of the importer update mode', async () => {
     dedupePeerDependents: true,
   } satisfies ResolveDependenciesOptions)
 
-  expect(updates).toStrictEqual([false])
+  // `updateToLatest` would resolve the latest dist tag, which the dependency's own `1.0.0` does
+  // not admit. It resolves compatibly instead, rather than not at all.
+  expect(updates).toStrictEqual(['compatible'])
 })
 
 function hasPreferredVersion (preferredVersions: PreferredVersions, alias: string, version: string): boolean {

@@ -19,8 +19,13 @@ export interface WantedDependency {
    * which outranks such a declaration.
    */
   saveSpec?: boolean
-  /** `false` resolves the dependency as a plain install would, whatever this run updates. */
-  updateAllowed?: boolean
+  /**
+   * `false` keeps `--latest` from resolving past the specifier this dependency was given: the
+   * specifier is not the run's to move, so a resolution that ignores it would leave the lockfile
+   * claiming a version its own specifier rejects. A compatible update still applies, since that
+   * one honors the specifier.
+   */
+  updateToLatestAllowed?: boolean
   /** Whether this dependency's spec should be (re)written to the manifest. */
   updateSpec?: boolean
 }
