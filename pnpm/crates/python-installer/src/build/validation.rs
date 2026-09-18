@@ -23,18 +23,6 @@ pub(super) fn requires_what_it_declares(
             root.display(),
         );
     }
-    for requirement in &metadata.requires_dist {
-        let required = parse_requirement(requirement)?.to_string();
-        if !declared.contains(&required) {
-            let manifest_path = root.join("pyproject.toml");
-            let manifest_path = manifest_path.display();
-            bail!(
-                "the wheel built from the Python project at {} requires `{required}`, which \
-                 {manifest_path} does not declare",
-                root.display(),
-            );
-        }
-    }
     Ok(())
 }
 

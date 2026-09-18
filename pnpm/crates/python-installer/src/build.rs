@@ -379,8 +379,8 @@ pub(super) struct Buildable<'a> {
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub(super) enum Contract {
     /// The manifest of the directory it was built from. Resolution
-    /// answered with what that manifest declares, so a wheel declaring
-    /// something else is not what the lockfile describes.
+    /// answered with its static requirements, so the wheel must include
+    /// them even when its backend adds requirements of its own.
     Manifest,
     /// The interpreter alone. A source pnpm downloaded declares its
     /// requirements in the wheel it builds, and that wheel is what
@@ -427,9 +427,8 @@ struct BuiltWheel {
 }
 
 /// Refuse a wheel that is not the project it was built from. Resolution
-/// answered with the manifest's identity and requirements, so installing
-/// another distribution under it would install something the lockfile
-/// does not describe.
+/// answered with the manifest's identity and static requirements, so the
+/// wheel must preserve both.
 fn identify(metadata: &host::WheelMetadata, manifest: &Manifest, root: &Path) -> Result<()> {
     identify_identity(metadata, manifest, root)?;
     requires_what_it_declares(metadata, manifest, root)
