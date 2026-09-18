@@ -175,6 +175,40 @@ test('request package but skip fetching', async () => {
   expect(pkgResponse.fetching).toBeFalsy()
 })
 
+test('skipFetch does not pick a fetcher for registry tarballs with integrity', async () => {
+  const storeDir = temporaryDirectory()
+  const cafs = createCafsStore(storeDir)
+  let remoteTarballReads = 0
+  const trackedFetchers = { ...fetchers }
+  Object.defineProperty(trackedFetchers, 'remoteTarball', {
+    get () {
+      remoteTarballReads++
+      return fetchers.remoteTarball
+    },
+  })
+  const requestPackage = createPackageRequester({
+    resolve,
+    fetchers: trackedFetchers,
+    cafs,
+    networkConcurrency: 1,
+    storeDir,
+    verifyStoreIntegrity: true,
+    virtualStoreDirMaxLength: 120,
+  })
+
+  const projectDir = temporaryDirectory()
+  const pkgResponse = await requestPackage({ alias: 'is-positive', bareSpecifier: '1.0.0' }, {
+    downloadPriority: 0,
+    lockfileDir: projectDir,
+    preferredVersions: {},
+    projectDir,
+    skipFetch: true,
+  })
+
+  expect(pkgResponse.fetching).toBeFalsy()
+  expect(remoteTarballReads).toBe(0)
+})
+
 test('request package but skip fetching, when resolution is already available', async () => {
   const storeDir = temporaryDirectory()
   const cafs = createCafsStore(storeDir)
