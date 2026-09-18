@@ -135,7 +135,7 @@ fn record_task_passed(
     workspace_root: &Path,
 ) -> TaskCompletion {
     let key = TaskKey { project: node.project.clone(), task_name: node.task_name.clone() };
-    let Err(error) = task_run_state.record_passed(&key, node, workspace_root) else {
+    let Err(error) = task_run_state.record_passed(key, node, workspace_root) else {
         return TaskCompletion::Passed;
     };
     let mut abort = abort.lock().expect("abort slot lock is not poisoned");
