@@ -1,14 +1,14 @@
-use super::{Purl, PurlType, strip_scheme};
+use super::{Purl, PurlType, Shown, strip_scheme};
 use pretty_assertions::assert_eq;
 
 fn purl(specifier: &str) -> Purl {
     let body = strip_scheme(specifier).expect("recognize the purl scheme");
-    Purl::parse(body, specifier).expect("parse the purl")
+    Purl::parse(body, Shown(specifier)).expect("parse the purl")
 }
 
 fn error(specifier: &str) -> String {
     let body = strip_scheme(specifier).expect("recognize the purl scheme");
-    Purl::parse(body, specifier).expect_err("reject the purl").to_string()
+    Purl::parse(body, Shown(specifier)).expect_err("reject the purl").to_string()
 }
 
 fn expect(

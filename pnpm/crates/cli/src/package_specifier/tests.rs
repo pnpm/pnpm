@@ -193,3 +193,20 @@ fn rejects_a_purl_whose_components_would_rewrite_the_selector() {
         assert_eq!(message_received, message, "{specifier}");
     }
 }
+
+/// A selector reaches a diagnostic from the command line, so a credential in
+/// a qualifier and a control character anywhere have to be stripped on the
+/// way out rather than printed back.
+#[test]
+fn a_rejected_selector_is_redacted_and_sanitized_before_it_is_printed() {
+    let message = |specifier: &str| {
+        PackageSpecifierPlan::parse(&[specifier.to_string()]).expect_err(specifier).to_string()
+    };
+
+    let credentials = message("pkg:npm/foo?repository_url=https://user:pass@example.test");
+    assert!(!credentials.contains("pass"), "{credentials}");
+    assert!(credentials.contains("example.test"), "{credentials}");
+
+    let control = message("pkg:maven/foo\u{1b}[31m/bar@1");
+    assert!(!control.contains('\u{1b}'), "{control:?}");
+}

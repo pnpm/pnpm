@@ -2,6 +2,7 @@
 //! `pkg:<type>/<namespace>/<name>@<version>` notation that identifies a
 //! package across ecosystems.
 
+use super::Shown;
 use miette::Result;
 use percent_encoding::percent_decode_str;
 use pipe_trait::Pipe;
@@ -47,7 +48,7 @@ pub(super) fn strip_scheme(specifier: &str) -> Option<&str> {
 impl Purl {
     /// Parses the body [`strip_scheme`] returned. `source` is the specifier
     /// as it was written, which the error messages quote back.
-    pub(super) fn parse(body: &str, source: &str) -> Result<Self> {
+    pub(super) fn parse(body: &str, source: Shown<'_>) -> Result<Self> {
         reject_unsupported_components(body, source)?;
         let (package_type, path) = body.split_once('/').ok_or_else(|| missing_name(source))?;
         let package_type = parse_type(package_type, source)?;
@@ -71,7 +72,7 @@ impl Purl {
 /// Qualifiers select a repository, an architecture, or a distribution file,
 /// and a subpath selects a directory inside the package. Honoring either
 /// silently would install something other than what was asked for.
-fn reject_unsupported_components(body: &str, source: &str) -> Result<()> {
+fn reject_unsupported_components(body: &str, source: Shown<'_>) -> Result<()> {
     if body.contains('?') {
         return Err(miette::miette!("{source} carries purl qualifiers, which pnpm cannot honor"));
     }
@@ -81,7 +82,7 @@ fn reject_unsupported_components(body: &str, source: &str) -> Result<()> {
     Ok(())
 }
 
-fn parse_type(package_type: &str, source: &str) -> Result<PurlType> {
+fn parse_type(package_type: &str, source: Shown<'_>) -> Result<PurlType> {
     let well_formed = package_type.starts_with(|ch: char| ch.is_ascii_alphabetic())
         && package_type
             .bytes()
@@ -110,7 +111,7 @@ fn split_namespace(path: &str) -> (Option<&str>, &str) {
     }
 }
 
-fn split_version<'a>(segment: &'a str, source: &str) -> Result<(&'a str, Option<&'a str>)> {
+fn split_version<'a>(segment: &'a str, source: Shown<'_>) -> Result<(&'a str, Option<&'a str>)> {
     let Some((name, version)) = segment.rsplit_once('@') else {
         return Ok((segment, None));
     };
@@ -120,7 +121,7 @@ fn split_version<'a>(segment: &'a str, source: &str) -> Result<(&'a str, Option<
     Ok((name, Some(version)))
 }
 
-fn decode_namespace(namespace: &str, source: &str) -> Result<String> {
+fn decode_namespace(namespace: &str, source: Shown<'_>) -> Result<String> {
     let mut segments = Vec::new();
     for segment in namespace.split('/') {
         let segment = decode(segment, source)?;
@@ -132,7 +133,7 @@ fn decode_namespace(namespace: &str, source: &str) -> Result<String> {
     Ok(segments.join("/"))
 }
 
-fn decode(component: &str, source: &str) -> Result<String> {
+fn decode(component: &str, source: Shown<'_>) -> Result<String> {
     component
         .pipe(percent_decode_str)
         .decode_utf8()
@@ -140,7 +141,7 @@ fn decode(component: &str, source: &str) -> Result<String> {
         .map_err(|_| miette::miette!("{source} is not valid UTF-8 once percent-decoded"))
 }
 
-fn missing_name(source: &str) -> miette::Report {
+fn missing_name(source: Shown<'_>) -> miette::Report {
     miette::miette!("{source} is missing a purl name")
 }
 

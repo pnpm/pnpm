@@ -54,6 +54,22 @@ impl PackageSpecifierPlan {
     }
 }
 
+/// A selector as a diagnostic prints it.
+///
+/// The text comes from the command line, and a purl can carry credentials in
+/// a `repository_url` qualifier and control characters anywhere. Parsing
+/// reads the raw specifier; only this form reaches a message, and it
+/// redacts on the way out so a rejected selector cannot leak a password or
+/// drive the terminal.
+#[derive(Clone, Copy)]
+pub(super) struct Shown<'a>(pub(super) &'a str);
+
+impl std::fmt::Display for Shown<'_> {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter.write_str(&pnpm_network::redact_and_sanitize(self.0))
+    }
+}
+
 /// One `pnpm add` selector once its protocol has been resolved.
 enum ParsedSpecifier {
     Node(String),
@@ -61,16 +77,17 @@ enum ParsedSpecifier {
 }
 
 fn parse_specifier(specifier: &str) -> Result<ParsedSpecifier> {
+    let source = Shown(specifier);
     if let Some(rest) = specifier.strip_prefix(CARGO_PROTOCOL) {
-        return parse_registry_specifier(rest, specifier).map(cargo_specifier);
+        return parse_registry_specifier(rest, source).map(cargo_specifier);
     }
     if let Some(rest) = specifier.strip_prefix(PYTHON_PROTOCOL) {
-        return parse_python_specifier(rest, specifier).map(python_specifier);
+        return parse_python_specifier(rest, source).map(python_specifier);
     }
     let Some(body) = purl::strip_scheme(specifier) else {
         return Ok(ParsedSpecifier::Node(specifier.to_string()));
     };
-    parse_purl(&Purl::parse(body, specifier)?, specifier)
+    parse_purl(&Purl::parse(body, source)?, source)
 }
 
 /// Routes a Package URL to the ecosystem its type names, spelling it the way
@@ -84,7 +101,7 @@ fn parse_specifier(specifier: &str) -> Result<ParsedSpecifier> {
 ///
 /// A purl version names one release rather than a range, so each arm rejects
 /// a version its ecosystem would read as a range and pins the one it names.
-fn parse_purl(purl: &Purl, source: &str) -> Result<ParsedSpecifier> {
+fn parse_purl(purl: &Purl, source: Shown<'_>) -> Result<ParsedSpecifier> {
     match purl.package_type {
         PurlType::Npm => purl_node_specifier(purl, source).map(ParsedSpecifier::Node),
         PurlType::Cargo => purl_registry_specifier(purl, source).map(cargo_specifier),
@@ -92,7 +109,7 @@ fn parse_purl(purl: &Purl, source: &str) -> Result<ParsedSpecifier> {
     }
 }
 
-fn purl_node_specifier(purl: &Purl, source: &str) -> Result<String> {
+fn purl_node_specifier(purl: &Purl, source: Shown<'_>) -> Result<String> {
     let name = npm_name(purl, source)?;
     let Some(version) = purl.version.as_deref() else {
         return Ok(name);
@@ -103,7 +120,7 @@ fn purl_node_specifier(purl: &Purl, source: &str) -> Result<String> {
     Ok(format!("{name}@{version}"))
 }
 
-fn npm_name(purl: &Purl, source: &str) -> Result<String> {
+fn npm_name(purl: &Purl, source: Shown<'_>) -> Result<String> {
     let name = match &purl.namespace {
         Some(namespace) => format!("{}/{}", npm_scope(namespace, source)?, purl.name),
         None => purl.name.clone(),
@@ -117,7 +134,7 @@ fn npm_name(purl: &Purl, source: &str) -> Result<String> {
 /// An npm scope carries a leading `@`. A Package URL percent-encodes it into
 /// the namespace, so `pkg:npm/%40babel/core` is the canonical spelling of
 /// `@babel/core`, but producers often drop it and both are accepted here.
-fn npm_scope(namespace: &str, source: &str) -> Result<String> {
+fn npm_scope(namespace: &str, source: Shown<'_>) -> Result<String> {
     if namespace.contains('/') {
         return Err(miette::miette!(
             "{source} has a multi-segment purl namespace, but an npm scope is a single segment"
@@ -131,7 +148,7 @@ fn npm_scope(namespace: &str, source: &str) -> Result<String> {
 
 /// Cargo reads a bare version as a caret range, so the pin needs a leading
 /// `=` that the `crate:` spelling does not.
-fn purl_registry_specifier(purl: &Purl, source: &str) -> Result<RegistryPackageSpecifier> {
+fn purl_registry_specifier(purl: &Purl, source: Shown<'_>) -> Result<RegistryPackageSpecifier> {
     reject_namespace(purl, source)?;
     reject_invalid_cargo_name(&purl.name, source)?;
     let Some(version) = &purl.version else {
@@ -143,7 +160,7 @@ fn purl_registry_specifier(purl: &Purl, source: &str) -> Result<RegistryPackageS
     parse_registry_specifier(&format!("{}@={version}", purl.name), source)
 }
 
-fn purl_python_specifier(purl: &Purl, source: &str) -> Result<String> {
+fn purl_python_specifier(purl: &Purl, source: Shown<'_>) -> Result<String> {
     reject_namespace(purl, source)?;
     let name = pypi_project_name(purl, source)?;
     let Some(version) = &purl.version else {
@@ -157,7 +174,7 @@ fn purl_python_specifier(purl: &Purl, source: &str) -> Result<String> {
 
 /// A project name as PEP 508 spells it: ASCII alphanumerics joined by
 /// `.`, `-`, or `_`, starting and ending with an alphanumeric.
-fn pypi_project_name<'a>(purl: &'a Purl, source: &str) -> Result<&'a str> {
+fn pypi_project_name<'a>(purl: &'a Purl, source: Shown<'_>) -> Result<&'a str> {
     let name = purl.name.as_str();
     if name.starts_with(|ch: char| ch.is_ascii_alphanumeric())
         && name.ends_with(|ch: char| ch.is_ascii_alphanumeric())
@@ -170,7 +187,7 @@ fn pypi_project_name<'a>(purl: &'a Purl, source: &str) -> Result<&'a str> {
     Err(miette::miette!("{source} does not name a valid PyPI project"))
 }
 
-fn reject_namespace(purl: &Purl, source: &str) -> Result<()> {
+fn reject_namespace(purl: &Purl, source: Shown<'_>) -> Result<()> {
     if purl.namespace.is_some() {
         let package_type = &purl.package_type;
         return Err(miette::miette!(
@@ -191,7 +208,7 @@ fn python_specifier(requirement: String) -> ParsedSpecifier {
 /// A `pypi:` specifier as a PEP 508 requirement. pnpm spells a pinned
 /// version `name@version`, which becomes an exact pin unless the version
 /// already carries its own comparison operator.
-fn parse_python_specifier(specifier: &str, source: &str) -> Result<String> {
+fn parse_python_specifier(specifier: &str, source: Shown<'_>) -> Result<String> {
     let Some((name, version)) = specifier.rsplit_once('@') else {
         return python_requirement(specifier);
     };
@@ -211,7 +228,7 @@ fn python_requirement(requirement: &str) -> Result<String> {
 /// A purl carries the name as its own component, so it is checked before
 /// the `@` is appended: a decoded `@` would otherwise read back as the
 /// version separator and name a different crate.
-fn reject_invalid_cargo_name(name: &str, source: &str) -> Result<()> {
+fn reject_invalid_cargo_name(name: &str, source: Shown<'_>) -> Result<()> {
     if name.is_empty()
         || !name
             .bytes()
@@ -222,7 +239,10 @@ fn reject_invalid_cargo_name(name: &str, source: &str) -> Result<()> {
     Ok(())
 }
 
-fn parse_registry_specifier(specifier: &str, source: &str) -> Result<RegistryPackageSpecifier> {
+fn parse_registry_specifier(
+    specifier: &str,
+    source: Shown<'_>,
+) -> Result<RegistryPackageSpecifier> {
     let (name, version_spec) = specifier
         .rsplit_once('@')
         .map_or((specifier, None), |(name, version)| (name, Some(version)));
