@@ -131,9 +131,6 @@ fn a_bare_package_manager_request_beside_its_purl_keeps_its_own_meaning() {
     drop((root, npmrc_info)); // cleanup
 }
 
-/// A Cargo or Python dependency has no global install and no
-/// configuration-dependency form. The refusal names the ecosystem, so a
-/// Package URL reaches the same message as the protocol spelling.
 #[test]
 fn add_refuses_a_cargo_or_python_dependency_by_naming_its_ecosystem() {
     for (selector, target, message) in [
