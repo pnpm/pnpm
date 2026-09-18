@@ -141,13 +141,20 @@ export function parseOptions (argv) {
     if (arg === '--print') values.print = true
     else if (arg === '--no-smoke') values.smoke = false
     else if (arg === '--help' || arg === '-h') values.help = true
-    else if (arg.startsWith('--base=')) values.base = arg.slice('--base='.length)
+    else if (arg.startsWith('--base=')) values.base = revision(arg.slice('--base='.length))
     else if (arg === '--base') {
       if (index + 1 === argv.length) throw new Error('--base needs a revision')
-      values.base = argv[++index]
+      values.base = revision(argv[++index])
     } else rest.push(arg)
   }
   return { values, rest }
+}
+
+// No git ref name starts with `-`, so an operand that does is a mistyped flag.
+// Passing it on would reach `git rev-parse` and `git merge-base` as an option.
+function revision (value) {
+  if (value === '' || value.startsWith('-')) throw new Error(`--base needs a revision, not '${value}'`)
+  return value
 }
 
 function main () {
@@ -160,7 +167,8 @@ crate-level: a crate's whole test set runs, or none of it. When crates depend
 on what changed without being selected themselves, the smoke profile runs in
 their place, one end-to-end test per area of CLI behavior.
 
-  --base <revision>  what the diff is taken against (default: main)
+  --base <revision>  what the diff is taken against (default: origin/main,
+                     or main where no remote-tracking ref exists)
   --print            print the runs without executing them
   --no-smoke         skip the smoke run
   --help             this message
@@ -171,6 +179,7 @@ looks like: just test-affected -- -p pnpm-cli -E 'test(catalog::)'`)
   }
 
   const repo = spawnSync('git', ['rev-parse', '--show-toplevel'], { encoding: 'utf8' }).stdout.trim()
+  values.base = trackedBase(repo, values.base)
   const changed = changedFiles(repo, values.base)
   if (changed.length === 0) {
     console.log(`No files changed against ${values.base}.`)
@@ -233,6 +242,37 @@ function workspaceManifests (repo) {
     dir: path.relative(repo, path.dirname(pkg.manifest_path)).split(path.sep).join('/'),
     dependencies: [...new Set(pkg.dependencies.map(dependency => dependency.name).filter(name => names.has(name)))],
   }))
+}
+
+const REVISION_SYNTAX = ['~', '^', ':', '@', '\\']
+
+/**
+ * The remote-tracking counterpart of a branch name, where one exists.
+ *
+ * A local branch is only as current as the last time someone checked it out,
+ * and `main` usually lives in another worktree here, so it lags. Every commit
+ * it lags by is read as a change of this branch: the crates someone else
+ * touched get tested, and a file every crate compiles against, landing
+ * upstream, makes the whole run refuse to scope.
+ */
+export function trackedBase (repo, base) {
+  if (!namesABranch(repo, base)) return base
+  const remote = run(repo, 'git', ['rev-parse', '--verify', '--quiet', `refs/remotes/origin/${base}`], {
+    allowFailure: true,
+  }).trim()
+  return remote === '' ? base : `origin/${base}`
+}
+
+// A tag, a revision expression, and an already-qualified ref each name one
+// commit, so only a branch name is ambiguous between the local branch and what
+// the remote has. `HEAD` resolves to the current branch and has to be excluded
+// by name, or an ordinary clone's `refs/remotes/origin/HEAD` would retarget it
+// at the default branch. A name that resolves to nothing may still be a branch
+// that lives upstream and was never fetched under that name.
+function namesABranch (repo, base) {
+  if (base === 'HEAD' || REVISION_SYNTAX.some(character => base.includes(character))) return false
+  const ref = run(repo, 'git', ['rev-parse', '--symbolic-full-name', base], { allowFailure: true }).trim()
+  return ['', `refs/heads/${base}`, `refs/remotes/origin/${base}`].includes(ref)
 }
 
 function changedFiles (repo, base) {
