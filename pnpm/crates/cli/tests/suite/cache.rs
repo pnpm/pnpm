@@ -245,6 +245,40 @@ fn should_prune_registries_written_before_the_scheme_joined_the_key() {
     }
 }
 
+/// The deletion rests on the shape of a directory name, and the cache is shared
+/// with any other pnpm on the machine, so a user has to be able to see the list
+/// before committing to it.
+#[test]
+fn should_report_but_keep_stale_registries_on_a_dry_run() {
+    let cwd = CommandTempCwd::init().add_mocked_registry();
+
+    let stale = cwd.npmrc_info.cache_dir
+        .join(pnpm_resolving_npm_resolver::mirror::ABBREVIATED_META_DIR)
+        .join("registry.npmjs.org");
+    fs::create_dir_all(&stale).unwrap();
+    fs::write(stale.join("is-positive.jsonl"), "{}").unwrap();
+
+    let output = cwd.pacquet
+        .with_arg("cache")
+        .with_arg("prune")
+        .with_arg("--dry-run")
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+
+    let stdout = String::from_utf8(output).unwrap();
+    assert_eq!(
+        stdout.lines().collect::<Vec<_>>(),
+        [format!(
+            "{}/registry.npmjs.org",
+            pnpm_resolving_npm_resolver::mirror::ABBREVIATED_META_DIR
+        )],
+    );
+    assert!(stale.join("is-positive.jsonl").exists(), "a dry run must remove nothing");
+}
+
 /// Nothing to reclaim must be a quiet success, not an error or a stray blank
 /// line, because a user runs this to find out whether there is anything there.
 #[test]

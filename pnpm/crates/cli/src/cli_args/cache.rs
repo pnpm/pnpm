@@ -10,7 +10,7 @@ use pnpm_resolving_npm_resolver::mirror::{
 use pnpm_store_dir::StoreIndex;
 use serde_json::json;
 use std::{
-    fs,
+    fs, io,
     path::{Path, PathBuf},
 };
 use wax::walk::Entry;
@@ -27,9 +27,13 @@ pub enum CacheCommand {
     View { package: String },
     /// Deletes metadata cache for the specified package(s). Supports patterns.
     Delete { packages: Vec<String> },
-    /// Deletes metadata cache directories that this version of pnpm can no
-    /// longer read.
-    Prune,
+    /// Deletes registry metadata cache directories that this version of pnpm
+    /// can no longer read.
+    Prune {
+        /// Lists what would be deleted without removing anything.
+        #[arg(long)]
+        dry_run: bool,
+    },
 }
 
 impl CacheCommand {
@@ -142,7 +146,7 @@ impl CacheCommand {
                 }
             }
             CacheCommand::Delete { packages } => Self::delete(config, &packages)?,
-            CacheCommand::Prune => Self::prune(config)?,
+            CacheCommand::Prune { dry_run } => Self::prune(config, dry_run)?,
             CacheCommand::View { package } => Self::view(config, &cache_dir, &package)?,
         }
 
@@ -230,33 +234,74 @@ impl CacheCommand {
     /// key. Only [`is_unreadable_registry_key`] decides what goes, so a mirror
     /// this version could still read is never a candidate.
     ///
-    /// Prints each removed directory as `<meta-dir>/<registry-key>`. The
-    /// registry key rather than its decoded URL, because that is the name on
-    /// disk.
-    fn prune(config: &Config) -> miette::Result<()> {
+    /// Prints each removed directory as `<meta-dir>/<registry-key>`, the
+    /// registry key rather than its decoded URL because that is the name on
+    /// disk. `dry_run` prints the same list and removes nothing.
+    ///
+    /// One root failing does not abandon the others, and the directories
+    /// already removed are still reported, so an interrupted prune says what it
+    /// managed to reclaim rather than only what stopped it.
+    ///
+    /// The descriptor-scoped roots under `v11/metadata-private` are left alone,
+    /// as every other `pnpm cache` subcommand leaves them alone.
+    fn prune(config: &Config, dry_run: bool) -> miette::Result<()> {
         let mut pruned: Vec<String> = Vec::new();
-        for meta_dir in [ABBREVIATED_META_DIR, FULL_META_DIR, FULL_FILTERED_META_DIR] {
-            for (registry_key, path) in unreadable_registry_dirs(&config.cache_dir.join(meta_dir)) {
-                fs::remove_dir_all(path).into_diagnostic()?;
-                pruned.push(format!("{meta_dir}/{registry_key}"));
+        let mut failure = None;
+        for (label, path) in Self::prune_candidates(config)? {
+            match remove_pruned_dir(&path, dry_run) {
+                Ok(()) => pruned.push(label),
+                Err(error) => failure = failure.or(Some(error)),
             }
         }
         pruned.sort();
         if !pruned.is_empty() {
             println!("{}", pruned.join("\n"));
         }
-        Ok(())
+        failure.map_or(Ok(()), Err)
+    }
+
+    /// Every unreadable mirror directory across the roots `delete` also walks,
+    /// each labelled `<meta-dir>/<registry-key>`.
+    fn prune_candidates(config: &Config) -> miette::Result<Vec<(String, PathBuf)>> {
+        let mut candidates = Vec::new();
+        for meta_dir in [ABBREVIATED_META_DIR, FULL_META_DIR, FULL_FILTERED_META_DIR] {
+            let dir = config.cache_dir.join(meta_dir);
+            for (registry_key, path) in unreadable_registry_dirs(&dir)? {
+                candidates.push((format!("{meta_dir}/{registry_key}"), path));
+            }
+        }
+        Ok(candidates)
     }
 }
 
+fn remove_pruned_dir(path: &Path, dry_run: bool) -> miette::Result<()> {
+    if dry_run {
+        return Ok(());
+    }
+    fs::remove_dir_all(path)
+        .map_err(|error| {
+            miette::miette!("Failed to remove metadata cache directory {path:?}: {error}")
+        })
+}
+
 /// The `(registry key, path)` of every directory in one mirror root that
-/// [`is_unreadable_registry_key`] reports. An unreadable root yields nothing,
-/// because a mirror root pnpm never wrote has nothing to reclaim.
-fn unreadable_registry_dirs(dir: &Path) -> Vec<(String, PathBuf)> {
-    let Ok(entries) = fs::read_dir(dir) else {
-        return Vec::new();
+/// [`is_unreadable_registry_key`] reports.
+///
+/// A root that does not exist yields nothing, because a mirror pnpm never wrote
+/// has nothing to reclaim. Any other read failure is an error: reporting it as
+/// an empty result would tell the user there is nothing stale to reclaim when
+/// the directory was never read.
+fn unreadable_registry_dirs(dir: &Path) -> miette::Result<Vec<(String, PathBuf)>> {
+    let entries = match fs::read_dir(dir) {
+        Ok(entries) => entries,
+        Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(Vec::new()),
+        Err(error) => {
+            return Err(miette::miette!(
+                "Failed to read metadata cache directory {dir:?}: {error}"
+            ));
+        }
     };
-    entries
+    Ok(entries
         .filter_map(std::result::Result::ok)
         .filter(|entry| entry.file_type().is_ok_and(|file_type| file_type.is_dir()))
         .filter_map(|entry| {
@@ -266,7 +311,7 @@ fn unreadable_registry_dirs(dir: &Path) -> Vec<(String, PathBuf)> {
                 .into_owned();
             is_unreadable_registry_key(&registry_key).then(|| (registry_key, entry.path()))
         })
-        .collect()
+        .collect())
 }
 
 /// The registry directory of a cache-relative metadata path: its top-level

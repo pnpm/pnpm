@@ -221,6 +221,13 @@ pub(super) fn percent_escapes_are_well_formed(text: &str) -> bool {
 /// carries no separator either, so such a name is *not* reported — it may well
 /// be a live registry's. Keeping one unreachable directory is the lesser harm
 /// next to deleting a mirror still in use.
+///
+/// "Unreadable" is judged against the running pnpm, and the cache directory is
+/// shared machine-wide. A pnpm from before the scheme joined the key still reads
+/// and writes the host-only names this reports, so on a machine running one
+/// alongside this version, pruning costs that older CLI a refetch. Cache-only
+/// and self-healing, which is why `pnpm cache prune --dry-run` exists to check
+/// first.
 #[must_use]
 pub fn is_unreadable_registry_key(registry_key: &str) -> bool {
     !registry_key.contains(SCHEME_SEPARATOR) && !is_sha256_hex(registry_key)
