@@ -424,6 +424,34 @@ fn should_refuse_to_prune_through_a_symlinked_metadata_root() {
     );
 }
 
+/// Silence is how a real prune says it found nothing, so the mode that exists to
+/// answer whether there is anything to reclaim has to answer out loud.
+#[test]
+fn should_report_a_zero_count_on_a_dry_run_of_a_clean_cache() {
+    let cwd = CommandTempCwd::init().add_mocked_registry();
+
+    let live = pnpm_resolving_npm_resolver::mirror::get_registry_name(LIVE_REGISTRY).unwrap();
+    let dir = cwd.npmrc_info.cache_dir
+        .join(pnpm_resolving_npm_resolver::mirror::ABBREVIATED_META_DIR)
+        .join(&live);
+    fs::create_dir_all(&dir).unwrap();
+
+    let assertion = cwd.pacquet
+        .with_arg("cache")
+        .with_arg("prune")
+        .with_arg("--dry-run")
+        .assert()
+        .success();
+    let output = assertion.get_output();
+    let stderr = String::from_utf8_lossy(&output.stderr);
+
+    assert!(
+        stderr.contains("0 directories would be deleted"),
+        "a dry run must say so even when it finds nothing, got: {stderr}",
+    );
+    assert_eq!(String::from_utf8_lossy(&output.stdout), "", "nothing to list on stdout");
+}
+
 /// Nothing to reclaim must be a quiet success, not an error or a stray blank
 /// line, because a user runs this to find out whether there is anything there.
 #[test]

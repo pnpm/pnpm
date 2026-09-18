@@ -279,16 +279,12 @@ struct PruneOutcome {
 }
 
 impl PruneOutcome {
-    /// Reclaim one mirror root, recording each directory removed and every
-    /// failure along the way.
+    /// Reclaim the `meta_dir` root of the resolved `cache_dir`.
     ///
-    /// A root that does not exist has nothing to reclaim. Any other failure to
-    /// read it is recorded, because passing over it silently would report that
-    /// there is nothing stale here when the directory was never read. The
-    /// remaining roots are the caller's to walk either way.
-    ///
-    /// `cache_dir` is the resolved cache directory, which `meta_dir` must turn
-    /// out to name a root inside.
+    /// Failing to read the root is recorded rather than passed over, because
+    /// silence would report that nothing here is stale when the directory was
+    /// never read at all. The remaining roots are the caller's to walk either
+    /// way.
     fn prune_root(&mut self, cache_dir: &Path, meta_dir: &str, dry_run: bool) {
         let root = match confined_meta_root(cache_dir, meta_dir) {
             Ok(None) => return,
@@ -356,16 +352,20 @@ impl PruneOutcome {
     /// notice that nothing was deleted goes to stderr, where it reaches a reader
     /// without entering that list.
     ///
+    /// A dry run always prints that notice, a count of zero included: silence is
+    /// how a real prune says it found nothing, and the mode that exists to answer
+    /// "is there anything here" has to answer out loud.
+    ///
     /// Each failure gets its own stderr line and the returned error only counts
     /// them, because a diagnostic long enough to hold several paths comes back
     /// reflowed and guttered, splitting the paths it exists to report.
     fn report(mut self, dry_run: bool) -> miette::Result<()> {
         self.pruned.sort();
+        if dry_run {
+            let count = directory_count(self.pruned.len());
+            eprintln!("Dry run: {count} would be deleted.");
+        }
         if !self.pruned.is_empty() {
-            if dry_run {
-                let count = directory_count(self.pruned.len());
-                eprintln!("Dry run: {count} would be deleted.");
-            }
             println!("{}", self.pruned.join("\n"));
         }
         if self.failures.is_empty() {
