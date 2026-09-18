@@ -1932,6 +1932,12 @@ describe('checkDepsStatus - deduped sibling without a modules directory', () => 
     expect(result.issue).toBe(MISSING_MODULES_DIR)
   })
 
+  it('is up to date when the root declares the alias in two groups with one target', async () => {
+    const result = await checkWithDedupe({ dedupeDirectDeps: true, rootDevVersion: '1.0.0' })
+    expect(result.issue).toBeUndefined()
+    expect(result.upToDate).toBe(true)
+  })
+
   // Two root declarations with differing targets have one effective target
   // the linker picks by group order; the check does not reproduce that choice.
   it('is outdated when the root declares the alias with differing targets', async () => {
