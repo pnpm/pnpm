@@ -905,8 +905,7 @@ test('the release-age upgrade sends no validator from the abbreviated cache', as
   })
 
   expect(resolveResult!.id).toBe('is-positive@1.0.0')
-  // Without this the negative assertions below would also hold when the
-  // upgrade never reached the registry at all.
+  // The two assertions below also hold when the upgrade never fired.
   expect(upgradeHeaders).toBeDefined()
   expect(upgradeHeaders!['if-none-match']).toBeUndefined()
   expect(upgradeHeaders!['if-modified-since']).toBeUndefined()

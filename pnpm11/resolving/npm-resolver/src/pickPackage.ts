@@ -671,22 +671,18 @@ async function maybeUpgradeAbbreviatedMetaForReleaseAge (
   // When `modified` is missing or malformed we fall through to the upgrade
   // fetch: prefer correctness (run the maturity check on real `time` data)
   // over saving a network call when our cached freshness signal is unusable.
-  // No validators: an ETag and a `Last-Modified` date describe one
-  // representation, and `meta` holds the abbreviated one. A registry that
-  // reuses them across both forms answers 304, which leaves the maturity check
-  // without the per-version publish dates it asked for.
+  // An ETag and a `Last-Modified` date describe one representation, and `meta`
+  // holds the abbreviated one. A registry that reuses them across both forms
+  // answers 304, leaving the maturity check without per-version publish dates.
   const fullFetchResult = await ctx.fetch(spec.name, {
     authHeaderValue: opts.authHeaderValue,
     fullMetadata: true,
     registry: opts.registry,
   })
   if (fullFetchResult.notModified) {
-    // Out of reach while the request carries no validators: the fetcher
-    // retries an unsolicited 304 as a cold cache would and then throws.
-    // Degrading beats failing the install if one ever arrives, so keep the
-    // abbreviated document, let `pickMatchingVersionFinal` fall through to its
-    // warn-and-skip path, and remember the outcome against the packument
-    // itself so no other pick in this resolver repeats the request.
+    // Out of reach while the request carries no validators: the fetcher retries
+    // an unsolicited 304 as a cold cache would and then throws. Degrading beats
+    // failing the install if one ever arrives.
     ctx.releaseAgeUpgradeCheckedPackuments?.add(meta)
     return { meta }
   }

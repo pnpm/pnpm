@@ -294,10 +294,6 @@ async fn published_by_exclude_skips_upgrade_for_abbreviated_meta_without_time() 
 
 /// A release-age upgrade is remembered within one install, but not by a
 /// metadata cache reused by the next install.
-///
-/// The upgrade also sends neither of the seeded document's validators: both
-/// describe the abbreviated representation it is trying to leave behind, and a
-/// registry that reuses them across forms would answer `304`.
 #[tokio::test]
 async fn published_by_upgrade_marker_is_scoped_to_install() {
     let mut server = mockito::Server::new_async().await;
