@@ -118,7 +118,7 @@ fn package_routes_survive_into_the_declarations_sent_to_a_server() {
     for declarations in [config.registry_declarations(), config.resolved_registry_declarations()] {
         assert_eq!(
             declarations["https://private.example.com/"].packages,
-            Some(vec!["alpha".to_string()])
+            Some(vec!["alpha".to_string()]),
         );
     }
 }

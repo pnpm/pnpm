@@ -277,7 +277,7 @@ async fn package_route_changes_invalidate_frozen_lockfiles() {
         .success();
     let path = root.path().join("pnpm-workspace.yaml");
     let yaml = fs::read_to_string(&path).unwrap();
-    fs::write(path, yaml.replace("packages: [\"alpha\"]", "packages: [\"beta\"]")).unwrap();
+    fs::write(path, yaml.replace(r#"packages: ["alpha"]"#, r#"packages: ["beta"]"#)).unwrap();
     assert_failure_contains(
         pacquet_in(root.path()).args(["install", "--frozen-lockfile"]),
         "Python index changed",

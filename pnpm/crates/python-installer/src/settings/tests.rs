@@ -41,14 +41,14 @@ fn package_routes_select_one_index_independent_of_declaration_order() {
                 .select("company-tools")
                 .unwrap()
                 .as_str(),
-            "https://private.test/simple/"
+            "https://private.test/simple/",
         );
         assert_eq!(
             index
                 .select("requests")
                 .unwrap()
                 .as_str(),
-            "https://public.test/simple/"
+            "https://public.test/simple/",
         );
         assert_eq!(index.url.as_str(), "https://public.test/simple/");
         assert!(!index.can_resolve_remotely());
@@ -71,7 +71,7 @@ fn restricted_indexes_do_not_implicitly_enable_pypi() {
             .select("beta")
             .unwrap_err()
             .to_string()
-            .contains("No Python registry claims")
+            .contains("No Python registry claims"),
     );
 }
 

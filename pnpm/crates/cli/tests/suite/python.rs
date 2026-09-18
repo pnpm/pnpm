@@ -186,7 +186,7 @@ fn add_python_registry(root: &Path, index: &str, packages: &[&str]) {
             "registries:\n",
             &format!(
                 "registries:\n  '{index}':\n    ecosystem: pypi\n    packages: {}\n",
-                serde_json::to_string(packages).unwrap()
+                serde_json::to_string(packages).unwrap(),
             ),
         ),
     )
