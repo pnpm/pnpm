@@ -61,6 +61,10 @@ test('reports the changes that affect every crate', () => {
     ['Cargo.lock', '.cargo/config.toml'])
 })
 
+test('refuses to scope a change to how parallel the run is', () => {
+  assert.deepEqual(workspaceWideChanges(['pnpm/scripts/cargo-jobs.mjs']), ['pnpm/scripts/cargo-jobs.mjs'])
+})
+
 test('a crate manifest is not a workspace-wide change', () => {
   assert.deepEqual(workspaceWideChanges(['pnpm/crates/lockfile/Cargo.toml']), [])
 })

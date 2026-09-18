@@ -346,6 +346,15 @@ negative_feature_names = "warn"
 redundant_feature_names = "warn"
 wildcard_dependencies = "warn"
 
+# The `--all-targets` build holds a test binary per integration test of ~60
+# crates, and full debug info makes each one a link the OS has to find a
+# gigabyte for. Line tables keep panic backtraces file:line-accurate, which is
+# what a test failure is read from. Dependencies keep their full debug info
+# locally, so a debugger still steps through the crates under test; CI drops
+# theirs too, through CARGO_PROFILE_DEV_DEBUG, to stay under its disk ceiling.
+[profile.test]
+debug = "line-tables-only"
+
 [profile.release]
 opt-level = 3
 lto = "fat"

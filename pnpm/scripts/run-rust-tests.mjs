@@ -5,6 +5,8 @@ import path from 'node:path'
 import process from 'node:process'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 
+import { parallelismEnv } from './cargo-jobs.mjs'
+
 /**
  * Run `cargo nextest run` with `args` in an environment that reads no npm or
  * pnpm configuration of the user's and writes nothing to the user's pnpm
@@ -21,7 +23,7 @@ export function runRustTests (args, { spawn = spawnSync, env: parentEnv = proces
     }))
     const npmrcPath = path.join(configDir, 'npmrc')
     fs.writeFileSync(npmrcPath, '')
-    Object.assign(env, {
+    Object.assign(env, parallelismEnv(env), {
       PNPM_CONFIG_CI: 'false',
       PNPM_CONFIG_NPMRC_AUTH_FILE: npmrcPath,
       PNPM_TEST_NPMRC_AUTH_FILE: npmrcPath,
