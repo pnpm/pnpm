@@ -1,5 +1,6 @@
 mod purl;
 
+use crate::cli_args::add::AddRequest;
 use miette::Result;
 use percent_encoding::percent_decode_str;
 use purl::{Purl, PurlType};
@@ -25,32 +26,21 @@ pub(crate) struct RegistryPackageSpecifier {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct PackageSpecifierPlan {
-    pub(crate) node_packages: Vec<String>,
-    /// The members of [`Self::node_packages`] a Package URL was rewritten
-    /// into. A purl names a package in a registry, so such a selector is
-    /// installed rather than read as a request for the package manager or
-    /// the runtime that shares its name.
-    pub(crate) purl_selectors: Vec<String>,
+    pub(crate) node_packages: Vec<AddRequest>,
     pub(crate) ecosystem_packages: Vec<EcosystemPackageSpecifier>,
 }
 
 impl PackageSpecifierPlan {
-    pub(crate) fn parse(package_names: &[String]) -> Result<Self> {
+    pub(crate) fn parse(package_names: &[AddRequest]) -> Result<Self> {
         let mut node_packages = Vec::new();
-        let mut purl_selectors = Vec::new();
         let mut ecosystem_packages = Vec::new();
         for package_name in package_names {
             match parse_specifier(package_name)? {
-                ParsedSpecifier::Node { selector, from_purl } => {
-                    if from_purl {
-                        purl_selectors.push(selector.clone());
-                    }
-                    node_packages.push(selector);
-                }
+                ParsedSpecifier::Node(package) => node_packages.push(package),
                 ParsedSpecifier::Ecosystem(package) => ecosystem_packages.push(package),
             }
         }
-        Ok(Self { node_packages, purl_selectors, ecosystem_packages })
+        Ok(Self { node_packages, ecosystem_packages })
     }
 
     pub(crate) fn has_cargo(&self) -> bool {
@@ -125,11 +115,12 @@ fn without_authority_breaks(text: &str) -> String {
 
 /// One `pnpm add` selector once its protocol has been resolved.
 enum ParsedSpecifier {
-    Node { selector: String, from_purl: bool },
+    Node(AddRequest),
     Ecosystem(EcosystemPackageSpecifier),
 }
 
-fn parse_specifier(specifier: &str) -> Result<ParsedSpecifier> {
+fn parse_specifier(request: &AddRequest) -> Result<ParsedSpecifier> {
+    let specifier = request.selector();
     let source = Shown(specifier);
     if let Some(rest) = specifier.strip_prefix(CARGO_PROTOCOL) {
         return parse_registry_specifier(rest, source).map(cargo_specifier);
@@ -138,7 +129,7 @@ fn parse_specifier(specifier: &str) -> Result<ParsedSpecifier> {
         return parse_python_specifier(rest, source).map(python_specifier);
     }
     let Some(body) = purl::strip_scheme(specifier) else {
-        return Ok(ParsedSpecifier::Node { selector: specifier.to_string(), from_purl: false });
+        return Ok(ParsedSpecifier::Node(request.clone()));
     };
     parse_purl(&Purl::parse(body, source)?, source)
 }
@@ -157,7 +148,8 @@ fn parse_specifier(specifier: &str) -> Result<ParsedSpecifier> {
 fn parse_purl(purl: &Purl, source: Shown<'_>) -> Result<ParsedSpecifier> {
     match purl.package_type {
         PurlType::Npm => purl_node_specifier(purl, source)
-            .map(|selector| ParsedSpecifier::Node { selector, from_purl: true }),
+            .map(AddRequest::from_package_url)
+            .map(ParsedSpecifier::Node),
         PurlType::Cargo => purl_registry_specifier(purl, source).map(cargo_specifier),
         PurlType::Pypi => purl_python_specifier(purl, source).map(python_specifier),
     }

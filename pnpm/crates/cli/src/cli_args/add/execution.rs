@@ -1,5 +1,5 @@
 use super::{
-    Add, AddArgs, AddError, AddRequests, BTreeMap, Config, Context, DependencyGroup, EngineError,
+    Add, AddArgs, AddError, AddRequest, BTreeMap, Config, Context, DependencyGroup, EngineError,
     InstallFamilySelection, LogEvent, LogLevel, Path, PathBuf, PnpmLog, RangeSpecStyle, Reporter,
     State, WorkspacePackages, build_workspace_packages_map, config_deps, declared_package_manager,
     describe_pin, record_package_manager_pin, resolve_project_pin, tool_install_selector,
@@ -76,16 +76,17 @@ struct RecordedPins {
 /// to do deliberately rather than an `add`'s to do as a side effect.
 async fn record_package_manager_pins(
     state: &mut State,
-    requests: &AddRequests,
+    requests: &[AddRequest],
 ) -> miette::Result<RecordedPins> {
     let mut remaining = Vec::new();
     let mut recorded = Vec::new();
-    for request in &requests.package_names {
-        if !requests.may_name_a_tool(request) {
-            remaining.push(request.clone());
+    for request in requests {
+        let selector = request.selector();
+        if !request.may_name_a_tool() {
+            remaining.push(selector.to_string());
             continue;
         }
-        if let Some((pm, version_spec)) = declared_package_manager(request) {
+        if let Some((pm, version_spec)) = declared_package_manager(selector) {
             let reference = resolve_project_pin(state.config, pm, version_spec.as_deref()).await?;
             let reference = reference.as_deref();
             let manifest = state.manifest
@@ -95,8 +96,8 @@ async fn record_package_manager_pins(
             record_package_manager_pin(manifest, pm, reference);
             recorded.push(describe_pin(pm, reference));
         } else {
-            let selector = tool_install_selector(request);
-            remaining.push(selector.unwrap_or_else(|| request.clone()));
+            let tool = tool_install_selector(selector);
+            remaining.push(tool.unwrap_or_else(|| selector.to_string()));
         }
     }
     Ok(RecordedPins { remaining, recorded })
@@ -242,7 +243,7 @@ impl AddArgs {
         let save_catalog_name = self.effective_save_catalog_name(state.config);
 
         let mut state = state;
-        let pins = record_package_manager_pins(&mut state, &self.requests).await?;
+        let pins = record_package_manager_pins(&mut state, &self.package_names).await?;
         if pins.remaining.is_empty() {
             pins.save(&mut state)?;
             pins.report::<Reporter>();
@@ -325,22 +326,26 @@ impl AddArgs {
         config: &Config,
         selection: &InstallFamilySelection,
     ) -> miette::Result<Vec<String>> {
-        if let Some(request) = self.requests.package_names
+        if let Some(request) = self.package_names
             .iter()
             .find(|request| {
-                self.requests.may_name_a_tool(request)
-                    && declared_package_manager(request).is_some()
+                request.may_name_a_tool() && declared_package_manager(request.selector()).is_some()
             })
         {
-            return Err(AddError::PackageManagerInSelection { request: request.clone() }.into());
+            let request = request.selector().to_string();
+            return Err(AddError::PackageManagerInSelection { request }.into());
         }
+        let selectors: Vec<String> = self.package_names
+            .iter()
+            .map(|request| request.selector().to_string())
+            .collect();
         let package_names =
             match workspace_link_root(self.target.workspace, config.workspace_dir.as_deref())? {
                 Some(_) => workspace_selectors(
-                    &self.requests.package_names,
+                    &selectors,
                     &build_workspace_packages_map(Some(&selection.projects)).unwrap_or_default(),
                 )?,
-                None => self.requests.package_names.clone(),
+                None => selectors,
             };
         Ok(package_names)
     }
@@ -376,7 +381,7 @@ impl AddArgs {
         let range_spec_style = self.range_spec_style(config);
         Box::pin(crate::cli_args::global::handle_global_add::<Reporter>(
             config,
-            &self.requests,
+            &self.package_names,
             range_spec_style,
             supported_architectures,
             &self.install.allow_build,

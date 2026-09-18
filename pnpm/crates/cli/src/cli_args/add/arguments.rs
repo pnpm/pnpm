@@ -1,35 +1,50 @@
 use super::LockfileDirArg;
 
-/// The packages an `add` was asked for.
-#[derive(Debug, Clone, clap::Args)]
-pub struct AddRequests {
-    /// Names of the packages to add.
-    #[clap(required = true)]
-    pub package_names: Vec<String>,
-    /// The members of `package_names` a Package URL was rewritten into.
-    /// The command line carries none of these: the dispatch fills them in
-    /// when it routes the selectors it was given.
-    #[clap(skip)]
-    pub(crate) purl_selectors: Vec<String>,
+/// One selector an `add` was given.
+///
+/// A selector a Package URL was rewritten into is marked, because the
+/// spelling alone no longer says where it came from, and where it came from
+/// decides what it means: `pnpm add node@22.0.0` records a runtime and
+/// `pnpm add npm@11.0.0` the project's package manager, while a Package URL
+/// names a package in a registry.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct AddRequest {
+    selector: String,
+    from_purl: bool,
 }
 
-impl AddRequests {
-    /// One package to install, for a command that builds its own request
-    /// instead of parsing one, such as `pnpm runtime use`.
-    pub(crate) fn one(package_name: String) -> Self {
-        Self { package_names: vec![package_name], purl_selectors: Vec::new() }
+impl AddRequest {
+    /// A selector a Package URL was rewritten into.
+    pub(crate) fn from_package_url(selector: String) -> Self {
+        Self { selector, from_purl: true }
     }
 
-    /// Whether `request` may name a package manager or a runtime rather
+    /// The selector as the ecosystem's add path reads it.
+    #[must_use]
+    pub fn selector(&self) -> &str {
+        &self.selector
+    }
+
+    /// Whether this request may name a package manager or a runtime rather
     /// than a package to install.
-    ///
-    /// A Package URL names a package in a registry, so the selector it was
-    /// rewritten into keeps naming one even when it reads like a request
-    /// for the tool that shares its name.
-    pub(crate) fn may_name_a_tool(&self, request: &str) -> bool {
-        !self.purl_selectors
-            .iter()
-            .any(|purl_selector| purl_selector == request)
+    pub(crate) fn may_name_a_tool(&self) -> bool {
+        !self.from_purl
+    }
+}
+
+impl From<&str> for AddRequest {
+    /// A selector as the command line carries it, which names a package to
+    /// install until the dispatch routes it.
+    fn from(selector: &str) -> Self {
+        Self { selector: selector.to_string(), from_purl: false }
+    }
+}
+
+impl std::str::FromStr for AddRequest {
+    type Err = std::convert::Infallible;
+
+    fn from_str(selector: &str) -> Result<Self, Self::Err> {
+        Ok(selector.into())
     }
 }
 

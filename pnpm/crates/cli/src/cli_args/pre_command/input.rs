@@ -182,10 +182,12 @@ pub(super) fn should_skip_command(command: &CliCommand) -> bool {
     // told to use a different one — or to use this one. Adding anything
     // else stays its manager's job and still fails the check.
     if let CliCommand::Add(args) = command
-        && !args.requests.package_names.is_empty()
-        && args.requests.package_names
+        && !args.package_names.is_empty()
+        && args.package_names
             .iter()
-            .all(|request| crate::engine_pm::pin::declared_package_manager(request).is_some())
+            .all(|request| {
+                crate::engine_pm::pin::declared_package_manager(request.selector()).is_some()
+            })
     {
         return true;
     }

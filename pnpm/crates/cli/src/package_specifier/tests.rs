@@ -1,15 +1,26 @@
-use super::{EcosystemPackageSpecifier, PackageSpecifierPlan, RegistryPackageSpecifier};
+use super::{
+    AddRequest, EcosystemPackageSpecifier, PackageSpecifierPlan, RegistryPackageSpecifier,
+};
+
+/// The selectors a plan leaves for the npm add path, which is what every
+/// assertion on them reads.
+fn node_selectors(plan: &PackageSpecifierPlan) -> Vec<&str> {
+    plan.node_packages
+        .iter()
+        .map(AddRequest::selector)
+        .collect()
+}
 
 #[test]
 fn partitions_node_and_cargo_specifiers() {
     let plan = PackageSpecifierPlan::parse(&[
-        "lodash@4".to_string(),
-        "crate:serde".to_string(),
-        "crate:tokio@~1.43".to_string(),
+        "lodash@4".into(),
+        "crate:serde".into(),
+        "crate:tokio@~1.43".into(),
     ])
     .unwrap();
 
-    assert_eq!(plan.node_packages, ["lodash@4"]);
+    assert_eq!(node_selectors(&plan), ["lodash@4"]);
     assert_eq!(
         plan.ecosystem_packages,
         [
@@ -31,7 +42,7 @@ fn rejects_invalid_cargo_specifiers_before_manifest_initialization() {
         ["crate:", "crate:serde@", "crate:bad/name", "crate:serde@workspace:*", "crate:serde@^"]
     {
         assert!(
-            PackageSpecifierPlan::parse(&[specifier.to_string()]).is_err(),
+            PackageSpecifierPlan::parse(&[specifier.into()]).is_err(),
             "{specifier} must be rejected",
         );
     }
@@ -46,7 +57,7 @@ fn partitions_python_requirements_without_applying_node_or_cargo_semver() {
         "pypi:other@2.0rc1".into(),
     ])
     .unwrap();
-    assert_eq!(plan.node_packages, ["npm-package@1"]);
+    assert_eq!(node_selectors(&plan), ["npm-package@1"]);
     assert!(plan.has_cargo());
     assert!(plan.has_python());
     assert_eq!(
@@ -73,7 +84,7 @@ fn routes_purls_to_the_ecosystem_named_by_their_type() {
     ])
     .unwrap();
 
-    assert_eq!(plan.node_packages, ["express@4.18.2"]);
+    assert_eq!(node_selectors(&plan), ["express@4.18.2"]);
     assert_eq!(
         plan.ecosystem_packages,
         [
@@ -95,7 +106,7 @@ fn a_versionless_purl_leaves_the_version_to_the_resolver() {
     ])
     .unwrap();
 
-    assert_eq!(plan.node_packages, ["express"]);
+    assert_eq!(node_selectors(&plan), ["express"]);
     assert_eq!(
         plan.ecosystem_packages,
         [
@@ -118,7 +129,7 @@ fn a_purl_namespace_becomes_an_npm_scope() {
     .unwrap();
 
     assert_eq!(
-        plan.node_packages,
+        node_selectors(&plan),
         ["@babel/core@7.22.0", "@babel/traverse", "@babel/types@7.22.0"],
     );
 }
@@ -163,20 +174,26 @@ fn rejects_purls_pnpm_cannot_add() {
     }
 }
 
-/// A purl names a package in a registry, so the selector it becomes is
-/// marked, and the add path installs it rather than reading it as the
-/// package manager or the runtime that shares its name.
+/// A purl names a package in a registry, so the request it becomes says so,
+/// and the add path installs it rather than reading it as the package
+/// manager or the runtime that shares its name. The mark belongs to the
+/// request rather than to its text, so the two spellings of one selector
+/// keep their own meanings in one command.
 #[test]
-fn a_purl_marks_the_selector_it_becomes_as_a_package_to_install() {
+fn a_purl_marks_the_request_it_becomes_as_a_package_to_install() {
     let plan = PackageSpecifierPlan::parse(&[
         "node@22.0.0".into(),
-        "pkg:npm/npm@11.0.0".into(),
+        "pkg:npm/node@22.0.0".into(),
         "lodash@4".into(),
     ])
     .unwrap();
 
-    assert_eq!(plan.node_packages, ["node@22.0.0", "npm@11.0.0", "lodash@4"]);
-    assert_eq!(plan.purl_selectors, ["npm@11.0.0"]);
+    assert_eq!(node_selectors(&plan), ["node@22.0.0", "node@22.0.0", "lodash@4"]);
+    let may_name_a_tool: Vec<bool> = plan.node_packages
+        .iter()
+        .map(AddRequest::may_name_a_tool)
+        .collect();
+    assert_eq!(may_name_a_tool, [true, false, true]);
 }
 
 /// Each ecosystem's selector has a grammar a decoded component could reach
@@ -220,7 +237,7 @@ fn rejects_a_purl_whose_components_would_rewrite_the_selector() {
 #[test]
 fn a_rejected_selector_is_redacted_and_sanitized_before_it_is_printed() {
     let message = |specifier: &str| {
-        PackageSpecifierPlan::parse(&[specifier.to_string()]).expect_err(specifier).to_string()
+        PackageSpecifierPlan::parse(&[specifier.into()]).expect_err(specifier).to_string()
     };
 
     // Percent-encoding hides an authority from a check made on the raw

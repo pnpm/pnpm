@@ -100,3 +100,33 @@ fn an_npm_purl_that_names_a_tool_is_installed_rather_than_declared() {
         drop((root, npmrc_info)); // cleanup
     }
 }
+
+/// The mark a purl carries belongs to the request rather than to its text,
+/// so one command can carry both spellings of one selector and each keeps
+/// its own meaning.
+#[test]
+fn a_bare_package_manager_request_beside_its_purl_keeps_its_own_meaning() {
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    pacquet
+        .with_args(["add", "npm@11.0.0", "pkg:npm/npm@11.0.0", "--lockfile-only"])
+        .assert()
+        .success();
+
+    assert_eq!(prod_spec(&workspace, "npm"), "11.0.0");
+    let manifest =
+        std::fs::read_to_string(workspace.join("package.json")).expect("read the updated manifest");
+    let declarations: serde_json::Value =
+        serde_json::from_str(&manifest).expect("parse the updated manifest");
+    assert_eq!(
+        declarations["devEngines"]["packageManager"],
+        serde_json::json!({ "name": "npm", "version": "11.0.0" }),
+        "{manifest}",
+    );
+    drop((root, npmrc_info)); // cleanup
+}

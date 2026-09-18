@@ -1,30 +1,39 @@
 use super::{
-    Context, GlobalError, GlobalPackageInfo, HashMap, IntoDiagnostic, Path, PathBuf, fs,
-    is_plain_version_spec, is_valid_old_npm_package_name, lexical_normalize,
+    AddRequest, Context, GlobalError, GlobalPackageInfo, HashMap, IntoDiagnostic, Path, PathBuf,
+    fs, is_plain_version_spec, is_valid_old_npm_package_name, lexical_normalize,
     parse_wanted_dependency, safe_read_package_json_from_dir, tool_install_selector,
 };
+
+/// The packages one global install request asks for: the tokens a
+/// comma-separated request splits into, and whether they may name a tool
+/// pnpm manages rather than packages to install.
+pub(super) struct SelectorGroup {
+    tokens: Vec<String>,
+    may_name_a_tool: bool,
+}
+
+impl SelectorGroup {
+    pub(super) fn tokens(&self) -> &[String] {
+        &self.tokens
+    }
+}
 
 /// A tool name becomes the selector that installs the tool itself, which
 /// the ordinary pipeline then handles — so the result stays a normal global
 /// install that `pnpm ls -g` and `pnpm remove -g` see.
 ///
-/// A token in `purl_selectors` is left alone: a Package URL names a package
-/// in a registry, so it is installed even when it reads like a tool name.
-pub(super) fn tool_install_selectors(
-    groups: Vec<Vec<String>>,
-    purl_selectors: &[String],
-) -> Vec<Vec<String>> {
+/// A group a Package URL was rewritten into is left alone: a purl names a
+/// package in a registry, so it is installed even when it reads as a tool.
+pub(super) fn tool_install_selectors(groups: Vec<SelectorGroup>) -> Vec<Vec<String>> {
     groups
         .into_iter()
         .map(|group| {
-            group
+            if !group.may_name_a_tool {
+                return group.tokens;
+            }
+            group.tokens
                 .into_iter()
-                .map(|token| {
-                    if purl_selectors.contains(&token) {
-                        return token;
-                    }
-                    tool_install_selector(&token).unwrap_or(token)
-                })
+                .map(|token| tool_install_selector(&token).unwrap_or(token))
                 .collect()
         })
         .collect()
@@ -165,16 +174,17 @@ fn npm_alias_target(spec: Option<&str>) -> Option<String> {
 
 // --- param grouping (split/resolve helpers) -------------------------------
 
-pub(super) fn split_into_groups(params: &[String], base_dir: &Path) -> Vec<Vec<String>> {
+pub(super) fn split_into_groups(params: &[AddRequest], base_dir: &Path) -> Vec<SelectorGroup> {
     params
         .iter()
-        .map(|param| {
-            split_comma_separated(param, base_dir)
+        .map(|param| SelectorGroup {
+            tokens: split_comma_separated(param.selector(), base_dir)
                 .into_iter()
                 .map(|token| resolve_local_param(&token, base_dir))
-                .collect::<Vec<String>>()
+                .collect(),
+            may_name_a_tool: param.may_name_a_tool(),
         })
-        .filter(|group| !group.is_empty())
+        .filter(|group| !group.tokens.is_empty())
         .collect()
 }
 

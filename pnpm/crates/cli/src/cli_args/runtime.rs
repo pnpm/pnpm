@@ -1,7 +1,7 @@
 use crate::{
     State,
     cli_args::{
-        add::{AddRequests, add_package},
+        add::{AddRequest, add_package},
         global::handle_global_add,
     },
 };
@@ -124,9 +124,10 @@ impl RuntimeArgs {
         dir: &Path,
     ) -> miette::Result<()> {
         let request = self.set_request()?;
+        let global_request = AddRequest::from(request.package_name.as_str());
         Box::pin(handle_global_add::<Reporter>(
             config,
-            &AddRequests::one(request.package_name.clone()),
+            std::slice::from_ref(&global_request),
             RangeSpecStyle::Major,
             config.supported_architectures.clone(),
             // `pnpm runtime` installs a runtime, not user packages; it has
