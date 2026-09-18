@@ -69,6 +69,7 @@ mod remove;
 mod resolution_observer;
 mod resolution_policy;
 mod resolve_latest;
+mod runtime_specifier;
 mod tarball_prefetch;
 mod update;
 mod update_project_manifest;
