@@ -58,6 +58,9 @@ impl Purl {
         if name.is_empty() {
             return Err(missing_name(source));
         }
+        if name.contains('/') {
+            return Err(miette::miette!("{source} has an invalid purl name"));
+        }
         Ok(Purl {
             package_type,
             namespace: namespace

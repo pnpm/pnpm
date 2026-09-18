@@ -169,7 +169,7 @@ fn rejects_purls_pnpm_cannot_add() {
 #[test]
 fn rejects_a_purl_whose_components_would_rewrite_the_selector() {
     for (specifier, message) in [
-        ("pkg:npm/%2e%2e%2fescape", "pkg:npm/%2e%2e%2fescape does not name a valid npm package"),
+        ("pkg:npm/%2e%2e%2fescape", "pkg:npm/%2e%2e%2fescape has an invalid purl name"),
         (
             "pkg:npm/express%40npm%3Aevil",
             "pkg:npm/express%40npm%3Aevil does not name a valid npm package",
@@ -179,6 +179,10 @@ fn rejects_a_purl_whose_components_would_rewrite_the_selector() {
             "pkg:npm/express@npm%3Aevil%401.0.0 does not carry a valid npm version",
         ),
         ("pkg:cargo/foo%401.0.0", "invalid Cargo package name in pkg:cargo/foo%401.0.0"),
+        (
+            "pkg:npm/%40babel%2Fcore@7.22.0",
+            "pkg:npm/%40babel%2Fcore@7.22.0 has an invalid purl name",
+        ),
         (
             "pkg:pypi/requests%5Bsecurity%5D@2.31.0",
             "pkg:pypi/requests%5Bsecurity%5D@2.31.0 does not name a valid PyPI project",
