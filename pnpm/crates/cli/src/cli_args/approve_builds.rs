@@ -61,16 +61,19 @@ impl ApproveBuildsArgs {
     /// approved to build, or `None` when there is nothing to rebuild; the
     /// caller then drives `run_rebuild` with a reporter.
     ///
-    /// The rebuild state is built after the settings are written, from
-    /// `config` plus the just-written `allowBuilds`, so the rebuild's
-    /// allow-build policy reflects the approval. `dir` is the canonicalized
-    /// `--dir`, the fallback settings target when no `pnpm-workspace.yaml`
-    /// is found; `manifest_path` is the project manifest the rebuild state
-    /// is anchored at.
+    /// `config` locates the pending approvals and the settings file. The
+    /// rebuild state is built after the settings are written, from
+    /// `rebuild_config` plus the just-written `allowBuilds`, so the
+    /// rebuild's allow-build policy reflects the approval; the global path
+    /// anchors the two configs differently, the local path passes one
+    /// config for both. `dir` is the canonicalized `--dir`, the fallback
+    /// settings target when no `pnpm-workspace.yaml` is found;
+    /// `manifest_path` is the project manifest the rebuild is anchored at.
     pub fn prepare<Reporter: self::Reporter>(
         self,
         dir: &Path,
-        config: &'static Config,
+        config: &Config,
+        rebuild_config: &Config,
         manifest_path: &Path,
     ) -> miette::Result<Option<(State, Vec<String>)>> {
         self.validate()?;
@@ -101,7 +104,7 @@ impl ApproveBuildsArgs {
         }
         let rebuild_state = State::init(
             manifest_path.to_path_buf(),
-            config_with_install_approvals(config, &settings_dir)?,
+            config_with_install_approvals(rebuild_config, &settings_dir)?,
             true,
         )
         .wrap_err("initialize the rebuild state")?;
@@ -349,7 +352,7 @@ pub(crate) async fn prompt_approve_install_builds<Reporter: self::Reporter + 'st
 
     let args = ApproveBuildsArgs { packages: Vec::new(), all: auto_approve, global: false };
     if let Some((rebuild_state, build_packages)) =
-        args.prepare::<Reporter>(settings_dir, Config::leak(settings_config), &manifest_path)?
+        args.prepare::<Reporter>(settings_dir, &settings_config, config, &manifest_path)?
     {
         let selection = crate::cli_args::rebuild::RebuildSelection {
             names: Some(build_packages),
