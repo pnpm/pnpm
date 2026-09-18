@@ -26,8 +26,6 @@ fn the_baseline_fit_tracks_the_directory_clone_cache() {
     );
 }
 
-/// `--force` re-imports every slot in the link phase, so populating them
-/// during resolution would only be staged away again.
 #[test]
 fn force_rules_out_early_materialization() {
     let config = Config { force: true, ..Config::default() };
