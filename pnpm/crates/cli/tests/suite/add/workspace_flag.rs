@@ -162,7 +162,7 @@ fn is_rejected_with_config_dependencies_and_ecosystem_selectors() {
         assert_add_fails(
             &app_dir,
             &["--workspace", ecosystem_selector, "--allow-build", "esbuild"],
-            "--workspace cannot be combined with crate: or pypi: dependencies",
+            "--workspace cannot be combined with Cargo or Python dependencies",
         );
     }
 

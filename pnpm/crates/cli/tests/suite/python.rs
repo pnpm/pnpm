@@ -1495,7 +1495,7 @@ with (site / 'alpha-1.0.dist-info/RECORD').open(newline='') as record:
 #[test]
 fn python_add_reports_unsupported_and_conflicting_save_flags() {
     for (flags, expected) in [
-        (vec!["--save-build"], "--save-build requires at least one crate: dependency"),
+        (vec!["--save-build"], "--save-build requires at least one Cargo dependency"),
         (vec!["--save-optional"], "do not support --save-build, --save-optional or --save-peer"),
         (vec!["--save-peer"], "do not support --save-build, --save-optional or --save-peer"),
         (vec!["--save-prod", "--save-dev"], "do not support combining --save-prod and --save-dev"),
