@@ -141,3 +141,37 @@ async fn unpacked_wheels_reject_malformed_record_hashes_and_sizes() {
         assert!(inspect("python3", &files).await.is_err());
     }
 }
+
+#[tokio::test]
+async fn large_wheel_files_are_hashed_during_import() {
+    let temporary = tempfile::tempdir().unwrap();
+    let mut files = unpacked_wheel(&temporary.path().join("wheel"), false);
+    let size = 32 * 1024 * 1024;
+    let source = temporary.path().join("wheel/alpha/large.bin");
+    fs::File::create(&source)
+        .unwrap()
+        .set_len(size)
+        .unwrap();
+    files.insert("alpha/large.bin".to_string(), source);
+    let record_path = files["alpha-1.0.dist-info/RECORD"].as_path();
+    let record = fs::read_to_string(record_path).unwrap();
+    fs::write(record_path, format!("alpha/large.bin,sha256={},{}\n{record}", "A".repeat(43), size))
+        .unwrap();
+    let metadata = inspect("python3", &files).await.unwrap();
+    let packages = serde_json::json!([{ "files": files, "metadata": metadata }]);
+    for mode in [PackageImportMethod::Auto, PackageImportMethod::Copy] {
+        let root = temporary
+            .path()
+            .join(format!("large-{mode:?}"));
+        install("python3", &root, &packages, mode).await.unwrap();
+        let script = format!(
+            "import importlib.metadata as m, sysconfig; from pathlib import Path; p = Path(sysconfig.get_path('purelib')) / 'alpha/large.bin'; assert p.stat().st_size == {size}; row = next(row for row in m.distribution('alpha').read_text('RECORD').splitlines() if row.startswith('alpha/large.bin,')); assert ',sha256=AAA' not in row and row.endswith(',{size}')",
+        );
+        let output = tokio::process::Command::new(root.join("bin/python"))
+            .args(["-I", "-c", &script])
+            .output()
+            .await
+            .unwrap();
+        assert!(output.status.success(), "{}", String::from_utf8_lossy(&output.stderr));
+    }
+}

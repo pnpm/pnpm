@@ -144,6 +144,16 @@ def read_headers(files, name):
     return email.parser.Parser().parsestr(Path(files[name]).read_text(encoding="utf-8"))
 
 
+def hash_file(source, output=None):
+    digest = hashlib.sha256()
+    with Path(source).open("rb") as file:
+        for contents in iter(lambda: file.read(1024 * 1024), b""):
+            digest.update(contents)
+            if output is not None:
+                output.write(contents)
+    return "sha256=" + base64.urlsafe_b64encode(digest.digest()).rstrip(b"=").decode()
+
+
 def inspect_wheel(request):
     files = request["files"]
     roots = {name.split("/", 1)[0] for name in files if name.split("/", 1)[0].endswith(".dist-info")}
@@ -239,14 +249,15 @@ class Environment:
     def import_file(self, destination, source, metadata):
         destination = self.reserve(destination)
         executable = bool(metadata.st_mode & 0o111)
-        contents = Path(source).read_bytes()
         if self.defer_files:
+            digest = hash_file(source)
             self.imports.append({"source": str(source), "destination": str(destination), "executable": executable, "device": metadata.st_dev})
         else:
-            destination.write_bytes(contents)
+            with destination.open("wb") as output:
+                digest = hash_file(source, output)
             if executable:
                 destination.chmod(0o755)
-        self.record_contents(destination, contents)
+        self.record(destination, digest, metadata.st_size)
 
     def write_entry_points(self, entries):
         for group in ("console_scripts", "gui_scripts"):
