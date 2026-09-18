@@ -115,7 +115,7 @@ impl PythonPrepare<'_> {
                 .any(|requirement| {
                     matches!(requirement.version_or_url, Some(pep508_rs::VersionOrUrl::Url(_)))
                 })
-            || !self.index.extra_urls.is_empty()
+            || !self.index.can_resolve_remotely()
         {
             return Ok(None);
         }

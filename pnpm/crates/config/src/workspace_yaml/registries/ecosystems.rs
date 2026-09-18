@@ -1,17 +1,8 @@
-//! Which ecosystem's packages a `registries` entry serves, and the index
-//! lists that follow from it.
-//!
-//! npm is absent from those lists: its registries are addressed by the scope
-//! and prefix routes in [`super::RegistryLookups`], while every other
-//! ecosystem resolves from an ordered list of indexes.
-//!
-//! A list is held in the order the configuration declares it, which is the
-//! order the ecosystem searches: the last index answers what none before it
-//! had.
+//! Ecosystem index declarations and exclusive Python package routing.
 
 use super::{
-    LoadWorkspaceYamlError, RegistryDeclaration, RegistryLookups, normalize_registry_url,
-    quote_and_join, redact_registry_url,
+    EcosystemIndex, LoadWorkspaceYamlError, RegistryDeclaration, RegistryLookups,
+    normalize_registry_url, quote_and_join, redact_registry_url,
 };
 use indexmap::IndexMap;
 use pnpm_lockfile::RegistryOptions;
@@ -61,7 +52,7 @@ impl fmt::Display for Ecosystem {
 /// sparse index.
 #[derive(Default)]
 pub(super) struct DeclaredIndexes {
-    urls: BTreeMap<Ecosystem, Vec<String>>,
+    urls: BTreeMap<Ecosystem, Vec<EcosystemIndex>>,
 }
 
 impl DeclaredIndexes {
@@ -71,6 +62,12 @@ impl DeclaredIndexes {
         declaration: &RegistryDeclaration,
     ) -> Result<(), LoadWorkspaceYamlError> {
         let ecosystem = declaration.ecosystem();
+        if ecosystem != Ecosystem::Pypi && declaration.packages.is_some() {
+            return Err(LoadWorkspaceYamlError::InvalidPythonRegistryPackages {
+                registry: redact_registry_url(registry),
+                reason: "packages is only supported for pypi registries".to_string(),
+            });
+        }
         if ecosystem == Ecosystem::Npm {
             return Ok(());
         }
@@ -81,27 +78,31 @@ impl DeclaredIndexes {
                 field: field.to_owned(),
             });
         }
-        // Keyed by URL, the map cannot tell that `.../simple` and
-        // `.../simple/` are one index, so two spellings would take two places
-        // in the search order and the second would never be reached.
         let normalized = normalize_registry_url(registry);
         let declared = self.urls.entry(ecosystem).or_default();
-        if declared.contains(&normalized) {
+        if declared
+            .iter()
+            .any(|index| index.url == normalized)
+        {
             return Err(LoadWorkspaceYamlError::EcosystemIndexDeclaredTwice {
                 ecosystem: ecosystem.to_string(),
                 registry: redact_registry_url(&normalized),
             });
         }
-        declared.push(normalized);
+        declared.push(EcosystemIndex { url: normalized, packages: declaration.packages.clone() });
         Ok(())
     }
 
     pub(super) fn finish(&self) -> Result<(), LoadWorkspaceYamlError> {
         match self.urls.get(&Ecosystem::Cargo) {
             Some(urls) if urls.len() > 1 => Err(LoadWorkspaceYamlError::CargoIndexDeclaredTwice {
-                registries: quote_and_join(urls.iter().map(String::as_str)),
+                registries: quote_and_join(urls.iter().map(|index| index.url.as_str())),
             }),
-            _ => Ok(()),
+            _ => super::python::validate_routes(
+                self.urls
+                    .get(&Ecosystem::Pypi)
+                    .map_or(&[], Vec::as_slice),
+            ),
         }
     }
 }
@@ -120,11 +121,8 @@ fn npm_only_field(declaration: &RegistryDeclaration) -> Option<&'static str> {
 }
 
 /// Record a non-npm entry's index, answering whether it was one.
-///
-/// Appended, so the list keeps the order the configuration declares, which is
-/// the order the ecosystem searches.
 pub(super) fn collect_index(
-    indexes_by_ecosystem: &mut BTreeMap<Ecosystem, Vec<String>>,
+    indexes_by_ecosystem: &mut BTreeMap<Ecosystem, Vec<EcosystemIndex>>,
     normalized: &str,
     declaration: &RegistryDeclaration,
 ) -> bool {
@@ -135,21 +133,23 @@ pub(super) fn collect_index(
     indexes_by_ecosystem
         .entry(ecosystem)
         .or_default()
-        .push(normalized.to_owned());
+        .push(EcosystemIndex {
+            url: normalized.to_owned(),
+            packages: declaration.packages.clone(),
+        });
     true
 }
 
-/// Declare each ecosystem's indexes back into the `registries` shape.
-///
-/// The map they are written into preserves insertion order, so reading the
-/// result back declares the same search order.
+/// Declare each ecosystem's indexes and package routes back into `registries`.
 pub(super) fn extend_with_indexes(
     declarations: &mut IndexMap<String, RegistryDeclaration>,
-    indexes_by_ecosystem: &BTreeMap<Ecosystem, Vec<String>>,
+    indexes_by_ecosystem: &BTreeMap<Ecosystem, Vec<EcosystemIndex>>,
 ) {
     for (&ecosystem, indexes) in indexes_by_ecosystem {
         for index in indexes {
-            declarations.entry(index.clone()).or_default().ecosystem = Some(ecosystem);
+            let declaration = declarations.entry(index.url.clone()).or_default();
+            declaration.ecosystem = Some(ecosystem);
+            declaration.packages.clone_from(&index.packages);
         }
     }
 }
@@ -170,13 +170,13 @@ pub fn take_roles_from_earlier_layers(
     registries_by_scope: &mut BTreeMap<String, String>,
     registries_by_prefix: &mut BTreeMap<String, String>,
     registry_options_by_url: &mut BTreeMap<String, RegistryOptions>,
-    indexes_by_ecosystem: &mut BTreeMap<Ecosystem, Vec<String>>,
+    indexes_by_ecosystem: &mut BTreeMap<Ecosystem, Vec<EcosystemIndex>>,
     layer: &RegistryLookups,
 ) {
     let declared_as_index: BTreeSet<&str> = layer.indexes_by_ecosystem
         .values()
         .flatten()
-        .map(String::as_str)
+        .map(|index| index.url.as_str())
         .collect();
     let declared_at_all: BTreeSet<String> = declared_as_index
         .iter()
@@ -189,10 +189,8 @@ pub fn take_roles_from_earlier_layers(
     if declared_at_all.is_empty() {
         return;
     }
-    // Whatever this layer says a URL is, it is no longer an index of some
-    // other ecosystem, nor of the same one in another position.
     for indexes in indexes_by_ecosystem.values_mut() {
-        indexes.retain(|registry| !declared_at_all.contains(registry.as_str()));
+        indexes.retain(|registry| !declared_at_all.contains(registry.url.as_str()));
     }
     indexes_by_ecosystem.retain(|_, indexes| !indexes.is_empty());
     if declared_as_index.is_empty() {
@@ -211,12 +209,12 @@ pub fn take_roles_from_earlier_layers(
 /// `namedRegistries` alias is kept as written.
 #[must_use]
 pub fn serves_another_ecosystem(
-    indexes_by_ecosystem: &BTreeMap<Ecosystem, Vec<String>>,
+    indexes_by_ecosystem: &BTreeMap<Ecosystem, Vec<EcosystemIndex>>,
     registry: &str,
 ) -> bool {
     let normalized = normalize_registry_url(registry);
     indexes_by_ecosystem
         .values()
         .flatten()
-        .any(|index| index == &normalized)
+        .any(|index| index.url == normalized)
 }

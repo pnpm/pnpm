@@ -26,9 +26,9 @@ fn an_entry_that_names_no_ecosystem_is_an_npm_registry() {
 }
 
 #[test]
-fn the_indexes_are_read_in_the_order_the_configuration_declares_them() {
+fn python_indexes_are_canonicalized_without_search_priority() {
     let config = load(
-        "registries:\n  https://extra.example.com/simple/:\n    ecosystem: pypi\n  https://pypi.example.com/simple/:\n    ecosystem: pypi\n",
+        "registries:\n  https://extra.example.com/simple/:\n    ecosystem: pypi\n    packages: [alpha]\n  https://pypi.example.com/simple/:\n    ecosystem: pypi\n",
     )
     .unwrap();
     assert_eq!(
@@ -38,18 +38,15 @@ fn the_indexes_are_read_in_the_order_the_configuration_declares_them() {
     assert!(config.registries_by_scope.is_empty());
 }
 
-/// The map is keyed by URL, so only an insertion-ordered one can answer which
-/// index a lookup reaches first. Sorted by key, `zzz` would be searched after
-/// `aaa` however the file was written.
 #[test]
-fn declaration_order_survives_a_key_order_that_disagrees_with_it() {
+fn python_index_urls_do_not_depend_on_declaration_order() {
     let config = load(
-        "registries:\n  https://zzz.example.com/simple/:\n    ecosystem: pypi\n  https://aaa.example.com/simple/:\n    ecosystem: pypi\n",
+        "registries:\n  https://zzz.example.com/simple/:\n    ecosystem: pypi\n    packages: [alpha]\n  https://aaa.example.com/simple/:\n    ecosystem: pypi\n",
     )
     .unwrap();
     assert_eq!(
         config.python_indexes(),
-        ["https://zzz.example.com/simple/", "https://aaa.example.com/simple/"],
+        ["https://aaa.example.com/simple/", "https://zzz.example.com/simple/"],
     );
 }
 
@@ -103,7 +100,7 @@ fn an_unknown_ecosystem_is_refused() {
 #[test]
 fn the_declared_indexes_round_trip_through_the_resolved_view() {
     let config = load(
-        "registries:\n  https://extra.example.com/simple/:\n    ecosystem: pypi\n  https://pypi.example.com/simple/:\n    ecosystem: pypi\n",
+        "registries:\n  https://extra.example.com/simple/:\n    ecosystem: pypi\n    packages: [alpha]\n  https://pypi.example.com/simple/:\n    ecosystem: pypi\n",
     )
     .unwrap();
     let declarations = config.resolved_registry_declarations();
@@ -115,31 +112,21 @@ fn the_declared_indexes_round_trip_through_the_resolved_view() {
     assert_eq!(indexes, ["https://extra.example.com/simple/", "https://pypi.example.com/simple/"]);
 }
 
-/// The declarations a pnpr server is told about carry the search order too,
-/// so a resolution it runs on the client's behalf reaches the same index
-/// first.
 #[test]
-fn the_order_survives_into_the_declarations_sent_to_a_server() {
-    let config = load(
-        "registries:\n  https://zzz.example.com/simple/:\n    ecosystem: pypi\n  https://aaa.example.com/simple/:\n    ecosystem: pypi\n",
-    )
-    .unwrap();
-    let declarations = config.registry_declarations();
-    let declared: Vec<&str> = declarations
-        .iter()
-        .filter(|(_, entry)| entry.ecosystem() == Ecosystem::Pypi)
-        .map(|(registry, _)| registry.as_str())
-        .collect();
-    assert_eq!(declared, ["https://zzz.example.com/simple/", "https://aaa.example.com/simple/"]);
+fn package_routes_survive_into_the_declarations_sent_to_a_server() {
+    let config = load("registries:\n  https://private.example.com/:\n    ecosystem: pypi\n    packages: [alpha]\n  https://public.example.com/:\n    ecosystem: pypi\n").unwrap();
+    for declarations in [config.registry_declarations(), config.resolved_registry_declarations()] {
+        assert_eq!(
+            declarations["https://private.example.com/"].packages,
+            Some(vec!["alpha".to_string()])
+        );
+    }
 }
 
-/// Keyed by URL, the map cannot see that two spellings address one index, so
-/// it would give them two places in the search order and never reach the
-/// second.
 #[test]
 fn two_spellings_of_one_index_are_refused() {
     let error = load(
-        "registries:\n  https://pypi.example.com/simple:\n    ecosystem: pypi\n  https://pypi.example.com/simple/:\n    ecosystem: pypi\n",
+        "registries:\n  https://pypi.example.com/simple:\n    ecosystem: pypi\n    packages: [alpha]\n  https://pypi.example.com/simple/:\n    ecosystem: pypi\n",
     )
     .unwrap_err();
     assert!(error.contains("declared twice"), "{error}");
@@ -200,7 +187,7 @@ fn a_url_a_layer_routes_to_npm_loses_the_index_role_it_had() {
     let mut config = Config::default();
     config.indexes_by_ecosystem.insert(
         Ecosystem::Pypi,
-        vec!["https://one.example.com/".to_string()],
+        vec!["https://one.example.com/".to_string().into()],
     );
     WorkspaceSettings::load_at(dir.path())
         .unwrap()
@@ -228,7 +215,7 @@ fn a_url_reclassified_to_another_ecosystem_leaves_the_first_one() {
     let mut config = Config::default();
     config.indexes_by_ecosystem.insert(
         Ecosystem::Cargo,
-        vec!["https://one.example.com/".to_string()],
+        vec!["https://one.example.com/".to_string().into()],
     );
     WorkspaceSettings::load_at(dir.path())
         .unwrap()
@@ -279,7 +266,7 @@ fn a_later_alias_does_not_address_an_index_an_earlier_layer_declared() {
     let mut config = Config::default();
     config.indexes_by_ecosystem.insert(
         Ecosystem::Pypi,
-        vec!["https://pypi.example.com/simple/".to_string()],
+        vec!["https://pypi.example.com/simple/".to_string().into()],
     );
     WorkspaceSettings::load_at(dir.path())
         .unwrap()
@@ -292,4 +279,41 @@ fn a_later_alias_does_not_address_an_index_an_earlier_layer_declared() {
         "the alias addressed the PyPI index: {:?}",
         config.registries_by_prefix,
     );
+}
+
+#[test]
+fn overlapping_python_namespaces_are_rejected_before_resolution() {
+    for (first, second) in [
+        ("alpha", "Alpha"),
+        ("Company-*", "company_tools"),
+        ("company-*", "company-tool*"),
+        ("**", "**"),
+    ] {
+        let error = load(&format!("registries:\n  https://one.example.com/:\n    ecosystem: pypi\n    packages: ['{first}']\n  https://two.example.com/:\n    ecosystem: pypi\n    packages: ['{second}']\n")).unwrap_err();
+        assert!(error.contains("routed to two registries"), "{first}, {second}: {error}");
+    }
+}
+
+#[test]
+fn invalid_python_package_patterns_are_rejected() {
+    for packages in
+        ["[]", "['*']", "['company-**']", "['@scope/*']", "['alpha', 'ALPHA']", "['**', 'alpha']"]
+    {
+        let error = load(&format!("registries:\n  https://private.example.com/:\n    ecosystem: pypi\n    packages: {packages}\n")).unwrap_err();
+        assert!(error.contains("Invalid Python package routes"), "{packages}: {error}");
+    }
+}
+
+#[test]
+fn multiple_python_defaults_require_explicit_package_routes() {
+    let error = load("registries:\n  https://one.example.com/:\n    ecosystem: pypi\n  https://two.example.com/:\n    ecosystem: pypi\n").unwrap_err();
+    assert!(error.contains("routed to two registries"), "{error}");
+}
+
+#[test]
+fn package_patterns_are_not_silently_ignored_by_other_ecosystems() {
+    for ecosystem in ["npm", "cargo"] {
+        let error = load(&format!("registries:\n  https://one.example.com/:\n    ecosystem: {ecosystem}\n    packages: [alpha]\n")).unwrap_err();
+        assert!(error.contains("only supported for pypi"), "{error}");
+    }
 }

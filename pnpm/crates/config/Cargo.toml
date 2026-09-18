@@ -11,6 +11,7 @@ license.workspace = true
 repository.workspace = true
 
 [dependencies]
+pnpr-registry = { workspace = true }
 pnpm-matcher = { workspace = true }
 pnpm-catalogs-types = { workspace = true }
 pnpm-config-dir = { workspace = true }

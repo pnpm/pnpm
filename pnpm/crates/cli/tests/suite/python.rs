@@ -178,13 +178,16 @@ async fn serve_wheels(
     mocks
 }
 
-fn add_python_index_searched_first(root: &Path, index: &str) {
+fn add_python_registry(root: &Path, index: &str, packages: &[&str]) {
     let workspace = fs::read_to_string(root.join("pnpm-workspace.yaml")).unwrap();
     fs::write(
         root.join("pnpm-workspace.yaml"),
         workspace.replace(
             "registries:\n",
-            &format!("registries:\n  '{index}':\n    ecosystem: pypi\n"),
+            &format!(
+                "registries:\n  '{index}':\n    ecosystem: pypi\n    packages: {}\n",
+                serde_json::to_string(packages).unwrap()
+            ),
         ),
     )
     .unwrap();

@@ -129,6 +129,7 @@ fn update_config_catalog_applies_to_import() {
     .expect("write package-lock.json");
 
     pacquet_in(&workspace)
+        .with_env("PNPM_CONFIG_NPMRC_AUTH_FILE", workspace.join(".npmrc"))
         .with_arg("import")
         .assert()
         .success();
@@ -159,6 +160,7 @@ fn update_config_catalog_applies_to_import() {
         "the imported lockfile should resolve the hook-provided catalog entry:\n{lockfile}",
     );
     pacquet_in(&workspace)
+        .with_env("PNPM_CONFIG_NPMRC_AUTH_FILE", workspace.join(".npmrc"))
         .with_args(["install", "--frozen-lockfile"])
         .assert()
         .success();

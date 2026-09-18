@@ -4,6 +4,7 @@
 use super::Target;
 use pep508_rs::{MarkerEnvironment, Requirement};
 use serde::{Deserialize, Serialize};
+use std::collections::BTreeMap;
 
 /// Everything a resolution depended on: what the project asked for, and
 /// the environments it was answered for. A server's answer is accepted
@@ -42,6 +43,8 @@ pub struct Inputs {
     extra_indexes: Vec<String>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     overrides: Vec<String>,
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    registry_packages: BTreeMap<String, Vec<String>>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     constraints: Vec<String>,
 }
@@ -53,7 +56,10 @@ impl Inputs {
         if self.requirements != wanted.requirements {
             return Some("the project's Python requirements changed");
         }
-        if self.index != wanted.index || self.extra_indexes != wanted.extra_indexes {
+        if self.index != wanted.index
+            || self.extra_indexes != wanted.extra_indexes
+            || self.registry_packages != wanted.registry_packages
+        {
             return Some("the Python index changed");
         }
         if self.overrides != wanted.overrides || self.constraints != wanted.constraints {
@@ -77,6 +83,11 @@ impl Inputs {
         self.extra_indexes = extra_indexes.to_vec();
         self.overrides = normalized(overrides);
         self.constraints = normalized(constraints);
+    }
+
+    /// Record authoritative package routes; changes invalidate lockfile replay.
+    pub fn set_registry_packages(&mut self, packages: BTreeMap<String, Vec<String>>) {
+        self.registry_packages = packages;
     }
 
     pub fn set_requirements(&mut self, requirements: &[Requirement]) {
@@ -108,6 +119,7 @@ impl Inputs {
             index: index.to_string(),
             extra_indexes: Vec::new(),
             overrides: Vec::new(),
+            registry_packages: BTreeMap::new(),
             constraints: Vec::new(),
         }
     }
@@ -131,6 +143,7 @@ impl Inputs {
             index: index.to_string(),
             extra_indexes: Vec::new(),
             overrides: Vec::new(),
+            registry_packages: BTreeMap::new(),
             constraints: Vec::new(),
         }
     }
