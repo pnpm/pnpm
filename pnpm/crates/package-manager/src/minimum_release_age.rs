@@ -1,4 +1,4 @@
-use std::{marker::PhantomData, path::Path};
+use std::{io::Write, marker::PhantomData, path::Path};
 
 use derive_more::{Display, Error};
 use miette::Diagnostic;
@@ -112,8 +112,12 @@ impl ApprovalPrompt for DialoguerPrompt {
     async fn confirm(&mut self, message: &str) -> dialoguer::Result<bool> {
         let message = message.to_owned();
         tokio::task::spawn_blocking(move || {
+            let (list, question) =
+                message.rsplit_once('\n').expect("approval question follows the version list");
+            // Dialoguer only clears the last line when it renders the answer.
+            writeln!(std::io::stderr(), "{list}")?;
             dialoguer::Confirm::new()
-                .with_prompt(message)
+                .with_prompt(question)
                 .default(false)
                 .interact()
         })
@@ -220,6 +224,7 @@ fn sorted_immature_violations(
         .filter(|violation| violation.code == MINIMUM_RELEASE_AGE_VIOLATION_CODE)
         .collect();
     immature.sort_by_cached_key(|violation| format!("{}@{}", violation.name, violation.version));
+    immature.dedup_by(|left, right| left.name == right.name && left.version == right.version);
     immature
 }
 
