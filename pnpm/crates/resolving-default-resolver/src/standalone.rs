@@ -20,7 +20,7 @@
 //!   install-time concern.
 
 use crate::DefaultResolver;
-use pnpm_config::Config;
+use pnpm_config::{Config, Tool};
 use pnpm_engine_pm_yarn_resolver::YarnResolver;
 use pnpm_engine_runtime_bun_resolver::BunResolver;
 use pnpm_engine_runtime_deno_resolver::DenoResolver;
@@ -84,7 +84,10 @@ pub fn build_standalone_chain(
         Box::new(LocalSchemeResolver::new(local_ctx)),
         Box::new(build_node_resolver(config, http_client)),
         Box::new(DenoResolver::new(Arc::clone(http_client), Arc::clone(&npm_resolver))),
-        Box::new(BunResolver::new(Arc::clone(http_client), Arc::clone(&npm_resolver))),
+        Box::new(
+            BunResolver::new(Arc::clone(http_client), Arc::clone(&npm_resolver))
+                .with_mirror(config.tool_mirror(Tool::Bun)),
+        ),
         Box::new(YarnResolver::new(Arc::clone(http_client), config.tls.strict_ssl.unwrap_or(true))),
         Box::new(build_named_registry_resolver(opts, retry_opts)?),
         Box::new(LocalPathResolver::new(local_ctx)),
@@ -148,6 +151,8 @@ fn build_node_resolver(config: &Config, http_client: &Arc<ThrottledClient>) -> N
     let mut node_resolver =
         NodeResolver::new_with_auth(Arc::clone(http_client), Arc::clone(&config.auth_headers));
     node_resolver.node_download_mirrors.clone_from(&config.node_download_mirrors);
+    node_resolver.mirror = config.tool_mirror(Tool::Node).map(ToString::to_string);
+    node_resolver.channel_mirrors = config.tool_channel_mirrors(Tool::Node);
     node_resolver.offline = config.offline;
     node_resolver.cache_dir = Some(config.cache_dir.clone());
     node_resolver

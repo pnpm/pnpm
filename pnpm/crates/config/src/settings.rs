@@ -5,8 +5,8 @@ use super::{
     PackageManagerBootstrap, PatchGroupRecord, PatchInput, Path, PathBuf, Pipe, PmOnFail,
     ProjectConfig, PythonSettings, RegistryOptions, RemoteSideEffectsCacheSettings, ResolutionMode,
     ResolvePatchedDependenciesError, RuntimeOnFail, SaveWorkspaceProtocol, ScriptsPrependNodePath,
-    SmartDefault, StoreDir, TrustPolicy, VerifyDepsBeforeRun, WorkspaceKeyIssues,
-    create_hex_hash_from_file, default_cache_dir, default_child_concurrency,
+    SmartDefault, StoreDir, Tool, ToolSettings, TrustPolicy, VerifyDepsBeforeRun,
+    WorkspaceKeyIssues, create_hex_hash_from_file, default_cache_dir, default_child_concurrency,
     default_enable_global_virtual_store, default_fetch_min_speed_ki_bps, default_fetch_retries,
     default_fetch_retry_factor, default_fetch_retry_maxtimeout, default_fetch_retry_mintimeout,
     default_fetch_timeout, default_fetch_warn_timeout_ms, default_git_shallow_hosts,
@@ -971,6 +971,8 @@ pub struct Config {
     /// Cargo dependency management declared by the workspace.
     pub cargo: CargoSettings,
     pub python: PythonSettings,
+    /// `tools` from `pnpm-workspace.yaml`, keyed by tool name.
+    pub tools: BTreeMap<Tool, ToolSettings>,
 
     pub remote_side_effects_cache: Option<RemoteSideEffectsCacheSettings>,
 
@@ -1695,6 +1697,37 @@ pub struct Config {
 }
 
 impl Config {
+    /// Where the builds of one tool are downloaded from, as
+    /// `tools.<name>.mirror` names it, without the trailing slash a
+    /// caller joins onto.
+    #[must_use]
+    pub fn tool_mirror(&self, tool: Tool) -> Option<&str> {
+        self.tools
+            .get(&tool)?
+            .mirror
+            .as_deref()
+            .map(|mirror| mirror.trim_end_matches('/'))
+    }
+
+    /// Where each line of a tool's builds is downloaded from, as
+    /// `tools.<name>.channels` names them. A line it does not name is
+    /// left to [`Self::tool_mirror`].
+    #[must_use]
+    pub fn tool_channel_mirrors(&self, tool: Tool) -> HashMap<String, String> {
+        self.tools
+            .get(&tool)
+            .and_then(|tool| tool.channels.as_ref())
+            .map(|channels| {
+                channels
+                    .iter()
+                    .map(|(channel, mirror)| {
+                        (channel.clone(), mirror.trim_end_matches('/').to_string())
+                    })
+                    .collect()
+            })
+            .unwrap_or_default()
+    }
+
     #[must_use]
     pub fn new() -> Self {
         Self::default()

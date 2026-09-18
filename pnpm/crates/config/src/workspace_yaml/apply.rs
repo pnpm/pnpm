@@ -1,7 +1,8 @@
 use super::{
     Config, Path, PnpmfileSetting, ProxyKeys, ProxyValue, SideEffectsCacheSetting, StoreDir,
     UpdateConfig, WorkspaceSettings, decided_allow_builds, no_proxy_scalar, normalize_registry_url,
-    overlay, overlay_some, registries, resolve, resolve_child_concurrency, warn_deprecated_pairing,
+    overlay, overlay_some, overlay_tools, registries, resolve, resolve_child_concurrency,
+    warn_deprecated_pairing,
 };
 
 impl WorkspaceSettings {
@@ -164,6 +165,7 @@ impl WorkspaceSettings {
         overlay_some(&mut config.pnpr_server, self.pnpr_server.take());
         overlay(&mut config.cargo, self.cargo.take());
         overlay(&mut config.python, self.python.take());
+        overlay_tools(&mut config.tools, self.tools.take());
         if let Some(v) = self.remote_side_effects_cache.take() {
             config.remote_side_effects_cache.get_or_insert_default().overlay(v);
         }

@@ -1,11 +1,12 @@
 pub mod package_configs;
 pub mod registries;
 pub use error::LoadWorkspaceYamlError;
+pub(crate) use sections::deserialize_tools;
 pub use sections::{
     AllowBuild, AuditSettings, CargoSettings, DEFAULT_PYTHON_DOWNLOAD_URL, PackageExtension,
     PeerDependencyMeta, PeerDependencyRules, PnpmfileSetting, PythonSettings,
     RemoteSideEffectsCacheSettings, SideEffectsCacheSetting, SideEffectsCacheSettings,
-    TaskSettings, UpdateConfig, UpdateSettings, decided_allow_builds,
+    TaskSettings, Tool, ToolSettings, UpdateConfig, UpdateSettings, decided_allow_builds,
 };
 pub use settings::WorkspaceSettings;
 
@@ -72,6 +73,28 @@ pub const GLOBAL_CONFIG_YAML_FILENAME: &str = "config.yaml";
 fn overlay<Setting>(target: &mut Setting, value: Option<Setting>) {
     if let Some(value) = value {
         *target = value;
+    }
+}
+
+/// [`overlay`] for the tools, which every layer answers for separately.
+///
+/// The tools are independent of one another, so a workspace naming a Bun
+/// mirror has said nothing about Node.js and must not drop the one the
+/// machine's own config names. The same holds a level down: a layer that
+/// names a tool's release channels has not said where the rest of its
+/// builds come from.
+fn overlay_tools(
+    target: &mut BTreeMap<Tool, ToolSettings>,
+    value: Option<BTreeMap<Tool, ToolSettings>>,
+) {
+    for (tool, named) in value.into_iter().flatten() {
+        let settings = target.entry(tool).or_default();
+        overlay_some(&mut settings.mirror, named.mirror);
+        match (&mut settings.channels, named.channels) {
+            (Some(channels), Some(named)) => channels.extend(named),
+            (channels @ None, named @ Some(_)) => *channels = named,
+            (_, None) => {}
+        }
     }
 }
 

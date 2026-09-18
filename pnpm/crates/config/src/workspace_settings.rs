@@ -99,6 +99,14 @@ impl Config {
         settings.scope = None;
         settings.global_dir = None;
         settings.global_bin_dir = None;
+        // A mirror decides where the binary pnpm runs an ecosystem with is
+        // downloaded from, and a release's checksums come from the mirror
+        // that serves its files, so verifying the download says only that
+        // the mirror agrees with itself. A repository that named one would
+        // be choosing which program runs on the machine of everyone who
+        // clones it. `tools` therefore comes from the global `config.yaml`
+        // and `PNPM_CONFIG_TOOLS` only.
+        settings.tools = None;
         // Noted rather than assigned, so an `enableGlobalVirtualStore` /
         // `virtualStoreDir` set in the global `config.yaml` still counts as
         // "explicitly set" when the workspace yaml leaves it unset.

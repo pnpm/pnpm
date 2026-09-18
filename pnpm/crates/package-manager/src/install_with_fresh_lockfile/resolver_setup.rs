@@ -8,7 +8,7 @@
 
 use super::InstallWithFreshLockfileError;
 use crate::{PrefetchContext, PrefetchingResolver};
-use pnpm_config::Config;
+use pnpm_config::{Config, Tool};
 use pnpm_engine_pm_yarn_resolver::YarnResolver;
 use pnpm_engine_runtime_bun_resolver::BunResolver;
 use pnpm_engine_runtime_deno_resolver::DenoResolver;
@@ -339,6 +339,8 @@ impl ResolverChainInputs<'_> {
             Arc::clone(self.fetching.auth_headers),
         );
         node_resolver.node_download_mirrors.clone_from(&self.config.node_download_mirrors);
+        node_resolver.mirror = self.config.tool_mirror(Tool::Node).map(ToString::to_string);
+        node_resolver.channel_mirrors = self.config.tool_channel_mirrors(Tool::Node);
         node_resolver.offline = self.config.offline;
         node_resolver.cache_dir = Some(self.config.cache_dir.clone());
         node_resolver
@@ -407,10 +409,10 @@ impl ResolverChainInputs<'_> {
                 Arc::clone(self.fetching.http_client),
                 Arc::clone(npm_resolver),
             )),
-            Box::new(BunResolver::new(
-                Arc::clone(self.fetching.http_client),
-                Arc::clone(npm_resolver),
-            )),
+            Box::new(
+                BunResolver::new(Arc::clone(self.fetching.http_client), Arc::clone(npm_resolver))
+                    .with_mirror(self.config.tool_mirror(Tool::Bun)),
+            ),
             Box::new(YarnResolver::new(
                 Arc::clone(self.fetching.http_client),
                 self.config.tls.strict_ssl.unwrap_or(true),

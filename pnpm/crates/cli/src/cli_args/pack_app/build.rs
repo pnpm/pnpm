@@ -10,10 +10,16 @@ pub(super) struct SeaBuild<'a> {
     pub(super) output_dir: PathBuf,
     pub(super) output_name: String,
     pub(super) entry: PathBuf,
-    pub(super) build_root: PathBuf,
-    pub(super) target_version: String,
+    pub(super) runtime: EmbeddedRuntime,
     pub(super) builder_bin: PathBuf,
     pub(super) pacquet_bin: PathBuf,
+}
+
+/// The Node.js the executables embed: which build, and where the copies
+/// of it are kept.
+pub(super) struct EmbeddedRuntime {
+    pub(super) build_root: PathBuf,
+    pub(super) version: String,
 }
 
 /// Reject a pre-existing symlink (or any non-regular file) at any
@@ -49,13 +55,11 @@ pub(super) fn print_built(results: &[String]) {
 /// Unlike pnpm — which reuses its own running interpreter when it already
 /// matches — pacquet has no host Node.js, so it always downloads a
 /// host-arch Node.js of the target version.
-pub(super) fn resolve_builder_binary(
-    build_root: &Path,
-    target_version: &str,
-) -> miette::Result<PathBuf> {
+pub(super) fn resolve_builder_binary(runtime: &EmbeddedRuntime) -> miette::Result<PathBuf> {
+    let target_version = &runtime.version;
     if !builder_version_can_build_sea(target_version) {
         return Err(PackAppError::RuntimeTooOld {
-            version: target_version.to_string(),
+            version: target_version.clone(),
             major: MIN_BUILDER_VERSION.0,
             minor: MIN_BUILDER_VERSION.1,
         }
@@ -65,8 +69,7 @@ pub(super) fn resolve_builder_binary(
         std::env::current_exe().into_diagnostic().wrap_err("resolving the pnpm executable path")?;
     ensure_node_runtime(
         &pacquet_bin,
-        build_root,
-        target_version,
+        runtime,
         pnpm_detect_libc::host_platform(),
         pnpm_detect_libc::host_arch(),
         // Pin libc to the host's. Otherwise a caller that set
@@ -106,12 +109,12 @@ fn builder_version_can_build_sea(version: &str) -> bool {
 /// directory.
 pub(super) fn ensure_node_runtime(
     pacquet_bin: &Path,
-    build_root: &Path,
-    version: &str,
+    runtime: &EmbeddedRuntime,
     platform: &str,
     arch: &str,
     libc: Option<&str>,
 ) -> miette::Result<PathBuf> {
+    let EmbeddedRuntime { build_root, version } = runtime;
     // Linux variants always need a libc pin (glibc or musl) so variant
     // selection is deterministic and doesn't depend on the host's detected
     // libc or the user's supportedArchitectures.libc config.
@@ -146,7 +149,7 @@ pub(super) fn ensure_node_runtime(
     if !binary_path.exists() {
         return Err(PackAppError::NodeBinaryMissing {
             path: binary_path.display().to_string(),
-            version: version.to_string(),
+            version: version.clone(),
         }
         .into());
     }
@@ -159,10 +162,18 @@ fn node_binary_path(node_dir: &Path, platform: &str) -> PathBuf {
 
 pub(super) async fn resolve_version(config: &Config, specifier: &str) -> miette::Result<String> {
     let parsed = parse_node_specifier(specifier).map_err(miette::Report::new)?;
-    // pacquet has no `node-download-mirrors` config field yet, so the
-    // override map is always absent and the official nodejs.org tree is
-    // used. Matches pnpm's default when `nodeDownloadMirrors` is unset.
-    let mirror = get_node_mirror(None, &parsed.release_channel);
+    // `node-mirror:<channel>` is deliberately not read here. A workspace
+    // may name it, and this runtime is executed as the builder and kept
+    // in the shared pack-app cache, so a repository naming it would be
+    // choosing the program that packs everyone's app. `tools` carries no
+    // such risk, being the machine's own.
+    let channels = config.tool_channel_mirrors(pnpm_config::Tool::Node);
+    let mirror = get_node_mirror(
+        config.tool_mirror(pnpm_config::Tool::Node),
+        channels.get(&parsed.release_channel).map(String::as_str),
+        None,
+        &parsed.release_channel,
+    );
     let http_client = build_http_client(config)?;
     let version = resolve_node_version(&http_client, &parsed.version_specifier, Some(&mirror))
         .await

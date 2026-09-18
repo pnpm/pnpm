@@ -189,6 +189,78 @@ fn add_python_settings(root: &Path, settings: &str) {
     .unwrap();
 }
 
+/// A repository that named a mirror would be choosing which program runs
+/// on the machine of everyone who clones it, and a release's checksums
+/// come from the mirror that serves its files, so the download verifies
+/// only that the mirror agrees with itself.
+///
+/// The machine and the repository name mirrors serving different
+/// releases, and only the repository's serves the pinned one. Honouring
+/// the workspace would install it, so the install failing is what says
+/// the workspace was not read. The machine's mirror is named in the
+/// global `config.yaml` rather than the environment, because the
+/// environment outranks the workspace either way and would prove
+/// nothing.
+#[cfg(any(target_os = "linux", target_os = "macos"))]
+#[tokio::test]
+async fn a_repository_cannot_name_a_mirror() {
+    use command_extra::CommandExtra as _;
+
+    let root = tempfile::tempdir().unwrap();
+    let mut machine = mockito::Server::new_async().await;
+    let mut repository = mockito::Server::new_async().await;
+    project(root.path(), "https://unused.invalid", &[]);
+    let machines = serve_interpreter(&mut machine, &["3.13.90"]).await;
+    let pinned = serve_interpreter(&mut repository, &["3.13.95"]).await;
+
+    let config = root.path().join(".config/pnpm");
+    fs::create_dir_all(&config).unwrap();
+    fs::write(
+        config.join("config.yaml"),
+        format!("tools:\n  python:\n    mirror: '{}'\n", machine.url()),
+    )
+    .unwrap();
+    let path = root.path().join("pnpm-workspace.yaml");
+    let mut workspace = fs::read_to_string(&path).unwrap();
+    writeln!(workspace, "tools:\n  python:\n    mirror: '{}'", repository.url()).unwrap();
+    fs::write(&path, workspace).unwrap();
+    fs::write(
+        root.path().join("pyproject.toml"),
+        "[project]\nname = 'app'\nversion = '1.0'\nrequires-python = '==3.13.95'\ndependencies = []\n",
+    )
+    .unwrap();
+
+    assert_failure_contains(
+        pacquet_in(root.path())
+            .with_env("XDG_CONFIG_HOME", root.path().join(".config"))
+            .arg("install"),
+        "3.13.95",
+    );
+    for mock in pinned {
+        assert!(!mock.matched_async().await, "the repository's mirror was read");
+    }
+    // Without this the test would also pass if the machine's mirror were
+    // never found either: the install would reach for the real releases,
+    // fail naming the same version, and leave the repository's untouched.
+    let mut read = false;
+    for mock in machines {
+        read |= mock.matched_async().await;
+    }
+    assert!(read, "the machine's mirror was not read");
+}
+
+/// A pnpm that downloads interpreters from `mirror`.
+///
+/// A tool mirror is the machine's to name, so a test names one the way a
+/// user does, through the environment, rather than through the workspace
+/// file the run would ignore it in.
+#[cfg(any(target_os = "linux", target_os = "macos"))]
+fn pacquet_with_python_mirror(root: &Path, mirror: &str) -> Command {
+    let mut command = pacquet_in(root);
+    command.env("PNPM_CONFIG_TOOLS", format!(r#"{{"python":{{"mirror":"{mirror}"}}}}"#));
+    command
+}
+
 fn add_supported_architectures(root: &Path, platforms: &[&str]) {
     let path = root.join("pnpm-workspace.yaml");
     let mut workspace = fs::read_to_string(&path).unwrap();
@@ -554,14 +626,14 @@ async fn installs_an_interpreter_no_machine_has_and_reuses_it() {
     let mut server = mockito::Server::new_async().await;
     project(root.path(), "https://unused.invalid", &[]);
     let release = serve_interpreter(&mut server, &["3.13.99"]).await;
-    add_python_settings(root.path(), &format!("  downloadUrl: '{}'\n", server.url()));
+    let mirror = server.url();
     let install = || {
         fs::write(
             root.path().join("pyproject.toml"),
             "[project]\nname = 'app'\nversion = '1.0'\nrequires-python = '==3.13.99'\ndependencies = []\n",
         )
         .unwrap();
-        pacquet_in(root.path())
+        pacquet_with_python_mirror(root.path(), &mirror)
     };
 
     install()
@@ -598,15 +670,15 @@ async fn a_pin_the_release_moved_past_installs_the_version_it_has() {
     let mut server = mockito::Server::new_async().await;
     project(root.path(), "https://unused.invalid", &[]);
     let _release = serve_interpreter(&mut server, &["3.13.96"]).await;
+    let mirror = server.url();
     fs::write(
         root.path().join("pyproject.toml"),
         "[project]\nname = 'app'\nversion = '1.0'\nrequires-python = '>=3.13.90,<3.14'\ndependencies = []\n",
     )
     .unwrap();
     fs::write(root.path().join(".python-version"), "3.13.95\n").unwrap();
-    add_python_settings(root.path(), &format!("  downloadUrl: '{}'\n", server.url()));
 
-    let output = pacquet_in(root.path())
+    let output = pacquet_with_python_mirror(root.path(), &mirror)
         .arg("install")
         .output()
         .unwrap();
@@ -626,15 +698,15 @@ async fn a_pin_the_project_refuses_installs_a_version_it_accepts() {
     let mut server = mockito::Server::new_async().await;
     project(root.path(), "https://unused.invalid", &[]);
     let _release = serve_interpreter(&mut server, &["3.13.94", "3.13.93"]).await;
+    let mirror = server.url();
     fs::write(
         root.path().join("pyproject.toml"),
         "[project]\nname = 'app'\nversion = '1.0'\nrequires-python = '>=3.13.94,<3.14'\ndependencies = []\n",
     )
     .unwrap();
     fs::write(root.path().join(".python-version"), "3.13.93\n").unwrap();
-    add_python_settings(root.path(), &format!("  downloadUrl: '{}'\n", server.url()));
 
-    let output = pacquet_in(root.path())
+    let output = pacquet_with_python_mirror(root.path(), &mirror)
         .arg("install")
         .output()
         .unwrap();
@@ -667,14 +739,14 @@ async fn refuses_an_interpreter_the_release_does_not_name() {
         .with_body("not the interpreter the release names")
         .create_async()
         .await;
+    let mirror = server.url();
     fs::write(
         root.path().join("pyproject.toml"),
         "[project]\nname = 'app'\nversion = '1.0'\nrequires-python = '==3.13.97'\ndependencies = []\n",
     )
     .unwrap();
-    add_python_settings(root.path(), &format!("  downloadUrl: '{}'\n", server.url()));
     assert_failure_contains(
-        pacquet_in(root.path()).arg("install"),
+        pacquet_with_python_mirror(root.path(), &mirror).arg("install"),
         "is not the one the release names",
     );
     assert!(
@@ -695,21 +767,22 @@ async fn an_interpreter_is_installed_only_where_the_install_may_download() {
     let mut server = mockito::Server::new_async().await;
     project(root.path(), "https://unused.invalid", &[]);
     let _release = serve_interpreter(&mut server, &["3.13.98"]).await;
+    let mirror = server.url();
     fs::write(
         root.path().join("pyproject.toml"),
         "[project]\nname = 'app'\nversion = '1.0'\nrequires-python = '==3.13.98'\ndependencies = []\n",
     )
     .unwrap();
-    add_python_settings(root.path(), &format!("  downloadUrl: '{}'\n", server.url()));
     assert_failure_contains(
-        pacquet_in(root.path()).args(["install", "--runtime-on-fail=error"]),
+        pacquet_with_python_mirror(root.path(), &mirror)
+            .args(["install", "--runtime-on-fail=error"]),
         "no Python interpreter for",
     );
     assert_failure_contains(
-        pacquet_in(root.path()).args(["install", "--offline"]),
+        pacquet_with_python_mirror(root.path(), &mirror).args(["install", "--offline"]),
         "no Python interpreter for",
     );
-    pacquet_in(root.path())
+    pacquet_with_python_mirror(root.path(), &mirror)
         .arg("install")
         .assert()
         .success();

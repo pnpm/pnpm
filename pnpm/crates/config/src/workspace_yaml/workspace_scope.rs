@@ -52,6 +52,11 @@ impl WorkspaceSettings {
         self.clear_workspace_hooks_fields();
     }
 
+    /// `tools` is deliberately absent: a mirror answers "what can this
+    /// machine reach", which is the user's to say and belongs in their
+    /// global config, the same way `nodeDownloadMirrors` does. Clearing
+    /// it here would leave a repository as the only party able to say
+    /// where pnpm downloads a runtime from.
     pub(super) fn clear_workspace_project_fields(&mut self) {
         self.versioning = None;
         self.cargo = None;

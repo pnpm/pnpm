@@ -99,6 +99,64 @@ pub struct RemoteSideEffectsCacheSettings {
     pub private_key: Option<String>,
 }
 
+/// A program pnpm downloads through a base URL, which is what a mirror
+/// can replace.
+///
+/// Deno and Yarn are absent on purpose: both read the GitHub API for
+/// their release metadata and take asset URLs out of the response, so a
+/// base URL cannot stand in for either. Naming one would promise
+/// something pnpm cannot do, and a closed set says so where the
+/// configuration is written rather than after it is read.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, serde::Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum Tool {
+    Node,
+    Bun,
+    Python,
+}
+
+/// What pnpm is told about one tool it downloads, keyed by the tool
+/// under `tools`.
+///
+/// A tool here is a program pnpm fetches to run something with: a
+/// JavaScript runtime, a Python interpreter, another package manager.
+/// Where the packages of an ecosystem come from is a separate question,
+/// answered by `registry`, `python.indexUrl` and `cargo.indexUrl`.
+///
+/// Read from the global `config.yaml` and `PNPM_CONFIG_TOOLS` only. A
+/// `pnpm-workspace.yaml` that names one is ignored, because naming a
+/// mirror chooses which program runs on the machine of everyone who
+/// clones the repository.
+#[derive(Debug, Default, Clone, PartialEq, Eq, serde::Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", default, deny_unknown_fields)]
+pub struct ToolSettings {
+    /// Where this tool's builds are downloaded from, in place of the
+    /// project that publishes them, as the base URL its own layout hangs
+    /// off. A tool that publishes several lines of builds has the line
+    /// below this base, the way its own tree lays them out.
+    pub mirror: Option<String>,
+    /// Where one line of this tool's builds comes from, for a tool that
+    /// publishes more than one and a line that does not come from the
+    /// same place as the rest. An entry here answers for the channel it
+    /// names; every other channel is left to [`Self::mirror`].
+    ///
+    /// Only Node.js publishes channels of the tools pnpm downloads, so
+    /// naming them for another is refused rather than left to do
+    /// nothing. [`Tool::has_channels`] is what decides.
+    pub channels: Option<BTreeMap<String, String>>,
+}
+
+impl Tool {
+    /// Whether this tool publishes more than one line of builds.
+    #[must_use]
+    pub fn has_channels(self) -> bool {
+        match self {
+            Self::Node => true,
+            Self::Bun | Self::Python => false,
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", default, deny_unknown_fields)]
 pub struct CargoSettings {
@@ -136,11 +194,6 @@ pub struct PythonSettings {
     /// version such as `3.12` or a full one such as `3.12.7`. Empty locks
     /// for the version of the interpreter the install runs on.
     pub python_versions: Vec<String>,
-    /// Where the interpreters pnpm installs are downloaded from, as the
-    /// releases URL of a [python-build-standalone] mirror.
-    ///
-    /// [python-build-standalone]: https://github.com/astral-sh/python-build-standalone
-    pub download_url: String,
 }
 
 impl Default for PythonSettings {
@@ -155,7 +208,6 @@ impl Default for PythonSettings {
             extras: Vec::new(),
             groups: vec!["dev".to_string()],
             python_versions: Vec::new(),
-            download_url: DEFAULT_PYTHON_DOWNLOAD_URL.to_string(),
         }
     }
 }
@@ -484,4 +536,25 @@ pub struct PackageExtension {
 pub struct PeerDependencyMeta {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub optional: Option<bool>,
+}
+
+/// Refuse `channels` for a tool that publishes one line of builds, where
+/// it would otherwise sit in the configuration doing nothing.
+///
+/// Checked as the value is read so that every source is covered: the
+/// workspace file, the global `config.yaml` and `PNPM_CONFIG_TOOLS` all
+/// arrive through serde.
+pub(crate) fn deserialize_tools<'de, Deser: Deserializer<'de>>(
+    deserializer: Deser,
+) -> Result<Option<BTreeMap<Tool, ToolSettings>>, Deser::Error> {
+    use serde::de::Error as _;
+    let tools = Option::<BTreeMap<Tool, ToolSettings>>::deserialize(deserializer)?;
+    for (tool, settings) in tools.iter().flatten() {
+        if settings.channels.is_some() && !tool.has_channels() {
+            return Err(Deser::Error::custom(format!(
+                "{tool:?} publishes one line of builds, so it has no channels to name",
+            )));
+        }
+    }
+    Ok(tools)
 }

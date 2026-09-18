@@ -39,11 +39,21 @@ pub enum BunResolverError {
 pub struct BunResolver {
     pub http_client: Arc<ThrottledClient>,
     pub npm_resolver: Arc<dyn Resolver>,
+    /// `tools.bun.mirror`: where Bun's releases are downloaded from.
+    pub mirror: Option<String>,
 }
 
 impl BunResolver {
     pub fn new(http_client: Arc<ThrottledClient>, npm_resolver: Arc<dyn Resolver>) -> Self {
-        Self { http_client, npm_resolver }
+        Self { http_client, npm_resolver, mirror: None }
+    }
+
+    /// Download Bun's releases from `tools.bun.mirror` rather than from
+    /// Bun's own.
+    #[must_use]
+    pub fn with_mirror(mut self, mirror: Option<&str>) -> Self {
+        self.mirror = mirror.map(ToString::to_string);
+        self
     }
 }
 
@@ -91,7 +101,8 @@ impl BunResolver {
                 as ResolveError
         })?;
 
-        let variants = read_bun_assets(&self.http_client, &version).await
+        let variants = read_bun_assets(&self.http_client, self.mirror.as_deref(), &version)
+            .await
             .map_err(|err| Box::new(BunResolverError::ReadAssets(err)) as ResolveError)?;
         let resolution = LockfileResolution::Variations(VariationsResolution { variants });
         let manifest = serde_json::json!({

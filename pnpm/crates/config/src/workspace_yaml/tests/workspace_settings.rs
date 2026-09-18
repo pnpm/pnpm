@@ -313,8 +313,119 @@ cargo:
 }
 
 #[test]
+fn tool_settings_parse_and_apply() {
+    let yaml = "tools:\n  node:\n    mirror: https://mirror.example.test/node/download\n  python:\n    mirror: https://mirror.example.test/python-build-standalone/releases\n  bun:\n    mirror: https://mirror.example.test/bun\n";
+    let settings: WorkspaceSettings = serde_saphyr::from_str(yaml).unwrap();
+    let mut config = Config::default();
+    settings.apply_to(&mut config, Path::new("/workspace"));
+    assert_eq!(
+        config.tool_mirror(crate::Tool::Node),
+        Some("https://mirror.example.test/node/download"),
+    );
+    assert_eq!(
+        config.tool_mirror(crate::Tool::Python),
+        Some("https://mirror.example.test/python-build-standalone/releases"),
+    );
+    assert_eq!(config.tool_mirror(crate::Tool::Bun), Some("https://mirror.example.test/bun"));
+
+    // A mirror says what this machine can reach, which is the user's to
+    // say, so it survives the filter the global config is read through.
+    // The workspace layer drops it; `a_repository_cannot_name_a_mirror`
+    // covers that end.
+    let mut settings: WorkspaceSettings = serde_saphyr::from_str(yaml).unwrap();
+    settings.clear_workspace_only_fields();
+    assert!(settings.tools.is_some());
+    let unknown =
+        serde_saphyr::from_str::<WorkspaceSettings>("tools:\n  node:\n    unknown: true\n");
+    assert!(unknown.is_err());
+}
+
+/// Deno and Yarn are not reachable through a base URL at all, so the
+/// setting cannot name one: the closed key set says so where the value
+/// is written, rather than leaving an entry that does nothing.
+#[test]
+fn refuses_a_tool_pnpm_does_not_download() {
+    let error = serde_saphyr::from_str::<WorkspaceSettings>(
+        "tools:\n  deno:\n    mirror: https://mirror.example.test/deno\n",
+    )
+    .expect_err("deno is not a tool pnpm downloads through a mirror");
+    assert!(format!("{error}").contains("deno"), "{error}");
+
+    let known = serde_saphyr::from_str::<WorkspaceSettings>(
+        "tools:\n  node:\n    mirror: https://mirror.example.test/node\n",
+    );
+    assert!(known.is_ok());
+}
+
+/// Only Node.js publishes more than one line of builds, so naming
+/// channels for another would sit in the file doing nothing.
+#[test]
+fn refuses_channels_for_a_tool_that_has_none() {
+    let error = serde_saphyr::from_str::<WorkspaceSettings>(
+        "tools:\n  bun:\n    channels:\n      canary: https://mirror.example.test/bun\n",
+    )
+    .expect_err("bun publishes one line of builds");
+    assert!(format!("{error}").contains("channels"), "{error}");
+
+    let node = serde_saphyr::from_str::<WorkspaceSettings>(
+        "tools:\n  node:\n    channels:\n      nightly: https://mirror.example.test/node\n",
+    );
+    assert!(node.is_ok());
+}
+
+/// Each tool is answered for separately, so naming one leaves the
+/// mirrors the machine's own config names for the others alone.
+#[test]
+fn a_workspace_tool_keeps_the_mirrors_named_elsewhere() {
+    let mut config = Config::default();
+    let global: WorkspaceSettings =
+        serde_saphyr::from_str("tools:\n  node:\n    mirror: https://global.example.test/node\n")
+            .unwrap();
+    global.apply_to(&mut config, Path::new("/workspace"));
+    let workspace: WorkspaceSettings =
+        serde_saphyr::from_str("tools:\n  bun:\n    mirror: https://workspace.example.test/bun\n")
+            .unwrap();
+    workspace.apply_to(&mut config, Path::new("/workspace"));
+
+    assert_eq!(config.tool_mirror(crate::Tool::Node), Some("https://global.example.test/node"));
+    assert_eq!(config.tool_mirror(crate::Tool::Bun), Some("https://workspace.example.test/bun"));
+}
+
+#[test]
+fn a_tool_channel_is_read_beside_the_base_it_refines() {
+    let yaml = "tools:\n  node:\n    mirror: https://mirror.example.test/node/download\n    channels:\n      nightly: https://nightly.example.test/\n";
+    let settings: WorkspaceSettings = serde_saphyr::from_str(yaml).unwrap();
+    let mut config = Config::default();
+    settings.apply_to(&mut config, Path::new("/workspace"));
+    assert_eq!(
+        config.tool_mirror(crate::Tool::Node),
+        Some("https://mirror.example.test/node/download"),
+    );
+    assert_eq!(
+        config
+            .tool_channel_mirrors(crate::Tool::Node)
+            .get("nightly")
+            .map(String::as_str),
+        Some("https://nightly.example.test"),
+    );
+    assert!(!config.tool_channel_mirrors(crate::Tool::Node).contains_key("release"));
+    assert!(config.tool_channel_mirrors(crate::Tool::Bun).is_empty());
+}
+
+/// A caller joins a path onto what it is given.
+#[test]
+fn a_tool_mirror_is_read_without_its_trailing_slash() {
+    let mut config = Config::default();
+    let settings: WorkspaceSettings =
+        serde_saphyr::from_str("tools:\n  bun:\n    mirror: https://mirror.example.test/bun/\n")
+            .unwrap();
+    settings.apply_to(&mut config, Path::new("/workspace"));
+    assert_eq!(config.tool_mirror(crate::Tool::Bun), Some("https://mirror.example.test/bun"));
+}
+
+#[test]
 fn python_settings_parse_apply_and_remain_workspace_only() {
-    let yaml = "python:\n  enabled: true\n  executable: python3.13\n  indexUrl: https://example.org/simple/\n  extraIndexUrls: [https://extra.example.org/simple/]\n  overrides: [demo>=2]\n  constraints: [demo<3]\n  extras: [speed]\n  groups: [test]\n  pythonVersions: ['3.12', '3.13']\n  downloadUrl: https://mirror.example.test/releases\n";
+    let yaml = "python:\n  enabled: true\n  executable: python3.13\n  indexUrl: https://example.org/simple/\n  extraIndexUrls: [https://extra.example.org/simple/]\n  overrides: [demo>=2]\n  constraints: [demo<3]\n  extras: [speed]\n  groups: [test]\n  pythonVersions: ['3.12', '3.13']\n";
     let settings: WorkspaceSettings = serde_saphyr::from_str(yaml).unwrap();
     let mut config = Config::default();
     settings.apply_to(&mut config, Path::new("/workspace"));
@@ -327,7 +438,6 @@ fn python_settings_parse_apply_and_remain_workspace_only() {
     assert_eq!(config.python.extras, ["speed"]);
     assert_eq!(config.python.groups, ["test"]);
     assert_eq!(config.python.python_versions, ["3.12", "3.13"]);
-    assert_eq!(config.python.download_url, "https://mirror.example.test/releases");
     let mut settings: WorkspaceSettings = serde_saphyr::from_str(yaml).unwrap();
     settings.clear_workspace_only_fields();
     assert!(settings.python.is_none());
