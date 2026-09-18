@@ -300,6 +300,55 @@ test('add saves a dependency when the requested specifier matches a readPackage 
   expect(updatedProject.manifest.dependencies?.['@pnpm.e2e/foo']).toBe('1.0.0')
 })
 
+test('update does not move a dependency added by a readPackage hook into a catalog', async () => {
+  const project = prepareEmpty()
+  const manifest = {
+    name: 'project',
+    version: '1.0.0',
+  }
+  const readPackage: ReadPackageHook = (hookedManifest) => ({
+    ...hookedManifest,
+    dependencies: {
+      ...hookedManifest.dependencies,
+      '@pnpm.e2e/foo': '1.0.0',
+    },
+  })
+  const options = testDefaults({
+    catalogs: {
+      default: {
+        '@pnpm.e2e/foo': '^1.0.0',
+      },
+    },
+    catalogMode: 'prefer',
+    hooks: {
+      readPackage: [readPackage],
+    },
+  })
+
+  await install(manifest, options)
+
+  const { updatedProject } = await mutateModulesInSingleProject({
+    allowNew: false,
+    dependencySelectors: ['@pnpm.e2e/foo'],
+    manifest,
+    mutation: 'installSome',
+    rootDir: process.cwd() as ProjectRootDir,
+    update: true,
+    updatePackageManifest: true,
+  }, options)
+
+  expect(updatedProject.manifest).toStrictEqual(manifest)
+  // A catalog entry resolves on its own range, and nothing here may record that the dependency
+  // follows it, so the dependency has to keep resolving on the specifier the hook supplies.
+  expect(project.readLockfile().catalogs).toBeUndefined()
+  expect(project.readLockfile().importers['.'].dependencies?.['@pnpm.e2e/foo']).toStrictEqual({
+    specifier: '1.0.0',
+    version: '1.0.0',
+  })
+
+  await install(manifest, { ...options, frozenLockfile: true })
+})
+
 test('update does not save a dependency added by packageExtensions', async () => {
   const project = prepareEmpty()
   const manifest = {

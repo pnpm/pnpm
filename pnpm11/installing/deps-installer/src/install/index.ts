@@ -1233,6 +1233,11 @@ export async function mutateModules (
           }
 
           if (catalogCovers(catalogDepSpecifier, wantedDep.bareSpecifier)) {
+            // Promotion moves the dependency onto the catalog entry's range, and the entry is
+            // free to resolve elsewhere. A hook or an override supplies this specifier and this
+            // run does not write it anywhere, so the lockfile would be left recording whatever
+            // the entry resolves to against a specifier that never moved.
+            if (readonlyAliases?.has(wantedDep.alias)) continue
             // The catalog covers the wanted version, so the dependency resolves through the
             // catalog: every project referencing the entry stays on the one version the entry
             // resolves to. Keeping the wanted version as the specifier would pin it in the
