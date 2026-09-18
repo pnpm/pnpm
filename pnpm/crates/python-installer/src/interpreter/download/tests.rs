@@ -580,8 +580,8 @@ async fn exhausting_the_host_gap_budget_is_not_reported_as_absence() {
         .await;
     let mut manifests = Vec::new();
     for tag in [
-        "20260106", "20260107", "20260105", "20260108", "20260104", "20260109", "20260103",
-        "20260110", "20260102",
+        "20260106", "20260109", "20260103", "20260110", "20260107", "20260104", "20260101",
+        "20260111", "20260108",
     ] {
         let file = format!("cpython-3.13.13+{tag}-{other_triple}-install_only_stripped.tar.gz");
         manifests.push(
@@ -593,9 +593,9 @@ async fn exhausting_the_host_gap_budget_is_not_reported_as_absence() {
                 .await,
         );
     }
-    let farther_file = format!("cpython-3.13.13+20260111-{triple}-install_only_stripped.tar.gz");
+    let farther_file = format!("cpython-3.13.13+20260102-{triple}-install_only_stripped.tar.gz");
     let farther = server
-        .mock("GET", "/download/20260111/SHA256SUMS")
+        .mock("GET", "/download/20260102/SHA256SUMS")
         .with_body(format!("{}  {farther_file}\n", "c".repeat(64)))
         .expect(0)
         .create_async()

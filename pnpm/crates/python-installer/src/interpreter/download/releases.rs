@@ -10,6 +10,7 @@ use pnpm_network::{AuthHeaders, RetryOpts, ThrottledClient};
 use serde::Deserialize;
 use std::{
     cmp::Ordering,
+    collections::VecDeque,
     path::{Path, PathBuf},
     time::Duration,
 };
@@ -21,9 +22,8 @@ const MAX_TAG_PAGES: usize = 10;
 const MAX_TAGS_PAGE_BYTES: usize = 1024 * 1024;
 const MAX_TAGS_CACHE_BYTES: usize = 64 * 1024;
 const TAGS_MAX_AGE: Duration = Duration::from_hours(24);
-// python-build-standalone normally publishes weekly. Four releases on each
-// side cover a month-long host outage without letting one exact pin scan the
-// entire release history.
+// Spread a fixed number of probes across a gap so old runs of missing or
+// incompatible manifests cannot make one exact pin scan the entire history.
 const MAX_HOST_GAP_PROBES: usize = 8;
 
 pub(super) async fn historical_build(
@@ -128,7 +128,7 @@ fn continue_after_gap(
         HostProbe::BudgetExhausted => Err(miette::miette!(
             code = "ERR_PNPM_PYTHON_RELEASE_LOOKUP_LIMIT",
             help = "Use a less specific Python version requirement or retry after the upstream release layout changes.",
-            "cannot determine whether Python {exact} is available because more than {MAX_HOST_GAP_PROBES} neighboring releases omit this platform",
+            "cannot determine whether Python {exact} is available after sampling {MAX_HOST_GAP_PROBES} other releases that omit this platform",
         )),
     }
 }
@@ -143,18 +143,7 @@ async fn nearest_host_release(
     exact: &pep440_rs::Version,
 ) -> Result<HostProbe> {
     let budget_exhausted = range.len().saturating_sub(1) > MAX_HOST_GAP_PROBES;
-    let candidates = (1..range.len())
-        .flat_map(|distance| {
-            let newer = middle
-                .checked_sub(distance)
-                .filter(|index| *index >= range.start);
-            let older = middle
-                .checked_add(distance)
-                .filter(|index| *index < range.end);
-            newer.into_iter().chain(older)
-        })
-        .take(MAX_HOST_GAP_PROBES);
-    for index in candidates {
+    for index in gap_probe_candidates(range.clone(), middle) {
         let url = format!("{releases_url}/download/{}/SHA256SUMS", tags[index]);
         let Some(release) = release_index(config, client, &url).await? else {
             continue;
@@ -169,6 +158,23 @@ async fn nearest_host_release(
         }
     }
     Ok(if budget_exhausted { HostProbe::BudgetExhausted } else { HostProbe::Absent })
+}
+
+fn gap_probe_candidates(range: std::ops::Range<usize>, middle: usize) -> Vec<usize> {
+    let mut intervals = VecDeque::from([range.start..middle, middle + 1..range.end]);
+    let mut candidates = Vec::with_capacity(MAX_HOST_GAP_PROBES);
+    while let Some(interval) = intervals.pop_front()
+        && candidates.len() < MAX_HOST_GAP_PROBES
+    {
+        if interval.is_empty() {
+            continue;
+        }
+        let candidate = interval.start + interval.len() / 2;
+        candidates.push(candidate);
+        intervals.push_back(interval.start..candidate);
+        intervals.push_back(candidate + 1..interval.end);
+    }
+    candidates
 }
 
 fn take_exact_build(builds: &mut Vec<Build>, exact: &pep440_rs::Version) -> Option<Build> {
