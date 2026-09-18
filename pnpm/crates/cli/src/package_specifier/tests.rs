@@ -207,17 +207,27 @@ fn a_rejected_selector_is_redacted_and_sanitized_before_it_is_printed() {
         PackageSpecifierPlan::parse(&[specifier.to_string()]).expect_err(specifier).to_string()
     };
 
-    // Percent-encoding either URL separator hides the authority from
-    // `redact_and_sanitize`, so the qualifier is not printed at all.
+    // Percent-encoding hides an authority from a check made on the raw
+    // text, and encoding the `?` or `#` moves the value out of the
+    // qualifier the message drops, into the name, version, or type.
     for credentials in [
         message("pkg:npm/foo?repository_url=https://user:pass@example.test"),
         message("pkg:npm/foo?repository_url=https:%2F%2Fuser:pass%40example.test"),
         message("pkg:npm/foo?repository_url=https://user:pass%40example.test"),
         message("pkg:npm/foo#https:%2F%2Fuser:pass%40example.test"),
+        message("pkg:npm/foo%3Frepository_url=https:%2F%2Fuser:pass%40example.test"),
+        message("pkg:npm/foo%23https:%2F%2Fuser:pass%40example.test"),
+        message("pkg:npm/foo@1.0.0%3Fx=https:%2F%2Fuser:pass%40example.test"),
+        message("pkg:BAD%3Fhttps:%2F%2Fuser:pass%40example.test/foo"),
+        message("crate:foo@https:%2F%2Fuser:pass%40example.test"),
     ] {
         assert!(!credentials.contains("pass"), "{credentials}");
-        assert!(!credentials.contains("example.test"), "{credentials}");
     }
+
+    // A selector with nothing to redact is still quoted as it was written,
+    // so an encoded component is visible as the reason it was rejected.
+    let encoded = message("pkg:npm/%40babel%2Fcore@7.22.0");
+    assert!(encoded.contains("%40babel%2Fcore"), "{encoded}");
 
     let control = message("pkg:maven/foo\u{1b}[31m/bar@1");
     assert!(!control.contains('\u{1b}'), "{control:?}");

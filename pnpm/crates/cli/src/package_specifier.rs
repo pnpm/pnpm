@@ -1,6 +1,7 @@
 mod purl;
 
 use miette::Result;
+use percent_encoding::percent_decode_str;
 use purl::{Purl, PurlType};
 
 const CARGO_PROTOCOL: &str = "crate:";
@@ -81,8 +82,20 @@ impl Shown<'_> {
 }
 
 impl std::fmt::Display for Shown<'_> {
+    /// `redact_and_sanitize` reads an authority only where the text spells
+    /// `://user:pass@` literally, and every component of a purl may be
+    /// percent-encoded, so the decision is made on the decoded text: a
+    /// selector that encodes any separator hides its credentials from a
+    /// check made on the raw text alone. A selector with nothing to redact
+    /// is quoted as it was written, which is what tells a reader that a
+    /// component was encoded.
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        formatter.write_str(&pnpm_network::redact_and_sanitize(self.0))
+        let decoded = percent_decode_str(self.0).decode_utf8_lossy();
+        let redacted = pnpm_network::redact_and_sanitize(&decoded);
+        if redacted == decoded.as_ref() {
+            return formatter.write_str(&pnpm_network::redact_and_sanitize(self.0));
+        }
+        formatter.write_str(&redacted)
     }
 }
 
