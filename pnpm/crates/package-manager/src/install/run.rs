@@ -195,10 +195,8 @@ pub struct InstallLockfilePolicy {
 }
 
 impl InstallLockfilePolicy {
-    /// The policy a plain install starts from: the lockfile is neither
-    /// frozen nor updated, the manifests are checked against it, exclude
-    /// lists are left alone, and a repeat install is judged by the
-    /// `package.json` mtimes on disk.
+    /// The starting point a plain `install` and the install a `remove` runs
+    /// share; the specialized entry points override what they change.
     #[must_use]
     pub fn plain(config: &Config) -> Self {
         Self {
