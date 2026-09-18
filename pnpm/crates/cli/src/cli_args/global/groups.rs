@@ -136,34 +136,41 @@ impl GlobalInstallTarget<'_> {
         let install_dir = create_install_dir(self.global_pkg_dir)
             .into_diagnostic()
             .wrap_err("create global install dir")?;
-        fs::copy(pkg.install_dir.join("package.json"), install_dir.join("package.json"))
-            .into_diagnostic()
-            .wrap_err("seed global update manifest")?;
-        let downgrade_check =
-            Box::pin(pins_for_downgrades::<GlobalUpdateResolutionReporter<Reporter>>(
-                self.base_config,
-                self.global_pkg_dir,
-                &install_dir,
-                pkg,
-                latest,
-                range_spec_style,
-                supported_architectures.clone(),
-            ))
-            .await?;
-        let selectors = update_selectors(&pkg.dependencies, latest, &downgrade_check.pins);
-        if !downgrade_check.candidate_resolved || !downgrade_check.pins.is_empty() {
-            Box::pin(run_group_install::<GlobalUpdateResolutionReporter<Reporter>>(GroupInstall {
-                base_config: self.base_config,
-                global_pkg_dir: self.global_pkg_dir,
-                install_dir: &install_dir,
-                selectors: &selectors,
-                range_spec_style,
-                supported_architectures: supported_architectures.clone(),
-                allow_build: &[],
-                lockfile_only: true,
-            }))
-            .await?;
+        let resolved = async {
+            fs::copy(pkg.install_dir.join("package.json"), install_dir.join("package.json"))
+                .into_diagnostic()
+                .wrap_err("seed global update manifest")?;
+            let downgrade_check =
+                Box::pin(pins_for_downgrades::<GlobalUpdateResolutionReporter<Reporter>>(
+                    self.base_config,
+                    self.global_pkg_dir,
+                    &install_dir,
+                    pkg,
+                    latest,
+                    range_spec_style,
+                    supported_architectures.clone(),
+                ))
+                .await?;
+            let selectors = update_selectors(&pkg.dependencies, latest, &downgrade_check.pins);
+            if !downgrade_check.candidate_resolved || !downgrade_check.pins.is_empty() {
+                Box::pin(run_group_install::<GlobalUpdateResolutionReporter<Reporter>>(
+                    GroupInstall {
+                        base_config: self.base_config,
+                        global_pkg_dir: self.global_pkg_dir,
+                        install_dir: &install_dir,
+                        selectors: &selectors,
+                        range_spec_style,
+                        supported_architectures: supported_architectures.clone(),
+                        allow_build: &[],
+                        lockfile_only: true,
+                    },
+                ))
+                .await?;
+            }
+            Ok::<_, miette::Report>(selectors)
         }
+        .await;
+        let selectors = discard_install_dir_on_error(&install_dir, resolved)?;
         Ok((install_dir, selectors))
     }
 

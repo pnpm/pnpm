@@ -105,7 +105,11 @@ async function updateGlobalPackageGroup (
   const depSpecs = depSpecsForUpdate(pkg.dependencies, opts.latest, downgradeCheck.pins)
   const comparison = downgradeCheck.candidate != null && downgradeCheck.pins.size === 0
     ? downgradeCheck.candidate
-    : await installGroup({ ...opts, lockfileOnly: true }, installDir, depSpecs, pkg.dependencies)
+    : await installGroup(
+      { ...opts, lockfileOnly: true, groupDependencies: pkg.dependencies },
+      installDir,
+      depSpecs
+    )
 
   // An equal lockfile says the group needs no new packages, not that the tree
   // that lockfile describes is still on disk. The modules manifest is what an
@@ -182,16 +186,25 @@ async function updateGlobalPackageGroup (
   return true
 }
 
+type InstallGroupOptions = GlobalUpdateOptions & {
+  lockfileOnly?: boolean
+  groupDependencies?: Record<string, string>
+}
+
 /**
  * Installs `depSpecs` into `installDir`, which the caller has already created
  * under the global packages dir. The manifest and lockfile are written there;
  * with `lockfileOnly` nothing else is, so `node_modules` stays absent.
+ *
+ * `groupDependencies` is the manifest the install starts from. The first call
+ * into a fresh `installDir` passes the group's recorded dependencies, without
+ * which the lockfile would carry no specifiers to compare against the group's
+ * own. Omitting it starts from the manifest written by an earlier call.
  */
 async function installGroup (
-  opts: GlobalUpdateOptions & { lockfileOnly?: boolean },
+  opts: InstallGroupOptions,
   installDir: string,
-  depSpecs: string[],
-  dependencies?: Record<string, string>
+  depSpecs: string[]
 ): Promise<InstallGlobalPackagesResult> {
   const include = {
     dependencies: true,
@@ -205,7 +218,7 @@ async function installGroup (
     dir: installDir,
     lockfileDir: installDir,
     rootProjectManifestDir: installDir,
-    rootProjectManifest: dependencies == null ? undefined : { dependencies },
+    rootProjectManifest: opts.groupDependencies == null ? undefined : { dependencies: opts.groupDependencies },
     saveProd: true,
     saveDev: false,
     saveOptional: false,
@@ -272,10 +285,9 @@ async function pinsForDowngrades (
   if (versionsBefore.size === 0) return { pins }
 
   const candidate = await installGroup(
-    { ...opts, lockfileOnly: true },
+    { ...opts, lockfileOnly: true, groupDependencies: pkg.dependencies },
     installDir,
-    depSpecsForUpdate(pkg.dependencies, opts.latest),
-    pkg.dependencies
+    depSpecsForUpdate(pkg.dependencies, opts.latest)
   )
   const { resolvedVersions } = candidate
   for (const [alias, before] of versionsBefore) {
