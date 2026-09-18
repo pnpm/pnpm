@@ -159,7 +159,31 @@ fn member_projects<'a>(
         .map(|(candidate, manifest)| (candidate, manifest))
 }
 
-/// The `members` and `exclude` patterns of one workspace declaration.
+/// The workspace declarations already encountered while walking projects
+/// from shallow paths to deep ones.
+#[derive(Default)]
+pub(crate) struct DeclaredWorkspaces {
+    declarations: BTreeMap<PathBuf, Patterns>,
+}
+
+impl DeclaredWorkspaces {
+    pub(crate) fn add(&mut self, root: &Path, manifest: &Manifest) {
+        let Some(declaration) = manifest.tool.uv.workspace.as_ref() else { return };
+        self.declarations.insert(root.to_path_buf(), Patterns::of(declaration));
+    }
+
+    /// Whether the nearest workspace declaration contains `candidate`.
+    pub(crate) fn contains(&self, candidate: &Path) -> Option<bool> {
+        candidate
+            .ancestors()
+            .find_map(|root| {
+                self.declarations
+                    .get(root)
+                    .map(|patterns| patterns.contain(root, candidate))
+            })
+    }
+}
+
 struct Patterns {
     included: Vec<wax::Glob<'static>>,
     excluded: Vec<wax::Glob<'static>>,

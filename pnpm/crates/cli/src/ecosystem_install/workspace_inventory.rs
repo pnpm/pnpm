@@ -80,6 +80,10 @@ impl EcosystemWorkspaceInventory {
             .manifests(manifest.basename())
             .expect("every ecosystem manifest basename is inventoried"))
     }
+
+    pub(crate) fn workspace_root(&self) -> &std::path::Path {
+        &self.workspace_root
+    }
 }
 
 #[cfg(test)]

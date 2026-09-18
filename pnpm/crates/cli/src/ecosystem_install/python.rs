@@ -20,7 +20,7 @@ pub(crate) async fn discover(
     inventory: &EcosystemWorkspaceInventory,
 ) -> Result<Discovery> {
     let manifests = workspace_manifests(inventory).await?;
-    pnpm_python_installer::discover(config, &manifests).await
+    pnpm_python_installer::discover(config, inventory.workspace_root(), &manifests).await
 }
 
 /// Every Python project in the workspace, and the one at `project` whether
@@ -37,7 +37,7 @@ pub(crate) async fn discover_around(
     if !manifests.contains(&manifest) {
         manifests.push(manifest);
     }
-    pnpm_python_installer::discover(config, &manifests).await
+    pnpm_python_installer::discover(config, inventory.workspace_root(), &manifests).await
 }
 
 async fn workspace_manifests(inventory: &EcosystemWorkspaceInventory) -> Result<Vec<PathBuf>> {
