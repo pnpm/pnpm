@@ -88,10 +88,23 @@ pub(crate) async fn plan<Reporter: self::Reporter + 'static>(
         .iter()
         .flat_map(|root| metadata_paths(root))
         .collect();
+    let checkout = checkout(inventory.workspace_root());
     Ok(InstallTask::new(
         metadata,
-        prepare::<Reporter>(context, roots, CargoLockfilePolicy::UseExisting),
+        prepare::<Reporter>(context, roots, checkout, CargoLockfilePolicy::UseExisting),
     ))
+}
+
+/// The directory the repository controls, resolved for comparison against
+/// the canonical Cargo workspace roots. A Cargo workspace may sit inside it
+/// rather than at it, so everything at or under it is checkout content and
+/// what lies above it is the machine's.
+///
+/// [`None`] when the path does not resolve, which counts every configuration
+/// file in scope as checkout content: a boundary pnpm cannot compare must
+/// not widen what a checkout can point it at.
+pub(crate) fn checkout(dir: &Path) -> Option<PathBuf> {
+    dunce::canonicalize(dir).ok()
 }
 
 pub(crate) fn metadata_paths(root: &Path) -> [PathBuf; 2] {
@@ -101,6 +114,7 @@ pub(crate) fn metadata_paths(root: &Path) -> [PathBuf; 2] {
 pub(crate) async fn prepare<Reporter: self::Reporter + 'static>(
     context: InstallContext,
     roots: Vec<PathBuf>,
+    checkout: Option<PathBuf>,
     lockfile_policy: CargoLockfilePolicy,
 ) -> Result<Vec<Prepared>> {
     let InstallContext {
@@ -109,6 +123,7 @@ pub(crate) async fn prepare<Reporter: self::Reporter + 'static>(
         lockfile_only,
         frozen_lockfile,
     } = context;
+    let checkout = checkout.as_deref();
     let mut prepared = stream::iter(roots)
         .map(|root| {
             let http_client = Arc::clone(&http_client);
@@ -116,6 +131,7 @@ pub(crate) async fn prepare<Reporter: self::Reporter + 'static>(
                 prepare_workspace::<Reporter>(
                     config,
                     &root,
+                    checkout,
                     lockfile_only,
                     frozen_lockfile,
                     lockfile_policy,
@@ -184,6 +200,7 @@ impl PreparedInstall for Prepared {
 async fn prepare_workspace<Reporter: self::Reporter + 'static>(
     config: &'static Config,
     root_dir: &Path,
+    checkout: Option<&Path>,
     lockfile_only: bool,
     frozen_lockfile: bool,
     lockfile_policy: CargoLockfilePolicy,
@@ -194,6 +211,7 @@ async fn prepare_workspace<Reporter: self::Reporter + 'static>(
         config,
         root_dir,
         &cargo_lock_path,
+        checkout,
         frozen_lockfile,
         lockfile_policy,
         &http_client,
@@ -210,6 +228,7 @@ async fn prepare_workspace<Reporter: self::Reporter + 'static>(
     let slots = prepare_workspace_slots::<Reporter>(
         config,
         root_dir,
+        checkout,
         &cargo_lock_path,
         &cargo_lock,
         http_client,
@@ -335,13 +354,14 @@ mod tests;
 async fn prepare_workspace_slots<Reporter: self::Reporter + 'static>(
     config: &'static Config,
     root_dir: &Path,
+    checkout: Option<&Path>,
     cargo_lock_path: &Path,
     cargo_lock: &str,
     http_client: Arc<ThrottledClient>,
 ) -> Result<WorkspaceSlots> {
     let packages = parse_lockfile(cargo_lock, config.cargo_index_url())
         .wrap_err_with(|| format!("parse {}", cargo_lock_path.display()))?;
-    let packages = build_std::include_packages(root_dir, packages).await?;
+    let packages = build_std::include_packages(root_dir, checkout, packages).await?;
     let git_sources = packages.git_sources();
     let logged_methods = Arc::new(AtomicU8::new(0));
     let store_dir = &config.store_dir;

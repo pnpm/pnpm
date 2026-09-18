@@ -23,8 +23,26 @@ fn a_nested_workspace_inherits_the_build_std_request() {
     let child = parent.path().join("child");
     fs::create_dir(&child).unwrap();
 
-    let enabled = is_enabled(&child).unwrap();
+    let enabled = is_enabled(&child, None).unwrap();
     eprintln!("The child workspace must inherit build-std: {enabled}");
+    assert!(enabled);
+}
+
+/// The inherited configuration is often the developer's own, which is
+/// commonly a symlink into a dotfiles repository.
+#[cfg(unix)]
+#[test]
+fn a_symlinked_configuration_in_an_ancestor_enables_build_std() {
+    let parent = TempDir::new().unwrap();
+    fs::create_dir(parent.path().join(".cargo")).unwrap();
+    let elsewhere = parent.path().join("dotfiles-config.toml");
+    fs::write(&elsewhere, "[unstable]\nbuild-std = [\"std\"]\n").unwrap();
+    std::os::unix::fs::symlink(&elsewhere, parent.path().join(".cargo/config.toml")).unwrap();
+    let child = parent.path().join("child");
+    fs::create_dir(&child).unwrap();
+
+    let enabled = is_enabled(&child, Some(&child)).unwrap();
+    eprintln!("A symlinked configuration must still be read: {enabled}");
     assert!(enabled);
 }
 

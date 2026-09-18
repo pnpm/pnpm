@@ -75,8 +75,12 @@ fn merge_packages<Package: PartialEq>(
     Ok(merged.into_values().collect())
 }
 
+/// Canonical, as [`discover_workspace_roots`] returns them: a root is
+/// compared against the checkout it belongs to, and Cargo may answer with a
+/// path that still carries a symlink from the manifest it was asked about.
 pub(crate) async fn workspace_root(manifest_path: &Path) -> Result<PathBuf> {
-    workspace_metadata(manifest_path).await.map(|metadata| metadata.workspace_root)
+    let metadata = workspace_metadata(manifest_path).await?;
+    canonical_cargo_path(&metadata.workspace_root)
 }
 
 async fn workspace_metadata(manifest_path: &Path) -> Result<CargoWorkspaceMetadata> {
@@ -123,6 +127,7 @@ pub(super) async fn read_or_resolve_lockfile(
     config: &Config,
     root_dir: &Path,
     cargo_lock_path: &Path,
+    checkout: Option<&Path>,
     frozen_lockfile: bool,
     lockfile_policy: CargoLockfilePolicy,
     http_client: &Arc<ThrottledClient>,
@@ -147,7 +152,7 @@ pub(super) async fn read_or_resolve_lockfile(
     let source_overrides = super::resolution::has_source_overrides(root_dir)?;
     let git_dependencies = super::resolution::has_git_dependencies(&metadata)?;
     if source_overrides || git_dependencies {
-        return super::resolution::resolve_with_cargo(config, root_dir).await;
+        return super::resolution::resolve_with_cargo(config, root_dir, checkout).await;
     }
     if let Some(lockfile) = resolve_via_pnpr(config, &metadata).await? {
         return Ok(lockfile);
