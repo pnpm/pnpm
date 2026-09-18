@@ -1,8 +1,14 @@
 //! Moving an update's declared ranges onto the versions it resolved.
 
-use crate::{OverriddenDependencyMatcher, VersionsOverrider};
+use crate::{
+    OverriddenDependencyMatcher, VersionsOverrider,
+    runtime_specifier::{RUNTIME_PROTOCOL, node_runtime_version_spec},
+};
 use node_semver::Range;
 use pnpm_catalogs_protocol_parser::parse_catalog_protocol;
+use pnpm_engine_runtime_node_resolver::{
+    normalize_node_runtime_version_specifier, parse_node_specifier,
+};
 use pnpm_lockfile::{
     ImporterDepVersion, Lockfile, PkgName, ProjectSnapshot, ResolvedDependencyMap,
     ResolvedDependencySpec,
@@ -212,7 +218,7 @@ fn spec_bump(target: &SpecBumpTarget<'_>) -> SpecBump {
         return SpecBump::Cataloged { catalog_name: catalog_name.to_string(), alias };
     }
     let Some(bumped) =
-        bumped_range(&declared.specifier, &declared.version, target.range_spec_style)
+        bumped_range(target.alias, &declared.specifier, &declared.version, target.range_spec_style)
     else {
         return SpecBump::Skip;
     };
@@ -226,15 +232,17 @@ fn collect_catalog_bumps(
 ) -> BTreeMap<String, HashMap<PkgName, String>> {
     let mut catalogs: BTreeMap<String, HashMap<PkgName, String>> = BTreeMap::new();
     for (catalog_name, alias) in cataloged {
+        let alias_key = alias.to_string();
         let Some(entry) = lockfile.catalogs
             .as_ref()
             .and_then(|catalogs| catalogs.get(catalog_name))
-            .and_then(|catalog| catalog.get(&alias.to_string()))
+            .and_then(|catalog| catalog.get(&alias_key))
         else {
             continue;
         };
         let Ok(version) = entry.version.parse::<ImporterDepVersion>() else { continue };
-        let Some(bumped) = bumped_range(&entry.specifier, &version, range_spec_style) else {
+        let Some(bumped) = bumped_range(&alias_key, &entry.specifier, &version, range_spec_style)
+        else {
             continue;
         };
         catalogs
@@ -295,16 +303,42 @@ fn render_aliases<Bumped, Rendered>(
         .collect()
 }
 
-/// The range that pins `version` for a dependency that currently declares
-/// `declared`, or `None` when the declaration is not a range this may move.
+/// The range that pins `version` for the dependency `alias` currently declares
+/// as `declared`, or `None` when the declaration is not a range this may move.
 ///
 /// The range text is [`calc_version_range`]'s decision — the same one the
-/// npm resolver's `calc_specifier` makes for a version it has just picked.
+/// npm resolver's `calc_specifier` makes for a version it has just picked. A
+/// node `runtime:` declaration is [`normalize_node_runtime_version_specifier`]'s
+/// instead, the rule the node resolver saves its own picks through.
 fn bumped_range(
+    alias: &str,
     declared: &str,
     version: &ImporterDepVersion,
     default_style: RangeSpecStyle,
 ) -> Option<String> {
+    let resolved = match version {
+        ImporterDepVersion::Regular(version) => version.version_semver()?,
+        ImporterDepVersion::Alias(aliased) => aliased.suffix.version_semver()?,
+        // A link or an injected directory has no version to pin.
+        ImporterDepVersion::Link(_) | ImporterDepVersion::File(_) => return None,
+    };
+    if let Some(selector) = node_runtime_version_spec(alias, declared) {
+        // A selector naming a release channel the resolver does not know is
+        // left for it to reject, rather than moved to a channel-less one it
+        // would accept.
+        if parse_node_specifier(selector).is_err() {
+            return None;
+        }
+        let bumped = format!(
+            "{RUNTIME_PROTOCOL}{}",
+            normalize_node_runtime_version_specifier(
+                selector,
+                &resolved.to_string(),
+                Some(declared),
+            ),
+        );
+        return (bumped != declared).then_some(bumped);
+    }
     let (prefix, declared_range) = split_registry_alias(declared)?;
     // A dist-tag names no version of its own, so the version behind it
     // moving leaves the declaration saying exactly what was asked for. A
@@ -315,12 +349,6 @@ fn bumped_range(
     {
         return None;
     }
-    let resolved = match version {
-        ImporterDepVersion::Regular(version) => version.version_semver()?,
-        ImporterDepVersion::Alias(alias) => alias.suffix.version_semver()?,
-        // A link or an injected directory has no version to pin.
-        ImporterDepVersion::Link(_) | ImporterDepVersion::File(_) => return None,
-    };
     let range =
         calc_version_range(resolved, infer_range_spec_style(declared_range), None, default_style);
     let bumped = format!("{prefix}{range}");

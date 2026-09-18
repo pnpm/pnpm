@@ -4,7 +4,7 @@ use super::{
     manifest::apply_catalog_decision,
     registry::{pick_latest_range, resolve_explicit_registry_spec},
 };
-use crate::{CatalogModeDep, decide_catalog_outcome};
+use crate::{CatalogModeDep, decide_catalog_outcome, runtime_specifier::node_runtime_version_spec};
 use pnpm_catalogs_types::Catalogs;
 use pnpm_config::{Config, SaveWorkspaceProtocol, Tool};
 use pnpm_engine_runtime_node_resolver::NodeResolver;
@@ -165,7 +165,9 @@ pub(super) async fn bare_save_specifier(
     ) {
         return Ok(workspace_specifier);
     }
-    if let Some(version_spec) = node_runtime_version_spec(package_name, explicit_spec) {
+    if let Some(version_spec) =
+        explicit_spec.and_then(|spec| node_runtime_version_spec(package_name, spec))
+    {
         return resolve_node_runtime_specifier(version_spec, prev_specifier, inputs).await;
     }
     if let Some(ProtocolSelector::Jsr(jsr)) = selector.protocol.as_ref() {
@@ -443,17 +445,4 @@ pub(super) fn normalized_save_specifier(spec: &str) -> String {
         Some(hosted) if hosted.auth.is_none() => hosted.shortcut(HostedOpts::default()),
         _ => spec.to_string(),
     }
-}
-/// The `<spec>` half of an explicit `node@runtime:<spec>` request, when that
-/// is what's being added. Only the node resolver pins the saved specifier to
-/// the picked version; deno and bun normalize to the requested spec, so they
-/// stay on the verbatim save path.
-pub(super) fn node_runtime_version_spec<'a>(
-    package_name: &str,
-    explicit_spec: Option<&'a str>,
-) -> Option<&'a str> {
-    if package_name != "node" {
-        return None;
-    }
-    explicit_spec?.strip_prefix("runtime:")
 }
