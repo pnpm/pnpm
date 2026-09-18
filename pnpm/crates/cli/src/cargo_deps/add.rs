@@ -34,6 +34,7 @@ pub(crate) async fn plan<Reporter: pnpm_reporter::Reporter + 'static>(
         return Err(miette::miette!("cannot add a crate because {manifest_path} does not exist"));
     }
     let root = cargo_deps::workspace_root(&manifest_path).await?;
+    let checkout = cargo_deps::checkout(context.config.workspace_dir.as_deref().unwrap_or(&root));
     let mut metadata = cargo_deps::metadata_paths(&root).to_vec();
     metadata.push(manifest_path.clone());
     let transaction_root = root.clone();
@@ -43,6 +44,7 @@ pub(crate) async fn plan<Reporter: pnpm_reporter::Reporter + 'static>(
         cargo_deps::prepare::<Reporter>(
             context,
             vec![root],
+            checkout,
             cargo_deps::CargoLockfilePolicy::Resolve,
         )
         .await

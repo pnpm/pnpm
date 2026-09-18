@@ -13,7 +13,7 @@ fn node_selectors(plan: &PackageSpecifierPlan) -> Vec<&str> {
 
 #[test]
 fn partitions_node_and_cargo_specifiers() {
-    let plan = PackageSpecifierPlan::parse(&[
+    let plan = PackageSpecifierPlan::parse([
         "lodash@4".into(),
         "crate:serde".into(),
         "crate:tokio@~1.43".into(),
@@ -37,12 +37,22 @@ fn partitions_node_and_cargo_specifiers() {
 }
 
 #[test]
+fn a_node_selector_keeps_the_allocation_the_command_line_gave_it() {
+    let request = AddRequest::from("lodash@4");
+    let allocation = request.selector().as_ptr();
+
+    let plan = PackageSpecifierPlan::parse([request]).unwrap();
+
+    assert_eq!(plan.node_packages[0].selector().as_ptr(), allocation);
+}
+
+#[test]
 fn rejects_invalid_cargo_specifiers_before_manifest_initialization() {
     for specifier in
         ["crate:", "crate:serde@", "crate:bad/name", "crate:serde@workspace:*", "crate:serde@^"]
     {
         assert!(
-            PackageSpecifierPlan::parse(&[specifier.into()]).is_err(),
+            PackageSpecifierPlan::parse([specifier.into()]).is_err(),
             "{specifier} must be rejected",
         );
     }
@@ -50,7 +60,7 @@ fn rejects_invalid_cargo_specifiers_before_manifest_initialization() {
 
 #[test]
 fn partitions_python_requirements_without_applying_node_or_cargo_semver() {
-    let plan = PackageSpecifierPlan::parse(&[
+    let plan = PackageSpecifierPlan::parse([
         "npm-package@1".into(),
         "crate:serde@1".into(),
         "pypi:Some_Package[fast]@~=1.2".into(),
@@ -71,13 +81,13 @@ fn partitions_python_requirements_without_applying_node_or_cargo_semver() {
     for specifier in
         ["pypi:", "pypi:alpha@", "pypi:alpha@^1.0", "pypi:alpha@https://example.org/a.whl"]
     {
-        assert!(PackageSpecifierPlan::parse(&[specifier.into()]).is_err(), "{specifier}");
+        assert!(PackageSpecifierPlan::parse([specifier.into()]).is_err(), "{specifier}");
     }
 }
 
 #[test]
 fn routes_purls_to_the_ecosystem_named_by_their_type() {
-    let plan = PackageSpecifierPlan::parse(&[
+    let plan = PackageSpecifierPlan::parse([
         "pkg:npm/express@4.18.2".into(),
         "pkg:cargo/serde@1.0.188".into(),
         "pkg:pypi/requests@2.31.0".into(),
@@ -99,7 +109,7 @@ fn routes_purls_to_the_ecosystem_named_by_their_type() {
 
 #[test]
 fn a_versionless_purl_leaves_the_version_to_the_resolver() {
-    let plan = PackageSpecifierPlan::parse(&[
+    let plan = PackageSpecifierPlan::parse([
         "pkg:npm/express".into(),
         "pkg:cargo/serde".into(),
         "pkg:pypi/requests".into(),
@@ -121,7 +131,7 @@ fn a_versionless_purl_leaves_the_version_to_the_resolver() {
 
 #[test]
 fn a_purl_namespace_becomes_an_npm_scope() {
-    let plan = PackageSpecifierPlan::parse(&[
+    let plan = PackageSpecifierPlan::parse([
         "pkg:npm/%40babel/core@7.22.0".into(),
         "pkg:npm/@babel/traverse".into(),
         "pkg:npm/babel/types@7.22.0".into(),
@@ -136,7 +146,7 @@ fn a_purl_namespace_becomes_an_npm_scope() {
 
 #[test]
 fn a_pypi_purl_name_is_normalized_like_any_other_python_requirement() {
-    let plan = PackageSpecifierPlan::parse(&["pkg:pypi/Some_Package@1.2".into()]).unwrap();
+    let plan = PackageSpecifierPlan::parse(["pkg:pypi/Some_Package@1.2".into()]).unwrap();
 
     assert_eq!(
         plan.ecosystem_packages,
@@ -169,7 +179,7 @@ fn rejects_purls_pnpm_cannot_add() {
         ("pkg:cargo/serde@1.0", "pkg:cargo/serde@1.0 does not carry a valid Cargo version"),
     ] {
         let message_received =
-            PackageSpecifierPlan::parse(&[specifier.into()]).expect_err(specifier).to_string();
+            PackageSpecifierPlan::parse([specifier.into()]).expect_err(specifier).to_string();
         assert_eq!(message_received, message, "{specifier}");
     }
 }
@@ -181,7 +191,7 @@ fn rejects_purls_pnpm_cannot_add() {
 /// keep their own meanings in one command.
 #[test]
 fn a_purl_marks_the_request_it_becomes_as_a_package_to_install() {
-    let plan = PackageSpecifierPlan::parse(&[
+    let plan = PackageSpecifierPlan::parse([
         "node@22.0.0".into(),
         "pkg:npm/node@22.0.0".into(),
         "lodash@4".into(),
@@ -229,7 +239,7 @@ fn rejects_a_purl_whose_components_would_rewrite_the_selector() {
         ),
     ] {
         let message_received =
-            PackageSpecifierPlan::parse(&[specifier.into()]).expect_err(specifier).to_string();
+            PackageSpecifierPlan::parse([specifier.into()]).expect_err(specifier).to_string();
         assert_eq!(message_received, message, "{specifier}");
     }
 }
@@ -240,7 +250,7 @@ fn rejects_a_purl_whose_components_would_rewrite_the_selector() {
 #[test]
 fn a_rejected_selector_is_redacted_and_sanitized_before_it_is_printed() {
     let message = |specifier: &str| {
-        PackageSpecifierPlan::parse(&[specifier.into()]).expect_err(specifier).to_string()
+        PackageSpecifierPlan::parse([specifier.into()]).expect_err(specifier).to_string()
     };
 
     // Percent-encoding hides an authority from a check made on the raw

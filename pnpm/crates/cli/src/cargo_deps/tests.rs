@@ -481,12 +481,13 @@ async fn asks_cargo_for_the_workspace_root_of_a_member() {
     .unwrap();
     fs::write(member.join("src/lib.rs"), "").unwrap();
 
-    assert_eq!(workspace_root(&member.join("Cargo.toml")).await.unwrap(), cargo_root);
+    let canonical_root = dunce::canonicalize(&cargo_root).unwrap();
+    assert_eq!(workspace_root(&member.join("Cargo.toml")).await.unwrap(), canonical_root);
     assert_eq!(
         discover_workspace_roots(&[member.join("Cargo.toml"), cargo_root.join("Cargo.toml")])
             .await
             .unwrap(),
-        [dunce::canonicalize(cargo_root).unwrap()],
+        [canonical_root],
     );
 }
 

@@ -148,7 +148,10 @@ export function isKnownSettingKey (key: string): boolean {
  * this repository, so a line-exclusive setting is known at build time.
  */
 const SETTINGS_OF_OTHER_PNPM_VERSIONS: Record<string, string> = {
+  cargo: 'pnpm v12',
+  concurrencyGroups: 'pnpm v12',
   globalShims: 'pnpm v12',
+  pipelines: 'pnpm v12',
 }
 
 const KNOWN_SETTING_KEYS_LIST = [...KNOWN_SETTING_KEYS]

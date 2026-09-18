@@ -1,8 +1,6 @@
 use super::{
-    ensure_workspace_directory,
     lockfile::{LockedPackages, parse_lockfile},
-    read_workspace_file,
-    resolution::config_name,
+    resolution::configs_in_scope,
 };
 use miette::{IntoDiagnostic, Result, WrapErr};
 use pnpm_network::redact_and_sanitize_multiline;
@@ -14,9 +12,10 @@ use std::{
 
 pub(super) async fn include_packages(
     root: &Path,
+    checkout: Option<&Path>,
     packages: LockedPackages,
 ) -> Result<LockedPackages> {
-    if !is_enabled(root)? {
+    if !is_enabled(root, checkout)? {
         return Ok(packages);
     }
     let root = root.to_path_buf();
@@ -29,14 +28,9 @@ pub(super) async fn include_packages(
     .wrap_err("join Cargo build-std dependency discovery")?
 }
 
-fn is_enabled(root: &Path) -> Result<bool> {
-    for ancestor in root.ancestors() {
-        let Some(name) = config_name(ancestor)? else { continue };
-        let directory = ensure_workspace_directory(ancestor, &[".cargo"])?;
-        let (contents, _) = read_workspace_file(&directory, name)
-            .into_diagnostic()
-            .wrap_err_with(|| format!("read {}", directory.path.join(name).display()))?;
-        if requests_build_std(&contents)? {
+fn is_enabled(root: &Path, checkout: Option<&Path>) -> Result<bool> {
+    for contents in configs_in_scope(root, checkout) {
+        if requests_build_std(&contents?)? {
             return Ok(true);
         }
     }
