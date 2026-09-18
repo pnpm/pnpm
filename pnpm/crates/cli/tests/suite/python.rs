@@ -177,7 +177,8 @@ async fn serve_wheels(
     mocks
 }
 
-/// Declare another `PyPI` index, searched after the one [`project`] named.
+/// Declare another `PyPI` index. An extra index is searched *before* the one
+/// [`project`] named, which is the index the install falls back to.
 fn add_python_index(root: &Path, index: &str) {
     let workspace = fs::read_to_string(root.join("pnpm-workspace.yaml")).unwrap();
     fs::write(
@@ -1181,7 +1182,8 @@ async fn python_index_credentials_survive_unusual_characters() {
     {
         let root = tempfile::tempdir().unwrap();
         let mut server = mockito::Server::new_async().await;
-        let authorization = format!("Basic {}", STANDARD.encode(format!("{username}:{password}")));
+        let encoded = STANDARD.encode(format!("{username}:{password}"));
+        let authorization = format!("Basic {encoded}");
         let _alpha = serve_with_index_auth(
             &mut server,
             "alpha",
@@ -1192,11 +1194,7 @@ async fn python_index_credentials_survive_unusual_characters() {
         project(root.path(), &server.url(), &["alpha"]);
         fs::write(
             root.path().join(".npmrc"),
-            format!(
-                "{}simple/:_auth={}\n",
-                pnpm_network::nerf_dart(&server.url()),
-                STANDARD.encode(format!("{username}:{password}")),
-            ),
+            format!("{}simple/:_auth={encoded}\n", pnpm_network::nerf_dart(&server.url())),
         )
         .unwrap();
         pacquet_in(root.path())
@@ -1205,7 +1203,10 @@ async fn python_index_credentials_survive_unusual_characters() {
             .success();
         let lock = fs::read_to_string(root.path().join("pylock.toml")).unwrap();
         eprintln!("lockfile:\n{lock}");
-        assert!(!lock.contains(password), "credentials leaked into lockfile");
+        assert!(!lock.contains(password), "the password leaked into the lockfile");
+        // `_auth` travels base64-encoded, so checking the plaintext alone
+        // would pass on a lockfile carrying the whole credential.
+        assert!(!lock.contains(&encoded), "the encoded credential leaked into the lockfile");
         python(root.path())
             .args(["-c", "import alpha"])
             .assert()
