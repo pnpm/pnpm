@@ -152,6 +152,14 @@ async fn large_wheel_files_are_hashed_during_import() {
         .unwrap()
         .set_len(size)
         .unwrap();
+    let expected = {
+        let contents = fs::read(&source).unwrap();
+        let hash = pnpm_crypto_hash::create_hash(std::str::from_utf8(&contents).unwrap());
+        let digest = STANDARD
+            .decode(hash.strip_prefix("sha256-").unwrap())
+            .unwrap();
+        format!("alpha/large.bin,sha256={},{}", URL_SAFE_NO_PAD.encode(digest), size)
+    };
     files.insert("alpha/large.bin".to_string(), source);
     let record_path = files["alpha-1.0.dist-info/RECORD"].as_path();
     let record = fs::read_to_string(record_path).unwrap();
@@ -165,7 +173,7 @@ async fn large_wheel_files_are_hashed_during_import() {
             .join(format!("large-{mode:?}"));
         install("python3", &root, &packages, mode).await.unwrap();
         let script = format!(
-            "import importlib.metadata as m, sysconfig; from pathlib import Path; p = Path(sysconfig.get_path('purelib')) / 'alpha/large.bin'; assert p.stat().st_size == {size}; row = next(row for row in m.distribution('alpha').read_text('RECORD').splitlines() if row.startswith('alpha/large.bin,')); assert ',sha256=AAA' not in row and row.endswith(',{size}')",
+            "import importlib.metadata as m, sysconfig; from pathlib import Path; p = Path(sysconfig.get_path('purelib')) / 'alpha/large.bin'; assert p.stat().st_size == {size}; print(next(row for row in m.distribution('alpha').read_text('RECORD').splitlines() if row.startswith('alpha/large.bin,')))",
         );
         let output = tokio::process::Command::new(root.join("bin/python"))
             .args(["-I", "-c", &script])
@@ -173,5 +181,6 @@ async fn large_wheel_files_are_hashed_during_import() {
             .await
             .unwrap();
         assert!(output.status.success(), "{}", String::from_utf8_lossy(&output.stderr));
+        assert_eq!(String::from_utf8(output.stdout).unwrap().trim(), expected);
     }
 }
