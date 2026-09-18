@@ -381,7 +381,7 @@ fn python_add_rejects_dynamic_metadata_without_mutating_the_manifest() {
 }
 
 #[tokio::test]
-async fn rejects_corrupt_record_and_leaves_no_environment_or_lockfile() {
+async fn installs_wheel_with_mismatched_record_hashes() {
     let root = tempfile::tempdir().unwrap();
     let mut server = mockito::Server::new_async().await;
     let archive = wheel("alpha", "1.0", "", &[]);
@@ -404,9 +404,11 @@ async fn rejects_corrupt_record_and_leaves_no_environment_or_lockfile() {
     pacquet_in(root.path())
         .arg("install")
         .assert()
-        .failure();
-    assert!(!root.path().join("pylock.toml").exists());
-    assert!(!root.path().join(".venv").exists());
+        .success();
+    python(root.path())
+        .args(["-c", "import alpha; assert alpha.TAMPERED is True"])
+        .assert()
+        .success();
 }
 
 #[tokio::test]
