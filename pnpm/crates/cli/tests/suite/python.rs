@@ -4,7 +4,6 @@ use base64::{
     Engine as _,
     engine::general_purpose::{STANDARD, URL_SAFE_NO_PAD},
 };
-use command_extra::CommandExtra;
 use serde_json::json;
 use sha2::{Digest, Sha256};
 use std::{
@@ -205,11 +204,13 @@ fn add_python_settings(root: &Path, settings: &str) {
 #[cfg(any(target_os = "linux", target_os = "macos"))]
 #[tokio::test]
 async fn a_repository_cannot_name_a_mirror() {
+    use command_extra::CommandExtra as _;
+
     let root = tempfile::tempdir().unwrap();
     let mut machine = mockito::Server::new_async().await;
     let mut repository = mockito::Server::new_async().await;
     project(root.path(), "https://unused.invalid", &[]);
-    let _other = serve_interpreter(&mut machine, &["3.13.90"]).await;
+    let machines = serve_interpreter(&mut machine, &["3.13.90"]).await;
     let pinned = serve_interpreter(&mut repository, &["3.13.95"]).await;
 
     let config = root.path().join(".config/pnpm");
@@ -238,6 +239,14 @@ async fn a_repository_cannot_name_a_mirror() {
     for mock in pinned {
         assert!(!mock.matched_async().await, "the repository's mirror was read");
     }
+    // Without this the test would also pass if the machine's mirror were
+    // never found either: the install would reach for the real releases,
+    // fail naming the same version, and leave the repository's untouched.
+    let mut read = false;
+    for mock in machines {
+        read |= mock.matched_async().await;
+    }
+    assert!(read, "the machine's mirror was not read");
 }
 
 /// A pnpm that downloads interpreters from `mirror`.
