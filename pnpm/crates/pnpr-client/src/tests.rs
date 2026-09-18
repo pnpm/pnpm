@@ -215,7 +215,7 @@ fn resolve_projects_options() -> ResolveProjectsOptions {
         fix_lockfile: false,
         routing: crate::RegistryRouting {
             registry: "https://registry.test/".to_string(),
-            registries: BTreeMap::new(),
+            registries: indexmap::IndexMap::new(),
             authorization: None,
         },
         transforms: crate::ManifestTransforms {

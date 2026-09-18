@@ -80,3 +80,5 @@ mod manifests;
 mod lockfile;
 
 mod authorization;
+
+mod registry_ecosystems;

@@ -1,4 +1,4 @@
-use super::{BTreeMap, EnvVar, RegistryEntry, env_replace_lossy};
+use super::{BTreeMap, EnvVar, IndexMap, RegistryEntry, env_replace_lossy};
 
 /// Flatten a `noProxy` yaml scalar into the raw string form the `.npmrc`
 /// spelling of the key would carry. `true` becomes the literal token the
@@ -50,7 +50,7 @@ pub(super) fn substitute_optional_string_map<Sys: EnvVar>(
 /// Expands `${VAR}` in the half of each `registries` entry that carries the
 /// request destination: the value of a scope route, the key of a declaration.
 pub(super) fn substitute_registry_entries<Sys: EnvVar>(
-    value: &mut Option<BTreeMap<String, RegistryEntry>>,
+    value: &mut Option<IndexMap<String, RegistryEntry>>,
 ) {
     let Some(map) = value.take() else { return };
     *value = Some(

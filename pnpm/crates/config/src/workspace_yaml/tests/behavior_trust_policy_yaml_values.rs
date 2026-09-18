@@ -326,7 +326,7 @@ fn rebuilds_the_declarations_from_the_lookups() {
             prefix: Some("work".to_owned()),
             server_type: Some(RegistryServerType::Artifactory),
             supports_time_field: None,
-            unknown: BTreeMap::new(),
+            ..RegistryDeclaration::default()
         }),
     );
     assert_eq!(
@@ -418,7 +418,7 @@ registries:
     settings.apply_to(&mut config, Path::new("/irrelevant"));
 
     let rebuilt = config.registry_declarations();
-    let original: std::collections::BTreeMap<String, RegistryDeclaration> = entries
+    let original: indexmap::IndexMap<String, RegistryDeclaration> = entries
         .into_iter()
         .map(|(registry, entry)| match entry {
             RegistryEntry::Declaration(declaration) => (registry, declaration),

@@ -129,8 +129,8 @@ async fn a_moved_project_keeps_a_managed_environment() {
     fs::write(
         before.join("pnpm-workspace.yaml"),
         format!(
-            "python:\n  enabled: true\n  indexUrl: '{}/simple/'\nstoreDir: '{}'\ncacheDir: '{}'\n\
-             fetchRetries: 0\n",
+            "python:\n  enabled: true\nregistries:\n  '{}/simple/':\n    ecosystem: pypi\n\
+             storeDir: '{}'\ncacheDir: '{}'\nfetchRetries: 0\n",
             server.url(),
             root.path().join("store").display(),
             root.path().join("cache").display(),

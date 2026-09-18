@@ -153,7 +153,7 @@ pub(super) async fn read_or_resolve_lockfile(
         return Ok(lockfile);
     }
     let index_files = fetch_sparse_index(config, &metadata, http_client).await?;
-    let source = pnpm_cargo_resolver::registry_source(&config.cargo.index_url);
+    let source = pnpm_cargo_resolver::registry_source(config.cargo_index_url());
     let lockfile = pnpm_cargo_resolver::resolve_lockfile(&metadata, &index_files, &source)
         .wrap_err("resolve Cargo dependencies")?;
     Ok(lockfile)
@@ -184,7 +184,7 @@ pub(super) async fn resolve_via_pnpr(config: &Config, metadata: &str) -> Result<
     client
         .resolve_cargo(CargoResolveOptions {
             metadata,
-            registry: config.cargo.index_url.clone(),
+            registry: config.cargo_index_url().to_string(),
             authorization: config.auth_headers.for_url(pnpr_server),
         })
         .await

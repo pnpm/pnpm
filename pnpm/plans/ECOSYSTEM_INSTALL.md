@@ -93,8 +93,8 @@ entries; metadata rollback restores the selected graph, not cache contents.
 Cargo workspaces with git dependencies use `cargo generate-lockfile` when a
 lockfile must be generated or an added crate requires resolution. This path
 uses Cargo's git, feature and nightly artifact dependency support. Trusted
-user-level Cargo authentication settings remain available. It requires the default `cargo.indexUrl`; a custom registry still
-requires an existing lockfile. Frozen installs never enter this path.
+user-level Cargo authentication settings remain available. It requires the default Cargo index; a registry declared in
+`registries` still requires an existing lockfile. Frozen installs never enter this path.
 Cargo runs from the selected toolchain directory with an explicit manifest
 path, so checkout-controlled executable helpers, environment settings and
 managed sources are not loaded. pnpm copies only `unstable.bindeps` and

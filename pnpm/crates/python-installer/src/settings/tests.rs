@@ -1,67 +1,88 @@
-use super::{IndexAuth, parse_index, validate_index_credentials};
-use pnpm_network::{AuthHeaders, UpstreamRouteHook};
-use std::sync::Arc;
+use super::{parse_index, python_index};
+use pnpm_config::{Config, Ecosystem};
 
-#[test]
-fn credentialless_indexes_block_ancestor_credentials_for_pages_wheels_and_redirects() {
-    let auth = AuthHeaders::default()
-        .with_secure_transport()
-        .with_route_hook(Arc::new(IndexAuth {
-            indexes: [
-                "https://parent:secret@example.test/simple/",
-                "https://example.test/simple/public/",
-                "https://child:secret@example.test/simple/child/",
-            ]
-            .into_iter()
-            .map(|url| parse_index(url).unwrap())
-            .collect(),
-        }));
-    assert!(auth.for_url("https://example.test/simple/alpha/").is_some());
-    assert!(auth.for_url("https://example.test/simple/child/alpha/").is_some());
-    for url in [
-        "https://example.test/simple/public/alpha/",
-        "https://example.test/simple/public/alpha.whl",
-        "https://example.test/packages/alpha.whl",
-        "https://example.test:8443/simple/alpha/",
-        "https://other.test/simple/alpha/",
-        "http://example.test/simple/alpha/",
-    ] {
-        assert_eq!(auth.for_url(url), None, "{url}");
-    }
-}
-
-#[test]
-fn index_auth_matches_directory_boundaries() {
-    let auth = IndexAuth {
-        indexes: vec![parse_index("https://user:secret@example.test/simple").unwrap()],
-    };
-    assert!(auth.authorize("https://example.test/simple/alpha/", None).is_some());
-    assert_eq!(auth.authorize("https://example.test/simple-other/alpha/", None), None);
-}
-
-#[test]
-fn duplicate_index_paths_reject_conflicting_logins_without_disclosing_credentials() {
-    let first = "https://alice:alice-secret@example.test/simple/";
-    for second in [
-        "https://bob:bob-secret@example.test/simple/",
-        "https://alice:rotated-secret@example.test/simple",
-        "https://example.test/simple/",
-        "https://bob:bob-secret@example.test/simple/?view=other",
-    ] {
-        let indexes = [first, second].map(|url| parse_index(url).unwrap());
-        let error = validate_index_credentials(&indexes).unwrap_err();
-        assert_eq!(
-            error.code().unwrap().to_string(),
-            "ERR_PNPM_CONFLICTING_PYTHON_INDEX_CREDENTIALS",
+fn config_with_pypi_indexes(indexes: &[&str]) -> Config {
+    let mut config = Config::default();
+    if !indexes.is_empty() {
+        config.indexes_by_ecosystem.insert(
+            Ecosystem::Pypi,
+            indexes
+                .iter()
+                .map(|index| (*index).to_string())
+                .collect(),
         );
-        let message = error.to_string();
-        assert!(message.contains("https://example.test/simple/"));
-        for secret in ["alice", "bob", "secret", "view=other"] {
-            assert!(!message.contains(secret), "{message}");
-        }
     }
-    let indexes = [first, "https://alice:alice-secret@example.test/simple"].map(|url| {
-        parse_index(url).unwrap()
-    });
-    validate_index_credentials(&indexes).unwrap();
+    config
+}
+
+/// `Registry::fetch_index` reads `extra_urls` and then `url`, so the index
+/// declared last is the one that answers what none before it had.
+#[test]
+fn the_index_declared_last_is_the_one_searched_last() {
+    let config = config_with_pypi_indexes(&[
+        "https://first.test/simple/",
+        "https://second.test/simple/",
+        "https://last.test/simple/",
+    ]);
+    let index = python_index(&config).unwrap();
+    assert_eq!(index.url.as_str(), "https://last.test/simple/");
+    let extras: Vec<&str> = index.extra_urls
+        .iter()
+        .map(url::Url::as_str)
+        .collect();
+    assert_eq!(extras, ["https://first.test/simple/", "https://second.test/simple/"]);
+}
+
+#[test]
+fn a_configuration_naming_no_index_resolves_from_pypi() {
+    let index = python_index(&config_with_pypi_indexes(&[])).unwrap();
+    assert_eq!(index.url.as_str(), pnpm_config::DEFAULT_PYPI_INDEX_URL);
+    assert!(index.extra_urls.is_empty());
+}
+
+#[test]
+fn an_index_credential_reaches_the_index_it_was_configured_for_and_no_other_origin() {
+    let mut config =
+        config_with_pypi_indexes(&["https://example.test/simple/", "https://other.test/simple/"]);
+    config.auth_headers = std::sync::Arc::new(pnpm_network::AuthHeaders::from_creds_map([(
+        "//example.test/simple/".to_string(),
+        "Bearer index-token".to_string(),
+    )]));
+    let index = python_index(&config).unwrap();
+    assert_eq!(
+        index.auth.for_secure_url("https://example.test/simple/alpha/"),
+        Some("Bearer index-token".to_string()),
+    );
+    assert_eq!(index.auth.for_secure_url("https://other.test/simple/alpha/"), None);
+}
+
+#[test]
+fn a_credential_is_not_sent_over_an_insecure_transport() {
+    let mut config = config_with_pypi_indexes(&["http://example.test/simple/"]);
+    config.auth_headers = std::sync::Arc::new(pnpm_network::AuthHeaders::from_creds_map([(
+        "//example.test/simple/".to_string(),
+        "Bearer index-token".to_string(),
+    )]));
+    let index = python_index(&config).unwrap();
+    assert_eq!(index.auth.for_secure_url("http://example.test/simple/alpha/"), None);
+}
+
+/// Every Simple API request joins the distribution onto the index, which
+/// replaces the last segment when the base carries no trailing slash.
+#[test]
+fn an_index_without_a_trailing_slash_keeps_its_path() {
+    let index = parse_index("https://example.test/simple").unwrap();
+    assert_eq!(index.as_str(), "https://example.test/simple/");
+    assert_eq!(index.join("alpha/").unwrap().as_str(), "https://example.test/simple/alpha/");
+}
+
+/// `registries` refuses a credential in a key, and this refuses one that
+/// reaches here any other way, so no Python index carries its own.
+#[test]
+fn an_index_that_is_not_a_credentialless_http_url_is_refused() {
+    for index in ["ftp://example.test/simple/", "https://user:secret@example.test/simple/"] {
+        let error = parse_index(index).unwrap_err().to_string();
+        assert!(error.contains("HTTP(S) URLs without embedded credentials"), "{index}: {error}");
+        assert!(!error.contains("secret"), "{index}: {error}");
+    }
 }

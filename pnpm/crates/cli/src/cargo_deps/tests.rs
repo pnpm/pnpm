@@ -73,7 +73,7 @@ checksum = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
 }
 
 /// A dependency that names no registry belongs to crates.io, whichever
-/// registry `cargo.indexUrl` points the fetch at.
+/// registry the declared Cargo index points the fetch at.
 #[test]
 fn accepts_a_crates_io_source_under_a_configured_registry() {
     let lockfile = r#"
@@ -366,7 +366,7 @@ fn maps_crate_names_to_sparse_index_paths() {
 
 fn config_with_cargo_credentials(index_url: &str) -> Config {
     let mut config = Config::new();
-    config.cargo.index_url = index_url.to_string();
+    config.indexes_by_ecosystem.insert(pnpm_config::Ecosystem::Cargo, vec![index_url.to_string()]);
     config.auth_headers = Arc::new(AuthHeaders::from_creds_map([
         ("//registry.example.test/".to_string(), "Bearer crate-token".to_string()),
         ("//cdn.example.test/".to_string(), "Bearer unrelated-token".to_string()),

@@ -121,7 +121,8 @@ pub enum Tool {
 /// A tool here is a program pnpm fetches to run something with: a
 /// JavaScript runtime, a Python interpreter, another package manager.
 /// Where the packages of an ecosystem come from is a separate question,
-/// answered by `registry`, `python.indexUrl` and `cargo.indexUrl`.
+/// answered by `registry` and the `registries` entries that name an
+/// ecosystem.
 ///
 /// Read from the global `config.yaml` and `PNPM_CONFIG_TOOLS` only. A
 /// `pnpm-workspace.yaml` that names one is ignored, because naming a
@@ -157,35 +158,31 @@ impl Tool {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, Deserialize)]
+#[derive(Debug, Default, Clone, PartialEq, Eq, serde::Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", default, deny_unknown_fields)]
 pub struct CargoSettings {
     pub enabled: bool,
-    pub index_url: String,
 }
 
-impl Default for CargoSettings {
-    fn default() -> Self {
-        Self { enabled: false, index_url: "https://index.crates.io".to_string() }
-    }
-}
+/// The sparse index `cargo` itself resolves from, which pnpm resolves from
+/// when `registries` declares no Cargo index.
+///
+/// Spelled without the trailing slash a declared index is normalized to,
+/// because `pnpm_cargo_resolver::is_crates_io` compares against this exact
+/// string to recognize crates.io.
+pub const DEFAULT_CARGO_INDEX_URL: &str = "https://index.crates.io";
+
+/// The Simple API `pip` itself resolves from, which pnpm resolves from when
+/// `registries` declares no `PyPI` index.
+pub const DEFAULT_PYPI_INDEX_URL: &str = "https://pypi.org/simple/";
 
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", default, deny_unknown_fields)]
-#[cfg_attr(
-    dylint_lib = "perfectionist",
-    expect(
-        perfectionist::too_many_struct_fields,
-        reason = "PythonSettings matches the public python configuration table in pnpm-workspace.yaml."
-    )
-)]
 pub struct PythonSettings {
     pub enabled: bool,
     /// The interpreter to install every Python project with. `None` lets
     /// pnpm choose one the project accepts.
     pub executable: Option<String>,
-    pub index_url: String,
-    pub extra_index_urls: Vec<String>,
     pub overrides: Vec<String>,
     pub constraints: Vec<String>,
     pub extras: Vec<String>,
@@ -201,8 +198,6 @@ impl Default for PythonSettings {
         Self {
             enabled: false,
             executable: None,
-            index_url: "https://pypi.org/simple/".to_string(),
-            extra_index_urls: Vec::new(),
             overrides: Vec::new(),
             constraints: Vec::new(),
             extras: Vec::new(),

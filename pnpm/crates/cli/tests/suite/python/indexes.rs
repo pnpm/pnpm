@@ -1,12 +1,11 @@
 mod rules;
 
 use super::{
-    add_python_settings, assert_failure_contains, pacquet_in, project, python, serve,
-    serve_with_index_auth, wheel,
+    add_python_index, add_python_settings, assert_failure_contains, pacquet_in, project, python,
+    serve, serve_with_index_auth, wheel,
 };
 use assert_cmd::assert::OutputAssertExt;
 use base64::{Engine as _, engine::general_purpose::STANDARD};
-use sha2::{Digest, Sha256};
 use std::fs;
 
 #[tokio::test]
@@ -34,15 +33,8 @@ async fn extra_indexes_have_priority_and_cache_missing_packages_for_offline_reso
         .create_async()
         .await;
     project(root.path(), &primary.url(), &["alpha"]);
-    let mut extra_url: url::Url = extra.url().parse().unwrap();
-    extra_url.set_username("extra-user").unwrap();
-    extra_url
-        .set_password(Some("extra-secret"))
-        .unwrap();
-    add_python_settings(
-        root.path(),
-        &format!("  extraIndexUrls: ['{}/simple/']\n", extra_url.as_str().trim_end_matches('/')),
-    );
+    add_python_index(root.path(), &format!("{}/simple/", extra.url()));
+    write_index_credentials(root.path(), &extra.url(), "extra-user:extra-secret");
     pacquet_in(root.path())
         .arg("install")
         .assert()
@@ -88,45 +80,56 @@ async fn extra_index_errors_do_not_fall_back_to_another_index() {
         .create_async()
         .await;
     project(root.path(), &primary.url(), &["alpha"]);
-    add_python_settings(root.path(), &format!("  extraIndexUrls: ['{}/simple/']\n", extra.url()));
+    add_python_index(root.path(), &format!("{}/simple/", extra.url()));
     assert_failure_contains(pacquet_in(root.path()).arg("install"), "403 Forbidden");
     unused.assert_async().await;
     denied.assert_async().await;
 }
 
 #[tokio::test]
-async fn credentialless_descendant_indexes_do_not_receive_parent_index_credentials() {
+async fn an_index_credential_does_not_travel_to_an_index_on_another_origin() {
     let root = tempfile::tempdir().unwrap();
-    let mut server = mockito::Server::new_async().await;
+    let mut primary = mockito::Server::new_async().await;
+    let mut extra = mockito::Server::new_async().await;
     let authorization = format!("Basic {}", STANDARD.encode("parent:secret"));
     let _alpha = serve_with_index_auth(
-        &mut server,
+        &mut primary,
         "alpha",
-        &[("1.0", wheel("alpha", "1.0", "", &[]))],
+        &[("1.0", wheel("alpha", "1.0", "Requires-Dist: beta\n", &[]))],
         Some(&authorization),
     )
     .await;
-    let missing = server
-        .mock("GET", "/simple/public/alpha/")
-        .match_header("authorization", mockito::Matcher::Missing)
-        .with_status(404)
-        .create_async()
-        .await;
-    let mut index: url::Url = server.url().parse().unwrap();
-    index.set_username("parent").unwrap();
-    index
-        .set_password(Some("secret"))
-        .unwrap();
-    project(root.path(), index.as_str().trim_end_matches('/'), &["alpha"]);
-    add_python_settings(
-        root.path(),
-        &format!("  extraIndexUrls: ['{}/simple/public/']\n", server.url()),
-    );
+    // Every lookup reaches the extra index first, and none of them may carry
+    // the credential configured for the other origin.
+    let mut anonymous = Vec::new();
+    for distribution in ["alpha", "beta"] {
+        anonymous.push(
+            extra
+                .mock("GET", format!("/simple/{distribution}/").as_str())
+                .match_header("authorization", mockito::Matcher::Missing)
+                .with_status(404)
+                .expect(1)
+                .create_async()
+                .await,
+        );
+    }
+    let _beta = serve_with_index_auth(
+        &mut primary,
+        "beta",
+        &[("1.0", wheel("beta", "1.0", "", &[]))],
+        Some(&authorization),
+    )
+    .await;
+    project(root.path(), &primary.url(), &["alpha"]);
+    add_python_index(root.path(), &format!("{}/simple/", extra.url()));
+    write_index_credentials(root.path(), &primary.url(), "parent:secret");
     pacquet_in(root.path())
         .arg("install")
         .assert()
         .success();
-    missing.assert_async().await;
+    for mock in anonymous {
+        mock.assert_async().await;
+    }
 }
 
 #[tokio::test]
@@ -152,23 +155,14 @@ async fn authenticated_index_caches_do_not_cross_credential_identities() {
     )
     .await;
     project(root.path(), &primary.url(), &["alpha"]);
-    let mut alice_url: url::Url = format!("{}/simple/", extra.url()).parse().unwrap();
-    alice_url.set_username("user").unwrap();
-    alice_url
-        .set_password(Some("alice-secret"))
-        .unwrap();
-    let mut bob_url = alice_url.clone();
-    bob_url
-        .set_password(Some("bob-secret"))
-        .unwrap();
-    add_python_settings(root.path(), &format!("  extraIndexUrls: ['{alice_url}']\n"));
+    add_python_index(root.path(), &format!("{}/simple/", extra.url()));
+    write_index_credentials(root.path(), &extra.url(), "user:alice-secret");
     pacquet_in(root.path())
         .arg("install")
         .assert()
         .success();
-    let settings = root.path().join("pnpm-workspace.yaml");
-    let alice_settings = fs::read_to_string(&settings).unwrap();
-    fs::write(&settings, alice_settings.replace(alice_url.as_str(), bob_url.as_str())).unwrap();
+    let alice_npmrc = fs::read_to_string(root.path().join(".npmrc")).unwrap();
+    write_index_credentials(root.path(), &extra.url(), "user:bob-secret");
     fs::remove_file(root.path().join("pylock.toml")).unwrap();
     assert_failure_contains(
         pacquet_in(root.path()).args(["install", "--offline"]),
@@ -187,7 +181,7 @@ async fn authenticated_index_caches_do_not_cross_credential_identities() {
         .args(["install", "--offline"])
         .assert()
         .success();
-    fs::write(settings, alice_settings).unwrap();
+    fs::write(root.path().join(".npmrc"), &alice_npmrc).unwrap();
     fs::remove_file(root.path().join("pylock.toml")).unwrap();
     pacquet_in(root.path())
         .args(["install", "--offline"])
@@ -197,36 +191,14 @@ async fn authenticated_index_caches_do_not_cross_credential_identities() {
         .args(["-c", "import alpha; assert alpha.VERSION == '1.0'"])
         .assert()
         .success();
-    let mut anonymous = alice_url.clone();
-    anonymous.set_username("").unwrap();
-    anonymous.set_password(None).unwrap();
-    let legacy = root.path().join("cache/python-index-v2");
-    fs::create_dir_all(&legacy).unwrap();
-    let page_url = anonymous.join("alpha/").unwrap();
-    fs::write(
-        legacy.join(format!("{:x}.json", Sha256::digest(page_url.as_str().as_bytes()))),
-        serde_json::json!({"url": page_url, "body": {"files": []}, "missing": true}).to_string(),
-    )
-    .unwrap();
-    let settings = root.path().join("pnpm-workspace.yaml");
-    let alice_settings = fs::read_to_string(&settings).unwrap();
-    fs::write(settings, alice_settings.replace(alice_url.as_str(), anonymous.as_str())).unwrap();
-    fs::remove_file(root.path().join("pylock.toml")).unwrap();
-    assert_failure_contains(
-        pacquet_in(root.path()).args(["install", "--offline"]),
-        "not cached for offline resolution",
-    );
     missing.assert_async().await;
 }
 
 #[test]
-fn duplicate_index_paths_with_conflicting_credentials_are_configuration_errors() {
+fn an_index_may_not_carry_its_own_credentials() {
     let root = tempfile::tempdir().unwrap();
     project(root.path(), "http://localhost:1", &["alpha"]);
-    add_python_settings(
-        root.path(),
-        "  extraIndexUrls: ['http://alice:private-secret@localhost:1/simple/']\n",
-    );
+    add_python_index(root.path(), "http://alice:private-secret@localhost:1/simple/");
     let output = pacquet_in(root.path())
         .arg("install")
         .assert()
@@ -235,7 +207,23 @@ fn duplicate_index_paths_with_conflicting_credentials_are_configuration_errors()
         .stderr
         .clone();
     let message = String::from_utf8(output).unwrap();
-    assert!(message.contains("ERR_PNPM_CONFLICTING_PYTHON_INDEX_CREDENTIALS"));
-    assert!(message.contains("http://localhost:1/simple/"));
-    assert!(!message.contains("private-secret"));
+    assert!(message.contains("ERR_PNPM_INVALID_SETTING"), "{message}");
+    assert!(message.contains("credentials"), "{message}");
+    assert!(!message.contains("private-secret"), "{message}");
+}
+
+/// Give the machine a credential for `index`, as an `.npmrc` beside the
+/// project. `registries` refuses one in the setting itself, so this is where
+/// a Python index's credential lives.
+fn write_index_credentials(root: &std::path::Path, index: &str, user_and_password: &str) {
+    let authority = index
+        .strip_prefix("http://")
+        .or_else(|| index.strip_prefix("https://"))
+        .expect("a mockito index URL")
+        .trim_end_matches('/');
+    fs::write(
+        root.join(".npmrc"),
+        format!("//{authority}/simple/:_auth={}\n", STANDARD.encode(user_and_password)),
+    )
+    .unwrap();
 }

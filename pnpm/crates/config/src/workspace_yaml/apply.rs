@@ -180,6 +180,13 @@ impl WorkspaceSettings {
             return false;
         };
         let lookups = registries::into_lookups(entries);
+        registries::take_roles_from_earlier_layers(
+            &mut config.registries_by_scope,
+            &mut config.registries_by_prefix,
+            &mut config.registry_options_by_url,
+            &mut config.indexes_by_ecosystem,
+            &lookups,
+        );
         if let Some(registry) = lookups.default_registry {
             config.registry = registry;
         }
@@ -187,6 +194,10 @@ impl WorkspaceSettings {
         config.registries_by_scope.extend(lookups.registries_by_scope);
         config.registries_by_prefix.extend(lookups.registries_by_prefix);
         config.registry_options_by_url.extend(lookups.registry_options_by_url);
+        // Replaced per ecosystem rather than appended to: the order is the
+        // search order, and a layer that names an ecosystem's indexes is
+        // naming that whole order, not adding to someone else's.
+        config.indexes_by_ecosystem.extend(lookups.indexes_by_ecosystem);
         declared_prefixes
     }
 
@@ -223,6 +234,17 @@ impl WorkspaceSettings {
             );
         }
         for (name, registry) in named {
+            // An alias addressing a URL `registries` serves to another
+            // ecosystem would put that URL in two roles, which the entries
+            // themselves cannot express and nothing downstream expects.
+            if registries::serves_another_ecosystem(&config.indexes_by_ecosystem, &registry) {
+                tracing::warn!(
+                    target: "pacquet::config",
+                    prefix = name,
+                    r#"The deprecated "namedRegistries" setting addresses a registry that "registries" declares an index of another ecosystem. The prefix is not declared."#,
+                );
+                continue;
+            }
             config.registries_by_prefix.entry(name).or_insert(registry);
         }
     }

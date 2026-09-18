@@ -1,4 +1,4 @@
-use super::{BTreeMap, RegistryEntry, WorkspaceSettings};
+use super::{IndexMap, RegistryEntry, WorkspaceSettings};
 
 impl WorkspaceSettings {
     /// Zero out the release-age and trust policies for `self-update`.
@@ -41,7 +41,7 @@ impl WorkspaceSettings {
         // machine-local setting would make one developer write a lockfile
         // their collaborators read back with a different layout. The routes to
         // the registry are a legitimate global preference.
-        for entry in self.registries.iter_mut().flat_map(BTreeMap::values_mut) {
+        for entry in self.registries.iter_mut().flat_map(IndexMap::values_mut) {
             if let RegistryEntry::Declaration(declaration) = entry {
                 declaration.server_type = None;
             }

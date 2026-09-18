@@ -1,5 +1,5 @@
 //! `pnpm install` against a Cargo workspace, resolving and downloading
-//! through the registry `cargo.indexUrl` selects.
+//! through the Cargo registry `registries` selects.
 
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
@@ -54,7 +54,7 @@ pub(super) fn cargo_workspace(index_url: &str, dependencies: &str, source: &str)
     .expect("write Cargo manifest");
     std::fs::write(
         root.path().join("pnpm-workspace.yaml"),
-        format!("cargo:\n  enabled: true\n  indexUrl: {index_url}\n"),
+        format!("cargo:\n  enabled: true\nregistries:\n  {index_url}:\n    ecosystem: cargo\n"),
     )
     .expect("enable Cargo dependency management");
     root
@@ -428,7 +428,7 @@ fn a_workspace_with_a_cargo_patch_is_not_resolved_from_the_registry() {
     let stderr = String::from_utf8_lossy(&output.stderr);
     assert!(!output.status.success(), "{stderr}");
     // One word: a diagnostic wraps at a width the path length decides.
-    assert!(stderr.contains("cargo.indexUrl"), "{stderr}");
+    assert!(stderr.contains("registries"), "{stderr}");
 }
 
 #[cfg(unix)]
