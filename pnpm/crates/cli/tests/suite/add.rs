@@ -47,7 +47,6 @@ fn cache_foo_index(cache_dir: &Path) {
     cache_foo_index_versions(cache_dir, &["1.0.0"]);
 }
 
-/// Cache a sparse-index entry for `foo` holding one record per version.
 fn cache_foo_index_versions(cache_dir: &Path, versions: &[&str]) {
     let index_dir = cache_dir.join("v11/cargo-index/crates-io/3/f");
     std::fs::create_dir_all(&index_dir).expect("create sparse-index cache");

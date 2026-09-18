@@ -1111,8 +1111,6 @@ async fn add_updates_pyproject_and_lockfile_without_creating_node_metadata() {
         .success();
 }
 
-/// A Package URL names one exact version, so it saves as a pinned
-/// requirement without `--save-exact`.
 #[tokio::test]
 async fn add_accepts_a_pypi_purl() {
     let root = tempfile::tempdir().unwrap();
