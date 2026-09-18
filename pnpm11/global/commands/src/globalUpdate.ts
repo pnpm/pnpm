@@ -107,13 +107,17 @@ async function updateGlobalPackageGroup (
     ? downgradeCheck.candidate
     : await installGroup({ ...opts, lockfileOnly: true }, installDir, depSpecs, pkg.dependencies)
 
-  if (await lockfilesAreEqual(pkg.installDir, installDir)) {
+  // An equal lockfile says the group needs no new packages, not that the tree
+  // that lockfile describes is still on disk. The modules manifest is what an
+  // install leaves behind, so a group without one is installed again whatever
+  // its resolution came out to.
+  const activeModules = await readModulesManifest(path.join(pkg.installDir, 'node_modules'))
+  if (activeModules != null && await lockfilesAreEqual(pkg.installDir, installDir)) {
     await fs.promises.rm(installDir, { recursive: true, force: true })
-    const activeModules = await readModulesManifest(path.join(pkg.installDir, 'node_modules'))
     await promptApproveGlobalBuilds({
       globalPkgDir: globalDir,
       installDir: pkg.installDir,
-      ignoredBuilds: activeModules?.ignoredBuilds,
+      ignoredBuilds: activeModules.ignoredBuilds,
       allowBuilds: opts.allowBuilds ?? {},
       inheritedOpts: opts,
     }, commands)

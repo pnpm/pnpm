@@ -219,6 +219,42 @@ test('global update reports already up to date without replacing an equal candid
   }
 })
 
+test('global update reinstalls an equal candidate when the active group lost its node_modules', async () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'global-update-no-modules-'))
+  const globalDir = path.join(root, 'global')
+  const oldInstallDir = path.join(globalDir, 'old-install')
+  const candidateDir = path.join(globalDir, 'candidate')
+  fs.mkdirSync(oldInstallDir, { recursive: true })
+  fs.mkdirSync(candidateDir, { recursive: true })
+  createInstallDir.mockReturnValue(candidateDir)
+  getHashLink.mockReturnValue(path.join(globalDir, 'hash-foo'))
+  scanGlobalPackages.mockReturnValue([
+    { dependencies: { foo: '^1.0.0' }, hash: 'hash-foo', installDir: oldInstallDir },
+  ])
+  readWantedLockfile.mockResolvedValue({ importers: { '.': { dependencies: { foo: '1.0.0' } } }, lockfileVersion: '9.0' })
+  readModulesManifest.mockResolvedValue(null)
+
+  try {
+    await handleGlobalUpdate({
+      dir: root,
+      bin: path.join(root, 'bin'),
+      globalPkgDir: globalDir,
+    } as any, [], {}) // eslint-disable-line @typescript-eslint/no-explicit-any
+
+    expect(info).not.toHaveBeenCalled()
+    expect(installGlobalPackages).toHaveBeenCalledTimes(2)
+    expect(installGlobalPackages).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({ dir: candidateDir, lockfileOnly: false }),
+      ['foo@^1.0.0']
+    )
+    expect(fs.existsSync(candidateDir)).toBe(true)
+    expect(activateGlobalInstall).toHaveBeenCalled()
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true })
+  }
+})
+
 test('global update fails without replacing the active group when equal-candidate cleanup fails', async () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'global-update-unchanged-cleanup-'))
   const globalDir = path.join(root, 'global')
@@ -233,6 +269,7 @@ test('global update fails without replacing the active group when equal-candidat
     { dependencies: { foo: '^1.0.0' }, hash: 'hash-foo', installDir: oldInstallDir },
   ])
   readWantedLockfile.mockResolvedValue({ importers: {}, lockfileVersion: '9.0' })
+  readModulesManifest.mockResolvedValue({})
   const cleanupError = Object.assign(new Error('candidate cleanup failed'), { code: 'EACCES' })
   const realRm = fs.promises.rm.bind(fs.promises)
   const rmSpy = jest.spyOn(fs.promises, 'rm').mockImplementation(async (targetPath, options) => {

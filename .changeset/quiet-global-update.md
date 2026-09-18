@@ -4,4 +4,4 @@
 "pacquet": patch
 ---
 
-`pnpm update --global` now reports `Already up to date` when the global package graph has not changed [pnpm/pnpm#12002](https://github.com/pnpm/pnpm/issues/12002).
+`pnpm update --global` no longer reinstalls a global package that resolves to the version already installed. It reports `Already up to date` instead [pnpm/pnpm#12002](https://github.com/pnpm/pnpm/issues/12002).

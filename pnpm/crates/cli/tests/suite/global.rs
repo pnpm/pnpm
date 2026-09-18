@@ -996,6 +996,42 @@ fn unchanged_global_update_still_approves_a_pending_build() {
 
 #[cfg(unix)]
 #[test]
+fn global_update_reinstalls_a_group_whose_node_modules_is_gone() {
+    use assert_cmd::assert::OutputAssertExt;
+
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let pnpm_home = root.path().join("pnpm-home");
+    prepare_global_home(&pnpm_home, &npmrc_info);
+
+    global_command(&workspace, &pnpm_home)
+        .with_args(["add", "-g", "@foo/touch-file-one-bin"])
+        .assert()
+        .success();
+    let global_dir = pnpm_home.join("global").join("v11");
+    let install_before = pnpm_global::find_global_package(&global_dir, "@foo/touch-file-one-bin")
+        .expect("scan global packages")
+        .expect("find the touch-file group");
+    let modules_dir = install_before.install_dir.join("node_modules");
+    fs::remove_dir_all(&modules_dir).expect("remove the group's node_modules");
+
+    let output = global_command(&workspace, &pnpm_home)
+        .with_args(["update", "-g"])
+        .output()
+        .expect("run global update over a removed tree");
+    assert!(output.status.success(), "{}", String::from_utf8_lossy(&output.stderr));
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(!stdout.contains("Already up to date"), "{stdout}");
+    let install_after = pnpm_global::find_global_package(&global_dir, "@foo/touch-file-one-bin")
+        .expect("scan global packages")
+        .expect("find the reinstalled touch-file group");
+    assert!(install_after.install_dir.join("node_modules").is_dir());
+
+    drop((root, npmrc_info));
+}
+
+#[cfg(unix)]
+#[test]
 fn global_update_renders_both_changed_groups_with_one_completion_summary() {
     use assert_cmd::assert::OutputAssertExt;
 

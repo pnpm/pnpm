@@ -13,6 +13,7 @@ use super::{
     run_group_install, should_replace_existing_package, snapshot_global_package, update_selectors,
     warn_global,
 };
+use pnpm_modules_yaml::{Host as ModulesHost, read_modules_manifest};
 
 impl GlobalInstallTarget<'_> {
     /// Install one `add -g` group and activate it over the groups it
@@ -172,7 +173,9 @@ impl GlobalInstallTarget<'_> {
         install_dir: &Path,
         supported_architectures: Option<SupportedArchitectures>,
     ) -> miette::Result<bool> {
-        if !lockfiles_are_equal(&pkg.install_dir, install_dir) {
+        let unchanged =
+            is_materialized(&pkg.install_dir) && lockfiles_are_equal(&pkg.install_dir, install_dir);
+        if !unchanged {
             return Ok(false);
         }
         fs::remove_dir_all(install_dir)
@@ -348,6 +351,14 @@ impl GlobalInstallTarget<'_> {
             ),
         )
     }
+}
+
+/// Whether the group's `node_modules` still carries the modules manifest an
+/// install leaves behind. An equal lockfile says the group needs no new
+/// packages, not that the tree that lockfile describes is still on disk.
+fn is_materialized(install_dir: &Path) -> bool {
+    read_modules_manifest::<ModulesHost>(&install_dir.join("node_modules"))
+        .is_ok_and(|manifest| manifest.is_some())
 }
 
 fn lockfiles_are_equal(active_dir: &Path, candidate_dir: &Path) -> bool {
