@@ -64,7 +64,7 @@ impl PackageSpecifierPlan {
 #[derive(Clone, Copy)]
 pub(super) struct Shown<'a>(pub(super) &'a str);
 
-impl<'a> Shown<'a> {
+impl Shown<'_> {
     /// The selector up to its first qualifier or subpath separator.
     ///
     /// `redact_and_sanitize` recognizes an authority only when the selector
