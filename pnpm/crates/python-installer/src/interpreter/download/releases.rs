@@ -72,7 +72,7 @@ async fn historical_build_in_tags(
             Ordering::Greater => start = middle + 1,
             Ordering::Less => end = middle,
             Ordering::Equal => {
-                let Some(probe) = nearest_host_release(
+                let probe = nearest_host_release(
                     config,
                     client,
                     releases_url,
@@ -81,12 +81,11 @@ async fn historical_build_in_tags(
                     middle,
                     exact,
                 )
-                .await?
-                else {
-                    return Ok(None);
-                };
-                if let Some(build) = continue_after_gap(probe, &mut start, &mut end) {
-                    return Ok(Some(build));
+                .await?;
+                if let GapSearch::Done(build) =
+                    continue_after_gap(probe, &mut start, &mut end, exact)?
+                {
+                    return Ok(build);
                 }
             }
         }
@@ -97,22 +96,40 @@ async fn historical_build_in_tags(
 enum HostProbe {
     Found(Build),
     Ordered { index: usize, order: Ordering },
+    Absent,
+    BudgetExhausted,
 }
 
-fn continue_after_gap(probe: HostProbe, start: &mut usize, end: &mut usize) -> Option<Build> {
+enum GapSearch {
+    Continue,
+    Done(Option<Build>),
+}
+
+fn continue_after_gap(
+    probe: HostProbe,
+    start: &mut usize,
+    end: &mut usize,
+    exact: &pep440_rs::Version,
+) -> Result<GapSearch> {
     match probe {
-        HostProbe::Found(build) => Some(build),
+        HostProbe::Found(build) => Ok(GapSearch::Done(Some(build))),
         HostProbe::Ordered { index, order: Ordering::Greater } => {
             *start = index + 1;
-            None
+            Ok(GapSearch::Continue)
         }
         HostProbe::Ordered { index, order: Ordering::Less } => {
             *end = index;
-            None
+            Ok(GapSearch::Continue)
         }
         HostProbe::Ordered { order: Ordering::Equal, .. } => {
             unreachable!("an equal host release holds the exact build")
         }
+        HostProbe::Absent => Ok(GapSearch::Done(None)),
+        HostProbe::BudgetExhausted => Err(miette::miette!(
+            code = "ERR_PNPM_PYTHON_RELEASE_LOOKUP_LIMIT",
+            help = "Use a less specific Python version requirement or retry after the upstream release layout changes.",
+            "cannot determine whether Python {exact} is available because more than {MAX_HOST_GAP_PROBES} neighboring releases omit this platform",
+        )),
     }
 }
 
@@ -124,7 +141,8 @@ async fn nearest_host_release(
     range: std::ops::Range<usize>,
     middle: usize,
     exact: &pep440_rs::Version,
-) -> Result<Option<HostProbe>> {
+) -> Result<HostProbe> {
+    let budget_exhausted = range.len().saturating_sub(1) > MAX_HOST_GAP_PROBES;
     let candidates = (1..range.len())
         .flat_map(|distance| {
             let newer = middle
@@ -143,14 +161,14 @@ async fn nearest_host_release(
         };
         let mut builds = builds_in(&release);
         if let Some(build) = take_exact_build(&mut builds, exact) {
-            return Ok(Some(HostProbe::Found(build)));
+            return Ok(HostProbe::Found(build));
         }
         let order = release_order(&builds, exact);
         if order != Ordering::Equal {
-            return Ok(Some(HostProbe::Ordered { index, order }));
+            return Ok(HostProbe::Ordered { index, order });
         }
     }
-    Ok(None)
+    Ok(if budget_exhausted { HostProbe::BudgetExhausted } else { HostProbe::Absent })
 }
 
 fn take_exact_build(builds: &mut Vec<Build>, exact: &pep440_rs::Version) -> Option<Build> {
@@ -287,7 +305,8 @@ async fn write_release_tags_cache(path: &Path, tags: &[String]) {
     {
         return;
     }
-    let _ = pnpm_fs::write_atomic(path, &body);
+    let path = path.to_path_buf();
+    let _ = tokio::task::spawn_blocking(move || pnpm_fs::write_atomic(&path, &body)).await;
 }
 
 fn canonical_release_tags(mut tags: Vec<String>) -> Vec<String> {

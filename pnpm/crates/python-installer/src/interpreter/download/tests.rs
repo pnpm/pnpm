@@ -544,7 +544,7 @@ async fn a_release_without_this_machine_does_not_end_the_historical_search() {
 }
 
 #[tokio::test]
-async fn a_long_host_gap_has_a_fixed_request_budget() {
+async fn exhausting_the_host_gap_budget_is_not_reported_as_absence() {
     let triple = host_triple().expect("these tests run where interpreters are built");
     let other_triple = if triple == "x86_64-pc-windows-msvc" {
         "aarch64-apple-darwin"
@@ -593,30 +593,40 @@ async fn a_long_host_gap_has_a_fixed_request_budget() {
                 .await,
         );
     }
+    let farther_file = format!("cpython-3.13.13+20260111-{triple}-install_only_stripped.tar.gz");
+    let farther = server
+        .mock("GET", "/download/20260111/SHA256SUMS")
+        .with_body(format!("{}  {farther_file}\n", "c".repeat(64)))
+        .expect(0)
+        .create_async()
+        .await;
     let cache = tempfile::tempdir().expect("cache directory");
     let mut config = Config::new();
     config.cache_dir = cache.path().to_path_buf();
     let exact: pep440_rs::Version = "3.13.13".parse().expect("version fixture");
 
-    let releases = Releases::read_from(
+    let result = Releases::read_from(
         &config,
         &ThrottledClient::new_for_installs(),
         Source::from_urls(&server.url(), &format!("{}/tags", server.url())),
         Some(&exact),
     )
-    .await
-    .expect("stop after the host-gap request budget");
+    .await;
+    let Err(error) = result else { panic!("an inconclusive bounded lookup must be reported") };
 
-    assert!(
-        releases
-            .best(Some(&requires("==3.13.13")), None)
-            .is_none(),
+    assert_eq!(
+        error
+            .code()
+            .expect("lookup error carries a code")
+            .to_string(),
+        "ERR_PNPM_PYTHON_RELEASE_LOOKUP_LIMIT",
     );
     latest.assert_async().await;
     tags.assert_async().await;
     for manifest in manifests {
         manifest.assert_async().await;
     }
+    farther.assert_async().await;
 }
 
 #[tokio::test]
