@@ -605,9 +605,6 @@ fn returns_skipped_when_an_unmatched_dependency_is_in_an_included_group() {
     });
     assert!(matches!(decision, Decision::Skipped { reason } if reason.contains("node_modules")));
 }
-/// A root and a sibling `pkg-a` that both declare `foo`, resolved in the
-/// lockfile to `root_version` and `sibling_version`; the sibling has no
-/// `node_modules`.
 fn deduped_sibling_decision(
     dedupe_direct_deps: bool,
     root_version: &str,
@@ -622,8 +619,6 @@ fn deduped_sibling_decision(
         included: isolated_included(),
     })
 }
-/// [`deduped_sibling_decision`] under `dedupeDirectDeps`, with the root also
-/// declaring `foo` as a dev dependency resolved to `root_dev_version`.
 fn deduped_sibling_decision_with_root_dev(
     root_version: &str,
     root_dev_version: Option<&str>,
