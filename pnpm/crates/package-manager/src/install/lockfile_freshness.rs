@@ -91,6 +91,13 @@ async fn workspace_manifests_satisfy(
     };
     let project_manifests =
         build_project_manifests_list(check.manifest, workspace_projects.as_deref());
+    let workspace_packages = if check.config.exclude_links_from_lockfile
+        && check.config.link_workspace_packages.enabled_at_depth(0)
+    {
+        super::build_workspace_packages_map(workspace_projects.as_deref())
+    } else {
+        None
+    };
     let manifest_freshness_inputs: Vec<(String, &PackageManifest)> = project_manifests
         .iter()
         .map(|(project_dir, project_manifest)| {
@@ -105,6 +112,7 @@ async fn workspace_manifests_satisfy(
         &LockfileFreshnessInputs {
             lockfile_dir: lockfile_root,
             manifests: &manifest_freshness_inputs,
+            workspace_packages: workspace_packages.as_ref(),
             config: check.config,
             catalogs: check.catalogs,
             pnpmfile_hook: None,
@@ -122,6 +130,7 @@ async fn workspace_manifests_satisfy(
 pub(super) struct LockfileFreshnessInputs<'a, 'manifest> {
     pub(super) lockfile_dir: &'a Path,
     pub(super) manifests: &'a [(String, &'manifest PackageManifest)],
+    pub(super) workspace_packages: Option<&'a pnpm_resolving_resolver_base::WorkspacePackages>,
     pub(super) config: &'a Config,
     pub(super) catalogs: &'a Catalogs,
     pub(super) pnpmfile_hook: Option<&'a Arc<dyn pnpm_hooks::PnpmfileHooks>>,
@@ -240,6 +249,7 @@ pub(super) async fn check_lockfile_freshness(
     let LockfileFreshnessInputs {
         lockfile_dir,
         manifests: manifest_freshness_inputs,
+        workspace_packages,
         config,
         catalogs,
         pnpmfile_hook,
@@ -281,6 +291,7 @@ pub(super) async fn check_lockfile_freshness(
         lockfile_dir,
         manifest_freshness_inputs,
         config,
+        workspace_packages,
         parsed_overrides_opt.as_deref(),
         scope.allow_missing_dependency_free_importers,
     )
@@ -292,6 +303,7 @@ fn check_importer_freshness(
     lockfile_dir: &Path,
     manifest_freshness_inputs: &[(String, &PackageManifest)],
     config: &Config,
+    workspace_packages: Option<&pnpm_resolving_resolver_base::WorkspacePackages>,
     parsed_overrides: Option<&[pnpm_config_parse_overrides::VersionOverride]>,
     allow_missing_dependency_free_importers: bool,
 ) -> Result<(), FreshnessCheckError> {
@@ -317,6 +329,7 @@ fn check_importer_freshness(
                 manifest,
                 importer_id,
                 config,
+                workspace_packages,
                 &ignored_optional_matcher,
                 parsed_overrides,
             )

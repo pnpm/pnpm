@@ -217,21 +217,6 @@ impl<'a> RunExecution<'a> {
         }
     }
 
-    fn workspace_packages_for_link_materialization(
-        &self,
-    ) -> Option<pnpm_resolving_resolver_base::WorkspacePackages> {
-        let config = self.install.context.config;
-        if !config.exclude_links_from_lockfile
-            || !config.link_workspace_packages.enabled_at_depth(0)
-        {
-            return None;
-        }
-        build_workspace_packages_map(workspace_projects(
-            self.loaded_workspace_projects,
-            self.options.selection.as_ref(),
-        ))
-    }
-
     fn apply_inputs<'r>(
         &mut self,
         projects: (&'r InstallScope<'_>, &'r [(PathBuf, &'r PackageManifest)]),
@@ -244,7 +229,7 @@ impl<'a> RunExecution<'a> {
         'a: 'r,
     {
         let (scope, project_manifests) = projects;
-        let workspace_packages = self.workspace_packages_for_link_materialization();
+        let workspace_packages = self.workspace.workspace_packages.take();
         ApplyMaterializationInputs {
             completion: self.take_completion_context(),
             mode: crate::install::state_options::CompletionMode {

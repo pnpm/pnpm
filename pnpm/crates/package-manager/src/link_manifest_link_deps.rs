@@ -180,13 +180,21 @@ fn manifest_link_target(project: &ProjectLinks<'_>, alias: &str, spec: &str) -> 
     if let Some(target) = spec.strip_prefix("link:") {
         return Some(resolve_link_target(project.project_dir, target));
     }
+    workspace_link_target(project.workspace_packages?, alias, spec)
+}
+
+pub(crate) fn workspace_link_target(
+    workspace_packages: &WorkspacePackages,
+    alias: &str,
+    spec: &str,
+) -> Option<PathBuf> {
     let parsed = pnpm_resolving_npm_resolver::parse_bare_specifier(
         spec,
         Some(alias),
         "latest",
         "https://registry.npmjs.org/",
     )?;
-    let versions = project.workspace_packages?.get(&parsed.name)?;
+    let versions = workspace_packages.get(&parsed.name)?;
     let version =
         pnpm_resolving_npm_resolver::pick_matching_local_version_or_null(versions, &parsed)?;
     versions.get(&version).map(pnpm_resolving_npm_resolver::resolve_workspace_package_dir)
