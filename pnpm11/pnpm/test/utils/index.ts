@@ -1,6 +1,7 @@
 import { add as addDistTag } from './distTags.js'
 import {
   binDir,
+  createEnv,
   execPnpm,
   execPnpmSync,
   execPnpx,
@@ -17,6 +18,7 @@ import testDefaults from './testDefaults.js'
 export {
   addDistTag,
   binDir,
+  createEnv,
   execPnpm,
   execPnpmSync,
   execPnpx,

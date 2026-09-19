@@ -7,7 +7,7 @@ import { killProcessGroup, prepare, preparePackages } from '@pnpm/prepare'
 import isWindows from 'is-windows'
 import { writeYamlFileSync } from 'write-yaml-file'
 
-import { execPnpm, execPnpmSync, pnpmBinLocation, spawnPnpm } from './utils/index.js'
+import { createEnv, execPnpm, execPnpmSync, pnpmBinLocation, spawnPnpm } from './utils/index.js'
 
 test("exec should respect the caller's current working directory", async () => {
   prepare({
@@ -140,6 +140,31 @@ testOnPosix('exec: a command that fails after Ctrl+C keeps its exit code', () =>
   expect(status).toBe(3)
 })
 
+// dlx runs the command through the same wrapper as exec, after installing
+// the package it was given; the registry and cache settings the other tests
+// get from execPnpm are passed the same way.
+testOnPosix('dlx: Ctrl+C in a terminal lets the command finish shutting down', () => {
+  prepare()
+  fs.writeFileSync('dev.js', SHUTTING_DOWN_COMMAND, 'utf8')
+
+  const terminalScript = path.join(import.meta.dirname, '../../__utils__/scripts/terminal.py')
+  const { status, error, stdout } = spawnSync('python3', [
+    terminalScript,
+    process.execPath,
+    pnpmBinLocation,
+    'dlx',
+    '--package=shx@0.3.4',
+    'node',
+    'dev.js',
+  ], { encoding: 'utf8', env: createEnv(), timeout: 120_000 })
+
+  expect(error).toBeUndefined()
+  expect(stdout).toContain('started')
+  expect(fs.readFileSync('signals.txt', 'utf8')).toBe('SIGINT\n')
+  expect(fs.existsSync('shut-down.txt')).toBe(true)
+  expect(status).toBe(0)
+})
+
 testOnPosix('exec: a SIGTERM sent to pnpm without a terminal reaches the command', async () => {
   prepare()
   fs.writeFileSync('dev.js', SHUTTING_DOWN_COMMAND, 'utf8')
@@ -154,6 +179,29 @@ testOnPosix('exec: a SIGTERM sent to pnpm without a terminal reaches the command
   })
   try {
     await waitForFile('started.txt', 30_000)
+    proc.kill('SIGTERM')
+    expect(await withDeadline(shutDownBeforeExit, 30_000)).toBe(true)
+    expect(fs.readFileSync('signals.txt', 'utf8')).toBe('SIGTERM\n')
+  } finally {
+    killProcessGroup(proc.pid!)
+  }
+})
+
+// The shell that runs the command stays its parent and dies from the relayed
+// SIGTERM at once; pnpm still waits for the command behind it to finish
+// shutting down before it exits.
+testOnPosix('dlx: a SIGTERM sent to pnpm without a terminal waits for the command behind its shell', async () => {
+  prepare()
+  fs.writeFileSync('dev.js', SHUTTING_DOWN_COMMAND, 'utf8')
+
+  const proc = spawnPnpm(['dlx', '--package=shx@0.3.4', 'sh', '-c', 'node dev.js; true'], { detached: true })
+  const shutDownBeforeExit = new Promise<boolean>((resolve) => {
+    proc.on('exit', () => {
+      resolve(fs.existsSync('shut-down.txt'))
+    })
+  })
+  try {
+    await waitForFile('started.txt', 120_000)
     proc.kill('SIGTERM')
     expect(await withDeadline(shutDownBeforeExit, 30_000)).toBe(true)
     expect(fs.readFileSync('signals.txt', 'utf8')).toBe('SIGTERM\n')
