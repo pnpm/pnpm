@@ -143,14 +143,19 @@ pub(super) fn place_marker<Reporter: self::Reporter>(
 /// Remove a directory sitting where a package file belongs: the rename
 /// in [`import_atomic`] replaces a file but never a directory.
 pub(super) fn clear_dir_blocking_file(target: &Path) -> Result<(), ImportIndexedDirError> {
-    match fs::symlink_metadata(target) {
-        Ok(meta) if meta.is_dir() => fs::remove_dir_all(target)
+    match pnpm_fs::symlink_metadata_with_retry(target) {
+        Ok(meta) if meta.is_dir() => pnpm_fs::remove_dir_all_with_retry(target)
             .map_err(|error| ImportIndexedDirError::ClearBlockingDirEntry {
                 path: target.to_path_buf(),
                 error,
             }),
         Ok(_) => Ok(()),
-        Err(err) if err.kind() == io::ErrorKind::NotFound => Ok(()),
+        Err(err)
+            if err.kind() == io::ErrorKind::NotFound
+                || pnpm_fs::is_transient_file_lock_error(&err) =>
+        {
+            Ok(())
+        }
         Err(error) => {
             Err(ImportIndexedDirError::InspectTarget { path: target.to_path_buf(), error })
         }
@@ -168,14 +173,19 @@ pub(super) fn clear_dirent_blocking_dir(
     let mut abs = root.to_path_buf();
     for component in Path::new(rel).components() {
         abs.push(component);
-        match fs::symlink_metadata(&abs) {
+        match pnpm_fs::symlink_metadata_with_retry(&abs) {
             Ok(meta) if meta.is_dir() => {}
             Ok(meta) => remove_non_dir_dirent(&abs, meta.file_type())
                 .map_err(|error| ImportIndexedDirError::ClearBlockingDirEntry {
                     path: abs.clone(),
                     error,
                 })?,
-            Err(err) if err.kind() == io::ErrorKind::NotFound => break,
+            Err(err)
+                if err.kind() == io::ErrorKind::NotFound
+                    || pnpm_fs::is_transient_file_lock_error(&err) =>
+            {
+                break;
+            }
             Err(error) => return Err(ImportIndexedDirError::InspectTarget { path: abs, error }),
         }
     }
@@ -222,7 +232,7 @@ pub(super) fn all_files_match(dir_path: &Path, cas_paths: &HashMap<String, PathB
 /// way pnpm's `allFilesMatch` does.
 pub(super) fn file_matches_store_entry(target: &Path, store_path: &Path) -> bool {
     let (Ok(target_meta), Ok(store_meta)) =
-        (fs::symlink_metadata(target), fs::metadata(store_path))
+        (pnpm_fs::symlink_metadata_with_retry(target), fs::metadata(store_path))
     else {
         return false;
     };

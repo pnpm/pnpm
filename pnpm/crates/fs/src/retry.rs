@@ -48,9 +48,14 @@ pub fn remove_dir_all_with_retry(path: &Path) -> io::Result<()> {
     retry_transient_file_locks(|| fs::remove_dir_all(path))
 }
 
+/// Query metadata of a symbolic link or file, retrying transient Windows file-lock errors.
+pub fn symlink_metadata_with_retry(path: &Path) -> io::Result<fs::Metadata> {
+    retry_transient_file_locks(|| fs::symlink_metadata(path))
+}
+
 /// Run a filesystem operation with the retry policy of [`rename_with_retry`];
 /// [`is_transient_file_lock_error`] decides which failures are retried.
-pub(crate) fn retry_transient_file_locks<Value>(
+pub fn retry_transient_file_locks<Value>(
     operation: impl FnMut() -> io::Result<Value>,
 ) -> io::Result<Value> {
     #[cfg(windows)]
@@ -153,7 +158,8 @@ where
 /// share mode), or `ERROR_BUSY`. The sharing and lock violations have no
 /// [`io::ErrorKind`] of their own, so they are matched by raw OS error.
 /// Always `false` on Unix.
-pub(crate) fn is_transient_file_lock_error(error: &io::Error) -> bool {
+#[must_use]
+pub fn is_transient_file_lock_error(error: &io::Error) -> bool {
     cfg!(windows)
         && (matches!(error.kind(), io::ErrorKind::PermissionDenied | io::ErrorKind::ResourceBusy)
             || matches!(error.raw_os_error(), Some(ERROR_SHARING_VIOLATION | ERROR_LOCK_VIOLATION)))
