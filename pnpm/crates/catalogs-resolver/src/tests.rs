@@ -147,9 +147,6 @@ const WORKSPACE_DIR: &str = r"C:\workspace";
 #[cfg(not(windows))]
 const WORKSPACE_DIR: &str = "/workspace";
 
-/// Resolve `catalog:foo` for a consumer sitting `consumer` below the
-/// workspace directory, with `None` standing for a consumer that has no
-/// directory of its own.
 fn reanchored(entry: &str, consumer: Option<&str>) -> String {
     let catalogs = catalogs_from(&[("foo", &[("bar", entry)])]);
     let workspace_dir = Path::new(WORKSPACE_DIR);
