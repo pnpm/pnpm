@@ -14,16 +14,30 @@ use super::{
 /// relative `link:` / `file:` override target names a path from there,
 /// so anchoring the overrider anywhere else rewrites the manifest to
 /// specifiers the lockfile never recorded.
+pub(crate) struct ImporterSatisfactionCheck<'a> {
+    pub(crate) lockfile: &'a Lockfile,
+    pub(crate) lockfile_dir: &'a Path,
+    pub(crate) manifest: &'a PackageManifest,
+    pub(crate) importer_id: &'a str,
+    pub(crate) config: &'a Config,
+    pub(crate) workspace_packages: Option<&'a pnpm_resolving_resolver_base::WorkspacePackages>,
+    pub(crate) ignored_optional_matcher: &'a pnpm_matcher::Matcher,
+    pub(crate) parsed_overrides: Option<&'a [pnpm_config_parse_overrides::VersionOverride]>,
+}
+
 pub(crate) fn check_importer_satisfies(
-    lockfile: &Lockfile,
-    lockfile_dir: &Path,
-    manifest: &PackageManifest,
-    importer_id: &str,
-    config: &Config,
-    workspace_packages: Option<&pnpm_resolving_resolver_base::WorkspacePackages>,
-    ignored_optional_matcher: &pnpm_matcher::Matcher,
-    parsed_overrides: Option<&[pnpm_config_parse_overrides::VersionOverride]>,
+    check: &ImporterSatisfactionCheck<'_>,
 ) -> Result<(), FreshnessCheckError> {
+    let ImporterSatisfactionCheck {
+        lockfile,
+        lockfile_dir,
+        manifest,
+        importer_id,
+        config,
+        workspace_packages,
+        ignored_optional_matcher,
+        parsed_overrides,
+    } = *check;
     let importer = lockfile.importers
         .get(importer_id)
         .ok_or_else(|| FreshnessCheckError::NoImporter { importer_id: importer_id.to_string() })?;
