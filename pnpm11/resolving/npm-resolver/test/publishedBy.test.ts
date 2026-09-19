@@ -959,6 +959,48 @@ test('a repeated 304 to the release-age upgrade is handled without reporting an 
   expect(errors).toStrictEqual([])
 })
 
+test('the release-age upgrade writes no etag validator to the abbreviated mirror', async () => {
+  const cacheDir = temporaryDirectory()
+  const abbrevCacheDir = path.join(cacheDir, `${ABBREVIATED_META_DIR}/https%3A+registry.npmjs.org`)
+  fs.mkdirSync(abbrevCacheDir, { recursive: true })
+  const cachePath = path.join(abbrevCacheDir, 'is-positive.jsonl')
+
+  const { time: _time, ...abbreviatedWithoutTime } = isPositiveAbbreviatedMeta
+  const cachedMeta = {
+    ...abbreviatedWithoutTime,
+    modified: '2015-06-10T00:00:00.000Z',
+  }
+  const cacheHeaders = JSON.stringify({ etag: '"abbreviated-etag"', modified: cachedMeta.modified })
+  fs.writeFileSync(cachePath, `${cacheHeaders}\n${JSON.stringify(cachedMeta)}`, 'utf8')
+
+  const agent = getMockAgent().get(registriesByScope.default.replace(/\/$/, ''))
+  agent.intercept({
+    path: '/is-positive',
+    method: 'GET',
+    headers: { 'if-none-match': '"abbreviated-etag"' },
+  }).reply(304, '')
+  agent.intercept({ path: '/is-positive', method: 'GET' })
+    .reply(200, isPositiveMeta, { headers: { etag: '"full-etag"' } })
+
+  const { resolveFromNpm } = createResolveFromNpm({
+    storeDir: temporaryDirectory(),
+    cacheDir,
+    registriesByScope,
+  })
+
+  await resolveFromNpm({ alias: 'is-positive', bareSpecifier: '^1.0.0' }, {
+    publishedBy: new Date('2015-06-05T00:00:00.000Z'),
+  })
+
+  // saveMetaBestEffort is async via runLimited, wait briefly for disk write to complete
+  await new Promise((resolve) => setTimeout(resolve, 100))
+
+  expect(fs.existsSync(cachePath)).toBe(true)
+  const [headerLine] = fs.readFileSync(cachePath, 'utf8').split('\n')
+  const header = JSON.parse(headerLine)
+  expect(header.etag).toBeUndefined()
+})
+
 /**
  * The abbreviated packument as a registry that reports publish times for only
  * some of the versions it serves would answer, with `modified` recent enough

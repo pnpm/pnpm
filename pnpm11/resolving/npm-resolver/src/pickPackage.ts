@@ -737,6 +737,10 @@ function upgradeMetaForCache (
 // A condensing resolver keeps and mirrors the condensed form — the mirror
 // only has to carry `time` into the next install; otherwise the raw response
 // body is written and the unstripped meta is kept.
+// An ETag identifies one representation (full vs abbreviated). When an
+// upgraded full document is written back to the abbreviated mirror slot, no
+// validator is written so that future abbreviated requests do not send an
+// ETag describing the full document.
 function persistUpgradedMeta (
   ctx: { fullMetadata?: boolean, filterMetadata?: boolean },
   pkgMirror: string,
@@ -744,8 +748,8 @@ function persistUpgradedMeta (
 ): PackageMeta {
   const metaForCache = condenseMetaForCache(ctx, upgradedFrom.meta)
   const jsonForDisk = metaForCache === upgradedFrom.meta
-    ? prepareJsonForDisk(upgradedFrom.meta, upgradedFrom.etag, upgradedFrom.jsonText)
-    : prepareJsonForDisk(metaForCache, upgradedFrom.etag)
+    ? prepareJsonForDisk(upgradedFrom.meta, undefined, upgradedFrom.jsonText)
+    : prepareJsonForDisk(metaForCache, undefined)
   saveMetaBestEffort(pkgMirror, jsonForDisk)
   return metaForCache
 }

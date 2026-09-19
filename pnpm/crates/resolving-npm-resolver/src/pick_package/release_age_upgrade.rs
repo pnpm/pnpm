@@ -160,6 +160,11 @@ pub(super) fn release_age_upgrade_needed<Cache: PackageMetaCache>(
 /// abbreviated mode). A write failure logs at debug and the install
 /// proceeds — the next install simply re-triggers the upgrade fetch.
 ///
+/// An `ETag` identifies one representation (full vs abbreviated). When an
+/// upgraded full document is written back to the abbreviated mirror slot, no
+/// validator is written so that future abbreviated requests do not send an
+/// `ETag` describing the full document.
+///
 /// On a successful indexed save, returns the just-persisted mirror
 /// reloaded in its file-backed form so the caller can cache *it*
 /// instead of the response-body-backed document — upgraded packuments
@@ -184,9 +189,9 @@ pub(super) fn persist_upgraded_to_mirror(
                 return None;
             }
         };
-        save_meta_ndjson(pkg_mirror, &meta_for_cache, meta.etag.as_deref())
+        save_meta_ndjson(pkg_mirror, &meta_for_cache, None)
     } else {
-        save_meta_indexed(pkg_mirror, meta, meta.etag.as_deref())
+        save_meta_indexed(pkg_mirror, meta, None)
     };
     match save_result {
         Ok(()) if !filter_metadata => load_meta(pkg_mirror),
@@ -215,4 +220,30 @@ pub(super) fn release_age_upgrade_limit(
             .or_insert_with(|| Arc::new(Semaphore::new(1)))
             .value(),
     )
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::mirror::load_meta_headers;
+    use tempfile::tempdir;
+
+    #[test]
+    fn persist_upgraded_to_mirror_writes_no_etag() {
+        let dir = tempdir().expect("tempdir");
+        let pkg_mirror = dir.path().join("pkg.jsonl");
+
+        let mut pkg: Package = serde_json::from_value(serde_json::json!({
+            "name": "is-positive",
+            "dist-tags": { "latest": "1.0.0" },
+            "versions": {}
+        }))
+        .expect("deserialize Package");
+        pkg.etag = Some("\"full-etag\"".to_string());
+
+        persist_upgraded_to_mirror(&pkg_mirror, &pkg, true);
+
+        let headers = load_meta_headers(&pkg_mirror).expect("headers readable");
+        assert_eq!(headers.etag, None);
+    }
 }
