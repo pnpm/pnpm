@@ -38,6 +38,22 @@ pub fn resolve_pnpmfile_paths(
     Ok(pnpmfiles)
 }
 
+/// Whether preparing configuration can run an `updateConfig` hook.
+///
+/// Config-dependency plugins may not be installed yet, so their future
+/// pnpmfiles must be counted from the declarations rather than from disk.
+pub fn may_update_config(config: &Config, root_dir: &Path) -> bool {
+    if config.ignore_pnpmfile {
+        return false;
+    }
+    let has_config_plugin = config.config_dependencies
+        .as_ref()
+        .is_some_and(|dependencies| dependencies.keys().any(|name| finder::is_plugin_name(name)));
+    has_config_plugin
+        || !finder::find_pnpmfiles(root_dir, pnpm_package_manager::pnpmfile_selection(config))
+            .is_empty()
+}
+
 /// Load the pnpmfiles that contribute a `beforePacking` hook for
 /// `root_dir` (see [`resolve_pnpmfile_paths`]), returning one shareable
 /// hook handle per pnpmfile. A recursive pack loads them once and clones

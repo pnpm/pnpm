@@ -17,8 +17,11 @@ fn engine_strict_rejects_an_incompatible_root_project() {
     )
     .expect("write package.json");
 
-    fs::write(workspace.join("pnpm-workspace.yaml"), "engineStrict: true\nnodeVersion: 20.0.0\n")
-        .expect("write workspace settings");
+    fs::write(
+        workspace.join("pnpm-workspace.yaml"),
+        "engineStrict: true\nnodeVersion: 20.0.0\nconfigDependencies:\n  '@pnpm.e2e/foo': 100.0.0\n",
+    )
+    .expect("write workspace settings");
 
     let assert = pacquet
         .with_args(["install", "--lockfile-only"])

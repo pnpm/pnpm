@@ -98,6 +98,36 @@ pub(crate) enum InstallFamilyPlan {
     PerProject(DedicatedProjects),
 }
 
+#[derive(Clone, Copy)]
+enum RuntimePolicy {
+    Always,
+    Config(bool),
+}
+
+impl RuntimePolicy {
+    fn use_manifest(self, config: &Config) -> bool {
+        match self {
+            Self::Always => true,
+            Self::Config(no_runtime) => !(config.skip_runtimes || no_runtime),
+        }
+    }
+}
+
+async fn prepare_root_config<Reporter>(
+    (manifest_path, config, config_root): (&Path, &mut Config, &Path),
+    (frozen_lockfile, runtime_policy): (bool, RuntimePolicy),
+) -> miette::Result<()>
+where
+    Reporter: self::Reporter,
+{
+    if !config_deps::may_update_config(config, config_root) {
+        check_root_project_engine(manifest_path, config, runtime_policy.use_manifest(config))?;
+    }
+    config_deps::prepare::<Reporter>(config, config_root, frozen_lockfile).await?;
+    check_root_project_engine(manifest_path, config, runtime_policy.use_manifest(config))?;
+    Ok(())
+}
+
 /// The projects of a `sharedWorkspaceLockfile: false` workspace that a
 /// recursive / filtered command installs one by one.
 pub(crate) struct DedicatedProjects {
