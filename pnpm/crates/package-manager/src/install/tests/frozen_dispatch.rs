@@ -1,5 +1,5 @@
 use super::{
-    super::{Install, InstallError, ProjectMutation},
+    super::{Install, InstallError, ProjectMutation, build_workspace_state},
     InstallDirs, PARTIAL_INSTALL_LOCKFILE, seed_placeholder_virtual_store_slot,
 };
 use crate::PolicyExcludes;
@@ -9,7 +9,7 @@ use pnpm_modules_yaml::{Host, LayoutVersion, Modules, NodeLinker, write_modules_
 use pnpm_package_manifest::{DependencyGroup, PackageManifest};
 use pnpm_reporter::{LogEvent, Reporter, SilentReporter, Stage};
 use pnpm_testing_utils::registry::TestRegistry;
-use pnpm_workspace_state::load_workspace_state;
+use pnpm_workspace_state::{load_workspace_state, update_workspace_state};
 use std::{fs, sync::Mutex, time::Duration};
 use text_block_macros::text_block;
 
@@ -746,9 +746,9 @@ async fn no_prefer_frozen_lockfile_flag_forces_fresh_resolve() {
     );
 }
 /// End-to-end: when `.modules.yaml`, `<virtual_store_dir>/lock.yaml`,
-/// and the wanted lockfile all agree — and the tree those files
-/// describe is still on disk (the short-circuit probes it; a missing
-/// entry must fall through to the repairing full path) —
+/// and the wanted lockfile agree, workspace state records the current root,
+/// and the tree those files describe is still on disk (the short-circuit
+/// probes it; a missing entry falls through to the repairing full path),
 /// [`Install::run`] must emit the `name: "pnpm"` "Lockfile is up to
 /// date" log and return without running materialization (the
 /// `allProjectsAreUpToDate` + `validateModules` short-circuit).
@@ -824,6 +824,18 @@ async fn frozen_install_short_circuits_when_modules_and_lockfile_are_consistent(
     lockfile
         .save_current_to_virtual_store_dir(&dirs.virtual_store_dir)
         .expect("seed current lockfile");
+    let seed_state = build_workspace_state::<Host>(
+        &dirs.project_root,
+        config,
+        pnpm_config::NodeLinker::Isolated,
+        included,
+        None,
+        &Default::default(),
+        &[(dirs.project_root.clone(), &manifest)],
+        false,
+        None,
+    );
+    update_workspace_state(&dirs.project_root, &seed_state).expect("seed workspace state");
     // Date the manifest inside a millisecond after the lockfile, as a
     // sub-millisecond filesystem leaves a manifest edited after the last
     // lockfile write: the manifest's truncated mtime alone would read as

@@ -1,4 +1,5 @@
 use super::{Path, ScriptRuntime, generate_sh_shim};
+use crate::shim::is_relocatable_shim;
 
 #[test]
 fn generate_sh_shim_keeps_paths_outside_the_root_absolute() {
@@ -66,14 +67,22 @@ fn relative_node_path_segments_are_sh_escaped() {
 
 #[test]
 #[cfg_attr(not(unix), ignore = "relocatable shims are only written on Unix")]
-fn in_root_shim_is_written_relative_to_itself() {
-    let root = Path::new("/p");
-    let shim_dir = Path::new("/p/node_modules/.bin");
+fn in_root_shim_is_written_relative_to_itself_and_only_such_a_shim_is_relocatable() {
+    let tmp = tempfile::tempdir().unwrap();
+    let root = tmp.path();
+    let shim_dir = root.join("node_modules/.bin");
+    std::fs::create_dir_all(&shim_dir).unwrap();
+    let shim_dir = shim_dir.as_path();
     let shim = shim_dir.join("tsc");
-    let target = Path::new("/p/node_modules/typescript/bin/tsc");
+    let target = root.join("node_modules/typescript/bin/tsc");
+    let target = target.as_path();
     let node_path = [
-        "/p/node_modules/.pnpm/typescript@5.0.0/node_modules".to_string(),
-        "/p/node_modules/.pnpm/node_modules".to_string(),
+        root.join("node_modules/.pnpm/typescript@5.0.0/node_modules")
+            .to_string_lossy()
+            .into_owned(),
+        root.join("node_modules/.pnpm/node_modules")
+            .to_string_lossy()
+            .into_owned(),
     ];
     let relocatable = generate_sh_shim(target, &shim, None, &node_path, Some(root));
     eprintln!("BODY:\n{relocatable}");
@@ -84,6 +93,42 @@ fn in_root_shim_is_written_relative_to_itself() {
         "  export NODE_PATH=\"$basedir_abs/../.pnpm/typescript@5.0.0/node_modules:$basedir_abs/../.pnpm/node_modules:$NODE_PATH\"\n",
         "fi\n",
     )));
-    assert!(!relocatable.contains("/p/"), "no path inside the root may stay absolute");
+    assert!(
+        !relocatable.contains(root.to_str().unwrap()),
+        "no path inside the root may stay absolute",
+    );
     assert!(relocatable.ends_with("# cmd-shim-target=../typescript/bin/tsc\n"));
+    assert!(
+        is_relocatable_shim(&relocatable, shim_dir, root),
+        "a generated shim, its `$NODE_PATH` passthrough included, must pass",
+    );
+
+    let marker = "# cmd-shim-target=../typescript/bin/tsc\n";
+    let split_node_path = [
+        "/p/node_modules/a\nb/node_modules".to_string(),
+        "/old/p/node_modules/.pnpm/node_modules".to_string(),
+    ];
+    let rejected = [
+        (
+            "an entry split over two lines",
+            generate_sh_shim(target, &shim, None, &split_node_path, Some(root)),
+        ),
+        (
+            "absolute marker",
+            relocatable.replace(marker, &format!("# cmd-shim-target={}\n", target.display())),
+        ),
+        ("no marker", relocatable.replace(marker, "")),
+        (
+            "marker climbing out",
+            relocatable.replace(marker, "# cmd-shim-target=../../../../x/tsc\n"),
+        ),
+        ("absolute entry", relocatable.replace("$basedir_abs/../.pnpm", "/p/node_modules/.pnpm")),
+        (
+            "climbing out",
+            relocatable.replace("$basedir_abs/../.pnpm", "$basedir_abs/../../../../x"),
+        ),
+    ];
+    for (label, shim_content) in rejected {
+        assert!(!is_relocatable_shim(&shim_content, shim_dir, root), "{label}:\n{shim_content}");
+    }
 }

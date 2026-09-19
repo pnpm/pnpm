@@ -86,8 +86,8 @@ impl<'a> InstallFrozenLockfile<'a> {
                 graph: crate::LinkLockfiles {
                     lockfile: install.lockfiles.wanted,
                     current_lockfile: install.lockfiles.current,
-                    materialized_snapshots: install.prior.rebuild
-                        .is_none()
+                    materialized_snapshots: (install.prior.rebuild.is_none()
+                        && !install.prior.relink_every_slot_bin)
                         .then_some(phase.fetched.materialized_snapshots.as_slice()),
                     sidecar_lockfile: phase.current_lockfile,
                 },

@@ -37,7 +37,7 @@ const IS_POSITIVE_HOOKS_FILE_PATCH: &str = include_str!(
 
 /// Adds a marker file, so a package's patched state can be read off the
 /// filesystem without depending on the package's own sources.
-const MARKER_PATCH: &str = concat!(
+pub(crate) const MARKER_PATCH: &str = concat!(
     "diff --git a/patched-marker.txt b/patched-marker.txt\n",
     "new file mode 100644\n",
     "index 0000000..3f2e1d4\n",

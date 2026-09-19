@@ -42,3 +42,6 @@ mod security;
 
 #[cfg(unix)]
 mod relocatable;
+
+#[cfg(unix)]
+mod relocation_validation;

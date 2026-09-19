@@ -160,6 +160,10 @@ pub struct PriorMaterialization<'a> {
     pub unbuilt_builds: &'a crate::UnbuiltBuilds,
     /// See [`crate::PruneStaleModules::prune_orphans`].
     pub prune_orphans: bool,
+    /// Relink the bins of every slot the lockfile records, not only of the
+    /// slots this install materializes. A tree that moved with its project
+    /// needs it, because its other slots may hold bins naming where it was.
+    pub relink_every_slot_bin: bool,
 }
 
 #[derive(Default)]
