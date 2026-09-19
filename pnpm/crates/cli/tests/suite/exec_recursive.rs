@@ -487,10 +487,9 @@ fn recursive_exec_bail_cancels_in_flight_processes() {
     let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
     write_workspace(&workspace, &["a-slow-1", "b-fails", "c-slow-2", "z-queued"]);
 
-    // The two slow projects mark themselves and then stay alive for five
-    // seconds, so bail has something in flight to cancel. The failing one
-    // waits for both marks before failing, so the cancellation is the only
-    // reason they can end early.
+    // The five-second timer is what bail has to cancel, and the failure
+    // waits for both marks first, so cancellation is the only way the run
+    // can come in under the deadline asserted below.
     let probe = write_exec_probe(
         &workspace,
         "bail-probe.cjs",
