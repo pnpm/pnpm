@@ -183,7 +183,7 @@ fn fetched_and_normalized(spec: &str, project_dir: &Path, protocol: &str) -> (Pa
         return (fetched, format!("{protocol}{spec}"));
     }
     let relative = forward_slashes(
-        pathdiff::diff_paths(&fetched, project_dir)
+        pathdiff::diff_paths(&fetched, normalize_components(project_dir))
             .map_or_else(|| fetched.display().to_string(), |path| path.display().to_string()),
     );
     (fetched, format!("{protocol}{relative}"))
@@ -222,6 +222,11 @@ fn normalize_components(path: &Path) -> PathBuf {
 /// When `preserveAbsolutePaths` is on and the input spec is absolute,
 /// the result keeps the absolute form (slash-normalised); otherwise
 /// the result is relative to `relative_to`.
+///
+/// Both paths are lexically normalized before the relative walk so a
+/// base that still contains `..` components (for example `PNPM_HOME`
+/// spelled `child/../pnpm`) produces the same relative path as its
+/// collapsed form.
 fn normalize_relative_or_absolute(
     relative_to: &Path,
     from_path: &Path,
@@ -231,7 +236,9 @@ fn normalize_relative_or_absolute(
     if opts.preserve_absolute_paths && is_absolute_specifier(original_spec) {
         return forward_slashes(from_path.display().to_string());
     }
-    let relative = pathdiff::diff_paths(from_path, relative_to)
+    let from_path = normalize_components(from_path);
+    let relative_to = normalize_components(relative_to);
+    let relative = pathdiff::diff_paths(&from_path, relative_to)
         .map_or_else(|| from_path.display().to_string(), |path| path.display().to_string());
     forward_slashes(relative)
 }
