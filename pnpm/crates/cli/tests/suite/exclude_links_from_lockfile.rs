@@ -87,6 +87,66 @@ fn plain_range_workspace_link_is_materialized_when_excluded_from_lockfile() {
     drop((root, mock_instance));
 }
 
+#[test]
+fn excluded_dependency_groups_do_not_materialize_plain_range_workspace_links() {
+    for (args, expected) in [
+        (&["--prod"][..], [true, false, true]),
+        (&["--dev"][..], [false, true, false]),
+        (&["--no-optional"][..], [true, true, false]),
+    ] {
+        let CommandTempCwd { root, workspace, npmrc_info, .. } =
+            CommandTempCwd::init().add_mocked_registry();
+        let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+        fs::write(
+            workspace.join("package.json"),
+            serde_json::json!({ "name": "ws-root", "version": "0.0.0", "private": true })
+                .to_string(),
+        )
+        .expect("write root package.json");
+        append_workspace_yaml_key(&workspace, "packages", "['packages/*']");
+        append_workspace_yaml_key(&workspace, "excludeLinksFromLockfile", true);
+        append_workspace_yaml_key(&workspace, "linkWorkspacePackages", true);
+        write_project(
+            &workspace,
+            "packages/app",
+            &serde_json::json!({
+                "name": "app",
+                "version": "1.0.0",
+                "dependencies": { "prod-dep": "^1.0.0" },
+                "devDependencies": { "dev-dep": "^1.0.0" },
+                "optionalDependencies": { "optional-dep": "^1.0.0" },
+            }),
+        );
+        for name in ["prod-dep", "dev-dep", "optional-dep"] {
+            write_project(
+                &workspace,
+                &format!("packages/{name}"),
+                &serde_json::json!({ "name": name, "version": "1.0.0" }),
+            );
+        }
+
+        pacquet_at(&workspace)
+            .with_arg("install")
+            .with_args(args)
+            .assert()
+            .success();
+        for (name, should_exist) in
+            ["prod-dep", "dev-dep", "optional-dep"].into_iter().zip(expected)
+        {
+            assert_eq!(
+                workspace
+                    .join("packages/app/node_modules")
+                    .join(name)
+                    .exists(),
+                should_exist,
+                "dependency {name} with arguments {args:?}",
+            );
+        }
+
+        drop((root, mock_instance));
+    }
+}
+
 /// The setting only keeps the machine-dependent path of an *external*
 /// link out of the lockfile. A workspace-internal link resolving a peer
 /// dependency is already stable across machines, so its peer suffix and

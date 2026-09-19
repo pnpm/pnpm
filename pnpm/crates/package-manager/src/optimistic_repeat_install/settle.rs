@@ -17,20 +17,6 @@ use std::{
     path::{Path, PathBuf},
 };
 
-/// Whether `current` already records the lockfile shape that materializing
-/// `wanted` would produce.
-pub(crate) fn materialized_shape_matches(
-    wanted: &Lockfile,
-    current: &Lockfile,
-    included: IncludedDependencies,
-) -> bool {
-    if wanted == current {
-        return true;
-    }
-    current
-        == &crate::filter_lockfile_for_current(wanted, included, &crate::SkippedSnapshots::new())
-}
-
 /// The verdict the fast path can already reach from the current lockfile and
 /// the fact that nothing was modified.
 pub(super) fn early_repeat_verdict(

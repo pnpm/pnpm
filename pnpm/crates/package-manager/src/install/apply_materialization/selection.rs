@@ -102,9 +102,13 @@ pub(super) struct LinkMaterializedProjectsInputs<'a> {
     pub(super) config: &'static Config,
     pub(super) lockfiles: LinkMaterializedLockfiles<'a>,
     pub(super) workspace_root: &'a Path,
-    pub(super) workspace_packages: Option<&'a pnpm_resolving_resolver_base::WorkspacePackages>,
-    pub(super) project_manifests: &'a [(PathBuf, &'a PackageManifest)],
+    pub(super) manifest_links: LinkMaterializedManifestLinks<'a>,
     pub(super) materialized_project_manifests: &'a [(PathBuf, &'a PackageManifest)],
+}
+pub(super) struct LinkMaterializedManifestLinks<'a> {
+    pub(super) workspace_packages: Option<&'a pnpm_resolving_resolver_base::WorkspacePackages>,
+    pub(super) included: IncludedDependencies,
+    pub(super) project_manifests: &'a [(PathBuf, &'a PackageManifest)],
 }
 pub(super) struct LinkMaterializedLockfiles<'a> {
     pub(super) current: Option<&'a Lockfile>,
@@ -129,7 +133,8 @@ pub(super) async fn link_materialized_projects<Reporter: self::Reporter + 'stati
             inputs.lockfiles.wanted.and_then(|lockfile| {
                 (!lockfile.importers.is_empty()).then_some(&lockfile.importers)
             }),
-            inputs.workspace_packages,
+            inputs.manifest_links.workspace_packages,
+            inputs.manifest_links.included,
             inputs.config.modules_dir
                 .file_name()
                 .unwrap_or_else(|| std::ffi::OsStr::new("node_modules")),
@@ -163,7 +168,7 @@ pub(super) async fn write_filtered_package_map(
             modules_dir: &inputs.config.modules_dir,
             package_map_type: inputs.config.node_package_map_type,
             layout: &layout,
-            project_manifests: inputs.project_manifests,
+            project_manifests: inputs.manifest_links.project_manifests,
         },
     )
     .map_err(InstallError::WritePackageMap)?;

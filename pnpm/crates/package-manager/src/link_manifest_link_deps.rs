@@ -7,6 +7,7 @@ use derive_more::{Display, Error};
 use miette::Diagnostic;
 use pnpm_cmd_shim::LinkBinsOptions;
 use pnpm_lockfile::ProjectSnapshot;
+use pnpm_modules_yaml::IncludedDependencies;
 use pnpm_package_manifest::{DependencyGroup, PackageManifest};
 use pnpm_reporter::{AddedRoot, DependencyType, LogEvent, LogLevel, RootLog, RootMessage};
 use pnpm_resolving_resolver_base::WorkspacePackages;
@@ -23,6 +24,7 @@ pub fn link_manifest_link_deps<Reporter: pnpm_reporter::Reporter>(
     project_manifests: &[(PathBuf, &PackageManifest)],
     importers: Option<&HashMap<String, ProjectSnapshot>>,
     workspace_packages: Option<&WorkspacePackages>,
+    included: IncludedDependencies,
     modules_dir_name: &std::ffi::OsStr,
     link_options: &LinkBinsOptions,
 ) -> Result<(), LinkManifestLinkDepsError> {
@@ -59,6 +61,7 @@ pub fn link_manifest_link_deps<Reporter: pnpm_reporter::Reporter>(
             modules_dir: &modules_dir,
             importer_snapshot,
             workspace_packages,
+            included,
             link_options,
         };
         link_project_manifest_deps::<Reporter>(&project, manifest)?;
@@ -72,6 +75,7 @@ struct ProjectLinks<'a> {
     modules_dir: &'a Path,
     importer_snapshot: Option<&'a ProjectSnapshot>,
     workspace_packages: Option<&'a WorkspacePackages>,
+    included: IncludedDependencies,
     link_options: &'a LinkBinsOptions,
 }
 
@@ -85,7 +89,14 @@ fn link_project_manifest_deps<Reporter: pnpm_reporter::Reporter>(
     // Per-group iteration (instead of one flattened
     // `manifest.dependencies([...])` pass) so the `pnpm:root added`
     // event below carries the dependency's real group.
-    for group in [DependencyGroup::Prod, DependencyGroup::Dev, DependencyGroup::Optional] {
+    for (included, group) in [
+        (project.included.dependencies, DependencyGroup::Prod),
+        (project.included.dev_dependencies, DependencyGroup::Dev),
+        (project.included.optional_dependencies, DependencyGroup::Optional),
+    ] {
+        if !included {
+            continue;
+        }
         for (alias, spec) in manifest.dependencies([group]) {
             if link_manifest_dep::<Reporter>(project, group, alias, spec)? {
                 // Bins are (re-)linked for reused symlinks too — the
@@ -177,6 +188,9 @@ pub(crate) fn workspace_link_target(
         "latest",
         "https://registry.npmjs.org/",
     )?;
+    if parsed.revision.is_some() {
+        return None;
+    }
     let versions = workspace_packages.get(&parsed.name)?;
     let version =
         pnpm_resolving_npm_resolver::pick_matching_local_version_or_null(versions, &parsed)?;

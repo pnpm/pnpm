@@ -2,8 +2,8 @@ use super::{
     super::{
         ApplyMaterializationInputs, Arc, AtomicU8, IncludedDependencies, InstallError, LogEvent,
         LogLevel, MaterializationInputs, PackageManifest, PathBuf, RebuildOptions, Reporter,
-        SummaryLog, apply_materialization_result, build_workspace_packages_map, materialize,
-        prior_hoisted_dependencies, prior_hoisted_locations,
+        SummaryLog, apply_materialization_result, materialize, prior_hoisted_dependencies,
+        prior_hoisted_locations,
     },
     Dispatched, InstallRunOutcome, InstallScope, Loaded, Lockfiles, RunExecution, Settled,
     Verification, dispatch, load_lockfiles, settle_wanted_lockfile, workspace_projects,

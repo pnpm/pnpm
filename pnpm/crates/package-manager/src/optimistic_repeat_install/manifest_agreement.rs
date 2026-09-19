@@ -128,10 +128,7 @@ pub(super) fn check_projects_content(
         .par_iter()
         .map(|project| project_content_check(&content_check, project))
         .collect();
-    for result in results {
-        result?;
-    }
-    Ok(())
+    results.into_iter().collect()
 }
 
 /// The lockfile the content check compares against, and how it was found.
