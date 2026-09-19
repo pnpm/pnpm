@@ -65,6 +65,21 @@ pub fn redact_and_sanitize(text: &str) -> String {
     redact_url_credentials(&sanitized)
 }
 
+/// Redact userinfo from an npm protocol-relative auth key before displaying it.
+/// Malformed keys containing `@` are hidden because their authority boundary
+/// cannot be identified without risking credential disclosure.
+#[must_use]
+pub fn redact_npm_auth_key(key: &str) -> String {
+    let sanitized = sanitize_control_characters(key);
+    let Some(authority_and_path) = sanitized.strip_prefix("//") else {
+        return sanitized;
+    };
+    if let Some(redacted) = strip_leading_userinfo(authority_and_path) {
+        return format!("//{redacted}");
+    }
+    if authority_and_path.contains('@') { "[hidden]".to_string() } else { sanitized }
+}
+
 /// Make a URL safe for user-visible output without exposing credentials,
 /// query parameters, fragments, or terminal control characters.
 /// Malformed URLs are replaced entirely because their authority cannot be

@@ -1,7 +1,7 @@
 use super::{
     Cow, EnvVar, NpmrcAuth, Path, apply_creds_field, apply_tls_field, env_replace_lossy,
-    expand_inline_pem, is_auth_value_key, normalize_registry_url, parse_bool, resolve_cafile,
-    split_ini_creds_key, split_ssl_key,
+    expand_inline_pem, is_auth_value_key, normalize_registry_url, parse_bool, redact_npm_auth_key,
+    resolve_cafile, split_ini_creds_key, split_ssl_key,
 };
 
 #[derive(Clone, Copy)]
@@ -61,17 +61,6 @@ fn has_env_placeholder(value: &str) -> bool {
                 .find('}')
                 .is_some_and(|end| end > 0)
         })
-}
-
-fn auth_key_for_warning(key: &str) -> Cow<'_, str> {
-    let Some(authority_and_path) = key.strip_prefix("//") else {
-        return Cow::Borrowed(key);
-    };
-    let authority_end = authority_and_path.find('/').unwrap_or(authority_and_path.len());
-    let Some(userinfo_end) = authority_and_path[..authority_end].rfind('@') else {
-        return Cow::Borrowed(key);
-    };
-    Cow::Owned(format!("//{}", &authority_and_path[userinfo_end + 1..]))
 }
 
 impl NpmrcAuth {
@@ -272,7 +261,7 @@ impl NpmrcAuth {
     }
 
     pub(super) fn warn_ignored_auth_value_env(&mut self, key: &str) {
-        let key = auth_key_for_warning(key);
+        let key = redact_npm_auth_key(key);
         self.warnings.push(format!(
             "Ignored project-level auth setting {key:?}: environment variables are not expanded in repository-controlled registry credentials. \
              Move this credential to your user-level ~/.npmrc or set it with pnpm config set. \

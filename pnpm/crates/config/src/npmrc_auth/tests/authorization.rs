@@ -744,6 +744,18 @@ fn ignored_auth_warning_redacts_protocol_relative_userinfo() {
 
     assert!(warning.contains("//registry.npmjs.org/:_authToken"));
     assert!(!warning.contains("user:password"));
+
+    let malformed = NpmrcAuth::from_project_ini::<Env>(
+        "//user:pa/ss@registry.npmjs.org/:_authToken=${MY_TOKEN}\n",
+        Path::new(""),
+    );
+    let warning = malformed.warnings
+        .iter()
+        .find(|warning| warning.contains("Ignored project-level auth setting"))
+        .expect("ignored malformed auth warning");
+    assert!(warning.contains("[hidden]"));
+    assert!(!warning.contains("user:pa"));
+    assert!(!warning.contains("ss@registry"));
 }
 
 #[test]
