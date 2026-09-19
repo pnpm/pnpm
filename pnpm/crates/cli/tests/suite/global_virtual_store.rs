@@ -35,7 +35,11 @@ fn gvs_root(store_dir: &Path) -> PathBuf {
 /// The `<gvs>/<scope>/<name>/<version>` directory whose children are the
 /// per-dependency-graph hash directories.
 fn pkg_version_dir(store_dir: &Path, name: &str, version: &str) -> PathBuf {
-    gvs_root(store_dir).join(name).join(version)
+    let mut dir = gvs_root(store_dir);
+    let prefix = if name.starts_with('@') { "" } else { "@/" };
+    let rel = format!("{prefix}{name}/{version}");
+    dir.extend(rel.split('/'));
+    dir
 }
 
 /// Sorted hash-directory names under a `<name>/<version>` directory.
