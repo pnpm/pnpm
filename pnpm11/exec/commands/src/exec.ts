@@ -42,7 +42,7 @@ import {
 } from './run.js'
 import { runDepsStatusCheck } from './runDepsStatusCheck.js'
 import { taskRunExecutionSettings, type TaskRunState, TaskRunStateContext } from './taskRunState.js'
-import { trackedExeca } from './trackedExeca.js'
+import { trackedExeca, waitForTracked } from './trackedExeca.js'
 
 export const shorthands: Record<string, string | string[]> = {
   parallel: runShorthands.parallel,
@@ -399,7 +399,7 @@ export async function handler (
               resolve()
             })
           })
-          await child
+          await waitForTracked(child)
         } else {
           const child = trackedExeca(cmd, args, {
             cwd: prefix,
@@ -407,7 +407,7 @@ export async function handler (
             stdio: 'inherit',
             shell: opts.shellMode ?? false,
           })
-          await child
+          await waitForTracked(child)
         }
         result[prefix].status = 'passed'
         result[prefix].duration = getExecutionDuration(startTime)

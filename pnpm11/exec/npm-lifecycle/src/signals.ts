@@ -1,6 +1,98 @@
 import fs from 'node:fs'
 import path from 'node:path'
 
+/** A child pnpm relays its signals to. */
+export interface SignalTarget {
+  pid?: number
+  kill: (signal?: NodeJS.Signals | number) => boolean
+}
+
+export interface RelaySignalsOptions {
+  /** The child leads a process group of its own, which is what pnpm signals. */
+  ownProcessGroup: boolean
+}
+
+/** Handles pnpm's own signals on behalf of a running child. */
+export interface SignalRelay {
+  /** The first signal that reached pnpm while the child ran, if any. */
+  interruptedBy: () => NodeJS.Signals | null
+  /** Whether a signal was relayed to the child. */
+  relayed: () => boolean
+  /** Terminate the child as pnpm's own exit would, once. */
+  terminate: () => void
+  /**
+   * Wait for the child's process group after a relayed signal, then stop
+   * relaying. The shell may have died from the signal while the script it
+   * started is still shutting down, so the wait has no deadline of its own;
+   * the relay stays on meanwhile, and further signals escalate as they
+   * always do, the last of them ending pnpm itself.
+   */
+  settle: () => Promise<void>
+}
+
+/**
+ * Relay pnpm's own signals to `child` until `settle` is called.
+ *
+ * A SIGTERM is passed on. A SIGINT is passed on unless a terminal delivered
+ * it, in which case the child has it already; a second SIGINT becomes a
+ * SIGTERM. When pnpm exits with the child still running, the child is
+ * terminated. A child with a process group of its own is signalled as a
+ * group.
+ */
+export function relaySignals (child: SignalTarget, opts: RelaySignalsOptions): SignalRelay {
+  let interruptedBy: NodeJS.Signals | null = null
+  let relayed = false
+  let terminated = false
+  const relay = (signal: NodeJS.Signals): void => {
+    relayed = true
+    if (opts.ownProcessGroup && child.pid != null) {
+      try {
+        process.kill(-child.pid, signal)
+      } catch {
+        // the group is gone already
+      }
+      return
+    }
+    child.kill(signal)
+  }
+  const terminate = (): void => {
+    if (terminated) return
+    terminated = true
+    relay('SIGTERM')
+  }
+  const onTerm = (): void => {
+    interruptedBy ??= 'SIGTERM'
+    terminate()
+  }
+  const onInterrupt = (): void => {
+    interruptedBy ??= 'SIGINT'
+    if (!hasControllingTerminal()) {
+      relay('SIGINT')
+    }
+    process.once('SIGINT', terminate)
+  }
+  process.once('SIGTERM', onTerm)
+  process.once('SIGINT', onInterrupt)
+  process.on('exit', terminate)
+  return {
+    interruptedBy: () => interruptedBy,
+    relayed: () => relayed,
+    terminate,
+    settle: async () => {
+      try {
+        if (relayed && opts.ownProcessGroup && child.pid != null) {
+          await waitForProcessGroup(child.pid)
+        }
+      } finally {
+        process.removeListener('SIGTERM', onTerm)
+        process.removeListener('SIGINT', terminate)
+        process.removeListener('SIGINT', onInterrupt)
+        process.removeListener('exit', terminate)
+      }
+    },
+  }
+}
+
 /**
  * Whether a child should get a process group of its own.
  *
