@@ -1,12 +1,14 @@
 use super::frozen_tree_intact;
 use pnpm_config::{Config, NodeLinker};
-use pnpm_lockfile::{Lockfile, SnapshotEntry};
+use pnpm_lockfile::{Lockfile, ProjectSnapshot, SnapshotEntry};
 use pnpm_modules_yaml::{
     Host, IncludedDependencies, Modules, ModulesLayout, write_modules_manifest,
 };
 use std::{fs, path::Path};
 use tempfile::tempdir;
 use text_block_macros::text_block;
+
+mod peer_variants;
 
 fn shared_workspace_tree_intact(root: &Path, node_linker: NodeLinker) -> bool {
     tree_intact(root, node_linker, &shared_workspace_lockfile())
@@ -167,6 +169,8 @@ fn hoisted_dependencies_require_recorded_placements() {
     assert!(!shared_workspace_tree_intact(&root, NodeLinker::Hoisted));
     record_hoisted_locations(&root, &[("foo@1.0.0", &[])]);
     assert!(!shared_workspace_tree_intact(&root, NodeLinker::Hoisted));
+    record_hoisted_locations(&root, &[("not-a-dep-path", &["node_modules/foo"])]);
+    assert!(!shared_workspace_tree_intact(&root, NodeLinker::Hoisted));
 }
 
 #[test]
@@ -201,4 +205,37 @@ fn hoisted_placements_cannot_resolve_to_an_external_package() {
     record_hoisted_locations(&root, &[("foo@1.0.0", &["node_modules/foo"])]);
     pnpm_fs::symlink_dir(&outside, &root.join("node_modules/foo")).unwrap();
     assert!(!shared_workspace_tree_intact(&root, NodeLinker::Hoisted));
+}
+
+#[test]
+fn malformed_importer_paths_cannot_short_circuit_materialization() {
+    let dir = tempdir().unwrap();
+    for importer in ["../outside", "/absolute", "packages/../../outside"] {
+        let mut lockfile = shared_workspace_lockfile();
+        lockfile.importers.clear();
+        lockfile.importers.insert(importer.to_string(), ProjectSnapshot::default());
+        lockfile.snapshots = None;
+        assert!(!tree_intact(dir.path(), NodeLinker::Isolated, &lockfile), "{importer}");
+    }
+}
+
+#[test]
+fn malformed_dependency_names_cannot_short_circuit_materialization() {
+    let dir = tempdir().unwrap();
+    for name in ["../outside", "@scope/../../outside", "/absolute"] {
+        let mut lockfile = shared_workspace_lockfile();
+        lockfile.importers.retain(|id, _| id == "packages/a");
+        let dependencies = lockfile.importers
+            .get_mut("packages/a")
+            .unwrap()
+            .dependencies
+            .as_mut()
+            .unwrap();
+        let dependency = dependencies
+            .remove(&"foo".parse().unwrap())
+            .unwrap();
+        dependencies.insert(name.parse().unwrap(), dependency);
+        lockfile.snapshots = None;
+        assert!(!tree_intact(dir.path(), NodeLinker::Isolated, &lockfile), "{name}");
+    }
 }

@@ -1,4 +1,6 @@
 use super::{Config, Lockfile, NodeLinker, Path};
+use pnpm_lockfile::PackageKey;
+use std::collections::BTreeMap;
 
 /// On-disk probe backing the frozen no-op short-circuit: the
 /// short-circuit skips the materialization walk entirely, so it must
@@ -65,17 +67,43 @@ fn hoisted_packages_present(
         return false;
     };
     let Some(locations) = modules.hoisted_locations else { return false };
+    let Some(locations) = hoisted_locations_by_identity(&locations) else { return false };
     let Ok(root) = std::fs::canonicalize(workspace_root) else { return false };
     snapshots
         .keys()
         .filter(|key| !skipped.contains(key))
         .all(|key| {
             locations
-                .get(&key.to_string())
+                .get(&hoisted_package_identity(key))
                 .is_some_and(|dirs| {
                     !dirs.is_empty() && dirs.iter().all(|dir| hoisted_location_present(&root, dir))
                 })
         })
+}
+
+fn hoisted_locations_by_identity(
+    locations: &BTreeMap<String, Vec<String>>,
+) -> Option<BTreeMap<String, Vec<&str>>> {
+    let mut indexed: BTreeMap<String, Vec<&str>> = BTreeMap::new();
+    for (reference, dirs) in locations {
+        let key = reference.parse::<PackageKey>().ok()?;
+        indexed
+            .entry(hoisted_package_identity(&key))
+            .or_default()
+            .extend(dirs.iter().map(String::as_str));
+    }
+    Some(indexed)
+}
+
+/// Hoisting collapses registry peer variants, but injected directory variants
+/// keep separate copies. A different patch must still require materialization.
+fn hoisted_package_identity(key: &PackageKey) -> String {
+    let reference = key.to_string();
+    if pnpm_real_hoist::pkg_id(key) == reference {
+        reference
+    } else {
+        pnpm_deps_path::get_pkg_id_with_patch_hash(&reference).to_string()
+    }
 }
 
 fn hoisted_location_present(root: &Path, location: &str) -> bool {
@@ -134,7 +162,7 @@ fn importer_symlinks_intact(
         .iter()
         .all(|(importer_id, snapshot)| {
             if crate::symlink_direct_dependencies::validate_importer_id(importer_id).is_err() {
-                return true;
+                return false;
             }
             let importer_root =
                 crate::symlink_direct_dependencies::importer_root_dir(workspace_root, importer_id);
@@ -166,6 +194,6 @@ fn direct_dep_link_resolves(modules_dir: &Path, name: &str) -> bool {
         Ok(link) => std::fs::metadata(link).is_ok(),
         // A malformed alias never probes the disk; the full
         // path rejects it with its own typed error.
-        Err(_) => true,
+        Err(_) => false,
     }
 }
