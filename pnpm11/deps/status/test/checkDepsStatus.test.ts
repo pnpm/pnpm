@@ -336,7 +336,10 @@ describe('checkDepsStatus - pnpmfile modification', () => {
   })
 
   it('returns upToDate: false when a pnpmfile was modified', async () => {
-    const lastValidatedTimestamp = Date.now() - 10_000
+    // Half a second past a whole second, so none of the fake mtimes below
+    // reads as the whole-second mtime that modifiedAtOrAfter widens by a
+    // second; Date.now() itself lands on one about once in a thousand runs.
+    const lastValidatedTimestamp = Math.floor(Date.now() / 1000) * 1000 + 500 - 10_000
     const beforeLastValidation = lastValidatedTimestamp - 10_000
     const afterLastValidation = lastValidatedTimestamp + 1_000
     const mockWorkspaceState: WorkspaceState = {
