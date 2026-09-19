@@ -18,7 +18,7 @@ use command_extra::CommandExtra;
 use pnpm_store_dir::{STORE_VERSION, StoreDir, StoreIndex};
 use pnpm_testing_utils::{
     bin::{AddMockedRegistry, CommandTempCwd},
-    fs::is_symlink_or_junction,
+    fs::{bump_mtime, is_symlink_or_junction},
 };
 use std::{
     fmt::Write as _,

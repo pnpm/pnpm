@@ -10,7 +10,7 @@
 
 use super::{
     AddMockedRegistry, CommandExtra, CommandTempCwd, StoreDir, StoreIndex, allow_builds_yaml,
-    corrupt_pristine_file, fs, hash_dirs, is_symlink_or_junction, pacquet, pkg_in_slot,
+    bump_mtime, corrupt_pristine_file, fs, hash_dirs, is_symlink_or_junction, pacquet, pkg_in_slot,
     pkg_version_dir, read_modules_manifest, set_gvs_workspace_yaml, sole_hash_dir, write_manifest,
 };
 use assert_cmd::assert::OutputAssertExt;
@@ -154,6 +154,7 @@ fn gvs_relinks_when_allow_builds_changes() {
         &workspace,
         &allow_builds_yaml(&[("@pnpm.e2e/dep-of-pkg-with-1-dep", true)]),
     );
+    bump_mtime(&workspace.join("pnpm-workspace.yaml"));
     pacquet(&workspace)
         .with_arg("install")
         .assert()
