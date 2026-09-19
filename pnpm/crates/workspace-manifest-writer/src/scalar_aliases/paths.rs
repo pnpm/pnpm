@@ -7,42 +7,58 @@ enum Container {
     Sequence { index: usize },
 }
 
+#[derive(Default)]
+struct PathCollector {
+    containers: Vec<Container>,
+    path: Vec<Component<'static>>,
+    paths: Vec<Vec<Component<'static>>>,
+}
+
 pub(super) fn scalar_paths(
     text: &str,
 ) -> Result<Vec<Vec<Component<'static>>>, Box<yamlpatch::Error>> {
     let mut parser = Parser::new_from_str(text);
-    let mut containers = Vec::new();
-    let mut path = Vec::new();
-    let mut paths = Vec::new();
+    let mut collector = PathCollector::default();
     while let Some(event) = parser.next_event() {
         let (event, span) = event.map_err(|error| invalid(error.to_string()))?;
-        if matches!(containers.last(), Some(Container::Mapping { key: None })) && event.is_node() {
-            let key_text = mapping_key(text, &mut parser, event, span)?;
-            if let Some(Container::Mapping { key }) = containers.last_mut() {
-                *key = Some(key_text);
-            }
+        if event.is_node()
+            && let Some(Container::Mapping { key: key @ None }) = collector
+                .containers
+                .last_mut()
+        {
+            *key = Some(mapping_key(text, &mut parser, event, span)?);
             continue;
         }
+        collector.visit(event);
+    }
+    Ok(collector.paths)
+}
+
+impl PathCollector {
+    fn visit(&mut self, event: Event<'_>) {
         match event {
             event if event.is_node() => {
-                push_component(&mut containers, &mut path);
+                push_component(&mut self.containers, &mut self.path);
                 match event {
-                    Event::MappingStart(..) => containers.push(Container::Mapping { key: None }),
-                    Event::SequenceStart(..) => containers.push(Container::Sequence { index: 0 }),
+                    Event::MappingStart(..) => {
+                        self.containers.push(Container::Mapping { key: None });
+                    }
+                    Event::SequenceStart(..) => {
+                        self.containers.push(Container::Sequence { index: 0 });
+                    }
                     _ => {
-                        paths.push(path.clone());
-                        path.pop();
+                        self.paths.push(self.path.clone());
+                        self.path.pop();
                     }
                 }
             }
             Event::MappingEnd | Event::SequenceEnd => {
-                containers.pop();
-                path.pop();
+                self.containers.pop();
+                self.path.pop();
             }
             _ => {}
         }
     }
-    Ok(paths)
 }
 
 fn push_component(containers: &mut [Container], path: &mut Vec<Component<'static>>) {

@@ -62,7 +62,7 @@ fn deleting_a_setting_preserves_catalog_aliases() {
     let output =
         super::run_update_field(Some(original), "version", &serde_json::Value::Null).unwrap();
     eprintln!("{output}");
-    assert_eq!(output, "catalog:\n  react: &version ^1.0.0\n  react-dom: *version\n",);
+    assert_eq!(output, "catalog:\n  react: &version ^1.0.0\n  react-dom: *version\n");
 }
 
 #[test]
@@ -117,7 +117,7 @@ fn implicit_null_anchors_allow_unrelated_settings_to_be_edited() {
 fn aliases_beneath_non_string_mapping_keys_survive_edits() {
     for key in ["123", "0x7b", "true", "null", "[a, b]", "{a: b}"] {
         let original = format!(
-            "catalog:\n  react: &version ^1.0.0\ncustom:\n  {key}:\n    version: *version\n"
+            "catalog:\n  react: &version ^1.0.0\ncustom:\n  {key}:\n    version: *version\n",
         );
         let output =
             super::run_update_field(Some(&original), "saveExact", &serde_json::json!(true))

@@ -49,22 +49,7 @@ impl ScalarAliases {
         }
         let normalized = normalize_implicit_nulls(text, &mut definitions)?;
         let text = normalized.as_deref().unwrap_or(text);
-        let mut paths_by_span = scalar_paths_by_span(text)?;
-        let mut edits = Vec::new();
-        let mut groups = Vec::new();
-        let mut definitions: Vec<_> = definitions.into_values().collect();
-        definitions.sort_by_key(|definition| definition.anchor.start);
-        let mut next_suffix = HashMap::new();
-        for definition in definitions {
-            let query_span = definition.tag.as_ref().unwrap_or(&definition.value);
-            let Some(paths) = paths_by_span.remove(&(query_span.start, query_span.end)) else {
-                continue;
-            };
-            expand_definition(text, &definition, &mut edits)?;
-            let name = unique_name(definition.name, &mut names, &mut next_suffix);
-            groups.push(Group { name, paths, implicit_null: definition.implicit_null });
-        }
-        Ok((apply_edits(text, edits), Self { groups }))
+        expand_definitions(text, definitions, names)
     }
 
     pub(crate) fn restore(self, text: &str) -> Result<String, Box<yamlpatch::Error>> {
@@ -316,4 +301,27 @@ fn normalize_implicit_nulls(
             .implicit_null = true;
     }
     Ok(Some(normalized))
+}
+
+fn expand_definitions(
+    text: &str,
+    definitions: HashMap<usize, Definition>,
+    mut names: HashMap<String, usize>,
+) -> Result<(String, ScalarAliases), Box<yamlpatch::Error>> {
+    let mut paths_by_span = scalar_paths_by_span(text)?;
+    let mut edits = Vec::new();
+    let mut groups = Vec::new();
+    let mut definitions: Vec<_> = definitions.into_values().collect();
+    definitions.sort_by_key(|definition| definition.anchor.start);
+    let mut next_suffix = HashMap::new();
+    for definition in definitions {
+        let query_span = definition.tag.as_ref().unwrap_or(&definition.value);
+        let Some(paths) = paths_by_span.remove(&(query_span.start, query_span.end)) else {
+            continue;
+        };
+        expand_definition(text, &definition, &mut edits)?;
+        let name = unique_name(definition.name, &mut names, &mut next_suffix);
+        groups.push(Group { name, paths, implicit_null: definition.implicit_null });
+    }
+    Ok((apply_edits(text, edits), ScalarAliases { groups }))
 }
