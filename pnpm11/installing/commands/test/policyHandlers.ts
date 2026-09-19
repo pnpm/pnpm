@@ -1,6 +1,10 @@
 import { expect, jest, test } from '@jest/globals'
 
-import { type PolicyViolation, setupPolicyHandlers } from '../lib/policyHandlers.js'
+import type { PolicyViolation } from '../lib/policyHandlers.js'
+
+const confirm = jest.fn<(options: { message: string, default: boolean }) => Promise<boolean>>()
+jest.unstable_mockModule('@inquirer/prompts', () => ({ confirm }))
+const { setupPolicyHandlers } = await import('../lib/policyHandlers.js')
 
 function violation (
   name: string,
@@ -178,4 +182,37 @@ test('the hook is a no-op in loose mode regardless of violations', async () => {
   // `pickManifestUpdates` at the end of the install.
   await expect(plan.handleResolutionPolicyViolations([violation('foo', '1.0.0')]))
     .resolves.toBeUndefined()
+})
+
+test('strict no-TTY errors count unique package versions', async () => {
+  await withStdinTTY(false, async () => {
+    const plan = setupPolicyHandlers({ minimumReleaseAge: 60, minimumReleaseAgeStrict: true, ci: false })!
+    await expect(plan.handleResolutionPolicyViolations([
+      violation('foo', '1.0.0'),
+      violation('foo', '2.0.0'),
+      violation('foo', '1.0.0'),
+      violation('bar', '1.0.0'),
+    ])).rejects.toMatchObject({
+      message: '3 versions do not meet the minimumReleaseAge constraint:\n  bar@1.0.0 stub reason\n  foo@1.0.0 stub reason\n  foo@2.0.0 stub reason',
+    })
+  })
+})
+
+test('approval prompts list each package version once', async () => {
+  confirm.mockResolvedValueOnce(true)
+  await withStdinTTY(true, async () => {
+    const plan = setupPolicyHandlers({ minimumReleaseAge: 60, minimumReleaseAgeStrict: true, ci: false })!
+    await plan.handleResolutionPolicyViolations([
+      violation('foo', '1.0.0'),
+      violation('bar', '1.0.0'),
+      violation('foo', '2.0.0'),
+      violation('foo', '1.0.0'),
+      violation('ignored', '1.0.0', 'TRUST_DOWNGRADE'),
+    ])
+    expect(confirm).toHaveBeenCalledTimes(1)
+    expect(confirm).toHaveBeenCalledWith({
+      message: '3 versions do not meet the minimumReleaseAge constraint:\n  bar@1.0.0\n  foo@1.0.0\n  foo@2.0.0\nAdd to minimumReleaseAgeExclude in pnpm-workspace.yaml and proceed with the install?',
+      default: false,
+    })
+  })
 })
