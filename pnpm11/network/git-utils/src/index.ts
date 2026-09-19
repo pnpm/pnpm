@@ -30,6 +30,16 @@ export async function getCurrentBranch (opts: GitCwdOptions = {}): Promise<strin
   }
 }
 
+/** Returns false when Git cannot verify HEAD or HEAD refers to a branch. */
+export async function isHeadDetached (opts: GitCwdOptions = {}): Promise<boolean> {
+  try {
+    const { stdout } = await execa('git', ['rev-parse', '--verify', '--symbolic-full-name', 'HEAD'], { cwd: opts.cwd })
+    return stdout === 'HEAD'
+  } catch {
+    return false
+  }
+}
+
 export async function isWorkingTreeClean (opts: GitCwdOptions = {}): Promise<boolean> {
   try {
     const { stdout: status } = await execa('git', ['status', '--porcelain'], { cwd: opts.cwd })

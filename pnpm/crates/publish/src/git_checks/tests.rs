@@ -81,6 +81,9 @@ fn allows_detached_head_only_in_ci() {
     struct Sys;
     impl RunCommand for Sys {
         fn run(_: &str, args: &[&str], _: Option<&Path>) -> io::Result<CommandOutput> {
+            if args == ["rev-parse", "--verify", "--symbolic-full-name", "HEAD"] {
+                return ok("HEAD\n");
+            }
             match args[0] {
                 "rev-parse" => ok(""),
                 "status" => ok(""),

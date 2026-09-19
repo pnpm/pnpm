@@ -198,6 +198,19 @@ test('publish: rejects a dirty detached tag in CI', async () => {
   }, [])).rejects.toThrow(new PnpmError('GIT_UNCLEAN', 'Unclean working tree. Commit or stash changes first.'))
 })
 
+test('publish: rejects an unknown symbolic HEAD in CI', async () => {
+  await prepareDetachedTag()
+  await execa('git', ['symbolic-ref', 'HEAD', 'refs/tags/v0.0.0'])
+
+  await expect(publish.handler({
+    ...DEFAULT_OPTS,
+    ci: true,
+    argv: { original: ['publish'] },
+    dir: process.cwd(),
+    dryRun: true,
+  }, [])).rejects.toThrow(new PnpmError('GIT_UNKNOWN_BRANCH', 'The Git HEAD may not attached to any branch, but your "publish-branch" is set to "master|main".'))
+})
+
 async function prepareDetachedTag (): Promise<void> {
   prepare({ name: 'test-publish-package.json', version: '0.0.0' })
   await execa('git', ['init', '--initial-branch=main'])

@@ -627,3 +627,37 @@ fn detached_tag_publish_in_ci_preserves_git_checks() {
     let stderr = String::from_utf8_lossy(&rejected.get_output().stderr);
     assert!(stderr.contains("ERR_PNPM_GIT_UNCLEAN"), "stderr: {stderr}");
 }
+
+#[cfg(unix)]
+#[test]
+fn publish_rejects_refused_head_metadata_in_ci() {
+    let dir = tempfile::tempdir().unwrap();
+    write_project(
+        dir.path(),
+        "http://127.0.0.1:1/",
+        &json!({
+            "name": "test-refused-head", "version": "1.0.0",
+        }),
+    );
+    pnpm_testing_utils::git_repo::init_isolated_repo(dir.path());
+    for args in [vec!["add", "."], vec!["commit", "-m", "init"], vec!["checkout", "-b", "blocked"]]
+    {
+        Command::new("git")
+            .with_current_dir(dir.path())
+            .with_args(args)
+            .assert()
+            .success();
+    }
+    let git_dir = dir.path().join(".git");
+    fs::remove_file(git_dir.join("HEAD")).unwrap();
+    std::os::unix::fs::symlink("refs/heads/blocked", git_dir.join("HEAD")).unwrap();
+
+    let rejected = pacquet(dir.path())
+        .with_env("CI", "true")
+        .without_env("PNPM_CONFIG_CI")
+        .with_args(["publish", "--dry-run"])
+        .assert()
+        .failure();
+    let stderr = String::from_utf8_lossy(&rejected.get_output().stderr);
+    assert!(stderr.contains("ERR_PNPM_GIT_UNKNOWN_BRANCH"), "stderr: {stderr}");
+}
