@@ -8,6 +8,7 @@ use super::{
     current_pnpmfiles, filesystem_now_ms, manifest_agreement::check_projects_content,
     project_structure_matches, settle_repeat_install,
 };
+use std::{collections::BTreeSet, path::Component};
 
 /// `state` re-keyed onto `workspace_root` when it records these same
 /// projects under one other root, or `None` when it records them in place or
@@ -21,7 +22,7 @@ pub(super) fn relocated_state(
     if !recorded_elsewhere(state, project_manifests) {
         return None;
     }
-    let recorded_root = recorded_root(state)?;
+    let recorded_root = recorded_root(state, workspace_root, project_manifests)?;
     let rebase_onto_root = |path: &str| {
         rebase(Path::new(path), recorded_root, workspace_root)
             .map(|rebased| rebased.to_string_lossy().into_owned())
@@ -48,16 +49,60 @@ pub(crate) fn recorded_elsewhere(
         .any(|(root_dir, _)| state.projects.contains_key(root_dir.to_string_lossy().as_ref()))
 }
 
-/// The shallowest recorded project dir, when it holds every other one.
-fn recorded_root(state: &WorkspaceState) -> Option<&Path> {
-    let root = state.projects
+/// The unique old root reproducing every current workspace-relative project
+/// path. The workspace root itself need not have a manifest or recorded entry.
+fn recorded_root<'a>(
+    state: &'a WorkspaceState,
+    workspace_root: &Path,
+    project_manifests: &[(PathBuf, &PackageManifest)],
+) -> Option<&'a Path> {
+    let relative_projects = relative_project_dirs(
+        project_manifests.iter().map(|(dir, _)| dir.as_path()),
+        workspace_root,
+    )?;
+    if relative_projects.len() != project_manifests.len()
+        || relative_projects.len() != state.projects.len()
+    {
+        return None;
+    }
+    // A deep suffix narrows candidates without assuming the first recorded
+    // project is the workspace root or an ancestor of the other projects.
+    let anchor = relative_projects
+        .iter()
+        .max_by_key(|dir| dir.components().count())?;
+    let mut candidates = state.projects
         .keys()
         .map(Path::new)
-        .min_by_key(|dir| dir.components().count())?;
-    state.projects
-        .keys()
-        .all(|dir| Path::new(dir).starts_with(root))
+        .filter(|dir| dir.ends_with(anchor))
+        .filter_map(|dir| {
+            dir.ancestors()
+                .nth(anchor.components().count())
+        })
+        .filter(|root| {
+            relative_project_dirs(state.projects.keys().map(Path::new), root).as_ref()
+                == Some(&relative_projects)
+        });
+    let root = candidates.next()?;
+    candidates
+        .next()
+        .is_none()
         .then_some(root)
+}
+
+fn relative_project_dirs<'a>(
+    dirs: impl Iterator<Item = &'a Path>,
+    root: &Path,
+) -> Option<BTreeSet<&'a Path>> {
+    dirs.map(|dir| {
+        dir.strip_prefix(root)
+            .ok()
+            .filter(|relative| {
+                relative
+                    .components()
+                    .all(|component| matches!(component, Component::Normal(_)))
+            })
+    })
+    .collect()
 }
 
 /// `path` moved from under `from` to under `to`, or `None` outside `from`.

@@ -59,6 +59,68 @@ fn rebases_the_projects_and_the_pnpmfiles_inside_the_recorded_root() {
     );
 }
 
+#[test]
+fn rebases_rootless_projects_from_their_workspace_relative_paths() {
+    let old_root = Path::new("/old/ws");
+    let new_root = Path::new("/new/deeper/ws");
+    let layouts: &[&[&str]] = &[
+        &["packages/a", "packages/b"],
+        &["packages/deep/app"],
+        &["apps/a", "packages/deep/b"],
+        &["packages/a", "packages/a/child"],
+    ];
+
+    for relative_dirs in layouts {
+        let recorded: Vec<_> = relative_dirs
+            .iter()
+            .map(|dir| old_root.join(dir))
+            .collect();
+        let current: Vec<_> = relative_dirs
+            .iter()
+            .map(|dir| new_root.join(dir))
+            .collect();
+        let state = state_recording(&recorded, vec![path_string(&old_root.join(".pnpmfile.cjs"))]);
+        let relocated = relocated_onto(&state, new_root, &current)
+            .expect("the same rootless workspace can move to another root");
+
+        assert_eq!(
+            relocated,
+            state_recording(&current, vec![path_string(&new_root.join(".pnpmfile.cjs"))]),
+        );
+    }
+}
+
+#[test]
+fn refuses_rootless_projects_without_one_matching_workspace_root() {
+    let old_root = Path::new("/old/ws");
+    let new_root = Path::new("/new/ws");
+    let recorded = [old_root.join("packages/a"), old_root.join("packages/b")];
+    let state = state_recording(&recorded, Vec::new());
+    let invalid_layouts = [
+        [new_root.join("packages/a"), new_root.join("renamed/b")],
+        [new_root.join("packages/a"), PathBuf::from("/outside/packages/b")],
+        [new_root.join("packages/a"), new_root.join("../outside/packages/b")],
+        [new_root.join("packages/a"), new_root.join("packages/a")],
+    ];
+    for current in invalid_layouts {
+        assert_eq!(relocated_onto(&state, new_root, &current), None);
+    }
+
+    let unrelated = state_recording(
+        &[old_root.join("packages/a"), PathBuf::from("/unrelated/ws/packages/b")],
+        Vec::new(),
+    );
+    let current = [new_root.join("packages/a"), new_root.join("packages/b")];
+    assert_eq!(relocated_onto(&unrelated, new_root, &current), None);
+    assert_eq!(relocated_onto(&state, new_root, &current[..1]), None);
+
+    let repeated_suffix = state_recording(
+        &[old_root.join("packages/a"), old_root.join("nested/packages/a")],
+        Vec::new(),
+    );
+    assert_eq!(relocated_onto(&repeated_suffix, new_root, &current), None);
+}
+
 /// Nothing is re-keyed but a whole tree proven to have moved under one
 /// other root.
 #[test]

@@ -1,8 +1,9 @@
 #![cfg(unix)]
 
-pub use _utils::*;
-
-use crate::{_utils, repeat_install::version_of};
+use crate::{
+    _utils::{ManifestDeps, append_workspace_yaml_key, pacquet_in, write_project_manifest},
+    repeat_install::version_of,
+};
 
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
@@ -144,6 +145,68 @@ fn copied_workspace_is_up_to_date_after_one_state_write() {
             "{node_linker}: copied bin output: {stdout}",
         );
 
+        drop(temp_cwd);
+    }
+}
+
+#[test]
+fn moved_rootless_workspace_reuses_its_sibling_projects() {
+    for node_linker in ["isolated", "hoisted"] {
+        let (temp_cwd, workspace) = pinned_workspace();
+        append_workspace_yaml_key(&workspace, "nodeLinker", node_linker);
+        append_workspace_yaml_key(&workspace, "packages", "[packages/*]");
+        for project in ["a", "b"] {
+            write_project_manifest(
+                &workspace.join("packages").join(project),
+                project,
+                ManifestDeps { prod: &[("is-positive", "1.0.0")], ..ManifestDeps::default() },
+            );
+        }
+        assert!(!workspace.join("package.json").exists());
+        pacquet_in(&workspace)
+            .with_arg("install")
+            .assert()
+            .success();
+        let moved = workspace.with_file_name("moved-rootless");
+        fs::rename(&workspace, &moved).expect("move the rootless workspace");
+        let before = tree_snapshot(&moved);
+        let install = pacquet_in(&moved)
+            .with_arg("install")
+            .assert()
+            .success();
+        let output = String::from_utf8_lossy(&install.get_output().stdout);
+        assert!(
+            output.contains("Already up to date") && !output.contains("resolution step is skipped"),
+            "{node_linker}: the rootless move must reuse the installation: {output}",
+        );
+        assert_eq!(
+            changed_entries(&before, &tree_snapshot(&moved), &moved),
+            BTreeSet::from([
+                "node_modules".to_string(),
+                format!("node_modules/{WORKSPACE_STATE_FILENAME}"),
+            ]),
+        );
+        let state = load_workspace_state(&moved).unwrap().unwrap();
+        let expected = ["a", "b"].map(|project| {
+            moved
+                .join("packages")
+                .join(project)
+                .to_string_lossy()
+                .into_owned()
+        });
+        assert_eq!(
+            state.projects
+                .keys()
+                .cloned()
+                .collect::<BTreeSet<_>>(),
+            expected.into(),
+        );
+        let settled = tree_snapshot(&moved);
+        pacquet_in(&moved)
+            .with_arg("install")
+            .assert()
+            .success();
+        assert_eq!(changed_entries(&settled, &tree_snapshot(&moved), &moved), BTreeSet::new());
         drop(temp_cwd);
     }
 }

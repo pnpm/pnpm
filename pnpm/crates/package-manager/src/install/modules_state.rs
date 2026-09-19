@@ -1,3 +1,5 @@
+pub(crate) use integrity::frozen_tree_intact;
+
 pub(super) use build_markers::{gvs_build_marker_present, gvs_build_markers_may_require_recovery};
 pub(super) use merge_metadata::{
     current_contains_dep_path, merge_filtered_modules_metadata, merge_pending_builds,
@@ -6,6 +8,8 @@ pub(super) use merge_metadata::{
 mod build_markers;
 
 mod merge_metadata;
+
+mod integrity;
 
 use super::{
     BTreeMap, Config, HoistedDependencies, Host, IncludedDependencies, InstallError, LayoutVersion,
@@ -51,134 +55,6 @@ pub(super) fn modules_consistent_with(
         return false;
     }
     modules.included == included && modules_layout_consistent_with(modules, config, node_linker)
-}
-
-/// The subset of [`modules_consistent_with`] that, when it drifts, requires
-/// **wiping and recreating** `node_modules`. It deliberately excludes
-/// `included`: a `--prod`<->full switch is satisfied by relinking the
-/// newly-selected groups plus the targeted removal of the now-excluded
-/// ones ([`crate::prune_direct_deps_excluded_by_groups`]), not by
-/// deleting the directory. pnpm never purges the root project's
-/// `node_modules` for an included mismatch — its `validateModules` only
-/// does so for non-root importers (the `lockfileDir !== rootDir` check
-/// in `pnpm11/installing/deps-installer/src/install/validateModules.ts`)
-/// — so purging here would destroy the user's own non-pnpm entries (a
-/// vendored directory, stray files) on a routine flag change. The
-/// up-to-date fast path still compares `included` via
-/// [`modules_consistent_with`], so the relink it triggers stays correct.
-/// On-disk probe backing the frozen no-op short-circuit: the
-/// short-circuit skips the materialization walk entirely, so it must
-/// first prove the tree it would skip is still whole — pnpm's headless
-/// path stats every package dir on every run, which is what repairs a
-/// hand-deleted package. One metadata call per snapshot slot plus one
-/// per direct-dep link; any missing entry falls through to the full
-/// frozen path, which re-materializes it (emitting
-/// `pnpm:_broken_node_modules`).
-///
-/// Under a global virtual store the slot paths depend on graph hashes
-/// the short-circuit doesn't compute, and the hoisted linker has no
-/// virtual-store slots; both probe only the importer links.
-pub(crate) fn frozen_tree_intact(
-    wanted: &Lockfile,
-    modules: &pnpm_modules_yaml::ModulesLayout,
-    config: &Config,
-    workspace_root: &Path,
-    node_linker: NodeLinker,
-) -> bool {
-    if matches!(node_linker, NodeLinker::Pnp) && !workspace_root.join(crate::PNP_FILENAME).is_file()
-    {
-        return false;
-    }
-    let skipped = crate::SkippedSnapshots::from_strings(&modules.skipped);
-    let probe_slots =
-        !matches!(node_linker, NodeLinker::Hoisted) && !config.enable_global_virtual_store;
-    if probe_slots
-        && let Some(snapshots) = wanted.snapshots.as_ref()
-        && !all_virtual_store_slots_present(snapshots, config, &skipped)
-    {
-        return false;
-    }
-    if !config.symlink {
-        return probe_slots;
-    }
-    importer_symlinks_intact(wanted, modules, config, workspace_root, &skipped)
-}
-
-/// Whether every snapshot the lockfile records still has its virtual-store
-/// slot on disk.
-fn all_virtual_store_slots_present(
-    snapshots: &std::collections::HashMap<pnpm_lockfile::PackageKey, pnpm_lockfile::SnapshotEntry>,
-    config: &Config,
-    skipped: &crate::SkippedSnapshots,
-) -> bool {
-    let layout = crate::VirtualStoreLayout::legacy(
-        config.virtual_store_dir.clone(),
-        config.virtual_store_dir_max_length as usize,
-    );
-    snapshots
-        .keys()
-        .all(|key| {
-            if skipped.contains(key) {
-                return true;
-            }
-            // The name is lockfile-controlled: join it with the same
-            // traversal-rejecting helper the linkers use, and treat a
-            // malformed name as not-intact so the full path's
-            // structural lockfile gate rejects it.
-            let slot_node_modules = layout.slot_dir(key).join("node_modules");
-            match crate::safe_join_modules_dir::safe_join_modules_dir(
-                &slot_node_modules,
-                &key.name.to_string(),
-            ) {
-                Ok(dir) => dir.is_dir(),
-                Err(_) => false,
-            }
-        })
-}
-
-/// Whether every importer's direct dependencies are still symlinked into its
-/// own `node_modules`.
-fn importer_symlinks_intact(
-    wanted: &Lockfile,
-    modules: &pnpm_modules_yaml::ModulesLayout,
-    config: &Config,
-    workspace_root: &Path,
-    skipped: &crate::SkippedSnapshots,
-) -> bool {
-    let groups = crate::prune_direct_deps::selected_groups(modules.included);
-    let modules_dir_name: &std::ffi::OsStr =
-        config.modules_dir.file_name().unwrap_or_else(|| std::ffi::OsStr::new("node_modules"));
-    wanted.importers
-        .iter()
-        .all(|(importer_id, snapshot)| {
-            if crate::symlink_direct_dependencies::validate_importer_id(importer_id).is_err() {
-                return true;
-            }
-            let modules_dir =
-                crate::symlink_direct_dependencies::importer_root_dir(workspace_root, importer_id)
-                    .join(modules_dir_name);
-            crate::symlink_direct_dependencies::direct_dep_names_for_importer(
-                snapshot,
-                groups.iter().copied(),
-                skipped,
-                false,
-            )
-            .iter()
-            .all(|name| direct_dep_link_resolves(&modules_dir, name))
-        })
-}
-
-fn direct_dep_link_resolves(modules_dir: &Path, name: &str) -> bool {
-    match crate::safe_join_modules_dir::safe_join_modules_dir(modules_dir, name) {
-        // `metadata` follows the link, so a dangling direct-dep
-        // symlink (a wiped GVS store, a hand-deleted target)
-        // reads as broken and falls through to the repairing
-        // full path.
-        Ok(link) => std::fs::metadata(link).is_ok(),
-        // A malformed alias never probes the disk; the full
-        // path rejects it with its own typed error.
-        Err(_) => true,
-    }
 }
 
 /// Whether a tree that moved with its project can be reused at all: only on
@@ -319,6 +195,19 @@ pub(super) fn normalized_pattern(pattern: Option<&[String]>) -> &[String] {
     pattern.unwrap_or(&[])
 }
 
+/// The subset of [`modules_consistent_with`] that, when it drifts, requires
+/// **wiping and recreating** `node_modules`. It deliberately excludes
+/// `included`: a `--prod`<->full switch is satisfied by relinking the
+/// newly-selected groups plus the targeted removal of the now-excluded
+/// ones ([`crate::prune_direct_deps_excluded_by_groups`]), not by
+/// deleting the directory. pnpm never purges the root project's
+/// `node_modules` for an included mismatch: its `validateModules` only
+/// does so for non-root importers (the `lockfileDir !== rootDir` check
+/// in `pnpm11/installing/deps-installer/src/install/validateModules.ts`)
+/// so purging here would destroy the user's own non-pnpm entries (a
+/// vendored directory, stray files) on a routine flag change. The
+/// up-to-date fast path still compares `included` via
+/// [`modules_consistent_with`], so the relink it triggers stays correct.
 pub(crate) fn modules_layout_consistent_with(
     modules: &pnpm_modules_yaml::ModulesLayout,
     config: &Config,
@@ -616,3 +505,6 @@ pub(super) fn manifest_string_field(manifest: &PackageManifest, key: &str) -> Op
         .and_then(|v| v.as_str())
         .map(ToString::to_string)
 }
+
+#[cfg(test)]
+mod tests;
