@@ -72,9 +72,14 @@ fn reinstalls_missing_packages_during_headless_install() {
         second_events.contains("pnpm:_broken_node_modules"),
         "the missing dir must be reported: {second_events}",
     );
+    // The event is NDJSON, so the path arrives with its separators
+    // escaped. Build the needle the way the reporter wrote it instead of
+    // matching the raw path, which no Windows event would contain.
+    let reported_dep_location =
+        serde_json::to_string(&dep_location).expect("serialize the missing path");
     assert!(
-        second_events.contains(dep_location.to_str().expect("utf-8 path")),
-        "the event must carry the missing path",
+        second_events.contains(reported_dep_location.trim_matches('"')),
+        "the event must carry the missing path {reported_dep_location}: {second_events}",
     );
     assert_eq!(version_of(&workspace, "node_modules/is-positive"), "1.0.0");
 
