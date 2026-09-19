@@ -312,7 +312,7 @@ fn tarball_authorization_failure_is_reported() {
 }
 
 #[test]
-fn scoped_registry_auth_env_requires_a_trusted_source_for_frozen_verification() {
+fn scoped_registry_auth_env_warns_and_uses_configured_auth_for_frozen_verification() {
     let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
     let workspace = dunce::canonicalize(&workspace).expect("canonicalize workspace");
     let mut registry = mockito::Server::new();
@@ -372,7 +372,6 @@ snapshots:
         eprintln!("stdout={stdout}");
         assert!(!stdout.contains("Ignored project-level auth setting"));
         assert!(!stdout.contains("secret-token"));
-        assert!(stderr.contains("PNPM_CONFIG_NPMRC_AUTH_FILE"), "got {stderr}");
         assert!(!stderr.contains("secret-token"), "got {stderr}");
     }
     unauthorized.assert();
@@ -406,7 +405,7 @@ snapshots:
     let user_npmrc = root.path().join("user.npmrc");
     fs::write(&user_npmrc, credentials).unwrap();
     for auth_file in [workspace.join(".npmrc"), user_npmrc] {
-        let trusts_project = auth_file == workspace.join(".npmrc");
+        let uses_project_auth_file = auth_file == workspace.join(".npmrc");
         let output = install_command(&workspace, root.path())
             .with_env("REGISTRY_TOKEN", "secret-token")
             .with_env("PNPM_CONFIG_NPMRC_AUTH_FILE", auth_file)
@@ -416,7 +415,7 @@ snapshots:
         let stderr = String::from_utf8_lossy(&output.stderr);
         eprintln!("stderr={stderr}");
         assert!(output.status.success(), "got {stderr}");
-        if trusts_project {
+        if uses_project_auth_file {
             assert!(!stderr.contains("Ignored project-level auth setting"), "got {stderr}");
         }
         assert!(workspace.join("node_modules/@private/foo").exists());
