@@ -1215,10 +1215,9 @@ export async function mutateModules (
 
       if (opts.catalogMode !== 'manual') {
         for (const wantedDep of wantedDeps) {
-          // A hook or an override supplies this specifier and this run writes none of it, so the
-          // dependency cannot join a catalog: promotion would resolve it through the entry's range
-          // instead, and even naming the catalog is enough to put a snapshot in the lockfile that
-          // no config update accompanies, which the next frozen install rejects.
+          // Promotion moves the dependency onto the catalog entry's range, and the entry resolves
+          // on its own from then on. A hook or an override supplies this specifier, so it is not
+          // this run's to hand over.
           if (readonlyAliases?.has(wantedDep.alias)) continue
           // A `runtime:` specifier (e.g. node from `devEngines.runtime` or
           // `pnpm runtime set`) round-trips to `devEngines.runtime` through the
@@ -1273,6 +1272,11 @@ export async function mutateModules (
         wantedDependencies: wantedDeps.map(wantedDep => ({
           ...wantedDep,
           isNew: project.update !== true && !Object.hasOwn(originalBareSpecifiers, wantedDep.alias),
+          // A catalog name is enough to put the dependency in the lockfile's catalogs: the
+          // resolver attaches a `catalogLookup` for it, and the entry that snapshot needs is not
+          // this run's to write, so the next frozen install would reject the pair. `catalogMode:
+          // manual` reaches here without passing the loop above, so the name is dropped here.
+          saveCatalogName: readonlyAliases?.has(wantedDep.alias) ? undefined : wantedDep.saveCatalogName,
           saveSpec: !readonlyAliases?.has(wantedDep.alias),
           updateToLatestAllowed: !readonlyAliases?.has(wantedDep.alias),
           updateSpec: true,

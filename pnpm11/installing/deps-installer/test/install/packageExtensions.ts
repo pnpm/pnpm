@@ -361,6 +361,47 @@ test('update keeps a workspace range a readPackage hook supplies', async () => {
   })
 })
 
+test('update does not give a dependency added by a readPackage hook a catalog name in manual mode', async () => {
+  const project = prepareEmpty()
+  const manifest = {
+    name: 'project',
+    version: '1.0.0',
+  }
+  const readPackage: ReadPackageHook = (hookedManifest) => ({
+    ...hookedManifest,
+    dependencies: {
+      ...hookedManifest.dependencies,
+      '@pnpm.e2e/foo': '1.0.0',
+    },
+  })
+  const options = testDefaults({
+    // `manual` skips the catalog loop, so the name has to be dropped where every mode passes.
+    catalogMode: 'manual',
+    saveCatalogName: 'default',
+    hooks: {
+      readPackage: [readPackage],
+    },
+  })
+
+  await install(manifest, options)
+
+  const { updatedCatalogs, updatedProject } = await mutateModulesInSingleProject({
+    allowNew: false,
+    dependencySelectors: ['@pnpm.e2e/foo'],
+    manifest,
+    mutation: 'installSome',
+    rootDir: process.cwd() as ProjectRootDir,
+    update: true,
+    updatePackageManifest: true,
+  }, options)
+
+  expect(updatedProject.manifest).toStrictEqual(manifest)
+  expect(updatedCatalogs).toBeUndefined()
+  expect(project.readLockfile().catalogs).toBeUndefined()
+
+  await install(manifest, { ...options, frozenLockfile: true })
+})
+
 test('update does not put a dependency added by a readPackage hook in a catalog when none covers it', async () => {
   const project = prepareEmpty()
   const manifest = {
