@@ -82,6 +82,65 @@ fn engine_strict_accepts_the_active_node_version() {
 }
 
 #[test]
+fn update_config_can_enable_the_root_engine_check() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({
+            "name": "incompatible-root",
+            "version": "1.0.0",
+            "engines": { "node": ">=99.0.0" },
+        })
+        .to_string(),
+    )
+    .expect("write package.json");
+    fs::write(
+        workspace.join(".pnpmfile.cjs"),
+        "module.exports = { hooks: { updateConfig (config) {\n  config.engineStrict = true;\n  config.nodeVersion = '20.0.0';\n  return config;\n} } }",
+    )
+    .expect("write .pnpmfile.cjs");
+
+    let assert = pacquet
+        .with_args(["install", "--lockfile-only"])
+        .assert()
+        .failure();
+    let stderr = String::from_utf8_lossy(&assert.get_output().stderr);
+    assert!(stderr.contains("ERR_PNPM_UNSUPPORTED_ENGINE"), "stderr: {stderr}");
+    assert!(stderr.contains(r#"{"node":"20.0.0"}"#), "stderr: {stderr}");
+
+    drop(root);
+}
+
+#[test]
+fn update_config_can_disable_the_root_engine_check() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({
+            "name": "incompatible-root",
+            "version": "1.0.0",
+            "engines": { "node": ">=99.0.0" },
+        })
+        .to_string(),
+    )
+    .expect("write package.json");
+    fs::write(workspace.join("pnpm-workspace.yaml"), "engineStrict: true\nnodeVersion: 20.0.0\n")
+        .expect("write workspace settings");
+    fs::write(
+        workspace.join(".pnpmfile.cjs"),
+        "module.exports = { hooks: { updateConfig (config) {\n  config.engineStrict = false;\n  return config;\n} } }",
+    )
+    .expect("write .pnpmfile.cjs");
+
+    pacquet
+        .with_args(["install", "--lockfile-only"])
+        .assert()
+        .success();
+
+    drop(root);
+}
+
+#[test]
 fn no_runtime_checks_the_active_node_instead_of_the_manifest_runtime() {
     let node_output = Command::new("node")
         .arg("--version")

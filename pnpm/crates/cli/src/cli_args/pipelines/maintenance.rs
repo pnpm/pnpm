@@ -20,7 +20,6 @@ pub(crate) struct DedupePipeline {
 
 impl DedupePipeline {
     pub(crate) async fn run<Reporter: self::Reporter + 'static>(self) -> miette::Result<()> {
-        check_root_project_engine(&self.manifest_path, self.cfg, true)?;
         let lockfile_path = self.config_root.join(self.cfg.wanted_lockfile_name());
 
         // Snapshot before any config-dep writes so --check detects lockfile
@@ -31,6 +30,7 @@ impl DedupePipeline {
             self.args.check.then(|| dedupe::LockfileGuard::new(existing.clone(), &lockfile_path));
 
         config_deps::prepare::<Reporter>(self.cfg, &self.config_root, false).await?;
+        check_root_project_engine(&self.manifest_path, self.cfg, true)?;
         let plan = select_install_family_plan::<Reporter>(
             self.cfg,
             &self.prefix,
@@ -131,8 +131,8 @@ impl PrunePipeline {
             manifest_path,
         } = self;
 
-        check_root_project_engine(&manifest_path, cfg, true)?;
         config_deps::prepare::<Reporter>(cfg, &config_root, false).await?;
+        check_root_project_engine(&manifest_path, cfg, true)?;
         // Validate path containment AFTER hooks: updateConfig can mutate
         // modules_dir / virtual_store_dir via WorkspaceSettings::apply_to,
         // so the check must use the final (post-hook) config values.
