@@ -186,8 +186,12 @@ fn the_lockfile_records_local_catalog_entries_as_the_catalog_writes_them() {
         .as_ref()
         .and_then(|catalogs| catalogs.get("default"))
         .expect("the lockfile records the default catalog");
+    // A local entry has no version of its own, so the recorded version
+    // repeats the specifier instead of naming one importer's path.
     assert_eq!(catalog["pkg-from-tarball"].specifier, format!("file:./{TARBALL}"));
+    assert_eq!(catalog["pkg-from-tarball"].version, format!("file:./{TARBALL}"));
     assert_eq!(catalog["local-lib"].specifier, "link:./libs/local-lib");
+    assert_eq!(catalog["local-lib"].version, "link:./libs/local-lib");
 
     // The recorded entries are complete enough to install from without
     // re-resolving, which is what a `--frozen-lockfile` install proves.

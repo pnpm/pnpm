@@ -66,14 +66,21 @@ pub(super) fn effective_update_reuse_scope<'o>(
         opts.reuse.scopes_by_importer.get(importer_id).unwrap_or(&opts.reuse.scope)
     }
 }
-/// The concrete version `alias` resolved to in `importer`, read from whichever
-/// dependency group carries it. Returns the peer-stripped version recorded as
-/// the `version` in a catalog snapshot.
+/// The `version` a catalog snapshot records for `alias` in `importer`:
+/// the peer-stripped version it resolved to, read from whichever
+/// dependency group carries it. `None` when the importer does not carry
+/// the dependency at all.
 ///
-/// A `file:` / `link:` dependency has no version of its own, so its
-/// resolved path stands in — it is what the entry resolved to, and the
-/// snapshot needs some value to record the entry at all.
-pub(super) fn importer_resolved_version(importer: &ProjectSnapshot, alias: &str) -> Option<String> {
+/// A `file:` / `link:` dependency has no version of its own, so
+/// `entry_specifier` stands in. It identifies the entry just as well,
+/// and unlike the resolved `link:` path — which is written relative to
+/// the importer that declared it — it does not depend on which importer
+/// the snapshot happened to read.
+pub(super) fn catalog_snapshot_version(
+    importer: &ProjectSnapshot,
+    alias: &str,
+    entry_specifier: &str,
+) -> Option<String> {
     let key = PkgName::parse(alias).ok()?;
     let resolved =
         [&importer.dependencies, &importer.dev_dependencies, &importer.optional_dependencies]
@@ -83,7 +90,7 @@ pub(super) fn importer_resolved_version(importer: &ProjectSnapshot, alias: &str)
     Some(
         resolved.version
             .ver_peer()
-            .map_or_else(|| resolved.version.to_string(), |version| version.version().to_string()),
+            .map_or_else(|| entry_specifier.to_string(), |version| version.version().to_string()),
     )
 }
 /// Build an importer's [`ProjectSnapshot`] from its on-disk manifest

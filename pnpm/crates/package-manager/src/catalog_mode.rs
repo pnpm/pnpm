@@ -158,9 +158,9 @@ fn decide_catalog_entry(
         alias: dep.alias.to_string(),
         bare_specifier: catalog_specifier.clone(),
     };
-    // The entry is compared against the specifier `pnpm add` was given,
-    // not installed from, and a local path never reaches here:
-    // `is_project_relative_path` keeps such a dependency direct.
+    // The entry is compared against the specifier `pnpm add` was given
+    // and repeated back in a mismatch error, never installed from, so it
+    // reads best exactly as `pnpm-workspace.yaml` writes it.
     let entry = match resolve_from_catalog(catalogs, &wanted, CatalogAnchor::AsWritten) {
         CatalogResolutionResult::Found(found) => found.resolution.specifier,
         _ => {

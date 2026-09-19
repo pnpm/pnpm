@@ -253,10 +253,10 @@ fn parse_pkg_selector(selector: &str) -> Result<PackageSelector, ParseOverridesE
 /// [`ParseOverridesError::CatalogInOverrides`] with the resolver's
 /// error message.
 ///
-/// A `file:` / `link:` entry keeps the path as the catalog wrote it:
-/// an override's local target is anchored at the workspace root by the
-/// overrider that applies it, which is the same root the catalog
-/// measured from.
+/// A `file:` / `link:` entry keeps the path as the catalog wrote it.
+/// The overrider that applies the result anchors a local target itself,
+/// at the same root it uses for one written directly in `overrides`, so
+/// re-anchoring here would move the path twice.
 fn resolve_catalog_in_value(
     catalogs: &Catalogs,
     target_name: &str,
