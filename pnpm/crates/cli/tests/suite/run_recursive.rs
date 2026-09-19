@@ -14,13 +14,7 @@ use pnpm_cmd_shim::generate_cmd_shim;
 use pnpm_cmd_shim::generate_sh_shim;
 use pnpm_testing_utils::bin::CommandTempCwd;
 use serde_json::{Value, json};
-use std::{
-    collections::HashMap,
-    fs,
-    path::Path,
-    process::Command,
-    time::{Duration, Instant},
-};
+use std::{collections::HashMap, fs, path::Path, process::Command, time::Duration};
 
 /// Write a `pnpm-workspace.yaml` listing `names` as packages, plus a
 /// `package.json` per name under its own subdirectory of `workspace`.
@@ -568,7 +562,7 @@ fn assert_recursive_run_bail_cancels_in_flight(shell_emulator: bool) {
                 "a-slow-1",
                 manifest(
                     "a-slow-1",
-                    r#"node -e "require('fs').writeFileSync('ran.txt', ''); setTimeout(() => {}, 5000)""#,
+                    r#"node -e "const fs = require('fs'); fs.writeFileSync('ran.txt', ''); setTimeout(() => fs.writeFileSync('completed.txt', ''), 5000)""#,
                 ),
             ),
             (
@@ -582,7 +576,7 @@ fn assert_recursive_run_bail_cancels_in_flight(shell_emulator: bool) {
                 "c-slow-2",
                 manifest(
                     "c-slow-2",
-                    r#"node -e "require('fs').writeFileSync('ran.txt', ''); setTimeout(() => {}, 5000)""#,
+                    r#"node -e "const fs = require('fs'); fs.writeFileSync('ran.txt', ''); setTimeout(() => fs.writeFileSync('completed.txt', ''), 5000)""#,
                 ),
             ),
             ("z-queued", manifest("z-queued", &write_marker_script("ran.txt"))),
@@ -596,7 +590,6 @@ fn assert_recursive_run_bail_cancels_in_flight(shell_emulator: bool) {
         .expect("enable the shell emulator");
     }
 
-    let start = Instant::now();
     let output = pacquet
         .with_args([
             "--workspace-concurrency=3",
@@ -608,15 +601,18 @@ fn assert_recursive_run_bail_cancels_in_flight(shell_emulator: bool) {
         ])
         .output()
         .expect("spawn pacquet");
-    let elapsed = start.elapsed();
     let stderr = String::from_utf8_lossy(&output.stderr);
     eprintln!("STDERR:\n{stderr}\n");
     assert!(!output.status.success(), "the failing project should fail the run");
-    eprintln!("recursive run elapsed: {elapsed:?}");
-    assert!(
-        elapsed < Duration::from_secs(4),
-        "bail should interrupt the five-second in-flight scripts",
-    );
+    for name in ["a-slow-1", "c-slow-2"] {
+        assert!(
+            !workspace
+                .join(name)
+                .join("completed.txt")
+                .exists(),
+            "bail should interrupt {name}'s five-second script",
+        );
+    }
 
     let statuses = summary_statuses(&workspace);
     dbg!(&statuses);
