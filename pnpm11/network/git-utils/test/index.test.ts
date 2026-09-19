@@ -2,7 +2,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 
 import { expect, test } from '@jest/globals'
-import { getCurrentBranch, isGitRepo, isWorkingTreeClean } from '@pnpm/network.git-utils'
+import { getCurrentBranch, isGitRepo, isHeadDetached, isWorkingTreeClean } from '@pnpm/network.git-utils'
 import { safeExeca as execa } from 'execa'
 import { temporaryDirectory } from 'tempy'
 
@@ -25,6 +25,7 @@ test('getCurrentBranch', async () => {
   await execa('git', ['checkout', '-b', 'foo'])
 
   await expect(getCurrentBranch()).resolves.toBe('foo')
+  await expect(isHeadDetached()).resolves.toBe(false)
 })
 
 test('getCurrentBranch reads branch from .git/HEAD without spawning git', async () => {
@@ -45,15 +46,21 @@ test('getCurrentBranch returns null for detached HEAD', async () => {
   await execa('git', ['config', 'user.name', 'test'], { cwd: tempDir })
   await execa('git', ['config', 'commit.gpgsign', 'false'], { cwd: tempDir })
   await execa('git', ['commit', '--allow-empty', '-m', 'init'], { cwd: tempDir })
+  await expect(isHeadDetached({ cwd: tempDir })).resolves.toBe(false)
   await execa('git', ['checkout', '--detach', 'HEAD'], { cwd: tempDir })
 
   await expect(getCurrentBranch({ cwd: tempDir })).resolves.toBeNull()
+  await expect(isHeadDetached({ cwd: tempDir })).resolves.toBe(true)
+  const subdir = path.join(tempDir, 'subdir')
+  fs.mkdirSync(subdir)
+  await expect(isHeadDetached({ cwd: subdir })).resolves.toBe(true)
 })
 
 test('getCurrentBranch returns null outside a git repo', async () => {
   const tempDir = temporaryDirectory()
 
   await expect(getCurrentBranch({ cwd: tempDir })).resolves.toBeNull()
+  await expect(isHeadDetached({ cwd: tempDir })).resolves.toBe(false)
 })
 
 test('isWorkingTreeClean', async () => {

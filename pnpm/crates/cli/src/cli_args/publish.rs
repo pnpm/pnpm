@@ -165,7 +165,7 @@ impl PublishArgs {
         // the `git-checks` config setting and the `--no-git-checks` flag.
         let publish_branch = self.flags.git.publish_branch.as_deref();
         let git_checks = config.git_checks && !self.flags.git.no_git_checks;
-        run_git_checks::<Host>(dir, git_checks, publish_branch)?;
+        run_git_checks::<Host>(dir, git_checks, publish_branch, config.ci)?;
 
         if recursive {
             let published =

@@ -1,4 +1,4 @@
-use super::{CommandOutput, RunCommand, get_current_branch};
+use super::{CommandOutput, RunCommand, get_current_branch, is_head_detached};
 use std::{fs, io, path::Path};
 use tempfile::TempDir;
 
@@ -111,6 +111,7 @@ fn a_head_that_is_not_a_plain_file_is_not_read() {
     std::os::unix::fs::symlink(&target, repo.join(".git/HEAD")).unwrap();
 
     assert_eq!(get_current_branch::<GitFails>(&repo), None);
+    assert!(!is_head_detached::<NoGit>(&repo), "refused metadata must not be queried by Git");
 }
 
 /// A FIFO at `HEAD` must be refused rather than opened: a plain `open`
@@ -159,4 +160,13 @@ fn make_fifo(path: &std::path::Path) {
         .status()
         .expect("run mkfifo");
     assert!(status.success(), "mkfifo failed");
+}
+
+#[test]
+fn a_failed_head_verification_is_not_detached() {
+    let repo = repo_with_head("0123456789abcdef0123456789abcdef01234567\n");
+    assert!(
+        !is_head_detached::<GitFails>(repo.path()),
+        "a failed Git query must not confirm detachment",
+    );
 }
