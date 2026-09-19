@@ -77,7 +77,9 @@ impl Terminal {
                 }
                 // The request's type is the libc's own: `c_ulong` on glibc
                 // and `c_uint` on Apple, so it is cast to whatever `ioctl`
-                // takes.
+                // takes. The cast widens on Apple only, and `From` would be
+                // an identity conversion on glibc.
+                #[allow(clippy::cast_lossless)]
                 if libc::ioctl(slave, libc::TIOCSCTTY as _, 0) < 0 {
                     return Err(io::Error::last_os_error());
                 }
