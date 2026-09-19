@@ -68,13 +68,21 @@ fn relative_node_path_segments_are_sh_escaped() {
 #[test]
 #[cfg_attr(not(unix), ignore = "relocatable shims are only written on Unix")]
 fn in_root_shim_is_written_relative_to_itself_and_only_such_a_shim_is_relocatable() {
-    let root = Path::new("/p");
-    let shim_dir = Path::new("/p/node_modules/.bin");
+    let tmp = tempfile::tempdir().unwrap();
+    let root = tmp.path();
+    let shim_dir = root.join("node_modules/.bin");
+    std::fs::create_dir_all(&shim_dir).unwrap();
+    let shim_dir = shim_dir.as_path();
     let shim = shim_dir.join("tsc");
-    let target = Path::new("/p/node_modules/typescript/bin/tsc");
+    let target = root.join("node_modules/typescript/bin/tsc");
+    let target = target.as_path();
     let node_path = [
-        "/p/node_modules/.pnpm/typescript@5.0.0/node_modules".to_string(),
-        "/p/node_modules/.pnpm/node_modules".to_string(),
+        root.join("node_modules/.pnpm/typescript@5.0.0/node_modules")
+            .to_string_lossy()
+            .into_owned(),
+        root.join("node_modules/.pnpm/node_modules")
+            .to_string_lossy()
+            .into_owned(),
     ];
     let relocatable = generate_sh_shim(target, &shim, None, &node_path, Some(root));
     eprintln!("BODY:\n{relocatable}");
@@ -85,7 +93,10 @@ fn in_root_shim_is_written_relative_to_itself_and_only_such_a_shim_is_relocatabl
         "  export NODE_PATH=\"$basedir_abs/../.pnpm/typescript@5.0.0/node_modules:$basedir_abs/../.pnpm/node_modules:$NODE_PATH\"\n",
         "fi\n",
     )));
-    assert!(!relocatable.contains("/p/"), "no path inside the root may stay absolute");
+    assert!(
+        !relocatable.contains(root.to_str().unwrap()),
+        "no path inside the root may stay absolute",
+    );
     assert!(relocatable.ends_with("# cmd-shim-target=../typescript/bin/tsc\n"));
     assert!(
         is_relocatable_shim(&relocatable, shim_dir, root),
