@@ -593,7 +593,7 @@ test('readPackage hook is used during removal inside a workspace', async () => {
   ])
 
   writeYamlFileSync('pnpm-workspace.yaml', {
-    packages: ['project-1'],
+    packages: ['project'],
     autoInstallPeers: false,
   })
   fs.writeFileSync('.pnpmfile.cjs', `

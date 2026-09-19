@@ -144,7 +144,7 @@ fn is_ignored_manifest(
 /// bears one of those names, and a manifest candidate's final component
 /// is always a manifest basename, so any-component equality answers the
 /// match without running the glob engine once per candidate.
-fn has_always_ignored_component(path: &Path) -> bool {
+pub(super) fn has_always_ignored_component(path: &Path) -> bool {
     use std::path::Component;
     path.components()
         .any(|component| {

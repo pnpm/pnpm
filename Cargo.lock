@@ -4782,6 +4782,7 @@ dependencies = [
  "pnpm-store-dir",
  "pnpm-testing-utils",
  "pnpm-versioning",
+ "pnpm-workspace",
  "pnpm-workspace-state",
  "pnpr-registry",
  "pretty_assertions",

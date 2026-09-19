@@ -14,6 +14,8 @@
 //!
 //! [#431]: https://github.com/pnpm/pacquet/issues/431
 
+pub use membership::{belongs_to_workspace, is_workspace_project_dir, needs_package_patterns};
+
 use crate::{
     directory_patterns::{negated_directory_pattern, normalize_directory_pattern},
     project_manifest::{ReadProjectManifestError, read_exact_project_manifest},
@@ -495,6 +497,8 @@ struct WorkspacePattern<'source> {
     source: &'source str,
     normalized: String,
 }
+
+mod membership;
 
 #[cfg(test)]
 mod tests;

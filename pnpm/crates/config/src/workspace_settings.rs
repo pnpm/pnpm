@@ -223,7 +223,26 @@ impl Config {
                         .to_path_buf();
                     (base_dir, Some(settings))
                 })
+                .filter(|(base_dir, settings)| {
+                    workspace_includes_start_dir(base_dir, start_dir, settings.as_ref())
+                })
         };
         Ok(workspace_yaml)
     }
+}
+
+/// Does the workspace found above `start_dir` include a project there?
+///
+/// The rule and the reason for it are
+/// [`pnpm_workspace::belongs_to_workspace`]'s. A glob that cannot be
+/// compiled is left to the project enumeration that reports it, so a
+/// malformed `packages:` entry keeps the workspace here rather than
+/// silently turning the project standalone.
+fn workspace_includes_start_dir(
+    base_dir: &Path,
+    start_dir: &Path,
+    settings: Option<&WorkspaceSettings>,
+) -> bool {
+    let patterns = settings.and_then(|settings| settings.packages.as_deref());
+    pnpm_workspace::belongs_to_workspace(base_dir, start_dir, patterns).unwrap_or(true)
 }

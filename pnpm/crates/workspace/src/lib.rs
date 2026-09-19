@@ -23,8 +23,9 @@ pub use project_manifest::{
     try_read_project_manifest,
 };
 pub use projects::{
-    FindWorkspaceProjectsError, FindWorkspaceProjectsOpts, Project, find_workspace_projects,
-    find_workspace_projects_no_check,
+    FindWorkspaceProjectsError, FindWorkspaceProjectsOpts, Project, belongs_to_workspace,
+    find_workspace_projects, find_workspace_projects_no_check, is_workspace_project_dir,
+    needs_package_patterns,
 };
 pub use projects_graph_view::GraphPkg;
 pub use root_finder::{

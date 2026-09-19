@@ -4,6 +4,7 @@ import util from 'node:util'
 
 import { lexCompare } from '@pnpm/text.ordinal-comparator'
 import type { Project, ProjectRootDir, ProjectRootDirRealPath } from '@pnpm/types'
+import { normalizePatterns } from '@pnpm/workspace.package-patterns'
 import { readExactProjectManifest } from '@pnpm/workspace.project-manifest-reader'
 import pFilter from 'p-filter'
 import { glob } from 'tinyglobby'
@@ -63,12 +64,4 @@ export async function findPackages (root: string, opts?: FindPackagesOptions): P
       }),
     Boolean
   )
-}
-
-function normalizePatterns (patterns: readonly string[]): string[] {
-  const normalizedPatterns: string[] = []
-  for (const pattern of patterns) {
-    normalizedPatterns.push(pattern.replace(/\/?$/, '/package.{json,yaml,json5}'))
-  }
-  return normalizedPatterns
 }
