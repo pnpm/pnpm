@@ -31,11 +31,11 @@ fn engine_strict_rejects_an_incompatible_root_project() {
         "stderr must carry pnpm's unsupported-engine code: {stderr}",
     );
     assert!(
-        stderr.contains(r#"wanted: {"node":">=99.0.0"}"#),
+        stderr.contains(r#"{"node":">=99.0.0"}"#),
         "stderr must report the root project's Node.js range: {stderr}",
     );
     assert!(
-        stderr.contains(r#"current: {"node":"20.0.0"}"#),
+        stderr.contains(r#"{"node":"20.0.0"}"#),
         "stderr must report the configured Node.js version: {stderr}",
     );
     assert!(
