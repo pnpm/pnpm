@@ -231,7 +231,6 @@ catalog:
   '@pnpm/logger': '^1100.0.0'
   '@pnpm/meta-updater': 2.0.6
   '@pnpm/nopt': ^0.3.1
-  '@pnpm/npm-lifecycle': ^1100.1.0
   '@pnpm/npm-package-arg': ^2.0.0
   '@pnpm/os.env.path-extender': ^3.0.1
   '@pnpm/patch-package': 0.0.1
@@ -284,9 +283,11 @@ catalog:
   '@typescript/native-preview': 7.0.0-dev.20260707.2
   '@yarnpkg/core': 4.9.1
   '@yarnpkg/extensions': 2.0.7
+  '@yarnpkg/fslib': ^3.1.2
   '@yarnpkg/lockfile': ^1.1.0
   '@yarnpkg/nm': 4.1.1
   '@yarnpkg/pnp': ^4.1.7
+  '@yarnpkg/shell': 4.0.0
   '@zkochan/retry': ^0.2.0
   '@zkochan/rimraf': ^4.0.0
   '@zkochan/table': ^2.0.1
@@ -472,6 +473,7 @@ catalog:
   # 7.x compiler ships separately as @typescript/native-preview (tsgo).
   typescript: 6.0.3
   typescript-eslint: ^8.70.0
+  uid-number: 0.0.6
   # undici 8.x requires Node.js >=22.19.0, above pnpm's supported floor of
   # Node.js >=22.13.
   undici: ^7.29.0
@@ -605,6 +607,10 @@ packageExtensions:
   '@babel/parser':
     peerDependencies:
       '@babel/types': '*'
+  # The shell's declarations import micromatch's, which it does not depend on.
+  '@yarnpkg/shell':
+    dependencies:
+      '@types/micromatch': ^4.0.10
   jest-circus:
     dependencies:
       slash: '3'

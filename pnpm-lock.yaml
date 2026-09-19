@@ -221,9 +221,6 @@ catalogs:
     '@pnpm/nopt':
       specifier: ^0.3.1
       version: 0.3.1
-    '@pnpm/npm-lifecycle':
-      specifier: ^1100.1.0
-      version: 1100.1.0
     '@pnpm/npm-package-arg':
       specifier: ^2.0.0
       version: 2.0.0
@@ -374,6 +371,9 @@ catalogs:
     '@yarnpkg/extensions':
       specifier: 2.0.7
       version: 2.0.7
+    '@yarnpkg/fslib':
+      specifier: ^3.1.2
+      version: 3.1.5
     '@yarnpkg/lockfile':
       specifier: ^1.1.0
       version: 1.1.0
@@ -383,6 +383,9 @@ catalogs:
     '@yarnpkg/pnp':
       specifier: ^4.1.7
       version: 4.1.7
+    '@yarnpkg/shell':
+      specifier: 4.0.0
+      version: 4.0.0
     '@zkochan/retry':
       specifier: ^0.2.0
       version: 0.2.0
@@ -842,6 +845,9 @@ catalogs:
     typescript-eslint:
       specifier: ^8.70.0
       version: 8.70.0
+    uid-number:
+      specifier: 0.0.6
+      version: 0.0.6
     undici:
       specifier: ^7.29.0
       version: 7.29.0
@@ -936,7 +942,7 @@ overrides:
   http-proxy-middleware@>=0.16.0 <3.0.6: ^3.0.6
   deepmerge-ts@<8.0.0: ^8.0.0
 
-packageExtensionsChecksum: sha256-dCLe+IoExfAcR32yX7G/Rkg9Pl+KZvrZU0shhI7/1sE=
+packageExtensionsChecksum: sha256-afnSchwgsGYV22VV80QjlI0hyn+fIdgHGgU/tNooSiY=
 
 pnpmfileChecksum: sha256-C2XY6+pe0kqyHiBBFj5dX5DnhJzLAwdcic3kR7l3o5w=
 
@@ -4476,12 +4482,12 @@ importers:
       '@pnpm/error':
         specifier: workspace:*
         version: link:../../core/error
+      '@pnpm/exec.npm-lifecycle':
+        specifier: workspace:*
+        version: link:../npm-lifecycle
       '@pnpm/fetching.directory-fetcher':
         specifier: workspace:*
         version: link:../../fetching/directory-fetcher
-      '@pnpm/npm-lifecycle':
-        specifier: 'catalog:'
-        version: 1100.1.0(supports-color@10.2.2)(typanion@3.14.0)
       '@pnpm/pkg-manifest.reader':
         specifier: workspace:*
         version: link:../../pkg-manifest/reader
@@ -4537,6 +4543,43 @@ importers:
       load-json-file:
         specifier: 'catalog:'
         version: 7.0.1
+
+  pnpm11/exec/npm-lifecycle:
+    dependencies:
+      '@pnpm/byline':
+        specifier: 'catalog:'
+        version: 1.0.0
+      '@pnpm/error':
+        specifier: workspace:*
+        version: link:../../core/error
+      '@yarnpkg/fslib':
+        specifier: 'catalog:'
+        version: 3.1.5
+      '@yarnpkg/shell':
+        specifier: 'catalog:'
+        version: 4.0.0(typanion@3.14.0)
+      node-gyp:
+        specifier: 'catalog:'
+        version: 12.3.0
+      uid-number:
+        specifier: 'catalog:'
+        version: 0.0.6
+      which:
+        specifier: 'catalog:'
+        version: '@pnpm/which@3.0.1'
+    devDependencies:
+      '@jest/globals':
+        specifier: 'catalog:'
+        version: 30.4.1(supports-color@10.2.2)
+      '@pnpm/exec.npm-lifecycle':
+        specifier: workspace:*
+        version: 'link:'
+      '@types/which':
+        specifier: 'catalog:'
+        version: 3.0.4
+      tempy:
+        specifier: 'catalog:'
+        version: 3.0.0
 
   pnpm11/exec/pnpm-cli-runner:
     dependencies:
@@ -12182,10 +12225,6 @@ packages:
     resolution: {integrity: sha512-5jW/GNLdZMiw+PJ8FYSvOghoApSjsORNIro2fj8j6NHAqJxJjcHekC5/NsKaawoI5LAkU/XDDVjNC71Yz+uS1w==}
     engines: {node: '>=18.12'}
 
-  '@pnpm/npm-lifecycle@1100.1.0':
-    resolution: {integrity: sha512-CL1iRrlTlsghpglS+IkgJu6J6FDEDA8ShqgSib55eq2c/Vha+/mYBp3Ob6epYndB25JPF2B/NYlbrBt4Cn7QCw==}
-    engines: {node: '>=22.13'}
-
   '@pnpm/npm-package-arg@2.0.0':
     resolution: {integrity: sha512-429x8dFMgxZoeYUTUPAMC09IeM5yQ86X1LyYEQF1P4uyvhLSCh44QKkiprX9qdwBsV9QxjeNad2QoDZy1RSeRw==}
     engines: {node: '>=18.12'}
@@ -19733,19 +19772,6 @@ snapshots:
       - supports-color
       - typanion
 
-  '@pnpm/npm-lifecycle@1100.1.0(supports-color@10.2.2)(typanion@3.14.0)':
-    dependencies:
-      '@pnpm/byline': 1.0.0
-      '@pnpm/error': 1000.1.0
-      '@yarnpkg/fslib': 3.1.5
-      '@yarnpkg/shell': 4.0.0(typanion@3.14.0)
-      node-gyp: 11.5.0(supports-color@10.2.2)
-      uid-number: 0.0.6
-      which: 4.0.0
-    transitivePeerDependencies:
-      - supports-color
-      - typanion
-
   '@pnpm/npm-package-arg@2.0.0':
     dependencies:
       hosted-git-info: 4.1.0
@@ -20867,6 +20893,7 @@ snapshots:
 
   '@yarnpkg/shell@4.0.0(typanion@3.14.0)':
     dependencies:
+      '@types/micromatch': 4.0.10
       '@yarnpkg/fslib': 3.1.5
       '@yarnpkg/parsers': 3.1.0
       chalk: 3.0.0
@@ -20880,6 +20907,7 @@ snapshots:
 
   '@yarnpkg/shell@4.1.3(typanion@3.14.0)':
     dependencies:
+      '@types/micromatch': 4.0.10
       '@yarnpkg/fslib': 3.1.5
       '@yarnpkg/parsers': 3.1.0
       chalk: 4.1.2

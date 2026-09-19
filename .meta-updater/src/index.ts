@@ -505,6 +505,10 @@ async function updateManifest (workspaceDir: string, manifest: ProjectManifest, 
     if (manifest.bin) {
       files.push('bin')
     }
+    if (manifest.name === '@pnpm/exec.npm-lifecycle') {
+      // The node-gyp wrappers the runner puts on a script's PATH.
+      files.push('node-gyp-bin')
+    }
   }
   if (manifest.dependencies?.['@types/ramda']) {
     // We should never release @types/ramda as a prod dependency as it breaks the bit repository.
