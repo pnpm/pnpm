@@ -51,12 +51,7 @@ testOnLinux('the wait ends once the kernel no longer knows the group', async () 
   expect(await withDeadline(waitForProcessGroup(group), 5_000)).toBeUndefined()
 })
 
-/**
- * Write a process table in the shape of `/proc` into a fresh temporary
- * directory and return its path: one `<pid>/stat` file per entry, unreadable
- * when asked, in the kernel's format of pid, command in parentheses, state,
- * parent and process group.
- */
+/** A `stat` line is the kernel's: pid, command in parentheses, state, parent, process group. */
 function writeProcessTable (entries: Array<{ pid: number, state: string, group: number, readable?: boolean }>): string {
   const table = temporaryDirectory()
   for (const { pid, state, group, readable = true } of entries) {
