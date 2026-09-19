@@ -10,6 +10,12 @@ export interface SignalTarget {
 export interface RelaySignalsOptions {
   /** The child leads a process group of its own, which is what pnpm signals. */
   ownProcessGroup: boolean
+  /**
+   * Terminate a child still running when pnpm exits. A caller whose child
+   * is terminated on exit by other means leaves this off, or the child gets
+   * a second SIGTERM in the middle of its shutdown.
+   */
+  terminateOnExit: boolean
 }
 
 /** Handles pnpm's own signals on behalf of a running child. */
@@ -39,9 +45,7 @@ export interface SignalRelay {
  *
  * A SIGTERM is passed on. A SIGINT is passed on unless a terminal delivered
  * it, in which case the child has it already; a second SIGINT becomes a
- * SIGTERM. When pnpm exits with the child still running, the child is
- * terminated. A child with a process group of its own is signalled as a
- * group.
+ * SIGTERM. A child with a process group of its own is signalled as a group.
  */
 export function relaySignals (child: SignalTarget, opts: RelaySignalsOptions): SignalRelay {
   let interruptedBy: NodeJS.Signals | null = null
@@ -77,7 +81,9 @@ export function relaySignals (child: SignalTarget, opts: RelaySignalsOptions): S
   }
   process.once('SIGTERM', onTerm)
   process.once('SIGINT', onInterrupt)
-  process.on('exit', terminate)
+  if (opts.terminateOnExit) {
+    process.on('exit', terminate)
+  }
   return {
     interruptedBy: () => interruptedBy,
     relayed: () => relayed,

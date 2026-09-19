@@ -430,7 +430,7 @@ function runSpawned (run: ScriptRun, spawned: SpawnedScript, cb: Callback): void
   let spawnObserverFailed = false
   let spawnObserverError: LifecycleError | undefined
   let deathSignal: NodeJS.Signals | null = null
-  const relay = relaySignals(proc, { ownProcessGroup })
+  const relay = relaySignals(proc, { ownProcessGroup, terminateOnExit: true })
 
   // A script killed by a signal makes pnpm raise that signal on itself, so
   // the shell reports an interrupted command rather than a plain failure.
