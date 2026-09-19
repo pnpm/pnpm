@@ -23,15 +23,18 @@ export const trackedExeca = ((...args: Parameters<typeof safeExeca>): ReturnType
 }) as typeof safeExeca
 
 /**
- * Wait for a subprocess started with `trackedExeca`. Once it has ended, the
+ * Wait for a subprocess started with `trackedExeca`, and report the signal
+ * that reached pnpm while it ran, if any. Once the subprocess has ended, the
  * signal relay stops, and after a relayed signal pnpm waits for the
  * subprocess's process group too, so a command that was told to stop
  * finishes shutting down before pnpm goes on.
  */
-export async function waitForTracked (child: TrackedChild): Promise<Awaited<TrackedChild>> {
+export async function waitForTracked (child: TrackedChild): Promise<NodeJS.Signals | null> {
+  const relay = relays.get(child)
   try {
-    return await child
+    await child
   } finally {
-    await relays.get(child)?.settle()
+    await relay?.settle()
   }
+  return relay?.interruptedBy() ?? null
 }

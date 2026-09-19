@@ -14,9 +14,9 @@ import { extendPath } from './extendPath.js'
 import { relaySignals, spawnsInOwnProcessGroup } from './signals.js'
 import { type LifecycleChildProcess, spawn } from './spawn.js'
 
-export type { LifecycleChildProcess } from './spawn.js'
-export { hasControllingTerminal, relaySignals, spawnsInOwnProcessGroup, waitForProcessGroup } from './signals.js'
 export type { RelaySignalsOptions, SignalRelay, SignalTarget } from './signals.js'
+export { hasControllingTerminal, relaySignals, spawnsInOwnProcessGroup, waitForProcessGroup } from './signals.js'
+export type { LifecycleChildProcess } from './spawn.js'
 
 export interface LifecycleLog {
   info (...args: unknown[]): void

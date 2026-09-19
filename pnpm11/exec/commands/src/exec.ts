@@ -277,6 +277,7 @@ export async function handler (
   let exitCode = 0
   let firstError: Error | undefined
   let abortError: unknown
+  let interruptedBy: NodeJS.Signals | null = null
   const reporterShowPrefix = opts.recursive && opts.reporterHidePrefix === false
 
   const runTask = async (node: TaskNode, key: TaskKey): Promise<TaskCompletion> => {
@@ -292,10 +293,11 @@ export async function handler (
 
   const runCommandTask = async (node: TaskNode, key: TaskKey): Promise<TaskCompletion> =>
     limitRun(async (): Promise<TaskCompletion> => {
-      // Under --bail a failure stops dispatch, but a task already queued
-      // behind the concurrency limit has been dispatched in name only —
-      // starting it now would grow the failed run. It stays 'queued'.
-      if (opts.bail && firstError != null) {
+      // Under --bail a failure stops dispatch, and so does a signal that
+      // reached pnpm, but a task already queued behind the concurrency
+      // limit has been dispatched in name only — starting it now would
+      // grow the failed or interrupted run. It stays 'queued'.
+      if ((opts.bail && firstError != null) || interruptedBy) {
         return 'passed'
       }
       const prefix = node.project
@@ -399,7 +401,7 @@ export async function handler (
               resolve()
             })
           })
-          await waitForTracked(child)
+          interruptedBy ??= await waitForTracked(child)
         } else {
           const child = trackedExeca(cmd, args, {
             cwd: prefix,
@@ -407,7 +409,7 @@ export async function handler (
             stdio: 'inherit',
             shell: opts.shellMode ?? false,
           })
-          await waitForTracked(child)
+          interruptedBy ??= await waitForTracked(child)
         }
         result[prefix].status = 'passed'
         result[prefix].duration = getExecutionDuration(startTime)
@@ -444,7 +446,9 @@ export async function handler (
         return 'failed'
       }
       await taskRunState?.recordPassed(key, node)
-      return 'passed'
+      // A signal that reached pnpm ends the run once the commands in
+      // flight have finished; nothing queued behind them starts.
+      return interruptedBy ? 'aborted' : 'passed'
     })
 
   try {
@@ -458,6 +462,11 @@ export async function handler (
 
     if (abortError !== undefined) {
       throw abortError
+    }
+    if (interruptedBy) {
+      // End the way the signal would have ended pnpm, so the shell sees
+      // an interrupted command rather than a plain failure.
+      process.kill(process.pid, interruptedBy)
     }
     if (firstError != null) {
       if (opts.reportSummary) {
