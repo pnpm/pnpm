@@ -23,13 +23,13 @@ pub struct WantedDependency {
     pub bare_specifier: String,
 }
 
-/// Where a `file:` / `link:` catalog entry's relative path is measured
-/// from, and where it is measured from once resolved.
+/// Which directory a `file:` / `link:` catalog entry's relative path is
+/// measured from once resolved.
 ///
 /// A catalog is written in `pnpm-workspace.yaml`, so its relative paths
 /// start at the workspace directory, while every consumer reads a
 /// specifier relative to itself. Each call site states which of the two
-/// the specifier it asks for is measured from.
+/// it needs.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum CatalogAnchor<'a> {
     /// Re-anchor the entry from `workspace_dir` to `consumer_dir`. A
@@ -37,8 +37,8 @@ pub enum CatalogAnchor<'a> {
     /// installs somewhere unrelated to the workspace.
     Reanchor { workspace_dir: &'a Path, consumer_dir: Option<&'a Path> },
     /// Return the entry exactly as it is written. For call sites that
-    /// compare or display an entry, and for those that anchor the
-    /// resolved specifier at the workspace directory themselves.
+    /// compare or display an entry rather than install from it, and for
+    /// those that anchor the resolved specifier themselves.
     AsWritten,
 }
 
