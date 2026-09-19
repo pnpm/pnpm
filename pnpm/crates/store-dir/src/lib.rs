@@ -17,5 +17,6 @@ mod msgpackr_records;
 mod pkg_content_check;
 mod project_registry;
 mod prune;
+mod prune_cas;
 mod store_dir;
 mod upload;

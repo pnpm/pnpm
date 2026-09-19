@@ -3,12 +3,20 @@ use command_extra::CommandExtra;
 use pipe_trait::Pipe;
 use pnpm_store_dir::STORE_VERSION;
 use pnpm_testing_utils::bin::CommandTempCwd;
+use pnpm_testing_utils::command_env::CommandTestExt;
 use pretty_assertions::assert_eq;
 use std::{
     fs,
     path::{Path, PathBuf},
     process::Command,
 };
+
+fn pacquet_at(workspace: &Path) -> Command {
+    Command::cargo_bin("pnpm")
+        .expect("find the pnpm binary")
+        .with_current_dir(workspace)
+        .without_ambient_pnpm_config()
+}
 
 /// Canonicalize a path the same way the production CLI does. The CLI
 /// runs `dunce::canonicalize` on `--dir` and threads that through to
@@ -275,6 +283,54 @@ fn store_add_fails_when_a_package_cannot_be_fetched() {
     eprintln!("stderr={stderr}");
     assert!(!output.status.success(), "store add must fail when a package cannot be fetched");
     assert!(stderr.contains("ERR_PNPM_STORE_ADD_FAILURE"), "stderr={stderr}");
+}
+
+#[test]
+fn store_prune_removes_packages_left_unreferenced_by_remove() {
+    let CommandTempCwd {
+        root: _root, workspace, npmrc_info, ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    pacquet_at(&workspace)
+        .with_args(["add", "is-positive@1.0.0"])
+        .assert()
+        .success();
+
+    let store_dir = pnpm_store_dir::StoreDir::from(npmrc_info.store_dir);
+    let package_keys = || {
+        pnpm_store_dir::StoreIndex::open_readonly_in(&store_dir)
+            .expect("open store index")
+            .keys()
+            .expect("read store index keys")
+    };
+    assert!(
+        package_keys()
+            .iter()
+            .any(|key| key.contains("is-positive@1.0.0"))
+    );
+
+    pacquet_at(&workspace)
+        .with_args(["remove", "is-positive"])
+        .assert()
+        .success();
+    assert!(
+        package_keys()
+            .iter()
+            .any(|key| key.contains("is-positive@1.0.0"))
+    );
+
+    let output = pacquet_at(&workspace)
+        .with_args(["store", "prune"])
+        .output()
+        .expect("run store prune");
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(output.status.success(), "store prune failed: {stderr}");
+    assert!(stderr.contains("Removed "), "store prune must report what it reclaimed: {stderr}");
+    assert!(
+        !package_keys()
+            .iter()
+            .any(|key| key.contains("is-positive@1.0.0")),
+        "store prune must remove the unreferenced package row",
+    );
 }
 
 /// The resolver chain claims every protocol pnpm supports, but only an
