@@ -1573,7 +1573,6 @@ test('project .npmrc does not expand env variables in registry URLs', async () =
   expect(warnings).toEqual(expect.arrayContaining([
     expect.stringContaining('Ignored project-level request destination "registry"'),
   ]))
-  // The warning should guide the user toward pnpm's config command and the docs.
   const registryWarning = warnings.find((w) => w.includes('Ignored project-level request destination "registry"')) ?? ''
   expect(registryWarning).toContain('pnpm config set "registry" <value>')
   expect(registryWarning).toContain('https://pnpm.io/npmrc')
