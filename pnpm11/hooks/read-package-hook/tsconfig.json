@@ -25,6 +25,9 @@
       "path": "../../deps/peer-range"
     },
     {
+      "path": "../../resolving/local-resolver"
+    },
+    {
       "path": "../../resolving/parse-wanted-dependency"
     }
   ]

@@ -67,8 +67,8 @@ struct ConvergeOverride {
 }
 
 /// `VersionOverride` augmented with a pre-parsed [`LocalSpec`] for
-/// the local-protocol forms. Splitting once at construction time
-/// avoids re-parsing the prefix on every manifest read.
+/// the values naming a local path. Splitting once at construction time
+/// avoids re-parsing them on every manifest read.
 struct ResolvedOverride {
     inner: VersionOverride,
     local_target: Option<LocalSpec>,
@@ -115,7 +115,10 @@ impl VersionsOverrider {
             }
             let resolved = ResolvedOverride {
                 inner: override_entry.clone(),
-                local_target: LocalSpec::parse(&override_entry.new_bare_specifier, root_dir),
+                local_target: LocalSpec::parse_filesystem(
+                    &override_entry.new_bare_specifier,
+                    root_dir,
+                ),
             };
             if override_entry.parent_pkg.is_some() {
                 parent_scoped.push(resolved);

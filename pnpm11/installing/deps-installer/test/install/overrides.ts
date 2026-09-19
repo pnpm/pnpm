@@ -515,7 +515,7 @@ test('explicitly specifying a version at install will ignore overrides', async (
   expect(manifest.dependencies?.['@pnpm.e2e/bar']).toBe(EXACT_VERSION)
 })
 
-test('overrides with local file and link specs', async () => {
+test('overrides with local file, link and bare path specs', async () => {
   interface LocationAndManifest {
     location: string
     package: ProjectManifest
@@ -535,6 +535,7 @@ test('overrides with local file and link specs', async () => {
         'absolute-file-pkg': '*',
         'relative-link-pkg': '*',
         'absolute-link-pkg': '*',
+        'bare-path-pkg': '*',
       },
     },
   }
@@ -577,6 +578,7 @@ test('overrides with local file and link specs', async () => {
       'absolute-file-pkg': `file:${path.resolve('overrides/pkg')}`,
       'relative-link-pkg': 'link:./overrides/pkg',
       'absolute-link-pkg': `link:${path.resolve('overrides/pkg')}`,
+      'bare-path-pkg': './overrides/pkg',
       '@pnpm.e2e/pkg-a': 'file:./overrides/pkg',
       '@pnpm.e2e/pkg-b': `file:${path.resolve('overrides/pkg')}`,
       '@pnpm.e2e/pkg-c': 'link:./overrides/pkg',
@@ -600,6 +602,12 @@ test('overrides with local file and link specs', async () => {
         specifier: 'link:../../overrides/pkg',
         version: 'link:../../overrides/pkg',
       },
+      // A bare path names the workspace's directory the way its `link:`
+      // spelling does, not one inside the package being rewritten.
+      'bare-path-pkg': {
+        specifier: '../../overrides/pkg',
+        version: 'link:../../overrides/pkg',
+      },
       'absolute-link-pkg': {
         specifier: `link:${path.resolve('overrides/pkg')}`,
         version: 'link:../../overrides/pkg',
@@ -621,6 +629,7 @@ test('overrides with local file and link specs', async () => {
   expect(fs.realpathSync(path.join(directPrefix, 'relative-file-pkg'))).toBe(path.resolve('node_modules/.pnpm/pkg@file+overrides+pkg/node_modules/pkg'))
   expect(fs.realpathSync(path.join(directPrefix, 'absolute-link-pkg'))).toBe(path.resolve('overrides/pkg'))
   expect(fs.realpathSync(path.join(directPrefix, 'relative-link-pkg'))).toBe(path.resolve('overrides/pkg'))
+  expect(fs.realpathSync(path.join(directPrefix, 'bare-path-pkg'))).toBe(path.resolve('overrides/pkg'))
 
   const indirectPrefix = 'node_modules/.pnpm/@pnpm.e2e+depends-on-pkg-abcd@1.0.0/node_modules'
   expect(fs.realpathSync(path.join(indirectPrefix, '@pnpm.e2e/pkg-a'))).toBe(path.resolve('node_modules/.pnpm/pkg@file+overrides+pkg/node_modules/pkg'))

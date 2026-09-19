@@ -5291,6 +5291,9 @@ importers:
       '@pnpm/error':
         specifier: workspace:*
         version: link:../../core/error
+      '@pnpm/resolving.local-resolver':
+        specifier: workspace:*
+        version: link:../../resolving/local-resolver
       '@pnpm/resolving.parse-wanted-dependency':
         specifier: workspace:*
         version: link:../../resolving/parse-wanted-dependency

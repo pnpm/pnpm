@@ -35,6 +35,7 @@
     "@pnpm/config.parse-overrides": "workspace:*",
     "@pnpm/deps.peer-range": "workspace:*",
     "@pnpm/error": "workspace:*",
+    "@pnpm/resolving.local-resolver": "workspace:*",
     "@pnpm/resolving.parse-wanted-dependency": "workspace:*",
     "@pnpm/types": "workspace:*",
     "@yarnpkg/extensions": "catalog:",
