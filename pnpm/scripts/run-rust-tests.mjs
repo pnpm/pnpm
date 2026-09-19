@@ -3,6 +3,7 @@ import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import process from 'node:process'
+import { parallelismEnv } from './cargo-jobs.mjs'
 
 const configDir = fs.mkdtempSync(path.join(os.tmpdir(), 'pnpm-test-config-'))
 
@@ -13,7 +14,7 @@ try {
   }))
   const npmrcPath = path.join(configDir, 'npmrc')
   fs.writeFileSync(npmrcPath, '')
-  Object.assign(env, {
+  Object.assign(env, parallelismEnv(env), {
     PNPM_CONFIG_CI: 'false',
     PNPM_CONFIG_NPMRC_AUTH_FILE: npmrcPath,
     XDG_CONFIG_HOME: configDir,

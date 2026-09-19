@@ -83,10 +83,11 @@ jobs:
     # grown close to the hosted runner's free-disk ceiling even after the
     # cleanup step below — a run can cross ENOSPC mid-link (the linker dies
     # with "No space left on device"). Line tables keep panic backtraces
-    # file:line-accurate while dropping most of the debuginfo bytes. Set here
-    # in CI rather than in Cargo.toml so local `just test` keeps full debug
-    # info. CARGO_PROFILE_DEV_DEBUG covers dependencies (built dev), _TEST_
-    # covers the test targets.
+    # file:line-accurate while dropping most of the debuginfo bytes.
+    # CARGO_PROFILE_DEV_DEBUG covers the dependencies (built dev), which keep
+    # their full debug info locally so a debugger still steps through the
+    # crates under test. _TEST_ covers the test targets, matching the
+    # `[profile.test]` setting in Cargo.toml.
     env:
       CARGO_PROFILE_DEV_DEBUG: line-tables-only
       CARGO_PROFILE_TEST_DEBUG: line-tables-only
