@@ -256,7 +256,7 @@ pub(super) async fn prepare_manifest<Reporter: self::Reporter>(
         let mut dependencies = Vec::with_capacity(inputs.add.package_names.len());
         while let Some(result) = resolution_futures.next().await {
             let dependency = result?;
-            if let Some(warning) = &dependency.warning {
+            for warning in &dependency.warnings {
                 Reporter::emit(warning);
             }
             dependencies.push(dependency);

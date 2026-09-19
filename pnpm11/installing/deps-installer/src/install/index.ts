@@ -104,6 +104,7 @@ import pLimit from 'p-limit'
 import { clone, isEmpty, map as mapValues, pipeWith, props } from 'ramda'
 import semver from 'semver'
 
+import { isSameSource } from '../isSameSource.js'
 import { parseWantedDependencies } from '../parseWantedDependencies.js'
 import { removeDeps } from '../uninstall/removeDeps.js'
 import { CatalogVersionMismatchError } from './checkCompatibility/CatalogVersionMismatchError.js'
@@ -1155,6 +1156,15 @@ export async function mutateModules (
         defaultCatalog: opts.catalogs?.default,
         readonlyManifest,
       })
+
+      for (const wantedDep of wantedDeps) {
+        if (wantedDep.prevSpecifier && !isSameSource(wantedDep.prevSpecifier, wantedDep.bareSpecifier, wantedDep.alias)) {
+          logger.warn({
+            message: `Replaced "${wantedDep.alias}" ("${wantedDep.prevSpecifier}") with "${wantedDep.bareSpecifier}" from a different source.`,
+            prefix: project.rootDir,
+          })
+        }
+      }
 
       for (const { alias, requested, kept } of outsideKeptRange) {
         logger.warn({

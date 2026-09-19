@@ -16,6 +16,8 @@ use manifest::{
     prepare_single_add,
 };
 
+mod source;
+
 use crate::{
     CatalogVersionMismatchError, CommandLockfile, InstallError, ResolvedPackages, SelectedProjects,
     catalog_cleanup::{WriteWorkspaceCatalogsError, post_install_prune},

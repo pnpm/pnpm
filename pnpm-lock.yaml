@@ -5957,6 +5957,9 @@ importers:
       '@zkochan/rimraf':
         specifier: 'catalog:'
         version: 4.0.0
+      hosted-git-info:
+        specifier: 'catalog:'
+        version: '@pnpm/hosted-git-info@1.0.0'
       is-inner-link:
         specifier: 'catalog:'
         version: 5.0.0
@@ -6045,6 +6048,9 @@ importers:
       '@types/fs-extra':
         specifier: 'catalog:'
         version: 11.0.4
+      '@types/hosted-git-info':
+        specifier: 'catalog:'
+        version: 3.0.5
       '@types/is-windows':
         specifier: 'catalog:'
         version: 1.0.2
