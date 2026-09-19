@@ -114,7 +114,7 @@ test('names a non-deprecated version the resolver found', async () => {
 
   deprecationLogger.debug({
     depth: 0,
-    nonDeprecatedAlternative: { version: '2.3.1', satisfiesWanted: false },
+    nonDeprecatedAlternative: { version: '2.3.1', outsideDeclaredRange: true },
     pkgId: 'registry.npmjs.org/foo/1.0.0',
     pkgName: 'foo',
     pkgVersion: '1.0.0',
@@ -127,7 +127,7 @@ test('names a non-deprecated version the resolver found', async () => {
   expect(output).toBe(formatWarn(`${chalk.red('deprecated')} foo@1.0.0. 2.3.1 is not deprecated, outside the range you declared.`))
 })
 
-test('drops the range clause when the non-deprecated version is already in range', async () => {
+test('drops the range clause when the alternative is inside the declared range', async () => {
   const prefix = '/home/jane/project'
   const output$ = toOutput$({
     context: {
@@ -139,7 +139,7 @@ test('drops the range clause when the non-deprecated version is already in range
 
   deprecationLogger.debug({
     depth: 0,
-    nonDeprecatedAlternative: { version: '1.4.0', satisfiesWanted: true },
+    nonDeprecatedAlternative: { version: '1.4.0', outsideDeclaredRange: false },
     pkgId: 'registry.npmjs.org/foo/1.0.0',
     pkgName: 'foo',
     pkgVersion: '1.0.0',

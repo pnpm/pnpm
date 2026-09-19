@@ -27,10 +27,10 @@ fn alternative_hint(log: &DeprecationLog) -> String {
         return String::new();
     };
     let version = pnpm_text_sanitize::sanitize_inline(&alternative.version);
-    if alternative.satisfies_wanted {
-        format!(". {version} is not deprecated.")
-    } else {
+    if alternative.outside_declared_range {
         format!(". {version} is not deprecated, outside the range you declared.")
+    } else {
+        format!(". {version} is not deprecated.")
     }
 }
 

@@ -29,9 +29,9 @@ function alternativeHint (log: DeprecationLog): string {
   const alternative = log.nonDeprecatedAlternative
   if (alternative == null) return ''
   const version = sanitizeInline(alternative.version)
-  return alternative.satisfiesWanted
-    ? `. ${version} is not deprecated.`
-    : `. ${version} is not deprecated, outside the range you declared.`
+  return alternative.outsideDeclaredRange
+    ? `. ${version} is not deprecated, outside the range you declared.`
+    : `. ${version} is not deprecated.`
 }
 
 export function reportDeprecations (

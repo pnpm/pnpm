@@ -503,7 +503,7 @@ fn deprecation_log_fn<Reporter: self::Reporter>() -> pnpm_resolving_deps_resolve
             non_deprecated_alternative: deprecation.non_deprecated_alternative.map(|alt| {
                 pnpm_reporter::NonDeprecatedAlternative {
                     version: alt.version,
-                    satisfies_wanted: alt.satisfies_wanted,
+                    outside_declared_range: alt.outside_declared_range,
                 }
             }),
         }));

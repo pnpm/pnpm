@@ -326,8 +326,12 @@ function pickSupported<T extends string | null | undefined> (requirements: strin
  */
 export interface NonDeprecatedAlternative {
   version: string
-  /** Whether it is reachable without widening the declared range. */
-  satisfiesWanted: boolean
+  /**
+   * Whether reaching it means widening the declared range. Only ever true
+   * for a dependency that declared a range: a tag says nothing about which
+   * versions are acceptable, so there is no range to be outside of.
+   */
+  outsideDeclaredRange: boolean
 }
 
 export interface ResolveResult {

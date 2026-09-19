@@ -445,7 +445,7 @@ fn direct_deprecation_names_a_version_that_is_not_deprecated() {
             CWD,
             Some(NonDeprecatedAlternative {
                 version: "4.21.2".to_string(),
-                satisfies_wanted: false,
+                outside_declared_range: true,
             }),
         )],
     );
@@ -456,7 +456,7 @@ fn direct_deprecation_names_a_version_that_is_not_deprecated() {
 }
 
 #[test]
-fn direct_deprecation_drops_the_range_clause_for_an_in_range_alternative() {
+fn direct_deprecation_drops_the_range_clause_when_no_range_was_declared() {
     let mut reporter = state(false);
     let frame = render(
         &mut reporter,
@@ -467,7 +467,7 @@ fn direct_deprecation_drops_the_range_clause_for_an_in_range_alternative() {
             CWD,
             Some(NonDeprecatedAlternative {
                 version: "0.14.2".to_string(),
-                satisfies_wanted: true,
+                outside_declared_range: false,
             }),
         )],
     );

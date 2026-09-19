@@ -474,7 +474,7 @@ fn deprecation_event_matches_pnpm_wire_shape() {
         depth: 0,
         non_deprecated_alternative: Some(NonDeprecatedAlternative {
             version: "1.0.0".to_string(),
-            satisfies_wanted: false,
+            outside_declared_range: true,
         }),
     });
     let envelope = Envelope { time: 1_700_000_000_000, hostname: "host", pid: 4242, event: &event };
@@ -496,7 +496,7 @@ fn deprecation_event_matches_pnpm_wire_shape() {
         "the registry's deprecation notice must not reach an NDJSON consumer",
     );
     assert_eq!(json["nonDeprecatedAlternative"]["version"], "1.0.0");
-    assert_eq!(json["nonDeprecatedAlternative"]["satisfiesWanted"], false);
+    assert_eq!(json["nonDeprecatedAlternative"]["outsideDeclaredRange"], true);
 }
 
 /// Transitive deprecation events (`depth > 0`) also match the wire shape.

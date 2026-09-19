@@ -515,8 +515,10 @@ pub struct ResolvedPackageInfo {
 #[derive(Debug, Default, Clone, PartialEq)]
 pub struct NonDeprecatedAlternative {
     pub version: String,
-    /// Whether it is reachable without widening the declared range.
-    pub satisfies_wanted: bool,
+    /// Whether reaching it means widening the declared range. Only ever true
+    /// for a dependency that declared a range: a tag says nothing about which
+    /// versions are acceptable, so there is no range to be outside of.
+    pub outside_declared_range: bool,
 }
 
 /// Input to [`Resolver::resolve_latest`]. The resolver decides whether

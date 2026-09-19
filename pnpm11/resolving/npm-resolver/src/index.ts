@@ -71,7 +71,7 @@ import {
   pickPackage,
   type PickPackageOptions,
 } from './pickPackage.js'
-import { applyPublishedByPolicy, findNonDeprecatedAlternative, pickPackageFromMeta, pickVersionByVersionRange } from './pickPackageFromMeta.js'
+import { applyPublishedByPolicy, findNonDeprecatedAlternative, pickPackageFromMeta, pickVersionByVersionRange, versionAllowedByPolicy } from './pickPackageFromMeta.js'
 import { failIfTrustDowngraded } from './trustChecks.js'
 import { MINIMUM_RELEASE_AGE_VIOLATION_CODE } from './violationCodes.js'
 import { workspacePrefToNpm } from './workspacePrefToNpm.js'
@@ -976,7 +976,7 @@ async function pickFromSimpleRegistry (
     latest: latestAllowedByPolicy(meta, opts),
     // Only worked out for a deprecated pick, so the scan stays on the rare path.
     nonDeprecatedAlternative: pickedPackage.deprecated
-      ? findNonDeprecatedAlternative(meta, spec.fetchSpec)
+      ? findNonDeprecatedAlternative(meta, spec, opts)
       : undefined,
     manifest: selectedPackage,
     resolution,
@@ -1267,14 +1267,8 @@ function latestAllowedByPolicy (
   }
 ): string | undefined {
   const latest = meta['dist-tags'].latest
-  if (!latest || !opts.publishedBy) return latest
-  const excludeResult = opts.publishedByExclude?.(meta.name)
-  if (excludeResult === true) return latest
-  if (Array.isArray(excludeResult) && excludeResult.includes(latest)) return latest
-  const publishedAt = meta.time?.[latest]
-  if (publishedAt == null) return latest
-  const ts = new Date(publishedAt).getTime()
-  return (Number.isNaN(ts) || ts <= opts.publishedBy.getTime()) ? latest : undefined
+  if (!latest) return undefined
+  return versionAllowedByPolicy(meta, latest, opts) ? latest : undefined
 }
 
 /**

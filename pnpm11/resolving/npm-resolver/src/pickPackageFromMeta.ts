@@ -385,19 +385,48 @@ function semverSatisfiesLoose (version: string, range: string): boolean {
 // packuments; these reuse the parse caches instead.
 /**
  * The newest version of `meta` the registry does not report as deprecated,
- * for the deprecation warning to point at. `satisfiesWanted` says whether it
- * is reachable without widening `versionRange`.
+ * for the deprecation warning to point at.
  *
- * `undefined` when every published version is deprecated. Reads deprecation
- * off the packument pnpm already holds, so it costs no extra request.
+ * `meta` must already be narrowed by any active `publishedBy` policy, so the
+ * version named is one pnpm would actually install. `undefined` when every
+ * admissible version is deprecated. Reads deprecation off the packument pnpm
+ * already holds, so it costs no extra request.
  */
+export interface PublishPolicyOptions {
+  publishedBy?: Date
+  publishedByExclude?: PackageVersionPolicy
+}
+
+/**
+ * Whether the active `minimumReleaseAge` policy would let pnpm install
+ * `version`. Suppression requires positive evidence of immaturity: a missing
+ * or unparsable timestamp admits the version, matching the resolver's own
+ * violation check, which likewise only flags a version it can date.
+ */
+export function versionAllowedByPolicy (
+  meta: PackageMeta,
+  version: string,
+  opts: PublishPolicyOptions
+): boolean {
+  if (!opts.publishedBy) return true
+  const excludeResult = opts.publishedByExclude?.(meta.name)
+  if (excludeResult === true) return true
+  if (Array.isArray(excludeResult) && excludeResult.includes(version)) return true
+  const publishedAt = meta.time?.[version]
+  if (publishedAt == null) return true
+  const ts = new Date(publishedAt).getTime()
+  return Number.isNaN(ts) || ts <= opts.publishedBy.getTime()
+}
+
 export function findNonDeprecatedAlternative (
   meta: PackageMeta,
-  versionRange: string
+  spec: RegistryPackageSpec,
+  opts: PublishPolicyOptions
 ): NonDeprecatedAlternative | undefined {
   let newest: semver.SemVer | undefined
   for (const [version, versionMeta] of Object.entries(meta.versions)) {
     if (versionMeta.deprecated) continue
+    if (!versionAllowedByPolicy(meta, version, opts)) continue
     const parsed = semver.parse(version, true)
     if (parsed != null && (newest == null || parsed.compare(newest) > 0)) {
       newest = parsed
@@ -407,7 +436,9 @@ export function findNonDeprecatedAlternative (
   const version = newest.version
   return {
     version,
-    satisfiesWanted: versionRange === '*' || semverSatisfiesLoose(version, versionRange),
+    outsideDeclaredRange: spec.type === 'range' &&
+      spec.fetchSpec !== '*' &&
+      !semverSatisfiesLoose(version, spec.fetchSpec),
   }
 }
 

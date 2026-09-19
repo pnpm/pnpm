@@ -27,8 +27,12 @@ export interface DeprecationMessage {
    */
   nonDeprecatedAlternative?: {
     version: string
-    /** Whether it is reachable without widening the declared range. */
-    satisfiesWanted: boolean
+    /**
+     * Whether reaching it means widening the declared range. Only ever true
+     * for a dependency that declared a range: a tag says nothing about which
+     * versions are acceptable.
+     */
+    outsideDeclaredRange: boolean
   }
 }
 

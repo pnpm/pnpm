@@ -594,7 +594,7 @@ pub struct DeprecationLog {
 #[serde(rename_all = "camelCase")]
 pub struct NonDeprecatedAlternative {
     pub version: String,
-    pub satisfies_wanted: bool,
+    pub outside_declared_range: bool,
 }
 
 /// Severity level on the [bunyan]-shaped envelope.
