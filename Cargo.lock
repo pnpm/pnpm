@@ -4849,6 +4849,7 @@ dependencies = [
  "pnpm-config",
  "pnpm-matcher",
  "pnpm-reporter",
+ "pnpm-text-sanitize",
  "pretty_assertions",
  "serde_json",
 ]

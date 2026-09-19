@@ -69,5 +69,33 @@ test('reports a deprecated direct dependency without the registry notice', async
   expect.assertions(1)
 
   const output = await firstValueFrom(output$.pipe(take(1), map(normalizeNewline)))
-  expect(output).toBe(formatWarn(`${chalk.red('deprecated')} foo@1.0.0. Run "pnpm view foo@1.0.0" to see why.`))
+  expect(output).toBe(formatWarn(`${chalk.red('deprecated')} foo@1.0.0`))
+})
+
+test('strips control characters from a package name the manifest chose', async () => {
+  const prefix = '/home/jane/project'
+  const output$ = toOutput$({
+    context: {
+      argv: ['install'],
+      config: { dir: prefix } as ReporterPnpmConfig,
+    },
+    streamParser: createStreamParser(),
+  })
+
+  deprecationLogger.debug({
+    depth: 0,
+    pkgId: 'registry.npmjs.org/foo/1.0.0',
+    pkgName: 'foo\u001b[2K\rnot-really-deprecated',
+    pkgVersion: '1.0.0',
+    prefix,
+  })
+
+  expect.assertions(3)
+
+  const output = await firstValueFrom(output$.pipe(take(1), map(normalizeNewline)))
+  // The payload stays readable rather than being removed: without the
+  // leading ESC the terminal prints it instead of acting on it.
+  expect(output).not.toContain('\u001b')
+  expect(output).not.toContain('\r')
+  expect(output).toBe(formatWarn(`${chalk.red('deprecated')} foo[2Knot-really-deprecated@1.0.0`))
 })

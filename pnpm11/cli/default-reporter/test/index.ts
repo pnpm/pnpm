@@ -203,7 +203,7 @@ test('prints summary (of current package only)', async () => {
 
   const output = await firstValueFrom(output$.pipe(skip(2), take(1), map(normalizeNewline)))
   expect(output).toBe(`packages/foo                             |   ${chalk.green('+5')}   ${chalk.red('-1')} ${ADD + SUB}${EOL}` +
-        `${formatWarn(`${DEPRECATED} bar@2.0.0. Run "pnpm view bar@2.0.0" to see why.`)}${EOL}${EOL}` +
+        `${formatWarn(`${DEPRECATED} bar@2.0.0`)}${EOL}${EOL}` +
         `\
 ${h1('dependencies:')}
 ${ADD} bar ${versionColor('2.0.0')} ${DEPRECATED}
@@ -909,11 +909,11 @@ pkg-5                                    | ${formatWarn('Some issue')}
 .                                        | ${formatWarn('Some other issue')}
 .                                        |   ${chalk.red('-1')} ${SUB}
 pkg-1                                    |   ${chalk.green('+5')}   ${chalk.red('-1')} ${ADD + SUB}
-dir/pkg-2                                | ${formatWarn(`${DEPRECATED} bar@2.0.0. Run "pnpm view bar@2.0.0" to see why.`)}
+dir/pkg-2                                | ${formatWarn(`${DEPRECATED} bar@2.0.0`)}
 dir/pkg-2                                |   ${chalk.green('+2')} ${ADD}
 .../pkg-3                                |   ${chalk.green('+1')} ${ADD}
 ...ooooooooooooooooooooooooooooong-pkg-4 |   ${chalk.red('-1')} ${SUB}
-.                                        | ${formatWarn(`${DEPRECATED} foo@1.0.0. Run "pnpm view foo@1.0.0" to see why.`)}`)
+.                                        | ${formatWarn(`${DEPRECATED} foo@1.0.0`)}`)
   // cspell:enable
 })
 

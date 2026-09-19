@@ -421,16 +421,24 @@ fn hook_log_renders_with_magenta_hook_name() {
     assert_eq!(frame, "preResolution: Starting resolution");
 }
 
-/// The registry's deprecation notice never reaches the terminal; the line
-/// points at `pnpm view` for it instead.
+/// The registry's deprecation notice never reaches the terminal.
 #[test]
 fn direct_deprecation_renders_immediately_without_the_notice() {
     let mut reporter = state(false);
     let frame = render(&mut reporter, vec![deprecation("express", "0.14.1", 0, CWD)]);
-    assert_eq!(
-        frame,
-        r#"[WARN] deprecated express@0.14.1. Run "pnpm view express@0.14.1" to see why."#,
-    );
+    assert_eq!(frame, "[WARN] deprecated express@0.14.1");
+}
+
+/// A git or tarball dependency names itself, so the identifier is filtered
+/// like any other store-derived text before it reaches the terminal.
+#[test]
+fn direct_deprecation_strips_control_characters_from_the_identifier() {
+    let mut reporter = state(false);
+    let frame =
+        render(&mut reporter, vec![deprecation("express\u{1b}[2K\rclean", "0.14.1", 0, CWD)]);
+    // The payload stays readable rather than being removed: without the
+    // leading ESC the terminal prints it instead of acting on it.
+    assert_eq!(frame, "[WARN] deprecated express[2Kclean@0.14.1");
 }
 
 /// The event fires for every command; only the ones in pnpm's

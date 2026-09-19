@@ -82,11 +82,7 @@ fn recursive_direct_deprecation_is_zoomed() {
     let frame = render(&mut reporter, vec![deprecation("express", "0.14.1", 0, CWD)]);
     assert_eq!(
         frame,
-        pnpm_default_reporter::format::zoom_out(
-            CWD,
-            CWD,
-            r#"[WARN] deprecated express@0.14.1. Run "pnpm view express@0.14.1" to see why."#,
-        ),
+        pnpm_default_reporter::format::zoom_out(CWD, CWD, "[WARN] deprecated express@0.14.1"),
     );
 }
 
@@ -100,7 +96,7 @@ fn zoomed_direct_deprecation_carries_the_prefix() {
         pnpm_default_reporter::format::zoom_out(
             CWD,
             "/repo/packages/app",
-            r#"[WARN] deprecated express@0.14.1. Run "pnpm view express@0.14.1" to see why."#,
+            "[WARN] deprecated express@0.14.1",
         ),
     );
 }

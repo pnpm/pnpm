@@ -7,6 +7,15 @@ use super::{
     update_command, zoom_out,
 };
 
+/// `name@version` as a deprecation warning prints it.
+///
+/// Both halves come from the resolved manifest, which a git or tarball
+/// dependency writes itself, so neither is a validated npm package name.
+fn pkg_label(log: &DeprecationLog) -> String {
+    pnpm_text_sanitize::sanitize_inline(&format!("{}@{}", log.pkg_name, log.pkg_version))
+        .into_owned()
+}
+
 impl ReporterState {
     // --- misc one-liners --------------------------------------------------
 
@@ -219,11 +228,11 @@ impl ReporterState {
             self.notices.deprecated_subdeps.push(log.clone());
             return;
         }
-        let pkg = format!("{}@{}", log.pkg_name, log.pkg_version);
         let msg = format!(
-            r#"{} {} {pkg}. Run "pnpm view {pkg}" to see why."#,
+            "{} {} {}",
             self.rendering.colors.warn_label(),
             self.rendering.colors.red("deprecated"),
+            pkg_label(log),
         );
         if !self.options.scope.recursive && log.prefix == self.rendering.cwd {
             self.display.frame.push_block(msg);
@@ -238,7 +247,7 @@ impl ReporterState {
         }
         let mut names: Vec<String> = self.notices.deprecated_subdeps
             .iter()
-            .map(|log| format!("{}@{}", log.pkg_name, log.pkg_version))
+            .map(pkg_label)
             .collect();
         names.sort();
         let count = names.len();
