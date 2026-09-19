@@ -39,7 +39,7 @@ fn aliases_can_cross_named_catalogs() {
     .unwrap();
     assert_eq!(
         output,
-        "catalogs:\n  first:\n    react: &react ^2.0.0\n  second:\n    react-dom: *react\n"
+        "catalogs:\n  first:\n    react: &react ^2.0.0\n  second:\n    react-dom: *react\n",
     );
 }
 
@@ -57,7 +57,7 @@ fn deleting_a_setting_preserves_catalog_aliases() {
     let output = super::run_update_field(Some(original), "version", &serde_json::Value::Null);
     assert_eq!(
         output,
-        Some("catalog:\n  react: &version ^1.0.0\n  react-dom: *version\n".to_string())
+        Some("catalog:\n  react: &version ^1.0.0\n  react-dom: *version\n".to_string()),
     );
 }
 
@@ -71,7 +71,7 @@ fn repeated_anchor_names_do_not_merge_distinct_groups() {
     let value: serde_json::Value = serde_saphyr::from_str(&output).unwrap();
     assert_eq!(
         value["catalog"],
-        serde_json::json!({"a": "^3.0.0", "b": "^3.0.0", "c": "^2.0.0", "d": "^2.0.0"})
+        serde_json::json!({"a": "^3.0.0", "b": "^3.0.0", "c": "^2.0.0", "d": "^2.0.0"}),
     );
     assert!(output.contains("b: *version_1"), "{output}");
     assert!(output.contains("d: *version_2"), "{output}");
@@ -90,4 +90,17 @@ fn tagged_scalar_updates_do_not_change_other_entries() {
     let output = run(Some(original), &catalogs(&[("default", &[("react", "2.0")])])).unwrap();
     let value: serde_json::Value = serde_saphyr::from_str(&output).unwrap();
     assert_eq!(value["catalog"], serde_json::json!({ "react": "2.0", "react-dom": "1.0" }));
+}
+
+#[test]
+fn implicit_null_anchors_allow_unrelated_settings_to_be_edited() {
+    let original = "minimumReleaseAge: &age\nfetchRetries: *age\n";
+    let output =
+        super::run_update_field(Some(original), "saveExact", &serde_json::json!(true)).unwrap();
+    let value: serde_json::Value = serde_saphyr::from_str(&output).unwrap();
+    assert_eq!(
+        value,
+        serde_json::json!({ "minimumReleaseAge": null, "fetchRetries": null, "saveExact": true }),
+    );
+    assert!(output.contains("fetchRetries: *age"), "{output}");
 }

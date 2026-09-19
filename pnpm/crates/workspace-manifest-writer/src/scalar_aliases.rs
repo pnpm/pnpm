@@ -42,6 +42,14 @@ impl ScalarAliases {
         if definitions.is_empty() {
             return Ok((text.to_string(), Self::default()));
         }
+        let implicit_nulls: Vec<_> = definitions
+            .values()
+            .filter(|definition| definition.value.is_empty() && definition.tag.is_none())
+            .map(|definition| (definition.anchor.end..definition.anchor.end, " null".to_string()))
+            .collect();
+        if !implicit_nulls.is_empty() {
+            return Self::expand(&apply_edits(text, implicit_nulls));
+        }
         let mut paths_by_span = scalar_paths_by_span(text)?;
         let mut edits = Vec::new();
         let mut groups = Vec::new();
