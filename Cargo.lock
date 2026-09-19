@@ -6062,6 +6062,7 @@ dependencies = [
  "home",
  "miette 7.6.0",
  "pathdiff",
+ "pnpm-local-spec",
  "pnpm-lockfile",
  "pnpm-package-manifest",
  "pnpm-package-name",

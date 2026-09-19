@@ -8,6 +8,7 @@ use std::path::{Component, Path, PathBuf};
 
 use derive_more::{Display, Error};
 use miette::Diagnostic;
+use pnpm_local_spec::{is_filespec, is_tarball_filename};
 use pnpm_resolving_resolver_base::PkgResolutionId;
 
 /// The wanted-dependency slice the local resolver consumes.
@@ -62,42 +63,6 @@ pub(crate) struct ParseOptions {
 pub struct PathProtocolNotSupportedError {
     pub bare_specifier: String,
     pub protocol: String,
-}
-
-/// Whether a bare specifier's shape can only mean a local file or
-/// directory: the `link:` / `file:` protocols, a path-prefixed spec
-/// (`./`, `../`, `~/`, absolute POSIX paths, and Windows drive paths —
-/// including drive-relative ones like `C:dir`), or a bare tarball file
-/// name.
-///
-/// Narrower than what `parse_local_path` claims, which also takes any
-/// spec containing a path separator. That shape is statically
-/// indistinguishable from a hosted-git shorthand (`user/repo`) or a
-/// named-registry alias (`gh:@scope/pkg`), and the resolver chain only
-/// gets away with claiming it by running the local resolver last.
-/// Callers that dispatch on specifier shape without that ordering ask
-/// this instead.
-#[must_use]
-pub fn is_local_filesystem_specifier(bare: &str) -> bool {
-    if bare.starts_with("link:") || bare.starts_with("file:") {
-        return true;
-    }
-    if is_filespec(bare) {
-        return true;
-    }
-    // Any other protocol — a `git+ssh:` / `https:` URL, an `npm:` alias, a
-    // named-registry prefix — belongs to its own resolver, tarball-shaped
-    // path or not.
-    if bare.contains(':') {
-        return false;
-    }
-    // A `#` here marks a hosted-git shorthand's committish
-    // (`user/repo#release.tgz`), not a local tarball: the protocol and
-    // path-prefixed forms already returned above.
-    if bare.contains('#') {
-        return false;
-    }
-    is_tarball_filename(bare)
 }
 
 /// Parse a wanted dep with an explicit local-scheme prefix
@@ -323,24 +288,6 @@ fn is_absolute_specifier(spec: &str) -> bool {
     }
 }
 
-/// `true` for a path-shaped spec:
-/// - Windows: `/^(?:[./\\]|~\/|[a-z]:)/i`
-/// - POSIX:   `/^(?:[./]|~\/|[a-z]:)/i`
-///
-/// Implemented uniformly (accepting the backslash on every platform):
-/// [`parse_local_path`] inspects `bare_specifier` before the normalize
-/// step that forward-slashes paths, so Windows-host inputs may still
-/// carry a leading `\`.
-fn is_filespec(spec: &str) -> bool {
-    let mut chars = spec.chars();
-    match chars.next() {
-        Some('.' | '/' | '\\') => true,
-        Some('~') => chars.next() == Some('/'),
-        Some(c) if c.is_ascii_alphabetic() => chars.next() == Some(':'),
-        _ => false,
-    }
-}
-
 fn is_drive_letter_prefix(spec: &str) -> bool {
     let mut chars = spec.chars();
     matches!(chars.next(), Some(c) if c.is_ascii_alphabetic()) && matches!(chars.next(), Some(':'))
@@ -348,15 +295,6 @@ fn is_drive_letter_prefix(spec: &str) -> bool {
 
 fn strip_tilde_prefix(spec: &str) -> Option<&str> {
     spec.strip_prefix("~/")
-}
-
-/// Whether a local specifier names a package tarball rather than a
-/// directory. A `file:` specifier resolves to one or the other, and only
-/// the directory form becomes a `link:` entry in the lockfile.
-#[must_use]
-pub fn is_tarball_filename(bare: &str) -> bool {
-    let lower = bare.to_ascii_lowercase();
-    lower.ends_with(".tgz") || lower.ends_with(".tar.gz") || lower.ends_with(".tar")
 }
 
 /// Resolve an unambiguous local tarball specifier to the regular file

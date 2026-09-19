@@ -197,3 +197,29 @@ fn leaves_a_registry_entry_alone_while_reanchoring() {
     assert_eq!(reanchored("workspace:*", Some("packages/foo")), "workspace:*");
     assert_eq!(reanchored("npm:other@^1", Some("packages/foo")), "npm:other@^1");
 }
+
+#[test]
+fn reanchors_a_bare_local_path_entry_on_the_consuming_project() {
+    assert_eq!(
+        reanchored("./tarballs/bar-1.0.0.tgz", Some("packages/foo")),
+        "../../tarballs/bar-1.0.0.tgz",
+    );
+}
+
+/// An entry the resolver chain reaches before the local resolver keeps
+/// its own meaning: a hosted-git shorthand is not a directory in the
+/// workspace, and a slash-free tarball name resolves as a dist-tag.
+#[test]
+fn leaves_an_entry_another_resolver_claims_alone_while_reanchoring() {
+    for entry in ["user/repo", "user/repo.tgz", "repo.tgz"] {
+        assert_eq!(reanchored(entry, Some("packages/foo")), entry, "{entry}");
+    }
+}
+
+/// A single-letter named registry is well-formed, so `c:pkg@1` is a
+/// registry specifier as much as it is a Windows drive path.
+#[test]
+fn leaves_a_named_registry_entry_alone_while_reanchoring() {
+    assert_eq!(reanchored("c:pkg@1", Some("packages/foo")), "c:pkg@1");
+    assert_eq!(reanchored("gh:@scope/pkg", Some("packages/foo")), "gh:@scope/pkg");
+}
