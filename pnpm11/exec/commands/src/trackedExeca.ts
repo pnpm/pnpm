@@ -18,9 +18,9 @@ export const trackedExeca = ((...args: Parameters<typeof safeExeca>): ReturnType
   const ownProcessGroup = spawnsInOwnProcessGroup()
   const child = safeExeca(file, commandArgs, { ...options, detached: ownProcessGroup })
   trackChildProcess(child)
-  // pnpm's exit already terminates the tracked subprocess: the error
-  // handler signals it, and execa's own cleanup does when it is attached.
-  relays.set(child, relaySignals(child, { ownProcessGroup, terminateOnExit: false }))
+  // execa's own cleanup terminates an attached subprocess whenever pnpm
+  // exits; a detached one is outside it, so the relay takes that over.
+  relays.set(child, relaySignals(child, { ownProcessGroup, terminateOnExit: ownProcessGroup }))
   return child
 }) as typeof safeExeca
 
