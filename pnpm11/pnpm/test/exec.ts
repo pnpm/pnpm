@@ -3,7 +3,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 
 import { expect, test } from '@jest/globals'
-import { prepare, preparePackages } from '@pnpm/prepare'
+import { killProcessGroup, prepare, preparePackages } from '@pnpm/prepare'
 import isWindows from 'is-windows'
 import { writeYamlFileSync } from 'write-yaml-file'
 
@@ -181,15 +181,6 @@ async function withDeadline<T> (promise: Promise<T>, timeout: number): Promise<T
     return await Promise.race([promise, deadline])
   } finally {
     clearTimeout(timer)
-  }
-}
-
-/** Kill a detached pnpm and everything it started, whatever state the test left them in. */
-function killProcessGroup (pid: number): void {
-  try {
-    process.kill(-pid, 'SIGKILL')
-  } catch {
-    // the group is gone already
   }
 }
 

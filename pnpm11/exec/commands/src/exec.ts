@@ -455,10 +455,15 @@ export async function handler (
         }
         return 'failed'
       }
-      await taskRunState?.recordPassed(key, node)
       // A signal that reached pnpm ends the run once the commands in
-      // flight have finished; nothing queued behind them starts.
-      return interruptedBy ? 'aborted' : 'passed'
+      // flight have finished; nothing queued behind them starts, and a
+      // command the signal cut short is not journaled as passed, so a
+      // resumed run repeats it.
+      if (interruptedBy) {
+        return 'aborted'
+      }
+      await taskRunState?.recordPassed(key, node)
+      return 'passed'
     })
 
   try {
