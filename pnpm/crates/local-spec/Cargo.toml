@@ -1,6 +1,6 @@
 [package]
 name = "pnpm-local-spec"
-description = "Re-anchoring `file:` and `link:` specifiers between the directory they are written in and the directory that consumes them"
+description = "Recognizing specifiers that name a local path, and re-anchoring them between the directory they are written in and the directory that consumes them"
 version = "0.0.1"
 publish = false
 authors.workspace = true

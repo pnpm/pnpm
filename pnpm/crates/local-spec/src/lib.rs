@@ -1,13 +1,20 @@
-//! A `file:` / `link:` specifier means "this path, relative to the file it
-//! is written in". pnpm reads such specifiers from files that do not sit in
-//! the project consuming them — `pnpm-workspace.yaml` holds the catalogs and
-//! the `overrides` map — so the path has to be re-anchored before the
+//! A specifier naming a local path means "this path, relative to the file
+//! it is written in". pnpm reads such specifiers from files that do not sit
+//! in the project consuming them — `pnpm-workspace.yaml` holds the catalogs
+//! and the `overrides` map — so the path has to be re-anchored before the
 //! resolver, which reads every specifier relative to the importing project,
 //! can see it.
 //!
 //! [`LocalSpec::parse`] anchors the written path at the directory of the
 //! file that declared it; [`LocalSpec::render`] writes it back out for the
-//! directory that consumes it.
+//! directory that consumes it. [`LocalSpec::parse`] claims the `file:` /
+//! `link:` protocols, and [`LocalSpec::parse_filesystem`] claims every
+//! shape that can only be a local path.
+//!
+//! The shape tests themselves — [`is_local_filesystem_specifier`] and the
+//! two predicates behind it — live here rather than in the local resolver
+//! so a caller can ask what a specifier is without depending on the code
+//! that resolves it.
 
 use std::path::{Path, PathBuf};
 
