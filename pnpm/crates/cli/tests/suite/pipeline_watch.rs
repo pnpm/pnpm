@@ -40,13 +40,15 @@ fn agent_checkout(root: &Path) -> PathBuf {
     state_dir.join("checkout").join("demo")
 }
 
-/// Windows-skipped on an observation this test is not the place to chase:
-/// the tick reports the revision built and passed, and the checkout holds
-/// no task output afterwards. The rest of the file runs everywhere.
+/// Windows-skipped on a product gap this test is not the place to fix: the
+/// tick reports the revision built and passed, and the checkout holds no
+/// task output afterwards. Tracked in
+/// <https://github.com/pnpm/pnpm/issues/15105>. The rest of the file runs
+/// everywhere.
 #[test]
 #[cfg_attr(
     target_os = "windows",
-    ignore = "the agent's build reports success but leaves no output in the checkout"
+    ignore = "pnpm/pnpm#15105: the agent's build reports success but leaves no output in the checkout"
 )]
 fn watch_agent_builds_new_revisions_and_skips_quiet_ticks() {
     let root = tempfile::Builder::new()
