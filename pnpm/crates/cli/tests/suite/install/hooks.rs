@@ -634,10 +634,8 @@ fn a_global_pnpmfile_stays_out_of_the_pnpmfile_checksum() {
     drop((root, mock_instance));
 }
 
-/// A `readPackage` hook that adds a dependency to another package records
-/// it in the lockfile. Removing the hook has to take that dependency back
-/// out: the lockfile describes the manifests as the hooks leave them, and
-/// a hook that no longer runs leaves them untouched
+/// The lockfile describes the manifests as the hooks leave them, so a
+/// hook that no longer runs must leave no trace in it
 /// (<https://github.com/pnpm/pnpm/issues/3735>).
 #[test]
 fn removing_a_read_package_hook_drops_the_dependency_it_added() {
