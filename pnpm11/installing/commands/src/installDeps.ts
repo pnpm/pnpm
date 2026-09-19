@@ -146,6 +146,8 @@ export type InstallDepsOptions = Pick<Config,
     remain?: string[]
   }
   allowNew?: boolean
+  /** See {@link RecursiveOptions.excludeWorkspaceRootProject}. */
+  excludeWorkspaceRootProject?: boolean
   forceFullResolution?: boolean
   frozenLockfileIfExists?: boolean
   include?: IncludedDependencies

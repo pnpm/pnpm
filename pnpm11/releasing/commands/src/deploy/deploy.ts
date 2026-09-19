@@ -172,6 +172,10 @@ export async function handler (opts: DeployOptions, params: string[]): Promise<v
     // dedupe-injected-deps to always inject workspace packages since copying is
     // desirable.
     dedupeInjectedDeps: false,
+    // modulesDir below points every importer of this install at the deploy
+    // directory, so the workspace root project a filtered install brings along
+    // would link its own dependencies into the deployed node_modules.
+    excludeWorkspaceRootProject: true,
     // Compute the wanted lockfile correctly by setting pruneLockfileImporters.
     // Since pnpm deploy only installs dependencies for a single selected
     // project, other projects in the "importers" lockfile section will be

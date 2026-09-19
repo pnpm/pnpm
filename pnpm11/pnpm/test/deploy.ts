@@ -90,6 +90,42 @@ test.skip('legacy deploy creates only necessary directories when the root manife
   expect(loadJsonFileSync('services/foo/pnpm.out/package.json')).toStrictEqual(loadJsonFileSync('services/foo/package.json'))
 })
 
+// Covers https://github.com/pnpm/pnpm/issues/6437
+test('legacy deploy leaves out the dependencies of the workspace root project', async () => {
+  preparePackages([
+    {
+      location: '.',
+      package: {
+        name: 'root',
+        version: '0.0.0',
+        private: true,
+        dependencies: { '@pnpm.e2e/bar': '100.0.0' },
+      },
+    },
+    {
+      location: 'packages/app',
+      package: {
+        name: 'app',
+        version: '1.0.0',
+        dependencies: { '@pnpm.e2e/foo': '100.0.0' },
+      },
+    },
+  ])
+
+  writeYamlFileSync('pnpm-workspace.yaml', {
+    packages: ['packages/*'],
+    forceLegacyDeploy: true,
+  })
+
+  await execPnpm(['install'])
+  await execPnpm(['--filter=app', 'deploy', '--prod', 'deploy-dir'])
+
+  expect(fs.existsSync('deploy-dir/node_modules/@pnpm.e2e/foo')).toBe(true)
+  expect(fs.existsSync('deploy-dir/node_modules/@pnpm.e2e/bar')).toBe(false)
+  expect(fs.readdirSync('deploy-dir/node_modules/.pnpm').filter(entry => entry.startsWith('@pnpm.e2e+bar@'))).toStrictEqual([])
+  expect(fs.existsSync('node_modules/@pnpm.e2e/bar')).toBe(true)
+})
+
 test('deploy with a shared lockfile honors --no-optional in the graph and virtual store', async () => {
   preparePackages([
     { location: '.', package: { name: 'root', version: '0.0.0', private: true } },
