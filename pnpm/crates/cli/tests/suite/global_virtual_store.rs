@@ -35,11 +35,9 @@ fn gvs_root(store_dir: &Path) -> PathBuf {
 /// The `<gvs>/<scope>/<name>/<version>` directory whose children are the
 /// per-dependency-graph hash directories.
 fn pkg_version_dir(store_dir: &Path, name: &str, version: &str) -> PathBuf {
-    let mut dir = gvs_root(store_dir);
     let prefix = if name.starts_with('@') { "" } else { "@/" };
     let rel = format!("{prefix}{name}/{version}");
-    dir.extend(rel.split('/'));
-    dir
+    pnpm_fs::join_slash_separated_path(&gvs_root(store_dir), &rel)
 }
 
 /// Sorted hash-directory names under a `<name>/<version>` directory.
@@ -87,7 +85,7 @@ fn corrupt_pristine_file(path: &Path) {
 
 /// `<hash>/node_modules/<name>` — where the package's files actually live.
 fn pkg_in_slot(hash_dir: &Path, name: &str) -> PathBuf {
-    hash_dir.join("node_modules").join(name)
+    pnpm_fs::join_slash_separated_path(&hash_dir.join("node_modules"), name)
 }
 
 /// Rewrite `pnpm-workspace.yaml` as the harness's `storeDir` / `cacheDir`

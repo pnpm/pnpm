@@ -169,9 +169,7 @@ pub fn format_global_virtual_store_path(name: &str, version: &str, hex_digest: &
 /// is a no-op transformation on Unix, where `/` is already native).
 #[must_use]
 pub fn join_global_virtual_store_path(base: &Path, rel: &str) -> PathBuf {
-    let mut path = base.to_path_buf();
-    path.extend(rel.split('/'));
-    path
+    pnpm_fs::join_slash_separated_path(base, rel)
 }
 
 #[cfg(test)]

@@ -58,3 +58,17 @@ fn same_path_root(a: &Path, b: &Path) -> bool {
         _ => false,
     }
 }
+
+/// Join `base` with a `/`-separated relative path string, pushing each segment
+/// individually so platform-native path separators are used on all operating systems.
+#[must_use]
+pub fn join_slash_separated_path(base: &Path, rel: &str) -> PathBuf {
+    let mut path = base.to_path_buf();
+    push_slash_separated_path(&mut path, rel);
+    path
+}
+
+/// Push each `/`-separated segment of `rel` onto `path`.
+pub fn push_slash_separated_path(path: &mut PathBuf, rel: &str) {
+    path.extend(rel.split('/'));
+}
