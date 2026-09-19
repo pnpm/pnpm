@@ -183,11 +183,11 @@ fn report_config_warnings(
     config: &Config,
     running_matches_pin: bool,
 ) -> miette::Result<()> {
-    if input.key_issues == KeyIssueReporting::Skip {
-        return Ok(());
-    }
     for warning in &config.npmrc_warnings {
         emit_config_warning(&redact_and_sanitize(warning));
+    }
+    if input.key_issues == KeyIssueReporting::Skip {
+        return Ok(());
     }
     let strict =
         input.key_issues == KeyIssueReporting::Enforce && running_matches_pin && !input.global;

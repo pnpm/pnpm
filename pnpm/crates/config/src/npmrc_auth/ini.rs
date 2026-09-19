@@ -63,6 +63,17 @@ fn has_env_placeholder(value: &str) -> bool {
         })
 }
 
+fn auth_key_for_warning(key: &str) -> Cow<'_, str> {
+    let Some(authority_and_path) = key.strip_prefix("//") else {
+        return Cow::Borrowed(key);
+    };
+    let authority_end = authority_and_path.find('/').unwrap_or(authority_and_path.len());
+    let Some(userinfo_end) = authority_and_path[..authority_end].rfind('@') else {
+        return Cow::Borrowed(key);
+    };
+    Cow::Owned(format!("//{}", &authority_and_path[userinfo_end + 1..]))
+}
+
 impl NpmrcAuth {
     pub fn from_project_ini<Sys: EnvVar>(text: &str, npmrc_dir: &Path) -> Self {
         Self::from_ini_with_options::<Sys>(
@@ -261,6 +272,7 @@ impl NpmrcAuth {
     }
 
     pub(super) fn warn_ignored_auth_value_env(&mut self, key: &str) {
+        let key = auth_key_for_warning(key);
         self.warnings.push(format!(
             "Ignored project-level auth setting {key:?}: environment variables are not expanded in repository-controlled registry credentials. \
              Move this credential to your user-level ~/.npmrc or set it with pnpm config set. \

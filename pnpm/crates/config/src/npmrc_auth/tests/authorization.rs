@@ -730,6 +730,23 @@ fn from_project_ini_warns_on_auth_env_placeholder() {
 }
 
 #[test]
+fn ignored_auth_warning_redacts_protocol_relative_userinfo() {
+    static_env!(Env, &[("MY_TOKEN", "secret")]);
+
+    let auth = NpmrcAuth::from_project_ini::<Env>(
+        "//user:password@registry.npmjs.org/:_authToken=${MY_TOKEN}\n",
+        Path::new(""),
+    );
+    let warning = auth.warnings
+        .iter()
+        .find(|warning| warning.contains("Ignored project-level auth setting"))
+        .expect("ignored auth warning");
+
+    assert!(warning.contains("//registry.npmjs.org/:_authToken"));
+    assert!(!warning.contains("user:password"));
+}
+
+#[test]
 fn from_ini_expands_auth_env_placeholder_without_warning() {
     static_env!(Env, &[("MY_TOKEN", "secret")]);
 

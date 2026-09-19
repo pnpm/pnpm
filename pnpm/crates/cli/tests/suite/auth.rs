@@ -357,6 +357,14 @@ snapshots:
         .with_status(401)
         .expect(3)
         .create();
+    let output = install_command(&workspace, root.path())
+        .with_env("REGISTRY_TOKEN", "secret-token")
+        .with_args(["config", "get", "registry"])
+        .output()
+        .unwrap();
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(output.status.success(), "got {stderr}");
+    assert_eq!(stderr.matches("Ignored project-level auth setting").count(), 1);
     for reporter in ["append-only", "ndjson", "silent"] {
         let output = install_command(&workspace, root.path())
             .with_env("REGISTRY_TOKEN", "secret-token")
