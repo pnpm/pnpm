@@ -465,6 +465,32 @@ pub fn repin_snapshot_dependency(
     lockfile.save_to_path(lockfile_path).expect("write the rewritten lockfile");
 }
 
+/// A package script that creates `relative_path` as an empty file: the
+/// portable stand-in for `touch`, which Windows has no program for.
+///
+/// The path is relative, so the marker lands in whatever directory the
+/// runner gave the script — which is what the recursive suites assert on.
+#[must_use]
+pub fn write_marker_script(relative_path: &str) -> String {
+    format!(r#"node -e "require('fs').writeFileSync('{relative_path}', '')""#)
+}
+
+/// A package script that appends `line` and a newline to `relative_path`,
+/// the portable stand-in for `echo <line> >> <path>`. `cmd` would carry
+/// the spaces before its redirection operator into the file, and would
+/// end the line with a carriage return the readers do not expect.
+///
+/// The newline comes from `String.fromCharCode` rather than a `\n`
+/// escape: `sh -c` unescapes the backslash before Node sees it while
+/// `cmd /d /s /c` passes it through, so an escape would hand the two
+/// platforms different programs.
+#[must_use]
+pub fn append_line_script(line: &str, relative_path: &str) -> String {
+    format!(
+        r#"node -e "require('fs').appendFileSync('{relative_path}', '{line}' + String.fromCharCode(10))""#,
+    )
+}
+
 /// Assert that `shim` is a bin a caller could actually invoke.
 ///
 /// What that takes differs per platform: Unix has the executable bit on

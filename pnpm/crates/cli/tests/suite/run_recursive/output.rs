@@ -1,6 +1,6 @@
 use super::{
     CommandExtra, CommandTempCwd, Value, build_writes_marker, echoes_ok, fs, json, sorted_lines,
-    summary_statuses, write_workspace,
+    summary_statuses, write_marker_script, write_workspace,
 };
 use assert_cmd::assert::OutputAssertExt;
 
@@ -46,7 +46,7 @@ fn test_pattern_from_workspace_yaml_is_respected_by_the_test_script() {
             "name": name,
             "version": "1.0.0",
             "dependencies": dependencies,
-            "scripts": { "test": "touch tested.txt" },
+            "scripts": { "test": write_marker_script("tested.txt") },
         })
     };
     write_workspace(
@@ -140,9 +140,9 @@ fn recursive_run_executes_every_script_matching_a_regexp_selector() {
                     "name": "both",
                     "version": "1.0.0",
                     "scripts": {
-                        "build:backend": "touch backend.txt",
-                        "build:frontend": "touch frontend.txt",
-                        "test": "touch test.txt",
+                        "build:backend": write_marker_script("backend.txt"),
+                        "build:frontend": write_marker_script("frontend.txt"),
+                        "test": write_marker_script("test.txt"),
                     },
                 }),
             ),
@@ -151,7 +151,7 @@ fn recursive_run_executes_every_script_matching_a_regexp_selector() {
                 json!({
                     "name": "neither",
                     "version": "1.0.0",
-                    "scripts": { "test": "touch test.txt" },
+                    "scripts": { "test": write_marker_script("test.txt") },
                 }),
             ),
         ],
