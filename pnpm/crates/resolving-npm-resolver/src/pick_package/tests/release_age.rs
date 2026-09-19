@@ -292,16 +292,18 @@ async fn published_by_exclude_skips_upgrade_for_abbreviated_meta_without_time() 
     abbrev_mock.assert_async().await;
 }
 
-/// A `304 Not Modified` answer to the release-age upgrade is remembered within
-/// one install, but not by a metadata cache reused by the next install.
+/// A release-age upgrade is remembered within one install, but not by a
+/// metadata cache reused by the next install.
 #[tokio::test]
-async fn published_by_upgrade_not_modified_marker_is_scoped_to_install() {
+async fn published_by_upgrade_marker_is_scoped_to_install() {
     let mut server = mockito::Server::new_async().await;
     let full_mock = server
         .mock("GET", "/acme")
         .match_header("accept", "application/json; q=1.0, */*")
-        .match_header("if-none-match", r#""acme-etag""#)
-        .with_status(304)
+        .match_header("if-none-match", mockito::Matcher::Missing)
+        .match_header("if-modified-since", mockito::Matcher::Missing)
+        .with_status(200)
+        .with_body(PARTIAL_TIME_PACKAGE_BODY)
         .expect(2)
         .create_async()
         .await;
@@ -312,7 +314,7 @@ async fn published_by_upgrade_not_modified_marker_is_scoped_to_install() {
     let auth_headers = AuthHeaders::default();
     let meta_cache = InMemoryPackageMetaCache::default();
     // The document a prior mirror load would have produced: abbreviated
-    // (no `time`), carrying the mirror's etag as the upgrade validator.
+    // (no `time`), carrying the mirror's etag next to the fixture's `modified`.
     let mut seeded: pnpm_registry::Package =
         serde_json::from_str(ABBREVIATED_BODY).expect("parse fixture");
     seeded.etag = Some(r#""acme-etag""#.to_string());
@@ -378,6 +380,67 @@ async fn published_by_upgrade_not_modified_marker_is_scoped_to_install() {
 
     // One request for each install: the repeat pick in the first install is
     // the only one suppressed.
+    full_mock.assert_async().await;
+}
+
+/// The upgrade sends no validator, so a `304` answering it is unsolicited:
+/// `fetch_full_metadata` retries once with intermediary cache reuse disabled
+/// and then reports `NotModifiedWithoutCache`. A registry that keeps answering
+/// that way has no fuller form to give, which must not fail an install that
+/// would otherwise succeed.
+#[tokio::test]
+async fn published_by_upgrade_answering_repeated_304_does_not_fail_the_pick() {
+    let mut server = mockito::Server::new_async().await;
+    let full_mock = server
+        .mock("GET", "/acme")
+        .match_header("accept", "application/json; q=1.0, */*")
+        .with_status(304)
+        .expect(2)
+        .create_async()
+        .await;
+
+    let cache_dir = TempDir::new().expect("tempdir");
+    let registry = format!("{}/", server.url());
+    let http_client = ThrottledClient::default();
+    let auth_headers = AuthHeaders::default();
+    let meta_cache = InMemoryPackageMetaCache::default();
+    let seeded: pnpm_registry::Package =
+        serde_json::from_str(ABBREVIATED_BODY).expect("parse fixture");
+    meta_cache.set(format!("{registry}\u{0}acme"), Arc::new(seeded));
+    let fetch_locker = shared_packument_fetch_locker();
+    let ctx = PickPackageContext {
+        full_metadata: false,
+        needs_full_metadata_for: None,
+        filter_metadata: false,
+        cache_policy: crate::MetadataCachePolicy {
+            offline: false,
+            prefer_offline: false,
+            // The retained document still has no `time`, so let the picker take
+            // its warn-and-skip fallback instead of erroring.
+            ignore_missing_time_field: true,
+        },
+        metadata: crate::MetadataRequestContext {
+            meta_cache: &meta_cache,
+            fetch_locker: &fetch_locker,
+            cache_dir: Some(cache_dir.path()),
+            http: crate::MetadataHttpClient {
+                http_client: &http_client,
+                auth_headers: &auth_headers,
+                retry_opts: RetryOpts::default(),
+            },
+        },
+    };
+
+    let mut opts = default_opts(&registry);
+    opts.policy.published_by = Some(parse_cutoff("2023-01-01T00:00:00Z"));
+
+    let result = pick_package(&ctx, &range_spec("acme", "^1.0.0"), &opts).await
+        .expect("a registry with no fuller form must not fail the pick");
+    assert_eq!(
+        result.picked_package.expect("picked").version.to_string(),
+        "1.0.0",
+        "the abbreviated document should still be picked from",
+    );
     full_mock.assert_async().await;
 }
 
@@ -449,16 +512,18 @@ async fn published_by_upgrade_answering_200_is_remembered_across_picks() {
 }
 
 /// A same-install checksum refresh can replace an abbreviated packument while
-/// retaining its cache key. A prior document's `304` marker must not suppress
-/// the full-metadata check for that new response.
+/// retaining its cache key. A prior document's upgrade marker must not
+/// suppress the full-metadata check for that new response.
 #[tokio::test]
-async fn published_by_upgrade_not_modified_marker_is_scoped_to_document() {
+async fn published_by_upgrade_marker_is_scoped_to_document() {
     let mut server = mockito::Server::new_async().await;
     let first_full_mock = server
         .mock("GET", "/acme")
         .match_header("accept", "application/json; q=1.0, */*")
-        .match_header("if-none-match", r#""acme-etag""#)
-        .with_status(304)
+        .match_header("if-none-match", mockito::Matcher::Missing)
+        .match_header("if-modified-since", mockito::Matcher::Missing)
+        .with_status(200)
+        .with_body(PARTIAL_TIME_PACKAGE_BODY)
         .expect(1)
         .create_async()
         .await;
@@ -477,8 +542,10 @@ async fn published_by_upgrade_not_modified_marker_is_scoped_to_document() {
     let second_full_mock = server
         .mock("GET", "/acme")
         .match_header("accept", "application/json; q=1.0, */*")
-        .match_header("if-none-match", r#""acme-etag-2""#)
-        .with_status(304)
+        .match_header("if-none-match", mockito::Matcher::Missing)
+        .match_header("if-modified-since", mockito::Matcher::Missing)
+        .with_status(200)
+        .with_body(PARTIAL_TIME_PACKAGE_BODY)
         .expect(1)
         .create_async()
         .await;

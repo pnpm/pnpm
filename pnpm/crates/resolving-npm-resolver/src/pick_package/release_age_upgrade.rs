@@ -1,8 +1,8 @@
 use super::{
-    Arc, FetchFullMetadataOptions, FetchFullMetadataOutcome, Package, PackageMetaCache,
-    PackumentFetchLocker, Path, PickPackageContext, PickPackageError, PickPackageOptions,
-    PolicyMatch, RegistryPackageSpec, Semaphore, clear_meta, fetch_full_metadata, load_meta,
-    parse_packument_timestamp, save_meta_indexed, save_meta_ndjson,
+    Arc, FetchFullMetadataOptions, FetchFullMetadataOutcome, FetchMetadataError, Package,
+    PackageMetaCache, PackumentFetchLocker, Path, PickPackageContext, PickPackageError,
+    PickPackageOptions, PolicyMatch, RegistryPackageSpec, Semaphore, clear_meta,
+    fetch_full_metadata, load_meta, parse_packument_timestamp, save_meta_indexed, save_meta_ndjson,
 };
 
 /// Outcome of [`maybe_upgrade_abbreviated_meta_for_release_age`].
@@ -44,25 +44,32 @@ pub(super) async fn maybe_upgrade_abbreviated_meta_for_release_age<Cache: Packag
     {
         return Ok(UpgradeOutcome { meta, upgraded: false });
     }
+    // An entity tag and a `Last-Modified` date describe one representation, and
+    // `meta` holds the abbreviated one. A registry that reuses them across both
+    // forms answers `304`, leaving the maturity check without its `time` map.
     let fetch_opts = FetchFullMetadataOptions {
         registry: opts.registry,
         full_metadata: true,
-        etag: meta.etag.as_deref(),
-        modified: meta.modified.as_deref(),
+        etag: None,
+        modified: None,
         http: ctx.metadata.http,
     };
-    match fetch_full_metadata(&spec.name, &fetch_opts).await? {
-        FetchFullMetadataOutcome::Modified(upgraded) => {
+    match fetch_full_metadata(&spec.name, &fetch_opts).await {
+        Ok(FetchFullMetadataOutcome::Modified(upgraded)) => {
             Ok(UpgradeOutcome { meta: Arc::new(*upgraded), upgraded: true })
         }
-        // 304: the full-form representation matched the conditional
-        // headers, so the abbreviated meta is still the freshest
-        // signal we have. Keep it (the downstream picker falls through
-        // to its warn-and-skip path on the missing `time` map) and
-        // mark it so no later pick in this install repeats the round trip.
-        // The 304 also registry-validated the document, so it may enter the
-        // shared metadata cache as verified.
-        FetchFullMetadataOutcome::NotModified => {
+        Err(error) if !matches!(error, FetchMetadataError::NotModifiedWithoutCache { .. }) => {
+            Err(error.into())
+        }
+        // The registry declined to hand over a body. Since the request carries
+        // no validators, it says so by repeating an unsolicited `304` until
+        // `fetch_full_metadata` gives up, which surfaces as
+        // `NotModifiedWithoutCache` rather than the `NotModified` outcome.
+        // Either way it has no fuller form of this document, and an upgrade
+        // that cannot happen must not fail an install that would otherwise
+        // succeed: the maturity check falls back to the warn-or-error gate
+        // `minimum_release_age_ignore_missing_time` already governs.
+        Ok(FetchFullMetadataOutcome::NotModified) | Err(_) => {
             ctx.metadata.fetch_locker.mark_release_age_upgrade_checked(cache_key, &meta);
             // A `Modified` outcome is marked by the caller instead: it persists
             // the response to the mirror and may hand back a reloaded document,
@@ -98,9 +105,9 @@ pub(super) async fn maybe_upgrade_abbreviated_meta_for_release_age<Cache: Packag
 ///   normalized to `None` at the parse boundary (see
 ///   [`Package::drop_incomplete_publish_times`]), so a map that is here
 ///   is complete. Nothing to upgrade.
-/// - this document already got a `304` from an upgrade fetch earlier in
-///   the install (see [`PackumentFetchState`](super::metadata_cache::PackumentFetchState)): the registry has no
-///   fuller form of it, so asking again is pure waste.
+/// - an upgrade fetch already ran for this document earlier in the
+///   install (see [`PackumentFetchState`](super::metadata_cache::PackumentFetchState)): its outcome stands for
+///   every later pick, so asking again is pure waste.
 /// - `opts.published_by_exclude` matches the package: caller has
 ///   opted this package out of the policy.
 /// - `meta.modified.is_some()` and parses as a date `<= cutoff`:
@@ -114,13 +121,6 @@ pub(super) async fn maybe_upgrade_abbreviated_meta_for_release_age<Cache: Packag
 /// abbreviated mirror via [`persist_upgraded_to_mirror`], which
 /// intentionally updates the *abbreviated* cache file with full data so
 /// the next install sees `time` populated and skips the upgrade fetch.
-///
-/// The upgrade fetch forwards `meta.etag` and `meta.modified` as
-/// conditional headers. When the registry's full-form representation
-/// hasn't changed it answers `304 Not Modified` and the abbreviated
-/// meta is returned untouched.
-/// Whether a `minimumReleaseAge` check needs the full packument this
-/// abbreviated one cannot answer from.
 pub(super) fn release_age_upgrade_needed<Cache: PackageMetaCache>(
     ctx: &PickPackageContext<'_, Cache>,
     spec: &RegistryPackageSpec,
