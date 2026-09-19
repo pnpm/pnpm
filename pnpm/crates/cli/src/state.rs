@@ -4,8 +4,11 @@ use pipe_trait::Pipe;
 use pnpm_config::Config;
 use pnpm_lockfile::{LazyLockfile, MaybeLazyLockfile};
 use pnpm_network::{ForInstallsError, ThrottledClient};
+use pnpm_package_is_installable::{Engine, InstallabilityError, WantedEngine, check_engine};
 use pnpm_package_manager::{CommandLockfile, ResolvedPackages};
-use pnpm_package_manifest::{PackageManifest, PackageManifestError};
+use pnpm_package_manifest::{
+    PackageManifest, PackageManifestError, node_version_from_engines_runtime,
+};
 use pnpm_tarball::MemCache;
 use std::{
     path::{Path, PathBuf},
@@ -70,6 +73,9 @@ pub enum InitStateError {
 
     #[diagnostic(transparent)]
     Network(#[error(source)] ForInstallsError),
+
+    #[diagnostic(transparent)]
+    Installability(#[error(source)] Box<InstallabilityError>),
 }
 
 impl State {
@@ -161,9 +167,11 @@ impl State {
         lockfile: LazyLockfile,
         http_client: Arc<ThrottledClient>,
     ) -> Result<Self, InitStateError> {
+        let manifest = load_or_create_manifest(manifest_path, config)?;
+        check_project_engine(&manifest, config)?;
         Ok(State {
             config,
-            manifest: load_or_create_manifest(manifest_path, config)?,
+            manifest,
             lockfile,
             http_client,
             tarball_mem_cache: Arc::new(MemCache::new()),
@@ -237,6 +245,38 @@ fn apply_runtime_on_fail(mut manifest: PackageManifest, config: &Config) -> Pack
         );
     }
     manifest
+}
+
+fn check_project_engine(manifest: &PackageManifest, config: &Config) -> Result<(), InitStateError> {
+    if !config.engine_strict {
+        return Ok(());
+    }
+    let Some(wanted_node) = manifest
+        .value()
+        .get("engines")
+        .and_then(|engines| engines.get("node"))
+        .and_then(serde_json::Value::as_str)
+    else {
+        return Ok(());
+    };
+    let configured_node =
+        config.node_version.clone().or_else(|| node_version_from_engines_runtime(manifest.value()));
+    let host = pnpm_deps_restorer::InstallabilityHost::detect_with(true, configured_node);
+    let wanted = WantedEngine { node: Some(wanted_node.to_string()), pnpm: None };
+    let current = Engine { node: host.node_version, pnpm: None };
+    let project_dir = manifest
+        .path()
+        .parent()
+        .expect("manifest path always has a parent dir");
+    match check_engine(&project_dir.to_string_lossy(), &wanted, &current) {
+        Ok(None) => Ok(()),
+        Ok(Some(error)) => {
+            Err(InitStateError::Installability(Box::new(InstallabilityError::Engine(error))))
+        }
+        Err(error) => Err(InitStateError::Installability(Box::new(
+            InstallabilityError::InvalidNodeVersion(error),
+        ))),
+    }
 }
 
 #[cfg(test)]

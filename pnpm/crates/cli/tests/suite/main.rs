@@ -67,6 +67,7 @@ mod init;
 mod inject_workspace_packages;
 mod install;
 mod install_filters;
+mod install_root_engine;
 mod install_runtimes;
 mod install_state;
 mod install_test;
