@@ -145,7 +145,11 @@ pub(super) fn declared_specifier(manifest: &PackageManifest, package_name: &str)
 ///   specifier verbatim (a `catalog:` reference, a range, or an
 ///   exact pin) — `pnpm add <existing>` without a
 ///   version leaves the declared range untouched;
-/// - a brand-new dependency fetches and pins the `latest` range.
+/// - a brand-new dependency the catalog already lists takes the
+///   `catalog:` reference — naming no version asks for whatever the
+///   workspace agreed on, which is the entry, not the `latest` range
+///   it happens to resolve to today;
+/// - any other brand-new dependency fetches and pins the `latest` range.
 pub(super) async fn bare_save_specifier(
     package_selector: &str,
     selector: &AddSelector,
@@ -187,9 +191,24 @@ pub(super) async fn bare_save_specifier(
         .await?
         .unwrap_or_else(|| normalized_save_specifier(spec))),
         (None, Some(prev)) => Ok(prev.to_string()),
-        (None, None) => pick_latest_range(package_name, inputs).await,
+        (None, None) => match cataloged_specifier(package_name, inputs) {
+            Some(specifier) => Ok(specifier),
+            None => pick_latest_range(package_name, inputs).await,
+        },
     }
 }
+/// The `catalog:` reference for a dependency the catalog already lists, or
+/// `None` when it lists no entry for it.
+fn cataloged_specifier(package_name: &str, inputs: &AddResolveInputs<'_, '_>) -> Option<String> {
+    let catalog_name = crate::per_dep_catalog_name(None, inputs.save_catalog_name);
+    inputs.catalogs.get(catalog_name)?.get(package_name)?;
+    Some(if catalog_name == pnpm_catalogs_types::DEFAULT_CATALOG_NAME {
+        "catalog:".to_string()
+    } else {
+        format!("catalog:{catalog_name}")
+    })
+}
+
 pub(super) async fn resolve_node_runtime_specifier(
     version_spec: &str,
     prev_specifier: Option<&str>,

@@ -33,6 +33,16 @@ fn decide(
     decide_catalog::<SilentReporter>(mode, None, catalogs, dep, "/repo")
 }
 
+/// [`decide`] without dropping the warning, for the modes that report a
+/// mismatch instead of failing on it.
+fn decide_outcome(
+    mode: CatalogMode,
+    catalogs: &Catalogs,
+    dep: &CatalogModeDep<'_>,
+) -> Result<super::CatalogDecisionOutcome, CatalogVersionMismatchError> {
+    super::decide_catalog_outcome(mode, None, catalogs, dep, "/repo")
+}
+
 #[test]
 fn manual_mode_keeps_the_direct_version() {
     let catalogs = catalogs(&[("default", &[("is-positive", "1.0.0")])]);
@@ -110,47 +120,86 @@ fn strict_errors_when_the_wanted_specifier_is_a_range() {
     assert_eq!(err.catalog_dep, "is-positive@1.0.0");
 }
 
+/// A range that merely falls inside the catalog range is a mismatch, not a
+/// match, and deliberately so.
+///
+/// Answering `catalog:` replaces the wanted range with the entry's. Were
+/// `^2.1.0` treated as covered by `^2.0.0`, the manifest would go on to
+/// resolve through `^2.0.0` and could take `2.0.x`, which is exactly what
+/// asking for `^2.1.0` ruled out. pnpm does not widen the entry to `^2.1.0`
+/// either, since every other project on the entry would inherit that. So the
+/// containment direction is not the question: only a range equal to the entry
+/// keeps the catalog, and anything else is reported.
 #[test]
-fn strict_uses_the_catalog_when_its_range_covers_the_wanted_range() {
+fn strict_errors_when_the_wanted_range_sits_inside_the_catalog_range() {
     let catalogs = catalogs(&[("default", &[("is-positive", "^2.0.0")])]);
-    let decision = decide(CatalogMode::Strict, &catalogs, &dep("is-positive", "^2.1.0")).unwrap();
-    assert_eq!(
-        decision,
-        CatalogDecision::Catalog {
-            manifest_specifier: "catalog:".to_string(),
-            updated_entry: None
-        },
-        "a range inside the catalog range reuses the existing catalog entry",
-    );
-}
-
-#[test]
-fn strict_errors_when_the_catalog_range_is_narrower_than_the_wanted_range() {
-    let catalogs = catalogs(&[("default", &[("is-positive", "~2.1.0")])]);
     let err = decide(CatalogMode::Strict, &catalogs, &dep("is-positive", "^2.1.0"))
         .expect_err(
-            "a catalog range that is narrower than wanted range must error under strict mode",
+            "`catalog:` would resolve through `^2.0.0` and could take a version `^2.1.0` excludes",
         );
     assert_eq!(
         err,
         CatalogVersionMismatchError {
-            catalog_dep: "is-positive@~2.1.0".to_string(),
+            catalog_dep: "is-positive@^2.0.0".to_string(),
             wanted_dep: "is-positive@^2.1.0".to_string(),
         },
     );
 }
 
+/// The mirror of [`strict_errors_when_the_wanted_range_sits_inside_the_catalog_range`]:
+/// a range the catalog sits inside is no better, since `catalog:` would drop
+/// the versions the wanted range adds.
 #[test]
-fn prefer_uses_the_catalog_when_its_range_covers_the_wanted_range() {
+fn strict_errors_when_the_wanted_range_holds_the_catalog_range() {
+    let catalogs = catalogs(&[("default", &[("is-positive", "^2.1.0")])]);
+    let err = decide(CatalogMode::Strict, &catalogs, &dep("is-positive", "^2.0.0"))
+        .expect_err(
+            "`catalog:` would resolve through `^2.1.0` and never take the `2.0.x` the range allows",
+        );
+    assert_eq!(
+        err,
+        CatalogVersionMismatchError {
+            catalog_dep: "is-positive@^2.1.0".to_string(),
+            wanted_dep: "is-positive@^2.0.0".to_string(),
+        },
+    );
+}
+
+/// Prefer mode keeps the range the dependency asked for rather than quietly
+/// swapping in a catalog that spans different versions.
+#[test]
+fn prefer_keeps_a_direct_range_that_sits_inside_the_catalog_range() {
     let catalogs = catalogs(&[("default", &[("is-positive", "^2.0.0")])]);
-    let decision = decide(CatalogMode::Prefer, &catalogs, &dep("is-positive", "^2.1.0")).unwrap();
+    let outcome =
+        decide_outcome(CatalogMode::Prefer, &catalogs, &dep("is-positive", "^2.1.0")).unwrap();
+    assert_eq!(outcome.decision, CatalogDecision::KeepDirect);
+    assert!(
+        outcome.warning.is_some(),
+        "the mismatch is reported rather than silently resolved through the catalog",
+    );
+}
+
+/// A concrete version is the one case containment settles, because `pnpm add`
+/// moves the catalog onto the version it names instead of discarding it.
+#[test]
+fn a_wanted_version_inside_the_catalog_range_is_still_covered() {
+    assert!(super::catalog_covers("^2.0.0", "2.1.0"));
+    assert!(!super::catalog_covers("^2.0.0", "^2.1.0"), "a range is not a version");
+    assert!(!super::catalog_covers("^2.1.0", "^2.0.0"), "nor is the wider one");
+    assert!(super::catalog_covers("^2.0.0", "^2.0.0"), "only an equal range keeps the catalog");
+}
+
+#[test]
+fn prefer_uses_the_catalog_on_a_matching_range() {
+    let catalogs = catalogs(&[("default", &[("tailwindcss", "^4.3.3")])]);
+    let decision = decide(CatalogMode::Prefer, &catalogs, &dep("tailwindcss", "^4.3.3")).unwrap();
     assert_eq!(
         decision,
         CatalogDecision::Catalog {
             manifest_specifier: "catalog:".to_string(),
             updated_entry: None
         },
-        "a range inside the catalog range reuses the existing catalog entry",
+        "a range equal to the catalog range reuses the existing catalog entry",
     );
 }
 
@@ -165,63 +214,6 @@ fn strict_uses_the_catalog_on_a_matching_range() {
             updated_entry: None
         },
         "a range equal to the catalog range reuses the existing catalog entry",
-    );
-}
-
-#[test]
-fn strict_errors_when_the_catalog_range_admits_no_prerelease_of_the_wanted_range() {
-    let catalogs = catalogs(&[("default", &[("is-positive", "^1.0.0")])]);
-    let err = decide(CatalogMode::Strict, &catalogs, &dep("is-positive", "^1.2.0-beta.1"))
-        .expect_err("a caret range over a release admits no prerelease of a later version");
-    assert_eq!(
-        err,
-        CatalogVersionMismatchError {
-            catalog_dep: "is-positive@^1.0.0".to_string(),
-            wanted_dep: "is-positive@^1.2.0-beta.1".to_string(),
-        },
-    );
-}
-
-#[test]
-fn strict_uses_the_catalog_when_its_prerelease_range_covers_the_wanted_prerelease() {
-    let catalogs = catalogs(&[("default", &[("is-positive", "^1.2.0-beta.1")])]);
-    let decision =
-        decide(CatalogMode::Strict, &catalogs, &dep("is-positive", "^1.2.0-beta.3")).unwrap();
-    assert_eq!(
-        decision,
-        CatalogDecision::Catalog {
-            manifest_specifier: "catalog:".to_string(),
-            updated_entry: None
-        },
-        "a prerelease range inside the catalog's own prerelease range reuses the entry",
-    );
-}
-
-#[test]
-fn strict_errors_when_the_catalog_covers_only_part_of_a_wanted_union() {
-    let catalogs = catalogs(&[("default", &[("is-positive", "^1.0.0")])]);
-    let err = decide(CatalogMode::Strict, &catalogs, &dep("is-positive", "^1.0.0 || ^3.0.0"))
-        .expect_err("every alternative of the wanted range has to fall inside the catalog range");
-    assert_eq!(
-        err,
-        CatalogVersionMismatchError {
-            catalog_dep: "is-positive@^1.0.0".to_string(),
-            wanted_dep: "is-positive@^1.0.0 || ^3.0.0".to_string(),
-        },
-    );
-}
-
-#[test]
-fn strict_errors_when_the_catalog_pins_a_version_inside_the_wanted_range() {
-    let catalogs = catalogs(&[("default", &[("is-positive", "2.5.0")])]);
-    let err = decide(CatalogMode::Strict, &catalogs, &dep("is-positive", "^2.1.0"))
-        .expect_err("a catalog pinned to one version cannot stand in for a range that allows more");
-    assert_eq!(
-        err,
-        CatalogVersionMismatchError {
-            catalog_dep: "is-positive@2.5.0".to_string(),
-            wanted_dep: "is-positive@^2.1.0".to_string(),
-        },
     );
 }
 
@@ -434,50 +426,4 @@ fn prefer_warns_and_keeps_the_direct_version_on_mismatch() {
         r#"Catalog version mismatch for "is-positive": using direct version "2.0.0" instead of catalog version "1.0.0"."#,
     );
     assert_eq!(warning.prefix, "/repo");
-}
-
-/// Coverage answers what `semver.subset(wanted, entry)` answers on pnpm 11,
-/// so a catalog decided in one stack is decided the same way in the other.
-#[test]
-fn coverage_agrees_with_npm_subset() {
-    for (entry, wanted, covered) in [
-        ("^2.0.0", "^2.1.0", true),
-        ("~2.1.0", "^2.1.0", false),
-        ("2.5.0", "^2.1.0", false),
-        ("^1.0.0", "^1.0.0 || ^3.0.0", false),
-        // npm matches each wanted alternative against one entry alternative
-        // rather than against their union, and so does this.
-        (">=1.0.0 <2.0.0 || >=2.0.0 <3.0.0", ">=1.0.0 <3.0.0", false),
-        ("^1.0.0", ">=1.1.0-beta.1 <1.1.0", false),
-        ("^1.0.0", "^1.2.0-beta.1", false),
-        ("^1.0.0", ">=1.0.0 <2.0.0-beta", false),
-        (">=0.0.0", "<1.2.0-beta.2", false),
-        ("^1.2.0-beta.1", "^1.2.0-beta.3", true),
-        ("^1.2.3-beta.1", "~1.2.3-beta.2", true),
-        ("^1.2.3-beta.1", "1.2.3-beta.1 - 1.5.0", true),
-        ("^1.0.0-beta.1", "^1.0.0", true),
-        (">1.2.3-beta.1 <1.2.4", ">1.2.3-beta.1 <1.2.4", true),
-        (">=0.0.0", ">1.2.0-beta.5 <1.3.0", false),
-        // npm reads no range out of a prerelease on a partial version, and
-        // neither does this, so nothing is covered either way.
-        ("^1.0.0", "1.2-beta.1", false),
-        // npm reads `||` as an alternative separator with or without the
-        // surrounding spaces, so the prereleases on either side still count.
-        (">=1.0.0-beta.1||>=2.0.0", ">=1.0.0-beta.2", true),
-        ("^1.2.0-beta.1||^3.0.0", "^1.2.0-beta.3", true),
-        // The alternative holding the endpoints has to be the one naming the
-        // prerelease: `^1.0.0` admits no `1.2.0` prerelease on its own.
-        ("^1.0.0 || >1.2.0-beta.5 <1.2.0", ">=1.2.0-beta.1 <1.2.0", false),
-        // npm reads no range at all out of a comparator it cannot parse.
-        ("^1.0.0", "1.2.3 foo", false),
-        ("^1.0.0", "1.2.3 || garbage", false),
-        ("1.2.3 foo", "1.2.3", false),
-        ("^1.2.3-beta.1", "1.2.3-beta.1 - 1.5.0", true),
-    ] {
-        assert_eq!(
-            super::catalog_covers(entry, wanted),
-            covered,
-            "catalog {entry:?} covering {wanted:?}",
-        );
-    }
 }

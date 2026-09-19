@@ -20,7 +20,6 @@ use pnpm_catalogs_types::{Catalogs, DEFAULT_CATALOG_NAME};
 use pnpm_config::CatalogMode;
 use pnpm_reporter::{LogEvent, LogLevel, PnpmLog, Reporter};
 use pnpm_resolving_local_resolver::is_local_filesystem_specifier;
-use std::collections::BTreeSet;
 
 /// Wanted dependency outside the version range defined in catalog.
 ///
@@ -229,98 +228,17 @@ fn is_project_relative_path(specifier: &str) -> bool {
 }
 
 /// Whether the catalog entry already covers the wanted specifier, so the
-/// dependency can keep resolving through the catalog: the entry is a range
-/// that holds the wanted version, or that holds every version the wanted
-/// range allows.
+/// dependency can keep resolving through the catalog: the entry names the
+/// same specifier, or it is a range the wanted version satisfies.
 ///
-/// Coverage runs in that direction because the catalog — not the dependency —
-/// decides which version a `catalog:` reference resolves to. A wanted range
-/// wider than the entry is not covered: swapping it for `catalog:` would
-/// narrow what the dependency accepts.
+/// A wanted range has to match the entry exactly. Keeping the catalog swaps
+/// the wanted range for the entry's, so a merely narrower range would drop
+/// what the dependency asked for, and pnpm does not widen the entry to make
+/// room for it. A wanted version is different: `pnpm add` moves the catalog
+/// onto the version it names.
 pub(crate) fn catalog_covers(entry: &str, wanted: &str) -> bool {
-    if !every_comparator_parses(entry) || !every_comparator_parses(wanted) {
-        return false;
-    }
-    let Ok(entry_range) = Range::parse(entry) else {
-        return false;
-    };
-    if let Ok(wanted_version) = Version::parse(wanted) {
-        return entry_range.satisfies(&wanted_version);
-    }
-    let entry_alternatives: Vec<_> = entry
-        .split("||")
-        .filter_map(|alternative| {
-            Range::parse(alternative)
-                .ok()
-                .map(|range| (range, prerelease_releases(alternative)))
-        })
-        .collect();
-    wanted
-        .split("||")
-        .all(|alternative| covered_by_one_alternative(&entry_alternatives, alternative))
-}
-
-/// One `||`-separated alternative of a catalog entry: the versions it spans,
-/// and the releases whose prereleases it admits.
-type EntryAlternative = (Range, BTreeSet<(u64, u64, u64)>);
-
-/// Whether one alternative of the entry holds every version the range
-/// alternative `wanted` allows.
-///
-/// [`Range::allows_all`] compares endpoints, which misses npm's rule that a
-/// prerelease is eligible only for a comparator carrying a prerelease of the
-/// same release: by endpoints alone `^1.0.0` looks wide enough for
-/// `^1.2.0-beta.1`, though it admits no `1.2.0` prerelease. One alternative
-/// has to satisfy both halves, since a prerelease named in a second
-/// alternative makes nothing eligible in this one.
-fn covered_by_one_alternative(entry_alternatives: &[EntryAlternative], wanted: &str) -> bool {
-    let Ok(wanted_range) = Range::parse(wanted) else {
-        return false;
-    };
-    let wanted_prereleases = prerelease_releases(wanted);
-    entry_alternatives
-        .iter()
-        .any(|(entry, entry_prereleases)| {
-            entry.allows_all(&wanted_range) && wanted_prereleases.is_subset(entry_prereleases)
-        })
-}
-
-/// Whether every comparator of `range` parses, the way npm's `validRange`
-/// requires.
-///
-/// [`Range::parse`] drops a comparator it cannot read and keeps the rest, so
-/// `1.2.3 foo` parses as `1.2.3`. npm rejects the whole range instead, and a
-/// specifier pnpm 11 refuses to match must not reach a catalog here either.
-fn every_comparator_parses(range: &str) -> bool {
-    range
-        .split("||")
-        .all(|alternative| {
-            let comparators: Vec<&str> = alternative.split_whitespace().collect();
-            // A hyphen range is one comparator written as three tokens.
-            if let [lower, "-", upper] = comparators[..] {
-                return Range::parse(lower).is_ok() && Range::parse(upper).is_ok();
-            }
-            comparators
-                .iter()
-                .all(|comparator| Range::parse(comparator).is_ok())
-        })
-}
-
-/// The releases whose prereleases one range alternative admits, as
-/// `major.minor.patch`.
-///
-/// npm reads eligibility off the comparators as written, so this reads the
-/// alternative as written too: the parsed form carries the `-0` bounds npm
-/// synthesizes for an omitted component, which make no prerelease eligible.
-fn prerelease_releases(alternative: &str) -> BTreeSet<(u64, u64, u64)> {
-    alternative
-        .split_whitespace()
-        .filter_map(|token| {
-            Version::parse(token.trim_start_matches(['>', '<', '=', '^', '~', 'v'])).ok()
-        })
-        .filter(Version::is_prerelease)
-        .map(|version| (version.major, version.minor, version.patch))
-        .collect()
+    entry == wanted
+        || matches!((Range::parse(entry), Version::parse(wanted)), (Ok(entry), Ok(wanted)) if entry.satisfies(&wanted))
 }
 
 /// The catalog group a dependency belongs to: a previous `catalog:<name>`
