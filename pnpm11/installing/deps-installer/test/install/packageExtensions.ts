@@ -1,9 +1,11 @@
+import path from 'node:path'
+
 import { expect, test } from '@jest/globals'
 import { hashObject as _hashObject } from '@pnpm/crypto.object-hasher'
 import { PnpmError } from '@pnpm/error'
-import { addDependenciesToPackage, install, mutateModulesInSingleProject } from '@pnpm/installing.deps-installer'
+import { addDependenciesToPackage, install, mutateModules, mutateModulesInSingleProject } from '@pnpm/installing.deps-installer'
 import { prepareEmpty } from '@pnpm/prepare'
-import type { PackageExtension, ProjectManifest, ProjectRootDir, ReadPackageHook } from '@pnpm/types'
+import type { PackageExtension, ProjectId, ProjectManifest, ProjectRootDir, ReadPackageHook } from '@pnpm/types'
 
 import {
   testDefaults,
@@ -298,6 +300,65 @@ test('add saves a dependency when the requested specifier matches a readPackage 
   }))
 
   expect(updatedProject.manifest.dependencies?.['@pnpm.e2e/foo']).toBe('1.0.0')
+})
+
+test('update keeps a workspace range a readPackage hook supplies', async () => {
+  const project = prepareEmpty()
+  const rootManifest = {
+    name: 'root',
+    version: '1.0.0',
+  }
+  // The workspace holds the local package at two versions, so the range decides which one the
+  // importer gets.
+  const localV1 = { name: 'local-dep', version: '1.0.0' }
+  const localV2 = { name: 'local-dep', version: '2.0.0' }
+  const readPackage: ReadPackageHook = (hookedManifest) => hookedManifest.name !== 'root'
+    ? hookedManifest
+    : {
+      ...hookedManifest,
+      dependencies: {
+        ...hookedManifest.dependencies,
+        'local-dep': 'workspace:^1.0.0',
+      },
+    }
+  const workspacePackages = new Map([
+    ['local-dep', new Map([
+      ['1.0.0', { rootDir: path.resolve('local-v1') as ProjectRootDir, manifest: localV1 }],
+      ['2.0.0', { rootDir: path.resolve('local-v2') as ProjectRootDir, manifest: localV2 }],
+    ])],
+  ])
+  const allProjects = [
+    { buildIndex: 0, manifest: rootManifest, rootDir: process.cwd() as ProjectRootDir },
+    { buildIndex: 0, manifest: localV1, rootDir: path.resolve('local-v1') as ProjectRootDir },
+    { buildIndex: 0, manifest: localV2, rootDir: path.resolve('local-v2') as ProjectRootDir },
+  ]
+  const options = testDefaults({
+    allProjects,
+    workspacePackages,
+    hooks: {
+      readPackage: [readPackage],
+    },
+  })
+
+  await mutateModules([
+    { mutation: 'install', rootDir: process.cwd() as ProjectRootDir },
+    { mutation: 'install', rootDir: path.resolve('local-v1') as ProjectRootDir },
+    { mutation: 'install', rootDir: path.resolve('local-v2') as ProjectRootDir },
+  ], options)
+
+  const { updatedProjects } = await mutateModules([
+    { mutation: 'install', rootDir: process.cwd() as ProjectRootDir, update: true, updatePackageManifest: true },
+    { mutation: 'install', rootDir: path.resolve('local-v1') as ProjectRootDir, update: true },
+    { mutation: 'install', rootDir: path.resolve('local-v2') as ProjectRootDir, update: true },
+  ], options)
+
+  expect(updatedProjects[0].manifest).toStrictEqual(rootManifest)
+  // An update mode would have the workspace picker take the newest local version, which the kept
+  // `workspace:^1.0.0` would then contradict.
+  expect(project.readLockfile().importers['.' as ProjectId].dependencies?.['local-dep']).toStrictEqual({
+    specifier: 'workspace:^1.0.0',
+    version: 'link:local-v1',
+  })
 })
 
 test('update does not move a dependency added by a readPackage hook into a catalog', async () => {

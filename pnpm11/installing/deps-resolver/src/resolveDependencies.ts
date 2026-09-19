@@ -1067,6 +1067,12 @@ async function resolveDependenciesOfDependency (
     ? extendedWantedDep.wantedDependency.updateDepth
     : options.updateDepth
   const updateShouldContinue = options.currentDepth <= updateDepth
+  const mustKeepSpecifier = extendedWantedDep.wantedDependency.updateToLatestAllowed === false
+  // No update mode narrows a `workspace:` range: the workspace picker takes the newest local
+  // version whenever an update is requested at all. A specifier that has to be kept can only be
+  // kept by resolving this edge the way a plain install would.
+  const mustKeepWorkspaceRange = mustKeepSpecifier &&
+    extendedWantedDep.wantedDependency.bareSpecifier?.startsWith('workspace:') === true
   const updateRequested =
     updateShouldContinue &&
     (
@@ -1104,8 +1110,8 @@ async function resolveDependenciesOfDependency (
     prefix: options.prefix,
     proceed: extendedWantedDep.proceed || updateShouldContinue || ctx.updatedSet.size > 0,
     publishedBy: options.publishedBy,
-    update: update
-      ? options.updateToLatest && extendedWantedDep.wantedDependency.updateToLatestAllowed !== false ? 'latest' : 'compatible'
+    update: update && !mustKeepWorkspaceRange
+      ? options.updateToLatest && !mustKeepSpecifier ? 'latest' : 'compatible'
       : false,
     updatePatches: options.updatePatches,
     updateChecksums: ctx.updateChecksums,
