@@ -15,32 +15,8 @@ pub(super) fn allow_builds_changed_since(
     modules_manifest.is_some_and(|modules| {
         super::super::has_newly_allowed_ignored_builds(modules, config)
             || super::super::has_revoked_allowed_builds(modules, config)
-            || recorded_allow_builds_differ(modules, config)
+            || super::super::recorded_allow_builds_differ(modules, config)
     })
-}
-/// Whether the `allowBuilds` entries the previous install recorded differ
-/// from the current setting: an entry flipped between `true` and `false`,
-/// or one added or removed. The two predicates above see an ignored build
-/// becoming allowed and an approval being withdrawn; this sees the
-/// remaining transitions, such as an explicit `false` becoming `true`,
-/// which leaves no ignored entry behind to notice. Placeholder entries the
-/// approval scaffold writes carry no decision and are ignored.
-pub(super) fn recorded_allow_builds_differ(
-    modules: &pnpm_modules_yaml::ModulesLayout,
-    config: &pnpm_config::Config,
-) -> bool {
-    let recorded: std::collections::HashMap<&str, bool> = modules.allow_builds
-        .iter()
-        .flatten()
-        .filter_map(|(spec, value)| match value {
-            pnpm_modules_yaml::AllowBuildValue::Bool(decision) => Some((spec.as_str(), *decision)),
-            pnpm_modules_yaml::AllowBuildValue::String(_) => None,
-        })
-        .collect();
-    recorded.len() != config.allow_builds.len()
-        || recorded
-            .iter()
-            .any(|(spec, decision)| config.allow_builds.get(*spec) != Some(decision))
 }
 /// The `name@version` keys the previous install's `.modules.yaml` recorded
 /// as not built, its `ignoredBuilds` and `pendingBuilds`. Empty on a first
