@@ -4,4 +4,4 @@
 "pacquet": patch
 ---
 
-The `minimumReleaseAge` approval prompt now lists and counts each package version once. In pnpm v12, the version list is printed only once [pnpm/pnpm#15083](https://github.com/pnpm/pnpm/issues/15083).
+The `minimumReleaseAge` approval prompt now counts and displays each package version once [pnpm/pnpm#15083](https://github.com/pnpm/pnpm/issues/15083).
