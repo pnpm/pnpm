@@ -49,6 +49,7 @@
     "@pnpm/error": "workspace:*",
     "@pnpm/exec.esm-node-path-loader": "workspace:*",
     "@pnpm/exec.lifecycle": "workspace:*",
+    "@pnpm/exec.npm-lifecycle": "workspace:*",
     "@pnpm/exec.pnpm-cli-runner": "workspace:*",
     "@pnpm/installing.client": "workspace:*",
     "@pnpm/installing.commands": "workspace:*",

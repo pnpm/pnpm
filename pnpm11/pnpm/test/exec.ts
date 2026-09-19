@@ -1,11 +1,13 @@
+import { spawnSync } from 'node:child_process'
 import fs from 'node:fs'
 import path from 'node:path'
 
 import { expect, test } from '@jest/globals'
-import { prepare } from '@pnpm/prepare'
+import { killProcessGroup, prepare, preparePackages } from '@pnpm/prepare'
+import isWindows from 'is-windows'
 import { writeYamlFileSync } from 'write-yaml-file'
 
-import { execPnpm, execPnpmSync } from './utils/index.js'
+import { createEnv, execPnpm, execPnpmSync, pnpmBinLocation, spawnPnpm } from './utils/index.js'
 
 test("exec should respect the caller's current working directory", async () => {
   prepare({
@@ -63,3 +65,198 @@ test('silent exec does not print verifyDepsBeforeRun install output', async () =
 
   expect(result.stdout.toString()).toBe('hi')
 })
+
+const testOnPosix = isWindows() ? test.skip : test
+
+// A command that shuts down on the first SIGINT or SIGTERM and exits at once
+// on a second interrupt, the way many CLIs treat a repeated Ctrl+C. Every
+// signal it gets is appended to signals.txt, so a test can tell one SIGINT
+// from a SIGINT followed by a SIGTERM.
+const SHUTTING_DOWN_COMMAND = `const fs = require('node:fs')
+let interrupts = 0
+const shutDown = () => {
+  setTimeout(() => {
+    fs.writeFileSync('shut-down.txt', '')
+    process.exit(0)
+  }, 1000)
+}
+process.on('SIGTERM', () => {
+  fs.appendFileSync('signals.txt', 'SIGTERM\\n')
+  shutDown()
+})
+process.on('SIGINT', () => {
+  fs.appendFileSync('signals.txt', 'SIGINT\\n')
+  interrupts += 1
+  if (interrupts > 1) {
+    fs.writeFileSync('forced.txt', '')
+    process.exit(130)
+  }
+  shutDown()
+})
+fs.writeFileSync('started.txt', '')
+console.log('started')
+setInterval(() => {}, 1000)
+`
+
+// Ctrl+C interrupts the terminal's whole foreground group, so the command has
+// the signal by the time pnpm does. pnpm waits for it to finish shutting down
+// instead of dying and taking the command with it.
+testOnPosix('exec: Ctrl+C in a terminal lets the command finish shutting down', () => {
+  prepare()
+  fs.writeFileSync('dev.js', SHUTTING_DOWN_COMMAND, 'utf8')
+
+  const terminalScript = path.join(import.meta.dirname, '../../__utils__/scripts/terminal.py')
+  const { status, error } = spawnSync('python3', [
+    terminalScript,
+    process.execPath,
+    pnpmBinLocation,
+    'exec',
+    'node',
+    'dev.js',
+  ], { encoding: 'utf8', timeout: 90_000 })
+
+  expect(error).toBeUndefined()
+  expect(fs.readFileSync('signals.txt', 'utf8')).toBe('SIGINT\n')
+  expect(fs.existsSync('shut-down.txt')).toBe(true)
+  expect(status).toBe(0)
+})
+
+testOnPosix('exec: a command that fails after Ctrl+C keeps its exit code', () => {
+  prepare()
+  fs.writeFileSync('dev.js', SHUTTING_DOWN_COMMAND.replace('process.exit(0)', 'process.exit(3)'), 'utf8')
+
+  const terminalScript = path.join(import.meta.dirname, '../../__utils__/scripts/terminal.py')
+  const { status, error } = spawnSync('python3', [
+    terminalScript,
+    process.execPath,
+    pnpmBinLocation,
+    'exec',
+    'node',
+    'dev.js',
+  ], { encoding: 'utf8', timeout: 90_000 })
+
+  expect(error).toBeUndefined()
+  expect(fs.existsSync('shut-down.txt')).toBe(true)
+  expect(status).toBe(3)
+})
+
+// dlx runs the command through the same wrapper as exec, after installing
+// the package it was given, which is what the longer deadline is for; the
+// registry and cache settings the other tests get from execPnpm are passed
+// the same way.
+testOnPosix('dlx: Ctrl+C in a terminal lets the command finish shutting down', () => {
+  prepare()
+  fs.writeFileSync('dev.js', SHUTTING_DOWN_COMMAND, 'utf8')
+
+  const terminalScript = path.join(import.meta.dirname, '../../__utils__/scripts/terminal.py')
+  const { status, error, stdout } = spawnSync('python3', [
+    terminalScript,
+    '--deadline=100',
+    process.execPath,
+    pnpmBinLocation,
+    'dlx',
+    '--package=shx@0.3.4',
+    'node',
+    'dev.js',
+  ], { encoding: 'utf8', env: createEnv(), timeout: 150_000 })
+
+  expect(error).toBeUndefined()
+  expect(stdout).toContain('started')
+  expect(fs.readFileSync('signals.txt', 'utf8')).toBe('SIGINT\n')
+  expect(fs.existsSync('shut-down.txt')).toBe(true)
+  expect(status).toBe(0)
+})
+
+testOnPosix('exec: a SIGTERM sent to pnpm without a terminal reaches the command', async () => {
+  prepare()
+  fs.writeFileSync('dev.js', SHUTTING_DOWN_COMMAND, 'utf8')
+
+  const proc = spawnPnpm(['exec', 'node', 'dev.js'], { detached: true })
+  // The command may outlive pnpm and keep the output pipes open, so the
+  // check is made the moment pnpm exits, not when its output closes.
+  const shutDownBeforeExit = new Promise<boolean>((resolve) => {
+    proc.on('exit', () => {
+      resolve(fs.existsSync('shut-down.txt'))
+    })
+  })
+  try {
+    await waitForFile('started.txt', 30_000)
+    proc.kill('SIGTERM')
+    expect(await withDeadline(shutDownBeforeExit, 30_000)).toBe(true)
+    expect(fs.readFileSync('signals.txt', 'utf8')).toBe('SIGTERM\n')
+  } finally {
+    killProcessGroup(proc.pid!)
+  }
+})
+
+// The shell that runs the command stays its parent and dies from the relayed
+// SIGTERM at once; pnpm still waits for the command behind it to finish
+// shutting down before it exits.
+testOnPosix('dlx: a SIGTERM sent to pnpm without a terminal waits for the command behind its shell', async () => {
+  prepare()
+  fs.writeFileSync('dev.js', SHUTTING_DOWN_COMMAND, 'utf8')
+
+  const proc = spawnPnpm(['dlx', '--package=shx@0.3.4', 'sh', '-c', 'node dev.js; true'], { detached: true })
+  const shutDownBeforeExit = new Promise<boolean>((resolve) => {
+    proc.on('exit', () => {
+      resolve(fs.existsSync('shut-down.txt'))
+    })
+  })
+  try {
+    await waitForFile('started.txt', 120_000)
+    proc.kill('SIGTERM')
+    expect(await withDeadline(shutDownBeforeExit, 30_000)).toBe(true)
+    expect(fs.readFileSync('signals.txt', 'utf8')).toBe('SIGTERM\n')
+  } finally {
+    killProcessGroup(proc.pid!)
+  }
+})
+
+testOnPosix('exec -r: Ctrl+C stops the queued commands from starting', () => {
+  preparePackages([
+    { name: 'project-1', version: '1.0.0' },
+    { name: 'project-2', version: '1.0.0' },
+  ])
+  for (const project of ['project-1', 'project-2']) {
+    fs.writeFileSync(path.join(project, 'dev.js'), SHUTTING_DOWN_COMMAND, 'utf8')
+  }
+
+  const terminalScript = path.join(import.meta.dirname, '../../__utils__/scripts/terminal.py')
+  const { stdout, status, error } = spawnSync('python3', [
+    terminalScript,
+    process.execPath,
+    pnpmBinLocation,
+    '-r',
+    '--workspace-concurrency=1',
+    '--config.verify-deps-before-run=false',
+    'exec',
+    'node',
+    'dev.js',
+  ], { encoding: 'utf8', timeout: 90_000 })
+
+  expect(error).toBeUndefined()
+  expect(stdout).toContain('started')
+  expect(fs.existsSync('project-1/shut-down.txt')).toBe(true)
+  expect(fs.existsSync('project-2/started.txt')).toBe(false)
+  expect(status).toBe(130)
+})
+
+async function withDeadline<T> (promise: Promise<T>, timeout: number): Promise<T> {
+  let timer: NodeJS.Timeout | undefined
+  const deadline = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => reject(new Error(`pnpm did not exit within ${timeout}ms`)), timeout)
+  })
+  try {
+    return await Promise.race([promise, deadline])
+  } finally {
+    clearTimeout(timer)
+  }
+}
+
+async function waitForFile (file: string, timeout: number): Promise<void> {
+  const deadline = Date.now() + timeout
+  while (!fs.existsSync(file)) {
+    if (Date.now() > deadline) throw new Error(`${file} did not appear within ${timeout}ms`)
+    await new Promise<void>((resolve) => setTimeout(resolve, 50)) // eslint-disable-line no-await-in-loop
+  }
+}

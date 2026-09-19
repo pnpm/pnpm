@@ -6,7 +6,7 @@ import { expect, test } from '@jest/globals'
 import { killProcessGroup } from '@pnpm/prepare'
 import { temporaryDirectory } from 'tempy'
 
-import { waitForProcessGroup } from '../src/processGroup.js'
+import { waitForProcessGroup } from '../src/signals.js'
 
 const testOnLinux = process.platform === 'linux' ? test : test.skip
 

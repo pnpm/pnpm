@@ -11,9 +11,11 @@ import { execute } from '@yarnpkg/shell'
 import uidNumber from 'uid-number'
 
 import { extendPath } from './extendPath.js'
-import { hasControllingTerminal, spawnsInOwnProcessGroup, waitForProcessGroup } from './processGroup.js'
+import { relaySignals, spawnsInOwnProcessGroup } from './signals.js'
 import { type LifecycleChildProcess, spawn } from './spawn.js'
 
+export type { RelaySignalsOptions, SignalRelay, SignalTarget } from './signals.js'
+export { hasControllingTerminal, relaySignals, spawnsInOwnProcessGroup, waitForProcessGroup } from './signals.js'
 export type { LifecycleChildProcess } from './spawn.js'
 
 export interface LifecycleLog {
@@ -427,23 +429,20 @@ function runSpawned (run: ScriptRun, spawned: SpawnedScript, cb: Callback): void
   const { proc, ownProcessGroup } = spawned
   let spawnObserverFailed = false
   let spawnObserverError: LifecycleError | undefined
-  let relayed = false
   let deathSignal: NodeJS.Signals | null = null
+  const relay = relaySignals(proc, { ownProcessGroup, terminateOnExit: true })
 
   // A script killed by a signal makes pnpm raise that signal on itself, so
   // the shell reports an interrupted command rather than a plain failure.
   // That comes after the wait for the script's process group: the raise
   // ends pnpm, and a shell that died from a relayed signal may have left
   // the script still shutting down.
-  const finish = (er?: LifecycleError | null): void => {
-    process.removeListener('SIGTERM', procKill)
-    process.removeListener('SIGINT', procKill)
-    process.removeListener('SIGINT', procInterrupt)
-    process.removeListener('exit', procKill)
-    if (deathSignal) process.kill(process.pid, deathSignal)
-    cb(er)
-  }
-  const procError = createProcError(run, finish)
+  const procError = createProcError(run, (er) => {
+    relay.settle().then(() => {
+      if (deathSignal) process.kill(process.pid, deathSignal)
+      cb(er)
+    }, () => cb(er))
+  })
 
   proc.on('error', (err: LifecycleError) => {
     procError(spawnObserverFailed ? spawnObserverError : err)
@@ -460,10 +459,6 @@ function runSpawned (run: ScriptRun, spawned: SpawnedScript, cb: Callback): void
       err = new PnpmError('CHILD_PROCESS_FAILED', `Exit status ${code}`)
       err.errno = code
     }
-    if (relayed && ownProcessGroup && proc.pid != null) {
-      waitForProcessGroup(proc.pid).then(() => procError(err), () => procError(err))
-      return
-    }
     procError(err)
   })
   // Inherited streams are null on the child; only piped output is reported.
@@ -477,41 +472,13 @@ function runSpawned (run: ScriptRun, spawned: SpawnedScript, cb: Callback): void
       opts.log.verbose('lifecycle', logId(pkg, stage), 'stderr', data.toString())
     })
   }
-  process.once('SIGTERM', procKill)
-  process.once('SIGINT', procInterrupt)
-  process.on('exit', procKill)
 
   try {
     opts.onSpawn?.(proc)
   } catch (err: unknown) {
     spawnObserverFailed = true
     spawnObserverError = err as LifecycleError
-    relay('SIGTERM')
-  }
-
-  let called = false
-  function procKill (): void {
-    if (called) return
-    called = true
-    relay('SIGTERM')
-  }
-  function procInterrupt (): void {
-    if (!hasControllingTerminal()) {
-      relay('SIGINT')
-    }
-    process.once('SIGINT', procKill)
-  }
-  function relay (signal: NodeJS.Signals): void {
-    relayed = true
-    if (ownProcessGroup && proc.pid != null) {
-      try {
-        process.kill(-proc.pid, signal)
-      } catch {
-        // the group is gone already
-      }
-      return
-    }
-    proc.kill(signal)
+    relay.terminate()
   }
 }
 

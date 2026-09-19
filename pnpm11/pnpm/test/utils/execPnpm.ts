@@ -223,7 +223,7 @@ export function execPnpxSync (
   return execResult as ChildProcess
 }
 
-function createEnv (opts?: { storeDir?: string, omitEnvDefaults?: PnpmEnvDefault[] }): NodeJS.ProcessEnv {
+export function createEnv (opts?: { storeDir?: string, omitEnvDefaults?: PnpmEnvDefault[] }): NodeJS.ProcessEnv {
   let workspaceManifest: Record<string, unknown> | undefined
   try {
     workspaceManifest = readYamlFileSync('pnpm-workspace.yaml')

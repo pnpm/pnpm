@@ -1,19 +1,55 @@
 # Runs a command as the foreground job of a pseudo-terminal, presses Ctrl+C
 # once the command prints "started", and echoes everything the command wrote.
+#
+# A leading --deadline=SECONDS bounds the wait for "started" (30 by default),
+# and the command then has 30 seconds to exit after the Ctrl+C. When either
+# passes, the command and everything it started are killed and the exit
+# status is 124, so a test fails instead of hanging on a command that never
+# became ready or never shut down. A SIGTERM from the caller's own timeout
+# kills them the same way, so the command never outlives the helper.
 import os
 import pty
 import select
+import signal
 import sys
 import time
 
+SHUTDOWN_SECONDS = 30
+
+argv = sys.argv[1:]
+deadline_seconds = 30
+if argv and argv[0].startswith('--deadline='):
+    deadline_seconds = float(argv.pop(0).removeprefix('--deadline='))
+
 pid, fd = pty.fork()
 if pid == 0:
-    os.execvp(sys.argv[1], sys.argv[1:])
+    os.execvp(argv[0], argv)
+
+
+def kill_command():
+    # The command leads the pseudo-terminal's session, so its process group
+    # is everything it started.
+    try:
+        os.killpg(pid, signal.SIGKILL)
+    except ProcessLookupError:
+        pass
+
+
+def on_terminate(signum, frame):
+    kill_command()
+    sys.exit(128 + signum)
+
+
+signal.signal(signal.SIGTERM, on_terminate)
 
 output = b''
-deadline = time.time() + 30
+deadline = time.time() + deadline_seconds
 interrupted = False
-while time.time() < deadline:
+timed_out = False
+while True:
+    if time.time() >= deadline:
+        timed_out = True
+        break
     ready, _, _ = select.select([fd], [], [], 0.1)
     if ready:
         try:
@@ -26,6 +62,11 @@ while time.time() < deadline:
     if not interrupted and b'started' in output:
         os.write(fd, b'\x03')
         interrupted = True
+        deadline = time.time() + SHUTDOWN_SECONDS
+if timed_out:
+    kill_command()
 _, status = os.waitpid(pid, 0)
 sys.stdout.write(output.decode(errors='replace'))
+if timed_out:
+    sys.exit(124)
 sys.exit(os.waitstatus_to_exitcode(status) if os.WIFEXITED(status) else 128 + os.WTERMSIG(status))

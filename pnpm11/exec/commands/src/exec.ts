@@ -42,7 +42,7 @@ import {
 } from './run.js'
 import { runDepsStatusCheck } from './runDepsStatusCheck.js'
 import { taskRunExecutionSettings, type TaskRunState, TaskRunStateContext } from './taskRunState.js'
-import { trackedExeca } from './trackedExeca.js'
+import { signalReaching, trackedExeca, waitForTracked } from './trackedExeca.js'
 
 export const shorthands: Record<string, string | string[]> = {
   parallel: runShorthands.parallel,
@@ -277,6 +277,11 @@ export async function handler (
   let exitCode = 0
   let firstError: Error | undefined
   let abortError: unknown
+  let interruptedBy: NodeJS.Signals | null = null
+  // Every command's wait, so that after a signal the run ends only once all
+  // of them have settled: the signal pnpm then raises on itself would
+  // otherwise reach the relays of commands still shutting down.
+  const settling: Array<Promise<unknown>> = []
   const reporterShowPrefix = opts.recursive && opts.reporterHidePrefix === false
 
   const runTask = async (node: TaskNode, key: TaskKey): Promise<TaskCompletion> => {
@@ -292,10 +297,11 @@ export async function handler (
 
   const runCommandTask = async (node: TaskNode, key: TaskKey): Promise<TaskCompletion> =>
     limitRun(async (): Promise<TaskCompletion> => {
-      // Under --bail a failure stops dispatch, but a task already queued
-      // behind the concurrency limit has been dispatched in name only —
-      // starting it now would grow the failed run. It stays 'queued'.
-      if (opts.bail && firstError != null) {
+      // Under --bail a failure stops dispatch, and so does a signal that
+      // reached pnpm, but a task already queued behind the concurrency
+      // limit has been dispatched in name only — starting it now would
+      // grow the failed or interrupted run. It stays 'queued'.
+      if ((opts.bail && firstError != null) || interruptedBy) {
         return 'passed'
       }
       const prefix = node.project
@@ -312,6 +318,7 @@ export async function handler (
       ]
       result[prefix].status = 'running'
       const startTime = process.hrtime()
+      let tracked: ReturnType<typeof trackedExeca> | undefined
       try {
         const pnpPath = workspacePnpPath ?? existsPnp(projectDir)
         const packageMapPath = workspacePackageMapPath || (opts.nodeExperimentalPackageMap && existsPackageMap(projectDir))
@@ -339,6 +346,11 @@ export async function handler (
             stdio: 'pipe',
             shell: opts.shellMode ?? false,
           })
+          tracked = child
+          // Registered before the output is drained, so a signal that ends
+          // the run waits for this command however far its output is.
+          const settled = waitForTracked(child)
+          settling.push(settled)
           const lifecycleOpts = {
             wd: prefix,
             depPath: manifest.name ?? path.relative(opts.dir, prefix),
@@ -399,7 +411,8 @@ export async function handler (
               resolve()
             })
           })
-          await child
+          const signal = await settled
+          interruptedBy ??= signal
         } else {
           const child = trackedExeca(cmd, args, {
             cwd: prefix,
@@ -407,11 +420,18 @@ export async function handler (
             stdio: 'inherit',
             shell: opts.shellMode ?? false,
           })
-          await child
+          tracked = child
+          const settled = waitForTracked(child)
+          settling.push(settled)
+          const signal = await settled
+          interruptedBy ??= signal
         }
         result[prefix].status = 'passed'
         result[prefix].duration = getExecutionDuration(startTime)
       } catch (err: any) { // eslint-disable-line
+        // A command that failed after a signal reached pnpm still ends
+        // the run as an interrupted one, whatever its own exit status.
+        interruptedBy ??= signalReaching(tracked)
         if (isErrorCommandNotFound(params[0], err, prefix, prependPaths)) {
           err.message = `Command "${params[0]}" not found`
           err.hint = await createExecCommandNotFoundHint(params[0], {
@@ -443,6 +463,13 @@ export async function handler (
         }
         return 'failed'
       }
+      // A signal that reached pnpm ends the run once the commands in
+      // flight have finished; nothing queued behind them starts, and a
+      // command the signal cut short is not journaled as passed, so a
+      // resumed run repeats it.
+      if (interruptedBy) {
+        return 'aborted'
+      }
       await taskRunState?.recordPassed(key, node)
       return 'passed'
     })
@@ -458,6 +485,17 @@ export async function handler (
 
     if (abortError !== undefined) {
       throw abortError
+    }
+    if (interruptedBy && opts.recursive) {
+      // A single command's exit status is pnpm's, however it ended. A
+      // recursive run that a signal cut short ends the way the signal
+      // would have ended pnpm, so the shell sees an interrupted run rather
+      // than the status of whichever command finished last. The signal
+      // arrives through the event loop, so pnpm waits for it rather than
+      // racing it to its own exit.
+      await Promise.allSettled(settling)
+      process.kill(process.pid, interruptedBy)
+      await new Promise<void>((resolve) => setTimeout(resolve, 1000))
     }
     if (firstError != null) {
       if (opts.reportSummary) {

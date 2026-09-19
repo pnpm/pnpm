@@ -28,7 +28,7 @@ import { renderHelp } from 'render-help'
 import { symlinkDir } from 'symlink-dir'
 
 import { makeEnv } from './makeEnv.js'
-import { trackedExeca } from './trackedExeca.js'
+import { trackedExeca, waitForTracked } from './trackedExeca.js'
 
 export const skipPackageManagerCheck = true
 
@@ -258,7 +258,7 @@ export async function handler (
       stdio: 'inherit',
       shell: opts.shellMode ?? false,
     })
-    await child
+    await waitForTracked(child)
   } catch (err: unknown) {
     if (util.types.isNativeError(err) && 'exitCode' in err && err.exitCode != null) {
       return {
