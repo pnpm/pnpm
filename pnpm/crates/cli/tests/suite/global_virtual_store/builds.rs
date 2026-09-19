@@ -1,11 +1,12 @@
-//! The global-virtual-store tests that run a package build.
+//! The global-virtual-store tests that exercise the build policy.
 //!
-//! Every test here is skipped on Windows, where pnpm cannot spawn a
-//! lifecycle script from a slot under the global virtual store: the
-//! install fails with `os error 267`, the OS rejecting the working
-//! directory it is handed. Tracked in
+//! The ones that actually spawn a lifecycle script are skipped on
+//! Windows, where pnpm cannot spawn one from a slot under the global
+//! virtual store: the install fails with `os error 267`, the OS
+//! rejecting the working directory it is handed. Tracked in
 //! <https://github.com/pnpm/pnpm/issues/15111>. They still compile
-//! there, so a Windows-only break in them shows up as one.
+//! there, so a Windows-only break in them shows up as one. The tests
+//! whose fixtures declare no scripts run everywhere.
 
 use super::{
     AddMockedRegistry, CommandExtra, CommandTempCwd, StoreDir, StoreIndex, allow_builds_yaml,
@@ -21,7 +22,6 @@ use assert_cmd::assert::OutputAssertExt;
 /// something in its dependency closure — is allowed to build. Allowing
 /// the *transitive* dep therefore has to change the *parent's* hash.
 #[test]
-#[cfg_attr(target_os = "windows", ignore = "pnpm/pnpm#15111: a GVS slot cannot spawn a build")]
 fn gvs_hashes_are_engine_agnostic_for_packages_not_in_allow_builds() {
     let CommandTempCwd { root, workspace, npmrc_info, .. } =
         CommandTempCwd::init().add_mocked_registry();
@@ -83,7 +83,6 @@ fn gvs_hashes_are_engine_agnostic_for_packages_not_in_allow_builds() {
 /// test: an `allowBuilds` entry outside the dependency closure must not
 /// perturb any hash.
 #[test]
-#[cfg_attr(target_os = "windows", ignore = "pnpm/pnpm#15111: a GVS slot cannot spawn a build")]
 fn gvs_hashes_are_stable_when_allow_builds_targets_an_unrelated_package() {
     let CommandTempCwd { root, workspace, npmrc_info, .. } =
         CommandTempCwd::init().add_mocked_registry();
@@ -123,7 +122,6 @@ fn gvs_hashes_are_stable_when_allow_builds_targets_an_unrelated_package() {
 /// approval set the install ran under has to round-trip through
 /// `.modules.yaml`.
 #[test]
-#[cfg_attr(target_os = "windows", ignore = "pnpm/pnpm#15111: a GVS slot cannot spawn a build")]
 fn gvs_relinks_when_allow_builds_changes() {
     let CommandTempCwd { root, workspace, npmrc_info, .. } =
         CommandTempCwd::init().add_mocked_registry();
