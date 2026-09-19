@@ -2,6 +2,9 @@
 //! aliases before editing so changing one entry cannot change another, then
 //! restore references between surviving entries whose values still agree.
 
+mod paths;
+
+use self::paths::scalar_paths;
 use serde_saphyr::granit_parser::{Event, Parser, Scanner, Span, StrInput, Token, TokenType};
 use std::{collections::HashMap, ops::Range};
 use yamlpath::{Component, Document, Route};
@@ -15,6 +18,7 @@ pub(crate) struct ScalarAliases {
 struct Group {
     name: String,
     paths: Vec<Vec<Component<'static>>>,
+    implicit_null: bool,
 }
 
 struct Definition {
@@ -23,6 +27,7 @@ struct Definition {
     value: Range<usize>,
     tag: Option<Range<usize>>,
     aliases: Vec<Range<usize>>,
+    implicit_null: bool,
 }
 
 impl ScalarAliases {
@@ -38,31 +43,26 @@ impl ScalarAliases {
         for (name, _) in &anchors {
             *names.entry(name.clone()).or_default() += 1;
         }
-        let definitions = scalar_definitions(text, &anchors)?;
+        let mut definitions = scalar_definitions(text, &anchors)?;
         if definitions.is_empty() {
             return Ok((text.to_string(), Self::default()));
         }
-        let implicit_nulls: Vec<_> = definitions
-            .values()
-            .filter(|definition| definition.value.is_empty() && definition.tag.is_none())
-            .map(|definition| (definition.anchor.end..definition.anchor.end, " null".to_string()))
-            .collect();
-        if !implicit_nulls.is_empty() {
-            return Self::expand(&apply_edits(text, implicit_nulls));
-        }
+        let normalized = normalize_implicit_nulls(text, &mut definitions)?;
+        let text = normalized.as_deref().unwrap_or(text);
         let mut paths_by_span = scalar_paths_by_span(text)?;
         let mut edits = Vec::new();
         let mut groups = Vec::new();
         let mut definitions: Vec<_> = definitions.into_values().collect();
         definitions.sort_by_key(|definition| definition.anchor.start);
+        let mut next_suffix = HashMap::new();
         for definition in definitions {
             let query_span = definition.tag.as_ref().unwrap_or(&definition.value);
             let Some(paths) = paths_by_span.remove(&(query_span.start, query_span.end)) else {
                 continue;
             };
             expand_definition(text, &definition, &mut edits)?;
-            let name = unique_name(definition.name, &mut names);
-            groups.push(Group { name, paths });
+            let name = unique_name(definition.name, &mut names, &mut next_suffix);
+            groups.push(Group { name, paths, implicit_null: definition.implicit_null });
         }
         Ok((apply_edits(text, edits), Self { groups }))
     }
@@ -80,43 +80,22 @@ impl ScalarAliases {
     }
 }
 
-fn scalar_paths(
-    value: &yaml_serde::Value,
-    path: &mut Vec<Component<'static>>,
-    paths: &mut Vec<Vec<Component<'static>>>,
-) {
-    match value {
-        yaml_serde::Value::Mapping(map) => {
-            for (key, value) in map {
-                let Some(key) = key.as_str() else { continue };
-                path.push(Component::from(key.to_string()));
-                scalar_paths(value, path, paths);
-                path.pop();
-            }
-        }
-        yaml_serde::Value::Sequence(items) => {
-            for (index, value) in items.iter().enumerate() {
-                path.push(Component::Index(index));
-                scalar_paths(value, path, paths);
-                path.pop();
-            }
-        }
-        _ => paths.push(path.clone()),
-    }
-}
-
 fn byte_range(span: Span) -> Range<usize> {
     span.start.byte_offset().expect("string parser records byte offsets")
         ..span.end.byte_offset().expect("string parser records byte offsets")
 }
 
 fn apply_edits(text: &str, mut edits: Vec<(Range<usize>, String)>) -> String {
-    edits.sort_by_key(|(range, _)| std::cmp::Reverse(range.start));
-    let mut text = text.to_string();
+    edits.sort_by_key(|(range, _)| range.start);
+    let mut output = String::with_capacity(text.len());
+    let mut end = 0;
     for (range, replacement) in edits {
-        text.replace_range(range, &replacement);
+        output.push_str(&text[end..range.start]);
+        output.push_str(&replacement);
+        end = range.end;
     }
-    text
+    output.push_str(&text[end..]);
+    output
 }
 
 fn invalid(message: String) -> yamlpatch::Error {
@@ -160,6 +139,7 @@ fn scalar_definitions(
                             .and_then(|start| start.byte_offset())
                             .and_then(|start| tags.get(&start).cloned()),
                         aliases: Vec::new(),
+                        implicit_null: false,
                     },
                 );
             }
@@ -178,10 +158,7 @@ type ScalarPaths = HashMap<(usize, usize), Vec<Vec<Component<'static>>>>;
 
 fn scalar_paths_by_span(text: &str) -> Result<ScalarPaths, Box<yamlpatch::Error>> {
     let document = Document::new(text.to_string()).map_err(yamlpatch::Error::from)?;
-    let value: yaml_serde::Value =
-        serde_saphyr::from_str(text).map_err(|error| invalid(error.to_string()))?;
-    let mut paths = Vec::new();
-    scalar_paths(&value, &mut Vec::new(), &mut paths);
+    let paths = scalar_paths(text)?;
     let mut paths_by_span = HashMap::<(usize, usize), Vec<Vec<Component<'static>>>>::new();
     for path in paths {
         if let Some(feature) = document
@@ -237,18 +214,23 @@ fn expand_definition(
     Ok(())
 }
 
-fn unique_name(mut name: String, names: &mut HashMap<String, usize>) -> String {
+fn unique_name(
+    mut name: String,
+    names: &mut HashMap<String, usize>,
+    next_suffix: &mut HashMap<String, usize>,
+) -> String {
     if names
         .get(&name)
         .copied()
         .unwrap_or_default()
         > 1
     {
-        let mut suffix = 1;
+        let suffix = next_suffix.entry(name.clone()).or_insert(1);
         while names.contains_key(&format!("{name}_{suffix}")) {
-            suffix += 1;
+            *suffix += 1;
         }
         name = format!("{name}_{suffix}");
+        *suffix += 1;
         names.insert(name.clone(), 1);
     }
     name
@@ -293,10 +275,45 @@ fn restore_group(
     let first = first.clone();
     for (index, (span, value, literal)) in values.into_iter().enumerate() {
         if index == 0 {
-            edits.push((span, format!("&{} {literal}", group.name)));
+            let replacement = if group.implicit_null && value.is_null() {
+                format!("&{}", group.name)
+            } else {
+                format!("&{} {literal}", group.name)
+            };
+            edits.push((span, replacement));
         } else if value == first {
             edits.push((span, format!("*{}", group.name)));
         }
     }
     Ok(())
+}
+
+fn normalize_implicit_nulls(
+    text: &str,
+    definitions: &mut HashMap<usize, Definition>,
+) -> Result<Option<String>, Box<yamlpatch::Error>> {
+    let implicit_ids: Vec<_> = definitions
+        .iter()
+        .filter(|(_, definition)| definition.value.is_empty() && definition.tag.is_none())
+        .map(|(id, _)| *id)
+        .collect();
+    if implicit_ids.is_empty() {
+        return Ok(None);
+    }
+    let edits = implicit_ids
+        .iter()
+        .map(|id| {
+            let end = definitions[id].anchor.end;
+            (end..end, " null".to_string())
+        })
+        .collect();
+    let normalized = apply_edits(text, edits);
+    *definitions = scalar_definitions(&normalized, &anchor_tokens(&normalized))?;
+    for id in implicit_ids {
+        definitions
+            .get_mut(&id)
+            .expect("normalization preserves anchor identities")
+            .implicit_null = true;
+    }
+    Ok(Some(normalized))
 }

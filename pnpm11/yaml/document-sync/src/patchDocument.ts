@@ -15,7 +15,12 @@ export interface PatchDocumentOptions {
    * @default 'unwrap'
    */
   readonly aliases?: 'unwrap' | 'follow'
-  /** Keep scalar aliases whose final values agree, moving removed anchors to a surviving entry. */
+  /**
+   * Keep scalar aliases whose final values agree, moving removed anchors to a
+   * surviving entry. Divergent values become independent scalars. When enabled,
+   * this takes precedence over `aliases` for scalar nodes only.
+   * @default false
+   */
   readonly preserveScalarAliases?: boolean
 }
 

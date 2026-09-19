@@ -41,6 +41,8 @@ export function preserveScalarAliases (document: yaml.Document): () => void {
           alias.commentBefore = node.commentBefore
           alias.spaceBefore = node.spaceBefore
           return alias
+        } else {
+          node.anchor = undefined
         }
         return undefined
       },
@@ -58,6 +60,7 @@ function assignUniqueNames (document: yaml.Document, sources: Set<yaml.Scalar>):
       names.set(node.anchor, nodes)
     },
   })
+  const nextSuffix = new Map<string, number>()
   for (const source of sources) {
     const name = source.anchor!
     const nodes = names.get(name)
@@ -65,8 +68,9 @@ function assignUniqueNames (document: yaml.Document, sources: Set<yaml.Scalar>):
       names.set(name, new Set([source]))
       continue
     }
-    let suffix = 1
+    let suffix = nextSuffix.get(name) ?? 1
     while (names.has(`${name}_${suffix}`)) suffix++
+    nextSuffix.set(name, suffix + 1)
     source.anchor = `${name}_${suffix}`
     names.set(source.anchor, new Set([source]))
   }

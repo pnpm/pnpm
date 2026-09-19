@@ -808,3 +808,10 @@ it('does not bind scalar aliases to anchors copied from an aliased collection', 
   patchDocument(document, target, { preserveScalarAliases: true })
   expect(yaml.parse(document.toString())).toEqual(target)
 })
+
+it('clears the old anchor when a preceding alias is promoted', () => {
+  const document = yaml.parseDocument('a: &version old\nb: *version\nc: *version\n')
+  const target = { b: 'old', a: 'new', c: 'old' }
+  patchDocument(document, target, { preserveScalarAliases: true })
+  expect(yaml.parse(document.toString())).toEqual(target)
+})
