@@ -278,7 +278,8 @@ fn entry_covers_alternative(
 /// synthesizes for an omitted component, which make no prerelease eligible.
 fn prerelease_releases(range: &str) -> BTreeSet<(u64, u64, u64)> {
     range
-        .split_whitespace()
+        .split("||")
+        .flat_map(str::split_whitespace)
         .filter_map(|token| {
             Version::parse(token.trim_start_matches(['>', '<', '=', '^', '~', 'v'])).ok()
         })
