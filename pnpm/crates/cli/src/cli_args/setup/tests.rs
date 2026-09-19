@@ -32,7 +32,7 @@ fn created_config_reports_the_source_hint() {
     let report = report(ConfigFileChangeType::Created, "", "export PNPM_HOME=...");
     assert_eq!(
         render_setup_output(&report),
-        "Created /home/user/.bashrc\n\nNext configuration changes were made:\nexport PNPM_HOME=...\n\nTo start using pnpm, run:\nsource /home/user/.bashrc\n",
+        "Created /home/user/.bashrc\n\nThe following configuration changes were made:\nexport PNPM_HOME=...\n\nTo start using pnpm, run:\nsource /home/user/.bashrc\n",
     );
 }
 
@@ -45,7 +45,7 @@ fn windows_report_omits_the_source_hint() {
     };
     assert_eq!(
         render_setup_output(&report),
-        "Next configuration changes were made:\nPNPM_HOME=C:\\pnpm\n\nSetup complete. Open a new terminal to start using pnpm.",
+        "The following configuration changes were made:\nPNPM_HOME=C:\\pnpm\n\nSetup complete. Open a new terminal to start using pnpm.",
     );
 }
 

@@ -313,7 +313,7 @@ fn render_setup_output(report: &PathExtenderReport) -> String {
     if let Some(config_file) = &report.config_file {
         output.push(report_config_change(config_file));
     }
-    output.push(format!("Next configuration changes were made:\n{}", report.new_settings));
+    output.push(format!("The following configuration changes were made:\n{}", report.new_settings));
     match &report.config_file {
         None => output.push("Setup complete. Open a new terminal to start using pnpm.".to_string()),
         Some(config_file) if config_file.change_type != ConfigFileChangeType::Skipped => output
