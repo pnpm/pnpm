@@ -1215,6 +1215,11 @@ export async function mutateModules (
 
       if (opts.catalogMode !== 'manual') {
         for (const wantedDep of wantedDeps) {
+          // A hook or an override supplies this specifier and this run writes none of it, so the
+          // dependency cannot join a catalog: promotion would resolve it through the entry's range
+          // instead, and even naming the catalog is enough to put a snapshot in the lockfile that
+          // no config update accompanies, which the next frozen install rejects.
+          if (readonlyAliases?.has(wantedDep.alias)) continue
           // A `runtime:` specifier (e.g. node from `devEngines.runtime` or
           // `pnpm runtime set`) round-trips to `devEngines.runtime` through the
           // manifest writer, which only recognizes the `runtime:` protocol.
@@ -1233,11 +1238,6 @@ export async function mutateModules (
           }
 
           if (catalogCovers(catalogDepSpecifier, wantedDep.bareSpecifier)) {
-            // Promotion moves the dependency onto the catalog entry's range, and the entry is
-            // free to resolve elsewhere. A hook or an override supplies this specifier and this
-            // run does not write it anywhere, so the lockfile would be left recording whatever
-            // the entry resolves to against a specifier that never moved.
-            if (readonlyAliases?.has(wantedDep.alias)) continue
             // The catalog covers the wanted version, so the dependency resolves through the
             // catalog: every project referencing the entry stays on the one version the entry
             // resolves to. Keeping the wanted version as the specifier would pin it in the
