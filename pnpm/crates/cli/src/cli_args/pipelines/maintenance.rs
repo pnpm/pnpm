@@ -1,7 +1,7 @@
 use super::{
     Config, Context, DedicatedProjectRuns, DedicatedProjects, DedupeArgs, InstallFamilyPlan, Path,
-    PathBuf, PruneArgs, Reporter, State, config_deps, dedupe, resolve_bool_override,
-    select_install_family_plan,
+    PathBuf, PruneArgs, Reporter, State, check_root_project_engine, config_deps, dedupe,
+    resolve_bool_override, select_install_family_plan,
 };
 
 /// The reporter-generic body of `pacquet dedupe`: snapshots the lockfile
@@ -20,6 +20,7 @@ pub(crate) struct DedupePipeline {
 
 impl DedupePipeline {
     pub(crate) async fn run<Reporter: self::Reporter + 'static>(self) -> miette::Result<()> {
+        check_root_project_engine(&self.manifest_path, self.cfg, true)?;
         let lockfile_path = self.config_root.join(self.cfg.wanted_lockfile_name());
 
         // Snapshot before any config-dep writes so --check detects lockfile
@@ -130,6 +131,7 @@ impl PrunePipeline {
             manifest_path,
         } = self;
 
+        check_root_project_engine(&manifest_path, cfg, true)?;
         config_deps::prepare::<Reporter>(cfg, &config_root, false).await?;
         // Validate path containment AFTER hooks: updateConfig can mutate
         // modules_dir / virtual_store_dir via WorkspaceSettings::apply_to,

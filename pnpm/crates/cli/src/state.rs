@@ -249,6 +249,7 @@ fn apply_runtime_on_fail(mut manifest: PackageManifest, config: &Config) -> Pack
 pub(crate) fn check_root_project_engine(
     manifest_path: &Path,
     config: &Config,
+    use_manifest_runtime: bool,
 ) -> Result<(), InitStateError> {
     if !config.engine_strict {
         return Ok(());
@@ -269,8 +270,13 @@ pub(crate) fn check_root_project_engine(
     else {
         return Ok(());
     };
-    let configured_node =
-        config.node_version.clone().or_else(|| node_version_from_engines_runtime(manifest.value()));
+    let configured_node = config.node_version
+        .clone()
+        .or_else(|| {
+            use_manifest_runtime
+                .then(|| node_version_from_engines_runtime(manifest.value()))
+                .flatten()
+        });
     let host = pnpm_deps_restorer::InstallabilityHost::detect_with(true, configured_node);
     let wanted = WantedEngine { node: Some(wanted_node.to_string()), pnpm: None };
     let current = Engine { node: host.node_version, pnpm: None };

@@ -25,7 +25,7 @@ pub(crate) struct AddPipeline {
 
 impl AddPipeline {
     pub(crate) async fn run<Reporter: self::Reporter + 'static>(self) -> miette::Result<()> {
-        check_root_project_engine(&self.manifest_path, self.cfg)?;
+        check_root_project_engine(&self.manifest_path, self.cfg, !self.cfg.skip_runtimes)?;
         config_deps::prepare::<Reporter>(self.cfg, &self.config_root, false).await?;
         if !self.ecosystem_packages.is_empty() {
             return EcosystemAdd {
@@ -275,7 +275,7 @@ pub(crate) struct UpdatePipeline {
 
 impl UpdatePipeline {
     pub(crate) async fn run<Reporter: self::Reporter + 'static>(self) -> miette::Result<()> {
-        check_root_project_engine(&self.manifest_path, self.cfg)?;
+        check_root_project_engine(&self.manifest_path, self.cfg, !self.cfg.skip_runtimes)?;
         config_deps::prepare::<Reporter>(self.cfg, &self.config_root, false).await?;
         let plan = select_install_family_plan::<Reporter>(
             self.cfg,
@@ -364,7 +364,7 @@ pub(crate) struct RemovePipeline {
 
 impl RemovePipeline {
     pub(crate) async fn run<Reporter: self::Reporter + 'static>(self) -> miette::Result<()> {
-        check_root_project_engine(&self.manifest_path, self.cfg)?;
+        check_root_project_engine(&self.manifest_path, self.cfg, !self.cfg.skip_runtimes)?;
         config_deps::prepare::<Reporter>(self.cfg, &self.config_root, false).await?;
         let plan = select_install_family_plan::<Reporter>(
             self.cfg,
@@ -432,6 +432,11 @@ impl DeployPipeline {
         dir_ref: &Path,
     ) -> miette::Result<()> {
         let DeployPipeline { args, cfg, config_root } = self;
+        check_root_project_engine(
+            &config_root.join("package.json"),
+            cfg,
+            !(cfg.skip_runtimes || args.install_args.materialization.no_runtime),
+        )?;
         config_deps::prepare::<Reporter>(cfg, &config_root, false).await?;
         let cfg: &'static Config = cfg;
         Box::pin(args.run::<Reporter>(cfg, dir_ref)).await
