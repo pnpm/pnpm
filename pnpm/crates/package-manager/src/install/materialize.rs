@@ -44,6 +44,8 @@ pub(super) struct MaterializationModules<'a> {
     pub(super) prior_hoisted_dependencies: Option<&'a HoistedDependencies>,
     pub(super) prior_hoisted_locations: Option<&'a pnpm_deps_restorer::HoistedLocations>,
     pub(super) prune_orphans: bool,
+    /// See [`pnpm_deps_restorer::PriorMaterialization::relink_every_slot_bin`].
+    pub(super) relink_every_slot_bin: bool,
     pub(super) logged_methods: &'a AtomicU8,
 }
 
@@ -157,6 +159,7 @@ impl<'a> MaterializationInputs<'a, '_> {
                 self.install.context.config,
             ),
             prune_orphans: self.modules.prune_orphans,
+            relink_every_slot_bin: self.modules.relink_every_slot_bin,
         }
     }
 

@@ -70,6 +70,7 @@ impl<'a> MaterializationInputs<'a, '_> {
                 ),
                 unbuilt_builds: prior_unbuilt_builds,
                 prune_orphans: self.modules.prune_orphans,
+                relink_every_slot_bin: self.modules.relink_every_slot_bin,
             },
             projects: pnpm_deps_restorer::FrozenProjectInputs {
                 workspace_root: self.workspace.workspace_root,

@@ -1,4 +1,5 @@
 pub use discovery::collect_packages_in_modules_dir;
+pub use relocatable::bin_dir_is_relocatable;
 pub use shim_writer::remove_bin;
 
 use crate::{
@@ -575,3 +576,5 @@ use executable::{
 mod discovery;
 
 mod linking_paths;
+
+mod relocatable;

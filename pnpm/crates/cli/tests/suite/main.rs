@@ -110,6 +110,7 @@ mod publish;
 mod publish_recursive;
 mod python;
 mod rebuild_recursive;
+mod relocated_install;
 mod remove;
 mod repeat_install;
 mod repo;

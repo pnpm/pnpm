@@ -235,7 +235,11 @@ fn finish_apply<Reporter: self::Reporter>(
         inputs.prior.lockfile.take(),
     ));
 
-    write_applied_workspace_state(&inputs)?;
+    // Refreshing the root here would hide stale bins in unselected projects
+    // from the next install.
+    if !(inputs.prior.tree_moved && inputs.projects.filtered_install) {
+        write_applied_workspace_state(&inputs)?;
+    }
 
     let completion = report_install_completion::<Reporter>(ReportInstallCompletionInputs {
         workspace: crate::install::state_options::CompletionWorkspace {

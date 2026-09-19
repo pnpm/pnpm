@@ -2,10 +2,12 @@
 
 use super::{
     Config, DependencyGroup, FileMtime, ImporterDepVersion, Lockfile, OptimisticRepeatInstallCheck,
-    PackageManifest, Path, PathBuf, ProjectSnapshot, WorkspaceState, file_mtime,
-    modified_at_or_after, mtime_ms,
+    PackageManifest, Path, PathBuf, ProjectSnapshot, WorkspaceState,
+    current_lockfile::assert_wanted_lockfile_equals_current, file_mtime, modified_at_or_after,
+    mtime_ms,
 };
 use pnpm_modules_yaml::IncludedDependencies;
+use rayon::prelude::*;
 
 /// One project manifest's stat outcome, paired with the inputs the
 /// content re-check needs.
@@ -84,7 +86,7 @@ pub(crate) fn modified_manifests_match_lockfile(
 
 /// The full content check of the modified projects against the wanted
 /// lockfile, once its settings are known not to have drifted.
-fn check_projects_content(
+pub(super) fn check_projects_content(
     check: &OptimisticRepeatInstallCheck<'_>,
     wanted: &Lockfile,
     to_check: &[&ManifestStat<'_>],
@@ -98,11 +100,12 @@ fn check_projects_content(
         check.catalogs,
         crate::install::CheckLockfileSettingsDriftOptions {
             parsed_overrides: parsed_overrides.as_deref(),
-            // `pnpmfileChecksum` needs no comparison here: reaching this
-            // point means `pnpmfiles_modified_since` already proved the
-            // pnpmfile list and contents are what the install that wrote
-            // this lockfile saw. Computing the checksum instead would cost
-            // a Node worker on the path that exists to avoid starting one.
+            // `pnpmfileChecksum` is not compared here: every caller already
+            // compared the pnpmfile list and trusted their contents by their
+            // mtimes (`pnpmfiles_drift`). The move proof refuses active
+            // pnpmfiles because their mtimes cannot prove content. Computing
+            // the checksum would cost a Node worker on the path that exists to avoid
+            // starting one.
             pnpmfile_checksum: pnpm_lockfile::PnpmfileChecksumCheck::Skip,
             dedupe_peers,
         },
@@ -123,8 +126,13 @@ fn check_projects_content(
         ignored_optional_matcher: &ignored_optional_matcher,
         parsed_overrides: parsed_overrides.as_deref(),
     };
-    for project in to_check {
-        project_content_check(&content_check, project)?;
+    // Collect before returning so errors remain ordered by project.
+    let results: Vec<Result<(), &'static str>> = to_check
+        .par_iter()
+        .map(|project| project_content_check(&content_check, project))
+        .collect();
+    for result in results {
+        result?;
     }
     Ok(())
 }
@@ -240,75 +248,6 @@ fn project_content_check(
         return Err("a linked package is out of date");
     }
     Ok(())
-}
-
-/// Assert the wanted lockfile equals the current one: with no current
-/// lockfile every importer of the wanted one must be dependency-free
-/// (`RUN_CHECK_DEPS_NO_DEPS`); otherwise the current lockfile must record
-/// what materializing the wanted one produces, per
-/// [`materialized_shape_matches`] (`RUN_CHECK_DEPS_OUTDATED_DEPS`).
-pub(crate) fn assert_wanted_lockfile_equals_current(
-    wanted: &Lockfile,
-    config: &Config,
-    included: IncludedDependencies,
-) -> Result<(), &'static str> {
-    let current = Lockfile::load_current_from_virtual_store_dir(&config.virtual_store_dir)
-        .map_err(|_| "the current lockfile cannot be loaded")?;
-    match current {
-        None => {
-            let any_deps = wanted.importers
-                .values()
-                .any(|snapshot| {
-                    snapshot
-                        .dependencies_by_groups([
-                            DependencyGroup::Prod,
-                            DependencyGroup::Dev,
-                            DependencyGroup::Optional,
-                        ])
-                        .next()
-                        .is_some()
-                });
-            if any_deps {
-                Err("the lockfile requires dependencies but none were installed")
-            } else {
-                Ok(())
-            }
-        }
-        Some(current) => {
-            if materialized_shape_matches(wanted, &current, included) {
-                Ok(())
-            } else {
-                Err("the installed dependencies are not up to date with the lockfile")
-            }
-        }
-    }
-}
-
-/// Whether `current` already records what materializing `wanted` would
-/// produce.
-///
-/// The current lockfile keeps only what the importers reach
-/// ([`crate::filter_lockfile_for_current`]) and none of the top-level keys
-/// pnpm does not define, so a wanted lockfile carrying a snapshot no
-/// importer reaches any more, or an embedder's extension block, can never
-/// equal it. Comparing the same shape both sides is what lets such a tree
-/// settle instead of re-materializing on every run.
-///
-/// The equal case is the common one and answers without building the
-/// filtered shape at all.
-pub(crate) fn materialized_shape_matches(
-    wanted: &Lockfile,
-    current: &Lockfile,
-    included: IncludedDependencies,
-) -> bool {
-    if wanted == current {
-        return true;
-    }
-    // A transient skip (a failed optional fetch) prunes the current lockfile
-    // further, and its set is not known here. Such a tree simply falls
-    // through to materialization, which retries the fetch anyway.
-    current
-        == &crate::filter_lockfile_for_current(wanted, included, &crate::SkippedSnapshots::new())
 }
 
 /// Shared lookups for [`linked_packages_are_up_to_date`], built once

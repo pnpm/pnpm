@@ -19,7 +19,7 @@ use pnpm_testing_utils::{
 use std::{fs, path::Path};
 
 /// `version` field of the `package.json` under `workspace/relative`.
-fn version_of(workspace: &Path, relative: &str) -> String {
+pub(crate) fn version_of(workspace: &Path, relative: &str) -> String {
     let text = fs::read_to_string(workspace.join(relative).join("package.json"))
         .unwrap_or_else(|error| panic!("read {relative}/package.json: {error}"));
     let manifest: serde_json::Value = serde_json::from_str(&text).expect("parse package.json");

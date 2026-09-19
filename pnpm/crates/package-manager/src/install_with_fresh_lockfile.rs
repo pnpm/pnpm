@@ -234,6 +234,8 @@ pub(crate) struct FreshPriorInstall<'a> {
     pub(crate) unbuilt_builds: &'a crate::UnbuiltBuilds,
     /// See [`crate::PruneStaleModules::prune_orphans`].
     pub(crate) prune_orphans: bool,
+    /// See [`pnpm_deps_restorer::PriorMaterialization::relink_every_slot_bin`].
+    pub(crate) relink_every_slot_bin: bool,
 }
 
 #[derive(Clone, Copy)]
