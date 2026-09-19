@@ -34,15 +34,23 @@ export function spawn (cmd: string, args: string[], options: LifecycleSpawnOptio
   const cmdWillOutput = willCmdOutput(spawnOptions.stdio)
 
   if (cmdWillOutput) startRunning(log)
+  // A child that could not be spawned emits `error` and then `close`, so the
+  // progress accounting for it ends on whichever comes first.
+  let stopped = !cmdWillOutput
+  const stop = (): void => {
+    if (stopped) return
+    stopped = true
+    stopRunning(log)
+  }
   const raw = spawnProcess(cmd, args, spawnOptions)
   const cooked = new EventEmitter() as LifecycleChildProcess
 
   raw.on('error', (er: SpawnError) => {
-    if (cmdWillOutput) stopRunning(log)
+    stop()
     er.file = cmd
     cooked.emit('error', er)
   }).on('close', (code, signal) => {
-    if (cmdWillOutput) stopRunning(log)
+    stop()
     // A shell reports a command it could not find as exit code 127 without
     // an `error` event, so it is reported the way a failed spawn is.
     if (code === 127) {
