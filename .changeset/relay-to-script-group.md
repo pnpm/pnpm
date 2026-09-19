@@ -1,5 +1,6 @@
 ---
 "@pnpm/exec.npm-lifecycle": patch
+"@pnpm/prepare": patch
 "pnpm": patch
 "pacquet": patch
 ---

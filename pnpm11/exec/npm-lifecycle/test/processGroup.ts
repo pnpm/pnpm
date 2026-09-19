@@ -10,24 +10,6 @@ import { waitForProcessGroup } from '../src/processGroup.js'
 
 const testOnLinux = process.platform === 'linux' ? test : test.skip
 
-/**
- * A process table in the shape of `/proc`, with one `stat` file per entry.
- * A stat line is the pid, the command in parentheses, then the state, the
- * parent and the process group.
- */
-function writeProcessTable (entries: Array<{ pid: number, state: string, group: number, readable?: boolean }>): string {
-  const table = temporaryDirectory()
-  for (const { pid, state, group, readable = true } of entries) {
-    fs.mkdirSync(path.join(table, String(pid)))
-    fs.writeFileSync(path.join(table, String(pid), 'stat'), `${pid} (node) ${state} 1 ${group} ${group}\n`, { mode: readable ? 0o644 : 0o000 })
-  }
-  return table
-}
-
-function withDeadline<T> (promise: Promise<T>, timeout: number): Promise<T | 'timed out'> {
-  return Promise.race([promise, new Promise<'timed out'>((resolve) => setTimeout(() => resolve('timed out'), timeout))])
-}
-
 testOnLinux('the wait ends once the group holds only a zombie, whatever else the process table shows', async () => {
   // A real group, so the kernel still counts a member of it.
   const child = spawn('sleep', ['30'], { detached: true, stdio: 'ignore' })
@@ -68,3 +50,22 @@ testOnLinux('the wait ends once the kernel no longer knows the group', async () 
   await exited
   expect(await withDeadline(waitForProcessGroup(group), 5_000)).toBeUndefined()
 })
+
+/**
+ * Write a process table in the shape of `/proc` into a fresh temporary
+ * directory and return its path: one `<pid>/stat` file per entry, unreadable
+ * when asked, in the kernel's format of pid, command in parentheses, state,
+ * parent and process group.
+ */
+function writeProcessTable (entries: Array<{ pid: number, state: string, group: number, readable?: boolean }>): string {
+  const table = temporaryDirectory()
+  for (const { pid, state, group, readable = true } of entries) {
+    fs.mkdirSync(path.join(table, String(pid)))
+    fs.writeFileSync(path.join(table, String(pid), 'stat'), `${pid} (node) ${state} 1 ${group} ${group}\n`, { mode: readable ? 0o644 : 0o000 })
+  }
+  return table
+}
+
+function withDeadline<T> (promise: Promise<T>, timeout: number): Promise<T | 'timed out'> {
+  return Promise.race([promise, new Promise<'timed out'>((resolve) => setTimeout(() => resolve('timed out'), timeout))])
+}
