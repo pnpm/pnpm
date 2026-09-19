@@ -121,6 +121,26 @@ testOnPosix('exec: Ctrl+C in a terminal lets the command finish shutting down', 
   expect(status).toBe(0)
 })
 
+// A command's own exit status is pnpm's, whatever signal went by.
+testOnPosix('exec: a command that fails after Ctrl+C keeps its exit code', () => {
+  prepare()
+  fs.writeFileSync('dev.js', SHUTTING_DOWN_COMMAND.replace('process.exit(0)', 'process.exit(3)'), 'utf8')
+
+  const terminalScript = path.join(import.meta.dirname, '../../__utils__/scripts/terminal.py')
+  const { status, error } = spawnSync('python3', [
+    terminalScript,
+    process.execPath,
+    pnpmBinLocation,
+    'exec',
+    'node',
+    'dev.js',
+  ], { encoding: 'utf8', timeout: 30_000 })
+
+  expect(error).toBeUndefined()
+  expect(fs.existsSync('shut-down.txt')).toBe(true)
+  expect(status).toBe(3)
+})
+
 testOnPosix('exec: a SIGTERM sent to pnpm without a terminal reaches the command', async () => {
   prepare()
   fs.writeFileSync('dev.js', SHUTTING_DOWN_COMMAND, 'utf8')

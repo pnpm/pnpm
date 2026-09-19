@@ -26,24 +26,24 @@ export const trackedExeca = ((...args: Parameters<typeof safeExeca>): ReturnType
  * Wait for a subprocess started with `trackedExeca`.
  *
  * Resolves with the first signal that reached pnpm while the subprocess
- * ran, or null when none did. A subprocess that failed after such a signal
- * did so because of it, so the failure is not reported; without a signal
- * the failure is rethrown as execa reports it. Before either, the relay
- * stops, and after a relayed signal pnpm waits for the subprocess's process
- * group too, so a command that was told to stop finishes shutting down
- * before pnpm goes on.
+ * ran, or null when none did, and rejects with the subprocess's failure as
+ * execa reports it, signal or no signal, so a command's own exit status is
+ * never hidden. Before either, the relay stops, and after a relayed signal
+ * pnpm waits for the subprocess's process group too, so a command that was
+ * told to stop finishes shutting down before pnpm goes on. After a
+ * rejection, `signalReaching` still tells whether a signal was involved.
  */
 export async function waitForTracked (child: TrackedChild): Promise<NodeJS.Signals | null> {
   const relay = relays.get(child)
-  let failure: unknown
   try {
     await child
-  } catch (err: unknown) {
-    failure = err
   } finally {
     await relay?.settle()
   }
-  const signal = relay?.interruptedBy() ?? null
-  if (signal == null && failure !== undefined) throw failure
-  return signal
+  return relay?.interruptedBy() ?? null
+}
+
+/** The first signal that reached pnpm while `child` ran, or null. */
+export function signalReaching (child: TrackedChild | undefined): NodeJS.Signals | null {
+  return child ? relays.get(child)?.interruptedBy() ?? null : null
 }

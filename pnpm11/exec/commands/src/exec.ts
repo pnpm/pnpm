@@ -42,7 +42,7 @@ import {
 } from './run.js'
 import { runDepsStatusCheck } from './runDepsStatusCheck.js'
 import { taskRunExecutionSettings, type TaskRunState, TaskRunStateContext } from './taskRunState.js'
-import { trackedExeca, waitForTracked } from './trackedExeca.js'
+import { signalReaching, trackedExeca, waitForTracked } from './trackedExeca.js'
 
 export const shorthands: Record<string, string | string[]> = {
   parallel: runShorthands.parallel,
@@ -318,6 +318,7 @@ export async function handler (
       ]
       result[prefix].status = 'running'
       const startTime = process.hrtime()
+      let tracked: ReturnType<typeof trackedExeca> | undefined
       try {
         const pnpPath = workspacePnpPath ?? existsPnp(projectDir)
         const packageMapPath = workspacePackageMapPath || (opts.nodeExperimentalPackageMap && existsPackageMap(projectDir))
@@ -345,6 +346,7 @@ export async function handler (
             stdio: 'pipe',
             shell: opts.shellMode ?? false,
           })
+          tracked = child
           // Registered before the output is drained, so a signal that ends
           // the run waits for this command however far its output is.
           const settled = waitForTracked(child)
@@ -418,6 +420,7 @@ export async function handler (
             stdio: 'inherit',
             shell: opts.shellMode ?? false,
           })
+          tracked = child
           const settled = waitForTracked(child)
           settling.push(settled)
           const signal = await settled
@@ -426,6 +429,9 @@ export async function handler (
         result[prefix].status = 'passed'
         result[prefix].duration = getExecutionDuration(startTime)
       } catch (err: any) { // eslint-disable-line
+        // A command that failed after a signal reached pnpm still ends
+        // the run as an interrupted one, whatever its own exit status.
+        interruptedBy ??= signalReaching(tracked)
         if (isErrorCommandNotFound(params[0], err, prefix, prependPaths)) {
           err.message = `Command "${params[0]}" not found`
           err.hint = await createExecCommandNotFoundHint(params[0], {
