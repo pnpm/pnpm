@@ -164,11 +164,8 @@ impl<'a> InstallWorkspace<'a> {
             &dirs,
             loaded_workspace_projects.as_deref(),
         );
-        let workspace_packages = workspace_packages_for_install(
-            install,
-            loaded_workspace_projects.as_deref(),
-            options.selection.as_ref(),
-        );
+        let workspace_packages =
+            workspace_packages_for_install(install, loaded_workspace_projects.as_deref(), options);
         Ok(Self {
             // Use `to_string_lossy` rather than `to_str().expect(...)` so a
             // valid filesystem path with non-UTF-8 bytes (possible on Unix)
@@ -190,11 +187,16 @@ impl<'a> InstallWorkspace<'a> {
 fn workspace_packages_for_install<'s>(
     install: InstallView<'_>,
     loaded_workspace_projects: Option<&'s [pnpm_workspace::Project]>,
-    selection: Option<&crate::WorkspaceInstallSelection<'s>>,
+    options: &InstallRunOptions<'s, '_>,
 ) -> Option<pnpm_resolving_resolver_base::WorkspacePackages> {
     (install.context.config.exclude_links_from_lockfile
         && install.context.config.link_workspace_packages.enabled_at_depth(0))
-    .then(|| build_workspace_packages_map(workspace_projects(loaded_workspace_projects, selection)))
+    .then(|| {
+        build_workspace_packages_map(workspace_projects(
+            loaded_workspace_projects,
+            options.selection.as_ref(),
+        ))
+    })
     .flatten()
 }
 // In-memory mutation catalogs take precedence over hooked configuration and the workspace file.
