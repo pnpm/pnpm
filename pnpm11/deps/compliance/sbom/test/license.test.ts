@@ -7,8 +7,10 @@ describe('classifyLicense', () => {
     for (const [license, id] of [
       ['MIT', 'MIT'],
       ['mit', 'MIT'],
+      [' MIT ', 'MIT'],
       ['GPL-2.0', 'GPL-2.0'],
       ['gpl-2.0', 'GPL-2.0'],
+      ['GFDL-1.1-invariants-only', 'GFDL-1.1-invariants-only'],
       ['WTFPL', 'WTFPL'],
     ]) {
       expect(classifyLicense(license)).toEqual({ license: { id } })
@@ -36,7 +38,10 @@ describe('classifyLicense', () => {
       'BDS-3-Clause',
       'UNLICENSED',
       'Proprietary License',
+      'SEE LICENSE IN LICENSE.md',
       'LLVM-exception',
+      'GFDL-1.1-invariants',
+      'GFDL-1.1-invariants OR MIT',
       'NONE',
       'NOASSERTION',
       'NOASSERTION OR MIT',

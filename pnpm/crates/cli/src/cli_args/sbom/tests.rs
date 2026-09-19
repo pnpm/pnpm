@@ -401,8 +401,10 @@ fn classify_license_spdx_ids() {
     for (license, id) in [
         ("MIT", "MIT"),
         ("mit", "MIT"),
+        (" MIT ", "MIT"),
         ("GPL-2.0", "GPL-2.0"),
         ("gpl-2.0", "GPL-2.0"),
+        ("GFDL-1.1-invariants-only", "GFDL-1.1-invariants-only"),
         ("WTFPL", "WTFPL"),
     ] {
         assert_eq!(classify_license(license), serde_json::json!({ "license": { "id": id } }));
@@ -414,6 +416,7 @@ fn classify_license_spdx_2_3_expressions() {
     for expression in [
         "MIT OR Apache-2.0",
         "mit OR apache-2.0",
+        "MIT AND ISC",
         "GPL-2.0+",
         "LicenseRef-Proprietary",
         "DocumentRef-doc:LicenseRef-Custom",
@@ -431,7 +434,10 @@ fn classify_license_free_form_names() {
         "BDS-3-Clause",
         "UNLICENSED",
         "Proprietary License",
+        "SEE LICENSE IN LICENSE.md",
         "LLVM-exception",
+        "GFDL-1.1-invariants",
+        "GFDL-1.1-invariants OR MIT",
         "NONE",
         "NOASSERTION",
         "NOASSERTION OR MIT",

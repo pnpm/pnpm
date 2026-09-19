@@ -6,19 +6,24 @@ import parseSpdxExpression from 'spdx-expression-parse'
 const SPDX_OPERATORS = ['AND', 'OR', 'WITH']
 
 // Classifies a license string into the appropriate CycloneDX representation.
-// Uses the CycloneDX library's own SPDX list rather than spdx-license-ids,
-// since CycloneDX maintains its own subset of recognized IDs.
+// license.id is an enum in the CycloneDX schema, so a value outside the SPDX
+// license list — a typo, or npm's own UNLICENSED — has to arrive as a name or
+// the whole document fails validation.
 // Order matters: check ID first because "MIT" matches both isSupportedSpdxId
 // and isSpdxExpression, but we prefer the more specific license.id form.
 export function classifyLicense (license: string): { license: { id: string } } | { license: { name: string } } | { expression: string } {
-  const fixedId = fixupSpdxId(license)
-  if (!license.endsWith('+') && fixedId != null && isSupportedSpdxId(fixedId) && isSpdxLicenseId(fixedId)) {
+  const trimmed = license.trim()
+  const fixedId = fixupSpdxId(trimmed)
+  // A trailing "+" makes the value an expression rather than an identifier, and
+  // the CycloneDX list folds the SPDX exception identifiers into the same enum,
+  // so isSpdxLicenseId keeps an exception such as LLVM-exception out of license.id.
+  if (!trimmed.endsWith('+') && fixedId != null && isSupportedSpdxId(fixedId) && isSpdxLicenseId(fixedId)) {
     return { license: { id: fixedId } }
   }
-  if (isSpdxExpression(license)) {
-    return { expression: license }
+  if (isSpdxExpression(trimmed)) {
+    return { expression: trimmed }
   }
-  return { license: { name: license } }
+  return { license: { name: trimmed } }
 }
 
 function isSpdxLicenseId (license: string): boolean {
@@ -30,6 +35,10 @@ function isSpdxLicenseId (license: string): boolean {
   }
 }
 
+// SPDX 2.3 annex D.2 matches license and exception identifiers case-insensitively
+// and requires the operators to be uppercase, while spdx-expression-parse has it
+// the other way around. Only the parse runs on the rewritten text: the expression
+// reaches the BOM as the manifest wrote it.
 function isSpdxExpression (license: string): boolean {
   const normalized = normalizeSpdxExpressionIds(license)
   if (normalized == null) return false

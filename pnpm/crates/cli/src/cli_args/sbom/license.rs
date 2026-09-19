@@ -1,4 +1,21 @@
+//! Choosing the `CycloneDX` representation of a package's `license` field.
+//!
+//! `CycloneDX` takes a license as an SPDX identifier (`license.id`), an SPDX
+//! license expression (`expression`), or free text (`license.name`).
+//! `license.id` is an enum in the schema, so a value outside the SPDX license
+//! list, such as a typo or npm's own `UNLICENSED`, has to arrive as a name or
+//! the whole document fails validation.
+//!
+//! SPDX 2.3 annex D.2 matches license and exception identifiers
+//! case-insensitively and requires the operators to be uppercase. The `spdx`
+//! crate has it the other way around, so identifiers are rewritten to their
+//! canonical case and lowercase operators rejected before it parses an
+//! expression. Only the parse runs on the rewritten text: an expression
+//! reaches the BOM as the manifest wrote it, while an identifier reaches it in
+//! the canonical case the `CycloneDX` enum lists.
+
 pub(super) fn classify_license(license: &str) -> serde_json::Value {
+    let license = license.trim();
     if let Some(id) = canonical_spdx_id(license) {
         serde_json::json!({ "license": { "id": id } })
     } else if is_spdx_expression(license) {
@@ -8,18 +25,47 @@ pub(super) fn classify_license(license: &str) -> serde_json::Value {
     }
 }
 
+/// The canonically cased SPDX identifier `license` names, if it names one.
+///
+/// A trailing `+` makes the value an expression rather than an identifier, so
+/// it is left to [`is_spdx_expression`]; `spdx::license_id` would otherwise
+/// strip it and report the base license.
 fn canonical_spdx_id(license: &str) -> Option<&'static str> {
-    if license.ends_with('+') || is_spdx_document_value(license) {
+    if license.ends_with('+') {
         return None;
     }
-    spdx::license_id(license)
+    let canonical = spdx::license_id(license)
         .map(|id| id.name)
-        .or_else(|| {
-            spdx::identifiers::LICENSES
-                .iter()
-                .find(|id| id.name.eq_ignore_ascii_case(license))
-                .map(|id| id.name)
-        })
+        .or_else(|| case_insensitive_license_id(license))?;
+    (!is_unlisted_spdx_name(canonical)).then_some(canonical)
+}
+
+fn case_insensitive_license_id(license: &str) -> Option<&'static str> {
+    spdx::identifiers::LICENSES
+        .iter()
+        .find(|candidate| candidate.name.eq_ignore_ascii_case(license))
+        .map(|candidate| candidate.name)
+}
+
+/// Names the `spdx` crate resolves that are not SPDX license identifiers: the
+/// document keywords `NONE` and `NOASSERTION`, and the synthetic base names it
+/// lists for the GNU licenses, such as `GFDL-1.1-invariants`, so that it can
+/// build their `-only` and `-or-later` forms.
+fn is_unlisted_spdx_name(value: &str) -> bool {
+    ["NONE", "NOASSERTION"]
+        .iter()
+        .any(|keyword| value.eq_ignore_ascii_case(keyword))
+        || spdx::license_id(value).is_some_and(is_gnu_base_name)
+}
+
+/// A bare GNU name that the SPDX license list itself never carried. Every GNU
+/// identifier it did carry bare is deprecated in favor of the `-only` and
+/// `-or-later` forms.
+fn is_gnu_base_name(id: spdx::LicenseId) -> bool {
+    id.is_gnu()
+        && !id.is_deprecated()
+        && !id.name.ends_with("-only")
+        && !id.name.ends_with("-or-later")
 }
 
 fn is_spdx_expression(license: &str) -> bool {
@@ -37,6 +83,8 @@ fn is_spdx_expression(license: &str) -> bool {
     .is_ok()
 }
 
+/// `expression` with every identifier in its canonical case, or `None` when it
+/// holds a token the SPDX 2.3 grammar has no place for.
 fn normalize_spdx_expression_ids(expression: &str) -> Option<String> {
     let mut normalized = String::with_capacity(expression.len());
     let mut token_start = 0;
@@ -52,14 +100,13 @@ fn normalize_spdx_expression_ids(expression: &str) -> Option<String> {
     Some(normalized)
 }
 
+/// `AdditionRef-` is SPDX 3.0 syntax that the `spdx` crate accepts and the
+/// SPDX 2.3 grammar `CycloneDX` documents does not.
 fn push_normalized_spdx_token(normalized: &mut String, token: &str) -> Option<()> {
-    if token.starts_with("AdditionRef-") || is_spdx_document_value(token) {
+    if token.starts_with("AdditionRef-") || is_unlisted_spdx_name(token) {
         return None;
     }
-    if ["AND", "OR", "WITH"]
-        .iter()
-        .any(|operator| token.eq_ignore_ascii_case(operator) && token != *operator)
-    {
+    if is_lowercased_spdx_operator(token) {
         return None;
     }
     let token =
@@ -68,10 +115,10 @@ fn push_normalized_spdx_token(normalized: &mut String, token: &str) -> Option<()
     Some(())
 }
 
-fn is_spdx_document_value(value: &str) -> bool {
-    ["NONE", "NOASSERTION"]
+fn is_lowercased_spdx_operator(token: &str) -> bool {
+    ["AND", "OR", "WITH"]
         .iter()
-        .any(|item| value.eq_ignore_ascii_case(item))
+        .any(|operator| token.eq_ignore_ascii_case(operator) && token != *operator)
 }
 
 fn canonical_spdx_exception_id(exception: &str) -> Option<&'static str> {
@@ -80,7 +127,7 @@ fn canonical_spdx_exception_id(exception: &str) -> Option<&'static str> {
         .or_else(|| {
             spdx::identifiers::EXCEPTIONS
                 .iter()
-                .find(|id| id.name.eq_ignore_ascii_case(exception))
-                .map(|id| id.name)
+                .find(|candidate| candidate.name.eq_ignore_ascii_case(exception))
+                .map(|candidate| candidate.name)
         })
 }
