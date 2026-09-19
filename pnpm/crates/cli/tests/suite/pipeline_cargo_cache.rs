@@ -1,9 +1,11 @@
-#![cfg(unix)]
+//! The pipeline's Cargo build cache: shared between worktrees, and
+//! rebuilt after the cache directory is deleted.
 
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
 use pnpm_testing_utils::command_env::CommandTestExt;
 use std::{
+    env::consts::EXE_SUFFIX,
     fs::{self, File, FileTimes},
     path::Path,
     process::Command,
@@ -40,7 +42,8 @@ fn pnpm(root: &Path, cache: &Path, args: &[&str]) -> String {
 }
 
 fn run_binary(root: &Path) -> String {
-    let output = Command::new(root.join("target/debug/probe")).output().unwrap();
+    let output =
+        Command::new(root.join(format!("target/debug/probe{EXE_SUFFIX}"))).output().unwrap();
     assert!(output.status.success());
     String::from_utf8(output.stdout).unwrap()
 }

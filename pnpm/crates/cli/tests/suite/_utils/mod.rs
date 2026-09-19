@@ -438,7 +438,6 @@ pub fn read_lockfile(path: &Path) -> Lockfile {
 /// lockfiles the upstream tests use to stage wanted/current divergence.
 /// `new_ref` takes any `snapshots:` dependency shape (`100.0.0`,
 /// `link:packages/foo`, ...).
-#[cfg(unix)]
 pub fn repin_snapshot_dependency(
     lockfile_path: &Path,
     snapshot_key: &str,
@@ -462,6 +461,30 @@ pub fn repin_snapshot_dependency(
         .unwrap_or_else(|| panic!("snapshot {snapshot_key} does not pin {dependency}"));
     *pin = serde_saphyr::from_str(new_ref).expect("parse the new dependency ref");
     lockfile.save_to_path(lockfile_path).expect("write the rewritten lockfile");
+}
+
+/// Assert that `shim` is a bin a caller could actually invoke.
+///
+/// What that takes differs per platform: Unix has the executable bit on
+/// the extensionless shim, while Windows has no such bit and relies on the
+/// `.cmd` / `.ps1` launchers written next to it.
+pub fn assert_bin_linked(shim: &Path) {
+    assert!(shim.exists(), "the bin must be linked at {shim:?}");
+    #[cfg(unix)]
+    assert!(
+        pnpm_testing_utils::fs::is_path_executable(shim),
+        "the bin shim at {shim:?} must be executable",
+    );
+    #[cfg(windows)]
+    for extension in ["cmd", "ps1"] {
+        let launcher = shim.with_file_name(format!(
+            "{}.{extension}",
+            shim.file_name()
+                .expect("bin shim has a file name")
+                .to_string_lossy(),
+        ));
+        assert!(launcher.exists(), "the bin shim at {shim:?} needs its {extension} launcher");
+    }
 }
 
 pub fn assert_success(output: &Output) {
@@ -489,7 +512,6 @@ pub fn ndjson_records(output: &Output) -> Vec<Value> {
 
 /// The `name: "pnpm" / level: "info"` log pnpm's headless installer
 /// emits when it is entered with an up-to-date lockfile.
-#[cfg(unix)]
 #[must_use]
 pub fn has_up_to_date_log(records: &[Value]) -> bool {
     records

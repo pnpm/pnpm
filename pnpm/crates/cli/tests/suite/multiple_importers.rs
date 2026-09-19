@@ -10,13 +10,10 @@
 //! equivalent is `pnpm --filter <project> install` in a
 //! `pnpm-workspace.yaml` workspace.
 
-#![cfg(unix)] // pnpm CLI: 'program not found' on Windows runners.
-
 pub use _utils::*;
 
 use crate::_utils;
 
-use pnpm_testing_utils::fs::is_path_executable;
 use serde_json::json;
 use std::fs;
 
@@ -493,13 +490,13 @@ fn links_workspace_package_bin_into_dependent_project() {
 
     fixture.run(["install"]);
     let bin_path = main_project.join("node_modules/.bin/hello");
-    assert!(is_path_executable(&bin_path), "expected an executable bin at {bin_path:?}");
+    assert_bin_linked(&bin_path);
 
     fs::remove_dir_all(main_project.join("node_modules")).expect("remove main's node_modules");
     fs::remove_dir_all(fixture.workspace.join("node_modules")).expect("remove root node_modules");
     fixture.run(["install", "--frozen-lockfile"]);
 
-    assert!(is_path_executable(&bin_path), "the frozen reinstall must re-link the bin");
+    assert_bin_linked(&bin_path);
 }
 
 /// TS: `custom virtual store directory in a workspace with shared

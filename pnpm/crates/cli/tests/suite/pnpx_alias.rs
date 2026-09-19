@@ -1,9 +1,9 @@
 //! Covers the `current_exe`-based `dlx` injection (`argv_with_alias_subcommand`)
-//! that pnpm relies on for the Windows `pnpx`/`pnx` hardlinks, exercised on Unix
-//! by copying the binary under the alias name — the same code runs everywhere.
-#![cfg(unix)]
+//! that pnpm relies on for the Windows `pnpx`/`pnx` hardlinks. The binary is
+//! copied under the alias name rather than linked, which reaches the same code
+//! on every platform.
 
-use std::{fs, os::unix::fs::PermissionsExt, process::Command};
+use std::{env::consts::EXE_SUFFIX, fs, process::Command};
 
 use tempfile::TempDir;
 
@@ -12,9 +12,18 @@ fn launched_as_pnpx_injects_the_dlx_subcommand() {
     let pacquet = env!("CARGO_BIN_EXE_pnpm");
 
     let dir = TempDir::new().expect("create temp dir");
-    let pnpx = dir.path().join("pnpx");
+    let pnpx = dir
+        .path()
+        .join(format!("pnpx{EXE_SUFFIX}"));
     fs::copy(pacquet, &pnpx).expect("copy the binary under the pnpx name");
-    fs::set_permissions(&pnpx, fs::Permissions::from_mode(0o755)).expect("make pnpx executable");
+    // Windows has no executable bit — the `.exe` suffix above is what
+    // makes the copy runnable there.
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        fs::set_permissions(&pnpx, fs::Permissions::from_mode(0o755))
+            .expect("make pnpx executable");
+    }
 
     let via_pnpx = Command::new(&pnpx)
         .arg("--help")

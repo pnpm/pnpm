@@ -5,8 +5,6 @@
 //! again, and asserts the second install converges without rebuilding
 //! what was still valid.
 
-#![cfg(unix)] // pnpm CLI: 'program not found' on Windows runners.
-
 pub use _utils::*;
 
 use crate::_utils;
@@ -16,8 +14,9 @@ use command_extra::CommandExtra;
 use pnpm_testing_utils::{
     bin::{AddMockedRegistry, CommandTempCwd},
     fixtures::tarball_with_manifest,
+    fs::SameFileWitness,
 };
-use std::{fs, os::unix::fs::MetadataExt, path::Path};
+use std::{fs, path::Path};
 
 /// `version` field of the `package.json` under `workspace/relative`.
 fn version_of(workspace: &Path, relative: &str) -> String {
@@ -264,7 +263,7 @@ fn available_packages_used_when_node_modules_not_clean() {
 
     let foobarqar_manifest = workspace
         .join("node_modules/.pnpm/@pnpm.e2e+foobarqar@1.0.0/node_modules/@pnpm.e2e/foobarqar/package.json");
-    let inode_before = fs::metadata(&foobarqar_manifest).expect("stat foobarqar").ino();
+    let foobarqar_witness = SameFileWitness::take(&foobarqar_manifest, root.path());
 
     fs::write(
         workspace.join("package.json"),
@@ -296,9 +295,8 @@ fn available_packages_used_when_node_modules_not_clean() {
         .success();
 
     assert!(workspace.join("node_modules/@pnpm.e2e/pkg-with-1-dep").exists());
-    assert_eq!(
-        fs::metadata(&foobarqar_manifest).expect("stat foobarqar").ino(),
-        inode_before,
+    assert!(
+        foobarqar_witness.is_intact(),
         "the already-materialized package must be reused, not re-imported",
     );
     let refetched: Vec<String> = index_file_contents(&store_dir)
@@ -802,7 +800,7 @@ fn repeat_hoisted_install_with_workspace_member_deps_is_up_to_date() {
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
 
     let hoisted_manifest = install_hoisted_workspace_member(pacquet, &workspace);
-    let inode_before = fs::metadata(&hoisted_manifest).expect("stat the hoisted dep").ino();
+    let hoisted_witness = SameFileWitness::take(&hoisted_manifest, root.path());
 
     let second = pacquet_in(&workspace)
         .with_arg("install")
@@ -813,11 +811,7 @@ fn repeat_hoisted_install_with_workspace_member_deps_is_up_to_date() {
         second_output.contains("Already up to date"),
         "the repeat install must short-circuit: {second_output}",
     );
-    assert_eq!(
-        fs::metadata(&hoisted_manifest).expect("stat the hoisted dep").ino(),
-        inode_before,
-        "the second install must re-import nothing",
-    );
+    assert!(hoisted_witness.is_intact(), "the second install must re-import nothing");
 
     drop((root, mock_instance));
 }
@@ -874,7 +868,7 @@ fn repeat_hoisted_install_with_unchanged_local_tarball_is_up_to_date() {
         .success();
     let hoisted_manifest =
         workspace.join("node_modules/@pnpm.e2e/dep-of-pkg-with-1-dep/package.json");
-    let inode_before = fs::metadata(&hoisted_manifest).expect("stat the hoisted dep").ino();
+    let hoisted_witness = SameFileWitness::take(&hoisted_manifest, root.path());
 
     let second = pacquet_in(&workspace)
         .with_arg("install")
@@ -885,11 +879,7 @@ fn repeat_hoisted_install_with_unchanged_local_tarball_is_up_to_date() {
         second_output.contains("Already up to date"),
         "the unchanged tarball must leave the fast path available: {second_output}",
     );
-    assert_eq!(
-        fs::metadata(&hoisted_manifest).expect("stat the hoisted dep").ino(),
-        inode_before,
-        "the second install must re-import nothing",
-    );
+    assert!(hoisted_witness.is_intact(), "the second install must re-import nothing");
 
     drop((root, mock_instance));
 }

@@ -1,5 +1,3 @@
-#![cfg(unix)] // running this on windows result in 'program not found'
-
 pub use _utils::*;
 
 use crate::_utils;

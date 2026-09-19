@@ -21,8 +21,6 @@
 //!
 //! [#443]: https://github.com/pnpm/pacquet/pull/443
 
-#![cfg(unix)] // pnpm CLI: 'program not found' on Windows runners.
-
 pub use _utils::*;
 
 use crate::_utils;
