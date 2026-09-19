@@ -232,9 +232,6 @@ fn virtual_store_bins_are_relocatable(config: &Config, lockfile: &Lockfile, root
         config.virtual_store_dir_max_length as usize,
     );
     bin_dir_is_relocatable(&config.virtual_store_dir.join("node_modules").join(".bin"), root)
-        // Each slot's probes read a directory of its own, so a
-        // workspace-scale snapshot list fans out across the rayon pool
-        // instead of serializing thousands of directory reads.
         && lockfile.snapshots
             .as_ref()
             .is_none_or(|snapshots| {

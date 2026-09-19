@@ -125,9 +125,7 @@ pub(super) fn check_projects_content(
         ignored_optional_matcher: &ignored_optional_matcher,
         parsed_overrides: parsed_overrides.as_deref(),
     };
-    // Each project's check reads only shared references, so a workspace-scale
-    // project list fans out across the rayon pool; the serial fold keeps the
-    // first error in input order, like the loop it replaces.
+    // Collect before returning so errors remain ordered by project.
     let results: Vec<Result<(), &'static str>> = to_check
         .par_iter()
         .map(|project| project_content_check(&content_check, project))

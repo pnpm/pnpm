@@ -1,10 +1,4 @@
-//! End-to-end coverage for a `node_modules` that moved or was copied
-//! together with its project. Every test installs, moves or copies the
-//! tree, and asserts what the first command in its new location does:
-//! records the state where the tree is now and writes nothing else, or
-//! refuses the move and relinks.
-
-#![cfg(unix)] // A moved tree is reused only on Unix.
+#![cfg(unix)]
 
 pub use _utils::*;
 
@@ -98,9 +92,6 @@ fn pinned_workspace() -> (CommandTempCwd<AddMockedRegistry>, PathBuf) {
     (temp_cwd, workspace)
 }
 
-/// A workspace copied with its `node_modules`, the original left in place,
-/// is recognized by the first install in the copy, which records the state
-/// where the copy is and writes nothing else.
 #[test]
 fn copied_workspace_is_up_to_date_after_one_state_write() {
     for node_linker in ["isolated", "hoisted"] {
@@ -288,9 +279,6 @@ fn as_a_single_project(workspace: &Path) {
     fs::remove_file(workspace.join("pnpm-workspace.yaml")).expect("remove the workspace manifest");
 }
 
-/// A project moved with its `node_modules` passes the pre-run gate where it
-/// is now, its bin runs from there, and the gate records the state at the
-/// new location. The install after a second move records it again.
 #[test]
 fn a_moved_project_runs_and_is_recorded_where_it_is_now() {
     let shapes =
@@ -369,9 +357,6 @@ fn moved_tree_with_a_stale_slot_bin_is_not_up_to_date() {
 /// The shim for `@pnpm.e2e/hello-world-js-bin` in its parent's slot.
 const SLOT_SHIM: &str = "node_modules/.pnpm/@pnpm.e2e+hello-world-js-bin-parent@1.0.0/node_modules/@pnpm.e2e/hello-world-js-bin-parent/node_modules/.bin/hello-world-js-bin";
 
-/// Rewrite every kind of shim a workspace holds to name its `NODE_PATH` by
-/// absolute paths, as every shim an earlier pnpm wrote does, then move the
-/// tree to `name` beside it.
 fn make_shims_absolute_and_move(location: &Path, name: &str) -> PathBuf {
     for shim in [
         "b/node_modules/.bin/hello-world-js-bin",
@@ -394,11 +379,6 @@ fn make_shims_absolute_and_move(location: &Path, name: &str) -> PathBuf {
     moved
 }
 
-/// A moved tree whose bins name where the tree was is not reused. A filtered
-/// install relinks only the bins its selection reaches, so the install after
-/// it still sees the move and relinks the bins of every project and slot it
-/// left out, after which the tree is up to date. A fresh resolve relinks the
-/// same way.
 #[test]
 fn moved_tree_with_absolute_shims_converges_after_one_unfiltered_install() {
     let (temp_cwd, workspace) = pinned_workspace();

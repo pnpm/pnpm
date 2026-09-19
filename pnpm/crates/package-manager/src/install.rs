@@ -13,7 +13,6 @@ pub use lockfile_freshness::{
 pub(crate) use modules_state::{
     frozen_tree_intact, modules_layout_consistent_with, moved_tree_is_reusable, tree_may_move,
 };
-pub(crate) use prepare_modules_state::materialized_shape_matches;
 pub use run::{InstallExecution, InstallLockfilePolicy, ResolutionInputs};
 pub use workspace_state::{
     UpToDateFastPathCheck, UpToDateWorkspace, build_workspace_packages_map,
