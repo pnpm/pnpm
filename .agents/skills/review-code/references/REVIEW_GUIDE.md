@@ -259,6 +259,9 @@ Tests must prove the changed behavior, not just execute nearby code.
   any affected supporting packages.
 - **One changeset per logical change.** The text is a user-facing release note — accurate and
   concise, no implementation rationale — and it must match what the code actually does.
+- **Package targets determine the release page.** Do not name pnpm release lines or `pacquet` in
+  the prose merely to distinguish targets. If release lines have different user-visible behavior,
+  use separate changesets with the matching targets and text.
 - **The text follows the changeset style rules** (`AGENTS.md` → Changeset style): the user-visible
   effect first, no list of internals, no em dashes, no "instead of" tail on every sentence.
 - **A user-visible pacquet change needs a changeset.** Test-only and internal changes do not.

@@ -713,11 +713,47 @@ fn from_project_ini_warns_on_auth_env_placeholder() {
         "expected auth warning but got: {:?}",
         auth.warnings,
     );
+    let warning = auth.warnings
+        .iter()
+        .find(|w| w.contains("Ignored project-level auth setting"))
+        .unwrap();
+    eprintln!("warning={warning}");
+    assert!(warning.contains("https://pnpm.io/npmrc"));
+    assert!(!warning.contains("secret"));
     assert_eq!(
         default_auth_token(&auth, "//registry.npmjs.org/"),
         None,
         "token must not be set when project .npmrc is untrusted",
     );
+}
+
+#[test]
+fn ignored_auth_warning_redacts_protocol_relative_userinfo() {
+    static_env!(Env, &[("MY_TOKEN", "secret")]);
+
+    let auth = NpmrcAuth::from_project_ini::<Env>(
+        "//user:password@registry.npmjs.org/:_authToken=${MY_TOKEN}\n",
+        Path::new(""),
+    );
+    let warning = auth.warnings
+        .iter()
+        .find(|warning| warning.contains("Ignored project-level auth setting"))
+        .expect("ignored auth warning");
+
+    assert!(warning.contains("//registry.npmjs.org/:_authToken"));
+    assert!(!warning.contains("user:password"));
+
+    let malformed = NpmrcAuth::from_project_ini::<Env>(
+        "//user:pa/ss@registry.npmjs.org/:_authToken=${MY_TOKEN}\n",
+        Path::new(""),
+    );
+    let warning = malformed.warnings
+        .iter()
+        .find(|warning| warning.contains("Ignored project-level auth setting"))
+        .expect("ignored malformed auth warning");
+    assert!(warning.contains("[hidden]"));
+    assert!(!warning.contains("user:pa"));
+    assert!(!warning.contains("ss@registry"));
 }
 
 #[test]

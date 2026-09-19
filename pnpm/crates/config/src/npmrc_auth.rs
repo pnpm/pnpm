@@ -9,7 +9,7 @@ use indexmap::IndexMap;
 use pnpm_env_replace::env_replace_lossy;
 use pnpm_network::{
     AuthHeaders, DEFAULT_REGISTRY_SCOPE, NoProxySetting, PerRegistryTls, RegistryTls,
-    base64_encode, base64_encode_bytes, nerf_dart,
+    base64_encode, base64_encode_bytes, nerf_dart, redact_npm_auth_key,
 };
 use std::{
     borrow::Cow,
@@ -215,6 +215,7 @@ impl NpmrcAuth {
         config.registries_by_scope.append(&mut self.routes.scoped);
         for message in std::mem::take(&mut self.warnings) {
             tracing::warn!(target: "pacquet::npmrc", "{message}");
+            config.npmrc_warnings.push(message);
         }
     }
 

@@ -1,7 +1,7 @@
 use super::{
     Cow, EnvVar, NpmrcAuth, Path, apply_creds_field, apply_tls_field, env_replace_lossy,
-    expand_inline_pem, is_auth_value_key, normalize_registry_url, parse_bool, resolve_cafile,
-    split_ini_creds_key, split_ssl_key,
+    expand_inline_pem, is_auth_value_key, normalize_registry_url, parse_bool, redact_npm_auth_key,
+    resolve_cafile, split_ini_creds_key, split_ssl_key,
 };
 
 #[derive(Clone, Copy)]
@@ -261,8 +261,10 @@ impl NpmrcAuth {
     }
 
     pub(super) fn warn_ignored_auth_value_env(&mut self, key: &str) {
+        let key = redact_npm_auth_key(key);
         self.warnings.push(format!(
-            "Ignored project-level auth setting {key:?}: environment variables are not expanded in repository-controlled registry credentials.",
+            "Ignored project-level auth setting {key:?}: environment variables are not expanded in repository-controlled registry credentials. \
+             See https://pnpm.io/npmrc",
         ));
     }
 }
