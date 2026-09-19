@@ -229,13 +229,16 @@ fn is_project_relative_path(specifier: &str) -> bool {
 
 /// Whether the catalog entry already covers the wanted specifier, so the
 /// dependency can keep resolving through the catalog: the entry names the
-/// same concrete version, or it is a range the wanted version satisfies.
+/// same specifier, or it is a range the wanted version satisfies.
 ///
-/// The wanted specifier has to be a concrete version. A wanted range is
-/// never covered, because the catalog — not the dependency — decides which
-/// version a `catalog:` reference resolves to.
+/// A wanted range has to match the entry exactly. Keeping the catalog swaps
+/// the wanted range for the entry's, so a merely narrower range would drop
+/// what the dependency asked for, and pnpm does not widen the entry to make
+/// room for it. A wanted version is different: `pnpm add` moves the catalog
+/// onto the version it names.
 pub(crate) fn catalog_covers(entry: &str, wanted: &str) -> bool {
-    matches!((Range::parse(entry), Version::parse(wanted)), (Ok(entry), Ok(wanted)) if entry.satisfies(&wanted))
+    entry == wanted
+        || matches!((Range::parse(entry), Version::parse(wanted)), (Ok(entry), Ok(wanted)) if entry.satisfies(&wanted))
 }
 
 /// The catalog group a dependency belongs to: a previous `catalog:<name>`

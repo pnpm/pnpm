@@ -33,6 +33,16 @@ fn decide(
     decide_catalog::<SilentReporter>(mode, None, catalogs, dep, "/repo")
 }
 
+/// [`decide`] without dropping the warning, for the modes that report a
+/// mismatch instead of failing on it.
+fn decide_outcome(
+    mode: CatalogMode,
+    catalogs: &Catalogs,
+    dep: &CatalogModeDep<'_>,
+) -> Result<super::CatalogDecisionOutcome, CatalogVersionMismatchError> {
+    super::decide_catalog_outcome(mode, None, catalogs, dep, "/repo")
+}
+
 #[test]
 fn manual_mode_keeps_the_direct_version() {
     let catalogs = catalogs(&[("default", &[("is-positive", "1.0.0")])]);
@@ -108,6 +118,103 @@ fn strict_errors_when_the_wanted_specifier_is_a_range() {
         .expect_err("a wanted range that disagrees with the catalog must error");
     assert_eq!(err.wanted_dep, "is-positive@^2.0.0");
     assert_eq!(err.catalog_dep, "is-positive@1.0.0");
+}
+
+/// A range that merely falls inside the catalog range is a mismatch, not a
+/// match, and deliberately so.
+///
+/// Answering `catalog:` replaces the wanted range with the entry's. Were
+/// `^2.1.0` treated as covered by `^2.0.0`, the manifest would go on to
+/// resolve through `^2.0.0` and could take `2.0.x`, which is exactly what
+/// asking for `^2.1.0` ruled out. pnpm does not widen the entry to `^2.1.0`
+/// either, since every other project on the entry would inherit that. So the
+/// containment direction is not the question: only a range equal to the entry
+/// keeps the catalog, and anything else is reported.
+#[test]
+fn strict_errors_when_the_wanted_range_sits_inside_the_catalog_range() {
+    let catalogs = catalogs(&[("default", &[("is-positive", "^2.0.0")])]);
+    let err = decide(CatalogMode::Strict, &catalogs, &dep("is-positive", "^2.1.0"))
+        .expect_err(
+            "`catalog:` would resolve through `^2.0.0` and could take a version `^2.1.0` excludes",
+        );
+    assert_eq!(
+        err,
+        CatalogVersionMismatchError {
+            catalog_dep: "is-positive@^2.0.0".to_string(),
+            wanted_dep: "is-positive@^2.1.0".to_string(),
+        },
+    );
+}
+
+/// The mirror of [`strict_errors_when_the_wanted_range_sits_inside_the_catalog_range`]:
+/// a range the catalog sits inside is no better, since `catalog:` would drop
+/// the versions the wanted range adds.
+#[test]
+fn strict_errors_when_the_wanted_range_holds_the_catalog_range() {
+    let catalogs = catalogs(&[("default", &[("is-positive", "^2.1.0")])]);
+    let err = decide(CatalogMode::Strict, &catalogs, &dep("is-positive", "^2.0.0"))
+        .expect_err(
+            "`catalog:` would resolve through `^2.1.0` and never take the `2.0.x` the range allows",
+        );
+    assert_eq!(
+        err,
+        CatalogVersionMismatchError {
+            catalog_dep: "is-positive@^2.1.0".to_string(),
+            wanted_dep: "is-positive@^2.0.0".to_string(),
+        },
+    );
+}
+
+/// Prefer mode keeps the range the dependency asked for rather than quietly
+/// swapping in a catalog that spans different versions.
+#[test]
+fn prefer_keeps_a_direct_range_that_sits_inside_the_catalog_range() {
+    let catalogs = catalogs(&[("default", &[("is-positive", "^2.0.0")])]);
+    let outcome =
+        decide_outcome(CatalogMode::Prefer, &catalogs, &dep("is-positive", "^2.1.0")).unwrap();
+    assert_eq!(outcome.decision, CatalogDecision::KeepDirect);
+    assert!(
+        outcome.warning.is_some(),
+        "the mismatch is reported rather than silently resolved through the catalog",
+    );
+}
+
+/// A concrete version is the one case containment settles, because `pnpm add`
+/// moves the catalog onto the version it names instead of discarding it.
+#[test]
+fn a_wanted_version_inside_the_catalog_range_is_still_covered() {
+    assert!(super::catalog_covers("^2.0.0", "2.1.0"));
+    assert!(!super::catalog_covers("^2.0.0", "^2.1.0"), "a range is not a version");
+    assert!(!super::catalog_covers("^2.1.0", "^2.0.0"), "nor is the wider one");
+    assert!(super::catalog_covers("^2.0.0", "^2.0.0"), "only an equal range keeps the catalog");
+}
+
+#[test]
+fn prefer_uses_the_catalog_on_a_matching_range() {
+    let catalogs = catalogs(&[("default", &[("tailwindcss", "^4.3.3")])]);
+    let decision = decide(CatalogMode::Prefer, &catalogs, &dep("tailwindcss", "^4.3.3")).unwrap();
+    assert_eq!(
+        decision,
+        CatalogDecision::Catalog {
+            manifest_specifier: "catalog:".to_string(),
+            updated_entry: None
+        },
+        "a range equal to the catalog range reuses the existing catalog entry",
+    );
+}
+
+#[test]
+fn strict_uses_the_catalog_on_a_matching_range() {
+    let catalogs = catalogs(&[("default", &[("tailwindcss", "^4.3.3")])]);
+    let decision = decide(CatalogMode::Strict, &catalogs, &dep("tailwindcss", "^4.3.3")).unwrap();
+    assert_eq!(
+        decision,
+        CatalogDecision::Catalog {
+            manifest_specifier: "catalog:".to_string(),
+            updated_entry: None
+        },
+        "a range equal to the catalog range reuses the existing catalog entry",
+    );
 }
 
 #[test]

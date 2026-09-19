@@ -807,3 +807,72 @@ fn add_moves_a_catalog_with_a_per_project_lockfile() {
 
     drop((root, anchor));
 }
+
+/// Regression test for [pnpm/pnpm#14865](https://github.com/pnpm/pnpm/issues/14865):
+/// naming no version asks for whatever the workspace agreed on, so the entry
+/// stands even where it is not the range `latest` would have produced.
+#[test]
+fn strict_add_without_a_version_reuses_a_catalog_behind_the_latest_release() {
+    let (root, workspace, anchor) = setup();
+    write_manifest(&workspace, "{}");
+    append_workspace_yaml(
+        &workspace,
+        &format!("catalogMode: strict\ncatalog:\n  '{FOO}': ^100.0.0\n"),
+    );
+
+    run_ok(&workspace, &["add", "--lockfile-only", FOO]);
+
+    assert_eq!(dep_spec(&workspace, FOO).as_deref(), Some("catalog:"));
+
+    drop((root, anchor));
+}
+
+/// A catalog entry stands even in `manual` mode, where nothing would have
+/// moved the dependency into the catalog on its own.
+#[test]
+fn manual_add_without_a_version_reuses_the_catalog() {
+    let (root, workspace, anchor) = setup();
+    write_manifest(&workspace, "{}");
+    append_workspace_yaml(
+        &workspace,
+        &format!("catalogMode: manual\ncatalog:\n  '{FOO}': ^100.0.0\n"),
+    );
+
+    run_ok(&workspace, &["add", "--lockfile-only", FOO]);
+
+    assert_eq!(dep_spec(&workspace, FOO).as_deref(), Some("catalog:"));
+
+    drop((root, anchor));
+}
+
+#[test]
+fn prefer_add_without_a_version_reuses_a_matching_catalog_range() {
+    let (root, workspace, anchor) = setup();
+    write_manifest(&workspace, "{}");
+    append_workspace_yaml(
+        &workspace,
+        &format!("catalogMode: prefer\ncatalog:\n  '{FOO}': ^100.0.0\n"),
+    );
+
+    run_ok(&workspace, &["add", "--lockfile-only", FOO]);
+
+    assert_eq!(dep_spec(&workspace, FOO).as_deref(), Some("catalog:"));
+
+    drop((root, anchor));
+}
+
+#[test]
+fn strict_add_without_a_version_reuses_a_matching_catalog_range() {
+    let (root, workspace, anchor) = setup();
+    write_manifest(&workspace, "{}");
+    append_workspace_yaml(
+        &workspace,
+        &format!("catalogMode: strict\ncatalog:\n  '{FOO}': ^100.0.0\n"),
+    );
+
+    run_ok(&workspace, &["add", "--lockfile-only", FOO]);
+
+    assert_eq!(dep_spec(&workspace, FOO).as_deref(), Some("catalog:"));
+
+    drop((root, anchor));
+}
