@@ -345,6 +345,10 @@ export async function handler (
             stdio: 'pipe',
             shell: opts.shellMode ?? false,
           })
+          // Registered before the output is drained, so a signal that ends
+          // the run waits for this command however far its output is.
+          const settled = waitForTracked(child)
+          settling.push(settled)
           const lifecycleOpts = {
             wd: prefix,
             depPath: manifest.name ?? path.relative(opts.dir, prefix),
@@ -405,8 +409,6 @@ export async function handler (
               resolve()
             })
           })
-          const settled = waitForTracked(child)
-          settling.push(settled)
           const signal = await settled
           interruptedBy ??= signal
         } else {
