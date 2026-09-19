@@ -78,7 +78,7 @@ impl Terminal {
                 // The request's type is the libc's own: `c_ulong` on glibc
                 // and `c_uint` on Apple, so it is cast to whatever `ioctl`
                 // takes.
-                if libc::ioctl(slave, libc::TIOCSCTTY as _, 0) < 0 {
+                if libc::ioctl(slave, libc::TIOCSCTTY.into(), 0) < 0 {
                     return Err(io::Error::last_os_error());
                 }
                 receive_terminal_signals()
