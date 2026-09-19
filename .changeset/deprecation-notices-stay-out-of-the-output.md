@@ -4,6 +4,7 @@
 "@pnpm/cli.default-reporter": patch
 "@pnpm/deps.inspection.commands": patch
 "@pnpm/installing.deps-resolver": patch
+"@pnpm/text.sanitize": patch
 "pnpm": patch
 "pacquet": patch
 ---
