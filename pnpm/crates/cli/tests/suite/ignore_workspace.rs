@@ -300,3 +300,53 @@ fn ignore_workspace_does_not_install_subdirectories_of_the_nested_project() {
 
     drop(root);
 }
+
+/// A project the workspace does not include stands on its own, so the
+/// workspace search stops at it and the workspace manifest's settings never
+/// reach it (<https://github.com/pnpm/pnpm/issues/3561>).
+#[test]
+fn a_project_the_workspace_leaves_out_runs_standalone() {
+    let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
+    write_workspace(
+        &workspace,
+        &["packages/*", "'!examples/*'"],
+        &["packages/alfa", "examples/bravo", "docs"],
+    );
+
+    assert_eq!(
+        stdout_of(
+            pacquet_in(&workspace.join("packages/alfa"))
+                .with_args(["config", "get", "nodeLinker",])
+        ),
+        "hoisted",
+        "a project the workspace lists reads the workspace manifest's settings",
+    );
+    for left_out in ["examples/bravo", "docs"] {
+        assert_eq!(
+            stdout_of(
+                pacquet_in(&workspace.join(left_out)).with_args(["config", "get", "nodeLinker"])
+            ),
+            "undefined",
+            "{left_out} is not one of the workspace's projects",
+        );
+    }
+
+    drop(root);
+}
+
+/// A directory without a manifest of its own is not a project the workspace
+/// left out, so a command run from there still belongs to the workspace.
+#[test]
+fn a_directory_without_a_manifest_still_belongs_to_the_workspace() {
+    let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
+    write_workspace(&workspace, &["packages/*"], &["packages/alfa"]);
+    let source_dir = workspace.join("packages/alfa/src");
+    fs::create_dir_all(&source_dir).expect("create source dir");
+
+    assert_eq!(
+        stdout_of(pacquet_in(&source_dir).with_args(["config", "get", "nodeLinker"])),
+        "hoisted",
+    );
+
+    drop(root);
+}

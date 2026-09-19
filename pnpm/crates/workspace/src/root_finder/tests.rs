@@ -44,6 +44,7 @@ fn rejects_invalid_filenames() {
             FindWorkspaceDirError::BadName(BadWorkspaceManifestNameError { path }) => {
                 assert_eq!(path, bad_path, "bad variant: {bad}");
             }
+            other => panic!("unexpected error for {bad}: {other:?}"),
         }
     }
 }
@@ -115,4 +116,57 @@ fn lowercase_env_var_is_honored_as_fallback() {
         find_workspace_dir_from_env_with::<EnvWithLowercaseWorkspaceDir>(),
         Some(std::path::PathBuf::from("/lowercase/root")),
     );
+}
+
+/// <https://github.com/pnpm/pnpm/issues/3561>
+mod workspace_membership {
+    use super::{TempDir, WORKSPACE_MANIFEST_FILENAME, find_workspace_dir, fs};
+    use pretty_assertions::assert_eq;
+
+    fn prepare_workspace(packages: &str) -> TempDir {
+        let tmp = TempDir::new().unwrap();
+        fs::write(tmp.path().join(WORKSPACE_MANIFEST_FILENAME), packages).unwrap();
+        for project in [".", "packages/pkg-1", "examples/example-1", "docs"] {
+            let dir = tmp.path().join(project);
+            fs::create_dir_all(&dir).unwrap();
+            fs::write(dir.join("package.json"), r#"{"name": "p", "version": "0.0.1"}"#).unwrap();
+        }
+        fs::create_dir_all(tmp.path().join("packages/pkg-1/src")).unwrap();
+        tmp
+    }
+
+    #[test]
+    fn excluded_project_finds_no_workspace_dir() {
+        let tmp = prepare_workspace("packages:\n  - packages/**\n  - '!examples/**'\n");
+        let found = find_workspace_dir(&tmp.path().join("examples/example-1")).unwrap();
+        assert_eq!(found, None);
+    }
+
+    #[test]
+    fn unlisted_project_finds_no_workspace_dir() {
+        let tmp = prepare_workspace("packages:\n  - packages/**\n");
+        let found = find_workspace_dir(&tmp.path().join("docs")).unwrap();
+        assert_eq!(found, None);
+    }
+
+    #[test]
+    fn listed_project_finds_the_workspace_dir() {
+        let tmp = prepare_workspace("packages:\n  - packages/**\n");
+        let found = find_workspace_dir(&tmp.path().join("packages/pkg-1")).unwrap();
+        assert_eq!(found.as_deref(), Some(tmp.path()));
+    }
+
+    #[test]
+    fn directory_without_a_manifest_finds_the_workspace_dir() {
+        let tmp = prepare_workspace("packages:\n  - packages/**\n");
+        let found = find_workspace_dir(&tmp.path().join("packages/pkg-1/src")).unwrap();
+        assert_eq!(found.as_deref(), Some(tmp.path()));
+    }
+
+    #[test]
+    fn workspace_root_finds_itself_though_no_pattern_lists_it() {
+        let tmp = prepare_workspace("packages:\n  - packages/**\n");
+        let found = find_workspace_dir(tmp.path()).unwrap();
+        assert_eq!(found.as_deref(), Some(tmp.path()));
+    }
 }

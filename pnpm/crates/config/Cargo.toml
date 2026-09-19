@@ -26,6 +26,7 @@ pnpm-package-manifest = { workspace = true }
 pnpm-patching = { workspace = true }
 pnpm-store-dir = { workspace = true }
 pnpm-versioning = { workspace = true }
+pnpm-workspace = { workspace = true }
 pnpm-workspace-state = { workspace = true }
 
 base64 = { workspace = true }

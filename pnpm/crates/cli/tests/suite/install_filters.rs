@@ -773,8 +773,11 @@ fn filtered_install_refreshes_unselected_catalog_importers_when_catalog_changes(
     assert_eq!(catalog.version, "2.0.0");
 }
 
+/// A project the workspace leaves out stands on its own, so a filtered
+/// install run there selects among that project alone and never reaches the
+/// workspace's own projects (<https://github.com/pnpm/pnpm/issues/3561>).
 #[test]
-fn active_manifest_outside_workspace_patterns_keeps_install_filtered() {
+fn a_filtered_install_outside_the_workspace_patterns_installs_only_that_project() {
     let fixture = WorkspaceFixture::new();
     let member = fixture.project(
         "member",
@@ -790,20 +793,10 @@ fn active_manifest_outside_workspace_patterns_keeps_install_filtered() {
 
     fixture.run_at(&local, ["--filter", "*", "install"]);
 
-    let state = fixture.state();
-    assert!(state.filtered_install);
-    assert_eq!(
-        state.projects
-            .keys()
-            .cloned()
-            .collect::<BTreeSet<_>>(),
-        [&member, &local]
-            .into_iter()
-            .map(|path| canonical_path(path))
-            .collect(),
-    );
-    assert!(has_link(&member, HELLO));
-    assert!(!local.join("node_modules").exists());
+    assert!(has_link(&local, PARENT));
+    assert!(local.join("pnpm-lock.yaml").is_file());
+    assert!(!member.join("node_modules").exists());
+    assert!(!fixture.workspace.join("pnpm-lock.yaml").exists());
 }
 
 mod mutations;

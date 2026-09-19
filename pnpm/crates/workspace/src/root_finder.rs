@@ -7,7 +7,11 @@
 //! resolve correctly because the upward walk operates on canonical path
 //! components. Revisit if a regression turns up.
 
-use crate::{api::EnvVarOs, manifest::WORKSPACE_MANIFEST_FILENAME};
+use crate::{
+    FindWorkspaceProjectsError, ReadWorkspaceManifestError,
+    api::EnvVarOs,
+    manifest::{WORKSPACE_MANIFEST_FILENAME, read_workspace_manifest},
+};
 use derive_more::{Display, Error};
 use miette::Diagnostic;
 use std::path::{Path, PathBuf};
@@ -50,6 +54,12 @@ pub struct BadWorkspaceManifestNameError {
 pub enum FindWorkspaceDirError {
     #[diagnostic(transparent)]
     BadName(#[error(source)] BadWorkspaceManifestNameError),
+
+    #[diagnostic(transparent)]
+    ReadManifest(#[error(source)] ReadWorkspaceManifestError),
+
+    #[diagnostic(transparent)]
+    FindProjects(#[error(source)] FindWorkspaceProjectsError),
 }
 
 /// Resolve the workspace directory for the given `cwd`.
@@ -60,7 +70,23 @@ pub fn find_workspace_dir(cwd: &Path) -> Result<Option<PathBuf>, FindWorkspaceDi
     if let Some(dir) = find_workspace_dir_from_env() {
         return Ok(Some(dir));
     }
-    find_workspace_dir_by_walk(cwd)
+    let Some(workspace_dir) = find_workspace_dir_by_walk(cwd)? else {
+        return Ok(None);
+    };
+    Ok(belongs_to_workspace(&workspace_dir, cwd)?.then_some(workspace_dir))
+}
+
+/// [`crate::projects::belongs_to_workspace`], with `packages:` read from the
+/// workspace manifest the walk just found.
+fn belongs_to_workspace(workspace_dir: &Path, dir: &Path) -> Result<bool, FindWorkspaceDirError> {
+    let manifest =
+        read_workspace_manifest(workspace_dir).map_err(FindWorkspaceDirError::ReadManifest)?;
+    crate::projects::belongs_to_workspace(
+        workspace_dir,
+        dir,
+        manifest.as_ref().and_then(|manifest| manifest.packages.as_deref()),
+    )
+    .map_err(FindWorkspaceDirError::FindProjects)
 }
 
 /// Read `NPM_CONFIG_WORKSPACE_DIR` (and its lowercase spelling) and
