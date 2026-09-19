@@ -50,6 +50,7 @@ const PNPM_CONFIG_FILE_KEYS: &[&str] = &[
     "prefer-frozen-lockfile",
     "prefer-offline",
     "prefer-symlinked-executables",
+    "progress",
     "block-exotic-subdeps",
     "registry-supports-time-field",
     "reporter",
