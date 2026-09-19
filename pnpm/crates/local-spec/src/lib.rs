@@ -16,7 +16,10 @@
 //! so a caller can ask what a specifier is without depending on the code
 //! that resolves it.
 
-use std::path::{Path, PathBuf};
+use std::{
+    borrow::Cow,
+    path::{Path, PathBuf},
+};
 
 use pnpm_fs::{lexical_normalize, relative_path};
 
@@ -89,8 +92,14 @@ impl LocalSpec {
     }
 
     fn anchor(protocol: Option<LocalSpecProtocol>, pkg_path: &str, base_dir: &Path) -> Self {
-        let candidate = Path::new(pkg_path);
-        let specified_via_relative_path = !candidate.is_absolute() && !is_home_relative(pkg_path);
+        // The resolver forward-slashes a specifier before it reads the
+        // path, so `\foo` is absolute to it on every host, while `Path`
+        // takes the backslash for an ordinary character off Windows.
+        // Reading the raw string here would re-anchor a path the
+        // resolver resolves from the filesystem root.
+        let pkg_path = forward_slashes(pkg_path);
+        let candidate = Path::new(pkg_path.as_ref());
+        let specified_via_relative_path = !candidate.is_absolute() && !pkg_path.starts_with("~/");
         let absolute_path = lexical_normalize(&if specified_via_relative_path {
             base_dir.join(candidate)
         } else {
@@ -225,12 +234,13 @@ fn is_drive_letter_prefix(spec: &str) -> bool {
     matches!(chars.next(), Some(first) if first.is_ascii_alphabetic()) && chars.next() == Some(':')
 }
 
-/// Whether the path starts at the home directory. The local resolver
-/// expands `~/` itself and records the specifier verbatim, so such a
-/// path is anchored at neither the declaring nor the consuming
-/// directory.
-fn is_home_relative(path: &str) -> bool {
-    path.starts_with("~/") || path.starts_with(r"~\")
+/// Rewrite `\` to `/`, as the local resolver's own specifier
+/// normalization does before it reads a path. A `~/` path survives it
+/// unchanged, which is what leaves such a path anchored at neither the
+/// declaring nor the consuming directory: the resolver expands it
+/// against the home directory and records it verbatim.
+fn forward_slashes(path: &str) -> Cow<'_, str> {
+    if path.contains('\\') { Cow::Owned(path.replace('\\', "/")) } else { Cow::Borrowed(path) }
 }
 
 /// Replace `\` with `/` to normalize the path. `link:` / `file:`

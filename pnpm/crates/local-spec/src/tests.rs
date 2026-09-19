@@ -130,3 +130,23 @@ fn still_claims_a_path_prefixed_tarball() {
         Some("../../deps/repo.tgz"),
     );
 }
+
+/// The resolver forward-slashes a specifier before it reads the path,
+/// so a leading backslash names the filesystem root on every host. Read
+/// as a raw `Path` off Windows it would look relative and be rebased
+/// under the workspace instead.
+#[test]
+fn treats_a_leading_backslash_as_the_filesystem_root() {
+    assert_eq!(render_filesystem(r"\foo", Some("packages/foo")).as_deref(), Some("/foo"));
+    assert_eq!(render_filesystem(r"file:\foo", Some("packages/foo")).as_deref(), Some("file:/foo"));
+}
+
+/// A backslash inside a relative path is a separator to the resolver,
+/// so the re-anchored form uses the same separators it would.
+#[test]
+fn reads_an_inner_backslash_as_a_separator() {
+    assert_eq!(
+        render_filesystem(r"file:.\deps\x.tgz", Some("packages/foo")).as_deref(),
+        Some("file:../../deps/x.tgz"),
+    );
+}
