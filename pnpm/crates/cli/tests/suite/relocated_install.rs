@@ -43,7 +43,6 @@ fn tree_snapshot(root: &Path) -> TreeSnapshot {
         .collect()
 }
 
-/// The entries of `root` that differ between two [`tree_snapshot`]s.
 fn changed_entries(before: &TreeSnapshot, after: &TreeSnapshot, root: &Path) -> BTreeSet<String> {
     before
         .keys()
@@ -58,7 +57,6 @@ fn changed_entries(before: &TreeSnapshot, after: &TreeSnapshot, root: &Path) -> 
         .collect()
 }
 
-/// The files under `root` whose bytes mention `path`.
 fn files_mentioning(root: &Path, path: &Path) -> Vec<PathBuf> {
     let needle = path.to_string_lossy().into_owned();
     WalkDir::new(root)
@@ -322,7 +320,6 @@ fn a_moved_patched_workspace_is_up_to_date_until_its_patch_is_edited() {
     drop(temp_cwd);
 }
 
-/// The state under `dir` records only the project at `dir`.
 fn assert_state_recorded_at(dir: &Path) {
     let state = load_workspace_state(dir).expect("read the state").expect("a workspace state");
     let keys: Vec<&String> = state.projects.keys().collect();
@@ -337,7 +334,6 @@ fn as_a_workspace(workspace: &Path) {
     append_workspace_yaml_key(workspace, "dedupePeers", true);
 }
 
-/// Drop the harness's workspace manifest, so the install is a lone project.
 fn as_a_single_project(workspace: &Path) {
     fs::remove_file(workspace.join("pnpm-workspace.yaml")).expect("remove the workspace manifest");
 }

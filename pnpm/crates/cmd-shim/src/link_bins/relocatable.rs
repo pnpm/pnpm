@@ -6,10 +6,8 @@ use std::{
     path::Path,
 };
 
-/// Whether every entry of `bin_dir` keeps working after `root` moves: a
-/// relative symlink, or a shim whose target marker and `NODE_PATH` entries
-/// name paths relative to it, resolving inside `root`. A missing `bin_dir`
-/// passes. An unreadable one, or an entry of any other kind, fails.
+/// Missing bin directories are valid; unreadable entries and paths resolving
+/// outside `root` are not. Only relative symlinks and recognized shims qualify.
 #[must_use]
 pub fn bin_dir_is_relocatable(bin_dir: &Path, root: &Path) -> bool {
     let (Ok(root), Ok(bin_dir)) = (realpath_missing(root), realpath_missing(bin_dir)) else {
