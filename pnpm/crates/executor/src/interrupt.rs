@@ -20,6 +20,15 @@
 //! action in place, before its shutdown has finished
 //! ([pnpm/pnpm#7374](https://github.com/pnpm/pnpm/issues/7374)). Only a
 //! signal aimed at pnpm alone, as `kill` does, is relayed to that child.
+//!
+//! Without a controlling terminal, under a service manager or in a
+//! container, `kill` is the only way a signal reaches pnpm, and the shell
+//! running the script may not pass it on: a `sh` that stays the script's
+//! parent dies from `SIGTERM` at once and holds a `SIGINT` until its child
+//! exits, which it never does unsignalled. Each child then gets a process
+//! group of its own, the relay signals the group, and pnpm waits for the
+//! group to empty after a relayed signal, so the script finishes shutting
+//! down before pnpm ends.
 
 use crate::ScriptExit;
 use std::{
@@ -64,6 +73,13 @@ const CLAIMING: i32 = i32::MIN;
 /// A child's registration in the relay, released when dropped.
 pub(crate) struct SignalRelay {
     entry: Option<&'static RelayEntry>,
+}
+
+impl SignalRelay {
+    /// Whether pnpm has relayed a signal to this child.
+    pub(crate) fn relayed(&self) -> bool {
+        self.entry.is_some_and(|entry| entry.relays.load(Ordering::Relaxed) > 0)
+    }
 }
 
 impl Drop for SignalRelay {
@@ -284,18 +300,43 @@ fn relay_to(entry: &RelayEntry, target: i32, signal: libc::c_int, shared_with_gr
 /// `open`, `tcgetpgrp`, `getpgrp` and `close` are async-signal-safe.
 #[cfg(unix)]
 fn holds_the_terminal() -> bool {
-    // SAFETY: the path is a NUL-terminated literal, and the descriptor is
-    // closed before it can leak, whatever `tcgetpgrp` reports.
+    let Some(tty) = open_controlling_terminal() else {
+        return false;
+    };
+    // SAFETY: `tty` is an open descriptor, closed here whatever
+    // `tcgetpgrp` reports.
     unsafe {
-        let tty =
-            libc::open(c"/dev/tty".as_ptr(), libc::O_RDONLY | libc::O_NOCTTY | libc::O_CLOEXEC);
-        if tty < 0 {
-            return false;
-        }
         let foreground = libc::tcgetpgrp(tty);
         libc::close(tty);
         foreground == libc::getpgrp()
     }
+}
+
+/// Whether pnpm has a controlling terminal. Without one, only `kill` can
+/// signal pnpm, and nothing signals its children but pnpm.
+///
+/// Async-signal-safe.
+#[cfg(unix)]
+pub(crate) fn has_controlling_terminal() -> bool {
+    let Some(tty) = open_controlling_terminal() else {
+        return false;
+    };
+    // SAFETY: `tty` is an open descriptor.
+    unsafe {
+        libc::close(tty);
+    }
+    true
+}
+
+/// Open `/dev/tty`, which succeeds only for a process with a controlling
+/// terminal. `open` is async-signal-safe.
+#[cfg(unix)]
+fn open_controlling_terminal() -> Option<libc::c_int> {
+    // SAFETY: the path is a NUL-terminated literal.
+    let tty = unsafe {
+        libc::open(c"/dev/tty".as_ptr(), libc::O_RDONLY | libc::O_NOCTTY | libc::O_CLOEXEC)
+    };
+    (tty >= 0).then_some(tty)
 }
 
 /// End pnpm as `signal` would have ended it without this module.

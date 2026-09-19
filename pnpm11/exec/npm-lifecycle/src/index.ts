@@ -11,6 +11,7 @@ import { execute } from '@yarnpkg/shell'
 import uidNumber from 'uid-number'
 
 import { extendPath } from './extendPath.js'
+import { hasControllingTerminal, spawnsInOwnProcessGroup, waitForProcessGroup } from './processGroup.js'
 import { type LifecycleChildProcess, spawn } from './spawn.js'
 
 export type { LifecycleChildProcess } from './spawn.js'
@@ -327,8 +328,10 @@ function dequeue (): void {
 /** Run the script as `owner`, or as the current user when it is null. */
 function runCmdAs (run: ScriptRun, owner: { uid: number, gid: number } | null, cb: Callback): void {
   const { cmd, pkg, stage, wd, env, opts } = run
+  const ownProcessGroup = spawnsInOwnProcessGroup()
   const conf: {
     cwd: string
+    detached: boolean
     env: Record<string, string>
     stdio: StdioOptions
     uid?: number
@@ -336,6 +339,7 @@ function runCmdAs (run: ScriptRun, owner: { uid: number, gid: number } | null, c
     windowsVerbatimArguments?: boolean
   } = {
     cwd: wd,
+    detached: ownProcessGroup,
     env,
     stdio: opts.stdio ?? [0, 1, 2],
   }
@@ -366,7 +370,14 @@ function runCmdAs (run: ScriptRun, owner: { uid: number, gid: number } | null, c
     runEmulated(run, cb)
     return
   }
-  runSpawned(run, spawn(sh, [shFlag, cmd], { ...conf, log: opts.log }), cb)
+  const proc = spawn(sh, [shFlag, cmd], { ...conf, log: opts.log })
+  runSpawned(run, { proc, ownProcessGroup }, cb)
+}
+
+interface SpawnedScript {
+  proc: LifecycleChildProcess
+  /** The script leads a process group of its own, which is what pnpm signals. */
+  ownProcessGroup: boolean
 }
 
 function runEmulated (run: ScriptRun, cb: Callback): void {
@@ -398,18 +409,41 @@ function runEmulated (run: ScriptRun, cb: Callback): void {
     .catch((err: LifecycleError) => procError(err))
 }
 
-function runSpawned (run: ScriptRun, proc: LifecycleChildProcess, cb: Callback): void {
+/**
+ * Wait for the spawned script, relaying pnpm's own signals to it meanwhile.
+ *
+ * `cb` runs at most once, after the script has ended and its output has
+ * been reported. It gets no error for a clean exit, and a `LifecycleError`
+ * for a failed spawn, a non-zero exit, or an `onSpawn` observer that threw.
+ * A child with a process group of its own is signalled as a group, and
+ * after a relayed signal `cb` waits for that group as well: the shell may
+ * have died from the signal while the script it started is still shutting
+ * down. A script killed by a signal makes pnpm raise that signal on itself
+ * once the wait is over, which ends pnpm before `cb` unless something
+ * handles the signal; `cb` then gets a `LifecycleError` for it.
+ */
+function runSpawned (run: ScriptRun, spawned: SpawnedScript, cb: Callback): void {
   const { pkg, stage, opts } = run
+  const { proc, ownProcessGroup } = spawned
   let spawnObserverFailed = false
   let spawnObserverError: LifecycleError | undefined
+  let relayed = false
+  let deathSignal: NodeJS.Signals | null = null
 
-  const procError = createProcError(run, (er) => {
+  // A script killed by a signal makes pnpm raise that signal on itself, so
+  // the shell reports an interrupted command rather than a plain failure.
+  // That comes after the wait for the script's process group: the raise
+  // ends pnpm, and a shell that died from a relayed signal may have left
+  // the script still shutting down.
+  const finish = (er?: LifecycleError | null): void => {
     process.removeListener('SIGTERM', procKill)
     process.removeListener('SIGINT', procKill)
     process.removeListener('SIGINT', procInterrupt)
     process.removeListener('exit', procKill)
+    if (deathSignal) process.kill(process.pid, deathSignal)
     cb(er)
-  })
+  }
+  const procError = createProcError(run, finish)
 
   proc.on('error', (err: LifecycleError) => {
     procError(spawnObserverFailed ? spawnObserverError : err)
@@ -421,10 +455,14 @@ function runSpawned (run: ScriptRun, proc: LifecycleChildProcess, cb: Callback):
       err = spawnObserverError
     } else if (signal) {
       err = new PnpmError('CHILD_PROCESS_FAILED', `Command failed with signal "${signal}"`)
-      process.kill(process.pid, signal)
+      deathSignal = signal
     } else if (code) {
       err = new PnpmError('CHILD_PROCESS_FAILED', `Exit status ${code}`)
       err.errno = code
+    }
+    if (relayed && ownProcessGroup && proc.pid != null) {
+      waitForProcessGroup(proc.pid).then(() => procError(err), () => procError(err))
+      return
     }
     procError(err)
   })
@@ -448,20 +486,32 @@ function runSpawned (run: ScriptRun, proc: LifecycleChildProcess, cb: Callback):
   } catch (err: unknown) {
     spawnObserverFailed = true
     spawnObserverError = err as LifecycleError
-    proc.kill()
+    relay('SIGTERM')
   }
 
   let called = false
   function procKill (): void {
     if (called) return
     called = true
-    proc.kill()
+    relay('SIGTERM')
   }
   function procInterrupt (): void {
     if (!hasControllingTerminal()) {
-      proc.kill('SIGINT')
+      relay('SIGINT')
     }
     process.once('SIGINT', procKill)
+  }
+  function relay (signal: NodeJS.Signals): void {
+    relayed = true
+    if (ownProcessGroup && proc.pid != null) {
+      try {
+        process.kill(-proc.pid, signal)
+      } catch {
+        // the group is gone already
+      }
+      return
+    }
+    proc.kill(signal)
   }
 }
 
@@ -493,28 +543,6 @@ function createProcError (run: ScriptRun, cb: Callback): (er?: LifecycleError | 
     }
     cb(er)
   }
-}
-
-/**
- * Whether this process has a controlling terminal.
- *
- * Ctrl+C there interrupts the whole foreground process group at once, and the
- * child runs in that group, so it has the SIGINT already. Relaying it would
- * deliver a second one, which ends a child that handled the first and then
- * left the default action in place (https://github.com/pnpm/pnpm/issues/7374).
- * Node.js cannot ask who sent a signal, so the terminal stands in for it:
- * without one, only kill() can reach the process, and the child needs the relay.
- */
-function hasControllingTerminal (): boolean {
-  if (process.platform === 'win32') return false
-  let tty: number
-  try {
-    tty = fs.openSync('/dev/tty', fs.constants.O_RDONLY | fs.constants.O_NOCTTY)
-  } catch {
-    return false
-  }
-  fs.closeSync(tty)
-  return true
 }
 
 export function makeEnv (data: Record<string, unknown>, opts: MakeEnvOptions, prefix?: string | null, env?: Record<string, string>): Record<string, string> {

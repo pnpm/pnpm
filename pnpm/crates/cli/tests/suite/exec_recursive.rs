@@ -3,6 +3,7 @@
 //! same as the recursive-run tests.
 #![cfg(unix)]
 
+use crate::_utils::terminal::{Terminal, spawn_without_terminal};
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
 use pnpm_testing_utils::{bin::CommandTempCwd, command_env::CommandTestExt};
@@ -110,30 +111,70 @@ fn recursive_exec_runs_command_in_every_project() {
     drop(root);
 }
 
-/// A single filtered command cannot run alongside a sibling, so it must
-/// stay in pacquet's own process group: a child moved into its own group
-/// is stopped the moment it reads from the terminal.
+/// A single filtered command cannot run alongside a sibling, so at a
+/// terminal it stays in pacquet's own process group: a child moved into
+/// its own group is stopped the moment it reads from the terminal.
 #[test]
 fn filtered_exec_keeps_single_command_in_foreground_process_group() {
     let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
     write_workspace(&workspace, &["project-1", "project-2"]);
 
-    pacquet
-        .with_args(["--filter", "project-1", "exec", "sh", "-c", process_group_probe()])
-        .assert()
-        .success();
+    let terminal = Terminal::open();
+    let mut process = terminal.spawn_foreground(pacquet.with_args([
+        "--filter",
+        "project-1",
+        "exec",
+        "sh",
+        "-c",
+        process_group_probe(),
+    ]));
+    let status = process.wait().expect("wait for pacquet");
+    assert!(status.success(), "pacquet should succeed on the terminal");
 
-    let groups =
-        fs::read_to_string(workspace.join("process-groups.txt")).expect("read process groups");
-    let mut fields = groups.split_whitespace();
-    let child_group = fields.next().expect("child process group");
-    let parent_group = fields.next().expect("parent process group");
+    let (child_group, parent_group) = read_process_groups(&workspace);
     assert_eq!(
         child_group, parent_group,
         "the child must share pacquet's process group to keep reading the terminal",
     );
 
     drop(root);
+}
+
+/// Without a terminal nothing but pacquet signals the command, and the
+/// shell running it may not pass a signal on, so the command gets a
+/// process group of its own for pacquet to address.
+#[test]
+fn filtered_exec_without_a_terminal_gives_the_command_its_own_process_group() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    write_workspace(&workspace, &["project-1", "project-2"]);
+
+    let mut process = spawn_without_terminal(pacquet.with_args([
+        "--filter",
+        "project-1",
+        "exec",
+        "sh",
+        "-c",
+        process_group_probe(),
+    ]));
+    let status = process.wait().expect("wait for pacquet");
+    assert!(status.success(), "pacquet should succeed without a terminal");
+
+    let (child_group, parent_group) = read_process_groups(&workspace);
+    assert_ne!(
+        child_group, parent_group,
+        "the child must lead a process group of its own for relayed signals",
+    );
+
+    drop(root);
+}
+
+fn read_process_groups(workspace: &Path) -> (String, String) {
+    let groups =
+        fs::read_to_string(workspace.join("process-groups.txt")).expect("read process groups");
+    let mut fields = groups.split_whitespace();
+    let child_group = fields.next().expect("child process group");
+    let parent_group = fields.next().expect("parent process group");
+    (child_group.to_string(), parent_group.to_string())
 }
 
 #[test]

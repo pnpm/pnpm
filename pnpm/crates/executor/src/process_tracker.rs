@@ -7,7 +7,7 @@ use std::{
 use tokio::sync::watch;
 
 #[cfg(unix)]
-use std::{io::Read, os::unix::process::CommandExt, process::Stdio, time::Duration};
+use std::{io::Read, os::unix::process::CommandExt, process::Stdio, ptr, time::Duration};
 
 /// Tracks the processes started by one command so a bailing task can stop
 /// other work that is still in flight.
@@ -55,7 +55,9 @@ impl ProcessTracker {
     /// not stopped as a background job; cancellation in exchange reaches
     /// each child and its scanned descendants, not a group at once. Only
     /// Unix spawns into a separate group, so on other platforms this
-    /// matches [`ProcessTracker::default`].
+    /// matches [`ProcessTracker::default`]. Without a controlling
+    /// terminal there is no foreground group to stay in, and every child
+    /// gets its own group regardless (see [`spawn_child`]).
     #[must_use]
     pub fn foreground() -> Self {
         Self { state: Mutex::new(TrackerState::default()), separate_process_groups: false }
@@ -115,6 +117,9 @@ impl ProcessTracker {
 /// Spawn a child and optionally register it for cancellation. The default
 /// tracker gives each Unix child its own process group; a foreground tracker
 /// preserves the caller's process group and discovers descendants at cancel.
+/// Without a controlling terminal a Unix child gets its own group either
+/// way: a relayed signal then reaches the script behind a shell that would
+/// not pass it on, and [`SpawnedChild::wait`] outlasts that shell.
 ///
 /// Every child also joins the interrupt relay for as long as the returned
 /// handle lives, so a terminal signal reaches it and pnpm waits for it.
@@ -123,7 +128,8 @@ pub fn spawn_child<'tracker>(
     process_tracker: Option<&'tracker ProcessTracker>,
 ) -> io::Result<SpawnedChild<'tracker>> {
     let separate_process_group =
-        process_tracker.is_some_and(|tracker| tracker.separate_process_groups);
+        process_tracker.is_some_and(|tracker| tracker.separate_process_groups)
+            || spawns_without_terminal();
     if separate_process_group {
         prepare_command(command);
     }
@@ -131,20 +137,32 @@ pub fn spawn_child<'tracker>(
     crate::job_control::assign_child(&child);
     // Only Unix gives a child a process group of its own, and only then
     // must a relayed signal address that group rather than the child.
-    let relay = crate::interrupt::relay_to_child(child.id(), cfg!(unix) && separate_process_group);
+    let own_process_group = cfg!(unix) && separate_process_group;
+    let relay = crate::interrupt::relay_to_child(child.id(), own_process_group);
     let registration = process_tracker.map(|tracker| {
         tracker.register(RunningExecution::Process {
             pid: child.id(),
-            separate_process_group: tracker.separate_process_groups,
+            separate_process_group: own_process_group,
         })
     });
-    Ok(SpawnedChild { child, _registration: registration, _relay: relay })
+    Ok(SpawnedChild { child, own_process_group, _registration: registration, relay })
+}
+
+#[cfg(unix)]
+fn spawns_without_terminal() -> bool {
+    !crate::interrupt::has_controlling_terminal()
+}
+
+#[cfg(not(unix))]
+fn spawns_without_terminal() -> bool {
+    false
 }
 
 pub struct SpawnedChild<'tracker> {
     child: Child,
+    own_process_group: bool,
     _registration: Option<Registration<'tracker>>,
-    _relay: crate::interrupt::SignalRelay,
+    relay: crate::interrupt::SignalRelay,
 }
 
 impl SpawnedChild<'_> {
@@ -152,10 +170,45 @@ impl SpawnedChild<'_> {
         &mut self.child
     }
 
+    /// Wait for the child, and after a relayed signal for its whole process
+    /// group: a shell that died from the signal may have left the script it
+    /// started still shutting down.
     pub fn wait(&mut self) -> io::Result<std::process::ExitStatus> {
-        self.child.wait()
+        let status = self.child.wait()?;
+        if self.own_process_group && self.relay.relayed() {
+            wait_for_process_group(self.child.id());
+        }
+        Ok(status)
     }
 }
+
+/// Block until no process of the group led by `leader` is left.
+///
+/// Members that became pnpm's children, as they do when pnpm is a
+/// container's PID 1, are reaped along the way; the others are init's to
+/// reap, and disappear from the group on their own.
+#[cfg(unix)]
+fn wait_for_process_group(leader: u32) {
+    let Ok(leader) = i32::try_from(leader) else { return };
+    let group = -leader;
+    loop {
+        // SAFETY: `group` names the process group pnpm created for the
+        // child. `waitpid` with `WNOHANG` never blocks, and `kill` with
+        // signal 0 only probes; `ESRCH` says the group is empty.
+        let empty = unsafe {
+            while libc::waitpid(group, ptr::null_mut(), libc::WNOHANG) > 0 {}
+            libc::kill(group, 0) != 0
+                && io::Error::last_os_error().raw_os_error() == Some(libc::ESRCH)
+        };
+        if empty {
+            return;
+        }
+        std::thread::sleep(Duration::from_millis(20));
+    }
+}
+
+#[cfg(not(unix))]
+fn wait_for_process_group(_: u32) {}
 
 pub(crate) struct EmulatedCancellation<'tracker> {
     receiver: watch::Receiver<bool>,

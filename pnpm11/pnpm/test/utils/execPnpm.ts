@@ -64,11 +64,14 @@ export async function execPnpm (
 export function spawnPnpm (
   args: string[],
   opts?: {
+    /** Start pnpm in a session of its own, without the test's terminal. */
+    detached?: boolean
     env?: Record<string, string>
     storeDir?: string
   }
 ): NodeChildProcess {
   return crossSpawn.spawn(process.execPath, [pnpmBinLocation, ...args], {
+    detached: opts?.detached ?? false,
     env: {
       ...createEnv(opts),
       ...opts?.env,

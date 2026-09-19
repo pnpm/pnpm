@@ -1,7 +1,8 @@
 use super::{
-    AsyncBufReadExt, AsyncBufReader, AsyncRead, BufRead, BufReader, Child, ExitStatus,
-    LifecycleLog, LifecycleMessage, LifecycleStdio, LogEvent, LogLevel, Read, io, thread,
+    AsyncBufReadExt, AsyncBufReader, AsyncRead, BufRead, BufReader, ExitStatus, LifecycleLog,
+    LifecycleMessage, LifecycleStdio, LogEvent, LogLevel, Read, io, thread,
 };
+use crate::process_tracker::SpawnedChild;
 
 pub(super) const STREAMED_OUTPUT_CHUNK_BYTES: usize = 64 * 1024;
 
@@ -56,11 +57,15 @@ impl StreamedScript<'_> {
     ///
     /// The child must have been spawned with both streams piped;
     /// whichever is absent is simply not pumped.
-    pub fn pump(&self, child: &mut Child) -> io::Result<ExitStatus> {
-        let stdout_handle = child.stdout
+    pub fn pump(&self, child: &mut SpawnedChild<'_>) -> io::Result<ExitStatus> {
+        let stdout_handle = child
+            .child_mut()
+            .stdout
             .take()
             .map(|stream| self.pump_stream(stream, LifecycleStdio::Stdout));
-        let stderr_handle = child.stderr
+        let stderr_handle = child
+            .child_mut()
+            .stderr
             .take()
             .map(|stream| self.pump_stream(stream, LifecycleStdio::Stderr));
         let status = child.wait();

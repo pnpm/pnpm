@@ -3,11 +3,11 @@ import fs from 'node:fs'
 import path from 'node:path'
 
 import { expect, test } from '@jest/globals'
-import { prepare, preparePackages } from '@pnpm/prepare'
+import { killProcessGroup, prepare, preparePackages } from '@pnpm/prepare'
 import isWindows from 'is-windows'
 import { writeYamlFileSync } from 'write-yaml-file'
 
-import { execPnpm, execPnpmSync, pnpmBinLocation } from './utils/index.js'
+import { execPnpm, execPnpmSync, pnpmBinLocation, spawnPnpm } from './utils/index.js'
 
 const RECORD_ARGS_FILE = 'require(\'fs\').writeFileSync(\'args.json\', JSON.stringify(require(\'./args.json\').concat([process.argv.slice(2)])), \'utf8\')'
 const testOnPosix = isWindows() ? test.skip : test
@@ -357,3 +357,65 @@ testOnPosix('run: Ctrl+C in a terminal interrupts the script once', () => {
   expect(status).toBe(0)
   expect(stdout).toContain('started')
 })
+
+// A script that shuts down on SIGTERM the way a server does when a container
+// runtime stops it.
+const TERMINATING_SCRIPT = `const fs = require('node:fs')
+process.on('SIGTERM', () => {
+  setTimeout(() => {
+    fs.writeFileSync('shut-down.txt', '')
+    process.exit(0)
+  }, 1000)
+})
+fs.writeFileSync('started.txt', '')
+setInterval(() => {}, 1000)
+`
+
+// Without a terminal, the shell running the script may stay its parent (dash
+// does) and dies from SIGTERM at once. pnpm signals the script's whole process
+// group instead and waits for it, so the script finishes shutting down.
+testOnPosix('run: a SIGTERM sent to pnpm without a terminal reaches the script behind its shell', async () => {
+  prepare({
+    name: 'project',
+    scripts: {
+      dev: 'node dev.js',
+    },
+  })
+  fs.writeFileSync('dev.js', TERMINATING_SCRIPT, 'utf8')
+
+  const proc = spawnPnpm(['run', '--config.verify-deps-before-run=false', 'dev'], { detached: true })
+  // The script may outlive pnpm and keep the output pipes open, so the
+  // check is made the moment pnpm exits, not when its output closes.
+  const shutDownBeforeExit = new Promise<boolean>((resolve) => {
+    proc.on('exit', () => {
+      resolve(fs.existsSync('shut-down.txt'))
+    })
+  })
+  try {
+    await waitForFile('started.txt', 30_000)
+    proc.kill('SIGTERM')
+    expect(await withDeadline(shutDownBeforeExit, 30_000)).toBe(true)
+  } finally {
+    killProcessGroup(proc.pid!)
+  }
+})
+
+async function withDeadline<T> (promise: Promise<T>, timeout: number): Promise<T> {
+  let timer: NodeJS.Timeout | undefined
+  const deadline = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => reject(new Error(`pnpm did not exit within ${timeout}ms`)), timeout)
+  })
+  try {
+    return await Promise.race([promise, deadline])
+  } finally {
+    clearTimeout(timer)
+  }
+}
+
+async function waitForFile (file: string, timeout: number): Promise<void> {
+  const deadline = Date.now() + timeout
+  while (!fs.existsSync(file)) {
+    if (Date.now() > deadline) throw new Error(`${file} did not appear within ${timeout}ms`)
+    await new Promise<void>((resolve) => setTimeout(resolve, 50)) // eslint-disable-line no-await-in-loop
+  }
+}

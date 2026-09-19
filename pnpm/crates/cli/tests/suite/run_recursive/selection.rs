@@ -4,11 +4,12 @@ use super::{
     workspace_root_run_selection, write_executable, write_workspace,
     write_workspace_with_root_and_packages,
 };
+use crate::_utils::terminal::Terminal;
 use assert_cmd::{assert::OutputAssertExt, cargo::CommandCargoExt};
 
-/// A single filtered script cannot run alongside a sibling, so it must
-/// stay in pacquet's own process group: a child moved into its own group
-/// is stopped the moment it reads from the terminal.
+/// A single filtered script cannot run alongside a sibling, so at a
+/// terminal it stays in pacquet's own process group: a child moved into
+/// its own group is stopped the moment it reads from the terminal.
 #[test]
 fn filtered_run_keeps_single_script_in_foreground_process_group() {
     let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
@@ -27,10 +28,11 @@ fn filtered_run_keeps_single_script_in_foreground_process_group() {
         ],
     );
 
-    pacquet
-        .with_args(["--filter", "project-1", "run", "prompt"])
-        .assert()
-        .success();
+    let terminal = Terminal::open();
+    let mut process =
+        terminal.spawn_foreground(pacquet.with_args(["--filter", "project-1", "run", "prompt"]));
+    let status = process.wait().expect("wait for pacquet");
+    assert!(status.success(), "pacquet should succeed on the terminal");
 
     let groups =
         fs::read_to_string(workspace.join("process-groups.txt")).expect("read process groups");

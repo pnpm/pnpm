@@ -20,7 +20,7 @@ use std::{
     fs,
     io::{self, BufRead, BufReader, Read},
     path::Path,
-    process::{Child, Command, ExitStatus, Stdio},
+    process::{Command, ExitStatus, Stdio},
     thread,
 };
 use tokio::io::{AsyncBufReadExt, AsyncRead, BufReader as AsyncBufReader};
