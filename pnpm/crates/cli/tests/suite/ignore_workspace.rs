@@ -1,7 +1,5 @@
 //! `--ignore-workspace` and `--workspace-packages`: the two flags that
-//! change which workspace, if any, a command belongs to. The scripts run
-//! through pacquet's `sh -c` executor, so the file is gated to Unix.
-#![cfg(unix)]
+//! change which workspace, if any, a command belongs to.
 
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
@@ -107,11 +105,13 @@ fn workspace_packages_overrides_the_manifest_patterns() {
         "--config.verify-deps-before-run=false",
         "-r",
         "exec",
-        "pwd",
+        "node",
+        "-e",
+        "console.log(process.cwd())",
     ]));
     let selected = stdout.lines().collect::<Vec<_>>();
     assert_eq!(selected.len(), 1, "only alfa should be selected: {stdout}");
-    assert!(selected[0].ends_with("packages/alfa"), "wrong project selected: {stdout}");
+    assert!(Path::new(selected[0]).ends_with("packages/alfa"), "wrong project selected: {stdout}");
 
     drop(root);
 }

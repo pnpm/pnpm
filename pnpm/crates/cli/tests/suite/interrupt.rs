@@ -1,3 +1,9 @@
+//! Signal handling under `pnpm run`: what a `SIGINT` at the terminal
+//! reaches, and what it leaves behind.
+//!
+//! Unix-only by subject, not by harness. The tests send POSIX signals to a
+//! process group of their own; Windows delivers console control events
+//! instead, which needs its own tests rather than a port of these.
 #![cfg(unix)]
 
 use command_extra::CommandExtra;

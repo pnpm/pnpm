@@ -1,9 +1,11 @@
-#![cfg(unix)]
+//! The pipeline's Cargo build cache: shared between worktrees, and
+//! rebuilt after the cache directory is deleted.
 
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
 use pnpm_testing_utils::command_env::CommandTestExt;
 use std::{
+    env::consts::EXE_SUFFIX,
     fs::{self, File, FileTimes},
     path::Path,
     process::Command,
@@ -40,12 +42,23 @@ fn pnpm(root: &Path, cache: &Path, args: &[&str]) -> String {
 }
 
 fn run_binary(root: &Path) -> String {
-    let output = Command::new(root.join("target/debug/probe")).output().unwrap();
+    let output =
+        Command::new(root.join(format!("target/debug/probe{EXE_SUFFIX}"))).output().unwrap();
     assert!(output.status.success());
     String::from_utf8(output.stdout).unwrap()
 }
 
+/// Windows-skipped on a product gap this test is not the place to fix: the
+/// second worktree recompiles instead of restoring the shared Cargo build
+/// state. The run there places the cache under the 8.3 short form of the
+/// temporary directory (`RUNNER~1`) while the worktree carries the long
+/// one, which is the first thing to check. Tracked in
+/// <https://github.com/pnpm/pnpm/issues/15105>.
 #[test]
+#[cfg_attr(
+    target_os = "windows",
+    ignore = "pnpm/pnpm#15105: the shared Cargo build state is not restored across worktrees"
+)]
 fn cargo_state_is_shared_between_worktrees_and_survives_cache_deletion() {
     let temp = tempfile::tempdir().unwrap();
     let root = dunce::canonicalize(temp.path()).unwrap();

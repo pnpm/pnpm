@@ -1,8 +1,6 @@
 //! Watch-agent integration tests: poll a git repository, build new
 //! revisions of a branch in a persistent checkout, and skip ticks with
-//! nothing new. The build scripts run through pacquet's `sh -c`
-//! executor, so the file is gated to Unix like the other run suites.
-#![cfg(unix)]
+//! nothing new.
 
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
@@ -42,7 +40,16 @@ fn agent_checkout(root: &Path) -> PathBuf {
     state_dir.join("checkout").join("demo")
 }
 
+/// Windows-skipped on a product gap this test is not the place to fix: the
+/// tick reports the revision built and passed, and the checkout holds no
+/// task output afterwards. Tracked in
+/// <https://github.com/pnpm/pnpm/issues/15105>. The rest of the file runs
+/// everywhere.
 #[test]
+#[cfg_attr(
+    target_os = "windows",
+    ignore = "pnpm/pnpm#15105: the agent's build reports success but leaves no output in the checkout"
+)]
 fn watch_agent_builds_new_revisions_and_skips_quiet_ticks() {
     let root = tempfile::Builder::new()
         .prefix("pacquet-test-")
@@ -56,7 +63,7 @@ fn watch_agent_builds_new_revisions_and_skips_quiet_ticks() {
     );
     fixture.write_file(
         "pkg/package.json",
-        r#"{ "name": "pkg", "version": "1.0.0", "scripts": { "build": "mkdir -p out && cp src/index.txt out/index.txt" } }"#,
+        r#"{ "name": "pkg", "version": "1.0.0", "scripts": { "build": "node -e \"const fs = require('fs'); fs.mkdirSync('out', { recursive: true }); fs.copyFileSync('src/index.txt', 'out/index.txt')\"" } }"#,
     );
     fixture.write_file("pkg/src/index.txt", "v1");
     // The lockfile the checkout's frozen install verifies against.
@@ -104,7 +111,7 @@ fn watch_agent_builds_new_revisions_and_skips_quiet_ticks() {
 
     fixture.write_file(
         "pkg/package.json",
-        r#"{"name":"pkg","version":"1.0.0","scripts":{"build":"exit 1"}}"#,
+        r#"{"name":"pkg","version":"1.0.0","scripts":{"build":"node -e \"process.exit(1)\""}}"#,
     );
     let failed = fixture.commit("failing build");
     for _ in 0..2 {
