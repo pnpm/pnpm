@@ -56,6 +56,7 @@ fn purge_removes_directory_links_without_following_them() {
 const ABSOLUTE_TARGET: &str = "/elsewhere/project/node_modules/typescript/bin/tsc";
 
 /// A shim target the tree carries with it.
+#[cfg(unix)]
 const RELATIVE_TARGET: &str = "../typescript/bin/tsc";
 
 /// The `.bin` dirs a moved tree may hold a stale bin in, named from the
