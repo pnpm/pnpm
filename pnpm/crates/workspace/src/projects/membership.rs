@@ -60,6 +60,11 @@ fn dir_has_project_manifest(dir: &Path) -> bool {
 /// The workspace root is always a project
 /// (<https://github.com/pnpm/pnpm/issues/1986>).
 ///
+/// `dir` is the workspace root or a directory below it, which is what a
+/// workspace lookup has in hand; anywhere else answers `false`. A `packages`
+/// pattern may also reach above the root, and the walk does return such a
+/// project, but nothing asks about one here.
+///
 /// [`find_workspace_projects`]: super::find_workspace_projects
 pub fn is_workspace_project_dir(
     workspace_root: &Path,

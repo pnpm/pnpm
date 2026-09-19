@@ -30,6 +30,11 @@ export interface IsWorkspaceProjectDirOptions {
  * a directory the walk returns.
  *
  * The workspace root is always a project (https://github.com/pnpm/pnpm/issues/1986).
+ *
+ * `dir` is the workspace root or a directory below it, which is what a
+ * workspace lookup has in hand. A `packages` pattern may also reach above the
+ * root, and the walk does return such a project, but nothing asks about one
+ * here.
  */
 export function isWorkspaceProjectDir ({ workspaceDir, dir, patterns }: IsWorkspaceProjectDirOptions): boolean {
   const relativeDir = path.relative(workspaceDir, dir).split(path.sep).join('/')

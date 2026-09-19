@@ -301,9 +301,10 @@ fn ignore_workspace_does_not_install_subdirectories_of_the_nested_project() {
     drop(root);
 }
 
-/// A project the workspace does not include stands on its own, so the
-/// workspace search stops at it and the workspace manifest's settings never
-/// reach it (<https://github.com/pnpm/pnpm/issues/3561>).
+/// `nodeLinker` is the probe because the workspace search is what carries the
+/// manifest's settings: a project the search stops at reads none of them, the
+/// same way `--ignore-workspace` reads none
+/// (<https://github.com/pnpm/pnpm/issues/3561>).
 #[test]
 fn a_project_the_workspace_leaves_out_runs_standalone() {
     let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
@@ -334,8 +335,8 @@ fn a_project_the_workspace_leaves_out_runs_standalone() {
     drop(root);
 }
 
-/// A directory without a manifest of its own is not a project the workspace
-/// left out, so a command run from there still belongs to the workspace.
+/// The guard that keeps the rule above from reaching a package's source
+/// directory, which has no manifest to make it a project of its own.
 #[test]
 fn a_directory_without_a_manifest_still_belongs_to_the_workspace() {
     let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();

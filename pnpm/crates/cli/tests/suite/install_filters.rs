@@ -773,9 +773,9 @@ fn filtered_install_refreshes_unselected_catalog_importers_when_catalog_changes(
     assert_eq!(catalog.version, "2.0.0");
 }
 
-/// A project the workspace leaves out stands on its own, so a filtered
-/// install run there selects among that project alone and never reaches the
-/// workspace's own projects (<https://github.com/pnpm/pnpm/issues/3561>).
+/// `--filter` does not put a left-out project back in the workspace: it
+/// selects among the standalone project, the same way it does under
+/// `--ignore-workspace` (<https://github.com/pnpm/pnpm/issues/3561>).
 #[test]
 fn a_filtered_install_outside_the_workspace_patterns_installs_only_that_project() {
     let fixture = WorkspaceFixture::new();
