@@ -128,7 +128,7 @@ pub(super) async fn verify_input_lockfile(
         .map_or_else(Vec::new, |index| osv_violations_for_lockfile(index, lockfile));
     if violations.is_empty() && osv_violations.is_empty() {
         if let Some(cache) = runtime.cache.verdicts.as_ref() {
-            cache.record(&hash, &merge_policies(&verifiers, runtime.osv_index.as_ref()));
+            cache.record(&hash, merge_policies(&verifiers, runtime.osv_index.as_ref()));
         }
         return Ok(Some(dist_stats));
     }

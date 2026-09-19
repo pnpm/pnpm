@@ -128,8 +128,9 @@ fn ignores_a_torn_trailing_record_and_removes_a_completed_journal() {
     let state = context
         .start(&HashSet::from([first_key.clone()]))
         .expect("start state");
+    let second_node = &graph[&second_key];
     state
-        .record_passed(&second_key, &graph[&second_key], workspace.path())
+        .record_passed(second_key.clone(), second_node, workspace.path())
         .expect("record passed task");
     fs::OpenOptions::new()
         .append(true)
@@ -283,7 +284,7 @@ fn disables_state_when_node_modules_is_read_only() {
     let result = context
         .start(&HashSet::new())
         .and_then(|state| {
-            state.record_passed(&key, &graph[&key], workspace.path())?;
+            state.record_passed(key.clone(), &graph[&key], workspace.path())?;
             state.finish()
         });
     fs::set_permissions(&node_modules, fs::Permissions::from_mode(0o755))
