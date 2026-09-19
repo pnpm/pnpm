@@ -75,10 +75,7 @@ impl Terminal {
                 if libc::setsid() < 0 {
                     return Err(io::Error::last_os_error());
                 }
-                // The request's type is the libc's own: `c_ulong` on glibc
-                // and `c_uint` on Apple, so it is cast to whatever `ioctl`
-                // takes.
-                if libc::ioctl(slave, libc::TIOCSCTTY.into(), 0) < 0 {
+                if libc::ioctl(slave, tiocsctty_request(), 0) < 0 {
                     return Err(io::Error::last_os_error());
                 }
                 receive_terminal_signals()
@@ -93,6 +90,16 @@ impl Terminal {
         let mut master = File::from(self.master.try_clone().expect("clone the terminal"));
         master.write_all(b"\x03").expect("type into the terminal");
     }
+}
+
+#[cfg(target_vendor = "apple")]
+fn tiocsctty_request() -> libc::c_ulong {
+    libc::TIOCSCTTY.into()
+}
+
+#[cfg(not(target_vendor = "apple"))]
+fn tiocsctty_request() -> libc::c_ulong {
+    libc::TIOCSCTTY
 }
 
 /// Spawn `command` in a session without a terminal, able to receive the
