@@ -94,8 +94,10 @@ test('strips control characters from a package name the manifest chose', async (
 
   const output = await firstValueFrom(output$.pipe(take(1), map(normalizeNewline)))
   // The payload stays readable rather than being removed: without the
-  // leading ESC the terminal prints it instead of acting on it.
-  expect(output).not.toContain('\u001b')
+  // leading ESC the terminal prints it instead of acting on it. Only the
+  // injected sequence is asserted away, since `formatWarn` emits escapes of
+  // its own whenever chalk has colors on.
+  expect(output).not.toContain('\u001b[2K')
   expect(output).not.toContain('\r')
   expect(output).toBe(formatWarn(`${chalk.red('deprecated')} foo[2Knot-really-deprecated@1.0.0`))
 })
