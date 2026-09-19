@@ -385,7 +385,10 @@ impl Terminal {
                 if libc::setsid() < 0 {
                     return Err(std::io::Error::last_os_error());
                 }
-                if libc::ioctl(slave, libc::TIOCSCTTY, 0) < 0 {
+                // The request's type is the libc's own: `c_ulong` on glibc
+                // and `c_uint` on Apple, so it is cast to whatever `ioctl`
+                // takes.
+                if libc::ioctl(slave, libc::TIOCSCTTY as _, 0) < 0 {
                     return Err(std::io::Error::last_os_error());
                 }
                 receive_terminal_signals()
