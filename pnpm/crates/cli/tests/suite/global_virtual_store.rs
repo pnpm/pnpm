@@ -15,16 +15,13 @@ use crate::_utils;
 
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
-use pnpm_store_dir::STORE_VERSION;
-#[cfg(not(windows))]
-use pnpm_store_dir::{StoreDir, StoreIndex};
+use pnpm_store_dir::{STORE_VERSION, StoreDir, StoreIndex};
 use pnpm_testing_utils::{
     bin::{AddMockedRegistry, CommandTempCwd},
     fs::is_symlink_or_junction,
 };
-#[cfg(not(windows))]
-use std::fmt::Write as _;
 use std::{
+    fmt::Write as _,
     fs,
     path::{Path, PathBuf},
     process::{Command, Stdio},
@@ -79,7 +76,6 @@ fn sole_hash_dir(pkg_version_dir: &Path) -> PathBuf {
 /// one filesystem the importer hardlinks, so truncating the slot's copy
 /// in place would rewrite the store's content-addressed file too — and
 /// then no re-import could ever restore the original bytes.
-#[cfg(not(windows))]
 fn corrupt_pristine_file(path: &Path) {
     fs::remove_file(path).unwrap_or_else(|err| panic!("unlink {path:?}: {err}"));
     fs::write(path, "{}").unwrap_or_else(|err| panic!("corrupt {path:?}: {err}"));
@@ -148,7 +144,6 @@ fn read_modules_manifest(workspace: &Path) -> pnpm_modules_yaml::Modules {
 /// `extra_yaml`. An empty slice yields `allowBuilds: {}` — upstream's
 /// `allowBuilds: {}`, which is materially different from omitting the key
 /// because it pins "nothing may build" rather than "no opinion".
-#[cfg(not(windows))]
 fn allow_builds_yaml(entries: &[(&str, bool)]) -> String {
     if entries.is_empty() {
         return "allowBuilds: {}\n".to_string();
@@ -917,13 +912,6 @@ fn adding_a_dependency_over_a_warm_layout_cache_still_hashes_its_slot() {
     drop((root, mock_instance));
 }
 
-/// Not on Windows: every test here runs a package build under the global
-/// virtual store, and pnpm cannot spawn a lifecycle script from a slot
-/// there — the install fails with `os error 267`, the OS rejecting the
-/// working directory it is handed. Tracked in
-/// <https://github.com/pnpm/pnpm/issues/15111>; the rest of this suite
-/// runs everywhere.
-#[cfg(not(windows))]
 mod builds;
 
 mod layout;
