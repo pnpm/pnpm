@@ -710,12 +710,6 @@ function isNotModifiedWithoutCacheError (err: unknown): boolean {
 }
 
 /**
- * The meta to retain after a release-age upgrade check, persisted to the
- * mirror (unless dry-run) because the mirror otherwise still holds the
- * pre-upgrade abbreviated form without `time`, and every future install
- * would re-trigger the upgrade fetch.
- */
-/**
  * The document to serve and cache after an upgrade attempt, marked so no
  * later pick in this resolver repeats the request.
  *
