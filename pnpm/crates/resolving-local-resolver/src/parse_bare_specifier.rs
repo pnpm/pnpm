@@ -8,7 +8,7 @@ use std::path::{Component, Path, PathBuf};
 
 use derive_more::{Display, Error};
 use miette::Diagnostic;
-use pnpm_local_spec::{is_filespec, is_tarball_filename};
+use pnpm_local_spec::{is_filespec, is_tarball_filename, normalize_specifier};
 use pnpm_resolving_resolver_base::PkgResolutionId;
 
 /// The wanted-dependency slice the local resolver consumes.
@@ -189,43 +189,6 @@ fn fetched_and_normalized(spec: &str, project_dir: &Path, protocol: &str) -> (Pa
     (fetched, format!("{protocol}{relative}"))
 }
 
-/// Normalize a bare specifier through this replacement chain:
-///
-/// 1. Replace all `\` with `/`.
-/// 2. Drive-letter prefix: `^(file|link|workspace):/*([A-Z]:)` → `$1`.
-/// 3. `^(file|link|workspace):(?:/*([~./]))?` → `$1`. The captured
-///    char class **includes `/`**, so a leading slash after the
-///    protocol survives (collapsed to a single one).
-fn normalize_specifier(bare: &str) -> String {
-    let forward = bare.replace('\\', "/");
-    let Some(after_proto) = ["file:", "link:", "workspace:"]
-        .iter()
-        .find_map(|proto| forward.strip_prefix(proto))
-    else {
-        return forward;
-    };
-    let after_slashes = after_proto.trim_start_matches('/');
-    if is_drive_letter_prefix(after_slashes) {
-        return after_slashes.to_string();
-    }
-    match after_proto.chars().next() {
-        Some('/') => {
-            let trimmed = after_slashes;
-            if let Some(c) = trimmed.chars().next()
-                && matches!(c, '~' | '.')
-            {
-                trimmed.to_string()
-            } else {
-                let mut result = String::with_capacity(trimmed.len() + 1);
-                result.push('/');
-                result.push_str(trimmed);
-                result
-            }
-        }
-        _ => after_proto.to_string(),
-    }
-}
-
 /// Resolve `spec` against `where_dir`, mirroring Node's
 /// [`path.resolve`](https://nodejs.org/api/path.html#pathresolvepaths)
 /// behavior: an absolute `spec` is returned unchanged; otherwise the
@@ -286,11 +249,6 @@ fn is_absolute_specifier(spec: &str) -> bool {
         Some(c) if c.is_ascii_alphabetic() => chars.next() == Some(':'),
         _ => false,
     }
-}
-
-fn is_drive_letter_prefix(spec: &str) -> bool {
-    let mut chars = spec.chars();
-    matches!(chars.next(), Some(c) if c.is_ascii_alphabetic()) && matches!(chars.next(), Some(':'))
 }
 
 fn strip_tilde_prefix(spec: &str) -> Option<&str> {

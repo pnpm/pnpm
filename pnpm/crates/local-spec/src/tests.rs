@@ -70,6 +70,19 @@ fn leaves_a_home_relative_specifier_alone() {
     }
 }
 
+/// A home-relative path is recognized only after normalization, so the
+/// backslash spelling needs its own case: were the two ever reordered,
+/// this form would be re-anchored under the workspace instead.
+#[test]
+fn leaves_a_backslash_spelled_home_relative_specifier_alone() {
+    for (specifier, normalized) in
+        [(r"file:~\tarballs\x.tgz", "file:~/tarballs/x.tgz"), (r"link:~\libs\x", "link:~/libs/x")]
+    {
+        assert_eq!(render(specifier, Some("packages/foo")), normalized);
+        assert_eq!(render(specifier, None), normalized);
+    }
+}
+
 fn render_filesystem(specifier: &str, consumer: Option<&str>) -> Option<String> {
     let consumer = consumer.map(|dir| root().join(dir));
     LocalSpec::parse_filesystem(specifier, root()).map(|spec| spec.render(consumer.as_deref()))
@@ -167,4 +180,25 @@ fn reads_a_rooted_path_the_same_way_on_every_host() {
         Some("file:/foo/x.tgz"),
     );
     assert_eq!(render_filesystem(r"\foo", Some("packages/foo")).as_deref(), Some("/foo"));
+}
+
+/// The resolver strips the slashes after a protocol and then keeps a
+/// dot, tilde or drive prefix relative, so `file:/./deps/x` resolves
+/// from the project rather than the filesystem root — `pnpm install`
+/// records it as `file:deps/x`. Anchoring shares that normalization
+/// rather than repeating part of it.
+#[test]
+fn reads_a_post_protocol_slash_the_way_the_resolver_does() {
+    assert_eq!(
+        render_filesystem("file:/./deps/x", Some("packages/foo")).as_deref(),
+        Some("file:../../deps/x"),
+    );
+    assert_eq!(
+        render_filesystem(r"file:\.\deps\x", Some("packages/foo")).as_deref(),
+        Some("file:../../deps/x"),
+    );
+    assert_eq!(
+        render_filesystem("file://./deps/x", Some("packages/foo")).as_deref(),
+        Some("file:../../deps/x"),
+    );
 }
