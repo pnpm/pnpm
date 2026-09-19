@@ -518,3 +518,74 @@ fn override_for_undeclared_dependency_applies_converge_only_within_range() {
     assert_eq!(undeclared(&overrider, "react", "^19.0.0"), None);
     assert!(overrider.converge_declared_ranges().is_empty());
 }
+
+/// An override is written once, at the workspace root, and applied to
+/// every package that matches. A bare path has to move with it the way
+/// its `link:` spelling does, or it names a directory inside whichever
+/// package the override landed on.
+#[test]
+fn bare_path_override_is_reanchored_against_pkg_dir() {
+    let overrides = parsed(&[("foo", "./local-foo")]);
+    let root_dir = PathBuf::from("/workspace");
+    let overrider = VersionsOverrider::new(&overrides, &root_dir);
+
+    let mut manifest = manifest_from_value(json!({
+        "name": "my-app",
+        "version": "1.0.0",
+        "dependencies": { "foo": "^0.1" },
+    }));
+    overrider.apply(&mut manifest, Some(&root_dir.join("packages/app")));
+
+    assert_eq!(
+        dep_spec(&manifest, "dependencies", "foo"),
+        Some("../../local-foo"),
+        "a bare path override names the workspace's directory, not the package's",
+    );
+}
+
+/// The shape pnpm/pnpm#11131 reports: a tarball reached by a path prefix
+/// lands on the local resolver like any other path, so it moves with the
+/// file that declared it.
+#[test]
+fn bare_tarball_override_is_reanchored_against_pkg_dir() {
+    let overrides = parsed(&[("foo", "./tarballs/foo.tgz")]);
+    let root_dir = PathBuf::from("/workspace");
+    let overrider = VersionsOverrider::new(&overrides, &root_dir);
+
+    let mut manifest = manifest_from_value(json!({
+        "name": "my-app",
+        "version": "1.0.0",
+        "dependencies": { "foo": "^0.1" },
+    }));
+    overrider.apply(&mut manifest, Some(&root_dir.join("packages/app")));
+
+    assert_eq!(
+        dep_spec(&manifest, "dependencies", "foo"),
+        Some("../../tarballs/foo.tgz"),
+        "a bare tarball override names the workspace's directory, not the package's",
+    );
+}
+
+/// The shapes the resolver chain claims before the local resolver keep
+/// their own meaning, so an override naming a git shorthand or a
+/// registry range is passed through untouched.
+#[test]
+fn override_that_another_resolver_claims_is_not_reanchored() {
+    let root_dir = PathBuf::from("/workspace");
+    for value in ["user/repo", "repo.tgz", "^1.2.3", "npm:other@^1"] {
+        let overrides = parsed(&[("foo", value)]);
+        let overrider = VersionsOverrider::new(&overrides, &root_dir);
+        let mut manifest = manifest_from_value(json!({
+            "name": "my-app",
+            "version": "1.0.0",
+            "dependencies": { "foo": "^0.1" },
+        }));
+        overrider.apply(&mut manifest, Some(&root_dir.join("packages/app")));
+
+        assert_eq!(
+            dep_spec(&manifest, "dependencies", "foo"),
+            Some(value),
+            "{value} is not a local path",
+        );
+    }
+}
