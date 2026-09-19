@@ -1,6 +1,6 @@
 pub(super) mod manifest;
-pub(crate) use manifest::check_importer_satisfies;
 pub(super) use manifest::manifest_has_effective_dependencies;
+pub(crate) use manifest::{ImporterSatisfactionCheck, check_importer_satisfies};
 
 use rayon::prelude::*;
 
@@ -323,16 +323,16 @@ fn check_importer_freshness(
             {
                 return Ok(());
             }
-            check_importer_satisfies(
+            check_importer_satisfies(&ImporterSatisfactionCheck {
                 lockfile,
                 lockfile_dir,
                 manifest,
                 importer_id,
                 config,
                 workspace_packages,
-                &ignored_optional_matcher,
+                ignored_optional_matcher: &ignored_optional_matcher,
                 parsed_overrides,
-            )
+            })
         })
         .collect();
     for result in results {

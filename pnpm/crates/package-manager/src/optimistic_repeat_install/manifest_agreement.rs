@@ -224,16 +224,18 @@ fn project_content_check(
 ) -> Result<(), &'static str> {
     let importer_id =
         pnpm_workspace::importer_id_from_root_dir(context.workspace_root, project.root_dir);
-    if let Err(error) = crate::install::check_importer_satisfies(
-        context.wanted,
-        context.workspace_root,
-        project.manifest,
-        &importer_id,
-        context.config,
-        None,
-        context.ignored_optional_matcher,
-        context.parsed_overrides,
-    ) {
+    if let Err(error) =
+        crate::install::check_importer_satisfies(&crate::install::ImporterSatisfactionCheck {
+            lockfile: context.wanted,
+            lockfile_dir: context.workspace_root,
+            manifest: project.manifest,
+            importer_id: &importer_id,
+            config: context.config,
+            workspace_packages: None,
+            ignored_optional_matcher: context.ignored_optional_matcher,
+            parsed_overrides: context.parsed_overrides,
+        })
+    {
         tracing::debug!(target: "pacquet::install", %error, importer_id, "repeat-install content check: manifest no longer satisfied");
         return Err("a modified manifest is no longer satisfied by the lockfile");
     }
