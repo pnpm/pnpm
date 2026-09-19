@@ -121,7 +121,6 @@ testOnPosix('exec: Ctrl+C in a terminal lets the command finish shutting down', 
   expect(status).toBe(0)
 })
 
-// A command's own exit status is pnpm's, whatever signal went by.
 testOnPosix('exec: a command that fails after Ctrl+C keeps its exit code', () => {
   prepare()
   fs.writeFileSync('dev.js', SHUTTING_DOWN_COMMAND.replace('process.exit(0)', 'process.exit(3)'), 'utf8')
