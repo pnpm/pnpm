@@ -13,11 +13,13 @@ use crate::capabilities::{ConfirmPrompt, RunCommand};
 const GIT_CHECKS_HINT: &str = r#"If you want to disable Git checks on publish, set the "git-checks" setting to "false", or run again with "--no-git-checks"."#;
 
 /// Run the publish git checks for `cwd`. A no-op when `git_checks_enabled` is
-/// false or `cwd` is not a git repository.
+/// false or `cwd` is not a git repository. A detached HEAD is allowed in CI
+/// after checking that the working tree is clean.
 pub fn run_git_checks<Sys>(
     cwd: &Path,
     git_checks_enabled: bool,
     publish_branch: Option<&str>,
+    ci: bool,
 ) -> Result<(), GitCheckError>
 where
     Sys: RunCommand + ConfirmPrompt,
@@ -36,8 +38,10 @@ where
     };
     let branches_display = branches.join("|");
 
-    let Some(current_branch) = get_current_branch::<Sys>(cwd) else {
-        return Err(GitCheckError::UnknownBranch { branches: branches_display });
+    let current_branch = match get_current_branch::<Sys>(cwd) {
+        Some(branch) => branch,
+        None if ci => return Ok(()),
+        None => return Err(GitCheckError::UnknownBranch { branches: branches_display }),
     };
 
     if !branches.contains(&current_branch) {

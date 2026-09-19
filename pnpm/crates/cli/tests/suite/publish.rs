@@ -567,3 +567,63 @@ fn publishing_a_nested_project_by_relative_path_keeps_catalog_entries_relative()
     assert_success(&publish(workspace.path(), &["./projects/nested/bar"]));
     mock.assert();
 }
+
+#[test]
+fn detached_tag_publish_in_ci_preserves_git_checks() {
+    let dir = tempfile::tempdir().unwrap();
+    let mut server = mockito::Server::new();
+    write_project(
+        dir.path(),
+        &format!("{}/", server.url()),
+        &json!({
+            "name": "test-detached-publish", "version": "1.0.0",
+        }),
+    );
+    pnpm_testing_utils::git_repo::init_isolated_repo(dir.path());
+    for args in [
+        vec!["add", "."],
+        vec!["commit", "-m", "init"],
+        vec!["tag", "-a", "v1.0.0", "-m", "release", "--no-sign"],
+        vec!["checkout", "v1.0.0"],
+    ] {
+        Command::new("git")
+            .with_current_dir(dir.path())
+            .with_args(args)
+            .assert()
+            .success();
+    }
+
+    let rejected = pacquet(dir.path())
+        .with_env("CI", "false")
+        .with_env("PNPM_CONFIG_CI", "false")
+        .with_args(["publish", "--dry-run"])
+        .assert()
+        .failure();
+    let stderr = String::from_utf8_lossy(&rejected.get_output().stderr);
+    assert!(stderr.contains("ERR_PNPM_GIT_UNKNOWN_BRANCH"), "stderr: {stderr}");
+
+    let uploaded = server
+        .mock("PUT", "/test-detached-publish")
+        .match_body(Matcher::PartialJson(json!({"dist-tags": {"latest": "1.0.0"}})))
+        .with_status(200)
+        .with_body(r#"{"ok":true}"#)
+        .expect(1)
+        .create();
+    pacquet(dir.path())
+        .with_env("CI", "true")
+        .without_env("PNPM_CONFIG_CI")
+        .with_args(["publish", "--publish-branch", "release"])
+        .assert()
+        .success();
+    uploaded.assert();
+
+    fs::write(dir.path().join("LICENSE"), "uncommitted").unwrap();
+    let rejected = pacquet(dir.path())
+        .with_env("CI", "true")
+        .without_env("PNPM_CONFIG_CI")
+        .with_args(["publish", "--dry-run"])
+        .assert()
+        .failure();
+    let stderr = String::from_utf8_lossy(&rejected.get_output().stderr);
+    assert!(stderr.contains("ERR_PNPM_GIT_UNCLEAN"), "stderr: {stderr}");
+}

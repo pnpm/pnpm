@@ -188,7 +188,7 @@ export async function publish (
     }
     const branches = opts.publishBranch ? [opts.publishBranch] : ['master', 'main']
     const currentBranch = await getCurrentBranch()
-    if (currentBranch === null) {
+    if (currentBranch === null && !opts.ci) {
       throw new PnpmError(
         'GIT_UNKNOWN_BRANCH',
         `The Git HEAD may not attached to any branch, but your "publish-branch" is set to "${branches.join('|')}".`,
@@ -197,7 +197,7 @@ export async function publish (
         }
       )
     }
-    if (!branches.includes(currentBranch)) {
+    if (currentBranch !== null && !branches.includes(currentBranch)) {
       let isConfirmed: boolean
       try {
         isConfirmed = await confirm({
@@ -217,7 +217,7 @@ export async function publish (
         })
       }
     }
-    if (!(await isRemoteHistoryClean())) {
+    if (currentBranch !== null && !(await isRemoteHistoryClean())) {
       throw new PnpmError('GIT_NOT_LATEST', 'Remote history differs. Please pull changes.', {
         hint: GIT_CHECKS_HINT,
       })
