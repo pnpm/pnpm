@@ -9,12 +9,16 @@
 //! order under `workspaceConcurrency`, with no barrier between
 //! dependency-independent tasks. `--no-sort` drops the ordering entirely,
 //! `--reverse` runs the reverse graph, and `--parallel` starts every task
-//! concurrently. The main-dispatch auto-exclusion of the workspace root is
-//! applied via [`AutoExcludeRoot::Enabled`].
+//! concurrently. A task whose selector matched several scripts runs them
+//! side by side rather than one after another, and every script of the
+//! run draws on one [`ScriptBudget`], so `workspaceConcurrency` bounds
+//! the processes a run without `--parallel` has running, not the tasks
+//! it dispatched. The main-dispatch auto-exclusion of the workspace root
+//! is applied via [`AutoExcludeRoot::Enabled`].
 
 use super::{
     RunArgs, RunContext, ScriptSelector, get_run_script_commands, render_project_commands,
-    run_stages, throw_or_filter_hidden_scripts,
+    run_stages, script_concurrency, throw_or_filter_hidden_scripts,
 };
 use crate::cli_args::{
     recursive::{
@@ -43,6 +47,7 @@ use pnpm_workspace_task_scheduler::{
     resume_task_graph_from, reverse_task_graph, schedule_tasks, sequence_tasks, task_graph_to_json,
     task_summary_key,
 };
+use script_budget::{ScriptBudget, ScriptPermit, run_script_budget};
 use selection::{
     RunReporting, build_run_task_graph, check_a_project_has_the_script,
     filter_hidden_requested_scripts, print_run_dry_run, print_selected_project_commands,
@@ -54,7 +59,7 @@ use std::{
     env,
     path::{Path, PathBuf},
     sync::{
-        Mutex,
+        Condvar, Mutex,
         atomic::{AtomicUsize, Ordering},
     },
     time::Instant,
@@ -312,6 +317,7 @@ impl RecursiveRun<'_, '_> {
             && !is_serial_task_graph(&prepared.task_graph, &prepared.sequenced_tasks);
         let slots = RunSlots::queued(&prepared.task_graph);
         let process_tracker = run_process_tracker(bail, runs_concurrently);
+        let script_budget = run_script_budget(self.args, self.config, &prepared.task_graph);
         let init_cwd = env::current_dir().unwrap_or_else(|_| self.dir.to_path_buf());
         let runner = TaskRunner {
             run: self,
@@ -326,6 +332,7 @@ impl RecursiveRun<'_, '_> {
             },
             extra_env: &prepared.extra_env,
             bail,
+            script_budget: &script_budget,
             inherit_output: !self.config.stream && !runs_concurrently,
             init_cwd: &init_cwd,
         };
@@ -361,5 +368,7 @@ fn initially_completed_tasks(
 }
 
 mod execution;
+
+mod script_budget;
 
 mod selection;
