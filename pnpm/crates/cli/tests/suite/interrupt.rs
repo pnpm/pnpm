@@ -6,20 +6,16 @@
 //! instead, which needs its own tests rather than a port of these.
 #![cfg(unix)]
 
+use crate::_utils::terminal::{Terminal, spawn_without_terminal};
 use command_extra::CommandExtra;
 use pnpm_testing_utils::bin::CommandTempCwd;
 use serde_json::json;
 use std::{
-    fs::{self, File},
-    io::{Read, Write},
-    os::{
-        fd::{AsRawFd, FromRawFd, OwnedFd},
-        unix::process::{CommandExt, ExitStatusExt},
-    },
+    fs,
+    os::unix::process::ExitStatusExt,
     path::Path,
-    process::{Child, Command, ExitStatus, Stdio},
-    ptr,
-    thread::{self, sleep},
+    process::{Child, ExitStatus, Stdio},
+    thread::sleep,
     time::{Duration, Instant},
 };
 
@@ -119,7 +115,7 @@ fn run_waits_for_the_interrupted_script_to_shut_down() {
     let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
     write_project(&workspace, "test", GRACEFUL_SCRIPT);
 
-    let mut process = interruptible(pacquet.with_args(["run", "dev"]));
+    let mut process = spawn_without_terminal(pacquet.with_args(["run", "dev"]));
     wait_for_file(&workspace.join("started.txt"), &mut process);
     interrupt(&process);
     let status = wait_for_shutdown(&mut process);
@@ -141,7 +137,7 @@ fn run_ends_with_the_signal_that_killed_the_script() {
     let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
     write_project(&workspace, "test", RESIGNALLING_SCRIPT);
 
-    let mut process = interruptible(pacquet.with_args(["run", "dev"]));
+    let mut process = spawn_without_terminal(pacquet.with_args(["run", "dev"]));
     wait_for_file(&workspace.join("started.txt"), &mut process);
     interrupt(&process);
     let status = wait_for_shutdown(&mut process);
@@ -189,7 +185,7 @@ fn a_shell_that_stays_the_scripts_parent_passes_the_interrupt_on() {
     let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
     write_project_running(&workspace, "test", "node dev.js", SIGNAL_SCRIPT);
 
-    let mut process = interruptible(pacquet.with_args(["run", "dev"]));
+    let mut process = spawn_without_terminal(pacquet.with_args(["run", "dev"]));
     wait_for_file(&workspace.join("started.txt"), &mut process);
     interrupt(&process);
     wait_for_shutdown(&mut process);
@@ -211,7 +207,7 @@ fn a_termination_without_a_terminal_reaches_the_script_behind_its_shell() {
     let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
     write_project_running(&workspace, "test", "node dev.js", SIGNAL_SCRIPT);
 
-    let mut process = interruptible(pacquet.with_args(["run", "dev"]));
+    let mut process = spawn_without_terminal(pacquet.with_args(["run", "dev"]));
     wait_for_file(&workspace.join("started.txt"), &mut process);
     signal(&process, libc::SIGTERM);
     wait_for_shutdown(&mut process);
@@ -234,7 +230,7 @@ fn a_parallel_run_relays_the_interrupt_to_every_project() {
     let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
     write_workspace(&workspace, &PROJECTS, GRACEFUL_SCRIPT);
 
-    let mut process = interruptible(pacquet.with_args([
+    let mut process = spawn_without_terminal(pacquet.with_args([
         "-r",
         "--filter=./project-*",
         "--parallel",
@@ -270,7 +266,7 @@ fn a_third_interrupt_ends_pnpm_even_when_the_script_ignores_them() {
 
     // The script outlives pnpm here by design, so its stdio is discarded
     // rather than left holding the test harness's pipes open.
-    let mut process = interruptible(
+    let mut process = spawn_without_terminal(
         pacquet
             .with_args(["run", "dev"])
             .with_stdout(Stdio::null())
@@ -308,7 +304,7 @@ fn a_later_script_still_gets_a_plain_first_interrupt() {
     fs::write(workspace.join("pre.js"), PRE_SCRIPT).expect("write the pre script");
     fs::write(workspace.join("dev.js"), GRACEFUL_SCRIPT).expect("write the script");
 
-    let mut process = interruptible(
+    let mut process = spawn_without_terminal(
         pacquet
             .with_env("PNPM_CONFIG_ENABLE_PRE_POST_SCRIPTS", "true")
             .with_args(["run", "dev"]),
@@ -354,125 +350,6 @@ fn write_workspace(workspace: &Path, projects: &[&str], script: &str) {
         let dir = workspace.join(name);
         fs::create_dir_all(&dir).expect("create the project directory");
         write_project(&dir, name, script);
-    }
-}
-
-/// Spawn pnpm able to receive the interrupt signals, as `kill` would send
-/// them, in a session without a terminal.
-///
-/// All three parts matter, and all are inherited through `exec`. The
-/// test harness may run with `SIGINT` ignored, which pnpm would then keep
-/// (as it must under `nohup`) and pass on to the script; it may run with
-/// the signal blocked, which no change of disposition undoes; and it may
-/// hold a terminal, whose foreground job pnpm would then be, taking a
-/// `kill` for the terminal's own interrupt.
-fn interruptible(mut command: Command) -> Child {
-    // SAFETY: `setsid`, `signal` and `sigprocmask` are async-signal-safe,
-    // which is all a `pre_exec` hook between `fork` and `exec` may call.
-    unsafe {
-        command.pre_exec(|| {
-            libc::setsid();
-            receive_terminal_signals()
-        });
-    }
-    command.spawn().expect("spawn `pnpm run dev`")
-}
-
-/// Undo an ignored or blocked terminal signal inherited from the harness.
-///
-/// Only async-signal-safe calls, since this runs between `fork` and
-/// `exec`.
-fn receive_terminal_signals() -> std::io::Result<()> {
-    // SAFETY: the set is a stack local that outlives the call.
-    unsafe {
-        let mut unblocked: libc::sigset_t = std::mem::zeroed();
-        libc::sigemptyset(&raw mut unblocked);
-        libc::sigprocmask(libc::SIG_SETMASK, &raw const unblocked, ptr::null_mut());
-        for signal in [libc::SIGINT, libc::SIGTERM, libc::SIGHUP] {
-            libc::signal(signal, libc::SIG_DFL);
-        }
-    }
-    Ok(())
-}
-
-/// A pseudo-terminal the test types into, with pnpm as its foreground
-/// job.
-struct Terminal {
-    master: OwnedFd,
-    slave: OwnedFd,
-}
-
-impl Terminal {
-    fn open() -> Self {
-        let mut master = 0;
-        let mut slave = 0;
-        // SAFETY: `openpty` writes the two descriptors into the locals and
-        // takes no name, attributes or window size.
-        let opened = unsafe {
-            libc::openpty(
-                &raw mut master,
-                &raw mut slave,
-                ptr::null_mut(),
-                ptr::null_mut(),
-                ptr::null_mut(),
-            )
-        };
-        assert_eq!(opened, 0, "open a pseudo-terminal");
-        // SAFETY: both descriptors were just opened and nothing else owns them.
-        let terminal = unsafe {
-            Self { master: OwnedFd::from_raw_fd(master), slave: OwnedFd::from_raw_fd(slave) }
-        };
-        terminal.drain();
-        terminal
-    }
-
-    /// Read whatever pnpm and the script write, so neither blocks on a
-    /// full terminal buffer. The reader ends when the terminal closes.
-    fn drain(&self) {
-        let mut master = File::from(self.master.try_clone().expect("clone the terminal"));
-        thread::spawn(move || {
-            let mut sink = [0; 4096];
-            while master
-                .read(&mut sink)
-                .is_ok_and(|read| read > 0)
-            {}
-        });
-    }
-
-    /// Start `command` the way an interactive shell starts a foreground
-    /// job: in a session of its own, with this terminal as its controlling
-    /// terminal and its standard streams.
-    fn spawn_foreground(&self, mut command: Command) -> Child {
-        let slave = self.slave.as_raw_fd();
-        let stream = || Stdio::from(self.slave.try_clone().expect("clone the terminal"));
-        command
-            .stdin(stream())
-            .stdout(stream())
-            .stderr(stream());
-        // SAFETY: `setsid`, `ioctl`, `signal` and `sigprocmask` are
-        // async-signal-safe, which is all a `pre_exec` hook may call.
-        unsafe {
-            command.pre_exec(move || {
-                if libc::setsid() < 0 {
-                    return Err(std::io::Error::last_os_error());
-                }
-                // The request's type is the libc's own: `c_ulong` on glibc
-                // and `c_uint` on Apple, so it is cast to whatever `ioctl`
-                // takes.
-                if libc::ioctl(slave, libc::TIOCSCTTY as _, 0) < 0 {
-                    return Err(std::io::Error::last_os_error());
-                }
-                receive_terminal_signals()
-            });
-        }
-        command.spawn().expect("spawn `pnpm run dev` on the terminal")
-    }
-
-    /// Type `Ctrl+C`, which the terminal turns into a `SIGINT` for its
-    /// whole foreground process group.
-    fn press_ctrl_c(&self) {
-        let mut master = File::from(self.master.try_clone().expect("clone the terminal"));
-        master.write_all(b"\x03").expect("type into the terminal");
     }
 }
 

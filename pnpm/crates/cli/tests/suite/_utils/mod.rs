@@ -1,3 +1,5 @@
+pub mod terminal;
+
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
 use pnpm_lockfile::{Lockfile, PkgName, ProjectSnapshot, SnapshotEntry};
