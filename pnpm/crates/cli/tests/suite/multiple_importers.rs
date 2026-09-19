@@ -692,8 +692,16 @@ fn link_bin_of_workspace_project_created_by_lifecycle_script() {
     assert!(consumer.join("created-by-prepare").exists());
 }
 
+/// A script that appends `label` and a newline to the shared order log.
+///
+/// The newline comes from `String.fromCharCode` rather than a `\n` escape:
+/// `sh -c` unescapes a backslash inside double quotes before Node sees it,
+/// while `cmd /d /s /c` passes it through, so an escape would mean two
+/// different things per platform.
 fn append_order_script(label: &str) -> String {
-    format!(r#"node -e "require('fs').appendFileSync('../../order.txt', '{label}\\n')""#)
+    format!(
+        r#"node -e "require('fs').appendFileSync('../../order.txt', '{label}' + String.fromCharCode(10))""#,
+    )
 }
 
 /// TS: `dependencies of workspace projects are built during headless
