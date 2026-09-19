@@ -92,14 +92,16 @@ impl LocalSpec {
     }
 
     fn anchor(protocol: Option<LocalSpecProtocol>, pkg_path: &str, base_dir: &Path) -> Self {
-        // The resolver forward-slashes a specifier before it reads the
-        // path, so `\foo` is absolute to it on every host, while `Path`
-        // takes the backslash for an ordinary character off Windows.
-        // Reading the raw string here would re-anchor a path the
-        // resolver resolves from the filesystem root.
+        // Both steps here read the path the way the resolver does, not
+        // the way `Path` does: it forward-slashes a specifier before it
+        // looks at one, and decides absoluteness by shape. `Path`
+        // disagrees on both counts off Windows for `\foo` and on
+        // Windows for `/foo`, which would re-anchor a path the resolver
+        // resolves from the filesystem root.
         let pkg_path = forward_slashes(pkg_path);
         let candidate = Path::new(pkg_path.as_ref());
-        let specified_via_relative_path = !candidate.is_absolute() && !pkg_path.starts_with("~/");
+        let specified_via_relative_path =
+            !names_its_own_location(&pkg_path) && !pkg_path.starts_with("~/");
         let absolute_path = lexical_normalize(&if specified_via_relative_path {
             base_dir.join(candidate)
         } else {
@@ -232,6 +234,23 @@ fn bare_path_is_unambiguous(specifier: &str) -> bool {
 fn is_drive_letter_prefix(spec: &str) -> bool {
     let mut chars = spec.chars();
     matches!(chars.next(), Some(first) if first.is_ascii_alphabetic()) && chars.next() == Some(':')
+}
+
+/// Whether the path names a location on its own rather than one
+/// measured from somewhere else, decided the way the local resolver
+/// decides it: a leading `/`, or a `<letter>:` drive prefix.
+///
+/// [`Path::is_absolute`] cannot stand in. On Windows it reads a rooted
+/// path such as `/foo` as relative, because it carries no prefix, so
+/// the two would disagree about the same catalog entry depending on
+/// which host resolved it.
+fn names_its_own_location(path: &str) -> bool {
+    let mut chars = path.chars();
+    match chars.next() {
+        Some('/') => true,
+        Some(first) if first.is_ascii_alphabetic() => chars.next() == Some(':'),
+        _ => false,
+    }
 }
 
 /// Rewrite `\` to `/`, as the local resolver's own specifier

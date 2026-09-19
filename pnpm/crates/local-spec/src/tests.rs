@@ -150,3 +150,21 @@ fn reads_an_inner_backslash_as_a_separator() {
         Some("file:../../deps/x.tgz"),
     );
 }
+
+/// A rooted path carries no drive prefix, so `Path::is_absolute` reads
+/// it as relative on Windows and absolute everywhere else. A catalog
+/// entry has to mean one thing on every host that installs the
+/// workspace, so the expectation here is deliberately the same on all
+/// of them.
+#[test]
+fn reads_a_rooted_path_the_same_way_on_every_host() {
+    assert_eq!(
+        render_filesystem("/foo/x.tgz", Some("packages/foo")).as_deref(),
+        Some("/foo/x.tgz"),
+    );
+    assert_eq!(
+        render_filesystem("file:/foo/x.tgz", Some("packages/foo")).as_deref(),
+        Some("file:/foo/x.tgz"),
+    );
+    assert_eq!(render_filesystem(r"\foo", Some("packages/foo")).as_deref(), Some("/foo"));
+}
