@@ -5,6 +5,8 @@ use super::{
 #[cfg(unix)]
 use super::{is_sh_shim_hardened, is_shim_pointing_at};
 #[cfg(unix)]
+use crate::shim::generate_sh_shim;
+#[cfg(unix)]
 use std::fs::metadata;
 
 #[cfg(unix)]
@@ -355,5 +357,54 @@ exec node  "$basedir/../foo/cli.js" "$@"
     assert!(
         is_sh_shim_hardened(&body),
         "the reinstall must replace a shim that pipes $link through echo, body was:\n{body}",
+    );
+}
+
+/// A shim can carry the hardened `readlink` and `printf` lines and still take
+/// its Windows path conversion from the caller's `PATH`. The target marker
+/// matches, so a warm reinstall has to notice the conversion helpers and
+/// replace the shim.
+#[cfg(unix)]
+#[test]
+fn a_reinstall_replaces_a_shim_that_converts_paths_with_a_helper_from_the_callers_path() {
+    let manifest = serde_json::json!({"name": "foo", "bin": "cli.js"});
+    let tmp = tempdir().unwrap();
+    let pkg = tmp.path().join("foo");
+    create_dir_all(&pkg).unwrap();
+    write_file(pkg.join("cli.js"), "#!/usr/bin/env node\n").unwrap();
+    let target = pkg.join("cli.js");
+    let bins_dir = tmp.path().join(".bin");
+    create_dir_all(&bins_dir).unwrap();
+    let shim = bins_dir.join("foo");
+    let outdated = generate_sh_shim(&target, &shim, None, &[])
+        .replace("command -p cygpath", "cygpath")
+        .replace("command -p wslpath", "wslpath");
+    write_file(&shim, &outdated).unwrap();
+    assert!(
+        is_shim_pointing_at(&outdated, &target),
+        "precondition: the outdated shim carries a matching target marker",
+    );
+    assert!(
+        outdated.contains(r#"  target=$(command -p readlink "$link")"#),
+        "precondition: the other helpers already resolve off the system path",
+    );
+    assert!(
+        !is_sh_shim_hardened(&outdated),
+        "precondition: PATH-resolved path conversion is not current",
+    );
+
+    link_bins_of_packages::<Host>(
+        &[PackageBinSource::new(pkg, Arc::new(manifest))],
+        &bins_dir,
+        &LinkBinsOptions::default(),
+    )
+    .unwrap();
+
+    let body = read_to_string(&shim).unwrap();
+    assert!(is_shim_pointing_at(&body, &target), "the rewritten shim keeps its target");
+    assert!(
+        is_sh_shim_hardened(&body),
+        "the reinstall must replace a shim that converts paths with a helper from PATH, \
+         body was:\n{body}",
     );
 }

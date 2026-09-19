@@ -186,14 +186,19 @@ msys=""
 
 case `command -p uname -a` in
   *CYGWIN*|*MINGW*|*MSYS*)
-    if command -v cygpath > /dev/null 2>&1; then
+    if converted=$(command -p cygpath -w "$basedir" 2>/dev/null) && [ -n "$converted" ]; then
+      basedir_win="$converted"
+    elif command -v cygpath > /dev/null 2>&1; then
       basedir_win=`cygpath -w "$basedir"`
     fi
     exe=".exe"
     msys="true"
   ;;
   *WSL2*)
-    if command -v wslpath > /dev/null 2>&1; then
+    if converted=$(command -p wslpath -w "$basedir" 2>/dev/null) && [ -n "$converted" ]; then
+      basedir_win="$converted"
+      exe=".exe"
+    elif command -v wslpath > /dev/null 2>&1; then
       basedir_win="$(wslpath -w "$basedir" 2> /dev/null)"
       if [ $? -ne 0 ] || [ -z "$basedir_win" ]; then
         basedir_win="$basedir"
@@ -279,20 +284,36 @@ pub(super) const SH_SHIM_HARDENED_HELPER_LINE: &str = r#"  target=$(command -p r
 pub(super) const SH_SHIM_PATH_PRINTF_LINE: &str =
     r#"basedir=$(command -p printf '%s\n' "$link" | command -p sed -e 's,\\,/,g')"#;
 
+/// The line the header converts `$basedir` through on Cygwin, MinGW, and MSYS.
+/// Pinned the same way as [`SH_SHIM_HARDENED_HELPER_LINE`].
+pub(super) const SH_SHIM_CYGPATH_LINE: &str = r#"    if converted=$(command -p cygpath -w "$basedir" 2>/dev/null) && [ -n "$converted" ]; then"#;
+
+/// The line the header converts `$basedir` through on WSL2. Pinned the same
+/// way as [`SH_SHIM_HARDENED_HELPER_LINE`].
+pub(super) const SH_SHIM_WSLPATH_LINE: &str = r#"    if converted=$(command -p wslpath -w "$basedir" 2>/dev/null) && [ -n "$converted" ]; then"#;
+
 /// Whether an already-on-disk POSIX shim has the header a warm reinstall can
 /// leave in place.
 ///
 /// The trailing target marker does not describe the header, so a shim whose
-/// target has not moved can still be stale. This looks for the `command -p`
-/// `readlink` lookup and the `printf` path conversion. Missing either means
-/// the next install rewrites the shim: a helper taken from `PATH` can redirect
-/// it, and a POSIX `echo` eats backslash escapes in a Windows-form `$0`.
+/// target has not moved can still need replacing. A shim runs with
+/// `node_modules/.bin` at the front of `PATH`, where a dependency's own bins
+/// live: a header that resolves a helper there can be redirected, and one that
+/// pipes `$0` through `echo` loses the backslashes of a Windows-form path.
+/// Every pinned line has to be present, and a missing one means the next
+/// install rewrites the shim.
 #[must_use]
 pub fn is_sh_shim_hardened(shim_content: &str) -> bool {
-    shim_content
-        .lines()
-        .any(|line| line == SH_SHIM_HARDENED_HELPER_LINE)
-        && shim_content
+    [
+        SH_SHIM_HARDENED_HELPER_LINE,
+        SH_SHIM_PATH_PRINTF_LINE,
+        SH_SHIM_CYGPATH_LINE,
+        SH_SHIM_WSLPATH_LINE,
+    ]
+    .iter()
+    .all(|pinned| {
+        shim_content
             .lines()
-            .any(|line| line == SH_SHIM_PATH_PRINTF_LINE)
+            .any(|line| line == *pinned)
+    })
 }
