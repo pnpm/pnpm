@@ -46,6 +46,10 @@ impl LocalSpec {
     /// from `base_dir`. Returns `None` for any other shape — semver ranges,
     /// tarball URLs, npm-alias specs, `catalog:` and `workspace:`
     /// specifiers, and bare paths carrying no protocol.
+    ///
+    /// Only a path written relative to `base_dir` moves. An absolute one,
+    /// and a `~/` one that the resolver expands against the home
+    /// directory, name the same place from every directory.
     #[must_use]
     pub fn parse(specifier: &str, base_dir: &Path) -> Option<Self> {
         let (protocol, pkg_path) = if let Some(rest) = specifier.strip_prefix("file:") {
@@ -55,7 +59,7 @@ impl LocalSpec {
         };
 
         let candidate = Path::new(pkg_path);
-        let specified_via_relative_path = !candidate.is_absolute();
+        let specified_via_relative_path = !candidate.is_absolute() && !is_home_relative(pkg_path);
         let absolute_path = lexical_normalize(&if specified_via_relative_path {
             base_dir.join(candidate)
         } else {
@@ -84,6 +88,14 @@ impl LocalSpec {
         let path = if path.is_empty() { ".".to_string() } else { path };
         format!("{}{path}", self.protocol.as_str())
     }
+}
+
+/// Whether the path starts at the home directory. The local resolver
+/// expands `~/` itself and records the specifier verbatim, so such a
+/// path is anchored at neither the declaring nor the consuming
+/// directory.
+fn is_home_relative(path: &str) -> bool {
+    path.starts_with("~/") || path.starts_with(r"~\")
 }
 
 /// Replace `\` with `/` to normalize the path. `link:` / `file:`

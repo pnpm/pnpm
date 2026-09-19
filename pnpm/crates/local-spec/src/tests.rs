@@ -61,3 +61,11 @@ fn leaves_an_absolute_specifier_alone() {
     let absolute = format!("file:{}/tarballs/x.tgz", ROOT.replace('\\', "/"));
     assert_eq!(render(&absolute, Some("packages/foo")), absolute);
 }
+
+#[test]
+fn leaves_a_home_relative_specifier_alone() {
+    for specifier in ["file:~/tarballs/x.tgz", "link:~/libs/x"] {
+        assert_eq!(render(specifier, Some("packages/foo")), specifier);
+        assert_eq!(render(specifier, None), specifier);
+    }
+}
