@@ -6,7 +6,8 @@
 //! rejecting the working directory it is handed. Tracked in
 //! <https://github.com/pnpm/pnpm/issues/15111>. They still compile
 //! there, so a Windows-only break in them shows up as one. The tests
-//! whose fixtures declare no scripts run everywhere.
+//! whose fixtures declare no scripts run everywhere, bar the one whose
+//! own attribute names a different Windows gap.
 
 use super::{
     AddMockedRegistry, CommandExtra, CommandTempCwd, StoreDir, StoreIndex, allow_builds_yaml,
@@ -122,6 +123,10 @@ fn gvs_hashes_are_stable_when_allow_builds_targets_an_unrelated_package() {
 /// approval set the install ran under has to round-trip through
 /// `.modules.yaml`.
 #[test]
+#[cfg_attr(
+    target_os = "windows",
+    ignore = "pnpm/pnpm#15117: a repeat install does not re-link the slot after an allowBuilds change"
+)]
 fn gvs_relinks_when_allow_builds_changes() {
     let CommandTempCwd { root, workspace, npmrc_info, .. } =
         CommandTempCwd::init().add_mocked_registry();
