@@ -1297,7 +1297,7 @@ export async function mutateModules (
     ): Set<string> | undefined {
       const originalManifest = project.originalManifest
       if (project.update !== true || originalManifest == null) return undefined
-      const isOverriddenDependency = overriddenDependencyMatcherFor?.(originalManifest)
+      const isOverriddenDependency = overriddenDependencyMatcherFor?.(project.manifest)
       const effectiveDependencies = getAllDependenciesFromManifest(project.manifest, {
         autoInstallPeers: opts.autoInstallPeers,
       })
@@ -1968,13 +1968,16 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
       })
   )
 
-  // Only the projects whose manifest this run writes need the answer, and only
-  // the manifest on disk — the one the overrides hook read — can give it.
+  // Only the projects whose manifest this run writes need the answer. A parent-scoped override
+  // (`parent>child`) is selected by the name and version of the manifest it is matched against,
+  // and `createReadPackageHook` runs the overrides hook after `packageExtensions` and the
+  // `readPackage` hooks, so the manifest that hook saw is the rewritten one. Asking the same
+  // manifest keeps this answer and the override that was actually applied in agreement.
   const overriddenDependencyMatcherFor = createOverriddenDependencyMatcher(opts.parsedOverrides, opts.lockfileDir)
   if (overriddenDependencyMatcherFor != null) {
     for (const project of projects) {
       if (!project.updatePackageManifest) continue
-      project.isOverriddenDependency = overriddenDependencyMatcherFor(project.originalManifest ?? project.manifest)
+      project.isOverriddenDependency = overriddenDependencyMatcherFor(project.manifest)
     }
   }
 
