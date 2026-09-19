@@ -1,14 +1,15 @@
 //! End-to-end coverage for the `excludeLinksFromLockfile` setting.
 
 use crate::_utils;
-
 use _utils::append_workspace_yaml_key;
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
 use pnpm_lockfile::{Lockfile, PackageKey, PkgName, SnapshotDepRef};
-use pnpm_testing_utils::bin::{AddMockedRegistry, CommandTempCwd};
-use pnpm_testing_utils::command_env::CommandTestExt;
-use pnpm_testing_utils::fs::is_symlink_or_junction;
+use pnpm_testing_utils::{
+    bin::{AddMockedRegistry, CommandTempCwd},
+    command_env::CommandTestExt,
+    fs::is_symlink_or_junction,
+};
 use std::{fs, path::Path, process::Command, str::FromStr};
 
 fn pacquet_at(workspace: &Path) -> Command {
