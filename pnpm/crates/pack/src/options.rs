@@ -31,6 +31,9 @@ pub struct PackScripts {
 pub struct PackManifestOptions {
     /// Parsed workspace catalogs, for `catalog:` specifier rewriting.
     pub catalogs: Catalogs,
+    /// Directory holding `pnpm-workspace.yaml`, which a `file:` /
+    /// `link:` catalog entry's relative path is measured from.
+    pub catalogs_dir: Option<PathBuf>,
     /// Embed the project's `README.md` into the published manifest.
     pub embed_readme: bool,
     /// Node linker mode; `bundledDependencies` only work under

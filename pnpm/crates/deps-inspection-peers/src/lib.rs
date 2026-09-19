@@ -29,7 +29,8 @@ use owo_colors::Stream;
 use serde::Serialize;
 
 use pnpm_catalogs_resolver::{
-    CatalogResolutionError, CatalogResolutionResult, WantedDependency, resolve_from_catalog,
+    CatalogAnchor, CatalogResolutionError, CatalogResolutionResult, WantedDependency,
+    resolve_from_catalog,
 };
 use pnpm_catalogs_types::Catalogs;
 use pnpm_config::PeerDependencyRules;

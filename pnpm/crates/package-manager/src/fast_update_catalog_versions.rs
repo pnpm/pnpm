@@ -75,10 +75,13 @@ fn catalog_version_update(
     entry: &ResolvedCatalogEntry,
 ) -> Option<CatalogVersionUpdate> {
     let specifier = catalogs.get(catalog_name)?.get(alias)?;
-    let locked = Version::parse(&entry.version).ok()?;
     if specifier == &entry.specifier {
         return Some(CatalogVersionUpdate::Unmoved(entry.clone()));
     }
+    // Read after the unchanged case, which holds for an entry with no
+    // version of its own — a `file:` / `link:` entry records its path
+    // here — so one of those does not close the path for its siblings.
+    let locked = Version::parse(&entry.version).ok()?;
     // A specifier the locked version still satisfies moves nothing
     // but the specifier, exactly as the range-only path would.
     if Range::parse(specifier).is_ok_and(|range| locked.satisfies(&range)) {

@@ -13,6 +13,7 @@ repository.workspace = true
 [dependencies]
 pnpm-catalogs-protocol-parser = { workspace = true }
 pnpm-catalogs-types = { workspace = true }
+pnpm-local-spec = { workspace = true }
 
 derive_more = { workspace = true }
 miette = { workspace = true }

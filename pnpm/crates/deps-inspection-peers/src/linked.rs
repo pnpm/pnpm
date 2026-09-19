@@ -1,8 +1,8 @@
 use super::{
-    BadPeerIssue, CatalogResolutionError, CatalogResolutionResult, Catalogs, Lockfile,
-    LockfileResolution, MissingPeerIssue, PackageManifest, ParentPkg, Path, PathBuf, PeerIssues,
-    PkgName, ProjectSnapshot, ResolvedDependencySpec, WantedDependency, get_peer_version_range,
-    resolve_from_catalog, satisfies,
+    BadPeerIssue, CatalogAnchor, CatalogResolutionError, CatalogResolutionResult, Catalogs,
+    Lockfile, LockfileResolution, MissingPeerIssue, PackageManifest, ParentPkg, Path, PathBuf,
+    PeerIssues, PkgName, ProjectSnapshot, ResolvedDependencySpec, WantedDependency,
+    get_peer_version_range, resolve_from_catalog, satisfies,
 };
 
 pub(super) struct CanonicalPathWithin {
@@ -265,7 +265,9 @@ fn resolve_peer_range(
     let Some(catalogs) = catalogs else { return Ok(peer_range.to_string()) };
     let wanted =
         WantedDependency { alias: peer_name.to_string(), bare_specifier: peer_range.to_string() };
-    match resolve_from_catalog(catalogs, &wanted) {
+    // A peer range names a version range, never a path, so a `file:` /
+    // `link:` entry has nothing to re-anchor.
+    match resolve_from_catalog(catalogs, &wanted, CatalogAnchor::AsWritten) {
         CatalogResolutionResult::Found(found) => Ok(found.resolution.specifier),
         CatalogResolutionResult::Unused => Ok(peer_range.to_string()),
         CatalogResolutionResult::Misconfiguration(misconfiguration) => Err(misconfiguration.error),

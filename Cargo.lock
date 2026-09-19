@@ -4594,6 +4594,7 @@ dependencies = [
  "miette 7.6.0",
  "pnpm-catalogs-protocol-parser",
  "pnpm-catalogs-types",
+ "pnpm-local-spec",
 ]
 
 [[package]]
@@ -5357,6 +5358,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "pnpm-local-spec"
+version = "0.0.1"
+dependencies = [
+ "pnpm-fs",
+ "pretty_assertions",
+]
+
+[[package]]
 name = "pnpm-lockfile"
 version = "0.0.1"
 dependencies = [
@@ -5682,6 +5691,7 @@ dependencies = [
  "pnpm-git-fetcher",
  "pnpm-graph-hasher",
  "pnpm-hooks",
+ "pnpm-local-spec",
  "pnpm-lockfile",
  "pnpm-lockfile-preferred-versions",
  "pnpm-lockfile-verification",

@@ -15,7 +15,9 @@ use derive_more::{Display, Error};
 use miette::Diagnostic;
 use node_semver::{Range, Version};
 use pnpm_catalogs_protocol_parser::parse_catalog_protocol;
-use pnpm_catalogs_resolver::{CatalogResolutionResult, WantedDependency, resolve_from_catalog};
+use pnpm_catalogs_resolver::{
+    CatalogAnchor, CatalogResolutionResult, WantedDependency, resolve_from_catalog,
+};
 use pnpm_catalogs_types::{Catalogs, DEFAULT_CATALOG_NAME};
 use pnpm_config::CatalogMode;
 use pnpm_reporter::{LogEvent, LogLevel, PnpmLog, Reporter};
@@ -156,7 +158,10 @@ fn decide_catalog_entry(
         alias: dep.alias.to_string(),
         bare_specifier: catalog_specifier.clone(),
     };
-    let entry = match resolve_from_catalog(catalogs, &wanted) {
+    // The entry is compared against the specifier `pnpm add` was given
+    // and repeated back in a mismatch error, never installed from, so it
+    // reads best exactly as `pnpm-workspace.yaml` writes it.
+    let entry = match resolve_from_catalog(catalogs, &wanted, CatalogAnchor::AsWritten) {
         CatalogResolutionResult::Found(found) => found.resolution.specifier,
         _ => {
             return Ok(CatalogDecisionOutcome {
@@ -217,12 +222,10 @@ fn catalog_mismatch(
 /// declares it — a `file:` / `link:` protocol, a bare path or tarball
 /// filename, or a `workspace:` pointing at a directory rather than a range.
 ///
-/// A catalog entry is read by every project that references it, so it
-/// cannot mean the same directory for all of them. The catalog resolver
-/// already refuses a `link:` / `file:` entry outright
-/// (`ERR_PNPM_CATALOG_ENTRY_INVALID_SPEC`); it accepts a `workspace:` one,
-/// which is worse — every consumer silently resolves the relative path from
-/// its own directory. Auto-cataloging leaves all of them alone.
+/// A catalog measures such a path from `pnpm-workspace.yaml`'s own
+/// directory, so moving the specifier into one would point it somewhere
+/// else than where `pnpm add` was run. Auto-cataloging leaves it alone
+/// and keeps the dependency direct.
 fn is_project_relative_path(specifier: &str) -> bool {
     is_local_filesystem_specifier(specifier) || is_workspace_local_path_specifier(specifier)
 }

@@ -15,7 +15,7 @@ use packages::build_packages_and_snapshots;
 
 mod importers;
 
-use importers::{build_importers, importer_resolved_version, manifest_alias_to_group};
+use importers::{build_importers, catalog_snapshot_version, manifest_alias_to_group};
 
 use std::collections::{BTreeMap, HashMap, HashSet};
 
@@ -241,7 +241,9 @@ fn build_catalog_snapshots(
             else {
                 continue;
             };
-            let Some(version) = importer_resolved_version(importer, alias) else { continue };
+            let Some(version) = catalog_snapshot_version(importer, alias, entry_specifier) else {
+                continue;
+            };
             snapshots
                 .entry(catalog_name.to_string())
                 .or_default()

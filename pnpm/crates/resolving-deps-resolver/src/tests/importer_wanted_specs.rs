@@ -40,6 +40,7 @@ fn regular_dep_wins_over_own_peer_with_auto_install_peers() {
         ALL_GROUPS,
         true,
         &pnpm_catalogs_types::Catalogs::new(),
+        None,
     )
     .unwrap();
     assert_eq!(wanted, vec![("foo".to_string(), "workspace:*".to_string(), false, false)]);
@@ -55,6 +56,7 @@ fn peer_only_dep_is_wanted_with_auto_install_peers() {
         ALL_GROUPS,
         true,
         &pnpm_catalogs_types::Catalogs::new(),
+        None,
     )
     .unwrap();
     assert_eq!(wanted, vec![("peer-only".to_string(), "^2.0.0".to_string(), false, false)]);
@@ -71,6 +73,7 @@ fn peer_only_dep_is_not_wanted_without_auto_install_peers() {
         ALL_GROUPS,
         false,
         &pnpm_catalogs_types::Catalogs::new(),
+        None,
     )
     .unwrap();
     assert_eq!(wanted, vec![("regular".to_string(), "^1.0.0".to_string(), false, false)]);
@@ -87,6 +90,7 @@ fn later_regular_group_range_replaces_earlier_one() {
         ALL_GROUPS,
         false,
         &pnpm_catalogs_types::Catalogs::new(),
+        None,
     )
     .unwrap();
     assert_eq!(wanted, vec![("foo".to_string(), "^2.0.0".to_string(), true, false)]);
@@ -108,6 +112,7 @@ fn regular_dep_range_wins_over_dev_range_of_same_alias() {
         ALL_GROUPS,
         false,
         &pnpm_catalogs_types::Catalogs::new(),
+        None,
     )
     .unwrap();
     assert_eq!(wanted, vec![("foo".to_string(), "1.0.0".to_string(), false, false)]);
@@ -124,6 +129,7 @@ fn rejects_invalid_peer_dependency_specification() {
         ALL_GROUPS,
         false,
         &pnpm_catalogs_types::Catalogs::new(),
+        None,
     )
     .unwrap_err();
     let ResolveDependencyTreeError::InvalidPeerDependencySpecification {
@@ -150,6 +156,7 @@ fn names_an_unnamed_project_by_its_directory() {
         ALL_GROUPS,
         false,
         &pnpm_catalogs_types::Catalogs::new(),
+        None,
     )
     .unwrap_err();
     let ResolveDependencyTreeError::InvalidPeerDependencySpecification { project_id, .. } = err
@@ -169,6 +176,7 @@ fn accepts_scheme_carrying_peer_specifiers() {
         ALL_GROUPS,
         true,
         &pnpm_catalogs_types::Catalogs::new(),
+        None,
     )
     .expect("scheme-carrying peer specifiers are accepted");
 }

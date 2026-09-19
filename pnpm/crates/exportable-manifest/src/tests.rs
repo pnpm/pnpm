@@ -180,6 +180,7 @@ fn published_dependencies_keep_declaration_order() {
         &manifest,
         &CreateExportableManifestOptions {
             catalogs: &catalogs,
+            workspace_dir: None,
             modules_dir: None,
             skip_manifest_obfuscation: false,
             embed_readme: false,

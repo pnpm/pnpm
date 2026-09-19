@@ -1,8 +1,9 @@
 //! Detecting dependency specs that point at the local filesystem.
 
 use super::{
-    CatalogResolutionResult, Catalogs, Config, DependencyGroup, IncludedDependencies, Lockfile,
-    OptimisticRepeatInstallCheck, Path, PathBuf, WantedDependency, resolve_from_catalog,
+    CatalogAnchor, CatalogResolutionResult, Catalogs, Config, DependencyGroup,
+    IncludedDependencies, Lockfile, OptimisticRepeatInstallCheck, Path, PathBuf, WantedDependency,
+    resolve_from_catalog,
 };
 use pnpm_lockfile::{LockfileResolution, PkgName};
 use pnpm_resolving_local_resolver::local_tarball_path;
@@ -78,7 +79,13 @@ fn scan_local_tarball_deps(check: &OptimisticRepeatInstallCheck<'_>) -> LocalTar
             if !group_included {
                 continue;
             }
-            let scan = FieldTarballScan { catalogs: check.catalogs, project_dir, field, group };
+            let scan = FieldTarballScan {
+                catalogs: check.catalogs,
+                workspace_dir: check.config.workspace_dir.as_deref(),
+                project_dir,
+                field,
+                group,
+            };
             if !scan_field_tarballs(&scan, manifest, &mut tarballs) {
                 return LocalTarballScan::RequiresInstall;
             }
@@ -90,6 +97,10 @@ fn scan_local_tarball_deps(check: &OptimisticRepeatInstallCheck<'_>) -> LocalTar
 /// One manifest field of one project, as the tarball scan reads it.
 struct FieldTarballScan<'a> {
     catalogs: &'a Catalogs,
+    /// Where `pnpm-workspace.yaml` sits, so a `file:` catalog entry's
+    /// relative path is measured from the same directory the install
+    /// measures it from.
+    workspace_dir: Option<&'a Path>,
     project_dir: &'a Path,
     field: &'a str,
     group: DependencyGroup,
@@ -110,7 +121,7 @@ fn scan_field_tarballs(
         return true;
     };
     for (alias, spec) in deps {
-        match local_tarball_candidate(scan.catalogs, scan.project_dir, alias, spec) {
+        match local_tarball_candidate(scan, alias, spec) {
             LocalTarballCandidate::Skip => {}
             LocalTarballCandidate::Unresolvable => return false,
             LocalTarballCandidate::Found { path, must_be_local } => {
@@ -139,19 +150,18 @@ enum LocalTarballCandidate {
 }
 
 fn local_tarball_candidate(
-    catalogs: &Catalogs,
-    project_dir: &Path,
+    scan: &FieldTarballScan<'_>,
     alias: &str,
     spec: &serde_json::Value,
 ) -> LocalTarballCandidate {
     let Some(spec) = spec.as_str() else { return LocalTarballCandidate::Skip };
-    let resolved_spec = resolve_catalog_spec(catalogs, alias, spec);
+    let resolved_spec = resolve_catalog_spec(scan, alias, spec);
     let Some(spec) = resolved_spec.as_deref() else { return LocalTarballCandidate::Skip };
     if !is_local_file_spec(spec) {
         return LocalTarballCandidate::Skip;
     }
     let must_be_local = is_unambiguous_local_file_spec(spec);
-    let path = local_tarball_path(spec, project_dir);
+    let path = local_tarball_path(spec, scan.project_dir);
     if must_be_local && path.is_none() {
         return LocalTarballCandidate::Unresolvable;
     }
@@ -159,7 +169,7 @@ fn local_tarball_candidate(
 }
 
 fn resolve_catalog_spec<'a>(
-    catalogs: &Catalogs,
+    scan: &FieldTarballScan<'_>,
     alias: &str,
     spec: &'a str,
 ) -> Option<Cow<'a, str>> {
@@ -167,8 +177,14 @@ fn resolve_catalog_spec<'a>(
         return Some(Cow::Borrowed(spec));
     }
     match resolve_from_catalog(
-        catalogs,
+        scan.catalogs,
         &WantedDependency { alias: alias.to_string(), bare_specifier: spec.to_string() },
+        match scan.workspace_dir {
+            Some(workspace_dir) => {
+                CatalogAnchor::Reanchor { workspace_dir, consumer_dir: Some(scan.project_dir) }
+            }
+            None => CatalogAnchor::AsWritten,
+        },
     ) {
         CatalogResolutionResult::Found(found) => Some(Cow::Owned(found.resolution.specifier)),
         _ => None,
@@ -275,9 +291,12 @@ pub(crate) fn catalog_resolves_to_local_file(catalogs: &Catalogs, alias: &str, s
     if !spec.starts_with("catalog:") {
         return false;
     }
+    // Only the shape of the entry decides this, and re-anchoring a
+    // relative path never changes it, so the entry is read as written.
     match resolve_from_catalog(
         catalogs,
         &WantedDependency { alias: alias.to_string(), bare_specifier: spec.to_string() },
+        CatalogAnchor::AsWritten,
     ) {
         CatalogResolutionResult::Found(found) => is_local_file_spec(&found.resolution.specifier),
         _ => false,
@@ -352,8 +371,7 @@ pub(crate) fn has_local_file_package_extension(
 /// Such specs (and anything else carrying a protocol or URL) stay on
 /// the fast path. `catalog:` specs also return `false` here — callers
 /// dereference them through the workspace catalogs first, because a
-/// catalog entry may hold a bare local path (the catalog resolver only
-/// bans the `workspace:`, `link:`, and `file:` protocols).
+/// catalog entry may itself hold a local path.
 pub(crate) fn is_local_file_spec(spec: &str) -> bool {
     if is_unambiguous_local_file_spec(spec) {
         return true;

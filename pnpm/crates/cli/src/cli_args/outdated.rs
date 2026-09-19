@@ -39,7 +39,8 @@ use node_semver::Version;
 use owo_colors::Stream;
 use pnpm_catalogs_protocol_parser::parse_catalog_protocol;
 use pnpm_catalogs_resolver::{
-    CatalogResolutionResult, WantedDependency as CatalogWantedDependency, resolve_from_catalog,
+    CatalogAnchor, CatalogResolutionResult, WantedDependency as CatalogWantedDependency,
+    resolve_from_catalog,
 };
 use pnpm_catalogs_types::Catalogs;
 use pnpm_config::Config;

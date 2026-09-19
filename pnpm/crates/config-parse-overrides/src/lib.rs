@@ -14,7 +14,9 @@
 use derive_more::{Display, Error};
 use miette::Diagnostic;
 use node_semver::Version;
-use pnpm_catalogs_resolver::{CatalogResolutionResult, WantedDependency, resolve_from_catalog};
+use pnpm_catalogs_resolver::{
+    CatalogAnchor, CatalogResolutionResult, WantedDependency, resolve_from_catalog,
+};
 use pnpm_catalogs_types::Catalogs;
 use pnpm_resolving_parse_wanted_dependency::parse_wanted_dependency;
 use std::collections::HashMap;
@@ -247,9 +249,14 @@ fn parse_pkg_selector(selector: &str) -> Result<PackageSelector, ParseOverridesE
 /// Run the override value through the catalog resolver:
 /// `found` returns the resolved specifier, `unused` (non-`catalog:`)
 /// returns the value verbatim, and `misconfiguration` (missing entry
-/// or recursive / forbidden inner protocol) raises
+/// or a recursive one) raises
 /// [`ParseOverridesError::CatalogInOverrides`] with the resolver's
 /// error message.
+///
+/// A `file:` / `link:` entry keeps the path as the catalog wrote it.
+/// The overrider that applies the result anchors a local target itself,
+/// at the same root it uses for one written directly in `overrides`, so
+/// re-anchoring here would move the path twice.
 fn resolve_catalog_in_value(
     catalogs: &Catalogs,
     target_name: &str,
@@ -259,7 +266,7 @@ fn resolve_catalog_in_value(
         alias: target_name.to_string(),
         bare_specifier: new_bare_specifier.to_string(),
     };
-    match resolve_from_catalog(catalogs, &wanted) {
+    match resolve_from_catalog(catalogs, &wanted, CatalogAnchor::AsWritten) {
         CatalogResolutionResult::Found(found) => Ok(found.resolution.specifier),
         CatalogResolutionResult::Unused => Ok(new_bare_specifier.to_string()),
         CatalogResolutionResult::Misconfiguration(misconfiguration) => {

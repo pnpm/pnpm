@@ -218,6 +218,7 @@ impl PackArgs {
             },
             manifest: pnpm_pack::PackManifestOptions {
                 catalogs,
+                catalogs_dir: config.workspace_dir.clone(),
                 embed_readme: config.embed_readme,
                 node_linker: config.node_linker,
                 skip_obfuscation: resolve_bool_override(

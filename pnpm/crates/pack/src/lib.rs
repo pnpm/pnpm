@@ -503,6 +503,7 @@ impl PackManifestOptions {
             manifest,
             &CreateExportableManifestOptions {
                 catalogs: &self.catalogs,
+                workspace_dir: self.catalogs_dir.as_deref(),
                 modules_dir: Some(&modules_dir),
                 skip_manifest_obfuscation: self.skip_obfuscation,
                 embed_readme: self.embed_readme,

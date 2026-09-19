@@ -104,6 +104,7 @@ fn pack_options(options: PackOptions) -> pnpm_pack::PackOptions {
             // Bit does not use catalog: specifiers; workspace catalog loading is
             // deferred until a consumer needs it. See pnpm/plans/NAPI.md.
             catalogs: Catalogs::default(),
+            catalogs_dir: None,
             embed_readme: options.embed_readme.unwrap_or(false),
             node_linker: NodeLinker::default(),
             skip_obfuscation: false,

@@ -1,7 +1,7 @@
 use super::{
     ChildSpec, HashSet, NodeSeed, ParentPkgAliases, Pipe, ResolveOptions, Resolver, TreeCtx,
-    WantedDependency, WantedKey, async_recursion, catalogs_for_children, claim_children_warmup,
-    declaring_manifest_dir, extract_children, future, is_update_target,
+    WantedDependency, WantedKey, async_recursion, catalog_anchor, catalogs_for_children,
+    claim_children_warmup, declaring_manifest_dir, extract_children, future, is_update_target,
     opts_relative_to_declaring_manifest, peer_shadowed_dependencies, project_relative_cache_scope,
     resolve_catalog_child_specs, resolve_wanted_cached, resolves_children_through_catalogs,
 };
@@ -101,7 +101,9 @@ pub(super) fn warm_child_specs(
             .collect()
     };
     let Some(catalogs) = catalogs_for_children(ctx, through_catalogs) else { return Some(specs) };
-    resolve_catalog_child_specs(specs, catalogs).ok()
+    let declaring_dir = declaring_manifest_dir(ctx, result);
+    let anchor = catalog_anchor(ctx.catalogs_dir.as_deref(), declaring_dir.as_deref());
+    resolve_catalog_child_specs(specs, catalogs, anchor).ok()
 }
 
 /// Warm one child edge through the same per-wanted dedup cache, under the
