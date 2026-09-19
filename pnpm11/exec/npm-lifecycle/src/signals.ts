@@ -16,7 +16,11 @@ export interface RelaySignalsOptions {
 export interface SignalRelay {
   /** The first signal that reached pnpm while the child ran, if any. */
   interruptedBy: () => NodeJS.Signals | null
-  /** Whether a signal was relayed to the child. */
+  /**
+   * Whether pnpm passed a signal on to the child. A SIGINT that a terminal
+   * delivered to the child along with pnpm does not count: the child had it
+   * already, and pnpm relayed nothing.
+   */
   relayed: () => boolean
   /** Terminate the child as pnpm's own exit would, once. */
   terminate: () => void

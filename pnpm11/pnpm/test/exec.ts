@@ -143,8 +143,6 @@ testOnPosix('exec: a SIGTERM sent to pnpm without a terminal reaches the command
   }
 })
 
-// A signal that reaches pnpm during a recursive run ends the run once the
-// commands in flight have shut down; nothing queued behind them starts.
 testOnPosix('exec -r: Ctrl+C stops the queued commands from starting', () => {
   preparePackages([
     { name: 'project-1', version: '1.0.0' },

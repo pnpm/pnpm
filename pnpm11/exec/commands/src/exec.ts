@@ -278,6 +278,10 @@ export async function handler (
   let firstError: Error | undefined
   let abortError: unknown
   let interruptedBy: NodeJS.Signals | null = null
+  // Every command's wait, so that after a signal the run ends only once all
+  // of them have settled: the signal pnpm then raises on itself would
+  // otherwise reach the relays of commands still shutting down.
+  const settling: Array<Promise<unknown>> = []
   const reporterShowPrefix = opts.recursive && opts.reporterHidePrefix === false
 
   const runTask = async (node: TaskNode, key: TaskKey): Promise<TaskCompletion> => {
@@ -401,7 +405,10 @@ export async function handler (
               resolve()
             })
           })
-          interruptedBy ??= await waitForTracked(child)
+          const settled = waitForTracked(child)
+          settling.push(settled)
+          const signal = await settled
+          interruptedBy ??= signal
         } else {
           const child = trackedExeca(cmd, args, {
             cwd: prefix,
@@ -409,7 +416,10 @@ export async function handler (
             stdio: 'inherit',
             shell: opts.shellMode ?? false,
           })
-          interruptedBy ??= await waitForTracked(child)
+          const settled = waitForTracked(child)
+          settling.push(settled)
+          const signal = await settled
+          interruptedBy ??= signal
         }
         result[prefix].status = 'passed'
         result[prefix].duration = getExecutionDuration(startTime)
@@ -463,10 +473,16 @@ export async function handler (
     if (abortError !== undefined) {
       throw abortError
     }
-    if (interruptedBy) {
-      // End the way the signal would have ended pnpm, so the shell sees
-      // an interrupted command rather than a plain failure.
+    if (interruptedBy && opts.recursive) {
+      // A single command's exit status is pnpm's, however it ended. A
+      // recursive run that a signal cut short ends the way the signal
+      // would have ended pnpm, so the shell sees an interrupted run rather
+      // than the status of whichever command finished last. The signal
+      // arrives through the event loop, so pnpm waits for it rather than
+      // racing it to its own exit.
+      await Promise.allSettled(settling)
       process.kill(process.pid, interruptedBy)
+      await new Promise<void>((resolve) => setTimeout(resolve, 1000))
     }
     if (firstError != null) {
       if (opts.reportSummary) {
