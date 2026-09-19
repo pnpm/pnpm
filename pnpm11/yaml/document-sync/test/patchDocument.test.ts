@@ -854,3 +854,10 @@ it('replaces a collection alias when its value changes type', () => {
   patchDocument(document, { metadata: { value: 1 }, copy: 'changed' }, { pruneEmptyValues: false })
   expect(document.toJSON()).toStrictEqual({ metadata: { value: 1 }, copy: 'changed' })
 })
+
+it('matches scalar mapping keys to their JSON property names', () => {
+  const document = yaml.parseDocument('1: one # numeric\ntrue: enabled\nnull: empty\n')
+  patchDocument(document, { 1: 'first', true: 'yes', '': 'blank' }, { preserveKeyOrder: true })
+  expect(document.toJSON()).toStrictEqual({ 1: 'first', true: 'yes', '': 'blank' })
+  expect(document.toString()).toBe('1: first # numeric\ntrue: yes\nnull: blank\n')
+})

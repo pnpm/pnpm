@@ -70,6 +70,10 @@ metadata:
   empty: {}
   missing: null
   list: [null, {}, []]
+  labels:
+    1: first # numeric key
+    true: enabled
+    null: empty
 dependencies:
   zebra: &version 1.0.0 # shared version
   alpha: *version
@@ -82,6 +86,7 @@ dependencies:
   expect(yaml.parse(result)).toStrictEqual(manifest)
   expect(result).toContain('zebra: &version 1.0.0 # shared version')
   expect(result).toContain('alpha: *version')
+  expect(result).toContain('1: first # numeric key')
 })
 
 test('does not overwrite invalid YAML', async () => {

@@ -138,11 +138,11 @@ function patchMap (map: yaml.YAMLMap, target: unknown, ctx: PatchContext): yaml.
   for (const pair of map.items) {
     // We can't update non-node types. Pairs should only contain values that are
     // non-nodes if the yaml document was modified manually after parsing.
-    if (!yaml.isScalar(pair.key) || typeof pair.key.value !== 'string') {
+    if (!yaml.isScalar(pair.key)) {
       throw new Error('Encountered unexpected non-node value: ' + String(pair.key))
     }
 
-    mapKeyToExistingPair.set(pair.key.value, pair)
+    mapKeyToExistingPair.set(String(pair.key.value ?? ''), pair)
   }
 
   const keys = ctx.preserveKeyOrder
