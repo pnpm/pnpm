@@ -62,7 +62,7 @@ pub use pnpm_lockfile::pick_registry_for_package;
 pub use registry_url::to_registry_url;
 pub use resolve_from_workspace::{
     ResolveFromWorkspaceError, ResolveFromWorkspaceOptions, pick_matching_local_version_or_null,
-    try_resolve_from_workspace,
+    resolve_workspace_package_dir, try_resolve_from_workspace,
 };
 pub use trust_checks::{
     TrustCheckOptions, TrustEvidence, TrustViolation, fail_if_trust_downgraded, get_trust_evidence,

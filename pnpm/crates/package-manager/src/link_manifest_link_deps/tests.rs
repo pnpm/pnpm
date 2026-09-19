@@ -2,6 +2,7 @@ use super::link_manifest_link_deps;
 use pnpm_cmd_shim::LinkBinsOptions;
 use pnpm_package_manifest::PackageManifest;
 use pnpm_reporter::SilentReporter;
+use pnpm_resolving_resolver_base::{WorkspacePackage, WorkspacePackages};
 use pnpm_testing_utils::fs::is_symlink_or_junction;
 use std::fs;
 use tempfile::tempdir;
@@ -43,6 +44,7 @@ fn links_absolute_relative_and_self_reference_specs() {
         dir.path(),
         &[(project_dir.clone(), &manifest)],
         None,
+        None,
         std::ffi::OsStr::new("node_modules"),
         &LinkBinsOptions::default(),
     )
@@ -73,6 +75,48 @@ fn links_absolute_relative_and_self_reference_specs() {
     drop(dir);
 }
 
+#[test]
+fn links_workspace_package_selected_by_plain_range() {
+    let dir = tempdir().unwrap();
+    let project_dir = dir.path().join("packages/app");
+    let workspace_dep_dir = dir.path().join("packages/workspace-dep");
+    fs::create_dir_all(&project_dir).unwrap();
+    fs::create_dir_all(&workspace_dep_dir).unwrap();
+
+    let manifest = manifest_at(
+        &project_dir,
+        serde_json::json!({
+            "name": "app",
+            "dependencies": { "workspace-dep": "^1.0.0" },
+        }),
+    );
+    let workspace_packages = WorkspacePackages::from([(
+        "workspace-dep".to_string(),
+        std::collections::BTreeMap::from([(
+            "1.0.0".to_string(),
+            WorkspacePackage {
+                root_dir: workspace_dep_dir.clone(),
+                manifest: serde_json::json!({ "name": "workspace-dep", "version": "1.0.0" }),
+            },
+        )]),
+    )]);
+
+    link_manifest_link_deps::<SilentReporter>(
+        dir.path(),
+        &[(project_dir.clone(), &manifest)],
+        None,
+        Some(&workspace_packages),
+        std::ffi::OsStr::new("node_modules"),
+        &LinkBinsOptions::default(),
+    )
+    .expect("linking succeeds");
+
+    assert_eq!(
+        fs::canonicalize(project_dir.join("node_modules/workspace-dep")).unwrap(),
+        workspace_dep_dir.canonicalize().unwrap(),
+    );
+}
+
 /// Re-running the pass replaces a stale symlink (v11 re-link
 /// semantics) instead of failing on the existing entry.
 #[test]
@@ -100,6 +144,7 @@ fn relink_replaces_stale_symlink() {
     link_manifest_link_deps::<SilentReporter>(
         dir.path(),
         &[(project_dir.clone(), &manifest)],
+        None,
         None,
         std::ffi::OsStr::new("node_modules"),
         &LinkBinsOptions::default(),
@@ -153,6 +198,7 @@ fn lockfile_tracked_alias_is_skipped() {
         dir.path(),
         &[(project_dir.clone(), &manifest)],
         Some(&importers),
+        None,
         std::ffi::OsStr::new("node_modules"),
         &LinkBinsOptions::default(),
     )
@@ -188,6 +234,7 @@ fn traversal_alias_is_rejected_without_writes() {
         let result = link_manifest_link_deps::<SilentReporter>(
             dir.path(),
             &[(project_dir.clone(), &manifest)],
+            None,
             None,
             std::ffi::OsStr::new("node_modules"),
             &LinkBinsOptions::default(),
@@ -232,6 +279,7 @@ fn custom_modules_dir_name_is_honored() {
         dir.path(),
         &[(project_dir.clone(), &manifest)],
         None,
+        None,
         std::ffi::OsStr::new("custom_modules"),
         &LinkBinsOptions::default(),
     )
@@ -273,6 +321,7 @@ fn non_normal_modules_dir_name_is_rejected_without_writes() {
         let result = link_manifest_link_deps::<SilentReporter>(
             dir.path(),
             &[(project_dir.clone(), &manifest)],
+            None,
             None,
             std::ffi::OsStr::new(name),
             &LinkBinsOptions::default(),
@@ -325,6 +374,7 @@ fn bins_of_manifest_linked_deps_are_linked() {
     link_manifest_link_deps::<SilentReporter>(
         dir.path(),
         &[(project_dir.clone(), &manifest)],
+        None,
         None,
         std::ffi::OsStr::new("node_modules"),
         &LinkBinsOptions::default(),

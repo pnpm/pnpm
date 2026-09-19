@@ -9,24 +9,20 @@ use pnpm_cmd_shim::LinkBinsOptions;
 use pnpm_lockfile::ProjectSnapshot;
 use pnpm_package_manifest::{DependencyGroup, PackageManifest};
 use pnpm_reporter::{AddedRoot, DependencyType, LogEvent, LogLevel, RootLog, RootMessage};
+use pnpm_resolving_resolver_base::WorkspacePackages;
 use std::{
     collections::HashMap,
     path::{Path, PathBuf},
 };
 
-/// Symlink each project's lockfile-excluded `link:`-spec dependencies
-/// into its `node_modules/`, sourced from the in-memory project
-/// manifests.
+/// Symlink each project's lockfile-excluded linked dependencies into its
+/// `node_modules/`, sourced from the in-memory project manifests.
 ///
-/// `excludeLinksFromLockfile` strips non-`workspace:` `link:` direct
-/// deps from the lockfile importers, so the lockfile-driven
-/// [`crate::SymlinkDirectDependencies`] pass never sees them. pnpm
-/// v11's `linkDirectDeps` worked from the projects' own manifests and
-/// materialized them regardless of the lockfile shape; without this
-/// pass a project whose runtime is provided through `link:` specs —
-/// Bit's capsule installs link the running binary's `@teambit/*`
-/// aspects this way, and its `nmSelfReferences` adds a `link:.`
-/// self-reference — ends up with those entries silently missing.
+/// `excludeLinksFromLockfile` strips non-`workspace:` links from the lockfile
+/// importers, including plain ranges that `linkWorkspacePackages` resolves to
+/// workspace projects. The lockfile-driven [`crate::SymlinkDirectDependencies`]
+/// pass therefore never sees them. pnpm v11's `linkDirectDeps` worked from the
+/// resolved projects and materialized them regardless of the lockfile shape.
 ///
 /// An alias the project's lockfile importer *does* carry is skipped
 /// entirely: the lockfile pass owns it, including its
@@ -36,12 +32,13 @@ use std::{
 ///
 /// Idempotent: an existing symlink at the alias path is force-replaced
 /// (matching v11's re-link semantics), and `force_symlink_dir` creates
-/// missing parent directories on demand. Specs that don't start with
-/// `link:` are ignored — everything else is the lockfile passes' job.
+/// missing parent directories on demand. Dependencies that neither use
+/// `link:` nor resolve through the workspace package index are ignored.
 pub fn link_manifest_link_deps<Reporter: pnpm_reporter::Reporter>(
     workspace_root: &Path,
     project_manifests: &[(PathBuf, &PackageManifest)],
     importers: Option<&HashMap<String, ProjectSnapshot>>,
+    workspace_packages: Option<&WorkspacePackages>,
     modules_dir_name: &std::ffi::OsStr,
     link_options: &LinkBinsOptions,
 ) -> Result<(), LinkManifestLinkDepsError> {
@@ -77,6 +74,7 @@ pub fn link_manifest_link_deps<Reporter: pnpm_reporter::Reporter>(
             project_dir,
             modules_dir: &modules_dir,
             importer_snapshot,
+            workspace_packages,
             link_options,
         };
         link_project_manifest_deps::<Reporter>(&project, manifest)?;
@@ -89,6 +87,7 @@ struct ProjectLinks<'a> {
     project_dir: &'a Path,
     modules_dir: &'a Path,
     importer_snapshot: Option<&'a ProjectSnapshot>,
+    workspace_packages: Option<&'a WorkspacePackages>,
     link_options: &'a LinkBinsOptions,
 }
 
@@ -134,12 +133,12 @@ fn link_manifest_dep<Reporter: pnpm_reporter::Reporter>(
     alias: &str,
     spec: &str,
 ) -> Result<bool, LinkManifestLinkDepsError> {
-    let Some(target) = spec.strip_prefix("link:") else {
-        return Ok(false);
-    };
     if project.importer_snapshot.is_some_and(|snapshot| snapshot_has_alias(snapshot, alias)) {
         return Ok(false);
     }
+    let Some(target_path) = manifest_link_target(project, alias, spec) else {
+        return Ok(false);
+    };
     // The alias is a raw `package.json` object key — an
     // unvalidated string. Route the join through the same
     // package-name validity check the lockfile-driven
@@ -148,7 +147,6 @@ fn link_manifest_dep<Reporter: pnpm_reporter::Reporter>(
     // `node_modules/`.
     let symlink_path = safe_join_modules_dir(project.modules_dir, alias)
         .map_err(LinkManifestLinkDepsError::InvalidAlias)?;
-    let target_path = resolve_link_target(project.project_dir, target);
     let outcome = symlink_package(&target_path, &symlink_path)
         .map_err(|source| LinkManifestLinkDepsError::Symlink {
             alias: alias.to_string(),
@@ -176,6 +174,22 @@ fn link_manifest_dep<Reporter: pnpm_reporter::Reporter>(
         }));
     }
     Ok(true)
+}
+
+fn manifest_link_target(project: &ProjectLinks<'_>, alias: &str, spec: &str) -> Option<PathBuf> {
+    if let Some(target) = spec.strip_prefix("link:") {
+        return Some(resolve_link_target(project.project_dir, target));
+    }
+    let parsed = pnpm_resolving_npm_resolver::parse_bare_specifier(
+        spec,
+        Some(alias),
+        "latest",
+        "https://registry.npmjs.org/",
+    )?;
+    let versions = project.workspace_packages?.get(&parsed.name)?;
+    let version =
+        pnpm_resolving_npm_resolver::pick_matching_local_version_or_null(versions, &parsed)?;
+    versions.get(&version).map(pnpm_resolving_npm_resolver::resolve_workspace_package_dir)
 }
 
 fn dependency_type_of(group: DependencyGroup) -> DependencyType {

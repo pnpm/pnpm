@@ -21,6 +21,7 @@ pub(crate) struct ApplyPriorState {
 
 pub(crate) struct ApplyProjectSelection<'a> {
     pub(crate) importers: SelectedImporters<'a>,
+    pub(crate) workspace_packages: Option<pnpm_resolving_resolver_base::WorkspacePackages>,
     pub(crate) workspace_root: PathBuf,
     pub(crate) included: IncludedDependencies,
     pub(crate) node_linker: NodeLinker,
