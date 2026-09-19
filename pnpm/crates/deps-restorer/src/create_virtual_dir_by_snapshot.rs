@@ -386,14 +386,14 @@ pub fn optimistic_wire_method(method: PackageImportMethod) -> WireImportMethod {
 /// when another scoped sibling keeps it populated). `remove_symlink_dir`
 /// unlinks the symlink itself, never its target package.
 ///
-/// `is_subdir` is the traversal guard: `PkgName` parsing accepts shapes
-/// such as `..` that would resolve outside the slot, so an alias that
-/// doesn't stay within `node_modules` is skipped rather than removed.
+/// Invalid npm dependency names are ignored.
 fn remove_obsolete_child(
     virtual_node_modules_dir: &Path,
     alias: &PkgName,
 ) -> Result<(), CreateVirtualDirError> {
-    let child_path = virtual_node_modules_dir.join(alias.to_string());
+    let Ok(child_path) = safe_join_modules_dir(virtual_node_modules_dir, &alias.to_string()) else {
+        return Ok(());
+    };
     if !is_subdir(virtual_node_modules_dir, &child_path) {
         return Ok(());
     }
