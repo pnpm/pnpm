@@ -290,6 +290,14 @@ fn redact_npm_auth_key_hides_protocol_relative_userinfo() {
         redact_npm_auth_key("//registry.example/:_authToken"),
         "//registry.example/:_authToken",
     );
+    assert_eq!(
+        redact_npm_auth_key("//registry.example/npm/@org:_authToken"),
+        "//registry.example/npm/@org:_authToken",
+    );
+    assert_eq!(
+        redact_npm_auth_key("//registry.example/:@org:_authToken"),
+        "//registry.example/:@org:_authToken",
+    );
 }
 
 #[test]

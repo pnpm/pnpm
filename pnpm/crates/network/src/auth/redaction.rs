@@ -77,7 +77,13 @@ pub fn redact_npm_auth_key(key: &str) -> String {
     if let Some(redacted) = strip_leading_userinfo(authority_and_path) {
         return format!("//{redacted}");
     }
-    if authority_and_path.contains('@') { "[hidden]".to_string() } else { sanitized }
+    if let Some(at) = authority_and_path.find('@') {
+        let before_at = &authority_and_path[..at];
+        if !before_at.ends_with('/') && !before_at.ends_with("/:") {
+            return "[hidden]".to_string();
+        }
+    }
+    sanitized
 }
 
 /// Make a URL safe for user-visible output without exposing credentials,
