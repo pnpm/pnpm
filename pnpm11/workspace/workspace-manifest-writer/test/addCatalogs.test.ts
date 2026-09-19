@@ -3,7 +3,9 @@ import path from 'node:path'
 
 import { expect, test } from '@jest/globals'
 import { WORKSPACE_MANIFEST_FILENAME } from '@pnpm/constants'
+import { prepare } from '@pnpm/prepare'
 import { tempDir } from '@pnpm/prepare-temp-dir'
+import { findPackages } from '@pnpm/workspace.projects-reader'
 import { updateWorkspaceManifest } from '@pnpm/workspace.workspace-manifest-writer'
 import { readYamlFileSync } from 'read-yaml-file'
 import { writeYamlFileSync } from 'write-yaml-file'
@@ -212,14 +214,12 @@ test.each([
 
 test('pruning a catalog anchor promotes its first surviving alias', async () => {
   const dir = tempDir(false)
+  prepare({ dependencies: { 'react-dom': 'catalog:', 'react-is': 'catalog:' } }, { tempDir: dir })
   const filePath = path.join(dir, WORKSPACE_MANIFEST_FILENAME)
   fs.writeFileSync(filePath, "catalog:\n  react: &react '^1.0.0' # definition\n  react-dom: *react # consumer\n  react-is: *react\n")
   await updateWorkspaceManifest(dir, {
     catalogPrune: true,
-    allProjects: [{
-      rootDir: dir,
-      manifest: { dependencies: { 'react-dom': 'catalog:', 'react-is': 'catalog:' } },
-    }],
+    allProjects: await findPackages(dir),
   })
   expect(fs.readFileSync(filePath, 'utf8')).toBe("catalog:\n  react-dom: &react '^1.0.0' # consumer\n  react-is: *react\n")
 })
@@ -249,11 +249,12 @@ test('preserves aliases across named catalogs', async () => {
 
 test('pruning a catalog keeps aliases in other settings valid', async () => {
   const dir = tempDir(false)
+  prepare({ dependencies: { other: '1.0.0' } }, { tempDir: dir })
   const filePath = path.join(dir, WORKSPACE_MANIFEST_FILENAME)
   fs.writeFileSync(filePath, 'catalog:\n  unused: &version ^1.0.0\noverrides:\n  react: *version\n')
   await updateWorkspaceManifest(dir, {
     catalogPrune: true,
-    allProjects: [{ rootDir: dir, manifest: { dependencies: { other: '1.0.0' } } }],
+    allProjects: await findPackages(dir),
   })
   expect(fs.readFileSync(filePath, 'utf8')).toBe('overrides:\n  react: &version ^1.0.0\n')
 })
