@@ -3,8 +3,8 @@ use super::{
         HashSet, InstallError, InstallRunOptions, LogEvent, LogLevel, PackageManifest, Path,
         PathBuf, Reporter, ScopeLog, build_project_manifests_list,
         build_root_importer_project_manifests_list, build_selected_project_manifests_list,
-        configured_or_discovered_workspace_dir, get_catalogs_from_workspace_manifest,
-        load_workspace_projects, lockfile_root_dir,
+        build_workspace_packages_map, configured_or_discovered_workspace_dir,
+        get_catalogs_from_workspace_manifest, load_workspace_projects, lockfile_root_dir,
     },
     InstallOwned, InstallView, RunMode, UpToDateCheck, install_is_already_up_to_date,
 };
@@ -67,6 +67,7 @@ pub(super) struct InstallWorkspace<'a> {
     pub(super) prefix: String,
     pub(super) workspace_projects_are_overridden: bool,
     pub(super) loaded_workspace_projects: Option<Vec<pnpm_workspace::Project>>,
+    pub(super) workspace_packages: Option<pnpm_resolving_resolver_base::WorkspacePackages>,
     pub(super) dirs: WorkspaceDirs<'a>,
 }
 /// The projects the run installs, and how a selection narrows them.
@@ -163,6 +164,8 @@ impl<'a> InstallWorkspace<'a> {
             &dirs,
             loaded_workspace_projects.as_deref(),
         );
+        let workspace_packages =
+            workspace_packages_for_install(install, loaded_workspace_projects.as_deref(), options);
         Ok(Self {
             // Use `to_string_lossy` rather than `to_str().expect(...)` so a
             // valid filesystem path with non-UTF-8 bytes (possible on Unix)
@@ -176,9 +179,25 @@ impl<'a> InstallWorkspace<'a> {
             catalogs,
             workspace_projects_are_overridden,
             loaded_workspace_projects,
+            workspace_packages,
             dirs,
         })
     }
+}
+fn workspace_packages_for_install<'s>(
+    install: InstallView<'_>,
+    loaded_workspace_projects: Option<&'s [pnpm_workspace::Project]>,
+    options: &InstallRunOptions<'s, '_>,
+) -> Option<pnpm_resolving_resolver_base::WorkspacePackages> {
+    (install.context.config.exclude_links_from_lockfile
+        && install.context.config.link_workspace_packages.enabled_at_depth(0))
+    .then(|| {
+        build_workspace_packages_map(workspace_projects(
+            loaded_workspace_projects,
+            options.selection.as_ref(),
+        ))
+    })
+    .flatten()
 }
 // In-memory mutation catalogs take precedence over hooked configuration and the workspace file.
 // Filtered and dedicated-lockfile installs have already reported their own scope.

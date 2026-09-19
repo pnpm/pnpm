@@ -1,13 +1,91 @@
 //! End-to-end coverage for the `excludeLinksFromLockfile` setting.
 
 use crate::_utils;
-
 use _utils::append_workspace_yaml_key;
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
 use pnpm_lockfile::{Lockfile, PackageKey, PkgName, SnapshotDepRef};
-use pnpm_testing_utils::bin::{AddMockedRegistry, CommandTempCwd};
-use std::{fs, path::Path, str::FromStr};
+use pnpm_testing_utils::{
+    bin::{AddMockedRegistry, CommandTempCwd},
+    command_env::CommandTestExt,
+    fs::is_symlink_or_junction,
+};
+use std::{fs, path::Path, process::Command, str::FromStr};
+
+fn pacquet_at(workspace: &Path) -> Command {
+    Command::cargo_bin("pnpm")
+        .expect("find the pnpm binary")
+        .with_current_dir(workspace)
+        .without_ambient_pnpm_config()
+}
+
+#[test]
+fn plain_range_workspace_link_is_materialized_when_excluded_from_lockfile() {
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({ "name": "ws-root", "version": "0.0.0", "private": true }).to_string(),
+    )
+    .expect("write root package.json");
+    append_workspace_yaml_key(&workspace, "packages", "['packages/*']");
+    append_workspace_yaml_key(&workspace, "excludeLinksFromLockfile", true);
+    append_workspace_yaml_key(&workspace, "linkWorkspacePackages", true);
+    write_project(
+        &workspace,
+        "packages/app",
+        &serde_json::json!({
+            "name": "app",
+            "version": "1.0.0",
+            "dependencies": { "workspace-dep": "^1.0.0" },
+        }),
+    );
+    write_project(
+        &workspace,
+        "packages/workspace-dep",
+        &serde_json::json!({ "name": "workspace-dep", "version": "1.0.0" }),
+    );
+
+    pacquet_at(&workspace)
+        .with_arg("install")
+        .assert()
+        .success();
+    let lockfile_text =
+        fs::read_to_string(workspace.join("pnpm-lock.yaml")).expect("read pnpm-lock.yaml");
+    let lockfile: Lockfile = serde_saphyr::from_str(&lockfile_text).expect("parse pnpm-lock.yaml");
+    let app = lockfile.importers.get("packages/app").expect("app importer");
+    assert!(
+        app.dependencies
+            .as_ref()
+            .is_none_or(|dependencies| {
+                !dependencies.contains_key(&PkgName::parse("workspace-dep").unwrap())
+            }),
+        "the workspace link must stay out of the lockfile",
+    );
+
+    let app_modules = workspace.join("packages/app/node_modules");
+    let link = app_modules.join("workspace-dep");
+    assert!(is_symlink_or_junction(&link).unwrap());
+    assert_eq!(
+        link.canonicalize().unwrap(),
+        workspace
+            .join("packages/workspace-dep")
+            .canonicalize()
+            .unwrap(),
+    );
+
+    fs::remove_dir_all(&app_modules).expect("remove app node_modules");
+    pacquet_at(&workspace)
+        .with_arg("install")
+        .with_arg("--frozen-lockfile")
+        .assert()
+        .success();
+    assert!(is_symlink_or_junction(&link).unwrap());
+
+    drop((root, mock_instance));
+}
 
 /// The setting only keeps the machine-dependent path of an *external*
 /// link out of the lockfile. A workspace-internal link resolving a peer

@@ -249,7 +249,7 @@ pub(crate) fn resolve_from_local_package(
     lockfile_dir: &Path,
     saved_specifier: SavedSpecifierOptions,
 ) -> ResolveResult {
-    let local_dir = resolve_local_package_dir(local_package);
+    let local_dir = resolve_workspace_package_dir(local_package);
 
     let (id_text, directory) = if hard_link_local_packages {
         let relative_to_lockfile = forward_slashes(relative_path(lockfile_dir, &local_dir));
@@ -301,9 +301,12 @@ fn workspace_specifier(
     ))
 }
 
-/// Honours `publishConfig.directory` when `publishConfig.linkDirectory`
-/// is unset or `true`; otherwise the project's own `rootDir`.
-fn resolve_local_package_dir(local_package: &WorkspacePackage) -> PathBuf {
+/// Return the directory exposed when a workspace package is linked.
+///
+/// Honors `publishConfig.directory` when `publishConfig.linkDirectory` is
+/// unset or `true`; otherwise returns the project's own root directory.
+#[must_use]
+pub fn resolve_workspace_package_dir(local_package: &WorkspacePackage) -> PathBuf {
     let publish_config = local_package.manifest.get("publishConfig");
     let publish_dir = publish_config
         .and_then(|cfg| cfg.get("directory"))

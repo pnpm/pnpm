@@ -234,6 +234,7 @@ impl<'a> RunExecution<'a> {
         'a: 'r,
     {
         let (scope, project_manifests) = projects;
+        let workspace_packages = self.workspace.workspace_packages.take();
         ApplyMaterializationInputs {
             completion: self.take_completion_context(),
             mode: crate::install::state_options::CompletionMode {
@@ -253,6 +254,7 @@ impl<'a> RunExecution<'a> {
                     real_ids: &scope.importers.real_importer_ids,
                     manifests: project_manifests,
                 },
+                workspace_packages,
                 workspace_root: std::mem::take(&mut self.workspace.dirs.workspace_root),
                 included: self.mode.included,
                 node_linker: self.install.execution.node_linker,

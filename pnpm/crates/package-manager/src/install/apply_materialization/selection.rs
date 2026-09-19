@@ -100,11 +100,15 @@ pub(super) struct LinkMaterializedProjectsInputs<'a> {
     pub(super) filtered_install: bool,
     pub(super) node_linker: NodeLinker,
     pub(super) config: &'static Config,
-    pub(super) current_lockfile: Option<&'a Lockfile>,
-    pub(super) wanted_lockfile: Option<&'a Lockfile>,
+    pub(super) lockfiles: LinkMaterializedLockfiles<'a>,
     pub(super) workspace_root: &'a Path,
+    pub(super) workspace_packages: Option<&'a pnpm_resolving_resolver_base::WorkspacePackages>,
     pub(super) project_manifests: &'a [(PathBuf, &'a PackageManifest)],
     pub(super) materialized_project_manifests: &'a [(PathBuf, &'a PackageManifest)],
+}
+pub(super) struct LinkMaterializedLockfiles<'a> {
+    pub(super) current: Option<&'a Lockfile>,
+    pub(super) wanted: Option<&'a Lockfile>,
 }
 pub(super) async fn link_materialized_projects<Reporter: self::Reporter + 'static>(
     inputs: LinkMaterializedProjectsInputs<'_>,
@@ -112,26 +116,25 @@ pub(super) async fn link_materialized_projects<Reporter: self::Reporter + 'stati
     if inputs.filtered_install
         && !matches!(inputs.node_linker, NodeLinker::Hoisted)
         && crate::should_write_package_map(inputs.config, inputs.node_linker)
-        && let Some(current) = inputs.current_lockfile.as_ref()
+        && let Some(current) = inputs.lockfiles.current.as_ref()
     {
         write_filtered_package_map(&inputs, current).await?;
     }
 
-    // Materialize `link:` direct deps straight from the in-memory
-    // project manifests. `excludeLinksFromLockfile` keeps them out
-    // of the lockfile importers, so the lockfile-driven symlink
-    // passes cannot see them. Aliases the wanted lockfile *does*
-    // track are skipped — those belong to the lockfile passes (and
-    // their dedupe decisions). See [`crate::link_manifest_link_deps`].
+    // Materialize lockfile-excluded direct links from the in-memory project
+    // manifests and workspace package index. Aliases the wanted lockfile does
+    // track belong to the lockfile passes and their dedupe decisions. See
+    // [`crate::link_manifest_link_deps`].
     // These are importer symlinks like any other, so
     // `virtualStoreOnly` skips them too.
     if !inputs.config.virtual_store_only {
         crate::link_manifest_link_deps::<Reporter>(
             inputs.workspace_root,
             inputs.materialized_project_manifests,
-            inputs.wanted_lockfile.and_then(|lockfile| {
+            inputs.lockfiles.wanted.and_then(|lockfile| {
                 (!lockfile.importers.is_empty()).then_some(&lockfile.importers)
             }),
+            inputs.workspace_packages,
             // Honor a `modulesDir` override the same way the
             // lockfile-driven symlink pass does.
             inputs.config.modules_dir
