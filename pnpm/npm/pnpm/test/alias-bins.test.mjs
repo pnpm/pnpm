@@ -131,6 +131,52 @@ describe('alias bins', () => {
     assert.equal(result.stdout, `sibling: dlx ${ARGS.join(' ')}\n`)
   })
 
+  // pnpm/pnpm#14884: MSYS and Cygwin launch the alias with a native Windows
+  // path, which has no slash for `${self%/*}` to strip. Only a drive letter or a
+  // UNC prefix marks one, since a backslash is an ordinary character in a Unix
+  // file name. Each test here plants the alias and its sibling pnpm where the
+  // path resolves to, and hands `sh` the file whose own name is that path.
+  describe('native Windows $0', () => {
+    for (const [alias, injected] of ALIASES) {
+      const expected = `sibling: ${injected}${ARGS.join(' ')}\n`
+
+      it(`${alias} resolves a drive-letter path`, { skip: NO_SH }, async () => {
+        const dir = createTmpDir('pnpm native ')
+        const arg0 = `C:\\proj\\${alias}`
+        fs.copyFileSync(plantAliasAndPnpm(alias, path.join(dir, 'C:', 'proj')), path.join(dir, arg0))
+
+        const result = await run('sh', [arg0, ...ARGS], { cwd: dir, env: { PATH: BARE_PATH } })
+        assert.equal(result.status, 0, result.stderr)
+        assert.equal(result.stdout, expected)
+      })
+
+      // A UNC path converts to one starting with `//`, which Linux and macOS
+      // read as `/`, so the share stands in for the temporary directory itself.
+      // `shareDir` is absolute, so its own leading separator is the second of
+      // the two backslashes that mark the path as UNC.
+      it(`${alias} resolves a UNC path`, { skip: NO_SH }, async () => {
+        const dir = createTmpDir('pnpm native ')
+        const shareDir = path.join(dir, 'share')
+        const arg0 = `\\${shareDir}/${alias}`.replaceAll('/', '\\')
+        fs.copyFileSync(plantAliasAndPnpm(alias, shareDir), path.join(dir, arg0))
+
+        const result = await run('sh', [arg0, ...ARGS], { cwd: dir, env: { PATH: BARE_PATH } })
+        assert.equal(result.status, 0, result.stderr)
+        assert.equal(result.stdout, expected)
+      })
+
+      // The other side of the gate: neither prefix is there, so the backslash
+      // stays part of the directory name rather than becoming a separator.
+      it(`${alias} leaves a Unix path holding a backslash alone`, { skip: NO_SH }, async () => {
+        const dir = createTmpDir('pnpm native ')
+
+        const result = await run(plantAliasAndPnpm(alias, path.join(dir, 'proj\\dir')), ARGS, { env: { PATH: BARE_PATH } })
+        assert.equal(result.status, 0, result.stderr)
+        assert.equal(result.stdout, expected)
+      })
+    }
+  })
+
   // The walk is copied into every bin that has to find a file beside itself, so
   // a fix to one of them can silently miss the rest.
   it('walks symlinks the same way in every bin', () => {
@@ -186,6 +232,21 @@ function run (command, args, { env, cwd } = {}) {
   })
 }
 
+function createTmpDir (prefix) {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), prefix))
+  after(() => fs.rmSync(dir, { force: true, recursive: true }))
+  return dir
+}
+
+function plantAliasAndPnpm (alias, targetDir) {
+  fs.mkdirSync(targetDir, { recursive: true })
+  const file = path.join(targetDir, alias)
+  fs.copyFileSync(path.join(WRAPPER_DIR, alias), file)
+  fs.chmodSync(file, 0o755)
+  writeStub(path.join(targetDir, 'pnpm'), 'sibling')
+  return file
+}
+
 /**
  * A wrapper directory holding the three alias bins and a stand-in `pnpm` that
  * reports the arguments it was handed — which is all the aliases have to get
@@ -199,8 +260,7 @@ function createFixture ({ installBinary = true } = {}) {
   // The space in the name is deliberate: the walk resolves directories with
   // `${self%/*}` and matches with `case`, neither of which field-splits, so every
   // test here doubles as coverage that a path with a space still resolves.
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'pnpm alias '))
-  after(() => fs.rmSync(dir, { force: true, recursive: true }))
+  const dir = createTmpDir('pnpm alias ')
 
   const wrapperDir = path.join(dir, 'node_modules', 'pnpm')
   const files = installBinary

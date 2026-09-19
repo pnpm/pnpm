@@ -78,6 +78,22 @@ describe('placeholder bin', () => {
     assert.match(result.stdout, FAKE_BINARY_OUTPUT)
   })
 
+  // pnpm/pnpm#14884: MSYS and Cygwin launch the placeholder with a native
+  // Windows path, which has no slash for `${self%/*}` to strip. The file `sh`
+  // opens is the one whose own name is that path, since a backslash is an
+  // ordinary character here, so the walk has to convert it to find the entry
+  // point. The alias bins' tests cover the gate that keeps a Unix path off this
+  // branch, and that every bin carrying the walk converts the same way.
+  it('runs from a native Windows $0', { skip: HAS_A_SHELL }, async () => {
+    const fixture = createFixture({ nestedUnder: ['C:', 'proj'] })
+    const arg0 = 'C:\\proj\\pnpm\\pnpm'
+    fs.copyFileSync(fixture.placeholder, path.join(fixture.dir, arg0))
+
+    const result = await run('sh', [arg0, '--version'], { cwd: fixture.dir })
+    assert.equal(result.status, 0, result.stderr)
+    assert.match(result.stdout, FAKE_BINARY_OUTPUT)
+  })
+
   // What a bin linker writes for a target with no shebang, and the shape pnpm 11
   // leaves behind: an `exec` of the file itself, so the same shim keeps working
   // once the native binary takes its place.
