@@ -1574,7 +1574,6 @@ test('project .npmrc does not expand env variables in registry URLs', async () =
     expect.stringContaining('Ignored project-level request destination "registry"'),
   ]))
   const registryWarning = warnings.find((w) => w.includes('Ignored project-level request destination "registry"')) ?? ''
-  expect(registryWarning).toContain('pnpm config set "registry" <value>')
   expect(registryWarning).toContain('https://pnpm.io/npmrc')
 })
 
@@ -1602,33 +1601,8 @@ test('project .npmrc does not expand env variables in scoped registry URLs or UR
     expect.stringContaining('Ignored project-level request destination "@scope:registry"'),
     expect.stringContaining('Ignored project-level request destination "//registry.example.com/${PNPM_TEST_TOKEN}/:_authToken"'),
   ]))
-  // When the key itself contains a ${...} placeholder, the warning must not
-  // embed it in a runnable `pnpm config set "<key>"` command — a shell would
-  // expand the placeholder on copy-paste.
   const urlScopedWarning = warnings.find((w) => w.includes('//registry.example.com/${PNPM_TEST_TOKEN}/:_authToken')) ?? ''
-  expect(urlScopedWarning).not.toContain('pnpm config set "')
-  expect(urlScopedWarning).toContain('pnpm config set')
-})
-
-test('the warning never embeds a shell-unsafe key in a runnable pnpm config set command', async () => {
-  prepare()
-
-  // A malicious repository could craft a key with shell metacharacters; the
-  // suggested copy-paste command must not become a command-injection vector.
-  fs.writeFileSync('.npmrc', '//$(touch pwned)`id`/:_authToken=${PNPM_TEST_TOKEN}\n', 'utf8')
-
-  const { warnings } = await getConfig({
-    cliOptions: {},
-    env: { ...env, PNPM_TEST_TOKEN: 'secret' },
-    packageManager: {
-      name: 'pnpm',
-      version: '1.0.0',
-    },
-  })
-
-  const unsafeWarning = warnings.find((w) => w.includes('$(touch pwned)')) ?? ''
-  expect(unsafeWarning).not.toBe('')
-  expect(unsafeWarning).not.toContain('pnpm config set "')
+  expect(urlScopedWarning).toContain('https://pnpm.io/npmrc')
 })
 
 test('project .npmrc does not expand env variables in auth values', async () => {
@@ -1678,9 +1652,7 @@ test('project .npmrc does not expand env variables in auth values', async () => 
     expect.stringContaining('Ignored project-level auth setting "cert"'),
     expect.stringContaining('Ignored project-level auth setting "key"'),
   ]))
-  // The warning should tell the user how to migrate the credential.
   const authWarning = warnings.find((w) => w.includes('Ignored project-level auth setting "//attacker.example/:_authToken"')) ?? ''
-  expect(authWarning).toContain('pnpm config set "//attacker.example/:_authToken" <value>')
   expect(authWarning).toContain('https://pnpm.io/npmrc')
 })
 

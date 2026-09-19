@@ -526,24 +526,10 @@ function hasEnvPlaceholder (value: string): boolean {
 
 const DOCS_URL = 'https://pnpm.io/npmrc'
 
-// The key embedded in the suggested `pnpm config set` command comes from a
-// repository-controlled .npmrc. A shell expands `$(...)`, backticks and `$VAR`
-// even inside double quotes, so suggesting a runnable command built from an
-// arbitrary key would turn this warning into a copy-paste command-injection
-// vector. Only emit the runnable example for keys made up entirely of
-// shell-inert characters — which covers every real registry/auth key
-// (`//host/:_authToken`, `@scope:registry`, `registry`, `https-proxy`, …).
-const SHELL_SAFE_KEY = /^[\w@.:/-]+$/
-
-function configSetExample (key: string): string {
-  return SHELL_SAFE_KEY.test(key) ? ` (for example, run: pnpm config set "${key}" <value>)` : ''
-}
-
 function warnIgnoredRequestDestinationEnv (filePath: string, key: string, warnings: string[]): void {
   warnings.push(`Ignored project-level request destination "${key}" in "${filePath}": ` +
     'environment variables are not expanded in registry or proxy URLs that come from a project .npmrc, ' +
     'because that file is committed to the repository and a malicious value could redirect requests or leak secrets. ' +
-    `Set this setting with pnpm config set${configSetExample(key)}. ` +
     `If the value is not secret, you can also write it literally in the project .npmrc. See ${DOCS_URL}`)
 }
 
@@ -551,7 +537,6 @@ function warnIgnoredAuthValueEnv (filePath: string, key: string, warnings: strin
   warnings.push(`Ignored project-level auth setting "${key}" in "${filePath}": ` +
     'environment variables are not expanded in registry credentials that come from a project .npmrc, ' +
     'because that file is committed to the repository and could leak the secret to an attacker-controlled registry. ' +
-    `Set this credential with pnpm config set${configSetExample(key)}. ` +
     `See ${DOCS_URL}`)
 }
 

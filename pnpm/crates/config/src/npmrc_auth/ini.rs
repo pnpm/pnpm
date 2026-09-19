@@ -264,7 +264,6 @@ impl NpmrcAuth {
         let key = redact_npm_auth_key(key);
         self.warnings.push(format!(
             "Ignored project-level auth setting {key:?}: environment variables are not expanded in repository-controlled registry credentials. \
-             Set this credential with pnpm config set. \
              See https://pnpm.io/npmrc",
         ));
     }
