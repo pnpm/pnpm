@@ -2,11 +2,13 @@ use super::{
     CommandExtra, CommandTempCwd, PermissionsExt, fs, json, process_group_probe,
     write_concurrency_probe, write_executable, write_workspace,
 };
+use crate::_utils::terminal::Terminal;
 use assert_cmd::assert::OutputAssertExt;
 
 /// A per-task `concurrency: 1` serializes the scripts just as firmly as a
-/// dependency chain does, so they must stay in pacquet's process group
-/// too — the scheduler never has two of them in flight to keep apart.
+/// dependency chain does, so at a terminal they must stay in pacquet's
+/// process group too — the scheduler never has two of them in flight to
+/// keep apart.
 #[test]
 fn task_concurrency_of_one_keeps_scripts_in_the_foreground_process_group() {
     let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
@@ -39,10 +41,10 @@ fn task_concurrency_of_one_keeps_scripts_in_the_foreground_process_group() {
     )
     .expect("write task settings");
 
-    pacquet
-        .with_args(["-r", "run", "build"])
-        .assert()
-        .success();
+    let terminal = Terminal::open();
+    let mut process = terminal.spawn_foreground(pacquet.with_args(["-r", "run", "build"]));
+    let status = process.wait().expect("wait for pacquet");
+    assert!(status.success(), "pacquet should succeed on the terminal");
 
     let groups =
         fs::read_to_string(workspace.join("process-groups.txt")).expect("read process groups");
