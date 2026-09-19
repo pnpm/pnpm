@@ -543,8 +543,7 @@ function warnIgnoredRequestDestinationEnv (filePath: string, key: string, warnin
   warnings.push(`Ignored project-level request destination "${key}" in "${filePath}": ` +
     'environment variables are not expanded in registry or proxy URLs that come from a project .npmrc, ' +
     'because that file is committed to the repository and a malicious value could redirect requests or leak secrets. ' +
-    'Move this setting to a trusted source that pnpm still expands — put it in your user-level ~/.npmrc, ' +
-    `or set it with pnpm config set${configSetExample(key)}. ` +
+    `Set this setting with pnpm config set${configSetExample(key)}. ` +
     `If the value is not secret, you can also write it literally in the project .npmrc. See ${DOCS_URL}`)
 }
 
@@ -552,9 +551,7 @@ function warnIgnoredAuthValueEnv (filePath: string, key: string, warnings: strin
   warnings.push(`Ignored project-level auth setting "${key}" in "${filePath}": ` +
     'environment variables are not expanded in registry credentials that come from a project .npmrc, ' +
     'because that file is committed to the repository and could leak the secret to an attacker-controlled registry. ' +
-    'Move this credential to a trusted source that pnpm still expands — put the line in your user-level ~/.npmrc, ' +
-    `or set it with pnpm config set${configSetExample(key)}. ` +
-    'If you trust the project .npmrc, set PNPM_CONFIG_NPMRC_AUTH_FILE to its path to allow environment variable expansion. ' +
+    `Set this credential with pnpm config set${configSetExample(key)}. ` +
     `See ${DOCS_URL}`)
 }
 

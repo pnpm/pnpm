@@ -1573,9 +1573,8 @@ test('project .npmrc does not expand env variables in registry URLs', async () =
   expect(warnings).toEqual(expect.arrayContaining([
     expect.stringContaining('Ignored project-level request destination "registry"'),
   ]))
-  // The warning should guide the user toward a trusted source and the docs.
+  // The warning should guide the user toward pnpm's config command and the docs.
   const registryWarning = warnings.find((w) => w.includes('Ignored project-level request destination "registry"')) ?? ''
-  expect(registryWarning).toContain('~/.npmrc')
   expect(registryWarning).toContain('pnpm config set "registry" <value>')
   expect(registryWarning).toContain('https://pnpm.io/npmrc')
 })
@@ -1609,7 +1608,7 @@ test('project .npmrc does not expand env variables in scoped registry URLs or UR
   // expand the placeholder on copy-paste.
   const urlScopedWarning = warnings.find((w) => w.includes('//registry.example.com/${PNPM_TEST_TOKEN}/:_authToken')) ?? ''
   expect(urlScopedWarning).not.toContain('pnpm config set "')
-  expect(urlScopedWarning).toContain('~/.npmrc')
+  expect(urlScopedWarning).toContain('pnpm config set')
 })
 
 test('the warning never embeds a shell-unsafe key in a runnable pnpm config set command', async () => {
@@ -1683,9 +1682,6 @@ test('project .npmrc does not expand env variables in auth values', async () => 
   // The warning should tell the user how to migrate the credential.
   const authWarning = warnings.find((w) => w.includes('Ignored project-level auth setting "//attacker.example/:_authToken"')) ?? ''
   expect(authWarning).toContain('pnpm config set "//attacker.example/:_authToken" <value>')
-  expect(authWarning).toContain('~/.npmrc')
-  expect(authWarning).toContain('PNPM_CONFIG_NPMRC_AUTH_FILE')
-  expect(authWarning).toContain('trust the project .npmrc')
   expect(authWarning).toContain('https://pnpm.io/npmrc')
 })
 

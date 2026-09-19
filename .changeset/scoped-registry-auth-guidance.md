@@ -2,4 +2,4 @@
 "pacquet": patch
 ---
 
-`pnpm install` and other commands that report configuration warnings now warn when environment variables in project `.npmrc` credentials are ignored. The warning explains how to configure trusted credentials or explicitly trust the project auth file with `PNPM_CONFIG_NPMRC_AUTH_FILE` [pnpm/pnpm#15051](https://github.com/pnpm/pnpm/issues/15051).
+`pnpm install` and other commands that report configuration warnings now warn when environment variables in project `.npmrc` credentials are ignored. The warning explains how to configure credentials with `pnpm config set` [pnpm/pnpm#15051](https://github.com/pnpm/pnpm/issues/15051).

@@ -718,9 +718,7 @@ fn from_project_ini_warns_on_auth_env_placeholder() {
         .find(|w| w.contains("Ignored project-level auth setting"))
         .unwrap();
     eprintln!("warning={warning}");
-    assert!(warning.contains("~/.npmrc"));
-    assert!(warning.contains("PNPM_CONFIG_NPMRC_AUTH_FILE"));
-    assert!(warning.contains("trust the project .npmrc"));
+    assert!(warning.contains("pnpm config set"));
     assert!(!warning.contains("secret"));
     assert_eq!(
         default_auth_token(&auth, "//registry.npmjs.org/"),
