@@ -255,11 +255,8 @@ fn transplanted_node_modules_is_not_up_to_date() {
     drop(temp_cwd);
 }
 
-/// The patch file [`install_patched_workspace`] configures.
 const IS_POSITIVE_PATCH_FILE: &str = "patches/is-positive.patch";
 
-/// An installed workspace whose `is-positive` carries a patch that adds a
-/// marker file, with the store pinned outside it.
 fn install_patched_workspace() -> (CommandTempCwd<AddMockedRegistry>, PathBuf) {
     let (temp_cwd, workspace) = pinned_workspace();
     fs::create_dir(workspace.join("patches")).expect("create the patches dir");
@@ -323,7 +320,6 @@ fn a_moved_patched_workspace_is_up_to_date_until_its_patch_is_edited() {
 fn assert_state_recorded_at(dir: &Path) {
     let state = load_workspace_state(dir).expect("read the state").expect("a workspace state");
     let keys: Vec<&String> = state.projects.keys().collect();
-    dbg!(&keys);
     assert_eq!(keys, [&dir.to_string_lossy().into_owned()]);
 }
 
@@ -413,7 +409,6 @@ fn moved_tree_with_a_stale_slot_bin_is_not_up_to_date() {
     drop(temp_cwd);
 }
 
-/// The shim for `@pnpm.e2e/hello-world-js-bin` in its parent's slot.
 const SLOT_SHIM: &str = "node_modules/.pnpm/@pnpm.e2e+hello-world-js-bin-parent@1.0.0/node_modules/@pnpm.e2e/hello-world-js-bin-parent/node_modules/.bin/hello-world-js-bin";
 
 fn make_shims_absolute_and_move(location: &Path, name: &str) -> PathBuf {
