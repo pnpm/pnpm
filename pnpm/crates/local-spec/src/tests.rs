@@ -202,3 +202,18 @@ fn reads_a_post_protocol_slash_the_way_the_resolver_does() {
         Some("file:../../deps/x"),
     );
 }
+
+/// Each step the [`normalize_specifier`] doc claims, checked against it.
+#[test]
+fn normalizes_a_specifier_as_documented() {
+    use super::normalize_specifier;
+
+    assert_eq!(normalize_specifier(r"deps\x"), "deps/x", "step 1: backslashes");
+    assert_eq!(normalize_specifier("file:./deps/x"), "./deps/x", "step 2: protocol");
+    assert_eq!(normalize_specifier("file:///C:/pkg"), "C:/pkg", "step 3: upper-case drive");
+    assert_eq!(normalize_specifier("file:///c:/pkg"), "c:/pkg", "step 3: lower-case drive");
+    assert_eq!(normalize_specifier("file:///abs/x"), "/abs/x", "step 4: slash restored");
+    assert_eq!(normalize_specifier("file:/./deps/x"), "./deps/x", "step 4: dot stays relative");
+    assert_eq!(normalize_specifier("file:/~/deps/x"), "~/deps/x", "step 4: tilde stays relative");
+    assert_eq!(normalize_specifier("^1.2.3"), "^1.2.3", "no protocol: step 1 alone");
+}

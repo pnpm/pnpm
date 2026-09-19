@@ -252,13 +252,20 @@ fn names_its_own_location(path: &str) -> bool {
     }
 }
 
-/// Normalize a bare specifier through this replacement chain:
+/// Normalize a specifier the way the local resolver reads one, before
+/// any of its path handling:
 ///
-/// 1. Replace all `\` with `/`.
-/// 2. Drive-letter prefix: `^(file|link|workspace):/*([A-Z]:)` → `$1`.
-/// 3. `^(file|link|workspace):(?:/*([~./]))?` → `$1`. The captured
-///    char class **includes `/`**, so a leading slash after the
-///    protocol survives (collapsed to a single one).
+/// 1. Every `\` becomes `/`.
+/// 2. A `file:` / `link:` / `workspace:` protocol is dropped, with the
+///    slashes that follow it.
+/// 3. A drive prefix left by step 2 stands on its own, in either case,
+///    so `file:///C:/pkg` reads as `C:/pkg`.
+/// 4. Otherwise, when slashes did follow the protocol, one is restored
+///    — unless what remains opens with `~` or `.`, which keeps the path
+///    relative: `file:/./deps/x` is the project's `./deps/x`, not the
+///    root's `/deps/x`.
+///
+/// A specifier carrying no such protocol gets step 1 alone.
 #[must_use]
 pub fn normalize_specifier(bare: &str) -> String {
     let forward = bare.replace('\\', "/");
