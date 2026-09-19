@@ -15,14 +15,13 @@ pub struct FetchArgs {
     /// Disable pnpm hooks defined in `.pnpmfile.cjs`, including the
     /// pnpmfiles of config dependencies.
     #[clap(long = "ignore-pnpmfile")]
-    ignore_pnpmfile: bool,
+    pub(crate) ignore_pnpmfile: bool,
 }
 
 impl FetchArgs {
     pub async fn run<Reporter: self::Reporter + 'static>(self, state: State) -> miette::Result<()> {
         let lockfile_path = state.lockfile_path();
         let mut fetch_config = (*state.config).clone();
-        fetch_config.ignore_pnpmfile = self.ignore_pnpmfile || fetch_config.ignore_pnpmfile;
         fetch_config.virtual_store_only = true;
         fetch_config.enable_modules_dir = true;
         fetch_config.apply_virtual_store_only_derivation();

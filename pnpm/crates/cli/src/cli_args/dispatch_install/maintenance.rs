@@ -3,7 +3,7 @@ use super::{
     ApproveBuildsArgs, CommandFuture, Config, Context, DedupeArgs, DedupePipeline, DefaultReporter,
     DeployArgs, DeployPipeline, EnvArgs, EnvSubcommand, FetchArgs, ImportArgs, InstallArgs,
     InstallPipeline, LinkArgs, NdjsonReporter, Path, PruneArgs, PrunePipeline, RebuildArgs,
-    ReporterType, RunCtx, RuntimeArgs, SilentReporter, State, UnlinkArgs, apply_install_cli_config,
+    ReporterType, RunCtx, RuntimeArgs, SilentReporter, UnlinkArgs, apply_install_cli_config,
     apply_update_config, derive_config_root, global, resolve_bool_override,
 };
 
@@ -119,12 +119,20 @@ pub(in super::super) fn fetch<'a>(
     ctx: &RunCtx<'a>,
     args: FetchArgs,
 ) -> miette::Result<CommandFuture<'a>> {
+    let ignore_pnpmfile = args.ignore_pnpmfile;
+    let command_state = ctx.prepared_state_with(true, move |config| {
+        config.ignore_pnpmfile |= ignore_pnpmfile;
+    });
     Ok(match ctx.reporter {
         ReporterType::Default | ReporterType::AppendOnly => {
-            Box::pin(args.run::<DefaultReporter>((ctx.loaders.state)(true)?))
+            Box::pin(async move { args.run::<DefaultReporter>(command_state.await?).await })
         }
-        ReporterType::Ndjson => Box::pin(args.run::<NdjsonReporter>((ctx.loaders.state)(true)?)),
-        ReporterType::Silent => Box::pin(args.run::<SilentReporter>((ctx.loaders.state)(true)?)),
+        ReporterType::Ndjson => {
+            Box::pin(async move { args.run::<NdjsonReporter>(command_state.await?).await })
+        }
+        ReporterType::Silent => {
+            Box::pin(async move { args.run::<SilentReporter>(command_state.await?).await })
+        }
     })
 }
 
@@ -132,14 +140,10 @@ pub(in super::super) fn import<'a>(
     ctx: &RunCtx<'a>,
     args: ImportArgs,
 ) -> miette::Result<CommandFuture<'a>> {
-    let config = (ctx.loaders.config)()?;
-    let dir = ctx.locations.dir;
-    let manifest_path = ctx.locations.manifest_path.to_path_buf();
+    let command_state = ctx.prepared_state(false);
     let reporter = ctx.reporter;
     Ok(Box::pin(async move {
-        apply_update_config(config, dir, reporter).await?;
-        let command_state =
-            State::init(manifest_path, config, false).wrap_err("initialize the state")?;
+        let command_state = command_state.await?;
         match reporter {
             ReporterType::Default | ReporterType::AppendOnly => {
                 args.run::<DefaultReporter>(command_state).await
@@ -267,13 +271,17 @@ pub(in super::super) fn runtime<'a>(
             ReporterType::Silent => Box::pin(args.run_global::<SilentReporter>(config, dir)),
         });
     }
-    let command_state = (ctx.loaders.state)(false)?;
+    let command_state = ctx.prepared_state(false);
     Ok(match ctx.reporter {
         ReporterType::Default | ReporterType::AppendOnly => {
-            Box::pin(args.run::<DefaultReporter>(command_state))
+            Box::pin(async move { args.run::<DefaultReporter>(command_state.await?).await })
         }
-        ReporterType::Ndjson => Box::pin(args.run::<NdjsonReporter>(command_state)),
-        ReporterType::Silent => Box::pin(args.run::<SilentReporter>(command_state)),
+        ReporterType::Ndjson => {
+            Box::pin(async move { args.run::<NdjsonReporter>(command_state.await?).await })
+        }
+        ReporterType::Silent => {
+            Box::pin(async move { args.run::<SilentReporter>(command_state.await?).await })
+        }
     })
 }
 
@@ -321,36 +329,28 @@ pub(in super::super) fn approve_builds<'a>(
         let config = (ctx.loaders.global_config)()?;
         return Ok(approve_global_builds(config, args, ctx.reporter));
     }
-    // The settings/prompt work is synchronous; only the rebuild is async, so
-    // the non-`Send` `config` / `state` closures stay out of the awaited
-    // future.
-    let prepared = match ctx.reporter {
-        ReporterType::Default | ReporterType::AppendOnly => args.prepare::<DefaultReporter>(
-            ctx.locations.dir,
-            ctx.loaders.config,
-            ctx.loaders.state,
-        ),
-        ReporterType::Ndjson => {
-            args.prepare::<NdjsonReporter>(ctx.locations.dir, ctx.loaders.config, ctx.loaders.state)
-        }
-        ReporterType::Silent => {
-            args.prepare::<SilentReporter>(ctx.locations.dir, ctx.loaders.config, ctx.loaders.state)
-        }
-    };
-    let Some((rebuild_state, build_packages)) = prepared? else {
-        return Ok(Box::pin(std::future::ready(Ok(()))));
-    };
-    let selected = rebuild::RebuildSelection { names: Some(build_packages), projects: Vec::new() };
+    let config = ctx.prepared_config();
+    let dir = ctx.locations.dir;
+    let manifest_path = ctx.locations.manifest_path;
+    macro_rules! run_approve_builds {
+        ($reporter:ty) => {
+            Box::pin(async move {
+                let config = config.await?;
+                let Some((rebuild_state, build_packages)) =
+                    args.prepare::<$reporter>(dir, config, config, manifest_path)?
+                else {
+                    return Ok(());
+                };
+                let selected =
+                    rebuild::RebuildSelection { names: Some(build_packages), projects: Vec::new() };
+                rebuild::run_rebuild::<$reporter>(&rebuild_state, selected, None).await
+            })
+        };
+    }
     Ok(match ctx.reporter {
-        ReporterType::Default | ReporterType::AppendOnly => Box::pin(async move {
-            rebuild::run_rebuild::<DefaultReporter>(&rebuild_state, selected, None).await
-        }),
-        ReporterType::Ndjson => Box::pin(async move {
-            rebuild::run_rebuild::<NdjsonReporter>(&rebuild_state, selected, None).await
-        }),
-        ReporterType::Silent => Box::pin(async move {
-            rebuild::run_rebuild::<SilentReporter>(&rebuild_state, selected, None).await
-        }),
+        ReporterType::Default | ReporterType::AppendOnly => run_approve_builds!(DefaultReporter),
+        ReporterType::Ndjson => run_approve_builds!(NdjsonReporter),
+        ReporterType::Silent => run_approve_builds!(SilentReporter),
     })
 }
 
