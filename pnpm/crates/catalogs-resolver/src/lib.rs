@@ -23,8 +23,8 @@ pub struct WantedDependency {
     pub bare_specifier: String,
 }
 
-/// Which directory a `file:` / `link:` catalog entry's relative path is
-/// measured from once resolved.
+/// Which directory a catalog entry's relative path is measured from
+/// once resolved.
 ///
 /// A catalog is written in `pnpm-workspace.yaml`, so its relative paths
 /// start at the workspace directory, while every consumer reads a
@@ -128,14 +128,20 @@ pub fn resolve_from_catalog(
     })
 }
 
-/// Move a `file:` / `link:` entry from the workspace directory to the
-/// directory that consumes it. Every other specifier is independent of
-/// where it was written, so it passes through.
+/// Move an entry naming a local path from the workspace directory to
+/// the directory that consumes it. Every other specifier is independent
+/// of where it was written, so it passes through.
+///
+/// A bare path (`./tarballs/x.tgz`) moves with the protocol forms: it
+/// means the same thing to the resolver as `file:./tarballs/x.tgz`, so
+/// a catalog cannot measure the two from different directories. Only
+/// the shapes that can *only* be a local path move; a git shorthand
+/// such as `user/repo` is left alone.
 fn anchored_specifier(catalog_lookup: &str, anchor: CatalogAnchor<'_>) -> String {
     let CatalogAnchor::Reanchor { workspace_dir, consumer_dir } = anchor else {
         return catalog_lookup.to_string();
     };
-    LocalSpec::parse(catalog_lookup, workspace_dir)
+    LocalSpec::parse_filesystem(catalog_lookup, workspace_dir)
         .map_or_else(|| catalog_lookup.to_string(), |spec| spec.render(consumer_dir))
 }
 

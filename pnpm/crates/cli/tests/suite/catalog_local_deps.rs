@@ -236,6 +236,40 @@ fn packing_a_nested_project_reanchors_its_local_catalog_entries() {
     drop((root, npmrc_info));
 }
 
+/// A bare path means the same thing to the resolver as its `file:`
+/// form, so a catalog cannot measure the two from different
+/// directories. Left project-relative, the entry resolved against the
+/// root project and failed for every nested one.
+#[test]
+fn a_bare_local_path_entry_resolves_from_the_workspace_directory() {
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    let project = "projects/nested/bar";
+    workspace_with_local_catalog(&workspace, &[project]);
+    let yaml = fs::read_to_string(workspace.join("pnpm-workspace.yaml"))
+        .expect("read pnpm-workspace.yaml")
+        .replace(&format!("file:./{TARBALL}"), &format!("./{TARBALL}"));
+    fs::write(workspace.join("pnpm-workspace.yaml"), yaml).expect("write pnpm-workspace.yaml");
+
+    pacquet
+        .with_arg("install")
+        .assert()
+        .success();
+
+    assert_eq!(
+        installed_version(&workspace.join(project), "pkg-from-tarball"),
+        "1.0.0",
+        "a bare catalog path must name the same tarball its `file:` form does",
+    );
+
+    drop((root, npmrc_info));
+}
+
 fn read_packed_manifest(tarball: &Path) -> serde_json::Value {
     use std::io::Read as _;
 

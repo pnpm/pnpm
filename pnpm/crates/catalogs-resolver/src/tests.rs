@@ -197,3 +197,18 @@ fn leaves_a_registry_entry_alone_while_reanchoring() {
     assert_eq!(reanchored("workspace:*", Some("packages/foo")), "workspace:*");
     assert_eq!(reanchored("npm:other@^1", Some("packages/foo")), "npm:other@^1");
 }
+
+#[test]
+fn reanchors_a_bare_local_path_entry_on_the_consuming_project() {
+    assert_eq!(
+        reanchored("./tarballs/bar-1.0.0.tgz", Some("packages/foo")),
+        "../../tarballs/bar-1.0.0.tgz",
+    );
+}
+
+/// A shape that need not be a local path keeps its own meaning: a
+/// hosted-git shorthand is not a directory in the workspace.
+#[test]
+fn leaves_a_git_shorthand_entry_alone_while_reanchoring() {
+    assert_eq!(reanchored("user/repo", Some("packages/foo")), "user/repo");
+}

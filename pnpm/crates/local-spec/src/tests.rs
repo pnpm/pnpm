@@ -69,3 +69,31 @@ fn leaves_a_home_relative_specifier_alone() {
         assert_eq!(render(specifier, None), specifier);
     }
 }
+
+fn render_filesystem(specifier: &str, consumer: Option<&str>) -> Option<String> {
+    let consumer = consumer.map(|dir| root().join(dir));
+    LocalSpec::parse_filesystem(specifier, root()).map(|spec| spec.render(consumer.as_deref()))
+}
+
+#[test]
+fn reanchors_a_bare_path_the_way_it_reanchors_the_protocol_form() {
+    assert_eq!(
+        render_filesystem("./tarballs/x.tgz", Some("packages/foo")).as_deref(),
+        Some("../../tarballs/x.tgz"),
+    );
+    assert_eq!(render_filesystem("x.tgz", Some("packages/foo")).as_deref(), Some("../../x.tgz"));
+}
+
+/// Re-anchoring can drop a leading `./`, and a bare `<segment>/<segment>`
+/// reads as a hosted-git shorthand rather than a path.
+#[test]
+fn keeps_a_reanchored_bare_path_unambiguously_local() {
+    assert_eq!(render_filesystem("./libs/x", Some(".")).as_deref(), Some("./libs/x"));
+}
+
+#[test]
+fn declines_a_shape_that_need_not_be_a_local_path() {
+    for specifier in ["user/repo", "^1.2.3", "npm:other@^1", "catalog:", "workspace:*"] {
+        assert_eq!(render_filesystem(specifier, Some("packages/foo")), None, "{specifier}");
+    }
+}
