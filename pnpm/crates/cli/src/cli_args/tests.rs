@@ -67,14 +67,15 @@ fn progress_is_a_universal_global_option() {
         (["pacquet", "install", "--no-progress"].as_slice(), false, true),
     ] {
         let parsed = CliArgs::try_parse_from(argv).expect("parses progress option");
-        assert_eq!(parsed.progress, progress);
-        assert_eq!(parsed.no_progress, no_progress);
+        assert_eq!(parsed.output.presentation.progress, progress);
+        assert_eq!(parsed.output.presentation.no_progress, no_progress);
     }
 
+    // The mutual `overrides_with` collapses a repeated pair to the last one.
     let enabled = CliArgs::try_parse_from(["pacquet", "install", "--no-progress", "--progress"])
         .expect("parses --progress");
-    assert!(enabled.progress);
-    assert!(!enabled.no_progress);
+    assert!(enabled.output.presentation.progress);
+    assert!(!enabled.output.presentation.no_progress);
 }
 
 #[test]

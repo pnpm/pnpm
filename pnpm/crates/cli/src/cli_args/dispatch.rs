@@ -141,8 +141,9 @@ impl CliArgs {
         configure_max_log_level(self.output.presentation.loglevel);
     }
 
-    /// Resolve whether progress is rendered, from `--progress` /
-    /// `--no-progress` over the loaded `progress` setting.
+    /// Resolve whether progress is rendered: `--progress` /
+    /// `--no-progress` over `config`, which is the loaded `progress`
+    /// setting, or its default where the configuration is not read yet.
     fn progress_enabled(&self, config: bool) -> bool {
         resolve_bool_override(
             self.output.presentation.progress,

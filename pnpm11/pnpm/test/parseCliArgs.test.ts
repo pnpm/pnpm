@@ -46,12 +46,3 @@ test('remove takes --unsafe-perm in every spelling, before and after the command
     expect(unknownOptions.size).toBe(0)
   }
 })
-
-test('progress is a global option', async () => {
-  const [before, after] = await Promise.all([
-    parseCliArgs(['--no-progress', 'install']),
-    parseCliArgs(['install', '--no-progress']),
-  ])
-  expect(before.options.progress).toBe(false)
-  expect(after.options.progress).toBe(false)
-})

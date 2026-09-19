@@ -1,9 +1,5 @@
 ---
-"@pnpm/cli.common-cli-options-help": minor
-"@pnpm/cli.default-reporter": minor
-"@pnpm/config.reader": minor
 "pacquet": minor
-"pnpm": minor
 ---
 
-Added `--no-progress` and the `progress` setting to disable dependency and download progress while keeping other output.
+Added a `progress` setting and a `--no-progress` option that turn off the dependency and download progress lines. Warnings, lifecycle output, and the dependency summary are still printed.

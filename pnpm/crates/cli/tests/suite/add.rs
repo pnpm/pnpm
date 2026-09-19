@@ -352,8 +352,13 @@ fn add_can_disable_progress_output() {
             true,
         ),
     ] {
-        let CommandTempCwd { mut pacquet, root, workspace, npmrc_info, .. } =
-            CommandTempCwd::init().add_mocked_registry();
+        let CommandTempCwd {
+            mut pacquet,
+            root,
+            workspace,
+            npmrc_info,
+            ..
+        } = CommandTempCwd::init().add_mocked_registry();
         if let Some((key, value)) = env {
             pacquet.env(key, value);
         }
@@ -361,7 +366,10 @@ fn add_can_disable_progress_output() {
             append_workspace_yaml_key(&workspace, "progress", false);
         }
 
-        let output = pacquet.with_args(args).output().expect("run pacquet add");
+        let output = pacquet
+            .with_args(args)
+            .output()
+            .expect("run pacquet add");
         let stdout = String::from_utf8_lossy(&output.stdout);
         let stderr = String::from_utf8_lossy(&output.stderr);
         assert!(output.status.success(), "{name} failed\nstdout:\n{stdout}\nstderr:\n{stderr}");
@@ -373,6 +381,32 @@ fn add_can_disable_progress_output() {
 
         drop((root, npmrc_info));
     }
+}
+
+#[test]
+fn add_progress_flag_overrides_the_disabled_setting() {
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    append_workspace_yaml_key(&workspace, "progress", false);
+
+    let output = pacquet
+        .with_args(["--reporter=append-only", "add", "@pnpm.e2e/hello-world-js-bin", "--progress"])
+        .output()
+        .expect("run pacquet add");
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(output.status.success(), "add failed\nstdout:\n{stdout}\nstderr:\n{stderr}");
+    assert!(
+        stdout.contains("Progress:"),
+        "--progress should win over `progress: false`:\n{stdout}",
+    );
+
+    drop((root, npmrc_info));
 }
 
 fn prod_spec(dir: &std::path::Path, name: &str) -> String {

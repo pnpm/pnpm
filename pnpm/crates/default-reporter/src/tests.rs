@@ -3,7 +3,7 @@ use pnpm_reporter::{
     PromptAction, StatsLog, StatsMessage,
 };
 
-use super::{LogEvent, Output, Sink, is_coalesceable};
+use super::{LogEvent, Output, Sink, is_coalesceable, progress, set_progress};
 
 #[test]
 fn progress_and_in_progress_downloads_coalesce() {
@@ -23,6 +23,40 @@ fn progress_and_in_progress_downloads_coalesce() {
     });
     assert!(is_coalesceable(&progress));
     assert!(is_coalesceable(&downloading));
+}
+
+/// The gate reads a process-global flag. It is restored before the
+/// assertions, so a failing one cannot leave progress off for whatever
+/// else shares the process.
+#[test]
+fn disabled_progress_drops_only_the_progress_streams() {
+    let resolved = LogEvent::Progress(ProgressLog {
+        level: LogLevel::Debug,
+        message: ProgressMessage::Resolved {
+            package_id: "foo".to_string(),
+            requester: "/repo".to_string(),
+        },
+    });
+    let downloading = LogEvent::FetchingProgress(FetchingProgressLog {
+        level: LogLevel::Debug,
+        message: FetchingProgressMessage::InProgress {
+            downloaded: 1,
+            package_id: "foo".to_string(),
+        },
+    });
+    let stats = LogEvent::Stats(StatsLog {
+        level: LogLevel::Debug,
+        message: StatsMessage::Added { prefix: "/repo".to_string(), added: 1 },
+    });
+
+    assert!(!progress::is_suppressed(&resolved));
+
+    set_progress(false);
+    let suppressed = [&resolved, &downloading, &stats].map(progress::is_suppressed);
+    set_progress(true);
+
+    assert_eq!(suppressed, [true, true, false]);
+    assert!(!progress::is_suppressed(&resolved));
 }
 
 #[test]

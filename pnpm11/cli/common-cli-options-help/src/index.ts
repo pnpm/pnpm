@@ -151,9 +151,5 @@ export const OUTPUT_OPTIONS = {
       description: 'The most verbose reporter. Prints all logs in ndjson format',
       name: '--reporter ndjson',
     },
-    {
-      description: 'Disable dependency and download progress output',
-      name: '--no-progress',
-    },
   ],
 }

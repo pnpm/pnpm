@@ -19,12 +19,13 @@ pub mod diff;
 pub mod format;
 pub mod state;
 
+pub use progress::set_progress;
+
+mod progress;
+
 use std::{
     io::{IsTerminal, Write},
-    sync::{
-        LazyLock, Mutex, OnceLock,
-        atomic::{AtomicBool, Ordering},
-    },
+    sync::{LazyLock, Mutex, OnceLock},
     time::{Duration, Instant},
 };
 
@@ -51,7 +52,6 @@ static HIDE_LIFECYCLE_PREFIX: OnceLock<bool> = OnceLock::new();
 static IS_RECURSIVE: OnceLock<bool> = OnceLock::new();
 static MAX_LOG_LEVEL: OnceLock<MaxLogLevel> = OnceLock::new();
 static COLOR_MODE: OnceLock<ColorMode> = OnceLock::new();
-static PROGRESS_ENABLED: AtomicBool = AtomicBool::new(true);
 
 /// Verbosity ceiling for the rendered output, from pnpm's `--loglevel`
 /// setting. Mirrors `LOG_LEVEL_NUMBER` in `@pnpm/cli.default-reporter`
@@ -188,14 +188,6 @@ pub fn colors_enabled(is_terminal: bool) -> bool {
     }
 }
 
-/// Configure whether dependency and download progress is rendered.
-///
-/// Unlike the reporter's structural settings, this may be updated after
-/// initialization because project config is loaded lazily.
-pub fn set_progress(progress: bool) {
-    PROGRESS_ENABLED.store(progress, Ordering::Relaxed);
-}
-
 fn cwd() -> String {
     CWD.get()
         .cloned()
@@ -212,9 +204,7 @@ pub struct DefaultReporter;
 
 impl Reporter for DefaultReporter {
     fn emit(event: &LogEvent) {
-        if !PROGRESS_ENABLED.load(Ordering::Relaxed)
-            && matches!(event, LogEvent::Progress(_) | LogEvent::FetchingProgress(_))
-        {
+        if progress::is_suppressed(event) {
             return;
         }
         let mut sink = SINK.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
