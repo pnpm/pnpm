@@ -64,13 +64,13 @@ pub(crate) mod timestamps;
 pub(crate) use conflict_markers::{
     LockfileConflictCheckFailure, first_lockfile_requiring_conflict_safe_install,
 };
+pub(crate) use current_lockfile::materialized_shape_matches;
 pub use deps_status::{RunDepsStatus, check_deps_status_before_run};
 pub(crate) use local_file_deps::{
     has_local_file_dep_requiring_install, has_local_file_override, has_local_file_package_extension,
 };
 pub(crate) use manifest_agreement::{
-    ManifestStat, materialized_shape_matches, modified_manifests_match_lockfile, stat_manifests,
-    unstatted_manifests,
+    ManifestStat, modified_manifests_match_lockfile, stat_manifests, unstatted_manifests,
 };
 pub(crate) use relocation::recorded_elsewhere;
 pub(crate) use settings::{
@@ -83,6 +83,7 @@ pub(crate) use timestamps::{
     validation_baseline_ms, wanted_lockfile_mtime,
 };
 
+mod current_lockfile;
 mod relocation;
 mod settle;
 use settle::{

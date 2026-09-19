@@ -4,8 +4,8 @@
 
 use super::{
     Decision, Host, Lockfile, ManifestDrift, OptimisticRepeatInstallCheck, PackageManifest, Path,
-    PathBuf, WorkspaceState, current_pnpmfiles, filesystem_now_ms,
-    manifest_agreement::{assert_loaded_current_lockfile_records, check_projects_content},
+    PathBuf, WorkspaceState, current_lockfile::assert_loaded_current_lockfile_records,
+    current_pnpmfiles, filesystem_now_ms, manifest_agreement::check_projects_content,
     project_structure_matches, settle_repeat_install,
 };
 
