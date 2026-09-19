@@ -74,6 +74,11 @@ fn known_immature(
 /// maturity, because `filter_pkg_metadata_by_publish_date` drops every version
 /// it cannot date. Recommending a version wants this direction, so pnpm never
 /// names one the pick would then refuse.
+///
+/// Abbreviated metadata carries no per-version timestamps, and the pick admits
+/// every version there once `modified` proves the whole document predates the
+/// cutoff. This follows it, so a package that resolved from abbreviated
+/// metadata still gets told where to go.
 pub(super) fn installable_under_policy(
     meta: &Package,
     version: &str,
@@ -81,11 +86,19 @@ pub(super) fn installable_under_policy(
     published_by_exclude: Option<&PackageVersionPolicy>,
 ) -> bool {
     let Some(cutoff) = published_by else { return true };
-    policy_trusts(meta, version, published_by_exclude)
-        || matches!(
-            meta.published_at(version).and_then(parse_packument_timestamp),
-            Some(published_at) if published_at <= cutoff,
-        )
+    if policy_trusts(meta, version, published_by_exclude) {
+        return true;
+    }
+    if meta.time.is_none() {
+        return matches!(
+            meta.modified.as_deref().and_then(parse_packument_timestamp),
+            Some(modified) if modified <= cutoff,
+        );
+    }
+    matches!(
+        meta.published_at(version).and_then(parse_packument_timestamp),
+        Some(published_at) if published_at <= cutoff,
+    )
 }
 
 /// Resolver-time `minimumReleaseAge` check. Returns a violation entry

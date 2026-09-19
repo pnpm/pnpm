@@ -73,6 +73,24 @@ test('keeps a version with no timestamp when the policy trusts it', () => {
   expect(findNonDeprecatedAlternative(meta, range('^1.0.0'), opts)?.version).toBe('2.0.0')
 })
 
+// Abbreviated metadata has no `time` map at all. The pick admits every
+// version once `modified` predates the cutoff, so the hint must not vanish.
+test('falls back to modified when the packument carries no time map', () => {
+  const meta = metaWith({ '1.0.0': true, '2.0.0': false })
+  ;(meta as { modified?: string }).modified = '2020-01-01T00:00:00.000Z'
+  const opts = { publishedBy: new Date('2025-01-01T00:00:00.000Z') }
+  expect(findNonDeprecatedAlternative(meta, range('^1.0.0'), opts)?.version).toBe('2.0.0')
+})
+
+// `modified` past the cutoff proves nothing about individual versions, and the
+// pick refuses to guess, so neither does the hint.
+test('names nothing when modified is past the cutoff', () => {
+  const meta = metaWith({ '1.0.0': true, '2.0.0': false })
+  ;(meta as { modified?: string }).modified = '2030-01-01T00:00:00.000Z'
+  const opts = { publishedBy: new Date('2025-01-01T00:00:00.000Z') }
+  expect(findNonDeprecatedAlternative(meta, range('^1.0.0'), opts)).toBeUndefined()
+})
+
 test('is undefined when every admissible version is deprecated', () => {
   expect(findNonDeprecatedAlternative(metaWith({ '1.0.0': true, '2.0.0': true }), range('*'), {})).toBeUndefined()
 })

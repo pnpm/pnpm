@@ -444,7 +444,15 @@ export function installableUnderPolicy (
 ): boolean {
   if (!opts.publishedBy) return true
   if (policyTrusts(meta, version, opts)) return true
-  const publishedAt = meta.time?.[version]
+  if (meta.time == null) {
+    // Abbreviated metadata carries no per-version timestamps, and the pick
+    // admits every version here once `modified` proves the whole document
+    // predates the cutoff. Follow it, so a package that resolved from
+    // abbreviated metadata still gets told where to go.
+    const modified = parseModifiedDate(meta.modified)
+    return modified != null && modified <= opts.publishedBy
+  }
+  const publishedAt = meta.time[version]
   if (publishedAt == null) return false
   const ts = new Date(publishedAt).getTime()
   return !Number.isNaN(ts) && ts <= opts.publishedBy.getTime()
