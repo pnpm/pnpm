@@ -70,6 +70,8 @@ mod workspace_settings;
 
 mod reporting;
 
+mod tag_version_prefix;
+
 mod integrity;
 
 mod dependencies;

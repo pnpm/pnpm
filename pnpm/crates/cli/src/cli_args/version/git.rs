@@ -57,12 +57,17 @@ fn run_git(cwd: &Path, args: &[&str]) -> miette::Result<()> {
 impl VersionArgs {
     /// Stage the bumped manifest and record the bump as a commit plus an
     /// annotated (or signed) tag, mirroring the TypeScript `commitAndTag`.
-    pub(super) fn commit_and_tag(&self, change: &VersionChange, cwd: &Path) -> miette::Result<()> {
+    pub(super) fn commit_and_tag(
+        &self,
+        change: &VersionChange,
+        cwd: &Path,
+        tag_version_prefix: &str,
+    ) -> miette::Result<()> {
         let message = self.git.message
             .as_deref()
             .unwrap_or("%s")
             .replace("%s", &change.new_version);
-        let tag_name = format!("{}{}", self.git.tag_version_prefix, change.new_version);
+        let tag_name = format!("{tag_version_prefix}{}", change.new_version);
 
         let Ok(relative) = change.manifest_path.strip_prefix(cwd) else {
             return Err(VersionError::InvalidManifestPath {
