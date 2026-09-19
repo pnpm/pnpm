@@ -57,7 +57,8 @@ impl CargoCache {
             project,
             &BTreeMap::new(),
         )?;
-        let locks = Path::new(common.trim()).join("pnpm-cargo-locks");
+        let common = dunce::canonicalize(common.trim())?;
+        let locks = common.join("pnpm-cargo-locks");
         fs::create_dir_all(&locks)?;
         let lock = OpenOptions::new()
             .read(true)
@@ -202,29 +203,32 @@ pub(super) fn snapshot_entry(
     task_key: &str,
     environment: &BTreeMap<String, String>,
 ) -> io::Result<(PathBuf, String, Vec<String>)> {
+    let cache_dir = pnpm_fs::realpath_missing(cache_dir)?;
+    let project = dunce::canonicalize(project).unwrap_or_else(|_| project.to_path_buf());
     let repo = PathBuf::from(
-        command_output("git", &["rev-parse", "--show-toplevel"], project, environment)?.trim(),
+        command_output("git", &["rev-parse", "--show-toplevel"], &project, environment)?.trim(),
     );
+    let repo = dunce::canonicalize(&repo).unwrap_or(repo);
     let common = command_output(
         "git",
         &["rev-parse", "--path-format=absolute", "--git-common-dir"],
-        project,
+        &project,
         environment,
     )?;
     let common = dunce::canonicalize(common.trim())?;
     let mut inputs = vec!["pnpm-cargo-state:v1".to_string(), task_key.to_string()];
-    inputs.push(command_output("rustc", &["-vV"], project, environment)?);
-    inputs.push(command_output("cargo", &["-vV"], project, environment)?);
+    inputs.push(command_output("rustc", &["-vV"], &project, environment)?);
+    inputs.push(command_output("cargo", &["-vV"], &project, environment)?);
     let metadata: serde_json::Value = serde_json::from_str(&command_output(
         "cargo",
         &["metadata", "--format-version=1", "--locked", "--offline"],
-        project,
+        &project,
         environment,
     )?)?;
     let local_packages = local_packages_in_repo(&metadata, &repo)?;
     inputs.push(serde_json::to_string(environment)?);
     add_repository_inputs(&repo, environment, &mut inputs)?;
-    add_config_inputs(project, environment, &mut inputs)?;
+    add_config_inputs(&project, environment, &mut inputs)?;
     let key = create_hex_hash(&serde_json::to_string(&inputs)?);
     let scope = create_hex_hash(&common.to_string_lossy());
     Ok((
@@ -365,10 +369,12 @@ pub(super) fn cache_environment(
 }
 
 fn add_config(path: &Path, project: &Path, inputs: &mut Vec<String>) -> io::Result<()> {
-    match create_hex_hash_from_file(path) {
+    let canonical_path = dunce::canonicalize(path).unwrap_or_else(|_| path.to_path_buf());
+    let canonical_project = dunce::canonicalize(project).unwrap_or_else(|_| project.to_path_buf());
+    match create_hex_hash_from_file(&canonical_path) {
         Ok(hash) => {
-            let relative =
-                pathdiff::diff_paths(path, project).unwrap_or_else(|| path.to_path_buf());
+            let relative = pathdiff::diff_paths(&canonical_path, &canonical_project)
+                .unwrap_or_else(|| canonical_path.to_path_buf());
             inputs.push(format!("cargo-config:{}:{hash}", relative.display()));
         }
         Err(error) if error.kind() == io::ErrorKind::NotFound => {}

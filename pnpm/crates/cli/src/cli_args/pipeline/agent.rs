@@ -123,8 +123,8 @@ fn poll_and_build(
 /// for a remote it cannot name.
 fn repo_basename(repo: &str) -> String {
     let tail = repo
-        .trim_end_matches('/')
-        .rsplit(['/', ':'])
+        .trim_end_matches(['/', '\\'])
+        .rsplit(['/', '\\', ':'])
         .next()
         .unwrap_or_default()
         .trim_end_matches(".git");
