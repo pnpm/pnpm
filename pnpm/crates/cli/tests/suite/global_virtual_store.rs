@@ -908,6 +908,13 @@ fn adding_a_dependency_over_a_warm_layout_cache_still_hashes_its_slot() {
     drop((root, mock_instance));
 }
 
+/// Not on Windows: every test here runs a package build under the global
+/// virtual store, and pnpm cannot spawn a lifecycle script from a slot
+/// there — the install fails with `os error 267`, the OS rejecting the
+/// working directory it is handed. Tracked in
+/// <https://github.com/pnpm/pnpm/issues/15111>; the rest of this suite
+/// runs everywhere.
+#[cfg(not(windows))]
 mod builds;
 
 mod layout;
