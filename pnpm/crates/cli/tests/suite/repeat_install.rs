@@ -57,6 +57,10 @@ fn reinstalls_missing_packages_during_headless_install() {
 
     let dep_location =
         workspace.join("node_modules/.pnpm/is-positive@1.0.0/node_modules/is-positive");
+    // Resolve the path while it still exists: Windows hands the tests a
+    // temporary directory under its 8.3 short name, and the reporter
+    // names the long one.
+    let resolved_dep_location = canonical_path(&dep_location);
     fs::remove_dir_all(&dep_location).expect("remove the virtual-store copy");
     // `remove_dirent` rather than `remove_file`: the direct dep is a
     // junction on Windows, which `DeleteFileW` refuses.
@@ -76,7 +80,7 @@ fn reinstalls_missing_packages_during_headless_install() {
     // escaped. Build the needle the way the reporter wrote it instead of
     // matching the raw path, which no Windows event would contain.
     let reported_dep_location =
-        serde_json::to_string(&dep_location).expect("serialize the missing path");
+        serde_json::to_string(&resolved_dep_location).expect("serialize the missing path");
     assert!(
         second_events.contains(reported_dep_location.trim_matches('"')),
         "the event must carry the missing path {reported_dep_location}: {second_events}",
