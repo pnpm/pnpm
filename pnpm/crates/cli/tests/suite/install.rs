@@ -738,8 +738,8 @@ fn set_dir_modes(path: &std::path::Path, mode: u32) {
     fs::set_permissions(path, fs::Permissions::from_mode(mode)).expect("set directory mode");
 }
 
-/// `--force` re-materializes every slot, so the repeat-install fast path
-/// must not short-circuit it on a workspace where nothing changed.
+/// The gate exists because `--force` re-materializes every slot, not only
+/// because it bypasses the platform checks.
 #[test]
 fn force_defeats_the_up_to_date_fast_path() {
     let CommandTempCwd {
