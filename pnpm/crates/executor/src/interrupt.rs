@@ -13,6 +13,13 @@
 //! terminal: the first interrupt is passed on as it arrived, the second
 //! becomes `SIGTERM`, and the third stops the waiting and lets the signal
 //! take pnpm down.
+//!
+//! A child that shares pnpm's process group has the terminal's interrupt
+//! already, so pnpm does not pass that one on: a second `SIGINT` would
+//! end a script that handles the signal once and then leaves the default
+//! action in place, before its shutdown has finished
+//! ([pnpm/pnpm#7374](https://github.com/pnpm/pnpm/issues/7374)). Only a
+//! signal aimed at pnpm alone, as `kill` does, is relayed to that child.
 
 use crate::ScriptExit;
 use std::{
@@ -220,32 +227,74 @@ fn install_handler_for(signal: libc::c_int) {
 /// `signal`, `raise`, and `_exit`.
 #[cfg(unix)]
 extern "C" fn relay_signal(signal: libc::c_int) {
+    let shared_with_group = signal == libc::SIGINT && holds_the_terminal();
     let mut still_listening = false;
     let reached = visit_targets(|entry, target| {
-        // pnpm reaps a child before releasing its entry, so an entry that
-        // has turned over since the walk read it names a process pnpm no
-        // longer owns. Leave it alone, and leave the child that took the
-        // entry its own first interrupt.
-        if entry.target.load(Ordering::Acquire) != target {
-            return;
-        }
-        let step = entry.relays.fetch_add(1, Ordering::Relaxed);
-        if step >= RELAYED_INTERRUPTS {
-            return;
-        }
-        still_listening = true;
-        let relayed = if step == 0 { signal } else { libc::SIGTERM };
-        // SAFETY: `target` is a child pnpm spawned, or that child's
-        // process group. `ESRCH` from one that exited concurrently is
-        // harmless.
-        unsafe {
-            libc::kill(target, relayed);
-        }
+        still_listening |= relay_to(entry, target, signal, shared_with_group);
     });
     // Nothing left to wait for, or every child has had its interrupt and
     // its `SIGTERM` and sat through both.
     if !reached || !still_listening {
         die_from(signal);
+    }
+}
+
+/// Relay `signal`, or the escalation the child holding `entry` has
+/// reached, and report whether pnpm keeps waiting for that child.
+///
+/// `shared_with_group` says the terminal delivered `signal` to pnpm's
+/// whole process group. A positive target is a child in that group, so
+/// it has the signal already and only the escalation is passed on.
+#[cfg(unix)]
+fn relay_to(entry: &RelayEntry, target: i32, signal: libc::c_int, shared_with_group: bool) -> bool {
+    // pnpm reaps a child before releasing its entry, so an entry that
+    // has turned over since the walk read it names a process pnpm no
+    // longer owns. Leave it alone, and leave the child that took the
+    // entry its own first interrupt.
+    if entry.target.load(Ordering::Acquire) != target {
+        return false;
+    }
+    let step = entry.relays.fetch_add(1, Ordering::Relaxed);
+    if step >= RELAYED_INTERRUPTS {
+        return false;
+    }
+    if step == 0 && target > 0 && shared_with_group {
+        return true;
+    }
+    let relayed = if step == 0 { signal } else { libc::SIGTERM };
+    // SAFETY: `target` is a child pnpm spawned, or that child's process
+    // group. `ESRCH` from one that exited concurrently is harmless.
+    unsafe {
+        libc::kill(target, relayed);
+    }
+    true
+}
+
+/// Whether pnpm's process group is the foreground group of its
+/// controlling terminal, the group a `Ctrl+C` there interrupts as a whole.
+///
+/// The kernel does not say who sent a signal in a way every platform
+/// agrees on (Linux marks the terminal's with `SI_KERNEL`, macOS marks
+/// nothing), so the terminal is asked instead. A `kill` aimed at pnpm
+/// alone while it holds the terminal is taken for the terminal's, and its
+/// children get their signal on the next interrupt. Without a controlling
+/// terminal, under a service manager or in a container, nothing but
+/// `kill` can reach pnpm, and every signal is relayed.
+///
+/// `open`, `tcgetpgrp`, `getpgrp` and `close` are async-signal-safe.
+#[cfg(unix)]
+fn holds_the_terminal() -> bool {
+    // SAFETY: the path is a NUL-terminated literal, and the descriptor is
+    // closed before it can leak, whatever `tcgetpgrp` reports.
+    unsafe {
+        let tty =
+            libc::open(c"/dev/tty".as_ptr(), libc::O_RDONLY | libc::O_NOCTTY | libc::O_CLOEXEC);
+        if tty < 0 {
+            return false;
+        }
+        let foreground = libc::tcgetpgrp(tty);
+        libc::close(tty);
+        foreground == libc::getpgrp()
     }
 }
 
