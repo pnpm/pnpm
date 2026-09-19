@@ -83,6 +83,8 @@ export function relaySignals (child: SignalTarget, opts: RelaySignalsOptions): S
         if (relayed && opts.ownProcessGroup && child.pid != null) {
           await waitForProcessGroup(child.pid)
         }
+      } catch {
+        // The group cannot be observed, so there is nothing to wait on.
       } finally {
         process.removeListener('SIGTERM', onTerm)
         process.removeListener('SIGINT', terminate)
