@@ -1,3 +1,4 @@
+import { spawnSync } from 'node:child_process'
 import fs from 'node:fs'
 import path from 'node:path'
 
@@ -6,7 +7,7 @@ import { prepare, preparePackages } from '@pnpm/prepare'
 import isWindows from 'is-windows'
 import { writeYamlFileSync } from 'write-yaml-file'
 
-import { execPnpm, execPnpmSync } from './utils/index.js'
+import { execPnpm, execPnpmSync, pnpmBinLocation } from './utils/index.js'
 
 const RECORD_ARGS_FILE = 'require(\'fs\').writeFileSync(\'args.json\', JSON.stringify(require(\'./args.json\').concat([process.argv.slice(2)])), \'utf8\')'
 const testOnPosix = isWindows() ? test.skip : test
@@ -305,4 +306,54 @@ test('regex selector skips hidden scripts', () => {
   expect(result.status).toBe(0)
   expect(result.stdout.toString()).toContain('visible')
   expect(result.stdout.toString()).not.toContain('hidden')
+})
+
+// A script that reads a repeated interrupt as an order to stop at once, as
+// many CLIs do: the first starts a graceful shutdown, the second forces an exit.
+const COUNTING_SCRIPT = `const fs = require('node:fs')
+let interrupts = 0
+process.on('SIGINT', () => {
+  interrupts += 1
+  if (interrupts > 1) {
+    fs.writeFileSync('forced.txt', '')
+    process.exit(130)
+  }
+  setTimeout(() => {
+    fs.writeFileSync('shut-down.txt', '')
+    process.exit(0)
+  }, 1000)
+})
+fs.writeFileSync('started.txt', '')
+console.log('started')
+setInterval(() => {}, 1000)
+`
+
+// Ctrl+C interrupts the terminal's whole foreground group, so the script has
+// the signal by the time pnpm does. pnpm passes nothing on, and the script
+// counts one interrupt rather than two.
+// https://github.com/pnpm/pnpm/issues/7374
+testOnPosix('run: Ctrl+C in a terminal interrupts the script once', () => {
+  prepare({
+    name: 'project',
+    scripts: {
+      dev: 'exec node dev.js',
+    },
+  })
+  fs.writeFileSync('dev.js', COUNTING_SCRIPT, 'utf8')
+
+  const terminalScript = path.join(import.meta.dirname, '../../__utils__/scripts/terminal.py')
+  const { stdout, status, error } = spawnSync('python3', [
+    terminalScript,
+    process.execPath,
+    pnpmBinLocation,
+    'run',
+    '--config.verify-deps-before-run=false',
+    'dev',
+  ], { encoding: 'utf8', timeout: 30_000 })
+
+  expect(error).toBeUndefined()
+  expect(fs.existsSync('forced.txt')).toBe(false)
+  expect(fs.existsSync('shut-down.txt')).toBe(true)
+  expect(status).toBe(0)
+  expect(stdout).toContain('started')
 })

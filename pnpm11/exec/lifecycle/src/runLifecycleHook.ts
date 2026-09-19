@@ -3,8 +3,8 @@ import path from 'node:path'
 
 import { lifecycleLogger } from '@pnpm/core-loggers'
 import { PnpmError } from '@pnpm/error'
+import { lifecycle } from '@pnpm/exec.npm-lifecycle'
 import { globalWarn } from '@pnpm/logger'
-import { lifecycle } from '@pnpm/npm-lifecycle'
 import type { DependencyManifest, PackageScripts, ProjectManifest } from '@pnpm/types'
 import chalk from 'chalk'
 import isWindows from 'is-windows'
@@ -27,7 +27,7 @@ export interface RunLifecycleHookOptions {
   silent?: boolean
   scriptsPrependNodePath?: boolean | 'warn-only'
   shellEmulator?: boolean
-  stdio?: string
+  stdio?: 'inherit' | 'pipe'
   unsafePerm: boolean
   userAgent?: string
 }
@@ -115,7 +115,6 @@ Please unset the scriptShell option, or configure it to a .exe instead.
     ? 'silent'
     : undefined
   await lifecycle(m, stage, opts.pkgRoot, {
-    config: {},
     dir: opts.rootModulesDir,
     extraBinPaths: opts.extraBinPaths,
     extraEnv: {
