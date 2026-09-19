@@ -87,3 +87,54 @@ fn a_synthesized_git_dependency_name_is_a_usable_alias() {
         );
     }
 }
+
+#[test]
+fn test_is_same_source() {
+    use crate::add::source::is_same_source;
+    assert!(is_same_source("github:foo-org/skills#main", "github:foo-org/skills#v1", "skills"));
+    assert!(!is_same_source("github:foo-org/skills", "github:vercel-labs/skills", "skills"));
+    assert!(is_same_source("^1.0.0", "^2.0.0", "express"));
+    assert!(!is_same_source("^1.0.0", "github:vercel-labs/skills", "skills"));
+    assert!(is_same_source("npm:foo@1.0.0", "npm:foo@2.0.0", "my-foo"));
+    assert!(!is_same_source("npm:foo@1.0.0", "npm:bar@1.0.0", "my-foo"));
+    assert!(is_same_source("npm:@scope/foo@1.0.0", "npm:@scope/foo@2.0.0", "my-foo"));
+    assert!(!is_same_source("npm:@scope/foo@1.0.0", "npm:@scope/bar@1.0.0", "my-foo"));
+    assert!(is_same_source(
+        "git+https://git.example.com/repo.git#main",
+        "git+https://git.example.com/repo.git#v1",
+        "repo"
+    ));
+    assert!(!is_same_source("file:../foo", "file:../bar", "foo"));
+    assert!(is_same_source("file:../foo", "file:../foo", "foo"));
+    assert!(is_same_source("workspace:*", "workspace:^1.0.0", "my-pkg"));
+    assert!(is_same_source("catalog:default", "catalog:default", "my-pkg"));
+    assert!(!is_same_source("catalog:foo", "catalog:bar", "my-pkg"));
+    assert!(is_same_source("https://example.com/a.tgz#1", "https://example.com/a.tgz#2", "my-pkg"));
+    assert!(!is_same_source("https://example.com/a.tgz", "https://example.com/b.tgz", "my-pkg"));
+}
+
+#[test]
+fn test_collect_dependency_warnings() {
+    use crate::add::source::collect_dependency_warnings;
+    use pnpm_reporter::{LogEvent, LogLevel, PnpmLog};
+
+    let catalog_warning = LogEvent::Pnpm(PnpmLog {
+        level: LogLevel::Warn,
+        message: "catalog mismatch".to_string(),
+        prefix: "/root".to_string(),
+    });
+
+    // Both catalog warning and source warning
+    let warnings = collect_dependency_warnings(
+        Some(catalog_warning),
+        Some("^1.0.0"),
+        "github:user/repo",
+        "foo",
+        "/root",
+    );
+    assert_eq!(warnings.len(), 2);
+
+    // No source warning when source is same
+    let warnings_same = collect_dependency_warnings(None, Some("^1.0.0"), "^2.0.0", "foo", "/root");
+    assert_eq!(warnings_same.len(), 0);
+}
