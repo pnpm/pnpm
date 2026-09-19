@@ -8,8 +8,6 @@
 //! contract — slot layout, hash-directory identity across `allowBuilds`
 //! changes, build artifacts, and `.modules.yaml` state — instead of the
 //! call counts. Where that loses a signal it is called out on the test.
-//!
-#![cfg(unix)] // the GVS slot assertions read symlinks
 
 pub use _utils::*;
 
