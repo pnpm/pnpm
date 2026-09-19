@@ -1,4 +1,5 @@
 import fs from 'node:fs'
+import path from 'node:path'
 
 /**
  * Whether a child should get a process group of its own.
@@ -47,23 +48,28 @@ export function hasControllingTerminal (): boolean {
  * happens when pnpm is a container's PID 1 and inherits the orphans, so on
  * Linux such zombies are told apart through `/proc`.
  */
-export async function waitForProcessGroup (leader: number): Promise<void> {
+export async function waitForProcessGroup (leader: number, opts?: WaitForProcessGroupOptions): Promise<void> {
   const poll = async (): Promise<void> => {
-    if (!hasLiveMembers(leader)) return
+    if (!hasLiveMembers(leader, opts?.processTable ?? '/proc')) return
     await new Promise<void>((resolve) => setTimeout(resolve, 50))
     return poll()
   }
   return poll()
 }
 
-function hasLiveMembers (group: number): boolean {
+export interface WaitForProcessGroupOptions {
+  /** The process table to tell zombies apart in, `/proc` unless a test supplies its own. */
+  processTable?: string
+}
+
+function hasLiveMembers (group: number, processTable: string): boolean {
   try {
     process.kill(-group, 0)
   } catch (err: unknown) {
     if (errorCode(err) === 'ESRCH') return false
     throw err
   }
-  return process.platform !== 'linux' || hasLiveMembersInProc(group)
+  return process.platform !== 'linux' || hasLiveMembersInProc(group, processTable)
 }
 
 /**
@@ -72,12 +78,12 @@ function hasLiveMembers (group: number): boolean {
  * listing, or it belongs to another user under a restricted process table,
  * and either way it is not a member pnpm started and can observe.
  */
-function hasLiveMembersInProc (group: number): boolean {
-  return fs.readdirSync('/proc').some((entry) => {
+function hasLiveMembersInProc (group: number, processTable: string): boolean {
+  return fs.readdirSync(processTable).some((entry) => {
     if (!/^\d+$/.test(entry)) return false
     let stat: string
     try {
-      stat = fs.readFileSync(`/proc/${entry}/stat`, 'utf8')
+      stat = fs.readFileSync(path.join(processTable, entry, 'stat'), 'utf8')
     } catch {
       return false
     }
