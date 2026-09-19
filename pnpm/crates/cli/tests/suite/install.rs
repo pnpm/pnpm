@@ -381,8 +381,10 @@ fn should_install_circular_dependencies() {
     drop((root, mock_instance));
 }
 
+/// The warning names the deprecated package; the registry's notice reaches
+/// neither the terminal nor the lockfile.
 #[test]
-fn install_preserves_deprecated_lockfile_metadata_when_reusing_resolution() {
+fn install_reports_a_deprecation_without_the_notice_and_keeps_the_flag_on_reuse() {
     let CommandTempCwd {
         pacquet,
         root,
@@ -404,15 +406,28 @@ fn install_preserves_deprecated_lockfile_metadata_when_reusing_resolution() {
     )
     .expect("write package.json");
 
-    pacquet
+    let assertion = pacquet
         .with_arg("install")
         .assert()
         .success();
+    let stdout = String::from_utf8_lossy(&assertion.get_output().stdout).into_owned();
+    assert!(
+        stdout.contains("deprecated @pnpm.e2e/deprecated@1.0.0"),
+        "the install should name the deprecated dependency:\n{stdout}",
+    );
+    assert!(
+        !stdout.contains("This package is deprecated."),
+        "the registry's deprecation notice must not reach the terminal:\n{stdout}",
+    );
     let lockfile_path = workspace.join("pnpm-lock.yaml");
     let first = fs::read_to_string(&lockfile_path).expect("read pnpm-lock.yaml");
     assert!(
-        first.contains("deprecated: This package is deprecated."),
+        first.contains("deprecated: true"),
         "fresh lockfile should record deprecation metadata:\n{first}",
+    );
+    assert!(
+        !first.contains("This package is deprecated."),
+        "the lockfile must not record the notice:\n{first}",
     );
 
     fs::write(
@@ -433,7 +448,7 @@ fn install_preserves_deprecated_lockfile_metadata_when_reusing_resolution() {
         .success();
     let second = fs::read_to_string(&lockfile_path).expect("re-read pnpm-lock.yaml");
     assert!(
-        second.contains("deprecated: This package is deprecated."),
+        second.contains("deprecated: true"),
         "lockfile reuse should preserve deprecation metadata:\n{second}",
     );
 

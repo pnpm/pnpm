@@ -62,7 +62,15 @@ export interface LockfilePackageInfo {
   os?: string[]
   cpu?: string[]
   libc?: string[]
-  deprecated?: string
+  /**
+   * Whether the registry reports this version as deprecated.
+   *
+   * pnpm writes `true`. A string is the deprecation notice an older pnpm
+   * recorded here; it reads as "deprecated" and is rewritten as `true` the
+   * next time the entry is updated. Only the flag is ever read, never the
+   * notice: a publisher can rewrite it on an already-published version.
+   */
+  deprecated?: boolean | string
 }
 
 export interface ProjectSnapshotBase {

@@ -47,8 +47,8 @@ fn preloaded_repair_preserves_the_merge_view() {
         merge.packages
             .as_ref()
             .and_then(|packages| packages.get(&package_key))
-            .and_then(|metadata| metadata.deprecated.as_deref()),
-        Some("stale"),
+            .and_then(|metadata| metadata.deprecated),
+        Some(true),
     );
 }
 
@@ -132,8 +132,8 @@ fn normal_load_does_not_fill_the_repair_cache() {
         normal.packages
             .as_ref()
             .and_then(|packages| packages.get(&package_key))
-            .and_then(|metadata| metadata.deprecated.as_deref()),
-        Some("stale"),
+            .and_then(|metadata| metadata.deprecated),
+        Some(true),
     );
 
     let repaired = lazy
@@ -155,8 +155,8 @@ fn normal_load_does_not_fill_the_repair_cache() {
         merge.packages
             .as_ref()
             .and_then(|packages| packages.get(&package_key))
-            .and_then(|metadata| metadata.deprecated.as_deref()),
-        Some("stale"),
+            .and_then(|metadata| metadata.deprecated),
+        Some(true),
     );
 }
 
@@ -215,8 +215,8 @@ fn repair_merge_preserves_valid_metadata_when_strict_parsing_fails() {
         merge.packages
             .as_ref()
             .and_then(|packages| packages.get(&package_key))
-            .and_then(|metadata| metadata.deprecated.as_deref()),
-        Some("stale"),
+            .and_then(|metadata| metadata.deprecated),
+        Some(true),
     );
     assert!(
         merge.snapshots
@@ -242,7 +242,7 @@ fn repair_views_stay_on_the_same_file_generation() {
             "packages:"
             "  pkg@1.0.0:"
             "    resolution: {integrity: sha512-TIE61hcgbI/SlJh/0c1sT1SZbBlpg7WiZcs65WPJhoIZQPhH1SCpcGA7LgrVXT15lwN3HV4GQM/MJ9aKEn3Qfg==}"
-            "    deprecated: first generation"
+            "    cpu: [first]"
         },
     )
     .expect("write first lockfile generation");
@@ -261,7 +261,7 @@ fn repair_views_stay_on_the_same_file_generation() {
             "packages:"
             "  pkg@1.0.0:"
             "    resolution: {integrity: sha512-TIE61hcgbI/SlJh/0c1sT1SZbBlpg7WiZcs65WPJhoIZQPhH1SCpcGA7LgrVXT15lwN3HV4GQM/MJ9aKEn3Qfg==}"
-            "    deprecated: second generation"
+            "    cpu: [second]"
         },
     )
     .expect("write second lockfile generation");
@@ -275,8 +275,8 @@ fn repair_views_stay_on_the_same_file_generation() {
         merge.packages
             .as_ref()
             .and_then(|packages| packages.get(&package_key))
-            .and_then(|metadata| metadata.deprecated.as_deref()),
-        Some("first generation"),
+            .and_then(|metadata| metadata.cpu.as_deref()),
+        Some(&["first".to_string()][..]),
     );
 }
 

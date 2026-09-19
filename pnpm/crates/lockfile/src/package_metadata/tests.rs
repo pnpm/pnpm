@@ -144,3 +144,50 @@ fn bundled_dependencies_name_list_roundtrip() {
     let reparsed: PackageMetadata = serde_saphyr::from_str(&serialized).unwrap();
     assert_eq!(metadata.bundled_dependencies, reparsed.bundled_dependencies);
 }
+
+#[test]
+fn deprecated_reads_the_flag() {
+    let metadata: PackageMetadata =
+        serde_saphyr::from_str(&make_metadata("deprecated: true\n")).unwrap();
+    assert_eq!(metadata.deprecated, Some(true));
+}
+
+/// An older pnpm recorded the registry's deprecation notice here. It still
+/// reads as deprecated, so a lockfile written before the flag existed does
+/// not lose the warning.
+#[test]
+fn deprecated_reads_a_recorded_notice_as_the_flag() {
+    let metadata: PackageMetadata =
+        serde_saphyr::from_str(&make_metadata("deprecated: No longer maintained\n")).unwrap();
+    assert_eq!(metadata.deprecated, Some(true));
+}
+
+/// `npm deprecate <pkg> ""` undeprecates a version, so an empty notice is
+/// not a deprecation.
+#[test]
+fn deprecated_reads_an_empty_notice_as_absent() {
+    let metadata: PackageMetadata =
+        serde_saphyr::from_str(&make_metadata("deprecated: ''\n")).unwrap();
+    assert_eq!(metadata.deprecated, None);
+}
+
+#[test]
+fn deprecated_absent() {
+    let metadata: PackageMetadata = serde_saphyr::from_str(&make_metadata("")).unwrap();
+    assert_eq!(metadata.deprecated, None);
+}
+
+/// Whichever shape was read, only the flag is written back: the notice is
+/// registry-mutable text that pnpm does not keep.
+#[test]
+fn deprecated_is_written_back_as_the_flag() {
+    for input in ["deprecated: true\n", "deprecated: No longer maintained\n"] {
+        let metadata: PackageMetadata = serde_saphyr::from_str(&make_metadata(input)).unwrap();
+        let yaml = serialize_yaml::to_string(&metadata).unwrap();
+        assert!(
+            yaml.lines()
+                .any(|line| line.trim_start() == "deprecated: true"),
+            "{yaml}",
+        );
+    }
+}

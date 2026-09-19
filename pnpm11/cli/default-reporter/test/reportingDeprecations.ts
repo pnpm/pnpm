@@ -24,7 +24,6 @@ test('prints summary of deprecated subdependencies', async () => {
   })
 
   deprecationLogger.debug({
-    deprecated: 'This package was deprecated because bla bla bla',
     depth: 1,
     pkgId: 'registry.npmjs.org/bar/2.0.0',
     pkgName: 'bar',
@@ -32,7 +31,6 @@ test('prints summary of deprecated subdependencies', async () => {
     prefix,
   })
   deprecationLogger.debug({
-    deprecated: 'This package was deprecated because bla bla bla',
     depth: 2,
     pkgId: 'registry.npmjs.org/qar/3.0.0',
     pkgName: 'qar',
@@ -48,4 +46,28 @@ test('prints summary of deprecated subdependencies', async () => {
 
   const output = await firstValueFrom(output$.pipe(take(1), map(normalizeNewline)))
   expect(output).toBe(`${formatWarn(`${chalk.red('2 deprecated subdependencies found:')} bar@2.0.0, qar@3.0.0`)}`)
+})
+
+test('reports a deprecated direct dependency without the registry notice', async () => {
+  const prefix = '/home/jane/project'
+  const output$ = toOutput$({
+    context: {
+      argv: ['install'],
+      config: { dir: prefix } as ReporterPnpmConfig,
+    },
+    streamParser: createStreamParser(),
+  })
+
+  deprecationLogger.debug({
+    depth: 0,
+    pkgId: 'registry.npmjs.org/foo/1.0.0',
+    pkgName: 'foo',
+    pkgVersion: '1.0.0',
+    prefix,
+  })
+
+  expect.assertions(1)
+
+  const output = await firstValueFrom(output$.pipe(take(1), map(normalizeNewline)))
+  expect(output).toBe(formatWarn(`${chalk.red('deprecated')} foo@1.0.0. Run "pnpm view foo@1.0.0" to see why.`))
 })

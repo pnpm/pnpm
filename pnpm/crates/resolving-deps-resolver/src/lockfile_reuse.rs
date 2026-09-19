@@ -329,8 +329,8 @@ fn insert_platform_fields(
         };
         manifest.insert("libc".to_string(), value);
     }
-    if let Some(deprecated) = metadata.deprecated.as_ref() {
-        manifest.insert("deprecated".to_string(), Value::String(deprecated.clone()));
+    if metadata.deprecated == Some(true) {
+        manifest.insert("deprecated".to_string(), Value::Bool(true));
     }
     if let Some(bundled) = metadata.bundled_dependencies.as_ref() {
         let value = match bundled {

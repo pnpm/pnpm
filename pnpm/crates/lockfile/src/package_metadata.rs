@@ -1,5 +1,5 @@
 use crate::LockfileResolution;
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Deserializer, Serialize};
 use std::{collections::HashMap, ops::Deref};
 
 /// Metadata for one resolved package version, as stored in the v9
@@ -36,8 +36,19 @@ pub struct PackageMetadata {
     pub os: Option<Vec<String>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub libc: Option<StringOrList>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub deprecated: Option<String>,
+    /// Whether the registry reports this version as deprecated.
+    ///
+    /// Always written as `true`. A string is the deprecation notice an older
+    /// pnpm recorded here; it reads as deprecated and is rewritten as `true`
+    /// the next time the entry is updated. Only the flag is ever read, never
+    /// the notice: a publisher can rewrite it on an already-published
+    /// version, so it is neither printed nor kept.
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        deserialize_with = "deserialize_deprecated"
+    )]
+    pub deprecated: Option<bool>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub has_bin: Option<bool>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -55,6 +66,26 @@ pub struct PackageMetadata {
         serialize_with = "crate::serialize_yaml::sorted_map_opt"
     )]
     pub peer_dependencies_meta: Option<HashMap<String, PeerDependencyMeta>>,
+}
+
+/// Read [`PackageMetadata::deprecated`], accepting both the flag pnpm writes
+/// and the notice an older pnpm wrote in its place. An empty notice means the
+/// version was undeprecated.
+fn deserialize_deprecated<'de, De: Deserializer<'de>>(
+    deserializer: De,
+) -> Result<Option<bool>, De::Error> {
+    #[derive(Deserialize)]
+    #[serde(untagged)]
+    enum Recorded {
+        Flag(bool),
+        Notice(String),
+    }
+
+    Ok(match Option::<Recorded>::deserialize(deserializer)? {
+        Some(Recorded::Flag(true)) => Some(true),
+        Some(Recorded::Notice(notice)) if !notice.is_empty() => Some(true),
+        None | Some(Recorded::Flag(false) | Recorded::Notice(_)) => None,
+    })
 }
 
 /// What a package bundles inside its own tarball, as pnpm records it: the

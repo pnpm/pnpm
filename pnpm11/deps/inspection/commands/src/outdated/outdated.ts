@@ -19,6 +19,7 @@ import {
 import { PnpmError } from '@pnpm/error'
 import { scanGlobalPackages } from '@pnpm/global.packages'
 import { semverDiff } from '@pnpm/semver-diff'
+import { sanitizeInline } from '@pnpm/text.sanitize'
 import type { DependenciesField, PackageManifest, ProjectManifest, ProjectRootDir } from '@pnpm/types'
 import { table } from '@zkochan/table'
 import chalk from 'chalk'
@@ -438,7 +439,7 @@ export function renderDetails ({ latestManifest }: OutdatedPackage): string {
   if (latestManifest == null) return ''
   const outputs = []
   if (latestManifest.deprecated) {
-    outputs.push(chalk.redBright(latestManifest.deprecated))
+    outputs.push(chalk.redBright(sanitizeInline(latestManifest.deprecated)))
   }
   if (latestManifest.homepage) {
     outputs.push(chalk.underline(latestManifest.homepage))

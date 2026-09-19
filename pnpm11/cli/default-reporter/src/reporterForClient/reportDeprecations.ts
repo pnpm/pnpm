@@ -4,7 +4,7 @@ import * as Rx from 'rxjs'
 import { buffer, filter, map, switchMap } from 'rxjs/operators'
 
 import { formatWarn } from './utils/formatWarn.js'
-import { zoomOut } from './utils/zooming.js'
+import { autozoom } from './utils/zooming.js'
 
 export function reportDeprecations (
   log$: {
@@ -23,13 +23,10 @@ export function reportDeprecations (
   return Rx.merge(
     deprecatedDirectDeps$.pipe(
       map((log) => {
-        if (!opts.isRecursive && log.prefix === opts.cwd) {
-          return Rx.of({
-            msg: formatWarn(`${chalk.red('deprecated')} ${log.pkgName}@${log.pkgVersion}: ${log.deprecated}`),
-          })
-        }
+        const pkg = `${log.pkgName}@${log.pkgVersion}`
+        const line = formatWarn(`${chalk.red('deprecated')} ${pkg}. Run "pnpm view ${pkg}" to see why.`)
         return Rx.of({
-          msg: zoomOut(opts.cwd, log.prefix, formatWarn(`${chalk.red('deprecated')} ${log.pkgName}@${log.pkgVersion}`)),
+          msg: autozoom(opts.cwd, log.prefix, line, { zoomOutCurrent: opts.isRecursive }),
         })
       })
     ),

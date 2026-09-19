@@ -147,7 +147,7 @@ fn fix_lockfile_regenerates_broken_metadata_without_changing_locked_versions() {
             .as_ref()
             .expect("repaired packages")
             .values()
-            .all(|metadata| metadata.deprecated.as_deref() != Some("stale metadata")),
+            .all(|metadata| metadata.deprecated.is_none()),
     );
     assert!(
         repaired.packages

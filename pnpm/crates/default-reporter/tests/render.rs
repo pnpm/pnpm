@@ -170,7 +170,6 @@ fn deprecation(name: &str, version: &str, depth: i32, prefix: &str) -> LogEvent 
         pkg_version: version.to_string(),
         pkg_id: format!("{name}@{version}"),
         prefix: prefix.to_string(),
-        deprecated: "no longer supported".to_string(),
         depth,
     })
 }

@@ -176,7 +176,7 @@ fn filtered_pnpr_repair_preserves_unselected_metadata() {
     let mut preserved_package_count = 0;
     for (key, metadata) in previous.packages.as_mut().expect("packages") {
         if is_preserved_key(&key.to_string()) {
-            metadata.deprecated = Some("preserve this metadata".to_string());
+            metadata.deprecated = Some(true);
             preserved_package_count += 1;
         }
     }
@@ -226,9 +226,7 @@ fn filtered_pnpr_repair_preserves_unselected_metadata() {
     assert!(
         preserved_packages
             .iter()
-            .all(|(_, metadata)| {
-                metadata.deprecated.as_deref() == Some("preserve this metadata")
-            }),
+            .all(|(_, metadata)| { metadata.deprecated == Some(true) }),
     );
     let preserved_snapshots = repaired.snapshots
         .as_ref()

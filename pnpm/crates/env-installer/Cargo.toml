@@ -20,6 +20,7 @@ pnpm-lockfile = { workspace = true }
 pnpm-network = { workspace = true }
 pnpm-package-is-installable = { workspace = true }
 pnpm-package-manager = { workspace = true }
+pnpm-package-manifest = { workspace = true }
 pnpm-reporter = { workspace = true }
 pnpm-resolving-resolver-base = { workspace = true }
 pnpm-store-dir = { workspace = true }

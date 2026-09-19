@@ -190,7 +190,6 @@ async fn deprecated_manifests_notify_the_deprecation_sink_unless_allowed() {
         };
         assert_eq!(deprecation.pkg_name, "old");
         assert_eq!(deprecation.pkg_version, "1.2.0");
-        assert_eq!(deprecation.deprecated, "use new instead");
         assert_eq!(deprecation.depth, 0);
         assert_eq!(
             deprecation.prefix,

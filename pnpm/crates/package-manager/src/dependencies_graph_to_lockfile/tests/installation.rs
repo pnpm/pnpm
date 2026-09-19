@@ -600,7 +600,7 @@ fn unchanged_resolutions_keep_their_previous_package_metadata() {
     assert_eq!(fresh.deprecated, None, "the freshly served metadata carries no deprecation");
 
     let mut previous_entry = fresh;
-    previous_entry.deprecated = Some("No longer maintained".to_string());
+    previous_entry.deprecated = Some(true);
     let previous = std::collections::HashMap::from([(
         "react@17.0.2".parse::<PackageKey>().unwrap(),
         previous_entry.clone(),

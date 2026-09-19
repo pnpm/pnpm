@@ -200,7 +200,6 @@ pub struct Deprecation {
     pub pkg_version: String,
     pub pkg_id: String,
     pub prefix: String,
-    pub deprecated: String,
     pub depth: i32,
 }
 

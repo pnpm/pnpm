@@ -178,17 +178,15 @@ function toLockfileDependency (
   ) {
     result['bundledDependencies'] = pkg.additionalInfo.bundleDependencies
   }
-  if (pkg.additionalInfo.deprecated) {
-    result['deprecated'] = pkg.additionalInfo.deprecated
-  } else if (
+  if (
+    pkg.additionalInfo.deprecated ||
     // `deprecated` is the only registry-mutable field of a published
     // version; an unchanged resolution must not lose a recorded
     // deprecation to a registry serving it inconsistently
     // (pnpm/pnpm#13846).
-    opts.prevSnapshot?.deprecated != null &&
-    equals(opts.prevSnapshot.resolution, lockfileResolution)
+    (opts.prevSnapshot?.deprecated && equals(opts.prevSnapshot.resolution, lockfileResolution))
   ) {
-    result['deprecated'] = opts.prevSnapshot.deprecated
+    result['deprecated'] = true
   }
   if (pkg.hasBin) {
     result['hasBin'] = true

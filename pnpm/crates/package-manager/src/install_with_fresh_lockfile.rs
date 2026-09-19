@@ -499,7 +499,6 @@ fn deprecation_log_fn<Reporter: self::Reporter>() -> pnpm_resolving_deps_resolve
             pkg_version: deprecation.pkg_version,
             pkg_id: deprecation.pkg_id,
             prefix: deprecation.prefix,
-            deprecated: deprecation.deprecated,
             depth: deprecation.depth,
         }));
     })

@@ -215,30 +215,20 @@ impl ReporterState {
     /// deprecations render immediately; transitive ones wait for the
     /// `resolution_done` summary.
     pub(super) fn on_deprecation(&mut self, log: &DeprecationLog) {
-        if log.depth == 0 {
-            if !self.options.scope.recursive && log.prefix == self.rendering.cwd {
-                self.display.frame.push_block(format!(
-                    "{} {} {}@{}: {}",
-                    self.rendering.colors.warn_label(),
-                    self.rendering.colors.red("deprecated"),
-                    log.pkg_name,
-                    log.pkg_version,
-                    log.deprecated,
-                ));
-            } else {
-                // The zoomed line drops the deprecation text, as
-                // `reportDeprecations.ts` does.
-                let msg = format!(
-                    "{} {} {}@{}",
-                    self.rendering.colors.warn_label(),
-                    self.rendering.colors.red("deprecated"),
-                    log.pkg_name,
-                    log.pkg_version,
-                );
-                self.display.frame.push_block(zoom_out(&self.rendering.cwd, &log.prefix, &msg));
-            }
-        } else {
+        if log.depth != 0 {
             self.notices.deprecated_subdeps.push(log.clone());
+            return;
+        }
+        let pkg = format!("{}@{}", log.pkg_name, log.pkg_version);
+        let msg = format!(
+            r#"{} {} {pkg}. Run "pnpm view {pkg}" to see why."#,
+            self.rendering.colors.warn_label(),
+            self.rendering.colors.red("deprecated"),
+        );
+        if !self.options.scope.recursive && log.prefix == self.rendering.cwd {
+            self.display.frame.push_block(msg);
+        } else {
+            self.display.frame.push_block(zoom_out(&self.rendering.cwd, &log.prefix, &msg));
         }
     }
 

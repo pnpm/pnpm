@@ -66,7 +66,6 @@ test('prints summary (of current package only)', async () => {
     prefix,
   })
   deprecationLogger.debug({
-    deprecated: 'This package was deprecated because bla bla bla',
     depth: 0,
     pkgId: 'registry.npmjs.org/bar/2.0.0',
     pkgName: 'bar',
@@ -204,7 +203,7 @@ test('prints summary (of current package only)', async () => {
 
   const output = await firstValueFrom(output$.pipe(skip(2), take(1), map(normalizeNewline)))
   expect(output).toBe(`packages/foo                             |   ${chalk.green('+5')}   ${chalk.red('-1')} ${ADD + SUB}${EOL}` +
-        `${formatWarn(`${DEPRECATED} bar@2.0.0: This package was deprecated because bla bla bla`)}${EOL}${EOL}` +
+        `${formatWarn(`${DEPRECATED} bar@2.0.0. Run "pnpm view bar@2.0.0" to see why.`)}${EOL}${EOL}` +
         `\
 ${h1('dependencies:')}
 ${ADD} bar ${versionColor('2.0.0')} ${DEPRECATED}
@@ -382,7 +381,6 @@ test('does not print deprecation message when log level is set to error', async 
     },
   })
   deprecationLogger.debug({
-    deprecated: 'This package was deprecated because bla bla bla',
     depth: 0,
     pkgId: 'registry.npmjs.org/bar/2.0.0',
     pkgName: 'bar',
@@ -881,7 +879,6 @@ test('prints added/removed stats and warnings during recursive installation', as
   statsLogger.debug({ added: 5, prefix: '/home/jane/repo/pkg-1' })
   statsLogger.debug({ removed: 1, prefix: '/home/jane/repo/pkg-1' })
   deprecationLogger.debug({
-    deprecated: 'This package was deprecated because bla bla bla',
     depth: 0,
     pkgId: 'registry.npmjs.org/bar/2.0.0',
     pkgName: 'bar',
@@ -896,7 +893,6 @@ test('prints added/removed stats and warnings during recursive installation', as
   statsLogger.debug({ added: 0, prefix: '/home/jane/repo/loooooooooooooooooooooooooooooooooong-pkg-4' })
   // cspell:enable
   deprecationLogger.debug({
-    deprecated: 'This package was deprecated because bla bla bla',
     depth: 0,
     pkgId: 'registry.npmjs.org/foo/1.0.0',
     pkgName: 'foo',
@@ -913,11 +909,11 @@ pkg-5                                    | ${formatWarn('Some issue')}
 .                                        | ${formatWarn('Some other issue')}
 .                                        |   ${chalk.red('-1')} ${SUB}
 pkg-1                                    |   ${chalk.green('+5')}   ${chalk.red('-1')} ${ADD + SUB}
-dir/pkg-2                                | ${formatWarn(`${DEPRECATED} bar@2.0.0`)}
+dir/pkg-2                                | ${formatWarn(`${DEPRECATED} bar@2.0.0. Run "pnpm view bar@2.0.0" to see why.`)}
 dir/pkg-2                                |   ${chalk.green('+2')} ${ADD}
 .../pkg-3                                |   ${chalk.green('+1')} ${ADD}
 ...ooooooooooooooooooooooooooooong-pkg-4 |   ${chalk.red('-1')} ${SUB}
-.                                        | ${formatWarn(`${DEPRECATED} foo@1.0.0`)}`)
+.                                        | ${formatWarn(`${DEPRECATED} foo@1.0.0. Run "pnpm view foo@1.0.0" to see why.`)}`)
   // cspell:enable
 })
 

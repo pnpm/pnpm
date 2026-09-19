@@ -421,11 +421,16 @@ fn hook_log_renders_with_magenta_hook_name() {
     assert_eq!(frame, "preResolution: Starting resolution");
 }
 
+/// The registry's deprecation notice never reaches the terminal; the line
+/// points at `pnpm view` for it instead.
 #[test]
-fn direct_deprecation_renders_immediately_with_the_message() {
+fn direct_deprecation_renders_immediately_without_the_notice() {
     let mut reporter = state(false);
     let frame = render(&mut reporter, vec![deprecation("express", "0.14.1", 0, CWD)]);
-    assert_eq!(frame, "[WARN] deprecated express@0.14.1: no longer supported");
+    assert_eq!(
+        frame,
+        r#"[WARN] deprecated express@0.14.1. Run "pnpm view express@0.14.1" to see why."#,
+    );
 }
 
 /// The event fires for every command; only the ones in pnpm's

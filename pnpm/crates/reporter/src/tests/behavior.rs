@@ -470,7 +470,6 @@ fn deprecation_event_matches_pnpm_wire_shape() {
         pkg_version: "0.14.1".to_string(),
         pkg_id: "express@0.14.1".to_string(),
         prefix: "/projects/x".to_string(),
-        deprecated: "express 0.x series is deprecated".to_string(),
         depth: 0,
     });
     let envelope = Envelope { time: 1_700_000_000_000, hostname: "host", pid: 4242, event: &event };
@@ -486,8 +485,11 @@ fn deprecation_event_matches_pnpm_wire_shape() {
     assert_eq!(json["pkgVersion"], "0.14.1");
     assert_eq!(json["pkgId"], "express@0.14.1");
     assert_eq!(json["prefix"], "/projects/x");
-    assert_eq!(json["deprecated"], "express 0.x series is deprecated");
     assert_eq!(json["depth"], 0);
+    assert!(
+        json.get("deprecated").is_none(),
+        "the registry's deprecation notice must not reach an NDJSON consumer",
+    );
 }
 
 /// Transitive deprecation events (`depth > 0`) also match the wire shape.
@@ -499,7 +501,6 @@ fn deprecation_event_transitive_matches_pnpm_wire_shape() {
         pkg_version: "2.88.2".to_string(),
         pkg_id: "request@2.88.2".to_string(),
         prefix: "/projects/x".to_string(),
-        deprecated: "request has been deprecated".to_string(),
         depth: 3,
     });
     let envelope = Envelope { time: 1_700_000_000_000, hostname: "host", pid: 4242, event: &event };

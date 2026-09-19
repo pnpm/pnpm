@@ -2,6 +2,7 @@ use pnpm_lockfile::{
     BundledDependencies, LockfileFormError, LockfileFormOptions, PackageMetadata,
     PeerDependencyMeta, StringOrList,
 };
+use pnpm_package_manifest::is_truthy;
 use pnpm_resolving_resolver_base::ResolveResult;
 use serde_json::Value;
 use std::collections::HashMap;
@@ -31,8 +32,8 @@ pub(crate) fn package_metadata(
         libc: read_string_or_list(manifest, "libc"),
         deprecated: manifest
             .and_then(|m| m.get("deprecated"))
-            .and_then(Value::as_str)
-            .map(ToString::to_string),
+            .is_some_and(is_truthy)
+            .then_some(true),
         has_bin: manifest_has_bin(manifest),
         prepare: None,
         bundled_dependencies: BundledDependencies::from_manifest(manifest),
