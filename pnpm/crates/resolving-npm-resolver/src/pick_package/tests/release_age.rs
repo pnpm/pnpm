@@ -383,6 +383,67 @@ async fn published_by_upgrade_marker_is_scoped_to_install() {
     full_mock.assert_async().await;
 }
 
+/// The upgrade sends no validator, so a `304` answering it is unsolicited:
+/// `fetch_full_metadata` retries once with intermediary cache reuse disabled
+/// and then reports `NotModifiedWithoutCache`. A registry that keeps answering
+/// that way has no fuller form to give, which must not fail an install that
+/// would otherwise succeed.
+#[tokio::test]
+async fn published_by_upgrade_answering_repeated_304_does_not_fail_the_pick() {
+    let mut server = mockito::Server::new_async().await;
+    let full_mock = server
+        .mock("GET", "/acme")
+        .match_header("accept", "application/json; q=1.0, */*")
+        .with_status(304)
+        .expect(2)
+        .create_async()
+        .await;
+
+    let cache_dir = TempDir::new().expect("tempdir");
+    let registry = format!("{}/", server.url());
+    let http_client = ThrottledClient::default();
+    let auth_headers = AuthHeaders::default();
+    let meta_cache = InMemoryPackageMetaCache::default();
+    let seeded: pnpm_registry::Package =
+        serde_json::from_str(ABBREVIATED_BODY).expect("parse fixture");
+    meta_cache.set(format!("{registry}\u{0}acme"), Arc::new(seeded));
+    let fetch_locker = shared_packument_fetch_locker();
+    let ctx = PickPackageContext {
+        full_metadata: false,
+        needs_full_metadata_for: None,
+        filter_metadata: false,
+        cache_policy: crate::MetadataCachePolicy {
+            offline: false,
+            prefer_offline: false,
+            // The retained document still has no `time`, so let the picker take
+            // its warn-and-skip fallback instead of erroring.
+            ignore_missing_time_field: true,
+        },
+        metadata: crate::MetadataRequestContext {
+            meta_cache: &meta_cache,
+            fetch_locker: &fetch_locker,
+            cache_dir: Some(cache_dir.path()),
+            http: crate::MetadataHttpClient {
+                http_client: &http_client,
+                auth_headers: &auth_headers,
+                retry_opts: RetryOpts::default(),
+            },
+        },
+    };
+
+    let mut opts = default_opts(&registry);
+    opts.policy.published_by = Some(parse_cutoff("2023-01-01T00:00:00Z"));
+
+    let result = pick_package(&ctx, &range_spec("acme", "^1.0.0"), &opts).await
+        .expect("a registry with no fuller form must not fail the pick");
+    assert_eq!(
+        result.picked_package.expect("picked").version.to_string(),
+        "1.0.0",
+        "the abbreviated document should still be picked from",
+    );
+    full_mock.assert_async().await;
+}
+
 /// A registry whose full representation is no more complete than its
 /// abbreviated one answers the upgrade with `200`, not `304`. That outcome
 /// has to be remembered too, or every dependency edge re-asks for the same

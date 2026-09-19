@@ -674,19 +674,39 @@ async function maybeUpgradeAbbreviatedMetaForReleaseAge (
   // An ETag and a `Last-Modified` date describe one representation, and `meta`
   // holds the abbreviated one. A registry that reuses them across both forms
   // answers 304, leaving the maturity check without per-version publish dates.
-  const fullFetchResult = await ctx.fetch(spec.name, {
-    authHeaderValue: opts.authHeaderValue,
-    fullMetadata: true,
-    registry: opts.registry,
-  })
+  let fullFetchResult: FetchMetadataResult | FetchMetadataNotModifiedResult
+  try {
+    fullFetchResult = await ctx.fetch(spec.name, {
+      authHeaderValue: opts.authHeaderValue,
+      fullMetadata: true,
+      registry: opts.registry,
+    })
+  } catch (err: unknown) {
+    // The registry declined to hand over a body. Since the request carries no
+    // validators, it says so by repeating an unsolicited 304 until the fetcher
+    // gives up, which throws instead of reporting `notModified`.
+    if (!isNotModifiedWithoutCacheError(err)) throw err
+    ctx.releaseAgeUpgradeCheckedPackuments?.add(meta)
+    return { meta }
+  }
   if (fullFetchResult.notModified) {
-    // Out of reach while the request carries no validators: the fetcher retries
-    // an unsolicited 304 as a cold cache would and then throws. Degrading beats
-    // failing the install if one ever arrives.
+    // The registry has no fuller form of this document. An upgrade that cannot
+    // happen must not fail an install that would otherwise succeed: the
+    // maturity check falls back to the warn-or-error gate
+    // `minimumReleaseAgeIgnoreMissingTime` already governs.
     ctx.releaseAgeUpgradeCheckedPackuments?.add(meta)
     return { meta }
   }
   return { meta: fullFetchResult.meta, upgradedFrom: fullFetchResult }
+}
+
+function isNotModifiedWithoutCacheError (err: unknown): boolean {
+  return (
+    err != null &&
+    typeof err === 'object' &&
+    'code' in err &&
+    (err as { code: string }).code === 'ERR_PNPM_META_NOT_MODIFIED_WITHOUT_CACHE'
+  )
 }
 
 /**

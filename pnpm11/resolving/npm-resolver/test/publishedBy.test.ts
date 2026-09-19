@@ -3,6 +3,7 @@ import path from 'node:path'
 
 import { afterEach, beforeEach, expect, test } from '@jest/globals'
 import { ABBREVIATED_META_DIR, FULL_FILTERED_META_DIR } from '@pnpm/constants'
+import { type LogBase, streamParser } from '@pnpm/logger'
 import { createFetchFromRegistry } from '@pnpm/network.fetch'
 import { createNpmResolver } from '@pnpm/resolving.npm-resolver'
 import type { PackageMeta } from '@pnpm/resolving.registry.types'
@@ -909,6 +910,53 @@ test('the release-age upgrade sends no validator from the abbreviated cache', as
   expect(upgradeHeaders).toBeDefined()
   expect(upgradeHeaders!['if-none-match']).toBeUndefined()
   expect(upgradeHeaders!['if-modified-since']).toBeUndefined()
+})
+
+test('a repeated 304 to the release-age upgrade is handled without reporting an error', async () => {
+  const cacheDir = temporaryDirectory()
+  const abbrevCacheDir = path.join(cacheDir, `${ABBREVIATED_META_DIR}/https%3A+registry.npmjs.org`)
+  fs.mkdirSync(abbrevCacheDir, { recursive: true })
+  const cachePath = path.join(abbrevCacheDir, 'is-positive.jsonl')
+
+  const { time: _time, ...abbreviatedWithoutTime } = isPositiveAbbreviatedMeta
+  const cachedMeta = { ...abbreviatedWithoutTime, modified: '2015-06-10T00:00:00.000Z' }
+  const cacheHeaders = JSON.stringify({ etag: '"abbreviated-etag"', modified: cachedMeta.modified })
+  fs.writeFileSync(cachePath, `${cacheHeaders}\n${JSON.stringify(cachedMeta)}`, 'utf8')
+
+  const agent = getMockAgent().get(registriesByScope.default.replace(/\/$/, ''))
+  agent.intercept({
+    path: '/is-positive',
+    method: 'GET',
+    headers: { 'if-none-match': '"abbreviated-etag"' },
+  }).reply(304, '')
+  // The upgrade carries no validator, so these 304s are unsolicited: the
+  // fetcher retries once as a cold cache would, then gives up.
+  agent.intercept({ path: '/is-positive', method: 'GET' }).reply(304, '')
+  agent.intercept({ path: '/is-positive', method: 'GET' }).reply(304, '')
+
+  const errors: LogBase[] = []
+  const collectErrors = (msg: LogBase): void => {
+    if (msg.level === 'error') errors.push(msg)
+  }
+  streamParser.on('data', collectErrors)
+  try {
+    const { resolveFromNpm } = createResolveFromNpm({
+      storeDir: temporaryDirectory(),
+      cacheDir,
+      registriesByScope,
+      ignoreMissingTimeField: true,
+    })
+    const resolveResult = await resolveFromNpm({ alias: 'is-positive', bareSpecifier: '^1.0.0' }, {
+      publishedBy: new Date('2015-06-05T00:00:00.000Z'),
+    })
+    expect(resolveResult!.id).toBe('is-positive@1.0.0')
+  } finally {
+    streamParser.removeListener('data', collectErrors)
+  }
+
+  // Without the upgrade handling this condition, it reaches the generic
+  // cached-meta fallback, which reports the fetch error to the user.
+  expect(errors).toStrictEqual([])
 })
 
 /**

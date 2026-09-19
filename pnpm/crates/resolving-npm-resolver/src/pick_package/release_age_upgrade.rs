@@ -1,8 +1,8 @@
 use super::{
-    Arc, FetchFullMetadataOptions, FetchFullMetadataOutcome, Package, PackageMetaCache,
-    PackumentFetchLocker, Path, PickPackageContext, PickPackageError, PickPackageOptions,
-    PolicyMatch, RegistryPackageSpec, Semaphore, clear_meta, fetch_full_metadata, load_meta,
-    parse_packument_timestamp, save_meta_indexed, save_meta_ndjson,
+    Arc, FetchFullMetadataOptions, FetchFullMetadataOutcome, FetchMetadataError, Package,
+    PackageMetaCache, PackumentFetchLocker, Path, PickPackageContext, PickPackageError,
+    PickPackageOptions, PolicyMatch, RegistryPackageSpec, Semaphore, clear_meta,
+    fetch_full_metadata, load_meta, parse_packument_timestamp, save_meta_indexed, save_meta_ndjson,
 };
 
 /// Outcome of [`maybe_upgrade_abbreviated_meta_for_release_age`].
@@ -54,15 +54,22 @@ pub(super) async fn maybe_upgrade_abbreviated_meta_for_release_age<Cache: Packag
         modified: None,
         http: ctx.metadata.http,
     };
-    match fetch_full_metadata(&spec.name, &fetch_opts).await? {
-        FetchFullMetadataOutcome::Modified(upgraded) => {
+    match fetch_full_metadata(&spec.name, &fetch_opts).await {
+        Ok(FetchFullMetadataOutcome::Modified(upgraded)) => {
             Ok(UpgradeOutcome { meta: Arc::new(*upgraded), upgraded: true })
         }
-        // Out of reach while the request carries no validators:
-        // `fetch_full_metadata` retries an unsolicited `304` without
-        // intermediary cache reuse and then errors. Degrading beats failing the
-        // install if one ever arrives.
-        FetchFullMetadataOutcome::NotModified => {
+        Err(error) if !matches!(error, FetchMetadataError::NotModifiedWithoutCache { .. }) => {
+            Err(error.into())
+        }
+        // The registry declined to hand over a body. Since the request carries
+        // no validators, it says so by repeating an unsolicited `304` until
+        // `fetch_full_metadata` gives up, which surfaces as
+        // `NotModifiedWithoutCache` rather than the `NotModified` outcome.
+        // Either way it has no fuller form of this document, and an upgrade
+        // that cannot happen must not fail an install that would otherwise
+        // succeed: the maturity check falls back to the warn-or-error gate
+        // `minimum_release_age_ignore_missing_time` already governs.
+        Ok(FetchFullMetadataOutcome::NotModified) | Err(_) => {
             ctx.metadata.fetch_locker.mark_release_age_upgrade_checked(cache_key, &meta);
             // A `Modified` outcome is marked by the caller instead: it persists
             // the response to the mirror and may hand back a reloaded document,
