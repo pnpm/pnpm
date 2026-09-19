@@ -58,8 +58,10 @@ fn reinstalls_missing_packages_during_headless_install() {
     let dep_location =
         workspace.join("node_modules/.pnpm/is-positive@1.0.0/node_modules/is-positive");
     fs::remove_dir_all(&dep_location).expect("remove the virtual-store copy");
-    fs::remove_file(workspace.join("node_modules/is-positive"))
-        .expect("remove the direct-dep symlink");
+    // `remove_dirent` rather than `remove_file`: the direct dep is a
+    // junction on Windows, which `DeleteFileW` refuses.
+    pnpm_fs::remove_dirent(&workspace.join("node_modules/is-positive"))
+        .expect("remove the direct-dep link");
 
     let second = pacquet_in(&workspace)
         .with_args(["install", "--frozen-lockfile", "--reporter=ndjson"])
