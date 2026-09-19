@@ -45,6 +45,7 @@ pub(super) fn frozen_tree_up_to_date<'a>(
     {
         return None;
     }
+    context.recorded.state?;
     let wanted_lockfile = context.lockfile?;
     let current = context.current_lockfile?;
     // Past this gate `current` is the graph this install would

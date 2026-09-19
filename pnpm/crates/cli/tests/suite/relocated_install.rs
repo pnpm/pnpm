@@ -381,6 +381,12 @@ fn make_shims_absolute_and_move(location: &Path, name: &str) -> PathBuf {
 
 #[test]
 fn moved_tree_with_absolute_shims_converges_after_one_unfiltered_install() {
+    for state in ["valid", "missing", "invalid"] {
+        check_absolute_shim_repair(state);
+    }
+}
+
+fn check_absolute_shim_repair(state: &str) {
     let (temp_cwd, workspace) = pinned_workspace();
     append_workspace_yaml_key(&workspace, "packages", "[a, b]");
     write_project_manifest(&workspace, "root", ManifestDeps::default());
@@ -397,6 +403,12 @@ fn moved_tree_with_absolute_shims_converges_after_one_unfiltered_install() {
         .success();
 
     let moved = make_shims_absolute_and_move(&workspace, "first-move");
+    let state_path = moved.join("node_modules").join(WORKSPACE_STATE_FILENAME);
+    match state {
+        "missing" => fs::remove_file(&state_path).expect("remove workspace state"),
+        "invalid" => fs::write(&state_path, "{").expect("corrupt workspace state"),
+        _ => {}
+    }
     pacquet_in(&moved)
         .with_args(["--filter", "a", "install"])
         .assert()

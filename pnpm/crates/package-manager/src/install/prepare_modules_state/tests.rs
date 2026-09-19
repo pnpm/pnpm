@@ -4,7 +4,7 @@ use pnpm_config::{Config, NodeLinker};
 use pnpm_lockfile::Lockfile;
 use pnpm_modules_yaml::{IncludedDependencies, LayoutVersion, ModulesLayout};
 use pnpm_package_manifest::PackageManifest;
-use pnpm_workspace_state::{ProjectEntry, WorkspaceState};
+use pnpm_workspace_state::{ProjectEntry, WorkspaceState, load_workspace_state};
 use tempfile::tempdir;
 
 use crate::install::{
@@ -101,6 +101,7 @@ fn short_circuits_over_a_bin(
     tree_moved: bool,
     bin_dir: &str,
     target: &str,
+    state: Option<&WorkspaceState>,
 ) -> bool {
     let dir = tempdir().expect("create a temp dir");
     let project_root = dir.path().join("project");
@@ -159,7 +160,7 @@ fn short_circuits_over_a_bin(
         lockfile: Some(&lockfile),
         current_lockfile: Some(&lockfile),
         modules_manifest: Some(&modules),
-        recorded: RecordedWorkspace { state: None, moved: tree_moved, projects: &projects },
+        recorded: RecordedWorkspace { state, moved: tree_moved, projects: &projects },
     })
     .is_some()
 }
@@ -176,7 +177,13 @@ fn a_moved_tree_with_an_absolute_bin_is_refused() {
     ];
     for (node_linker, bin_dir) in cases {
         assert!(
-            !short_circuits_over_a_bin(node_linker, true, bin_dir, ABSOLUTE_TARGET),
+            !short_circuits_over_a_bin(
+                node_linker,
+                true,
+                bin_dir,
+                ABSOLUTE_TARGET,
+                Some(&WorkspaceState::default()),
+            ),
             "{node_linker:?} {bin_dir}",
         );
     }
@@ -185,7 +192,23 @@ fn a_moved_tree_with_an_absolute_bin_is_refused() {
 /// A tree in place keeps its short-circuit whatever its bins name.
 #[test]
 fn frozen_short_circuit_unchanged_in_place() {
-    assert!(short_circuits_over_a_bin(NodeLinker::Isolated, false, ROOT_BIN, ABSOLUTE_TARGET));
+    assert!(short_circuits_over_a_bin(
+        NodeLinker::Isolated,
+        false,
+        ROOT_BIN,
+        ABSOLUTE_TARGET,
+        Some(&WorkspaceState::default()),
+    ));
+}
+
+#[test]
+fn frozen_short_circuit_requires_recorded_workspace_state() {
+    for node_linker in [NodeLinker::Isolated, NodeLinker::Hoisted] {
+        assert!(
+            !short_circuits_over_a_bin(node_linker, false, ROOT_BIN, ABSOLUTE_TARGET, None),
+            "{node_linker:?}: without state the absolute shim's original root is unknown",
+        );
+    }
 }
 
 /// A moved tree whose bins name their targets relative to themselves is
@@ -195,7 +218,13 @@ fn frozen_short_circuit_unchanged_in_place() {
 fn a_moved_tree_with_relative_bins_is_reused() {
     for node_linker in [NodeLinker::Isolated, NodeLinker::Hoisted] {
         assert!(
-            short_circuits_over_a_bin(node_linker, true, ROOT_BIN, RELATIVE_TARGET),
+            short_circuits_over_a_bin(
+                node_linker,
+                true,
+                ROOT_BIN,
+                RELATIVE_TARGET,
+                Some(&WorkspaceState::default()),
+            ),
             "{node_linker:?}",
         );
     }
@@ -270,7 +299,8 @@ fn a_tree_recorded_elsewhere_is_moved_only_where_a_moved_tree_may_be_reused() {
     let mut config = Config::new();
     config.modules_dir = project_root.join("node_modules");
 
-    let moved = recorded_workspace(Some(&state), &config, NodeLinker::Isolated, &projects).moved;
+    let moved =
+        recorded_workspace(Some(&state), true, &config, NodeLinker::Isolated, &projects).moved;
     assert_eq!(moved, cfg!(unix));
 
     let in_place = WorkspaceState {
@@ -281,12 +311,14 @@ fn a_tree_recorded_elsewhere_is_moved_only_where_a_moved_tree_may_be_reused() {
         ..WorkspaceState::default()
     };
     let gained = [projects[0].clone(), (project_root.join("packages/b"), &manifest)];
-    let moved = recorded_workspace(Some(&in_place), &config, NodeLinker::Isolated, &gained).moved;
+    let moved =
+        recorded_workspace(Some(&in_place), true, &config, NodeLinker::Isolated, &gained).moved;
     assert!(!moved, "a workspace that gained a project in place is recorded here");
 
     let lockfile = parse_lockfile(NO_SLOTS);
     config.enable_global_virtual_store = true;
-    let moved = recorded_workspace(Some(&state), &config, NodeLinker::Isolated, &projects).moved;
+    let moved =
+        recorded_workspace(Some(&state), true, &config, NodeLinker::Isolated, &projects).moved;
     assert!(!moved, "a global virtual store never reuses a moved tree");
     assert!(
         !moved_tree_is_reusable(&config, NodeLinker::Isolated, &projects, &lockfile),
@@ -294,10 +326,36 @@ fn a_tree_recorded_elsewhere_is_moved_only_where_a_moved_tree_may_be_reused() {
     );
 
     config.enable_global_virtual_store = false;
-    let moved = recorded_workspace(Some(&state), &config, NodeLinker::Pnp, &projects).moved;
+    let moved = recorded_workspace(Some(&state), true, &config, NodeLinker::Pnp, &projects).moved;
     assert!(!moved, "pnp never reuses a moved tree");
     assert!(
         !moved_tree_is_reusable(&config, NodeLinker::Pnp, &projects, &lockfile),
         "nor does its proof of a move",
     );
+}
+
+#[test]
+fn missing_or_corrupt_state_requires_relinking_only_for_an_existing_tree() {
+    for state_contents in [None, Some("{")] {
+        let dir = tempdir().unwrap();
+        let root = dir.path();
+        let mut config = Config::new();
+        config.modules_dir = root.join("node_modules");
+        fs::create_dir_all(&config.modules_dir).unwrap();
+        if let Some(contents) = state_contents {
+            fs::write(pnpm_workspace_state::get_file_path(root), contents).unwrap();
+        }
+        let manifest =
+            PackageManifest::from_value(root.join("package.json"), serde_json::json!({}));
+        let projects = [(root.to_path_buf(), &manifest)];
+        let state = load_workspace_state(root).ok().flatten();
+        assert!(state.is_none(), "the fixture must not provide a readable state");
+
+        let existing =
+            recorded_workspace(state.as_ref(), true, &config, NodeLinker::Isolated, &projects);
+        assert_eq!(existing.moved, cfg!(unix), "the old bins may name another root");
+        let fresh =
+            recorded_workspace(state.as_ref(), false, &config, NodeLinker::Isolated, &projects);
+        assert!(!fresh.moved, "a first filtered install must still write its initial state");
+    }
 }

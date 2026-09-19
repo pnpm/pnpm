@@ -70,6 +70,7 @@ pub(super) async fn prepare_modules_state<'install, Reporter: self::Reporter + '
     let recorded_state = load_workspace_state(inputs.tree.workspace_root).ok().flatten();
     let recorded = recorded_workspace(
         recorded_state.as_ref(),
+        modules_manifest.is_some() || inputs.lockfiles.current.is_some(),
         inputs.tree.config,
         inputs.tree.node_linker,
         inputs.projects.manifests,
@@ -90,10 +91,12 @@ pub(super) async fn prepare_modules_state<'install, Reporter: self::Reporter + '
 }
 
 /// The workspace state, read once for the recorded `supportedArchitectures`
-/// and to tell a tree that moved with its project. Where a moved tree is
-/// never reused ([`tree_may_move`]), one is not told from a tree in place.
+/// and to tell a tree that moved with its project. An existing tree without
+/// readable state may have moved too. Where a moved tree is never reused
+/// ([`tree_may_move`]), one is not told from a tree in place.
 fn recorded_workspace<'a>(
     state: Option<&'a WorkspaceState>,
+    existing_tree: bool,
     config: &Config,
     node_linker: NodeLinker,
     projects: &'a [(PathBuf, &'a PackageManifest)],
@@ -101,7 +104,7 @@ fn recorded_workspace<'a>(
     RecordedWorkspace {
         state,
         moved: tree_may_move(config, node_linker)
-            && state.is_some_and(|state| recorded_elsewhere(state, projects)),
+            && state.map_or(existing_tree, |state| recorded_elsewhere(state, projects)),
         projects,
     }
 }

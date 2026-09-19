@@ -175,9 +175,10 @@ pub(crate) struct PruneEligibility {
 #[derive(Clone, Copy)]
 pub(crate) struct RecordedWorkspace<'a> {
     pub(crate) state: Option<&'a WorkspaceState>,
-    /// No current project is one `state` records, where a moved tree is
-    /// reused at all ([`crate::install::tree_may_move`]): the tree moved with
-    /// its project, and its bins may still name where it was.
+    /// A known or potentially moved tree, where moves are supported
+    /// ([`crate::install::tree_may_move`]). No current project is one `state`
+    /// records, or an existing tree has no readable state to prove its origin.
+    /// Its bins may still name where it was.
     pub(crate) moved: bool,
     pub(crate) projects: &'a [(PathBuf, &'a PackageManifest)],
 }
