@@ -18,15 +18,17 @@ fn task_starts_as_soon_as_its_dependencies_finish() {
             (
                 "mid",
                 json!({
-                                    "name": "mid",
-                                    "version": "1.0.0",
-                                    "dependencies": { "dep": "workspace:*" },
-                                    "scripts": { "build": format!(
-                    "{} && {}",
-                    append_line_script("mid", "../order.log"),
-                    write_marker_script("../slow-marker"),
-                ) },
-                                }),
+                    "name": "mid",
+                    "version": "1.0.0",
+                    "dependencies": { "dep": "workspace:*" },
+                    "scripts": {
+                        "build": format!(
+                            "{} && {}",
+                            append_line_script("mid", "../order.log"),
+                            write_marker_script("../slow-marker"),
+                        ),
+                    },
+                }),
             ),
             (
                 "slow",
@@ -138,15 +140,17 @@ fn explicitly_empty_depends_on_starts_without_waiting() {
             (
                 "dependent",
                 json!({
-                                    "name": "dependent",
-                                    "version": "1.0.0",
-                                    "dependencies": { "dependency": "workspace:*" },
-                                    "scripts": { "lint": format!(
-                    "{} && {}",
-                    append_line_script("dependent", "../order.log"),
-                    write_marker_script("../lint-marker"),
-                ) },
-                                }),
+                    "name": "dependent",
+                    "version": "1.0.0",
+                    "dependencies": { "dependency": "workspace:*" },
+                    "scripts": {
+                        "lint": format!(
+                            "{} && {}",
+                            append_line_script("dependent", "../order.log"),
+                            write_marker_script("../lint-marker"),
+                        ),
+                    },
+                }),
             ),
         ],
     );

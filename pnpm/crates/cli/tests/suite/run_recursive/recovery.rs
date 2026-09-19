@@ -107,8 +107,6 @@ fn recursive_run_resumes_from_exactly_the_tasks_that_passed_before_a_failure() {
                 json!({
                     "name": "dependency",
                     "version": "1.0.0",
-                    // Records that it ran, then fails while the marker
-                    // the test drops is in place.
                     "scripts": { "build": r#"node -e "const fs = require('fs'); fs.appendFileSync('../order.log', 'dependency' + String.fromCharCode(10)); process.exit(fs.existsSync('../fail') ? 1 : 0)""# },
                 }),
             ),
