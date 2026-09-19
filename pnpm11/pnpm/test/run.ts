@@ -349,7 +349,7 @@ testOnPosix('run: Ctrl+C in a terminal interrupts the script once', () => {
     'run',
     '--config.verify-deps-before-run=false',
     'dev',
-  ], { encoding: 'utf8', timeout: 30_000 })
+  ], { encoding: 'utf8', timeout: 90_000 })
 
   expect(error).toBeUndefined()
   expect(fs.existsSync('forced.txt')).toBe(false)

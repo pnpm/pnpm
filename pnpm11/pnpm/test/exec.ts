@@ -113,7 +113,7 @@ testOnPosix('exec: Ctrl+C in a terminal lets the command finish shutting down', 
     'exec',
     'node',
     'dev.js',
-  ], { encoding: 'utf8', timeout: 30_000 })
+  ], { encoding: 'utf8', timeout: 90_000 })
 
   expect(error).toBeUndefined()
   expect(fs.readFileSync('signals.txt', 'utf8')).toBe('SIGINT\n')
@@ -133,7 +133,7 @@ testOnPosix('exec: a command that fails after Ctrl+C keeps its exit code', () =>
     'exec',
     'node',
     'dev.js',
-  ], { encoding: 'utf8', timeout: 30_000 })
+  ], { encoding: 'utf8', timeout: 90_000 })
 
   expect(error).toBeUndefined()
   expect(fs.existsSync('shut-down.txt')).toBe(true)
@@ -158,7 +158,7 @@ testOnPosix('dlx: Ctrl+C in a terminal lets the command finish shutting down', (
     '--package=shx@0.3.4',
     'node',
     'dev.js',
-  ], { encoding: 'utf8', env: createEnv(), timeout: 120_000 })
+  ], { encoding: 'utf8', env: createEnv(), timeout: 150_000 })
 
   expect(error).toBeUndefined()
   expect(stdout).toContain('started')
@@ -232,7 +232,7 @@ testOnPosix('exec -r: Ctrl+C stops the queued commands from starting', () => {
     'exec',
     'node',
     'dev.js',
-  ], { encoding: 'utf8', timeout: 60_000 })
+  ], { encoding: 'utf8', timeout: 90_000 })
 
   expect(error).toBeUndefined()
   expect(stdout).toContain('started')

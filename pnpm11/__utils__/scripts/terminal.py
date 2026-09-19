@@ -5,7 +5,8 @@
 # and the command then has 30 seconds to exit after the Ctrl+C. When either
 # passes, the command and everything it started are killed and the exit
 # status is 124, so a test fails instead of hanging on a command that never
-# became ready or never shut down.
+# became ready or never shut down. A SIGTERM from the caller's own timeout
+# kills them the same way, so the command never outlives the helper.
 import os
 import pty
 import select
@@ -23,6 +24,23 @@ if argv and argv[0].startswith('--deadline='):
 pid, fd = pty.fork()
 if pid == 0:
     os.execvp(argv[0], argv)
+
+
+def kill_command():
+    # The command leads the pseudo-terminal's session, so its process group
+    # is everything it started.
+    try:
+        os.killpg(pid, signal.SIGKILL)
+    except ProcessLookupError:
+        pass
+
+
+def on_terminate(signum, frame):
+    kill_command()
+    sys.exit(128 + signum)
+
+
+signal.signal(signal.SIGTERM, on_terminate)
 
 output = b''
 deadline = time.time() + deadline_seconds
@@ -46,12 +64,7 @@ while True:
         interrupted = True
         deadline = time.time() + SHUTDOWN_SECONDS
 if timed_out:
-    # The command leads the pseudo-terminal's session, so its process group
-    # is everything it started.
-    try:
-        os.killpg(pid, signal.SIGKILL)
-    except ProcessLookupError:
-        pass
+    kill_command()
 _, status = os.waitpid(pid, 0)
 sys.stdout.write(output.decode(errors='replace'))
 if timed_out:
