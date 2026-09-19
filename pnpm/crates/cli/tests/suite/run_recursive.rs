@@ -97,11 +97,10 @@ fn summary_statuses(workspace: &Path) -> HashMap<String, String> {
         .collect()
 }
 
-/// A package whose `build` script writes a marker via a *relative* path
-/// (`touch ran.txt`), so it lands in the script's working directory.
-/// Tests assert the marker appears under the package's own root, which
-/// only holds if each script runs with cwd == its package root rather
-/// than the workspace root.
+/// A package whose `build` script writes a marker at a *relative* path,
+/// so it lands in the script's working directory. Tests assert the marker
+/// appears under the package's own root, which only holds if each script
+/// runs with cwd == its package root rather than the workspace root.
 fn build_writes_marker(name: &str) -> Value {
     json!({
         "name": name,
@@ -125,11 +124,12 @@ fn build_appends_run_order(name: &str) -> Value {
 /// [`write_concurrency_probe`] writes.
 pub const CONCURRENCY_PROBE_COMMAND: &str = "node ../track-concurrency.cjs";
 
-/// Write the probe that records how many scripts were running at once.
+/// `mkdir` is the lock each run claims its slot with, because it fails
+/// rather than succeeding twice.
 ///
-/// Each run claims a directory named after its own project, waits, counts
-/// the claims standing at that moment, and releases. `mkdir` is the lock
-/// because it fails rather than succeeding twice.
+/// The claim is sampled repeatedly rather than once, because two runs
+/// whose starts are further apart than a single sampling delay still
+/// overlap, and one sample apiece can fall either side of that overlap.
 fn write_concurrency_probe(workspace: &Path) {
     fs::write(
         workspace.join("track-concurrency.cjs"),
@@ -137,12 +137,15 @@ fn write_concurrency_probe(workspace: &Path) {
 const path = require('path')
 const marker = path.join('..', 'active-' + path.basename(process.cwd()))
 fs.mkdirSync(marker)
-setTimeout(() => {
+const until = Date.now() + 600
+const sample = () => {
   const active = fs.readdirSync('..').filter((entry) => entry.startsWith('active-'))
   if (active.length >= 2) fs.writeFileSync('../saw-parallel', '')
   if (active.length > 2) fs.writeFileSync('../exceeded-concurrency', '')
-  setTimeout(() => fs.rmdirSync(marker), 200)
-}, 200)
+  if (Date.now() < until) setTimeout(sample, 20)
+  else fs.rmdirSync(marker)
+}
+setTimeout(sample, 20)
 ",
     )
     .expect("write concurrency probe");
