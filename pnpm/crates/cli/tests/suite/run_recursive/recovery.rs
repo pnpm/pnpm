@@ -1,6 +1,7 @@
 use super::{
-    Command, CommandExtra, CommandTempCwd, Value, assert_recursive_run_bail_cancels_in_flight,
-    build_appends_run_order, build_writes_marker, fs, json, summary_statuses, write_workspace,
+    Command, CommandExtra, CommandTempCwd, Value, append_line_script,
+    assert_recursive_run_bail_cancels_in_flight, build_appends_run_order, build_writes_marker, fs,
+    json, summary_statuses, write_marker_script, write_workspace,
 };
 use assert_cmd::{assert::OutputAssertExt, cargo::CommandCargoExt};
 
@@ -106,7 +107,7 @@ fn recursive_run_resumes_from_exactly_the_tasks_that_passed_before_a_failure() {
                 json!({
                     "name": "dependency",
                     "version": "1.0.0",
-                    "scripts": { "build": "echo dependency >> ../order.log; [ ! -e ../fail ]" },
+                    "scripts": { "build": r#"node -e "const fs = require('fs'); fs.appendFileSync('../order.log', 'dependency' + String.fromCharCode(10)); process.exit(fs.existsSync('../fail') ? 1 : 0)""# },
                 }),
             ),
             (
@@ -115,7 +116,7 @@ fn recursive_run_resumes_from_exactly_the_tasks_that_passed_before_a_failure() {
                     "name": "anchor",
                     "version": "1.0.0",
                     "dependencies": { "dependency": "workspace:*" },
-                    "scripts": { "build": "echo anchor >> ../order.log" },
+                    "scripts": { "build": append_line_script("anchor", "../order.log") },
                 }),
             ),
             (
@@ -123,7 +124,7 @@ fn recursive_run_resumes_from_exactly_the_tasks_that_passed_before_a_failure() {
                 json!({
                     "name": "completed",
                     "version": "1.0.0",
-                    "scripts": { "build": "echo completed >> ../order.log" },
+                    "scripts": { "build": append_line_script("completed", "../order.log") },
                 }),
             ),
         ],
@@ -211,7 +212,10 @@ fn recursive_run_does_not_persist_a_task_skipped_by_the_recursion_guard() {
         ],
     );
     fs::write(workspace.join("fail"), "").expect("write failure marker");
-    let origin = fs::canonicalize(workspace.join("origin")).expect("canonicalize origin");
+    // `dunce` rather than `fs::canonicalize`: the latter hands back a
+    // `\\?\` path on Windows, which never matches the plain form the
+    // recursion guard compares the project directory against.
+    let origin = dunce::canonicalize(workspace.join("origin")).expect("canonicalize origin");
 
     pacquet
         .with_env("npm_lifecycle_event", "build")
@@ -351,7 +355,7 @@ fn recursive_run_reads_bail_from_workspace_config() {
                 json!({
                     "name": "later-continues",
                     "version": "1.0.0",
-                    "scripts": { "build": "touch ran.txt" },
+                    "scripts": { "build": write_marker_script("ran.txt") },
                 }),
             ),
         ],
@@ -474,7 +478,8 @@ fn recursive_run_recursion_guard_skips_originating_project() {
     // `/private/var/folders/...`) and the CLI canonicalizes its `--dir`,
     // so the project roots pacquet compares against are the
     // `/private/...` form.
-    let project_1 = fs::canonicalize(workspace.join("project-1")).expect("canonicalize project-1");
+    let project_1 =
+        dunce::canonicalize(workspace.join("project-1")).expect("canonicalize project-1");
     pacquet
         .with_env("npm_lifecycle_event", "build")
         .with_env("PNPM_SCRIPT_SRC_DIR", project_1.to_string_lossy().as_ref())

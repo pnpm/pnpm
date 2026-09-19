@@ -1,6 +1,6 @@
 use super::{
-    CommandExtra, CommandTempCwd, Value, build_appends_run_order, build_writes_marker, fs, json,
-    summary_statuses, write_workspace,
+    CommandExtra, CommandTempCwd, Value, append_line_script, build_appends_run_order,
+    build_writes_marker, fs, json, summary_statuses, write_marker_script, write_workspace,
 };
 use assert_cmd::assert::OutputAssertExt;
 
@@ -21,7 +21,13 @@ fn task_starts_as_soon_as_its_dependencies_finish() {
                     "name": "mid",
                     "version": "1.0.0",
                     "dependencies": { "dep": "workspace:*" },
-                    "scripts": { "build": "echo mid >> ../order.log && touch ../slow-marker" },
+                    "scripts": {
+                        "build": format!(
+                            "{} && {}",
+                            append_line_script("mid", "../order.log"),
+                            write_marker_script("../slow-marker"),
+                        ),
+                    },
                 }),
             ),
             (
@@ -30,9 +36,10 @@ fn task_starts_as_soon_as_its_dependencies_finish() {
                     "name": "slow",
                     "version": "1.0.0",
                     "scripts": {
-                        "build": concat!(
+                        "build": format!(
+                            "{} && {}",
                             r#"node -e "const fs = require('fs'); const started = Date.now(); (function poll () { if (fs.existsSync('../slow-marker')) process.exit(0); if (Date.now() - started > 30000) process.exit(1); setTimeout(poll, 50) })()""#,
-                            " && echo slow >> ../order.log",
+                            append_line_script("slow", "../order.log"),
                         ),
                     },
                 }),
@@ -60,8 +67,8 @@ fn depends_on_runs_the_tasks_a_task_depends_on_in_dependency_order() {
             "version": "1.0.0",
             "dependencies": if name == "project-a" { json!({ "project-b": "workspace:*" }) } else { json!({}) },
             "scripts": {
-                "build": format!("echo {name}-build >> ../order.log"),
-                "test": format!("echo {name}-test >> ../order.log"),
+                "build": append_line_script(&format!("{name}-build"), "../order.log"),
+                "test": append_line_script(&format!("{name}-test"), "../order.log"),
             },
         })
     };
@@ -122,9 +129,10 @@ fn explicitly_empty_depends_on_starts_without_waiting() {
                     "name": "dependency",
                     "version": "1.0.0",
                     "scripts": {
-                        "lint": concat!(
+                        "lint": format!(
+                            "{} && {}",
                             r#"node -e "const fs = require('fs'); const started = Date.now(); (function poll () { if (fs.existsSync('../lint-marker')) process.exit(0); if (Date.now() - started > 30000) process.exit(1); setTimeout(poll, 50) })()""#,
-                            " && echo dependency >> ../order.log",
+                            append_line_script("dependency", "../order.log"),
                         ),
                     },
                 }),
@@ -135,7 +143,13 @@ fn explicitly_empty_depends_on_starts_without_waiting() {
                     "name": "dependent",
                     "version": "1.0.0",
                     "dependencies": { "dependency": "workspace:*" },
-                    "scripts": { "lint": "echo dependent >> ../order.log && touch ../lint-marker" },
+                    "scripts": {
+                        "lint": format!(
+                            "{} && {}",
+                            append_line_script("dependent", "../order.log"),
+                            write_marker_script("../lint-marker"),
+                        ),
+                    },
                 }),
             ),
         ],
@@ -169,7 +183,7 @@ fn missing_script_is_reported_skipped_and_does_not_sever_the_chain() {
                     "name": "project-a",
                     "version": "1.0.0",
                     "dependencies": { "project-b": "workspace:*" },
-                    "scripts": { "build": "echo project-a >> ../order.log" },
+                    "scripts": { "build": append_line_script("project-a", "../order.log") },
                 }),
             ),
             (
@@ -185,7 +199,7 @@ fn missing_script_is_reported_skipped_and_does_not_sever_the_chain() {
                 json!({
                     "name": "project-c",
                     "version": "1.0.0",
-                    "scripts": { "build": "echo project-c >> ../order.log" },
+                    "scripts": { "build": append_line_script("project-c", "../order.log") },
                 }),
             ),
         ],
@@ -220,7 +234,7 @@ fn no_bail_skips_dependents_of_a_failed_task_and_runs_unrelated_ones() {
                     "name": "project-a",
                     "version": "1.0.0",
                     "dependencies": { "project-b": "workspace:*" },
-                    "scripts": { "build": "echo project-a >> ../order.log" },
+                    "scripts": { "build": append_line_script("project-a", "../order.log") },
                 }),
             ),
             (
@@ -236,7 +250,7 @@ fn no_bail_skips_dependents_of_a_failed_task_and_runs_unrelated_ones() {
                 json!({
                     "name": "project-c",
                     "version": "1.0.0",
-                    "scripts": { "build": "echo project-c >> ../order.log" },
+                    "scripts": { "build": append_line_script("project-c", "../order.log") },
                 }),
             ),
         ],
@@ -268,7 +282,7 @@ fn workspace_dependency_cycle_is_an_error_naming_the_participating_tasks() {
             "name": name,
             "version": "1.0.0",
             "dependencies": { dependency: "workspace:*" },
-            "scripts": { "build": format!("echo {name} >> ../order.log") },
+            "scripts": { "build": append_line_script(name, "../order.log") },
         })
     };
     write_workspace(
@@ -340,7 +354,7 @@ fn dry_run_prints_one_stable_linearization_and_runs_nothing() {
                     "name": "project-a",
                     "version": "1.0.0",
                     "dependencies": { "project-b": "workspace:*" },
-                    "scripts": { "build": "echo project-a >> ../order.log" },
+                    "scripts": { "build": append_line_script("project-a", "../order.log") },
                 }),
             ),
             (
@@ -356,7 +370,7 @@ fn dry_run_prints_one_stable_linearization_and_runs_nothing() {
                 json!({
                     "name": "project-c",
                     "version": "1.0.0",
-                    "scripts": { "build": "echo project-c >> ../order.log" },
+                    "scripts": { "build": append_line_script("project-c", "../order.log") },
                 }),
             ),
         ],
@@ -524,7 +538,7 @@ fn missing_requested_script_errors_before_upstream_tasks_run() {
             json!({
                 "name": "project-a",
                 "version": "1.0.0",
-                "scripts": { "codegen": "echo codegen >> ../order.log" },
+                "scripts": { "codegen": append_line_script("codegen", "../order.log") },
             }),
         )],
     );
@@ -555,7 +569,7 @@ fn regexp_selected_empty_script_errors_before_upstream_tasks_run() {
             json!({
                 "name": "project-a",
                 "version": "1.0.0",
-                "scripts": { "build:empty": "", "codegen": "echo codegen >> ../order.log" },
+                "scripts": { "build:empty": "", "codegen": append_line_script("codegen", "../order.log") },
             }),
         )],
     );
@@ -592,7 +606,7 @@ fn ignore_workspace_cycles_downgrades_the_task_cycle_error_to_a_warning() {
             "name": name,
             "version": "1.0.0",
             "dependencies": { dependency: "workspace:*" },
-            "scripts": { "build": format!("echo {name} >> ../order.log") },
+            "scripts": { "build": append_line_script(name, "../order.log") },
         })
     };
     write_workspace(

@@ -17,6 +17,11 @@ use crate::_utils;
 use serde_json::json;
 use std::fs;
 
+/// Where the lifecycle scripts of
+/// [`recursive_install_builds_workspace_projects_in_correct_order`] record
+/// the order they ran in, relative to each project directory.
+const ORDER_LOG: &str = "../../order.txt";
+
 const DEP: &str = "@pnpm.e2e/dep-of-pkg-with-1-dep";
 const FOO: &str = "@pnpm.e2e/foo";
 const FOOBAR: &str = "@pnpm.e2e/foobar";
@@ -612,9 +617,9 @@ fn recursive_install_builds_workspace_projects_in_correct_order() {
     for (project, name) in [(&dependency, "project-999"), (&dependent, "project-1")] {
         let mut manifest = read_manifest(project);
         manifest["scripts"] = json!({
-            "install": append_order_script(&format!("{name}-install")),
-            "postinstall": append_order_script(&format!("{name}-postinstall")),
-            "prepare": append_order_script(&format!("{name}-prepare")),
+            "install": append_line_script(&format!("{name}-install"), ORDER_LOG),
+            "postinstall": append_line_script(&format!("{name}-postinstall"), ORDER_LOG),
+            "prepare": append_line_script(&format!("{name}-prepare"), ORDER_LOG),
         });
         write_manifest_value(project, &manifest);
     }
@@ -690,18 +695,6 @@ fn link_bin_of_workspace_project_created_by_lifecycle_script() {
     }
     fixture.run(["install", "--frozen-lockfile"]);
     assert!(consumer.join("created-by-prepare").exists());
-}
-
-/// A script that appends `label` and a newline to the shared order log.
-///
-/// The newline comes from `String.fromCharCode` rather than a `\n` escape:
-/// `sh -c` unescapes a backslash inside double quotes before Node sees it,
-/// while `cmd /d /s /c` passes it through, so an escape would mean two
-/// different things per platform.
-fn append_order_script(label: &str) -> String {
-    format!(
-        r#"node -e "require('fs').appendFileSync('../../order.txt', '{label}' + String.fromCharCode(10))""#,
-    )
 }
 
 /// TS: `dependencies of workspace projects are built during headless

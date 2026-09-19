@@ -1,16 +1,22 @@
-//! Recursive-run integration tests. The build scripts run through
-//! pacquet's `sh -c` executor, so the whole file is gated to Unix —
-//! same as the single-package `run` tests.
-#![cfg(unix)]
+//! Recursive-run integration tests.
+//!
+//! The package scripts are Node programs rather than shell one-liners, so
+//! the same body reaches `sh -c` and `cmd /d /s /c` alike. Only the two
+//! process-group tests stay Unix-only, and they say so where they sit.
 
+use crate::_utils::{append_line_script, write_marker_script};
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
+use pnpm_cmd_shim::ScriptRuntime;
+#[cfg(windows)]
+use pnpm_cmd_shim::generate_cmd_shim;
+#[cfg(unix)]
+use pnpm_cmd_shim::generate_sh_shim;
 use pnpm_testing_utils::bin::CommandTempCwd;
 use serde_json::{Value, json};
 use std::{
     collections::HashMap,
     fs,
-    os::unix::fs::PermissionsExt,
     path::Path,
     process::Command,
     time::{Duration, Instant},
@@ -33,11 +39,37 @@ fn write_workspace(workspace: &Path, manifests: &[(&str, Value)]) {
     }
 }
 
-fn write_executable(path: &Path, body: &str) {
-    fs::write(path, body).expect("write executable");
-    let mut perms = fs::metadata(path).expect("stat executable").permissions();
-    perms.set_mode(0o755);
-    fs::set_permissions(path, perms).expect("chmod +x");
+/// Place a runnable `name` in `bin_dir` whose program is the Node source
+/// `body`, standing in for an installed dependency's bin on `PATH`.
+///
+/// The launcher beside the program comes from the generators pnpm links
+/// real bins with, so each platform gets the shape its script runner
+/// looks for: an `sh` shim outside Windows, a `.cmd` one on it, which is
+/// what `cmd` resolves through `PATHEXT`.
+fn write_node_bin(bin_dir: &Path, name: &str, body: &str) {
+    fs::create_dir_all(bin_dir).expect("create the bin directory");
+    let target = bin_dir.join(format!("{name}.cjs"));
+    fs::write(&target, body).expect("write the bin program");
+    let node = ScriptRuntime { prog: Some("node".to_owned()), args: String::new() };
+
+    #[cfg(windows)]
+    {
+        let shim = bin_dir.join(format!("{name}.cmd"));
+        let contents = generate_cmd_shim(&target, &shim, Some(&node), &[]);
+        fs::write(&shim, contents).expect("write the cmd shim");
+    }
+
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+
+        let shim = bin_dir.join(name);
+        let contents = generate_sh_shim(&target, &shim, Some(&node), &[], None);
+        fs::write(&shim, contents).expect("write the sh shim");
+        let mut perms = fs::metadata(&shim).expect("stat the shim").permissions();
+        perms.set_mode(0o755);
+        fs::set_permissions(&shim, perms).expect("make the shim executable");
+    }
 }
 
 /// Map each summary entry to `(basename, status)` so assertions don't
@@ -65,16 +97,15 @@ fn summary_statuses(workspace: &Path) -> HashMap<String, String> {
         .collect()
 }
 
-/// A package whose `build` script writes a marker via a *relative* path
-/// (`touch ran.txt`), so it lands in the script's working directory.
-/// Tests assert the marker appears under the package's own root, which
-/// only holds if each script runs with cwd == its package root rather
-/// than the workspace root.
+/// A package whose `build` script writes a marker at a *relative* path,
+/// so it lands in the script's working directory. Tests assert the marker
+/// appears under the package's own root, which only holds if each script
+/// runs with cwd == its package root rather than the workspace root.
 fn build_writes_marker(name: &str) -> Value {
     json!({
         "name": name,
         "version": "1.0.0",
-        "scripts": { "build": "touch ran.txt" },
+        "scripts": { "build": write_marker_script("ran.txt") },
     })
 }
 
@@ -85,27 +116,46 @@ fn build_appends_run_order(name: &str) -> Value {
     json!({
         "name": name,
         "version": "1.0.0",
-        "scripts": { "build": format!("echo {name} >> ../order.log") },
+        "scripts": { "build": append_line_script(name, "../order.log") },
     })
 }
 
+/// The command a package script runs to take part in the overlap probe
+/// [`write_concurrency_probe`] writes.
+pub const CONCURRENCY_PROBE_COMMAND: &str = "node ../track-concurrency.cjs";
+
+/// `mkdir` is the lock each run claims its slot with, because it fails
+/// rather than succeeding twice.
+///
+/// The claim is sampled repeatedly rather than once, because two runs
+/// whose starts are further apart than a single sampling delay still
+/// overlap, and one sample apiece can fall either side of that overlap.
 fn write_concurrency_probe(workspace: &Path) {
     fs::write(
-        workspace.join("track-concurrency.sh"),
-        r#"marker=../active-$(basename "$PWD")
-mkdir "$marker"
-sleep 0.2
-set -- ../active-*
-[ -e "$1" ] || set --
-[ "$#" -ge 2 ] && touch ../saw-parallel
-[ "$#" -gt 2 ] && touch ../exceeded-concurrency
-sleep 0.2
-rmdir "$marker"
-"#,
+        workspace.join("track-concurrency.cjs"),
+        r"const fs = require('fs')
+const path = require('path')
+const marker = path.join('..', 'active-' + path.basename(process.cwd()))
+fs.mkdirSync(marker)
+const until = Date.now() + 600
+const sample = () => {
+  const active = fs.readdirSync('..').filter((entry) => entry.startsWith('active-'))
+  if (active.length >= 2) fs.writeFileSync('../saw-parallel', '')
+  if (active.length > 2) fs.writeFileSync('../exceeded-concurrency', '')
+  if (Date.now() < until) setTimeout(sample, 20)
+  else fs.rmdirSync(marker)
+}
+setTimeout(sample, 20)
+",
     )
     .expect("write concurrency probe");
 }
 
+/// A script that records its own process group and its parent's, for the
+/// tests that pin which group a script runs in. POSIX-only: Windows has
+/// no process groups to compare, and pnpm keeps children in a job object
+/// there instead.
+#[cfg(unix)]
 fn process_group_probe() -> &'static str {
     r#"child_group=$(ps -o pgid= -p $$ | tr -d ' ')
 parent_group=$(ps -o pgid= -p $PPID | tr -d ' ')
@@ -197,9 +247,9 @@ fn recursive_lifecycle_aliases_use_recursive_run_options() {
             "name": name,
             "version": "1.0.0",
             "scripts": {
-                "test": "touch test-ran.txt",
-                "start": "touch start-ran.txt",
-                "stop": "touch stop-ran.txt",
+                "test": write_marker_script("test-ran.txt"),
+                "start": write_marker_script("start-ran.txt"),
+                "stop": write_marker_script("stop-ran.txt"),
             },
         })
     };
@@ -249,7 +299,7 @@ fn recursive_run_settings_only_workspace_enumerates_root_only() {
         json!({
             "name": "root",
             "version": "1.0.0",
-            "scripts": { "build": "touch root-ran.txt" },
+            "scripts": { "build": write_marker_script("root-ran.txt") },
         })
         .to_string(),
     )
@@ -264,7 +314,7 @@ fn recursive_run_settings_only_workspace_enumerates_root_only() {
         json!({
             "name": "preact",
             "version": "10.10.2",
-            "scripts": { "build": "touch vendored-ran.txt" },
+            "scripts": { "build": write_marker_script("vendored-ran.txt") },
         })
         .to_string(),
     )
@@ -306,7 +356,7 @@ fn workspace_root_run_selection(start_dir: &str, filter: Option<&str>) -> Vec<St
         json!({
             "name": "root",
             "version": "1.0.0",
-            "scripts": { "build": "touch root-ran.txt" },
+            "scripts": { "build": write_marker_script("root-ran.txt") },
         })
         .to_string(),
     )
@@ -344,7 +394,7 @@ fn write_workspace_with_root_and_packages(workspace: &Path) {
         json!({
             "name": "root",
             "version": "1.0.0",
-            "scripts": { "build": "touch root-ran.txt" },
+            "scripts": { "build": write_marker_script("root-ran.txt") },
         })
         .to_string(),
     )
@@ -406,7 +456,7 @@ fn recursive_run_no_sort_uses_workspace_order() {
                 json!({
                     "name": "z-app",
                     "version": "1.0.0",
-                    "scripts": { "build": "echo z-app >> ../order.log" },
+                    "scripts": { "build": append_line_script("z-app", "../order.log") },
                     "dependencies": { "a-lib": "workspace:*" },
                 }),
             ),
@@ -442,7 +492,7 @@ fn recursive_run_reads_sort_from_workspace_config() {
                 json!({
                     "name": "app",
                     "version": "1.0.0",
-                    "scripts": { "build": "echo app >> ../order.log" },
+                    "scripts": { "build": append_line_script("app", "../order.log") },
                     "dependencies": { "lib": "workspace:*" },
                 }),
             ),
@@ -474,7 +524,7 @@ fn recursive_run_reads_reverse_from_workspace_config() {
                 json!({
                     "name": "app",
                     "version": "1.0.0",
-                    "scripts": { "build": "echo app >> ../order.log" },
+                    "scripts": { "build": append_line_script("app", "../order.log") },
                     "dependencies": { "lib": "workspace:*" },
                 }),
             ),
@@ -535,7 +585,7 @@ fn assert_recursive_run_bail_cancels_in_flight(shell_emulator: bool) {
                     r#"node -e "require('fs').writeFileSync('ran.txt', ''); setTimeout(() => {}, 5000)""#,
                 ),
             ),
-            ("z-queued", manifest("z-queued", "touch ran.txt")),
+            ("z-queued", manifest("z-queued", &write_marker_script("ran.txt"))),
         ],
     );
     if shell_emulator {
@@ -770,9 +820,9 @@ fn recursive_run_runs_pre_and_post_when_enabled() {
                 "name": "project-1",
                 "version": "1.0.0",
                 "scripts": {
-                    "prebuild": "touch pre.txt",
-                    "build": "touch ran.txt",
-                    "postbuild": "touch post.txt",
+                    "prebuild": write_marker_script("pre.txt"),
+                    "build": write_marker_script("ran.txt"),
+                    "postbuild": write_marker_script("post.txt"),
                 },
             }),
         )],
