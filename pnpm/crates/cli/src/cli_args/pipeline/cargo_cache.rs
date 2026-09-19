@@ -374,7 +374,7 @@ fn add_config(path: &Path, project: &Path, inputs: &mut Vec<String>) -> io::Resu
     match create_hex_hash_from_file(&canonical_path) {
         Ok(hash) => {
             let relative = pathdiff::diff_paths(&canonical_path, &canonical_project)
-                .unwrap_or_else(|| canonical_path.to_path_buf());
+                .unwrap_or_else(|| canonical_path.clone());
             inputs.push(format!("cargo-config:{}:{hash}", relative.display()));
         }
         Err(error) if error.kind() == io::ErrorKind::NotFound => {}
