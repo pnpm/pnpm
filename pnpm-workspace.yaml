@@ -379,7 +379,7 @@ catalog:
   lru-cache: ^11.5.2
   make-empty-dir: ^4.0.0
   mdast-util-to-string: ^4.0.0
-  memfs: ^4.78.0
+  memfs: ^4.78.1
   memoize: ^11.0.0
   micromatch: ^4.0.8
   msgpackr: 2.1.0
