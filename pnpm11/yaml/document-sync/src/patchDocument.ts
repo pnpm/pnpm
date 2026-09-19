@@ -1,5 +1,7 @@
 import yaml from 'yaml'
 
+import { preserveScalarAliases } from './preserveScalarAliases.js'
+
 export interface PatchDocumentOptions {
   /**
    * Updating aliases is inherently ambiguous since they're not a concept in
@@ -13,6 +15,8 @@ export interface PatchDocumentOptions {
    * @default 'unwrap'
    */
   readonly aliases?: 'unwrap' | 'follow'
+  /** Keep scalar aliases whose final values agree, moving removed anchors to a surviving entry. */
+  readonly preserveScalarAliases?: boolean
 }
 
 interface PatchContext extends PatchDocumentOptions {
@@ -33,10 +37,12 @@ export function patchDocument (document: yaml.Document, target: unknown, options
     throw new Error('Document with errors cannot be patched')
   }
 
+  const restoreAliases = options?.preserveScalarAliases ? preserveScalarAliases(document) : undefined
   document.contents = patchNode(document.contents, target, {
     document,
     aliases: options?.aliases ?? 'unwrap',
   })
+  restoreAliases?.()
 }
 
 function patchNode (node: yaml.Node | null | undefined, target: unknown, ctx: PatchContext): yaml.Node | null {

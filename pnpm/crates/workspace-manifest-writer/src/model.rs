@@ -1,7 +1,8 @@
 //! Parsed view of a `pnpm-workspace.yaml` used to decide catalog edits.
 //!
-//! Holds the original text verbatim (so untouched bytes survive) alongside
-//! the decoded top-level key order and catalog data the edit pass consults.
+//! Keeps document text alongside the decoded top-level key order and catalog
+//! data the edit pass consults. Scalar aliases are expanded during editing
+//! and restored when the document is written.
 
 use indexmap::IndexMap;
 use serde::Deserialize;
@@ -39,6 +40,7 @@ pub(crate) struct Manifest {
 #[derive(Default)]
 pub(crate) struct ManifestDocument {
     text: String,
+    aliases: crate::scalar_aliases::ScalarAliases,
     pub(crate) keys: Vec<String>,
     /// Whether the document separates its top-level blocks with blank lines,
     /// as judged by [`crate::edit::uses_blank_line_style`] on the original
@@ -171,6 +173,8 @@ impl Manifest {
 
         let data: CatalogData = serde_saphyr::from_str(&text).map_err(Box::new)?;
         let (overrides, non_scalar_overrides) = split_overrides(data.overrides);
+        let (text, aliases) = crate::scalar_aliases::ScalarAliases::expand(&text)
+            .map_err(|error| Box::new(<serde_saphyr::Error as serde::de::Error>::custom(error)))?;
 
         Ok(Manifest {
             config_dependencies: data.config_dependencies.map(clean_config_dependencies),
@@ -180,6 +184,7 @@ impl Manifest {
             non_scalar_overrides,
             document: crate::model::ManifestDocument {
                 text,
+                aliases,
                 keys: top_level_keys,
                 blank_lines: blank_line_style,
             },
@@ -249,7 +254,7 @@ impl ManifestDocument {
         self.text = text;
     }
 
-    pub(crate) fn into_text(self) -> String {
-        self.text
+    pub(crate) fn into_text(self) -> Result<String, Box<yamlpatch::Error>> {
+        self.aliases.restore(&self.text)
     }
 }

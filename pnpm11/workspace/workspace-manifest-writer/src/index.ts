@@ -152,7 +152,7 @@ export async function updateWorkspaceManifest (dir: string, opts: {
 
   manifest = reorderRecursive(originalKeyOrder, manifest) as Partial<WorkspaceManifest>
 
-  patchDocument(document, manifest)
+  patchDocument(document, manifest, { preserveScalarAliases: true })
   propagateBlankLinesToNewPairs(document, originalKeyOrder?.keys ?? [])
 
   await writeManifestFile(dir, fileName, document)
