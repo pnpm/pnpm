@@ -247,7 +247,8 @@ async function releaseFromIntents (opts: VersionHandlerOptions): Promise<string>
     enforceWorkspaceProtocol: true,
   }
   const publishedNames = publishedNameByManifestName(projects)
-  const unpublishedDirs = await resolveUnpublishedDirs(assembleReleasePlan(baseArgs), { ...opts, publishedNames })
+  const privateDirs = new Set(baseArgs.projects.filter((project) => project.manifest.private === true).map((project) => toProjectDir(workspaceDir, project.rootDir)))
+  const unpublishedDirs = await resolveUnpublishedDirs(assembleReleasePlan(baseArgs), { ...opts, publishedNames, privateDirs })
   const plan = assembleReleasePlan({ ...baseArgs, unpublishedDirs })
 
   const applyOpts: ApplyReleasePlanOptions = {

@@ -1,9 +1,6 @@
 pub use report::render_release_plan;
 
-use crate::cli_args::{
-    changelog::{published_names, unpublished_release_dirs},
-    recursive::discover_workspace_projects,
-};
+use crate::cli_args::{changelog::published_names, recursive::discover_workspace_projects};
 use clap::Args;
 use derive_more::{Display, Error};
 use dialoguer::{Input, MultiSelect};
@@ -169,7 +166,25 @@ impl ChangeArgs {
         match self.params[0].as_str() {
             "status" => {
                 let names = published_names(projects);
-                let output = render_status(workspace_dir, engine_projects, &names, config).await?;
+                let private_dirs = projects
+                    .iter()
+                    .filter(|project| {
+                        project.manifest
+                            .value()
+                            .get("private")
+                            .and_then(serde_json::Value::as_bool)
+                            == Some(true)
+                    })
+                    .map(|project| to_project_dir(workspace_dir, &project.root_dir))
+                    .collect();
+                let output = render_status(report::RenderStatusOptions {
+                    workspace_dir,
+                    projects: engine_projects,
+                    published_names: &names,
+                    private_dirs: &private_dirs,
+                    config,
+                })
+                .await?;
                 println!("{output}");
             }
             "check" => run_check(workspace_dir, engine_projects, config)?,
