@@ -277,10 +277,6 @@ export async function handler (
   let exitCode = 0
   let firstError: Error | undefined
   let abortError: unknown
-  const prependPaths = [
-    './node_modules/.bin',
-    ...(opts.extraBinPaths ?? []),
-  ]
   const reporterShowPrefix = opts.recursive && opts.reporterHidePrefix === false
 
   const runTask = async (node: TaskNode, key: TaskKey): Promise<TaskCompletion> => {
@@ -303,11 +299,22 @@ export async function handler (
         return 'passed'
       }
       const prefix = node.project
+      // Without --recursive the command runs where pnpm was invoked, which
+      // may be a plain subdirectory of the project at `opts.dir`. The
+      // project's bin directory is added relative to the run directory, like
+      // `./node_modules/.bin`, so a project path that contains the PATH
+      // delimiter stays out of PATH.
+      const projectDir = opts.recursive ? prefix : opts.dir as ProjectRootDir
+      const prependPaths = [
+        './node_modules/.bin',
+        ...(projectDir !== prefix ? [path.relative(prefix, path.join(projectDir, 'node_modules', '.bin'))] : []),
+        ...(opts.extraBinPaths ?? []),
+      ]
       result[prefix].status = 'running'
       const startTime = process.hrtime()
       try {
-        const pnpPath = workspacePnpPath ?? existsPnp(prefix)
-        const packageMapPath = workspacePackageMapPath || (opts.nodeExperimentalPackageMap && existsPackageMap(prefix))
+        const pnpPath = workspacePnpPath ?? existsPnp(projectDir)
+        const packageMapPath = workspacePackageMapPath || (opts.nodeExperimentalPackageMap && existsPackageMap(projectDir))
         const extraEnv = { ...baseExtraEnv }
         if (pnpPath) {
           Object.assign(extraEnv, makeNodeRequireOption(pnpPath, extraEnv))
@@ -318,7 +325,7 @@ export async function handler (
         const env = makeEnv({
           extraEnv: {
             ...extraEnv,
-            PNPM_PACKAGE_NAME: opts.selectedProjectsGraph[prefix]?.package.manifest.name,
+            PNPM_PACKAGE_NAME: opts.selectedProjectsGraph[projectDir]?.package.manifest.name,
           },
           prependPaths,
           userAgent: opts.userAgent,

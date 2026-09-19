@@ -32,6 +32,24 @@ test("exec should respect the caller's current working directory", async () => {
   expect(fs.readFileSync(cmdFilePath, 'utf8')).toBe(subdirPath)
 })
 
+test('exec and the run fallback find the project bins from a subdirectory', async () => {
+  prepare({
+    name: 'root',
+    version: '1.0.0',
+    dependencies: {
+      '@pnpm.e2e/hello-world-js-bin': '1.0.0',
+    },
+  })
+  await execPnpm(['install'])
+  const subdirPath = path.join(process.cwd(), 'some-directory')
+  fs.mkdirSync(subdirPath)
+
+  for (const args of [['exec', 'hello-world-js-bin'], ['hello-world-js-bin']]) {
+    const result = execPnpmSync(args, { cwd: subdirPath, expectSuccess: true })
+    expect(result.stdout.toString()).toContain('Hello world!')
+  }
+})
+
 test('silent exec does not print verifyDepsBeforeRun install output', async () => {
   prepare({})
   writeYamlFileSync('pnpm-workspace.yaml', {
