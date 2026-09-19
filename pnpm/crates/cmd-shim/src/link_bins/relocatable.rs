@@ -2,9 +2,13 @@ use crate::shim::is_relocatable_shim;
 use pnpm_fs::{is_subdir, realpath_missing};
 use std::{
     fs::{self, DirEntry},
-    io,
+    io::{self, Read},
     path::Path,
 };
+
+/// A generated shim stays far below this, so a larger `.bin` entry is not one
+/// and is refused without being held in memory.
+const MAX_SHIM_BYTES: u64 = 64 * 1024;
 
 /// Missing bin directories are valid; unreadable entries and paths resolving
 /// outside `root` are not. Only relative symlinks and recognized shims qualify.
@@ -33,8 +37,21 @@ fn is_relocatable_bin(entry: &DirEntry, bin_dir: &Path, root: &Path) -> bool {
                     && realpath_missing(&bin_dir.join(link))
                         .is_ok_and(|target| is_subdir(root, &target))
             }),
-        Ok(file_type) if file_type.is_file() => fs::read_to_string(&path)
-            .is_ok_and(|content| is_relocatable_shim(&content, bin_dir, root)),
+        Ok(file_type) if file_type.is_file() => {
+            read_shim(&path).is_some_and(|content| is_relocatable_shim(&content, bin_dir, root))
+        }
         _ => false,
     }
+}
+
+/// The text of a file of at most [`MAX_SHIM_BYTES`], or `None` for a longer
+/// one and for anything that is not readable text.
+fn read_shim(path: &Path) -> Option<String> {
+    let mut content = String::new();
+    fs::File::open(path)
+        .ok()?
+        .take(MAX_SHIM_BYTES + 1)
+        .read_to_string(&mut content)
+        .ok()?;
+    (content.len() as u64 <= MAX_SHIM_BYTES).then_some(content)
 }

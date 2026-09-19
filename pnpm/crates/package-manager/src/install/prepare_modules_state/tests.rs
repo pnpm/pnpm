@@ -52,7 +52,7 @@ fn purge_removes_directory_links_without_following_them() {
     assert!(link_target.join("package.json").exists(), "the purge must not follow the link");
 }
 
-/// A shim target spelled absolutely, as an earlier pnpm wrote every one.
+/// A shim target no move can keep working, so a tree holding one is refused.
 const ABSOLUTE_TARGET: &str = "/elsewhere/project/node_modules/typescript/bin/tsc";
 
 /// A shim target the tree carries with it.

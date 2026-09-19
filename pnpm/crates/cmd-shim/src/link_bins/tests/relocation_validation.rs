@@ -110,3 +110,19 @@ fn validators_reject_external_bin_directories_and_unresolvable_roots() {
         assert!(!is_relocatable_shim(content, bin_dir, relocation_root));
     }
 }
+
+#[test]
+fn a_bin_file_past_the_size_bound_is_refused() {
+    let tmp = tempdir().unwrap();
+    let root = tmp.path();
+    let bins = root.join(".bin");
+    fs::create_dir_all(&bins).unwrap();
+    let shim = bins.join("tool");
+    let marker = "# cmd-shim-target=../cli\n";
+    fs::write(&shim, marker).unwrap();
+    assert!(bin_dir_is_relocatable(&bins, root));
+
+    let padding = " ".repeat(64 * 1024);
+    fs::write(&shim, format!("{marker}{padding}")).unwrap();
+    assert!(!bin_dir_is_relocatable(&bins, root), "a shim past the size bound fails closed");
+}
