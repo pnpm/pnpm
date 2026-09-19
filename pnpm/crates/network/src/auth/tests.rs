@@ -298,6 +298,13 @@ fn redact_npm_auth_key_hides_protocol_relative_userinfo() {
         redact_npm_auth_key("//registry.example/:@org:_authToken"),
         "//registry.example/:@org:_authToken",
     );
+    assert_eq!(
+        redact_npm_auth_key("//localhost:4873/@org:_authToken"),
+        "//localhost:4873/@org:_authToken",
+    );
+    let malformed_scoped = redact_npm_auth_key("//user:pa/ss/@registry.example/:_authToken");
+    assert_eq!(malformed_scoped, "[hidden]");
+    assert_eq!(redact_npm_auth_key("//user:pa/ss/:@org:_authToken"), "[hidden]");
 }
 
 #[test]

@@ -82,6 +82,12 @@ pub fn redact_npm_auth_key(key: &str) -> String {
         if !before_at.ends_with('/') && !before_at.ends_with("/:") {
             return "[hidden]".to_string();
         }
+        let Ok(parsed) = reqwest::Url::parse(&format!("https:{sanitized}")) else {
+            return "[hidden]".to_string();
+        };
+        if !parsed.username().is_empty() || parsed.password().is_some() {
+            return "[hidden]".to_string();
+        }
     }
     sanitized
 }
