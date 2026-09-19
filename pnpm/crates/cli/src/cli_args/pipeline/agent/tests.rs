@@ -14,3 +14,11 @@ fn a_second_watcher_cannot_use_a_running_watchers_checkout() {
         "the checkout must be released when the watcher stops",
     );
 }
+
+#[test]
+fn repo_basename_extracts_clean_name_from_windows_and_unix_paths() {
+    assert_eq!(super::repo_basename("https://github.com/pnpm/pnpm.git"), "pnpm");
+    assert_eq!(super::repo_basename("/tmp/demo.git"), "demo");
+    assert_eq!(super::repo_basename(r"C:\Users\runner\demo.git"), "demo");
+    assert_eq!(super::repo_basename(r"C:\Users\runner\demo.git\"), "demo");
+}
