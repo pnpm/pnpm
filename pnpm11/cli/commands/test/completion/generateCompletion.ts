@@ -1,3 +1,8 @@
+import { execFileSync } from 'node:child_process'
+import fs from 'node:fs'
+import os from 'node:os'
+import path from 'node:path'
+
 import { expect, jest, test } from '@jest/globals'
 import { generateCompletion } from '@pnpm/cli.commands'
 import { SUPPORTED_SHELLS } from '@pnpm/tabtab'
@@ -67,3 +72,27 @@ test.each([
     expect(output).toContain(snippet)
   }
 })
+
+if (process.platform !== 'win32') {
+  test.each(['*literal', 'semi;printf injected', 'dollar$(printf injected)', 'space name', "quote'name", 'tick`name'])('bash completion preserves the literal candidate %s', async (scriptName) => {
+    const { log, handler } = createHandler()
+    await handler({}, ['bash'])
+    const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'pnpm-bash-completion-'))
+    try {
+      fs.writeFileSync(path.join(directory, 'expanded-literal'), '')
+      const script = `${log.mock.calls[0][0]}
+pnpm () { printf '%s\\n' "$SCRIPT_NAME"; }
+COMP_WORDS=(pnpm run "")
+COMP_CWORD=2
+COMP_LINE="pnpm run "
+COMP_POINT=9
+_pnpm_completion
+eval "set -- \${COMPREPLY[0]}"
+printf '%s\\n' "$@"
+`
+      expect(execFileSync('bash', ['--noprofile', '--norc', '-c', script], { cwd: directory, encoding: 'utf8', env: { ...process.env, SCRIPT_NAME: scriptName } })).toBe(`${scriptName}\n`)
+    } finally {
+      fs.rmSync(directory, { recursive: true, force: true })
+    }
+  })
+}
