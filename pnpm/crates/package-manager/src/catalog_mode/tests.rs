@@ -465,6 +465,14 @@ fn coverage_agrees_with_npm_subset() {
         // surrounding spaces, so the prereleases on either side still count.
         (">=1.0.0-beta.1||>=2.0.0", ">=1.0.0-beta.2", true),
         ("^1.2.0-beta.1||^3.0.0", "^1.2.0-beta.3", true),
+        // The alternative holding the endpoints has to be the one naming the
+        // prerelease: `^1.0.0` admits no `1.2.0` prerelease on its own.
+        ("^1.0.0 || >1.2.0-beta.5 <1.2.0", ">=1.2.0-beta.1 <1.2.0", false),
+        // npm reads no range at all out of a comparator it cannot parse.
+        ("^1.0.0", "1.2.3 foo", false),
+        ("^1.0.0", "1.2.3 || garbage", false),
+        ("1.2.3 foo", "1.2.3", false),
+        ("^1.2.3-beta.1", "1.2.3-beta.1 - 1.5.0", true),
     ] {
         assert_eq!(
             super::catalog_covers(entry, wanted),
