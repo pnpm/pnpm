@@ -52,6 +52,27 @@ test('skips versions the publish-date policy would refuse', () => {
   expect(findNonDeprecatedAlternative(meta, range('^1.0.0'), opts)?.version).toBe('1.4.0')
 })
 
+// `filterPkgMetadataByPublishDate` drops a version it cannot date, so naming
+// one here would point at a version the pick itself would refuse.
+test('skips versions the policy cannot date', () => {
+  const meta = metaWith(
+    { '1.0.0': true, '1.4.0': false, '2.0.0': false },
+    { '1.4.0': '2020-01-01T00:00:00.000Z' } // 2.0.0 has no timestamp
+  )
+  const opts = { publishedBy: new Date('2025-01-01T00:00:00.000Z') }
+  expect(findNonDeprecatedAlternative(meta, range('^1.0.0'), opts)?.version).toBe('1.4.0')
+})
+
+// A version with no timestamp is still trusted when the policy names it.
+test('keeps a version with no timestamp when the policy trusts it', () => {
+  const meta = metaWith({ '1.0.0': true, '2.0.0': false }, {})
+  const opts = {
+    publishedBy: new Date('2025-01-01T00:00:00.000Z'),
+    publishedByExclude: () => ['2.0.0'],
+  }
+  expect(findNonDeprecatedAlternative(meta, range('^1.0.0'), opts)?.version).toBe('2.0.0')
+})
+
 test('is undefined when every admissible version is deprecated', () => {
   expect(findNonDeprecatedAlternative(metaWith({ '1.0.0': true, '2.0.0': true }), range('*'), {})).toBeUndefined()
 })

@@ -6,7 +6,7 @@ use super::{
     TarballRevision, TrustCheckOptions, TrustPolicy, Utc, Version, WantedDependency,
     fail_if_trust_downgraded,
     release_policy::{
-        detect_min_release_age_violation, latest_allowed_by_policy, version_allowed_by_policy,
+        detect_min_release_age_violation, installable_under_policy, latest_allowed_by_policy,
     },
     select_package_revision, tarball_revision,
 };
@@ -276,7 +276,7 @@ fn find_non_deprecated_alternative(
         .keys()
         .filter(|version| !meta.versions.is_deprecated(version))
         .filter(|version| {
-            version_allowed_by_policy(meta, version, published_by, published_by_exclude)
+            installable_under_policy(meta, version, published_by, published_by_exclude)
         })
         .filter_map(|version| Version::parse(version).ok())
         .max()?;

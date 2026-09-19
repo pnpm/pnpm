@@ -25,39 +25,67 @@ pub(super) fn latest_allowed_by_policy<'a>(
     published_by_exclude: Option<&PackageVersionPolicy>,
 ) -> Option<&'a str> {
     let latest = meta.dist_tag("latest")?;
-    version_allowed_by_policy(meta, latest, published_by, published_by_exclude).then_some(latest)
+    let Some(cutoff) = published_by else { return Some(latest) };
+    (!known_immature(meta, latest, cutoff, published_by_exclude)).then_some(latest)
 }
 
-/// Whether the active `minimumReleaseAge` policy would let pnpm install
-/// `version`. Suppression requires positive evidence of immaturity: a missing
-/// or unparsable timestamp admits the version, matching
+/// Whether the policy trusts `version` outright, by excluding the package
+/// wholesale or by naming that exact version.
+fn policy_trusts(
+    meta: &Package,
+    version: &str,
+    published_by_exclude: Option<&PackageVersionPolicy>,
+) -> bool {
+    use pnpm_config::version_policy::PolicyMatch;
+    let Some(policy) = published_by_exclude else { return false };
+    match policy.matches(&meta.name) {
+        PolicyMatch::AnyVersion => true,
+        PolicyMatch::ExactVersions(versions) => versions
+            .iter()
+            .any(|exact| exact == version),
+        PolicyMatch::No => false,
+    }
+}
+
+/// Whether the cutoff has positive evidence that `version` is too new.
+///
+/// A version pnpm cannot date is not flagged, matching
 /// [`detect_min_release_age_violation`], which likewise only flags a version
-/// it can date.
-pub(super) fn version_allowed_by_policy(
+/// it can date. Reporting is what wants this direction: hiding an available
+/// version over metadata pnpm failed to read would be its own wrong answer.
+fn known_immature(
+    meta: &Package,
+    version: &str,
+    cutoff: DateTime<Utc>,
+    published_by_exclude: Option<&PackageVersionPolicy>,
+) -> bool {
+    if policy_trusts(meta, version, published_by_exclude) {
+        return false;
+    }
+    matches!(
+        meta.published_at(version).and_then(parse_packument_timestamp),
+        Some(published_at) if published_at > cutoff,
+    )
+}
+
+/// Whether `version` clears the cutoff the way the pick's own filter requires.
+///
+/// The inverse of [`known_immature`]: admission needs positive evidence of
+/// maturity, because `filter_pkg_metadata_by_publish_date` drops every version
+/// it cannot date. Recommending a version wants this direction, so pnpm never
+/// names one the pick would then refuse.
+pub(super) fn installable_under_policy(
     meta: &Package,
     version: &str,
     published_by: Option<DateTime<Utc>>,
     published_by_exclude: Option<&PackageVersionPolicy>,
 ) -> bool {
     let Some(cutoff) = published_by else { return true };
-    if let Some(policy) = published_by_exclude {
-        use pnpm_config::version_policy::PolicyMatch;
-        match policy.matches(&meta.name) {
-            PolicyMatch::AnyVersion => return true,
-            PolicyMatch::ExactVersions(versions)
-                if versions
-                    .iter()
-                    .any(|exact| exact == version) =>
-            {
-                return true;
-            }
-            _ => {}
-        }
-    }
-    !matches!(
-        meta.published_at(version).and_then(parse_packument_timestamp),
-        Some(published_at) if published_at > cutoff,
-    )
+    policy_trusts(meta, version, published_by_exclude)
+        || matches!(
+            meta.published_at(version).and_then(parse_packument_timestamp),
+            Some(published_at) if published_at <= cutoff,
+        )
 }
 
 /// Resolver-time `minimumReleaseAge` check. Returns a violation entry

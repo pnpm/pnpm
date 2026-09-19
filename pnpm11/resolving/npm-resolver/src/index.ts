@@ -71,7 +71,7 @@ import {
   pickPackage,
   type PickPackageOptions,
 } from './pickPackage.js'
-import { applyPublishedByPolicy, findNonDeprecatedAlternative, pickPackageFromMeta, pickVersionByVersionRange, versionAllowedByPolicy } from './pickPackageFromMeta.js'
+import { applyPublishedByPolicy, findNonDeprecatedAlternative, knownImmature, pickPackageFromMeta, pickVersionByVersionRange } from './pickPackageFromMeta.js'
 import { failIfTrustDowngraded } from './trustChecks.js'
 import { MINIMUM_RELEASE_AGE_VIOLATION_CODE } from './violationCodes.js'
 import { workspacePrefToNpm } from './workspacePrefToNpm.js'
@@ -1268,7 +1268,7 @@ function latestAllowedByPolicy (
 ): string | undefined {
   const latest = meta['dist-tags'].latest
   if (!latest) return undefined
-  return versionAllowedByPolicy(meta, latest, opts) ? latest : undefined
+  return knownImmature(meta, latest, opts) ? undefined : latest
 }
 
 /**

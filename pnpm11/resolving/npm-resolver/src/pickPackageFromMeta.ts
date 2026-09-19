@@ -397,25 +397,57 @@ export interface PublishPolicyOptions {
   publishedByExclude?: PackageVersionPolicy
 }
 
+/** Whether the policy trusts `version` outright. */
+function policyTrusts (
+  meta: PackageMeta,
+  version: string,
+  opts: PublishPolicyOptions
+): boolean {
+  const excludeResult = opts.publishedByExclude?.(meta.name)
+  if (excludeResult === true) return true
+  return Array.isArray(excludeResult) && excludeResult.includes(version)
+}
+
 /**
- * Whether the active `minimumReleaseAge` policy would let pnpm install
- * `version`. Suppression requires positive evidence of immaturity: a missing
- * or unparsable timestamp admits the version, matching the resolver's own
+ * Whether the cutoff has positive evidence that `version` is too new.
+ *
+ * A version pnpm cannot date is not flagged, matching the resolver's own
  * violation check, which likewise only flags a version it can date.
+ * Reporting wants this direction: hiding an available version over metadata
+ * pnpm failed to read would be its own wrong answer.
  */
-export function versionAllowedByPolicy (
+export function knownImmature (
+  meta: PackageMeta,
+  version: string,
+  opts: PublishPolicyOptions
+): boolean {
+  if (!opts.publishedBy) return false
+  if (policyTrusts(meta, version, opts)) return false
+  const publishedAt = meta.time?.[version]
+  if (publishedAt == null) return false
+  const ts = new Date(publishedAt).getTime()
+  return !Number.isNaN(ts) && ts > opts.publishedBy.getTime()
+}
+
+/**
+ * Whether `version` clears the cutoff the way the pick's own filter requires.
+ *
+ * The inverse of {@link knownImmature}: admission needs positive evidence of
+ * maturity, because `filterPkgMetadataByPublishDate` drops every version it
+ * cannot date. Recommending a version wants this direction, so pnpm never
+ * names one the pick would then refuse.
+ */
+export function installableUnderPolicy (
   meta: PackageMeta,
   version: string,
   opts: PublishPolicyOptions
 ): boolean {
   if (!opts.publishedBy) return true
-  const excludeResult = opts.publishedByExclude?.(meta.name)
-  if (excludeResult === true) return true
-  if (Array.isArray(excludeResult) && excludeResult.includes(version)) return true
+  if (policyTrusts(meta, version, opts)) return true
   const publishedAt = meta.time?.[version]
-  if (publishedAt == null) return true
+  if (publishedAt == null) return false
   const ts = new Date(publishedAt).getTime()
-  return Number.isNaN(ts) || ts <= opts.publishedBy.getTime()
+  return !Number.isNaN(ts) && ts <= opts.publishedBy.getTime()
 }
 
 export function findNonDeprecatedAlternative (
@@ -426,7 +458,7 @@ export function findNonDeprecatedAlternative (
   let newest: semver.SemVer | undefined
   for (const [version, versionMeta] of Object.entries(meta.versions)) {
     if (versionMeta.deprecated) continue
-    if (!versionAllowedByPolicy(meta, version, opts)) continue
+    if (!installableUnderPolicy(meta, version, opts)) continue
     const parsed = semver.parse(version, true)
     if (parsed != null && (newest == null || parsed.compare(newest) > 0)) {
       newest = parsed
