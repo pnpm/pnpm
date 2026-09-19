@@ -77,8 +77,12 @@ pub fn find_workspace_dir(cwd: &Path) -> Result<Option<PathBuf>, FindWorkspaceDi
 }
 
 /// [`crate::projects::belongs_to_workspace`], with `packages:` read from the
-/// workspace manifest the walk just found.
+/// workspace manifest the walk just found — and only when the answer turns on
+/// it, since every command run inside a workspace passes through here.
 fn belongs_to_workspace(workspace_dir: &Path, dir: &Path) -> Result<bool, FindWorkspaceDirError> {
+    if !crate::projects::needs_package_patterns(workspace_dir, dir) {
+        return Ok(true);
+    }
     let manifest =
         read_workspace_manifest(workspace_dir).map_err(FindWorkspaceDirError::ReadManifest)?;
     crate::projects::belongs_to_workspace(

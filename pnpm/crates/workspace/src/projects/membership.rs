@@ -24,7 +24,7 @@ pub fn belongs_to_workspace(
     dir: &Path,
     patterns: Option<&[String]>,
 ) -> Result<bool, FindWorkspaceProjectsError> {
-    if workspace_dir == dir || !dir_has_project_manifest(dir) {
+    if !needs_package_patterns(workspace_dir, dir) {
         return Ok(true);
     }
     let patterns = patterns.map_or_else(|| vec![".".to_string()], <[String]>::to_vec);
@@ -33,6 +33,16 @@ pub fn belongs_to_workspace(
         dir,
         &FindWorkspaceProjectsOpts { patterns: Some(patterns) },
     )
+}
+
+/// Does answering [`belongs_to_workspace`] for this pair need `packages:` at
+/// all? Only a directory below the workspace root that carries a manifest of
+/// its own can be a project the workspace leaves out. A caller that would have
+/// to read `pnpm-workspace.yaml` to supply the patterns asks this first, so
+/// the read happens only where it decides the answer.
+#[must_use]
+pub fn needs_package_patterns(workspace_dir: &Path, dir: &Path) -> bool {
+    workspace_dir != dir && dir_has_project_manifest(dir)
 }
 
 fn dir_has_project_manifest(dir: &Path) -> bool {

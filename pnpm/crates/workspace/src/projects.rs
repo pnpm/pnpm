@@ -14,7 +14,7 @@
 //!
 //! [#431]: https://github.com/pnpm/pacquet/issues/431
 
-pub use membership::{belongs_to_workspace, is_workspace_project_dir};
+pub use membership::{belongs_to_workspace, is_workspace_project_dir, needs_package_patterns};
 
 use crate::{
     directory_patterns::{negated_directory_pattern, normalize_directory_pattern},
