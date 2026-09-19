@@ -244,6 +244,7 @@ fn default_opts() -> ResolveImporterOptions {
             pick_lowest_direct: false,
             subdep_published_by: None,
             catalogs: pnpm_catalogs_types::Catalogs::new(),
+            catalogs_dir: None,
             catalog_server: false,
         },
         hooks: crate::ManifestTransformHooks {

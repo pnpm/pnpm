@@ -226,12 +226,23 @@ pub fn dependencies_graph_to_lockfile(
 /// protocol, emit `{ specifier: <catalog entry>, version: <resolved> }`. The
 /// `specifier` comes from `catalogs` (which already carries any `add` /
 /// `update` edit), and the `version` from the importer's resolved dep map.
+///
+/// Importers are read in id order and the first one to resolve an entry
+/// keeps it. Every importer resolves a registry entry to the same
+/// version, but a `link:` entry resolves to a path relative to the
+/// importer that declared it, and the snapshot holds one value per
+/// entry.
 fn build_catalog_snapshots(
     importers: &HashMap<String, ProjectSnapshot>,
     catalogs: &Catalogs,
 ) -> Option<CatalogSnapshots> {
     let mut snapshots: CatalogSnapshots = BTreeMap::new();
-    for importer in importers.values() {
+    let mut importer_ids: Vec<&String> = importers.keys().collect();
+    importer_ids.sort_unstable();
+    for importer in importer_ids
+        .into_iter()
+        .filter_map(|importer_id| importers.get(importer_id))
+    {
         let Some(specifiers) = importer.specifiers.as_ref() else { continue };
         for (alias, specifier) in specifiers {
             let Some(catalog_name) = parse_catalog_protocol(specifier) else { continue };
@@ -245,10 +256,11 @@ fn build_catalog_snapshots(
             snapshots
                 .entry(catalog_name.to_string())
                 .or_default()
-                .insert(
-                    alias.clone(),
-                    ResolvedCatalogEntry { specifier: entry_specifier.clone(), version },
-                );
+                .entry(alias.clone())
+                .or_insert_with(|| ResolvedCatalogEntry {
+                    specifier: entry_specifier.clone(),
+                    version,
+                });
         }
     }
     (!snapshots.is_empty()).then_some(snapshots)

@@ -14,7 +14,8 @@ use derive_more::{Display, Error};
 use miette::{Context, Diagnostic, IntoDiagnostic};
 use pnpm_catalogs_protocol_parser::parse_catalog_protocol;
 use pnpm_catalogs_resolver::{
-    CatalogResolutionResult, WantedDependency as CatalogWantedDependency, resolve_from_catalog,
+    CatalogAnchor, CatalogResolutionResult, WantedDependency as CatalogWantedDependency,
+    resolve_from_catalog,
 };
 use pnpm_cmd_shim::{Host as CmdShimHost, get_bins_from_package_manifest};
 use pnpm_config::Config;

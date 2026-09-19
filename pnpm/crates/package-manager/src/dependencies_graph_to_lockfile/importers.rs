@@ -69,14 +69,22 @@ pub(super) fn effective_update_reuse_scope<'o>(
 /// The concrete version `alias` resolved to in `importer`, read from whichever
 /// dependency group carries it. Returns the peer-stripped version recorded as
 /// the `version` in a catalog snapshot.
+///
+/// A `file:` / `link:` dependency has no version of its own, so its
+/// resolved path stands in — it is what the entry resolved to, and the
+/// snapshot needs some value to record the entry at all.
 pub(super) fn importer_resolved_version(importer: &ProjectSnapshot, alias: &str) -> Option<String> {
     let key = PkgName::parse(alias).ok()?;
-    [&importer.dependencies, &importer.dev_dependencies, &importer.optional_dependencies]
-        .into_iter()
-        .flatten()
-        .find_map(|map| map.get(&key))
-        .and_then(|spec| spec.version.ver_peer())
-        .map(|version| version.version().to_string())
+    let resolved =
+        [&importer.dependencies, &importer.dev_dependencies, &importer.optional_dependencies]
+            .into_iter()
+            .flatten()
+            .find_map(|map| map.get(&key))?;
+    Some(
+        resolved.version
+            .ver_peer()
+            .map_or_else(|| resolved.version.to_string(), |version| version.version().to_string()),
+    )
 }
 /// Build an importer's [`ProjectSnapshot`] from its on-disk manifest
 /// plus the per-alias `DepPath` map the resolver produced for that

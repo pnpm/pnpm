@@ -246,6 +246,7 @@ impl ImporterInputs<'_> {
                 pick_lowest_direct: self.versions.pick_lowest,
                 subdep_published_by: self.versions.published_by,
                 catalogs: self.catalogs.clone(),
+                catalogs_dir: self.config.workspace_dir.clone(),
                 catalog_server: false,
             },
             hooks: self.hooks.clone(),

@@ -265,6 +265,7 @@ fn importer_options(importer: &WorkspaceImporter<'_>) -> ResolveImporterOptions 
             pick_lowest_direct: false,
             subdep_published_by: None,
             catalogs: pnpm_catalogs_types::Catalogs::new(),
+            catalogs_dir: None,
             catalog_server: false,
         },
         hooks: pnpm_resolving_deps_resolver::ManifestTransformHooks {

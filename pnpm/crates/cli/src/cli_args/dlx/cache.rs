@@ -1,9 +1,10 @@
 use super::{
-    BTreeMap, CatalogResolutionResult, CatalogWantedDependency, Config, Context, DependencyGroup,
-    DlxError, Duration, IntoDiagnostic, Path, PathBuf, RangeSpecStyle, Reporter, State,
-    SupportedArchitectures, SupportedArchitecturesArgs, SystemTime, UNIX_EPOCH, Value, add_package,
-    configured_catalogs, create_short_hash, force_symlink_dir, fs, json, parse_catalog_protocol,
-    parse_manifest, parse_overrides_iter, parse_wanted_dependency, resolve_from_catalog,
+    BTreeMap, CatalogAnchor, CatalogResolutionResult, CatalogWantedDependency, Config, Context,
+    DependencyGroup, DlxError, Duration, IntoDiagnostic, Path, PathBuf, RangeSpecStyle, Reporter,
+    State, SupportedArchitectures, SupportedArchitecturesArgs, SystemTime, UNIX_EPOCH, Value,
+    add_package, configured_catalogs, create_short_hash, force_symlink_dir, fs, json,
+    parse_catalog_protocol, parse_manifest, parse_overrides_iter, parse_wanted_dependency,
+    resolve_from_catalog,
 };
 
 /// Install the packages into a fresh prepare directory and point the
@@ -106,6 +107,10 @@ pub(super) fn dlx_command_cache_dir(config: &Config, cache_key: &str) -> miette:
 /// untouched, and the catalogs are only read when at least one spec needs
 /// them. A misconfigured entry is reported as the pnpm error the caller
 /// would get from `pnpm add`.
+///
+/// A `file:` / `link:` entry becomes an absolute path: dlx installs into
+/// a cache directory outside the workspace, so nothing there can read a
+/// path measured from `pnpm-workspace.yaml`.
 pub(super) fn resolve_catalog_specs(
     pkgs: &[String],
     config: &Config,
@@ -118,6 +123,10 @@ pub(super) fn resolve_catalog_specs(
         return Ok(pkgs.to_vec());
     }
     let catalogs = configured_catalogs(config)?;
+    let anchor = match config.workspace_dir.as_deref() {
+        Some(workspace_dir) => CatalogAnchor::Reanchor { workspace_dir, consumer_dir: None },
+        None => CatalogAnchor::AsWritten,
+    };
     pkgs.iter()
         .map(|pkg| {
             let parsed = parse_wanted_dependency(pkg);
@@ -125,7 +134,7 @@ pub(super) fn resolve_catalog_specs(
                 return Ok(pkg.clone());
             };
             let wanted = CatalogWantedDependency { alias: alias.clone(), bare_specifier };
-            match resolve_from_catalog(&catalogs, &wanted) {
+            match resolve_from_catalog(&catalogs, &wanted, anchor) {
                 CatalogResolutionResult::Found(found) => {
                     Ok(format!("{alias}@{}", found.resolution.specifier))
                 }

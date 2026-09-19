@@ -12,7 +12,7 @@ use std::collections::BTreeMap;
 use crate::resolved_tree::PeerDep;
 
 use super::{
-    Deprecation, ResolveDependencyTreeError, catalogs::resolve_catalog_specifier,
+    CatalogAnchor, Deprecation, ResolveDependencyTreeError, catalogs::resolve_catalog_specifier,
     dependency_is_injected, lock_recoverable, tree_ctx::TreeCtx, workspace_ctx::ChildSpec,
 };
 
@@ -301,7 +301,15 @@ fn insert_declared_peers(
         let Some(range_str) = range.as_str() else { continue };
         let version = match catalogs {
             Some(catalogs) => {
-                resolve_catalog_specifier(name.clone(), range_str.to_string(), catalogs)?.1
+                // A peer range names a version range, never a path, so a
+                // `file:` / `link:` entry has nothing to re-anchor.
+                resolve_catalog_specifier(
+                    name.clone(),
+                    range_str.to_string(),
+                    catalogs,
+                    CatalogAnchor::AsWritten,
+                )?
+                .1
             }
             None => range_str.to_string(),
         };

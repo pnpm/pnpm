@@ -259,6 +259,7 @@ fn importer_opts(
             pick_lowest_direct: false,
             subdep_published_by: published_by,
             catalogs: pnpm_catalogs_types::Catalogs::new(),
+            catalogs_dir: None,
             catalog_server: false,
         },
         hooks: crate::ManifestTransformHooks {

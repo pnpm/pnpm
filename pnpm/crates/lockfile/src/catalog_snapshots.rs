@@ -20,6 +20,7 @@ pub struct ResolvedCatalogEntry {
     /// The specifier recorded under the catalog in `pnpm-workspace.yaml`
     /// (e.g. the `^1.2.3` of `catalog: { foo: ^1.2.3 }`).
     pub specifier: String,
-    /// The concrete version the specifier resolved to.
+    /// The concrete version the specifier resolved to, or its resolved
+    /// path for a `file:` / `link:` entry, which has no version.
     pub version: String,
 }

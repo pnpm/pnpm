@@ -140,11 +140,10 @@ fn a_remote_tarball_url_is_saved_verbatim() {
     drop((root, mock_instance));
 }
 
-/// A catalog entry is read by every project referencing it, so it
-/// cannot hold a path that resolves against the project declaring it.
-/// `catalogMode` has to leave such a specifier direct — cataloging it
-/// writes an entry the next install refuses with
-/// `ERR_PNPM_CATALOG_ENTRY_INVALID_SPEC`.
+/// A catalog measures a relative path from `pnpm-workspace.yaml`'s own
+/// directory, not from the project that declares the dependency, so
+/// `catalogMode` has to leave a local specifier direct — cataloging it
+/// would point it somewhere else than where `pnpm add` was run.
 #[test]
 fn a_local_directory_is_not_auto_cataloged() {
     let CommandTempCwd {

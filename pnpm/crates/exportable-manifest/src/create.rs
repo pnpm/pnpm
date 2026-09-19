@@ -37,7 +37,8 @@ use crate::{
 use derive_more::{Display, Error};
 use miette::Diagnostic;
 use pnpm_catalogs_resolver::{
-    CatalogResolutionError, CatalogResolutionResult, WantedDependency, resolve_from_catalog,
+    CatalogAnchor, CatalogResolutionError, CatalogResolutionResult, WantedDependency,
+    resolve_from_catalog,
 };
 use pnpm_catalogs_types::Catalogs;
 use pnpm_resolving_jsr_specifier_parser::{ParseJsrSpecifierError, parse_jsr_specifier};
@@ -242,13 +243,18 @@ fn convert_dependency_for_publish(
 
 /// Dereference a `catalog:` specifier; pass any other specifier
 /// through unchanged.
+///
+/// A `file:` / `link:` entry is emitted as the catalog writes it. The
+/// published manifest is read from outside the workspace, where no
+/// anchor makes such a path resolvable, so it is left alone the way a
+/// directly declared local dependency is.
 fn replace_catalog_protocol(
     alias: &str,
     spec: &str,
     catalogs: &Catalogs,
 ) -> Result<String, CreateExportableManifestError> {
     let wanted = WantedDependency { alias: alias.to_string(), bare_specifier: spec.to_string() };
-    match resolve_from_catalog(catalogs, &wanted) {
+    match resolve_from_catalog(catalogs, &wanted, CatalogAnchor::AsWritten) {
         CatalogResolutionResult::Found(found) => Ok(found.resolution.specifier),
         CatalogResolutionResult::Unused => Ok(spec.to_string()),
         CatalogResolutionResult::Misconfiguration(misconfiguration) => {

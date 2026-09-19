@@ -1,9 +1,9 @@
 use super::{
-    Arc, Catalogs, ChildEdge, ChildSpec, Cow, FrontierNode, HashSet, NodeSeed, Path, PendingNode,
-    Pipe, PkgNameVerPeer, PreferredVersionsOverlay, ResolveDependencyTreeError, Resolver,
-    ReuseSource, SeededNode, SnapshotEntry, TreeCtx, WantedDependency, async_recursion,
-    declaring_manifest_dir, extract_children, future, higher_direct_dep_version, level_aliases,
-    level_versions, lock_recoverable, prior_child_key, real_package_name_of,
+    Arc, CatalogAnchor, Catalogs, ChildEdge, ChildSpec, Cow, FrontierNode, HashSet, NodeSeed, Path,
+    PendingNode, Pipe, PkgNameVerPeer, PreferredVersionsOverlay, ResolveDependencyTreeError,
+    Resolver, ReuseSource, SeededNode, SnapshotEntry, TreeCtx, WantedDependency, async_recursion,
+    catalog_anchor, declaring_manifest_dir, extract_children, future, higher_direct_dep_version,
+    level_aliases, level_versions, lock_recoverable, prior_child_key, real_package_name_of,
     resolve_catalog_specifier, resolve_node_seed, warm_children_resolutions,
 };
 
@@ -74,12 +74,16 @@ pub(super) fn child_specs_of(
             .pipe(Arc::new)
     };
     Ok(match catalogs_for_children(ctx, pending.resolves_children_through_catalogs) {
-        Some(catalogs) => child_specs
-            .iter()
-            .cloned()
-            .collect::<Vec<ChildSpec>>()
-            .pipe(|specs| resolve_catalog_child_specs(specs, catalogs))?
-            .pipe(Arc::new),
+        Some(catalogs) => {
+            let declaring_dir = declaring_manifest_dir(ctx, &pending.result);
+            let anchor = catalog_anchor(ctx.catalogs_dir.as_deref(), declaring_dir.as_deref());
+            child_specs
+                .iter()
+                .cloned()
+                .collect::<Vec<ChildSpec>>()
+                .pipe(|specs| resolve_catalog_child_specs(specs, catalogs, anchor))?
+                .pipe(Arc::new)
+        }
         None => child_specs,
     })
 }
@@ -263,14 +267,18 @@ pub(super) fn catalogs_for_children(
     (resolves_children_through_catalogs && !ctx.catalogs.is_empty()).then_some(&ctx.catalogs)
 }
 
+/// `anchor` names the injected workspace package's own directory as the
+/// consumer — that manifest declares these children — so a `file:` /
+/// `link:` catalog entry lands on the path it would have written.
 pub(super) fn resolve_catalog_child_specs(
     child_specs: Vec<ChildSpec>,
     catalogs: &Catalogs,
+    anchor: CatalogAnchor<'_>,
 ) -> Result<Vec<ChildSpec>, ResolveDependencyTreeError> {
     child_specs
         .into_iter()
         .map(|(name, range, optional, injected)| {
-            resolve_catalog_specifier(name, range, catalogs)
+            resolve_catalog_specifier(name, range, catalogs, anchor)
                 .map(|(name, range)| (name, range, optional, injected))
         })
         .collect()

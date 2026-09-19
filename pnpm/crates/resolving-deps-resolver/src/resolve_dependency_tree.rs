@@ -20,7 +20,7 @@ use derive_more::{Display, Error};
 use futures_util::future;
 use miette::Diagnostic;
 use pipe_trait::Pipe;
-use pnpm_catalogs_resolver::CatalogResolutionError;
+use pnpm_catalogs_resolver::{CatalogAnchor, CatalogResolutionError};
 use pnpm_hooks::PnpmfileHooks;
 use pnpm_package_manifest::{DependencyGroup, PackageManifest};
 use pnpm_patching::{PatchGroupRecord, PatchKeyConflictError};

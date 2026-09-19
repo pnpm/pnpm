@@ -59,8 +59,9 @@ use crate::{
 };
 
 use super::{
-    ResolveDependencyTreeError, SkippedOptionalDependency, SkippedOptionalDependencyParent,
-    catalogs::resolve_catalog_specifier,
+    CatalogAnchor, ResolveDependencyTreeError, SkippedOptionalDependency,
+    SkippedOptionalDependencyParent,
+    catalogs::{catalog_anchor, resolve_catalog_specifier},
     lock_recoverable,
     manifest::{
         build_pkg_id_with_patch_hash, emit_deprecation_if_needed, extract_children,

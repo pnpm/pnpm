@@ -16,13 +16,12 @@
 
 pub(crate) use selectors::parse_declared_range;
 
-mod local_targets;
 mod selectors;
-use local_targets::{LocalTarget, parse_local_target, resolve_local_override_spec};
 use selectors::{matches_target, semver_satisfies, sort_by_specificity};
 
 use node_semver::{Range, Version};
 use pnpm_config_parse_overrides::{PackageSelector, VersionOverride};
+use pnpm_local_spec::LocalSpec;
 use pnpm_package_manifest::{DependencyGroup, PackageManifest};
 use pnpm_resolving_resolver_base::is_valid_peer_range;
 use serde_json::Value;
@@ -67,12 +66,12 @@ struct ConvergeOverride {
     version: Option<Version>,
 }
 
-/// `VersionOverride` augmented with a pre-parsed [`LocalTarget`] for
+/// `VersionOverride` augmented with a pre-parsed [`LocalSpec`] for
 /// the local-protocol forms. Splitting once at construction time
 /// avoids re-parsing the prefix on every manifest read.
 struct ResolvedOverride {
     inner: VersionOverride,
-    local_target: Option<LocalTarget>,
+    local_target: Option<LocalSpec>,
 }
 
 /// Answers whether an override governs a dependency declared as a given
@@ -116,7 +115,7 @@ impl VersionsOverrider {
             }
             let resolved = ResolvedOverride {
                 inner: override_entry.clone(),
-                local_target: parse_local_target(&override_entry.new_bare_specifier, root_dir),
+                local_target: LocalSpec::parse(&override_entry.new_bare_specifier, root_dir),
             };
             if override_entry.parent_pkg.is_some() {
                 parent_scoped.push(resolved);
@@ -309,7 +308,7 @@ impl VersionsOverrider {
                 .as_ref()
                 .map_or_else(
                     || chosen.inner.new_bare_specifier.clone(),
-                    |target| resolve_local_override_spec(target, manifest_dir),
+                    |target| target.render(manifest_dir),
                 );
 
             map.insert(name, Value::String(new_spec));
@@ -365,7 +364,7 @@ impl VersionsOverrider {
             .as_ref()
             .map_or_else(
                 || chosen.inner.new_bare_specifier.clone(),
-                |target| resolve_local_override_spec(target, manifest_dir),
+                |target| target.render(manifest_dir),
             );
         if is_valid_peer_range(&new_spec) {
             insert_peer_dependency(value, name, new_spec);
@@ -401,7 +400,7 @@ impl VersionsOverrider {
                     .as_ref()
                     .map_or_else(
                         || chosen.inner.new_bare_specifier.clone(),
-                        |target| resolve_local_override_spec(target, Some(pkg_dir)),
+                        |target| target.render(Some(pkg_dir)),
                     ),
             );
         }

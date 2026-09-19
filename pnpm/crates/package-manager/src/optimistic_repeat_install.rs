@@ -96,7 +96,9 @@ use std::{
     time::SystemTime,
 };
 
-use pnpm_catalogs_resolver::{CatalogResolutionResult, WantedDependency, resolve_from_catalog};
+use pnpm_catalogs_resolver::{
+    CatalogAnchor, CatalogResolutionResult, WantedDependency, resolve_from_catalog,
+};
 use pnpm_catalogs_types::Catalogs;
 use pnpm_config::{Config, LinkWorkspacePackages, NodeLinker, TrustPolicy};
 use pnpm_lockfile::{ImporterDepVersion, Lockfile, MaybeLazyLockfile, ProjectSnapshot};
