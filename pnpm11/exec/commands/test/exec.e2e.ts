@@ -448,6 +448,44 @@ test('pnpm exec on single project', async () => {
   expect(outputs).toStrictEqual([])
 })
 
+test("pnpm exec from a subdirectory of the project runs in the subdirectory with the project's bins", async () => {
+  prepare({
+    name: 'project',
+    dependencies: {
+      cowsay: '1.5.0',
+    },
+  })
+  const projectDir = process.cwd()
+  await execa(pnpmBin, [
+    'install',
+    '--registry',
+    REGISTRY_URL,
+    '--store-dir',
+    path.resolve(DEFAULT_OPTS.storeDir),
+  ])
+  const subdir = path.join(projectDir, 'subdir')
+  fs.mkdirSync(subdir)
+  process.chdir(subdir)
+
+  const execOpts = {
+    ...DEFAULT_OPTS,
+    dir: projectDir,
+    recursive: false,
+    selectedProjectsGraph: {},
+  }
+  await exec.handler(execOpts, ['cowsay', 'hi'])
+  await exec.handler(execOpts, [
+    'node',
+    '-e',
+    'require("fs").writeFileSync("context.json", JSON.stringify({ cwd: process.cwd(), packageName: process.env.PNPM_PACKAGE_NAME }), "utf8")',
+  ])
+
+  expect(JSON.parse(fs.readFileSync(path.join(subdir, 'context.json'), 'utf8'))).toStrictEqual({
+    cwd: subdir,
+    packageName: 'project',
+  })
+})
+
 test('pnpm exec on single project should return non-zero exit code when the process fails', async () => {
   prepare({})
 
