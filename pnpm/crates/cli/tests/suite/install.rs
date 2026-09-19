@@ -738,6 +738,50 @@ fn set_dir_modes(path: &std::path::Path, mode: u32) {
     fs::set_permissions(path, fs::Permissions::from_mode(mode)).expect("set directory mode");
 }
 
+/// The gate exists because `--force` re-materializes every slot, not only
+/// because it bypasses the platform checks.
+#[test]
+fn force_defeats_the_up_to_date_fast_path() {
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({ "dependencies": { "@foo/no-deps": "1.0.0" } }).to_string(),
+    )
+    .expect("write package.json");
+
+    let run_install = |args: &[&str]| {
+        let assert = pacquet_in(&workspace)
+            .with_env("PNPM_CONFIG_REGISTRY", mock_instance.url())
+            .with_args(args)
+            .assert()
+            .success();
+        String::from_utf8_lossy(&assert.get_output().stdout).into_owned()
+    };
+
+    pacquet
+        .with_env("PNPM_CONFIG_REGISTRY", mock_instance.url())
+        .with_arg("install")
+        .assert()
+        .success();
+    assert!(
+        run_install(&["install"]).contains("Already up to date"),
+        "an unchanged repeat install must take the fast path",
+    );
+    assert!(
+        !run_install(&["install", "--force"]).contains("Already up to date"),
+        "--force must defeat the fast path even though nothing changed",
+    );
+
+    drop((root, mock_instance));
+}
+
 /// Trust/policy settings key the lockfile-verification gate, which is
 /// why pnpm records `trustPolicy*` in the workspace state.
 #[test]

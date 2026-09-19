@@ -849,12 +849,11 @@ pub struct Config {
     /// instead of skipped, mirroring pnpm's `!opts.force &&
     /// packageIsInstallable(...)` gate in its dep-graph builders.
     ///
+    /// It also re-materializes every slot, changed or not.
+    ///
     /// CLI-only (merged from `--force` on `pnpm install` / `pnpm add` /
     /// `pnpm deploy` at the dispatch, like `ignoreScripts`); not a
-    /// `pnpm-workspace.yaml` / `.npmrc` setting. On the frozen path it
-    /// also discards the previous install's per-snapshot skip decision,
-    /// mirroring pnpm's `lockfileToDepGraph(…, opts.force ? null :
-    /// currentLockfile)`, so already-materialized packages are relinked.
+    /// `pnpm-workspace.yaml` / `.npmrc` setting.
     pub force: bool,
 
     /// Whether to consult the side-effects cache
