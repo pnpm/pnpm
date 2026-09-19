@@ -76,7 +76,7 @@ import { PACKAGE_MAP_FILENAME, removePackageMap, writePackageMap, writePnpFile }
 import { allProjectsAreUpToDate, catalogResolutionIsStale, catalogResolutionsAreUpToDate, satisfiesPackageManifest } from '@pnpm/lockfile.verification'
 import { logger, streamParser } from '@pnpm/logger'
 import { groupPatchedDependencies, type PatchGroupRecord } from '@pnpm/patching.config'
-import { createVersionSpecFromResolvedVersion, getAllDependenciesFromManifest, getAllUniqueSpecs } from '@pnpm/pkg-manifest.utils'
+import { createVersionSpecFromResolvedVersion, getAllDependenciesFromManifest, getAllUniqueSpecs, getSpecFromPackageManifest, guessDependencyType } from '@pnpm/pkg-manifest.utils'
 import { isLocalFilesystemSpecifier } from '@pnpm/resolving.local-resolver'
 import { parseWantedDependency } from '@pnpm/resolving.parse-wanted-dependency'
 import {
@@ -87,6 +87,7 @@ import {
 import { lexCompare } from '@pnpm/text.ordinal-comparator'
 import type {
   AllowBuild,
+  Dependencies,
   DependenciesField,
   DependencyManifest,
   DepPath,
@@ -989,6 +990,7 @@ export async function mutateModules (
 
     const projectsToInstall = [] as ImporterToUpdate[]
     const installedProjectIds = new Set<string>(projects.map((project) => ctx.projects[project.rootDir].id))
+    const overriddenDependencyMatcherFor = createOverriddenDependencyMatcher(opts.parsedOverrides, opts.lockfileDir)
 
     let preferredSpecs: Record<string, string> | null = null
 
@@ -1034,16 +1036,20 @@ export async function mutateModules (
     | 'manifest'
     | 'modulesDir'
     | 'mutation'
+    | 'originalManifest'
     | 'rootDir'
     | 'updatePackageManifest'
-    >
+    > & Pick<InstallDepsMutation, 'update'>
 
     async function installCase (project: InstallCaseProject) {
+      const hookOwnedAliases = getHookOwnedAliases(project)
       const wantedDependencies = getWantedDependencies(project.manifest, {
         autoInstallPeers: opts.autoInstallPeers,
         includeDirect: opts.includeDirect,
       })
-        .map((wantedDependency) => ({ ...wantedDependency, updateSpec: true }))
+        .map((wantedDependency) => hookOwnedAliases?.has(wantedDependency.alias)
+          ? { ...wantedDependency, saveSpec: false, updateToLatestAllowed: false, updateSpec: true }
+          : { ...wantedDependency, updateSpec: true })
       if (opts.packageVulnerabilityAudit) {
         for (const dep of wantedDependencies) {
           let specifier: string | undefined = dep.bareSpecifier
@@ -1056,6 +1062,16 @@ export async function mutateModules (
           // Only proceed if the specifier is a pinned version, not a range
           if (!validVersion) continue
           if (opts.packageVulnerabilityAudit.isVulnerable(dep.alias, validVersion)) {
+            if (hookOwnedAliases?.has(dep.alias)) {
+              // An update reaches a vulnerable version by widening the specifier the project
+              // declares, and this one is not the project's to widen. An override outranks every
+              // other hook, so that is the fix to point at.
+              logger.warn({
+                message: `Cannot update "${dep.alias}" away from ${validVersion}: its specifier "${specifier!}" comes from a package extension, readPackage hook, or override, not from the project manifest. Run "pnpm audit --fix" to add an override for it instead.`,
+                prefix: project.rootDir,
+              })
+              continue
+            }
             // If the current version is pinned and vulnerable, expand the specifier to a range
             // that will allow updating to a non-vulnerable, semver-compatible version, if available.
             if (catalogName != null && opts.catalogs?.[catalogName]) {
@@ -1099,6 +1115,7 @@ export async function mutateModules (
       projectsToInstall.push({
         pruneDirectDependencies: false,
         ...project,
+        hookOwnedAliases,
         wantedDependencies,
       } as ImporterToUpdate)
     }
@@ -1110,6 +1127,7 @@ export async function mutateModules (
     | 'manifest'
     | 'modulesDir'
     | 'mutation'
+    | 'originalManifest'
     | 'rootDir'
     | 'updatePackageManifest'
     > & Pick<InstallSomeDepsMutation,
@@ -1126,9 +1144,21 @@ export async function mutateModules (
       // on has to satisfy them, or the lockfile importer entry contradicts itself and the next
       // frozen install rejects it.
       const readonlyManifest = project.update === true && !project.updatePackageManifest
+      const effectiveBareSpecifiers = getAllDependenciesFromManifest(project.manifest, {
+        autoInstallPeers: opts.autoInstallPeers,
+      })
       const currentBareSpecifiers = opts.ignoreCurrentSpecifiers
         ? {}
-        : getAllDependenciesFromManifest(project.manifest, { autoInstallPeers: opts.autoInstallPeers })
+        : effectiveBareSpecifiers
+      const originalBareSpecifiers = project.originalManifest == null
+        ? currentBareSpecifiers
+        : getAllDependenciesFromManifest(project.originalManifest, { autoInstallPeers: opts.autoInstallPeers })
+      const readonlyAliases = getHookOwnedAliases(project)
+      const readonlySpecifiers = readonlyAliases == null
+        ? undefined
+        : Object.fromEntries(
+          Array.from(readonlyAliases, (alias) => [alias, effectiveBareSpecifiers[alias]])
+        ) as Dependencies
       const optionalDependencies = project.targetDependenciesField ? {} : project.manifest.optionalDependencies ?? {}
       const devDependencies = project.targetDependenciesField ? {} : project.manifest.devDependencies ?? {}
       if (preferredSpecs == null) {
@@ -1153,6 +1183,7 @@ export async function mutateModules (
         saveCatalogName: opts.saveCatalogName,
         overrides: opts.overrides,
         defaultCatalog: opts.catalogs?.default,
+        readonlySpecifiers,
         readonlyManifest,
       })
 
@@ -1163,8 +1194,11 @@ export async function mutateModules (
         })
       }
       for (const { alias, requested, kept } of supersededByKeptRange) {
+        const message = readonlySpecifiers != null && Object.hasOwn(readonlySpecifiers, alias)
+          ? `Ignoring "${alias}@${requested}": "${alias}" is controlled by a package extension, readPackage hook, or override, so its specifier "${kept}" was used instead.`
+          : `Ignoring "${alias}@${requested}": the manifest keeps "${kept}" when updating without saving, so "${alias}" was updated within that range instead.`
         logger.warn({
-          message: `Ignoring "${alias}@${requested}": the manifest keeps "${kept}" when updating without saving, so "${alias}" was updated within that range instead.`,
+          message,
           prefix: project.rootDir,
         })
       }
@@ -1181,6 +1215,10 @@ export async function mutateModules (
 
       if (opts.catalogMode !== 'manual') {
         for (const wantedDep of wantedDeps) {
+          // Promotion moves the dependency onto the catalog entry's range, and the entry resolves
+          // on its own from then on. A hook or an override supplies this specifier, so it is not
+          // this run's to hand over.
+          if (readonlyAliases?.has(wantedDep.alias)) continue
           // A `runtime:` specifier (e.g. node from `devEngines.runtime` or
           // `pnpm runtime set`) round-trips to `devEngines.runtime` through the
           // manifest writer, which only recognizes the `runtime:` protocol.
@@ -1229,9 +1267,52 @@ export async function mutateModules (
       projectsToInstall.push({
         pruneDirectDependencies: false,
         ...project,
+        hookOwnedAliases: readonlyAliases,
         updateToLatest,
-        wantedDependencies: wantedDeps.map(wantedDep => ({ ...wantedDep, isNew: !currentBareSpecifiers[wantedDep.alias], updateSpec: true })),
+        wantedDependencies: wantedDeps.map(wantedDep => ({
+          ...wantedDep,
+          isNew: project.update !== true && !Object.hasOwn(originalBareSpecifiers, wantedDep.alias),
+          // A catalog name is enough to put the dependency in the lockfile's catalogs: the
+          // resolver attaches a `catalogLookup` for it, and the entry that snapshot needs is not
+          // this run's to write, so the next frozen install would reject the pair. `catalogMode:
+          // manual` reaches here without passing the loop above, so the name is dropped here.
+          saveCatalogName: readonlyAliases?.has(wantedDep.alias) ? undefined : wantedDep.saveCatalogName,
+          saveSpec: !readonlyAliases?.has(wantedDep.alias),
+          updateToLatestAllowed: !readonlyAliases?.has(wantedDep.alias),
+          updateSpec: true,
+        })),
       } as ImporterToUpdate)
+    }
+
+    /**
+     * The direct dependencies a `packageExtensions` entry, a `readPackage` hook, or an override
+     * governs rather than the project: absent from the manifest on disk, declared there under
+     * another dependency field, declared there with another specifier, or claimed by an override.
+     *
+     * An update leaves them as the hook supplies them. Resolving them anew moves a version the
+     * project never declared, and writing them to `package.json` hands it a declaration the next
+     * install rewrites, which `--frozen-lockfile` then rejects (pnpm/pnpm#14928).
+     *
+     * `undefined` when nothing is protected: a run that is not an update, or a project whose
+     * manifest no hook rewrote.
+     */
+    function getHookOwnedAliases (
+      project: Pick<InstallCaseProject, 'manifest' | 'originalManifest' | 'update'>
+    ): Set<string> | undefined {
+      const originalManifest = project.originalManifest
+      if (project.update !== true || originalManifest == null) return undefined
+      const isOverriddenDependency = overriddenDependencyMatcherFor?.(project.manifest)
+      const effectiveDependencies = getAllDependenciesFromManifest(project.manifest, {
+        autoInstallPeers: opts.autoInstallPeers,
+      })
+      return new Set(Object.keys(effectiveDependencies).filter((alias) => {
+        const originalDependencyType = guessDependencyType(alias, originalManifest)
+        if (originalDependencyType == null) return true
+        if (guessDependencyType(alias, project.manifest) !== originalDependencyType) return true
+        const originalSpecifier = getSpecFromPackageManifest(originalManifest, alias)
+        return effectiveDependencies[alias] !== originalSpecifier ||
+          isOverriddenDependency?.(alias, originalSpecifier) === true
+      }))
     }
 
     /**
@@ -1789,7 +1870,7 @@ export type ImporterToUpdate = {
   pruneDirectDependencies: boolean
   removePackages?: string[]
   updatePackageManifest: boolean
-  wantedDependencies: Array<WantedDependency & { isNew?: boolean, updateSpec?: boolean }>
+  wantedDependencies: WantedDependency[]
 } & DependenciesMutation
 
 export interface UpdatedProject {
@@ -1891,13 +1972,16 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
       })
   )
 
-  // Only the projects whose manifest this run writes need the answer, and only
-  // the manifest on disk — the one the overrides hook read — can give it.
+  // Only the projects whose manifest this run writes need the answer. A parent-scoped override
+  // (`parent>child`) is selected by the name and version of the manifest it is matched against,
+  // and `createReadPackageHook` runs the overrides hook after `packageExtensions` and the
+  // `readPackage` hooks, so the manifest that hook saw is the rewritten one. Asking the same
+  // manifest keeps this answer and the override that was actually applied in agreement.
   const overriddenDependencyMatcherFor = createOverriddenDependencyMatcher(opts.parsedOverrides, opts.lockfileDir)
   if (overriddenDependencyMatcherFor != null) {
     for (const project of projects) {
       if (!project.updatePackageManifest) continue
-      project.isOverriddenDependency = overriddenDependencyMatcherFor(project.originalManifest ?? project.manifest)
+      project.isOverriddenDependency = overriddenDependencyMatcherFor(project.manifest)
     }
   }
 

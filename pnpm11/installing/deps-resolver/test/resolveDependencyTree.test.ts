@@ -416,6 +416,65 @@ test('updateRequested matches an npm-alias dependency without a lockfile referen
   expect(otherResolution?.updateRequested).toBe(false)
 })
 
+test('a dependency can opt out of resolving past its own specifier', async () => {
+  const updates: Array<false | 'compatible' | 'latest' | undefined> = []
+  const storeController = createStoreController(async (wantedDependency, options) => {
+    updates.push(options.update)
+    return createPackageResponse(`${wantedDependency.alias}@1.0.0`)
+  })
+  const lockfile = createLockfile()
+
+  await resolveDependencyTree([
+    {
+      id: '.' as ProjectId,
+      manifest: {
+        dependencies: {
+          t: '1.0.0',
+        },
+      },
+      modulesDir: '/project/node_modules',
+      rootDir: '/project' as ProjectRootDir,
+      updatePackageManifest: false,
+      updateToLatest: true,
+      wantedDependencies: [{
+        alias: 't',
+        bareSpecifier: '1.0.0',
+        dev: false,
+        optional: false,
+        updateDepth: Number.POSITIVE_INFINITY,
+        updateToLatestAllowed: false,
+      }],
+    } satisfies ImporterToResolveGeneric<object>,
+  ], {
+    allowedDeprecatedVersions: {},
+    allowUnusedPatches: false,
+    currentLockfile: lockfile,
+    dryRun: false,
+    engineStrict: false,
+    force: false,
+    forceFullResolution: false,
+    hooks: {},
+    lockfileDir: '/project',
+    pnpmVersion: '0.0.0',
+    registriesByScope: {
+      default: 'https://registry.npmjs.org/',
+    },
+    storeController,
+    tag: 'latest',
+    virtualStoreDir: '/project/node_modules/.pnpm',
+    globalVirtualStoreDir: '/project/node_modules/.pnpm/global',
+    virtualStoreDirMaxLength: 120,
+    wantedLockfile: lockfile,
+    workspacePackages: new Map(),
+    peersSuffixMaxLength: 1000,
+    dedupePeerDependents: true,
+  } satisfies ResolveDependenciesOptions)
+
+  // `updateToLatest` would resolve the latest dist tag, which the dependency's own `1.0.0` does
+  // not admit. It resolves compatibly instead, rather than not at all.
+  expect(updates).toStrictEqual(['compatible'])
+})
+
 function hasPreferredVersion (preferredVersions: PreferredVersions, alias: string, version: string): boolean {
   return Boolean(preferredVersions[alias]?.[version])
 }
