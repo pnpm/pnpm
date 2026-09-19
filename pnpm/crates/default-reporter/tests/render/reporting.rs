@@ -421,7 +421,6 @@ fn hook_log_renders_with_magenta_hook_name() {
     assert_eq!(frame, "preResolution: Starting resolution");
 }
 
-/// The registry's deprecation notice never reaches the terminal.
 #[test]
 fn direct_deprecation_renders_immediately_without_the_notice() {
     let mut reporter = state(false);

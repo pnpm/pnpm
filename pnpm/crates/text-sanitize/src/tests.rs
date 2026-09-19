@@ -24,3 +24,14 @@ fn borrows_text_that_does_not_need_sanitizing() {
     assert!(matches!(sanitize("safe text"), Cow::Borrowed(_)));
     assert!(matches!(sanitize_inline("safe text"), Cow::Borrowed(_)));
 }
+
+/// U+2028 and U+2029 end a line for a JSON or JavaScript consumer without
+/// being control characters, so a name carrying one could split a rendered
+/// warning into a second, attacker-shaped line.
+#[test]
+fn strips_unicode_line_and_paragraph_separators() {
+    let text = "safe\u{2028}\u{2029}text";
+
+    assert_eq!(sanitize(text), "safetext");
+    assert_eq!(sanitize_inline(text), "safetext");
+}

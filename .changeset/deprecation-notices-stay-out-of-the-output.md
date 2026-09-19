@@ -8,8 +8,8 @@
 "pacquet": patch
 ---
 
-Install warnings no longer carry the text of a package's deprecation notice, which a publisher can rewrite on an already-published version. The warning names the deprecated package and version, and the `pnpm:deprecation` event no longer carries the notice either. `pnpm view` still shows it on request.
+Install warnings no longer carry the text of a package's deprecation notice. The warning names the deprecated package and version, and the `pnpm:deprecation` event no longer carries the notice either. `pnpm view` still shows it on request.
 
-`pnpm-lock.yaml` now records `deprecated: true` in place of the notice. A notice written there by an older pnpm still reads as a deprecation and is replaced by `true` the next time the entry changes.
+`pnpm-lock.yaml` now records `deprecated: true` in place of the notice. A notice an older pnpm wrote there still reads as a deprecation.
 
-pnpm strips control characters from the package name and version in a deprecation warning, and from the notice `pnpm outdated --long` prints. A package that names itself can no longer rewrite the surrounding terminal output.
+pnpm strips control characters from the package name and version in a deprecation warning, and from the notice `pnpm outdated --long` prints.

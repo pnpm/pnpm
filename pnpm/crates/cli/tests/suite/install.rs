@@ -381,8 +381,6 @@ fn should_install_circular_dependencies() {
     drop((root, mock_instance));
 }
 
-/// The warning names the deprecated package; the registry's notice reaches
-/// neither the terminal nor the lockfile.
 #[test]
 fn install_reports_a_deprecation_without_the_notice_and_keeps_the_flag_on_reuse() {
     let CommandTempCwd {
