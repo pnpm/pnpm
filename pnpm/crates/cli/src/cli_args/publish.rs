@@ -337,6 +337,7 @@ impl PublishArgs {
             },
             manifest: pnpm_pack::PackManifestOptions {
                 catalogs: crate::cli_args::catalogs::configured_catalogs(config)?,
+                catalogs_dir: config.workspace_dir.clone(),
                 embed_readme: resolve_bool_override(
                     self.flags.manifest.embed_readme,
                     self.flags.manifest.no_embed_readme,

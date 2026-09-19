@@ -15,8 +15,6 @@ use std::{fs, path::Path, process::Command};
 
 const TARBALL: &str = "tarballs/pkg-from-tarball-1.0.0.tgz";
 
-/// Build a workspace whose default catalog points at a local tarball and
-/// a local directory, with one project per entry in `projects`.
 fn workspace_with_local_catalog(workspace: &Path, projects: &[&str]) {
     let yaml = fs::read_to_string(workspace.join("pnpm-workspace.yaml"))
         .expect("read pnpm-workspace.yaml");
@@ -206,4 +204,51 @@ fn the_lockfile_records_local_catalog_entries_as_the_catalog_writes_them() {
     assert_eq!(installed_version(&workspace.join("projects/foo"), "pkg-from-tarball"), "1.0.0");
 
     drop((root, npmrc_info));
+}
+
+/// A catalog measures a relative path from `pnpm-workspace.yaml`, while
+/// the packed manifest is read from the package's own directory, so
+/// packing a nested project has to move the path between the two.
+#[test]
+fn packing_a_nested_project_reanchors_its_local_catalog_entries() {
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let project = "projects/nested/bar";
+    workspace_with_local_catalog(&workspace, &[project]);
+    let project_dir = workspace.join(project);
+
+    Command::cargo_bin("pnpm")
+        .expect("find the pnpm binary")
+        .with_current_dir(&project_dir)
+        .with_arg("pack")
+        .assert()
+        .success();
+
+    let manifest = read_packed_manifest(&project_dir.join("bar-1.0.0.tgz"));
+    assert_eq!(
+        manifest["dependencies"],
+        serde_json::json!({
+            "pkg-from-tarball": "file:../../../tarballs/pkg-from-tarball-1.0.0.tgz",
+            "local-lib": "link:../../../libs/local-lib",
+        }),
+    );
+
+    drop((root, npmrc_info));
+}
+
+fn read_packed_manifest(tarball: &Path) -> serde_json::Value {
+    use std::io::Read as _;
+
+    let bytes = fs::read(tarball).expect("read tarball");
+    let decoder = flate2::read::GzDecoder::new(bytes.as_slice());
+    let mut archive = tar::Archive::new(decoder);
+    for entry in archive.entries().expect("iterate tarball entries") {
+        let mut entry = entry.expect("read tarball entry");
+        if entry.path().expect("entry path") == Path::new("package/package.json") {
+            let mut contents = String::new();
+            entry.read_to_string(&mut contents).expect("read manifest");
+            return serde_json::from_str(&contents).expect("parse manifest");
+        }
+    }
+    panic!("package/package.json not found in {}", tarball.display());
 }
