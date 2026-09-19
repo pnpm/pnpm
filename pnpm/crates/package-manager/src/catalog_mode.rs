@@ -20,6 +20,7 @@ use pnpm_catalogs_types::{Catalogs, DEFAULT_CATALOG_NAME};
 use pnpm_config::CatalogMode;
 use pnpm_reporter::{LogEvent, LogLevel, PnpmLog, Reporter};
 use pnpm_resolving_local_resolver::is_local_filesystem_specifier;
+use std::collections::BTreeSet;
 
 /// Wanted dependency outside the version range defined in catalog.
 ///
@@ -246,31 +247,44 @@ pub(crate) fn catalog_covers(entry: &str, wanted: &str) -> bool {
     // `Range::allows_all` only asks whether *some* alternative of the entry
     // holds *some* alternative of the wanted range, so a union such as
     // `^1 || ^3` would pass on its first branch alone. Ask per alternative.
-    wanted.split("||").all(|alternative| entry_covers_alternative(&entry_range, alternative))
+    let entry_prereleases = prerelease_releases(entry);
+    wanted
+        .split("||")
+        .all(|alternative| entry_covers_alternative(&entry_range, &entry_prereleases, alternative))
 }
 
-/// Whether `entry` holds every version the range alternative `wanted` allows.
+/// Whether `entry` holds every version the range alternative `wanted` allows,
+/// given the releases whose prereleases `entry` admits.
 ///
 /// [`Range::allows_all`] compares endpoints, which misses npm's rule that a
 /// prerelease is eligible only for a comparator carrying a prerelease of the
-/// same `major.minor.patch`: by endpoints alone `^1.0.0` looks wide enough for
-/// `^1.2.0-beta.1`, though it admits no `1.2.0` prerelease. The prereleases an
-/// alternative can admit are the ones its own comparators name, so ask
-/// [`Range::satisfies`] about each of those.
-fn entry_covers_alternative(entry: &Range, wanted: &str) -> bool {
+/// same release: by endpoints alone `^1.0.0` looks wide enough for
+/// `^1.2.0-beta.1`, though it admits no `1.2.0` prerelease.
+fn entry_covers_alternative(
+    entry: &Range,
+    entry_prereleases: &BTreeSet<(u64, u64, u64)>,
+    wanted: &str,
+) -> bool {
     let Ok(wanted_range) = Range::parse(wanted) else {
         return false;
     };
-    if !entry.allows_all(&wanted_range) {
-        return false;
-    }
-    wanted
+    entry.allows_all(&wanted_range) && prerelease_releases(wanted).is_subset(entry_prereleases)
+}
+
+/// The releases whose prereleases `range` admits, as `major.minor.patch`.
+///
+/// npm reads eligibility off the comparators as written, so this reads the
+/// range as written too: the parsed form carries the `-0` bounds npm
+/// synthesizes for an omitted component, which make no prerelease eligible.
+fn prerelease_releases(range: &str) -> BTreeSet<(u64, u64, u64)> {
+    range
         .split_whitespace()
         .filter_map(|token| {
             Version::parse(token.trim_start_matches(['>', '<', '=', '^', '~', 'v'])).ok()
         })
         .filter(Version::is_prerelease)
-        .all(|named| entry.satisfies(&named))
+        .map(|version| (version.major, version.minor, version.patch))
+        .collect()
 }
 
 /// The catalog group a dependency belongs to: a previous `catalog:<name>`

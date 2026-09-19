@@ -4,4 +4,4 @@
 "pacquet": patch
 ---
 
-`pnpm add <pkg>@<range>` now reuses an existing catalog entry when the catalog range covers the wanted range. Before, only a concrete version could match a catalog range, so `catalogMode: strict` failed with `ERR_PNPM_CATALOG_VERSION_MISMATCH` and `catalogMode: prefer` wrote the range into the manifest. On pnpm 12 this also affected `pnpm add <pkg>` without a version, which resolves to a range [pnpm/pnpm#14865](https://github.com/pnpm/pnpm/issues/14865).
+`pnpm add <pkg>@<range>` now reuses an existing catalog entry when the catalog range covers the wanted range. On pnpm 12 this also covers `pnpm add <pkg>` without a version, which resolves to a range. Adding a range used to fail with `ERR_PNPM_CATALOG_VERSION_MISMATCH` under `catalogMode: strict`. Under `catalogMode: prefer` it wrote a direct range into the manifest [pnpm/pnpm#14865](https://github.com/pnpm/pnpm/issues/14865).

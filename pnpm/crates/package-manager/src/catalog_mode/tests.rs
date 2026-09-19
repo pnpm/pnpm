@@ -456,6 +456,11 @@ fn coverage_agrees_with_npm_subset() {
         ("^1.2.3-beta.1", "~1.2.3-beta.2", true),
         ("^1.2.3-beta.1", "1.2.3-beta.1 - 1.5.0", true),
         ("^1.0.0-beta.1", "^1.0.0", true),
+        (">1.2.3-beta.1 <1.2.4", ">1.2.3-beta.1 <1.2.4", true),
+        (">=0.0.0", ">1.2.0-beta.5 <1.3.0", false),
+        // npm reads no range out of a prerelease on a partial version, and
+        // neither does this, so nothing is covered either way.
+        ("^1.0.0", "1.2-beta.1", false),
     ] {
         assert_eq!(
             super::catalog_covers(entry, wanted),
