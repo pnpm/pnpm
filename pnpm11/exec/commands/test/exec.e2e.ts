@@ -467,6 +467,7 @@ test("pnpm exec from a subdirectory of the project runs in the subdirectory with
     '--store-dir',
     path.resolve(DEFAULT_OPTS.storeDir),
   ])
+  fs.writeFileSync(path.join(projectDir, '.pnp.cjs'), '')
   const subdir = path.join(projectDir, 'subdir')
   fs.mkdirSync(subdir)
   process.chdir(subdir)
@@ -481,13 +482,16 @@ test("pnpm exec from a subdirectory of the project runs in the subdirectory with
   await exec.handler(execOpts, [
     'node',
     '-e',
-    'require("fs").writeFileSync("context.json", JSON.stringify({ cwd: process.cwd(), packageName: process.env.PNPM_PACKAGE_NAME }), "utf8")',
+    'require("fs").writeFileSync("context.json", JSON.stringify({ cwd: process.cwd(), packageName: process.env.PNPM_PACKAGE_NAME, nodeOptions: process.env.NODE_OPTIONS }), "utf8")',
   ])
 
-  expect(JSON.parse(fs.readFileSync(path.join(subdir, 'context.json'), 'utf8'))).toStrictEqual({
+  const context = JSON.parse(fs.readFileSync(path.join(subdir, 'context.json'), 'utf8'))
+  expect(context).toMatchObject({
     cwd: subdir,
     packageName: projectDirName,
   })
+  expect(context.nodeOptions).toContain('--require=')
+  expect(context.nodeOptions).toContain('.pnp.cjs')
 })
 
 test('pnpm exec on single project should return non-zero exit code when the process fails', async () => {
