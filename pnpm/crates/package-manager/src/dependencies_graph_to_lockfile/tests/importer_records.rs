@@ -119,6 +119,7 @@ fn runtime_dependency_strips_importer_prefix_and_records_package_version() {
                 "version": "26.3.0",
                 "bin": { "node": "bin/node" },
             }))),
+            non_deprecated_alternative: None,
         },
     };
     let node = DependenciesGraphNode {
@@ -293,6 +294,7 @@ fn non_host_git_dependency_records_bare_git_url_in_importer() {
             latest: None,
             published_at: None,
             manifest: Some(Arc::new(json!({ "name": "is-negative", "version": "1.0.0" }))),
+            non_deprecated_alternative: None,
         },
     };
     let node = DependenciesGraphNode {

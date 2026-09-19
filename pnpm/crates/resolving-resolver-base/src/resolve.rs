@@ -501,6 +501,22 @@ pub struct ResolvedPackageInfo {
     /// deps-resolver's tree walk and the per-snapshot graph copies
     /// don't deep-clone the JSON tree per occurrence.
     pub manifest: Option<SharedDependencyManifest>,
+    /// A version of the same package the registry does not report as
+    /// deprecated, for the deprecation warning to point at. Filled by the npm
+    /// resolver, and only for a deprecated pick. Absent for a resolution
+    /// reused from the lockfile, which holds no packument to work it out
+    /// from, and for protocols with no notion of published versions.
+    pub non_deprecated_alternative: Option<NonDeprecatedAlternative>,
+}
+
+/// A version of a package that is not deprecated, as the resolver read it off
+/// the packument. Unlike the deprecation notice this is pnpm's own reading
+/// rather than publisher-written text.
+#[derive(Debug, Default, Clone, PartialEq)]
+pub struct NonDeprecatedAlternative {
+    pub version: String,
+    /// Whether it is reachable without widening the declared range.
+    pub satisfies_wanted: bool,
 }
 
 /// Input to [`Resolver::resolve_latest`]. The resolver decides whether

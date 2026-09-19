@@ -193,6 +193,7 @@ fn fake_result(name: &str, version: &str, manifest: serde_json::Value) -> Resolv
             latest: Some(version.to_string()),
             published_at: None,
             manifest: Some(std::sync::Arc::new(manifest)),
+            non_deprecated_alternative: None,
         },
     }
 }

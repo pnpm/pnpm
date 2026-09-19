@@ -489,6 +489,7 @@ fn same_name_injected_dep_serializes_as_plain_file_ref() {
                 manifest: Some(std::sync::Arc::new(
                     serde_json::json!({ "name": "@scope/comp1", "version": "1.0.0" }),
                 )),
+                non_deprecated_alternative: None,
             },
         }),
         depth: 0,

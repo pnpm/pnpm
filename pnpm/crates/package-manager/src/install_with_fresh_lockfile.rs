@@ -500,6 +500,12 @@ fn deprecation_log_fn<Reporter: self::Reporter>() -> pnpm_resolving_deps_resolve
             pkg_id: deprecation.pkg_id,
             prefix: deprecation.prefix,
             depth: deprecation.depth,
+            non_deprecated_alternative: deprecation.non_deprecated_alternative.map(|alt| {
+                pnpm_reporter::NonDeprecatedAlternative {
+                    version: alt.version,
+                    satisfies_wanted: alt.satisfies_wanted,
+                }
+            }),
         }));
     })
 }

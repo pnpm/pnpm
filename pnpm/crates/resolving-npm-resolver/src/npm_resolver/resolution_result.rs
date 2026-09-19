@@ -7,6 +7,8 @@ use super::{
     TarballRevision, TrustCheckOptions, TrustPolicy, Utc, Version, WantedDependency,
     fail_if_trust_downgraded, parse_packument_timestamp, select_package_revision, tarball_revision,
 };
+use crate::pick_package_from_meta::semver_range::semver_satisfies_loose;
+use pnpm_resolving_resolver_base::NonDeprecatedAlternative;
 
 /// Inputs used to construct a registry resolution.
 pub(crate) struct BuildResolveResult<'a> {
@@ -50,34 +52,50 @@ pub(crate) fn build_resolve_result(
     let (resolution, revision) = picked_tarball_resolution(picked, args.registry.registry)?;
     let published_at = args.meta.published_at(&version_str).map(str::to_string);
     let manifest = args.manifest_for_revision(picked, &version_str, revision)?;
+    let id = resolution_id(args.registry.registry_name, picked, &name_ver);
+    let policy_violation = detect_min_release_age_violation(
+        &pkg_name,
+        &version_str,
+        published_at.as_deref(),
+        &resolution,
+        args.published_by,
+        args.published_by_exclude,
+    );
+    let package = resolved_package_info(&args, name_ver, &version_str, published_at, manifest);
     Ok(ResolveResult {
-        id: resolution_id(args.registry.registry_name, picked, &name_ver),
-        policy_violation: detect_min_release_age_violation(
-            &pkg_name,
-            &version_str,
-            published_at.as_deref(),
-            &resolution,
-            args.published_by,
-            args.published_by_exclude,
-        ),
+        id,
+        policy_violation,
         resolution,
         resolved_via: args.registry.resolved_via.to_string(),
         normalized_bare_specifier: args.specifier.spec.normalized_bare_specifier
             .clone()
             .or(args.specifier.calculated_specifier),
         alias: args.specifier.alias.map(str::to_string),
-        package: pnpm_resolving_resolver_base::ResolvedPackageInfo {
-            name_ver: Some(name_ver),
-            latest: latest_allowed_by_policy(
-                args.meta,
-                args.published_by,
-                args.published_by_exclude,
-            )
-            .map(str::to_string),
-            published_at,
-            manifest: Some(manifest),
-        },
+        package,
     })
+}
+
+/// The per-package half of a registry resolution: what a consumer reads off
+/// the picked version rather than off the resolution itself.
+fn resolved_package_info(
+    args: &BuildResolveResult<'_>,
+    name_ver: PkgNameVer,
+    version_str: &str,
+    published_at: Option<String>,
+    manifest: Arc<serde_json::Value>,
+) -> pnpm_resolving_resolver_base::ResolvedPackageInfo {
+    pnpm_resolving_resolver_base::ResolvedPackageInfo {
+        name_ver: Some(name_ver),
+        latest: latest_allowed_by_policy(args.meta, args.published_by, args.published_by_exclude)
+            .map(str::to_string),
+        published_at,
+        manifest: Some(manifest),
+        non_deprecated_alternative: find_non_deprecated_alternative(
+            args.meta,
+            version_str,
+            &args.specifier.spec.fetch_spec,
+        ),
+    }
 }
 
 pub(super) fn calculated_specifier(
@@ -227,6 +245,31 @@ pub(super) fn fail_if_trust_downgraded_for_pick(
     };
     fail_if_trust_downgraded(&picked.meta, &picked.version.version.to_string(), &trust_opts)
         .map_err(|err| Box::new(err) as ResolveError)
+}
+
+/// The newest version the registry does not report as deprecated, for the
+/// deprecation warning to point at.
+///
+/// `None` unless `picked_version` is itself deprecated, so the scan stays on
+/// the rare path. Read off the packument pnpm already holds, and
+/// `is_deprecated` probes a version without hydrating its manifest, which is
+/// what keeps it cheap.
+fn find_non_deprecated_alternative(
+    meta: &Package,
+    picked_version: &str,
+    version_range: &str,
+) -> Option<NonDeprecatedAlternative> {
+    if !meta.versions.is_deprecated(picked_version) {
+        return None;
+    }
+    let newest = meta.versions
+        .keys()
+        .filter(|version| !meta.versions.is_deprecated(version))
+        .filter_map(|version| Version::parse(version).ok())
+        .max()?;
+    let version = newest.to_string();
+    let satisfies_wanted = semver_satisfies_loose(&version, version_range);
+    Some(NonDeprecatedAlternative { version, satisfies_wanted })
 }
 
 /// The raw `dist-tags.latest` when the active `minimumReleaseAge`

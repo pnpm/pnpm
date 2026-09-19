@@ -20,6 +20,16 @@ export interface DeprecationMessage {
   pkgId: string
   prefix: string
   depth: number
+  /**
+   * A version of the same package that is not deprecated, when the resolver
+   * knew one. Absent for a resolution reused from the lockfile, which holds
+   * no packument to work it out from.
+   */
+  nonDeprecatedAlternative?: {
+    version: string
+    /** Whether it is reachable without widening the declared range. */
+    satisfiesWanted: boolean
+  }
 }
 
 export type DeprecationLog = { name: 'pnpm:deprecation' } & LogBase & DeprecationMessage

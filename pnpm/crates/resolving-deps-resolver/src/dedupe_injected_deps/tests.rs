@@ -24,6 +24,7 @@ fn make_node(id: &str, children: BTreeMap<String, DepPath>) -> DependenciesGraph
                 latest: None,
                 published_at: None,
                 manifest: None,
+                non_deprecated_alternative: None,
             },
         }),
         depth: 0,

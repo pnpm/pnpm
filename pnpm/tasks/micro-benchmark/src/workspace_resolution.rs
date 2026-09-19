@@ -202,6 +202,7 @@ fn benchmark_resolution(name: &str, manifest: serde_json::Value) -> ResolveResul
             latest: Some("1.0.0".to_string()),
             published_at: None,
             manifest: Some(Arc::new(manifest)),
+            non_deprecated_alternative: None,
         },
     }
 }

@@ -39,6 +39,7 @@ async fn workspace_link_node_is_short_circuited_in_tree() {
                     "peerDependencies": { "react": "^18.0.0" },
                     "dependencies": { "lodash": "^4.0.0" },
                 }))),
+                non_deprecated_alternative: None,
             },
         },
     );

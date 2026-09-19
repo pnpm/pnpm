@@ -87,6 +87,7 @@ pub(super) fn linked_package(name: &str, id: &str, directory: &str) -> ResolvedP
                 latest: None,
                 published_at: None,
                 manifest: Some(Arc::new(serde_json::json!({ "name": name, "version": "1.0.0" }))),
+                non_deprecated_alternative: None,
             },
         }),
         peer_dependencies: BTreeMap::new(),
@@ -118,6 +119,7 @@ pub(super) fn resolve_result(name: &str, version: &str) -> ResolveResult {
             latest: Some(version.to_string()),
             published_at: None,
             manifest: None,
+            non_deprecated_alternative: None,
         },
     }
 }

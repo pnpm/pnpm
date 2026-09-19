@@ -15,6 +15,7 @@ import type {
   DirectoryResolution,
   LatestInfo,
   LatestQuery,
+  NonDeprecatedAlternative,
   PkgResolutionId,
   PreferredVersions,
   Resolution,
@@ -70,7 +71,7 @@ import {
   pickPackage,
   type PickPackageOptions,
 } from './pickPackage.js'
-import { applyPublishedByPolicy, pickPackageFromMeta, pickVersionByVersionRange } from './pickPackageFromMeta.js'
+import { applyPublishedByPolicy, findNonDeprecatedAlternative, pickPackageFromMeta, pickVersionByVersionRange } from './pickPackageFromMeta.js'
 import { failIfTrustDowngraded } from './trustChecks.js'
 import { MINIMUM_RELEASE_AGE_VIOLATION_CODE } from './violationCodes.js'
 import { workspacePrefToNpm } from './workspacePrefToNpm.js'
@@ -943,6 +944,7 @@ async function pickFromSimpleRegistry (
 ): Promise<{
   id: PkgResolutionId
   latest?: string
+  nonDeprecatedAlternative?: NonDeprecatedAlternative
   manifest: DependencyManifest
   resolution: TarballResolution
   publishedAt?: string
@@ -972,6 +974,10 @@ async function pickFromSimpleRegistry (
   return {
     id: `${pickedPackage.name}@${pickedPackage.version}` as PkgResolutionId,
     latest: latestAllowedByPolicy(meta, opts),
+    // Only worked out for a deprecated pick, so the scan stays on the rare path.
+    nonDeprecatedAlternative: pickedPackage.deprecated
+      ? findNonDeprecatedAlternative(meta, spec.fetchSpec)
+      : undefined,
     manifest: selectedPackage,
     resolution,
     publishedAt,

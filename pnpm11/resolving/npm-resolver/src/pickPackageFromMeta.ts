@@ -3,6 +3,7 @@ import util from 'node:util'
 import { PnpmError } from '@pnpm/error'
 import { filterPkgMetadataByPublishDate } from '@pnpm/resolving.registry.pkg-metadata-filter'
 import type { PackageInRegistry, PackageMeta, PackageMetaWithTime } from '@pnpm/resolving.registry.types'
+import type { NonDeprecatedAlternative } from '@pnpm/resolving.resolver-base'
 import {
   EXISTING_VERSION_SELECTOR_WEIGHT,
   type VersionSelectors,
@@ -382,6 +383,34 @@ function semverSatisfiesLoose (version: string, range: string): boolean {
 // semver's own maxSatisfying/minSatisfying re-parse the range and every
 // version string on each call, which dominates resolution time on large
 // packuments; these reuse the parse caches instead.
+/**
+ * The newest version of `meta` the registry does not report as deprecated,
+ * for the deprecation warning to point at. `satisfiesWanted` says whether it
+ * is reachable without widening `versionRange`.
+ *
+ * `undefined` when every published version is deprecated. Reads deprecation
+ * off the packument pnpm already holds, so it costs no extra request.
+ */
+export function findNonDeprecatedAlternative (
+  meta: PackageMeta,
+  versionRange: string
+): NonDeprecatedAlternative | undefined {
+  let newest: semver.SemVer | undefined
+  for (const [version, versionMeta] of Object.entries(meta.versions)) {
+    if (versionMeta.deprecated) continue
+    const parsed = semver.parse(version, true)
+    if (parsed != null && (newest == null || parsed.compare(newest) > 0)) {
+      newest = parsed
+    }
+  }
+  if (newest == null) return undefined
+  const version = newest.version
+  return {
+    version,
+    satisfiesWanted: versionRange === '*' || semverSatisfiesLoose(version, versionRange),
+  }
+}
+
 function maxSatisfyingLoose (versions: string[], range: string): string | null {
   return findSatisfyingLoose(versions, range, (candidate, best) => candidate.compare(best) > 0)
 }

@@ -16,6 +16,24 @@ fn pkg_label(log: &DeprecationLog) -> String {
         .into_owned()
 }
 
+/// What to move to, when the resolver found a version that is not deprecated.
+///
+/// The version is pnpm's own reading of the packument rather than anything the
+/// publisher wrote, so unlike the notice it is safe to print. Empty when every
+/// published version is deprecated, or when the resolution came from the
+/// lockfile and no packument was fetched.
+fn alternative_hint(log: &DeprecationLog) -> String {
+    let Some(alternative) = log.non_deprecated_alternative.as_ref() else {
+        return String::new();
+    };
+    let version = pnpm_text_sanitize::sanitize_inline(&alternative.version);
+    if alternative.satisfies_wanted {
+        format!(". {version} is not deprecated.")
+    } else {
+        format!(". {version} is not deprecated, outside the range you declared.")
+    }
+}
+
 impl ReporterState {
     // --- misc one-liners --------------------------------------------------
 
@@ -229,10 +247,11 @@ impl ReporterState {
             return;
         }
         let msg = format!(
-            "{} {} {}",
+            "{} {} {}{}",
             self.rendering.colors.warn_label(),
             self.rendering.colors.red("deprecated"),
             pkg_label(log),
+            alternative_hint(log),
         );
         if !self.options.scope.recursive && log.prefix == self.rendering.cwd {
             self.display.frame.push_block(msg);

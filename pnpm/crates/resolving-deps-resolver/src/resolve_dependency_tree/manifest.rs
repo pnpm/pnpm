@@ -377,6 +377,7 @@ pub(super) fn emit_deprecation_if_needed(
         pkg_id: id.to_string(),
         prefix: ctx.options.base.project.project_dir.display().to_string(),
         depth,
+        non_deprecated_alternative: result.package.non_deprecated_alternative.clone(),
     });
 }
 

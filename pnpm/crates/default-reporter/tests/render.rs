@@ -13,9 +13,9 @@ use pnpm_reporter::{
     AddedRoot, ContextLog, DedupeCheckLog, DependencyType, DeprecationLog, ExecutionTimeLog,
     FetchingProgressLog, FetchingProgressMessage, GlobalLog, HookLog, IgnoredScriptsLog,
     LifecycleLog, LifecycleMessage, LifecycleStdio, LockfileVerificationLog,
-    LockfileVerificationMessage, LogEvent, LogLevel, PackageImportMethod, PackageImportMethodLog,
-    PackageManifestLog, PackageManifestMessage, PnpmErrorLog, PnpmLog, ProgressLog,
-    ProgressMessage, RootLog, RootMessage, ScopeLog, SkippedOptionalDependencyLog,
+    LockfileVerificationMessage, LogEvent, LogLevel, NonDeprecatedAlternative, PackageImportMethod,
+    PackageImportMethodLog, PackageManifestLog, PackageManifestMessage, PnpmErrorLog, PnpmLog,
+    ProgressLog, ProgressMessage, RootLog, RootMessage, ScopeLog, SkippedOptionalDependencyLog,
     SkippedOptionalPackage, SkippedOptionalParent, SkippedOptionalReason, Stage, StageLog,
     StatsLog, StatsMessage, SummaryLog, UpdateCheckLog,
 };
@@ -164,6 +164,16 @@ fn pnpm_log(level: LogLevel, message: &str) -> LogEvent {
 }
 
 fn deprecation(name: &str, version: &str, depth: i32, prefix: &str) -> LogEvent {
+    deprecation_with_alternative(name, version, depth, prefix, None)
+}
+
+fn deprecation_with_alternative(
+    name: &str,
+    version: &str,
+    depth: i32,
+    prefix: &str,
+    non_deprecated_alternative: Option<NonDeprecatedAlternative>,
+) -> LogEvent {
     LogEvent::Deprecation(DeprecationLog {
         level: LogLevel::Debug,
         pkg_name: name.to_string(),
@@ -171,6 +181,7 @@ fn deprecation(name: &str, version: &str, depth: i32, prefix: &str) -> LogEvent 
         pkg_id: format!("{name}@{version}"),
         prefix: prefix.to_string(),
         depth,
+        non_deprecated_alternative,
     })
 }
 

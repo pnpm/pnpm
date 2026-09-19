@@ -84,7 +84,7 @@ pub(super) fn is_digits(value: &str) -> bool {
 /// A parse failure on either input is treated as "doesn't satisfy"
 /// so the picker can fall through to the next candidate instead of
 /// crashing.
-pub(super) fn semver_satisfies_loose(version: &str, range: &str) -> bool {
+pub(crate) fn semver_satisfies_loose(version: &str, range: &str) -> bool {
     let Ok(parsed_version) = Version::parse(version) else { return false };
     let Some(parsed_range) = cached_range(range) else { return false };
     parsed_version.satisfies(&parsed_range)

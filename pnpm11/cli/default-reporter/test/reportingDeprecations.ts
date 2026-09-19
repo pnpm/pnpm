@@ -101,3 +101,53 @@ test('strips control characters from a package name the manifest chose', async (
   expect(output).not.toContain('\r')
   expect(output).toBe(formatWarn(`${chalk.red('deprecated')} foo[2Knot-really-deprecated@1.0.0`))
 })
+
+test('names a non-deprecated version the resolver found', async () => {
+  const prefix = '/home/jane/project'
+  const output$ = toOutput$({
+    context: {
+      argv: ['install'],
+      config: { dir: prefix } as ReporterPnpmConfig,
+    },
+    streamParser: createStreamParser(),
+  })
+
+  deprecationLogger.debug({
+    depth: 0,
+    nonDeprecatedAlternative: { version: '2.3.1', satisfiesWanted: false },
+    pkgId: 'registry.npmjs.org/foo/1.0.0',
+    pkgName: 'foo',
+    pkgVersion: '1.0.0',
+    prefix,
+  })
+
+  expect.assertions(1)
+
+  const output = await firstValueFrom(output$.pipe(take(1), map(normalizeNewline)))
+  expect(output).toBe(formatWarn(`${chalk.red('deprecated')} foo@1.0.0. 2.3.1 is not deprecated, outside the range you declared.`))
+})
+
+test('drops the range clause when the non-deprecated version is already in range', async () => {
+  const prefix = '/home/jane/project'
+  const output$ = toOutput$({
+    context: {
+      argv: ['install'],
+      config: { dir: prefix } as ReporterPnpmConfig,
+    },
+    streamParser: createStreamParser(),
+  })
+
+  deprecationLogger.debug({
+    depth: 0,
+    nonDeprecatedAlternative: { version: '1.4.0', satisfiesWanted: true },
+    pkgId: 'registry.npmjs.org/foo/1.0.0',
+    pkgName: 'foo',
+    pkgVersion: '1.0.0',
+    prefix,
+  })
+
+  expect.assertions(1)
+
+  const output = await firstValueFrom(output$.pipe(take(1), map(normalizeNewline)))
+  expect(output).toBe(formatWarn(`${chalk.red('deprecated')} foo@1.0.0. 1.4.0 is not deprecated.`))
+})

@@ -292,6 +292,7 @@ async fn build_resolve_result<Probe: GitProbe + ?Sized, Runner: GitCommandRunner
             latest: None,
             published_at: None,
             manifest: None,
+            non_deprecated_alternative: None,
         },
     })
 }

@@ -5,6 +5,7 @@ use super::{
     PromptLog, RemovedRoot, RequestRetryError, RequestRetryLog, RootLog, RootMessage, Stage,
     StageLog, StatsLog, StatsMessage, Value, assert_eq,
 };
+use crate::NonDeprecatedAlternative;
 
 #[test]
 fn prompt_event_matches_pnpm_wire_shape() {
@@ -471,6 +472,10 @@ fn deprecation_event_matches_pnpm_wire_shape() {
         pkg_id: "express@0.14.1".to_string(),
         prefix: "/projects/x".to_string(),
         depth: 0,
+        non_deprecated_alternative: Some(NonDeprecatedAlternative {
+            version: "1.0.0".to_string(),
+            satisfies_wanted: false,
+        }),
     });
     let envelope = Envelope { time: 1_700_000_000_000, hostname: "host", pid: 4242, event: &event };
     let json: Value = envelope
@@ -490,6 +495,8 @@ fn deprecation_event_matches_pnpm_wire_shape() {
         json.get("deprecated").is_none(),
         "the registry's deprecation notice must not reach an NDJSON consumer",
     );
+    assert_eq!(json["nonDeprecatedAlternative"]["version"], "1.0.0");
+    assert_eq!(json["nonDeprecatedAlternative"]["satisfiesWanted"], false);
 }
 
 /// Transitive deprecation events (`depth > 0`) also match the wire shape.
@@ -502,6 +509,7 @@ fn deprecation_event_transitive_matches_pnpm_wire_shape() {
         pkg_id: "request@2.88.2".to_string(),
         prefix: "/projects/x".to_string(),
         depth: 3,
+        non_deprecated_alternative: None,
     });
     let envelope = Envelope { time: 1_700_000_000_000, hostname: "host", pid: 4242, event: &event };
     let json: Value = envelope

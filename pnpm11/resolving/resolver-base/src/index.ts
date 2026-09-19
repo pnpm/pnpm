@@ -319,9 +319,26 @@ function pickSupported<T extends string | null | undefined> (requirements: strin
   return requirements[0]
 }
 
+/**
+ * A version of the same package the registry does not report as deprecated.
+ *
+ * Only the resolver can work this out, since only it holds the packument.
+ */
+export interface NonDeprecatedAlternative {
+  version: string
+  /** Whether it is reachable without widening the declared range. */
+  satisfiesWanted: boolean
+}
+
 export interface ResolveResult {
   id: PkgResolutionId
   latest?: string
+  /**
+   * Set only when the resolved version is deprecated, so that the
+   * deprecation warning can name a version to move to. Absent when the
+   * resolution was reused from the lockfile, which holds no packument.
+   */
+  nonDeprecatedAlternative?: NonDeprecatedAlternative
   publishedAt?: string
   manifest?: DependencyManifest
   resolution: Resolution

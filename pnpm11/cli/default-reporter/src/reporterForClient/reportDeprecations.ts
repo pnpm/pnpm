@@ -17,6 +17,23 @@ function pkgLabel (log: DeprecationLog): string {
   return sanitizeInline(`${log.pkgName}@${log.pkgVersion}`)
 }
 
+/**
+ * What to move to, when the resolver found a version that is not deprecated.
+ *
+ * The version is pnpm's own reading of the packument rather than anything the
+ * publisher wrote, so unlike the notice it is safe to print. Empty when every
+ * published version is deprecated, or when the resolution came from the
+ * lockfile and no packument was fetched.
+ */
+function alternativeHint (log: DeprecationLog): string {
+  const alternative = log.nonDeprecatedAlternative
+  if (alternative == null) return ''
+  const version = sanitizeInline(alternative.version)
+  return alternative.satisfiesWanted
+    ? `. ${version} is not deprecated.`
+    : `. ${version} is not deprecated, outside the range you declared.`
+}
+
 export function reportDeprecations (
   log$: {
     deprecation: Rx.Observable<DeprecationLog>
@@ -34,7 +51,7 @@ export function reportDeprecations (
   return Rx.merge(
     deprecatedDirectDeps$.pipe(
       map((log) => {
-        const line = formatWarn(`${chalk.red('deprecated')} ${pkgLabel(log)}`)
+        const line = formatWarn(`${chalk.red('deprecated')} ${pkgLabel(log)}${alternativeHint(log)}`)
         return Rx.of({
           msg: autozoom(opts.cwd, log.prefix, line, { zoomOutCurrent: opts.isRecursive }),
         })

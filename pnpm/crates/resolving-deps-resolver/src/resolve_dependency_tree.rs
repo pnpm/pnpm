@@ -201,6 +201,10 @@ pub struct Deprecation {
     pub pkg_id: String,
     pub prefix: String,
     pub depth: i32,
+    /// A version of the same package that is not deprecated, when the
+    /// resolver knew one. Absent for a resolution reused from the lockfile,
+    /// which holds no packument to work it out from.
+    pub non_deprecated_alternative: Option<pnpm_resolving_resolver_base::NonDeprecatedAlternative>,
 }
 
 /// Sink for [`Deprecation`] notifications, pre-bound to the install's
