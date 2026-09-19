@@ -100,12 +100,15 @@ pub(super) struct LinkMaterializedProjectsInputs<'a> {
     pub(super) filtered_install: bool,
     pub(super) node_linker: NodeLinker,
     pub(super) config: &'static Config,
-    pub(super) current_lockfile: Option<&'a Lockfile>,
-    pub(super) wanted_lockfile: Option<&'a Lockfile>,
+    pub(super) lockfiles: LinkMaterializedLockfiles<'a>,
     pub(super) workspace_root: &'a Path,
     pub(super) workspace_packages: Option<&'a pnpm_resolving_resolver_base::WorkspacePackages>,
     pub(super) project_manifests: &'a [(PathBuf, &'a PackageManifest)],
     pub(super) materialized_project_manifests: &'a [(PathBuf, &'a PackageManifest)],
+}
+pub(super) struct LinkMaterializedLockfiles<'a> {
+    pub(super) current: Option<&'a Lockfile>,
+    pub(super) wanted: Option<&'a Lockfile>,
 }
 pub(super) async fn link_materialized_projects<Reporter: self::Reporter + 'static>(
     inputs: LinkMaterializedProjectsInputs<'_>,
@@ -113,7 +116,7 @@ pub(super) async fn link_materialized_projects<Reporter: self::Reporter + 'stati
     if inputs.filtered_install
         && !matches!(inputs.node_linker, NodeLinker::Hoisted)
         && crate::should_write_package_map(inputs.config, inputs.node_linker)
-        && let Some(current) = inputs.current_lockfile.as_ref()
+        && let Some(current) = inputs.lockfiles.current.as_ref()
     {
         write_filtered_package_map(&inputs, current).await?;
     }
@@ -128,7 +131,7 @@ pub(super) async fn link_materialized_projects<Reporter: self::Reporter + 'stati
         crate::link_manifest_link_deps::<Reporter>(
             inputs.workspace_root,
             inputs.materialized_project_manifests,
-            inputs.wanted_lockfile.and_then(|lockfile| {
+            inputs.lockfiles.wanted.and_then(|lockfile| {
                 (!lockfile.importers.is_empty()).then_some(&lockfile.importers)
             }),
             inputs.workspace_packages,

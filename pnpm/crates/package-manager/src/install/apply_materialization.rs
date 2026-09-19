@@ -10,8 +10,8 @@ use commit::{CommitModulesStateInputs, commit_modules_state};
 
 mod selection;
 use selection::{
-    LinkMaterializedProjectsInputs, MaterializedState, SelectMaterializedStateInputs,
-    link_materialized_projects, select_materialized_state,
+    LinkMaterializedLockfiles, LinkMaterializedProjectsInputs, MaterializedState,
+    SelectMaterializedStateInputs, link_materialized_projects, select_materialized_state,
 };
 
 use super::{
@@ -72,8 +72,10 @@ async fn link_apply_projects<Reporter: self::Reporter + 'static>(
         filtered_install: inputs.projects.filtered_install,
         node_linker: inputs.projects.node_linker,
         config: inputs.completion.config,
-        current_lockfile: state.current_lockfile.as_ref(),
-        wanted_lockfile: state.wanted_lockfile,
+        lockfiles: LinkMaterializedLockfiles {
+            current: state.current_lockfile.as_ref(),
+            wanted: state.wanted_lockfile,
+        },
         workspace_root: &inputs.projects.workspace_root,
         workspace_packages: inputs.projects.workspace_packages.as_ref(),
         project_manifests: inputs.projects.importers.manifests,
