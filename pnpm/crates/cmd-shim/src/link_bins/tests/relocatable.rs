@@ -602,3 +602,14 @@ fn bin_dir_is_relocatable_accepts_generated_and_rejects_absolute_symlinks() {
         fs::remove_file(&link).unwrap();
     }
 }
+
+#[test]
+fn bin_dir_is_relocatable_rejects_directory_entries() {
+    let tmp = tempdir().unwrap();
+    let root = dunce::canonicalize(tmp.path()).unwrap();
+    let bin_dir = link_node_path_printer(&root, Some(root.clone()));
+    assert!(bin_dir_is_relocatable(&bin_dir, &root));
+
+    create_dir_all(bin_dir.join("unexpected-directory")).unwrap();
+    assert!(!bin_dir_is_relocatable(&bin_dir, &root));
+}

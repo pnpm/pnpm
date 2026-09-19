@@ -230,7 +230,7 @@ fn returns_up_to_date_when_a_project_has_only_link_dependencies() {
 /// Project list mismatch (cached state has a project that today's
 /// walk doesn't) invalidates the cached state.
 #[test]
-fn returns_skipped_when_workspace_project_set_changes() {
+fn install_and_run_refuse_a_changed_workspace_project_set() {
     let (dir, config, manifest) =
         setup_fresh_install(pnpm_config::NodeLinker::Isolated, "root", "1.0.0", "");
 
@@ -263,6 +263,17 @@ fn returns_skipped_when_workspace_project_set_changes() {
         &[(dir.path().to_path_buf(), &manifest)],
     );
     assert!(matches!(decision, Decision::Skipped { reason } if reason.contains("project list")));
+
+    let status = workspace_deps_status(&dir, config, &[(dir.path().to_path_buf(), &manifest)]);
+    assert_eq!(
+        status,
+        RunDepsStatus::Outdated {
+            issue: "The workspace structure has changed since last install".to_string(),
+            install_args: Vec::new(),
+        },
+    );
+    let state = load_workspace_state(dir.path()).unwrap().unwrap();
+    assert_eq!(state.projects.len(), 2, "a rejected project set must not refresh the state");
 }
 /// Record the only project under a sibling of `workspace_root`, as a tree
 /// copied from there carries it. Returns the recorded dir.
@@ -378,6 +389,34 @@ fn a_moved_tree_with_a_missing_dependency_is_not_up_to_date() {
         let status = workspace_deps_status(&dir, config, &projects);
         assert!(matches!(status, RunDepsStatus::Outdated { .. }), "missing {missing}: {status:?}");
     }
+}
+
+#[cfg(unix)]
+#[test]
+fn a_moved_tree_with_a_missing_current_lockfile_is_not_up_to_date() {
+    let (dir, config) = setup_content_check_project();
+    write_relocatable_layout(config);
+    install_foo_slot(config);
+    let elsewhere = record_projects_elsewhere(dir.path());
+    fs::remove_file(config.virtual_store_dir.join(Lockfile::CURRENT_FILE_NAME)).unwrap();
+    let manifest = PackageManifest::from_path(dir.path().join("package.json")).unwrap();
+    let projects = [(dir.path().to_path_buf(), &manifest)];
+
+    let decision = content_check_decision(&dir, config, false, &projects);
+    assert_eq!(
+        decision,
+        Decision::Skipped { reason: "the lockfile requires dependencies but none were installed" },
+    );
+    let status = workspace_deps_status(&dir, config, &projects);
+    assert_eq!(
+        status,
+        RunDepsStatus::Outdated {
+            issue: "The workspace structure has changed since last install".to_string(),
+            install_args: Vec::new(),
+        },
+    );
+    let state = load_workspace_state(dir.path()).unwrap().unwrap();
+    assert_eq!(state.projects.keys().collect::<Vec<_>>(), [&elsewhere]);
 }
 
 #[cfg(unix)]

@@ -80,7 +80,7 @@ pub fn check_deps_status_before_run(
     // into `checkDepsStatus`, so its pre-run lockfile check uses the
     // false default even when the workspace setting is true.
     match modified_manifests_match_lockfile(check, state, &projects_to_check, false) {
-        Ok(_) => match settle_content_check(check, state, filesystem_now, false) {
+        Ok(_) => match settle_content_check(check, state, filesystem_now) {
             Ok(()) => RunDepsStatus::UpToDate,
             Err(reason) => outdated(reason),
         },
@@ -101,10 +101,8 @@ fn moved_tree_status(
     if prove_move(check, drift).is_err() {
         return outdated(WORKSPACE_STRUCTURE_CHANGED.to_string());
     }
-    match settle_content_check(check, state, filesystem_now, true) {
-        Ok(()) => RunDepsStatus::UpToDate,
-        Err(reason) => outdated(reason),
-    }
+    record_content_check_state(check, state, filesystem_now);
+    RunDepsStatus::UpToDate
 }
 
 const WORKSPACE_STRUCTURE_CHANGED: &str = "The workspace structure has changed since last install";
@@ -221,20 +219,31 @@ fn early_content_verdict(
     None
 }
 
-/// Record the passing content check so the next run's gate can short-circuit
-/// on the refreshed timestamp. A single project records it only when its tree
-/// `moved`, like [`settle_repeat_install`](super::settle::settle_repeat_install).
+/// Settle the passing content check for a tree in place. A single project
+/// uses the lockfile mtimes and leaves its workspace state unchanged.
 fn settle_content_check(
     check: &OptimisticRepeatInstallCheck<'_>,
     state: &WorkspaceState,
     filesystem_now: Option<i64>,
-    moved: bool,
 ) -> Result<(), String> {
+    missing_wanted_lockfile_stand_in_ok(check)?;
+    if check.is_workspace_install {
+        record_content_check_state(check, state, filesystem_now);
+    }
+    Ok(())
+}
+
+/// Record a passing content check so the next run can use the refreshed
+/// timestamp and project locations.
+fn record_content_check_state(
+    check: &OptimisticRepeatInstallCheck<'_>,
+    state: &WorkspaceState,
+    filesystem_now: Option<i64>,
+) {
     let &OptimisticRepeatInstallCheck {
         workspace_root,
         config,
         project_manifests,
-        is_workspace_install,
         catalogs,
         layout:
             crate::RepeatInstallLayout {
@@ -245,10 +254,6 @@ fn settle_content_check(
             },
         ..
     } = check;
-    missing_wanted_lockfile_stand_in_ok(check)?;
-    if !is_workspace_install && !moved {
-        return Ok(());
-    }
     let mut new_state = crate::install::build_workspace_state::<Host>(
         workspace_root,
         config,
@@ -268,7 +273,6 @@ fn settle_content_check(
     new_state.settings.optional = state.settings.optional;
     new_state.settings.production = state.settings.production;
     refresh_content_check_state(workspace_root, &new_state);
-    Ok(())
 }
 
 /// Read-only twin of [`crate::optimistic_repeat_install::regenerate_wanted_lockfile_if_missing`](crate::optimistic_repeat_install::settle::regenerate_wanted_lockfile_if_missing) for the
