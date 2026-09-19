@@ -48,6 +48,16 @@ pub fn remove_dir_all_with_retry(path: &Path) -> io::Result<()> {
     retry_transient_file_locks(|| fs::remove_dir_all(path))
 }
 
+/// Create a directory, retrying transient Windows file-lock errors.
+pub fn create_dir_with_retry(path: &Path) -> io::Result<()> {
+    retry_transient_file_locks(|| fs::create_dir(path))
+}
+
+/// Create a directory and all parent components, retrying transient Windows file-lock errors.
+pub fn create_dir_all_with_retry(path: &Path) -> io::Result<()> {
+    retry_transient_file_locks(|| fs::create_dir_all(path))
+}
+
 /// Query metadata of a symbolic link or file, retrying transient Windows file-lock errors.
 pub fn symlink_metadata_with_retry(path: &Path) -> io::Result<fs::Metadata> {
     retry_transient_file_locks(|| fs::symlink_metadata(path))
@@ -153,8 +163,8 @@ where
 
 /// Whether `error` is a transient Windows file lock in the sense of
 /// [`rename_with_retry`]: `ERROR_ACCESS_DENIED` (a directory rename blocked
-/// by an open handle below it), [`ERROR_SHARING_VIOLATION`] or
-/// [`ERROR_LOCK_VIOLATION`] (an open or delete refused by another handle's
+/// by an open handle below it), `ERROR_SHARING_VIOLATION` or
+/// `ERROR_LOCK_VIOLATION` (an open or delete refused by another handle's
 /// share mode), or `ERROR_BUSY`. The sharing and lock violations have no
 /// [`io::ErrorKind`] of their own, so they are matched by raw OS error.
 /// Always `false` on Unix.

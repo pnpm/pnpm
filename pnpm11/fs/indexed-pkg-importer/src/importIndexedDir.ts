@@ -197,7 +197,7 @@ function clearDirBlockingFile (dest: string): void {
   try {
     stats = fs.lstatSync(dest)
   } catch (err) {
-    if (util.types.isNativeError(err) && 'code' in err && err.code === 'ENOENT') return
+    if (util.types.isNativeError(err) && 'code' in err && (err.code === 'ENOENT' || (process.platform === 'win32' && (err.code === 'EPERM' || err.code === 'EACCES' || err.code === 'EBUSY')))) return
     throw err
   }
   if (stats.isDirectory()) {
@@ -217,11 +217,16 @@ function clearDirentBlockingDir (newDir: string, relativeDir: string): void {
     try {
       stats = fs.lstatSync(dir)
     } catch (err) {
-      if (util.types.isNativeError(err) && 'code' in err && err.code === 'ENOENT') return
+      if (util.types.isNativeError(err) && 'code' in err && (err.code === 'ENOENT' || (process.platform === 'win32' && (err.code === 'EPERM' || err.code === 'EACCES' || err.code === 'EBUSY')))) return
       throw err
     }
     if (stats.isDirectory()) continue
-    fs.unlinkSync(dir)
+    try {
+      fs.unlinkSync(dir)
+    } catch (err) {
+      if (util.types.isNativeError(err) && 'code' in err && (err.code === 'ENOENT' || (process.platform === 'win32' && (err.code === 'EPERM' || err.code === 'EACCES' || err.code === 'EBUSY')))) return
+      throw err
+    }
     return
   }
 }
@@ -428,7 +433,13 @@ function makeFileMapDirs (
     if (opts?.clearBlockers) {
       clearDirentBlockingDir(newDir, dir)
     }
-    fs.mkdirSync(path.join(newDir, dir), { recursive: true })
+    try {
+      fs.mkdirSync(path.join(newDir, dir), { recursive: true })
+    } catch (err) {
+      if (!(util.types.isNativeError(err) && 'code' in err && process.platform === 'win32' && (err.code === 'EPERM' || err.code === 'EACCES' || err.code === 'EBUSY'))) {
+        throw err
+      }
+    }
   }
 }
 

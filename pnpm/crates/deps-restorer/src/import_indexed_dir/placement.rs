@@ -73,7 +73,7 @@ pub(super) fn create_indexed_dirs(
     // `newDir` before calling `tryImportIndexedDir`, so do that here
     // too. Files at the package root (e.g. `package.json`) need this
     // even when `rel_dirs` is empty.
-    fs::create_dir_all(dir_path)
+    pnpm_fs::create_dir_all_with_retry(dir_path)
         .map_err(|error| ImportIndexedDirError::CreateDir {
             dirname: dir_path.to_path_buf(),
             error,
@@ -86,7 +86,7 @@ pub(super) fn create_indexed_dirs(
             clear_dirent_blocking_dir(dir_path, rel)?;
         }
         let abs = dir_path.join(rel);
-        fs::create_dir_all(&abs)
+        pnpm_fs::create_dir_all_with_retry(&abs)
             .map_err(|error| ImportIndexedDirError::CreateDir { dirname: abs, error })?;
     }
 
