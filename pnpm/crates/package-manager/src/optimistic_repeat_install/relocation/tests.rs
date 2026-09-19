@@ -51,7 +51,6 @@ fn rebases_the_projects_and_the_pnpmfiles_inside_the_recorded_root() {
     let relocated = relocated_onto(&state, new_root, &current)
         .expect("the state records the same projects under another root");
 
-    dbg!(&relocated);
     let keys: Vec<&String> = relocated.projects.keys().collect();
     assert_eq!(keys, [&path_string(&current[0]), &path_string(&current[1])]);
     assert_eq!(
