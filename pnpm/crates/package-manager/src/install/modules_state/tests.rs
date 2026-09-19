@@ -1,6 +1,6 @@
 use super::frozen_tree_intact;
 use pnpm_config::{Config, NodeLinker};
-use pnpm_lockfile::{Lockfile, ProjectSnapshot, SnapshotEntry};
+use pnpm_lockfile::{Lockfile, PackageKey, ProjectSnapshot, SnapshotEntry};
 use pnpm_modules_yaml::{
     Host, IncludedDependencies, Modules, ModulesLayout, write_modules_manifest,
 };
@@ -38,6 +38,15 @@ fn tree_intact(root: &Path, node_linker: NodeLinker, lockfile: &Lockfile) -> boo
     let mut config = Config::new();
     config.modules_dir = root.join("node_modules");
     config.virtual_store_dir = config.modules_dir.join(".pnpm");
+    tree_intact_with_config(root, node_linker, lockfile, &config)
+}
+
+fn tree_intact_with_config(
+    root: &Path,
+    node_linker: NodeLinker,
+    lockfile: &Lockfile,
+    config: &Config,
+) -> bool {
     let modules = ModulesLayout {
         included: IncludedDependencies {
             dependencies: true,
@@ -46,7 +55,7 @@ fn tree_intact(root: &Path, node_linker: NodeLinker, lockfile: &Lockfile) -> boo
         },
         ..ModulesLayout::default()
     };
-    frozen_tree_intact(lockfile, &modules, &config, root, node_linker)
+    frozen_tree_intact(lockfile, &modules, config, root, node_linker)
 }
 
 fn record_hoisted_locations(root: &Path, locations: &[(&str, &[&str])]) {
@@ -237,5 +246,51 @@ fn malformed_dependency_names_cannot_short_circuit_materialization() {
         dependencies.insert(name.parse().unwrap(), dependency);
         lockfile.snapshots = None;
         assert!(!tree_intact(dir.path(), NodeLinker::Isolated, &lockfile), "{name}");
+    }
+}
+
+#[test]
+fn symlink_disabled_install_requires_a_complete_local_virtual_store() {
+    let dir = tempdir().unwrap();
+    let root = dir.path();
+    let mut config = Config::new();
+    config.modules_dir = root.join("node_modules");
+    config.virtual_store_dir = config.modules_dir.join(".pnpm");
+    config.symlink = false;
+    let package_dir = config.virtual_store_dir.join("foo@1.0.0/node_modules/foo");
+    fs::create_dir_all(&package_dir).unwrap();
+    let lockfile = shared_workspace_lockfile();
+    let intact =
+        |config: &Config| tree_intact_with_config(root, NodeLinker::Isolated, &lockfile, config);
+
+    assert!(intact(&config), "symlink:false does not require importer links");
+    config.symlink = true;
+    assert!(!intact(&config), "ordinary installs still require importer links");
+    config.symlink = false;
+    config.enable_global_virtual_store = true;
+    assert!(!intact(&config), "local slots cannot prove the global store is intact");
+    config.enable_global_virtual_store = false;
+    fs::remove_dir(package_dir).unwrap();
+    assert!(!intact(&config), "symlink:false must still repair a missing package");
+}
+
+#[test]
+fn malformed_snapshot_names_cannot_use_directories_outside_their_slot_modules() {
+    let dir = tempdir().unwrap();
+    let root = dir.path();
+    let layout = crate::VirtualStoreLayout::legacy(root.join("node_modules/.pnpm"), 120);
+    for name in ["../outside", "@scope/../../outside"] {
+        let key: PackageKey = format!("{name}@1.0.0").parse().unwrap();
+        let slot_modules = layout.slot_dir(&key).join("node_modules");
+        let unchecked_dir = slot_modules.join(name);
+        fs::create_dir_all(&unchecked_dir).unwrap();
+        assert!(unchecked_dir.is_dir());
+        let mut lockfile = shared_workspace_lockfile();
+        lockfile.importers.clear();
+        let snapshots = lockfile.snapshots.as_mut().unwrap();
+        snapshots.clear();
+        snapshots.insert(key, SnapshotEntry::default());
+
+        assert!(!tree_intact(root, NodeLinker::Isolated, &lockfile), "{name}");
     }
 }
