@@ -77,9 +77,12 @@ pub fn redact_npm_auth_key(key: &str) -> String {
     if let Some(redacted) = strip_leading_userinfo(authority_and_path) {
         return format!("//{redacted}");
     }
-    if let Some(at) = authority_and_path.find('@') {
-        let before_at = &authority_and_path[..at];
-        if !before_at.ends_with('/') && !before_at.ends_with("/:") {
+    let mut ats = authority_and_path.match_indices('@').peekable();
+    if ats.peek().is_some() {
+        if ats.any(|(at, _)| {
+            let before_at = &authority_and_path[..at];
+            !before_at.ends_with('/') && !before_at.ends_with("/:")
+        }) {
             return "[hidden]".to_string();
         }
         let Ok(parsed) = reqwest::Url::parse(&format!("https:{sanitized}")) else {
