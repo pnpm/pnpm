@@ -1,3 +1,9 @@
+//! The interactive `minimumReleaseAge` approval prompt.
+//!
+//! Unix-only by harness: driving the prompt needs a pseudo-terminal, and
+//! the fixture opens one with Python's `pty`, which exists only on Unix.
+//! Covering Windows means a different way to allocate a console, not a
+//! port of this file.
 #![cfg(unix)]
 
 use crate::_utils::{append_workspace_yaml_key, set_minimum_release_age, without_colors};
