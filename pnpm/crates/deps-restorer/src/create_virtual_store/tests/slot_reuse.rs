@@ -32,13 +32,14 @@ fn a_changed_integrity_replaces_the_slot() {
     assert!(reuse.must_replace(&key()));
 }
 
-/// The state `--force` arrives in: its records are withheld, so the
-/// comparison has nothing to compare and the flag decides alone.
 #[test]
-fn force_replaces_the_slot_with_no_records_to_compare() {
-    let wanted = packages(NEW);
-    let reuse = SlotReuse { packages: &wanted, current_packages: None, force: true };
-    assert!(reuse.must_replace(&key()));
+fn force_replaces_the_slot_with_or_without_previous_records() {
+    let wanted = packages(OLD);
+    let current = packages(OLD);
+    for current_packages in [None, Some(&current)] {
+        let reuse = SlotReuse { packages: &wanted, current_packages, force: true };
+        assert!(reuse.must_replace(&key()), "force must replace even unchanged packages");
+    }
 }
 
 /// A first install has no records either, but its slots do not exist yet,

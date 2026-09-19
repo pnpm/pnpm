@@ -240,8 +240,7 @@ pub(crate) fn package_content_changed(
 pub(super) struct SlotReuse<'a> {
     pub(super) packages: &'a HashMap<PackageKey, PackageMetadata>,
     pub(super) current_packages: Option<&'a HashMap<PackageKey, PackageMetadata>>,
-    /// Read here and not inferred from `current_packages`, for the reason
-    /// [`pnpm_lockfile::LockfileEntries::of_previous_install`] gives.
+    /// Replace the slot even when its recorded metadata is unchanged.
     pub(super) force: bool,
 }
 

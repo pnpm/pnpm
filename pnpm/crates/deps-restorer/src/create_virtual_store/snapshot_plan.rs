@@ -364,10 +364,8 @@ pub(crate) struct SnapshotReusePolicy<'b> {
     /// Snapshots the installability pass ruled out on this host.
     pub skipped: &'b SkippedSnapshots,
     pub link_dependencies: bool,
-    /// `--force` re-materializes every slot, so both skip paths — the
-    /// current-lockfile comparison and the global-virtual-store
-    /// existence probe — are disabled here, whether or not the caller
-    /// also emptied `current_entries`.
+    /// Disable both the current-lockfile reuse check and the global-store
+    /// existence probe to re-materialize every slot.
     pub force: bool,
     pub is_hoisted: bool,
     pub include_optional: bool,

@@ -445,12 +445,25 @@ async function linkNewPackages (
   const newDepPaths = Array.from(newDepPathsSet)
 
   const newPkgs = props<DepPath, DependenciesGraphNode>(newDepPaths, depGraph)
+  const newModuleLinks: ModulesLinkJob[] = newPkgs.map((depNode) => {
+    const currentSnapshot = currentLockfile.packages?.[depNode.depPath]
+    const wantedSnapshot = wantedLockfile.packages?.[depNode.depPath]
+    if (currentSnapshot == null || wantedSnapshot == null) return depNode
+    const { removedAliases } = getChangedChildren({
+      currentDependencies: currentSnapshot.dependencies,
+      currentOptionalDependencies: currentSnapshot.optionalDependencies,
+      wantedDependencies: wantedSnapshot.dependencies,
+      wantedOptionalDependencies: wantedSnapshot.optionalDependencies,
+      allChildren: depNode.children,
+    })
+    return { ...depNode, removedAliases: removedAliases.filter((alias) => alias !== depNode.name) }
+  })
 
   await Promise.all(newPkgs.map(async (depNode) => fs.mkdir(depNode.modules, { recursive: true })))
   await Promise.all([
     !opts.symlink
       ? Promise.resolve()
-      : linkAllModules([...newPkgs, ...existingWithUpdatedDeps], depGraph, {
+      : linkAllModules([...newModuleLinks, ...existingWithUpdatedDeps], depGraph, {
         lockfileDir: opts.lockfileDir,
         optional: opts.optional,
       }),
