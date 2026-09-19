@@ -163,8 +163,15 @@ pub(in super::super) struct ReuseSeedInputs<'a> {
     pub registries: &'a HashMap<String, String>,
 }
 impl ReuseSeedInputs<'_> {
+    /// Whether the candidate's recorded subtrees still describe the
+    /// manifests this install resolves against. Each of these settings
+    /// rewrites a dependency's own manifest, so a drifted one leaves
+    /// every snapshot it touched describing a manifest that is no longer
+    /// what the resolver would read, and the seed has to be withheld for
+    /// those subtrees to be resolved again.
     fn package_settings_match(&self, lockfile: &Lockfile) -> bool {
         lockfile.package_extensions_checksum.as_deref() == self.lockfile.extensions_checksum
+            && lockfile.pnpmfile_checksum.as_deref() == self.lockfile.pnpmfile_checksum
             && super::super::ignored_optional_dependencies_match(
                 lockfile.ignored_optional_dependencies.as_deref(),
                 self.config.ignored_optional_dependencies.as_deref(),
