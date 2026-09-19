@@ -60,6 +60,18 @@ qux:
   - 3
 ```
 
+For package manifests, retain null values and empty maps and keep existing keys in their original order:
+
+```ts
+patchDocument(document, target, {
+  preserveKeyOrder: true,
+  preserveScalarAliases: true,
+  pruneEmptyValues: false,
+})
+```
+
+New keys are appended to their mapping. By default, keys follow the target object's order, and null values and empty maps are pruned from existing nodes.
+
 ## Purpose
 
 This package is useful when your codebase:

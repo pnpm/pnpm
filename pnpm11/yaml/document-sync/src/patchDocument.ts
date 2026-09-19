@@ -3,6 +3,10 @@ import yaml from 'yaml'
 import { preserveScalarAliases } from './preserveScalarAliases.js'
 
 export interface PatchDocumentOptions {
+  /** Keep existing map keys in their original order and append new keys. */
+  readonly preserveKeyOrder?: boolean
+  /** Remove null values and empty maps. Defaults to true for configuration files. */
+  readonly pruneEmptyValues?: boolean
   /**
    * Updating aliases is inherently ambiguous since they're not a concept in
    * JSON. The default is to unwrap and remove aliases since that's the most
@@ -44,6 +48,7 @@ export function patchDocument (document: yaml.Document, target: unknown, options
 
   const restoreAliases = options?.preserveScalarAliases ? preserveScalarAliases(document) : undefined
   document.contents = patchNode(document.contents, target, {
+    ...options,
     document,
     aliases: options?.aliases ?? 'unwrap',
   })
@@ -56,7 +61,8 @@ function patchNode (node: yaml.Node | null | undefined, target: unknown, ctx: Pa
   }
 
   if (target == null) {
-    return null
+    if (ctx.pruneEmptyValues !== false) return null
+    return yaml.isScalar(node) && node.value === target ? node : ctx.document.createNode(target)
   }
 
   if (yaml.isAlias(node)) {
@@ -100,8 +106,7 @@ function patchAlias (alias: yaml.Alias, target: unknown, ctx: PatchContext): yam
     case 'unwrap': {
       const copy = resolved.clone() as typeof resolved
       copy.anchor = undefined
-      patchNode(copy, target, ctx)
-      return copy
+      return patchNode(copy, target, ctx)
     }
   }
 }
@@ -124,9 +129,7 @@ function patchMap (map: yaml.YAMLMap, target: unknown, ctx: PatchContext): yaml.
     return ctx.document.createNode(target)
   }
 
-  // Intentionally return null on empty maps as well. This recursively clears
-  // empty maps in the final document.
-  if (target == null || Object.keys(target).length === 0) {
+  if (ctx.pruneEmptyValues !== false && Object.keys(target).length === 0) {
     return null
   }
 
@@ -142,15 +145,21 @@ function patchMap (map: yaml.YAMLMap, target: unknown, ctx: PatchContext): yaml.
     mapKeyToExistingPair.set(pair.key.value, pair)
   }
 
-  map.items = Object.entries(target)
-    .map(([key, value]) => {
+  const keys = ctx.preserveKeyOrder
+    ? [...mapKeyToExistingPair.keys()].filter(key => Object.hasOwn(target, key))
+      .concat(Object.keys(target).filter(key => !mapKeyToExistingPair.has(key)))
+    : Object.keys(target)
+
+  map.items = keys
+    .map(key => {
+      const value = target[key]
       const existingPair = mapKeyToExistingPair.get(key)
 
       if (existingPair == null) {
         return ctx.document.createPair(key, value)
       }
 
-      if (!yaml.isNode(existingPair.value)) {
+      if (existingPair.value != null && !yaml.isNode(existingPair.value)) {
         throw new Error('Encountered unexpected non-node value: ' + String(existingPair.value))
       }
 
@@ -177,15 +186,15 @@ function patchSeq (seq: yaml.YAMLSeq, target: unknown, ctx: PatchContext): yaml.
   // problem becomes important in the future, it may be worth making callers to
   // pass in a getKeyForNode() function.
   return isPrimitiveList(target)
-    ? patchSeqPrimitive(seq, target)
+    ? patchSeqPrimitive(seq, target, ctx)
     : patchSeqComplex(seq, target, ctx)
 }
 
-function patchSeqPrimitive (seq: yaml.YAMLSeq, target: Array<boolean | number | string | null | undefined>): yaml.Node {
+function patchSeqPrimitive (seq: yaml.YAMLSeq, target: Array<boolean | number | string | null | undefined>, ctx: PatchContext): yaml.Node {
   // Keep track of existing nodes to reuse when building up the final list from
   // the target list. These nodes will have comments attached to them, so it's
   // important to reuse them when possible.
-  const valueToNodesMap = new Map<boolean | number | string, yaml.Scalar[]>()
+  const valueToNodesMap = new Map<boolean | number | string | null | undefined, yaml.Scalar[]>()
 
   for (const item of seq.items) {
     if (item != null && !yaml.isNode(item)) {
@@ -195,7 +204,7 @@ function patchSeqPrimitive (seq: yaml.YAMLSeq, target: Array<boolean | number | 
     // We know all items in the target list are scalars. If there's a non-scalar
     // in the source list, it needs to be removed. Skip over this item so it's
     // not added to the final list.
-    if (!yaml.isScalar(item) || !isPrimitive(item.value) || item.value == null) {
+    if (!yaml.isScalar(item) || !isPrimitive(item.value) || (item.value == null && ctx.pruneEmptyValues !== false)) {
       continue
     }
 
@@ -205,7 +214,7 @@ function patchSeqPrimitive (seq: yaml.YAMLSeq, target: Array<boolean | number | 
     valueToNodesMap.set(item.value, nodeList)
   }
 
-  seq.items = target.filter(item => item != null).map((item): yaml.Scalar => {
+  seq.items = target.filter(item => item != null || ctx.pruneEmptyValues === false).map((item): yaml.Scalar => {
     const existingNodesList = valueToNodesMap.get(item)
     const firstExistingItem = existingNodesList?.shift()
 
@@ -224,7 +233,7 @@ function patchSeqPrimitive (seq: yaml.YAMLSeq, target: Array<boolean | number | 
 function patchSeqComplex (seq: yaml.YAMLSeq, target: unknown[], ctx: PatchContext): yaml.Node {
   const nextItems: yaml.Node[] = []
 
-  for (let i = 0; i < Math.max(seq.items.length, target.length); i++) {
+  for (let i = 0; i < target.length; i++) {
     const existingItem = seq.items[i]
     const targetItem = target[i]
 

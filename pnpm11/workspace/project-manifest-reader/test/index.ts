@@ -5,7 +5,7 @@ import path from 'node:path'
 import { expect, test } from '@jest/globals'
 import { fixtures } from '@pnpm/test-fixtures'
 import type { ProjectManifest } from '@pnpm/types'
-import { readProjectManifest, tryReadProjectManifest } from '@pnpm/workspace.project-manifest-reader'
+import { readExactProjectManifest, readProjectManifest, tryReadProjectManifest } from '@pnpm/workspace.project-manifest-reader'
 import { temporaryDirectory } from 'tempy'
 
 const f = fixtures(import.meta.dirname)
@@ -486,4 +486,26 @@ test('canceling changes to a manifest', async () => {
 
   await writeProjectManifest({ name: 'foo' })
   expect(fs.readFileSync('package.json', 'utf8')).toBe(JSON.stringify({ name: 'foo' }))
+})
+
+test.each(['directory', 'exact'])('preserves package.yaml comments and dependency order through the %s reader', async (reader) => {
+  const dir = temporaryDirectory()
+  const file = path.join(dir, 'package.yaml')
+  const original = `name: example
+dependencies:
+  # runtime dependencies
+  zebra: 1.0.0 # pinned
+  alpha: 1.0.0
+`
+  await fs.promises.writeFile(file, original)
+  const { manifest, writeProjectManifest } = reader === 'exact'
+    ? await readExactProjectManifest(file)
+    : await readProjectManifest(dir)
+  manifest.dependencies!.zebra = '2.0.0'
+  manifest.dependencies!.beta = '1.0.0'
+  await writeProjectManifest(manifest)
+  expect(await fs.promises.readFile(file, 'utf8')).toBe(original.replace('zebra: 1.0.0', 'zebra: 2.0.0') + '  beta: 1.0.0\n')
+  delete manifest.dependencies!.alpha
+  await writeProjectManifest(manifest)
+  expect(await fs.promises.readFile(file, 'utf8')).toBe(original.replace('zebra: 1.0.0', 'zebra: 2.0.0').replace('  alpha: 1.0.0\n', '') + '  beta: 1.0.0\n')
 })

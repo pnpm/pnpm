@@ -6,6 +6,7 @@ import { promisify } from 'node:util'
 import { expect, test } from '@jest/globals'
 import { writeProjectManifest } from '@pnpm/workspace.project-manifest-writer'
 import { temporaryDirectory } from 'tempy'
+import yaml from 'yaml'
 
 const readFile = promisify(fs.readFile)
 
@@ -20,4 +21,82 @@ test('writeProjectManifest()', async () => {
 
   await writeProjectManifest(path.join(dir, 'package.yaml'), { name: 'foo', version: '1.0.0' })
   expect(await readFile(path.join(dir, 'package.yaml'), 'utf8')).toBe('name: foo\nversion: 1.0.0\n')
+})
+
+test('preserves YAML comments and key order across updates, additions, and removals', async () => {
+  const file = path.join(temporaryDirectory(), 'package.yaml')
+  await fs.promises.writeFile(file, `# project
+name: example
+
+dependencies:
+  # runtime dependencies
+  zebra: '1.0.0' # pinned
+  alpha: 1.0.0
+  removed: 1.0.0
+
+scripts:
+  test: echo test # test command
+`)
+  await writeProjectManifest(file, {
+    dependencies: { alpha: '1.0.0', beta: '2.0.0', zebra: '2.0.0' },
+    name: 'example',
+    scripts: { test: 'echo test' },
+  })
+  const expected = `# project
+name: example
+
+dependencies:
+  # runtime dependencies
+  zebra: '2.0.0' # pinned
+  alpha: 1.0.0
+  beta: 2.0.0
+
+scripts:
+  test: echo test # test command
+`
+  expect(await readFile(file, 'utf8')).toBe(expected)
+  await writeProjectManifest(file, {
+    name: 'example',
+    dependencies: { alpha: '1.0.0', beta: '2.0.0', zebra: '3.0.0' },
+    scripts: { test: 'echo test' },
+  })
+  expect(await readFile(file, 'utf8')).toBe(expected.replace("'2.0.0'", "'3.0.0'"))
+})
+
+test('preserves YAML metadata with null values, empty collections, and aliases', async () => {
+  const file = path.join(temporaryDirectory(), 'package.yaml')
+  const original = `name: example
+metadata:
+  empty: {}
+  missing: null
+  list: [null, {}, []]
+dependencies:
+  zebra: &version 1.0.0 # shared version
+  alpha: *version
+`
+  await fs.promises.writeFile(file, original)
+  const manifest = yaml.parse(original)
+  manifest.version = '2.0.0'
+  await writeProjectManifest(file, manifest)
+  const result = await readFile(file, 'utf8')
+  expect(yaml.parse(result)).toStrictEqual(manifest)
+  expect(result).toContain('zebra: &version 1.0.0 # shared version')
+  expect(result).toContain('alpha: *version')
+})
+
+test('does not overwrite invalid YAML', async () => {
+  const file = path.join(temporaryDirectory(), 'package.yaml')
+  const original = 'dependencies: [\n'
+  await fs.promises.writeFile(file, original)
+  await expect(writeProjectManifest(file, { name: 'example' })).rejects.toMatchObject({
+    code: 'ERR_PNPM_YAML_PARSE',
+    message: expect.stringContaining(file),
+  })
+  expect(await readFile(file, 'utf8')).toBe(original)
+})
+
+test('creates a YAML manifest in a missing directory', async () => {
+  const file = path.join(temporaryDirectory(), 'nested', 'package.yaml')
+  await writeProjectManifest(file, { name: 'example' })
+  expect(await readFile(file, 'utf8')).toBe('name: example\n')
 })
