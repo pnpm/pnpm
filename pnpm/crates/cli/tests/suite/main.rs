@@ -51,6 +51,7 @@ mod exec;
 mod exec_recursive;
 mod fetch;
 mod find_hash;
+mod forced_install;
 mod git_branch_lockfile;
 mod git_hosted_install;
 mod global;

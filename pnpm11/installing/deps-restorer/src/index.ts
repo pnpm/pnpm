@@ -484,7 +484,8 @@ export async function headlessInstall (opts: HeadlessOptions): Promise<Installat
         opts.symlink === false || opts.enableModulesDir === false
           ? Promise.resolve()
           : linkAllModules(depNodes, {
-            currentLockfile: opts.relinkChangedDependenciesOnly ? currentLockfile : undefined,
+            currentLockfile,
+            relinkChangedDependenciesOnly: opts.relinkChangedDependenciesOnly && !opts.force,
             optional: opts.include.optionalDependencies,
             wantedLockfile: filteredLockfile,
           }),
@@ -1242,6 +1243,7 @@ async function linkAllModules (
   depNodes: ModulesLinkNode[],
   opts: {
     currentLockfile?: LockfileObject | null
+    relinkChangedDependenciesOnly?: boolean
     optional: boolean
     wantedLockfile: LockfileObject
   }
@@ -1267,6 +1269,7 @@ async function getChangedChildren (
   depNode: ModulesLinkNode,
   opts: {
     currentLockfile?: LockfileObject | null
+    relinkChangedDependenciesOnly?: boolean
     wantedLockfile: LockfileObject
   }
 ): Promise<{
@@ -1281,7 +1284,7 @@ async function getChangedChildren (
   }
   const currentDependencies = Object.assign(Object.create(null), currentSnapshot.dependencies, currentSnapshot.optionalDependencies) as Record<string, string>
   const wantedDependencies = Object.assign(Object.create(null), wantedSnapshot.dependencies, wantedSnapshot.optionalDependencies) as Record<string, string>
-  const changedChildren = Object.fromEntries(
+  const changedChildren = opts.relinkChangedDependenciesOnly ? Object.fromEntries(
     (await Promise.all(Object.entries(depNode.children).map(async ([alias, childDir]) => {
       if (
         currentDependencies[alias] !== wantedDependencies[alias] ||
@@ -1292,11 +1295,11 @@ async function getChangedChildren (
       }
       return null
     }))).filter((entry): entry is readonly [string, string] => entry != null)
-  )
+  ) : depNode.children
   return {
     children: changedChildren,
     depNode,
-    removedAliases: Object.keys(currentDependencies).filter((alias) => !Object.hasOwn(wantedDependencies, alias)),
+    removedAliases: Object.keys(currentDependencies).filter((alias) => alias !== depNode.name && !Object.hasOwn(wantedDependencies, alias)),
   }
 }
 

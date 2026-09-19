@@ -140,10 +140,7 @@ impl<'a> OnDiskInputs<'a> {
             ctx: self.ctx,
 
             entries: self.projects.materialization_lockfile.into(),
-            current_entries: LockfileEntries::of_previous_install(
-                self.install.prior.lockfile,
-                self.ctx.config.force,
-            ),
+            current_entries: LockfileEntries::of_previous_install(self.install.prior.lockfile),
 
             dir_clone_cache: self.store.dir_clone_cache,
             // Share the resolve-time prefetcher's in-flight downloads with

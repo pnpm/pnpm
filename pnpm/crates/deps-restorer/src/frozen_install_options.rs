@@ -45,10 +45,8 @@ pub struct FrozenLockfileInputs<'a> {
     /// diff). `None` on a first install.
     pub current: Option<&'a Lockfile>,
     /// Entries from the previous install's `lock.yaml`, threaded through
-    /// to [`crate::CreateVirtualStore`] to drive the per-snapshot skip
-    /// decision. See [`LockfileEntries::of_previous_install`], which is
-    /// how a caller builds this: it is empty on a first install and
-    /// under `--force`.
+    /// to [`crate::CreateVirtualStore`] for reuse decisions and child-link
+    /// cleanup. See [`LockfileEntries::of_previous_install`].
     pub current_entries: LockfileEntries<'a>,
     /// Resolution verifiers to re-apply to every lockfile entry. Run
     /// concurrently with the fetch phase ([`crate::CreateVirtualStore`])

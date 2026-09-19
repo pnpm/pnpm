@@ -447,3 +447,22 @@ fn remove_obsolete_child_skips_path_traversal() {
 
     assert!(sibling.exists(), "a `..` alias must not delete a sibling of node_modules");
 }
+
+#[test]
+fn remove_obsolete_child_skips_traversal_through_a_dependency_symlink() {
+    let dir = tempdir().expect("tempdir");
+    let node_modules = dir.path().join("slot/node_modules");
+    let outside = dir.path().join("outside");
+    let package = outside.join("package");
+    let target = dir.path().join("target");
+    for path in [&node_modules, &package, &target] {
+        std::fs::create_dir_all(path).unwrap();
+    }
+    force_symlink_dir(&package, &node_modules.join("foo")).unwrap();
+    let victim = outside.join("victim");
+    force_symlink_dir(&target, &victim).unwrap();
+
+    remove_obsolete_child(&node_modules, &PkgName::parse("foo/../victim").unwrap()).unwrap();
+
+    assert!(victim.symlink_metadata().is_ok(), "cleanup must not unlink outside the slot");
+}
