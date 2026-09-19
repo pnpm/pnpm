@@ -845,7 +845,7 @@ fn the_platform_branch_prefers_the_system_path_converter_and_still_falls_back() 
     let tmp = tempfile::tempdir().unwrap();
     let target = Path::new("/proj/node_modules/typescript/bin/tsc");
     let shim = Path::new("/proj/node_modules/.bin/tsc");
-    let body = generate_sh_shim(target, shim, None, &[]);
+    let body = generate_sh_shim(target, shim, None, &[], None);
 
     let answering = tmp.path().join("answering");
     write_executable(&answering, "#!/bin/sh\necho '/system/win'\n");

@@ -376,12 +376,12 @@ fn a_reinstall_replaces_a_shim_that_converts_paths_with_a_helper_from_the_caller
     let bins_dir = tmp.path().join(".bin");
     create_dir_all(&bins_dir).unwrap();
     let shim = bins_dir.join("foo");
-    let outdated = generate_sh_shim(&target, &shim, None, &[])
+    let outdated = generate_sh_shim(&target, &shim, None, &[], None)
         .replace("command -p cygpath", "cygpath")
         .replace("command -p wslpath", "wslpath");
     write_file(&shim, &outdated).unwrap();
     assert!(
-        is_shim_pointing_at(&outdated, &target),
+        is_shim_pointing_at(&outdated, &shim, &target),
         "precondition: the outdated shim carries a matching target marker",
     );
     assert!(
@@ -401,7 +401,7 @@ fn a_reinstall_replaces_a_shim_that_converts_paths_with_a_helper_from_the_caller
     .unwrap();
 
     let body = read_to_string(&shim).unwrap();
-    assert!(is_shim_pointing_at(&body, &target), "the rewritten shim keeps its target");
+    assert!(is_shim_pointing_at(&body, &shim, &target), "the rewritten shim keeps its target");
     assert!(
         is_sh_shim_hardened(&body),
         "the reinstall must replace a shim that converts paths with a helper from PATH, \
