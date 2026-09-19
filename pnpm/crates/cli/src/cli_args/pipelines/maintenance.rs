@@ -1,7 +1,7 @@
 use super::{
     Config, Context, DedicatedProjectRuns, DedicatedProjects, DedupeArgs, InstallFamilyPlan, Path,
-    PathBuf, PruneArgs, Reporter, State, config_deps, dedupe, resolve_bool_override,
-    select_install_family_plan,
+    PathBuf, PruneArgs, Reporter, RuntimePolicy, State, dedupe, prepare_root_config,
+    resolve_bool_override, select_install_family_plan,
 };
 
 /// The reporter-generic body of `pacquet dedupe`: snapshots the lockfile
@@ -29,7 +29,8 @@ impl DedupePipeline {
         let guard =
             self.args.check.then(|| dedupe::LockfileGuard::new(existing.clone(), &lockfile_path));
 
-        config_deps::prepare::<Reporter>(self.cfg, &self.config_root, false).await?;
+        let root_config = (&*self.manifest_path, &mut *self.cfg, &*self.config_root);
+        prepare_root_config::<Reporter>(root_config, (false, RuntimePolicy::Always)).await?;
         let plan = select_install_family_plan::<Reporter>(
             self.cfg,
             &self.prefix,
@@ -130,7 +131,8 @@ impl PrunePipeline {
             manifest_path,
         } = self;
 
-        config_deps::prepare::<Reporter>(cfg, &config_root, false).await?;
+        let root_config = (&*manifest_path, &mut *cfg, &*config_root);
+        prepare_root_config::<Reporter>(root_config, (false, RuntimePolicy::Always)).await?;
         // Validate path containment AFTER hooks: updateConfig can mutate
         // modules_dir / virtual_store_dir via WorkspaceSettings::apply_to,
         // so the check must use the final (post-hook) config values.
