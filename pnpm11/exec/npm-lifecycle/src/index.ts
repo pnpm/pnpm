@@ -439,12 +439,17 @@ function runSpawned (context: RunCmdContext, proc: LifecycleChildProcess, cb: Ca
     }
     procError(err)
   })
-  byline(proc.stdout!).on('data', (data: Buffer) => {
-    opts.log.verbose('lifecycle', logId(pkg, stage), 'stdout', data.toString())
-  })
-  byline(proc.stderr!).on('data', (data: Buffer) => {
-    opts.log.verbose('lifecycle', logId(pkg, stage), 'stderr', data.toString())
-  })
+  // Inherited streams are null on the child; only piped output is reported.
+  if (proc.stdout) {
+    byline(proc.stdout).on('data', (data: Buffer) => {
+      opts.log.verbose('lifecycle', logId(pkg, stage), 'stdout', data.toString())
+    })
+  }
+  if (proc.stderr) {
+    byline(proc.stderr).on('data', (data: Buffer) => {
+      opts.log.verbose('lifecycle', logId(pkg, stage), 'stderr', data.toString())
+    })
+  }
   process.once('SIGTERM', procKill)
   process.once('SIGINT', procInterrupt)
   process.on('exit', procKill)
