@@ -519,3 +519,51 @@ fn ignore_scripts_skips_the_publish_lifecycle_scripts() {
     );
     mock.assert();
 }
+
+/// A positional package path is resolved against the command directory
+/// before the pack reads it. Left relative, it cannot be related to the
+/// absolute workspace directory, and a `file:` / `link:` catalog entry
+/// re-anchored against it would fall back to this machine's absolute
+/// path and ship inside the published manifest.
+#[test]
+fn publishing_a_nested_project_by_relative_path_keeps_catalog_entries_relative() {
+    let workspace = tempfile::tempdir().expect("workspace");
+    let mut server = mockito::Server::new();
+    let project_dir = workspace.path().join("projects/nested/bar");
+    fs::create_dir_all(&project_dir).expect("create the project directory");
+    fs::write(workspace.path().join(".npmrc"), format!("registry={}/\n", server.url()))
+        .expect("write .npmrc");
+    fs::write(
+        workspace.path().join("pnpm-workspace.yaml"),
+        "packages:\n  - projects/*/*\ncatalog:\n  \
+         pkg-from-tarball: file:./tarballs/pkg-from-tarball-1.0.0.tgz\n  \
+         local-lib: link:./libs/local-lib\n",
+    )
+    .expect("write pnpm-workspace.yaml");
+    fs::write(
+        project_dir.join("package.json"),
+        json!({
+            "name": "test-publish-nested",
+            "version": "1.0.0",
+            "dependencies": { "pkg-from-tarball": "catalog:", "local-lib": "catalog:" },
+        })
+        .to_string(),
+    )
+    .expect("write package.json");
+
+    let mock = server
+        .mock("PUT", "/test-publish-nested")
+        .match_body(Matcher::PartialJsonString(
+            r#"{"versions":{"1.0.0":{"dependencies":{
+                "pkg-from-tarball":"file:../../../tarballs/pkg-from-tarball-1.0.0.tgz",
+                "local-lib":"link:../../../libs/local-lib"}}}}"#
+                .to_owned(),
+        ))
+        .with_status(200)
+        .with_body(r#"{"ok":true}"#)
+        .expect(1)
+        .create();
+
+    assert_success(&publish(workspace.path(), &["./projects/nested/bar"]));
+    mock.assert();
+}

@@ -182,9 +182,16 @@ impl PublishArgs {
             if let Some(package) = self.package.as_deref().filter(|path| is_tarball_path(path)) {
                 self.publish_tarball::<Reporter>(package, &opts, &network).await?
             } else {
-                let project_dir = self.package.as_deref().map_or(dir, Path::new);
+                // Resolved against the command directory so every path the
+                // pack derives from it — the re-anchored `file:` / `link:`
+                // catalog entries among them — can be related to the
+                // absolute workspace directory. `join` keeps an absolute
+                // argument as it is.
+                let project_dir = self.package
+                    .as_deref()
+                    .map_or_else(|| dir.to_path_buf(), |path| dir.join(path));
                 self.publish_directory::<Reporter>(
-                    project_dir,
+                    &project_dir,
                     config,
                     &opts,
                     &network,
