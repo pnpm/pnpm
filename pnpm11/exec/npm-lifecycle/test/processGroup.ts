@@ -61,6 +61,14 @@ function writeProcessTable (entries: Array<{ pid: number, state: string, group: 
   return table
 }
 
-function withDeadline<T> (promise: Promise<T>, timeout: number): Promise<T | 'timed out'> {
-  return Promise.race([promise, new Promise<'timed out'>((resolve) => setTimeout(() => resolve('timed out'), timeout))])
+async function withDeadline<T> (promise: Promise<T>, timeout: number): Promise<T | 'timed out'> {
+  let timer: NodeJS.Timeout | undefined
+  const deadline = new Promise<'timed out'>((resolve) => {
+    timer = setTimeout(() => resolve('timed out'), timeout)
+  })
+  try {
+    return await Promise.race([promise, deadline])
+  } finally {
+    clearTimeout(timer)
+  }
 }
