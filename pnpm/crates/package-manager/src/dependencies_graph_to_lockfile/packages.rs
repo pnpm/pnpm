@@ -8,7 +8,6 @@ use pnpm_lockfile::{
     PackageMetadata, PeerDependencyMeta, PkgName, PkgNameVerPeer, PkgVerPeer, RegistryOptions,
     SnapshotDepRef, SnapshotEntry, registry_server_type,
 };
-use pnpm_package_manifest::is_truthy;
 use pnpm_resolving_deps_resolver::{DepPath, DependenciesGraph, DependenciesGraphNode};
 use rayon::prelude::*;
 use serde_json::Value;
@@ -150,7 +149,7 @@ pub(super) fn carry_previous_deprecation(
         && let Some(previous) = sources.previous_packages.and_then(|prev| prev.get(key))
         && previous.resolution == metadata.resolution
     {
-        metadata.deprecated = previous.deprecated;
+        metadata.deprecated.clone_from(&previous.deprecated);
     }
 }
 /// Build the per-`(name, version)` [`PackageMetadata`] block for the
@@ -186,8 +185,9 @@ pub(super) fn build_package_metadata(
         libc: read_string_or_list(manifest, "libc"),
         deprecated: manifest
             .and_then(|manifest| manifest.get("deprecated"))
-            .is_some_and(is_truthy)
-            .then_some(true),
+            .and_then(Value::as_str)
+            .filter(|deprecated| !deprecated.is_empty())
+            .map(ToString::to_string),
         has_bin: manifest_has_bin(manifest),
         prepare: None,
         bundled_dependencies: BundledDependencies::from_manifest(manifest),

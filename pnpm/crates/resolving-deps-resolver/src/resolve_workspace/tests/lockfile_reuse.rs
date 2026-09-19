@@ -184,7 +184,7 @@ async fn fails_loudly_on_a_locked_optional_dependency_for_every_coded_resolver_f
 
 /// A dependency reused from the wanted lockfile still notifies the
 /// deprecation sink: the synthesized manifest carries the lockfile's
-/// `deprecated` flag, so warm installs keep warning, matching pnpm's
+/// `deprecated` metadata, so warm installs keep warning, matching pnpm's
 /// repeat-install behavior.
 #[tokio::test]
 async fn reused_lockfile_entries_still_notify_the_deprecation_sink() {
@@ -198,7 +198,7 @@ async fn reused_lockfile_entries_still_notify_the_deprecation_sink() {
         .expect("lockfile carries packages")
         .get_mut(&"old@1.2.0".parse::<pnpm_lockfile::PkgNameVerPeer>().expect("parse key"))
         .expect("direct entry")
-        .deprecated = Some(true);
+        .deprecated = Some("use new instead".to_string());
     let notifications = std::sync::Arc::new(Mutex::new(Vec::new()));
     let sink = std::sync::Arc::clone(&notifications);
     let mut opts = workspace_opts(false, false);

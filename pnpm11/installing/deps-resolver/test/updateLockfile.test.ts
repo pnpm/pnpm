@@ -124,7 +124,7 @@ test('an unchanged resolution never loses its recorded deprecation to metadata d
     prefix: '.',
     registriesByScope: REGISTRIES,
   })
-  expect(lockfile.packages![DEP_PATH].deprecated).toBe(true)
+  expect(lockfile.packages![DEP_PATH].deprecated).toBe('No longer maintained')
 })
 
 test('a changed resolution takes the freshly served metadata', () => {

@@ -165,17 +165,20 @@ fn synthesized_manifest_carries_peer_metadata() {
 }
 
 #[test]
-fn synthesized_manifest_carries_the_deprecated_flag() {
+fn synthesized_manifest_carries_deprecated_metadata() {
     let key: PkgNameVerPeer = "left-pad@1.3.0".parse().expect("parse key");
     let mut metadata = registry_metadata();
-    metadata.deprecated = Some(true);
+    metadata.deprecated = Some("use String.prototype.padStart()".to_string());
     let mut lockfile = empty_lockfile();
     lockfile.packages = Some(HashMap::from([(key.clone(), metadata)]));
 
     let result =
         synthesize_reused_result(&lockfile, &key, "left-pad").expect("registry dep is reusable");
     let manifest = result.package.manifest.expect("synthesized manifest");
-    assert_eq!(manifest.get("deprecated"), Some(&serde_json::json!(true)));
+    assert_eq!(
+        manifest.get("deprecated").and_then(serde_json::Value::as_str),
+        Some("use String.prototype.padStart()"),
+    );
 }
 
 #[test]

@@ -67,10 +67,7 @@ export type { WantedDependency }
 
 const dependencyResolvedLogger = logger('_dependency_resolved')
 
-// `deprecated` is omitted along with the dependency fields: in the lockfile it
-// is a flag, not the manifest's deprecation notice, so it must not be spread
-// onto a package manifest.
-const omitDepsFields = omit(['dependencies', 'optionalDependencies', 'peerDependencies', 'peerDependenciesMeta', 'deprecated'])
+const omitDepsFields = omit(['dependencies', 'optionalDependencies', 'peerDependencies', 'peerDependenciesMeta'])
 
 export function getPkgsInfoFromIds (
   ids: PkgResolutionId[],
@@ -322,7 +319,7 @@ export interface ResolvedPackage {
   pkgIdWithPatchHash: PkgIdWithPatchHash
   requiresBuild?: boolean
   additionalInfo: {
-    deprecated: boolean
+    deprecated?: string
     bundleDependencies?: string[] | boolean
     bundledDependencies?: string[] | boolean
     engines?: {
@@ -2155,7 +2152,6 @@ async function resolveDependency (
 
     let prepare!: boolean
     let hasBin!: boolean
-    let isDeprecated!: boolean
     let pkg: PackageManifest = copyResolvedManifest(getManifestFromResponse(pkgResponse, wantedDependency, currentPkg))
     if (ctx.readPackageHook != null) {
       pkg = await ctx.readPackageHook(pkg)
@@ -2222,7 +2218,6 @@ async function resolveDependency (
       (currentPkg.dependencyLockfile.peerDependencies == null)
     ) {
       hasBin = currentPkg.dependencyLockfile.hasBin === true
-      isDeprecated = Boolean(pkg.deprecated) || Boolean(currentPkg.dependencyLockfile.deprecated)
       pkg = {
         ...nameVerFromPkgSnapshot(currentPkg.depPath, currentPkg.dependencyLockfile),
         ...omitDepsFields(currentPkg.dependencyLockfile),
@@ -2234,8 +2229,12 @@ async function resolveDependency (
         typeof pkg.scripts?.prepare === 'string'
       )
 
-      isDeprecated = Boolean(pkg.deprecated) ||
-        (Boolean(currentPkg.dependencyLockfile?.deprecated) && !pkgResponse.body.updated)
+      if (
+        currentPkg.dependencyLockfile?.deprecated &&
+        !pkgResponse.body.updated && !pkg.deprecated
+      ) {
+        pkg.deprecated = currentPkg.dependencyLockfile.deprecated
+      }
       hasBin = (currentPkg.dependencyLockfile?.hasBin != null && !pkg.bin)
         ? currentPkg.dependencyLockfile.hasBin
         : Boolean((pkg.bin && !(pkg.bin === '' || Object.keys(pkg.bin).length === 0)) ?? pkg.directories?.bin)
@@ -2272,7 +2271,7 @@ async function resolveDependency (
 
     if (packageIsNew) {
       if (
-        isDeprecated &&
+        pkg.deprecated &&
         (!ctx.allowedDeprecatedVersions[pkg.name] || !semver.satisfies(pkg.version, ctx.allowedDeprecatedVersions[pkg.name]))
       ) {
         // Report deprecated packages only on first occurrence.
@@ -2300,7 +2299,6 @@ async function resolveDependency (
         pkgIdWithPatchHash,
         force: ctx.force,
         hasBin,
-        isDeprecated,
         patch,
         pkg,
         pkgResponse,
@@ -2443,7 +2441,8 @@ export function getManifestFromResponse (
  * The resolver returns the manifest object its metadata cache holds, so every
  * dependency that resolves to the same package version is handed the same
  * object. What resolution writes to it decides the isolation this owes:
- * dependency and peer records are rewritten by the read-package hook, and an
+ * dependency and peer records are rewritten by the read-package hook, a
+ * `deprecated` notice is carried over from the lockfile, and an
  * `engines.runtime` entry becomes a dependency. `dependencies` is present on
  * the result whether or not the manifest declares it, since the peer handling
  * and `convertEnginesRuntimeToDependencies` both write into it.
@@ -2494,7 +2493,6 @@ function getResolvedPackage (
     pkgIdWithPatchHash: PkgIdWithPatchHash
     force: boolean
     hasBin: boolean
-    isDeprecated: boolean
     parentImporterId: string
     patch?: PatchInfo
     pkg: PackageManifest
@@ -2511,7 +2509,7 @@ function getResolvedPackage (
       bundledDependencies: options.pkg.bundledDependencies,
       bundleDependencies: options.pkg.bundleDependencies,
       cpu: options.pkg.cpu,
-      deprecated: options.isDeprecated,
+      deprecated: options.pkg.deprecated,
       engines: options.pkg.engines,
       os: options.pkg.os,
       libc: options.pkg.libc,

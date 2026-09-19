@@ -113,7 +113,7 @@ lockfileVersion: '9.0'
 packages:
   is-positive@3.0.0:
     resolution: {integrity: sha512-new}
-    deprecated: true
+    deprecated: do not use
 snapshots:
   is-positive@3.0.0:
     transitivePeerDependencies:
@@ -123,7 +123,7 @@ snapshots:
     let key: PackageKey = "is-positive@3.0.0".parse().unwrap();
     let entry = &merged.packages.as_ref().unwrap()[&key];
     assert_eq!(entry.has_bin, Some(true), "ours survives what theirs omits");
-    assert_eq!(entry.deprecated, Some(true));
+    assert_eq!(entry.deprecated.as_deref(), Some("do not use"));
 
     let snapshot = &merged.snapshots.as_ref().unwrap()[&key];
     assert!(snapshot.optional, "ours survives what theirs omits");

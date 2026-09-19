@@ -5119,7 +5119,6 @@ dependencies = [
  "pnpm-network",
  "pnpm-package-is-installable",
  "pnpm-package-manager",
- "pnpm-package-manifest",
  "pnpm-package-name",
  "pnpm-registry",
  "pnpm-reporter",

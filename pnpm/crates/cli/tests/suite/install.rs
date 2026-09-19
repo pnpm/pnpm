@@ -382,7 +382,7 @@ fn should_install_circular_dependencies() {
 }
 
 #[test]
-fn install_reports_a_deprecation_without_the_notice_and_keeps_the_flag_on_reuse() {
+fn install_reports_a_deprecation_without_the_notice_and_keeps_the_metadata_on_reuse() {
     let CommandTempCwd {
         pacquet,
         root,
@@ -420,12 +420,8 @@ fn install_reports_a_deprecation_without_the_notice_and_keeps_the_flag_on_reuse(
     let lockfile_path = workspace.join("pnpm-lock.yaml");
     let first = fs::read_to_string(&lockfile_path).expect("read pnpm-lock.yaml");
     assert!(
-        first.contains("deprecated: true"),
+        first.contains("deprecated: This package is deprecated."),
         "fresh lockfile should record deprecation metadata:\n{first}",
-    );
-    assert!(
-        !first.contains("This package is deprecated."),
-        "the lockfile must not record the notice:\n{first}",
     );
 
     fs::write(
@@ -446,7 +442,7 @@ fn install_reports_a_deprecation_without_the_notice_and_keeps_the_flag_on_reuse(
         .success();
     let second = fs::read_to_string(&lockfile_path).expect("re-read pnpm-lock.yaml");
     assert!(
-        second.contains("deprecated: true"),
+        second.contains("deprecated: This package is deprecated."),
         "lockfile reuse should preserve deprecation metadata:\n{second}",
     );
 
