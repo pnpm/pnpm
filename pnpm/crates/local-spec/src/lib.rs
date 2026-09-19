@@ -203,7 +203,27 @@ pub fn is_tarball_filename(bare: &str) -> bool {
 /// from the workspace root renders as `libs/x` — and a bare
 /// `<segment>/<segment>` reads as a hosted-git shorthand instead, so
 /// the prefix goes back on.
+///
+/// A drive-prefixed path cannot be made unambiguous by a prefix, since
+/// `./C:/x` names something else entirely. A tarball takes `file:`
+/// instead, which is what the local resolver resolves it under either
+/// way, so naming the protocol cannot change how it materializes.
+///
+/// A directory stays bare. Its protocol is not ours to choose: the
+/// resolver reads a protocol-less directory as `link:` only while the
+/// dependency is not injected, and as `file:` when it is. An explicit
+/// `link:` would outrank that and silently reference an injected
+/// package in place instead of copying it, so the drive-prefixed
+/// spelling keeps its ambiguity rather than trade it for a wrong
+/// materialization.
 fn without_protocol(path: String) -> String {
+    if is_drive_letter_prefix(&path) {
+        return if is_tarball_filename(&path) {
+            format!("{}{path}", LocalSpecProtocol::File.as_str())
+        } else {
+            path
+        };
+    }
     if is_filespec(&path) { path } else { format!("./{path}") }
 }
 
@@ -224,6 +244,12 @@ fn without_protocol(path: String) -> String {
 /// much as a drive path. Nothing is lost by that — a drive path names
 /// the same place from every directory, and a drive-relative one is
 /// measured from process state no caller here can see.
+///
+/// Declining the shape on the way in does not settle it, because a
+/// protocol-less path re-anchored onto a Windows drive puts the
+/// ambiguity back. [`without_protocol`] resolves that only where it is
+/// free to: a tarball takes `file:`, and a directory keeps the
+/// ambiguity rather than trade it for a wrong materialization.
 fn bare_path_is_unambiguous(specifier: &str) -> bool {
     !is_drive_letter_prefix(specifier) && is_filespec(specifier)
 }
