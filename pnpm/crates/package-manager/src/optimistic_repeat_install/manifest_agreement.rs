@@ -222,6 +222,7 @@ fn project_content_check(
         project.manifest,
         &importer_id,
         context.config,
+        None,
         context.ignored_optional_matcher,
         context.parsed_overrides,
     ) {

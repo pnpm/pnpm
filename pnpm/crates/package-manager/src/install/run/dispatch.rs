@@ -410,6 +410,7 @@ impl<'r> Settled<'r, '_> {
         LockfileFreshnessInputs {
             lockfile_dir: &workspace.dirs.workspace_root,
             manifests: &lockfiles.manifest_freshness_inputs,
+            workspace_packages: workspace.workspace_packages.as_ref(),
             config: install.context.config,
             catalogs: &workspace.catalogs,
             pnpmfile_hook: loaded.pnpmfile_hook.as_ref(),

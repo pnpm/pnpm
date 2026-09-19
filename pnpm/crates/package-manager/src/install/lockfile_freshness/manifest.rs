@@ -20,6 +20,7 @@ pub(crate) fn check_importer_satisfies(
     manifest: &PackageManifest,
     importer_id: &str,
     config: &Config,
+    workspace_packages: Option<&pnpm_resolving_resolver_base::WorkspacePackages>,
     ignored_optional_matcher: &pnpm_matcher::Matcher,
     parsed_overrides: Option<&[pnpm_config_parse_overrides::VersionOverride]>,
 ) -> Result<(), FreshnessCheckError> {
@@ -38,8 +39,13 @@ pub(crate) fn check_importer_satisfies(
     // itself, so the manifest is cloned here only for the two mutations the
     // comparison needs done up front: applying `pnpm.overrides` and dropping
     // `link:` deps under `exclude_links_from_lockfile`.
-    let normalized_manifest =
-        normalized_freshness_manifest(manifest, config, parsed_overrides, lockfile_dir);
+    let normalized_manifest = normalized_freshness_manifest(
+        manifest,
+        config,
+        workspace_packages,
+        parsed_overrides,
+        lockfile_dir,
+    );
     let manifest_for_freshness = normalized_manifest.as_ref();
 
     // Build the `ignoredOptionalDependencies` filter set: iterate
@@ -102,7 +108,10 @@ pub(in super::super) fn manifest_has_effective_dependencies(
         ])
         .any(|(name, _)| !ignored.contains(name))
 }
-pub(in super::super) fn exclude_linked_dependencies(manifest: &mut PackageManifest) {
+pub(in super::super) fn exclude_linked_dependencies(
+    manifest: &mut PackageManifest,
+    workspace_packages: Option<&pnpm_resolving_resolver_base::WorkspacePackages>,
+) {
     let Some(manifest) = manifest.value_mut().as_object_mut() else {
         return;
     };
@@ -112,10 +121,21 @@ pub(in super::super) fn exclude_linked_dependencies(manifest: &mut PackageManife
         else {
             continue;
         };
-        dependencies.retain(|_, specifier| {
+        dependencies.retain(|alias, specifier| {
             specifier
                 .as_str()
-                .is_none_or(|specifier| !specifier.starts_with("link:"))
+                .is_none_or(|specifier| {
+                    !specifier.starts_with("link:")
+                        && workspace_packages.is_none_or(|workspace_packages| {
+                            specifier.starts_with("workspace:")
+                                || crate::workspace_link_target(
+                                    workspace_packages,
+                                    alias,
+                                    specifier,
+                                )
+                                .is_none()
+                        })
+                })
         });
     }
 }
@@ -123,6 +143,7 @@ pub(in super::super) fn exclude_linked_dependencies(manifest: &mut PackageManife
 pub(super) fn normalized_freshness_manifest<'a>(
     manifest: &'a PackageManifest,
     config: &Config,
+    workspace_packages: Option<&pnpm_resolving_resolver_base::WorkspacePackages>,
     parsed_overrides: Option<&[pnpm_config_parse_overrides::VersionOverride]>,
     lockfile_dir: &Path,
 ) -> std::borrow::Cow<'a, PackageManifest> {
@@ -138,7 +159,7 @@ pub(super) fn normalized_freshness_manifest<'a>(
         crate::VersionsOverrider::new(parsed, lockfile_dir).apply(&mut cloned, Some(project_dir));
     }
     if config.exclude_links_from_lockfile {
-        exclude_linked_dependencies(&mut cloned);
+        exclude_linked_dependencies(&mut cloned, workspace_packages);
     }
     std::borrow::Cow::Owned(cloned)
 }
