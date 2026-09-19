@@ -415,12 +415,47 @@ fn should_refuse_to_prune_through_a_symlinked_metadata_root() {
     let stderr = String::from_utf8_lossy(&assertion.get_output().stderr).into_owned();
 
     assert!(
-        stderr.contains("outside the cache directory"),
+        stderr.contains("Refusing to prune"),
         "the refusal must say why the root was skipped, got: {stderr}",
     );
     assert!(
         bystander.join("keep.txt").exists(),
         "expected {bystander:?} to survive a prune through a symlinked root",
+    );
+}
+
+/// A path is its own prefix, so a root linked back to the cache directory
+/// satisfies a containment check written as one. Prune would then list that
+/// directory's own children and take every one of them for a stale registry
+/// key, `v11` and the rest of the cache included.
+#[cfg(unix)]
+#[test]
+fn should_refuse_to_prune_a_metadata_root_linked_to_the_cache_directory() {
+    let cwd = CommandTempCwd::init().add_mocked_registry();
+
+    let bystander = cwd.npmrc_info.cache_dir.join("dlx");
+    fs::create_dir_all(&bystander).unwrap();
+    fs::write(bystander.join("keep.txt"), "not prune's to delete").unwrap();
+
+    let root =
+        cwd.npmrc_info.cache_dir.join(pnpm_resolving_npm_resolver::mirror::ABBREVIATED_META_DIR);
+    fs::create_dir_all(root.parent().unwrap()).unwrap();
+    std::os::unix::fs::symlink(&cwd.npmrc_info.cache_dir, &root).unwrap();
+
+    let assertion = cwd.pacquet
+        .with_arg("cache")
+        .with_arg("prune")
+        .assert()
+        .failure();
+    let stderr = String::from_utf8_lossy(&assertion.get_output().stderr).into_owned();
+
+    assert!(
+        stderr.contains("Refusing to prune"),
+        "the refusal must say why the root was skipped, got: {stderr}",
+    );
+    assert!(
+        bystander.join("keep.txt").exists(),
+        "expected {bystander:?} to survive a root linked to the cache directory",
     );
 }
 

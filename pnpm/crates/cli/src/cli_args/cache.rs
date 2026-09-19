@@ -312,7 +312,7 @@ impl PruneOutcome {
             Ok(entry) => entry,
             Err(error) => {
                 return self.failures.push(format!(
-                    "Failed to read a metadata cache entry: {error}",
+                    "Failed to read an entry of metadata cache directory {meta_dir}: {error}",
                 ));
             }
         };
@@ -371,16 +371,21 @@ impl PruneOutcome {
     }
 }
 
-/// The metadata root to sweep, resolved, once it is known to lie inside
-/// `cache_dir`. `Ok(None)` when there is no such root, `Err` with the message to
-/// report when it cannot be resolved or resolves outside.
+/// The metadata root to sweep, once it is known to be the directory the cache
+/// directory keeps it in rather than a link to somewhere else. `Ok(None)` when
+/// there is no such root, `Err` with the message to report when it cannot be
+/// resolved or resolves anywhere but its own place.
 ///
 /// `cacheDir` is a `pnpm-workspace.yaml` setting, so a checked-out project
 /// chooses where this command deletes from. `read_dir` follows a symlinked root,
 /// which would put every directory behind the link in reach of
 /// `remove_dir_all` — and the names prune accepts are broad, being every name
-/// that is not in the current key shape. Requiring the root to resolve inside
-/// the cache directory keeps the sweep in the tree the configuration names.
+/// that is not in the current key shape.
+///
+/// A prefix test against the cache directory would not be enough, because a
+/// path is its own prefix: a root linked back to the cache directory would pass
+/// one, and prune would then read that directory's own children and take every
+/// one of them — `v11` included — for a stale registry key.
 ///
 /// The sweep runs against the resolved path, so replacing the configured root
 /// with a link afterwards redirects nothing. This is the containment
@@ -400,9 +405,9 @@ fn confined_meta_root(cache_dir: &Path, meta_dir: &str) -> Result<Option<PathBuf
             return Err(format!("Failed to resolve metadata cache directory {named:?}: {error}"));
         }
     };
-    if !root.starts_with(cache_dir) {
+    if root != named {
         return Err(format!(
-            "Refusing to prune {named:?}: it resolves to {root:?}, outside the cache directory {cache_dir:?}",
+            "Refusing to prune {named:?}: a metadata cache root must be the {meta_dir} directory of {cache_dir:?}, and this one resolves to {root:?}",
         ));
     }
     Ok(Some(root))
