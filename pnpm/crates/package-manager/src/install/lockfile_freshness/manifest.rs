@@ -28,19 +28,11 @@ pub(crate) struct ImporterSatisfactionCheck<'a> {
 pub(crate) fn check_importer_satisfies(
     check: &ImporterSatisfactionCheck<'_>,
 ) -> Result<(), FreshnessCheckError> {
-    let ImporterSatisfactionCheck {
-        lockfile,
-        lockfile_dir,
-        manifest,
-        importer_id,
-        config,
-        workspace_packages,
-        ignored_optional_matcher,
-        parsed_overrides,
-    } = *check;
-    let importer = lockfile.importers
-        .get(importer_id)
-        .ok_or_else(|| FreshnessCheckError::NoImporter { importer_id: importer_id.to_string() })?;
+    let importer = check.lockfile.importers
+        .get(check.importer_id)
+        .ok_or_else(|| FreshnessCheckError::NoImporter {
+            importer_id: check.importer_id.to_string(),
+        })?;
 
     // Apply `pnpm.overrides` to a *cloned* manifest before the
     // per-importer specifier check so the lockfile's specifiers —
@@ -54,11 +46,11 @@ pub(crate) fn check_importer_satisfies(
     // comparison needs done up front: applying `pnpm.overrides` and dropping
     // `link:` deps under `exclude_links_from_lockfile`.
     let normalized_manifest = normalized_freshness_manifest(
-        manifest,
-        config,
-        workspace_packages,
-        parsed_overrides,
-        lockfile_dir,
+        check.manifest,
+        check.config,
+        check.workspace_packages,
+        check.parsed_overrides,
+        check.lockfile_dir,
     );
     let manifest_for_freshness = normalized_manifest.as_ref();
 
@@ -71,13 +63,13 @@ pub(crate) fn check_importer_satisfies(
     // matching. `devDependencies` is untouched on purpose; the group
     // gate inside `satisfies_package_manifest` enforces that.
     let ignored_set =
-        ignored_optional_dependency_names(manifest_for_freshness, ignored_optional_matcher);
+        ignored_optional_dependency_names(manifest_for_freshness, check.ignored_optional_matcher);
     let is_ignored_optional: &dyn Fn(&str) -> bool = &|name: &str| ignored_set.contains(name);
 
     satisfies_package_manifest(
         importer,
         manifest_for_freshness,
-        config.auto_install_peers,
+        check.config.auto_install_peers,
         is_ignored_optional,
     )
     .map_err(|reason| {
@@ -85,7 +77,7 @@ pub(crate) fn check_importer_satisfies(
         // freshness report names the drifted project, not only the dep.
         let reason = match reason {
             StalenessReason::SpecifiersDiffer(mut diff) => {
-                diff.importer_id = Some(importer_id.to_string());
+                diff.importer_id = Some(check.importer_id.to_string());
                 StalenessReason::SpecifiersDiffer(diff)
             }
             other => other,
@@ -136,22 +128,26 @@ pub(in super::super) fn exclude_linked_dependencies(
             continue;
         };
         dependencies.retain(|alias, specifier| {
-            specifier
-                .as_str()
-                .is_none_or(|specifier| {
-                    !specifier.starts_with("link:")
-                        && workspace_packages.is_none_or(|workspace_packages| {
-                            specifier.starts_with("workspace:")
-                                || crate::workspace_link_target(
-                                    workspace_packages,
-                                    alias,
-                                    specifier,
-                                )
-                                .is_none()
-                        })
-                })
+            retain_in_freshness_manifest(workspace_packages, alias, specifier)
         });
     }
+}
+fn retain_in_freshness_manifest(
+    workspace_packages: Option<&pnpm_resolving_resolver_base::WorkspacePackages>,
+    alias: &str,
+    specifier: &serde_json::Value,
+) -> bool {
+    let Some(specifier) = specifier.as_str() else {
+        return true;
+    };
+    if specifier.starts_with("link:") {
+        return false;
+    }
+    let Some(workspace_packages) = workspace_packages else {
+        return true;
+    };
+    specifier.starts_with("workspace:")
+        || crate::workspace_link_target(workspace_packages, alias, specifier).is_none()
 }
 // Only overrides and excluded links require a clone; all other freshness checks borrow the manifest.
 pub(super) fn normalized_freshness_manifest<'a>(
