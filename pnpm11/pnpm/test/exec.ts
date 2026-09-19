@@ -141,8 +141,9 @@ testOnPosix('exec: a command that fails after Ctrl+C keeps its exit code', () =>
 })
 
 // dlx runs the command through the same wrapper as exec, after installing
-// the package it was given; the registry and cache settings the other tests
-// get from execPnpm are passed the same way.
+// the package it was given, which is what the longer deadline is for; the
+// registry and cache settings the other tests get from execPnpm are passed
+// the same way.
 testOnPosix('dlx: Ctrl+C in a terminal lets the command finish shutting down', () => {
   prepare()
   fs.writeFileSync('dev.js', SHUTTING_DOWN_COMMAND, 'utf8')
@@ -150,6 +151,7 @@ testOnPosix('dlx: Ctrl+C in a terminal lets the command finish shutting down', (
   const terminalScript = path.join(import.meta.dirname, '../../__utils__/scripts/terminal.py')
   const { status, error, stdout } = spawnSync('python3', [
     terminalScript,
+    '--deadline=100',
     process.execPath,
     pnpmBinLocation,
     'dlx',
