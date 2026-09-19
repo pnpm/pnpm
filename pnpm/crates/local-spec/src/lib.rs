@@ -61,12 +61,14 @@ impl LocalSpec {
     /// directory, name the same place from every directory.
     #[must_use]
     pub fn parse(specifier: &str, base_dir: &Path) -> Option<Self> {
-        let (protocol, pkg_path) = if let Some(rest) = specifier.strip_prefix("file:") {
-            (LocalSpecProtocol::File, rest)
+        let protocol = if specifier.starts_with("file:") {
+            LocalSpecProtocol::File
+        } else if specifier.starts_with("link:") {
+            LocalSpecProtocol::Link
         } else {
-            (LocalSpecProtocol::Link, specifier.strip_prefix("link:")?)
+            return None;
         };
-        Some(Self::anchor(Some(protocol), pkg_path, base_dir))
+        Some(Self::anchor(Some(protocol), &normalize_specifier(specifier), base_dir))
     }
 
     /// Parse a specifier that names a local path with or without a
@@ -85,12 +87,20 @@ impl LocalSpec {
         if let Some(parsed) = Self::parse(specifier, base_dir) {
             return Some(parsed);
         }
-        bare_path_is_unambiguous(specifier).then(|| Self::anchor(None, specifier, base_dir))
+        bare_path_is_unambiguous(specifier)
+            .then(|| Self::anchor(None, &normalize_specifier(specifier), base_dir))
     }
 
+    /// `pkg_path` has already been through [`normalize_specifier`], so
+    /// it carries no protocol and reads the way the resolver reads it.
     fn anchor(protocol: Option<LocalSpecProtocol>, pkg_path: &str, base_dir: &Path) -> Self {
         let candidate = Path::new(pkg_path);
-        let specified_via_relative_path = !candidate.is_absolute() && !is_home_relative(pkg_path);
+        // Absoluteness is decided by shape rather than by `Path`, which
+        // disagrees on Windows about a rooted path carrying no drive
+        // prefix and would re-anchor one the resolver resolves from the
+        // filesystem root.
+        let specified_via_relative_path =
+            !names_its_own_location(pkg_path) && !pkg_path.starts_with("~/");
         let absolute_path = lexical_normalize(&if specified_via_relative_path {
             base_dir.join(candidate)
         } else {
@@ -225,12 +235,66 @@ fn is_drive_letter_prefix(spec: &str) -> bool {
     matches!(chars.next(), Some(first) if first.is_ascii_alphabetic()) && chars.next() == Some(':')
 }
 
-/// Whether the path starts at the home directory. The local resolver
-/// expands `~/` itself and records the specifier verbatim, so such a
-/// path is anchored at neither the declaring nor the consuming
-/// directory.
-fn is_home_relative(path: &str) -> bool {
-    path.starts_with("~/") || path.starts_with(r"~\")
+/// Whether the path names a location on its own rather than one
+/// measured from somewhere else, decided the way the local resolver
+/// decides it: a leading `/`, or a `<letter>:` drive prefix.
+///
+/// [`Path::is_absolute`] cannot stand in. On Windows it reads a rooted
+/// path such as `/foo` as relative, because it carries no prefix, so
+/// the two would disagree about the same catalog entry depending on
+/// which host resolved it.
+fn names_its_own_location(path: &str) -> bool {
+    let mut chars = path.chars();
+    match chars.next() {
+        Some('/') => true,
+        Some(first) if first.is_ascii_alphabetic() => chars.next() == Some(':'),
+        _ => false,
+    }
+}
+
+/// Normalize a specifier the way the local resolver reads one, before
+/// any of its path handling:
+///
+/// 1. Every `\` becomes `/`.
+/// 2. A `file:` / `link:` / `workspace:` protocol is dropped, with the
+///    slashes that follow it.
+/// 3. A drive prefix left by step 2 stands on its own, in either case,
+///    so `file:///C:/pkg` reads as `C:/pkg`.
+/// 4. Otherwise, when slashes did follow the protocol, one is restored
+///    — unless what remains opens with `~` or `.`, which keeps the path
+///    relative: `file:/./deps/x` is the project's `./deps/x`, not the
+///    root's `/deps/x`.
+///
+/// A specifier carrying no such protocol gets step 1 alone.
+#[must_use]
+pub fn normalize_specifier(bare: &str) -> String {
+    let forward = bare.replace('\\', "/");
+    let Some(after_proto) = ["file:", "link:", "workspace:"]
+        .iter()
+        .find_map(|proto| forward.strip_prefix(proto))
+    else {
+        return forward;
+    };
+    let after_slashes = after_proto.trim_start_matches('/');
+    if is_drive_letter_prefix(after_slashes) {
+        return after_slashes.to_string();
+    }
+    match after_proto.chars().next() {
+        Some('/') => {
+            let trimmed = after_slashes;
+            if let Some(c) = trimmed.chars().next()
+                && matches!(c, '~' | '.')
+            {
+                trimmed.to_string()
+            } else {
+                let mut result = String::with_capacity(trimmed.len() + 1);
+                result.push('/');
+                result.push_str(trimmed);
+                result
+            }
+        }
+        _ => after_proto.to_string(),
+    }
 }
 
 /// Replace `\` with `/` to normalize the path. `link:` / `file:`
