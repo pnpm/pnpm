@@ -302,10 +302,13 @@ export async function handler (
       // Without --recursive the command runs where pnpm was invoked, which
       // may be a plain subdirectory of the project at `opts.dir`. The
       // executables, manifest, and PnP data still come from the project.
+      // Its bin directory is added relative to the run directory, like
+      // `./node_modules/.bin`, so a project path that contains the PATH
+      // delimiter stays out of PATH.
       const projectDir = opts.recursive ? prefix : opts.dir as ProjectRootDir
       const prependPaths = [
         './node_modules/.bin',
-        ...(projectDir !== prefix ? [path.join(projectDir, 'node_modules', '.bin')] : []),
+        ...(projectDir !== prefix ? [path.relative(prefix, path.join(projectDir, 'node_modules', '.bin'))] : []),
         ...(opts.extraBinPaths ?? []),
       ]
       result[prefix].status = 'running'

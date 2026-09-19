@@ -449,15 +449,19 @@ test('pnpm exec on single project', async () => {
 })
 
 test("pnpm exec from a subdirectory of the project runs in the subdirectory with the project's bins", async () => {
-  prepare({
-    name: 'project',
-    dependencies: {
-      cowsay: '1.5.0',
+  const projectDirName = `project${path.delimiter}delimiter`
+  preparePackages([
+    {
+      name: projectDirName,
+      dependencies: {
+        cowsay: '1.5.0',
+      },
     },
-  })
-  const projectDir = process.cwd()
+  ])
+  const projectDir = path.resolve(projectDirName)
   await execa(pnpmBin, [
     'install',
+    '-r',
     '--registry',
     REGISTRY_URL,
     '--store-dir',
@@ -482,7 +486,7 @@ test("pnpm exec from a subdirectory of the project runs in the subdirectory with
 
   expect(JSON.parse(fs.readFileSync(path.join(subdir, 'context.json'), 'utf8'))).toStrictEqual({
     cwd: subdir,
-    packageName: 'project',
+    packageName: projectDirName,
   })
 })
 
