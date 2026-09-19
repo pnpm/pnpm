@@ -214,7 +214,10 @@ fn recursive_run_does_not_persist_a_task_skipped_by_the_recursion_guard() {
         ],
     );
     fs::write(workspace.join("fail"), "").expect("write failure marker");
-    let origin = fs::canonicalize(workspace.join("origin")).expect("canonicalize origin");
+    // `dunce` rather than `fs::canonicalize`: the latter hands back a
+    // `\\?\` path on Windows, which never matches the plain form the
+    // recursion guard compares the project directory against.
+    let origin = dunce::canonicalize(workspace.join("origin")).expect("canonicalize origin");
 
     pacquet
         .with_env("npm_lifecycle_event", "build")
@@ -477,7 +480,8 @@ fn recursive_run_recursion_guard_skips_originating_project() {
     // `/private/var/folders/...`) and the CLI canonicalizes its `--dir`,
     // so the project roots pacquet compares against are the
     // `/private/...` form.
-    let project_1 = fs::canonicalize(workspace.join("project-1")).expect("canonicalize project-1");
+    let project_1 =
+        dunce::canonicalize(workspace.join("project-1")).expect("canonicalize project-1");
     pacquet
         .with_env("npm_lifecycle_event", "build")
         .with_env("PNPM_SCRIPT_SRC_DIR", project_1.to_string_lossy().as_ref())
