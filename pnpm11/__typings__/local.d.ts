@@ -34,7 +34,7 @@ declare module 'uid-number' {
   function uidNumber (
     user: string | number | null | undefined,
     group: string | number | null | undefined,
-    cb: (err: Error | null, uid: number, gid: number) => void
+    cb: (err: Error | null, uid: number, gid: number) => void,
   ): void
   export = uidNumber
 }

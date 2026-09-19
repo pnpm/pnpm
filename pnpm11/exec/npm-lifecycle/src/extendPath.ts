@@ -4,6 +4,8 @@ import path from 'node:path'
 import which from 'which'
 
 export interface ExtendPathOptions {
+  /** The directory of the `node-gyp` wrappers, placed after every `node_modules/.bin`. */
+  nodeGypBinDir: string
   extraBinPaths?: string[]
   scriptsPrependNodePath?: boolean | 'warn-only'
   log?: {
@@ -11,16 +13,19 @@ export interface ExtendPathOptions {
   }
 }
 
-let hasWarnedAboutNodePath = false
-
-export function extendPath (wd: string, originalPath: string | undefined, nodeGyp: string, opts: ExtendPathOptions): string {
+/**
+ * Builds the `PATH` of a script running in `wd`: the `node_modules/.bin` of
+ * `wd` and of every package above it, the `node-gyp` wrappers, the extra bin
+ * directories, and then `originalPath`.
+ */
+export function extendPath (wd: string, originalPath: string | undefined, opts: ExtendPathOptions): string {
   const pathArr = [...opts.extraBinPaths ?? []]
   const p = wd.split(/[\\/]node_modules[\\/]/)
   let acc = path.resolve(p.shift()!)
 
   // we also unshift the bundled node-gyp-bin folder so that
   // the bundled one will be used for installing things.
-  pathArr.unshift(nodeGyp)
+  pathArr.unshift(opts.nodeGypBinDir)
 
   p.forEach(pp => {
     pathArr.unshift(path.join(acc, 'node_modules', '.bin'))
@@ -36,6 +41,8 @@ export function extendPath (wd: string, originalPath: string | undefined, nodeGy
   if (originalPath) pathArr.push(originalPath)
   return pathArr.join(process.platform === 'win32' ? ';' : ':')
 }
+
+let hasWarnedAboutNodePath = false
 
 function shouldPrependCurrentNodeDirToPATH (opts: ExtendPathOptions): boolean {
   const setting = opts.scriptsPrependNodePath

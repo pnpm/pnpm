@@ -24,35 +24,17 @@ export interface LifecycleChildProcess extends EventEmitter {
   kill: (signal?: NodeJS.Signals | number) => boolean
 }
 
-let progressEnabled: boolean | undefined
-let running = 0
-
-function startRunning (log: ProgressLog): void {
-  if (progressEnabled == null) progressEnabled = log.progressEnabled
-  if (progressEnabled) log.disableProgress?.()
-  ++running
+export interface LifecycleSpawnOptions extends SpawnOptions {
+  /** Progress output is paused while a script that writes to the terminal runs. */
+  log: ProgressLog
 }
 
-function stopRunning (log: ProgressLog): void {
-  --running
-  if (progressEnabled && running === 0) log.enableProgress?.()
-}
-
-function willCmdOutput (stdio: StdioOptions | undefined): boolean {
-  if (stdio === 'inherit') return true
-  if (!Array.isArray(stdio)) return false
-  for (let fh = 1; fh <= 2; ++fh) {
-    if (stdio[fh] === 'inherit') return true
-    if (stdio[fh] === 1 || stdio[fh] === 2) return true
-  }
-  return false
-}
-
-export function spawn (cmd: string, args: string[], options: SpawnOptions, log: ProgressLog): LifecycleChildProcess {
-  const cmdWillOutput = willCmdOutput(options.stdio)
+export function spawn (cmd: string, args: string[], options: LifecycleSpawnOptions): LifecycleChildProcess {
+  const { log, ...spawnOptions } = options
+  const cmdWillOutput = willCmdOutput(spawnOptions.stdio)
 
   if (cmdWillOutput) startRunning(log)
-  const raw = spawnProcess(cmd, args, options)
+  const raw = spawnProcess(cmd, args, spawnOptions)
   const cooked = new EventEmitter() as LifecycleChildProcess
 
   raw.on('error', (er: SpawnError) => {
@@ -61,8 +43,8 @@ export function spawn (cmd: string, args: string[], options: SpawnOptions, log: 
     cooked.emit('error', er)
   }).on('close', (code, signal) => {
     if (cmdWillOutput) stopRunning(log)
-    // Create ENOENT error because Node.js v8.0 will not emit
-    // an `error` event if the command could not be found.
+    // A shell reports a command it could not find as exit code 127 without
+    // an `error` event, so it is reported the way a failed spawn is.
     if (code === 127) {
       const er: SpawnError = new Error('spawn ENOENT')
       er.code = 'ENOENT'
@@ -82,4 +64,28 @@ export function spawn (cmd: string, args: string[], options: SpawnOptions, log: 
   cooked.kill = (signal) => raw.kill(signal)
 
   return cooked
+}
+
+function willCmdOutput (stdio: StdioOptions | undefined): boolean {
+  if (stdio === 'inherit') return true
+  if (!Array.isArray(stdio)) return false
+  for (let fh = 1; fh <= 2; ++fh) {
+    if (stdio[fh] === 'inherit') return true
+    if (stdio[fh] === 1 || stdio[fh] === 2) return true
+  }
+  return false
+}
+
+let progressEnabled: boolean | undefined
+let running = 0
+
+function startRunning (log: ProgressLog): void {
+  if (progressEnabled == null) progressEnabled = log.progressEnabled
+  if (progressEnabled) log.disableProgress?.()
+  ++running
+}
+
+function stopRunning (log: ProgressLog): void {
+  --running
+  if (progressEnabled && running === 0) log.enableProgress?.()
 }

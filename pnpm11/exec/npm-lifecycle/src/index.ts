@@ -78,6 +78,16 @@ export interface LifecycleError extends Error {
 
 type Callback = (err?: LifecycleError | null) => void
 
+/** One script or hook of one package, as the runner threads it through. */
+interface ScriptRun {
+  cmd: string
+  pkg: LifecyclePackage
+  stage: string
+  wd: string
+  env: Record<string, string>
+  opts: LifecycleOptions
+}
+
 const require = createRequire(import.meta.url)
 
 let DEFAULT_NODE_GYP_PATH: string | undefined
@@ -95,8 +105,6 @@ const NODE_GYP_BIN_DIR = [
   path.join(import.meta.dirname, '..', 'node-gyp-bin'),
 ].find((dir) => fs.existsSync(dir)) ?? path.join(import.meta.dirname, '..', 'node-gyp-bin')
 
-const hookStatCache = new Map<string, NodeJS.ErrnoException | null>()
-
 let PATH = 'PATH'
 
 // windows calls it's path 'Path' usually, but this is not guaranteed.
@@ -109,26 +117,7 @@ if (process.platform === 'win32') {
   })
 }
 
-function logId (pkg: LifecyclePackage, stage: string): string {
-  return `${pkg._id}~${stage}:`
-}
-
-function hookStat (dir: string, stage: string, cb: (statError: NodeJS.ErrnoException | null) => void): void {
-  const hook = path.join(dir, '.hooks', stage)
-  const cachedStatError = hookStatCache.get(hook)
-
-  if (cachedStatError === undefined) {
-    fs.stat(hook, statError => {
-      hookStatCache.set(hook, statError)
-      cb(statError)
-    })
-    return
-  }
-
-  setImmediate(() => cb(cachedStatError))
-}
-
-export function lifecycle (pkg: LifecyclePackage, stage: string, wd: string | undefined, opts: LifecycleOptions): Promise<void> {
+export function lifecycle (pkg: LifecyclePackage, stage: string, wd: string, opts: LifecycleOptions): Promise<void> {
   return new Promise<void>((resolve, reject) => {
     opts.log.info('lifecycle', logId(pkg, stage), pkg._id)
     if (!pkg.scripts) pkg.scripts = {}
@@ -146,13 +135,12 @@ export function lifecycle (pkg: LifecyclePackage, stage: string, wd: string | un
         return
       }
 
-      validWd(wd ?? path.resolve(opts.dir, pkg.name ?? ''), (er, wd) => {
+      validWd(wd, (er, wd) => {
         if (er) {
           reject(er)
           return
         }
 
-        // set the env variables, then run scripts as a child process.
         const env = makeEnv(pkg, opts)
         env.npm_lifecycle_event = stage
         env.npm_node_execpath = env.NODE = env.NODE || process.execPath
@@ -183,7 +171,7 @@ export function lifecycle (pkg: LifecyclePackage, stage: string, wd: string | un
           env.TMPDIR = tmpdir
         }
 
-        runLifecycle(pkg, stage, wd, opts, env, (er) => {
+        runLifecycle({ pkg, stage, wd, env, opts }, (er) => {
           if (er) {
             reject(er)
             return
@@ -195,58 +183,25 @@ export function lifecycle (pkg: LifecyclePackage, stage: string, wd: string | un
   })
 }
 
-function runLifecycle (pkg: LifecyclePackage, stage: string, wd: string, opts: LifecycleOptions, env: Record<string, string>, cb: Callback): void {
-  env[PATH] = extendPath(wd, env[PATH], NODE_GYP_BIN_DIR, opts)
+function logId (pkg: LifecyclePackage, stage: string): string {
+  return `${pkg._id}~${stage}:`
+}
 
-  let packageLifecycle = pkg.scripts != null && Object.prototype.hasOwnProperty.call(pkg.scripts, stage)
+const hookStatCache = new Map<string, NodeJS.ErrnoException | null>()
 
-  if (opts.ignoreScripts) {
-    opts.log.info('lifecycle', logId(pkg, stage), 'ignored because ignore-scripts is set to true', pkg._id)
-    packageLifecycle = false
-  } else if (packageLifecycle) {
-    // define this here so it's available to all scripts.
-    env.npm_lifecycle_script = pkg.scripts![stage]!
-  } else {
-    opts.log.silly('lifecycle', logId(pkg, stage), `no script for ${stage}, continuing`)
-  }
+function hookStat (dir: string, stage: string, cb: (statError: NodeJS.ErrnoException | null) => void): void {
+  const hook = path.join(dir, '.hooks', stage)
+  const cachedStatError = hookStatCache.get(hook)
 
-  function done (er?: LifecycleError | null): void {
-    if (er) {
-      if (opts.force) {
-        opts.log.info('lifecycle', logId(pkg, stage), 'forced, continuing', er)
-        er = null
-      } else if (opts.failOk) {
-        opts.log.warn('lifecycle', logId(pkg, stage), 'continuing anyway', er.message)
-        er = null
-      }
-    }
-    cb(er)
-  }
-
-  const tasks: Array<(next: Callback) => void> = []
-  if (packageLifecycle) {
-    tasks.push((next) => {
-      runPackageLifecycle(pkg, stage, env, wd, opts, next)
+  if (cachedStatError === undefined) {
+    fs.stat(hook, statError => {
+      hookStatCache.set(hook, statError)
+      cb(statError)
     })
+    return
   }
-  tasks.push((next) => {
-    runHookLifecycle(pkg, stage, env, wd, opts, next)
-  })
 
-  let i = 0
-  function next (er?: LifecycleError | null): void {
-    if (er) {
-      done(er)
-      return
-    }
-    const task = tasks[i++]
-    if (task) {
-      task(next)
-      return
-    }
-    done()
-  }
-  next()
+  setImmediate(() => cb(cachedStatError))
 }
 
 function validWd (d: string, cb: (err: Error | null, wd: string) => void): void {
@@ -264,17 +219,103 @@ function validWd (d: string, cb: (err: Error | null, wd: string) => void): void 
   })
 }
 
-function runPackageLifecycle (pkg: LifecyclePackage, stage: string, env: Record<string, string>, wd: string, opts: LifecycleOptions, cb: Callback): void {
-  // run package lifecycle scripts in the package root, or the nearest parent.
-  const cmd = env.npm_lifecycle_script
+function runLifecycle (run: Omit<ScriptRun, 'cmd'>, cb: Callback): void {
+  const { pkg, stage, wd, env, opts } = run
+  env[PATH] = extendPath(wd, env[PATH], { ...opts, nodeGypBinDir: NODE_GYP_BIN_DIR })
 
-  runCmd(cmd, pkg, env, stage, wd, opts, cb)
+  let packageLifecycle = pkg.scripts != null && Object.prototype.hasOwnProperty.call(pkg.scripts, stage)
+
+  if (opts.ignoreScripts) {
+    opts.log.info('lifecycle', logId(pkg, stage), 'ignored because ignore-scripts is set to true', pkg._id)
+    packageLifecycle = false
+  } else if (packageLifecycle) {
+    // define this here so it's available to all scripts.
+    env.npm_lifecycle_script = pkg.scripts![stage]!
+  } else {
+    opts.log.silly('lifecycle', logId(pkg, stage), `no script for ${stage}, continuing`)
+  }
+
+  const tasks: Array<(next: Callback) => void> = []
+  if (packageLifecycle) {
+    // run package lifecycle scripts in the package root, or the nearest parent.
+    tasks.push((next) => {
+      runCmd({ ...run, cmd: env.npm_lifecycle_script }, next)
+    })
+  }
+  tasks.push((next) => {
+    runHookLifecycle(run, next)
+  })
+
+  let i = 0
+  function next (er?: LifecycleError | null): void {
+    if (er) {
+      done(er)
+      return
+    }
+    const task = tasks[i++]
+    if (task) {
+      task(next)
+      return
+    }
+    done()
+  }
+  function done (er?: LifecycleError | null): void {
+    if (er) {
+      if (opts.force) {
+        opts.log.info('lifecycle', logId(pkg, stage), 'forced, continuing', er)
+        er = null
+      } else if (opts.failOk) {
+        opts.log.warn('lifecycle', logId(pkg, stage), 'continuing anyway', er.message)
+        er = null
+      }
+    }
+    cb(er)
+  }
+  next()
 }
 
-type QueuedCommand = [string, LifecyclePackage, Record<string, string>, string, string, LifecycleOptions, Callback]
+function runHookLifecycle (run: Omit<ScriptRun, 'cmd'>, cb: Callback): void {
+  const { opts, stage } = run
+  hookStat(opts.dir, stage, er => {
+    if (er) {
+      cb()
+      return
+    }
+    runCmd({ ...run, cmd: path.join(opts.dir, '.hooks', stage) }, cb)
+  })
+}
 
 let running = false
-const queue: QueuedCommand[] = []
+const queue: Array<[ScriptRun, Callback]> = []
+
+function runCmd (run: ScriptRun, cb: Callback): void {
+  const { pkg, stage, opts } = run
+  if (opts.runConcurrently !== true) {
+    if (running) {
+      queue.push([run, cb])
+      return
+    }
+
+    running = true
+  }
+  opts.log.pause()
+  const unsafe = opts.unsafePerm || process.platform === 'win32'
+  opts.log.verbose('lifecycle', logId(pkg, stage), 'unsafe-perm in lifecycle', opts.unsafePerm)
+
+  const finish: Callback = (er) => {
+    cb(er)
+    opts.log.resume()
+    process.nextTick(dequeue)
+  }
+  if (unsafe) {
+    runCmdAs(run, null, finish)
+  } else {
+    uidNumber(opts.user, opts.group, (er, uid, gid) => {
+      runCmdAs(run, { uid, gid }, finish)
+    })
+  }
+}
+
 function dequeue (): void {
   running = false
   const queued = queue.shift()
@@ -283,60 +324,9 @@ function dequeue (): void {
   }
 }
 
-function runCmd (cmd: string, pkg: LifecyclePackage, env: Record<string, string>, stage: string, wd: string, opts: LifecycleOptions, cb: Callback): void {
-  if (opts.runConcurrently !== true) {
-    if (running) {
-      queue.push([cmd, pkg, env, stage, wd, opts, cb])
-      return
-    }
-
-    running = true
-  }
-  opts.log.pause()
-  let unsafe = opts.unsafePerm
-  const user = unsafe ? null : opts.user
-  const group = unsafe ? null : opts.group
-
-  opts.log.verbose('lifecycle', logId(pkg, stage), 'unsafe-perm in lifecycle', unsafe)
-
-  if (process.platform === 'win32') {
-    unsafe = true
-  }
-
-  if (unsafe) {
-    runCmdAs(cmd, pkg, env, wd, opts, stage, unsafe, 0, 0, cb)
-  } else {
-    uidNumber(user, group, (er, uid, gid) => {
-      runCmdAs(cmd, pkg, env, wd, opts, stage, unsafe, uid, gid, cb)
-    })
-  }
-}
-
-interface RunCmdContext {
-  cmd: string
-  pkg: LifecyclePackage
-  stage: string
-  opts: LifecycleOptions
-}
-
-function runCmdAs (
-  cmd: string,
-  pkg: LifecyclePackage,
-  env: Record<string, string>,
-  wd: string,
-  opts: LifecycleOptions,
-  stage: string,
-  unsafe: boolean | undefined,
-  uid: number,
-  gid: number,
-  finish: Callback
-): void {
-  const cb: Callback = (er) => {
-    finish(er)
-    opts.log.resume()
-    process.nextTick(dequeue)
-  }
-
+/** Run the script as `owner`, or as the current user when it is null. */
+function runCmdAs (run: ScriptRun, owner: { uid: number, gid: number } | null, cb: Callback): void {
+  const { cmd, pkg, stage, wd, env, opts } = run
   const conf: {
     cwd: string
     env: Record<string, string>
@@ -350,9 +340,9 @@ function runCmdAs (
     stdio: opts.stdio ?? [0, 1, 2],
   }
 
-  if (!unsafe) {
-    conf.uid = uid ^ 0
-    conf.gid = gid ^ 0
+  if (owner) {
+    conf.uid = owner.uid ^ 0
+    conf.gid = owner.gid ^ 0
   }
 
   let sh = 'sh'
@@ -372,16 +362,15 @@ function runCmdAs (
   opts.log.verbose('lifecycle', logId(pkg, stage), 'CWD:', wd)
   opts.log.silly('lifecycle', logId(pkg, stage), 'Args:', [shFlag, cmd])
 
-  const context: RunCmdContext = { cmd, pkg, stage, opts }
   if (opts.shellEmulator) {
-    runEmulated(context, wd, env, cb)
+    runEmulated(run, cb)
     return
   }
-  runSpawned(context, spawn(sh, [shFlag, cmd], conf, opts.log), cb)
+  runSpawned(run, spawn(sh, [shFlag, cmd], { ...conf, log: opts.log }), cb)
 }
 
-function runEmulated (context: RunCmdContext, wd: string, env: Record<string, string>, cb: Callback): void {
-  const { cmd, pkg, stage, opts } = context
+function runEmulated (run: ScriptRun, cb: Callback): void {
+  const { cmd, pkg, stage, wd, env, opts } = run
   const execOpts: Parameters<typeof execute>[2] = { cwd: npath.toPortablePath(wd), env }
   if (opts.stdio === 'pipe') {
     const stdout = new PassThrough()
@@ -395,7 +384,7 @@ function runEmulated (context: RunCmdContext, wd: string, env: Record<string, st
     execOpts.stdout = stdout
     execOpts.stderr = stderr
   }
-  const procError = createProcError(context, cb)
+  const procError = createProcError(run, cb)
   execute(cmd, [], execOpts)
     .then((code) => {
       opts.log.silly('lifecycle', logId(pkg, stage), 'Returned: code:', code)
@@ -409,12 +398,12 @@ function runEmulated (context: RunCmdContext, wd: string, env: Record<string, st
     .catch((err: LifecycleError) => procError(err))
 }
 
-function runSpawned (context: RunCmdContext, proc: LifecycleChildProcess, cb: Callback): void {
-  const { pkg, stage, opts } = context
+function runSpawned (run: ScriptRun, proc: LifecycleChildProcess, cb: Callback): void {
+  const { pkg, stage, opts } = run
   let spawnObserverFailed = false
   let spawnObserverError: LifecycleError | undefined
 
-  const procError = createProcError(context, (er) => {
+  const procError = createProcError(run, (er) => {
     process.removeListener('SIGTERM', procKill)
     process.removeListener('SIGINT', procKill)
     process.removeListener('SIGINT', procInterrupt)
@@ -480,8 +469,8 @@ function runSpawned (context: RunCmdContext, proc: LifecycleChildProcess, cb: Ca
  * Wraps `cb` so that it runs once, with the failure of the script decorated
  * with the script's identity and the `ELIFECYCLE` code.
  */
-function createProcError (context: RunCmdContext, cb: Callback): (er?: LifecycleError | null) => void {
-  const { cmd, pkg, stage, opts } = context
+function createProcError (run: ScriptRun, cb: Callback): (er?: LifecycleError | null) => void {
+  const { cmd, pkg, stage, opts } = run
   let completed = false
   return (er) => {
     if (completed) return
@@ -528,17 +517,6 @@ function hasControllingTerminal (): boolean {
   return true
 }
 
-function runHookLifecycle (pkg: LifecyclePackage, stage: string, env: Record<string, string>, wd: string, opts: LifecycleOptions, cb: Callback): void {
-  hookStat(opts.dir, stage, er => {
-    if (er) {
-      cb()
-      return
-    }
-    const cmd = path.join(opts.dir, '.hooks', stage)
-    runCmd(cmd, pkg, env, stage, wd, opts, cb)
-  })
-}
-
 export function makeEnv (data: Record<string, unknown>, opts: MakeEnvOptions, prefix?: string | null, env?: Record<string, string>): Record<string, string> {
   prefix = prefix ?? 'npm_package_'
   if (!env) {
@@ -548,10 +526,11 @@ export function makeEnv (data: Record<string, unknown>, opts: MakeEnvOptions, pr
       // (e.g. _auth, _authToken, _password, //registry/:_authToken) are
       // stripped so they never leak into dependency lifecycle scripts. This
       // mirrors npm's own env-export filter, where config keys starting with
-      // _, /, or @ (or containing :_) are treated as private.
+      // _, /, or @ (or containing :_) are treated as private. npm reads the
+      // variables case-insensitively, so the filter does too.
       if (
         !i.match(/^npm_package_/) &&
-        !i.match(/^(?:npm|pnpm)_config_(?:[/@_]|.*:_)/) &&
+        !i.match(/^(?:npm|pnpm)_config_(?:[/@_]|.*:_)/i) &&
         (!i.match(/^PATH$/i) || i === PATH)
       ) {
         env[i] = process.env[i]!
