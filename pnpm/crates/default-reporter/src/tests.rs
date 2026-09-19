@@ -25,10 +25,8 @@ fn progress_and_in_progress_downloads_coalesce() {
     assert!(is_coalesceable(&downloading));
 }
 
-/// The gate reads a process-global flag, so the test seeds it rather than
-/// trusting the ambient value, and restores it before the assertions run:
-/// a failing one then cannot leave progress off for whatever else shares
-/// the process.
+/// The restore is ordered ahead of the assertions: a failing one must not
+/// leave progress off for whatever else shares the process.
 #[test]
 fn disabled_progress_drops_only_the_progress_streams() {
     let resolved = LogEvent::Progress(ProgressLog {
