@@ -206,9 +206,19 @@ fn reanchors_a_bare_local_path_entry_on_the_consuming_project() {
     );
 }
 
-/// A shape that need not be a local path keeps its own meaning: a
-/// hosted-git shorthand is not a directory in the workspace.
+/// A shape the resolver chain reaches through another resolver keeps
+/// its own meaning: a hosted-git shorthand is not a directory in the
+/// workspace, with or without a tarball suffix.
 #[test]
 fn leaves_a_git_shorthand_entry_alone_while_reanchoring() {
     assert_eq!(reanchored("user/repo", Some("packages/foo")), "user/repo");
+    assert_eq!(reanchored("user/repo.tgz", Some("packages/foo")), "user/repo.tgz");
+}
+
+/// A single-letter named registry is well-formed, so `c:pkg@1` is a
+/// registry specifier as much as it is a Windows drive path.
+#[test]
+fn leaves_a_named_registry_entry_alone_while_reanchoring() {
+    assert_eq!(reanchored("c:pkg@1", Some("packages/foo")), "c:pkg@1");
+    assert_eq!(reanchored("gh:@scope/pkg", Some("packages/foo")), "gh:@scope/pkg");
 }

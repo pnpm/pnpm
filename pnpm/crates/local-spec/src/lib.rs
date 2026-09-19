@@ -74,12 +74,17 @@ impl LocalSpec {
     /// moves with its declaring file the way `file:./x.tgz` does.
     /// Returns `None` for a git shorthand, a registry range, or anything
     /// else that shape test declines.
+    ///
+    /// A specifier carrying no protocol is claimed only when nothing
+    /// else can claim it: `<letter>:` is a named registry as much as a
+    /// drive path, and `user/repo.tgz` is a hosted-git shorthand, so
+    /// both are left for the resolver chain to dispatch.
     #[must_use]
     pub fn parse_filesystem(specifier: &str, base_dir: &Path) -> Option<Self> {
         if let Some(parsed) = Self::parse(specifier, base_dir) {
             return Some(parsed);
         }
-        is_local_filesystem_specifier(specifier).then(|| Self::anchor(None, specifier, base_dir))
+        bare_path_is_unambiguous(specifier).then(|| Self::anchor(None, specifier, base_dir))
     }
 
     fn anchor(protocol: Option<LocalSpecProtocol>, pkg_path: &str, base_dir: &Path) -> Self {
@@ -189,6 +194,43 @@ pub fn is_tarball_filename(bare: &str) -> bool {
 /// the prefix goes back on.
 fn without_protocol(path: String) -> String {
     if is_filespec(&path) { path } else { format!("./{path}") }
+}
+
+/// Whether a specifier carrying no `file:` / `link:` prefix can only be
+/// a local path, so re-anchoring it cannot change which resolver claims
+/// it.
+///
+/// Stricter than [`is_local_filesystem_specifier`] on two shapes that
+/// predicate accepts, because the resolver chain reaches them through a
+/// different resolver and only a path-shaped specifier lands on the
+/// local one:
+///
+/// - `<letter>:` reads as a Windows drive path, but a single-letter
+///   named registry is well-formed too, so `c:pkg@1` is equally a
+///   registry specifier.
+/// - `user/repo.tgz` is a hosted-git shorthand — `HostedGit::from_url`
+///   claims it — so only a slash-free tarball name such as `repo.tgz`
+///   is unambiguously local.
+///
+/// Nothing is lost by declining either. A drive path names the same
+/// place from every directory, a drive-relative one is measured from
+/// process state no caller here can see, and a hosted-git shorthand is
+/// not a path at all.
+fn bare_path_is_unambiguous(specifier: &str) -> bool {
+    if is_drive_letter_prefix(specifier) {
+        return false;
+    }
+    if is_filespec(specifier) {
+        return true;
+    }
+    !specifier.contains('/') && is_local_filesystem_specifier(specifier)
+}
+
+/// Whether the spec opens with `<letter>:`, which reads as a Windows
+/// drive path and as a single-letter named-registry alias alike.
+fn is_drive_letter_prefix(spec: &str) -> bool {
+    let mut chars = spec.chars();
+    matches!(chars.next(), Some(first) if first.is_ascii_alphabetic()) && chars.next() == Some(':')
 }
 
 /// Whether the path starts at the home directory. The local resolver

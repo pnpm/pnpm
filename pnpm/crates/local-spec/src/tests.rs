@@ -97,3 +97,30 @@ fn declines_a_shape_that_need_not_be_a_local_path() {
         assert_eq!(render_filesystem(specifier, Some("packages/foo")), None, "{specifier}");
     }
 }
+
+/// A bare specifier the resolver chain reaches through a resolver other
+/// than the local one must not be re-anchored as a path: `c:pkg@1` is a
+/// single-letter named registry as much as a drive path, and
+/// `user/repo.tgz` is a hosted-git shorthand.
+#[test]
+fn declines_a_bare_specifier_another_resolver_claims() {
+    for specifier in
+        ["c:pkg@1", "C:tools", "c:/abs/x.tgz", "user/repo.tgz", "user/repo.tar.gz", "user/repo"]
+    {
+        assert_eq!(render_filesystem(specifier, Some("packages/foo")), None, "{specifier}");
+    }
+}
+
+/// A tarball name with no slash cannot be a hosted-git shorthand, which
+/// needs an owner segment, so it stays claimed.
+#[test]
+fn still_claims_a_slash_free_tarball_name() {
+    assert_eq!(
+        render_filesystem("repo.tgz", Some("packages/foo")).as_deref(),
+        Some("../../repo.tgz"),
+    );
+    assert_eq!(
+        render_filesystem("./deps/repo.tgz", Some("packages/foo")).as_deref(),
+        Some("../../deps/repo.tgz"),
+    );
+}
