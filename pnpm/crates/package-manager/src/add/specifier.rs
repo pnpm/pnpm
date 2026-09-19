@@ -26,7 +26,7 @@ pub(super) struct ResolvedAddedDependency {
     pub(super) package_name: String,
     pub(super) manifest_specifier: String,
     pub(super) updated_catalogs: Catalogs,
-    pub(super) warning: Option<LogEvent>,
+    pub(super) warnings: Vec<LogEvent>,
 }
 pub(super) async fn resolve_added_dependency(
     package_selector: &str,
@@ -44,16 +44,34 @@ pub(super) async fn resolve_added_dependency(
         inputs,
     )
     .await?;
+    let (manifest_specifier, updated_catalogs, warnings) = resolve_catalog_and_warnings(
+        inputs,
+        package_name,
+        bare_specifier,
+        prev_specifier.as_deref(),
+        package_selector,
+    )?;
+    Ok(ResolvedAddedDependency {
+        package_name: package_name.to_string(),
+        manifest_specifier,
+        updated_catalogs,
+        warnings,
+    })
+}
+
+fn resolve_catalog_and_warnings(
+    inputs: &AddResolveInputs<'_, '_>,
+    package_name: &str,
+    bare_specifier: String,
+    prev_specifier: Option<&str>,
+    package_selector: &str,
+) -> Result<(String, Catalogs, Vec<LogEvent>), AddError> {
     let mut updated_catalogs = Catalogs::new();
     let outcome = decide_catalog_outcome(
         inputs.add.config.catalog_mode,
         inputs.save_catalog_name,
         inputs.catalogs,
-        &CatalogModeDep {
-            alias: package_name,
-            bare_specifier: &bare_specifier,
-            prev_specifier: prev_specifier.as_deref(),
-        },
+        &CatalogModeDep { alias: package_name, bare_specifier: &bare_specifier, prev_specifier },
         inputs.prefix,
     )
     .map_err(AddError::CatalogVersionMismatch)?;
@@ -63,12 +81,14 @@ pub(super) async fn resolve_added_dependency(
         bare_specifier,
         &mut updated_catalogs,
     );
-    Ok(ResolvedAddedDependency {
-        package_name: package_name.to_string(),
-        manifest_specifier,
-        updated_catalogs,
-        warning: outcome.warning,
-    })
+    let warnings = super::source::collect_dependency_warnings(
+        outcome.warning,
+        prev_specifier,
+        package_selector,
+        package_name,
+        inputs.prefix,
+    );
+    Ok((manifest_specifier, updated_catalogs, warnings))
 }
 /// A selector as parsed: its protocol, and the package an aliasless
 /// specifier names once resolved.
