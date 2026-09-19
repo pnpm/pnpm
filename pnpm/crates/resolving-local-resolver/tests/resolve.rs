@@ -393,6 +393,43 @@ async fn resolve_file_when_lockfile_directory_differs_from_the_packages_dir() {
 }
 
 #[tokio::test]
+async fn resolve_absolute_tarball_when_project_dir_contains_parent_components() {
+    let tmp = TempDir::new().expect("tempdir");
+    let data = tmp.path().join("data");
+    let child = data.join("child");
+    let pnpm_home = data.join("pnpm");
+    fs::create_dir_all(&child).expect("create child dir");
+    fs::create_dir_all(&pnpm_home).expect("create pnpm home");
+    let tarball_path = tmp.path().join("pnpm-local-resolver-0.1.1.tgz");
+    write_tarball(&tarball_path);
+
+    // Same directory as `pnpm_home`, still spelled with a `..` segment —
+    // the shape `PNPM_HOME=.../child/../pnpm` takes on a global install.
+    let unnormalized_home = child.join("..").join("pnpm");
+
+    let wd = WantedLocalDependency {
+        bare_specifier: format!("file:{}", tarball_path.display()),
+        injected: false,
+    };
+    let result = resolve_from_local_scheme(&ctx_default(), &wd, &opts(&unnormalized_home))
+        .await
+        .expect("resolve")
+        .expect("claims");
+
+    let LockfileResolution::Tarball(TarballResolution { tarball, .. }) = &result.resolution else {
+        panic!("expected tarball resolution, got {:?}", result.resolution);
+    };
+    let rel = tarball.strip_prefix("file:").expect("file: tarball");
+    let reconstructed = unnormalized_home.join(rel).lexical_normalize();
+    assert_eq!(
+        reconstructed,
+        tarball_path.clone().lexical_normalize(),
+        "tarball={tarball} home={}",
+        unnormalized_home.display(),
+    );
+}
+
+#[tokio::test]
 async fn resolve_tarball_specified_with_file_protocol() {
     let tmp = TempDir::new().expect("tempdir");
     let test_dir = tmp.path().join("tgz");
