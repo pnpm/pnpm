@@ -317,6 +317,52 @@ fn decode_registry_name_passes_through_an_undecodable_key() {
     assert_eq!(decode_registry_name("%not-a-key+8443"), "%not-a-key+8443");
 }
 
+#[test]
+fn is_unreadable_registry_key_reports_names_written_before_the_scheme_joined_the_key() {
+    assert!(super::is_unreadable_registry_key("registry.npmjs.org"));
+    assert!(super::is_unreadable_registry_key("localhost+4873"));
+    assert!(super::is_unreadable_registry_key("registry.yarnpkg.com"));
+}
+
+/// Whatever the current encoder spells must survive a prune, so this walks the
+/// same registries the round-trip test does.
+#[test]
+fn is_unreadable_registry_key_spares_every_key_the_encoder_can_write() {
+    for registry in [
+        "https://registry.npmjs.org/",
+        "http://localhost:4873/",
+        "http://[::1]:8080/",
+        "https://npm.example:8443/registry/a/",
+        "https://releases.jfrog.io/artifactory/api/npm/team-a/",
+        "https://npm.example/team+a/",
+        "https://npm.example//",
+        "https://nexus_npm/",
+    ] {
+        let key = get_registry_name(registry).expect("encode");
+        assert!(!super::is_unreadable_registry_key(&key), "key: {key}");
+    }
+}
+
+/// An over-long registry collapses to a bare sha256, which carries no scheme
+/// separator. Reporting it would delete a mirror that is still in use.
+#[test]
+fn is_unreadable_registry_key_spares_the_hash_an_over_long_registry_collapses_to() {
+    let long_path = "a".repeat(300);
+    let key = get_registry_name(&format!("https://npm.example/{long_path}/")).expect("encode");
+    assert_eq!(key.len(), 64, "key: {key}");
+    assert!(!super::is_unreadable_registry_key(&key), "key: {key}");
+}
+
+/// The sha256 spared above is 64 lowercase hex characters. A legacy host that
+/// merely looks hash-like in length or alphabet is still legacy.
+#[test]
+fn is_unreadable_registry_key_reports_a_name_that_only_resembles_the_hash() {
+    assert!(super::is_unreadable_registry_key(&"a".repeat(63)));
+    assert!(super::is_unreadable_registry_key(&"a".repeat(65)));
+    assert!(super::is_unreadable_registry_key(&"A".repeat(64)));
+    assert!(super::is_unreadable_registry_key(&"z".repeat(64)));
+}
+
 /// Callers (notably the cached fetcher) downgrade to a cache-less
 /// fetch on this error instead of failing the install.
 #[test]

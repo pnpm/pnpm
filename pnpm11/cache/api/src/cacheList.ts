@@ -1,10 +1,14 @@
 import fs from 'node:fs'
 
-import { encodeRegistry } from '@pnpm/resolving.npm-resolver'
+import { decodeRegistry, encodeRegistry } from '@pnpm/resolving.npm-resolver'
 import { glob } from 'tinyglobby'
 
 export async function cacheListRegistries (opts: { cacheDir: string, registry?: string, registries?: boolean }): Promise<string> {
-  return fs.readdirSync(opts.cacheDir).sort().join('\n')
+  return fs.readdirSync(opts.cacheDir, { withFileTypes: true })
+    .filter((entry) => entry.isDirectory())
+    .map((entry) => decodeRegistry(entry.name))
+    .sort()
+    .join('\n')
 }
 
 export async function cacheList (opts: { cacheDir: string, registry?: string, registries?: boolean }, filter: string[]): Promise<string> {
