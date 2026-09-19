@@ -8,8 +8,6 @@
 //! contract — slot layout, hash-directory identity across `allowBuilds`
 //! changes, build artifacts, and `.modules.yaml` state — instead of the
 //! call counts. Where that loses a signal it is called out on the test.
-//!
-#![cfg(unix)] // the GVS slot assertions read symlinks
 
 pub use _utils::*;
 
@@ -345,6 +343,10 @@ fn a_slot_left_incomplete_by_an_interrupted_import_is_repaired() {
 }
 
 #[test]
+#[cfg_attr(
+    target_os = "windows",
+    ignore = "pnpm/pnpm#15114: a delete-pending file in a shared slot reads as \"Access is denied\" rather than absent, and the losing install fails"
+)]
 fn concurrent_installs_sharing_a_gvs_do_not_fail_while_linking_bins() {
     const WORKERS: usize = 8;
     const REPETITIONS: usize = 20;
