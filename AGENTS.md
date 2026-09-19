@@ -222,8 +222,17 @@ Example:
 "pacquet": patch
 ---
 
-Fixed a `pnpm install` bug that affected both pnpm v11 and v12.
+Fixed `pnpm install` failing when a workspace dependency uses an aliased catalog entry.
 ```
+
+The package targets already place each changeset on the correct release page.
+Do not name a pnpm release line or implementation in the release-note text,
+such as "pnpm v11", "pnpm v12", or "pacquet", merely to distinguish its
+targets. Describe the behavior of the published `pnpm` command.
+
+Use one changeset for several release lines only when the same release-note
+text applies to every target. If the user-visible behavior differs, create
+separate changesets with the targets and wording for each behavior.
 
 The TypeScript pnpm v11 CLI is maintenance-only. Its changesets use patch bumps for bug fixes and internal maintenance. Do not implement new features or breaking changes in v11.
 
@@ -274,7 +283,7 @@ The Rust products are released through the same native flow. Their npm wrapper p
 
 pnpm v12 and its NAPI addon release as stable versions on the main lane. pnpr releases on the `alpha` prerelease lane configured in `pnpm-workspace.yaml`; `pnpm lane main --filter …` graduates it to a stable version.
 
-Do not add `"pnpm"` to a Rust-only changeset: in changesets, `pnpm` always means the TypeScript v11 CLI package. A changeset for a pnpm v12 feature or v12-only bug fix targets `pacquet` and omits `"pnpm"`. A shared bug fix that lands in both versions carries one changeset naming both the affected TypeScript packages (plus `"pnpm"`) and the Rust wrapper(s).
+Do not add `"pnpm"` to a Rust-only changeset: in changesets, `pnpm` always means the TypeScript v11 CLI package. A changeset for a pnpm v12 feature or v12-only bug fix targets `pacquet` and omits `"pnpm"`. A shared bug fix that lands in both versions may use one changeset naming both the affected TypeScript packages (plus `"pnpm"`) and the Rust wrapper(s) only when the same release-note text applies to both.
 
 Use `pacquet` as the changeset package name, but use `pnpm` in its release-note prose and command examples (`pnpm add`, not `pacquet add`). The published Rust CLI's executable is `pnpm`; `pacquet` is only its in-repo package identifier.
 
