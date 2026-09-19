@@ -130,8 +130,7 @@ impl SameFileWitness {
 /// The record is a sentinel file planted inside the directory, because a
 /// directory cannot be hard-linked the way [`SameFileWitness`] links a
 /// file, and `std` exposes the Windows file index only behind an unstable
-/// feature. Re-importing a package stages a new directory and swaps it in,
-/// which takes the sentinel with the directory it replaces.
+/// feature.
 pub struct DirWitness {
     sentinel: PathBuf,
 }
