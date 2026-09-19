@@ -239,12 +239,18 @@ pub fn import_indexed_dir<Reporter: self::Reporter>(
 }
 
 /// The kind of dirent already at `path`, or `None` when nothing is
-/// there. Any inspection failure other than `NotFound` aborts the
-/// import rather than being read as an absent target.
+/// there. Any inspection failure other than `NotFound` (or a transient
+/// Windows file lock on a delete-pending target) aborts the import
+/// rather than being read as an absent target.
 fn existing_dirent_kind(path: &Path) -> Result<Option<fs::FileType>, ImportIndexedDirError> {
-    match fs::symlink_metadata(path) {
+    match pnpm_fs::symlink_metadata_with_retry(path) {
         Ok(meta) => Ok(Some(meta.file_type())),
-        Err(err) if err.kind() == io::ErrorKind::NotFound => Ok(None),
+        Err(err)
+            if err.kind() == io::ErrorKind::NotFound
+                || pnpm_fs::is_transient_file_lock_error(&err) =>
+        {
+            Ok(None)
+        }
         Err(error) => Err(ImportIndexedDirError::InspectTarget { path: path.to_path_buf(), error }),
     }
 }
@@ -372,11 +378,11 @@ fn remove_non_dir_dirent(path: &Path, file_type: fs::FileType) -> io::Result<()>
         // correct call. Fall through to `remove_file` for dangling
         // links or symlinks-to-file.
         if matches!(fs::metadata(path), Ok(meta) if meta.is_dir()) {
-            return fs::remove_dir(path);
+            return pnpm_fs::retry_transient_file_locks(|| fs::remove_dir(path));
         }
     }
     let _ = file_type;
-    fs::remove_file(path)
+    pnpm_fs::remove_file_with_retry(path)
 }
 
 #[cfg(test)]
