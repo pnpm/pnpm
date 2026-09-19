@@ -121,12 +121,7 @@ pub(super) async fn link_materialized_projects<Reporter: self::Reporter + 'stati
         write_filtered_package_map(&inputs, current).await?;
     }
 
-    // Materialize lockfile-excluded direct links from the in-memory project
-    // manifests and workspace package index. Aliases the wanted lockfile does
-    // track belong to the lockfile passes and their dedupe decisions. See
-    // [`crate::link_manifest_link_deps`].
-    // These are importer symlinks like any other, so
-    // `virtualStoreOnly` skips them too.
+    // These are importer symlinks, so `virtualStoreOnly` skips them too.
     if !inputs.config.virtual_store_only {
         crate::link_manifest_link_deps::<Reporter>(
             inputs.workspace_root,
@@ -135,8 +130,6 @@ pub(super) async fn link_materialized_projects<Reporter: self::Reporter + 'stati
                 (!lockfile.importers.is_empty()).then_some(&lockfile.importers)
             }),
             inputs.workspace_packages,
-            // Honor a `modulesDir` override the same way the
-            // lockfile-driven symlink pass does.
             inputs.config.modules_dir
                 .file_name()
                 .unwrap_or_else(|| std::ffi::OsStr::new("node_modules")),

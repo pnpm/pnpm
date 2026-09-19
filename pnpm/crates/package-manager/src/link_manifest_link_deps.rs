@@ -15,25 +15,9 @@ use std::{
     path::{Path, PathBuf},
 };
 
-/// Symlink each project's lockfile-excluded linked dependencies into its
-/// `node_modules/`, sourced from the in-memory project manifests.
-///
-/// `excludeLinksFromLockfile` strips non-`workspace:` links from the lockfile
-/// importers, including plain ranges that `linkWorkspacePackages` resolves to
-/// workspace projects. The lockfile-driven [`crate::SymlinkDirectDependencies`]
-/// pass therefore never sees them. pnpm v11's `linkDirectDeps` worked from the
-/// resolved projects and materialized them regardless of the lockfile shape.
-///
-/// An alias the project's lockfile importer *does* carry is skipped
-/// entirely: the lockfile pass owns it, including its
-/// `dedupeDirectDeps` decision (re-linking it here would undo a
-/// dedupe). Only aliases absent from the importer snapshot — the
-/// excluded links — are filled in from the manifest.
-///
-/// Idempotent: an existing symlink at the alias path is force-replaced
-/// (matching v11's re-link semantics), and `force_symlink_dir` creates
-/// missing parent directories on demand. Dependencies that neither use
-/// `link:` nor resolve through the workspace package index are ignored.
+/// Symlink direct dependencies omitted from the lockfile importer because
+/// `excludeLinksFromLockfile` is enabled. Importer-owned aliases are left to
+/// the lockfile materialization passes so their dedupe decisions are preserved.
 pub fn link_manifest_link_deps<Reporter: pnpm_reporter::Reporter>(
     workspace_root: &Path,
     project_manifests: &[(PathBuf, &PackageManifest)],
@@ -82,7 +66,7 @@ pub fn link_manifest_link_deps<Reporter: pnpm_reporter::Reporter>(
     Ok(())
 }
 
-/// One project's `link:` dependencies and where they are placed.
+/// One project's lockfile-excluded linked dependencies and where they are placed.
 struct ProjectLinks<'a> {
     project_dir: &'a Path,
     modules_dir: &'a Path,
@@ -124,9 +108,8 @@ fn link_project_manifest_deps<Reporter: pnpm_reporter::Reporter>(
     Ok(())
 }
 
-/// Place one manifest-declared `link:` dependency, answering whether it now
-/// owns a slot in the project's `node_modules`. A dependency the lockfile
-/// already knows is left to the lockfile-driven passes.
+/// Place one manifest-linked dependency, answering whether it now owns a slot
+/// in the project's `node_modules`.
 fn link_manifest_dep<Reporter: pnpm_reporter::Reporter>(
     project: &ProjectLinks<'_>,
     group: DependencyGroup,
@@ -213,7 +196,7 @@ fn dependency_type_of(group: DependencyGroup) -> DependencyType {
 /// `true` when the importer snapshot resolves `alias` in any of the
 /// non-peer dependency groups — i.e. the lockfile knows the dep and
 /// the lockfile-driven passes own its materialization.
-fn snapshot_has_alias(snapshot: &ProjectSnapshot, alias: &str) -> bool {
+pub(crate) fn snapshot_has_alias(snapshot: &ProjectSnapshot, alias: &str) -> bool {
     [DependencyGroup::Prod, DependencyGroup::Dev, DependencyGroup::Optional]
         .into_iter()
         .filter_map(|group| snapshot.get_map_by_group(group))
@@ -252,9 +235,8 @@ pub enum LinkManifestLinkDepsError {
     #[diagnostic(transparent)]
     InvalidAlias(#[error(source)] InvalidDependencyAliasError),
 
-    /// Creating one `link:` dep's symlink failed (permission denied,
-    /// a real directory squatting the alias path, disk full, ...).
-    #[display("Failed to link manifest `link:` dependency {alias:?}: {source}")]
+    /// Creating one manifest-linked dependency's symlink failed.
+    #[display("Failed to link manifest-linked dependency {alias:?}: {source}")]
     #[diagnostic(code(ERR_PNPM_PACKAGE_MANAGER_LINK_MANIFEST_LINK_DEP_FAILED))]
     Symlink {
         alias: String,
