@@ -41,6 +41,21 @@ fs.writeFileSync('started.txt', '')
 setInterval(() => {}, 1000)
 ";
 
+/// A script that shuts down on `SIGINT` and on `SIGTERM` alike, as a
+/// server does when a container runtime stops it.
+const SIGNAL_SCRIPT: &str = r"const fs = require('node:fs')
+for (const signal of ['SIGINT', 'SIGTERM']) {
+  process.on(signal, () => {
+    setTimeout(() => {
+      fs.writeFileSync('shut-down.txt', '')
+      process.exit(0)
+    }, 1000)
+  })
+}
+fs.writeFileSync('started.txt', '')
+setInterval(() => {}, 1000)
+";
+
 /// A `pre` script that shuts down on the first interrupt and lets the
 /// main script run after it.
 const PRE_SCRIPT: &str = r"const fs = require('node:fs')
@@ -164,6 +179,51 @@ fn ctrl_c_interrupts_the_script_once() {
     drop(root);
 }
 
+/// Without a terminal, the shell running the script may stay its parent
+/// (dash does) and then keeps a relayed `SIGINT` to itself until its
+/// child exits. pnpm signals the script's whole process group instead,
+/// and waits for the group, so the script shuts down and finishes before
+/// pnpm ends.
+#[test]
+fn a_shell_that_stays_the_scripts_parent_passes_the_interrupt_on() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    write_project_running(&workspace, "test", "node dev.js", SIGNAL_SCRIPT);
+
+    let mut process = interruptible(pacquet.with_args(["run", "dev"]));
+    wait_for_file(&workspace.join("started.txt"), &mut process);
+    interrupt(&process);
+    wait_for_shutdown(&mut process);
+
+    assert!(
+        workspace.join("shut-down.txt").exists(),
+        "the script must have finished shutting down before pnpm exited",
+    );
+
+    drop(root);
+}
+
+/// A `SIGTERM`, which is how a container runtime or a service manager stops
+/// pnpm, ends a shell that stays the script's parent at once. pnpm still
+/// signals the script through its process group and waits for it, so the
+/// script's shutdown completes before pnpm ends.
+#[test]
+fn a_termination_without_a_terminal_reaches_the_script_behind_its_shell() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    write_project_running(&workspace, "test", "node dev.js", SIGNAL_SCRIPT);
+
+    let mut process = interruptible(pacquet.with_args(["run", "dev"]));
+    wait_for_file(&workspace.join("started.txt"), &mut process);
+    signal(&process, libc::SIGTERM);
+    wait_for_shutdown(&mut process);
+
+    assert!(
+        workspace.join("shut-down.txt").exists(),
+        "the script must have finished shutting down before pnpm exited",
+    );
+
+    drop(root);
+}
+
 /// A recursive run gives each project's script a process group of its
 /// own, which the terminal's signals never reach. pnpm addresses those
 /// groups, so every project shuts down instead of being left behind.
@@ -268,9 +328,14 @@ fn a_later_script_still_gets_a_plain_first_interrupt() {
     drop(root);
 }
 
+/// Write a project whose `dev` script execs `script`, so the shell is out
+/// of the picture and the relay's target is the script itself.
 fn write_project(dir: &Path, name: &str, script: &str) {
-    let manifest =
-        json!({ "name": name, "version": "0.0.0", "scripts": { "dev": "exec node dev.js" } });
+    write_project_running(dir, name, "exec node dev.js", script);
+}
+
+fn write_project_running(dir: &Path, name: &str, command: &str, script: &str) {
+    let manifest = json!({ "name": name, "version": "0.0.0", "scripts": { "dev": command } });
     fs::write(dir.join("package.json"), manifest.to_string()).expect("write package.json");
     fs::write(dir.join("dev.js"), script).expect("write the script");
 }
@@ -414,11 +479,16 @@ impl Terminal {
 /// Send `SIGINT` to pnpm alone, which is what `kill -INT` does; a
 /// terminal would signal the whole foreground group at once.
 fn interrupt(process: &Child) {
+    signal(process, libc::SIGINT);
+}
+
+/// Send `signal` to pnpm alone, as `kill` does.
+fn signal(process: &Child, signal: libc::c_int) {
     let pid = i32::try_from(process.id()).expect("the pid fits in a pid_t");
     // SAFETY: `pid` is the child this test spawned and has not waited for
     // yet, so it is not a recycled process id.
-    let signalled = unsafe { libc::kill(pid, libc::SIGINT) };
-    assert_eq!(signalled, 0, "the interrupt should reach pnpm");
+    let signalled = unsafe { libc::kill(pid, signal) };
+    assert_eq!(signalled, 0, "the signal should reach pnpm");
 }
 
 /// Wait for pnpm to end, so a relay that never reached the script fails

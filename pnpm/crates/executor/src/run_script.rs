@@ -242,7 +242,7 @@ fn run_piped(
         .map_err(|source| RunScriptError::Spawn { script: command.to_string(), source })?;
 
     streamed
-        .pump(child.child_mut())
+        .pump(&mut child)
         .map(ScriptExit::Process)
         .map_err(|source| RunScriptError::Wait { script: command.to_string(), source })
 }

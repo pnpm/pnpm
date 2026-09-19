@@ -295,6 +295,7 @@
     "pathext",
     "pathsep",
     "pegjs",
+    "pgid",
     "pids",
     "pidtree",
     "pify",

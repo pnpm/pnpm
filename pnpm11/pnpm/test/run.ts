@@ -7,7 +7,7 @@ import { prepare, preparePackages } from '@pnpm/prepare'
 import isWindows from 'is-windows'
 import { writeYamlFileSync } from 'write-yaml-file'
 
-import { execPnpm, execPnpmSync, pnpmBinLocation } from './utils/index.js'
+import { execPnpm, execPnpmSync, pnpmBinLocation, spawnPnpm } from './utils/index.js'
 
 const RECORD_ARGS_FILE = 'require(\'fs\').writeFileSync(\'args.json\', JSON.stringify(require(\'./args.json\').concat([process.argv.slice(2)])), \'utf8\')'
 const testOnPosix = isWindows() ? test.skip : test
@@ -357,3 +357,49 @@ testOnPosix('run: Ctrl+C in a terminal interrupts the script once', () => {
   expect(status).toBe(0)
   expect(stdout).toContain('started')
 })
+
+// A script that shuts down on SIGTERM the way a server does when a container
+// runtime stops it.
+const TERMINATING_SCRIPT = `const fs = require('node:fs')
+process.on('SIGTERM', () => {
+  setTimeout(() => {
+    fs.writeFileSync('shut-down.txt', '')
+    process.exit(0)
+  }, 1000)
+})
+fs.writeFileSync('started.txt', '')
+setInterval(() => {}, 1000)
+`
+
+// Without a terminal, the shell running the script may stay its parent (dash
+// does) and dies from SIGTERM at once. pnpm signals the script's whole process
+// group instead and waits for it, so the script finishes shutting down.
+testOnPosix('run: a SIGTERM sent to pnpm without a terminal reaches the script behind its shell', async () => {
+  prepare({
+    name: 'project',
+    scripts: {
+      dev: 'node dev.js',
+    },
+  })
+  fs.writeFileSync('dev.js', TERMINATING_SCRIPT, 'utf8')
+
+  const proc = spawnPnpm(['run', '--config.verify-deps-before-run=false', 'dev'], { detached: true })
+  const closed = new Promise<void>((resolve) => {
+    proc.on('close', () => {
+      resolve()
+    })
+  })
+  await waitForFile('started.txt', 30_000)
+  proc.kill('SIGTERM')
+  await closed
+
+  expect(fs.existsSync('shut-down.txt')).toBe(true)
+})
+
+async function waitForFile (file: string, timeout: number): Promise<void> {
+  const deadline = Date.now() + timeout
+  while (!fs.existsSync(file)) {
+    if (Date.now() > deadline) throw new Error(`${file} did not appear within ${timeout}ms`)
+    await new Promise<void>((resolve) => setTimeout(resolve, 50)) // eslint-disable-line no-await-in-loop
+  }
+}
