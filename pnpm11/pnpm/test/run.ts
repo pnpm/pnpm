@@ -391,11 +391,35 @@ testOnPosix('run: a SIGTERM sent to pnpm without a terminal reaches the script b
       resolve(fs.existsSync('shut-down.txt'))
     })
   })
-  await waitForFile('started.txt', 30_000)
-  proc.kill('SIGTERM')
-
-  expect(await shutDownBeforeExit).toBe(true)
+  try {
+    await waitForFile('started.txt', 30_000)
+    proc.kill('SIGTERM')
+    expect(await withDeadline(shutDownBeforeExit, 30_000)).toBe(true)
+  } finally {
+    killProcessGroup(proc.pid!)
+  }
 })
+
+async function withDeadline<T> (promise: Promise<T>, timeout: number): Promise<T> {
+  let timer: NodeJS.Timeout | undefined
+  const deadline = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => reject(new Error(`pnpm did not exit within ${timeout}ms`)), timeout)
+  })
+  try {
+    return await Promise.race([promise, deadline])
+  } finally {
+    clearTimeout(timer)
+  }
+}
+
+/** Kill the detached pnpm and everything it started, whatever state a failed test left them in. */
+function killProcessGroup (pid: number): void {
+  try {
+    process.kill(-pid, 'SIGKILL')
+  } catch {
+    // the group is gone already
+  }
+}
 
 async function waitForFile (file: string, timeout: number): Promise<void> {
   const deadline = Date.now() + timeout

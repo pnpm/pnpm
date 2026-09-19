@@ -39,6 +39,8 @@ export function hasControllingTerminal (): boolean {
 /**
  * Resolves once no live process of the group led by `leader` is left, so a
  * script that outlived the shell that started it finishes shutting down.
+ * Rejects when the group cannot be observed, so a caller goes on rather
+ * than waiting on a question it cannot answer.
  *
  * The group is probed the way the kernel counts it, with a signal of 0. A
  * member that has exited but is not reaped yet still counts there, which
@@ -58,33 +60,32 @@ function hasLiveMembers (group: number): boolean {
   try {
     process.kill(-group, 0)
   } catch (err: unknown) {
-    return !isNoSuchProcess(err)
+    if (errorCode(err) === 'ESRCH') return false
+    throw err
   }
   return process.platform !== 'linux' || hasLiveMembersInProc(group)
 }
 
-function isNoSuchProcess (err: unknown): boolean {
-  return typeof err === 'object' && err != null && 'code' in err && err.code === 'ESRCH'
-}
-
-/** Whether `/proc` lists a process of `group` that is not a zombie. */
+/**
+ * Whether `/proc` lists a process of `group` that is not a zombie. A
+ * process that vanishes between the listing and the read has exited; one
+ * whose state cannot be read counts as live.
+ */
 function hasLiveMembersInProc (group: number): boolean {
-  let entries: string[]
-  try {
-    entries = fs.readdirSync('/proc')
-  } catch {
-    return true
-  }
-  return entries.some((entry) => {
+  return fs.readdirSync('/proc').some((entry) => {
     if (!/^\d+$/.test(entry)) return false
     let stat: string
     try {
       stat = fs.readFileSync(`/proc/${entry}/stat`, 'utf8')
-    } catch {
-      return false
+    } catch (err: unknown) {
+      return errorCode(err) !== 'ENOENT' && errorCode(err) !== 'ESRCH'
     }
     // The fields after the parenthesized command name: state, parent, group, ...
     const fields = stat.slice(stat.lastIndexOf(')') + 2).split(' ')
     return fields[0] !== 'Z' && Number(fields[2]) === group
   })
+}
+
+function errorCode (err: unknown): unknown {
+  return typeof err === 'object' && err != null && 'code' in err ? err.code : undefined
 }

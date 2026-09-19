@@ -412,13 +412,15 @@ function runEmulated (run: ScriptRun, cb: Callback): void {
 /**
  * Wait for the spawned script, relaying pnpm's own signals to it meanwhile.
  *
- * `cb` runs exactly once, after the script has ended and its output has
+ * `cb` runs at most once, after the script has ended and its output has
  * been reported. It gets no error for a clean exit, and a `LifecycleError`
- * for a failed spawn, a non-zero exit, an exit by signal (which pnpm then
- * raises on itself), or an `onSpawn` observer that threw. A child with a
- * process group of its own is signalled as a group, and after a relayed
- * signal `cb` waits for that group as well: the shell may have died from
- * the signal while the script it started is still shutting down.
+ * for a failed spawn, a non-zero exit, or an `onSpawn` observer that threw.
+ * A child with a process group of its own is signalled as a group, and
+ * after a relayed signal `cb` waits for that group as well: the shell may
+ * have died from the signal while the script it started is still shutting
+ * down. A script killed by a signal makes pnpm raise that signal on itself
+ * once the wait is over, which ends pnpm before `cb` unless something
+ * handles the signal; `cb` then gets a `LifecycleError` for it.
  */
 function runSpawned (run: ScriptRun, spawned: SpawnedScript, cb: Callback): void {
   const { pkg, stage, opts } = run

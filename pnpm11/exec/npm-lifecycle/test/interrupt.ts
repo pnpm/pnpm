@@ -79,10 +79,23 @@ async function runWithoutTerminal (script: string, signal: NodeJS.Signals): Prom
       if (stdout.includes('started')) resolve()
     })
   })
-  await Promise.race([started, exited])
-  proc.kill(signal)
-  const result = await exited
-  await closed
-  clearTimeout(killTimer)
-  return result
+  try {
+    await Promise.race([started, exited])
+    proc.kill(signal)
+    const result = await exited
+    await closed
+    return result
+  } finally {
+    clearTimeout(killTimer)
+    killProcessGroup(proc.pid!)
+  }
+}
+
+/** Kill the detached runner and everything it started, whatever state a failed test left them in. */
+function killProcessGroup (pid: number): void {
+  try {
+    process.kill(-pid, 'SIGKILL')
+  } catch {
+    // the group is gone already
+  }
 }
