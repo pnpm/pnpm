@@ -21,9 +21,9 @@ export function classifyLicense (license: string): { license: { id: string } } |
     return { license: { id: fixedId } }
   }
   if (isSpdxExpression(trimmed)) {
-    return { expression: trimmed }
+    return { expression: license }
   }
-  return { license: { name: trimmed } }
+  return { license: { name: license } }
 }
 
 function isSpdxLicenseId (license: string): boolean {
@@ -37,8 +37,9 @@ function isSpdxLicenseId (license: string): boolean {
 
 // SPDX 2.3 annex D.2 matches license and exception identifiers case-insensitively
 // and requires the operators to be uppercase, while spdx-expression-parse has it
-// the other way around. Only the parse runs on the rewritten text: the expression
-// reaches the BOM as the manifest wrote it.
+// the other way around. That rewriting, and the surrounding whitespace the caller
+// drops, serve the decision alone: the expression reaches the BOM as the manifest
+// wrote it.
 function isSpdxExpression (license: string): boolean {
   const normalized = normalizeSpdxExpressionIds(license)
   if (normalized == null) return false

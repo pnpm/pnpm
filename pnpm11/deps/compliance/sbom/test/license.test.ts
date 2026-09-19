@@ -28,6 +28,7 @@ describe('classifyLicense', () => {
       'GPL-2.0-only WITH Classpath-exception-2.0',
       'gpl-2.0-only WITH classpath-exception-2.0',
       '(MIT AND Apache-2.0) OR ISC',
+      ' MIT OR Apache-2.0 ',
     ]) {
       expect(classifyLicense(expression)).toEqual({ expression })
     }
@@ -51,6 +52,8 @@ describe('classifyLicense', () => {
       'MIT WITH Unknown-exception',
       'MIT/Apache-2.0',
       'MIT OR',
+      'MIT OR\nApache-2.0',
+      ' Proprietary License ',
     ]) {
       expect(classifyLicense(license)).toEqual({ license: { name: license } })
     }

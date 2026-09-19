@@ -423,6 +423,7 @@ fn classify_license_spdx_2_3_expressions() {
         "GPL-2.0-only WITH Classpath-exception-2.0",
         "gpl-2.0-only WITH classpath-exception-2.0",
         "(MIT AND Apache-2.0) OR ISC",
+        " MIT OR Apache-2.0 ",
     ] {
         assert_eq!(classify_license(expression), serde_json::json!({ "expression": expression }));
     }
@@ -447,6 +448,8 @@ fn classify_license_free_form_names() {
         "MIT WITH Unknown-exception",
         "MIT/Apache-2.0",
         "MIT OR",
+        "MIT OR\nApache-2.0",
+        " Proprietary License ",
     ] {
         assert_eq!(
             classify_license(license),

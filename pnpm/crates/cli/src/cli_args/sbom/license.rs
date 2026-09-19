@@ -10,15 +10,16 @@
 //! case-insensitively and requires the operators to be uppercase. The `spdx`
 //! crate has it the other way around, so identifiers are rewritten to their
 //! canonical case and lowercase operators rejected before it parses an
-//! expression. Only the parse runs on the rewritten text: an expression
-//! reaches the BOM as the manifest wrote it, while an identifier reaches it in
-//! the canonical case the `CycloneDX` enum lists.
+//! expression. That rewriting, and the surrounding whitespace it drops, serve
+//! the decision alone. Only an identifier is republished in another form, the
+//! canonical case the `CycloneDX` enum lists; an expression and a name reach
+//! the BOM as the manifest wrote them.
 
 pub(super) fn classify_license(license: &str) -> serde_json::Value {
-    let license = license.trim();
-    if let Some(id) = canonical_spdx_id(license) {
+    let trimmed = license.trim();
+    if let Some(id) = canonical_spdx_id(trimmed) {
         serde_json::json!({ "license": { "id": id } })
-    } else if is_spdx_expression(license) {
+    } else if is_spdx_expression(trimmed) {
         serde_json::json!({ "expression": license })
     } else {
         serde_json::json!({ "license": { "name": license } })
@@ -91,6 +92,12 @@ fn normalize_spdx_expression_ids(expression: &str) -> Option<String> {
     for (index, ch) in expression.char_indices() {
         if ch.is_ascii_alphanumeric() || matches!(ch, '-' | '.') {
             continue;
+        }
+        // The `spdx` crate skips every Unicode whitespace character, while an
+        // SPDX 2.3 expression is one line and the v11 parser skips only the
+        // ASCII space.
+        if ch.is_whitespace() && ch != ' ' {
+            return None;
         }
         push_normalized_spdx_token(&mut normalized, &expression[token_start..index])?;
         normalized.push(ch);
