@@ -815,3 +815,12 @@ it('clears the old anchor when a preceding alias is promoted', () => {
   patchDocument(document, target, { preserveScalarAliases: true })
   expect(yaml.parse(document.toString())).toEqual(target)
 })
+
+it('preserves aliases nested beneath an alias mapping key', () => {
+  const document = yaml.parseDocument('name: &key custom\ncatalog:\n  react: &version ^1.0.0\n*key :\n  version: *version\n')
+  const target = { ...document.toJSON(), saveExact: true }
+  patchDocument(document, target, { preserveScalarAliases: true })
+  expect(yaml.parse(document.toString())).toEqual(target)
+  expect(document.toString()).toContain('version: *version')
+  expect(document.toString()).toContain('? *key\n')
+})

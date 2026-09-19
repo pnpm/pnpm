@@ -125,3 +125,57 @@ fn aliases_beneath_non_string_mapping_keys_survive_edits() {
         assert!(output.starts_with(&original), "{output}");
     }
 }
+
+#[test]
+fn removing_an_anchored_mapping_key_promotes_its_alias() {
+    let original = "&key version: unused\ncatalog:\n  react: *key\n";
+    let output =
+        super::run_update_field(Some(original), "version", &serde_json::Value::Null).unwrap();
+    eprintln!("{output}");
+    assert_eq!(output, "catalog:\n  react: &key version\n");
+}
+
+#[test]
+fn aliases_nested_under_an_alias_key_survive_edits() {
+    let original =
+        "name: &key custom\ncatalog:\n  react: &version ^1.0.0\n*key :\n  version: *version\n";
+    let output =
+        super::run_update_field(Some(original), "saveExact", &serde_json::json!(true)).unwrap();
+    eprintln!("{output}");
+    assert!(output.starts_with(original), "{output}");
+    let value: serde_json::Value = serde_saphyr::from_str(&output).unwrap();
+    assert_eq!(value["custom"]["version"], "^1.0.0");
+}
+
+#[test]
+fn excessive_nesting_is_rejected_before_alias_expansion() {
+    let original = format!(
+        "catalog: {{react: &version ^1.0.0}}\ncustom: {}0{}\n",
+        "[0,".repeat(128),
+        "]".repeat(128),
+    );
+    let error = crate::model::Manifest::parse(Some(&original))
+        .err()
+        .expect("excessive nesting is rejected");
+    eprintln!("{error}");
+    assert!(error.to_string().contains("depth"));
+}
+
+#[test]
+fn tagged_block_scalar_aliases_keep_their_value() {
+    for definition in [
+        "&text !!str |\n  café\n  second line\n",
+        "!!str &text >\n  café\n  second line\n",
+        "&text !!str |-\n  123\n",
+    ] {
+        let original = format!("description: {definition}custom: *text\n");
+        let before: serde_json::Value = serde_saphyr::from_str(&original).unwrap();
+        let output =
+            super::run_update_field(Some(&original), "saveExact", &serde_json::json!(true))
+                .unwrap();
+        eprintln!("{output}");
+        let after: serde_json::Value = serde_saphyr::from_str(&output).unwrap();
+        assert_eq!(after["custom"], before["custom"]);
+        assert!(output.contains("custom: *text"), "{output}");
+    }
+}

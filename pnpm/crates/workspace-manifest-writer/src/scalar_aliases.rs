@@ -4,10 +4,12 @@
 
 mod paths;
 
-use self::paths::scalar_paths;
-use serde_saphyr::granit_parser::{Event, Parser, Scanner, Span, StrInput, Token, TokenType};
+use self::paths::{ScalarPath, scalar_paths};
+use serde_saphyr::granit_parser::{
+    Event, Parser, ScalarStyle, Scanner, Span, StrInput, Token, TokenType,
+};
 use std::{collections::HashMap, ops::Range};
-use yamlpath::{Component, Document, Route};
+use yamlpath::{Document, Route};
 
 /// Scalar alias identities retained while edits operate on independent values.
 #[derive(Default)]
@@ -17,7 +19,7 @@ pub(crate) struct ScalarAliases {
 
 struct Group {
     name: String,
-    paths: Vec<Vec<Component<'static>>>,
+    paths: Vec<ScalarPath>,
     implicit_null: bool,
 }
 
@@ -28,6 +30,7 @@ struct Definition {
     tag: Option<Range<usize>>,
     aliases: Vec<Range<usize>>,
     implicit_null: bool,
+    block: bool,
 }
 
 impl ScalarAliases {
@@ -100,17 +103,13 @@ fn scalar_definitions(
     text: &str,
     anchors: &[(String, Range<usize>)],
 ) -> Result<HashMap<usize, Definition>, Box<yamlpatch::Error>> {
-    let tags: HashMap<_, _> = Scanner::new(StrInput::new(text))
-        .filter_map(|Token(span, token)| {
-            matches!(token, TokenType::Tag(..)).then(|| (byte_range(span).start, byte_range(span)))
-        })
-        .collect();
+    let tags = tag_tokens(text);
     let mut definitions = HashMap::<usize, Definition>::new();
     let mut parser = Parser::new_from_str(text);
     while let Some(event) = parser.next_event() {
         let (event, span) = event.map_err(|error| invalid(error.to_string()))?;
         match event {
-            Event::Scalar(_, _, id, _) if id != 0 => {
+            Event::Scalar(_, style, id, _) if id != 0 => {
                 let (name, anchor) = anchors
                     .get(id - 1)
                     .ok_or_else(|| invalid("Missing scalar anchor token".to_string()))?;
@@ -125,6 +124,7 @@ fn scalar_definitions(
                             .and_then(|start| tags.get(&start).cloned()),
                         aliases: Vec::new(),
                         implicit_null: false,
+                        block: matches!(style, ScalarStyle::Literal | ScalarStyle::Folded),
                     },
                 );
             }
@@ -139,55 +139,21 @@ fn scalar_definitions(
     Ok(definitions)
 }
 
-type ScalarPaths = HashMap<(usize, usize), Vec<Vec<Component<'static>>>>;
-
-fn scalar_paths_by_span(text: &str) -> Result<ScalarPaths, Box<yamlpatch::Error>> {
-    let document = Document::new(text.to_string()).map_err(yamlpatch::Error::from)?;
-    let paths = scalar_paths(text)?;
-    let mut paths_by_span = HashMap::<(usize, usize), Vec<Vec<Component<'static>>>>::new();
-    for path in paths {
-        if let Some(feature) = document
-            .query_exact(&Route::from(path.clone()))
-            .map_err(yamlpatch::Error::from)?
-        {
-            paths_by_span
-                .entry(feature.location.byte_span)
-                .or_default()
-                .push(path);
-        }
-    }
-    Ok(paths_by_span)
-}
-
 fn expand_definition(
     text: &str,
     definition: &Definition,
     edits: &mut Vec<(Range<usize>, String)>,
 ) -> Result<(), Box<yamlpatch::Error>> {
-    let literal = &text[definition.value.clone()];
-    let tagged = definition.tag
-        .as_ref()
-        .map(|tag| format!("{} {literal}", &text[tag.clone()]));
-    let value: yaml_serde::Value = serde_saphyr::from_str(tagged.as_deref().unwrap_or(literal))
-        .map_err(|error| invalid(error.to_string()))?;
-    let replacement = match &value {
-        yaml_serde::Value::String(_)
-            if definition.tag.is_none() && !literal.contains(['\n', '\r']) =>
-        {
-            literal.to_string()
-        }
-        yaml_serde::Value::String(value) => {
-            serde_json::to_string(value).expect("serializing a string cannot fail")
-        }
-        _ => yaml_serde::to_string(&value)
-            .map_err(yamlpatch::Error::from)?
-            .trim_end()
-            .to_string(),
-    };
+    let replacement = scalar_replacement(text, definition)?;
     for alias in &definition.aliases {
         edits.push((alias.clone(), replacement.clone()));
     }
     if let Some(tag) = &definition.tag {
+        let replacement = if definition.block && text[..definition.value.end].ends_with('\n') {
+            format!("{replacement}\n")
+        } else {
+            replacement
+        };
         edits.push((definition.anchor.start.min(tag.start)..definition.value.end, replacement));
         return Ok(());
     }
@@ -221,21 +187,24 @@ fn unique_name(
     name
 }
 
-type SurvivingValue<'a> = (Range<usize>, yaml_serde::Value, &'a str);
+type SurvivingValue<'a> = (Range<usize>, yaml_serde::Value, &'a str, bool);
 
-fn surviving_values<'a>(
-    document: &'a Document,
-    paths: Vec<Vec<Component<'static>>>,
-) -> Result<Vec<SurvivingValue<'a>>, Box<yamlpatch::Error>> {
+fn surviving_values(
+    document: &Document,
+    paths: Vec<ScalarPath>,
+) -> Result<Vec<SurvivingValue<'_>>, Box<yamlpatch::Error>> {
     let mut values = Vec::new();
     for path in paths {
-        let route = Route::from(path);
+        let route = Route::from(path.route);
         if !document.query_exists(&route) {
             continue;
         }
-        let Some(feature) = document.query_exact(&route).map_err(yamlpatch::Error::from)? else {
-            continue;
+        let feature = if path.key {
+            Some(document.query_key_only(&route).map_err(yamlpatch::Error::from)?)
+        } else {
+            document.query_exact(&route).map_err(yamlpatch::Error::from)?
         };
+        let Some(feature) = feature else { continue };
         let literal = document.extract(&feature);
         let value: yaml_serde::Value =
             serde_saphyr::from_str(literal).map_err(|error| invalid(error.to_string()))?;
@@ -243,7 +212,7 @@ fn surviving_values<'a>(
             continue;
         }
         let (start, end) = feature.location.byte_span;
-        values.push((start..end, value, literal));
+        values.push((start..end, value, literal, path.key));
     }
     Ok(values)
 }
@@ -254,20 +223,18 @@ fn restore_group(
     edits: &mut Vec<(Range<usize>, String)>,
 ) -> Result<(), Box<yamlpatch::Error>> {
     let mut values = surviving_values(document, group.paths)?;
-    values.sort_by_key(|(span, _, _)| span.start);
-    values.dedup_by_key(|(span, _, _)| span.start);
-    let Some((_, first, _)) = values.first() else { return Ok(()) };
+    values.sort_by_key(|(span, ..)| span.start);
+    values.dedup_by_key(|(span, ..)| span.start);
+    let Some((_, first, ..)) = values.first() else { return Ok(()) };
     let first = first.clone();
-    for (index, (span, value, literal)) in values.into_iter().enumerate() {
+    for (index, (span, value, literal, key)) in values.into_iter().enumerate() {
         if index == 0 {
-            let replacement = if group.implicit_null && value.is_null() {
-                format!("&{}", group.name)
-            } else {
-                format!("&{} {literal}", group.name)
-            };
+            let replacement =
+                format_anchor(&group.name, literal, group.implicit_null && value.is_null());
             edits.push((span, replacement));
         } else if value == first {
-            edits.push((span, format!("*{}", group.name)));
+            let replacement = format_alias(&group.name, key, &document.source()[span.end..]);
+            edits.push((span, replacement));
         }
     }
     Ok(())
@@ -297,7 +264,7 @@ fn normalize_implicit_nulls(
     for id in implicit_ids {
         definitions
             .get_mut(&id)
-            .expect("normalization preserves anchor identities")
+            .ok_or_else(|| invalid(format!("Missing scalar anchor {id} after null normalization")))?
             .implicit_null = true;
     }
     Ok(Some(normalized))
@@ -308,15 +275,14 @@ fn expand_definitions(
     definitions: HashMap<usize, Definition>,
     mut names: HashMap<String, usize>,
 ) -> Result<(String, ScalarAliases), Box<yamlpatch::Error>> {
-    let mut paths_by_span = scalar_paths_by_span(text)?;
+    let mut paths_by_id = scalar_paths(text)?;
     let mut edits = Vec::new();
     let mut groups = Vec::new();
-    let mut definitions: Vec<_> = definitions.into_values().collect();
-    definitions.sort_by_key(|definition| definition.anchor.start);
+    let mut definitions: Vec<_> = definitions.into_iter().collect();
+    definitions.sort_by_key(|(_, definition)| definition.anchor.start);
     let mut next_suffix = HashMap::new();
-    for definition in definitions {
-        let query_span = definition.tag.as_ref().unwrap_or(&definition.value);
-        let Some(paths) = paths_by_span.remove(&(query_span.start, query_span.end)) else {
+    for (id, definition) in definitions {
+        let Some(paths) = paths_by_id.remove(&id) else {
             continue;
         };
         expand_definition(text, &definition, &mut edits)?;
@@ -324,4 +290,47 @@ fn expand_definitions(
         groups.push(Group { name, paths, implicit_null: definition.implicit_null });
     }
     Ok((apply_edits(text, edits), ScalarAliases { groups }))
+}
+
+fn scalar_replacement(
+    text: &str,
+    definition: &Definition,
+) -> Result<String, Box<yamlpatch::Error>> {
+    let literal = &text[definition.value.clone()];
+    let start = definition.tag
+        .as_ref()
+        .map_or(definition.anchor.start, |tag| tag.start.min(definition.anchor.start));
+    let value: yaml_serde::Value = serde_saphyr::from_str(&text[start..definition.value.end])
+        .map_err(|error| invalid(error.to_string()))?;
+    Ok(match &value {
+        yaml_serde::Value::String(_)
+            if definition.tag.is_none() && !definition.block && !literal.contains(['\n', '\r']) =>
+        {
+            literal.to_string()
+        }
+        yaml_serde::Value::String(value) => {
+            serde_json::to_string(value).expect("serializing a string cannot fail")
+        }
+        _ => yaml_serde::to_string(&value)
+            .map_err(yamlpatch::Error::from)?
+            .trim_end()
+            .to_string(),
+    })
+}
+
+fn tag_tokens(text: &str) -> HashMap<usize, Range<usize>> {
+    Scanner::new(StrInput::new(text))
+        .filter_map(|Token(span, token)| {
+            matches!(token, TokenType::Tag(..)).then(|| (byte_range(span).start, byte_range(span)))
+        })
+        .collect()
+}
+
+fn format_anchor(name: &str, literal: &str, implicit_null: bool) -> String {
+    if implicit_null { format!("&{name}") } else { format!("&{name} {literal}") }
+}
+
+fn format_alias(name: &str, key: bool, following: &str) -> String {
+    let separator = if key && following.starts_with(':') { " " } else { "" };
+    format!("*{name}{separator}")
 }
