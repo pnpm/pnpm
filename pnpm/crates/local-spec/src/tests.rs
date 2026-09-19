@@ -81,7 +81,10 @@ fn reanchors_a_bare_path_the_way_it_reanchors_the_protocol_form() {
         render_filesystem("./tarballs/x.tgz", Some("packages/foo")).as_deref(),
         Some("../../tarballs/x.tgz"),
     );
-    assert_eq!(render_filesystem("x.tgz", Some("packages/foo")).as_deref(), Some("../../x.tgz"));
+    assert_eq!(
+        render_filesystem("../outside/x", Some("packages/foo")).as_deref(),
+        Some("../../../outside/x"),
+    );
 }
 
 /// Re-anchoring can drop a leading `./`, and a bare `<segment>/<segment>`
@@ -98,27 +101,30 @@ fn declines_a_shape_that_need_not_be_a_local_path() {
     }
 }
 
-/// A bare specifier the resolver chain reaches through a resolver other
-/// than the local one must not be re-anchored as a path: `c:pkg@1` is a
-/// single-letter named registry as much as a drive path, and
-/// `user/repo.tgz` is a hosted-git shorthand.
+/// The chain runs the local path resolver last, so a specifier that is
+/// merely path-like has already been claimed by then: `repo.tgz`
+/// resolves as a dist-tag, `user/repo.tgz` as a hosted-git shorthand,
+/// and `c:pkg@1` as a single-letter named registry.
 #[test]
 fn declines_a_bare_specifier_another_resolver_claims() {
-    for specifier in
-        ["c:pkg@1", "C:tools", "c:/abs/x.tgz", "user/repo.tgz", "user/repo.tar.gz", "user/repo"]
-    {
+    for specifier in [
+        "repo.tgz",
+        "repo.tar.gz",
+        "user/repo.tgz",
+        "user/repo.tar.gz",
+        "user/repo",
+        "c:pkg@1",
+        "C:tools",
+        "c:/abs/x.tgz",
+    ] {
         assert_eq!(render_filesystem(specifier, Some("packages/foo")), None, "{specifier}");
     }
 }
 
-/// A tarball name with no slash cannot be a hosted-git shorthand, which
-/// needs an owner segment, so it stays claimed.
+/// A path prefix is what lands a specifier on the local resolver, so a
+/// tarball reached that way still moves.
 #[test]
-fn still_claims_a_slash_free_tarball_name() {
-    assert_eq!(
-        render_filesystem("repo.tgz", Some("packages/foo")).as_deref(),
-        Some("../../repo.tgz"),
-    );
+fn still_claims_a_path_prefixed_tarball() {
     assert_eq!(
         render_filesystem("./deps/repo.tgz", Some("packages/foo")).as_deref(),
         Some("../../deps/repo.tgz"),

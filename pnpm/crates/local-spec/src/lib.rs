@@ -69,16 +69,17 @@ impl LocalSpec {
         Some(Self::anchor(Some(protocol), pkg_path, base_dir))
     }
 
-    /// Parse any specifier whose shape can only mean a local path —
-    /// [`is_local_filesystem_specifier`] decides — so a bare `./x.tgz`
-    /// moves with its declaring file the way `file:./x.tgz` does.
-    /// Returns `None` for a git shorthand, a registry range, or anything
-    /// else that shape test declines.
+    /// Parse a specifier that names a local path with or without a
+    /// protocol, so a bare `./x.tgz` moves with its declaring file the
+    /// way `file:./x.tgz` does.
     ///
-    /// A specifier carrying no protocol is claimed only when nothing
-    /// else can claim it: `<letter>:` is a named registry as much as a
-    /// drive path, and `user/repo.tgz` is a hosted-git shorthand, so
-    /// both are left for the resolver chain to dispatch.
+    /// Without a protocol, only a path-prefixed specifier is claimed —
+    /// `./`, `../`, `/`, `~/`. Every other shape reaches a resolver
+    /// before the local one, and re-anchoring rewrites a specifier into
+    /// a path-shaped one, which would move it onto the local resolver:
+    /// a slash-free `repo.tgz` is a dist-tag to the npm resolver,
+    /// `user/repo.tgz` is a hosted-git shorthand, and `<letter>:` is a
+    /// single-letter named registry as much as a Windows drive path.
     #[must_use]
     pub fn parse_filesystem(specifier: &str, base_dir: &Path) -> Option<Self> {
         if let Some(parsed) = Self::parse(specifier, base_dir) {
@@ -200,30 +201,21 @@ fn without_protocol(path: String) -> String {
 /// a local path, so re-anchoring it cannot change which resolver claims
 /// it.
 ///
-/// Stricter than [`is_local_filesystem_specifier`] on two shapes that
-/// predicate accepts, because the resolver chain reaches them through a
-/// different resolver and only a path-shaped specifier lands on the
-/// local one:
+/// Stricter than [`is_local_filesystem_specifier`], which answers a
+/// different question: what a specifier *could* name, rather than which
+/// resolver reaches it first. The chain runs the local path resolver
+/// last, so every shape that is merely path-*like* has already been
+/// claimed by then — a slash-free `repo.tgz` resolves as a dist-tag,
+/// and `user/repo.tgz` as a hosted-git shorthand. Only a path-prefixed
+/// specifier lands on the local resolver, and only those move.
 ///
-/// - `<letter>:` reads as a Windows drive path, but a single-letter
-///   named registry is well-formed too, so `c:pkg@1` is equally a
-///   registry specifier.
-/// - `user/repo.tgz` is a hosted-git shorthand — `HostedGit::from_url`
-///   claims it — so only a slash-free tarball name such as `repo.tgz`
-///   is unambiguously local.
-///
-/// Nothing is lost by declining either. A drive path names the same
-/// place from every directory, a drive-relative one is measured from
-/// process state no caller here can see, and a hosted-git shorthand is
-/// not a path at all.
+/// A `<letter>:` prefix is declined with them: a single-letter named
+/// registry is well-formed, so `c:pkg@1` is a registry specifier as
+/// much as a drive path. Nothing is lost by that — a drive path names
+/// the same place from every directory, and a drive-relative one is
+/// measured from process state no caller here can see.
 fn bare_path_is_unambiguous(specifier: &str) -> bool {
-    if is_drive_letter_prefix(specifier) {
-        return false;
-    }
-    if is_filespec(specifier) {
-        return true;
-    }
-    !specifier.contains('/') && is_local_filesystem_specifier(specifier)
+    !is_drive_letter_prefix(specifier) && is_filespec(specifier)
 }
 
 /// Whether the spec opens with `<letter>:`, which reads as a Windows
