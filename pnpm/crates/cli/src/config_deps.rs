@@ -7,7 +7,9 @@
 //! lockfile. Plugin-hook loading (the `updateConfig` half) is wired in
 //! separately.
 
-pub use hooks::{load_before_packing_hooks, prepare_config, run_update_config_hooks};
+pub use hooks::{
+    load_before_packing_hooks, may_update_config, prepare_config, run_update_config_hooks,
+};
 
 use crate::config_overrides::apply_store_dir_override;
 
