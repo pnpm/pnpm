@@ -82,6 +82,12 @@ pub(crate) struct ReuseLockfileInputs<'a> {
     /// the reuse-verbatim path shares it instead of deep-copying.
     pub shared: Option<&'a Arc<Lockfile>>,
     pub extensions_checksum: Option<&'a str>,
+    /// The `pnpmfileChecksum` this install would record, against the one
+    /// the candidate holds. A pnpmfile's `readPackage` rewrites the
+    /// manifests the recorded subtrees were resolved from, so a drifted
+    /// checksum means they describe manifests this install no longer sees
+    /// (<https://github.com/pnpm/pnpm/issues/3735>).
+    pub pnpmfile_checksum: Option<&'a str>,
     pub parsed_overrides: Option<&'a [pnpm_config_parse_overrides::VersionOverride]>,
     pub resolved_overrides: Option<&'a IndexMap<String, String>>,
 }

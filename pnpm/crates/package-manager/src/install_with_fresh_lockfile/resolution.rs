@@ -170,11 +170,26 @@ impl<'a, Reporter: self::Reporter + 'static> ResolutionContext<'a, Reporter> {
         }
     }
 
+    /// The `pnpmfileChecksum` this install would record, for the reuse
+    /// gate's comparison against the one the reuse candidate holds. A run
+    /// with no candidate never reaches the comparison, and answers `None`
+    /// rather than evaluating the pnpmfile to find out whether it exports
+    /// any hooks.
+    async fn current_pnpmfile_checksum(&self) -> Option<String> {
+        let lockfile = self.wanted_lockfile()?;
+        pnpm_hooks::current_pnpmfile_checksum(
+            self.prep.hooks.pnpmfile_hook.as_ref(),
+            lockfile.pnpmfile_checksum.as_deref(),
+        )
+        .await
+    }
+
     async fn reuse_seed(
         &self,
         shared_resolve_options: &resolve::SharedResolveOptions<'_>,
         preferred_versions_seed: &Arc<pnpm_resolving_resolver_base::PreferredVersions>,
     ) -> Option<Arc<Lockfile>> {
+        let pnpmfile_checksum = self.current_pnpmfile_checksum().await;
         resolve::lockfile_reuse_seed(resolve::ReuseSeedInputs {
             hooks: pnpm_resolving_deps_resolver::ManifestTransformHooks {
                 manifest_hook: self.prep.transforms.hooks.manifest_hook.clone(),
@@ -187,6 +202,7 @@ impl<'a, Reporter: self::Reporter + 'static> ResolutionContext<'a, Reporter> {
                 extensions_checksum: self.prep.transforms
                     .package_extensions_checksum
                     .as_deref(),
+                pnpmfile_checksum: pnpmfile_checksum.as_deref(),
                 parsed_overrides: self.prep.transforms.parsed_overrides.as_deref(),
                 resolved_overrides: self.prep.transforms.resolved_overrides.as_ref(),
             },

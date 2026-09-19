@@ -633,3 +633,43 @@ fn a_global_pnpmfile_stays_out_of_the_pnpmfile_checksum() {
 
     drop((root, mock_instance));
 }
+
+/// The lockfile describes the manifests as the hooks leave them, so a
+/// hook that no longer runs must leave no trace in it
+/// (<https://github.com/pnpm/pnpm/issues/3735>).
+#[test]
+fn removing_a_read_package_hook_drops_the_dependency_it_added() {
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    write_read_package_pnpmfile(&workspace);
+    fs::write(
+        workspace.join("package.json"),
+        r#"{"dependencies":{"@pnpm.e2e/pkg-with-1-dep":"100.0.0"}}"#,
+    )
+    .expect("write package.json");
+
+    pacquet
+        .with_args(["install", "--lockfile-only"])
+        .assert()
+        .success();
+    assert!(read_package_hook_applied(&workspace), "the hook injects its dependency");
+
+    fs::remove_file(workspace.join(".pnpmfile.cjs")).expect("remove pnpmfile");
+    pacquet_in(&workspace)
+        .with_args(["install", "--lockfile-only"])
+        .assert()
+        .success();
+    assert!(
+        !read_package_hook_applied(&workspace),
+        "the removed hook's dependency is gone from the lockfile",
+    );
+
+    drop((root, mock_instance));
+}
