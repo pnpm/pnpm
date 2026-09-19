@@ -275,6 +275,7 @@ pub(crate) fn resolve_from_local_package(
             latest: None,
             published_at: None,
             manifest: Some(std::sync::Arc::new(local_package.manifest.clone())),
+            non_deprecated_alternative: None,
         },
     }
 }

@@ -582,8 +582,19 @@ pub struct DeprecationLog {
     pub pkg_version: String,
     pub pkg_id: String,
     pub prefix: String,
-    pub deprecated: String,
     pub depth: i32,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub non_deprecated_alternative: Option<NonDeprecatedAlternative>,
+}
+
+/// A version of the same package that is not deprecated, as the resolver read
+/// it off the packument. Unlike the deprecation notice this is pnpm's own
+/// reading rather than publisher-written text, so it is safe to print.
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct NonDeprecatedAlternative {
+    pub version: String,
+    pub outside_declared_range: bool,
 }
 
 /// Severity level on the [bunyan]-shaped envelope.

@@ -183,9 +183,9 @@ async fn fails_loudly_on_a_locked_optional_dependency_for_every_coded_resolver_f
 }
 
 /// A dependency reused from the wanted lockfile still notifies the
-/// deprecation sink: the synthesized manifest round-trips the
-/// lockfile's `deprecated` metadata precisely so warm installs keep
-/// warning, matching pnpm's repeat-install behavior.
+/// deprecation sink: the synthesized manifest carries the lockfile's
+/// `deprecated` metadata, so warm installs keep warning, matching pnpm's
+/// repeat-install behavior.
 #[tokio::test]
 async fn reused_lockfile_entries_still_notify_the_deprecation_sink() {
     let (_tmp, manifest) = fake_manifest(serde_json::json!({ "old": "^1.0.0" }));
@@ -219,7 +219,6 @@ async fn reused_lockfile_entries_still_notify_the_deprecation_sink() {
     };
     assert_eq!(deprecation.pkg_name, "old");
     assert_eq!(deprecation.pkg_version, "1.2.0");
-    assert_eq!(deprecation.deprecated, "use new instead");
     assert_eq!(deprecation.depth, 0);
 }
 

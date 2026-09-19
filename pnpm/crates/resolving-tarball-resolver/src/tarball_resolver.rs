@@ -280,6 +280,7 @@ impl TarballResolver {
                 latest: None,
                 published_at: None,
                 manifest,
+                non_deprecated_alternative: None,
             },
         }
     }

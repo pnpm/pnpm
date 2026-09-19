@@ -150,6 +150,7 @@ fn deprecated_pkg_name_ver_falls_back_to_the_manifest() {
             latest: None,
             published_at: None,
             manifest: Some(std::sync::Arc::new(manifest)),
+            non_deprecated_alternative: None,
         },
     };
 

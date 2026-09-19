@@ -23,13 +23,14 @@
 //! in [`crate::pick_package()`]; both depend on this module but this
 //! module pulls in no I/O.
 
+pub(crate) mod semver_range;
+
 pub(crate) use preferred_versions::dominant_lockfile_version;
 
 pub(crate) use release_age::{PublishedByView, apply_published_by_policy};
 
 pub use release_age::{filter_pkg_metadata_by_publish_date, filter_pkg_metadata_versions};
 
-mod semver_range;
 use semver_range::{max_satisfying, min_satisfying, semver_satisfies_loose};
 
 mod preferred_versions;

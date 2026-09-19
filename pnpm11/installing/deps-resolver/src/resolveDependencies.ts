@@ -2284,8 +2284,8 @@ async function resolveDependency (
       ) {
         // Report deprecated packages only on first occurrence.
         deprecationLogger.debug({
-          deprecated: pkg.deprecated,
           depth: options.currentDepth,
+          nonDeprecatedAlternative: pkgResponse.body.nonDeprecatedAlternative,
           pkgId: pkgResponse.body.id,
           pkgName: pkg.name,
           pkgVersion: pkg.version,

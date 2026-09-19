@@ -2218,6 +2218,9 @@ importers:
       '@pnpm/text.ordinal-comparator':
         specifier: workspace:*
         version: link:../../text/ordinal-comparator
+      '@pnpm/text.sanitize':
+        specifier: workspace:*
+        version: link:../../text/sanitize
       '@pnpm/types':
         specifier: workspace:*
         version: link:../../core/types
@@ -3493,6 +3496,9 @@ importers:
       '@pnpm/store.path':
         specifier: workspace:*
         version: link:../../../store/path
+      '@pnpm/text.sanitize':
+        specifier: workspace:*
+        version: link:../../../text/sanitize
       '@pnpm/types':
         specifier: workspace:*
         version: link:../../../core/types

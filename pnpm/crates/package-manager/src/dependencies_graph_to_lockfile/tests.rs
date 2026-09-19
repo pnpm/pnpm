@@ -123,6 +123,7 @@ fn make_resolve_result(name: &str, version: &str, manifest: serde_json::Value) -
             latest: None,
             published_at: None,
             manifest: Some(std::sync::Arc::new(manifest)),
+            non_deprecated_alternative: None,
         },
     }
 }
@@ -215,6 +216,7 @@ fn git_hosted_node(alias: &str) -> (DepPath, DependenciesGraphNode) {
             latest: None,
             published_at: None,
             manifest: Some(Arc::new(json!({ "name": "is-negative", "version": "1.0.0" }))),
+            non_deprecated_alternative: None,
         },
     };
     let node = DependenciesGraphNode {
@@ -285,6 +287,7 @@ fn make_link_node(target: &str, manifest: serde_json::Value) -> DependenciesGrap
             latest: None,
             published_at: None,
             manifest: Some(std::sync::Arc::new(manifest)),
+            non_deprecated_alternative: None,
         },
     };
     DependenciesGraphNode {
@@ -326,6 +329,7 @@ fn make_file_node(name: &str, directory: &str) -> DependenciesGraphNode {
             latest: None,
             published_at: None,
             manifest: Some(Arc::new(json!({ "name": name, "version": "1.0.0" }))),
+            non_deprecated_alternative: None,
         },
     };
     DependenciesGraphNode {
@@ -414,6 +418,7 @@ fn make_named_registry_node(
             latest: None,
             published_at: None,
             manifest: Some(std::sync::Arc::new(json!({ "name": name, "version": version }))),
+            non_deprecated_alternative: None,
         },
     };
     DependenciesGraphNode {

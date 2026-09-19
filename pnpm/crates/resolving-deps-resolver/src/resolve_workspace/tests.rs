@@ -163,6 +163,7 @@ impl Resolver for ProjectRelativeWorkspaceResolver {
                     manifest: Some(std::sync::Arc::new(
                         serde_json::json!({ "name": "shared", "version": "1.0.0" }),
                     )),
+                    non_deprecated_alternative: None,
                 },
             }))
         })
@@ -206,6 +207,7 @@ fn fake_result(
             latest: Some(version.to_string()),
             published_at: published_at.map(str::to_string),
             manifest: Some(std::sync::Arc::new(manifest)),
+            non_deprecated_alternative: None,
         },
     }
 }
@@ -692,6 +694,7 @@ impl Resolver for OverlapRecordingResolver {
                         "name": alias,
                         "version": "1.0.0",
                     }))),
+                    non_deprecated_alternative: None,
                 },
                 alias: Some(alias),
             }))

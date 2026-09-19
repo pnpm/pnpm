@@ -35,6 +35,7 @@ fn result_with_manifest(name: &str, manifest: serde_json::Value) -> ResolveResul
             latest: None,
             published_at: None,
             manifest: Some(Arc::new(manifest)),
+            non_deprecated_alternative: None,
         },
     }
 }
@@ -64,6 +65,7 @@ fn alias_tarball_result(alias: &str, manifest: serde_json::Value) -> ResolveResu
             latest: None,
             published_at: None,
             manifest: Some(Arc::new(manifest)),
+            non_deprecated_alternative: None,
         },
     }
 }
@@ -87,6 +89,7 @@ fn anonymous_tarball_result(manifest: serde_json::Value) -> ResolveResult {
             latest: None,
             published_at: None,
             manifest: Some(Arc::new(manifest)),
+            non_deprecated_alternative: None,
         },
     }
 }

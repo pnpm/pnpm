@@ -56,6 +56,7 @@
     "@pnpm/resolving.registry.types": "workspace:*",
     "@pnpm/semver-diff": "catalog:",
     "@pnpm/store.path": "workspace:*",
+    "@pnpm/text.sanitize": "workspace:*",
     "@pnpm/types": "workspace:*",
     "@pnpm/workspace.project-manifest-reader": "workspace:*",
     "@zkochan/table": "catalog:",

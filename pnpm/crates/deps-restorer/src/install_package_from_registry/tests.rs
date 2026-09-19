@@ -644,6 +644,7 @@ async fn install_returns_unsupported_resolution_when_name_ver_missing() {
             latest: None,
             published_at: None,
             manifest: None,
+            non_deprecated_alternative: None,
         },
     };
 
@@ -730,6 +731,7 @@ async fn install_rejects_traversal_manifest_name() {
                 "name": traversal_name,
                 "version": "1.0.0",
             }))),
+            non_deprecated_alternative: None,
         },
     };
 

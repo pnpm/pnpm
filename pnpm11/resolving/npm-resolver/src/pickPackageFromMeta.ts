@@ -3,6 +3,7 @@ import util from 'node:util'
 import { PnpmError } from '@pnpm/error'
 import { filterPkgMetadataByPublishDate } from '@pnpm/resolving.registry.pkg-metadata-filter'
 import type { PackageInRegistry, PackageMeta, PackageMetaWithTime } from '@pnpm/resolving.registry.types'
+import type { NonDeprecatedAlternative } from '@pnpm/resolving.resolver-base'
 import {
   EXISTING_VERSION_SELECTOR_WEIGHT,
   type VersionSelectors,
@@ -382,6 +383,105 @@ function semverSatisfiesLoose (version: string, range: string): boolean {
 // semver's own maxSatisfying/minSatisfying re-parse the range and every
 // version string on each call, which dominates resolution time on large
 // packuments; these reuse the parse caches instead.
+/**
+ * The newest version of `meta` the registry does not report as deprecated,
+ * for the deprecation warning to point at.
+ *
+ * `meta` must already be narrowed by any active `publishedBy` policy, so the
+ * version named is one pnpm would actually install. `undefined` when every
+ * admissible version is deprecated. Reads deprecation off the packument pnpm
+ * already holds, so it costs no extra request.
+ */
+export interface PublishPolicyOptions {
+  publishedBy?: Date
+  publishedByExclude?: PackageVersionPolicy
+}
+
+/** Whether the policy trusts `version` outright. */
+function policyTrusts (
+  meta: PackageMeta,
+  version: string,
+  opts: PublishPolicyOptions
+): boolean {
+  const excludeResult = opts.publishedByExclude?.(meta.name)
+  if (excludeResult === true) return true
+  return Array.isArray(excludeResult) && excludeResult.includes(version)
+}
+
+/**
+ * Whether the cutoff has positive evidence that `version` is too new.
+ *
+ * A version pnpm cannot date is not flagged, matching the resolver's own
+ * violation check, which likewise only flags a version it can date.
+ * Reporting wants this direction: hiding an available version over metadata
+ * pnpm failed to read would be its own wrong answer.
+ */
+export function knownImmature (
+  meta: PackageMeta,
+  version: string,
+  opts: PublishPolicyOptions
+): boolean {
+  if (!opts.publishedBy) return false
+  if (policyTrusts(meta, version, opts)) return false
+  const publishedAt = meta.time?.[version]
+  if (publishedAt == null) return false
+  const ts = new Date(publishedAt).getTime()
+  return !Number.isNaN(ts) && ts > opts.publishedBy.getTime()
+}
+
+/**
+ * Whether `version` clears the cutoff the way the pick's own filter requires.
+ *
+ * The inverse of {@link knownImmature}: admission needs positive evidence of
+ * maturity, because `filterPkgMetadataByPublishDate` drops every version it
+ * cannot date. Recommending a version wants this direction, so pnpm never
+ * names one the pick would then refuse.
+ */
+export function installableUnderPolicy (
+  meta: PackageMeta,
+  version: string,
+  opts: PublishPolicyOptions
+): boolean {
+  if (!opts.publishedBy) return true
+  if (policyTrusts(meta, version, opts)) return true
+  if (meta.time == null) {
+    // Abbreviated metadata carries no per-version timestamps, and the pick
+    // admits every version here once `modified` proves the whole document
+    // predates the cutoff. Follow it, so a package that resolved from
+    // abbreviated metadata still gets told where to go.
+    const modified = parseModifiedDate(meta.modified)
+    return modified != null && modified <= opts.publishedBy
+  }
+  const publishedAt = meta.time[version]
+  if (publishedAt == null) return false
+  const ts = new Date(publishedAt).getTime()
+  return !Number.isNaN(ts) && ts <= opts.publishedBy.getTime()
+}
+
+export function findNonDeprecatedAlternative (
+  meta: PackageMeta,
+  spec: RegistryPackageSpec,
+  opts: PublishPolicyOptions
+): NonDeprecatedAlternative | undefined {
+  let newest: semver.SemVer | undefined
+  for (const [version, versionMeta] of Object.entries(meta.versions)) {
+    if (versionMeta.deprecated) continue
+    if (!installableUnderPolicy(meta, version, opts)) continue
+    const parsed = semver.parse(version, true)
+    if (parsed != null && (newest == null || parsed.compare(newest) > 0)) {
+      newest = parsed
+    }
+  }
+  if (newest == null) return undefined
+  const version = newest.version
+  return {
+    version,
+    outsideDeclaredRange: spec.type === 'range' &&
+      spec.fetchSpec !== '*' &&
+      !semverSatisfiesLoose(version, spec.fetchSpec),
+  }
+}
+
 function maxSatisfyingLoose (versions: string[], range: string): string | null {
   return findSatisfyingLoose(versions, range, (candidate, best) => candidate.compare(best) > 0)
 }

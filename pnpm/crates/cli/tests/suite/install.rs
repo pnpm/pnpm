@@ -382,7 +382,7 @@ fn should_install_circular_dependencies() {
 }
 
 #[test]
-fn install_preserves_deprecated_lockfile_metadata_when_reusing_resolution() {
+fn install_reports_a_deprecation_without_the_notice_and_keeps_the_metadata_on_reuse() {
     let CommandTempCwd {
         pacquet,
         root,
@@ -404,10 +404,19 @@ fn install_preserves_deprecated_lockfile_metadata_when_reusing_resolution() {
     )
     .expect("write package.json");
 
-    pacquet
+    let assertion = pacquet
         .with_arg("install")
         .assert()
         .success();
+    let stdout = String::from_utf8_lossy(&assertion.get_output().stdout).into_owned();
+    assert!(
+        stdout.contains("deprecated @pnpm.e2e/deprecated@1.0.0"),
+        "the install should name the deprecated dependency:\n{stdout}",
+    );
+    assert!(
+        !stdout.contains("This package is deprecated."),
+        "the registry's deprecation notice must not reach the terminal:\n{stdout}",
+    );
     let lockfile_path = workspace.join("pnpm-lock.yaml");
     let first = fs::read_to_string(&lockfile_path).expect("read pnpm-lock.yaml");
     assert!(

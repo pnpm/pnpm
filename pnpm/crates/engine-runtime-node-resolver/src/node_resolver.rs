@@ -196,6 +196,7 @@ impl NodeResolver {
                 latest: None,
                 published_at: None,
                 manifest: Some(std::sync::Arc::new(manifest)),
+                non_deprecated_alternative: None,
             },
         }))
     }

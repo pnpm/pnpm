@@ -201,6 +201,7 @@ async function resolveAndFetch (
   let { manifest } = resolveResult
   const {
     latest,
+    nonDeprecatedAlternative,
     resolvedVia,
     publishedAt,
     normalizedBareSpecifier,
@@ -286,6 +287,7 @@ async function resolveAndFetch (
         isLocal: false as const,
         isInstallable: isInstallable ?? undefined,
         latest,
+        nonDeprecatedAlternative,
         manifest,
         normalizedBareSpecifier,
         resolution,
@@ -371,6 +373,7 @@ async function resolveAndFetch (
       isLocal: false as const,
       isInstallable: isInstallable ?? undefined,
       latest,
+      nonDeprecatedAlternative,
       manifest,
       normalizedBareSpecifier,
       resolution,

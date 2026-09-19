@@ -499,8 +499,13 @@ fn deprecation_log_fn<Reporter: self::Reporter>() -> pnpm_resolving_deps_resolve
             pkg_version: deprecation.pkg_version,
             pkg_id: deprecation.pkg_id,
             prefix: deprecation.prefix,
-            deprecated: deprecation.deprecated,
             depth: deprecation.depth,
+            non_deprecated_alternative: deprecation.non_deprecated_alternative.map(|alt| {
+                pnpm_reporter::NonDeprecatedAlternative {
+                    version: alt.version,
+                    outside_declared_range: alt.outside_declared_range,
+                }
+            }),
         }));
     })
 }

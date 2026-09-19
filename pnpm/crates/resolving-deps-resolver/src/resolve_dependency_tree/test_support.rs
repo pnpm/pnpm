@@ -16,6 +16,7 @@ pub(super) fn manifest_result(manifest: serde_json::Value) -> ResolveResult {
             latest: None,
             published_at: None,
             manifest: Some(std::sync::Arc::new(manifest)),
+            non_deprecated_alternative: None,
         },
     }
 }

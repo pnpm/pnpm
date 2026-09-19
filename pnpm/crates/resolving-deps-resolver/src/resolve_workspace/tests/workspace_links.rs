@@ -206,6 +206,7 @@ async fn catalogs_work_in_injected_workspace_packages() {
                             "version": "0.0.0",
                             "dependencies": { "is-positive": "catalog:" },
                         }))),
+                        non_deprecated_alternative: None,
                     },
                 },
             ),

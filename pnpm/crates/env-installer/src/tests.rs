@@ -263,6 +263,7 @@ impl Resolver for FixtureResolver {
                     latest: Some(version),
                     published_at: None,
                     manifest: Some(Arc::new(manifest)),
+                    non_deprecated_alternative: None,
                 },
             }))
         })
