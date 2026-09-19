@@ -244,7 +244,15 @@ fn gvs_successful_build_creates_package_directory_with_build_artifacts() {
 /// reinstall with allowBuilds` (`globalVirtualStore.ts:290`). The
 /// hash-directory move is what makes approval safe: the unbuilt slot stays
 /// intact and the built one is a sibling.
+/// Windows-skipped on a product gap, not a test one: approving the
+/// build and reinstalling fails there with `os error 267`, the OS
+/// rejecting the working directory pnpm hands the script. Tracked in
+/// <https://github.com/pnpm/pnpm/issues/15111>.
 #[test]
+#[cfg_attr(
+    target_os = "windows",
+    ignore = "pnpm/pnpm#15111: approving a build spawns the lifecycle script with an invalid cwd"
+)]
 fn gvs_approve_builds_scenario_moves_artifacts_to_a_new_hash_dir() {
     let CommandTempCwd { root, workspace, npmrc_info, .. } =
         CommandTempCwd::init().add_mocked_registry();
@@ -575,7 +583,15 @@ fn orphan_needs_build_marker_does_not_invalidate_repeat_install() {
 /// [`gvs_approve_builds_scenario_moves_artifacts_to_a_new_hash_dir`]:
 /// the same hash move, but driven by the real `approve-builds` command,
 /// which also has to persist the approval into `pnpm-workspace.yaml`.
+/// Windows-skipped on a product gap, not a test one: approving the
+/// build and reinstalling fails there with `os error 267`, the OS
+/// rejecting the working directory pnpm hands the script. Tracked in
+/// <https://github.com/pnpm/pnpm/issues/15111>.
 #[test]
+#[cfg_attr(
+    target_os = "windows",
+    ignore = "pnpm/pnpm#15111: approving a build spawns the lifecycle script with an invalid cwd"
+)]
 fn approve_builds_updates_gvs_symlinks_and_runs_builds_at_the_new_hash_dir() {
     let CommandTempCwd { root, workspace, npmrc_info, .. } =
         CommandTempCwd::init().add_mocked_registry();
