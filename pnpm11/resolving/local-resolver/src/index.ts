@@ -8,9 +8,9 @@ import type { DirectoryResolution, LatestInfo, LatestQuery, Resolution, ResolveR
 import type { DependencyManifest, PkgResolutionId } from '@pnpm/types'
 import { readProjectManifestOnly } from '@pnpm/workspace.project-manifest-reader'
 
-import { isLocalFilesystemSpecifier, type LocalPackageSpec, parseLocalPath, parseLocalScheme, type WantedLocalDependency } from './parseBareSpecifier.js'
+import { barePathIsUnambiguous, isDriveLetterPrefix, isFilespec, isLocalFilesystemSpecifier, isTarballFilename, type LocalPackageSpec, parseLocalPath, parseLocalScheme, type WantedLocalDependency } from './parseBareSpecifier.js'
 
-export { isLocalFilesystemSpecifier, type WantedLocalDependency }
+export { barePathIsUnambiguous, isDriveLetterPrefix, isFilespec, isLocalFilesystemSpecifier, isTarballFilename, type WantedLocalDependency }
 
 export interface LocalResolveResult extends ResolveResult {
   manifest?: DependencyManifest

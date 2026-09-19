@@ -4,7 +4,7 @@ import path from 'node:path'
 
 import { expect, jest, test } from '@jest/globals'
 import { logger } from '@pnpm/logger'
-import { isLocalFilesystemSpecifier, resolveFromLocalPath, resolveFromLocalScheme } from '@pnpm/resolving.local-resolver'
+import { barePathIsUnambiguous, isLocalFilesystemSpecifier, resolveFromLocalPath, resolveFromLocalScheme } from '@pnpm/resolving.local-resolver'
 import type { DirectoryResolution } from '@pnpm/resolving.resolver-base'
 import normalize from 'normalize-path'
 
@@ -223,5 +223,31 @@ test('isLocalFilesystemSpecifier recognizes only unambiguous local specifiers', 
   }
   for (const specifier of ['is-positive', '^1.0.0', 'latest', 'npm:is-positive@1', 'user/repo', 'user/repo#release.tgz', 'gh:@scope/pkg', 'https://example.com/pkg.tgz', 'workspace:*']) {
     expect([specifier, isLocalFilesystemSpecifier(specifier)]).toEqual([specifier, false])
+  }
+})
+
+// The separator in `.tar.gz` is a literal, matching how pnpm v12 decides this
+// with `ends_with(".tar.gz")`. A directory whose name merely looks like one is
+// a directory.
+test('isLocalFilesystemSpecifier reads a tarball suffix literally', () => {
+  for (const specifier of ['pkg.tgz', 'pkg.tar.gz', 'pkg.tar', 'PKG.TAR.GZ']) {
+    expect([specifier, isLocalFilesystemSpecifier(specifier)]).toEqual([specifier, true])
+  }
+  for (const specifier of ['pkg.tarXgz', 'pkg.tar-gz']) {
+    expect([specifier, isLocalFilesystemSpecifier(specifier)]).toEqual([specifier, false])
+  }
+})
+
+// Narrower again than `isLocalFilesystemSpecifier`: a caller that re-anchors a
+// specifier needs it to stay on the local resolver afterwards, so it may only
+// claim the path-prefixed shapes. A tarball file name is a dist-tag to the npm
+// resolver, and `<letter>:` is a single-letter named registry as much as a
+// Windows drive path.
+test('barePathIsUnambiguous recognizes only path-prefixed specifiers', () => {
+  for (const specifier of ['./pkg', '../pkg', '/abs/pkg', '~/pkg', '.', '..', '.hidden/pkg']) {
+    expect([specifier, barePathIsUnambiguous(specifier)]).toEqual([specifier, true])
+  }
+  for (const specifier of ['C:/pkg', 'C:pkg', 'pkg-1.0.0.tgz', 'deps/pkg-1.0.0.tar.gz', 'is-positive', '^1.0.0', 'npm:is-positive@1', 'user/repo', 'gh:@scope/pkg', 'workspace:*']) {
+    expect([specifier, barePathIsUnambiguous(specifier)]).toEqual([specifier, false])
   }
 })

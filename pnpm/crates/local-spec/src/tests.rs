@@ -107,6 +107,14 @@ fn keeps_a_reanchored_bare_path_unambiguously_local() {
     assert_eq!(render_filesystem("./libs/x", Some(".")).as_deref(), Some("./libs/x"));
 }
 
+/// A specifier naming the consuming package's own directory diffs to the
+/// empty string, which reads as a missing path rather than as "here".
+#[test]
+fn renders_a_path_naming_the_consumer_as_here() {
+    assert_eq!(render_filesystem("./packages/foo", Some("packages/foo")).as_deref(), Some("."));
+    assert_eq!(render("file:./packages/foo", Some("packages/foo")), "file:.");
+}
+
 #[test]
 fn declines_a_shape_that_need_not_be_a_local_path() {
     for specifier in ["user/repo", "^1.2.3", "npm:other@^1", "catalog:", "workspace:*"] {
@@ -132,6 +140,20 @@ fn declines_a_bare_specifier_another_resolver_claims() {
     ] {
         assert_eq!(render_filesystem(specifier, Some("packages/foo")), None, "{specifier}");
     }
+}
+
+/// A tarball's protocol is unconditional, so naming it cannot change
+/// how the package materializes. A directory's turns on whether the
+/// dependency is injected, which the renderer cannot see, and an
+/// explicit `link:` would outrank that and reference an injected
+/// package in place instead of copying it.
+#[test]
+fn names_a_protocol_for_a_drive_anchored_path_only_when_it_is_free() {
+    let drive = Path::new("C:/workspace");
+    let render =
+        |specifier| LocalSpec::parse_filesystem(specifier, drive).map(|spec| spec.render(None));
+    assert_eq!(render("./deps/x.tgz").as_deref(), Some("file:C:/workspace/deps/x.tgz"));
+    assert_eq!(render("./local-dep").as_deref(), Some("C:/workspace/local-dep"));
 }
 
 /// A path prefix is what lands a specifier on the local resolver, so a

@@ -2,6 +2,7 @@ import path from 'node:path'
 
 import type { PackageSelector, VersionOverride as VersionOverrideBase } from '@pnpm/config.parse-overrides'
 import { isValidPeerRange } from '@pnpm/deps.peer-range'
+import { barePathIsUnambiguous, isDriveLetterPrefix, isFilespec, isTarballFilename } from '@pnpm/resolving.local-resolver'
 import { type Dependencies, DEPENDENCIES_OR_PEER_FIELDS, type DependenciesOrPeersField, type PackageManifest, type ProjectManifest, type ReadPackageHook } from '@pnpm/types'
 import normalizePath from 'normalize-path'
 import { partition } from 'ramda'
@@ -158,24 +159,33 @@ function splitOverrides (overrides: VersionOverrideWithoutRawSelector[], rootDir
 }
 
 interface LocalTarget {
-  protocol: LocalProtocol
+  /** Empty for a value written as a bare path, which carries none. */
+  protocol: LocalProtocol | ''
   absolutePath: string
   specifiedViaRelativePath: boolean
 }
 
 type LocalProtocol = 'link:' | 'file:'
 
+const isHomeRelative = /^~[/\\]/
+
 function createLocalTarget (override: VersionOverrideWithoutRawSelector, rootDir: string): LocalTarget | undefined {
-  let protocol: LocalProtocol | undefined
+  let protocol: LocalProtocol | '' | undefined
   if (override.newBareSpecifier.startsWith('file:')) {
     protocol = 'file:'
   } else if (override.newBareSpecifier.startsWith('link:')) {
     protocol = 'link:'
+  } else if (barePathIsUnambiguous(override.newBareSpecifier)) {
+    protocol = ''
   } else {
     return undefined
   }
   const pkgPath = override.newBareSpecifier.substring(protocol.length)
-  const specifiedViaRelativePath = !path.isAbsolute(pkgPath)
+  // A `~` path is expanded against the home directory by the resolver and
+  // recorded verbatim, so it names the same place from everywhere. The
+  // resolver forward-slashes a specifier before it reads that prefix, so
+  // `~\` is the same path to it as `~/`.
+  const specifiedViaRelativePath = !path.isAbsolute(pkgPath) && !isHomeRelative.test(pkgPath)
   const absolutePath = specifiedViaRelativePath ? path.join(rootDir, pkgPath) : pkgPath
   return { absolutePath, specifiedViaRelativePath, protocol }
 }
@@ -315,10 +325,46 @@ function resolveOverriddenBareSpecifier (versionOverride: VersionOverride, dir: 
     : versionOverride.newBareSpecifier
 }
 
-function resolveLocalOverride ({ specifiedViaRelativePath, absolutePath }: LocalTarget, pkgDir?: string): string {
-  return specifiedViaRelativePath && pkgDir
+function resolveLocalOverride ({ specifiedViaRelativePath, absolutePath, protocol }: LocalTarget, pkgDir?: string): string {
+  const relative = specifiedViaRelativePath && pkgDir
     ? normalizePath(path.relative(pkgDir, absolutePath))
     : absolutePath
+  // A target naming the consuming package's own directory diffs to the empty
+  // string, which reads as a missing path rather than as "here".
+  const resolved = relative === '' ? '.' : relative
+  return protocol === '' ? renderBarePath(resolved) : resolved
+}
+
+/**
+ * Render a path that carries no protocol, keeping it unambiguously local.
+ *
+ * Re-anchoring can drop a leading `./` — `./libs/x` measured from the
+ * workspace root renders as `libs/x` — and a bare `<segment>/<segment>` reads
+ * as a hosted-git shorthand instead, so the prefix goes back on.
+ *
+ * A drive-prefixed path cannot be made unambiguous by a prefix, since
+ * `./C:/x` names something else entirely. A tarball takes `file:` instead,
+ * which is what the local resolver resolves it under either way, so naming
+ * the protocol cannot change how it materializes.
+ *
+ * A directory stays bare. Its protocol is not ours to choose: the resolver
+ * reads a protocol-less directory as `link:` only while the dependency is not
+ * injected, and as `file:` when it is. An explicit `link:` would outrank that
+ * and silently reference an injected package in place instead of copying it,
+ * so the drive-prefixed spelling keeps its ambiguity rather than trade it for
+ * a wrong materialization.
+ */
+function renderBarePath (path: string): string {
+  // Unlike a `file:` / `link:` value, which is emitted as written, a bare path
+  // is spelled by pnpm rather than by the user, so it is spelled the way pnpm
+  // v12 spells it: every separator forward, and nothing else touched.
+  // `normalize-path` cannot stand in, because it also collapses repeated
+  // separators, and a UNC share's leading `\\` is what makes it a share.
+  const spec = path.replace(/\\/g, '/')
+  if (isDriveLetterPrefix(spec)) {
+    return isTarballFilename(spec) ? `file:${spec}` : spec
+  }
+  return isFilespec(spec) ? spec : `./${spec}`
 }
 
 function pickMostSpecificVersionOverride (versionOverrides: VersionOverride[]): VersionOverride | undefined {
