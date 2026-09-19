@@ -71,8 +71,9 @@ fn marker_args(relative_path: &str) -> [String; 3] {
     ]
 }
 
-/// Write `file` under `workspace` as a Node program and return the
-/// `pacquet exec` arguments that run it from a project directory.
+/// The probe sits at the workspace root while `pacquet exec` runs with a
+/// project directory as its cwd, hence the `..` the returned arguments
+/// reach it through.
 fn write_exec_probe(workspace: &Path, file: &str, source: &str) -> [String; 2] {
     fs::write(workspace.join(file), source).expect("write the exec probe");
     ["node".to_owned(), format!("../{file}")]
@@ -85,15 +86,16 @@ const name = require('path').basename(process.cwd())
 const log = () => fs.appendFileSync('../order.log', name + '\n')
 ";
 
-/// The `pacquet exec` arguments that take part in the overlap probe
-/// [`write_concurrency_probe`] writes.
+/// Names the file [`write_concurrency_probe`] writes, so the two move
+/// together.
 const CONCURRENCY_PROBE_ARGS: [&str; 2] = ["node", "../track-concurrency.cjs"];
 
-/// Write the probe that records how many commands were running at once.
+/// `mkdir` is the lock each run claims its slot with, because it fails
+/// rather than succeeding twice.
 ///
-/// Each run claims a directory named after its own project, waits, counts
-/// the claims standing at that moment, and releases. `mkdir` is the lock
-/// because it fails rather than succeeding twice.
+/// The claim is sampled repeatedly rather than once, because two runs
+/// whose starts are further apart than a single sampling delay still
+/// overlap, and one sample apiece can fall either side of that overlap.
 fn write_concurrency_probe(workspace: &Path) {
     fs::write(
         workspace.join("track-concurrency.cjs"),
@@ -101,12 +103,15 @@ fn write_concurrency_probe(workspace: &Path) {
 const path = require('path')
 const marker = path.join('..', 'active-' + path.basename(process.cwd()))
 fs.mkdirSync(marker)
-setTimeout(() => {
+const until = Date.now() + 600
+const sample = () => {
   const active = fs.readdirSync('..').filter((entry) => entry.startsWith('active-'))
   if (active.length >= 2) fs.writeFileSync('../saw-parallel', '')
   if (active.length > 2) fs.writeFileSync('../exceeded-concurrency', '')
-  setTimeout(() => fs.rmdirSync(marker), 200)
-}, 200)
+  if (Date.now() < until) setTimeout(sample, 20)
+  else fs.rmdirSync(marker)
+}
+setTimeout(sample, 20)
 ",
     )
     .expect("write concurrency probe");
@@ -122,8 +127,8 @@ printf "%s %s\n" "$child_group" "$parent_group" > ../process-groups.txt"#
 }
 
 /// `pacquet -r exec <command>` runs the command once in every workspace
-/// project, each with cwd == its own package root — a relative `touch`
-/// lands a marker inside each package directory.
+/// project, each with cwd == its own package root, so a marker written at
+/// a relative path lands inside each package directory.
 #[test]
 fn recursive_exec_runs_command_in_every_project() {
     let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
