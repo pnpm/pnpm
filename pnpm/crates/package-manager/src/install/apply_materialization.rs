@@ -75,6 +75,7 @@ async fn link_apply_projects<Reporter: self::Reporter + 'static>(
         current_lockfile: state.current_lockfile.as_ref(),
         wanted_lockfile: state.wanted_lockfile,
         workspace_root: &inputs.projects.workspace_root,
+        workspace_packages: inputs.projects.workspace_packages.as_ref(),
         project_manifests: inputs.projects.importers.manifests,
         materialized_project_manifests: &state.project_manifests,
     })

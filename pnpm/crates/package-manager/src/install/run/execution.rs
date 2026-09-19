@@ -2,8 +2,8 @@ use super::{
     super::{
         ApplyMaterializationInputs, Arc, AtomicU8, IncludedDependencies, InstallError, LogEvent,
         LogLevel, MaterializationInputs, PackageManifest, PathBuf, RebuildOptions, Reporter,
-        SummaryLog, apply_materialization_result, materialize, prior_hoisted_dependencies,
-        prior_hoisted_locations,
+        SummaryLog, apply_materialization_result, build_workspace_packages_map, materialize,
+        prior_hoisted_dependencies, prior_hoisted_locations,
     },
     Dispatched, InstallRunOutcome, InstallScope, Loaded, Lockfiles, RunExecution, Settled,
     Verification, dispatch, load_lockfiles, settle_wanted_lockfile, workspace_projects,
@@ -217,6 +217,21 @@ impl<'a> RunExecution<'a> {
         }
     }
 
+    fn workspace_packages_for_link_materialization(
+        &self,
+    ) -> Option<pnpm_resolving_resolver_base::WorkspacePackages> {
+        let config = self.install.context.config;
+        if !config.exclude_links_from_lockfile
+            || !config.link_workspace_packages.enabled_at_depth(0)
+        {
+            return None;
+        }
+        build_workspace_packages_map(workspace_projects(
+            self.loaded_workspace_projects,
+            self.options.selection.as_ref(),
+        ))
+    }
+
     fn apply_inputs<'r>(
         &mut self,
         projects: (&'r InstallScope<'_>, &'r [(PathBuf, &'r PackageManifest)]),
@@ -229,6 +244,7 @@ impl<'a> RunExecution<'a> {
         'a: 'r,
     {
         let (scope, project_manifests) = projects;
+        let workspace_packages = self.workspace_packages_for_link_materialization();
         ApplyMaterializationInputs {
             completion: self.take_completion_context(),
             mode: crate::install::state_options::CompletionMode {
@@ -249,6 +265,7 @@ impl<'a> RunExecution<'a> {
                     real_ids: &scope.importers.real_importer_ids,
                     manifests: project_manifests,
                 },
+                workspace_packages,
                 workspace_root: std::mem::take(&mut self.workspace.dirs.workspace_root),
                 included: self.mode.included,
                 node_linker: self.install.execution.node_linker,
