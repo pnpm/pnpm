@@ -67,9 +67,10 @@ function hasLiveMembers (group: number): boolean {
 }
 
 /**
- * Whether `/proc` lists a process of `group` that is not a zombie. A
- * process that vanishes between the listing and the read has exited; one
- * whose state cannot be read counts as live.
+ * Whether `/proc` lists a process of `group` that is not a zombie. An entry
+ * whose state cannot be read is not counted: it has exited since the
+ * listing, or it belongs to another user under a restricted process table,
+ * and either way it is not a member pnpm started and can observe.
  */
 function hasLiveMembersInProc (group: number): boolean {
   return fs.readdirSync('/proc').some((entry) => {
@@ -77,8 +78,8 @@ function hasLiveMembersInProc (group: number): boolean {
     let stat: string
     try {
       stat = fs.readFileSync(`/proc/${entry}/stat`, 'utf8')
-    } catch (err: unknown) {
-      return errorCode(err) !== 'ENOENT' && errorCode(err) !== 'ESRCH'
+    } catch {
+      return false
     }
     // The fields after the parenthesized command name: state, parent, group, ...
     const fields = stat.slice(stat.lastIndexOf(')') + 2).split(' ')

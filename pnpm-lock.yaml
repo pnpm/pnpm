@@ -4574,6 +4574,9 @@ importers:
       '@pnpm/exec.npm-lifecycle':
         specifier: workspace:*
         version: 'link:'
+      '@pnpm/prepare':
+        specifier: workspace:*
+        version: link:../../__utils__/prepare
       '@types/which':
         specifier: 'catalog:'
         version: 3.0.4

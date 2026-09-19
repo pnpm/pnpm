@@ -47,6 +47,7 @@
   "devDependencies": {
     "@jest/globals": "catalog:",
     "@pnpm/exec.npm-lifecycle": "workspace:*",
+    "@pnpm/prepare": "workspace:*",
     "@types/which": "catalog:",
     "tempy": "catalog:"
   },

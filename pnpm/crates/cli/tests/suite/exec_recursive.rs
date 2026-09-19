@@ -168,7 +168,6 @@ fn filtered_exec_without_a_terminal_gives_the_command_its_own_process_group() {
     drop(root);
 }
 
-/// The process groups the probe recorded: the command's, then pacquet's.
 fn read_process_groups(workspace: &Path) -> (String, String) {
     let groups =
         fs::read_to_string(workspace.join("process-groups.txt")).expect("read process groups");

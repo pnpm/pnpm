@@ -3,6 +3,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 
 import { afterEach, expect, test } from '@jest/globals'
+import { killProcessGroup } from '@pnpm/prepare'
 
 const fixture = path.join(import.meta.dirname, 'fixtures', 'interrupt')
 const runScript = path.join(fixture, 'run.mjs')
@@ -69,7 +70,7 @@ async function runWithoutTerminal (script: string, signal: NodeJS.Signals): Prom
     })
   })
   const killTimer = setTimeout(() => {
-    proc.kill('SIGKILL')
+    killProcessGroup(proc.pid!)
   }, shutdownTimeout)
   let stdout = ''
   proc.stdout.setEncoding('utf8')
@@ -82,20 +83,12 @@ async function runWithoutTerminal (script: string, signal: NodeJS.Signals): Prom
   try {
     await Promise.race([started, exited])
     proc.kill(signal)
-    const result = await exited
-    await closed
-    return result
+    return await exited
   } finally {
     clearTimeout(killTimer)
+    // A survivor would hold the output pipe open, so the group goes first
+    // and the pipe closes on its own after that.
     killProcessGroup(proc.pid!)
-  }
-}
-
-/** Kill the detached runner and everything it started, whatever state a failed test left them in. */
-function killProcessGroup (pid: number): void {
-  try {
-    process.kill(-pid, 'SIGKILL')
-  } catch {
-    // the group is gone already
+    await closed
   }
 }

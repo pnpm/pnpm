@@ -324,8 +324,8 @@ fn a_later_script_still_gets_a_plain_first_interrupt() {
     drop(root);
 }
 
-/// Write a project whose `dev` script execs `script`, so the shell is out
-/// of the picture and the relay's target is the script itself.
+/// The `dev` script execs `script`: the shell is out of the picture, and
+/// the relay's target is the script itself.
 fn write_project(dir: &Path, name: &str, script: &str) {
     write_project_running(dir, name, "exec node dev.js", script);
 }
