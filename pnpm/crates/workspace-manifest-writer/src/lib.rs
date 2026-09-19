@@ -40,6 +40,7 @@ mod edit;
 mod flow;
 mod model;
 mod render;
+mod scalar_aliases;
 
 #[cfg(test)]
 mod tests;
@@ -372,6 +373,9 @@ pub fn update_manifest_field(
 
     let edit = edit_manifest_field(original.as_deref(), key, value)
         .map_err(|error| match error {
+            EditManifestFieldError::Edit(source) => {
+                UpdateWorkspaceManifestError::Edit { path: path.to_path_buf(), source }
+            }
             EditManifestFieldError::Parse { source } => {
                 UpdateWorkspaceManifestError::Parse { path: path.to_path_buf(), source }
             }
@@ -426,6 +430,10 @@ pub enum ManifestEdit {
 #[derive(Debug, Display, Error, Diagnostic)]
 #[non_exhaustive]
 pub enum EditManifestFieldError {
+    #[display("Failed to edit the document as YAML: {_0}")]
+    #[diagnostic(code(ERR_PNPM_WORKSPACE_MANIFEST_WRITER_EDIT))]
+    Edit(#[error(source)] Box<yamlpatch::Error>),
+
     #[display("Failed to parse the document as YAML: {source}")]
     #[diagnostic(code(ERR_PNPM_WORKSPACE_MANIFEST_WRITER_PARSE))]
     Parse {
@@ -471,7 +479,7 @@ pub fn edit_manifest_field(
     if manifest.document.keys.is_empty() {
         return Ok(ManifestEdit::Remove);
     }
-    Ok(ManifestEdit::Write(manifest.document.into_text()))
+    Ok(ManifestEdit::Write(manifest.document.into_text().map_err(EditManifestFieldError::Edit)?))
 }
 
 fn remove_manifest(path: &Path) -> Result<(), UpdateWorkspaceManifestError> {
@@ -491,7 +499,13 @@ fn write_or_remove_manifest(
     if manifest.document.keys.is_empty() {
         remove_manifest(path)
     } else {
-        write_atomic(path, &manifest.document.into_text())
+        let text = manifest.document
+            .into_text()
+            .map_err(|source| UpdateWorkspaceManifestError::Edit {
+                path: path.to_path_buf(),
+                source,
+            })?;
+        write_atomic(path, &text)
             .map_err(|source| UpdateWorkspaceManifestError::Write {
                 path: path.to_path_buf(),
                 source,

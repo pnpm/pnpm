@@ -164,6 +164,16 @@ bar:
   - 3
 ```
 
+Set `preserveScalarAliases: true` to retain scalar aliases whose final values
+agree. If an anchor's defining entry is removed, the first surviving entry
+defines it. An entry whose value differs from the defining entry is written
+as a scalar. This option does not coordinate dependency updates; it preserves
+YAML representation while applying the supplied target values.
+
+```ts
+patchDocument(document, target, { preserveScalarAliases: true })
+```
+
 ## License
 
 MIT
