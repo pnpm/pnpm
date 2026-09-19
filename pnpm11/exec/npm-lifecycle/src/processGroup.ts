@@ -1,5 +1,18 @@
-import { execFile } from 'node:child_process'
 import fs from 'node:fs'
+
+/**
+ * Whether a child should get a process group of its own.
+ *
+ * Without a controlling terminal, nothing but pnpm signals the child, and
+ * the shell running the script may not pass a signal on: a sh that stays
+ * the script's parent dies from SIGTERM at once and holds a SIGINT until
+ * its child exits. Signalling the whole group reaches the script. With a
+ * terminal the child stays in the foreground group, where the terminal's
+ * signals reach it and it may read the terminal.
+ */
+export function spawnsInOwnProcessGroup (): boolean {
+  return process.platform !== 'win32' && !hasControllingTerminal()
+}
 
 /**
  * Whether this process has a controlling terminal.
@@ -24,41 +37,54 @@ export function hasControllingTerminal (): boolean {
 }
 
 /**
- * Whether a child should get a process group of its own.
- *
- * Without a controlling terminal, nothing but pnpm signals the child, and
- * the shell running the script may not pass a signal on: a sh that stays
- * the script's parent dies from SIGTERM at once and holds a SIGINT until
- * its child exits. Signalling the whole group reaches the script. With a
- * terminal the child stays in the foreground group, where the terminal's
- * signals reach it and it may read the terminal.
- */
-export function spawnsInOwnProcessGroup (): boolean {
-  return process.platform !== 'win32' && !hasControllingTerminal()
-}
-
-/**
  * Resolves once no live process of the group led by `leader` is left, so a
  * script that outlived the shell that started it finishes shutting down.
- * A member that has exited but is not reaped yet no longer counts.
+ *
+ * The group is probed the way the kernel counts it, with a signal of 0. A
+ * member that has exited but is not reaped yet still counts there, which
+ * happens when pnpm is a container's PID 1 and inherits the orphans, so on
+ * Linux such zombies are told apart through `/proc`.
  */
 export async function waitForProcessGroup (leader: number): Promise<void> {
-  if (!await hasLiveMembers(leader)) return
-  await new Promise<void>((resolve) => setTimeout(resolve, 50))
-  return waitForProcessGroup(leader)
+  const poll = async (): Promise<void> => {
+    if (!hasLiveMembers(leader)) return
+    await new Promise<void>((resolve) => setTimeout(resolve, 50))
+    return poll()
+  }
+  return poll()
 }
 
-function hasLiveMembers (group: number): Promise<boolean> {
-  return new Promise((resolve) => {
-    execFile('ps', ['-A', '-o', 'pgid=', '-o', 'stat='], (err, stdout) => {
-      if (err) {
-        resolve(false)
-        return
-      }
-      resolve(stdout.split('\n').some((line) => {
-        const [groupId, stat] = line.trim().split(/\s+/)
-        return Number(groupId) === group && stat != null && !stat.startsWith('Z')
-      }))
-    })
+function hasLiveMembers (group: number): boolean {
+  try {
+    process.kill(-group, 0)
+  } catch (err: unknown) {
+    return !isNoSuchProcess(err)
+  }
+  return process.platform !== 'linux' || hasLiveMembersInProc(group)
+}
+
+function isNoSuchProcess (err: unknown): boolean {
+  return typeof err === 'object' && err != null && 'code' in err && err.code === 'ESRCH'
+}
+
+/** Whether `/proc` lists a process of `group` that is not a zombie. */
+function hasLiveMembersInProc (group: number): boolean {
+  let entries: string[]
+  try {
+    entries = fs.readdirSync('/proc')
+  } catch {
+    return true
+  }
+  return entries.some((entry) => {
+    if (!/^\d+$/.test(entry)) return false
+    let stat: string
+    try {
+      stat = fs.readFileSync(`/proc/${entry}/stat`, 'utf8')
+    } catch {
+      return false
+    }
+    // The fields after the parenthesized command name: state, parent, group, ...
+    const fields = stat.slice(stat.lastIndexOf(')') + 2).split(' ')
+    return fields[0] !== 'Z' && Number(fields[2]) === group
   })
 }

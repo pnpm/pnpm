@@ -384,16 +384,17 @@ testOnPosix('run: a SIGTERM sent to pnpm without a terminal reaches the script b
   fs.writeFileSync('dev.js', TERMINATING_SCRIPT, 'utf8')
 
   const proc = spawnPnpm(['run', '--config.verify-deps-before-run=false', 'dev'], { detached: true })
-  const closed = new Promise<void>((resolve) => {
-    proc.on('close', () => {
-      resolve()
+  // The script may outlive pnpm and keep the output pipes open, so the
+  // check is made the moment pnpm exits, not when its output closes.
+  const shutDownBeforeExit = new Promise<boolean>((resolve) => {
+    proc.on('exit', () => {
+      resolve(fs.existsSync('shut-down.txt'))
     })
   })
   await waitForFile('started.txt', 30_000)
   proc.kill('SIGTERM')
-  await closed
 
-  expect(fs.existsSync('shut-down.txt')).toBe(true)
+  expect(await shutDownBeforeExit).toBe(true)
 })
 
 async function waitForFile (file: string, timeout: number): Promise<void> {

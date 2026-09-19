@@ -410,9 +410,14 @@ function runEmulated (run: ScriptRun, cb: Callback): void {
 }
 
 /**
- * Wait for the spawned script and relay pnpm's own signals to it. A child
- * with a process group of its own is signalled as a group, and after a
- * relayed signal pnpm waits for that group: the shell may have died from
+ * Wait for the spawned script, relaying pnpm's own signals to it meanwhile.
+ *
+ * `cb` runs exactly once, after the script has ended and its output has
+ * been reported. It gets no error for a clean exit, and a `LifecycleError`
+ * for a failed spawn, a non-zero exit, an exit by signal (which pnpm then
+ * raises on itself), or an `onSpawn` observer that threw. A child with a
+ * process group of its own is signalled as a group, and after a relayed
+ * signal `cb` waits for that group as well: the shell may have died from
  * the signal while the script it started is still shutting down.
  */
 function runSpawned (run: ScriptRun, spawned: SpawnedScript, cb: Callback): void {
@@ -421,14 +426,22 @@ function runSpawned (run: ScriptRun, spawned: SpawnedScript, cb: Callback): void
   let spawnObserverFailed = false
   let spawnObserverError: LifecycleError | undefined
   let relayed = false
+  let deathSignal: NodeJS.Signals | null = null
 
-  const procError = createProcError(run, (er) => {
+  // A script killed by a signal makes pnpm raise that signal on itself, so
+  // the shell reports an interrupted command rather than a plain failure.
+  // That comes after the wait for the script's process group: the raise
+  // ends pnpm, and a shell that died from a relayed signal may have left
+  // the script still shutting down.
+  const finish = (er?: LifecycleError | null): void => {
     process.removeListener('SIGTERM', procKill)
     process.removeListener('SIGINT', procKill)
     process.removeListener('SIGINT', procInterrupt)
     process.removeListener('exit', procKill)
+    if (deathSignal) process.kill(process.pid, deathSignal)
     cb(er)
-  })
+  }
+  const procError = createProcError(run, finish)
 
   proc.on('error', (err: LifecycleError) => {
     procError(spawnObserverFailed ? spawnObserverError : err)
@@ -440,7 +453,7 @@ function runSpawned (run: ScriptRun, spawned: SpawnedScript, cb: Callback): void
       err = spawnObserverError
     } else if (signal) {
       err = new PnpmError('CHILD_PROCESS_FAILED', `Command failed with signal "${signal}"`)
-      process.kill(process.pid, signal)
+      deathSignal = signal
     } else if (code) {
       err = new PnpmError('CHILD_PROCESS_FAILED', `Exit status ${code}`)
       err.errno = code
@@ -471,7 +484,7 @@ function runSpawned (run: ScriptRun, spawned: SpawnedScript, cb: Callback): void
   } catch (err: unknown) {
     spawnObserverFailed = true
     spawnObserverError = err as LifecycleError
-    proc.kill()
+    relay('SIGTERM')
   }
 
   let called = false

@@ -108,7 +108,9 @@ pub fn spawn_without_terminal(mut command: Command) -> Child {
     // which is all a `pre_exec` hook between `fork` and `exec` may call.
     unsafe {
         command.pre_exec(|| {
-            libc::setsid();
+            if libc::setsid() < 0 {
+                return Err(io::Error::last_os_error());
+            }
             receive_terminal_signals()
         });
     }
