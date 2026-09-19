@@ -80,3 +80,74 @@ fn engine_strict_accepts_the_active_node_version() {
 
     drop(root);
 }
+
+#[test]
+fn filtered_install_checks_the_workspace_root_with_dedicated_lockfiles() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({
+            "name": "incompatible-root",
+            "version": "1.0.0",
+            "engines": { "node": ">=99.0.0" },
+        })
+        .to_string(),
+    )
+    .expect("write root package.json");
+    fs::write(
+        workspace.join("pnpm-workspace.yaml"),
+        "packages:\n  - packages/*\nengineStrict: true\nnodeVersion: 20.0.0\nsharedWorkspaceLockfile: false\n",
+    )
+    .expect("write workspace settings");
+    let child = workspace.join("packages/child");
+    fs::create_dir_all(&child).expect("create child project");
+    fs::write(child.join("package.json"), r#"{"name":"child","version":"1.0.0"}"#)
+        .expect("write child package.json");
+
+    let assert = pacquet
+        .with_args(["--filter", "child", "install", "--lockfile-only"])
+        .assert()
+        .failure();
+    let stderr = String::from_utf8_lossy(&assert.get_output().stderr);
+    assert!(stderr.contains("ERR_PNPM_UNSUPPORTED_ENGINE"), "stderr: {stderr}");
+    assert!(!child.join("pnpm-lock.yaml").exists());
+
+    drop(root);
+}
+
+#[test]
+fn non_install_commands_do_not_check_the_root_engine() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({
+            "name": "incompatible-root",
+            "version": "1.0.0",
+            "engines": { "node": ">=99.0.0" },
+        })
+        .to_string(),
+    )
+    .expect("write package.json");
+    fs::write(workspace.join("pnpm-workspace.yaml"), "engineStrict: true\nnodeVersion: 20.0.0\n")
+        .expect("write workspace settings");
+
+    let why = pacquet
+        .with_args(["why"])
+        .assert()
+        .failure();
+    let why_stderr = String::from_utf8_lossy(&why.get_output().stderr);
+    assert!(why_stderr.contains("ERR_PNPM_MISSING_PACKAGE_NAME"), "stderr: {why_stderr}");
+    assert!(!why_stderr.contains("ERR_PNPM_UNSUPPORTED_ENGINE"), "stderr: {why_stderr}");
+
+    let runtime = Command::cargo_bin("pnpm")
+        .expect("find pnpm binary")
+        .with_current_dir(&workspace)
+        .with_args(["runtime", "set"])
+        .assert()
+        .failure();
+    let runtime_stderr = String::from_utf8_lossy(&runtime.get_output().stderr);
+    assert!(runtime_stderr.contains("ERR_PNPM_MISSING_RUNTIME_NAME"), "stderr: {runtime_stderr}");
+    assert!(!runtime_stderr.contains("ERR_PNPM_UNSUPPORTED_ENGINE"), "stderr: {runtime_stderr}");
+
+    drop(root);
+}

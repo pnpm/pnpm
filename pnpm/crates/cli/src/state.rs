@@ -168,7 +168,6 @@ impl State {
         http_client: Arc<ThrottledClient>,
     ) -> Result<Self, InitStateError> {
         let manifest = load_or_create_manifest(manifest_path, config)?;
-        check_project_engine(&manifest, config)?;
         Ok(State {
             config,
             manifest,
@@ -247,10 +246,21 @@ fn apply_runtime_on_fail(mut manifest: PackageManifest, config: &Config) -> Pack
     manifest
 }
 
-fn check_project_engine(manifest: &PackageManifest, config: &Config) -> Result<(), InitStateError> {
+pub(crate) fn check_root_project_engine(
+    manifest_path: &Path,
+    config: &Config,
+) -> Result<(), InitStateError> {
     if !config.engine_strict {
         return Ok(());
     }
+    let project_dir = config.workspace_dir
+        .as_deref()
+        .unwrap_or_else(|| manifest_path.parent().expect("manifest path always has a parent dir"));
+    let Some((_, manifest)) = pnpm_workspace::try_read_project_manifest(project_dir)
+        .map_err(InitStateError::ManifestRead)?
+    else {
+        return Ok(());
+    };
     let Some(wanted_node) = manifest
         .value()
         .get("engines")
@@ -264,10 +274,6 @@ fn check_project_engine(manifest: &PackageManifest, config: &Config) -> Result<(
     let host = pnpm_deps_restorer::InstallabilityHost::detect_with(true, configured_node);
     let wanted = WantedEngine { node: Some(wanted_node.to_string()), pnpm: None };
     let current = Engine { node: host.node_version, pnpm: None };
-    let project_dir = manifest
-        .path()
-        .parent()
-        .expect("manifest path always has a parent dir");
     match check_engine(&project_dir.to_string_lossy(), &wanted, &current) {
         Ok(None) => Ok(()),
         Ok(Some(error)) => {

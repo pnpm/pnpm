@@ -29,6 +29,7 @@ use crate::{
     },
     config_deps, ecosystem_add, ecosystem_install,
     package_specifier::EcosystemPackageSpecifier,
+    state::check_root_project_engine,
 };
 use indexmap::IndexMap;
 

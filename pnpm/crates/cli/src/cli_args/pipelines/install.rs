@@ -1,8 +1,8 @@
 use super::{
     Arc, Config, Context, DedicatedProjectRuns, InstallArgs, InstallFamily, InstallFamilyPlan,
-    Path, PathBuf, Reporter, State, ThrottledClient, config_deps, dedicated_project_name,
-    discover_workspace_projects, ecosystem_install, init_dedicated_project_state, project_names,
-    select_install_family,
+    Path, PathBuf, Reporter, State, ThrottledClient, check_root_project_engine, config_deps,
+    dedicated_project_name, discover_workspace_projects, ecosystem_install,
+    init_dedicated_project_state, project_names, select_install_family,
 };
 
 /// The reporter-generic body of `pacquet install`: it threads one `Reporter`
@@ -29,6 +29,7 @@ impl InstallPipeline {
     pub(crate) async fn run_with_config<Reporter: self::Reporter + 'static>(
         self,
     ) -> miette::Result<&'static Config> {
+        check_root_project_engine(&self.manifest_path, self.cfg)?;
         config_deps::prepare::<Reporter>(self.cfg, &self.config_root, self.frozen_lockfile).await?;
         // Built ahead of project discovery so a run that is certain to
         // read the wanted lockfile parses it on a background thread

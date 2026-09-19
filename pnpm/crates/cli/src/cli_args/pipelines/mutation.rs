@@ -2,8 +2,8 @@ use super::{
     AddArgs, Arc, BTreeMap, Config, Context, DedicatedProjectRuns, DeployArgs,
     EcosystemPackageSpecifier, InstallFamily, InstallFamilyPlan, Path, PathBuf, RemoveArgs,
     Reporter, State, ThrottledClient, UpdateArgs, UpdateChangesetContext, anchor_active_project,
-    config_deps, dedicated_project_name, ecosystem_add, ecosystem_install, init_shared_state,
-    select_install_family, select_install_family_plan,
+    check_root_project_engine, config_deps, dedicated_project_name, ecosystem_add,
+    ecosystem_install, init_shared_state, select_install_family, select_install_family_plan,
 };
 use crate::cli_args::recursive::UnmatchedFilters;
 
@@ -25,6 +25,7 @@ pub(crate) struct AddPipeline {
 
 impl AddPipeline {
     pub(crate) async fn run<Reporter: self::Reporter + 'static>(self) -> miette::Result<()> {
+        check_root_project_engine(&self.manifest_path, self.cfg)?;
         config_deps::prepare::<Reporter>(self.cfg, &self.config_root, false).await?;
         if !self.ecosystem_packages.is_empty() {
             return EcosystemAdd {
@@ -274,6 +275,7 @@ pub(crate) struct UpdatePipeline {
 
 impl UpdatePipeline {
     pub(crate) async fn run<Reporter: self::Reporter + 'static>(self) -> miette::Result<()> {
+        check_root_project_engine(&self.manifest_path, self.cfg)?;
         config_deps::prepare::<Reporter>(self.cfg, &self.config_root, false).await?;
         let plan = select_install_family_plan::<Reporter>(
             self.cfg,
@@ -362,6 +364,7 @@ pub(crate) struct RemovePipeline {
 
 impl RemovePipeline {
     pub(crate) async fn run<Reporter: self::Reporter + 'static>(self) -> miette::Result<()> {
+        check_root_project_engine(&self.manifest_path, self.cfg)?;
         config_deps::prepare::<Reporter>(self.cfg, &self.config_root, false).await?;
         let plan = select_install_family_plan::<Reporter>(
             self.cfg,
