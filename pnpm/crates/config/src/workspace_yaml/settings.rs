@@ -62,6 +62,7 @@ where
 pub struct WorkspaceSettings {
     pub bail: Option<bool>,
     pub ci: Option<bool>,
+    pub progress: Option<bool>,
     pub update_notifier: Option<bool>,
     pub color: Option<crate::ColorMode>,
     pub embed_readme: Option<bool>,

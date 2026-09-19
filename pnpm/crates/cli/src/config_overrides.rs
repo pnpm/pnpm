@@ -106,6 +106,7 @@ pub struct ConfigOverrides {
     optimistic_repeat_install: Option<bool>,
     package_import_method: Option<PackageImportMethod>,
     pm_on_fail: Option<PmOnFail>,
+    progress: Option<bool>,
     public_hoist_pattern: Option<Vec<String>>,
     runtime_on_fail: Option<RuntimeOnFail>,
     save_workspace_protocol: Option<SaveWorkspaceProtocol>,
@@ -307,6 +308,7 @@ impl ConfigOverrides {
                 self.node_experimental_package_map = parse_bool(value);
             }
             "pending" => self.pending = parse_bool(value),
+            "progress" => self.progress = parse_bool(value),
             "recursive-install" => self.recursive_install = parse_bool(value),
             "reverse" => self.reverse = parse_bool(value),
             "shell-emulator" => self.shell_emulator = parse_bool(value),

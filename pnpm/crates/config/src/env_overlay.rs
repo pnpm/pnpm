@@ -158,6 +158,7 @@ impl WorkspaceSettings {
         let settings = self;
         json_field!(settings, Sys, bail, "BAIL");
         json_field!(settings, Sys, ci, "CI");
+        json_field!(settings, Sys, progress, "PROGRESS");
         json_field!(settings, Sys, update_notifier, "UPDATE_NOTIFIER");
         enum_field!(settings, Sys, color, "COLOR", ColorMode);
         json_field!(settings, Sys, embed_readme, "EMBED_README");

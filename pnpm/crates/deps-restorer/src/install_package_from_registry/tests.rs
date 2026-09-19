@@ -35,6 +35,7 @@ fn create_config(
         indexes_by_ecosystem: std::collections::BTreeMap::new(),
         bail: true,
         ci: false,
+        progress: true,
         update_notifier: true,
         color: Default::default(),
         embed_readme: false,

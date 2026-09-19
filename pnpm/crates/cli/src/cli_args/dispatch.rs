@@ -107,9 +107,10 @@ impl CliArgs {
     /// `--color` / `--no-color` on the command line is seeded here for
     /// that reason; the `color` *setting* can only be read once the
     /// configuration is loaded, and reaches the reporter in
-    /// [`Self::run`].
-    /// [`Self::run`] and the install fast path call it again so a direct
-    /// in-process caller is configured too; the repeat calls are no-ops.
+    /// [`Self::run`]. [`Self::run`] and the install fast path call it
+    /// again so a direct in-process caller is configured too; the repeat
+    /// calls leave the once-set state alone and only re-seed `progress`,
+    /// which the loaded configuration may still turn off.
     ///
     /// A `--dir` that cannot be canonicalized is left as given: the same
     /// path fails with a proper diagnostic in [`Self::run`], and the
@@ -122,6 +123,7 @@ impl CliArgs {
         }
         let dir = dunce::canonicalize(&self.paths.dir)
             .unwrap_or_else(|_| self.paths.dir.clone());
+        pnpm_default_reporter::set_progress(self.progress_enabled(true));
         configure_default_reporter(&DefaultReporterSetup {
             reporter: self.effective_reporter(),
             dir: &dir,
@@ -137,6 +139,17 @@ impl CliArgs {
             },
         });
         configure_max_log_level(self.output.presentation.loglevel);
+    }
+
+    /// Resolve whether progress is rendered: `--progress` /
+    /// `--no-progress` over `config`, which is the loaded `progress`
+    /// setting, or its default where the configuration is not read yet.
+    fn progress_enabled(&self, config: bool) -> bool {
+        resolve_bool_override(
+            self.output.presentation.progress,
+            self.output.presentation.no_progress,
+            config,
+        )
     }
 
     pub fn run_completion_if_requested(&self) -> miette::Result<bool> {
@@ -199,7 +212,9 @@ impl CliArgs {
             apply_state_dir_override::<Host>(&mut config, state_dir, &dir);
         }
         install_args.lockfile.directory.apply_to(&mut config, &dir);
+        config.progress = self.progress_enabled(config.progress);
         self.configure_reporter();
+        pnpm_default_reporter::set_progress(config.progress);
         let emit = reporter_emit(self.effective_reporter());
         let finished = install_args.finished_via_up_to_date_fast_path(&dir, &config, emit);
         if finished {
@@ -346,6 +361,7 @@ impl CliArgs {
     }
 
     fn configure_run_reporter(&self, cfg: &Config, setup: &RunSetup, anchors: &RunAnchors) {
+        pnpm_default_reporter::set_progress(cfg.progress);
         configure_default_reporter(&DefaultReporterSetup {
             reporter: setup.reporter,
             dir: &anchors.dir,
@@ -368,6 +384,7 @@ impl CliArgs {
             self.workspace.execution.no_bail,
             cfg.bail,
         );
+        cfg.progress = self.progress_enabled(cfg.progress);
         cfg.stream |= self.output.lifecycle.stream;
         cfg.aggregate_output |= self.output.lifecycle.aggregate_output;
         cfg.use_stderr |= self.output.lifecycle.use_stderr;

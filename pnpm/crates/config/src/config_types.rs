@@ -103,6 +103,7 @@ const PNPM_TYPES: &[(&str, bool)] = &[
     ("prefer-workspace-packages", false),
     ("preserve-absolute-paths", false),
     ("production", false),
+    ("progress", false),
     ("public-hoist-pattern", false),
     ("publish-branch", false),
     ("recursive-install", false),

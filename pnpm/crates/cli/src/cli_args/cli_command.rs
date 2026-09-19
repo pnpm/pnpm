@@ -240,6 +240,12 @@ pub struct PresentationArgs {
     /// choice; the other levels cap the default reporter's output.
     #[clap(long, value_enum, global = true)]
     pub loglevel: Option<LogLevelSetting>,
+    /// Enable dependency and download progress output.
+    #[clap(long, global = true, overrides_with = "no_progress", hide = true)]
+    pub progress: bool,
+    /// Disable dependency and download progress output.
+    #[clap(long = "no-progress", global = true, overrides_with = "progress")]
+    pub no_progress: bool,
 }
 
 #[derive(Debug, Clone, clap::Args)]
