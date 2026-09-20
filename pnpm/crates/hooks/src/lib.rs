@@ -5,13 +5,15 @@ pub mod node_runtime;
 pub mod worker;
 pub use worker::LogFn;
 
-pub(crate) const LOAD_PNPMFILE: &str = include_str!("load_pnpmfile.cjs");
-
 use async_trait::async_trait;
 use derive_more::Display;
 use serde_json::Value;
 use std::sync::Arc;
 use tokio::sync::{mpsc, oneshot};
+
+/// The `loadPnpmfile(path)` helper both Node entry points prepend to the script
+/// they generate.
+pub(crate) const LOAD_PNPMFILE: &str = include_str!("load_pnpmfile.cjs");
 
 /// A native operation requested by a JavaScript custom fetcher.
 pub struct FetcherCallback {
