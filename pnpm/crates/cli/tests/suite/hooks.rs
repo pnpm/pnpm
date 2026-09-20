@@ -27,6 +27,55 @@ fn filter_log_is_ignored_with_a_warning() {
     drop(root);
 }
 
+/// The `pnpmfile` setting names the file, and Node decides its module format
+/// from the nearest `package.json`: the same `.js` pnpmfile is an ES module
+/// under `"type": "module"` and a script under `"type": "commonjs"`. Each
+/// source below parses only under its own format, so the marker it writes names
+/// the format Node loaded it as. The install used to reject either path as
+/// missing (pnpm/pnpm#15141), which read as a misconfigured setting for a
+/// pnpmfile that was right there on disk.
+#[test]
+fn a_configured_js_pnpmfile_follows_the_nearest_package_type() {
+    for (package_type, source) in [
+        (
+            "module",
+            r"import fs from 'node:fs';
+export const hooks = { updateConfig (config) {
+  fs.writeFileSync('loaded-as.txt', 'module');
+  return config;
+} };
+",
+        ),
+        (
+            "commonjs",
+            r"const fs = require('node:fs');
+module.exports = { hooks: { updateConfig (config) {
+  fs.writeFileSync('loaded-as.txt', 'commonjs');
+  return config;
+} } };
+",
+        ),
+    ] {
+        let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
+        fs::write(workspace.join("package.json"), format!(r#"{{"type":"{package_type}"}}"#))
+            .expect("write package.json");
+        fs::write(workspace.join("pnpm-workspace.yaml"), "pnpmfile: pnpmfile.js\n")
+            .expect("write pnpm-workspace.yaml");
+        fs::write(workspace.join("pnpmfile.js"), source).expect("write pnpmfile");
+
+        pacquet_in(&workspace)
+            .with_arg("install")
+            .assert()
+            .success();
+
+        let loaded_as = fs::read_to_string(workspace.join("loaded-as.txt"))
+            .expect("the hook of the configured .js pnpmfile should have run");
+        assert_eq!(loaded_as, package_type);
+
+        drop(root);
+    }
+}
+
 const EXTRA_ENV_PNPMFILE: &str = "module.exports = { hooks: { updateConfig (config) { config.extraEnv = { ...config.extraEnv, PNPM_HOOK_MARKER: 'from-hook' }; return config } } }";
 
 /// A script that records `PNPM_HOOK_MARKER` — the variable

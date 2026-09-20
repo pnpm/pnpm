@@ -129,8 +129,9 @@ async fn empty_mjs_is_a_noop_for_pre_resolution() {
     )
     .await;
 
-    dbg!(&*warnings.lock().unwrap());
-    assert!(warnings.lock().unwrap().is_empty());
+    let warnings = warnings.lock().unwrap();
+    dbg!(&*warnings);
+    assert!(warnings.is_empty());
 }
 
 #[tokio::test]
@@ -184,6 +185,7 @@ function preResolution(ctx, logger) {
     .await;
 
     let info_messages = info_messages.lock().unwrap();
+    dbg!(&*info_messages);
     assert_eq!(info_messages.as_slice(), ["package-scoped ESM preResolution loaded"]);
 }
 

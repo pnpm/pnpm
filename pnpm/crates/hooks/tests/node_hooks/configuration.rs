@@ -3,8 +3,9 @@ use pnpm_hooks::PnpmfileHooks as _;
 
 #[tokio::test]
 async fn update_config_applies_cjs_mjs_and_package_scoped_js_hook_results() {
-    for (file_name, package_type, source) in [
+    for (case_name, file_name, package_type, source) in [
         (
+            "CommonJS pnpmfile in a module scope",
             "pnpmfile.cjs",
             "module",
             r"module.exports = { hooks: { updateConfig (config) {
@@ -13,6 +14,7 @@ async fn update_config_applies_cjs_mjs_and_package_scoped_js_hook_results() {
 } } }",
         ),
         (
+            "ESM pnpmfile in a CommonJS scope",
             "pnpmfile.mjs",
             "commonjs",
             r"export const hooks = { updateConfig (config) {
@@ -21,6 +23,7 @@ async fn update_config_applies_cjs_mjs_and_package_scoped_js_hook_results() {
 } }",
         ),
         (
+            "package-scoped ESM with top-level await",
             "pnpmfile.js",
             "module",
             r"await Promise.resolve();
@@ -30,6 +33,7 @@ export const hooks = { updateConfig (config) {
 } }",
         ),
         (
+            "package-scoped ESM exporting a default",
             "pnpmfile.js",
             "module",
             r"export default { hooks: { updateConfig (config) {
@@ -38,6 +42,7 @@ export const hooks = { updateConfig (config) {
 } } }",
         ),
         (
+            "package-scoped CommonJS",
             "pnpmfile.js",
             "commonjs",
             r"module.exports = { hooks: { updateConfig (config) {
@@ -68,8 +73,11 @@ export const hooks = { updateConfig (config) {
             .await
             .expect("updateConfig should succeed");
 
-        assert_eq!(updated["registry"], "https://r/", "untouched keys are preserved");
-        assert_eq!(updated["catalogs"]["default"]["foo"], "1.0.0", "hook-set key is applied");
+        assert_eq!(updated["registry"], "https://r/", "{case_name}: untouched keys are preserved");
+        assert_eq!(
+            updated["catalogs"]["default"]["foo"], "1.0.0",
+            "{case_name}: hook-set key is applied",
+        );
     }
 }
 
