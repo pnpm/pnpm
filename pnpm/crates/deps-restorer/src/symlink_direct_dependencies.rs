@@ -1,3 +1,5 @@
+pub(crate) use resolve::fallback_version;
+
 mod report;
 use report::emit_root_added;
 
