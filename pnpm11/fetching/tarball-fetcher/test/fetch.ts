@@ -7,7 +7,7 @@ import { requestRetryLogger } from '@pnpm/core-loggers'
 import { FetchError, PnpmError } from '@pnpm/error'
 import { createFetchFromRegistry } from '@pnpm/network.fetch'
 import { createCafsStore } from '@pnpm/store.create-cafs-store'
-import { StoreIndex } from '@pnpm/store.index'
+import { gitHostedStoreIndexKey, StoreIndex } from '@pnpm/store.index'
 import { fixtures } from '@pnpm/test-fixtures'
 import { lexCompare } from '@pnpm/text.ordinal-comparator'
 import ssri from 'ssri'
@@ -945,7 +945,7 @@ test.each([true, false])('do not prepare a git tarball when scripts are ignored 
       retries: 1,
     },
   })
-  const { filesMap, requiresPrepare } = await fetch.gitHostedTarball(cafs, resolution, {
+  const { filesMap, requiresPrepare, filesIndexFile: finalKey } = await fetch.gitHostedTarball(cafs, resolution, {
     allowBuild: () => false,
     filesIndexFile,
     lockfileDir: process.cwd(),
@@ -955,6 +955,10 @@ test.each([true, false])('do not prepare a git tarball when scripts are ignored 
   expect(filesMap.has('package.json')).toBeTruthy()
   expect(filesMap.has('prepare.txt')).toBeFalsy()
   expect(requiresPrepare).toBe(true)
+  if (!ignoreScripts) {
+    expect(finalKey).toBe(gitHostedStoreIndexKey(tarball, { built: false }))
+    expect(storeIndex.get(finalKey!)).toMatchObject({ requiresPrepare: true })
+  }
   expect(globalWarn).toHaveBeenCalledWith(`The git-hosted package fetched from "${tarball}" has to be built but the build scripts were ignored.`)
 })
 

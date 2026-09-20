@@ -39,6 +39,7 @@ export function createGitHostedTarballFetcher (fetchRemoteTarball: FetchFunction
         globalWarn(`The git-hosted package fetched from "${resolution.tarball}" has to be built but the build scripts were ignored.`)
       }
       return {
+        filesIndexFile: prepareResult.filesIndexFile,
         filesMap: prepareResult.filesMap,
         manifest: prepareResult.manifest ?? manifest,
         requiresBuild,
@@ -59,6 +60,7 @@ export function createGitHostedTarballFetcher (fetchRemoteTarball: FetchFunction
 }
 
 interface PrepareGitHostedPkgResult {
+  filesIndexFile: string
   filesMap: FilesMap
   manifest?: BundledManifest
   ignoredBuild: boolean
@@ -94,25 +96,20 @@ async function prepareGitHostedPkg (
   const files = await packlist(pkgDir)
   const { storeIndex } = opts
   if (!resolution.path && files.length === filesMap.size) {
-    if (!shouldBeBuilt) {
-      const data = storeIndex.get(rawFilesIndexFile) as { requiresPrepare?: boolean } | undefined
-      if (data) {
-        data.requiresPrepare = false
-        storeIndex.set(filesIndexFile, data)
-        storeIndex.delete(rawFilesIndexFile)
+    if (!shouldBeBuilt || ignoredBuild) {
+      if (!ignoredBuild || !opts.ignoreScripts) {
+        const data = storeIndex.get(rawFilesIndexFile) as { requiresPrepare?: boolean } | undefined
+        if (data) {
+          data.requiresPrepare = shouldBeBuilt
+          storeIndex.set(filesIndexFile, data)
+        }
       }
-      return {
-        filesMap,
-        ignoredBuild: false,
-        requiresPrepare: false,
-      }
-    }
-    if (ignoredBuild) {
       storeIndex.delete(rawFilesIndexFile)
       return {
+        filesIndexFile,
         filesMap,
-        ignoredBuild: true,
-        requiresPrepare: true,
+        ignoredBuild,
+        requiresPrepare: shouldBeBuilt,
       }
     }
   }
@@ -121,6 +118,7 @@ async function prepareGitHostedPkg (
   // Even though we have the index of the package,
   // the linking of files to the store is in progress.
   return {
+    filesIndexFile,
     ...await addFilesFromDir({
       storeDir: cafs.storeDir,
       storeIndex: opts.storeIndex,

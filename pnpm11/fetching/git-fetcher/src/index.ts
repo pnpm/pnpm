@@ -75,15 +75,17 @@ export function createGitFetcher (createOpts: CreateGitFetcherOptions): { git: G
     // Important! We cannot remove the temp location at this stage.
     // Even though we have the index of the package,
     // the linking of files to the store is in progress.
+    const filesIndexFile = requiresPrepare && ((ignoredBuild && !createOpts.ignoreScripts) || (!ignoredBuild && opts.filesIndexFile.endsWith('\tnot-built')))
+      ? gitHostedStoreIndexKey(opts.pkgResolutionId ?? createGitHostedPkgId(resolution), { built: !ignoredBuild })
+      : opts.filesIndexFile
     return {
+      filesIndexFile,
       ...await addFilesFromDir({
         storeDir: cafs.storeDir,
         storeIndex: createOpts.storeIndex,
         dir: pkgDir,
         files,
-        filesIndexFile: requiresPrepare && ((ignoredBuild && !createOpts.ignoreScripts) || (!ignoredBuild && opts.filesIndexFile.endsWith('\tnot-built')))
-          ? gitHostedStoreIndexKey(opts.pkgResolutionId ?? createGitHostedPkgId(resolution), { built: !ignoredBuild })
-          : opts.filesIndexFile,
+        filesIndexFile,
         requiresPrepare,
         readManifest: opts.readManifest,
         pkg: opts.pkg,

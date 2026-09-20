@@ -239,13 +239,12 @@ impl<'a> InstallFrozenLockfile<'a> {
         let install = self.inputs();
         async move {
             let LockfileEntries { packages, snapshots } = install.entries();
-            let link_options =
-                crate::shim_link_options(install.drivers.config, install.platform.node_linker);
+            let config = install.drivers.config;
 
             // TODO: check if the lockfile is out-of-date
 
             let needs_installability_check =
-                needs_installability_check(install.drivers.config, snapshots, packages);
+                needs_installability_check(config, snapshots, packages);
 
             // The host detection is what costs a `node --version` probe
             // (~150 ms of node startup). The global-virtual-store layout
@@ -260,7 +259,7 @@ impl<'a> InstallFrozenLockfile<'a> {
             // the probe finishes in the background and its result goes
             // unused.
             let host_detection = detect_host(HostDetectionInputs {
-                config: install.drivers.config,
+                config,
                 early_host_detection,
                 node_version,
                 supported_architectures: install.platform.supported_architectures,
@@ -304,7 +303,7 @@ impl<'a> InstallFrozenLockfile<'a> {
             //   deferred into the blocking pool, overlaps
             //   `CreateVirtualStore::run`'s I/O, and is awaited right
             //   before `BuildModules`.
-            let engine = plan_engine_name(install.drivers.config, &host_detection, snapshots).await;
+            let engine = plan_engine_name(config, &host_detection, snapshots).await;
 
             let layout = install.verified_layout(allow_build_policy, engine.name.as_deref())?;
 
@@ -317,9 +316,16 @@ impl<'a> InstallFrozenLockfile<'a> {
             // planning — like the directory-clone cache above, only after
             // the offline lockfile checks — so its index reads run while a
             // pending host detection finishes its `node --version`.
-            let cas_prefetch = prefetch_store(install, allow_build_policy).await;
+            let cas_prefetch = crate::create_virtual_store::CasPrefetch::start(
+                config,
+                install.entries(),
+                allow_build_policy,
+                install.platform.supported_architectures,
+                None,
+            )
+            .await;
             Ok(MaterializationPlan {
-                link_options,
+                link_options: crate::shim_link_options(config, install.platform.node_linker),
                 host: HostPlan {
                     host_detection,
                     engine_name: engine.name,
@@ -334,20 +340,6 @@ impl<'a> InstallFrozenLockfile<'a> {
             })
         }
     }
-}
-
-async fn prefetch_store(
-    install: super::FrozenInputs<'_>,
-    allow_build_policy: &AllowBuildPolicy,
-) -> crate::create_virtual_store::CasPrefetch {
-    crate::create_virtual_store::CasPrefetch::start(
-        install.drivers.config,
-        install.entries(),
-        allow_build_policy,
-        install.platform.supported_architectures,
-        None,
-    )
-    .await
 }
 
 fn build_directories<'a>(

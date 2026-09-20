@@ -116,28 +116,22 @@ impl GitHostedTarballFetcher<'_> {
         // there, not equivalence.
         let fast_path_eligible =
             self.path.is_none() && files.len() == self.cas_paths.len();
-        if fast_path_eligible && !prepared.should_be_built {
-            // Synthesize the row from `cas_paths`: pacquet's tarball
-            // download doesn't write a `\traw` row at the same key, so
-            // there's nothing to copy — but the CAS files themselves
-            // are already in place, which is what `cas_paths` points at.
-            if self.store.index_writer.is_some() {
+        if fast_path_eligible && (!prepared.should_be_built || prepared.ignored_build) {
+            if self.store.index_writer.is_some()
+                && (!prepared.ignored_build || !self.scripts.ignore)
+            {
+                let key = prepared.store_index_key(
+                    self.store.files_index_file,
+                    self.package_id,
+                    self.scripts.ignore,
+                );
                 queue_files_index(
                     self.store.index_writer,
-                    self.store.files_index_file,
+                    &key,
                     synthesize_files_index(&self.cas_paths)?,
-                    false,
+                    prepared.should_be_built,
                 );
             }
-            return Ok(GitFetchOutput { cas_paths: self.cas_paths, built: false });
-        }
-        if fast_path_eligible && prepared.ignored_build {
-            // `should_be_built && ignored_build`: prepare skipped the
-            // scripts (warning already logged above), so the
-            // materialized tree is still byte-identical to the source.
-            // Return the raw filesMap *without* writing a final-key
-            // row, so subsequent installs re-check the build gate. This
-            // keeps `--ignore-scripts` installs idempotent.
             return Ok(GitFetchOutput {
                 cas_paths: self.cas_paths,
                 built: prepared.should_be_built,

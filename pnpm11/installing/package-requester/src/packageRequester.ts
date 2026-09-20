@@ -45,7 +45,7 @@ import type {
   RequestPackageOptions,
   WantedDependency,
 } from '@pnpm/store.controller-types'
-import { pickStoreIndexKey } from '@pnpm/store.index'
+import { gitHostedStoreIndexKey, pickStoreIndexKey } from '@pnpm/store.index'
 import type { DependencyManifest, DepPath, SupportedArchitectures } from '@pnpm/types'
 import {
   calcMaxWorkers,
@@ -418,7 +418,7 @@ function getFilesIndexFilePath (
     resolution = opts.pkg.resolution
   }
   const resolutionKind = classifyResolution(resolution)
-  const denied = (resolutionKind === 'git' || resolutionKind === 'gitHostedTarball') &&
+  const denied = opts.pkg.name != null && (resolutionKind === 'git' || resolutionKind === 'gitHostedTarball') &&
     opts.allowBuild?.(`${opts.pkg.name}@${opts.pkg.id}` as DepPath) === false
   const built = !opts.ignoreScripts && !denied
   return {
@@ -473,16 +473,16 @@ function fetchToStore (
     opts.fetchRawManifest = true
   }
 
-  const resolutionKind = classifyResolution(opts.pkg.resolution)
+  const { filesIndexFile, target, resolution } = getFilesIndexFilePath(ctx, opts)
+  const resolutionKind = classifyResolution(resolution)
   const fetchingKey = resolutionKind === 'git' || resolutionKind === 'gitHostedTarball'
-    ? `${opts.lockfileDir}\0${opts.pkg.id}`
+    ? `${opts.lockfileDir}\0${opts.pkg.id}\0${filesIndexFile}`
     : opts.pkg.id
   const reusingPolicySensitiveFetch = ctx.fetchingLocker.has(fetchingKey) &&
     (resolutionKind === 'git' || resolutionKind === 'gitHostedTarball')
 
   if (!ctx.fetchingLocker.has(fetchingKey)) {
     const fetching = pDefer<PkgRequestFetchResult>()
-    const { filesIndexFile, target, resolution } = getFilesIndexFilePath(ctx, opts)
 
     doFetchToStore(filesIndexFile, fetching, target, resolution)
 
@@ -535,6 +535,7 @@ function fetchToStore (
   }
 
   const result = ctx.fetchingLocker.get(fetchingKey)!
+  let filesIndexResult: { filesIndexFile: string } = result
 
   if (opts.fetchRawManifest && !result.fetchRawManifest) {
     result.fetching = removeKeyOnFail(
@@ -568,13 +569,17 @@ function fetchToStore (
       if (ctx.fetchingLocker.get(fetchingKey) === result) {
         ctx.fetchingLocker.delete(fetchingKey)
       }
-      return fetchToStore(ctx, opts).fetching()
+      const replacement = fetchToStore(ctx, opts)
+      filesIndexResult = replacement
+      return replacement.fetching()
     }))
     : result.fetching
 
   return {
     fetching: pShare(fetching),
-    filesIndexFile: result.filesIndexFile,
+    get filesIndexFile () {
+      return filesIndexResult.filesIndexFile
+    },
   }
 
   async function removeKeyOnFail<T> (p: Promise<T>): Promise<T> {
@@ -615,27 +620,35 @@ function fetchToStore (
         ) &&
         !isLocalPkg
       ) {
-        const { verified, files, bundledManifest } = await ctx.readPkgFromCafs(filesIndexFile, {
-          readManifest: opts.fetchRawManifest,
-          expectedPkg: opts.pkg,
-        })
-        if (verified && await cachedPackageCanBeReused({
-          allowBuild: opts.allowBuild,
-          bundledManifest,
-          filesMap: files.filesMap,
-          filesIndexFile,
-          ignoreScripts: opts.ignoreScripts,
-          pkgResolutionId: opts.pkg.id,
-          requiresPrepare: files.requiresPrepare,
-          resolutionKind,
-        })) {
-          fetching.resolve({
-            files,
-            bundledManifest,
+        const candidateKeys = [filesIndexFile]
+        if (!opts.pkg.name && (resolutionKind === 'git' || resolutionKind === 'gitHostedTarball')) {
+          candidateKeys.push(gitHostedStoreIndexKey(opts.pkg.id, { built: filesIndexFile.endsWith('\tnot-built') }))
+        }
+        const candidates = await Promise.all(candidateKeys.map(async (candidateKey) => {
+          const { verified, files, bundledManifest } = await ctx.readPkgFromCafs(candidateKey, {
+            readManifest: opts.fetchRawManifest,
+            expectedPkg: opts.pkg,
           })
+          const reusable = verified && await cachedPackageCanBeReused({
+            allowBuild: opts.allowBuild,
+            bundledManifest,
+            filesMap: files.filesMap,
+            filesIndexFile: candidateKey,
+            ignoreScripts: opts.ignoreScripts,
+            pkgResolutionId: opts.pkg.id,
+            requiresPrepare: files.requiresPrepare,
+            resolutionKind,
+          })
+          return { candidateKey, verified, files, bundledManifest, reusable }
+        }))
+        const cached = candidates.find(({ reusable }) => reusable)
+        if (cached) {
+          const fetchLock = ctx.fetchingLocker.get(fetchingKey)
+          if (fetchLock) fetchLock.filesIndexFile = cached.candidateKey
+          fetching.resolve({ files: cached.files, bundledManifest: cached.bundledManifest })
           return
         }
-        refetchingStoredPackage = !verified && (files?.filesMap) != null
+        refetchingStoredPackage = candidates.some(({ verified, files }) => !verified && files?.filesMap != null)
       }
 
       if (refetchingStoredPackage) {
@@ -687,7 +700,10 @@ function fetchToStore (
       ), { priority })
 
       const fetchLock = ctx.fetchingLocker.get(fetchingKey)
-      if (fetchLock) fetchLock.ignoredBuild = fetchedPackage.ignoredBuild
+      if (fetchLock) {
+        fetchLock.ignoredBuild = fetchedPackage.ignoredBuild
+        fetchLock.filesIndexFile = fetchedPackage.filesIndexFile ?? filesIndexFile
+      }
 
       const integrity = getExpectedIntegrity(opts.pkg.resolution) ?? fetchedPackage.integrity
       if (isLocalTarballDep && integrity) {

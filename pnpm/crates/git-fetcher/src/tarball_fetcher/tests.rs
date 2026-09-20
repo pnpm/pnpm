@@ -691,24 +691,13 @@ async fn sub_path_never_takes_fast_path() {
     );
 }
 
-/// `should_be_built && ignore_scripts` is the second fast-path
-/// branch: scripts were suppressed (a warning fired earlier), the
-/// materialized tree is still untouched, so re-import is wasted
-/// work. No final-key row is queued here — subsequent installs must
-/// re-check the build gate. This test pins both halves: the input
-/// `cas_paths` is returned verbatim, and no row lands at the final
-/// key.
 #[tokio::test(flavor = "multi_thread")]
-async fn fast_path_skipped_preparation_returns_input_without_queueing_row() {
+async fn fast_path_skipped_preparation_caches_only_explicit_denials() {
     for ignore in [true, false] {
         let store_root = tempdir().unwrap();
         let store_dir = StoreDir::from(store_root.path().to_path_buf());
         let (writer, writer_task) = StoreIndexWriter::spawn(&store_dir);
 
-        // `prepare` script triggers `should_be_built = true`, but
-        // `ignore_scripts: true` skips the actual execution. With no
-        // `files` field, packlist returns every input file — fast-path
-        // eligible.
         let cas_paths = write_to_cas(
         &store_dir,
         &[
@@ -760,10 +749,12 @@ async fn fast_path_skipped_preparation_returns_input_without_queueing_row() {
         );
 
         let index = StoreIndex::open_in(&store_dir).unwrap();
-        assert!(
-            index.get(key).unwrap().is_none(),
-            "ignored-build fast path must NOT queue a final-key row",
-        );
+        assert!(index.get(key).unwrap().is_none(), "unprepared content must not use the built key");
+        let unprepared = index.get("x@1.0.0\tnot-built").unwrap();
+        assert_eq!(unprepared.is_some(), !ignore);
+        if let Some(row) = unprepared {
+            assert_eq!(row.requires_prepare, Some(true));
+        }
     }
 }
 

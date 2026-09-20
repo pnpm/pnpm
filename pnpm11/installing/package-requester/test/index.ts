@@ -10,12 +10,12 @@ import { streamParser } from '@pnpm/logger'
 import type { PackageFilesIndex } from '@pnpm/store.cafs'
 import type { PkgRequestFetchResult, PkgResolutionId, RequestPackageOptions, Resolution } from '@pnpm/store.controller-types'
 import { createCafsStore } from '@pnpm/store.create-cafs-store'
-import { StoreIndex } from '@pnpm/store.index'
+import { gitHostedStoreIndexKey, StoreIndex } from '@pnpm/store.index'
 import { fixtures } from '@pnpm/test-fixtures'
 import { setupMockAgent, teardownMockAgent } from '@pnpm/testing.mock-agent'
 import { REGISTRY_MOCK_PORT } from '@pnpm/testing.registry-mock'
 import type { DepPath } from '@pnpm/types'
-import { restartWorkerPool } from '@pnpm/worker'
+import { addFilesFromDir, restartWorkerPool } from '@pnpm/worker'
 import delay from 'delay'
 import normalize from 'normalize-path'
 import { temporaryDirectory } from 'tempy'
@@ -742,21 +742,41 @@ test('fetchPackageToStore() concurrency check', async () => {
   expect(ino1).toBe(ino2)
 })
 
-test('git fetches without a known package name do not reuse unprepared files after approval', async () => {
+test.each([true, false])('git fetches return and reuse the matching store key across policy changes (known name=%s)', async (knownName) => {
   const storeDir = temporaryDirectory()
+  const storeIndex = new StoreIndex(storeDir)
+  storeIndexes.push(storeIndex)
+  const pkg = {
+    ...(knownName ? { name: 'actual-name', version: '1.0.0' } : {}),
+    id: 'git+https://example.com/repo.git#0123456789012345678901234567890123456789' as PkgResolutionId,
+    resolution: {
+      type: 'git' as const,
+      repo: 'https://example.com/repo.git',
+      commit: '0123456789012345678901234567890123456789',
+    },
+  }
   let gitFetchCalls = 0
-  const packageRequester = createPackageRequester({
+  const createRequester = () => createPackageRequester({
     resolve,
     fetchers: {
       ...fetchers,
       git: async (_cafs, _resolution, opts) => {
         gitFetchCalls++
-        const ignoredBuild = opts.allowBuild?.('actual-name@git+https://example.com/repo.git#0123456789012345678901234567890123456789' as DepPath) === false
+        const ignoredBuild = opts.allowBuild?.(`actual-name@${pkg.id}` as DepPath) === false
+        const filesIndexFile = gitHostedStoreIndexKey(pkg.id, { built: !ignoredBuild })
+        const dir = temporaryDirectory()
+        fs.writeFileSync(path.join(dir, 'package.json'), JSON.stringify({ name: 'actual-name', version: '1.0.0' }))
+        if (!ignoredBuild) fs.writeFileSync(path.join(dir, 'prepared.txt'), 'prepared')
         return {
-          filesMap: new Map(ignoredBuild ? [] : [['prepared.txt', 'prepared']]),
-          manifest: { name: 'actual-name', version: '1.0.0' },
-          requiresBuild: false,
-          requiresPrepare: true,
+          ...await addFilesFromDir({
+            dir,
+            storeDir,
+            storeIndex,
+            filesIndexFile,
+            readManifest: true,
+            requiresPrepare: true,
+          }),
+          filesIndexFile,
           ignoredBuild,
         }
       },
@@ -767,25 +787,29 @@ test('git fetches without a known package name do not reuse unprepared files aft
     verifyStoreIntegrity: true,
     virtualStoreDirMaxLength: 120,
   })
-  const pkg = {
-    id: 'git+https://example.com/repo.git#0123456789012345678901234567890123456789' as PkgResolutionId,
-    resolution: {
-      type: 'git' as const,
-      repo: 'https://example.com/repo.git',
-      commit: '0123456789012345678901234567890123456789',
-    },
-  }
+  let packageRequester = createRequester()
   const lockfileDir = temporaryDirectory()
-  const fetch = (allowed: boolean) => packageRequester.fetchPackageToStore({
-    allowBuild: (depPath) => depPath.startsWith('actual-name@') ? allowed : undefined,
-    force: false,
-    lockfileDir,
-    pkg,
-  }).fetching()
-  expect((await fetch(false)).files.filesMap.has('prepared.txt')).toBe(false)
-  expect((await fetch(true)).files.filesMap.has('prepared.txt')).toBe(true)
-  expect((await fetch(false)).files.filesMap.has('prepared.txt')).toBe(false)
-  expect(gitFetchCalls).toBe(3)
+  const fetch = async (allowed: boolean) => {
+    const result = packageRequester.fetchPackageToStore({
+      allowBuild: (depPath) => depPath.startsWith('actual-name@') ? allowed : undefined,
+      fetchRawManifest: true,
+      force: false,
+      lockfileDir,
+      pkg,
+    })
+    const fetched = await result.fetching()
+    expect(result.filesIndexFile).toBe(gitHostedStoreIndexKey(pkg.id, { built: allowed }))
+    expect(fetched.files.filesMap.has('prepared.txt')).toBe(allowed)
+    return fetched
+  }
+  await fetch(false)
+  await fetch(false)
+  await fetch(true)
+  await fetch(false)
+  packageRequester = createRequester()
+  expect((await fetch(false)).files.resolvedFrom).toBe('store')
+  expect((await fetch(true)).files.resolvedFrom).toBe('store')
+  expect(gitFetchCalls).toBe(2)
 })
 
 test('fetchPackageToStore() coalesces concurrent refetches of a legacy git cache entry', async () => {
