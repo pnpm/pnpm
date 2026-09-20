@@ -4,10 +4,17 @@ use std::path::Path;
 #[test]
 fn accepts_valid_aliases() {
     let modules = Path::new("/project/node_modules");
-    for alias in ["foo", "@scope/name", "foo.bar"] {
+    for (alias, components) in [
+        ("foo", &["foo"][..]),
+        ("@scope/name", &["@scope", "name"][..]),
+        ("foo.bar", &["foo.bar"][..]),
+    ] {
         let joined =
             safe_join_modules_dir(modules, alias).expect("valid alias should join cleanly");
-        assert_eq!(joined, modules.join(alias));
+        let expected = components
+            .iter()
+            .fold(modules.to_path_buf(), |acc, component| acc.join(component));
+        assert_eq!(joined, expected);
     }
 }
 
