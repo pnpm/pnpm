@@ -25,9 +25,10 @@ interface DirectDependency {
  *
  * Every other linker reports a dependency as it creates its `node_modules`
  * symlink. The hoisted linker writes the package into `node_modules/<alias>`
- * itself and creates no symlink there, so nothing reported it and the reporter
- * fell back to diffing `package.json`, which knows the range a dependency was
- * asked for rather than the version it resolved to (pnpm/pnpm#15161).
+ * itself and creates no symlink there, so nothing else reports one. Without
+ * this the reporter falls back to diffing `package.json`, which knows the
+ * range a dependency was asked for rather than the version it resolved to
+ * (pnpm/pnpm#15161).
  *
  * The symlink outcome answers "did this install put it there". Here the answer
  * comes from the lockfile the previous install left in `node_modules/.pnpm`,
@@ -66,8 +67,9 @@ function directDependencies (
   id: ProjectId
 ): Map<string, DirectDependency> {
   const deps = new Map<string, DirectDependency>()
-  const importer = lockfile?.importers[id]
-  if (importer == null || lockfile == null) return deps
+  if (lockfile == null) return deps
+  const importer = lockfile.importers[id]
+  if (importer == null) return deps
   for (const field of Object.keys(DEPENDENCY_TYPE_BY_FIELD) as DependenciesField[]) {
     for (const [alias, ref] of Object.entries<string>(importer[field] ?? {})) {
       if (ref.startsWith('link:') || deps.has(alias)) continue
