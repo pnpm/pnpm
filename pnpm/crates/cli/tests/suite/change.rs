@@ -7,7 +7,7 @@
 
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
-use pnpm_testing_utils::bin::CommandTempCwd;
+use pnpm_testing_utils::{bin::CommandTempCwd, diagnostics::assert_diagnostic_contains};
 use std::{fs, path::Path, process::Command};
 
 /// A `pnpm` command that actually probes the registry (no assume-published
@@ -523,6 +523,7 @@ fn change_check_validates_committed_versions_against_configured_invariants() {
         output.contains("satisfy the configured versioning invariants"),
         "unexpected: {output}",
     );
+    assert!(output.contains("No pending change intents to check."), "unexpected: {output}");
 
     // Drift the member out of its band: the check fails and names the violation.
     add_pkg(&workspace, "lib", "5.0.0", "{}");
@@ -534,4 +535,49 @@ fn change_check_validates_committed_versions_against_configured_invariants() {
     let stderr = String::from_utf8_lossy(&failed.stderr);
     assert!(stderr.contains("ERR_PNPM_VERSIONING_INVARIANTS_VIOLATED"), "unexpected: {stderr}");
     assert!(stderr.contains("outside the band 1100-1199"), "unexpected: {stderr}");
+}
+
+#[test]
+fn change_check_rejects_an_intent_naming_a_package_outside_the_workspace() {
+    let CommandTempCwd { workspace, root: _root, .. } = CommandTempCwd::init();
+    fs::write(workspace.join("pnpm-workspace.yaml"), "packages:\n  - packages/*\n")
+        .expect("write pnpm-workspace.yaml");
+    fs::write(workspace.join("package.json"), "{\"name\": \"e2e-root\", \"private\": true}\n")
+        .expect("write root package.json");
+    add_pkg(&workspace, "lib", "1.0.0", "{}");
+
+    let recorded = stdout_of(
+        pnpm(&workspace)
+            .with_args(["change", "--bump", "patch", "--summary", "Fixed a bug.", "lib"]),
+    );
+    assert!(recorded.contains("Recorded change intent"), "unexpected: {recorded}");
+    let passed = stdout_of(pnpm(&workspace).with_args(["change", "check"]));
+    assert!(
+        passed.contains(
+            "Checked 1 pending change intent: every one resolves to a workspace package."
+        ),
+        "unexpected: {passed}",
+    );
+
+    let intent = fs::read_dir(workspace.join(".changeset"))
+        .expect("read .changeset")
+        .filter_map(Result::ok)
+        .map(|entry| entry.path())
+        .find(|path| {
+            path.extension()
+                .is_some_and(|extension| extension == "md")
+        })
+        .expect("an intent file");
+    let renamed =
+        fs::read_to_string(&intent).expect("read intent").replace(r#""lib""#, r#""ghost""#);
+    fs::write(&intent, renamed).expect("write intent");
+
+    let failed = pnpm(&workspace)
+        .with_args(["change", "check"])
+        .output()
+        .expect("run pnpm");
+    assert!(!failed.status.success(), "expected a non-zero exit");
+    let stderr = String::from_utf8_lossy(&failed.stderr);
+    assert_diagnostic_contains(&stderr, "ERR_PNPM_VERSIONING_UNKNOWN_PACKAGE");
+    assert_diagnostic_contains(&stderr, "names ghost, which is not a package in this workspace");
 }
