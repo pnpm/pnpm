@@ -23,7 +23,7 @@ export interface ResolveImporter extends ImporterToResolve, ImporterToResolveGen
 export async function toResolveImporter (
   opts: {
     defaultUpdateDepth: number
-    lockfileOnly: boolean
+    hideAlienModules: boolean
     preferredVersions?: PreferredVersions
     virtualStoreDir: string
     globalVirtualStoreDir: string
@@ -36,7 +36,7 @@ export async function toResolveImporter (
   validatePeerDependencies(project)
   const allDeps = getWantedDependencies(project.manifest)
   const nonLinkedDependencies = await partitionLinkedPackages(allDeps, {
-    lockfileOnly: opts.lockfileOnly,
+    hideAlienModules: opts.hideAlienModules,
     modulesDir: project.modulesDir,
     projectDir: project.rootDir,
     virtualStoreDir: opts.virtualStoreDir,
@@ -105,7 +105,7 @@ async function partitionLinkedPackages (
   dependencies: WantedDependency[],
   opts: {
     projectDir: string
-    lockfileOnly: boolean
+    hideAlienModules: boolean
     modulesDir: string
     virtualStoreDir: string
     globalVirtualStoreDir: string
@@ -123,7 +123,7 @@ async function partitionLinkedPackages (
       return
     }
     const isInnerLink = await safeIsInnerLink(opts.modulesDir, dependency.alias, {
-      hideAlienModules: !opts.lockfileOnly,
+      hideAlienModules: opts.hideAlienModules,
       projectDir: opts.projectDir,
       virtualStoreDir: opts.virtualStoreDir,
       globalVirtualStoreDir: opts.globalVirtualStoreDir,

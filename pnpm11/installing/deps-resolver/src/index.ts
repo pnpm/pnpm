@@ -170,7 +170,7 @@ export async function resolveDependencies (
 ): Promise<ResolveDependenciesResult> {
   const _toResolveImporter = toResolveImporter.bind(null, {
     defaultUpdateDepth: opts.defaultUpdateDepth,
-    lockfileOnly: opts.dryRun,
+    hideAlienModules: !opts.dryRun || opts.hideAlienModules === true,
     preferredVersions: opts.preferredVersions,
     virtualStoreDir: opts.virtualStoreDir,
     globalVirtualStoreDir: opts.globalVirtualStoreDir,

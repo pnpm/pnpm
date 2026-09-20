@@ -1,6 +1,7 @@
 ---
 "@pnpm/deps.graph-builder": patch
 "@pnpm/installing.deps-installer": patch
+"@pnpm/installing.deps-resolver": patch
 "@pnpm/installing.deps-restorer": patch
 "pnpm": patch
 "pacquet": patch

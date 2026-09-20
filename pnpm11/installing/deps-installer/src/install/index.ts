@@ -2082,6 +2082,12 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
       dedupePeerDependents: opts.dedupePeerDependents,
       dedupePeers: opts.dedupePeers,
       dryRun: opts.lockfileOnly || isCheckOnlyInstall(opts),
+      // This pass writes no `node_modules`, but on the two-phase isolated
+      // install the materialization pass links into the same directory
+      // straight after, so the alien-module handling still belongs here. The
+      // hoisted linker two-phased before this branch existed and is left as
+      // it was.
+      hideAlienModules: opts.materializeAfterResolution && opts.nodeLinker !== 'hoisted',
       enableGlobalVirtualStore: opts.enableGlobalVirtualStore,
       engineStrict: opts.engineStrict,
       excludeLinksFromLockfile: opts.excludeLinksFromLockfile,
@@ -2551,7 +2557,7 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
       })
     }
 
-    if (opts.nodeLinker !== 'hoisted' && opts.runPacquet == null && !opts.omitImportingDoneLog) {
+    if (opts.nodeLinker !== 'hoisted' && opts.runPacquet == null && !opts.materializeAfterResolution) {
       // This is only needed because otherwise the reporter will hang.
       // Skipped when pacquet is about to take over the materialization
       // phase: the default reporter completes the progress stream for
@@ -2768,11 +2774,11 @@ const installInContext: InstallFunction = async (projects, ctx, opts) => {
       const result = await _installInContext(projects, ctx, {
         ...opts,
         lockfileOnly: true,
-        // `headlessInstall` below is what actually fetches, imports and links,
-        // so it owns the reporter's completion and summary. `opts` is passed
-        // to it unchanged, so only this resolve pass stays quiet.
+        // `headlessInstall` below is the pass that fetches, imports and links,
+        // so it owns the summary. `opts` reaches it unchanged, so only this
+        // resolve pass stays quiet.
         omitSummaryLog: true,
-        omitImportingDoneLog: true,
+        materializeAfterResolution: true,
       })
       const { stats, ignoredBuilds } = await materializeOrDelegate(opts, () => headlessInstall({
         ...ctx,

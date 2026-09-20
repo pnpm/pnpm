@@ -567,17 +567,15 @@ fn virtual_store_only_install_under_pnp_does_not_write_the_loader() {
     drop((root, mock_instance, store_dir));
 }
 
-/// Production direct dependency, a shared package both groups reach, and
-/// the dev-only chain a `--prod` run must leave alone.
 const PROD_DIRECT: (&str, &str) = ("@pnpm.e2e/has-foo-100.1.0-dep-1", "1.0.0");
+/// `PROD_DIRECT` pins this exact version as its own dependency, so production
+/// reaches it too and a `--prod` run still has to download it.
 const SHARED: (&str, &str) = ("@pnpm.e2e/foo", "100.1.0");
 const DEV_DIRECT: (&str, &str) = ("@pnpm.e2e/bravo", "1.0.0");
 const DEV_TRANSITIVE: (&str, &str) = ("@pnpm.e2e/bravo-dep", "1.1.0");
 
-/// Whether the content-addressable store holds an index for `name@version`.
-///
-/// `pnpm cat-index` exits non-zero with `ERR_PNPM_INVALID_PACKAGE` when the
-/// package was never fetched, which is what distinguishes a tarball this
+/// `pnpm cat-index` exits non-zero with `ERR_PNPM_INVALID_PACKAGE` for a
+/// package that was never fetched, which is what separates a tarball this
 /// install downloaded from one it only resolved.
 fn store_holds(workspace: &std::path::Path, (name, version): (&str, &str)) -> bool {
     pacquet_in(workspace)
@@ -588,13 +586,10 @@ fn store_holds(workspace: &std::path::Path, (name, version): (&str, &str)) -> bo
         .success()
 }
 
-/// `pnpm install --prod` must not download a package that only a
-/// devDependency reaches (pnpm/pnpm#881).
-///
-/// The resolve pass still walks every dependency group, so the store, not
-/// `node_modules`, is what shows whether the filter reached the fetch.
-/// `install::lockfile` covers the other half, that the lockfile keeps
-/// recording every group (pnpm/pnpm#14912).
+/// pnpm/pnpm#881. The resolve pass still walks every dependency group, so the
+/// store, not `node_modules`, is where the filter's effect on the fetch shows.
+/// `install::lockfile` covers the other half, that the lockfile keeps recording
+/// every group (pnpm/pnpm#14912).
 fn assert_prod_install_downloads_no_dev_only_package(extra_install_args: &[&str]) {
     let CommandTempCwd {
         pacquet,

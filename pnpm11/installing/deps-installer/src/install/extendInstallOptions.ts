@@ -268,14 +268,17 @@ export interface StrictInstallOptions extends RegistryContext {
    */
   omitSummaryLog: boolean
   /**
-   * Skip the `importing_done` stage log at the end of this install. The
-   * default reporter completes a prefix's progress stream on the first
-   * `importing_done`, so a resolve pass that a materialization pass follows
-   * has to leave the event to that pass, or the real fetch and import counts
-   * render to a closed stream. A standalone `--lockfile-only` run has no
-   * follower and still emits its own.
+   * A materialization pass runs straight after this one and links into the
+   * same `node_modules`. It owns the reporter's `importing_done`, because the
+   * default reporter completes a prefix's progress stream on the first one and
+   * the real fetch and import counts would render to a closed stream. It is
+   * also what makes handling a `node_modules` entry another package manager
+   * installed this pass's business, even though this pass writes nothing.
+   *
+   * False for a standalone `--lockfile-only` or `--dry-run` run: nothing
+   * follows it, so it emits its own completion and touches no files.
    */
-  omitImportingDoneLog: boolean
+  materializeAfterResolution: boolean
   /**
    * URL of a pnpr server that resolves dependencies server-side and serves
    * only the files missing from the client's store.
@@ -390,7 +393,7 @@ const defaults = (opts: InstallOptions): StrictInstallOptions => {
     peersSuffixMaxLength: 1000,
     blockExoticSubdeps: false,
     omitSummaryLog: false,
-    omitImportingDoneLog: false,
+    materializeAfterResolution: false,
     resolutionVerifiers: [] as ResolutionVerifier[],
   } as StrictInstallOptions
 }
