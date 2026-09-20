@@ -10,11 +10,6 @@ afterEach(() => {
   Object.defineProperty(process, 'platform', platform)
 })
 
-function onWindowsWithInstantBackoff (): void {
-  Object.defineProperty(process, 'platform', { value: 'win32' })
-  jest.spyOn(Atomics, 'wait').mockReturnValue('timed-out')
-}
-
 test('a refusal that resolves into absence surfaces the absence', () => {
   onWindowsWithInstantBackoff()
   const absent = Object.assign(new Error('no such file'), { code: 'ENOENT' })
@@ -68,3 +63,8 @@ test('a refusal is final off Windows, where it means a permanent problem', () =>
   expect(() => lstatWithRetry('target')).toThrow(denied)
   expect(attempts).toBe(1)
 })
+
+function onWindowsWithInstantBackoff (): void {
+  Object.defineProperty(process, 'platform', { value: 'win32' })
+  jest.spyOn(Atomics, 'wait').mockReturnValue('timed-out')
+}

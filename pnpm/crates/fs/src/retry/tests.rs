@@ -139,10 +139,8 @@ fn symlink_metadata_with_retry_reports_an_absent_entry_as_not_found() {
     assert_eq!(error.kind(), io::ErrorKind::NotFound);
 }
 
-/// A path another process has unlinked but not yet released refuses
-/// inspection until the unlink lands, and is gone once it does. Callers
-/// read `NotFound` as an absent target, so the retry has to leave them the
-/// absence rather than the refusal that preceded it.
+/// The refusal stands for a Windows path another process has unlinked but
+/// not yet released, which is inaccessible for as long as that lasts.
 #[test]
 fn a_refusal_that_resolves_into_absence_surfaces_the_absence() {
     let attempts = Cell::new(0);

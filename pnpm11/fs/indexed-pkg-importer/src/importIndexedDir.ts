@@ -225,7 +225,13 @@ function clearDirentBlockingDir (newDir: string, relativeDir: string): void {
       throw err
     }
     if (stats.isDirectory()) continue
-    fs.unlinkSync(dir)
+    try {
+      fs.unlinkSync(dir)
+    } catch (err) {
+      // Another installer clearing the same blocker first leaves exactly
+      // what this call was for.
+      if (!util.types.isNativeError(err) || !('code' in err) || err.code !== 'ENOENT') throw err
+    }
     return
   }
 }

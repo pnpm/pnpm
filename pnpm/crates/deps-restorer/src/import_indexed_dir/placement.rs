@@ -144,11 +144,17 @@ pub(super) fn place_marker<Reporter: self::Reporter>(
 /// in [`import_atomic`] replaces a file but never a directory.
 pub(super) fn clear_dir_blocking_file(target: &Path) -> Result<(), ImportIndexedDirError> {
     match pnpm_fs::symlink_metadata_with_retry(target) {
-        Ok(meta) if meta.is_dir() => fs::remove_dir_all(target)
-            .map_err(|error| ImportIndexedDirError::ClearBlockingDirEntry {
-                path: target.to_path_buf(),
-                error,
-            }),
+        Ok(meta) if meta.is_dir() => match fs::remove_dir_all(target) {
+            Err(error) if error.kind() != io::ErrorKind::NotFound => {
+                Err(ImportIndexedDirError::ClearBlockingDirEntry {
+                    path: target.to_path_buf(),
+                    error,
+                })
+            }
+            // Another installer clearing the same blocker first leaves
+            // exactly what this call was for.
+            _ => Ok(()),
+        },
         Ok(_) => Ok(()),
         Err(err) if err.kind() == io::ErrorKind::NotFound => Ok(()),
         Err(error) => {
@@ -170,11 +176,15 @@ pub(super) fn clear_dirent_blocking_dir(
         abs.push(component);
         match pnpm_fs::symlink_metadata_with_retry(&abs) {
             Ok(meta) if meta.is_dir() => {}
-            Ok(meta) => remove_non_dir_dirent(&abs, meta.file_type())
-                .map_err(|error| ImportIndexedDirError::ClearBlockingDirEntry {
-                    path: abs.clone(),
-                    error,
-                })?,
+            Ok(meta) => match remove_non_dir_dirent(&abs, meta.file_type()) {
+                Err(error) if error.kind() != io::ErrorKind::NotFound => {
+                    return Err(ImportIndexedDirError::ClearBlockingDirEntry {
+                        path: abs.clone(),
+                        error,
+                    });
+                }
+                _ => {}
+            },
             Err(err) if err.kind() == io::ErrorKind::NotFound => break,
             Err(error) => return Err(ImportIndexedDirError::InspectTarget { path: abs, error }),
         }

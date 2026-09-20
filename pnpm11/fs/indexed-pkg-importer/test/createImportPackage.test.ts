@@ -22,8 +22,8 @@ jest.unstable_mockModule('@pnpm/fs.graceful-fs', () => {
     default: fsMock,
     ...fsMock,
     renameFileWithRetry: fsMock.renameSync,
-    // The importer inspects a blocking dirent through the real filesystem,
-    // as it did before the retry wrapper existed.
+    // The blocking-dirent checks read the temp trees these tests build, so
+    // they go to the real filesystem rather than the mocks above.
     lstatWithRetry: lstatSync,
   }
 })
