@@ -5,6 +5,7 @@ use command_extra::CommandExtra;
 use pnpm_testing_utils::{
     bin::{AddMockedRegistry, CommandTempCwd},
     command_env::CommandTestExt,
+    diagnostics::assert_diagnostic_contains,
     fixtures::{minimal_tarball, sha512_integrity},
 };
 use std::{fs, path::Path, process::Command};
@@ -202,9 +203,9 @@ fn a_configured_pnpmfile_that_is_missing_names_itself() {
         .assert()
         .failure();
     let stderr = String::from_utf8_lossy(&output.get_output().stderr);
-    assert!(stderr.contains("ERR_PNPM_PNPMFILE_NOT_FOUND"), "stderr: {stderr}");
-    assert!(stderr.contains("is not found"), "stderr: {stderr}");
-    assert!(stderr.contains("absent.cjs"), "stderr: {stderr}");
+    assert_diagnostic_contains(&stderr, "ERR_PNPM_PNPMFILE_NOT_FOUND");
+    assert_diagnostic_contains(&stderr, "is not found");
+    assert_diagnostic_contains(&stderr, "absent.cjs");
     drop((metadata, original));
 }
 
