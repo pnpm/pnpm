@@ -367,21 +367,28 @@ pub(super) fn cache_environment(
                 .map(|(key, value)| (key.clone(), value.clone())),
         )
         .filter(|(key, _)| {
-            key.starts_with("CARGO_")
-                || key.starts_with("RUST")
-                || key.starts_with("CC")
-                || key.starts_with("CXX")
-                || key.starts_with("AR")
-                || key.starts_with("CFLAGS")
-                || key.starts_with("CPPFLAGS")
-                || key.starts_with("LDFLAGS")
-                || key.starts_with("PKG_CONFIG")
-                || key == "PATH"
-                || key == "SDKROOT"
-                || key == "MACOSX_DEPLOYMENT_TARGET"
-                || declared.contains(key)
+            let key_upper = key.to_ascii_uppercase();
+            key_upper.starts_with("CARGO_")
+                || key_upper.starts_with("RUST")
+                || key_upper.starts_with("CC")
+                || key_upper.starts_with("CXX")
+                || key_upper.starts_with("AR")
+                || key_upper.starts_with("CFLAGS")
+                || key_upper.starts_with("CPPFLAGS")
+                || key_upper.starts_with("LDFLAGS")
+                || key_upper.starts_with("PKG_CONFIG")
+                || key_upper == "PATH"
+                || key_upper == "SDKROOT"
+                || key_upper == "MACOSX_DEPLOYMENT_TARGET"
+                || declared
+                    .iter()
+                    .any(|d| d.eq_ignore_ascii_case(key))
         })
-        .filter(|(key, _)| key != "CARGO_TARGET_DIR" && key != "CARGO_BUILD_BUILD_DIR")
+        .filter(|(key, _)| {
+            let key_upper = key.to_ascii_uppercase();
+            key_upper != "CARGO_TARGET_DIR" && key_upper != "CARGO_BUILD_BUILD_DIR"
+        })
+        .map(|(key, value)| (key.to_ascii_uppercase(), value))
         .collect()
 }
 
