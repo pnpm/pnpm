@@ -4,7 +4,7 @@
 
 mod paths;
 
-use self::paths::{ScalarPath, scalar_paths};
+use self::paths::{ScalarPath, changed_scalar_paths, scalar_paths};
 use serde_saphyr::granit_parser::{
     Event, Parser, ScalarStyle, Scanner, Span, StrInput, Token, TokenType,
 };
@@ -21,6 +21,12 @@ struct Group {
     name: String,
     paths: Vec<ScalarPath>,
     implicit_null: bool,
+    tagged_scalar: Option<TaggedScalar>,
+}
+
+struct TaggedScalar {
+    value: yaml_serde::Value,
+    literal: String,
 }
 
 struct Definition {
@@ -31,10 +37,26 @@ struct Definition {
     aliases: Vec<Range<usize>>,
     implicit_null: bool,
     block: bool,
+    scalar_text: String,
 }
 
 impl ScalarAliases {
     pub fn expand(text: &str) -> Result<(String, Self), Box<yamlpatch::Error>> {
+        Self::expand_inner(text, None)
+    }
+
+    pub(crate) fn expand_changed(
+        text: &str,
+        original: &serde_json::Value,
+        target: &serde_json::Value,
+    ) -> Result<(String, Self), Box<yamlpatch::Error>> {
+        Self::expand_inner(text, Some((original, target)))
+    }
+
+    fn expand_inner(
+        text: &str,
+        values: Option<(&serde_json::Value, &serde_json::Value)>,
+    ) -> Result<(String, Self), Box<yamlpatch::Error>> {
         if !text.contains('&') {
             return Ok((text.to_string(), Self::default()));
         }
@@ -47,6 +69,10 @@ impl ScalarAliases {
             *names.entry(name.clone()).or_default() += 1;
         }
         let mut definitions = scalar_definitions(text, &anchors)?;
+        if let Some((original, target)) = values {
+            let changed = changed_scalar_paths(text, original, target)?;
+            definitions.retain(|id, _| changed.contains(id));
+        }
         if definitions.is_empty() {
             return Ok((text.to_string(), Self::default()));
         }
@@ -109,15 +135,16 @@ fn scalar_definitions(
     while let Some(event) = parser.next_event() {
         let (event, span) = event.map_err(|error| invalid(error.to_string()))?;
         match event {
-            Event::Scalar(_, style, id, _) if id != 0 => {
-                let (name, anchor) = anchors
+            Event::Scalar(value, style, id, _) if id != 0 => {
+                let anchor_token = anchors
                     .get(id - 1)
                     .ok_or_else(|| invalid("Missing scalar anchor token".to_string()))?;
                 definitions.insert(
                     id,
                     Definition {
-                        name: name.clone(),
-                        anchor: anchor.clone(),
+                        name: anchor_token.0.clone(),
+                        scalar_text: value.to_string(),
+                        anchor: anchor_token.1.clone(),
                         value: byte_range(span),
                         tag: span.tag_start
                             .and_then(|start| start.byte_offset())
@@ -149,8 +176,11 @@ fn expand_definition(
         edits.push((alias.clone(), replacement.clone()));
     }
     if let Some(tag) = &definition.tag {
-        let replacement = if definition.block && text[..definition.value.end].ends_with('\n') {
-            format!("{replacement}\n")
+        let replacement = if definition.block {
+            format_block_replacement(
+                &text[definition.anchor.start.min(tag.start)..definition.value.end],
+                &replacement,
+            )
         } else {
             replacement
         };
@@ -163,6 +193,20 @@ fn expand_definition(
     }
     edits.push((anchor, String::new()));
     Ok(())
+}
+
+fn format_block_replacement(raw: &str, replacement: &str) -> String {
+    let suffix = raw
+        .rfind('\n')
+        .map(|index| &raw[index..])
+        .filter(|suffix| suffix.trim().is_empty())
+        .unwrap_or("");
+    let comment = raw
+        .lines()
+        .next()
+        .and_then(|line| line.split_once('#'))
+        .map_or(String::new(), |(_, comment)| format!(" #{comment}"));
+    format!("{replacement}{comment}{suffix}")
 }
 
 fn unique_name(
@@ -228,13 +272,19 @@ fn restore_group(
     let Some((_, first, ..)) = values.first() else { return Ok(()) };
     let first = first.clone();
     for (index, (span, value, literal, key)) in values.into_iter().enumerate() {
+        let tagged = group.tagged_scalar
+            .as_ref()
+            .filter(|tagged| tagged.value == value);
         if index == 0 {
+            let literal = tagged.map_or(literal, |tagged| tagged.literal.as_str());
             let replacement =
                 format_anchor(&group.name, literal, group.implicit_null && value.is_null());
             edits.push((span, replacement));
         } else if value == first {
             let replacement = format_alias(&group.name, key, &document.source()[span.end..]);
             edits.push((span, replacement));
+        } else if let Some(tagged) = tagged {
+            edits.push((span, tagged.literal.clone()));
         }
     }
     Ok(())
@@ -286,10 +336,27 @@ fn expand_definitions(
             continue;
         };
         expand_definition(text, &definition, &mut edits)?;
+        let tagged_scalar = tagged_scalar(text, &definition)?;
         let name = unique_name(definition.name, &mut names, &mut next_suffix);
-        groups.push(Group { name, paths, implicit_null: definition.implicit_null });
+        groups.push(Group { name, paths, implicit_null: definition.implicit_null, tagged_scalar });
     }
     Ok((apply_edits(text, edits), ScalarAliases { groups }))
+}
+
+fn tagged_scalar(
+    text: &str,
+    definition: &Definition,
+) -> Result<Option<TaggedScalar>, Box<yamlpatch::Error>> {
+    let Some(tag) = &definition.tag else { return Ok(None) };
+    let raw = &text[definition.value.clone()];
+    let value_text = if definition.block || raw.contains(['\n', '\r']) {
+        serde_json::to_string(&definition.scalar_text).expect("serializing a string cannot fail")
+    } else {
+        raw.to_string()
+    };
+    let literal = format!("{} {value_text}", &text[tag.clone()]);
+    let value = serde_saphyr::from_str(&literal).map_err(|error| invalid(error.to_string()))?;
+    Ok(Some(TaggedScalar { value, literal }))
 }
 
 fn scalar_replacement(

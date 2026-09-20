@@ -59,7 +59,7 @@ pub fn sync(text: &str, value: &Value) -> Result<String, Box<Error>> {
     if original == *value {
         return Ok(text.to_string());
     }
-    let (text, aliases) = ScalarAliases::expand(text)?;
+    let (text, aliases) = ScalarAliases::expand_changed(text, &original, value)?;
     let insertion = if original.is_null() { empty_document_insertion(&text) } else { None };
     let text = if let Some(offset) = insertion {
         let (before, after) = text.split_at(offset);

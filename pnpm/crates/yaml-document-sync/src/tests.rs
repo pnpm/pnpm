@@ -126,3 +126,47 @@ fn fills_empty_documents_without_discarding_markers_or_comments() {
         assert_eq!(sync(source, &json!({"name":"fixture"})).unwrap(), expected);
     }
 }
+
+#[test]
+fn preserves_explicit_scalar_tags_in_alias_groups() {
+    let source =
+        "name: fixture\nmetadata:\n  binary: &bytes !!binary SGVsbG8= # data\n  copy: *bytes\n";
+    let mut target = parse(source).unwrap();
+    target["version"] = json!("1.0.0");
+    let output = sync(source, &target).unwrap();
+    assert!(output.contains("!!binary"), "{output}");
+    assert!(output.contains("copy: *bytes"), "{output}");
+}
+
+#[test]
+fn changing_one_tagged_scalar_keeps_its_aliases_typed() {
+    let source = "name: fixture\nmetadata:\n  binary: &bytes !!binary SGVsbG8= # data\n  copy: *bytes # copy\n";
+    let mut target = parse(source).unwrap();
+    target["metadata"]["binary"] = json!("changed");
+    let output = sync(source, &target).unwrap();
+    assert_eq!(parse(&output).unwrap(), target);
+    assert!(output.contains("copy: !!binary SGVsbG8= # copy"), "{output}");
+}
+
+#[test]
+fn tagged_multiline_alias_values_survive_unrelated_edits() {
+    let source = "name: fixture\nmetadata:\n  binary: &bytes !!binary | # encoded\n    SGVsbG8=\n  copy: *bytes\n";
+    let mut target = parse(source).unwrap();
+    target["version"] = json!("1.0.0");
+    let output = sync(source, &target).unwrap();
+    assert_eq!(parse(&output).unwrap(), target);
+    assert!(output.contains("!!binary"), "{output}");
+    assert!(output.contains("copy: *bytes"), "{output}");
+    assert_eq!(output, format!("{source}version: 1.0.0\n"));
+}
+
+#[test]
+fn changing_an_alias_of_a_tagged_block_scalar_preserves_its_source() {
+    let source = "name: fixture\nmetadata:\n  binary: &bytes !!binary | # encoded\n    SGVsbG8=\n  copy: *bytes\n";
+    let mut target = parse(source).unwrap();
+    target["metadata"]["copy"] = json!("changed");
+    let output = sync(source, &target).unwrap();
+    assert_eq!(parse(&output).unwrap(), target);
+    assert!(output.contains("!!binary"), "{output}");
+    assert!(output.contains("# encoded"), "{output}");
+}
