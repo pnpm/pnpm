@@ -110,7 +110,8 @@ use modules_state::{
     drain_settled_projects, gvs_build_marker_present, gvs_build_markers_may_require_recovery,
     has_newly_allowed_ignored_builds, has_revoked_allowed_builds, manifest_string_field,
     merge_filtered_modules_metadata, merge_pending_builds, modules_consistent_with,
-    project_requires_lifecycle_scripts, unapproved_recorded_ignored_builds,
+    project_requires_lifecycle_scripts, recorded_allow_builds_differ,
+    unapproved_recorded_ignored_builds,
 };
 use prepare_modules_state::{
     PrepareModulesStateInputs, PreparedModulesState, prepare_modules_state,

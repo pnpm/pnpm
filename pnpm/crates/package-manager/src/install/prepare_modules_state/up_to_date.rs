@@ -3,8 +3,8 @@ use super::super::{
     ResolutionVerifier, Stage, StageLog, SummaryLog, SystemTime, build_workspace_state,
     frozen_tree_intact, gvs_build_marker_present, has_newly_allowed_ignored_builds,
     has_revoked_allowed_builds, map_frozen_lockfile_error, modules_consistent_with,
-    moved_tree_is_reusable, unapproved_recorded_ignored_builds, update_workspace_state,
-    verify_lockfile_eagerly,
+    moved_tree_is_reusable, recorded_allow_builds_differ, unapproved_recorded_ignored_builds,
+    update_workspace_state, verify_lockfile_eagerly,
 };
 use crate::optimistic_repeat_install::{filesystem_now_ms, materialized_shape_matches};
 
@@ -120,6 +120,11 @@ fn build_state_unchanged(
         // must be re-evaluated, or a strict install would exit 0 on a
         // package it is no longer allowed to build.
         && !has_revoked_allowed_builds(modules, config)
+        // The transitions neither predicate above sees, such as an
+        // explicit `false` flipped to `true`. A global virtual store
+        // hashes its slots on the approval set, so the tree is still
+        // linked into a slot this install would no longer produce.
+        && !recorded_allow_builds_differ(modules, config)
         // A build marker lives in the shared slot, outside every
         // project-state input checked above. Let materialization inspect
         // buildable and patched GVS slots instead of declaring the local
