@@ -34,9 +34,13 @@ fn a_file_fits_only_where_a_file_belongs() {
     assert!(!dir_fits_at(&target));
 }
 
-/// The installer sharing the slot clears the blocker and puts what belongs
-/// there in its place, between this one's inspection and its removal.
+// Each fake stands in for the installer sharing the slot, which can finish
+// the same work between this one's inspection and its removal. The removal
+// always fails, because that is what the loser of the race sees; what the
+// path holds by then is what the fakes vary.
 struct ReplacedByWhatBelongs;
+struct RemovedByTheOtherInstaller;
+struct LeavesTheBlocker;
 
 impl FsRemoveDirAll for ReplacedByWhatBelongs {
     fn remove_dir_all(path: &Path) -> io::Result<()> {
@@ -46,18 +50,12 @@ impl FsRemoveDirAll for ReplacedByWhatBelongs {
     }
 }
 
-/// The same race, for a removal that leaves the path empty.
-struct RemovedByTheOtherInstaller;
-
 impl FsRemoveDirAll for RemovedByTheOtherInstaller {
     fn remove_dir_all(path: &Path) -> io::Result<()> {
         fs::remove_dir_all(path)?;
         Err(io::Error::from(io::ErrorKind::PermissionDenied))
     }
 }
-
-/// A removal that fails with the blocker still standing.
-struct LeavesTheBlocker;
 
 impl FsRemoveDirAll for LeavesTheBlocker {
     fn remove_dir_all(_: &Path) -> io::Result<()> {
