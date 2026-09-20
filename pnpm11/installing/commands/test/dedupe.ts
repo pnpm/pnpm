@@ -68,7 +68,7 @@ describe('pnpm dedupe', () => {
     await dedupe.handler(opts)
 
     const lockfile = project.readLockfile()
-    expect(lockfile.snapshots['boxen@5.1.2'].dependencies.chalk).toBe(expectedVersion)
+    expect(lockfile.snapshots['boxen@5.1.2'].dependencies?.chalk).toBe(expectedVersion)
     expect(Object.keys(lockfile.packages).filter((depPath) => depPath.startsWith('chalk@'))).toEqual([`chalk@${expectedVersion}`])
     await dedupe.handler({ ...opts, check: true })
     expect(project.readLockfile()).toEqual(lockfile)
