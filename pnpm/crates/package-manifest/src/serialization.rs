@@ -123,21 +123,34 @@ impl PackageManifest {
     /// Write `contents` to `path` atomically: a sibling temp file is written
     /// and fsynced, then renamed over `path`. A crash or write error therefore
     /// never leaves a truncated or partial manifest behind, matching the
-    /// `write-file-atomic` guarantee.
+    /// `write-file-atomic` guarantee. New Unix files respect the process umask;
+    /// existing files keep their permissions.
     pub(super) fn write_atomic(path: &Path, contents: &str) -> io::Result<()> {
         let dir = path
             .parent()
             .filter(|parent| !parent.as_os_str().is_empty())
             .unwrap_or_else(|| Path::new("."));
+        let permissions = match fs::metadata(path) {
+            Ok(metadata) => Some(metadata.permissions()),
+            Err(error) if error.kind() == io::ErrorKind::NotFound => None,
+            Err(error) => return Err(error),
+        };
+        #[cfg(unix)]
+        let mut tmp = if permissions.is_none() {
+            use std::os::unix::fs::PermissionsExt;
+            tempfile::Builder::new()
+                .permissions(fs::Permissions::from_mode(0o666))
+                .tempfile_in(dir)?
+        } else {
+            NamedTempFile::new_in(dir)?
+        };
+        #[cfg(not(unix))]
         let mut tmp = NamedTempFile::new_in(dir)?;
         tmp.write_all(contents.as_bytes())?;
-        tmp.as_file().sync_all()?;
-        // A NamedTempFile is created 0o600; preserve the original file's mode
-        // when overwriting an existing manifest (write-file-atomic does the
-        // same) so the rename doesn't silently tighten its permissions.
-        if let Ok(metadata) = fs::metadata(path) {
-            tmp.as_file().set_permissions(metadata.permissions())?;
+        if let Some(permissions) = permissions {
+            tmp.as_file().set_permissions(permissions)?;
         }
+        tmp.as_file().sync_all()?;
         tmp.persist(path).map_err(|err| err.error)?;
         Ok(())
     }

@@ -28,6 +28,30 @@ fn save_preserves_the_existing_package_json_permissions() {
     assert_eq!(mode, 0o640);
 }
 
+#[cfg(unix)]
+#[test]
+fn new_manifests_use_normal_file_creation_permissions() {
+    use std::os::unix::fs::PermissionsExt;
+    let dir = tempdir().unwrap();
+    let control = dir.path().join("control");
+    std::fs::write(&control, "").unwrap();
+    let expected = std::fs::metadata(control)
+        .unwrap()
+        .permissions()
+        .mode()
+        & 0o777;
+    for basename in ["package.json", "package.yaml"] {
+        let path = dir.path().join(basename);
+        PackageManifest::init(&path, InitOptions::default()).unwrap();
+        let actual = std::fs::metadata(path)
+            .unwrap()
+            .permissions()
+            .mode()
+            & 0o777;
+        assert_eq!(actual, expected, "{basename}");
+    }
+}
+
 #[test]
 fn test_init_package_json_content() {
     let manifest = PackageManifest::create_init_package_json("test", InitOptions::default());
