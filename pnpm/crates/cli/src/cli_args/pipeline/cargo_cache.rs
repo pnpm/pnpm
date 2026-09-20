@@ -272,9 +272,14 @@ fn add_config_inputs(
     environment: &BTreeMap<String, String>,
     inputs: &mut Vec<String>,
 ) -> io::Result<()> {
+    let mut seen = std::collections::HashSet::new();
     for ancestor in project.ancestors() {
         for name in ["config", "config.toml"] {
-            add_config(&ancestor.join(".cargo").join(name), project, inputs)?;
+            let config_path = ancestor.join(".cargo").join(name);
+            let canonical = dunce::canonicalize(&config_path).unwrap_or(config_path);
+            if seen.insert(canonical.clone()) {
+                add_config(&canonical, project, inputs)?;
+            }
         }
     }
     let cargo_home = environment
@@ -283,7 +288,11 @@ fn add_config_inputs(
         .or_else(|| home::home_dir().map(|home| home.join(".cargo")));
     if let Some(cargo_home) = cargo_home {
         for name in ["config", "config.toml"] {
-            add_config(&cargo_home.join(name), project, inputs)?;
+            let config_path = cargo_home.join(name);
+            let canonical = dunce::canonicalize(&config_path).unwrap_or(config_path);
+            if seen.insert(canonical.clone()) {
+                add_config(&canonical, project, inputs)?;
+            }
         }
     }
     Ok(())
@@ -324,11 +333,13 @@ fn local_packages_in_repo(metadata: &serde_json::Value, repo: &Path) -> io::Resu
 /// but that is gone is simply not an input; anything that is not a
 /// regular file is one the hash cannot describe.
 fn add_tracked_file_input(repo: &Path, path: &str, inputs: &mut Vec<String>) -> io::Result<()> {
-    check_ancestors(repo, Path::new(path))?;
-    let absolute = repo.join(path);
+    let relative_path = Path::new(path);
+    check_ancestors(repo, relative_path)?;
+    let absolute = repo.join(relative_path);
     match fs::symlink_metadata(&absolute) {
         Ok(metadata) if metadata.is_file() => {
-            inputs.push(format!("{path}:{}", create_hex_hash_from_file(&absolute)?));
+            let normalized_path = path.replace('\\', "/");
+            inputs.push(format!("{normalized_path}:{}", create_hex_hash_from_file(&absolute)?));
             Ok(())
         }
         Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(()),
@@ -376,7 +387,8 @@ fn add_config(path: &Path, project: &Path, inputs: &mut Vec<String>) -> io::Resu
         Ok(hash) => {
             let relative = pathdiff::diff_paths(&canonical_path, &canonical_project)
                 .unwrap_or_else(|| canonical_path.clone());
-            inputs.push(format!("cargo-config:{}:{hash}", relative.display()));
+            let relative_str = relative.to_string_lossy().replace('\\', "/");
+            inputs.push(format!("cargo-config:{relative_str}:{hash}"));
         }
         Err(error) if error.kind() == io::ErrorKind::NotFound => {}
         Err(error) => return Err(error),
