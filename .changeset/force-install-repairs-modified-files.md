@@ -3,4 +3,4 @@
 "pnpm": patch
 ---
 
-`pnpm install --force` now repairs dependency files that were modified inside `node_modules`. It reported "Already up to date" and changed nothing when the manifest and the lockfile were unchanged [#919](https://github.com/pnpm/pnpm/issues/919).
+`pnpm install --force` now reinstalls dependencies when the manifest and lockfile are unchanged. It previously reported "Already up to date" and left replaced dependency files in `node_modules` untouched [#919](https://github.com/pnpm/pnpm/issues/919).
