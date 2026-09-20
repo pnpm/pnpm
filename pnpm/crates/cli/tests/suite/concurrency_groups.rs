@@ -23,8 +23,10 @@ const HOLD_SCRIPT: &str = r"
     const path = require('path');
     const dir = process.env.MARKER_DIR;
     const marker = path.join(dir, `running-${process.pid}`);
-    const others = fs.readdirSync(dir).filter((name) => name.startsWith('running-'));
     fs.writeFileSync(marker, '');
+    const others = fs.readdirSync(dir).filter((name) =>
+      name.startsWith('running-') && path.join(dir, name) !== marker
+    );
     if (others.length > 0) fs.writeFileSync(path.join(dir, 'overlap'), others.join('\n'));
     const sleeper = new Int32Array(new SharedArrayBuffer(4));
     const deadline = Date.now() + Number(process.env.HOLD_MS);
