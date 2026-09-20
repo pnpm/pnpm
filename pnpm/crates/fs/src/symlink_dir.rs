@@ -236,7 +236,11 @@ fn force_symlink_inner(
         _ => return Err(initial_err),
     }
 
-    let Ok(existing) = read_symlink_dir(link) else {
+    // The read waits out a refusal: on Windows a link another installer
+    // created moments ago can refuse it while a handle on it is open. A real
+    // file or directory refuses for a reason that is not a lock, so it
+    // answers at once.
+    let Ok(existing) = retry_transient_file_locks(|| read_symlink_dir(link)) else {
         // A vanished occupant means the path was cleared under us, so the
         // original symlink failure is the one worth reporting.
         let Some(warning) = clear_symlink_occupant(link, rename_tried)? else {
