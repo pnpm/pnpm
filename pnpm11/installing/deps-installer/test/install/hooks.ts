@@ -386,3 +386,46 @@ test('add models the real declaration when the dependency lives in another field
   expect(updatedManifest.devDependencies).toStrictEqual({ 'is-positive': '1.0.0' })
   expect(updatedManifest.dependencies).toBeUndefined()
 })
+
+test('add keeps the hook-provided specifier when the hook rewrites only after declaration', async () => {
+  const project = prepareEmpty()
+
+  // The hook only rewrites the dependency once it is declared, so the
+  // dependency is absent from the manifest the add starts from. Declaring
+  // the requested specifier would not survive the hook, so the add still
+  // reports it as superseded and keeps the hook's specifier.
+  function readPackageHook (manifest: PackageManifest): PackageManifest {
+    if (manifest.dependencies?.['is-positive'] != null) {
+      manifest.dependencies = { ...manifest.dependencies, 'is-positive': '1.0.0' }
+    }
+    return manifest
+  }
+
+  const warnings: string[] = []
+  const reporter = (log: { level?: string, message?: string }) => {
+    if (log.level === 'warn' && log.message != null) warnings.push(log.message)
+  }
+  const { updatedManifest } = await (async () => {
+    streamParser.on('data', reporter as never)
+    try {
+      return await addDependenciesToPackage(
+        { name: 'my-project', version: '0.0.0' },
+        ['is-positive@3.1.0'],
+        testDefaults({
+          hooks: { readPackage: [readPackageHook] },
+        })
+      )
+    } finally {
+      streamParser.removeListener('data', reporter as never)
+    }
+  })()
+
+  expect(warnings).toContain(
+    'Ignoring "is-positive@3.1.0": "is-positive" is controlled by a package extension, readPackage hook, or override, so its specifier "1.0.0" was used instead.'
+  )
+  expect(updatedManifest.dependencies).toStrictEqual({ 'is-positive': '1.0.0' })
+  expect(project.readLockfile().importers['.'].dependencies?.['is-positive']).toMatchObject({ specifier: '1.0.0' })
+
+  // The project is left in a state the next frozen install accepts.
+  await install(updatedManifest, testDefaults({ frozenLockfile: true, hooks: { readPackage: [readPackageHook] } }))
+})

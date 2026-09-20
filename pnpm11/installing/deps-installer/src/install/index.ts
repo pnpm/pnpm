@@ -1166,28 +1166,27 @@ export async function mutateModules (
         ? currentBareSpecifiers
         : getAllDependenciesFromManifest(project.originalManifest, { autoInstallPeers: opts.autoInstallPeers })
       const readonlyAliases = getHookOwnedAliases(project)
-      // A `pnpm add` that names a specifier a `readPackage` hook overwrites on
-      // every read cannot leave the requested one behind: the hook wins on the
-      // next read, so the manifest and the lockfile would disagree and the
-      // next `--frozen-lockfile` install would reject them (pnpm/pnpm#15156).
+      // A `pnpm add` that names a specifier a `readPackage` hook overwrites
+      // cannot leave the requested one behind: the hook wins on the next
+      // read, so the manifest and the lockfile would disagree and the next
+      // `--frozen-lockfile` install would reject them (pnpm/pnpm#15156).
       // Those aliases join the hook-governed set below, so the request is
       // reported as superseded and the hook's specifier is used instead. A
       // hook that only fills gaps the manifest leaves (like a
       // `packageExtensions` entry, which the manifest's own declaration
       // overrides) still lets the explicit add through.
-      const hookSupersededAliases = project.update === true
+      const hookSupersededSpecifiers = project.update === true
         ? undefined
-        : await getHookSupersededAliases(project, {
-          effectiveBareSpecifiers,
+        : await getHookSupersededSpecifiers(project, {
           readPackageHook: opts.readPackageHook,
         })
       const hookGovernedAliases = readonlyAliases == null
-        ? hookSupersededAliases
-        : new Set([...readonlyAliases, ...hookSupersededAliases ?? []])
+        ? hookSupersededSpecifiers == null ? undefined : new Set(hookSupersededSpecifiers.keys())
+        : new Set([...readonlyAliases, ...hookSupersededSpecifiers?.keys() ?? []])
       const readonlySpecifiers = hookGovernedAliases == null
         ? undefined
         : Object.fromEntries(
-          Array.from(hookGovernedAliases, (alias) => [alias, effectiveBareSpecifiers[alias]])
+          Array.from(hookGovernedAliases, (alias) => [alias, hookSupersededSpecifiers?.get(alias) ?? effectiveBareSpecifiers[alias]])
         ) as Dependencies
       const optionalDependencies = project.targetDependenciesField ? {} : project.manifest.optionalDependencies ?? {}
       const devDependencies = project.targetDependenciesField ? {} : project.manifest.devDependencies ?? {}
@@ -1346,40 +1345,35 @@ export async function mutateModules (
     }
 
     /**
-     * The aliases a `pnpm add` names with a specifier that a `readPackage`
-     * hook overwrites on every read. The request cannot survive the hook, so
-     * the hook's specifier is used instead and the request is reported as
-     * superseded, the way an update reports a hook-owned specifier.
+     * The specifiers a `pnpm add` names explicitly that would not survive the
+     * `readPackage` hooks. The request cannot survive the hook, so the hook's
+     * specifier is used instead and the request is reported as superseded,
+     * the way an update reports a hook-owned specifier.
      *
-     * Only aliases the run names with an explicit specifier that differs from
-     * the hook's effective specifier qualify, and only when probing the hooks
-     * with the requested specifier declared the way the real add declares it
-     * shows the declaration would not survive them: a hook that merely fills
-     * gaps the manifest leaves (like a `packageExtensions` entry, which the
-     * manifest's own declaration overrides) leaves an explicit add alone.
-     * `undefined` when nothing is superseded.
+     * Every explicitly named alias is probed: the requested specifier is
+     * declared the way the real add declares it, the hooks run over that
+     * declaration, and an alias whose probed specifier differs qualifies.
+     * Probing every selector also catches hooks that rewrite conditionally,
+     * only once the dependency is declared. A hook that merely fills gaps
+     * the manifest leaves (like a `packageExtensions` entry, which the
+     * manifest's own declaration overrides) leaves the declaration alone, so
+     * the explicit add still wins. `undefined` when nothing is superseded.
      */
-    async function getHookSupersededAliases (
+    async function getHookSupersededSpecifiers (
       project: Pick<InstallSomeProject, 'dependencySelectors' | 'manifest' | 'rootDir' | 'targetDependenciesField'>,
       opts: {
-        effectiveBareSpecifiers: Dependencies
         readPackageHook: ReadPackageHook | ReadPackageHook[] | undefined
       }
-    ): Promise<Set<string> | undefined> {
+    ): Promise<Map<string, string> | undefined> {
       const hooks = opts.readPackageHook == null
         ? []
         : Array.isArray(opts.readPackageHook) ? opts.readPackageHook : [opts.readPackageHook]
       if (hooks.length === 0) return undefined
-      let superseded: Set<string> | undefined
+      let superseded: Map<string, string> | undefined
       /* eslint-disable no-await-in-loop */
       for (const selector of project.dependencySelectors) {
         const { alias, bareSpecifier: requested } = parseWantedDependency(selector)
         if (alias == null || requested == null) continue
-        const hookedSpecifier = opts.effectiveBareSpecifiers[alias]
-        if (hookedSpecifier == null || hookedSpecifier === requested) continue
-        // Probe the hooks with the requested specifier declared the way the
-        // real add declares it: a gap-filling hook leaves the declaration
-        // alone, while one that rewrites unconditionally replaces it again.
         let probed: ProjectManifest = mergeInstallSelectors({
           ...project.manifest,
           dependencies: { ...project.manifest.dependencies },
@@ -1393,9 +1387,9 @@ export async function mutateModules (
         for (const hook of hooks) {
           probed = await hook(probed, project.rootDir)
         }
-        if (getAllDependenciesFromManifest(probed)[alias] !== requested) {
-          ;(superseded ??= new Set()).add(alias)
-        }
+        const probedSpecifier = getAllDependenciesFromManifest(probed)[alias]
+        if (probedSpecifier == null || probedSpecifier === requested) continue
+        ;(superseded ??= new Map()).set(alias, probedSpecifier)
       }
       /* eslint-enable no-await-in-loop */
       return superseded
