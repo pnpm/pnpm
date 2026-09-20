@@ -1,11 +1,15 @@
 const { pathToFileURL } = require('node:url');
 
 async function loadPnpmfile(pnpmfilePath) {
-  const loaded = await import(pathToFileURL(pnpmfilePath).href);
-  const hasNamedExport = ['hooks', 'finders', 'resolvers', 'fetchers']
-    .some((name) => Object.prototype.hasOwnProperty.call(loaded, name));
-  if (hasNamedExport) {
-    return loaded;
+  // `require` preserves the complete CommonJS `module.exports`. ESM-only
+  // failures fall back to `import()`, which follows the extension and nearest
+  // package scope and preserves the module namespace even when it is empty.
+  try {
+    return require(pnpmfilePath);
+  } catch (error) {
+    if (error?.code !== 'ERR_REQUIRE_ESM' && error?.code !== 'ERR_REQUIRE_ASYNC_MODULE') {
+      throw error;
+    }
   }
-  return loaded.default;
+  return import(pathToFileURL(pnpmfilePath).href);
 }

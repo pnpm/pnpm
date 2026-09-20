@@ -81,8 +81,7 @@ impl NodeJsHooks {
 }
 
 /// The Node wrapper that loads the pnpmfile and calls `func` with the context
-/// read from stdin. Dynamic `import()` lets Node select the module format from
-/// the file extension and nearest package scope.
+/// read from stdin.
 fn hook_wrapper(file_path: &str, func: &str) -> Option<String> {
     let file_path_escaped = serde_json::to_string(file_path).ok()?;
     Some(format!(

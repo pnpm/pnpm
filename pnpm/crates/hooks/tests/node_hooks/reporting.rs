@@ -48,6 +48,21 @@ async fn get_custom_resolvers_reports_per_resolver_capabilities() {
 }
 
 #[tokio::test]
+async fn cjs_mixed_exports_preserve_custom_resolvers() {
+    let (hooks, _tmp) = cjs_hooks(
+        r"exports.hooks = {};
+Object.assign(module.exports, {
+  resolvers: [{ canResolve () { return true; } }],
+});",
+    );
+
+    let resolvers = hooks.get_custom_resolvers().await.expect("load resolvers");
+
+    assert_eq!(resolvers.len(), 1);
+    assert!(resolvers[0].has_can_resolve());
+}
+
+#[tokio::test]
 async fn get_custom_fetchers_reports_per_fetcher_capabilities() {
     let tmp = TempDir::new().expect("temp dir");
     let hooks =

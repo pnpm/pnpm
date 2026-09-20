@@ -99,6 +99,40 @@ function preResolution(ctx, logger) {
 }
 
 #[tokio::test]
+async fn empty_mjs_is_a_noop_for_pre_resolution() {
+    let tmp = TempDir::new().expect("temp dir");
+    let pnpmfile_path = tmp.path().join(".pnpmfile.mjs");
+    std::fs::write(&pnpmfile_path, "export {};").expect("write pnpmfile");
+    let hooks = pnpm_hooks::node_runtime::NodeJsHooks::new(pnpmfile_path);
+    let warnings = Arc::new(Mutex::new(Vec::new()));
+    let captured_warnings = Arc::clone(&warnings);
+
+    hooks.pre_resolution(
+        pnpm_hooks::PreResolutionHookContext {
+            wanted_lockfile: serde_json::json!({}),
+            current_lockfile: serde_json::json!({}),
+            exists_current_lockfile: false,
+            exists_non_empty_wanted_lockfile: false,
+            lockfile_dir: "/test/lockfile".to_string(),
+            store_dir: "/test/store".to_string(),
+            registries: serde_json::json!({}),
+        },
+        pnpm_hooks::PreResolutionHookLogger {
+            info: Arc::new(|_| {}),
+            warn: Arc::new(move |message| {
+                captured_warnings
+                    .lock()
+                    .unwrap()
+                    .push(message);
+            }),
+        },
+    )
+    .await;
+
+    assert!(warnings.lock().unwrap().is_empty());
+}
+
+#[tokio::test]
 async fn pre_resolution_loads_js_as_esm_from_the_nearest_package_scope() {
     let tmp = TempDir::new().expect("temp dir");
     std::fs::write(tmp.path().join("package.json"), r#"{"type":"commonjs"}"#)
