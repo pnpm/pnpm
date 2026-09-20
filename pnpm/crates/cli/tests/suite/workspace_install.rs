@@ -13,7 +13,7 @@
 
 use crate::_utils;
 
-use _utils::{importer, importer_version, read_lockfile};
+use _utils::{importer, importer_version, read_lockfile, snapshot_entries};
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
 use pnpm_lockfile::PkgName;
@@ -889,15 +889,16 @@ fn prefer_symlinked_executables_symlinks_workspace_bins() {
     );
 }
 
-/// `@pnpm.e2e/circular-peer-host` depends on
+/// The fixtures carry the shape from
+/// <https://github.com/pnpm/pnpm/issues/11834>, which the manifests below
+/// do not show: `@pnpm.e2e/circular-peer-host` depends on
 /// `@pnpm.e2e/circular-peer-plugin`, which peers back on its own parent and
-/// declares `@pnpm.e2e/peer-c` as an implied optional peer through
-/// `peerDependenciesMeta` alone. Only `pkg-a` depends on `peer-c`, and the
-/// peer cycle must not split the two projects onto separate parent
-/// snapshots, one suffixed with `peer-c` and one bare: both land on the
-/// suffixed one. Its counterpart lives in `peerDependencies.ts`, in
+/// declares `@pnpm.e2e/peer-c` as an optional peer through
+/// `peerDependenciesMeta` alone. Only `pkg-a` supplies `peer-c`, and
+/// `autoInstallPeers` is off so `dedupePeerDependents` alone has to collapse
+/// the variants. Its counterpart lives in `peerDependencies.ts`, in
 /// `deduplicate a package whose dependency peers back on it and has an
-/// optional peer`. For <https://github.com/pnpm/pnpm/issues/11834>.
+/// optional peer`.
 #[test]
 fn a_circular_peers_optional_peer_is_shared_by_every_importer() {
     let CommandTempCwd { root, workspace, npmrc_info, .. } = two_project_workspace(
@@ -917,8 +918,6 @@ fn a_circular_peers_optional_peer_is_shared_by_every_importer() {
     );
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
 
-    // `dedupePeerDependents` alone must collapse the two variants, so the
-    // hoist auto-install-peers would also perform is out of the way.
     let workspace_yaml_path = workspace.join("pnpm-workspace.yaml");
     let mut workspace_yaml =
         fs::read_to_string(&workspace_yaml_path).expect("read pnpm-workspace.yaml");
@@ -931,14 +930,15 @@ fn a_circular_peers_optional_peer_is_shared_by_every_importer() {
         .success();
 
     let lockfile = read_lockfile(&workspace.join("pnpm-lock.yaml"));
-    assert_eq!(
-        importer_version(&lockfile, "pkg-b", "@pnpm.e2e/circular-peer-host"),
-        importer_version(&lockfile, "pkg-a", "@pnpm.e2e/circular-peer-host"),
-    );
-    assert_eq!(
-        importer_version(&lockfile, "pkg-a", "@pnpm.e2e/circular-peer-host"),
-        "1.0.0(@pnpm.e2e/peer-c@2.0.0)",
-    );
+    let host = "@pnpm.e2e/circular-peer-host";
+    let deduped = "1.0.0(@pnpm.e2e/peer-c@2.0.0)";
+    let host_snapshots: Vec<String> = snapshot_entries(&lockfile, host)
+        .into_iter()
+        .map(|(key, _)| key)
+        .collect();
+    assert_eq!(host_snapshots, [format!("{host}@{deduped}")]);
+    assert_eq!(importer_version(&lockfile, "pkg-a", host), deduped);
+    assert_eq!(importer_version(&lockfile, "pkg-b", host), deduped);
 
     drop((root, mock_instance));
 }

@@ -1709,16 +1709,14 @@ test('deduplicate packages that have peers, when adding new dependency in a work
 })
 
 test('deduplicate a package whose dependency peers back on it and has an optional peer', async () => {
-  // Regression test for https://github.com/pnpm/pnpm/issues/11834
-  // @pnpm.e2e/circular-peer-host depends on @pnpm.e2e/circular-peer-plugin,
-  // which peers back on its own parent and declares @pnpm.e2e/peer-c as an
-  // implied optional peer through peerDependenciesMeta alone. Only project-1
-  // depends on peer-c, and the peer cycle must not split the two projects onto
-  // separate parent snapshots, one suffixed with peer-c and one bare.
-  // auto-install-peers is off so dedupePeerDependents alone has to collapse
-  // the two variants. pacquet's counterpart is
-  // `a_circular_peers_optional_peer_is_shared_by_every_importer` in
-  // pnpm/crates/cli/tests/suite/workspace_install.rs.
+  // The fixtures carry the shape from https://github.com/pnpm/pnpm/issues/11834,
+  // which the manifests below do not show: @pnpm.e2e/circular-peer-host depends
+  // on @pnpm.e2e/circular-peer-plugin, which peers back on its own parent and
+  // declares @pnpm.e2e/peer-c as an optional peer through peerDependenciesMeta
+  // alone. Only project-1 supplies peer-c, and auto-install-peers is off so
+  // dedupePeerDependents alone has to collapse the variants. pacquet's
+  // counterpart is `a_circular_peers_optional_peer_is_shared_by_every_importer`
+  // in pnpm/crates/cli/tests/suite/workspace_install.rs.
   const manifest1 = {
     name: 'project-1',
     dependencies: {
@@ -1748,10 +1746,13 @@ test('deduplicate a package whose dependency peers back on it and has an optiona
   await mutateModules(importers, testDefaults({ allProjects, autoInstallPeers: false, dedupePeerDependents: true }))
 
   const lockfile = readYamlFileSync<LockfileFile>(path.resolve(WANTED_LOCKFILE))
+  const deduped = '1.0.0(@pnpm.e2e/peer-c@2.0.0)'
+  expect(Object.keys(lockfile.snapshots ?? {}).filter((depPath) => depPath.startsWith('@pnpm.e2e/circular-peer-host@')))
+    .toStrictEqual([`@pnpm.e2e/circular-peer-host@${deduped}`])
   const dependent = (importerId: string): string =>
     lockfile.importers![importerId].dependencies!['@pnpm.e2e/circular-peer-host'].version
-  expect(dependent('project-2')).toBe(dependent('project-1'))
-  expect(dependent('project-1')).toBe('1.0.0(@pnpm.e2e/peer-c@2.0.0)')
+  expect(dependent('project-1')).toBe(deduped)
+  expect(dependent('project-2')).toBe(deduped)
 })
 
 test('an optional peer declared by a workspace project is not added to its own importer, when auto-install-peers is off', async () => {
