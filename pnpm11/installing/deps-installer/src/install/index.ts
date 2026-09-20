@@ -1357,7 +1357,9 @@ export async function mutateModules (
      * only once the dependency is declared. A hook that merely fills gaps
      * the manifest leaves (like a `packageExtensions` entry, which the
      * manifest's own declaration overrides) leaves the declaration alone, so
-     * the explicit add still wins. `undefined` when nothing is superseded.
+     * the explicit add still wins. An explicitly specified version also keeps
+     * ignoring overrides, as before: only the `readPackage` hooks proper can
+     * supersede it. `undefined` when nothing is superseded.
      */
     async function getHookSupersededSpecifiers (
       project: Pick<InstallSomeProject, 'dependencySelectors' | 'manifest' | 'rootDir' | 'targetDependenciesField'>,
@@ -1369,11 +1371,16 @@ export async function mutateModules (
         ? []
         : Array.isArray(opts.readPackageHook) ? opts.readPackageHook : [opts.readPackageHook]
       if (hooks.length === 0) return undefined
+      // An explicit version ignores overrides, so an override claiming the
+      // requested specifier never supersedes it. Only the `readPackage` hooks
+      // proper are probed.
+      const isOverriddenDependency = overriddenDependencyMatcherFor?.(project.manifest)
       let superseded: Map<string, string> | undefined
       /* eslint-disable no-await-in-loop */
       for (const selector of project.dependencySelectors) {
         const { alias, bareSpecifier: requested } = parseWantedDependency(selector)
         if (alias == null || requested == null) continue
+        if (isOverriddenDependency?.(alias, requested) === true) continue
         let probed: ProjectManifest = mergeInstallSelectors({
           ...project.manifest,
           dependencies: { ...project.manifest.dependencies },
