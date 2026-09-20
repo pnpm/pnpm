@@ -197,10 +197,12 @@ impl Error for ConcurrentCleanupWarning {}
 /// Idempotent, overwrite-on-stale symlink creator with overwrite-on
 /// semantics: an existing occupant at `link` is moved aside.
 ///
-/// When a regular file or directory occupies `link` and the rename
-/// that moves it aside fails because the source disappeared between
-/// the `AlreadyExists` and the rename, the initial `AlreadyExists`
-/// error is surfaced rather than the rename's `NotFound`.
+/// A regular file or directory occupying `link` can be gone by the time the
+/// rename that moves it aside runs, which is what a second writer racing for
+/// the same path looks like. The create is reissued once for that, since the
+/// conflict it reported no longer exists. A link that reports a conflict twice
+/// over while holding nothing surfaces the create's own error rather than the
+/// rename's `NotFound`.
 pub fn force_symlink_dir(target: &Path, link: &Path) -> io::Result<ForceSymlinkOutcome> {
     // Normalize up front so every retry-loop fs op on `link` — not just
     // the symlink syscall — sees a native path. See [`to_native_separators`].
