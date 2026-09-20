@@ -160,6 +160,12 @@ pub(super) fn release_age_upgrade_needed<Cache: PackageMetaCache>(
 /// abbreviated mode). A write failure logs at debug and the install
 /// proceeds — the next install simply re-triggers the upgrade fetch.
 ///
+/// An `ETag` identifies one representation, so the full document's tag
+/// cannot describe the abbreviated slot this writes into and is dropped.
+/// `modified` is kept: it comes from the packument's own `time.modified`,
+/// which both representations report identically, so the next abbreviated
+/// request is still conditional through `If-Modified-Since`.
+///
 /// On a successful indexed save, returns the just-persisted mirror
 /// reloaded in its file-backed form so the caller can cache *it*
 /// instead of the response-body-backed document — upgraded packuments
@@ -184,9 +190,9 @@ pub(super) fn persist_upgraded_to_mirror(
                 return None;
             }
         };
-        save_meta_ndjson(pkg_mirror, &meta_for_cache, meta.etag.as_deref())
+        save_meta_ndjson(pkg_mirror, &meta_for_cache, None)
     } else {
-        save_meta_indexed(pkg_mirror, meta, meta.etag.as_deref())
+        save_meta_indexed(pkg_mirror, meta, None)
     };
     match save_result {
         Ok(()) if !filter_metadata => load_meta(pkg_mirror),
@@ -216,3 +222,6 @@ pub(super) fn release_age_upgrade_limit(
             .value(),
     )
 }
+
+#[cfg(test)]
+mod tests;

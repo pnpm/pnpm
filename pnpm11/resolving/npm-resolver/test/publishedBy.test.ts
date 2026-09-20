@@ -959,6 +959,97 @@ test('a repeated 304 to the release-age upgrade is handled without reporting an 
   expect(errors).toStrictEqual([])
 })
 
+// An ETag identifies one representation, so the full document's validator
+// cannot describe the abbreviated slot the upgrade writes it into. A registry
+// that keys ETags per representation, such as npmjs.org, can never match it,
+// so the next abbreviated request is answered with a body that has no `time`
+// and the upgrade runs all over again.
+//
+// The upgrade reaches the mirror from two directions, and both are covered
+// here: a 304 on the cached mirror, and a fresh abbreviated 200 with no
+// mirror to validate against.
+test('the release-age upgrade of a validated mirror writes no etag', async () => {
+  const cacheDir = temporaryDirectory()
+  const abbrevCacheDir = path.join(cacheDir, `${ABBREVIATED_META_DIR}/https%3A+registry.npmjs.org`)
+  fs.mkdirSync(abbrevCacheDir, { recursive: true })
+  const cachePath = path.join(abbrevCacheDir, 'is-positive.jsonl')
+
+  const { time: _time, ...abbreviatedWithoutTime } = isPositiveAbbreviatedMeta
+  const cachedMeta = {
+    ...abbreviatedWithoutTime,
+    modified: '2015-06-10T00:00:00.000Z',
+  }
+  const cacheHeaders = JSON.stringify({ etag: '"abbreviated-etag"', modified: cachedMeta.modified })
+  fs.writeFileSync(cachePath, `${cacheHeaders}\n${JSON.stringify(cachedMeta)}`, 'utf8')
+
+  const agent = getMockAgent().get(registriesByScope.default.replace(/\/$/, ''))
+  agent.intercept({
+    path: '/is-positive',
+    method: 'GET',
+    headers: { 'if-none-match': '"abbreviated-etag"' },
+  }).reply(304, '')
+  agent.intercept({ path: '/is-positive', method: 'GET' })
+    .reply(200, isPositiveMeta, { headers: { etag: '"full-etag"' } })
+
+  const { resolveFromNpm } = createResolveFromNpm({
+    storeDir: temporaryDirectory(),
+    cacheDir,
+    registriesByScope,
+  })
+
+  await resolveFromNpm({ alias: 'is-positive', bareSpecifier: '^1.0.0' }, {
+    publishedBy: new Date('2015-06-05T00:00:00.000Z'),
+  })
+
+  /* eslint-disable @typescript-eslint/no-explicit-any */
+  const persistedMeta = await retryLoadJsonFile<any>(cachePath, (meta) => meta.time != null)
+  /* eslint-enable @typescript-eslint/no-explicit-any */
+  expect(persistedMeta.etag).toBeUndefined()
+  // `modified` is the packument's own `time.modified`, identical in both
+  // representations, so it stays and keeps the next request conditional.
+  expect(persistedMeta.modified).toBe(isPositiveMeta.time.modified)
+})
+
+test('the release-age upgrade of a freshly fetched packument writes no etag', async () => {
+  const cacheDir = temporaryDirectory()
+  const abbrevCacheDir = path.join(cacheDir, `${ABBREVIATED_META_DIR}/https%3A+registry.npmjs.org`)
+  const cachePath = path.join(abbrevCacheDir, 'is-positive.jsonl')
+
+  const agent = getMockAgent().get(registriesByScope.default.replace(/\/$/, ''))
+  // The cold cache sends no validators, so the abbreviated request is told
+  // apart from the upgrade request by what it accepts.
+  agent.intercept({
+    path: '/is-positive',
+    method: 'GET',
+    headers: { accept: /application\/vnd\.npm\.install-v1\+json/ },
+  }).reply(200, { ...isPositiveAbbreviatedMeta, modified: '2015-06-10T00:00:00.000Z' }, {
+    headers: {
+      etag: '"abbreviated-etag"',
+      'content-type': 'application/vnd.npm.install-v1+json',
+    },
+  })
+  agent.intercept({ path: '/is-positive', method: 'GET' })
+    .reply(200, isPositiveMeta, { headers: { etag: '"full-etag"' } })
+
+  const { resolveFromNpm } = createResolveFromNpm({
+    storeDir: temporaryDirectory(),
+    cacheDir,
+    registriesByScope,
+  })
+
+  const resolveResult = await resolveFromNpm({ alias: 'is-positive', bareSpecifier: '^1.0.0' }, {
+    publishedBy: new Date('2015-06-05T00:00:00.000Z'),
+  })
+
+  expect(resolveResult!.id).toBe('is-positive@1.0.0')
+
+  /* eslint-disable @typescript-eslint/no-explicit-any */
+  const persistedMeta = await retryLoadJsonFile<any>(cachePath, (meta) => meta.time != null)
+  /* eslint-enable @typescript-eslint/no-explicit-any */
+  expect(persistedMeta.etag).toBeUndefined()
+  expect(persistedMeta.modified).toBe(isPositiveMeta.time.modified)
+})
+
 /**
  * The abbreviated packument as a registry that reports publish times for only
  * some of the versions it serves would answer, with `modified` recent enough
