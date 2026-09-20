@@ -7,8 +7,8 @@ const SPDX_OPERATORS = ['AND', 'OR', 'WITH']
 
 // Classifies a license string into the appropriate CycloneDX representation.
 // license.id is an enum in the CycloneDX schema, so a value outside the SPDX
-// license list — a typo, or npm's own UNLICENSED — has to arrive as a name or
-// the whole document fails validation.
+// license list — a typo, or npm's own UNLICENSED — has to reach the BOM as
+// license.name or the whole document fails validation.
 // Order matters: check ID first because "MIT" matches both isSupportedSpdxId
 // and isSpdxExpression, but we prefer the more specific license.id form.
 export function classifyLicense (license: string): { license: { id: string } } | { license: { name: string } } | { expression: string } {
@@ -26,9 +26,8 @@ export function classifyLicense (license: string): { license: { id: string } } |
   return { license: { name: license } }
 }
 
-// Only the identifier lookup ignores the spaces around the value, so a value
-// padded with a line break stays a name rather than becoming an expression no
-// longer on one line.
+// Not String.prototype.trim: a value padded with a line break has to stay a name,
+// because the expression it would otherwise become is no longer on one line.
 function trimSpaces (value: string): string {
   let start = 0
   let end = value.length
@@ -48,9 +47,8 @@ function isSpdxLicenseId (license: string): boolean {
 
 // SPDX 2.3 annex D.2 matches license and exception identifiers case-insensitively
 // and requires the operators to be uppercase, while spdx-expression-parse has it
-// the other way around. That rewriting serves the decision alone, and the value
-// validated here is the exact string the BOM will carry. The scanner skips only
-// the ASCII space, so any other whitespace leaves the value a name.
+// the other way around. Its scanner also skips only the ASCII space, which is
+// what keeps any other whitespace out of an emitted expression.
 function isSpdxExpression (license: string): boolean {
   const normalized = normalizeSpdxExpressionIds(license)
   if (normalized == null) return false

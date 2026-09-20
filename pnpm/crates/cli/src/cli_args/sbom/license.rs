@@ -1,23 +1,14 @@
 //! Choosing the `CycloneDX` representation of a package's `license` field.
 //!
-//! `CycloneDX` takes a license as an SPDX identifier (`license.id`), an SPDX
-//! license expression (`expression`), or free text (`license.name`).
-//! `license.id` is an enum in the schema, so a value outside the SPDX license
-//! list, such as a typo or npm's own `UNLICENSED`, has to arrive as a name or
-//! the whole document fails validation.
+//! `license.id` is an enum in the `CycloneDX` schema, so a value outside the
+//! SPDX license list, such as a typo or npm's own `UNLICENSED`, has to reach
+//! the BOM as `license.name` or the whole document fails validation.
 //!
 //! SPDX 2.3 annex D.2 matches license and exception identifiers
 //! case-insensitively and requires the operators to be uppercase. The `spdx`
 //! crate has it the other way around, so identifiers are rewritten to their
 //! canonical case and lowercase operators rejected before it parses an
-//! expression. That rewriting serves the decision alone. Only an identifier is
-//! republished in another form, the canonical case the `CycloneDX` enum lists;
-//! an expression and a name reach the BOM as the manifest wrote them.
-//!
-//! An expression is therefore validated as the exact string that will be
-//! published. Only the identifier lookup ignores the spaces around the value,
-//! so a value padded with a line break stays a name rather than becoming an
-//! expression no longer on one line.
+//! expression.
 
 pub(super) fn classify_license(license: &str) -> serde_json::Value {
     if let Some(id) = canonical_spdx_id(license.trim_matches(' ')) {
