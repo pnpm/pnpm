@@ -425,8 +425,6 @@ async fn resolve_absolute_tarball_when_project_dir_contains_parent_components() 
     );
 }
 
-/// The specifier written back to the manifest is measured from the same
-/// project directory, so it collapses the `..` too.
 #[tokio::test]
 async fn resolve_relative_tarball_when_project_dir_contains_parent_components() {
     let tmp = TempDir::new().expect("tempdir");
