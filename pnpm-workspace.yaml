@@ -458,7 +458,7 @@ catalog:
   string-width: ^8.2.2
   strip-bom: ^5.0.0
   strip-comments-strings: 1.2.0
-  symlink-dir: ^10.0.1
+  symlink-dir: ^10.0.2
   tar: ^7.5.22
   tar-stream: ^3.2.1
   # tempy >=3.1.0 uses temp-dir 3.x which has an async fs.realpath() in its
