@@ -169,10 +169,8 @@ test('installation should not fail if a linked dependency points to a directory 
 test('a production install lets pacquet resolve it', async () => {
   prepareEmpty()
 
-  // pacquet applies the group filter to its own fetch, so a production
-  // install is handed to it whole rather than resolved here and handed over
-  // for the materialization alone. `mutateModules` skips this install's
-  // lockfile verification on that basis.
+  // The group filter must not divert the install away from pacquet's own
+  // resolution; see `pacquetResolvesInstall`.
   const runPacquet = jest.fn<(opts?: { filterResolvedProgress?: boolean, resolve?: boolean }) => Promise<void>>()
     .mockImplementation(async () => {
       writeYamlFileSync(WANTED_LOCKFILE, {

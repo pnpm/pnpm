@@ -2797,9 +2797,6 @@ const installInContext: InstallFunction = async (projects, ctx, opts) => {
       const result = await _installInContext(projects, ctx, {
         ...opts,
         lockfileOnly: true,
-        // `headlessInstall` below is the pass that fetches, imports and links,
-        // so it owns the summary. `opts` reaches it unchanged, so only this
-        // resolve pass stays quiet.
         omitSummaryLog: true,
         materializeAfterResolution: true,
       })

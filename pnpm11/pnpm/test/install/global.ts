@@ -940,9 +940,8 @@ test('global add reports every install group in one summary', async () => {
     pnpm_config_silent: 'false',
   }
 
-  // Each param is its own install group with its own install, and the default
-  // reporter renders the first summary event it sees. So every group stays
-  // quiet and `pnpm add -g` emits one consolidated summary at the end.
+  // Each param installs on its own, so the second package is the one that
+  // proves the summary covers more than the first install.
   const { stdout } = execPnpmSync(['add', '--global', 'is-positive', 'is-negative'], {
     env,
     stdio: 'pipe',
