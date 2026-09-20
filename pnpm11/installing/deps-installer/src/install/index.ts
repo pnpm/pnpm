@@ -78,6 +78,7 @@ import { logger, streamParser } from '@pnpm/logger'
 import { groupPatchedDependencies, type PatchGroupRecord } from '@pnpm/patching.config'
 import { createVersionSpecFromResolvedVersion, getAllDependenciesFromManifest, getAllUniqueSpecs, getSpecFromPackageManifest, guessDependencyType } from '@pnpm/pkg-manifest.utils'
 import { isLocalFilesystemSpecifier } from '@pnpm/resolving.local-resolver'
+import { parseNpmAliasTarget } from '@pnpm/resolving.npm-resolver'
 import { parseWantedDependency } from '@pnpm/resolving.parse-wanted-dependency'
 import {
   EXISTING_VERSION_SELECTOR_WEIGHT,
@@ -1059,9 +1060,9 @@ export async function mutateModules (
             const catalogResult = resolveFromCatalog(opts.catalogs, { alias: dep.alias, bareSpecifier: specifier! })
             specifier = matchCatalogResolveResult(catalogResult, pickCatalogSpecifier)
           }
-          const npmAliasTarget = parseNpmAliasTarget(dep.alias, specifier)
+          const npmAliasTarget = specifier != null ? parseNpmAliasTarget(specifier, dep.alias) : null
           const packageName = npmAliasTarget?.name ?? dep.alias
-          let versionSelector = npmAliasTarget?.versionSelector ?? specifier
+          let versionSelector = npmAliasTarget != null ? npmAliasTarget.versionSelector : specifier
           // `=1.0.0` pins as exactly as `1.0.0` does, but semver.valid() only accepts the bare version.
           if (versionSelector?.startsWith('=')) versionSelector = versionSelector.slice(1)
           const validVersion = semver.valid(versionSelector)
@@ -1802,32 +1803,6 @@ function catalogCovers (catalogSpecifier: string, bareSpecifier: string | undefi
     semver.valid(bareSpecifier) != null &&
     semver.validRange(catalogSpecifier) != null &&
     semver.satisfies(bareSpecifier, catalogSpecifier)
-}
-
-interface NpmAliasTarget {
-  name: string
-  versionSelector: string
-}
-
-/**
- * Split an `npm:` specifier into the real package name and the version
- * selector declared for it. `npm:<name>@<selector>` points at `<name>`;
- * `npm:<selector>` paired with a package alias points at the alias itself,
- * mirroring the npm resolver's alias handling. Returns undefined when the
- * specifier is not an npm alias or names no version.
- */
-function parseNpmAliasTarget (alias: string, specifier: string | undefined): NpmAliasTarget | undefined {
-  if (specifier == null || !specifier.startsWith('npm:')) return undefined
-  const body = specifier.slice('npm:'.length)
-  if (semver.validRange(body) != null) {
-    return { name: alias, versionSelector: body }
-  }
-  const versionDelimiter = body.lastIndexOf('@')
-  if (versionDelimiter < 1) return undefined
-  return {
-    name: body.slice(0, versionDelimiter),
-    versionSelector: body.slice(versionDelimiter + 1),
-  }
 }
 
 /**

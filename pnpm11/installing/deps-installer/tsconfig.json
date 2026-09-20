@@ -163,6 +163,9 @@
       "path": "../../resolving/local-resolver"
     },
     {
+      "path": "../../resolving/npm-resolver"
+    },
+    {
       "path": "../../resolving/parse-wanted-dependency"
     },
     {

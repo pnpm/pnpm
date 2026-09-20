@@ -61,9 +61,11 @@ import { memoizeFetchMetadata } from './memoizeFetchMetadata.js'
 import { normalizeRegistryUrl } from './normalizeRegistryUrl.js'
 import {
   BUILTIN_REGISTRIES_BY_PREFIX,
+  type NpmAliasTarget,
   parseBareSpecifier,
   parseJsrSpecifierToRegistryPackageSpec,
   parseNamedRegistrySpecifierToRegistryPackageSpec,
+  parseNpmAliasTarget,
   type RegistryPackageSpec,
 } from './parseBareSpecifier.js'
 import {
@@ -125,9 +127,11 @@ export {
   BUILTIN_REGISTRIES_BY_PREFIX,
   fetchMetadataFromFromRegistry,
   type FetchMetadataFromFromRegistryOptions,
+  type NpmAliasTarget,
   type PackageMeta,
   type PackageMetaCache,
   parseBareSpecifier,
+  parseNpmAliasTarget,
   pickPackageFromMeta,
   pickVersionByVersionRange,
   type RegistryPackageSpec,
