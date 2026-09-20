@@ -7,6 +7,7 @@ mod collection_aliases;
 mod edits;
 mod patch;
 mod scalar_aliases;
+mod source_keys;
 
 #[cfg(test)]
 mod tests;

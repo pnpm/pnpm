@@ -2,7 +2,7 @@
 //! aliases before editing so changing one entry cannot change another, then
 //! restore references between surviving entries whose values still agree.
 
-mod paths;
+pub(crate) mod paths;
 
 use self::paths::{ScalarPath, changed_scalar_paths, scalar_paths};
 use serde_saphyr::granit_parser::{

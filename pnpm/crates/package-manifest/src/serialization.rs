@@ -156,9 +156,10 @@ impl PackageManifest {
             value = serde_json::json!({});
         }
         if is_yaml_path(&path) && !value.is_object() {
-            return Err(PackageManifestError::InvalidAttribute(
-                "the manifest root must be an object".to_string(),
-            ));
+            return Err(PackageManifestError::InvalidAttribute(format!(
+                "{}: the manifest root must be an object",
+                path.display(),
+            )));
         }
         let mut on_disk = value.clone();
         normalize_dependency_fields(&mut on_disk);

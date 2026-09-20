@@ -123,6 +123,11 @@ fn rejects_non_mapping_yaml_without_replacing_it() {
         fs::write(&path, source).unwrap();
         let error = PackageManifest::from_path(path.clone()).err().unwrap();
         assert!(error.to_string().contains("the manifest root must be an object"));
+        assert!(
+            error
+                .to_string()
+                .contains(&path.display().to_string()),
+        );
         assert_eq!(fs::read_to_string(path).unwrap(), source);
     }
 }

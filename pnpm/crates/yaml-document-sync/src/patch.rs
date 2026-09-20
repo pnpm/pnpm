@@ -1,9 +1,10 @@
-use super::{Error, edits};
+use super::{Error, edits, source_keys::SourceKeys};
 use serde_json::Value;
 use yamlpath::{Document, Route};
 
 #[derive(Default)]
 struct Changes<'a> {
+    keys: SourceKeys,
     additions: Vec<(Route<'a>, Value)>,
     removals: Vec<Route<'a>>,
     replacements: Vec<(Route<'a>, &'a Value)>,
@@ -14,7 +15,8 @@ pub(super) fn sync(
     original: &Value,
     target: &Value,
 ) -> Result<(), Box<Error>> {
-    let mut changes = Changes::default();
+    let mut changes =
+        Changes { keys: SourceKeys::new(document.source(), original)?, ..Default::default() };
     changes.collect(Route::default(), original, target);
     let mut pending = Vec::new();
     for (route, addition) in changes.additions {
@@ -70,7 +72,7 @@ impl<'a> Changes<'a> {
             }
         }
         for (key, old) in original {
-            let child = route.with_key(key.as_str());
+            let child = self.keys.child(&route, key.as_str());
             match target.get(key) {
                 Some(new) => self.collect(child, old, new),
                 None => self.removals.push(child),

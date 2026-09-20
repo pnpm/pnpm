@@ -218,3 +218,28 @@ fn rejects_mapping_keys_that_collide_after_coercion() {
         assert!(parse(&source).is_err(), "{source}");
     }
 }
+
+#[test]
+fn edits_values_beneath_noncanonical_scalar_keys() {
+    for (key, canonical) in [("~", "null"), ("TRUE", "true"), ("0x2a", "42")] {
+        let source =
+            format!("metadata:\n  {key}:\n    keep: value\n    change: old\n    remove: value\n");
+        let target =
+            json!({"metadata":{canonical:{"keep":"value","change":"new","added":"value"}}});
+        let output = sync(&source, &target).unwrap();
+        assert_eq!(parse(&output).unwrap(), target);
+        assert!(output.contains(&format!("  {key}:")), "{output}");
+    }
+}
+
+#[test]
+fn scalar_aliases_under_nested_noncanonical_keys_are_independent() {
+    let source =
+        "metadata:\n  0x2a:\n    - TRUE:\n        version: &version old\n        copy: *version\n";
+    let mut target = parse(source).unwrap();
+    target["metadata"]["42"][0]["true"]["version"] = json!("new");
+    let output = sync(source, &target).unwrap();
+    assert_eq!(parse(&output).unwrap(), target);
+    assert!(output.contains("0x2a:"), "{output}");
+    assert!(output.contains("TRUE:"), "{output}");
+}

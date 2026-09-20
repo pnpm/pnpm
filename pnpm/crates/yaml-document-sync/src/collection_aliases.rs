@@ -1,4 +1,4 @@
-use super::{Error, edits, inline, scalar_aliases::byte_range};
+use super::{Error, edits, inline, scalar_aliases::byte_range, source_keys::SourceKeys};
 use serde_json::Value;
 use serde_saphyr::granit_parser::{Scanner, StrInput, Token, TokenType};
 use std::{collections::HashMap, ops::Range};
@@ -19,14 +19,16 @@ pub(super) fn detach_changed(
     if aliases.is_empty() {
         return Ok(());
     }
+    let keys = SourceKeys::new(document.source(), original)?;
     let mut collector =
-        Collector { document, aliases, definitions: HashMap::new(), edits: Vec::new() };
+        Collector { document, aliases, definitions: HashMap::new(), edits: Vec::new(), keys };
     collector.visit(&Route::default(), original, Some(target))?;
     edits::apply(document, collector.edits)
 }
 
 struct Collector<'doc, 'value> {
     document: &'doc Document,
+    keys: SourceKeys,
     aliases: Vec<Range<usize>>,
     definitions: HashMap<usize, Option<&'value Value>>,
     edits: Vec<(Range<usize>, String)>,
@@ -67,7 +69,7 @@ impl<'value> Collector<'_, 'value> {
             Value::Object(mapping) => {
                 for (key, value) in mapping {
                     self.visit(
-                        &route.with_key(key.as_str()),
+                        &self.keys.child(route, key.as_str()),
                         value,
                         target.and_then(|target| target.get(key)),
                     )?;
