@@ -217,6 +217,7 @@ sqlx = { version = "0.8.6", default-features = false, features = ["runtime-tokio
 sha2 = { version = "0.10.9" }
 sigstore-sign = { version = "0.11.0" }
 smart-default = { version = "0.7.1" }
+spdx = { version = "0.13.4" }
 split-first-char = { version = "2.0.1" }
 ssri = { version = "9.2.0" }
 strum = { version = "0.28.0", features = ["derive"] }
