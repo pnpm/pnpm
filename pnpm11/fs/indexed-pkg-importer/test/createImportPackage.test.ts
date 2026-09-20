@@ -5,7 +5,7 @@ import { afterAll, beforeEach, expect, jest, test } from '@jest/globals'
 const testOnLinuxOnly = (process.platform === 'darwin' || process.platform === 'win32') ? test.skip : test
 
 jest.unstable_mockModule('@pnpm/fs.graceful-fs', () => {
-  const { access } = jest.requireActual<typeof fs>('fs')
+  const { access, lstatSync, unlinkSync } = jest.requireActual<typeof fs>('fs')
   const fsMock = {
     access,
     copyFileSync: jest.fn(),
@@ -22,6 +22,10 @@ jest.unstable_mockModule('@pnpm/fs.graceful-fs', () => {
     default: fsMock,
     ...fsMock,
     renameFileWithRetry: fsMock.renameSync,
+    // The blocking-dirent checks read the temp trees these tests build, so
+    // they go to the real filesystem rather than the mocks above.
+    lstatWithRetry: lstatSync,
+    unlinkWithRetry: unlinkSync,
   }
 })
 jest.unstable_mockModule('path-temp', () => ({ fastPathTemp: (file: string) => `${file}_tmp` }))

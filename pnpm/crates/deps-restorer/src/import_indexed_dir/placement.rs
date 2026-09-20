@@ -73,7 +73,7 @@ pub(super) fn create_indexed_dirs(
     // `newDir` before calling `tryImportIndexedDir`, so do that here
     // too. Files at the package root (e.g. `package.json`) need this
     // even when `rel_dirs` is empty.
-    fs::create_dir_all(dir_path)
+    pnpm_fs::create_dir_all_with_retry(dir_path)
         .map_err(|error| ImportIndexedDirError::CreateDir {
             dirname: dir_path.to_path_buf(),
             error,
@@ -86,7 +86,7 @@ pub(super) fn create_indexed_dirs(
             clear_dirent_blocking_dir(dir_path, rel)?;
         }
         let abs = dir_path.join(rel);
-        fs::create_dir_all(&abs)
+        pnpm_fs::create_dir_all_with_retry(&abs)
             .map_err(|error| ImportIndexedDirError::CreateDir { dirname: abs, error })?;
     }
 
@@ -143,12 +143,18 @@ pub(super) fn place_marker<Reporter: self::Reporter>(
 /// Remove a directory sitting where a package file belongs: the rename
 /// in [`import_atomic`] replaces a file but never a directory.
 pub(super) fn clear_dir_blocking_file(target: &Path) -> Result<(), ImportIndexedDirError> {
-    match fs::symlink_metadata(target) {
-        Ok(meta) if meta.is_dir() => fs::remove_dir_all(target)
-            .map_err(|error| ImportIndexedDirError::ClearBlockingDirEntry {
-                path: target.to_path_buf(),
-                error,
-            }),
+    match pnpm_fs::symlink_metadata_with_retry(target) {
+        Ok(meta) if meta.is_dir() => match pnpm_fs::remove_dir_all_with_retry(target) {
+            Err(error) if error.kind() != io::ErrorKind::NotFound => {
+                Err(ImportIndexedDirError::ClearBlockingDirEntry {
+                    path: target.to_path_buf(),
+                    error,
+                })
+            }
+            // Another installer clearing the same blocker first leaves
+            // exactly what this call was for.
+            _ => Ok(()),
+        },
         Ok(_) => Ok(()),
         Err(err) if err.kind() == io::ErrorKind::NotFound => Ok(()),
         Err(error) => {
@@ -168,13 +174,17 @@ pub(super) fn clear_dirent_blocking_dir(
     let mut abs = root.to_path_buf();
     for component in Path::new(rel).components() {
         abs.push(component);
-        match fs::symlink_metadata(&abs) {
+        match pnpm_fs::symlink_metadata_with_retry(&abs) {
             Ok(meta) if meta.is_dir() => {}
-            Ok(meta) => remove_non_dir_dirent(&abs, meta.file_type())
-                .map_err(|error| ImportIndexedDirError::ClearBlockingDirEntry {
-                    path: abs.clone(),
-                    error,
-                })?,
+            Ok(meta) => match remove_non_dir_dirent(&abs, meta.file_type()) {
+                Err(error) if error.kind() != io::ErrorKind::NotFound => {
+                    return Err(ImportIndexedDirError::ClearBlockingDirEntry {
+                        path: abs.clone(),
+                        error,
+                    });
+                }
+                _ => {}
+            },
             Err(err) if err.kind() == io::ErrorKind::NotFound => break,
             Err(error) => return Err(ImportIndexedDirError::InspectTarget { path: abs, error }),
         }

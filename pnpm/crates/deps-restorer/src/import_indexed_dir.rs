@@ -241,8 +241,12 @@ pub fn import_indexed_dir<Reporter: self::Reporter>(
 /// The kind of dirent already at `path`, or `None` when nothing is
 /// there. Any inspection failure other than `NotFound` aborts the
 /// import rather than being read as an absent target.
+///
+/// The inspection retries, because installs in different projects heal
+/// one shared target at the same time and Windows reports a dirent one
+/// of them has just unlinked as inaccessible until the unlink lands.
 fn existing_dirent_kind(path: &Path) -> Result<Option<fs::FileType>, ImportIndexedDirError> {
-    match fs::symlink_metadata(path) {
+    match pnpm_fs::symlink_metadata_with_retry(path) {
         Ok(meta) => Ok(Some(meta.file_type())),
         Err(err) if err.kind() == io::ErrorKind::NotFound => Ok(None),
         Err(error) => Err(ImportIndexedDirError::InspectTarget { path: path.to_path_buf(), error }),
@@ -281,13 +285,13 @@ fn import_into_shared_dir<Reporter: self::Reporter>(
 /// it. `create_dir_all` cannot answer that — it succeeds either way.
 fn claim_dir(dir_path: &Path) -> Result<bool, ImportIndexedDirError> {
     if let Some(parent) = dir_path.parent() {
-        fs::create_dir_all(parent)
+        pnpm_fs::create_dir_all_with_retry(parent)
             .map_err(|error| ImportIndexedDirError::CreateDir {
                 dirname: parent.to_path_buf(),
                 error,
             })?;
     }
-    match fs::create_dir(dir_path) {
+    match pnpm_fs::create_dir_with_retry(dir_path) {
         Ok(()) => Ok(true),
         Err(error) if error.kind() == io::ErrorKind::AlreadyExists => Ok(false),
         Err(error) => {
@@ -372,11 +376,11 @@ fn remove_non_dir_dirent(path: &Path, file_type: fs::FileType) -> io::Result<()>
         // correct call. Fall through to `remove_file` for dangling
         // links or symlinks-to-file.
         if matches!(fs::metadata(path), Ok(meta) if meta.is_dir()) {
-            return fs::remove_dir(path);
+            return pnpm_fs::remove_dir_with_retry(path);
         }
     }
     let _ = file_type;
-    fs::remove_file(path)
+    pnpm_fs::remove_file_with_retry(path)
 }
 
 #[cfg(test)]
