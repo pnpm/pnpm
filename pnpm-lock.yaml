@@ -6006,6 +6006,9 @@ importers:
       '@pnpm/resolving.local-resolver':
         specifier: workspace:*
         version: link:../../resolving/local-resolver
+      '@pnpm/resolving.npm-resolver':
+        specifier: workspace:*
+        version: link:../../resolving/npm-resolver
       '@pnpm/resolving.parse-wanted-dependency':
         specifier: workspace:*
         version: link:../../resolving/parse-wanted-dependency

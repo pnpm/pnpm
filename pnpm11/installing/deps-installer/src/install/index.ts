@@ -78,6 +78,7 @@ import { logger, streamParser } from '@pnpm/logger'
 import { groupPatchedDependencies, type PatchGroupRecord } from '@pnpm/patching.config'
 import { createVersionSpecFromResolvedVersion, getAllDependenciesFromManifest, getAllUniqueSpecs, getSpecFromPackageManifest, guessDependencyType } from '@pnpm/pkg-manifest.utils'
 import { isLocalFilesystemSpecifier } from '@pnpm/resolving.local-resolver'
+import { parseNpmAliasTarget } from '@pnpm/resolving.npm-resolver'
 import { parseWantedDependency } from '@pnpm/resolving.parse-wanted-dependency'
 import {
   EXISTING_VERSION_SELECTOR_WEIGHT,
@@ -1059,10 +1060,15 @@ export async function mutateModules (
             const catalogResult = resolveFromCatalog(opts.catalogs, { alias: dep.alias, bareSpecifier: specifier! })
             specifier = matchCatalogResolveResult(catalogResult, pickCatalogSpecifier)
           }
-          const validVersion = semver.valid(specifier)
+          const npmAliasTarget = specifier != null ? parseNpmAliasTarget(specifier, dep.alias) : null
+          const packageName = npmAliasTarget?.name ?? dep.alias
+          let versionSelector = npmAliasTarget != null ? npmAliasTarget.versionSelector : specifier
+          // `=1.0.0` pins as exactly as `1.0.0` does, but semver.valid() only accepts the bare version.
+          if (versionSelector?.startsWith('=')) versionSelector = versionSelector.slice(1)
+          const validVersion = semver.valid(versionSelector)
           // Only proceed if the specifier is a pinned version, not a range
           if (!validVersion) continue
-          if (opts.packageVulnerabilityAudit.isVulnerable(dep.alias, validVersion)) {
+          if (opts.packageVulnerabilityAudit.isVulnerable(packageName, validVersion)) {
             if (hookOwnedAliases?.has(dep.alias)) {
               // An update reaches a vulnerable version by widening the specifier the project
               // declares, and this one is not the project's to widen. An override outranks every
@@ -1073,6 +1079,11 @@ export async function mutateModules (
               })
               continue
             }
+            // The widened specifier keeps the npm alias shape so that it still names the
+            // real package rather than the alias.
+            const widenedSpecifier = npmAliasTarget != null
+              ? `npm:${npmAliasTarget.name}@^${validVersion}`
+              : `^${validVersion}`
             // If the current version is pinned and vulnerable, expand the specifier to a range
             // that will allow updating to a non-vulnerable, semver-compatible version, if available.
             if (catalogName != null && opts.catalogs?.[catalogName]) {
@@ -1083,7 +1094,7 @@ export async function mutateModules (
                 ...opts.catalogs,
                 [catalogName]: {
                   ...opts.catalogs[catalogName],
-                  [dep.alias]: '^' + validVersion,
+                  [dep.alias]: widenedSpecifier,
                 },
               }
               // Set prevSpecifier to the original catalog specifier so the resolver
@@ -1091,7 +1102,7 @@ export async function mutateModules (
               dep.prevSpecifier = specifier
             } else {
               // If no catalog is used, we directly update the specifier.
-              dep.bareSpecifier = '^' + validVersion
+              dep.bareSpecifier = widenedSpecifier
             }
           }
         }
