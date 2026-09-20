@@ -4,25 +4,22 @@ use super::{
 };
 
 /// The one-shot recoveries [`force_symlink_inner`] has already spent on a
-/// link. Each one bounds a recursion that must not repeat a step which did not
-/// help the first time.
+/// link. Each bounds a recursion that must not repeat a step which did not help
+/// the first time.
 #[derive(Default, Clone, Copy)]
 pub(super) struct TriedOnce {
-    /// The occupant was moved aside once, so a second pass removes it.
+    /// See [`clear_symlink_occupant`] for what the second pass does instead.
     pub(super) rename: bool,
-    /// The create was reissued once after the occupant turned out to be gone.
     pub(super) vanished: bool,
 }
 
 /// Put the requested symlink at `link` when whatever stands there could not be
 /// read back as one. `initial_err` is the create's own failure.
 ///
-/// The occupant is moved aside, or removed once that was already tried, and the
-/// create is reissued. `None` from [`clear_symlink_occupant`] means there was
-/// nothing to clear, so `initial_err` reported a conflict with something that
-/// has since gone and the create is worth reissuing for that too.
-/// [`TriedOnce::vanished`] bounds that second case, leaving a link this can
-/// neither create at nor find anything at to surface its error.
+/// `None` from [`clear_symlink_occupant`] means there was nothing to clear, so
+/// `initial_err` reported a conflict with something that has since gone and the
+/// create is worth reissuing. [`TriedOnce::vanished`] bounds that, leaving a
+/// link this can neither create at nor find anything at to surface its error.
 pub(super) fn replace_unreadable_occupant(
     target: &Path,
     link: &Path,
