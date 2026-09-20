@@ -140,19 +140,42 @@ pub(super) fn place_marker<Reporter: self::Reporter>(
     }
     import_atomic::<Reporter>(logged_methods, import_method, store_path, target)
 }
+/// Whether a package file can go at `path` now: nothing is there, or what
+/// is there is not a directory.
+///
+/// A failed removal is not a failed clearing when this holds. The
+/// installers healing a slot together race over these paths, and one that
+/// finishes the same work first leaves exactly what the removal was for,
+/// whether it merely unlinked the blocker or replaced it outright.
+fn file_fits_at(path: &Path) -> bool {
+    match fs::symlink_metadata(path) {
+        Ok(meta) => !meta.is_dir(),
+        Err(error) => error.kind() == io::ErrorKind::NotFound,
+    }
+}
+
+/// Whether a package directory can go at `path` now: nothing is there, or
+/// what is there is already a directory. The counterpart to
+/// [`file_fits_at`], and clearing tolerates a lost race for the same
+/// reason.
+fn dir_fits_at(path: &Path) -> bool {
+    match fs::symlink_metadata(path) {
+        Ok(meta) => meta.is_dir(),
+        Err(error) => error.kind() == io::ErrorKind::NotFound,
+    }
+}
+
 /// Remove a directory sitting where a package file belongs: the rename
 /// in [`import_atomic`] replaces a file but never a directory.
 pub(super) fn clear_dir_blocking_file(target: &Path) -> Result<(), ImportIndexedDirError> {
     match pnpm_fs::symlink_metadata_with_retry(target) {
         Ok(meta) if meta.is_dir() => match pnpm_fs::remove_dir_all_with_retry(target) {
-            Err(error) if error.kind() != io::ErrorKind::NotFound => {
+            Err(error) if !file_fits_at(target) => {
                 Err(ImportIndexedDirError::ClearBlockingDirEntry {
                     path: target.to_path_buf(),
                     error,
                 })
             }
-            // Another installer clearing the same blocker first leaves
-            // exactly what this call was for.
             _ => Ok(()),
         },
         Ok(_) => Ok(()),
@@ -177,7 +200,7 @@ pub(super) fn clear_dirent_blocking_dir(
         match pnpm_fs::symlink_metadata_with_retry(&abs) {
             Ok(meta) if meta.is_dir() => {}
             Ok(meta) => match remove_non_dir_dirent(&abs, meta.file_type()) {
-                Err(error) if error.kind() != io::ErrorKind::NotFound => {
+                Err(error) if !dir_fits_at(&abs) => {
                     return Err(ImportIndexedDirError::ClearBlockingDirEntry {
                         path: abs.clone(),
                         error,
@@ -297,3 +320,6 @@ pub fn marker_present(dir_path: &Path, cas_paths: &HashMap<String, PathBuf>) -> 
         None => true,
     }
 }
+
+#[cfg(test)]
+mod tests;
