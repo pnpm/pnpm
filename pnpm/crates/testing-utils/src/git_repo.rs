@@ -196,6 +196,7 @@ fn override_global_config(repo: &Path, git_dir: &Path) {
     git(repo, &["config", "core.attributesFile", &absent]);
     git(repo, &["config", "core.hooksPath", &absent]);
     git(repo, &["config", "core.fsmonitor", "false"]);
+    git(repo, &["config", "core.autocrlf", "false"]);
     // Neutralise a user-global `gpgsign = true`, which would
     // otherwise demand a real signing key for every commit and tag.
     git(repo, &["config", "commit.gpgsign", "false"]);
