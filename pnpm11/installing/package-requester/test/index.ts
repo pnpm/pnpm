@@ -789,11 +789,12 @@ test.each([true, false])('git fetches return and reuse the matching store key ac
   })
   let packageRequester = createRequester()
   const lockfileDir = temporaryDirectory()
-  const fetch = async (allowed: boolean) => {
+  const fetch = async (allowed: boolean, ignoreScripts = false) => {
     const result = packageRequester.fetchPackageToStore({
       allowBuild: (depPath) => depPath.startsWith('actual-name@') ? allowed : undefined,
       fetchRawManifest: true,
       force: false,
+      ignoreScripts,
       lockfileDir,
       pkg,
     })
@@ -802,7 +803,8 @@ test.each([true, false])('git fetches return and reuse the matching store key ac
     expect(fetched.files.filesMap.has('prepared.txt')).toBe(allowed)
     return fetched
   }
-  await fetch(false)
+  await fetch(true)
+  expect((await fetch(false, true)).files.resolvedFrom).toBe('remote')
   await fetch(false)
   await fetch(true)
   await fetch(false)

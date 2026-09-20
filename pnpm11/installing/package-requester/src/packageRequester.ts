@@ -620,35 +620,19 @@ function fetchToStore (
         ) &&
         !isLocalPkg
       ) {
-        const candidateKeys = [filesIndexFile]
-        if (!opts.pkg.name && (resolutionKind === 'git' || resolutionKind === 'gitHostedTarball')) {
-          candidateKeys.push(gitHostedStoreIndexKey(opts.pkg.id, { built: filesIndexFile.endsWith('\tnot-built') }))
+        let cached = await readStoreEntry(filesIndexFile)
+        refetchingStoredPackage = !cached.verified && cached.files?.filesMap != null
+        if (!cached.reusable && !opts.pkg.name && !opts.ignoreScripts &&
+          (resolutionKind === 'git' || resolutionKind === 'gitHostedTarball')) {
+          cached = await readStoreEntry(gitHostedStoreIndexKey(opts.pkg.id, { built: filesIndexFile.endsWith('\tnot-built') }))
+          refetchingStoredPackage ||= !cached.verified && cached.files?.filesMap != null
         }
-        const candidates = await Promise.all(candidateKeys.map(async (candidateKey) => {
-          const { verified, files, bundledManifest } = await ctx.readPkgFromCafs(candidateKey, {
-            readManifest: opts.fetchRawManifest,
-            expectedPkg: opts.pkg,
-          })
-          const reusable = verified && await cachedPackageCanBeReused({
-            allowBuild: opts.allowBuild,
-            bundledManifest,
-            filesMap: files.filesMap,
-            filesIndexFile: candidateKey,
-            ignoreScripts: opts.ignoreScripts,
-            pkgResolutionId: opts.pkg.id,
-            requiresPrepare: files.requiresPrepare,
-            resolutionKind,
-          })
-          return { candidateKey, verified, files, bundledManifest, reusable }
-        }))
-        const cached = candidates.find(({ reusable }) => reusable)
-        if (cached) {
+        if (cached.reusable) {
           const fetchLock = ctx.fetchingLocker.get(fetchingKey)
-          if (fetchLock) fetchLock.filesIndexFile = cached.candidateKey
+          if (fetchLock) fetchLock.filesIndexFile = cached.filesIndexFile
           fetching.resolve({ files: cached.files, bundledManifest: cached.bundledManifest })
           return
         }
-        refetchingStoredPackage = candidates.some(({ verified, files }) => !verified && files?.filesMap != null)
       }
 
       if (refetchingStoredPackage) {
@@ -724,6 +708,24 @@ function fetchToStore (
       })
     } catch (err: any) { // eslint-disable-line
       fetching.reject(err)
+    }
+
+    async function readStoreEntry (candidateKey: string) {
+      const { verified, files, bundledManifest } = await ctx.readPkgFromCafs(candidateKey, {
+        readManifest: opts.fetchRawManifest,
+        expectedPkg: opts.pkg,
+      })
+      const reusable = verified && await cachedPackageCanBeReused({
+        allowBuild: opts.allowBuild,
+        bundledManifest,
+        filesMap: files.filesMap,
+        filesIndexFile: candidateKey,
+        ignoreScripts: opts.ignoreScripts,
+        pkgResolutionId: opts.pkg.id,
+        requiresPrepare: files.requiresPrepare,
+        resolutionKind,
+      })
+      return { filesIndexFile: candidateKey, verified, files, bundledManifest, reusable }
     }
   }
 }
