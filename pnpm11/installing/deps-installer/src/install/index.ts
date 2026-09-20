@@ -1166,10 +1166,22 @@ export async function mutateModules (
         ? currentBareSpecifiers
         : getAllDependenciesFromManifest(project.originalManifest, { autoInstallPeers: opts.autoInstallPeers })
       const readonlyAliases = getHookOwnedAliases(project)
-      const readonlySpecifiers = readonlyAliases == null
+      // A `pnpm add` that names a specifier the `readPackage` hook will rewrite
+      // cannot leave the requested one behind: the hook wins on the next read,
+      // so the manifest and the lockfile would disagree and the next
+      // `--frozen-lockfile` install would reject them (pnpm/pnpm#15156). Those
+      // aliases join the hook-governed set below, so the request is reported as
+      // superseded and the hook's specifier is used instead.
+      const hookSupersededAliases = project.update === true
+        ? undefined
+        : getHookSupersededAliases(project.dependencySelectors, { effectiveBareSpecifiers, originalBareSpecifiers })
+      const hookGovernedAliases = readonlyAliases == null
+        ? hookSupersededAliases
+        : new Set([...readonlyAliases, ...hookSupersededAliases ?? []])
+      const readonlySpecifiers = hookGovernedAliases == null
         ? undefined
         : Object.fromEntries(
-          Array.from(readonlyAliases, (alias) => [alias, effectiveBareSpecifiers[alias]])
+          Array.from(hookGovernedAliases, (alias) => [alias, effectiveBareSpecifiers[alias]])
         ) as Dependencies
       const optionalDependencies = project.targetDependenciesField ? {} : project.manifest.optionalDependencies ?? {}
       const devDependencies = project.targetDependenciesField ? {} : project.manifest.devDependencies ?? {}
@@ -1230,7 +1242,7 @@ export async function mutateModules (
           // Promotion moves the dependency onto the catalog entry's range, and the entry resolves
           // on its own from then on. A hook or an override supplies this specifier, so it is not
           // this run's to hand over.
-          if (readonlyAliases?.has(wantedDep.alias)) continue
+          if (hookGovernedAliases?.has(wantedDep.alias)) continue
           // A `runtime:` specifier (e.g. node from `devEngines.runtime` or
           // `pnpm runtime set`) round-trips to `devEngines.runtime` through the
           // manifest writer, which only recognizes the `runtime:` protocol.
@@ -1288,9 +1300,9 @@ export async function mutateModules (
           // resolver attaches a `catalogLookup` for it, and the entry that snapshot needs is not
           // this run's to write, so the next frozen install would reject the pair. `catalogMode:
           // manual` reaches here without passing the loop above, so the name is dropped here.
-          saveCatalogName: readonlyAliases?.has(wantedDep.alias) ? undefined : wantedDep.saveCatalogName,
+          saveCatalogName: hookGovernedAliases?.has(wantedDep.alias) ? undefined : wantedDep.saveCatalogName,
           saveSpec: !readonlyAliases?.has(wantedDep.alias),
-          updateToLatestAllowed: !readonlyAliases?.has(wantedDep.alias),
+          updateToLatestAllowed: !hookGovernedAliases?.has(wantedDep.alias),
           updateSpec: true,
         })),
       } as ImporterToUpdate)
@@ -1325,6 +1337,36 @@ export async function mutateModules (
         return effectiveDependencies[alias] !== originalSpecifier ||
           isOverriddenDependency?.(alias, originalSpecifier) === true
       }))
+    }
+
+    /**
+     * The aliases a `pnpm add` names with a specifier the `readPackage` hook
+     * will rewrite on the next read. The request cannot survive the hook, so
+     * the hook's specifier is used instead and the request is reported as
+     * superseded, the way an update reports a hook-owned specifier.
+     *
+     * Only aliases the run names with an explicit specifier qualify: a bare
+     * `pnpm add foo` already resolves to the hooked manifest's specifier, and
+     * a specifier the hook leaves alone is the project's own declaration to
+     * move. `undefined` when nothing is superseded.
+     */
+    function getHookSupersededAliases (
+      dependencySelectors: string[],
+      opts: {
+        effectiveBareSpecifiers: Dependencies
+        originalBareSpecifiers: Dependencies
+      }
+    ): Set<string> | undefined {
+      let superseded: Set<string> | undefined
+      for (const selector of dependencySelectors) {
+        const { alias, bareSpecifier: requested } = parseWantedDependency(selector)
+        if (alias == null || requested == null) continue
+        const hookedSpecifier = opts.effectiveBareSpecifiers[alias]
+        if (hookedSpecifier == null || hookedSpecifier === requested) continue
+        if (opts.originalBareSpecifiers[alias] === hookedSpecifier) continue
+        ;(superseded ??= new Set()).add(alias)
+      }
+      return superseded
     }
 
     /**

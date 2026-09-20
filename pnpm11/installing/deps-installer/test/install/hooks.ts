@@ -9,6 +9,7 @@ import {
   type PackageManifest,
 } from '@pnpm/installing.deps-installer'
 import type { LockfileObject } from '@pnpm/lockfile.fs'
+import { streamParser } from '@pnpm/logger'
 import { prepareEmpty, preparePackages } from '@pnpm/prepare'
 import { addDistTag } from '@pnpm/testing.registry-mock'
 import type { ProjectId, ProjectRootDir, ReadPackageHook } from '@pnpm/types'
@@ -243,4 +244,74 @@ test('a readPackage hook that edits a manifest in place does not affect a later 
   const withoutHook = prepareEmpty()
   await addDependenciesToPackage({}, ['@pnpm.e2e/pkg-with-1-dep'], opts)
   expect(Object.keys(withoutHook.readLockfile().snapshots)).toContain('@pnpm.e2e/dep-of-pkg-with-1-dep@100.1.0')
+})
+
+test('add keeps the hook-provided specifier when the requested one conflicts with a readPackage hook', async () => {
+  const project = prepareEmpty()
+
+  function readPackageHook (manifest: PackageManifest) {
+    if (manifest.name === 'my-project') {
+      manifest.dependencies = { ...manifest.dependencies, 'is-positive': '1.0.0' }
+    }
+    return manifest
+  }
+
+  const warnings: string[] = []
+  const reporter = (log: { level?: string, message?: string }) => {
+    if (log.level === 'warn' && log.message != null) warnings.push(log.message)
+  }
+  const { updatedManifest } = await (async () => {
+    streamParser.on('data', reporter as never)
+    try {
+      return await addDependenciesToPackage(
+        { name: 'my-project', version: '0.0.0' },
+        ['is-positive@3.1.0'],
+        testDefaults({ hooks: { readPackage: [readPackageHook] } })
+      )
+    } finally {
+      streamParser.removeListener('data', reporter as never)
+    }
+  })()
+
+  // The requested specifier cannot survive the hook, so the add reports it as
+  // superseded instead of writing a manifest the next frozen install rejects.
+  expect(warnings).toContain(
+    'Ignoring "is-positive@3.1.0": "is-positive" is controlled by a package extension, readPackage hook, or override, so its specifier "1.0.0" was used instead.'
+  )
+  expect(updatedManifest.dependencies).toStrictEqual({ 'is-positive': '1.0.0' })
+  expect(project.readLockfile().importers['.'].dependencies?.['is-positive']).toMatchObject({ specifier: '1.0.0' })
+
+  // The project is left in a state the next frozen install accepts.
+  await install(updatedManifest, testDefaults({ frozenLockfile: true, hooks: { readPackage: [readPackageHook] } }))
+})
+
+test('add keeps the requested specifier when no readPackage hook governs the dependency', async () => {
+  prepareEmpty()
+
+  function readPackageHook (manifest: PackageManifest) {
+    if (manifest.name === 'my-project') {
+      manifest.dependencies = { ...manifest.dependencies, 'is-positive': '1.0.0' }
+    }
+    return manifest
+  }
+
+  const warnings: string[] = []
+  const reporter = (log: { level?: string, message?: string }) => {
+    if (log.level === 'warn' && log.message != null) warnings.push(log.message)
+  }
+  const { updatedManifest } = await (async () => {
+    streamParser.on('data', reporter as never)
+    try {
+      return await addDependenciesToPackage(
+        { name: 'my-project', version: '0.0.0' },
+        ['is-negative@1.0.1'],
+        testDefaults({ hooks: { readPackage: [readPackageHook] } })
+      )
+    } finally {
+      streamParser.removeListener('data', reporter as never)
+    }
+  })()
+
+  expect(warnings).not.toContain(expect.stringContaining('is controlled by'))
+  expect(updatedManifest.dependencies).toStrictEqual({ 'is-negative': '1.0.1' })
 })
