@@ -2,4 +2,4 @@
 "pacquet": patch
 ---
 
-Fixed `pnpm install` in global virtual store mode not re-linking package slots when `allowBuilds` changes [#15117](https://github.com/pnpm/pnpm/issues/15117).
+Fixed `pnpm install` not re-linking a package's global virtual store slot after `allowBuilds` changed [#15117](https://github.com/pnpm/pnpm/issues/15117).

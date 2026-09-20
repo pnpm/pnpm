@@ -2,7 +2,7 @@ use std::{collections::BTreeMap, fs, path::Path, time::SystemTime};
 
 use pnpm_config::{Config, NodeLinker};
 use pnpm_lockfile::Lockfile;
-use pnpm_modules_yaml::{IncludedDependencies, LayoutVersion, ModulesLayout};
+use pnpm_modules_yaml::{AllowBuildValue, IncludedDependencies, LayoutVersion, ModulesLayout};
 use pnpm_package_manifest::PackageManifest;
 use pnpm_workspace_state::{ProjectEntry, WorkspaceState, load_workspace_state};
 use tempfile::tempdir;
@@ -93,6 +93,63 @@ fn parse_lockfile(yaml: &str) -> Lockfile {
     serde_saphyr::from_str(yaml).expect("parse lockfile")
 }
 
+/// Every dependency group, the selection an unfiltered install records.
+const INCLUDED: IncludedDependencies = IncludedDependencies {
+    dependencies: true,
+    dev_dependencies: true,
+    optional_dependencies: true,
+};
+
+/// The `.modules.yaml` an install under `config` and `node_linker` records for
+/// a tree nothing has to be done to.
+fn recorded_modules(config: &Config, node_linker: NodeLinker) -> ModulesLayout {
+    ModulesLayout {
+        hoist_pattern: config.hoist_pattern.clone(),
+        included: INCLUDED,
+        layout_version: Some(LayoutVersion),
+        node_linker: Some(match node_linker {
+            NodeLinker::Hoisted => pnpm_modules_yaml::NodeLinker::Hoisted,
+            _ => pnpm_modules_yaml::NodeLinker::Isolated,
+        }),
+        pruned_at: httpdate::fmt_http_date(SystemTime::now()),
+        public_hoist_pattern: config.public_hoist_pattern.clone(),
+        store_dir: config.store_dir.display().to_string(),
+        virtual_store_dir: config
+            .effective_virtual_store_dir()
+            .to_string_lossy()
+            .into_owned(),
+        virtual_store_dir_max_length: config.virtual_store_dir_max_length,
+        ..Default::default()
+    }
+}
+
+/// Whether the frozen short-circuit fires over the `node_linker` tree `site`
+/// names, whose previous install recorded `modules`.
+fn short_circuits_over(
+    site: (&Path, &'static Config, NodeLinker),
+    modules: &ModulesLayout,
+    recorded: RecordedWorkspace<'_>,
+) -> bool {
+    let (workspace_root, config, node_linker) = site;
+    let lockfile = parse_lockfile(NO_SLOTS);
+    frozen_tree_up_to_date(&FrozenTreeUpToDate {
+        tree: ModulesTreeContext { config, workspace_root, node_linker, included: INCLUDED },
+        repeat: RepeatInstallPolicy {
+            frozen: true,
+            filtered: false,
+            disable_optimistic_check: false,
+            supported_architectures: None,
+            rebuild: None,
+            effective_node_version: None,
+        },
+        lockfile: Some(&lockfile),
+        current_lockfile: Some(&lockfile),
+        modules_manifest: Some(modules),
+        recorded,
+    })
+    .is_some()
+}
+
 /// Whether the frozen short-circuit fires over an up-to-date `node_linker`
 /// tree whose `bin_dir`, named from the project root, holds a shim naming
 /// `target`.
@@ -109,7 +166,7 @@ fn short_circuits_over_a_bin(
     config.store_dir = dir.path().join("store").into();
     config.modules_dir = project_root.join("node_modules");
     config.virtual_store_dir = config.modules_dir.join(".pnpm");
-    let config = config.leak();
+    let config: &'static Config = config.leak();
     let bin_dir = project_root.join(bin_dir);
     fs::create_dir_all(&bin_dir).expect("create the bin dir");
     fs::write(bin_dir.join("tsc"), format!("#!/bin/sh\n# cmd-shim-target={target}\n"))
@@ -120,49 +177,80 @@ fn short_circuits_over_a_bin(
         format!("hoistedLocations:\n  nested@1.0.0:\n    - {HOISTED_LOCATION}\n"),
     )
     .expect("write the modules manifest");
-    let lockfile = parse_lockfile(NO_SLOTS);
-    let included = IncludedDependencies {
-        dependencies: true,
-        dev_dependencies: true,
-        optional_dependencies: true,
-    };
-    let modules = ModulesLayout {
-        hoist_pattern: config.hoist_pattern.clone(),
-        included,
-        layout_version: Some(LayoutVersion),
-        node_linker: Some(match node_linker {
-            NodeLinker::Hoisted => pnpm_modules_yaml::NodeLinker::Hoisted,
-            _ => pnpm_modules_yaml::NodeLinker::Isolated,
-        }),
-        pruned_at: httpdate::fmt_http_date(SystemTime::now()),
-        public_hoist_pattern: config.public_hoist_pattern.clone(),
-        store_dir: config.store_dir.display().to_string(),
-        virtual_store_dir: config
-            .effective_virtual_store_dir()
-            .to_string_lossy()
-            .into_owned(),
-        virtual_store_dir_max_length: config.virtual_store_dir_max_length,
-        ..Default::default()
-    };
     let manifest =
         PackageManifest::from_value(project_root.join("package.json"), serde_json::json!({}));
     let projects = [(project_root.clone(), &manifest), (project_root.join(PROJECT_DIR), &manifest)];
-    frozen_tree_up_to_date(&FrozenTreeUpToDate {
-        tree: ModulesTreeContext { config, workspace_root: &project_root, node_linker, included },
-        repeat: RepeatInstallPolicy {
-            frozen: true,
-            filtered: false,
-            disable_optimistic_check: false,
-            supported_architectures: None,
-            rebuild: None,
-            effective_node_version: None,
+    short_circuits_over(
+        (&project_root, config, node_linker),
+        &recorded_modules(config, node_linker),
+        RecordedWorkspace { state, moved: tree_moved, projects: &projects },
+    )
+}
+
+/// Whether the frozen short-circuit fires over a tree whose previous install
+/// recorded `recorded` as the `allowBuilds` it ran under, against a config now
+/// holding `configured`.
+fn short_circuits_over_allow_builds(
+    recorded: &[(&str, bool)],
+    configured: &[(&str, bool)],
+) -> bool {
+    let dir = tempdir().expect("create a temp dir");
+    let project_root = dir.path().join("project");
+    let mut config = Config::new();
+    config.store_dir = dir.path().join("store").into();
+    config.modules_dir = project_root.join("node_modules");
+    config.virtual_store_dir = config.modules_dir.join(".pnpm");
+    config.allow_builds = configured
+        .iter()
+        .map(|(spec, allowed)| ((*spec).to_string(), *allowed))
+        .collect();
+    let config: &'static Config = config.leak();
+    fs::create_dir_all(&config.modules_dir).expect("create the modules dir");
+    let manifest =
+        PackageManifest::from_value(project_root.join("package.json"), serde_json::json!({}));
+    let projects = [(project_root.clone(), &manifest)];
+    let modules = ModulesLayout {
+        allow_builds: Some(
+            recorded
+                .iter()
+                .map(|(spec, allowed)| ((*spec).to_string(), AllowBuildValue::Bool(*allowed)))
+                .collect(),
+        ),
+        ..recorded_modules(config, NodeLinker::Isolated)
+    };
+    short_circuits_over(
+        (&project_root, config, NodeLinker::Isolated),
+        &modules,
+        RecordedWorkspace {
+            state: Some(&WorkspaceState::default()),
+            moved: false,
+            projects: &projects,
         },
-        lockfile: Some(&lockfile),
-        current_lockfile: Some(&lockfile),
-        modules_manifest: Some(&modules),
-        recorded: RecordedWorkspace { state, moved: tree_moved, projects: &projects },
-    })
-    .is_some()
+    )
+}
+
+/// A decision flipped between `true` and `false` leaves no ignored build and
+/// withdraws no approval, so the recorded approval set is the only thing that
+/// keeps the install off the no-op fast path and re-links its global virtual
+/// store slots (<https://github.com/pnpm/pnpm/issues/15117>).
+#[test]
+fn an_allow_builds_change_refuses_the_frozen_short_circuit() {
+    assert!(
+        short_circuits_over_allow_builds(&[("a", true)], &[("a", true)]),
+        "the approval set the tree was linked under is still the current one",
+    );
+    let cases: [(&[(&str, bool)], &[(&str, bool)]); 4] = [
+        (&[("a", false)], &[("a", true)]),
+        (&[("a", true)], &[("a", false)]),
+        (&[], &[("a", false)]),
+        (&[("a", false)], &[]),
+    ];
+    for (recorded, configured) in cases {
+        assert!(
+            !short_circuits_over_allow_builds(recorded, configured),
+            "recorded {recorded:?} against a configured {configured:?}",
+        );
+    }
 }
 
 /// Every `.bin` a moved tree may hold a stale bin in is checked, under the

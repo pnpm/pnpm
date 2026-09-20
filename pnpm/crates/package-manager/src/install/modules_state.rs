@@ -283,8 +283,9 @@ pub(super) fn has_newly_allowed_ignored_builds(
 /// (<https://github.com/pnpm/pnpm/issues/11035>).
 ///
 /// Only a withdrawal to *undecided* counts. An entry the user flipped to
-/// an explicit `false` is silently skipped rather than reported, so it
-/// leaves the fast path intact — matching `BuildModules`.
+/// an explicit `false` is silently skipped rather than reported, matching
+/// `BuildModules`; [`recorded_allow_builds_differ`] is what sees that
+/// transition.
 pub(super) fn has_revoked_allowed_builds(
     modules: &pnpm_modules_yaml::ModulesLayout,
     config: &Config,
@@ -298,8 +299,11 @@ pub(super) fn has_revoked_allowed_builds(
 
 /// Whether the `allowBuilds` entries the previous install recorded differ
 /// from the current setting: an entry flipped between `true` and `false`,
-/// or one added or removed. Placeholder entries the approval scaffold writes
-/// carry no decision and are ignored.
+/// or one added or removed. The two predicates above see an ignored build
+/// becoming allowed and an approval being withdrawn; this sees the
+/// remaining transitions, such as an explicit `false` becoming `true`,
+/// which leaves no ignored entry behind to notice. Placeholder entries the
+/// approval scaffold writes carry no decision and are ignored.
 pub(super) fn recorded_allow_builds_differ(
     modules: &pnpm_modules_yaml::ModulesLayout,
     config: &Config,
