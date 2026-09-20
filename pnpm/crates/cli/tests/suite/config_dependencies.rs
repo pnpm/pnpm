@@ -5,11 +5,9 @@ use command_extra::CommandExtra;
 use pnpm_config::WorkspaceSettings;
 use pnpm_lockfile::EnvLockfile;
 use pnpm_modules_yaml::{Host, NodeLinker, read_modules_manifest};
-#[cfg(unix)]
-use pnpm_testing_utils::fs::is_symlink_or_junction;
 use pnpm_testing_utils::{
     bin::{AddMockedRegistry, CommandTempCwd},
-    fs::bump_mtime,
+    fs::{bump_mtime, is_symlink_or_junction},
 };
 use pnpm_workspace_state::ConfigDependency;
 use std::{fs, path::Path, process::Command};
@@ -119,13 +117,9 @@ fn update_config_hook_mutates_config_before_install() {
 
     let dep = workspace.join("node_modules/@pnpm.e2e/foo");
     assert!(dep.join("package.json").exists(), "dependency is installed");
-    // On Unix, hoisted linking materializes the dep as a real directory
-    // (isolated would symlink it), which proves the hook flipped
-    // `nodeLinker`. Windows top-level deps are junctions under both
-    // linkers — see `hoisted_node_linker.rs`'s `#![cfg(unix)]` gate — so
-    // the cross-platform proof that `updateConfig` ran lives in
-    // `update_config_hook_injects_catalog`.
-    #[cfg(unix)]
+    // Hoisted linking materializes the dep as a real directory, where
+    // isolated would link it into the virtual store, so this is what
+    // proves the hook flipped `nodeLinker`.
     assert!(
         !is_symlink_or_junction(&dep).unwrap(),
         "updateConfig forced nodeLinker: hoisted, so the dep is a real directory, not a symlink",
