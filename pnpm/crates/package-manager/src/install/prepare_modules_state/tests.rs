@@ -239,18 +239,22 @@ fn an_allow_builds_change_refuses_the_frozen_short_circuit() {
         short_circuits_over_allow_builds(&[("a", true)], &[("a", true)]),
         "the approval set the tree was linked under is still the current one",
     );
-    let cases: [(&[(&str, bool)], &[(&str, bool)]); 4] = [
-        (&[("a", false)], &[("a", true)]),
-        (&[("a", true)], &[("a", false)]),
-        (&[], &[("a", false)]),
-        (&[("a", false)], &[]),
-    ];
-    for (recorded, configured) in cases {
-        assert!(
-            !short_circuits_over_allow_builds(recorded, configured),
-            "recorded {recorded:?} against a configured {configured:?}",
-        );
-    }
+    assert!(
+        !short_circuits_over_allow_builds(&[("a", false)], &[("a", true)]),
+        "a denial the config has since turned into an approval",
+    );
+    assert!(
+        !short_circuits_over_allow_builds(&[("a", true)], &[("a", false)]),
+        "an approval the config has since turned into a denial",
+    );
+    assert!(
+        !short_circuits_over_allow_builds(&[], &[("a", false)]),
+        "a decision the config gained",
+    );
+    assert!(
+        !short_circuits_over_allow_builds(&[("a", false)], &[]),
+        "a decision the config dropped",
+    );
 }
 
 /// Every `.bin` a moved tree may hold a stale bin in is checked, under the
