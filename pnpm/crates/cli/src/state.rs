@@ -203,9 +203,7 @@ impl State {
 /// `package.json` loads (or is scaffolded) as usual, but when it is
 /// absent an existing alternate manifest base name (`package.yaml`)
 /// must be loaded rather than shadowed by a scaffolded `package.json`
-/// — pnpm reads every manifest base name. Alternate manifests stay
-/// read-only (see `pnpm_workspace::project_manifest`); commands
-/// that write the manifest back still require `package.json`.
+/// and saved in its original format.
 ///
 /// Inside a workspace, a missing root manifest is tolerated rather
 /// than scaffolded: pnpm installs such a workspace with no root

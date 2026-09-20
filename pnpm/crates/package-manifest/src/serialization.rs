@@ -103,29 +103,54 @@ impl PackageManifest {
         path: &Path,
         manifest: &Value,
     ) -> Result<String, PackageManifestError> {
-        let contents = serialize_with_indent(manifest, DEFAULT_INDENT)?;
-        fs::write(path, format!("{contents}\n"))?; // TODO: forbid overwriting existing files
+        let contents = if is_yaml_path(path) {
+            let mut contents = pnpm_yaml_document_sync::serialize(manifest)
+                .map_err(|source| PackageManifestError::EditYaml {
+                    path: path.to_path_buf(),
+                    source,
+                })?;
+            if contents.ends_with('\n') {
+                contents.pop();
+            }
+            contents
+        } else {
+            serialize_with_indent(manifest, DEFAULT_INDENT)?
+        };
+        Self::write_atomic(path, &format!("{contents}\n"))?;
         Ok(contents)
     }
 
     /// Write `contents` to `path` atomically: a sibling temp file is written
     /// and fsynced, then renamed over `path`. A crash or write error therefore
-    /// never leaves a truncated or partial `package.json` behind, matching the
-    /// `write-file-atomic` guarantee.
+    /// never leaves a truncated or partial manifest behind, matching the
+    /// `write-file-atomic` guarantee. New Unix files respect the process umask;
+    /// existing files keep their permissions.
     pub(super) fn write_atomic(path: &Path, contents: &str) -> io::Result<()> {
         let dir = path
             .parent()
             .filter(|parent| !parent.as_os_str().is_empty())
             .unwrap_or_else(|| Path::new("."));
+        let permissions = match fs::metadata(path) {
+            Ok(metadata) => Some(metadata.permissions()),
+            Err(error) if error.kind() == io::ErrorKind::NotFound => None,
+            Err(error) => return Err(error),
+        };
+        #[cfg(unix)]
+        let mut tmp = if permissions.is_none() {
+            use std::os::unix::fs::PermissionsExt;
+            tempfile::Builder::new()
+                .permissions(fs::Permissions::from_mode(0o666))
+                .tempfile_in(dir)?
+        } else {
+            NamedTempFile::new_in(dir)?
+        };
+        #[cfg(not(unix))]
         let mut tmp = NamedTempFile::new_in(dir)?;
         tmp.write_all(contents.as_bytes())?;
-        tmp.as_file().sync_all()?;
-        // A NamedTempFile is created 0o600; preserve the original file's mode
-        // when overwriting an existing package.json (write-file-atomic does the
-        // same) so the rename doesn't silently tighten its permissions.
-        if let Ok(metadata) = fs::metadata(path) {
-            tmp.as_file().set_permissions(metadata.permissions())?;
+        if let Some(permissions) = permissions {
+            tmp.as_file().set_permissions(permissions)?;
         }
+        tmp.as_file().sync_all()?;
         tmp.persist(path).map_err(|err| err.error)?;
         Ok(())
     }
@@ -133,8 +158,22 @@ impl PackageManifest {
     pub(super) fn read_from_file(path: PathBuf) -> Result<PackageManifest, PackageManifestError> {
         let file_contents = fs::read_to_string(&path)?;
         let contents = strip_utf8_bom(&file_contents);
-        let mut value: Value = parse_manifest(contents)
-            .map_err(|source| PackageManifestError::Parse { path: path.clone(), source })?;
+        let mut value: Value = if is_yaml_path(&path) {
+            pnpm_yaml_document_sync::parse(contents)
+                .map_err(|source| PackageManifestError::ParseYaml { path: path.clone(), source })?
+        } else {
+            parse_manifest(contents)
+                .map_err(|source| PackageManifestError::Parse { path: path.clone(), source })?
+        };
+        if is_yaml_path(&path) && value.is_null() {
+            value = serde_json::json!({});
+        }
+        if is_yaml_path(&path) && !value.is_object() {
+            return Err(PackageManifestError::InvalidAttribute(format!(
+                "{}: the manifest root must be an object",
+                path.display(),
+            )));
+        }
         let mut on_disk = value.clone();
         normalize_dependency_fields(&mut on_disk);
         convert_engines_runtime_to_dependencies(&mut value, "devEngines", "devDependencies");
@@ -173,5 +212,34 @@ impl PackageManifest {
         // hand, so its formatting and no-op-save baseline are derived from
         // the file the same way as for a pre-existing manifest.
         PackageManifest::read_from_file(path)
+    }
+}
+
+fn is_yaml_path(path: &Path) -> bool {
+    path.file_name()
+        .is_some_and(|name| name.eq_ignore_ascii_case("package.yaml"))
+}
+
+impl PackageManifest {
+    pub(super) fn is_yaml(&self) -> bool {
+        is_yaml_path(&self.path)
+    }
+
+    pub(super) fn serialize_yaml(&self, value: &Value) -> Result<String, PackageManifestError> {
+        let text = match fs::read_to_string(&self.path) {
+            Ok(text) => text,
+            Err(error) if error.kind() == io::ErrorKind::NotFound => {
+                return pnpm_yaml_document_sync::serialize(value)
+                    .map_err(|source| PackageManifestError::EditYaml {
+                        path: self.path.clone(),
+                        source,
+                    });
+            }
+            Err(source) => {
+                return Err(PackageManifestError::Read { path: self.path.clone(), source });
+            }
+        };
+        pnpm_yaml_document_sync::sync(strip_utf8_bom(&text), value)
+            .map_err(|source| PackageManifestError::EditYaml { path: self.path.clone(), source })
     }
 }

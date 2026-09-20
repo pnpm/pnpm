@@ -1,6 +1,6 @@
 use super::{byte_range, invalid};
 use serde_saphyr::granit_parser::{Event, Parser, Span, StrInput};
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use yamlpath::Component;
 
 pub(super) struct ScalarPath {
@@ -19,13 +19,28 @@ struct PathCollector {
     path: Vec<Component<'static>>,
     paths: HashMap<usize, Vec<ScalarPath>>,
     scalar_keys: HashMap<usize, String>,
+    mapping_paths: Vec<Vec<Component<'static>>>,
+    collect_mapping_paths: bool,
 }
 
 pub(super) fn scalar_paths(
     text: &str,
 ) -> Result<HashMap<usize, Vec<ScalarPath>>, Box<yamlpatch::Error>> {
+    Ok(collect_paths(text, false)?.paths)
+}
+
+pub(crate) fn mapping_paths(
+    text: &str,
+) -> Result<Vec<Vec<Component<'static>>>, Box<yamlpatch::Error>> {
+    Ok(collect_paths(text, true)?.mapping_paths)
+}
+
+fn collect_paths(
+    text: &str,
+    collect_mapping_paths: bool,
+) -> Result<PathCollector, Box<yamlpatch::Error>> {
     let mut parser = Parser::new_from_str(text);
-    let mut collector = PathCollector::default();
+    let mut collector = PathCollector { collect_mapping_paths, ..Default::default() };
     while let Some(event) = parser.next_event() {
         let (event, span) = event.map_err(|error| invalid(error.to_string()))?;
         if matches!(collector.containers.last(), Some(Container::Mapping { key: None }))
@@ -36,7 +51,7 @@ pub(super) fn scalar_paths(
         }
         collector.visit(event);
     }
-    Ok(collector.paths)
+    Ok(collector)
 }
 
 impl PathCollector {
@@ -67,6 +82,9 @@ impl PathCollector {
             _ => mapping_key(text, parser, event, span)?,
         };
         self.path.push(Component::from(key_text.clone()));
+        if self.collect_mapping_paths {
+            self.mapping_paths.push(self.path.clone());
+        }
         self.record_scalar(event, true);
         self.path.pop();
         if let Some(Container::Mapping { key }) = self.containers.last_mut() {
@@ -139,4 +157,22 @@ fn mapping_key<'a>(
         range.end = byte_range(span).end;
     }
     Ok(text[range].to_string())
+}
+
+pub(super) fn changed_scalar_paths(
+    text: &str,
+    original: &serde_json::Value,
+    target: &serde_json::Value,
+) -> Result<HashSet<usize>, Box<yamlpatch::Error>> {
+    let keys = crate::source_keys::SourceKeys::new(text, original)?;
+    let mut changed = HashSet::new();
+    for (id, paths) in scalar_paths(text)? {
+        if paths
+            .iter()
+            .any(|path| keys.value_at(original, &path.route) != keys.value_at(target, &path.route))
+        {
+            changed.insert(id);
+        }
+    }
+    Ok(changed)
 }

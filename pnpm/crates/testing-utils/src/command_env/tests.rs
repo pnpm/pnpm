@@ -72,6 +72,18 @@ fn spawned_pnpm_defaults_to_non_ci_after_ambient_config_is_removed() {
     assert_eq!(env_value(&command, CI_SETTING).as_deref(), Some(OsStr::new("false")));
 }
 
+#[test]
+fn spawned_pnpm_keeps_the_test_runners_isolated_npmrc() {
+    const TEST_NPMRC: &str = "PNPM_TEST_NPMRC_AUTH_FILE";
+    const AUTH_NPMRC: &str = "PNPM_CONFIG_NPMRC_AUTH_FILE";
+    let guard = EnvGuard::snapshot([TEST_NPMRC, AUTH_NPMRC]);
+    guard.set(TEST_NPMRC, "/isolated/npmrc");
+    guard.set(AUTH_NPMRC, "/user/npmrc");
+
+    let command = Command::new("pnpm").without_ambient_pnpm_config();
+    assert_eq!(env_value(&command, AUTH_NPMRC).as_deref(), Some(OsStr::new("/isolated/npmrc")));
+}
+
 /// What `command` will pass for `name`: `None` once it is removed, `Some`
 /// once it is set again.
 fn env_value(command: &Command, name: &str) -> Option<std::ffi::OsString> {

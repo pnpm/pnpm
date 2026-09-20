@@ -5752,6 +5752,7 @@ dependencies = [
  "miette 7.6.0",
  "node-semver",
  "pipe-trait",
+ "pnpm-yaml-document-sync",
  "pretty_assertions",
  "serde",
  "serde_json",
@@ -6326,6 +6327,7 @@ dependencies = [
  "pnpm-config",
  "pnpm-config-parse-overrides",
  "pnpm-package-manifest",
+ "pnpm-yaml-document-sync",
  "serde",
  "serde-saphyr",
  "serde_json",
@@ -6403,6 +6405,17 @@ dependencies = [
  "serde",
  "serde_json",
  "tokio",
+]
+
+[[package]]
+name = "pnpm-yaml-document-sync"
+version = "0.0.1"
+dependencies = [
+ "serde-saphyr",
+ "serde_json",
+ "yaml_serde",
+ "yamlpatch",
+ "yamlpath",
 ]
 
 [[package]]

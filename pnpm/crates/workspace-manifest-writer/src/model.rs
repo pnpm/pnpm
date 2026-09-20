@@ -40,7 +40,7 @@ pub(crate) struct Manifest {
 #[derive(Default)]
 pub(crate) struct ManifestDocument {
     text: String,
-    aliases: crate::scalar_aliases::ScalarAliases,
+    aliases: pnpm_yaml_document_sync::ScalarAliases,
     pub(crate) keys: Vec<String>,
     /// Whether the document separates its top-level blocks with blank lines,
     /// as judged by [`crate::edit::uses_blank_line_style`] on the original
@@ -173,7 +173,7 @@ impl Manifest {
 
         let data: CatalogData = serde_saphyr::from_str(&text).map_err(Box::new)?;
         let (overrides, non_scalar_overrides) = split_overrides(data.overrides);
-        let (text, aliases) = crate::scalar_aliases::ScalarAliases::expand(&text)
+        let (text, aliases) = pnpm_yaml_document_sync::ScalarAliases::expand(&text)
             .map_err(|error| Box::new(<serde_saphyr::Error as serde::de::Error>::custom(error)))?;
 
         Ok(Manifest {

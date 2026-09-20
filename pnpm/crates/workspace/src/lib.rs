@@ -18,9 +18,9 @@ pub use manifest::{
     WorkspaceManifest, read_workspace_manifest, workspace_package_patterns,
 };
 pub use project_manifest::{
-    ReadProjectManifestError, ReadProjectManifestOnlyError, read_exact_project_manifest,
-    read_project_manifest_only, read_project_name, safe_read_project_manifest_only,
-    try_read_project_manifest,
+    ReadProjectManifestError, ReadProjectManifestOnlyError, project_manifest_path,
+    read_exact_project_manifest, read_project_manifest_only, read_project_name,
+    safe_read_project_manifest_only, try_read_project_manifest,
 };
 pub use projects::{
     FindWorkspaceProjectsError, FindWorkspaceProjectsOpts, Project, belongs_to_workspace,
