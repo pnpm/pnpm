@@ -4,7 +4,11 @@ use super::{
 use node_semver::Version;
 use pnpm_catalogs_types::Catalogs;
 use pnpm_config_parse_overrides::{VersionOverride, parse_overrides};
-use std::collections::{HashMap, HashSet};
+use std::{
+    collections::{HashMap, HashSet},
+    sync::Arc,
+    time::Duration,
+};
 
 fn converge_override(name: &str, value: &str) -> Vec<VersionOverride> {
     let input = HashMap::from([(format!("{name}@"), value.to_string())]);
@@ -34,7 +38,8 @@ fn canned(answers: &[(&str, &str)]) -> impl Fn(String, String) -> BestVersionFut
     }
 }
 
-type BestVersionFuture = std::pin::Pin<Box<dyn std::future::Future<Output = Option<Version>>>>;
+type BestVersionFuture =
+    std::pin::Pin<Box<dyn std::future::Future<Output = Option<Version>> + Send>>;
 
 #[tokio::test]
 async fn reports_the_best_newer_version_admitted_by_every_range() {
@@ -98,6 +103,41 @@ async fn silent_when_no_declared_range_was_collected() {
     let stale = find_stale_convergence_overrides(&overrides, &HashMap::new(), canned(&[])).await;
 
     assert!(stale.is_empty(), "nothing declared the package, so nothing can be converged");
+}
+
+#[tokio::test]
+async fn checks_convergence_overrides_concurrently() {
+    let overrides = converge_override("foo", "1.0.0")
+        .into_iter()
+        .chain(converge_override("bar", "1.0.0"))
+        .collect::<Vec<_>>();
+    let declared = HashMap::from([
+        ("foo".to_string(), HashSet::from(["^1.0.0".to_string()])),
+        ("bar".to_string(), HashSet::from(["^1.0.0".to_string()])),
+    ]);
+    let barrier = Arc::new(tokio::sync::Barrier::new(2));
+    let resolve_range = move |_name: String, _range: String| {
+        let barrier = Arc::clone(&barrier);
+        Box::pin(async move {
+            barrier.wait().await;
+            Some(Version::parse("1.0.1").unwrap())
+        }) as BestVersionFuture
+    };
+
+    let stale = tokio::time::timeout(
+        Duration::from_secs(1),
+        find_stale_convergence_overrides(&overrides, &declared, resolve_range),
+    )
+    .await
+    .expect("override checks should overlap");
+
+    assert_eq!(
+        stale
+            .iter()
+            .map(|entry| entry.name.as_str())
+            .collect::<Vec<_>>(),
+        ["foo", "bar"],
+    );
 }
 
 #[test]

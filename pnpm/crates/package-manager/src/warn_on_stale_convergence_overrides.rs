@@ -40,36 +40,45 @@ pub(crate) struct StaleConvergenceOverride {
 /// A range that fails to resolve contributes no candidate but still
 /// participates in the satisfies-every-range check, so failures can
 /// only suppress the verdict, never fabricate one.
+///
+/// Results retain `parsed_overrides` order even though checks run
+/// concurrently.
 pub(crate) async fn find_stale_convergence_overrides<ResolveRange, ResolveRangeFuture>(
     parsed_overrides: &[VersionOverride],
     converge_declared_ranges: &HashMap<String, HashSet<String>>,
     resolve_range: ResolveRange,
 ) -> Vec<StaleConvergenceOverride>
 where
-    ResolveRange: Fn(String, String) -> ResolveRangeFuture,
-    ResolveRangeFuture: Future<Output = Option<Version>>,
+    ResolveRange: Fn(String, String) -> ResolveRangeFuture + Send + Sync,
+    ResolveRangeFuture: Future<Output = Option<Version>> + Send,
 {
-    let mut stale = Vec::new();
-    for override_entry in parsed_overrides.iter().filter(|entry| entry.converge) {
-        let Some(ranges) = converge_declared_ranges.get(&override_entry.target_pkg.name) else {
-            continue;
-        };
-        let candidates = ranges
-            .iter()
-            .map(|range| resolve_range(override_entry.target_pkg.name.clone(), range.clone()))
-            .pipe(future::join_all)
-            .await;
-        if let Some(best) =
+    let resolve_range = &resolve_range;
+    parsed_overrides
+        .iter()
+        .filter(|entry| entry.converge)
+        .filter_map(|override_entry| {
+            converge_declared_ranges
+                .get(&override_entry.target_pkg.name)
+                .map(|ranges| (override_entry, ranges))
+        })
+        .map(|(override_entry, ranges)| async move {
+            let candidates = ranges
+                .iter()
+                .map(|range| resolve_range(override_entry.target_pkg.name.clone(), range.clone()))
+                .pipe(future::join_all)
+                .await;
             better_convergence(override_entry, ranges, candidates.into_iter().flatten())
-        {
-            stale.push(StaleConvergenceOverride {
-                name: override_entry.target_pkg.name.clone(),
-                current_value: override_entry.new_bare_specifier.clone(),
-                best,
-            });
-        }
-    }
-    stale
+                .map(|best| StaleConvergenceOverride {
+                    name: override_entry.target_pkg.name.clone(),
+                    current_value: override_entry.new_bare_specifier.clone(),
+                    best,
+                })
+        })
+        .pipe(future::join_all)
+        .await
+        .into_iter()
+        .flatten()
+        .collect()
 }
 
 /// The newest resolved candidate past the override's value that satisfies
