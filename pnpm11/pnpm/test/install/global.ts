@@ -928,3 +928,30 @@ test('global add does not treat commas inside a local path selector as a group s
   execPnpmSync(['add', '-g', `file:${pkgDir}`], { env, expectSuccess: true })
   expect(findGlobalPkg(globalPkgDir(pnpmHome), 'tool-comma')).toBeTruthy()
 })
+
+test('global add reports every install group in one summary', async () => {
+  prepare()
+  const global = path.resolve('..', 'global')
+  const pnpmHome = path.join(global, 'pnpm')
+  const env = {
+    [PATH_NAME]: path.join(pnpmHome, 'bin'),
+    PNPM_HOME: pnpmHome,
+    XDG_DATA_HOME: global,
+    pnpm_config_silent: 'false',
+  }
+
+  // Each param is its own install group with its own install, and the default
+  // reporter renders the first summary event it sees. So every group stays
+  // quiet and `pnpm add -g` emits one consolidated summary at the end.
+  const { stdout } = execPnpmSync(['add', '--global', 'is-positive', 'is-negative'], {
+    env,
+    stdio: 'pipe',
+    expectSuccess: true,
+  })
+  const output = stdout.toString()
+
+  expect(output).toContain('global:')
+  const summary = output.slice(output.indexOf('global:'))
+  expect(summary).toContain('+ is-positive')
+  expect(summary).toContain('+ is-negative')
+})
