@@ -449,6 +449,9 @@ fn classify_license_free_form_names() {
         "MIT/Apache-2.0",
         "MIT OR",
         "MIT OR\nApache-2.0",
+        "\nMIT OR Apache-2.0\n",
+        "\tMIT OR Apache-2.0",
+        "\tMIT\t",
         " Proprietary License ",
     ] {
         assert_eq!(

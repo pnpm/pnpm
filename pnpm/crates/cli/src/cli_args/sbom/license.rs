@@ -10,16 +10,19 @@
 //! case-insensitively and requires the operators to be uppercase. The `spdx`
 //! crate has it the other way around, so identifiers are rewritten to their
 //! canonical case and lowercase operators rejected before it parses an
-//! expression. That rewriting, and the surrounding whitespace it drops, serve
-//! the decision alone. Only an identifier is republished in another form, the
-//! canonical case the `CycloneDX` enum lists; an expression and a name reach
-//! the BOM as the manifest wrote them.
+//! expression. That rewriting serves the decision alone. Only an identifier is
+//! republished in another form, the canonical case the `CycloneDX` enum lists;
+//! an expression and a name reach the BOM as the manifest wrote them.
+//!
+//! An expression is therefore validated as the exact string that will be
+//! published. Only the identifier lookup ignores the spaces around the value,
+//! so a value padded with a line break stays a name rather than becoming an
+//! expression no longer on one line.
 
 pub(super) fn classify_license(license: &str) -> serde_json::Value {
-    let trimmed = license.trim();
-    if let Some(id) = canonical_spdx_id(trimmed) {
+    if let Some(id) = canonical_spdx_id(license.trim_matches(' ')) {
         serde_json::json!({ "license": { "id": id } })
-    } else if is_spdx_expression(trimmed) {
+    } else if is_spdx_expression(license) {
         serde_json::json!({ "expression": license })
     } else {
         serde_json::json!({ "license": { "name": license } })

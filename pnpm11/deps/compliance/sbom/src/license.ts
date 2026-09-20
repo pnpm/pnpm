@@ -12,7 +12,7 @@ const SPDX_OPERATORS = ['AND', 'OR', 'WITH']
 // Order matters: check ID first because "MIT" matches both isSupportedSpdxId
 // and isSpdxExpression, but we prefer the more specific license.id form.
 export function classifyLicense (license: string): { license: { id: string } } | { license: { name: string } } | { expression: string } {
-  const trimmed = license.trim()
+  const trimmed = trimSpaces(license)
   const fixedId = fixupSpdxId(trimmed)
   // A trailing "+" makes the value an expression rather than an identifier, and
   // the CycloneDX list folds the SPDX exception identifiers into the same enum,
@@ -20,10 +20,21 @@ export function classifyLicense (license: string): { license: { id: string } } |
   if (!trimmed.endsWith('+') && fixedId != null && isSupportedSpdxId(fixedId) && isSpdxLicenseId(fixedId)) {
     return { license: { id: fixedId } }
   }
-  if (isSpdxExpression(trimmed)) {
+  if (isSpdxExpression(license)) {
     return { expression: license }
   }
   return { license: { name: license } }
+}
+
+// Only the identifier lookup ignores the spaces around the value, so a value
+// padded with a line break stays a name rather than becoming an expression no
+// longer on one line.
+function trimSpaces (value: string): string {
+  let start = 0
+  let end = value.length
+  while (start < end && value[start] === ' ') start++
+  while (end > start && value[end - 1] === ' ') end--
+  return value.slice(start, end)
 }
 
 function isSpdxLicenseId (license: string): boolean {
@@ -37,9 +48,9 @@ function isSpdxLicenseId (license: string): boolean {
 
 // SPDX 2.3 annex D.2 matches license and exception identifiers case-insensitively
 // and requires the operators to be uppercase, while spdx-expression-parse has it
-// the other way around. That rewriting, and the surrounding whitespace the caller
-// drops, serve the decision alone: the expression reaches the BOM as the manifest
-// wrote it.
+// the other way around. That rewriting serves the decision alone, and the value
+// validated here is the exact string the BOM will carry. The scanner skips only
+// the ASCII space, so any other whitespace leaves the value a name.
 function isSpdxExpression (license: string): boolean {
   const normalized = normalizeSpdxExpressionIds(license)
   if (normalized == null) return false
