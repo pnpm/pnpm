@@ -1908,9 +1908,20 @@ function isCheckOnlyInstall (opts: { lockfileCheck?: unknown, dryRun?: boolean }
  * leaves materialization as the only stage the filter can reach. Until it
  * does, the resolver fetches the tarballs of the groups the install drops
  * (pnpm/pnpm#881).
+ *
+ * A filter no importer has anything to drop to drops nothing, and such an
+ * install keeps its single pass: `pnpm add -g` excludes `devDependencies`
+ * from a manifest it writes `dependencies` into and nothing else.
+ * `optionalDependencies` are the exception, because every package in the
+ * graph can declare one and dropping the group drops those too, which no
+ * importer's manifest shows.
  */
-function materializesGroupSubset (include: IncludedDependencies): boolean {
-  return !include.dependencies || !include.devDependencies || !include.optionalDependencies
+function materializesGroupSubset (include: IncludedDependencies, projects: ImporterToUpdate[]): boolean {
+  if (!include.optionalDependencies) return true
+  return projects.some(({ manifest }) =>
+    (!include.dependencies && !isEmpty(manifest.dependencies ?? {})) ||
+    (!include.devDependencies && !isEmpty(manifest.devDependencies ?? {}))
+  )
 }
 
 interface InstallFunctionResult {
@@ -2791,7 +2802,7 @@ const installInContext: InstallFunction = async (projects, ctx, opts) => {
     // and intercepting the install here would take away the resolution
     // `mutateModules` waived the lockfile verification for.
     if (
-      (opts.nodeLinker === 'hoisted' || (materializesGroupSubset(opts.include) && !pacquetResolvesInstall(projects, opts))) &&
+      (opts.nodeLinker === 'hoisted' || (materializesGroupSubset(opts.include, projects) && !pacquetResolvesInstall(projects, opts))) &&
       !opts.lockfileOnly && !isCheckOnlyInstall(opts) && opts.enableModulesDir
     ) {
       const result = await _installInContext(projects, ctx, {
