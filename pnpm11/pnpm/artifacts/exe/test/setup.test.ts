@@ -33,6 +33,10 @@ const ALIASES = [
   { name: 'pnx', shell: ' dlx', argv: ['dlx'] },
 ]
 
+// Read before the tests below run prepare.js in this directory, which overwrites
+// the committed copies with whatever the generator produces now.
+const COMMITTED_ALIASES = new Map(ALIASES.map(({ name }) => [name, fs.readFileSync(path.join(exeDir, name), 'utf8')]))
+
 describe('exePlatformPkgName', () => {
   test('uses linuxstatic- prefix for linux + musl libc family', () => {
     expect(exePlatformPkgName('linux', 'x64', 'musl')).toBe('@pnpm/linuxstatic-x64')
@@ -79,6 +83,17 @@ test('prepare writes correct content for all bin files', () => {
   for (const { name, shell } of ALIASES) {
     expect(fs.readFileSync(path.join(exeDir, name + '.cmd'), 'utf8')).toBe(`@echo off\npnpm${shell} %*\n`)
     expect(fs.readFileSync(path.join(exeDir, name + '.ps1'), 'utf8')).toBe(`pnpm${shell} @args\n`)
+  }
+});
+
+// prepare.js rewrites the alias scripts on every install, so an edit made to a
+// committed copy alone lasts only until the next one.
+test('the committed alias scripts are what prepare.js writes', () => {
+  const sandbox = buildAliasSandbox()
+
+  for (const { name } of ALIASES) {
+    const generated = fs.readFileSync(path.join(sandbox, name), 'utf8')
+    expect({ name, script: COMMITTED_ALIASES.get(name) }).toEqual({ name, script: generated })
   }
 });
 
@@ -337,6 +352,43 @@ describe('alias bins', () => {
       expect({ status: result.status, stdout: result.stdout }).toEqual({ status: 0, stdout: expected })
     })
 
+    // pnpm/pnpm#14884: MSYS and Cygwin launch the alias with a native Windows
+    // path, which has no slash for ${self%/*} to strip. Only a drive letter or a
+    // UNC prefix marks one, since a backslash is an ordinary character in a Unix
+    // file name. Each test below plants the alias and its sibling pnpm where the
+    // path resolves to, and hands sh the file whose own name is that path.
+    aliasTest(`${name} resolves a drive-letter $0`, () => {
+      const sandbox = buildAliasSandbox()
+      const arg0 = `C:\\proj\\${name}`
+      fs.copyFileSync(plantAliasAndPnpm(sandbox, name, path.join(sandbox, 'C:', 'proj')), path.join(sandbox, arg0))
+
+      const result = runNativeAlias(sandbox, arg0)
+      expect({ status: result.status, stdout: result.stdout }).toEqual({ status: 0, stdout: expected })
+    })
+
+    // A UNC path converts to one starting with //, which Linux and macOS read as
+    // /, so the share stands in for the sandbox directory itself. `shareDir` is
+    // absolute, so its own leading separator is the second of the two backslashes
+    // that mark the path as UNC.
+    aliasTest(`${name} resolves a UNC $0`, () => {
+      const sandbox = buildAliasSandbox()
+      const shareDir = path.join(sandbox, 'share')
+      const arg0 = `\\${shareDir}/${name}`.replaceAll('/', '\\')
+      fs.copyFileSync(plantAliasAndPnpm(sandbox, name, shareDir), path.join(sandbox, arg0))
+
+      const result = runNativeAlias(sandbox, arg0)
+      expect({ status: result.status, stdout: result.stdout }).toEqual({ status: 0, stdout: expected })
+    })
+
+    // The other side of the gate: neither prefix is there, so the backslash stays
+    // part of the directory name rather than becoming a separator.
+    aliasTest(`${name} leaves a Unix path holding a backslash alone`, () => {
+      const sandbox = buildAliasSandbox()
+
+      const result = runAlias(plantAliasAndPnpm(sandbox, name, path.join(sandbox, 'proj\\dir')), BARE_PATH)
+      expect({ status: result.status, stdout: result.stdout }).toEqual({ status: 0, stdout: expected })
+    })
+
     aliasTest(`${name} reports a skipped install script rather than failing to exec the placeholder`, () => {
       const sandbox = buildAliasSandbox({ installBinary: false })
 
@@ -365,6 +417,15 @@ function buildAliasSandbox ({ installBinary = true } = {}): string {
   return sandbox
 }
 
+function plantAliasAndPnpm (sandbox: string, name: string, targetDir: string): string {
+  fs.mkdirSync(targetDir, { recursive: true })
+  const file = path.join(targetDir, name)
+  fs.copyFileSync(path.join(sandbox, name), file)
+  fs.chmodSync(file, 0o755)
+  writeStub(path.join(targetDir, 'pnpm'), 'sibling')
+  return file
+}
+
 /**
  * An executable stand-in for pnpm at `file` that echoes `label` and its
  * arguments. chmod separately: `writeFileSync`'s `mode` applies only when it
@@ -381,5 +442,14 @@ function runAlias (alias: string, pathEnv: string) {
     encoding: 'utf8',
     timeout: 10_000,
     env: { ...process.env, PATH: pathEnv },
+  })
+}
+
+function runNativeAlias (cwd: string, arg0: string) {
+  return spawnSync('sh', [arg0, 'add', 'foo'], {
+    cwd,
+    encoding: 'utf8',
+    timeout: 10_000,
+    env: { ...process.env, PATH: BARE_PATH },
   })
 }
