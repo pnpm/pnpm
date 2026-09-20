@@ -267,6 +267,19 @@ fn add_repository_inputs(
 
 /// Every Cargo config file the build reads: `.cargo/config[.toml]` in each
 /// ancestor of the project, then the Cargo home's.
+fn add_config_file(
+    path: &Path,
+    project: &Path,
+    seen: &mut std::collections::HashSet<PathBuf>,
+    inputs: &mut Vec<String>,
+) -> io::Result<()> {
+    let canonical = dunce::canonicalize(path).unwrap_or_else(|_| path.to_path_buf());
+    if seen.insert(canonical.clone()) {
+        add_config(&canonical, project, inputs)?;
+    }
+    Ok(())
+}
+
 fn add_config_inputs(
     project: &Path,
     environment: &BTreeMap<String, String>,
@@ -275,11 +288,7 @@ fn add_config_inputs(
     let mut seen = std::collections::HashSet::new();
     for ancestor in project.ancestors() {
         for name in ["config", "config.toml"] {
-            let config_path = ancestor.join(".cargo").join(name);
-            let canonical = dunce::canonicalize(&config_path).unwrap_or(config_path);
-            if seen.insert(canonical.clone()) {
-                add_config(&canonical, project, inputs)?;
-            }
+            add_config_file(&ancestor.join(".cargo").join(name), project, &mut seen, inputs)?;
         }
     }
     let cargo_home = environment
@@ -288,11 +297,7 @@ fn add_config_inputs(
         .or_else(|| home::home_dir().map(|home| home.join(".cargo")));
     if let Some(cargo_home) = cargo_home {
         for name in ["config", "config.toml"] {
-            let config_path = cargo_home.join(name);
-            let canonical = dunce::canonicalize(&config_path).unwrap_or(config_path);
-            if seen.insert(canonical.clone()) {
-                add_config(&canonical, project, inputs)?;
-            }
+            add_config_file(&cargo_home.join(name), project, &mut seen, inputs)?;
         }
     }
     Ok(())
