@@ -116,6 +116,9 @@ export function createVersionsOverrider (
         clonedManifest[depsField] = { ...manifest[depsField] }
       }
     }
+    if (manifest.peerDependenciesMeta != null) {
+      clonedManifest.peerDependenciesMeta = { ...manifest.peerDependenciesMeta }
+    }
     overrideDepsOfPkg({ manifest: clonedManifest, dir }, versionOverridesWithParent, genericVersionOverrides, {
       convergeVersions,
       convergeDeclaredRanges: opts?.convergeDeclaredRanges,
@@ -204,8 +207,8 @@ function overrideDepsOfPkg (
   genericVersionOverrides: VersionOverride[],
   convergeOpts: ConvergeOptions
 ): void {
-  const { dependencies, optionalDependencies, devDependencies, peerDependencies } = manifest
-  const _overrideDeps = overrideDeps.bind(null, { versionOverrides, genericVersionOverrides, dir, convergeOpts })
+  const { dependencies, optionalDependencies, devDependencies, peerDependencies, peerDependenciesMeta } = manifest
+  const _overrideDeps = overrideDeps.bind(null, { versionOverrides, genericVersionOverrides, dir, convergeOpts, peerDependenciesMeta })
   for (const deps of [dependencies, optionalDependencies, devDependencies]) {
     if (deps) {
       _overrideDeps(deps, undefined)
@@ -223,11 +226,12 @@ interface ConvergeOptions {
 }
 
 function overrideDeps (
-  { versionOverrides, genericVersionOverrides, dir, convergeOpts }: {
+  { versionOverrides, genericVersionOverrides, dir, convergeOpts, peerDependenciesMeta }: {
     versionOverrides: VersionOverrideWithParent[]
     genericVersionOverrides: VersionOverride[]
     dir: string | undefined
     convergeOpts: ConvergeOptions
+    peerDependenciesMeta: PackageManifest['peerDependenciesMeta']
   },
   deps: Dependencies,
   peerDeps: Dependencies | undefined
@@ -242,6 +246,7 @@ function overrideDeps (
     if (versionOverride.newBareSpecifier === '-') {
       if (peerDeps) {
         delete peerDeps[versionOverride.targetPkg.name]
+        delete peerDependenciesMeta?.[versionOverride.targetPkg.name]
       } else {
         delete deps[versionOverride.targetPkg.name]
       }

@@ -510,8 +510,10 @@ fn insert_peer_dependency(value: &mut Value, name: String, spec: String) {
 }
 
 fn remove_peer_dependency(value: &mut Value, name: &str) {
-    if let Some(peers) = value.get_mut("peerDependencies").and_then(Value::as_object_mut) {
-        peers.remove(name);
+    for field in ["peerDependencies", "peerDependenciesMeta"] {
+        if let Some(peers) = value.get_mut(field).and_then(Value::as_object_mut) {
+            peers.remove(name);
+        }
     }
 }
 

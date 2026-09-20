@@ -749,6 +749,45 @@ test('override narrows auto-installed peer dep range on subsequent install', asy
   }
 })
 
+test('a removal override keeps an optional peer from being supplied by a sibling workspace package', async () => {
+  const project = prepareEmpty()
+  const allProjects = [
+    {
+      buildIndex: 0,
+      manifest: {
+        name: 'project1',
+        dependencies: { '@pnpm.e2e/abc-optional-peers': '1.0.0' },
+      },
+      rootDir: path.resolve('project1') as ProjectRootDir,
+    },
+    {
+      buildIndex: 0,
+      manifest: {
+        name: 'project2',
+        devDependencies: { '@pnpm.e2e/peer-c': '1.0.0' },
+      },
+      rootDir: path.resolve('project2') as ProjectRootDir,
+    },
+  ]
+  await mutateModules(allProjects.map(({ rootDir }) => ({ mutation: 'install', rootDir })), testDefaults({
+    allProjects,
+    autoInstallPeers: true,
+    overrides: {
+      '@pnpm.e2e/peer-a': '1.0.0',
+      '@pnpm.e2e/abc-optional-peers>@pnpm.e2e/peer-c': '-',
+    },
+  }))
+
+  const lockfile = project.readLockfile()
+  expect(lockfile.importers.project1.dependencies?.['@pnpm.e2e/abc-optional-peers']?.version).toBe('1.0.0(@pnpm.e2e/peer-a@1.0.0)')
+  expect(lockfile.importers.project2.devDependencies?.['@pnpm.e2e/peer-c']?.version).toBe('1.0.0')
+  expect(Object.keys(lockfile.snapshots).sort()).toStrictEqual([
+    '@pnpm.e2e/abc-optional-peers@1.0.0(@pnpm.e2e/peer-a@1.0.0)',
+    '@pnpm.e2e/peer-a@1.0.0',
+    '@pnpm.e2e/peer-c@1.0.0',
+  ])
+})
+
 test('a locked optional peer version is not rewritten when a sibling workspace package declares a lower version', async () => {
   // Regression test for https://github.com/pnpm/pnpm/pull/12075
   // The optional peer is locked at the higher 1.0.1. A sibling workspace

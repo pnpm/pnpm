@@ -446,6 +446,53 @@ fn frozen_install_accepts_auto_installed_workspace_peer() {
     drop((root, mock_instance));
 }
 
+#[test]
+fn removal_override_prevents_optional_peer_resolution_from_a_sibling_workspace_package() {
+    let CommandTempCwd { root, workspace, npmrc_info, .. } = two_project_workspace(
+        &serde_json::json!({
+            "name": "pkg-a",
+            "version": "1.0.0",
+            "dependencies": { "@pnpm.e2e/abc-optional-peers": "1.0.0" },
+        }),
+        &serde_json::json!({
+            "name": "pkg-b",
+            "version": "1.0.0",
+            "devDependencies": { "@pnpm.e2e/peer-c": "1.0.0" },
+        }),
+    );
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    let workspace_yaml_path = workspace.join("pnpm-workspace.yaml");
+    let mut workspace_yaml =
+        fs::read_to_string(&workspace_yaml_path).expect("read pnpm-workspace.yaml");
+    workspace_yaml.push_str(concat!(
+        "overrides:\n",
+        "  '@pnpm.e2e/peer-a': '1.0.0'\n",
+        "  '@pnpm.e2e/abc-optional-peers>@pnpm.e2e/peer-c': '-'\n",
+    ));
+    fs::write(&workspace_yaml_path, workspace_yaml).expect("write pnpm-workspace.yaml");
+
+    pacquet_at(&workspace)
+        .with_arg("install")
+        .assert()
+        .success();
+
+    let lockfile = read_lockfile(&workspace.join("pnpm-lock.yaml"));
+    assert_eq!(
+        importer_version(&lockfile, "pkg-a", "@pnpm.e2e/abc-optional-peers"),
+        "1.0.0(@pnpm.e2e/peer-a@1.0.0)",
+    );
+    let pkg_b = importer(&lockfile, "pkg-b");
+    dbg!(&pkg_b.dev_dependencies);
+    let peer_c: PkgName = "@pnpm.e2e/peer-c".parse().expect("parse peer name");
+    assert!(
+        pkg_b.dev_dependencies
+            .as_ref()
+            .is_some_and(|deps| deps.contains_key(&peer_c))
+    );
+
+    drop((root, mock_instance));
+}
+
 /// Regression for [#13325](https://github.com/pnpm/pnpm/issues/13325):
 /// with `autoInstallPeers: false`, an optional peer that a sibling
 /// importer's resolution makes available must not turn into a direct
