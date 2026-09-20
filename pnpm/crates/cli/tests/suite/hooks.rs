@@ -31,9 +31,9 @@ fn filter_log_is_ignored_with_a_warning() {
 /// from the nearest `package.json`: the same `.js` pnpmfile is an ES module
 /// under `"type": "module"` and a script under `"type": "commonjs"`. Each
 /// source below parses only under its own format, so the marker it writes names
-/// the format Node loaded it as. The install used to reject either path as
-/// missing (pnpm/pnpm#15141), which read as a misconfigured setting for a
-/// pnpmfile that was right there on disk.
+/// the format Node loaded it as. A configured `.js` path is on disk like any
+/// other, so the install runs it rather than reporting the setting as naming a
+/// pnpmfile that is not there (pnpm/pnpm#15141).
 #[test]
 fn a_configured_js_pnpmfile_follows_the_nearest_package_type() {
     for (package_type, source) in [
