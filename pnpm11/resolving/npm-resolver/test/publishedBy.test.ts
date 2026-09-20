@@ -1012,11 +1012,8 @@ test('the release-age upgrade of a validated mirror writes no etag', async () =>
 
 test('the release-age upgrade of a freshly fetched packument writes no etag', async () => {
   const cacheDir = temporaryDirectory()
-  const cachePath = path.join(
-    cacheDir,
-    `${ABBREVIATED_META_DIR}/https%3A+registry.npmjs.org`,
-    'is-positive.jsonl'
-  )
+  const abbrevCacheDir = path.join(cacheDir, `${ABBREVIATED_META_DIR}/https%3A+registry.npmjs.org`)
+  const cachePath = path.join(abbrevCacheDir, 'is-positive.jsonl')
 
   const agent = getMockAgent().get(registriesByScope.default.replace(/\/$/, ''))
   // The cold cache sends no validators, so the abbreviated request is told

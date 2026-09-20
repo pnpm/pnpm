@@ -7,6 +7,11 @@ export { getMockAgent, setupMockAgent, teardownMockAgent } from '@pnpm/testing.m
  * yet. `isReady` separates a stale read from the one the caller waits for: a
  * mirror that already exists parses fine long before the write under test
  * replaces it.
+ *
+ * Resolves with the first parsed document `isReady` accepts, polling up to
+ * four times 500ms apart. When none does, it rejects with the last read or
+ * parse error, or with one naming the file if every attempt was merely not
+ * ready yet.
  */
 export async function retryLoadJsonFile<T> (filePath: string, isReady?: (data: T) => boolean): Promise<T> {
   let lastError: unknown
