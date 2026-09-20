@@ -212,7 +212,7 @@ function fromLocal (
 }
 
 function resolvePath (where: string, spec: string): string {
-  if (isAbsolutePath.test(spec)) return spec
+  if (isAbsolutePath.test(spec)) return path.normalize(spec)
   return path.resolve(where, spec)
 }
 

@@ -1,5 +1,7 @@
 /// <reference path="../../../__typings__/index.d.ts"/>
+import fs from 'node:fs'
 import { createRequire } from 'node:module'
+import os from 'node:os'
 import path from 'node:path'
 
 import { expect, jest, test } from '@jest/globals'
@@ -10,6 +12,7 @@ import normalize from 'normalize-path'
 
 const require = createRequire(import.meta.dirname)
 const TEST_DIR = path.dirname(require.resolve('@pnpm/tgz-fixtures/tgz/pnpm-local-resolver-0.1.1.tgz'))
+const testOnNonWindows = process.platform === 'win32' ? test.skip : test
 
 test('resolve directory', async () => {
   const resolveResult = await resolveFromLocalPath({}, { bareSpecifier: '..' }, { projectDir: import.meta.dirname })
@@ -139,6 +142,46 @@ test('resolve tarball specified with file: protocol', async () => {
     },
     resolvedVia: 'local-filesystem',
   })
+})
+
+test('resolve tarball whose absolute path steps back through a directory that does not exist', async () => {
+  // `path.resolve` collapses `..` without consulting the filesystem, and the
+  // lockfile round-trip collapses the recorded path the same way.
+  const bareSpecifier = `file:${TEST_DIR}${path.sep}missing${path.sep}..${path.sep}pnpm-local-resolver-0.1.1.tgz`
+  const resolveResult = await resolveFromLocalScheme({}, { bareSpecifier }, { projectDir: TEST_DIR })
+
+  expect(resolveResult!.id).toBe('file:pnpm-local-resolver-0.1.1.tgz')
+  expect(resolveResult!.resolution).toEqual({
+    integrity: 'sha512-UHd2zKRT/w70KKzFlj4qcT81A1Q0H7NM9uKxLzIZ/VZqJXzt5Hnnp2PYPb5Ezq/hAamoYKIn5g7fuv69kP258w==',
+    tarball: 'file:pnpm-local-resolver-0.1.1.tgz',
+  })
+})
+
+testOnNonWindows('resolve tarball whose absolute path steps back through a symlink', async () => {
+  // `<dir>/alias/..` is `<dir>/deep` to the filesystem and `<dir>` once the
+  // `..` is collapsed, so the two spellings of the specifier below name
+  // tarballs with different contents.
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'pnpm-local-resolver-'))
+  fs.mkdirSync(path.join(dir, 'deep/real'), { recursive: true })
+  fs.mkdirSync(path.join(dir, 'real'), { recursive: true })
+  fs.copyFileSync(
+    path.join(TEST_DIR, 'is-positive-1.0.0.tgz'),
+    path.join(dir, 'deep/real/is-positive.tgz')
+  )
+  fs.copyFileSync(
+    path.join(TEST_DIR, 'is-positive-3.1.0.tgz'),
+    path.join(dir, 'real/is-positive.tgz')
+  )
+  fs.symlinkSync(path.join(dir, 'deep/real'), path.join(dir, 'alias'))
+
+  const throughSymlink = await resolveFromLocalScheme({}, {
+    bareSpecifier: `file:${dir}/alias/../real/is-positive.tgz`,
+  }, { projectDir: dir })
+  const collapsed = await resolveFromLocalScheme({}, {
+    bareSpecifier: `file:${path.join(dir, 'real/is-positive.tgz')}`,
+  }, { projectDir: dir })
+
+  expect(throughSymlink!.resolution).toEqual(collapsed!.resolution)
 })
 
 test('resolve file with different integrity (forceFetch)', async () => {

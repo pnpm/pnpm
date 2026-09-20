@@ -457,6 +457,46 @@ async fn resolve_relative_tarball_when_project_dir_contains_parent_components() 
     assert_eq!(tarball, "file:pnpm-local-resolver-0.1.1.tgz");
 }
 
+/// Node's `path.resolve` collapses `..` without consulting the
+/// filesystem, and the lockfile round-trip collapses the recorded path
+/// the same way.
+#[tokio::test]
+async fn resolve_absolute_tarball_path_stepping_back_through_a_missing_directory() {
+    let tmp = TempDir::new().expect("tempdir");
+    let tarball_path = tmp.path().join("pnpm-local-resolver-0.1.1.tgz");
+    let integrity = write_tarball(&tarball_path);
+
+    let spec = tmp
+        .path()
+        .join("missing")
+        .join("..")
+        .join("pnpm-local-resolver-0.1.1.tgz");
+    let wd = WantedLocalDependency {
+        bare_specifier: format!("file:{}", spec.display()),
+        injected: false,
+    };
+    let result = resolve_from_local_scheme(&ctx_default(), &wd, &opts(tmp.path()))
+        .await
+        .expect("resolve")
+        .expect("claims");
+
+    assert_eq!(result.id.as_str(), "file:pnpm-local-resolver-0.1.1.tgz");
+    let LockfileResolution::Tarball(TarballResolution {
+        tarball, integrity: got_integrity, ..
+    }) = &result.resolution
+    else {
+        panic!("expected tarball resolution, got {:?}", result.resolution);
+    };
+    assert_eq!(tarball, "file:pnpm-local-resolver-0.1.1.tgz");
+    assert_eq!(
+        got_integrity
+            .as_ref()
+            .expect("integrity")
+            .to_string(),
+        integrity,
+    );
+}
+
 #[tokio::test]
 async fn resolve_tarball_specified_with_file_protocol() {
     let tmp = TempDir::new().expect("tempdir");

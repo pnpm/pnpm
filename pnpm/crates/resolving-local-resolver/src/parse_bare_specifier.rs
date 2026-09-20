@@ -187,15 +187,14 @@ fn fetched_and_normalized(spec: &str, project_dir: &Path, protocol: &str) -> (Pa
     (fetched, format!("{protocol}{relative}"))
 }
 
-/// Resolve `spec` against `where_dir`, close to Node's
+/// Resolve `spec` against `where_dir`, mirroring Node's
 /// [`path.resolve`](https://nodejs.org/api/path.html#pathresolvepaths):
-/// a relative `spec` is joined onto `where_dir` and its `.` / `..`
-/// components collapsed lexically, without touching the filesystem. An
-/// absolute `spec` is returned verbatim, so a `..` behind a symlink in
-/// it still resolves the way the filesystem reads it.
+/// a relative `spec` is joined onto `where_dir` first, and either way
+/// the result's `.` and `..` components are collapsed lexically,
+/// without touching the filesystem.
 fn resolve_path(where_dir: &Path, spec: &str) -> PathBuf {
     if is_absolute_specifier(spec) {
-        return PathBuf::from(spec);
+        return lexical_normalize(Path::new(spec));
     }
     lexical_normalize(&where_dir.join(spec))
 }
