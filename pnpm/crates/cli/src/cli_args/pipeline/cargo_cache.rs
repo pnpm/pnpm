@@ -390,8 +390,6 @@ fn add_config(path: &Path, project: &Path, inputs: &mut Vec<String>) -> io::Resu
     Ok(())
 }
 
-/// The canonical form of the path `git` prints for `args`, run in
-/// `project`.
 fn canonical_git_path(
     args: &[&str],
     project: &Path,
