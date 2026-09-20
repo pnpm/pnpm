@@ -1,17 +1,11 @@
 //! Read a project's package manifest.
-//!
-//! pnpm also supports `package.json5` and returns a writer closure that
-//! preserves formatting. Pacquet does not consume JSON5 yet, and the
-//! install pipeline never writes the manifest back through this reader,
-//! so this handles `package.json` plus read-only `package.yaml`.
 
 use derive_more::{Display, Error};
 use miette::Diagnostic;
 use pnpm_package_manifest::{PackageManifest, PackageManifestError};
-use std::{
-    fs, io,
-    path::{Path, PathBuf},
-};
+use std::path::{Path, PathBuf};
+
+pub(crate) const PROJECT_MANIFEST_BASENAMES: &[&str] = &["package.json", "package.yaml"];
 
 /// Error type of [`read_exact_project_manifest`].
 #[derive(Debug, Display, Error, Diagnostic)]
@@ -19,22 +13,6 @@ use std::{
 pub enum ReadProjectManifestError {
     #[diagnostic(transparent)]
     Read(#[error(source)] PackageManifestError),
-
-    #[display("Failed to read {}: {source}", path.display())]
-    #[diagnostic(code(ERR_PNPM_WORKSPACE_READ_PROJECT_MANIFEST))]
-    ReadFile {
-        path: PathBuf,
-        #[error(source)]
-        source: io::Error,
-    },
-
-    #[display("Failed to parse {}: {source}", path.display())]
-    #[diagnostic(code(ERR_PNPM_WORKSPACE_PARSE_PROJECT_MANIFEST))]
-    ParseYaml {
-        path: PathBuf,
-        #[error(source)]
-        source: Box<serde_saphyr::Error>,
-    },
 
     #[display("Not supported manifest name {basename:?}")]
     #[diagnostic(code(ERR_PNPM_WORKSPACE_UNSUPPORTED_PROJECT_MANIFEST))]
@@ -60,7 +38,7 @@ pub enum ReadProjectManifestOnlyError {
 pub fn try_read_project_manifest(
     project_dir: &Path,
 ) -> Result<Option<(&'static str, PackageManifest)>, ReadProjectManifestOnlyError> {
-    for basename in ["package.json", "package.yaml"] {
+    for &basename in PROJECT_MANIFEST_BASENAMES {
         let manifest_path = project_dir.join(basename);
         if manifest_path.is_file() {
             let manifest = read_exact_project_manifest(&manifest_path)
@@ -69,6 +47,16 @@ pub fn try_read_project_manifest(
         }
     }
     Ok(None)
+}
+
+/// Locate the existing manifest, preferring JSON, or the path for a new JSON manifest.
+#[must_use]
+pub fn project_manifest_path(project_dir: &Path) -> PathBuf {
+    PROJECT_MANIFEST_BASENAMES
+        .iter()
+        .map(|basename| project_dir.join(basename))
+        .find(|path| path.is_file())
+        .unwrap_or_else(|| project_dir.join(PROJECT_MANIFEST_BASENAMES[0]))
 }
 
 /// Strict version: error when no manifest is found.
@@ -116,25 +104,10 @@ pub fn read_exact_project_manifest(
         .map(|name| name.to_string_lossy().to_ascii_lowercase())
         .unwrap_or_default();
     match basename.as_str() {
-        "package.json" => PackageManifest::from_path(manifest_path.to_path_buf())
+        "package.json" | "package.yaml" => PackageManifest::from_path(manifest_path.to_path_buf())
             .map_err(ReadProjectManifestError::Read),
-        "package.yaml" => read_package_yaml(manifest_path),
         _ => Err(ReadProjectManifestError::UnsupportedName { basename }),
     }
-}
-
-fn read_package_yaml(path: &Path) -> Result<PackageManifest, ReadProjectManifestError> {
-    let text = fs::read_to_string(path)
-        .map_err(|source| ReadProjectManifestError::ReadFile {
-            path: path.to_path_buf(),
-            source,
-        })?;
-    let value = serde_saphyr::from_str(&text)
-        .map_err(|source| ReadProjectManifestError::ParseYaml {
-            path: path.to_path_buf(),
-            source: Box::new(source),
-        })?;
-    Ok(PackageManifest::from_value(path.to_path_buf(), value))
 }
 
 #[cfg(test)]

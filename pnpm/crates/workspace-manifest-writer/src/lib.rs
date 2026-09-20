@@ -40,7 +40,6 @@ mod edit;
 mod flow;
 mod model;
 mod render;
-mod scalar_aliases;
 
 #[cfg(test)]
 mod tests;

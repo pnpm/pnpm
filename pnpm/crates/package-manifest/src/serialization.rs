@@ -103,7 +103,19 @@ impl PackageManifest {
         path: &Path,
         manifest: &Value,
     ) -> Result<String, PackageManifestError> {
-        let contents = serialize_with_indent(manifest, DEFAULT_INDENT)?;
+        let contents = if is_yaml_path(path) {
+            let mut contents = pnpm_yaml_document_sync::serialize(manifest)
+                .map_err(|source| PackageManifestError::EditYaml {
+                    path: path.to_path_buf(),
+                    source,
+                })?;
+            if contents.ends_with('\n') {
+                contents.pop();
+            }
+            contents
+        } else {
+            serialize_with_indent(manifest, DEFAULT_INDENT)?
+        };
         fs::write(path, format!("{contents}\n"))?; // TODO: forbid overwriting existing files
         Ok(contents)
     }
@@ -133,8 +145,16 @@ impl PackageManifest {
     pub(super) fn read_from_file(path: PathBuf) -> Result<PackageManifest, PackageManifestError> {
         let file_contents = fs::read_to_string(&path)?;
         let contents = strip_utf8_bom(&file_contents);
-        let mut value: Value = parse_manifest(contents)
-            .map_err(|source| PackageManifestError::Parse { path: path.clone(), source })?;
+        let mut value: Value = if is_yaml_path(&path) {
+            pnpm_yaml_document_sync::parse(contents)
+                .map_err(|source| PackageManifestError::ParseYaml { path: path.clone(), source })?
+        } else {
+            parse_manifest(contents)
+                .map_err(|source| PackageManifestError::Parse { path: path.clone(), source })?
+        };
+        if is_yaml_path(&path) && !value.is_object() {
+            value = serde_json::json!({});
+        }
         let mut on_disk = value.clone();
         normalize_dependency_fields(&mut on_disk);
         convert_engines_runtime_to_dependencies(&mut value, "devEngines", "devDependencies");
@@ -173,5 +193,34 @@ impl PackageManifest {
         // hand, so its formatting and no-op-save baseline are derived from
         // the file the same way as for a pre-existing manifest.
         PackageManifest::read_from_file(path)
+    }
+}
+
+fn is_yaml_path(path: &Path) -> bool {
+    path.file_name()
+        .is_some_and(|name| name.eq_ignore_ascii_case("package.yaml"))
+}
+
+impl PackageManifest {
+    pub(super) fn is_yaml(&self) -> bool {
+        is_yaml_path(&self.path)
+    }
+
+    pub(super) fn serialize_yaml(&self, value: &Value) -> Result<String, PackageManifestError> {
+        let text = match fs::read_to_string(&self.path) {
+            Ok(text) => text,
+            Err(error) if error.kind() == io::ErrorKind::NotFound => {
+                return pnpm_yaml_document_sync::serialize(value)
+                    .map_err(|source| PackageManifestError::EditYaml {
+                        path: self.path.clone(),
+                        source,
+                    });
+            }
+            Err(source) => {
+                return Err(PackageManifestError::Read { path: self.path.clone(), source });
+            }
+        };
+        pnpm_yaml_document_sync::sync(strip_utf8_bom(&text), value)
+            .map_err(|source| PackageManifestError::EditYaml { path: self.path.clone(), source })
     }
 }

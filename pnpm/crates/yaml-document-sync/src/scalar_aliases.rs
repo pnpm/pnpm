@@ -13,7 +13,7 @@ use yamlpath::{Document, Route};
 
 /// Scalar alias identities retained while edits operate on independent values.
 #[derive(Default)]
-pub(crate) struct ScalarAliases {
+pub struct ScalarAliases {
     groups: Vec<Group>,
 }
 
@@ -34,7 +34,7 @@ struct Definition {
 }
 
 impl ScalarAliases {
-    pub(crate) fn expand(text: &str) -> Result<(String, Self), Box<yamlpatch::Error>> {
+    pub fn expand(text: &str) -> Result<(String, Self), Box<yamlpatch::Error>> {
         if !text.contains('&') {
             return Ok((text.to_string(), Self::default()));
         }
@@ -55,7 +55,7 @@ impl ScalarAliases {
         expand_definitions(text, definitions, names)
     }
 
-    pub(crate) fn restore(self, text: &str) -> Result<String, Box<yamlpatch::Error>> {
+    pub fn restore(self, text: &str) -> Result<String, Box<yamlpatch::Error>> {
         if self.groups.is_empty() {
             return Ok(text.to_string());
         }
@@ -68,7 +68,7 @@ impl ScalarAliases {
     }
 }
 
-fn byte_range(span: Span) -> Range<usize> {
+pub(crate) fn byte_range(span: Span) -> Range<usize> {
     span.start.byte_offset().expect("string parser records byte offsets")
         ..span.end.byte_offset().expect("string parser records byte offsets")
 }

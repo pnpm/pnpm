@@ -241,8 +241,9 @@ fn edit_project_manifest(
     project: &pnpm_workspace::Project,
     edit: impl FnOnce(&mut Value) -> miette::Result<()>,
 ) -> miette::Result<()> {
-    let mut manifest = PackageManifest::from_path(project.root_dir.join("package.json"))
-        .wrap_err("reading package.json")?;
+    let mut manifest =
+        PackageManifest::from_path(pnpm_workspace::project_manifest_path(&project.root_dir))
+            .wrap_err("reading package.json")?;
     edit(manifest.value_mut())?;
     manifest.save().wrap_err("saving package.json")
 }

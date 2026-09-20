@@ -95,6 +95,7 @@ mod pack;
 mod pack_recursive;
 mod package_configs;
 mod package_manager_check;
+mod package_yaml;
 mod patch;
 mod peers;
 mod ping;

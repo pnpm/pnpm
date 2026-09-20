@@ -94,6 +94,7 @@ pnpm-semver-include-prerelease = { path = "pnpm/crates/semver-include-prerelease
 pnpm-versioning = { path = "pnpm/crates/versioning" }
 pnpm-workspace = { path = "pnpm/crates/workspace" }
 pnpm-workspace-manifest-writer = { path = "pnpm/crates/workspace-manifest-writer" }
+pnpm-yaml-document-sync = { path = "pnpm/crates/yaml-document-sync" }
 pnpm-workspace-projects-filter = { path = "pnpm/crates/workspace-projects-filter" }
 pnpm-workspace-projects-graph = { path = "pnpm/crates/workspace-projects-graph" }
 pnpm-workspace-range-resolver = { path = "pnpm/crates/workspace-range-resolver" }

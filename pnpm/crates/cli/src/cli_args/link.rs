@@ -170,7 +170,7 @@ fn link_target(manifest_dir: &Path, path_str: &str) -> miette::Result<(PathBuf, 
     let target_path = PathBuf::from(path_str);
     let target_dir =
         if target_path.is_absolute() { target_path } else { manifest_dir.join(&target_path) };
-    let target_manifest_path = target_dir.join("package.json");
+    let target_manifest_path = pnpm_workspace::project_manifest_path(&target_dir);
     let dir_display = target_dir.display();
     let target_manifest = PackageManifest::from_path(target_manifest_path)
         .map_err(|_| miette::miette!("No package.json found in {}", dir_display))?;
