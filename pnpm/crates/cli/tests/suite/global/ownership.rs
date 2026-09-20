@@ -386,9 +386,6 @@ fn global_remove_preflights_survivors_before_mutating_targets() {
     drop(root);
 }
 
-/// A group whose `node_modules` was deleted outright owns no bins, so
-/// `update -g` reinstalls it instead of failing with
-/// `ERR_PNPM_PACKAGE_MANIFEST_IO_ERROR`.
 #[cfg(unix)]
 #[test]
 fn global_update_unsticks_a_group_whose_node_modules_was_deleted() {
@@ -420,10 +417,6 @@ fn global_update_unsticks_a_group_whose_node_modules_was_deleted() {
     drop((root, npmrc_info));
 }
 
-/// A damaged group no longer blocks the other groups named in the same
-/// command: `remove -g` tears down the group whose `node_modules` is gone
-/// alongside the healthy one. The damaged group's bin was never accounted
-/// for, so its leftover file in the global bin directory is left alone.
 #[cfg(unix)]
 #[test]
 fn global_remove_unsticks_a_group_whose_node_modules_was_deleted() {

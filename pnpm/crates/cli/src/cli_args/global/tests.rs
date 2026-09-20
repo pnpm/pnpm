@@ -372,7 +372,6 @@ fn ownership_snapshot_preserves_manifest_diagnostic_codes() {
     };
     let manifest_path = root.path().join("node_modules/dependency/package.json");
 
-    // A group whose `node_modules` is wholly absent owns no bins.
     let empty =
         snapshot_global_package(info.clone()).expect("a group without node_modules owns no bins");
     assert!(empty.bin_names.is_empty());

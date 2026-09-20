@@ -994,10 +994,6 @@ fn unchanged_global_update_still_approves_a_pending_build() {
     drop((root, npmrc_info));
 }
 
-/// A group whose `node_modules` was wholly removed owns no bins, so the
-/// update preflight lets the command through instead of failing closed. The
-/// update reinstalls the group from its surviving manifest, restoring the
-/// tree rather than reporting the group as up to date.
 #[cfg(unix)]
 #[test]
 fn global_update_restores_group_with_deleted_node_modules() {

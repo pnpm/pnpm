@@ -102,9 +102,6 @@ fn installed_bin_names_accepts_a_readable_binless_manifest() {
 
 #[test]
 fn installed_bin_names_treats_a_wholly_missing_modules_dir_as_binless() {
-    // The group's `node_modules` was deleted outright: the group is
-    // definitively not installed, so it owns no bins instead of failing
-    // like a group with a present-but-incomplete tree does.
     let tmp = TempDir::new().unwrap();
     let info = package_group(tmp.path(), &["missing"]);
 
