@@ -46,12 +46,13 @@ pub(super) async fn render_status(
     Ok(output)
 }
 
-/// Everything about the next release that can be validated without asking the
-/// registry what is published: the pending change intents resolve to packages
-/// this workspace can release, the `versioning` configuration they run through
-/// is well-formed, and the committed versions still satisfy the invariants it
-/// declares. A malformed intent or configuration fails the way it would at
-/// release time; drifted versions are listed as violations.
+/// What a release run validates before it needs the registry: the pending
+/// change intents resolve to packages this workspace can release, the
+/// `versioning` configuration they run through is well-formed, and the
+/// committed versions still satisfy the invariants it declares. A malformed
+/// intent or configuration fails the way it would at release time; drifted
+/// versions are listed as violations. Internal dependencies still on a plain
+/// range are left alone, as they are for `pnpm change status`.
 pub(super) fn run_check(
     workspace_dir: &Path,
     projects: &[WorkspaceProject],
