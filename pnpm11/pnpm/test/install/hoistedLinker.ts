@@ -69,6 +69,14 @@ test('the hoisted linker does not report an optional dependency it skipped', asy
   // not claim otherwise.
   expect(summary(runHoisted(['install']))).toBeUndefined()
   expect(fs.existsSync('node_modules/@pnpm.e2e/not-compatible-with-any-os')).toBe(false)
+
+  // The lockfile records what the last install resolved, so the entry is
+  // still there for the next install that has work to do. Only the skip
+  // that install recorded keeps it from reading as a package that has gone
+  // away, which would put a removal line on every install from here on.
+  const output = runHoisted(['add', '@pnpm.e2e/foo@100.0.0'])
+  expect(summary(output)).toBe('dependencies:\n+ @pnpm.e2e/foo 100.0.0')
+  expect(summary(output, 'optionalDependencies')).toBeUndefined()
 })
 
 test('the hoisted linker reports an optional dependency it stops supporting', async () => {
