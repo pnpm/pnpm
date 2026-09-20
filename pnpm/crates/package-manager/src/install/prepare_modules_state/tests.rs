@@ -226,10 +226,13 @@ fn short_circuits_over_allow_builds(
     )
 }
 
-/// A decision flipped between `true` and `false` leaves no ignored build and
-/// withdraws no approval, so the recorded approval set is the only thing that
-/// keeps the install off the no-op fast path and re-links its global virtual
-/// store slots (<https://github.com/pnpm/pnpm/issues/15117>).
+/// The moves in the approval set that leave no other trace: an approval
+/// withdrawn, whose package built last time and so is absent from
+/// `ignoredBuilds` (<https://github.com/pnpm/pnpm/issues/11035>), and a
+/// decision flipped between `true` and `false`, which leaves no ignored entry
+/// behind. Only the recorded set keeps such an install off the no-op fast
+/// path, and so re-links its global virtual store slots
+/// (<https://github.com/pnpm/pnpm/issues/15117>).
 #[test]
 fn an_allow_builds_change_refuses_the_frozen_short_circuit() {
     assert!(
@@ -248,9 +251,10 @@ fn an_allow_builds_change_refuses_the_frozen_short_circuit() {
         !short_circuits_over_allow_builds(&[], &[("a", false)]),
         "a decision the config gained",
     );
+    assert!(!short_circuits_over_allow_builds(&[("a", false)], &[]), "a denial the config dropped");
     assert!(
-        !short_circuits_over_allow_builds(&[("a", false)], &[]),
-        "a decision the config dropped",
+        !short_circuits_over_allow_builds(&[("a", true)], &[]),
+        "an approval the config withdrew, leaving the package undecided",
     );
 }
 

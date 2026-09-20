@@ -274,36 +274,18 @@ pub(super) fn has_newly_allowed_ignored_builds(
         .any(|dep_path| policy.check(dep_path.as_str()) == Some(true))
 }
 
-/// Whether the current `allowBuilds` policy withdraws an approval that
-/// `.modules.yaml` recorded, leaving the package undecided again.
-///
-/// The counterpart to [`has_newly_allowed_ignored_builds`]: a build the
-/// previous install ran is absent from `ignoredBuilds`, so nothing else
-/// on the frozen no-op fast path notices it is no longer approved
-/// (<https://github.com/pnpm/pnpm/issues/11035>).
-///
-/// Only a withdrawal to *undecided* counts. An entry the user flipped to
-/// an explicit `false` is silently skipped rather than reported, matching
-/// `BuildModules`; [`recorded_allow_builds_differ`] is what sees that
-/// transition.
-pub(super) fn has_revoked_allowed_builds(
-    modules: &pnpm_modules_yaml::ModulesLayout,
-    config: &Config,
-) -> bool {
-    let Some(recorded) = modules.allow_builds.as_ref() else { return false };
-    recorded
-        .iter()
-        .filter(|(_, value)| matches!(value, pnpm_modules_yaml::AllowBuildValue::Bool(true)))
-        .any(|(spec, _)| !config.allow_builds.contains_key(spec))
-}
-
 /// Whether the `allowBuilds` entries the previous install recorded differ
 /// from the current setting: an entry flipped between `true` and `false`,
-/// or one added or removed. The two predicates above see an ignored build
-/// becoming allowed and an approval being withdrawn; this sees the
-/// remaining transitions, such as an explicit `false` becoming `true`,
-/// which leaves no ignored entry behind to notice. Placeholder entries the
-/// approval scaffold writes carry no decision and are ignored.
+/// or one added or removed. Placeholder entries the approval scaffold
+/// writes carry no decision and are ignored.
+///
+/// The counterpart to [`has_newly_allowed_ignored_builds`], which sees an
+/// ignored build the current policy allows. This sees every other move in
+/// the approval set, including the two that leave no trace for anything
+/// else on the frozen no-op fast path to notice: an approval withdrawn,
+/// whose package built last time and so is absent from `ignoredBuilds`
+/// (<https://github.com/pnpm/pnpm/issues/11035>), and a decision flipped
+/// between `true` and `false`, which leaves no ignored entry behind.
 pub(super) fn recorded_allow_builds_differ(
     modules: &pnpm_modules_yaml::ModulesLayout,
     config: &Config,
