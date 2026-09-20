@@ -12,7 +12,7 @@ use pnpm_package_manifest::{DependencyGroup, PackageManifest};
 use pnpm_reporter::{AddedRoot, DependencyType, LogEvent, LogLevel, RootLog, RootMessage};
 use pnpm_resolving_resolver_base::WorkspacePackages;
 use std::{
-    collections::HashMap,
+    collections::{HashMap, HashSet},
     path::{Path, PathBuf},
 };
 
@@ -65,6 +65,71 @@ pub fn link_manifest_link_deps<Reporter: pnpm_reporter::Reporter>(
             link_options,
         };
         link_project_manifest_deps::<Reporter>(&project, manifest)?;
+    }
+    Ok(())
+}
+
+pub(crate) struct PruneManifestLinkDeps<'a> {
+    pub(crate) workspace_root: &'a Path,
+    pub(crate) project_manifests: &'a [(PathBuf, &'a PackageManifest)],
+    pub(crate) importers: Option<&'a HashMap<String, ProjectSnapshot>>,
+    pub(crate) workspace_packages: Option<&'a WorkspacePackages>,
+    pub(crate) previously_included: IncludedDependencies,
+    pub(crate) new_included: IncludedDependencies,
+    pub(crate) modules_dir_name: &'a std::ffi::OsStr,
+    pub(crate) prunable_importer_ids: Option<&'a HashSet<String>>,
+}
+
+pub(crate) fn prune_manifest_link_deps(
+    options: &PruneManifestLinkDeps<'_>,
+) -> Result<(), pnpm_deps_restorer::PruneDirectDepsError> {
+    let old_groups = pnpm_deps_restorer::selected_groups(options.previously_included);
+    let new_groups = pnpm_deps_restorer::selected_groups(options.new_included);
+    for (project_dir, manifest) in options.project_manifests {
+        let importer_id =
+            pnpm_workspace::importer_id_from_root_dir(options.workspace_root, project_dir);
+        if options.prunable_importer_ids.is_some_and(|ids| !ids.contains(&importer_id)) {
+            continue;
+        }
+        let importer_snapshot = options.importers.and_then(|importers| importers.get(&importer_id));
+        prune_project_manifest_link_deps(
+            options,
+            project_dir,
+            manifest,
+            importer_snapshot,
+            &old_groups,
+            &new_groups,
+        )?;
+    }
+    Ok(())
+}
+
+fn prune_project_manifest_link_deps(
+    options: &PruneManifestLinkDeps<'_>,
+    project_dir: &Path,
+    manifest: &PackageManifest,
+    importer_snapshot: Option<&ProjectSnapshot>,
+    old_groups: &[DependencyGroup],
+    new_groups: &[DependencyGroup],
+) -> Result<(), pnpm_deps_restorer::PruneDirectDepsError> {
+    let new_names: HashSet<&str> = manifest
+        .dependencies(new_groups.iter().copied())
+        .map(|(alias, _)| alias)
+        .collect();
+    let modules_dir = project_dir.join(options.modules_dir_name);
+    let Some(modules_dir) =
+        pnpm_deps_restorer::confined_modules_dir(&modules_dir, options.workspace_root)
+    else {
+        return Ok(());
+    };
+    for (alias, spec) in manifest.dependencies(old_groups.iter().copied()) {
+        if new_names.contains(alias)
+            || importer_snapshot.is_some_and(|snapshot| snapshot_has_alias(snapshot, alias))
+            || manifest_link_target(project_dir, options.workspace_packages, alias, spec).is_none()
+        {
+            continue;
+        }
+        pnpm_deps_restorer::remove_direct_dep_link(&modules_dir, alias)?;
     }
     Ok(())
 }
@@ -130,7 +195,9 @@ fn link_manifest_dep<Reporter: pnpm_reporter::Reporter>(
     if project.importer_snapshot.is_some_and(|snapshot| snapshot_has_alias(snapshot, alias)) {
         return Ok(false);
     }
-    let Some(target_path) = manifest_link_target(project, alias, spec) else {
+    let Some(target_path) =
+        manifest_link_target(project.project_dir, project.workspace_packages, alias, spec)
+    else {
         return Ok(false);
     };
     // The alias is a raw `package.json` object key — an
@@ -170,11 +237,16 @@ fn link_manifest_dep<Reporter: pnpm_reporter::Reporter>(
     Ok(true)
 }
 
-fn manifest_link_target(project: &ProjectLinks<'_>, alias: &str, spec: &str) -> Option<PathBuf> {
+fn manifest_link_target(
+    project_dir: &Path,
+    workspace_packages: Option<&WorkspacePackages>,
+    alias: &str,
+    spec: &str,
+) -> Option<PathBuf> {
     if let Some(target) = spec.strip_prefix("link:") {
-        return Some(resolve_link_target(project.project_dir, target));
+        return Some(resolve_link_target(project_dir, target));
     }
-    workspace_link_target(project.workspace_packages?, alias, spec)
+    workspace_link_target(workspace_packages?, alias, spec)
 }
 
 pub(crate) fn workspace_link_target(

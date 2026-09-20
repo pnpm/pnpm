@@ -144,6 +144,7 @@ pub(crate) struct InstallProjectMetadata<'a> {
     pub(crate) catalogs: &'a Catalogs,
     pub(crate) manifests: &'a [(PathBuf, &'a PackageManifest)],
     pub(crate) prefix: &'a str,
+    pub(crate) workspace_packages: Option<&'a pnpm_resolving_resolver_base::WorkspacePackages>,
 }
 
 #[derive(Clone, Copy)]

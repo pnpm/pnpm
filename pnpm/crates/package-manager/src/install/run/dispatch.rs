@@ -162,6 +162,7 @@ pub(super) async fn prepare_dispatched_modules<'install, Reporter: self::Reporte
             catalogs: &workspace.catalogs,
             manifests: project_manifests,
             prefix: &workspace.prefix,
+            workspace_packages: workspace.workspace_packages.as_ref(),
         },
         repeat: crate::install::state_options::RepeatInstallPolicy {
             frozen: take_frozen_path,

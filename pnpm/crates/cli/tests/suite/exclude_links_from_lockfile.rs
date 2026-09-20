@@ -121,10 +121,19 @@ fn excluded_dependency_groups_do_not_materialize_plain_range_workspace_links() {
             write_project(
                 &workspace,
                 &format!("packages/{name}"),
-                &serde_json::json!({ "name": name, "version": "1.0.0" }),
+                &serde_json::json!({
+                    "name": name,
+                    "version": "1.0.0",
+                    "bin": "bin.js",
+                }),
             );
+            fs::write(workspace.join(format!("packages/{name}/bin.js")), "").unwrap();
         }
 
+        pacquet_at(&workspace)
+            .with_arg("install")
+            .assert()
+            .success();
         pacquet_at(&workspace)
             .with_arg("install")
             .with_args(args)
@@ -140,6 +149,14 @@ fn excluded_dependency_groups_do_not_materialize_plain_range_workspace_links() {
                     .exists(),
                 should_exist,
                 "dependency {name} with arguments {args:?}",
+            );
+            assert_eq!(
+                workspace
+                    .join("packages/app/node_modules/.bin")
+                    .join(name)
+                    .exists(),
+                should_exist,
+                "bin of dependency {name} with arguments {args:?}",
             );
         }
 
