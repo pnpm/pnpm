@@ -7,7 +7,7 @@ import isWindows from 'is-windows'
 import { writeJsonFileSync } from 'write-json-file'
 import { writeYamlFileSync } from 'write-yaml-file'
 
-import { execPnpmSync } from './utils/index.js'
+import { execPnpmSync, isCurrentVersionPublished } from './utils/index.js'
 
 // The read-only bit on a Windows directory does not stop a file from being
 // created in it, so the case below has nothing to observe there.
@@ -809,10 +809,12 @@ test.each([
 })
 
 // These tests resolve the running pnpm version's integrity from registry-mock,
-// which proxies pnpm to npmjs. They fail between a release commit and the
-// matching npm publish ("No matching version found for pnpm@<version>"), and
-// pass again once the version lands on npmjs.
-describe('release-brittle: may fail until current version is published to npm', () => {
+// which proxies pnpm to npmjs, so they can only pass once the running version
+// is published. They are skipped in the window between a release commit and
+// the matching npm publish.
+const describeOnPublishedVersion = isCurrentVersionPublished() ? describe : describe.skip
+
+describeOnPublishedVersion('requires the running pnpm version to be published to npm', () => {
   test('pnpm --version exits promptly when devEngines.packageManager matches the running pnpm', async () => {
     // Regression test: main.ts's `--version` short-circuit returned before
     // the command-handler `finally` that calls finishWorkers(), and
