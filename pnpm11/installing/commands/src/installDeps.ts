@@ -191,7 +191,7 @@ export async function installDeps (
   opts: InstallDepsOptions,
   params: string[]
 ): Promise<DryRunInstallResult | undefined> {
-  if (!opts.update && !opts.dedupe && params.length === 0 && opts.optimisticRepeatInstall) {
+  if (!opts.update && !opts.dedupe && !opts.force && params.length === 0 && opts.optimisticRepeatInstall) {
     const { upToDate, wantedLockfileToRestore } = await checkDepsStatus({
       ...opts,
       ignoreFilteredInstallCache: true,

@@ -747,3 +747,47 @@ test('trustPolicyExclude set to a single string in pnpm-workspace.yaml excludes 
     '--lockfile-only',
   ], { expectSuccess: true })
 })
+
+// Windows CI volumes do not support explicit clone imports.
+const forceRepairImportMethods = isWindows()
+  ? ['auto', 'hardlink', 'copy']
+  : ['auto', 'hardlink', 'copy', 'clone']
+
+// Covers https://github.com/pnpm/pnpm/issues/919
+test.each(forceRepairImportMethods)('install --force restores a replaced dependency file in node_modules (packageImportMethod=%s)', async (packageImportMethod) => {
+  prepare({
+    dependencies: {
+      'is-positive': '1.0.0',
+    },
+  })
+  const env = { pnpm_config_package_import_method: packageImportMethod }
+
+  await execPnpm(['install'], { env })
+
+  const installedFile = path.resolve('node_modules/is-positive/index.js')
+  const pristine = fs.readFileSync(installedFile, 'utf8')
+  // Replace the file rather than writing through it, so the store stays intact
+  // under every import method.
+  fs.rmSync(installedFile)
+  fs.writeFileSync(installedFile, `${pristine}\n// tampered\n`, 'utf8')
+
+  await execPnpm(['install', '--force'], { env })
+
+  expect(fs.readFileSync(installedFile, 'utf8')).toBe(pristine)
+})
+
+// Covers https://github.com/pnpm/pnpm/issues/919
+test('install --force reports the frozenStore conflict on a repeat install', async () => {
+  prepare({
+    dependencies: {
+      'is-positive': '1.0.0',
+    },
+  })
+
+  await execPnpm(['install'])
+
+  const { status, stdout } = execPnpmSync(['install', '--force', '--frozen-store'])
+
+  expect(status).toBe(1)
+  expect(stdout.toString()).toContain('Cannot use force together with frozenStore')
+})
