@@ -160,10 +160,11 @@ pub(super) fn release_age_upgrade_needed<Cache: PackageMetaCache>(
 /// abbreviated mode). A write failure logs at debug and the install
 /// proceeds — the next install simply re-triggers the upgrade fetch.
 ///
-/// An `ETag` identifies one representation (full vs abbreviated). When an
-/// upgraded full document is written back to the abbreviated mirror slot, no
-/// validator is written so that future abbreviated requests do not send an
-/// `ETag` describing the full document.
+/// An `ETag` identifies one representation, so the full document's tag
+/// cannot describe the abbreviated slot this writes into and is dropped.
+/// `modified` is kept: it comes from the packument's own `time.modified`,
+/// which both representations report identically, so the next abbreviated
+/// request is still conditional through `If-Modified-Since`.
 ///
 /// On a successful indexed save, returns the just-persisted mirror
 /// reloaded in its file-backed form so the caller can cache *it*
@@ -223,27 +224,4 @@ pub(super) fn release_age_upgrade_limit(
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::mirror::load_meta_headers;
-    use tempfile::tempdir;
-
-    #[test]
-    fn persist_upgraded_to_mirror_writes_no_etag() {
-        let dir = tempdir().expect("tempdir");
-        let pkg_mirror = dir.path().join("pkg.jsonl");
-
-        let mut pkg: Package = serde_json::from_value(serde_json::json!({
-            "name": "is-positive",
-            "dist-tags": { "latest": "1.0.0" },
-            "versions": {}
-        }))
-        .expect("deserialize Package");
-        pkg.etag = Some("\"full-etag\"".to_string());
-
-        persist_upgraded_to_mirror(&pkg_mirror, &pkg, true);
-
-        let headers = load_meta_headers(&pkg_mirror).expect("headers readable");
-        assert_eq!(headers.etag, None);
-    }
-}
+mod tests;

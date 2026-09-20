@@ -959,7 +959,16 @@ test('a repeated 304 to the release-age upgrade is handled without reporting an 
   expect(errors).toStrictEqual([])
 })
 
-test('the release-age upgrade writes no etag validator to the abbreviated mirror', async () => {
+// An ETag identifies one representation, so the full document's validator
+// cannot describe the abbreviated slot the upgrade writes it into. A registry
+// that keys ETags per representation, such as npmjs.org, can never match it,
+// so the next abbreviated request is answered with a body that has no `time`
+// and the upgrade runs all over again.
+//
+// The upgrade reaches the mirror from two directions, and both are covered
+// here: a 304 on the cached mirror, and a fresh abbreviated 200 with no
+// mirror to validate against.
+test('the release-age upgrade of a validated mirror writes no etag', async () => {
   const cacheDir = temporaryDirectory()
   const abbrevCacheDir = path.join(cacheDir, `${ABBREVIATED_META_DIR}/https%3A+registry.npmjs.org`)
   fs.mkdirSync(abbrevCacheDir, { recursive: true })
@@ -992,13 +1001,56 @@ test('the release-age upgrade writes no etag validator to the abbreviated mirror
     publishedBy: new Date('2015-06-05T00:00:00.000Z'),
   })
 
-  // saveMetaBestEffort is async via runLimited, wait briefly for disk write to complete
-  await new Promise((resolve) => setTimeout(resolve, 100))
+  /* eslint-disable @typescript-eslint/no-explicit-any */
+  const persistedMeta = await retryLoadJsonFile<any>(cachePath, (meta) => meta.time != null)
+  /* eslint-enable @typescript-eslint/no-explicit-any */
+  expect(persistedMeta.etag).toBeUndefined()
+  // `modified` is the packument's own `time.modified`, identical in both
+  // representations, so it stays and keeps the next request conditional.
+  expect(persistedMeta.modified).toBe(isPositiveMeta.time.modified)
+})
 
-  expect(fs.existsSync(cachePath)).toBe(true)
-  const [headerLine] = fs.readFileSync(cachePath, 'utf8').split('\n')
-  const header = JSON.parse(headerLine)
-  expect(header.etag).toBeUndefined()
+test('the release-age upgrade of a freshly fetched packument writes no etag', async () => {
+  const cacheDir = temporaryDirectory()
+  const cachePath = path.join(
+    cacheDir,
+    `${ABBREVIATED_META_DIR}/https%3A+registry.npmjs.org`,
+    'is-positive.jsonl'
+  )
+
+  const agent = getMockAgent().get(registriesByScope.default.replace(/\/$/, ''))
+  // The cold cache sends no validators, so the abbreviated request is told
+  // apart from the upgrade request by what it accepts.
+  agent.intercept({
+    path: '/is-positive',
+    method: 'GET',
+    headers: { accept: /application\/vnd\.npm\.install-v1\+json/ },
+  }).reply(200, { ...isPositiveAbbreviatedMeta, modified: '2015-06-10T00:00:00.000Z' }, {
+    headers: {
+      etag: '"abbreviated-etag"',
+      'content-type': 'application/vnd.npm.install-v1+json',
+    },
+  })
+  agent.intercept({ path: '/is-positive', method: 'GET' })
+    .reply(200, isPositiveMeta, { headers: { etag: '"full-etag"' } })
+
+  const { resolveFromNpm } = createResolveFromNpm({
+    storeDir: temporaryDirectory(),
+    cacheDir,
+    registriesByScope,
+  })
+
+  const resolveResult = await resolveFromNpm({ alias: 'is-positive', bareSpecifier: '^1.0.0' }, {
+    publishedBy: new Date('2015-06-05T00:00:00.000Z'),
+  })
+
+  expect(resolveResult!.id).toBe('is-positive@1.0.0')
+
+  /* eslint-disable @typescript-eslint/no-explicit-any */
+  const persistedMeta = await retryLoadJsonFile<any>(cachePath, (meta) => meta.time != null)
+  /* eslint-enable @typescript-eslint/no-explicit-any */
+  expect(persistedMeta.etag).toBeUndefined()
+  expect(persistedMeta.modified).toBe(isPositiveMeta.time.modified)
 })
 
 /**

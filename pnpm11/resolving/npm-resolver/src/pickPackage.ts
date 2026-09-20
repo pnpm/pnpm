@@ -607,9 +607,13 @@ export async function pickPackage (
         // document, and an upgraded-to-full document mirrors the condensed
         // form — `time` is all the next install needs from this slot.
         const writeCondensed = ctx.filterMetadata === true || (resultToSave !== fetched && meta !== resultToSave.meta)
+        // An upgrade replaced the abbreviated response with the full one while
+        // `pkgMirror` stayed the abbreviated slot, so its ETag no longer
+        // describes what is written — see `prepareJsonForDisk`.
+        const etagForDisk = resultToSave === fetched ? fetched.etag : undefined
         const jsonForDisk = writeCondensed
-          ? prepareJsonForDisk(meta, resultToSave.etag)
-          : prepareJsonForDisk(resultToSave.meta, resultToSave.etag, resultToSave.jsonText)
+          ? prepareJsonForDisk(meta, etagForDisk)
+          : prepareJsonForDisk(resultToSave.meta, etagForDisk, resultToSave.jsonText)
         saveMetaBestEffort(pkgMirror, jsonForDisk)
       }
       meta.etag = resultToSave.etag
@@ -737,10 +741,6 @@ function upgradeMetaForCache (
 // A condensing resolver keeps and mirrors the condensed form — the mirror
 // only has to carry `time` into the next install; otherwise the raw response
 // body is written and the unstripped meta is kept.
-// An ETag identifies one representation (full vs abbreviated). When an
-// upgraded full document is written back to the abbreviated mirror slot, no
-// validator is written so that future abbreviated requests do not send an
-// ETag describing the full document.
 function persistUpgradedMeta (
   ctx: { fullMetadata?: boolean, filterMetadata?: boolean },
   pkgMirror: string,
@@ -827,6 +827,13 @@ export function getPkgMirrorPath (cacheDir: string, metaDir: string, registry: s
  *
  * The etag lives only in the headers line (`loadMeta` re-attaches it from
  * there), so a `meta` that carries one is serialized without it.
+ *
+ * An ETag identifies one representation, so a caller writing a document into
+ * a slot that ETag does not describe passes `undefined` — that is what the
+ * release-age upgrade does when it stores a full document in the abbreviated
+ * slot. `modified` is always written: it comes from the packument's own
+ * `time.modified`, which both representations report identically, so the next
+ * request is still conditional through `If-Modified-Since`.
  */
 export function prepareJsonForDisk (meta: PackageMeta, etag: string | undefined, jsonText?: string): string {
   const modified = meta.modified ?? meta.time?.modified
