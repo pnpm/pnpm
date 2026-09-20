@@ -47,14 +47,15 @@ impl CargoCache {
                 "Cargo target directory must be ignored by Git: {directory}",
             )));
         }
+        let project = dunce::canonicalize(project).unwrap_or_else(|_| project.to_path_buf());
         let target = project.join(relative);
-        check_ancestors(project, relative)?;
+        check_ancestors(&project, relative)?;
         let parent = target.parent().expect("relative target has a parent");
         fs::create_dir_all(parent)?;
         let common = command_output(
             "git",
             &["rev-parse", "--path-format=absolute", "--git-common-dir"],
-            project,
+            &project,
             &BTreeMap::new(),
         )?;
         let common = dunce::canonicalize(common.trim())?;
@@ -67,7 +68,7 @@ impl CargoCache {
             .truncate(false)
             .open(locks.join(create_hex_hash(&target.to_string_lossy())))?;
         lock.lock()?;
-        check_ancestors(project, relative)?;
+        check_ancestors(&project, relative)?;
         Ok(Self { target, _lock: lock })
     }
 
