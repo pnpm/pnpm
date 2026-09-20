@@ -808,7 +808,7 @@ The fixed vulnerabilities are:
     expect(packagesArray).toContain(expectedPkgId)
   })
 
-  test('pinned npm-aliased catalog entry is fixed by widening the alias while keeping the catalog', async () => {
+  test('top-level pinned npm-aliased workspace catalog vulnerability is fixed by updating the catalog entry', async () => {
     const tmp = f.prepare('update-workspace-catalog-aliased')
 
     const originalPkgId = '@pnpm.e2e/pkg-with-1-dep@100.0.0' as DepPath
@@ -851,7 +851,7 @@ The fixed vulnerabilities are:
       allProjectsGraph,
       selectedProjectsGraph,
       catalogs: {
-        default: { aliased-pkg: 'npm:@pnpm.e2e/pkg-with-1-dep@100.0.0' },
+        default: { 'aliased-pkg': 'npm:@pnpm.e2e/pkg-with-1-dep@100.0.0' },
       },
       auditLevel: 'moderate',
       fix: 'update',
@@ -864,14 +864,15 @@ The fixed vulnerabilities are:
     expect(manifest.dependencies?.['aliased-pkg']).toBe('catalog:')
 
     const workspaceManifest = readYamlFileSync<{ catalog?: Record<string, string> }>(join(tmp, 'pnpm-workspace.yaml'))
-    expect(workspaceManifest.catalog?.['aliased-pkg']).toBe('npm:@pnpm.e2e/pkg-with-1-dep@^100.1.0')
+    expect(workspaceManifest.catalog?.['aliased-pkg']).toBe('npm:@pnpm.e2e/pkg-with-1-dep@100.1.0')
 
     const lockfile = await readWantedLockfile(tmp, { ignoreIncompatible: true })
     const packagesArray = Object.keys(lockfile!.packages!)
 
     expect(packagesArray).not.toContain(originalPkgId)
     expect(packagesArray).toContain(expectedPkgId)
-    expect(lockfile!.importers['.' as ProjectId]?.dependencies?.['aliased-pkg']).toBeUndefined()
+    expect(lockfile!.importers['packages/sub-pkg-aliased' as ProjectId]?.dependencies?.['aliased-pkg'])
+      .toBe('@pnpm.e2e/pkg-with-1-dep@100.1.0')
   })
 
   test('top-level workspace catalog vulnerability is fixed by updating the catalog entry', async () => {

@@ -14,7 +14,7 @@ importers:
 
   .: {}
 
-  packages/sub-pkg:
+  packages/sub-pkg-aliased:
     dependencies:
       aliased-pkg:
         specifier: 'catalog:'

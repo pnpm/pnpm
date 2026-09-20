@@ -230,7 +230,7 @@ test('vulnerability updates do not widen pinned dependencies added by packageExt
   })
 })
 
-test('vulnerability updates widen pinned npm-aliased dependencies', async () => {
+test('vulnerability updates move a pinned npm-aliased dependency to the patched version', async () => {
   const vulnerablePackage = '@pnpm.e2e/pkg-with-1-dep'
   const project = prepare({
     name: 'project',
@@ -251,8 +251,6 @@ test('vulnerability updates widen pinned npm-aliased dependencies', async () => 
     packageVulnerabilityAudit: createPackageVulnerabilityAudit(vulnerablePackage),
   })
 
-  // The alias shape is kept and the pin is widened so the resolver can reach
-  // the patched version of the real package.
   expect(loadJsonFileSync<ProjectManifest>('package.json').dependencies?.['aliased-pkg'])
     .toBe(`npm:${vulnerablePackage}@100.1.0`)
   expect(project.readLockfile().importers['.'].dependencies?.['aliased-pkg']).toStrictEqual({
@@ -268,7 +266,39 @@ test('vulnerability updates widen pinned npm-aliased dependencies', async () => 
   })
 })
 
-test('vulnerability updates widen pinned npm-aliased dependencies from a catalog', async () => {
+test('vulnerability updates move an npm-aliased dependency pinned with = to the patched version', async () => {
+  const vulnerablePackage = '@pnpm.e2e/pkg-with-1-dep'
+  const project = prepare({
+    name: 'project',
+    version: '1.0.0',
+    dependencies: {
+      'aliased-pkg': `npm:${vulnerablePackage}@=100.0.0`,
+    },
+  })
+
+  await install.handler({
+    ...DEFAULT_OPTS,
+    dir: process.cwd(),
+  })
+
+  await update.handler({
+    ...DEFAULT_OPTS,
+    dir: process.cwd(),
+    packageVulnerabilityAudit: createPackageVulnerabilityAudit(vulnerablePackage),
+  })
+
+  expect(loadJsonFileSync<ProjectManifest>('package.json').dependencies?.['aliased-pkg'])
+    .toBe(`npm:${vulnerablePackage}@=100.1.0`)
+  expect(project.readLockfile().packages?.[`${vulnerablePackage}@100.1.0`]).toBeDefined()
+
+  await install.handler({
+    ...DEFAULT_OPTS,
+    dir: process.cwd(),
+    frozenLockfile: true,
+  })
+})
+
+test('vulnerability updates move a pinned npm-aliased catalog entry to the patched version', async () => {
   const vulnerablePackage = '@pnpm.e2e/pkg-with-1-dep'
   const catalogs = { default: { 'aliased-pkg': `npm:${vulnerablePackage}@100.0.0` } }
   const project = prepare({
