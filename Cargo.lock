@@ -6063,7 +6063,7 @@ dependencies = [
  "derive_more",
  "home",
  "miette 7.6.0",
- "pathdiff",
+ "pnpm-fs",
  "pnpm-local-spec",
  "pnpm-lockfile",
  "pnpm-package-manifest",

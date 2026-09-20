@@ -12,6 +12,7 @@ repository.workspace = true
 
 [dependencies]
 pnpm-package-name = { workspace = true }
+pnpm-fs = { workspace = true }
 pnpm-local-spec = { workspace = true }
 pnpm-lockfile = { workspace = true }
 pnpm-package-manifest = { workspace = true }
@@ -21,7 +22,6 @@ pnpm-tarball = { workspace = true }
 derive_more = { workspace = true }
 home = { workspace = true }
 miette = { workspace = true }
-pathdiff = { workspace = true }
 serde_json = { workspace = true }
 tracing = { workspace = true }
 

@@ -1,6 +1,7 @@
 //! Resolution tests for the local-filesystem resolver, one
 //! `#[tokio::test]` per scenario.
 
+use pnpm_fs::lexical_normalize;
 use pnpm_lockfile::{LockfileResolution, TarballResolution};
 use pnpm_resolving_local_resolver::{
     LocalResolverContext, LocalResolverOptions, LocalResolverUpdate, ResolveLocalError,
@@ -62,20 +63,15 @@ async fn resolve_directory() {
     let LockfileResolution::Directory(dir) = &result.resolution else {
         panic!("expected directory resolution, got {:?}", result.resolution);
     };
-    let expected_dir = forward_slashes(
-        project_dir
-            .join("..")
-            .lexical_normalize()
-            .display()
-            .to_string(),
-    );
+    let expected_dir =
+        forward_slashes(lexical_normalize(&project_dir.join("..")).display().to_string());
     assert_eq!(dir.directory, expected_dir);
 }
 
 #[tokio::test]
 async fn resolve_directory_specified_using_absolute_path() {
     let (_tmp, project_dir) = fixture();
-    let linked_dir = project_dir.join("..").lexical_normalize();
+    let linked_dir = lexical_normalize(&project_dir.join(".."));
     let normalized_linked_dir = forward_slashes(linked_dir.display().to_string());
 
     let wd = WantedLocalDependency {
@@ -101,7 +97,7 @@ async fn resolve_directory_specified_using_absolute_path() {
 #[tokio::test]
 async fn resolve_directory_specified_using_absolute_path_with_preserve_absolute_paths() {
     let (_tmp, project_dir) = fixture();
-    let linked_dir = project_dir.join("..").lexical_normalize();
+    let linked_dir = lexical_normalize(&project_dir.join(".."));
     let normalized_linked_dir = forward_slashes(linked_dir.display().to_string());
 
     let wd = WantedLocalDependency {
@@ -124,7 +120,7 @@ async fn resolve_directory_specified_using_absolute_path_with_preserve_absolute_
 async fn resolve_directory_specified_using_absolute_path_with_preserve_absolute_paths_and_file_scheme()
  {
     let (_tmp, project_dir) = fixture();
-    let linked_dir = project_dir.join("..").lexical_normalize();
+    let linked_dir = lexical_normalize(&project_dir.join(".."));
     let normalized_linked_dir = forward_slashes(linked_dir.display().to_string());
 
     let wd = WantedLocalDependency {
@@ -371,7 +367,7 @@ async fn resolve_file_when_lockfile_directory_differs_from_the_packages_dir() {
     let _integrity = write_tarball(&tarball_path);
 
     let mut options = opts(&test_dir);
-    options.lockfile_dir = Some(test_dir.join("..").lexical_normalize());
+    options.lockfile_dir = Some(lexical_normalize(&test_dir.join("..")));
 
     let wd = WantedLocalDependency {
         bare_specifier: "./pnpm-local-resolver-0.1.1.tgz".to_string(),
@@ -420,13 +416,47 @@ async fn resolve_absolute_tarball_when_project_dir_contains_parent_components() 
         panic!("expected tarball resolution, got {:?}", result.resolution);
     };
     let rel = tarball.strip_prefix("file:").expect("file: tarball");
-    let reconstructed = unnormalized_home.join(rel).lexical_normalize();
+    let reconstructed = lexical_normalize(&unnormalized_home.join(rel));
     assert_eq!(
         reconstructed,
-        tarball_path.clone().lexical_normalize(),
+        lexical_normalize(&tarball_path),
         "tarball={tarball} home={}",
         unnormalized_home.display(),
     );
+}
+
+/// The specifier written back to the manifest is measured from the same
+/// project directory, so it collapses the `..` too.
+#[tokio::test]
+async fn resolve_relative_tarball_when_project_dir_contains_parent_components() {
+    let tmp = TempDir::new().expect("tempdir");
+    let data = tmp.path().join("data");
+    let child = data.join("child");
+    let pnpm_home = data.join("pnpm");
+    fs::create_dir_all(&child).expect("create child dir");
+    fs::create_dir_all(&pnpm_home).expect("create pnpm home");
+    write_tarball(&pnpm_home.join("pnpm-local-resolver-0.1.1.tgz"));
+
+    let unnormalized_home = child.join("..").join("pnpm");
+
+    let wd = WantedLocalDependency {
+        bare_specifier: "./pnpm-local-resolver-0.1.1.tgz".to_string(),
+        injected: false,
+    };
+    let result = resolve_from_local_path(&ctx_default(), &wd, &opts(&unnormalized_home))
+        .await
+        .expect("resolve")
+        .expect("claims");
+
+    assert_eq!(
+        result.normalized_bare_specifier.as_deref(),
+        Some("file:pnpm-local-resolver-0.1.1.tgz"),
+    );
+    assert_eq!(result.id.as_str(), "file:pnpm-local-resolver-0.1.1.tgz");
+    let LockfileResolution::Tarball(TarballResolution { tarball, .. }) = &result.resolution else {
+        panic!("expected tarball resolution, got {:?}", result.resolution);
+    };
+    assert_eq!(tarball, "file:pnpm-local-resolver-0.1.1.tgz");
 }
 
 #[tokio::test]
@@ -630,33 +660,6 @@ async fn resolve_from_local_path_ignores_explicit_local_schemes() {
             .await
             .expect("resolve_from_local_path should not fail on scheme prefix");
         assert!(outcome.is_none(), "path parser should defer on '{bare}'");
-    }
-}
-
-/// Lexically normalize `.` and `..` components without resolving
-/// symlinks — matches Node's `path.resolve` semantics. `canonicalize`
-/// would resolve macOS's `/var` → `/private/var` symlink and diverge
-/// from the string-equality assertions.
-trait LexicalNormalize: Sized {
-    fn lexical_normalize(self) -> PathBuf;
-}
-
-impl LexicalNormalize for PathBuf {
-    fn lexical_normalize(self) -> PathBuf {
-        use std::path::Component;
-        let mut out = PathBuf::new();
-        for component in self.components() {
-            match component {
-                Component::CurDir => {}
-                Component::ParentDir => {
-                    if !out.pop() {
-                        out.push("..");
-                    }
-                }
-                other => out.push(other.as_os_str()),
-            }
-        }
-        out
     }
 }
 
