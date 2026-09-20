@@ -47,17 +47,17 @@ impl CargoCache {
                 "Cargo target directory must be ignored by Git: {directory}",
             )));
         }
+        let project = dunce::canonicalize(project)?;
         let target = project.join(relative);
-        check_ancestors(project, relative)?;
+        check_ancestors(&project, relative)?;
         let parent = target.parent().expect("relative target has a parent");
         fs::create_dir_all(parent)?;
-        let common = command_output(
-            "git",
+        let common = canonical_git_path(
             &["rev-parse", "--path-format=absolute", "--git-common-dir"],
-            project,
+            &project,
             &BTreeMap::new(),
         )?;
-        let locks = Path::new(common.trim()).join("pnpm-cargo-locks");
+        let locks = common.join("pnpm-cargo-locks");
         fs::create_dir_all(&locks)?;
         let lock = OpenOptions::new()
             .read(true)
@@ -66,7 +66,7 @@ impl CargoCache {
             .truncate(false)
             .open(locks.join(create_hex_hash(&target.to_string_lossy())))?;
         lock.lock()?;
-        check_ancestors(project, relative)?;
+        check_ancestors(&project, relative)?;
         Ok(Self { target, _lock: lock })
     }
 
@@ -202,29 +202,27 @@ pub(super) fn snapshot_entry(
     task_key: &str,
     environment: &BTreeMap<String, String>,
 ) -> io::Result<(PathBuf, String, Vec<String>)> {
-    let repo = PathBuf::from(
-        command_output("git", &["rev-parse", "--show-toplevel"], project, environment)?.trim(),
-    );
-    let common = command_output(
-        "git",
+    let cache_dir = pnpm_fs::realpath_missing(cache_dir)?;
+    let project = dunce::canonicalize(project)?;
+    let repo = canonical_git_path(&["rev-parse", "--show-toplevel"], &project, environment)?;
+    let common = canonical_git_path(
         &["rev-parse", "--path-format=absolute", "--git-common-dir"],
-        project,
+        &project,
         environment,
     )?;
-    let common = dunce::canonicalize(common.trim())?;
     let mut inputs = vec!["pnpm-cargo-state:v1".to_string(), task_key.to_string()];
-    inputs.push(command_output("rustc", &["-vV"], project, environment)?);
-    inputs.push(command_output("cargo", &["-vV"], project, environment)?);
+    inputs.push(command_output("rustc", &["-vV"], &project, environment)?);
+    inputs.push(command_output("cargo", &["-vV"], &project, environment)?);
     let metadata: serde_json::Value = serde_json::from_str(&command_output(
         "cargo",
         &["metadata", "--format-version=1", "--locked", "--offline"],
-        project,
+        &project,
         environment,
     )?)?;
     let local_packages = local_packages_in_repo(&metadata, &repo)?;
     inputs.push(serde_json::to_string(environment)?);
     add_repository_inputs(&repo, environment, &mut inputs)?;
-    add_config_inputs(project, environment, &mut inputs)?;
+    add_config_inputs(&project, environment, &mut inputs)?;
     let key = create_hex_hash(&serde_json::to_string(&inputs)?);
     let scope = create_hex_hash(&common.to_string_lossy());
     Ok((
@@ -339,12 +337,18 @@ pub(super) fn cache_environment(
     extra: &std::collections::HashMap<String, String>,
     declared: &[String],
 ) -> BTreeMap<String, String> {
+    let declared: Vec<String> = declared
+        .iter()
+        .cloned()
+        .map(env_key)
+        .collect();
     env::vars()
         .chain(
             extra
                 .iter()
                 .map(|(key, value)| (key.clone(), value.clone())),
         )
+        .map(|(key, value)| (env_key(key), value))
         .filter(|(key, _)| {
             key.starts_with("CARGO_")
                 || key.starts_with("RUST")
@@ -364,6 +368,15 @@ pub(super) fn cache_environment(
         .collect()
 }
 
+/// The name under which the platform matches an environment variable.
+/// Windows matches names without regard to case, so a build environment
+/// that spells a variable two ways across runs still hashes the same.
+/// POSIX names are case-sensitive, where folding the case would merge
+/// variables a build keeps apart.
+fn env_key(key: String) -> String {
+    if cfg!(windows) { key.to_ascii_uppercase() } else { key }
+}
+
 fn add_config(path: &Path, project: &Path, inputs: &mut Vec<String>) -> io::Result<()> {
     match create_hex_hash_from_file(path) {
         Ok(hash) => {
@@ -375,6 +388,14 @@ fn add_config(path: &Path, project: &Path, inputs: &mut Vec<String>) -> io::Resu
         Err(error) => return Err(error),
     }
     Ok(())
+}
+
+fn canonical_git_path(
+    args: &[&str],
+    project: &Path,
+    environment: &BTreeMap<String, String>,
+) -> io::Result<PathBuf> {
+    dunce::canonicalize(command_output("git", args, project, environment)?.trim())
 }
 
 fn command_output(
