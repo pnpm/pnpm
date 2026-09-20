@@ -214,9 +214,9 @@ catalog:
   # above pnpm's supported floor of Node.js >=22.13.
   '@babel/core': ^7.29.7
   '@babel/plugin-transform-explicit-resource-management': ^7.29.7
-  '@commitlint/cli': ^21.2.2
-  '@commitlint/config-conventional': ^21.2.2
-  '@commitlint/prompt-cli': ^21.2.2
+  '@commitlint/cli': ^21.2.3
+  '@commitlint/config-conventional': ^21.2.3
+  '@commitlint/prompt-cli': ^21.2.3
   '@cyclonedx/cyclonedx-library': 10.3.0
   '@eslint/js': ^10.0.1
   '@inquirer/prompts': ^8.7.2
@@ -284,11 +284,11 @@ catalog:
   '@typescript/native-preview': 7.0.0-dev.20260707.2
   '@yarnpkg/core': 4.9.1
   '@yarnpkg/extensions': 2.0.7
-  '@yarnpkg/fslib': ^3.1.2
+  '@yarnpkg/fslib': ^3.1.5
   '@yarnpkg/lockfile': ^1.1.0
   '@yarnpkg/nm': 4.1.1
   '@yarnpkg/pnp': ^4.1.7
-  '@yarnpkg/shell': 4.0.0
+  '@yarnpkg/shell': 4.1.3
   '@zkochan/retry': ^0.2.0
   '@zkochan/rimraf': ^4.0.0
   '@zkochan/table': ^2.0.1
@@ -329,10 +329,10 @@ catalog:
   didyoumean2: ^7.0.4
   dint: ^5.1.0
   dir-is-case-sensitive: ^3.0.0
-  empathic: ^2.0.1
+  empathic: ^2.1.0
   esbuild: ^0.28.2
   escape-string-regexp: ^5.0.0
-  eslint: ^10.10.0
+  eslint: ^10.11.0
   eslint-plugin-import-x: ^4.17.1
   eslint-plugin-jest: ^29.16.6
   eslint-plugin-n: ^18.3.0
@@ -378,10 +378,10 @@ catalog:
   lodash.kebabcase: ^4.1.1
   lodash.throttle: 4.1.1
   loud-rejection: ^2.2.0
-  lru-cache: ^11.5.2
+  lru-cache: ^11.5.3
   make-empty-dir: ^4.0.0
   mdast-util-to-string: ^4.0.0
-  memfs: ^4.78.0
+  memfs: ^4.78.1
   memoize: ^11.0.0
   micromatch: ^4.0.8
   msgpackr: 2.1.0
@@ -408,7 +408,7 @@ catalog:
   p-defer: ^4.0.1
   p-every: ^2.0.0
   p-filter: ^4.1.0
-  p-limit: ^7.3.2
+  p-limit: ^7.3.3
   p-queue: ^9.3.3
   parse-json: ^8.3.0
   parse-npm-tarball-url: ^5.0.0
@@ -447,7 +447,7 @@ catalog:
   shx: ^0.4.0
   socks: ^2.8.10
   sort-keys: ^6.0.1
-  spdx-expression-parse: 4.0.0
+  spdx-expression-parse: 5.0.0
   split-cmd: ^1.1.0
   split2: ^4.2.0
   # ssri 14.x requires Node.js ^22.22.2 || ^24.15.0 || >=26.0.0, above pnpm's
