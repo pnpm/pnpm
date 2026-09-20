@@ -147,6 +147,7 @@ fn commit_apply_state<Reporter: self::Reporter>(
             filtered_install: inputs.projects.filtered_install,
         },
         write: inputs.write,
+        force_prune: matches!(inputs.scripts.mutation, crate::ProjectMutation::UninstallSome),
     })?;
     tracing::info!(target: "pacquet::install::phase", phase = "apply.commit_modules_state", elapsed_ms = phase_start.elapsed().as_millis() as u64, "phase complete");
 

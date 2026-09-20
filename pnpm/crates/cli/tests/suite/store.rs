@@ -290,7 +290,7 @@ fn store_prune_removes_packages_left_unreferenced_by_remove() {
         root: _root, workspace, npmrc_info, ..
     } = CommandTempCwd::init().add_mocked_registry();
     pacquet_at(&workspace)
-        .with_args(["add", "is-positive@1.0.0"])
+        .with_args(["add", "is-positive@1.0.0", "--package-import-method=hardlink"])
         .assert()
         .success();
 
@@ -308,7 +308,7 @@ fn store_prune_removes_packages_left_unreferenced_by_remove() {
     );
 
     pacquet_at(&workspace)
-        .with_args(["remove", "is-positive"])
+        .with_args(["remove", "is-positive", "--package-import-method=hardlink"])
         .assert()
         .success();
     assert!(

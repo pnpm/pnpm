@@ -13,6 +13,7 @@ pub(super) struct CommitModulesStateInputs<'a> {
     pub(crate) materialized: crate::install::state_options::CommittedProjects<'a>,
     pub(crate) prior: crate::install::state_options::PriorModulesState<'a>,
     pub(crate) write: crate::install::state_options::LockfileWritePolicy,
+    pub(crate) force_prune: bool,
 }
 pub(super) fn commit_modules_state(
     mut inputs: CommitModulesStateInputs<'_>,
@@ -72,6 +73,7 @@ pub(super) fn prepare_committed_build_state(
         inputs.prior.layout,
         inputs.lockfiles.materialized,
         inputs.materialized.skipped,
+        inputs.force_prune,
         now,
     );
     tracing::info!(target: "pacquet::install::phase", phase = "apply.prune", elapsed_ms = phase_start.elapsed().as_millis() as u64, "phase complete");
@@ -201,6 +203,7 @@ pub(super) fn sweep_virtual_store(
     prior_modules: Option<&pnpm_modules_yaml::ModulesLayout>,
     materialized_current_lockfile: Option<&Lockfile>,
     install_skipped: &crate::SkippedSnapshots,
+    force: bool,
     now: SystemTime,
 ) -> bool {
     let effective_virtual_store_dir = config.effective_virtual_store_dir();
@@ -212,12 +215,17 @@ pub(super) fn sweep_virtual_store(
         effective_virtual_store_dir,
         &config.global_virtual_store_dir,
     );
-    if !crate::prune_virtual_store::should_prune_virtual_store(
-        is_global_virtual_store,
-        prior_modules.map(|modules| modules.pruned_at.as_str()),
-        config.modules_cache_max_age,
-        now,
-    ) {
+    if is_global_virtual_store {
+        return false;
+    }
+    if !force
+        && !crate::prune_virtual_store::should_prune_virtual_store(
+            false,
+            prior_modules.map(|modules| modules.pruned_at.as_str()),
+            config.modules_cache_max_age,
+            now,
+        )
+    {
         return false;
     }
     let Some(wanted) = materialized_current_lockfile else {
