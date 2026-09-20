@@ -3,6 +3,8 @@ import yaml from 'yaml'
 import { preserveScalarAliases } from './preserveScalarAliases.js'
 
 export interface PatchDocumentOptions {
+  /** Convert scalar keys to target property names. Defaults to YAML's null-to-empty-string conversion. */
+  readonly stringifyKey?: (key: unknown) => string
   /** Keep existing map keys in their original order and append new keys. */
   readonly preserveKeyOrder?: boolean
   /** Remove null values and empty maps. Defaults to true for configuration files. */
@@ -116,12 +118,14 @@ function patchScalar (scalar: yaml.Scalar, target: unknown, ctx: PatchContext): 
     return scalar
   }
 
-  if (typeof target === 'boolean' || typeof target === 'string' || typeof target === 'number') {
-    scalar.value = target
+  const replacement = ctx.document.createNode(target)
+  if (yaml.isScalar(replacement)) {
+    scalar.value = replacement.value
+    scalar.tag = replacement.tag
     return scalar
   }
 
-  return ctx.document.createNode(target)
+  return replacement
 }
 
 function patchMap (map: yaml.YAMLMap, target: unknown, ctx: PatchContext): yaml.Node | null {
@@ -142,7 +146,7 @@ function patchMap (map: yaml.YAMLMap, target: unknown, ctx: PatchContext): yaml.
       throw new Error('Encountered unexpected non-node value: ' + String(pair.key))
     }
 
-    mapKeyToExistingPair.set(String(pair.key.value ?? ''), pair)
+    mapKeyToExistingPair.set(ctx.stringifyKey?.(pair.key.value) ?? String(pair.key.value ?? ''), pair)
   }
 
   const keys = ctx.preserveKeyOrder

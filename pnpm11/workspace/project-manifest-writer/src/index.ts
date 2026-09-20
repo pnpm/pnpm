@@ -57,6 +57,7 @@ async function writePackageYaml (filePath: string, manifest: ProjectManifest): P
     throw new PnpmError('YAML_PARSE', `${document.errors[0].message}\nin ${filePath}`)
   }
   patchDocument(document, manifest, {
+    stringifyKey: String,
     preserveKeyOrder: true,
     preserveScalarAliases: true,
     pruneEmptyValues: false,

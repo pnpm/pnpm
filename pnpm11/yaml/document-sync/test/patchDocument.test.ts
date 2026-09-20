@@ -861,3 +861,9 @@ it('matches scalar mapping keys to their JSON property names', () => {
   expect(document.toJSON()).toStrictEqual({ 1: 'first', true: 'yes', '': 'blank' })
   expect(document.toString()).toBe('1: first # numeric\ntrue: yes\nnull: blank\n')
 })
+
+it('supports consumers that stringify null mapping keys', () => {
+  const document = yaml.parseDocument('null: empty # null key\n')
+  patchDocument(document, { null: 'updated' }, { stringifyKey: String })
+  expect(document.toString()).toBe('null: updated # null key\n')
+})

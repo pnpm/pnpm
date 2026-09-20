@@ -509,3 +509,22 @@ dependencies:
   await writeProjectManifest(manifest)
   expect(await fs.promises.readFile(file, 'utf8')).toBe(original.replace('zebra: 1.0.0', 'zebra: 2.0.0').replace('  alpha: 1.0.0\n', '') + '  beta: 1.0.0\n')
 })
+
+test('preserves comments on legacy YAML scalar keys and metadata values', async () => {
+  const dir = temporaryDirectory()
+  const file = path.join(dir, 'package.yaml')
+  const original = `name: example
+metadata:
+  null: empty # null key
+  date: 2020-01-01 # timestamp value
+  data: !!binary SGVsbG8= # binary value
+`
+  await fs.promises.writeFile(file, original)
+  const { manifest, writeProjectManifest } = await readProjectManifest(dir)
+  await writeProjectManifest({ ...manifest, version: '1.0.0' })
+  const result = await fs.promises.readFile(file, 'utf8')
+  expect(result).toContain('null: empty # null key')
+  expect(result).toContain('# timestamp value')
+  expect(result).toContain('# binary value')
+  expect((await readProjectManifest(dir)).manifest).toStrictEqual({ ...manifest, version: '1.0.0' })
+})
