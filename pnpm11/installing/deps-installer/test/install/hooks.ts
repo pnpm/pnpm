@@ -285,6 +285,39 @@ test('add keeps the hook-provided specifier when the requested one conflicts wit
   await install(updatedManifest, testDefaults({ frozenLockfile: true, hooks: { readPackage: [readPackageHook] } }))
 })
 
+test('add keeps the hook-provided specifier when an override does not explain the rewrite', async () => {
+  const project = prepareEmpty()
+
+  // A range-scoped override claims the requested specifier but not the hook's
+  // output, so the hook's rewrite survives the override. The override is not
+  // the rewrite's sole cause, so the add keeps the hook's specifier.
+  function readPackageHook (manifest: PackageManifest): PackageManifest {
+    if (manifest.dependencies?.['is-positive'] != null) {
+      manifest.dependencies = { ...manifest.dependencies, 'is-positive': '1.0.0' }
+    }
+    return manifest
+  }
+
+  const { updatedManifest } = await addDependenciesToPackage(
+    { name: 'my-project', version: '0.0.0' },
+    ['is-positive@3.1.0'],
+    testDefaults({
+      hooks: { readPackage: [readPackageHook] },
+      overrides: { 'is-positive@^3': '2.0.0' },
+    })
+  )
+
+  expect(updatedManifest.dependencies).toStrictEqual({ 'is-positive': '1.0.0' })
+  expect(project.readLockfile().importers['.'].dependencies?.['is-positive']).toMatchObject({ specifier: '1.0.0' })
+
+  // The project is left in a state the next frozen install accepts.
+  await install(updatedManifest, testDefaults({
+    frozenLockfile: true,
+    hooks: { readPackage: [readPackageHook] },
+    overrides: { 'is-positive@^3': '2.0.0' },
+  }))
+})
+
 test('add keeps the requested specifier when no readPackage hook governs the dependency', async () => {
   prepareEmpty()
 

@@ -993,6 +993,7 @@ export async function mutateModules (
     const projectsToInstall = [] as ImporterToUpdate[]
     const installedProjectIds = new Set<string>(projects.map((project) => ctx.projects[project.rootDir].id))
     const overriddenDependencyMatcherFor = createOverriddenDependencyMatcher(opts.parsedOverrides, opts.lockfileDir)
+    const dependencyOverrider = createDependencyOverrider(opts.parsedOverrides, opts.lockfileDir)
 
     let preferredSpecs: Record<string, string> | null = null
 
@@ -1166,15 +1167,9 @@ export async function mutateModules (
         ? currentBareSpecifiers
         : getAllDependenciesFromManifest(project.originalManifest, { autoInstallPeers: opts.autoInstallPeers })
       const readonlyAliases = getHookOwnedAliases(project)
-      // A `pnpm add` that names a specifier a `readPackage` hook overwrites
-      // cannot leave the requested one behind: the hook wins on the next
-      // read, so the manifest and the lockfile would disagree and the next
-      // `--frozen-lockfile` install would reject them (pnpm/pnpm#15156).
-      // Those aliases join the hook-governed set below, so the request is
-      // reported as superseded and the hook's specifier is used instead. A
-      // hook that only fills gaps the manifest leaves (like a
-      // `packageExtensions` entry, which the manifest's own declaration
-      // overrides) still lets the explicit add through.
+      // Aliases a `readPackage` hook would rewrite are hook-governed: the add
+      // saves the specifier the hook produces, so the manifest still matches
+      // it on the next `--frozen-lockfile` install (pnpm/pnpm#15156).
       const hookSupersededSpecifiers = project.update === true
         ? undefined
         : await getHookSupersededSpecifiers(project, {
@@ -1345,21 +1340,12 @@ export async function mutateModules (
     }
 
     /**
-     * The specifiers a `pnpm add` names explicitly that would not survive the
-     * `readPackage` hooks. The request cannot survive the hook, so the hook's
-     * specifier is used instead and the request is reported as superseded,
-     * the way an update reports a hook-owned specifier.
-     *
-     * Every explicitly named alias is probed: the requested specifier is
-     * declared the way the real add declares it, the hooks run over that
-     * declaration, and an alias whose probed specifier differs qualifies.
-     * Probing every selector also catches hooks that rewrite conditionally,
-     * only once the dependency is declared. A hook that merely fills gaps
-     * the manifest leaves (like a `packageExtensions` entry, which the
-     * manifest's own declaration overrides) leaves the declaration alone, so
-     * the explicit add still wins. An explicitly specified version also keeps
-     * ignoring overrides, as before: only the `readPackage` hooks proper can
-     * supersede it. `undefined` when nothing is superseded.
+     * Explicitly added specifiers the `readPackage` hooks would rewrite on the
+     * next read. Keeping the requested specifier would leave the manifest and
+     * the lockfile disagreeing, so the next `--frozen-lockfile` install would
+     * reject them; the hook's specifier is saved instead. Overrides are
+     * excluded: an explicit version intentionally ignores them. `undefined`
+     * when every requested specifier survives the hooks.
      */
     async function getHookSupersededSpecifiers (
       project: Pick<InstallSomeProject, 'dependencySelectors' | 'manifest' | 'rootDir' | 'targetDependenciesField'>,
@@ -1371,16 +1357,12 @@ export async function mutateModules (
         ? []
         : Array.isArray(opts.readPackageHook) ? opts.readPackageHook : [opts.readPackageHook]
       if (hooks.length === 0) return undefined
-      // An explicit version ignores overrides, so an override claiming the
-      // requested specifier never supersedes it. Only the `readPackage` hooks
-      // proper are probed.
       const isOverriddenDependency = overriddenDependencyMatcherFor?.(project.manifest)
       let superseded: Map<string, string> | undefined
       /* eslint-disable no-await-in-loop */
       for (const selector of project.dependencySelectors) {
         const { alias, bareSpecifier: requested } = parseWantedDependency(selector)
         if (alias == null || requested == null) continue
-        if (isOverriddenDependency?.(alias, requested) === true) continue
         let probed: ProjectManifest = mergeInstallSelectors({
           ...project.manifest,
           dependencies: { ...project.manifest.dependencies },
@@ -1396,6 +1378,13 @@ export async function mutateModules (
         }
         const probedSpecifier = getAllDependenciesFromManifest(probed)[alias]
         if (probedSpecifier == null || probedSpecifier === requested) continue
+        // An explicit version ignores overrides. When the probed rewrite is
+        // exactly what the override imposes, the override is its sole cause
+        // and the requested specifier is kept. Otherwise a `readPackage` hook
+        // contributed to the rewrite, so the hook's specifier supersedes it.
+        const overrideImposed = dependencyOverrider?.(alias, requested, project.rootDir)
+        if (overrideImposed === probedSpecifier) continue
+        if (overrideImposed == null && isOverriddenDependency?.(alias, requested) === true) continue
         ;(superseded ??= new Map()).set(alias, probedSpecifier)
       }
       /* eslint-enable no-await-in-loop */
