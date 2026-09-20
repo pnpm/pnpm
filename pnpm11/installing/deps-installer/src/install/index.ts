@@ -1179,7 +1179,6 @@ export async function mutateModules (
         ? undefined
         : await getHookSupersededAliases(project, {
           effectiveBareSpecifiers,
-          originalBareSpecifiers,
           readPackageHook: opts.readPackageHook,
         })
       const hookGovernedAliases = readonlyAliases == null
@@ -1354,17 +1353,16 @@ export async function mutateModules (
      *
      * Only aliases the run names with an explicit specifier that differs from
      * the hook's effective specifier qualify, and only when probing the hooks
-     * shows a declaration of the requested specifier would not survive them: a
-     * hook that merely fills gaps the manifest leaves (like a
-     * `packageExtensions` entry, which the manifest's own declaration
-     * overrides) leaves an explicit add alone. `undefined` when nothing is
-     * superseded.
+     * with the requested specifier declared the way the real add declares it
+     * shows the declaration would not survive them: a hook that merely fills
+     * gaps the manifest leaves (like a `packageExtensions` entry, which the
+     * manifest's own declaration overrides) leaves an explicit add alone.
+     * `undefined` when nothing is superseded.
      */
     async function getHookSupersededAliases (
       project: Pick<InstallSomeProject, 'dependencySelectors' | 'manifest' | 'rootDir' | 'targetDependenciesField'>,
       opts: {
         effectiveBareSpecifiers: Dependencies
-        originalBareSpecifiers: Dependencies
         readPackageHook: ReadPackageHook | ReadPackageHook[] | undefined
       }
     ): Promise<Set<string> | undefined> {
@@ -1379,18 +1377,19 @@ export async function mutateModules (
         if (alias == null || requested == null) continue
         const hookedSpecifier = opts.effectiveBareSpecifiers[alias]
         if (hookedSpecifier == null || hookedSpecifier === requested) continue
-        if (opts.originalBareSpecifiers[alias] === hookedSpecifier) continue
-        // Probe the hooks with the requested specifier declared: a gap-filling
-        // hook leaves the declaration alone, while one that rewrites
-        // unconditionally replaces it again.
-        const field = project.targetDependenciesField ?? 'dependencies'
-        let probed: ProjectManifest = {
+        // Probe the hooks with the requested specifier declared the way the
+        // real add declares it: a gap-filling hook leaves the declaration
+        // alone, while one that rewrites unconditionally replaces it again.
+        let probed: ProjectManifest = mergeInstallSelectors({
           ...project.manifest,
-          [field]: {
-            ...project.manifest[field],
-            [alias]: requested,
-          },
-        }
+          dependencies: { ...project.manifest.dependencies },
+          devDependencies: { ...project.manifest.devDependencies },
+          optionalDependencies: { ...project.manifest.optionalDependencies },
+          peerDependencies: { ...project.manifest.peerDependencies },
+        }, {
+          dependencySelectors: [selector],
+          targetDependenciesField: project.targetDependenciesField,
+        } as InstallSomeDepsMutation)
         for (const hook of hooks) {
           probed = await hook(probed, project.rootDir)
         }

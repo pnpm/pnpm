@@ -336,3 +336,49 @@ test('add keeps the requested specifier when a packageExtensions entry only fill
 
   expect(updatedManifest.dependencies).toStrictEqual({ 'is-positive': '3.1.0' })
 })
+
+test('add keeps the hook-pinned specifier when the manifest already converged to it', async () => {
+  prepareEmpty()
+
+  // The manifest already holds the pinned specifier, so it matches the
+  // hook's effective one. Re-adding a different specifier must still be
+  // superseded: the hook pins the dependency on every read.
+  const { updatedManifest } = await addDependenciesToPackage(
+    { name: 'my-project', version: '0.0.0', dependencies: { 'is-positive': '1.0.0' } },
+    ['is-positive@3.1.0'],
+    testDefaults({
+      hooks: {
+        readPackage: [(manifest) => ({
+          ...manifest,
+          dependencies: { ...manifest.dependencies, 'is-positive': '1.0.0' },
+        })],
+      },
+    })
+  )
+
+  expect(updatedManifest.dependencies).toStrictEqual({ 'is-positive': '1.0.0' })
+})
+
+test('add models the real declaration when the dependency lives in another field', async () => {
+  prepareEmpty()
+
+  // The alias already lives in devDependencies, so a default add redeclares
+  // it there rather than in dependencies. The probe must see the same
+  // declaration the real add writes, or a hook pinning that field slips
+  // through.
+  const { updatedManifest } = await addDependenciesToPackage(
+    { name: 'my-project', version: '0.0.0', devDependencies: { 'is-positive': '1.0.0' } },
+    ['is-positive@3.1.0'],
+    testDefaults({
+      hooks: {
+        readPackage: [(manifest) => ({
+          ...manifest,
+          devDependencies: { ...manifest.devDependencies, 'is-positive': '1.0.0' },
+        })],
+      },
+    })
+  )
+
+  expect(updatedManifest.devDependencies).toStrictEqual({ 'is-positive': '1.0.0' })
+  expect(updatedManifest.dependencies).toBeUndefined()
+})
