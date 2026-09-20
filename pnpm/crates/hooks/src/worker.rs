@@ -135,7 +135,6 @@ impl NodeWorker {
             serde_json::to_string(&pnpmfile).map_err(|err| exec_err(err.to_string()))?;
         let runner = build_runner(&file_escaped);
 
-        // The runner itself is always CommonJS.
         let mut child = Command::new("node")
             .arg("--input-type")
             .arg("commonjs")
