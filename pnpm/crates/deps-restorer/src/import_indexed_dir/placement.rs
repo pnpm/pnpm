@@ -143,7 +143,7 @@ pub(super) fn place_marker<Reporter: self::Reporter>(
 /// Remove a directory sitting where a package file belongs: the rename
 /// in [`import_atomic`] replaces a file but never a directory.
 pub(super) fn clear_dir_blocking_file(target: &Path) -> Result<(), ImportIndexedDirError> {
-    match fs::symlink_metadata(target) {
+    match pnpm_fs::symlink_metadata_with_retry(target) {
         Ok(meta) if meta.is_dir() => fs::remove_dir_all(target)
             .map_err(|error| ImportIndexedDirError::ClearBlockingDirEntry {
                 path: target.to_path_buf(),
@@ -168,7 +168,7 @@ pub(super) fn clear_dirent_blocking_dir(
     let mut abs = root.to_path_buf();
     for component in Path::new(rel).components() {
         abs.push(component);
-        match fs::symlink_metadata(&abs) {
+        match pnpm_fs::symlink_metadata_with_retry(&abs) {
             Ok(meta) if meta.is_dir() => {}
             Ok(meta) => remove_non_dir_dirent(&abs, meta.file_type())
                 .map_err(|error| ImportIndexedDirError::ClearBlockingDirEntry {

@@ -2,7 +2,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 import util from 'node:util'
 
-import gfs, { renameFileWithRetry } from '@pnpm/fs.graceful-fs'
+import gfs, { lstatWithRetry, renameFileWithRetry } from '@pnpm/fs.graceful-fs'
 import { globalInfo, globalWarn, logger } from '@pnpm/logger'
 import type { ResolvedFrom } from '@pnpm/store.controller-types'
 import { rimrafSync } from '@zkochan/rimraf'
@@ -192,10 +192,14 @@ function replaceFileIfDifferent (importFile: ImportFile, src: string, dest: stri
 
 // A rename cannot put a file where a directory is (EISDIR), so one standing in
 // the way has to go first. Only a damaged tree has one.
+//
+// The inspection retries, because installs in different projects heal one
+// shared slot at the same time and Windows reports a dirent one of them has
+// just unlinked as inaccessible until the unlink lands.
 function clearDirBlockingFile (dest: string): void {
   let stats
   try {
-    stats = fs.lstatSync(dest)
+    stats = lstatWithRetry(dest)
   } catch (err) {
     if (util.types.isNativeError(err) && 'code' in err && err.code === 'ENOENT') return
     throw err
@@ -215,7 +219,7 @@ function clearDirentBlockingDir (newDir: string, relativeDir: string): void {
     dir = path.join(dir, segment)
     let stats
     try {
-      stats = fs.lstatSync(dir)
+      stats = lstatWithRetry(dir)
     } catch (err) {
       if (util.types.isNativeError(err) && 'code' in err && err.code === 'ENOENT') return
       throw err

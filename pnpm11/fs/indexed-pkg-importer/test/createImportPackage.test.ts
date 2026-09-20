@@ -5,7 +5,7 @@ import { afterAll, beforeEach, expect, jest, test } from '@jest/globals'
 const testOnLinuxOnly = (process.platform === 'darwin' || process.platform === 'win32') ? test.skip : test
 
 jest.unstable_mockModule('@pnpm/fs.graceful-fs', () => {
-  const { access } = jest.requireActual<typeof fs>('fs')
+  const { access, lstatSync } = jest.requireActual<typeof fs>('fs')
   const fsMock = {
     access,
     copyFileSync: jest.fn(),
@@ -22,6 +22,9 @@ jest.unstable_mockModule('@pnpm/fs.graceful-fs', () => {
     default: fsMock,
     ...fsMock,
     renameFileWithRetry: fsMock.renameSync,
+    // The importer inspects a blocking dirent through the real filesystem,
+    // as it did before the retry wrapper existed.
+    lstatWithRetry: lstatSync,
   }
 })
 jest.unstable_mockModule('path-temp', () => ({ fastPathTemp: (file: string) => `${file}_tmp` }))

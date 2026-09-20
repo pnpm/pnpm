@@ -13,7 +13,10 @@ pub use realpath_missing::realpath_missing;
 pub use relative_path::relative_path;
 pub use remove_dirent::remove_dirent;
 pub use rename_even_across_devices::rename_even_across_devices;
-pub use retry::{remove_dir_all_with_retry, remove_file_with_retry, rename_with_retry};
+pub use retry::{
+    remove_dir_all_with_retry, remove_file_with_retry, rename_with_retry,
+    symlink_metadata_with_retry,
+};
 pub use symlink_dir::*;
 pub use write_atomic::{write_atomic, write_atomic_private};
 

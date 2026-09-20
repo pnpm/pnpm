@@ -241,8 +241,12 @@ pub fn import_indexed_dir<Reporter: self::Reporter>(
 /// The kind of dirent already at `path`, or `None` when nothing is
 /// there. Any inspection failure other than `NotFound` aborts the
 /// import rather than being read as an absent target.
+///
+/// The inspection retries, because installs in different projects heal
+/// one shared target at the same time and Windows reports a dirent one
+/// of them has just unlinked as inaccessible until the unlink lands.
 fn existing_dirent_kind(path: &Path) -> Result<Option<fs::FileType>, ImportIndexedDirError> {
-    match fs::symlink_metadata(path) {
+    match pnpm_fs::symlink_metadata_with_retry(path) {
         Ok(meta) => Ok(Some(meta.file_type())),
         Err(err) if err.kind() == io::ErrorKind::NotFound => Ok(None),
         Err(error) => Err(ImportIndexedDirError::InspectTarget { path: path.to_path_buf(), error }),

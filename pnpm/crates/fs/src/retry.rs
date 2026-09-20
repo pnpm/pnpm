@@ -48,6 +48,18 @@ pub fn remove_dir_all_with_retry(path: &Path) -> io::Result<()> {
     retry_transient_file_locks(|| fs::remove_dir_all(path))
 }
 
+/// Read a dirent's metadata without following it, with the retry policy of
+/// [`rename_with_retry`].
+///
+/// A Windows path another process has just unlinked is *delete-pending*
+/// until the last handle on it closes, and inspecting it answers
+/// `PermissionDenied` rather than `NotFound` for as long as that lasts.
+/// Retrying lets the unlink land, so a caller that reads `NotFound` as an
+/// absent target sees the same absence Unix shows it at once.
+pub fn symlink_metadata_with_retry(path: &Path) -> io::Result<fs::Metadata> {
+    retry_transient_file_locks(|| fs::symlink_metadata(path))
+}
+
 /// Run a filesystem operation with the retry policy of [`rename_with_retry`];
 /// [`is_transient_file_lock_error`] decides which failures are retried.
 pub(crate) fn retry_transient_file_locks<Value>(
