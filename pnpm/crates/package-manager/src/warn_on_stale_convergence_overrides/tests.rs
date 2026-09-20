@@ -4,10 +4,21 @@ use super::{
 use node_semver::Version;
 use pnpm_catalogs_types::Catalogs;
 use pnpm_config_parse_overrides::{VersionOverride, parse_overrides};
-use std::collections::{HashMap, HashSet};
+use std::{
+    collections::{HashMap, HashSet},
+    sync::Arc,
+    time::Duration,
+};
 
 fn converge_override(name: &str, value: &str) -> Vec<VersionOverride> {
-    let input = HashMap::from([(format!("{name}@"), value.to_string())]);
+    converge_overrides(&[(name, value)])
+}
+
+fn converge_overrides(entries: &[(&str, &str)]) -> Vec<VersionOverride> {
+    let input = entries
+        .iter()
+        .map(|(name, value)| (format!("{name}@"), (*value).to_string()))
+        .collect();
     parse_overrides(&input, &Catalogs::new()).expect("parse_overrides fixture")
 }
 
@@ -98,6 +109,41 @@ async fn silent_when_no_declared_range_was_collected() {
     let stale = find_stale_convergence_overrides(&overrides, &HashMap::new(), canned(&[])).await;
 
     assert!(stale.is_empty(), "nothing declared the package, so nothing can be converged");
+}
+
+/// Every range of every override must be in flight at once: each
+/// resolution parks on a barrier sized to the total range count, so the
+/// check only completes when no override waits for another to finish.
+#[tokio::test]
+async fn resolves_the_ranges_of_every_override_concurrently() {
+    let overrides = converge_overrides(&[("foo", "1.0.0"), ("bar", "1.0.0"), ("baz", "1.0.0")]);
+    let declared = HashMap::from([
+        ("foo".to_string(), HashSet::from(["^1.0.0".to_string(), "^1.1.0".to_string()])),
+        ("bar".to_string(), HashSet::from(["^1.0.0".to_string()])),
+        ("baz".to_string(), HashSet::from(["^1.0.0".to_string(), "^1.2.0".to_string()])),
+    ]);
+    let barrier = Arc::new(tokio::sync::Barrier::new(5));
+    let resolve_range = |_name: String, _range: String| {
+        let barrier = Arc::clone(&barrier);
+        async move {
+            barrier.wait().await;
+            Some(Version::parse("1.5.0").unwrap())
+        }
+    };
+
+    let stale = tokio::time::timeout(
+        Duration::from_secs(10),
+        find_stale_convergence_overrides(&overrides, &declared, resolve_range),
+    )
+    .await
+    .expect("the overrides were checked one after another");
+
+    let mut names: Vec<&str> = stale
+        .iter()
+        .map(|entry| entry.name.as_str())
+        .collect();
+    names.sort_unstable();
+    assert_eq!(names, ["bar", "baz", "foo"]);
 }
 
 #[test]
