@@ -146,6 +146,47 @@ async fn resolves_the_ranges_of_every_override_concurrently() {
     assert_eq!(names, ["bar", "baz", "foo"]);
 }
 
+/// The warnings print in override order, so a result must land at its
+/// override's index however early its check finished: the checks here
+/// finish in reverse, the first override's last.
+#[tokio::test]
+async fn results_keep_override_order_when_the_checks_finish_out_of_order() {
+    let overrides = converge_overrides(&[("zeta", "1.0.0"), ("beta", "1.0.0"), ("alpha", "1.0.0")]);
+    let override_names: Vec<String> = overrides
+        .iter()
+        .map(|entry| entry.target_pkg.name.clone())
+        .collect();
+    let declared: HashMap<String, HashSet<String>> = override_names
+        .iter()
+        .map(|name| (name.clone(), HashSet::from(["^1.0.0".to_string()])))
+        .collect();
+    let yields_before_ready: HashMap<String, usize> = override_names
+        .iter()
+        .rev()
+        .enumerate()
+        .map(|(index, name)| (name.clone(), index + 1))
+        .collect();
+    let resolve_range = move |name: String, _range: String| {
+        let yields = yields_before_ready[&name];
+        async move {
+            for _ in 0..yields {
+                tokio::task::yield_now().await;
+            }
+            Some(Version::parse("1.5.0").unwrap())
+        }
+    };
+
+    let stale = find_stale_convergence_overrides(&overrides, &declared, resolve_range).await;
+
+    assert_eq!(
+        stale
+            .iter()
+            .map(|entry| entry.name.as_str())
+            .collect::<Vec<_>>(),
+        override_names,
+    );
+}
+
 #[test]
 fn warning_message_matches_the_shared_wording() {
     let entry = StaleConvergenceOverride {
