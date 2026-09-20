@@ -156,6 +156,18 @@ export async function getInstalledBinNames (info: GlobalPackageInfo): Promise<st
   const bins = new Set<string>()
   const aliases = Object.keys(info.dependencies)
   const modulesDir = path.join(info.installDir, 'node_modules')
+  // A group whose node_modules is wholly absent is definitively not
+  // installed: it owns no bins. A present-but-incomplete tree still rejects
+  // below, so destructive callers never mistake unknown ownership for an
+  // unowned bin.
+  try {
+    await fs.promises.stat(modulesDir)
+  } catch (err) {
+    if (util.types.isNativeError(err) && 'code' in err && err.code === 'ENOENT') {
+      return []
+    }
+    throw err
+  }
   await Promise.all(
     aliases.map(async (alias) => {
       const depDir = path.join(modulesDir, alias)

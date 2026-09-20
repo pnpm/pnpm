@@ -386,6 +386,85 @@ fn global_remove_preflights_survivors_before_mutating_targets() {
     drop(root);
 }
 
+/// A group whose `node_modules` was deleted outright owns no bins, so
+/// `update -g` reinstalls it instead of failing with
+/// `ERR_PNPM_PACKAGE_MANIFEST_IO_ERROR`.
+#[cfg(unix)]
+#[test]
+fn global_update_unsticks_a_group_whose_node_modules_was_deleted() {
+    use assert_cmd::assert::OutputAssertExt;
+
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let pnpm_home = root.path().join("pnpm-home");
+    let global_bin = pnpm_home.join("bin");
+    let global_pkg_dir = pnpm_home.join("global/v11");
+    prepare_global_home(&pnpm_home, &npmrc_info);
+    fs::create_dir_all(&global_pkg_dir).expect("create global packages directory");
+    assert_fixture_paths(
+        root.path(),
+        &[&pnpm_home, &global_bin, &global_pkg_dir, &npmrc_info.store_dir, &npmrc_info.cache_dir],
+    );
+
+    let target_install =
+        seed_global_group(&global_pkg_dir, "target-hash", &[("@pnpm.e2e/print-version", None)]);
+    fs::remove_dir_all(target_install.join("node_modules"))
+        .expect("delete the group's node_modules");
+
+    global_command(&workspace, &pnpm_home)
+        .with_args(["update", "-g", "--latest", "@pnpm.e2e/print-version"])
+        .assert()
+        .success();
+    assert!(global_bin.join("print-version").exists());
+
+    drop((root, npmrc_info));
+}
+
+/// A damaged group no longer blocks the other groups named in the same
+/// command: `remove -g` tears down the group whose `node_modules` is gone
+/// alongside the healthy one. The damaged group's bin was never accounted
+/// for, so its leftover file in the global bin directory is left alone.
+#[cfg(unix)]
+#[test]
+fn global_remove_unsticks_a_group_whose_node_modules_was_deleted() {
+    use assert_cmd::assert::OutputAssertExt;
+
+    let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
+    let pnpm_home = root.path().join("pnpm-home");
+    let global_bin = pnpm_home.join("bin");
+    let global_pkg_dir = pnpm_home.join("global/v11");
+    fs::create_dir_all(&global_bin).expect("create global bin directory");
+    fs::create_dir_all(&global_pkg_dir).expect("create global packages directory");
+    assert_fixture_paths(root.path(), &[&pnpm_home, &global_bin, &global_pkg_dir]);
+
+    let healthy_install = seed_global_group(
+        &global_pkg_dir,
+        "healthy-hash",
+        &[(
+            "victim-a",
+            Some(r#"{"name":"victim-a","version":"1.0.0","bin":{"victim-a-bin":"cli.js"}}"#),
+        )],
+    );
+    let damaged_install = seed_global_group(&global_pkg_dir, "damaged-hash", &[("victim-b", None)]);
+    fs::remove_dir_all(damaged_install.join("node_modules"))
+        .expect("delete the damaged group's node_modules");
+    let healthy_bin = global_bin.join("victim-a-bin");
+    let damaged_bin = global_bin.join("victim-b-bin");
+    fs::write(&healthy_bin, b"healthy command\n").expect("seed healthy target bin");
+    fs::write(&damaged_bin, b"damaged command\n").expect("seed damaged target bin");
+
+    global_command(&workspace, &pnpm_home)
+        .with_args(["remove", "-g", "victim-a", "victim-b"])
+        .assert()
+        .success();
+    assert!(!healthy_install.exists());
+    assert!(!damaged_install.exists());
+    assert!(!healthy_bin.exists());
+    assert!(damaged_bin.exists(), "the damaged group's unaccounted bin is left in place");
+
+    drop(root);
+}
+
 /// `pacquet add -g pnpm` is rejected — pnpm is managed via `self-update`. An
 /// `npm:` alias installs pnpm under another name, but the package still carries
 /// pnpm's own `pnpm` bin, so it is rejected the same way. A comma-separated
