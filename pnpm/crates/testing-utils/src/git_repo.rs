@@ -134,11 +134,12 @@ impl GitRepoFixture {
 /// without the work tree and bare clone [`GitRepoFixture`] pairs up.
 ///
 /// Overrides the user-global `core.excludesFile`, `core.attributesFile`,
-/// `core.hooksPath`, `core.fsmonitor`, and `gpgsign` settings and skips
-/// the user-global `init.templateDir`, so a contributor's own git
-/// configuration cannot change what the repo ignores, what it runs on
-/// staging and commit, or whether it demands a signing key.
-/// Configuration beyond those still reaches it.
+/// `core.hooksPath`, `core.fsmonitor`, `core.autocrlf`, and `gpgsign`
+/// settings and skips the user-global `init.templateDir`, so a
+/// contributor's own git configuration cannot change what the repo
+/// ignores, what it runs on staging and commit, what bytes a checkout
+/// writes, or whether it demands a signing key. Configuration beyond
+/// those still reaches it.
 pub fn init_isolated_repo(path: &Path) {
     fs::create_dir_all(path).expect("create git repo directory");
     git(path, &["init", "-q", "-b", "main", "--template="]);
@@ -164,8 +165,9 @@ pub fn unignored_files(repo: &Path) -> Vec<String> {
 /// Override, in the local configuration of the repo at `repo` whose git
 /// directory is `git_dir`, the user-global settings that would otherwise
 /// change what a fixture repo does: `core.excludesFile`,
-/// `core.attributesFile`, `core.hooksPath`, `core.fsmonitor`, and
-/// `gpgsign`. Configuration this does not name still reaches the repo.
+/// `core.attributesFile`, `core.hooksPath`, `core.fsmonitor`,
+/// `core.autocrlf`, and `gpgsign`. Configuration this does not name
+/// still reaches the repo.
 ///
 /// `git ls-files --exclude-standard` consults the user-global excludes
 /// file, and pnpm builds a task's cache inputs from that listing. A
@@ -196,6 +198,10 @@ fn override_global_config(repo: &Path, git_dir: &Path) {
     git(repo, &["config", "core.attributesFile", &absent]);
     git(repo, &["config", "core.hooksPath", &absent]);
     git(repo, &["config", "core.fsmonitor", "false"]);
+    // Git for Windows installs with `core.autocrlf = true`, which writes
+    // CRLF into a checkout. A fixture's own files reach the work tree as
+    // written, so a second work tree of the same repo would hold
+    // different bytes and hash differently.
     git(repo, &["config", "core.autocrlf", "false"]);
     // Neutralise a user-global `gpgsign = true`, which would
     // otherwise demand a real signing key for every commit and tag.

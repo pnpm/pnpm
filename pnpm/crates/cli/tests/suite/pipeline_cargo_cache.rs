@@ -54,7 +54,7 @@ fn cargo_state_is_shared_between_worktrees_and_survives_cache_deletion() {
     let root = dunce::canonicalize(temp.path()).unwrap();
     let first_worktree = root.join("a");
     let second_worktree = root.join("b");
-    let cache = root.join("cache");
+    let cache = temp.path().join("cache");
     fs::create_dir_all(first_worktree.join("src")).unwrap();
     pnpm_testing_utils::git_repo::init_isolated_repo(&first_worktree);
     fs::write(first_worktree.join(".gitignore"), "target/\nnode_modules/\n").unwrap();

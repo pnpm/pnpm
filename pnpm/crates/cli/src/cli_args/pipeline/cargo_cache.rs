@@ -47,7 +47,7 @@ impl CargoCache {
                 "Cargo target directory must be ignored by Git: {directory}",
             )));
         }
-        let project = dunce::canonicalize(project).unwrap_or_else(|_| project.to_path_buf());
+        let project = dunce::canonicalize(project)?;
         let target = project.join(relative);
         check_ancestors(&project, relative)?;
         let parent = target.parent().expect("relative target has a parent");
@@ -205,11 +205,10 @@ pub(super) fn snapshot_entry(
     environment: &BTreeMap<String, String>,
 ) -> io::Result<(PathBuf, String, Vec<String>)> {
     let cache_dir = pnpm_fs::realpath_missing(cache_dir)?;
-    let project = dunce::canonicalize(project).unwrap_or_else(|_| project.to_path_buf());
-    let repo = PathBuf::from(
+    let project = dunce::canonicalize(project)?;
+    let repo = dunce::canonicalize(
         command_output("git", &["rev-parse", "--show-toplevel"], &project, environment)?.trim(),
-    );
-    let repo = dunce::canonicalize(&repo).unwrap_or(repo);
+    )?;
     let common = command_output(
         "git",
         &["rev-parse", "--path-format=absolute", "--git-common-dir"],
@@ -267,28 +266,14 @@ fn add_repository_inputs(
 
 /// Every Cargo config file the build reads: `.cargo/config[.toml]` in each
 /// ancestor of the project, then the Cargo home's.
-fn add_config_file(
-    path: &Path,
-    project: &Path,
-    seen: &mut std::collections::HashSet<PathBuf>,
-    inputs: &mut Vec<String>,
-) -> io::Result<()> {
-    let canonical = dunce::canonicalize(path).unwrap_or_else(|_| path.to_path_buf());
-    if seen.insert(canonical.clone()) {
-        add_config(&canonical, project, inputs)?;
-    }
-    Ok(())
-}
-
 fn add_config_inputs(
     project: &Path,
     environment: &BTreeMap<String, String>,
     inputs: &mut Vec<String>,
 ) -> io::Result<()> {
-    let mut seen = std::collections::HashSet::new();
     for ancestor in project.ancestors() {
         for name in ["config", "config.toml"] {
-            add_config_file(&ancestor.join(".cargo").join(name), project, &mut seen, inputs)?;
+            add_config(&ancestor.join(".cargo").join(name), project, inputs)?;
         }
     }
     let cargo_home = environment
@@ -297,7 +282,7 @@ fn add_config_inputs(
         .or_else(|| home::home_dir().map(|home| home.join(".cargo")));
     if let Some(cargo_home) = cargo_home {
         for name in ["config", "config.toml"] {
-            add_config_file(&cargo_home.join(name), project, &mut seen, inputs)?;
+            add_config(&cargo_home.join(name), project, inputs)?;
         }
     }
     Ok(())
@@ -338,13 +323,11 @@ fn local_packages_in_repo(metadata: &serde_json::Value, repo: &Path) -> io::Resu
 /// but that is gone is simply not an input; anything that is not a
 /// regular file is one the hash cannot describe.
 fn add_tracked_file_input(repo: &Path, path: &str, inputs: &mut Vec<String>) -> io::Result<()> {
-    let relative_path = Path::new(path);
-    check_ancestors(repo, relative_path)?;
-    let absolute = repo.join(relative_path);
+    check_ancestors(repo, Path::new(path))?;
+    let absolute = repo.join(path);
     match fs::symlink_metadata(&absolute) {
         Ok(metadata) if metadata.is_file() => {
-            let normalized_path = path.replace('\\', "/");
-            inputs.push(format!("{normalized_path}:{}", create_hex_hash_from_file(&absolute)?));
+            inputs.push(format!("{path}:{}", create_hex_hash_from_file(&absolute)?));
             Ok(())
         }
         Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(()),
@@ -360,47 +343,52 @@ pub(super) fn cache_environment(
     extra: &std::collections::HashMap<String, String>,
     declared: &[String],
 ) -> BTreeMap<String, String> {
+    let declared: Vec<String> = declared
+        .iter()
+        .cloned()
+        .map(env_key)
+        .collect();
     env::vars()
         .chain(
             extra
                 .iter()
                 .map(|(key, value)| (key.clone(), value.clone())),
         )
+        .map(|(key, value)| (env_key(key), value))
         .filter(|(key, _)| {
-            let key_upper = key.to_ascii_uppercase();
-            key_upper.starts_with("CARGO_")
-                || key_upper.starts_with("RUST")
-                || key_upper.starts_with("CC")
-                || key_upper.starts_with("CXX")
-                || key_upper.starts_with("AR")
-                || key_upper.starts_with("CFLAGS")
-                || key_upper.starts_with("CPPFLAGS")
-                || key_upper.starts_with("LDFLAGS")
-                || key_upper.starts_with("PKG_CONFIG")
-                || key_upper == "PATH"
-                || key_upper == "SDKROOT"
-                || key_upper == "MACOSX_DEPLOYMENT_TARGET"
-                || declared
-                    .iter()
-                    .any(|d| d.eq_ignore_ascii_case(key))
+            key.starts_with("CARGO_")
+                || key.starts_with("RUST")
+                || key.starts_with("CC")
+                || key.starts_with("CXX")
+                || key.starts_with("AR")
+                || key.starts_with("CFLAGS")
+                || key.starts_with("CPPFLAGS")
+                || key.starts_with("LDFLAGS")
+                || key.starts_with("PKG_CONFIG")
+                || key == "PATH"
+                || key == "SDKROOT"
+                || key == "MACOSX_DEPLOYMENT_TARGET"
+                || declared.contains(key)
         })
-        .filter(|(key, _)| {
-            let key_upper = key.to_ascii_uppercase();
-            key_upper != "CARGO_TARGET_DIR" && key_upper != "CARGO_BUILD_BUILD_DIR"
-        })
-        .map(|(key, value)| (key.to_ascii_uppercase(), value))
+        .filter(|(key, _)| key != "CARGO_TARGET_DIR" && key != "CARGO_BUILD_BUILD_DIR")
         .collect()
 }
 
+/// The name under which the platform matches an environment variable.
+/// Windows matches names without regard to case, so a build environment
+/// that spells a variable two ways across runs still hashes the same.
+/// POSIX names are case-sensitive, where folding the case would merge
+/// variables a build keeps apart.
+fn env_key(key: String) -> String {
+    if cfg!(windows) { key.to_ascii_uppercase() } else { key }
+}
+
 fn add_config(path: &Path, project: &Path, inputs: &mut Vec<String>) -> io::Result<()> {
-    let canonical_path = dunce::canonicalize(path).unwrap_or_else(|_| path.to_path_buf());
-    let canonical_project = dunce::canonicalize(project).unwrap_or_else(|_| project.to_path_buf());
-    match create_hex_hash_from_file(&canonical_path) {
+    match create_hex_hash_from_file(path) {
         Ok(hash) => {
-            let relative = pathdiff::diff_paths(&canonical_path, &canonical_project)
-                .unwrap_or_else(|| canonical_path.clone());
-            let relative_str = relative.to_string_lossy().replace('\\', "/");
-            inputs.push(format!("cargo-config:{relative_str}:{hash}"));
+            let relative =
+                pathdiff::diff_paths(path, project).unwrap_or_else(|| path.to_path_buf());
+            inputs.push(format!("cargo-config:{}:{hash}", relative.display()));
         }
         Err(error) if error.kind() == io::ErrorKind::NotFound => {}
         Err(error) => return Err(error),

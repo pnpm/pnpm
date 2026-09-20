@@ -122,9 +122,13 @@ fn poll_and_build(
 /// suffix, reduced to the identifier alphabet. Falls back to "checkout"
 /// for a remote it cannot name.
 fn repo_basename(repo: &str) -> String {
+    // A backslash ends a segment of a Windows path and is an ordinary
+    // character in a POSIX file name, so only Windows may split on one.
+    let trailing: &[char] = if cfg!(windows) { &['/', '\\'] } else { &['/'] };
+    let separators: &[char] = if cfg!(windows) { &['/', '\\', ':'] } else { &['/', ':'] };
     let tail = repo
-        .trim_end_matches(['/', '\\'])
-        .rsplit(['/', '\\', ':'])
+        .trim_end_matches(trailing)
+        .rsplit(separators)
         .next()
         .unwrap_or_default()
         .trim_end_matches(".git");
