@@ -59,8 +59,7 @@ fn same_path_root(a: &Path, b: &Path) -> bool {
     }
 }
 
-/// Join `base` with a `/`-separated relative path string, pushing each segment
-/// individually so platform-native path separators are used on all operating systems.
+/// [`push_slash_separated_path`] applied to a copy of `base`.
 #[must_use]
 pub fn join_slash_separated_path(base: &Path, rel: &str) -> PathBuf {
     let mut path = base.to_path_buf();
@@ -68,7 +67,14 @@ pub fn join_slash_separated_path(base: &Path, rel: &str) -> PathBuf {
     path
 }
 
-/// Push each `/`-separated segment of `rel` onto `path`.
+/// Extend `path` with `rel`, one component per `/`-separated segment.
+///
+/// [`PathBuf::push`] takes the whole of `rel` as a single component, so
+/// on Windows its `/` bytes survive into the path string. The directory
+/// symlink and junction syscalls that later consume such a path reject
+/// it with `ERROR_DIRECTORY` (`os error 267`). Splitting the segments
+/// yields the platform's own separator everywhere, and leaves the path
+/// unchanged on Unix, where `/` is already native.
 pub fn push_slash_separated_path(path: &mut PathBuf, rel: &str) {
     path.extend(rel.split('/'));
 }
