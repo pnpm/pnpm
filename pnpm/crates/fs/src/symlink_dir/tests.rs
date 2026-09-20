@@ -603,7 +603,9 @@ fn force_symlink_inner_reissues_a_create_whose_conflict_has_gone() {
         super::force_symlink_inner(&target, &link, TriedOnce::default(), conflict_once_then_create)
             .expect("a conflict that is gone must not fail the link");
 
+    eprintln!("outcome: {outcome:?}");
     assert!(!outcome.reused, "the retry created the link, so it is not a reuse");
+    eprintln!("link {} -> target {}", link.display(), target.display());
     assert_eq!(
         fs::canonicalize(&link).expect("canonicalize the link"),
         fs::canonicalize(&target).expect("canonicalize the target"),
