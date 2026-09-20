@@ -775,3 +775,19 @@ test.each(forceRepairImportMethods)('install --force restores a replaced depende
 
   expect(fs.readFileSync(installedFile, 'utf8')).toBe(pristine)
 })
+
+// Covers https://github.com/pnpm/pnpm/issues/919
+test('install --force reports the frozenStore conflict on a repeat install', async () => {
+  prepare({
+    dependencies: {
+      'is-positive': '1.0.0',
+    },
+  })
+
+  await execPnpm(['install'])
+
+  const { status, stdout } = execPnpmSync(['install', '--force', '--frozen-store'])
+
+  expect(status).toBe(1)
+  expect(stdout.toString()).toContain('Cannot use force together with frozenStore')
+})
