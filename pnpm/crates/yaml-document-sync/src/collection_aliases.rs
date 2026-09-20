@@ -1,4 +1,4 @@
-use super::{Error, inline, scalar_aliases::byte_range, splice};
+use super::{Error, edits, inline, scalar_aliases::byte_range};
 use serde_json::Value;
 use serde_saphyr::granit_parser::{Scanner, StrInput, Token, TokenType};
 use std::{collections::HashMap, ops::Range};
@@ -22,12 +22,7 @@ pub(super) fn detach_changed(
     let mut collector =
         Collector { document, aliases, definitions: HashMap::new(), edits: Vec::new() };
     collector.visit(&Route::default(), original, Some(target))?;
-    let mut edits = collector.edits;
-    edits.sort_by_key(|(range, _)| std::cmp::Reverse(range.start));
-    for (range, text) in edits {
-        splice(document, range, &text)?;
-    }
-    Ok(())
+    edits::apply(document, collector.edits)
 }
 
 struct Collector<'doc, 'value> {

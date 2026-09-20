@@ -114,3 +114,15 @@ fn yaml_scaffolding_preserves_trailing_newlines_in_values() {
     .unwrap();
     assert_eq!(PackageManifest::from_path(path).unwrap().value()["license"], "custom\n\n");
 }
+
+#[test]
+fn rejects_non_mapping_yaml_without_replacing_it() {
+    for source in ["fixture\n", "- name: fixture\n", "42\n"] {
+        let dir = tempdir().unwrap();
+        let path = dir.path().join("package.yaml");
+        fs::write(&path, source).unwrap();
+        let error = PackageManifest::from_path(path.clone()).err().unwrap();
+        assert!(error.to_string().contains("the manifest root must be an object"));
+        assert_eq!(fs::read_to_string(path).unwrap(), source);
+    }
+}

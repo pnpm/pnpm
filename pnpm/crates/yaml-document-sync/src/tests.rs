@@ -170,3 +170,51 @@ fn changing_an_alias_of_a_tagged_block_scalar_preserves_its_source() {
     assert!(output.contains("!!binary"), "{output}");
     assert!(output.contains("# encoded"), "{output}");
 }
+
+#[test]
+fn batches_mixed_mapping_and_sequence_edits() {
+    for source in [
+        "dependencies: {a: old, b: old, c: old, d: old}\nitems: [a, b, c, d]\n",
+        "dependencies:\n  a: old\n  b: old\n  c: old\n  d: old\nitems:\n  - a\n  - b\n  - c\n  - d\n",
+    ] {
+        for keep in 0..16 {
+            let mut target = parse(source).unwrap();
+            let dependencies = target["dependencies"].as_object_mut().unwrap();
+            dependencies.retain(|key, value| {
+                *value = json!("new");
+                let index = "abcd".find(key.as_str()).unwrap();
+                keep & (1 << index) != 0
+            });
+            dependencies.insert("e".to_string(), json!("added"));
+            dependencies.insert("f".to_string(), json!("added"));
+            target["items"] = json!(["changed"]);
+            assert_eq!(parse(&sync(source, &target).unwrap()).unwrap(), target);
+        }
+    }
+}
+
+#[test]
+fn batches_insertions_at_shared_container_boundaries() {
+    let source = "name: fixture\nnested:\n  existing: old\n";
+    let target =
+        json!({"name":"fixture","nested":{"existing":"old","added":"child"},"added":"parent"});
+    assert_eq!(
+        sync(source, &target).unwrap(),
+        "name: fixture\nnested:\n  existing: old\n  added: child\nadded: parent\n",
+    );
+}
+
+#[test]
+fn rejects_mapping_keys_that_collide_after_coercion() {
+    for (key, quoted) in [
+        ("null", "null"),
+        ("true", "true"),
+        ("42", "42"),
+        ("~", "null"),
+        ("TRUE", "true"),
+        ("0x2a", "42"),
+    ] {
+        let source = format!("metadata:\n  {key}: first\n  '{quoted}': second\n");
+        assert!(parse(&source).is_err(), "{source}");
+    }
+}

@@ -146,3 +146,38 @@ fn link_saves_yaml_and_accepts_a_yaml_target() {
     assert!(!workspace.join("package.json").exists());
     drop((root, npmrc_info));
 }
+
+#[test]
+fn set_script_updates_package_yaml() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    let path = workspace.join("package.yaml");
+    fs::write(&path, "# project\nname: fixture\nscripts:\n  test: old # test\n  build: build\n")
+        .unwrap();
+    command(&pacquet)
+        .args(["set-script", "test", "new"])
+        .assert()
+        .success();
+    assert_eq!(
+        fs::read_to_string(path).unwrap(),
+        "# project\nname: fixture\nscripts:\n  test: new # test\n  build: build\n",
+    );
+    assert!(!workspace.join("package.json").exists());
+    drop(root);
+}
+
+#[test]
+fn link_reports_a_malformed_yaml_target() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    fs::write(workspace.join("package.yaml"), "name: fixture\n").unwrap();
+    let target = workspace.join("target");
+    fs::create_dir(&target).unwrap();
+    fs::write(target.join("package.yaml"), "name: [invalid\n").unwrap();
+    let assertion = command(&pacquet)
+        .args(["link", "./target"])
+        .assert()
+        .failure();
+    let stderr = String::from_utf8_lossy(&assertion.get_output().stderr);
+    assert!(stderr.contains("package.yaml"), "{stderr}");
+    assert!(!stderr.contains("No package.json found"), "{stderr}");
+    drop(root);
+}

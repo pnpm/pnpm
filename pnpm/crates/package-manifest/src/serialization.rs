@@ -116,13 +116,13 @@ impl PackageManifest {
         } else {
             serialize_with_indent(manifest, DEFAULT_INDENT)?
         };
-        fs::write(path, format!("{contents}\n"))?; // TODO: forbid overwriting existing files
+        Self::write_atomic(path, &format!("{contents}\n"))?;
         Ok(contents)
     }
 
     /// Write `contents` to `path` atomically: a sibling temp file is written
     /// and fsynced, then renamed over `path`. A crash or write error therefore
-    /// never leaves a truncated or partial `package.json` behind, matching the
+    /// never leaves a truncated or partial manifest behind, matching the
     /// `write-file-atomic` guarantee.
     pub(super) fn write_atomic(path: &Path, contents: &str) -> io::Result<()> {
         let dir = path
@@ -133,7 +133,7 @@ impl PackageManifest {
         tmp.write_all(contents.as_bytes())?;
         tmp.as_file().sync_all()?;
         // A NamedTempFile is created 0o600; preserve the original file's mode
-        // when overwriting an existing package.json (write-file-atomic does the
+        // when overwriting an existing manifest (write-file-atomic does the
         // same) so the rename doesn't silently tighten its permissions.
         if let Ok(metadata) = fs::metadata(path) {
             tmp.as_file().set_permissions(metadata.permissions())?;
@@ -152,8 +152,13 @@ impl PackageManifest {
             parse_manifest(contents)
                 .map_err(|source| PackageManifestError::Parse { path: path.clone(), source })?
         };
-        if is_yaml_path(&path) && !value.is_object() {
+        if is_yaml_path(&path) && value.is_null() {
             value = serde_json::json!({});
+        }
+        if is_yaml_path(&path) && !value.is_object() {
+            return Err(PackageManifestError::InvalidAttribute(
+                "the manifest root must be an object".to_string(),
+            ));
         }
         let mut on_disk = value.clone();
         normalize_dependency_fields(&mut on_disk);

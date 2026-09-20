@@ -173,7 +173,12 @@ fn link_target(manifest_dir: &Path, path_str: &str) -> miette::Result<(PathBuf, 
     let target_manifest_path = pnpm_workspace::project_manifest_path(&target_dir);
     let dir_display = target_dir.display();
     let target_manifest = PackageManifest::from_path(target_manifest_path)
-        .map_err(|_| miette::miette!("No package.json found in {}", dir_display))?;
+        .map_err(|error| match error {
+            pnpm_package_manifest::PackageManifestError::NoImporterManifestFound(_) => {
+                miette::miette!("No package.json found in {}", dir_display)
+            }
+            error => miette::Report::new(error),
+        })?;
     let package_name = target_manifest.value()["name"]
         .as_str()
         .ok_or_else(|| miette::miette!("Target package does not have a name field"))?
