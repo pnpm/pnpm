@@ -9,7 +9,7 @@ use tokio::{
     time::{Duration, timeout},
 };
 
-/// Runs `.pnpmfile.{cjs,mjs}` hooks via Node.js.
+/// Runs `.pnpmfile.{cjs,js,mjs}` hooks via Node.js.
 ///
 /// `readPackage`, `afterAllResolved`, and `filterLog` are served by a
 /// long-lived [`NodeWorker`] (spawned lazily, once per pnpmfile) so the
@@ -47,13 +47,13 @@ impl NodeJsHooks {
         logger: &crate::PreResolutionHookLogger,
     ) {
         let Ok(ctx_payload) = serde_json::to_string(&args) else { return };
-        let Some((input_type, wrapper)) = hook_wrapper(&self.file.to_string_lossy(), func) else {
+        let Some(wrapper) = hook_wrapper(&self.file.to_string_lossy(), func) else {
             return;
         };
 
         let Ok(mut child) = Command::new("node")
             .arg("--input-type")
-            .arg(input_type)
+            .arg("commonjs")
             .arg("-e")
             .arg(&wrapper)
             .kill_on_drop(true)
@@ -80,44 +80,24 @@ impl NodeJsHooks {
     }
 }
 
-/// The Node wrapper that loads the pnpmfile and calls `func` with the
-/// context read from stdin, keyed by the module type Node must parse it as.
-fn hook_wrapper(file_path: &str, func: &str) -> Option<(&'static str, String)> {
+/// The Node wrapper that loads the pnpmfile and calls `func` with the context
+/// read from stdin.
+fn hook_wrapper(file_path: &str, func: &str) -> Option<String> {
     let file_path_escaped = serde_json::to_string(file_path).ok()?;
-    let (input_type, wrapper) = if file_path.ends_with(".mjs") {
-        (
-            "module",
-            format!(
-                r#"import {{ readFileSync }} from 'node:fs';
-import {{ pathToFileURL }} from 'node:url';
-const hooks = await import(pathToFileURL({file_path_escaped}).href);
-const ctx = JSON.parse(readFileSync(0, 'utf8'));
-const logger = {{
-  info: (m) => {{ console.log(JSON.stringify({{"level":"info","message":String(m)}})); }},
-  warn: (m) => {{ console.log(JSON.stringify({{"level":"warn","message":String(m)}})); }}
-}};
-await (hooks.hooks && hooks.hooks['{func}'])?.(ctx, logger);
-"#,
-            ),
-        )
-    } else {
-        (
-            "commonjs",
-            format!(
-                r#"(async () => {{
-  const hooks = require({file_path_escaped});
+    Some(format!(
+        r#"(async () => {{
+  {}
+  const hooks = await loadPnpmfile({file_path_escaped});
   const ctx = JSON.parse(require('fs').readFileSync(0, 'utf8'));
   const logger = {{
-info: (m) => {{ console.log(JSON.stringify({{"level":"info","message":String(m)}})); }},
-warn: (m) => {{ console.log(JSON.stringify({{"level":"warn","message":String(m)}})); }}
+    info: (m) => {{ console.log(JSON.stringify({{"level":"info","message":String(m)}})); }},
+    warn: (m) => {{ console.log(JSON.stringify({{"level":"warn","message":String(m)}})); }}
   }};
   await (hooks.hooks && hooks.hooks['{func}'])?.(ctx, logger);
 }})();
 "#,
-            ),
-        )
-    };
-    Some((input_type, wrapper))
+        crate::LOAD_PNPMFILE,
+    ))
 }
 
 /// Feed the hook its context and collect its stderr tail and exit status.

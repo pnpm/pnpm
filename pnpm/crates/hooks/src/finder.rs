@@ -99,12 +99,12 @@ pub fn validate_configured_pnpmfiles(
 /// pnpmfile itself requires a missing module, say — is an execution failure and
 /// must keep reporting as one. Hence a bare existence test rather than
 /// [`Path::is_file`], and the `.cjs` suffix pnpm appends to a path that names
-/// neither module extension itself.
+/// none of the supported module extensions itself.
 fn pnpmfile_exists(path: &Path) -> bool {
     let names_a_module = path
         .extension()
         .and_then(std::ffi::OsStr::to_str)
-        .is_some_and(|extension| matches!(extension, "cjs" | "mjs"));
+        .is_some_and(|extension| matches!(extension, "cjs" | "js" | "mjs"));
     if names_a_module {
         return path.exists();
     }
