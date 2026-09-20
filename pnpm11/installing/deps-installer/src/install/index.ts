@@ -1146,6 +1146,7 @@ export async function mutateModules (
     > & Pick<InstallSomeDepsMutation,
     | 'allowNew'
     | 'dependencySelectors'
+    | 'peer'
     | 'targetDependenciesField'
     | 'update'
     | 'updatePatches'
@@ -1167,14 +1168,9 @@ export async function mutateModules (
         ? currentBareSpecifiers
         : getAllDependenciesFromManifest(project.originalManifest, { autoInstallPeers: opts.autoInstallPeers })
       const readonlyAliases = getHookOwnedAliases(project)
-      // Aliases a `readPackage` hook would rewrite are hook-governed: the add
-      // saves the specifier the hook produces, so the manifest still matches
-      // it on the next `--frozen-lockfile` install (pnpm/pnpm#15156).
       const hookSupersededSpecifiers = project.update === true
         ? undefined
-        : await getHookSupersededSpecifiers(project, {
-          readPackageHook: opts.readPackageHook,
-        })
+        : await getHookSupersededSpecifiers(project)
       const hookGovernedAliases = readonlyAliases == null
         ? hookSupersededSpecifiers == null ? undefined : new Set(hookSupersededSpecifiers.keys())
         : new Set([...readonlyAliases, ...hookSupersededSpecifiers?.keys() ?? []])
@@ -1301,7 +1297,10 @@ export async function mutateModules (
           // this run's to write, so the next frozen install would reject the pair. `catalogMode:
           // manual` reaches here without passing the loop above, so the name is dropped here.
           saveCatalogName: hookGovernedAliases?.has(wantedDep.alias) ? undefined : wantedDep.saveCatalogName,
-          saveSpec: !readonlyAliases?.has(wantedDep.alias),
+          // A superseded request is no longer the manifest's new specifier, so it loses the
+          // exemption `getDeclaredSpecifierOwnedByHook` grants an explicit one: a range or a
+          // `catalog:` reference the project already declares stays as it is.
+          saveSpec: hookSupersededSpecifiers?.has(wantedDep.alias) ? undefined : !readonlyAliases?.has(wantedDep.alias),
           updateToLatestAllowed: !hookGovernedAliases?.has(wantedDep.alias),
           updateSpec: true,
         })),
@@ -1344,14 +1343,16 @@ export async function mutateModules (
      * next read. Keeping the requested specifier would leave the manifest and
      * the lockfile disagreeing, so the next `--frozen-lockfile` install would
      * reject them; the hook's specifier is saved instead. Overrides are
-     * excluded: an explicit version intentionally ignores them. `undefined`
-     * when every requested specifier survives the hooks.
+     * excluded: an explicit version intentionally ignores them.
+     *
+     * The hooks run over the manifest on disk carrying the requested
+     * declarations, which is what the next install reads, rather than over the
+     * manifest this run has already put through them.
+     *
+     * `undefined` when every requested specifier survives the hooks.
      */
     async function getHookSupersededSpecifiers (
-      project: Pick<InstallSomeProject, 'dependencySelectors' | 'manifest' | 'rootDir' | 'targetDependenciesField'>,
-      opts: {
-        readPackageHook: ReadPackageHook | ReadPackageHook[] | undefined
-      }
+      project: Pick<InstallSomeProject, 'dependencySelectors' | 'manifest' | 'originalManifest' | 'peer' | 'rootDir' | 'targetDependenciesField'>
     ): Promise<Map<string, string> | undefined> {
       const hooks = opts.readPackageHook == null
         ? []
@@ -1365,14 +1366,9 @@ export async function mutateModules (
         requestedByAlias.set(alias, requested)
       }
       if (requestedByAlias.size === 0) return undefined
-      let probed: ProjectManifest = mergeInstallSelectors({
-        ...project.manifest,
-        dependencies: { ...project.manifest.dependencies },
-        devDependencies: { ...project.manifest.devDependencies },
-        optionalDependencies: { ...project.manifest.optionalDependencies },
-        peerDependencies: { ...project.manifest.peerDependencies },
-      }, {
+      let probed: ProjectManifest = mergeInstallSelectors(clone(project.originalManifest ?? project.manifest), {
         dependencySelectors: project.dependencySelectors,
+        peer: project.peer,
         targetDependenciesField: project.targetDependenciesField,
       } as InstallSomeDepsMutation)
       /* eslint-disable no-await-in-loop */
@@ -1380,7 +1376,7 @@ export async function mutateModules (
         probed = await hook(probed, project.rootDir)
       }
       /* eslint-enable no-await-in-loop */
-      const probedDependencies = getAllDependenciesFromManifest(probed)
+      const probedDependencies = getAllDependenciesFromManifest(probed, { autoInstallPeers: opts.autoInstallPeers })
       let superseded: Map<string, string> | undefined
       for (const [alias, requested] of requestedByAlias) {
         const probedSpecifier = probedDependencies[alias]
