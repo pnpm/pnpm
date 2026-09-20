@@ -10,6 +10,7 @@ mod scalar_aliases;
 mod tests;
 
 use serde_json::Value;
+use serde_saphyr::granit_parser::{Scanner, StrInput, Token, TokenType};
 use std::ops::Range;
 use yamlpath::{Document, FeatureKind, Route};
 
@@ -59,16 +60,11 @@ pub fn sync(text: &str, value: &Value) -> Result<String, Box<Error>> {
         return Ok(text.to_string());
     }
     let (text, aliases) = ScalarAliases::expand(text)?;
-    let text = if text
-        .lines()
-        .all(|line| line.trim().is_empty() || line.trim_start().starts_with('#'))
-    {
-        format!(
-            "{}{}{}",
-            text,
-            if text.is_empty() || text.ends_with('\n') { "" } else { "\n" },
-            serialize(value)?,
-        )
+    let insertion = if original.is_null() { empty_document_insertion(&text) } else { None };
+    let text = if let Some(offset) = insertion {
+        let (before, after) = text.split_at(offset);
+        let separator = if before.is_empty() || before.ends_with('\n') { "" } else { "\n" };
+        format!("{before}{separator}{}{after}", serialize(value)?)
     } else {
         let mut document = Document::new(text).map_err(Error::from)?;
         collection_aliases::detach_changed(&mut document, &original, value)?;
@@ -81,6 +77,23 @@ pub fn sync(text: &str, value: &Value) -> Result<String, Box<Error>> {
         )));
     }
     Ok(text)
+}
+
+fn empty_document_insertion(text: &str) -> Option<usize> {
+    let mut insertion = text.len();
+    for Token(span, token) in Scanner::new(StrInput::new(text)) {
+        match token {
+            TokenType::DocumentEnd => insertion = scalar_aliases::byte_range(span).start,
+            TokenType::StreamStart(_)
+            | TokenType::StreamEnd
+            | TokenType::DocumentStart
+            | TokenType::VersionDirective(..)
+            | TokenType::TagDirective(..)
+            | TokenType::Comment(_) => {}
+            _ => return None,
+        }
+    }
+    Some(insertion)
 }
 
 fn patch_value(

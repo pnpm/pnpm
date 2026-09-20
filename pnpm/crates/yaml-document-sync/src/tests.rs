@@ -115,3 +115,14 @@ fn preserves_yaml_metadata_while_adding_a_version() {
         assert_eq!(sync(source, &target).unwrap(), format!("{source}version: 1.0.0\n"));
     }
 }
+
+#[test]
+fn fills_empty_documents_without_discarding_markers_or_comments() {
+    for (source, expected) in [
+        ("---\n# project\n", "---\n# project\nname: fixture\n"),
+        ("---\n# project\n...\n# trailing\n", "---\n# project\nname: fixture\n...\n# trailing\n"),
+        ("%YAML 1.2\n---\n", "%YAML 1.2\n---\nname: fixture\n"),
+    ] {
+        assert_eq!(sync(source, &json!({"name":"fixture"})).unwrap(), expected);
+    }
+}
