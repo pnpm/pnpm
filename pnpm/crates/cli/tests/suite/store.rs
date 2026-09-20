@@ -1,14 +1,22 @@
+use crate::_utils;
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
 use pipe_trait::Pipe;
 use pnpm_store_dir::STORE_VERSION;
-use pnpm_testing_utils::bin::CommandTempCwd;
+use pnpm_testing_utils::{bin::CommandTempCwd, command_env::CommandTestExt};
 use pretty_assertions::assert_eq;
 use std::{
     fs,
     path::{Path, PathBuf},
-    process::Command,
+    process::{Command, Stdio},
 };
+
+fn pacquet_at(workspace: &Path) -> Command {
+    Command::cargo_bin("pnpm")
+        .expect("find the pnpm binary")
+        .with_current_dir(workspace)
+        .without_ambient_pnpm_config()
+}
 
 /// Canonicalize a path the same way the production CLI does. The CLI
 /// runs `dunce::canonicalize` on `--dir` and threads that through to
@@ -264,6 +272,56 @@ fn store_add_fetches_a_package_without_touching_the_project() {
 }
 
 #[test]
+fn store_add_waits_for_the_store_operation_lock() {
+    let CommandTempCwd {
+        pacquet,
+        workspace,
+        root: _root,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    let store_dir = pnpm_store_dir::StoreDir::from(npmrc_info.store_dir);
+    pacquet_at(&workspace)
+        .with_args(["store", "add", "@pnpm.e2e/foo@100.0.0"])
+        .assert()
+        .success();
+    let prune_lock = store_dir.lock_for_prune().expect("lock store for prune");
+    let alternate_temp = workspace.join("alternate-temp");
+    fs::create_dir(&alternate_temp).expect("create alternate temporary directory");
+    let output_path = workspace.join("store-add-lock.ndjson");
+
+    let mut add = pacquet
+        .with_args([
+            "--reporter=ndjson",
+            "--loglevel=debug",
+            "store",
+            "add",
+            "@pnpm.e2e/foo@100.0.0",
+        ])
+        .env("TMPDIR", &alternate_temp)
+        .env("TEMP", &alternate_temp)
+        .env("TMP", &alternate_temp)
+        .stdout(Stdio::null())
+        .stderr(fs::File::create(&output_path).expect("create store add output"))
+        .spawn()
+        .expect("spawn store add");
+    _utils::wait_for_child_output(
+        &mut add,
+        &output_path,
+        "Waiting for the store add operation lock",
+    );
+    _utils::assert_child_output_stays_absent(
+        &mut add,
+        &output_path,
+        "Acquired the store add operation lock",
+    );
+    drop(prune_lock);
+    assert!(_utils::wait_for_child(&mut add).success());
+    let output = fs::read_to_string(&output_path).expect("read completed store add output");
+    assert!(output.contains("Acquired the store add operation lock"), "{output}");
+}
+
+#[test]
 fn store_add_fails_when_a_package_cannot_be_fetched() {
     let CommandTempCwd { pacquet, root: _root, .. } = CommandTempCwd::init().add_mocked_registry();
 
@@ -275,6 +333,54 @@ fn store_add_fails_when_a_package_cannot_be_fetched() {
     eprintln!("stderr={stderr}");
     assert!(!output.status.success(), "store add must fail when a package cannot be fetched");
     assert!(stderr.contains("ERR_PNPM_STORE_ADD_FAILURE"), "stderr={stderr}");
+}
+
+#[test]
+fn store_prune_removes_packages_left_unreferenced_by_remove() {
+    let CommandTempCwd {
+        root: _root, workspace, npmrc_info, ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    pacquet_at(&workspace)
+        .with_args(["add", "is-positive@1.0.0", "--package-import-method=hardlink"])
+        .assert()
+        .success();
+
+    let store_dir = pnpm_store_dir::StoreDir::from(npmrc_info.store_dir);
+    let package_keys = || {
+        pnpm_store_dir::StoreIndex::open_readonly_in(&store_dir)
+            .expect("open store index")
+            .keys()
+            .expect("read store index keys")
+    };
+    assert!(
+        package_keys()
+            .iter()
+            .any(|key| key.contains("is-positive@1.0.0")),
+    );
+
+    pacquet_at(&workspace)
+        .with_args(["remove", "is-positive", "--package-import-method=hardlink"])
+        .assert()
+        .success();
+    assert!(
+        package_keys()
+            .iter()
+            .any(|key| key.contains("is-positive@1.0.0")),
+    );
+
+    let output = pacquet_at(&workspace)
+        .with_args(["store", "prune"])
+        .output()
+        .expect("run store prune");
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(output.status.success(), "store prune failed: {stderr}");
+    assert!(stderr.contains("Removed "), "store prune must report what it reclaimed: {stderr}");
+    assert!(
+        !package_keys()
+            .iter()
+            .any(|key| key.contains("is-positive@1.0.0")),
+        "store prune must remove the unreferenced package row",
+    );
 }
 
 /// The resolver chain claims every protocol pnpm supports, but only an

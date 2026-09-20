@@ -18,7 +18,9 @@ use std::{
     fmt::Write as _,
     fs,
     path::{Path, PathBuf},
-    process::{Command, Output},
+    process::{Child, Command, ExitStatus, Output},
+    thread,
+    time::{Duration, Instant},
 };
 use tempfile::TempDir;
 
@@ -31,6 +33,59 @@ pub fn pacquet_in(workspace: &Path) -> Command {
         .expect("find the pnpm binary")
         .with_current_dir(workspace)
         .without_ambient_pnpm_config()
+}
+
+pub fn wait_for_child(child: &mut Child) -> ExitStatus {
+    let deadline = Instant::now() + Duration::from_secs(30);
+    loop {
+        if let Some(status) = child.try_wait().expect("read child status") {
+            return status;
+        }
+        if Instant::now() >= deadline {
+            child.kill().expect("stop stalled child");
+            child.wait().expect("reap stalled child");
+            panic!("child did not finish before the deadline");
+        }
+        thread::sleep(Duration::from_millis(10));
+    }
+}
+
+pub fn wait_for_child_output(child: &mut Child, path: &Path, expected: &str) {
+    let deadline = Instant::now() + Duration::from_secs(30);
+    loop {
+        let output = fs::read_to_string(path).unwrap_or_default();
+        if output.contains(expected) {
+            return;
+        }
+        if let Some(status) = child.try_wait().expect("read child status") {
+            panic!("child exited with {status} before writing {expected:?}:\n{output}");
+        }
+        if Instant::now() >= deadline {
+            child.kill().expect("stop stalled child");
+            child.wait().expect("reap stalled child");
+            panic!("child did not write {expected:?} before the deadline:\n{output}");
+        }
+        thread::sleep(Duration::from_millis(10));
+    }
+}
+
+pub fn assert_child_output_stays_absent(child: &mut Child, path: &Path, unexpected: &str) {
+    let deadline = Instant::now() + Duration::from_millis(500);
+    loop {
+        let output = fs::read_to_string(path).expect("read child output");
+        assert!(!output.contains(unexpected), "unexpected {unexpected:?}:\n{output}");
+        assert!(
+            child
+                .try_wait()
+                .expect("read child status")
+                .is_none(),
+            "child exited while it was expected to remain blocked:\n{output}",
+        );
+        if Instant::now() >= deadline {
+            return;
+        }
+        thread::sleep(Duration::from_millis(10));
+    }
 }
 
 /// Make the spawned `pnpm` style its output.

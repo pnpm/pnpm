@@ -13,6 +13,7 @@ pub(super) struct CommitModulesStateInputs<'a> {
     pub(crate) materialized: crate::install::state_options::CommittedProjects<'a>,
     pub(crate) prior: crate::install::state_options::PriorModulesState<'a>,
     pub(crate) write: crate::install::state_options::LockfileWritePolicy,
+    pub(crate) force_prune: bool,
 }
 pub(super) fn commit_modules_state(
     mut inputs: CommitModulesStateInputs<'_>,
@@ -72,6 +73,7 @@ pub(super) fn prepare_committed_build_state(
         inputs.prior.layout,
         inputs.lockfiles.materialized,
         inputs.materialized.skipped,
+        inputs.force_prune,
         now,
     );
     tracing::info!(target: "pacquet::install::phase", phase = "apply.prune", elapsed_ms = phase_start.elapsed().as_millis() as u64, "phase complete");
@@ -201,6 +203,31 @@ pub(super) fn sweep_virtual_store(
     prior_modules: Option<&pnpm_modules_yaml::ModulesLayout>,
     materialized_current_lockfile: Option<&Lockfile>,
     install_skipped: &crate::SkippedSnapshots,
+    force: bool,
+    now: SystemTime,
+) -> bool {
+    if !virtual_store_prune_is_due(config, prior_modules, force, now) {
+        return false;
+    }
+    let Some(wanted) = materialized_current_lockfile else {
+        return false;
+    };
+    let Some(prune_dir) = confined_virtual_store_prune_target(config) else {
+        return false;
+    };
+    crate::prune_virtual_store::prune_virtual_store(
+        &prune_dir,
+        wanted.snapshots.iter().flat_map(|snapshots| snapshots.keys()),
+        install_skipped,
+        config.virtual_store_dir_max_length as usize,
+    )
+    .is_some()
+}
+
+fn virtual_store_prune_is_due(
+    config: &Config,
+    prior_modules: Option<&pnpm_modules_yaml::ModulesLayout>,
+    force: bool,
     now: SystemTime,
 ) -> bool {
     let effective_virtual_store_dir = config.effective_virtual_store_dir();
@@ -212,17 +239,18 @@ pub(super) fn sweep_virtual_store(
         effective_virtual_store_dir,
         &config.global_virtual_store_dir,
     );
-    if !crate::prune_virtual_store::should_prune_virtual_store(
-        is_global_virtual_store,
-        prior_modules.map(|modules| modules.pruned_at.as_str()),
-        config.modules_cache_max_age,
-        now,
-    ) {
-        return false;
-    }
-    let Some(wanted) = materialized_current_lockfile else {
-        return false;
-    };
+    !is_global_virtual_store
+        && (force
+            || crate::prune_virtual_store::should_prune_virtual_store(
+                false,
+                prior_modules.map(|modules| modules.pruned_at.as_str()),
+                config.modules_cache_max_age,
+                now,
+            ))
+}
+
+fn confined_virtual_store_prune_target(config: &Config) -> Option<PathBuf> {
+    let effective_virtual_store_dir = config.effective_virtual_store_dir();
     // Sweep the canonicalized prune target returned by the containment
     // check, never the raw configured path: deleting from the validated path
     // closes the time-of-check/time-of-use gap a symlink swap would
@@ -238,15 +266,9 @@ pub(super) fn sweep_virtual_store(
             modules_dir = %config.modules_dir.display(),
             "skipping virtual-store prune: the virtual store is not inside node_modules",
         );
-        return false;
+        return None;
     };
-    crate::prune_virtual_store::prune_virtual_store(
-        &prune_dir,
-        wanted.snapshots.iter().flat_map(|snapshots| snapshots.keys()),
-        install_skipped,
-        config.virtual_store_dir_max_length as usize,
-    )
-    .is_some()
+    Some(prune_dir)
 }
 /// What decides whether a relinking frozen install rewrites `pnpm-lock.yaml`.
 pub(super) struct RelinkedLockfileSave<'a> {

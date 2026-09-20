@@ -8,23 +8,32 @@ use pnpm_testing_utils::bin::CommandTempCwd;
 use serde_json::json;
 use std::{
     fs,
+    io::{BufRead, BufReader, Read},
     path::{Path, PathBuf},
-    process::Command,
+    process::{Child, Command, Stdio},
     thread,
     time::{Duration, Instant},
 };
 
 const HOLD: Duration = Duration::from_secs(1);
+const RELEASE_TIMEOUT: Duration = Duration::from_secs(30);
 
 const HOLD_SCRIPT: &str = r"
     const fs = require('fs');
     const path = require('path');
     const dir = process.env.MARKER_DIR;
     const marker = path.join(dir, `running-${process.pid}`);
-    const others = fs.readdirSync(dir).filter((name) => name.startsWith('running-'));
     fs.writeFileSync(marker, '');
+    const others = fs.readdirSync(dir).filter((name) =>
+      name.startsWith('running-') && path.join(dir, name) !== marker
+    );
     if (others.length > 0) fs.writeFileSync(path.join(dir, 'overlap'), others.join('\n'));
-    setTimeout(() => fs.unlinkSync(marker), Number(process.env.HOLD_MS));
+    const sleeper = new Int32Array(new SharedArrayBuffer(4));
+    const deadline = Date.now() + Number(process.env.HOLD_MS);
+    while (fs.existsSync(marker) && Date.now() < deadline) {
+      Atomics.wait(sleeper, 0, 0, 10);
+    }
+    if (fs.existsSync(marker)) fs.unlinkSync(marker);
 ";
 
 fn write_project(workspace: &Path, pacquet: &Path, limit: u32) {
@@ -77,25 +86,48 @@ fn hold(pacquet: &Command) -> Command {
     pnpm_run(pacquet, "hold")
 }
 
+fn releasable_holder(pacquet: &Command) -> Child {
+    hold(pacquet)
+        .env("HOLD_MS", RELEASE_TIMEOUT.as_millis().to_string())
+        .spawn()
+        .expect("spawn the holding run")
+}
+
 /// The holder owns its slot once its script has written the marker.
-fn wait_for_holder(workspace: &Path) {
+fn wait_for_holders(workspace: &Path, count: usize) {
     let deadline = Instant::now() + Duration::from_secs(30);
     while Instant::now() < deadline {
         let running = fs::read_dir(workspace)
             .expect("list the workspace")
             .filter_map(Result::ok)
-            .any(|entry| {
+            .filter(|entry| {
                 entry
                     .file_name()
                     .to_string_lossy()
                     .starts_with("running-")
-            });
-        if running {
+            })
+            .count();
+        if running >= count {
             return;
         }
         thread::sleep(Duration::from_millis(20));
     }
-    panic!("the holder never started its script");
+    panic!("{count} holders never started their scripts");
+}
+
+fn release_holders(workspace: &Path) {
+    for entry in fs::read_dir(workspace)
+        .expect("list the workspace")
+        .filter_map(Result::ok)
+        .filter(|entry| {
+            entry
+                .file_name()
+                .to_string_lossy()
+                .starts_with("running-")
+        })
+    {
+        fs::remove_file(entry.path()).expect("release a holding run");
+    }
 }
 
 #[test]
@@ -130,16 +162,22 @@ fn tasks_within_the_limit_do_not_wait() {
     let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
     write_project(&workspace, Path::new(pacquet.get_program()), 2);
 
-    let started = Instant::now();
-    let mut first = hold(&pacquet).spawn().expect("spawn the first run");
-    let mut second = hold(&pacquet).spawn().expect("spawn the second run");
+    let mut first = hold(&pacquet)
+        .env("HOLD_MS", RELEASE_TIMEOUT.as_millis().to_string())
+        .spawn()
+        .expect("spawn the first run");
+    let mut second = hold(&pacquet)
+        .env("HOLD_MS", RELEASE_TIMEOUT.as_millis().to_string())
+        .spawn()
+        .expect("spawn the second run");
+    wait_for_holders(&workspace, 2);
+    release_holders(&workspace);
     let first = first.wait().expect("wait for the first run");
     let second = second.wait().expect("wait for the second run");
-    let elapsed = started.elapsed();
 
-    dbg!(first, second, elapsed);
+    dbg!(first, second);
     assert!(first.success() && second.success());
-    assert!(elapsed < HOLD * 2, "a run waited although a second slot was free");
+    assert!(workspace.join("overlap").exists(), "both available slots were not used together");
 
     drop(root);
 }
@@ -149,13 +187,14 @@ fn a_task_outside_the_group_runs_while_the_slots_are_held() {
     let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
     write_project(&workspace, Path::new(pacquet.get_program()), 1);
 
-    let mut holder = hold(&pacquet).spawn().expect("spawn the holding run");
-    wait_for_holder(&workspace);
+    let mut holder = releasable_holder(&pacquet);
+    wait_for_holders(&workspace, 1);
     let free = pnpm_run(&pacquet, "free").status().expect("run the free script");
     let holder_still_running = holder
         .try_wait()
         .expect("poll the holding run")
         .is_none();
+    release_holders(&workspace);
     holder.wait().expect("wait for the holding run");
 
     dbg!(free, holder_still_running);
@@ -170,17 +209,34 @@ fn a_waiting_task_reports_who_holds_the_slots() {
     let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
     write_project(&workspace, Path::new(pacquet.get_program()), 1);
 
-    let mut holder = hold(&pacquet).spawn().expect("spawn the holding run");
-    wait_for_holder(&workspace);
-    let output = hold(&pacquet).output().expect("run the waiting run");
+    let mut holder = releasable_holder(&pacquet);
+    wait_for_holders(&workspace, 1);
+    let mut waiting = hold(&pacquet)
+        .stdout(Stdio::piped())
+        .spawn()
+        .expect("spawn the waiting run");
+    let mut stdout = BufReader::new(waiting.stdout.take().expect("capture the waiting run stdout"));
+    let mut rendered = String::new();
+    loop {
+        let mut line = String::new();
+        if stdout.read_line(&mut line).expect("read the waiting warning") == 0 {
+            break;
+        }
+        rendered.push_str(&line);
+        if rendered.contains(r#"Waiting to run "hold": all 1 slots of concurrency group "test""#) {
+            break;
+        }
+    }
+    release_holders(&workspace);
+    stdout.read_to_string(&mut rendered).expect("read the waiting run stdout");
+    let status = waiting.wait().expect("wait for the waiting run");
     holder.wait().expect("wait for the holding run");
 
     // The default reporter renders warnings on stdout.
-    let stdout = String::from_utf8_lossy(&output.stdout);
-    dbg!(&stdout);
-    assert!(output.status.success());
-    assert!(stdout.contains(r#"Waiting to run "hold": all 1 slots of concurrency group "test""#));
-    assert!(stdout.contains(&format!("pid {} in ", holder.id())));
+    dbg!(&rendered);
+    assert!(status.success());
+    assert!(rendered.contains(r#"Waiting to run "hold": all 1 slots of concurrency group "test""#));
+    assert!(rendered.contains(&format!("pid {} in ", holder.id())));
 
     drop(root);
 }

@@ -30,6 +30,9 @@ pub(super) fn map_fresh_lockfile_error(error: InstallWithFreshLockfileError) -> 
 /// Error type of [`Install`](crate::Install).
 #[derive(Debug, Display, Error, Diagnostic)]
 pub enum InstallError {
+    #[diagnostic(transparent)]
+    StoreLock(#[error(source)] pnpm_store_dir::StoreLockError),
+
     /// A path named by the `pnpmfile` setting is not on disk. pnpm reports the
     /// same code and message from `requireHooks`.
     #[diagnostic(code(ERR_PNPM_PNPMFILE_NOT_FOUND))]

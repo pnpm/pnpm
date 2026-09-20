@@ -19,7 +19,10 @@
 //! on the hot install path); parallelism can be added later if
 //! profiling shows it's worth the complexity.
 
-use crate::{GetRegisteredProjectsError, StoreDir, get_registered_projects};
+use crate::{
+    GetRegisteredProjectsError, StoreDir, StoreLockError, get_registered_projects,
+    prune_cas::PruneCasError,
+};
 use derive_more::{Display, Error};
 use miette::Diagnostic;
 use pnpm_fs::read_symlink_dir;
@@ -33,6 +36,9 @@ use std::{
 /// Error type of [`StoreDir::prune`].
 #[derive(Debug, Display, Error, Diagnostic)]
 pub enum PruneError {
+    #[diagnostic(transparent)]
+    StoreLock(#[error(source)] StoreLockError),
+
     /// Surface from the read-side of the project registry — stale
     /// entries that can't be unlinked, inaccessible registry dirs,
     /// or projects whose `stat` returned a permission error.
@@ -59,11 +65,14 @@ pub enum PruneError {
         #[error(source)]
         error: io::Error,
     },
+
+    #[diagnostic(transparent)]
+    PruneCas(#[error(source)] PruneCasError),
 }
 
 impl StoreDir {
-    /// Remove unreferenced packages from the global virtual store at
-    /// `<store_dir>/links`.
+    /// Remove unreferenced packages from the global virtual store and
+    /// content-addressable files that have no hard links outside the store.
     ///
     /// Pacquet doesn't yet thread the install-time reporter into
     /// store-dir, so the informational messages go to stderr via
@@ -75,6 +84,24 @@ impl StoreDir {
     ///
     /// [#344]: https://github.com/pnpm/pacquet/issues/344
     pub fn prune(&self) -> Result<(), PruneError> {
+        let _store_lock = self.lock_for_prune().map_err(PruneError::StoreLock)?;
+        self.prune_global_virtual_store()?;
+        let stats = crate::prune_cas::prune_cas(self).map_err(PruneError::PruneCas)?;
+        eprintln!(
+            "Removed {} file{} ({} bytes)",
+            stats.files,
+            if stats.files == 1 { "" } else { "s" },
+            stats.bytes,
+        );
+        eprintln!(
+            "Removed {} package{}",
+            stats.packages,
+            if stats.packages == 1 { "" } else { "s" },
+        );
+        Ok(())
+    }
+
+    fn prune_global_virtual_store(&self) -> Result<(), PruneError> {
         let links_dir = self.links();
         if !path_exists(&links_dir) {
             return Ok(());

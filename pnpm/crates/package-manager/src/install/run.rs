@@ -44,6 +44,12 @@ where
         self,
         options: InstallRunOptions<'a, '_>,
     ) -> Result<(), InstallError> {
+        let _store_lock = if self.context.config.frozen_store {
+            self.context.config.store_dir.lock_for_frozen_use()
+        } else {
+            self.context.config.store_dir.lock_for_use()
+        }
+        .map_err(InstallError::StoreLock)?;
         // The branch lockfiles become disposable only once the merge has
         // been written for good. An install that neither reads nor saves a
         // lockfile never merged them, and one that only reports what it

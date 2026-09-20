@@ -10,13 +10,7 @@ use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
 use pnpm_testing_utils::{bin::CommandTempCwd, command_env::CommandTestExt};
 use serde_json::{Value, json};
-use std::{
-    collections::HashMap,
-    fs,
-    path::Path,
-    process::Command,
-    time::{Duration, Instant},
-};
+use std::{collections::HashMap, fs, path::Path, process::Command};
 
 /// Write a `pnpm-workspace.yaml` listing `names` as packages, plus a
 /// `package.json` per name under its own subdirectory of `workspace`.
@@ -487,9 +481,8 @@ fn recursive_exec_bail_cancels_in_flight_processes() {
     let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
     write_workspace(&workspace, &["a-slow-1", "b-fails", "c-slow-2", "z-queued"]);
 
-    // The five-second timer is what bail has to cancel, and the failure
-    // waits for both marks first, so cancellation is the only way the run
-    // can come in under the deadline asserted below.
+    // The failure waits for both marks first, so both slow probes are in
+    // flight before bail cancels them.
     let probe = write_exec_probe(
         &workspace,
         "bail-probe.cjs",
@@ -498,7 +491,7 @@ const name = require('path').basename(process.cwd())
 const mark = () => fs.writeFileSync('ran.txt', '')
 if (name === 'a-slow-1' || name === 'c-slow-2') {
   mark()
-  setTimeout(() => {}, 5000)
+  setTimeout(() => fs.writeFileSync('completed.txt', ''), 5000)
 } else if (name === 'b-fails') {
   let waited = 0
   const poll = () => {
@@ -515,21 +508,23 @@ if (name === 'a-slow-1' || name === 'c-slow-2') {
 ",
     );
 
-    let start = Instant::now();
     let output = pacquet
         .with_args(["--workspace-concurrency=3", "--no-sort", "--report-summary", "-r", "exec"])
         .with_args(probe)
         .output()
         .expect("spawn pacquet");
-    let elapsed = start.elapsed();
     let stderr = String::from_utf8_lossy(&output.stderr);
     eprintln!("STDERR:\n{stderr}\n");
     assert!(!output.status.success(), "the failing project should fail the exec");
-    eprintln!("recursive exec elapsed: {elapsed:?}");
-    assert!(
-        elapsed < Duration::from_secs(4),
-        "bail should interrupt the five-second in-flight commands",
-    );
+    for name in ["a-slow-1", "c-slow-2"] {
+        assert!(
+            !workspace
+                .join(name)
+                .join("completed.txt")
+                .exists(),
+            "bail should interrupt {name}'s five-second command",
+        );
+    }
 
     let statuses = summary_statuses(&workspace);
     dbg!(&statuses);
