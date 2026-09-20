@@ -29,7 +29,12 @@ pub(super) struct ResolverSetup {
 pub(super) struct InstallShape {
     pub(super) is_hoisted: bool,
     pub(super) link_options: pnpm_cmd_shim::LinkBinsOptions,
-    pub(super) filtered_isolated: bool,
+    /// Whether the run materializes less than the resolve pass walked, so
+    /// neither the prefetcher nor the early materializer can predict what the
+    /// install imports. A `--filter` workspace selection narrows the
+    /// importers; a `--prod` / `--dev` run narrows their dependency groups
+    /// (pnpm/pnpm#881).
+    pub(super) materializes_subset: bool,
     pub(super) verify_filtered_repair: bool,
     pub(super) include_transitive_optional_dependencies: bool,
 }
@@ -46,7 +51,11 @@ impl InstallShape {
                 install.drivers.config,
                 install.execution.node_linker,
             ),
-            filtered_isolated: partial_selection && !is_hoisted,
+            // A hoisted linker shares one tree, so a partial selection still
+            // materializes every importer. A group filter narrows the graph
+            // under either linker.
+            materializes_subset: (partial_selection && !is_hoisted)
+                || install.resolve_widened_groups(),
             verify_filtered_repair: matches!(update_seed_policy, UpdateSeedPolicy::FixLockfile)
                 && partial_selection,
             include_transitive_optional_dependencies: include_transitive_optional_dependencies(
@@ -166,7 +175,10 @@ pub(super) async fn build_fresh_resolver_chain<Reporter: self::Reporter + 'stati
             tarballs: &owned.fetching.tarball_mem_cache,
             auth_headers: &access.auth_headers,
             progress_reported: &stores.caches.progress_reported,
-            prefetch: prefetch_downloads(install.execution.lockfile_only, shape.filtered_isolated),
+            prefetch: prefetch_downloads(
+                install.execution.lockfile_only,
+                shape.materializes_subset,
+            ),
         },
         hooks: crate::install_with_fresh_lockfile::resolution_inputs::ResolverChainHooks {
             pnpmfile: owned.pnpmfile_hook_override.take(),
@@ -397,10 +409,11 @@ pub(super) async fn pnpmfile_checksum(
     let hook = after_all_resolved_hook?;
     hook.calculate_pnpmfile_checksum().await
 }
-/// A lockfile-only resolve never fetches, and a filtered isolated install
-/// materializes a subset the prefetcher cannot predict.
-pub(super) fn prefetch_downloads(lockfile_only: bool, filtered_isolated: bool) -> bool {
-    !lockfile_only && !filtered_isolated
+/// Whether the resolver prefetches the tarball of each package it resolves.
+/// A lockfile-only resolve never fetches, and see
+/// [`InstallShape::materializes_subset`] for the other case.
+pub(super) fn prefetch_downloads(lockfile_only: bool, materializes_subset: bool) -> bool {
+    !lockfile_only && !materializes_subset
 }
 /// The trust policy the resolver enforces: `Off` means it enforces none.
 pub(super) fn resolver_trust_policy(configured: TrustPolicy) -> Option<TrustPolicy> {

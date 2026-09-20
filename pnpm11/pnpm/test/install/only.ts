@@ -1,3 +1,4 @@
+import fs from 'node:fs'
 import path from 'node:path'
 
 import { expect, test } from '@jest/globals'
@@ -5,7 +6,7 @@ import { prepare } from '@pnpm/prepare'
 import type { PackageManifest } from '@pnpm/types'
 import { loadJsonFileSync } from 'load-json-file'
 
-import { execPnpm } from '../utils/index.js'
+import { execPnpm, execPnpmSync } from '../utils/index.js'
 
 const basicPackageManifest = loadJsonFileSync<PackageManifest>(path.join(import.meta.dirname, '../utils/simple-package.json'))
 
@@ -42,4 +43,42 @@ test('install dev dependencies only', async () => {
   expect(typeof isNegative).toBe('function')
 
   project.hasNot('is-positive')
+})
+
+const PROD_DIRECT = '@pnpm.e2e/has-foo-100.1.0-dep-1@1.0.0'
+const SHARED = '@pnpm.e2e/foo@100.1.0'
+const DEV_DIRECT = '@pnpm.e2e/bravo@1.0.0'
+const DEV_TRANSITIVE = '@pnpm.e2e/bravo-dep@1.1.0'
+
+function storeHolds (pkg: string): boolean {
+  return execPnpmSync(['cat-index', pkg]).status === 0
+}
+
+test('production install does not download a package only a devDependency reaches', async () => {
+  prepare({
+    dependencies: {
+      '@pnpm.e2e/has-foo-100.1.0-dep-1': '1.0.0',
+    },
+    devDependencies: {
+      // Reached by the production dependency above as well, so a prod
+      // install still downloads it.
+      '@pnpm.e2e/foo': '100.1.0',
+      '@pnpm.e2e/bravo': '1.0.0',
+    },
+  })
+
+  await execPnpm(['install', '--prod'])
+
+  // The absence assertions below name an exact version, so a fixture
+  // registry that gained a newer `@pnpm.e2e/bravo-dep` would make them pass
+  // without testing anything. The lockfile records every group, so it is
+  // where the version this graph resolves to can be checked.
+  expect(fs.readFileSync('pnpm-lock.yaml', 'utf8')).toContain(DEV_TRANSITIVE)
+
+  for (const pkg of [PROD_DIRECT, SHARED]) {
+    expect(storeHolds(pkg)).toBe(true)
+  }
+  for (const pkg of [DEV_DIRECT, DEV_TRANSITIVE]) {
+    expect(storeHolds(pkg)).toBe(false)
+  }
 })

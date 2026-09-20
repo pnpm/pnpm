@@ -566,3 +566,102 @@ fn virtual_store_only_install_under_pnp_does_not_write_the_loader() {
 
     drop((root, mock_instance, store_dir));
 }
+
+/// Production direct dependency, a shared package both groups reach, and
+/// the dev-only chain a `--prod` run must leave alone.
+const PROD_DIRECT: (&str, &str) = ("@pnpm.e2e/has-foo-100.1.0-dep-1", "1.0.0");
+const SHARED: (&str, &str) = ("@pnpm.e2e/foo", "100.1.0");
+const DEV_DIRECT: (&str, &str) = ("@pnpm.e2e/bravo", "1.0.0");
+const DEV_TRANSITIVE: (&str, &str) = ("@pnpm.e2e/bravo-dep", "1.1.0");
+
+/// Whether the content-addressable store holds an index for `name@version`.
+///
+/// `pnpm cat-index` exits non-zero with `ERR_PNPM_INVALID_PACKAGE` when the
+/// package was never fetched, which is what distinguishes a tarball this
+/// install downloaded from one it only resolved.
+fn store_holds(workspace: &std::path::Path, (name, version): (&str, &str)) -> bool {
+    pacquet_in(workspace)
+        .with_args(["cat-index", &format!("{name}@{version}")])
+        .output()
+        .expect("run pnpm cat-index")
+        .status
+        .success()
+}
+
+/// `pnpm install --prod` must not download a package that only a
+/// devDependency reaches (pnpm/pnpm#881).
+///
+/// The resolve pass still walks every dependency group, so the store, not
+/// `node_modules`, is what shows whether the filter reached the fetch.
+/// `install::lockfile` covers the other half, that the lockfile keeps
+/// recording every group (pnpm/pnpm#14912).
+fn assert_prod_install_downloads_no_dev_only_package(extra_install_args: &[&str]) {
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({
+            "name": "project",
+            "version": "1.0.0",
+            "dependencies": { PROD_DIRECT.0: PROD_DIRECT.1 },
+            "devDependencies": { DEV_DIRECT.0: DEV_DIRECT.1, SHARED.0: SHARED.1 },
+        })
+        .to_string(),
+    )
+    .expect("write package.json");
+
+    let mut args = vec!["install", "--prod"];
+    args.extend_from_slice(extra_install_args);
+    pacquet
+        .with_args(args)
+        .assert()
+        .success();
+
+    // The absence assertions below name an exact version, so a fixture
+    // registry that gained a newer `@pnpm.e2e/bravo-dep` would make them
+    // pass without testing anything. The lockfile records every group, so
+    // it is where the version this graph resolves to can be checked.
+    let lockfile = fs::read_to_string(workspace.join("pnpm-lock.yaml")).expect("read lockfile");
+    assert!(
+        lockfile.contains(&format!("{}@{}", DEV_TRANSITIVE.0, DEV_TRANSITIVE.1)),
+        "the dev-only transitive dependency resolves to some version other than {}@{}",
+        DEV_TRANSITIVE.0,
+        DEV_TRANSITIVE.1,
+    );
+
+    for present in [PROD_DIRECT, SHARED] {
+        assert!(
+            store_holds(&workspace, present),
+            "install --prod {extra_install_args:?} must download {}@{}, which production reaches",
+            present.0,
+            present.1,
+        );
+    }
+    for absent in [DEV_DIRECT, DEV_TRANSITIVE] {
+        assert!(
+            !store_holds(&workspace, absent),
+            "install --prod {extra_install_args:?} downloaded {}@{}, which only a devDependency reaches",
+            absent.0,
+            absent.1,
+        );
+    }
+
+    drop((root, mock_instance));
+}
+
+#[test]
+fn prod_install_downloads_no_dev_only_package() {
+    assert_prod_install_downloads_no_dev_only_package(&[]);
+}
+
+#[test]
+fn prod_install_downloads_no_dev_only_package_with_the_hoisted_linker() {
+    assert_prod_install_downloads_no_dev_only_package(&["--node-linker=hoisted"]);
+}

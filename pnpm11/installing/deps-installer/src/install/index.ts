@@ -92,6 +92,7 @@ import type {
   DependencyManifest,
   DepPath,
   IgnoredBuilds,
+  IncludedDependencies,
   PeerDependencyIssues,
   ProjectId,
   ProjectManifest,
@@ -1900,6 +1901,18 @@ function isCheckOnlyInstall (opts: { lockfileCheck?: unknown, dryRun?: boolean }
   return opts.lockfileCheck != null || opts.dryRun === true
 }
 
+/**
+ * Whether the install materializes fewer dependency groups than it resolves.
+ * Resolution walks every group so the lockfile keeps describing the manifest
+ * rather than the `--prod` / `--dev` filter the run was invoked with, which
+ * leaves materialization as the only stage the filter can reach. Until it
+ * does, the resolver fetches the tarballs of the groups the install drops
+ * (pnpm/pnpm#881).
+ */
+function materializesGroupSubset (include: IncludedDependencies): boolean {
+  return !include.dependencies || !include.devDependencies || !include.optionalDependencies
+}
+
 interface InstallFunctionResult {
   updatedCatalogs?: Catalogs
   newLockfile: LockfileObject
@@ -2746,7 +2759,12 @@ const installInContext: InstallFunction = async (projects, ctx, opts) => {
         }
       }
     }
-    if (opts.nodeLinker === 'hoisted' && !opts.lockfileOnly && !isCheckOnlyInstall(opts) && opts.enableModulesDir) {
+    // Both a hoisted linker and a group-filtered install resolve first and
+    // materialize from the filtered lockfile afterwards.
+    if (
+      (opts.nodeLinker === 'hoisted' || materializesGroupSubset(opts.include)) &&
+      !opts.lockfileOnly && !isCheckOnlyInstall(opts) && opts.enableModulesDir
+    ) {
       const result = await _installInContext(projects, ctx, {
         ...opts,
         lockfileOnly: true,
@@ -2775,9 +2793,10 @@ const installInContext: InstallFunction = async (projects, ctx, opts) => {
         ignoredBuilds,
       }
     }
-    // Isolated `nodeLinker` (the default) with a non-frozen install.
-    // The frozen branch is handled earlier in `tryFrozenInstall`; the
-    // hoisted branch above runs a resolve-then-materialize sequence.
+    // Isolated `nodeLinker` (the default) with a non-frozen install that
+    // installs every dependency group. The frozen branch is handled earlier in
+    // `tryFrozenInstall`; the branch above runs a resolve-then-materialize
+    // sequence.
     if (opts.runPacquet != null && opts.useLockfile && opts.saveLockfile && !opts.useGitBranchLockfile && !opts.mergeGitBranchLockfiles && !opts.lockfileOnly && !isCheckOnlyInstall(opts) && opts.enableModulesDir) {
       // pacquet >= 0.11.7 resolves itself: hand it the whole install
       // (resolve + fetch + import + link + build, writing the lockfile)
