@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/text.sanitize",
-  "version": "1100.0.0",
+  "version": "1100.0.1",
   "description": "Strips control and formatting characters from text that reaches the terminal",
   "keywords": [
     "pnpm",
