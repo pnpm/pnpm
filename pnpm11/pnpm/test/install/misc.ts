@@ -753,6 +753,7 @@ test.each([
   'auto',
   'hardlink',
   'copy',
+  'clone',
 ])('install --force restores a replaced dependency file in node_modules (packageImportMethod=%s)', async (packageImportMethod) => {
   prepare({
     dependencies: {
