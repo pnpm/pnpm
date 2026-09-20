@@ -6,7 +6,7 @@ import { audit } from '@pnpm/deps.compliance.commands'
 import { readWantedLockfile } from '@pnpm/lockfile.fs'
 import { fixtures } from '@pnpm/test-fixtures'
 import { getMockAgent, setupMockAgent, teardownMockAgent } from '@pnpm/testing.mock-agent'
-import type { DepPath } from '@pnpm/types'
+import type { DepPath, ProjectId } from '@pnpm/types'
 import { readProjectManifest } from '@pnpm/workspace.project-manifest-reader'
 import { filterProjectsFromDir } from '@pnpm/workspace.projects-filter'
 import chalk from 'chalk'
@@ -248,7 +248,7 @@ The fixed vulnerabilities are:
     expect(packagesArray).toContain(expectedPkgId)
 
     // The importer still references the real package through the alias
-    expect(lockfile!.importers?.['.']?.dependencies?.['aliased-pkg'])
+    expect(lockfile!.importers['.' as ProjectId]?.dependencies?.['aliased-pkg'])
       .toBe('@pnpm.e2e/pkg-with-1-dep@100.1.0')
   })
 
