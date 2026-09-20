@@ -271,12 +271,13 @@ export interface StrictInstallOptions extends RegistryContext {
    * A materialization pass runs straight after this one and links into the
    * same `node_modules`. It owns the reporter's `importing_done`, because the
    * default reporter completes a prefix's progress stream on the first one and
-   * the real fetch and import counts would render to a closed stream. It is
-   * also what makes handling a `node_modules` entry another package manager
-   * installed this pass's business, even though this pass writes nothing.
+   * the real fetch and import counts would render to a closed stream. It also
+   * lets this pass move aside a `node_modules` entry another package manager
+   * installed, clearing the path the next pass links into.
    *
-   * False for a standalone `--lockfile-only` or `--dry-run` run: nothing
-   * follows it, so it emits its own completion and touches no files.
+   * False for a standalone `--lockfile-only` or `--dry-run` run: no pass
+   * follows, so it emits its own completion, imports no package, and relocates
+   * no such entry.
    */
   materializeAfterResolution: boolean
   /**

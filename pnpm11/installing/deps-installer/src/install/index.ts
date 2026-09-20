@@ -2082,11 +2082,7 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
       dedupePeerDependents: opts.dedupePeerDependents,
       dedupePeers: opts.dedupePeers,
       dryRun: opts.lockfileOnly || isCheckOnlyInstall(opts),
-      // This pass writes no `node_modules`, but on the two-phase isolated
-      // install the materialization pass links into the same directory
-      // straight after, so the alien-module handling still belongs here. The
-      // hoisted linker two-phased before this branch existed and is left as
-      // it was.
+      // The hoisted linker shares one tree and handles such an entry itself.
       hideAlienModules: opts.materializeAfterResolution && opts.nodeLinker !== 'hoisted',
       enableGlobalVirtualStore: opts.enableGlobalVirtualStore,
       engineStrict: opts.engineStrict,

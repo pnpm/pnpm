@@ -111,8 +111,8 @@ export interface ResolveDependenciesOptions extends RegistryContext {
   /**
    * Move a `node_modules` entry another package manager installed aside even
    * though this pass writes no `node_modules` itself. Set by a resolve pass
-   * that a materialization pass follows into the same directory, so the
-   * handling happens where a single-phase install did it (pnpm/pnpm#881).
+   * that a materialization pass follows into the same directory, which needs
+   * the entry out of the way before it links (pnpm/pnpm#881).
    */
   hideAlienModules?: boolean
   engineStrict: boolean
