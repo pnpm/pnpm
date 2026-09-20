@@ -568,7 +568,7 @@ fn virtual_store_only_install_under_pnp_does_not_write_the_loader() {
 }
 
 const PROD_DIRECT: (&str, &str) = ("@pnpm.e2e/has-foo-100.1.0-dep-1", "1.0.0");
-/// `PROD_DIRECT` pins this exact version as its own dependency, so production
+/// [`PROD_DIRECT`] pins this exact version as its own dependency, so production
 /// reaches it too and a `--prod` run still has to download it.
 const SHARED: (&str, &str) = ("@pnpm.e2e/foo", "100.1.0");
 const DEV_DIRECT: (&str, &str) = ("@pnpm.e2e/bravo", "1.0.0");
