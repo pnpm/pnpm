@@ -308,18 +308,19 @@ pub(super) fn recorded_allow_builds_differ(
     modules: &pnpm_modules_yaml::ModulesLayout,
     config: &Config,
 ) -> bool {
-    let recorded: std::collections::HashMap<&str, bool> = modules.allow_builds
-        .iter()
-        .flatten()
-        .filter_map(|(spec, value)| match value {
-            pnpm_modules_yaml::AllowBuildValue::Bool(decision) => Some((spec.as_str(), *decision)),
-            pnpm_modules_yaml::AllowBuildValue::String(_) => None,
-        })
-        .collect();
-    recorded.len() != config.allow_builds.len()
-        || recorded
+    let recorded = || {
+        modules.allow_builds
             .iter()
-            .any(|(spec, decision)| config.allow_builds.get(*spec) != Some(decision))
+            .flatten()
+            .filter_map(|(spec, value)| match value {
+                pnpm_modules_yaml::AllowBuildValue::Bool(decision) => {
+                    Some((spec.as_str(), decision))
+                }
+                pnpm_modules_yaml::AllowBuildValue::String(_) => None,
+            })
+    };
+    recorded().count() != config.allow_builds.len()
+        || recorded().any(|(spec, decision)| config.allow_builds.get(spec) != Some(decision))
 }
 
 /// The sorted `name@version` keys `.modules.yaml` recorded as ignored
