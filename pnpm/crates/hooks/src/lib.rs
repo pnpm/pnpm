@@ -159,6 +159,25 @@ pub trait PnpmfileHooks: Send + Sync {
         false
     }
 
+    /// Whether this pnpmfile exports a callable `readPackage` hook.
+    async fn has_read_package(&self) -> bool {
+        false
+    }
+
+    /// Whether a checksum-excluded pnpmfile in this hook set exports a
+    /// callable `readPackage` hook.
+    ///
+    /// Mirrors pnpm's `hasUntrackedReadPackageHook`: the global pnpmfile
+    /// loads ahead of the project's own and stays out of
+    /// `pnpmfileChecksum`, so a `readPackage` it exports leaves no trace
+    /// a checksum gate can compare. Gates that reuse recorded subtrees
+    /// treat `true` as checksum drift they cannot observe and re-resolve
+    /// instead of reusing them
+    /// (<https://github.com/pnpm/pnpm/issues/15136>).
+    async fn has_untracked_read_package_hook(&self) -> bool {
+        false
+    }
+
     /// Compute the `pnpmfileChecksum` recorded in `pnpm-lock.yaml`, or
     /// `None` when this hook set defines no `hooks` object.
     ///
@@ -408,6 +427,14 @@ impl PnpmfileHooks for ChecksumFreeHooks {
 
     async fn has_filter_log(&self) -> bool {
         self.0.has_filter_log().await
+    }
+
+    async fn has_read_package(&self) -> bool {
+        self.0.has_read_package().await
+    }
+
+    async fn has_untracked_read_package_hook(&self) -> bool {
+        self.0.has_untracked_read_package_hook().await
     }
 
     async fn calculate_pnpmfile_checksum(&self) -> Option<String> {

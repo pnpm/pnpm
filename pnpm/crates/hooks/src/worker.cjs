@@ -40,6 +40,10 @@ async function handle(req) {
     send({ ok: mod != null && mod.hooks != null && typeof mod.hooks.filterLog === 'function' });
     return;
   }
+  if (req.query === 'hasReadPackage') {
+    send({ ok: mod != null && mod.hooks != null && typeof mod.hooks.readPackage === 'function' });
+    return;
+  }
   try {
     const fn = mod && mod.hooks && mod.hooks[req.hook];
     const context = { log: (m) => send({ log: String(m) }) };

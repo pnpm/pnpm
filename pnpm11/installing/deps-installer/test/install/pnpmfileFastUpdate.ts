@@ -146,6 +146,55 @@ test('a hook from the checksum-excluded global pnpmfile still resolves', async (
   expect(requestedPackages).not.toStrictEqual([])
 })
 
+test('an edited global readPackage hook is not ignored by lockfile reuse', async () => {
+  const project = prepareEmpty()
+  const globalPnpmfilePath = path.resolve('global-pnpmfile.cjs')
+  const loadHooks = async () => (await requireHooks(process.cwd(), {
+    globalPnpmfile: globalPnpmfilePath,
+  })).hooks
+  const manifest: ProjectManifest = {
+    dependencies: {
+      '@pnpm.e2e/pkg-with-1-dep': '100.0.0',
+      'is-positive': '1.0.0',
+    },
+  }
+  // The first version of the global hook injects a dependency the package
+  // does not declare itself, so the injection is visible in the lockfile.
+  fs.writeFileSync(globalPnpmfilePath, `module.exports = { hooks: { readPackage: (pkg) => {
+    if (pkg.name === '@pnpm.e2e/pkg-with-1-dep') {
+      pkg.dependencies['is-positive'] = '1.0.0'
+    }
+    return pkg
+  } } }`)
+  await mutateModulesInSingleProject({
+    manifest,
+    mutation: 'install',
+    rootDir: process.cwd() as ProjectRootDir,
+  }, testDefaults({ hooks: await loadHooks() }))
+  expect(
+    Object.keys(project.readLockfile().snapshots['@pnpm.e2e/pkg-with-1-dep@100.0.0'].dependencies ?? {})
+  ).toContain('is-positive')
+
+  // The hook is edited to stop injecting the dependency. The global
+  // pnpmfile stays out of the pnpmfile checksum, so the second install
+  // must not reuse the subtrees the old hook wrote. The edited hook goes
+  // to a fresh filename so the second load does not hit the module cache,
+  // the same way a new CLI process re-reads the file from disk.
+  const editedGlobalPnpmfilePath = path.resolve('global-pnpmfile-edited.cjs')
+  fs.writeFileSync(editedGlobalPnpmfilePath, 'module.exports = { hooks: { readPackage: (pkg) => pkg } }')
+  const editedHooks = (await requireHooks(process.cwd(), {
+    globalPnpmfile: editedGlobalPnpmfilePath,
+  })).hooks
+  await mutateModulesInSingleProject({
+    manifest,
+    mutation: 'install',
+    rootDir: process.cwd() as ProjectRootDir,
+  }, testDefaults({ hooks: editedHooks }))
+  expect(
+    Object.keys(project.readLockfile().snapshots['@pnpm.e2e/pkg-with-1-dep@100.0.0'].dependencies ?? {})
+  ).not.toContain('is-positive')
+})
+
 /**
  * Marks the hooks as coming from a pnpmfile whose content is stable across
  * the installs of one test, the way `requireHooks` tracks real pnpmfiles.

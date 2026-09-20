@@ -215,6 +215,22 @@ impl NodeWorker {
         .unwrap_or(false)
     }
 
+    /// Whether the loaded pnpmfile exports a callable `readPackage` hook.
+    /// Mirrors pnpm's `entry.hooks?.readPackage != null` gate for
+    /// `hasUntrackedReadPackageHook`.
+    pub async fn has_read_package(&self) -> bool {
+        self.request(
+            "hasReadPackage",
+            serde_json::json!({ "query": "hasReadPackage" }),
+            Arc::new(|_| {}),
+        )
+        .await
+        .ok()
+        .as_ref()
+        .and_then(Value::as_bool)
+        .unwrap_or(false)
+    }
+
     /// Call `method` on the custom resolver at `index` in the pnpmfile's
     /// `resolvers` array, forwarding any `context.log(...)` to `log`.
     pub async fn call_resolver(

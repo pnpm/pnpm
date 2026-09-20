@@ -184,12 +184,27 @@ impl<'a, Reporter: self::Reporter + 'static> ResolutionContext<'a, Reporter> {
         .await
     }
 
+    /// Whether a checksum-excluded pnpmfile exports `readPackage`, for
+    /// the reuse gate. Like [`Self::current_pnpmfile_checksum`], a run
+    /// with no candidate answers `false` rather than spawning the
+    /// pnpmfile's Node worker for nothing.
+    async fn untracked_read_package_hook(&self) -> bool {
+        if self.wanted_lockfile().is_none() {
+            return false;
+        }
+        match self.prep.hooks.pnpmfile_hook.as_ref() {
+            Some(hooks) => hooks.has_untracked_read_package_hook().await,
+            None => false,
+        }
+    }
+
     async fn reuse_seed(
         &self,
         shared_resolve_options: &resolve::SharedResolveOptions<'_>,
         preferred_versions_seed: &Arc<pnpm_resolving_resolver_base::PreferredVersions>,
     ) -> Option<Arc<Lockfile>> {
         let pnpmfile_checksum = self.current_pnpmfile_checksum().await;
+        let untracked_read_package_hook = self.untracked_read_package_hook().await;
         resolve::lockfile_reuse_seed(resolve::ReuseSeedInputs {
             hooks: pnpm_resolving_deps_resolver::ManifestTransformHooks {
                 manifest_hook: self.prep.transforms.hooks.manifest_hook.clone(),
@@ -203,6 +218,7 @@ impl<'a, Reporter: self::Reporter + 'static> ResolutionContext<'a, Reporter> {
                     .package_extensions_checksum
                     .as_deref(),
                 pnpmfile_checksum: pnpmfile_checksum.as_deref(),
+                untracked_read_package_hook,
                 parsed_overrides: self.prep.transforms.parsed_overrides.as_deref(),
                 resolved_overrides: self.prep.transforms.resolved_overrides.as_ref(),
             },

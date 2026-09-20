@@ -1553,6 +1553,15 @@ export async function mutateModules (
         opts.ignorePackageManifest ||
         !needsFullResolution &&
         opts.preferFrozenLockfile &&
+        // A `readPackage` hook the pnpmfile checksum cannot vouch for — a
+        // programmatic one, or one from the checksum-excluded global
+        // pnpmfile — makes "up to date" unverifiable: an edit to it leaves
+        // no trace the lockfile comparison can see, so the lockfile must
+        // not be trusted blindly here. (The explicit `--frozen-lockfile`
+        // branch above keeps its contract: it never resolves.)
+        // https://github.com/pnpm/pnpm/issues/15136
+        (!opts.hooks.readPackage?.length ||
+          (opts.hooks.calculatePnpmfileChecksum != null && !opts.hooks.hasUntrackedReadPackageHook)) &&
         (!opts.pruneLockfileImporters || Object.keys(ctx.wantedLockfile.importers).length === Object.keys(ctx.projects).length) &&
         !isEmptyLockfile(ctx.wantedLockfile) &&
         ctx.wantedLockfile.lockfileVersion === LOCKFILE_VERSION &&
@@ -2138,7 +2147,12 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
     opts.force ||
     opts.needsFullResolution ||
     ctx.lockfileHadConflicts ||
-    opts.dedupePeerDependents
+    opts.dedupePeerDependents ||
+    // A `readPackage` hook from the checksum-excluded global pnpmfile
+    // leaves no trace the reuse gate can compare, so an edit to it must
+    // not keep reusing subtrees the old hook wrote. Re-resolve them
+    // instead (https://github.com/pnpm/pnpm/issues/15136).
+    opts.hooks.hasUntrackedReadPackageHook === true
 
   // Ignore some fields when fixing lockfile, so these fields can be regenerated
   // and make sure it's up to date

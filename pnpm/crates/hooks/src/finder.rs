@@ -186,6 +186,27 @@ impl PnpmfileHooks for CombinedPnpmfileHooks {
         true
     }
 
+    async fn has_read_package(&self) -> bool {
+        for hook in &self.hooks {
+            if hook.has_read_package().await {
+                return true;
+            }
+        }
+        false
+    }
+
+    async fn has_untracked_read_package_hook(&self) -> bool {
+        // Only the leading checksum-excluded entries answer: the
+        // checksum-tracked project pnpmfiles report their edits through
+        // `pnpmfileChecksum` already.
+        for hook in self.hooks.iter().take(self.checksum_skips) {
+            if hook.has_read_package().await {
+                return true;
+            }
+        }
+        false
+    }
+
     async fn calculate_pnpmfile_checksum(&self) -> Option<String> {
         let mut includes_hooks = false;
         for hook in &self.hooks {
