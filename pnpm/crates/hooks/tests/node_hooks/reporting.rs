@@ -59,6 +59,7 @@ Object.assign(module.exports, {
     let resolvers = hooks.get_custom_resolvers().await.expect("load resolvers");
 
     assert_eq!(resolvers.len(), 1);
+    dbg!(resolvers[0].has_can_resolve());
     assert!(resolvers[0].has_can_resolve());
 }
 

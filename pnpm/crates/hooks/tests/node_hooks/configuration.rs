@@ -31,6 +31,14 @@ export const hooks = { updateConfig (config) {
         ),
         (
             "pnpmfile.js",
+            "module",
+            r"export default { hooks: { updateConfig (config) {
+  config.catalogs = { default: { foo: '1.0.0' } };
+  return config;
+} } }",
+        ),
+        (
+            "pnpmfile.js",
             "commonjs",
             r"module.exports = { hooks: { updateConfig (config) {
   config.catalogs = { default: { foo: '1.0.0' } };

@@ -129,6 +129,7 @@ async fn empty_mjs_is_a_noop_for_pre_resolution() {
     )
     .await;
 
+    dbg!(&*warnings.lock().unwrap());
     assert!(warnings.lock().unwrap().is_empty());
 }
 
