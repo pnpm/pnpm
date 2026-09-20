@@ -12,6 +12,7 @@ repository.workspace = true
 
 [dependencies]
 pnpm-git-fetcher = { workspace = true }
+pnpm-git-utils = { workspace = true }
 pnpm-lockfile = { workspace = true }
 pnpm-network = { workspace = true }
 pnpm-reporter = { workspace = true }

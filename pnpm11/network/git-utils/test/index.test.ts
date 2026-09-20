@@ -2,7 +2,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 
 import { expect, test } from '@jest/globals'
-import { getCurrentBranch, isGitRepo, isHeadDetached, isWorkingTreeClean } from '@pnpm/network.git-utils'
+import { getCurrentBranch, isGitRepo, isHeadDetached, isWorkingTreeClean, nonInteractiveGitEnv } from '@pnpm/network.git-utils'
 import { safeExeca as execa } from 'execa'
 import { temporaryDirectory } from 'tempy'
 
@@ -74,4 +74,23 @@ test('isWorkingTreeClean', async () => {
   fs.writeFileSync(path.join(tempDir, 'foo'), 'foo')
 
   await expect(isWorkingTreeClean()).resolves.toBe(false)
+})
+
+test('nonInteractiveGitEnv disables git and ssh prompts', () => {
+  expect(nonInteractiveGitEnv({ PATH: '/bin' })).toStrictEqual({
+    PATH: '/bin',
+    GIT_TERMINAL_PROMPT: '0',
+    GIT_SSH_COMMAND: 'ssh -o BatchMode=yes',
+  })
+})
+
+test('nonInteractiveGitEnv keeps a user-configured ssh command', () => {
+  expect(nonInteractiveGitEnv({ GIT_SSH_COMMAND: 'ssh -i ~/.ssh/deploy_key' })).toStrictEqual({
+    GIT_SSH_COMMAND: 'ssh -i ~/.ssh/deploy_key',
+    GIT_TERMINAL_PROMPT: '0',
+  })
+  expect(nonInteractiveGitEnv({ GIT_SSH: 'plink' })).toStrictEqual({
+    GIT_SSH: 'plink',
+    GIT_TERMINAL_PROMPT: '0',
+  })
 })

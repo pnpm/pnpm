@@ -1,12 +1,16 @@
 //! Read-only git queries shared by the commands that branch on
 //! repository state: `pnpm publish`'s working-tree checks, `pnpm
 //! version`'s clean-tree gate, and the per-branch lockfile settings.
+//! Also the environment that keeps the git resolver's and fetcher's
+//! invocations from waiting on the terminal.
 //!
 //! Counterpart of pnpm's `@pnpm/network.git-utils`.
 
 pub use capabilities::{CommandOutput, Host, RunCommand};
+pub use non_interactive::{disable_git_prompts, non_interactive_git_env};
 
 mod capabilities;
+mod non_interactive;
 
 use std::{
     fs, io,

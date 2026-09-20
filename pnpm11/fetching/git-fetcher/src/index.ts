@@ -8,6 +8,7 @@ import { preparePackage } from '@pnpm/exec.prepare-package'
 import type { GitFetcher } from '@pnpm/fetching.fetcher-base'
 import { packlist } from '@pnpm/fs.packlist'
 import { globalWarn } from '@pnpm/logger'
+import { nonInteractiveGitEnv } from '@pnpm/network.git-utils'
 import { createGitHostedPkgId } from '@pnpm/resolving.git-resolver'
 import { gitHostedStoreIndexKey, type StoreIndex } from '@pnpm/store.index'
 import { addFilesFromDir } from '@pnpm/worker'
@@ -194,8 +195,8 @@ function prefixGitArgs (): string[] {
   return process.platform === 'win32' ? ['-c', 'core.longpaths=true'] : []
 }
 
-async function execGit (args: string[], opts?: object): Promise<string> {
+async function execGit (args: string[], opts?: { cwd?: string }): Promise<string> {
   const fullArgs = prefixGitArgs().concat(args || [])
-  const { stdout } = await execa('git', fullArgs, opts)
+  const { stdout } = await execa('git', fullArgs, { ...opts, env: nonInteractiveGitEnv() })
   return stdout as string
 }

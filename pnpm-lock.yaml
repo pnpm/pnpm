@@ -4795,6 +4795,9 @@ importers:
       '@pnpm/fs.packlist':
         specifier: workspace:*
         version: link:../../fs/packlist
+      '@pnpm/network.git-utils':
+        specifier: workspace:*
+        version: link:../../network/git-utils
       '@pnpm/resolving.git-resolver':
         specifier: workspace:*
         version: link:../../resolving/git-resolver
@@ -8982,6 +8985,9 @@ importers:
       '@pnpm/network.fetch':
         specifier: workspace:*
         version: link:../../network/fetch
+      '@pnpm/network.git-utils':
+        specifier: workspace:*
+        version: link:../../network/git-utils
       '@pnpm/resolving.resolver-base':
         specifier: workspace:*
         version: link:../resolver-base

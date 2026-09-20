@@ -458,6 +458,36 @@ test('credentials in the repository URL are redacted from the failure', async ()
   expect(err.message).toContain('https://github.com/pnpm-e2e/this-repository-does-not-exist.git')
 })
 
+test('git runs with terminal and ssh prompts disabled, so a passphrase prompt cannot block the fetch', async () => {
+  const storeDir = temporaryDirectory()
+  const fetch = createGitFetcher({ storeIndex: createStoreIndex(storeDir) }).git
+  jest.mocked(execa).mockImplementationOnce(() => {
+    throw Object.assign(new Error('git clone failed'), { stderr: 'git@github.com: Permission denied (publickey).' })
+  })
+  await fetchFailure(withEnv({ GIT_SSH: undefined, GIT_SSH_COMMAND: undefined }, async () => fetch(
+    createCafsStore(storeDir),
+    {
+      commit: 'c9b30e71d704cd30fa71f2edd1ecc7dcc4985493',
+      repo: 'git@github.com:acme/widget.git',
+      type: 'git',
+    },
+    {
+      filesIndexFile: path.join(storeDir, 'index.json'),
+    }
+  )))
+
+  expect(jest.mocked(execa)).toHaveBeenCalledWith(
+    'git',
+    [...prefixGitArgs(), 'clone', 'git@github.com:acme/widget.git', expect.any(String)],
+    expect.objectContaining({
+      env: expect.objectContaining({
+        GIT_TERMINAL_PROMPT: '0',
+        GIT_SSH_COMMAND: 'ssh -o BatchMode=yes',
+      }),
+    })
+  )
+})
+
 test('a missing git executable is reported as such, not as a fetch failure', async () => {
   const storeDir = temporaryDirectory()
   const fetch = createGitFetcher({ storeIndex: createStoreIndex(storeDir) }).git
@@ -491,15 +521,25 @@ async function fetchFailure (fetching: Promise<unknown>): Promise<PnpmError> {
 }
 
 async function withoutSsh<T> (fn: () => Promise<T>): Promise<T> {
-  const original = process.env.GIT_SSH_COMMAND
-  process.env.GIT_SSH_COMMAND = 'false'
+  return withEnv({ GIT_SSH_COMMAND: 'false' }, fn)
+}
+
+async function withEnv<T> (vars: Record<string, string | undefined>, fn: () => Promise<T>): Promise<T> {
+  const original = Object.fromEntries(Object.keys(vars).map((name) => [name, process.env[name]]))
+  setEnv(vars)
   try {
     return await fn()
   } finally {
-    if (original == null) {
-      delete process.env.GIT_SSH_COMMAND
+    setEnv(original)
+  }
+}
+
+function setEnv (vars: Record<string, string | undefined>): void {
+  for (const [name, value] of Object.entries(vars)) {
+    if (value === undefined) {
+      delete process.env[name]
     } else {
-      process.env.GIT_SSH_COMMAND = original
+      process.env[name] = value
     }
   }
 }

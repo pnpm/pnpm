@@ -353,3 +353,6 @@ mod reporting;
 mod submodules;
 
 mod bundles;
+
+#[cfg(unix)]
+mod prompts;

@@ -107,3 +107,21 @@ function readBranchFromHeadFile (cwd?: string): string | null | undefined {
     return undefined
   }
 }
+
+/**
+ * The environment for a git invocation that must fail fast instead of waiting
+ * on the terminal. pnpm runs git behind a live-updating reporter that repaints
+ * over anything git or ssh prints, so a credential, passphrase, or host-key
+ * prompt would be invisible and the install would look hung.
+ *
+ * `GIT_TERMINAL_PROMPT=0` covers git's own prompts. ssh prompts on the
+ * terminal directly, so it is run with `BatchMode=yes`, unless the user
+ * configured the ssh command themselves through `GIT_SSH_COMMAND` or `GIT_SSH`.
+ */
+export function nonInteractiveGitEnv (env: NodeJS.ProcessEnv = process.env): NodeJS.ProcessEnv {
+  const gitEnv: NodeJS.ProcessEnv = { ...env, GIT_TERMINAL_PROMPT: '0' }
+  if (env.GIT_SSH_COMMAND === undefined && env.GIT_SSH === undefined) {
+    gitEnv.GIT_SSH_COMMAND = 'ssh -o BatchMode=yes'
+  }
+  return gitEnv
+}
