@@ -1358,25 +1358,34 @@ export async function mutateModules (
         : Array.isArray(opts.readPackageHook) ? opts.readPackageHook : [opts.readPackageHook]
       if (hooks.length === 0) return undefined
       const isOverriddenDependency = overriddenDependencyMatcherFor?.(project.manifest)
-      let superseded: Map<string, string> | undefined
-      /* eslint-disable no-await-in-loop */
+      // Declare the selectors the way the real add does, all at once, so hooks
+      // that react to the combination see the same manifest.
+      const requestedByAlias = new Map<string, string>()
       for (const selector of project.dependencySelectors) {
         const { alias, bareSpecifier: requested } = parseWantedDependency(selector)
         if (alias == null || requested == null) continue
-        let probed: ProjectManifest = mergeInstallSelectors({
-          ...project.manifest,
-          dependencies: { ...project.manifest.dependencies },
-          devDependencies: { ...project.manifest.devDependencies },
-          optionalDependencies: { ...project.manifest.optionalDependencies },
-          peerDependencies: { ...project.manifest.peerDependencies },
-        }, {
-          dependencySelectors: [selector],
-          targetDependenciesField: project.targetDependenciesField,
-        } as InstallSomeDepsMutation)
-        for (const hook of hooks) {
-          probed = await hook(probed, project.rootDir)
-        }
-        const probedSpecifier = getAllDependenciesFromManifest(probed)[alias]
+        requestedByAlias.set(alias, requested)
+      }
+      if (requestedByAlias.size === 0) return undefined
+      let probed: ProjectManifest = mergeInstallSelectors({
+        ...project.manifest,
+        dependencies: { ...project.manifest.dependencies },
+        devDependencies: { ...project.manifest.devDependencies },
+        optionalDependencies: { ...project.manifest.optionalDependencies },
+        peerDependencies: { ...project.manifest.peerDependencies },
+      }, {
+        dependencySelectors: project.dependencySelectors,
+        targetDependenciesField: project.targetDependenciesField,
+      } as InstallSomeDepsMutation)
+      /* eslint-disable no-await-in-loop */
+      for (const hook of hooks) {
+        probed = await hook(probed, project.rootDir)
+      }
+      /* eslint-enable no-await-in-loop */
+      const probedDependencies = getAllDependenciesFromManifest(probed)
+      let superseded: Map<string, string> | undefined
+      for (const [alias, requested] of requestedByAlias) {
+        const probedSpecifier = probedDependencies[alias]
         if (probedSpecifier == null || probedSpecifier === requested) continue
         // An explicit version ignores overrides. When the probed rewrite is
         // exactly what the override imposes, the override is its sole cause
@@ -1387,7 +1396,6 @@ export async function mutateModules (
         if (overrideImposed == null && isOverriddenDependency?.(alias, requested) === true) continue
         ;(superseded ??= new Map()).set(alias, probedSpecifier)
       }
-      /* eslint-enable no-await-in-loop */
       return superseded
     }
 
