@@ -5,12 +5,11 @@ import { readWantedLockfile } from '@pnpm/lockfile.fs'
 import { fixtures } from '@pnpm/test-fixtures'
 import { safeExeca as execa } from 'execa'
 
-import { makeDedicatedLockfile } from '../lib/index.js'
-
 const f = fixtures(import.meta.dirname)
 const pnpmBin = path.join(import.meta.dirname, '../../../pnpm/bin/pnpm.mjs')
+const makeDedicatedLockfileBin = path.join(import.meta.dirname, '../bin/make-dedicated-lockfile.js')
 
-test('makeDedicatedLockfile()', async () => {
+test('make-dedicated-lockfile creates a dedicated lockfile', async () => {
   const tmp = f.prepare('fixture')
   await execa('node', [
     pnpmBin,
@@ -22,7 +21,7 @@ test('makeDedicatedLockfile()', async () => {
     '--force',
   ], { cwd: tmp })
   const projectDir = path.join(tmp, 'packages/is-negative')
-  await makeDedicatedLockfile(tmp, projectDir)
+  await execa('node', [makeDedicatedLockfileBin], { cwd: projectDir })
 
   const lockfile = await readWantedLockfile(projectDir, { ignoreIncompatible: false })
   // The next assertion started failing from pnpm v10.6.3
