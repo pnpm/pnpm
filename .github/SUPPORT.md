@@ -65,7 +65,7 @@ level to appeal to. What moves an issue forward is a reproduction, a diagnosis,
 a well-argued proposal, or a pull request. Issues that many people are
 demonstrably hitting are worked on sooner.
 
-Two ways to speed something up that you need:
+Two ways to speed up something you need:
 
 - Open a pull request. [`CONTRIBUTING.md`](../CONTRIBUTING.md) covers setting up
   the repository and getting a change reviewed.
