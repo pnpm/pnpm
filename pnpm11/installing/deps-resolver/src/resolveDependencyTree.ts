@@ -108,6 +108,13 @@ export interface ResolveDependenciesOptions extends RegistryContext {
   currentLockfile: LockfileObject
   dedupePeerDependents?: boolean
   dryRun: boolean
+  /**
+   * Move a `node_modules` entry another package manager installed aside even
+   * though this pass writes no `node_modules` itself. Set by a resolve pass
+   * that a materialization pass follows into the same directory, which needs
+   * the entry out of the way before it links (pnpm/pnpm#881).
+   */
+  hideAlienModules?: boolean
   engineStrict: boolean
   force: boolean
   forceFullResolution: boolean

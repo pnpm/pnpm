@@ -268,6 +268,19 @@ export interface StrictInstallOptions extends RegistryContext {
    */
   omitSummaryLog: boolean
   /**
+   * A materialization pass runs straight after this one and links into the
+   * same `node_modules`. It owns the reporter's `importing_done`, because the
+   * default reporter completes a prefix's progress stream on the first one and
+   * the real fetch and import counts would render to a closed stream. It also
+   * lets this pass move aside a `node_modules` entry another package manager
+   * installed, clearing the path the next pass links into.
+   *
+   * False for a standalone `--lockfile-only` or `--dry-run` run: no pass
+   * follows, so it emits its own completion, imports no package, and relocates
+   * no such entry.
+   */
+  materializeAfterResolution: boolean
+  /**
    * URL of a pnpr server that resolves dependencies server-side and serves
    * only the files missing from the client's store.
    */
@@ -381,6 +394,7 @@ const defaults = (opts: InstallOptions): StrictInstallOptions => {
     peersSuffixMaxLength: 1000,
     blockExoticSubdeps: false,
     omitSummaryLog: false,
+    materializeAfterResolution: false,
     resolutionVerifiers: [] as ResolutionVerifier[],
   } as StrictInstallOptions
 }

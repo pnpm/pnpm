@@ -8,7 +8,7 @@ fn eligible_fit(config: &Config) -> EarlyMaterializationFit<'_> {
         config,
         node_linker: NodeLinker::Isolated,
         lockfile_only: false,
-        filtered_isolated: false,
+        materializes_subset: false,
         is_hoisted: false,
         has_custom_fetcher: false,
     }

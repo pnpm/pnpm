@@ -1,7 +1,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
 
-import { expect, jest, test } from '@jest/globals'
+import { afterAll, expect, jest, test } from '@jest/globals'
 import { WANTED_LOCKFILE } from '@pnpm/constants'
 import { PnpmError } from '@pnpm/error'
 import { addDependenciesToPackage, type MutatedProject, mutateModules, mutateModulesInSingleProject, type ProjectOptions } from '@pnpm/installing.deps-installer'
@@ -14,6 +14,18 @@ import type { ProjectManifest, ProjectRootDir } from '@pnpm/types'
 import { readYamlFileSync } from 'read-yaml-file'
 
 import { testDefaults } from '../utils/index.js'
+
+// The mocked registry is shared by every suite in this package, and a
+// `latest` tag this suite moves stays moved. `@pnpm/resolving.npm-resolver`
+// prefers `latest` whenever it satisfies the wanted range, so a suite that
+// runs later and expects the highest version resolves this suite's pick
+// instead. The fixture's default `latest` is the highest published version.
+afterAll(async () => {
+  await Promise.all([
+    addDistTag({ package: '@pnpm.e2e/foo', version: '100.1.0', distTag: 'latest' }),
+    addDistTag({ package: '@pnpm.e2e/bar', version: '100.1.0', distTag: 'latest' }),
+  ])
+})
 
 function trackRequestedPackages (
   storeController: StoreController,

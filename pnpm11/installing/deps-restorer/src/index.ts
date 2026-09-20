@@ -123,6 +123,15 @@ export interface HeadlessOptions extends RegistryContext {
   dedupeDirectDeps?: boolean
   enablePnp?: boolean
   engineStrict: boolean
+  /** See {@link LockfileToDepGraphOptions.omitResolvedProgress}. */
+  omitResolvedProgress?: boolean
+  /**
+   * Skip the `pnpm:summary` log this install would emit. The default reporter
+   * renders the first summary event it sees, so a caller that runs several
+   * installs and emits one consolidated summary of its own has to keep each
+   * of them quiet. `pnpm add -g` and `pnpm update -g` do exactly that.
+   */
+  omitSummaryLog?: boolean
   excludeLinksFromLockfile?: boolean
   extraBinPaths?: string[]
   extraEnv?: Record<string, string>
@@ -380,6 +389,7 @@ export async function headlessInstall (opts: HeadlessOptions): Promise<Installat
     nodeVersion: opts.currentEngine.nodeVersion,
     pnpmVersion: opts.currentEngine.pnpmVersion,
     supportedArchitectures: opts.supportedArchitectures,
+    omitResolvedProgress: opts.omitResolvedProgress,
     includeUnchangedDeps: (!equals(opts.currentHoistPattern ?? [], opts.hoistPattern ?? [])) ||
       (!equals(opts.currentPublicHoistPattern ?? [], opts.publicHoistPattern ?? [])) ||
       (opts.enableGlobalVirtualStore === true && !equals(opts.modulesFile?.allowBuilds ?? {}, opts.allowBuilds ?? {})) ||
@@ -822,7 +832,9 @@ export async function headlessInstall (opts: HeadlessOptions): Promise<Installat
     } catch {}
   }))
 
-  summaryLogger.debug({ prefix: lockfileDir })
+  if (!opts.omitSummaryLog) {
+    summaryLogger.debug({ prefix: lockfileDir })
+  }
 
   if (!opts.ignoreScripts && !opts.ignorePackageManifest && !skipPostImportLinking) {
     if (opts.nodeExperimentalPackageMap && shouldWritePackageMap) {
