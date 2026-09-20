@@ -747,3 +747,22 @@ test('trustPolicyExclude set to a single string in pnpm-workspace.yaml excludes 
     '--lockfile-only',
   ], { expectSuccess: true })
 })
+
+// Covers https://github.com/pnpm/pnpm/issues/919
+test('install --force repairs a dependency file modified in node_modules', async () => {
+  prepare({
+    dependencies: {
+      'is-positive': '1.0.0',
+    },
+  })
+
+  await execPnpm(['install'])
+
+  const installedFile = path.resolve('node_modules/is-positive/index.js')
+  const pristine = fs.readFileSync(installedFile, 'utf8')
+  fs.writeFileSync(installedFile, `${pristine}\n// tampered\n`, 'utf8')
+
+  await execPnpm(['install', '--force'])
+
+  expect(fs.readFileSync(installedFile, 'utf8')).toBe(pristine)
+})
