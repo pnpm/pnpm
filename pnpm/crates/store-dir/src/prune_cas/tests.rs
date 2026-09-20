@@ -73,6 +73,6 @@ fn removes_executable_cas_suffix_from_the_index_digest() {
             .unwrap()
             .keys()
             .unwrap()
-            .is_empty()
+            .is_empty(),
     );
 }

@@ -2,8 +2,7 @@ use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
 use pipe_trait::Pipe;
 use pnpm_store_dir::STORE_VERSION;
-use pnpm_testing_utils::bin::CommandTempCwd;
-use pnpm_testing_utils::command_env::CommandTestExt;
+use pnpm_testing_utils::{bin::CommandTempCwd, command_env::CommandTestExt};
 use pretty_assertions::assert_eq;
 use std::{
     fs,
@@ -305,7 +304,7 @@ fn store_prune_removes_packages_left_unreferenced_by_remove() {
     assert!(
         package_keys()
             .iter()
-            .any(|key| key.contains("is-positive@1.0.0"))
+            .any(|key| key.contains("is-positive@1.0.0")),
     );
 
     pacquet_at(&workspace)
@@ -315,7 +314,7 @@ fn store_prune_removes_packages_left_unreferenced_by_remove() {
     assert!(
         package_keys()
             .iter()
-            .any(|key| key.contains("is-positive@1.0.0"))
+            .any(|key| key.contains("is-positive@1.0.0")),
     );
 
     let output = pacquet_at(&workspace)
