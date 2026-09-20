@@ -37,6 +37,10 @@ pub(crate) struct StaleConvergenceOverride {
 /// a resolved version newer than the override's value satisfies every
 /// collected range — a strictly better convergence.
 ///
+/// Every range of every override resolves concurrently: each resolution
+/// is a registry round trip, so serializing the overrides would put
+/// their count on the critical path.
+///
 /// A range that fails to resolve contributes no candidate but still
 /// participates in the satisfies-every-range check, so failures can
 /// only suppress the verdict, never fabricate one.
@@ -49,27 +53,30 @@ where
     ResolveRange: Fn(String, String) -> ResolveRangeFuture,
     ResolveRangeFuture: Future<Output = Option<Version>>,
 {
-    let mut stale = Vec::new();
-    for override_entry in parsed_overrides.iter().filter(|entry| entry.converge) {
-        let Some(ranges) = converge_declared_ranges.get(&override_entry.target_pkg.name) else {
-            continue;
-        };
-        let candidates = ranges
-            .iter()
-            .map(|range| resolve_range(override_entry.target_pkg.name.clone(), range.clone()))
-            .pipe(future::join_all)
-            .await;
-        if let Some(best) =
-            better_convergence(override_entry, ranges, candidates.into_iter().flatten())
-        {
-            stale.push(StaleConvergenceOverride {
-                name: override_entry.target_pkg.name.clone(),
-                current_value: override_entry.new_bare_specifier.clone(),
-                best,
-            });
-        }
-    }
-    stale
+    parsed_overrides
+        .iter()
+        .filter(|entry| entry.converge)
+        .filter_map(|override_entry| {
+            let ranges = converge_declared_ranges.get(&override_entry.target_pkg.name)?;
+            let candidates = ranges
+                .iter()
+                .map(|range| resolve_range(override_entry.target_pkg.name.clone(), range.clone()))
+                .pipe(future::join_all);
+            Some(async move {
+                let resolved = candidates.await.into_iter().flatten();
+                let best = better_convergence(override_entry, ranges, resolved)?;
+                Some(StaleConvergenceOverride {
+                    name: override_entry.target_pkg.name.clone(),
+                    current_value: override_entry.new_bare_specifier.clone(),
+                    best,
+                })
+            })
+        })
+        .pipe(future::join_all)
+        .await
+        .into_iter()
+        .flatten()
+        .collect()
 }
 
 /// The newest resolved candidate past the override's value that satisfies
