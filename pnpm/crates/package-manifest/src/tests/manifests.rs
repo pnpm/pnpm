@@ -32,14 +32,11 @@ fn save_preserves_the_existing_package_json_permissions() {
 #[test]
 fn new_manifests_use_normal_file_creation_permissions() {
     use std::os::unix::fs::PermissionsExt;
+    if std::env::var_os("PNPM_TEST_MANIFEST_CREATION_UMASK").is_none() {
+        check_manifest_creation_with_controlled_umask();
+        return;
+    }
     let dir = tempdir().unwrap();
-    let control = dir.path().join("control");
-    std::fs::write(&control, "").unwrap();
-    let expected = std::fs::metadata(control)
-        .unwrap()
-        .permissions()
-        .mode()
-        & 0o777;
     for basename in ["package.json", "package.yaml"] {
         let path = dir.path().join(basename);
         PackageManifest::init(&path, InitOptions::default()).unwrap();
@@ -48,8 +45,22 @@ fn new_manifests_use_normal_file_creation_permissions() {
             .permissions()
             .mode()
             & 0o777;
-        assert_eq!(actual, expected, "{basename}");
+        assert_eq!(actual, 0o644, "{basename}");
     }
+}
+
+#[cfg(unix)]
+fn check_manifest_creation_with_controlled_umask() {
+    let output = std::process::Command::new("sh")
+        .args(["-c", r#"umask 022; exec "$@""#, "manifest-permissions-test"])
+        .arg(std::env::current_exe().unwrap())
+        .args(["--exact", "tests::manifests::new_manifests_use_normal_file_creation_permissions"])
+        .env("PNPM_TEST_MANIFEST_CREATION_UMASK", "022")
+        .output()
+        .unwrap();
+    assert!(output.status.success(), "{output:?}");
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(stdout.contains("1 passed;"), "{stdout}");
 }
 
 #[test]
