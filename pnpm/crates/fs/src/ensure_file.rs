@@ -163,7 +163,8 @@ pub fn ensure_parent_dir(dir: &Path) -> Result<(), EnsureFileError> {
 pub fn ensure_file(
     file_path: &Path,
     content: &[u8],
-    #[cfg_attr(windows, allow(unused))] mode: Option<u32>,
+    #[cfg_attr(windows, allow(unused, reason = "POSIX mode bits are only applied on Unix"))]
+    mode: Option<u32>,
 ) -> Result<(), EnsureFileError> {
     // See the "Process-local per-path mutex" bullet above and
     // [`cas_write_lock`] for the rationale.
@@ -421,7 +422,8 @@ pub fn create_exclusive_temp_file(
     // `mode` feeds `OpenOptionsExt::mode` inside the `cfg(unix)` block
     // below; Windows has no POSIX mode bits to set at open time, so the
     // parameter is genuinely unused there.
-    #[cfg_attr(windows, allow(unused))] mode: Option<u32>,
+    #[cfg_attr(windows, allow(unused, reason = "POSIX mode bits are only applied on Unix"))]
+    mode: Option<u32>,
 ) -> Result<(PathBuf, File), EnsureFileError> {
     /// Retries after `AlreadyExists` on the temp path. Sixteen fresh
     /// counter values is plenty — under benign conditions we never

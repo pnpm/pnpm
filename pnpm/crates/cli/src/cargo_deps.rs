@@ -40,8 +40,6 @@ use std::{
     str::FromStr,
     sync::{Arc, atomic::AtomicU8},
 };
-#[cfg(all(test, windows))]
-use workspace_directory::ensure_workspace_directory_windows;
 use workspace_directory::{
     ManagedDirectory, ensure_workspace_directory, force_workspace_symlink, read_workspace_file,
     write_workspace_file,

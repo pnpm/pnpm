@@ -482,12 +482,11 @@ fn removal_override_prevents_optional_peer_resolution_from_a_sibling_workspace_p
         "1.0.0(@pnpm.e2e/peer-a@1.0.0)",
     );
     let pkg_b = importer(&lockfile, "pkg-b");
-    dbg!(&pkg_b.dev_dependencies);
     let peer_c: PkgName = "@pnpm.e2e/peer-c".parse().expect("parse peer name");
     assert!(
         pkg_b.dev_dependencies
             .as_ref()
-            .is_some_and(|deps| deps.contains_key(&peer_c))
+            .is_some_and(|deps| deps.contains_key(&peer_c)),
     );
 
     drop((root, mock_instance));

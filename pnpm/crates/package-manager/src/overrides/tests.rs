@@ -343,12 +343,11 @@ fn dash_override_deletes_optional_peer_metadata() {
         }));
         overrider.apply(&mut manifest, Some(Path::new("/workspace")));
 
-        dbg!(manifest.value());
         assert_eq!(dep_spec(&manifest, "peerDependencies", "unwanted-peer"), None);
         assert_eq!(dep_spec(&manifest, "peerDependencies", "kept"), Some("^2.0.0"));
         assert_eq!(
             manifest.value()["peerDependenciesMeta"],
-            json!({ "kept": { "optional": true } })
+            json!({ "kept": { "optional": true } }),
         );
     }
 }

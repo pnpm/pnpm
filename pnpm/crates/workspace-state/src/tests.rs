@@ -149,7 +149,7 @@ fn update_surfaces_create_dir_error_when_workspace_is_a_regular_file() {
     );
 }
 
-/// `load_workspace_state` surfaces non-NotFound read errors via
+/// [`load_workspace_state`] surfaces non-NotFound read errors via
 /// the typed `ReadFile` variant. Here we make the target a
 /// directory: `read_to_string` on a directory returns
 /// `IsADirectory` (or `Other`) on Unix, never `NotFound`, which

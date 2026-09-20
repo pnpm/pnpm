@@ -298,22 +298,25 @@ pub(super) fn symlink_already_points_at(
     pnpm_fs::lexical_normalize(&bins_dir.join(&existing)) == pnpm_fs::lexical_normalize(target_path)
 }
 
-/// Whether `a` and `b` are the same file. [`same_file::Handle`] proves a hard
-/// link cheaply via the OS file identity (device + inode on Unix, file index +
-/// volume serial on Windows). When that identity can't be obtained — a missing
-/// file, or a filesystem that doesn't expose a stable index — we fall back to
-/// comparing the file contents after a quick size check, which also treats a
-/// byte-identical copy as the same file.
+/// Whether `first_path` and `second_path` are the same file.
+/// [`same_file::Handle`] proves a hard link cheaply via the OS file identity
+/// (device + inode on Unix, file index + volume serial on Windows). When
+/// that identity can't be obtained — a missing file, or a filesystem that
+/// doesn't expose a stable index — we fall back to comparing the file contents
+/// after a quick size check, which also treats a byte-identical copy as the
+/// same file.
 #[cfg(windows)]
-fn is_same_file(a: &Path, b: &Path) -> bool {
+fn is_same_file(first_path: &Path, second_path: &Path) -> bool {
     if let (Ok(handle_a), Ok(handle_b)) =
-        (same_file::Handle::from_path(a), same_file::Handle::from_path(b))
+        (same_file::Handle::from_path(first_path), same_file::Handle::from_path(second_path))
         && handle_a == handle_b
     {
         return true;
     }
-    match (std::fs::metadata(a), std::fs::metadata(b)) {
-        (Ok(meta_a), Ok(meta_b)) => meta_a.len() == meta_b.len() && have_equal_contents(a, b),
+    match (std::fs::metadata(first_path), std::fs::metadata(second_path)) {
+        (Ok(meta_a), Ok(meta_b)) => {
+            meta_a.len() == meta_b.len() && have_equal_contents(first_path, second_path)
+        }
         _ => false,
     }
 }
@@ -321,9 +324,11 @@ fn is_same_file(a: &Path, b: &Path) -> bool {
 /// Compare two equally-sized files chunk by chunk, so an executable is never
 /// fully buffered in memory and a mismatch returns as early as possible.
 #[cfg(windows)]
-fn have_equal_contents(a: &Path, b: &Path) -> bool {
+fn have_equal_contents(first_path: &Path, second_path: &Path) -> bool {
     const CHUNK_SIZE: usize = 64 * 1024;
-    let (Ok(mut file_a), Ok(mut file_b)) = (std::fs::File::open(a), std::fs::File::open(b)) else {
+    let (Ok(mut file_a), Ok(mut file_b)) =
+        (std::fs::File::open(first_path), std::fs::File::open(second_path))
+    else {
         return false;
     };
     let mut buf_a = vec![0u8; CHUNK_SIZE];

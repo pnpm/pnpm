@@ -255,10 +255,10 @@ fn windows_path_comparison_matches_case_variants() {
 #[test]
 fn windows_case_variant_workspace_root_is_rejected_as_deploy_target() {
     let err = validate_deploy_target(
-        Path::new("c:\\workspace"),
-        Path::new("C:\\Workspace"),
-        Path::new("C:\\Workspace\\packages\\app"),
-        Path::new("C:\\Workspace"),
+        Path::new(r"c:\workspace"),
+        Path::new(r"C:\Workspace"),
+        Path::new(r"C:\Workspace\packages\app"),
+        Path::new(r"C:\Workspace"),
         true,
     )
     .expect_err("case-variant workspace root must be rejected");
