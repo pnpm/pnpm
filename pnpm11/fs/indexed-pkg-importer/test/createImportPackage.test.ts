@@ -415,8 +415,8 @@ testOnLinuxOnly('packageImportMethod=hardlink: rethrows non-ENOTSUP errors from 
 
 test('a blocker replaced by the directory it was in the way of does not fail a shared-slot repair', () => {
   const importPackage = createIndexedPkgImporter('hardlink')
-  // Distinct inodes, so the slot is not taken for one already linked to the
-  // store and the import goes on to repair it.
+  // Distinct inodes, or the slot reads as already linked to the store and
+  // nothing is repaired.
   let ino = 0
   jest.mocked(gfs.statSync as jest.Mock).mockImplementation(() => ({ ino: ++ino }))
   // `beforeEach` clears these without dropping what an earlier test taught
@@ -427,9 +427,8 @@ test('a blocker replaced by the directory it was in the way of does not fail a s
   fs.mkdirSync(slot, { recursive: true })
   const blocker = path.join(slot, 'nested')
 
-  // The blocker is a file when the repair inspects it and a directory by the
-  // time the removal lands: the installer sharing this slot cleared it and
-  // created what the path needs.
+  // The installer sharing this slot clears the blocker and creates what the
+  // path needs, in between.
   let inspections = 0
   jest.mocked(lstatWithRetry).mockImplementation((target: string) => {
     if (path.resolve(target) !== path.resolve(blocker)) return fs.lstatSync(target)

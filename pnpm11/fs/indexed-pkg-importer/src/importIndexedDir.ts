@@ -190,29 +190,28 @@ function replaceFileIfDifferent (importFile: ImportFile, src: string, dest: stri
   }
 }
 
-// A rename cannot put a file where a directory is (EISDIR), so one standing in
-// the way has to go first. Only a damaged tree has one.
-//
-// The inspection retries, because installs in different projects heal one
-// shared slot at the same time and Windows reports a dirent one of them has
-// just unlinked as inaccessible until the unlink lands.
 // Whether a package directory can go at `dir` now: nothing is there, or
 // what is there is already a directory.
 //
 // A failed removal is not a failed clearing when this holds. The installers
 // healing a slot together race over these paths, and one that finishes the
 // same work first leaves exactly what the removal was for, whether it merely
-// unlinked the blocker or replaced it outright.
+// unlinked the blocker or replaced it outright. The inspection retries for
+// the same reason the others here do.
 function dirFitsAt (dir: string): boolean {
   try {
-    // Retried like every other inspection here: the winner's unlink may
-    // still be settling.
     return lstatWithRetry(dir).isDirectory()
   } catch (err) {
     return util.types.isNativeError(err) && 'code' in err && err.code === 'ENOENT'
   }
 }
 
+// A rename cannot put a file where a directory is (EISDIR), so one standing in
+// the way has to go first. Only a damaged tree has one.
+//
+// The inspection retries, because installs in different projects heal one
+// shared slot at the same time and Windows reports a dirent one of them has
+// just unlinked as inaccessible until the unlink lands.
 function clearDirBlockingFile (dest: string): void {
   let stats
   try {
