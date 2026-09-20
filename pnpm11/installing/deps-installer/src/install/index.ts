@@ -1059,10 +1059,15 @@ export async function mutateModules (
             const catalogResult = resolveFromCatalog(opts.catalogs, { alias: dep.alias, bareSpecifier: specifier! })
             specifier = matchCatalogResolveResult(catalogResult, pickCatalogSpecifier)
           }
-          const validVersion = semver.valid(specifier)
+          // An npm alias is not a valid semver version and carries the real
+          // package name inside the specifier. Unwrap it so the pin check and
+          // the vulnerability lookup below see the real package.
+          const npmAliasTarget = parseNpmAliasTarget(dep.alias, specifier)
+          const packageName = npmAliasTarget?.name ?? dep.alias
+          const validVersion = semver.valid(npmAliasTarget?.versionSelector ?? specifier)
           // Only proceed if the specifier is a pinned version, not a range
           if (!validVersion) continue
-          if (opts.packageVulnerabilityAudit.isVulnerable(dep.alias, validVersion)) {
+          if (opts.packageVulnerabilityAudit.isVulnerable(packageName, validVersion)) {
             if (hookOwnedAliases?.has(dep.alias)) {
               // An update reaches a vulnerable version by widening the specifier the project
               // declares, and this one is not the project's to widen. An override outranks every
@@ -1073,6 +1078,11 @@ export async function mutateModules (
               })
               continue
             }
+            // Widen the pin to a range. The npm alias shape is kept so the
+            // specifier still resolves to the real package, not the alias name.
+            const widenedSpecifier = npmAliasTarget != null
+              ? `npm:${npmAliasTarget.name}@^${validVersion}`
+              : '^' + validVersion
             // If the current version is pinned and vulnerable, expand the specifier to a range
             // that will allow updating to a non-vulnerable, semver-compatible version, if available.
             if (catalogName != null && opts.catalogs?.[catalogName]) {
@@ -1083,7 +1093,7 @@ export async function mutateModules (
                 ...opts.catalogs,
                 [catalogName]: {
                   ...opts.catalogs[catalogName],
-                  [dep.alias]: '^' + validVersion,
+                  [dep.alias]: widenedSpecifier,
                 },
               }
               // Set prevSpecifier to the original catalog specifier so the resolver
@@ -1091,7 +1101,7 @@ export async function mutateModules (
               dep.prevSpecifier = specifier
             } else {
               // If no catalog is used, we directly update the specifier.
-              dep.bareSpecifier = '^' + validVersion
+              dep.bareSpecifier = widenedSpecifier
             }
           }
         }
@@ -1792,6 +1802,32 @@ function catalogCovers (catalogSpecifier: string, bareSpecifier: string | undefi
     semver.valid(bareSpecifier) != null &&
     semver.validRange(catalogSpecifier) != null &&
     semver.satisfies(bareSpecifier, catalogSpecifier)
+}
+
+interface NpmAliasTarget {
+  name: string
+  versionSelector: string
+}
+
+/**
+ * Split an `npm:` specifier into the real package name and the version
+ * selector declared for it. `npm:<name>@<selector>` points at `<name>`;
+ * `npm:<selector>` paired with a package alias points at the alias itself,
+ * mirroring the npm resolver's alias handling. Returns undefined when the
+ * specifier is not an npm alias or names no version, so the caller skips it.
+ */
+function parseNpmAliasTarget (alias: string, specifier: string | undefined): NpmAliasTarget | undefined {
+  if (specifier == null || !specifier.startsWith('npm:')) return undefined
+  const body = specifier.slice('npm:'.length)
+  if (semver.validRange(body) != null) {
+    return { name: alias, versionSelector: body }
+  }
+  const versionDelimiter = body.lastIndexOf('@')
+  if (versionDelimiter < 1) return undefined
+  return {
+    name: body.slice(0, versionDelimiter),
+    versionSelector: body.slice(versionDelimiter + 1),
+  }
 }
 
 /**

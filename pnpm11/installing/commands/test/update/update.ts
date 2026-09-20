@@ -228,6 +228,44 @@ test('vulnerability updates do not widen pinned dependencies added by packageExt
   })
 })
 
+test('vulnerability updates widen pinned npm-aliased dependencies', async () => {
+  const vulnerablePackage = '@pnpm.e2e/pkg-with-1-dep'
+  const project = prepare({
+    name: 'project',
+    version: '1.0.0',
+    dependencies: {
+      'aliased-pkg': `npm:${vulnerablePackage}@100.0.0`,
+    },
+  })
+
+  await install.handler({
+    ...DEFAULT_OPTS,
+    dir: process.cwd(),
+  })
+
+  await update.handler({
+    ...DEFAULT_OPTS,
+    dir: process.cwd(),
+    packageVulnerabilityAudit: createPackageVulnerabilityAudit(vulnerablePackage),
+  })
+
+  // The alias shape is kept and the pin is widened so the resolver can reach
+  // the patched version of the real package.
+  expect(loadJsonFileSync<ProjectManifest>('package.json').dependencies?.['aliased-pkg'])
+    .toBe(`npm:${vulnerablePackage}@100.1.0`)
+  expect(project.readLockfile().importers['.'].dependencies?.['aliased-pkg']).toStrictEqual({
+    specifier: `npm:${vulnerablePackage}@100.1.0`,
+    version: `${vulnerablePackage}@100.1.0`,
+  })
+  expect(project.readLockfile().packages?.[`${vulnerablePackage}@100.1.0`]).toBeDefined()
+
+  await install.handler({
+    ...DEFAULT_OPTS,
+    dir: process.cwd(),
+    frozenLockfile: true,
+  })
+})
+
 test('vulnerability updates move a ranged dependency added by packageExtensions within its range', async () => {
   const vulnerablePackage = '@pnpm.e2e/pkg-with-1-dep'
   const packageExtensions = {

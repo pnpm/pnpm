@@ -196,6 +196,62 @@ The fixed vulnerabilities are:
     }
   })
 
+  test('top-level pinned npm-aliased vulnerability is fixed by updating the vulnerable package', async () => {
+    const tmp = f.prepare('update-single-aliased-pinned')
+
+    const originalPkgId = '@pnpm.e2e/pkg-with-1-dep@100.0.0' as DepPath
+    const expectedPkgId = '@pnpm.e2e/pkg-with-1-dep@100.1.0' as DepPath
+
+    const { manifest: originalManifest } = await readProjectManifest(tmp)
+    expect(originalManifest).toBeTruthy()
+    expect(originalManifest.dependencies).toBeDefined()
+    expect(originalManifest.dependencies?.['aliased-pkg']).toBe('npm:@pnpm.e2e/pkg-with-1-dep@100.0.0')
+
+    const originalLockfile = await readWantedLockfile(tmp, { ignoreIncompatible: true })
+    expect(originalLockfile).toBeTruthy()
+    expect(originalLockfile!.packages).toBeDefined()
+    expect(originalLockfile!.packages![originalPkgId]).toBeDefined()
+    expect(originalLockfile!.packages![expectedPkgId]).toBeUndefined()
+
+    const mockResponse = await loadJsonFile<Record<string, unknown[]>>(join(tmp, 'responses', 'top-level-vulnerability.json'))
+    expect(mockResponse).toBeTruthy()
+
+    getMockAgent().get(MOCK_REGISTRY)
+      .intercept({ path: '/-/npm/v1/security/advisories/bulk', method: 'POST' })
+      .reply(200, mockResponse)
+
+    const { exitCode, output } = await audit.handler({
+      ...MOCK_REGISTRY_OPTS,
+      dir: tmp,
+      rootProjectManifestDir: tmp,
+      auditLevel: 'moderate',
+      fix: 'update',
+      lockfileOnly: true,
+    })
+
+    expect(output).toBe(`${chalk.green(1)} vulnerability was fixed, ${chalk.red(0)} vulnerabilities remain.\n\nThe fixed vulnerabilities are:\n- (${chalk.green('high')}) "${chalk.green('Title: mock vulnerability in @pnpm.e2e/pkg-with-1-dep')}" ${chalk.blue('@pnpm.e2e/pkg-with-1-dep')}\n`)
+    expect(exitCode).toBe(0)
+
+    const { manifest } = await readProjectManifest(tmp)
+    expect(manifest).toBeTruthy()
+    expect(manifest.dependencies).toBeDefined()
+    // The alias shape is kept and the pin is preserved at the patched version.
+    expect(manifest.dependencies?.['aliased-pkg']).toBe('npm:@pnpm.e2e/pkg-with-1-dep@100.1.0')
+
+    const lockfile = await readWantedLockfile(tmp, { ignoreIncompatible: true })
+    expect(lockfile).toBeTruthy()
+    expect(lockfile!.packages).toBeDefined()
+    const packagesArray = Object.keys(lockfile!.packages!)
+
+    // The vulnerable dependency should be updated
+    expect(packagesArray).not.toContain(originalPkgId)
+    expect(packagesArray).toContain(expectedPkgId)
+
+    // The importer still references the real package through the alias
+    expect(lockfile!.importers?.['.']?.dependencies?.['aliased-pkg'])
+      .toBe('@pnpm.e2e/pkg-with-1-dep@100.1.0')
+  })
+
   test('depth 2 vulnerability is fixed by updating the vulnerable package', async () => {
     const tmp = f.prepare('update-single-depth-2')
 
