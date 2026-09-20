@@ -146,10 +146,10 @@ pub(super) fn place_marker<Reporter: self::Reporter>(
 /// A failed removal is not a failed clearing when this holds. The
 /// installers healing a slot together race over these paths, and one that
 /// finishes the same work first leaves exactly what the removal was for,
-/// whether it merely unlinked the blocker or replaced it outright. The
-/// inspection retries for the same reason the others do: the winner's
-/// unlink may still be settling.
+/// whether it merely unlinked the blocker or replaced it outright.
 fn file_fits_at(path: &Path) -> bool {
+    // Retried like every other inspection here: the winner's unlink may
+    // still be settling.
     match pnpm_fs::symlink_metadata_with_retry(path) {
         Ok(meta) => !meta.is_dir(),
         Err(error) => error.kind() == io::ErrorKind::NotFound,

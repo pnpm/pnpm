@@ -24,8 +24,8 @@ jest.unstable_mockModule('@pnpm/fs.graceful-fs', () => {
     renameFileWithRetry: fsMock.renameSync,
     // The blocking-dirent checks read the temp trees these tests build, so
     // they go to the real filesystem rather than the mocks above.
-    lstatWithRetry: lstatSync,
-    unlinkWithRetry: unlinkSync,
+    lstatWithRetry: jest.fn(lstatSync),
+    unlinkWithRetry: jest.fn(unlinkSync),
   }
 })
 jest.unstable_mockModule('path-temp', () => ({ fastPathTemp: (file: string) => `${file}_tmp` }))
@@ -41,7 +41,7 @@ jest.unstable_mockModule('@pnpm/logger', () => ({
   globalInfo: jest.fn(),
 }))
 
-const { default: gfs } = await import('@pnpm/fs.graceful-fs')
+const { default: gfs, lstatWithRetry, unlinkWithRetry } = await import('@pnpm/fs.graceful-fs')
 const { createIndexedPkgImporter } = await import('@pnpm/fs.indexed-pkg-importer')
 const { globalInfo } = await import('@pnpm/logger')
 const { renameOverwriteSync } = await import('rename-overwrite')
@@ -61,6 +61,8 @@ beforeEach(() => {
   jest.mocked(gfs.statSync as jest.Mock).mockReset()
   jest.mocked(globalInfo).mockReset()
   jest.mocked(renameOverwriteSync).mockClear()
+  jest.mocked(lstatWithRetry).mockImplementation(fs.lstatSync)
+  jest.mocked(unlinkWithRetry).mockImplementation(fs.unlinkSync)
 })
 
 afterAll(() => {
@@ -409,4 +411,42 @@ testOnLinuxOnly('packageImportMethod=hardlink: rethrows non-ENOTSUP errors from 
     force: false,
     resolvedFrom: 'remote',
   })).toThrow('EACCES: permission denied')
+})
+
+test('a blocker replaced by the directory it was in the way of does not fail a shared-slot repair', () => {
+  const importPackage = createIndexedPkgImporter('hardlink')
+  // Distinct inodes, so the slot is not taken for one already linked to the
+  // store and the import goes on to repair it.
+  let ino = 0
+  jest.mocked(gfs.statSync as jest.Mock).mockImplementation(() => ({ ino: ++ino }))
+  // `beforeEach` clears these without dropping what an earlier test taught
+  // them, and one of them throws.
+  jest.mocked(gfs.copyFileSync).mockImplementation(() => {})
+  jest.mocked(gfs.linkSync).mockImplementation(() => {})
+  const slot = path.join('project', 'slot')
+  fs.mkdirSync(slot, { recursive: true })
+  const blocker = path.join(slot, 'nested')
+
+  // The blocker is a file when the repair inspects it and a directory by the
+  // time the removal lands: the installer sharing this slot cleared it and
+  // created what the path needs.
+  let inspections = 0
+  jest.mocked(lstatWithRetry).mockImplementation((target: string) => {
+    if (path.resolve(target) !== path.resolve(blocker)) return fs.lstatSync(target)
+    inspections++
+    return { isDirectory: () => inspections > 1 } as fs.Stats
+  })
+  jest.mocked(unlinkWithRetry).mockImplementation(() => {
+    throw Object.assign(new Error('access denied'), { code: 'EPERM' })
+  })
+
+  expect(() => {
+    importPackage(slot, {
+      filesMap: new Map([['nested/file', 'src-hash']]),
+      force: false,
+      resolvedFrom: 'store',
+      safeToSkip: true,
+    })
+  }).not.toThrow()
+  expect(inspections).toBeGreaterThan(1)
 })

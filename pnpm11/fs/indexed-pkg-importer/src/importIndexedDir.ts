@@ -205,7 +205,9 @@ function replaceFileIfDifferent (importFile: ImportFile, src: string, dest: stri
 // unlinked the blocker or replaced it outright.
 function dirFitsAt (dir: string): boolean {
   try {
-    return fs.lstatSync(dir).isDirectory()
+    // Retried like every other inspection here: the winner's unlink may
+    // still be settling.
+    return lstatWithRetry(dir).isDirectory()
   } catch (err) {
     return util.types.isNativeError(err) && 'code' in err && err.code === 'ENOENT'
   }
