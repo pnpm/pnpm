@@ -889,8 +889,8 @@ fn prefer_symlinked_executables_symlinks_workspace_bins() {
     );
 }
 
-/// `@pnpm.e2e/has-cyclic-peer-plugin` depends on
-/// `@pnpm.e2e/cyclic-peer-plugin`, which peers back on its own parent and
+/// `@pnpm.e2e/circular-peer-host` depends on
+/// `@pnpm.e2e/circular-peer-plugin`, which peers back on its own parent and
 /// declares `@pnpm.e2e/peer-c` as an implied optional peer through
 /// `peerDependenciesMeta` alone. Only `pkg-a` depends on `peer-c`, and the
 /// peer cycle must not split the two projects onto separate parent
@@ -899,23 +899,31 @@ fn prefer_symlinked_executables_symlinks_workspace_bins() {
 /// `deduplicate a package whose dependency peers back on it and has an
 /// optional peer`. For <https://github.com/pnpm/pnpm/issues/11834>.
 #[test]
-fn a_cyclic_peers_optional_peer_is_shared_by_every_importer() {
+fn a_circular_peers_optional_peer_is_shared_by_every_importer() {
     let CommandTempCwd { root, workspace, npmrc_info, .. } = two_project_workspace(
         &serde_json::json!({
             "name": "pkg-a",
             "version": "1.0.0",
             "dependencies": {
-                "@pnpm.e2e/has-cyclic-peer-plugin": "1.0.0",
+                "@pnpm.e2e/circular-peer-host": "1.0.0",
                 "@pnpm.e2e/peer-c": "2.0.0",
             },
         }),
         &serde_json::json!({
             "name": "pkg-b",
             "version": "1.0.0",
-            "dependencies": { "@pnpm.e2e/has-cyclic-peer-plugin": "1.0.0" },
+            "dependencies": { "@pnpm.e2e/circular-peer-host": "1.0.0" },
         }),
     );
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    // `dedupePeerDependents` alone must collapse the two variants, so the
+    // hoist auto-install-peers would also perform is out of the way.
+    let workspace_yaml_path = workspace.join("pnpm-workspace.yaml");
+    let mut workspace_yaml =
+        fs::read_to_string(&workspace_yaml_path).expect("read pnpm-workspace.yaml");
+    workspace_yaml.push_str("autoInstallPeers: false\n");
+    fs::write(&workspace_yaml_path, workspace_yaml).expect("write pnpm-workspace.yaml");
 
     pacquet_at(&workspace)
         .with_arg("install")
@@ -924,11 +932,11 @@ fn a_cyclic_peers_optional_peer_is_shared_by_every_importer() {
 
     let lockfile = read_lockfile(&workspace.join("pnpm-lock.yaml"));
     assert_eq!(
-        importer_version(&lockfile, "pkg-b", "@pnpm.e2e/has-cyclic-peer-plugin"),
-        importer_version(&lockfile, "pkg-a", "@pnpm.e2e/has-cyclic-peer-plugin"),
+        importer_version(&lockfile, "pkg-b", "@pnpm.e2e/circular-peer-host"),
+        importer_version(&lockfile, "pkg-a", "@pnpm.e2e/circular-peer-host"),
     );
     assert_eq!(
-        importer_version(&lockfile, "pkg-a", "@pnpm.e2e/has-cyclic-peer-plugin"),
+        importer_version(&lockfile, "pkg-a", "@pnpm.e2e/circular-peer-host"),
         "1.0.0(@pnpm.e2e/peer-c@2.0.0)",
     );
 

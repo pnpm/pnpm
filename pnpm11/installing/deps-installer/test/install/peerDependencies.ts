@@ -1710,25 +1710,26 @@ test('deduplicate packages that have peers, when adding new dependency in a work
 
 test('deduplicate a package whose dependency peers back on it and has an optional peer', async () => {
   // Regression test for https://github.com/pnpm/pnpm/issues/11834
-  // @pnpm.e2e/has-cyclic-peer-plugin depends on @pnpm.e2e/cyclic-peer-plugin,
+  // @pnpm.e2e/circular-peer-host depends on @pnpm.e2e/circular-peer-plugin,
   // which peers back on its own parent and declares @pnpm.e2e/peer-c as an
   // implied optional peer through peerDependenciesMeta alone. Only project-1
   // depends on peer-c, and the peer cycle must not split the two projects onto
   // separate parent snapshots, one suffixed with peer-c and one bare.
-  // pacquet's counterpart is
-  // `a_cyclic_peers_optional_peer_is_shared_by_every_importer` in
+  // auto-install-peers is off so dedupePeerDependents alone has to collapse
+  // the two variants. pacquet's counterpart is
+  // `a_circular_peers_optional_peer_is_shared_by_every_importer` in
   // pnpm/crates/cli/tests/suite/workspace_install.rs.
   const manifest1 = {
     name: 'project-1',
     dependencies: {
-      '@pnpm.e2e/has-cyclic-peer-plugin': '1.0.0',
+      '@pnpm.e2e/circular-peer-host': '1.0.0',
       '@pnpm.e2e/peer-c': '2.0.0',
     },
   }
   const manifest2 = {
     name: 'project-2',
     dependencies: {
-      '@pnpm.e2e/has-cyclic-peer-plugin': '1.0.0',
+      '@pnpm.e2e/circular-peer-host': '1.0.0',
     },
   }
   preparePackages([
@@ -1748,7 +1749,7 @@ test('deduplicate a package whose dependency peers back on it and has an optiona
 
   const lockfile = readYamlFileSync<LockfileFile>(path.resolve(WANTED_LOCKFILE))
   const dependent = (importerId: string): string =>
-    lockfile.importers![importerId].dependencies!['@pnpm.e2e/has-cyclic-peer-plugin'].version
+    lockfile.importers![importerId].dependencies!['@pnpm.e2e/circular-peer-host'].version
   expect(dependent('project-2')).toBe(dependent('project-1'))
   expect(dependent('project-1')).toBe('1.0.0(@pnpm.e2e/peer-c@2.0.0)')
 })
