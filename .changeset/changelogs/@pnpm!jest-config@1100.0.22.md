@@ -3,4 +3,4 @@
 ### Patch Changes
 
 - Updated dependencies:
-  - @pnpm/worker@1100.4.2
+  - @pnpm/worker@1100.4.3
