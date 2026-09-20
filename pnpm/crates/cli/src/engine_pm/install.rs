@@ -119,13 +119,10 @@ async fn install_engine_from_env_with_config<Reporter: self::Reporter + 'static>
 ) -> miette::Result<PathBuf> {
     let package = registry_engine_packages(pm, version)?;
     let package_name = package.wrapper;
-    // An engine already in its slot skips both the signature check and the
-    // install.
-    if let Some(bin_dir) = cached_engine_bins(config, env, package, version) {
-        return Ok(bin_dir);
-    }
     let _store_lock =
         config.store_dir.lock_for_use().wrap_err("lock the package-manager engine store")?;
+    // An engine already in its slot skips both the signature check and the
+    // install.
     if let Some(bin_dir) = cached_engine_bins(config, env, package, version) {
         return Ok(bin_dir);
     }

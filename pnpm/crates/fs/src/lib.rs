@@ -17,6 +17,7 @@ pub use retry::{
     create_dir_all_with_retry, create_dir_with_retry, remove_dir_all_with_retry,
     remove_dir_with_retry, remove_file_with_retry, rename_with_retry, symlink_metadata_with_retry,
 };
+pub use secure_temp_lock::{open_secure_lock_file, secure_temp_lock_dir, secure_user_lock_dir};
 pub use symlink_dir::*;
 pub use write_atomic::{write_atomic, write_atomic_private};
 
@@ -33,5 +34,6 @@ mod relative_path;
 mod remove_dirent;
 mod rename_even_across_devices;
 mod retry;
+mod secure_temp_lock;
 mod symlink_dir;
 mod write_atomic;

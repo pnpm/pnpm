@@ -1,3 +1,4 @@
+use crate::_utils;
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
 use pipe_trait::Pipe;
@@ -7,7 +8,7 @@ use pretty_assertions::assert_eq;
 use std::{
     fs,
     path::{Path, PathBuf},
-    process::Command,
+    process::{Command, Stdio},
 };
 
 fn pacquet_at(workspace: &Path) -> Command {
@@ -268,6 +269,56 @@ fn store_add_fetches_a_package_without_touching_the_project() {
             .any(|key| key.contains("is-odd@3.0.1")),
         "store add must record is-odd@3.0.1 in the store index, got {keys:?}",
     );
+}
+
+#[test]
+fn store_add_waits_for_the_store_operation_lock() {
+    let CommandTempCwd {
+        pacquet,
+        workspace,
+        root: _root,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    let store_dir = pnpm_store_dir::StoreDir::from(npmrc_info.store_dir);
+    pacquet_at(&workspace)
+        .with_args(["store", "add", "@pnpm.e2e/foo@100.0.0"])
+        .assert()
+        .success();
+    let prune_lock = store_dir.lock_for_prune().expect("lock store for prune");
+    let alternate_temp = workspace.join("alternate-temp");
+    fs::create_dir(&alternate_temp).expect("create alternate temporary directory");
+    let output_path = workspace.join("store-add-lock.ndjson");
+
+    let mut add = pacquet
+        .with_args([
+            "--reporter=ndjson",
+            "--loglevel=debug",
+            "store",
+            "add",
+            "@pnpm.e2e/foo@100.0.0",
+        ])
+        .env("TMPDIR", &alternate_temp)
+        .env("TEMP", &alternate_temp)
+        .env("TMP", &alternate_temp)
+        .stdout(Stdio::null())
+        .stderr(fs::File::create(&output_path).expect("create store add output"))
+        .spawn()
+        .expect("spawn store add");
+    _utils::wait_for_child_output(
+        &mut add,
+        &output_path,
+        "Waiting for the store add operation lock",
+    );
+    _utils::assert_child_output_stays_absent(
+        &mut add,
+        &output_path,
+        "Acquired the store add operation lock",
+    );
+    drop(prune_lock);
+    assert!(_utils::wait_for_child(&mut add).success());
+    let output = fs::read_to_string(&output_path).expect("read completed store add output");
+    assert!(output.contains("Acquired the store add operation lock"), "{output}");
 }
 
 #[test]
