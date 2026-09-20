@@ -235,7 +235,6 @@ The fixed vulnerabilities are:
     const { manifest } = await readProjectManifest(tmp)
     expect(manifest).toBeTruthy()
     expect(manifest.dependencies).toBeDefined()
-    // The alias shape is kept and the pin is preserved at the patched version.
     expect(manifest.dependencies?.['aliased-pkg']).toBe('npm:@pnpm.e2e/pkg-with-1-dep@100.1.0')
 
     const lockfile = await readWantedLockfile(tmp, { ignoreIncompatible: true })
@@ -243,11 +242,9 @@ The fixed vulnerabilities are:
     expect(lockfile!.packages).toBeDefined()
     const packagesArray = Object.keys(lockfile!.packages!)
 
-    // The vulnerable dependency should be updated
     expect(packagesArray).not.toContain(originalPkgId)
     expect(packagesArray).toContain(expectedPkgId)
 
-    // The importer still references the real package through the alias
     expect(lockfile!.importers['.' as ProjectId]?.dependencies?.['aliased-pkg'])
       .toBe('@pnpm.e2e/pkg-with-1-dep@100.1.0')
   })

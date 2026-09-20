@@ -1064,7 +1064,10 @@ export async function mutateModules (
           // the vulnerability lookup below see the real package.
           const npmAliasTarget = parseNpmAliasTarget(dep.alias, specifier)
           const packageName = npmAliasTarget?.name ?? dep.alias
-          const validVersion = semver.valid(npmAliasTarget?.versionSelector ?? specifier)
+          const versionSelector = npmAliasTarget?.versionSelector ?? specifier
+          // semver.valid() rejects exact pins written with a leading `=`,
+          // so strip it and treat `npm:pkg@=1.0.0` as pinned like `1.0.0`.
+          const validVersion = semver.valid(versionSelector?.replace(/^=/, ''))
           // Only proceed if the specifier is a pinned version, not a range
           if (!validVersion) continue
           if (opts.packageVulnerabilityAudit.isVulnerable(packageName, validVersion)) {
