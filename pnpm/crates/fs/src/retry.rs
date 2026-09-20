@@ -48,6 +48,23 @@ pub fn remove_dir_all_with_retry(path: &Path) -> io::Result<()> {
     retry_transient_file_locks(|| fs::remove_dir_all(path))
 }
 
+/// Create a directory, with the retry policy of [`rename_with_retry`].
+pub fn create_dir_with_retry(path: &Path) -> io::Result<()> {
+    retry_transient_file_locks(|| fs::create_dir(path))
+}
+
+/// Create a directory and every missing parent, with the retry policy of
+/// [`rename_with_retry`].
+pub fn create_dir_all_with_retry(path: &Path) -> io::Result<()> {
+    retry_transient_file_locks(|| fs::create_dir_all(path))
+}
+
+/// Remove an empty directory, with the retry policy of
+/// [`rename_with_retry`].
+pub fn remove_dir_with_retry(path: &Path) -> io::Result<()> {
+    retry_transient_file_locks(|| fs::remove_dir(path))
+}
+
 /// Read a dirent's metadata without following it, with the retry policy of
 /// [`rename_with_retry`].
 ///

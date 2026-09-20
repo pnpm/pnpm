@@ -1,7 +1,8 @@
 use super::{
-    ERROR_LOCK_VIOLATION, ERROR_SHARING_VIOLATION, RetryTiming, is_transient_file_lock_error,
-    remove_dir_all_with_retry, rename_with_retry, retry_fs_operation,
-    retry_fs_operation_with_timing, symlink_metadata_with_retry,
+    ERROR_LOCK_VIOLATION, ERROR_SHARING_VIOLATION, RetryTiming, create_dir_all_with_retry,
+    create_dir_with_retry, is_transient_file_lock_error, remove_dir_all_with_retry,
+    remove_dir_with_retry, rename_with_retry, retry_fs_operation, retry_fs_operation_with_timing,
+    symlink_metadata_with_retry,
 };
 use std::{cell::Cell, fs, io, time::Duration};
 use tempfile::tempdir;
@@ -115,6 +116,37 @@ fn remove_dir_all_with_retry_removes_the_tree() {
     remove_dir_all_with_retry(&target).expect("remove should succeed");
 
     assert!(!target.exists(), "directory tree should be gone after removal");
+}
+
+#[test]
+fn create_dir_with_retry_creates_one_level() {
+    let root = tempdir().unwrap();
+    let target = root.path().join("target");
+
+    create_dir_with_retry(&target).expect("creation should succeed");
+
+    assert!(target.is_dir());
+}
+
+#[test]
+fn create_dir_all_with_retry_creates_every_missing_parent() {
+    let root = tempdir().unwrap();
+    let target = root.path().join("nested/deeper/target");
+
+    create_dir_all_with_retry(&target).expect("creation should succeed");
+
+    assert!(target.is_dir());
+}
+
+#[test]
+fn remove_dir_with_retry_removes_an_empty_directory() {
+    let root = tempdir().unwrap();
+    let target = root.path().join("target");
+    fs::create_dir(&target).unwrap();
+
+    remove_dir_with_retry(&target).expect("removal should succeed");
+
+    assert!(!target.exists());
 }
 
 #[test]

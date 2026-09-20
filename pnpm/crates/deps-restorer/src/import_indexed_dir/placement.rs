@@ -73,7 +73,7 @@ pub(super) fn create_indexed_dirs(
     // `newDir` before calling `tryImportIndexedDir`, so do that here
     // too. Files at the package root (e.g. `package.json`) need this
     // even when `rel_dirs` is empty.
-    fs::create_dir_all(dir_path)
+    pnpm_fs::create_dir_all_with_retry(dir_path)
         .map_err(|error| ImportIndexedDirError::CreateDir {
             dirname: dir_path.to_path_buf(),
             error,
@@ -86,7 +86,7 @@ pub(super) fn create_indexed_dirs(
             clear_dirent_blocking_dir(dir_path, rel)?;
         }
         let abs = dir_path.join(rel);
-        fs::create_dir_all(&abs)
+        pnpm_fs::create_dir_all_with_retry(&abs)
             .map_err(|error| ImportIndexedDirError::CreateDir { dirname: abs, error })?;
     }
 
@@ -144,7 +144,7 @@ pub(super) fn place_marker<Reporter: self::Reporter>(
 /// in [`import_atomic`] replaces a file but never a directory.
 pub(super) fn clear_dir_blocking_file(target: &Path) -> Result<(), ImportIndexedDirError> {
     match pnpm_fs::symlink_metadata_with_retry(target) {
-        Ok(meta) if meta.is_dir() => match fs::remove_dir_all(target) {
+        Ok(meta) if meta.is_dir() => match pnpm_fs::remove_dir_all_with_retry(target) {
             Err(error) if error.kind() != io::ErrorKind::NotFound => {
                 Err(ImportIndexedDirError::ClearBlockingDirEntry {
                     path: target.to_path_buf(),

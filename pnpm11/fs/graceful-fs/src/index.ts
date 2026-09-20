@@ -82,6 +82,15 @@ export function lstatWithRetry (target: string): fs.Stats {
   return withFileLockRetry(() => fs.lstatSync(target))
 }
 
+/**
+ * Removes a file, with the retry policy of {@link renameFileWithRetry}.
+ */
+export function unlinkWithRetry (target: string): void {
+  withFileLockRetry(() => {
+    fs.unlinkSync(target)
+  })
+}
+
 function withFileLockRetry<T> (operation: () => T): T {
   const startedAt = Date.now()
   let backoffMs = 0

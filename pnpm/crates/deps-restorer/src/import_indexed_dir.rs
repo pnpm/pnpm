@@ -285,13 +285,13 @@ fn import_into_shared_dir<Reporter: self::Reporter>(
 /// it. `create_dir_all` cannot answer that — it succeeds either way.
 fn claim_dir(dir_path: &Path) -> Result<bool, ImportIndexedDirError> {
     if let Some(parent) = dir_path.parent() {
-        fs::create_dir_all(parent)
+        pnpm_fs::create_dir_all_with_retry(parent)
             .map_err(|error| ImportIndexedDirError::CreateDir {
                 dirname: parent.to_path_buf(),
                 error,
             })?;
     }
-    match fs::create_dir(dir_path) {
+    match pnpm_fs::create_dir_with_retry(dir_path) {
         Ok(()) => Ok(true),
         Err(error) if error.kind() == io::ErrorKind::AlreadyExists => Ok(false),
         Err(error) => {
@@ -376,11 +376,11 @@ fn remove_non_dir_dirent(path: &Path, file_type: fs::FileType) -> io::Result<()>
         // correct call. Fall through to `remove_file` for dangling
         // links or symlinks-to-file.
         if matches!(fs::metadata(path), Ok(meta) if meta.is_dir()) {
-            return fs::remove_dir(path);
+            return pnpm_fs::remove_dir_with_retry(path);
         }
     }
     let _ = file_type;
-    fs::remove_file(path)
+    pnpm_fs::remove_file_with_retry(path)
 }
 
 #[cfg(test)]

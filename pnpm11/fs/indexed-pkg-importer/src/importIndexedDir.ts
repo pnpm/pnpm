@@ -2,7 +2,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 import util from 'node:util'
 
-import gfs, { lstatWithRetry, renameFileWithRetry } from '@pnpm/fs.graceful-fs'
+import gfs, { lstatWithRetry, renameFileWithRetry, unlinkWithRetry } from '@pnpm/fs.graceful-fs'
 import { globalInfo, globalWarn, logger } from '@pnpm/logger'
 import type { ResolvedFrom } from '@pnpm/store.controller-types'
 import { rimrafSync } from '@zkochan/rimraf'
@@ -226,7 +226,7 @@ function clearDirentBlockingDir (newDir: string, relativeDir: string): void {
     }
     if (stats.isDirectory()) continue
     try {
-      fs.unlinkSync(dir)
+      unlinkWithRetry(dir)
     } catch (err) {
       // Another installer clearing the same blocker first leaves exactly
       // what this call was for.

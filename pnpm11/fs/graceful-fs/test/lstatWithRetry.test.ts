@@ -1,7 +1,7 @@
 import fs from 'node:fs'
 
 import { afterEach, expect, jest, test } from '@jest/globals'
-import { lstatWithRetry } from '@pnpm/fs.graceful-fs'
+import { lstatWithRetry, unlinkWithRetry } from '@pnpm/fs.graceful-fs'
 
 const platform = Object.getOwnPropertyDescriptor(process, 'platform')!
 
@@ -62,6 +62,19 @@ test('a refusal is final off Windows, where it means a permanent problem', () =>
 
   expect(() => lstatWithRetry('target')).toThrow(denied)
   expect(attempts).toBe(1)
+})
+
+test('a refusal to unlink that clears lets the removal through', () => {
+  onWindowsWithInstantBackoff()
+  let attempts = 0
+  jest.spyOn(fs, 'unlinkSync').mockImplementation(() => {
+    attempts++
+    if (attempts < 2) throw Object.assign(new Error('access denied'), { code: 'EPERM' })
+  })
+
+  unlinkWithRetry('target')
+
+  expect(attempts).toBe(2)
 })
 
 function onWindowsWithInstantBackoff (): void {
