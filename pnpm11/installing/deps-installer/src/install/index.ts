@@ -2551,7 +2551,7 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
       })
     }
 
-    if (opts.nodeLinker !== 'hoisted' && opts.runPacquet == null) {
+    if (opts.nodeLinker !== 'hoisted' && opts.runPacquet == null && !opts.omitImportingDoneLog) {
       // This is only needed because otherwise the reporter will hang.
       // Skipped when pacquet is about to take over the materialization
       // phase: the default reporter completes the progress stream for
@@ -2768,10 +2768,17 @@ const installInContext: InstallFunction = async (projects, ctx, opts) => {
       const result = await _installInContext(projects, ctx, {
         ...opts,
         lockfileOnly: true,
+        // `headlessInstall` below is what actually fetches, imports and links,
+        // so it owns the reporter's completion and summary. `opts` is passed
+        // to it unchanged, so only this resolve pass stays quiet.
+        omitSummaryLog: true,
+        omitImportingDoneLog: true,
       })
       const { stats, ignoredBuilds } = await materializeOrDelegate(opts, () => headlessInstall({
         ...ctx,
         ...opts,
+        // The resolve pass above already reported the whole graph as resolved.
+        omitResolvedProgress: true,
         currentEngine: {
           nodeVersion: opts.nodeVersion,
           pnpmVersion: opts.packageManager.name === 'pnpm' ? opts.packageManager.version : '',

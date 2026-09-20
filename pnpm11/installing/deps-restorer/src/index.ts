@@ -123,6 +123,8 @@ export interface HeadlessOptions extends RegistryContext {
   dedupeDirectDeps?: boolean
   enablePnp?: boolean
   engineStrict: boolean
+  /** See {@link LockfileToDepGraphOptions.omitResolvedProgress}. */
+  omitResolvedProgress?: boolean
   excludeLinksFromLockfile?: boolean
   extraBinPaths?: string[]
   extraEnv?: Record<string, string>
@@ -380,6 +382,7 @@ export async function headlessInstall (opts: HeadlessOptions): Promise<Installat
     nodeVersion: opts.currentEngine.nodeVersion,
     pnpmVersion: opts.currentEngine.pnpmVersion,
     supportedArchitectures: opts.supportedArchitectures,
+    omitResolvedProgress: opts.omitResolvedProgress,
     includeUnchangedDeps: (!equals(opts.currentHoistPattern ?? [], opts.hoistPattern ?? [])) ||
       (!equals(opts.currentPublicHoistPattern ?? [], opts.publicHoistPattern ?? [])) ||
       (opts.enableGlobalVirtualStore === true && !equals(opts.modulesFile?.allowBuilds ?? {}, opts.allowBuilds ?? {})) ||

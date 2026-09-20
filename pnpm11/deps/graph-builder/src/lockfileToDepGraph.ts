@@ -75,6 +75,13 @@ export interface LockfileToDepGraphOptions extends RegistryContext {
   ignoreLocalPackages?: boolean
   lockfileDir: string
   nodeVersion: string
+  /**
+   * Skip the `resolved` progress log for every package this graph fetches.
+   * The default reporter counts each event without deduplicating by package,
+   * so a caller that already ran a resolve pass over the same graph has
+   * reported them and repeating them here inflates `Progress: resolved N`.
+   */
+  omitResolvedProgress?: boolean
   pnpmVersion: string
   patchedDependencies?: PatchGroupRecord
   /**
@@ -288,7 +295,9 @@ async function buildGraphFromPackages (
 
       if (!fetchResponse) {
         const resolution = pkgSnapshotToResolution(depPath, pkgSnapshot, pickRegistryContext(opts))
-        progressLogger.debug({ packageId, requester: opts.lockfileDir, status: 'resolved' })
+        if (!opts.omitResolvedProgress) {
+          progressLogger.debug({ packageId, requester: opts.lockfileDir, status: 'resolved' })
+        }
 
         try {
           fetchResponse = await opts.storeController.fetchPackage({

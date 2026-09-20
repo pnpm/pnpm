@@ -67,7 +67,22 @@ test('production install does not download a package only a devDependency reache
     },
   })
 
-  await execPnpm(['install', '--prod'])
+  const { stdout } = execPnpmSync(['install', '--prod'], {
+    env: { pnpm_config_silent: 'false' },
+    stdio: 'pipe',
+    expectSuccess: true,
+  })
+  const output = stdout.toString()
+
+  // The resolve pass runs before materialization, so it must not report the
+  // install finished, nor claim a summary, before the packages are fetched
+  // and linked (pnpm/pnpm#881). Both passes feed one progress line, so
+  // neither may count the same package twice: this graph has 4 packages, 2
+  // of them production.
+  const progress = /Progress: resolved (\d+), reused \d+, downloaded (\d+), added (\d+), done/.exec(output)
+  expect(progress?.slice(1).map(Number)).toStrictEqual([4, 2, 2])
+  expect(output).toContain('dependencies:')
+  expect(output).toContain('+ @pnpm.e2e/has-foo-100.1.0-dep-1')
 
   // The absence assertions below name an exact version, so a fixture
   // registry that gained a newer `@pnpm.e2e/bravo-dep` would make them pass
