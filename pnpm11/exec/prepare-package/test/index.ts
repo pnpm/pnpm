@@ -1,3 +1,4 @@
+import fs from 'node:fs/promises'
 import path from 'node:path'
 
 import { expect, test } from '@jest/globals'
@@ -9,7 +10,7 @@ import { createTestIpcServer } from '@pnpm/test-ipc-server'
 const f = fixtures(import.meta.dirname)
 const pkgResolutionId = 'https://codeload.example.com/org/repo/tar.gz/0000000000000000000000000000000000000000'
 const allowBuild = () => true
-const allowRegistryArtifactsOnly = (depPath: string) => !depPath.includes('://')
+const allowRegistryArtifactsOnly = (depPath: string) => depPath.includes('://') ? undefined : true
 
 test('prepare package runs the prepublish script', async () => {
   const tmp = tempDir()
@@ -49,4 +50,17 @@ test('prepare package runs the prepublish script in the sub folder if pkgDir is 
   expect(server.getLines()).toStrictEqual([
     'prepublish',
   ])
+})
+
+test('explicitly denied preparation installs the source without running lifecycle scripts', async () => {
+  const tmp = tempDir()
+  await fs.writeFile(path.join(tmp, 'package.json'), JSON.stringify({
+    name: 'denied-build',
+    version: '1.0.0',
+    scripts: { prepare: 'exit 1', preinstall: 'exit 1', postinstall: 'exit 1' },
+  }))
+  await fs.writeFile(path.join(tmp, 'index.js'), 'module.exports = 42')
+  const result = await preparePackage({ allowBuild: () => false, pkgResolutionId }, tmp, '')
+  expect(result).toEqual({ shouldBeBuilt: true, pkgDir: tmp, ignoredBuild: true })
+  expect(await fs.readFile(path.join(tmp, 'index.js'), 'utf8')).toBe('module.exports = 42')
 })

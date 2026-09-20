@@ -25,7 +25,7 @@ pub use options::{GitSource, GitStoreContext, PrepareScriptOptions};
 pub use pnpm_fs_packlist::{PacklistError, packlist};
 pub use preferred_pm::{PreferredPm, WantedPm, detect_preferred_pm, detect_wanted_pm};
 pub use prepare_package::{
-    PreparePackageOptions, PreparedPackage, assert_package_build_allowed, prepare_package,
+    PreparePackageOptions, PreparedPackage, prepare_package, resolve_package_build_permission,
 };
 pub use protocols::{SUPPORTED_GIT_PROTOCOLS, read_allowed_git_protocols};
 pub use source_cache::GitSourceCache;

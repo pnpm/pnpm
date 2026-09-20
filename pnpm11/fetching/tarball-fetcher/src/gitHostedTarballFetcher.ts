@@ -6,7 +6,7 @@ import type { FetchFunction, FetchOptions } from '@pnpm/fetching.fetcher-base'
 import { packlist } from '@pnpm/fs.packlist'
 import { globalWarn } from '@pnpm/logger'
 import type { Cafs, FilesMap } from '@pnpm/store.cafs-types'
-import type { StoreIndex } from '@pnpm/store.index'
+import { gitHostedStoreIndexKey, type StoreIndex } from '@pnpm/store.index'
 import type { BundledManifest } from '@pnpm/types'
 import { addFilesFromDir } from '@pnpm/worker'
 
@@ -43,6 +43,7 @@ export function createGitHostedTarballFetcher (fetchRemoteTarball: FetchFunction
         manifest: prepareResult.manifest ?? manifest,
         requiresBuild,
         requiresPrepare: prepareResult.requiresPrepare,
+        ignoredBuild: prepareResult.ignoredBuild,
         // Propagate the raw tarball integrity so the lockfile pins it and
         // future installs detect a tampered tarball from the git host.
         integrity,
@@ -82,11 +83,14 @@ async function prepareGitHostedPkg (
     },
     force: true,
   })
-  const { shouldBeBuilt, pkgDir } = await preparePackage({
+  const { shouldBeBuilt, pkgDir, ignoredBuild = false } = await preparePackage({
     ...opts,
     allowBuild: fetcherOpts.allowBuild,
     pkgResolutionId: fetcherOpts.pkgResolutionId ?? createGitHostedTarballPkgResolutionId(resolution),
   }, tempLocation, resolution.path ?? '')
+  if (shouldBeBuilt && ((ignoredBuild && !opts.ignoreScripts) || (!ignoredBuild && filesIndexFile.endsWith('\tnot-built')))) {
+    filesIndexFile = gitHostedStoreIndexKey(fetcherOpts.pkgResolutionId ?? createGitHostedTarballPkgResolutionId(resolution), { built: !ignoredBuild })
+  }
   const files = await packlist(pkgDir)
   const { storeIndex } = opts
   if (!resolution.path && files.length === filesMap.size) {
@@ -103,7 +107,7 @@ async function prepareGitHostedPkg (
         requiresPrepare: false,
       }
     }
-    if (opts.ignoreScripts) {
+    if (ignoredBuild) {
       storeIndex.delete(rawFilesIndexFile)
       return {
         filesMap,
@@ -127,7 +131,7 @@ async function prepareGitHostedPkg (
       readManifest: fetcherOpts.readManifest,
       requiresPrepare: shouldBeBuilt,
     }),
-    ignoredBuild: Boolean(opts.ignoreScripts),
+    ignoredBuild,
     requiresPrepare: shouldBeBuilt,
   }
 }

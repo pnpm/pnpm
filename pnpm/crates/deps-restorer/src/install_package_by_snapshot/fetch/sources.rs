@@ -72,13 +72,11 @@ impl InstallPackageBySnapshot<'_> {
         &self,
         fetch: &SnapshotFetch<'_>,
         git_resolution: &pnpm_lockfile::GitResolution,
-        allow_build: &(impl Fn(&str) -> bool + Send + Sync),
+        allow_build: &(impl Fn(&str) -> Option<bool> + Send + Sync),
     ) -> Result<HashMap<String, PathBuf>, InstallPackageBySnapshotError> {
         let config = self.ctx.config;
-        // Same `built = !ignore_scripts` rationale as the git-hosted
-        // tarball branch — key shape stays in lock-step with
-        // `snapshot_cache_key`.
-        let built = !config.ignore_scripts;
+        let built = !config.ignore_scripts
+            && allow_build(&fetch.package_key.without_peer().to_string()) != Some(false);
         let files_index_file = git_hosted_store_index_key(fetch.package_id, built);
         let package_name = fetch.package_key.name.to_string();
         let GitFetchOutput { cas_paths, built: _built } = GitFetcher {
@@ -123,7 +121,7 @@ impl InstallPackageBySnapshot<'_> {
     /// return its CAS paths.
     pub(super) async fn tarball_cas_paths<Reporter: self::Reporter>(
         &self,
-        fetch: TarballFetch<'_, impl Fn(&str) -> bool + Send + Sync>,
+        fetch: TarballFetch<'_, impl Fn(&str) -> Option<bool> + Send + Sync>,
     ) -> Result<HashMap<String, PathBuf>, InstallPackageBySnapshotError> {
         let config = self.ctx.config;
         let revision_addressed = match fetch.resolution {
@@ -167,17 +165,17 @@ impl InstallPackageBySnapshot<'_> {
     /// needs packlist filtering.
     async fn prepare_git_hosted<Reporter: self::Reporter>(
         &self,
-        fetch: &TarballFetch<'_, impl Fn(&str) -> bool + Send + Sync>,
+        fetch: &TarballFetch<'_, impl Fn(&str) -> Option<bool> + Send + Sync>,
         tarball: &pnpm_lockfile::TarballResolution,
         cas_paths: HashMap<String, PathBuf>,
     ) -> Result<HashMap<String, PathBuf>, InstallPackageBySnapshotError> {
         let config = self.ctx.config;
-        // `built` tracks `!ignore_scripts`, in lock-step with the key
-        // shape `snapshot_cache_key` produces — otherwise the prefetch
-        // and the write would address different slots. Under
-        // `--ignore-scripts` the git-hosted `prepare` is suppressed too,
-        // matching pnpm's `ignoreScripts`.
-        let files_index_file = git_hosted_store_index_key(fetch.package_id, !config.ignore_scripts);
+        let files_index_file = git_hosted_store_index_key(
+            fetch.package_id,
+            !config.ignore_scripts
+                && (fetch.allow_build)(&fetch.package_key.without_peer().to_string())
+                    != Some(false),
+        );
         let GitFetchOutput { cas_paths, built: _built } = GitHostedTarballFetcher {
             scripts: pnpm_git_fetcher::PrepareScriptOptions {
                 ignore: config.ignore_scripts,

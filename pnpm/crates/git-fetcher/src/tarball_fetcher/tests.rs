@@ -10,11 +10,11 @@ use std::{collections::HashMap, fs, path::PathBuf, sync::Arc};
 use tempfile::tempdir;
 
 fn deny_all_builds<'a>() -> AllowBuildRef<'a> {
-    &|_| false
+    &|_| None
 }
 
 fn allow_all_builds<'a>() -> AllowBuildRef<'a> {
-    &|_| true
+    &|_| Some(true)
 }
 
 /// Build the `cas_paths` map the dispatcher would hand the fetcher
@@ -699,16 +699,17 @@ async fn sub_path_never_takes_fast_path() {
 /// `cas_paths` is returned verbatim, and no row lands at the final
 /// key.
 #[tokio::test(flavor = "multi_thread")]
-async fn fast_path_ignore_scripts_returns_input_without_queueing_row() {
-    let store_root = tempdir().unwrap();
-    let store_dir = StoreDir::from(store_root.path().to_path_buf());
-    let (writer, writer_task) = StoreIndexWriter::spawn(&store_dir);
+async fn fast_path_skipped_preparation_returns_input_without_queueing_row() {
+    for ignore in [true, false] {
+        let store_root = tempdir().unwrap();
+        let store_dir = StoreDir::from(store_root.path().to_path_buf());
+        let (writer, writer_task) = StoreIndexWriter::spawn(&store_dir);
 
-    // `prepare` script triggers `should_be_built = true`, but
-    // `ignore_scripts: true` skips the actual execution. With no
-    // `files` field, packlist returns every input file — fast-path
-    // eligible.
-    let cas_paths = write_to_cas(
+        // `prepare` script triggers `should_be_built = true`, but
+        // `ignore_scripts: true` skips the actual execution. With no
+        // `files` field, packlist returns every input file — fast-path
+        // eligible.
+        let cas_paths = write_to_cas(
         &store_dir,
         &[
             (
@@ -719,47 +720,51 @@ async fn fast_path_ignore_scripts_returns_input_without_queueing_row() {
             ("index.js", b"module.exports = 1;\n", false),
         ],
     );
-    let input_snapshot = cas_paths.clone();
+        let input_snapshot = cas_paths.clone();
 
-    let key = "x@1.0.0\tbuilt";
-    let received = GitHostedTarballFetcher {
-        scripts: crate::PrepareScriptOptions {
-            ignore: true,
-            unsafe_perm: true,
-            user_agent: None,
-            prepend_node_path: ScriptsPrependNodePath::Never,
-            shell: None,
-            node_execpath: None,
-            npm_execpath: None,
-            pnpm_execpath: None,
-        },
-        store: crate::GitStoreContext {
-            dir: &store_dir,
-            index_writer: Some(&Arc::clone(&writer)),
-            files_index_file: key,
-        },
-        cas_paths,
-        path: None,
-        allow_build: deny_all_builds(),
+        let key = "x@1.0.0\tbuilt";
+        let received = GitHostedTarballFetcher {
+            scripts: crate::PrepareScriptOptions {
+                ignore,
+                unsafe_perm: true,
+                user_agent: None,
+                prepend_node_path: ScriptsPrependNodePath::Never,
+                shell: None,
+                node_execpath: None,
+                npm_execpath: None,
+                pnpm_execpath: None,
+            },
+            store: crate::GitStoreContext {
+                dir: &store_dir,
+                index_writer: Some(&Arc::clone(&writer)),
+                files_index_file: key,
+            },
+            cas_paths,
+            path: None,
+            allow_build: &|_| Some(false),
 
-        package_id: "x@1.0.0",
-        requester: "/test",
+            package_id: "x@1.0.0",
+            requester: "/test",
+        }
+        .run::<SilentReporter>()
+        .await
+        .unwrap();
+
+        drop(writer);
+        writer_task.await.unwrap().unwrap();
+
+        assert!(received.built, "should_be_built stays true even when scripts were ignored");
+        assert_eq!(
+            received.cas_paths, input_snapshot,
+            "ignored-build fast path returns input as-is",
+        );
+
+        let index = StoreIndex::open_in(&store_dir).unwrap();
+        assert!(
+            index.get(key).unwrap().is_none(),
+            "ignored-build fast path must NOT queue a final-key row",
+        );
     }
-    .run::<SilentReporter>()
-    .await
-    .unwrap();
-
-    drop(writer);
-    writer_task.await.unwrap().unwrap();
-
-    assert!(received.built, "should_be_built stays true even when scripts were ignored");
-    assert_eq!(received.cas_paths, input_snapshot, "ignored-build fast path returns input as-is");
-
-    let index = StoreIndex::open_in(&store_dir).unwrap();
-    assert!(
-        index.get(key).unwrap().is_none(),
-        "ignored-build fast path must NOT queue a final-key row",
-    );
 }
 
 /// A `..`-laden `resolution.path` must be rejected by

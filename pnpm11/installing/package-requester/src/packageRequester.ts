@@ -5,7 +5,7 @@ import { packageIsInstallable } from '@pnpm/config.package-is-installable'
 import { fetchingProgressLogger, progressLogger } from '@pnpm/core-loggers'
 import { depPathToFilename } from '@pnpm/deps.path'
 import { PnpmError } from '@pnpm/error'
-import { assertPackageBuildIsAllowed } from '@pnpm/exec.prepare-package'
+import { resolvePackageBuildPermission } from '@pnpm/exec.prepare-package'
 import type {
   DirectoryFetcherResult,
   Fetchers,
@@ -390,6 +390,7 @@ async function resolveAndFetch (
 }
 
 interface FetchLock {
+  ignoredBuild?: boolean
   fetching: Promise<PkgRequestFetchResult>
   filesIndexFile: string
   fetchRawManifest?: boolean
@@ -406,17 +407,20 @@ function getFilesIndexFilePath (
     storeDir: string
     virtualStoreDirMaxLength: number
   },
-  opts: Pick<FetchPackageToStoreOptions, 'pkg' | 'ignoreScripts' | 'supportedArchitectures'>
+  opts: Pick<FetchPackageToStoreOptions, 'pkg' | 'ignoreScripts' | 'supportedArchitectures' | 'allowBuild'>
 ): GetFilesIndexFilePathResult {
   const targetRelative = depPathToFilename(opts.pkg.id, ctx.virtualStoreDirMaxLength)
   const target = path.join(ctx.storeDir, targetRelative)
-  const built = !opts.ignoreScripts
   let resolution: AtomicResolution
   if (opts.pkg.resolution.type === 'variations') {
     resolution = findResolution(opts.pkg.resolution.variants, opts.supportedArchitectures)
   } else {
     resolution = opts.pkg.resolution
   }
+  const resolutionKind = classifyResolution(resolution)
+  const denied = (resolutionKind === 'git' || resolutionKind === 'gitHostedTarball') &&
+    opts.allowBuild?.(`${opts.pkg.name}@${opts.pkg.id}` as DepPath) === false
+  const built = !opts.ignoreScripts && !denied
   return {
     target,
     filesIndexFile: pickStoreIndexKey(resolution as TarballResolution, opts.pkg.id, { built }),
@@ -554,6 +558,8 @@ function fetchToStore (
         allowBuild: opts.allowBuild,
         bundledManifest: cached.bundledManifest,
         filesMap: cached.files.filesMap,
+        filesIndexFile: result.filesIndexFile,
+        ignoredBuild: result.ignoredBuild,
         ignoreScripts: opts.ignoreScripts,
         pkgResolutionId: opts.pkg.id,
         requiresPrepare: cached.files.requiresPrepare,
@@ -617,6 +623,7 @@ function fetchToStore (
           allowBuild: opts.allowBuild,
           bundledManifest,
           filesMap: files.filesMap,
+          filesIndexFile,
           ignoreScripts: opts.ignoreScripts,
           pkgResolutionId: opts.pkg.id,
           requiresPrepare: files.requiresPrepare,
@@ -679,6 +686,9 @@ function fetchToStore (
         opts.pickedFetcher
       ), { priority })
 
+      const fetchLock = ctx.fetchingLocker.get(fetchingKey)
+      if (fetchLock) fetchLock.ignoredBuild = fetchedPackage.ignoredBuild
+
       const integrity = getExpectedIntegrity(opts.pkg.resolution) ?? fetchedPackage.integrity
       if (isLocalTarballDep && integrity) {
         await fs.mkdir(target, { recursive: true })
@@ -706,6 +716,8 @@ async function cachedPackageCanBeReused (opts: {
   allowBuild?: FetchPackageToStoreOptions['allowBuild']
   bundledManifest?: BundledManifest
   filesMap: Map<string, string>
+  filesIndexFile: string
+  ignoredBuild?: boolean
   ignoreScripts?: boolean
   pkgResolutionId: string
   requiresPrepare?: boolean
@@ -717,9 +729,12 @@ async function cachedPackageCanBeReused (opts: {
   const manifest = opts.bundledManifest ?? (pkgJsonPath == null ? undefined : await readBundledManifest(pkgJsonPath))
   if (manifest == null) return false
   const depPath = `${manifest.name}@${opts.pkgResolutionId}` as DepPath
-  if (opts.allowBuild?.(depPath)) return true
+  const allowed = opts.allowBuild?.(depPath)
+  const ignoredBuild = opts.ignoredBuild ?? opts.filesIndexFile.endsWith('\tnot-built')
+  if (allowed === false) return ignoredBuild
+  if (allowed === true) return !ignoredBuild
   if (opts.requiresPrepare == null) return false
-  assertPackageBuildIsAllowed({
+  resolvePackageBuildPermission({
     allowBuild: opts.allowBuild,
     pkgResolutionId: opts.pkgResolutionId,
   }, manifest)

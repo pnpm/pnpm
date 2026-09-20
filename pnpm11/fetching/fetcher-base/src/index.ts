@@ -44,6 +44,7 @@ export type FetchFunction<FetcherResolution = Resolution, Options = FetchOptions
 ) => Promise<Result>) & ResolutionFetchContract
 
 export interface FetchResult {
+  ignoredBuild?: boolean
   local?: boolean
   manifest?: BundledManifest
   filesMap: FilesMap
@@ -61,6 +62,7 @@ export interface GitFetcherOptions {
 }
 
 export interface GitFetcherResult {
+  ignoredBuild?: boolean
   filesMap: FilesMap
   manifest?: BundledManifest
   requiresBuild: boolean

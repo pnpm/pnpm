@@ -27,12 +27,13 @@ export interface PreparePackageOptions {
   userAgent?: string
 }
 
-export async function preparePackage (opts: PreparePackageOptions, gitRootDir: string, subDir: string): Promise<{ shouldBeBuilt: boolean, pkgDir: string }> {
+export async function preparePackage (opts: PreparePackageOptions, gitRootDir: string, subDir: string): Promise<{ shouldBeBuilt: boolean, pkgDir: string, ignoredBuild?: boolean }> {
   const pkgDir = safeJoinPath(gitRootDir, subDir)
   const manifest = await safeReadPackageJsonFromDir(pkgDir)
   if (manifest?.scripts == null || !packageShouldBeBuilt(manifest, pkgDir)) return { shouldBeBuilt: false, pkgDir }
-  if (opts.ignoreScripts) return { shouldBeBuilt: true, pkgDir }
-  assertPackageBuildIsAllowed(opts, manifest)
+  if (opts.ignoreScripts || !resolvePackageBuildPermission(opts, manifest)) {
+    return { shouldBeBuilt: true, pkgDir, ignoredBuild: true }
+  }
   const pm = (await preferredPM(gitRootDir))?.name ?? 'npm'
   const execOpts: RunLifecycleHookOptions = {
     depPath: `${manifest.name}@${manifest.version}`,
@@ -68,12 +69,13 @@ export async function preparePackage (opts: PreparePackageOptions, gitRootDir: s
   return { shouldBeBuilt: true, pkgDir }
 }
 
-export function assertPackageBuildIsAllowed (
+export function resolvePackageBuildPermission (
   opts: Pick<PreparePackageOptions, 'allowBuild' | 'pkgResolutionId'>,
   manifest: Partial<PackageManifest>
-): void {
+): boolean {
   const depPath = `${manifest.name}@${opts.pkgResolutionId}` as DepPath
-  if (!opts.allowBuild?.(depPath)) {
+  const allowed = opts.allowBuild?.(depPath)
+  if (allowed == null) {
     throw new PnpmError(
       'GIT_DEP_PREPARE_NOT_ALLOWED',
       `The git-hosted package "${manifest.name}@${manifest.version}" needs to execute build scripts but is not in the "allowBuilds" allowlist.`,
@@ -84,6 +86,7 @@ allowBuilds:
       }
     )
   }
+  return allowed
 }
 
 function packageShouldBeBuilt (manifest: PackageManifest, pkgDir: string): boolean {

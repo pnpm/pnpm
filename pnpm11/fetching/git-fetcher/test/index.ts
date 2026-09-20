@@ -301,7 +301,7 @@ test('block git package with prepare script', async () => {
         repo,
         type: 'git',
       }, {
-        allowBuild: () => false,
+        allowBuild: () => undefined,
         filesIndexFile: path.join(storeDir, 'index.json'),
       })
   ).rejects.toThrow('The git-hosted package "@pnpm.e2e/prepare-script-works@1.0.0" needs to execute build scripts but is not in the "allowBuilds" allowlist')

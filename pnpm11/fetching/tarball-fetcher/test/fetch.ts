@@ -927,7 +927,7 @@ test('fail when extracting a broken tarball', async () => {
   )
 })
 
-test('do not build the package when scripts are ignored', async () => {
+test.each([true, false])('do not prepare a git tarball when scripts are ignored or explicitly denied (ignoreScripts=%s)', async (ignoreScripts) => {
   // Enable network for this test
   mockAgent.enableNetConnect(/codeload\.github\.com/)
 
@@ -938,7 +938,7 @@ test('do not build the package when scripts are ignored', async () => {
 
   const fetch = createTarballFetcher(fetchFromRegistry, getAuthHeader, {
     storeIndex,
-    ignoreScripts: true,
+    ignoreScripts,
     retry: {
       maxTimeout: 100,
       minTimeout: 0,
@@ -946,6 +946,7 @@ test('do not build the package when scripts are ignored', async () => {
     },
   })
   const { filesMap, requiresPrepare } = await fetch.gitHostedTarball(cafs, resolution, {
+    allowBuild: () => false,
     filesIndexFile,
     lockfileDir: process.cwd(),
     pkg,

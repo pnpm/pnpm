@@ -9,7 +9,7 @@ import type { GitFetcher } from '@pnpm/fetching.fetcher-base'
 import { packlist } from '@pnpm/fs.packlist'
 import { globalWarn } from '@pnpm/logger'
 import { createGitHostedPkgId } from '@pnpm/resolving.git-resolver'
-import type { StoreIndex } from '@pnpm/store.index'
+import { gitHostedStoreIndexKey, type StoreIndex } from '@pnpm/store.index'
 import { addFilesFromDir } from '@pnpm/worker'
 import { rimraf } from '@zkochan/rimraf'
 import { safeExeca as execa } from 'execa'
@@ -24,7 +24,6 @@ export interface CreateGitFetcherOptions {
 
 export function createGitFetcher (createOpts: CreateGitFetcherOptions): { git: GitFetcher } {
   const allowedHosts = new Set(createOpts?.gitShallowHosts ?? [])
-  const ignoreScripts = createOpts.ignoreScripts ?? false
 
   const gitFetcher: GitFetcher = async (cafs, resolution, opts) => {
     if (!isValidCommitHash(resolution.commit)) {
@@ -50,6 +49,7 @@ export function createGitFetcher (createOpts: CreateGitFetcherOptions): { git: G
     }
     let pkgDir: string
     let requiresPrepare: boolean
+    let ignoredBuild: boolean
     try {
       const prepareResult = await preparePackage({
         allowBuild: opts.allowBuild,
@@ -60,7 +60,8 @@ export function createGitFetcher (createOpts: CreateGitFetcherOptions): { git: G
       }, tempLocation, resolution.path ?? '')
       pkgDir = prepareResult.pkgDir
       requiresPrepare = prepareResult.shouldBeBuilt
-      if (ignoreScripts && prepareResult.shouldBeBuilt) {
+      ignoredBuild = Boolean(prepareResult.ignoredBuild)
+      if (ignoredBuild) {
         globalWarn(`The git-hosted package fetched from "${resolution.repo}" has to be built but the build scripts were ignored.`)
       }
     } catch (err: unknown) {
@@ -74,16 +75,21 @@ export function createGitFetcher (createOpts: CreateGitFetcherOptions): { git: G
     // Important! We cannot remove the temp location at this stage.
     // Even though we have the index of the package,
     // the linking of files to the store is in progress.
-    return addFilesFromDir({
-      storeDir: cafs.storeDir,
-      storeIndex: createOpts.storeIndex,
-      dir: pkgDir,
-      files,
-      filesIndexFile: opts.filesIndexFile,
-      requiresPrepare,
-      readManifest: opts.readManifest,
-      pkg: opts.pkg,
-    })
+    return {
+      ...await addFilesFromDir({
+        storeDir: cafs.storeDir,
+        storeIndex: createOpts.storeIndex,
+        dir: pkgDir,
+        files,
+        filesIndexFile: requiresPrepare && ((ignoredBuild && !createOpts.ignoreScripts) || (!ignoredBuild && opts.filesIndexFile.endsWith('\tnot-built')))
+          ? gitHostedStoreIndexKey(opts.pkgResolutionId ?? createGitHostedPkgId(resolution), { built: !ignoredBuild })
+          : opts.filesIndexFile,
+        requiresPrepare,
+        readManifest: opts.readManifest,
+        pkg: opts.pkg,
+      }),
+      ignoredBuild,
+    }
   }
 
   return {

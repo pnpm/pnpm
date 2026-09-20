@@ -428,6 +428,25 @@ test('git-hosted packages prepared in a shared store still require project appro
   expect(fs.existsSync(path.join(projectC, 'node_modules/test-git-fetch/output.json'))).toBeFalsy()
 })
 
+test.each(['test-git-fetch', 'artifact', 'repository'])('explicitly denied git preparation preserves source and separates cached builds (%s)', async (rule) => {
+  const project = prepareEmpty()
+  const gitDependency = await createGitPreparePackage()
+  const manifest = { dependencies: { 'test-git-fetch': gitDependency } }
+  const key = rule === 'artifact' ? `test-git-fetch@${gitDependency}`
+    : rule === 'repository' ? `test-git-fetch@${gitDependency.slice(0, gitDependency.lastIndexOf('#'))}` : rule
+  const opts = testDefaults({ fastUnpack: false, allowBuilds: { [key]: false } })
+  for (const allowed of [false, false, true, false]) {
+    fs.rmSync('node_modules', { force: true, recursive: true })
+    // eslint-disable-next-line no-await-in-loop
+    await install(manifest, {
+      ...opts,
+      allowBuilds: allowed ? { [`test-git-fetch@${gitDependency}`]: true } : { [key]: false },
+    })
+    expect(project.requireModule('test-git-fetch')).toBe('ok')
+    expect(fs.existsSync('node_modules/test-git-fetch/output.json')).toBe(allowed)
+  }
+})
+
 async function createGitPreparePackage (): Promise<string> {
   const repoDir = path.resolve('test-git-fetch-src')
   fs.mkdirSync(repoDir)

@@ -82,13 +82,13 @@ impl GitHostedTarballFetcher<'_> {
         // `prepack` / `publish` lifecycle scripts when needed, and
         // returns `pkg_dir` (which respects `self.path`) plus the
         // `should_be_built` flag.
-        let PreparedPackage { pkg_dir, should_be_built } =
+        let prepared =
             prepare_package::<Reporter>(&self.prepare_options(), temp_location, self.path)
                 .map_err(GitFetcherError::Prepare)?;
 
         // Warn when scripts were ignored on a package that needs
         // building.
-        if self.scripts.ignore && should_be_built {
+        if prepared.ignored_build {
             tracing::warn!(
                 target: "pacquet::git_hosted_tarball_fetcher",
                 package_id = %self.package_id,
@@ -101,7 +101,7 @@ impl GitHostedTarballFetcher<'_> {
         // checkout (build artifacts, source maps, test fixtures);
         // applying the packlist filter on the way back into CAS
         // matches the file set the package would publish.
-        let files = packlist_of(&pkg_dir)?;
+        let files = packlist_of(&prepared.pkg_dir)?;
 
         // Step 4: Fast path — when nothing got filtered out AND
         // prepare didn't mutate the tree (no build needed, or scripts
@@ -116,7 +116,7 @@ impl GitHostedTarballFetcher<'_> {
         // there, not equivalence.
         let fast_path_eligible =
             self.path.is_none() && files.len() == self.cas_paths.len();
-        if fast_path_eligible && !should_be_built {
+        if fast_path_eligible && !prepared.should_be_built {
             // Synthesize the row from `cas_paths`: pacquet's tarball
             // download doesn't write a `\traw` row at the same key, so
             // there's nothing to copy — but the CAS files themselves
@@ -131,34 +131,50 @@ impl GitHostedTarballFetcher<'_> {
             }
             return Ok(GitFetchOutput { cas_paths: self.cas_paths, built: false });
         }
-        if fast_path_eligible && self.scripts.ignore {
-            // `should_be_built && ignore_scripts`: prepare skipped the
+        if fast_path_eligible && prepared.ignored_build {
+            // `should_be_built && ignored_build`: prepare skipped the
             // scripts (warning already logged above), so the
             // materialized tree is still byte-identical to the source.
             // Return the raw filesMap *without* writing a final-key
             // row, so subsequent installs re-check the build gate. This
             // keeps `--ignore-scripts` installs idempotent.
-            return Ok(GitFetchOutput { cas_paths: self.cas_paths, built: should_be_built });
+            return Ok(GitFetchOutput {
+                cas_paths: self.cas_paths,
+                built: prepared.should_be_built,
+            });
         }
 
+        self.store_prepared(&prepared, &files)
+    }
+
+    fn store_prepared(
+        &self,
+        prepared: &PreparedPackage,
+        files: &[String],
+    ) -> Result<GitFetchOutput, GitFetcherError> {
         // Step 5: Slow path — re-import the filtered file set back
         // into CAS and hand the resulting map to the install dispatcher.
         let ImportedFiles { cas_paths, files_index } =
-            import_into_cas(self.store.dir, &pkg_dir, &files)?;
+            import_into_cas(self.store.dir, &prepared.pkg_dir, files)?;
 
         // Step 6: Queue a `PackageFilesIndex` row so a future install's
         // warm prefetch skips the materialize+prepare+packlist+re-import
         // pass entirely. The final row lands at the git-hosted
         // store-index key; the dispatcher already builds that key and
         // passes it via `files_index_file`.
+        let files_index_file = prepared.store_index_key(
+            self.store.files_index_file,
+            self.package_id,
+            self.scripts.ignore,
+        );
         queue_files_index(
             self.store.index_writer,
-            self.store.files_index_file,
+            &files_index_file,
             files_index,
-            should_be_built,
+            prepared.should_be_built,
         );
 
-        Ok(GitFetchOutput { cas_paths, built: should_be_built })
+        Ok(GitFetchOutput { cas_paths, built: prepared.should_be_built })
     }
 }
 

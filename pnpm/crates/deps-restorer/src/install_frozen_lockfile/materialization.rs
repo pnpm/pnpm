@@ -317,13 +317,7 @@ impl<'a> InstallFrozenLockfile<'a> {
             // planning — like the directory-clone cache above, only after
             // the offline lockfile checks — so its index reads run while a
             // pending host detection finishes its `node --version`.
-            let cas_prefetch = crate::create_virtual_store::CasPrefetch::start(
-                install.drivers.config,
-                install.entries(),
-                install.platform.supported_architectures,
-                None,
-            )
-            .await;
+            let cas_prefetch = prefetch_store(install, allow_build_policy).await;
             Ok(MaterializationPlan {
                 link_options,
                 host: HostPlan {
@@ -340,6 +334,20 @@ impl<'a> InstallFrozenLockfile<'a> {
             })
         }
     }
+}
+
+async fn prefetch_store(
+    install: super::FrozenInputs<'_>,
+    allow_build_policy: &AllowBuildPolicy,
+) -> crate::create_virtual_store::CasPrefetch {
+    crate::create_virtual_store::CasPrefetch::start(
+        install.drivers.config,
+        install.entries(),
+        allow_build_policy,
+        install.platform.supported_architectures,
+        None,
+    )
+    .await
 }
 
 fn build_directories<'a>(
