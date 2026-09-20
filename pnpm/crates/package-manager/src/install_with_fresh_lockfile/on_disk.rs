@@ -439,6 +439,7 @@ impl<'a> super::FreshPriorInstall<'a> {
             // Rebuilds take the frozen path; a policy change rebuilds present packages here.
             build_present_packages: self.allow_builds_changed,
             unbuilt_builds: self.unbuilt_builds,
+            previously_skipped: self.previously_skipped,
         }
     }
 }

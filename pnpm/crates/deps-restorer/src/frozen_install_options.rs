@@ -151,6 +151,8 @@ pub struct PriorMaterialization<'a> {
     /// `None` on a first install or when the file couldn't be fully
     /// parsed.
     pub hoisted_locations: Option<&'a crate::HoistedLocations>,
+    /// See [`crate::PriorLinkState::previously_skipped`].
+    pub previously_skipped: &'a crate::SkippedSnapshots,
     /// `allowBuilds` changed since the previous install: a build it
     /// ignored may now be allowed, or one it ran may no longer be. The
     /// hoisted linker then hands every package to the build phase, present
@@ -196,6 +198,7 @@ impl<'a> PriorMaterialization<'a> {
             hoisted_locations: self.hoisted_locations,
             build_present_packages: self.rebuild.is_some() || self.allow_builds_changed,
             unbuilt_builds: self.unbuilt_builds,
+            previously_skipped: self.previously_skipped,
         }
     }
 }
