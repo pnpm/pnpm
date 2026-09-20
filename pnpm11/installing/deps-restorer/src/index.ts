@@ -94,6 +94,7 @@ import { realpathMissing } from 'realpath-missing'
 import { extendProjectsWithTargetDirs } from './extendProjectsWithTargetDirs.js'
 import { linkHoistedModules } from './linkHoistedModules.js'
 import { lockfileToHoistedDepGraph } from './lockfileToHoistedDepGraph.js'
+import { reportDirectDependencyChanges } from './reportDirectDependencyChanges.js'
 export { extendProjectsWithTargetDirs } from './extendProjectsWithTargetDirs.js'
 
 export type { HoistingLimits }
@@ -483,6 +484,11 @@ export async function headlessInstall (opts: HeadlessOptions): Promise<Installat
         projects: selectedProjects,
         registriesByScope: opts.registriesByScope,
         symlink: opts.symlink,
+      })
+      reportDirectDependencyChanges({
+        currentLockfile,
+        wantedLockfile: filteredLockfile,
+        projects: selectedProjects,
       })
     }
   } else if (opts.enableModulesDir !== false || opts.enableGlobalVirtualStore) {
