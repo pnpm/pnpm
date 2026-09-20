@@ -5,7 +5,7 @@ use super::{
     slot_linking::{LinkSlotsParallel, SlotLink, emit_warm_snapshot_progress, link_slots_parallel},
 };
 use crate::{CasPathsByPkgId, InstallPackageBySnapshotError};
-use pnpm_git_fetcher::{GitFetcherError, assert_package_build_allowed};
+use pnpm_git_fetcher::{GitFetcherError, resolve_package_build_permission};
 use pnpm_lockfile::{LockfileResolution, PackageKey, PackageMetadata, PkgName};
 use pnpm_package_manifest::{
     files_include_install_scripts, manifest_requires_build, parse_manifest,
@@ -74,14 +74,16 @@ pub(super) fn cached_git_prepare_allowed(
         .get("name")
         .and_then(serde_json::Value::as_str)
         .unwrap_or("");
-    if allow_build_policy.check(&format!("{name}@{package_id}")) == Some(true) {
-        return Ok(true);
+    match allow_build_policy.check(&format!("{name}@{package_id}")) {
+        Some(false) => return Ok(key.ends_with("\tnot-built")),
+        Some(true) => return Ok(!key.ends_with("\tnot-built")),
+        None => {}
     }
     if !prefetch.requires_prepare.contains_key(key) {
         return Ok(false);
     }
-    let allow_build = |dep_path: &str| allow_build_policy.check(dep_path).unwrap_or(false);
-    assert_package_build_allowed(&allow_build, &package_id, &manifest)
+    let allow_build = |dep_path: &str| allow_build_policy.check(dep_path);
+    resolve_package_build_permission(&allow_build, &package_id, &manifest)
         .map_err(|error| {
             CreateVirtualStoreError::InstallPackageBySnapshot(
                 InstallPackageBySnapshotError::GitFetch(GitFetcherError::Prepare(error)),

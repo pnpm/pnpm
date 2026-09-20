@@ -150,6 +150,7 @@ impl<'a> CreateVirtualStore<'a> {
                         packages: Some(wanted.packages),
                         snapshots: Some(wanted.snapshots),
                     },
+                    self.ctx.allow_build_policy,
                     self.selection.supported_architectures,
                     self.fetching.store_context.as_ref(),
                 )

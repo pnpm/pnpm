@@ -450,7 +450,7 @@ async fn fetcher_runs_prepare_when_allow_build_returns_true() {
     // catches a regression where the gate ignores the dep path and
     // falls through to default-allow or default-deny.
     let allow_x_only: AllowBuildRef<'_> =
-        &|dep_path| dep_path == "x@git+file:///tmp/repo.git#abc123";
+        &|dep_path| (dep_path == "x@git+file:///tmp/repo.git#abc123").then_some(true);
 
     let received = GitFetcher {
         scripts: crate::PrepareScriptOptions {

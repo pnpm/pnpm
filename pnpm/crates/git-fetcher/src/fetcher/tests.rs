@@ -56,7 +56,7 @@ fn make_bare_repo_with_prepare_script(tmp: &Path, prepare_script: &str) -> (Path
 }
 
 fn allow_all_builds<'a>() -> AllowBuildRef<'a> {
-    &|_| true
+    &|_| Some(true)
 }
 
 /// Create a tiny bare git repo whose single commit ships a
@@ -119,7 +119,7 @@ fn make_bare_repo_with_sub_package(tmp: &Path) -> (PathBuf, String) {
 }
 
 fn deny_all_builds<'a>() -> AllowBuildRef<'a> {
-    &|_| false
+    &|_| None
 }
 
 /// Variant of [`make_bare_repo`] for monorepo-style fixtures: commits
