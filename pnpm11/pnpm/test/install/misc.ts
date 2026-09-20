@@ -748,13 +748,13 @@ test('trustPolicyExclude set to a single string in pnpm-workspace.yaml excludes 
   ], { expectSuccess: true })
 })
 
+// Windows CI volumes do not support explicit clone imports.
+const forceRepairImportMethods = isWindows()
+  ? ['auto', 'hardlink', 'copy']
+  : ['auto', 'hardlink', 'copy', 'clone']
+
 // Covers https://github.com/pnpm/pnpm/issues/919
-test.each([
-  'auto',
-  'hardlink',
-  'copy',
-  'clone',
-])('install --force restores a replaced dependency file in node_modules (packageImportMethod=%s)', async (packageImportMethod) => {
+test.each(forceRepairImportMethods)('install --force restores a replaced dependency file in node_modules (packageImportMethod=%s)', async (packageImportMethod) => {
   prepare({
     dependencies: {
       'is-positive': '1.0.0',
