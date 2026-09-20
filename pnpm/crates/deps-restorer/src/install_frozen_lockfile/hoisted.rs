@@ -269,7 +269,7 @@ fn link_hoisted<Reporter: self::Reporter>(
     // The pass above links `link:` siblings only, so it reports only
     // those. The rest are real directories this linker wrote.
     crate::report_direct_dependency_changes::report_direct_dependency_changes::<Reporter>(
-        inputs, lockfile,
+        inputs, lockfile, skipped,
     );
     Ok(())
 }

@@ -1,5 +1,5 @@
 use super::{
-    AddMockedRegistry, CommandTempCwd, fs_remove_dir_all, pacquet_at, write_manifest,
+    AddMockedRegistry, CommandTempCwd, fs, fs_remove_dir_all, pacquet_at, write_manifest,
     write_workspace_yaml,
 };
 use assert_cmd::prelude::*;
@@ -109,6 +109,34 @@ fn hoisted_install_reports_an_aliased_dependency_under_its_alias() {
         install_summary(pacquet).as_deref(),
         Some("dependencies:\n+ aliased <- @pnpm.e2e/foo 100.1.0"),
     );
+
+    drop((root, mock_instance));
+}
+
+/// The install resolves an unsupported optional dependency and leaves it
+/// uninstalled, so the summary must not claim otherwise.
+#[test]
+fn hoisted_install_does_not_report_an_optional_dependency_it_skipped() {
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    write_workspace_yaml(&workspace, "nodeLinker: hoisted\n");
+    fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({
+            "optionalDependencies": { "@pnpm.e2e/not-compatible-with-any-os": "*" },
+        })
+        .to_string(),
+    )
+    .expect("write package.json");
+
+    assert_eq!(install_summary(pacquet), None);
+    assert!(!workspace.join("node_modules/@pnpm.e2e/not-compatible-with-any-os").exists());
 
     drop((root, mock_instance));
 }

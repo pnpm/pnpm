@@ -4,19 +4,14 @@
 //! Every other linker emits them from
 //! [`crate::SymlinkDirectDependencies`] as it creates each
 //! `node_modules/<alias>` symlink. The hoisted linker writes the package
-//! into that path itself and creates no symlink, so its direct
-//! dependencies are filtered out of that pass (`link_only`) and nothing
-//! reports them. Without these events the install summary omits every
-//! regular dependency (pnpm/pnpm#15161).
+//! into that path itself and creates no symlink, so `link_only` filters
+//! its direct dependencies out of that pass and nothing else reports
+//! them (pnpm/pnpm#15161).
 //!
 //! The symlink outcome answers "did this install put it there". Here the
-//! answer comes from the lockfile the previous install left in
-//! `<virtual_store_dir>/lock.yaml`: a dependency is reported when this
-//! install resolves it differently, which covers a new dependency, a
-//! changed version, and a `node_modules` that was deleted (no previous
-//! lockfile, so everything is new). A repeat install reports nothing.
+//! previous install's `<virtual_store_dir>/lock.yaml` answers it.
 
-use crate::{HoistedLinkerInputs, symlink_direct_dependencies::fallback_version};
+use crate::{HoistedLinkerInputs, SkippedSnapshots, symlink_direct_dependencies::fallback_version};
 use pnpm_lockfile::{
     ImporterDepVersion, Lockfile, PackageKey, PackageMetadata, PkgName, ProjectSnapshot,
     ResolvedDependencySpec,
@@ -32,6 +27,7 @@ use std::collections::{HashMap, HashSet};
 pub fn report_direct_dependency_changes<Reporter: self::Reporter>(
     inputs: &HoistedLinkerInputs<'_>,
     wanted: &Lockfile,
+    skipped: &SkippedSnapshots,
 ) {
     for (project_dir, _) in inputs.projects.manifests {
         let importer_id = pnpm_workspace::importer_id_from_root_dir(
@@ -42,6 +38,7 @@ pub fn report_direct_dependency_changes<Reporter: self::Reporter>(
             inputs.prior.current_lockfile,
             wanted,
             inputs.projects.dependency_groups,
+            skipped,
             &importer_id,
             &project_dir.to_string_lossy(),
         );
@@ -53,6 +50,7 @@ fn report_importer<Reporter: self::Reporter>(
     previous: Option<&Lockfile>,
     wanted: &Lockfile,
     dependency_groups: &[DependencyGroup],
+    skipped: &SkippedSnapshots,
     importer_id: &str,
     prefix: &str,
 ) {
@@ -60,8 +58,9 @@ fn report_importer<Reporter: self::Reporter>(
     let before = direct_dependencies(
         previous.and_then(|lockfile| lockfile.importers.get(importer_id)),
         dependency_groups,
+        skipped,
     );
-    let after = direct_dependencies(wanted.importers.get(importer_id), dependency_groups);
+    let after = direct_dependencies(wanted.importers.get(importer_id), dependency_groups, skipped);
     for &(name, group, spec) in &after {
         if let Some(&(_, was_group, was_spec)) = before
             .iter()
@@ -87,9 +86,12 @@ fn report_importer<Reporter: self::Reporter>(
 /// The importer's direct dependencies, first group wins on a name that
 /// appears in several. `link:` dependencies are left out: they are
 /// symlinked even under the hoisted linker, so they are already reported.
+/// So are the packages in `skipped`, which the install resolved but left
+/// uninstalled, an unsupported optional dependency among them.
 fn direct_dependencies<'a>(
     snapshot: Option<&'a ProjectSnapshot>,
     dependency_groups: &[DependencyGroup],
+    skipped: &SkippedSnapshots,
 ) -> Vec<(&'a PkgName, DependencyGroup, &'a ResolvedDependencySpec)> {
     let mut seen: HashSet<&PkgName> = HashSet::new();
     dependency_groups
@@ -104,6 +106,11 @@ fn direct_dependencies<'a>(
                 .map(move |(name, spec)| (name, group, spec))
         })
         .filter(|(_, _, spec)| !matches!(spec.version, ImporterDepVersion::Link(_)))
+        .filter(|(name, _, spec)| {
+            spec.version
+                .resolved_key(name)
+                .is_none_or(|resolved| !skipped.contains(&resolved))
+        })
         .filter(|(name, _, _)| seen.insert(*name))
         .collect()
 }

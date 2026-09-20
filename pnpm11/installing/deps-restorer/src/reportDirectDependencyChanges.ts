@@ -2,7 +2,7 @@ import { rootLogger } from '@pnpm/core-loggers'
 import * as dp from '@pnpm/deps.path'
 import type { LockfileObject } from '@pnpm/lockfile.fs'
 import { nameVerFromPkgSnapshot } from '@pnpm/lockfile.utils'
-import type { DependenciesField, ProjectId, ProjectRootDir } from '@pnpm/types'
+import type { DependenciesField, DepPath, ProjectId, ProjectRootDir } from '@pnpm/types'
 
 type DependencyType = 'prod' | 'dev' | 'optional'
 
@@ -31,21 +31,21 @@ interface DirectDependency {
  * (pnpm/pnpm#15161).
  *
  * The symlink outcome answers "did this install put it there". Here the answer
- * comes from the lockfile the previous install left in `node_modules/.pnpm`,
- * which is absent when `node_modules` was deleted, so that install reports
- * everything it puts back.
+ * comes from the lockfile the previous install left in `node_modules/.pnpm`.
  *
  * `link:` dependencies are left out: they are symlinked even under the hoisted
- * linker, so they are already reported.
+ * linker, so they are already reported. So are the packages in `skipped`, which
+ * the install resolved but left uninstalled.
  */
 export function reportDirectDependencyChanges (opts: {
   currentLockfile: LockfileObject | null | undefined
   wantedLockfile: LockfileObject
   projects: Array<{ id: ProjectId, rootDir: ProjectRootDir }>
+  skipped: Set<DepPath>
 }): void {
   for (const { id, rootDir } of opts.projects) {
-    const before = directDependencies(opts.currentLockfile, id)
-    const after = directDependencies(opts.wantedLockfile, id)
+    const before = directDependencies(opts.currentLockfile, id, opts.skipped)
+    const after = directDependencies(opts.wantedLockfile, id, opts.skipped)
     for (const [alias, dep] of after) {
       const prev = before.get(alias)
       if (prev?.ref === dep.ref) continue
@@ -64,7 +64,8 @@ export function reportDirectDependencyChanges (opts: {
 /** The importer's direct dependencies, resolved against its own lockfile. */
 function directDependencies (
   lockfile: LockfileObject | null | undefined,
-  id: ProjectId
+  id: ProjectId,
+  skipped: Set<DepPath>
 ): Map<string, DirectDependency> {
   const deps = new Map<string, DirectDependency>()
   if (lockfile == null) return deps
@@ -73,10 +74,12 @@ function directDependencies (
   for (const field of Object.keys(DEPENDENCY_TYPE_BY_FIELD) as DependenciesField[]) {
     for (const [alias, ref] of Object.entries<string>(importer[field] ?? {})) {
       if (ref.startsWith('link:') || deps.has(alias)) continue
+      const depPath = dp.refToRelative(ref, alias)
+      if (depPath == null || skipped.has(depPath)) continue
       deps.set(alias, {
         ref,
         dependencyType: DEPENDENCY_TYPE_BY_FIELD[field],
-        pkg: resolvePackage(lockfile, alias, ref),
+        pkg: resolvePackage(lockfile, depPath),
       })
     }
   }
@@ -102,11 +105,8 @@ function report (
 
 function resolvePackage (
   lockfile: LockfileObject,
-  alias: string,
-  ref: string
+  depPath: DepPath
 ): DirectDependency['pkg'] {
-  const depPath = dp.refToRelative(ref, alias)
-  if (depPath == null) return undefined
   const pkgSnapshot = lockfile.packages?.[depPath]
   if (pkgSnapshot == null) return undefined
   const { name, version } = nameVerFromPkgSnapshot(depPath, pkgSnapshot)

@@ -56,3 +56,16 @@ test('the hoisted linker reports an aliased dependency under its alias', async (
   expect(summary(runHoisted(['add', 'aliased@npm:@pnpm.e2e/foo@100.1.0'])))
     .toBe('dependencies:\n+ aliased <- @pnpm.e2e/foo 100.1.0')
 })
+
+test('the hoisted linker does not report an optional dependency it skipped', async () => {
+  prepare({
+    optionalDependencies: {
+      '@pnpm.e2e/not-compatible-with-any-os': '*',
+    },
+  })
+
+  // The install resolves it and leaves it uninstalled, so the summary must
+  // not claim otherwise.
+  expect(summary(runHoisted(['install']))).toBeUndefined()
+  expect(fs.existsSync('node_modules/@pnpm.e2e/not-compatible-with-any-os')).toBe(false)
+})

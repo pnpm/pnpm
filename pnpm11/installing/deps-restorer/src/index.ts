@@ -489,6 +489,7 @@ export async function headlessInstall (opts: HeadlessOptions): Promise<Installat
         currentLockfile,
         wantedLockfile: filteredLockfile,
         projects: selectedProjects,
+        skipped,
       })
     }
   } else if (opts.enableModulesDir !== false || opts.enableGlobalVirtualStore) {
