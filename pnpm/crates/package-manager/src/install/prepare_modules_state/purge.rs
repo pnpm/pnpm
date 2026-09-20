@@ -136,6 +136,11 @@ pub(super) struct ExcludedGroupPrune<'a> {
     pub(super) modules_manifest: Option<&'a pnpm_modules_yaml::ModulesLayout>,
     pub(super) current_lockfile: Option<&'a Lockfile>,
     pub(super) requested_importer_ids: Option<&'a HashSet<String>>,
+    pub(super) manifest_links: ManifestLinkProjects<'a>,
+}
+pub(super) struct ManifestLinkProjects<'a> {
+    pub(super) manifests: &'a [(PathBuf, &'a pnpm_package_manifest::PackageManifest)],
+    pub(super) workspace_packages: Option<&'a pnpm_resolving_resolver_base::WorkspacePackages>,
 }
 /// Remove direct links from dependency groups excluded by this run.
 /// Unfiltered installs can use the global `included` value recorded in
@@ -149,21 +154,42 @@ pub(super) fn prune_excluded_direct_deps(
         return Ok(());
     }
     let Some(modules) = context.modules_manifest else { return Ok(()) };
-    let Some(current) = context.current_lockfile else { return Ok(()) };
     if !context.eligibility.filtered_install && modules.included == context.included {
         return Ok(());
     }
-    let selected_prune_importer_ids = context.requested_importer_ids.map(|requested| {
-        crate::materialization_closure(
+    let selected_prune_importer_ids = selected_prune_importer_ids(context);
+    let previously_included = previously_included(context, modules);
+    if let Some(current) = context.current_lockfile {
+        crate::prune_direct_deps_excluded_by_groups(
             current,
-            context.workspace_root,
-            requested,
+            previously_included,
             context.included,
-            &crate::SkippedSnapshots::new(),
+            context.workspace_root,
+            context.config,
+            selected_prune_importer_ids.as_ref(),
         )
-        .importer_ids
-    });
-    let previously_included = if context.eligibility.filtered_install {
+        .map_err(InstallError::PruneDirectDeps)?;
+    }
+    crate::prune_manifest_link_deps(&crate::PruneManifestLinkDeps {
+        workspace_root: context.workspace_root,
+        project_manifests: context.manifest_links.manifests,
+        importers: context.current_lockfile.map(|current| &current.importers),
+        workspace_packages: context.manifest_links.workspace_packages,
+        previously_included,
+        new_included: context.included,
+        modules_dir_name: context.config.modules_dir
+            .file_name()
+            .unwrap_or_else(|| std::ffi::OsStr::new("node_modules")),
+        prunable_importer_ids: selected_prune_importer_ids.as_ref(),
+    })
+    .map_err(InstallError::PruneDirectDeps)
+}
+
+fn previously_included(
+    context: &ExcludedGroupPrune<'_>,
+    modules: &pnpm_modules_yaml::ModulesLayout,
+) -> IncludedDependencies {
+    if context.eligibility.filtered_install {
         IncludedDependencies {
             dependencies: true,
             dev_dependencies: true,
@@ -171,14 +197,23 @@ pub(super) fn prune_excluded_direct_deps(
         }
     } else {
         modules.included
-    };
-    crate::prune_direct_deps_excluded_by_groups(
-        current,
-        previously_included,
-        context.included,
-        context.workspace_root,
-        context.config,
-        selected_prune_importer_ids.as_ref(),
-    )
-    .map_err(InstallError::PruneDirectDeps)
+    }
+}
+
+fn selected_prune_importer_ids(context: &ExcludedGroupPrune<'_>) -> Option<HashSet<String>> {
+    context.requested_importer_ids.map(|requested| {
+        context.current_lockfile.map_or_else(
+            || requested.clone(),
+            |current| {
+                crate::materialization_closure(
+                    current,
+                    context.workspace_root,
+                    requested,
+                    context.included,
+                    &crate::SkippedSnapshots::new(),
+                )
+                .importer_ids
+            },
+        )
+    })
 }

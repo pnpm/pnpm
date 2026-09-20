@@ -733,6 +733,7 @@ fn returns_up_to_date_when_aliased_workspace_dependency_satisfies_range() {
             "link:pkg-a",
             "1.5.0",
             pnpm_config::LinkWorkspacePackages::DirectOnly,
+            false,
         ),
         Decision::UpToDate,
     );
@@ -745,6 +746,7 @@ fn returns_skipped_when_aliased_workspace_dependency_version_is_outdated() {
         "link:pkg-a",
         "2.0.0",
         pnpm_config::LinkWorkspacePackages::DirectOnly,
+        false,
     );
     assert!(
         matches!(decision, Decision::Skipped { reason } if reason.contains("linked")),
@@ -760,6 +762,7 @@ fn returns_up_to_date_when_linked_workspace_dependency_uses_a_tag() {
             "link:pkg-a",
             "1.0.0",
             pnpm_config::LinkWorkspacePackages::DirectOnly,
+            false,
         ),
         Decision::UpToDate,
     );
@@ -773,6 +776,22 @@ fn returns_up_to_date_for_registry_resolution_when_workspace_linking_is_off() {
             "1.0.0",
             "1.0.0",
             pnpm_config::LinkWorkspacePackages::Off,
+            false,
+        ),
+        Decision::UpToDate,
+    );
+}
+
+#[test]
+fn returns_up_to_date_for_workspace_link_excluded_from_lockfile() {
+    assert_eq!(
+        linked_sibling_decision_for_spec(
+            "pkg-a",
+            "^1.0.0",
+            "link:pkg-a",
+            "1.5.0",
+            pnpm_config::LinkWorkspacePackages::DirectOnly,
+            true,
         ),
         Decision::UpToDate,
     );

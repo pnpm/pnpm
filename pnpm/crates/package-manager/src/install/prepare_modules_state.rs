@@ -137,6 +137,10 @@ fn prepare_modules_layout(
         modules_manifest,
         current_lockfile: inputs.lockfiles.current,
         requested_importer_ids: inputs.lockfiles.importer_ids,
+        manifest_links: purge::ManifestLinkProjects {
+            manifests: inputs.projects.manifests,
+            workspace_packages: inputs.projects.workspace_packages,
+        },
     })?;
 
     Ok(())
@@ -158,6 +162,7 @@ async fn report_prepared_up_to_date<Reporter: self::Reporter + 'static>(
             catalogs: inputs.projects.catalogs,
             manifests: inputs.projects.manifests,
             prefix: inputs.projects.prefix,
+            workspace_packages: inputs.projects.workspace_packages,
         },
         verification: crate::install::state_options::LockfileVerificationInputs {
             verifiers: inputs.verification.verifiers,

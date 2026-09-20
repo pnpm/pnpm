@@ -29,17 +29,8 @@ impl ManifestStat<'_> {
     }
 }
 
-/// The modified-manifests branch: the lockfile-equality assertion plus
-/// the wanted-lockfile up-to-date check (settings drift, per-importer
-/// specifier match, linked-package freshness) for every project whose
-/// manifest is newer than the last validation. `Err` carries the
-/// `Decision::Skipped` reason.
-///
-/// When `pnpm-lock.yaml` is absent, the current lockfile stands in as
-/// the wanted one (see the lockfile gate in
-/// [`crate::optimistic_repeat_install::check_optimistic_repeat_install`]); `Ok(Some(_))` then carries the
-/// loaded current lockfile so the caller can regenerate
-/// `pnpm-lock.yaml` from it without a second read.
+/// Check modified manifests against the wanted lockfile. Returns the current
+/// lockfile when it substitutes for a missing wanted lockfile.
 pub(crate) fn modified_manifests_match_lockfile(
     check: &OptimisticRepeatInstallCheck<'_>,
     state: &WorkspaceState,
@@ -115,6 +106,11 @@ pub(super) fn check_projects_content(
     }
 
     let linked_ctx = LinkedPackagesContext::new(check.config, check.project_manifests);
+    let workspace_packages = crate::install::workspace_packages_for_freshness(
+        check.config,
+        check.is_workspace_install,
+        check.project_manifests,
+    );
     let ignored_optional_matcher = pnpm_matcher::create_matcher(
         check.config.ignored_optional_dependencies.as_deref().unwrap_or_default(),
     );
@@ -123,6 +119,7 @@ pub(super) fn check_projects_content(
         config: check.config,
         wanted,
         linked_ctx: &linked_ctx,
+        workspace_packages: workspace_packages.as_ref(),
         ignored_optional_matcher: &ignored_optional_matcher,
         parsed_overrides: parsed_overrides.as_deref(),
     };
@@ -131,10 +128,7 @@ pub(super) fn check_projects_content(
         .par_iter()
         .map(|project| project_content_check(&content_check, project))
         .collect();
-    for result in results {
-        result?;
-    }
-    Ok(())
+    results.into_iter().collect()
 }
 
 /// The lockfile the content check compares against, and how it was found.
@@ -214,6 +208,7 @@ struct ProjectContentCheck<'a> {
     config: &'a Config,
     wanted: &'a Lockfile,
     linked_ctx: &'a LinkedPackagesContext<'a>,
+    workspace_packages: Option<&'a pnpm_resolving_resolver_base::WorkspacePackages>,
     ignored_optional_matcher: &'a pnpm_matcher::Matcher,
     parsed_overrides: Option<&'a [pnpm_config_parse_overrides::VersionOverride]>,
 }
@@ -224,15 +219,18 @@ fn project_content_check(
 ) -> Result<(), &'static str> {
     let importer_id =
         pnpm_workspace::importer_id_from_root_dir(context.workspace_root, project.root_dir);
-    if let Err(error) = crate::install::check_importer_satisfies(
-        context.wanted,
-        context.workspace_root,
-        project.manifest,
-        &importer_id,
-        context.config,
-        context.ignored_optional_matcher,
-        context.parsed_overrides,
-    ) {
+    if let Err(error) =
+        crate::install::check_importer_satisfies(&crate::install::ImporterSatisfactionCheck {
+            lockfile: context.wanted,
+            lockfile_dir: context.workspace_root,
+            manifest: project.manifest,
+            importer_id: &importer_id,
+            config: context.config,
+            workspace_packages: context.workspace_packages,
+            ignored_optional_matcher: context.ignored_optional_matcher,
+            parsed_overrides: context.parsed_overrides,
+        })
+    {
         tracing::debug!(target: "pacquet::install", %error, importer_id, "repeat-install content check: manifest no longer satisfied");
         return Err("a modified manifest is no longer satisfied by the lockfile");
     }
