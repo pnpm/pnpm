@@ -5,6 +5,8 @@ pub mod node_runtime;
 pub mod worker;
 pub use worker::LogFn;
 
+pub(crate) const LOAD_PNPMFILE: &str = include_str!("load_pnpmfile.cjs");
+
 use async_trait::async_trait;
 use derive_more::Display;
 use serde_json::Value;

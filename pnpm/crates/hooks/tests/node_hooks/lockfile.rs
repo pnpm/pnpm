@@ -99,6 +99,60 @@ function preResolution(ctx, logger) {
 }
 
 #[tokio::test]
+async fn pre_resolution_loads_js_as_esm_from_the_nearest_package_scope() {
+    let tmp = TempDir::new().expect("temp dir");
+    std::fs::write(tmp.path().join("package.json"), r#"{"type":"commonjs"}"#)
+        .expect("write outer package manifest");
+    let hooks_dir = tmp.path().join("hooks");
+    std::fs::create_dir(&hooks_dir).expect("create hooks dir");
+    std::fs::write(hooks_dir.join("package.json"), r#"{"type":"module"}"#)
+        .expect("write nearest package manifest");
+    let pnpmfile_path = hooks_dir.join("pnpmfile.js");
+    std::fs::write(
+        &pnpmfile_path,
+        r"
+await Promise.resolve();
+export const hooks = { preResolution };
+
+function preResolution(ctx, logger) {
+  if (ctx.lockfileDir !== '/test/lockfile') throw new Error('wrong lockfileDir');
+  logger.info('package-scoped ESM preResolution loaded');
+}
+",
+    )
+    .expect("write pnpmfile");
+
+    let hooks = pnpm_hooks::node_runtime::NodeJsHooks::new(pnpmfile_path);
+    let ctx = pnpm_hooks::PreResolutionHookContext {
+        wanted_lockfile: serde_json::json!({}),
+        current_lockfile: serde_json::json!({}),
+        exists_current_lockfile: false,
+        exists_non_empty_wanted_lockfile: false,
+        lockfile_dir: "/test/lockfile".to_string(),
+        store_dir: "/test/store".to_string(),
+        registries: serde_json::json!({ "default": "http://localhost:1234/" }),
+    };
+    let info_messages = Arc::new(Mutex::new(Vec::new()));
+    let captured_info_messages = Arc::clone(&info_messages);
+    hooks.pre_resolution(
+        ctx,
+        pnpm_hooks::PreResolutionHookLogger {
+            info: Arc::new(move |message| {
+                captured_info_messages
+                    .lock()
+                    .unwrap()
+                    .push(message);
+            }),
+            warn: Arc::new(|_| {}),
+        },
+    )
+    .await;
+
+    let info_messages = info_messages.lock().unwrap();
+    assert_eq!(info_messages.as_slice(), ["package-scoped ESM preResolution loaded"]);
+}
+
+#[tokio::test]
 async fn custom_resolver_should_refresh_resolution_receives_dep_path_and_snapshot() {
     let tmp = TempDir::new().expect("temp dir");
     let hooks =
