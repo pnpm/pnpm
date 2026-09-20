@@ -101,6 +101,30 @@ fn virtual_store_walk_orders_deepest_first() {
     }
 }
 
+/// A scoped package contributes one path component per name segment.
+/// Pushed whole, `@scope/pkg` would leave its `/` inside a Windows path
+/// string — see [`pnpm_fs::push_slash_separated_path`].
+#[test]
+fn scoped_package_slot_bins_use_native_separators() {
+    let wd = Path::new("proj")
+        .join("node_modules")
+        .join(".pnpm")
+        .join("@scope+pkg@1.0.0")
+        .join("node_modules")
+        .join("@scope")
+        .join("pkg");
+    let extra: Vec<PathBuf> = vec![];
+    let path = extend_path(&wd, None, None, &extra, ScriptsPrependNodePath::Never, None);
+    let parts = segments(&path);
+    let foreign = if std::path::MAIN_SEPARATOR == '/' { '\\' } else { '/' };
+    assert!(
+        parts
+            .iter()
+            .all(|part| !part.contains(foreign)),
+        "no PATH entry may carry a {foreign:?} separator: {parts:?}",
+    );
+}
+
 /// Final PATH order is `[bins..., nodeGyp, ...extraBinPaths]`: the
 /// `.bin` directories come first, then the bundled node-gyp dir, then
 /// the caller-supplied extra paths.
