@@ -47,3 +47,12 @@ test('the hoisted linker reports the dependencies it restores, and only those', 
   expect(summary(runHoisted(['install'])))
     .toBe('dependencies:\n+ @pnpm.e2e/foo 100.0.0')
 })
+
+test('the hoisted linker reports an aliased dependency under its alias', async () => {
+  prepare()
+
+  // The alias is the directory under `node_modules`; the package behind it
+  // has its own name, and the summary names both.
+  expect(summary(runHoisted(['add', 'aliased@npm:@pnpm.e2e/foo@100.1.0'])))
+    .toBe('dependencies:\n+ aliased <- @pnpm.e2e/foo 100.1.0')
+})

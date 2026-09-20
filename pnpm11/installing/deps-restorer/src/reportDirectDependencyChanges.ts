@@ -89,10 +89,12 @@ function report (
 ): void {
   if (dep.pkg == null) return
   const { dependencyType } = dep
-  const { id, name, version } = dep.pkg
+  const { id, name: realName, version } = dep.pkg
+  // `name` is the directory under `node_modules`, which an npm alias makes
+  // differ from the package's own name.
   rootLogger.debug(action === 'added'
-    ? { added: { dependencyType, id, name, realName: name, version }, prefix }
-    : { prefix, removed: { dependencyType, name, version } }
+    ? { added: { dependencyType, id, name: alias, realName, version }, prefix }
+    : { prefix, removed: { dependencyType, name: alias, version } }
   )
 }
 

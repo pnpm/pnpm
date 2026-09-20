@@ -89,3 +89,26 @@ fn hoisted_install_reports_both_sides_of_a_version_change() {
 
     drop((root, mock_instance));
 }
+
+/// The alias is the directory under `node_modules`; the package behind
+/// it has its own name, and the summary names both.
+#[test]
+fn hoisted_install_reports_an_aliased_dependency_under_its_alias() {
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    write_workspace_yaml(&workspace, "nodeLinker: hoisted\n");
+    write_manifest(&workspace, serde_json::json!({ "aliased": "npm:@pnpm.e2e/foo@100.1.0" }));
+
+    assert_eq!(
+        install_summary(pacquet).as_deref(),
+        Some("dependencies:\n+ aliased <- @pnpm.e2e/foo 100.1.0"),
+    );
+
+    drop((root, mock_instance));
+}
