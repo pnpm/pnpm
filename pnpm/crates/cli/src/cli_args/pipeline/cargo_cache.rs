@@ -52,13 +52,11 @@ impl CargoCache {
         check_ancestors(&project, relative)?;
         let parent = target.parent().expect("relative target has a parent");
         fs::create_dir_all(parent)?;
-        let common = command_output(
-            "git",
+        let common = canonical_git_path(
             &["rev-parse", "--path-format=absolute", "--git-common-dir"],
             &project,
             &BTreeMap::new(),
         )?;
-        let common = dunce::canonicalize(common.trim())?;
         let locks = common.join("pnpm-cargo-locks");
         fs::create_dir_all(&locks)?;
         let lock = OpenOptions::new()
@@ -206,16 +204,12 @@ pub(super) fn snapshot_entry(
 ) -> io::Result<(PathBuf, String, Vec<String>)> {
     let cache_dir = pnpm_fs::realpath_missing(cache_dir)?;
     let project = dunce::canonicalize(project)?;
-    let repo = dunce::canonicalize(
-        command_output("git", &["rev-parse", "--show-toplevel"], &project, environment)?.trim(),
-    )?;
-    let common = command_output(
-        "git",
+    let repo = canonical_git_path(&["rev-parse", "--show-toplevel"], &project, environment)?;
+    let common = canonical_git_path(
         &["rev-parse", "--path-format=absolute", "--git-common-dir"],
         &project,
         environment,
     )?;
-    let common = dunce::canonicalize(common.trim())?;
     let mut inputs = vec!["pnpm-cargo-state:v1".to_string(), task_key.to_string()];
     inputs.push(command_output("rustc", &["-vV"], &project, environment)?);
     inputs.push(command_output("cargo", &["-vV"], &project, environment)?);
@@ -394,6 +388,16 @@ fn add_config(path: &Path, project: &Path, inputs: &mut Vec<String>) -> io::Resu
         Err(error) => return Err(error),
     }
     Ok(())
+}
+
+/// The canonical form of the path `git` prints for `args`, run in
+/// `project`.
+fn canonical_git_path(
+    args: &[&str],
+    project: &Path,
+    environment: &BTreeMap<String, String>,
+) -> io::Result<PathBuf> {
+    dunce::canonicalize(command_output("git", args, project, environment)?.trim())
 }
 
 fn command_output(
