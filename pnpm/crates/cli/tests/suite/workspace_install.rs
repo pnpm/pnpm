@@ -889,4 +889,50 @@ fn prefer_symlinked_executables_symlinks_workspace_bins() {
     );
 }
 
+/// `@pnpm.e2e/has-cyclic-peer-plugin` depends on
+/// `@pnpm.e2e/cyclic-peer-plugin`, which peers back on its own parent and
+/// declares `@pnpm.e2e/peer-c` as an implied optional peer through
+/// `peerDependenciesMeta` alone. Only `pkg-a` depends on `peer-c`, and the
+/// peer cycle must not split the two projects onto separate parent
+/// snapshots, one suffixed with `peer-c` and one bare: both land on the
+/// suffixed one. Its counterpart lives in `peerDependencies.ts`, in
+/// `deduplicate a package whose dependency peers back on it and has an
+/// optional peer`. For <https://github.com/pnpm/pnpm/issues/11834>.
+#[test]
+fn a_cyclic_peers_optional_peer_is_shared_by_every_importer() {
+    let CommandTempCwd { root, workspace, npmrc_info, .. } = two_project_workspace(
+        &serde_json::json!({
+            "name": "pkg-a",
+            "version": "1.0.0",
+            "dependencies": {
+                "@pnpm.e2e/has-cyclic-peer-plugin": "1.0.0",
+                "@pnpm.e2e/peer-c": "2.0.0",
+            },
+        }),
+        &serde_json::json!({
+            "name": "pkg-b",
+            "version": "1.0.0",
+            "dependencies": { "@pnpm.e2e/has-cyclic-peer-plugin": "1.0.0" },
+        }),
+    );
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    pacquet_at(&workspace)
+        .with_arg("install")
+        .assert()
+        .success();
+
+    let lockfile = read_lockfile(&workspace.join("pnpm-lock.yaml"));
+    assert_eq!(
+        importer_version(&lockfile, "pkg-b", "@pnpm.e2e/has-cyclic-peer-plugin"),
+        importer_version(&lockfile, "pkg-a", "@pnpm.e2e/has-cyclic-peer-plugin"),
+    );
+    assert_eq!(
+        importer_version(&lockfile, "pkg-a", "@pnpm.e2e/has-cyclic-peer-plugin"),
+        "1.0.0(@pnpm.e2e/peer-c@2.0.0)",
+    );
+
+    drop((root, mock_instance));
+}
+
 mod freshness;

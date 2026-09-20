@@ -1,0 +1,12 @@
+{
+  "name": "@pnpm.e2e/cyclic-peer-plugin",
+  "version": "1.0.0",
+  "peerDependencies": {
+    "@pnpm.e2e/has-cyclic-peer-plugin": "*"
+  },
+  "peerDependenciesMeta": {
+    "@pnpm.e2e/peer-c": {
+      "optional": true
+    }
+  }
+}
