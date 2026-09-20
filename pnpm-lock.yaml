@@ -10176,21 +10176,27 @@ importers:
 
   pnpm11/workspace/project-manifest-writer:
     dependencies:
+      '@pnpm/error':
+        specifier: workspace:*
+        version: link:../../core/error
       '@pnpm/text.comments-parser':
         specifier: workspace:*
         version: link:../../text/comments-parser
       '@pnpm/types':
         specifier: workspace:*
         version: link:../../core/types
+      '@pnpm/yaml.document-sync':
+        specifier: workspace:*
+        version: link:../../yaml/document-sync
       json5:
         specifier: 'catalog:'
         version: 2.2.3
       write-file-atomic:
         specifier: 'catalog:'
         version: 7.0.1
-      write-yaml-file:
+      yaml:
         specifier: 'catalog:'
-        version: 6.0.0
+        version: 2.9.1
     devDependencies:
       '@jest/globals':
         specifier: 'catalog:'

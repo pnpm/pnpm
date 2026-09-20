@@ -1,16 +1,14 @@
 import { promises as fs } from 'node:fs'
 import path from 'node:path'
+import util from 'node:util'
 
+import { PnpmError } from '@pnpm/error'
 import { type CommentSpecifier, insertComments } from '@pnpm/text.comments-parser'
 import type { ProjectManifest } from '@pnpm/types'
+import { patchDocument } from '@pnpm/yaml.document-sync'
 import JSON5 from 'json5'
 import writeFileAtomic from 'write-file-atomic'
-import { writeYamlFile } from 'write-yaml-file'
-
-const YAML_FORMAT = {
-  noCompatMode: true,
-  noRefs: true,
-}
+import yaml from 'yaml'
 
 export async function writeProjectManifest (
   filePath: string,
@@ -23,7 +21,7 @@ export async function writeProjectManifest (
 ): Promise<void> {
   const fileType = filePath.slice(filePath.lastIndexOf('.') + 1).toLowerCase()
   if (fileType === 'yaml') {
-    return writeYamlFile(filePath, manifest, YAML_FORMAT)
+    return writePackageYaml(filePath, manifest)
   }
 
   await fs.mkdir(path.dirname(filePath), { recursive: true })
@@ -45,4 +43,25 @@ function stringifyJson5 (obj: object, indent: string | number, comments?: Commen
     return insertComments(json5, comments)
   }
   return json5
+}
+
+async function writePackageYaml (filePath: string, manifest: ProjectManifest): Promise<void> {
+  let text: string | undefined
+  try {
+    text = await fs.readFile(filePath, 'utf8')
+  } catch (err) {
+    if (!util.types.isNativeError(err) || !('code' in err) || err.code !== 'ENOENT') throw err
+  }
+  const document = text == null ? new yaml.Document() : yaml.parseDocument(text)
+  if (document.errors.length > 0) {
+    throw new PnpmError('YAML_PARSE', `${document.errors[0].message}\nin ${filePath}`)
+  }
+  patchDocument(document, manifest, {
+    stringifyKey: String,
+    preserveKeyOrder: true,
+    preserveScalarAliases: true,
+    pruneEmptyValues: false,
+  })
+  await fs.mkdir(path.dirname(filePath), { recursive: true })
+  await writeFileAtomic(filePath, document.toString({ lineWidth: 0 }))
 }

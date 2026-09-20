@@ -824,3 +824,46 @@ it('preserves aliases nested beneath an alias mapping key', () => {
   expect(document.toString()).toContain('version: *version')
   expect(document.toString()).toContain('? *key\n')
 })
+
+describe('manifest preservation options', () => {
+  it('preserves existing key order recursively and appends new keys', () => {
+    const document = yaml.parseDocument('z: { z: 1, a: 2 }\na: 3\nremoved: 4\n')
+    patchDocument(document, { a: 4, b: 5, z: { a: 3, b: 4, z: 2 } }, { preserveKeyOrder: true })
+    expect(document.toString()).toBe('z: { z: 2, a: 3, b: 4 }\na: 4\nb: 5\n')
+  })
+
+  it.each([
+    { empty: {}, nil: null, values: [null, {}, [], 1] },
+    {},
+    null,
+  ])('retains empty and null values when pruning is disabled: %j', (target) => {
+    const document = yaml.parseDocument('empty: { old: value }\nnil: value\nvalues: [1, 2, 3]\n')
+    patchDocument(document, target, { pruneEmptyValues: false })
+    expect(yaml.parse(document.toString())).toStrictEqual(target)
+  })
+})
+
+it('removes trailing sequence items without inserting null when pruning is disabled', () => {
+  const document = yaml.parseDocument('values: [{ old: 1 }, { old: 2 }]\n')
+  patchDocument(document, { values: [{}] }, { pruneEmptyValues: false })
+  expect(document.toJSON()).toStrictEqual({ values: [{}] })
+})
+
+it('replaces a collection alias when its value changes type', () => {
+  const document = yaml.parseDocument('metadata: &metadata { value: 1 }\ncopy: *metadata\n')
+  patchDocument(document, { metadata: { value: 1 }, copy: 'changed' }, { pruneEmptyValues: false })
+  expect(document.toJSON()).toStrictEqual({ metadata: { value: 1 }, copy: 'changed' })
+})
+
+it('matches scalar mapping keys to their JSON property names', () => {
+  const document = yaml.parseDocument('1: one # numeric\ntrue: enabled\nnull: empty\n')
+  patchDocument(document, { 1: 'first', true: 'yes', '': 'blank' }, { preserveKeyOrder: true })
+  expect(document.toJSON()).toStrictEqual({ 1: 'first', true: 'yes', '': 'blank' })
+  expect(document.toString()).toBe('1: first # numeric\ntrue: yes\nnull: blank\n')
+})
+
+it('supports consumers that stringify null mapping keys', () => {
+  const document = yaml.parseDocument('null: empty # null key\n')
+  patchDocument(document, { null: 'updated' }, { stringifyKey: String })
+  expect(document.toString()).toBe('null: updated # null key\n')
+})
