@@ -4,10 +4,11 @@
 //! protocol — `link:` vs `file:`) and builds the [`LocalPackageSpec`]
 //! the resolver consumes.
 
-use std::path::{Component, Path, PathBuf};
+use std::path::{Path, PathBuf};
 
 use derive_more::{Display, Error};
 use miette::Diagnostic;
+use pnpm_fs::{lexical_normalize, relative_path};
 use pnpm_local_spec::{is_filespec, is_tarball_filename, normalize_specifier};
 use pnpm_resolving_resolver_base::PkgResolutionId;
 
@@ -182,41 +183,21 @@ fn fetched_and_normalized(spec: &str, project_dir: &Path, protocol: &str) -> (Pa
     if is_absolute_specifier(spec) {
         return (fetched, format!("{protocol}{spec}"));
     }
-    let relative = forward_slashes(
-        pathdiff::diff_paths(&fetched, project_dir)
-            .map_or_else(|| fetched.display().to_string(), |path| path.display().to_string()),
-    );
+    let relative = forward_slashes(relative_path(project_dir, &fetched).display().to_string());
     (fetched, format!("{protocol}{relative}"))
 }
 
-/// Resolve `spec` against `where_dir`, mirroring Node's
-/// [`path.resolve`](https://nodejs.org/api/path.html#pathresolvepaths)
-/// behavior: an absolute `spec` is returned unchanged; otherwise the
-/// host's path resolver joins the two and canonicalises the result.
+/// Resolve `spec` against `where_dir`, close to Node's
+/// [`path.resolve`](https://nodejs.org/api/path.html#pathresolvepaths):
+/// a relative `spec` is joined onto `where_dir` and its `.` / `..`
+/// components collapsed lexically, without touching the filesystem. An
+/// absolute `spec` is returned verbatim, so a `..` behind a symlink in
+/// it still resolves the way the filesystem reads it.
 fn resolve_path(where_dir: &Path, spec: &str) -> PathBuf {
     if is_absolute_specifier(spec) {
         return PathBuf::from(spec);
     }
-    normalize_components(&where_dir.join(spec))
-}
-
-/// Collapse `.` and `..` components the way Node's `path.resolve`
-/// does (purely lexically — no syscalls). Preserves the absolute /
-/// relative distinction of the input.
-fn normalize_components(path: &Path) -> PathBuf {
-    let mut out = PathBuf::new();
-    for component in path.components() {
-        match component {
-            Component::CurDir => {}
-            Component::ParentDir => {
-                if !out.pop() {
-                    out.push("..");
-                }
-            }
-            other => out.push(other.as_os_str()),
-        }
-    }
-    out
+    lexical_normalize(&where_dir.join(spec))
 }
 
 /// When `preserveAbsolutePaths` is on and the input spec is absolute,
@@ -231,9 +212,7 @@ fn normalize_relative_or_absolute(
     if opts.preserve_absolute_paths && is_absolute_specifier(original_spec) {
         return forward_slashes(from_path.display().to_string());
     }
-    let relative = pathdiff::diff_paths(from_path, relative_to)
-        .map_or_else(|| from_path.display().to_string(), |path| path.display().to_string());
-    forward_slashes(relative)
+    forward_slashes(relative_path(relative_to, from_path).display().to_string())
 }
 
 fn forward_slashes(input: String) -> String {
