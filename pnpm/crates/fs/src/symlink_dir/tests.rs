@@ -8,7 +8,9 @@
 use super::symlink_dir;
 #[cfg(windows)]
 use super::to_native_separators;
-use super::{ForceSymlinkOutcome, force_absolute_symlink_dir, force_symlink_dir, read_symlink_dir};
+use super::{
+    ForceSymlinkOutcome, TriedOnce, force_absolute_symlink_dir, force_symlink_dir, read_symlink_dir,
+};
 #[cfg(windows)]
 use super::{is_reparse_point, relative_target_for};
 use std::fs;
@@ -121,8 +123,9 @@ fn force_symlink_inner_surfaces_concurrent_cleanup_warnings() {
     let link = root.path().join("link");
     fs::create_dir_all(&target).expect("create target");
 
-    let outcome = super::force_symlink_inner(&target, &link, false, create_then_warn)
-        .expect("completed link should be reused");
+    let outcome =
+        super::force_symlink_inner(&target, &link, TriedOnce::default(), create_then_warn)
+            .expect("completed link should be reused");
 
     assert!(outcome.reused);
     assert_eq!(outcome.warning.as_deref(), Some("staged junction cleanup failed"));
@@ -206,9 +209,10 @@ fn remove_occupant_clears_files_directories_and_missing_paths() {
     fs::create_dir_all(dir.join("nested")).expect("seed dir");
     fs::write(dir.join("nested/file"), b"occupant").expect("seed nested file");
 
-    super::remove_occupant(&file).expect("remove file occupant");
-    super::remove_occupant(&dir).expect("remove dir occupant");
-    super::remove_occupant(&root.path().join("missing")).expect("missing path is not an error");
+    super::replace::remove_occupant(&file).expect("remove file occupant");
+    super::replace::remove_occupant(&dir).expect("remove dir occupant");
+    super::replace::remove_occupant(&root.path().join("missing"))
+        .expect("missing path is not an error");
 
     for path in [&file, &dir] {
         let error = fs::symlink_metadata(path).expect_err("occupant should be gone");
@@ -393,7 +397,7 @@ fn windows_concurrent_junction_creation_reuses_one_link() {
                         super::force_symlink_inner(
                             &target,
                             &link,
-                            false,
+                            TriedOnce::default(),
                             super::windows::create_junction,
                         )
                     })
@@ -569,4 +573,59 @@ fn force_symlink_dir_reuses_relative_link_across_parents() {
         ForceSymlinkOutcome { reused: true, warning: None },
         "an up-to-date relative link must be reused, not rewritten",
     );
+}
+
+/// The race behind the Windows failures of the concurrent global-virtual-store
+/// install suite: the create loses to another installer, and by the time this
+/// one looks, that installer's link is gone again. The conflict `initial_err`
+/// reports no longer exists, so the create is worth reissuing.
+#[test]
+fn force_symlink_inner_reissues_a_create_whose_conflict_has_gone() {
+    fn conflict_once_then_create(
+        target: &std::path::Path,
+        link: &std::path::Path,
+    ) -> std::io::Result<()> {
+        thread_local! {
+            static CONFLICTED: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+        }
+        if !CONFLICTED.with(|conflicted| conflicted.replace(true)) {
+            return Err(std::io::Error::from(std::io::ErrorKind::AlreadyExists));
+        }
+        super::symlink_dir(target, link)
+    }
+
+    let root = tempdir().expect("create temp dir");
+    let target = root.path().join("real");
+    let link = root.path().join("link");
+    fs::create_dir_all(&target).expect("create target");
+
+    let outcome =
+        super::force_symlink_inner(&target, &link, TriedOnce::default(), conflict_once_then_create)
+            .expect("a conflict that is gone must not fail the link");
+
+    assert!(!outcome.reused, "the retry created the link, so it is not a reuse");
+    assert_eq!(
+        fs::canonicalize(&link).expect("canonicalize the link"),
+        fs::canonicalize(&target).expect("canonicalize the target"),
+        "the link must resolve to the target",
+    );
+}
+
+/// The reissue is spent once. A create that keeps reporting a conflict over a
+/// path holding nothing has to surface that, not recurse forever.
+#[test]
+fn force_symlink_inner_surfaces_a_conflict_that_never_materializes() {
+    fn always_conflicts(_: &std::path::Path, _: &std::path::Path) -> std::io::Result<()> {
+        Err(std::io::Error::from(std::io::ErrorKind::AlreadyExists))
+    }
+
+    let root = tempdir().expect("create temp dir");
+    let target = root.path().join("real");
+    let link = root.path().join("link");
+    fs::create_dir_all(&target).expect("create target");
+
+    let error = super::force_symlink_inner(&target, &link, TriedOnce::default(), always_conflicts)
+        .expect_err("a conflict that never resolves must surface");
+
+    assert_eq!(error.kind(), std::io::ErrorKind::AlreadyExists);
 }

@@ -1,4 +1,4 @@
-use super::{ForceSymlinkOutcome, force_symlink_inner, to_native_separators};
+use super::{ForceSymlinkOutcome, TriedOnce, force_symlink_inner, to_native_separators};
 use std::{io, path::Path};
 
 /// [`force_symlink_dir`](super::force_symlink_dir) with the link holding
@@ -9,9 +9,14 @@ pub fn force_absolute_symlink_dir(target: &Path, link: &Path) -> io::Result<Forc
     let target = to_native_separators(target);
     let link = to_native_separators(link);
     #[cfg(windows)]
-    return force_symlink_inner(&target, &link, false, super::windows::create_absolute);
+    return force_symlink_inner(
+        &target,
+        &link,
+        TriedOnce::default(),
+        super::windows::create_absolute,
+    );
     #[cfg(not(windows))]
-    force_symlink_inner(&target, &link, false, absolute_symlink_dir)
+    force_symlink_inner(&target, &link, TriedOnce::default(), absolute_symlink_dir)
 }
 
 #[cfg(unix)]
