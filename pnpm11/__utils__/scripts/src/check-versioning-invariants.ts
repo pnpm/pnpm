@@ -1,24 +1,27 @@
 import path from 'node:path'
+import util from 'node:util'
 
-import { checkVersioningInvariants } from '@pnpm/releasing.versioning'
+import { checkPendingRelease, describeCheckedIntents } from '@pnpm/releasing.versioning'
 import { findWorkspaceProjectsNoCheck } from '@pnpm/workspace.projects-reader'
 import { readWorkspaceManifest } from '@pnpm/workspace.workspace-manifest-reader'
 
-// CI/pre-push guard: the `versioning.epics` bands and `versioning.fixed`
-// lockstep are only enforced by the release engine when a package actually
-// releases, so a committed version that drifted out of band — or a fixed group
-// that fell out of sync — would otherwise slip through until a release happens
-// to touch it. This validates the whole tree up front and fails the build.
+// CI/pre-push guard, running what `pnpm change check` runs, from this
+// repository's sources instead of the released CLI: a pending intent that
+// names a package no longer in the workspace, and a committed version that
+// drifted out of its epic band or out of lockstep with its fixed group, would
+// otherwise surface only when a release consumes them. This validates the
+// whole tree up front and fails the build.
 const repoRoot = path.resolve(import.meta.dirname, '../../../../')
 
 async function main (): Promise<void> {
   const workspace = await readWorkspaceManifest(repoRoot)
   const projects = await findWorkspaceProjectsNoCheck(repoRoot, { patterns: workspace?.packages })
-  const violations = checkVersioningInvariants({
+  const { intentCount, violations } = await checkPendingRelease({
     workspaceDir: repoRoot,
     projects: projects.map(({ rootDir, manifest }) => ({ rootDir, manifest })),
     versioning: workspace?.versioning,
   })
+  console.log(describeCheckedIntents(intentCount))
   if (violations.length === 0) {
     console.log('All package versions satisfy the configured versioning invariants.')
     return
@@ -30,4 +33,10 @@ async function main (): Promise<void> {
   process.exitCode = 1
 }
 
-await main()
+// A malformed intent or versioning setting throws, and its message names the
+// file and the fix. Print that alone: the stack trace points into the release
+// engine, which is never where the offending file is.
+await main().catch((err: unknown) => {
+  console.error(util.types.isNativeError(err) ? err.message : err)
+  process.exitCode = 1
+})

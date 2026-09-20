@@ -9,7 +9,8 @@ import {
   assembleReleasePlan,
   BUMP_TYPES,
   type ChangeIntent,
-  checkVersioningInvariants,
+  checkPendingRelease,
+  describeCheckedIntents,
   indexProjectRefs,
   type IntentBumpType,
   readChangeIntents,
@@ -290,15 +291,15 @@ export function renderReleasePlan (plan: ReleasePlan): string {
   return output
 }
 
-/** Fails with every violation `checkVersioningInvariants` found, listed. */
-function renderCheck (workspaceDir: string, opts: ChangeCommandOptions): string {
-  const violations = checkVersioningInvariants({
+/** Fails with every violation `checkPendingRelease` found, listed. */
+async function renderCheck (workspaceDir: string, opts: ChangeCommandOptions): Promise<string> {
+  const { intentCount, violations } = await checkPendingRelease({
     workspaceDir,
     projects: toWorkspaceProjects(opts.allProjects ?? []),
     versioning: opts.versioning,
   })
   if (violations.length === 0) {
-    return 'All package versions satisfy the configured versioning invariants.'
+    return `${describeCheckedIntents(intentCount)}\nAll package versions satisfy the configured versioning invariants.`
   }
   throw new PnpmError(
     'VERSIONING_INVARIANTS_VIOLATED',

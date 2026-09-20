@@ -33,9 +33,9 @@ use std::{
 #[derive(Debug, Args)]
 pub struct ChangeArgs {
     /// `status` to print the pending intents and the release plan they
-    /// produce, `check` to validate the committed versions against the
-    /// configured epic bands and fixed-group lockstep; otherwise the packages
-    /// the change affects.
+    /// produce, `check` to validate the pending intents and the committed
+    /// versions against the configured epic bands and fixed-group lockstep;
+    /// otherwise the packages the change affects.
     pub params: Vec<String>,
 
     /// Bump type for the named packages: none, patch, minor, major. "none"

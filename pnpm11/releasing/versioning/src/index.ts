@@ -27,6 +27,11 @@ export {
   renderChangelog,
 } from './changelog.js'
 export {
+  checkPendingRelease,
+  describeCheckedIntents,
+  type PendingReleaseCheck,
+} from './checkPendingRelease.js'
+export {
   BUMP_TYPES,
   type ChangeIntent,
   CHANGES_DIR,

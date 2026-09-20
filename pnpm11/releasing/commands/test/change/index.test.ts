@@ -76,6 +76,23 @@ describe('change command and intent-consuming version -r', () => {
     const opts = { ...baseOpts([pnpmPkg, lib]), versioning: { epics: [{ lead: 'pnpm', packages: ['@pnpm/lib'] }] } }
     const output = await change.handler(opts as any, ['check']) // eslint-disable-line @typescript-eslint/no-explicit-any
     expect(output).toContain('satisfy the configured versioning invariants')
+    expect(output).toContain('No pending change intents to check.')
+  })
+
+  it('change check fails when a pending intent names a package the workspace does not have', async () => {
+    const lib = addPkg({ name: 'lib', version: '1.0.0' })
+    const opts = baseOpts([lib])
+    await change.handler({ ...opts, bump: 'patch', summary: 'Fixed a bug.' } as any, ['lib']) // eslint-disable-line @typescript-eslint/no-explicit-any
+    const passed = await change.handler(opts as any, ['check']) // eslint-disable-line @typescript-eslint/no-explicit-any
+    expect(passed).toContain('Checked 1 pending change intent: every one names a releasable package.')
+
+    const intentPath = fs.readdirSync(path.join(tempDir, '.changeset')).find((name) => name.endsWith('.md'))!
+    const intentFile = path.join(tempDir, '.changeset', intentPath)
+    fs.writeFileSync(intentFile, fs.readFileSync(intentFile, 'utf8').replace('"lib"', '"ghost"'))
+
+    await expect(
+      change.handler(opts as any, ['check']) // eslint-disable-line @typescript-eslint/no-explicit-any
+    ).rejects.toMatchObject({ code: 'ERR_PNPM_VERSIONING_UNKNOWN_PACKAGE' })
   })
 
   it('change check fails and lists violations when a version drifts out of band', async () => {
