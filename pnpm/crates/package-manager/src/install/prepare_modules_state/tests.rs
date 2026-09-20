@@ -93,15 +93,14 @@ fn parse_lockfile(yaml: &str) -> Lockfile {
     serde_saphyr::from_str(yaml).expect("parse lockfile")
 }
 
-/// Every dependency group, the selection an unfiltered install records.
+/// The selection an unfiltered install records.
 const INCLUDED: IncludedDependencies = IncludedDependencies {
     dependencies: true,
     dev_dependencies: true,
     optional_dependencies: true,
 };
 
-/// The `.modules.yaml` an install under `config` and `node_linker` records for
-/// a tree nothing has to be done to.
+/// The `.modules.yaml` an install records for a tree nothing has to be done to.
 fn recorded_modules(config: &Config, node_linker: NodeLinker) -> ModulesLayout {
     ModulesLayout {
         hoist_pattern: config.hoist_pattern.clone(),
@@ -123,8 +122,6 @@ fn recorded_modules(config: &Config, node_linker: NodeLinker) -> ModulesLayout {
     }
 }
 
-/// Whether the frozen short-circuit fires over the `node_linker` tree `site`
-/// names, whose previous install recorded `modules`.
 fn short_circuits_over(
     site: (&Path, &'static Config, NodeLinker),
     modules: &ModulesLayout,
@@ -187,9 +184,9 @@ fn short_circuits_over_a_bin(
     )
 }
 
-/// Whether the frozen short-circuit fires over a tree whose previous install
-/// recorded `recorded` as the `allowBuilds` it ran under, against a config now
-/// holding `configured`.
+/// Whether the frozen short-circuit fires over a tree whose `.modules.yaml`
+/// holds the `allowBuilds` entries `recorded` while the config holds
+/// `configured`.
 fn short_circuits_over_allow_builds(
     recorded: &[(&str, bool)],
     configured: &[(&str, bool)],
