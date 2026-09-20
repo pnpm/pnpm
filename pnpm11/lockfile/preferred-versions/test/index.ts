@@ -4,7 +4,10 @@ import type { DepPath, ProjectManifest } from '@pnpm/types'
 
 import { getPreferredVersionsFromLockfileAndManifests } from '../lib/index.js'
 
-test('seeds manifest specs and lockfile pins with combined weights', () => {
+test.each([
+  { dedupe: false, lockfileWeight: 1_000_000 },
+  { dedupe: true, lockfileWeight: 1 },
+])('seeds manifest specs and lockfile pins with combined weights (dedupe: $dedupe)', ({ dedupe, lockfileWeight }) => {
   const manifest: ProjectManifest = {
     name: 'project',
     version: '1.0.0',
@@ -18,14 +21,14 @@ test('seeds manifest specs and lockfile pins with combined weights', () => {
     ['qar@3.0.0' as DepPath]: { resolution: { integrity: 'sha512-1' } },
   }
 
-  const preferredVersions = getPreferredVersionsFromLockfileAndManifests(snapshots, [manifest])
+  const preferredVersions = getPreferredVersionsFromLockfileAndManifests(snapshots, [manifest], { dedupe })
 
   // Manifest pin that is also locked gets both weights added together.
-  expect(preferredVersions.foo['1.0.0']).toEqual({ selectorType: 'version', weight: 1_001_000 })
+  expect(preferredVersions.foo['1.0.0']).toEqual({ selectorType: 'version', weight: lockfileWeight + 1000 })
   // Manifest range: manifest weight only.
   expect(preferredVersions.bar['^2.0.0']).toEqual({ selectorType: 'range', weight: 1000 })
   // Lockfile-only pin: lockfile weight only.
-  expect(preferredVersions.qar['3.0.0']).toEqual({ selectorType: 'version', weight: 1_000_000 })
+  expect(preferredVersions.qar['3.0.0']).toEqual({ selectorType: 'version', weight: lockfileWeight })
 })
 
 test('a dependency named __proto__ cannot pollute Object.prototype', () => {
