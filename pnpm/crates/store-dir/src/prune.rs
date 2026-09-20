@@ -20,7 +20,8 @@
 //! profiling shows it's worth the complexity.
 
 use crate::{
-    GetRegisteredProjectsError, StoreDir, get_registered_projects, prune_cas::PruneCasError,
+    GetRegisteredProjectsError, StoreDir, StoreLockError, get_registered_projects,
+    prune_cas::PruneCasError,
 };
 use derive_more::{Display, Error};
 use miette::Diagnostic;
@@ -35,6 +36,9 @@ use std::{
 /// Error type of [`StoreDir::prune`].
 #[derive(Debug, Display, Error, Diagnostic)]
 pub enum PruneError {
+    #[diagnostic(transparent)]
+    StoreLock(#[error(source)] StoreLockError),
+
     /// Surface from the read-side of the project registry — stale
     /// entries that can't be unlinked, inaccessible registry dirs,
     /// or projects whose `stat` returned a permission error.
@@ -80,6 +84,7 @@ impl StoreDir {
     ///
     /// [#344]: https://github.com/pnpm/pacquet/issues/344
     pub fn prune(&self) -> Result<(), PruneError> {
+        let _store_lock = self.lock_for_prune().map_err(PruneError::StoreLock)?;
         self.prune_global_virtual_store()?;
         let stats = crate::prune_cas::prune_cas(self).map_err(PruneError::PruneCas)?;
         eprintln!(

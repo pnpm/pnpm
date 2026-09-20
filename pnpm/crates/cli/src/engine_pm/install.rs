@@ -124,6 +124,11 @@ async fn install_engine_from_env_with_config<Reporter: self::Reporter + 'static>
     if let Some(bin_dir) = cached_engine_bins(config, env, package, version) {
         return Ok(bin_dir);
     }
+    let _store_lock =
+        config.store_dir.lock_for_use().wrap_err("lock the package-manager engine store")?;
+    if let Some(bin_dir) = cached_engine_bins(config, env, package, version) {
+        return Ok(bin_dir);
+    }
 
     // The engine's global-virtual-store slot is shared by every process on
     // the host, and materializing it is destructive: a slot left carrying
