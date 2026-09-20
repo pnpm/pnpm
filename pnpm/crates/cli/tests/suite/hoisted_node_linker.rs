@@ -1014,3 +1014,5 @@ fn peer_variants_of_one_version_share_the_root_slot() {
 mod repeat_install;
 
 mod scripts;
+
+mod summary;

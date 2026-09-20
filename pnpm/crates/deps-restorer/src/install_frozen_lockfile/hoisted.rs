@@ -265,7 +265,13 @@ fn link_hoisted<Reporter: self::Reporter>(
         &walked.direct_dependencies_by_importer_id,
     )?;
     update_hoisted_package_map(inputs, lockfile, walked)?;
-    link_hoisted_workspace_dependencies::<Reporter>(inputs, lockfile, skipped, &link_options)
+    link_hoisted_workspace_dependencies::<Reporter>(inputs, lockfile, skipped, &link_options)?;
+    // The pass above links `link:` siblings only, so it reports only
+    // those. The rest are real directories this linker wrote.
+    crate::report_direct_dependency_changes::report_direct_dependency_changes::<Reporter>(
+        inputs, lockfile,
+    );
+    Ok(())
 }
 
 fn update_hoisted_package_map(

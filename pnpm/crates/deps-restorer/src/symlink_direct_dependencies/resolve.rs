@@ -9,7 +9,7 @@ use std::{
 };
 
 /// The wire `version` of a dep whose metadata row carries none.
-pub(super) fn fallback_version(version: &ImporterDepVersion) -> String {
+pub(crate) fn fallback_version(version: &ImporterDepVersion) -> String {
     match version {
         ImporterDepVersion::Regular(ver) => ver.version().to_string(),
         ImporterDepVersion::Alias(alias) => alias.suffix.version().to_string(),
