@@ -315,3 +315,24 @@ test('add keeps the requested specifier when no readPackage hook governs the dep
   expect(warnings).not.toContain(expect.stringContaining('is controlled by'))
   expect(updatedManifest.dependencies).toStrictEqual({ 'is-negative': '1.0.1' })
 })
+
+test('add keeps the requested specifier when a packageExtensions entry only fills the gap', async () => {
+  prepareEmpty()
+
+  // A packageExtensions entry only injects what the manifest does not
+  // declare: the manifest's own declaration overrides it. An explicit add
+  // therefore still wins and is not reported as superseded.
+  const { updatedManifest } = await addDependenciesToPackage(
+    { name: 'my-project', version: '0.0.0' },
+    ['is-positive@3.1.0'],
+    testDefaults({
+      packageExtensions: {
+        'my-project@*': {
+          dependencies: { 'is-positive': '1.0.0' },
+        },
+      },
+    })
+  )
+
+  expect(updatedManifest.dependencies).toStrictEqual({ 'is-positive': '3.1.0' })
+})
