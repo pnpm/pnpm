@@ -2631,6 +2631,30 @@ function allMutationsAreInstalls (projects: MutatedProject[]): boolean {
 }
 
 /**
+ * Whether pacquet resolves this install itself instead of materializing a
+ * lockfile pnpm resolved. The caller adds the guards every delegation shares
+ * (`enableModulesDir`, not `lockfileOnly`, not a check-only run).
+ *
+ * `mutateModules` waives this install's lockfile verification on the strength
+ * of it, because pacquet applies the resolver policy as it resolves. A branch
+ * that resolves in pnpm has to keep out of the way of this one, or the install
+ * both loses pacquet's resolution and is never verified.
+ */
+function pacquetResolvesInstall (
+  projects: MutatedProject[],
+  opts: Pick<StrictInstallOptions, 'frozenLockfile' | 'handleResolutionPolicyViolations' | 'mergeGitBranchLockfiles' | 'runPacquet' | 'saveLockfile' | 'useGitBranchLockfile' | 'useLockfile'>
+): boolean {
+  return opts.runPacquet?.supportsResolution === true &&
+    opts.useLockfile &&
+    opts.saveLockfile &&
+    !opts.useGitBranchLockfile &&
+    !opts.mergeGitBranchLockfiles &&
+    !opts.frozenLockfile &&
+    opts.handleResolutionPolicyViolations == null &&
+    allMutationsAreInstalls(projects)
+}
+
+/**
  * The `InstallFunctionResult` for an install pacquet resolved and
  * materialized end-to-end. pacquet wrote `pnpm-lock.yaml` and the
  * `node_modules` tree itself. `ctx.wantedLockfile` has already been
@@ -2762,9 +2786,12 @@ const installInContext: InstallFunction = async (projects, ctx, opts) => {
       }
     }
     // Both a hoisted linker and a group-filtered install resolve first and
-    // materialize from the filtered lockfile afterwards.
+    // materialize from the filtered lockfile afterwards. Not a group filter
+    // pacquet resolves under, though: it applies the filter to its own fetch,
+    // and intercepting the install here would take away the resolution
+    // `mutateModules` waived the lockfile verification for.
     if (
-      (opts.nodeLinker === 'hoisted' || materializesGroupSubset(opts.include)) &&
+      (opts.nodeLinker === 'hoisted' || (materializesGroupSubset(opts.include) && !pacquetResolvesInstall(projects, opts))) &&
       !opts.lockfileOnly && !isCheckOnlyInstall(opts) && opts.enableModulesDir
     ) {
       const result = await _installInContext(projects, ctx, {
@@ -2802,10 +2829,9 @@ const installInContext: InstallFunction = async (projects, ctx, opts) => {
         ignoredBuilds,
       }
     }
-    // Isolated `nodeLinker` (the default) with a non-frozen install that
-    // installs every dependency group. The frozen branch is handled earlier in
-    // `tryFrozenInstall`; the branch above runs a resolve-then-materialize
-    // sequence.
+    // Isolated `nodeLinker` (the default) with a non-frozen install.
+    // The frozen branch is handled earlier in `tryFrozenInstall`; the
+    // branch above runs a resolve-then-materialize sequence.
     if (opts.runPacquet != null && opts.useLockfile && opts.saveLockfile && !opts.useGitBranchLockfile && !opts.mergeGitBranchLockfiles && !opts.lockfileOnly && !isCheckOnlyInstall(opts) && opts.enableModulesDir) {
       // pacquet >= 0.11.7 resolves itself: hand it the whole install
       // (resolve + fetch + import + link + build, writing the lockfile)
@@ -2813,7 +2839,7 @@ const installInContext: InstallFunction = async (projects, ctx, opts) => {
       // `update` / `remove` need pnpm to mutate the manifests and
       // resolve the new specs first (pacquet's `install` reads
       // package.json from disk, which pnpm hasn't rewritten yet).
-      if (opts.runPacquet.supportsResolution && !opts.frozenLockfile && opts.handleResolutionPolicyViolations == null && allMutationsAreInstalls(projects)) {
+      if (pacquetResolvesInstall(projects, opts)) {
         // `configDependencies` are recorded in a YAML document prepended
         // to `pnpm-lock.yaml` — purely a pnpm concept that pacquet doesn't
         // model. Capture it before pacquet rewrites the lockfile and
