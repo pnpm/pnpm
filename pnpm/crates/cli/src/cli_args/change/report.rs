@@ -47,9 +47,9 @@ pub(super) async fn render_status(
 }
 
 /// What a release run validates before it needs the registry: the pending
-/// change intents resolve to packages this workspace can release, the
-/// `versioning` configuration they run through is well-formed, and the
-/// committed versions still satisfy the invariants it declares. A malformed
+/// change intents resolve to workspace packages that can take the release they
+/// ask for, the `versioning` configuration they run through is well-formed, and
+/// the committed versions still satisfy the invariants it declares. A malformed
 /// intent or configuration fails the way it would at release time; drifted
 /// versions are listed as violations. Internal dependencies still on a plain
 /// range are left alone, as they are for `pnpm change status`.
@@ -93,7 +93,7 @@ fn describe_checked_intents(intent_count: usize) -> String {
         return "No pending change intents to check.".to_string();
     }
     format!(
-        "Checked {intent_count} pending change intent{}: every one names a releasable package.",
+        "Checked {intent_count} pending change intent{}: every one resolves to a workspace package.",
         if intent_count == 1 { "" } else { "s" },
     )
 }

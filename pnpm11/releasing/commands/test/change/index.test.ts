@@ -84,7 +84,7 @@ describe('change command and intent-consuming version -r', () => {
     const opts = baseOpts([lib])
     await change.handler({ ...opts, bump: 'patch', summary: 'Fixed a bug.' } as any, ['lib']) // eslint-disable-line @typescript-eslint/no-explicit-any
     const passed = await change.handler(opts as any, ['check']) // eslint-disable-line @typescript-eslint/no-explicit-any
-    expect(passed).toContain('Checked 1 pending change intent: every one names a releasable package.')
+    expect(passed).toContain('Checked 1 pending change intent: every one resolves to a workspace package.')
 
     const intentPath = fs.readdirSync(path.join(tempDir, '.changeset')).find((name) => name.endsWith('.md'))!
     const intentFile = path.join(tempDir, '.changeset', intentPath)

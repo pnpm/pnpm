@@ -553,7 +553,9 @@ fn change_check_rejects_an_intent_naming_a_package_outside_the_workspace() {
     assert!(recorded.contains("Recorded change intent"), "unexpected: {recorded}");
     let passed = stdout_of(pnpm(&workspace).with_args(["change", "check"]));
     assert!(
-        passed.contains("Checked 1 pending change intent: every one names a releasable package."),
+        passed.contains(
+            "Checked 1 pending change intent: every one resolves to a workspace package."
+        ),
         "unexpected: {passed}",
     );
 

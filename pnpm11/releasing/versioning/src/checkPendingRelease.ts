@@ -15,9 +15,9 @@ export interface PendingReleaseCheck {
 
 /**
  * What a release run validates before it needs the registry: the pending
- * change intents resolve to packages this workspace can release, the
- * `versioning` configuration they run through is well-formed, and the
- * committed versions still satisfy the invariants it declares. A malformed
+ * change intents resolve to workspace packages that can take the release they
+ * ask for, the `versioning` configuration they run through is well-formed, and
+ * the committed versions still satisfy the invariants it declares. A malformed
  * intent or configuration throws, as it would at release time; drifted
  * versions come back as violations for the caller to list. Internal
  * dependencies still on a plain range are left alone, as they are for
@@ -36,5 +36,5 @@ export async function checkPendingRelease (opts: CheckVersioningInvariantsOption
 /** The one-line summary of what {@link checkPendingRelease} validated. */
 export function describeCheckedIntents (intentCount: number): string {
   if (intentCount === 0) return 'No pending change intents to check.'
-  return `Checked ${intentCount} pending change intent${intentCount === 1 ? '' : 's'}: every one names a releasable package.`
+  return `Checked ${intentCount} pending change intent${intentCount === 1 ? '' : 's'}: every one resolves to a workspace package.`
 }

@@ -33,9 +33,9 @@ async function main (): Promise<void> {
   process.exitCode = 1
 }
 
-// A malformed intent or versioning setting throws, and its message names the
-// file and the fix. Print that alone: the stack trace points into the release
-// engine, which is never where the offending file is.
+// The stack trace of a malformed intent or versioning setting points into the
+// release engine, never at the file that has to change, so print the message
+// alone.
 await main().catch((err: unknown) => {
   console.error(util.types.isNativeError(err) ? err.message : err)
   process.exitCode = 1
