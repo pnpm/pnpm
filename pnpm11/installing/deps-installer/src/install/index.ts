@@ -1358,8 +1358,6 @@ export async function mutateModules (
         : Array.isArray(opts.readPackageHook) ? opts.readPackageHook : [opts.readPackageHook]
       if (hooks.length === 0) return undefined
       const isOverriddenDependency = overriddenDependencyMatcherFor?.(project.manifest)
-      // Declare the selectors the way the real add does, all at once, so hooks
-      // that react to the combination see the same manifest.
       const requestedByAlias = new Map<string, string>()
       for (const selector of project.dependencySelectors) {
         const { alias, bareSpecifier: requested } = parseWantedDependency(selector)
