@@ -28,10 +28,11 @@ pub(crate) fn virtual_store_dir_for_key(
     layout: &crate::VirtualStoreLayout,
     key: &PackageKey,
 ) -> PathBuf {
-    pnpm_fs::join_slash_separated_path(
-        &layout.slot_dir(key).join("node_modules"),
-        &key.name.to_string(),
-    )
+    let name = key.name.to_string();
+    layout
+        .slot_dir(key)
+        .join("node_modules")
+        .join(pnpm_fs::to_native_separators(Path::new(&name)).as_ref())
 }
 
 /// Whether `pkg_dir` already holds every file of a side-effects-cache

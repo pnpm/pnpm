@@ -4,6 +4,9 @@ use std::{
     path::{Path, PathBuf},
 };
 
+#[cfg(windows)]
+use std::os::windows::ffi::OsStrExt;
+
 /// The directory a spawned lifecycle script runs in.
 ///
 /// A store path can reach the executor in Windows' verbatim `\\?\`
@@ -20,21 +23,14 @@ pub(crate) fn script_working_dir(pkg_root: &Path) -> &Path {
 /// it cannot retry after Windows refuses a long working directory.
 #[cfg(windows)]
 pub(crate) fn emulator_working_dir(pkg_root: &Path) -> Cow<'_, Path> {
-    use std::os::windows::ffi::OsStrExt;
-
     let pkg_root = script_working_dir(pkg_root);
     const MAX_WORKING_DIR_WITHOUT_TRAILING_SEPARATOR: usize = 258;
-    if pkg_root
-        .as_os_str()
-        .encode_wide()
-        .count()
-        <= MAX_WORKING_DIR_WITHOUT_TRAILING_SEPARATOR
-    {
+    if windows_path_len(pkg_root) <= MAX_WORKING_DIR_WITHOUT_TRAILING_SEPARATOR {
         return Cow::Borrowed(pkg_root);
     }
     shorter_working_dirs(pkg_root)
         .into_iter()
-        .min_by_key(|spelling| spelling.as_os_str().len())
+        .min_by_key(|spelling| windows_path_len(spelling))
         .map(Cow::Owned)
         .unwrap_or(Cow::Borrowed(pkg_root))
 }
@@ -76,6 +72,11 @@ fn names_the_same_dir(spelling: &Path, pkg_root: &Path) -> bool {
         (Ok(spelled), Ok(root)) => spelled == root,
         _ => false,
     }
+}
+
+#[cfg(windows)]
+fn windows_path_len(path: &Path) -> usize {
+    path.as_os_str().encode_wide().count()
 }
 
 /// The 8.3 short form of an existing drive-letter path, when the volume
@@ -128,7 +129,7 @@ fn short_path(path: &Path) -> Option<PathBuf> {
         ),
         _ => false,
     };
-    (!still_verbatim && short.as_os_str().len() < path.as_os_str().len()).then(|| {
+    (!still_verbatim && windows_path_len(&short) < windows_path_len(path)).then(|| {
         short.to_path_buf()
     })
 }
