@@ -30,7 +30,7 @@ function getPeerSpecifier (spec: string, resolvedVersion?: string, rangeSpecStyl
     }
   }
   if (semver.valid(spec)) {
-    return versionWithRangeSpecStyle(spec, rangeSpecStyle ?? 'major')
+    return spec
   }
   if (isValidPeerRange(spec)) return spec
 

@@ -25,6 +25,7 @@ import type { LockfileObject } from '@pnpm/lockfile.types'
 import { globalInfo, logger } from '@pnpm/logger'
 import { applyRuntimeOnFailOverride, filterDependenciesByType } from '@pnpm/pkg-manifest.utils'
 import { getRangeSpecStyle } from '@pnpm/pkg-manifest.utils'
+import { parseWantedDependency } from '@pnpm/resolving.parse-wanted-dependency'
 import type { PreferredVersions, VersionSelectors } from '@pnpm/resolving.resolver-base'
 import { createStoreController, type CreateStoreControllerOptions } from '@pnpm/store.connection-manager'
 import type {
@@ -192,11 +193,6 @@ export async function installDeps (
   opts: InstallDepsOptions,
   params: string[]
 ): Promise<DryRunInstallResult | undefined> {
-  // An explicit peer update must resolve and carry peer entries through the
-  // installSome path even when the project disables automatic peer installs.
-  if (opts.peer === true && opts.autoInstallPeers === false) {
-    opts = { ...opts, autoInstallPeers: true }
-  }
   if (!opts.update && !opts.dedupe && !opts.force && params.length === 0 && opts.optimisticRepeatInstall) {
     const { upToDate, wantedLockfileToRestore } = await checkDepsStatus({
       ...opts,
@@ -272,7 +268,6 @@ export async function installDeps (
     dependencies: true,
     devDependencies: true,
     optionalDependencies: true,
-    peerDependencies: false,
   }
   const allProjects = opts.allProjects ?? (
     opts.workspaceDir
@@ -432,8 +427,11 @@ export async function installDeps (
       dependencySelectors: params,
       manifest,
       mutation: 'installSome' as const,
-      peer: opts.peer === true || opts.savePeer,
-      rangeSpecStyle: getRangeSpecStyle(opts),
+      peer: opts.savePeer,
+      peerAliases: opts.peer === true
+        ? new Set(params.map((selector) => parseWantedDependency(selector).alias).filter((alias): alias is string => alias != null))
+        : undefined,
+      rangeSpecStyle: opts.savePeer ? 'exact' : getRangeSpecStyle(opts),
       rootDir: opts.dir as ProjectRootDir,
       targetDependenciesField: getSaveType(opts),
     }
