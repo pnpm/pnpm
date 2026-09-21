@@ -1,16 +1,16 @@
 use super::{
     AccessArgs, AddArgs, ApproveBuildsArgs, AuditArgs, BinArgs, BugsArgs, CacheCommand,
     CatFileArgs, CatIndexArgs, ChangeArgs, CiArgs, CleanArgs, CompletionArgs, CompletionServerArgs,
-    ConcurrencyArgs, ConfigArgs, ConfigGetAliasArgs, ConfigSetAliasArgs, CreateArgs, DedupeArgs,
-    DeployArgs, DeprecateArgs, DistTagArgs, DlxArgs, DocsArgs, DoctorArgs, EnvArgs, ExecArgs,
-    FetchArgs, FindHashArgs, IgnoredBuildsArgs, ImportArgs, InitArgs, InstallArgs, InstallTestArgs,
-    LaneArgs, LicensesArgs, LinkArgs, ListArgs, LoginArgs, LogoutArgs, NotImplementedArgs,
-    OutdatedArgs, OwnerArgs, PackAppArgs, PackArgs, PatchArgs, PatchCommitArgs, PatchRemoveArgs,
-    PeersArgs, PingArgs, PipelineArgs, PkgArgs, PrefixArgs, PruneArgs, PublishArgs, RebuildArgs,
-    RemoveArgs, RepoArgs, RestartArgs, RootArgs, RunArgs, RuntimeArgs, SbomArgs,
-    ScriptShortcutArgs, SearchArgs, SelfUpdateArgs, SetScriptArgs, SetupArgs, ShimArgs, StageArgs,
-    StarArgs, StarsArgs, StoreCommand, Subcommand, SummaryScope, TeamArgs, UndeprecateArgs,
-    UnlinkArgs, UnpublishArgs, UnstarArgs, UpdateArgs, VersionArgs, ViewArgs, WhyArgs, WithArgs,
+    ConfigArgs, ConfigGetAliasArgs, ConfigSetAliasArgs, CreateArgs, DedupeArgs, DeployArgs,
+    DeprecateArgs, DistTagArgs, DlxArgs, DocsArgs, DoctorArgs, EnvArgs, ExecArgs, FetchArgs,
+    FindHashArgs, IgnoredBuildsArgs, ImportArgs, InitArgs, InstallArgs, InstallTestArgs, LaneArgs,
+    LicensesArgs, LinkArgs, ListArgs, LoginArgs, LogoutArgs, NotImplementedArgs, OutdatedArgs,
+    OwnerArgs, PackAppArgs, PackArgs, PatchArgs, PatchCommitArgs, PatchRemoveArgs, PeersArgs,
+    PingArgs, PipelineArgs, PkgArgs, PrefixArgs, PruneArgs, PublishArgs, RebuildArgs, RemoveArgs,
+    RepoArgs, RestartArgs, RootArgs, RunArgs, RuntimeArgs, SbomArgs, ScriptShortcutArgs,
+    SearchArgs, SelfUpdateArgs, SetScriptArgs, SetupArgs, ShimArgs, StageArgs, StarArgs, StarsArgs,
+    StoreCommand, Subcommand, SummaryScope, TasksCommand, TeamArgs, UndeprecateArgs, UnlinkArgs,
+    UnpublishArgs, UnstarArgs, UpdateArgs, VersionArgs, ViewArgs, WhyArgs, WithArgs,
 };
 
 #[derive(Debug, strum::IntoStaticStr, Subcommand)]
@@ -132,8 +132,9 @@ pub enum CliCommand {
     /// Runs a defined package script.
     #[clap(visible_alias = "run-script")]
     Run(RunArgs),
-    /// Print who is running and who is waiting in concurrency groups.
-    Concurrency(ConcurrencyArgs),
+    /// Inspect tasks in concurrency groups.
+    #[clap(subcommand)]
+    Tasks(TasksCommand),
     /// Runs a named pipeline of workspace tasks the way a CI run would:
     /// a frozen install, affected-since-base selection, the task graph in
     /// dependency order without bailing, and cached task results restored

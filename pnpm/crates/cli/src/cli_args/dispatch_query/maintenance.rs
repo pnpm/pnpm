@@ -1,10 +1,10 @@
 use super::{
     super::{clean::run as clean_builtin, dispatch_script, script_override},
-    BinArgs, BugsArgs, CacheCommand, CatFileArgs, CatIndexArgs, CleanArgs, CommandFuture,
-    ConcurrencyArgs, Config, ConfigArgs, ConfigGetAliasArgs, ConfigSetAliasArgs, ConfigSubcommand,
-    DefaultReporter, DocsArgs, DoctorArgs, DoctorOutcome, FindHashArgs, IgnoredBuildsArgs,
-    NdjsonReporter, NotImplementedError, PrefixArgs, RepoArgs, ReporterType, RootArgs, RunCtx,
-    SelfUpdateArgs, SetupArgs, ShimArgs, SilentReporter, StoreCommand, WithArgs,
+    BinArgs, BugsArgs, CacheCommand, CatFileArgs, CatIndexArgs, CleanArgs, CommandFuture, Config,
+    ConfigArgs, ConfigGetAliasArgs, ConfigSetAliasArgs, ConfigSubcommand, DefaultReporter,
+    DocsArgs, DoctorArgs, DoctorOutcome, FindHashArgs, IgnoredBuildsArgs, NdjsonReporter,
+    NotImplementedError, PrefixArgs, RepoArgs, ReporterType, RootArgs, RunCtx, SelfUpdateArgs,
+    SetupArgs, ShimArgs, SilentReporter, StoreCommand, TasksCommand, WithArgs,
 };
 
 // `doctor` reports on the installation and its environment, so it needs config
@@ -68,11 +68,11 @@ pub(in super::super) fn prefix<'a>(
     Ok(Box::pin(std::future::ready(Ok(()))))
 }
 
-pub(in super::super) fn concurrency<'a>(
+pub(in super::super) fn tasks<'a>(
     ctx: &RunCtx<'a>,
-    args: ConcurrencyArgs,
+    command: TasksCommand,
 ) -> miette::Result<CommandFuture<'a>> {
-    args.run((ctx.loaders.config)()?)?;
+    command.run((ctx.loaders.config)()?)?;
     Ok(Box::pin(std::future::ready(Ok(()))))
 }
 

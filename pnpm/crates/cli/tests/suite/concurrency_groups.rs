@@ -420,7 +420,7 @@ fn stdout_has_elapsed(stdout: &str) -> bool {
         })
 }
 
-fn concurrency_cmd(pacquet: &Command) -> Command {
+fn tasks_status_cmd(pacquet: &Command) -> Command {
     let workspace = pacquet.get_current_dir().expect("workspace dir");
     let mut command = Command::new(pacquet.get_program());
     command.current_dir(workspace);
@@ -431,16 +431,16 @@ fn concurrency_cmd(pacquet: &Command) -> Command {
         };
     }
     command.env("PNPM_CONFIG_STATE_DIR", state_dir(workspace));
-    command.arg("concurrency");
+    command.args(["tasks", "status"]);
     command
 }
 
 #[test]
-fn concurrency_prints_the_wait_list() {
+fn tasks_status_prints_the_wait_list() {
     let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
     write_project(&workspace, Path::new(pacquet.get_program()), 1);
 
-    let empty = concurrency_cmd(&pacquet).output().expect("list idle groups");
+    let empty = tasks_status_cmd(&pacquet).output().expect("list idle groups");
     let empty_out = String::from_utf8(empty.stdout).expect("stdout utf8");
     dbg!(&empty_out);
     assert!(empty.status.success());
@@ -451,7 +451,7 @@ fn concurrency_prints_the_wait_list() {
     let mut waiter = queued_run(&pacquet, "hold", "waiter", &workspace.join("order"));
     wait_until_queued(&mut waiter);
 
-    let listed = concurrency_cmd(&pacquet).output().expect("list the wait line");
+    let listed = tasks_status_cmd(&pacquet).output().expect("list the wait line");
     let stdout = String::from_utf8(listed.stdout).expect("stdout utf8");
     dbg!(&stdout);
     assert!(listed.status.success());
@@ -466,7 +466,7 @@ fn concurrency_prints_the_wait_list() {
         .count();
     assert!(elapsed_lines >= 2, "running and waiting both need elapsed time: {stdout}");
 
-    let idle = concurrency_cmd(&pacquet)
+    let idle = tasks_status_cmd(&pacquet)
         .arg("missing")
         .output()
         .expect("list a missing group");

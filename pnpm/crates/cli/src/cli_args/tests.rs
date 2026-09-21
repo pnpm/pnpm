@@ -12,6 +12,7 @@ use super::{
     },
     reporter::{LogLevelSetting, ReporterType},
     store::StoreCommand,
+    tasks::TasksCommand,
     unlink::UnlinkArgs,
     version::VersionArgs,
 };
@@ -659,12 +660,39 @@ fn store_status_and_add_are_subcommands_of_store() {
 }
 
 #[test]
-fn concurrency_accepts_group_names() {
-    let CliCommand::Concurrency(args) = command(&["pacquet", "concurrency", "cargo", "typescript"])
+fn tasks_status_accepts_group_names() {
+    let CliCommand::Tasks(TasksCommand::Status(args)) =
+        command(&["pacquet", "tasks", "status", "cargo", "typescript"])
     else {
-        panic!("expected concurrency");
+        panic!("expected tasks status");
     };
     assert_eq!(args.groups, ["cargo", "typescript"]);
+}
+
+#[test]
+fn tasks_status_accepts_no_group_names() {
+    let CliCommand::Tasks(TasksCommand::Status(args)) = command(&["pacquet", "tasks", "status"])
+    else {
+        panic!("expected tasks status");
+    };
+    assert_eq!(args.groups, Vec::<String>::new());
+}
+
+#[test]
+fn tasks_requires_a_subcommand() {
+    let error = CliArgs::try_parse_from(["pacquet", "tasks"]).unwrap_err();
+    assert_eq!(error.kind(), clap::error::ErrorKind::DisplayHelpOnMissingArgumentOrSubcommand);
+}
+
+#[test]
+fn tasks_status_help_describes_concurrency_groups() {
+    let error = CliArgs::try_parse_from(["pacquet", "tasks", "status", "--help"]).unwrap_err();
+    assert_eq!(error.kind(), clap::error::ErrorKind::DisplayHelp);
+    let help = error.to_string();
+    eprintln!("{help}");
+    assert!(help.contains("Show running and waiting tasks in concurrency groups"));
+    assert!(help.contains("tasks status"));
+    assert!(help.contains("[GROUPS]"));
 }
 
 /// `--production` is the setting name behind `--prod`, and pnpm accepts

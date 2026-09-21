@@ -1,5 +1,5 @@
 use super::concurrency_group::{GroupStatus, inspect_group, render_group};
-use clap::Args;
+use clap::{Args, Subcommand};
 use miette::{Context, IntoDiagnostic};
 use pnpm_config::Config;
 use std::{
@@ -8,14 +8,27 @@ use std::{
     path::{Component, Path, PathBuf},
 };
 
-/// Print who is running and who is waiting in concurrency groups.
+#[derive(Debug, Subcommand)]
+pub enum TasksCommand {
+    /// Show running and waiting tasks in concurrency groups.
+    Status(TasksStatusArgs),
+}
+
+impl TasksCommand {
+    pub fn run(self, config: &Config) -> miette::Result<()> {
+        match self {
+            TasksCommand::Status(args) => args.run(config),
+        }
+    }
+}
+
 #[derive(Debug, Args)]
-pub struct ConcurrencyArgs {
+pub struct TasksStatusArgs {
     /// Group names to show. With none, every group that has a holder or waiter.
     pub groups: Vec<String>,
 }
 
-impl ConcurrencyArgs {
+impl TasksStatusArgs {
     pub fn run(self, config: &Config) -> miette::Result<()> {
         let slots_root = config.state_dir.join("run-slots");
         let named = !self.groups.is_empty();
