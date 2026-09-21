@@ -1,3 +1,5 @@
+pub(crate) mod cache_cleanup;
+
 use crate::{
     State,
     cli_args::{
@@ -431,6 +433,6 @@ fn scopeless(pkg_name: &str) -> &str {
 #[cfg(test)]
 mod tests;
 
-pub(crate) mod cache;
+mod cache;
 
 mod provision;
