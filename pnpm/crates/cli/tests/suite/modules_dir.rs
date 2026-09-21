@@ -224,7 +224,12 @@ fn assert_symlinked_bins_load_plugins_per_project(
             &workspace.join(project),
             &serde_json::json!({
                 "name": project,
-                "scripts": { "lint": "tool", "postinstall": "tool > tool-output.txt" },
+                "version": "1.0.0",
+                "scripts": {
+                    "lint": "tool",
+                    "postinstall": "tool > tool-output.txt",
+                    "version": "tool > version-output.txt",
+                },
                 "dependencies": dependencies,
             }),
         );
@@ -261,6 +266,13 @@ fn assert_symlinked_bins_load_plugins_per_project(
         .output()
         .expect("run the bin");
     assert_eq!(String::from_utf8_lossy(&direct.stdout).trim_end(), "project-2: missing");
+    pacquet_in(&workspace.join("project-2"))
+        .with_args(["version", "patch", "--no-git-checks"])
+        .assert()
+        .success();
+    let output = fs::read_to_string(workspace.join("project-2/version-output.txt"))
+        .expect("read version-output.txt");
+    assert_eq!(output.trim_end(), "project-2: plugin loaded");
 
     drop((root, mock_instance));
 }

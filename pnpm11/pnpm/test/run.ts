@@ -624,7 +624,7 @@ testOnPosix('run and exec put the modules directory a packageConfigs entry gives
 })
 
 async function expectSymlinkedBinsToLoadPluginsPerProject (settings: Record<string, unknown>, project2ModulesDir: string): Promise<void> {
-  const scripts = { lint: 'tool', postinstall: 'tool > tool-output.txt' }
+  const scripts = { lint: 'tool', postinstall: 'tool > tool-output.txt', version: 'tool > version-output.txt' }
   preparePackages([
     { location: '.', package: { name: 'root', version: '1.0.0' } },
     { name: 'project-1', version: '1.0.0', scripts, dependencies: { tool: 'file:../tool' } },
@@ -647,6 +647,8 @@ async function expectSymlinkedBinsToLoadPluginsPerProject (settings: Record<stri
   for (const args of [['run', 'lint'], ['exec', 'tool']]) {
     expect(execPnpmSync(args, { cwd: path.resolve('project-2') }).stdout.toString()).toContain('project-2: plugin loaded')
   }
+  expect(execPnpmSync(['version', 'patch', '--no-git-checks'], { cwd: path.resolve('project-2') }).status).toBe(0)
+  expect(fs.readFileSync('project-2/version-output.txt', 'utf8').trim()).toBe('project-2: plugin loaded')
 }
 
 testOnPosix('run puts the custom modules directory on the NODE_PATH of the symlinked executables the hoisted linker creates', async () => {
