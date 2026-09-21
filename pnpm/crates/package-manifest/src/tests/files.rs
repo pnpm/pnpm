@@ -94,6 +94,7 @@ fn save_preserves_crlf_line_endings_of_yaml_manifest() {
     manifest.add_dependency("fastify", "1.0.0", DependencyGroup::Prod).unwrap();
     manifest.save().unwrap();
     let result = read_to_string(&path).unwrap();
+    assert!(result.contains("fastify: 1.0.0"));
     assert!(result.contains("\r\n"));
     assert!(!result.replace("\r\n", "").contains('\n'));
 }
