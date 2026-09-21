@@ -313,7 +313,11 @@ async function linkBin (cmd: CommandInfo, binsDir: string, opts?: LinkBinOptions
       isCorrectlyLinked = isShimPointingAt(content, cmd.path) && isShimHardened(content) &&
         (
           (opts?.extraNodePaths == null && opts?.projectModulesDir == null) ||
-          isShimNodePath(content, { first: opts.projectModulesDir, last: opts.extraNodePaths })
+          isShimNodePath(content, {
+            first: opts.projectModulesDir,
+            // The shim lists every entry once, at its first position.
+            last: opts.extraNodePaths && Array.from(new Set(opts.extraNodePaths)).filter((p) => p !== opts.projectModulesDir),
+          })
         )
     }
   } catch {}

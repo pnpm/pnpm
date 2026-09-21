@@ -124,6 +124,11 @@ test('linkBins() puts projectModulesDir first on NODE_PATH, then the bin\'s own 
   expect(deduped).toHaveLength(2)
   expect(deduped[0]).toBe(nodePathEntries(fs.readFileSync(path.join(binTarget, 'simple'), 'utf8'))[2])
   expect(deduped[1]).toMatch(/\/node_modules\/simple\/node_modules$/)
+
+  // The same options reuse the bin.
+  fs.appendFileSync(path.join(dedupedTarget, 'simple'), '# sentinel\n')
+  await linkBins(modulesDir, dedupedTarget, { warn, extraNodePaths: [realModulesDir], projectModulesDir: realModulesDir })
+  expect(fs.readFileSync(path.join(dedupedTarget, 'simple'), 'utf8')).toContain('# sentinel')
 })
 
 test('linkBins() keeps or rewrites the NODE_PATH of an existing bin according to its options', async () => {
