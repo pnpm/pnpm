@@ -37,7 +37,9 @@ export interface SignalRelay {
    * relaying. The shell may have died from the signal while the script it
    * started is still shutting down, so the wait has no deadline of its own;
    * the relay stays on meanwhile, and further signals escalate as they
-   * always do, the last of them ending pnpm itself.
+   * always do, the last of them ending pnpm itself. An interrupted group
+   * settles together with its pending raise, so callers cannot dispatch
+   * replacement work while the other children are still shutting down.
    */
   settle: () => Promise<void>
 }
@@ -74,12 +76,12 @@ export function relaySignals (child: SignalTarget, opts: RelaySignalsOptions): S
   }
   const onTerm = (): void => {
     interruptedBy ??= 'SIGTERM'
-    group.interruptedBy ??= 'SIGTERM'
+    group.interrupted = true
     terminate()
   }
   const onInterrupt = (): void => {
     interruptedBy ??= 'SIGINT'
-    group.interruptedBy ??= 'SIGINT'
+    group.interrupted = true
     if (!hasControllingTerminal()) {
       relay('SIGINT')
     }
@@ -89,12 +91,6 @@ export function relaySignals (child: SignalTarget, opts: RelaySignalsOptions): S
   process.once('SIGINT', onInterrupt)
   if (opts.terminateOnExit) {
     process.on('exit', terminate)
-  }
-  if (group.interruptedBy != null) {
-    process.removeListener('SIGINT', onInterrupt)
-    interruptedBy = group.interruptedBy
-    relay(group.interruptedBy)
-    if (group.interruptedBy === 'SIGINT') process.once('SIGINT', terminate)
   }
   return {
     interruptedBy: () => interruptedBy,
@@ -127,13 +123,17 @@ export function relaySignals (child: SignalTarget, opts: RelaySignalsOptions): S
           if (group.active === 0) group.resolve()
         }
       }
+      if (group.interrupted) {
+        await group.settled
+        await group.raised
+      }
     },
   }
 }
 
 interface RelayGroup {
   active: number
-  interruptedBy?: NodeJS.Signals
+  interrupted: boolean
   settled: Promise<void>
   resolve: () => void
   raised?: Promise<void>
@@ -142,12 +142,12 @@ interface RelayGroup {
 let currentRelayGroup: RelayGroup | undefined
 
 function joinRelayGroup (): RelayGroup {
-  if (currentRelayGroup == null || currentRelayGroup.active === 0) {
+  if (currentRelayGroup == null || currentRelayGroup.active === 0 || currentRelayGroup.interrupted) {
     let resolve!: () => void
     const settled = new Promise<void>((resolvePromise) => {
       resolve = resolvePromise
     })
-    currentRelayGroup = { active: 0, settled, resolve }
+    currentRelayGroup = { active: 0, interrupted: false, settled, resolve }
   }
   currentRelayGroup.active += 1
   return currentRelayGroup

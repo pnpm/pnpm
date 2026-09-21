@@ -398,7 +398,7 @@ setInterval(() => {}, 1000)
   expect(stdout).not.toContain('ERR_PNPM_RECURSIVE_RUN_FIRST_FAIL')
 })
 
-testOnPosix('run -r: work started while interrupted scripts settle receives the interrupt', () => {
+testOnPosix('run -r: Ctrl+C stops dispatch while interrupted scripts settle', () => {
   preparePackages([
     {
       name: 'project-1',
@@ -419,20 +419,27 @@ testOnPosix('run -r: work started while interrupted scripts settle receives the 
       },
     },
   ])
-  fs.writeFileSync('exit-cleanly.js', `process.on('SIGINT', () => process.exit(0))
-console.log('started')
+  fs.writeFileSync('exit-cleanly.js', `const fs = require('node:fs')
+process.on('SIGINT', () => process.exit(0))
+fs.appendFileSync('../started.txt', 'x')
+if (fs.readFileSync('../started.txt', 'utf8').length === 2) console.log('started')
 setInterval(() => {}, 1000)
 `, 'utf8')
-  fs.writeFileSync('exit-by-signal.js', `process.on('SIGINT', () => {
+  fs.writeFileSync('exit-by-signal.js', `const fs = require('node:fs')
+process.on('SIGINT', () => {
   setTimeout(() => {
     process.removeAllListeners('SIGINT')
     process.kill(process.pid, 'SIGINT')
   }, 500)
 })
-console.log('started')
+fs.appendFileSync('../started.txt', 'x')
+if (fs.readFileSync('../started.txt', 'utf8').length === 2) console.log('started')
 setInterval(() => {}, 1000)
 `, 'utf8')
-  fs.writeFileSync('stay-running.js', 'setInterval(() => {}, 1000)\n', 'utf8')
+  fs.writeFileSync('stay-running.js', `const fs = require('node:fs')
+fs.writeFileSync('../started-late.txt', '')
+setInterval(() => {}, 1000)
+`, 'utf8')
   writeYamlFileSync('pnpm-workspace.yaml', { packages: ['project-*'] })
 
   const terminalScript = path.join(import.meta.dirname, '../../__utils__/scripts/terminal.py')
@@ -449,6 +456,7 @@ setInterval(() => {}, 1000)
   ], { encoding: 'utf8', timeout: 90_000 })
 
   expect(error).toBeUndefined()
+  expect(fs.existsSync('started-late.txt')).toBe(false)
   expect(status).toBe(130)
   expect(stdout).not.toContain('ELIFECYCLE')
   expect(stdout).not.toContain('ERR_PNPM_RECURSIVE_RUN_FIRST_FAIL')

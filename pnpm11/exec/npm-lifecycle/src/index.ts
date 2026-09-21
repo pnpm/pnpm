@@ -442,13 +442,15 @@ function runSpawned (run: ScriptRun, spawned: SpawnedScript, cb: Callback): void
   const finish = (er?: LifecycleError | null): void => {
     if (finishing) return
     finishing = true
+    let raiseError: LifecycleError | undefined
+    if (deathSignal) {
+      void relay.raise(deathSignal).catch((err: LifecycleError) => {
+        raiseError = err
+      })
+    }
     relay.settle().then(() => {
-      if (deathSignal) {
-        relay.raise(deathSignal).then(() => procError(er), () => procError(er))
-      } else {
-        procError(er)
-      }
-    }, () => procError(er))
+      procError(raiseError ?? er)
+    }, (err: LifecycleError) => procError(raiseError ?? err))
   }
 
   proc.on('error', (err: LifecycleError) => {
