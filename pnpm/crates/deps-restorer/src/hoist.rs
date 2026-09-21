@@ -11,6 +11,7 @@
 pub use symlinks::symlink_hoisted_dependencies;
 
 mod symlinks;
+mod workspace_aliases;
 
 use indexmap::IndexMap;
 use pnpm_lockfile::{PackageKey, PackageMetadata, PkgName, ProjectSnapshot, SnapshotEntry};
@@ -425,17 +426,33 @@ impl<'a> HoistPass<'a> {
     /// nondeterministically (v11's graph-miss `continue` skips the
     /// claim by accident).
     fn hoist_workspace_packages(&mut self) {
-        for (name, (project_id, dir)) in self.input.hoisted_workspace_packages.into_iter().flatten()
-        {
-            let Some(hoist_kind) = self.hoist_kind(name) else { continue };
-            if !self.hoisted_aliases.insert(name.to_lowercase()) {
+        let candidates = self.input.hoisted_workspace_packages
+            .into_iter()
+            .flatten()
+            .filter_map(|(name, (project_id, dir))| {
+                let hoist_kind = self.hoist_kind(name)?;
+                (!self.hoisted_aliases.contains(&name.to_lowercase())).then(|| {
+                    (name.clone(), project_id.clone(), dir.clone(), hoist_kind)
+                })
+            })
+            .collect::<Vec<_>>();
+        let conflicting_aliases = workspace_aliases::conflicting_aliases(
+            candidates
+                .iter()
+                .map(|(name, _, _, kind)| (name.as_str(), *kind)),
+        );
+        for (name, project_id, dir, hoist_kind) in candidates {
+            let normalized_name = name.to_lowercase();
+            if conflicting_aliases.contains(&normalized_name)
+                || !self.hoisted_aliases.insert(normalized_name)
+            {
                 continue;
             }
-            self.hoisted_workspace_aliases.push((name.clone(), hoist_kind, dir.clone()));
+            self.hoisted_workspace_aliases.push((name.clone(), hoist_kind, dir));
             self.hoisted_dependencies
-                .entry(project_id.clone())
+                .entry(project_id)
                 .or_default()
-                .insert(name.clone(), hoist_kind);
+                .insert(name, hoist_kind);
         }
     }
 

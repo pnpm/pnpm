@@ -16,7 +16,7 @@ import type {
 } from '@pnpm/installing.deps-resolver'
 import type { InstallationResultStats } from '@pnpm/installing.deps-restorer'
 import { linkDirectDeps } from '@pnpm/installing.linking.direct-dep-linker'
-import { hoist, type HoistedWorkspaceProject, hoistWorkspacePackages } from '@pnpm/installing.linking.hoist'
+import { hoist, type HoistedWorkspaceProject, hoistWorkspacePackages, pruneStaleWorkspaceHoists } from '@pnpm/installing.linking.hoist'
 import { prune, removeObsoleteDependency } from '@pnpm/installing.linking.modules-cleaner'
 import type { IncludedDependencies } from '@pnpm/installing.modules-yaml'
 import {
@@ -353,25 +353,6 @@ export async function linkPackages (projects: ImporterToUpdate[], depGraph: Depe
       linkedToRoot,
     },
   }
-}
-
-async function pruneStaleWorkspaceHoists (
-  previous: HoistedDependencies,
-  next: HoistedDependencies,
-  projectIds: Set<ProjectId>,
-  privateHoistedModulesDir: string,
-  publicHoistedModulesDir: string
-): Promise<void> {
-  await Promise.all(Array.from(projectIds).flatMap((projectId) => {
-    const nextAliases = next[projectId]
-    return Object.entries(previous[projectId] ?? {}).flatMap(([alias, hoistType]) => {
-      if (nextAliases?.[alias] === hoistType) return []
-      const modulesDir = hoistType === 'public'
-        ? publicHoistedModulesDir
-        : privateHoistedModulesDir
-      return [removeObsoleteDependency(modulesDir, alias)]
-    })
-  }))
 }
 
 const isAbsolutePath = /^\/|^[A-Z]:/i

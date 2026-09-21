@@ -600,11 +600,6 @@ fn direct_dep_bin_wins_over_a_publicly_hoisted_workspace_package() {
     drop((root, mock_instance));
 }
 
-/// Adding a project to the workspace changes no snapshot, so the lockfile and
-/// the virtual store both stay as they were. The new project must be hoisted
-/// all the same, without a `node_modules` wipe.
-///
-/// Regression test for <https://github.com/pnpm/pnpm/issues/3642>.
 #[test]
 fn a_workspace_project_added_by_a_later_install_is_hoisted() {
     let CommandTempCwd {
@@ -673,10 +668,6 @@ fn a_workspace_project_added_by_a_later_install_is_hoisted() {
     drop((root, mock_instance));
 }
 
-/// A workspace whose projects depend on nothing from a registry has no
-/// dependency graph to walk, but its own projects are still hoist candidates.
-///
-/// Regression test for <https://github.com/pnpm/pnpm/issues/3642>.
 #[test]
 fn workspace_projects_are_hoisted_without_any_registry_dependency() {
     let CommandTempCwd {

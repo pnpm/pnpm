@@ -85,6 +85,7 @@ impl HoistedModulesDirs<'_> {
 pub(super) struct HoistSymlinkPlan {
     work: Vec<(std::sync::Arc<PathBuf>, PathBuf)>,
     scope_dirs: std::collections::HashSet<PathBuf>,
+    destinations: std::collections::BTreeSet<Vec<String>>,
 }
 impl HoistSymlinkPlan {
     fn add_slot_links(
@@ -121,6 +122,7 @@ impl HoistSymlinkPlan {
                     crate::safe_join_modules_dir::safe_join_modules_dir(dirs.root(*kind), alias)
                         .map_err(crate::SymlinkPackageError::InvalidAlias)?;
                 self.record_parent_dir(&destination, dirs.root(*kind));
+                self.record_destination(&destination);
                 self.work.push((std::sync::Arc::clone(&dep_dir), destination));
             }
         }
@@ -142,7 +144,16 @@ impl HoistSymlinkPlan {
                 alias,
             )
             .map_err(crate::SymlinkPackageError::InvalidAlias)?;
+            if self.destination_conflicts(&destination) {
+                return Err(crate::SymlinkPackageError::InvalidAlias(
+                    crate::safe_join_modules_dir::InvalidDependencyAliasError {
+                        modules: dirs.root(*kind).to_path_buf(),
+                        alias: alias.clone(),
+                    },
+                ));
+            }
             self.record_parent_dir(&destination, dirs.root(*kind));
+            self.record_destination(&destination);
             self.work.push((std::sync::Arc::new(project_dir.clone()), destination));
         }
         Ok(())
@@ -164,6 +175,21 @@ impl HoistSymlinkPlan {
         }
     }
 
+    fn record_destination(&mut self, destination: &std::path::Path) {
+        self.destinations.insert(normalized_components(destination));
+    }
+
+    fn destination_conflicts(&self, destination: &std::path::Path) -> bool {
+        let destination = normalized_components(destination);
+        if (1..destination.len()).any(|len| self.destinations.contains(&destination[..len])) {
+            return true;
+        }
+        self.destinations
+            .range((std::ops::Bound::Excluded(destination.clone()), std::ops::Bound::Unbounded))
+            .next()
+            .is_some_and(|existing| existing.starts_with(&destination))
+    }
+
     /// Pre-create the destination parents serially — cheap, deduplicated,
     /// and a no-op for dirs that already exist — so the parallel symlink
     /// pass is one syscall per link.
@@ -171,15 +197,16 @@ impl HoistSymlinkPlan {
         &self,
         dirs: &HoistedModulesDirs<'_>,
     ) -> Result<(), crate::SymlinkPackageError> {
-        let mkdir = |path: &std::path::Path| -> Result<(), crate::SymlinkPackageError> {
-            std::fs::create_dir_all(path)
-                .map_err(|error| crate::SymlinkPackageError::CreateParentDir {
-                    dir: path.to_path_buf(),
-                    error,
-                })
-        };
-        mkdir(dirs.private)?;
-        mkdir(dirs.public)?;
+        if let Some(trusted_root) = dirs.public
+            .ancestors()
+            .find(|ancestor| !ancestor.as_os_str().is_empty() && dirs.private.starts_with(ancestor))
+        {
+            create_hoist_root(trusted_root, dirs.public)?;
+            create_hoist_root(trusted_root, dirs.private)?;
+        } else {
+            create_hoist_root(filesystem_root(dirs.public)?, dirs.public)?;
+            create_hoist_root(filesystem_root(dirs.private)?, dirs.private)?;
+        }
         for parent in &self.scope_dirs {
             let root = if parent.starts_with(dirs.private) { dirs.private } else { dirs.public };
             create_hoist_parent_dirs(root, parent)?;
@@ -224,46 +251,188 @@ impl HoistSymlinkPlan {
     }
 }
 
+fn filesystem_root(path: &std::path::Path) -> Result<&std::path::Path, crate::SymlinkPackageError> {
+    path.ancestors()
+        .last()
+        .filter(|ancestor| !ancestor.as_os_str().is_empty())
+        .ok_or_else(|| crate::SymlinkPackageError::CreateParentDir {
+            dir: path.to_path_buf(),
+            error: std::io::Error::new(
+                std::io::ErrorKind::InvalidInput,
+                "workspace hoist directory must be absolute",
+            ),
+        })
+}
+
+fn create_hoist_root(
+    trusted_root: &std::path::Path,
+    root: &std::path::Path,
+) -> Result<(), crate::SymlinkPackageError> {
+    match create_hoist_parent_dirs(trusted_root, root) {
+        Ok(()) => return Ok(()),
+        Err(crate::SymlinkPackageError::CreateParentDir { error, .. })
+            if error.kind() == std::io::ErrorKind::NotFound => {}
+        Err(error) => return Err(error),
+    }
+    let existing_root = trusted_root
+        .ancestors()
+        .skip(1)
+        .find(|ancestor| match std::fs::symlink_metadata(ancestor) {
+            Ok(_) => true,
+            Err(error) => error.kind() != std::io::ErrorKind::NotFound,
+        })
+        .ok_or_else(|| crate::SymlinkPackageError::CreateParentDir {
+            dir: trusted_root.to_path_buf(),
+            error: std::io::Error::new(
+                std::io::ErrorKind::NotFound,
+                "workspace hoist directory has no existing ancestor",
+            ),
+        })?;
+    create_or_validate_hoist_parent(existing_root)?;
+    create_hoist_parent_dirs(existing_root, root)
+}
+
 fn create_hoist_parent_dirs(
     root: &std::path::Path,
     parent: &std::path::Path,
 ) -> Result<(), crate::SymlinkPackageError> {
     let relative = parent
         .strip_prefix(root)
-        .expect("validated hoist destination parent stays beneath its root");
+        .map_err(|error| crate::SymlinkPackageError::CreateParentDir {
+            dir: parent.to_path_buf(),
+            error: std::io::Error::new(std::io::ErrorKind::InvalidInput, error),
+        })?;
     let mut current = root.to_path_buf();
     for component in relative.components() {
         current.push(component);
-        match std::fs::symlink_metadata(&current) {
-            Ok(metadata) => {
-                let is_link = pnpm_fs::is_symlink_or_junction(&current)
-                    .map_err(|error| crate::SymlinkPackageError::CreateParentDir {
-                        dir: current.clone(),
-                        error,
-                    })?;
-                if is_link || !metadata.is_dir() {
-                    return Err(crate::SymlinkPackageError::CreateParentDir {
-                        dir: current.clone(),
-                        error: std::io::Error::new(
-                            std::io::ErrorKind::InvalidInput,
-                            "workspace hoist parent is not a real directory",
-                        ),
-                    });
-                }
-            }
-            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
-                std::fs::create_dir(&current)
-                    .map_err(|error| crate::SymlinkPackageError::CreateParentDir {
-                        dir: current.clone(),
-                        error,
-                    })?;
-            }
-            Err(error) => {
-                return Err(crate::SymlinkPackageError::CreateParentDir { dir: current, error });
-            }
-        }
+        create_or_validate_hoist_parent(&current)?;
     }
     Ok(())
+}
+
+#[cfg(not(windows))]
+fn create_or_validate_hoist_parent(
+    dir: &std::path::Path,
+) -> Result<(), crate::SymlinkPackageError> {
+    match std::fs::symlink_metadata(dir) {
+        Ok(_) => validate_real_hoist_dir(dir),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+            match std::fs::create_dir(dir) {
+                Ok(()) => Ok(()),
+                Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => {
+                    validate_real_hoist_dir(dir)
+                }
+                Err(error) => Err(crate::SymlinkPackageError::CreateParentDir {
+                    dir: dir.to_path_buf(),
+                    error,
+                }),
+            }
+        }
+        Err(error) => {
+            Err(crate::SymlinkPackageError::CreateParentDir { dir: dir.to_path_buf(), error })
+        }
+    }
+}
+
+#[cfg(windows)]
+fn create_or_validate_hoist_parent(
+    dir: &std::path::Path,
+) -> Result<(), crate::SymlinkPackageError> {
+    match windows_file_attributes(dir) {
+        Ok(attributes) => validate_real_hoist_dir(attributes)
+            .map_err(|error| crate::SymlinkPackageError::CreateParentDir {
+                dir: dir.to_path_buf(),
+                error,
+            }),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+            match std::fs::create_dir(dir) {
+                Ok(()) => Ok(()),
+                Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => {
+                    windows_file_attributes(dir).and_then(validate_real_hoist_dir)
+                }
+                Err(error) => Err(error),
+            }
+            .map_err(|error| crate::SymlinkPackageError::CreateParentDir {
+                dir: dir.to_path_buf(),
+                error,
+            })
+        }
+        Err(error) => {
+            Err(crate::SymlinkPackageError::CreateParentDir { dir: dir.to_path_buf(), error })
+        }
+    }
+}
+
+#[cfg(not(windows))]
+fn validate_real_hoist_dir(dir: &std::path::Path) -> Result<(), crate::SymlinkPackageError> {
+    let metadata = std::fs::symlink_metadata(dir)
+        .map_err(|error| crate::SymlinkPackageError::CreateParentDir {
+            dir: dir.to_path_buf(),
+            error,
+        })?;
+    if metadata.file_type().is_symlink() || !metadata.is_dir() {
+        return Err(crate::SymlinkPackageError::CreateParentDir {
+            dir: dir.to_path_buf(),
+            error: std::io::Error::new(
+                std::io::ErrorKind::InvalidInput,
+                "workspace hoist directory is not a real directory",
+            ),
+        });
+    }
+    Ok(())
+}
+
+#[cfg(windows)]
+fn windows_file_attributes(dir: &std::path::Path) -> std::io::Result<u32> {
+    use std::os::windows::ffi::OsStrExt;
+    use std::os::windows::fs::MetadataExt;
+    use windows_sys::Win32::Foundation::ERROR_SHARING_VIOLATION;
+    use windows_sys::Win32::Storage::FileSystem::{GetFileAttributesW, INVALID_FILE_ATTRIBUTES};
+
+    match std::fs::symlink_metadata(dir) {
+        Ok(metadata) => return Ok(metadata.file_attributes()),
+        Err(error) if error.raw_os_error() == Some(ERROR_SHARING_VIOLATION as i32) => {}
+        Err(error) => return Err(error),
+    }
+    let path = dir
+        .as_os_str()
+        .encode_wide()
+        .chain(std::iter::once(0))
+        .collect::<Vec<_>>();
+    // SAFETY: `path` is NUL-terminated and remains alive for the duration of the call.
+    let attributes = unsafe { GetFileAttributesW(path.as_ptr()) };
+    if attributes == INVALID_FILE_ATTRIBUTES {
+        Err(std::io::Error::last_os_error())
+    } else {
+        Ok(attributes)
+    }
+}
+
+#[cfg(windows)]
+fn validate_real_hoist_dir(attributes: u32) -> std::io::Result<()> {
+    use windows_sys::Win32::Storage::FileSystem::{
+        FILE_ATTRIBUTE_DIRECTORY, FILE_ATTRIBUTE_REPARSE_POINT,
+    };
+
+    if attributes & FILE_ATTRIBUTE_REPARSE_POINT != 0 || attributes & FILE_ATTRIBUTE_DIRECTORY == 0
+    {
+        return Err(std::io::Error::new(
+            std::io::ErrorKind::InvalidInput,
+            "workspace hoist directory is not a real directory",
+        ));
+    }
+    Ok(())
+}
+
+fn normalized_components(path: &std::path::Path) -> Vec<String> {
+    path.components()
+        .map(|component| {
+            component
+                .as_os_str()
+                .to_string_lossy()
+                .to_lowercase()
+        })
+        .collect()
 }
 
 /// Read the existing symlink at `dest` and decide whether it should

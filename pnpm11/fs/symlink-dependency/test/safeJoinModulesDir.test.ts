@@ -2,7 +2,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 
 import { expect, test } from '@jest/globals'
-import { prepareWorkspaceModulesDir, safeJoinWorkspaceModulesDir, symlinkDependency, symlinkDependencySync, symlinkDirectRootDependency } from '@pnpm/fs.symlink-dependency'
+import { prepareWorkspaceModulesDir, safeJoinWorkspaceModulesDir, symlinkDependency, symlinkDependencySync, symlinkDirectRootDependency, validateWorkspaceModulesDir } from '@pnpm/fs.symlink-dependency'
 import { tempDir } from '@pnpm/prepare'
 
 const escapeAliases = [
@@ -80,4 +80,55 @@ test('prepareWorkspaceModulesDir refuses a symlinked destination parent', async 
     code: 'ERR_PNPM_INVALID_DEPENDENCY_NAME',
   })
   expect(fs.existsSync(path.join(outside, 'inner'))).toBe(false)
+})
+
+test('prepareWorkspaceModulesDir refuses a symlinked modules root', async () => {
+  const tmp = tempDir(false)
+  const modulesDir = path.join(tmp, 'node_modules')
+  const outside = path.join(tmp, 'outside')
+  fs.mkdirSync(outside)
+  await fs.promises.symlink(outside, modulesDir, process.platform === 'win32' ? 'junction' : 'dir')
+
+  await expect(prepareWorkspaceModulesDir(modulesDir, 'project')).rejects.toMatchObject({
+    code: 'ERR_PNPM_INVALID_DEPENDENCY_NAME',
+  })
+  expect(fs.existsSync(path.join(outside, 'project'))).toBe(false)
+})
+
+test('prepareWorkspaceModulesDir creates a fresh multi-component modules root', async () => {
+  const tmp = tempDir(false)
+  const modulesDir = path.join(tmp, 'fresh/nested/node_modules')
+
+  await expect(prepareWorkspaceModulesDir(modulesDir, 'project')).resolves.toBe(path.join(modulesDir, 'project'))
+  expect(fs.statSync(modulesDir).isDirectory()).toBe(true)
+})
+
+test('validateWorkspaceModulesDir refuses a symlinked existing parent without creating missing parents', async () => {
+  const tmp = tempDir(false)
+  const modulesDir = path.join(tmp, 'node_modules')
+  const outside = path.join(tmp, 'outside')
+  fs.mkdirSync(modulesDir)
+  fs.mkdirSync(outside)
+  await fs.promises.symlink(outside, path.join(modulesDir, 'nested'), process.platform === 'win32' ? 'junction' : 'dir')
+
+  await expect(validateWorkspaceModulesDir(modulesDir, 'nested/inner')).rejects.toMatchObject({
+    code: 'ERR_PNPM_INVALID_DEPENDENCY_NAME',
+  })
+  await expect(validateWorkspaceModulesDir(modulesDir, 'missing/inner')).resolves.toBe(path.join(modulesDir, 'missing/inner'))
+  expect(fs.existsSync(path.join(modulesDir, 'missing'))).toBe(false)
+})
+
+test('prepareWorkspaceModulesDir refuses a symlinked ancestor below the trusted root', async () => {
+  const tmp = tempDir(false)
+  const trustedRoot = path.join(tmp, 'node_modules')
+  const modulesDir = path.join(trustedRoot, '.pnpm/node_modules')
+  const outside = path.join(tmp, 'outside')
+  fs.mkdirSync(trustedRoot)
+  fs.mkdirSync(outside)
+  await fs.promises.symlink(outside, path.join(trustedRoot, '.pnpm'), process.platform === 'win32' ? 'junction' : 'dir')
+
+  await expect(prepareWorkspaceModulesDir(modulesDir, 'project', trustedRoot)).rejects.toMatchObject({
+    code: 'ERR_PNPM_INVALID_DEPENDENCY_NAME',
+  })
+  expect(fs.existsSync(path.join(outside, 'node_modules/project'))).toBe(false)
 })

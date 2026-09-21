@@ -619,6 +619,144 @@ fn symlink_rejects_workspace_alias_with_symlinked_parent() {
 }
 
 #[test]
+fn symlink_rejects_workspace_aliases_with_conflicting_destinations() {
+    use crate::VirtualStoreLayout;
+    use tempfile::tempdir;
+
+    let dir = tempdir().unwrap();
+    let virtual_store_dir = dir.path().join("node_modules/.pacquet");
+    let private_hoisted = virtual_store_dir.join("node_modules");
+    let public_hoisted = dir.path().join("node_modules");
+    let first_project = dir.path().join("packages/first");
+    let second_project = dir.path().join("packages/second");
+    std::fs::create_dir_all(&first_project).unwrap();
+    std::fs::create_dir_all(&second_project).unwrap();
+
+    let layout = VirtualStoreLayout::legacy(
+        &virtual_store_dir,
+        pnpm_config::default_virtual_store_dir_max_length() as usize,
+    );
+    let workspace_aliases = vec![
+        ("nested".to_string(), HoistKind::Private, first_project),
+        ("nested/inner".to_string(), HoistKind::Private, second_project),
+    ];
+    let result = super::symlink_hoisted_dependencies(
+        &HashMap::new(),
+        &workspace_aliases,
+        &HashMap::new(),
+        &layout,
+        &private_hoisted,
+        &public_hoisted,
+        &HashSet::new(),
+    );
+
+    assert!(matches!(result, Err(crate::SymlinkPackageError::InvalidAlias(_))));
+    assert!(!private_hoisted.exists());
+}
+
+#[test]
+fn symlink_creates_fresh_multi_component_hoist_roots() {
+    use crate::VirtualStoreLayout;
+    use tempfile::tempdir;
+
+    let dir = tempdir().unwrap();
+    let layout_root = dir.path().join("fresh/nested");
+    let virtual_store_dir = layout_root.join("private/store");
+    let private_hoisted = virtual_store_dir.join("node_modules");
+    let public_hoisted = layout_root.join("public/node_modules");
+    let project_dir = dir.path().join("packages/project");
+    std::fs::create_dir_all(&project_dir).unwrap();
+
+    let layout = VirtualStoreLayout::legacy(
+        &virtual_store_dir,
+        pnpm_config::default_virtual_store_dir_max_length() as usize,
+    );
+    let workspace_aliases = vec![("project".to_string(), HoistKind::Private, project_dir)];
+    super::symlink_hoisted_dependencies(
+        &HashMap::new(),
+        &workspace_aliases,
+        &HashMap::new(),
+        &layout,
+        &private_hoisted,
+        &public_hoisted,
+        &HashSet::new(),
+    )
+    .unwrap();
+
+    assert!(private_hoisted.join("project").exists());
+    assert!(public_hoisted.is_dir());
+}
+
+#[test]
+fn symlink_rejects_symlinked_hoist_root() {
+    use crate::VirtualStoreLayout;
+    use tempfile::tempdir;
+
+    let dir = tempdir().unwrap();
+    let virtual_store_dir = dir.path().join("virtual-store");
+    let private_hoisted = virtual_store_dir.join("node_modules");
+    let public_hoisted = dir.path().join("node_modules");
+    let project_dir = dir.path().join("packages/project");
+    let outside = dir.path().join("outside");
+    std::fs::create_dir_all(&project_dir).unwrap();
+    std::fs::create_dir_all(&outside).unwrap();
+    pnpm_fs::symlink_dir(&outside, &public_hoisted).unwrap();
+
+    let layout = VirtualStoreLayout::legacy(
+        &virtual_store_dir,
+        pnpm_config::default_virtual_store_dir_max_length() as usize,
+    );
+    let workspace_aliases = vec![("project".to_string(), HoistKind::Public, project_dir)];
+    let result = super::symlink_hoisted_dependencies(
+        &HashMap::new(),
+        &workspace_aliases,
+        &HashMap::new(),
+        &layout,
+        &private_hoisted,
+        &public_hoisted,
+        &HashSet::new(),
+    );
+
+    assert!(matches!(result, Err(crate::SymlinkPackageError::CreateParentDir { .. })));
+    assert!(!outside.join("project").exists());
+}
+
+#[test]
+fn symlink_rejects_symlinked_private_hoist_ancestor() {
+    use crate::VirtualStoreLayout;
+    use tempfile::tempdir;
+
+    let dir = tempdir().unwrap();
+    let public_hoisted = dir.path().join("node_modules");
+    let virtual_store_dir = public_hoisted.join(".pacquet");
+    let private_hoisted = virtual_store_dir.join("node_modules");
+    let project_dir = dir.path().join("packages/project");
+    let outside = dir.path().join("outside");
+    std::fs::create_dir_all(&public_hoisted).unwrap();
+    std::fs::create_dir_all(&project_dir).unwrap();
+    std::fs::create_dir_all(&outside).unwrap();
+    pnpm_fs::symlink_dir(&outside, &virtual_store_dir).unwrap();
+
+    let layout = VirtualStoreLayout::legacy(
+        &virtual_store_dir,
+        pnpm_config::default_virtual_store_dir_max_length() as usize,
+    );
+    let workspace_aliases = vec![("project".to_string(), HoistKind::Private, project_dir)];
+    let result = super::symlink_hoisted_dependencies(
+        &HashMap::new(),
+        &workspace_aliases,
+        &HashMap::new(),
+        &layout,
+        &private_hoisted,
+        &public_hoisted,
+        &HashSet::new(),
+    );
+
+    assert!(matches!(result, Err(crate::SymlinkPackageError::CreateParentDir { .. })));
+    assert!(!outside.join("node_modules/project").exists());
+}
+
+#[test]
 fn private_hoist_with_bins_collected_for_bin_link() {
     let (snapshots, packages) = make_lockfile_data(&[
         ("a", "1.0.0", &[("with-bin", "with-bin", "1.0.0"), ("no-bin", "no-bin", "1.0.0")], false),
@@ -992,7 +1130,6 @@ fn workspace_packages_hoist_privately_with_lowest_precedence() {
         ],
         "free names hoist to project dirs; a root direct dep's name never does",
     );
-    // The claimed alias blocks the transitive `pkg-b@9.9.9`.
     assert!(
         !result.hoisted_dependencies.contains_key("pkg-b@9.9.9"),
         "workspace-claimed alias must block the transitive: {:?}",
@@ -1013,4 +1150,45 @@ fn workspace_packages_hoist_privately_with_lowest_precedence() {
         kinds_for(&result.hoisted_dependencies, "shadowed@1.0.0"),
         vec![("shadowed".to_string(), HoistKind::Private)],
     );
+}
+
+#[test]
+fn workspace_packages_with_conflicting_destinations_are_not_hoisted() {
+    let graph = HashMap::new();
+    let direct = DirectDepsByImporter::new();
+    let skipped = HashSet::new();
+    let workspace_packages = IndexMap::from([
+        ("nested".to_string(), ("parent".to_string(), std::path::PathBuf::from("/ws/nested"))),
+        (
+            "nested/inner".to_string(),
+            ("child".to_string(), std::path::PathBuf::from("/ws/nested/inner")),
+        ),
+        (
+            "nested/other".to_string(),
+            ("sibling".to_string(), std::path::PathBuf::from("/ws/nested/other")),
+        ),
+        (
+            "nested-other".to_string(),
+            ("unrelated".to_string(), std::path::PathBuf::from("/ws/nested-other")),
+        ),
+    ]);
+    let result = get_hoisted_dependencies(&HoistInputs {
+        graph: &graph,
+        direct_deps_by_importer: &direct,
+        skipped: &skipped,
+        private_pattern: create_matcher(&pats(["*"])),
+        public_pattern: create_matcher(&[]),
+        hoisted_workspace_packages: Some(&workspace_packages),
+    })
+    .expect("workspace projects are present");
+
+    assert_eq!(
+        result.hoisted_workspace_aliases,
+        vec![(
+            "nested-other".to_string(),
+            HoistKind::Private,
+            std::path::PathBuf::from("/ws/nested-other"),
+        )],
+    );
+    assert_eq!(result.hoisted_dependencies["unrelated"]["nested-other"], HoistKind::Private);
 }

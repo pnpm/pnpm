@@ -1,11 +1,12 @@
 import fs from 'node:fs'
 import path from 'node:path'
+import util from 'node:util'
 
 import { linkBinsOfPkgsByAliases, type WarnFunction } from '@pnpm/bins.linker'
 import { createMatcher } from '@pnpm/config.matcher'
 import { WANTED_LOCKFILE } from '@pnpm/constants'
 import { linkLogger } from '@pnpm/core-loggers'
-import { prepareWorkspaceModulesDir, safeJoinWorkspaceModulesDir } from '@pnpm/fs.symlink-dependency'
+import { findCommonPathAncestor, prepareWorkspaceModulesDir, validateWorkspaceModulesDir } from '@pnpm/fs.symlink-dependency'
 import { logger } from '@pnpm/logger'
 import { lexCompare } from '@pnpm/text.ordinal-comparator'
 import type { DependenciesField, DepPath, HoistedDependencies, ProjectId } from '@pnpm/types'
@@ -31,7 +32,7 @@ export interface DirectDependenciesByImporterId<T extends string> {
 const hoistLogger = logger('hoist')
 
 export interface HoistOpts<T extends string> extends GetHoistedDependenciesOpts<T> {
-  beforeWorkspaceLinks?: (hoistedDependencies: HoistedDependencies) => Promise<void>
+  beforeWorkspaceLinks?: (hoistedDependencies: HoistedDependencies) => Promise<(() => Promise<void>) | void>
   extraNodePath?: string[]
   preferSymlinkedExecutables?: boolean
   virtualStoreDir: string
@@ -39,11 +40,19 @@ export interface HoistOpts<T extends string> extends GetHoistedDependenciesOpts<
 }
 
 export async function hoist<T extends string> (opts: HoistOpts<T>): Promise<HoistedDependencies | null> {
+  const initialResult = getHoistedDependencies(opts)
   // Ahead of the graph, so that a workspace project always wins the alias over an
   // equally named transitive dependency instead of whichever symlink lands first.
-  const hoistedWorkspaceDependencies = await hoistWorkspacePackages(opts)
+  const hoistedWorkspaceDependencies = await hoistWorkspacePackages({
+    ...opts,
+    occupiedAliases: collectOccupiedAliases(initialResult, opts.directDepsByImporterId),
+  })
 
-  const result = getHoistedDependencies(opts)
+  const reservedAliases = Object.values(hoistedWorkspaceDependencies)
+    .flatMap(aliases => Object.keys(aliases))
+  const result = reservedAliases.length === 0
+    ? initialResult
+    : getHoistedDependencies({ ...opts, reservedAliases })
   if (!result) {
     return Object.keys(hoistedWorkspaceDependencies).length === 0
       ? null
@@ -88,6 +97,7 @@ export interface GetHoistedDependenciesOpts<T extends string> {
   privateHoistedModulesDir: string
   publicHoistPattern: string[]
   publicHoistedModulesDir: string
+  reservedAliases?: Iterable<string>
   hoistedWorkspacePackages?: Record<ProjectId, HoistedWorkspaceProject>
 }
 
@@ -97,10 +107,11 @@ export interface HoistedWorkspaceProject {
 }
 
 export interface HoistWorkspacePackagesOpts<T extends string> {
-  beforeWorkspaceLinks?: (hoistedDependencies: HoistedDependencies) => Promise<void>
+  beforeWorkspaceLinks?: (hoistedDependencies: HoistedDependencies) => Promise<(() => Promise<void>) | void>
   directDepsByImporterId: DirectDependenciesByImporterId<T>
   graph: DependenciesGraph<T>
   hoistedWorkspacePackages?: Record<ProjectId, HoistedWorkspaceProject>
+  occupiedAliases?: OccupiedAliases
   privateHoistedModulesDir: string
   privateHoistPattern: string[]
   publicHoistedModulesDir: string
@@ -138,31 +149,242 @@ export async function hoistWorkspacePackages<T extends string> (opts: HoistWorks
     virtualStoreDir: opts.virtualStoreDir,
     internalPnpmDir: path.dirname(opts.privateHoistedModulesDir),
   })
-  const placementCandidates: Array<[ProjectId, HoistedWorkspaceProject, 'private' | 'public', string]> = []
+  let placementCandidates: Array<[ProjectId, HoistedWorkspaceProject, 'private' | 'public']> = []
   for (const [projectId, project] of Object.entries(opts.hoistedWorkspacePackages) as Array<[ProjectId, HoistedWorkspaceProject]>) {
     const { name } = project
     const hoistType = getAliasHoistType(name)
     if (!hoistType || aliasesTakenByDependencies.has(name.toLowerCase())) continue
     aliasesTakenByDependencies.add(name.toLowerCase())
-    const targetDir = hoistType === 'public'
-      ? opts.publicHoistedModulesDir
-      : opts.privateHoistedModulesDir
-    placementCandidates.push([projectId, project, hoistType, safeJoinWorkspaceModulesDir(targetDir, name)])
+    placementCandidates.push([projectId, project, hoistType])
   }
+  const conflictingProjectIds = findConflictingWorkspaceProjectIds(placementCandidates, opts.occupiedAliases)
+  placementCandidates = placementCandidates.filter(([projectId]) => !conflictingProjectIds.has(projectId))
   const hoistedDependencies = Object.fromEntries(placementCandidates.map(([projectId, { name }, hoistType]) => [
     projectId,
     { [name]: hoistType },
   ])) as HoistedDependencies
-  await opts.beforeWorkspaceLinks?.(hoistedDependencies)
-  const placements = await Promise.all(placementCandidates.map(async ([projectId, project, hoistType]) => {
-    const targetDir = hoistType === 'public'
-      ? opts.publicHoistedModulesDir
-      : opts.privateHoistedModulesDir
-    const destination = await prepareWorkspaceModulesDir(targetDir, project.name)
-    return [projectId, project, hoistType, destination] as const
-  }))
-  await Promise.all(placements.map(async ([, { dir }, , destination]) => symlink(dir, destination)))
+  const rollback = await opts.beforeWorkspaceLinks?.(hoistedDependencies)
+  let placements: Array<readonly [ProjectId, HoistedWorkspaceProject, 'private' | 'public', string]>
+  try {
+    placements = await Promise.all(placementCandidates.map(async ([projectId, project, hoistType]) => {
+      const targetDir = hoistType === 'public'
+        ? opts.publicHoistedModulesDir
+        : opts.privateHoistedModulesDir
+      const trustedRoot = findCommonPathAncestor(opts.publicHoistedModulesDir, targetDir) ?? path.parse(path.resolve(targetDir)).root
+      const destination = await prepareWorkspaceModulesDir(targetDir, project.name, trustedRoot)
+      return [projectId, project, hoistType, destination] as const
+    }))
+  } catch (error: unknown) {
+    await runWorkspaceRollback(rollback, opts.privateHoistedModulesDir)
+    throw error
+  }
+  const results = await Promise.allSettled(placements.map(async ([, { dir }, , destination]) => symlink(dir, destination)))
+  const failure = results.find((result): result is PromiseRejectedResult => result.status === 'rejected')
+  if (failure != null) {
+    const cleanupResults = await Promise.allSettled(placements.map(async ([, { dir }, , destination], index) => {
+      if (results[index].status !== 'fulfilled') return
+      await removeWorkspaceLinkIfTarget(destination, dir)
+    }))
+    reportWorkspaceRollbackFailures(cleanupResults, opts.privateHoistedModulesDir)
+    await runWorkspaceRollback(rollback, opts.privateHoistedModulesDir)
+    throw failure.reason
+  }
   return hoistedDependencies
+}
+
+export async function pruneStaleWorkspaceHoists (
+  previous: HoistedDependencies,
+  next: HoistedDependencies,
+  projectIds: Set<ProjectId>,
+  privateHoistedModulesDir: string,
+  publicHoistedModulesDir: string
+): Promise<() => Promise<void>> {
+  const staleLinks = (await Promise.all(Array.from(projectIds).flatMap((projectId) => {
+    const nextAliases = next[projectId]
+    return Object.entries(previous[projectId] ?? {}).flatMap(([alias, hoistType]) => {
+      if (nextAliases?.[alias] === hoistType) return []
+      const modulesDir = hoistType === 'public'
+        ? publicHoistedModulesDir
+        : privateHoistedModulesDir
+      const trustedRoot = findCommonPathAncestor(publicHoistedModulesDir, modulesDir) ?? path.parse(path.resolve(modulesDir)).root
+      return [(async () => {
+        const destination = await validateWorkspaceModulesDir(modulesDir, alias, trustedRoot)
+        let target: string
+        try {
+          const rawTarget = await fs.promises.readlink(destination)
+          target = path.resolve(path.dirname(destination), rawTarget)
+        } catch (error: unknown) {
+          if (util.types.isNativeError(error) && 'code' in error && (error.code === 'ENOENT' || error.code === 'EINVAL')) {
+            return undefined
+          }
+          throw error
+        }
+        return { alias, destination, modulesDir, target, trustedRoot }
+      })()]
+    })
+  }))).filter(link => link != null)
+  const removalResults = await Promise.allSettled(staleLinks.map(async ({ alias, destination, modulesDir, trustedRoot }) => {
+    await validateWorkspaceModulesDir(modulesDir, alias, trustedRoot)
+    await fs.promises.unlink(destination)
+  }))
+  const failure = removalResults.find((result): result is PromiseRejectedResult => result.status === 'rejected')
+  const restore = async (links: typeof staleLinks): Promise<void> => {
+    await Promise.all(links.map(async ({ alias, destination, modulesDir, target, trustedRoot }) => {
+      await prepareWorkspaceModulesDir(modulesDir, alias, trustedRoot)
+      await fs.promises.symlink(target, destination, process.platform === 'win32' ? 'junction' : 'dir')
+    }))
+  }
+  if (failure != null) {
+    await restore(staleLinks.filter((_, index) => removalResults[index].status === 'fulfilled'))
+    throw failure.reason
+  }
+  const parentCleanupResults = await Promise.allSettled(staleLinks.map(async ({ alias, destination, modulesDir, trustedRoot }) => {
+    await removeEmptyWorkspaceParents(modulesDir, alias, path.dirname(destination), trustedRoot)
+  }))
+  const parentCleanupFailure = parentCleanupResults.find((result): result is PromiseRejectedResult => result.status === 'rejected')
+  if (parentCleanupFailure != null) {
+    await restore(staleLinks)
+    throw parentCleanupFailure.reason
+  }
+  return async () => restore(staleLinks)
+}
+
+async function removeEmptyWorkspaceParents (modulesDir: string, alias: string, parent: string, trustedRoot: string): Promise<void> {
+  if (parent === modulesDir) return
+  await validateWorkspaceModulesDir(modulesDir, alias, trustedRoot)
+  try {
+    await fs.promises.rmdir(parent)
+  } catch (error: unknown) {
+    if (util.types.isNativeError(error) && 'code' in error && ['ENOENT', 'ENOTEMPTY', 'EEXIST'].includes(String(error.code))) return
+    throw error
+  }
+  await removeEmptyWorkspaceParents(modulesDir, alias, path.dirname(parent), trustedRoot)
+}
+
+async function runWorkspaceRollback (rollback: (() => Promise<void>) | void, prefix: string): Promise<void> {
+  if (rollback == null) return
+  try {
+    await rollback()
+  } catch (error: unknown) {
+    hoistLogger.warn({ message: `Failed to roll back workspace hoist links: ${String(error)}`, prefix })
+  }
+}
+
+function reportWorkspaceRollbackFailures (results: PromiseSettledResult<void>[], prefix: string): void {
+  for (const result of results) {
+    if (result.status === 'rejected') {
+      hoistLogger.warn({ message: `Failed to clean up a workspace hoist link: ${String(result.reason)}`, prefix })
+    }
+  }
+}
+
+function findConflictingWorkspaceProjectIds (
+  candidates: Array<[ProjectId, HoistedWorkspaceProject, 'private' | 'public']>,
+  occupiedAliases?: OccupiedAliases
+): Set<ProjectId> {
+  const conflictingProjectIds = new Set<ProjectId>()
+  for (const hoistType of ['private', 'public'] as const) {
+    const projectIdsByName = new Map<string, ProjectId[]>()
+    for (const [projectId, project, candidateHoistType] of candidates) {
+      if (candidateHoistType !== hoistType) continue
+      const name = project.name.toLowerCase()
+      if (occupiedAliases != null && conflictsWithOccupiedAlias(name, occupiedAliases[hoistType])) {
+        conflictingProjectIds.add(projectId)
+        continue
+      }
+      const projectIds = projectIdsByName.get(name)
+      if (projectIds == null) {
+        projectIdsByName.set(name, [projectId])
+      } else {
+        projectIds.push(projectId)
+      }
+    }
+    const activeAncestors: Array<[string, ProjectId[]]> = []
+    for (const current of [...projectIdsByName.entries()].sort(([left], [right]) => compareWorkspaceAliases(left, right))) {
+      while (activeAncestors.length > 0 && !current[0].startsWith(`${activeAncestors.at(-1)![0]}/`)) {
+        activeAncestors.pop()
+      }
+      if (activeAncestors.length > 0) {
+        for (const [, projectIds] of activeAncestors) {
+          for (const projectId of projectIds) conflictingProjectIds.add(projectId)
+        }
+        for (const projectId of current[1]) conflictingProjectIds.add(projectId)
+      }
+      activeAncestors.push(current)
+    }
+  }
+  return conflictingProjectIds
+}
+
+interface AliasIndex {
+  aliases: Set<string>
+  ancestors: Set<string>
+}
+
+interface OccupiedAliases {
+  private: AliasIndex
+  public: AliasIndex
+}
+
+function collectOccupiedAliases<T extends string> (
+  result: HoistGraphResult<T> | null,
+  directDepsByImporterId: DirectDependenciesByImporterId<T>
+): OccupiedAliases {
+  const occupiedAliases: OccupiedAliases = {
+    private: { aliases: new Set(), ancestors: new Set() },
+    public: { aliases: new Set(), ancestors: new Set() },
+  }
+  if (result != null) {
+    for (const aliases of result.hoistedDependenciesByNodeId.values()) {
+      for (const [alias, hoistType] of Object.entries(aliases)) {
+        addOccupiedAlias(alias, occupiedAliases[hoistType])
+      }
+    }
+  }
+  const rootDirectDeps = directDepsByImporterId['.' as ProjectId]
+  if (rootDirectDeps != null) {
+    for (const alias of rootDirectDeps.keys()) addOccupiedAlias(alias, occupiedAliases.public)
+  }
+  return occupiedAliases
+}
+
+function addOccupiedAlias (alias: string, index: AliasIndex): void {
+  const components = alias.toLowerCase().split('/')
+  index.aliases.add(components.join('/'))
+  for (let length = 1; length < components.length; length++) {
+    index.ancestors.add(components.slice(0, length).join('/'))
+  }
+}
+
+function conflictsWithOccupiedAlias (alias: string, index: AliasIndex): boolean {
+  if (index.ancestors.has(alias)) return true
+  const components = alias.split('/')
+  for (let length = 1; length < components.length; length++) {
+    if (index.aliases.has(components.slice(0, length).join('/'))) return true
+  }
+  return false
+}
+
+function compareWorkspaceAliases (left: string, right: string): number {
+  const leftComponents = left.split('/')
+  const rightComponents = right.split('/')
+  const length = Math.min(leftComponents.length, rightComponents.length)
+  for (let index = 0; index < length; index++) {
+    const compared = lexCompare(leftComponents[index], rightComponents[index])
+    if (compared !== 0) return compared
+  }
+  return leftComponents.length - rightComponents.length
+}
+
+async function removeWorkspaceLinkIfTarget (destination: string, target: string): Promise<void> {
+  let resolvedTarget: string
+  try {
+    resolvedTarget = await resolveLinkTarget(destination)
+  } catch (error: unknown) {
+    if (util.types.isNativeError(error) && 'code' in error && (error.code === 'ENOENT' || error.code === 'EINVAL')) return
+    throw error
+  }
+  if (resolvedTarget === target) await fs.promises.unlink(destination)
 }
 
 export function getHoistedDependencies<T extends string> (opts: GetHoistedDependenciesOpts<T>): HoistGraphResult<T> | null {
@@ -191,6 +413,7 @@ export function getHoistedDependencies<T extends string> (opts: GetHoistedDepend
   return hoistGraph(deps, opts.directDepsByImporterId['.' as ProjectId] ?? new Map(), {
     getAliasHoistType,
     graph: opts.graph,
+    reservedAliases: opts.reservedAliases,
     skipped: opts.skipped,
   })
 }
@@ -286,10 +509,14 @@ function hoistGraph<T extends string> (
   opts: {
     getAliasHoistType: GetAliasHoistType
     graph: DependenciesGraph<T>
+    reservedAliases?: Iterable<string>
     skipped: Set<DepPath>
   }
 ): HoistGraphResult<T> {
-  const hoistedAliases = new Set(currentSpecifiers.keys())
+  const hoistedAliases = new Set([
+    ...currentSpecifiers.keys(),
+    ...opts.reservedAliases ?? [],
+  ].map(alias => alias.toLowerCase()))
   const hoistedDependencies: HoistedDependencies = Object.create(null)
   const hoistedDependenciesByNodeId: HoistedDependenciesByNodeId<T> = new Map()
   const hoistedAliasesWithBins = new Set<string>()

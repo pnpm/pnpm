@@ -3,7 +3,7 @@ import { symlinkDir, symlinkDirSync } from 'symlink-dir'
 
 import { safeJoinModulesDir } from './safeJoinModulesDir.js'
 
-export { prepareWorkspaceModulesDir, safeJoinModulesDir, safeJoinWorkspaceModulesDir } from './safeJoinModulesDir.js'
+export { findCommonPathAncestor, prepareWorkspaceModulesDir, safeJoinModulesDir, safeJoinWorkspaceModulesDir, validateWorkspaceModulesDir } from './safeJoinModulesDir.js'
 export { symlinkDirectRootDependency } from './symlinkDirectRootDependency.js'
 
 export async function symlinkDependency (

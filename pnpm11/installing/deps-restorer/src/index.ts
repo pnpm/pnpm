@@ -32,7 +32,7 @@ import {
 } from '@pnpm/exec.lifecycle'
 import { safeJoinModulesDir, symlinkDependency } from '@pnpm/fs.symlink-dependency'
 import { linkDirectDeps, type LinkedDirectDep } from '@pnpm/installing.linking.direct-dep-linker'
-import { hoist, type HoistedWorkspaceProject } from '@pnpm/installing.linking.hoist'
+import { hoist, type HoistedWorkspaceProject, pruneStaleWorkspaceHoists } from '@pnpm/installing.linking.hoist'
 import { prune, removeObsoleteDependency } from '@pnpm/installing.linking.modules-cleaner'
 import type { HoistingLimits } from '@pnpm/installing.linking.real-hoist'
 import {
@@ -531,6 +531,14 @@ export async function headlessInstall (opts: HeadlessOptions): Promise<Installat
     })
 
     if (opts.ignorePackageManifest !== true && !skipPostImportLinking && (opts.hoistPattern != null || opts.publicHoistPattern != null)) {
+      const allImportersIncluded = equals([...importerIds].sort(), Object.keys(wantedLockfile.importers).sort())
+      const priorWorkspaceProjectIds = new Set(
+        Object.keys(opts.hoistedDependencies)
+          .filter((key) => (
+            currentLockfile?.packages?.[key as DepPath] == null &&
+            (allImportersIncluded || importerIds.includes(key as ProjectId))
+          )) as ProjectId[]
+      )
       // With the full graph the recomputed hoist map is complete, so it
       // replaces the recorded one and drops the entries this install made
       // ineligible. The incremental graph only knows the packages it
@@ -561,6 +569,13 @@ export async function headlessInstall (opts: HeadlessOptions): Promise<Installat
             return hoistedWorkspacePackages
           }, {} as Record<string, HoistedWorkspaceProject>)
           : undefined,
+        beforeWorkspaceLinks: async (nextWorkspaceHoists: HoistedDependencies) => pruneStaleWorkspaceHoists(
+          opts.hoistedDependencies,
+          nextWorkspaceHoists,
+          priorWorkspaceProjectIds,
+          hoistedModulesDir,
+          publicHoistedModulesDir
+        ),
         skipped: opts.skipped,
       }) ?? {}
       // The recomputed map only replaces the recorded one when the graph is
@@ -568,11 +583,14 @@ export async function headlessInstall (opts: HeadlessOptions): Promise<Installat
       // lockfile, so replacing there would forget the unselected importers'
       // entries. Everywhere else the recorded map fills in what the graph
       // does not know.
-      const hoistMapIsComplete = lockfileToDepGraphOpts.includeUnchangedDeps &&
-        equals([...importerIds].sort(), Object.keys(wantedLockfile.importers).sort())
+      const hoistMapIsComplete = lockfileToDepGraphOpts.includeUnchangedDeps && allImportersIncluded
+      const retainedHoistedDependencies = Object.fromEntries(
+        Object.entries(opts.hoistedDependencies)
+          .filter(([key]) => !priorWorkspaceProjectIds.has(key as ProjectId))
+      ) as HoistedDependencies
       newHoistedDependencies = hoistMapIsComplete
         ? hoisted
-        : { ...opts.hoistedDependencies, ...hoisted }
+        : { ...retainedHoistedDependencies, ...hoisted }
     } else {
       newHoistedDependencies = {}
     }

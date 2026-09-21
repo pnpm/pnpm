@@ -684,6 +684,45 @@ test('installing with publicHoistPattern=*', async () => {
   expect(modules!.hoistedDependencies['balanced-match@1.0.2' as DepPath]).toStrictEqual({ 'balanced-match': 'public' })
 })
 
+test('headless install removes a renamed workspace project from the private hoist directory', async () => {
+  const prefix = tempDir()
+  const projectDir = path.join(prefix, 'project')
+  fs.mkdirSync(projectDir)
+  fs.writeFileSync(path.join(prefix, 'package.json'), JSON.stringify({ name: 'root', version: '1.0.0' }))
+  fs.writeFileSync(path.join(projectDir, 'package.json'), JSON.stringify({ name: 'old-name', version: '1.0.0' }))
+  fs.writeFileSync(path.join(prefix, WANTED_LOCKFILE), [
+    "lockfileVersion: '9.0'",
+    'settings:',
+    '  autoInstallPeers: true',
+    '  excludeLinksFromLockfile: false',
+    'importers:',
+    '  .: {}',
+    '  project: {}',
+    '',
+  ].join('\n'))
+
+  const projects = [prefix, projectDir]
+  await headlessInstall(await testDefaults({
+    hoistWorkspacePackages: true,
+    lockfileDir: prefix,
+    projects,
+  }))
+  const privateHoistDir = path.join(prefix, 'node_modules/.pnpm/node_modules')
+  expect(fs.realpathSync(path.join(privateHoistDir, 'old-name'))).toBe(projectDir)
+
+  fs.writeFileSync(path.join(projectDir, 'package.json'), JSON.stringify({ name: 'new-name', version: '1.0.0' }))
+  const modules = await readModulesManifest(path.join(prefix, 'node_modules'))
+  await headlessInstall(await testDefaults({
+    hoistedDependencies: modules!.hoistedDependencies,
+    hoistWorkspacePackages: true,
+    lockfileDir: prefix,
+    projects,
+  }))
+
+  expect(fs.existsSync(path.join(privateHoistDir, 'old-name'))).toBe(false)
+  expect(fs.realpathSync(path.join(privateHoistDir, 'new-name'))).toBe(projectDir)
+})
+
 test('installing with publicHoistPattern=* in a project with external lockfile', async () => {
   const lockfileDir = f.prepare('pkg-with-external-lockfile')
   const prefix = path.join(lockfileDir, 'pkg')
