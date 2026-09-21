@@ -74,10 +74,12 @@ export function relaySignals (child: SignalTarget, opts: RelaySignalsOptions): S
   }
   const onTerm = (): void => {
     interruptedBy ??= 'SIGTERM'
+    group.interruptedBy ??= 'SIGTERM'
     terminate()
   }
   const onInterrupt = (): void => {
     interruptedBy ??= 'SIGINT'
+    group.interruptedBy ??= 'SIGINT'
     if (!hasControllingTerminal()) {
       relay('SIGINT')
     }
@@ -87,6 +89,12 @@ export function relaySignals (child: SignalTarget, opts: RelaySignalsOptions): S
   process.once('SIGINT', onInterrupt)
   if (opts.terminateOnExit) {
     process.on('exit', terminate)
+  }
+  if (group.interruptedBy != null) {
+    process.removeListener('SIGINT', onInterrupt)
+    interruptedBy = group.interruptedBy
+    relay(group.interruptedBy)
+    if (group.interruptedBy === 'SIGINT') process.once('SIGINT', terminate)
   }
   return {
     interruptedBy: () => interruptedBy,
@@ -125,6 +133,7 @@ export function relaySignals (child: SignalTarget, opts: RelaySignalsOptions): S
 
 interface RelayGroup {
   active: number
+  interruptedBy?: NodeJS.Signals
   settled: Promise<void>
   resolve: () => void
   raised?: Promise<void>

@@ -398,6 +398,62 @@ setInterval(() => {}, 1000)
   expect(stdout).not.toContain('ERR_PNPM_RECURSIVE_RUN_FIRST_FAIL')
 })
 
+testOnPosix('run -r: work started while interrupted scripts settle receives the interrupt', () => {
+  preparePackages([
+    {
+      name: 'project-1',
+      scripts: {
+        dev: 'node ../exit-cleanly.js',
+      },
+    },
+    {
+      name: 'project-2',
+      scripts: {
+        dev: 'node ../exit-by-signal.js',
+      },
+    },
+    {
+      name: 'project-3',
+      scripts: {
+        dev: 'node ../stay-running.js',
+      },
+    },
+  ])
+  fs.writeFileSync('exit-cleanly.js', `process.on('SIGINT', () => process.exit(0))
+console.log('started')
+setInterval(() => {}, 1000)
+`, 'utf8')
+  fs.writeFileSync('exit-by-signal.js', `process.on('SIGINT', () => {
+  setTimeout(() => {
+    process.removeAllListeners('SIGINT')
+    process.kill(process.pid, 'SIGINT')
+  }, 500)
+})
+console.log('started')
+setInterval(() => {}, 1000)
+`, 'utf8')
+  fs.writeFileSync('stay-running.js', 'setInterval(() => {}, 1000)\n', 'utf8')
+  writeYamlFileSync('pnpm-workspace.yaml', { packages: ['project-*'] })
+
+  const terminalScript = path.join(import.meta.dirname, '../../__utils__/scripts/terminal.py')
+  const { stdout, status, error } = spawnSync('python3', [
+    terminalScript,
+    process.execPath,
+    pnpmBinLocation,
+    'run',
+    '-r',
+    '--stream',
+    '--workspace-concurrency=2',
+    '--config.verify-deps-before-run=false',
+    'dev',
+  ], { encoding: 'utf8', timeout: 90_000 })
+
+  expect(error).toBeUndefined()
+  expect(status).toBe(130)
+  expect(stdout).not.toContain('ELIFECYCLE')
+  expect(stdout).not.toContain('ERR_PNPM_RECURSIVE_RUN_FIRST_FAIL')
+})
+
 // A script that shuts down on SIGTERM the way a server does when a container
 // runtime stops it.
 const TERMINATING_SCRIPT = `const fs = require('node:fs')
