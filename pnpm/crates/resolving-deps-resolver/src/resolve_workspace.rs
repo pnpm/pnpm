@@ -156,6 +156,9 @@ pub struct WorkspaceLockfileReuse {
     /// past the ceiling keep their locked resolutions even when their
     /// name is an update target.
     pub depth: UpdateDepth,
+    /// Reconsider these packages using the existing-version preferences,
+    /// without treating them as explicit update targets.
+    pub dedupe: crate::UpdateTargets,
 }
 
 #[derive(Default)]

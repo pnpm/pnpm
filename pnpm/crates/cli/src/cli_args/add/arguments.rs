@@ -119,6 +119,8 @@ pub struct AddTargetArgs {
 
 #[derive(Debug, Clone, clap::Args)]
 pub struct AddInstallArgs {
+    #[clap(flatten)]
+    pub dedupe: crate::cli_args::install_options::AutoDedupeArgs,
     /// Package names allowed to run lifecycle (build) scripts during this
     /// install, appended to `allowBuilds`. Prefix a name with `!` to deny
     /// its scripts instead. May be repeated.

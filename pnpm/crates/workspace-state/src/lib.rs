@@ -113,6 +113,8 @@ pub struct WorkspaceStateSettings {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub dedupe_peers: Option<bool>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub auto_dedupe: Option<bool>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub dev: Option<bool>,
     /// `None` and `Some(false)` both mean "global virtual store off" —
     /// pnpm omits the key for its `undefined` default and only writes a

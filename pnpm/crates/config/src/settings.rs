@@ -759,6 +759,9 @@ pub struct Config {
     /// default `false`.
     pub dedupe_peers: bool,
 
+    /// Deduplicate compatible versions during non-frozen installs.
+    pub auto_dedupe: bool,
+
     /// When `true`, a direct dependency of a non-root workspace
     /// project is omitted from that project's `node_modules/` when
     /// the workspace root resolves the same alias to the same target.

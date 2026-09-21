@@ -326,7 +326,7 @@ pub(crate) fn build_workspace_state<Sys: Clock>(
     filtered_install: bool,
     filesystem_now_ms: Option<i64>,
 ) -> WorkspaceState {
-    WorkspaceState {
+    let mut state = WorkspaceState {
         last_validated_timestamp: refreshed_validation_baseline_ms(
             validation_baseline_ms(workspace_root, config, project_manifests)
                 .unwrap_or_else(|| pnpm_workspace_state::millis_since_epoch(Sys::now())),
@@ -349,7 +349,10 @@ pub(crate) fn build_workspace_state<Sys: Clock>(
             supported_architectures,
             catalogs,
         ),
-    }
+    };
+    // Frozen installs share this builder and cannot establish a deduplication baseline.
+    state.settings.auto_dedupe = None;
+    state
 }
 
 /// The wanted lockfile, read on first use — or a stand-in that never reads

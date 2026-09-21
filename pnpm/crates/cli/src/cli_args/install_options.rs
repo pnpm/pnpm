@@ -39,6 +39,23 @@ pub struct OfflineArgs {
     pub no_prefer_offline: bool,
 }
 
+#[derive(Debug, Default, Clone, clap::Args)]
+pub struct AutoDedupeArgs {
+    /// Deduplicate compatible dependency versions during installation.
+    #[clap(long = "auto-dedupe", overrides_with = "no_auto_dedupe")]
+    pub auto_dedupe: bool,
+    /// Disable automatic deduplication configured in pnpm-workspace.yaml.
+    #[clap(long = "no-auto-dedupe", overrides_with = "auto_dedupe")]
+    pub no_auto_dedupe: bool,
+}
+
+impl AutoDedupeArgs {
+    pub(crate) fn apply(&self, config: &mut Config) {
+        config.auto_dedupe =
+            resolve_bool_override(self.auto_dedupe, self.no_auto_dedupe, config.auto_dedupe);
+    }
+}
+
 impl ScriptExecutionArgs {
     pub(crate) fn apply(&self, config: &mut Config) {
         config.ignore_scripts =

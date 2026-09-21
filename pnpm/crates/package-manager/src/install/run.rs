@@ -299,9 +299,10 @@ impl RunMode {
             // neither may write `.modules.yaml`, the current lockfile, or workspace state.
             // The frozen path returns below; the fresh path returns in `complete_resolve_only`.
             resolve_only: lockfile_only || install.execution.dry_run,
-            prefer_frozen_lockfile: install.lockfile_policy.prefer_frozen.unwrap_or(
-                install.context.config.prefer_frozen_lockfile,
-            ),
+            prefer_frozen_lockfile: !install.context.config.auto_dedupe
+                && install.lockfile_policy.prefer_frozen.unwrap_or(
+                    install.context.config.prefer_frozen_lockfile,
+                ),
             // The same set the dependency-graph walker observes, written to
             // `.modules.yaml` as `included`.
             included: super::included_dependencies(&owned.projects.dependency_groups),
