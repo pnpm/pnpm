@@ -130,6 +130,51 @@ pub fn global_config_paths_expand_a_leading_tilde() {
 }
 
 #[test]
+pub fn pnpm_config_store_dir_expands_a_leading_tilde() {
+    let home = tempdir().expect("home tempdir");
+    static HOME_PATH: std::sync::OnceLock<PathBuf> = std::sync::OnceLock::new();
+    HOME_PATH
+        .set(home.path().to_path_buf())
+        .expect("set once");
+
+    struct HostWithHome;
+    impl EnvVar for HostWithHome {
+        fn var(name: &str) -> Option<String> {
+            match name {
+                "PNPM_CONFIG_STORE_DIR" => Some("~/store".to_string()),
+                "XDG_CONFIG_HOME" => Some(
+                    HOME_PATH
+                        .get()
+                        .expect("home path")
+                        .join("xdg")
+                        .to_str()
+                        .expect("utf-8 home path")
+                        .to_string(),
+                ),
+                _ => safe_host_var(name),
+            }
+        }
+    }
+    impl EnvVarOs for HostWithHome {
+        fn var_os(_: &str) -> Option<OsString> {
+            None
+        }
+    }
+    impl GetHomeDir for HostWithHome {
+        fn home_dir() -> Option<PathBuf> {
+            HOME_PATH.get().cloned()
+        }
+    }
+    inert_link_probe!(HostWithHome);
+    host_current_dir!(HostWithHome);
+
+    let project = tempdir().expect("project tempdir");
+    let config =
+        Config::new().current::<HostWithHome>(project.path()).expect("PNPM_CONFIG_STORE_DIR loads");
+    assert_eq!(config.store_dir.root(), home.path().join("store").join("v11"));
+}
+
+#[test]
 pub fn fetch_retries_defaults_match_pnpm() {
     let value = Config::new();
     assert_eq!(value.fetch_retries, 2);

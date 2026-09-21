@@ -618,6 +618,7 @@ fn expanding_a_home_prefix_joins_the_way_pnpm_does() {
     let home = PathBuf::from("/home/example");
     for (configured, expected) in [
         ("~/bin", home.join("bin")),
+        (r"~\bin", home.join("bin")),
         ("~//bin", home.join("bin")),
         ("~/../bin", PathBuf::from("/home").join("bin")),
         ("~/nested/../bin", home.join("bin")),
