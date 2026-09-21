@@ -5,4 +5,4 @@
 "@pnpm/workspace.workspace-manifest-reader": minor
 ---
 
-Added synchronous workspace discovery and manifest-reading APIs.
+Added `findWorkspaceDirSync`, `findPackagesSync`, `findWorkspaceProjectsSync`, `findWorkspaceProjectsNoCheckSync`, `readWorkspaceManifestSync`, and `readExactProjectManifestSync`.
