@@ -824,3 +824,51 @@ fn completion_server_filter_respects_root_only_workspaces() {
         assert_eq!(stdout(output), "root\n", "{config}");
     }
 }
+
+#[test]
+fn completion_server_omits_unsafe_package_and_script_names() {
+    let workspace = TempDir::new().unwrap();
+    let unsafe_names = [
+        "bad\nname",
+        "bad\rname",
+        "bad\tname",
+        "bad\u{1b}[31mname",
+        "bad\u{7f}name",
+        "bad\u{85}name",
+        "bad\u{202e}name",
+        "bad\u{2028}name",
+    ];
+    let scripts: serde_json::Map<_, _> = std::iter::once("safe")
+        .chain(unsafe_names)
+        .map(|name| (name.to_string(), serde_json::json!("echo unused")))
+        .collect();
+    std::fs::write(
+        workspace.path().join("package.json"),
+        serde_json::to_vec(&serde_json::json!({"name": "safe", "scripts": scripts})).unwrap(),
+    )
+    .unwrap();
+    std::fs::write(workspace.path().join("pnpm-workspace.yaml"), "packages:\n  - packages/*\n")
+        .unwrap();
+    for (index, name) in unsafe_names.iter().enumerate() {
+        let directory = workspace
+            .path()
+            .join(format!("packages/pkg-{index}"));
+        std::fs::create_dir_all(&directory).unwrap();
+        std::fs::write(
+            directory.join("package.json"),
+            serde_json::to_vec(&serde_json::json!({"name": name})).unwrap(),
+        )
+        .unwrap();
+    }
+    for shell in ["bash", "fish", "pwsh", "zsh"] {
+        for option in ["--filter", "-F", "run"] {
+            let output = pacquet()
+                .current_dir(workspace.path())
+                .env("SHELL", shell)
+                .args(["completion-server", "--", "pnpm", option, ""])
+                .output()
+                .unwrap();
+            assert_eq!(stdout(output), "safe\n", "{shell}: {option}");
+        }
+    }
+}

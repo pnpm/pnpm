@@ -2163,6 +2163,9 @@ importers:
       '@pnpm/tabtab':
         specifier: 'catalog:'
         version: 0.5.4(supports-color@10.2.2)
+      '@pnpm/text.sanitize':
+        specifier: workspace:*
+        version: link:../../text/sanitize
       '@pnpm/workspace.projects-reader':
         specifier: workspace:^
         version: link:../../workspace/projects-reader

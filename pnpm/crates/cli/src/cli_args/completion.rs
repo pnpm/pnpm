@@ -7,6 +7,7 @@ use crate::{
 use clap::{Arg, ArgAction, Args, Command, CommandFactory};
 use derive_more::{Display, Error};
 use miette::{Diagnostic, IntoDiagnostic};
+use pnpm_text_sanitize::sanitize_inline;
 use std::{
     env,
     io::Write,
@@ -74,6 +75,9 @@ impl CompletionServerArgs {
     pub fn run(&self) -> miette::Result<()> {
         let is_zsh = std::env::var_os("SHELL").is_some_and(|shell| shell == "zsh");
         for completion in complete_words(&self.words)? {
+            if sanitize_inline(&completion) != completion {
+                continue;
+            }
             let completion = if is_zsh {
                 completion.replace('\\', r"\\").replace(':', r"\:")
             } else {

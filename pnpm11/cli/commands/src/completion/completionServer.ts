@@ -2,6 +2,7 @@ import type { CompletionFunc } from '@pnpm/cli.command'
 import type { ParsedCliArgs } from '@pnpm/cli.parse-cli-args'
 import tabtab from '@pnpm/tabtab'
 import { type CompletionItem, getShellFromEnv } from '@pnpm/tabtab'
+import { sanitizeInline } from '@pnpm/text.sanitize'
 import { split as splitCmd } from 'split-cmd/index.modern.mjs'
 
 import { complete } from './complete.js'
@@ -32,7 +33,7 @@ export function createCompletionServer (
     if (inputArgv.includes('--')) return
     const { params, options, cmd } = await opts.parseCliArgs(inputArgv)
     tabtab.log(
-      await complete(
+      (await complete(
         opts,
         {
           cmd,
@@ -41,7 +42,7 @@ export function createCompletionServer (
           options,
           params,
         }
-      ),
+      )).filter(({ name, description }) => sanitizeInline(name) === name && (description == null || sanitizeInline(description) === description)),
       shell
     )
   }
