@@ -678,3 +678,62 @@ fn shell_emulator_lifecycle_emits_stdio_and_a_failing_exit() {
         "stderr 'BAD' must be emitted: {stdio:?}",
     );
 }
+
+#[test]
+#[cfg_attr(not(windows), ignore = "only Windows bounds a working directory")]
+fn shell_emulator_runs_an_external_command_from_a_long_package_root() {
+    let root = tempdir().expect("create temp dir");
+    let mut pkg_root = root
+        .path()
+        .join("workspace")
+        .join("..")
+        .join("v11")
+        .join("links")
+        .join("@pnpm.e2e")
+        .join("pre-and-postinstall-scripts-example")
+        .join("1.0.0")
+        .join("18ee99614ef3696a0b10d1d9893d9ec41c393462eec96e154981c3d9cca0c268")
+        .join("node_modules")
+        .join("@pnpm.e2e")
+        .join("pre-and-postinstall-scripts-example");
+    while pkg_root.as_os_str().len() <= 260 {
+        pkg_root = pkg_root.join("p");
+    }
+    fs::create_dir_all(&pkg_root).expect("create long package root");
+    let manifest = serde_json::json!({
+        "name": "emulated-long-path",
+        "version": "1.0.0",
+        "scripts": {
+            "postinstall": r#"node -e "require('fs').writeFileSync('built.txt', 'ok')""#,
+        },
+    });
+    fs::write(pkg_root.join("package.json"), manifest.to_string()).expect("write manifest");
+
+    let extra_env: HashMap<String, String> = HashMap::new();
+    let extra_bin_paths = Vec::new();
+    let opts = RunPostinstallHooks {
+        environment: crate::ScriptEnvironment {
+            init_cwd: &pkg_root,
+            node_execpath: None,
+            npm_execpath: None,
+            node_gyp_path: None,
+            user_agent: None,
+            extra_env: &extra_env,
+        },
+        execution: crate::ScriptExecutionOptions {
+            extra_bin_paths: &extra_bin_paths,
+            node_gyp_bin: None,
+            prepend_node_path: ScriptsPrependNodePath::Never,
+            shell: None,
+            shell_emulator: true,
+        },
+        dep_path: "/emulated-long-path@1.0.0",
+        pkg_root: &pkg_root,
+        root_modules_dir: &pkg_root,
+        unsafe_perm: true,
+        optional: false,
+    };
+
+    assert!(run_postinstall_hooks::<SilentReporter>(&opts).expect("run postinstall"));
+    assert_eq!(fs::read_to_string(pkg_root.join("built.txt")).expect("read artifact"), "ok");
+}

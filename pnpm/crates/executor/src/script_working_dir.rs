@@ -20,7 +20,18 @@ pub(crate) fn script_working_dir(pkg_root: &Path) -> &Path {
 /// it cannot retry after Windows refuses a long working directory.
 #[cfg(windows)]
 pub(crate) fn emulator_working_dir(pkg_root: &Path) -> Cow<'_, Path> {
+    use std::os::windows::ffi::OsStrExt;
+
     let pkg_root = script_working_dir(pkg_root);
+    const MAX_WORKING_DIR_WITHOUT_TRAILING_SEPARATOR: usize = 258;
+    if pkg_root
+        .as_os_str()
+        .encode_wide()
+        .count()
+        <= MAX_WORKING_DIR_WITHOUT_TRAILING_SEPARATOR
+    {
+        return Cow::Borrowed(pkg_root);
+    }
     shorter_working_dirs(pkg_root)
         .into_iter()
         .min_by_key(|spelling| spelling.as_os_str().len())

@@ -5,6 +5,49 @@ use std::{
 };
 
 #[test]
+fn the_emulator_keeps_a_short_working_directory() {
+    let root = tempfile::Builder::new()
+        .prefix("pnpm-wd-")
+        .tempdir()
+        .expect("create temporary directory");
+
+    assert!(matches!(emulator_working_dir(root.path()), std::borrow::Cow::Borrowed(_)));
+}
+
+#[test]
+#[cfg(windows)]
+fn the_emulator_measures_a_working_directory_in_utf16_code_units() {
+    use std::os::windows::ffi::OsStrExt;
+
+    let root = tempfile::Builder::new()
+        .prefix("pnpm-wd-")
+        .tempdir()
+        .expect("create temporary directory");
+    let mut component = String::new();
+    while root
+        .path()
+        .join(&component)
+        .as_os_str()
+        .len()
+        <= 258
+    {
+        component.push('é');
+    }
+    let pkg_root = root.path().join(component);
+    assert!(pkg_root.as_os_str().len() > 258);
+    assert!(
+        pkg_root
+            .as_os_str()
+            .encode_wide()
+            .count()
+            <= 258,
+    );
+    std::fs::create_dir(&pkg_root).expect("create Unicode package root");
+
+    assert!(matches!(emulator_working_dir(&pkg_root), std::borrow::Cow::Borrowed(_)));
+}
+
+#[test]
 fn the_normalized_spelling_comes_first() {
     let root = tempfile::Builder::new()
         .prefix("pnpm-wd-")
