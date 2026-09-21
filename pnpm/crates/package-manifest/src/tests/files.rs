@@ -82,3 +82,18 @@ fn save_preserves_crlf_line_endings_of_the_source_file() {
         "{\r\n  \"name\": \"foo\",\r\n  \"dependencies\": {\r\n    \"fastify\": \"1.0.0\"\r\n  }\r\n}\r\n"
     );
 }
+
+#[test]
+fn save_preserves_crlf_line_endings_of_yaml_manifest() {
+    let dir = tempdir().unwrap();
+    let path = dir.path().join("package.yaml");
+    let original = "name: foo\r\nversion: 1.0.0\r\n";
+    std::fs::write(&path, original).unwrap();
+
+    let mut manifest = PackageManifest::from_path(path.clone()).unwrap();
+    manifest.add_dependency("fastify", "1.0.0", DependencyGroup::Prod).unwrap();
+    manifest.save().unwrap();
+    let result = read_to_string(&path).unwrap();
+    assert!(result.contains("\r\n"));
+    assert!(!result.replace("\r\n", "").contains('\n'));
+}
