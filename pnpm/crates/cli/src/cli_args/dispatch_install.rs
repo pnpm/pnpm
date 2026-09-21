@@ -38,10 +38,7 @@ use super::{
     update_notifier,
     workspace_option::workspace_link_root,
 };
-use crate::{
-    State,
-    package_specifier::{EcosystemPackageSpecifier, PackageSpecifierPlan},
-};
+use crate::package_specifier::{EcosystemPackageSpecifier, PackageSpecifierPlan};
 
 use miette::Context;
 
