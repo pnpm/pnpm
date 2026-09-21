@@ -3,7 +3,7 @@ use super::{
     get_installed_bin_names_with_fs, read_direct_dependency_aliases, read_installed_packages,
     scan_global_packages,
 };
-use pnpm_cmd_shim::{FsReadFile, FsWalkFiles};
+use pnpm_cmd_shim::{FsReadDir, FsReadFile, FsWalkFiles};
 use pnpm_package_manifest::PackageManifestError;
 use serde_json::json;
 use std::{io, path::Path};
@@ -101,11 +101,11 @@ fn installed_bin_names_accepts_a_readable_binless_manifest() {
 }
 
 #[test]
-fn installed_bin_names_rejects_a_missing_declared_alias_manifest() {
+fn installed_bin_names_treats_a_wholly_missing_modules_dir_as_binless() {
     let tmp = TempDir::new().unwrap();
     let info = package_group(tmp.path(), &["missing"]);
 
-    assert!(get_installed_bin_names(&info).is_err());
+    assert_eq!(get_installed_bin_names(&info).unwrap(), Vec::<String>::new());
 }
 
 #[test]
@@ -164,6 +164,14 @@ fn installed_bin_names_preserves_permission_denied_manifest_reads() {
         }
     }
 
+    // The fixture has no `node_modules`, so a `std::fs` pre-check would report
+    // the tree missing and never reach this fake's permission-denied read.
+    impl FsReadDir for PermissionDeniedManifestRead {
+        fn read_dir(_: &Path) -> io::Result<impl Iterator<Item = std::path::PathBuf>> {
+            Ok(std::iter::empty())
+        }
+    }
+
     let tmp = TempDir::new().unwrap();
     let info = package_group(tmp.path(), &["unreadable"]);
     let error = get_installed_bin_names_with_fs::<PermissionDeniedManifestRead>(&info)
@@ -173,6 +181,43 @@ fn installed_bin_names_preserves_permission_denied_manifest_reads() {
         &error,
         PackageManifestError::Read { path, source }
             if path == &info.install_dir.join("node_modules/unreadable/package.json")
+                && source.kind() == io::ErrorKind::PermissionDenied
+    ));
+}
+
+#[test]
+fn installed_bin_names_propagates_modules_dir_probe_errors() {
+    struct UnreadableModulesDir;
+
+    impl FsReadFile for UnreadableModulesDir {
+        fn read_file(_: &Path) -> io::Result<Vec<u8>> {
+            unreachable!("the modules-dir probe must fail first");
+        }
+    }
+
+    impl FsWalkFiles for UnreadableModulesDir {
+        fn walk_files(_: &Path) -> io::Result<impl Iterator<Item = std::path::PathBuf>> {
+            Ok(std::iter::empty())
+        }
+    }
+
+    impl FsReadDir for UnreadableModulesDir {
+        fn read_dir(_: &Path) -> io::Result<impl Iterator<Item = std::path::PathBuf>> {
+            Err::<std::iter::Empty<std::path::PathBuf>, _>(io::Error::from(
+                io::ErrorKind::PermissionDenied,
+            ))
+        }
+    }
+
+    let tmp = TempDir::new().unwrap();
+    let info = package_group(tmp.path(), &["unreadable"]);
+    let error = get_installed_bin_names_with_fs::<UnreadableModulesDir>(&info)
+        .expect_err("a non-ENOENT modules-dir probe failure must stay fail-closed");
+
+    assert!(matches!(
+        &error,
+        PackageManifestError::Read { path, source }
+            if path == &info.install_dir.join("node_modules")
                 && source.kind() == io::ErrorKind::PermissionDenied
     ));
 }
