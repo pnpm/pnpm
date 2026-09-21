@@ -224,6 +224,8 @@ fn script_scoped_global_flags_parse_before_script_commands() {
         ["pacquet", "--resume-from", "pkg", "start"].as_slice(),
         ["pacquet", "--no-bail", "stop"].as_slice(),
         ["pacquet", "-r", "--no-bail", "rebuild"].as_slice(),
+        ["pacquet", "-r", "--no-bail", "install-test"].as_slice(),
+        ["pacquet", "install-test", "--no-bail"].as_slice(),
         ["pacquet", "-r", "--report-summary", ".test"].as_slice(),
     ] {
         let parsed = CliArgs::try_parse_from(argv).expect("parses script-scoped global flag");
