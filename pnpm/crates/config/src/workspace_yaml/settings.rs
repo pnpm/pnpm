@@ -766,6 +766,12 @@ pub struct WorkspaceSettings {
     /// [`Config::save_prefix`]: crate::Config::save_prefix
     pub save_prefix: Option<String>,
 
+    /// `tagVersionPrefix` from `pnpm-workspace.yaml`. See
+    /// [`Config::tag_version_prefix`].
+    ///
+    /// [`Config::tag_version_prefix`]: crate::Config::tag_version_prefix
+    pub tag_version_prefix: Option<String>,
+
     /// `saveExact` from `pnpm-workspace.yaml`. See
     /// [`Config::save_exact`]. Default `false`.
     ///

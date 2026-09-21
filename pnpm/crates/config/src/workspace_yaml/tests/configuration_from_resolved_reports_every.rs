@@ -28,6 +28,7 @@ fn from_resolved_reports_every_setting() {
         node_options: Some("--max-old-space-size=8192".to_string()),
         patches_dir: Some("patches".to_string()),
         save_prefix: Some("~".to_string()),
+        tag_version_prefix: Some("release-".to_string()),
         save_catalog_name: Some("default".to_string()),
         pipeline_base: Some("origin/main".to_string()),
         init_author_name: Some("Example".to_string()),

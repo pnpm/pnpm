@@ -190,6 +190,11 @@ impl WorkspaceSettings {
         json_field!(settings, Sys, skip_manifest_obfuscation, "SKIP_MANIFEST_OBFUSCATION");
         json_field!(settings, Sys, sort, "SORT");
         json_field!(settings, Sys, use_beta_cli, "USE_BETA_CLI");
+        // An empty value is meaningful here because it removes the tag prefix,
+        // so this uses the allow-empty reader like `save_prefix` does.
+        if let Some(tag_version_prefix) = read_env_allow_empty::<Sys>("TAG_VERSION_PREFIX") {
+            settings.tag_version_prefix = Some(tag_version_prefix);
+        }
     }
 
     fn read_layout_env<Sys: EnvVar>(&mut self) {
