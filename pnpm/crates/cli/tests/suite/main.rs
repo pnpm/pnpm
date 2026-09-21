@@ -70,6 +70,7 @@ mod install;
 mod install_filters;
 mod install_root_engine;
 mod install_runtimes;
+mod install_stale_importers;
 mod install_state;
 mod install_test;
 mod interrupt;

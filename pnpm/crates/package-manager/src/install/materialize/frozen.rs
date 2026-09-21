@@ -102,6 +102,7 @@ impl<'a> MaterializationInputs<'a, '_> {
             lockfile,
             self.install.execution.node_linker,
             self.modules.included,
+            self.install.lockfile_policy.ignore_manifest_check,
         );
         let supported_lockfile_major = matches!(scope.lockfile().lockfile_version.major, 9 | 12);
         debug_assert!(supported_lockfile_major);
