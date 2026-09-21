@@ -88,6 +88,9 @@ pub(super) fn build_resolved_lockfile<Reporter>(
                     graph: &resolved.graph.merged_graph,
                     direct_by_importer: &resolved.graph.direct_by_importer,
                     overrides: resolved.overrides.overrides.clone(),
+                    include_peer_dependencies: install
+                        .resolved_groups()
+                        .contains(&pnpm_package_manifest::DependencyGroup::Peer),
                     time: resolved_time,
                 },
             config: install.drivers.config,
@@ -254,13 +257,45 @@ pub(super) fn build_lockfile(
 ) -> Result<Lockfile, InstallWithFreshLockfileError> {
     let FreshLockfileBuildOptions { inputs, splice, bumps } = opts;
     let importer_manifests = inputs.importer_manifests;
+    let selected_importer_ids = splice.selected_importer_ids;
+    let prune_explicit_peers =
+        !inputs.config.auto_install_peers && inputs.resolution.include_peer_dependencies;
     let freshly_resolved = build_fresh_lockfile(inputs)
         .map_err(|error| {
             InstallWithFreshLockfileError::DependenciesGraphToLockfile(Box::new(error))
         })?;
     let mut built = splice.apply(freshly_resolved)?;
     bumps.apply(&mut built, importer_manifests);
+    prune_uninstalled_explicit_peers(
+        &mut built,
+        importer_manifests,
+        selected_importer_ids,
+        prune_explicit_peers,
+    );
     Ok(built)
+}
+fn prune_uninstalled_explicit_peers(
+    lockfile: &mut Lockfile,
+    importer_manifests: &BTreeMap<String, &PackageManifest>,
+    selected_importer_ids: Option<&std::collections::HashSet<String>>,
+    enabled: bool,
+) {
+    if !enabled {
+        return;
+    }
+    // Explicitly selected peers must reach resolution so update can settle
+    // their manifest ranges. With automatic installation disabled they do not
+    // belong in the saved importer, so remove the temporary direct entries and
+    // any package snapshots that only those entries reached.
+    for (importer_id, manifest) in importer_manifests {
+        if selected_importer_ids.is_some_and(|ids| !ids.contains(importer_id)) {
+            continue;
+        }
+        if let Some(importer) = lockfile.importers.get_mut(importer_id) {
+            pnpm_lockfile::prune_undeclared_importer_deps(importer, None, manifest, false);
+        }
+    }
+    crate::fast_update_lockfile::prune_unreachable_packages(lockfile);
 }
 impl<'a> FreshLockfileInputs<'a> {
     fn importer_entries(&self) -> BTreeMap<String, ImporterLockfileInput<'a>> {
@@ -311,6 +346,7 @@ pub(super) fn build_fresh_lockfile(
             }),
         },
         manifest_settings: crate::LockfileManifestSettings {
+            include_peer_dependencies: inputs.resolution.include_peer_dependencies,
             overrides: inputs.resolution.overrides,
             ignored_optional_dependencies: config.ignored_optional_dependencies.clone(),
             patched_dependencies: inputs.patched_dependency_hashes.cloned(),

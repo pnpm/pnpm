@@ -98,6 +98,7 @@ export interface ImporterToResolve extends Importer<{
   preserveNonSemverVersionSpec?: boolean
 }> {
   peer?: boolean
+  peerAliases?: Set<string>
   rangeSpecStyle?: RangeSpecStyle
   binsDir: string
   manifest: ProjectManifest

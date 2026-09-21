@@ -13,7 +13,7 @@ use pnpm_registry::RangeSpecStyle;
 use pnpm_reporter::Reporter;
 use pnpm_resolving_deps_resolver::{UpdateDepth, UpdateTargets};
 use pnpm_resolving_resolver_base::{PreferredVersions, WorkspacePackages};
-use std::collections::{BTreeMap, HashMap};
+use std::collections::BTreeMap;
 
 pub(super) fn selected_seed_policy(
     patches: bool,
@@ -47,7 +47,7 @@ pub(super) struct UpdatePlan {
     /// A compatible bump cannot name its version before the resolve, so the
     /// matched names are collected here and the install reports back what it
     /// settled on.
-    pub(super) bump_targets: HashMap<String, (DependencyGroup, String)>,
+    pub(super) bump_targets: Vec<(String, DependencyGroup, String)>,
     pub(super) preferred_versions_override: PreferredVersions,
 }
 impl UpdatePlan {
@@ -166,9 +166,7 @@ pub(super) async fn record_direct_update(
         plan.rewrites.push((name.clone(), group, specifier));
     }
     if scope.version.save && !scope.version.latest {
-        plan.bump_targets
-            .entry(name.clone())
-            .or_insert_with(|| (group, previous.clone()));
+        plan.bump_targets.push((name.clone(), group, previous.clone()));
     }
     plan.drop_targets.insert(name.clone(), None);
     Ok(())
@@ -210,9 +208,7 @@ pub(super) fn name_matched_seed_policy(
             continue;
         }
         if scope.version.save {
-            plan.bump_targets
-                .entry(name.clone())
-                .or_insert_with(|| (*group, previous.clone()));
+            plan.bump_targets.push((name.clone(), *group, previous.clone()));
         }
         plan.drop_targets.insert(name.clone(), None);
     }

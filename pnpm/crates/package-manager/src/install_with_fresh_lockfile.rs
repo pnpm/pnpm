@@ -268,7 +268,11 @@ impl FreshInputs<'_> {
     /// of dev dependencies.
     fn resolved_groups(&self) -> &[DependencyGroup] {
         if self.execution.save_lockfile {
-            &crate::DIRECT_GROUPS
+            if self.projects.dependency_groups.contains(&DependencyGroup::Peer) {
+                &crate::DIRECT_AND_PEER_GROUPS
+            } else {
+                &crate::DIRECT_GROUPS
+            }
         } else {
             self.projects.dependency_groups
         }

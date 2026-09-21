@@ -14,7 +14,7 @@ use pnpm_package_manifest::{DependencyGroup, PackageManifest};
 use pnpm_reporter::SilentReporter;
 use pnpm_workspace::Project;
 use serde_json::json;
-use std::collections::{BTreeMap, HashSet};
+use std::collections::HashSet;
 use tempfile::tempdir;
 
 /// The update inputs a manifest-preparation test varies, over a leaked
@@ -285,8 +285,7 @@ fn a_bumped_range_lands_in_the_group_it_was_read_from() {
     .expect("write package.json");
     let mut manifest = PackageManifest::from_path(package_json).expect("read package.json");
 
-    let bumped =
-        BTreeMap::from([("foo".to_string(), (DependencyGroup::Optional, "^1.2.0".to_string()))]);
+    let bumped = vec![("foo".to_string(), DependencyGroup::Optional, "^1.2.0".to_string())];
     assert!(apply_bumped_manifest_specs::<SilentReporter>(&mut manifest, &bumped, false));
 
     assert_eq!(dependency_specifier_in(&manifest, DependencyGroup::Prod, "foo"), Some("1.0.0"));
@@ -309,8 +308,7 @@ fn a_bump_for_an_undeclared_group_writes_nothing() {
     .expect("write package.json");
     let mut manifest = PackageManifest::from_path(package_json).expect("read package.json");
 
-    let bumped =
-        BTreeMap::from([("foo".to_string(), (DependencyGroup::Dev, "^1.2.0".to_string()))]);
+    let bumped = vec![("foo".to_string(), DependencyGroup::Dev, "^1.2.0".to_string())];
     assert!(!apply_bumped_manifest_specs::<SilentReporter>(&mut manifest, &bumped, false));
 
     assert_eq!(dependency_specifier_in(&manifest, DependencyGroup::Prod, "foo"), Some("1.0.0"));

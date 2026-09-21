@@ -36,6 +36,7 @@ pub(super) fn build_importers(
                 &ImporterLockfileFlags {
                     exclude_links_from_lockfile: opts.settings.exclude_links_from_lockfile,
                     auto_install_peers: opts.settings.auto_install_peers,
+                    include_peer_dependencies: opts.manifest_settings.include_peer_dependencies,
                 },
                 opts.reuse.previous_importers.and_then(|importers| importers.get(id)),
                 effective_update_reuse_scope(opts, id),
@@ -175,9 +176,11 @@ pub(super) fn importer_direct_entry(
     // snapshots graph below. Writing them here would carry specifiers
     // the manifest can't satisfy through `satisfies_package_manifest`
     // and force every later install onto the fresh-resolve path.
-    let Some(specifier) =
-        read_manifest_specifier(sources.manifest, alias, sources.flags.auto_install_peers)
-    else {
+    let Some(specifier) = read_manifest_specifier(
+        sources.manifest,
+        alias,
+        sources.flags.auto_install_peers || sources.flags.include_peer_dependencies,
+    ) else {
         return Ok(None);
     };
     let Some(version) = direct_dep_version(
@@ -337,8 +340,9 @@ pub(super) fn manifest_alias_to_group(
 }
 /// Look up the user-written specifier for `alias` in the manifest's
 /// `optionalDependencies` / `dependencies` / `devDependencies` maps —
-/// plus `peerDependencies` when `auto_install_peers` materializes those
-/// into the importer's dependencies. Returns `None` for an alias the
+/// plus `peerDependencies` when the current operation needs those declarations
+/// in the importer. Normally `auto_install_peers` materializes them; update
+/// temporarily includes peers it explicitly selected. Returns `None` for an alias the
 /// manifest doesn't declare in any of those groups, including a peer the
 /// hoist installed while `autoInstallPeers` is off: such entries stay out
 /// of the importer's `specifiers` map and are only reachable through the

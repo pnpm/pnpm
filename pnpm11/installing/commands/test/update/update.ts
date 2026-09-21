@@ -102,6 +102,76 @@ test('update with "*" pattern', async () => {
   expect(lockfile.packages['@pnpm.e2e/foo@1.0.0']).toBeTruthy()
 })
 
+test('update --peer updates peer dependency ranges', async () => {
+  prepare({
+    peerDependencies: {
+      '@pnpm.e2e/foo': '^1.0.0',
+    },
+  })
+
+  await addDistTag({ package: '@pnpm.e2e/foo', version: '100.1.0', distTag: 'latest' })
+
+  await execFileAsync(process.execPath, [
+    pnpmBin,
+    'update',
+    '--latest',
+    '--peer',
+    `--registry=${registry}`,
+  ])
+
+  const manifest = loadJsonFileSync<ProjectManifest>('package.json')
+  expect(manifest.peerDependencies).toStrictEqual({
+    '@pnpm.e2e/foo': '^100.1.0',
+  })
+  expect(manifest.dependencies).toBeUndefined()
+})
+
+test('update --peer does not reclassify an ordinary dependency as a peer', async () => {
+  prepare({
+    dependencies: {
+      '@pnpm.e2e/foo': '^1.0.0',
+    },
+  })
+
+  await addDistTag({ package: '@pnpm.e2e/foo', version: '100.1.0', distTag: 'latest' })
+
+  await update.handler({
+    ...DEFAULT_OPTS,
+    cliOptions: { peer: true },
+    dir: process.cwd(),
+    latest: true,
+  }, [])
+
+  const manifest = loadJsonFileSync<ProjectManifest>('package.json')
+  expect(manifest.dependencies).toStrictEqual({
+    '@pnpm.e2e/foo': '^100.1.0',
+  })
+  expect(manifest.peerDependencies).toBeUndefined()
+})
+
+test('update --peer updates a named peer without changing other peers', async () => {
+  prepare({
+    peerDependencies: {
+      '@pnpm.e2e/foo': '^1.0.0',
+      '@pnpm.e2e/peer-a': '^1.0.0',
+    },
+  })
+  await addDistTag({ package: '@pnpm.e2e/foo', version: '100.1.0', distTag: 'latest' })
+  await addDistTag({ package: '@pnpm.e2e/peer-a', version: '2.0.0', distTag: 'latest' })
+
+  await update.handler({
+    ...DEFAULT_OPTS,
+    autoInstallPeers: false,
+    cliOptions: { peer: true },
+    dir: process.cwd(),
+  }, ['@pnpm.e2e/foo@100.1.0'])
+
+  expect(loadJsonFileSync<ProjectManifest>('package.json').peerDependencies).toStrictEqual({
+    '@pnpm.e2e/foo': '^100.1.0',
+    '@pnpm.e2e/peer-a': '^1.0.0',
+  })
+})
+
 test('update to latest should not touch the automatically installed peer dependencies', async () => {
   await addDistTag({ package: '@pnpm.e2e/peer-a', version: '1.0.0', distTag: 'latest' })
   await addDistTag({ package: '@pnpm.e2e/peer-c', version: '1.0.0', distTag: 'latest' })

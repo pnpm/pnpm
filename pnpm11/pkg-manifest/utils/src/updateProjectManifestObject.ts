@@ -22,6 +22,26 @@ export interface PackageSpecObject {
 }
 
 function getPeerSpecifier (spec: string, resolvedVersion?: string, rangeSpecStyle?: RangeSpecStyle): string {
+  if (spec.startsWith('npm:')) {
+    const aliasBody = spec.slice('npm:'.length)
+    const aliasAt = spec.lastIndexOf('@')
+    if (aliasAt > 'npm:'.length) {
+      const alias = spec.slice(0, aliasAt + 1)
+      const inner = resolvedVersion == null
+        ? getPeerSpecifier(spec.slice(aliasAt + 1), undefined, rangeSpecStyle)
+        : createVersionSpecFromResolvedVersion(resolvedVersion, rangeSpecStyle) ?? '*'
+      return `${alias}${inner}`
+    }
+    if (semver.validRange(aliasBody) == null) {
+      const inner = resolvedVersion == null
+        ? '*'
+        : createVersionSpecFromResolvedVersion(resolvedVersion, rangeSpecStyle) ?? '*'
+      return `${spec}@${inner}`
+    }
+  }
+  if (semver.valid(spec)) {
+    return spec
+  }
   if (isValidPeerRange(spec)) return spec
 
   const rangeFromResolved = resolvedVersion ? createVersionSpecFromResolvedVersion(resolvedVersion, rangeSpecStyle) : null
@@ -80,8 +100,17 @@ export function applyPackageSpecs (
         }
       }
     } else if (packageSpec.bareSpecifier) {
-      const usedDepType = guessDependencyType(packageSpec.alias, packageManifest) ?? 'dependencies'
-      if (usedDepType !== 'peerDependencies') {
+      const usedDepType = packageSpec.peer === true
+        ? 'peerDependencies'
+        : guessDependencyType(packageSpec.alias, packageManifest) ?? 'dependencies'
+      if (usedDepType === 'peerDependencies') {
+        packageManifest.peerDependencies = packageManifest.peerDependencies ?? {}
+        defineDepEntry(
+          packageManifest.peerDependencies,
+          packageSpec.alias,
+          getPeerSpecifier(packageSpec.bareSpecifier, packageSpec.resolvedVersion, packageSpec.rangeSpecStyle)
+        )
+      } else {
         packageManifest[usedDepType] = packageManifest[usedDepType] ?? {}
         defineDepEntry(packageManifest[usedDepType]!, packageSpec.alias, packageSpec.bareSpecifier)
       }

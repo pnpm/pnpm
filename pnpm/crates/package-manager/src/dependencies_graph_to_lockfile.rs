@@ -59,6 +59,7 @@ pub struct ImporterLockfileInput<'a> {
 struct ImporterLockfileFlags {
     exclude_links_from_lockfile: bool,
     auto_install_peers: bool,
+    include_peer_dependencies: bool,
 }
 
 /// Options threaded into [`dependencies_graph_to_lockfile`].
@@ -90,6 +91,11 @@ pub struct GraphToLockfileOptions<'a> {
 }
 
 pub struct LockfileManifestSettings {
+    /// Whether this command explicitly selected peer dependencies even when
+    /// automatic peer installation is disabled. Those entries are available
+    /// while update ranges are settled, then removed before the lockfile is
+    /// saved when they must stay unmaterialized.
+    pub include_peer_dependencies: bool,
     /// `overrides` recorded into the lockfile so a later install can
     /// detect drift. An [`IndexMap`] so the user's declaration order is
     /// preserved on serialization (this map is left unsorted).

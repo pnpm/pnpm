@@ -17,10 +17,11 @@ import {
   type LockfileObject,
   type ProjectSnapshot,
 } from '@pnpm/lockfile.fs'
-import { getAllDependenciesFromManifest } from '@pnpm/pkg-manifest.utils'
+import { getAllDependenciesFromManifest, getDependencyTypeFromManifest } from '@pnpm/pkg-manifest.utils'
 import {
   DEPENDENCIES_FIELDS,
   type DependenciesField,
+  type DependenciesOrPeersField,
   type DepPath,
   type IncludedDependencies,
   type PackageManifest,
@@ -33,7 +34,7 @@ export * from './createManifestGetter.js'
 
 export interface OutdatedPackage {
   alias: string
-  belongsTo: DependenciesField
+  belongsTo: DependenciesOrPeersField
   current?: string // not defined means the package is not installed
   latestManifest?: PackageManifest
   packageName: string
@@ -60,7 +61,8 @@ export async function outdated (
     wantedLockfile: LockfileObject | null
   }
 ): Promise<OutdatedPackage[]> {
-  if (packageHasNoDeps(opts.manifest)) return []
+  const includePeerDependencies = opts.include?.peerDependencies === true
+  if (packageHasNoDeps(opts.manifest, includePeerDependencies)) return []
   if (opts.wantedLockfile == null) {
     throw new PnpmError('OUTDATED_NO_LOCKFILE', `No lockfile in directory "${opts.lockfileDir}". Run \`pnpm install\` to generate one.`)
   }
@@ -79,7 +81,10 @@ export async function outdated (
     return opts.manifest
   }
 
-  const allDeps = getAllDependenciesFromManifest(await getOverriddenManifest())
+  const overriddenManifest = await getOverriddenManifest()
+  const allDeps = getAllDependenciesFromManifest(overriddenManifest, {
+    autoInstallPeers: includePeerDependencies,
+  })
   const importerId = getLockfileImporterId(opts.lockfileDir, opts.prefix)
   // A workspace project is not required to declare a name, and an empty
   // label leaves several unnamed projects indistinguishable in the
@@ -102,14 +107,20 @@ export async function outdated (
     publishedByExclude: opts.publishedByExclude,
   }
 
-  await Promise.all(
-    DEPENDENCIES_FIELDS.map(async (depType) => {
-      if (
-        opts.include?.[depType] === false ||
-        (opts.wantedLockfile!.importers[importerId][depType] == null)
-      ) return
+  const dependencyTypes: DependenciesOrPeersField[] = includePeerDependencies
+    ? [...DEPENDENCIES_FIELDS, 'peerDependencies']
+    : DEPENDENCIES_FIELDS
 
-      let pkgs = Object.keys(opts.wantedLockfile!.importers[importerId][depType]!)
+  await Promise.all(
+    dependencyTypes.map(async (depType) => {
+      if (opts.include?.[depType] === false) return
+
+      const declaredDependencies = depType === 'peerDependencies'
+        ? overriddenManifest.peerDependencies
+        : opts.wantedLockfile!.importers[importerId][depType]
+      if (declaredDependencies == null) return
+
+      let pkgs = Object.keys(declaredDependencies)
 
       if (opts.match != null) {
         pkgs = pkgs.filter((pkgName) => opts.match!(pkgName))
@@ -119,12 +130,27 @@ export async function outdated (
 
       await Promise.all(
         pkgs.map(async (alias) => {
-          if (!allDeps[alias]) return
-          const wantedRef = opts.wantedLockfile!.importers[importerId][depType]![alias]
+          if (
+            includePeerDependencies &&
+            depType !== 'peerDependencies' &&
+            opts.manifest.peerDependencies?.[alias] != null &&
+            opts.manifest[depType]?.[alias] == null
+          ) return
+          const declaredSpecifier = depType === 'peerDependencies'
+            ? declaredDependencies[alias]
+            : allDeps[alias]
+          if (!declaredSpecifier) return
+          const manifestDepType = depType === 'peerDependencies'
+            ? getDependencyTypeFromManifest(opts.manifest, alias)
+            : depType
+          const lockfileDepType: DependenciesField = manifestDepType === 'peerDependencies' || manifestDepType == null
+            ? 'dependencies'
+            : manifestDepType
+          const wantedRef = opts.wantedLockfile!.importers[importerId][lockfileDepType]?.[alias] ?? declaredSpecifier
           if (isLocalRef(wantedRef)) return
           if (ignoreDependenciesMatcher?.(alias)) return
 
-          const currentRef = (currentLockfile.importers[importerId] as ProjectSnapshot)?.[depType]?.[alias]
+          const currentRef = (currentLockfile.importers[importerId] as ProjectSnapshot)?.[lockfileDepType]?.[alias]
           const wantedRelative = dp.refToRelative(wantedRef, alias)
           const currentRelative = currentRef ? dp.refToRelative(currentRef, alias) : null
           const wantedSnapshot = wantedRelative != null ? opts.wantedLockfile!.packages?.[wantedRelative] : undefined
@@ -133,7 +159,7 @@ export async function outdated (
           // pull the name off the depPath so the report shows the real package.
           const packageName = (wantedRelative != null ? dp.parse(wantedRelative).name : undefined) ?? alias
 
-          const bareSpecifier = _replaceCatalogProtocolIfNecessary({ alias, bareSpecifier: allDeps[alias] })
+          const bareSpecifier = _replaceCatalogProtocolIfNecessary({ alias, bareSpecifier: declaredSpecifier })
 
           const info = await opts.resolveLatest(
             { wantedDependency: { alias, bareSpecifier }, compatible: opts.compatible },
@@ -194,10 +220,11 @@ export async function outdated (
   return outdated.sort((pkg1, pkg2) => pkg1.packageName.localeCompare(pkg2.packageName))
 }
 
-function packageHasNoDeps (manifest: ProjectManifest): boolean {
+function packageHasNoDeps (manifest: ProjectManifest, includePeerDependencies: boolean): boolean {
   return ((manifest.dependencies == null) || isEmpty(manifest.dependencies)) &&
     ((manifest.devDependencies == null) || isEmpty(manifest.devDependencies)) &&
-    ((manifest.optionalDependencies == null) || isEmpty(manifest.optionalDependencies))
+    ((manifest.optionalDependencies == null) || isEmpty(manifest.optionalDependencies)) &&
+    (!includePeerDependencies || manifest.peerDependencies == null || isEmpty(manifest.peerDependencies))
 }
 
 function isEmpty (obj: object): boolean {

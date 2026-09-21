@@ -23,7 +23,7 @@ use pnpm_package_manifest::{DependencyGroup, PackageManifest};
 use pnpm_reporter::Reporter;
 use pnpm_resolving_resolver_base::PreferredVersions;
 use std::{
-    collections::{BTreeMap, HashMap},
+    collections::BTreeMap,
     path::{Path, PathBuf},
     sync::Arc,
 };
@@ -35,7 +35,7 @@ pub(super) struct UpdatePreparation {
     /// Direct dependencies whose declared range the install may move onto
     /// the version it resolves, each mapped to the group and specifier the
     /// manifest declares for it. See [`crate::ManifestSpecBumps`].
-    pub(super) bump_targets: HashMap<String, (DependencyGroup, String)>,
+    pub(super) bump_targets: Vec<(String, DependencyGroup, String)>,
     pub(super) updated_catalogs: Catalogs,
     catalogs_override: Option<Catalogs>,
     pub(super) workspace_dir_for_catalogs: Option<PathBuf>,
@@ -59,7 +59,7 @@ pub(super) struct SelectedUpdatePreparation {
     preferred_versions_override: PreferredVersions,
     pub(super) persist_indices: Vec<usize>,
     /// [`UpdatePreparation::bump_targets`] per importer id.
-    pub(super) bump_targets: BTreeMap<String, HashMap<String, (DependencyGroup, String)>>,
+    pub(super) bump_targets: BTreeMap<String, Vec<(String, DependencyGroup, String)>>,
     pub(super) updated_catalogs: Catalogs,
     pub(super) catalogs_override: Option<Catalogs>,
     pub(super) workspace_dir_for_catalogs: Option<PathBuf>,
