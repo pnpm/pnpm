@@ -186,7 +186,6 @@ test('update existing peerDependencies version range', async () => {
   expect(manifest.peerDependencies).toStrictEqual({
     foo: '^2.0.0',
   })
-  // Should NOT be added to dependencies
   expect(manifest.dependencies).toBeUndefined()
 })
 
