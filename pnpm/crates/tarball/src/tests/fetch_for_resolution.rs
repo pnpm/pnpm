@@ -1,8 +1,8 @@
 use super::{
     ArchiveStoreProjection, AuthHeaders, FASTIFY_ERROR_INTEGRITY, FASTIFY_ERROR_TARBALL,
-    FetchTarballForResolution, IngestTarballToStore, MemCache, SharedVerifiedFilesCache,
-    SilentReporter, ThrottledClient, fast_retry_opts, integrity, tempdir_with_leaked_path,
-    test_retry_opts,
+    FetchTarballForResolution, IngestTarballToStore, MAX_UNTRUSTED_PREALLOC_BYTES, MemCache,
+    SharedVerifiedFilesCache, SilentReporter, TarballError, ThrottledClient, fast_retry_opts,
+    integrity, tempdir_with_leaked_path, test_retry_opts,
 };
 use crate::{CacheValue, CachedTarball, package_mem_cache_key};
 use std::{collections::HashMap, sync::Arc, time::Duration};
@@ -198,6 +198,44 @@ async fn pinned_resolution_read_recovers_manifest_from_a_files_only_slot() {
     assert_eq!(manifest.get("version").and_then(serde_json::Value::as_str), Some("3.3.0"));
     assert_eq!(manifest["dependencies"]["foo"].as_str(), Some("1.0.0"));
     assert_eq!(manifest.get("description"), None);
+    mock.assert_async().await;
+    drop(store_dir_keep);
+}
+
+/// <https://github.com/pnpm/pnpm/issues/15037>
+#[tokio::test]
+async fn files_only_slot_rejects_an_oversized_cached_package_json() {
+    let (store_dir_keep, store_path) = tempdir_with_leaked_path();
+    let mut server = mockito::Server::new_async().await;
+    let mock = server
+        .mock("GET", "/pkg.tgz")
+        .with_status(200)
+        .with_body(FASTIFY_ERROR_TARBALL)
+        .expect(0)
+        .create_async()
+        .await;
+    let url = format!("{}/pkg.tgz", server.url());
+    let client = ThrottledClient::default();
+    let auth_headers = AuthHeaders::default();
+    let pkg_integrity = integrity(FASTIFY_ERROR_INTEGRITY);
+    let mem_cache = MemCache::default();
+
+    let cas_file = store_dir_keep.path().join("package.json");
+    let file = std::fs::File::create(&cas_file).expect("create cas package.json");
+    file.set_len(MAX_UNTRUSTED_PREALLOC_BYTES as u64 + 1)
+        .expect("set oversized length");
+    let mut files = HashMap::new();
+    files.insert("package.json".to_string(), cas_file);
+    mem_cache.insert(
+        package_mem_cache_key(&url, Some(&pkg_integrity), false),
+        Arc::new(RwLock::new(CacheValue::Available(CachedTarball::from_files(files)))),
+    );
+
+    let err = resolution_read(&client, &auth_headers, &url, &pkg_integrity, store_path)
+        .run::<SilentReporter>(Some(&mem_cache))
+        .await
+        .expect_err("an oversized cached package.json is not a silent miss");
+    assert!(matches!(err, TarballError::ReadTarballEntries(_)), "got {err:?}");
     mock.assert_async().await;
     drop(store_dir_keep);
 }

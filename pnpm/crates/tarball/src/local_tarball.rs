@@ -135,6 +135,12 @@ pub(crate) async fn read_cas_package_json(
     relative_path: &str,
 ) -> Result<Option<serde_json::Value>, TarballError> {
     let Some(cas_path) = cas_paths.get(relative_path) else { return Ok(None) };
+    let file_size = tokio::fs::metadata(cas_path).await
+        .map_err(|source| TarballError::ReadLocalTarball { path: cas_path.clone(), source })?
+        .len();
+    if file_size > MAX_UNTRUSTED_PREALLOC_BYTES as u64 {
+        return Err(oversized_manifest_error(file_size));
+    }
     let bytes = tokio::fs::read(cas_path).await
         .map_err(|source| TarballError::ReadLocalTarball { path: cas_path.clone(), source })?;
     match parse_manifest_bytes(&bytes) {
