@@ -160,6 +160,51 @@ test('global remove recovers a group whose node_modules is wholly missing', asyn
   }
 })
 
+// A survivor whose node_modules is gone can no longer claim the shared bin,
+// so removing the target takes the shim with it. Nothing that worked stops
+// working: the survivor's own tree is already unusable.
+test('global remove stops protecting a bin of a survivor whose node_modules is gone', async () => {
+  const globalDir = createTemporaryRoot('global-remove-damaged-survivor-')
+  const globalBinDir = path.join(globalDir, 'bin')
+  fs.mkdirSync(globalBinDir, { recursive: true })
+  const target = createGlobalGroup({
+    globalDir,
+    hash: 'target-hash',
+    alias: 'target',
+    dependencyManifest: {
+      name: 'target',
+      version: '1.0.0',
+      bin: { shared: 'bin/shared.js' },
+    },
+  })
+  const survivor = createGlobalGroup({
+    globalDir,
+    hash: 'survivor-hash',
+    alias: 'survivor',
+    dependencyManifest: {
+      name: 'survivor',
+      version: '1.0.0',
+      bin: { shared: 'bin/shared.js' },
+    },
+  })
+  fs.rmSync(path.join(survivor.installDir, 'node_modules'), { recursive: true })
+  const sharedSlot = path.join(globalBinDir, 'shared')
+  fs.writeFileSync(sharedSlot, 'shared shim\n')
+
+  try {
+    await handleGlobalRemove({ globalPkgDir: globalDir, bin: globalBinDir }, ['target'])
+
+    expect(removeBin).toHaveBeenCalledTimes(1)
+    expect(removeBin).toHaveBeenCalledWith(sharedSlot)
+    expect(fs.existsSync(target.hashLink)).toBe(false)
+    expect(fs.existsSync(target.installDir)).toBe(false)
+    expect(fs.existsSync(survivor.hashLink)).toBe(true)
+    expect(fs.readFileSync(survivor.marker, 'utf8')).toBe('survivor install\n')
+  } finally {
+    fs.rmSync(globalDir, { recursive: true, force: true })
+  }
+})
+
 test('global remove checks surviving ownership before deleting a target', async () => {
   const globalDir = createTemporaryRoot('global-remove-survivor-preflight-')
   const globalBinDir = path.join(globalDir, 'bin')
