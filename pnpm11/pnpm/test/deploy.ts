@@ -126,6 +126,44 @@ test('legacy deploy leaves out the dependencies of the workspace root project', 
   expect(fs.existsSync('node_modules/@pnpm.e2e/bar')).toBe(true)
 })
 
+test('running a script in a deployed project does not trigger an install outside CI', async () => {
+  preparePackages([
+    { location: '.', package: { name: 'root', version: '0.0.0', private: true } },
+    {
+      location: 'packages/app',
+      package: {
+        name: 'app',
+        version: '1.0.0',
+        scripts: { start: 'node --eval ""' },
+      },
+    },
+  ])
+
+  writeYamlFileSync('pnpm-workspace.yaml', {
+    packages: ['packages/*'],
+  })
+
+  await execPnpm(['install'])
+
+  const workspaceDir = process.cwd()
+  const deployDir = path.join(tempDir(false), 'deploy')
+  await execPnpm(['--filter=app', 'deploy', deployDir])
+
+  expect(readYamlFileSync(path.join(deployDir, 'pnpm-workspace.yaml'))).toStrictEqual({
+    injectWorkspacePackages: false,
+    virtualStoreType: 'project',
+  })
+
+  process.chdir(deployDir)
+  try {
+    await execPnpm(['--config.verify-deps-before-run=error', 'run', 'start'], {
+      env: { CI: 'false' },
+    })
+  } finally {
+    process.chdir(workspaceDir)
+  }
+})
+
 test('deploy with a shared lockfile honors --no-optional in the graph and virtual store', async () => {
   preparePackages([
     { location: '.', package: { name: 'root', version: '0.0.0', private: true } },
