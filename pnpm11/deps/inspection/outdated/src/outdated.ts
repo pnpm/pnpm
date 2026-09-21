@@ -60,7 +60,8 @@ export async function outdated (
     wantedLockfile: LockfileObject | null
   }
 ): Promise<OutdatedPackage[]> {
-  if (packageHasNoDeps(opts.manifest)) return []
+  const includePeerDependencies = opts.include?.peerDependencies === true
+  if (packageHasNoDeps(opts.manifest, includePeerDependencies)) return []
   if (opts.wantedLockfile == null) {
     throw new PnpmError('OUTDATED_NO_LOCKFILE', `No lockfile in directory "${opts.lockfileDir}". Run \`pnpm install\` to generate one.`)
   }
@@ -79,7 +80,9 @@ export async function outdated (
     return opts.manifest
   }
 
-  const allDeps = getAllDependenciesFromManifest(await getOverriddenManifest())
+  const allDeps = getAllDependenciesFromManifest(await getOverriddenManifest(), {
+    autoInstallPeers: includePeerDependencies,
+  })
   const importerId = getLockfileImporterId(opts.lockfileDir, opts.prefix)
   // A workspace project is not required to declare a name, and an empty
   // label leaves several unnamed projects indistinguishable in the
@@ -102,18 +105,23 @@ export async function outdated (
     publishedByExclude: opts.publishedByExclude,
   }
 
-  const dependencyTypes = opts.include?.peerDependencies
-    ? [...DEPENDENCIES_FIELDS, 'peerDependencies' as DependenciesField]
+  const dependencyTypes: Array<DependenciesField | 'peerDependencies'> = includePeerDependencies
+    ? [...DEPENDENCIES_FIELDS, 'peerDependencies']
     : DEPENDENCIES_FIELDS
 
   await Promise.all(
     dependencyTypes.map(async (depType) => {
-      if (
-        opts.include?.[depType] === false ||
-        (opts.wantedLockfile!.importers[importerId][depType] == null)
-      ) return
+      if (opts.include?.[depType] === false) return
 
-      let pkgs = Object.keys(opts.wantedLockfile!.importers[importerId][depType]!)
+      const lockfileDepType: DependenciesField = depType === 'peerDependencies'
+        ? 'dependencies'
+        : depType
+      const declaredDependencies = depType === 'peerDependencies'
+        ? opts.manifest.peerDependencies
+        : opts.wantedLockfile!.importers[importerId][depType]
+      if (declaredDependencies == null) return
+
+      let pkgs = Object.keys(declaredDependencies)
 
       if (opts.match != null) {
         pkgs = pkgs.filter((pkgName) => opts.match!(pkgName))
@@ -123,12 +131,18 @@ export async function outdated (
 
       await Promise.all(
         pkgs.map(async (alias) => {
+          if (
+            includePeerDependencies &&
+            depType !== 'peerDependencies' &&
+            opts.manifest.peerDependencies?.[alias] != null &&
+            opts.manifest[depType]?.[alias] == null
+          ) return
           if (!allDeps[alias]) return
-          const wantedRef = opts.wantedLockfile!.importers[importerId][depType]![alias]
+          const wantedRef = opts.wantedLockfile!.importers[importerId][lockfileDepType]?.[alias] ?? allDeps[alias]
           if (isLocalRef(wantedRef)) return
           if (ignoreDependenciesMatcher?.(alias)) return
 
-          const currentRef = (currentLockfile.importers[importerId] as ProjectSnapshot)?.[depType]?.[alias]
+          const currentRef = (currentLockfile.importers[importerId] as ProjectSnapshot)?.[lockfileDepType]?.[alias]
           const wantedRelative = dp.refToRelative(wantedRef, alias)
           const currentRelative = currentRef ? dp.refToRelative(currentRef, alias) : null
           const wantedSnapshot = wantedRelative != null ? opts.wantedLockfile!.packages?.[wantedRelative] : undefined
@@ -158,7 +172,7 @@ export async function outdated (
             if (wanted !== current) {
               outdated.push({
                 alias,
-                belongsTo: depType,
+                belongsTo: depType as DependenciesField,
                 current,
                 latestManifest: undefined,
                 packageName,
@@ -171,7 +185,7 @@ export async function outdated (
           if (!current) {
             outdated.push({
               alias,
-              belongsTo: depType,
+              belongsTo: depType as DependenciesField,
               latestManifest,
               packageName,
               wanted,
@@ -182,7 +196,7 @@ export async function outdated (
           if (wanted !== current || isLowerVersion(wanted, latestManifest.version) || latestManifest.deprecated) {
             outdated.push({
               alias,
-              belongsTo: depType,
+              belongsTo: depType as DependenciesField,
               current,
               latestManifest,
               packageName,
@@ -198,10 +212,11 @@ export async function outdated (
   return outdated.sort((pkg1, pkg2) => pkg1.packageName.localeCompare(pkg2.packageName))
 }
 
-function packageHasNoDeps (manifest: ProjectManifest): boolean {
+function packageHasNoDeps (manifest: ProjectManifest, includePeerDependencies: boolean): boolean {
   return ((manifest.dependencies == null) || isEmpty(manifest.dependencies)) &&
     ((manifest.devDependencies == null) || isEmpty(manifest.devDependencies)) &&
-    ((manifest.optionalDependencies == null) || isEmpty(manifest.optionalDependencies))
+    ((manifest.optionalDependencies == null) || isEmpty(manifest.optionalDependencies)) &&
+    (!includePeerDependencies || manifest.peerDependencies == null || isEmpty(manifest.peerDependencies))
 }
 
 function isEmpty (obj: object): boolean {
