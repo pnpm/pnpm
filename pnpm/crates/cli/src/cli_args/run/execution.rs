@@ -425,13 +425,10 @@ pub(in super::super) fn run_stage(
     // are appended *before* this check, so a stage invoked with args
     // (which lengthen the command past the literal) is never skipped;
     // pre/post stages always pass `args = &[]`.
-    if args.is_empty() && script == "npx only-allow pnpm" {
-        return Ok(None);
-    }
     // An empty script body is a no-op: any stage whose (post-arg) command
     // is falsy is skipped, and pre/post are gated on the body being
     // truthy, so an empty `pre<name>`/`post<name>` never runs.
-    if script.is_empty() {
+    if (args.is_empty() && script == "npx only-allow pnpm") || script.is_empty() {
         return Ok(None);
     }
 
@@ -444,13 +441,13 @@ pub(in super::super) fn run_stage(
         .join(".bin");
     let status = run_script(&RunScript {
         environment: super::script_environment(ctx.config, ctx.init_cwd, ctx.extra_env),
-        wd_bin_dir: Some(&modules_bin_dir),
         execution: pnpm_executor::ScriptExecutionOptions {
             extra_bin_paths: &pnpm_python_installer::execution_paths(ctx.config, ctx.dir),
             node_gyp_bin: None,
             prepend_node_path: exec_scripts_prepend_node_path(ctx.config.scripts_prepend_node_path),
             shell: ctx.config.script_shell.as_deref().map(Path::new),
             shell_emulator: ctx.config.shell_emulator,
+            wd_bin_dir: Some(&modules_bin_dir),
         },
         invocation: pnpm_executor::ScriptInvocation { stage, script, args },
         manifest: ctx.manifest.value(),

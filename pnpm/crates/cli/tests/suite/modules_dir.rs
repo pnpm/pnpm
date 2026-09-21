@@ -37,7 +37,7 @@ fn bins_in_a_custom_modules_dir_load_plugins_installed_in_it() {
         .success();
     assert_eq!(
         tool_stdout(&workspace),
-        r#"{"plugin":"plugin loaded","isPositive":"3.1.0","ownIsPositive":"1.0.0"}"#
+        r#"{"plugin":"plugin loaded","isPositive":"3.1.0","ownIsPositive":"1.0.0"}"#,
     );
     for args in [["run", "lint"], ["exec", "tool"]] {
         let output = pacquet_in(&workspace)
@@ -59,7 +59,7 @@ fn bins_in_a_custom_modules_dir_load_plugins_installed_in_it() {
         .success();
     assert_eq!(
         tool_stdout(&workspace),
-        r#"{"plugin":"plugin loaded","isPositive":"3.1.0","ownIsPositive":"1.0.0"}"#
+        r#"{"plugin":"plugin loaded","isPositive":"3.1.0","ownIsPositive":"1.0.0"}"#,
     );
 
     drop((root, mock_instance));
@@ -92,7 +92,7 @@ fn bins_in_a_custom_modules_dir_are_relinked_when_extend_node_path_changes() {
         .success();
     assert_eq!(
         tool_stdout(&workspace),
-        r#"{"plugin":"plugin loaded","isPositive":"1.0.0","ownIsPositive":"1.0.0"}"#
+        r#"{"plugin":"plugin loaded","isPositive":"1.0.0","ownIsPositive":"1.0.0"}"#,
     );
 
     set_extend_node_path(&workspace, "true", "false");

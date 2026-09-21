@@ -435,6 +435,7 @@ fn run_publish_scripts<Reporter: self::Reporter>(
             prepend_node_path: ScriptsPrependNodePath::default(),
             shell: None,
             shell_emulator: false,
+            wd_bin_dir: None,
         },
         dep_path: &dep_path,
         pkg_root: dir,

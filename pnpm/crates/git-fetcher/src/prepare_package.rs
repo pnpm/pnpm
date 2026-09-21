@@ -155,6 +155,7 @@ impl PreparePackageOptions<'_> {
                 prepend_node_path: self.scripts.prepend_node_path,
                 shell: self.scripts.shell,
                 shell_emulator: false,
+                wd_bin_dir: None,
             },
             dep_path,
             pkg_root: pkg_dir,

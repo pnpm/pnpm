@@ -393,7 +393,7 @@ fn prepare_lifecycle_path(
     let original_path = path_value(&built.env).map(OsString::from);
     let path_env = extend_path(
         opts.pkg_root,
-        None,
+        opts.execution.wd_bin_dir,
         original_path.as_ref(),
         opts.execution.node_gyp_bin,
         opts.execution.extra_bin_paths,

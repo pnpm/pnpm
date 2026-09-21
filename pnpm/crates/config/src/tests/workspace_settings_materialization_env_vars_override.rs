@@ -546,6 +546,6 @@ pub fn extra_bin_paths_follow_a_configured_modules_dir() {
                 .path()
                 .join("vendor")
                 .join(".bin")
-        ]
+        ],
     );
 }
