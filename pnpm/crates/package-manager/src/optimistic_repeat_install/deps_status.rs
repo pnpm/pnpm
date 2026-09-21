@@ -265,6 +265,7 @@ fn record_content_check_state(
         state.filtered_install,
         filesystem_now,
     );
+    new_state.settings.auto_dedupe = state.settings.auto_dedupe;
     // The gate ignored `dev`/`optional`/`production` drift above;
     // writing today's (default-group) values here would clobber what
     // the last real install recorded and flip its next repeat-install

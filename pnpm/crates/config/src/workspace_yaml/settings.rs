@@ -296,6 +296,7 @@ pub struct WorkspaceSettings {
     pub external_dependencies: Option<BTreeSet<String>>,
     pub dedupe_peer_dependents: Option<bool>,
     pub dedupe_peers: Option<bool>,
+    pub auto_dedupe: Option<bool>,
     pub dedupe_direct_deps: Option<bool>,
     pub prefer_workspace_packages: Option<bool>,
     pub dedupe_injected_deps: Option<bool>,

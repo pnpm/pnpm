@@ -13,6 +13,7 @@ mod add_jsr;
 mod approve_builds;
 mod audit;
 mod auth;
+mod auto_dedupe;
 mod bin;
 mod bugs;
 mod bundled_dependencies;

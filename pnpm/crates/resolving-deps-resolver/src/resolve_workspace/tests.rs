@@ -12,6 +12,7 @@ mod optional_dependencies;
 
 mod behavior;
 
+mod auto_dedupe;
 mod lockfile_reuse;
 
 mod version_selection;
@@ -301,6 +302,7 @@ fn workspace_opts(pick_lowest_direct: bool, time_based: bool) -> WorkspaceResolv
         reuse: crate::WorkspaceLockfileReuse {
             lockfile: None,
             subtrees: true,
+            dedupe: crate::UpdateTargets::default(),
             scope: crate::UpdateReuseScope::All,
             scopes_by_importer: BTreeMap::new(),
             depth: crate::UpdateDepth::UNLIMITED,

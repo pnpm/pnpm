@@ -279,21 +279,22 @@ fn write_applied_workspace_state(
     // Writing it after both the `.modules.yaml` and the current
     // lockfile succeed keeps the file pointing at a fully committed
     // install.
-    update_workspace_state(
+    let mut state = build_workspace_state::<Host>(
         &inputs.projects.workspace_root,
-        &build_workspace_state::<Host>(
-            &inputs.projects.workspace_root,
-            inputs.completion.config,
-            inputs.projects.node_linker,
-            inputs.projects.included,
-            inputs.projects.supported_architectures.as_ref(),
-            &inputs.completion.catalogs,
-            inputs.projects.importers.manifests,
-            inputs.projects.filtered_install,
-            filesystem_now_ms(&inputs.projects.workspace_root),
-        ),
-    )
-    .map_err(InstallError::WriteWorkspaceState)?;
+        inputs.completion.config,
+        inputs.projects.node_linker,
+        inputs.projects.included,
+        inputs.projects.supported_architectures.as_ref(),
+        &inputs.completion.catalogs,
+        inputs.projects.importers.manifests,
+        inputs.projects.filtered_install,
+        filesystem_now_ms(&inputs.projects.workspace_root),
+    );
+    state.settings.auto_dedupe = (inputs.completion.config.auto_dedupe
+        && inputs.materialized.fresh_lockfile.is_some())
+    .then_some(true);
+    update_workspace_state(&inputs.projects.workspace_root, &state)
+        .map_err(InstallError::WriteWorkspaceState)?;
     tracing::info!(target: "pacquet::install::phase", phase = "apply.workspace_state", elapsed_ms = phase_start.elapsed().as_millis() as u64, "phase complete");
 
     Ok(())

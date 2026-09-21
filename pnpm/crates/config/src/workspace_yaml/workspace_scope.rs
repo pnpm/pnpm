@@ -118,6 +118,7 @@ impl WorkspaceSettings {
         self.inject_workspace_packages = None;
         self.dedupe_peer_dependents = None;
         self.dedupe_peers = None;
+        self.auto_dedupe = None;
         self.dedupe_direct_deps = None;
         self.prefer_workspace_packages = None;
         self.dedupe_injected_deps = None;

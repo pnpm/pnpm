@@ -290,6 +290,7 @@ impl WorkspaceSettings {
         json_field!(settings, Sys, external_dependencies, "EXTERNAL_DEPENDENCIES");
         json_field!(settings, Sys, dedupe_peer_dependents, "DEDUPE_PEER_DEPENDENTS");
         json_field!(settings, Sys, dedupe_peers, "DEDUPE_PEERS");
+        json_field!(settings, Sys, auto_dedupe, "AUTO_DEDUPE");
         json_field!(settings, Sys, dedupe_direct_deps, "DEDUPE_DIRECT_DEPS");
         json_field!(settings, Sys, prefer_workspace_packages, "PREFER_WORKSPACE_PACKAGES");
         json_field!(settings, Sys, dedupe_injected_deps, "DEDUPE_INJECTED_DEPS");

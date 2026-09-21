@@ -47,6 +47,7 @@ pub(crate) fn derive_config_root(
 
 pub(crate) fn apply_install_cli_config(cfg: &mut Config, args: &InstallArgs) {
     args.network_cache.apply(cfg);
+    args.lockfile_updates.dedupe.apply(cfg);
     cfg.frozen_store = resolve_bool_override(
         args.materialization.frozen_store,
         args.materialization.no_frozen_store,

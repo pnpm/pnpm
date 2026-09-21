@@ -75,7 +75,7 @@ pub(super) fn settle_repeat_install(
     // it carries the previous run's `filtered_install` forward: clearing it
     // would claim every importer is materialized when a filtered install
     // left the unselected ones untouched.
-    let new_state = crate::install::build_workspace_state::<Host>(
+    let mut new_state = crate::install::build_workspace_state::<Host>(
         workspace_root,
         config,
         node_linker,
@@ -86,6 +86,7 @@ pub(super) fn settle_repeat_install(
         state.filtered_install,
         filesystem_now,
     );
+    new_state.settings.auto_dedupe = state.settings.auto_dedupe;
     if let Err(error) = update_workspace_state(workspace_root, &new_state) {
         tracing::warn!(
             target: "pacquet::install",

@@ -239,6 +239,7 @@ impl AddArgs {
 
     pub(crate) fn apply_cli_config(&self, config: &mut Config) {
         self.scripts.apply(config);
+        self.install.dedupe.apply(config);
         config.ignore_workspace_root_check = resolve_bool_override(
             self.target.ignore_workspace_root_check,
             self.target.no_ignore_workspace_root_check,

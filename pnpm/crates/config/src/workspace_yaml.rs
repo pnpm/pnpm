@@ -228,7 +228,7 @@ macro_rules! identically_named_settings {
             hoist_workspace_packages,
             extend_node_path,
             hoisting_limits, external_dependencies,
-            dedupe_peer_dependents, dedupe_peers,
+            dedupe_peer_dependents, dedupe_peers, auto_dedupe,
             dedupe_direct_deps, dedupe_injected_deps,
             strict_peer_dependencies, ignore_compatibility_db,
             resolve_peers_from_workspace_root, verify_store_integrity,
