@@ -151,7 +151,7 @@ impl<Reporter: self::Reporter + 'static> PrefetchingResolver<Reporter> {
 
     /// Read a tarball by fetching it into the store, and share the
     /// extraction with the install pass through the mem cache.
-    async fn read_archive(
+    pub(super) async fn read_archive(
         &self,
         tarball: &pnpm_lockfile::TarballResolution,
         package_url: &str,
@@ -195,7 +195,7 @@ impl<Reporter: self::Reporter + 'static> PrefetchingResolver<Reporter> {
         // first point at which the hash that names it is known.
         self.claim_download(package_url, &resolved.integrity, revision_addressed);
         let mut resolution = tarball.clone();
-        if !is_git_hosted_tarball_url(package_url) {
+        if !is_git_hosted_tarball_url(&tarball.tarball) {
             resolution.integrity = Some(resolved.integrity);
         } else if tarball.integrity.is_none() {
             self.share_commit_addressed_archive(
@@ -209,16 +209,19 @@ impl<Reporter: self::Reporter + 'static> PrefetchingResolver<Reporter> {
             manifest: resolved.manifest.map(Arc::new),
         })
     }
-    fn share_commit_addressed_archive(
+    pub(super) fn share_commit_addressed_archive(
         &self,
         url: &str,
         integrity: &ssri::Integrity,
         revision_addressed: bool,
     ) {
-        let archive = self.ctx.mem_cache
+        let Some(archive) = self.ctx.mem_cache
             .get(&package_mem_cache_key(url, Some(integrity), revision_addressed))
             .map(|entry| Arc::clone(entry.value()))
-            .expect("the resolve-time read publishes its raw extraction");
+        else {
+            // A concurrent pinned fetch can fail and evict the shared entry.
+            return;
+        };
         self.ctx.mem_cache
             .entry(package_mem_cache_key(url, None, revision_addressed))
             .or_insert(archive);

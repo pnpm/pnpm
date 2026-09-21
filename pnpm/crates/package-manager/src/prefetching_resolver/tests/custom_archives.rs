@@ -143,3 +143,42 @@ async fn custom_fetcher_reads_git_subdirectory_without_adding_integrity() {
     resolver.populate_missing_tarball_metadata(&mut result, dir.path()).await.unwrap();
     assert_eq!(result.package.manifest.unwrap()["name"], json!("root"));
 }
+
+#[tokio::test]
+async fn unpinned_git_manifest_recovery_publishes_the_install_cache_key() {
+    let dir = tempdir().unwrap();
+    let path = dir.path().join("archive.tgz");
+    std::fs::write(&path, tarball_with_a_dependency("git-package")).unwrap();
+    let source_url = format!("file:{}", path.display());
+    let resolver = resolver_with_prefetch(
+        dir.path(),
+        Box::new(FixedResolver { result: result_without_manifest("git-package") }),
+        false,
+    );
+    let tarball = TarballResolution {
+        tarball: "https://codeload.github.com/example/repo/tar.gz/0123456789abcdef0123456789abcdef01234567".to_string(),
+        integrity: None, revision: None, git_hosted: None, path: None,
+    };
+    // Use a local transport fixture for the commit-addressed resolution.
+    let metadata = resolver.read_archive(&tarball, &source_url, "git-package@1.0.0").await.unwrap();
+    assert_eq!(metadata.resolution.integrity(), None);
+    assert_eq!(metadata.manifest.unwrap()["dependencies"]["ms"], json!("2.1.2"));
+    std::fs::remove_file(&path).unwrap();
+    let files = resolver.ctx
+        .tarball_download(&source_url, "git-package@1.0.0", None, None, None)
+        .run_with_mem_cache::<pnpm_reporter::SilentReporter>(&resolver.ctx.mem_cache)
+        .await
+        .unwrap();
+    assert!(files.contains_key("package.json"));
+}
+
+#[tokio::test]
+async fn evicted_archive_cache_entry_does_not_abort_manifest_recovery() {
+    let resolver = resolver();
+    resolver.share_commit_addressed_archive(
+        "https://example.test/archive.tgz",
+        &ssri::Integrity::from(b"archive"),
+        false,
+    );
+    assert!(resolver.ctx.mem_cache.is_empty());
+}
