@@ -225,10 +225,12 @@ fn run_lifecycle_stages<Reporter: self::Reporter>(
 fn read_lifecycle_manifest(
     pkg_root: &Path,
 ) -> Result<Option<serde_json::Value>, LifecycleScriptError> {
-    let package_json = pkg_root.join("package.json");
     if let Some(manifest) = safe_read_package_json_from_dir(pkg_root)
         .map_err(|source| LifecycleScriptError::ReadManifest {
-            path: package_json.display().to_string(),
+            path: pkg_root
+                .join("package.json")
+                .display()
+                .to_string(),
             source,
         })?
     {
