@@ -79,7 +79,7 @@ fn save_preserves_crlf_line_endings_of_the_source_file() {
     assert!(!result.replace("\r\n", "").contains('\n'));
     assert_eq!(
         result,
-        "{\r\n  \"name\": \"foo\",\r\n  \"dependencies\": {\r\n    \"fastify\": \"1.0.0\"\r\n  }\r\n}\r\n"
+        "{\r\n  \"name\": \"foo\",\r\n  \"dependencies\": {\r\n    \"fastify\": \"1.0.0\"\r\n  }\r\n}\r\n",
     );
 }
 
