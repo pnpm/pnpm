@@ -153,6 +153,8 @@ test('CreateNewStoreControllerOptions supports cafile and normalizes it at runti
     fetchRetryMintimeout: 10000,
     offline: false,
     verifyStoreIntegrity: true,
+    registriesByScope: { default: 'https://registry.npmjs.org/' },
+    virtualStoreDirMaxLength: 120,
   })
 
   expect(result.ctrl).toBeDefined()
