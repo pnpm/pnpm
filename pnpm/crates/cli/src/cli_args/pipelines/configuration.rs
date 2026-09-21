@@ -31,6 +31,7 @@ pub(crate) fn derive_config_root(
     cfg: &Config,
     dir_ref: &Path,
     reporter: ReporterType,
+    shared_workspace_lockfile_cli: Option<bool>,
 ) -> miette::Result<PathBuf> {
     let config_root = cfg.root_project_manifest_dir(dir_ref).to_path_buf();
     let root_manifest = read_manifest_json(&config_root.join("package.json"))
@@ -43,7 +44,10 @@ pub(crate) fn derive_config_root(
     warn_deprecated_override_version_references(cfg, reporter_emit(reporter));
     warn_unmatched_registry_options(cfg);
     warn_unapplied_package_configs(cfg);
-    warn_shared_workspace_lockfile_outside_workspace(cfg);
+    warn_shared_workspace_lockfile_outside_workspace(
+        shared_workspace_lockfile_cli,
+        cfg.workspace_dir.as_deref(),
+    );
     Ok(config_root)
 }
 

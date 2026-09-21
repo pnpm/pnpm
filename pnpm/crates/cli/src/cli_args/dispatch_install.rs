@@ -58,13 +58,13 @@ pub(super) fn add<'a>(ctx: &RunCtx<'a>, mut args: AddArgs) -> miette::Result<Com
     let config_dependencies = args.parse_config_dependencies()?;
     let dir = ctx.locations.dir;
     let manifest_path = ctx.locations.manifest_path;
-    let reporter = ctx.reporter;
     let config = ctx.loaders.config;
+    let warning_context = (ctx.reporter, ctx.shared_workspace_lockfile_cli);
     Ok(Box::pin(async move {
         let cfg = config()?;
         let (config_root, recursive_sort) =
-            prepare_add_config(&args, cfg, dir, reporter, config_dependencies.is_none())?;
-        let update_check = update_notifier::spawn(cfg, reporter_emit(reporter));
+            prepare_add_config(&args, cfg, dir, warning_context, config_dependencies.is_none())?;
+        let update_check = update_notifier::spawn(cfg, reporter_emit(warning_context.0));
         let pipeline = AddPipeline {
             args,
             cfg,
@@ -75,7 +75,7 @@ pub(super) fn add<'a>(ctx: &RunCtx<'a>, mut args: AddArgs) -> miette::Result<Com
             config_dependencies,
             ecosystem_packages,
         };
-        let added = match reporter {
+        let added = match warning_context.0 {
             ReporterType::Default | ReporterType::AppendOnly => {
                 Box::pin(pipeline.run::<DefaultReporter>()).await
             }
@@ -103,7 +103,7 @@ fn prepare_add_config(
     args: &AddArgs,
     cfg: &mut Config,
     dir: &Path,
-    reporter: ReporterType,
+    warning_context: (ReporterType, Option<bool>),
     plain_dependencies: bool,
 ) -> miette::Result<(PathBuf, bool)> {
     // Before `apply_allow_build` persists anything: a `--workspace` add
@@ -115,7 +115,7 @@ fn prepare_add_config(
     }
     args.install.lockfile_dir.apply_to(cfg, dir);
     args.apply_cli_config(cfg);
-    let config_root = derive_config_root(cfg, dir, reporter)
+    let config_root = derive_config_root(cfg, dir, warning_context.0, warning_context.1)
         .wrap_err("derive workspace root and package manager policy")?;
     // `allowBuilds` is persisted to `pnpm-workspace.yaml`, which stays
     // at the workspace root even when `lockfileDir` moved the config
@@ -204,14 +204,14 @@ pub(super) fn update<'a>(ctx: &RunCtx<'a>, args: UpdateArgs) -> miette::Result<C
     }
     let dir = ctx.locations.dir;
     let manifest_path = ctx.locations.manifest_path;
-    let reporter = ctx.reporter;
     let config = ctx.loaders.config;
+    let warning_context = (ctx.reporter, ctx.shared_workspace_lockfile_cli);
     Ok(Box::pin(async move {
         let cfg = config()?;
         let recursive_sort = cfg.sort;
         args.install.lockfile_dir.apply_to(cfg, dir);
         args.apply_cli_config(cfg);
-        let config_root = derive_config_root(cfg, dir, reporter)
+        let config_root = derive_config_root(cfg, dir, warning_context.0, warning_context.1)
             .wrap_err("derive workspace root and package manager policy")?;
         let pipeline = UpdatePipeline {
             args,
@@ -221,7 +221,7 @@ pub(super) fn update<'a>(ctx: &RunCtx<'a>, args: UpdateArgs) -> miette::Result<C
             manifest_path: manifest_path.to_path_buf(),
             recursive_sort,
         };
-        match reporter {
+        match warning_context.0 {
             ReporterType::Default | ReporterType::AppendOnly => {
                 Box::pin(pipeline.run::<DefaultReporter>()).await?;
             }
@@ -239,13 +239,13 @@ pub(super) fn remove<'a>(ctx: &RunCtx<'a>, args: RemoveArgs) -> miette::Result<C
     }
     let dir = ctx.locations.dir;
     let manifest_path = ctx.locations.manifest_path;
-    let reporter = ctx.reporter;
     let config = ctx.loaders.config;
+    let warning_context = (ctx.reporter, ctx.shared_workspace_lockfile_cli);
     Ok(Box::pin(async move {
         let cfg = config()?;
         let recursive_sort = cfg.sort;
         args.lockfile_dir.apply_to(cfg, dir);
-        let config_root = derive_config_root(cfg, dir, reporter)
+        let config_root = derive_config_root(cfg, dir, warning_context.0, warning_context.1)
             .wrap_err("derive workspace root and package manager policy")?;
         let pipeline = RemovePipeline {
             args,
@@ -255,7 +255,7 @@ pub(super) fn remove<'a>(ctx: &RunCtx<'a>, args: RemoveArgs) -> miette::Result<C
             manifest_path: manifest_path.to_path_buf(),
             recursive_sort,
         };
-        match reporter {
+        match warning_context.0 {
             ReporterType::Default | ReporterType::AppendOnly => {
                 Box::pin(pipeline.run::<DefaultReporter>()).await?;
             }
@@ -298,8 +298,8 @@ fn install_with_config<'a>(
 ) -> miette::Result<CommandFuture<'a, &'static Config>> {
     let dir = ctx.locations.dir;
     let manifest_path = ctx.locations.manifest_path;
-    let reporter = ctx.reporter;
     let config = ctx.loaders.config;
+    let warning_context = (ctx.reporter, ctx.shared_workspace_lockfile_cli);
     Ok(Box::pin(async move {
         // Boxed for `clippy::large_stack_frames`: the three
         // monomorphized install futures would otherwise each reserve
@@ -323,10 +323,12 @@ fn install_with_config<'a>(
             // `pnpm-workspace.yaml` is found), falling back to `--dir`
             // for a single-package repo. Owned so it doesn't hold a
             // borrow of `cfg` across the `&mut` `updateConfig` pass.
-            let config_root = derive_config_root(cfg, dir, reporter)
+            let config_root = derive_config_root(cfg, dir, warning_context.0, warning_context.1)
                 .wrap_err("derive workspace root and package manager policy")?;
             let update_check = match update_check_policy {
-                UpdateCheckPolicy::Run => update_notifier::spawn(cfg, reporter_emit(reporter)),
+                UpdateCheckPolicy::Run => {
+                    update_notifier::spawn(cfg, reporter_emit(warning_context.0))
+                }
                 UpdateCheckPolicy::Skip => None,
             };
             // Resolve + install configurational dependencies, then
@@ -347,7 +349,7 @@ fn install_with_config<'a>(
                 require_lockfile,
                 frozen_lockfile,
             };
-            let installed = run_install_pipeline(pipeline, reporter).await;
+            let installed = run_install_pipeline(pipeline, warning_context.0).await;
             update_notifier::settle(update_check, &installed).await;
             installed
         }

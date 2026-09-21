@@ -153,6 +153,37 @@ fn a_kebab_case_spelling_of_a_known_setting_warns() {
     );
 }
 
+#[test]
+fn shared_workspace_lockfile_cli_option_warns_outside_a_workspace() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    write_plain_manifest(&workspace);
+
+    let output =
+        run(pacquet, root.path(), &["install", "--lockfile-only", "--shared-workspace-lockfile"]);
+
+    assert_success(&output);
+    assert_contains(
+        &stderr(&output),
+        r#"[WARN] The "shared-workspace-lockfile" option was ignored because no "pnpm-workspace.yaml" was found."#,
+    );
+}
+
+#[test]
+fn configured_shared_workspace_lockfile_stays_quiet_outside_a_workspace() {
+    let CommandTempCwd { mut pacquet, root, workspace, .. } = CommandTempCwd::init();
+    write_plain_manifest(&workspace);
+    pacquet.env("PNPM_CONFIG_SHARED_WORKSPACE_LOCKFILE", "true");
+
+    let output = run(pacquet, root.path(), &["install", "--lockfile-only"]);
+
+    assert_success(&output);
+    let stderr = stderr(&output);
+    assert!(
+        !stderr.contains("shared-workspace-lockfile"),
+        "configured value should stay quiet: {stderr}",
+    );
+}
+
 /// Single-key reads are consumed by scripts, so nothing may join the value.
 #[test]
 fn config_get_of_one_key_stays_quiet_and_succeeds() {

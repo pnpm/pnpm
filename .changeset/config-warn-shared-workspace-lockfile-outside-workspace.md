@@ -4,4 +4,4 @@
 "pacquet": patch
 ---
 
-Warn when `shared-workspace-lockfile` is configured outside of a workspace.
+Warn when `shared-workspace-lockfile` is passed on the command line outside a workspace.

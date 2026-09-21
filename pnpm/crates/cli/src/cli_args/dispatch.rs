@@ -62,6 +62,7 @@ pub(crate) struct RunCtx<'a> {
     pub(crate) builtin_replaced_by_script: &'a AtomicBool,
     pub(crate) locations: CommandLocations<'a>,
     pub(crate) workspace: WorkspaceInvocation<'a>,
+    pub(crate) shared_workspace_lockfile_cli: Option<bool>,
     pub(crate) loaders: CommandLoaders<'a>,
 }
 
@@ -308,6 +309,7 @@ impl CliArgs {
             builtin_replaced_by_script: &builtin_replaced_by_script,
             locations: CommandLocations::from(anchors),
             workspace: WorkspaceInvocation::from(&self.workspace),
+            shared_workspace_lockfile_cli: config_overrides.shared_workspace_lockfile(),
             loaders: CommandLoaders {
                 config: &config,
                 global_config: &|| load_config(&anchors.global_config),

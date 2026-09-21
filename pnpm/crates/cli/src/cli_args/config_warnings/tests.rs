@@ -245,21 +245,22 @@ fn sanitizes_the_project_name() {
 
 #[test]
 fn warns_when_shared_workspace_lockfile_is_set_outside_a_workspace() {
-    let mut config = Config::default();
-    config.explicit_settings.insert("sharedWorkspaceLockfile".to_string(), true.into());
-    let received = shared_workspace_lockfile_outside_workspace_warning(&config).expect("a warning");
+    let received =
+        shared_workspace_lockfile_outside_workspace_warning(Some(true), None).expect("a warning");
     assert_eq!(
         received,
-        "The \"shared-workspace-lockfile\" option was ignored because no \"pnpm-workspace.yaml\" was found."
+        r#"The "shared-workspace-lockfile" option was ignored because no "pnpm-workspace.yaml" was found."#,
     );
 }
 
 #[test]
 fn no_warning_when_in_workspace_or_not_set_on_cli() {
-    let mut config = Config::default();
-    assert_eq!(shared_workspace_lockfile_outside_workspace_warning(&config), None);
-
-    config.explicit_settings.insert("sharedWorkspaceLockfile".to_string(), true.into());
-    config.workspace_dir = Some(std::path::PathBuf::from("/workspace"));
-    assert_eq!(shared_workspace_lockfile_outside_workspace_warning(&config), None);
+    assert_eq!(shared_workspace_lockfile_outside_workspace_warning(None, None), None);
+    assert_eq!(
+        shared_workspace_lockfile_outside_workspace_warning(
+            Some(true),
+            Some(std::path::Path::new("/workspace")),
+        ),
+        None,
+    );
 }
