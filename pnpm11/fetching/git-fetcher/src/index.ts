@@ -8,6 +8,7 @@ import { preparePackage } from '@pnpm/exec.prepare-package'
 import type { GitFetcher } from '@pnpm/fetching.fetcher-base'
 import { packlist } from '@pnpm/fs.packlist'
 import { globalWarn } from '@pnpm/logger'
+import { nonInteractiveGitEnv } from '@pnpm/network.git-utils'
 import { createGitHostedPkgId } from '@pnpm/resolving.git-resolver'
 import { gitHostedStoreIndexKey, type StoreIndex } from '@pnpm/store.index'
 import { addFilesFromDir } from '@pnpm/worker'
@@ -34,9 +35,10 @@ export function createGitFetcher (createOpts: CreateGitFetcherOptions): { git: G
       if (allowedHosts.size > 0 && shouldUseShallow(resolution.repo, allowedHosts)) {
         await execGit(['init'], { cwd: tempLocation })
         await execGit(['remote', 'add', 'origin', resolution.repo], { cwd: tempLocation })
-        await execGit(['fetch', '--depth', '1', 'origin', resolution.commit], { cwd: tempLocation })
+        const env = await nonInteractiveGitEnv({ cwd: tempLocation })
+        await execGit(['fetch', '--depth', '1', 'origin', resolution.commit], { cwd: tempLocation, env })
       } else {
-        await execGit(['clone', resolution.repo, tempLocation])
+        await execGit(['clone', resolution.repo, tempLocation], { env: await nonInteractiveGitEnv() })
       }
     } catch (err: unknown) {
       assert(util.types.isNativeError(err))
@@ -194,7 +196,7 @@ function prefixGitArgs (): string[] {
   return process.platform === 'win32' ? ['-c', 'core.longpaths=true'] : []
 }
 
-async function execGit (args: string[], opts?: object): Promise<string> {
+async function execGit (args: string[], opts?: { cwd?: string, env?: NodeJS.ProcessEnv }): Promise<string> {
   const fullArgs = prefixGitArgs().concat(args || [])
   const { stdout } = await execa('git', fullArgs, opts)
   return stdout as string

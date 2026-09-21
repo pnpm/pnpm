@@ -486,6 +486,9 @@ pub(crate) fn exec_git_with(
         cmd.arg(arg);
     }
     cmd.args(args);
+    if reaches_remote(args) {
+        pnpm_git_utils::disable_git_prompts::<pnpm_git_utils::Host>(&mut cmd, cwd);
+    }
     if args.first() == Some(&"clone") {
         let protocols = crate::protocols::read_allowed_git_protocols_with(
             bin,
@@ -518,6 +521,12 @@ pub(crate) fn exec_git_with(
         return Err(GitFetcherError::GitExec { operation, stderr, status: output.status });
     }
     Ok(String::from_utf8_lossy(&output.stdout).into_owned())
+}
+
+/// Whether the git invocation can contact a remote, and so may be asked for
+/// credentials or an ssh passphrase.
+fn reaches_remote(args: &[&str]) -> bool {
+    matches!(args.first(), Some(&"clone" | &"fetch" | &"submodule"))
 }
 
 fn static_operation_label(args: &[&str]) -> &'static str {

@@ -36,6 +36,39 @@ test('resolveFromGit() passes GIT_TERMINAL_PROMPT=0 to prevent interactive crede
   )
 })
 
+test('resolveFromGit() runs ssh in batch mode so a passphrase prompt cannot block the resolution', async () => {
+  jest.mocked(execa).mockClear()
+  await withoutSshOverrides(async () => {
+    await resolveFromGit({ bareSpecifier: 'git+ssh://git@github.com/zkochan/is-negative.git#master' })
+  })
+  expect(jest.mocked(execa)).toHaveBeenCalledWith(
+    'git',
+    expect.any(Array),
+    expect.objectContaining({
+      env: expect.objectContaining({
+        GIT_SSH_COMMAND: 'ssh -o BatchMode=yes',
+      }),
+    })
+  )
+})
+
+test('resolveFromGit() keeps the ssh command the user configured', async () => {
+  jest.mocked(execa).mockClear()
+  await withoutSshOverrides(async () => {
+    process.env.GIT_SSH_COMMAND = 'ssh -i deploy_key'
+    await resolveFromGit({ bareSpecifier: 'git+ssh://git@github.com/zkochan/is-negative.git#master' })
+  })
+  expect(jest.mocked(execa)).toHaveBeenCalledWith(
+    'git',
+    expect.any(Array),
+    expect.objectContaining({
+      env: expect.objectContaining({
+        GIT_SSH_COMMAND: 'ssh -i deploy_key',
+      }),
+    })
+  )
+})
+
 test('resolveFromGit() with commit', async () => {
   const resolveResult = await resolveFromGit({ bareSpecifier: 'zkochan/is-negative#163360a8d3ae6bee9524541043197ff356f8ed99' })
   expect(resolveResult).toStrictEqual({
@@ -823,9 +856,11 @@ cba04669e621b85fbdb33371604de1a2898e68e9\trefs/tags/v0.0.39',
 
 function mockGit (run: (args: string[]) => Promise<{ stdout: string }>): void {
   jest.mocked(execa).mockImplementation(((file: string, args?: readonly string[], opts?: { env?: NodeJS.ProcessEnv }) => {
+    expect(file).toBe('git')
+    // The lookup of the ssh command selected through git configuration.
+    if (args?.[0] === 'config') return Promise.reject(new Error('core.sshCommand is not configured'))
     // Every git invocation has to disable the terminal credential prompt,
     // otherwise a repository that needs credentials blocks the command.
-    expect(file).toBe('git')
     expect(opts?.env?.GIT_TERMINAL_PROMPT).toBe('0')
     return run(args ? [...args] : [])
   }) as any) // eslint-disable-line @typescript-eslint/no-explicit-any
@@ -892,4 +927,24 @@ const REPO_REFS: Record<string, Array<[commit: string, ref: string]>> = {
     ['2fce895ee534a38989bb67fdb8684f520827f614', 'refs/heads/deadbeef'],
     ['2fce895ee534a38989bb67fdb8684f520827f614', 'refs/heads/main'],
   ],
+}
+
+async function withoutSshOverrides (fn: () => Promise<void>): Promise<void> {
+  const original = { GIT_SSH: process.env.GIT_SSH, GIT_SSH_COMMAND: process.env.GIT_SSH_COMMAND }
+  setEnv({ GIT_SSH: undefined, GIT_SSH_COMMAND: undefined })
+  try {
+    await fn()
+  } finally {
+    setEnv(original)
+  }
+}
+
+function setEnv (vars: Record<string, string | undefined>): void {
+  for (const [name, value] of Object.entries(vars)) {
+    if (value === undefined) {
+      delete process.env[name]
+    } else {
+      process.env[name] = value
+    }
+  }
 }

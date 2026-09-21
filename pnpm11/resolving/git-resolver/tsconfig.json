@@ -16,6 +16,9 @@
       "path": "../../network/fetch"
     },
     {
+      "path": "../../network/git-utils"
+    },
+    {
       "path": "../resolver-base"
     }
   ]
