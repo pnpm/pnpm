@@ -80,10 +80,14 @@ test('all scenarios and both engines are checked, and missing reports fail', asy
   }
 })
 
-test('comparison covers every scenario uploaded to Bencher', async () => {
+test('comparison and Bencher uploads cover every matrix scenario', async () => {
   const workflow = await readFile(new URL('../workflows/pacquet-integrated-benchmark.yml', import.meta.url), 'utf8')
   const tags = [...workflow.matchAll(/'([A-Z_]+):[a-z][^']+'/g)].map(match => match[1])
-  assert.deepEqual([...new Set(tags)].sort(), [...scenarios].sort())
+  const matrix = workflow.match(/        scenario:\n((?:          - [^\n]+\n)+)/)[1]
+  const matrixTags = [...matrix.matchAll(/- ([a-z][\w.-]+)/g)].map(match => match[1]
+    .replace('-linker.', '_').replaceAll(/[.-]/g, '_').toUpperCase())
+  assert.deepEqual([...new Set(tags)].sort(), [...matrixTags].sort())
+  assert.deepEqual([...scenarios].sort(), [...matrixTags].sort())
 })
 
 test('hyperfine command names identify targets when commands are shell scripts', () => {
