@@ -26,7 +26,7 @@ use pnpm_tarball::{CacheValue, MemCache, package_mem_cache_key};
 use std::{
     collections::HashMap,
     marker::PhantomData,
-    path::PathBuf,
+    path::{Path, PathBuf},
     sync::{
         Arc, Mutex,
         atomic::{AtomicBool, AtomicU8, AtomicUsize, Ordering},
@@ -50,12 +50,8 @@ pub(crate) struct EarlyMaterializer<Reporter> {
 
 struct Shared {
     layout: VirtualStoreLayout,
-    import_method: PackageImportMethod,
-    import_patterns: Vec<String>,
+    importer: SlotImporter,
     symlink: bool,
-    /// Install-scoped dedupe state for the `pnpm:package-import-method`
-    /// log, merged into the install's own state at [`EarlyMaterializer::finish`].
-    logged_methods: AtomicU8,
     mem_cache: Arc<MemCache>,
     permits: Semaphore,
     closing: AtomicBool,
@@ -69,10 +65,12 @@ impl<Reporter: pnpm_reporter::Reporter + 'static> EarlyMaterializer<Reporter> {
         EarlyMaterializer {
             shared: Arc::new(Shared {
                 layout: VirtualStoreLayout::legacy(config.virtual_store_dir.clone(), max_length),
-                import_method: config.package_import_method,
-                import_patterns: config.package_import_patterns.clone(),
+                importer: SlotImporter {
+                    method: config.package_import_method,
+                    patterns: config.package_import_patterns.clone(),
+                    logged_methods: AtomicU8::new(0),
+                },
                 symlink: config.symlink,
-                logged_methods: AtomicU8::new(0),
                 mem_cache,
                 permits: Semaphore::new(permits),
                 closing: AtomicBool::new(false),
@@ -145,7 +143,7 @@ impl<Reporter: pnpm_reporter::Reporter + 'static> EarlyMaterializer<Reporter> {
         let mut tasks = std::mem::take(&mut *lock(&self.tasks));
         while tasks.join_next().await.is_some() {}
         logged_methods.fetch_or(
-            self.shared.logged_methods.load(Ordering::Acquire),
+            self.shared.importer.logged_methods.load(Ordering::Acquire),
             Ordering::AcqRel,
         );
         let orphans: Vec<PathBuf> = std::mem::take(&mut *lock(&self.slots))
@@ -180,6 +178,33 @@ fn required_dependencies(
             Some((alias, SnapshotDepRef::Alias(key)))
         })
         .collect()
+}
+
+/// How a slot's files are imported: the install's import method, the files
+/// `packageImportPatterns` selects, and the dedupe state of the
+/// `pnpm:package-import-method` log, merged into the install's own state at
+/// [`EarlyMaterializer::finish`].
+struct SlotImporter {
+    method: PackageImportMethod,
+    patterns: Vec<String>,
+    logged_methods: AtomicU8,
+}
+
+impl SlotImporter {
+    fn import<Reporter: pnpm_reporter::Reporter>(
+        &self,
+        package_dir: &Path,
+        cas_paths: &HashMap<String, PathBuf>,
+    ) -> Result<(), String> {
+        import_indexed_dir::<Reporter>(
+            &self.logged_methods,
+            self.method,
+            package_dir,
+            &select_package_files(cas_paths, &self.patterns),
+            ImportIndexedDirOpts::default(),
+        )
+        .map_err(|error| error.to_string())
+    }
 }
 
 struct SlotJob {
@@ -229,14 +254,7 @@ impl SlotJob {
         cas_paths: &HashMap<String, PathBuf>,
     ) -> Result<(), String> {
         std::fs::create_dir_all(&self.virtual_node_modules_dir).map_err(|error| error.to_string())?;
-        import_indexed_dir::<Reporter>(
-            &shared.logged_methods,
-            shared.import_method,
-            &self.package_dir,
-            &select_package_files(cas_paths, &shared.import_patterns),
-            ImportIndexedDirOpts::default(),
-        )
-        .map_err(|error| error.to_string())?;
+        shared.importer.import::<Reporter>(&self.package_dir, cas_paths)?;
         if shared.symlink {
             create_symlink_layout(
                 Some(&self.dependencies),
