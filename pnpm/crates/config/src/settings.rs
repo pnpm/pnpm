@@ -1604,13 +1604,6 @@ pub struct Config {
     /// `--save-prefix` / `--save-exact`.
     pub save_prefix: Option<String>,
 
-    /// The prefix prepended to git tags created by `pnpm version`.
-    /// The `tagVersionPrefix` setting, overridden per-invocation by
-    /// `--tag-version-prefix`. `None` means no layer named a value,
-    /// which the `version` command reads as the `"v"` default; an
-    /// explicit empty string removes the prefix entirely.
-    pub tag_version_prefix: Option<String>,
-
     /// Whether `pnpm add` saves the resolved version exactly, with no
     /// range operator. The `saveExact` setting, equivalent to passing
     /// `--save-exact`.

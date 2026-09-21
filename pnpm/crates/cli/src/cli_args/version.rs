@@ -143,11 +143,8 @@ impl VersionArgs {
         }
     }
 
-    fn effective_tag_version_prefix(&self, config: &Config) -> String {
-        self.git.tag_version_prefix
-            .clone()
-            .or_else(|| config.tag_version_prefix.clone())
-            .unwrap_or_else(|| "v".to_owned())
+    fn effective_tag_version_prefix<'a>(&'a self, config: &'a Config) -> &'a str {
+        self.git.tag_version_prefix.as_deref().unwrap_or(&config.tag_version_prefix)
     }
 
     /// Apply an npm-style bump — `pnpm version <major|minor|…|x.y.z>` — to
@@ -163,10 +160,9 @@ impl VersionArgs {
     ) -> miette::Result<()> {
         let raw = self.params[0].as_str();
         let git_cwd = config.workspace_dir.clone().unwrap_or_else(|| dir.to_path_buf());
-        let tag_version_prefix = self.git.effective_tag_version_prefix(config);
+        let tag_version_prefix = self.effective_tag_version_prefix(config);
         let bump = if raw == "from-git" {
             Bump::Explicit(version_from_git(&git_cwd, tag_version_prefix)?)
-
         } else {
             parse_bump(raw)?
         };
@@ -193,7 +189,6 @@ impl VersionArgs {
             && is_git_repo::<Host>(&git_cwd)
         {
             self.commit_and_tag(&changes[0], &git_cwd, tag_version_prefix)?;
-
         }
 
         for change in &changes {
