@@ -1000,7 +1000,7 @@ describe('patch and commit in workspaces', () => {
         dependencies: {
           'is-positive': '1.0.0',
           'project-1': '1',
-          hi: 'github:zkochan/hi#4cdebec76b7b9d1f6e219e06c42d92a6b8ea60cd',
+          hi: 'https://codeload.github.com/zkochan/hi/tar.gz/4cdebec76b7b9d1f6e219e06c42d92a6b8ea60cd',
         },
       },
     ])
