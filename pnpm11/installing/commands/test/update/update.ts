@@ -138,6 +138,7 @@ test('update --peer updates a named peer without changing other peers', async ()
 
   await update.handler({
     ...DEFAULT_OPTS,
+    autoInstallPeers: false,
     cliOptions: { peer: true },
     dir: process.cwd(),
   }, ['@pnpm.e2e/foo@100.1.0'])
