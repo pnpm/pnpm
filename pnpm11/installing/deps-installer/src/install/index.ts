@@ -1360,7 +1360,7 @@ export async function mutateModules (
      * over the manifest this run has already put through them, and what they produced is judged
      * against those declarations — which is what a selector naming no version of its own has in
      * place of a request. A difference the overrides alone account for leaves the request
-     * standing, so the overrides are run a second time on their own to recognize it.
+     * standing.
      *
      * `undefined` when every request survives the hooks.
      */
