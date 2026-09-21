@@ -93,10 +93,10 @@ async fn node_js_hooks_detects_read_package() {
     );
     assert!(
         pnpm_hooks::node_runtime::NodeJsHooks::new(with_hook).has_read_package().await,
-        "exported readPackage must be detected"
+        "exported readPackage must be detected",
     );
     assert!(
         !pnpm_hooks::node_runtime::NodeJsHooks::new(without_hook).has_read_package().await,
-        "missing readPackage must not be reported"
+        "missing readPackage must not be reported",
     );
 }

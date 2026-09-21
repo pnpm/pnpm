@@ -349,6 +349,15 @@ pub async fn current_pnpmfile_checksum(
     hooks.calculate_pnpmfile_checksum().await
 }
 
+/// Whether a checksum-excluded pnpmfile in `hooks` exports a callable
+/// `readPackage` hook. `None` answers `false` without touching Node.
+pub async fn has_untracked_read_package_hook(hooks: Option<&Arc<dyn PnpmfileHooks>>) -> bool {
+    match hooks {
+        Some(hooks) => hooks.has_untracked_read_package_hook().await,
+        None => false,
+    }
+}
+
 /// A no-op implementation of [`PnpmfileHooks`].
 pub struct NoopHooks;
 

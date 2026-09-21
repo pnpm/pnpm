@@ -316,14 +316,27 @@ pub(super) async fn auto_frozen_path(
         // hook's verdict blocks the frozen install. A lockfile synthesized
         // from the current snapshot skips the check (it only gates on a
         // non-empty wanted lockfile). A throwing hook aborts the install.
-        Ok(()) => Ok(dispatch.lockfile_synthesized_from_current
-            || dispatch.freshness.config.ignore_pnpmfile
-            || !crate::check_custom_resolver_force_resolve::force_resolve_from_pnpmfile(
-                lockfile,
-                dispatch.freshness.pnpmfile_hook.map(std::convert::AsRef::as_ref),
-            )
-            .await
-            .map_err(InstallError::CustomResolverForceResolve)?),
+        Ok(()) => {
+            // A `readPackage` hook no checksum vouches for makes "up to
+            // date" unverifiable: an edit to it leaves no trace the
+            // freshness check can see, so the frozen path must not be taken
+            // (<https://github.com/pnpm/pnpm/issues/15136>). Mirrors pnpm's
+            // `hasUntrackedReadPackageHook` gate in `isFrozenInstallPossible`.
+            if !dispatch.freshness.config.ignore_pnpmfile
+                && pnpm_hooks::has_untracked_read_package_hook(dispatch.freshness.pnpmfile_hook)
+                    .await
+            {
+                return Ok(false);
+            }
+            Ok(dispatch.lockfile_synthesized_from_current
+                || dispatch.freshness.config.ignore_pnpmfile
+                || !crate::check_custom_resolver_force_resolve::force_resolve_from_pnpmfile(
+                    lockfile,
+                    dispatch.freshness.pnpmfile_hook.map(std::convert::AsRef::as_ref),
+                )
+                .await
+                .map_err(InstallError::CustomResolverForceResolve)?)
+        }
         Err(error @ (FreshnessCheckError::Stale(_) | FreshnessCheckError::NoImporter { .. })) => {
             tracing::info!(
                 target: "pacquet::install",

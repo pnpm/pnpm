@@ -192,10 +192,7 @@ impl<'a, Reporter: self::Reporter + 'static> ResolutionContext<'a, Reporter> {
         if self.wanted_lockfile().is_none() {
             return false;
         }
-        match self.prep.hooks.pnpmfile_hook.as_ref() {
-            Some(hooks) => hooks.has_untracked_read_package_hook().await,
-            None => false,
-        }
+        pnpm_hooks::has_untracked_read_package_hook(self.prep.hooks.pnpmfile_hook.as_ref()).await
     }
 
     async fn reuse_seed(
