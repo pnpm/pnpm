@@ -1,7 +1,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
 
-import { describe, expect, test } from '@jest/globals'
+import { expect, test } from '@jest/globals'
 import { prepare, prepareEmpty } from '@pnpm/prepare'
 import isWindows from 'is-windows'
 import { writeJsonFileSync } from 'write-json-file'
@@ -808,58 +808,54 @@ test.each([
   expect(stderr.toString()).not.toContain('configured to use 0.0.1')
 })
 
-// These tests resolve the running pnpm version's integrity from registry-mock,
-// which proxies pnpm to npmjs. They fail between a release commit and the
-// matching npm publish ("No matching version found for pnpm@<version>"), and
-// pass again once the version lands on npmjs.
-describe('release-brittle: may fail until current version is published to npm', () => {
-  test('pnpm --version exits promptly when devEngines.packageManager matches the running pnpm', async () => {
-    // Regression test: main.ts's `--version` short-circuit returned before
-    // the command-handler `finally` that calls finishWorkers(), and
-    // switchCliVersion had already spawned workers during integrity
-    // resolution. The worker pool then kept the Node event loop alive long
-    // past the version print.
-    // Read the running pnpm version from a fresh empty dir — the previous
-    // test's prepare() leaves cwd in a manifest with a failing pm check, and
-    // checkPackageManager runs before the --version short-circuit.
-    prepareEmpty()
-    const versionProcess = execPnpmSync(['--version'])
-    const pnpmVersion = versionProcess.stdout.toString().trim()
+test('pnpm --version exits promptly when devEngines.packageManager matches the running pnpm', async () => {
+  // Package-manager integrity resolution can start workers, so the
+  // `--version` path must finalize them before returning.
+  // Read the running pnpm version from a fresh empty dir — the previous
+  // test's prepare() leaves cwd in a manifest with a failing pm check, and
+  // checkPackageManager runs before the --version short-circuit.
+  prepareEmpty()
+  const versionProcess = execPnpmSync(['--version'])
+  const pnpmVersion = versionProcess.stdout.toString().trim()
 
-    prepare({
-      devEngines: {
-        packageManager: {
-          name: 'pnpm',
-          version: pnpmVersion,
-          onFail: 'download',
-        },
+  prepare({
+    devEngines: {
+      packageManager: {
+        name: 'pnpm',
+        version: pnpmVersion,
+        onFail: 'download',
       },
-    })
-
-    // 30 s is comfortably above the post-fix exit time (~3 s) and far below
-    // the pre-fix hang. If the regression returns, spawnSync's timeout kicks
-    // in and execPnpmSync throws from its `error`/`signal` checks.
-    const { status, stdout } = execPnpmSync(['--version'], { timeout: 30_000 })
-
-    expect(status).toBe(0)
-    expect(stdout.toString().trim()).toBe(pnpmVersion)
+    },
   })
 
-  test('devEngines.packageManager with version range should match current version', async () => {
-    prepare({
-      devEngines: {
-        packageManager: {
-          name: 'pnpm',
-          version: '>=1.0.0',
-          onFail: 'error',
-        },
-      },
-    })
-
-    const { status } = execPnpmSync(['install'])
-
-    expect(status).toBe(0)
+  // 30 s is comfortably above the post-fix exit time (~3 s) and far below
+  // the pre-fix hang. If the regression returns, spawnSync's timeout kicks
+  // in and execPnpmSync throws from its `error`/`signal` checks.
+  const { status, stdout } = execPnpmSync(['--version'], {
+    env: { pnpm_config_registry: process.env.PNPM_CURRENT_VERSION_REGISTRY! },
+    timeout: 30_000,
   })
+
+  expect(status).toBe(0)
+  expect(stdout.toString().trim()).toBe(pnpmVersion)
+})
+
+test('devEngines.packageManager with version range should match current version', async () => {
+  prepare({
+    devEngines: {
+      packageManager: {
+        name: 'pnpm',
+        version: '>=1.0.0',
+        onFail: 'error',
+      },
+    },
+  })
+
+  const { status } = execPnpmSync(['install'], {
+    env: { pnpm_config_registry: process.env.PNPM_CURRENT_VERSION_REGISTRY! },
+  })
+
+  expect(status).toBe(0)
 })
 
 testOnPosix('pnpm --version reports a pin it cannot record instead of failing', () => {
@@ -884,7 +880,11 @@ testOnPosix('pnpm --version reports a pin it cannot record instead of failing', 
     // A test running as root writes through the read-only bit, and this
     // case then has nothing to observe, so it fails below rather than
     // passing without having run.
-    if (!canWriteTo(projectDir)) result = execPnpmSync(['--version'])
+    if (!canWriteTo(projectDir)) {
+      result = execPnpmSync(['--version'], {
+        env: { pnpm_config_registry: process.env.PNPM_CURRENT_VERSION_REGISTRY! },
+      })
+    }
   } finally {
     fs.chmodSync(projectDir, 0o755)
   }
