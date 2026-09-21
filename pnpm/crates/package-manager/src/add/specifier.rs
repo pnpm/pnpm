@@ -27,6 +27,7 @@ pub(super) struct ResolvedAddedDependency {
     pub(super) manifest_specifier: String,
     pub(super) updated_catalogs: Catalogs,
     pub(super) warning: Option<LogEvent>,
+    pub(super) types_selector: Option<String>,
 }
 pub(super) async fn resolve_added_dependency(
     package_selector: &str,
@@ -44,6 +45,9 @@ pub(super) async fn resolve_added_dependency(
         inputs,
     )
     .await?;
+    let types_selector =
+        super::types::resolve_types_selector(package_name, &bare_specifier, manifest, inputs)
+            .await?;
     let mut updated_catalogs = Catalogs::new();
     let outcome = decide_catalog_outcome(
         inputs.add.config.catalog_mode,
@@ -68,6 +72,7 @@ pub(super) async fn resolve_added_dependency(
         manifest_specifier,
         updated_catalogs,
         warning: outcome.warning,
+        types_selector,
     })
 }
 /// A selector as parsed: its protocol, and the package an aliasless

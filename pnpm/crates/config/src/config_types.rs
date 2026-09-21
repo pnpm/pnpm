@@ -116,6 +116,7 @@ const PNPM_TYPES: &[(&str, bool)] = &[
     ("aggregate-output", false),
     ("reporter-hide-prefix", false),
     ("save-peer", false),
+    ("save-types", false),
     ("save-catalog-name", false),
     ("save-workspace-protocol", false),
     ("script-shell", false),

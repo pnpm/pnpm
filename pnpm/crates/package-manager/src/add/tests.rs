@@ -41,6 +41,7 @@ fn test_add<'a>(
             package_names,
             range_spec_style: RangeSpecStyle::Major,
             lockfile_only: false,
+            save_types: false,
         },
         AddOwned {
             tarball_mem_cache: Arc::new(pnpm_tarball::MemCache::default()),
@@ -101,6 +102,7 @@ async fn add_npm_selector(selector: &str) -> Option<String> {
             package_names: &package_names,
             range_spec_style: RangeSpecStyle::Major,
             lockfile_only: true,
+            save_types: false,
         },
         resources: crate::AddResources {
             tarball_mem_cache: Arc::default(),
@@ -180,6 +182,7 @@ async fn add_jsr_selector(selector: &str) -> Option<String> {
             package_names: &package_names,
             range_spec_style: RangeSpecStyle::Major,
             lockfile_only: true,
+            save_types: false,
         },
         resources: crate::AddResources {
             tarball_mem_cache: Arc::default(),

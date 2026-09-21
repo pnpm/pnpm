@@ -10,6 +10,8 @@ are fixed in that version. New features are not backported to v11.
 
 See [`CONTRIBUTING.md`](./CONTRIBUTING.md) for development setup, debugging, testing, and benchmarking.
 
+See [Adding TypeScript declarations](./docs/save-types.md) for `pnpm add --save-types`.
+
 ## Benchmark
 
 ![](https://pnpm.io/img/benchmarks/alotta-files-pnpm.svg)

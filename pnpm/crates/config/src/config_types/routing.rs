@@ -142,6 +142,7 @@ const EXCLUDED_PNPM_KEYS: &[&str] = &[
     "reporter-hide-prefix",
     "save-catalog-name",
     "save-peer",
+    "save-types",
     "save-workspace-protocol",
     "shamefully-hoist",
     "shared-workspace-lockfile",

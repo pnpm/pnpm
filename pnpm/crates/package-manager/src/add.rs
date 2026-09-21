@@ -8,6 +8,8 @@ use specifier::{normalized_save_specifier, resolve_added_dependency, workspace_p
 
 mod registry;
 
+mod types;
+
 mod aliasless;
 
 mod manifest;
@@ -304,6 +306,8 @@ pub struct AddOptions<'a> {
     /// `pnpm-lock.yaml`, but skip materializing `node_modules`. Forwarded
     /// to the follow-up `Install` run. See [`crate::InstallExecution::lockfile_only`].
     pub lockfile_only: bool,
+    /// Discover companion declaration packages for an explicit add command.
+    pub save_types: bool,
 }
 
 /// The add's owned inputs, consumed by the install it runs.

@@ -448,6 +448,7 @@ impl WorkspaceSettings {
         }
         json_field!(settings, Sys, save_exact, "SAVE_EXACT");
         json_field!(settings, Sys, save_peer, "SAVE_PEER");
+        json_field!(settings, Sys, save_types, "SAVE_TYPES");
         enum_field!(
             settings,
             Sys,

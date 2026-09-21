@@ -149,6 +149,7 @@ async fn add_reuses_shared_packument_state_for_every_selector_path() {
             package_names: &package_names,
             range_spec_style: RangeSpecStyle::Patch,
             lockfile_only: true,
+            save_types: false,
         },
         resources: crate::AddResources {
             tarball_mem_cache: Arc::default(),
@@ -232,6 +233,7 @@ async fn add_does_not_wait_for_a_slower_later_resolution_after_an_error() {
                 package_names: &package_names,
                 range_spec_style: RangeSpecStyle::Patch,
                 lockfile_only: true,
+                save_types: false,
             },
             resources: crate::AddResources {
                 tarball_mem_cache: Arc::default(),

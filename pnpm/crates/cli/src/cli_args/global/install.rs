@@ -171,7 +171,7 @@ pub(super) async fn run_group_install<Reporter: self::Reporter + 'static>(
         None,
         install.lockfile_only,
         config.supported_architectures.clone(),
-        AddGroups { save_target: Some([DependencyGroup::Prod]), included: None },
+        AddGroups { save_target: Some([DependencyGroup::Prod]), included: None, save_types: false },
     )
     .await?;
 

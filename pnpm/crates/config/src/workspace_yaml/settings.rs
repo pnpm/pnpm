@@ -778,6 +778,9 @@ pub struct WorkspaceSettings {
     /// [`Config::save_peer`]: crate::Config::save_peer
     pub save_peer: Option<bool>,
 
+    /// Whether add also saves available `DefinitelyTyped` packages.
+    pub save_types: Option<bool>,
+
     /// `registrySupportsTimeField` from `pnpm-workspace.yaml`. See
     /// [`Config::registry_supports_time_field`].
     ///
