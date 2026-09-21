@@ -229,6 +229,7 @@ export async function runRecursive (
             extraBinPaths: opts.extraBinPaths,
             extraEnv: opts.extraEnv,
             pkgRoot: node.project,
+            raiseOnInterrupt: true,
             userAgent: opts.userAgent,
             rootModulesDir: await realpathMissing(path.join(node.project, 'node_modules')),
             scriptsPrependNodePath: opts.scriptsPrependNodePath,

@@ -11,11 +11,11 @@ import { execute } from '@yarnpkg/shell'
 import uidNumber from 'uid-number'
 
 import { extendPath } from './extendPath.js'
-import { relaySignals, spawnsInOwnProcessGroup } from './signals.js'
+import { relaySignals, reserveSignalRelay, type SignalRelayReservation, spawnsInOwnProcessGroup } from './signals.js'
 import { type LifecycleChildProcess, spawn } from './spawn.js'
 
 export type { RelaySignalsOptions, SignalRelay, SignalTarget } from './signals.js'
-export { hasControllingTerminal, relaySignals, spawnsInOwnProcessGroup, waitForProcessGroup } from './signals.js'
+export { hasControllingTerminal, relaySignals, reserveSignalRelay, spawnsInOwnProcessGroup, waitForProcessGroup } from './signals.js'
 export type { LifecycleChildProcess } from './spawn.js'
 
 export interface LifecycleLog {
@@ -55,6 +55,7 @@ export interface LifecycleOptions {
   nodeOptions?: string
   onSpawn?: (child: LifecycleChildProcess) => void
   production?: boolean
+  raiseOnInterrupt?: boolean
   runConcurrently?: boolean
   scriptShell?: string
   scriptsPrependNodePath?: boolean | 'warn-only'
@@ -84,6 +85,7 @@ type Callback = (err?: LifecycleError | null) => void
 /** One script or hook of one package, as the runner threads it through. */
 interface ScriptRun {
   cmd: string
+  relayReservation?: SignalRelayReservation
   pkg: LifecyclePackage
   stage: string
   wd: string
@@ -121,7 +123,13 @@ if (process.platform === 'win32') {
 }
 
 export function lifecycle (pkg: LifecyclePackage, stage: string, wd: string, opts: LifecycleOptions): Promise<void> {
+  const relayReservation = opts.raiseOnInterrupt ? reserveSignalRelay() : undefined
   return new Promise<void>((resolve, reject) => {
+    const finish = (err?: LifecycleError | null): void => {
+      relayReservation?.release()
+      if (err) reject(err)
+      else resolve()
+    }
     opts.log.info('lifecycle', logId(pkg, stage), pkg._id)
     if (!pkg.scripts) pkg.scripts = {}
 
@@ -134,13 +142,13 @@ export function lifecycle (pkg: LifecyclePackage, stage: string, wd: string, opt
       // makeEnv is a slow operation. This guard clause prevents makeEnv being called
       // and avoids a ton of unnecessary work, and results in a major perf boost.
       if (!pkg.scripts![stage] && statError) {
-        resolve()
+        finish()
         return
       }
 
       validWd(wd, (er, wd) => {
         if (er) {
-          reject(er)
+          finish(er)
           return
         }
 
@@ -174,13 +182,7 @@ export function lifecycle (pkg: LifecyclePackage, stage: string, wd: string, opt
           env.TMPDIR = tmpdir
         }
 
-        runLifecycle({ pkg, stage, wd, env, opts }, (er) => {
-          if (er) {
-            reject(er)
-            return
-          }
-          resolve()
-        })
+        runLifecycle({ pkg, stage, wd, env, opts, relayReservation }, finish)
       })
     })
   })
@@ -398,7 +400,16 @@ function runEmulated (run: ScriptRun, cb: Callback): void {
     execOpts.stderr = stderr
   }
   const procError = createProcError(run, cb)
-  execute(cmd, [], execOpts)
+  const finish = async (err?: LifecycleError): Promise<void> => {
+    try {
+      await run.relayReservation?.settle()
+    } catch (settleError: unknown) {
+      procError(settleError as LifecycleError)
+      return
+    }
+    procError(err)
+  }
+  void execute(cmd, [], execOpts)
     .then((code) => {
       opts.log.silly('lifecycle', logId(pkg, stage), 'Returned: code:', code)
       let er: LifecycleError | undefined
@@ -406,9 +417,8 @@ function runEmulated (run: ScriptRun, cb: Callback): void {
         er = new Error(`Exit status ${code}`)
         er.errno = code
       }
-      procError(er)
-    })
-    .catch((err: LifecycleError) => procError(err))
+      return finish(er)
+    }, (err: LifecycleError) => finish(err))
 }
 
 /**
@@ -421,8 +431,8 @@ function runEmulated (run: ScriptRun, cb: Callback): void {
  * after a relayed signal `cb` waits for that group as well: the shell may
  * have died from the signal while the script it started is still shutting
  * down. A script killed by a signal makes pnpm raise that signal on itself
- * once the wait is over, which ends pnpm before `cb` unless something
- * handles the signal; `cb` then gets a `LifecycleError` for it.
+ * once every child running alongside it has settled, which ends pnpm before
+ * `cb` unless something handles the signal; `cb` then gets a `LifecycleError`.
  */
 function runSpawned (run: ScriptRun, spawned: SpawnedScript, cb: Callback): void {
   const { pkg, stage, opts } = run
@@ -430,22 +440,36 @@ function runSpawned (run: ScriptRun, spawned: SpawnedScript, cb: Callback): void
   let spawnObserverFailed = false
   let spawnObserverError: LifecycleError | undefined
   let deathSignal: NodeJS.Signals | null = null
-  const relay = relaySignals(proc, { ownProcessGroup, terminateOnExit: true })
+  const relay = relaySignals(proc, {
+    ownProcessGroup,
+    raiseOnInterrupt: opts.raiseOnInterrupt,
+    terminateOnExit: true,
+  })
+  run.relayReservation?.release()
 
   // A script killed by a signal makes pnpm raise that signal on itself, so
   // the shell reports an interrupted command rather than a plain failure.
   // That comes after the wait for the script's process group: the raise
   // ends pnpm, and a shell that died from a relayed signal may have left
   // the script still shutting down.
-  const procError = createProcError(run, (er) => {
+  const procError = createProcError(run, cb)
+  let finishing = false
+  const finish = (er?: LifecycleError | null): void => {
+    if (finishing) return
+    finishing = true
+    let raiseError: LifecycleError | undefined
+    if (deathSignal) {
+      void relay.raise(deathSignal).catch((err: LifecycleError) => {
+        raiseError = err
+      })
+    }
     relay.settle().then(() => {
-      if (deathSignal) process.kill(process.pid, deathSignal)
-      cb(er)
-    }, () => cb(er))
-  })
+      procError(raiseError ?? er)
+    }, (err: LifecycleError) => procError(raiseError ?? err))
+  }
 
   proc.on('error', (err: LifecycleError) => {
-    procError(spawnObserverFailed ? spawnObserverError : err)
+    finish(spawnObserverFailed ? spawnObserverError : err)
   })
   proc.on('close', (code: number | null, signal: NodeJS.Signals | null) => {
     opts.log.silly('lifecycle', logId(pkg, stage), 'Returned: code:', code, ' signal:', signal)
@@ -459,7 +483,7 @@ function runSpawned (run: ScriptRun, spawned: SpawnedScript, cb: Callback): void
       err = new PnpmError('CHILD_PROCESS_FAILED', `Exit status ${code}`)
       err.errno = code
     }
-    procError(err)
+    finish(err)
   })
   // Inherited streams are null on the child; only piped output is reported.
   if (proc.stdout) {

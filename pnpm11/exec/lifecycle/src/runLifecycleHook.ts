@@ -22,6 +22,7 @@ export interface RunLifecycleHookOptions {
   initCwd?: string
   optional?: boolean
   pkgRoot: string
+  raiseOnInterrupt?: boolean
   rootModulesDir: string
   scriptShell?: string
   silent?: boolean
@@ -137,6 +138,7 @@ Please unset the scriptShell option, or configure it to a .exe instead.
       },
     },
     onSpawn: trackChildProcess,
+    raiseOnInterrupt: opts.raiseOnInterrupt,
     runConcurrently: true,
     scriptsPrependNodePath: opts.scriptsPrependNodePath,
     scriptShell: opts.scriptShell,

@@ -358,6 +358,105 @@ testOnPosix('run: Ctrl+C in a terminal interrupts the script once', () => {
   expect(stdout).toContain('started')
 })
 
+testOnPosix('run -r: Ctrl+C does not report interrupted scripts as failures', () => {
+  preparePackages([
+    {
+      name: 'project-1',
+      scripts: {
+        dev: 'node ../dev.js',
+      },
+    },
+    {
+      name: 'project-2',
+      scripts: {
+        dev: 'node ../dev.js',
+      },
+    },
+  ])
+  fs.writeFileSync('dev.js', `const fs = require('node:fs')
+fs.appendFileSync('../started.txt', 'x')
+if (fs.readFileSync('../started.txt', 'utf8').length === 2) console.log('started')
+setInterval(() => {}, 1000)
+`, 'utf8')
+  writeYamlFileSync('pnpm-workspace.yaml', { packages: ['project-*'] })
+
+  const terminalScript = path.join(import.meta.dirname, '../../__utils__/scripts/terminal.py')
+  const { stdout, status, error } = spawnSync('python3', [
+    terminalScript,
+    process.execPath,
+    pnpmBinLocation,
+    'run',
+    '-r',
+    '--stream',
+    '--config.verify-deps-before-run=false',
+    'dev',
+  ], { encoding: 'utf8', timeout: 90_000 })
+
+  expect(error).toBeUndefined()
+  expect(status).toBe(130)
+  expect(stdout).not.toContain('ELIFECYCLE')
+  expect(stdout).not.toContain('ERR_PNPM_RECURSIVE_RUN_FIRST_FAIL')
+})
+
+testOnPosix('run -r: Ctrl+C stops dispatch while interrupted scripts settle', () => {
+  preparePackages([
+    {
+      name: 'project-1',
+      scripts: {
+        dev: 'node ../exit-cleanly.js',
+      },
+    },
+    {
+      name: 'project-2',
+      scripts: {
+        dev: 'node ../exit-cleanly-too.js',
+      },
+    },
+    {
+      name: 'project-3',
+      scripts: {
+        dev: 'node ../stay-running.js',
+      },
+    },
+  ])
+  fs.writeFileSync('exit-cleanly.js', `const fs = require('node:fs')
+process.on('SIGINT', () => process.exit(0))
+fs.appendFileSync('../started.txt', 'x')
+if (fs.readFileSync('../started.txt', 'utf8').length === 2) console.log('started')
+setInterval(() => {}, 1000)
+`, 'utf8')
+  fs.writeFileSync('exit-cleanly-too.js', `const fs = require('node:fs')
+process.on('SIGINT', () => process.exit(0))
+fs.appendFileSync('../started.txt', 'x')
+if (fs.readFileSync('../started.txt', 'utf8').length === 2) console.log('started')
+setInterval(() => {}, 1000)
+`, 'utf8')
+  fs.writeFileSync('stay-running.js', `const fs = require('node:fs')
+fs.writeFileSync('../started-late.txt', '')
+setInterval(() => {}, 1000)
+`, 'utf8')
+  writeYamlFileSync('pnpm-workspace.yaml', { packages: ['project-*'] })
+
+  const terminalScript = path.join(import.meta.dirname, '../../__utils__/scripts/terminal.py')
+  const { stdout, status, error } = spawnSync('python3', [
+    terminalScript,
+    process.execPath,
+    pnpmBinLocation,
+    'run',
+    '-r',
+    '--stream',
+    '--workspace-concurrency=2',
+    '--config.verify-deps-before-run=false',
+    'dev',
+  ], { encoding: 'utf8', timeout: 90_000 })
+
+  expect(error).toBeUndefined()
+  expect(fs.existsSync('started-late.txt')).toBe(false)
+  expect(status).toBe(130)
+  expect(stdout).not.toContain('ELIFECYCLE')
+  expect(stdout).not.toContain('ERR_PNPM_RECURSIVE_RUN_FIRST_FAIL')
+})
+
 // A script that shuts down on SIGTERM the way a server does when a container
 // runtime stops it.
 const TERMINATING_SCRIPT = `const fs = require('node:fs')

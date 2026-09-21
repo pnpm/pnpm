@@ -6,9 +6,70 @@ import { expect, test } from '@jest/globals'
 import { killProcessGroup } from '@pnpm/prepare'
 import { temporaryDirectory } from 'tempy'
 
-import { waitForProcessGroup } from '../src/signals.js'
+import { relaySignals, reserveSignalRelay, waitForProcessGroup } from '../src/signals.js'
 
 const testOnLinux = process.platform === 'linux' ? test : test.skip
+
+test('a signal is raised once after concurrent relays settle', async () => {
+  const child = { kill: () => true }
+  const first = relaySignals(child, { ownProcessGroup: false, terminateOnExit: false })
+  const second = relaySignals(child, { ownProcessGroup: false, terminateOnExit: false })
+  const originalKill = process.kill
+  const raised: Array<[number, string | number | undefined]> = []
+  process.kill = ((pid, signal) => {
+    raised.push([pid, signal])
+    return true
+  }) as typeof process.kill
+  try {
+    await first.settle()
+    const firstRaise = first.raise('SIGINT')
+    await Promise.resolve()
+    expect(raised).toStrictEqual([])
+
+    await second.settle()
+    await Promise.all([firstRaise, second.raise('SIGINT')])
+    expect(raised).toStrictEqual([[process.pid, 'SIGINT']])
+  } finally {
+    await Promise.all([first.settle(), second.settle()])
+    process.kill = originalKill
+  }
+})
+
+test('a relay installed while an interrupt is pending is terminated without handling the signal', async () => {
+  const child = { kill: () => true }
+  const reservation = reserveSignalRelay()
+  const first = relaySignals(child, { ownProcessGroup: false, terminateOnExit: false })
+  const originalKill = process.kill
+  const raised: Array<[number, string | number | undefined]> = []
+  process.kill = ((pid, signal) => {
+    raised.push([pid, signal])
+    return true
+  }) as typeof process.kill
+  let late: ReturnType<typeof relaySignals> | undefined
+  try {
+    const firstRaise = first.raise('SIGINT')
+    const firstSettle = first.settle()
+    const sigintListeners = process.listenerCount('SIGINT')
+    const relayed: Array<NodeJS.Signals | number | undefined> = []
+    late = relaySignals({ kill: (signal) => {
+      relayed.push(signal)
+      return true
+    } }, { ownProcessGroup: false, terminateOnExit: false })
+
+    expect(relayed).toStrictEqual(['SIGTERM'])
+    expect(process.listenerCount('SIGINT')).toBe(sigintListeners)
+    const reservationSettle = reservation.settle()
+    await Promise.resolve()
+    expect(raised).toStrictEqual([])
+    await late.settle()
+    await Promise.all([firstSettle, firstRaise, reservationSettle])
+    expect(raised).toStrictEqual([[process.pid, 'SIGINT']])
+  } finally {
+    reservation.release()
+    await Promise.all([first.settle(), late?.settle()])
+    process.kill = originalKill
+  }
+})
 
 testOnLinux('the wait ends once the group holds only a zombie, whatever else the process table shows', async () => {
   // A real group, so the kernel still counts a member of it.
