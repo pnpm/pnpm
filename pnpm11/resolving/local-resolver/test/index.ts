@@ -1,11 +1,11 @@
 /// <reference path="../../../__typings__/index.d.ts"/>
 import fs from 'node:fs'
 import { createRequire } from 'node:module'
-import os from 'node:os'
 import path from 'node:path'
 
 import { expect, jest, test } from '@jest/globals'
 import { logger } from '@pnpm/logger'
+import { tempDir } from '@pnpm/prepare-temp-dir'
 import { barePathIsUnambiguous, isLocalFilesystemSpecifier, resolveFromLocalPath, resolveFromLocalScheme } from '@pnpm/resolving.local-resolver'
 import type { DirectoryResolution } from '@pnpm/resolving.resolver-base'
 import normalize from 'normalize-path'
@@ -161,7 +161,7 @@ testOnNonWindows('resolve tarball whose absolute path steps back through a symli
   // `<dir>/alias/..` is `<dir>/deep` to the filesystem and `<dir>` once the
   // `..` is collapsed, so the two spellings of the specifier below name
   // tarballs with different contents.
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'pnpm-local-resolver-'))
+  const dir = tempDir(false)
   fs.mkdirSync(path.join(dir, 'deep/real'), { recursive: true })
   fs.mkdirSync(path.join(dir, 'real'), { recursive: true })
   fs.copyFileSync(

@@ -4,4 +4,4 @@
 "pacquet": patch
 ---
 
-pnpm now reads the same local tarball it installs when a dependency's absolute `file:` path contains `..`. A `..` that stepped through a symlink used to read one tarball and install another, which failed with `ERR_PNPM_TARBALL_INTEGRITY`. A `..` that stepped back through a directory that does not exist used to fail to resolve at all.
+`pnpm install` now reads the same local tarball it installs when a dependency's absolute `file:` path contains `..`. Such a path could install a different tarball than the one it read, failing with `ERR_PNPM_TARBALL_INTEGRITY`, or fail to resolve at all.

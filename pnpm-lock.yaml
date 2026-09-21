@@ -9045,6 +9045,9 @@ importers:
       '@pnpm/logger':
         specifier: workspace:*
         version: link:../../core/logger
+      '@pnpm/prepare-temp-dir':
+        specifier: workspace:*
+        version: link:../../__utils__/prepare-temp-dir
       '@pnpm/resolving.local-resolver':
         specifier: workspace:*
         version: 'link:'
