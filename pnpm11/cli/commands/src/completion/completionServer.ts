@@ -42,10 +42,15 @@ export function createCompletionServer (
           options,
           params,
         }
-      )).filter(({ name, description }) => sanitizeInline(name) === name && (description == null || sanitizeInline(description) === description)),
+      )).filter(({ name, description }) => isSafeCompletionText(name, shell) && (description == null || isSafeCompletionText(description, shell))),
       shell
     )
   }
+}
+
+function isSafeCompletionText (text: string, shell: string): boolean {
+  // tabtab's Fish template decodes backslash escapes with echo -e.
+  return sanitizeInline(text) === text && (shell !== 'fish' || !text.includes('\\'))
 }
 
 /**

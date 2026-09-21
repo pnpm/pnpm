@@ -10,6 +10,7 @@ import { execPnpmSync } from './utils/index.js'
 
 test.each(['bash', 'fish', 'pwsh', 'zsh'])('completion omits unsafe package and script names for %s', (shell) => {
   const unsafeNames = ['bad\nname', 'bad\rname', 'bad\tname', 'bad\u001B[31mname', 'bad\u007Fname', 'bad\u0085name', 'bad\u202Ename', 'bad\u2028name']
+  if (shell === 'fish') unsafeNames.push('bad\\nname', 'bad\\ename', 'bad\\x1bname', 'bad\\u001Bname')
   prepare({ name: 'safe', scripts: Object.fromEntries(['safe', ...unsafeNames].map((name) => [name, 'echo unused'])) })
   writeYamlFileSync('pnpm-workspace.yaml', { packages: ['packages/*'] })
   for (const [index, name] of unsafeNames.entries()) {
