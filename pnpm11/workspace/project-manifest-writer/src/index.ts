@@ -15,24 +15,30 @@ export async function writeProjectManifest (
   manifest: ProjectManifest,
   opts?: {
     comments?: CommentSpecifier[]
+    crlf?: boolean
     indent?: string | number | undefined
     insertFinalNewline?: boolean
   }
 ): Promise<void> {
   const fileType = filePath.slice(filePath.lastIndexOf('.') + 1).toLowerCase()
   if (fileType === 'yaml') {
-    return writePackageYaml(filePath, manifest)
+    return writePackageYaml(filePath, manifest, opts?.crlf)
   }
 
   await fs.mkdir(path.dirname(filePath), { recursive: true })
-  const trailingNewline = opts?.insertFinalNewline === false ? '' : '\n'
+  const newline = opts?.crlf ? '\r\n' : '\n'
+  const trailingNewline = opts?.insertFinalNewline === false ? '' : newline
   const indent = opts?.indent ?? '\t'
 
-  const json = (
+  let json = (
     fileType === 'json5'
       ? stringifyJson5(manifest, indent, opts?.comments)
       : JSON.stringify(manifest, undefined, indent)
   )
+
+  if (opts?.crlf) {
+    json = json.replace(/\r?\n/g, '\r\n')
+  }
 
   return writeFileAtomic(filePath, `${json}${trailingNewline}`)
 }
@@ -45,7 +51,7 @@ function stringifyJson5 (obj: object, indent: string | number, comments?: Commen
   return json5
 }
 
-async function writePackageYaml (filePath: string, manifest: ProjectManifest): Promise<void> {
+async function writePackageYaml (filePath: string, manifest: ProjectManifest, crlf?: boolean): Promise<void> {
   let text: string | undefined
   try {
     text = await fs.readFile(filePath, 'utf8')
@@ -63,5 +69,9 @@ async function writePackageYaml (filePath: string, manifest: ProjectManifest): P
     pruneEmptyValues: false,
   })
   await fs.mkdir(path.dirname(filePath), { recursive: true })
-  await writeFileAtomic(filePath, document.toString({ lineWidth: 0 }))
+  let content = document.toString({ lineWidth: 0 })
+  if (crlf || (crlf === undefined && text?.includes('\r\n'))) {
+    content = content.replace(/\r?\n/g, '\r\n')
+  }
+  await writeFileAtomic(filePath, content)
 }

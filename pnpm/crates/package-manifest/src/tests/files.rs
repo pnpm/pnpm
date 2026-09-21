@@ -63,3 +63,22 @@ fn noop_save_does_not_rewrite_the_file() {
     manifest.save().unwrap();
     assert_eq!(read_to_string(&path).unwrap(), original);
 }
+
+#[test]
+fn save_preserves_crlf_line_endings_of_the_source_file() {
+    let dir = tempdir().unwrap();
+    let path = dir.path().join("package.json");
+    let original = "{\r\n  \"name\": \"foo\"\r\n}\r\n";
+    std::fs::write(&path, original).unwrap();
+
+    let mut manifest = PackageManifest::from_path(path.clone()).unwrap();
+    manifest.add_dependency("fastify", "1.0.0", DependencyGroup::Prod).unwrap();
+    manifest.save().unwrap();
+    let result = read_to_string(&path).unwrap();
+    assert!(result.contains("\r\n"));
+    assert!(!result.replace("\r\n", "").contains('\n'));
+    assert_eq!(
+        result,
+        "{\r\n  \"name\": \"foo\",\r\n  \"dependencies\": {\r\n    \"fastify\": \"1.0.0\"\r\n  }\r\n}\r\n"
+    );
+}

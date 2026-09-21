@@ -105,3 +105,18 @@ test('creates a YAML manifest in a missing directory', async () => {
   await writeProjectManifest(file, { name: 'example' })
   expect(await readFile(file, 'utf8')).toBe('name: example\n')
 })
+
+test('preserves CRLF line endings when crlf option is true', async () => {
+  const dir = temporaryDirectory()
+
+  await writeProjectManifest(path.join(dir, 'package.json'), { name: 'foo', version: '1.0.0' }, { crlf: true })
+  expect(await readFile(path.join(dir, 'package.json'), 'utf8')).toBe('{\r\n\t"name": "foo",\r\n\t"version": "1.0.0"\r\n}\r\n')
+
+  await writeProjectManifest(path.join(dir, 'package.json5'), { name: 'foo', version: '1.0.0' }, { crlf: true })
+  expect(await readFile(path.join(dir, 'package.json5'), 'utf8')).toBe("{\r\n\tname: 'foo',\r\n\tversion: '1.0.0',\r\n}\r\n")
+
+  const yamlPath = path.join(dir, 'package.yaml')
+  await fs.promises.writeFile(yamlPath, 'name: foo\r\nversion: 1.0.0\r\n')
+  await writeProjectManifest(yamlPath, { name: 'foo', version: '2.0.0' })
+  expect(await readFile(yamlPath, 'utf8')).toBe('name: foo\r\nversion: 2.0.0\r\n')
+})

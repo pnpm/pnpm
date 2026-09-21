@@ -127,6 +127,7 @@ export async function tryReadProjectManifest (projectDir: string): Promise<{
 
 interface FileFormattingAndComments {
   comments?: CommentSpecifier[]
+  crlf: boolean
   indent: string
   insertFinalNewline: boolean
 }
@@ -135,18 +136,21 @@ function detectFileFormattingAndComments (text: string): FileFormattingAndCommen
   const { comments, text: newText, hasFinalNewline } = extractComments(text)
   return {
     comments,
+    crlf: text.includes('\r\n'),
     indent: detectIndent(newText).indent,
     insertFinalNewline: hasFinalNewline,
   }
 }
 
 interface FileFormatting {
+  crlf: boolean
   indent: string
   insertFinalNewline: boolean
 }
 
 function detectFileFormatting (text: string): FileFormatting {
   return {
+    crlf: text.includes('\r\n'),
     indent: detectIndent(text).indent,
     insertFinalNewline: text.endsWith('\n'),
   }
@@ -208,6 +212,7 @@ function createManifestWriter (
   opts: {
     initialManifest: ProjectManifest
     comments?: CommentSpecifier[]
+    crlf?: boolean
     indent?: string | number | undefined
     insertFinalNewline?: boolean
     manifestPath: string
@@ -219,6 +224,7 @@ function createManifestWriter (
     if (force === true || !equal(initialManifest, updatedManifest)) {
       await writeProjectManifest(opts.manifestPath, updatedManifest, {
         comments: opts.comments,
+        crlf: opts.crlf,
         indent: opts.indent,
         insertFinalNewline: opts.insertFinalNewline,
       })
