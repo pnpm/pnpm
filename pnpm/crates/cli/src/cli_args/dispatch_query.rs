@@ -1,7 +1,7 @@
 pub(super) use maintenance::{
-    bin, bugs, cache, cat_file, cat_index, clean, config, config_get, config_set, docs, doctor,
-    find_hash, ignored_builds, not_implemented, prefix, repo, root, self_update, setup, shim,
-    store, with,
+    bin, bugs, cache, cat_file, cat_index, clean, concurrency, config, config_get, config_set,
+    docs, doctor, find_hash, ignored_builds, not_implemented, prefix, repo, root, self_update,
+    setup, shim, store, with,
 };
 pub(super) use registry::{
     access, deprecate, dist_tag, login, logout, owner, ping, search, star, stars, team,
@@ -18,6 +18,7 @@ use super::{
     cat_index::CatIndexArgs,
     change::ChangeArgs,
     clean::CleanArgs,
+    concurrency::ConcurrencyArgs,
     config::{ConfigArgs, ConfigGetAliasArgs, ConfigSetAliasArgs, ConfigSubcommand},
     deprecate::DeprecateArgs,
     dispatch::{CommandFuture, RunCtx, apply_update_config},

@@ -20,19 +20,21 @@
 //! runs under the slot its parent holds, which is what keeps a script that
 //! calls `pnpm run` from waiting on itself.
 
+pub(crate) mod pool;
+pub(crate) use pool::GroupStatus;
+
 use derive_more::{Display, Error};
 use miette::Diagnostic;
 use pnpm_config::Config;
 use pnpm_reporter::{GlobalLog, LogEvent, LogLevel};
+use pool::{SlotPool, WaitSnapshot};
 use std::{
     collections::HashMap,
+    fmt::Write,
     fs::File,
     io,
     path::{Path, PathBuf},
 };
-
-mod pool;
-use pool::{SlotPool, WaitSnapshot};
 
 /// Env var that carries the groups the parent invocations hold slots of,
 /// comma-separated.
@@ -196,6 +198,45 @@ fn held_groups(value: Option<&str>) -> impl Iterator<Item = &str> {
         .unwrap_or_default()
         .split(',')
         .filter(|group| !group.is_empty())
+}
+
+/// Live holders and waiters of one group directory. A missing directory
+/// is idle.
+pub(crate) fn inspect_group(dir: &Path) -> io::Result<GroupStatus> {
+    if !dir.is_dir() {
+        return Ok(GroupStatus { holders: Vec::new(), waiters: Vec::new() });
+    }
+    SlotPool { dir: dir.to_path_buf(), limit: 0 }.status()
+}
+
+pub(crate) fn render_group(name: &str, status: &GroupStatus) -> String {
+    if status.is_idle() {
+        return format!("{name}: idle");
+    }
+    let mut out = name.to_string();
+    append_named_lines(&mut out, "running", &status.holders);
+    if !status.waiters.is_empty() {
+        out.push_str("\n  waiting");
+        for (index, waiter) in status.waiters.iter().enumerate() {
+            let _ = write!(out, "\n    {}. {}", index + 1, waiter.info);
+            if waiter.priority != 0 {
+                let _ = write!(out, "  priority {}", waiter.priority);
+            }
+        }
+    }
+    out
+}
+
+fn append_named_lines(out: &mut String, label: &str, lines: &[String]) {
+    if lines.is_empty() {
+        return;
+    }
+    out.push_str("\n  ");
+    out.push_str(label);
+    for line in lines {
+        out.push_str("\n    ");
+        out.push_str(line);
+    }
 }
 
 #[cfg(test)]

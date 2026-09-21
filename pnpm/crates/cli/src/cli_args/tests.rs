@@ -658,6 +658,15 @@ fn store_status_and_add_are_subcommands_of_store() {
     assert_eq!(add.packages, ["express@4", "typescript@2.1.0"]);
 }
 
+#[test]
+fn concurrency_accepts_group_names() {
+    let CliCommand::Concurrency(args) = command(&["pacquet", "concurrency", "cargo", "typescript"])
+    else {
+        panic!("expected concurrency");
+    };
+    assert_eq!(args.groups, ["cargo", "typescript"]);
+}
+
 /// `--production` is the setting name behind `--prod`, and pnpm accepts
 /// it wherever `--prod` selects dependency groups — in a command line
 /// typed by hand as much as in the install the verify-deps-before-run

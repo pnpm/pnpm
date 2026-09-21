@@ -125,6 +125,7 @@ fn route_maintenance<'a>(
         CliCommand::Purge(args) => dispatch_query::clean(ctx, args, "purge"),
         CliCommand::Root(args) => dispatch_query::root(ctx, args),
         CliCommand::Prefix(args) => dispatch_query::prefix(ctx, args),
+        CliCommand::Concurrency(args) => dispatch_query::concurrency(ctx, args),
         CliCommand::Config(args) => dispatch_query::config(ctx, args),
         CliCommand::Get(args) => dispatch_query::config_get(ctx, args),
         CliCommand::Set(args) => dispatch_query::config_set(ctx, args),

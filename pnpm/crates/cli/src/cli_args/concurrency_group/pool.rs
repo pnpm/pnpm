@@ -23,6 +23,26 @@ pub(super) struct WaitSnapshot {
     pub(super) ahead: Vec<String>,
 }
 
+/// Who holds slots and who is waiting, for `pnpm concurrency`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct GroupStatus {
+    pub holders: Vec<String>,
+    pub waiters: Vec<WaiterLine>,
+}
+
+/// One live waiter, in line order.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct WaiterLine {
+    pub priority: i32,
+    pub info: String,
+}
+
+impl GroupStatus {
+    pub(crate) fn is_idle(&self) -> bool {
+        self.holders.is_empty() && self.waiters.is_empty()
+    }
+}
+
 struct Waiter {
     file: Option<File>,
     lock_path: PathBuf,
@@ -148,6 +168,35 @@ impl SlotPool {
         (0..self.limit)
             .filter_map(|index| self.holder_if_busy(index))
             .collect()
+    }
+
+    pub(super) fn status(&self) -> io::Result<GroupStatus> {
+        let _seq = self.lock_seq()?;
+        Ok(GroupStatus {
+            holders: self
+                .slot_indices()?
+                .into_iter()
+                .filter_map(|index| self.holder_if_busy(index))
+                .collect(),
+            waiters: self
+                .live_waiters()?
+                .into_iter()
+                .map(|waiter| WaiterLine { priority: waiter.priority, info: waiter.info })
+                .collect(),
+        })
+    }
+
+    fn slot_indices(&self) -> io::Result<Vec<u32>> {
+        let mut indices = Vec::new();
+        for entry in fs::read_dir(&self.dir)? {
+            let name = entry?.file_name();
+            let Some(name) = name.to_str() else { continue };
+            if let Ok(index) = name.parse() {
+                indices.push(index);
+            }
+        }
+        indices.sort_unstable();
+        Ok(indices)
     }
 
     fn holder_if_busy(&self, index: u32) -> Option<String> {

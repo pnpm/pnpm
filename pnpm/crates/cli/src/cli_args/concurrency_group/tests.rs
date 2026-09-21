@@ -387,3 +387,26 @@ fn an_empty_seq_does_not_reuse_a_live_ticket() {
     first.join().expect("first waiter");
     second.join().expect("second waiter");
 }
+
+#[test]
+fn status_lists_holders_and_waiters_in_line_order() {
+    let dir = tempfile::tempdir().expect("create temp dir");
+    let pool = SlotPool { dir: dir.path().to_path_buf(), limit: 1 };
+    let held = pool
+        .try_acquire()
+        .expect("try first")
+        .expect("the slot is free");
+
+    let (waiting, got, thread) = spawn_waiter(pool.clone(), 3);
+    recv_wait(&waiting);
+    let status = pool.status().expect("status");
+    dbg!(&status);
+    assert_eq!(status.holders.len(), 1);
+    assert!(status.holders[0].contains("pid "), "holder stamp: {}", status.holders[0]);
+    assert_eq!(status.waiters.len(), 1);
+    assert_eq!(status.waiters[0].priority, 3);
+
+    drop(held);
+    recv_got(&got);
+    thread.join().expect("waiter");
+}

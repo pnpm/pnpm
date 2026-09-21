@@ -14,6 +14,7 @@ pub mod ci;
 pub mod clean;
 pub(crate) mod cli_command;
 pub mod completion;
+pub mod concurrency;
 pub(crate) mod concurrency_group;
 pub mod config;
 pub(crate) mod config_warnings;

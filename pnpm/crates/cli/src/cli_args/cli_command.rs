@@ -16,6 +16,7 @@ use super::{
     ci::CiArgs,
     clean::CleanArgs,
     completion::{CompletionArgs, CompletionServerArgs},
+    concurrency::ConcurrencyArgs,
     config::{ConfigArgs, ConfigGetAliasArgs, ConfigSetAliasArgs},
     create::CreateArgs,
     dedupe::DedupeArgs,

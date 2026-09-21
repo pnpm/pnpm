@@ -400,6 +400,60 @@ fn a_nested_task_uses_the_slot_its_parent_holds() {
     drop(root);
 }
 
+fn concurrency_cmd(pacquet: &Command) -> Command {
+    let workspace = pacquet.get_current_dir().expect("workspace dir");
+    let mut command = Command::new(pacquet.get_program());
+    command.current_dir(workspace);
+    for (name, value) in pacquet.get_envs() {
+        match value {
+            Some(value) => command.env(name, value),
+            None => command.env_remove(name),
+        };
+    }
+    command.env("PNPM_CONFIG_STATE_DIR", state_dir(workspace));
+    command.arg("concurrency");
+    command
+}
+
+#[test]
+fn concurrency_prints_the_wait_list() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    write_project(&workspace, Path::new(pacquet.get_program()), 1);
+
+    let empty = concurrency_cmd(&pacquet).output().expect("list idle groups");
+    let empty_out = String::from_utf8(empty.stdout).expect("stdout utf8");
+    dbg!(&empty_out);
+    assert!(empty.status.success());
+    assert_eq!(empty_out.trim(), "No concurrency groups are in use.");
+
+    let mut holder = releasable_holder(&pacquet);
+    wait_for_holders(&workspace, 1);
+    let mut waiter = queued_run(&pacquet, "hold", "waiter", &workspace.join("order"));
+    wait_until_queued(&mut waiter);
+
+    let listed = concurrency_cmd(&pacquet).output().expect("list the wait line");
+    let stdout = String::from_utf8(listed.stdout).expect("stdout utf8");
+    dbg!(&stdout);
+    assert!(listed.status.success());
+    assert!(stdout.contains("test"), "{stdout}");
+    assert!(stdout.contains("running"), "{stdout}");
+    assert!(stdout.contains("waiting"), "{stdout}");
+    assert!(stdout.contains("1. "), "{stdout}");
+
+    let idle = concurrency_cmd(&pacquet)
+        .arg("missing")
+        .output()
+        .expect("list a missing group");
+    let idle_out = String::from_utf8(idle.stdout).expect("stdout utf8");
+    assert!(idle.status.success());
+    assert_eq!(idle_out.trim(), "missing: idle");
+
+    release_holders(&workspace);
+    assert!(waiter.wait().expect("waiter").success());
+    holder.wait().expect("holder");
+    drop(root);
+}
+
 /// `pnpm pipeline` runs the tasks of one invocation in-process, and they
 /// count against the same pools as separate invocations do.
 #[test]
