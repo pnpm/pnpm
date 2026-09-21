@@ -2,4 +2,4 @@
 "pacquet": patch
 ---
 
-Fixed configuration parsing in `pnpm-workspace.yaml` and `.npmrc` failing when enum-valued settings such as `nodeLinker` contain environment variable placeholders with fallback syntax [#14914](https://github.com/pnpm/pnpm/issues/14914).
+`pnpm-workspace.yaml` now expands environment variable placeholders with fallback syntax in enum-valued settings such as `nodeLinker` [#14914](https://github.com/pnpm/pnpm/issues/14914).

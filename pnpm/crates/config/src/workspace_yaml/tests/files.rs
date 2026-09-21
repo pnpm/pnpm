@@ -1,7 +1,9 @@
 use super::{
-    Config, NodeLinker, Path, StoreDir, WORKSPACE_MANIFEST_FILENAME, WorkspaceSettings, assert_eq,
-    fs,
+    ColorMode, Config, GlobalShimsSetting, NodeLinker, Path, SideEffectsCacheSetting, StoreDir,
+    WORKSPACE_MANIFEST_FILENAME, WorkspaceSettings, assert_eq, fs,
 };
+use pnpm_testing_utils::env_guard::EnvGuard;
+use std::env;
 
 #[test]
 fn parses_ignore_compatibility_db_from_yaml_and_applies() {
@@ -167,22 +169,30 @@ fn load_at_collects_issues_from_a_tab_indented_file() {
     assert_eq!(settings.key_issues.unrecognized, ["zzzNotASettingZzz"]);
 }
 
-/// Env-variable placeholders with fallback syntax are expanded before YAML
-/// parsing, so enum-valued settings like `nodeLinker` can hold a placeholder
-/// that resolves to a valid variant name.
-///
-/// Regression test for <https://github.com/pnpm/pnpm/issues/14914>.
 #[test]
-fn load_at_expands_env_placeholder_in_enum_field() {
-    // The env var PNPM_TEST_14914_LINKER is unset in the test process, so
-    // the fallback `isolated` is used. The result must be the `Isolated`
-    // variant — if env substitution does not happen before YAML parsing
-    // serde would see the literal `${PNPM_TEST_14914_LINKER:-isolated}`
-    // and reject it as an unknown variant.
+fn load_at_expands_env_placeholders_in_typed_fields() {
+    let _guard = EnvGuard::snapshot([
+        "PNPM_TEST_14914_COLOR",
+        "PNPM_TEST_14914_GLOBAL_SHIMS",
+        "PNPM_TEST_14914_LINKER",
+        "PNPM_TEST_14914_SIDE_EFFECTS_CACHE",
+    ]);
+    // SAFETY: EnvGuard serializes the test and restores these variables on drop.
+    unsafe {
+        env::remove_var("PNPM_TEST_14914_COLOR");
+        env::remove_var("PNPM_TEST_14914_GLOBAL_SHIMS");
+        env::remove_var("PNPM_TEST_14914_LINKER");
+        env::remove_var("PNPM_TEST_14914_SIDE_EFFECTS_CACHE");
+    }
     let dir = tempfile::tempdir().unwrap();
     fs::write(
         dir.path().join(WORKSPACE_MANIFEST_FILENAME),
-        "nodeLinker: ${PNPM_TEST_14914_LINKER:-isolated}\n",
+        concat!(
+            "color: ${PNPM_TEST_14914_COLOR:-auto}\n",
+            "globalShims: ${PNPM_TEST_14914_GLOBAL_SHIMS:-false}\n",
+            "nodeLinker: ${PNPM_TEST_14914_LINKER:-isolated}\n",
+            "sideEffectsCache: ${PNPM_TEST_14914_SIDE_EFFECTS_CACHE:-false}\n",
+        ),
     )
     .unwrap();
 
@@ -190,5 +200,14 @@ fn load_at_expands_env_placeholder_in_enum_field() {
         .expect("load pnpm-workspace.yaml")
         .expect("pnpm-workspace.yaml is present");
 
+    assert_eq!(settings.color, Some(ColorMode::Auto));
+    assert_eq!(settings.global_shims, Some(GlobalShimsSetting::Toggle(false)));
     assert_eq!(settings.node_linker, Some(NodeLinker::Isolated));
+    assert_eq!(settings.side_effects_cache, Some(SideEffectsCacheSetting::Enabled(false)));
+}
+
+#[test]
+fn env_expanding_deserializer_rejects_boolean_for_string_only_enum() {
+    serde_saphyr::from_str::<WorkspaceSettings>("nodeLinker: false\n")
+        .expect_err("a boolean is not a node linker");
 }

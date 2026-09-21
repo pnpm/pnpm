@@ -33,8 +33,8 @@ where
     Value: serde::de::DeserializeOwned,
     ErrorType: serde::de::Error,
 {
-    if let Ok(v) = serde_json::from_value::<Value>(serde_json::Value::Bool(value)) {
-        return Ok(v);
+    if let Ok(value) = serde_json::from_value::<Value>(serde_json::Value::Bool(value)) {
+        return Ok(value);
     }
     if value {
         serde_saphyr::from_str::<Value>("true").map_err(ErrorType::custom)
@@ -67,7 +67,7 @@ where
             let (expanded, _) = env_replace_lossy::<SystemEnv>(&s);
             serde_saphyr::from_str::<Value>(&expanded).map(Some).map_err(De::Error::custom)
         }
-        serde_json::Value::Bool(b) => deserialize_bool_value(b).map(Some),
+        serde_json::Value::Bool(value) => deserialize_bool_value(value).map(Some),
         other => serde_json::from_value::<Value>(other).map(Some).map_err(De::Error::custom),
     }
 }
@@ -109,6 +109,7 @@ pub struct WorkspaceSettings {
     pub ci: Option<bool>,
     pub progress: Option<bool>,
     pub update_notifier: Option<bool>,
+    #[serde(default, deserialize_with = "deserialize_option_with_env_expand")]
     pub color: Option<crate::ColorMode>,
     pub embed_readme: Option<bool>,
     pub ignore_workspace_root_check: Option<bool>,
@@ -163,6 +164,7 @@ pub struct WorkspaceSettings {
     /// `config.yaml`. One layer of the record; merged key-wise into
     /// [`Config::global_shims`](crate::settings::Config::global_shims) rather than assigned
     /// wholesale. See [`crate::GlobalShims`].
+    #[serde(default, deserialize_with = "deserialize_option_with_env_expand")]
     pub global_shims: Option<crate::GlobalShimsSetting>,
     /// `enableModulesDir` from `pnpm-workspace.yaml`. See
     /// [`Config::enable_modules_dir`](crate::settings::Config::enable_modules_dir).
@@ -306,6 +308,7 @@ pub struct WorkspaceSettings {
     pub frozen_store: Option<bool>,
     /// `sideEffectsCache`: whether a build is restored, whether one is saved,
     /// and where from. A bare boolean sets reading and writing together.
+    #[serde(default, deserialize_with = "deserialize_option_with_env_expand")]
     pub side_effects_cache: Option<SideEffectsCacheSetting>,
     /// The boolean spelling of `sideEffectsCache: { read: true, write: false }`.
     pub side_effects_cache_readonly: Option<bool>,
