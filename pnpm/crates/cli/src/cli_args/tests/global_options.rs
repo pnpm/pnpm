@@ -224,15 +224,22 @@ fn script_scoped_global_flags_parse_before_script_commands() {
         ["pacquet", "--resume-from", "pkg", "start"].as_slice(),
         ["pacquet", "--no-bail", "stop"].as_slice(),
         ["pacquet", "-r", "--no-bail", "rebuild"].as_slice(),
-        ["pacquet", "-r", "--no-bail", "install-test"].as_slice(),
-        ["pacquet", "install-test", "--no-bail"].as_slice(),
         ["pacquet", "-r", "--report-summary", ".test"].as_slice(),
     ] {
         let parsed = CliArgs::try_parse_from(argv).expect("parses script-scoped global flag");
-        if argv.contains(&"--no-bail") {
-            assert!(parsed.workspace.execution.no_bail);
-        }
         parsed.validate_command_scoped_global_options().expect("script command accepts flag");
+    }
+}
+
+#[test]
+fn install_test_accepts_no_bail_before_and_after_the_command() {
+    for argv in [
+        ["pacquet", "-r", "--no-bail", "install-test"].as_slice(),
+        ["pacquet", "install-test", "--no-bail"].as_slice(),
+    ] {
+        let parsed = CliArgs::try_parse_from(argv).expect("parses install-test with --no-bail");
+        assert!(parsed.workspace.execution.no_bail, "argv: {argv:?}");
+        parsed.validate_command_scoped_global_options().expect("install-test accepts --no-bail");
     }
 }
 
