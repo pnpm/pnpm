@@ -1,8 +1,8 @@
 use super::{
     AtomicU8, Context, DeployError, DeployFiles, DirectoryFetcher, ImportIndexedDirOpts,
-    IntoDiagnostic, Lockfile, PackageImportMethod, PackageManifest, Path, PathBuf, Reporter, Value,
+    IntoDiagnostic, Lockfile, PackageImportMethod, PackageManifest, Path, PathBuf, Reporter,
     WORKSPACE_MANIFEST_FILENAME, Write, apply_deploy_manifest_hook, fs, import_indexed_dir, io,
-    lexical_normalize, remove_dirent, warn,
+    lexical_normalize, remove_dirent, warn, workspace_manifest_yaml,
 };
 #[cfg(windows)]
 use std::os::windows::fs::MetadataExt;
@@ -366,22 +366,4 @@ fn write_atomic(path: &Path, contents: &[u8]) -> io::Result<()> {
     }
     tmp.persist(path).map_err(|error| error.error)?;
     Ok(())
-}
-
-fn workspace_manifest_yaml(workspace_manifest: &Value) -> String {
-    let mut out = String::new();
-    let Some(object) = workspace_manifest.as_object() else { return out };
-    for field in ["patchedDependencies", "allowBuilds"] {
-        let Some(values) = object.get(field).and_then(Value::as_object) else { continue };
-        out.push_str(field);
-        out.push_str(":\n");
-        for (key, value) in values {
-            out.push_str("  ");
-            out.push_str(&serde_json::to_string(key).unwrap_or_else(|_| format!("{key:?}")));
-            out.push_str(": ");
-            out.push_str(&serde_json::to_string(value).unwrap_or_else(|_| value.to_string()));
-            out.push('\n');
-        }
-    }
-    out
 }

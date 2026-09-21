@@ -51,6 +51,7 @@ use target::{
     prepare_deploy_dir, relative_path, resolve_target_dir, same_path, validate_deploy_target,
     write_deploy_files,
 };
+use workspace_manifest::{deploy_workspace_manifest, workspace_manifest_yaml};
 
 #[derive(Debug, Args)]
 pub struct DeployArgs {
@@ -396,3 +397,5 @@ mod peers;
 mod lockfile;
 
 mod install;
+
+mod workspace_manifest;
