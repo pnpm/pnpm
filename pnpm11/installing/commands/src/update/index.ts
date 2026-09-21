@@ -411,7 +411,10 @@ async function interactiveUpdate (
     },
   }))
 
-  return update(updatePkgNames, opts, rebuildHandler) as Promise<undefined>
+  // The prompt has already selected concrete aliases; apply the normal update
+  // path without prompting a second time. This also preserves --peer so the
+  // selected aliases are written to peerDependencies only.
+  return update(updatePkgNames, { ...opts, interactive: false }, rebuildHandler) as Promise<undefined>
 }
 
 /**
@@ -437,9 +440,6 @@ async function update (
 ): Promise<void> {
   assertPatchesOptions(dependencies, opts)
   const includeDirect = makeIncludeDependenciesFromCLI(opts.cliOptions)
-  if (opts.interactive && opts.cliOptions.peer === true) {
-    throw new PnpmError('BAD_OPTIONS', 'Cannot use --peer with --interactive')
-  }
   const updateActions = shouldUpdateGitHubActions(opts, includeDirect)
   if (opts.latest) {
     const dependenciesWithTags = dependencies.filter((name) =>
