@@ -1,8 +1,8 @@
 use super::{
     ERROR_LOCK_VIOLATION, ERROR_SHARING_VIOLATION, RetryTiming, create_dir_all_with_retry,
-    create_dir_with_retry, is_transient_file_lock_error, remove_dir_all_with_retry,
-    remove_dir_with_retry, rename_with_retry, retry_fs_operation, retry_fs_operation_with_timing,
-    symlink_metadata_with_retry,
+    create_dir_with_retry, is_transient_file_lock_error, metadata_with_retry,
+    remove_dir_all_with_retry, remove_dir_with_retry, rename_with_retry, retry_fs_operation,
+    retry_fs_operation_with_timing, symlink_metadata_with_retry,
 };
 use std::{cell::Cell, fs, io, time::Duration};
 use tempfile::tempdir;
@@ -240,4 +240,32 @@ fn explicit_locks_keep_the_full_budget() {
         assert_eq!(result.unwrap_err().raw_os_error(), Some(code));
         assert_eq!(elapsed.get(), Duration::from_mins(1));
     }
+}
+
+#[test]
+fn metadata_with_retry_follows_directory_links() {
+    let root = tempdir().unwrap();
+    let target = root.path().join("target");
+    let link = root.path().join("link");
+    fs::create_dir(&target).unwrap();
+    crate::symlink_dir(&target, &link).unwrap();
+
+    let metadata = metadata_with_retry(&link).expect("inspect the link target");
+
+    assert!(metadata.is_dir());
+    assert!(!metadata.file_type().is_symlink());
+}
+
+#[test]
+fn metadata_with_retry_reports_a_missing_target() {
+    let root = tempdir().unwrap();
+    let target = root.path().join("target");
+    let link = root.path().join("link");
+    fs::create_dir(&target).unwrap();
+    crate::symlink_dir(&target, &link).unwrap();
+    fs::remove_dir(&target).unwrap();
+
+    let error = metadata_with_retry(&link).expect_err("a broken link has no target metadata");
+
+    assert_eq!(error.kind(), io::ErrorKind::NotFound);
 }

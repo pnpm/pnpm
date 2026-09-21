@@ -74,7 +74,7 @@ pub(super) fn regular_child_present(
 /// writes. A plain file or directory in its place is a corrupted slot,
 /// not a link, so it does not count.
 pub(super) fn child_link_present(child_path: &Path) -> Result<bool, CreateVirtualStoreError> {
-    match std::fs::symlink_metadata(child_path) {
+    match pnpm_fs::symlink_metadata_with_retry(child_path) {
         Ok(metadata) => {
             if metadata.file_type().is_symlink() {
                 return Ok(true);
@@ -111,7 +111,7 @@ pub(super) fn probe_slot_entry(
     path: &Path,
     kind: EntryKind,
 ) -> Result<bool, CreateVirtualStoreError> {
-    match std::fs::metadata(path) {
+    match pnpm_fs::metadata_with_retry(path) {
         Ok(metadata) => Ok(match kind {
             EntryKind::Dir => metadata.is_dir(),
             EntryKind::File => metadata.is_file(),
@@ -153,13 +153,13 @@ pub(super) fn optional_child_matches(
     should_exist: bool,
 ) -> std::io::Result<bool> {
     if should_exist {
-        return match std::fs::metadata(child_path) {
+        return match pnpm_fs::metadata_with_retry(child_path) {
             Ok(metadata) => Ok(metadata.is_dir()),
             Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(false),
             Err(error) => Err(error),
         };
     }
-    match std::fs::symlink_metadata(child_path) {
+    match pnpm_fs::symlink_metadata_with_retry(child_path) {
         Ok(_) => Ok(false),
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(true),
         Err(error) => Err(error),

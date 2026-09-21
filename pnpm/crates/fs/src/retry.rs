@@ -65,6 +65,11 @@ pub fn remove_dir_with_retry(path: &Path) -> io::Result<()> {
     retry_transient_file_locks(|| fs::remove_dir(path))
 }
 
+/// Read metadata following symlinks, with the retry policy of [`rename_with_retry`].
+pub fn metadata_with_retry(path: &Path) -> io::Result<fs::Metadata> {
+    retry_transient_file_locks(|| fs::metadata(path))
+}
+
 /// Read a dirent's metadata without following it, with the retry policy of
 /// [`rename_with_retry`].
 ///
