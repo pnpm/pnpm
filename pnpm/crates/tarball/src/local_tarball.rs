@@ -127,6 +127,29 @@ pub(crate) fn is_unc_like_file_payload(path: &str) -> bool {
         || (path.starts_with("//") && !path.starts_with("///"))
 }
 
+/// Read `relative_path` out of extracted CAS paths and return the
+/// bundled-manifest subset. Missing or unparsable JSON is `None` so
+/// the caller can degrade rather than fail the resolve.
+pub(crate) async fn read_cas_package_json(
+    cas_paths: &HashMap<String, PathBuf>,
+    relative_path: &str,
+) -> Result<Option<serde_json::Value>, TarballError> {
+    let Some(cas_path) = cas_paths.get(relative_path) else { return Ok(None) };
+    let bytes = tokio::fs::read(cas_path).await
+        .map_err(|source| TarballError::ReadLocalTarball { path: cas_path.clone(), source })?;
+    match parse_manifest_bytes(&bytes) {
+        Ok(parsed) => Ok(normalize_bundled_manifest(&parsed)),
+        Err(error) => {
+            tracing::debug!(
+                ?error,
+                relative_path,
+                "package.json in extracted archive failed to parse as JSON; bundled manifest cleared",
+            );
+            Ok(None)
+        }
+    }
+}
+
 /// Read `<subdir>/package.json` out of a freshly extracted archive.
 ///
 /// Extraction only stashes the *root* `package.json` on the
@@ -143,20 +166,7 @@ pub(crate) async fn read_subdir_manifest(
     // top-level prefix strip; the resolution's `path` keeps the leading
     // slash it was written with (`#path:/packages/foo`).
     let key = format!("{}/package.json", subdir.trim_matches('/'));
-    let Some(cas_path) = cas_paths.get(&key) else { return Ok(None) };
-    let bytes = tokio::fs::read(cas_path).await
-        .map_err(|source| TarballError::ReadLocalTarball { path: cas_path.clone(), source })?;
-    match parse_manifest_bytes(&bytes) {
-        Ok(parsed) => Ok(normalize_bundled_manifest(&parsed)),
-        Err(error) => {
-            tracing::debug!(
-                ?error,
-                ?key,
-                "package.json in archive subdirectory failed to parse as JSON; bundled manifest cleared",
-            );
-            Ok(None)
-        }
-    }
+    read_cas_package_json(cas_paths, &key).await
 }
 
 /// Outcome of [`read_local_tarball_metadata`]: the sha512 integrity

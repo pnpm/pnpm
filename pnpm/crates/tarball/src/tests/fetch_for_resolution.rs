@@ -4,8 +4,19 @@ use super::{
     SilentReporter, ThrottledClient, fast_retry_opts, integrity, tempdir_with_leaked_path,
     test_retry_opts,
 };
-use crate::package_mem_cache_key;
-use std::time::Duration;
+use crate::{CacheValue, CachedTarball, package_mem_cache_key};
+use std::{collections::HashMap, sync::Arc, time::Duration};
+use tokio::sync::RwLock;
+
+async fn wait_until_claimed(mem_cache: &MemCache, cache_key: &str) {
+    tokio::time::timeout(Duration::from_secs(5), async {
+        while !mem_cache.contains_key(cache_key) {
+            tokio::task::yield_now().await;
+        }
+    })
+    .await
+    .unwrap_or_else(|_| panic!("prefetch did not claim {cache_key}"));
+}
 
 fn ingest<'a>(
     client: &'a ThrottledClient,
@@ -132,9 +143,7 @@ async fn pinned_resolution_read_parks_on_an_in_flight_prefetch() {
             .run_with_mem_cache::<SilentReporter>(mem_cache)
             .await
     });
-    while !mem_cache.contains_key(&cache_key) {
-        tokio::task::yield_now().await;
-    }
+    wait_until_claimed(mem_cache, &cache_key).await;
 
     let resolved = resolution_read(client, auth_headers, url, pkg_integrity, store_path)
         .run::<SilentReporter>(Some(mem_cache))
@@ -144,6 +153,51 @@ async fn pinned_resolution_read_parks_on_an_in_flight_prefetch() {
 
     let manifest = resolved.manifest.expect("bundled manifest");
     assert_eq!(manifest.get("name").and_then(serde_json::Value::as_str), Some("@fastify/error"));
+    mock.assert_async().await;
+    drop(store_dir_keep);
+}
+
+/// <https://github.com/pnpm/pnpm/issues/15037>
+#[tokio::test]
+async fn pinned_resolution_read_recovers_manifest_from_a_files_only_slot() {
+    let (store_dir_keep, store_path) = tempdir_with_leaked_path();
+    let mut server = mockito::Server::new_async().await;
+    let mock = server
+        .mock("GET", "/pkg.tgz")
+        .with_status(200)
+        .with_body(FASTIFY_ERROR_TARBALL)
+        .expect(0)
+        .create_async()
+        .await;
+    let url = format!("{}/pkg.tgz", server.url());
+    let client = ThrottledClient::default();
+    let auth_headers = AuthHeaders::default();
+    let pkg_integrity = integrity(FASTIFY_ERROR_INTEGRITY);
+    let mem_cache = MemCache::default();
+
+    let cas_file = store_dir_keep.path().join("package.json");
+    std::fs::write(
+        &cas_file,
+        r#"{"name":"@fastify/error","version":"3.3.0","dependencies":{"foo":"1.0.0"},"description":"dropped"}"#,
+    )
+    .expect("write cas package.json");
+    let mut files = HashMap::new();
+    files.insert("package.json".to_string(), cas_file);
+    mem_cache.insert(
+        package_mem_cache_key(&url, Some(&pkg_integrity), false),
+        Arc::new(RwLock::new(CacheValue::Available(CachedTarball::from_files(files)))),
+    );
+
+    let resolved = resolution_read(&client, &auth_headers, &url, &pkg_integrity, store_path)
+        .run::<SilentReporter>(Some(&mem_cache))
+        .await
+        .expect("the read takes package.json from the files-only slot");
+
+    let manifest = resolved.manifest.expect("bundled manifest");
+    assert_eq!(manifest.get("name").and_then(serde_json::Value::as_str), Some("@fastify/error"));
+    assert_eq!(manifest.get("version").and_then(serde_json::Value::as_str), Some("3.3.0"));
+    assert_eq!(manifest["dependencies"]["foo"].as_str(), Some("1.0.0"));
+    assert_eq!(manifest.get("description"), None);
     mock.assert_async().await;
     drop(store_dir_keep);
 }

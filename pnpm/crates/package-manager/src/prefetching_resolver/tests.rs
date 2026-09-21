@@ -159,6 +159,14 @@ fn resolver_with_prefetch(
     inner: Box<dyn Resolver>,
     prefetch_downloads: bool,
 ) -> PrefetchingResolver<SilentReporter> {
+    resolver_with_mem_cache(dir, inner, prefetch_downloads).0
+}
+
+fn resolver_with_mem_cache(
+    dir: &Path,
+    inner: Box<dyn Resolver>,
+    prefetch_downloads: bool,
+) -> (PrefetchingResolver<SilentReporter>, Arc<MemCache>) {
     let mut config = Config::new();
     config.store_dir = dir.join("store").into();
     config.cache_dir = dir.join("cache");
@@ -169,7 +177,7 @@ fn resolver_with_prefetch(
     let http_client = Arc::new(ThrottledClient::default());
     let mem_cache = Arc::new(MemCache::default());
     let (store_index_writer, _writer_task) = StoreIndexWriter::spawn_disabled();
-    PrefetchingResolver::new(
+    let resolver = PrefetchingResolver::new(
         inner,
         PrefetchContext {
             http_client: &http_client,
@@ -185,7 +193,8 @@ fn resolver_with_prefetch(
             },
             policy: crate::PrefetchPolicy { downloads: prefetch_downloads, custom_session: None },
         },
-    )
+    );
+    (resolver, mem_cache)
 }
 
 fn resolver() -> PrefetchingResolver<SilentReporter> {
@@ -672,9 +681,7 @@ async fn a_revision_addressed_resolution_gets_its_own_cache_cell() {
     assert_ne!(dbg!(key(&direct)), dbg!(key(&revision)));
 }
 
-/// Two resolutions of one archive, the manifest-bearing one claiming the
-/// download first. The other parks on that fetch instead of starting a
-/// second GET. <https://github.com/pnpm/pnpm/issues/15037>
+/// <https://github.com/pnpm/pnpm/issues/15037>
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn a_manifest_read_reuses_the_prefetch_already_in_flight() {
     let dir = tempdir().unwrap();
@@ -701,18 +708,30 @@ async fn a_manifest_read_reuses_the_prefetch_already_in_flight() {
         .create_async()
         .await;
     let mut with_manifest = integrity_pinned_result(&tarball_url);
+    let pkg_integrity: ssri::Integrity = integrity.parse().expect("parse integrity");
     if let LockfileResolution::Tarball(tarball) = &mut with_manifest.resolution {
-        tarball.integrity = Some(integrity.parse().expect("parse integrity"));
+        tarball.integrity = Some(pkg_integrity.clone());
     }
     let without_manifest = manifestless_tarball_result(&tarball_url, &integrity);
-    let resolver =
-        resolver_with_inner(dir.path(), Box::new(DualResolver { with_manifest, without_manifest }));
+    let (resolver, mem_cache) = resolver_with_mem_cache(
+        dir.path(),
+        Box::new(DualResolver { with_manifest, without_manifest }),
+        true,
+    );
+    let cache_key = package_mem_cache_key(&tarball_url, Some(&pkg_integrity), false);
 
     let prefetched = resolver
         .resolve(&WantedDependency::default(), &ResolveOptions::default())
         .await
         .expect("prefetching resolve succeeds")
         .expect("resolver returns a result");
+    tokio::time::timeout(std::time::Duration::from_secs(5), async {
+        while !mem_cache.contains_key(&cache_key) {
+            tokio::task::yield_now().await;
+        }
+    })
+    .await
+    .expect("prefetch claimed the mem-cache slot");
     let read = resolver
         .resolve(
             &WantedDependency {

@@ -122,10 +122,9 @@ fn cached_row(
     package_content_check: PackageContentCheck,
     verified_files_cache: &SharedVerifiedFilesCache,
 ) -> CachedRow {
-    let Some(entry) = read_row(index, cache_key) else {
+    let Some(mut entry) = read_row(index, cache_key) else {
         return CachedRow::Miss;
     };
-    let manifest = entry.manifest.clone();
 
     let mismatch = match package_content_check {
         PackageContentCheck::Strict | PackageContentCheck::Warn => {
@@ -139,6 +138,7 @@ fn cached_row(
         return CachedRow::Rejected(mismatch);
     }
 
+    let manifest = entry.manifest.take();
     let verify_result = if verify_store_integrity {
         pnpm_store_dir::check_pkg_files_integrity(store_dir, entry, verified_files_cache)
     } else {

@@ -4,8 +4,8 @@
 use crate::{
     CacheValue, CachedTarball, MemCache, RetryOpts, TarballError, TarballPackage,
     apply_placeholder_manifest, claim_cache_entry, download::fetch_and_extract_with_retry,
-    package_mem_cache_key, publish_cache_failure, publish_cached_tarball, read_subdir_manifest,
-    wait_for_cached_tarball,
+    package_mem_cache_key, publish_cache_failure, publish_cached_tarball, read_cas_package_json,
+    read_subdir_manifest, wait_for_cached_tarball,
 };
 use pnpm_network::{AuthHeaders, ThrottledClient, UNPRIORITIZED};
 use pnpm_reporter::Reporter;
@@ -83,7 +83,11 @@ pub struct FetchTarballForResolution<'a> {
 struct ExtractedTarball {
     integrity: Integrity,
     files: Arc<HashMap<String, PathBuf>>,
+    /// Manifest the caller asked for: the archive root, or a subdirectory.
     manifest: Option<serde_json::Value>,
+    /// Archive-root bundled subset. The mem-cache slot is keyed by the
+    /// archive, so waiters always see this rather than a subdirectory.
+    root_manifest: Option<serde_json::Value>,
 }
 
 impl ExtractedTarball {
@@ -140,9 +144,10 @@ impl FetchTarballForResolution<'_> {
         &self,
         cached: &CachedTarball,
     ) -> Result<Option<serde_json::Value>, TarballError> {
-        match self.manifest_subdir {
-            Some(subdir) => read_subdir_manifest(&cached.files, subdir).await,
-            None => Ok(cached.manifest.clone()),
+        match (&self.manifest_subdir, cached.manifest.as_ref()) {
+            (Some(subdir), _) => read_subdir_manifest(&cached.files, subdir).await,
+            (None, Some(manifest)) => Ok(Some(manifest.clone())),
+            (None, None) => read_cas_package_json(&cached.files, "package.json").await,
         }
     }
 
@@ -160,7 +165,7 @@ impl FetchTarballForResolution<'_> {
                     &notify,
                     CachedTarball {
                         files: Arc::clone(&extracted.files),
-                        manifest: extracted.manifest.clone(),
+                        manifest: extracted.root_manifest.clone(),
                     },
                 )
                 .await;
@@ -186,16 +191,17 @@ impl FetchTarballForResolution<'_> {
     ) -> Result<ResolvedTarball, TarballError> {
         let extracted = self.fetch_extracted::<Reporter>().await?;
         if let Some(mem_cache) = mem_cache {
-            mem_cache.insert(
+            insert_available_if_vacant(
+                mem_cache,
                 package_mem_cache_key(
                     self.package.url,
                     Some(&extracted.integrity),
                     self.revision_addressed,
                 ),
-                Arc::new(RwLock::new(CacheValue::Available(Arc::new(CachedTarball {
+                CachedTarball {
                     files: Arc::clone(&extracted.files),
-                    manifest: extracted.manifest.clone(),
-                })))),
+                    manifest: extracted.root_manifest.clone(),
+                },
             );
         }
         Ok(extracted.into_resolved())
@@ -225,12 +231,13 @@ impl FetchTarballForResolution<'_> {
             )
             .await?;
         apply_placeholder_manifest(self.store_dir, &mut cas_paths, &mut pkg_files_idx)?;
+        let root_manifest = pkg_files_idx.manifest.clone();
         let manifest = match self.manifest_subdir {
             Some(subdir) => read_subdir_manifest(&cas_paths, subdir).await?,
-            None => pkg_files_idx.manifest.clone(),
+            None => root_manifest.clone(),
         };
         self.record_store_index_row(&integrity, pkg_files_idx);
-        Ok(ExtractedTarball { integrity, files: Arc::new(cas_paths), manifest })
+        Ok(ExtractedTarball { integrity, files: Arc::new(cas_paths), manifest, root_manifest })
     }
 
     /// File this extraction under the caller's `package_id` — the same
@@ -264,5 +271,11 @@ impl FetchTarballForResolution<'_> {
                 "no shared store-index writer; skipping index row for this resolve-time tarball",
             );
         }
+    }
+}
+
+fn insert_available_if_vacant(mem_cache: &MemCache, key: String, cached: CachedTarball) {
+    if let dashmap::mapref::entry::Entry::Vacant(entry) = mem_cache.entry(key) {
+        entry.insert(Arc::new(RwLock::new(CacheValue::Available(Arc::new(cached)))));
     }
 }

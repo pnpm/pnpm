@@ -540,7 +540,9 @@ pub(crate) async fn publish_cache_failure(
 ) {
     *cache_lock.write().await = CacheValue::Failed;
     if !revision_addressed {
-        mem_cache.remove(mem_cache_key);
+        mem_cache.remove_if(mem_cache_key, |_, existing| {
+            std::ptr::eq(existing.as_ref(), cache_lock)
+        });
     }
     notify.notify_waiters();
 }
