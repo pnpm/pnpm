@@ -1029,8 +1029,12 @@ fn global_update_restores_group_with_deleted_node_modules() {
         .expect("scan global packages")
         .expect("find the touch-file group after update");
     assert_ne!(install_after.install_dir, install_before.install_dir);
-    assert!(install_after.install_dir.join("node_modules").is_dir());
-    assert!(pnpm_home.join("bin/touch-file-one-bin").exists());
+    // The bin shim reaches its target through the hash link, not through the
+    // install dir it currently resolves to, so that is the path the restored
+    // package has to be reachable by.
+    let shim_target_package =
+        global_dir.join(&install_after.hash).join("node_modules/@foo/touch-file-one-bin");
+    assert!(shim_target_package.is_dir(), "the shim's target package is missing");
 
     drop((root, npmrc_info));
 }
