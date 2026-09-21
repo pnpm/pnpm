@@ -421,8 +421,8 @@ function runEmulated (run: ScriptRun, cb: Callback): void {
  * after a relayed signal `cb` waits for that group as well: the shell may
  * have died from the signal while the script it started is still shutting
  * down. A script killed by a signal makes pnpm raise that signal on itself
- * once the wait is over, which ends pnpm before `cb` unless something
- * handles the signal; `cb` then gets a `LifecycleError` for it.
+ * once every child running alongside it has settled, which ends pnpm before
+ * `cb` unless something handles the signal; `cb` then gets a `LifecycleError`.
  */
 function runSpawned (run: ScriptRun, spawned: SpawnedScript, cb: Callback): void {
   const { pkg, stage, opts } = run
@@ -437,15 +437,22 @@ function runSpawned (run: ScriptRun, spawned: SpawnedScript, cb: Callback): void
   // That comes after the wait for the script's process group: the raise
   // ends pnpm, and a shell that died from a relayed signal may have left
   // the script still shutting down.
-  const procError = createProcError(run, (er) => {
+  const procError = createProcError(run, cb)
+  let finishing = false
+  const finish = (er?: LifecycleError | null): void => {
+    if (finishing) return
+    finishing = true
     relay.settle().then(() => {
-      if (deathSignal) process.kill(process.pid, deathSignal)
-      cb(er)
-    }, () => cb(er))
-  })
+      if (deathSignal) {
+        relay.raise(deathSignal).then(() => procError(er), () => procError(er))
+      } else {
+        procError(er)
+      }
+    }, () => procError(er))
+  }
 
   proc.on('error', (err: LifecycleError) => {
-    procError(spawnObserverFailed ? spawnObserverError : err)
+    finish(spawnObserverFailed ? spawnObserverError : err)
   })
   proc.on('close', (code: number | null, signal: NodeJS.Signals | null) => {
     opts.log.silly('lifecycle', logId(pkg, stage), 'Returned: code:', code, ' signal:', signal)
@@ -459,7 +466,7 @@ function runSpawned (run: ScriptRun, spawned: SpawnedScript, cb: Callback): void
       err = new PnpmError('CHILD_PROCESS_FAILED', `Exit status ${code}`)
       err.errno = code
     }
-    procError(err)
+    finish(err)
   })
   // Inherited streams are null on the child; only piped output is reported.
   if (proc.stdout) {

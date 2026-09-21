@@ -30,6 +30,8 @@ export interface SignalRelay {
   relayed: () => boolean
   /** Terminate the child as pnpm's own exit would, once. */
   terminate: () => void
+  /** Raise a signal on pnpm once the children running alongside this one have settled. */
+  raise: (signal: NodeJS.Signals) => Promise<void>
   /**
    * Wait for the child's process group after a relayed signal, then stop
    * relaying. The shell may have died from the signal while the script it
@@ -48,8 +50,10 @@ export interface SignalRelay {
  * SIGTERM. A child with a process group of its own is signalled as a group.
  */
 export function relaySignals (child: SignalTarget, opts: RelaySignalsOptions): SignalRelay {
+  const group = joinRelayGroup()
   let interruptedBy: NodeJS.Signals | null = null
   let relayed = false
+  let settled = false
   let terminated = false
   const relay = (signal: NodeJS.Signals): void => {
     relayed = true
@@ -87,6 +91,15 @@ export function relaySignals (child: SignalTarget, opts: RelaySignalsOptions): S
   return {
     interruptedBy: () => interruptedBy,
     relayed: () => relayed,
+    raise: async (signal) => {
+      group.raised ??= group.settled.then(() => {
+        process.kill(process.pid, signal)
+        // Signal delivery is asynchronous. Leave it a turn to end pnpm before
+        // a caller reports the child as an ordinary command failure.
+        return new Promise<void>((resolve) => setTimeout(resolve, 1000))
+      })
+      await group.raised
+    },
     terminate,
     settle: async () => {
       try {
@@ -100,9 +113,35 @@ export function relaySignals (child: SignalTarget, opts: RelaySignalsOptions): S
         process.removeListener('SIGINT', terminate)
         process.removeListener('SIGINT', onInterrupt)
         process.removeListener('exit', terminate)
+        if (!settled) {
+          settled = true
+          group.active -= 1
+          if (group.active === 0) group.resolve()
+        }
       }
     },
   }
+}
+
+interface RelayGroup {
+  active: number
+  settled: Promise<void>
+  resolve: () => void
+  raised?: Promise<void>
+}
+
+let currentRelayGroup: RelayGroup | undefined
+
+function joinRelayGroup (): RelayGroup {
+  if (currentRelayGroup == null || currentRelayGroup.active === 0) {
+    let resolve!: () => void
+    const settled = new Promise<void>((resolvePromise) => {
+      resolve = resolvePromise
+    })
+    currentRelayGroup = { active: 0, settled, resolve }
+  }
+  currentRelayGroup.active += 1
+  return currentRelayGroup
 }
 
 /**
