@@ -1209,7 +1209,9 @@ pub struct Config {
     /// waits for a running one to finish. Waiters start in the order they
     /// began waiting, and a higher
     /// [`TaskSettings::priority`](workspace_yaml::TaskSettings::priority)
-    /// starts before waiters that arrived earlier. A group no entry names
+    /// starts before waiters that arrived earlier. When limits differ
+    /// across workspaces, a later waiter can take a free slot outside
+    /// every earlier waiter's limit. A group no entry names
     /// has no limit, and neither has a group whose entry is `0`, which is
     /// how a higher layer lifts a limit a lower one set.
     ///
