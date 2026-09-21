@@ -229,6 +229,9 @@ fn script_scoped_global_flags_parse_before_script_commands() {
         ["pacquet", "-r", "--report-summary", ".test"].as_slice(),
     ] {
         let parsed = CliArgs::try_parse_from(argv).expect("parses script-scoped global flag");
+        if argv.contains(&"--no-bail") {
+            assert!(parsed.workspace.execution.no_bail);
+        }
         parsed.validate_command_scoped_global_options().expect("script command accepts flag");
     }
 }
