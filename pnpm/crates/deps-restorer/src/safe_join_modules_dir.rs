@@ -36,7 +36,7 @@ pub fn safe_join_modules_dir(
             alias: alias.to_owned(),
         });
     }
-    Ok(modules.join(alias))
+    Ok(pnpm_fs::join_slash_separated_path(modules, alias))
 }
 
 #[cfg(test)]

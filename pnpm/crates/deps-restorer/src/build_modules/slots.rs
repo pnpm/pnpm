@@ -19,9 +19,9 @@ use super::{
 /// silently dropped lifecycle scripts for peer-resolved snapshots
 /// — never use it here.
 ///
-/// The package-name segment still comes from the peer-stripped key,
-/// because the slot's `node_modules/<pkg>` is keyed by the bare
-/// package name regardless of peer context.
+/// The package-name segment is `key.name`, which carries no
+/// peer context: the slot's `node_modules/<pkg>` is keyed by the bare
+/// package name whatever the peers resolved to.
 ///
 /// [#432]: https://github.com/pnpm/pacquet/issues/432
 pub(crate) fn virtual_store_dir_for_key(
