@@ -521,6 +521,10 @@ export async function getConfig (opts: {
       }
     }
 
+    if (opts.cliOptions['shared-workspace-lockfile'] != null && !pnpmConfig.workspaceDir && !cliOptions['global']) {
+      warnings.push('The "shared-workspace-lockfile" option was ignored because no "pnpm-workspace.yaml" was found.')
+    }
+
     // `lockfileDir` moves `rootProjectManifestDir` off the workspace root,
     // and the engine pins stay with the workspace the contributor works in.
     // Re-read only when the two directories differ.

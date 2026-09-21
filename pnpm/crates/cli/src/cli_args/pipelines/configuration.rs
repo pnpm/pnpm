@@ -1,8 +1,9 @@
 use super::{
     Config, Context, Host, InstallArgs, Path, PathBuf, ReporterType, read_manifest_json,
     reporter_emit, resolve_bool_override, warn_deprecated_override_version_references,
-    warn_ignored_pnpm_manifest_fields, warn_unapplied_package_configs,
-    warn_unmatched_registry_options, warn_unsupported_workspaces_field,
+    warn_ignored_pnpm_manifest_fields, warn_shared_workspace_lockfile_outside_workspace,
+    warn_unapplied_package_configs, warn_unmatched_registry_options,
+    warn_unsupported_workspaces_field,
 };
 
 /// [`select_workspace_projects`](super::select_workspace_projects), optionally running the install's
@@ -42,6 +43,7 @@ pub(crate) fn derive_config_root(
     warn_deprecated_override_version_references(cfg, reporter_emit(reporter));
     warn_unmatched_registry_options(cfg);
     warn_unapplied_package_configs(cfg);
+    warn_shared_workspace_lockfile_outside_workspace(None, cfg.workspace_dir.as_deref());
     Ok(config_root)
 }
 

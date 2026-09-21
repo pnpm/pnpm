@@ -21,7 +21,10 @@ use super::{
 use crate::{
     State,
     cli_args::{
-        config_warnings::{warn_unapplied_package_configs, warn_unmatched_registry_options},
+        config_warnings::{
+            warn_shared_workspace_lockfile_outside_workspace, warn_unapplied_package_configs,
+            warn_unmatched_registry_options,
+        },
         legacy_pnpm_field::warn_ignored_pnpm_manifest_fields,
         override_version_references::warn_deprecated_override_version_references,
         reporter::{ReporterType, reporter_emit},

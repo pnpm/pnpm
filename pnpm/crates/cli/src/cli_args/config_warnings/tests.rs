@@ -1,4 +1,7 @@
-use super::{unapplied_package_configs_warning, unmatched_registry_options_warning};
+use super::{
+    shared_workspace_lockfile_outside_workspace_warning, unapplied_package_configs_warning,
+    unmatched_registry_options_warning,
+};
 use indexmap::IndexMap;
 use pnpm_config::{Config, ProjectConfig};
 use pnpm_lockfile::{RegistryOptions, RegistryServerType};
@@ -238,4 +241,24 @@ fn sanitizes_the_project_name() {
     let received = unapplied_package_configs_warning(&config).expect("a warning");
     println!("{received}");
     assert!(!received.contains('\u{1b}'), "{received}");
+}
+
+#[test]
+fn warns_when_shared_workspace_lockfile_is_set_outside_a_workspace() {
+    let received =
+        shared_workspace_lockfile_outside_workspace_warning(Some(true), None).expect("a warning");
+    assert_eq!(
+        received,
+        "The \"shared-workspace-lockfile\" option was ignored because no \"pnpm-workspace.yaml\" was found."
+    );
+}
+
+#[test]
+fn no_warning_when_in_workspace_or_not_set_on_cli() {
+    let workspace_path = std::path::Path::new("/workspace");
+    assert_eq!(
+        shared_workspace_lockfile_outside_workspace_warning(Some(true), Some(workspace_path)),
+        None
+    );
+    assert_eq!(shared_workspace_lockfile_outside_workspace_warning(None, None), None);
 }

@@ -594,6 +594,20 @@ test('throw error if --shared-workspace-lockfile is used with --global', async (
   })
 })
 
+test('warn if --shared-workspace-lockfile is used outside a workspace', async () => {
+  const { warnings } = await getConfig({
+    cliOptions: {
+      'shared-workspace-lockfile': true,
+    },
+    env,
+    packageManager: {
+      name: 'pnpm',
+      version: '1.0.0',
+    },
+  })
+  expect(warnings).toContain('The "shared-workspace-lockfile" option was ignored because no "pnpm-workspace.yaml" was found.')
+})
+
 test('throw error if --lockfile-dir is used with --global', async () => {
   await expect(getConfig({
     cliOptions: {
