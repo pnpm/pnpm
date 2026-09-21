@@ -46,6 +46,23 @@ export interface SignalRelay {
   settle: () => Promise<void>
 }
 
+export interface SignalRelayReservation {
+  release: () => void
+}
+
+/** Keep the active relay group open while a lifecycle prepares to spawn. */
+export function reserveSignalRelay (): SignalRelayReservation {
+  const group = joinRelayGroup()
+  let released = false
+  return {
+    release: () => {
+      if (released) return
+      released = true
+      settleRelayGroup(group)
+    },
+  }
+}
+
 /**
  * Relay pnpm's own signals to `child` until `settle` is called.
  *
@@ -147,8 +164,7 @@ export function relaySignals (child: SignalTarget, opts: RelaySignalsOptions): S
         process.removeListener('exit', terminate)
         if (!settled) {
           settled = true
-          group.active -= 1
-          if (group.active === 0) group.resolve()
+          settleRelayGroup(group)
         }
       }
       if (group.interrupted || group.raised != null) {
@@ -181,6 +197,11 @@ function joinRelayGroup (): RelayGroup {
   }
   currentRelayGroup.active += 1
   return currentRelayGroup
+}
+
+function settleRelayGroup (group: RelayGroup): void {
+  group.active -= 1
+  if (group.active === 0) group.resolve()
 }
 
 /**

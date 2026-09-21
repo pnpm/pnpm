@@ -11,11 +11,11 @@ import { execute } from '@yarnpkg/shell'
 import uidNumber from 'uid-number'
 
 import { extendPath } from './extendPath.js'
-import { relaySignals, spawnsInOwnProcessGroup } from './signals.js'
+import { relaySignals, reserveSignalRelay, type SignalRelayReservation, spawnsInOwnProcessGroup } from './signals.js'
 import { type LifecycleChildProcess, spawn } from './spawn.js'
 
 export type { RelaySignalsOptions, SignalRelay, SignalTarget } from './signals.js'
-export { hasControllingTerminal, relaySignals, spawnsInOwnProcessGroup, waitForProcessGroup } from './signals.js'
+export { hasControllingTerminal, relaySignals, reserveSignalRelay, spawnsInOwnProcessGroup, waitForProcessGroup } from './signals.js'
 export type { LifecycleChildProcess } from './spawn.js'
 
 export interface LifecycleLog {
@@ -85,6 +85,7 @@ type Callback = (err?: LifecycleError | null) => void
 /** One script or hook of one package, as the runner threads it through. */
 interface ScriptRun {
   cmd: string
+  relayReservation?: SignalRelayReservation
   pkg: LifecyclePackage
   stage: string
   wd: string
@@ -122,7 +123,13 @@ if (process.platform === 'win32') {
 }
 
 export function lifecycle (pkg: LifecyclePackage, stage: string, wd: string, opts: LifecycleOptions): Promise<void> {
+  const relayReservation = opts.raiseOnInterrupt ? reserveSignalRelay() : undefined
   return new Promise<void>((resolve, reject) => {
+    const finish = (err?: LifecycleError | null): void => {
+      relayReservation?.release()
+      if (err) reject(err)
+      else resolve()
+    }
     opts.log.info('lifecycle', logId(pkg, stage), pkg._id)
     if (!pkg.scripts) pkg.scripts = {}
 
@@ -135,13 +142,13 @@ export function lifecycle (pkg: LifecyclePackage, stage: string, wd: string, opt
       // makeEnv is a slow operation. This guard clause prevents makeEnv being called
       // and avoids a ton of unnecessary work, and results in a major perf boost.
       if (!pkg.scripts![stage] && statError) {
-        resolve()
+        finish()
         return
       }
 
       validWd(wd, (er, wd) => {
         if (er) {
-          reject(er)
+          finish(er)
           return
         }
 
@@ -175,13 +182,7 @@ export function lifecycle (pkg: LifecyclePackage, stage: string, wd: string, opt
           env.TMPDIR = tmpdir
         }
 
-        runLifecycle({ pkg, stage, wd, env, opts }, (er) => {
-          if (er) {
-            reject(er)
-            return
-          }
-          resolve()
-        })
+        runLifecycle({ pkg, stage, wd, env, opts, relayReservation }, finish)
       })
     })
   })
@@ -385,6 +386,7 @@ interface SpawnedScript {
 
 function runEmulated (run: ScriptRun, cb: Callback): void {
   const { cmd, pkg, stage, wd, env, opts } = run
+  run.relayReservation?.release()
   const execOpts: Parameters<typeof execute>[2] = { cwd: npath.toPortablePath(wd), env }
   if (opts.stdio === 'pipe') {
     const stdout = new PassThrough()
@@ -436,6 +438,7 @@ function runSpawned (run: ScriptRun, spawned: SpawnedScript, cb: Callback): void
     raiseOnInterrupt: opts.raiseOnInterrupt,
     terminateOnExit: true,
   })
+  run.relayReservation?.release()
 
   // A script killed by a signal makes pnpm raise that signal on itself, so
   // the shell reports an interrupted command rather than a plain failure.

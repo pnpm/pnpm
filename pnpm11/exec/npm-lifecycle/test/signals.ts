@@ -6,7 +6,7 @@ import { expect, test } from '@jest/globals'
 import { killProcessGroup } from '@pnpm/prepare'
 import { temporaryDirectory } from 'tempy'
 
-import { relaySignals, waitForProcessGroup } from '../src/signals.js'
+import { relaySignals, reserveSignalRelay, waitForProcessGroup } from '../src/signals.js'
 
 const testOnLinux = process.platform === 'linux' ? test : test.skip
 
@@ -37,8 +37,8 @@ test('a signal is raised once after concurrent relays settle', async () => {
 
 test('a relay installed while an interrupt is pending is terminated without handling the signal', async () => {
   const child = { kill: () => true }
+  const reservation = reserveSignalRelay()
   const first = relaySignals(child, { ownProcessGroup: false, terminateOnExit: false })
-  const second = relaySignals(child, { ownProcessGroup: false, terminateOnExit: false })
   const originalKill = process.kill
   const raised: Array<[number, string | number | undefined]> = []
   process.kill = ((pid, signal) => {
@@ -48,6 +48,7 @@ test('a relay installed while an interrupt is pending is terminated without hand
   let late: ReturnType<typeof relaySignals> | undefined
   try {
     const firstRaise = first.raise('SIGINT')
+    const firstSettle = first.settle()
     const sigintListeners = process.listenerCount('SIGINT')
     const relayed: Array<NodeJS.Signals | number | undefined> = []
     late = relaySignals({ kill: (signal) => {
@@ -57,10 +58,15 @@ test('a relay installed while an interrupt is pending is terminated without hand
 
     expect(relayed).toStrictEqual(['SIGTERM'])
     expect(process.listenerCount('SIGINT')).toBe(sigintListeners)
-    await Promise.all([first.settle(), second.settle(), late.settle(), firstRaise])
+    reservation.release()
+    await Promise.resolve()
+    expect(raised).toStrictEqual([])
+    await late.settle()
+    await Promise.all([firstSettle, firstRaise])
     expect(raised).toStrictEqual([[process.pid, 'SIGINT']])
   } finally {
-    await Promise.all([first.settle(), second.settle(), late?.settle()])
+    reservation.release()
+    await Promise.all([first.settle(), late?.settle()])
     process.kill = originalKill
   }
 })

@@ -459,12 +459,11 @@ export async function runScript (opts: {
   if (stages.length === 0) {
     await runLifecycleHook(scriptName, opts.manifest, { ...opts.lifecycleOpts, args: opts.passedThruArgs })
   } else {
-    await stages.reduce(async (previous, stage) => {
-      await previous
-      await runLifecycleHook(stage.name, opts.manifest, stage.name === scriptName
+    for (const stage of stages) {
+      await runLifecycleHook(stage.name, opts.manifest, stage.name === scriptName // eslint-disable-line no-await-in-loop
         ? { ...opts.lifecycleOpts, args: opts.passedThruArgs }
         : opts.lifecycleOpts)
-    }, Promise.resolve())
+    }
   }
   if (opts.runScriptOptions.syncInjectedDepsAfterScripts?.includes(scriptName)) {
     await syncInjectedDeps({
