@@ -28,6 +28,8 @@ on:
       - '.github/actions/binstall/**'
       - '.github/actions/install-crates/**'
       - '.github/workflows/pacquet-integrated-benchmark.yml'
+      - '.github/workflows/pacquet-integrated-benchmark-comment.yml'
+      - '.github/scripts/compare-integrated-benchmarks*.mjs'
   pull_request:
     types: [opened, synchronize]
     paths:
@@ -46,6 +48,8 @@ on:
       - '.github/actions/binstall/**'
       - '.github/actions/install-crates/**'
       - '.github/workflows/pacquet-integrated-benchmark.yml'
+      - '.github/workflows/pacquet-integrated-benchmark-comment.yml'
+      - '.github/scripts/compare-integrated-benchmarks*.mjs'
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.sha }}
@@ -679,6 +683,9 @@ jobs:
           ref: ${{ needs.revisions.outputs.head_sha }}
           persist-credentials: false
 
+      - name: Test benchmark comparison
+        run: node --test .github/scripts/compare-integrated-benchmarks.test.mjs
+
       - name: Download scenario results
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
@@ -702,7 +709,7 @@ jobs:
             echo
             echo 'Regular scenarios report direct and pnpr installs. The peer-heavy resolver scenario compares current Rust, main Rust, and TypeScript pnpm; the linked-workspace scenario compares current Rust against main Rust. Bencher consumes pacquet@HEAD and pnpr@HEAD.'
             echo
-            echo 'The tables below show mean ± σ; Bencher thresholds on the **minimum** latency, which is far less perturbed by shared-runner contention (noise only adds time).'
+            echo 'The tables below show mean ± σ. Bencher tracks absolute minimum latency; PR regression checks compare HEAD and main samples from the same runner. Historical timing alerts do not gate PRs.'
             echo
             echo '### Scenario: Isolated linker: fresh restore, cold cache + cold store'
             echo
@@ -858,19 +865,9 @@ jobs:
         # scenarios contribute both testbeds; the client-only peer-heavy case
         # contributes only `pacquet@HEAD`.
         #
-        # We report each scenario's *minimum* latency as the metric value, so
-        # Bencher's threshold tracks the min rather than the mean. On a shared
-        # CI runner, contention only ever *adds* time, so the minimum is the run
-        # least perturbed by a noisy neighbour and the truest signal of a real
-        # code regression — the mean drifts run-to-run with whatever else the
-        # machine is doing (the latency-free offline scenario is pure CPU/disk
-        # and swung ~30% between runs, tripping a spurious alert on a control
-        # run whose HEAD and main binaries were byte-identical). Because the
-        # minimum only needs one uncontended run, hyperfine's default sampling
-        # suffices for regular scenarios. The peer-heavy case is noisier and
-        # fixes its own count instead. The human-readable
-        # comment still reports mean ± σ; only the alerting signal moves to the
-        # min.
+        # Keep absolute minimum latency for historical continuity in Bencher.
+        # The PR gate uses same-run sample distributions in the comment
+        # workflow; historical timings vary with the machine running them.
         #
         # BMF rather than the `shell_hyperfine` adapter with a doctored `mean`:
         # this reports the min honestly as the value instead of relabelling it.
@@ -969,7 +966,6 @@ jobs:
         if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
         env:
           BENCHER_API_TOKEN: ${{ secrets.BENCHER_API_TOKEN }}
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           REF_NAME: ${{ github.ref_name }}
         shell: bash
         run: |
@@ -980,10 +976,8 @@ jobs:
           # One run is one benchmark, two testbeds: `pacquet` (direct
           # install, all scenarios) and `pnpr` (accelerated path, hot
           # scenarios). Upload each from its own bencher-results file.
-          # `--start-point-clone-thresholds` so the forked branch inherits
-          # the threshold configured on main; `--err` so the workflow fails
-          # when a sample breaches the upper boundary. Main pushes skip
-          # both — by then the regression has already landed.
+          # Historical alerts remain in Bencher. Only same-run comparisons
+          # gate branches, since absolute times vary between runners.
           upload() {
             local testbed=$1 file=$2
             if [ ! -f "$file" ]; then
@@ -995,7 +989,6 @@ jobs:
               --testbed "$testbed"
               --adapter json
               --file "$file"
-              --github-actions "$GITHUB_TOKEN"
             )
             if [ "$REF_NAME" = "main" ]; then
               args+=(--branch main)
@@ -1005,13 +998,20 @@ jobs:
                 --start-point main
                 --start-point-reset
                 --start-point-clone-thresholds
-                --err
               )
             fi
             bencher run "${args[@]}"
           }
           upload pacquet bench-work-env/bencher-results.json
           upload pnpr bench-work-env/bencher-results-pnpr.json
+
+      - name: Check same-run regressions on dispatched branches
+        if: github.event_name == 'workflow_dispatch' && github.ref_name != 'main'
+        shell: bash
+        run: |
+          node .github/scripts/compare-integrated-benchmarks.mjs bench-work-env > comparison.md || status=$?
+          cat comparison.md >> "$GITHUB_STEP_SUMMARY"
+          exit "${status:-0}"
 
       - name: Re-raise the peer-heavy gate
         # Deferred from the peer-heavy step so its cross-engine assertion
