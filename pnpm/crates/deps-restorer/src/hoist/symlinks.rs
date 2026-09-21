@@ -268,7 +268,9 @@ fn create_hoist_root(
     trusted_root: &std::path::Path,
     root: &std::path::Path,
 ) -> Result<(), crate::SymlinkPackageError> {
-    match create_hoist_parent_dirs(trusted_root, root) {
+    match create_or_validate_hoist_parent(trusted_root)
+        .and_then(|()| create_hoist_parent_dirs(trusted_root, root))
+    {
         Ok(()) => return Ok(()),
         Err(crate::SymlinkPackageError::CreateParentDir { error, .. })
             if error.kind() == std::io::ErrorKind::NotFound => {}

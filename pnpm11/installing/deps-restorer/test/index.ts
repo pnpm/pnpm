@@ -15,7 +15,7 @@ import { StoreIndex, storeIndexKey } from '@pnpm/store.index'
 import { fixtures } from '@pnpm/test-fixtures'
 import { createTestIpcServer } from '@pnpm/test-ipc-server'
 import { getIntegrity } from '@pnpm/testing.registry-mock'
-import type { DepPath } from '@pnpm/types'
+import type { DepPath, ProjectId } from '@pnpm/types'
 import { rimrafSync } from '@zkochan/rimraf'
 import { loadJsonFileSync } from 'load-json-file'
 
@@ -622,6 +622,31 @@ test('installing with hoistPattern=*', async () => {
   expect(modules!.hoistedDependencies['balanced-match@1.0.2' as DepPath]).toStrictEqual({ 'balanced-match': 'private' })
 })
 
+test('headless install preserves registry hoist links when the current lockfile is missing', async () => {
+  const prefix = prepareFixtureWithIntegrity('simple-shamefully-flatten')
+  await headlessInstall(await testDefaults({ lockfileDir: prefix, hoistPattern: ['*'] }))
+  const modules = await readModulesManifest(path.join(prefix, 'node_modules'))
+  const registryLink = path.join(prefix, 'node_modules/.pnpm/node_modules/balanced-match')
+  const target = fs.realpathSync(registryLink)
+  fs.unlinkSync(path.join(prefix, 'node_modules/.pnpm/lock.yaml'))
+
+  const unlink = jest.spyOn(fs.promises, 'unlink')
+  try {
+    await headlessInstall(await testDefaults({
+      lockfileDir: prefix,
+      hoistPattern: ['*'],
+      currentHoistPattern: ['*'],
+      hoistedDependencies: modules!.hoistedDependencies,
+    }))
+    expect(unlink).not.toHaveBeenCalledWith(registryLink)
+    expect(fs.realpathSync(registryLink)).toBe(target)
+    const updatedModules = await readModulesManifest(path.join(prefix, 'node_modules'))
+    expect(updatedModules!.hoistedDependencies['balanced-match@1.0.2' as DepPath]).toStrictEqual({ 'balanced-match': 'private' })
+  } finally {
+    unlink.mockRestore()
+  }
+})
+
 test('installing with publicHoistPattern=*', async () => {
   const prefix = prepareFixtureWithIntegrity('simple-shamefully-flatten')
   const reporter = jest.fn()
@@ -684,7 +709,7 @@ test('installing with publicHoistPattern=*', async () => {
   expect(modules!.hoistedDependencies['balanced-match@1.0.2' as DepPath]).toStrictEqual({ 'balanced-match': 'public' })
 })
 
-test('headless install removes a renamed workspace project from the private hoist directory', async () => {
+test.each(['renamed', 'removed'])('headless install removes a %s workspace project from the private hoist directory', async (change) => {
   const prefix = tempDir()
   const projectDir = path.join(prefix, 'project')
   fs.mkdirSync(projectDir)
@@ -710,17 +735,27 @@ test('headless install removes a renamed workspace project from the private hois
   const privateHoistDir = path.join(prefix, 'node_modules/.pnpm/node_modules')
   expect(fs.realpathSync(path.join(privateHoistDir, 'old-name'))).toBe(projectDir)
 
-  fs.writeFileSync(path.join(projectDir, 'package.json'), JSON.stringify({ name: 'new-name', version: '1.0.0' }))
+  const wantedLockfile = (await readWantedLockfile(prefix, { ignoreIncompatible: false }))!
+  if (change === 'removed') {
+    fs.rmSync(projectDir, { recursive: true })
+    delete wantedLockfile.importers['project' as ProjectId]
+    projects.pop()
+  } else {
+    fs.writeFileSync(path.join(projectDir, 'package.json'), JSON.stringify({ name: 'new-name', version: '1.0.0' }))
+  }
   const modules = await readModulesManifest(path.join(prefix, 'node_modules'))
   await headlessInstall(await testDefaults({
     hoistedDependencies: modules!.hoistedDependencies,
     hoistWorkspacePackages: true,
     lockfileDir: prefix,
     projects,
+    wantedLockfile,
   }))
 
-  expect(fs.existsSync(path.join(privateHoistDir, 'old-name'))).toBe(false)
-  expect(fs.realpathSync(path.join(privateHoistDir, 'new-name'))).toBe(projectDir)
+  expect(() => fs.lstatSync(path.join(privateHoistDir, 'old-name'))).toThrow(expect.objectContaining({ code: 'ENOENT' }))
+  if (change === 'renamed') {
+    expect(fs.realpathSync(path.join(privateHoistDir, 'new-name'))).toBe(projectDir)
+  }
 })
 
 test('installing with publicHoistPattern=* in a project with external lockfile', async () => {

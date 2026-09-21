@@ -727,8 +727,16 @@ fn workspace_projects_are_hoisted_without_any_registry_dependency() {
         .assert()
         .success();
 
-    assert!(!plugin_link.exists(), "a removed workspace project's public hoist must be pruned");
-    assert!(!app_link.exists(), "a renamed workspace project's old private hoist must be pruned");
+    assert_eq!(
+        fs::symlink_metadata(&plugin_link).unwrap_err().kind(),
+        std::io::ErrorKind::NotFound,
+        "a removed workspace project's public hoist must be pruned",
+    );
+    assert_eq!(
+        fs::symlink_metadata(&app_link).unwrap_err().kind(),
+        std::io::ErrorKind::NotFound,
+        "a renamed workspace project's old private hoist must be pruned",
+    );
     assert!(
         is_symlink_or_junction(&workspace.join("node_modules/.pnpm/node_modules/renamed-app"),)
             .unwrap(),
