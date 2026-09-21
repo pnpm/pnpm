@@ -271,7 +271,7 @@ async fn wait_for_cas_paths(
             continue;
         };
         let notify = match &*slot.read().await {
-            CacheValue::Available(cas_paths) => return Some(Arc::clone(cas_paths)),
+            CacheValue::Available(cached) => return Some(Arc::clone(&cached.files)),
             CacheValue::Failed => return None,
             CacheValue::InProgress(notify) => Arc::clone(notify),
         };

@@ -20,7 +20,9 @@ async fn cold_batch_links_slots_in_parallel() {
     use crate::{AllowBuildPolicy, SkippedSnapshots, VirtualStoreLayout};
     use pnpm_config::{Config, NodeLinker, PackageImportMethod};
     use pnpm_store_dir::StoreIndexWriter;
-    use pnpm_tarball::{CacheValue, MemCache, SharedReportedProgressKeys, package_mem_cache_key};
+    use pnpm_tarball::{
+        CacheValue, CachedTarball, MemCache, SharedReportedProgressKeys, package_mem_cache_key,
+    };
 
     if rayon::current_num_threads() < 2 {
         eprintln!(
@@ -75,7 +77,9 @@ async fn cold_batch_links_slots_in_parallel() {
                 Some(&DUMMY_SHA512.parse().expect("parse integrity")),
                 false,
             ),
-            Arc::new(tokio::sync::RwLock::new(CacheValue::Available(Arc::new(cas_paths)))),
+            Arc::new(tokio::sync::RwLock::new(CacheValue::Available(CachedTarball::from_files(
+                cas_paths,
+            )))),
         );
 
         snapshots.insert(package_key.clone(), SnapshotEntry::default());
@@ -221,7 +225,9 @@ async fn gvs_link_pass_materializes_shared_slot_once() {
     use crate::{AllowBuildPolicy, SkippedSnapshots, VirtualStoreLayout};
     use pnpm_config::{Config, NodeLinker, PackageImportMethod};
     use pnpm_store_dir::StoreIndexWriter;
-    use pnpm_tarball::{CacheValue, MemCache, SharedReportedProgressKeys, package_mem_cache_key};
+    use pnpm_tarball::{
+        CacheValue, CachedTarball, MemCache, SharedReportedProgressKeys, package_mem_cache_key,
+    };
 
     let root = tempfile::tempdir().expect("create temp dir");
     let workspace_root = root.path().join("workspace");
@@ -256,7 +262,9 @@ async fn gvs_link_pass_materializes_shared_slot_once() {
                 Some(&DUMMY_SHA512.parse().expect("parse integrity")),
                 false,
             ),
-            Arc::new(tokio::sync::RwLock::new(CacheValue::Available(Arc::new(cas_paths)))),
+            Arc::new(tokio::sync::RwLock::new(CacheValue::Available(CachedTarball::from_files(
+                cas_paths,
+            )))),
         );
         packages.insert(
             key(package_name, "1.0.0").without_peer(),

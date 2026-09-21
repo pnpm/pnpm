@@ -4,6 +4,13 @@ use super::{
     SharedVerifiedFilesCache, StoreDir, TarballError,
 };
 
+/// Files reconstructed from a store-index row, plus the bundled
+/// manifest the row recorded.
+pub(crate) struct CachedCasPaths {
+    pub files: HashMap<String, PathBuf>,
+    pub manifest: Option<serde_json::Value>,
+}
+
 /// What the store-index lookup found for one row.
 enum CachedRow {
     /// No row, an unreadable one, or one whose files no longer verify.
@@ -13,7 +20,11 @@ enum CachedRow {
     Rejected(PkgContentMismatch),
     /// A usable row's per-file CAS map, carrying the identity
     /// disagreement the caller warns about when the check is not strict.
-    Hit { cas_paths: HashMap<String, PathBuf>, mismatch: Option<PkgContentMismatch> },
+    Hit {
+        cas_paths: HashMap<String, PathBuf>,
+        manifest: Option<serde_json::Value>,
+        mismatch: Option<PkgContentMismatch>,
+    },
 }
 
 /// Reconstruct a package's `{filename → CAFS path}` map from the
@@ -43,7 +54,7 @@ pub(crate) async fn load_cached_cas_paths<Reporter: crate::Reporter>(
     verify_store_integrity: bool,
     package_content_check: PackageContentCheck,
     verified_files_cache: SharedVerifiedFilesCache,
-) -> Result<Option<HashMap<String, PathBuf>>, TarballError> {
+) -> Result<Option<CachedCasPaths>, TarballError> {
     let Some(index) = index else { return Ok(None) };
     // Hold on to a copy of the cache key for the outer `JoinError` log,
     // since the task body moves the original in.
@@ -81,13 +92,13 @@ pub(crate) async fn load_cached_cas_paths<Reporter: crate::Reporter>(
 
 fn cached_row_paths<Reporter: crate::Reporter>(
     row: CachedRow,
-) -> Result<Option<HashMap<String, PathBuf>>, TarballError> {
+) -> Result<Option<CachedCasPaths>, TarballError> {
     match row {
         CachedRow::Miss => Ok(None),
         CachedRow::Rejected(mismatch) => {
             Err(TarballError::UnexpectedPkgContentInStore { hint: mismatch.hint() })
         }
-        CachedRow::Hit { cas_paths, mismatch } => {
+        CachedRow::Hit { cas_paths, manifest, mismatch } => {
             if let Some(mismatch) = mismatch {
                 Reporter::emit(&LogEvent::Global(GlobalLog {
                     level: LogLevel::Warn,
@@ -97,7 +108,7 @@ fn cached_row_paths<Reporter: crate::Reporter>(
                     ),
                 }));
             }
-            Ok(Some(cas_paths))
+            Ok(Some(CachedCasPaths { files: cas_paths, manifest }))
         }
     }
 }
@@ -114,6 +125,7 @@ fn cached_row(
     let Some(entry) = read_row(index, cache_key) else {
         return CachedRow::Miss;
     };
+    let manifest = entry.manifest.clone();
 
     let mismatch = match package_content_check {
         PackageContentCheck::Strict | PackageContentCheck::Warn => {
@@ -147,7 +159,7 @@ fn cached_row(
         );
         return CachedRow::Miss;
     }
-    CachedRow::Hit { cas_paths: verify_result.files_map, mismatch }
+    CachedRow::Hit { cas_paths: verify_result.files_map, manifest, mismatch }
 }
 
 /// The row for `cache_key`, or `None` for a miss.
@@ -187,7 +199,7 @@ pub(crate) async fn load_legacy_synthesized_cas_paths<Reporter: crate::Reporter>
     else {
         return Ok(None);
     };
-    let Some(cas_paths) = load_cached_cas_paths::<Reporter>(
+    let Some(cached) = load_cached_cas_paths::<Reporter>(
         index,
         store_dir,
         legacy_key,
@@ -199,7 +211,7 @@ pub(crate) async fn load_legacy_synthesized_cas_paths<Reporter: crate::Reporter>
     else {
         return Ok(None);
     };
-    let Some(package_json_path) = cas_paths.get("package.json") else {
+    let Some(package_json_path) = cached.files.get("package.json") else {
         return Ok(None);
     };
     let Ok(cached_manifest) = tokio::fs::read(package_json_path).await else {
@@ -213,7 +225,7 @@ pub(crate) async fn load_legacy_synthesized_cas_paths<Reporter: crate::Reporter>
         );
         return Ok(None);
     }
-    Ok(Some(cas_paths))
+    Ok(Some(cached.files))
 }
 
 /// Read every requested row's undecoded bytes, holding the store-index

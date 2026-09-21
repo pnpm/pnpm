@@ -4,7 +4,9 @@
 //! the install fans out, so the warm batch can skip per-package
 //! store-index lookups entirely.
 
-pub(crate) use cached_rows::{load_cached_cas_paths, load_legacy_synthesized_cas_paths};
+pub(crate) use cached_rows::{
+    CachedCasPaths, load_cached_cas_paths, load_legacy_synthesized_cas_paths,
+};
 
 use super::{
     Arc, ArchiveStoreProjection, HashMap, IntoParallelIterator, PackageContentCheck,

@@ -99,6 +99,35 @@ struct FixedResolver {
     result: ResolveResult,
 }
 
+#[derive(Clone)]
+struct DualResolver {
+    with_manifest: ResolveResult,
+    without_manifest: ResolveResult,
+}
+
+impl Resolver for DualResolver {
+    fn resolve<'a>(
+        &'a self,
+        wanted_dependency: &'a WantedDependency,
+        _opts: &'a ResolveOptions,
+    ) -> ResolveFuture<'a> {
+        let result = if wanted_dependency.alias.as_deref() == Some("needs-manifest") {
+            self.without_manifest.clone()
+        } else {
+            self.with_manifest.clone()
+        };
+        Box::pin(async move { Ok(Some(result)) })
+    }
+
+    fn resolve_latest<'a>(
+        &'a self,
+        _query: &'a LatestQuery,
+        _opts: &'a ResolveOptions,
+    ) -> ResolveLatestFuture<'a> {
+        Box::pin(async { Ok(None) })
+    }
+}
+
 impl Resolver for FixedResolver {
     fn resolve<'a>(
         &'a self,
@@ -641,4 +670,63 @@ async fn a_revision_addressed_resolution_gets_its_own_cache_cell() {
     };
 
     assert_ne!(dbg!(key(&direct)), dbg!(key(&revision)));
+}
+
+/// Two resolutions of one archive, the manifest-bearing one claiming the
+/// download first. The other parks on that fetch instead of starting a
+/// second GET. <https://github.com/pnpm/pnpm/issues/15037>
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn a_manifest_read_reuses_the_prefetch_already_in_flight() {
+    let dir = tempdir().unwrap();
+    let mut server = mockito::Server::new_async().await;
+    let tarball_path = "/pinned-1.0.0.tgz";
+    let body = tarball_with_a_dependency("pinned");
+    let integrity = ssri::IntegrityOpts::new()
+        .algorithm(ssri::Algorithm::Sha512)
+        .chain(&body)
+        .result()
+        .to_string();
+    let tarball_url = format!("{}{tarball_path}", server.url());
+    let get_mock = server
+        .mock("GET", tarball_path)
+        .with_status(200)
+        .expect(1)
+        .with_chunked_body({
+            let body = body.clone();
+            move |writer| {
+                std::thread::sleep(std::time::Duration::from_millis(300));
+                writer.write_all(&body)
+            }
+        })
+        .create_async()
+        .await;
+    let mut with_manifest = integrity_pinned_result(&tarball_url);
+    if let LockfileResolution::Tarball(tarball) = &mut with_manifest.resolution {
+        tarball.integrity = Some(integrity.parse().expect("parse integrity"));
+    }
+    let without_manifest = manifestless_tarball_result(&tarball_url, &integrity);
+    let resolver =
+        resolver_with_inner(dir.path(), Box::new(DualResolver { with_manifest, without_manifest }));
+
+    let prefetched = resolver
+        .resolve(&WantedDependency::default(), &ResolveOptions::default())
+        .await
+        .expect("prefetching resolve succeeds")
+        .expect("resolver returns a result");
+    let read = resolver
+        .resolve(
+            &WantedDependency {
+                alias: Some("needs-manifest".to_string()),
+                ..WantedDependency::default()
+            },
+            &ResolveOptions::default(),
+        )
+        .await
+        .expect("manifest read succeeds")
+        .expect("resolver returns a result");
+
+    assert!(prefetched.package.manifest.is_some(), "the prefetching edge keeps its manifest");
+    let manifest = read.package.manifest.expect("the bundled manifest fills the gap");
+    assert_eq!(dbg!(&manifest)["dependencies"]["ms"], json!("2.1.2"));
+    get_mock.assert_async().await;
 }
