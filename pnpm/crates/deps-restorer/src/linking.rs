@@ -174,7 +174,7 @@ pub fn run_link_phase<Reporter: self::Reporter>(
     // skipped the slots — so there is nothing to link into or out of.
     let has_virtual_store = !inputs.ctx.is_hoisted();
     if has_virtual_store && !inputs.ctx.config.virtual_store_only {
-        relink_importer_tree::<Reporter>(&inputs, skipped, hoist.public_targets.as_ref())?;
+        relink_importer_tree::<Reporter>(&inputs, skipped, &hoist)?;
     }
     if has_virtual_store {
         link_virtual_store_bins(&inputs, skipped)?;
@@ -237,10 +237,10 @@ fn plan_hoist(inputs: &LinkPhaseInputs<'_>, skipped: &SkippedSnapshots) -> Plann
 fn relink_importer_tree<Reporter: self::Reporter>(
     inputs: &LinkPhaseInputs<'_>,
     skipped: &SkippedSnapshots,
-    public_hoist_targets: Option<&BTreeMap<String, PathBuf>>,
+    hoist: &PlannedHoist,
 ) -> Result<(), LinkPhaseError> {
     let config = inputs.ctx.config;
-    prune_importer_tree::<Reporter>(inputs)?;
+    prune_importer_tree::<Reporter>(inputs, hoist.plan.as_ref())?;
 
     let phase_start = std::time::Instant::now();
     SymlinkDirectDependencies {
@@ -256,7 +256,7 @@ fn relink_importer_tree<Reporter: self::Reporter>(
             skipped,
         },
         policy: crate::DirectLinkPolicy {
-            public_hoist_targets,
+            public_hoist_targets: hoist.public_targets.as_ref(),
             trusted_importer_ids: Some(inputs.projects.trusted_importer_ids),
             link_only: false,
         },
@@ -285,24 +285,22 @@ fn relink_importer_tree<Reporter: self::Reporter>(
 
 fn prune_importer_tree<Reporter: self::Reporter>(
     inputs: &LinkPhaseInputs<'_>,
+    hoist_plan: Option<&HoistPlan>,
 ) -> Result<(), LinkPhaseError> {
     let config = inputs.ctx.config;
-    let removed_count = inputs.graph.current_lockfile
-        .map(|current| {
-            crate::PruneStaleModules {
-                config,
-                workspace_root: inputs.projects.symlink_root,
-                wanted_lockfile: inputs.graph.lockfile,
-                current_lockfile: current,
-                prior_hoisted_dependencies: inputs.prior.hoisted_dependencies,
-                included_groups: inputs.projects.dependency_groups,
-                prune_orphans: inputs.prior.prune_orphans,
-            }
-            .run::<Reporter>()
-            .map_err(LinkPhaseError::PruneStaleModules)
-        })
-        .transpose()?
-        .unwrap_or(0);
+    let current_lockfile = inputs.graph.current_lockfile.unwrap_or(inputs.graph.lockfile);
+    let removed_count = crate::PruneStaleModules {
+        config,
+        workspace_root: inputs.projects.symlink_root,
+        wanted_lockfile: inputs.graph.lockfile,
+        current_lockfile,
+        prior_hoisted_dependencies: inputs.prior.hoisted_dependencies,
+        wanted_hoisted_dependencies: hoist_plan.map(|plan| &plan.result.hoisted_dependencies),
+        included_groups: inputs.projects.dependency_groups,
+        prune_orphans: inputs.prior.prune_orphans,
+    }
+    .run::<Reporter>()
+    .map_err(LinkPhaseError::PruneStaleModules)?;
     Reporter::emit(&LogEvent::Stats(StatsLog {
         level: LogLevel::Debug,
         message: StatsMessage::Removed {

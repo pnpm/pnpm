@@ -540,6 +540,44 @@ fn symlink_rejects_traversal_node_name() {
 }
 
 #[test]
+fn symlink_rejects_traversal_workspace_alias() {
+    use crate::VirtualStoreLayout;
+    use tempfile::tempdir;
+
+    let dir = tempdir().unwrap();
+    let virtual_store_dir = dir.path().join("node_modules/.pacquet");
+    let private_hoisted = virtual_store_dir.join("node_modules");
+    let public_hoisted = dir.path().join("node_modules");
+    let project_dir = dir.path().join("packages/project");
+    std::fs::create_dir_all(&project_dir).unwrap();
+
+    let layout = VirtualStoreLayout::legacy(
+        &virtual_store_dir,
+        pnpm_config::default_virtual_store_dir_max_length() as usize,
+    );
+    let workspace_aliases =
+        vec![("../outside/project".to_string(), HoistKind::Private, project_dir)];
+    let result = super::symlink_hoisted_dependencies(
+        &HashMap::new(),
+        &workspace_aliases,
+        &HashMap::new(),
+        &layout,
+        &private_hoisted,
+        &public_hoisted,
+        &HashSet::new(),
+    );
+
+    assert!(
+        matches!(result, Err(crate::SymlinkPackageError::InvalidAlias(_))),
+        "a traversal workspace alias must be rejected; got {result:?}",
+    );
+    assert!(
+        !virtual_store_dir.join("outside").exists(),
+        "no workspace hoist parent may be created outside node_modules",
+    );
+}
+
+#[test]
 fn private_hoist_with_bins_collected_for_bin_link() {
     let (snapshots, packages) = make_lockfile_data(&[
         ("a", "1.0.0", &[("with-bin", "with-bin", "1.0.0"), ("no-bin", "no-bin", "1.0.0")], false),
@@ -873,12 +911,21 @@ fn workspace_packages_hoist_privately_with_lowest_precedence() {
     let skipped = HashSet::new();
     let workspace_packages = IndexMap::from([
         // Free name → hoisted to the project dir.
-        ("pkg-a".to_string(), std::path::PathBuf::from("/ws/packages/pkg-a")),
+        (
+            "pkg-a".to_string(),
+            ("packages/pkg-a".to_string(), std::path::PathBuf::from("/ws/packages/pkg-a")),
+        ),
         // Name held by a root direct dep → never hoisted.
-        ("taken".to_string(), std::path::PathBuf::from("/ws/packages/taken")),
+        (
+            "taken".to_string(),
+            ("packages/taken".to_string(), std::path::PathBuf::from("/ws/packages/taken")),
+        ),
         // Same name as a transitive: the workspace package is placed
         // first (depth −1 beats depth 0) and claims the alias.
-        ("pkg-b".to_string(), std::path::PathBuf::from("/ws/packages/pkg-b")),
+        (
+            "pkg-b".to_string(),
+            ("packages/pkg-b".to_string(), std::path::PathBuf::from("/ws/packages/pkg-b")),
+        ),
     ]);
     let result = get_hoisted_dependencies(&HoistInputs {
         graph: &graph,
@@ -904,16 +951,21 @@ fn workspace_packages_hoist_privately_with_lowest_precedence() {
         ],
         "free names hoist to project dirs; a root direct dep's name never does",
     );
-    // The claimed alias blocks the transitive `pkg-b@9.9.9`, and no
-    // workspace package leaks into `.modules.yaml`'s map.
+    // The claimed alias blocks the transitive `pkg-b@9.9.9`.
     assert!(
         !result.hoisted_dependencies.contains_key("pkg-b@9.9.9"),
         "workspace-claimed alias must block the transitive: {:?}",
         result.hoisted_dependencies.get("pkg-b@9.9.9"),
     );
-    for alias_map in result.hoisted_dependencies.values() {
-        assert!(!alias_map.contains_key("pkg-a") && !alias_map.contains_key("taken"));
-    }
+    assert_eq!(
+        kinds_for(&result.hoisted_dependencies, "packages/pkg-a"),
+        vec![("pkg-a".to_string(), HoistKind::Private)],
+    );
+    assert_eq!(
+        kinds_for(&result.hoisted_dependencies, "packages/pkg-b"),
+        vec![("pkg-b".to_string(), HoistKind::Private)],
+    );
+    assert!(!result.hoisted_dependencies.contains_key("packages/taken"));
     // The transitive `shadowed@1.0.0` (a's child) still hoists — the
     // workspace pass doesn't disturb ordinary hoisting.
     assert_eq!(

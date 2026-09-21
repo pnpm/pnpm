@@ -52,6 +52,7 @@ pub struct PruneStaleModules<'a> {
     /// only record of where hoist links were written, so orphan hoist
     /// cleanup is skipped without it.
     pub prior_hoisted_dependencies: Option<&'a HoistedDependencies>,
+    pub wanted_hoisted_dependencies: Option<&'a HoistedDependencies>,
     /// Dependency groups this install materializes; a direct dep whose
     /// group is excluded is handled by
     /// [`crate::prune_direct_deps_excluded_by_groups`], not here.
@@ -111,13 +112,25 @@ impl<'a> PruneStaleModules<'a> {
         if !self.prune_orphans {
             return Ok(0);
         }
-        prune_orphan_snapshots(
+        self.prune_orphan_entries()
+    }
+
+    fn prune_orphan_entries(&self) -> Result<u64, PruneDirectDepsError> {
+        let removed = prune_orphan_snapshots(
             self.config,
             self.workspace_root,
             self.wanted_lockfile,
             self.current_lockfile,
             self.prior_hoisted_dependencies,
-        )
+        )?;
+        prune_workspace_hoists(
+            self.config,
+            self.workspace_root,
+            self.current_lockfile,
+            self.prior_hoisted_dependencies,
+            self.wanted_hoisted_dependencies,
+        )?;
+        Ok(removed)
     }
 
     /// `dedupeDirectDeps`'s removal half. The link pass only decides
@@ -137,6 +150,59 @@ impl<'a> PruneStaleModules<'a> {
                 .collect(),
         )
     }
+}
+
+fn prune_workspace_hoists(
+    config: &Config,
+    workspace_root: &Path,
+    current_lockfile: &Lockfile,
+    prior_hoisted_dependencies: Option<&HoistedDependencies>,
+    wanted_hoisted_dependencies: Option<&HoistedDependencies>,
+) -> Result<(), PruneDirectDepsError> {
+    let Some(prior) = prior_hoisted_dependencies else { return Ok(()) };
+    let private_dir = config.virtual_store_dir.join("node_modules");
+    let private_dir = confined_modules_dir(&private_dir, workspace_root);
+    let public_dir = confined_modules_dir(&config.modules_dir, workspace_root);
+    for (project_id, aliases) in prior {
+        if project_id
+            .parse()
+            .ok()
+            .is_some_and(|key| {
+                current_lockfile.packages
+                    .as_ref()
+                    .is_some_and(|packages| packages.contains_key(&key))
+            })
+        {
+            continue;
+        }
+        prune_workspace_project_hoists(
+            aliases,
+            wanted_hoisted_dependencies.and_then(|wanted| wanted.get(project_id)),
+            private_dir.as_deref(),
+            public_dir.as_deref(),
+        )?;
+    }
+    Ok(())
+}
+
+fn prune_workspace_project_hoists(
+    prior: &indexmap::IndexMap<String, HoistKind>,
+    wanted: Option<&indexmap::IndexMap<String, HoistKind>>,
+    private_dir: Option<&Path>,
+    public_dir: Option<&Path>,
+) -> Result<(), PruneDirectDepsError> {
+    for (alias, kind) in prior {
+        if wanted.is_some_and(|aliases| aliases.get(alias) == Some(kind)) {
+            continue;
+        }
+        let target_dir = match kind {
+            HoistKind::Private => private_dir,
+            HoistKind::Public => public_dir,
+        };
+        let Some(target_dir) = target_dir else { continue };
+        remove_direct_dep_link(target_dir, alias)?;
+    }
+    Ok(())
 }
 
 /// Unlink every direct dep of one importer that the wanted lockfile no

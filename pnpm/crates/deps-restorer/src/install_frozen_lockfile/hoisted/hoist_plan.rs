@@ -23,36 +23,38 @@ pub struct HoistPlan {
 /// the on-disk symlinks happen later in the pipeline. Same input
 /// gating as the legacy in-place block in [`crate::install_frozen_lockfile::InstallFrozenLockfile::run`].
 /// `hoist-workspace-packages` input: every named non-root project's
-/// `name → absolute project dir`, the shape v11 builds from
+/// `name → (project id, absolute project dir)`, the shape v11 builds from
 /// `allProjects` for its `hoistedWorkspacePackages` map. The root
 /// project itself is excluded — its dir *is* where the hoisted
 /// modules live.
+pub type HoistedWorkspacePackages = indexmap::IndexMap<String, (String, PathBuf)>;
+
 #[must_use]
 pub fn workspace_packages_for_hoist(
     workspace_root: &Path,
     project_manifests: &[(PathBuf, &pnpm_package_manifest::PackageManifest)],
-) -> indexmap::IndexMap<String, PathBuf> {
+) -> HoistedWorkspacePackages {
     project_manifests
         .iter()
         .filter(|(project_dir, _)| project_dir != workspace_root)
         .filter_map(|(project_dir, manifest)| {
             let name = manifest.value().get("name")?.as_str()?;
-            Some((name.to_string(), project_dir.clone()))
+            let project_id = project_dir
+                .strip_prefix(workspace_root)
+                .ok()?
+                .to_string_lossy()
+                .replace('\\', "/");
+            Some((name.to_string(), (project_id, project_dir.clone())))
         })
         .collect()
 }
 type HoistGraphSections<'a> =
     (&'a HashMap<PackageKey, SnapshotEntry>, &'a HashMap<PackageKey, PackageMetadata>);
 
-/// The lockfile sections the hoist graph is built from.
-///
-/// A workspace that installs nothing from a registry has neither section, yet
-/// its own projects are still hoist candidates, so it walks an empty graph
-/// instead of skipping the plan.
 fn hoist_graph_inputs<'a>(
     snapshots: Option<&'a HashMap<PackageKey, SnapshotEntry>>,
     packages: Option<&'a HashMap<PackageKey, PackageMetadata>>,
-    hoisted_workspace_packages: Option<&indexmap::IndexMap<String, PathBuf>>,
+    hoisted_workspace_packages: Option<&HoistedWorkspacePackages>,
 ) -> Option<HoistGraphSections<'a>> {
     static NO_SNAPSHOTS: LazyLock<HashMap<PackageKey, SnapshotEntry>> = LazyLock::new(HashMap::new);
     static NO_PACKAGES: LazyLock<HashMap<PackageKey, PackageMetadata>> =
@@ -77,7 +79,7 @@ pub fn compute_hoist_plan(
     dependency_groups: &[pnpm_package_manifest::DependencyGroup],
     skipped: &SkippedSnapshots,
     is_hoisted: bool,
-    hoisted_workspace_packages: Option<&indexmap::IndexMap<String, PathBuf>>,
+    hoisted_workspace_packages: Option<&HoistedWorkspacePackages>,
 ) -> Option<HoistPlan> {
     if is_hoisted {
         return None;

@@ -1048,4 +1048,45 @@ test('hoistWorkspacePackages should hoist workspace projects when nothing is ins
   projects['root'].has('eslint-plugin-local')
   projects['root'].has('.pnpm/node_modules/app')
   projects['root'].hasNot('.pnpm/node_modules/root')
+  expect(projects['root'].readModulesManifest()?.hoistedDependencies).toMatchObject({
+    app: { app: 'private' },
+    'eslint-plugin-local': { 'eslint-plugin-local': 'public' },
+  })
+
+  appManifest.name = 'renamed-app'
+  const remainingProjects = allProjects.slice(0, 2)
+  await mutateModules(mutatedProjects.slice(0, 2), testDefaults({
+    allProjects: remainingProjects,
+    hoistPattern: '*',
+    hoistWorkspacePackages: true,
+    pruneLockfileImporters: true,
+    publicHoistPattern: ['*eslint*'],
+  }))
+
+  projects['root'].hasNot('eslint-plugin-local')
+  projects['root'].hasNot('.pnpm/node_modules/app')
+  projects['root'].has('.pnpm/node_modules/renamed-app')
+})
+
+test('hoistWorkspacePackages rejects a workspace name that escapes the hoist root', async () => {
+  const rootManifest = { name: 'root', version: '1.0.0' }
+  const maliciousManifest = { name: '../outside/project', version: '1.0.0' }
+  preparePackages([
+    { location: '.', package: rootManifest },
+    { location: 'project', package: maliciousManifest },
+  ])
+  const allProjects = [
+    { buildIndex: 0, manifest: rootManifest, rootDir: process.cwd() as ProjectRootDir },
+    { buildIndex: 0, manifest: maliciousManifest, rootDir: path.resolve('project') as ProjectRootDir },
+  ]
+
+  await expect(mutateModules(allProjects.map(({ rootDir }) => ({
+    mutation: 'install' as const,
+    rootDir,
+  })), testDefaults({
+    allProjects,
+    hoistPattern: '*',
+    hoistWorkspacePackages: true,
+  }))).rejects.toMatchObject({ code: 'ERR_PNPM_INVALID_DEPENDENCY_NAME' })
+  expect(fs.existsSync('node_modules/.pnpm/outside')).toBe(false)
 })

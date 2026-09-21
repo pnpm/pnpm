@@ -2587,7 +2587,11 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
         })
         : writeCurrentLockfile(ctx.virtualStoreDir, result.currentLockfile),
       (async () => {
-        if (result.currentLockfile.packages === undefined && result.removedDepPaths.size === 0) {
+        if (
+          result.currentLockfile.packages === undefined &&
+          result.removedDepPaths.size === 0 &&
+          Object.keys(result.newHoistedDependencies).length === 0
+        ) {
           return Promise.resolve()
         }
         const injectedDeps: Record<string, string[]> = {}

@@ -5,6 +5,7 @@ import { linkBinsOfPkgsByAliases, type WarnFunction } from '@pnpm/bins.linker'
 import { createMatcher } from '@pnpm/config.matcher'
 import { WANTED_LOCKFILE } from '@pnpm/constants'
 import { linkLogger } from '@pnpm/core-loggers'
+import { safeJoinModulesDir } from '@pnpm/fs.symlink-dependency'
 import { logger } from '@pnpm/logger'
 import { lexCompare } from '@pnpm/text.ordinal-comparator'
 import type { DependenciesField, DepPath, HoistedDependencies, ProjectId } from '@pnpm/types'
@@ -39,11 +40,21 @@ export interface HoistOpts<T extends string> extends GetHoistedDependenciesOpts<
 export async function hoist<T extends string> (opts: HoistOpts<T>): Promise<HoistedDependencies | null> {
   // Ahead of the graph, so that a workspace project always wins the alias over an
   // equally named transitive dependency instead of whichever symlink lands first.
-  await hoistWorkspacePackages(opts)
+  const hoistedWorkspaceDependencies = await hoistWorkspacePackages(opts)
 
   const result = getHoistedDependencies(opts)
-  if (!result) return null
+  if (!result) {
+    return Object.keys(hoistedWorkspaceDependencies).length === 0
+      ? null
+      : hoistedWorkspaceDependencies
+  }
   const { hoistedDependencies, hoistedAliasesWithBins, hoistedDependenciesByNodeId } = result
+  for (const [projectId, aliases] of Object.entries(hoistedWorkspaceDependencies)) {
+    hoistedDependencies[projectId as ProjectId] = {
+      ...hoistedDependencies[projectId as ProjectId],
+      ...aliases,
+    }
+  }
 
   await symlinkHoistedDependencies(hoistedDependenciesByNodeId, {
     graph: opts.graph,
@@ -108,8 +119,8 @@ export interface HoistWorkspacePackagesOpts<T extends string> {
  * from the graph instead. A dependency with no node in the graph, a `workspace:`
  * link among them, claims nothing: the graph walk skips it too.
  */
-export async function hoistWorkspacePackages<T extends string> (opts: HoistWorkspacePackagesOpts<T>): Promise<void> {
-  if (opts.hoistedWorkspacePackages == null) return
+export async function hoistWorkspacePackages<T extends string> (opts: HoistWorkspacePackagesOpts<T>): Promise<HoistedDependencies> {
+  if (opts.hoistedWorkspacePackages == null) return {}
   const getAliasHoistType = createGetAliasHoistType(opts.publicHoistPattern, opts.privateHoistPattern)
   const aliasesTakenByDependencies = new Set<string>()
   for (const directDeps of Object.values(opts.directDepsByImporterId)) {
@@ -122,14 +133,22 @@ export async function hoistWorkspacePackages<T extends string> (opts: HoistWorks
     virtualStoreDir: opts.virtualStoreDir,
     internalPnpmDir: path.dirname(opts.privateHoistedModulesDir),
   })
-  await Promise.all(Object.values(opts.hoistedWorkspacePackages).map(async ({ name, dir }) => {
+  const placements: Array<[ProjectId, HoistedWorkspaceProject, 'private' | 'public', string]> = []
+  for (const [projectId, project] of Object.entries(opts.hoistedWorkspacePackages) as Array<[ProjectId, HoistedWorkspaceProject]>) {
+    const { name } = project
     const hoistType = getAliasHoistType(name)
-    if (!hoistType || aliasesTakenByDependencies.has(name.toLowerCase())) return
+    if (!hoistType || aliasesTakenByDependencies.has(name.toLowerCase())) continue
+    aliasesTakenByDependencies.add(name.toLowerCase())
     const targetDir = hoistType === 'public'
       ? opts.publicHoistedModulesDir
       : opts.privateHoistedModulesDir
-    await symlink(dir, path.join(targetDir, name))
-  }))
+    placements.push([projectId, project, hoistType, safeJoinModulesDir(targetDir, name)])
+  }
+  await Promise.all(placements.map(async ([, { dir }, , destination]) => symlink(dir, destination)))
+  return Object.fromEntries(placements.map(([projectId, { name }, hoistType]) => [
+    projectId,
+    { [name]: hoistType },
+  ])) as HoistedDependencies
 }
 
 export function getHoistedDependencies<T extends string> (opts: GetHoistedDependenciesOpts<T>): HoistGraphResult<T> | null {

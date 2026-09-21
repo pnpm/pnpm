@@ -255,24 +255,43 @@ export async function linkPackages (projects: ImporterToUpdate[], depGraph: Depe
         }, {} as Record<string, HoistedWorkspaceProject>)
         : undefined,
     }
+    const priorWorkspaceProjectIds = new Set(
+      Object.keys(opts.hoistedDependencies)
+        .filter((key) => (
+          opts.currentLockfile.packages?.[key as DepPath] == null &&
+          (allImportersIncluded || projectIds.includes(key as ProjectId))
+        )) as ProjectId[]
+    )
+    const retainedHoistedDependencies = Object.fromEntries(
+      Object.entries(opts.hoistedDependencies)
+        .filter(([key]) => !priorWorkspaceProjectIds.has(key as ProjectId))
+    ) as HoistedDependencies
+    let nextHoistedDependencies: HoistedDependencies
     if (newDepPaths.length > 0 || removedDepPaths.size > 0) {
-      newHoistedDependencies = {
-        ...opts.hoistedDependencies,
-        ...await hoist({
-          ...hoistOpts,
-          extraNodePath: opts.extraNodePaths,
-          importerIds: projectIds,
-          virtualStoreDirMaxLength: opts.virtualStoreDirMaxLength,
-          skipped: opts.skipped,
-        }),
-      }
+      nextHoistedDependencies = await hoist({
+        ...hoistOpts,
+        extraNodePath: opts.extraNodePaths,
+        importerIds: projectIds,
+        virtualStoreDirMaxLength: opts.virtualStoreDirMaxLength,
+        skipped: opts.skipped,
+      }) ?? {}
     } else {
       // No dependency was added or removed, so the hoisted graph cannot have
       // changed. The set of workspace projects still can: this install may have
       // added one, and a workspace that depends on nothing external has no graph
       // to hoist from in the first place.
-      await hoistWorkspacePackages(hoistOpts)
-      newHoistedDependencies = opts.hoistedDependencies
+      nextHoistedDependencies = await hoistWorkspacePackages(hoistOpts)
+    }
+    await pruneStaleWorkspaceHoists(
+      opts.hoistedDependencies,
+      nextHoistedDependencies,
+      priorWorkspaceProjectIds,
+      opts.hoistedModulesDir,
+      opts.rootModulesDir
+    )
+    newHoistedDependencies = {
+      ...retainedHoistedDependencies,
+      ...nextHoistedDependencies,
     }
   }
 
@@ -334,6 +353,25 @@ export async function linkPackages (projects: ImporterToUpdate[], depGraph: Depe
       linkedToRoot,
     },
   }
+}
+
+async function pruneStaleWorkspaceHoists (
+  previous: HoistedDependencies,
+  next: HoistedDependencies,
+  projectIds: Set<ProjectId>,
+  privateHoistedModulesDir: string,
+  publicHoistedModulesDir: string
+): Promise<void> {
+  await Promise.all(Array.from(projectIds).flatMap((projectId) => {
+    const nextAliases = next[projectId]
+    return Object.entries(previous[projectId] ?? {}).flatMap(([alias, hoistType]) => {
+      if (nextAliases?.[alias] === hoistType) return []
+      const modulesDir = hoistType === 'public'
+        ? publicHoistedModulesDir
+        : privateHoistedModulesDir
+      return [removeObsoleteDependency(modulesDir, alias)]
+    })
+  }))
 }
 
 const isAbsolutePath = /^\/|^[A-Z]:/i

@@ -87,15 +87,13 @@ pub(super) fn frozen_tree_up_to_date<'a>(
     tree_intact.then_some((wanted_lockfile, modules))
 }
 
-/// The on-disk probes: a tree the short-circuit skips has to be whole, both the
-/// packages the lockfile records and the workspace projects the hoist patterns
-/// select.
 fn tree_contents_intact(
     context: &FrozenTreeUpToDate<'_>,
     current: &Lockfile,
     modules: &pnpm_modules_yaml::ModulesLayout,
 ) -> bool {
     let config = context.tree.config;
+    let skipped = crate::SkippedSnapshots::from_strings(&modules.skipped);
     frozen_tree_intact(
         current,
         modules,
@@ -108,6 +106,7 @@ fn tree_contents_intact(
         context.tree.workspace_root,
         context.tree.included,
         context.recorded.projects,
+        &skipped,
     )
 }
 

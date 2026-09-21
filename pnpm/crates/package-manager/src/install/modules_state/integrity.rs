@@ -46,20 +46,13 @@ pub(crate) fn frozen_tree_intact(
     importer_symlinks_intact(wanted, modules, config, workspace_root, node_linker, &skipped)
 }
 
-/// Every workspace project the hoist patterns select must already be linked.
-///
-/// Nothing else here notices such a project: adding one to the workspace changes
-/// no snapshot, so the lockfile and the virtual store both stay as they were, and
-/// a project that nothing depends on never reaches the lockfile at all.
-///
-/// A name a direct dependency claims is not expected, because the hoist pass
-/// gives that alias to the dependency.
 pub(crate) fn hoisted_workspace_packages_present(
     current: &Lockfile,
     config: &Config,
     workspace_root: &Path,
     included: pnpm_modules_yaml::IncludedDependencies,
     projects: &[(std::path::PathBuf, &pnpm_package_manifest::PackageManifest)],
+    skipped: &crate::SkippedSnapshots,
 ) -> bool {
     if !config.hoist_workspace_packages {
         return true;
@@ -81,11 +74,12 @@ pub(crate) fn hoisted_workspace_packages_present(
     if private.is_empty() && public.is_empty() {
         return true;
     }
-    let claimed_by_dependencies = aliases_claimed_by_dependencies(current, included);
+    let claimed_by_dependencies =
+        aliases_claimed_by_dependencies(current, config, included, skipped);
     let private_root = config.virtual_store_dir.join("node_modules");
     candidates
         .iter()
-        .all(|(name, _)| {
+        .all(|(name, (_, project_dir))| {
             let root = if public.matches(name) {
                 config.modules_dir.as_path()
             } else if private.matches(name) {
@@ -94,23 +88,47 @@ pub(crate) fn hoisted_workspace_packages_present(
                 return true;
             };
             claimed_by_dependencies.contains(&name.to_lowercase())
-                || root
-                    .join(name)
-                    .symlink_metadata()
-                    .is_ok()
+                || crate::safe_join_modules_dir::safe_join_modules_dir(root, name)
+                    .is_ok_and(|destination| workspace_link_points_to(&destination, project_dir))
         })
+}
+
+fn workspace_link_points_to(destination: &Path, project_dir: &Path) -> bool {
+    let Ok(target) = pnpm_fs::read_symlink_dir(destination) else { return false };
+    let target = if target.is_relative() {
+        destination
+            .parent()
+            .unwrap_or_else(|| Path::new(""))
+            .join(target)
+    } else {
+        target
+    };
+    pnpm_fs::lexical_normalize(&target) == pnpm_fs::lexical_normalize(project_dir)
 }
 
 /// The aliases the hoist pass gives to a direct dependency, so an equally named
 /// workspace project is not expected at a hoist target.
 fn aliases_claimed_by_dependencies(
     current: &Lockfile,
+    config: &Config,
     included: pnpm_modules_yaml::IncludedDependencies,
+    skipped: &crate::SkippedSnapshots,
 ) -> std::collections::HashSet<String> {
+    let Some((snapshots, packages)) = current.snapshots.as_ref().zip(current.packages.as_ref())
+    else {
+        return std::collections::HashSet::new();
+    };
+    let graph = pnpm_deps_restorer::build_hoist_graph_with_max_length(
+        snapshots,
+        packages,
+        config.virtual_store_dir_max_length as usize,
+    );
     let groups = pnpm_deps_restorer::selected_groups(included);
     pnpm_deps_restorer::build_direct_deps_by_importer(&current.importers, groups)
         .values()
-        .flat_map(indexmap::IndexMap::keys)
+        .flat_map(indexmap::IndexMap::iter)
+        .filter(|(_, node_id)| graph.contains_key(*node_id) && !skipped.contains(node_id))
+        .map(|(alias, _)| alias)
         .map(|alias| alias.to_lowercase())
         .collect()
 }

@@ -51,7 +51,7 @@ pub fn symlink_hoisted_dependencies(
     };
     let mut plan = HoistSymlinkPlan::default();
     plan.add_slot_links(hoisted_by_node_id, graph, layout, skipped, &dirs)?;
-    plan.add_workspace_links(hoisted_workspace_aliases, &dirs);
+    plan.add_workspace_links(hoisted_workspace_aliases, &dirs)?;
     if plan.work.is_empty() {
         return Ok(());
     }
@@ -117,7 +117,7 @@ impl<'a> HoistSymlinkPlan<'a> {
                 .map_err(crate::SymlinkPackageError::InvalidAlias)?,
             );
             for (alias, kind) in alias_map {
-                self.record_scope_dir(alias, dirs.root(*kind));
+                self.record_parent_dir(alias, dirs.root(*kind))?;
                 self.work.push((std::sync::Arc::clone(&dep_dir), *kind, alias));
             }
         }
@@ -132,27 +132,32 @@ impl<'a> HoistSymlinkPlan<'a> {
         &mut self,
         hoisted_workspace_aliases: &'a [(String, HoistKind, PathBuf)],
         dirs: &HoistedModulesDirs<'_>,
-    ) {
+    ) -> Result<(), crate::SymlinkPackageError> {
         for (alias, kind, project_dir) in hoisted_workspace_aliases {
-            self.record_scope_dir(alias, dirs.root(*kind));
+            self.record_parent_dir(alias, dirs.root(*kind))?;
             self.work.push((std::sync::Arc::new(project_dir.clone()), *kind, alias));
         }
+        Ok(())
     }
 
     /// A scoped alias (`@scope/name`) lands in `<root>/@scope`, which
     /// doesn't exist yet on a fresh install. An alias with no `/` lands in
     /// `<root>`, created unconditionally by
-    /// [`HoistSymlinkPlan::create_parents`]. The parent is computed
-    /// without materializing the full destination path, saving a
-    /// `PathBuf` allocation in that common case.
-    ///
-    /// Every segment before the last one is taken, not just a leading
-    /// `@scope`: a workspace project is hoisted under the name its
-    /// `package.json` carries, which npm's rules do not vet.
-    fn record_scope_dir(&mut self, alias: &str, target_dir_root: &std::path::Path) {
-        if let Some(slash) = alias.rfind('/') {
-            self.scope_dirs.insert(target_dir_root.join(&alias[..slash]));
+    /// [`HoistSymlinkPlan::create_parents`].
+    fn record_parent_dir(
+        &mut self,
+        alias: &str,
+        target_dir_root: &std::path::Path,
+    ) -> Result<(), crate::SymlinkPackageError> {
+        let destination =
+            crate::safe_join_modules_dir::safe_join_modules_dir(target_dir_root, alias)
+                .map_err(crate::SymlinkPackageError::InvalidAlias)?;
+        if let Some(parent) = destination.parent()
+            && parent != target_dir_root
+        {
+            self.scope_dirs.insert(parent.to_path_buf());
         }
+        Ok(())
     }
 
     /// Pre-create the destination parents serially — cheap, deduplicated,

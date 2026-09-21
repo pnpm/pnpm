@@ -724,5 +724,60 @@ fn workspace_projects_are_hoisted_without_any_registry_dependency() {
         "the workspace project must be privately hoisted to {app_link:?}",
     );
 
+    fs::write(
+        workspace.join("packages/app/package.json"),
+        serde_json::json!({ "name": "renamed-app", "version": "1.0.0", "private": true })
+            .to_string(),
+    )
+    .expect("rename app package");
+    fs::remove_dir_all(workspace.join("packages/plugin")).expect("remove plugin package");
+    pacquet_in(&workspace)
+        .with_arg("install")
+        .assert()
+        .success();
+
+    assert!(!plugin_link.exists(), "a removed workspace project's public hoist must be pruned");
+    assert!(!app_link.exists(), "a renamed workspace project's old private hoist must be pruned");
+    assert!(
+        is_symlink_or_junction(&workspace.join("node_modules/.pnpm/node_modules/renamed-app"),)
+            .unwrap(),
+        "the renamed workspace project must be hoisted under its current name",
+    );
+
+    drop((root, mock_instance));
+}
+
+#[test]
+fn workspace_hoist_rejects_a_name_that_escapes_node_modules() {
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({ "name": "root", "private": true }).to_string(),
+    )
+    .expect("write root package.json");
+    write_workspace_yaml(&workspace, "packages:\n  - 'packages/*'\n");
+    let project_dir = workspace.join("packages/project");
+    fs::create_dir_all(&project_dir).expect("mkdir project");
+    fs::write(
+        project_dir.join("package.json"),
+        serde_json::json!({ "name": "../outside/project", "version": "1.0.0" }).to_string(),
+    )
+    .expect("write project package.json");
+
+    let output = pacquet
+        .with_arg("install")
+        .output()
+        .expect("run install");
+    assert!(!output.status.success());
+    assert!(String::from_utf8_lossy(&output.stderr).contains("ERR_PNPM_INVALID_DEPENDENCY_NAME"));
+    assert!(!workspace.join("node_modules/.pnpm/outside").exists());
+
     drop((root, mock_instance));
 }
