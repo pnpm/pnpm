@@ -18,7 +18,7 @@ fn install_add_and_latest_update_back_off_from_immature_exact_pins() {
 }
 
 #[test]
-fn install_backs_off_under_the_requested_name_when_manifest_name_differs() {
+fn colliding_manifest_names_do_not_merge_requested_parent_identities() {
     assert_backoff(&Fixture { latest_major: 2, mismatched_parent: true, ..Default::default() });
 }
 
@@ -55,6 +55,18 @@ fn assert_backoff(fixture: &Fixture) {
         .with_status(200)
         .with_body(parent_packument(fixture).to_string())
         .create();
+    let _same_manifest = default_registry
+        .mock("GET", "/decoy")
+        .with_status(200)
+        .with_body(
+            json!({
+                "name": "decoy", "dist-tags": { "latest": "2.0.0" },
+                "versions": { "2.0.0": version_manifest("other", "2.0.0") },
+                "time": { "2.0.0": "2020-01-01T00:00:00Z" },
+            })
+            .to_string(),
+        )
+        .create();
     let _default_child = default_registry
         .mock("GET", "/child")
         .with_status(200)
@@ -86,11 +98,14 @@ fn assert_backoff(fixture: &Fixture) {
 fn run_command(fixture: &Fixture, command: &str, default_url: &str, named_url: &str) {
     let CommandTempCwd { mut pacquet, root, workspace, .. } = CommandTempCwd::init();
     let selector = if fixture.named_parent { "gh:*" } else { "*" };
-    let manifest = if command == "add" {
+    let mut manifest = if command == "add" {
         json!({ "name": "test-project", "version": "1.0.0" })
     } else {
         json!({ "name": "test-project", "version": "1.0.0", "dependencies": { "parent": selector } })
     };
+    if fixture.mismatched_parent {
+        manifest["dependencies"]["decoy"] = json!("2.0.0");
+    }
     fs::write(workspace.join("package.json"), manifest.to_string()).unwrap();
     fs::write(workspace.join(".npmrc"), format!("registry={default_url}/\n")).unwrap();
     fs::write(workspace.join("pnpm-workspace.yaml"), format!(
@@ -157,6 +172,9 @@ fn version_manifest(name: &str, version: &str) -> serde_json::Value {
 
 fn assert_resolution(fixture: &Fixture, command: &str, workspace: &std::path::Path) {
     let lockfile = fs::read_to_string(workspace.join("pnpm-lock.yaml")).unwrap();
+    if fixture.mismatched_parent {
+        assert!(lockfile.contains("decoy@2.0.0:"), "{command}: {lockfile}");
+    }
     let parent_prefix = if fixture.named_parent { "gh:" } else { "" };
     assert!(lockfile.contains(&format!("parent@{parent_prefix}1.0.0:")), "{command}: {lockfile}");
     assert!(!lockfile.contains(&format!("parent@{parent_prefix}2.0.0:")), "{command}: {lockfile}");

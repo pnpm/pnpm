@@ -3194,4 +3194,5 @@ test('a blocked exact version is reported under the requested package identity',
   })
   expect(result?.policyViolation?.code).toBe('MINIMUM_RELEASE_AGE_VIOLATION')
   expect(result?.manifest?.name).toBe('other')
+  expect(result?.id).toBe('is-positive@1.0.0')
 })

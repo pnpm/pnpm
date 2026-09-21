@@ -268,10 +268,11 @@ export interface ResolutionPolicyViolation {
    * Absent when the violation was raised outside a dependency walk — the
    * lockfile verifier checks entries it has no path for.
    *
-   * The install command names the dependent with it, and the resolver's
-   * retry uses the last entry to find the choice that has to be revisited.
+   * Retry bookkeeping only; diagnostics use the separate parents labels.
    */
   parentIds?: PkgResolutionId[]
+  /** Display labels, separate from resolution IDs that may contain URL secrets. */
+  parents?: Array<{ name: string, version: string }>
 }
 
 /** Versions excluded by the retry, keyed by package name. Named-registry versions retain their `registryName:` prefix. */

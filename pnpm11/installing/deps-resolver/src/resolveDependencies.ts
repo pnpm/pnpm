@@ -2111,15 +2111,11 @@ async function resolveDependency (
     // can hand the full set to the install command between
     // resolveDependencyTree and resolvePeers.
     if (pkgResponse.body.policyViolation) {
-      // The dependents that reached this pick. `options.parentIds` starts at
-      // the importer — a project id, not a package one, and nothing a version
-      // pick applies to — so it is dropped here and the stored chain is
-      // package ids only. Anything reading it back must not slice again.
-      // The install command names the dependent with it, and the retry uses
-      // its last entry to decide whose choice to revisit.
+      // The first ID names the importer, whose choice cannot be retried.
       ctx.resolutionPolicyViolations.push({
         ...pkgResponse.body.policyViolation,
         parentIds: options.parentIds.slice(1),
+        parents: getPkgsInfoFromIds(options.parentIds, ctx.resolvedPkgsById).map(({ name, version }) => ({ name, version })),
       })
     }
 

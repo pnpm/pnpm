@@ -472,6 +472,9 @@ describe('minimumReleaseAge resolution fallback', () => {
       manifest.name = manifest.version === '1.2.4' ? 'mismatched-rolldown' : 'other'
     }
     packages.set('mismatched-rolldown', mismatched)
+    const decoy = staggeredPackument('decoy', ['1.2.6'])
+    decoy.versions['1.2.6'].name = 'other'
+    packages.set('decoy', decoy)
     server = http.createServer((request, response) => {
       const metadata = packages.get(decodeURIComponent(request.url?.slice(1) ?? ''))
       response.writeHead(metadata == null ? 404 : 200, { 'content-type': 'application/json' })
@@ -506,12 +509,13 @@ describe('minimumReleaseAge resolution fallback', () => {
     expect(depPaths).not.toContain('@rolldown/binding-darwin-x64@1.2.5')
   })
 
-  test('backs off using the requested parent name when metadata names another package', async () => {
-    prepare({ dependencies: { 'mismatched-rolldown': '~1.2.1' } })
+  test('colliding manifest names do not merge requested parent identities', async () => {
+    prepare({ dependencies: { 'mismatched-rolldown': '~1.2.1', decoy: '1.2.6' } })
     writeYamlFileSync('pnpm-workspace.yaml', { minimumReleaseAge: 1440, minimumReleaseAgeStrict: true })
     await execPnpm([registry, 'install', '--lockfile-only'], maturityEnv)
     const depPaths = Object.keys(readYamlFileSync<LockfilePackages>('pnpm-lock.yaml').packages)
     expect(depPaths).toContain('mismatched-rolldown@1.2.4')
+    expect(depPaths).toContain('decoy@1.2.6')
     expect(depPaths).not.toContain('other@1.2.5')
     expect(depPaths).not.toContain('other@1.2.6')
   })

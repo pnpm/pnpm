@@ -621,7 +621,7 @@ async function resolveNpm (
       })
       // Verify the manifest matches what we expect
       if (manifest?.name && manifest?.version) {
-        const id = `${manifest.name}@${manifest.version}` as PkgResolutionId
+        const id = `${spec.name}@${manifest.version}` as PkgResolutionId
         // Only return if the ID matches what we have in currentPkg
         if (id === opts.currentPkg.id) {
           return {
@@ -795,7 +795,7 @@ async function resolveNpm (
 
   warnOnceOnHeldBackUpdate(ctx, opts, spec, meta, pickedPackage.version)
   const selectedPackage = selectPackageRevision(pickedPackage, spec, registry)
-  const id = `${pickedPackage.name}@${pickedPackage.version}` as PkgResolutionId
+  const id = `${spec.name}@${pickedPackage.version}` as PkgResolutionId
   const resolution = createRegistryTarballResolution(selectedPackage.dist, registry)
   let normalizedBareSpecifier: string | undefined
   if (opts.calcSpecifier) {
@@ -936,7 +936,7 @@ async function resolveFromNamedRegistry (
     // name@version resolved from two registries distinct in the lockfile.
     // Without it they collapse onto one entry and whichever resolved first
     // decides the tarball both consumers get.
-    id: `${picked.manifest.name}@${spec.registryName}:${picked.manifest.version}` as PkgResolutionId,
+    id: `${spec.name}@${spec.registryName}:${picked.manifest.version}` as PkgResolutionId,
     normalizedBareSpecifier: opts.calcSpecifier
       ? calcPrefixedSpecifier({
         prefix: `${spec.registryName}:`,
@@ -998,7 +998,7 @@ async function pickFromSimpleRegistry (
   const resolution = createRegistryTarballResolution(selectedPackage.dist, registry)
   const publishedAt = meta.time?.[pickedPackage.version]
   return {
-    id: `${pickedPackage.name}@${pickedPackage.version}` as PkgResolutionId,
+    id: `${spec.name}@${pickedPackage.version}` as PkgResolutionId,
     latest: latestAllowedByPolicy(meta, opts),
     // Only worked out for a deprecated pick, so the scan stays on the rare path.
     nonDeprecatedAlternative: pickedPackage.deprecated

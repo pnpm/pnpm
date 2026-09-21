@@ -329,5 +329,6 @@ async fn blocked_policy_uses_requested_name_when_manifest_name_differs() {
         .await
         .unwrap()
         .unwrap();
+    assert_eq!(result.id.as_str(), "acme@1.1.0");
     assert_eq!(result.policy_violation.unwrap().code, crate::MINIMUM_RELEASE_AGE_VIOLATION_CODE);
 }

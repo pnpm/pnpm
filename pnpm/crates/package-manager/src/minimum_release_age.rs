@@ -258,7 +258,7 @@ fn format_dependent_chain(violation: &ResolutionPolicyViolation) -> String {
         " (required by {})",
         violation.parents
             .iter()
-            .map(ToString::to_string)
+            .map(|parent| pnpm_network::redact_and_sanitize(&parent.to_string()))
             .collect::<Vec<_>>()
             .join(" > "),
     )

@@ -445,3 +445,10 @@ async fn prompt_input_error_releases_the_reporter() {
     assert!(matches!(error, MinimumReleaseAgeError::Prompt(_)));
     assert_eq!(prompt_actions(), [PromptAction::Start, PromptAction::End]);
 }
+
+#[test]
+fn dependent_chain_strips_control_characters_from_package_labels() {
+    let mut violation = violation("child", "1.0.0", "MINIMUM_RELEASE_AGE_VIOLATION");
+    violation.parents = vec!["parent\u{1b}\n@2.0.0".parse().unwrap()];
+    assert_eq!(super::format_dependent_chain(&violation), " (required by parent@2.0.0)");
+}

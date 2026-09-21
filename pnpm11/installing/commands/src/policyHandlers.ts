@@ -1,9 +1,10 @@
 import { confirm } from '@inquirer/prompts'
 import { mergePackageVersionSpecs } from '@pnpm/config.version-policy'
 import { promptLogger } from '@pnpm/core-loggers'
-import { PnpmError } from '@pnpm/error'
+import { PnpmError, redactUrlForDisplay } from '@pnpm/error'
 import { globalInfo } from '@pnpm/logger'
 import { MINIMUM_RELEASE_AGE_VIOLATION_CODE } from '@pnpm/resolving.npm-resolver'
+import { sanitizeInline } from '@pnpm/text.sanitize'
 import { isCI } from 'ci-info'
 
 /**
@@ -24,13 +25,9 @@ export interface PolicyViolation {
   version: string
   code: string
   reason: string
-  /**
-   * The chain of dependents that reached this pick, the importer's own
-   * direct dependency first and the immediate parent last. Empty when the
-   * importer asked for the package itself. Absent for a violation raised
-   * outside a dependency walk.
-   */
+  /** Retry identifiers, never display labels: URL-based IDs may contain secrets. */
   parentIds?: string[]
+  parents?: Array<{ name: string, version: string }>
 }
 
 /**
@@ -248,7 +245,9 @@ function pickImmatureEntries (
  * clear by naming no dependent.
  */
 function formatDependentChain (violation: PolicyViolation): string {
-  const dependents = violation.parentIds ?? []
+  const dependents = (violation.parents ?? []).map(({ name, version }) =>
+    `${formatPackageLabel(name)}@${formatPackageLabel(version)}`
+  )
   return dependents.length === 0 ? '' : ` (required by ${dependents.join(' > ')})`
 }
 
@@ -296,4 +295,10 @@ async function promptForApproval (immature: readonly PolicyViolation[]): Promise
       }
     )
   }
+}
+
+
+function formatPackageLabel (value: string): string {
+  const label = sanitizeInline(value)
+  return label.includes('://') ? redactUrlForDisplay(label) : label
 }
