@@ -214,35 +214,41 @@ async fn workspace_higher_version_shadows_registry_pick() {
 }
 
 #[tokio::test]
-async fn workspace_package_with_build_metadata_shadows_registry_pick() {
-    let mut server = mockito::Server::new_async().await;
-    let _mock = server
-        .mock("GET", "/acme")
-        .with_status(200)
-        .with_body(single_version_body(
-            "1.3.0",
-            "sha512-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==",
-        ))
-        .create_async()
-        .await;
-    let registry = format!("{}/", server.url());
-    let (resolver, _tempdir) = build_resolver(&registry);
+async fn workspace_build_metadata_respects_precedence_and_range() {
+    for (local_version, resolved_via, id) in [
+        ("1.3.0+423423", "workspace", "link:../acme"),
+        ("1.2.0+423423", "npm-registry", "acme@1.3.0"),
+        ("1.3.0-beta.0+423423", "npm-registry", "acme@1.3.0"),
+    ] {
+        let mut server = mockito::Server::new_async().await;
+        let _mock = server
+            .mock("GET", "/acme")
+            .with_status(200)
+            .with_body(single_version_body(
+                "1.3.0",
+                &ssri::Integrity::from(b"workspace metadata test").to_string(),
+            ))
+            .create_async()
+            .await;
+        let registry = format!("{}/", server.url());
+        let (resolver, _tempdir) = build_resolver(&registry);
 
-    let packages = build_workspace_packages("acme", &["1.3.0+423423"]);
-    let opts = workspace_resolve_options(packages);
+        let packages = build_workspace_packages("acme", &[local_version]);
+        let opts = workspace_resolve_options(packages);
 
-    let wanted = WantedDependency {
-        alias: Some("acme".to_string()),
-        bare_specifier: Some("^1.3.0".to_string()),
-        ..WantedDependency::default()
-    };
-    let result = resolver
-        .resolve(&wanted, &opts)
-        .await
-        .unwrap()
-        .expect("workspace shadow");
-    assert_eq!(result.resolved_via, "workspace");
-    assert_eq!(result.id.as_str(), "link:../acme");
+        let wanted = WantedDependency {
+            alias: Some("acme".to_string()),
+            bare_specifier: Some("^1.0.0".to_string()),
+            ..WantedDependency::default()
+        };
+        let result = resolver
+            .resolve(&wanted, &opts)
+            .await
+            .unwrap()
+            .expect("resolved package");
+        assert_eq!(result.resolved_via, resolved_via, "local version: {local_version}");
+        assert_eq!(result.id.as_str(), id, "local version: {local_version}");
+    }
 }
 
 #[tokio::test]

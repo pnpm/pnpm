@@ -156,7 +156,7 @@ pub(super) fn try_workspace_fallback(
 
 /// Registry pick succeeded; check whether a workspace package
 /// shadows it: exact `name@version` match wins; otherwise a higher
-/// workspace version wins; otherwise `preferWorkspacePackages` wins.
+/// or equal workspace version precedence wins; otherwise `preferWorkspacePackages` wins.
 pub(super) fn try_workspace_shadow(
     workspace_packages: &WorkspacePackages,
     spec: &RegistryPackageSpec,
