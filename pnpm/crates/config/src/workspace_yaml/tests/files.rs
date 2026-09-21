@@ -211,3 +211,21 @@ fn env_expanding_deserializer_rejects_boolean_for_string_only_enum() {
     serde_saphyr::from_str::<WorkspaceSettings>("nodeLinker: false\n")
         .expect_err("a boolean is not a node linker");
 }
+
+#[test]
+fn env_expanding_deserializer_redacts_invalid_expanded_value() {
+    const SECRET: &str = "secret-that-must-not-appear";
+    let _guard = EnvGuard::snapshot(["PNPM_TEST_14914_SECRET"]);
+    // SAFETY: EnvGuard serializes the test and restores this variable on drop.
+    unsafe {
+        env::set_var("PNPM_TEST_14914_SECRET", SECRET);
+    }
+
+    let error =
+        serde_saphyr::from_str::<WorkspaceSettings>("nodeLinker: ${PNPM_TEST_14914_SECRET}\n")
+            .expect_err("the secret is not a node linker")
+            .to_string();
+
+    assert!(error.contains("invalid environment-expanded value"));
+    assert!(!error.contains(SECRET));
+}
