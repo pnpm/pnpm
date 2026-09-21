@@ -114,3 +114,24 @@ fn install_records_an_aliased_named_registry_dependency() {
 
     drop((root, anchor));
 }
+
+#[test]
+fn strict_peers_accept_named_registry_versions_on_fresh_and_frozen_installs() {
+    let (root, workspace, anchor) = setup();
+    append_workspace_yaml_key(&workspace, "strictPeerDependencies", "true");
+    write_manifest(
+        &workspace,
+        r#"{
+            "@pnpm.e2e/has-foo100-peer": "work:1.0.0",
+            "@pnpm.e2e/foo": "work:100.0.0"
+        }"#,
+    );
+    pacquet(&workspace, ["install"]).assert().success();
+    pacquet(&workspace, ["install", "--frozen-lockfile"]).assert().success();
+    pacquet(&workspace, ["peers", "check"]).assert().success();
+    assert_eq!(
+        lockfile_entry(&workspace, "@pnpm.e2e/foo"),
+        Some(("work:100.0.0".to_string(), "work:100.0.0".to_string())),
+    );
+    drop((root, anchor));
+}

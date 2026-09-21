@@ -35,8 +35,8 @@ use pnpm_catalogs_resolver::{
 use pnpm_catalogs_types::Catalogs;
 use pnpm_config::PeerDependencyRules;
 use pnpm_lockfile::{
-    Lockfile, LockfileResolution, PackageMetadata, PkgName, PkgNameVerPeer, ProjectSnapshot,
-    ResolvedDependencySpec, SnapshotDepRef, SnapshotEntry,
+    Lockfile, LockfileResolution, PackageMetadata, PkgName, PkgNameVerPeer, PkgVerPeer,
+    ProjectSnapshot, ResolvedDependencySpec, SnapshotDepRef, SnapshotEntry,
 };
 use pnpm_package_manifest::PackageManifest;
 use pnpm_resolving_parse_wanted_dependency::parse_wanted_dependency;
@@ -412,7 +412,7 @@ fn snapshot_dependency<'a>(
 /// is neither a registry version nor a link has no version to check against.
 fn resolved_snapshot_version(dep_ref: &SnapshotDepRef, lockfile_dir: &Path) -> Option<String> {
     if let Some(ver_peer) = dep_ref.ver_peer() {
-        return Some(ver_peer.version().to_string());
+        return Some(extract_peer_version(ver_peer));
     }
     let link_target = dep_ref.as_link_target()?;
     Some(
@@ -441,7 +441,13 @@ fn get_pkg_version(
     packages
         .get(&base_key)
         .and_then(|meta| meta.version.clone())
-        .unwrap_or_else(|| key.suffix.version().to_string())
+        .unwrap_or_else(|| extract_peer_version(&key.suffix))
+}
+
+fn extract_peer_version(ver_peer: &PkgVerPeer) -> String {
+    ver_peer
+        .registry_qualified()
+        .map_or_else(|| ver_peer.version().to_string(), |(_, version)| version.to_string())
 }
 
 fn satisfies(version: &str, range: &str) -> bool {

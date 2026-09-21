@@ -589,3 +589,23 @@ fn canonical_containment_keeps_the_root_used_for_importer_ids() {
         "packages/lib",
     );
 }
+
+#[test]
+fn snapshot_peer_versions_use_named_registry_semver() {
+    for (reference, expected) in [
+        ("work:5.1.7", "5.1.7"),
+        ("work:5.1.7(other@1.0.0)", "5.1.7"),
+        ("@work/adapter@work:5.1.7", "5.1.7"),
+        ("work:5.2.0-beta.1", "5.2.0-beta.1"),
+        ("5.1.7", "5.1.7"),
+        ("file:5.1.7", "file:5.1.7"),
+        ("https://example.com/5.1.7", "https://example.com/5.1.7"),
+    ] {
+        let dep_ref = reference.parse().unwrap();
+        assert_eq!(
+            super::resolved_snapshot_version(&dep_ref, std::path::Path::new(".")),
+            Some(expected.to_string()),
+            "{reference}",
+        );
+    }
+}
