@@ -23,6 +23,11 @@ export interface ParsedWantedDependencies {
    * used instead. Only ever non-empty under `readonlyManifest` or for `readonlySpecifiers`.
    */
   supersededByKeptRange: KeptRangeConflict[]
+  /**
+   * The aliases dropped because a hook removes them from the manifest it reads, so the project
+   * can't declare them. Only ever non-empty for `hookRemovedAliases`.
+   */
+  removedByHook: string[]
 }
 
 export function parseWantedDependencies (
@@ -46,6 +51,11 @@ export function parseWantedDependencies (
      */
     readonlyManifest?: boolean
     readonlySpecifiers?: Dependencies
+    /**
+     * Aliases a hook deletes from the manifest it reads. Declaring one would leave the lockfile
+     * importer holding a dependency the next read drops, which `--frozen-lockfile` rejects.
+     */
+    hookRemovedAliases?: Set<string>
   }
 ): ParsedWantedDependencies {
   const wantedDeps = rawWantedDependencies
@@ -103,14 +113,19 @@ export function parseWantedDependencies (
     })
     .filter((wd) => wd !== null) as WantedDependency[]
 
-  if (!opts.readonlyManifest && opts.readonlySpecifiers == null) {
-    return { wantedDependencies: wantedDeps, outsideKeptRange: [], supersededByKeptRange: [] }
+  if (!opts.readonlyManifest && opts.readonlySpecifiers == null && opts.hookRemovedAliases == null) {
+    return { wantedDependencies: wantedDeps, outsideKeptRange: [], supersededByKeptRange: [], removedByHook: [] }
   }
   const wantedDependencies: WantedDependency[] = []
   const outsideKeptRange: KeptRangeConflict[] = []
   const supersededByKeptRange: KeptRangeConflict[] = []
+  const removedByHook: string[] = []
   for (const wantedDep of wantedDeps) {
     const { alias, bareSpecifier, prevSpecifier } = wantedDep
+    if (opts.hookRemovedAliases?.has(alias)) {
+      removedByHook.push(alias)
+      continue
+    }
     if (opts.readonlySpecifiers != null && Object.hasOwn(opts.readonlySpecifiers, alias)) {
       if (prevSpecifier == null || bareSpecifier === prevSpecifier) {
         wantedDependencies.push(wantedDep)
@@ -142,5 +157,5 @@ export function parseWantedDependencies (
       wantedDependencies.push({ ...wantedDep, bareSpecifier: prevSpecifier })
     }
   }
-  return { wantedDependencies, outsideKeptRange, supersededByKeptRange }
+  return { wantedDependencies, outsideKeptRange, supersededByKeptRange, removedByHook }
 }

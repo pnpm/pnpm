@@ -248,18 +248,6 @@ test('a readPackage hook that edits a manifest in place does not affect a later 
 
 const SUPERSEDED_WARNING = 'Ignoring "is-positive@3.1.0": "is-positive" is controlled by a package extension, readPackage hook, or override, so its specifier "1.0.0" was used instead.'
 
-function pinIsPositive (manifest: PackageManifest): PackageManifest {
-  return manifest.name === 'my-project'
-    ? { ...manifest, dependencies: { ...manifest.dependencies, 'is-positive': '1.0.0' } }
-    : manifest
-}
-
-function pinIsPositiveOnceDeclared (manifest: PackageManifest): PackageManifest {
-  return manifest.dependencies?.['is-positive'] == null
-    ? manifest
-    : { ...manifest, dependencies: { ...manifest.dependencies, 'is-positive': '1.0.0' } }
-}
-
 test('add keeps the hook-provided specifier when the requested one conflicts with a readPackage hook', async () => {
   const project = prepareEmpty()
 
@@ -429,6 +417,43 @@ test('add keeps the hook-provided specifier when the hook rewrites only after de
 
   await install(updatedManifest, testDefaults({ frozenLockfile: true, hooks: { readPackage: [pinIsPositiveOnceDeclared] } }))
 })
+
+test('add skips a dependency a readPackage hook removes', async () => {
+  const project = prepareEmpty()
+
+  const { result: { updatedManifest }, warnings } = await captureWarnings(async () =>
+    addDependenciesToPackage(
+      { name: 'my-project', version: '0.0.0' },
+      ['is-positive@3.1.0'],
+      testDefaults({ hooks: { readPackage: [dropIsPositive] } })
+    )
+  )
+
+  expect(warnings).toContain('Skipping "is-positive": a package extension, readPackage hook, or override removes it from the manifest, so it cannot be declared.')
+  expect(updatedManifest.dependencies).toBeUndefined()
+  expect(project.readLockfile().importers['.'].dependencies).toBeUndefined()
+
+  await install(updatedManifest, testDefaults({ frozenLockfile: true, hooks: { readPackage: [dropIsPositive] } }))
+})
+
+function pinIsPositive (manifest: PackageManifest): PackageManifest {
+  return manifest.name === 'my-project'
+    ? { ...manifest, dependencies: { ...manifest.dependencies, 'is-positive': '1.0.0' } }
+    : manifest
+}
+
+function pinIsPositiveOnceDeclared (manifest: PackageManifest): PackageManifest {
+  return manifest.dependencies?.['is-positive'] == null
+    ? manifest
+    : { ...manifest, dependencies: { ...manifest.dependencies, 'is-positive': '1.0.0' } }
+}
+
+function dropIsPositive (manifest: PackageManifest): PackageManifest {
+  if (manifest.dependencies?.['is-positive'] == null) return manifest
+  const dependencies = { ...manifest.dependencies }
+  delete dependencies['is-positive']
+  return { ...manifest, dependencies }
+}
 
 async function captureWarnings<T> (run: () => Promise<T>): Promise<{ result: T, warnings: string[] }> {
   const warnings: string[] = []

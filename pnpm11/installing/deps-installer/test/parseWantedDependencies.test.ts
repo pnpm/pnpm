@@ -209,3 +209,14 @@ test('readonly aliases are allowed when new dependencies are disabled', () => {
     saveCatalogName: undefined,
   }])
 })
+
+test('an alias a hook removes is dropped and reported', () => {
+  const { wantedDependencies, removedByHook } = parseWantedDependencies(['hook-removed@2.0.0', 'semver@7.8.5'], {
+    ...defaults,
+    currentBareSpecifiers: {},
+    hookRemovedAliases: new Set(['hook-removed']),
+  })
+
+  expect(wantedDependencies.map(({ alias }) => alias)).toStrictEqual(['semver'])
+  expect(removedByHook).toStrictEqual(['hook-removed'])
+})
