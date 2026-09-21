@@ -4,4 +4,4 @@
 "pnpm": patch
 ---
 
-`CreateNewStoreControllerOptions` is now exported from `@pnpm/store.connection-manager` and includes `cafile`.
+`CreateNewStoreControllerOptions` is now exported from `@pnpm/store.connection-manager`. Store controllers now read custom certificate authorities from `cafile`.

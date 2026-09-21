@@ -1,4 +1,4 @@
-import fsSync, { promises as fs } from 'node:fs'
+import { promises as fs } from 'node:fs'
 
 import { packageManager } from '@pnpm/cli.meta'
 import { registrySupportsTimeField } from '@pnpm/config.normalize-registries'
@@ -77,7 +77,7 @@ export async function createNewStoreController (
     await fs.mkdir(opts.storeDir, { recursive: true })
   }
   const storeIndex = opts.frozenStore ? new ReadOnlyStoreIndex(opts.storeDir) : new StoreIndex(opts.storeDir)
-  const ca = opts.ca ?? (opts.cafile ? readCAFile(opts.cafile) : undefined)
+  const ca = opts.ca ?? (opts.cafile ? await readCAFile(opts.cafile) : undefined)
   const { resolve, fetchers, clearResolutionCache, resolutionVerifiers } = createClient({
     customResolvers: opts.hooks?.customResolvers,
     customFetchers: opts.hooks?.customFetchers,
@@ -101,9 +101,9 @@ export async function createNewStoreController (
     noProxy: opts.noProxy,
     offline: opts.offline,
     preferOffline: opts.preferOffline,
-    configByUri: opts.configByUri ?? {},
-    registriesByScope: opts.registriesByScope ?? { default: 'https://registry.npmjs.org/' },
-    registriesByPrefix: opts.registriesByPrefix ?? {},
+    configByUri: opts.configByUri,
+    registriesByScope: opts.registriesByScope,
+    registriesByPrefix: opts.registriesByPrefix,
     retry: {
       factor: opts.fetchRetryFactor,
       maxTimeout: opts.fetchRetryMaxtimeout,
@@ -242,9 +242,9 @@ export function needsFullMetadataForRegistry (
   }
 }
 
-function readCAFile (cafile: string): string[] | undefined {
+async function readCAFile (cafile: string): Promise<string[] | undefined> {
   try {
-    const contents = fsSync.readFileSync(cafile, 'utf8')
+    const contents = await fs.readFile(cafile, 'utf8')
     const delim = '-----END CERTIFICATE-----'
     const cas = contents
       .split(delim)

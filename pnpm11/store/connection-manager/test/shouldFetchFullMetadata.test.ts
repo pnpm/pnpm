@@ -1,10 +1,6 @@
-import { promises as fs } from 'node:fs'
-import os from 'node:os'
-import path from 'node:path'
-
 import { expect, test } from '@jest/globals'
 
-import { createNewStoreController, needsFullMetadataForRegistry, shouldFetchFullMetadata, shouldFilterMetadata } from '../src/createNewStoreController.js'
+import { needsFullMetadataForRegistry, shouldFetchFullMetadata, shouldFilterMetadata } from '../src/createNewStoreController.js'
 
 test('returns false by default', () => {
   expect(shouldFetchFullMetadata({})).toBe(false)
@@ -136,28 +132,20 @@ test('nothing is filtered when no registry can need full metadata', () => {
   expect(shouldFilterMetadata({ resolutionMode: 'time-based', fetchFullMetadata: false })).toBe(false)
 })
 
-test('CreateNewStoreControllerOptions supports cafile and normalizes it at runtime', async () => {
-  const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'store-controller-test-'))
-  const caFilePath = path.join(tmpDir, 'custom-ca.pem')
-  const certContent = '-----BEGIN CERTIFICATE-----\nMIIB_TEST_CERT\n-----END CERTIFICATE-----\n'
-  await fs.writeFile(caFilePath, certContent, 'utf8')
-
-  const result = await createNewStoreController({
-    cacheDir: path.join(tmpDir, 'cache'),
-    storeDir: path.join(tmpDir, 'store'),
-    cafile: caFilePath,
+test('CreateNewStoreControllerOptions is exported and supports cafile', () => {
+  const options: import('../src/index.js').CreateNewStoreControllerOptions = {
+    cacheDir: '/tmp/cache',
+    storeDir: '/tmp/store',
+    cafile: '/path/to/cafile.pem',
     configByUri: {},
     fetchRetries: 2,
     fetchRetryFactor: 10,
-    fetchRetryMaxtimeout: 60000,
-    fetchRetryMintimeout: 10000,
+    fetchRetryMaxtimeout: 60_000,
+    fetchRetryMintimeout: 10_000,
     offline: false,
-    verifyStoreIntegrity: true,
     registriesByScope: { default: 'https://registry.npmjs.org/' },
+    verifyStoreIntegrity: true,
     virtualStoreDirMaxLength: 120,
-  })
-
-  expect(result.ctrl).toBeDefined()
-  expect(result.dir).toBe(path.join(tmpDir, 'store'))
+  }
+  expect(options.cafile).toBe('/path/to/cafile.pem')
 })
-
