@@ -202,8 +202,6 @@ fn missing_global_target_reports_not_found() {
     assert_eq!(output.get_output().status.code(), Some(127));
 }
 
-/// A project with `.nvmrc` gets its Node.js version fetched into the global
-/// virtual store instead of using the project `.bin` or global target.
 #[cfg(unix)]
 #[test]
 fn nvmrc_runtime_pin_downloads_node_on_demand() {
