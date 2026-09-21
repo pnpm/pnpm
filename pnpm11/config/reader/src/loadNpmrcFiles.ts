@@ -10,6 +10,7 @@ import { readIniFileSync } from 'read-ini-file'
 
 import { isNpmrcReadableKey } from './localConfig.js'
 import { npmDefaults } from './npmDefaults.js'
+import { parseCAFileContents } from './parseCAFileContents.js'
 
 export interface NpmrcConfigResult {
   /**
@@ -697,11 +698,7 @@ function loadCAFile (layers: Array<Record<string, unknown>>): void {
 
   try {
     const contents = fs.readFileSync(cafile, 'utf8')
-    const delim = '-----END CERTIFICATE-----'
-    const cas = contents
-      .split(delim)
-      .filter(ca => ca.trim().length > 0)
-      .map(ca => `${ca.trimStart()}${delim}`)
+    const cas = parseCAFileContents(contents)
     if (cas.length === 0) return
     for (const layer of layers) {
       if (typeof layer.cafile === 'string') {
