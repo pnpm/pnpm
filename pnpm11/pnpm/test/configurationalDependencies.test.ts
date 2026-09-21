@@ -178,9 +178,9 @@ snapshots: {}
 ---
 `)
 
-  // COREPACK_ROOT used to skip the entire pm-handling block, leaving the
-  // stale 0.0.1 entry untouched. The sync must run regardless of how pnpm
-  // was invoked.
+  // Package-manager dependency synchronization must run when pnpm is invoked
+  // through Corepack, including when COREPACK_ROOT is set, and replace the
+  // stale lockfile entry.
   await execPnpm(['install'], {
     env: {
       COREPACK_ROOT: '/fake/corepack',

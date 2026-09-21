@@ -134,9 +134,9 @@ function writeCurrentVersionTestConfig (storage) {
 }
 
 /**
- * Build registry storage from the in-repo fixtures into `out` using the
- * `pnpr-prepare` binary (built from the `pnpr-fixtures` crate). The same
- * builder backs pacquet's in-process registry.
+ * Build registry storage from the in-repo fixtures into `out`, replacing the
+ * current-version sentinel with `pnpmVersion`. Throws if `pnpr-prepare`
+ * cannot build the storage.
  */
 function buildStorage (out, pnpmVersion) {
   const bin = resolvePnprPrepareBin()

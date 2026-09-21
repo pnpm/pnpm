@@ -809,11 +809,8 @@ test.each([
 })
 
 test('pnpm --version exits promptly when devEngines.packageManager matches the running pnpm', async () => {
-  // Regression test: main.ts's `--version` short-circuit returned before
-  // the command-handler `finally` that calls finishWorkers(), and
-  // switchCliVersion had already spawned workers during integrity
-  // resolution. The worker pool then kept the Node event loop alive long
-  // past the version print.
+  // Package-manager integrity resolution can start workers, so the
+  // `--version` path must finalize them before returning.
   // Read the running pnpm version from a fresh empty dir — the previous
   // test's prepare() leaves cwd in a manifest with a failing pm check, and
   // checkPackageManager runs before the --version short-circuit.
