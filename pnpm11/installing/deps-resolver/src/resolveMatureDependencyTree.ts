@@ -12,22 +12,7 @@ import {
   type ResolveDependencyTreeResult,
 } from './resolveDependencyTree.js'
 
-/**
- * Upper bound on resolution passes.
- *
- * The loop already terminates on its own — every pass blocks at least one
- * more version, over a finite set — but "finite" is not "small": a package
- * whose every version in range pins something too young would be walked one
- * version per pass, and each pass is a full tree resolution. The bound is
- * what stops that from running for minutes.
- *
- * It is set well above the depth any real dependency chain reaches, since
- * blame only climbs one ancestor per pass and a tree deep enough to need
- * more has an unusual number of consecutive exact pins. Hitting it is
- * reported rather than passed over silently — the install then answers with
- * the first pass, and the user has no other way to tell that a later attempt
- * might have found a tree.
- */
+// Each pass resolves the whole graph; the cap bounds work on hostile packuments.
 const MAX_RESOLUTION_PASSES = 32
 
 export interface MatureDependencyTreeResult<Importer> {
@@ -79,17 +64,6 @@ export async function resolveMatureDependencyTree<Importer extends ImporterToRes
   return firstPass
 }
 
-/**
- * Records the immediate parent of every immature pick as unusable, and
- * reports whether another pass could still reach a clean tree.
- *
- * It cannot when a violation has no parent to blame: the importer named that
- * package itself, and no ancestor's choice can widen a range the manifest
- * fixes. Retrying past one of those only re-reaches the same failure, so the
- * install stops here and lets the policy handler act on this pass. It cannot
- * either when every parent to blame is already blocked, which means the walk
- * has run out of ancestors to move.
- */
 function blockDeadEndParents (
   tree: ResolveDependencyTreeResult,
   blockedVersions: Map<string, Set<string>>

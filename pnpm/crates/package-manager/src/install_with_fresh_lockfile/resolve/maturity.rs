@@ -8,44 +8,12 @@ use std::{
     sync::Arc,
 };
 
-/// Upper bound on resolution passes.
-///
-/// The loop already terminates on its own — every pass blocks at least one
-/// more version, over a finite set — but "finite" is not "small": a package
-/// whose every version in range pins something too young would be walked one
-/// version per pass, and each pass is a full tree resolution. The bound is
-/// what stops that from running for minutes.
-///
-/// It is set well above the depth any real dependency chain reaches, since
-/// blame only climbs one ancestor per pass and a tree deep enough to need more
-/// has an unusual number of consecutive exact pins. Hitting it is reported
-/// rather than passed over silently — the install then answers with the first
-/// pass, and the user has no other way to tell that a later attempt might have
-/// found a tree.
+// Each pass resolves the whole graph; the cap bounds work on hostile packuments.
 const MAX_RESOLUTION_PASSES: usize = 32;
 
-/// Resolve the workspace, backing out of subtrees that no
-/// `minimumReleaseAge` cutoff can satisfy.
-///
-/// The cutoff narrows candidates one packument at a time, so an edge that
-/// admits no mature version is a dead end the pick itself cannot escape: a
-/// parent that pins its platform bindings to a version whose release was not
-/// atomic, or whose newest release depends on a package published minutes
-/// ago, has no mature answer to offer. The way out is to pick a different
-/// version of whatever declared that edge, and the resolver only reconsiders
-/// that on a fresh pass.
-///
-/// So each pass blocks the immediate parent of every immature pick and
-/// resolves again, walking the blame one level up per pass until a tree comes
-/// back clean. Passes after the first fetch no registry metadata — the
-/// packuments are memoized for the install — and only run while every
-/// immature pick still has a parent whose choice could be revisited, so an
-/// install that resolves cleanly, or one whose immature picks the manifests
-/// ask for by name, pays nothing.
-///
-/// When no pass comes back clean, the first pass's result is returned: an
-/// unavoidable conflict has to report the versions the manifests actually
-/// resolve to, not whatever the last attempt happened to reach.
+/// Returns a maturity-compliant tree when bounded parent-version retries find one,
+/// preserving other policy violations for their handlers. Returns the original
+/// tree when no retry succeeds, and propagates resolution errors.
 pub(in super::super) async fn resolve_mature_dependency_tree<Reporter, Resolve, Fut>(
     mut resolve: Resolve,
     lockfile_dir: &Path,
@@ -97,15 +65,6 @@ where
     Ok(first_pass)
 }
 
-/// Record the immediate parent of every immature pick as unusable, and
-/// report whether another pass could still reach a clean tree.
-///
-/// It cannot when a violation has no parent to blame: the importer named
-/// that package itself, and no ancestor's choice can widen a range the
-/// manifest fixes. Retrying past one of those only re-reaches the same
-/// failure, so the install stops here and lets the policy handler act on
-/// this pass. It cannot either when every parent to blame is already
-/// blocked, which means the walk has run out of ancestors to move.
 fn block_dead_end_parents(
     violations: &[ResolutionPolicyViolation],
     blocked_versions: &mut BlockedVersions,
