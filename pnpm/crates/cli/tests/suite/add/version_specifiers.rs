@@ -414,8 +414,6 @@ fn save_exact_and_equals_prefix_settings_drive_add() {
     drop((root, mock_instance));
 }
 
-/// Save-style CLI flags overrule `saveExact`, the same way they overrule
-/// `savePrefix`.
 #[test]
 fn save_style_flags_overrule_save_exact_setting() {
     let (root, workspace, mock_instance) =
