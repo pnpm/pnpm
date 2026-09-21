@@ -3,7 +3,7 @@ import path from 'node:path'
 import util from 'node:util'
 
 import { type RecursiveSummary, throwOnCommandFail } from '@pnpm/cli.utils'
-import { binDirOf, type Config, type ConfigContext, getWorkspaceConcurrency, projectModulesDir } from '@pnpm/config.reader'
+import { binDirOf, type Config, type ConfigContext, createProjectModulesDirResolver, getWorkspaceConcurrency } from '@pnpm/config.reader'
 import { PnpmError } from '@pnpm/error'
 import {
   makeNodePackageMapOption,
@@ -76,6 +76,7 @@ export async function runRecursive (
     throw new PnpmError('SCRIPT_NAME_IS_REQUIRED', 'You must specify the script you want to run')
   }
 
+  const modulesDirFor = createProjectModulesDirResolver(opts)
   const fullTaskGraph = buildRunTaskGraph(scriptName, opts)
   const taskRunStateContext = new TaskRunStateContext({
     command: 'run',
@@ -225,7 +226,7 @@ export async function runRecursive (
           hasCommand++
         }
         try {
-          const wdBinDir = binDirOf(node.project, projectModulesDir(opts, pkg.package.manifest.name))
+          const wdBinDir = binDirOf(node.project, modulesDirFor(pkg.package.manifest.name))
           const lifecycleOpts: RunLifecycleHookOptions = {
             depPath: node.project,
             wdBinDir,

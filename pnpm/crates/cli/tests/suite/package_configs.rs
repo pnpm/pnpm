@@ -434,9 +434,6 @@ fn a_shared_lockfile_keeps_the_workspace_modules_dir() {
     assert_eq!(bin_dir(&fixture, &moved), canonical_bin_dir(&moved, "vendor"));
 }
 
-/// The command lookup follows the same entry `bin` reports. The
-/// workspace-wide directory holds a stale shim from before the entry was
-/// added, which must not win.
 #[cfg(unix)]
 #[test]
 fn run_and_exec_find_the_named_project_command() {

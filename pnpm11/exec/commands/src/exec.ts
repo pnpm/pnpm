@@ -3,7 +3,7 @@ import { StringDecoder } from 'node:string_decoder'
 
 import { FILTERING, UNIVERSAL_OPTIONS } from '@pnpm/cli.common-cli-options-help'
 import { docsUrl, readProjectManifestOnly, type RecursiveSummary, throwOnCommandFail } from '@pnpm/cli.utils'
-import { binDirOf, type Config, type ConfigContext, getWorkspaceConcurrency, projectModulesDir, types } from '@pnpm/config.reader'
+import { binDirOf, type Config, type ConfigContext, createProjectModulesDirResolver, getWorkspaceConcurrency, types } from '@pnpm/config.reader'
 import { lifecycleLogger, type LifecycleMessage } from '@pnpm/core-loggers'
 import type { CheckDepsStatusOptions } from '@pnpm/deps.status'
 import { PnpmError } from '@pnpm/error'
@@ -165,6 +165,7 @@ export async function handler (
   if (!params[0]) {
     throw new PnpmError('EXEC_MISSING_COMMAND', '\'pnpm exec\' requires a command to run')
   }
+  const modulesDirFor = createProjectModulesDirResolver(opts)
   const limitRun = pLimit(getWorkspaceConcurrency(opts.workspaceConcurrency))
 
   if (opts.verifyDepsBeforeRun) {
@@ -313,7 +314,7 @@ export async function handler (
       // `./node_modules/.bin`, so a project path that contains the PATH
       // delimiter stays out of PATH.
       const projectDir = opts.recursive ? prefix : opts.dir as ProjectRootDir
-      const modulesDir = projectModulesDir(opts, opts.selectedProjectsGraph[projectDir]?.package.manifest.name)
+      const modulesDir = modulesDirFor(opts.selectedProjectsGraph[projectDir]?.package.manifest.name)
       const prependPaths = [
         modulesDir ? path.relative(prefix, binDirOf(prefix, modulesDir)) : './node_modules/.bin',
         ...(projectDir !== prefix ? [path.relative(prefix, binDirOf(projectDir, modulesDir))] : []),

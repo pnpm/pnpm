@@ -29,6 +29,7 @@ import { PnpmError } from '@pnpm/error'
 import {
   makeNodePackageMapOption,
   makeNodeRequireOption,
+  makeProjectNodePathOption,
   runLifecycleHook,
   runLifecycleHooksConcurrently,
   type RunLifecycleHooksConcurrentlyOptions,
@@ -104,6 +105,7 @@ import { verifiedFileIntegritySince, verifiedFileIntegritySnapshot } from '@pnpm
 import { safeReadProjectManifestOnly } from '@pnpm/workspace.project-manifest-reader'
 import { isSubdir } from 'is-subdir'
 import pLimit from 'p-limit'
+import { pathAbsolute } from 'path-absolute'
 import { clone, isEmpty, map as mapValues, pipeWith, props } from 'ramda'
 import semver from 'semver'
 
@@ -707,6 +709,11 @@ export async function mutateModules (
           depPath: opts.lockfileDir,
           pkgRoot: opts.lockfileDir,
           rootModulesDir: ctx.rootModulesDir,
+          wdBinDir: path.join(ctx.rootModulesDir, '.bin'),
+          extraEnv: {
+            ...scriptsOpts.extraEnv,
+            ...await makeProjectNodePathOption({ modulesDir: ctx.rootModulesDir, rootDir: opts.lockfileDir }, opts),
+          },
         }
       )
     }
@@ -3379,6 +3386,8 @@ async function mutateModulesViaPnpr (
   const pnprProjects = await preparePnprProjects(projects, opts)
   if (!pnprProjects) return null
 
+  const projectOptionsByDir = new Map(opts.allProjects?.map(project => [project.rootDir, project]))
+
   // installViaPnprServer runs the headless install for the first
   // project's root and the workspace path for the rest. Pass the
   // pre-processed manifests so resolution sees the post-mutation state.
@@ -3391,7 +3400,7 @@ async function mutateModulesViaPnpr (
         project.mutation === 'install' && project.updatePatches === true
       ),
     },
-    pnprProjects.map((p) => ({ rootDir: p.rootDir, manifest: p.manifest }))
+    pnprProjects.map((p) => ({ ...projectOptionsByDir.get(p.rootDir), rootDir: p.rootDir, manifest: p.manifest }))
   )
 
   // For installSome projects, copy resolved specs from the lockfile importer
@@ -3429,7 +3438,7 @@ async function installViaPnprServer (
   manifest: ProjectManifest,
   rootDir: ProjectRootDir,
   opts: Opts,
-  allInstallProjects?: Array<{ rootDir: ProjectRootDir, manifest: ProjectManifest }>
+  allInstallProjects?: Array<{ rootDir: ProjectRootDir, manifest: ProjectManifest, modulesDir?: string, binsDir?: string }>
 ): Promise<InstallResult & { stats: InstallationResultStats, lockfile: LockfileObject }> {
   // The pnpr server path re-resolves and persists new `index.db` entries plus a
   // freshly written lockfile, so it inherently writes the store. `frozenStore`
@@ -3578,20 +3587,17 @@ async function installViaPnprServer (
       },
       selectedProjectDirs: (allInstallProjects ?? [{ rootDir }]).map(p => p.rootDir),
       allProjects: Object.fromEntries(
-        (allInstallProjects ?? [{ rootDir, manifest }]).map((p, i) => [
-          p.rootDir,
-          {
-            binsDir: path.join(p.rootDir, 'node_modules', '.bin'),
+        (allInstallProjects ?? [{ rootDir, manifest, binsDir: opts.binsDir }]).map((p, i) => {
+          const modulesDir = pathAbsolute(p.modulesDir ?? opts.modulesDir ?? 'node_modules', p.rootDir)
+          return [p.rootDir, {
+            binsDir: p.binsDir ?? path.join(modulesDir, '.bin'),
             buildIndex: i,
-            // POSIX-normalize so the importer id matches the lockfile keys the
-            // pnpr server emits — on Windows a nested member's `path.relative`
-            // would otherwise be `packages\foo`, missing `packages/foo`.
             id: getLockfileImporterId(lockfileDir, p.rootDir),
             manifest: p.manifest,
-            modulesDir: path.join(p.rootDir, 'node_modules'),
+            modulesDir,
             rootDir: p.rootDir,
-          },
-        ])
+          }]
+        })
       ),
       hoistedDependencies: {},
       pendingBuilds: [] as string[],

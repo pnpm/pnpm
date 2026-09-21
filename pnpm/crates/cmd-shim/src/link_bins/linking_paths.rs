@@ -93,6 +93,7 @@ pub(super) fn shim_node_path(
     project_node_path: Option<&str>,
     extra_node_paths: &[String],
 ) -> Vec<String> {
+    let project_node_path = project_node_path.filter(|entry| std::env::join_paths([entry]).is_ok());
     if project_node_path.is_none() && extra_node_paths.is_empty() {
         return Vec::new();
     }

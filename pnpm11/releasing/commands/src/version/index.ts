@@ -1,7 +1,7 @@
 import path from 'node:path'
 
 import { readProjectManifest } from '@pnpm/cli.utils'
-import { binDirOf, type Config, projectModulesDir, types as allTypes } from '@pnpm/config.reader'
+import { binDirOf, type Config, createProjectModulesDirResolver, types as allTypes } from '@pnpm/config.reader'
 import { PnpmError } from '@pnpm/error'
 import { makeProjectNodePathOption, runLifecycleHook, type RunLifecycleHookOptions } from '@pnpm/exec.lifecycle'
 import { isGitRepo, isWorkingTreeClean } from '@pnpm/network.git-utils'
@@ -174,12 +174,13 @@ export async function handler (
     }
   }
 
+  const lifecycleOpts = { ...opts, modulesDirFor: createProjectModulesDirResolver(opts) }
   const changes: VersionChange[] = []
 
   if (opts.recursive) {
     const pkgDirs = Object.keys(opts.selectedProjectsGraph ?? {})
     const bumpResults = await Promise.all(
-      pkgDirs.map(pkgDir => bumpPackageVersion(pkgDir, rawBump, explicitVersion, opts))
+      pkgDirs.map(pkgDir => bumpPackageVersion(pkgDir, rawBump, explicitVersion, lifecycleOpts))
     )
     for (const change of bumpResults) {
       if (change) {
@@ -187,7 +188,7 @@ export async function handler (
       }
     }
   } else {
-    const change = await bumpPackageVersion(opts.dir, rawBump, explicitVersion, opts)
+    const change = await bumpPackageVersion(opts.dir, rawBump, explicitVersion, lifecycleOpts)
     if (change) {
       changes.push(change)
     }
@@ -204,7 +205,7 @@ export async function handler (
     await commitAndTag(changes, { ...opts, cwd: gitCwd })
   }
 
-  await Promise.all(changes.map(change => runVersionLifecycleHook('postversion', change, opts)))
+  await Promise.all(changes.map(change => runVersionLifecycleHook('postversion', change, lifecycleOpts)))
 
   if (opts.json) {
     return JSON.stringify(changes.map(({ manifestPath: _manifestPath, ...change }) => change), null, 2)
@@ -330,11 +331,13 @@ async function versionFromGit (cwd: string, tagVersionPrefix = 'v'): Promise<str
   return version
 }
 
+type VersionLifecycleOptions = VersionHandlerOptions & { modulesDirFor: ReturnType<typeof createProjectModulesDirResolver> }
+
 async function bumpPackageVersion (
   pkgDir: string,
   rawBump: string,
   explicitVersion: string | null,
-  opts: VersionHandlerOptions
+  opts: VersionLifecycleOptions
 ): Promise<VersionChange | null> {
   const { manifest, writeProjectManifest, fileName } = await readProjectManifest(pkgDir)
 
@@ -384,11 +387,11 @@ async function bumpPackageVersion (
   return change
 }
 
-async function runVersionLifecycleHook (stage: 'preversion' | 'version' | 'postversion', change: VersionChange, opts: VersionHandlerOptions): Promise<void> {
+async function runVersionLifecycleHook (stage: 'preversion' | 'version' | 'postversion', change: VersionChange, opts: VersionLifecycleOptions): Promise<void> {
   if (opts.ignoreScripts === true || opts.dryRun) return
 
   const { manifest } = await readProjectManifest(change.path)
-  const wdBinDir = binDirOf(change.path, projectModulesDir(opts, manifest.name))
+  const wdBinDir = binDirOf(change.path, opts.modulesDirFor(manifest.name))
   const lifecycleOpts: RunLifecycleHookOptions = {
     depPath: change.name,
     wdBinDir,

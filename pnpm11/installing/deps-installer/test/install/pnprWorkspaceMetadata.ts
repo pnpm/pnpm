@@ -1,3 +1,4 @@
+import fs from 'node:fs'
 import path from 'node:path'
 
 import { afterEach, expect, jest, test } from '@jest/globals'
@@ -5,7 +6,7 @@ import type { MutateModulesOptions, ProjectOptions } from '@pnpm/installing.deps
 import type { ResolveViaPnprServerOptions, ResolveViaPnprServerResult } from '@pnpm/pnpr.client'
 import { prepareEmpty, preparePackages } from '@pnpm/prepare'
 import type { StoreController } from '@pnpm/store.controller-types'
-import type { ProjectManifest, ProjectRootDir } from '@pnpm/types'
+import type { ProjectId, ProjectManifest, ProjectRootDir } from '@pnpm/types'
 
 import { testDefaults } from '../utils/index.js'
 
@@ -373,3 +374,38 @@ function createOptions (
   storeControllers.push(options.storeController)
   return options
 }
+
+test.each([false, true])('pnpr materialization keeps configured modules and bin directories (mutation: %s)', async (mutation) => {
+  const workspaceRoot = prepareEmpty().dir()
+  const rootDir = workspaceRoot as ProjectRootDir
+  const manifest: ProjectManifest = { name: 'app', version: '1.0.0', dependencies: { tool: 'link:tool' } }
+  fs.mkdirSync(path.join(rootDir, 'tool'))
+  fs.writeFileSync(path.join(rootDir, 'tool/package.json'), JSON.stringify({ name: 'tool', version: '1.0.0', bin: 'bin.js' }))
+  fs.writeFileSync(path.join(rootDir, 'tool/bin.js'), '#!/usr/bin/env node\nconsole.log("tool")\n')
+  const modulesDir = mutation ? 'private' : 'vendor'
+  const binsDir = path.join(rootDir, 'commands')
+  const options = createOptions(workspaceRoot, rootDir, {
+    lockfileOnly: false,
+    packageManager: { name: 'pnpm', version: '11.0.0' },
+    modulesDir: 'vendor',
+    allProjects: [{ buildIndex: 0, manifest, rootDir, modulesDir, binsDir }],
+  })
+  resolveViaPnprServer.mockResolvedValueOnce({
+    lockfile: {
+      lockfileVersion: '9.0',
+      importers: { ['.' as ProjectId]: { specifiers: { tool: 'link:tool' }, dependencies: { tool: 'link:tool' } } },
+      packages: {},
+    },
+    stats: { totalPackages: 0 },
+  })
+
+  if (mutation) {
+    await mutateModules([{ mutation: 'install', rootDir }], options)
+  } else {
+    await install(manifest, { ...options, binsDir })
+  }
+
+  expect(fs.realpathSync(path.join(rootDir, modulesDir, 'tool'))).toBe(fs.realpathSync(path.join(rootDir, 'tool')))
+  expect(fs.existsSync(path.join(binsDir, 'tool'))).toBe(true)
+  expect(fs.existsSync(path.join(rootDir, 'node_modules/tool'))).toBe(false)
+})

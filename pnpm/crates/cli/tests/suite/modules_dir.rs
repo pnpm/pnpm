@@ -434,3 +434,36 @@ fn assert_plugin_not_found(output: &Output) {
     let stderr = String::from_utf8_lossy(&output.stderr);
     assert!(stderr.contains("Cannot find module 'plugin'"), "{stderr}");
 }
+
+#[test]
+fn development_preinstall_hooks_give_installed_tools_their_custom_modules_dir() {
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    append_workspace_yaml_key(&workspace, "modulesDir", "vendor");
+    append_workspace_yaml_key(&workspace, "preferSymlinkedExecutables", "true");
+    append_workspace_yaml_key(&workspace, "hoistPattern", "[]");
+    write_probe_tool(&workspace);
+    write_plugin(&workspace);
+    let mut manifest = serde_json::json!({
+        "name": "root",
+        "dependencies": { "plugin": "file:plugin", "tool": "file:tool" },
+    });
+    write_manifest(&workspace, &manifest);
+    pacquet_in(&workspace)
+        .with_arg("install")
+        .assert()
+        .success();
+    manifest["scripts"] = serde_json::json!({
+        "pnpm:devPreinstall": "tool > preinstall-output.txt",
+    });
+    write_manifest(&workspace, &manifest);
+    pacquet_in(&workspace)
+        .with_arg("install")
+        .assert()
+        .success();
+    let output = fs::read_to_string(workspace.join("preinstall-output.txt"))
+        .expect("read preinstall-output.txt");
+    assert_eq!(output.trim_end(), "root: plugin loaded");
+    drop((root, mock_instance));
+}

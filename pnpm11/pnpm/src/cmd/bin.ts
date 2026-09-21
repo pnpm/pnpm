@@ -1,5 +1,5 @@
 import { docsUrl } from '@pnpm/cli.utils'
-import { binDirOf, type Config, type ConfigContext, projectModulesDir, types as allTypes } from '@pnpm/config.reader'
+import { binDirOf, type Config, type ConfigContext, createProjectModulesDirResolver, types as allTypes } from '@pnpm/config.reader'
 import { safeReadProjectManifestOnly } from '@pnpm/workspace.project-manifest-reader'
 import { pick } from 'ramda'
 import { renderHelp } from 'render-help'
@@ -48,6 +48,7 @@ export async function handler (
   if (opts.cliOptions['global'] || opts.lockfileDir != null || opts.packageConfigs == null) {
     return opts.bin
   }
+  const modulesDirFor = createProjectModulesDirResolver(opts)
   const manifest = await safeReadProjectManifestOnly(opts.dir)
-  return binDirOf(opts.dir, projectModulesDir(opts, manifest?.name))
+  return binDirOf(opts.dir, modulesDirFor(manifest?.name))
 }

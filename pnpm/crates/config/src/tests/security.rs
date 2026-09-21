@@ -100,3 +100,17 @@ pub fn prepend_project_node_path_puts_a_custom_modules_dir_first_once() {
     config.prepend_project_node_path::<InheritedNodePath>(&mut env, project, vendor);
     assert!(env.is_empty());
 }
+
+#[test]
+#[cfg(unix)]
+fn prepend_project_node_path_omits_paths_containing_the_path_list_delimiter() {
+    let mut config = Config::new();
+    config.prefer_symlinked_executables = Some(true);
+    let mut env = HashMap::from([("NODE_PATH".to_string(), "/inherited".to_string())]);
+    config.prepend_project_node_path::<InheritedNodePath>(
+        &mut env,
+        Path::new("/project:other"),
+        OsStr::new("vendor"),
+    );
+    assert_eq!(env["NODE_PATH"], "/inherited");
+}

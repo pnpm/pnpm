@@ -335,3 +335,16 @@ fn shared_shim_target_cache_probes_a_resolved_target_once() {
     }
     assert_eq!(READ_HEAD_CALLS.load(Ordering::Relaxed), 1, "one probe for the shared target");
 }
+
+#[test]
+fn project_node_path_omits_paths_containing_the_path_list_delimiter() {
+    let tmp = tempdir().unwrap();
+    let delimiter = if cfg!(windows) { ';' } else { ':' };
+    let project = tmp
+        .path()
+        .join(format!("vendor{delimiter}other"));
+    let manifest = Arc::new(json!({"name": "foo", "version": "1.0.0", "bin": "cli.js"}));
+    let pkg = PackageBinSource::new(tmp.path().join("foo"), manifest);
+    let node_path = super::super::shim_node_path(&pkg, Some(&project.to_string_lossy()), &[]);
+    assert_eq!(node_path, Vec::<String>::new());
+}

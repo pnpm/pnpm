@@ -254,7 +254,13 @@ pub(super) fn run_dev_preinstall<Reporter: self::Reporter>(
     workspace_root: &Path,
 ) -> Result<(), InstallError> {
     let root_modules_dir = workspace_root.join(config.modules_dir_name());
-    let extra_env = config.extra_env_with_node_options();
+    let bin_dir = root_modules_dir.join(".bin");
+    let mut extra_env = config.extra_env_with_node_options();
+    config.prepend_project_node_path::<pnpm_config::Host>(
+        &mut extra_env,
+        workspace_root,
+        config.modules_dir_name(),
+    );
     let dep_path = workspace_root.to_string_lossy();
     run_dev_preinstall_hook::<Reporter>(&RunPostinstallHooks {
         environment: pnpm_executor::ScriptEnvironment {
@@ -271,7 +277,7 @@ pub(super) fn run_dev_preinstall<Reporter: self::Reporter>(
             prepend_node_path: exec_scripts_prepend_node_path(config),
             shell: config.script_shell.as_deref().map(Path::new),
             shell_emulator: config.shell_emulator,
-            wd_bin_dir: None,
+            wd_bin_dir: Some(&bin_dir),
         },
         dep_path: &dep_path,
         pkg_root: workspace_root,

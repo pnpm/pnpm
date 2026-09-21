@@ -51,7 +51,7 @@ import {
   type CliOptions as SupportedArchitecturesCliOptions,
   overrideSupportedArchitecturesWithCLI,
 } from './overrideSupportedArchitecturesWithCLI.js'
-import { projectModulesDir } from './projectConfig.js'
+import { createProjectModulesDirResolver } from './projectConfig.js'
 import { quoteAndJoin } from './quoteAndJoin.js'
 import { transformGlobalDirKeys, transformPathKeys } from './transformPath.js'
 import { types } from './types.js'
@@ -70,7 +70,7 @@ export {
 } from './packageManagerRegistries.js'
 export { parseCAFileContents } from './parseCAFileContents.js'
 export type { Creds } from './parseCreds.js'
-export { projectModulesDir, type ProjectModulesDirOptions } from './projectConfig.js'
+export { createProjectModulesDirResolver, type ProjectModulesDirOptions } from './projectConfig.js'
 export {
   createProjectConfigRecord,
   type CreateProjectConfigRecordOptions,
@@ -843,7 +843,7 @@ export async function getConfig (opts: {
     // through these paths. Its manifest was read above.
     pnpmConfig.extraBinPaths = [binDirOf(
       pnpmConfig.workspaceDir,
-      projectModulesDir(pnpmConfig, pnpmConfig.rootProjectManifest?.name)
+      createProjectModulesDirResolver(pnpmConfig)(pnpmConfig.rootProjectManifest?.name)
     )]
   } else {
     pnpmConfig.extraBinPaths = []

@@ -12,20 +12,12 @@ export function createProjectConfigRecord (opts: CreateProjectConfigRecordOption
 export type ProjectModulesDirOptions = Pick<Config, 'packageConfigs' | 'lockfileDir' | 'modulesDir'>
 
 /**
- * The modules directory of the project named `projectName`, which its own
- * `packageConfigs` entry may point somewhere other than the workspace-wide
- * `modulesDir`. The directory the install gave that project, in other words.
- *
- * An entry reaches its project through the install that project owns, so a
- * workspace that shares one lockfile applies none of them. `lockfileDir` is
- * what marks that workspace, so the entries are inert whenever it is set.
+ * Resolve per-project modules directories after validating packageConfigs once.
+ * Shared-lockfile workspaces ignore packageConfigs, as their install does.
  */
-export function projectModulesDir (
-  opts: ProjectModulesDirOptions,
-  projectName: string | undefined
-): string | undefined {
-  if (opts.lockfileDir != null || projectName == null) return opts.modulesDir
-  return createProjectConfigRecord(opts)?.[projectName]?.modulesDir ?? opts.modulesDir
+export function createProjectModulesDirResolver (opts: ProjectModulesDirOptions): (projectName: string | undefined) => string | undefined {
+  const projectConfigs = opts.lockfileDir == null ? createProjectConfigRecord(opts) : undefined
+  return (projectName) => (projectName == null ? undefined : projectConfigs?.[projectName]?.modulesDir) ?? opts.modulesDir
 }
 
 export class ProjectConfigIsNotAnObjectError extends PnpmError {

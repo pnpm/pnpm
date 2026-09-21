@@ -255,6 +255,9 @@ impl Config {
             .join(modules_dir_name)
             .display()
             .to_string();
+        if std::env::join_paths([&project_node_path]).is_err() {
+            return;
+        }
         let rest = env
             .get("NODE_PATH")
             .cloned()

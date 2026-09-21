@@ -7,13 +7,14 @@ import path from 'node:path'
  * `<project>/node_modules`, or `undefined`. Node finds a project's packages
  * only by walking up to `node_modules` directories, so tools that load plugins
  * relative to the project need this entry to find them in a custom modules
- * directory.
+ * directory. Paths containing the path-list delimiter cannot be represented
+ * as a single NODE_PATH entry and are omitted.
  */
 export async function getProjectNodePath (
   project: { modulesDir: string, rootDir: string },
   opts: { extendNodePath?: boolean }
 ): Promise<string | undefined> {
-  if (opts.extendNodePath === false || await isSameDir(project.modulesDir, path.join(project.rootDir, 'node_modules'))) {
+  if (opts.extendNodePath === false || project.modulesDir.includes(path.delimiter) || await isSameDir(project.modulesDir, path.join(project.rootDir, 'node_modules'))) {
     return undefined
   }
   return project.modulesDir

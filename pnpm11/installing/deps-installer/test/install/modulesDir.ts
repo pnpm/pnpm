@@ -259,3 +259,22 @@ async function runTool (modulesDir: string, cwd = process.cwd()): Promise<unknow
   const { stdout } = await execa(path.resolve(cwd, modulesDir, '.bin/tool'), [], { cwd: path.resolve(cwd) })
   return JSON.parse(String(stdout))
 }
+
+test('development preinstall hooks give installed tools their custom modules directory', async () => {
+  prepareEmpty()
+  writeTool()
+  writePlugin()
+  const manifest = {
+    dependencies: {
+      'is-positive': '1.0.0',
+      plugin: 'file:plugin',
+      tool: 'file:tool',
+    },
+  }
+  const opts = testDefaults({ modulesDir: 'vendor', preferSymlinkedExecutables: true })
+  await install(manifest, opts)
+  const scripts = { 'pnpm:devPreinstall': 'tool > preinstall-output.json' }
+  writeJsonFileSync('package.json', { ...manifest, scripts })
+  await install({ ...manifest, scripts }, opts)
+  expect(JSON.parse(fs.readFileSync('preinstall-output.json', 'utf8'))).toMatchObject({ plugin: 'plugin loaded' })
+})

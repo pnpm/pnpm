@@ -16,3 +16,9 @@ test('a project reached through a symlinked ancestor gets no entry for its node_
   expect(await getProjectNodePath({ modulesDir: path.join(rootDir, 'node_modules'), rootDir }, {})).toBeUndefined()
   expect(await getProjectNodePath({ modulesDir: path.join(rootDir, 'vendor'), rootDir }, {})).toBe(path.join(rootDir, 'vendor'))
 })
+
+test('a modules directory containing the path-list delimiter is not added to NODE_PATH', async () => {
+  const rootDir = temporaryDirectory()
+  const modulesDir = path.join(rootDir, `vendor${path.delimiter}other`)
+  expect(await getProjectNodePath({ modulesDir, rootDir }, {})).toBeUndefined()
+})

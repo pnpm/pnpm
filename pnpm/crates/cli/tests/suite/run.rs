@@ -830,11 +830,6 @@ mod selection;
 
 mod environment;
 
-/// Regression test for
-/// [pnpm/pnpm#3604](https://github.com/pnpm/pnpm/issues/3604): an install
-/// links executables into the configured modules directory, so a script has
-/// to resolve them from there. A leftover `node_modules/.bin` from before the
-/// setting changed must not win.
 #[test]
 fn run_resolves_commands_from_the_configured_modules_dir() {
     let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
