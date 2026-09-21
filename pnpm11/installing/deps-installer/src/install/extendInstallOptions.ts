@@ -101,7 +101,7 @@ export interface StrictInstallOptions extends RegistryContext {
     customResolvers?: CustomResolver[]
     customFetchers?: CustomFetcher[]
     calculatePnpmfileChecksum?: () => Promise<string | undefined>
-    hasUntrackedReadPackageHook?: boolean
+    untrackedPnpmfileReadPackageHook?: boolean
   }
   sideEffectsCacheRead: boolean
   sideEffectsCacheWrite: boolean

@@ -317,16 +317,19 @@ pub(super) async fn auto_frozen_path(
         // from the current snapshot skips the check (it only gates on a
         // non-empty wanted lockfile). A throwing hook aborts the install.
         Ok(()) => {
-            // A `readPackage` hook no checksum vouches for makes "up to
-            // date" unverifiable: an edit to it leaves no trace the
-            // freshness check can see, so the frozen path must not be taken
-            // (<https://github.com/pnpm/pnpm/issues/15136>). Mirrors pnpm's
-            // `hasUntrackedReadPackageHook` gate in `isFrozenInstallPossible`.
-            if !dispatch.freshness.config.ignore_pnpmfile
-                && pnpm_hooks::has_untracked_read_package_hook(dispatch.freshness.pnpmfile_hook)
-                    .await
-            {
-                return Ok(false);
+            // An unchecksummed `readPackage` hook can change dependency
+            // manifests without changing the regular freshness inputs.
+            if !dispatch.freshness.config.ignore_pnpmfile {
+                let current =
+                    pnpm_hooks::untracked_read_package_hook(dispatch.freshness.pnpmfile_hook)
+                        .await
+                        .map_err(InstallError::ReadPackageHook)?;
+                if crate::install::untracked_read_package_hook_may_have_changed(
+                    lockfile.untracked_pnpmfile_read_package_hook(),
+                    current,
+                ) {
+                    return Ok(false);
+                }
             }
             Ok(dispatch.lockfile_synthesized_from_current
                 || dispatch.freshness.config.ignore_pnpmfile

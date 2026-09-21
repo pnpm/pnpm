@@ -103,7 +103,7 @@ pub(super) async fn settle_wanted_lockfile<'a: 'w, 'w, Reporter: self::Reporter 
     )
     .await;
     reconcile_branch_lockfile(&mut lockfiles, loaded, install.context.config);
-    if may_fast_update_with_hooks(install, mode, loaded).await {
+    if may_fast_update_with_hooks(install, mode, loaded, lockfiles.wanted.get()).await? {
         lockfiles.wanted.fast_updated =
             try_fast_update_lockfile::<Reporter>(FastUpdateLockfileOptions {
                 lockfile: lockfiles.wanted.get(),
@@ -198,17 +198,26 @@ pub(super) async fn synthesize_lockfile_from_current(
     check_lockfile_freshness(current, &scope.freshness).await.ok().map(|()| current.clone())
 }
 
-/// Whether the fast update may run for this install. A `readPackage` hook
-/// no checksum vouches for rewrites subtrees the fast update would keep
-/// verbatim, so the update stands down while one exists. Mirrors pnpm's
-/// `hasUntrackedReadPackageHook` gate in `canTryFastUpdateLockfile`.
+/// Whether the fast update may run for this install. It cannot preserve
+/// subtrees when an unchecksummed `readPackage` hook may have changed them.
 async fn may_fast_update_with_hooks(
     install: InstallView<'_>,
     mode: &RunMode,
     loaded: &Loaded<'_>,
-) -> bool {
-    may_fast_update_lockfile(install, mode.prefer_frozen_lockfile, loaded.wanted.had_conflicts)
-        && !pnpm_hooks::has_untracked_read_package_hook(loaded.pnpmfile_hook.as_ref()).await
+    lockfile: Option<&Lockfile>,
+) -> Result<bool, InstallError> {
+    if !may_fast_update_lockfile(install, mode.prefer_frozen_lockfile, loaded.wanted.had_conflicts)
+    {
+        return Ok(false);
+    }
+    let Some(lockfile) = lockfile else { return Ok(false) };
+    let current = pnpm_hooks::untracked_read_package_hook(loaded.pnpmfile_hook.as_ref())
+        .await
+        .map_err(InstallError::ReadPackageHook)?;
+    Ok(!crate::install::untracked_read_package_hook_may_have_changed(
+        lockfile.untracked_pnpmfile_read_package_hook(),
+        current,
+    ))
 }
 
 /// A lockfile whose Git conflict markers were merged away has to be

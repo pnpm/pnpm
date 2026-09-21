@@ -188,21 +188,25 @@ impl<'a, Reporter: self::Reporter + 'static> ResolutionContext<'a, Reporter> {
     /// the reuse gate. Like [`Self::current_pnpmfile_checksum`], a run
     /// with no candidate answers `false` rather than spawning the
     /// pnpmfile's Node worker for nothing.
-    async fn untracked_read_package_hook(&self) -> bool {
+    async fn untracked_read_package_hook(
+        &self,
+    ) -> Result<Option<bool>, InstallWithFreshLockfileError> {
         if self.wanted_lockfile().is_none() {
-            return false;
+            return Ok(None);
         }
-        pnpm_hooks::has_untracked_read_package_hook(self.prep.hooks.pnpmfile_hook.as_ref()).await
+        pnpm_hooks::untracked_read_package_hook(self.prep.hooks.pnpmfile_hook.as_ref())
+            .await
+            .map_err(InstallWithFreshLockfileError::PnpmfileHook)
     }
 
     async fn reuse_seed(
         &self,
         shared_resolve_options: &resolve::SharedResolveOptions<'_>,
         preferred_versions_seed: &Arc<pnpm_resolving_resolver_base::PreferredVersions>,
-    ) -> Option<Arc<Lockfile>> {
+    ) -> Result<Option<Arc<Lockfile>>, InstallWithFreshLockfileError> {
         let pnpmfile_checksum = self.current_pnpmfile_checksum().await;
-        let untracked_read_package_hook = self.untracked_read_package_hook().await;
-        resolve::lockfile_reuse_seed(resolve::ReuseSeedInputs {
+        let untracked_pnpmfile_read_package_hook = self.untracked_read_package_hook().await?;
+        Ok(resolve::lockfile_reuse_seed(resolve::ReuseSeedInputs {
             hooks: pnpm_resolving_deps_resolver::ManifestTransformHooks {
                 manifest_hook: self.prep.transforms.hooks.manifest_hook.clone(),
                 overrides_hook: self.prep.transforms.hooks.overrides_hook.clone(),
@@ -215,7 +219,7 @@ impl<'a, Reporter: self::Reporter + 'static> ResolutionContext<'a, Reporter> {
                     .package_extensions_checksum
                     .as_deref(),
                 pnpmfile_checksum: pnpmfile_checksum.as_deref(),
-                untracked_read_package_hook,
+                untracked_pnpmfile_read_package_hook,
                 parsed_overrides: self.prep.transforms.parsed_overrides.as_deref(),
                 resolved_overrides: self.prep.transforms.resolved_overrides.as_ref(),
             },
@@ -235,7 +239,7 @@ impl<'a, Reporter: self::Reporter + 'static> ResolutionContext<'a, Reporter> {
             ),
             registries: &self.registries.by_scope,
         })
-        .await
+        .await)
     }
 
     fn workspace_walk(
@@ -344,7 +348,7 @@ pub(super) async fn run_prepared_resolve<'m, Reporter: self::Reporter + 'static>
         );
     let shared_resolve_options = context.shared_options();
     let lockfile_reuse_seed =
-        context.reuse_seed(&shared_resolve_options, &preferred_versions_seed).await;
+        context.reuse_seed(&shared_resolve_options, &preferred_versions_seed).await?;
     let phase_start = std::time::Instant::now();
     Reporter::emit(&LogEvent::Stage(StageLog {
         level: LogLevel::Debug,

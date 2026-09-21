@@ -113,6 +113,7 @@ pub struct LockfileManifestSettings {
     /// `pnpmfileChecksum` recorded the same way. `None` when the project
     /// has no `.pnpmfile.{cjs,mjs}` — or one that exports no `hooks`.
     pub pnpmfile_checksum: Option<String>,
+    pub untracked_pnpmfile_read_package_hook: Option<bool>,
 }
 
 pub struct LockfileImporterReuse<'a> {
@@ -199,7 +200,7 @@ pub fn dependencies_graph_to_lockfile(
     let (packages, snapshots) =
         build_packages_and_snapshots(opts.graph, &optional_overrides, &opts.metadata_sources)?;
     let importers = build_importers(&opts)?;
-    Ok(Lockfile {
+    let mut lockfile = Lockfile {
         lockfile_version: LockfileVersion::<9>::try_from(ComVer::new(9, 0))
             .expect("the generated lockfile version is supported"),
         settings: Some(opts.settings),
@@ -223,7 +224,11 @@ pub fn dependencies_graph_to_lockfile(
         // fresh contents anyway); `Lockfile::extra` is what makes that
         // read-edit-write round trip lossless.
         extra: pnpm_lockfile::LockfileExtra::default(),
-    })
+    };
+    lockfile.set_untracked_pnpmfile_read_package_hook(
+        opts.manifest_settings.untracked_pnpmfile_read_package_hook,
+    );
+    Ok(lockfile)
 }
 
 /// Build the lockfile's `catalogs:` snapshot from the resolved importers.

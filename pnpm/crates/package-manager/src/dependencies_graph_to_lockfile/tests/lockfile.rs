@@ -176,6 +176,7 @@ fn dedupe_peers_round_trips_through_lockfile_settings() {
             patched_dependencies: None,
             package_extensions_checksum: None,
             pnpmfile_checksum: None,
+            untracked_pnpmfile_read_package_hook: None,
         },
         reuse: crate::LockfileImporterReuse {
             previous_importers: None,
@@ -219,6 +220,7 @@ fn dedupe_peers_round_trips_through_lockfile_settings() {
             patched_dependencies: None,
             package_extensions_checksum: None,
             pnpmfile_checksum: None,
+            untracked_pnpmfile_read_package_hook: None,
         },
         reuse: crate::LockfileImporterReuse {
             previous_importers: None,
@@ -314,6 +316,7 @@ fn patched_dependencies_flow_into_lockfile_and_empty_is_omitted() {
                 patched_dependencies: patched,
                 package_extensions_checksum: None,
                 pnpmfile_checksum: None,
+                untracked_pnpmfile_read_package_hook: None,
             },
             reuse: crate::LockfileImporterReuse {
                 previous_importers: None,
@@ -419,6 +422,7 @@ fn snapshot_link_uses_lockfile_root_while_importer_link_uses_project_root() {
             patched_dependencies: None,
             package_extensions_checksum: None,
             pnpmfile_checksum: None,
+            untracked_pnpmfile_read_package_hook: None,
         },
         reuse: crate::LockfileImporterReuse {
             previous_importers: None,
@@ -526,6 +530,7 @@ fn multi_importer_workspace_writes_per_project_lockfile_entries() {
             patched_dependencies: None,
             package_extensions_checksum: None,
             pnpmfile_checksum: None,
+            untracked_pnpmfile_read_package_hook: None,
         },
         reuse: crate::LockfileImporterReuse {
             previous_importers: None,

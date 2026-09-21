@@ -186,25 +186,25 @@ impl PnpmfileHooks for CombinedPnpmfileHooks {
         true
     }
 
-    async fn has_read_package(&self) -> bool {
+    async fn has_read_package(&self) -> Result<bool, HookError> {
         for hook in &self.hooks {
-            if hook.has_read_package().await {
-                return true;
+            if hook.has_read_package().await? {
+                return Ok(true);
             }
         }
-        false
+        Ok(false)
     }
 
-    async fn has_untracked_read_package_hook(&self) -> bool {
-        // Only the leading checksum-excluded entries answer: the
-        // checksum-tracked project pnpmfiles report their edits through
-        // `pnpmfileChecksum` already.
+    async fn untracked_read_package_hook(&self) -> Result<Option<bool>, HookError> {
+        if self.checksum_skips == 0 {
+            return Ok(None);
+        }
         for hook in self.hooks.iter().take(self.checksum_skips) {
-            if hook.has_read_package().await {
-                return true;
+            if hook.has_read_package().await? {
+                return Ok(Some(true));
             }
         }
-        false
+        Ok(Some(false))
     }
 
     async fn calculate_pnpmfile_checksum(&self) -> Option<String> {

@@ -110,12 +110,12 @@ impl PnpmfileHooks for JsReadPackageHook {
         true
     }
 
-    async fn has_read_package(&self) -> bool {
-        true
+    async fn has_read_package(&self) -> Result<bool, HookError> {
+        Ok(true)
     }
 
-    async fn has_untracked_read_package_hook(&self) -> bool {
-        true
+    async fn untracked_read_package_hook(&self) -> Result<Option<bool>, HookError> {
+        Ok(Some(true))
     }
 }
 
@@ -271,11 +271,11 @@ impl PnpmfileHooks for JsBatchedReadPackageHook {
         true
     }
 
-    async fn has_read_package(&self) -> bool {
-        true
+    async fn has_read_package(&self) -> Result<bool, HookError> {
+        Ok(true)
     }
 
-    async fn has_untracked_read_package_hook(&self) -> bool {
-        true
+    async fn untracked_read_package_hook(&self) -> Result<Option<bool>, HookError> {
+        Ok(Some(true))
     }
 }

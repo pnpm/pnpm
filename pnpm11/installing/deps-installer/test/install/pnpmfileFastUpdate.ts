@@ -181,7 +181,7 @@ test('an edited global readPackage hook is not ignored by lockfile reuse', async
   // to a fresh filename so the second load does not hit the module cache,
   // the same way a new CLI process re-reads the file from disk.
   const editedGlobalPnpmfilePath = path.resolve('global-pnpmfile-edited.cjs')
-  fs.writeFileSync(editedGlobalPnpmfilePath, 'module.exports = { hooks: { readPackage: (pkg) => pkg } }')
+  fs.writeFileSync(editedGlobalPnpmfilePath, 'module.exports = {}')
   const editedHooks = (await requireHooks(process.cwd(), {
     globalPnpmfile: editedGlobalPnpmfilePath,
   })).hooks

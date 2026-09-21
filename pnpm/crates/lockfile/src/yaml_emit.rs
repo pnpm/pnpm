@@ -70,13 +70,14 @@ const ORDERED_KEYS: [&str; 20] = [
 ];
 
 /// Top-level key priority, matching pnpm's lockfile root-key sort.
-const ROOT_KEYS: [&str; 9] = [
+const ROOT_KEYS: [&str; 10] = [
     "lockfileVersion",
     "settings",
     "catalogs",
     "overrides",
     "packageExtensionsChecksum",
     "pnpmfileChecksum",
+    "untrackedPnpmfileReadPackageHook",
     "patchedDependencies",
     "importers",
     "packages",

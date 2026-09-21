@@ -213,11 +213,8 @@ impl crate::PnpmfileHooks for NodeJsHooks {
         }
     }
 
-    async fn has_read_package(&self) -> bool {
-        match self.worker().await {
-            Ok(worker) => worker.has_read_package().await,
-            Err(_) => false,
-        }
+    async fn has_read_package(&self) -> Result<bool, HookError> {
+        self.worker().await?.has_read_package().await
     }
 
     async fn calculate_pnpmfile_checksum(&self) -> Option<String> {

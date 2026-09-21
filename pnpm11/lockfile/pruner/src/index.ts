@@ -112,6 +112,9 @@ export function pruneLockfile (
   if (lockfile.pnpmfileChecksum) {
     prunedLockfile.pnpmfileChecksum = lockfile.pnpmfileChecksum
   }
+  if (lockfile.untrackedPnpmfileReadPackageHook != null) {
+    prunedLockfile.untrackedPnpmfileReadPackageHook = lockfile.untrackedPnpmfileReadPackageHook
+  }
   if (lockfile.ignoredOptionalDependencies && !isEmpty(lockfile.ignoredOptionalDependencies)) {
     prunedLockfile.ignoredOptionalDependencies = lockfile.ignoredOptionalDependencies
   }

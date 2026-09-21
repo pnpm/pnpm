@@ -14,6 +14,13 @@ export function mergeLockfileChanges (ours: LockfileObject, theirs: LockfileObje
   if (pnpmfileChecksum) {
     newLockfile.pnpmfileChecksum = pnpmfileChecksum
   }
+  const untrackedPnpmfileReadPackageHook =
+    ours.untrackedPnpmfileReadPackageHook === theirs.untrackedPnpmfileReadPackageHook
+      ? ours.untrackedPnpmfileReadPackageHook
+      : true
+  if (untrackedPnpmfileReadPackageHook != null) {
+    newLockfile.untrackedPnpmfileReadPackageHook = untrackedPnpmfileReadPackageHook
+  }
 
   const ignoredOptionalDependencies = [...new Set([
     ...ours.ignoredOptionalDependencies ?? [],

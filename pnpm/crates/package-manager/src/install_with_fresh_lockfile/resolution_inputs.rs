@@ -88,12 +88,7 @@ pub(crate) struct ReuseLockfileInputs<'a> {
     /// checksum means they describe manifests this install no longer sees
     /// (<https://github.com/pnpm/pnpm/issues/3735>).
     pub pnpmfile_checksum: Option<&'a str>,
-    /// Whether a checksum-excluded pnpmfile (the global pnpmfile, kept out
-    /// of `pnpmfileChecksum`) exports a `readPackage` hook. The checksum
-    /// comparison cannot see edits to such a pnpmfile, so the reuse gate
-    /// treats `true` as drift it cannot observe and withholds the seed
-    /// (<https://github.com/pnpm/pnpm/issues/15136>).
-    pub untracked_read_package_hook: bool,
+    pub untracked_pnpmfile_read_package_hook: Option<bool>,
     pub parsed_overrides: Option<&'a [pnpm_config_parse_overrides::VersionOverride]>,
     pub resolved_overrides: Option<&'a IndexMap<String, String>>,
 }

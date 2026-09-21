@@ -259,6 +259,29 @@ impl<'a> LockfileEntries<'a> {
 }
 
 impl Lockfile {
+    const UNTRACKED_PNPMFILE_READ_PACKAGE_HOOK: &'static str = "untrackedPnpmfileReadPackageHook";
+
+    #[must_use]
+    pub fn untracked_pnpmfile_read_package_hook(&self) -> Option<bool> {
+        self.extra
+            .get(Self::UNTRACKED_PNPMFILE_READ_PACKAGE_HOOK)
+            .and_then(serde_json::Value::as_bool)
+    }
+
+    pub fn set_untracked_pnpmfile_read_package_hook(&mut self, value: Option<bool>) {
+        match value {
+            Some(value) => {
+                self.extra.insert(
+                    Self::UNTRACKED_PNPMFILE_READ_PACKAGE_HOOK.to_string(),
+                    serde_json::Value::Bool(value),
+                );
+            }
+            None => {
+                self.extra.shift_remove(Self::UNTRACKED_PNPMFILE_READ_PACKAGE_HOOK);
+            }
+        }
+    }
+
     /// Base file name of the lockfile.
     pub const FILE_NAME: &str = "pnpm-lock.yaml";
 

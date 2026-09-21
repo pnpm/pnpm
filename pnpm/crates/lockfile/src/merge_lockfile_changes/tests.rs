@@ -165,6 +165,24 @@ pnpmfileChecksum: theirs
     );
 }
 
+#[test]
+fn merging_preserves_matching_untracked_hook_state() {
+    let merged = merged(
+        "lockfileVersion: '9.0'\nuntrackedPnpmfileReadPackageHook: false\n",
+        "lockfileVersion: '9.0'\nuntrackedPnpmfileReadPackageHook: false\n",
+    );
+    assert_eq!(merged.untracked_pnpmfile_read_package_hook(), Some(false));
+}
+
+#[test]
+fn merging_marks_conflicting_untracked_hook_state_for_resolution() {
+    let merged = merged(
+        "lockfileVersion: '9.0'\nuntrackedPnpmfileReadPackageHook: false\n",
+        "lockfileVersion: '9.0'\nuntrackedPnpmfileReadPackageHook: true\n",
+    );
+    assert_eq!(merged.untracked_pnpmfile_read_package_hook(), Some(true));
+}
+
 /// A tool driving pnpm records its own state in a top-level block beside
 /// pnpm's; merging two branches' lockfiles must not delete it. Ours wins a
 /// conflict, matching the precedence the other fields use.

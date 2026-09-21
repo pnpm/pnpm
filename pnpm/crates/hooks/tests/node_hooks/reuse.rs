@@ -38,7 +38,7 @@ async fn untracked_read_package_hook_detects_global_hook() {
         "module.exports = { hooks: { readPackage (pkg) { return pkg } } }",
     );
     assert!(
-        hooks.has_untracked_read_package_hook().await,
+        hooks.untracked_read_package_hook().await.unwrap() == Some(true),
         "a readPackage hook on the checksum-excluded global pnpmfile must be reported",
     );
 }
@@ -54,7 +54,7 @@ async fn untracked_read_package_hook_stays_quiet_without_global_hook() {
         "module.exports = { hooks: { updateConfig (config) { return config } } }",
     );
     assert!(
-        !hooks.has_untracked_read_package_hook().await,
+        hooks.untracked_read_package_hook().await.unwrap() == Some(false),
         "a global pnpmfile without readPackage must not disable reuse",
     );
 }
@@ -73,7 +73,7 @@ async fn untracked_read_package_hook_ignores_project_hook() {
         "module.exports = {}",
     );
     assert!(
-        !hooks.has_untracked_read_package_hook().await,
+        hooks.untracked_read_package_hook().await.unwrap() == Some(false),
         "a checksum-tracked project readPackage must not count as untracked",
     );
 }
@@ -92,11 +92,11 @@ async fn node_js_hooks_detects_read_package() {
         "module.exports = { hooks: { updateConfig (config) { return config } } }",
     );
     assert!(
-        pnpm_hooks::node_runtime::NodeJsHooks::new(with_hook).has_read_package().await,
+        pnpm_hooks::node_runtime::NodeJsHooks::new(with_hook).has_read_package().await.unwrap(),
         "exported readPackage must be detected",
     );
     assert!(
-        !pnpm_hooks::node_runtime::NodeJsHooks::new(without_hook).has_read_package().await,
+        !pnpm_hooks::node_runtime::NodeJsHooks::new(without_hook).has_read_package().await.unwrap(),
         "missing readPackage must not be reported",
     );
 }

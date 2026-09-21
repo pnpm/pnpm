@@ -160,22 +160,14 @@ pub trait PnpmfileHooks: Send + Sync {
     }
 
     /// Whether this pnpmfile exports a callable `readPackage` hook.
-    async fn has_read_package(&self) -> bool {
-        false
+    async fn has_read_package(&self) -> Result<bool, HookError> {
+        Ok(false)
     }
 
-    /// Whether a checksum-excluded pnpmfile in this hook set exports a
-    /// callable `readPackage` hook.
-    ///
-    /// Mirrors pnpm's `hasUntrackedReadPackageHook`: the global pnpmfile
-    /// loads ahead of the project's own and stays out of
-    /// `pnpmfileChecksum`, so a `readPackage` it exports leaves no trace
-    /// a checksum gate can compare. Gates that reuse recorded subtrees
-    /// treat `true` as checksum drift they cannot observe and re-resolve
-    /// instead of reusing them
-    /// (<https://github.com/pnpm/pnpm/issues/15136>).
-    async fn has_untracked_read_package_hook(&self) -> bool {
-        false
+    /// The `readPackage` capability of a checksum-excluded hook source.
+    /// `None` means this hook set has no such source.
+    async fn untracked_read_package_hook(&self) -> Result<Option<bool>, HookError> {
+        Ok(None)
     }
 
     /// Compute the `pnpmfileChecksum` recorded in `pnpm-lock.yaml`, or
@@ -349,12 +341,13 @@ pub async fn current_pnpmfile_checksum(
     hooks.calculate_pnpmfile_checksum().await
 }
 
-/// Whether a checksum-excluded pnpmfile in `hooks` exports a callable
-/// `readPackage` hook. `None` answers `false` without touching Node.
-pub async fn has_untracked_read_package_hook(hooks: Option<&Arc<dyn PnpmfileHooks>>) -> bool {
+/// The `readPackage` capability of a checksum-excluded hook source.
+pub async fn untracked_read_package_hook(
+    hooks: Option<&Arc<dyn PnpmfileHooks>>,
+) -> Result<Option<bool>, HookError> {
     match hooks {
-        Some(hooks) => hooks.has_untracked_read_package_hook().await,
-        None => false,
+        Some(hooks) => hooks.untracked_read_package_hook().await,
+        None => Ok(None),
     }
 }
 
@@ -438,12 +431,12 @@ impl PnpmfileHooks for ChecksumFreeHooks {
         self.0.has_filter_log().await
     }
 
-    async fn has_read_package(&self) -> bool {
+    async fn has_read_package(&self) -> Result<bool, HookError> {
         self.0.has_read_package().await
     }
 
-    async fn has_untracked_read_package_hook(&self) -> bool {
-        self.0.has_untracked_read_package_hook().await
+    async fn untracked_read_package_hook(&self) -> Result<Option<bool>, HookError> {
+        self.0.untracked_read_package_hook().await
     }
 
     async fn calculate_pnpmfile_checksum(&self) -> Option<String> {
