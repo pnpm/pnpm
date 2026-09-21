@@ -1,6 +1,6 @@
 use super::{
     LifecycleScriptError, RunPostinstallHooks, StreamedScript, output::STREAMED_OUTPUT_CHUNK_BYTES,
-    run_postinstall_hooks,
+    read_lifecycle_manifest, run_postinstall_hooks,
 };
 use crate::extend_path::ScriptsPrependNodePath;
 use pnpm_package_manifest::PackageManifestError;
@@ -566,6 +566,44 @@ fn malformed_manifest_propagates_error() {
         panic!("expected ReadManifest(Parse), got {err:?}")
     };
     assert_eq!(path, &pkg_root.join("package.json"));
+}
+
+#[test]
+fn lifecycle_manifest_prefers_package_json_over_package_yaml() {
+    let dir = tempdir().expect("create temp dir");
+    let pkg_root = dir.path();
+    fs::write(
+        pkg_root.join("package.json"),
+        serde_json::json!({ "scripts": { "pnpm:devPreinstall": "from-json" } }).to_string(),
+    )
+    .expect("write package.json");
+    fs::write(pkg_root.join("package.yaml"), "scripts:\n  pnpm:devPreinstall: from-yaml\n")
+        .expect("write package.yaml");
+
+    let manifest = read_lifecycle_manifest(pkg_root)
+        .expect("read lifecycle manifest")
+        .expect("manifest exists");
+    assert_eq!(manifest["scripts"]["pnpm:devPreinstall"], "from-json");
+}
+
+#[test]
+fn malformed_package_yaml_reports_the_selected_manifest() {
+    let dir = tempdir().expect("create temp dir");
+    let pkg_root = dir.path();
+    let package_yaml = pkg_root.join("package.yaml");
+    fs::write(&package_yaml, "scripts:\n  [not valid yaml\n")
+        .expect("write malformed package.yaml");
+
+    let err = read_lifecycle_manifest(pkg_root).expect_err("malformed YAML must fail");
+    let LifecycleScriptError::ReadManifest {
+        path: error_path,
+        source: PackageManifestError::ParseYaml { path, .. },
+    } = &err
+    else {
+        panic!("expected ReadManifest(ParseYaml), got {err:?}")
+    };
+    assert_eq!(error_path, &package_yaml.display().to_string());
+    assert_eq!(path, &package_yaml);
 }
 
 /// The emulator path pumps output through its own line sink rather than

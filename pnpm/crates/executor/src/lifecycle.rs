@@ -13,7 +13,9 @@ use crate::{
 };
 use derive_more::{Display, Error};
 use miette::Diagnostic;
-use pnpm_package_manifest::{PackageManifestError, safe_read_package_json_from_dir};
+use pnpm_package_manifest::{
+    PackageManifest, PackageManifestError, safe_read_package_json_from_dir,
+};
 use pnpm_reporter::{LifecycleLog, LifecycleMessage, LifecycleStdio, LogEvent, LogLevel, Reporter};
 use serde_json::Value;
 use std::{
@@ -32,7 +34,7 @@ use tokio::io::{AsyncBufReadExt, AsyncRead, BufReader as AsyncBufReader};
 #[derive(Debug, Display, Error, Diagnostic)]
 #[non_exhaustive]
 pub enum LifecycleScriptError {
-    #[display("Failed to read package.json at {path}: {source}")]
+    #[display("Failed to read package manifest at {path}: {source}")]
     #[diagnostic(code(ERR_PNPM_EXECUTOR_READ_MANIFEST))]
     ReadManifest {
         path: String,
@@ -223,14 +225,25 @@ fn run_lifecycle_stages<Reporter: self::Reporter>(
 fn read_lifecycle_manifest(
     pkg_root: &Path,
 ) -> Result<Option<serde_json::Value>, LifecycleScriptError> {
-    safe_read_package_json_from_dir(pkg_root)
+    let package_json = pkg_root.join("package.json");
+    if let Some(manifest) = safe_read_package_json_from_dir(pkg_root)
         .map_err(|source| LifecycleScriptError::ReadManifest {
-            path: pkg_root
-                .join("package.json")
-                .display()
-                .to_string(),
+            path: package_json.display().to_string(),
             source,
-        })
+        })?
+    {
+        return Ok(Some(manifest));
+    }
+
+    let package_yaml = pkg_root.join("package.yaml");
+    match PackageManifest::from_path(package_yaml.clone()) {
+        Ok(manifest) => Ok(Some(manifest.value().clone())),
+        Err(PackageManifestError::NoImporterManifestFound(_)) => Ok(None),
+        Err(source) => Err(LifecycleScriptError::ReadManifest {
+            path: package_yaml.display().to_string(),
+            source,
+        }),
+    }
 }
 
 /// Run a single lifecycle hook and emit `pnpm:lifecycle` events.
