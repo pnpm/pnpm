@@ -100,7 +100,7 @@ fn acquire_waits_for_a_slot_to_free_up() {
     let mut notices = 0;
     let started = Instant::now();
     let slot = pool
-        .acquire(0, |_| notices += 1, &never)
+        .acquire("", 0, |_| notices += 1, &never)
         .expect("acquire after the release")
         .expect("the wait ended with a slot");
     let acquired_at = Instant::now();
@@ -127,7 +127,7 @@ fn a_cancelled_wait_ends_without_a_slot() {
     let cancel_after = Duration::from_millis(200);
     let cancelled = || started.elapsed() >= cancel_after;
     let outcome = pool
-        .acquire(0, |_| {}, &cancelled)
+        .acquire("", 0, |_| {}, &cancelled)
         .expect("the wait itself succeeds");
 
     dbg!(started.elapsed());
@@ -216,6 +216,7 @@ fn spawn_waiter(
     let thread = thread::spawn(move || {
         let slot = pool
             .acquire(
+                "wait",
                 priority,
                 |snapshot| {
                     let _ = waiting_tx.send(snapshot.clone());
@@ -299,7 +300,7 @@ fn a_cancelled_waiter_does_not_block_the_next() {
     let cancel_after = Duration::from_millis(200);
     let cancelled = || started.elapsed() >= cancel_after;
     let first = pool
-        .acquire(0, |_| {}, &cancelled)
+        .acquire("", 0, |_| {}, &cancelled)
         .expect("the cancelled wait itself succeeds");
     assert!(first.is_none(), "the cancelled waiter took a slot");
 
@@ -324,7 +325,7 @@ fn a_stale_waiter_file_is_skipped() {
     fs::write(dir.path().join("seq"), "1").expect("advance ticket sequence");
 
     let slot = pool
-        .acquire(0, |_| {}, &never)
+        .acquire("", 0, |_| {}, &never)
         .expect("acquire")
         .expect("a slot");
     assert!(!waiters.join("0").exists(), "the stale lock stayed");
@@ -407,6 +408,7 @@ fn status_lists_holders_and_waiters_in_line_order() {
     assert!(status.holders[0].elapsed.is_some());
     assert_eq!(status.waiters.len(), 1);
     assert_eq!(status.waiters[0].priority, 3);
+    assert_eq!(status.waiters[0].command.as_deref(), Some("wait"));
     assert!(status.waiters[0].elapsed.is_some());
 
     drop(held);
@@ -428,6 +430,7 @@ fn status_lists_a_locked_slot_without_a_holder_stamp() {
     dbg!(&status);
     assert_eq!(status.holders.len(), 1);
     assert_eq!(status.holders[0].info, "slot 0");
+    assert!(status.holders[0].elapsed.is_none());
     drop(held);
 }
 
@@ -445,9 +448,12 @@ fn format_elapsed_prints_compact_units() {
 #[test]
 fn parse_process_stamp_reads_since_and_old_stamps() {
     use super::stamp::parse_process_stamp;
-    assert_eq!(
-        parse_process_stamp("since 10\npid 1 in /tmp"),
-        (Some(10), "pid 1 in /tmp".to_string()),
-    );
-    assert_eq!(parse_process_stamp("pid 1 in /tmp"), (None, "pid 1 in /tmp".to_string()));
+    let stamped = parse_process_stamp("since 10\ncmd hold\npid 1 in /tmp");
+    assert_eq!(stamped.since, Some(10));
+    assert_eq!(stamped.command.as_deref(), Some("hold"));
+    assert_eq!(stamped.info, "pid 1 in /tmp");
+    let old = parse_process_stamp("pid 1 in /tmp");
+    assert_eq!(old.since, None);
+    assert_eq!(old.command, None);
+    assert_eq!(old.info, "pid 1 in /tmp");
 }

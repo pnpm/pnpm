@@ -22,7 +22,6 @@
 
 pub(crate) mod pool;
 pub(crate) mod stamp;
-pub(crate) use pool::GroupStatus;
 
 use derive_more::{Display, Error};
 use miette::Diagnostic;
@@ -38,6 +37,33 @@ use std::{
     path::{Path, PathBuf},
     time::Duration,
 };
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct GroupStatus {
+    pub holders: Vec<HolderLine>,
+    pub waiters: Vec<WaiterLine>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct HolderLine {
+    pub command: Option<String>,
+    pub info: String,
+    pub elapsed: Option<Duration>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct WaiterLine {
+    pub command: Option<String>,
+    pub priority: i32,
+    pub info: String,
+    pub elapsed: Option<Duration>,
+}
+
+impl GroupStatus {
+    pub(crate) fn is_idle(&self) -> bool {
+        self.holders.is_empty() && self.waiters.is_empty()
+    }
+}
 
 /// Env var that carries the groups the parent invocations hold slots of,
 /// comma-separated.
@@ -115,7 +141,7 @@ fn acquire_slot(
             message: format_wait_notice(script, group, limit, &pool.dir, snapshot),
         }));
     };
-    pool.acquire(priority, on_wait, cancelled)
+    pool.acquire(script, priority, on_wait, cancelled)
         .map(|file| match file {
             Some(file) => {
                 SlotOutcome::Held(ConcurrencyGroupSlot { group: group.to_string(), _file: file })
@@ -220,7 +246,14 @@ pub(crate) fn render_group(name: &str, status: &GroupStatus) -> String {
     if !status.holders.is_empty() {
         out.push_str("\n  running");
         for holder in &status.holders {
-            append_status_line(&mut out, None, &holder.info, holder.elapsed, None);
+            append_status_line(
+                &mut out,
+                None,
+                holder.command.as_deref(),
+                &holder.info,
+                holder.elapsed,
+                None,
+            );
         }
     }
     if !status.waiters.is_empty() {
@@ -229,6 +262,7 @@ pub(crate) fn render_group(name: &str, status: &GroupStatus) -> String {
             append_status_line(
                 &mut out,
                 Some(index + 1),
+                waiter.command.as_deref(),
                 &waiter.info,
                 waiter.elapsed,
                 (waiter.priority != 0).then_some(waiter.priority),
@@ -241,16 +275,18 @@ pub(crate) fn render_group(name: &str, status: &GroupStatus) -> String {
 fn append_status_line(
     out: &mut String,
     position: Option<usize>,
+    command: Option<&str>,
     info: &str,
     elapsed: Option<Duration>,
     priority: Option<i32>,
 ) {
+    let headline = command.unwrap_or(info);
     match position {
         Some(position) => {
-            let _ = write!(out, "\n    {position}. {info}");
+            let _ = write!(out, "\n    {position}. {headline}");
         }
         None => {
-            let _ = write!(out, "\n    {info}");
+            let _ = write!(out, "\n    {headline}");
         }
     }
     if let Some(elapsed) = elapsed {
@@ -258,6 +294,9 @@ fn append_status_line(
     }
     if let Some(priority) = priority {
         let _ = write!(out, "  priority {priority}");
+    }
+    if command.is_some() && !info.is_empty() {
+        let _ = write!(out, "\n      {info}");
     }
 }
 

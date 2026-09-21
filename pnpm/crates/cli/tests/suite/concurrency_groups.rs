@@ -450,8 +450,13 @@ fn concurrency_prints_the_wait_list() {
     assert!(stdout.contains("test"), "{stdout}");
     assert!(stdout.contains("running"), "{stdout}");
     assert!(stdout.contains("waiting"), "{stdout}");
+    assert!(stdout.contains("hold"), "{stdout}");
     assert!(stdout.contains("1. "), "{stdout}");
-    assert!(stdout_has_elapsed(&stdout), "missing elapsed time: {stdout}");
+    let elapsed_lines = stdout
+        .lines()
+        .filter(|line| stdout_has_elapsed(line))
+        .count();
+    assert!(elapsed_lines >= 2, "running and waiting both need elapsed time: {stdout}");
 
     let idle = concurrency_cmd(&pacquet)
         .arg("missing")

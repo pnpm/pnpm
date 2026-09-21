@@ -1,4 +1,7 @@
-use super::stamp::{elapsed_from_mtime, elapsed_since, parse_process_stamp, process_stamp};
+use super::{
+    GroupStatus, HolderLine, WaiterLine,
+    stamp::{elapsed_from_mtime, elapsed_since, parse_process_stamp, process_stamp},
+};
 use std::{
     fs::{self, File, OpenOptions},
     io::{self, Read, Seek, SeekFrom, Write},
@@ -23,36 +26,12 @@ pub(super) struct WaitSnapshot {
     pub(super) ahead: Vec<String>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) struct GroupStatus {
-    pub holders: Vec<HolderLine>,
-    pub waiters: Vec<WaiterLine>,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) struct HolderLine {
-    pub info: String,
-    pub elapsed: Option<Duration>,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) struct WaiterLine {
-    pub priority: i32,
-    pub info: String,
-    pub elapsed: Option<Duration>,
-}
-
-impl GroupStatus {
-    pub(crate) fn is_idle(&self) -> bool {
-        self.holders.is_empty() && self.waiters.is_empty()
-    }
-}
-
 struct Waiter {
     file: Option<File>,
     lock_path: PathBuf,
     stamp_path: PathBuf,
     ticket: u64,
+    command: String,
 }
 
 struct LiveWaiter {
@@ -60,6 +39,7 @@ struct LiveWaiter {
     priority: i32,
     limit: u32,
     info: String,
+    command: Option<String>,
     elapsed: Option<Duration>,
 }
 
@@ -67,12 +47,13 @@ impl SlotPool {
     /// `None` once `cancelled` says so, checked before every attempt.
     pub(super) fn acquire(
         &self,
+        command: &str,
         priority: i32,
         mut on_wait: impl FnMut(&WaitSnapshot),
         cancelled: &dyn Fn() -> bool,
     ) -> io::Result<Option<File>> {
         fs::create_dir_all(&self.dir)?;
-        let mut waiter = self.enqueue(priority)?;
+        let mut waiter = self.enqueue(command, priority)?;
         let mut last_notice: Option<Instant> = None;
         loop {
             if cancelled() {
@@ -88,7 +69,7 @@ impl SlotPool {
 
     fn try_take_turn(&self, waiter: &mut Waiter) -> io::Result<Option<File>> {
         let _seq = self.lock_seq()?;
-        let Some(file) = self.try_acquire_if_eligible(waiter.ticket)? else {
+        let Some(file) = self.try_acquire_if_eligible(waiter.ticket, &waiter.command)? else {
             return Ok(None);
         };
         waiter.leave_queue();
@@ -96,7 +77,7 @@ impl SlotPool {
     }
 
     /// Take a free slot that nobody ahead in line can use.
-    fn try_acquire_if_eligible(&self, ticket: u64) -> io::Result<Option<File>> {
+    fn try_acquire_if_eligible(&self, ticket: u64, command: &str) -> io::Result<Option<File>> {
         let waiters = self.live_waiters()?;
         let Some(position) = waiters
             .iter()
@@ -112,7 +93,7 @@ impl SlotPool {
             {
                 continue;
             }
-            if let Some(file) = self.try_lock_slot(index)? {
+            if let Some(file) = self.try_lock_slot(index, command)? {
                 return Ok(Some(file));
             }
         }
@@ -137,18 +118,20 @@ impl SlotPool {
     #[cfg(test)]
     pub(super) fn try_acquire(&self) -> io::Result<Option<File>> {
         for index in 0..self.limit {
-            if let Some(file) = self.try_lock_slot(index)? {
+            if let Some(file) = self.try_lock_slot(index, "")? {
                 return Ok(Some(file));
             }
         }
         Ok(None)
     }
 
-    fn try_lock_slot(&self, index: u32) -> io::Result<Option<File>> {
+    fn try_lock_slot(&self, index: u32, command: &str) -> io::Result<Option<File>> {
         let file = self.open_slot(index)?;
         match file.try_lock() {
             Ok(()) => {
-                let _ = self.write_holder(index);
+                if self.write_holder(index, command).is_err() {
+                    let _ = fs::remove_file(self.holder_path(index));
+                }
                 Ok(Some(file))
             }
             Err(std::fs::TryLockError::WouldBlock) => Ok(None),
@@ -164,8 +147,8 @@ impl SlotPool {
         self.dir.join(format!("{index}.holder"))
     }
 
-    fn write_holder(&self, index: u32) -> io::Result<()> {
-        fs::write(self.holder_path(index), process_stamp())
+    fn write_holder(&self, index: u32, command: &str) -> io::Result<()> {
+        fs::write(self.holder_path(index), process_stamp(command))
     }
 
     /// The stamps of the slots that are held right now. A slot whose lock
@@ -188,6 +171,7 @@ impl SlotPool {
                 .live_waiters()?
                 .into_iter()
                 .map(|waiter| WaiterLine {
+                    command: waiter.command,
                     priority: waiter.priority,
                     info: waiter.info,
                     elapsed: waiter.elapsed,
@@ -222,21 +206,18 @@ impl SlotPool {
         }
         let path = self.holder_path(index);
         let text = fs::read_to_string(&path).unwrap_or_default();
-        let (since, info) = parse_process_stamp(&text);
-        let elapsed = since
-            .and_then(elapsed_since)
-            .or_else(|| elapsed_from_mtime(&path))
-            .or_else(|| elapsed_from_mtime(&self.dir.join(index.to_string())));
-        let info = if info.is_empty() { format!("slot {index}") } else { info };
-        Some(HolderLine { info, elapsed })
+        let stamp = parse_process_stamp(&text);
+        let elapsed = stamp.since.and_then(elapsed_since).or_else(|| elapsed_from_mtime(&path));
+        let info = if stamp.info.is_empty() { format!("slot {index}") } else { stamp.info };
+        Some(HolderLine { command: stamp.command, info, elapsed })
     }
 
-    fn enqueue(&self, priority: i32) -> io::Result<Waiter> {
+    fn enqueue(&self, command: &str, priority: i32) -> io::Result<Waiter> {
         fs::create_dir_all(self.waiters_dir())?;
         let mut seq = self.lock_seq()?;
         loop {
             let ticket = self.next_ticket(&mut seq)?;
-            if let Some(waiter) = self.create_waiter(ticket, priority)? {
+            if let Some(waiter) = self.create_waiter(ticket, command, priority)? {
                 return Ok(waiter);
             }
             if ticket == u64::MAX {
@@ -293,7 +274,12 @@ impl SlotPool {
             .join(format!("{ticket}.stamp"))
     }
 
-    fn create_waiter(&self, ticket: u64, priority: i32) -> io::Result<Option<Waiter>> {
+    fn create_waiter(
+        &self,
+        ticket: u64,
+        command: &str,
+        priority: i32,
+    ) -> io::Result<Option<Waiter>> {
         let lock_path = self.waiter_lock_path(ticket);
         let file = open_lock_file(&lock_path)?;
         match file.try_lock() {
@@ -306,9 +292,15 @@ impl SlotPool {
         let stamp_path = self.waiter_stamp_path(ticket);
         fs::write(
             &stamp_path,
-            format!("priority {priority}\nlimit {}\n{}", self.limit, process_stamp()),
+            format!("priority {priority}\nlimit {}\n{}", self.limit, process_stamp(command)),
         )?;
-        Ok(Some(Waiter { file: Some(file), lock_path, stamp_path, ticket }))
+        Ok(Some(Waiter {
+            file: Some(file),
+            lock_path,
+            stamp_path,
+            ticket,
+            command: command.to_string(),
+        }))
     }
 
     fn snapshot(&self, ticket: u64) -> io::Result<WaitSnapshot> {
@@ -405,9 +397,9 @@ impl SlotPool {
                     .join("\n"),
             ),
         };
-        let (since, info) = parse_process_stamp(&rest);
-        let elapsed = since.and_then(elapsed_since).or_else(|| elapsed_from_mtime(&path));
-        LiveWaiter { ticket, priority, limit, info, elapsed }
+        let stamp = parse_process_stamp(&rest);
+        let elapsed = stamp.since.and_then(elapsed_since).or_else(|| elapsed_from_mtime(&path));
+        LiveWaiter { ticket, priority, limit, info: stamp.info, command: stamp.command, elapsed }
     }
 }
 

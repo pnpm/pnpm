@@ -4,32 +4,60 @@ use std::{
     time::{Duration, SystemTime, UNIX_EPOCH},
 };
 
-pub(super) fn process_stamp() -> String {
+pub(super) struct ProcessStamp {
+    pub since: Option<u64>,
+    pub command: Option<String>,
+    pub info: String,
+}
+
+pub(super) fn process_stamp(command: &str) -> String {
     let cwd = std::env::current_dir().unwrap_or_default();
-    let body = format!("pid {} in {}", std::process::id(), cwd.display());
-    match unix_now() {
-        Some(since) => format!("since {since}\n{body}"),
-        None => body,
+    let pid = format!("pid {} in {}", std::process::id(), cwd.display());
+    let command = oneline(command);
+    let mut lines = Vec::new();
+    if let Some(since) = unix_now() {
+        lines.push(format!("since {since}"));
+    }
+    if !command.is_empty() {
+        lines.push(format!("cmd {command}"));
+    }
+    lines.push(pid);
+    lines.join("\n")
+}
+
+pub(super) fn parse_process_stamp(text: &str) -> ProcessStamp {
+    let mut stamp = ProcessStamp { since: None, command: None, info: String::new() };
+    for line in text
+        .lines()
+        .map(str::trim)
+        .filter(|line| !line.is_empty())
+    {
+        apply_stamp_line(&mut stamp, line);
+    }
+    stamp
+}
+
+fn apply_stamp_line(stamp: &mut ProcessStamp, line: &str) {
+    if let Some(value) = line.strip_prefix("since ") {
+        stamp.since = value.parse().ok();
+        return;
+    }
+    if let Some(value) = line.strip_prefix("cmd ") {
+        if !value.is_empty() {
+            stamp.command = Some(value.to_string());
+        }
+        return;
+    }
+    if stamp.info.is_empty() {
+        stamp.info = line.to_string();
     }
 }
 
-pub(super) fn parse_process_stamp(text: &str) -> (Option<u64>, String) {
-    let mut since = None;
-    let mut info = String::new();
-    for line in text.lines() {
-        let line = line.trim();
-        if line.is_empty() {
-            continue;
-        }
-        if let Some(value) = line.strip_prefix("since ") {
-            since = value.parse().ok();
-            continue;
-        }
-        if info.is_empty() {
-            info = line.to_string();
-        }
-    }
-    (since, info)
+fn oneline(value: &str) -> String {
+    value
+        .split_whitespace()
+        .collect::<Vec<_>>()
+        .join(" ")
 }
 
 pub(super) fn elapsed_since(unix_secs: u64) -> Option<Duration> {
