@@ -995,8 +995,7 @@ fn unchanged_global_update_still_approves_a_pending_build() {
 }
 
 /// The resolution is unchanged, so nothing but the vanished tree separates
-/// this group from a current one. The update reinstalls it from its surviving
-/// manifest instead of calling it up to date.
+/// this group from a current one.
 #[cfg(unix)]
 #[test]
 fn global_update_restores_group_with_deleted_node_modules() {
