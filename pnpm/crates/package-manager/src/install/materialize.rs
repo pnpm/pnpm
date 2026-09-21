@@ -322,7 +322,6 @@ impl<'a> MaterializationInputs<'a, '_> {
     }
 }
 
-/// The fresh resolver's result in the shape the install phase consumes.
 fn fresh_materialization_output(
     fresh_result: crate::install_with_fresh_lockfile::InstallWithFreshLockfileResult,
 ) -> MaterializationOutput {

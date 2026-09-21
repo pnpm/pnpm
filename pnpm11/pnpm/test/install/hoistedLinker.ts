@@ -14,11 +14,6 @@ function runHoisted (args: string[]): string {
   }).stdout.toString()
 }
 
-/** The reporter's summary block, or `undefined` when it printed none. */
-function summary (output: string, group: string = 'dependencies'): string | undefined {
-  return new RegExp(`^${group}:\\n(?:[+-].*\\n?)+`, 'm').exec(output)?.[0].trim()
-}
-
 test('the hoisted linker reports the version a dependency resolved to', async () => {
   prepare()
 
@@ -98,3 +93,8 @@ test('the hoisted linker reports an optional dependency it stops supporting', as
     .toBe(`optionalDependencies:\n- ${pkg} 1.0.0`)
   expect(fs.existsSync(`node_modules/${pkg}`)).toBe(false)
 })
+
+/** The reporter's block for `group`, or `undefined` when it printed none. */
+function summary (output: string, group: string = 'dependencies'): string | undefined {
+  return new RegExp(`^${group}:\\n(?:[+-].*\\n?)+`, 'm').exec(output)?.[0].trim()
+}

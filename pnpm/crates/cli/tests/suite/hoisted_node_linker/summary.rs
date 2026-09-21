@@ -170,8 +170,6 @@ fn hoisted_install_does_not_report_an_optional_dependency_it_skipped() {
     drop((root, mock_instance));
 }
 
-/// A dependency this install skips but the last one installed has been
-/// taken off disk, so the summary has to say so.
 #[test]
 fn hoisted_install_reports_an_optional_dependency_it_stops_supporting() {
     const PKG: &str = "@pnpm.e2e/not-compatible-with-any-os";

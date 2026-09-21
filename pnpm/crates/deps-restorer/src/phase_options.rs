@@ -72,9 +72,6 @@ pub struct PriorLinkState<'a> {
 }
 
 impl<'a> PriorLinkState<'a> {
-    /// The hoisted linker's share of this state, paired with the lockfile
-    /// the previous install left behind. One phase further down than the
-    /// conversion the materialization options make into this type.
     #[must_use]
     pub fn hoisted_state(self, current_lockfile: Option<&'a Lockfile>) -> PriorHoistedState<'a> {
         PriorHoistedState {
