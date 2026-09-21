@@ -405,12 +405,8 @@ fn store_add_refuses_a_specifier_with_no_archive_to_fetch() {
     assert!(stderr.contains("ERR_PNPM_STORE_ADD_UNSUPPORTED_SPEC"), "stderr={stderr}");
 }
 
-/// `pnpm store prune` reclaims the `<cacheDir>/dlx` entries that have
-/// outlived `dlxCacheMaxAge`. pnpm 11's prune ran `cleanExpiredDlxCache`;
-/// v12 dropped the pass, so expired dlx directories accumulated with
-/// nothing able to remove them (pnpm/pnpm#15171). A max age of zero expires
-/// every entry, which makes the sweep observable without waiting out the
-/// default retention.
+/// `pnpm store prune` reclaims dlx cache entries that have outlived
+/// `dlxCacheMaxAge` (pnpm/pnpm#15171).
 #[test]
 fn store_prune_removes_expired_dlx_cache_entries() {
     let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
@@ -422,10 +418,12 @@ fn store_prune_removes_expired_dlx_cache_entries() {
     fs::create_dir_all(root.path().join("pacquet-store")).expect("create the store directory");
 
     let dlx_cache_dir = root.path().join("pacquet-cache/dlx");
-    fs::create_dir_all(dlx_cache_dir.join("first-key").join("1-1"))
-        .expect("create the first dlx cache entry");
-    fs::create_dir_all(dlx_cache_dir.join("second-key").join("2-2"))
-        .expect("create the second dlx cache entry");
+    for (key, prepare) in [("first-key", "1-1"), ("second-key", "2-2")] {
+        let prepare_dir = dlx_cache_dir.join(key).join(prepare);
+        fs::create_dir_all(&prepare_dir).expect("create the prepare dir");
+        pnpm_fs::force_symlink_dir(&prepare_dir, &dlx_cache_dir.join(key).join("pkg"))
+            .expect("point pkg at the prepare dir");
+    }
 
     pacquet
         .with_args(["store", "prune"])
