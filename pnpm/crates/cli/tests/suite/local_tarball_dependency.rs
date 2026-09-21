@@ -325,3 +325,68 @@ fn local_tarball_dependency_pulls_in_its_own_dependencies() {
 
     drop((root, mock_instance));
 }
+
+/// The lockfile records a local tarball relative to the lockfile
+/// directory, and the install collapses `.` and `..` when it joins that
+/// path back on, so resolution has to read the file the collapsed path
+/// names. Unix is where the two spellings can part: it walks a symlink
+/// before applying `..`, while Windows collapses the path first.
+#[cfg(unix)]
+#[test]
+fn absolute_tarball_path_crossing_a_symlink_reads_what_it_installs() {
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    // `<ws>/alias/../real/pkg.tgz` names `<ws>/deep/real/pkg.tgz` when the
+    // filesystem walks it and `<ws>/real/pkg.tgz` when `..` is collapsed
+    // lexically, so the two spellings carry different versions.
+    fs::create_dir_all(workspace.join("deep/real")).expect("create deep/real");
+    fs::create_dir_all(workspace.join("real")).expect("create real");
+    write_tarball(
+        &workspace.join("deep/real"),
+        "pkg.tgz",
+        &serde_json::json!({ "name": "pkg-from-tarball", "version": "1.0.0" }),
+    );
+    write_tarball(
+        &workspace.join("real"),
+        "pkg.tgz",
+        &serde_json::json!({ "name": "pkg-from-tarball", "version": "2.0.0" }),
+    );
+    std::os::unix::fs::symlink(workspace.join("deep/real"), workspace.join("alias"))
+        .expect("symlink alias -> deep/real");
+
+    let spec = workspace.join("alias/../real/pkg.tgz");
+    fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({
+            "name": "root",
+            "version": "1.0.0",
+            "dependencies": { "pkg-from-tarball": format!("file:{}", spec.display()) },
+        })
+        .to_string(),
+    )
+    .expect("write package.json");
+
+    pacquet
+        .with_arg("install")
+        .assert()
+        .success();
+
+    let installed =
+        fs::read_to_string(workspace.join("node_modules/pkg-from-tarball/package.json"))
+            .expect("read the installed manifest");
+    let lockfile =
+        fs::read_to_string(workspace.join("pnpm-lock.yaml")).expect("read pnpm-lock.yaml");
+    assert!(
+        installed.contains(r#""version":"2.0.0""#),
+        "the installed package must be the one the recorded path names:\n{installed}\n{lockfile}",
+    );
+
+    drop((root, mock_instance));
+}

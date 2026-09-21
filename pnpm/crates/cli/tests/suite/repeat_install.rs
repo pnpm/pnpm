@@ -895,6 +895,61 @@ fn repeat_hoisted_install_with_unchanged_local_tarball_is_up_to_date() {
     drop((root, mock_instance));
 }
 
+/// The lockfile records a local tarball's path relative to the lockfile
+/// directory, with its `.` and `..` collapsed. The repeat-install check
+/// compares that recorded path against the one the manifest's specifier
+/// names, so an absolute specifier carrying a `..` has to collapse the
+/// same way or the two never match and the fast path is never available.
+#[test]
+fn repeat_install_with_an_absolute_tarball_path_containing_parent_segments_is_up_to_date() {
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    fs::create_dir_all(workspace.join("vendor/sub")).expect("mkdir vendor/sub");
+    fs::write(
+        workspace.join("vendor/local-pkg.tgz"),
+        tarball_with_manifest(&serde_json::json!({
+            "name": "local-pkg",
+            "version": "1.0.0",
+        })),
+    )
+    .expect("write local tarball");
+    let spec = workspace.join("vendor/sub/../local-pkg.tgz");
+    fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({
+            "name": "root",
+            "version": "1.0.0",
+            "dependencies": { "local-pkg": format!("file:{}", spec.display()) },
+        })
+        .to_string(),
+    )
+    .expect("write package.json");
+
+    pacquet
+        .with_arg("install")
+        .assert()
+        .success();
+
+    let second = pacquet_in(&workspace)
+        .with_arg("install")
+        .assert()
+        .success();
+    let second_output = String::from_utf8_lossy(&second.get_output().stdout).into_owned();
+    assert!(
+        second_output.contains("Already up to date"),
+        "the unchanged tarball must leave the fast path available: {second_output}",
+    );
+
+    drop((root, mock_instance));
+}
+
 /// A hoisted install writes no virtual-store slot, so the pipeline must
 /// not probe one: it reported every package of the tree it had just
 /// written as broken (pnpm/pnpm#14001). Dropping the workspace-state
