@@ -379,6 +379,22 @@ async fn raw_packument_keys_drive_guards_blocks_and_publication_checks() {
                 .unwrap();
             assert_eq!(result.package.name_ver.unwrap().suffix.to_string(), "1.0.0");
         }
+        let unrelated_block = ResolveOptions {
+            policy: pnpm_resolving_resolver_base::ResolutionPolicyOptions {
+                blocked_versions: Some(std::sync::Arc::new(std::collections::HashMap::from([(
+                    "acme".to_string(),
+                    std::collections::HashSet::from(["2.0.0".to_string()]),
+                )]))),
+                ..Default::default()
+            },
+            ..Default::default()
+        };
+        let allowed = resolver
+            .resolve(&wanted, &unrelated_block)
+            .await
+            .unwrap()
+            .unwrap();
+        assert_eq!(allowed.package.name_ver.unwrap().suffix.to_string(), "1.1.0");
         let opts = ResolveOptions {
             policy: pnpm_resolving_resolver_base::ResolutionPolicyOptions {
                 published_by: Some("2023-01-01T00:00:00Z".parse().unwrap()),

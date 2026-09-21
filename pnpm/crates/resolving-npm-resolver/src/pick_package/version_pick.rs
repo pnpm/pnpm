@@ -108,8 +108,9 @@ pub(super) fn filter_blocked_versions(
         &meta,
         |version| {
             !blocked_versions.contains(version)
-                && node_semver::Version::parse(version)
-                    .is_ok_and(|parsed| !blocked_versions.contains(&parsed.to_string()))
+                && meta.versions
+                    .resolve_version(version)
+                    .is_some_and(|parsed| !blocked_versions.contains(&parsed.to_string()))
         },
         true,
     ))

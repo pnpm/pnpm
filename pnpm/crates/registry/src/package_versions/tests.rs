@@ -201,3 +201,46 @@ fn is_deprecated_ignores_unrelated_key_text() {
     );
     assert!(!package.versions.is_deprecated("1.0.0"));
 }
+
+#[test]
+fn resolve_version_probes_without_hydrating() {
+    let package: crate::Package = serde_json::from_value(serde_json::json!({
+        "name": "test", "dist-tags": { "latest": "banana" }, "versions": {
+            "banana": { "name": "test", "version": "1.0.0", "dist": { "tarball": "https://registry/test.tgz" }, "dependencies": { "large": "1.0.0" } },
+            "invalid": { "version": "not-semver" }
+        }
+    })).unwrap();
+    let versions = &package.versions;
+    assert_eq!(
+        versions
+            .resolve_version("banana")
+            .unwrap()
+            .to_string(),
+        "1.0.0",
+    );
+    assert!(
+        versions
+            .slot("banana")
+            .unwrap()
+            .parsed
+            .get()
+            .is_none(),
+    );
+    assert!(versions.resolve_version("invalid").is_none());
+    assert!(versions.resolve_version("absent").is_none());
+    assert_eq!(
+        versions
+            .resolve_version("v2.0.0")
+            .unwrap()
+            .to_string(),
+        "2.0.0",
+    );
+    versions.get("banana").unwrap();
+    assert_eq!(
+        versions
+            .resolve_version("banana")
+            .unwrap()
+            .to_string(),
+        "1.0.0",
+    );
+}

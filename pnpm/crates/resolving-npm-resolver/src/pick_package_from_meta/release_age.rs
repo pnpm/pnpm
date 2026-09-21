@@ -181,19 +181,12 @@ pub(super) fn repopulate_dist_tags(
             dist_tags_within_date.insert(tag.clone(), version.clone());
             continue;
         }
-        let Some(original) = Version::parse(version)
-            .ok()
-            .or_else(|| {
-                meta.versions.get(version).map(|manifest| manifest.version.clone())
-            })
-        else {
-            continue;
-        };
+        let Some(original) = meta.versions.resolve_version(version) else { continue };
         let candidates = parsed_candidates.get_or_insert_with(|| {
             filtered_versions
                 .keys()
                 .filter_map(|raw| {
-                    let parsed = Version::parse(raw).ok()?;
+                    let parsed = filtered_versions.resolve_version(raw)?;
                     Some((parsed, raw, OnceCell::new()))
                 })
                 .collect()

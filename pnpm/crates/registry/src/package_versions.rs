@@ -37,6 +37,11 @@ struct DeprecatedProbe {
     deprecated: Option<String>,
 }
 
+#[derive(Deserialize)]
+struct VersionProbe {
+    version: node_semver::Version,
+}
+
 #[derive(Debug, Default, Clone)]
 pub struct PackageVersions {
     slots: Vec<(String, VersionSlot)>,
@@ -224,6 +229,21 @@ impl PackageVersions {
     #[must_use]
     pub fn get(&self, version: &str) -> Option<Arc<PackageVersion>> {
         self.slot(version)?.hydrate(version)
+    }
+
+    /// The semantic version of a raw key, falling back to the embedded version
+    /// for malformed keys. Probes only that field without hydrating a manifest.
+    #[must_use]
+    pub fn resolve_version(&self, key: &str) -> Option<node_semver::Version> {
+        if let Ok(version) = node_semver::Version::parse(key) {
+            return Some(version);
+        }
+        let slot = self.slot(key)?;
+        if let Some(Some(parsed)) = slot.parsed.get() {
+            return Some(parsed.version.clone());
+        }
+        let json = slot.source.json()?;
+        serde_json::from_str::<VersionProbe>(&json).ok().map(|probe| probe.version)
     }
 
     /// Whether the packument lists `version`. Never hydrates.

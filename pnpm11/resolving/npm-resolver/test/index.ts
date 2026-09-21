@@ -3219,4 +3219,8 @@ test.each(['v1.0.0', 'banana'])('raw packument key %s retains its timestamp and 
     blockedVersions: new Map([['is-positive', new Set(['1.0.0'])]]),
   })
   expect(retry?.manifest?.version).toBe('0.9.0')
+  const allowed = await resolveFromNpm({ alias: 'is-positive' }, {
+    blockedVersions: new Map([['is-positive', new Set(['2.0.0'])]]),
+  })
+  expect(allowed?.manifest?.version).toBe('1.0.0')
 })

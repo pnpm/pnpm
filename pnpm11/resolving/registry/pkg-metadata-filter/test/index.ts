@@ -370,3 +370,16 @@ test.each([true, false])('invalid and absent publication cutoffs do not share ca
   expect(Object.keys(filterPkgMetadata(doc, invalidPolicy).versions)).toStrictEqual([])
   expect(Object.keys(filterPkgMetadata(doc, {}).versions)).toStrictEqual(['1.0.0'])
 })
+
+test('blocked latest can fall back to an allowed malformed key', () => {
+  const doc = {
+    name: 'acme', 'dist-tags': { latest: '2.0.0' },
+    versions: {
+      banana: { name: 'acme', version: '1.0.0', dist: { tarball: 'https://registry/acme-1.tgz', shasum: '' } },
+      '2.0.0': { name: 'acme', version: '2.0.0', dist: { tarball: 'https://registry/acme-2.tgz', shasum: '' } },
+    },
+  }
+  const filtered = filterPkgMetadata(doc, { blockedVersions: new Set(['2.0.0']) })
+  expect(Object.keys(filtered.versions)).toStrictEqual(['banana'])
+  expect(filtered['dist-tags'].latest).toBe('banana')
+})
