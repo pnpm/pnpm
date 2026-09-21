@@ -69,7 +69,13 @@ fn resolved_location_matches_canonicalize_fallback_for_node_path() {
 #[test]
 fn a_project_node_path_comes_first_and_a_repeated_entry_keeps_its_first_position() {
     let tmp = tempdir().unwrap();
-    let pkg_dir = tmp.path().join("node_modules/.pnpm/foo@1.0.0/node_modules/foo");
+    let pkg_dir = tmp
+        .path()
+        .join("node_modules")
+        .join(".pnpm")
+        .join("foo@1.0.0")
+        .join("node_modules")
+        .join("foo");
     let slot_dir = pkg_dir
         .parent()
         .unwrap()
@@ -82,13 +88,15 @@ fn a_project_node_path_comes_first_and_a_repeated_entry_keeps_its_first_position
         .into_owned();
     let hoisted = tmp
         .path()
-        .join("node_modules/.pnpm/node_modules")
+        .join("node_modules")
+        .join(".pnpm")
+        .join("node_modules")
         .to_string_lossy()
         .into_owned();
     let manifest = Arc::new(json!({"name": "foo", "version": "1.0.0", "bin": "cli.js"}));
 
     let node_path = super::super::shim_node_path(
-        &PackageBinSource::new(tmp.path().join("vendor/foo"), manifest)
+        &PackageBinSource::new(tmp.path().join("vendor").join("foo"), manifest)
             .with_resolved_location(pkg_dir.clone()),
         Some(&project),
         &[slot_dir.clone(), hoisted.clone()],
