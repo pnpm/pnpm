@@ -1,4 +1,5 @@
 use std::{
+    borrow::Cow,
     io,
     path::{Path, PathBuf},
 };
@@ -11,6 +12,25 @@ use std::{
 /// is a no-op on every other platform.
 pub(crate) fn script_working_dir(pkg_root: &Path) -> &Path {
     dunce::simplified(pkg_root)
+}
+
+/// The shortest verified spelling to hand to the shell emulator.
+///
+/// The emulator hides external-process spawn errors behind their exit code, so
+/// it cannot retry after Windows refuses a long working directory.
+#[cfg(windows)]
+pub(crate) fn emulator_working_dir(pkg_root: &Path) -> Cow<'_, Path> {
+    let pkg_root = script_working_dir(pkg_root);
+    shorter_working_dirs(pkg_root)
+        .into_iter()
+        .min_by_key(|spelling| spelling.as_os_str().len())
+        .map(Cow::Owned)
+        .unwrap_or(Cow::Borrowed(pkg_root))
+}
+
+#[cfg(not(windows))]
+pub(crate) fn emulator_working_dir(pkg_root: &Path) -> Cow<'_, Path> {
+    Cow::Borrowed(pkg_root)
 }
 
 /// Whether Windows declined the working directory it was handed.

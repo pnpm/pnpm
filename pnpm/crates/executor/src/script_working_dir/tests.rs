@@ -1,4 +1,4 @@
-use super::{is_refused_directory, shorter_working_dirs};
+use super::{emulator_working_dir, is_refused_directory, shorter_working_dirs};
 use std::{
     io,
     path::{Path, PathBuf},
@@ -64,18 +64,14 @@ fn a_slot_windows_refuses_spawns_in_a_shorter_spelling() {
     let refusal = spawn_in(&slot).expect_err("Windows must refuse a working directory this long");
     assert!(is_refused_directory(&refusal), "expected ERROR_DIRECTORY, got {refusal:?}");
 
-    let spellings = shorter_working_dirs(&slot);
-    assert!(
-        spellings
-            .iter()
-            .any(|spelling| spawn_in(spelling).is_ok()),
-        "no spelling of a {}-character slot started a child: {:?}",
-        slot.as_os_str().len(),
-        spellings
-            .iter()
-            .map(|spelling| (spelling.as_os_str().len(), spelling))
-            .collect::<Vec<_>>(),
-    );
+    let working_dir = emulator_working_dir(&slot);
+    spawn_in(&working_dir).unwrap_or_else(|error| {
+        panic!(
+            "the emulator spelling of a {}-character slot was refused ({} characters): {error:?}",
+            slot.as_os_str().len(),
+            working_dir.as_os_str().len(),
+        )
+    });
 }
 
 #[cfg(windows)]

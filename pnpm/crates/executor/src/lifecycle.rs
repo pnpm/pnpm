@@ -5,7 +5,9 @@ use crate::{
     make_env::{EnvBuild, EnvOptions, build_env, path_value},
     process_tracker::{SpawnedChild, spawn_child},
     script_exit::ScriptExit,
-    script_working_dir::{is_refused_directory, script_working_dir, shorter_working_dirs},
+    script_working_dir::{
+        emulator_working_dir, is_refused_directory, script_working_dir, shorter_working_dirs,
+    },
     shell::{ScriptShellError, SelectedShell, select_shell},
     shell_emulator::{EmulatedOutput, ShellEmulatorError, execute_emulated},
 };
@@ -480,10 +482,10 @@ fn run_in_emulator<Reporter: self::Reporter>(
     env: &HashMap<String, String>,
     wd: &str,
 ) -> Result<ScriptExit, LifecycleScriptError> {
-    let pkg_root = script_working_dir(opts.pkg_root);
+    let pkg_root = emulator_working_dir(opts.pkg_root);
     let target = StreamedScript { dep_path: opts.dep_path, stage, wd, emit: Reporter::emit };
     let emit_line = |stdio, line| target.emit_line(stdio, line);
-    execute_emulated(script, pkg_root, env, EmulatedOutput::Lines(&emit_line), None)
+    execute_emulated(script, &pkg_root, env, EmulatedOutput::Lines(&emit_line), None)
         .map(ScriptExit::Emulated)
         .map_err(LifecycleScriptError::ShellEmulator)
 }
