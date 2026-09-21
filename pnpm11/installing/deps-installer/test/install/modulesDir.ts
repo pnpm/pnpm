@@ -221,5 +221,5 @@ function writePlugin (): void {
 
 async function runTool (modulesDir: string, cwd = process.cwd()): Promise<unknown> {
   const { stdout } = await execa(path.resolve(cwd, modulesDir, '.bin/tool'), [], { cwd: path.resolve(cwd) })
-  return JSON.parse(stdout)
+  return JSON.parse(String(stdout))
 }
