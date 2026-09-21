@@ -329,6 +329,13 @@ pub fn default_peers_suffix_max_length() -> u64 {
     1000
 }
 
+/// Default `tagVersionPrefix`: the `"v"` prefix `pnpm version` uses for
+/// the git tag when no source sets a prefix.
+#[must_use]
+pub fn default_tag_version_prefix() -> String {
+    "v".to_string()
+}
+
 pub fn default_fetch_retries() -> u32 {
     2
 }

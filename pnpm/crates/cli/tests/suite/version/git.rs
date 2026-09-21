@@ -340,3 +340,73 @@ fn an_empty_tag_version_prefix_removes_the_v() {
     assert_eq!(git_stdout(&workspace, &["tag", "--list"]), "1.0.1");
     drop(root);
 }
+
+#[test]
+fn tag_version_prefix_from_workspace_yaml_replaces_the_default_v() {
+    let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
+    init_git(&workspace);
+    write_manifest(&workspace, r#"{"name":"test-pkg","version":"1.0.0"}"#);
+    fs::write(workspace.join("pnpm-workspace.yaml"), "tagVersionPrefix: release-\n")
+        .expect("write pnpm-workspace.yaml");
+    git_commit_all(&workspace, "init");
+
+    let output = pacquet_version(&workspace, &["patch"]);
+
+    assert!(output.status.success(), "{}", stderr_of(&output));
+    assert_eq!(git_stdout(&workspace, &["tag", "--list"]), "release-1.0.1");
+    drop(root);
+}
+
+#[test]
+fn tag_version_prefix_yaml_empty_string_removes_the_v() {
+    let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
+    init_git(&workspace);
+    write_manifest(&workspace, r#"{"name":"test-pkg","version":"1.0.0"}"#);
+    fs::write(workspace.join("pnpm-workspace.yaml"), "tagVersionPrefix: ''\n")
+        .expect("write pnpm-workspace.yaml");
+    git_commit_all(&workspace, "init");
+
+    let output = pacquet_version(&workspace, &["patch"]);
+
+    assert!(output.status.success(), "{}", stderr_of(&output));
+    assert_eq!(git_stdout(&workspace, &["tag", "--list"]), "1.0.1");
+    drop(root);
+}
+
+#[test]
+fn cli_flag_beats_the_workspace_yaml_prefix() {
+    let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
+    init_git(&workspace);
+    write_manifest(&workspace, r#"{"name":"test-pkg","version":"1.0.0"}"#);
+    fs::write(workspace.join("pnpm-workspace.yaml"), "tagVersionPrefix: yaml-\n")
+        .expect("write pnpm-workspace.yaml");
+    git_commit_all(&workspace, "init");
+
+    let output = pacquet_version(&workspace, &["patch", "--tag-version-prefix", "cli-"]);
+
+    assert!(output.status.success(), "{}", stderr_of(&output));
+    assert_eq!(git_stdout(&workspace, &["tag", "--list"]), "cli-1.0.1");
+    drop(root);
+}
+
+#[test]
+fn from_git_reads_the_prefix_from_workspace_yaml() {
+    let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
+    init_git(&workspace);
+    write_manifest(&workspace, r#"{"name":"test-pkg","version":"1.0.0"}"#);
+    fs::write(workspace.join("pnpm-workspace.yaml"), "tagVersionPrefix: release-\n")
+        .expect("write pnpm-workspace.yaml");
+    git_commit_all(&workspace, "init");
+    let status = Command::new("git")
+        .args(["tag", "release-4.5.6"])
+        .current_dir(&workspace)
+        .status()
+        .expect("tag custom prefix version");
+    assert!(status.success());
+
+    let output = pacquet_version(&workspace, &["from-git", "--no-git-tag-version"]);
+
+    assert!(output.status.success(), "{}", stderr_of(&output));
+    assert_eq!(manifest_version(&workspace), "4.5.6");
+    drop(root);
+}
