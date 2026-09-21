@@ -437,6 +437,9 @@ async function update (
 ): Promise<void> {
   assertPatchesOptions(dependencies, opts)
   const includeDirect = makeIncludeDependenciesFromCLI(opts.cliOptions)
+  if (opts.interactive && opts.cliOptions.peer === true) {
+    throw new PnpmError('BAD_OPTIONS', 'Cannot use --peer with --interactive')
+  }
   const updateActions = shouldUpdateGitHubActions(opts, includeDirect)
   if (opts.latest) {
     const dependenciesWithTags = dependencies.filter((name) =>
