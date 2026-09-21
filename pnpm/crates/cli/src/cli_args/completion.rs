@@ -1,8 +1,15 @@
-use crate::flag_relocation::short_cluster_consumes_value;
+use crate::{
+    cli_args::{cli_command::options::find_workspace_root_dir, prefix::find_npm_local_prefix},
+    flag_relocation::short_cluster_consumes_value,
+};
 use clap::{Arg, ArgAction, Args, Command, CommandFactory};
 use derive_more::{Display, Error};
 use miette::{Diagnostic, IntoDiagnostic};
-use std::{io::Write, path::Path};
+use std::{
+    env,
+    io::Write,
+    path::{Path, PathBuf},
+};
 
 pub const SUPPORTED_SHELLS: &[&str] = &["bash", "fish", "pwsh", "zsh"];
 
@@ -138,6 +145,14 @@ pub fn complete_words(words: &[String]) -> miette::Result<Vec<String>> {
         return Ok(filter_by_prefix(visible_options(&context), current_word));
     }
 
+    if context.awaiting_option_value
+        && before_current
+            .last()
+            .is_some_and(|word| matches!(word.as_str(), "--filter" | "-F"))
+    {
+        return Ok(filter_by_prefix(packages::complete_packages(&context)?, current_word));
+    }
+
     Ok(filter_by_prefix(context.positional_candidates()?, current_word))
 }
 
@@ -152,6 +167,15 @@ struct CompletionContext<'a> {
 }
 
 impl<'a> CompletionContext<'a> {
+    fn resolve_project_directory(&self) -> miette::Result<PathBuf> {
+        let cwd = env::current_dir().into_diagnostic()?;
+        let directory = match self.directory {
+            Some(directory) => cwd.join(directory),
+            None => find_npm_local_prefix(&cwd)?,
+        };
+        Ok(if self.workspace_root { find_workspace_root_dir(&directory)? } else { directory })
+    }
+
     fn positional_candidates(&self) -> miette::Result<Vec<String>> {
         match self.command_name {
             Some("completion") => Ok(SUPPORTED_SHELLS
@@ -443,6 +467,7 @@ fn option_has_separate_value(option: &str) -> bool {
     !option.contains('=')
 }
 
+mod packages;
 mod scripts;
 mod shells;
 
