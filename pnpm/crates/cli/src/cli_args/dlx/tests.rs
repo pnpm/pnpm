@@ -241,8 +241,6 @@ fn get_valid_cache_dir_honors_max_age() {
     assert!(get_valid_cache_dir(&link, 1440, past).is_none(), "an expired link must be rejected");
 }
 
-/// A `<cache_dir>/dlx/<key>` entry: a prepare directory with a `pkg` link
-/// pointing at it. Returns the prepare directory.
 fn cache_entry(cache_dir: &Path, key: &str, prepare: &str) -> PathBuf {
     let prepare_dir = prepare_dir(cache_dir, key, prepare);
     force_symlink_dir(&prepare_dir, &entry_dir(cache_dir, key).join("pkg"))
@@ -250,7 +248,6 @@ fn cache_entry(cache_dir: &Path, key: &str, prepare: &str) -> PathBuf {
     prepare_dir
 }
 
-/// A prepare directory inside `<cache_dir>/dlx/<key>`, with no `pkg` link.
 fn prepare_dir(cache_dir: &Path, key: &str, prepare: &str) -> PathBuf {
     let prepare_dir = entry_dir(cache_dir, key).join(prepare);
     fs::create_dir_all(&prepare_dir).expect("create the prepare dir");
@@ -261,7 +258,6 @@ fn entry_dir(cache_dir: &Path, key: &str) -> PathBuf {
     cache_dir.join("dlx").join(key)
 }
 
-/// The mtime `clean_expired_dlx_cache` compares a `pkg` link against.
 fn link_mtime(cache_dir: &Path, key: &str) -> SystemTime {
     fs::symlink_metadata(entry_dir(cache_dir, key).join("pkg"))
         .expect("lstat the pkg link")
@@ -269,7 +265,6 @@ fn link_mtime(cache_dir: &Path, key: &str) -> SystemTime {
         .expect("pkg link mtime")
 }
 
-/// The mtime the sweep reads for the entry directory itself.
 fn entry_mtime(cache_dir: &Path, key: &str) -> SystemTime {
     fs::symlink_metadata(entry_dir(cache_dir, key))
         .expect("lstat the entry")
@@ -322,8 +317,6 @@ fn clean_expired_dlx_cache_removes_every_entry_at_max_age_zero() {
     let stray_file = dir.path().join("dlx/stray-file");
     fs::write(&stray_file, "noise").expect("write a file among the entries");
 
-    // The newest link shares its mtime with `now`; a zero max age has to
-    // reclaim it anyway, the way pnpm 11 removed every entry.
     let now = link_mtime(dir.path(), "first").max(link_mtime(dir.path(), "second"));
     clean_expired_dlx_cache(dir.path(), 0, now).expect("clean the dlx cache");
 
@@ -444,7 +437,6 @@ fn clean_expired_dlx_cache_keeps_fresh_orphans_under_a_broken_link() {
     assert!(orphan.exists(), "a fresh prepare dir must survive a broken link");
 }
 
-/// Run `body` with `dir`'s mode set to `mode`, restoring it afterward.
 #[cfg(unix)]
 fn with_mode<Output>(dir: &Path, mode: u32, body: impl FnOnce() -> Output) -> Output {
     use std::os::unix::fs::PermissionsExt;
@@ -663,4 +655,24 @@ fn only_managed_tools_are_provisioned_by_name() {
     assert!(PackageManager::Npm.bins().contains(&"npx"));
     assert!(PackageManager::Yarn.bins().contains(&"yarnpkg"));
     assert!(!PackageManager::Npm.bins().contains(&"yarn"));
+}
+
+#[cfg(windows)]
+#[test]
+fn clean_expired_dlx_cache_does_not_follow_a_junction_root() {
+    let dir = tempdir().expect("temp dir");
+    let outside = tempdir().expect("outside temp dir");
+    let outside_entry = outside.path().join("key").join("1-1");
+    fs::create_dir_all(&outside_entry).expect("create the outside entry");
+    let output = std::process::Command::new("cmd")
+        .args(["/d", "/c", "mklink", "/J"])
+        .arg(dir.path().join("dlx"))
+        .arg(outside.path())
+        .output()
+        .expect("create a junction");
+    assert!(output.status.success(), "mklink failed: {output:?}");
+
+    clean_expired_dlx_cache(dir.path(), 0, SystemTime::now()).expect("clean the dlx cache");
+
+    assert!(outside_entry.exists(), "a junction root must not lead cleanup outside the cache");
 }

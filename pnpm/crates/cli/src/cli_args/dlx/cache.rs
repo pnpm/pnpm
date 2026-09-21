@@ -260,11 +260,6 @@ pub(super) fn get_valid_cache_dir(
     (!is_expired(mtime, max_age_minutes, now)).then_some(target)
 }
 
-/// Whether a link whose own mtime is `mtime` has outlived `max_age_minutes`.
-///
-/// The comparison is `mtime + max_age < now`, so an entry exactly at the
-/// configured age is still fresh. A negative elapsed time (clock skew, `now`
-/// before `mtime`) counts as fresh, matching pnpm's numeric comparison.
 pub(super) fn is_expired(mtime: SystemTime, max_age_minutes: u64, now: SystemTime) -> bool {
     let max_age = Duration::from_secs(max_age_minutes.saturating_mul(60));
     match now.duration_since(mtime) {

@@ -1,3 +1,5 @@
+use pnpm_fs::is_symlink_or_junction;
+
 use super::{OsStr, Path, PathBuf, SystemTime, cache::is_expired, fs, io, remove_dirent};
 
 /// Reclaim the dlx cache entries that have outlived `max_age_minutes`.
@@ -20,8 +22,6 @@ pub(crate) fn clean_expired_dlx_cache(
     Ok(())
 }
 
-/// Reclaim one dlx cache entry, or the prepare directories it no longer points
-/// at.
 fn clean_entry(cache_path: &Path, max_age_minutes: u64, now: SystemTime) -> io::Result<()> {
     let entry_expired = is_reclaimable(cache_path, max_age_minutes, now)?;
     let Some(link) = pkg_link(cache_path)? else {
@@ -37,7 +37,6 @@ fn clean_entry(cache_path: &Path, max_age_minutes: u64, now: SystemTime) -> io::
     clean_orphans(cache_path, max_age_minutes, now)
 }
 
-/// Whether `path` has itself outlived `max_age_minutes`.
 fn is_reclaimable(path: &Path, max_age_minutes: u64, now: SystemTime) -> io::Result<bool> {
     match fs::symlink_metadata(path) {
         Ok(metadata) => {
@@ -48,14 +47,10 @@ fn is_reclaimable(path: &Path, max_age_minutes: u64, now: SystemTime) -> io::Res
     }
 }
 
-/// Whether an mtime has outlived `max_age_minutes`. A zero age expires
-/// everything, the way pnpm 11's sweep read it.
 fn is_stale(mtime: SystemTime, max_age_minutes: u64, now: SystemTime) -> bool {
     max_age_minutes == 0 || is_expired(mtime, max_age_minutes, now)
 }
 
-/// The metadata of the entry's `pkg` symlink. An occupant that is not a
-/// symlink is not a cache link, matching `get_valid_cache_dir`.
 fn pkg_link(cache_path: &Path) -> io::Result<Option<fs::Metadata>> {
     match fs::symlink_metadata(cache_path.join("pkg")) {
         Ok(metadata) if metadata.file_type().is_symlink() => Ok(Some(metadata)),
@@ -65,7 +60,6 @@ fn pkg_link(cache_path: &Path) -> io::Result<Option<fs::Metadata>> {
     }
 }
 
-/// Remove the superseded prepare directories inside one entry.
 fn clean_orphans(cache_path: &Path, max_age_minutes: u64, now: SystemTime) -> io::Result<()> {
     let link_target = dunce::canonicalize(cache_path.join("pkg")).ok();
     for entry in fs::read_dir(cache_path)? {
@@ -87,11 +81,13 @@ fn is_link_target(child: &Path, link_target: Option<&Path>) -> bool {
     link_target.is_some_and(|target| dunce::canonicalize(child).is_ok_and(|child| child == target))
 }
 
-/// The direct subdirectories of `dir`, or `None` when `dir` does not exist.
 fn read_subdirs(dir: &Path) -> io::Result<Option<Vec<PathBuf>>> {
     // A `dlx` root that is a link would take the sweep out of the cache.
-    if fs::symlink_metadata(dir).is_ok_and(|metadata| metadata.file_type().is_symlink()) {
-        return Ok(None);
+    match is_symlink_or_junction(dir) {
+        Ok(true) => return Ok(None),
+        Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(None),
+        Err(error) => return Err(error),
+        Ok(false) => {}
     }
     let entries = match fs::read_dir(dir) {
         Ok(entries) => entries,
@@ -108,8 +104,6 @@ fn read_subdirs(dir: &Path) -> io::Result<Option<Vec<PathBuf>>> {
     Ok(Some(paths))
 }
 
-/// Remove `path` if it exists, so a concurrent remover that got there first is
-/// not an error.
 fn remove_dir_all_if_exists(path: &Path) -> io::Result<()> {
     match fs::remove_dir_all(path) {
         Err(error) if error.kind() != io::ErrorKind::NotFound => Err(error),
@@ -117,7 +111,6 @@ fn remove_dir_all_if_exists(path: &Path) -> io::Result<()> {
     }
 }
 
-/// [`remove_dir_all_if_exists`] for an entry that may be a file or a symlink.
 fn remove_dirent_if_exists(path: &Path) -> io::Result<()> {
     match remove_dirent(path) {
         Err(error) if error.kind() != io::ErrorKind::NotFound => Err(error),
