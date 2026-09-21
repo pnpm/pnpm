@@ -28,8 +28,6 @@ fn keeps_an_ssh_command_selected_through_git_configuration() {
     assert_eq!(non_interactive_git_env(|_| false, || true), [("GIT_TERMINAL_PROMPT", "0")]);
 }
 
-/// A provider whose `git config --get core.sshCommand` reports the setting
-/// for the repository at `/repo`.
 struct SshCommandConfigured;
 
 impl RunCommand for SshCommandConfigured {

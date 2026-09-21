@@ -32,8 +32,6 @@ export function createGitFetcher (createOpts: CreateGitFetcherOptions): { git: G
     }
     const tempLocation = await cafs.tempDir()
     try {
-      // Only the invocations that reach the remote get the prompt-free
-      // environment, read for the directory each of them runs in.
       if (allowedHosts.size > 0 && shouldUseShallow(resolution.repo, allowedHosts)) {
         await execGit(['init'], { cwd: tempLocation })
         await execGit(['remote', 'add', 'origin', resolution.repo], { cwd: tempLocation })
