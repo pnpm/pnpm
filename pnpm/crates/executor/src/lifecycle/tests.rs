@@ -595,7 +595,6 @@ fn malformed_package_yaml_reports_the_selected_manifest() {
         .expect("write malformed package.yaml");
 
     let err = read_lifecycle_manifest(pkg_root).expect_err("malformed YAML must fail");
-    eprintln!("ERR: {err}");
     let LifecycleScriptError::ReadManifest {
         path: error_path,
         source: PackageManifestError::ParseYaml { path, .. },
