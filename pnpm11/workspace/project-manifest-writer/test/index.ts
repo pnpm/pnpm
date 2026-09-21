@@ -120,3 +120,24 @@ test('preserves CRLF line endings when crlf option is true', async () => {
   await writeProjectManifest(yamlPath, { name: 'foo', version: '2.0.0' })
   expect(await readFile(yamlPath, 'utf8')).toBe('name: foo\r\nversion: 2.0.0\r\n')
 })
+
+test('preserves CRLF line endings of existing JSON manifests', async () => {
+  const dir = temporaryDirectory()
+  const jsonPath = path.join(dir, 'package.json')
+  await fs.promises.writeFile(jsonPath, '{\r\n\t"name": "foo"\r\n}\r\n')
+  await writeProjectManifest(jsonPath, { name: 'bar' })
+  expect(await readFile(jsonPath, 'utf8')).toBe('{\r\n\t"name": "bar"\r\n}\r\n')
+
+  const json5Path = path.join(dir, 'package.json5')
+  await fs.promises.writeFile(json5Path, "{\r\n\tname: 'foo',\r\n}\r\n")
+  await writeProjectManifest(json5Path, { name: 'bar' })
+  expect(await readFile(json5Path, 'utf8')).toBe("{\r\n\tname: 'bar',\r\n}\r\n")
+})
+
+test('uses explicit line ending option for an existing JSON manifest', async () => {
+  const dir = temporaryDirectory()
+  const jsonPath = path.join(dir, 'package.json')
+  await fs.promises.writeFile(jsonPath, '{\r\n\t"name": "foo"\r\n}\r\n')
+  await writeProjectManifest(jsonPath, { name: 'bar' }, { crlf: false })
+  expect(await readFile(jsonPath, 'utf8')).toBe('{\n\t"name": "bar"\n}\n')
+})

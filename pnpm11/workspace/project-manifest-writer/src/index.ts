@@ -26,7 +26,8 @@ export async function writeProjectManifest (
   }
 
   await fs.mkdir(path.dirname(filePath), { recursive: true })
-  const newline = opts?.crlf ? '\r\n' : '\n'
+  const crlf = opts?.crlf ?? (await readFileIfExists(filePath))?.includes('\r\n') ?? false
+  const newline = crlf ? '\r\n' : '\n'
   const trailingNewline = opts?.insertFinalNewline === false ? '' : newline
   const indent = opts?.indent ?? '\t'
 
@@ -36,7 +37,7 @@ export async function writeProjectManifest (
       : JSON.stringify(manifest, undefined, indent)
   )
 
-  if (opts?.crlf) {
+  if (crlf) {
     json = json.replace(/\r?\n/g, '\r\n')
   }
 
@@ -52,12 +53,7 @@ function stringifyJson5 (obj: object, indent: string | number, comments?: Commen
 }
 
 async function writePackageYaml (filePath: string, manifest: ProjectManifest, crlf?: boolean): Promise<void> {
-  let text: string | undefined
-  try {
-    text = await fs.readFile(filePath, 'utf8')
-  } catch (err) {
-    if (!util.types.isNativeError(err) || !('code' in err) || err.code !== 'ENOENT') throw err
-  }
+  const text = await readFileIfExists(filePath)
   const document = text == null ? new yaml.Document() : yaml.parseDocument(text)
   if (document.errors.length > 0) {
     throw new PnpmError('YAML_PARSE', `${document.errors[0].message}\nin ${filePath}`)
@@ -70,8 +66,17 @@ async function writePackageYaml (filePath: string, manifest: ProjectManifest, cr
   })
   await fs.mkdir(path.dirname(filePath), { recursive: true })
   let content = document.toString({ lineWidth: 0 })
-  if (crlf || (crlf === undefined && text?.includes('\r\n'))) {
+  if (crlf ?? text?.includes('\r\n')) {
     content = content.replace(/\r?\n/g, '\r\n')
   }
   await writeFileAtomic(filePath, content)
+}
+
+async function readFileIfExists (filePath: string): Promise<string | undefined> {
+  try {
+    return await fs.readFile(filePath, 'utf8')
+  } catch (err) {
+    if (!util.types.isNativeError(err) || !('code' in err) || err.code !== 'ENOENT') throw err
+  }
+  return undefined
 }

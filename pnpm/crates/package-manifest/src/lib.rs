@@ -60,7 +60,6 @@ pub struct PackageManifest {
     /// Whether a save ends the file with a newline. New and in-memory
     /// manifests get one.
     insert_final_newline: bool,
-    /// Whether the manifest source file uses CRLF (`\r\n`) line endings.
     crlf: bool,
     /// One indentation level. Empty for a single-line source document,
     /// which then round-trips back to its compact form.
