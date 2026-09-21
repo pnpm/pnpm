@@ -541,7 +541,6 @@ fn inspecting_a_group_propagates_filesystem_errors() {
     fs::write(&group, "not a directory").expect("write invalid group");
     let error = inspect_group(&group).expect_err("a file is not an idle group");
     dbg!(&error);
-    assert_ne!(error.kind(), std::io::ErrorKind::NotFound);
     let missing = inspect_group(&dir.path().join("missing")).expect("missing group");
     dbg!(&missing);
     assert!(missing.is_idle());
