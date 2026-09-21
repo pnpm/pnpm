@@ -94,9 +94,7 @@ pub(super) fn build_resolved_lockfile<Reporter>(
                     graph: &resolved.graph.merged_graph,
                     direct_by_importer: &resolved.graph.direct_by_importer,
                     overrides: resolved.overrides.overrides.clone(),
-                    include_peer_dependencies: install
-                        .resolved_groups()
-                        .contains(&pnpm_package_manifest::DependencyGroup::Peer),
+                    include_peer_dependencies: resolves_peer_dependencies(&install),
                     time: resolved_time,
                 },
             config: install.drivers.config,
@@ -121,6 +119,9 @@ pub(super) fn build_resolved_lockfile<Reporter>(
             versions_overrider: resolved.overrides.versions_overrider.as_deref(),
         },
     })
+}
+fn resolves_peer_dependencies(install: &FreshInputs<'_>) -> bool {
+    install.resolved_groups().contains(&pnpm_package_manifest::DependencyGroup::Peer)
 }
 pub(super) fn parse_config_overrides(
     config: &Config,
