@@ -2547,7 +2547,7 @@ function getResolvedPackage (
     hasBin: options.hasBin,
     hasBundledDependencies: !((options.pkg.bundledDependencies ?? options.pkg.bundleDependencies) == null),
     id: options.pkgResponse.body.id,
-    name: options.pkg.name,
+    name: options.pkgResponse.body.requestedName ?? options.pkg.name,
     requestedName: options.pkgResponse.body.requestedName,
     optional: options.optional,
     optionalDependencies: new Set(Object.keys(options.pkg.optionalDependencies ?? {})),

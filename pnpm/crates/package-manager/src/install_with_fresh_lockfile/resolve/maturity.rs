@@ -98,7 +98,15 @@ fn report_held_back_parents<Reporter: pnpm_reporter::Reporter>(
                         .unwrap_or_else(|| name_ver.name.to_string()),
                 )
                 .or_default()
-                .insert(name_ver.suffix.to_string());
+                .insert(
+                    pkg.result.id
+                        .as_str()
+                        .parse::<pnpm_lockfile::PackageKey>()
+                        .map_or_else(
+                            |_| name_ver.suffix.to_string(),
+                            |key| key.suffix.version().to_string(),
+                        ),
+                );
         }
     }
     let lines = held_back_lines(blocked_versions, &resolved_versions_by_name);

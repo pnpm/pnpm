@@ -27,7 +27,9 @@ pub(crate) mod semver_range;
 
 pub(crate) use preferred_versions::dominant_lockfile_version;
 
-pub(crate) use release_age::{PublishedByView, apply_published_by_policy};
+pub(crate) use release_age::{
+    PublishedByView, apply_published_by_policy, filter_pkg_metadata_versions_with_dist_tag_bound,
+};
 
 pub use release_age::{filter_pkg_metadata_by_publish_date, filter_pkg_metadata_versions};
 
@@ -213,7 +215,7 @@ where
             undecodable_excluded = Some(without_version(meta_now, &version));
             continue;
         };
-        return Ok(Some(pinned_manifest(manifest, meta_now)));
+        return Ok(Some(pinned_manifest(manifest, meta_now, &version)));
     }
 }
 
@@ -226,15 +228,25 @@ fn no_versions_error(meta: &Package, spec: &RegistryPackageSpec) -> PickPackageF
     PickPackageFromMetaError::NoVersions { pkg_name: spec.name.clone() }
 }
 
-/// GitHub registry quirk: a scoped package can be published as `@owner/foo`
-/// while the per-version `name` is just `foo`. The manifest name is pinned
-/// to the packument-level name.
-fn pinned_manifest(manifest: Arc<PackageVersion>, meta: &Package) -> Arc<PackageVersion> {
-    if meta.name.is_empty() || manifest.name == meta.name {
+/// Packument coordinates are authoritative over a manifest's name and version.
+/// GitHub registries may omit the scope from per-version manifest names.
+fn pinned_manifest(
+    manifest: Arc<PackageVersion>,
+    meta: &Package,
+    version: &str,
+) -> Arc<PackageVersion> {
+    if (meta.name.is_empty() || manifest.name == meta.name)
+        && manifest.version.to_string() == version
+    {
         return manifest;
     }
     let mut pinned = (*manifest).clone();
-    pinned.name.clone_from(&meta.name);
+    if !meta.name.is_empty() {
+        pinned.name.clone_from(&meta.name);
+    }
+    if let Ok(version) = Version::parse(version) {
+        pinned.version = version;
+    }
     Arc::new(pinned)
 }
 

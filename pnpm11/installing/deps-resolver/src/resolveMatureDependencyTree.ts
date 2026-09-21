@@ -112,7 +112,8 @@ function reportHeldBackParents (
   const resolvedVersionsByName = new Map<string, Set<string>>()
   for (const pkg of Object.values(resolvedPkgsById)) {
     const name = pkg.requestedName ?? pkg.name
-    const version = pkg.version
+    const parsed = dp.parse(pkg.id)
+    const version = parsed.version == null ? pkg.version : parsed.registryName ? `${parsed.registryName}:${parsed.version}` : parsed.version
     let versions = resolvedVersionsByName.get(name)
     if (versions == null) {
       versions = new Set()

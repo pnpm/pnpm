@@ -2,9 +2,9 @@ use super::{
     Arc, DateTime, HashSet, Package, PackageMetaCache, PackageVersion, PackageVersionPolicy,
     PickPackageContext, PickPackageFromMetaError, PickPackageFromMetaOptions, PickPackageOptions,
     RegistryPackageSpec, RegistryPackageSpecType, SkippedTimeCheck, TrustPolicy, Utc,
-    VersionSelectors, filter_pkg_metadata_versions, pick_lowest_version_by_version_range,
-    pick_package_from_meta, pick_stable_cached_range_version, pick_version_by_version_range,
-    warn_missing_time_once,
+    VersionSelectors, filter_pkg_metadata_versions_with_dist_tag_bound,
+    pick_lowest_version_by_version_range, pick_package_from_meta, pick_stable_cached_range_version,
+    pick_version_by_version_range, warn_missing_time_once,
 };
 
 /// Whether a pick made from a registry-unverified entry can be returned as
@@ -104,7 +104,11 @@ pub(super) fn filter_blocked_versions(
     if blocked_versions.is_empty() {
         return meta;
     }
-    Arc::new(filter_pkg_metadata_versions(&meta, |version| !blocked_versions.contains(version)))
+    Arc::new(filter_pkg_metadata_versions_with_dist_tag_bound(
+        &meta,
+        |version| !blocked_versions.contains(version),
+        true,
+    ))
 }
 
 /// Picker used at terminal return sites where there's no further

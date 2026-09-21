@@ -88,3 +88,12 @@ test('retry blocks use the requested identity instead of a manifest name', async
   await resolveMatureDependencyTree(async () => [], { minimumReleaseAge: 1440 } as ResolveDependenciesOptions)
   expect(resolveDependencyTree).toHaveBeenCalledTimes(2)
 })
+
+
+test('held-back reporting preserves the replacement registry', async () => {
+  const replacement = tree(['parent@work:1.0.0'])
+  replacement.resolutionPolicyViolations = []
+  resolveDependencyTree.mockResolvedValueOnce(tree(['parent@work:2.0.0'])).mockResolvedValueOnce(replacement)
+  await resolveMatureDependencyTree(async () => [], { minimumReleaseAge: 1440 } as ResolveDependenciesOptions)
+  expect(globalInfo).toHaveBeenCalledWith(expect.stringContaining('parent@work:2.0.0 (resolved to work:1.0.0 instead)'))
+})

@@ -140,7 +140,7 @@ pub fn filter_pkg_metadata_versions(meta: &Package, keep: impl FnMut(&str) -> bo
     filter_pkg_metadata_versions_with_dist_tag_bound(meta, keep, false)
 }
 
-pub(super) fn filter_pkg_metadata_versions_with_dist_tag_bound(
+pub(crate) fn filter_pkg_metadata_versions_with_dist_tag_bound(
     meta: &Package,
     mut keep: impl FnMut(&str) -> bool,
     bound_dist_tags: bool,

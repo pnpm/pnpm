@@ -104,9 +104,9 @@ use crate::{
     },
     pick_package_from_meta::{
         PickPackageFromMetaError, PickPackageFromMetaOptions, RegistryPackageSpec,
-        RegistryPackageSpecType, dominant_lockfile_version, filter_pkg_metadata_versions,
-        pick_lowest_version_by_version_range, pick_package_from_meta,
-        pick_stable_cached_range_version, pick_version_by_version_range,
+        RegistryPackageSpecType, dominant_lockfile_version,
+        filter_pkg_metadata_versions_with_dist_tag_bound, pick_lowest_version_by_version_range,
+        pick_package_from_meta, pick_stable_cached_range_version, pick_version_by_version_range,
     },
     registry_url::to_registry_url,
 };

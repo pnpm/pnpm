@@ -475,6 +475,14 @@ describe('minimumReleaseAge resolution fallback', () => {
     const decoy = staggeredPackument('decoy', ['1.2.6'])
     decoy.versions['1.2.6'].name = 'other'
     packages.set('decoy', decoy)
+    const mismatchedVersion = staggeredPackument('rolldown', ['1.2.4', '1.2.5+build'])
+    mismatchedVersion.name = 'mismatched-version'
+    mismatchedVersion.versions['1.2.5+build'].version = '1.2.5'
+    mismatchedVersion.versions['1.2.5+build'].optionalDependencies = {
+      '@rolldown/binding-darwin-x64': '1.2.5',
+      '@rolldown/binding-linux-arm64-gnu': '1.2.5',
+    }
+    packages.set('mismatched-version', mismatchedVersion)
     server = http.createServer((request, response) => {
       const metadata = packages.get(decodeURIComponent(request.url?.slice(1) ?? ''))
       response.writeHead(metadata == null ? 404 : 200, { 'content-type': 'application/json' })
@@ -518,6 +526,15 @@ describe('minimumReleaseAge resolution fallback', () => {
     expect(depPaths).toContain('decoy@1.2.6')
     expect(depPaths).not.toContain('other@1.2.5')
     expect(depPaths).not.toContain('other@1.2.6')
+  })
+
+  test('blocks the packument key when it differs from the manifest version', async () => {
+    prepare({ dependencies: { 'mismatched-version': '~1.2.1' } })
+    writeYamlFileSync('pnpm-workspace.yaml', { minimumReleaseAge: 1440, minimumReleaseAgeStrict: true })
+    await execPnpm([registry, 'install', '--lockfile-only'], maturityEnv)
+    const depPaths = Object.keys(readYamlFileSync<LockfilePackages>('pnpm-lock.yaml').packages)
+    expect(depPaths).toContain('mismatched-version@1.2.4')
+    expect(depPaths).not.toContain('mismatched-version@1.2.5+build')
   })
 
   test('backs off to a transitive version whose exact-pinned deps are mature', async () => {
@@ -567,9 +584,9 @@ describe('minimumReleaseAge resolution fallback', () => {
     expect(manifest.dependencies.rolldown).toBe('1.2.4')
   })
 
-  test('reports the dependent when no earlier version of it can be reached', async () => {
+  test.each(['rolldown', 'mismatched-rolldown'])('reports the requested dependent %s when no earlier version can be reached', async (name) => {
     prepare({
-      dependencies: { rolldown: '1.2.5' },
+      dependencies: { [name]: '1.2.5' },
     })
     writeYamlFileSync('pnpm-workspace.yaml', {
       minimumReleaseAge: 1440,
@@ -583,8 +600,52 @@ describe('minimumReleaseAge resolution fallback', () => {
 
     expect(output).toContain('ERR_PNPM_NO_MATURE_MATCHING_VERSION')
     expect(output).toContain('@rolldown/binding-darwin-x64@1.2.5')
-    expect(output).toContain('(required by rolldown@1.2.5)')
+    expect(output).toContain(`(required by ${name}@1.2.5)`)
   })
+})
+
+test('frozen install preserves the tarball URL when the manifest name differs', async () => {
+  prepare({ dependencies: { requested: '1.5.0' } })
+  const storage = process.env.PNPM_REGISTRY_MOCK_STORAGE
+  if (storage == null) throw new Error('Missing mock registry storage')
+  const tarball = fs.readFileSync(path.join(storage, 'ajv-keywords', 'ajv-keywords-1.5.0.tgz'))
+  const integrity = `sha512-${createHash('sha512').update(tarball).digest('base64')}`
+  let tarballUrl: string
+  let downloads = 0
+  const server = http.createServer((req, res) => {
+    if (req.url === '/ajv-keywords/-/ajv-keywords-1.5.0.tgz') {
+      downloads++
+      res.end(tarball)
+    } else if (req.url === '/requested') {
+      res.setHeader('content-type', 'application/json')
+      res.end(JSON.stringify({
+        name: 'ajv-keywords',
+        'dist-tags': { latest: '1.5.0' },
+        versions: { '1.5.0': {
+          name: 'ajv-keywords', version: '1.5.0', dist: { tarball: tarballUrl, integrity },
+        } },
+      }))
+    } else {
+      res.statusCode = 404
+      res.end()
+    }
+  })
+  await new Promise<void>(resolve => server.listen(0, '127.0.0.1', resolve))
+  const address = server.address()
+  if (address == null || typeof address === 'string') throw new Error('Missing registry address')
+  const registry = `http://127.0.0.1:${address.port}/`
+  tarballUrl = `${registry}ajv-keywords/-/ajv-keywords-1.5.0.tgz`
+  writeYamlFileSync('pnpm-workspace.yaml', { storeDir: 'fresh-store', enableGlobalVirtualStore: false, strictStorePkgContentCheck: false })
+  try {
+    await execPnpm([`--config.registry=${registry}`, 'install', '--lockfile-only'])
+    expect(fs.readFileSync('pnpm-lock.yaml', 'utf8')).toContain(tarballUrl)
+    expect(downloads).toBe(0)
+    await execPnpm([`--config.registry=${registry}`, 'install', '--frozen-lockfile', '--ignore-scripts'])
+    expect(downloads).toBe(1)
+    expect(JSON.parse(fs.readFileSync('node_modules/requested/package.json', 'utf8')).name).toBe('ajv-keywords')
+  } finally {
+    await new Promise<void>((resolve, reject) => server.close(error => error ? reject(error) : resolve()))
+  }
 })
 
 function staggeredPackument (name: string, versions: string[]) {

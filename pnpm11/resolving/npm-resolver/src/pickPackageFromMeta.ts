@@ -92,13 +92,14 @@ export function pickPackageFromMeta (
     // return type is the contract every caller reads, so answer it with
     // `null` rather than letting `undefined` stand in for "no match".
     const manifest = meta.versions[version] ?? null
-    if (manifest && meta['name']) {
-      // Packages that are published to the GitHub registry are always published with a scope.
-      // However, the name in the package.json for some reason may omit the scope.
-      // So the package published to the GitHub registry will be published under @foo/bar
-      // but the name in package.json will be just bar.
-      // In order to avoid issues, we consider that the real name of the package is the one with the scope.
-      manifest.name = meta['name']
+    if (manifest == null) return null
+    const name = meta.name || manifest.name
+    const parsedVersion = manifest.version !== version ? semver.parse(version) : null
+    const selectedVersion = parsedVersion == null
+      ? manifest.version
+      : parsedVersion.version + (parsedVersion.build.length ? `+${parsedVersion.build.join('.')}` : '')
+    if (manifest.name !== name || manifest.version !== selectedVersion) {
+      return { ...manifest, name, version: selectedVersion }
     }
     return manifest
   } catch (err: unknown) {

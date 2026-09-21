@@ -3180,7 +3180,7 @@ test('a blocked exact version is reported under the requested package identity',
       name: 'other',
       versions: {
         ...isPositiveMetaFull.versions,
-        '1.0.0': { ...isPositiveMetaFull.versions['1.0.0'], name: 'other' },
+        '1.0.0': { ...isPositiveMetaFull.versions['1.0.0'], name: 'other', version: '0.9.0' },
       },
     })
   const { resolveFromNpm } = createResolveFromNpm({

@@ -51,8 +51,8 @@ pub(crate) fn build_resolve_result(
 ) -> Result<ResolveResult, ResolveError> {
     let picked = select_package_revision(args.picked, args.specifier.spec, args.registry.registry)?;
     let picked = picked.as_ref();
-    let pkg_name =
-        PkgName::parse(picked.name.as_str()).map_err(|err| Box::new(err) as ResolveError)?;
+    let pkg_name = PkgName::parse(args.specifier.spec.name.as_str())
+        .map_err(|err| Box::new(err) as ResolveError)?;
     let version_str = picked.version.to_string();
     let name_ver = PkgNameVer::new(pkg_name.clone(), picked.version.clone());
     let (resolution, revision) = picked_tarball_resolution(picked, args.registry.registry)?;
@@ -380,7 +380,7 @@ impl BuildResolveResult<'_> {
             format!(
                 "{}\x00{}@{version_str}+r{}",
                 self.registry.registry,
-                picked.name,
+                self.specifier.spec.name,
                 revision.map_or(0, TarballRevision::get),
             ),
             picked,

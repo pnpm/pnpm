@@ -42,10 +42,14 @@ async fn package_version_guard_excludes_rejected_versions_and_repicks() {
 #[tokio::test]
 async fn package_version_guard_repopulates_latest_tag() {
     let mut server = mockito::Server::new_async().await;
+    let mut metadata: serde_json::Value = serde_json::from_str(PACKAGE_BODY).unwrap();
+    let mut untagged = metadata["versions"]["1.1.0"].clone();
+    untagged["version"] = "2.0.0".into();
+    metadata["versions"]["2.0.0"] = untagged;
     let _mock = server
         .mock("GET", "/acme")
         .with_status(200)
-        .with_body(PACKAGE_BODY)
+        .with_body(metadata.to_string())
         .create_async()
         .await;
     let registry = format!("{}/", server.url());
@@ -210,7 +214,7 @@ async fn package_version_guard_accepting_rejected_falls_back_at_the_repick_limit
 }
 
 #[tokio::test]
-async fn package_version_guard_blocks_the_packument_key_not_the_parsed_version() {
+async fn package_version_guard_receives_and_blocks_the_packument_version() {
     let mut server = mockito::Server::new_async().await;
     let _mock = server
         .mock("GET", "/acme")
@@ -221,13 +225,9 @@ async fn package_version_guard_blocks_the_packument_key_not_the_parsed_version()
     let registry = format!("{}/", server.url());
     let (resolver, _tempdir) = build_resolver(&registry);
 
-    // The guard rejects the parsed manifest version `1.5.0`, whose
-    // packument key is `1.5.0+build`. The repick must still exclude that
-    // entry and fall back to `1.0.0`, rather than wrongly reporting that
-    // every version is blocked.
     let opts = ResolveOptions {
         policy: pnpm_resolving_resolver_base::ResolutionPolicyOptions {
-            package_version_guard: Some(reject_versions(&["1.5.0"])),
+            package_version_guard: Some(reject_versions(&["1.5.0+build"])),
             ..Default::default()
         },
         ..ResolveOptions::default()
@@ -305,6 +305,7 @@ async fn blocked_policy_uses_requested_name_when_manifest_name_differs() {
     let mut body: serde_json::Value = serde_json::from_str(PACKAGE_BODY).unwrap();
     body["name"] = serde_json::json!("other");
     body["versions"]["1.1.0"]["name"] = serde_json::json!("other");
+    body["versions"]["1.1.0"]["version"] = serde_json::json!("1.0.0");
     let mut server = mockito::Server::new_async().await;
     let _mock = server
         .mock("GET", "/acme")
