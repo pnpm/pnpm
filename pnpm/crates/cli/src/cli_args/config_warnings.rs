@@ -264,5 +264,27 @@ fn non_camel_case_workspace_keys_warning(keys: &[String]) -> String {
     )
 }
 
+pub(crate) fn warn_shared_workspace_lockfile_outside_workspace(
+    shared_workspace_lockfile_cli: Option<bool>,
+    workspace_dir: Option<&std::path::Path>,
+) {
+    if let Some(message) = shared_workspace_lockfile_outside_workspace_warning(
+        shared_workspace_lockfile_cli,
+        workspace_dir,
+    ) {
+        emit_config_warning(&message);
+    }
+}
+
+pub(super) fn shared_workspace_lockfile_outside_workspace_warning(
+    shared_workspace_lockfile_cli: Option<bool>,
+    workspace_dir: Option<&std::path::Path>,
+) -> Option<String> {
+    (shared_workspace_lockfile_cli.is_some() && workspace_dir.is_none()).then(|| {
+        r#"The "shared-workspace-lockfile" option was ignored because no "pnpm-workspace.yaml" was found."#
+            .to_string()
+    })
+}
+
 #[cfg(test)]
 mod tests;

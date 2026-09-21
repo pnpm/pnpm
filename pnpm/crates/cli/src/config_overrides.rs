@@ -178,6 +178,10 @@ macro_rules! record_list_overrides {
 }
 
 impl ConfigOverrides {
+    pub(crate) fn shared_workspace_lockfile(&self) -> Option<bool> {
+        self.shared_workspace_lockfile
+    }
+
     /// Pull `--config.<key>=<value>` tokens and [`BARE_SETTING_FLAGS`](tokens::BARE_SETTING_FLAGS)
     /// spellings out of `argv` and collect them. Returns the parsed
     /// overrides together with the remaining argv tokens (in their

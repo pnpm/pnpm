@@ -2,6 +2,7 @@ pub(super) use configuration::{apply_update_config, seed_config};
 
 use super::{
     cli_command::{CliArgs, CliCommand},
+    config_warnings::warn_shared_workspace_lockfile_outside_workspace,
     dispatch_install, dispatch_query, dispatch_script,
     install::resolve_bool_override,
     reporter::{
@@ -218,6 +219,7 @@ impl CliArgs {
         let emit = reporter_emit(self.effective_reporter());
         let finished = install_args.finished_via_up_to_date_fast_path(&dir, &config, emit);
         if finished {
+            warn_fast_path_config(config_overrides, &config);
             emit_execution_time(emit, started_at);
         }
         finished
@@ -267,26 +269,27 @@ impl CliArgs {
     ) -> miette::Result<bool> {
         // Load config anchored at `anchor`, reading `.npmrc` /
         // `pnpm-workspace.yaml` from there.
-        let load_config = |anchor: &Path| -> miette::Result<&'static mut Config> {
-            seed_config(self.paths.npmrc_auth_file.as_deref(), self.paths.ignore_workspace)
-                .current::<Host>(anchor)
-                .map_err(miette::Report::new)
-                .wrap_err("load configuration")
-                .and_then(|cfg| {
-                    self.finalize_run_config(cfg, anchor, config_overrides, setup, anchors)
-                })
+        let load_config = |anchor: &Path, is_global: bool| {
+            self.load_and_finalize_config(anchor, is_global, config_overrides, setup, anchors)
         };
         // Resolve `.npmrc` / `pnpm-workspace.yaml` from the canonicalized
         // `--dir` rather than the process cwd, matching pnpm 11 (which
         // builds its `localPrefix` from `cliOptions.dir`, not `cwd`).
-        let config = || load_config(&anchors.dir);
+        let config = || load_config(&anchors.dir, false);
         let config_self_update = || -> miette::Result<&'static mut Config> {
             seed_config(self.paths.npmrc_auth_file.as_deref(), self.paths.ignore_workspace)
                 .current_for_self_update::<Host>(&anchors.dir)
                 .map_err(miette::Report::new)
                 .wrap_err("load configuration")
                 .and_then(|cfg| {
-                    self.finalize_run_config(cfg, &anchors.dir, config_overrides, setup, anchors)
+                    self.finalize_run_config(
+                        cfg,
+                        &anchors.dir,
+                        false,
+                        config_overrides,
+                        setup,
+                        anchors,
+                    )
                 })
         };
         // `require_lockfile` is the "this subcommand cannot run without a
@@ -310,7 +313,7 @@ impl CliArgs {
             workspace: WorkspaceInvocation::from(&self.workspace),
             loaders: CommandLoaders {
                 config: &config,
-                global_config: &|| load_config(&anchors.global_config),
+                global_config: &|| load_config(&anchors.global_config, true),
                 config_self_update: &config_self_update,
                 state: &state,
             },
@@ -319,15 +322,39 @@ impl CliArgs {
         Ok(builtin_replaced_by_script.load(Ordering::Relaxed))
     }
 
+    fn load_and_finalize_config(
+        &self,
+        anchor: &Path,
+        is_global: bool,
+        config_overrides: &ConfigOverrides,
+        setup: &RunSetup,
+        anchors: &RunAnchors,
+    ) -> miette::Result<&'static mut Config> {
+        seed_config(self.paths.npmrc_auth_file.as_deref(), self.paths.ignore_workspace)
+            .current::<Host>(anchor)
+            .map_err(miette::Report::new)
+            .wrap_err("load configuration")
+            .and_then(|cfg| {
+                self.finalize_run_config(cfg, anchor, is_global, config_overrides, setup, anchors)
+            })
+    }
+
     fn finalize_run_config(
         &self,
         mut cfg: Config,
         anchor: &Path,
+        is_global: bool,
         config_overrides: &ConfigOverrides,
         setup: &RunSetup,
         anchors: &RunAnchors,
     ) -> miette::Result<&'static mut Config> {
         config_overrides.apply(&mut cfg, anchor);
+        if !is_global {
+            warn_shared_workspace_lockfile_outside_workspace(
+                config_overrides.shared_workspace_lockfile(),
+                cfg.workspace_dir.as_deref(),
+            );
+        }
         apply_color_override(
             &mut cfg,
             self.output.presentation.color,
@@ -416,6 +443,13 @@ impl CliArgs {
             },
         );
     }
+}
+
+fn warn_fast_path_config(config_overrides: &ConfigOverrides, config: &Config) {
+    warn_shared_workspace_lockfile_outside_workspace(
+        config_overrides.shared_workspace_lockfile(),
+        config.workspace_dir.as_deref(),
+    );
 }
 
 /// A JSON-mode command reports its own failure on stdout and exits, so the
