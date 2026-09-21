@@ -30,9 +30,38 @@ test('a signal is raised once after concurrent relays settle', async () => {
     await Promise.all([firstRaise, second.raise('SIGINT')])
     expect(raised).toStrictEqual([[process.pid, 'SIGINT']])
   } finally {
+    await Promise.all([first.settle(), second.settle()])
     process.kill = originalKill
-    await first.settle()
-    await second.settle()
+  }
+})
+
+test('a relay installed while an interrupt is pending is terminated without handling the signal', async () => {
+  const child = { kill: () => true }
+  const first = relaySignals(child, { ownProcessGroup: false, terminateOnExit: false })
+  const second = relaySignals(child, { ownProcessGroup: false, terminateOnExit: false })
+  const originalKill = process.kill
+  const raised: Array<[number, string | number | undefined]> = []
+  process.kill = ((pid, signal) => {
+    raised.push([pid, signal])
+    return true
+  }) as typeof process.kill
+  let late: ReturnType<typeof relaySignals> | undefined
+  try {
+    const firstRaise = first.raise('SIGINT')
+    const sigintListeners = process.listenerCount('SIGINT')
+    const relayed: Array<NodeJS.Signals | number | undefined> = []
+    late = relaySignals({ kill: (signal) => {
+      relayed.push(signal)
+      return true
+    } }, { ownProcessGroup: false, terminateOnExit: false })
+
+    expect(relayed).toStrictEqual(['SIGTERM'])
+    expect(process.listenerCount('SIGINT')).toBe(sigintListeners)
+    await Promise.all([first.settle(), second.settle(), late.settle(), firstRaise])
+    expect(raised).toStrictEqual([[process.pid, 'SIGINT']])
+  } finally {
+    await Promise.all([first.settle(), second.settle(), late?.settle()])
+    process.kill = originalKill
   }
 })
 

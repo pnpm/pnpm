@@ -55,21 +55,27 @@ export interface SignalRelay {
  */
 export function relaySignals (child: SignalTarget, opts: RelaySignalsOptions): SignalRelay {
   const group = joinRelayGroup()
+  const installedAfterInterrupt = group.interrupted
   let interruptedBy: NodeJS.Signals | null = null
   let relayed = false
   let settled = false
   let terminated = false
   const prepareRaise = (signal: NodeJS.Signals): void => {
     group.interrupted = true
+    group.interruptedBy ??= signal
     if (group.signalToRaise == null || signal === 'SIGTERM') {
       group.signalToRaise = signal
     }
-    group.raised ??= group.settled.then(() => {
-      process.kill(process.pid, group.signalToRaise!)
-      // Signal delivery is asynchronous. Leave it a turn to end pnpm before
-      // a caller reports the child as an ordinary command failure.
-      return new Promise<void>((resolve) => setTimeout(resolve, 1000))
-    })
+    if (group.raised == null) {
+      group.raised = group.settled.then(() => {
+        process.kill(process.pid, group.signalToRaise!)
+        // Signal delivery is asynchronous. Leave it a turn to end pnpm before
+        // a caller reports the child as an ordinary command failure.
+        return new Promise<void>((resolve) => setTimeout(resolve, 1000))
+      }).finally(() => {
+        if (currentRelayGroup === group) currentRelayGroup = undefined
+      })
+    }
   }
   const relay = (signal: NodeJS.Signals): void => {
     relayed = true
@@ -91,6 +97,7 @@ export function relaySignals (child: SignalTarget, opts: RelaySignalsOptions): S
   const onTerm = (): void => {
     interruptedBy ??= 'SIGTERM'
     group.interrupted = true
+    group.interruptedBy ??= 'SIGTERM'
     if (opts.raiseOnInterrupt) prepareRaise('SIGTERM')
     terminate()
   }
@@ -101,16 +108,22 @@ export function relaySignals (child: SignalTarget, opts: RelaySignalsOptions): S
   const onInterrupt = (): void => {
     interruptedBy ??= 'SIGINT'
     group.interrupted = true
+    group.interruptedBy ??= 'SIGINT'
     if (opts.raiseOnInterrupt) prepareRaise('SIGINT')
     if (!hasControllingTerminal()) {
       relay('SIGINT')
     }
     process.once('SIGINT', onEscalate)
   }
-  process.once('SIGTERM', onTerm)
-  process.once('SIGINT', onInterrupt)
-  if (opts.terminateOnExit) {
-    process.on('exit', terminate)
+  if (installedAfterInterrupt) {
+    interruptedBy = group.interruptedBy ?? null
+    terminate()
+  } else {
+    process.once('SIGTERM', onTerm)
+    process.once('SIGINT', onInterrupt)
+    if (opts.terminateOnExit) {
+      process.on('exit', terminate)
+    }
   }
   return {
     interruptedBy: () => interruptedBy,
@@ -149,6 +162,7 @@ export function relaySignals (child: SignalTarget, opts: RelaySignalsOptions): S
 interface RelayGroup {
   active: number
   interrupted: boolean
+  interruptedBy?: NodeJS.Signals
   signalToRaise?: NodeJS.Signals
   settled: Promise<void>
   resolve: () => void
@@ -158,7 +172,7 @@ interface RelayGroup {
 let currentRelayGroup: RelayGroup | undefined
 
 function joinRelayGroup (): RelayGroup {
-  if (currentRelayGroup == null || currentRelayGroup.active === 0 || currentRelayGroup.interrupted) {
+  if (currentRelayGroup == null || (currentRelayGroup.active === 0 && currentRelayGroup.raised == null)) {
     let resolve!: () => void
     const settled = new Promise<void>((resolvePromise) => {
       resolve = resolvePromise
