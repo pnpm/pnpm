@@ -245,3 +245,71 @@ fn should_accept_aliases() {
 
     drop((root, mock_instance));
 }
+
+#[test]
+fn recursive_remove_validates_selected_dependencies_before_writing() {
+    let CommandTempCwd { workspace, root, .. } = CommandTempCwd::init();
+    prepare_removal_workspace(&workspace);
+    let files = ["project-1/package.json", "project-2/package.json", "pnpm-workspace.yaml"];
+    let before = files.map(|file| fs::read(workspace.join(file)).expect("read workspace file"));
+
+    for args in [
+        vec!["missing"],
+        vec!["is-positive", "missing"],
+        vec!["--filter=project-2", "is-positive"],
+        vec!["--save-dev", "is-positive"],
+        vec!["--save-optional", "is-positive"],
+        vec!["--save-prod", "is-negative"],
+    ] {
+        let output = pacquet_at(&workspace)
+            .with_args(["remove", "-r", "--lockfile-only"])
+            .with_args(&args)
+            .output()
+            .expect("run recursive remove");
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        assert!(!output.status.success(), "removal {args:?} must fail: {stderr}");
+        assert!(stderr.contains("ERR_PNPM_CANNOT_REMOVE_MISSING_DEPS"), "{args:?}: {stderr}");
+        assert_eq!(
+            files.map(|file| fs::read(workspace.join(file)).expect("read workspace file")),
+            before,
+        );
+        assert!(!workspace.join("pnpm-lock.yaml").exists());
+    }
+
+    drop(root);
+}
+
+#[test]
+fn recursive_remove_accepts_dependencies_spread_across_selected_projects() {
+    let CommandTempCwd { pacquet, workspace, root, .. } = CommandTempCwd::init();
+    prepare_removal_workspace(&workspace);
+
+    pacquet
+        .with_args(["remove", "-r", "--lockfile-only", "is-positive", "is-negative"])
+        .assert()
+        .success();
+
+    assert!(!manifest_has(&workspace.join("project-1"), DependencyGroup::Prod, "is-positive"));
+    assert!(!manifest_has(&workspace.join("project-2"), DependencyGroup::Dev, "is-negative"));
+    assert!(workspace.join("pnpm-lock.yaml").exists());
+
+    drop(root);
+}
+
+fn prepare_removal_workspace(workspace: &Path) {
+    fs::write(workspace.join("pnpm-workspace.yaml"), "packages:\n  - project-*\n")
+        .expect("write workspace manifest");
+    for (name, group, dependency) in [
+        ("project-1", "dependencies", "is-positive"),
+        ("project-2", "devDependencies", "is-negative"),
+    ] {
+        let project_dir = workspace.join(name);
+        fs::create_dir(&project_dir).expect("create project directory");
+        fs::write(
+            project_dir.join("package.json"),
+            serde_json::json!({ "name": name, "version": "1.0.0", group: { dependency: "1.0.0" } })
+                .to_string(),
+        )
+        .expect("write project manifest");
+    }
+}

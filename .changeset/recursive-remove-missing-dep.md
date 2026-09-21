@@ -4,4 +4,4 @@
 "pacquet": patch
 ---
 
-Fail recursive remove when the specified package is not present in any workspace dependency.
+`pnpm remove -r` now fails if any requested dependency is absent from all selected workspace projects. Validation respects `--save-prod`, `--save-dev`, and `--save-optional` and completes before modifying project manifests [#2319](https://github.com/pnpm/pnpm/issues/2319).
