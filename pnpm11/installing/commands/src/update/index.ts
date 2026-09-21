@@ -411,9 +411,6 @@ async function interactiveUpdate (
     },
   }))
 
-  // The prompt has already selected concrete aliases; apply the normal update
-  // path without prompting a second time. This also preserves --peer so the
-  // selected aliases are written to peerDependencies only.
   return update(updatePkgNames, { ...opts, interactive: false }, rebuildHandler) as Promise<undefined>
 }
 
