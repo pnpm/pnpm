@@ -7,6 +7,33 @@ use super::{
     update_command, zoom_out,
 };
 
+/// `name@version` as a deprecation warning prints it.
+///
+/// Both halves come from the resolved manifest, which a git or tarball
+/// dependency writes itself, so neither is a validated npm package name.
+fn pkg_label(log: &DeprecationLog) -> String {
+    pnpm_text_sanitize::sanitize_inline(&format!("{}@{}", log.pkg_name, log.pkg_version))
+        .into_owned()
+}
+
+/// What to move to, when the resolver found a version that is not deprecated.
+///
+/// The version is pnpm's own reading of the packument rather than anything the
+/// publisher wrote, so unlike the notice it is safe to print. Empty when every
+/// published version is deprecated, or when the resolution came from the
+/// lockfile and no packument was fetched.
+fn alternative_hint(log: &DeprecationLog) -> String {
+    let Some(alternative) = log.non_deprecated_alternative.as_ref() else {
+        return String::new();
+    };
+    let version = pnpm_text_sanitize::sanitize_inline(&alternative.version);
+    if alternative.outside_declared_range {
+        format!(". {version} is not deprecated, outside the range you declared.")
+    } else {
+        format!(". {version} is not deprecated.")
+    }
+}
+
 impl ReporterState {
     // --- misc one-liners --------------------------------------------------
 
@@ -215,30 +242,21 @@ impl ReporterState {
     /// deprecations render immediately; transitive ones wait for the
     /// `resolution_done` summary.
     pub(super) fn on_deprecation(&mut self, log: &DeprecationLog) {
-        if log.depth == 0 {
-            if !self.options.scope.recursive && log.prefix == self.rendering.cwd {
-                self.display.frame.push_block(format!(
-                    "{} {} {}@{}: {}",
-                    self.rendering.colors.warn_label(),
-                    self.rendering.colors.red("deprecated"),
-                    log.pkg_name,
-                    log.pkg_version,
-                    log.deprecated,
-                ));
-            } else {
-                // The zoomed line drops the deprecation text, as
-                // `reportDeprecations.ts` does.
-                let msg = format!(
-                    "{} {} {}@{}",
-                    self.rendering.colors.warn_label(),
-                    self.rendering.colors.red("deprecated"),
-                    log.pkg_name,
-                    log.pkg_version,
-                );
-                self.display.frame.push_block(zoom_out(&self.rendering.cwd, &log.prefix, &msg));
-            }
-        } else {
+        if log.depth != 0 {
             self.notices.deprecated_subdeps.push(log.clone());
+            return;
+        }
+        let msg = format!(
+            "{} {} {}{}",
+            self.rendering.colors.warn_label(),
+            self.rendering.colors.red("deprecated"),
+            pkg_label(log),
+            alternative_hint(log),
+        );
+        if !self.options.scope.recursive && log.prefix == self.rendering.cwd {
+            self.display.frame.push_block(msg);
+        } else {
+            self.display.frame.push_block(zoom_out(&self.rendering.cwd, &log.prefix, &msg));
         }
     }
 
@@ -248,7 +266,7 @@ impl ReporterState {
         }
         let mut names: Vec<String> = self.notices.deprecated_subdeps
             .iter()
-            .map(|log| format!("{}@{}", log.pkg_name, log.pkg_version))
+            .map(pkg_label)
             .collect();
         names.sort();
         let count = names.len();

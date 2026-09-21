@@ -2,20 +2,32 @@ import fs from 'node:fs'
 
 export { getMockAgent, setupMockAgent, teardownMockAgent } from '@pnpm/testing.mock-agent'
 
-export async function retryLoadJsonFile<T> (filePath: string): Promise<T> {
-  let retry = 0
+/**
+ * Read a metadata mirror that a fire-and-forget write may not have produced
+ * yet. `isReady` separates a stale read from the one the caller waits for: a
+ * mirror that already exists parses fine long before the write under test
+ * replaces it.
+ *
+ * Resolves with the first parsed document `isReady` accepts, polling up to
+ * four times 500ms apart. When none does, it rejects with the last read or
+ * parse error, or with one naming the file if every attempt was merely not
+ * ready yet.
+ */
+export async function retryLoadJsonFile<T> (filePath: string, isReady?: (data: T) => boolean): Promise<T> {
+  let lastError: unknown
   /* eslint-disable no-await-in-loop */
-  while (true) {
+  for (let attempt = 0; attempt < 4; attempt++) {
     await delay(500)
     try {
-      const data = await fs.promises.readFile(filePath, 'utf8')
-      return parseNdjsonMeta(data) as T
-    } catch (err: any) { // eslint-disable-line
-      if (retry > 2) throw err
-      retry++
+      const data = parseNdjsonMeta<T>(await fs.promises.readFile(filePath, 'utf8'))
+      if (isReady == null || isReady(data)) return data
+      lastError = new Error(`${filePath} does not hold the awaited metadata yet`)
+    } catch (err: unknown) {
+      lastError = err
     }
   }
   /* eslint-enable no-await-in-loop */
+  throw lastError
 }
 
 /**

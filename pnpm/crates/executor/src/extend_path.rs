@@ -123,7 +123,11 @@ fn ancestor_node_modules_bins(wd: &Path) -> Vec<PathBuf> {
     let mut acc = if head.is_empty() {
         env::current_dir().unwrap_or_else(|_| PathBuf::new())
     } else {
-        let head_path = PathBuf::from(head);
+        let head_path = if cfg!(windows) {
+            PathBuf::from(head.replace('/', r"\"))
+        } else {
+            PathBuf::from(head)
+        };
         path::absolute(&head_path).unwrap_or(head_path)
     };
 
@@ -135,7 +139,8 @@ fn ancestor_node_modules_bins(wd: &Path) -> Vec<PathBuf> {
     // `${acc}/node_modules/.bin` is the deepest one (the wd itself).
     for pp in tail {
         bins.push(acc.join("node_modules").join(".bin"));
-        acc = acc.join("node_modules").join(pp);
+        acc.push("node_modules");
+        pnpm_fs::push_slash_separated_path(&mut acc, pp);
     }
     bins.push(acc.join("node_modules").join(".bin"));
 

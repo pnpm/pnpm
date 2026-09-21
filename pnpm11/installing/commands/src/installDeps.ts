@@ -25,6 +25,7 @@ import type { LockfileObject } from '@pnpm/lockfile.types'
 import { globalInfo, logger } from '@pnpm/logger'
 import { applyRuntimeOnFailOverride, filterDependenciesByType } from '@pnpm/pkg-manifest.utils'
 import { getRangeSpecStyle } from '@pnpm/pkg-manifest.utils'
+import { parseWantedDependency } from '@pnpm/resolving.parse-wanted-dependency'
 import type { PreferredVersions, VersionSelectors } from '@pnpm/resolving.resolver-base'
 import { createStoreController, type CreateStoreControllerOptions } from '@pnpm/store.connection-manager'
 import type {
@@ -146,10 +147,13 @@ export type InstallDepsOptions = Pick<Config,
     remain?: string[]
   }
   allowNew?: boolean
+  /** See {@link RecursiveOptions.excludeWorkspaceRootProject}. */
+  excludeWorkspaceRootProject?: boolean
   forceFullResolution?: boolean
   frozenLockfileIfExists?: boolean
   include?: IncludedDependencies
   includeDirect?: IncludedDependencies
+  peer?: boolean
   latest?: boolean
   /**
    * If specified, the installation will only be performed for comparison of the
@@ -189,7 +193,7 @@ export async function installDeps (
   opts: InstallDepsOptions,
   params: string[]
 ): Promise<DryRunInstallResult | undefined> {
-  if (!opts.update && !opts.dedupe && params.length === 0 && opts.optimisticRepeatInstall) {
+  if (!opts.update && !opts.dedupe && !opts.force && params.length === 0 && opts.optimisticRepeatInstall) {
     const { upToDate, wantedLockfileToRestore } = await checkDepsStatus({
       ...opts,
       ignoreFilteredInstallCache: true,
@@ -424,6 +428,11 @@ export async function installDeps (
       manifest,
       mutation: 'installSome' as const,
       peer: opts.savePeer,
+      peerAliases: opts.peer === true
+        ? new Set(params
+          .map((selector) => parseWantedDependency(selector).alias)
+          .filter((alias): alias is string => alias != null && Object.hasOwn(manifest.peerDependencies ?? {}, alias)))
+        : undefined,
       rangeSpecStyle: getRangeSpecStyle(opts),
       rootDir: opts.dir as ProjectRootDir,
       targetDependenciesField: getSaveType(opts),

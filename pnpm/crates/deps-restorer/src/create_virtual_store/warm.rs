@@ -1,11 +1,11 @@
 use super::{
     CreateVirtualStoreError, SnapshotWithCacheKey,
-    cache_keys::{dir_clone_cacheable, package_content_changed},
+    cache_keys::{SlotReuse, dir_clone_cacheable},
     cas_paths_key, partition, removed_aliases_for,
     slot_linking::{LinkSlotsParallel, SlotLink, emit_warm_snapshot_progress, link_slots_parallel},
 };
 use crate::{CasPathsByPkgId, InstallPackageBySnapshotError};
-use pnpm_git_fetcher::{GitFetcherError, assert_package_build_allowed};
+use pnpm_git_fetcher::{GitFetcherError, resolve_package_build_permission};
 use pnpm_lockfile::{LockfileResolution, PackageKey, PackageMetadata, PkgName};
 use pnpm_package_manifest::{
     files_include_install_scripts, manifest_requires_build, parse_manifest,
@@ -74,14 +74,16 @@ pub(super) fn cached_git_prepare_allowed(
         .get("name")
         .and_then(serde_json::Value::as_str)
         .unwrap_or("");
-    if allow_build_policy.check(&format!("{name}@{package_id}")) == Some(true) {
-        return Ok(true);
+    match allow_build_policy.check(&format!("{name}@{package_id}")) {
+        Some(false) => return Ok(key.ends_with("\tnot-built")),
+        Some(true) => return Ok(!key.ends_with("\tnot-built")),
+        None => {}
     }
     if !prefetch.requires_prepare.contains_key(key) {
         return Ok(false);
     }
-    let allow_build = |dep_path: &str| allow_build_policy.check(dep_path).unwrap_or(false);
-    assert_package_build_allowed(&allow_build, &package_id, &manifest)
+    let allow_build = |dep_path: &str| allow_build_policy.check(dep_path);
+    resolve_package_build_permission(&allow_build, &package_id, &manifest)
         .map_err(|error| {
             CreateVirtualStoreError::InstallPackageBySnapshot(
                 InstallPackageBySnapshotError::GitFetch(GitFetcherError::Prepare(error)),
@@ -167,8 +169,7 @@ pub(super) fn warm_cas_paths_by_pkg_id(warm: &[partition::WarmEntry<'_>]) -> Cas
 }
 /// What the warm batch links, beyond the slots themselves.
 pub(super) struct WarmLinkBatch<'a> {
-    pub(super) packages: &'a HashMap<PackageKey, PackageMetadata>,
-    pub(super) current_packages: Option<&'a HashMap<PackageKey, PackageMetadata>>,
+    pub(super) reuse: SlotReuse<'a>,
     pub(super) is_hoisted: bool,
     pub(super) needs_build_marker_source: Option<&'a Path>,
     pub(super) removed_aliases_by_key: &'a HashMap<PackageKey, Vec<PkgName>>,
@@ -191,8 +192,7 @@ pub(super) fn link_warm_batch<Reporter: self::Reporter>(
     let warm_slots: Vec<SlotLink<'_>> = warm
         .iter()
         .map(|(snapshot_key, snapshot, cas_paths, cache_key, needs_build_marker)| {
-            let force_import =
-                package_content_changed(batch.current_packages, batch.packages, snapshot_key);
+            let force_import = batch.reuse.must_replace(snapshot_key);
             SlotLink {
                 source: crate::SlotImportSource {
                     is_mutable: false,
@@ -209,7 +209,7 @@ pub(super) fn link_warm_batch<Reporter: self::Reporter>(
                 // `snapshot_cache_key` yields none for a directory resolution,
                 // so a warm slot's source is immutable by construction.
                 dir_clone_cacheable: dir_clone_cacheable(
-                    batch.packages,
+                    batch.reuse.packages,
                     snapshot_key,
                     *needs_build_marker,
                     false,

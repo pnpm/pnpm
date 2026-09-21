@@ -1,5 +1,6 @@
 import fs from 'node:fs'
 import path from 'node:path'
+import util from 'node:util'
 
 import { assertProject, type Modules, type Project } from '@pnpm/assert-project'
 import { tempDir } from '@pnpm/prepare-temp-dir'
@@ -80,4 +81,19 @@ export function prepareEmpty (): Project {
   process.chdir(pkgTmpPath)
 
   return assertProject(pkgTmpPath)
+}
+
+/**
+ * Kill a process started with `detached: true` together with everything it
+ * started, whatever state a failed test left them in. Only a group that is
+ * gone already is silently accepted.
+ */
+export function killProcessGroup (pid: number): void {
+  try {
+    process.kill(-pid, 'SIGKILL')
+  } catch (err: unknown) {
+    if (!(util.types.isNativeError(err) && 'code' in err && err.code === 'ESRCH')) {
+      throw err
+    }
+  }
 }

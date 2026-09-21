@@ -37,6 +37,9 @@ pub struct UpdateDependencyOptions {
     /// Don't update packages in "optionalDependencies".
     #[clap(long, overrides_with = "optional")]
     no_optional: bool,
+    /// Also update packages in "peerDependencies".
+    #[clap(long)]
+    peer: bool,
 }
 
 impl UpdateDependencyOptions {
@@ -66,6 +69,7 @@ impl UpdateDependencyOptions {
             .chain(dependencies.then_some(DependencyGroup::Prod))
             .chain(dev_dependencies.then_some(DependencyGroup::Dev))
             .chain(optional_dependencies.then_some(DependencyGroup::Optional))
+            .chain(self.peer.then_some(DependencyGroup::Peer))
             .collect()
     }
 }
@@ -166,6 +170,11 @@ pub struct UpdateInstallArgs {
 #[diagnostic(code(ERR_PNPM_PATCHES_WITH_SELECTOR))]
 struct PatchesWithSelectorError;
 
+#[derive(Debug, Display, Error, Diagnostic)]
+#[display("--peer cannot be combined with --interactive")]
+#[diagnostic(code(ERR_PNPM_INTERACTIVE_PEER_UNSUPPORTED))]
+struct InteractivePeerUnsupportedError;
+
 impl UpdateArgs {
     pub(crate) fn apply_cli_config(&self, config: &mut Config) {
         self.scripts.apply(config);
@@ -258,6 +267,7 @@ impl UpdateArgs {
         config: &'static Config,
     ) -> miette::Result<()> {
         self.check_patches_options()?;
+        self.check_interactive_peer_options()?;
         self.check_workspace_option(None)?;
         if crate::cli_args::global::selects_pnpm_cli(&self.packages) {
             return Err(crate::cli_args::global::GlobalError::GlobalPnpmInstall.into());
@@ -317,6 +327,13 @@ impl UpdateArgs {
                 || self.selection.global)
         {
             return Err(PatchesWithSelectorError.into());
+        }
+        Ok(())
+    }
+
+    fn check_interactive_peer_options(&self) -> miette::Result<()> {
+        if self.selection.interactive && self.dependency_options.peer {
+            return Err(InteractivePeerUnsupportedError.into());
         }
         Ok(())
     }

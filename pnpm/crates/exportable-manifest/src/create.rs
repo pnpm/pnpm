@@ -37,7 +37,8 @@ use crate::{
 use derive_more::{Display, Error};
 use miette::Diagnostic;
 use pnpm_catalogs_resolver::{
-    CatalogResolutionError, CatalogResolutionResult, WantedDependency, resolve_from_catalog,
+    CatalogAnchor, CatalogResolutionError, CatalogResolutionResult, WantedDependency,
+    resolve_from_catalog,
 };
 use pnpm_catalogs_types::Catalogs;
 use pnpm_resolving_jsr_specifier_parser::{ParseJsrSpecifierError, parse_jsr_specifier};
@@ -83,6 +84,11 @@ const PUBLISH_CONFIG_WHITELIST: &[&str] = &[
 pub struct CreateExportableManifestOptions<'a> {
     /// Parsed workspace catalogs, used to resolve `catalog:` specifiers.
     pub catalogs: &'a Catalogs,
+    /// Directory holding `pnpm-workspace.yaml`, which a `file:` /
+    /// `link:` catalog entry's relative path is measured from. `None`
+    /// leaves such an entry as the catalog writes it, for a caller with
+    /// no workspace — and so no catalogs — of its own.
+    pub workspace_dir: Option<&'a Path>,
     /// Where workspace dependencies are installed. Defaults to
     /// `<dir>/node_modules` when `None`.
     pub modules_dir: Option<&'a Path>,
@@ -224,7 +230,7 @@ fn convert_dependency_for_publish(
     opts: &CreateExportableManifestOptions<'_>,
     kind: DependencyKind,
 ) -> Result<String, CreateExportableManifestError> {
-    let after_catalog = replace_catalog_protocol(dep_name, spec, opts.catalogs)?;
+    let after_catalog = replace_catalog_protocol(dep_name, spec, dir, opts)?;
     let after_workspace = match kind {
         DependencyKind::Regular => {
             replace_workspace_protocol(dep_name, &after_catalog, dir, opts.modules_dir)
@@ -242,13 +248,23 @@ fn convert_dependency_for_publish(
 
 /// Dereference a `catalog:` specifier; pass any other specifier
 /// through unchanged.
+///
+/// A `file:` / `link:` entry is re-anchored on `dir`, the directory of
+/// the package being exported, so it means the same place a local
+/// dependency written directly in that package's manifest would. Both
+/// are read relative to the exported manifest.
 fn replace_catalog_protocol(
     alias: &str,
     spec: &str,
-    catalogs: &Catalogs,
+    dir: &Path,
+    opts: &CreateExportableManifestOptions<'_>,
 ) -> Result<String, CreateExportableManifestError> {
     let wanted = WantedDependency { alias: alias.to_string(), bare_specifier: spec.to_string() };
-    match resolve_from_catalog(catalogs, &wanted) {
+    let anchor = match opts.workspace_dir {
+        Some(workspace_dir) => CatalogAnchor::Reanchor { workspace_dir, consumer_dir: Some(dir) },
+        None => CatalogAnchor::AsWritten,
+    };
+    match resolve_from_catalog(opts.catalogs, &wanted, anchor) {
         CatalogResolutionResult::Found(found) => Ok(found.resolution.specifier),
         CatalogResolutionResult::Unused => Ok(spec.to_string()),
         CatalogResolutionResult::Misconfiguration(misconfiguration) => {

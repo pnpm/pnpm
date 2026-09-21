@@ -9,14 +9,16 @@
 use derive_more::{Display, Error};
 use miette::Diagnostic;
 use pnpm_config::{
-    Config, ProjectConfig, WorkspaceKeyIssues, known_settings::annotate_unknown_setting,
-    naming_cases::to_camel_case, refused_keys::where_refused_key_belongs,
+    Config, ProjectConfig, UnrecognizedTaskSettings, WorkspaceKeyIssues,
+    known_settings::annotate_unknown_setting, naming_cases::to_camel_case,
+    refused_keys::where_refused_key_belongs,
 };
 use pnpm_default_reporter::colors::Colors;
 use pnpm_network::redact_and_sanitize;
 use pnpm_resolving_npm_resolver::BUILTIN_REGISTRIES_BY_PREFIX;
 use std::{
     collections::BTreeSet,
+    fmt::Write as _,
     io::{IsTerminal, Write},
 };
 
@@ -150,32 +152,64 @@ pub(crate) struct UnrecognizedWorkspaceSettingsError {
     keys: String,
 }
 
+/// The `tasks` section's counterpart to
+/// [`UnrecognizedWorkspaceSettingsError`], raised under the same condition
+/// and for the same reason.
+#[derive(Debug, Display, Error, Diagnostic)]
+#[display(
+    "The following task settings in pnpm-workspace.yaml are not recognized by this version of pnpm: {settings}."
+)]
+#[diagnostic(
+    code(ERR_PNPM_UNRECOGNIZED_WORKSPACE_SETTINGS),
+    help(
+        r#"The project pins pnpm to a version the running pnpm satisfies, so these settings cannot be meant for a different pnpm version. A task declares "concurrency", "concurrencyGroup", "priority", "dependsOn", "outputs", "inputs", "env", "cache", or "cargoTargetDir"."#
+    )
+)]
+pub(crate) struct UnrecognizedTaskSettingsError {
+    settings: String,
+}
+
 /// Report the problem keys of the project's `pnpm-workspace.yaml`, in pnpm's
 /// order (refused, unrecognized, kebab-case). Unrecognized keys are a
 /// warning, or — when `strict` (the running pnpm is the version the project
-/// pins) — the error above, raised after the other warnings are out.
+/// pins) — the errors above, raised after the other warnings are out.
 pub(crate) fn report_workspace_key_issues(
     issues: &WorkspaceKeyIssues,
     strict: bool,
-) -> Result<(), UnrecognizedWorkspaceSettingsError> {
+) -> miette::Result<()> {
     if !issues.refused.is_empty() {
         emit_config_warning(&refused_workspace_keys_warning(&issues.refused));
     }
     let unrecognized = annotate_unknown_settings(&issues.unrecognized);
-    if let Some(unrecognized) = unrecognized.as_deref()
-        && !strict
-    {
+    let task_settings = render_task_settings(&issues.unrecognized_task_settings);
+    if !strict && let Some(unrecognized) = unrecognized.as_deref() {
         emit_config_warning(&format!(
             "The following settings in pnpm-workspace.yaml are not recognized by this version of pnpm and were ignored: {unrecognized}.",
+        ));
+    }
+    // Under `strict` an unrecognized top-level key is raised below and
+    // preempts the task settings, which would otherwise go unreported until
+    // the run after the one that fixed it.
+    if let Some(task_settings) = task_settings.as_deref()
+        && (!strict || unrecognized.is_some())
+    {
+        emit_config_warning(&format!(
+            "The following task settings in pnpm-workspace.yaml are not recognized by this version of pnpm and were ignored: {task_settings}.",
         ));
     }
     if !issues.non_camel_case.is_empty() {
         emit_config_warning(&non_camel_case_workspace_keys_warning(&issues.non_camel_case));
     }
-    match unrecognized {
-        Some(keys) if strict => Err(UnrecognizedWorkspaceSettingsError { keys }),
-        _ => Ok(()),
+    if !strict {
+        return Ok(());
     }
+    if let Some(keys) = unrecognized {
+        return Err(UnrecognizedWorkspaceSettingsError { keys }.into());
+    }
+    if let Some(settings) = task_settings {
+        return Err(UnrecognizedTaskSettingsError { settings }.into());
+    }
+    Ok(())
 }
 
 fn refused_workspace_keys_warning(keys: &[String]) -> String {
@@ -202,6 +236,22 @@ fn annotate_unknown_settings(keys: &[String]) -> Option<String> {
     )
 }
 
+fn render_task_settings(settings: &UnrecognizedTaskSettings) -> Option<String> {
+    if settings.total == 0 {
+        return None;
+    }
+    let mut rendered = settings.named
+        .iter()
+        .map(|setting| format!(r#""{}""#, redact_and_sanitize(setting)))
+        .collect::<Vec<_>>()
+        .join(", ");
+    let unnamed = settings.total - settings.named.len();
+    if unnamed > 0 {
+        let _ = write!(rendered, ", and {unnamed} more");
+    }
+    Some(rendered)
+}
+
 fn non_camel_case_workspace_keys_warning(keys: &[String]) -> String {
     let keys = keys
         .iter()
@@ -212,6 +262,28 @@ fn non_camel_case_workspace_keys_warning(keys: &[String]) -> String {
     format!(
         "The following settings in pnpm-workspace.yaml were ignored because they are not written in camelCase: {keys}.",
     )
+}
+
+pub(crate) fn warn_shared_workspace_lockfile_outside_workspace(
+    shared_workspace_lockfile_cli: Option<bool>,
+    workspace_dir: Option<&std::path::Path>,
+) {
+    if let Some(message) = shared_workspace_lockfile_outside_workspace_warning(
+        shared_workspace_lockfile_cli,
+        workspace_dir,
+    ) {
+        emit_config_warning(&message);
+    }
+}
+
+pub(super) fn shared_workspace_lockfile_outside_workspace_warning(
+    shared_workspace_lockfile_cli: Option<bool>,
+    workspace_dir: Option<&std::path::Path>,
+) -> Option<String> {
+    (shared_workspace_lockfile_cli.is_some() && workspace_dir.is_none()).then(|| {
+        r#"The "shared-workspace-lockfile" option was ignored because no "pnpm-workspace.yaml" was found."#
+            .to_string()
+    })
 }
 
 #[cfg(test)]

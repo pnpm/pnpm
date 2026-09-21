@@ -109,6 +109,9 @@
       "path": "../lifecycle"
     },
     {
+      "path": "../npm-lifecycle"
+    },
+    {
       "path": "../pnpm-cli-runner"
     }
   ]

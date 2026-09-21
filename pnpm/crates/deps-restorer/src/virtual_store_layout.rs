@@ -542,10 +542,10 @@ fn injected_targets(
     // Isolated linker: one virtual-store slot per snapshot. The
     // separator normalization matches the `hoistedLocations` entries the
     // hoisted branch reuses (see `path_relative_to_lockfile_dir`).
-    let target = layout
-        .slot_dir(key)
-        .join("node_modules")
-        .join(key.name.to_string());
+    let target = pnpm_fs::join_slash_separated_path(
+        &layout.slot_dir(key).join("node_modules"),
+        &key.name.to_string(),
+    );
     let target = match target.strip_prefix(lockfile_dir) {
         Ok(relative) => relative.to_path_buf(),
         Err(_) => target,

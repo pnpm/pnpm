@@ -30,6 +30,7 @@ libc = { workspace = true }
 
 [target.'cfg(windows)'.dependencies]
 junction = { workspace = true }
+windows-sys = { workspace = true, features = ["Win32_System_Com", "Win32_UI_Shell"] }
 
 [target.'cfg(windows)'.dev-dependencies]
 windows-sys = { workspace = true, features = ["Win32_Security"] }

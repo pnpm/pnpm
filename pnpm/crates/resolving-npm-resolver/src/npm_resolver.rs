@@ -33,10 +33,12 @@ pub(crate) use guarded_pick::{
 
 pub(crate) use workspace_pick::{no_matching_version, swallowed_as_no_latest};
 
+mod release_policy;
 mod resolution_result;
+use release_policy::latest_allowed_by_policy;
 use resolution_result::{
     calculated_specifier, fail_if_trust_downgraded_for_pick, is_not_found_error,
-    latest_allowed_by_policy, registry_response_status,
+    registry_response_status,
 };
 
 mod package_revision;

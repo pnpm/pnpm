@@ -1,3 +1,5 @@
+mod auto_dedupe;
+
 mod integrity;
 
 mod builds;
@@ -560,6 +562,7 @@ fn linked_sibling_decision(sibling_version: &str) -> Decision {
         "link:pkg-a",
         sibling_version,
         pnpm_config::LinkWorkspacePackages::DirectOnly,
+        false,
     )
 }
 
@@ -569,6 +572,7 @@ fn linked_sibling_decision_for_spec(
     lockfile_ref: &str,
     sibling_version: &str,
     link_workspace_packages: pnpm_config::LinkWorkspacePackages,
+    exclude_links_from_lockfile: bool,
 ) -> Decision {
     let dir = tempdir().unwrap();
     let workspace_root = dir.path();
@@ -589,22 +593,16 @@ fn linked_sibling_decision_for_spec(
         format!(r#"{{"name":"pkg-a","version":"{sibling_version}"}}"#),
     )
     .unwrap();
+    let root_importer = if exclude_links_from_lockfile {
+        "  .: {}".to_string()
+    } else {
+        format!(
+            "  .:\n    devDependencies:\n      {dependency_name}:\n        specifier: {specifier}\n        version: {lockfile_ref}",
+        )
+    };
     fs::write(
         workspace_root.join(Lockfile::FILE_NAME),
-        format!(
-            "lockfileVersion: '9.0'
-
-importers:
-
-  .:
-    devDependencies:
-      {dependency_name}:
-        specifier: {specifier}
-        version: {lockfile_ref}
-
-  pkg-a: {{}}
-",
-        ),
+        format!("lockfileVersion: '9.0'\n\nimporters:\n\n{root_importer}\n\n  pkg-a: {{}}\n"),
     )
     .unwrap();
 
@@ -612,6 +610,7 @@ importers:
     config.modules_dir = workspace_root.join("node_modules");
     config.virtual_store_dir = workspace_root.join("node_modules/.pnpm");
     config.link_workspace_packages = link_workspace_packages;
+    config.exclude_links_from_lockfile = exclude_links_from_lockfile;
     fs::create_dir_all(&config.modules_dir).unwrap();
     let config = config.leak();
 

@@ -3,7 +3,7 @@
 
 use crate::cli_args::registry_client::build_registry_client;
 use derive_more::{Display, Error};
-use miette::Diagnostic;
+use miette::{Diagnostic, WrapErr};
 use pnpm_config::Config;
 use pnpm_deps_restorer::{manifest_file_count, manifest_unpacked_size};
 use pnpm_lockfile::LockfileResolution;
@@ -86,6 +86,29 @@ pub(super) async fn run<Reporter: self::Reporter>(
     if packages.is_empty() {
         return Ok(());
     }
+    Reporter::emit(&LogEvent::Global(GlobalLog {
+        level: LogLevel::Debug,
+        message: "Waiting for the store add operation lock".to_string(),
+    }));
+    let _store_lock = if config.frozen_store {
+        config.store_dir.lock_for_frozen_use()
+    } else {
+        config.store_dir.lock_for_use()
+    }
+    .wrap_err("lock the store while adding packages")?;
+    Reporter::emit(&LogEvent::Global(GlobalLog {
+        level: LogLevel::Debug,
+        message: "Acquired the store add operation lock".to_string(),
+    }));
+
+    add_packages::<Reporter>(config, dir, packages).await
+}
+
+async fn add_packages<Reporter: self::Reporter>(
+    config: &'static Config,
+    dir: &Path,
+    packages: &[String],
+) -> miette::Result<()> {
     let http_client = Arc::new(build_registry_client(config)?);
     let resolver = store_resolver(config, &http_client)?;
     let resolve_options = ResolveOptions {

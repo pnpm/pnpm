@@ -366,7 +366,10 @@ fn maps_crate_names_to_sparse_index_paths() {
 
 fn config_with_cargo_credentials(index_url: &str) -> Config {
     let mut config = Config::new();
-    config.indexes_by_ecosystem.insert(pnpm_config::Ecosystem::Cargo, vec![index_url.to_string()]);
+    config.indexes_by_ecosystem.insert(
+        pnpm_config::Ecosystem::Cargo,
+        vec![index_url.to_string().into()],
+    );
     config.auth_headers = Arc::new(AuthHeaders::from_creds_map([
         ("//registry.example.test/".to_string(), "Bearer crate-token".to_string()),
         ("//cdn.example.test/".to_string(), "Bearer unrelated-token".to_string()),

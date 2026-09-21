@@ -25,7 +25,7 @@ pub use pnpm_config::LinkWorkspacePackages;
 pub use publish_time::parse_packument_timestamp;
 pub use resolve::{
     CurrentPkg, DIRECT_DEP_SELECTOR_WEIGHT, DependencyManifest, EXISTING_VERSION_SELECTOR_WEIGHT,
-    GuardExhaustionPolicy, LatestInfo, LatestQuery, PackageVersionGuard,
+    GuardExhaustionPolicy, LatestInfo, LatestQuery, NonDeprecatedAlternative, PackageVersionGuard,
     PackageVersionGuardDecision, PackageVersionGuardError, PackageVersionGuardFuture,
     PkgResolutionId, PreferredVersions, PreferredVersionsOverlay, ResolutionPolicyOptions,
     ResolutionRefreshOptions, ResolveError, ResolveFuture, ResolveLatestFuture, ResolveOptions,

@@ -3,5 +3,5 @@
 ### Patch Changes
 
 - Updated dependencies:
-  - @pnpm/releasing.versioning@1100.3.1
-  - @pnpm/workspace.projects-reader@1101.0.27
+  - @pnpm/releasing.versioning@1100.3.2
+  - @pnpm/workspace.projects-reader@1101.0.28

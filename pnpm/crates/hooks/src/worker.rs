@@ -133,12 +133,8 @@ impl NodeWorker {
 
         let file_escaped =
             serde_json::to_string(&pnpmfile).map_err(|err| exec_err(err.to_string()))?;
-        let is_mjs = pnpmfile.ends_with(".mjs");
-        let runner = build_runner(is_mjs, &file_escaped);
+        let runner = build_runner(&file_escaped);
 
-        // The runner itself is always CommonJS so it can `require('node:readline')`;
-        // an `.mjs` pnpmfile is loaded through dynamic `import()`, which works
-        // from CommonJS.
         let mut child = Command::new("node")
             .arg("--input-type")
             .arg("commonjs")
@@ -217,6 +213,21 @@ impl NodeWorker {
         .as_ref()
         .and_then(Value::as_bool)
         .unwrap_or(false)
+    }
+
+    /// Whether the loaded pnpmfile exports a callable `readPackage` hook.
+    pub async fn has_read_package(&self) -> Result<bool, HookError> {
+        self.request(
+            "hasReadPackage",
+            serde_json::json!({ "query": "hasReadPackage" }),
+            Arc::new(|_| {}),
+        )
+        .await
+        .and_then(|value| {
+            value
+                .as_bool()
+                .ok_or_else(|| self.exec_err("invalid hasReadPackage response"))
+        })
     }
 
     /// Call `method` on the custom resolver at `index` in the pnpmfile's
@@ -482,9 +493,10 @@ async fn write_worker_line(stdin: &Mutex<ChildStdin>, reply: &Value) {
 /// Build the worker's Node script. `file_escaped` is the JSON-encoded pnpmfile
 /// path; the worker loads it once and replays the `readPackage` validation and
 /// normalization that [`crate::node_runtime`] documents.
-fn build_runner(is_mjs: bool, file_escaped: &str) -> String {
+fn build_runner(file_escaped: &str) -> String {
     format!(
-        "const pnpmfilePath = {file_escaped};\nconst pnpmfileIsMjs = {is_mjs};\n{}",
+        "{}\nconst pnpmfilePath = {file_escaped};\n{}",
+        crate::LOAD_PNPMFILE,
         include_str!("worker.cjs"),
     )
 }

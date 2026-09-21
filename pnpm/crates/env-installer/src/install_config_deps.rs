@@ -136,7 +136,7 @@ fn prune_removed<Reporter: self::Reporter>(
     for name in existing {
         if !normalized.contains_key(name) {
             started.report::<Reporter>();
-            prune_link(&config_modules_dir.join(name));
+            prune_link(&pnpm_fs::join_slash_separated_path(config_modules_dir, name));
         }
     }
 }
@@ -171,8 +171,8 @@ fn config_dep_paths(
     let leaf_node_modules =
         join_global_virtual_store_path(global_virtual_store_dir, &rel_path).join("node_modules");
     ConfigDepPaths {
-        config_dep_path: config_modules_dir.join(name),
-        pkg_dir_in_gvs: leaf_node_modules.join(name),
+        config_dep_path: pnpm_fs::join_slash_separated_path(config_modules_dir, name),
+        pkg_dir_in_gvs: pnpm_fs::join_slash_separated_path(&leaf_node_modules, name),
         leaf_node_modules,
     }
 }

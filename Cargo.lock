@@ -4594,6 +4594,7 @@ dependencies = [
  "miette 7.6.0",
  "pnpm-catalogs-protocol-parser",
  "pnpm-catalogs-types",
+ "pnpm-local-spec",
 ]
 
 [[package]]
@@ -4716,6 +4717,7 @@ dependencies = [
  "serde_json",
  "sha2",
  "shell-words",
+ "spdx",
  "ssri",
  "strum",
  "tabled",
@@ -4781,7 +4783,9 @@ dependencies = [
  "pnpm-store-dir",
  "pnpm-testing-utils",
  "pnpm-versioning",
+ "pnpm-workspace",
  "pnpm-workspace-state",
+ "pnpr-registry",
  "pretty_assertions",
  "serde",
  "serde-saphyr",
@@ -4848,6 +4852,7 @@ dependencies = [
  "pnpm-config",
  "pnpm-matcher",
  "pnpm-reporter",
+ "pnpm-text-sanitize",
  "pretty_assertions",
  "serde_json",
 ]
@@ -5147,8 +5152,10 @@ version = "0.0.1"
 dependencies = [
  "deno_task_shell",
  "derive_more",
+ "dunce",
  "libc",
  "miette 7.6.0",
+ "pnpm-fs",
  "pnpm-package-manifest",
  "pnpm-reporter",
  "pretty_assertions",
@@ -5218,6 +5225,7 @@ dependencies = [
  "pnpm-executor",
  "pnpm-fs",
  "pnpm-fs-packlist",
+ "pnpm-git-utils",
  "pnpm-network",
  "pnpm-package-manifest",
  "pnpm-reporter",
@@ -5283,6 +5291,7 @@ dependencies = [
  "base64 0.23.1",
  "indexmap 2.14.0",
  "pnpm-detect-libc",
+ "pnpm-fs",
  "pretty_assertions",
  "serde_json",
  "sha2",
@@ -5353,6 +5362,14 @@ dependencies = [
  "serde_json",
  "tokio",
  "which 8.0.4",
+]
+
+[[package]]
+name = "pnpm-local-spec"
+version = "0.0.1"
+dependencies = [
+ "pnpm-fs",
+ "pretty_assertions",
 ]
 
 [[package]]
@@ -5681,6 +5698,7 @@ dependencies = [
  "pnpm-git-fetcher",
  "pnpm-graph-hasher",
  "pnpm-hooks",
+ "pnpm-local-spec",
  "pnpm-lockfile",
  "pnpm-lockfile-preferred-versions",
  "pnpm-lockfile-verification",
@@ -5739,6 +5757,7 @@ dependencies = [
  "miette 7.6.0",
  "node-semver",
  "pipe-trait",
+ "pnpm-yaml-document-sync",
  "pretty_assertions",
  "serde",
  "serde_json",
@@ -6021,6 +6040,7 @@ dependencies = [
  "mockito",
  "node-semver",
  "pnpm-git-fetcher",
+ "pnpm-git-utils",
  "pnpm-lockfile",
  "pnpm-network",
  "pnpm-reporter",
@@ -6050,7 +6070,8 @@ dependencies = [
  "derive_more",
  "home",
  "miette 7.6.0",
- "pathdiff",
+ "pnpm-fs",
+ "pnpm-local-spec",
  "pnpm-lockfile",
  "pnpm-package-manifest",
  "pnpm-package-name",
@@ -6193,6 +6214,7 @@ dependencies = [
  "tokio",
  "tracing",
  "url",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -6243,6 +6265,7 @@ dependencies = [
  "pnpm-workspace-state",
  "pnpr",
  "pnpr-fixtures",
+ "same-file",
  "serde_json",
  "ssri",
  "tar",
@@ -6311,6 +6334,7 @@ dependencies = [
  "pnpm-config",
  "pnpm-config-parse-overrides",
  "pnpm-package-manifest",
+ "pnpm-yaml-document-sync",
  "serde",
  "serde-saphyr",
  "serde_json",
@@ -6388,6 +6412,17 @@ dependencies = [
  "serde",
  "serde_json",
  "tokio",
+]
+
+[[package]]
+name = "pnpm-yaml-document-sync"
+version = "0.0.1"
+dependencies = [
+ "serde-saphyr",
+ "serde_json",
+ "yaml_serde",
+ "yamlpatch",
+ "yamlpath",
 ]
 
 [[package]]
@@ -8253,6 +8288,15 @@ checksum = "3a766e1110788c36f4fa1c2b71b387a7815aa65f88ce0229841826633d93723e"
 dependencies = [
  "libc",
  "windows-sys 0.61.2",
+]
+
+[[package]]
+name = "spdx"
+version = "0.13.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "081670c233dfbed55690cc0cd38424e0e24ac1b2673d0b408b3f7b684738dfa9"
+dependencies = [
+ "smallvec",
 ]
 
 [[package]]

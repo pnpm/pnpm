@@ -1,9 +1,9 @@
 use super::{
     AddArgs, Arc, BTreeMap, Config, Context, DedicatedProjectRuns, DeployArgs,
     EcosystemPackageSpecifier, InstallFamily, InstallFamilyPlan, Path, PathBuf, RemoveArgs,
-    Reporter, State, ThrottledClient, UpdateArgs, UpdateChangesetContext, anchor_active_project,
-    config_deps, dedicated_project_name, ecosystem_add, ecosystem_install, init_shared_state,
-    select_install_family, select_install_family_plan,
+    Reporter, RuntimePolicy, State, ThrottledClient, UpdateArgs, UpdateChangesetContext,
+    anchor_active_project, dedicated_project_name, ecosystem_add, ecosystem_install,
+    init_shared_state, prepare_root_config, select_install_family, select_install_family_plan,
 };
 use crate::cli_args::recursive::UnmatchedFilters;
 
@@ -25,7 +25,8 @@ pub(crate) struct AddPipeline {
 
 impl AddPipeline {
     pub(crate) async fn run<Reporter: self::Reporter + 'static>(self) -> miette::Result<()> {
-        config_deps::prepare::<Reporter>(self.cfg, &self.config_root, false).await?;
+        let root_config = (&*self.manifest_path, &mut *self.cfg, &*self.config_root);
+        prepare_root_config::<Reporter>(root_config, (false, RuntimePolicy::Config(false))).await?;
         if !self.ecosystem_packages.is_empty() {
             return EcosystemAdd {
                 args: self.args,
@@ -274,7 +275,8 @@ pub(crate) struct UpdatePipeline {
 
 impl UpdatePipeline {
     pub(crate) async fn run<Reporter: self::Reporter + 'static>(self) -> miette::Result<()> {
-        config_deps::prepare::<Reporter>(self.cfg, &self.config_root, false).await?;
+        let root_config = (&*self.manifest_path, &mut *self.cfg, &*self.config_root);
+        prepare_root_config::<Reporter>(root_config, (false, RuntimePolicy::Config(false))).await?;
         let plan = select_install_family_plan::<Reporter>(
             self.cfg,
             &self.prefix,
@@ -362,7 +364,8 @@ pub(crate) struct RemovePipeline {
 
 impl RemovePipeline {
     pub(crate) async fn run<Reporter: self::Reporter + 'static>(self) -> miette::Result<()> {
-        config_deps::prepare::<Reporter>(self.cfg, &self.config_root, false).await?;
+        let root_config = (&*self.manifest_path, &mut *self.cfg, &*self.config_root);
+        prepare_root_config::<Reporter>(root_config, (false, RuntimePolicy::Config(false))).await?;
         let plan = select_install_family_plan::<Reporter>(
             self.cfg,
             &self.prefix,
@@ -429,7 +432,13 @@ impl DeployPipeline {
         dir_ref: &Path,
     ) -> miette::Result<()> {
         let DeployPipeline { args, cfg, config_root } = self;
-        config_deps::prepare::<Reporter>(cfg, &config_root, false).await?;
+        let manifest_path = config_root.join("package.json");
+        let root_config = (&*manifest_path, &mut *cfg, &*config_root);
+        prepare_root_config::<Reporter>(
+            root_config,
+            (false, RuntimePolicy::Config(args.install_args.materialization.no_runtime)),
+        )
+        .await?;
         let cfg: &'static Config = cfg;
         Box::pin(args.run::<Reporter>(cfg, dir_ref)).await
     }

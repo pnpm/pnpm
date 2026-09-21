@@ -7,7 +7,9 @@
 //! lockfile. Plugin-hook loading (the `updateConfig` half) is wired in
 //! separately.
 
-pub use hooks::{load_before_packing_hooks, prepare_config, run_update_config_hooks};
+pub use hooks::{
+    load_before_packing_hooks, may_update_config, prepare_config, run_update_config_hooks,
+};
 
 use crate::config_overrides::apply_store_dir_override;
 
@@ -25,7 +27,7 @@ use pnpm_graph_hasher::{detect_node_version, host_arch, host_libc, host_platform
 use pnpm_hooks::{HookContext, LogFn, PnpmfileHooks, finder};
 use pnpm_lockfile::EnvLockfile;
 use pnpm_network::{RetryOpts, ThrottledClient};
-use pnpm_reporter::{HookLog, LogEvent, LogLevel, PnpmLog, Reporter};
+use pnpm_reporter::{GlobalLog, HookLog, LogEvent, LogLevel, PnpmLog, Reporter};
 use pnpm_resolving_npm_resolver::{
     InMemoryPackageMetaCache, NpmResolver, shared_packument_fetch_locker,
     shared_picked_manifest_cache,
@@ -286,6 +288,21 @@ async fn resolve_and_install<Reporter: self::Reporter>(
     root_dir: &Path,
     frozen_lockfile: bool,
 ) -> Result<()> {
+    Reporter::emit(&LogEvent::Global(GlobalLog {
+        level: LogLevel::Debug,
+        message: "Waiting for the configuration dependency store operation lock".to_string(),
+    }));
+    let _store_lock = if config.frozen_store {
+        config.store_dir.lock_for_frozen_use()
+    } else {
+        config.store_dir.lock_for_use()
+    }
+    .wrap_err("lock the store while installing configuration dependencies")?;
+    Reporter::emit(&LogEvent::Global(GlobalLog {
+        level: LogLevel::Debug,
+        message: "Acquired the configuration dependency store operation lock".to_string(),
+    }));
+
     let context = EnvInstallerContext::new(config)?;
     context.network.http_client.set_warning_handler(pnpm_reporter::emit_global_warning::<Reporter>);
     let options = context.options(root_dir, frozen_lockfile);

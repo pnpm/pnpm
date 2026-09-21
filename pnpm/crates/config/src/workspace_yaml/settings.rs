@@ -11,6 +11,7 @@ use super::{
     VerifyDepsBeforeRun, VirtualStoreType, WORKSPACE_MANIFEST_FILENAME, WorkspaceKeyIssues, fs,
     redact_and_sanitize,
 };
+use pnpm_env_replace::{SystemEnv, env_replace_lossy};
 
 /// `serde` helper for fields that need to distinguish "missing key"
 /// from "explicit null" in YAML / JSON.
@@ -25,6 +26,58 @@ where
     De: Deserializer<'de>,
 {
     Option::<Value>::deserialize(deserializer).map(Some)
+}
+
+fn deserialize_bool_value<Value, ErrorType>(value: bool) -> Result<Value, ErrorType>
+where
+    Value: serde::de::DeserializeOwned,
+    ErrorType: serde::de::Error,
+{
+    if let Ok(value) = serde_json::from_value::<Value>(serde_json::Value::Bool(value)) {
+        return Ok(value);
+    }
+    if value {
+        serde_saphyr::from_str::<Value>("true").map_err(ErrorType::custom)
+    } else {
+        serde_saphyr::from_str::<Value>("off")
+            .or_else(|_| serde_saphyr::from_str::<Value>("false"))
+            .map_err(ErrorType::custom)
+    }
+}
+
+/// `serde` helper for typed/enum fields that might contain environment variable
+/// placeholders with optional fallback syntax (e.g. `${NODE_LINKER:-isolated}`).
+///
+/// Expands environment variable placeholders in string values before attempting
+/// to deserialize into the target type `Value`.
+pub(super) fn deserialize_option_with_env_expand<'de, Value, De>(
+    deserializer: De,
+) -> Result<Option<Value>, De::Error>
+where
+    Value: serde::de::DeserializeOwned,
+    De: Deserializer<'de>,
+{
+    use serde::de::Error as _;
+    let raw = Option::<serde_json::Value>::deserialize(deserializer)?;
+    let Some(value) = raw else {
+        return Ok(None);
+    };
+    match value {
+        serde_json::Value::String(s) => {
+            let (expanded, _) = env_replace_lossy::<SystemEnv>(&s);
+            if expanded == s {
+                serde_json::from_value::<Value>(serde_json::Value::String(s))
+                    .map(Some)
+                    .map_err(De::Error::custom)
+            } else {
+                serde_saphyr::from_str::<Value>(&expanded)
+                    .map(Some)
+                    .map_err(|_| De::Error::custom("invalid environment-expanded value"))
+            }
+        }
+        serde_json::Value::Bool(value) => deserialize_bool_value(value).map(Some),
+        other => serde_json::from_value::<Value>(other).map(Some).map_err(De::Error::custom),
+    }
 }
 
 /// Settings readable from `pnpm-workspace.yaml`.
@@ -62,7 +115,9 @@ where
 pub struct WorkspaceSettings {
     pub bail: Option<bool>,
     pub ci: Option<bool>,
+    pub progress: Option<bool>,
     pub update_notifier: Option<bool>,
+    #[serde(default, deserialize_with = "deserialize_option_with_env_expand")]
     pub color: Option<crate::ColorMode>,
     pub embed_readme: Option<bool>,
     pub ignore_workspace_root_check: Option<bool>,
@@ -94,14 +149,17 @@ pub struct WorkspaceSettings {
     pub store_dir: Option<String>,
     pub state_dir: Option<String>,
     pub modules_dir: Option<String>,
+    #[serde(default, deserialize_with = "deserialize_option_with_env_expand")]
     pub node_linker: Option<NodeLinker>,
     pub node_experimental_package_map: Option<bool>,
+    #[serde(default, deserialize_with = "deserialize_option_with_env_expand")]
     pub node_package_map_type: Option<NodePackageMapType>,
     pub symlink: Option<bool>,
     pub virtual_store_dir: Option<String>,
     /// `virtualStoreType` from `pnpm-workspace.yaml`. See
     /// [`crate::VirtualStoreType`], and
     /// [`Config::enable_global_virtual_store`](crate::settings::Config::enable_global_virtual_store) for the default.
+    #[serde(default, deserialize_with = "deserialize_option_with_env_expand")]
     pub virtual_store_type: Option<VirtualStoreType>,
     /// `enableGlobalVirtualStore`, the boolean spelling of
     /// [`Self::virtual_store_type`]. A file may carry either or both; the
@@ -114,6 +172,7 @@ pub struct WorkspaceSettings {
     /// `config.yaml`. One layer of the record; merged key-wise into
     /// [`Config::global_shims`](crate::settings::Config::global_shims) rather than assigned
     /// wholesale. See [`crate::GlobalShims`].
+    #[serde(default, deserialize_with = "deserialize_option_with_env_expand")]
     pub global_shims: Option<crate::GlobalShimsSetting>,
     /// `enableModulesDir` from `pnpm-workspace.yaml`. See
     /// [`Config::enable_modules_dir`](crate::settings::Config::enable_modules_dir).
@@ -134,6 +193,7 @@ pub struct WorkspaceSettings {
     ///
     /// No repo-committed file may set it — see [`crate::refused_keys`].
     pub global_bin_dir: Option<String>,
+    #[serde(default, deserialize_with = "deserialize_option_with_env_expand")]
     pub package_import_method: Option<PackageImportMethod>,
     pub modules_cache_max_age: Option<u64>,
     pub virtual_store_dir_max_length: Option<u64>,
@@ -212,9 +272,11 @@ pub struct WorkspaceSettings {
     pub prefer_symlinked_executables: Option<bool>,
     /// `linkWorkspacePackages` from `pnpm-workspace.yaml`. Tri-state
     /// (`true | false | "deep"`) — see [`LinkWorkspacePackages`].
+    #[serde(default, deserialize_with = "deserialize_option_with_env_expand")]
     pub link_workspace_packages: Option<LinkWorkspacePackages>,
     /// `saveWorkspaceProtocol` from `pnpm-workspace.yaml`. Tri-state
     /// (`true | false | "rolling"`) — see [`SaveWorkspaceProtocol`].
+    #[serde(default, deserialize_with = "deserialize_option_with_env_expand")]
     pub save_workspace_protocol: Option<SaveWorkspaceProtocol>,
     /// `injectWorkspacePackages` from `pnpm-workspace.yaml`. When
     /// `true`, every workspace-resolved dep is materialized as a
@@ -225,6 +287,7 @@ pub struct WorkspaceSettings {
     /// `workspaces`, or `dependencies` — see
     /// [`crate::HoistingLimits`]. Missing → default
     /// [`crate::HoistingLimits::None`].
+    #[serde(default, deserialize_with = "deserialize_option_with_env_expand")]
     pub hoisting_limits: Option<HoistingLimits>,
     /// `externalDependencies` from `pnpm-workspace.yaml`. Names
     /// whose top-level slot is reserved for an external linker
@@ -233,6 +296,7 @@ pub struct WorkspaceSettings {
     pub external_dependencies: Option<BTreeSet<String>>,
     pub dedupe_peer_dependents: Option<bool>,
     pub dedupe_peers: Option<bool>,
+    pub auto_dedupe: Option<bool>,
     pub dedupe_direct_deps: Option<bool>,
     pub prefer_workspace_packages: Option<bool>,
     pub dedupe_injected_deps: Option<bool>,
@@ -253,6 +317,7 @@ pub struct WorkspaceSettings {
     pub frozen_store: Option<bool>,
     /// `sideEffectsCache`: whether a build is restored, whether one is saved,
     /// and where from. A bare boolean sets reading and writing together.
+    #[serde(default, deserialize_with = "deserialize_option_with_env_expand")]
     pub side_effects_cache: Option<SideEffectsCacheSetting>,
     /// The boolean spelling of `sideEffectsCache: { read: true, write: false }`.
     pub side_effects_cache_readonly: Option<bool>,
@@ -384,6 +449,12 @@ pub struct WorkspaceSettings {
     /// `true`.
     pub git_checks: Option<bool>,
 
+    /// `tagVersionPrefix` from `pnpm-workspace.yaml`. See
+    /// [`Config::tag_version_prefix`](crate::settings::Config::tag_version_prefix).
+    /// Unset falls through to the `"v"` default. An empty string removes
+    /// the prefix.
+    pub tag_version_prefix: Option<String>,
+
     /// `engineStrict` from `pnpm-workspace.yaml` / global `config.yaml`.
     /// See [`Config::engine_strict`](crate::settings::Config::engine_strict). Default `false`.
     pub engine_strict: Option<bool>,
@@ -393,6 +464,7 @@ pub struct WorkspaceSettings {
     pub node_version: Option<String>,
 
     /// `runtimeOnFail` from `pnpm-workspace.yaml` / global `config.yaml`.
+    #[serde(default, deserialize_with = "deserialize_option_with_env_expand")]
     pub runtime_on_fail: Option<RuntimeOnFail>,
 
     /// Per-release-channel Node.js download mirrors.
@@ -401,6 +473,7 @@ pub struct WorkspaceSettings {
     /// `scriptsPrependNodePath` from `pnpm-workspace.yaml`. Tri-state
     /// — yaml accepts `true` / `false` / `"warn-only"`. Custom serde
     /// shape, see [`ScriptsPrependNodePath`]'s `Deserialize` impl.
+    #[serde(default, deserialize_with = "deserialize_option_with_env_expand")]
     pub scripts_prepend_node_path: Option<ScriptsPrependNodePath>,
 
     /// `enablePrePostScripts` from `pnpm-workspace.yaml`. See
@@ -555,6 +628,7 @@ pub struct WorkspaceSettings {
     pub trust_lockfile: Option<bool>,
 
     /// `trustPolicy` from `pnpm-workspace.yaml`. See [`TrustPolicy`].
+    #[serde(default, deserialize_with = "deserialize_option_with_env_expand")]
     pub trust_policy: Option<TrustPolicy>,
 
     /// `initPackageManager` from `pnpm-workspace.yaml` /
@@ -566,6 +640,7 @@ pub struct WorkspaceSettings {
 
     /// `initType` from `pnpm-workspace.yaml` /
     /// `~/.config/pnpm/config.yaml`. See [`InitType`].
+    #[serde(default, deserialize_with = "deserialize_option_with_env_expand")]
     pub init_type: Option<InitType>,
 
     /// `initAuthorName` from `pnpm-workspace.yaml` /
@@ -599,10 +674,12 @@ pub struct WorkspaceSettings {
     pub init_version: Option<String>,
 
     /// `pmOnFail` from `pnpm-workspace.yaml`. See [`PmOnFail`].
+    #[serde(default, deserialize_with = "deserialize_option_with_env_expand")]
     pub pm_on_fail: Option<PmOnFail>,
 
     /// `verifyDepsBeforeRun` from `pnpm-workspace.yaml` /
     /// `~/.config/pnpm/config.yaml`. See [`VerifyDepsBeforeRun`].
+    #[serde(default, deserialize_with = "deserialize_option_with_env_expand")]
     pub verify_deps_before_run: Option<VerifyDepsBeforeRun>,
 
     /// `audit` from `pnpm-workspace.yaml`. Supersedes `auditLevel` and
@@ -616,6 +693,7 @@ pub struct WorkspaceSettings {
     ///
     /// Deprecated in favor of [`AuditSettings::level`], kept for backward
     /// compatibility until the next major version.
+    #[serde(default, deserialize_with = "deserialize_option_with_env_expand")]
     pub audit_level: Option<AuditLevel>,
 
     /// `auditConfig` from `pnpm-workspace.yaml`.
@@ -661,9 +739,11 @@ pub struct WorkspaceSettings {
 
     /// `resolutionMode` from `pnpm-workspace.yaml`. See
     /// [`ResolutionMode`].
+    #[serde(default, deserialize_with = "deserialize_option_with_env_expand")]
     pub resolution_mode: Option<ResolutionMode>,
 
     /// `catalogMode` from `pnpm-workspace.yaml`. See [`CatalogMode`].
+    #[serde(default, deserialize_with = "deserialize_option_with_env_expand")]
     pub catalog_mode: Option<CatalogMode>,
 
     /// `catalogPrune` from `pnpm-workspace.yaml`. See

@@ -310,3 +310,119 @@ fn tarball_authorization_failure_is_reported() {
     metadata.assert();
     forbidden.assert();
 }
+
+#[test]
+fn scoped_registry_auth_env_warns_and_uses_configured_auth_for_frozen_verification() {
+    let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
+    let workspace = dunce::canonicalize(&workspace).expect("canonicalize workspace");
+    let mut registry = mockito::Server::new();
+    let registry_url = format!("{}/api/v4/projects/96/packages/npm", registry.url());
+    let authority = registry_url.strip_prefix("http://").unwrap();
+    let credentials = format!("//{authority}/:_authToken=${{REGISTRY_TOKEN}}\n");
+    write_project_config(root.path(), &workspace, &registry.url(), "");
+    fs::write(
+        workspace.join(".npmrc"),
+        format!("@private:registry={registry_url}/\n{credentials}"),
+    )
+    .unwrap();
+    fs::write(workspace.join("package.json"), r#"{"dependencies":{"@private/foo":"1.0.0"}}"#)
+        .unwrap();
+    let tarball = minimal_tarball("@private/foo", "1.0.0");
+    let integrity = sha512_integrity(&tarball);
+    let tarball_path = "/api/v4/projects/96/packages/npm/foo-1.0.0.tgz";
+    let tarball_url = format!("{}{tarball_path}", registry.url());
+    fs::write(
+        workspace.join("pnpm-lock.yaml"),
+        format!(
+            r"lockfileVersion: '9.0'
+importers:
+  .:
+    dependencies:
+      '@private/foo':
+        specifier: 1.0.0
+        version: 1.0.0
+packages:
+  '@private/foo@1.0.0':
+    resolution: {{integrity: {integrity}, tarball: {tarball_url}}}
+snapshots:
+  '@private/foo@1.0.0': {{}}
+",
+        ),
+    )
+    .unwrap();
+    let packument_path = "/api/v4/projects/96/packages/npm/@private%2Ffoo";
+    let unauthorized = registry
+        .mock("GET", packument_path)
+        .match_header("authorization", mockito::Matcher::Missing)
+        .with_status(401)
+        .expect(3)
+        .create();
+    for reporter in ["append-only", "ndjson", "silent"] {
+        let output = install_command(&workspace, root.path())
+            .with_env("REGISTRY_TOKEN", "secret-token")
+            .with_args(["install", "--frozen-lockfile", "--reporter", reporter])
+            .output()
+            .unwrap();
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        eprintln!("stderr={stderr}");
+        assert!(!output.status.success());
+        assert!(stderr.contains("ERR_PNPM_META_FETCH_FAIL"), "got {stderr}");
+        assert_eq!(stderr.matches("Ignored project-level auth setting").count(), 1);
+        let stdout = String::from_utf8_lossy(&output.stdout);
+        eprintln!("stdout={stdout}");
+        assert!(!stdout.contains("Ignored project-level auth setting"));
+        assert!(!stdout.contains("secret-token"));
+        assert!(!stderr.contains("secret-token"), "got {stderr}");
+    }
+    unauthorized.assert();
+
+    let metadata = registry
+        .mock("GET", packument_path)
+        .match_header("authorization", "Bearer secret-token")
+        .with_status(200)
+        .with_header("content-type", "application/vnd.npm.install-v1+json")
+        .with_body(
+            serde_json::json!({
+                "name": "@private/foo",
+                "dist-tags": { "latest": "1.0.0" },
+                "versions": { "1.0.0": {
+                    "name": "@private/foo",
+                    "version": "1.0.0",
+                    "dist": { "integrity": integrity, "tarball": tarball_url },
+                } },
+            })
+            .to_string(),
+        )
+        .expect_at_least(2)
+        .create();
+    let tarballs = registry
+        .mock("GET", tarball_path)
+        .match_header("authorization", "Bearer secret-token")
+        .with_status(200)
+        .with_body(tarball)
+        .expect(2)
+        .create();
+    let user_npmrc = root.path().join("user.npmrc");
+    fs::write(&user_npmrc, credentials).unwrap();
+    for auth_file in [workspace.join(".npmrc"), user_npmrc] {
+        let uses_project_auth_file = auth_file == workspace.join(".npmrc");
+        let output = install_command(&workspace, root.path())
+            .with_env("REGISTRY_TOKEN", "secret-token")
+            .with_env("PNPM_CONFIG_NPMRC_AUTH_FILE", auth_file)
+            .with_args(["install", "--frozen-lockfile"])
+            .output()
+            .unwrap();
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        eprintln!("stderr={stderr}");
+        assert!(output.status.success(), "got {stderr}");
+        if uses_project_auth_file {
+            assert!(!stderr.contains("Ignored project-level auth setting"), "got {stderr}");
+        }
+        assert!(workspace.join("node_modules/@private/foo").exists());
+        fs::remove_dir_all(workspace.join("node_modules")).unwrap();
+        fs::remove_dir_all(root.path().join("store")).unwrap();
+        fs::remove_dir_all(root.path().join("cache")).unwrap();
+    }
+    metadata.assert();
+    tarballs.assert();
+}

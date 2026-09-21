@@ -131,6 +131,7 @@ impl CasPrefetch {
     pub async fn start(
         config: &'static Config,
         entries: LockfileEntries<'_>,
+        allow_build_policy: &crate::AllowBuildPolicy,
         supported_architectures: Option<&pnpm_package_is_installable::SupportedArchitectures>,
         store_context: Option<&CreateVirtualStoreStoreContext<'_>>,
     ) -> Self {
@@ -159,7 +160,8 @@ impl CasPrefetch {
             store_context.map_or_else(SharedVerifiedFilesCache::default, |context| {
                 Arc::clone(context.verified_files_cache)
             });
-        let cache_keys = derive_cache_keys(config, entries, supported_architectures);
+        let cache_keys =
+            derive_cache_keys(config, entries, allow_build_policy, supported_architectures);
         // The files check waits for the plan: only the snapshots this
         // run materializes have their CAFS files stat'd, in
         // `CreateVirtualStore::settle_prefetch`. Under a global virtual
@@ -239,11 +241,8 @@ pub struct CreateVirtualStore<'a> {
     /// The wanted lockfile's entries — what this run materializes.
     pub entries: LockfileEntries<'a>,
     /// Entries recorded by the previous install, parsed from
-    /// `<virtual_store_dir>/lock.yaml`. Empty on a first install (the
-    /// file doesn't exist) and under `--force`. When present,
-    /// per-snapshot lookups against these drive the warm-reinstall skip
-    /// decision — see [`CreateVirtualStore::run`] and
-    /// [`LockfileEntries::of_previous_install`].
+    /// `<virtual_store_dir>/lock.yaml`. Used for reuse decisions and child-link
+    /// cleanup, including under `--force`. Empty on a first install.
     pub current_entries: LockfileEntries<'a>,
     /// macOS directory-clone materialization cache
     /// ([`crate::dir_clone_cache`]), built by the install entry points

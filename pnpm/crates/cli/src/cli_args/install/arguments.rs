@@ -43,6 +43,8 @@ pub struct InstallLockfileArgs {
 
 #[derive(Debug, Default, Clone, clap::Args)]
 pub struct LockfileUpdateArgs {
+    #[clap(flatten)]
+    pub dedupe: crate::cli_args::install_options::AutoDedupeArgs,
     /// Fold every per-branch lockfile (`pnpm-lock.<branch>.yaml`, written
     /// under the `gitBranchLockfile` setting) into `pnpm-lock.yaml` and
     /// delete them.

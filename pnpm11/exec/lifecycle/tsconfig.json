@@ -47,6 +47,9 @@
     },
     {
       "path": "../../workspace/task-scheduler"
+    },
+    {
+      "path": "../npm-lifecycle"
     }
   ]
 }

@@ -174,6 +174,61 @@ exec node  "$basedir/../simple/index.js" "$@"
   expect(content).not.toContain('# outdated-echo-basedir')
 })
 
+test('linkBins() replaces a shim that converts Windows paths with a helper from PATH', async () => {
+  const binTarget = temporaryDirectory()
+  const warn = jest.fn()
+  const simpleFixture = f.prepare('simple-fixture')
+  const target = normalizePath(path.join(simpleFixture, 'node_modules', 'simple', 'index.js'))
+
+  fs.mkdirSync(binTarget, { recursive: true })
+  const binLocation = path.join(binTarget, 'simple')
+  const outdated = `#!/bin/sh
+link="$0"
+hops=0
+while [ -L "$link" ] && [ "$hops" -lt 40 ]; do
+  hops=$((hops+1))
+  target=$(command -p readlink "$link")
+  case "$target" in
+    /*) link="$target" ;;
+    *)  link="\${link%/*}/$target" ;;
+  esac
+done
+${PRINTF_BASEDIR_LINE}
+basedir="\${basedir%/*}"
+basedir_win="$basedir"
+exe=""
+msys=""
+
+case \`command -p uname -a\` in
+  *CYGWIN*|*MINGW*|*MSYS*)
+    if command -v cygpath > /dev/null 2>&1; then
+      basedir_win=\`cygpath -w "$basedir"\`
+    fi
+    exe=".exe"
+    msys="true"
+  ;;
+  *WSL2*)
+    if command -v wslpath > /dev/null 2>&1; then
+      basedir_win="$(wslpath -w "$basedir" 2> /dev/null)"
+    fi
+  ;;
+esac
+
+exec node  "$basedir/../simple/index.js" "$@"
+# cmd-shim-target=${target}
+# outdated-path-converters
+`
+  fs.writeFileSync(binLocation, outdated, 'utf8')
+
+  await linkBins(path.join(simpleFixture, 'node_modules'), binTarget, { warn })
+
+  const content = fs.readFileSync(binLocation, 'utf8')
+  expect(content).toContain(`# cmd-shim-target=${target}\n`)
+  expect(content).toContain('    if converted=$(command -p cygpath -w "$basedir" 2>/dev/null) && [ -n "$converted" ]; then\n')
+  expect(content).toContain('    if converted=$(command -p wslpath -w "$basedir" 2>/dev/null) && [ -n "$converted" ]; then\n')
+  expect(content).not.toContain('# outdated-path-converters')
+})
+
 testOnPosix('linkBins() repairs a non-executable source when the existing bin references it', async () => {
   const binTarget = temporaryDirectory()
   const warn = jest.fn()

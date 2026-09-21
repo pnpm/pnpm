@@ -246,7 +246,7 @@ async fn cold_batch_falls_back_when_prefetch_failed() {
 /// original URL was never seeded).
 #[tokio::test]
 async fn custom_fetcher_delegate_rewrites_the_resolution() {
-    use pnpm_tarball::{CacheValue, MemCache, package_mem_cache_key};
+    use pnpm_tarball::{CacheValue, CachedTarball, MemCache, package_mem_cache_key};
     use std::{collections::HashMap, path::PathBuf, sync::Arc};
 
     let store_tmp = tempfile::tempdir().expect("tempdir");
@@ -270,7 +270,9 @@ async fn custom_fetcher_delegate_rewrites_the_resolution() {
             Some(&DUMMY_SHA512.parse().expect("parse integrity")),
             false,
         ),
-        Arc::new(tokio::sync::RwLock::new(CacheValue::Available(Arc::new(seeded.clone())))),
+        Arc::new(tokio::sync::RwLock::new(CacheValue::Available(CachedTarball::from_files(
+            seeded.clone(),
+        )))),
     );
 
     let session = scripted_session(
@@ -298,7 +300,7 @@ async fn custom_fetcher_delegate_rewrites_the_resolution() {
 /// `fetch` ran (`can_fetch = false` must short-circuit it).
 #[tokio::test]
 async fn custom_fetcher_declining_falls_through_to_the_original_resolution() {
-    use pnpm_tarball::{CacheValue, MemCache, package_mem_cache_key};
+    use pnpm_tarball::{CacheValue, CachedTarball, MemCache, package_mem_cache_key};
     use std::{collections::HashMap, path::PathBuf, sync::Arc};
 
     let store_tmp = tempfile::tempdir().expect("tempdir");
@@ -314,7 +316,9 @@ async fn custom_fetcher_declining_falls_through_to_the_original_resolution() {
             Some(&DUMMY_SHA512.parse().expect("parse integrity")),
             false,
         ),
-        Arc::new(tokio::sync::RwLock::new(CacheValue::Available(Arc::new(seeded.clone())))),
+        Arc::new(tokio::sync::RwLock::new(CacheValue::Available(CachedTarball::from_files(
+            seeded.clone(),
+        )))),
     );
 
     let session = scripted_session(
@@ -427,7 +431,7 @@ async fn custom_fetcher_custom_typed_delegate_is_rejected() {
 /// the custom `type` tag exactly as the lockfile spells it.
 #[tokio::test]
 async fn custom_typed_resolution_installs_via_delegating_fetcher() {
-    use pnpm_tarball::{CacheValue, MemCache, package_mem_cache_key};
+    use pnpm_tarball::{CacheValue, CachedTarball, MemCache, package_mem_cache_key};
     use std::{collections::HashMap, path::PathBuf, sync::Arc};
 
     let store_tmp = tempfile::tempdir().expect("tempdir");
@@ -443,7 +447,9 @@ async fn custom_typed_resolution_installs_via_delegating_fetcher() {
             Some(&DUMMY_SHA512.parse().expect("parse integrity")),
             false,
         ),
-        Arc::new(tokio::sync::RwLock::new(CacheValue::Available(Arc::new(seeded.clone())))),
+        Arc::new(tokio::sync::RwLock::new(CacheValue::Available(CachedTarball::from_files(
+            seeded.clone(),
+        )))),
     );
 
     let session = scripted_session(

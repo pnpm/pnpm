@@ -1,7 +1,8 @@
 use super::{
-    ERROR_LOCK_VIOLATION, ERROR_SHARING_VIOLATION, RetryTiming, is_transient_file_lock_error,
-    remove_dir_all_with_retry, rename_with_retry, retry_fs_operation,
-    retry_fs_operation_with_timing,
+    ERROR_LOCK_VIOLATION, ERROR_SHARING_VIOLATION, RetryTiming, create_dir_all_with_retry,
+    create_dir_with_retry, is_transient_file_lock_error, remove_dir_all_with_retry,
+    remove_dir_with_retry, rename_with_retry, retry_fs_operation, retry_fs_operation_with_timing,
+    symlink_metadata_with_retry,
 };
 use std::{cell::Cell, fs, io, time::Duration};
 use tempfile::tempdir;
@@ -115,6 +116,82 @@ fn remove_dir_all_with_retry_removes_the_tree() {
     remove_dir_all_with_retry(&target).expect("remove should succeed");
 
     assert!(!target.exists(), "directory tree should be gone after removal");
+}
+
+#[test]
+fn create_dir_with_retry_creates_one_level() {
+    let root = tempdir().unwrap();
+    let target = root.path().join("target");
+
+    create_dir_with_retry(&target).expect("creation should succeed");
+
+    assert!(target.is_dir());
+}
+
+#[test]
+fn create_dir_all_with_retry_creates_every_missing_parent() {
+    let root = tempdir().unwrap();
+    let target = root.path().join("nested/deeper/target");
+
+    create_dir_all_with_retry(&target).expect("creation should succeed");
+
+    assert!(target.is_dir());
+}
+
+#[test]
+fn remove_dir_with_retry_removes_an_empty_directory() {
+    let root = tempdir().unwrap();
+    let target = root.path().join("target");
+    fs::create_dir(&target).unwrap();
+
+    remove_dir_with_retry(&target).expect("removal should succeed");
+
+    assert!(!target.exists());
+}
+
+#[test]
+fn symlink_metadata_with_retry_reads_the_entry_without_following_it() {
+    let root = tempdir().unwrap();
+    let target = root.path().join("target");
+    fs::write(&target, b"payload").unwrap();
+
+    let metadata = symlink_metadata_with_retry(&target).expect("inspection should succeed");
+
+    assert!(metadata.is_file());
+    assert_eq!(metadata.len(), b"payload".len() as u64);
+}
+
+#[test]
+fn symlink_metadata_with_retry_reports_an_absent_entry_as_not_found() {
+    let root = tempdir().unwrap();
+
+    let error = symlink_metadata_with_retry(&root.path().join("absent"))
+        .expect_err("an absent entry has no metadata");
+
+    assert_eq!(error.kind(), io::ErrorKind::NotFound);
+}
+
+/// The refusal stands for a Windows path another process has unlinked but
+/// not yet released, which is inaccessible for as long as that lasts.
+#[test]
+fn a_refusal_that_resolves_into_absence_surfaces_the_absence() {
+    let attempts = Cell::new(0);
+
+    let result: io::Result<()> = retry_fs_operation(
+        || {
+            let attempt = attempts.get();
+            attempts.set(attempt + 1);
+            if attempt < 2 {
+                Err(io::Error::from(io::ErrorKind::PermissionDenied))
+            } else {
+                Err(io::Error::from(io::ErrorKind::NotFound))
+            }
+        },
+        |error| error.kind() == io::ErrorKind::PermissionDenied,
+    );
+
+    assert_eq!(result.unwrap_err().kind(), io::ErrorKind::NotFound);
+    assert_eq!(attempts.get(), 3);
 }
 
 #[cfg(windows)]

@@ -12,6 +12,7 @@ mod optional_dependencies;
 
 mod behavior;
 
+mod auto_dedupe;
 mod lockfile_reuse;
 
 mod version_selection;
@@ -163,6 +164,7 @@ impl Resolver for ProjectRelativeWorkspaceResolver {
                     manifest: Some(std::sync::Arc::new(
                         serde_json::json!({ "name": "shared", "version": "1.0.0" }),
                     )),
+                    non_deprecated_alternative: None,
                 },
             }))
         })
@@ -206,6 +208,7 @@ fn fake_result(
             latest: Some(version.to_string()),
             published_at: published_at.map(str::to_string),
             manifest: Some(std::sync::Arc::new(manifest)),
+            non_deprecated_alternative: None,
         },
     }
 }
@@ -259,6 +262,7 @@ fn importer_opts(
             pick_lowest_direct: false,
             subdep_published_by: published_by,
             catalogs: pnpm_catalogs_types::Catalogs::new(),
+            catalogs_dir: None,
             catalog_server: false,
         },
         hooks: crate::ManifestTransformHooks {
@@ -298,6 +302,7 @@ fn workspace_opts(pick_lowest_direct: bool, time_based: bool) -> WorkspaceResolv
         reuse: crate::WorkspaceLockfileReuse {
             lockfile: None,
             subtrees: true,
+            dedupe: crate::UpdateTargets::default(),
             scope: crate::UpdateReuseScope::All,
             scopes_by_importer: BTreeMap::new(),
             depth: crate::UpdateDepth::UNLIMITED,
@@ -691,6 +696,7 @@ impl Resolver for OverlapRecordingResolver {
                         "name": alias,
                         "version": "1.0.0",
                     }))),
+                    non_deprecated_alternative: None,
                 },
                 alias: Some(alias),
             }))

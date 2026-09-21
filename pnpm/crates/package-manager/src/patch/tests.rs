@@ -348,7 +348,7 @@ async fn patch_extract_git_hosted_tarball_runs_packlist() {
 
     assert_eq!(
         std::fs::read_to_string(dest.join("package.json")).expect("package.json"),
-        r#"{"name":"foo","version":"1.0.0","files":["index.js"]}"#,
+        r#"{"name":"foo","version":"1.0.0","files":["index.js"],"scripts":{"prepare":"exit 1"}}"#,
     );
     assert_eq!(std::fs::read_to_string(dest.join("index.js")).expect("index.js"), "ok\n");
     assert!(!dest.join("ignore.txt").exists(), "packlist should filter ignored files");
@@ -373,7 +373,7 @@ async fn patch_extract_url_inferred_git_hosted_tarball_runs_packlist() {
 
     assert_eq!(
         std::fs::read_to_string(dest.join("package.json")).expect("package.json"),
-        r#"{"name":"foo","version":"1.0.0","files":["index.js"]}"#,
+        r#"{"name":"foo","version":"1.0.0","files":["index.js"],"scripts":{"prepare":"exit 1"}}"#,
     );
     assert_eq!(std::fs::read_to_string(dest.join("index.js")).expect("index.js"), "ok\n");
     assert!(!dest.join("ignore.txt").exists(), "packlist should filter ignored files");
@@ -538,7 +538,7 @@ impl PatchExtractFixture {
         use_git_hosted_url: bool,
         git_hosted_flag: bool,
     ) -> Self {
-        use pnpm_tarball::CacheValue;
+        use pnpm_tarball::{CacheValue, CachedTarball};
         use std::{collections::HashMap, path::PathBuf, sync::Arc};
 
         let tmp = tempfile::tempdir().expect("temp dir");
@@ -547,7 +547,9 @@ impl PatchExtractFixture {
         let pkg_json = store_dir.join("pkg-json");
         let index = store_dir.join("index");
         let manifest = if use_git_hosted_url {
-            format!(r#"{{"name":"{name}","version":"{version}","files":["index.js"]}}"#)
+            format!(
+                r#"{{"name":"{name}","version":"{version}","files":["index.js"],"scripts":{{"prepare":"exit 1"}}}}"#,
+            )
         } else {
             format!(r#"{{"name":"{name}","version":"{version}"}}"#)
         };
@@ -589,7 +591,9 @@ impl PatchExtractFixture {
                 Some(&"sha512-aGVsbG8=".parse().expect("parse integrity")),
                 false,
             ),
-            Arc::new(tokio::sync::RwLock::new(CacheValue::Available(Arc::new(seeded)))),
+            Arc::new(tokio::sync::RwLock::new(CacheValue::Available(CachedTarball::from_files(
+                seeded,
+            )))),
         );
 
         Self {

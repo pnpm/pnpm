@@ -328,4 +328,25 @@ impl StoreIndex {
         }
         Ok(out)
     }
+
+    /// Delete a batch of package-index rows in one transaction.
+    pub fn delete_many(&mut self, keys: &[String]) -> Result<(), StoreIndexError> {
+        if keys.is_empty() {
+            return Ok(());
+        }
+        let tx = self.conn
+            .transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)
+            .map_err(|source| StoreIndexError::Write { source })?;
+        {
+            let mut stmt = tx
+                .prepare_cached("DELETE FROM package_index WHERE key = ?1")
+                .map_err(|source| StoreIndexError::Write { source })?;
+            for key in keys {
+                stmt.execute([key])
+                    .map_err(|source| StoreIndexError::Write { source })?;
+            }
+        }
+        tx.commit()
+            .map_err(|source| StoreIndexError::Write { source })
+    }
 }

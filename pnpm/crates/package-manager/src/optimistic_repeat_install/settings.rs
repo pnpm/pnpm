@@ -1,9 +1,9 @@
 //! Comparing the settings a previous install recorded against the current ones.
 
 use super::{
-    Catalogs, Config, IncludedDependencies, LinkWorkspacePackages, NodeLinker, Path,
+    Catalogs, Config, IncludedDependencies, LinkWorkspacePackages, NodeLinker,
     SupportedArchitectures, TrustPolicy, WorkspaceState, WorkspaceStateNodeLinker,
-    WorkspaceStateSettings, WorkspaceStateTrustPolicy, load_workspace_state,
+    WorkspaceStateSettings, WorkspaceStateTrustPolicy,
 };
 
 /// Whether the `supportedArchitectures` recorded by the last install
@@ -11,18 +11,19 @@ use super::{
 /// state for the frozen path's lockfile-up-to-date early return, whose
 /// other guards (`wanted == current`, `.modules.yaml` consistency) cannot
 /// see an architecture change: the skip set it would produce differs, so
-/// the shortcut must not fire. A missing state file or an unreadable one
+/// the shortcut must not fire. A missing or unreadable state (`None`)
 /// reports a match only when `live` is also unset — the conservative
 /// direction is a full install.
 pub(crate) fn recorded_supported_architectures_match(
-    workspace_root: &Path,
+    recorded: Option<&WorkspaceState>,
     live: Option<&SupportedArchitectures>,
 ) -> bool {
-    let recorded = match load_workspace_state(workspace_root) {
-        Ok(Some(state)) => state.settings.supported_architectures,
-        _ => None,
-    };
-    recorded == live.and_then(|value| serde_json::to_value(value).ok())
+    let recorded =
+        recorded.and_then(|state| state.settings.supported_architectures.as_ref());
+    recorded
+        == live
+            .and_then(|value| serde_json::to_value(value).ok())
+            .as_ref()
 }
 
 pub(crate) fn settings_match(
@@ -139,6 +140,7 @@ impl SettingsComparison<'_> {
             recorded.dedupe_peer_dependents != live.dedupe_peer_dependents,
         );
         return_drift_if!(self, "dedupePeers", recorded.dedupe_peers != live.dedupe_peers);
+        return_drift_if!(self, "autoDedupe", recorded.auto_dedupe != live.auto_dedupe);
         return_drift_if!(self, "dev", recorded.dev != live.dev);
         None
     }
@@ -325,6 +327,7 @@ pub(crate) fn current_settings(
         dedupe_injected_deps: Some(config.dedupe_injected_deps),
         dedupe_peer_dependents: Some(config.dedupe_peer_dependents),
         dedupe_peers: Some(config.dedupe_peers),
+        auto_dedupe: config.auto_dedupe.then_some(true),
         dev: Some(included.dev_dependencies),
         // Mirror pnpm's writer, which omits the key for its `undefined`
         // default and records a concrete value only when forced. pacquet

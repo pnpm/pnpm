@@ -3,6 +3,8 @@ use super::{
     Pipe, ReporterType,
 };
 
+use std::path::{Path, PathBuf};
+
 /// Error type of [`CliArgs::apply_workspace_root`].
 #[derive(Debug, Display, Error, Diagnostic)]
 pub enum WorkspaceRootError {
@@ -128,14 +130,7 @@ impl CliArgs {
         if self.command.is_global() {
             return Err(WorkspaceRootError::GlobalConflict);
         }
-        let dir = dunce::canonicalize(&self.paths.dir)
-            .or_else(|_| std::path::absolute(&self.paths.dir))
-            .unwrap_or_else(|_| self.paths.dir.clone())
-            .pipe_deref(pnpm_fs::lexical_normalize);
-        let workspace_dir = pnpm_workspace::find_workspace_dir(&dir)
-            .map_err(WorkspaceRootError::FindWorkspaceDir)?
-            .ok_or(WorkspaceRootError::NotInWorkspace)?;
-        self.paths.dir = workspace_dir;
+        self.paths.dir = find_workspace_root_dir(&self.paths.dir)?;
         // pnpm's parser writes the workspace root into `cliOptions.dir`, so
         // `-w` also decides where `init` scaffolds.
         self.paths.dir_from_command_line = true;
@@ -145,10 +140,7 @@ impl CliArgs {
     /// Promote commands marked recursive-by-default by pnpm when they run
     /// inside a workspace.
     pub fn promote_recursive_by_default(&mut self) {
-        let dir = dunce::canonicalize(&self.paths.dir)
-            .or_else(|_| std::path::absolute(&self.paths.dir))
-            .unwrap_or_else(|_| self.paths.dir.clone())
-            .pipe_deref(pnpm_fs::lexical_normalize);
+        let dir = resolve_real_dir(&self.paths.dir);
         // `--ignore-workspace` runs the project standalone, so there is no
         // workspace to be recursive over: promoting anyway makes the
         // selection discover the project's own subdirectories as if they
@@ -204,7 +196,10 @@ impl CliArgs {
     }
 
     fn validate_no_bail_global_option(&self) -> Result<(), clap::Error> {
-        if matches!(self.command, CliCommand::Rebuild(_)) {
+        if matches!(
+            self.command,
+            CliCommand::Rebuild(_) | CliCommand::Rb(_) | CliCommand::InstallTest(_),
+        ) {
             return Ok(());
         }
         self.validate_run_scoped_global_option("--no-bail")
@@ -237,4 +232,17 @@ impl super::CliNetworkArgs {
             crate::config_overrides::apply_registry_override(config, registry);
         }
     }
+}
+
+pub(crate) fn find_workspace_root_dir(dir: &Path) -> Result<PathBuf, WorkspaceRootError> {
+    pnpm_workspace::find_workspace_dir(&resolve_real_dir(dir))
+        .map_err(WorkspaceRootError::FindWorkspaceDir)?
+        .ok_or(WorkspaceRootError::NotInWorkspace)
+}
+
+fn resolve_real_dir(dir: &Path) -> PathBuf {
+    dunce::canonicalize(dir)
+        .or_else(|_| std::path::absolute(dir))
+        .unwrap_or_else(|_| dir.to_path_buf())
+        .pipe_deref(pnpm_fs::lexical_normalize)
 }

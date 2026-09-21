@@ -1,3 +1,5 @@
+use std::sync::LazyLock;
+
 use super::super::{
     BTreeMap, Config, HashMap, HashSet, PackageKey, PackageMetadata, Path, PathBuf, Prefix,
     SkippedSnapshots, SnapshotEntry, build_direct_deps_by_importer, create_matcher,
@@ -16,28 +18,54 @@ pub struct HoistPlan {
     pub skipped: HashSet<PackageKey>,
 }
 /// Compute the in-memory hoist plan. Returns `None` when nothing
-/// should be hoisted today (no patterns, no lockfile graph, or the
+/// should be hoisted today (no patterns, nothing to hoist, or the
 /// install is going through the hoisted linker). Side-effect-free:
 /// the on-disk symlinks happen later in the pipeline. Same input
 /// gating as the legacy in-place block in [`crate::install_frozen_lockfile::InstallFrozenLockfile::run`].
 /// `hoist-workspace-packages` input: every named non-root project's
-/// `name → absolute project dir`, the shape v11 builds from
+/// `name → (project id, absolute project dir)`, the shape v11 builds from
 /// `allProjects` for its `hoistedWorkspacePackages` map. The root
 /// project itself is excluded — its dir *is* where the hoisted
 /// modules live.
+pub type HoistedWorkspacePackages = indexmap::IndexMap<String, (String, PathBuf)>;
+
 #[must_use]
 pub fn workspace_packages_for_hoist(
     workspace_root: &Path,
     project_manifests: &[(PathBuf, &pnpm_package_manifest::PackageManifest)],
-) -> indexmap::IndexMap<String, PathBuf> {
+) -> HoistedWorkspacePackages {
     project_manifests
         .iter()
         .filter(|(project_dir, _)| project_dir != workspace_root)
         .filter_map(|(project_dir, manifest)| {
             let name = manifest.value().get("name")?.as_str()?;
-            Some((name.to_string(), project_dir.clone()))
+            let project_id = project_dir
+                .strip_prefix(workspace_root)
+                .ok()?
+                .to_string_lossy()
+                .replace('\\', "/");
+            Some((name.to_string(), (project_id, project_dir.clone())))
         })
         .collect()
+}
+type HoistGraphSections<'a> =
+    (&'a HashMap<PackageKey, SnapshotEntry>, &'a HashMap<PackageKey, PackageMetadata>);
+
+fn hoist_graph_inputs<'a>(
+    snapshots: Option<&'a HashMap<PackageKey, SnapshotEntry>>,
+    packages: Option<&'a HashMap<PackageKey, PackageMetadata>>,
+    hoisted_workspace_packages: Option<&HoistedWorkspacePackages>,
+) -> Option<HoistGraphSections<'a>> {
+    static NO_SNAPSHOTS: LazyLock<HashMap<PackageKey, SnapshotEntry>> = LazyLock::new(HashMap::new);
+    static NO_PACKAGES: LazyLock<HashMap<PackageKey, PackageMetadata>> =
+        LazyLock::new(HashMap::new);
+    match (snapshots, packages) {
+        (Some(snapshots), Some(packages)) => Some((snapshots, packages)),
+        _ if hoisted_workspace_packages.is_some_and(|projects| !projects.is_empty()) => {
+            Some((&NO_SNAPSHOTS, &NO_PACKAGES))
+        }
+        _ => None,
+    }
 }
 #[expect(
     clippy::too_many_arguments,
@@ -51,7 +79,7 @@ pub fn compute_hoist_plan(
     dependency_groups: &[pnpm_package_manifest::DependencyGroup],
     skipped: &SkippedSnapshots,
     is_hoisted: bool,
-    hoisted_workspace_packages: Option<&indexmap::IndexMap<String, PathBuf>>,
+    hoisted_workspace_packages: Option<&HoistedWorkspacePackages>,
 ) -> Option<HoistPlan> {
     if is_hoisted {
         return None;
@@ -66,7 +94,7 @@ pub fn compute_hoist_plan(
     if config.hoist_pattern.is_none() && config.public_hoist_pattern.is_none() {
         return None;
     }
-    let (Some(snaps), Some(pkgs)) = (snapshots, packages) else { return None };
+    let (snaps, pkgs) = hoist_graph_inputs(snapshots, packages, hoisted_workspace_packages)?;
     let private_pattern = create_matcher(
         config.hoist_pattern
             .as_deref()

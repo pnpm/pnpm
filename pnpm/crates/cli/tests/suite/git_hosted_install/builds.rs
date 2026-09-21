@@ -421,3 +421,49 @@ fn assert_git_dependency_is_built_on_reinstall(node_linker: Option<&str>) {
 
     drop((root, npmrc_info));
 }
+
+#[test]
+fn explicitly_denied_git_preparation_keeps_source_and_separates_cached_builds() {
+    let CommandTempCwd {
+        pacquet: _,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    let repo = GitRepoFixture::init(root.path(), "denied-prepare");
+    repo.write_file("index.js", "module.exports = 42");
+    repo.write_file("package.json", &json!({
+        "name": "denied-prepare", "version": "1.0.0",
+        "scripts": {
+            "prepare": r#"node -e "require('fs').writeFileSync('prepare.txt', 'prepared')""#,
+            "postinstall": r#"node -e "require('fs').writeFileSync('postinstall.txt', 'built')""#,
+        },
+    }).to_string());
+    let commit = repo.commit("init");
+    let spec = repo.git_url_at(&commit);
+    write_dependencies(&workspace, &[("denied-prepare", &spec)]);
+    let config_path = workspace.join("pnpm-workspace.yaml");
+    let config = fs::read_to_string(&config_path).expect("read workspace config");
+    for allowed in [false, false, true, false] {
+        let modules = workspace.join("node_modules");
+        if modules.exists() {
+            fs::remove_dir_all(&modules).expect("remove node_modules");
+        }
+        let key =
+            if allowed { format!("denied-prepare@{spec}") } else { "denied-prepare".to_string() };
+        fs::write(&config_path, format!("{config}\nallowBuilds:\n  '{key}': {allowed}\n"))
+            .expect("write build policy");
+        pnpm_at(&workspace)
+            .with_arg("install")
+            .assert()
+            .success();
+        assert_eq!(
+            fs::read_to_string(modules.join("denied-prepare/index.js")).unwrap(),
+            "module.exports = 42",
+        );
+        assert_eq!(modules.join("denied-prepare/prepare.txt").exists(), allowed);
+        assert_eq!(modules.join("denied-prepare/postinstall.txt").exists(), allowed);
+    }
+    drop((root, npmrc_info));
+}

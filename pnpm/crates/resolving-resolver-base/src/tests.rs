@@ -155,6 +155,7 @@ impl Resolver for StubResolver {
                     latest: None,
                     published_at: None,
                     manifest: None,
+                    non_deprecated_alternative: None,
                 },
             }))
         })

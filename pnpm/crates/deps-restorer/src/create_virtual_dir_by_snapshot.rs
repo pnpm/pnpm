@@ -111,7 +111,7 @@ impl CreateVirtualDirBySnapshot<'_> {
             self.cas_paths,
             &slot.save_path,
             self.source.build_marker,
-            interrupted_build,
+            (interrupted_build, self.source.force),
         );
         let cas_paths = marked_cas_paths.as_ref().unwrap_or(self.cas_paths);
 
@@ -173,9 +173,16 @@ impl CreateVirtualDirBySnapshot<'_> {
         cas_paths: &HashMap<String, PathBuf>,
         interrupted_build: bool,
     ) -> Result<(), CreateVirtualDirError> {
-        // A slot with an interrupted build re-imports with `force`,
-        // which the cache's fresh-destination clone cannot serve.
+        // An interrupted build and a forced import both re-import with
+        // `force`, which the cache's fresh-destination clone cannot serve.
+        // For the forced one that is also a correctness bar, not just a
+        // capability one: `DirCloneCache::canonical_slot_ready` materializes
+        // the canonical slot with `force: false`, so cloning from it could
+        // reproduce the very stale bytes `--force` is meant to replace. Both
+        // callers already withhold the cache through `dir_clone_cacheable`;
+        // repeating it here keeps the guarantee off a caller's memory.
         if !interrupted_build
+            && !self.source.force
             && let Some(cache) = self.dir_clone_cache
             && cache.try_import::<Reporter>(
                 self.import.logged_methods,
@@ -306,14 +313,23 @@ fn create_slot_dirs(
 
 /// The CAS paths plus a `.pnpm-needs-build` marker, when the slot has to carry
 /// one it does not already have.
+///
+/// A finished slot's completion marker is normally proof that its build
+/// ran too, so the marker is left out. Two cases break that and have to
+/// carry it anyway: a build this install interrupted, and a forced
+/// re-import, which replaces the slot's files with the pristine base map
+/// and so undoes whatever the build did to them. Without the marker
+/// [`slot_carries_overlay`](crate::build_modules::slot_carries_overlay) would read the re-imported files as a
+/// cache hit and skip the rebuild.
 fn cas_paths_with_build_marker(
     cas_paths: &HashMap<String, PathBuf>,
     save_path: &Path,
     needs_build_marker_source: Option<&Path>,
-    interrupted_build: bool,
+    forced: (bool, bool),
 ) -> Option<HashMap<String, PathBuf>> {
+    let (interrupted_build, force_import) = forced;
     let source = needs_build_marker_source?;
-    if !interrupted_build && marker_present(save_path, cas_paths) {
+    if !interrupted_build && !force_import && marker_present(save_path, cas_paths) {
         return None;
     }
     let mut paths = cas_paths.clone();
@@ -370,14 +386,14 @@ pub fn optimistic_wire_method(method: PackageImportMethod) -> WireImportMethod {
 /// when another scoped sibling keeps it populated). `remove_symlink_dir`
 /// unlinks the symlink itself, never its target package.
 ///
-/// `is_subdir` is the traversal guard: `PkgName` parsing accepts shapes
-/// such as `..` that would resolve outside the slot, so an alias that
-/// doesn't stay within `node_modules` is skipped rather than removed.
+/// Invalid npm dependency names are ignored.
 fn remove_obsolete_child(
     virtual_node_modules_dir: &Path,
     alias: &PkgName,
 ) -> Result<(), CreateVirtualDirError> {
-    let child_path = virtual_node_modules_dir.join(alias.to_string());
+    let Ok(child_path) = safe_join_modules_dir(virtual_node_modules_dir, &alias.to_string()) else {
+        return Ok(());
+    };
     if !is_subdir(virtual_node_modules_dir, &child_path) {
         return Ok(());
     }

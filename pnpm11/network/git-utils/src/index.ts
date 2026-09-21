@@ -30,6 +30,16 @@ export async function getCurrentBranch (opts: GitCwdOptions = {}): Promise<strin
   }
 }
 
+/** Returns false when Git cannot verify HEAD or HEAD refers to a branch. */
+export async function isHeadDetached (opts: GitCwdOptions = {}): Promise<boolean> {
+  try {
+    const { stdout } = await execa('git', ['rev-parse', '--verify', '--symbolic-full-name', 'HEAD'], { cwd: opts.cwd })
+    return stdout === 'HEAD'
+  } catch {
+    return false
+  }
+}
+
 export async function isWorkingTreeClean (opts: GitCwdOptions = {}): Promise<boolean> {
   try {
     const { stdout: status } = await execa('git', ['status', '--porcelain'], { cwd: opts.cwd })
@@ -95,5 +105,42 @@ function readBranchFromHeadFile (cwd?: string): string | null | undefined {
     return null
   } catch {
     return undefined
+  }
+}
+
+/**
+ * The environment for a git invocation that must fail fast instead of waiting
+ * on the terminal. pnpm runs git behind a live-updating reporter that repaints
+ * over anything git or ssh prints, so a credential, passphrase, or host-key
+ * prompt would be invisible and the install would look hung.
+ *
+ * `GIT_TERMINAL_PROMPT=0` covers git's own prompts. ssh prompts on the
+ * terminal directly, so it is run with `BatchMode=yes`, unless the user
+ * selected the ssh command themselves through `GIT_SSH_COMMAND`, `GIT_SSH`,
+ * or the `core.sshCommand` git setting in effect in `cwd`, the directory the
+ * invocation runs in.
+ *
+ * The process environment is snapshotted per call, so a change a long-lived
+ * host process makes to auth or proxy variables reaches the next invocation.
+ */
+export async function nonInteractiveGitEnv (opts: GitCwdOptions = {}): Promise<NodeJS.ProcessEnv> {
+  const gitEnv: NodeJS.ProcessEnv = { ...process.env, GIT_TERMINAL_PROMPT: '0' }
+  if (gitEnv.GIT_SSH_COMMAND === undefined && gitEnv.GIT_SSH === undefined && !(await hasConfiguredSshCommand(opts))) {
+    gitEnv.GIT_SSH_COMMAND = 'ssh -o BatchMode=yes'
+  }
+  return gitEnv
+}
+
+/**
+ * Whether git configuration selects the ssh command through `core.sshCommand`.
+ * A missing git reads as not configured; the invocation that follows fails on
+ * the missing executable with its own error.
+ */
+async function hasConfiguredSshCommand (opts: GitCwdOptions): Promise<boolean> {
+  try {
+    await execa('git', ['config', '--get', 'core.sshCommand'], { cwd: opts.cwd })
+    return true
+  } catch {
+    return false
   }
 }

@@ -1,7 +1,7 @@
 use super::{
     Arc, Catalogs, Config, HashSet, IncludedDependencies, Lockfile, Modules, NodeLinker,
     PackageManifest, Path, PathBuf, ProjectMutation, RebuildOptions, ResolutionVerifier,
-    WorkspaceInstallSelection,
+    WorkspaceInstallSelection, WorkspaceState,
 };
 use pnpm_store_dir::VerifiedFileIntegrity;
 
@@ -17,10 +17,13 @@ pub(crate) struct ApplyPriorState {
     pub(crate) layout: Option<pnpm_modules_yaml::ModulesLayout>,
     pub(crate) metadata: Option<Modules>,
     pub(crate) is_inconsistent: bool,
+    /// See [`RecordedWorkspace::moved`].
+    pub(crate) tree_moved: bool,
 }
 
 pub(crate) struct ApplyProjectSelection<'a> {
     pub(crate) importers: SelectedImporters<'a>,
+    pub(crate) workspace_packages: Option<pnpm_resolving_resolver_base::WorkspacePackages>,
     pub(crate) workspace_root: PathBuf,
     pub(crate) included: IncludedDependencies,
     pub(crate) node_linker: NodeLinker,
@@ -141,6 +144,7 @@ pub(crate) struct InstallProjectMetadata<'a> {
     pub(crate) catalogs: &'a Catalogs,
     pub(crate) manifests: &'a [(PathBuf, &'a PackageManifest)],
     pub(crate) prefix: &'a str,
+    pub(crate) workspace_packages: Option<&'a pnpm_resolving_resolver_base::WorkspacePackages>,
 }
 
 #[derive(Clone, Copy)]
@@ -166,4 +170,17 @@ pub(crate) struct PruneEligibility {
     pub(crate) resolve_only: bool,
     pub(crate) is_inconsistent: bool,
     pub(crate) filtered_install: bool,
+}
+
+/// What the last install recorded about the workspace, against the projects
+/// the tree holds now.
+#[derive(Clone, Copy)]
+pub(crate) struct RecordedWorkspace<'a> {
+    pub(crate) state: Option<&'a WorkspaceState>,
+    /// A known or potentially moved tree, where moves are supported
+    /// ([`crate::install::tree_may_move`]). No current project is one `state`
+    /// records, or an existing tree has no readable state to prove its origin.
+    /// Its bins may still name where it was.
+    pub(crate) moved: bool,
+    pub(crate) projects: &'a [(PathBuf, &'a PackageManifest)],
 }

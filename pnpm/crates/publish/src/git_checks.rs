@@ -5,7 +5,8 @@ use std::path::Path;
 
 use pnpm_diagnostics::miette::{self, Diagnostic};
 use pnpm_git_utils::{
-    get_current_branch, is_git_repo, is_remote_history_clean, is_working_tree_clean,
+    get_current_branch, is_git_repo, is_head_detached, is_remote_history_clean,
+    is_working_tree_clean,
 };
 
 use crate::capabilities::{ConfirmPrompt, RunCommand};
@@ -13,11 +14,13 @@ use crate::capabilities::{ConfirmPrompt, RunCommand};
 const GIT_CHECKS_HINT: &str = r#"If you want to disable Git checks on publish, set the "git-checks" setting to "false", or run again with "--no-git-checks"."#;
 
 /// Run the publish git checks for `cwd`. A no-op when `git_checks_enabled` is
-/// false or `cwd` is not a git repository.
+/// false or `cwd` is not a git repository. A detached HEAD is allowed in CI
+/// after checking that the working tree is clean.
 pub fn run_git_checks<Sys>(
     cwd: &Path,
     git_checks_enabled: bool,
     publish_branch: Option<&str>,
+    ci: bool,
 ) -> Result<(), GitCheckError>
 where
     Sys: RunCommand + ConfirmPrompt,
@@ -34,25 +37,38 @@ where
         Some(branch) => vec![branch.to_owned()],
         None => vec!["master".to_owned(), "main".to_owned()],
     };
-    let branches_display = branches.join("|");
-
-    let Some(current_branch) = get_current_branch::<Sys>(cwd) else {
-        return Err(GitCheckError::UnknownBranch { branches: branches_display });
+    let current_branch = match get_current_branch::<Sys>(cwd) {
+        Some(branch) => branch,
+        None if ci && is_head_detached::<Sys>(cwd) => return Ok(()),
+        None => return Err(GitCheckError::UnknownBranch { branches: branches.join("|") }),
     };
 
-    if !branches.contains(&current_branch) {
-        let message = format!(
-            r#"You're on branch "{current_branch}" but your "publish-branch" is set to "{branches_display}". Do you want to continue?"#,
-        );
-        if !Sys::confirm(&message) {
-            return Err(GitCheckError::NotCorrectBranch { branches: branches_display });
-        }
-    }
+    check_publish_branch::<Sys>(&current_branch, &branches)?;
 
     if !is_remote_history_clean::<Sys>(cwd) {
         return Err(GitCheckError::NotLatest);
     }
 
+    Ok(())
+}
+
+fn check_publish_branch<Sys: ConfirmPrompt>(
+    current_branch: &str,
+    branches: &[String],
+) -> Result<(), GitCheckError> {
+    if branches
+        .iter()
+        .any(|branch| branch == current_branch)
+    {
+        return Ok(());
+    }
+    let branches_display = branches.join("|");
+    let message = format!(
+        r#"You're on branch "{current_branch}" but your "publish-branch" is set to "{branches_display}". Do you want to continue?"#,
+    );
+    if !Sys::confirm(&message) {
+        return Err(GitCheckError::NotCorrectBranch { branches: branches_display });
+    }
     Ok(())
 }
 

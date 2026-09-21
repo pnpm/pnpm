@@ -8,4 +8,5 @@ fn apply_registry_and_warn_drains_warnings() {
     let mut config = Config::new();
     auth.apply_registry_and_warn(&mut config, &mut DeclaredRegistries::default());
     assert!(auth.warnings.is_empty(), "warnings should be drained after flush");
+    assert_eq!(config.npmrc_warnings, vec!["Failed to replace env in config: ${MISSING}"]);
 }

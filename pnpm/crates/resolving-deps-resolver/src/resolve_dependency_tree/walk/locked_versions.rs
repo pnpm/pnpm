@@ -102,6 +102,9 @@ pub(super) fn pin_locked_version(
 ) {
     let locked_version = prior_key.and_then(|key| key.suffix.version_semver());
     if depth > 0
+        && !prior_key.is_some_and(|key| {
+            ctx.workspace.reuse.dedupe.covers(&key.name.to_string(), locked_version)
+        })
         && !update_unpins_edge(ctx.update_scope(), wanted, locked_version, depth)
         && let Some(version) = locked_version
         && wanted.bare_specifier

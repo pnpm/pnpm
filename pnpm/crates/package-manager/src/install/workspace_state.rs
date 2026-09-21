@@ -219,34 +219,61 @@ pub fn build_workspace_packages_map(
     let mut map: pnpm_resolving_resolver_base::WorkspacePackages =
         std::collections::BTreeMap::new();
     for project in projects {
-        let Some(name) = manifest_string_field(&project.manifest, "name") else { continue };
-        let version = match project.manifest.value().get("version") {
-            None => "0.0.0".to_string(),
-            Some(value) if value.is_null() => "0.0.0".to_string(),
-            Some(value) => {
-                let Some(version) = value.as_str() else { continue };
-                version.to_string()
-            }
-        };
-        map.entry(name)
-            .or_default()
-            .insert(
-                version,
-                pnpm_resolving_resolver_base::WorkspacePackage {
-                    root_dir: project.root_dir.clone(),
-                    // The map feeds workspace picks resolved as *dependencies*
-                    // (injected instances), so a project that splits its two
-                    // views contributes its dependency manifest here — see
-                    // `pnpm_workspace::Project::dependency_manifest`.
-                    manifest: project.dependency_manifest
-                        .as_ref()
-                        .unwrap_or(&project.manifest)
-                        .value()
-                        .clone(),
-                },
-            );
+        insert_workspace_package(
+            &mut map,
+            &project.root_dir,
+            &project.manifest,
+            project.dependency_manifest.as_ref().unwrap_or(&project.manifest),
+        );
     }
     Some(map)
+}
+
+pub(crate) fn build_workspace_packages_map_from_manifests(
+    projects: &[(PathBuf, &PackageManifest)],
+) -> pnpm_resolving_resolver_base::WorkspacePackages {
+    let mut map = std::collections::BTreeMap::new();
+    for (root_dir, manifest) in projects {
+        insert_workspace_package(&mut map, root_dir, manifest, manifest);
+    }
+    map
+}
+
+pub(crate) fn workspace_packages_for_freshness(
+    config: &Config,
+    is_workspace_install: bool,
+    projects: &[(PathBuf, &PackageManifest)],
+) -> Option<pnpm_resolving_resolver_base::WorkspacePackages> {
+    (is_workspace_install
+        && config.exclude_links_from_lockfile
+        && config.link_workspace_packages.enabled_at_depth(0))
+    .then(|| build_workspace_packages_map_from_manifests(projects))
+}
+
+fn insert_workspace_package(
+    map: &mut pnpm_resolving_resolver_base::WorkspacePackages,
+    root_dir: &Path,
+    identity_manifest: &PackageManifest,
+    dependency_manifest: &PackageManifest,
+) {
+    let Some(name) = manifest_string_field(identity_manifest, "name") else { return };
+    let version = match identity_manifest.value().get("version") {
+        None => "0.0.0".to_string(),
+        Some(value) if value.is_null() => "0.0.0".to_string(),
+        Some(value) => {
+            let Some(version) = value.as_str() else { return };
+            version.to_string()
+        }
+    };
+    map.entry(name)
+        .or_default()
+        .insert(
+            version,
+            pnpm_resolving_resolver_base::WorkspacePackage {
+                root_dir: root_dir.to_path_buf(),
+                manifest: dependency_manifest.value().clone(),
+            },
+        );
 }
 
 /// Build the `projects` map for [`WorkspaceState`] from the
@@ -299,7 +326,7 @@ pub(crate) fn build_workspace_state<Sys: Clock>(
     filtered_install: bool,
     filesystem_now_ms: Option<i64>,
 ) -> WorkspaceState {
-    WorkspaceState {
+    let mut state = WorkspaceState {
         last_validated_timestamp: refreshed_validation_baseline_ms(
             validation_baseline_ms(workspace_root, config, project_manifests)
                 .unwrap_or_else(|| pnpm_workspace_state::millis_since_epoch(Sys::now())),
@@ -322,7 +349,10 @@ pub(crate) fn build_workspace_state<Sys: Clock>(
             supported_architectures,
             catalogs,
         ),
-    }
+    };
+    // Frozen installs share this builder and cannot establish a deduplication baseline.
+    state.settings.auto_dedupe = None;
+    state
 }
 
 /// The wanted lockfile, read on first use — or a stand-in that never reads

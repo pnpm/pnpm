@@ -14,9 +14,13 @@
 //!
 //! [#431]: https://github.com/pnpm/pacquet/issues/431
 
+pub use membership::{belongs_to_workspace, is_workspace_project_dir, needs_package_patterns};
+
 use crate::{
     directory_patterns::{negated_directory_pattern, normalize_directory_pattern},
-    project_manifest::{ReadProjectManifestError, read_exact_project_manifest},
+    project_manifest::{
+        PROJECT_MANIFEST_BASENAMES, ReadProjectManifestError, read_exact_project_manifest,
+    },
 };
 use derive_more::{Display, Error};
 use miette::Diagnostic;
@@ -462,11 +466,6 @@ fn read_first_project_manifest(
             {
                 continue;
             }
-            Err(ReadProjectManifestError::ReadFile { source, .. })
-                if source.kind() == ErrorKind::NotFound =>
-            {
-                continue;
-            }
             Err(ReadProjectManifestError::Read(PackageManifestError::NoImporterManifestFound(
                 _,
             ))) => continue,
@@ -487,7 +486,6 @@ const IGNORE_PATTERNS: &[&str] = &["**/node_modules/**", "**/bower_components/**
 /// descend into `.git`, `.cache`, and friends. Applied only to patterns that
 /// do not name a dot component themselves — see [`positional_dot_ignores`].
 const DOT_COMPONENT_IGNORE_PATTERN: &str = "**/.*/**";
-const PROJECT_MANIFEST_BASENAMES: &[&str] = &["package.json", "package.yaml"];
 
 /// A configured include pattern. `normalized` drives discovery; `source` is
 /// the text an invalid-glob diagnostic quotes back to the user.
@@ -495,6 +493,8 @@ struct WorkspacePattern<'source> {
     source: &'source str,
     normalized: String,
 }
+
+mod membership;
 
 #[cfg(test)]
 mod tests;

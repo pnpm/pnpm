@@ -153,17 +153,7 @@ fn root_global_writes_warnings_to_stderr_so_stdout_stays_a_clean_path() {
 /// Differential parity: from a workspace subdirectory pnpm's `root` prints the
 /// cwd's `node_modules` (its `config.dir` is the cwd, not the workspace root).
 /// pacquet must print byte-identical output.
-///
-/// Skipped on Windows, where pnpm is installed as a `pnpm.cmd` shim and
-/// `std::process::Command` does not honor `PATHEXT`, so `Command::new("pnpm")`
-/// fails with "program not found" (the same reason `pnpm_compatibility.rs` and
-/// `hoist.rs` gate their pnpm-spawning tests). The three tests above spawn only
-/// `pacquet`, so they keep running on Windows.
 #[test]
-#[cfg_attr(
-    target_os = "windows",
-    ignore = "spawns the external `pnpm` shim (`pnpm.cmd`); std::process::Command can't resolve it via PATHEXT"
-)]
 fn root_matches_pnpm_from_a_workspace_subdir() {
     let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
 

@@ -33,14 +33,19 @@ msys=""
 
 case \`command -p uname -a\` in
   *CYGWIN*|*MINGW*|*MSYS*)
-    if command -v cygpath > /dev/null 2>&1; then
+    if converted=$(command -p cygpath -w "$basedir" 2>/dev/null) && [ -n "$converted" ]; then
+      basedir_win="$converted"
+    elif command -v cygpath > /dev/null 2>&1; then
       basedir_win=\`cygpath -w "$basedir"\`
     fi
     exe=".exe"
     msys="true"
   ;;
   *WSL2*)
-    if command -v wslpath > /dev/null 2>&1; then
+    if converted=$(command -p wslpath -w "$basedir" 2>/dev/null) && [ -n "$converted" ]; then
+      basedir_win="$converted"
+      exe=".exe"
+    elif command -v wslpath > /dev/null 2>&1; then
       basedir_win="$(wslpath -w "$basedir" 2> /dev/null)"
       if [ $? -ne 0 ] || [ -z "$basedir_win" ]; then
         basedir_win="$basedir"

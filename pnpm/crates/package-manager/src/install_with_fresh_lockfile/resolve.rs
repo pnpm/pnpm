@@ -246,6 +246,7 @@ impl ImporterInputs<'_> {
                 pick_lowest_direct: self.versions.pick_lowest,
                 subdep_published_by: self.versions.published_by,
                 catalogs: self.catalogs.clone(),
+                catalogs_dir: self.config.workspace_dir.clone(),
                 catalog_server: false,
             },
             hooks: self.hooks.clone(),
@@ -297,17 +298,12 @@ impl WorkspaceWalk {
     }
 }
 
-/// Walk every importer's dependencies through the resolver chain.
-///
-/// Each importer resolves with its own `project_dir` so `workspace:` /
-/// `link:` resolutions compute paths relative to the consuming project,
-/// while the resolver chain's shared packument, fetch-locker, and
-/// picked-manifest caches keep the metadata and version-pick work
-/// amortized across importers. `resolve_workspace` then runs the
-/// cross-importer peer pass and applies `dedupeInjectedDeps`.
-pub(super) async fn run_resolve_pass<Reporter: pnpm_reporter::Reporter>(
+pub(super) async fn run_dependency_pass<Reporter: pnpm_reporter::Reporter>(
     inputs: ResolvePassInputs<'_>,
-) -> Result<pnpm_resolving_deps_resolver::ResolveWorkspaceResult, InstallWithFreshLockfileError> {
+) -> Result<
+    pnpm_resolving_deps_resolver::ResolvedWorkspaceDependencies,
+    InstallWithFreshLockfileError,
+> {
     let ResolvePassInputs {
         resolver,
         importer_manifests,
@@ -326,7 +322,7 @@ pub(super) async fn run_resolve_pass<Reporter: pnpm_reporter::Reporter>(
     let modules_basename = per_importer.config.modules_dir
         .file_name()
         .map_or_else(|| std::ffi::OsString::from("node_modules"), std::ffi::OsStr::to_os_string);
-    pnpm_resolving_deps_resolver::resolve_workspace(
+    pnpm_resolving_deps_resolver::resolve_workspace_dependencies(
         resolver,
         &workspace_importers,
         dependency_groups,
@@ -334,12 +330,16 @@ pub(super) async fn run_resolve_pass<Reporter: pnpm_reporter::Reporter>(
         |importer| per_importer.resolve_importer_options(importer, &modules_basename),
     )
     .await
-    .map_err(|err| match err {
+    .map_err(resolve_error)
+}
+
+pub(super) fn resolve_error(err: ResolveImporterError) -> InstallWithFreshLockfileError {
+    match err {
         ResolveImporterError::Resolve(err) => {
             InstallWithFreshLockfileError::ResolveDependencyTree(err)
         }
         ResolveImporterError::RootDepManifest(err) => {
             InstallWithFreshLockfileError::RootDepManifest(err)
         }
-    })
+    }
 }

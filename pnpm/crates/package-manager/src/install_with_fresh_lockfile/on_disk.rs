@@ -140,10 +140,7 @@ impl<'a> OnDiskInputs<'a> {
             ctx: self.ctx,
 
             entries: self.projects.materialization_lockfile.into(),
-            current_entries: LockfileEntries::of_previous_install(
-                self.install.prior.lockfile,
-                self.ctx.config.force,
-            ),
+            current_entries: LockfileEntries::of_previous_install(self.install.prior.lockfile),
 
             dir_clone_cache: self.store.dir_clone_cache,
             // Share the resolve-time prefetcher's in-flight downloads with
@@ -173,6 +170,25 @@ impl<'a> OnDiskInputs<'a> {
         Ok(materialized)
     }
 
+    /// The graphs the link phase reconciles. A tree that moved with its
+    /// project relinks every slot's bins, not only the materialized ones.
+    fn link_lockfiles<'b>(
+        &self,
+        materialized_snapshots: &'b [pnpm_lockfile::PackageKey],
+    ) -> pnpm_deps_restorer::LinkLockfiles<'b>
+    where
+        'a: 'b,
+    {
+        pnpm_deps_restorer::LinkLockfiles {
+            lockfile: self.projects.materialization_lockfile,
+            current_lockfile: self.install.prior.lockfile,
+            materialized_snapshots: (!self.install.prior.relink_every_slot_bin).then_some(
+                materialized_snapshots,
+            ),
+            sidecar_lockfile: self.projects.materialization_lockfile,
+        }
+    }
+
     /// Link the materialized store into every project and report
     /// `importing_done`, which reporters use to close the import progress
     /// display before the `pnpm:lifecycle` events of the build.
@@ -188,12 +204,7 @@ impl<'a> OnDiskInputs<'a> {
 
         let linked = pnpm_deps_restorer::linking::run_link_phase::<Reporter>(
             pnpm_deps_restorer::linking::LinkPhaseInputs {
-                graph: pnpm_deps_restorer::LinkLockfiles {
-                    lockfile: self.projects.materialization_lockfile,
-                    current_lockfile: self.install.prior.lockfile,
-                    materialized_snapshots: Some(&materialized.materialized_snapshots),
-                    sidecar_lockfile: self.projects.materialization_lockfile,
-                },
+                graph: self.link_lockfiles(&materialized.materialized_snapshots),
                 packages: pnpm_deps_restorer::LinkPackageData {
                     package_manifests: &materialized.package_manifests,
                     requires_build_by_snapshot: None,
@@ -428,6 +439,7 @@ impl<'a> super::FreshPriorInstall<'a> {
             // Rebuilds take the frozen path; a policy change rebuilds present packages here.
             build_present_packages: self.allow_builds_changed,
             unbuilt_builds: self.unbuilt_builds,
+            previously_skipped: self.previously_skipped,
         }
     }
 }

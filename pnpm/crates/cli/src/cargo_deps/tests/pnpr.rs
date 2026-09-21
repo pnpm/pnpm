@@ -77,7 +77,7 @@ async fn configured_cargo_registry_is_sent_to_the_pnpr_server() {
     let mut config = config_for_pnpr(&server.url());
     config.indexes_by_ecosystem.insert(
         pnpm_config::Ecosystem::Cargo,
-        vec!["https://registry.example.test/index/".to_string()],
+        vec!["https://registry.example.test/index/".to_string().into()],
     );
 
     let lockfile = resolve_via_pnpr(&config, r#"{"packages":[],"workspace_members":[]}"#)

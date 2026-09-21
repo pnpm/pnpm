@@ -99,12 +99,12 @@ pub fn validate_configured_pnpmfiles(
 /// pnpmfile itself requires a missing module, say — is an execution failure and
 /// must keep reporting as one. Hence a bare existence test rather than
 /// [`Path::is_file`], and the `.cjs` suffix pnpm appends to a path that names
-/// neither module extension itself.
+/// none of the supported module extensions itself.
 fn pnpmfile_exists(path: &Path) -> bool {
     let names_a_module = path
         .extension()
         .and_then(std::ffi::OsStr::to_str)
-        .is_some_and(|extension| matches!(extension, "cjs" | "mjs"));
+        .is_some_and(|extension| matches!(extension, "cjs" | "js" | "mjs"));
     if names_a_module {
         return path.exists();
     }
@@ -184,6 +184,27 @@ impl PnpmfileHooks for CombinedPnpmfileHooks {
             }
         }
         true
+    }
+
+    async fn has_read_package(&self) -> Result<bool, HookError> {
+        for hook in &self.hooks {
+            if hook.has_read_package().await? {
+                return Ok(true);
+            }
+        }
+        Ok(false)
+    }
+
+    async fn untracked_read_package_hook(&self) -> Result<Option<bool>, HookError> {
+        if self.checksum_skips == 0 {
+            return Ok(None);
+        }
+        for hook in self.hooks.iter().take(self.checksum_skips) {
+            if hook.has_read_package().await? {
+                return Ok(Some(true));
+            }
+        }
+        Ok(Some(false))
     }
 
     async fn calculate_pnpmfile_checksum(&self) -> Option<String> {

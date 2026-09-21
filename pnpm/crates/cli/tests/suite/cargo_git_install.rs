@@ -1,7 +1,7 @@
 use super::cargo_install::{cargo_workspace, crate_archive, install_in};
 use assert_cmd::prelude::*;
 use pnpm_cargo_resolver::CRATES_IO_SPARSE_INDEX;
-use pnpm_testing_utils::git_repo::GitRepoFixture;
+use pnpm_testing_utils::{diagnostics::assert_diagnostic_contains, git_repo::GitRepoFixture};
 use sha2::{Digest, Sha256};
 use std::{fs, process::Command};
 use tempfile::TempDir;
@@ -643,7 +643,10 @@ fn submodule_fetching_preserves_the_callers_transport_allowlist() {
 
     eprintln!("A file-only caller must reject an HTTP submodule: {output:?}");
     assert!(!output.status.success());
-    assert!(String::from_utf8_lossy(&output.stderr).contains("transport 'http' not allowed"));
+    assert_diagnostic_contains(
+        &String::from_utf8_lossy(&output.stderr),
+        "transport 'http' not allowed",
+    );
     assert!(
         !root
             .path()

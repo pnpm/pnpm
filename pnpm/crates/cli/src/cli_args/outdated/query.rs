@@ -1,9 +1,9 @@
 use super::{
-    Arc, CatalogResolutionResult, CatalogWantedDependency, Catalogs, Config, Cow, DependencyGroup,
-    HashMap, InMemoryPackageMetaCache, LatestQuery, Lockfile, Matcher, NpmResolver,
-    PackageManifest, PickPolicy, ResolveOptions, ResolverWantedDependency, ThrottledClient,
-    Version, configured_catalogs, create_configured_npm_resolver, create_matcher, github_actions,
-    parse_catalog_protocol, resolve_from_catalog,
+    Arc, CatalogAnchor, CatalogResolutionResult, CatalogWantedDependency, Catalogs, Config, Cow,
+    DependencyGroup, HashMap, InMemoryPackageMetaCache, LatestQuery, Lockfile, Matcher,
+    NpmResolver, PackageManifest, PickPolicy, ResolveOptions, ResolverWantedDependency,
+    ThrottledClient, Version, configured_catalogs, create_configured_npm_resolver, create_matcher,
+    github_actions, parse_catalog_protocol, resolve_from_catalog,
 };
 use pnpm_resolving_resolver_base::Resolver;
 
@@ -285,6 +285,10 @@ async fn outdated_dependency(
 /// so both the queried package name and the `--compatible` range come
 /// from the catalog entry — which may itself be an npm alias
 /// (`npm:@types/table@^6`). Any other specifier passes through.
+///
+/// The entry is reported as the catalog writes it: `pnpm outdated`
+/// displays and version-matches the specifier rather than installing
+/// from it, and a registry query has no use for a re-anchored path.
 fn dereference_catalog<'a>(
     catalogs: &Catalogs,
     alias: &str,
@@ -300,7 +304,7 @@ fn dereference_catalog<'a>(
         alias: alias.to_string(),
         bare_specifier: bare_specifier.to_string(),
     };
-    match resolve_from_catalog(catalogs, &wanted) {
+    match resolve_from_catalog(catalogs, &wanted, CatalogAnchor::AsWritten) {
         CatalogResolutionResult::Found(found) => Ok(Cow::Owned(found.resolution.specifier)),
         CatalogResolutionResult::Misconfiguration(misconfiguration) => {
             Err(miette::Report::new(misconfiguration.error))

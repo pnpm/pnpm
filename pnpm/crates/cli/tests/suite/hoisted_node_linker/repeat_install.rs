@@ -1,8 +1,8 @@
 use super::{
-    AddMockedRegistry, CommandExtra, CommandTempCwd, MetadataExt, ModulesHost, fs,
+    AddMockedRegistry, CommandExtra, CommandTempCwd, DirWitness, ModulesHost, fs,
     fs_remove_dir_all, is_real_dir, is_symlink_or_junction, pacquet_at, pacquet_in,
-    read_modules_manifest, read_pkg_version, retouch_recorded_integrity, symlink, write_manifest,
-    write_workspace_yaml,
+    read_modules_manifest, read_pkg_version, retouch_recorded_integrity, symlink_dir, symlink_file,
+    write_manifest, write_workspace_yaml,
 };
 use assert_cmd::assert::OutputAssertExt;
 
@@ -104,10 +104,9 @@ fn a_repeat_frozen_install_leaves_present_hoisted_packages_alone() {
 
     let registry_dirs =
         ["node_modules/ms", "node_modules/send", "node_modules/send/node_modules/ms"];
-    let inode = |relative: &str| fs::metadata(workspace.join(relative)).unwrap().ino();
-    let before: Vec<u64> = registry_dirs
+    let witnesses: Vec<DirWitness> = registry_dirs
         .iter()
-        .map(|relative| inode(relative))
+        .map(|relative| DirWitness::take(&workspace.join(relative)))
         .collect();
 
     write_local("second");
@@ -124,11 +123,8 @@ fn a_repeat_frozen_install_leaves_present_hoisted_packages_alone() {
         "second",
         "the directory dependency is re-copied, so the linker did run",
     );
-    let after: Vec<u64> = registry_dirs
-        .iter()
-        .map(|relative| inode(relative))
-        .collect();
-    assert_eq!(before, after, "registry packages were left in place");
+
+    assert!(witnesses.iter().all(DirWitness::is_intact), "registry packages were left in place");
 
     drop((root, mock_instance));
 }
@@ -215,10 +211,9 @@ fn adding_a_dependency_leaves_present_hoisted_packages_alone() {
 
     let registry_dirs =
         ["node_modules/ms", "node_modules/send", "node_modules/send/node_modules/ms"];
-    let inode = |relative: &str| fs::metadata(workspace.join(relative)).unwrap().ino();
-    let before: Vec<u64> = registry_dirs
+    let witnesses: Vec<DirWitness> = registry_dirs
         .iter()
-        .map(|relative| inode(relative))
+        .map(|relative| DirWitness::take(&workspace.join(relative)))
         .collect();
 
     let output = pacquet_at(&workspace)
@@ -230,11 +225,11 @@ fn adding_a_dependency_leaves_present_hoisted_packages_alone() {
     assert!(stdout.contains("Packages: +1\n"), "stdout:\n{stdout}");
 
     assert!(is_real_dir(&workspace, "node_modules/is-positive"), "the new package landed");
-    let after: Vec<u64> = registry_dirs
-        .iter()
-        .map(|relative| inode(relative))
-        .collect();
-    assert_eq!(before, after, "the packages already in place were left alone");
+
+    assert!(
+        witnesses.iter().all(DirWitness::is_intact),
+        "the packages already in place were left alone",
+    );
 
     drop((root, mock_instance));
 }
@@ -329,9 +324,8 @@ fn a_repeat_frozen_install_reimports_a_hoisted_package_whose_resolution_changed(
         .assert()
         .success();
 
-    let inode = |relative: &str| fs::metadata(workspace.join(relative)).unwrap().ino();
-    let is_positive_before = inode("node_modules/is-positive");
-    let ms_before = inode("node_modules/ms");
+    let is_positive = DirWitness::take(&workspace.join("node_modules/is-positive"));
+    let ms = DirWitness::take(&workspace.join("node_modules/ms"));
 
     retouch_recorded_integrity(&workspace, "is-positive@1.0.0");
 
@@ -340,12 +334,8 @@ fn a_repeat_frozen_install_reimports_a_hoisted_package_whose_resolution_changed(
         .assert()
         .success();
 
-    assert_ne!(
-        is_positive_before,
-        inode("node_modules/is-positive"),
-        "the package whose resolution changed was imported again",
-    );
-    assert_eq!(ms_before, inode("node_modules/ms"), "its unchanged sibling was left in place");
+    assert!(!is_positive.is_intact(), "the package whose resolution changed was imported again");
+    assert!(ms.is_intact(), "its unchanged sibling was left in place");
     assert_eq!(read_pkg_version(&workspace, "node_modules/is-positive"), "1.0.0");
 
     drop((root, mock_instance));
@@ -374,9 +364,8 @@ fn adding_a_dependency_reimports_a_hoisted_package_whose_resolution_changed() {
         .assert()
         .success();
 
-    let inode = |relative: &str| fs::metadata(workspace.join(relative)).unwrap().ino();
-    let is_positive_before = inode("node_modules/is-positive");
-    let ms_before = inode("node_modules/ms");
+    let is_positive = DirWitness::take(&workspace.join("node_modules/is-positive"));
+    let ms = DirWitness::take(&workspace.join("node_modules/ms"));
 
     retouch_recorded_integrity(&workspace, "is-positive@1.0.0");
 
@@ -385,12 +374,11 @@ fn adding_a_dependency_reimports_a_hoisted_package_whose_resolution_changed() {
         .assert()
         .success();
 
-    assert_ne!(
-        is_positive_before,
-        inode("node_modules/is-positive"),
+    assert!(
+        !is_positive.is_intact(),
         "the package whose resolution changed was imported again on the fresh path",
     );
-    assert_eq!(ms_before, inode("node_modules/ms"), "its unchanged sibling was left in place");
+    assert!(ms.is_intact(), "its unchanged sibling was left in place");
 
     drop((root, mock_instance));
 }
@@ -439,7 +427,7 @@ fn a_repeat_frozen_install_replaces_a_hoisted_package_behind_a_link() {
     let hoisted = workspace.join("node_modules/ms");
     let elsewhere = workspace.join("ms-elsewhere");
     fs::rename(&hoisted, &elsewhere).expect("move ms aside");
-    symlink(&elsewhere, &hoisted).expect("link ms back into node_modules");
+    symlink_dir(&elsewhere, &hoisted).expect("link ms back into node_modules");
     assert_eq!(read_pkg_version(&workspace, "node_modules/ms"), "1.0.0");
 
     pacquet_at(&workspace)
@@ -456,7 +444,7 @@ fn a_repeat_frozen_install_replaces_a_hoisted_package_behind_a_link() {
     let manifest_elsewhere = workspace.join("ms-package.json");
     fs::copy(&manifest, &manifest_elsewhere).expect("copy the ms manifest aside");
     fs::remove_file(&manifest).expect("unlink the ms manifest");
-    symlink(&manifest_elsewhere, &manifest).expect("link the ms manifest back");
+    symlink_file(&manifest_elsewhere, &manifest).expect("link the ms manifest back");
     assert_eq!(read_pkg_version(&workspace, "node_modules/ms"), "1.0.0");
 
     pacquet_at(&workspace)
@@ -518,23 +506,18 @@ fn a_repeat_frozen_install_replaces_a_hoisted_package_behind_a_linked_scope() {
     let scope = workspace.join("node_modules/@pnpm.e2e");
     let elsewhere = workspace.join("scope-elsewhere");
     fs::rename(&scope, &elsewhere).expect("move the scope directory aside");
-    symlink(&elsewhere, &scope).expect("link the scope directory back");
+    symlink_dir(&elsewhere, &scope).expect("link the scope directory back");
     assert_eq!(read_pkg_version(&workspace, "node_modules/@pnpm.e2e/foo"), "100.0.0");
-    // A re-import stages and swaps the package directory, so the inode
+    // A re-import stages and swaps the package directory, so the identity
     // of what the link resolves to is the evidence it was written again.
-    let linked_package = elsewhere.join("foo");
-    let before = fs::metadata(&linked_package).expect("stat the linked package").ino();
+    let linked_package = DirWitness::take(&elsewhere.join("foo"));
 
     pacquet_at(&workspace)
         .with_args(["install", "--frozen-lockfile"])
         .assert()
         .success();
 
-    assert_ne!(
-        before,
-        fs::metadata(&linked_package).expect("stat the linked package").ino(),
-        "the package behind the linked scope was imported again",
-    );
+    assert!(!linked_package.is_intact(), "the package behind the linked scope was imported again");
     assert_eq!(read_pkg_version(&workspace, "node_modules/@pnpm.e2e/foo"), "100.0.0");
 
     drop((root, mock_instance));

@@ -400,6 +400,22 @@ fn pre_command_plan_skips_the_env_lockfile_sync_when_the_lockfile_is_up_to_date(
 }
 
 #[test]
+fn pre_command_plan_skips_the_env_lockfile_sync_for_a_compatible_extra_entry() {
+    let root = TempDir::new().expect("tmp dir");
+    write_dev_engine_manifest(root.path(), PNPM_VERSION);
+    write_lockfile(root.path(), &locked_package_manager_with_exe(PNPM_VERSION, PNPM_VERSION));
+
+    let plan = pre_command_plan_from_input(
+        &pre_command_input(root.path()),
+        &ConfigOverrides::default(),
+        SwitchProcessState { package_manager_switch_disabled: false, executed_by_corepack: false },
+    )
+    .expect("pre-command plan");
+
+    assert!(plan.is_none(), "unexpected pre-command plan: {plan:?}");
+}
+
+#[test]
 fn pre_command_plan_records_a_pin_whose_specifier_the_lockfile_no_longer_matches() {
     let root = TempDir::new().expect("tmp dir");
     write_dev_engine_manifest(root.path(), PNPM_VERSION);
@@ -771,6 +787,41 @@ packages:
     resolution: {{integrity: sha512-QVocwll0cx51RVwUaDcb50xapft2IbUNQFbSIkUWCfEUEvI/1gLmFp8eBgRmZB95hZfhvpYaEGiINqZ7FlaUmQ==}}
 
 snapshots:
+
+  pnpm@{version}: {{}}
+---
+",
+    )
+}
+
+fn locked_package_manager_with_exe(specifier: &str, version: &str) -> String {
+    format!(
+        r"---
+lockfileVersion: '9.0'
+
+importers:
+
+  .:
+    configDependencies: {{}}
+    packageManagerDependencies:
+      '@pnpm/exe':
+        specifier: '{specifier}'
+        version: {version}
+      pnpm:
+        specifier: '{specifier}'
+        version: {version}
+
+packages:
+
+  '@pnpm/exe@{version}':
+    resolution: {{integrity: sha512-QVocwll0cx51RVwUaDcb50xapft2IbUNQFbSIkUWCfEUEvI/1gLmFp8eBgRmZB95hZfhvpYaEGiINqZ7FlaUmQ==}}
+
+  pnpm@{version}:
+    resolution: {{integrity: sha512-QVocwll0cx51RVwUaDcb50xapft2IbUNQFbSIkUWCfEUEvI/1gLmFp8eBgRmZB95hZfhvpYaEGiINqZ7FlaUmQ==}}
+
+snapshots:
+
+  '@pnpm/exe@{version}': {{}}
 
   pnpm@{version}: {{}}
 ---

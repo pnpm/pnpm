@@ -299,7 +299,7 @@ impl InstallPackageBySnapshot<'_> {
     async fn fetch_snapshot_tarball<Reporter: self::Reporter>(
         &self,
         fetch: &SnapshotFetch<'_>,
-        allow_build: &(impl Fn(&str) -> bool + Send + Sync),
+        allow_build: &(impl Fn(&str) -> Option<bool> + Send + Sync),
     ) -> Result<HashMap<String, PathBuf>, InstallPackageBySnapshotError> {
         self.tarball_cas_paths::<Reporter>(TarballFetch {
             download: fetch.download,
@@ -312,13 +312,9 @@ impl InstallPackageBySnapshot<'_> {
         .await
     }
 
-    /// `AllowBuildPolicy::check` returns `None` when the package is
-    /// neither allow-listed nor deny-listed. The default is deny
-    /// (`None → false`): build scripts have to be explicitly opted in to
-    /// run.
-    fn allow_build(&self) -> impl Fn(&str) -> bool + Send + Sync {
+    fn allow_build(&self) -> impl Fn(&str) -> Option<bool> + Send + Sync {
         let policy = self.ctx.allow_build_policy;
-        move |dep_path: &str| policy.check(dep_path).unwrap_or(false)
+        move |dep_path: &str| policy.check(dep_path)
     }
 
     /// Under hoisted, the virtual-store slot would be unused —

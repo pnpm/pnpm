@@ -4,12 +4,15 @@ import { promisify } from 'node:util'
 
 import { beforeAll, describe, expect, it, test } from '@jest/globals'
 import type { PnpmError } from '@pnpm/error'
-import { install, update } from '@pnpm/installing.commands'
+import { add, install, update } from '@pnpm/installing.commands'
+import { streamParser } from '@pnpm/logger'
 import { prepare, preparePackages } from '@pnpm/prepare'
 import { createTestIpcServer } from '@pnpm/test-ipc-server'
 import { addDistTag, REGISTRY_MOCK_PORT } from '@pnpm/testing.registry-mock'
-import type { ProjectManifest } from '@pnpm/types'
+import type { PackageVulnerabilityAudit, ProjectManifest } from '@pnpm/types'
 import { loadJsonFileSync } from 'load-json-file'
+import { readYamlFileSync } from 'read-yaml-file'
+import { writeYamlFileSync } from 'write-yaml-file'
 
 import { DEFAULT_OPTS } from '../utils/index.js'
 
@@ -99,6 +102,76 @@ test('update with "*" pattern', async () => {
   expect(lockfile.packages['@pnpm.e2e/foo@1.0.0']).toBeTruthy()
 })
 
+test('update --peer updates peer dependency ranges', async () => {
+  prepare({
+    peerDependencies: {
+      '@pnpm.e2e/foo': '^1.0.0',
+    },
+  })
+
+  await addDistTag({ package: '@pnpm.e2e/foo', version: '100.1.0', distTag: 'latest' })
+
+  await execFileAsync(process.execPath, [
+    pnpmBin,
+    'update',
+    '--latest',
+    '--peer',
+    `--registry=${registry}`,
+  ])
+
+  const manifest = loadJsonFileSync<ProjectManifest>('package.json')
+  expect(manifest.peerDependencies).toStrictEqual({
+    '@pnpm.e2e/foo': '^100.1.0',
+  })
+  expect(manifest.dependencies).toBeUndefined()
+})
+
+test('update --peer does not reclassify an ordinary dependency as a peer', async () => {
+  prepare({
+    dependencies: {
+      '@pnpm.e2e/foo': '^1.0.0',
+    },
+  })
+
+  await addDistTag({ package: '@pnpm.e2e/foo', version: '100.1.0', distTag: 'latest' })
+
+  await update.handler({
+    ...DEFAULT_OPTS,
+    cliOptions: { peer: true },
+    dir: process.cwd(),
+    latest: true,
+  }, [])
+
+  const manifest = loadJsonFileSync<ProjectManifest>('package.json')
+  expect(manifest.dependencies).toStrictEqual({
+    '@pnpm.e2e/foo': '^100.1.0',
+  })
+  expect(manifest.peerDependencies).toBeUndefined()
+})
+
+test('update --peer updates a named peer without changing other peers', async () => {
+  prepare({
+    peerDependencies: {
+      '@pnpm.e2e/foo': '^1.0.0',
+      '@pnpm.e2e/peer-a': '^1.0.0',
+    },
+  })
+  await addDistTag({ package: '@pnpm.e2e/foo', version: '100.1.0', distTag: 'latest' })
+  await addDistTag({ package: '@pnpm.e2e/peer-a', version: '2.0.0', distTag: 'latest' })
+
+  await update.handler({
+    ...DEFAULT_OPTS,
+    autoInstallPeers: false,
+    cliOptions: { peer: true },
+    dir: process.cwd(),
+  }, ['@pnpm.e2e/foo@100.1.0'])
+
+  expect(loadJsonFileSync<ProjectManifest>('package.json').peerDependencies).toStrictEqual({
+    '@pnpm.e2e/foo': '^100.1.0',
+    '@pnpm.e2e/peer-a': '^1.0.0',
+  })
+})
+
 test('update to latest should not touch the automatically installed peer dependencies', async () => {
   await addDistTag({ package: '@pnpm.e2e/peer-a', version: '1.0.0', distTag: 'latest' })
   await addDistTag({ package: '@pnpm.e2e/peer-c', version: '1.0.0', distTag: 'latest' })
@@ -130,6 +203,414 @@ test('update to latest should not touch the automatically installed peer depende
   expect(lockfile.packages['@pnpm.e2e/peer-a@1.0.1']).toBeFalsy()
   expect(lockfile.packages['@pnpm.e2e/peer-c@1.0.0']).toBeTruthy()
   expect(lockfile.packages['@pnpm.e2e/peer-c@1.0.1']).toBeFalsy()
+})
+
+test('vulnerability updates do not save dependencies added by packageExtensions', async () => {
+  const vulnerablePackage = '@pnpm.e2e/pkg-with-1-dep'
+  const packageExtensions = {
+    'project@*': {
+      dependencies: {
+        '@pnpm.e2e/foo': '1.0.0',
+      },
+    },
+  }
+  const project = prepare({
+    name: 'project',
+    version: '1.0.0',
+    dependencies: {
+      [vulnerablePackage]: '100.0.0',
+    },
+  })
+
+  await install.handler({
+    ...DEFAULT_OPTS,
+    dir: process.cwd(),
+    packageExtensions,
+  })
+
+  await update.handler({
+    ...DEFAULT_OPTS,
+    dir: process.cwd(),
+    packageExtensions,
+    packageVulnerabilityAudit: createPackageVulnerabilityAudit(vulnerablePackage),
+  })
+
+  expect(loadJsonFileSync<ProjectManifest>('package.json').dependencies).toStrictEqual({
+    [vulnerablePackage]: '100.1.0',
+  })
+  expect(project.readLockfile().importers['.'].dependencies?.['@pnpm.e2e/foo']).toBeDefined()
+
+  await install.handler({
+    ...DEFAULT_OPTS,
+    dir: process.cwd(),
+    frozenLockfile: true,
+    packageExtensions,
+  })
+})
+
+test('vulnerability updates do not widen pinned dependencies added by packageExtensions', async () => {
+  const vulnerablePackage = '@pnpm.e2e/pkg-with-1-dep'
+  const packageExtensions = {
+    'project@*': {
+      dependencies: {
+        [vulnerablePackage]: '100.0.0',
+      },
+    },
+  }
+  const project = prepare({
+    name: 'project',
+    version: '1.0.0',
+  })
+
+  await install.handler({
+    ...DEFAULT_OPTS,
+    dir: process.cwd(),
+    packageExtensions,
+  })
+
+  const warnings: string[] = []
+  const reporter = (log: { level?: string, message?: string }) => {
+    if (log.level === 'warn' && log.message != null) warnings.push(log.message)
+  }
+  streamParser.on('data', reporter as never)
+  try {
+    await update.handler({
+      ...DEFAULT_OPTS,
+      dir: process.cwd(),
+      packageExtensions,
+      packageVulnerabilityAudit: createPackageVulnerabilityAudit(vulnerablePackage),
+    })
+  } finally {
+    streamParser.removeListener('data', reporter as never)
+  }
+
+  expect(loadJsonFileSync<ProjectManifest>('package.json').dependencies).toBeUndefined()
+  expect(project.readLockfile().importers['.'].dependencies?.[vulnerablePackage]).toStrictEqual({
+    specifier: '100.0.0',
+    version: '100.0.0',
+  })
+  expect(warnings).toContainEqual(expect.stringContaining(`Cannot update "${vulnerablePackage}" away from 100.0.0`))
+  expect(warnings).toContainEqual(expect.stringContaining('Run "pnpm audit --fix" to add an override for it instead.'))
+
+  await install.handler({
+    ...DEFAULT_OPTS,
+    dir: process.cwd(),
+    frozenLockfile: true,
+    packageExtensions,
+  })
+})
+
+test('vulnerability updates move a pinned npm-aliased dependency to the patched version', async () => {
+  const vulnerablePackage = '@pnpm.e2e/pkg-with-1-dep'
+  const project = prepare({
+    name: 'project',
+    version: '1.0.0',
+    dependencies: {
+      'aliased-pkg': `npm:${vulnerablePackage}@100.0.0`,
+    },
+  })
+
+  await install.handler({
+    ...DEFAULT_OPTS,
+    dir: process.cwd(),
+  })
+
+  await update.handler({
+    ...DEFAULT_OPTS,
+    dir: process.cwd(),
+    packageVulnerabilityAudit: createPackageVulnerabilityAudit(vulnerablePackage),
+  })
+
+  expect(loadJsonFileSync<ProjectManifest>('package.json').dependencies?.['aliased-pkg'])
+    .toBe(`npm:${vulnerablePackage}@100.1.0`)
+  expect(project.readLockfile().importers['.'].dependencies?.['aliased-pkg']).toStrictEqual({
+    specifier: `npm:${vulnerablePackage}@100.1.0`,
+    version: `${vulnerablePackage}@100.1.0`,
+  })
+  expect(project.readLockfile().packages?.[`${vulnerablePackage}@100.1.0`]).toBeDefined()
+
+  await install.handler({
+    ...DEFAULT_OPTS,
+    dir: process.cwd(),
+    frozenLockfile: true,
+  })
+})
+
+test('vulnerability updates move an npm-aliased dependency pinned with = to the patched version', async () => {
+  const vulnerablePackage = '@pnpm.e2e/pkg-with-1-dep'
+  const project = prepare({
+    name: 'project',
+    version: '1.0.0',
+    dependencies: {
+      'aliased-pkg': `npm:${vulnerablePackage}@=100.0.0`,
+    },
+  })
+
+  await install.handler({
+    ...DEFAULT_OPTS,
+    dir: process.cwd(),
+  })
+
+  await update.handler({
+    ...DEFAULT_OPTS,
+    dir: process.cwd(),
+    packageVulnerabilityAudit: createPackageVulnerabilityAudit(vulnerablePackage),
+  })
+
+  expect(loadJsonFileSync<ProjectManifest>('package.json').dependencies?.['aliased-pkg'])
+    .toBe(`npm:${vulnerablePackage}@=100.1.0`)
+  expect(project.readLockfile().packages?.[`${vulnerablePackage}@100.1.0`]).toBeDefined()
+
+  await install.handler({
+    ...DEFAULT_OPTS,
+    dir: process.cwd(),
+    frozenLockfile: true,
+  })
+})
+
+test('vulnerability updates move a pinned npm-aliased catalog entry to the patched version', async () => {
+  const vulnerablePackage = '@pnpm.e2e/pkg-with-1-dep'
+  const catalogs = { default: { 'aliased-pkg': `npm:${vulnerablePackage}@100.0.0` } }
+  const project = prepare({
+    name: 'project',
+    version: '1.0.0',
+    dependencies: {
+      'aliased-pkg': 'catalog:',
+    },
+  })
+  writeYamlFileSync('pnpm-workspace.yaml', { catalog: catalogs.default })
+
+  await install.handler({
+    ...DEFAULT_OPTS,
+    catalogs,
+    dir: process.cwd(),
+  })
+
+  await update.handler({
+    ...DEFAULT_OPTS,
+    catalogs,
+    dir: process.cwd(),
+    packageVulnerabilityAudit: createPackageVulnerabilityAudit(vulnerablePackage),
+  })
+
+  expect(readYamlFileSync('pnpm-workspace.yaml')).toHaveProperty(
+    ['catalog', 'aliased-pkg'],
+    `npm:${vulnerablePackage}@100.1.0`
+  )
+  expect(project.readLockfile().packages?.[`${vulnerablePackage}@100.1.0`]).toBeDefined()
+
+  await install.handler({
+    ...DEFAULT_OPTS,
+    catalogs: { default: readYamlFileSync<{ catalog: Record<string, string> }>('pnpm-workspace.yaml').catalog },
+    dir: process.cwd(),
+    frozenLockfile: true,
+  })
+})
+
+test('vulnerability updates move a ranged dependency added by packageExtensions within its range', async () => {
+  const vulnerablePackage = '@pnpm.e2e/pkg-with-1-dep'
+  const packageExtensions = {
+    'project@*': {
+      dependencies: {
+        [vulnerablePackage]: '100.0.0',
+      },
+    },
+  }
+  const project = prepare({
+    name: 'project',
+    version: '1.0.0',
+  })
+
+  await install.handler({
+    ...DEFAULT_OPTS,
+    dir: process.cwd(),
+    packageExtensions,
+  })
+
+  packageExtensions['project@*'].dependencies[vulnerablePackage] = '^100.0.0'
+  await update.handler({
+    ...DEFAULT_OPTS,
+    dir: process.cwd(),
+    packageExtensions,
+    packageVulnerabilityAudit: createPackageVulnerabilityAudit(vulnerablePackage),
+  })
+
+  expect(loadJsonFileSync<ProjectManifest>('package.json').dependencies).toBeUndefined()
+  expect(project.readLockfile().importers['.'].dependencies?.[vulnerablePackage]).toStrictEqual({
+    specifier: '^100.0.0',
+    version: '100.1.0',
+  })
+
+  await install.handler({
+    ...DEFAULT_OPTS,
+    dir: process.cwd(),
+    frozenLockfile: true,
+    packageExtensions,
+  })
+})
+
+test('update --latest stays within exact versions added by packageExtensions', async () => {
+  await addDistTag({ package: '@pnpm.e2e/bar', version: '100.0.0', distTag: 'latest' })
+  const packageExtensions = {
+    'project@*': {
+      dependencies: {
+        '@pnpm.e2e/foo': '1.0.0',
+      },
+    },
+  }
+  const project = prepare({
+    name: 'project',
+    version: '1.0.0',
+    dependencies: {
+      '@pnpm.e2e/bar': '^100.0.0',
+    },
+  })
+
+  await install.handler({
+    ...DEFAULT_OPTS,
+    dir: process.cwd(),
+    packageExtensions,
+  })
+
+  await addDistTag({ package: '@pnpm.e2e/bar', version: '100.1.0', distTag: 'latest' })
+
+  await update.handler({
+    ...DEFAULT_OPTS,
+    dir: process.cwd(),
+    latest: true,
+    packageExtensions,
+  })
+
+  expect(loadJsonFileSync<ProjectManifest>('package.json').dependencies).toStrictEqual({
+    '@pnpm.e2e/bar': '^100.1.0',
+  })
+  expect(project.readLockfile().importers['.'].dependencies?.['@pnpm.e2e/foo']).toStrictEqual({
+    specifier: '1.0.0',
+    version: '1.0.0',
+  })
+  expect(project.readLockfile().importers['.'].dependencies?.['@pnpm.e2e/bar']).toStrictEqual({
+    specifier: '^100.1.0',
+    version: '100.1.0',
+  })
+
+  await install.handler({
+    ...DEFAULT_OPTS,
+    dir: process.cwd(),
+    frozenLockfile: true,
+    packageExtensions,
+  })
+})
+
+test('filtered vulnerability updates keep the specifier a packageExtensions entry supplies', async () => {
+  const vulnerablePackage = '@pnpm.e2e/bar'
+  await addDistTag({ package: vulnerablePackage, version: '100.0.0', distTag: 'latest' })
+  const packageExtensions = {
+    'project@*': {
+      dependencies: {
+        [vulnerablePackage]: '^100.0.0',
+      },
+    },
+  }
+  const project = prepare({
+    name: 'project',
+    version: '1.0.0',
+  })
+
+  await install.handler({
+    ...DEFAULT_OPTS,
+    dir: process.cwd(),
+    packageExtensions,
+  })
+  expect(project.readLockfile().importers['.'].dependencies?.[vulnerablePackage]).toStrictEqual({
+    specifier: '^100.0.0',
+    version: '100.0.0',
+  })
+
+  await addDistTag({ package: vulnerablePackage, version: '100.1.0', distTag: 'latest' })
+
+  await update.handler({
+    ...DEFAULT_OPTS,
+    cliOptions: {
+      dev: true,
+      optional: false,
+      production: false,
+    },
+    dir: process.cwd(),
+    packageExtensions,
+    packageVulnerabilityAudit: createPackageVulnerabilityAudit(vulnerablePackage),
+  })
+
+  expect(loadJsonFileSync<ProjectManifest>('package.json').dependencies).toBeUndefined()
+  expect(project.readLockfile().importers['.'].dependencies?.[vulnerablePackage]).toStrictEqual({
+    specifier: '^100.0.0',
+    version: '100.1.0',
+  })
+})
+
+test('update --latest preserves override-owned dependency resolutions', async () => {
+  await addDistTag({ package: '@pnpm.e2e/foo', version: '1.0.0', distTag: 'latest' })
+  const overrides = {
+    '@pnpm.e2e/foo': '1.0.0',
+  }
+  const project = prepare({
+    dependencies: {
+      '@pnpm.e2e/foo': '^1.0.0',
+    },
+  })
+
+  await install.handler({
+    ...DEFAULT_OPTS,
+    dir: process.cwd(),
+    overrides,
+  })
+
+  await addDistTag({ package: '@pnpm.e2e/foo', version: '2.0.0', distTag: 'latest' })
+
+  await update.handler({
+    ...DEFAULT_OPTS,
+    dir: process.cwd(),
+    latest: true,
+    overrides,
+  })
+
+  expect(loadJsonFileSync<ProjectManifest>('package.json').dependencies).toStrictEqual({
+    '@pnpm.e2e/foo': '^1.0.0',
+  })
+  expect(project.readLockfile().importers['.'].dependencies?.['@pnpm.e2e/foo']).toStrictEqual({
+    specifier: '1.0.0',
+    version: '1.0.0',
+  })
+
+  await install.handler({
+    ...DEFAULT_OPTS,
+    dir: process.cwd(),
+    frozenLockfile: true,
+    overrides,
+  })
+})
+
+test('add saves a dependency that packageExtensions already injected', async () => {
+  const packageExtensions = {
+    'project@*': {
+      dependencies: {
+        '@pnpm.e2e/foo': '1.0.0',
+      },
+    },
+  }
+  prepare({
+    name: 'project',
+    version: '1.0.0',
+  })
+
+  await add.handler({
+    ...DEFAULT_OPTS,
+    dir: process.cwd(),
+    packageExtensions,
+  }, ['@pnpm.e2e/foo@2.0.0'])
+
+  expect(loadJsonFileSync<ProjectManifest>('package.json').dependencies).toStrictEqual({
+    '@pnpm.e2e/foo': '2.0.0',
+  })
 })
 
 test('update with negation pattern', async () => {
@@ -752,3 +1233,12 @@ test('cliOptionsTypes registers the supply-chain policy options', () => {
   expect(optionTypes).toHaveProperty('trust-policy-exclude')
   expect(optionTypes).toHaveProperty('trust-policy-ignore-after')
 })
+
+function createPackageVulnerabilityAudit (vulnerablePackage: string): PackageVulnerabilityAudit {
+  return {
+    isVulnerable: (packageName, version) => packageName === vulnerablePackage && version === '100.0.0',
+    getVulnerabilities: () => new Map([
+      [vulnerablePackage, [{ severity: 'high', versionRange: '<100.1.0' }]],
+    ]),
+  }
+}

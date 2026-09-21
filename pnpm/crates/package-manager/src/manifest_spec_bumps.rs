@@ -1,8 +1,14 @@
 //! Moving an update's declared ranges onto the versions it resolved.
 
-use crate::{OverriddenDependencyMatcher, VersionsOverrider};
+use crate::{
+    OverriddenDependencyMatcher, VersionsOverrider,
+    runtime_specifier::{RUNTIME_PROTOCOL, node_runtime_version_spec},
+};
 use node_semver::Range;
 use pnpm_catalogs_protocol_parser::parse_catalog_protocol;
+use pnpm_engine_runtime_node_resolver::{
+    normalize_node_runtime_version_specifier, parse_node_specifier,
+};
 use pnpm_lockfile::{
     ImporterDepVersion, Lockfile, PkgName, ProjectSnapshot, ResolvedDependencyMap,
     ResolvedDependencySpec,
@@ -29,12 +35,13 @@ use std::{
 /// back here for the update to write into `package.json` — or into the
 /// catalog entry the dependency points at.
 pub struct ManifestSpecBumps {
-    /// Per importer id, the direct-dependency aliases whose range may move,
-    /// each mapped to the group its `package.json` declares it under and the
-    /// specifier declared there. The declaration is what tells a range the
-    /// update owns from one an override replaced before the resolver read it:
+    /// Per importer id, the direct-dependency declarations whose ranges may
+    /// move, each carrying its alias, manifest group, and declared specifier.
+    /// Keeping declarations rather than alias-keying this collection preserves
+    /// packages declared in more than one group. The declaration tells a range
+    /// the update owns from one an override replaced before the resolver read it:
     /// only a lockfile entry that still carries the declared text is bumped.
-    pub targets: BTreeMap<String, HashMap<String, (DependencyGroup, String)>>,
+    pub targets: BTreeMap<String, Vec<(String, DependencyGroup, String)>>,
     /// The range operator to write when the declaration pins none.
     pub range_spec_style: RangeSpecStyle,
     /// What the resolve settled on, for the declarations whose text changed.
@@ -44,11 +51,11 @@ pub struct ManifestSpecBumps {
 /// The ranges [`ManifestSpecBumps`] moved, split by where they are declared.
 #[derive(Debug, Default)]
 pub struct AppliedSpecBumps {
-    /// Importer id → alias → the group the range is declared under and the
-    /// new range. The group travels with the range so the manifest rewrites
+    /// Importer id → the alias, declaration group, and new range of every
+    /// changed declaration. The group travels with the range so the manifest rewrites
     /// the entry the lockfile rewrote, rather than re-deriving it from the
     /// alias and risking a different pick.
-    pub manifests: BTreeMap<String, BTreeMap<String, (DependencyGroup, String)>>,
+    pub manifests: BTreeMap<String, Vec<(String, DependencyGroup, String)>>,
     /// Catalog name → alias → new range, for a dependency declared through
     /// `catalog:`, where the entry owns the range.
     pub catalogs: BTreeMap<String, BTreeMap<String, String>>,
@@ -102,8 +109,16 @@ pub(crate) fn apply_manifest_spec_bumps(
     apply_catalog_bumps(lockfile, &catalogs);
 
     let mut applied = bumps.applied.lock().expect("the spec-bump sink is never poisoned");
-    applied.manifests =
-        render_aliases(manifests, |(group, specifier)| (IMPORTER_GROUPS[group], specifier));
+    applied.manifests = manifests
+        .into_iter()
+        .map(|(importer_id, bumps)| {
+            let bumps = bumps
+                .into_iter()
+                .map(|(alias, _, group, specifier)| (alias.to_string(), group, specifier))
+                .collect();
+            (importer_id, bumps)
+        })
+        .collect();
     applied.catalogs = render_aliases(catalogs, |specifier| specifier);
 }
 
@@ -120,7 +135,7 @@ fn collect_importer_bumps(
         let Some(importer) = lockfile.importers.get(importer_id) else { continue };
         let override_matcher =
             overridden.and_then(|overridden| overridden.matcher_for(importer_id));
-        for (alias, (manifest_group, manifest_specifier)) in targets {
+        for (alias, manifest_group, manifest_specifier) in targets {
             let target = SpecBumpTarget {
                 importer,
                 override_matcher: override_matcher.as_ref(),
@@ -146,18 +161,24 @@ fn record_spec_bump(
         SpecBump::Cataloged { catalog_name, alias } => {
             cataloged.insert((catalog_name, alias));
         }
-        SpecBump::Manifest { alias, group, bumped } => {
+        SpecBump::Manifest {
+            alias,
+            lockfile_group,
+            manifest_group,
+            bumped,
+        } => {
             manifests
                 .entry(importer_id.to_string())
                 .or_default()
-                .insert(alias, (group, bumped));
+                .push((alias, lockfile_group, manifest_group, bumped));
         }
     }
 }
 
 /// Per importer id, the bumped range of each declaration and the group it is
 /// declared under.
-type ImporterBumps = BTreeMap<String, HashMap<PkgName, (DependencyGroupIndex, String)>>;
+type ImporterBumps =
+    BTreeMap<String, Vec<(PkgName, DependencyGroupIndex, DependencyGroup, String)>>;
 
 /// One targeted declaration and what decides whether its range may move.
 struct SpecBumpTarget<'a> {
@@ -174,13 +195,11 @@ enum SpecBump {
     /// The declaration keeps its text.
     Skip,
     /// The declaration is a `catalog:` reference, so the catalog entry moves.
-    Cataloged {
-        catalog_name: String,
-        alias: PkgName,
-    },
+    Cataloged { catalog_name: String, alias: PkgName },
     Manifest {
         alias: PkgName,
-        group: DependencyGroupIndex,
+        lockfile_group: DependencyGroupIndex,
+        manifest_group: DependencyGroup,
         bumped: String,
     },
 }
@@ -205,18 +224,30 @@ fn spec_bump(target: &SpecBumpTarget<'_>) -> SpecBump {
     else {
         return SpecBump::Skip;
     };
-    if declared.specifier != target.manifest_specifier {
+    if target.manifest_group != DependencyGroup::Peer
+        && declared.specifier != target.manifest_specifier
+    {
         return SpecBump::Skip;
     }
-    if let Some(catalog_name) = parse_catalog_protocol(&declared.specifier) {
+    let declared_specifier = if target.manifest_group == DependencyGroup::Peer {
+        target.manifest_specifier
+    } else {
+        &declared.specifier
+    };
+    if let Some(catalog_name) = parse_catalog_protocol(declared_specifier) {
         return SpecBump::Cataloged { catalog_name: catalog_name.to_string(), alias };
     }
     let Some(bumped) =
-        bumped_range(&declared.specifier, &declared.version, target.range_spec_style)
+        bumped_range(target.alias, declared_specifier, &declared.version, target.range_spec_style)
     else {
         return SpecBump::Skip;
     };
-    SpecBump::Manifest { alias, group, bumped }
+    SpecBump::Manifest {
+        alias,
+        lockfile_group: group,
+        manifest_group: target.manifest_group,
+        bumped,
+    }
 }
 
 fn collect_catalog_bumps(
@@ -226,15 +257,17 @@ fn collect_catalog_bumps(
 ) -> BTreeMap<String, HashMap<PkgName, String>> {
     let mut catalogs: BTreeMap<String, HashMap<PkgName, String>> = BTreeMap::new();
     for (catalog_name, alias) in cataloged {
+        let alias_key = alias.to_string();
         let Some(entry) = lockfile.catalogs
             .as_ref()
             .and_then(|catalogs| catalogs.get(catalog_name))
-            .and_then(|catalog| catalog.get(&alias.to_string()))
+            .and_then(|catalog| catalog.get(&alias_key))
         else {
             continue;
         };
         let Ok(version) = entry.version.parse::<ImporterDepVersion>() else { continue };
-        let Some(bumped) = bumped_range(&entry.specifier, &version, range_spec_style) else {
+        let Some(bumped) = bumped_range(&alias_key, &entry.specifier, &version, range_spec_style)
+        else {
             continue;
         };
         catalogs
@@ -249,7 +282,11 @@ fn apply_importer_bumps(lockfile: &mut Lockfile, manifests: &ImporterBumps) {
     for (importer_id, bumped) in manifests {
         let Some(importer) = lockfile.importers.get_mut(importer_id) else { continue };
         let mut groups = dependency_maps_mut(importer);
-        for (alias, (group, specifier)) in bumped {
+        let mut updated_aliases = HashSet::new();
+        for (alias, group, _, specifier) in bumped {
+            if !updated_aliases.insert(alias) {
+                continue;
+            }
             if let Some(declared) = groups[*group]
                 .as_mut()
                 .and_then(|map| map.get_mut(alias))
@@ -295,16 +332,42 @@ fn render_aliases<Bumped, Rendered>(
         .collect()
 }
 
-/// The range that pins `version` for a dependency that currently declares
-/// `declared`, or `None` when the declaration is not a range this may move.
+/// The range that pins `version` for the dependency `alias` currently declares
+/// as `declared`, or `None` when the declaration is not a range this may move.
 ///
 /// The range text is [`calc_version_range`]'s decision — the same one the
-/// npm resolver's `calc_specifier` makes for a version it has just picked.
+/// npm resolver's `calc_specifier` makes for a version it has just picked. A
+/// node `runtime:` declaration is [`normalize_node_runtime_version_specifier`]'s
+/// instead, the rule the node resolver saves its own picks through.
 fn bumped_range(
+    alias: &str,
     declared: &str,
     version: &ImporterDepVersion,
     default_style: RangeSpecStyle,
 ) -> Option<String> {
+    let resolved = match version {
+        ImporterDepVersion::Regular(version) => version.version_semver()?,
+        ImporterDepVersion::Alias(aliased) => aliased.suffix.version_semver()?,
+        // A link or an injected directory has no version to pin.
+        ImporterDepVersion::Link(_) | ImporterDepVersion::File(_) => return None,
+    };
+    if let Some(selector) = node_runtime_version_spec(alias, declared) {
+        // A selector naming a release channel the resolver does not know is
+        // left for it to reject, rather than moved to a channel-less one it
+        // would accept.
+        if parse_node_specifier(selector).is_err() {
+            return None;
+        }
+        let bumped = format!(
+            "{RUNTIME_PROTOCOL}{}",
+            normalize_node_runtime_version_specifier(
+                selector,
+                &resolved.to_string(),
+                Some(declared),
+            ),
+        );
+        return (bumped != declared).then_some(bumped);
+    }
     let (prefix, declared_range) = split_registry_alias(declared)?;
     // A dist-tag names no version of its own, so the version behind it
     // moving leaves the declaration saying exactly what was asked for. A
@@ -315,12 +378,6 @@ fn bumped_range(
     {
         return None;
     }
-    let resolved = match version {
-        ImporterDepVersion::Regular(version) => version.version_semver()?,
-        ImporterDepVersion::Alias(alias) => alias.suffix.version_semver()?,
-        // A link or an injected directory has no version to pin.
-        ImporterDepVersion::Link(_) | ImporterDepVersion::File(_) => return None,
-    };
     let range =
         calc_version_range(resolved, infer_range_spec_style(declared_range), None, default_style);
     let bumped = format!("{prefix}{range}");
@@ -381,9 +438,12 @@ fn declared_dependency<'a>(
     alias: &PkgName,
     group: DependencyGroup,
 ) -> Option<(DependencyGroupIndex, &'a ResolvedDependencySpec)> {
-    let index = IMPORTER_GROUPS
-        .iter()
-        .position(|candidate| *candidate == group)?;
+    let index = match group {
+        DependencyGroup::Peer => 0,
+        _ => IMPORTER_GROUPS
+            .iter()
+            .position(|candidate| *candidate == group)?,
+    };
     let maps =
         [&importer.dependencies, &importer.dev_dependencies, &importer.optional_dependencies];
     Some((index, maps[index].as_ref()?.get(alias)?))

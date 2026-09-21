@@ -2094,3 +2094,76 @@ test('rebuild in a directory created with "pnpm deploy" should run lifecycle scr
     expect(fs.existsSync('node_modules/@pnpm.e2e/install-script-example/generated-by-install.js')).toBeTruthy()
   }
 })
+
+// covers https://github.com/pnpm/pnpm/issues/3561
+test('a project that the workspace does not include is installed on its own', async () => {
+  preparePackages([
+    {
+      location: 'packages/package-1',
+      package: {
+        name: 'package-1',
+        version: '1.0.0',
+        dependencies: {
+          'is-positive': '1.0.0',
+        },
+      },
+    },
+    {
+      location: 'examples/example-1',
+      package: {
+        name: 'example-1',
+        version: '1.0.0',
+        dependencies: {
+          'is-negative': '1.0.0',
+        },
+      },
+    },
+    {
+      location: 'docs',
+      package: {
+        name: 'docs',
+        version: '1.0.0',
+        dependencies: {
+          'is-negative': '1.0.0',
+        },
+      },
+    },
+  ])
+
+  writeYamlFileSync('pnpm-workspace.yaml', { packages: ['packages/**', '!examples/**'] })
+
+  for (const dir of ['examples/example-1', 'docs']) {
+    execPnpmSync(['install'], { cwd: dir, expectSuccess: true })
+
+    expect(fs.existsSync(path.join(dir, 'node_modules/is-negative'))).toBe(true)
+    expect(fs.existsSync(path.join(dir, WANTED_LOCKFILE))).toBe(true)
+  }
+
+  expect(fs.existsSync(WANTED_LOCKFILE)).toBe(false)
+  expect(fs.existsSync('packages/package-1/node_modules')).toBe(false)
+})
+
+// covers https://github.com/pnpm/pnpm/issues/3561
+test('a directory without a manifest of its own still installs the whole workspace', async () => {
+  preparePackages([
+    {
+      location: 'packages/package-1',
+      package: {
+        name: 'package-1',
+        version: '1.0.0',
+        dependencies: {
+          'is-positive': '1.0.0',
+        },
+      },
+    },
+  ])
+
+  writeYamlFileSync('pnpm-workspace.yaml', { packages: ['packages/**'] })
+  fs.mkdirSync('packages/package-1/src', { recursive: true })
+
+  execPnpmSync(['install'], { cwd: 'packages/package-1/src', expectSuccess: true })
+
+  expect(fs.existsSync(WANTED_LOCKFILE)).toBe(true)
+  expect(fs.existsSync(path.join('packages/package-1/src', WANTED_LOCKFILE))).toBe(false)
+  expect(fs.existsSync('packages/package-1/node_modules/is-positive')).toBe(true)
+})

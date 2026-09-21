@@ -4,6 +4,8 @@ mod dir_clone;
 
 mod integrity;
 
+mod slot_reuse;
+
 mod store;
 
 mod installation;

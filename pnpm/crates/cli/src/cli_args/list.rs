@@ -2,6 +2,8 @@
 
 pub(crate) mod render;
 
+mod recursive;
+
 use crate::cli_args::{
     deps_tree::{
         build::{
@@ -14,7 +16,6 @@ use crate::cli_args::{
     },
     deps_tree_finders::{evaluate_finders, finder_candidates, resolve_finders},
     install::resolve_bool_override,
-    recursive::{AutoExcludeRoot, discover_workspace_projects, select_recursive_projects},
 };
 use clap::Args;
 use miette::IntoDiagnostic;
@@ -211,49 +212,6 @@ impl ListArgs {
         Ok(None)
     }
 
-    async fn run_recursive(&self, config: &Config, dir: &Path) -> miette::Result<String> {
-        let workspace_root = config.workspace_dir.clone().unwrap_or_else(|| dir.to_path_buf());
-        let (projects, _) = discover_workspace_projects(&workspace_root, config)?;
-        let selection =
-            select_recursive_projects(&projects, config, dir, AutoExcludeRoot::Disabled)?;
-        let project_dirs: Vec<PathBuf> = selection.selected
-            .keys()
-            .cloned()
-            .collect();
-
-        let always_print_root_package = self.graph.depth == RecursionLimit::ProjectsOnly;
-
-        if config.shares_one_lockfile() {
-            return self.render_projects(
-                config,
-                &project_dirs,
-                &self.packages,
-                config.lockfile_dir_for(&workspace_root),
-                always_print_root_package,
-            )
-            .await;
-        }
-
-        // Per-project lockfiles: each project renders independently
-        // (with its own legend and summary).
-        let mut outputs = Vec::new();
-        for project_dir in project_dirs {
-            let output = self.render_projects(
-                config,
-                std::slice::from_ref(&project_dir),
-                &self.packages,
-                &project_dir,
-                always_print_root_package,
-            )
-            .await?;
-            if !output.is_empty() {
-                outputs.push(output);
-            }
-        }
-        let joiner = if self.graph.depth == RecursionLimit::ProjectsOnly { "\n" } else { "\n\n" };
-        Ok(outputs.join(joiner))
-    }
-
     fn report_as(&self) -> ReportAs {
         if self.output.parseable {
             ReportAs::Parseable
@@ -285,6 +243,18 @@ impl ListArgs {
         lockfile_dir: &Path,
         always_print_root_package: bool,
     ) -> miette::Result<String> {
+        let projects =
+            self.load_project_hierarchies(config, project_dirs, params, lockfile_dir).await?;
+        self.render_project_hierarchies(&projects, always_print_root_package)
+    }
+
+    async fn load_project_hierarchies(
+        &self,
+        config: &Config,
+        project_dirs: &[PathBuf],
+        params: &[String],
+        lockfile_dir: &Path,
+    ) -> miette::Result<Vec<ProjectHierarchy>> {
         let state = LoadedState::load(
             lockfile_dir,
             Some(config.modules_dir.as_path()),
@@ -329,7 +299,7 @@ impl ListArgs {
             })
             .collect();
 
-        self.render_project_hierarchies(&projects, always_print_root_package)
+        Ok(projects)
     }
     fn render_project_hierarchies(
         &self,

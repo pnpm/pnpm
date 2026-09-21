@@ -9,8 +9,8 @@ use super::{
     PingArgs, PipelineArgs, PkgArgs, PrefixArgs, PruneArgs, PublishArgs, RebuildArgs, RemoveArgs,
     RepoArgs, RestartArgs, RootArgs, RunArgs, RuntimeArgs, SbomArgs, ScriptShortcutArgs,
     SearchArgs, SelfUpdateArgs, SetScriptArgs, SetupArgs, ShimArgs, StageArgs, StarArgs, StarsArgs,
-    StoreCommand, Subcommand, SummaryScope, TeamArgs, UndeprecateArgs, UnlinkArgs, UnpublishArgs,
-    UnstarArgs, UpdateArgs, VersionArgs, ViewArgs, WhyArgs, WithArgs,
+    StoreCommand, Subcommand, SummaryScope, TasksArgs, TeamArgs, UndeprecateArgs, UnlinkArgs,
+    UnpublishArgs, UnstarArgs, UpdateArgs, VersionArgs, ViewArgs, WhyArgs, WithArgs,
 };
 
 #[derive(Debug, strum::IntoStaticStr, Subcommand)]
@@ -28,7 +28,7 @@ pub enum CliCommand {
     /// Install packages
     #[clap(visible_alias = "i")]
     Install(InstallArgs),
-    /// Runs a `pnpm install` followed immediately by a `pnpm test`. It takes exactly the same arguments as `pnpm install`.
+    /// Runs a `pnpm install` followed immediately by a `pnpm test`. Accepts the same arguments as `pnpm install`, plus `--no-bail` to continue running workspace tests after a failure.
     #[clap(name = "install-test", visible_alias = "it")]
     InstallTest(InstallTestArgs),
     /// Update packages to their newest version based on the specified range
@@ -89,8 +89,17 @@ pub enum CliCommand {
     #[clap(visible_aliases = ["s", "se", "find"])]
     Search(SearchArgs),
     /// Rebuild a package.
-    #[clap(visible_alias = "rb")]
     Rebuild(RebuildArgs),
+    // A variant of its own rather than a `visible_alias` of `rebuild`,
+    // because the script that overrides a built-in command is looked up
+    // under the name that was typed.
+    /// Rebuild a package.
+    ///
+    /// An `rb` script in `package.json` replaces this command, the way a
+    /// `rebuild` script replaces `pnpm rebuild`. Run `pnpm pm rb` for the
+    /// built-in command regardless.
+    #[clap(name = "rb")]
+    Rb(RebuildArgs),
     /// Create a tarball from a package
     Pack(PackArgs),
     /// Publish a package to the registry
@@ -121,7 +130,11 @@ pub enum CliCommand {
     #[clap(visible_aliases = ["t", "tst"])]
     Test(ScriptShortcutArgs),
     /// Runs a defined package script.
+    #[clap(visible_alias = "run-script")]
     Run(RunArgs),
+    /// Inspect tasks in concurrency groups.
+    /// A same-named script takes precedence. Use `pnpm pm tasks` to force the built-in.
+    Tasks(TasksArgs),
     /// Runs a named pipeline of workspace tasks the way a CI run would:
     /// a frozen install, affected-since-base selection, the task graph in
     /// dependency order without bailing, and cached task results restored
@@ -303,6 +316,7 @@ impl CliCommand {
                 | CliCommand::SetScript(_)
                 | CliCommand::Start(_)
                 | CliCommand::Stop(_)
+                | CliCommand::Tasks(_)
                 | CliCommand::Test(_),
         )
     }
@@ -334,6 +348,7 @@ impl CliCommand {
                 | CliCommand::Link(_)
                 | CliCommand::Prune(_)
                 | CliCommand::Rebuild(_)
+                | CliCommand::Rb(_)
                 | CliCommand::Remove(_)
                 | CliCommand::Unlink(_)
                 | CliCommand::Update(_)

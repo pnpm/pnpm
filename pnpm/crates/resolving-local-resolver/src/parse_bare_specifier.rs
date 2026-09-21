@@ -4,10 +4,12 @@
 //! protocol — `link:` vs `file:`) and builds the [`LocalPackageSpec`]
 //! the resolver consumes.
 
-use std::path::{Component, Path, PathBuf};
+use std::path::{Path, PathBuf};
 
 use derive_more::{Display, Error};
 use miette::Diagnostic;
+use pnpm_fs::{lexical_normalize, relative_path};
+use pnpm_local_spec::{is_filespec, is_tarball_filename, normalize_specifier};
 use pnpm_resolving_resolver_base::PkgResolutionId;
 
 /// The wanted-dependency slice the local resolver consumes.
@@ -62,42 +64,6 @@ pub(crate) struct ParseOptions {
 pub struct PathProtocolNotSupportedError {
     pub bare_specifier: String,
     pub protocol: String,
-}
-
-/// Whether a bare specifier's shape can only mean a local file or
-/// directory: the `link:` / `file:` protocols, a path-prefixed spec
-/// (`./`, `../`, `~/`, absolute POSIX paths, and Windows drive paths —
-/// including drive-relative ones like `C:dir`), or a bare tarball file
-/// name.
-///
-/// Narrower than what `parse_local_path` claims, which also takes any
-/// spec containing a path separator. That shape is statically
-/// indistinguishable from a hosted-git shorthand (`user/repo`) or a
-/// named-registry alias (`gh:@scope/pkg`), and the resolver chain only
-/// gets away with claiming it by running the local resolver last.
-/// Callers that dispatch on specifier shape without that ordering ask
-/// this instead.
-#[must_use]
-pub fn is_local_filesystem_specifier(bare: &str) -> bool {
-    if bare.starts_with("link:") || bare.starts_with("file:") {
-        return true;
-    }
-    if is_filespec(bare) {
-        return true;
-    }
-    // Any other protocol — a `git+ssh:` / `https:` URL, an `npm:` alias, a
-    // named-registry prefix — belongs to its own resolver, tarball-shaped
-    // path or not.
-    if bare.contains(':') {
-        return false;
-    }
-    // A `#` here marks a hosted-git shorthand's committish
-    // (`user/repo#release.tgz`), not a local tarball: the protocol and
-    // path-prefixed forms already returned above.
-    if bare.contains('#') {
-        return false;
-    }
-    is_tarball_filename(bare)
 }
 
 /// Parse a wanted dep with an explicit local-scheme prefix
@@ -217,78 +183,20 @@ fn fetched_and_normalized(spec: &str, project_dir: &Path, protocol: &str) -> (Pa
     if is_absolute_specifier(spec) {
         return (fetched, format!("{protocol}{spec}"));
     }
-    let relative = forward_slashes(
-        pathdiff::diff_paths(&fetched, project_dir)
-            .map_or_else(|| fetched.display().to_string(), |path| path.display().to_string()),
-    );
+    let relative = forward_slashes(relative_path(project_dir, &fetched).display().to_string());
     (fetched, format!("{protocol}{relative}"))
 }
 
-/// Normalize a bare specifier through this replacement chain:
-///
-/// 1. Replace all `\` with `/`.
-/// 2. Drive-letter prefix: `^(file|link|workspace):/*([A-Z]:)` → `$1`.
-/// 3. `^(file|link|workspace):(?:/*([~./]))?` → `$1`. The captured
-///    char class **includes `/`**, so a leading slash after the
-///    protocol survives (collapsed to a single one).
-fn normalize_specifier(bare: &str) -> String {
-    let forward = bare.replace('\\', "/");
-    let Some(after_proto) = ["file:", "link:", "workspace:"]
-        .iter()
-        .find_map(|proto| forward.strip_prefix(proto))
-    else {
-        return forward;
-    };
-    let after_slashes = after_proto.trim_start_matches('/');
-    if is_drive_letter_prefix(after_slashes) {
-        return after_slashes.to_string();
-    }
-    match after_proto.chars().next() {
-        Some('/') => {
-            let trimmed = after_slashes;
-            if let Some(c) = trimmed.chars().next()
-                && matches!(c, '~' | '.')
-            {
-                trimmed.to_string()
-            } else {
-                let mut result = String::with_capacity(trimmed.len() + 1);
-                result.push('/');
-                result.push_str(trimmed);
-                result
-            }
-        }
-        _ => after_proto.to_string(),
-    }
-}
-
 /// Resolve `spec` against `where_dir`, mirroring Node's
-/// [`path.resolve`](https://nodejs.org/api/path.html#pathresolvepaths)
-/// behavior: an absolute `spec` is returned unchanged; otherwise the
-/// host's path resolver joins the two and canonicalises the result.
+/// [`path.resolve`](https://nodejs.org/api/path.html#pathresolvepaths):
+/// a relative `spec` is joined onto `where_dir` first, and either way
+/// the result's `.` and `..` components are collapsed lexically,
+/// without touching the filesystem.
 fn resolve_path(where_dir: &Path, spec: &str) -> PathBuf {
     if is_absolute_specifier(spec) {
-        return PathBuf::from(spec);
+        return lexical_normalize(Path::new(spec));
     }
-    normalize_components(&where_dir.join(spec))
-}
-
-/// Collapse `.` and `..` components the way Node's `path.resolve`
-/// does (purely lexically — no syscalls). Preserves the absolute /
-/// relative distinction of the input.
-fn normalize_components(path: &Path) -> PathBuf {
-    let mut out = PathBuf::new();
-    for component in path.components() {
-        match component {
-            Component::CurDir => {}
-            Component::ParentDir => {
-                if !out.pop() {
-                    out.push("..");
-                }
-            }
-            other => out.push(other.as_os_str()),
-        }
-    }
-    out
+    lexical_normalize(&where_dir.join(spec))
 }
 
 /// When `preserveAbsolutePaths` is on and the input spec is absolute,
@@ -303,9 +211,7 @@ fn normalize_relative_or_absolute(
     if opts.preserve_absolute_paths && is_absolute_specifier(original_spec) {
         return forward_slashes(from_path.display().to_string());
     }
-    let relative = pathdiff::diff_paths(from_path, relative_to)
-        .map_or_else(|| from_path.display().to_string(), |path| path.display().to_string());
-    forward_slashes(relative)
+    forward_slashes(relative_path(relative_to, from_path).display().to_string())
 }
 
 fn forward_slashes(input: String) -> String {
@@ -323,40 +229,8 @@ fn is_absolute_specifier(spec: &str) -> bool {
     }
 }
 
-/// `true` for a path-shaped spec:
-/// - Windows: `/^(?:[./\\]|~\/|[a-z]:)/i`
-/// - POSIX:   `/^(?:[./]|~\/|[a-z]:)/i`
-///
-/// Implemented uniformly (accepting the backslash on every platform):
-/// [`parse_local_path`] inspects `bare_specifier` before the normalize
-/// step that forward-slashes paths, so Windows-host inputs may still
-/// carry a leading `\`.
-fn is_filespec(spec: &str) -> bool {
-    let mut chars = spec.chars();
-    match chars.next() {
-        Some('.' | '/' | '\\') => true,
-        Some('~') => chars.next() == Some('/'),
-        Some(c) if c.is_ascii_alphabetic() => chars.next() == Some(':'),
-        _ => false,
-    }
-}
-
-fn is_drive_letter_prefix(spec: &str) -> bool {
-    let mut chars = spec.chars();
-    matches!(chars.next(), Some(c) if c.is_ascii_alphabetic()) && matches!(chars.next(), Some(':'))
-}
-
 fn strip_tilde_prefix(spec: &str) -> Option<&str> {
     spec.strip_prefix("~/")
-}
-
-/// Whether a local specifier names a package tarball rather than a
-/// directory. A `file:` specifier resolves to one or the other, and only
-/// the directory form becomes a `link:` entry in the lockfile.
-#[must_use]
-pub fn is_tarball_filename(bare: &str) -> bool {
-    let lower = bare.to_ascii_lowercase();
-    lower.ends_with(".tgz") || lower.ends_with(".tar.gz") || lower.ends_with(".tar")
 }
 
 /// Resolve an unambiguous local tarball specifier to the regular file

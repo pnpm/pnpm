@@ -28,6 +28,7 @@ jobs:
       pull-requests: read
     outputs:
       ts: ${{ steps.force.outputs.ts || steps.filter.outputs.ts }}
+      changesets: ${{ steps.filter.outputs.changesets }}
     steps:
       # In the merge queue the full suite must run: `TS CI / Compile & Lint`
       # is itself a required check, and a skipped job never reports its
@@ -64,13 +65,20 @@ jobs:
               - '.github/workflows/test.yml'
               - '.github/workflows/build-pnpr.yml'
               - '.github/scripts/**'
+            # A pending change intent is validated by `pn lint`, which runs in
+            # Compile & Lint. Nothing under .changeset/ can affect a test, so
+            # it gates that job alone.
+            changesets:
+              - '.changeset/**'
 
   compile-and-lint:
     needs: changes
-    # Run only when TypeScript-relevant files changed. Every PR (same-repo or
-    # fork) is covered by its pull_request run, and push only fires on main, so
-    # there are no duplicate build jobs to guard against here.
-    if: ${{ !cancelled() && needs.changes.outputs.ts == 'true' }}
+    # Run when TypeScript-relevant files changed, or when the PR only touches
+    # .changeset/ — `pn lint` validates the pending change intents and their
+    # spelling, and a changeset-only PR skips every other job below. Every PR
+    # (same-repo or fork) is covered by its pull_request run, and push only
+    # fires on main, so there are no duplicate build jobs to guard against here.
+    if: ${{ !cancelled() && (needs.changes.outputs.ts == 'true' || needs.changes.outputs.changesets == 'true') }}
 
     name: TS CI / Compile & Lint
     runs-on: blacksmith-4vcpu-ubuntu-2404
@@ -85,7 +93,7 @@ jobs:
       with:
         restore-cache: false
     - name: Install pnpm
-      uses: pnpm/setup@703c52620218391530e48b9e8870d5c0082e1b9b # v2.1.0
+      uses: pnpm/setup@fbda4c85fc2e1e08721cd8763afea8f48d60f024 # v3.0.0
       with:
         install: false
     - name: Test release publication scripts

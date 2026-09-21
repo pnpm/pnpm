@@ -1,12 +1,11 @@
 const readline = require('node:readline');
-const { pathToFileURL } = require('node:url');
 let mod = null;
 let loadErr = null;
 let nextCallbackId = 0;
 const pendingCallbacks = new Map();
 async function ensureLoaded() {
   if (mod !== null || loadErr !== null) return;
-  try { mod = pnpmfileIsMjs ? await import(pathToFileURL(pnpmfilePath).href) : require(pnpmfilePath); } catch (err) { loadErr = err && err.stack ? err.stack : String(err); }
+  try { mod = await loadPnpmfile(pnpmfilePath); } catch (err) { loadErr = err && err.stack ? err.stack : String(err); }
 }
 const rl = readline.createInterface({ input: process.stdin });
 rl.on('line', (line) => {
@@ -39,6 +38,10 @@ async function handle(req) {
   if (req.query === 'hasHooks') { send({ ok: mod != null && mod.hooks != null }); return; }
   if (req.query === 'hasFilterLog') {
     send({ ok: mod != null && mod.hooks != null && typeof mod.hooks.filterLog === 'function' });
+    return;
+  }
+  if (req.query === 'hasReadPackage') {
+    send({ ok: mod != null && mod.hooks != null && typeof mod.hooks.readPackage === 'function' });
     return;
   }
   try {

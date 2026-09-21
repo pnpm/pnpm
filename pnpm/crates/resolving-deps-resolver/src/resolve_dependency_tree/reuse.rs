@@ -364,7 +364,8 @@ fn subtree_fully_reusable(
     // subtree to re-resolve so the bump's new transitive deps are picked
     // up — update names match at every depth the update reaches.
     let name = key.name.to_string();
-    let reusable = !update_excludes(scope, &name, key.suffix.version_semver(), depth)
+    let reusable = !ctx.workspace.reuse.dedupe.covers(&name, key.suffix.version_semver())
+        && !update_excludes(scope, &name, key.suffix.version_semver(), depth)
         && synthesize_reused_result(lockfile, key, &name).is_some()
         && subtree_children_reusable(ctx, lockfile, key, depth);
     lock_recoverable(&ctx.workspace.cache.subtree_reusable).insert(memo_key, reusable);

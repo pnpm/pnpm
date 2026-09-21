@@ -31,6 +31,9 @@ impl CommandTestExt for Command {
         for name in ambient_pnpm_config_vars() {
             self.env_remove(name);
         }
+        if let Some(path) = std::env::var_os("PNPM_TEST_NPMRC_AUTH_FILE") {
+            self.env("PNPM_CONFIG_NPMRC_AUTH_FILE", path);
+        }
         self.env("PNPM_CONFIG_CI", "false");
         // No test may reach the registry for pnpm's own `latest` tag or
         // record the check in the developer's state directory, which the

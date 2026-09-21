@@ -29,7 +29,7 @@ fn same_package_bin_conflict_prefers_latest_version() {
 
     let body = read_to_string(bins.join("tsc")).unwrap();
     assert!(
-        is_shim_pointing_at(&body, &expected_target),
+        is_shim_pointing_at(&body, &bins.join("tsc"), &expected_target),
         "the highest TypeScript version must provide `tsc`, got body:\n{body}",
     );
 }

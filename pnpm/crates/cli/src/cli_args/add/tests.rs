@@ -95,6 +95,28 @@ fn allow_build_is_a_noop_when_empty() {
 }
 
 #[test]
+fn add_tilde_is_a_save_prefix_shortcut() {
+    let args = add_args(&["pacquet", "add", "foo", "--tilde"]);
+    assert!(args.save.tilde);
+    assert_eq!(args.save.prefix, None);
+}
+
+#[test]
+fn add_tilde_and_save_prefix_resolve_last_one_wins() {
+    let args = add_args(&["pacquet", "add", "foo", "--save-prefix=^", "--tilde"]);
+    assert!(args.save.tilde, "--tilde should win when it is last");
+    assert_eq!(args.save.prefix, None);
+
+    let args = add_args(&["pacquet", "add", "foo", "--tilde", "--save-prefix=^"]);
+    assert!(!args.save.tilde, "--save-prefix should win when it is last");
+    assert_eq!(args.save.prefix.as_deref(), Some("^"));
+
+    let args = add_args(&["pacquet", "add", "foo", "--tilde", "--save-prefix="]);
+    assert!(!args.save.tilde, "--save-prefix should win when it is last");
+    assert_eq!(args.save.prefix.as_deref(), Some(""));
+}
+
+#[test]
 fn dependency_options_to_dependency_groups() {
     use DependencyGroup::{Dev, Optional, Peer, Prod};
     let create_list = |opts: AddDependencyOptions| opts.dependency_groups().collect::<Vec<_>>();

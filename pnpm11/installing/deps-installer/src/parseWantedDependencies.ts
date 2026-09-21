@@ -19,10 +19,15 @@ export interface ParsedWantedDependencies {
   outsideKeptRange: KeptRangeConflict[]
   /**
    * The selectors resolution can't be trusted to honor — a range or a dist tag, which only names a
-   * version once resolution has run — so the specifier the manifest keeps was used instead. Only
-   * ever non-empty under `readonlyManifest`.
+   * version once resolution has run — so the specifier the manifest or a hook/override keeps was
+   * used instead. Only ever non-empty under `readonlyManifest` or for `readonlySpecifiers`.
    */
   supersededByKeptRange: KeptRangeConflict[]
+  /**
+   * The aliases dropped because a hook removes them from the manifest it reads, so the project
+   * can't declare them. Only ever non-empty for `hookRemovedAliases`.
+   */
+  removedByHook: string[]
 }
 
 export function parseWantedDependencies (
@@ -45,6 +50,12 @@ export function parseWantedDependencies (
      * the declared one — the lockfile importer entry has to keep satisfying its own specifier.
      */
     readonlyManifest?: boolean
+    readonlySpecifiers?: Dependencies
+    /**
+     * Aliases a hook deletes from the manifest it reads. Declaring one would leave the lockfile
+     * importer holding a dependency the next read drops, which `--frozen-lockfile` rejects.
+     */
+    hookRemovedAliases?: Set<string>
   }
 ): ParsedWantedDependencies {
   const wantedDeps = rawWantedDependencies
@@ -52,8 +63,12 @@ export function parseWantedDependencies (
       const parsed = parseWantedDependency(rawWantedDependency)
       const alias = parsed['alias']
       let bareSpecifier = parsed['bareSpecifier']
+      const hasReadonlySpecifier = alias != null &&
+        opts.readonlySpecifiers != null &&
+        Object.hasOwn(opts.readonlySpecifiers, alias)
+      const readonlySpecifier = hasReadonlySpecifier ? opts.readonlySpecifiers![alias] : undefined
 
-      if (!opts.allowNew && (!alias || !opts.currentBareSpecifiers[alias])) {
+      if (!opts.allowNew && (!alias || (!hasReadonlySpecifier && !Object.hasOwn(opts.currentBareSpecifiers, alias)))) {
         return null
       }
       if (alias && opts.defaultCatalog?.[alias] && (
@@ -70,7 +85,7 @@ export function parseWantedDependencies (
         alias,
         dev: Boolean(opts.dev || alias && !!opts.devDependencies[alias]),
         optional: Boolean(opts.optional || alias && !!opts.optionalDependencies[alias]),
-        prevSpecifier: alias && opts.currentBareSpecifiers[alias],
+        prevSpecifier: hasReadonlySpecifier ? readonlySpecifier : alias && opts.currentBareSpecifiers[alias],
         saveCatalogName: opts.saveCatalogName,
       } satisfies Partial<WantedDependency>
       if (bareSpecifier) {
@@ -98,14 +113,32 @@ export function parseWantedDependencies (
     })
     .filter((wd) => wd !== null) as WantedDependency[]
 
-  if (!opts.readonlyManifest) {
-    return { wantedDependencies: wantedDeps, outsideKeptRange: [], supersededByKeptRange: [] }
+  if (!opts.readonlyManifest && opts.readonlySpecifiers == null && opts.hookRemovedAliases == null) {
+    return { wantedDependencies: wantedDeps, outsideKeptRange: [], supersededByKeptRange: [], removedByHook: [] }
   }
   const wantedDependencies: WantedDependency[] = []
   const outsideKeptRange: KeptRangeConflict[] = []
   const supersededByKeptRange: KeptRangeConflict[] = []
+  const removedByHook: string[] = []
   for (const wantedDep of wantedDeps) {
     const { alias, bareSpecifier, prevSpecifier } = wantedDep
+    if (opts.hookRemovedAliases?.has(alias)) {
+      removedByHook.push(alias)
+      continue
+    }
+    if (opts.readonlySpecifiers != null && Object.hasOwn(opts.readonlySpecifiers, alias)) {
+      if (prevSpecifier == null || bareSpecifier === prevSpecifier) {
+        wantedDependencies.push(wantedDep)
+      } else {
+        supersededByKeptRange.push({ alias, requested: bareSpecifier, kept: prevSpecifier })
+        wantedDependencies.push({ ...wantedDep, bareSpecifier: prevSpecifier })
+      }
+      continue
+    }
+    if (!opts.readonlyManifest) {
+      wantedDependencies.push(wantedDep)
+      continue
+    }
     if (!prevSpecifier || bareSpecifier === prevSpecifier) {
       wantedDependencies.push(wantedDep)
     } else if (semver.valid(bareSpecifier) != null && semver.validRange(prevSpecifier) != null) {
@@ -124,5 +157,5 @@ export function parseWantedDependencies (
       wantedDependencies.push({ ...wantedDep, bareSpecifier: prevSpecifier })
     }
   }
-  return { wantedDependencies, outsideKeptRange, supersededByKeptRange }
+  return { wantedDependencies, outsideKeptRange, supersededByKeptRange, removedByHook }
 }

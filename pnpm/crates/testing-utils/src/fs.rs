@@ -2,9 +2,10 @@ use pipe_trait::Pipe;
 use pnpm_workspace_state::load_workspace_state;
 use std::{
     fs, io,
-    path::Path,
+    path::{Path, PathBuf},
     time::{Duration, SystemTime},
 };
+use tempfile::TempDir;
 use walkdir::WalkDir;
 
 #[must_use]
@@ -60,6 +61,20 @@ pub fn is_symlink_or_junction(path: &Path) -> io::Result<bool> {
     pnpm_fs::is_symlink_or_junction(path)
 }
 
+/// Symlink a file, on whichever platform.
+///
+/// [`pnpm_fs::symlink_dir`] has a junction to fall back on where Windows
+/// would otherwise need the symlink privilege. A file symlink has no such
+/// fallback, so this needs that privilege, which the Windows CI runners
+/// grant.
+pub fn symlink_file(original: &Path, link: &Path) -> io::Result<()> {
+    #[cfg(windows)]
+    return std::os::windows::fs::symlink_file(original, link);
+
+    #[cfg(unix)]
+    return std::os::unix::fs::symlink(original, link);
+}
+
 /// Check if a file is executable.
 #[cfg(unix)]
 #[must_use]
@@ -71,6 +86,72 @@ pub fn is_path_executable(path: &Path) -> bool {
         .expect("get metadata of the file")
         .mode();
     mode & 0b001_001_001 != 0
+}
+
+/// A record of which on-disk file a path named at one point in time, so a
+/// later check can tell a file an install reused from one it replaced.
+///
+/// The record is a hard link, taken in a directory outside the tree under
+/// test, and [`Self::is_intact`] compares the two paths with `same_file`.
+/// Unix could keep the inode number instead, but `std` exposes the Windows
+/// equivalent only behind an unstable feature.
+pub struct SameFileWitness {
+    path: PathBuf,
+    /// Owns the directory the link lives in, so the link goes away with
+    /// the witness.
+    dir: TempDir,
+}
+
+impl SameFileWitness {
+    /// Link `path` from a directory of its own under `witness_dir`, which
+    /// has to be on the same filesystem as `path` and outside whatever the
+    /// step under test rewrites.
+    #[must_use]
+    pub fn take(path: &Path, witness_dir: &Path) -> Self {
+        let dir = TempDir::new_in(witness_dir).expect("create the witness directory");
+        let link = dir.path().join("link");
+        fs::hard_link(path, &link)
+            .unwrap_or_else(|error| panic!("link {path:?} from {link:?}: {error}"));
+        SameFileWitness { path: path.to_path_buf(), dir }
+    }
+
+    /// Whether the path still names the file it named when the witness was
+    /// taken.
+    #[must_use]
+    pub fn is_intact(&self) -> bool {
+        same_file::is_same_file(&self.path, self.dir.path().join("link")).unwrap_or(false)
+    }
+}
+
+/// A record of which on-disk directory a path named at one point in time,
+/// so a later check can tell a directory an install left alone from one it
+/// removed and wrote again.
+///
+/// The record is a sentinel file planted inside the directory, because a
+/// directory cannot be hard-linked the way [`SameFileWitness`] links a
+/// file, and `std` exposes the Windows file index only behind an unstable
+/// feature.
+pub struct DirWitness {
+    sentinel: PathBuf,
+}
+
+impl DirWitness {
+    /// Plant the sentinel in `dir`, which has to be a directory the step
+    /// under test either keeps whole or replaces, never merges into.
+    #[must_use]
+    pub fn take(dir: &Path) -> Self {
+        let sentinel = dir.join(".dir-witness");
+        fs::write(&sentinel, "")
+            .unwrap_or_else(|error| panic!("plant the sentinel in {dir:?}: {error}"));
+        DirWitness { sentinel }
+    }
+
+    /// Whether the path still names the directory it named when the
+    /// witness was taken.
+    #[must_use]
+    pub fn is_intact(&self) -> bool {
+        self.sentinel.exists()
+    }
 }
 
 /// The gap that separates two mtimes on every filesystem the tests run on.

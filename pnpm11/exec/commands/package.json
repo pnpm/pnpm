@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/exec.commands",
-  "version": "1101.1.2",
+  "version": "1101.1.3",
   "description": "Commands for running scripts",
   "keywords": [
     "pnpm",
@@ -49,6 +49,7 @@
     "@pnpm/error": "workspace:*",
     "@pnpm/exec.esm-node-path-loader": "workspace:*",
     "@pnpm/exec.lifecycle": "workspace:*",
+    "@pnpm/exec.npm-lifecycle": "workspace:*",
     "@pnpm/exec.pnpm-cli-runner": "workspace:*",
     "@pnpm/installing.client": "workspace:*",
     "@pnpm/installing.commands": "workspace:*",

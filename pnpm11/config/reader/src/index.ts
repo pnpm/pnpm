@@ -65,6 +65,7 @@ export {
   getPackageManagerRegistries,
   type PackageManagerBootstrapConfig,
 } from './packageManagerRegistries.js'
+export { parseCAFileContents } from './parseCAFileContents.js'
 export type { Creds } from './parseCreds.js'
 export {
   createProjectConfigRecord,
@@ -519,6 +520,10 @@ export async function getConfig (opts: {
       if (ignoredPnpmFieldKeys.length > 0) {
         warnings.push(`The "pnpm" field in package.json is no longer read by pnpm. The following keys were ignored: ${quoteAndJoin(ignoredPnpmFieldKeys.map(k => `pnpm.${k}`))}. See https://pnpm.io/settings for the new home of each setting.`)
       }
+    }
+
+    if (opts.cliOptions['shared-workspace-lockfile'] != null && !pnpmConfig.workspaceDir && !cliOptions['global']) {
+      warnings.push('The "shared-workspace-lockfile" option was ignored because no "pnpm-workspace.yaml" was found.')
     }
 
     // `lockfileDir` moves `rootProjectManifestDir` off the workspace root,

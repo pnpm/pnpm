@@ -103,7 +103,7 @@ pub(super) async fn settle_wanted_lockfile<'a: 'w, 'w, Reporter: self::Reporter 
     )
     .await;
     reconcile_branch_lockfile(&mut lockfiles, loaded, install.context.config);
-    if may_fast_update_lockfile(install, mode.prefer_frozen_lockfile, loaded.wanted.had_conflicts) {
+    if may_fast_update_with_hooks(install, mode, loaded, lockfiles.wanted.get()).await? {
         lockfiles.wanted.fast_updated =
             try_fast_update_lockfile::<Reporter>(FastUpdateLockfileOptions {
                 lockfile: lockfiles.wanted.get(),
@@ -111,6 +111,7 @@ pub(super) async fn settle_wanted_lockfile<'a: 'w, 'w, Reporter: self::Reporter 
                 freshness: LockfileFreshnessInputs {
                     lockfile_dir: &workspace.dirs.workspace_root,
                     manifests: &lockfiles.manifest_freshness_inputs,
+                    workspace_packages: workspace.workspace_packages.as_ref(),
                     config: install.context.config,
                     catalogs: &workspace.catalogs,
                     pnpmfile_hook: loaded.pnpmfile_hook.as_ref(),
@@ -160,6 +161,7 @@ pub(super) async fn synthesize_wanted(
             freshness: LockfileFreshnessInputs {
                 lockfile_dir: &workspace.dirs.workspace_root,
                 manifests: manifest_freshness_inputs,
+                workspace_packages: workspace.workspace_packages.as_ref(),
                 config: install.context.config,
                 catalogs: &workspace.catalogs,
                 pnpmfile_hook: loaded.pnpmfile_hook.as_ref(),
@@ -195,6 +197,29 @@ pub(super) async fn synthesize_lockfile_from_current(
     }
     check_lockfile_freshness(current, &scope.freshness).await.ok().map(|()| current.clone())
 }
+
+/// Whether the fast update may run for this install. It cannot preserve
+/// subtrees when an unchecksummed `readPackage` hook may have changed them.
+async fn may_fast_update_with_hooks(
+    install: InstallView<'_>,
+    mode: &RunMode,
+    loaded: &Loaded<'_>,
+    lockfile: Option<&Lockfile>,
+) -> Result<bool, InstallError> {
+    if !may_fast_update_lockfile(install, mode.prefer_frozen_lockfile, loaded.wanted.had_conflicts)
+    {
+        return Ok(false);
+    }
+    let Some(lockfile) = lockfile else { return Ok(false) };
+    let current = pnpm_hooks::untracked_read_package_hook(loaded.pnpmfile_hook.as_ref())
+        .await
+        .map_err(InstallError::ReadPackageHook)?;
+    Ok(!crate::install::untracked_read_package_hook_may_have_changed(
+        lockfile.untracked_pnpmfile_read_package_hook(),
+        current,
+    ))
+}
+
 /// A lockfile whose Git conflict markers were merged away has to be
 /// written back, and only a resolution writes it, so the fast update is
 /// off the table for it — as it is for every other input the update

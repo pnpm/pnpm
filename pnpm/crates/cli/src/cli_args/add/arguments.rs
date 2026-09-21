@@ -71,8 +71,12 @@ pub struct AddSaveArgs {
     #[clap(short = 'E', long = "save-exact")]
     #[clap(id = "save_exact")]
     pub exact: bool,
+    /// Save the resolved version with a `~` range prefix. Equivalent to `--save-prefix=~`.
+    #[clap(long = "tilde", overrides_with = "save_prefix")]
+    #[clap(id = "tilde")]
+    pub tilde: bool,
     /// The prefix of the saved version range: `^` (default), `~`, `=` for an explicit exact pin, or empty for a bare exact version.
-    #[clap(long = "save-prefix", value_name = "prefix")]
+    #[clap(long = "save-prefix", value_name = "prefix", overrides_with = "tilde")]
     #[clap(id = "save_prefix")]
     pub prefix: Option<String>,
     /// Save the new dependency to the default catalog. Shorthand for `--save-catalog-name=default`.
@@ -115,6 +119,8 @@ pub struct AddTargetArgs {
 
 #[derive(Debug, Clone, clap::Args)]
 pub struct AddInstallArgs {
+    #[clap(flatten)]
+    pub dedupe: crate::cli_args::install_options::AutoDedupeArgs,
     /// Package names allowed to run lifecycle (build) scripts during this
     /// install, appended to `allowBuilds`. Prefix a name with `!` to deny
     /// its scripts instead. May be repeated.

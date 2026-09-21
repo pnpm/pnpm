@@ -82,6 +82,13 @@ pub(crate) struct ReuseLockfileInputs<'a> {
     /// the reuse-verbatim path shares it instead of deep-copying.
     pub shared: Option<&'a Arc<Lockfile>>,
     pub extensions_checksum: Option<&'a str>,
+    /// The `pnpmfileChecksum` this install would record, against the one
+    /// the candidate holds. A pnpmfile's `readPackage` rewrites the
+    /// manifests the recorded subtrees were resolved from, so a drifted
+    /// checksum means they describe manifests this install no longer sees
+    /// (<https://github.com/pnpm/pnpm/issues/3735>).
+    pub pnpmfile_checksum: Option<&'a str>,
+    pub untracked_pnpmfile_read_package_hook: Option<bool>,
     pub parsed_overrides: Option<&'a [pnpm_config_parse_overrides::VersionOverride]>,
     pub resolved_overrides: Option<&'a IndexMap<String, String>>,
 }
@@ -114,6 +121,7 @@ pub(crate) struct FreshLockfileResolution<'a> {
     pub direct_by_importer:
         &'a BTreeMap<String, BTreeMap<String, pnpm_resolving_deps_resolver::DepPath>>,
     pub overrides: Option<IndexMap<String, String>>,
+    pub include_peer_dependencies: bool,
     /// Publish dates this run resolved for the direct dependencies,
     /// layered over the ones [`FreshLockfilePrior::lockfile`] recorded. Empty
     /// unless the install resolved `time-based`.

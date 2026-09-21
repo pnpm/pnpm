@@ -13,7 +13,8 @@ import getVersionSelectorType from 'version-selector-type'
 
 export function getPreferredVersionsFromLockfileAndManifests (
   snapshots: PackageSnapshots | undefined,
-  manifests: Array<DependencyManifest | ProjectManifest>
+  manifests: Array<DependencyManifest | ProjectManifest>,
+  opts: { dedupe?: boolean } = {}
 ): PreferredVersions {
   // All maps in here are keyed by package names and specifiers coming from
   // manifests and the lockfile — attacker-controlled inputs. Null-prototype
@@ -33,11 +34,12 @@ export function getPreferredVersionsFromLockfileAndManifests (
     }
   }
   if (!snapshots) return preferredVersions
-  addPreferredVersionsFromLockfile(snapshots, preferredVersions)
+  // Dedupe must let newly resolved dependencies compete with lockfile versions.
+  addPreferredVersionsFromLockfile(snapshots, preferredVersions, opts.dedupe ? 1 : EXISTING_VERSION_SELECTOR_WEIGHT)
   return preferredVersions
 }
 
-function addPreferredVersionsFromLockfile (snapshots: PackageSnapshots, preferredVersions: PreferredVersions): void {
+function addPreferredVersionsFromLockfile (snapshots: PackageSnapshots, preferredVersions: PreferredVersions, weight: number): void {
   // The snapshots object can contain multiple entries with the same package
   // name and version. This is because a dependency can appear multiple times
   // with the same version in the lockfile due to peer dependency resolution. To
@@ -56,7 +58,7 @@ function addPreferredVersionsFromLockfile (snapshots: PackageSnapshots, preferre
 
       const existingSelector = preferredVersions[name][version]
       if (existingSelector == null) {
-        preferredVersions[name][version] = { selectorType: 'version', weight: EXISTING_VERSION_SELECTOR_WEIGHT }
+        preferredVersions[name][version] = { selectorType: 'version', weight }
         continue
       }
 
@@ -75,7 +77,7 @@ function addPreferredVersionsFromLockfile (snapshots: PackageSnapshots, preferre
       // present in the lockfile that's also used by a direct dependency to be
       // considered at a higher priority than a package with only one of the two
       // criteria.
-      preferredVersions[name][version] = addWeightToVersionSelector(existingSelector, EXISTING_VERSION_SELECTOR_WEIGHT)
+      preferredVersions[name][version] = addWeightToVersionSelector(existingSelector, weight)
     }
   }
 }

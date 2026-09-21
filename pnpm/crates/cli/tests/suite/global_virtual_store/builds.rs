@@ -1,3 +1,5 @@
+//! The global-virtual-store tests that exercise the build policy.
+
 use super::{
     AddMockedRegistry, CommandExtra, CommandTempCwd, StoreDir, StoreIndex, allow_builds_yaml,
     corrupt_pristine_file, fs, hash_dirs, is_symlink_or_junction, pacquet, pkg_in_slot,

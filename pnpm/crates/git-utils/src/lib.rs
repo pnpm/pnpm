@@ -1,12 +1,18 @@
 //! Read-only git queries shared by the commands that branch on
 //! repository state: `pnpm publish`'s working-tree checks, `pnpm
 //! version`'s clean-tree gate, and the per-branch lockfile settings.
+//! Also the environment that keeps the git resolver's and fetcher's
+//! invocations from waiting on the terminal.
 //!
 //! Counterpart of pnpm's `@pnpm/network.git-utils`.
 
 pub use capabilities::{CommandOutput, Host, RunCommand};
+pub use non_interactive::{
+    disable_git_prompts, has_configured_ssh_command, non_interactive_git_env,
+};
 
 mod capabilities;
+mod non_interactive;
 
 use std::{
     fs, io,
@@ -55,6 +61,17 @@ pub fn get_current_branch<Sys: RunCommand>(cwd: &Path) -> Option<String> {
             }
         }
     }
+}
+
+/// Verify that HEAD resolves to a detached commit. Refused metadata and failed
+/// Git queries are not treated as detached.
+#[must_use]
+pub fn is_head_detached<Sys: RunCommand>(cwd: &Path) -> bool {
+    if matches!(read_branch_from_head_file(cwd), HeadBranch::Branch(_) | HeadBranch::Refused) {
+        return false;
+    }
+    Sys::run("git", &["rev-parse", "--verify", "--symbolic-full-name", "HEAD"], Some(cwd))
+        .is_ok_and(|output| output.success && output.stdout.trim() == "HEAD")
 }
 
 /// The outcomes of reading `.git/HEAD`.

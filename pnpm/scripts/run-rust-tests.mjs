@@ -16,6 +16,7 @@ try {
   Object.assign(env, {
     PNPM_CONFIG_CI: 'false',
     PNPM_CONFIG_NPMRC_AUTH_FILE: npmrcPath,
+    PNPM_TEST_NPMRC_AUTH_FILE: npmrcPath,
     XDG_CONFIG_HOME: configDir,
   })
 

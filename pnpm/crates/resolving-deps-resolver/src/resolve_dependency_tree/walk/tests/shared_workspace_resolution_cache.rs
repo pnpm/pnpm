@@ -66,6 +66,7 @@ fn directory_result(id: &str, resolved_via: &str) -> ResolveResult {
             latest: None,
             published_at: None,
             manifest: None,
+            non_deprecated_alternative: None,
         },
     }
 }

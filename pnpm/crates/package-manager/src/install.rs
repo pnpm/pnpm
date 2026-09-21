@@ -5,10 +5,15 @@ pub(crate) use entry_points::apply_deploy_manifest_hook_to_arc;
 pub use errors::{InstallError, defer_ignored_builds};
 pub(crate) use lockfile_freshness::{
     CheckLockfileSettingsDriftOptions, FreshnessCheckError, FreshnessScope,
-    check_importer_satisfies, check_lockfile_settings_drift, parse_config_overrides,
+    ImporterSatisfactionCheck, check_importer_satisfies, check_lockfile_settings_drift,
+    parse_config_overrides,
 };
 pub use lockfile_freshness::{
     WantedLockfileSatisfactionCheck, wanted_lockfile_satisfies_workspace,
+};
+pub(crate) use modules_state::{
+    frozen_tree_intact, hoisted_workspace_packages_present, modules_layout_consistent_with,
+    moved_tree_is_reusable, tree_may_move,
 };
 pub use run::{InstallExecution, InstallLockfilePolicy, ResolutionInputs};
 pub use workspace_state::{
@@ -17,6 +22,7 @@ pub use workspace_state::{
 };
 pub(crate) use workspace_state::{
     build_workspace_state, configured_or_discovered_workspace_dir, lockfile_root_dir,
+    workspace_packages_for_freshness,
 };
 
 mod entry_points;
@@ -102,11 +108,10 @@ use lockfile_freshness::{
 use materialize::{MaterializationInputs, Materialized, materialize};
 use modules_state::{
     build_modules_manifest, check_modules_settings_diff, current_contains_dep_path,
-    drain_settled_projects, frozen_tree_intact, gvs_build_marker_present,
-    gvs_build_markers_may_require_recovery, has_newly_allowed_ignored_builds,
-    has_revoked_allowed_builds, manifest_string_field, merge_filtered_modules_metadata,
-    merge_pending_builds, modules_consistent_with, modules_layout_consistent_with,
-    project_requires_lifecycle_scripts, unapproved_recorded_ignored_builds,
+    drain_settled_projects, gvs_build_marker_present, gvs_build_markers_may_require_recovery,
+    has_newly_allowed_ignored_builds, manifest_string_field, merge_filtered_modules_metadata,
+    merge_pending_builds, modules_consistent_with, project_requires_lifecycle_scripts,
+    recorded_allow_builds_differ, unapproved_recorded_ignored_builds,
 };
 use prepare_modules_state::{
     PrepareModulesStateInputs, PreparedModulesState, prepare_modules_state,
@@ -163,6 +168,13 @@ async fn verify_lockfile_eagerly<Reporter: pnpm_reporter::Reporter>(
 pub struct LockfileVerificationGate(
     tokio::task::JoinHandle<Result<(), pnpm_lockfile_verification::VerifyError>>,
 );
+
+pub(crate) fn untracked_read_package_hook_may_have_changed(
+    recorded: Option<bool>,
+    current: Option<bool>,
+) -> bool {
+    current == Some(true) || recorded != current
+}
 
 impl LockfileVerificationGate {
     /// Start the fan-out in the background, or `None` when no verifier

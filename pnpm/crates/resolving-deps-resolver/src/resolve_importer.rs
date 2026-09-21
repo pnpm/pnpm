@@ -175,6 +175,10 @@ pub struct ImporterResolutionInputs {
     /// Catalogs parsed from `pnpm-workspace.yaml`. Applied to importer
     /// dependencies and to children of injected workspace packages.
     pub catalogs: Catalogs,
+    /// Directory `pnpm-workspace.yaml` sits in, which a `file:` /
+    /// `link:` catalog entry's relative path is measured from. `None`
+    /// when the install has no workspace manifest, and so no catalogs.
+    pub catalogs_dir: Option<std::path::PathBuf>,
     pub catalog_server: bool,
 }
 
@@ -390,6 +394,7 @@ impl DirectSeeds {
             dependency_groups,
             opts.peers.auto_install_peers,
             &opts.resolution.catalogs,
+            opts.resolution.catalogs_dir.as_deref(),
         )?;
         Ok(Self {
             wanted_specifier_by_alias: initial_wanted
@@ -440,7 +445,7 @@ impl ResolveImporterOptions {
                 self.resolution.pick_lowest_direct,
                 self.resolution.subdep_published_by,
             )
-            .with_catalogs(self.resolution.catalogs);
+            .with_catalogs(self.resolution.catalogs, self.resolution.catalogs_dir.clone());
         let settings = HoistSettings {
             all_preferred_versions: self.resolution.all_preferred_versions,
             override_bare_specifier: self.resolution.override_bare_specifier,

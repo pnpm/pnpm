@@ -1,14 +1,22 @@
+#[cfg(unix)]
+use super::process_group_probe;
 use super::{
     Command, CommandExtra, CommandTempCwd, Value, WORKSPACE_ROOT_START_DIRS,
-    build_appends_run_order, build_writes_marker, fs, json, process_group_probe,
-    workspace_root_run_selection, write_executable, write_workspace,
-    write_workspace_with_root_and_packages,
+    build_appends_run_order, build_writes_marker, fs, json, workspace_root_run_selection,
+    write_marker_script, write_node_bin, write_workspace, write_workspace_with_root_and_packages,
 };
+#[cfg(unix)]
+use crate::_utils::terminal::Terminal;
 use assert_cmd::{assert::OutputAssertExt, cargo::CommandCargoExt};
 
-/// A single filtered script cannot run alongside a sibling, so it must
-/// stay in pacquet's own process group: a child moved into its own group
-/// is stopped the moment it reads from the terminal.
+/// A single filtered script cannot run alongside a sibling, so at a
+/// terminal it stays in pacquet's own process group: a child moved into
+/// its own group is stopped the moment it reads from the terminal.
+///
+/// Unix-only by subject: the assertion compares POSIX process groups,
+/// which Windows has no counterpart for — pnpm keeps a script's children
+/// in a job object there instead.
+#[cfg(unix)]
 #[test]
 fn filtered_run_keeps_single_script_in_foreground_process_group() {
     let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
@@ -27,10 +35,11 @@ fn filtered_run_keeps_single_script_in_foreground_process_group() {
         ],
     );
 
-    pacquet
-        .with_args(["--filter", "project-1", "run", "prompt"])
-        .assert()
-        .success();
+    let terminal = Terminal::open();
+    let mut process =
+        terminal.spawn_foreground(pacquet.with_args(["--filter", "project-1", "run", "prompt"]));
+    let status = process.wait().expect("wait for pacquet");
+    assert!(status.success(), "pacquet should succeed on the terminal");
 
     let groups =
         fs::read_to_string(workspace.join("process-groups.txt")).expect("read process groups");
@@ -63,8 +72,7 @@ fn recursive_run_finds_workspace_root_bin_on_path() {
         )],
     );
     let bin_dir = workspace.join("node_modules").join(".bin");
-    fs::create_dir_all(&bin_dir).expect("create workspace-root node_modules/.bin");
-    write_executable(&bin_dir.join("root-tool"), "#!/bin/sh\ntouch root-tool-ran.txt\n");
+    write_node_bin(&bin_dir, "root-tool", "require('fs').writeFileSync('root-tool-ran.txt', '')\n");
 
     pacquet
         .with_arg("-r")
@@ -104,8 +112,7 @@ fn recursive_run_prefers_project_bin_over_workspace_root_bin() {
     );
     for (dir, version) in [(workspace.clone(), "2.0.0"), (workspace.join("project-1"), "1.0.0")] {
         let bin_dir = dir.join("node_modules").join(".bin");
-        fs::create_dir_all(&bin_dir).expect("create node_modules/.bin");
-        write_executable(&bin_dir.join("print-version"), &format!("#!/bin/sh\necho {version}\n"));
+        write_node_bin(&bin_dir, "print-version", &format!("console.log('{version}')\n"));
     }
 
     pacquet
@@ -297,8 +304,9 @@ fn filtered_run_prints_the_script_command_unless_silent() {
         .output()
         .expect("run filtered build");
     assert!(output.status.success(), "filtered build failed: {output:?}");
+    let printed_command = format!("$ {}", write_marker_script("ran.txt"));
     assert!(
-        String::from_utf8_lossy(&output.stderr).contains("$ touch ran.txt"),
+        String::from_utf8_lossy(&output.stderr).contains(&printed_command),
         "filtered build must print its script command: {output:?}",
     );
 
@@ -321,7 +329,7 @@ fn filtered_run_prints_the_script_command_unless_silent() {
         "silent filtered build must still execute its script: {output:?}",
     );
     assert!(
-        !String::from_utf8_lossy(&output.stderr).contains("$ touch ran.txt"),
+        !String::from_utf8_lossy(&output.stderr).contains(&printed_command),
         "silent filtered build must omit its script command: {output:?}",
     );
 
@@ -723,7 +731,10 @@ fn filtered_run_without_script_name_lists_selected_and_root_scripts() {
     assert!(stdout.contains(
         "Commands of the root workspace project (to run them, use \"pnpm -w run\"):\n  root-build\n    echo root",
     ));
-    assert!(!stdout.contains("touch ran.txt"), "unselected project scripts must not be listed");
+    assert!(
+        !stdout.contains(&write_marker_script("ran.txt")),
+        "unselected project scripts must not be listed",
+    );
 
     drop(root);
 }
@@ -739,8 +750,8 @@ fn recursive_run_filters_hidden_regexp_matches_when_a_visible_script_matches() {
                 "name": "project",
                 "version": "1.0.0",
                 "scripts": {
-                    "build:visible": "touch visible.txt",
-                    ".build:hidden": "touch hidden.txt",
+                    "build:visible": write_marker_script("visible.txt"),
+                    ".build:hidden": write_marker_script("hidden.txt"),
                 },
             }),
         )],

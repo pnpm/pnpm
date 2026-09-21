@@ -4,6 +4,8 @@
 //! what the walk reads off each resolved package — lives in
 //! [`super::manifest`].
 
+use std::path::Path;
+
 use pnpm_catalogs_types::Catalogs;
 use pnpm_package_manifest::{DependencyGroup, PackageManifest};
 use pnpm_resolving_resolver_base::is_acceptable_peer_spec;
@@ -11,7 +13,8 @@ use rustc_hash::{FxHashMap as HashMap, FxHashSet as HashSet};
 use serde_json::Value;
 
 use super::{
-    ResolveDependencyTreeError, WantedSpec, dependency_meta_is_injected, resolve_catalog_specifiers,
+    ResolveDependencyTreeError, WantedSpec, catalogs::catalog_anchor, dependency_meta_is_injected,
+    resolve_catalog_specifiers,
 };
 
 /// Collect the names of the importer manifest's `optionalDependencies`
@@ -50,6 +53,10 @@ fn injected_dependency_names(manifest: &Value) -> HashSet<String> {
 /// `peerDependencies`) tagged with the right `optional` / `injected`
 /// flags and with `catalog:` specifiers resolved.
 ///
+/// `workspace_dir` is where `pnpm-workspace.yaml` sits, so a `file:` /
+/// `link:` catalog entry lands on the path the manifest's own directory
+/// would have written.
+///
 /// An alias declared in several groups yields one spec, merged by
 /// spreading the groups in order: `peerDependencies` first (when
 /// `auto_install_peers`), then `devDependencies` < `dependencies` <
@@ -77,6 +84,7 @@ pub(crate) fn importer_direct_wanted_specs<DependencyGroupList>(
     dependency_groups: DependencyGroupList,
     auto_install_peers: bool,
     catalogs: &Catalogs,
+    workspace_dir: Option<&Path>,
 ) -> Result<Vec<WantedSpec>, ResolveDependencyTreeError>
 where
     DependencyGroupList: IntoIterator<Item = DependencyGroup>,
@@ -118,7 +126,8 @@ where
             )
         })
         .collect();
-    resolve_catalog_specifiers(wanted, catalogs)
+    let consumer_dir = manifest.path().parent();
+    resolve_catalog_specifiers(wanted, catalogs, catalog_anchor(workspace_dir, consumer_dir))
 }
 
 /// Reject a `peerDependencies` value that is neither a peer range nor a

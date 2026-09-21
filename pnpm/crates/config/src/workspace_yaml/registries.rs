@@ -6,6 +6,8 @@
 //! the routes, because a scope resolves to exactly one registry while a
 //! registry serves many.
 
+pub use python::{EcosystemIndex, PythonRegistryRoute};
+
 pub use ecosystems::{Ecosystem, serves_another_ecosystem, take_roles_from_earlier_layers};
 
 use super::LoadWorkspaceYamlError;
@@ -82,6 +84,10 @@ pub struct RegistryDeclaration {
     /// else to serve means what it did.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub ecosystem: Option<Ecosystem>,
+    /// Python package names or trailing-prefix patterns routed exclusively here.
+    /// Omitted, or `*`, declares the default Python index.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub packages: Option<Vec<String>>,
     #[serde(flatten)]
     pub unknown: BTreeMap<String, serde_json::Value>,
 }
@@ -138,11 +144,8 @@ pub struct RegistryLookups {
     /// verifies against.
     pub registries_by_prefix: BTreeMap<String, String>,
     pub registry_options_by_url: BTreeMap<String, RegistryOptions>,
-    /// The indexes declared for each ecosystem other than npm, in the order
-    /// they are searched: the last one answers what none before it had.
-    /// npm is absent because its
-    /// registries are the three lookups above.
-    pub indexes_by_ecosystem: BTreeMap<Ecosystem, Vec<String>>,
+    /// Ecosystem indexes and their exclusive Python package routes.
+    pub indexes_by_ecosystem: BTreeMap<Ecosystem, Vec<EcosystemIndex>>,
 }
 
 /// The scopes `entries` routes, `@`-prefixed, with the bare `@` among them
@@ -462,3 +465,4 @@ pub(super) fn quote_and_join<'a>(values: impl IntoIterator<Item = &'a str>) -> S
 }
 
 mod ecosystems;
+mod python;

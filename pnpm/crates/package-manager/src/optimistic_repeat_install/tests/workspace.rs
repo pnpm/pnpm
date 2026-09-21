@@ -1,13 +1,15 @@
+#[cfg(unix)]
+use super::FOO_LOCKFILE;
 use super::{
     super::{
         Decision, OptimisticRepeatInstallCheck, check_optimistic_repeat_install,
         settings::current_settings,
     },
-    FOO_MANIFEST, assert_content_check_converges_after_collision, backdate_validated_files, check,
-    check_with_lockfile, collide_mtimes_with_recorded_state, content_check_decision,
-    isolated_included, linked_sibling_decision_for_spec, setup_content_check_project,
-    setup_fresh_install, setup_fresh_install_with_config, validate_existing_files,
-    write_local_tarball_lockfile, write_state,
+    FOO_MANIFEST, RunDepsStatus, assert_content_check_converges_after_collision,
+    backdate_validated_files, check, check_with_lockfile, collide_mtimes_with_recorded_state,
+    content_check_decision, isolated_included, linked_sibling_decision_for_spec,
+    setup_content_check_project, setup_fresh_install, setup_fresh_install_with_config,
+    validate_existing_files, workspace_deps_status, write_local_tarball_lockfile, write_state,
 };
 use pnpm_config::Config;
 use pnpm_lockfile::{Lockfile, MaybeLazyLockfile};
@@ -228,7 +230,7 @@ fn returns_up_to_date_when_a_project_has_only_link_dependencies() {
 /// Project list mismatch (cached state has a project that today's
 /// walk doesn't) invalidates the cached state.
 #[test]
-fn returns_skipped_when_workspace_project_set_changes() {
+fn install_and_run_refuse_a_changed_workspace_project_set() {
     let (dir, config, manifest) =
         setup_fresh_install(pnpm_config::NodeLinker::Isolated, "root", "1.0.0", "");
 
@@ -261,7 +263,230 @@ fn returns_skipped_when_workspace_project_set_changes() {
         &[(dir.path().to_path_buf(), &manifest)],
     );
     assert!(matches!(decision, Decision::Skipped { reason } if reason.contains("project list")));
+
+    let status = workspace_deps_status(&dir, config, &[(dir.path().to_path_buf(), &manifest)]);
+    assert_eq!(
+        status,
+        RunDepsStatus::Outdated {
+            issue: "The workspace structure has changed since last install".to_string(),
+            install_args: Vec::new(),
+        },
+    );
+    let state = load_workspace_state(dir.path()).unwrap().unwrap();
+    assert_eq!(state.projects.len(), 2, "a rejected project set must not refresh the state");
 }
+/// Record the only project under a sibling of `workspace_root`, as a tree
+/// copied from there carries it. Returns the recorded dir.
+fn record_projects_elsewhere(workspace_root: &std::path::Path) -> String {
+    let mut state =
+        load_workspace_state(workspace_root).expect("read state").expect("state on disk");
+    let (_, entry) = state.projects.pop_first().expect("the recorded project");
+    let elsewhere = workspace_root
+        .with_file_name("elsewhere")
+        .to_string_lossy()
+        .into_owned();
+    state.projects.insert(elsewhere.clone(), entry);
+    update_workspace_state(workspace_root, &state).expect("write workspace state");
+    elsewhere
+}
+/// The patch mtimes of a moved tree come from wherever it was validated, so
+/// a newer patch file leaves the verdict to the proof of the move, at the
+/// fast path and at the gate alike. This tree has no `.modules.yaml` for
+/// that proof to get past, so both refuse it for the move it cannot prove.
+#[test]
+fn a_moved_tree_leaves_a_newer_patch_to_the_move_proof() {
+    let (dir, config, manifest) = setup_fresh_install_with_config(
+        pnpm_config::NodeLinker::Isolated,
+        "root",
+        "1.0.0",
+        "",
+        |config| {
+            let patch = ("foo@1.0.0".to_string(), "patches/foo.patch".to_string());
+            config.patched_dependencies = Some(indexmap::IndexMap::from([patch]));
+        },
+    );
+    let elsewhere = record_projects_elsewhere(dir.path());
+    fs::create_dir_all(dir.path().join("patches")).unwrap();
+    fs::write(dir.path().join("patches/foo.patch"), "--- a\n+++ b\n").unwrap();
+    let projects = [(dir.path().to_path_buf(), &manifest)];
+
+    let decision = check(dir.path(), config, pnpm_config::NodeLinker::Isolated, &projects);
+    assert_eq!(
+        decision,
+        Decision::Skipped {
+            reason: "the moved tree's store or virtual store does not resolve from where it is",
+        },
+    );
+    let status = workspace_deps_status(&dir, config, &projects);
+    assert!(
+        matches!(&status, RunDepsStatus::Outdated { issue, .. } if issue == "The workspace structure has changed since last install"),
+        "unexpected status: {status:?}",
+    );
+    let state = load_workspace_state(dir.path()).expect("read state").expect("state on disk");
+    assert!(state.projects.contains_key(&elsewhere), "the refused move must not re-key the state");
+}
+/// The current lockfile keeps only what the importers reach, so a wanted
+/// lockfile still carrying a snapshot no importer reaches never equals it.
+/// The proof of a move compares the shape a materialization would settle on,
+/// as the in-place short-circuit does, so such a tree is reused.
+#[cfg(unix)]
+#[test]
+fn a_moved_tree_with_unreachable_lockfile_snapshots_is_up_to_date() {
+    let (dir, config) = setup_content_check_project();
+    write_relocatable_layout(config);
+    install_foo_slot(config);
+    // A snapshot the only importer does not reach, as a lockfile keeps until
+    // something prunes it.
+    let wanted = format!("{FOO_LOCKFILE}  bar@1.0.0: {{}}\n");
+    fs::write(dir.path().join(Lockfile::FILE_NAME), wanted).unwrap();
+    record_projects_elsewhere(dir.path());
+    let manifest = PackageManifest::from_path(dir.path().join("package.json")).unwrap();
+
+    let decision =
+        content_check_decision(&dir, config, false, &[(dir.path().to_path_buf(), &manifest)]);
+    assert_eq!(decision, Decision::UpToDate);
+}
+#[cfg(unix)]
+fn write_relocatable_layout(config: &Config) {
+    let layout = serde_json::json!({
+        "layoutVersion": 5,
+        "nodeLinker": "isolated",
+        "included": isolated_included(),
+        "hoistPattern": config.hoist_pattern,
+        "publicHoistPattern": config.public_hoist_pattern,
+        "storeDir": config.store_dir.display().to_string(),
+        "virtualStoreDir": config.effective_virtual_store_dir().to_string_lossy(),
+        "virtualStoreDirMaxLength": config.virtual_store_dir_max_length,
+    });
+    fs::write(config.modules_dir.join(pnpm_modules_yaml::MODULES_FILENAME), layout.to_string())
+        .unwrap();
+}
+
+#[cfg(unix)]
+fn install_foo_slot(config: &Config) {
+    let slot = config.virtual_store_dir.join("foo@1.0.0/node_modules/foo");
+    fs::create_dir_all(&slot).unwrap();
+    std::os::unix::fs::symlink(".pnpm/foo@1.0.0/node_modules/foo", config.modules_dir.join("foo"))
+        .unwrap();
+}
+
+#[cfg(unix)]
+#[test]
+fn a_moved_tree_with_a_missing_dependency_is_not_up_to_date() {
+    for missing in ["link", "slot"] {
+        let (dir, config) = setup_content_check_project();
+        write_relocatable_layout(config);
+        install_foo_slot(config);
+        match missing {
+            "link" => fs::remove_file(config.modules_dir.join("foo")).unwrap(),
+            _ => fs::remove_dir_all(config.virtual_store_dir.join("foo@1.0.0")).unwrap(),
+        }
+        record_projects_elsewhere(dir.path());
+        let manifest = PackageManifest::from_path(dir.path().join("package.json")).unwrap();
+        let projects = [(dir.path().to_path_buf(), &manifest)];
+        let decision = content_check_decision(&dir, config, false, &projects);
+        assert!(matches!(decision, Decision::Skipped { .. }), "missing {missing}: {decision:?}");
+        let status = workspace_deps_status(&dir, config, &projects);
+        assert!(matches!(status, RunDepsStatus::Outdated { .. }), "missing {missing}: {status:?}");
+    }
+}
+
+#[cfg(unix)]
+#[test]
+fn a_moved_tree_with_a_missing_current_lockfile_is_not_up_to_date() {
+    let (dir, config) = setup_content_check_project();
+    write_relocatable_layout(config);
+    install_foo_slot(config);
+    let elsewhere = record_projects_elsewhere(dir.path());
+    fs::remove_file(config.virtual_store_dir.join(Lockfile::CURRENT_FILE_NAME)).unwrap();
+    let manifest = PackageManifest::from_path(dir.path().join("package.json")).unwrap();
+    let projects = [(dir.path().to_path_buf(), &manifest)];
+
+    let decision = content_check_decision(&dir, config, false, &projects);
+    assert_eq!(
+        decision,
+        Decision::Skipped { reason: "the lockfile requires dependencies but none were installed" },
+    );
+    let status = workspace_deps_status(&dir, config, &projects);
+    assert_eq!(
+        status,
+        RunDepsStatus::Outdated {
+            issue: "The workspace structure has changed since last install".to_string(),
+            install_args: Vec::new(),
+        },
+    );
+    let state = load_workspace_state(dir.path()).unwrap().unwrap();
+    assert_eq!(state.projects.keys().collect::<Vec<_>>(), [&elsewhere]);
+}
+
+#[cfg(unix)]
+#[test]
+fn a_moved_tree_cannot_trust_a_pnpmfile_with_an_older_mtime() {
+    let (dir, config) = setup_content_check_project();
+    write_relocatable_layout(config);
+    install_foo_slot(config);
+    let elsewhere = record_projects_elsewhere(dir.path());
+    let hook = dir.path().join(".pnpmfile.cjs");
+    fs::write(&hook, "module.exports = { hooks: { readPackage(pkg) { pkg.dependencies = {}; return pkg; } } };\n")
+        .unwrap();
+    let mut state = load_workspace_state(dir.path()).unwrap().unwrap();
+    state.pnpmfiles = vec![
+        std::path::Path::new(&elsewhere)
+            .join(".pnpmfile.cjs")
+            .to_string_lossy()
+            .into_owned(),
+    ];
+    update_workspace_state(dir.path(), &state).unwrap();
+    pnpm_testing_utils::fs::set_mtime_ms(&hook, state.last_validated_timestamp - 2_000);
+    let manifest = PackageManifest::from_path(dir.path().join("package.json")).unwrap();
+    let projects = [(dir.path().to_path_buf(), &manifest)];
+    let decision = content_check_decision(&dir, config, false, &projects);
+    assert!(matches!(decision, Decision::Skipped { .. }), "unexpected decision: {decision:?}");
+    let status = workspace_deps_status(&dir, config, &projects);
+    assert!(matches!(status, RunDepsStatus::Outdated { .. }), "unexpected status: {status:?}");
+}
+
+#[cfg(unix)]
+#[test]
+fn a_moved_production_install_passes_the_run_gate() {
+    let (dir, config) = setup_content_check_project();
+    write_relocatable_layout(config);
+    let included = pnpm_modules_yaml::IncludedDependencies {
+        dependencies: true,
+        dev_dependencies: false,
+        optional_dependencies: true,
+    };
+    let layout_path = config.modules_dir.join(pnpm_modules_yaml::MODULES_FILENAME);
+    let mut layout: serde_json::Value =
+        serde_json::from_str(&fs::read_to_string(&layout_path).unwrap()).unwrap();
+    layout["included"] = serde_json::to_value(included).unwrap();
+    fs::write(layout_path, layout.to_string()).unwrap();
+    fs::write(
+        dir.path().join("package.json"),
+        FOO_MANIFEST.replace("dependencies", "devDependencies"),
+    )
+    .unwrap();
+    fs::write(
+        dir.path().join(Lockfile::FILE_NAME),
+        FOO_LOCKFILE.replace("dependencies:", "devDependencies:"),
+    )
+    .unwrap();
+    let wanted = Lockfile::load_wanted_from_dir(dir.path()).unwrap().unwrap();
+    let current =
+        crate::filter_lockfile_for_current(&wanted, included, &crate::SkippedSnapshots::new());
+    current
+        .save_to_path(&config.virtual_store_dir.join(Lockfile::CURRENT_FILE_NAME))
+        .unwrap();
+    record_projects_elsewhere(dir.path());
+    let mut state = load_workspace_state(dir.path()).unwrap().unwrap();
+    state.settings.dev = Some(false);
+    update_workspace_state(dir.path(), &state).unwrap();
+    let manifest = PackageManifest::from_path(dir.path().join("package.json")).unwrap();
+    let status = workspace_deps_status(&dir, config, &[(dir.path().to_path_buf(), &manifest)]);
+    assert_eq!(status, RunDepsStatus::UpToDate);
+    assert_eq!(load_workspace_state(dir.path()).unwrap().unwrap().settings.dev, Some(false));
+}
+
 /// Drift in `injectWorkspacePackages` invalidates the cached state.
 /// Toggling the flag changes whether workspace resolutions land as
 /// `link:` symlinks or `file:` hard-linked copies, so the previous
@@ -431,6 +656,39 @@ fn workspace_content_check_refreshes_last_validated_timestamp() {
         .last_validated_timestamp;
     assert!(after > before, "expected the state timestamp to advance ({before} -> {after})");
 }
+/// Every project the content check takes is checked, not only the first: a
+/// project the lockfile no longer records is refused however current the root
+/// is.
+#[test]
+fn workspace_content_check_refuses_a_project_after_the_first() {
+    let (dir, config) = setup_content_check_project();
+    let dropped_dir = dir.path().join("packages").join("b");
+    fs::create_dir_all(&dropped_dir).unwrap();
+    fs::write(dropped_dir.join("package.json"), r#"{"name":"b","version":"1.0.0"}"#).unwrap();
+    // Rewritten so both manifests are newer than the recorded validation and
+    // both reach the content check, the root's first.
+    fs::write(dir.path().join("package.json"), FOO_MANIFEST).unwrap();
+    let mut state = load_workspace_state(dir.path()).unwrap().unwrap();
+    state.projects.insert(
+        dropped_dir.to_string_lossy().into_owned(),
+        ProjectEntry { name: Some("b".into()), version: Some("1.0.0".into()) },
+    );
+    update_workspace_state(dir.path(), &state).unwrap();
+    let root = PackageManifest::from_path(dir.path().join("package.json")).unwrap();
+    let dropped = PackageManifest::from_path(dropped_dir.join("package.json")).unwrap();
+
+    let decision = content_check_decision(
+        &dir,
+        config,
+        true,
+        &[(dir.path().to_path_buf(), &root), (dropped_dir, &dropped)],
+    );
+
+    assert_eq!(
+        decision,
+        Decision::Skipped { reason: "a modified manifest is no longer satisfied by the lockfile" },
+    );
+}
 #[test]
 fn workspace_content_check_converges_after_a_same_millisecond_mtime_collision() {
     assert_content_check_converges_after_collision(500_000);
@@ -475,6 +733,7 @@ fn returns_up_to_date_when_aliased_workspace_dependency_satisfies_range() {
             "link:pkg-a",
             "1.5.0",
             pnpm_config::LinkWorkspacePackages::DirectOnly,
+            false,
         ),
         Decision::UpToDate,
     );
@@ -487,6 +746,7 @@ fn returns_skipped_when_aliased_workspace_dependency_version_is_outdated() {
         "link:pkg-a",
         "2.0.0",
         pnpm_config::LinkWorkspacePackages::DirectOnly,
+        false,
     );
     assert!(
         matches!(decision, Decision::Skipped { reason } if reason.contains("linked")),
@@ -502,6 +762,7 @@ fn returns_up_to_date_when_linked_workspace_dependency_uses_a_tag() {
             "link:pkg-a",
             "1.0.0",
             pnpm_config::LinkWorkspacePackages::DirectOnly,
+            false,
         ),
         Decision::UpToDate,
     );
@@ -515,6 +776,22 @@ fn returns_up_to_date_for_registry_resolution_when_workspace_linking_is_off() {
             "1.0.0",
             "1.0.0",
             pnpm_config::LinkWorkspacePackages::Off,
+            false,
+        ),
+        Decision::UpToDate,
+    );
+}
+
+#[test]
+fn returns_up_to_date_for_workspace_link_excluded_from_lockfile() {
+    assert_eq!(
+        linked_sibling_decision_for_spec(
+            "pkg-a",
+            "^1.0.0",
+            "link:pkg-a",
+            "1.5.0",
+            pnpm_config::LinkWorkspacePackages::DirectOnly,
+            true,
         ),
         Decision::UpToDate,
     );

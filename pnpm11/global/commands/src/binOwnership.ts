@@ -10,8 +10,9 @@ import {
  * removed, together with the at-risk bins owned by groups that will survive.
  *
  * Every manifest read settles before the caller mutates global state. That
- * makes an incomplete target fail closed. Survivors only need inspecting when
- * a target bin will not be retained, because no other bin can be removed.
+ * makes a target whose ownership cannot be read fail closed. Survivors only
+ * need inspecting when a target bin will not be retained, because no other
+ * bin can be removed.
  */
 export async function getGlobalBinOwnership (
   globalDir: string,

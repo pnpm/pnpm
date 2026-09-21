@@ -1,4 +1,5 @@
 pub mod package_manager_spec;
+pub use error::PackageManifestError;
 pub use initialization::{InitAuthor, InitOptions};
 pub use runtime::{
     apply_runtime_on_fail_override, convert_dependencies_to_engines_runtime,
@@ -14,64 +15,13 @@ use std::{
     path::{Path, PathBuf},
 };
 
-use derive_more::{Display, Error, From};
-use miette::Diagnostic;
 use node_semver::Range;
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value, json};
 use strum::IntoStaticStr;
 use tempfile::NamedTempFile;
+mod error;
 mod truthiness;
-
-#[derive(Debug, Display, Error, Diagnostic, From)]
-#[non_exhaustive]
-pub enum PackageManifestError {
-    #[diagnostic(code(ERR_PNPM_PACKAGE_MANIFEST_SERIALIZATION_ERROR))]
-    Serialization(serde_json::Error), // TODO: remove derive(From), split this variant
-
-    #[from(ignore)] // TODO: remove this after derive(From) has been removed
-    #[display("Failed to parse {}: {source}", path.display())]
-    #[diagnostic(code(ERR_PNPM_PACKAGE_MANIFEST_SERIALIZATION_ERROR))]
-    Parse {
-        path: PathBuf,
-        #[error(source)]
-        source: serde_json::Error,
-    },
-
-    #[diagnostic(code(ERR_PNPM_PACKAGE_MANIFEST_IO_ERROR))]
-    Io(std::io::Error), // TODO: remove derive(From), split this variant
-
-    #[from(ignore)] // TODO: remove this after derive(From) has been removed
-    #[display("Failed to read {}: {source}", path.display())]
-    #[diagnostic(code(ERR_PNPM_PACKAGE_MANIFEST_IO_ERROR))]
-    Read {
-        path: PathBuf,
-        #[error(source)]
-        source: io::Error,
-    },
-
-    #[display("package.json file already exists")]
-    #[diagnostic(
-        code(ERR_PNPM_PACKAGE_JSON_EXISTS),
-        help("Your current working directory already has a package.json file.")
-    )]
-    AlreadyExist,
-
-    #[from(ignore)] // TODO: remove this after derive(From) has been removed
-    #[display("invalid attribute: {_0}")]
-    #[diagnostic(code(ERR_PNPM_PACKAGE_MANIFEST_INVALID_ATTRIBUTE))]
-    InvalidAttribute(#[error(not(source))] String),
-
-    #[from(ignore)] // TODO: remove this after derive(From) has been removed
-    #[display("No package.json was found in {_0}")]
-    #[diagnostic(code(ERR_PNPM_NO_IMPORTER_MANIFEST_FOUND))]
-    NoImporterManifestFound(#[error(not(source))] String),
-
-    #[from(ignore)] // TODO: remove this after derive(From) has been removed
-    #[display("Missing script: {_0:?}")]
-    #[diagnostic(code(ERR_PNPM_NO_SCRIPT))]
-    NoScript(#[error(not(source))] String),
-}
 
 #[derive(Debug, Clone, Copy, PartialEq, IntoStaticStr)]
 pub enum DependencyGroup {
@@ -96,7 +46,7 @@ pub enum BundleDependencies {
 /// (freshly scaffolded or in-memory).
 const DEFAULT_INDENT: &str = "  ";
 
-/// Content of the `package.json` files and its path.
+/// Content of a `package.json` or `package.yaml` manifest and its path.
 ///
 /// Carries the source file's formatting (indentation unit, final-newline
 /// state) and its parsed value across the read/save round-trip, so
@@ -110,6 +60,7 @@ pub struct PackageManifest {
     /// Whether a save ends the file with a newline. New and in-memory
     /// manifests get one.
     insert_final_newline: bool,
+    crlf: bool,
     /// One indentation level. Empty for a single-line source document,
     /// which then round-trips back to its compact form.
     indent: String,
@@ -168,6 +119,7 @@ impl PackageManifest {
             path,
             value,
             insert_final_newline: true,
+            crlf: false,
             indent: DEFAULT_INDENT.to_string(),
             on_disk: None,
         }
@@ -207,17 +159,25 @@ impl PackageManifest {
     /// Persist the manifest in its on-disk shape (`devEngines` folded back,
     /// dependency fields normalized) and return that shape.
     ///
-    /// The write preserves the source file's indentation and final-newline
-    /// state, and is skipped entirely when the file already encodes the
-    /// same manifest — so a no-op save never churns formatting or mtime.
+    /// Preserves JSON indentation and final-newline state, or YAML comments
+    /// and existing key order. A save that changes nothing leaves the file
+    /// and its modification time untouched.
     pub fn save_and_get_written_value(&mut self) -> Result<Value, PackageManifestError> {
         let value = self.written_value()?;
         if self.on_disk.as_ref() == Some(&value) {
             return Ok(value);
         }
-        let mut contents = serialize_with_indent(&value, &self.indent)?;
-        if self.insert_final_newline {
-            contents.push('\n');
+        let mut contents = if self.is_yaml() {
+            self.serialize_yaml(&value)?
+        } else {
+            let mut contents = serialize_with_indent(&value, &self.indent)?;
+            if self.insert_final_newline {
+                contents.push('\n');
+            }
+            contents
+        };
+        if self.crlf {
+            contents = contents.replace("\r\n", "\n").replace('\n', "\r\n");
         }
         Self::write_atomic(&self.path, &contents)?;
         self.on_disk = Some(value.clone());

@@ -5,10 +5,21 @@ import path from 'node:path'
 import { expect, test } from '@jest/globals'
 import { fixtures } from '@pnpm/test-fixtures'
 import type { ProjectManifest } from '@pnpm/types'
-import { readProjectManifest, tryReadProjectManifest } from '@pnpm/workspace.project-manifest-reader'
+import { readExactProjectManifest, readExactProjectManifestSync, readProjectManifest, tryReadProjectManifest } from '@pnpm/workspace.project-manifest-reader'
 import { temporaryDirectory } from 'tempy'
 
 const f = fixtures(import.meta.dirname)
+
+test.each([
+  'package-json/package.json',
+  'package-json5/package.json5',
+  'package-yaml/package.yaml',
+])('readExactProjectManifestSync() reads %s', (manifestPath) => {
+  expect(readExactProjectManifestSync(f.find(manifestPath)).manifest).toStrictEqual({
+    name: 'foo',
+    version: '1.0.0',
+  })
+})
 
 test('readProjectManifest()', async () => {
   expect(
@@ -486,4 +497,63 @@ test('canceling changes to a manifest', async () => {
 
   await writeProjectManifest({ name: 'foo' })
   expect(fs.readFileSync('package.json', 'utf8')).toBe(JSON.stringify({ name: 'foo' }))
+})
+
+test.each(['directory', 'exact'])('preserves package.yaml comments and dependency order through the %s reader', async (reader) => {
+  const dir = temporaryDirectory()
+  const file = path.join(dir, 'package.yaml')
+  const original = `name: example
+dependencies:
+  # runtime dependencies
+  zebra: 1.0.0 # pinned
+  alpha: 1.0.0
+`
+  await fs.promises.writeFile(file, original)
+  const { manifest, writeProjectManifest } = reader === 'exact'
+    ? await readExactProjectManifest(file)
+    : await readProjectManifest(dir)
+  manifest.dependencies!.zebra = '2.0.0'
+  manifest.dependencies!.beta = '1.0.0'
+  await writeProjectManifest(manifest)
+  expect(await fs.promises.readFile(file, 'utf8')).toBe(original.replace('zebra: 1.0.0', 'zebra: 2.0.0') + '  beta: 1.0.0\n')
+  delete manifest.dependencies!.alpha
+  await writeProjectManifest(manifest)
+  expect(await fs.promises.readFile(file, 'utf8')).toBe(original.replace('zebra: 1.0.0', 'zebra: 2.0.0').replace('  alpha: 1.0.0\n', '') + '  beta: 1.0.0\n')
+})
+
+test('preserves comments on legacy YAML scalar keys and metadata values', async () => {
+  const dir = temporaryDirectory()
+  const file = path.join(dir, 'package.yaml')
+  const original = `name: example
+metadata:
+  null: empty # null key
+  date: 2020-01-01 # timestamp value
+  data: !!binary SGVsbG8= # binary value
+`
+  await fs.promises.writeFile(file, original)
+  const { manifest, writeProjectManifest } = await readProjectManifest(dir)
+  await writeProjectManifest({ ...manifest, version: '1.0.0' })
+  const result = await fs.promises.readFile(file, 'utf8')
+  expect(result).toContain('null: empty # null key')
+  expect(result).toContain('# timestamp value')
+  expect(result).toContain('# binary value')
+  expect((await readProjectManifest(dir)).manifest).toStrictEqual({ ...manifest, version: '1.0.0' })
+})
+
+test('preserve CRLF line endings in package.json and package.json5', async () => {
+  const dir = temporaryDirectory()
+  const jsonPath = path.join(dir, 'package.json')
+  await fs.promises.writeFile(jsonPath, '{\r\n\t"name": "foo",\r\n\t"version": "1.0.0"\r\n}\r\n')
+  const { manifest, writeProjectManifest } = await readProjectManifest(dir)
+  manifest.version = '2.0.0'
+  await writeProjectManifest(manifest)
+  expect(await fs.promises.readFile(jsonPath, 'utf8')).toBe('{\r\n\t"name": "foo",\r\n\t"version": "2.0.0"\r\n}\r\n')
+
+  const dir5 = temporaryDirectory()
+  const json5Path = path.join(dir5, 'package.json5')
+  await fs.promises.writeFile(json5Path, "{\r\n\tname: 'foo',\r\n\tversion: '1.0.0',\r\n}\r\n")
+  const reader5 = await readProjectManifest(dir5)
+  reader5.manifest.version = '2.0.0'
+  await reader5.writeProjectManifest(reader5.manifest)
+  expect(await fs.promises.readFile(json5Path, 'utf8')).toBe("{\r\n\tname: 'foo',\r\n\tversion: '2.0.0',\r\n}\r\n")
 })

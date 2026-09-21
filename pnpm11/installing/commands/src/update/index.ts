@@ -94,6 +94,7 @@ export function cliOptionsTypes (): Record<string, unknown> {
     interactive: Boolean,
     latest: Boolean,
     patches: Boolean,
+    peer: Boolean,
     recursive: Boolean,
     workspace: Boolean,
   }
@@ -157,6 +158,10 @@ For options that may be used with `-r`, see "pnpm help recursive"',
           {
             description: 'Don\'t update packages in "optionalDependencies"',
             name: '--no-optional',
+          },
+          {
+            description: 'Also update packages in "peerDependencies"',
+            name: '--peer',
           },
           {
             description: 'Tries to link all packages from the workspace. \
@@ -406,7 +411,7 @@ async function interactiveUpdate (
     },
   }))
 
-  return update(updatePkgNames, opts, rebuildHandler) as Promise<undefined>
+  return update(updatePkgNames, { ...opts, interactive: false }, rebuildHandler) as Promise<undefined>
 }
 
 /**
@@ -452,6 +457,7 @@ async function update (
     dependencies: true,
     devDependencies: true,
     optionalDependencies: true,
+    ...(opts.cliOptions.peer === true ? { peerDependencies: true } : {}),
   }
   const depth = opts.depth ?? Infinity
   let updateMatching: UpdateMatchingFunction | undefined
@@ -467,6 +473,7 @@ async function update (
       ...opts,
       rebuildHandler,
       allowNew: false,
+      peer: opts.cliOptions.peer === true,
       depth,
       ignoreCurrentSpecifiers: false,
       include,
@@ -512,10 +519,12 @@ function makeIncludeDependenciesFromCLI (opts: {
   production?: boolean
   dev?: boolean
   optional?: boolean
+  peer?: boolean
 }): IncludedDependencies {
   return {
     dependencies: opts.production === true || (opts.dev !== true && opts.optional !== true),
     devDependencies: opts.dev === true || (opts.production !== true && opts.optional !== true),
     optionalDependencies: opts.optional === true || (opts.production !== true && opts.dev !== true),
+    ...(opts.peer === true ? { peerDependencies: true } : {}),
   }
 }

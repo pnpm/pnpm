@@ -60,6 +60,20 @@ qux:
   - 3
 ```
 
+For package manifests, retain null values and empty maps and keep existing keys in their original order:
+
+```ts
+patchDocument(document, target, {
+  preserveKeyOrder: true,
+  preserveScalarAliases: true,
+  pruneEmptyValues: false,
+})
+```
+
+New keys are appended to their mapping. By default, keys follow the target object's order, and null values and empty maps are pruned from existing nodes.
+
+Consumers that use a different conversion for scalar mapping keys can pass `stringifyKey`. For example, `stringifyKey: String` matches `js-yaml`, which exposes a null mapping key as the property name `"null"`. The default follows `yaml` and uses an empty string.
+
 ## Purpose
 
 This package is useful when your codebase:
@@ -162,6 +176,16 @@ bar:
   - 1
   - 2
   - 3
+```
+
+Set `preserveScalarAliases: true` to retain scalar aliases whose final values
+agree. If an anchor's defining entry is removed, the first surviving entry
+defines it. An entry whose value differs from the defining entry is written
+as a scalar. This option does not coordinate dependency updates; it preserves
+YAML representation while applying the supplied target values.
+
+```ts
+patchDocument(document, target, { preserveScalarAliases: true })
 ```
 
 ## License

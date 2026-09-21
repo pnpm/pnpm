@@ -1,9 +1,9 @@
 //! What the walk reads off a resolved package: its
 //! `pkgIdWithPatchHash`, its child specs, its peer dependencies, its
-//! leaf classification, and its deprecation notice.
+//! leaf classification, and whether it is deprecated.
 
 use pnpm_catalogs_types::Catalogs;
-use pnpm_package_manifest::engines_runtime_dependencies;
+use pnpm_package_manifest::{engines_runtime_dependencies, is_truthy};
 use pnpm_patching::get_patch_info;
 use rustc_hash::{FxHashMap as HashMap, FxHashSet as HashSet};
 use serde_json::Value;
@@ -12,7 +12,7 @@ use std::collections::BTreeMap;
 use crate::resolved_tree::PeerDep;
 
 use super::{
-    Deprecation, ResolveDependencyTreeError, catalogs::resolve_catalog_specifier,
+    CatalogAnchor, Deprecation, ResolveDependencyTreeError, catalogs::resolve_catalog_specifier,
     dependency_is_injected, lock_recoverable, tree_ctx::TreeCtx, workspace_ctx::ChildSpec,
 };
 
@@ -301,7 +301,15 @@ fn insert_declared_peers(
         let Some(range_str) = range.as_str() else { continue };
         let version = match catalogs {
             Some(catalogs) => {
-                resolve_catalog_specifier(name.clone(), range_str.to_string(), catalogs)?.1
+                // A peer range names a version range, never a path, so a
+                // `file:` / `link:` entry has nothing to re-anchor.
+                resolve_catalog_specifier(
+                    name.clone(),
+                    range_str.to_string(),
+                    catalogs,
+                    CatalogAnchor::AsWritten,
+                )?
+                .1
             }
             None => range_str.to_string(),
         };
@@ -347,19 +355,15 @@ fn is_empty_or_absent(value: Option<&Value>) -> bool {
     value.and_then(Value::as_object).is_none_or(serde_json::Map::is_empty)
 }
 
-/// Emits a [`Deprecation`] when a newly-resolved package's manifest carries
-/// a non-empty `deprecated` field not covered by `allowedDeprecatedVersions`.
+/// Emits a [`Deprecation`] when a newly-resolved package's manifest is marked
+/// deprecated and the version is not covered by `allowedDeprecatedVersions`.
 pub(super) fn emit_deprecation_if_needed(
     ctx: &TreeCtx,
     result: &pnpm_resolving_resolver_base::ResolveResult,
     id: &str,
     depth: i32,
 ) {
-    let Some(deprecated) = extract_deprecated_from_manifest(result.package.manifest.as_deref())
-    else {
-        return;
-    };
-    if deprecated.is_empty() {
+    if !is_deprecated_in_manifest(result.package.manifest.as_deref()) {
         return;
     }
     let Some((pkg_name, pkg_version)) = deprecated_pkg_name_ver(result) else {
@@ -380,18 +384,19 @@ pub(super) fn emit_deprecation_if_needed(
         pkg_version,
         pkg_id: id.to_string(),
         prefix: ctx.options.base.project.project_dir.display().to_string(),
-        deprecated,
         depth,
+        non_deprecated_alternative: result.package.non_deprecated_alternative.clone(),
     });
 }
 
-/// A missing manifest, an absent `deprecated` field, and a non-string
-/// one all count as not deprecated.
-fn extract_deprecated_from_manifest(manifest: Option<&Value>) -> Option<String> {
-    manifest?
-        .get("deprecated")?
-        .as_str()
-        .map(str::to_string)
+/// A registry manifest spells the deprecation as the notice itself and a
+/// manifest synthesized from the lockfile as the flag pnpm records there, so
+/// the field is read for truthiness. A missing manifest, an absent field, and
+/// an empty notice all count as not deprecated.
+fn is_deprecated_in_manifest(manifest: Option<&Value>) -> bool {
+    manifest
+        .and_then(|manifest| manifest.get("deprecated"))
+        .is_some_and(is_truthy)
 }
 
 /// The name/version a `pnpm:deprecation` payload reports:

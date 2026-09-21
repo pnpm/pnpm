@@ -15,6 +15,7 @@ import type {
   DirectoryResolution,
   LatestInfo,
   LatestQuery,
+  NonDeprecatedAlternative,
   PkgResolutionId,
   PreferredVersions,
   Resolution,
@@ -60,9 +61,11 @@ import { memoizeFetchMetadata } from './memoizeFetchMetadata.js'
 import { normalizeRegistryUrl } from './normalizeRegistryUrl.js'
 import {
   BUILTIN_REGISTRIES_BY_PREFIX,
+  type NpmAliasTarget,
   parseBareSpecifier,
   parseJsrSpecifierToRegistryPackageSpec,
   parseNamedRegistrySpecifierToRegistryPackageSpec,
+  parseNpmAliasTarget,
   type RegistryPackageSpec,
 } from './parseBareSpecifier.js'
 import {
@@ -70,7 +73,7 @@ import {
   pickPackage,
   type PickPackageOptions,
 } from './pickPackage.js'
-import { applyPublishedByPolicy, pickPackageFromMeta, pickVersionByVersionRange } from './pickPackageFromMeta.js'
+import { applyPublishedByPolicy, findNonDeprecatedAlternative, knownImmature, pickPackageFromMeta, pickVersionByVersionRange } from './pickPackageFromMeta.js'
 import { failIfTrustDowngraded } from './trustChecks.js'
 import { MINIMUM_RELEASE_AGE_VIOLATION_CODE } from './violationCodes.js'
 import { workspacePrefToNpm } from './workspacePrefToNpm.js'
@@ -124,9 +127,11 @@ export {
   BUILTIN_REGISTRIES_BY_PREFIX,
   fetchMetadataFromFromRegistry,
   type FetchMetadataFromFromRegistryOptions,
+  type NpmAliasTarget,
   type PackageMeta,
   type PackageMetaCache,
   parseBareSpecifier,
+  parseNpmAliasTarget,
   pickPackageFromMeta,
   pickVersionByVersionRange,
   type RegistryPackageSpec,
@@ -943,6 +948,7 @@ async function pickFromSimpleRegistry (
 ): Promise<{
   id: PkgResolutionId
   latest?: string
+  nonDeprecatedAlternative?: NonDeprecatedAlternative
   manifest: DependencyManifest
   resolution: TarballResolution
   publishedAt?: string
@@ -972,6 +978,10 @@ async function pickFromSimpleRegistry (
   return {
     id: `${pickedPackage.name}@${pickedPackage.version}` as PkgResolutionId,
     latest: latestAllowedByPolicy(meta, opts),
+    // Only worked out for a deprecated pick, so the scan stays on the rare path.
+    nonDeprecatedAlternative: pickedPackage.deprecated
+      ? findNonDeprecatedAlternative(meta, spec, opts)
+      : undefined,
     manifest: selectedPackage,
     resolution,
     publishedAt,
@@ -1261,14 +1271,8 @@ function latestAllowedByPolicy (
   }
 ): string | undefined {
   const latest = meta['dist-tags'].latest
-  if (!latest || !opts.publishedBy) return latest
-  const excludeResult = opts.publishedByExclude?.(meta.name)
-  if (excludeResult === true) return latest
-  if (Array.isArray(excludeResult) && excludeResult.includes(latest)) return latest
-  const publishedAt = meta.time?.[latest]
-  if (publishedAt == null) return latest
-  const ts = new Date(publishedAt).getTime()
-  return (Number.isNaN(ts) || ts <= opts.publishedBy.getTime()) ? latest : undefined
+  if (!latest) return undefined
+  return knownImmature(meta, latest, opts) ? undefined : latest
 }
 
 /**

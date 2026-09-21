@@ -34,14 +34,15 @@ use std::{
 const PREPUBLISH_SCRIPTS: &[&str] = &["prepublish", "prepack", "publish"];
 
 /// Closure shape used to ask the install policy whether the package at
-/// a dep path is allowed to run lifecycle scripts.
+/// a dep path is allowed to run lifecycle scripts. `Some(false)` explicitly
+/// skips preparation; `None` requires a decision before installation.
 ///
 /// We pass a closure rather than `&AllowBuildPolicy` so the
 /// `pnpm-git-fetcher` crate stays free of a back-edge into
 /// `pnpm-package-manager`. The caller adapts whatever policy
 /// structure it has into this shape.
-pub type AllowBuildFn<'a> = Box<dyn Fn(&str) -> bool + Send + Sync + 'a>;
-pub type AllowBuildRef<'a> = &'a (dyn Fn(&str) -> bool + Send + Sync);
+pub type AllowBuildFn<'a> = Box<dyn Fn(&str) -> Option<bool> + Send + Sync + 'a>;
+pub type AllowBuildRef<'a> = &'a (dyn Fn(&str) -> Option<bool> + Send + Sync);
 
 /// Caller-supplied context for [`prepare_package`].
 pub struct PreparePackageOptions<'a> {
@@ -56,12 +57,31 @@ pub struct PreparePackageOptions<'a> {
     pub extra_env: &'a HashMap<String, String>,
 }
 
-/// Result of [`prepare_package`]. `should_be_built` drives the
-/// `built` dimension of the git-hosted store-index key.
+/// Result of [`prepare_package`], distinguishing a package that requires
+/// preparation from one whose preparation was explicitly skipped.
 #[derive(Debug)]
 pub struct PreparedPackage {
+    pub ignored_build: bool,
     pub pkg_dir: PathBuf,
     pub should_be_built: bool,
+}
+
+impl PreparedPackage {
+    pub(crate) fn store_index_key<'a>(
+        &self,
+        requested_key: &'a str,
+        package_id: &str,
+        ignore_scripts: bool,
+    ) -> std::borrow::Cow<'a, str> {
+        if self.should_be_built
+            && ((self.ignored_build && !ignore_scripts)
+                || (!self.ignored_build && requested_key.ends_with("\tnot-built")))
+        {
+            pnpm_store_dir::git_hosted_store_index_key(package_id, !self.ignored_build).into()
+        } else {
+            requested_key.into()
+        }
+    }
 }
 
 pub fn prepare_package<Reporter: self::Reporter>(
@@ -74,19 +94,23 @@ pub fn prepare_package<Reporter: self::Reporter>(
         safe_read_package_json_from_dir(&pkg_dir).map_err(PreparePackageError::ReadManifest)?;
 
     let Some(manifest) = manifest else {
-        return Ok(PreparedPackage { pkg_dir, should_be_built: false });
+        return Ok(PreparedPackage { pkg_dir, should_be_built: false, ignored_build: false });
     };
     let scripts = manifest.get("scripts").and_then(Value::as_object);
     if scripts.is_none_or(serde_json::Map::is_empty)
         || !package_should_be_built(&manifest, &pkg_dir)
     {
-        return Ok(PreparedPackage { pkg_dir, should_be_built: false });
+        return Ok(PreparedPackage { pkg_dir, should_be_built: false, ignored_build: false });
     }
-    if opts.scripts.ignore {
-        return Ok(PreparedPackage { pkg_dir, should_be_built: true });
+    if opts.scripts.ignore
+        || !resolve_package_build_permission(
+            opts.allow_build.as_ref(),
+            opts.pkg_resolution_id,
+            &manifest,
+        )?
+    {
+        return Ok(PreparedPackage { pkg_dir, should_be_built: true, ignored_build: true });
     }
-
-    assert_package_build_allowed(opts.allow_build.as_ref(), opts.pkg_resolution_id, &manifest)?;
 
     let wanted_pm = detect_wanted_pm(git_root_dir, Some(&manifest));
     let pm = wanted_pm.pm;
@@ -106,7 +130,7 @@ pub fn prepare_package<Reporter: self::Reporter>(
     run_install_and_prepublish::<Reporter>(pm, &run_opts, &manifest)?;
     remove_install_node_modules(&pkg_dir)?;
 
-    Ok(PreparedPackage { pkg_dir, should_be_built: true })
+    Ok(PreparedPackage { pkg_dir, should_be_built: true, ignored_build: false })
 }
 
 impl PreparePackageOptions<'_> {
@@ -367,11 +391,11 @@ fn probe_host(wanted: &WantedPm) -> bool {
         })
 }
 
-pub fn assert_package_build_allowed(
+pub fn resolve_package_build_permission(
     allow_build: AllowBuildRef<'_>,
     pkg_resolution_id: &str,
     manifest: &Value,
-) -> Result<(), PreparePackageError> {
+) -> Result<bool, PreparePackageError> {
     let name = manifest
         .get("name")
         .and_then(Value::as_str)
@@ -381,8 +405,8 @@ pub fn assert_package_build_allowed(
         .and_then(Value::as_str)
         .unwrap_or("");
     let allow_build_dep_path = format!("{name}@{pkg_resolution_id}");
-    if allow_build(&allow_build_dep_path) {
-        return Ok(());
+    if let Some(allowed) = allow_build(&allow_build_dep_path) {
+        return Ok(allowed);
     }
     Err(PreparePackageError::NotAllowed {
         name: name.to_string(),

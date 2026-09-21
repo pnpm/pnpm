@@ -9,25 +9,19 @@
 //! lockfile in memory and the hoisted linker materializes a flat
 //! `node_modules/` of **real directories**.
 
-#![cfg(unix)] // hoisted bin shims + real-dir-vs-junction checks are unix-shaped here.
-
 pub use _utils::*;
 
 use crate::_utils;
 
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
+use pnpm_fs::symlink_dir;
 use pnpm_modules_yaml::{Host as ModulesHost, read_modules_manifest};
 use pnpm_testing_utils::{
     bin::{AddMockedRegistry, CommandTempCwd},
-    fs::is_symlink_or_junction,
+    fs::{DirWitness, is_symlink_or_junction, symlink_file},
 };
-use std::{
-    fs,
-    os::unix::fs::{MetadataExt, symlink},
-    path::Path,
-    process::Command,
-};
+use std::{fs, path::Path, process::Command};
 
 /// Replace the `pnpm-workspace.yaml` written by `add_mocked_registry`
 /// with one that keeps the mock's `storeDir` / `cacheDir` and appends
@@ -638,7 +632,7 @@ fn a_nested_copy_is_removed_once_its_version_wins_the_root_slot() {
     // materialize the root-slot winner inside the project.
     let stale = loser.join("node_modules").join(SCRIPTS);
     fs::create_dir_all(stale.parent().expect("scope dir")).expect("create the scope dir");
-    std::os::unix::fs::symlink(fixture.workspace.join("node_modules").join(SCRIPTS), &stale)
+    symlink_dir(&fixture.workspace.join("node_modules").join(SCRIPTS), &stale)
         .expect("plant a stale link");
     // The repeat-install short-circuit would report the unchanged
     // workspace up to date without ever reaching the linker.
@@ -707,7 +701,7 @@ fn overwriting_existing_files_in_node_modules() {
     write_workspace_yaml(&workspace, "nodeLinker: hoisted\n");
 
     fs::create_dir_all(workspace.join("node_modules")).expect("create node_modules");
-    std::os::unix::fs::symlink(&workspace, workspace.join("node_modules/is-positive"))
+    symlink_dir(&workspace, &workspace.join("node_modules/is-positive"))
         .expect("plant a wrong occupant symlink");
 
     pacquet
@@ -1020,3 +1014,5 @@ fn peer_variants_of_one_version_share_the_root_slot() {
 mod repeat_install;
 
 mod scripts;
+
+mod summary;

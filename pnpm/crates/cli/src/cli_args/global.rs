@@ -64,7 +64,7 @@ use pnpm_package_is_installable::SupportedArchitectures;
 use pnpm_package_manifest::{DependencyGroup, safe_read_package_json_from_dir};
 use pnpm_package_name::is_valid_old_npm_package_name;
 use pnpm_registry::RangeSpecStyle;
-use pnpm_reporter::{GlobalLog, LogEvent, LogLevel, Reporter};
+use pnpm_reporter::{GlobalLog, LogEvent, LogLevel, PnpmLog, Reporter, SummaryLog};
 use pnpm_resolving_parse_wanted_dependency::parse_wanted_dependency;
 
 use remove::{
@@ -84,8 +84,45 @@ use shims::{
 use std::{
     collections::{BTreeMap, BTreeSet, HashMap, HashSet},
     fs, io,
+    marker::PhantomData,
     path::{Path, PathBuf},
 };
+
+/// Forward resolution diagnostics while hiding install-tree events from the
+/// lockfile-only comparison pass.
+struct GlobalUpdateResolutionReporter<Sink>(PhantomData<Sink>);
+
+impl<Sink: Reporter> Reporter for GlobalUpdateResolutionReporter<Sink> {
+    fn emit(event: &LogEvent) {
+        let is_terminal_up_to_date = matches!(
+            event,
+            LogEvent::Pnpm(PnpmLog { message, .. }) if message == "Already up to date",
+        );
+        if !is_terminal_up_to_date
+            && !matches!(
+                event,
+                LogEvent::PackageManifest(_)
+                    | LogEvent::Root(_)
+                    | LogEvent::Stats(_)
+                    | LogEvent::Summary(_),
+            )
+        {
+            Sink::emit(event);
+        }
+    }
+}
+
+/// `update -g` closes with one completion summary of its own, so the groups it
+/// materializes along the way must not each close with theirs.
+struct GlobalUpdateMaterializationReporter<Sink>(PhantomData<Sink>);
+
+impl<Sink: Reporter> Reporter for GlobalUpdateMaterializationReporter<Sink> {
+    fn emit(event: &LogEvent) {
+        if !matches!(event, LogEvent::Summary(_)) {
+            Sink::emit(event);
+        }
+    }
+}
 
 /// Errors specific to global package management, carrying the
 /// `ERR_PNPM_`-prefixed codes.
@@ -239,8 +276,9 @@ pub async fn handle_global_update<Reporter: self::Reporter + 'static>(
         global_pkg_dir: &global_pkg_dir,
         global_bin_dir: &global_bin_dir,
     };
+    let mut changed = false;
     for pkg in &to_update {
-        target.update_group::<Reporter>(
+        changed |= target.update_group::<Reporter>(
             pkg,
             latest,
             range_spec_style,
@@ -248,7 +286,20 @@ pub async fn handle_global_update<Reporter: self::Reporter + 'static>(
         )
         .await?;
     }
+    emit_global_update_result::<Reporter>(&global_pkg_dir, changed);
     Ok(())
+}
+
+fn emit_global_update_result<Reporter: self::Reporter>(global_pkg_dir: &Path, changed: bool) {
+    if !changed {
+        Reporter::emit(&LogEvent::Pnpm(PnpmLog {
+            level: LogLevel::Info,
+            message: "Already up to date".to_string(),
+            prefix: String::new(),
+        }));
+    }
+    let prefix = global_pkg_dir.to_string_lossy().into_owned();
+    Reporter::emit(&LogEvent::Summary(SummaryLog { level: LogLevel::Debug, prefix }));
 }
 
 /// Surface a non-fatal problem on the `pnpm:global` channel, matching

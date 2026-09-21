@@ -250,25 +250,38 @@ impl<'a> From<&'a Lockfile> for LockfileEntries<'a> {
 }
 
 impl<'a> LockfileEntries<'a> {
-    /// The previous install's entries as the warm-reinstall skip reads
-    /// them: a snapshot whose wiring and integrity are unchanged and
-    /// whose virtual-store slot still exists is dropped from the
-    /// install graph.
-    ///
-    /// `--force` relinks every package, so under it the skip must see
-    /// nothing — pnpm's `lockfileToDepGraph(..., opts.force ? null :
-    /// currentLockfile)`. The current lockfile itself still reaches the
-    /// prune, which runs on the real one even under `--force`.
-    pub fn of_previous_install(lockfile: Option<&'a Lockfile>, force: bool) -> Self {
-        if force {
-            LockfileEntries::default()
-        } else {
-            lockfile.map(LockfileEntries::from).unwrap_or_default()
-        }
+    /// Entries recorded by the previous install, including under `--force`.
+    /// Consumers decide whether to reuse packages; cleanup always needs the
+    /// previous dependency records. Empty when no current lockfile exists.
+    pub fn of_previous_install(lockfile: Option<&'a Lockfile>) -> Self {
+        lockfile.map(LockfileEntries::from).unwrap_or_default()
     }
 }
 
 impl Lockfile {
+    const UNTRACKED_PNPMFILE_READ_PACKAGE_HOOK: &'static str = "untrackedPnpmfileReadPackageHook";
+
+    #[must_use]
+    pub fn untracked_pnpmfile_read_package_hook(&self) -> Option<bool> {
+        self.extra
+            .get(Self::UNTRACKED_PNPMFILE_READ_PACKAGE_HOOK)
+            .and_then(serde_json::Value::as_bool)
+    }
+
+    pub fn set_untracked_pnpmfile_read_package_hook(&mut self, value: Option<bool>) {
+        match value {
+            Some(value) => {
+                self.extra.insert(
+                    Self::UNTRACKED_PNPMFILE_READ_PACKAGE_HOOK.to_string(),
+                    serde_json::Value::Bool(value),
+                );
+            }
+            None => {
+                self.extra.shift_remove(Self::UNTRACKED_PNPMFILE_READ_PACKAGE_HOOK);
+            }
+        }
+    }
+
     /// Base file name of the lockfile.
     pub const FILE_NAME: &str = "pnpm-lock.yaml";
 

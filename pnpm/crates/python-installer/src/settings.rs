@@ -4,31 +4,49 @@ use pnpm_diagnostics::miette::{Diagnostic, IntoDiagnostic, Result};
 
 pub(crate) struct Index {
     pub(crate) url: url::Url,
-    pub(crate) extra_urls: Vec<url::Url>,
+    pub(crate) routes: Vec<(url::Url, pnpm_config::PythonRegistryRoute)>,
     pub(crate) auth: pnpm_network::AuthHeaders,
 }
 
-/// The indexes `registries` declares for `PyPI`, in the order they are
-/// searched, with the credentials the machine holds for them.
-///
-/// Credentials are resolved by origin from the same auth sources every other
-/// package source uses, which is why a `registries` key may carry none of its
-/// own: the map lives in the committed `pnpm-workspace.yaml`.
+/// Python namespace claims with the machine's existing registry credentials.
 pub(super) fn python_index(config: &pnpm_config::Config) -> Result<Index> {
-    let mut indexes = config
-        .python_indexes()
+    let configured = config.python_registry_indexes();
+    let routes = pnpm_config::PythonRegistryRoute::from_indexes(&configured)
+        .into_diagnostic()?
         .into_iter()
-        .map(parse_index)
+        .map(|route| Ok((parse_index(&route.url)?, route)))
         .collect::<Result<Vec<_>>>()?;
-    // `Registry::fetch_index` reads `extra_urls` and then `url`, so the index
-    // declared last is the one that answers what none before it had.
-    let url = indexes.pop().expect("python_indexes answers with at least one index");
-    let extra_urls = indexes;
+    let url = routes
+        .iter()
+        .find(|(_, route)| route.is_default())
+        .unwrap_or(&routes[0])
+        .0
+        .clone();
     let auth = (*config.auth_headers).clone().with_secure_transport();
-    Ok(Index { url, extra_urls, auth })
+    Ok(Index { url, routes, auth })
 }
 
 impl Index {
+    pub(super) fn select(&self, name: &str) -> Result<&url::Url> {
+        self.routes
+            .iter()
+            .find(|(_, route)| !route.is_default() && route.matches(name))
+            .or_else(|| self.routes.iter().find(|(_, route)| route.is_default()))
+            .map(|(url, _)| url)
+            .ok_or_else(|| UnclaimedPackage { name: name.to_string() }.into())
+    }
+
+    fn package_routes(&self) -> std::collections::BTreeMap<String, Vec<String>> {
+        self.routes
+            .iter()
+            .map(|(url, route)| (url.to_string(), route.packages()))
+            .collect()
+    }
+
+    pub(super) fn can_resolve_remotely(&self) -> bool {
+        self.routes.len() == 1 && self.routes[0].1.is_default()
+    }
+
     pub(super) fn cache_key(&self, url: &url::Url) -> String {
         let key = self.auth
             .for_secure_url(url.as_str())
@@ -79,14 +97,10 @@ impl PythonPrepare<'_> {
             .chain(&rules.tool.uv.constraints)
             .map(|requirement| parse_rule(requirement))
             .collect::<Result<_>>()?;
-        inputs.set_resolution_settings(
-            &self.index.extra_urls
-                .iter()
-                .map(ToString::to_string)
-                .collect::<Vec<_>>(),
-            &packages.overrides,
-            &packages.constraints,
-        );
+        inputs.set_resolution_settings(&[], &packages.overrides, &packages.constraints);
+        if !self.index.can_resolve_remotely() {
+            inputs.set_registry_packages(self.index.package_routes());
+        }
         Ok(())
     }
 
@@ -119,6 +133,13 @@ fn parse_rule(declared: &str) -> Result<pep508_rs::Requirement> {
 #[diagnostic(code(ERR_PNPM_UNSUPPORTED_PYTHON_RULE))]
 struct UnsupportedRule {
     requirement: String,
+}
+
+#[derive(Debug, Display, Error, Diagnostic)]
+#[display("No Python registry claims package {name:?}")]
+#[diagnostic(code(ERR_PNPM_UNCLAIMED_PYTHON_PACKAGE))]
+struct UnclaimedPackage {
+    name: String,
 }
 
 #[cfg(test)]

@@ -118,6 +118,9 @@ pub struct TreeCtx {
     /// workspace packages. Other transitive dependencies keep catalog
     /// resolution disabled.
     pub(super) catalogs: Catalogs,
+    /// Directory `pnpm-workspace.yaml` sits in, which a `file:` /
+    /// `link:` catalog entry's relative path is measured from.
+    pub(super) catalogs_dir: Option<PathBuf>,
     pub(super) workspace: Arc<WorkspaceTreeCtx>,
     /// Configured `patchedDependencies` (already grouped by name).
     /// Shared by `Arc` so the lookup table doesn't get cloned per
@@ -187,6 +190,7 @@ impl TreeCtx {
                 super::workspace_ctx::WorkspaceResolutionOptionsKey::new(&base_opts),
             ),
             catalogs: Catalogs::new(),
+            catalogs_dir: None,
             workspace: Arc::new(WorkspaceTreeCtx::default()),
             patched_dependencies: None,
             importer: TreeImporterContext {
@@ -226,6 +230,7 @@ impl TreeCtx {
                 super::workspace_ctx::WorkspaceResolutionOptionsKey::new(&base_opts),
             ),
             catalogs: Catalogs::new(),
+            catalogs_dir: None,
             workspace,
             patched_dependencies: None,
             importer: TreeImporterContext {
@@ -284,9 +289,13 @@ impl TreeCtx {
         self
     }
 
+    /// `catalogs_dir` is where `pnpm-workspace.yaml` sits — the
+    /// directory a `file:` / `link:` catalog entry's relative path is
+    /// measured from.
     #[must_use]
-    pub fn with_catalogs(mut self, catalogs: Catalogs) -> Self {
+    pub fn with_catalogs(mut self, catalogs: Catalogs, catalogs_dir: Option<PathBuf>) -> Self {
         self.catalogs = catalogs;
+        self.catalogs_dir = catalogs_dir;
         self
     }
 

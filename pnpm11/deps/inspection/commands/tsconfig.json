@@ -82,6 +82,9 @@
       "path": "../../../testing/registry-mock"
     },
     {
+      "path": "../../../text/sanitize"
+    },
+    {
       "path": "../../../workspace/project-manifest-reader"
     },
     {

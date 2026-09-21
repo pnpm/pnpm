@@ -536,6 +536,36 @@ mod dev_preinstall {
     }
 
     #[test]
+    fn runs_from_package_yaml() {
+        let CommandTempCwd {
+            pacquet,
+            root,
+            workspace,
+            npmrc_info,
+            ..
+        } = CommandTempCwd::init().add_mocked_registry();
+        let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+        let script = serde_json::to_string(&append_order_script("pnpm:devPreinstall"))
+            .expect("serialize script");
+
+        fs::write(
+            workspace.join("package.yaml"),
+            format!("name: project-with-yaml\nversion: 1.0.0\nscripts:\n  pnpm:devPreinstall: {script}\n"),
+        )
+        .expect("write package.yaml");
+
+        pacquet
+            .with_arg("install")
+            .assert()
+            .success();
+
+        let order = fs::read_to_string(workspace.join("order.txt")).expect("read order.txt");
+        assert_eq!(order.lines().collect::<Vec<_>>(), ["pnpm:devPreinstall"]);
+
+        drop((root, mock_instance));
+    }
+
+    #[test]
     fn runs_on_a_frozen_install() {
         let CommandTempCwd {
             pacquet,

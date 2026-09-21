@@ -185,7 +185,27 @@ pub async fn fetch_shasums_file_cached(
     shasums_url: &str,
     cache_dir: Option<&Path>,
 ) -> Result<Vec<ShasumsFileItem>, FetchShasumsFileError> {
-    fetch_shasums_file_cached_inner(http_client, shasums_url, cache_dir, None, None).await
+    fetch_shasums_file_cached_inner(
+        http_client,
+        shasums_url,
+        cache_dir,
+        None,
+        None,
+        RetryOpts { retries: 0, ..RetryOpts::default() },
+    )
+    .await
+}
+
+/// Like [`fetch_shasums_file_cached`], honoring the caller's retry policy on
+/// a cache miss.
+pub async fn fetch_shasums_file_cached_with_retry(
+    http_client: &ThrottledClient,
+    shasums_url: &str,
+    cache_dir: Option<&Path>,
+    retry_opts: RetryOpts,
+) -> Result<Vec<ShasumsFileItem>, FetchShasumsFileError> {
+    fetch_shasums_file_cached_inner(http_client, shasums_url, cache_dir, None, None, retry_opts)
+        .await
 }
 
 /// Like [`fetch_shasums_file_cached`], for a URL that names a release
@@ -247,8 +267,15 @@ pub async fn fetch_shasums_file_cached_with_auth_headers(
     cache_dir: Option<&Path>,
     auth_headers: &AuthHeaders,
 ) -> Result<Vec<ShasumsFileItem>, FetchShasumsFileError> {
-    fetch_shasums_file_cached_inner(http_client, shasums_url, cache_dir, Some(auth_headers), None)
-        .await
+    fetch_shasums_file_cached_inner(
+        http_client,
+        shasums_url,
+        cache_dir,
+        Some(auth_headers),
+        None,
+        RetryOpts { retries: 0, ..RetryOpts::default() },
+    )
+    .await
 }
 
 async fn fetch_shasums_file_cached_inner(
@@ -257,6 +284,7 @@ async fn fetch_shasums_file_cached_inner(
     cache_dir: Option<&Path>,
     auth_headers: Option<&AuthHeaders>,
     max_age: Option<Duration>,
+    retry_opts: RetryOpts,
 ) -> Result<Vec<ShasumsFileItem>, FetchShasumsFileError> {
     let cache_dir = if auth_headers.is_some() { None } else { cache_dir };
     if let Some(body) =
@@ -264,7 +292,8 @@ async fn fetch_shasums_file_cached_inner(
     {
         return Ok(parse_shasums_file(&body));
     }
-    let body = fetch_shasums_file_raw_with_auth(http_client, shasums_url, auth_headers).await?;
+    let body =
+        fetch_shasums_file_raw_with_auth(http_client, shasums_url, auth_headers, retry_opts).await?;
     write_cached_shasums(cache_dir, ShasumsTrust::Unverified, shasums_url, body.as_bytes());
     Ok(parse_shasums_file(&body))
 }
@@ -276,13 +305,20 @@ pub async fn fetch_shasums_file_raw(
     http_client: &ThrottledClient,
     shasums_url: &str,
 ) -> Result<String, FetchShasumsFileError> {
-    fetch_shasums_file_raw_with_auth(http_client, shasums_url, None).await
+    fetch_shasums_file_raw_with_auth(
+        http_client,
+        shasums_url,
+        None,
+        RetryOpts { retries: 0, ..RetryOpts::default() },
+    )
+    .await
 }
 
 async fn fetch_shasums_file_raw_with_auth(
     http_client: &ThrottledClient,
     shasums_url: &str,
     auth_headers: Option<&AuthHeaders>,
+    retry_opts: RetryOpts,
 ) -> Result<String, FetchShasumsFileError> {
     let default_auth_headers = AuthHeaders::default();
     let response = http_client
@@ -290,7 +326,7 @@ async fn fetch_shasums_file_raw_with_auth(
             shasums_url,
             auth_headers.unwrap_or(&default_auth_headers),
             None,
-            RetryOpts { retries: 0, ..RetryOpts::default() },
+            retry_opts,
             MAX_SHASUMS_BYTES,
         )
         .await

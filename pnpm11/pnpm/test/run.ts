@@ -1,12 +1,13 @@
+import { spawnSync } from 'node:child_process'
 import fs from 'node:fs'
 import path from 'node:path'
 
 import { expect, test } from '@jest/globals'
-import { prepare, preparePackages } from '@pnpm/prepare'
+import { killProcessGroup, prepare, preparePackages } from '@pnpm/prepare'
 import isWindows from 'is-windows'
 import { writeYamlFileSync } from 'write-yaml-file'
 
-import { execPnpm, execPnpmSync } from './utils/index.js'
+import { execPnpm, execPnpmSync, pnpmBinLocation, spawnPnpm } from './utils/index.js'
 
 const RECORD_ARGS_FILE = 'require(\'fs\').writeFileSync(\'args.json\', JSON.stringify(require(\'./args.json\').concat([process.argv.slice(2)])), \'utf8\')'
 const testOnPosix = isWindows() ? test.skip : test
@@ -126,6 +127,21 @@ test('install-test: install dependencies and runs tests', async () => {
 
   const scriptsRan = (fs.readFileSync('output.txt')).toString()
   expect(scriptsRan.trim()).toBe('test')
+})
+
+test.each(['--no-bail', '--bail=false'])('install-test: %s continues after a workspace test fails', (bailOption) => {
+  preparePackages([
+    { name: 'project-1', scripts: { test: 'node test.cjs' } },
+    { name: 'project-2', scripts: { test: 'node test.cjs' } },
+  ])
+  writeYamlFileSync('pnpm-workspace.yaml', { packages: ['project-*'], workspaceConcurrency: 1 })
+  fs.writeFileSync('project-1/test.cjs', "require('fs').appendFileSync('../order.txt', 'first\\n'); process.exit(1)")
+  fs.writeFileSync('project-2/test.cjs', "require('fs').appendFileSync('../order.txt', 'second\\n')")
+
+  const result = execPnpmSync(['-r', bailOption, 'install-test'])
+
+  expect(result.status).toBe(1)
+  expect(fs.readFileSync('order.txt', 'utf8')).toBe('first\nsecond\n')
 })
 
 test('silent run only prints the output of the child process', async () => {
@@ -306,3 +322,214 @@ test('regex selector skips hidden scripts', () => {
   expect(result.stdout.toString()).toContain('visible')
   expect(result.stdout.toString()).not.toContain('hidden')
 })
+
+// A script that reads a repeated interrupt as an order to stop at once, as
+// many CLIs do: the first starts a graceful shutdown, the second forces an exit.
+const COUNTING_SCRIPT = `const fs = require('node:fs')
+let interrupts = 0
+process.on('SIGINT', () => {
+  interrupts += 1
+  if (interrupts > 1) {
+    fs.writeFileSync('forced.txt', '')
+    process.exit(130)
+  }
+  setTimeout(() => {
+    fs.writeFileSync('shut-down.txt', '')
+    process.exit(0)
+  }, 1000)
+})
+fs.writeFileSync('started.txt', '')
+console.log('started')
+setInterval(() => {}, 1000)
+`
+
+// Ctrl+C interrupts the terminal's whole foreground group, so the script has
+// the signal by the time pnpm does. pnpm passes nothing on, and the script
+// counts one interrupt rather than two.
+// https://github.com/pnpm/pnpm/issues/7374
+testOnPosix('run: Ctrl+C in a terminal interrupts the script once', () => {
+  prepare({
+    name: 'project',
+    scripts: {
+      dev: 'exec node dev.js',
+    },
+  })
+  fs.writeFileSync('dev.js', COUNTING_SCRIPT, 'utf8')
+
+  const terminalScript = path.join(import.meta.dirname, '../../__utils__/scripts/terminal.py')
+  const { stdout, status, error } = spawnSync('python3', [
+    terminalScript,
+    process.execPath,
+    pnpmBinLocation,
+    'run',
+    '--config.verify-deps-before-run=false',
+    'dev',
+  ], { encoding: 'utf8', timeout: 90_000 })
+
+  expect(error).toBeUndefined()
+  expect(fs.existsSync('forced.txt')).toBe(false)
+  expect(fs.existsSync('shut-down.txt')).toBe(true)
+  expect(status).toBe(0)
+  expect(stdout).toContain('started')
+})
+
+testOnPosix('run -r: Ctrl+C does not report interrupted scripts as failures', () => {
+  preparePackages([
+    {
+      name: 'project-1',
+      scripts: {
+        dev: 'node ../dev.js',
+      },
+    },
+    {
+      name: 'project-2',
+      scripts: {
+        dev: 'node ../dev.js',
+      },
+    },
+  ])
+  fs.writeFileSync('dev.js', `const fs = require('node:fs')
+fs.appendFileSync('../started.txt', 'x')
+if (fs.readFileSync('../started.txt', 'utf8').length === 2) console.log('started')
+setInterval(() => {}, 1000)
+`, 'utf8')
+  writeYamlFileSync('pnpm-workspace.yaml', { packages: ['project-*'] })
+
+  const terminalScript = path.join(import.meta.dirname, '../../__utils__/scripts/terminal.py')
+  const { stdout, status, error } = spawnSync('python3', [
+    terminalScript,
+    process.execPath,
+    pnpmBinLocation,
+    'run',
+    '-r',
+    '--stream',
+    '--config.verify-deps-before-run=false',
+    'dev',
+  ], { encoding: 'utf8', timeout: 90_000 })
+
+  expect(error).toBeUndefined()
+  expect(status).toBe(130)
+  expect(stdout).not.toContain('ELIFECYCLE')
+  expect(stdout).not.toContain('ERR_PNPM_RECURSIVE_RUN_FIRST_FAIL')
+})
+
+testOnPosix('run -r: Ctrl+C stops dispatch while interrupted scripts settle', () => {
+  preparePackages([
+    {
+      name: 'project-1',
+      scripts: {
+        dev: 'node ../exit-cleanly.js',
+      },
+    },
+    {
+      name: 'project-2',
+      scripts: {
+        dev: 'node ../exit-cleanly-too.js',
+      },
+    },
+    {
+      name: 'project-3',
+      scripts: {
+        dev: 'node ../stay-running.js',
+      },
+    },
+  ])
+  fs.writeFileSync('exit-cleanly.js', `const fs = require('node:fs')
+process.on('SIGINT', () => process.exit(0))
+fs.appendFileSync('../started.txt', 'x')
+if (fs.readFileSync('../started.txt', 'utf8').length === 2) console.log('started')
+setInterval(() => {}, 1000)
+`, 'utf8')
+  fs.writeFileSync('exit-cleanly-too.js', `const fs = require('node:fs')
+process.on('SIGINT', () => process.exit(0))
+fs.appendFileSync('../started.txt', 'x')
+if (fs.readFileSync('../started.txt', 'utf8').length === 2) console.log('started')
+setInterval(() => {}, 1000)
+`, 'utf8')
+  fs.writeFileSync('stay-running.js', `const fs = require('node:fs')
+fs.writeFileSync('../started-late.txt', '')
+setInterval(() => {}, 1000)
+`, 'utf8')
+  writeYamlFileSync('pnpm-workspace.yaml', { packages: ['project-*'] })
+
+  const terminalScript = path.join(import.meta.dirname, '../../__utils__/scripts/terminal.py')
+  const { stdout, status, error } = spawnSync('python3', [
+    terminalScript,
+    process.execPath,
+    pnpmBinLocation,
+    'run',
+    '-r',
+    '--stream',
+    '--workspace-concurrency=2',
+    '--config.verify-deps-before-run=false',
+    'dev',
+  ], { encoding: 'utf8', timeout: 90_000 })
+
+  expect(error).toBeUndefined()
+  expect(fs.existsSync('started-late.txt')).toBe(false)
+  expect(status).toBe(130)
+  expect(stdout).not.toContain('ELIFECYCLE')
+  expect(stdout).not.toContain('ERR_PNPM_RECURSIVE_RUN_FIRST_FAIL')
+})
+
+// A script that shuts down on SIGTERM the way a server does when a container
+// runtime stops it.
+const TERMINATING_SCRIPT = `const fs = require('node:fs')
+process.on('SIGTERM', () => {
+  setTimeout(() => {
+    fs.writeFileSync('shut-down.txt', '')
+    process.exit(0)
+  }, 1000)
+})
+fs.writeFileSync('started.txt', '')
+setInterval(() => {}, 1000)
+`
+
+// Without a terminal, the shell running the script may stay its parent (dash
+// does) and dies from SIGTERM at once. pnpm signals the script's whole process
+// group instead and waits for it, so the script finishes shutting down.
+testOnPosix('run: a SIGTERM sent to pnpm without a terminal reaches the script behind its shell', async () => {
+  prepare({
+    name: 'project',
+    scripts: {
+      dev: 'node dev.js',
+    },
+  })
+  fs.writeFileSync('dev.js', TERMINATING_SCRIPT, 'utf8')
+
+  const proc = spawnPnpm(['run', '--config.verify-deps-before-run=false', 'dev'], { detached: true })
+  // The script may outlive pnpm and keep the output pipes open, so the
+  // check is made the moment pnpm exits, not when its output closes.
+  const shutDownBeforeExit = new Promise<boolean>((resolve) => {
+    proc.on('exit', () => {
+      resolve(fs.existsSync('shut-down.txt'))
+    })
+  })
+  try {
+    await waitForFile('started.txt', 30_000)
+    proc.kill('SIGTERM')
+    expect(await withDeadline(shutDownBeforeExit, 30_000)).toBe(true)
+  } finally {
+    killProcessGroup(proc.pid!)
+  }
+})
+
+async function withDeadline<T> (promise: Promise<T>, timeout: number): Promise<T> {
+  let timer: NodeJS.Timeout | undefined
+  const deadline = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => reject(new Error(`pnpm did not exit within ${timeout}ms`)), timeout)
+  })
+  try {
+    return await Promise.race([promise, deadline])
+  } finally {
+    clearTimeout(timer)
+  }
+}
+
+async function waitForFile (file: string, timeout: number): Promise<void> {
+  const deadline = Date.now() + timeout
+  while (!fs.existsSync(file)) {
+    if (Date.now() > deadline) throw new Error(`${file} did not appear within ${timeout}ms`)
+    await new Promise<void>((resolve) => setTimeout(resolve, 50)) // eslint-disable-line no-await-in-loop
+  }
+}

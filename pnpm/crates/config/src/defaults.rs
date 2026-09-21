@@ -329,6 +329,13 @@ pub fn default_peers_suffix_max_length() -> u64 {
     1000
 }
 
+/// Default `tagVersionPrefix`: the `"v"` prefix `pnpm version` uses for
+/// the git tag when no source sets a prefix.
+#[must_use]
+pub fn default_tag_version_prefix() -> String {
+    "v".to_string()
+}
+
 pub fn default_fetch_retries() -> u32 {
     2
 }
@@ -351,7 +358,7 @@ pub fn default_fetch_retry_maxtimeout() -> u64 {
 /// can't drift apart. `pnpm bump` keeps this constant in sync with the
 /// version of the npm wrapper package (`pnpm/npm/pnpm/package.json`);
 /// the release workflow verifies the two match before building.
-pub const PNPM_VERSION: &str = "12.5.0";
+pub const PNPM_VERSION: &str = "12.5.1";
 
 /// The command that installs pnpm with the standalone script, as documented
 /// at <https://pnpm.io/installation>: the PowerShell form on Windows, the

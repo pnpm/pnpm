@@ -1,5 +1,6 @@
 import {
   getSpecFromPackageManifest,
+  guessDependencyType,
   type PackageSpecObject,
   updateProjectManifestObject,
 } from '@pnpm/pkg-manifest.utils'
@@ -23,14 +24,17 @@ export async function updateProjectManifest (
   const declaredSpecifiers = new Map<string, string>()
   for (const rdd of opts.directDependencies) {
     const wantedDep = rdd.wantedDependency
-    if (wantedDep?.updateSpec !== true) continue
-    const declaredSpecifier = getDeclaredSpecifierOwnedByHook(importer, rdd)
+    if (wantedDep?.updateSpec !== true || wantedDep.saveSpec === false) continue
+    if (!belongsInTheProjectManifest(importer, rdd.alias, wantedDep.isNew)) continue
+    const declaredSpecifier = wantedDep.saveSpec === true
+      ? undefined
+      : getDeclaredSpecifierOwnedByHook(importer, rdd)
     if (declaredSpecifier != null) {
       declaredSpecifiers.set(rdd.alias, declaredSpecifier)
     }
     specsToUpsert.push({
       alias: rdd.alias,
-      peer: importer.peer,
+      peer: importer.peerAliases?.has(rdd.alias) ?? importer.peer,
       bareSpecifier: declaredSpecifier == null
         ? getBareSpecifierToSave(wantedDep, rdd, opts.preserveWorkspaceProtocol)
         : wantedDep.bareSpecifier,
@@ -44,10 +48,16 @@ export async function updateProjectManifest (
   // specifier, so it keeps its existing version under the importer's target
   // field (which is unset for a plain install/update, making this a no-op).
   for (const pkgToInstall of importer.wantedDependencies) {
-    if (pkgToInstall.updateSpec && pkgToInstall.alias && !specsToUpsert.some(({ alias }) => alias === pkgToInstall.alias)) {
+    if (
+      pkgToInstall.updateSpec &&
+      pkgToInstall.saveSpec !== false &&
+      pkgToInstall.alias &&
+      belongsInTheProjectManifest(importer, pkgToInstall.alias, pkgToInstall.isNew) &&
+      !specsToUpsert.some(({ alias }) => alias === pkgToInstall.alias)
+    ) {
       specsToUpsert.push({
         alias: pkgToInstall.alias,
-        peer: importer.peer,
+        peer: importer.peerAliases?.has(pkgToInstall.alias) ?? importer.peer,
         saveType: importer.targetDependenciesField,
       })
     }
@@ -69,6 +79,23 @@ export async function updateProjectManifest (
     )
     : undefined
   return [hookedManifest, originalManifest]
+}
+
+/**
+ * Whether the upsert belongs in the manifest the project keeps on disk. A
+ * dependency a hook injected is declared only in the manifest resolution ran
+ * against, so writing it back would hand the project a dependency it never
+ * asked for. A dependency this run adds (`pnpm add foo`) is the project's from
+ * now on, whether or not a hook already supplied it.
+ */
+function belongsInTheProjectManifest (
+  importer: ImporterToResolve,
+  alias: string,
+  isNew: boolean | undefined
+): boolean {
+  return isNew === true ||
+    importer.originalManifest == null ||
+    guessDependencyType(alias, importer.originalManifest) != null
 }
 
 /**

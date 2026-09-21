@@ -35,6 +35,7 @@ fn create_config(
         indexes_by_ecosystem: std::collections::BTreeMap::new(),
         bail: true,
         ci: false,
+        progress: true,
         update_notifier: true,
         color: Default::default(),
         embed_readme: false,
@@ -56,6 +57,7 @@ fn create_config(
         sort: true,
         use_beta_cli: false,
         workspace_key_issues: Default::default(),
+        npmrc_warnings: Vec::new(),
         versioning: Default::default(),
         hoist: false,
         hoist_pattern: None,
@@ -126,6 +128,7 @@ fn create_config(
         external_dependencies: Default::default(),
         dedupe_peer_dependents: false,
         dedupe_peers: false,
+        auto_dedupe: false,
         dedupe_direct_deps: true,
         dedupe_injected_deps: false,
         strict_peer_dependencies: false,
@@ -168,6 +171,7 @@ fn create_config(
         ignore_scripts: false,
         ignore_pnpmfile: false,
         git_checks: true,
+        tag_version_prefix: "v".to_string(),
         scripts_prepend_node_path: Default::default(),
         enable_pre_post_scripts: false,
         script_shell: None,
@@ -642,6 +646,7 @@ async fn install_returns_unsupported_resolution_when_name_ver_missing() {
             latest: None,
             published_at: None,
             manifest: None,
+            non_deprecated_alternative: None,
         },
     };
 
@@ -728,6 +733,7 @@ async fn install_rejects_traversal_manifest_name() {
                 "name": traversal_name,
                 "version": "1.0.0",
             }))),
+            non_deprecated_alternative: None,
         },
     };
 

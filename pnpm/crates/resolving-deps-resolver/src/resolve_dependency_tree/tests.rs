@@ -45,6 +45,7 @@ impl Resolver for NestedWorkspaceLinkResolver {
                     manifest: Some(std::sync::Arc::new(
                         serde_json::json!({ "name": "shared", "version": "1.0.0" }),
                     )),
+                    non_deprecated_alternative: None,
                 },
             }))
         })

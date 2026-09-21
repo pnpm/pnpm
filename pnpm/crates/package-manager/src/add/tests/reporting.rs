@@ -113,7 +113,7 @@ async fn add_routes_scoped_packages_to_configured_scoped_registry() {
     scoped_latest.assert_async().await;
 }
 #[tokio::test]
-async fn add_resolves_package_selectors_concurrently_and_reports_in_selector_order() {
+async fn add_resolves_package_selectors_concurrently() {
     static EVENTS: Mutex<Vec<LogEvent>> = Mutex::new(Vec::new());
     EVENTS.lock().unwrap().clear();
 
@@ -166,39 +166,12 @@ async fn add_resolves_package_selectors_concurrently_and_reports_in_selector_ord
         drop(requests);
     }
 
-    fn assert_catalog_warning_order(events: &[LogEvent]) {
-        let warning_messages: Vec<_> = events
-            .iter()
-            .filter_map(|event| match event {
-                LogEvent::Pnpm(log)
-                    if log.level == LogLevel::Warn
-                        && log.message.starts_with("Catalog version mismatch") =>
-                {
-                    Some(log.message.as_str())
-                }
-                _ => None,
-            })
-            .collect();
-        assert_eq!(
-            warning_messages,
-            [
-                r#"Catalog version mismatch for "@one/a": using direct version "1.0.0" instead of catalog version "9.0.0"."#,
-                r#"Catalog version mismatch for "@two/b": using direct version "1.0.0" instead of catalog version "9.0.0"."#,
-                r#"Catalog version mismatch for "@three/c": using direct version "1.0.0" instead of catalog version "9.0.0"."#,
-            ],
-        );
-    }
-
     let dir = tempdir().unwrap();
     let project_root = dir.path().join("project");
     let modules_dir = project_root.join("node_modules");
     let virtual_store_dir = modules_dir.join(".pacquet");
     std::fs::create_dir_all(&project_root).unwrap();
-    std::fs::write(
-        project_root.join("pnpm-workspace.yaml"),
-        "packages:\n  - '.'\ncatalog:\n  '@one/a': 9.0.0\n  '@two/b': 9.0.0\n  '@three/c': 9.0.0\n",
-    )
-    .unwrap();
+    std::fs::write(project_root.join("pnpm-workspace.yaml"), "packages:\n  - '.'\n").unwrap();
     let mut manifest = PackageManifest::create_if_needed(project_root.join("package.json"))
         .expect("create manifest");
 
@@ -208,7 +181,7 @@ async fn add_resolves_package_selectors_concurrently_and_reports_in_selector_ord
     config.store_dir = dir.path().join("pacquet-store").into();
     config.modules_dir = modules_dir;
     config.virtual_store_dir = virtual_store_dir;
-    config.catalog_mode = pnpm_config::CatalogMode::Prefer;
+    config.catalog_mode = pnpm_config::CatalogMode::Manual;
     config.minimum_release_age = None;
     let mut servers = Vec::new();
     let mut mocks = Vec::new();
@@ -292,13 +265,135 @@ async fn add_resolves_package_selectors_concurrently_and_reports_in_selector_ord
         );
     }
 
-    {
-        let events = EVENTS.lock().unwrap();
-        assert_catalog_warning_order(&events);
-    }
-
     for (latest, _packument) in mocks {
         latest.assert_async().await;
+    }
+    drop(servers);
+}
+#[tokio::test]
+async fn add_reports_catalog_warnings_in_selector_order() {
+    static EVENTS: Mutex<Vec<LogEvent>> = Mutex::new(Vec::new());
+    EVENTS.lock().unwrap().clear();
+
+    struct RecordingReporter;
+    impl Reporter for RecordingReporter {
+        fn emit(event: &LogEvent) {
+            EVENTS
+                .lock()
+                .unwrap()
+                .push(event.clone());
+        }
+    }
+
+    let dir = tempdir().unwrap();
+    let project_root = dir.path().join("project");
+    let modules_dir = project_root.join("node_modules");
+    let virtual_store_dir = modules_dir.join(".pacquet");
+    std::fs::create_dir_all(&project_root).unwrap();
+    std::fs::write(
+        project_root.join("pnpm-workspace.yaml"),
+        "packages:\n  - '.'\ncatalog:\n  '@one/a': 9.0.0\n  '@two/b': 9.0.0\n  '@three/c': 9.0.0\n",
+    )
+    .unwrap();
+    let mut manifest = PackageManifest::create_if_needed(project_root.join("package.json"))
+        .expect("create manifest");
+
+    // The slowest selector is named first, so reports that followed the order
+    // the responses arrived in would come back reversed.
+    let packages = [("one", "a", 200), ("two", "b", 100), ("three", "c", 0)];
+    let mut config = Config::new();
+    config.store_dir = dir.path().join("pacquet-store").into();
+    config.modules_dir = modules_dir;
+    config.virtual_store_dir = virtual_store_dir;
+    config.catalog_mode = pnpm_config::CatalogMode::Prefer;
+    config.minimum_release_age = None;
+    let mut servers = Vec::new();
+    let mut mocks = Vec::new();
+    let mut package_names = Vec::new();
+
+    for (scope, name, response_delay_ms) in packages {
+        let package_name = format!("@{scope}/{name}");
+        let mut server = mockito::Server::new_async().await;
+        let registry_url = format!("{}/", server.url());
+        config.registries_by_scope.insert(format!("@{scope}"), registry_url.clone());
+
+        let response_body = package_body(&package_name, &registry_url);
+        let packument_path = format!("/@{scope}%2F{name}");
+        let packument = server
+            .mock("GET", packument_path.as_str())
+            .with_status(200)
+            .with_header("content-type", "application/json")
+            .with_chunked_body(move |writer| {
+                std::thread::sleep(Duration::from_millis(response_delay_ms));
+                writer.write_all(response_body.as_bytes())
+            })
+            .expect(1)
+            .create_async()
+            .await;
+
+        // Each selector names its version. A bare `pnpm add` takes the catalog
+        // entry outright, which is the case with nothing to report.
+        package_names.push(format!("{package_name}@1.0.0"));
+        mocks.push(packument);
+        servers.push(server);
+    }
+
+    let config = config.leak();
+    let http_client = ThrottledClient::default();
+    let resolved_packages = ResolvedPackages::default();
+    Add {
+        manifest: &mut manifest,
+        options: crate::AddOptions {
+            resolved_packages: &resolved_packages,
+            http_client: &http_client,
+            config,
+            lockfile: crate::CommandLockfile::loaded(None, None),
+            package_names: &package_names,
+            range_spec_style: RangeSpecStyle::Patch,
+            lockfile_only: true,
+        },
+        resources: crate::AddResources {
+            tarball_mem_cache: Arc::default(),
+            http_client_arc: Arc::new(ThrottledClient::default()),
+            dependency_groups: Some([DependencyGroup::Prod]),
+            included_groups: None,
+            save_catalog_name: None,
+            supported_architectures: None,
+        },
+    }
+    .run::<RecordingReporter>()
+    .await
+    .expect("add should resolve all package selectors");
+
+    fn catalog_mismatch_warnings(events: &[LogEvent]) -> Vec<&str> {
+        events
+            .iter()
+            .filter_map(|event| match event {
+                LogEvent::Pnpm(log)
+                    if log.level == LogLevel::Warn
+                        && log.message.starts_with("Catalog version mismatch") =>
+                {
+                    Some(log.message.as_str())
+                }
+                _ => None,
+            })
+            .collect()
+    }
+
+    {
+        let events = EVENTS.lock().unwrap();
+        assert_eq!(
+            catalog_mismatch_warnings(&events),
+            [
+                r#"Catalog version mismatch for "@one/a": using direct version "1.0.0" instead of catalog version "9.0.0"."#,
+                r#"Catalog version mismatch for "@two/b": using direct version "1.0.0" instead of catalog version "9.0.0"."#,
+                r#"Catalog version mismatch for "@three/c": using direct version "1.0.0" instead of catalog version "9.0.0"."#,
+            ],
+        );
+    }
+
+    for packument in mocks {
+        packument.assert_async().await;
     }
     drop(servers);
 }

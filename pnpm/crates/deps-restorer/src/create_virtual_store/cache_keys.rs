@@ -14,6 +14,7 @@ use std::collections::HashMap;
 pub(super) fn derive_cache_keys(
     config: &Config,
     entries: LockfileEntries<'_>,
+    allow_build_policy: &crate::AllowBuildPolicy,
     supported_architectures: Option<&pnpm_package_is_installable::SupportedArchitectures>,
 ) -> HashMap<PackageKey, Result<SnapshotCacheKey, CreateVirtualStoreError>> {
     let (Some(snapshots), Some(packages)) = (entries.snapshots, entries.packages) else {
@@ -24,7 +25,19 @@ pub(super) fn derive_cache_keys(
         .keys()
         .map(|snapshot_key| {
             let cache_key =
-                snapshot_cache_key(snapshot_key, packages, config.ignore_scripts, &selector);
+                snapshot_cache_key(snapshot_key, packages, config.ignore_scripts, &selector)
+                    .map(|mut key| {
+                        if key.is_git_hosted
+                            && allow_build_policy.check(&snapshot_key.without_peer().to_string())
+                                == Some(false)
+                        {
+                            key.value = Some(pnpm_store_dir::git_hosted_store_index_key(
+                                &snapshot_key.without_peer().pkg_id(),
+                                false,
+                            ));
+                        }
+                        key
+                    });
             (snapshot_key.clone(), cache_key)
         })
         .collect()
@@ -102,8 +115,8 @@ pub(super) fn snapshot_cache_key(
             // clone + checkout + prepare + packlist work — without
             // this, every git install cold-paths regardless of
             // whether the snapshot is already in `index.db`. `built`
-            // tracks `!ignore_scripts` to match the dispatcher's
-            // write key.
+            // tracks `!ignore_scripts`; `derive_cache_keys` also applies
+            // explicit per-package denials to match the dispatcher.
             Ok(SnapshotCacheKey {
                 value: store_index_key_for_resolution(
                     &metadata.resolution,
@@ -228,6 +241,29 @@ pub(crate) fn package_content_changed(
     let current = current_packages.and_then(|packages| packages.get(&snapshot_key.without_peer()));
     let wanted = wanted_packages.get(&snapshot_key.without_peer());
     current.is_some() && !integrity_equal(current, wanted)
+}
+
+/// What the link pass reads to decide a slot's fate: the `packages:`
+/// records it is installing, the previous install's to compare them
+/// against, and whether `--force` settles it outright.
+///
+/// The plan pass's counterpart is [`SnapshotReusePolicy`](super::snapshot_plan::SnapshotReusePolicy); the two `force`
+/// fields mean the same thing at the two phases.
+#[derive(Clone, Copy)]
+pub(super) struct SlotReuse<'a> {
+    pub(super) packages: &'a HashMap<PackageKey, PackageMetadata>,
+    pub(super) current_packages: Option<&'a HashMap<PackageKey, PackageMetadata>>,
+    /// Replace the slot even when its recorded metadata is unchanged.
+    pub(super) force: bool,
+}
+
+impl SlotReuse<'_> {
+    /// Whether an existing slot holds a different artifact than the one
+    /// this install wants, so its completion marker must not be taken
+    /// as proof that the slot is already correct.
+    pub(super) fn must_replace(&self, snapshot_key: &PackageKey) -> bool {
+        self.force || package_content_changed(self.current_packages, self.packages, snapshot_key)
+    }
 }
 pub(super) fn variant_cache_key(
     variations: &pnpm_lockfile::VariationsResolution,

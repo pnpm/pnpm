@@ -246,13 +246,8 @@ fn bin_walks_past_an_ecosystem_manifest() {
 
 /// Differential parity from a workspace member, whose own `package.json`
 /// makes it the local prefix `bin` prints for. pacquet must match pnpm
-/// byte-for-byte. Windows-skipped because it spawns the external `pnpm`
-/// shim (see the `ignore` reason).
+/// byte-for-byte.
 #[test]
-#[cfg_attr(
-    target_os = "windows",
-    ignore = "spawns the external `pnpm` shim (`pnpm.cmd`); std::process::Command can't resolve it via PATHEXT"
-)]
 fn bin_matches_pnpm_from_a_workspace_subdir() {
     let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
 

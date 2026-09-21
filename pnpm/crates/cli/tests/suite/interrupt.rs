@@ -1,13 +1,20 @@
+//! Signal handling under `pnpm run`: what a `SIGINT` at the terminal
+//! reaches, and what it leaves behind.
+//!
+//! Unix-only by subject, not by harness. The tests send POSIX signals to a
+//! process group of their own; Windows delivers console control events
+//! instead, which needs its own tests rather than a port of these.
 #![cfg(unix)]
 
+use crate::_utils::terminal::{Terminal, spawn_without_terminal};
 use command_extra::CommandExtra;
 use pnpm_testing_utils::bin::CommandTempCwd;
 use serde_json::json;
 use std::{
     fs,
-    os::unix::process::{CommandExt, ExitStatusExt},
+    os::unix::process::ExitStatusExt,
     path::Path,
-    process::{Child, Command, ExitStatus, Stdio},
+    process::{Child, ExitStatus, Stdio},
     thread::sleep,
     time::{Duration, Instant},
 };
@@ -26,6 +33,21 @@ process.on('SIGINT', () => {
     process.exit(0)
   }, 1000)
 })
+fs.writeFileSync('started.txt', '')
+setInterval(() => {}, 1000)
+";
+
+/// A script that shuts down on `SIGINT` and on `SIGTERM` alike, as a
+/// server does when a container runtime stops it.
+const SIGNAL_SCRIPT: &str = r"const fs = require('node:fs')
+for (const signal of ['SIGINT', 'SIGTERM']) {
+  process.on(signal, () => {
+    setTimeout(() => {
+      fs.writeFileSync('shut-down.txt', '')
+      process.exit(0)
+    }, 1000)
+  })
+}
 fs.writeFileSync('started.txt', '')
 setInterval(() => {}, 1000)
 ";
@@ -53,6 +75,26 @@ setTimeout(() => process.exit(0), 30_000)
 fs.writeFileSync('started.txt', '')
 ";
 
+/// A script that reads a repeated interrupt as an order to stop at once,
+/// as many CLIs do: the first starts a graceful shutdown, the second
+/// forces an exit.
+const COUNTING_SCRIPT: &str = r"const fs = require('node:fs')
+let interrupts = 0
+process.on('SIGINT', () => {
+  interrupts += 1
+  if (interrupts > 1) {
+    fs.writeFileSync('forced.txt', '')
+    process.exit(130)
+  }
+  setTimeout(() => {
+    fs.writeFileSync('shut-down.txt', '')
+    process.exit(0)
+  }, 1000)
+})
+fs.writeFileSync('started.txt', '')
+setInterval(() => {}, 1000)
+";
+
 /// A script that turns the interrupt into a different signal, so which
 /// one pnpm ends with says whether pnpm read its own signal or the
 /// script's outcome.
@@ -73,7 +115,7 @@ fn run_waits_for_the_interrupted_script_to_shut_down() {
     let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
     write_project(&workspace, "test", GRACEFUL_SCRIPT);
 
-    let mut process = interruptible(pacquet.with_args(["run", "dev"]));
+    let mut process = spawn_without_terminal(pacquet.with_args(["run", "dev"]));
     wait_for_file(&workspace.join("started.txt"), &mut process);
     interrupt(&process);
     let status = wait_for_shutdown(&mut process);
@@ -95,12 +137,85 @@ fn run_ends_with_the_signal_that_killed_the_script() {
     let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
     write_project(&workspace, "test", RESIGNALLING_SCRIPT);
 
-    let mut process = interruptible(pacquet.with_args(["run", "dev"]));
+    let mut process = spawn_without_terminal(pacquet.with_args(["run", "dev"]));
     wait_for_file(&workspace.join("started.txt"), &mut process);
     interrupt(&process);
     let status = wait_for_shutdown(&mut process);
 
     assert_eq!(status.signal(), Some(libc::SIGUSR2), "pnpm should end the way the script did");
+
+    drop(root);
+}
+
+/// `Ctrl+C` interrupts the terminal's whole foreground group, so the
+/// script has the signal by the time pnpm does. pnpm passes nothing on,
+/// and the script counts one interrupt rather than two
+/// ([pnpm/pnpm#7374](https://github.com/pnpm/pnpm/issues/7374)).
+#[test]
+fn ctrl_c_interrupts_the_script_once() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    write_project(&workspace, "test", COUNTING_SCRIPT);
+
+    let terminal = Terminal::open();
+    let mut process = terminal.spawn_foreground(pacquet.with_args(["run", "dev"]));
+    wait_for_file(&workspace.join("started.txt"), &mut process);
+    terminal.press_ctrl_c();
+    let status = wait_for_shutdown(&mut process);
+
+    assert!(
+        !workspace.join("forced.txt").exists(),
+        "the script saw a second interrupt, so pnpm relayed the terminal's",
+    );
+    assert!(
+        workspace.join("shut-down.txt").exists(),
+        "the script must have finished shutting down before pnpm exited",
+    );
+    assert_eq!(status.code(), Some(0), "the script exited 0, so pnpm does too");
+
+    drop(root);
+}
+
+/// Without a terminal, the shell running the script may stay its parent
+/// (dash does) and then keeps a relayed `SIGINT` to itself until its
+/// child exits. pnpm signals the script's whole process group instead,
+/// and waits for the group, so the script shuts down and finishes before
+/// pnpm ends.
+#[test]
+fn a_shell_that_stays_the_scripts_parent_passes_the_interrupt_on() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    write_project_running(&workspace, "test", "node dev.js", SIGNAL_SCRIPT);
+
+    let mut process = spawn_without_terminal(pacquet.with_args(["run", "dev"]));
+    wait_for_file(&workspace.join("started.txt"), &mut process);
+    interrupt(&process);
+    wait_for_shutdown(&mut process);
+
+    assert!(
+        workspace.join("shut-down.txt").exists(),
+        "the script must have finished shutting down before pnpm exited",
+    );
+
+    drop(root);
+}
+
+/// A `SIGTERM`, which is how a container runtime or a service manager stops
+/// pnpm, ends a shell that stays the script's parent at once. pnpm still
+/// signals the script through its process group and waits for it, so the
+/// script's shutdown completes before pnpm ends.
+#[test]
+fn a_termination_without_a_terminal_reaches_the_script_behind_its_shell() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    write_project_running(&workspace, "test", "node dev.js", SIGNAL_SCRIPT);
+
+    let mut process = spawn_without_terminal(pacquet.with_args(["run", "dev"]));
+    wait_for_file(&workspace.join("started.txt"), &mut process);
+    signal(&process, libc::SIGTERM);
+    wait_for_shutdown(&mut process);
+
+    assert!(
+        workspace.join("shut-down.txt").exists(),
+        "the script must have finished shutting down before pnpm exited",
+    );
 
     drop(root);
 }
@@ -115,7 +230,7 @@ fn a_parallel_run_relays_the_interrupt_to_every_project() {
     let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
     write_workspace(&workspace, &PROJECTS, GRACEFUL_SCRIPT);
 
-    let mut process = interruptible(pacquet.with_args([
+    let mut process = spawn_without_terminal(pacquet.with_args([
         "-r",
         "--filter=./project-*",
         "--parallel",
@@ -151,7 +266,7 @@ fn a_third_interrupt_ends_pnpm_even_when_the_script_ignores_them() {
 
     // The script outlives pnpm here by design, so its stdio is discarded
     // rather than left holding the test harness's pipes open.
-    let mut process = interruptible(
+    let mut process = spawn_without_terminal(
         pacquet
             .with_args(["run", "dev"])
             .with_stdout(Stdio::null())
@@ -189,7 +304,7 @@ fn a_later_script_still_gets_a_plain_first_interrupt() {
     fs::write(workspace.join("pre.js"), PRE_SCRIPT).expect("write the pre script");
     fs::write(workspace.join("dev.js"), GRACEFUL_SCRIPT).expect("write the script");
 
-    let mut process = interruptible(
+    let mut process = spawn_without_terminal(
         pacquet
             .with_env("PNPM_CONFIG_ENABLE_PRE_POST_SCRIPTS", "true")
             .with_args(["run", "dev"]),
@@ -209,9 +324,14 @@ fn a_later_script_still_gets_a_plain_first_interrupt() {
     drop(root);
 }
 
+/// The `dev` script execs `script`: the shell is out of the picture, and
+/// the relay's target is the script itself.
 fn write_project(dir: &Path, name: &str, script: &str) {
-    let manifest =
-        json!({ "name": name, "version": "0.0.0", "scripts": { "dev": "exec node dev.js" } });
+    write_project_running(dir, name, "exec node dev.js", script);
+}
+
+fn write_project_running(dir: &Path, name: &str, command: &str, script: &str) {
+    let manifest = json!({ "name": name, "version": "0.0.0", "scripts": { "dev": command } });
     fs::write(dir.join("package.json"), manifest.to_string()).expect("write package.json");
     fs::write(dir.join("dev.js"), script).expect("write the script");
 }
@@ -233,38 +353,19 @@ fn write_workspace(workspace: &Path, projects: &[&str], script: &str) {
     }
 }
 
-/// Spawn pnpm able to receive the interrupt signals, which is the state
-/// a terminal hands a foreground command.
-///
-/// Both halves matter, and both are inherited through `exec`. The test
-/// harness may run with `SIGINT` ignored, which pnpm would then keep (as
-/// it must under `nohup`) and pass on to the script; and it may run with
-/// the signal blocked, which no change of disposition undoes.
-fn interruptible(mut command: Command) -> Child {
-    // SAFETY: `signal` and `sigprocmask` are async-signal-safe, which is
-    // all a `pre_exec` hook between `fork` and `exec` may call.
-    unsafe {
-        command.pre_exec(|| {
-            let mut unblocked: libc::sigset_t = std::mem::zeroed();
-            libc::sigemptyset(&raw mut unblocked);
-            libc::sigprocmask(libc::SIG_SETMASK, &raw const unblocked, std::ptr::null_mut());
-            for signal in [libc::SIGINT, libc::SIGTERM, libc::SIGHUP] {
-                libc::signal(signal, libc::SIG_DFL);
-            }
-            Ok(())
-        });
-    }
-    command.spawn().expect("spawn `pnpm run dev`")
-}
-
 /// Send `SIGINT` to pnpm alone, which is what `kill -INT` does; a
 /// terminal would signal the whole foreground group at once.
 fn interrupt(process: &Child) {
+    signal(process, libc::SIGINT);
+}
+
+/// Send `signal` to pnpm alone, as `kill` does.
+fn signal(process: &Child, signal: libc::c_int) {
     let pid = i32::try_from(process.id()).expect("the pid fits in a pid_t");
     // SAFETY: `pid` is the child this test spawned and has not waited for
     // yet, so it is not a recycled process id.
-    let signalled = unsafe { libc::kill(pid, libc::SIGINT) };
-    assert_eq!(signalled, 0, "the interrupt should reach pnpm");
+    let signalled = unsafe { libc::kill(pid, signal) };
+    assert_eq!(signalled, 0, "the signal should reach pnpm");
 }
 
 /// Wait for pnpm to end, so a relay that never reached the script fails

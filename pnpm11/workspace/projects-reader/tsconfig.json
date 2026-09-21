@@ -25,6 +25,9 @@
       "path": "../../text/ordinal-comparator"
     },
     {
+      "path": "../package-patterns"
+    },
+    {
       "path": "../project-manifest-reader"
     },
     {

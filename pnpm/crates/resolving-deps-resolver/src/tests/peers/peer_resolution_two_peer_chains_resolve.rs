@@ -322,6 +322,7 @@ async fn external_link_peer_remaps_to_node_modules_when_exclude_links_on() {
                 manifest: Some(std::sync::Arc::new(
                     serde_json::json!({ "name": "peer-a", "version": "1.0.0" }),
                 )),
+                non_deprecated_alternative: None,
             },
         },
     );

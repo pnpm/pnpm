@@ -361,6 +361,15 @@ pub struct TaskSettings {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub concurrency_group: Option<String>,
 
+    /// When this task and others of its concurrency group are waiting for
+    /// a slot, a higher value starts before waiters that arrived earlier.
+    /// Omitted and `0` are the same; a negative value starts after `0`.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub priority: Option<i32>,
+
+    #[serde(skip)]
+    pub(super) invalid_priority: Option<serde_json::Value>,
+
     /// The tasks that must complete before this one may start. A `^name`
     /// entry names the task in each of the project's workspace
     /// dependencies; a bare `name` entry names the task in the same
@@ -402,8 +411,9 @@ pub struct TaskSettings {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub cargo_target_dir: Option<String>,
 
-    /// Fields this version of pnpm does not read, kept so validation can
-    /// reject a typo instead of silently ignoring it.
+    /// Fields this version of pnpm does not read, kept only until
+    /// [`WorkspaceSettings::collect_key_issues`](super::WorkspaceSettings::collect_key_issues)
+    /// has named them in its report and cleared them.
     #[serde(flatten, skip_serializing_if = "IndexMap::is_empty")]
     pub unknown: IndexMap<String, serde_json::Value>,
 }
@@ -420,6 +430,7 @@ pub struct TaskSettings {
 struct RawTaskSettings {
     concurrency: Option<serde_json::Value>,
     concurrency_group: Option<String>,
+    priority: Option<serde_json::Value>,
     depends_on: Option<Vec<String>>,
     outputs: Option<Vec<String>>,
     inputs: Option<Vec<String>>,
@@ -435,10 +446,14 @@ impl<'de> Deserialize<'de> for TaskSettings {
         let raw = RawTaskSettings::deserialize(deserializer)?;
         let concurrency = raw.concurrency.as_ref().and_then(serde_json::Value::as_i64);
         let invalid_concurrency = raw.concurrency.filter(|value| value.as_i64().is_none());
+        let priority = raw.priority.as_ref().and_then(json_i32);
+        let invalid_priority = raw.priority.filter(|value| json_i32(value).is_none());
         Ok(Self {
             concurrency,
             invalid_concurrency,
             concurrency_group: raw.concurrency_group,
+            priority,
+            invalid_priority,
             depends_on: raw.depends_on,
             outputs: raw.outputs,
             inputs: raw.inputs,
@@ -448,6 +463,12 @@ impl<'de> Deserialize<'de> for TaskSettings {
             unknown: raw.unknown,
         })
     }
+}
+
+fn json_i32(value: &serde_json::Value) -> Option<i32> {
+    value
+        .as_i64()
+        .and_then(|n| i32::try_from(n).ok())
 }
 
 /// `updateConfig` entry: settings that tune `pnpm update`.

@@ -14,6 +14,7 @@ repository.workspace = true
 pnpm-matcher = { workspace = true }
 pnpm-config = { workspace = true }
 pnpm-reporter = { workspace = true }
+pnpm-text-sanitize = { workspace = true }
 
 chrono = { workspace = true }
 console = { workspace = true }

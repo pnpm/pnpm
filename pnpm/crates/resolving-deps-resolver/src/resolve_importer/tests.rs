@@ -193,6 +193,7 @@ fn fake_result(name: &str, version: &str, manifest: serde_json::Value) -> Resolv
             latest: Some(version.to_string()),
             published_at: None,
             manifest: Some(std::sync::Arc::new(manifest)),
+            non_deprecated_alternative: None,
         },
     }
 }
@@ -244,6 +245,7 @@ fn default_opts() -> ResolveImporterOptions {
             pick_lowest_direct: false,
             subdep_published_by: None,
             catalogs: pnpm_catalogs_types::Catalogs::new(),
+            catalogs_dir: None,
             catalog_server: false,
         },
         hooks: crate::ManifestTransformHooks {

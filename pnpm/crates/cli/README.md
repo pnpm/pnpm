@@ -26,6 +26,7 @@
 | ✅   | --save-dev                    |       |
 | ✅   | --save-optional               |       |
 | ✅   | --save-exact                  |       |
+| ✅   | --tilde                       |       |
 | ✅   | --save-peer                   |       |
 |      | --ignore-workspace-root-check |       |
 |      | --global                      |       |

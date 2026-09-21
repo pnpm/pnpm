@@ -4,8 +4,11 @@ use pipe_trait::Pipe;
 use pnpm_config::Config;
 use pnpm_lockfile::{LazyLockfile, MaybeLazyLockfile};
 use pnpm_network::{ForInstallsError, ThrottledClient};
+use pnpm_package_is_installable::{Engine, InstallabilityError, WantedEngine, check_engine};
 use pnpm_package_manager::{CommandLockfile, ResolvedPackages};
-use pnpm_package_manifest::{PackageManifest, PackageManifestError};
+use pnpm_package_manifest::{
+    PackageManifest, PackageManifestError, node_version_from_engines_runtime,
+};
 use pnpm_tarball::MemCache;
 use std::{
     path::{Path, PathBuf},
@@ -70,6 +73,9 @@ pub enum InitStateError {
 
     #[diagnostic(transparent)]
     Network(#[error(source)] ForInstallsError),
+
+    #[diagnostic(transparent)]
+    Installability(#[error(source)] Box<InstallabilityError>),
 }
 
 impl State {
@@ -161,9 +167,10 @@ impl State {
         lockfile: LazyLockfile,
         http_client: Arc<ThrottledClient>,
     ) -> Result<Self, InitStateError> {
+        let manifest = load_or_create_manifest(manifest_path, config)?;
         Ok(State {
             config,
-            manifest: load_or_create_manifest(manifest_path, config)?,
+            manifest,
             lockfile,
             http_client,
             tarball_mem_cache: Arc::new(MemCache::new()),
@@ -196,9 +203,7 @@ impl State {
 /// `package.json` loads (or is scaffolded) as usual, but when it is
 /// absent an existing alternate manifest base name (`package.yaml`)
 /// must be loaded rather than shadowed by a scaffolded `package.json`
-/// — pnpm reads every manifest base name. Alternate manifests stay
-/// read-only (see `pnpm_workspace::project_manifest`); commands
-/// that write the manifest back still require `package.json`.
+/// and saved in its original format.
 ///
 /// Inside a workspace, a missing root manifest is tolerated rather
 /// than scaffolded: pnpm installs such a workspace with no root
@@ -237,6 +242,51 @@ fn apply_runtime_on_fail(mut manifest: PackageManifest, config: &Config) -> Pack
         );
     }
     manifest
+}
+
+pub(crate) fn check_root_project_engine(
+    manifest_path: &Path,
+    config: &Config,
+    use_manifest_runtime: bool,
+) -> Result<(), InitStateError> {
+    if !config.engine_strict {
+        return Ok(());
+    }
+    let project_dir = config.workspace_dir
+        .as_deref()
+        .unwrap_or_else(|| manifest_path.parent().expect("manifest path always has a parent dir"));
+    let Some((_, manifest)) = pnpm_workspace::try_read_project_manifest(project_dir)
+        .map_err(InitStateError::ManifestRead)?
+    else {
+        return Ok(());
+    };
+    let Some(wanted_node) = manifest
+        .value()
+        .get("engines")
+        .and_then(|engines| engines.get("node"))
+        .and_then(serde_json::Value::as_str)
+    else {
+        return Ok(());
+    };
+    let configured_node = config.node_version
+        .clone()
+        .or_else(|| {
+            use_manifest_runtime
+                .then(|| node_version_from_engines_runtime(manifest.value()))
+                .flatten()
+        });
+    let host = pnpm_deps_restorer::InstallabilityHost::detect_with(true, configured_node);
+    let wanted = WantedEngine { node: Some(wanted_node.to_string()), pnpm: None };
+    let current = Engine { node: host.node_version, pnpm: None };
+    match check_engine(&project_dir.to_string_lossy(), &wanted, &current) {
+        Ok(None) => Ok(()),
+        Ok(Some(error)) => {
+            Err(InitStateError::Installability(Box::new(InstallabilityError::Engine(error))))
+        }
+        Err(error) => Err(InitStateError::Installability(Box::new(
+            InstallabilityError::InvalidNodeVersion(error),
+        ))),
+    }
 }
 
 #[cfg(test)]

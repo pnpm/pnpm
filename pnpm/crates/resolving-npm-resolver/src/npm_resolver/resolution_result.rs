@@ -1,12 +1,19 @@
 use super::{
-    Algorithm, Arc, DateTime, Integrity, InvalidTarballIntegrityError, LockfileResolution,
-    MINIMUM_RELEASE_AGE_VIOLATION_CODE, Package, PackageDistribution, PackageVersion,
-    PackageVersionPolicy, PickedFromRegistry, PkgName, PkgNameVer, PkgResolutionId, RangeSpecStyle,
-    RegistryPackageSpec, RegistryResponseError, RegistryRevisionSelector,
-    ResolutionPolicyViolation, ResolveError, ResolveOptions, ResolveResult, TarballResolution,
+    Algorithm, Arc, DateTime, Integrity, InvalidTarballIntegrityError, LockfileResolution, Package,
+    PackageDistribution, PackageVersion, PackageVersionPolicy, PickedFromRegistry, PkgName,
+    PkgNameVer, PkgResolutionId, RangeSpecStyle, RegistryPackageSpec, RegistryResponseError,
+    RegistryRevisionSelector, ResolveError, ResolveOptions, ResolveResult, TarballResolution,
     TarballRevision, TrustCheckOptions, TrustPolicy, Utc, Version, WantedDependency,
-    fail_if_trust_downgraded, parse_packument_timestamp, select_package_revision, tarball_revision,
+    fail_if_trust_downgraded,
+    release_policy::{
+        detect_min_release_age_violation, installable_under_policy, latest_allowed_by_policy,
+    },
+    select_package_revision, tarball_revision,
 };
+use crate::pick_package_from_meta::{
+    RegistryPackageSpecType, semver_range::semver_satisfies_loose,
+};
+use pnpm_resolving_resolver_base::NonDeprecatedAlternative;
 
 /// Inputs used to construct a registry resolution.
 pub(crate) struct BuildResolveResult<'a> {
@@ -50,34 +57,52 @@ pub(crate) fn build_resolve_result(
     let (resolution, revision) = picked_tarball_resolution(picked, args.registry.registry)?;
     let published_at = args.meta.published_at(&version_str).map(str::to_string);
     let manifest = args.manifest_for_revision(picked, &version_str, revision)?;
+    let id = resolution_id(args.registry.registry_name, picked, &name_ver);
+    let policy_violation = detect_min_release_age_violation(
+        &pkg_name,
+        &version_str,
+        published_at.as_deref(),
+        &resolution,
+        args.published_by,
+        args.published_by_exclude,
+    );
+    let package = resolved_package_info(&args, name_ver, &version_str, published_at, manifest);
     Ok(ResolveResult {
-        id: resolution_id(args.registry.registry_name, picked, &name_ver),
-        policy_violation: detect_min_release_age_violation(
-            &pkg_name,
-            &version_str,
-            published_at.as_deref(),
-            &resolution,
-            args.published_by,
-            args.published_by_exclude,
-        ),
+        id,
+        policy_violation,
         resolution,
         resolved_via: args.registry.resolved_via.to_string(),
         normalized_bare_specifier: args.specifier.spec.normalized_bare_specifier
             .clone()
             .or(args.specifier.calculated_specifier),
         alias: args.specifier.alias.map(str::to_string),
-        package: pnpm_resolving_resolver_base::ResolvedPackageInfo {
-            name_ver: Some(name_ver),
-            latest: latest_allowed_by_policy(
-                args.meta,
-                args.published_by,
-                args.published_by_exclude,
-            )
-            .map(str::to_string),
-            published_at,
-            manifest: Some(manifest),
-        },
+        package,
     })
+}
+
+/// The per-package half of a registry resolution: what a consumer reads off
+/// the picked version rather than off the resolution itself.
+fn resolved_package_info(
+    args: &BuildResolveResult<'_>,
+    name_ver: PkgNameVer,
+    version_str: &str,
+    published_at: Option<String>,
+    manifest: Arc<serde_json::Value>,
+) -> pnpm_resolving_resolver_base::ResolvedPackageInfo {
+    pnpm_resolving_resolver_base::ResolvedPackageInfo {
+        name_ver: Some(name_ver),
+        latest: latest_allowed_by_policy(args.meta, args.published_by, args.published_by_exclude)
+            .map(str::to_string),
+        published_at,
+        manifest: Some(manifest),
+        non_deprecated_alternative: find_non_deprecated_alternative(
+            args.meta,
+            version_str,
+            args.specifier.spec,
+            args.published_by,
+            args.published_by_exclude,
+        ),
+    }
 }
 
 pub(super) fn calculated_specifier(
@@ -229,83 +254,39 @@ pub(super) fn fail_if_trust_downgraded_for_pick(
         .map_err(|err| Box::new(err) as ResolveError)
 }
 
-/// The raw `dist-tags.latest` when the active `minimumReleaseAge`
-/// policy would allow installing it, `None` otherwise. The install
-/// summary's `(X is available)` hint must only ever name the actual
-/// latest tag, so an immature latest suppresses the hint instead of
-/// being rewritten to an older mature version. Suppression requires
-/// positive evidence of immaturity: a missing or unparsable
-/// timestamp keeps the raw tag, matching
-/// [`detect_min_release_age_violation`], which likewise only flags a
-/// version it can date.
-pub(super) fn latest_allowed_by_policy<'a>(
-    meta: &'a Package,
+/// The newest version the registry does not report as deprecated, for the
+/// deprecation warning to point at.
+///
+/// `None` unless `picked_version` is itself deprecated, so the scan stays on
+/// the rare path. Candidates the active `minimumReleaseAge` policy would
+/// refuse are skipped, so the version named is one pnpm would actually
+/// install. Read off the packument pnpm already holds, and `is_deprecated`
+/// probes a version without hydrating its manifest, which keeps it cheap.
+fn find_non_deprecated_alternative(
+    meta: &Package,
+    picked_version: &str,
+    spec: &RegistryPackageSpec,
     published_by: Option<DateTime<Utc>>,
     published_by_exclude: Option<&PackageVersionPolicy>,
-) -> Option<&'a str> {
-    let latest = meta.dist_tag("latest")?;
-    let Some(cutoff) = published_by else { return Some(latest) };
-    if let Some(policy) = published_by_exclude {
-        use pnpm_config::version_policy::PolicyMatch;
-        match policy.matches(&meta.name) {
-            PolicyMatch::AnyVersion => return Some(latest),
-            PolicyMatch::ExactVersions(versions)
-                if versions
-                    .iter()
-                    .any(|exact| exact == latest) =>
-            {
-                return Some(latest);
-            }
-            _ => {}
-        }
-    }
-    match meta.published_at(latest).and_then(parse_packument_timestamp) {
-        Some(published_at) if published_at > cutoff => None,
-        _ => Some(latest),
-    }
-}
-
-/// Resolver-time `minimumReleaseAge` check. Returns a violation entry
-/// when the picked version's publish timestamp falls past the policy
-/// cutoff and isn't excluded by name/version.
-pub(super) fn detect_min_release_age_violation(
-    name: &PkgName,
-    version: &str,
-    published_at: Option<&str>,
-    resolution: &LockfileResolution,
-    published_by: Option<DateTime<Utc>>,
-    published_by_exclude: Option<&PackageVersionPolicy>,
-) -> Option<ResolutionPolicyViolation> {
-    let cutoff = published_by?;
-    let timestamp = published_at?;
-    if let Some(policy) = published_by_exclude {
-        use pnpm_config::version_policy::PolicyMatch;
-        match policy.matches(&name.to_string()) {
-            PolicyMatch::AnyVersion => return None,
-            PolicyMatch::ExactVersions(versions)
-                if versions
-                    .iter()
-                    .any(|exact| exact == version) =>
-            {
-                return None;
-            }
-            _ => {}
-        }
-    }
-    let parsed = parse_packument_timestamp(timestamp)?;
-    if parsed <= cutoff {
+) -> Option<NonDeprecatedAlternative> {
+    if !meta.versions.is_deprecated(picked_version) {
         return None;
     }
-    Some(ResolutionPolicyViolation {
-        name: name.clone(),
-        version: version.to_string(),
-        resolution: resolution.clone(),
-        code: MINIMUM_RELEASE_AGE_VIOLATION_CODE,
-        reason: format!(
-            "was published at {timestamp}, within the minimumReleaseAge cutoff ({cutoff})",
-            cutoff = cutoff.to_rfc3339_opts(chrono::SecondsFormat::Millis, true),
-        ),
-    })
+    let newest = meta.versions
+        .keys()
+        .filter(|version| !meta.versions.is_deprecated(version))
+        .filter(|version| {
+            installable_under_policy(meta, version, published_by, published_by_exclude)
+        })
+        .filter_map(|version| Version::parse(version).ok())
+        .max()?;
+    let version = newest.to_string();
+    // A tag says nothing about which versions are acceptable, so there is no
+    // range for the alternative to fall outside of.
+    let outside_declared_range = spec.spec_type == RegistryPackageSpecType::Range
+        && spec.fetch_spec != "*"
+        && !semver_satisfies_loose(&version, &spec.fetch_spec);
+    Some(NonDeprecatedAlternative { version, outside_declared_range })
 }
 
 /// Whether the registry answered "no such package" for this pick.

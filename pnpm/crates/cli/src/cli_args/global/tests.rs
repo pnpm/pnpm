@@ -372,6 +372,13 @@ fn ownership_snapshot_preserves_manifest_diagnostic_codes() {
     };
     let manifest_path = root.path().join("node_modules/dependency/package.json");
 
+    let empty =
+        snapshot_global_package(info.clone()).expect("a group without node_modules owns no bins");
+    assert!(empty.bin_names.is_empty());
+
+    // A group with a present-but-incomplete tree still fails closed.
+    std::fs::create_dir_all(root.path().join("node_modules")).expect("create modules directory");
+
     let missing = snapshot_global_package(info.clone())
         .err()
         .expect("a missing ownership manifest must fail");

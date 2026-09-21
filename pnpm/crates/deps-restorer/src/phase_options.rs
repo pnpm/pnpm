@@ -64,6 +64,24 @@ pub struct PriorLinkState<'a> {
     pub build_present_packages: bool,
     /// See [`crate::PriorHoistedState::unbuilt_builds`].
     pub unbuilt_builds: &'a crate::UnbuiltBuilds,
+    /// The snapshots the previous install's `.modules.yaml` recorded as
+    /// skipped. A lockfile entry says what an install resolved rather than
+    /// what it put on disk, so telling the two apart for the previous
+    /// install takes this set (pnpm/pnpm#15161).
+    pub previously_skipped: &'a crate::SkippedSnapshots,
+}
+
+impl<'a> PriorLinkState<'a> {
+    #[must_use]
+    pub fn hoisted_state(self, current_lockfile: Option<&'a Lockfile>) -> PriorHoistedState<'a> {
+        PriorHoistedState {
+            current_lockfile,
+            current_hoisted_locations: self.hoisted_locations,
+            previously_skipped: self.previously_skipped,
+            unbuilt_builds: self.unbuilt_builds,
+            build_present_packages: self.build_present_packages,
+        }
+    }
 }
 
 #[derive(Clone, Copy)]
@@ -98,6 +116,8 @@ pub struct PriorHoistedState<'a> {
     /// so the walker can mark packages that are already on disk. `None`
     /// on a first install.
     pub current_hoisted_locations: Option<&'a crate::HoistedLocations>,
+    /// See [`crate::PriorLinkState::previously_skipped`].
+    pub previously_skipped: &'a crate::SkippedSnapshots,
     /// Packages the previous install's `.modules.yaml` recorded as not
     /// built. A present one among them still reaches the build phase.
     pub unbuilt_builds: &'a crate::UnbuiltBuilds,

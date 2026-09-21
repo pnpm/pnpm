@@ -3,14 +3,19 @@ pub use output::StreamedScript;
 use crate::{
     extend_path::extend_path,
     make_env::{EnvBuild, EnvOptions, build_env, path_value},
-    process_tracker::spawn_child,
+    process_tracker::{SpawnedChild, spawn_child},
     script_exit::ScriptExit,
+    script_working_dir::{
+        emulator_working_dir, is_refused_directory, script_working_dir, shorter_working_dirs,
+    },
     shell::{ScriptShellError, SelectedShell, select_shell},
     shell_emulator::{EmulatedOutput, ShellEmulatorError, execute_emulated},
 };
 use derive_more::{Display, Error};
 use miette::Diagnostic;
-use pnpm_package_manifest::{PackageManifestError, safe_read_package_json_from_dir};
+use pnpm_package_manifest::{
+    PackageManifest, PackageManifestError, safe_read_package_json_from_dir,
+};
 use pnpm_reporter::{LifecycleLog, LifecycleMessage, LifecycleStdio, LogEvent, LogLevel, Reporter};
 use serde_json::Value;
 use std::{
@@ -20,7 +25,7 @@ use std::{
     fs,
     io::{self, BufRead, BufReader, Read},
     path::Path,
-    process::{Child, Command, ExitStatus, Stdio},
+    process::{Command, ExitStatus, Stdio},
     thread,
 };
 use tokio::io::{AsyncBufReadExt, AsyncRead, BufReader as AsyncBufReader};
@@ -29,7 +34,7 @@ use tokio::io::{AsyncBufReadExt, AsyncRead, BufReader as AsyncBufReader};
 #[derive(Debug, Display, Error, Diagnostic)]
 #[non_exhaustive]
 pub enum LifecycleScriptError {
-    #[display("Failed to read package.json at {path}: {source}")]
+    #[display("Failed to read package manifest at {path}: {source}")]
     #[diagnostic(code(ERR_PNPM_EXECUTOR_READ_MANIFEST))]
     ReadManifest {
         path: String,
@@ -41,11 +46,14 @@ pub enum LifecycleScriptError {
     #[diagnostic(code(ERR_PNPM_EXECUTOR_LIFECYCLE_SCRIPT_FAILED))]
     ScriptFailed { dep_path: String, stage: String, script: String, status: ScriptExit },
 
-    #[display("Failed to spawn lifecycle script for {dep_path} {stage}: {source}")]
+    #[display("Failed to spawn lifecycle script for {dep_path} {stage} in {dir}: {source}")]
     #[diagnostic(code(ERR_PNPM_EXECUTOR_SPAWN_LIFECYCLE))]
     Spawn {
         dep_path: String,
         stage: String,
+        /// The directory the spawn needed: the package root the script
+        /// runs in, or the temporary directory pnpm could not create.
+        dir: String,
         #[error(source)]
         source: std::io::Error,
     },
@@ -217,14 +225,25 @@ fn run_lifecycle_stages<Reporter: self::Reporter>(
 fn read_lifecycle_manifest(
     pkg_root: &Path,
 ) -> Result<Option<serde_json::Value>, LifecycleScriptError> {
-    safe_read_package_json_from_dir(pkg_root)
+    let package_json = pkg_root.join("package.json");
+    if let Some(manifest) = safe_read_package_json_from_dir(pkg_root)
         .map_err(|source| LifecycleScriptError::ReadManifest {
-            path: pkg_root
-                .join("package.json")
-                .display()
-                .to_string(),
+            path: package_json.display().to_string(),
             source,
-        })
+        })?
+    {
+        return Ok(Some(manifest));
+    }
+
+    let package_yaml = pkg_root.join("package.yaml");
+    match PackageManifest::from_path(package_yaml.clone()) {
+        Ok(manifest) => Ok(Some(manifest.value().clone())),
+        Err(PackageManifestError::NoImporterManifestFound(_)) => Ok(None),
+        Err(source) => Err(LifecycleScriptError::ReadManifest {
+            path: package_yaml.display().to_string(),
+            source,
+        }),
+    }
 }
 
 /// Run a single lifecycle hook and emit `pnpm:lifecycle` events.
@@ -360,6 +379,7 @@ fn prepare_lifecycle_path(
             .map_err(|error| LifecycleScriptError::Spawn {
                 dep_path: opts.dep_path.to_string(),
                 stage: stage.to_string(),
+                dir: tmpdir.display().to_string(),
                 source: error,
             })?;
     }
@@ -381,6 +401,30 @@ fn prepare_lifecycle_path(
     Ok(path_env)
 }
 
+/// Start `cmd` in `pkg_root`, and retry shorter spellings when Windows
+/// refuses that working directory.
+///
+/// The original refusal is returned when no spelling works because it
+/// names the directory the install computed.
+fn spawn_in_pkg_root<'tracker>(
+    cmd: &mut Command,
+    pkg_root: &Path,
+) -> io::Result<SpawnedChild<'tracker>> {
+    cmd.current_dir(pkg_root);
+    let refusal = match spawn_child(cmd, None) {
+        Err(error) if is_refused_directory(&error) => error,
+        result => return result,
+    };
+    for spelling in shorter_working_dirs(pkg_root) {
+        cmd.current_dir(&spelling);
+        match spawn_child(cmd, None) {
+            Err(error) if is_refused_directory(&error) => continue,
+            result => return result,
+        }
+    }
+    Err(refusal)
+}
+
 /// Spawn `script` under `shell`, pumping the child's output to the
 /// reporter line by line, and return how it exited.
 fn run_in_shell<Reporter: self::Reporter>(
@@ -391,6 +435,7 @@ fn run_in_shell<Reporter: self::Reporter>(
     env: &HashMap<String, String>,
     wd: &str,
 ) -> Result<ScriptExit, LifecycleScriptError> {
+    let pkg_root = script_working_dir(opts.pkg_root);
     let mut cmd = Command::new(&shell.program);
     cmd.args(&shell.args);
     // Append the script body. The chain is broken here because the
@@ -398,19 +443,19 @@ fn run_in_shell<Reporter: self::Reporter>(
     // (see [`push_script_arg`]) — a branch the method chain can't
     // express.
     push_script_arg(&mut cmd, script, shell.windows_verbatim_args);
-    cmd.current_dir(opts.pkg_root)
-        // Stripping inherited env so leftover npm_* keys from a wrapping
-        // invocation cannot leak in. `build_env` already folded the
-        // surviving parent keys into `built.env`.
-        .env_clear()
+    // Stripping inherited env so leftover npm_* keys from a wrapping
+    // invocation cannot leak in. `build_env` already folded the
+    // surviving parent keys into `built.env`.
+    cmd.env_clear()
         .envs(env)
         .stdout(Stdio::piped())
         .stderr(Stdio::piped());
 
-    let mut child = spawn_child(&mut cmd, None)
+    let mut child = spawn_in_pkg_root(&mut cmd, pkg_root)
         .map_err(|error| LifecycleScriptError::Spawn {
             dep_path: opts.dep_path.to_string(),
             stage: stage.to_string(),
+            dir: pkg_root.display().to_string(),
             source: error,
         })?;
 
@@ -450,9 +495,10 @@ fn run_in_emulator<Reporter: self::Reporter>(
     env: &HashMap<String, String>,
     wd: &str,
 ) -> Result<ScriptExit, LifecycleScriptError> {
+    let pkg_root = emulator_working_dir(opts.pkg_root);
     let target = StreamedScript { dep_path: opts.dep_path, stage, wd, emit: Reporter::emit };
     let emit_line = |stdio, line| target.emit_line(stdio, line);
-    execute_emulated(script, opts.pkg_root, env, EmulatedOutput::Lines(&emit_line), None)
+    execute_emulated(script, &pkg_root, env, EmulatedOutput::Lines(&emit_line), None)
         .map(ScriptExit::Emulated)
         .map_err(LifecycleScriptError::ShellEmulator)
 }

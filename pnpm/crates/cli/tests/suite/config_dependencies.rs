@@ -5,14 +5,16 @@ use command_extra::CommandExtra;
 use pnpm_config::WorkspaceSettings;
 use pnpm_lockfile::EnvLockfile;
 use pnpm_modules_yaml::{Host, NodeLinker, read_modules_manifest};
-#[cfg(unix)]
-use pnpm_testing_utils::fs::is_symlink_or_junction;
 use pnpm_testing_utils::{
     bin::{AddMockedRegistry, CommandTempCwd},
-    fs::bump_mtime,
+    fs::{bump_mtime, is_symlink_or_junction},
 };
 use pnpm_workspace_state::ConfigDependency;
-use std::{fs, path::Path, process::Command};
+use std::{
+    fs,
+    path::Path,
+    process::{Command, Stdio},
+};
 
 fn pacquet_at(workspace: &Path) -> Command {
     Command::cargo_bin("pnpm").expect("find the pnpm binary").with_current_dir(workspace)
@@ -55,6 +57,54 @@ fn installs_configurational_dependencies() {
     assert!(lockfile.starts_with("---\n"), "env document must lead pnpm-lock.yaml");
     assert!(lockfile.contains("configDependencies:"));
     assert!(lockfile.contains("@pnpm.e2e/foo"));
+
+    drop((root, mock_instance));
+}
+
+#[test]
+fn config_dependency_install_waits_for_the_store_operation_lock() {
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let store_dir = pnpm_store_dir::StoreDir::from(npmrc_info.store_dir.clone());
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    fs::write(workspace.join("package.json"), serde_json::json!({}).to_string())
+        .expect("write package.json");
+    let yaml_path = workspace.join("pnpm-workspace.yaml");
+    let mut yaml = fs::read_to_string(&yaml_path).expect("read pnpm-workspace.yaml");
+    yaml.push_str("\nconfigDependencies:\n  '@pnpm.e2e/foo': 100.0.0\n");
+    fs::write(&yaml_path, yaml).expect("write pnpm-workspace.yaml");
+
+    let prune_lock = store_dir.lock_for_prune().expect("lock store for prune");
+    let output_path = workspace.join("config-dependency-lock.ndjson");
+    let mut install = pacquet_at(&workspace)
+        .with_args(["--reporter=ndjson", "--loglevel=debug", "install"])
+        .stdout(Stdio::null())
+        .stderr(fs::File::create(&output_path).expect("create install output"))
+        .spawn()
+        .expect("spawn install");
+    _utils::wait_for_child_output(
+        &mut install,
+        &output_path,
+        "Waiting for the configuration dependency store operation lock",
+    );
+    _utils::assert_child_output_stays_absent(
+        &mut install,
+        &output_path,
+        "Acquired the configuration dependency store operation lock",
+    );
+
+    drop(prune_lock);
+    assert!(_utils::wait_for_child(&mut install).success());
+    let output = fs::read_to_string(&output_path).expect("read completed install output");
+    assert!(
+        output.contains("Acquired the configuration dependency store operation lock"),
+        "{output}",
+    );
+    assert!(
+        workspace.join("node_modules/.pnpm-config/@pnpm.e2e/foo/package.json").exists(),
+        "config dependency must be materialized after the prune lock is released",
+    );
 
     drop((root, mock_instance));
 }
@@ -119,13 +169,9 @@ fn update_config_hook_mutates_config_before_install() {
 
     let dep = workspace.join("node_modules/@pnpm.e2e/foo");
     assert!(dep.join("package.json").exists(), "dependency is installed");
-    // On Unix, hoisted linking materializes the dep as a real directory
-    // (isolated would symlink it), which proves the hook flipped
-    // `nodeLinker`. Windows top-level deps are junctions under both
-    // linkers — see `hoisted_node_linker.rs`'s `#![cfg(unix)]` gate — so
-    // the cross-platform proof that `updateConfig` ran lives in
-    // `update_config_hook_injects_catalog`.
-    #[cfg(unix)]
+    // Hoisted linking materializes the dep as a real directory, where
+    // isolated would link it into the virtual store, so this is what
+    // proves the hook flipped `nodeLinker`.
     assert!(
         !is_symlink_or_junction(&dep).unwrap(),
         "updateConfig forced nodeLinker: hoisted, so the dep is a real directory, not a symlink",

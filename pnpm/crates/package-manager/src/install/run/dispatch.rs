@@ -162,6 +162,7 @@ pub(super) async fn prepare_dispatched_modules<'install, Reporter: self::Reporte
             catalogs: &workspace.catalogs,
             manifests: project_manifests,
             prefix: &workspace.prefix,
+            workspace_packages: workspace.workspace_packages.as_ref(),
         },
         repeat: crate::install::state_options::RepeatInstallPolicy {
             frozen: take_frozen_path,
@@ -315,14 +316,30 @@ pub(super) async fn auto_frozen_path(
         // hook's verdict blocks the frozen install. A lockfile synthesized
         // from the current snapshot skips the check (it only gates on a
         // non-empty wanted lockfile). A throwing hook aborts the install.
-        Ok(()) => Ok(dispatch.lockfile_synthesized_from_current
-            || dispatch.freshness.config.ignore_pnpmfile
-            || !crate::check_custom_resolver_force_resolve::force_resolve_from_pnpmfile(
-                lockfile,
-                dispatch.freshness.pnpmfile_hook.map(std::convert::AsRef::as_ref),
-            )
-            .await
-            .map_err(InstallError::CustomResolverForceResolve)?),
+        Ok(()) => {
+            // An unchecksummed `readPackage` hook can change dependency
+            // manifests without changing the regular freshness inputs.
+            if !dispatch.freshness.config.ignore_pnpmfile {
+                let current =
+                    pnpm_hooks::untracked_read_package_hook(dispatch.freshness.pnpmfile_hook)
+                        .await
+                        .map_err(InstallError::ReadPackageHook)?;
+                if crate::install::untracked_read_package_hook_may_have_changed(
+                    lockfile.untracked_pnpmfile_read_package_hook(),
+                    current,
+                ) {
+                    return Ok(false);
+                }
+            }
+            Ok(dispatch.lockfile_synthesized_from_current
+                || dispatch.freshness.config.ignore_pnpmfile
+                || !crate::check_custom_resolver_force_resolve::force_resolve_from_pnpmfile(
+                    lockfile,
+                    dispatch.freshness.pnpmfile_hook.map(std::convert::AsRef::as_ref),
+                )
+                .await
+                .map_err(InstallError::CustomResolverForceResolve)?)
+        }
         Err(error @ (FreshnessCheckError::Stale(_) | FreshnessCheckError::NoImporter { .. })) => {
             tracing::info!(
                 target: "pacquet::install",
@@ -410,6 +427,7 @@ impl<'r> Settled<'r, '_> {
         LockfileFreshnessInputs {
             lockfile_dir: &workspace.dirs.workspace_root,
             manifests: &lockfiles.manifest_freshness_inputs,
+            workspace_packages: workspace.workspace_packages.as_ref(),
             config: install.context.config,
             catalogs: &workspace.catalogs,
             pnpmfile_hook: loaded.pnpmfile_hook.as_ref(),

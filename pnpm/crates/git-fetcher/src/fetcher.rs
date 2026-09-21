@@ -22,9 +22,7 @@ use crate::{
     GitSource, GitSourceCache,
     cas_io::{ImportedFiles, import_into_cas},
     error::{GitFetcherError, PreparePackageError},
-    prepare_package::{
-        AllowBuildRef, PreparePackageOptions, PreparedPackage, prepare_package, safe_join_path,
-    },
+    prepare_package::{AllowBuildRef, PreparePackageOptions, prepare_package, safe_join_path},
     protocols::{read_protocol_policies, submodule_protocols},
 };
 use pnpm_fs_packlist::packlist;
@@ -92,10 +90,10 @@ impl GitFetcher<'_> {
         let temp_location = temp.path();
         self.copy_source(temp_location)?;
 
-        let PreparedPackage { pkg_dir, should_be_built } =
+        let prepared =
             prepare_package::<Reporter>(&self.prepare_options(), temp_location, self.source.path)
                 .map_err(|err| wrap_prepare_error(self.source.repo, err))?;
-        if self.scripts.ignore && should_be_built {
+        if prepared.ignored_build {
             tracing::warn!(
                 target: "pacquet::git_fetcher",
                 repo = %self.source.repo,
@@ -115,21 +113,26 @@ impl GitFetcher<'_> {
             return Err(GitFetcherError::Io(err));
         }
 
-        let files = packlist_of(&pkg_dir)?;
+        let files = packlist_of(&prepared.pkg_dir)?;
         let ImportedFiles { cas_paths, files_index } =
-            import_into_cas(self.store.dir, &pkg_dir, &files)?;
+            import_into_cas(self.store.dir, &prepared.pkg_dir, &files)?;
 
         // Queue a `PackageFilesIndex` row so a future install's warm
         // prefetch finds the snapshot in `index.db` and skips the
         // clone+checkout+prepare+packlist re-run.
+        let files_index_file = prepared.store_index_key(
+            self.store.files_index_file,
+            self.package_id,
+            self.scripts.ignore,
+        );
         queue_files_index(
             self.store.index_writer,
-            self.store.files_index_file,
+            &files_index_file,
             files_index,
-            should_be_built,
+            prepared.should_be_built,
         );
 
-        Ok(GitFetchOutput { cas_paths, built: should_be_built })
+        Ok(GitFetchOutput { cas_paths, built: prepared.should_be_built })
     }
     fn copy_source(&self, temp_location: &Path) -> Result<(), GitFetcherError> {
         let source = self.source.cache
@@ -483,6 +486,9 @@ pub(crate) fn exec_git_with(
         cmd.arg(arg);
     }
     cmd.args(args);
+    if reaches_remote(args) {
+        pnpm_git_utils::disable_git_prompts::<pnpm_git_utils::Host>(&mut cmd, cwd);
+    }
     if args.first() == Some(&"clone") {
         let protocols = crate::protocols::read_allowed_git_protocols_with(
             bin,
@@ -515,6 +521,12 @@ pub(crate) fn exec_git_with(
         return Err(GitFetcherError::GitExec { operation, stderr, status: output.status });
     }
     Ok(String::from_utf8_lossy(&output.stdout).into_owned())
+}
+
+/// Whether the git invocation can contact a remote, and so may be asked for
+/// credentials or an ssh passphrase.
+fn reaches_remote(args: &[&str]) -> bool {
+    matches!(args.first(), Some(&"clone" | &"fetch" | &"submodule"))
 }
 
 fn static_operation_label(args: &[&str]) -> &'static str {

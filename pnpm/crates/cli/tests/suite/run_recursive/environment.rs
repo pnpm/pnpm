@@ -1,12 +1,22 @@
+#[cfg(unix)]
+use super::process_group_probe;
 use super::{
-    CommandExtra, CommandTempCwd, PermissionsExt, fs, json, process_group_probe,
-    write_concurrency_probe, write_executable, write_workspace,
+    CONCURRENCY_PROBE_COMMAND, CommandExtra, CommandTempCwd, fs, json, write_concurrency_probe,
+    write_node_bin, write_workspace,
 };
+#[cfg(unix)]
+use crate::_utils::terminal::Terminal;
 use assert_cmd::assert::OutputAssertExt;
 
 /// A per-task `concurrency: 1` serializes the scripts just as firmly as a
-/// dependency chain does, so they must stay in pacquet's process group
-/// too — the scheduler never has two of them in flight to keep apart.
+/// dependency chain does, so at a terminal they must stay in pacquet's
+/// process group too — the scheduler never has two of them in flight to
+/// keep apart.
+///
+/// Unix-only by subject: the assertion compares POSIX process groups,
+/// which Windows has no counterpart for — pnpm keeps a script's children
+/// in a job object there instead.
+#[cfg(unix)]
 #[test]
 fn task_concurrency_of_one_keeps_scripts_in_the_foreground_process_group() {
     let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
@@ -39,10 +49,10 @@ fn task_concurrency_of_one_keeps_scripts_in_the_foreground_process_group() {
     )
     .expect("write task settings");
 
-    pacquet
-        .with_args(["-r", "run", "build"])
-        .assert()
-        .success();
+    let terminal = Terminal::open();
+    let mut process = terminal.spawn_foreground(pacquet.with_args(["-r", "run", "build"]));
+    let status = process.wait().expect("wait for pacquet");
+    assert!(status.success(), "pacquet should succeed on the terminal");
 
     let groups =
         fs::read_to_string(workspace.join("process-groups.txt")).expect("read process groups");
@@ -74,7 +84,7 @@ fn recursive_run_respects_workspace_concurrency() {
         json!({
             "name": name,
             "version": "1.0.0",
-            "scripts": { "build": "sh ../track-concurrency.sh" },
+            "scripts": { "build": CONCURRENCY_PROBE_COMMAND },
         })
     };
     write_workspace(
@@ -108,7 +118,7 @@ fn recursive_run_respects_task_concurrency() {
         json!({
             "name": name,
             "version": "1.0.0",
-            "scripts": { "build": "sh ../track-task-concurrency.sh" },
+            "scripts": { "build": "node ../track-task-concurrency.cjs" },
         })
     };
     write_workspace(
@@ -132,18 +142,25 @@ fn recursive_run_respects_task_concurrency() {
         ),
     )
     .expect("write task settings");
-    write_executable(
-        &workspace.join("track-task-concurrency.sh"),
-        r#"if mkdir ../build-active 2>/dev/null; then
-  owns_lock=1
-else
-  touch ../exceeded-task-concurrency
-fi
-sleep 0.2
-touch ran.txt
-[ "$owns_lock" = 1 ] && rmdir ../build-active
-"#,
-    );
+    // `mkdirSync` is the lock: it throws rather than succeeding twice, so
+    // a second task running at the same time records that it overlapped.
+    fs::write(
+        workspace.join("track-task-concurrency.cjs"),
+        r"const fs = require('fs')
+let ownsLock = false
+try {
+  fs.mkdirSync('../build-active')
+  ownsLock = true
+} catch {
+  fs.writeFileSync('../exceeded-task-concurrency', '')
+}
+setTimeout(() => {
+  fs.writeFileSync('ran.txt', '')
+  if (ownsLock) fs.rmdirSync('../build-active')
+}, 200)
+",
+    )
+    .expect("write task concurrency probe");
 
     pacquet
         .with_args(["--workspace-concurrency=3", "-r", "run", "build"])
@@ -218,13 +235,11 @@ fn parallel_before_run_starts_selected_projects_concurrently() {
             "name": name,
             "version": "1.0.0",
             "scripts": {
+                // Announces itself, then waits for its peer to do the
+                // same. Only overlapping runs see each other's marker, so
+                // a serialized pair times out and fails.
                 "build": format!(
-                    "touch ../{name}.started; \
-                     attempts=0; \
-                     while [ ! -f ../{peer}.started ] && [ \"$attempts\" -lt 100 ]; do \
-                       sleep 0.01; attempts=$((attempts + 1)); \
-                     done; \
-                     test -f ../{peer}.started"
+                    r#"node -e "const fs = require('fs'); fs.writeFileSync('../{name}.started', ''); const started = Date.now(); (function poll () {{ if (fs.existsSync('../{peer}.started')) process.exit(0); if (Date.now() - started > 30000) process.exit(1); setTimeout(poll, 10) }})()""#
                 ),
             },
         })
@@ -274,7 +289,7 @@ fn top_level_fallback_does_not_exec_local_bin_recursively() {
             .join("node_modules")
             .join(".bin");
         fs::create_dir_all(&bin_dir).expect("create node_modules/.bin");
-        write_executable(&bin_dir.join("commitlint"), "#!/bin/sh\ntouch bin-ran.txt\n");
+        write_node_bin(&bin_dir, "commitlint", "require('fs').writeFileSync('bin-ran.txt', '')\n");
     }
 
     let output = pacquet
@@ -321,12 +336,7 @@ fn recursive_run_resolves_local_bin_on_path_per_project() {
     );
     let pkg_root = workspace.join("pkg-with-local-bin");
     let bin_dir = pkg_root.join("node_modules").join(".bin");
-    fs::create_dir_all(&bin_dir).expect("create node_modules/.bin");
-    let script_path = bin_dir.join("say-hi");
-    fs::write(&script_path, "#!/bin/sh\ntouch hi.txt\n").expect("write bin");
-    let mut perms = fs::metadata(&script_path).expect("stat").permissions();
-    perms.set_mode(0o755);
-    fs::set_permissions(&script_path, perms).expect("chmod +x");
+    write_node_bin(&bin_dir, "say-hi", "require('fs').writeFileSync('hi.txt', '')\n");
 
     pacquet
         .with_arg("-r")

@@ -26,8 +26,8 @@ fn specifier_of(group: Option<&ResolvedDependencyMap>, alias: &str) -> String {
 fn bumps(targets: &[(&str, DependencyGroup, &str)]) -> ManifestSpecBumps {
     let targets = targets
         .iter()
-        .map(|(alias, group, declared)| ((*alias).to_string(), (*group, (*declared).to_string())))
-        .collect::<HashMap<_, _>>();
+        .map(|(alias, group, declared)| ((*alias).to_string(), *group, (*declared).to_string()))
+        .collect();
     ManifestSpecBumps {
         targets: BTreeMap::from([(".".to_string(), targets)]),
         range_spec_style: RangeSpecStyle::Major,
@@ -36,8 +36,12 @@ fn bumps(targets: &[(&str, DependencyGroup, &str)]) -> ManifestSpecBumps {
 }
 
 fn bump(declared: &str, version: &str) -> Option<String> {
+    bump_under("dep", declared, version)
+}
+
+fn bump_under(alias: &str, declared: &str, version: &str) -> Option<String> {
     let version = version.parse::<ImporterDepVersion>().expect("parse the resolved version");
-    bumped_range(declared, &version, RangeSpecStyle::Major)
+    bumped_range(alias, declared, &version, RangeSpecStyle::Major)
 }
 
 #[test]
@@ -111,6 +115,61 @@ fn a_declaration_without_a_range_is_left_alone() {
 }
 
 #[test]
+fn a_node_runtime_range_moves_under_its_prefix() {
+    let bump_node = |declared, version| bump_under("node", declared, version);
+    assert_eq!(bump_node("runtime:^26.8.2", "runtime:26.9.0").as_deref(), Some("runtime:^26.9.0"));
+    assert_eq!(bump_node("runtime:~26.8.2", "runtime:26.8.5").as_deref(), Some("runtime:~26.8.5"));
+}
+
+#[test]
+fn a_node_runtime_declaration_that_already_names_the_version_is_left_alone() {
+    assert_eq!(bump_under("node", "runtime:^26.9.0", "runtime:26.9.0"), None);
+    assert_eq!(bump_under("node", "runtime:26.8.2", "runtime:26.8.2"), None);
+}
+
+#[test]
+fn a_node_runtime_channel_is_dropped_unless_the_pick_is_a_prerelease() {
+    let bump_node = |declared, version| bump_under("node", declared, version);
+    assert_eq!(
+        bump_node("runtime:rc/^26.8.2", "runtime:26.9.0").as_deref(),
+        Some("runtime:^26.9.0"),
+    );
+    assert_eq!(
+        bump_node("runtime:rc/^24.0.0-rc.3", "runtime:24.0.0-rc.4").as_deref(),
+        Some("runtime:24.0.0-rc.4"),
+    );
+}
+
+#[test]
+fn a_node_runtime_tag_is_pinned_to_the_pick() {
+    assert_eq!(
+        bump_under("node", "runtime:latest", "runtime:26.9.0").as_deref(),
+        Some("runtime:26.9.0"),
+    );
+}
+
+#[test]
+fn a_node_runtime_declaration_with_an_unknown_channel_is_left_alone() {
+    assert_eq!(bump_under("node", "runtime:unknown/^26.8.2", "runtime:26.9.0"), None);
+}
+
+/// The deno and bun resolvers report a `runtime:` declaration back as written,
+/// so an update that moved one would leave the lockfile saying something the
+/// next resolve does not.
+#[test]
+fn a_deno_or_bun_runtime_declaration_is_left_alone() {
+    for alias in ["deno", "bun"] {
+        for declared in ["runtime:^1.2.0", "runtime:1.2.0", "runtime:latest", "runtime:canary"] {
+            assert_eq!(
+                bump_under(alias, declared, "runtime:1.2.5"),
+                None,
+                "bump of {declared} under {alias}",
+            );
+        }
+    }
+}
+
+#[test]
 fn declarations_of_other_protocols_are_left_alone() {
     for declared in [
         "workspace:*",
@@ -155,6 +214,32 @@ fn registry_aliases_split_into_the_prefix_they_keep() {
     assert_eq!(split("gh:^1.0.0"), None);
 }
 
+/// `devEngines.runtime` reaches the update as a `runtime:` dependency under
+/// `devDependencies`.
+#[test]
+fn a_runtime_bump_moves_the_lockfile_entry_and_reports_the_new_range() {
+    let mut lockfile = lockfile(
+        r"
+lockfileVersion: '9.0'
+importers:
+  .:
+    devDependencies:
+      node:
+        specifier: runtime:^26.8.2
+        version: runtime:26.9.0
+",
+    );
+
+    let bumps = bumps(&[("node", DependencyGroup::Dev, "runtime:^26.8.2")]);
+    apply_manifest_spec_bumps(&mut lockfile, &bumps, None);
+
+    let importer = &lockfile.importers["."];
+    assert_eq!(specifier_of(importer.dev_dependencies.as_ref(), "node"), "runtime:^26.9.0");
+    let applied = bumps.applied.into_inner().expect("never poisoned");
+    let expected = (DependencyGroup::Dev, "runtime:^26.9.0".to_string());
+    assert!(applied.manifests["."].contains(&("node".to_string(), expected.0, expected.1)));
+}
+
 /// A package declared in more than one direct group has one entry per group,
 /// each with its own range. The bump has to read and rewrite the entry under
 /// the group the declaration came from.
@@ -184,7 +269,65 @@ importers:
     assert_eq!(specifier_of(importer.dependencies.as_ref(), "foo"), "^1.0.0");
     let applied = bumps.applied.into_inner().expect("never poisoned");
     let expected = (DependencyGroup::Dev, "^2.1.0".to_string());
-    assert_eq!(applied.manifests["."]["foo"], expected);
+    assert!(applied.manifests["."].contains(&("foo".to_string(), expected.0, expected.1)));
+}
+
+#[test]
+fn a_peer_bump_moves_the_materialized_lockfile_entry_and_reports_peer_group() {
+    let mut lockfile = lockfile(
+        r"
+lockfileVersion: '9.0'
+importers:
+  .:
+    dependencies:
+      foo:
+        specifier: ^1.0.0
+        version: 1.2.0
+",
+    );
+
+    let bumps = bumps(&[("foo", DependencyGroup::Peer, "^1.0.0")]);
+    apply_manifest_spec_bumps(&mut lockfile, &bumps, None);
+
+    let importer = &lockfile.importers["."];
+    assert_eq!(specifier_of(importer.dependencies.as_ref(), "foo"), "^1.2.0");
+    let applied = bumps.applied.into_inner().expect("never poisoned");
+    let expected = (DependencyGroup::Peer, "^1.2.0".to_string());
+    assert!(applied.manifests["."].contains(&("foo".to_string(), expected.0, expected.1)));
+}
+
+#[test]
+fn shared_alias_bumps_are_reported_for_both_manifest_groups() {
+    let mut lockfile = lockfile(
+        r"
+lockfileVersion: '9.0'
+importers:
+  .:
+    dependencies:
+      foo:
+        specifier: ^1.0.0
+        version: 1.2.0
+",
+    );
+
+    let bumps = bumps(&[
+        ("foo", DependencyGroup::Prod, "^1.0.0"),
+        ("foo", DependencyGroup::Peer, "~1.0.0"),
+    ]);
+    apply_manifest_spec_bumps(&mut lockfile, &bumps, None);
+
+    assert_eq!(specifier_of(lockfile.importers["."].dependencies.as_ref(), "foo"), "^1.2.0");
+    let applied = bumps.applied.into_inner().expect("never poisoned");
+    assert!(applied.manifests["."].contains(&(
+        "foo".to_string(),
+        DependencyGroup::Prod,
+        "^1.2.0".to_string(),
+    )));
+    assert!(applied.manifests["."].contains(&(
+        "foo".to_string(),
+        DependencyGroup::Peer,
+        "~1.2.0".to_string(),
+    )));
 }
 
 /// The declared text is what the resolver read. When the lockfile entry

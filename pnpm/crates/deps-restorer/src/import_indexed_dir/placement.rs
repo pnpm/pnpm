@@ -1,6 +1,7 @@
 use super::{ImportIndexedDirError, Placement, remove_non_dir_dirent, staging::import_atomic};
 use crate::import_into_fresh_target;
 use pnpm_config::PackageImportMethod;
+use pnpm_fs::Host;
 use pnpm_reporter::Reporter;
 use rayon::prelude::*;
 use std::{
@@ -73,7 +74,7 @@ pub(super) fn create_indexed_dirs(
     // `newDir` before calling `tryImportIndexedDir`, so do that here
     // too. Files at the package root (e.g. `package.json`) need this
     // even when `rel_dirs` is empty.
-    fs::create_dir_all(dir_path)
+    pnpm_fs::create_dir_all_with_retry(dir_path)
         .map_err(|error| ImportIndexedDirError::CreateDir {
             dirname: dir_path.to_path_buf(),
             error,
@@ -83,10 +84,10 @@ pub(super) fn create_indexed_dirs(
     ordered.sort_by_key(|s| s.len());
     for rel in ordered {
         if placement == Placement::Repair {
-            clear_dirent_blocking_dir(dir_path, rel)?;
+            clear_dirent_blocking_dir::<Host>(dir_path, rel)?;
         }
         let abs = dir_path.join(rel);
-        fs::create_dir_all(&abs)
+        pnpm_fs::create_dir_all_with_retry(&abs)
             .map_err(|error| ImportIndexedDirError::CreateDir { dirname: abs, error })?;
     }
 
@@ -119,7 +120,7 @@ pub(super) fn place_entry<Reporter: self::Reporter>(
             if file_matches_store_entry(target, store_path) {
                 return Ok(());
             }
-            clear_dir_blocking_file(target)?;
+            clear_dir_blocking_file::<Host>(target)?;
             import_atomic::<Reporter>(logged_methods, import_method, store_path, target)
         }
     }
@@ -136,19 +137,85 @@ pub(super) fn place_marker<Reporter: self::Reporter>(
     target: &Path,
 ) -> Result<(), ImportIndexedDirError> {
     if placement == Placement::Repair {
-        clear_dir_blocking_file(target)?;
+        clear_dir_blocking_file::<Host>(target)?;
     }
     import_atomic::<Reporter>(logged_methods, import_method, store_path, target)
 }
+
+/// Remove a directory tree standing where a package file belongs, as
+/// [`pnpm_fs::remove_dir_all_with_retry`].
+///
+/// The seam exists for [`clear_dir_blocking_file`], whose contract turns on
+/// the removal failing *after* the inspection has already seen the blocker.
+/// Reaching that needs the installer sharing the slot to finish the same
+/// work in between, which no fixture can stage on a real filesystem.
+pub(super) trait FsRemoveDirAll {
+    fn remove_dir_all(path: &Path) -> io::Result<()>;
+}
+
+/// Remove a non-directory standing where a package directory belongs, as
+/// [`remove_non_dir_dirent`].
+///
+/// The seam exists for [`clear_dirent_blocking_dir`], for the race
+/// [`FsRemoveDirAll`] describes.
+pub(super) trait FsRemoveNonDirDirent {
+    fn remove_non_dir_dirent(path: &Path, file_type: fs::FileType) -> io::Result<()>;
+}
+
+impl FsRemoveDirAll for Host {
+    fn remove_dir_all(path: &Path) -> io::Result<()> {
+        pnpm_fs::remove_dir_all_with_retry(path)
+    }
+}
+
+impl FsRemoveNonDirDirent for Host {
+    fn remove_non_dir_dirent(path: &Path, file_type: fs::FileType) -> io::Result<()> {
+        remove_non_dir_dirent(path, file_type)
+    }
+}
+
+/// Whether a package file can go at `path` now: nothing is there, or what
+/// is there is not a directory.
+///
+/// A failed removal is not a failed clearing when this holds. The
+/// installers healing a slot together race over these paths, and one that
+/// finishes the same work first leaves exactly what the removal was for,
+/// whether it merely unlinked the blocker or replaced it outright.
+fn file_fits_at(path: &Path) -> bool {
+    // Retried like every other inspection here: the winner's unlink may
+    // still be settling.
+    match pnpm_fs::symlink_metadata_with_retry(path) {
+        Ok(meta) => !meta.is_dir(),
+        Err(error) => error.kind() == io::ErrorKind::NotFound,
+    }
+}
+
+/// Whether a package directory can go at `path` now: nothing is there, or
+/// what is there is already a directory. The counterpart to
+/// [`file_fits_at`], and clearing tolerates a lost race for the same
+/// reason.
+fn dir_fits_at(path: &Path) -> bool {
+    match pnpm_fs::symlink_metadata_with_retry(path) {
+        Ok(meta) => meta.is_dir(),
+        Err(error) => error.kind() == io::ErrorKind::NotFound,
+    }
+}
+
 /// Remove a directory sitting where a package file belongs: the rename
 /// in [`import_atomic`] replaces a file but never a directory.
-pub(super) fn clear_dir_blocking_file(target: &Path) -> Result<(), ImportIndexedDirError> {
-    match fs::symlink_metadata(target) {
-        Ok(meta) if meta.is_dir() => fs::remove_dir_all(target)
-            .map_err(|error| ImportIndexedDirError::ClearBlockingDirEntry {
-                path: target.to_path_buf(),
-                error,
-            }),
+pub(super) fn clear_dir_blocking_file<Sys: FsRemoveDirAll>(
+    target: &Path,
+) -> Result<(), ImportIndexedDirError> {
+    match pnpm_fs::symlink_metadata_with_retry(target) {
+        Ok(meta) if meta.is_dir() => match Sys::remove_dir_all(target) {
+            Err(error) if !file_fits_at(target) => {
+                Err(ImportIndexedDirError::ClearBlockingDirEntry {
+                    path: target.to_path_buf(),
+                    error,
+                })
+            }
+            _ => Ok(()),
+        },
         Ok(_) => Ok(()),
         Err(err) if err.kind() == io::ErrorKind::NotFound => Ok(()),
         Err(error) => {
@@ -161,20 +228,24 @@ pub(super) fn clear_dir_blocking_file(target: &Path) -> Result<(), ImportIndexed
 /// Walking top-down means a component whose parent is itself a file is
 /// never stat-ed: the parent is cleared first, and everything below a
 /// missing component is missing too.
-pub(super) fn clear_dirent_blocking_dir(
+pub(super) fn clear_dirent_blocking_dir<Sys: FsRemoveNonDirDirent>(
     root: &Path,
     rel: &str,
 ) -> Result<(), ImportIndexedDirError> {
     let mut abs = root.to_path_buf();
     for component in Path::new(rel).components() {
         abs.push(component);
-        match fs::symlink_metadata(&abs) {
+        match pnpm_fs::symlink_metadata_with_retry(&abs) {
             Ok(meta) if meta.is_dir() => {}
-            Ok(meta) => remove_non_dir_dirent(&abs, meta.file_type())
-                .map_err(|error| ImportIndexedDirError::ClearBlockingDirEntry {
-                    path: abs.clone(),
-                    error,
-                })?,
+            Ok(meta) => match Sys::remove_non_dir_dirent(&abs, meta.file_type()) {
+                Err(error) if !dir_fits_at(&abs) => {
+                    return Err(ImportIndexedDirError::ClearBlockingDirEntry {
+                        path: abs.clone(),
+                        error,
+                    });
+                }
+                _ => {}
+            },
             Err(err) if err.kind() == io::ErrorKind::NotFound => break,
             Err(error) => return Err(ImportIndexedDirError::InspectTarget { path: abs, error }),
         }
@@ -287,3 +358,6 @@ pub fn marker_present(dir_path: &Path, cas_paths: &HashMap<String, PathBuf>) -> 
         None => true,
     }
 }
+
+#[cfg(test)]
+mod tests;

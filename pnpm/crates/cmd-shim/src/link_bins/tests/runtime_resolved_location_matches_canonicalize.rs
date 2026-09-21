@@ -192,6 +192,7 @@ fn a_shim_in_a_freshly_created_bin_dir_is_written_without_reading_it_first() {
     link(&fresh_bins);
     assert!(is_shim_pointing_at(
         &read_to_string(fresh_bins.join("foo")).unwrap(),
+        &fresh_bins.join("foo"),
         &pkg.join("cli.js"),
     ));
     assert_eq!(SHIM_READS.load(Ordering::Relaxed), 0, "nothing can occupy a dir we just made");
@@ -201,6 +202,7 @@ fn a_shim_in_a_freshly_created_bin_dir_is_written_without_reading_it_first() {
     link(&existing_bins);
     assert!(is_shim_pointing_at(
         &read_to_string(existing_bins.join("foo")).unwrap(),
+        &existing_bins.join("foo"),
         &pkg.join("cli.js"),
     ));
     assert_eq!(SHIM_READS.load(Ordering::Relaxed), 1, "a pre-existing dir is read first");

@@ -7,9 +7,10 @@ import normalize from 'normalize-path'
 
 // @ts-expect-error
 const isWindows = process.platform === 'win32' || global['FAKE_WINDOWS']
-const isFilespec = isWindows ? /^(?:[./\\]|~\/|[a-z]:)/i : /^(?:[./]|~\/|[a-z]:)/i
-const isFilename = /\.(?:tgz|tar.gz|tar)$/i
+const filespecPattern = isWindows ? /^(?:[./\\]|~\/|[a-z]:)/i : /^(?:[./]|~\/|[a-z]:)/i
+const tarballFilenamePattern = /\.(?:tgz|tar\.gz|tar)$/i
 const isAbsolutePath = /^\/|^[A-Z]:/i
+const driveLetterPrefixPattern = /^[a-z]:/i
 
 export interface LocalPackageSpec {
   dependencyPath: string
@@ -50,7 +51,7 @@ class PathIsUnsupportedProtocolError extends PnpmError {
  */
 export function isLocalFilesystemSpecifier (bareSpecifier: string): boolean {
   if (bareSpecifier.startsWith('link:') || bareSpecifier.startsWith('file:')) return true
-  if (isFilespec.test(bareSpecifier)) return true
+  if (isFilespec(bareSpecifier)) return true
   // Any other protocol — a `git+ssh:` / `https:` URL, an `npm:` alias, a
   // named-registry prefix — belongs to its own resolver, tarball-shaped path
   // or not.
@@ -59,7 +60,57 @@ export function isLocalFilesystemSpecifier (bareSpecifier: string): boolean {
   // (`user/repo#release.tgz`), not a local tarball: the protocol and
   // path-prefixed forms already returned above.
   if (bareSpecifier.includes('#')) return false
-  return isFilename.test(bareSpecifier)
+  return isTarballFilename(bareSpecifier)
+}
+
+/**
+ * Whether a bare specifier's shape can only be a local path, so re-anchoring
+ * it cannot change which resolver claims it.
+ *
+ * Stricter than {@link isLocalFilesystemSpecifier}, which answers a different
+ * question: what a specifier *could* name, rather than which resolver reaches
+ * it first. The chain runs the local path resolver last, so every shape that
+ * is merely path-*like* has already been claimed by then — a slash-free
+ * `repo.tgz` resolves as a dist-tag, and `user/repo.tgz` as a hosted-git
+ * shorthand. Only a path-prefixed specifier lands on the local resolver, and
+ * only those move.
+ *
+ * A `<letter>:` prefix is declined with them: a single-letter named registry
+ * is well-formed, so `c:pkg@1` is a registry specifier as much as a drive
+ * path. Nothing is lost by that — a drive path names the same place from
+ * every directory, and a drive-relative one is measured from process state no
+ * caller here can see.
+ */
+export function barePathIsUnambiguous (bareSpecifier: string): boolean {
+  return !isDriveLetterPrefix(bareSpecifier) && isFilespec(bareSpecifier)
+}
+
+/**
+ * Whether the spec opens with `<letter>:`, which reads as a Windows drive
+ * path and as a single-letter named-registry alias alike.
+ */
+export function isDriveLetterPrefix (bareSpecifier: string): boolean {
+  return driveLetterPrefixPattern.test(bareSpecifier)
+}
+
+/**
+ * Whether a local specifier names a package tarball rather than a directory.
+ * A `file:` specifier resolves to one or the other, and only the directory
+ * form becomes a `link:` entry in the lockfile.
+ */
+export function isTarballFilename (bareSpecifier: string): boolean {
+  return tarballFilenamePattern.test(bareSpecifier)
+}
+
+/**
+ * Whether the spec is path-shaped:
+ * - Windows: `/^(?:[./\\]|~\/|[a-z]:)/i`
+ * - POSIX:   `/^(?:[./]|~\/|[a-z]:)/i`
+ *
+ * A path lacking that shape reads as a hosted-git shorthand instead.
+ */
+export function isFilespec (bareSpecifier: string): boolean {
+  return filespecPattern.test(bareSpecifier)
 }
 
 export function parseLocalScheme (
@@ -72,7 +123,7 @@ export function parseLocalScheme (
     return fromLocal(wd, projectDir, lockfileDir, 'directory', opts)
   }
   if (wd.bareSpecifier.startsWith('file:')) {
-    const type = isFilename.test(wd.bareSpecifier) ? 'file' : 'directory'
+    const type = isTarballFilename(wd.bareSpecifier) ? 'file' : 'directory'
     return fromLocal(wd, projectDir, lockfileDir, type, opts)
   }
   if (wd.bareSpecifier.startsWith('path:')) {
@@ -87,13 +138,11 @@ export function parseLocalPath (
   lockfileDir: string,
   opts: { preserveAbsolutePaths: boolean }
 ): LocalPackageSpec | null {
-  if (wd.bareSpecifier.endsWith('.tgz') ||
-    wd.bareSpecifier.endsWith('.tar.gz') ||
-    wd.bareSpecifier.endsWith('.tar') ||
+  if (isTarballFilename(wd.bareSpecifier) ||
     wd.bareSpecifier.includes(path.sep) ||
-    isFilespec.test(wd.bareSpecifier)
+    isFilespec(wd.bareSpecifier)
   ) {
-    const type = isFilename.test(wd.bareSpecifier) ? 'file' : 'directory'
+    const type = isTarballFilename(wd.bareSpecifier) ? 'file' : 'directory'
     return fromLocal(wd, projectDir, lockfileDir, type, opts)
   }
   return null
@@ -163,7 +212,7 @@ function fromLocal (
 }
 
 function resolvePath (where: string, spec: string): string {
-  if (isAbsolutePath.test(spec)) return spec
+  if (isAbsolutePath.test(spec)) return path.normalize(spec)
   return path.resolve(where, spec)
 }
 

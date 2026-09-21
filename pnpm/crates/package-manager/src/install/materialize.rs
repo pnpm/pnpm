@@ -3,8 +3,8 @@ mod scope;
 use scope::{
     allow_builds_changed_since, anchored_project_manifests, announce_headless_install,
     frozen_project_anchor_ids, importer_manifests_by_id, initial_materialization_ids,
-    lockfile_specifier_manifests_by_id, prior_unbuilt_builds, record_fresh_lockfile_verified,
-    settle_frozen_verification,
+    lockfile_specifier_manifests_by_id, previously_skipped, prior_unbuilt_builds,
+    record_fresh_lockfile_verified, settle_frozen_verification,
 };
 
 use super::{
@@ -44,6 +44,8 @@ pub(super) struct MaterializationModules<'a> {
     pub(super) prior_hoisted_dependencies: Option<&'a HoistedDependencies>,
     pub(super) prior_hoisted_locations: Option<&'a pnpm_deps_restorer::HoistedLocations>,
     pub(super) prune_orphans: bool,
+    /// See [`pnpm_deps_restorer::PriorMaterialization::relink_every_slot_bin`].
+    pub(super) relink_every_slot_bin: bool,
     pub(super) logged_methods: &'a AtomicU8,
 }
 
@@ -143,6 +145,7 @@ impl<'a> MaterializationInputs<'a, '_> {
     fn fresh_prior<'b>(
         &self,
         prior_unbuilt_builds: &'b pnpm_deps_restorer::UnbuiltBuilds,
+        previously_skipped: &'b pnpm_deps_restorer::SkippedSnapshots,
     ) -> crate::install_with_fresh_lockfile::FreshPriorInstall<'b>
     where
         'a: 'b,
@@ -152,11 +155,13 @@ impl<'a> MaterializationInputs<'a, '_> {
             hoisted_dependencies: self.modules.prior_hoisted_dependencies,
             hoisted_locations: self.modules.prior_hoisted_locations,
             unbuilt_builds: prior_unbuilt_builds,
+            previously_skipped,
             allow_builds_changed: allow_builds_changed_since(
                 self.modules.modules_manifest,
                 self.install.context.config,
             ),
             prune_orphans: self.modules.prune_orphans,
+            relink_every_slot_bin: self.modules.relink_every_slot_bin,
         }
     }
 
@@ -165,6 +170,7 @@ impl<'a> MaterializationInputs<'a, '_> {
         dependency_groups: &'b [DependencyGroup],
         resolution_verifiers: &'b [Arc<dyn ResolutionVerifier>],
         prior_unbuilt_builds: &'b pnpm_deps_restorer::UnbuiltBuilds,
+        previously_skipped: &'b pnpm_deps_restorer::SkippedSnapshots,
     ) -> FreshInputs<'b>
     where
         'a: 'b,
@@ -201,7 +207,7 @@ impl<'a> MaterializationInputs<'a, '_> {
                 deploy_hook: self.resolution.deploy_manifest_hook,
                 spec_bumps: self.resolution.manifest_spec_bumps,
             },
-            prior: self.fresh_prior(prior_unbuilt_builds),
+            prior: self.fresh_prior(prior_unbuilt_builds, previously_skipped),
             lockfiles: crate::install_with_fresh_lockfile::FreshLockfileSeeds {
                 wanted: self.lockfiles.wanted,
                 merge_wanted: self.lockfiles.merge_wanted,
@@ -289,8 +295,14 @@ impl<'a> MaterializationInputs<'a, '_> {
             .take();
         let site = (self.workspace.workspace_root, self.install.context.config);
         let prior_unbuilt = prior_unbuilt_builds(self.modules.modules_manifest);
+        let prior_skipped = previously_skipped(self.modules.modules_manifest);
         let fresh_result = InstallWithFreshLockfile {
-            inputs: self.fresh_inputs(&dependency_groups, &resolution_verifiers, &prior_unbuilt),
+            inputs: self.fresh_inputs(
+                &dependency_groups,
+                &resolution_verifiers,
+                &prior_unbuilt,
+                &prior_skipped,
+            ),
             importer_manifests: importer_manifests_by_id(
                 self.workspace.project_manifests,
                 self.workspace.workspace_root,
@@ -306,18 +318,23 @@ impl<'a> MaterializationInputs<'a, '_> {
             site,
             &resolution_verifiers,
         );
-        Ok(MaterializationOutput {
-            materialized: Materialized {
-                hoisted: fresh_result.hoisted,
-                ignored_builds: fresh_result.ignored_builds,
-                deferred_builds: fresh_result.deferred_builds,
+        Ok(fresh_materialization_output(fresh_result))
+    }
+}
 
-                install_skipped: fresh_result.skipped,
-                peer_issue_importer_ids: fresh_result.peer_issue_importer_ids,
-                fresh_lockfile: fresh_result.wanted_lockfile,
-            },
-            store_index_teardown: fresh_result.store_index_teardown,
-        })
+fn fresh_materialization_output(
+    fresh_result: crate::install_with_fresh_lockfile::InstallWithFreshLockfileResult,
+) -> MaterializationOutput {
+    MaterializationOutput {
+        materialized: Materialized {
+            hoisted: fresh_result.hoisted,
+            ignored_builds: fresh_result.ignored_builds,
+            deferred_builds: fresh_result.deferred_builds,
+            install_skipped: fresh_result.skipped,
+            peer_issue_importer_ids: fresh_result.peer_issue_importer_ids,
+            fresh_lockfile: fresh_result.wanted_lockfile,
+        },
+        store_index_teardown: fresh_result.store_index_teardown,
     }
 }
 

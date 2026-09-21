@@ -69,6 +69,7 @@ mod remove;
 mod resolution_observer;
 mod resolution_policy;
 mod resolve_latest;
+mod runtime_specifier;
 mod tarball_prefetch;
 mod update;
 mod update_project_manifest;
@@ -87,6 +88,16 @@ pub(crate) const DIRECT_GROUPS: [pnpm_package_manifest::DependencyGroup; 3] = [
     pnpm_package_manifest::DependencyGroup::Prod,
     pnpm_package_manifest::DependencyGroup::Dev,
     pnpm_package_manifest::DependencyGroup::Optional,
+];
+
+/// Every ordinary direct group plus explicitly selected peer declarations.
+/// Update uses this resolve scope for `--peer`; peers still only materialize
+/// when `autoInstallPeers` allows it.
+pub(crate) const DIRECT_AND_PEER_GROUPS: [pnpm_package_manifest::DependencyGroup; 4] = [
+    pnpm_package_manifest::DependencyGroup::Prod,
+    pnpm_package_manifest::DependencyGroup::Dev,
+    pnpm_package_manifest::DependencyGroup::Optional,
+    pnpm_package_manifest::DependencyGroup::Peer,
 ];
 
 pub fn included_direct_groups(

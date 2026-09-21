@@ -241,10 +241,13 @@ fn edit_project_manifest(
     project: &pnpm_workspace::Project,
     edit: impl FnOnce(&mut Value) -> miette::Result<()>,
 ) -> miette::Result<()> {
-    let mut manifest = PackageManifest::from_path(project.root_dir.join("package.json"))
-        .wrap_err("reading package.json")?;
+    let path = pnpm_workspace::project_manifest_path(&project.root_dir);
+    let mut manifest = PackageManifest::from_path(path.clone())
+        .wrap_err_with(|| format!("reading {}", path.display()))?;
     edit(manifest.value_mut())?;
-    manifest.save().wrap_err("saving package.json")
+    manifest
+        .save()
+        .wrap_err_with(|| format!("saving {}", path.display()))
 }
 
 /// Apply the `key=value` pairs of a `pnpm pkg set`.
@@ -282,10 +285,12 @@ fn pkg_set(manifest_path: &Path, pairs: &[String], json: bool) -> miette::Result
     if pairs.is_empty() {
         return Err(PkgError::SetMissingArgs.into());
     }
-    let mut manifest =
-        PackageManifest::from_path(manifest_path.to_path_buf()).wrap_err("reading package.json")?;
+    let mut manifest = PackageManifest::from_path(manifest_path.to_path_buf())
+        .wrap_err_with(|| format!("reading {}", manifest_path.display()))?;
     apply_set_pairs(manifest.value_mut(), pairs, json)?;
-    manifest.save().wrap_err("saving package.json")?;
+    manifest
+        .save()
+        .wrap_err_with(|| format!("saving {}", manifest_path.display()))?;
     Ok(())
 }
 
@@ -296,10 +301,12 @@ fn pkg_delete(manifest_path: &Path, keys: &[String]) -> miette::Result<()> {
     for key in keys {
         check_unsafe_key_in_path(key)?;
     }
-    let mut manifest =
-        PackageManifest::from_path(manifest_path.to_path_buf()).wrap_err("reading package.json")?;
+    let mut manifest = PackageManifest::from_path(manifest_path.to_path_buf())
+        .wrap_err_with(|| format!("reading {}", manifest_path.display()))?;
     apply_delete_keys(manifest.value_mut(), keys)?;
-    manifest.save().wrap_err("saving package.json")?;
+    manifest
+        .save()
+        .wrap_err_with(|| format!("saving {}", manifest_path.display()))?;
     Ok(())
 }
 
@@ -311,11 +318,13 @@ fn apply_delete_keys(value: &mut Value, keys: &[String]) -> miette::Result<()> {
 }
 
 fn pkg_fix(manifest_path: &Path) -> miette::Result<()> {
-    let mut manifest =
-        PackageManifest::from_path(manifest_path.to_path_buf()).wrap_err("reading package.json")?;
+    let mut manifest = PackageManifest::from_path(manifest_path.to_path_buf())
+        .wrap_err_with(|| format!("reading {}", manifest_path.display()))?;
     let value = manifest.value_mut();
     fix_manifest(value);
-    manifest.save().wrap_err("saving package.json")?;
+    manifest
+        .save()
+        .wrap_err_with(|| format!("saving {}", manifest_path.display()))?;
     Ok(())
 }
 

@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/workspace.projects-reader",
-  "version": "1101.0.27",
+  "version": "1101.0.28",
   "description": "Finds packages inside a workspace",
   "keywords": [
     "pnpm",
@@ -35,6 +35,7 @@
     "@pnpm/constants": "workspace:*",
     "@pnpm/text.ordinal-comparator": "workspace:*",
     "@pnpm/types": "workspace:*",
+    "@pnpm/workspace.package-patterns": "workspace:*",
     "@pnpm/workspace.project-manifest-reader": "workspace:*",
     "p-filter": "catalog:",
     "tinyglobby": "catalog:"
@@ -46,7 +47,8 @@
     "@jest/globals": "catalog:",
     "@pnpm/logger": "workspace:*",
     "@pnpm/workspace.projects-reader": "workspace:*",
-    "@pnpm/workspace.workspace-manifest-reader": "workspace:*"
+    "@pnpm/workspace.workspace-manifest-reader": "workspace:*",
+    "tempy": "catalog:"
   },
   "engines": {
     "node": ">=22.13"

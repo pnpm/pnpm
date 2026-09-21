@@ -119,8 +119,8 @@ fn pn_is_stripped_like_the_other_pnpm_binary_names() {
 
 #[test]
 fn completion_server_treats_pn_as_the_pnpm_binary() {
-    let pnpm = super::complete_words(&strings(&["pnpm", ""]));
-    let pn = super::complete_words(&strings(&["pn", ""]));
+    let pnpm = super::complete_words(&strings(&["pnpm", ""])).unwrap();
+    let pn = super::complete_words(&strings(&["pn", ""])).unwrap();
 
     assert_eq!(pnpm, pn);
     assert!(

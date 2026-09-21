@@ -119,6 +119,7 @@ fn runtime_dependency_strips_importer_prefix_and_records_package_version() {
                 "version": "26.3.0",
                 "bin": { "node": "bin/node" },
             }))),
+            non_deprecated_alternative: None,
         },
     };
     let node = DependenciesGraphNode {
@@ -293,6 +294,7 @@ fn non_host_git_dependency_records_bare_git_url_in_importer() {
             latest: None,
             published_at: None,
             manifest: Some(Arc::new(json!({ "name": "is-negative", "version": "1.0.0" }))),
+            non_deprecated_alternative: None,
         },
     };
     let node = DependenciesGraphNode {
@@ -541,11 +543,13 @@ fn multi_importer_pruner_marks_shared_dep_non_optional_when_any_importer_reaches
             previous_packages: None,
         },
         manifest_settings: crate::LockfileManifestSettings {
+            include_peer_dependencies: false,
             overrides: None,
             ignored_optional_dependencies: None,
             patched_dependencies: None,
             package_extensions_checksum: None,
             pnpmfile_checksum: None,
+            untracked_pnpmfile_read_package_hook: None,
         },
         reuse: crate::LockfileImporterReuse {
             previous_importers: None,
@@ -630,11 +634,13 @@ fn workspace_sibling_link_renders_per_importer_with_link_ref() {
             previous_packages: None,
         },
         manifest_settings: crate::LockfileManifestSettings {
+            include_peer_dependencies: false,
             overrides: None,
             ignored_optional_dependencies: None,
             patched_dependencies: None,
             package_extensions_checksum: None,
             pnpmfile_checksum: None,
+            untracked_pnpmfile_read_package_hook: None,
         },
         reuse: crate::LockfileImporterReuse {
             previous_importers: None,

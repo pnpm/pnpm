@@ -19,6 +19,10 @@ pub mod diff;
 pub mod format;
 pub mod state;
 
+pub use progress::set_progress;
+
+mod progress;
+
 use std::{
     io::{IsTerminal, Write},
     sync::{LazyLock, Mutex, OnceLock},
@@ -200,6 +204,9 @@ pub struct DefaultReporter;
 
 impl Reporter for DefaultReporter {
     fn emit(event: &LogEvent) {
+        if progress::is_suppressed(event) {
+            return;
+        }
         let mut sink = SINK.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
         if let LogEvent::Prompt(log) = event {
             sink.on_prompt(log.action);

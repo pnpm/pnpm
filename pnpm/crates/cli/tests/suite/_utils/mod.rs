@@ -1,3 +1,5 @@
+pub mod terminal;
+
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
 use pnpm_lockfile::{Lockfile, PkgName, ProjectSnapshot, SnapshotEntry};
@@ -16,7 +18,9 @@ use std::{
     fmt::Write as _,
     fs,
     path::{Path, PathBuf},
-    process::{Command, Output},
+    process::{Child, Command, ExitStatus, Output},
+    thread,
+    time::{Duration, Instant},
 };
 use tempfile::TempDir;
 
@@ -29,6 +33,59 @@ pub fn pacquet_in(workspace: &Path) -> Command {
         .expect("find the pnpm binary")
         .with_current_dir(workspace)
         .without_ambient_pnpm_config()
+}
+
+pub fn wait_for_child(child: &mut Child) -> ExitStatus {
+    let deadline = Instant::now() + Duration::from_secs(30);
+    loop {
+        if let Some(status) = child.try_wait().expect("read child status") {
+            return status;
+        }
+        if Instant::now() >= deadline {
+            child.kill().expect("stop stalled child");
+            child.wait().expect("reap stalled child");
+            panic!("child did not finish before the deadline");
+        }
+        thread::sleep(Duration::from_millis(10));
+    }
+}
+
+pub fn wait_for_child_output(child: &mut Child, path: &Path, expected: &str) {
+    let deadline = Instant::now() + Duration::from_secs(30);
+    loop {
+        let output = fs::read_to_string(path).unwrap_or_default();
+        if output.contains(expected) {
+            return;
+        }
+        if let Some(status) = child.try_wait().expect("read child status") {
+            panic!("child exited with {status} before writing {expected:?}:\n{output}");
+        }
+        if Instant::now() >= deadline {
+            child.kill().expect("stop stalled child");
+            child.wait().expect("reap stalled child");
+            panic!("child did not write {expected:?} before the deadline:\n{output}");
+        }
+        thread::sleep(Duration::from_millis(10));
+    }
+}
+
+pub fn assert_child_output_stays_absent(child: &mut Child, path: &Path, unexpected: &str) {
+    let deadline = Instant::now() + Duration::from_millis(500);
+    loop {
+        let output = fs::read_to_string(path).expect("read child output");
+        assert!(!output.contains(unexpected), "unexpected {unexpected:?}:\n{output}");
+        assert!(
+            child
+                .try_wait()
+                .expect("read child status")
+                .is_none(),
+            "child exited while it was expected to remain blocked:\n{output}",
+        );
+        if Instant::now() >= deadline {
+            return;
+        }
+        thread::sleep(Duration::from_millis(10));
+    }
 }
 
 /// Make the spawned `pnpm` style its output.
@@ -438,7 +495,6 @@ pub fn read_lockfile(path: &Path) -> Lockfile {
 /// lockfiles the upstream tests use to stage wanted/current divergence.
 /// `new_ref` takes any `snapshots:` dependency shape (`100.0.0`,
 /// `link:packages/foo`, ...).
-#[cfg(unix)]
 pub fn repin_snapshot_dependency(
     lockfile_path: &Path,
     snapshot_key: &str,
@@ -462,6 +518,56 @@ pub fn repin_snapshot_dependency(
         .unwrap_or_else(|| panic!("snapshot {snapshot_key} does not pin {dependency}"));
     *pin = serde_saphyr::from_str(new_ref).expect("parse the new dependency ref");
     lockfile.save_to_path(lockfile_path).expect("write the rewritten lockfile");
+}
+
+/// A package script that creates `relative_path` as an empty file: the
+/// portable stand-in for `touch`, which Windows has no program for.
+///
+/// The path is relative, so the marker lands in whatever directory the
+/// runner gave the script — which is what the recursive suites assert on.
+#[must_use]
+pub fn write_marker_script(relative_path: &str) -> String {
+    format!(r#"node -e "require('fs').writeFileSync('{relative_path}', '')""#)
+}
+
+/// A package script that appends `line` and a newline to `relative_path`,
+/// the portable stand-in for `echo <line> >> <path>`. `cmd` would carry
+/// the spaces before its redirection operator into the file, and would
+/// end the line with a carriage return the readers do not expect.
+///
+/// The newline comes from `String.fromCharCode` rather than a `\n`
+/// escape: `sh -c` unescapes the backslash before Node sees it while
+/// `cmd /d /s /c` passes it through, so an escape would hand the two
+/// platforms different programs.
+#[must_use]
+pub fn append_line_script(line: &str, relative_path: &str) -> String {
+    format!(
+        r#"node -e "require('fs').appendFileSync('{relative_path}', '{line}' + String.fromCharCode(10))""#,
+    )
+}
+
+/// Assert that `shim` is a bin a caller could actually invoke.
+///
+/// What that takes differs per platform: Unix has the executable bit on
+/// the extensionless shim, while Windows has no such bit and relies on the
+/// `.cmd` / `.ps1` launchers written next to it.
+pub fn assert_bin_linked(shim: &Path) {
+    assert!(shim.exists(), "the bin must be linked at {shim:?}");
+    #[cfg(unix)]
+    assert!(
+        pnpm_testing_utils::fs::is_path_executable(shim),
+        "the bin shim at {shim:?} must be executable",
+    );
+    #[cfg(windows)]
+    for extension in ["cmd", "ps1"] {
+        let launcher = shim.with_file_name(format!(
+            "{}.{extension}",
+            shim.file_name()
+                .expect("bin shim has a file name")
+                .to_string_lossy(),
+        ));
+        assert!(launcher.exists(), "the bin shim at {shim:?} needs its {extension} launcher");
+    }
 }
 
 pub fn assert_success(output: &Output) {
@@ -489,7 +595,6 @@ pub fn ndjson_records(output: &Output) -> Vec<Value> {
 
 /// The `name: "pnpm" / level: "info"` log pnpm's headless installer
 /// emits when it is entered with an up-to-date lockfile.
-#[cfg(unix)]
 #[must_use]
 pub fn has_up_to_date_log(records: &[Value]) -> bool {
     records

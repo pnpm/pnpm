@@ -123,6 +123,7 @@ impl YarnResolver {
                 latest: None,
                 published_at: None,
                 manifest: Some(Arc::new(manifest)),
+                non_deprecated_alternative: None,
             },
         }))
     }

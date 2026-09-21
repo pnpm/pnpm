@@ -1,7 +1,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
 
-import { expect, jest, test } from '@jest/globals'
+import { afterAll, expect, jest, test } from '@jest/globals'
 import { WANTED_LOCKFILE } from '@pnpm/constants'
 import { PnpmError } from '@pnpm/error'
 import { addDependenciesToPackage, type MutatedProject, mutateModules, mutateModulesInSingleProject, type ProjectOptions } from '@pnpm/installing.deps-installer'
@@ -14,6 +14,18 @@ import type { ProjectManifest, ProjectRootDir } from '@pnpm/types'
 import { readYamlFileSync } from 'read-yaml-file'
 
 import { testDefaults } from '../utils/index.js'
+
+// The mocked registry is shared by every suite in this package, and a
+// `latest` tag this suite moves stays moved. `@pnpm/resolving.npm-resolver`
+// prefers `latest` whenever it satisfies the wanted range, so a suite that
+// runs later and expects the highest version resolves this suite's pick
+// instead. The fixture's default `latest` is the highest published version.
+afterAll(async () => {
+  await Promise.all([
+    addDistTag({ package: '@pnpm.e2e/foo', version: '100.1.0', distTag: 'latest' }),
+    addDistTag({ package: '@pnpm.e2e/bar', version: '100.1.0', distTag: 'latest' }),
+  ])
+})
 
 function trackRequestedPackages (
   storeController: StoreController,
@@ -515,7 +527,18 @@ test('explicitly specifying a version at install will ignore overrides', async (
   expect(manifest.dependencies?.['@pnpm.e2e/bar']).toBe(EXACT_VERSION)
 })
 
-test('overrides with local file and link specs', async () => {
+test('explicitly specifying a version at install will ignore an override that removes the dependency', async () => {
+  prepareEmpty()
+
+  const { updatedManifest: manifest } = await addDependenciesToPackage({},
+    ['@pnpm.e2e/bar@100.0.0'],
+    testDefaults({ overrides: { '@pnpm.e2e/bar': '-' } })
+  )
+
+  expect(manifest.dependencies?.['@pnpm.e2e/bar']).toBe('100.0.0')
+})
+
+test('overrides with local file, link and bare path specs', async () => {
   interface LocationAndManifest {
     location: string
     package: ProjectManifest
@@ -535,6 +558,7 @@ test('overrides with local file and link specs', async () => {
         'absolute-file-pkg': '*',
         'relative-link-pkg': '*',
         'absolute-link-pkg': '*',
+        'bare-path-pkg': '*',
       },
     },
   }
@@ -577,6 +601,7 @@ test('overrides with local file and link specs', async () => {
       'absolute-file-pkg': `file:${path.resolve('overrides/pkg')}`,
       'relative-link-pkg': 'link:./overrides/pkg',
       'absolute-link-pkg': `link:${path.resolve('overrides/pkg')}`,
+      'bare-path-pkg': './overrides/pkg',
       '@pnpm.e2e/pkg-a': 'file:./overrides/pkg',
       '@pnpm.e2e/pkg-b': `file:${path.resolve('overrides/pkg')}`,
       '@pnpm.e2e/pkg-c': 'link:./overrides/pkg',
@@ -600,6 +625,12 @@ test('overrides with local file and link specs', async () => {
         specifier: 'link:../../overrides/pkg',
         version: 'link:../../overrides/pkg',
       },
+      // A bare path names the workspace's directory the way its `link:`
+      // spelling does, not one inside the package being rewritten.
+      'bare-path-pkg': {
+        specifier: '../../overrides/pkg',
+        version: 'link:../../overrides/pkg',
+      },
       'absolute-link-pkg': {
         specifier: `link:${path.resolve('overrides/pkg')}`,
         version: 'link:../../overrides/pkg',
@@ -621,6 +652,7 @@ test('overrides with local file and link specs', async () => {
   expect(fs.realpathSync(path.join(directPrefix, 'relative-file-pkg'))).toBe(path.resolve('node_modules/.pnpm/pkg@file+overrides+pkg/node_modules/pkg'))
   expect(fs.realpathSync(path.join(directPrefix, 'absolute-link-pkg'))).toBe(path.resolve('overrides/pkg'))
   expect(fs.realpathSync(path.join(directPrefix, 'relative-link-pkg'))).toBe(path.resolve('overrides/pkg'))
+  expect(fs.realpathSync(path.join(directPrefix, 'bare-path-pkg'))).toBe(path.resolve('overrides/pkg'))
 
   const indirectPrefix = 'node_modules/.pnpm/@pnpm.e2e+depends-on-pkg-abcd@1.0.0/node_modules'
   expect(fs.realpathSync(path.join(indirectPrefix, '@pnpm.e2e/pkg-a'))).toBe(path.resolve('node_modules/.pnpm/pkg@file+overrides+pkg/node_modules/pkg'))

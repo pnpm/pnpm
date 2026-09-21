@@ -6,6 +6,7 @@ use pretty_assertions::assert_eq;
 use std::{fs, io::ErrorKind, path::Path};
 use tempfile::TempDir;
 
+mod membership;
 mod normalization;
 
 fn make_project(root: &std::path::Path, rel: &str, name: &str) {

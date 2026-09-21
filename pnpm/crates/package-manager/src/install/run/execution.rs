@@ -1,8 +1,8 @@
 use super::{
     super::{
-        ApplyMaterializationInputs, Arc, AtomicU8, InstallError, LogEvent, LogLevel,
-        MaterializationInputs, PackageManifest, PathBuf, Reporter, SummaryLog,
-        apply_materialization_result, materialize, prior_hoisted_dependencies,
+        ApplyMaterializationInputs, Arc, AtomicU8, IncludedDependencies, InstallError, LogEvent,
+        LogLevel, MaterializationInputs, PackageManifest, PathBuf, RebuildOptions, Reporter,
+        SummaryLog, apply_materialization_result, materialize, prior_hoisted_dependencies,
         prior_hoisted_locations,
     },
     Dispatched, InstallRunOutcome, InstallScope, Loaded, Lockfiles, RunExecution, Settled,
@@ -149,7 +149,6 @@ impl<'a> RunExecution<'a> {
         let resolution = self.materialization_resolution(loaded);
         let early_host_detection = loaded.early_host_detection.take();
         let lockfiles = materialization_lockfiles(loaded, lockfiles, dispatched, verification);
-        let prior_modules = dispatched.modules.previous_modules_metadata.as_ref();
         MaterializationInputs {
             install: self.install,
             resolution,
@@ -168,15 +167,11 @@ impl<'a> RunExecution<'a> {
                 ),
                 scope,
             ),
-            modules: crate::install::materialize::MaterializationModules {
-                included: self.mode.included,
-                rebuild: self.options.rebuild.as_ref(),
-                modules_manifest: dispatched.modules.old_modules.as_ref(),
-                prior_hoisted_dependencies: prior_hoisted_dependencies(prior_modules),
-                prior_hoisted_locations: prior_hoisted_locations(prior_modules),
-                prune_orphans: !scope.importers.filtered_install,
+            modules: dispatched.materialization_modules(
+                (self.mode.included, self.options.rebuild.as_ref()),
+                !scope.importers.filtered_install,
                 logged_methods,
-            },
+            ),
             execution: self.mode.materialization_execution(
                 &self.owned,
                 &self.options,
@@ -234,6 +229,7 @@ impl<'a> RunExecution<'a> {
         'a: 'r,
     {
         let (scope, project_manifests) = projects;
+        let workspace_packages = self.workspace.workspace_packages.take();
         ApplyMaterializationInputs {
             completion: self.take_completion_context(),
             mode: crate::install::state_options::CompletionMode {
@@ -246,6 +242,7 @@ impl<'a> RunExecution<'a> {
                 layout: dispatched.modules.old_modules,
                 metadata: dispatched.modules.previous_modules_metadata,
                 is_inconsistent: dispatched.modules.is_inconsistent,
+                tree_moved: dispatched.modules.tree_moved,
             },
             projects: crate::install::state_options::ApplyProjectSelection {
                 importers: crate::install::state_options::SelectedImporters {
@@ -253,6 +250,7 @@ impl<'a> RunExecution<'a> {
                     real_ids: &scope.importers.real_importer_ids,
                     manifests: project_manifests,
                 },
+                workspace_packages,
                 workspace_root: std::mem::take(&mut self.workspace.dirs.workspace_root),
                 included: self.mode.included,
                 node_linker: self.install.execution.node_linker,
@@ -311,6 +309,27 @@ impl super::InstallWorkspace<'_> {
             real_importer_ids: &scope.importers.real_importer_ids,
             workspace_root: &self.dirs.workspace_root,
             catalogs: &self.catalogs,
+        }
+    }
+}
+
+impl Dispatched<'_> {
+    fn materialization_modules<'r>(
+        &'r self,
+        (included, rebuild): (IncludedDependencies, Option<&'r RebuildOptions>),
+        prune_orphans: bool,
+        logged_methods: &'r AtomicU8,
+    ) -> crate::install::materialize::MaterializationModules<'r> {
+        let prior_modules = self.modules.previous_modules_metadata.as_ref();
+        crate::install::materialize::MaterializationModules {
+            included,
+            rebuild,
+            modules_manifest: self.modules.old_modules.as_ref(),
+            prior_hoisted_dependencies: prior_hoisted_dependencies(prior_modules),
+            prior_hoisted_locations: prior_hoisted_locations(prior_modules),
+            prune_orphans,
+            relink_every_slot_bin: self.modules.tree_moved,
+            logged_methods,
         }
     }
 }

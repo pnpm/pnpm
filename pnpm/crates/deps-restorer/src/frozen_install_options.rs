@@ -45,10 +45,8 @@ pub struct FrozenLockfileInputs<'a> {
     /// diff). `None` on a first install.
     pub current: Option<&'a Lockfile>,
     /// Entries from the previous install's `lock.yaml`, threaded through
-    /// to [`crate::CreateVirtualStore`] to drive the per-snapshot skip
-    /// decision. See [`LockfileEntries::of_previous_install`], which is
-    /// how a caller builds this: it is empty on a first install and
-    /// under `--force`.
+    /// to [`crate::CreateVirtualStore`] for reuse decisions and child-link
+    /// cleanup. See [`LockfileEntries::of_previous_install`].
     pub current_entries: LockfileEntries<'a>,
     /// Resolution verifiers to re-apply to every lockfile entry. Run
     /// concurrently with the fetch phase ([`crate::CreateVirtualStore`])
@@ -153,6 +151,8 @@ pub struct PriorMaterialization<'a> {
     /// `None` on a first install or when the file couldn't be fully
     /// parsed.
     pub hoisted_locations: Option<&'a crate::HoistedLocations>,
+    /// See [`crate::PriorLinkState::previously_skipped`].
+    pub previously_skipped: &'a crate::SkippedSnapshots,
     /// `allowBuilds` changed since the previous install: a build it
     /// ignored may now be allowed, or one it ran may no longer be. The
     /// hoisted linker then hands every package to the build phase, present
@@ -162,6 +162,10 @@ pub struct PriorMaterialization<'a> {
     pub unbuilt_builds: &'a crate::UnbuiltBuilds,
     /// See [`crate::PruneStaleModules::prune_orphans`].
     pub prune_orphans: bool,
+    /// Relink the bins of every slot the lockfile records, not only of the
+    /// slots this install materializes. A tree that moved with its project
+    /// needs it, because its other slots may hold bins naming where it was.
+    pub relink_every_slot_bin: bool,
 }
 
 #[derive(Default)]
@@ -194,6 +198,7 @@ impl<'a> PriorMaterialization<'a> {
             hoisted_locations: self.hoisted_locations,
             build_present_packages: self.rebuild.is_some() || self.allow_builds_changed,
             unbuilt_builds: self.unbuilt_builds,
+            previously_skipped: self.previously_skipped,
         }
     }
 }

@@ -32,7 +32,7 @@ use std::{
 use pnpm_lockfile::{LockfileResolution, PkgName, PkgNameVer, RegistryContext, TarballResolution};
 use pnpm_package_manifest::{DependencyGroup, PackageManifest};
 use pnpm_resolving_deps_resolver::{
-    ResolveImporterOptions, UpdateDepth, UpdateReuseScope, WorkspaceImporter,
+    ResolveImporterOptions, UpdateDepth, UpdateReuseScope, UpdateTargets, WorkspaceImporter,
     WorkspaceResolveOptions, resolve_workspace,
 };
 use pnpm_resolving_resolver_base::{
@@ -202,6 +202,7 @@ fn benchmark_resolution(name: &str, manifest: serde_json::Value) -> ResolveResul
             latest: Some("1.0.0".to_string()),
             published_at: None,
             manifest: Some(Arc::new(manifest)),
+            non_deprecated_alternative: None,
         },
     }
 }
@@ -265,6 +266,7 @@ fn importer_options(importer: &WorkspaceImporter<'_>) -> ResolveImporterOptions 
             pick_lowest_direct: false,
             subdep_published_by: None,
             catalogs: pnpm_catalogs_types::Catalogs::new(),
+            catalogs_dir: None,
             catalog_server: false,
         },
         hooks: pnpm_resolving_deps_resolver::ManifestTransformHooks {
@@ -304,6 +306,7 @@ fn workspace_options() -> WorkspaceResolveOptions {
         reuse: pnpm_resolving_deps_resolver::WorkspaceLockfileReuse {
             lockfile: None,
             subtrees: true,
+            dedupe: UpdateTargets::default(),
             scope: UpdateReuseScope::All,
             scopes_by_importer: BTreeMap::new(),
             depth: UpdateDepth::UNLIMITED,

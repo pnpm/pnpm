@@ -10,15 +10,17 @@
 //! equivalent is `pnpm --filter <project> install` in a
 //! `pnpm-workspace.yaml` workspace.
 
-#![cfg(unix)] // pnpm CLI: 'program not found' on Windows runners.
-
 pub use _utils::*;
 
 use crate::_utils;
 
-use pnpm_testing_utils::fs::is_path_executable;
 use serde_json::json;
 use std::fs;
+
+/// Where the lifecycle scripts of
+/// [`recursive_install_builds_workspace_projects_in_correct_order`] record
+/// the order they ran in, relative to each project directory.
+const ORDER_LOG: &str = "../../order.txt";
 
 const DEP: &str = "@pnpm.e2e/dep-of-pkg-with-1-dep";
 const FOO: &str = "@pnpm.e2e/foo";
@@ -493,13 +495,13 @@ fn links_workspace_package_bin_into_dependent_project() {
 
     fixture.run(["install"]);
     let bin_path = main_project.join("node_modules/.bin/hello");
-    assert!(is_path_executable(&bin_path), "expected an executable bin at {bin_path:?}");
+    assert_bin_linked(&bin_path);
 
     fs::remove_dir_all(main_project.join("node_modules")).expect("remove main's node_modules");
     fs::remove_dir_all(fixture.workspace.join("node_modules")).expect("remove root node_modules");
     fixture.run(["install", "--frozen-lockfile"]);
 
-    assert!(is_path_executable(&bin_path), "the frozen reinstall must re-link the bin");
+    assert_bin_linked(&bin_path);
 }
 
 /// TS: `custom virtual store directory in a workspace with shared
@@ -615,9 +617,9 @@ fn recursive_install_builds_workspace_projects_in_correct_order() {
     for (project, name) in [(&dependency, "project-999"), (&dependent, "project-1")] {
         let mut manifest = read_manifest(project);
         manifest["scripts"] = json!({
-            "install": append_order_script(&format!("{name}-install")),
-            "postinstall": append_order_script(&format!("{name}-postinstall")),
-            "prepare": append_order_script(&format!("{name}-prepare")),
+            "install": append_line_script(&format!("{name}-install"), ORDER_LOG),
+            "postinstall": append_line_script(&format!("{name}-postinstall"), ORDER_LOG),
+            "prepare": append_line_script(&format!("{name}-prepare"), ORDER_LOG),
         });
         write_manifest_value(project, &manifest);
     }
@@ -693,10 +695,6 @@ fn link_bin_of_workspace_project_created_by_lifecycle_script() {
     }
     fixture.run(["install", "--frozen-lockfile"]);
     assert!(consumer.join("created-by-prepare").exists());
-}
-
-fn append_order_script(label: &str) -> String {
-    format!(r#"node -e "require('fs').appendFileSync('../../order.txt', '{label}\\n')""#)
 }
 
 /// TS: `dependencies of workspace projects are built during headless

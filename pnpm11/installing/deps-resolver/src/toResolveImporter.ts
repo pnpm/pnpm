@@ -14,9 +14,8 @@ import { safeIsInnerLink } from './safeIsInnerLink.js'
 import { unwrapPackageName } from './unwrapPackageName.js'
 import { validatePeerDependencies } from './validatePeerDependencies.js'
 
-export interface ResolveImporter extends ImporterToResolve, ImporterToResolveGeneric<{ isNew?: boolean }> {
+export interface ResolveImporter extends ImporterToResolve, ImporterToResolveGeneric<object> {
   wantedDependencies: Array<WantedDependency & {
-    isNew?: boolean
     updateDepth: number
   }>
 }
@@ -24,7 +23,7 @@ export interface ResolveImporter extends ImporterToResolve, ImporterToResolveGen
 export async function toResolveImporter (
   opts: {
     defaultUpdateDepth: number
-    lockfileOnly: boolean
+    hideAlienModules: boolean
     preferredVersions?: PreferredVersions
     virtualStoreDir: string
     globalVirtualStoreDir: string
@@ -37,7 +36,7 @@ export async function toResolveImporter (
   validatePeerDependencies(project)
   const allDeps = getWantedDependencies(project.manifest)
   const nonLinkedDependencies = await partitionLinkedPackages(allDeps, {
-    lockfileOnly: opts.lockfileOnly,
+    hideAlienModules: opts.hideAlienModules,
     modulesDir: project.modulesDir,
     projectDir: project.rootDir,
     virtualStoreDir: opts.virtualStoreDir,
@@ -47,12 +46,19 @@ export async function toResolveImporter (
   const defaultUpdateDepth = (project.update === true || (project.updateMatching != null)) ? opts.defaultUpdateDepth : -1
   const existingDeps = nonLinkedDependencies
     .filter(({ alias }) => !project.wantedDependencies.some((wantedDep) => wantedDep.alias === alias))
+    .map((dependency) => project.hookOwnedAliases?.has(dependency.alias)
+      ? {
+        ...dependency,
+        saveSpec: false,
+        updateToLatestAllowed: false,
+      }
+      : dependency)
   if (opts.updateToLatest && opts.noDependencySelectors) {
     for (const dep of existingDeps) {
       dep.updateSpec = true
     }
   }
-  let wantedDependencies!: Array<WantedDependency & { isNew?: boolean, updateDepth: number }>
+  let wantedDependencies!: Array<WantedDependency & { updateDepth: number }>
   if (!project.manifest) {
     wantedDependencies = [
       ...project.wantedDependencies,
@@ -99,7 +105,7 @@ async function partitionLinkedPackages (
   dependencies: WantedDependency[],
   opts: {
     projectDir: string
-    lockfileOnly: boolean
+    hideAlienModules: boolean
     modulesDir: string
     virtualStoreDir: string
     globalVirtualStoreDir: string
@@ -117,7 +123,7 @@ async function partitionLinkedPackages (
       return
     }
     const isInnerLink = await safeIsInnerLink(opts.modulesDir, dependency.alias, {
-      hideAlienModules: !opts.lockfileOnly,
+      hideAlienModules: opts.hideAlienModules,
       projectDir: opts.projectDir,
       virtualStoreDir: opts.virtualStoreDir,
       globalVirtualStoreDir: opts.globalVirtualStoreDir,

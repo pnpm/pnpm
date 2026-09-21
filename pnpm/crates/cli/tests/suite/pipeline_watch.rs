@@ -1,8 +1,6 @@
 //! Watch-agent integration tests: poll a git repository, build new
 //! revisions of a branch in a persistent checkout, and skip ticks with
-//! nothing new. The build scripts run through pacquet's `sh -c`
-//! executor, so the file is gated to Unix like the other run suites.
-#![cfg(unix)]
+//! nothing new.
 
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
@@ -56,7 +54,7 @@ fn watch_agent_builds_new_revisions_and_skips_quiet_ticks() {
     );
     fixture.write_file(
         "pkg/package.json",
-        r#"{ "name": "pkg", "version": "1.0.0", "scripts": { "build": "mkdir -p out && cp src/index.txt out/index.txt" } }"#,
+        r#"{ "name": "pkg", "version": "1.0.0", "scripts": { "build": "node -e \"const fs = require('fs'); fs.mkdirSync('out', { recursive: true }); fs.copyFileSync('src/index.txt', 'out/index.txt')\"" } }"#,
     );
     fixture.write_file("pkg/src/index.txt", "v1");
     // The lockfile the checkout's frozen install verifies against.
@@ -104,7 +102,7 @@ fn watch_agent_builds_new_revisions_and_skips_quiet_ticks() {
 
     fixture.write_file(
         "pkg/package.json",
-        r#"{"name":"pkg","version":"1.0.0","scripts":{"build":"exit 1"}}"#,
+        r#"{"name":"pkg","version":"1.0.0","scripts":{"build":"node -e \"process.exit(1)\""}}"#,
     );
     let failed = fixture.commit("failing build");
     for _ in 0..2 {

@@ -97,14 +97,12 @@ pub enum LoadWorkspaceYamlError {
         help("pnpm resolves Cargo dependencies from one sparse index. Declare the one to use.")
     )]
     CargoIndexDeclaredTwice { registries: String },
-    #[display("The \"tasks['{task}'].{field}\" setting is not a known task setting")]
-    #[diagnostic(
-        code(ERR_PNPM_INVALID_SETTING),
-        help(
-            r#"A task declares "concurrency", "concurrencyGroup", "dependsOn", "outputs", "inputs", "env", "cache", or "cargoTargetDir"."#
-        )
-    )]
-    UnknownTaskSettingField { task: String, field: String },
+    #[display("Invalid Python package routes for {registry:?}: {reason}")]
+    #[diagnostic(code(ERR_PNPM_INVALID_SETTING))]
+    InvalidPythonRegistryPackages { registry: String, reason: String },
+    #[display("The Python package pattern {pattern:?} is routed to two registries: {registries}")]
+    #[diagnostic(code(ERR_PNPM_INVALID_SETTING))]
+    PythonPackageRoutedTwice { pattern: String, registries: String },
     #[display("The \"pipelines['{pipeline}']\" setting contains an entry with no task name")]
     #[diagnostic(code(ERR_PNPM_INVALID_SETTING))]
     EmptyPipelineTaskName { pipeline: String },
@@ -123,6 +121,9 @@ pub enum LoadWorkspaceYamlError {
         )
     )]
     InvalidTaskConcurrencyGroup { task: String, group: String },
+    #[display("The \"tasks['{task}'].priority\" setting should be an integer, but got {priority}")]
+    #[diagnostic(code(ERR_PNPM_INVALID_SETTING))]
+    InvalidTaskPriority { task: String, priority: String },
     #[display(
         "The \"tasks['{task}'].dependsOn\" setting contains an entry with no task name: {entry:?}"
     )]

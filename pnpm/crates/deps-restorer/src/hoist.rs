@@ -11,6 +11,7 @@
 pub use symlinks::symlink_hoisted_dependencies;
 
 mod symlinks;
+mod workspace_aliases;
 
 use indexmap::IndexMap;
 use pnpm_lockfile::{PackageKey, PackageMetadata, PkgName, ProjectSnapshot, SnapshotEntry};
@@ -213,20 +214,20 @@ pub struct HoistInputs<'a> {
     pub private_pattern: Matcher,
     /// Boolean matcher built from `Config.public_hoist_pattern`.
     pub public_pattern: Matcher,
-    /// `hoist-workspace-packages`: workspace project name → absolute
-    /// project dir, for every named non-root project. When present,
+    /// `hoist-workspace-packages`: workspace project name → project id and
+    /// absolute project dir, for every named non-root project. When present,
     /// each name is considered for hoisting like a root-level alias
     /// (v11 merges them into the root importer's children with
     /// direct deps taking precedence) and, when a pattern matches,
     /// the hoisted-modules entry symlinks straight to the project
     /// dir. `None` when the config knob is off.
-    pub hoisted_workspace_packages: Option<&'a IndexMap<String, PathBuf>>,
+    pub hoisted_workspace_packages: Option<&'a crate::HoistedWorkspacePackages>,
 }
 
 /// Output of [`get_hoisted_dependencies`].
 pub struct HoistResult {
-    /// `.modules.yaml`'s `hoistedDependencies` shape — keyed by
-    /// snapshot key, value is alias → kind.
+    /// `.modules.yaml`'s `hoistedDependencies` shape, keyed by snapshot key
+    /// or workspace project ID, with alias → kind values.
     pub hoisted_dependencies: HoistedDependencies,
     /// Symlink-pass input: which aliases (and what kind) are mapped
     /// to which source nodes. Map order doesn't matter; symlinks are
@@ -252,10 +253,7 @@ pub struct HoistResult {
     /// `hoist-workspace-packages` placements: (alias, kind, absolute
     /// project dir) for every workspace project name a hoist pattern
     /// matched. Symlinked by [`symlink_hoisted_dependencies`] straight
-    /// to the project dir. Deliberately NOT part of
-    /// [`Self::hoisted_dependencies`] — v11 leaves workspace packages
-    /// out of `.modules.yaml`'s `hoistedDependencies` too (its graph
-    /// lookup misses for a `ProjectId` before the record is written).
+    /// to the project dir.
     pub hoisted_workspace_aliases: Vec<(String, HoistKind, PathBuf)>,
 }
 
@@ -282,10 +280,11 @@ fn snapshot_children(snapshot: &SnapshotEntry) -> IndexMap<String, PackageKey> {
 /// Walk the dependency graph in pnpm's graph-walker order and decide
 /// which aliases should be hoisted.
 ///
-/// Returns `None` when the graph is empty.
+/// Returns `None` when there is nothing to consider: an empty graph and no
+/// workspace projects to hoist.
 #[must_use]
 pub fn get_hoisted_dependencies<'a>(input: &'a HoistInputs<'a>) -> Option<HoistResult> {
-    if input.graph.is_empty() {
+    if input.graph.is_empty() && input.hoisted_workspace_packages.is_none_or(IndexMap::is_empty) {
         return None;
     }
 
@@ -348,7 +347,7 @@ fn merged_direct_deps(input: &HoistInputs<'_>) -> IndexMap<String, PackageKey> {
 /// order, keeping the relative order of everything else.
 fn order_direct_deps_by_workspace(
     direct_deps: IndexMap<String, PackageKey>,
-    workspace_packages: &IndexMap<String, PathBuf>,
+    workspace_packages: &crate::HoistedWorkspacePackages,
 ) -> IndexMap<String, PackageKey> {
     let mut ordered = IndexMap::new();
     for name in workspace_packages.keys() {
@@ -427,12 +426,33 @@ impl<'a> HoistPass<'a> {
     /// nondeterministically (v11's graph-miss `continue` skips the
     /// claim by accident).
     fn hoist_workspace_packages(&mut self) {
-        for (name, dir) in self.input.hoisted_workspace_packages.into_iter().flatten() {
-            let Some(hoist_kind) = self.hoist_kind(name) else { continue };
-            if !self.hoisted_aliases.insert(name.to_lowercase()) {
+        let candidates = self.input.hoisted_workspace_packages
+            .into_iter()
+            .flatten()
+            .filter_map(|(name, (project_id, dir))| {
+                let hoist_kind = self.hoist_kind(name)?;
+                (!self.hoisted_aliases.contains(&name.to_lowercase())).then(|| {
+                    (name.clone(), project_id.clone(), dir.clone(), hoist_kind)
+                })
+            })
+            .collect::<Vec<_>>();
+        let conflicting_aliases = workspace_aliases::conflicting_aliases(
+            candidates
+                .iter()
+                .map(|(name, _, _, kind)| (name.as_str(), *kind)),
+        );
+        for (name, project_id, dir, hoist_kind) in candidates {
+            let normalized_name = name.to_lowercase();
+            if conflicting_aliases.contains(&normalized_name)
+                || !self.hoisted_aliases.insert(normalized_name)
+            {
                 continue;
             }
-            self.hoisted_workspace_aliases.push((name.clone(), hoist_kind, dir.clone()));
+            self.hoisted_workspace_aliases.push((name.clone(), hoist_kind, dir));
+            self.hoisted_dependencies
+                .entry(project_id)
+                .or_default()
+                .insert(name, hoist_kind);
         }
     }
 

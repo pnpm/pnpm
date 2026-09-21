@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/installing.deps-installer",
-  "version": "1104.1.2",
+  "version": "1104.1.3",
   "description": "Fast, disk space efficient installation engine",
   "keywords": [
     "pnpm",
@@ -108,6 +108,7 @@
     "@pnpm/pkg-manifest.utils": "workspace:*",
     "@pnpm/pnpr.client": "workspace:*",
     "@pnpm/resolving.local-resolver": "workspace:*",
+    "@pnpm/resolving.npm-resolver": "workspace:*",
     "@pnpm/resolving.parse-wanted-dependency": "workspace:*",
     "@pnpm/resolving.resolver-base": "workspace:*",
     "@pnpm/store.controller-types": "workspace:*",

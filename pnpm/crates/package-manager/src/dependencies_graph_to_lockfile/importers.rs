@@ -36,6 +36,7 @@ pub(super) fn build_importers(
                 &ImporterLockfileFlags {
                     exclude_links_from_lockfile: opts.settings.exclude_links_from_lockfile,
                     auto_install_peers: opts.settings.auto_install_peers,
+                    include_peer_dependencies: opts.manifest_settings.include_peer_dependencies,
                 },
                 opts.reuse.previous_importers.and_then(|importers| importers.get(id)),
                 effective_update_reuse_scope(opts, id),
@@ -66,17 +67,32 @@ pub(super) fn effective_update_reuse_scope<'o>(
         opts.reuse.scopes_by_importer.get(importer_id).unwrap_or(&opts.reuse.scope)
     }
 }
-/// The concrete version `alias` resolved to in `importer`, read from whichever
-/// dependency group carries it. Returns the peer-stripped version recorded as
-/// the `version` in a catalog snapshot.
-pub(super) fn importer_resolved_version(importer: &ProjectSnapshot, alias: &str) -> Option<String> {
+/// The `version` a catalog snapshot records for `alias` in `importer`:
+/// the peer-stripped version it resolved to, read from whichever
+/// dependency group carries it. `None` when the importer does not carry
+/// the dependency at all.
+///
+/// A `file:` / `link:` dependency has no version of its own, so
+/// `entry_specifier` stands in. It identifies the entry just as well,
+/// and unlike the resolved `link:` path — which is written relative to
+/// the importer that declared it — it does not depend on which importer
+/// the snapshot happened to read.
+pub(super) fn catalog_snapshot_version(
+    importer: &ProjectSnapshot,
+    alias: &str,
+    entry_specifier: &str,
+) -> Option<String> {
     let key = PkgName::parse(alias).ok()?;
-    [&importer.dependencies, &importer.dev_dependencies, &importer.optional_dependencies]
-        .into_iter()
-        .flatten()
-        .find_map(|map| map.get(&key))
-        .and_then(|spec| spec.version.ver_peer())
-        .map(|version| version.version().to_string())
+    let resolved =
+        [&importer.dependencies, &importer.dev_dependencies, &importer.optional_dependencies]
+            .into_iter()
+            .flatten()
+            .find_map(|map| map.get(&key))?;
+    Some(
+        resolved.version
+            .ver_peer()
+            .map_or_else(|| entry_specifier.to_string(), |version| version.version().to_string()),
+    )
 }
 /// Build an importer's [`ProjectSnapshot`] from its on-disk manifest
 /// plus the per-alias `DepPath` map the resolver produced for that
@@ -160,9 +176,11 @@ pub(super) fn importer_direct_entry(
     // snapshots graph below. Writing them here would carry specifiers
     // the manifest can't satisfy through `satisfies_package_manifest`
     // and force every later install onto the fresh-resolve path.
-    let Some(specifier) =
-        read_manifest_specifier(sources.manifest, alias, sources.flags.auto_install_peers)
-    else {
+    let Some(specifier) = read_manifest_specifier(
+        sources.manifest,
+        alias,
+        sources.flags.auto_install_peers || sources.flags.include_peer_dependencies,
+    ) else {
         return Ok(None);
     };
     let Some(version) = direct_dep_version(
@@ -322,8 +340,9 @@ pub(super) fn manifest_alias_to_group(
 }
 /// Look up the user-written specifier for `alias` in the manifest's
 /// `optionalDependencies` / `dependencies` / `devDependencies` maps —
-/// plus `peerDependencies` when `auto_install_peers` materializes those
-/// into the importer's dependencies. Returns `None` for an alias the
+/// plus `peerDependencies` when the current operation needs those declarations
+/// in the importer. Normally `auto_install_peers` materializes them; update
+/// temporarily includes peers it explicitly selected. Returns `None` for an alias the
 /// manifest doesn't declare in any of those groups, including a peer the
 /// hoist installed while `autoInstallPeers` is off: such entries stay out
 /// of the importer's `specifiers` map and are only reachable through the

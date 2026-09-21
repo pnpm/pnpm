@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/global.commands",
-  "version": "1102.0.1",
+  "version": "1102.0.2",
   "description": "Global package command handlers for pnpm",
   "keywords": [
     "pnpm",
@@ -44,6 +44,8 @@
     "@pnpm/error": "workspace:*",
     "@pnpm/global.packages": "workspace:*",
     "@pnpm/installing.deps-installer": "workspace:*",
+    "@pnpm/installing.modules-yaml": "workspace:*",
+    "@pnpm/lockfile.fs": "workspace:*",
     "@pnpm/pkg-manifest.reader": "workspace:*",
     "@pnpm/pkg-manifest.utils": "workspace:*",
     "@pnpm/resolving.parse-wanted-dependency": "workspace:*",

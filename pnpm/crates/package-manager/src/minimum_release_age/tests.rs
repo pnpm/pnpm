@@ -178,6 +178,7 @@ async fn non_interactive_strict_mode_reports_every_immature_pick() {
     let mut prompt = FakePrompt::default();
     let violations = vec![
         violation("zeta", "2.0.0", "MINIMUM_RELEASE_AGE_VIOLATION"),
+        violation("zeta", "2.0.0", "MINIMUM_RELEASE_AGE_VIOLATION"),
         violation("alpha", "1.0.0", "MINIMUM_RELEASE_AGE_VIOLATION"),
         violation("ignored", "3.0.0", "TRUST_DOWNGRADE"),
     ];
@@ -218,6 +219,8 @@ async fn approval_persists_canonical_excludes_and_brackets_the_prompt() {
     let violations = vec![
         violation("foo", "2.0.0", "MINIMUM_RELEASE_AGE_VIOLATION"),
         violation("bar", "3.0.0", "MINIMUM_RELEASE_AGE_VIOLATION"),
+        violation("foo", "1.0.0", "MINIMUM_RELEASE_AGE_VIOLATION"),
+        violation("foo", "2.0.0", "MINIMUM_RELEASE_AGE_VIOLATION"),
     ];
 
     handle_minimum_release_age_violations_with::<RecordingReporter, _>(
@@ -232,7 +235,10 @@ async fn approval_persists_canonical_excludes_and_brackets_the_prompt() {
     .expect("approval should continue");
 
     assert_eq!(prompt.messages.len(), 1);
-    assert!(prompt.messages[0].contains("bar@3.0.0\n  foo@2.0.0"));
+    assert_eq!(
+        prompt.messages[0],
+        "3 versions do not meet the minimumReleaseAge constraint:\n  bar@3.0.0\n  foo@1.0.0\n  foo@2.0.0\nAdd to minimumReleaseAgeExclude in pnpm-workspace.yaml and proceed with the install?",
+    );
     let workspace = fs::read_to_string(dir.path().join("pnpm-workspace.yaml"))
         .expect("read workspace manifest");
     assert!(workspace.contains("packages:\n  - packages/*"));

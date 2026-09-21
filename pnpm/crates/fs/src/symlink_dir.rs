@@ -197,25 +197,27 @@ impl Error for ConcurrentCleanupWarning {}
 /// Idempotent, overwrite-on-stale symlink creator with overwrite-on
 /// semantics: an existing occupant at `link` is moved aside.
 ///
-/// When a regular file or directory occupies `link` and the rename
-/// that moves it aside fails because the source disappeared between
-/// the `AlreadyExists` and the rename, the initial `AlreadyExists`
-/// error is surfaced rather than the rename's `NotFound`.
+/// A regular file or directory occupying `link` can be gone by the time the
+/// rename that moves it aside runs, which is what a second writer racing for
+/// the same path looks like. The create is reissued once for that, since the
+/// conflict it reported no longer exists. A link that reports a conflict twice
+/// over while holding nothing surfaces the create's own error rather than the
+/// rename's `NotFound`.
 pub fn force_symlink_dir(target: &Path, link: &Path) -> io::Result<ForceSymlinkOutcome> {
     // Normalize up front so every retry-loop fs op on `link` — not just
     // the symlink syscall — sees a native path. See [`to_native_separators`].
     let target = to_native_separators(target);
     let link = to_native_separators(link);
     #[cfg(windows)]
-    return force_symlink_inner(&target, &link, false, windows::create);
+    return force_symlink_inner(&target, &link, TriedOnce::default(), windows::create);
     #[cfg(not(windows))]
-    force_symlink_inner(&target, &link, false, symlink_dir)
+    force_symlink_inner(&target, &link, TriedOnce::default(), symlink_dir)
 }
 
 fn force_symlink_inner(
     target: &Path,
     link: &Path,
-    rename_tried: bool,
+    tried: TriedOnce,
     create_symlink: fn(&Path, &Path) -> io::Result<()>,
 ) -> io::Result<ForceSymlinkOutcome> {
     let initial_err = match create_symlink(target, link) {
@@ -230,21 +232,18 @@ fn force_symlink_inner(
     match initial_err.kind() {
         io::ErrorKind::NotFound => {
             create_symlink_parent(target, link)?;
-            return force_symlink_inner(target, link, rename_tried, create_symlink);
+            return force_symlink_inner(target, link, tried, create_symlink);
         }
         io::ErrorKind::AlreadyExists | io::ErrorKind::IsADirectory => {}
         _ => return Err(initial_err),
     }
 
-    let Ok(existing) = read_symlink_dir(link) else {
-        // A vanished occupant means the path was cleared under us, so the
-        // original symlink failure is the one worth reporting.
-        let Some(warning) = clear_symlink_occupant(link, rename_tried)? else {
-            return Err(initial_err);
-        };
-        let mut outcome = force_symlink_inner(target, link, true, create_symlink)?;
-        outcome.warning = Some(warning);
-        return Ok(outcome);
+    // The read waits out a refusal: on Windows a link another installer
+    // created moments ago can refuse it while a handle on it is open. A real
+    // file or directory refuses for a reason that is not a lock, so it
+    // answers at once.
+    let Ok(existing) = retry_transient_file_locks(|| read_symlink_dir(link)) else {
+        return replace_unreadable_occupant(target, link, tried, create_symlink, initial_err);
     };
     if existing_symlink_up_to_date(target, link, &existing) {
         return Ok(ForceSymlinkOutcome { reused: true, warning: reuse_warning });
@@ -256,7 +255,7 @@ fn force_symlink_inner(
         Err(error) if error.kind() == io::ErrorKind::NotFound => {}
         Err(error) => return Err(error),
     }
-    force_symlink_inner(target, link, rename_tried, create_symlink)
+    force_symlink_inner(target, link, tried, create_symlink)
 }
 
 /// Create the directory the link lives in, wrapping a failure so callers see
@@ -276,42 +275,6 @@ fn create_symlink_parent(target: &Path, link: &Path) -> io::Result<()> {
                 ),
             )
         })
-}
-
-/// Move whatever regular file or directory occupies the link path out of the
-/// way, and describe what was done with it. `None` means the occupant was
-/// already gone.
-///
-/// On the second attempt (`rename_tried`) this drops down to a plain unlink,
-/// as a fallback for an intermittent macOS bug — see
-/// [pnpm/pnpm#5909](https://github.com/pnpm/pnpm/issues/5909#issuecomment-1400066890).
-fn clear_symlink_occupant(link: &Path, rename_tried: bool) -> io::Result<Option<String>> {
-    let parent = link.parent().unwrap_or_else(|| Path::new(""));
-    let basename = link
-        .file_name()
-        .unwrap_or_default()
-        .to_string_lossy()
-        .into_owned();
-    if rename_tried {
-        remove_occupant(link)?;
-        return Ok(Some(format!(
-            "Symlink wanted name was occupied by directory or file. \
-             Old entity removed: {parent:?}{sep}{basename}",
-            sep = std::path::MAIN_SEPARATOR,
-        )));
-    }
-    let ignore_name = format!(".ignored_{basename}");
-    if let Err(rename_err) = rename_overwrite(link, &parent.join(&ignore_name)) {
-        if rename_err.kind() == io::ErrorKind::NotFound {
-            return Ok(None);
-        }
-        return Err(rename_err);
-    }
-    Ok(Some(format!(
-        "Symlink wanted name was occupied by directory or file. \
-         Old entity moved: {parent:?}{sep}{basename} => {ignore_name}",
-        sep = std::path::MAIN_SEPARATOR,
-    )))
 }
 
 /// Like [`std::fs::create_dir_all`], but heals a dangling reparse point
@@ -632,4 +595,4 @@ mod tests;
 
 mod absolute;
 mod replace;
-use replace::{remove_occupant, rename_overwrite};
+use replace::{TriedOnce, replace_unreadable_occupant};

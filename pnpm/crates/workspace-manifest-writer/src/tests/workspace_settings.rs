@@ -116,3 +116,22 @@ fn add_catalogs_rejects_control_characters() {
         assert_eq!(fs::read_to_string(&path).expect("manifest kept"), original);
     }
 }
+
+#[test]
+fn preserves_scalar_catalog_aliases() {
+    let original = "catalog:\n  react: &react ^1.0.0\n  react-dom: *react\n";
+    let output = run(Some(original), &catalogs(&[("default", &[("other", "1.0.0")])])).unwrap();
+    eprintln!("{output}");
+    assert_eq!(output, "catalog:\n  other: 1.0.0\n  react: &react ^1.0.0\n  react-dom: *react\n");
+    let output = run(
+        Some(original),
+        &catalogs(&[("default", &[("react", "^2.0.0"), ("react-dom", "^2.0.0")])]),
+    )
+    .unwrap();
+    eprintln!("{output}");
+    assert_eq!(output, "catalog:\n  react: &react ^2.0.0\n  react-dom: *react\n");
+    let output =
+        run(Some(original), &catalogs(&[("default", &[("react-dom", "^2.0.0")])])).unwrap();
+    eprintln!("{output}");
+    assert_eq!(output, "catalog:\n  react: &react ^1.0.0\n  react-dom: ^2.0.0\n");
+}

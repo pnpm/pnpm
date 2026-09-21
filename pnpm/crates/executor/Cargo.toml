@@ -11,11 +11,13 @@ license.workspace = true
 repository.workspace = true
 
 [dependencies]
+pnpm-fs = { workspace = true }
 pnpm-package-manifest = { workspace = true }
 pnpm-reporter = { workspace = true }
 
 deno_task_shell = { workspace = true }
 derive_more = { workspace = true }
+dunce = { workspace = true }
 miette = { workspace = true }
 serde_json = { workspace = true }
 tokio = { workspace = true, features = ["process"] }
@@ -25,7 +27,11 @@ tracing = { workspace = true }
 libc = { workspace = true }
 
 [target.'cfg(windows)'.dependencies]
-windows-sys = { workspace = true, features = ["Win32_System_Console", "Win32_System_SystemInformation"] }
+windows-sys = { workspace = true, features = [
+  "Win32_Storage_FileSystem",
+  "Win32_System_Console",
+  "Win32_System_SystemInformation",
+] }
 
 [dev-dependencies]
 pretty_assertions = { workspace = true }

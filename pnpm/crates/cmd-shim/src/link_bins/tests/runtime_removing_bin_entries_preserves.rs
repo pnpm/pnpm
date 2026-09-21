@@ -140,7 +140,7 @@ fn writes_shim_for_bin_string() {
 
     let body = read_to_string(&shim_path).unwrap();
     assert!(body.contains(r#""$basedir/../foo/bin/cli.js""#), "shim body: {body}");
-    assert!(is_shim_pointing_at(&body, &pkg_dir.join("bin/cli.js")));
+    assert!(is_shim_pointing_at(&body, &shim_path, &pkg_dir.join("bin/cli.js")));
 
     #[cfg(unix)]
     {
@@ -554,7 +554,8 @@ fn ownership_breaks_bin_conflicts() {
 
     let body = read_to_string(bins.join("npx")).unwrap();
     assert!(
-        body.contains("/npm/npx") || is_shim_pointing_at(&body, &npm.join("npx")),
+        body.contains("/npm/npx")
+            || is_shim_pointing_at(&body, &bins.join("npx"), &npm.join("npx")),
         "ownership-aware resolution should pick npm's npx, body:\n{body}",
     );
 }

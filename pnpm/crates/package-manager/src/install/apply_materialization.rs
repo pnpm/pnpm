@@ -10,8 +10,9 @@ use commit::{CommitModulesStateInputs, commit_modules_state};
 
 mod selection;
 use selection::{
-    LinkMaterializedProjectsInputs, MaterializedState, SelectMaterializedStateInputs,
-    link_materialized_projects, select_materialized_state,
+    LinkMaterializedLockfiles, LinkMaterializedManifestLinks, LinkMaterializedProjectsInputs,
+    MaterializedState, SelectMaterializedStateInputs, link_materialized_projects,
+    select_materialized_state,
 };
 
 use super::{
@@ -72,10 +73,16 @@ async fn link_apply_projects<Reporter: self::Reporter + 'static>(
         filtered_install: inputs.projects.filtered_install,
         node_linker: inputs.projects.node_linker,
         config: inputs.completion.config,
-        current_lockfile: state.current_lockfile.as_ref(),
-        wanted_lockfile: state.wanted_lockfile,
+        lockfiles: LinkMaterializedLockfiles {
+            current: state.current_lockfile.as_ref(),
+            wanted: state.wanted_lockfile,
+        },
         workspace_root: &inputs.projects.workspace_root,
-        project_manifests: inputs.projects.importers.manifests,
+        manifest_links: LinkMaterializedManifestLinks {
+            workspace_packages: inputs.projects.workspace_packages.as_ref(),
+            included: inputs.projects.included,
+            project_manifests: inputs.projects.importers.manifests,
+        },
         materialized_project_manifests: &state.project_manifests,
     })
     .await?;
@@ -140,6 +147,7 @@ fn commit_apply_state<Reporter: self::Reporter>(
             filtered_install: inputs.projects.filtered_install,
         },
         write: inputs.write,
+        force_prune: matches!(inputs.scripts.mutation, crate::ProjectMutation::UninstallSome),
     })?;
     tracing::info!(target: "pacquet::install::phase", phase = "apply.commit_modules_state", elapsed_ms = phase_start.elapsed().as_millis() as u64, "phase complete");
 
@@ -235,7 +243,11 @@ fn finish_apply<Reporter: self::Reporter>(
         inputs.prior.lockfile.take(),
     ));
 
-    write_applied_workspace_state(&inputs)?;
+    // Refreshing the root here would hide stale bins in unselected projects
+    // from the next install.
+    if !(inputs.prior.tree_moved && inputs.projects.filtered_install) {
+        write_applied_workspace_state(&inputs)?;
+    }
 
     let completion = report_install_completion::<Reporter>(ReportInstallCompletionInputs {
         workspace: crate::install::state_options::CompletionWorkspace {
@@ -267,21 +279,22 @@ fn write_applied_workspace_state(
     // Writing it after both the `.modules.yaml` and the current
     // lockfile succeed keeps the file pointing at a fully committed
     // install.
-    update_workspace_state(
+    let mut state = build_workspace_state::<Host>(
         &inputs.projects.workspace_root,
-        &build_workspace_state::<Host>(
-            &inputs.projects.workspace_root,
-            inputs.completion.config,
-            inputs.projects.node_linker,
-            inputs.projects.included,
-            inputs.projects.supported_architectures.as_ref(),
-            &inputs.completion.catalogs,
-            inputs.projects.importers.manifests,
-            inputs.projects.filtered_install,
-            filesystem_now_ms(&inputs.projects.workspace_root),
-        ),
-    )
-    .map_err(InstallError::WriteWorkspaceState)?;
+        inputs.completion.config,
+        inputs.projects.node_linker,
+        inputs.projects.included,
+        inputs.projects.supported_architectures.as_ref(),
+        &inputs.completion.catalogs,
+        inputs.projects.importers.manifests,
+        inputs.projects.filtered_install,
+        filesystem_now_ms(&inputs.projects.workspace_root),
+    );
+    state.settings.auto_dedupe = (inputs.completion.config.auto_dedupe
+        && inputs.materialized.fresh_lockfile.is_some())
+    .then_some(true);
+    update_workspace_state(&inputs.projects.workspace_root, &state)
+        .map_err(InstallError::WriteWorkspaceState)?;
     tracing::info!(target: "pacquet::install::phase", phase = "apply.workspace_state", elapsed_ms = phase_start.elapsed().as_millis() as u64, "phase complete");
 
     Ok(())

@@ -896,6 +896,6 @@ fn spdx_package<'a>(document: &'a serde_json::Value, name: &str) -> &'a serde_js
         .unwrap_or_else(|| panic!("find the {name} package"))
 }
 
-mod workspace;
-
+mod license;
 mod metadata;
+mod workspace;

@@ -1,21 +1,20 @@
 use super::{
-    AuditConfig, AuditLevel, BTreeMap, BTreeSet, CalcPatchHashError, CargoSettings, CatalogMode,
-    ColorMode, ConfigDependency, Ecosystem, EnvVar, GlobalShims, HashMap, HoistingLimits, Host,
-    IndexMap, InitType, LinkWorkspacePackages, NodeLinker, NodePackageMapType, PackageImportMethod,
-    PackageManagerBootstrap, PatchGroupRecord, PatchInput, Path, PathBuf, Pipe, PmOnFail,
-    ProjectConfig, PythonSettings, RegistryOptions, RemoteSideEffectsCacheSettings, ResolutionMode,
-    ResolvePatchedDependenciesError, RuntimeOnFail, SaveWorkspaceProtocol, ScriptsPrependNodePath,
-    SmartDefault, StoreDir, Tool, ToolSettings, TrustPolicy, VerifyDepsBeforeRun,
-    WorkspaceKeyIssues, create_hex_hash_from_file, default_cache_dir, default_child_concurrency,
-    default_enable_global_virtual_store, default_fetch_min_speed_ki_bps, default_fetch_retries,
-    default_fetch_retry_factor, default_fetch_retry_maxtimeout, default_fetch_retry_mintimeout,
-    default_fetch_timeout, default_fetch_warn_timeout_ms, default_git_shallow_hosts,
-    default_hoist_pattern, default_modules_cache_max_age, default_modules_dir,
-    default_peers_suffix_max_length, default_public_hoist_pattern, default_registry,
-    default_state_dir, default_store_dir, default_unsafe_perm, default_user_agent,
-    default_virtual_store_dir, default_virtual_store_dir_max_length, default_workspace_concurrency,
-    group_patched_dependencies, npmrc_auth, resolve_and_group, side_effects_cache_remote_env,
-    workspace_yaml,
+    AuditConfig, AuditLevel, BTreeMap, BTreeSet, CargoSettings, CatalogMode, ColorMode,
+    ConfigDependency, Ecosystem, EnvVar, GlobalShims, HashMap, HoistingLimits, Host, IndexMap,
+    InitType, LinkWorkspacePackages, NodeLinker, NodePackageMapType, PackageImportMethod,
+    PackageManagerBootstrap, PathBuf, Pipe, PmOnFail, ProjectConfig, PythonSettings,
+    RegistryOptions, RemoteSideEffectsCacheSettings, ResolutionMode, RuntimeOnFail,
+    SaveWorkspaceProtocol, ScriptsPrependNodePath, SmartDefault, StoreDir, Tool, ToolSettings,
+    TrustPolicy, VerifyDepsBeforeRun, WorkspaceKeyIssues, default_cache_dir,
+    default_child_concurrency, default_enable_global_virtual_store, default_fetch_min_speed_ki_bps,
+    default_fetch_retries, default_fetch_retry_factor, default_fetch_retry_maxtimeout,
+    default_fetch_retry_mintimeout, default_fetch_timeout, default_fetch_warn_timeout_ms,
+    default_git_shallow_hosts, default_hoist_pattern, default_modules_cache_max_age,
+    default_modules_dir, default_peers_suffix_max_length, default_public_hoist_pattern,
+    default_registry, default_state_dir, default_store_dir, default_tag_version_prefix,
+    default_unsafe_perm, default_user_agent, default_virtual_store_dir,
+    default_virtual_store_dir_max_length, default_workspace_concurrency, npmrc_auth,
+    side_effects_cache_remote_env, workspace_yaml,
 };
 
 pub(super) fn default_ci<Sys: EnvVar>(detect_ci: fn() -> bool) -> bool {
@@ -63,6 +62,10 @@ pub struct Config {
     /// configuration.
     #[default(_code = "default_ci::<Host>(is_ci::cached)")]
     pub ci: bool,
+
+    /// Whether the default reporter renders dependency and download progress.
+    #[default = true]
+    pub progress: bool,
 
     /// `updateNotifier` — whether `pnpm install` / `pnpm add` may check
     /// the registry once a day for a newer pnpm and print a notice when
@@ -164,6 +167,8 @@ pub struct Config {
     /// [`WorkspaceKeyIssues`]), for the CLI to report. Empty when there is no
     /// workspace manifest or it is clean.
     pub workspace_key_issues: WorkspaceKeyIssues,
+
+    pub npmrc_warnings: Vec<String>,
 
     /// When true, all dependencies are hoisted to `node_modules/.pnpm/node_modules`.
     /// This makes unlisted dependencies accessible to all packages inside `node_modules`.
@@ -621,16 +626,9 @@ pub struct Config {
     /// The `registries` setting.
     pub registry_options_by_url: BTreeMap<String, RegistryOptions>,
 
-    /// The indexes each non-npm ecosystem resolves from, in the order the
-    /// configuration declares them, which is the order they are searched.
-    /// From the `registries` entries that name an `ecosystem`.
-    /// npm is absent: its registries are the three lookups above, which
-    /// carry the scope and prefix routing npm packages are addressed by.
-    ///
-    /// Read through [`Config::python_indexes`] and
-    /// [`Config::cargo_index_url`], which answer with the ecosystem's
-    /// default index when the configuration names none.
-    pub indexes_by_ecosystem: BTreeMap<Ecosystem, Vec<String>>,
+    /// The indexes and exclusive package routes declared for non-npm ecosystems.
+    /// Read through `python_indexes` and `cargo_index_url`.
+    pub indexes_by_ecosystem: BTreeMap<Ecosystem, Vec<crate::EcosystemIndex>>,
 
     /// Resolved proxy configuration — `https-proxy`, `http-proxy`, and
     /// `no-proxy` (plus the legacy `proxy` key and env-var fallbacks),
@@ -760,6 +758,9 @@ pub struct Config {
     /// default `false`.
     pub dedupe_peers: bool,
 
+    /// Deduplicate compatible versions during non-frozen installs.
+    pub auto_dedupe: bool,
+
     /// When `true`, a direct dependency of a non-root workspace
     /// project is omitted from that project's `node_modules/` when
     /// the workspace root resolves the same alias to the same target.
@@ -856,12 +857,11 @@ pub struct Config {
     /// instead of skipped, mirroring pnpm's `!opts.force &&
     /// packageIsInstallable(...)` gate in its dep-graph builders.
     ///
+    /// It also re-materializes every slot, changed or not.
+    ///
     /// CLI-only (merged from `--force` on `pnpm install` / `pnpm add` /
     /// `pnpm deploy` at the dispatch, like `ignoreScripts`); not a
-    /// `pnpm-workspace.yaml` / `.npmrc` setting. On the frozen path it
-    /// also discards the previous install's per-snapshot skip decision,
-    /// mirroring pnpm's `lockfileToDepGraph(…, opts.force ? null :
-    /// currentLockfile)`, so already-materialized packages are relinked.
+    /// `pnpm-workspace.yaml` / `.npmrc` setting.
     pub force: bool,
 
     /// Whether to consult the side-effects cache
@@ -1008,7 +1008,7 @@ pub struct Config {
 
     /// Directory containing the nearest ancestor `pnpm-workspace.yaml`.
     /// Set by [`WorkspaceSettings::apply_to`](crate::WorkspaceSettings::apply_to) when yaml was found, so
-    /// later install-time code (notably [`resolve_and_group`] for
+    /// later install-time code (notably [`pnpm_patching::resolve_and_group`] for
     /// `patchedDependencies`) can resolve relative paths against the
     /// same dir pnpm does. `None` when no `pnpm-workspace.yaml` exists
     /// anywhere up the tree — in that case there are no patches /
@@ -1114,6 +1114,15 @@ pub struct Config {
     #[default(true)]
     pub git_checks: bool,
 
+    /// `tagVersionPrefix` (`--tag-version-prefix`). Prefix prepended to the
+    /// version when `pnpm version` creates its git tag, and stripped when
+    /// `pnpm version from-git` reads the version back from the latest tag.
+    /// Settable via `tagVersionPrefix` in `pnpm-workspace.yaml` or the global
+    /// `config.yaml`, layered over by the CLI flag. An empty string removes
+    /// the prefix. Default `"v"`.
+    #[default(_code = "default_tag_version_prefix()")]
+    pub tag_version_prefix: String,
+
     /// `scriptsPrependNodePath` from `pnpm-workspace.yaml`. Controls
     /// whether `dirname(node_execpath)` is prepended to `PATH` when
     /// running lifecycle scripts. Default `Never` (`scriptsPrependNodePath:
@@ -1208,9 +1217,14 @@ pub struct Config {
     /// [`TaskSettings::concurrency_group`](workspace_yaml::TaskSettings::concurrency_group),
     /// how many of the group's tasks may run at once on this machine,
     /// counted across every pnpm process. A task past its group's limit
-    /// waits for a running one to finish. A group no entry names has no
-    /// limit, and neither has a group whose entry is `0`, which is how a
-    /// higher layer lifts a limit a lower one set.
+    /// waits for a running one to finish. Waiters start in the order they
+    /// began waiting, and a higher
+    /// [`TaskSettings::priority`](workspace_yaml::TaskSettings::priority)
+    /// starts before waiters that arrived earlier. When limits differ
+    /// across workspaces, a later waiter can take a free slot outside
+    /// every earlier waiter's limit. A group no entry names
+    /// has no limit, and neither has a group whose entry is `0`, which is
+    /// how a higher layer lifts a limit a lower one set.
     ///
     /// Each configuration layer merges its entries into the map, so a
     /// workspace can raise or lower one group's limit without restating
@@ -1744,76 +1758,6 @@ impl Config {
         Self::default()
     }
 
-    pub fn resolved_patched_dependencies(
-        &self,
-    ) -> Result<Option<PatchGroupRecord>, ResolvePatchedDependenciesError> {
-        if let Some(hashes) = self.patched_dependency_hashes_override.as_ref() {
-            let groups = group_patched_dependencies(
-                hashes
-                    .iter()
-                    .map(|(key, hash)| {
-                        (key.clone(), PatchInput { hash: hash.clone(), patch_file_path: None })
-                    }),
-            )?;
-            return Ok((!groups.is_empty()).then_some(groups));
-        }
-        let (Some(workspace_dir), Some(raw)) = (&self.workspace_dir, &self.patched_dependencies)
-        else {
-            return Ok(None);
-        };
-        resolve_and_group(workspace_dir, raw)
-    }
-
-    /// Resolve relative patch file paths in
-    /// [`Config::patched_dependencies`] against
-    /// [`Config::workspace_dir`] and hash each file, producing the
-    /// `patchedDependencies` map the lockfile records: each configured
-    /// key mapped to its patch file's SHA-256 hex digest.
-    ///
-    /// Distinct from [`Self::resolved_patched_dependencies`], which
-    /// groups the same entries by package name for the resolver — this
-    /// keeps the user's verbatim keys so the lockfile is byte-faithful
-    /// (e.g. a bare `foo` and `foo@*` stay separate keys rather than
-    /// collapsing into one group bucket).
-    ///
-    /// Returns `Ok(None)` when either field is unset.
-    pub fn patched_dependency_hashes(
-        &self,
-    ) -> Result<Option<BTreeMap<String, String>>, CalcPatchHashError> {
-        Ok(self
-            .patched_dependency_hashes_in_config_order()?
-            .map(|hashes| hashes.into_iter().collect()))
-    }
-
-    /// Return patch hashes in configured selector order.
-    ///
-    /// Precomputed overrides avoid file reads. Without an override, each
-    /// configured patch file is hashed and any I/O or hashing error is
-    /// propagated. Returns `None` when no non-empty patch configuration is
-    /// available.
-    pub fn patched_dependency_hashes_in_config_order(
-        &self,
-    ) -> Result<Option<IndexMap<String, String>>, CalcPatchHashError> {
-        if let Some(hashes) = self.patched_dependency_hashes_override.as_ref() {
-            return Ok((!hashes.is_empty()).then(|| hashes.clone()));
-        }
-        let (Some(workspace_dir), Some(raw)) = (&self.workspace_dir, &self.patched_dependencies)
-        else {
-            return Ok(None);
-        };
-        let mut hashes = IndexMap::with_capacity(raw.len());
-        for (key, rel_or_abs) in raw {
-            let candidate = Path::new(rel_or_abs);
-            let path = if candidate.is_absolute() {
-                candidate.to_path_buf()
-            } else {
-                workspace_dir.join(candidate)
-            };
-            hashes.insert(key.clone(), create_hex_hash_from_file(&path)?);
-        }
-        Ok((!hashes.is_empty()).then_some(hashes))
-    }
-
     /// Persist the config data until the program terminates.
     pub fn leak(self) -> &'static mut Self {
         self.pipe(Box::new).pipe(Box::leak)
@@ -1821,3 +1765,4 @@ impl Config {
 }
 
 mod cache;
+mod patches;

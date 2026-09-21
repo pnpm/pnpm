@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/workspace.project-manifest-writer",
-  "version": "1100.0.16",
+  "version": "1100.0.17",
   "description": "Write a project manifest (called package.json in most cases)",
   "keywords": [
     "pnpm",
@@ -31,11 +31,13 @@
     ".test": "cross-env NODE_OPTIONS=\"$NODE_OPTIONS --experimental-vm-modules --disable-warning=ExperimentalWarning --disable-warning=DEP0169\" jest"
   },
   "dependencies": {
+    "@pnpm/error": "workspace:*",
     "@pnpm/text.comments-parser": "workspace:*",
     "@pnpm/types": "workspace:*",
+    "@pnpm/yaml.document-sync": "workspace:*",
     "json5": "catalog:",
     "write-file-atomic": "catalog:",
-    "write-yaml-file": "catalog:"
+    "yaml": "catalog:"
   },
   "devDependencies": {
     "@jest/globals": "catalog:",

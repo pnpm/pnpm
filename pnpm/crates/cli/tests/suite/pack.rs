@@ -149,6 +149,7 @@ fn pack_installs_config_dependencies_before_loading_hooks() {
     fs::write(workspace_yaml, settings).expect("write configDependencies");
 
     pacquet
+        .with_env("PNPM_CONFIG_NPMRC_AUTH_FILE", workspace.join(".npmrc"))
         .with_arg("pack")
         .assert()
         .success();

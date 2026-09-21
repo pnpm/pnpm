@@ -27,7 +27,9 @@ pub use get_node_artifact_address::{
 pub use get_node_mirror::{
     DEFAULT_NODE_MIRROR_BASE_URL, UNOFFICIAL_NODE_MIRROR_BASE_URL, get_node_mirror,
 };
-pub use node_resolver::{NodeResolver, NodeResolverError};
+pub use node_resolver::{
+    NodeResolver, NodeResolverError, normalize_node_runtime_version_specifier,
+};
 pub use normalize_arch::get_normalized_arch;
 pub use parse_node_specifier::{NodeSpecifier, ParseNodeSpecifierError, parse_node_specifier};
 pub use resolve_node_version::{

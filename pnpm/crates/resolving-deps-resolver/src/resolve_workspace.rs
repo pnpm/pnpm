@@ -15,6 +15,9 @@
 //! at a time. The peer-walker share captures the hot path; the
 //! resolved-pkgs share is a follow-up perf win.
 
+pub use dependencies::{ResolvedWorkspaceDependencies, resolve_workspace_dependencies};
+
+mod dependencies;
 mod time_based;
 use time_based::{TimeBasedCutoff, time_cutoff};
 
@@ -156,6 +159,9 @@ pub struct WorkspaceLockfileReuse {
     /// past the ceiling keep their locked resolutions even when their
     /// name is an update target.
     pub depth: UpdateDepth,
+    /// Reconsider these packages using the existing-version preferences,
+    /// without treating them as explicit update targets.
+    pub dedupe: crate::UpdateTargets,
 }
 
 #[derive(Default)]
@@ -204,13 +210,16 @@ where
     Chain: Resolver + ?Sized,
     BuildImporterOptions: FnMut(&WorkspaceImporter<'a>) -> ResolveImporterOptions,
 {
-    let (workspace, settings) = opts.split();
-    let sorted = sorted_importers(importers, per_importer_options, &settings);
-    let cutoff = time_cutoff(resolver, &sorted, dependency_groups, &settings).await;
-    let mut initialized =
-        init_importers(resolver, sorted, dependency_groups, &cutoff, &settings, &workspace).await?;
-    run_hoist_rounds(resolver, &mut initialized.states, &workspace).await?;
-    Ok(finish(&settings, workspace, initialized, cutoff.time))
+    resolve_workspace_dependencies(
+        resolver,
+        importers,
+        dependency_groups,
+        opts,
+        per_importer_options,
+    )
+    .await?
+    .resolve_peers(resolver)
+    .await
 }
 
 /// What the pass keeps for itself once the shared tree context has
@@ -284,8 +293,8 @@ where
     SortedImporters { importers, opts }
 }
 
-struct InitializedImporters<'i, 'a> {
-    importers: Vec<&'i WorkspaceImporter<'a>>,
+struct InitializedImporters {
+    importer_ids: Vec<String>,
     states: Vec<ImporterHoistState>,
     /// Each importer's project and modules dir, for its peer input.
     input_dirs: Vec<(PathBuf, Option<PathBuf>)>,
@@ -304,14 +313,14 @@ struct InitializedImporters<'i, 'a> {
 /// so the resolved graph is the same regardless of interleaving, and
 /// a large workspace's walks overlap their resolver and hook waits
 /// instead of paying them importer by importer.
-async fn init_importers<'i, 'a, Chain>(
+async fn init_importers<Chain>(
     resolver: &Chain,
-    sorted: SortedImporters<'i, 'a>,
+    sorted: SortedImporters<'_, '_>,
     dependency_groups: &[DependencyGroup],
     cutoff: &TimeBasedCutoff,
     settings: &PassSettings,
     workspace: &Arc<WorkspaceTreeCtx>,
-) -> Result<InitializedImporters<'i, 'a>, ResolveImporterError>
+) -> Result<InitializedImporters, ResolveImporterError>
 where
     Chain: Resolver + ?Sized,
 {
@@ -343,8 +352,11 @@ where
             .await?,
         );
     }
-    share_root_deps(&mut states)?;
-    Ok(InitializedImporters { importers: sorted.importers, states, input_dirs })
+    let importer_ids = sorted.importers
+        .into_iter()
+        .map(|importer| importer.id.clone())
+        .collect();
+    Ok(InitializedImporters { importer_ids, states, input_dirs })
 }
 
 /// Computed after the init barrier and shared unchanged: recomputing it
@@ -389,7 +401,7 @@ where
 fn finish(
     settings: &PassSettings,
     workspace: Arc<WorkspaceTreeCtx>,
-    initialized: InitializedImporters<'_, '_>,
+    initialized: InitializedImporters,
     time: BTreeMap<String, String>,
 ) -> ResolveWorkspaceResult {
     let peer_inputs = importer_peer_inputs(initialized);
@@ -411,22 +423,17 @@ struct PeerInputs {
     hoisted_provider_node_ids: std::collections::HashSet<crate::NodeId, rustc_hash::FxBuildHasher>,
 }
 
-fn importer_peer_inputs(initialized: InitializedImporters<'_, '_>) -> PeerInputs {
-    let mut per_importer = Vec::with_capacity(initialized.importers.len());
+fn importer_peer_inputs(initialized: InitializedImporters) -> PeerInputs {
+    let mut per_importer = Vec::with_capacity(initialized.importer_ids.len());
     let mut hoisted_provider_node_ids = std::collections::HashSet::default();
-    for ((importer, state), (project_dir, modules_dir)) in initialized.importers
-        .iter()
+    for ((id, state), (project_dir, modules_dir)) in initialized.importer_ids
+        .into_iter()
         .zip(initialized.states)
         .zip(initialized.input_dirs)
     {
         let (direct, importer_provider_node_ids) = state.into_direct();
         hoisted_provider_node_ids.extend(importer_provider_node_ids);
-        per_importer.push(ImporterPeerInput {
-            id: importer.id.clone(),
-            direct,
-            root_dir: project_dir,
-            modules_dir,
-        });
+        per_importer.push(ImporterPeerInput { id, direct, root_dir: project_dir, modules_dir });
     }
     PeerInputs { per_importer, hoisted_provider_node_ids }
 }

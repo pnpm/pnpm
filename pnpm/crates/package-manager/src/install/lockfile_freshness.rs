@@ -1,6 +1,6 @@
 pub(super) mod manifest;
-pub(crate) use manifest::check_importer_satisfies;
 pub(super) use manifest::manifest_has_effective_dependencies;
+pub(crate) use manifest::{ImporterSatisfactionCheck, check_importer_satisfies};
 
 use rayon::prelude::*;
 
@@ -91,6 +91,7 @@ async fn workspace_manifests_satisfy(
     };
     let project_manifests =
         build_project_manifests_list(check.manifest, workspace_projects.as_deref());
+    let workspace_packages = workspace_packages_for_freshness(check, workspace_projects.as_deref());
     let manifest_freshness_inputs: Vec<(String, &PackageManifest)> = project_manifests
         .iter()
         .map(|(project_dir, project_manifest)| {
@@ -105,6 +106,7 @@ async fn workspace_manifests_satisfy(
         &LockfileFreshnessInputs {
             lockfile_dir: lockfile_root,
             manifests: &manifest_freshness_inputs,
+            workspace_packages: workspace_packages.as_ref(),
             config: check.config,
             catalogs: check.catalogs,
             pnpmfile_hook: None,
@@ -119,9 +121,20 @@ async fn workspace_manifests_satisfy(
     .is_ok()
 }
 
+fn workspace_packages_for_freshness(
+    check: &WantedLockfileSatisfactionCheck<'_>,
+    workspace_projects: Option<&[pnpm_workspace::Project]>,
+) -> Option<pnpm_resolving_resolver_base::WorkspacePackages> {
+    (check.config.exclude_links_from_lockfile
+        && check.config.link_workspace_packages.enabled_at_depth(0))
+    .then(|| super::build_workspace_packages_map(workspace_projects))
+    .flatten()
+}
+
 pub(super) struct LockfileFreshnessInputs<'a, 'manifest> {
     pub(super) lockfile_dir: &'a Path,
     pub(super) manifests: &'a [(String, &'manifest PackageManifest)],
+    pub(super) workspace_packages: Option<&'a pnpm_resolving_resolver_base::WorkspacePackages>,
     pub(super) config: &'a Config,
     pub(super) catalogs: &'a Catalogs,
     pub(super) pnpmfile_hook: Option<&'a Arc<dyn pnpm_hooks::PnpmfileHooks>>,
@@ -237,30 +250,24 @@ pub(super) async fn check_lockfile_freshness(
     lockfile: &Lockfile,
     inputs: &LockfileFreshnessInputs<'_, '_>,
 ) -> Result<(), FreshnessCheckError> {
-    let LockfileFreshnessInputs {
-        lockfile_dir,
-        manifests: manifest_freshness_inputs,
-        config,
-        catalogs,
-        pnpmfile_hook,
-        scope,
-    } = *inputs;
-    let parsed_overrides_opt = parse_config_overrides(config, catalogs)?;
-    let pnpmfile_checksum =
-        pnpm_hooks::current_pnpmfile_checksum(pnpmfile_hook, lockfile.pnpmfile_checksum.as_deref())
-            .await;
+    let parsed_overrides_opt = parse_config_overrides(inputs.config, inputs.catalogs)?;
+    let pnpmfile_checksum = pnpm_hooks::current_pnpmfile_checksum(
+        inputs.pnpmfile_hook,
+        lockfile.pnpmfile_checksum.as_deref(),
+    )
+    .await;
     check_lockfile_settings_drift(
         lockfile,
-        config,
-        catalogs,
+        inputs.config,
+        inputs.catalogs,
         CheckLockfileSettingsDriftOptions {
             parsed_overrides: parsed_overrides_opt.as_deref(),
             pnpmfile_checksum: PnpmfileChecksumCheck::Current(pnpmfile_checksum.as_deref()),
-            dedupe_peers: config.dedupe_peers,
+            dedupe_peers: inputs.config.dedupe_peers,
         },
     )?;
 
-    if scope.ignore_manifest_check {
+    if inputs.scope.ignore_manifest_check {
         return Ok(());
     }
 
@@ -268,8 +275,8 @@ pub(super) async fn check_lockfile_freshness(
     // than the workspace, and it is a root in every reachability walk, so
     // it also keeps that project's dependencies alive. Only an unfiltered
     // install sees the whole project list, so only it may conclude this.
-    if scope.prune_stale_importers
-        && let Some(importer_id) = removed_importer_id(lockfile, manifest_freshness_inputs)
+    if inputs.scope.prune_stale_importers
+        && let Some(importer_id) = removed_importer_id(lockfile, inputs.manifests)
     {
         return Err(FreshnessCheckError::Stale(StalenessReason::RemovedImporter {
             importer_id: importer_id.to_string(),
@@ -278,11 +285,12 @@ pub(super) async fn check_lockfile_freshness(
 
     check_importer_freshness(
         lockfile,
-        lockfile_dir,
-        manifest_freshness_inputs,
-        config,
+        inputs.lockfile_dir,
+        inputs.manifests,
+        inputs.config,
+        inputs.workspace_packages,
         parsed_overrides_opt.as_deref(),
-        scope.allow_missing_dependency_free_importers,
+        inputs.scope.allow_missing_dependency_free_importers,
     )
 }
 
@@ -292,6 +300,7 @@ fn check_importer_freshness(
     lockfile_dir: &Path,
     manifest_freshness_inputs: &[(String, &PackageManifest)],
     config: &Config,
+    workspace_packages: Option<&pnpm_resolving_resolver_base::WorkspacePackages>,
     parsed_overrides: Option<&[pnpm_config_parse_overrides::VersionOverride]>,
     allow_missing_dependency_free_importers: bool,
 ) -> Result<(), FreshnessCheckError> {
@@ -311,15 +320,16 @@ fn check_importer_freshness(
             {
                 return Ok(());
             }
-            check_importer_satisfies(
+            check_importer_satisfies(&ImporterSatisfactionCheck {
                 lockfile,
                 lockfile_dir,
                 manifest,
                 importer_id,
                 config,
-                &ignored_optional_matcher,
+                workspace_packages,
+                ignored_optional_matcher: &ignored_optional_matcher,
                 parsed_overrides,
-            )
+            })
         })
         .collect();
     for result in results {

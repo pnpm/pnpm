@@ -94,6 +94,7 @@ impl From<LocalResolveResult> for ResolveResult {
                 latest: None,
                 published_at: None,
                 manifest: result.manifest,
+                non_deprecated_alternative: None,
             },
         }
     }

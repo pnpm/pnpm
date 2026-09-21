@@ -42,13 +42,15 @@ pub(super) fn early_repeat_verdict(
 ///
 /// The workspace branch rewrites the state; the single-project branch keys
 /// its comparisons off the lockfile mtimes instead and leaves the state
-/// alone. A failed write only costs the next run a repeat of the content
+/// alone, unless the tree `moved` and the state has to be recorded where it
+/// is now. A failed write only costs the next run a repeat of the content
 /// check, so it degrades rather than fails.
 pub(super) fn settle_repeat_install(
     check: &OptimisticRepeatInstallCheck<'_>,
     state: &WorkspaceState,
     loaded_current: Option<Lockfile>,
     filesystem_now: Option<i64>,
+    moved: bool,
 ) -> Result<(), &'static str> {
     let &OptimisticRepeatInstallCheck {
         workspace_root,
@@ -66,14 +68,14 @@ pub(super) fn settle_repeat_install(
         ..
     } = check;
     regenerate_wanted_lockfile_if_missing(check, loaded_current)?;
-    if !is_workspace_install {
+    if !is_workspace_install && !moved {
         return Ok(());
     }
     // This path refreshes the timestamp without materializing anything, so
     // it carries the previous run's `filtered_install` forward: clearing it
     // would claim every importer is materialized when a filtered install
     // left the unselected ones untouched.
-    let new_state = crate::install::build_workspace_state::<Host>(
+    let mut new_state = crate::install::build_workspace_state::<Host>(
         workspace_root,
         config,
         node_linker,
@@ -84,6 +86,7 @@ pub(super) fn settle_repeat_install(
         state.filtered_install,
         filesystem_now,
     );
+    new_state.settings.auto_dedupe = state.settings.auto_dedupe;
     if let Err(error) = update_workspace_state(workspace_root, &new_state) {
         tracing::warn!(
             target: "pacquet::install",

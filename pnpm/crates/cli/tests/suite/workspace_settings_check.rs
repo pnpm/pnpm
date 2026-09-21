@@ -1,9 +1,13 @@
-//! Reporting of `pnpm-workspace.yaml` keys that set nothing: unrecognized
-//! settings warn, harden into an error when the running pnpm is the version
-//! the project pins, and stay off `pnpm config get <key>` entirely.
+//! Reporting of `pnpm-workspace.yaml` keys that set nothing, the `tasks`
+//! entries' own fields included: unrecognized settings warn, harden into an
+//! error when the running pnpm is the version the project pins, and stay off
+//! `pnpm config get <key>` entirely.
 
+use command_extra::CommandExtra;
 use pnpm_testing_utils::{
-    bin::CommandTempCwd, diagnostics::assert_diagnostic_contains as assert_contains,
+    bin::{AddMockedRegistry, CommandTempCwd},
+    command_env::CommandTestExt,
+    diagnostics::assert_diagnostic_contains as assert_contains,
 };
 use std::{
     fs,
@@ -45,6 +49,98 @@ fn an_unrecognized_workspace_setting_fails_when_the_running_pnpm_is_the_pinned_v
 }
 
 #[test]
+fn an_unrecognized_task_setting_warns_without_a_pin() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    write_plain_manifest(&workspace);
+    write_workspace_yaml(&workspace, "packages:\n  - .\ntasks:\n  build:\n    laterSetting: 1\n");
+
+    let output = run(pacquet, root.path(), &["install", "--lockfile-only"]);
+
+    assert_success(&output);
+    assert_contains(
+        &stderr(&output),
+        r#"[WARN] The following task settings in pnpm-workspace.yaml are not recognized by this version of pnpm and were ignored: "tasks['build'].laterSetting"."#,
+    );
+}
+
+/// The pin is resolved after the configuration loads, so a task setting only
+/// the pinned pnpm reads must not stop this pnpm from switching to it: the
+/// version that answers is the pinned one, not this one.
+#[test]
+fn an_unrecognized_task_setting_does_not_stop_the_switch_to_the_pinned_version() {
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    fs::write(workspace.join("package.json"), r#"{"packageManager":"pnpm@9.3.0"}"#)
+        .expect("write package.json");
+    write_workspace_yaml(&workspace, "packages:\n  - .\ntasks:\n  build:\n    laterSetting: 1\n");
+    let mut pacquet = pacquet;
+    pacquet.env("PNPM_CONFIG_REGISTRY", mock_instance.url());
+
+    let output = run(pacquet, root.path(), &["--version"]);
+
+    assert_success(&output);
+    assert_eq!(stdout(&output), "9.3.0\n");
+    // The pinned pnpm reads the file for itself, so the one handing over says
+    // nothing about a setting it does not understand.
+    let stderr = stderr(&output);
+    assert!(!stderr.contains("not recognized"), "the switching pnpm should stay quiet: {stderr}");
+
+    drop((root, mock_instance));
+}
+
+#[test]
+fn an_unrecognized_task_setting_fails_when_the_running_pnpm_is_the_pinned_version() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    write_workspace_yaml(
+        &workspace,
+        "packages:\n  - .\ntasks:\n  build:\n    dependson: ['^build']\n",
+    );
+    write_package_manager_pin(&workspace);
+
+    let output =
+        run(pacquet, root.path(), &["install", "--lockfile-only", "--config.pm-on-fail=error"]);
+
+    assert_failure(&output);
+    let stderr = stderr(&output);
+    assert_contains(&stderr, "ERR_PNPM_UNRECOGNIZED_WORKSPACE_SETTINGS");
+    assert_contains(
+        &stderr,
+        r#"The following task settings in pnpm-workspace.yaml are not recognized by this version of pnpm: "tasks['build'].dependson"."#,
+    );
+}
+
+/// Both reports have to come out of the same run: the key is what fails the
+/// command, so a task setting left for the run that fixes the key would not
+/// be seen until then.
+#[test]
+fn a_task_setting_is_reported_when_an_unrecognized_key_takes_the_error() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    write_workspace_yaml(
+        &workspace,
+        "minimumReleaseAg: 100\npackages:\n  - .\ntasks:\n  build:\n    laterSetting: 1\n",
+    );
+    write_package_manager_pin(&workspace);
+
+    let output =
+        run(pacquet, root.path(), &["install", "--lockfile-only", "--config.pm-on-fail=error"]);
+
+    assert_failure(&output);
+    let stderr = stderr(&output);
+    assert_contains(
+        &stderr,
+        r#"[WARN] The following task settings in pnpm-workspace.yaml are not recognized by this version of pnpm and were ignored: "tasks['build'].laterSetting"."#,
+    );
+    assert_contains(&stderr, "ERR_PNPM_UNRECOGNIZED_WORKSPACE_SETTINGS");
+    assert_contains(&stderr, r#""minimumReleaseAg""#);
+}
+
+#[test]
 fn a_kebab_case_spelling_of_a_known_setting_warns() {
     let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
     write_plain_manifest(&workspace);
@@ -56,6 +152,73 @@ fn a_kebab_case_spelling_of_a_known_setting_warns() {
     assert_contains(
         &stderr(&output),
         r#"[WARN] The following settings in pnpm-workspace.yaml were ignored because they are not written in camelCase: "store-dir" (use "storeDir")."#,
+    );
+}
+
+#[test]
+fn shared_workspace_lockfile_cli_option_warns_outside_a_workspace() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    write_plain_manifest(&workspace);
+
+    let output =
+        run(pacquet, root.path(), &["install", "--lockfile-only", "--shared-workspace-lockfile"]);
+
+    assert_success(&output);
+    assert_contains(
+        &stderr(&output),
+        r#"[WARN] The "shared-workspace-lockfile" option was ignored because no "pnpm-workspace.yaml" was found."#,
+    );
+}
+
+#[test]
+fn shared_workspace_lockfile_cli_option_warns_for_a_query_command() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    write_plain_manifest(&workspace);
+
+    let output = run(pacquet, root.path(), &["list", "--shared-workspace-lockfile"]);
+
+    assert_success(&output);
+    assert_contains(
+        &stderr(&output),
+        r#"[WARN] The "shared-workspace-lockfile" option was ignored because no "pnpm-workspace.yaml" was found."#,
+    );
+}
+
+#[test]
+fn shared_workspace_lockfile_cli_option_warns_on_the_install_fast_path() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    write_plain_manifest(&workspace);
+    let program = pacquet.get_program().to_owned();
+
+    let first = run(pacquet, root.path(), &["install"]);
+    assert_success(&first);
+
+    let second = run(
+        Command::new(program).with_current_dir(&workspace).without_ambient_pnpm_config(),
+        root.path(),
+        &["install", "--shared-workspace-lockfile"],
+    );
+
+    assert_success(&second);
+    assert_contains(
+        &stderr(&second),
+        r#"[WARN] The "shared-workspace-lockfile" option was ignored because no "pnpm-workspace.yaml" was found."#,
+    );
+}
+
+#[test]
+fn configured_shared_workspace_lockfile_stays_quiet_outside_a_workspace() {
+    let CommandTempCwd { mut pacquet, root, workspace, .. } = CommandTempCwd::init();
+    write_plain_manifest(&workspace);
+    pacquet.env("PNPM_CONFIG_SHARED_WORKSPACE_LOCKFILE", "true");
+
+    let output = run(pacquet, root.path(), &["install", "--lockfile-only"]);
+
+    assert_success(&output);
+    let stderr = stderr(&output);
+    assert!(
+        !stderr.contains("shared-workspace-lockfile"),
+        "configured value should stay quiet: {stderr}",
     );
 }
 

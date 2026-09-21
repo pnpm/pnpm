@@ -386,6 +386,89 @@ fn global_remove_preflights_survivors_before_mutating_targets() {
     drop(root);
 }
 
+/// A survivor whose `node_modules` is gone can no longer claim the shared
+/// bin, so removing the target takes the shim with it. Nothing that worked
+/// stops working: the survivor's own tree is already unusable.
+#[cfg(unix)]
+#[test]
+fn global_remove_stops_protecting_a_bin_of_a_survivor_without_node_modules() {
+    use assert_cmd::assert::OutputAssertExt;
+
+    let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
+    let pnpm_home = root.path().join("pnpm-home");
+    let global_bin = pnpm_home.join("bin");
+    let global_pkg_dir = pnpm_home.join("global/v11");
+    fs::create_dir_all(&global_bin).expect("create global bin directory");
+    fs::create_dir_all(&global_pkg_dir).expect("create global packages directory");
+    assert_fixture_paths(root.path(), &[&pnpm_home, &global_bin, &global_pkg_dir]);
+
+    let target_install = seed_global_group(
+        &global_pkg_dir,
+        "target-hash",
+        &[("victim", Some(r#"{"name":"victim","version":"1.0.0","bin":{"shared":"shared.js"}}"#))],
+    );
+    let survivor_install = seed_global_group(
+        &global_pkg_dir,
+        "survivor-hash",
+        &[("keeper", Some(r#"{"name":"keeper","version":"1.0.0","bin":{"shared":"keeper.js"}}"#))],
+    );
+    fs::remove_dir_all(survivor_install.join("node_modules"))
+        .expect("delete the survivor's node_modules");
+    let shared_bin = global_bin.join("shared");
+    fs::write(&shared_bin, b"keeper command\n").expect("seed the shared bin");
+
+    global_command(&workspace, &pnpm_home)
+        .with_args(["remove", "-g", "victim"])
+        .assert()
+        .success();
+    assert!(!target_install.exists());
+    assert!(survivor_install.exists());
+    assert!(!shared_bin.exists());
+
+    drop(root);
+}
+
+#[cfg(unix)]
+#[test]
+fn global_remove_unsticks_a_group_whose_node_modules_was_deleted() {
+    use assert_cmd::assert::OutputAssertExt;
+
+    let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
+    let pnpm_home = root.path().join("pnpm-home");
+    let global_bin = pnpm_home.join("bin");
+    let global_pkg_dir = pnpm_home.join("global/v11");
+    fs::create_dir_all(&global_bin).expect("create global bin directory");
+    fs::create_dir_all(&global_pkg_dir).expect("create global packages directory");
+    assert_fixture_paths(root.path(), &[&pnpm_home, &global_bin, &global_pkg_dir]);
+
+    let healthy_install = seed_global_group(
+        &global_pkg_dir,
+        "healthy-hash",
+        &[(
+            "victim-a",
+            Some(r#"{"name":"victim-a","version":"1.0.0","bin":{"victim-a-bin":"cli.js"}}"#),
+        )],
+    );
+    let damaged_install = seed_global_group(&global_pkg_dir, "damaged-hash", &[("victim-b", None)]);
+    fs::remove_dir_all(damaged_install.join("node_modules"))
+        .expect("delete the damaged group's node_modules");
+    let healthy_bin = global_bin.join("victim-a-bin");
+    let damaged_bin = global_bin.join("victim-b-bin");
+    fs::write(&healthy_bin, b"healthy command\n").expect("seed healthy target bin");
+    fs::write(&damaged_bin, b"damaged command\n").expect("seed damaged target bin");
+
+    global_command(&workspace, &pnpm_home)
+        .with_args(["remove", "-g", "victim-a", "victim-b"])
+        .assert()
+        .success();
+    assert!(!healthy_install.exists());
+    assert!(!damaged_install.exists());
+    assert!(!healthy_bin.exists());
+    assert!(damaged_bin.exists(), "the damaged group's unaccounted bin is left in place");
+
+    drop(root);
+}
+
 /// `pacquet add -g pnpm` is rejected — pnpm is managed via `self-update`. An
 /// `npm:` alias installs pnpm under another name, but the package still carries
 /// pnpm's own `pnpm` bin, so it is rejected the same way. A comma-separated

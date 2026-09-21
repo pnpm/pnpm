@@ -148,30 +148,50 @@ export async function listForPackages (
   })
 }
 
+export interface ListOptions {
+  alwaysPrintRootPackage?: boolean
+  depth?: number
+  excludePeerDependencies?: boolean
+  lockfileDir: string
+  checkWantedLockfileOnly?: boolean
+  long?: boolean
+  include?: { [dependenciesField in DependenciesField]: boolean }
+  onlyProjects?: boolean
+  reportAs?: 'parseable' | 'tree' | 'json'
+  registriesByScope?: RegistriesByScope
+  registriesByPrefix?: Record<string, string>
+  showExtraneous?: boolean
+  modulesDir?: string
+  virtualStoreDirMaxLength: number
+  finders?: Finder[]
+  showSummary?: boolean
+}
+
 export async function list (
   projectPaths: string[],
-  maybeOpts: {
-    alwaysPrintRootPackage?: boolean
-    depth?: number
-    excludePeerDependencies?: boolean
-    lockfileDir: string
-    checkWantedLockfileOnly?: boolean
-    long?: boolean
-    include?: { [dependenciesField in DependenciesField]: boolean }
-    onlyProjects?: boolean
-    reportAs?: 'parseable' | 'tree' | 'json'
-    registriesByScope?: RegistriesByScope
-    registriesByPrefix?: Record<string, string>
-    showExtraneous?: boolean
-    modulesDir?: string
-    virtualStoreDirMaxLength: number
-    finders?: Finder[]
-    showSummary?: boolean
-  }
+  maybeOpts: ListOptions
 ): Promise<string> {
   const opts = { ...DEFAULTS, ...maybeOpts }
+  const pkgs = await getPackagesForListing(projectPaths, opts)
 
-  const pkgs = await Promise.all(
+  const print = getPrinter(opts.reportAs)
+  return print(pkgs, {
+    alwaysPrintRootPackage: opts.alwaysPrintRootPackage,
+    depth: opts.depth,
+    long: opts.long,
+    search: false,
+    showExtraneous: opts.showExtraneous,
+    showSummary: opts.showSummary,
+  })
+}
+
+export async function getPackagesForListing (
+  projectPaths: string[],
+  maybeOpts: ListOptions
+): Promise<PackageDependencyHierarchy[]> {
+  const opts = { ...DEFAULTS, ...maybeOpts }
+
+  return Promise.all(
     Object.entries(
       opts.depth === -1
         ? projectPaths.reduce((acc, projectPath) => {
@@ -203,16 +223,6 @@ export async function list (
         } as PackageDependencyHierarchy
       })
   )
-
-  const print = getPrinter(opts.reportAs)
-  return print(pkgs, {
-    alwaysPrintRootPackage: opts.alwaysPrintRootPackage,
-    depth: opts.depth,
-    long: opts.long,
-    search: false,
-    showExtraneous: opts.showExtraneous,
-    showSummary: opts.showSummary,
-  })
 }
 
 type Printer = (packages: PackageDependencyHierarchy[], opts: {

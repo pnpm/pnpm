@@ -607,9 +607,13 @@ export async function pickPackage (
         // document, and an upgraded-to-full document mirrors the condensed
         // form — `time` is all the next install needs from this slot.
         const writeCondensed = ctx.filterMetadata === true || (resultToSave !== fetched && meta !== resultToSave.meta)
+        // An upgrade replaced the abbreviated response with the full one while
+        // `pkgMirror` stayed the abbreviated slot, so its ETag no longer
+        // describes what is written — see `prepareJsonForDisk`.
+        const etagForDisk = resultToSave === fetched ? fetched.etag : undefined
         const jsonForDisk = writeCondensed
-          ? prepareJsonForDisk(meta, resultToSave.etag)
-          : prepareJsonForDisk(resultToSave.meta, resultToSave.etag, resultToSave.jsonText)
+          ? prepareJsonForDisk(meta, etagForDisk)
+          : prepareJsonForDisk(resultToSave.meta, etagForDisk, resultToSave.jsonText)
         saveMetaBestEffort(pkgMirror, jsonForDisk)
       }
       meta.etag = resultToSave.etag
@@ -671,33 +675,44 @@ async function maybeUpgradeAbbreviatedMetaForReleaseAge (
   // When `modified` is missing or malformed we fall through to the upgrade
   // fetch: prefer correctness (run the maturity check on real `time` data)
   // over saving a network call when our cached freshness signal is unusable.
-  // Forward etag/modified so the registry can answer 304 if the upgraded
-  // representation hasn't actually changed (rare on the npm registry where
-  // full and abbreviated have distinct etags, but cheap to support).
-  const fullFetchResult = await ctx.fetch(spec.name, {
-    authHeaderValue: opts.authHeaderValue,
-    fullMetadata: true,
-    etag: meta.etag,
-    modified: meta.modified,
-    registry: opts.registry,
-  })
+  // An ETag and a `Last-Modified` date describe one representation, and `meta`
+  // holds the abbreviated one. A registry that reuses them across both forms
+  // answers 304, leaving the maturity check without per-version publish dates.
+  let fullFetchResult: FetchMetadataResult | FetchMetadataNotModifiedResult
+  try {
+    fullFetchResult = await ctx.fetch(spec.name, {
+      authHeaderValue: opts.authHeaderValue,
+      fullMetadata: true,
+      registry: opts.registry,
+    })
+  } catch (err: unknown) {
+    // The registry declined to hand over a body. Since the request carries no
+    // validators, it says so by repeating an unsolicited 304 until the fetcher
+    // gives up, which throws instead of reporting `notModified`.
+    if (!isNotModifiedWithoutCacheError(err)) throw err
+    ctx.releaseAgeUpgradeCheckedPackuments?.add(meta)
+    return { meta }
+  }
   if (fullFetchResult.notModified) {
-    // Upgrade fetch came back 304: the registry has no fuller form of this
-    // document, so keep it and let `pickMatchingVersionFinal` fall through to
-    // its warn-and-skip path. Remember the outcome against the packument
-    // itself so no other pick in this resolver repeats the request.
+    // The registry has no fuller form of this document. An upgrade that cannot
+    // happen must not fail an install that would otherwise succeed: the
+    // maturity check falls back to the warn-or-error gate
+    // `minimumReleaseAgeIgnoreMissingTime` already governs.
     ctx.releaseAgeUpgradeCheckedPackuments?.add(meta)
     return { meta }
   }
   return { meta: fullFetchResult.meta, upgradedFrom: fullFetchResult }
 }
 
-/**
- * The meta to retain after a release-age upgrade check, persisted to the
- * mirror (unless dry-run) because the mirror otherwise still holds the
- * pre-upgrade abbreviated form without `time`, and every future install
- * would re-trigger the upgrade fetch.
- */
+function isNotModifiedWithoutCacheError (err: unknown): boolean {
+  return (
+    err != null &&
+    typeof err === 'object' &&
+    'code' in err &&
+    (err as { code: string }).code === 'ERR_PNPM_META_NOT_MODIFIED_WITHOUT_CACHE'
+  )
+}
+
 /**
  * The document to serve and cache after an upgrade attempt, marked so no
  * later pick in this resolver repeats the request.
@@ -706,8 +721,8 @@ async function maybeUpgradeAbbreviatedMetaForReleaseAge (
  * {@link maybeUpgradeAbbreviatedMetaForReleaseAge} because persisting the
  * response to the mirror can hand back a different object, and only the one
  * that reaches the cache is worth remembering. A registry whose full form is
- * no more complete than its abbreviated one answers `200` rather than `304`,
- * so both outcomes have to be marked — otherwise every dependency edge
+ * no more complete than its abbreviated one still answers `200`, so a
+ * successful upgrade has to be marked too — otherwise every dependency edge
  * re-asks for the same full document.
  */
 function upgradeMetaForCache (
@@ -733,8 +748,8 @@ function persistUpgradedMeta (
 ): PackageMeta {
   const metaForCache = condenseMetaForCache(ctx, upgradedFrom.meta)
   const jsonForDisk = metaForCache === upgradedFrom.meta
-    ? prepareJsonForDisk(upgradedFrom.meta, upgradedFrom.etag, upgradedFrom.jsonText)
-    : prepareJsonForDisk(metaForCache, upgradedFrom.etag)
+    ? prepareJsonForDisk(upgradedFrom.meta, undefined, upgradedFrom.jsonText)
+    : prepareJsonForDisk(metaForCache, undefined)
   saveMetaBestEffort(pkgMirror, jsonForDisk)
   return metaForCache
 }
@@ -812,6 +827,13 @@ export function getPkgMirrorPath (cacheDir: string, metaDir: string, registry: s
  *
  * The etag lives only in the headers line (`loadMeta` re-attaches it from
  * there), so a `meta` that carries one is serialized without it.
+ *
+ * An ETag identifies one representation, so a caller writing a document into
+ * a slot that ETag does not describe passes `undefined` — that is what the
+ * release-age upgrade does when it stores a full document in the abbreviated
+ * slot. `modified` is always written: it comes from the packument's own
+ * `time.modified`, which both representations report identically, so the next
+ * request is still conditional through `If-Modified-Since`.
  */
 export function prepareJsonForDisk (meta: PackageMeta, etag: string | undefined, jsonText?: string): string {
   const modified = meta.modified ?? meta.time?.modified

@@ -1,7 +1,7 @@
 use super::{
     FrozenScope, InstallError, InstallFrozenLockfile, Lockfile, LockfileEntries,
     MaterializationInputs, MaterializationOutput, Reporter, allow_builds_changed_since,
-    announce_headless_install, map_frozen_lockfile_error, prior_unbuilt_builds,
+    announce_headless_install, map_frozen_lockfile_error, previously_skipped, prior_unbuilt_builds,
     settle_frozen_verification,
 };
 
@@ -16,10 +16,7 @@ impl<'a> MaterializationInputs<'a, '_> {
             verified: lockfile,
             path: self.lockfiles.verification.derived_lockfile_path.as_deref(),
             current: self.lockfiles.current,
-            current_entries: LockfileEntries::of_previous_install(
-                self.lockfiles.current,
-                self.install.context.config.force,
-            ),
+            current_entries: LockfileEntries::of_previous_install(self.lockfiles.current),
             resolution_verifiers: self.workspace.requested_importer_ids.map_or(
                 self.lockfiles.verification.resolution_verifiers.as_slice(),
                 |_| &[][..],
@@ -48,6 +45,7 @@ impl<'a> MaterializationInputs<'a, '_> {
         lockfile: &'b Lockfile,
         frozen_verification_override: Option<crate::LockfileVerificationOverride<'b>>,
         prior_unbuilt_builds: &'b pnpm_deps_restorer::UnbuiltBuilds,
+        previously_skipped: &'b pnpm_deps_restorer::SkippedSnapshots,
     ) -> InstallFrozenLockfile<'b> {
         let seed = self.take_frozen_seed(frozen_verification_override);
         InstallFrozenLockfile {
@@ -72,7 +70,9 @@ impl<'a> MaterializationInputs<'a, '_> {
                     self.install.context.config,
                 ),
                 unbuilt_builds: prior_unbuilt_builds,
+                previously_skipped,
                 prune_orphans: self.modules.prune_orphans,
+                relink_every_slot_bin: self.modules.relink_every_slot_bin,
             },
             projects: pnpm_deps_restorer::FrozenProjectInputs {
                 workspace_root: self.workspace.workspace_root,
@@ -116,8 +116,15 @@ impl<'a> MaterializationInputs<'a, '_> {
         )
         .await?;
         let prior_unbuilt = prior_unbuilt_builds(self.modules.modules_manifest);
+        let prior_skipped = previously_skipped(self.modules.modules_manifest);
         let frozen_result = self
-            .frozen_installer(&scope, lockfile, frozen_verification_override, &prior_unbuilt)
+            .frozen_installer(
+                &scope,
+                lockfile,
+                frozen_verification_override,
+                &prior_unbuilt,
+                &prior_skipped,
+            )
             .run::<Reporter>()
             .await
             // Surface a verification failure as the same top-level

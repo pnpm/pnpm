@@ -131,3 +131,21 @@ test('nothing is filtered when no registry can need full metadata', () => {
   expect(shouldFilterMetadata({ resolutionMode: 'highest' })).toBe(false)
   expect(shouldFilterMetadata({ resolutionMode: 'time-based', fetchFullMetadata: false })).toBe(false)
 })
+
+test('CreateNewStoreControllerOptions is exported and supports cafile', () => {
+  const options: import('../src/index.js').CreateNewStoreControllerOptions = {
+    cacheDir: '/tmp/cache',
+    storeDir: '/tmp/store',
+    cafile: '/path/to/cafile.pem',
+    configByUri: {},
+    fetchRetries: 2,
+    fetchRetryFactor: 10,
+    fetchRetryMaxtimeout: 60_000,
+    fetchRetryMintimeout: 10_000,
+    offline: false,
+    registriesByScope: { default: 'https://registry.npmjs.org/' },
+    verifyStoreIntegrity: true,
+    virtualStoreDirMaxLength: 120,
+  }
+  expect(options.cafile).toBe('/path/to/cafile.pem')
+})

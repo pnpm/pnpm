@@ -45,13 +45,15 @@ use std::{
 
 /// The keys of a project's `pnpm-workspace.yaml` that set nothing, bucketed
 /// by why: refused values a project may not contribute, keys naming no
-/// setting any supported pnpm reads, and kebab-case spellings of keys pnpm
-/// only reads in camelCase.
+/// setting any supported pnpm reads, kebab-case spellings of keys pnpm only
+/// reads in camelCase, and the `tasks` entries' fields no supported pnpm
+/// reads.
 #[derive(Debug, Default, Clone, PartialEq)]
 pub struct WorkspaceKeyIssues {
     pub refused: Vec<String>,
     pub unrecognized: Vec<String>,
     pub non_camel_case: Vec<String>,
+    pub unrecognized_task_settings: UnrecognizedTaskSettings,
 }
 
 impl WorkspaceKeyIssues {
@@ -60,8 +62,25 @@ impl WorkspaceKeyIssues {
         self.refused.is_empty()
             && self.unrecognized.is_empty()
             && self.non_camel_case.is_empty()
+            && self.unrecognized_task_settings.total == 0
     }
 }
+
+/// The `tasks` entries' fields no supported pnpm reads: the paths that name
+/// them, e.g. `tasks['build'].dependson`, and how many there are.
+///
+/// Every path repeats the name of the task it belongs to, so a file naming
+/// one long task and many fields renders far more text than it contains.
+/// Only the first [`NAMED_UNRECOGNIZED_TASK_SETTINGS`] are rendered, which
+/// bounds the report by itself rather than by the file.
+#[derive(Debug, Default, Clone, PartialEq)]
+pub struct UnrecognizedTaskSettings {
+    pub named: Vec<String>,
+    pub total: usize,
+}
+
+/// How many unrecognized task settings a report names one by one.
+pub const NAMED_UNRECOGNIZED_TASK_SETTINGS: usize = 10;
 
 /// Basename of the file pnpm reads; exported for test use.
 pub const WORKSPACE_MANIFEST_FILENAME: &str = "pnpm-workspace.yaml";
@@ -187,7 +206,7 @@ impl DroppedKeys {
 macro_rules! identically_named_settings {
     ($mac:ident) => {
         $mac! {
-            bail, ci, update_notifier, color, embed_readme, ignore_workspace_root_check,
+            bail, ci, progress, update_notifier, color, embed_readme, ignore_workspace_root_check,
             optional, package_lock, pending, recursive_install, reverse,
             stream, aggregate_output, use_stderr, ignore_workspace, shell_emulator,
             skip_manifest_obfuscation, sort, use_beta_cli,
@@ -209,7 +228,7 @@ macro_rules! identically_named_settings {
             hoist_workspace_packages,
             extend_node_path,
             hoisting_limits, external_dependencies,
-            dedupe_peer_dependents, dedupe_peers,
+            dedupe_peer_dependents, dedupe_peers, auto_dedupe,
             dedupe_direct_deps, dedupe_injected_deps,
             strict_peer_dependencies, ignore_compatibility_db,
             resolve_peers_from_workspace_root, verify_store_integrity,
@@ -227,6 +246,7 @@ macro_rules! identically_named_settings {
             fetch_retry_mintimeout, fetch_retry_maxtimeout,
             network_concurrency, fetch_timeout,
             fetch_warn_timeout_ms, fetch_min_speed_ki_bps, user_agent,
+            tag_version_prefix,
             enable_global_virtual_store,
             virtual_store_only, enable_modules_dir,
             git_shallow_hosts,

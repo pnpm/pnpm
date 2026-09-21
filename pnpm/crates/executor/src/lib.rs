@@ -26,6 +26,7 @@ mod process_tracker;
 mod run_script;
 mod script_exit;
 mod script_options;
+mod script_working_dir;
 mod shell;
 mod shell_emulator;
 

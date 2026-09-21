@@ -1,12 +1,13 @@
-import { promises as fs } from 'node:fs'
+import fs from 'node:fs'
 import path from 'node:path'
 import util from 'node:util'
 
 import { lexCompare } from '@pnpm/text.ordinal-comparator'
 import type { Project, ProjectRootDir, ProjectRootDirRealPath } from '@pnpm/types'
-import { readExactProjectManifest } from '@pnpm/workspace.project-manifest-reader'
+import { normalizePatterns } from '@pnpm/workspace.package-patterns'
+import { readExactProjectManifest, readExactProjectManifestSync } from '@pnpm/workspace.project-manifest-reader'
 import pFilter from 'p-filter'
-import { glob } from 'tinyglobby'
+import { glob, globSync } from 'tinyglobby'
 
 const DEFAULT_IGNORE = [
   '**/node_modules/**',
@@ -51,7 +52,7 @@ export async function findPackages (root: string, opts?: FindPackagesOptions): P
           const rootDir = path.dirname(manifestPath) as ProjectRootDir
           return {
             rootDir,
-            rootDirRealPath: await fs.realpath(rootDir) as ProjectRootDirRealPath,
+            rootDirRealPath: await fs.promises.realpath(rootDir) as ProjectRootDirRealPath,
             ...await readExactProjectManifest(manifestPath),
           } as Project
         } catch (err: unknown) {
@@ -65,10 +66,43 @@ export async function findPackages (root: string, opts?: FindPackagesOptions): P
   )
 }
 
-function normalizePatterns (patterns: readonly string[]): string[] {
-  const normalizedPatterns: string[] = []
-  for (const pattern of patterns) {
-    normalizedPatterns.push(pattern.replace(/\/?$/, '/package.{json,yaml,json5}'))
+export function findPackagesSync (root: string, opts?: FindPackagesOptions): Project[] {
+  opts = opts ?? {}
+  const globOpts = { ...opts, cwd: root, expandDirectories: false }
+  globOpts.ignore = opts.ignore ?? DEFAULT_IGNORE
+  const patterns = normalizePatterns(opts.patterns ?? ['.', '**'])
+  delete globOpts.patterns
+  const paths: string[] = globSync(patterns, globOpts)
+
+  if (opts.includeRoot) {
+    paths.push(...globSync(normalizePatterns(['.']), globOpts))
   }
-  return normalizedPatterns
+
+  const uniquePaths = Array.from(
+    new Set(
+      paths
+        .map(manifestPath => path.join(root, manifestPath))
+        .sort((path1, path2) =>
+          lexCompare(path.dirname(path1), path.dirname(path2))
+        )
+    )
+  )
+
+  const projects: Project[] = []
+  for (const manifestPath of uniquePaths) {
+    try {
+      const rootDir = path.dirname(manifestPath) as ProjectRootDir
+      projects.push({
+        rootDir,
+        rootDirRealPath: fs.realpathSync(rootDir) as ProjectRootDirRealPath,
+        ...readExactProjectManifestSync(manifestPath),
+      } as Project)
+    } catch (err: unknown) {
+      if (util.types.isNativeError(err) && 'code' in err && err.code === 'ENOENT') {
+        continue
+      }
+      throw err
+    }
+  }
+  return projects
 }

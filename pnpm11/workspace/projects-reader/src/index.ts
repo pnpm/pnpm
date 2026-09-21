@@ -3,9 +3,9 @@ import { logger } from '@pnpm/logger'
 import { lexCompare } from '@pnpm/text.ordinal-comparator'
 import type { Project, ProjectManifest, SupportedArchitectures } from '@pnpm/types'
 
-import { findPackages } from './findPackages.js'
+import { findPackages, findPackagesSync } from './findPackages.js'
 
-export { findPackages, type FindPackagesOptions } from './findPackages.js'
+export { findPackages, type FindPackagesOptions, findPackagesSync } from './findPackages.js'
 export type { Project }
 
 export interface FindWorkspaceProjectsOpts {
@@ -46,8 +46,43 @@ export async function findWorkspaceProjects (
   return projects
 }
 
+export function findWorkspaceProjectsSync (
+  workspaceRoot: string,
+  opts?: FindWorkspaceProjectsOpts
+): Project[] {
+  const projects = findWorkspaceProjectsNoCheckSync(workspaceRoot, opts)
+  for (const project of projects) {
+    packageIsInstallable(project.rootDir, project.manifest, {
+      ...opts,
+      supportedArchitectures: opts?.supportedArchitectures ?? {
+        os: ['current'],
+        cpu: ['current'],
+        libc: ['current'],
+      },
+    })
+    if (opts?.sharedWorkspaceLockfile && project.rootDir !== workspaceRoot) {
+      checkNonRootProjectManifest(project)
+    }
+  }
+
+  return projects
+}
+
 export async function findWorkspaceProjectsNoCheck (workspaceRoot: string, opts?: { patterns?: string[] }): Promise<Project[]> {
   const projects = await findPackages(workspaceRoot, {
+    ignore: [
+      '**/node_modules/**',
+      '**/bower_components/**',
+    ],
+    includeRoot: true,
+    patterns: opts?.patterns,
+  })
+  projects.sort((project1: { rootDir: string }, project2: { rootDir: string }) => lexCompare(project1.rootDir, project2.rootDir))
+  return projects
+}
+
+export function findWorkspaceProjectsNoCheckSync (workspaceRoot: string, opts?: { patterns?: string[] }): Project[] {
+  const projects = findPackagesSync(workspaceRoot, {
     ignore: [
       '**/node_modules/**',
       '**/bower_components/**',

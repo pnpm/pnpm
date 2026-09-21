@@ -51,24 +51,35 @@ impl Config {
         registries::to_resolved_declarations(&self.resolved_registry_lookups())
     }
 
-    /// The `PyPI` indexes to resolve Python packages from, in the order they
-    /// are searched.
-    ///
-    /// The first index that has a distribution supplies it, so the one
-    /// declared last answers what none before it had.
-    ///
-    /// The `registries` entries that name `ecosystem: pypi`, in declaration
-    /// order, or [`DEFAULT_PYPI_INDEX_URL`] when none do.
+    /// Python registries and their exclusive package routes, sorted by URL.
+    /// No declarations selects `PyPI`. Declared restricted registries do not
+    /// implicitly enable a public default.
+    #[must_use]
+    pub fn python_registry_indexes(&self) -> Vec<crate::EcosystemIndex> {
+        let mut indexes = self.indexes_by_ecosystem
+            .get(&Ecosystem::Pypi)
+            .filter(|indexes| !indexes.is_empty())
+            .cloned()
+            .unwrap_or_else(|| vec![DEFAULT_PYPI_INDEX_URL.to_string().into()]);
+        indexes.sort_by(|a, b| a.url.cmp(&b.url));
+        indexes
+    }
+
+    /// All Python index URLs, in canonical order independent of declarations.
     #[must_use]
     pub fn python_indexes(&self) -> Vec<&str> {
-        let declared = self.indexes_by_ecosystem.get(&Ecosystem::Pypi);
-        match declared.filter(|indexes| !indexes.is_empty()) {
-            Some(indexes) => indexes
-                .iter()
-                .map(String::as_str)
-                .collect(),
-            None => vec![DEFAULT_PYPI_INDEX_URL],
-        }
+        let Some(indexes) = self.indexes_by_ecosystem
+            .get(&Ecosystem::Pypi)
+            .filter(|indexes| !indexes.is_empty())
+        else {
+            return vec![DEFAULT_PYPI_INDEX_URL];
+        };
+        let mut urls: Vec<_> = indexes
+            .iter()
+            .map(|index| index.url.as_str())
+            .collect();
+        urls.sort_unstable();
+        urls
     }
 
     /// The sparse index to resolve Cargo dependencies from.
@@ -81,7 +92,7 @@ impl Config {
         self.indexes_by_ecosystem
             .get(&Ecosystem::Cargo)
             .and_then(|indexes| indexes.first())
-            .map_or(DEFAULT_CARGO_INDEX_URL, String::as_str)
+            .map_or(DEFAULT_CARGO_INDEX_URL, |index| index.url.as_str())
     }
 
     /// The scope and prefix routes the CLI resolves a package's registry

@@ -232,8 +232,12 @@ pub(crate) struct FreshPriorInstall<'a> {
     pub(crate) allow_builds_changed: bool,
     /// See [`pnpm_deps_restorer::PriorHoistedState::unbuilt_builds`].
     pub(crate) unbuilt_builds: &'a crate::UnbuiltBuilds,
+    /// See [`pnpm_deps_restorer::PriorLinkState::previously_skipped`].
+    pub(crate) previously_skipped: &'a pnpm_deps_restorer::SkippedSnapshots,
     /// See [`crate::PruneStaleModules::prune_orphans`].
     pub(crate) prune_orphans: bool,
+    /// See [`pnpm_deps_restorer::PriorMaterialization::relink_every_slot_bin`].
+    pub(crate) relink_every_slot_bin: bool,
 }
 
 #[derive(Clone, Copy)]
@@ -264,7 +268,11 @@ impl FreshInputs<'_> {
     /// of dev dependencies.
     fn resolved_groups(&self) -> &[DependencyGroup] {
         if self.execution.save_lockfile {
-            &crate::DIRECT_GROUPS
+            if self.projects.dependency_groups.contains(&DependencyGroup::Peer) {
+                &crate::DIRECT_AND_PEER_GROUPS
+            } else {
+                &crate::DIRECT_GROUPS
+            }
         } else {
             self.projects.dependency_groups
         }
@@ -499,8 +507,13 @@ fn deprecation_log_fn<Reporter: self::Reporter>() -> pnpm_resolving_deps_resolve
             pkg_version: deprecation.pkg_version,
             pkg_id: deprecation.pkg_id,
             prefix: deprecation.prefix,
-            deprecated: deprecation.deprecated,
             depth: deprecation.depth,
+            non_deprecated_alternative: deprecation.non_deprecated_alternative.map(|alt| {
+                pnpm_reporter::NonDeprecatedAlternative {
+                    version: alt.version,
+                    outside_declared_range: alt.outside_declared_range,
+                }
+            }),
         }));
     })
 }

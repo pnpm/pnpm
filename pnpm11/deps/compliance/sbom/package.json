@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/deps.compliance.sbom",
-  "version": "1101.0.3",
+  "version": "1101.0.4",
   "description": "Generate SBOM from pnpm lockfile",
   "keywords": [
     "pnpm",
@@ -51,6 +51,7 @@
     "@pnpm/types": "workspace:*",
     "hosted-git-info": "catalog:",
     "p-limit": "catalog:",
+    "spdx-expression-parse": "catalog:",
     "ssri": "catalog:"
   },
   "peerDependencies": {
@@ -62,6 +63,7 @@
     "@pnpm/logger": "workspace:*",
     "@pnpm/store.cafs": "workspace:*",
     "@types/hosted-git-info": "catalog:",
+    "@types/spdx-expression-parse": "catalog:",
     "@types/ssri": "catalog:"
   },
   "engines": {

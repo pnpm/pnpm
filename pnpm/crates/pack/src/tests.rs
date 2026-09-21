@@ -34,6 +34,7 @@ fn fixture(manifest: &Value) -> (TempDir, PackOptions) {
         },
         manifest: crate::PackManifestOptions {
             catalogs: BTreeMap::new(),
+            catalogs_dir: None,
             embed_readme: false,
             node_linker: NodeLinker::Isolated,
             skip_obfuscation: false,
@@ -646,6 +647,7 @@ fn workspace_license_is_injected_into_a_sub_package() {
         },
         manifest: crate::PackManifestOptions {
             catalogs: BTreeMap::new(),
+            catalogs_dir: None,
             embed_readme: false,
             node_linker: NodeLinker::Isolated,
             skip_obfuscation: false,
@@ -706,6 +708,7 @@ fn symlinked_workspace_license_is_not_injected() {
         },
         manifest: crate::PackManifestOptions {
             catalogs: BTreeMap::new(),
+            catalogs_dir: None,
             embed_readme: false,
             node_linker: NodeLinker::Isolated,
             skip_obfuscation: false,
@@ -756,6 +759,7 @@ fn workspace_root_gitignore_excludes_workspace_package_files() {
         },
         manifest: crate::PackManifestOptions {
             catalogs: BTreeMap::new(),
+            catalogs_dir: None,
             embed_readme: false,
             node_linker: NodeLinker::Isolated,
             skip_obfuscation: false,

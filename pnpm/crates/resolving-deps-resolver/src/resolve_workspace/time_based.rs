@@ -101,6 +101,7 @@ pub(super) async fn record_direct_publish_dates<Chain>(
         dependency_groups.iter().copied(),
         opts.peers.auto_install_peers,
         &opts.resolution.catalogs,
+        opts.resolution.catalogs_dir.as_deref(),
     ) else {
         return;
     };

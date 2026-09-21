@@ -11,6 +11,7 @@ license.workspace = true
 repository.workspace = true
 
 [dependencies]
+pnpr-registry = { workspace = true }
 pnpm-matcher = { workspace = true }
 pnpm-catalogs-types = { workspace = true }
 pnpm-config-dir = { workspace = true }
@@ -25,6 +26,7 @@ pnpm-package-manifest = { workspace = true }
 pnpm-patching = { workspace = true }
 pnpm-store-dir = { workspace = true }
 pnpm-versioning = { workspace = true }
+pnpm-workspace = { workspace = true }
 pnpm-workspace-state = { workspace = true }
 
 base64 = { workspace = true }

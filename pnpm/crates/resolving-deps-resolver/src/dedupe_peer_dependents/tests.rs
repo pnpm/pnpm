@@ -33,6 +33,7 @@ fn make_node(
                 latest: None,
                 published_at: None,
                 manifest: None,
+                non_deprecated_alternative: None,
             },
         }),
         depth: 0,

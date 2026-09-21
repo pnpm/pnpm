@@ -5,42 +5,29 @@ use super::super::{
 };
 
 /// Whether `allowBuilds` moved since the previous install in a way the
-/// hoisted linker must act on: a build it ignored is now allowed, or one
-/// it ran is no longer allowed. Read from the previous `.modules.yaml`;
-/// `false` on a first install.
+/// hoisted linker must act on: a build it ignored is now allowed, or the
+/// approval set it ran under has changed. Read from the previous
+/// `.modules.yaml`; `false` on a first install.
 pub(super) fn allow_builds_changed_since(
     modules_manifest: Option<&pnpm_modules_yaml::ModulesLayout>,
     config: &pnpm_config::Config,
 ) -> bool {
     modules_manifest.is_some_and(|modules| {
         super::super::has_newly_allowed_ignored_builds(modules, config)
-            || super::super::has_revoked_allowed_builds(modules, config)
-            || recorded_allow_builds_differ(modules, config)
+            || super::super::recorded_allow_builds_differ(modules, config)
     })
 }
-/// Whether the `allowBuilds` entries the previous install recorded differ
-/// from the current setting: an entry flipped between `true` and `false`,
-/// or one added or removed. The two predicates above see an ignored build
-/// becoming allowed and an approval being withdrawn; this sees the
-/// remaining transitions, such as an explicit `false` becoming `true`,
-/// which leaves no ignored entry behind to notice. Placeholder entries the
-/// approval scaffold writes carry no decision and are ignored.
-pub(super) fn recorded_allow_builds_differ(
-    modules: &pnpm_modules_yaml::ModulesLayout,
-    config: &pnpm_config::Config,
-) -> bool {
-    let recorded: std::collections::HashMap<&str, bool> = modules.allow_builds
-        .iter()
-        .flatten()
-        .filter_map(|(spec, value)| match value {
-            pnpm_modules_yaml::AllowBuildValue::Bool(decision) => Some((spec.as_str(), *decision)),
-            pnpm_modules_yaml::AllowBuildValue::String(_) => None,
-        })
-        .collect();
-    recorded.len() != config.allow_builds.len()
-        || recorded
-            .iter()
-            .any(|(spec, decision)| config.allow_builds.get(*spec) != Some(decision))
+/// The snapshots the previous install's `.modules.yaml` recorded as
+/// skipped, an optional dependency this host cannot use among them. Empty
+/// on a first install. A lockfile entry says what an install resolved, not
+/// what it put on disk, so this is what separates the two for the previous
+/// install the way [`pnpm_deps_restorer::SkippedSnapshots`] does for this one.
+pub(super) fn previously_skipped(
+    modules_manifest: Option<&pnpm_modules_yaml::ModulesLayout>,
+) -> pnpm_deps_restorer::SkippedSnapshots {
+    modules_manifest.map_or_else(pnpm_deps_restorer::SkippedSnapshots::default, |modules| {
+        pnpm_deps_restorer::SkippedSnapshots::from_strings(&modules.skipped)
+    })
 }
 /// The `name@version` keys the previous install's `.modules.yaml` recorded
 /// as not built, its `ignoredBuilds` and `pendingBuilds`. Empty on a first

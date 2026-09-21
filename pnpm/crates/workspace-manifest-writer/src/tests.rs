@@ -771,3 +771,5 @@ mod manifests;
 mod dependencies;
 
 mod integrity;
+
+mod scalar_aliases;

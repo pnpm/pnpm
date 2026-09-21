@@ -24,9 +24,19 @@ declare module '@zkochan/libnpx/index' {
   export = anything
 }
 
-declare module '@pnpm/npm-lifecycle' {
-  export function lifecycle (pkg: any, stage: string, wd: string, opts: any): Promise<void>
-  export function makeEnv (data: any, opts: any, prefix?: string | null, env?: any): Record<string, string>
+declare module '@pnpm/byline' {
+  import type { Readable } from 'stream'
+  function byline (stream: Readable): Readable
+  export = byline
+}
+
+declare module 'uid-number' {
+  function uidNumber (
+    user: string | number | null | undefined,
+    group: string | number | null | undefined,
+    cb: (err: Error | null, uid: number, gid: number) => void
+  ): void
+  export = uidNumber
 }
 
 declare module '@pnpm/npm-package-arg' {

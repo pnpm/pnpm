@@ -1,8 +1,10 @@
 use super::{
     AuditLevel, BTreeMap, CASE, ColorMode, Config, ConfigDependency, ConfigDependencyDetail,
-    EnvVar, LoadWorkspaceYamlError, NodeLinker, NodePackageMapType, Path, StoreDir, TrustPolicy,
-    WORKSPACE_MANIFEST_FILENAME, WorkspaceSettings, assert_eq, fs,
+    EnvVar, LoadWorkspaceYamlError, NAMED_UNRECOGNIZED_TASK_SETTINGS, NodeLinker,
+    NodePackageMapType, Path, StoreDir, TrustPolicy, WORKSPACE_MANIFEST_FILENAME,
+    WorkspaceSettings, assert_eq, fs,
 };
+use std::fmt::Write as _;
 
 #[test]
 fn parses_common_settings_from_yaml() {
@@ -12,6 +14,7 @@ registry: https://reg.example
 lockfile: false
 autoInstallPeers: true
 dedupePeers: true
+autoDedupe: true
 preferWorkspacePackages: true
 nodeLinker: hoisted
 nodeExperimentalPackageMap: true
@@ -25,6 +28,7 @@ packages:
     assert_eq!(settings.lockfile, Some(false));
     assert_eq!(settings.auto_install_peers, Some(true));
     assert_eq!(settings.dedupe_peers, Some(true));
+    assert_eq!(settings.auto_dedupe, Some(true));
     assert_eq!(settings.prefer_workspace_packages, Some(true));
     assert!(matches!(settings.node_linker, Some(NodeLinker::Hoisted)));
     assert_eq!(settings.node_experimental_package_map, Some(true));
@@ -706,7 +710,7 @@ fn load_at_ignores_keys_nested_under_a_setting() {
 }
 
 #[test]
-fn rejects_an_unknown_task_setting_field() {
+fn reports_an_unknown_task_setting_field_as_a_key_issue() {
     let dir = tempfile::tempdir().unwrap();
     fs::write(
         dir.path().join(WORKSPACE_MANIFEST_FILENAME),
@@ -714,12 +718,59 @@ fn rejects_an_unknown_task_setting_field() {
     )
     .unwrap();
 
-    let error = WorkspaceSettings::load_at(dir.path()).unwrap_err();
-    assert!(matches!(
-        error,
-        LoadWorkspaceYamlError::UnknownTaskSettingField { ref task, ref field }
-            if task == "build" && field == "dependson"
-    ));
+    let settings = WorkspaceSettings::load_at(dir.path())
+        .expect("load pnpm-workspace.yaml")
+        .expect("pnpm-workspace.yaml is present");
+
+    let reported = &settings.key_issues.unrecognized_task_settings;
+    assert_eq!(reported.named, ["tasks['build'].dependson"]);
+    assert_eq!(reported.total, 1);
+    // The entry held nothing else, so it goes with the field it carried: it
+    // must not reach `pnpm config`, nor stand in for the ordering a task
+    // with no entry keeps.
+    let tasks = settings.tasks.as_ref().expect("the tasks section is present");
+    assert!(tasks.is_empty(), "the entry should be gone: {tasks:?}");
+}
+
+#[test]
+fn a_task_entry_keeps_the_settings_this_version_reads() {
+    let dir = tempfile::tempdir().unwrap();
+    fs::write(
+        dir.path().join(WORKSPACE_MANIFEST_FILENAME),
+        "packages:\n  - packages/*\ntasks:\n  build:\n    dependsOn: ['^build']\n    laterSetting: 1\n",
+    )
+    .unwrap();
+
+    let settings = WorkspaceSettings::load_at(dir.path())
+        .expect("load pnpm-workspace.yaml")
+        .expect("pnpm-workspace.yaml is present");
+
+    let build = &settings.tasks.as_ref().unwrap()["build"];
+    assert_eq!(build.depends_on.as_deref(), Some(["^build".to_string()].as_slice()));
+    assert!(build.unknown.is_empty());
+    assert_eq!(settings.key_issues.unrecognized_task_settings.total, 1);
+}
+
+#[test]
+fn a_report_names_only_the_first_unrecognized_task_settings() {
+    let dir = tempfile::tempdir().unwrap();
+    let mut fields = String::new();
+    for index in 0..NAMED_UNRECOGNIZED_TASK_SETTINGS + 3 {
+        writeln!(fields, "    later{index}: 1").unwrap();
+    }
+    fs::write(
+        dir.path().join(WORKSPACE_MANIFEST_FILENAME),
+        format!("packages:\n  - packages/*\ntasks:\n  build:\n{fields}"),
+    )
+    .unwrap();
+
+    let settings = WorkspaceSettings::load_at(dir.path())
+        .expect("load pnpm-workspace.yaml")
+        .expect("pnpm-workspace.yaml is present");
+
+    let reported = &settings.key_issues.unrecognized_task_settings;
+    assert_eq!(reported.named.len(), NAMED_UNRECOGNIZED_TASK_SETTINGS);
+    assert_eq!(reported.total, NAMED_UNRECOGNIZED_TASK_SETTINGS + 3);
 }
 
 #[test]
@@ -789,6 +840,44 @@ fn parses_task_concurrency_groups() {
             .copied(),
         Some(4),
     );
+}
+
+#[test]
+fn parses_task_priority() {
+    let dir = tempfile::tempdir().unwrap();
+    fs::write(
+        dir.path().join(WORKSPACE_MANIFEST_FILENAME),
+        "packages:\n  - packages/*\ntasks:\n  build:\n    concurrencyGroup: cargo\n    priority: 10\n  test:\n    concurrencyGroup: cargo\n    priority: -1\n",
+    )
+    .unwrap();
+
+    let settings = WorkspaceSettings::load_at(dir.path())
+        .expect("load pnpm-workspace.yaml")
+        .expect("pnpm-workspace.yaml is present");
+
+    let tasks = settings.tasks.as_ref().unwrap();
+    assert_eq!(tasks["build"].priority, Some(10));
+    assert_eq!(tasks["test"].priority, Some(-1));
+}
+
+#[test]
+fn rejects_a_non_integer_task_priority() {
+    for priority in ["1.5", "'2'", "2147483648"] {
+        let dir = tempfile::tempdir().unwrap();
+        fs::write(
+            dir.path().join(WORKSPACE_MANIFEST_FILENAME),
+            format!("packages:\n  - packages/*\ntasks:\n  build:\n    priority: {priority}\n"),
+        )
+        .unwrap();
+
+        let error = WorkspaceSettings::load_at(dir.path()).unwrap_err();
+        dbg!(priority, &error);
+        assert!(matches!(
+            error,
+            LoadWorkspaceYamlError::InvalidTaskPriority { ref task, .. }
+                if task == "build"
+        ));
+    }
 }
 
 /// A layer restating one group's limit leaves the other groups as the

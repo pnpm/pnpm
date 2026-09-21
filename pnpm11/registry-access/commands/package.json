@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/registry-access.commands",
-  "version": "1101.0.4",
+  "version": "1101.0.5",
   "description": "Commands for managing packages on the registry",
   "keywords": [
     "pnpm",

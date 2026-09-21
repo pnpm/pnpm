@@ -1,9 +1,11 @@
 import fs from 'node:fs'
 import path from 'node:path'
 
-import { expect, test } from '@jest/globals'
+import { expect, jest, test } from '@jest/globals'
+import { LOCKFILE_VERSION, WANTED_LOCKFILE } from '@pnpm/constants'
 import { addDependenciesToPackage, install } from '@pnpm/installing.deps-installer'
 import { prepareEmpty } from '@pnpm/prepare'
+import { writeYamlFileSync } from 'write-yaml-file'
 
 import { testDefaults } from '../utils/index.js'
 
@@ -162,4 +164,51 @@ test('installation should not fail if a linked dependency points to a directory 
   }, testDefaults())
 
   project.has('is-positive')
+})
+
+test('a production install lets pacquet resolve it', async () => {
+  prepareEmpty()
+
+  // The group filter must not divert the install away from pacquet's own
+  // resolution; see `pacquetResolvesInstall`.
+  const runPacquet = jest.fn<(opts?: { filterResolvedProgress?: boolean, resolve?: boolean }) => Promise<void>>()
+    .mockImplementation(async () => {
+      writeYamlFileSync(WANTED_LOCKFILE, {
+        importers: {
+          '.': {
+            dependencies: {
+              'is-positive': { specifier: '1.0.0', version: '1.0.0' },
+            },
+          },
+        },
+        lockfileVersion: LOCKFILE_VERSION,
+        packages: {
+          'is-positive@1.0.0': { resolution: { integrity: 'sha512-test' } },
+        },
+        snapshots: {
+          'is-positive@1.0.0': {},
+        },
+      }, { lineWidth: 1000 })
+    })
+
+  await install({
+    dependencies: {
+      'is-positive': '1.0.0',
+    },
+    devDependencies: {
+      '@zkochan/foo': '1.0.0',
+    },
+  }, testDefaults({
+    include: {
+      dependencies: true,
+      devDependencies: false,
+      optionalDependencies: true,
+    },
+    runPacquet: {
+      supportsResolution: true,
+      run: runPacquet,
+    },
+  }))
+
+  expect(runPacquet).toHaveBeenCalledWith({ resolve: true })
 })

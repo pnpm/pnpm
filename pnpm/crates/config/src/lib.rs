@@ -37,11 +37,15 @@ pub use shim_policy::{
 pub use workspace_yaml::{
     AllowBuild, AuditSettings, CargoSettings, DEFAULT_CARGO_INDEX_URL, DEFAULT_PYPI_INDEX_URL,
     DEFAULT_PYTHON_DOWNLOAD_URL, GLOBAL_CONFIG_YAML_FILENAME, LoadWorkspaceYamlError,
-    PackageExtension, PeerDependencyMeta, PeerDependencyRules, PnpmfileSetting, PythonSettings,
-    RemoteSideEffectsCacheSettings, TaskSettings, Tool, ToolSettings, UpdateConfig, UpdateSettings,
+    NAMED_UNRECOGNIZED_TASK_SETTINGS, PackageExtension, PeerDependencyMeta, PeerDependencyRules,
+    PnpmfileSetting, PythonSettings, RemoteSideEffectsCacheSettings, TaskSettings, Tool,
+    ToolSettings, UnrecognizedTaskSettings, UpdateConfig, UpdateSettings,
     WORKSPACE_MANIFEST_FILENAME, WorkspaceKeyIssues, WorkspaceSettings, decided_allow_builds,
     package_configs::{self, PackageConfigsSetting, ProjectConfig, ProjectConfigMultiMatch},
-    registries::{self, Ecosystem, RegistryDeclaration, RegistryEntry, RegistryLookups},
+    registries::{
+        self, Ecosystem, EcosystemIndex, PythonRegistryRoute, RegistryDeclaration, RegistryEntry,
+        RegistryLookups,
+    },
     workspace_root_or,
 };
 
@@ -60,8 +64,8 @@ use crate::{
         default_fetch_min_speed_ki_bps, default_fetch_retries, default_fetch_retry_factor,
         default_fetch_retry_maxtimeout, default_fetch_retry_mintimeout, default_fetch_timeout,
         default_fetch_warn_timeout_ms, default_hoist_pattern, default_modules_cache_max_age,
-        default_modules_dir, default_public_hoist_pattern, default_store_dir, default_user_agent,
-        default_virtual_store_dir,
+        default_modules_dir, default_public_hoist_pattern, default_store_dir,
+        default_tag_version_prefix, default_user_agent, default_virtual_store_dir,
     },
     npmrc_auth::NpmrcAuth,
 };

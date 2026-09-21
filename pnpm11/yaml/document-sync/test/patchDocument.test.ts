@@ -600,6 +600,18 @@ foo:
 })
 
 describe('alias', () => {
+  it.each([
+    [{ react: '^2.0.0', 'react-dom': '^2.0.0' }, 'react: &react ^2.0.0\nreact-dom: *react\n'],
+    [{ react: '^2.0.0', 'react-dom': '^1.0.0' }, 'react: &react ^2.0.0\nreact-dom: ^1.0.0\n'],
+    [{ 'react-dom': '^1.0.0' }, 'react-dom: &react ^1.0.0\n'],
+    [{ 'react-dom': '^2.0.0', react: '^2.0.0' }, 'react-dom: &react ^2.0.0\nreact: *react\n'],
+  ])('preserves scalar aliases when possible for %j', (target, expected) => {
+    const document = yaml.parseDocument('react: &react ^1.0.0\nreact-dom: *react\n')
+    patchDocument(document, target, { preserveScalarAliases: true })
+    expect(document.toString()).toBe(expected)
+    expect(yaml.parse(document.toString())).toEqual(target)
+  })
+
   it('updates aliases in original location when alias=follow', () => {
     const raw = `\
 foo: &config
@@ -770,4 +782,88 @@ bar: *config
       patchDocument(document, json)
     }).toThrow('Failed to resolve yaml alias: config')
   })
+})
+
+it('keeps repeated scalar anchor names independent when entries are reordered', () => {
+  const document = yaml.parseDocument('a: &version ^1.0.0\nb: *version\nc: &version ^2.0.0\nd: *version\n')
+  const target = { a: '^3.0.0', c: '^2.0.0', b: '^3.0.0', d: '^2.0.0' }
+  patchDocument(document, target, { preserveScalarAliases: true })
+  expect(yaml.parse(document.toString())).toEqual(target)
+  expect(document.toString()).toContain('b: *version_1')
+  expect(document.toString()).toContain('d: *version_2')
+})
+
+it('preserves scalar alias comments and multiline values', () => {
+  const raw = 'description: &text |\n  café\n  second line\nextraEnv:\n  DESCRIPTION: *text # consumer\n'
+  const document = yaml.parseDocument(raw)
+  const target = { ...document.toJSON(), catalog: { react: '^1.0.0' } }
+  patchDocument(document, target, { preserveScalarAliases: true })
+  expect(document.toString()).toBe(raw + 'catalog:\n  react: ^1.0.0\n')
+  expect(yaml.parse(document.toString())).toEqual(target)
+})
+
+it('does not bind scalar aliases to anchors copied from an aliased collection', () => {
+  const document = yaml.parseDocument('defaults: &defaults { version: &version old }\ncopy: *defaults\ncatalog: { a: *version, b: *version }\n')
+  const target = { defaults: { version: 'old' }, copy: { version: 'new' }, catalog: { a: 'old', b: 'old' } }
+  patchDocument(document, target, { preserveScalarAliases: true })
+  expect(yaml.parse(document.toString())).toEqual(target)
+})
+
+it('clears the old anchor when a preceding alias is promoted', () => {
+  const document = yaml.parseDocument('a: &version old\nb: *version\nc: *version\n')
+  const target = { b: 'old', a: 'new', c: 'old' }
+  patchDocument(document, target, { preserveScalarAliases: true })
+  expect(yaml.parse(document.toString())).toEqual(target)
+})
+
+it('preserves aliases nested beneath an alias mapping key', () => {
+  const document = yaml.parseDocument('name: &key custom\ncatalog:\n  react: &version ^1.0.0\n*key :\n  version: *version\n')
+  const target = { ...document.toJSON(), saveExact: true }
+  patchDocument(document, target, { preserveScalarAliases: true })
+  expect(yaml.parse(document.toString())).toEqual(target)
+  expect(document.toString()).toContain('version: *version')
+  expect(document.toString()).toContain('? *key\n')
+})
+
+describe('manifest preservation options', () => {
+  it('preserves existing key order recursively and appends new keys', () => {
+    const document = yaml.parseDocument('z: { z: 1, a: 2 }\na: 3\nremoved: 4\n')
+    patchDocument(document, { a: 4, b: 5, z: { a: 3, b: 4, z: 2 } }, { preserveKeyOrder: true })
+    expect(document.toString()).toBe('z: { z: 2, a: 3, b: 4 }\na: 4\nb: 5\n')
+  })
+
+  it.each([
+    { empty: {}, nil: null, values: [null, {}, [], 1] },
+    {},
+    null,
+  ])('retains empty and null values when pruning is disabled: %j', (target) => {
+    const document = yaml.parseDocument('empty: { old: value }\nnil: value\nvalues: [1, 2, 3]\n')
+    patchDocument(document, target, { pruneEmptyValues: false })
+    expect(yaml.parse(document.toString())).toStrictEqual(target)
+  })
+})
+
+it('removes trailing sequence items without inserting null when pruning is disabled', () => {
+  const document = yaml.parseDocument('values: [{ old: 1 }, { old: 2 }]\n')
+  patchDocument(document, { values: [{}] }, { pruneEmptyValues: false })
+  expect(document.toJSON()).toStrictEqual({ values: [{}] })
+})
+
+it('replaces a collection alias when its value changes type', () => {
+  const document = yaml.parseDocument('metadata: &metadata { value: 1 }\ncopy: *metadata\n')
+  patchDocument(document, { metadata: { value: 1 }, copy: 'changed' }, { pruneEmptyValues: false })
+  expect(document.toJSON()).toStrictEqual({ metadata: { value: 1 }, copy: 'changed' })
+})
+
+it('matches scalar mapping keys to their JSON property names', () => {
+  const document = yaml.parseDocument('1: one # numeric\ntrue: enabled\nnull: empty\n')
+  patchDocument(document, { 1: 'first', true: 'yes', '': 'blank' }, { preserveKeyOrder: true })
+  expect(document.toJSON()).toStrictEqual({ 1: 'first', true: 'yes', '': 'blank' })
+  expect(document.toString()).toBe('1: first # numeric\ntrue: yes\nnull: blank\n')
+})
+
+it('supports consumers that stringify null mapping keys', () => {
+  const document = yaml.parseDocument('null: empty # null key\n')
+  patchDocument(document, { null: 'updated' }, { stringifyKey: String })
+  expect(document.toString()).toBe('null: updated # null key\n')
 })

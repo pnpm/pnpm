@@ -388,3 +388,24 @@ test('does not crash when merging non-semver versions (link: protocol)', () => {
   // Should not crash and should pick theirs (the incoming change)
   expect(mergedLockfile.packages?.['/a@1.0.0' as DepPath].dependencies?.linked).toBe('link:../pkg2')
 })
+
+test('preserves matching untracked pnpmfile hook state', () => {
+  const lockfile = {
+    ...simpleLockfile,
+    untrackedPnpmfileReadPackageHook: false,
+  }
+  expect(mergeLockfileChanges(lockfile, lockfile).untrackedPnpmfileReadPackageHook).toBe(false)
+})
+
+test('marks conflicting untracked pnpmfile hook state for resolution', () => {
+  expect(mergeLockfileChanges(
+    {
+      ...simpleLockfile,
+      untrackedPnpmfileReadPackageHook: false,
+    },
+    {
+      ...simpleLockfile,
+      untrackedPnpmfileReadPackageHook: true,
+    }
+  ).untrackedPnpmfileReadPackageHook).toBe(true)
+})

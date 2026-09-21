@@ -1,4 +1,4 @@
-use std::sync::Arc;
+use std::{collections::BTreeMap, sync::Arc};
 
 use pnpm_network::ThrottledClient;
 
@@ -18,19 +18,6 @@ fn resolve_separates_options_from_the_repository_and_ref() {
         args(Some("--help")),
         ["ls-remote", "--", "--upload-pack=malicious", "--help", "--help^{}",],
     );
-}
-
-#[test]
-fn passes_git_terminal_prompt_zero() {
-    let cmd = ls_remote_command(None, "some-repo", None);
-    let mut has_env = false;
-    for (k, v) in cmd.get_envs() {
-        if k == "GIT_TERMINAL_PROMPT" {
-            assert_eq!(v, Some(std::ffi::OsStr::new("0")));
-            has_env = true;
-        }
-    }
-    assert!(has_env);
 }
 
 fn real_probe() -> RealGitProbe {
@@ -112,4 +99,28 @@ async fn a_missing_git_binary_is_reported_as_one() {
         err.to_string(),
         "git ls-remote failed: `git` executable not found on PATH. Install git to resolve git-hosted packages.",
     );
+}
+
+#[test]
+fn ls_remote_never_waits_on_a_terminal_or_ssh_prompt() {
+    let cmd = ls_remote_command(None, "some-repo", None);
+    let envs: BTreeMap<String, String> = cmd
+        .get_envs()
+        .map(|(name, value)| {
+            (
+                name.to_string_lossy().into_owned(),
+                value
+                    .map(|value| value.to_string_lossy().into_owned())
+                    .unwrap_or_default(),
+            )
+        })
+        .collect();
+    let expected: BTreeMap<String, String> = pnpm_git_utils::non_interactive_git_env(
+        |name| std::env::var_os(name).is_some(),
+        || pnpm_git_utils::has_configured_ssh_command::<pnpm_git_utils::Host>(None),
+    )
+    .into_iter()
+    .map(|(name, value)| (name.to_owned(), value.to_owned()))
+    .collect();
+    assert_eq!(envs, expected);
 }

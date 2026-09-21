@@ -106,6 +106,7 @@ pub struct ConfigOverrides {
     optimistic_repeat_install: Option<bool>,
     package_import_method: Option<PackageImportMethod>,
     pm_on_fail: Option<PmOnFail>,
+    progress: Option<bool>,
     public_hoist_pattern: Option<Vec<String>>,
     runtime_on_fail: Option<RuntimeOnFail>,
     save_workspace_protocol: Option<SaveWorkspaceProtocol>,
@@ -177,6 +178,10 @@ macro_rules! record_list_overrides {
 }
 
 impl ConfigOverrides {
+    pub(crate) fn shared_workspace_lockfile(&self) -> Option<bool> {
+        self.shared_workspace_lockfile
+    }
+
     /// Pull `--config.<key>=<value>` tokens and [`BARE_SETTING_FLAGS`](tokens::BARE_SETTING_FLAGS)
     /// spellings out of `argv` and collect them. Returns the parsed
     /// overrides together with the remaining argv tokens (in their
@@ -307,6 +312,7 @@ impl ConfigOverrides {
                 self.node_experimental_package_map = parse_bool(value);
             }
             "pending" => self.pending = parse_bool(value),
+            "progress" => self.progress = parse_bool(value),
             "recursive-install" => self.recursive_install = parse_bool(value),
             "reverse" => self.reverse = parse_bool(value),
             "shell-emulator" => self.shell_emulator = parse_bool(value),

@@ -178,6 +178,7 @@ fn resolved_hook_result(
             latest: None,
             published_at: None,
             manifest,
+            non_deprecated_alternative: None,
         },
     })
 }

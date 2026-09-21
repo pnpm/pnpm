@@ -3,7 +3,7 @@
 
 use crate::read_package_json;
 use pnpm_cmd_shim::{
-    FsReadFile, FsWalkFiles, Host, PackageBinSource, get_bins_from_package_manifest,
+    FsReadDir, FsReadFile, FsWalkFiles, Host, PackageBinSource, get_bins_from_package_manifest,
 };
 use pnpm_fs::is_symlink_or_junction;
 use pnpm_package_manifest::{PackageManifestError, parse_manifest_bytes};
@@ -141,9 +141,10 @@ fn installed_packages(
 
 /// The bin names installed by a group (deduplicated).
 ///
-/// Every declared dependency manifest must be readable and valid. Returning
-/// a partial set would make destructive callers mistake unknown ownership for
-/// an unowned bin.
+/// A group whose `node_modules` is wholly absent owns no bins. When
+/// `node_modules` exists, every declared dependency manifest must be
+/// readable and valid: returning a partial set would make destructive
+/// callers mistake unknown ownership for an unowned bin.
 pub fn get_installed_bin_names(
     info: &GlobalPackageInfo,
 ) -> Result<Vec<String>, PackageManifestError> {
@@ -154,9 +155,19 @@ fn get_installed_bin_names_with_fs<Sys>(
     info: &GlobalPackageInfo,
 ) -> Result<Vec<String>, PackageManifestError>
 where
-    Sys: FsReadFile + FsWalkFiles,
+    Sys: FsReadFile + FsWalkFiles + FsReadDir,
 {
     let modules_dir = info.install_dir.join("node_modules");
+    // Probing through the capability rather than `std::fs` keeps a fake that
+    // models a readable tree on the per-manifest paths below. Dropping the
+    // entries releases the borrow of `modules_dir` that the error arm moves.
+    match Sys::read_dir(&modules_dir).map(|_| ()) {
+        Ok(()) => {}
+        Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(Vec::new()),
+        Err(error) => {
+            return Err(PackageManifestError::Read { path: modules_dir, source: error });
+        }
+    }
     let mut bins = BTreeSet::new();
     for (alias, _) in &info.dependencies {
         let dep_dir = modules_dir.join(alias);

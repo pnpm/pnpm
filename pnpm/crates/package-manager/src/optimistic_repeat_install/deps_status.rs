@@ -6,7 +6,9 @@ use super::{
     current_lockfile_file_has_content, current_lockfile_unusable_with_non_empty_wanted,
     filesystem_now_ms, first_lockfile_requiring_conflict_safe_install,
     first_project_missing_modules_dir, first_setting_drift, modified_manifests_match_lockfile,
-    patches_modified_since, pnpmfiles_drift, project_structure_matches, update_workspace_state,
+    patches_modified_since, pnpmfiles_drift, project_structure_matches,
+    relocation::{prove_move, rekeyed_validation_now, relocated_state},
+    update_workspace_state,
 };
 
 /// Outcome of [`check_deps_status_before_run`].
@@ -51,13 +53,19 @@ pub fn check_deps_status_before_run(
     if check.layout.node_linker == NodeLinker::Pnp {
         return RunDepsStatus::SkippedPnp;
     }
-    if let Some(issue) = first_static_drift(check, state) {
+    let relocated = relocated_state(state, check.workspace_root, check.project_manifests);
+    let moved = relocated.is_some();
+    let state = relocated.as_ref().unwrap_or(state);
+    if let Some(issue) = first_static_drift(check, state, moved) {
         return outdated(issue);
     }
 
     let Some(drift) = super::ManifestDrift::stat(check, state) else {
         return outdated("Cannot check whether dependencies are outdated".to_string());
     };
+    if moved {
+        return moved_tree_status(check, state, &drift, &outdated);
+    }
     let modified = drift.modified();
     if let Some(status) =
         early_content_verdict(check, &modified, drift.lockfile_modified, &outdated)
@@ -80,12 +88,33 @@ pub fn check_deps_status_before_run(
     }
 }
 
+/// The gate's verdict on a tree whose `state` was re-keyed by
+/// [`relocated_state`]: a tree [`prove_move`] refuses reports the structure
+/// change an unrecognized move would.
+fn moved_tree_status(
+    check: &OptimisticRepeatInstallCheck<'_>,
+    state: &WorkspaceState,
+    drift: &super::ManifestDrift<'_>,
+    outdated: &impl Fn(String) -> RunDepsStatus,
+) -> RunDepsStatus {
+    let filesystem_now = rekeyed_validation_now(check, state, drift);
+    if prove_move(check, drift).is_err() {
+        return outdated(WORKSPACE_STRUCTURE_CHANGED.to_string());
+    }
+    record_content_check_state(check, state, filesystem_now);
+    RunDepsStatus::UpToDate
+}
+
+const WORKSPACE_STRUCTURE_CHANGED: &str = "The workspace structure has changed since last install";
+
 /// The first drift the gate can decide before stat-ing any manifest.
 fn first_static_drift(
     check: &OptimisticRepeatInstallCheck<'_>,
     state: &WorkspaceState,
+    moved: bool,
 ) -> Option<String> {
-    first_lockfile_or_setting_drift(check, state).or_else(|| first_workspace_drift(check, state))
+    first_lockfile_or_setting_drift(check, state)
+        .or_else(|| first_workspace_drift(check, state, moved))
 }
 
 fn first_lockfile_or_setting_drift(
@@ -126,9 +155,12 @@ fn first_lockfile_or_setting_drift(
     None
 }
 
+/// A `moved` tree leaves its patches to the content proof, as the install
+/// fast path does.
 fn first_workspace_drift(
     check: &OptimisticRepeatInstallCheck<'_>,
     state: &WorkspaceState,
+    moved: bool,
 ) -> Option<String> {
     let &OptimisticRepeatInstallCheck {
         workspace_root,
@@ -138,7 +170,7 @@ fn first_workspace_drift(
         ..
     } = check;
     if !project_structure_matches(state, project_manifests) {
-        return Some("The workspace structure has changed since last install".to_string());
+        return Some(WORKSPACE_STRUCTURE_CHANGED.to_string());
     }
     // A filtered install legitimately leaves unselected projects
     // without a modules directory.
@@ -155,7 +187,7 @@ fn first_workspace_drift(
     {
         return Some(format!("Cannot find a lockfile in {}", workspace_root.display()));
     }
-    if patches_modified_since(workspace_root, config, state.last_validated_timestamp) {
+    if !moved && patches_modified_since(workspace_root, config, state.last_validated_timestamp) {
         return Some("Patches were modified".to_string());
     }
     pnpmfiles_drift(workspace_root, config, &state.pnpmfiles, state.last_validated_timestamp)
@@ -187,18 +219,31 @@ fn early_content_verdict(
     None
 }
 
-/// Record the passing content check so the next run's gate can short-circuit
-/// on the refreshed timestamp.
+/// Settle the passing content check for a tree in place. A single project
+/// uses the lockfile mtimes and leaves its workspace state unchanged.
 fn settle_content_check(
     check: &OptimisticRepeatInstallCheck<'_>,
     state: &WorkspaceState,
     filesystem_now: Option<i64>,
 ) -> Result<(), String> {
+    missing_wanted_lockfile_stand_in_ok(check)?;
+    if check.is_workspace_install {
+        record_content_check_state(check, state, filesystem_now);
+    }
+    Ok(())
+}
+
+/// Record a passing content check so the next run can use the refreshed
+/// timestamp and project locations.
+fn record_content_check_state(
+    check: &OptimisticRepeatInstallCheck<'_>,
+    state: &WorkspaceState,
+    filesystem_now: Option<i64>,
+) {
     let &OptimisticRepeatInstallCheck {
         workspace_root,
         config,
         project_manifests,
-        is_workspace_install,
         catalogs,
         layout:
             crate::RepeatInstallLayout {
@@ -209,10 +254,6 @@ fn settle_content_check(
             },
         ..
     } = check;
-    missing_wanted_lockfile_stand_in_ok(check)?;
-    if !is_workspace_install {
-        return Ok(());
-    }
     let mut new_state = crate::install::build_workspace_state::<Host>(
         workspace_root,
         config,
@@ -224,6 +265,7 @@ fn settle_content_check(
         state.filtered_install,
         filesystem_now,
     );
+    new_state.settings.auto_dedupe = state.settings.auto_dedupe;
     // The gate ignored `dev`/`optional`/`production` drift above;
     // writing today's (default-group) values here would clobber what
     // the last real install recorded and flip its next repeat-install
@@ -232,7 +274,6 @@ fn settle_content_check(
     new_state.settings.optional = state.settings.optional;
     new_state.settings.production = state.settings.production;
     refresh_content_check_state(workspace_root, &new_state);
-    Ok(())
 }
 
 /// Read-only twin of [`crate::optimistic_repeat_install::regenerate_wanted_lockfile_if_missing`](crate::optimistic_repeat_install::settle::regenerate_wanted_lockfile_if_missing) for the

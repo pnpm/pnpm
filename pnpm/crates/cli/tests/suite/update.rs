@@ -1133,6 +1133,44 @@ fn update_latest_leaves_auto_installed_peers_alone() {
 }
 
 #[test]
+fn update_peer_resolves_and_saves_with_auto_install_peers_disabled() {
+    let (root, workspace, anchor) = setup_with_own_registry();
+    anchor.set_dist_tag(PEER_A, "1.0.1", "latest");
+    append_workspace_yaml_key(&workspace, "autoInstallPeers", false);
+    fs::write(
+        workspace.join("package.json"),
+        format!(
+            r#"{{ "name": "test-update", "version": "1.0.0", "peerDependencies": {{ "{PEER_A}": "^1.0.0" }} }}"#,
+        ),
+    )
+    .expect("write package.json");
+
+    pacquet(&workspace, ["update", "--peer", "--lockfile-only"]).assert().success();
+
+    let manifest = PackageManifest::from_path(workspace.join("package.json")).unwrap();
+    assert_eq!(
+        manifest
+            .dependencies([DependencyGroup::Peer])
+            .find(|(name, _)| *name == PEER_A)
+            .map(|(_, specifier)| specifier),
+        Some("^1.0.1"),
+    );
+    let lockfile = read_lockfile(&workspace.join("pnpm-lock.yaml"));
+    assert!(
+        lockfile
+            .root_project()
+            .and_then(|importer| importer.dependencies.as_ref())
+            .is_none_or(|dependencies| !dependencies
+                .keys()
+                .any(|name| name.to_string() == PEER_A)),
+        "an explicitly resolved peer must stay unmaterialized when autoInstallPeers is false",
+    );
+    pacquet(&workspace, ["install", "--frozen-lockfile"]).assert().success();
+
+    drop((root, anchor));
+}
+
+#[test]
 fn update_withholds_the_old_pin_of_an_auto_installed_peer() {
     let (root, workspace, anchor) = setup();
     let consumer = "@pnpm.e2e/wants-peer-c-1";

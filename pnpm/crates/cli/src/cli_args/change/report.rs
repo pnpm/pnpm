@@ -46,15 +46,32 @@ pub(super) async fn render_status(
     Ok(output)
 }
 
-/// Fails with every violation [`check_versioning_invariants`] found, listed.
+/// What a release run validates before it needs the registry: the pending
+/// change intents resolve to workspace packages that can take the release they
+/// ask for, the `versioning` configuration they run through is well-formed, and
+/// the committed versions still satisfy the invariants it declares. A malformed
+/// intent or configuration fails the way it would at release time; drifted
+/// versions are listed as violations. Internal dependencies still on a plain
+/// range are left alone, as they are for `pnpm change status`.
 pub(super) fn run_check(
     workspace_dir: &Path,
     projects: &[WorkspaceProject],
     config: &Config,
 ) -> miette::Result<()> {
+    let intents = read_change_intents(workspace_dir)?;
+    let ledger = read_ledger(workspace_dir)?;
+    assemble_release_plan(
+        projects,
+        workspace_dir,
+        &intents,
+        &ledger,
+        Some(&config.versioning),
+        &AssembleReleasePlanOptions::default(),
+    )?;
     let violations =
         check_versioning_invariants(projects, workspace_dir, Some(&config.versioning))?;
     if violations.is_empty() {
+        println!("{}", describe_checked_intents(intents.len()));
         println!("All package versions satisfy the configured versioning invariants.");
         return Ok(());
     }
@@ -68,6 +85,17 @@ pub(super) fn run_check(
         write!(message, "\n  - {}", violation.message).expect("write to string");
     }
     Err(VersioningError::InvariantsViolated { message }.into())
+}
+
+/// The one-line summary of what [`run_check`] validated.
+fn describe_checked_intents(intent_count: usize) -> String {
+    if intent_count == 0 {
+        return "No pending change intents to check.".to_string();
+    }
+    format!(
+        "Checked {intent_count} pending change intent{}: every one resolves to a workspace package.",
+        if intent_count == 1 { "" } else { "s" },
+    )
 }
 
 /// Renders the plan the way the TypeScript CLI prints it, one line per

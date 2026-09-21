@@ -177,7 +177,7 @@ pub(super) fn spawn_in_dir(
     let mut child = spawn_child(&mut cmd, process_tracker)
         .map_err(|source| ExecError::Spawn { command: command[0].clone(), source })?;
     let status = streamed
-        .pump(child.child_mut())
+        .pump(&mut child)
         .map_err(|source| ExecError::Spawn { command: command[0].clone(), source })?;
     streamed.finished(status.code().unwrap_or(-1));
     Ok(status)

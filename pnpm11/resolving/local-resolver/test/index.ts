@@ -1,15 +1,18 @@
 /// <reference path="../../../__typings__/index.d.ts"/>
+import fs from 'node:fs'
 import { createRequire } from 'node:module'
 import path from 'node:path'
 
 import { expect, jest, test } from '@jest/globals'
 import { logger } from '@pnpm/logger'
-import { isLocalFilesystemSpecifier, resolveFromLocalPath, resolveFromLocalScheme } from '@pnpm/resolving.local-resolver'
+import { tempDir } from '@pnpm/prepare-temp-dir'
+import { barePathIsUnambiguous, isLocalFilesystemSpecifier, resolveFromLocalPath, resolveFromLocalScheme } from '@pnpm/resolving.local-resolver'
 import type { DirectoryResolution } from '@pnpm/resolving.resolver-base'
 import normalize from 'normalize-path'
 
 const require = createRequire(import.meta.dirname)
 const TEST_DIR = path.dirname(require.resolve('@pnpm/tgz-fixtures/tgz/pnpm-local-resolver-0.1.1.tgz'))
+const testOnNonWindows = process.platform === 'win32' ? test.skip : test
 
 test('resolve directory', async () => {
   const resolveResult = await resolveFromLocalPath({}, { bareSpecifier: '..' }, { projectDir: import.meta.dirname })
@@ -141,6 +144,46 @@ test('resolve tarball specified with file: protocol', async () => {
   })
 })
 
+test('resolve tarball whose absolute path steps back through a directory that does not exist', async () => {
+  // `path.resolve` collapses `..` without consulting the filesystem, and the
+  // lockfile round-trip collapses the recorded path the same way.
+  const bareSpecifier = `file:${TEST_DIR}${path.sep}missing${path.sep}..${path.sep}pnpm-local-resolver-0.1.1.tgz`
+  const resolveResult = await resolveFromLocalScheme({}, { bareSpecifier }, { projectDir: TEST_DIR })
+
+  expect(resolveResult!.id).toBe('file:pnpm-local-resolver-0.1.1.tgz')
+  expect(resolveResult!.resolution).toEqual({
+    integrity: 'sha512-UHd2zKRT/w70KKzFlj4qcT81A1Q0H7NM9uKxLzIZ/VZqJXzt5Hnnp2PYPb5Ezq/hAamoYKIn5g7fuv69kP258w==',
+    tarball: 'file:pnpm-local-resolver-0.1.1.tgz',
+  })
+})
+
+testOnNonWindows('resolve tarball whose absolute path steps back through a symlink', async () => {
+  // `<dir>/alias/..` is `<dir>/deep` to the filesystem and `<dir>` once the
+  // `..` is collapsed, so the two spellings of the specifier below name
+  // tarballs with different contents.
+  const dir = tempDir(false)
+  fs.mkdirSync(path.join(dir, 'deep/real'), { recursive: true })
+  fs.mkdirSync(path.join(dir, 'real'), { recursive: true })
+  fs.copyFileSync(
+    path.join(TEST_DIR, 'is-positive-1.0.0.tgz'),
+    path.join(dir, 'deep/real/is-positive.tgz')
+  )
+  fs.copyFileSync(
+    path.join(TEST_DIR, 'is-positive-3.1.0.tgz'),
+    path.join(dir, 'real/is-positive.tgz')
+  )
+  fs.symlinkSync(path.join(dir, 'deep/real'), path.join(dir, 'alias'))
+
+  const throughSymlink = await resolveFromLocalScheme({}, {
+    bareSpecifier: `file:${dir}/alias/../real/is-positive.tgz`,
+  }, { projectDir: dir })
+  const collapsed = await resolveFromLocalScheme({}, {
+    bareSpecifier: `file:${path.join(dir, 'real/is-positive.tgz')}`,
+  }, { projectDir: dir })
+
+  expect(throughSymlink!.resolution).toEqual(collapsed!.resolution)
+})
+
 test('resolve file with different integrity (forceFetch)', async () => {
   const wantedDependency = { bareSpecifier: 'file:./pnpm-local-resolver-0.1.1.tgz' }
   const resolveResult = await resolveFromLocalScheme({}, wantedDependency, {
@@ -223,5 +266,43 @@ test('isLocalFilesystemSpecifier recognizes only unambiguous local specifiers', 
   }
   for (const specifier of ['is-positive', '^1.0.0', 'latest', 'npm:is-positive@1', 'user/repo', 'user/repo#release.tgz', 'gh:@scope/pkg', 'https://example.com/pkg.tgz', 'workspace:*']) {
     expect([specifier, isLocalFilesystemSpecifier(specifier)]).toEqual([specifier, false])
+  }
+})
+
+// The suffix test is case-insensitive, and admission uses the same test that
+// picks file over directory, so the two cannot disagree about a name npm
+// itself could never carry. A claimed tarball reaches the filesystem and
+// reports the missing file; an unclaimed specifier resolves to null instead.
+test('resolveFromLocalPath claims a tarball whatever case its suffix is in', async () => {
+  await Promise.all(['pkg.tgz', 'PKG.TGZ', 'pkg.TAR.GZ'].map(async (bareSpecifier) => {
+    await expect(
+      resolveFromLocalPath({}, { bareSpecifier }, { projectDir: import.meta.dirname })
+    ).rejects.toThrow('ENOENT')
+  }))
+})
+
+// The separator in `.tar.gz` is a literal, matching how pnpm v12 decides this
+// with `ends_with(".tar.gz")`. A directory whose name merely looks like one is
+// a directory.
+test('isLocalFilesystemSpecifier reads a tarball suffix literally', () => {
+  for (const specifier of ['pkg.tgz', 'pkg.tar.gz', 'pkg.tar', 'PKG.TAR.GZ']) {
+    expect([specifier, isLocalFilesystemSpecifier(specifier)]).toEqual([specifier, true])
+  }
+  for (const specifier of ['pkg.tarXgz', 'pkg.tar-gz']) {
+    expect([specifier, isLocalFilesystemSpecifier(specifier)]).toEqual([specifier, false])
+  }
+})
+
+// Narrower again than `isLocalFilesystemSpecifier`: a caller that re-anchors a
+// specifier needs it to stay on the local resolver afterwards, so it may only
+// claim the path-prefixed shapes. A tarball file name is a dist-tag to the npm
+// resolver, and `<letter>:` is a single-letter named registry as much as a
+// Windows drive path.
+test('barePathIsUnambiguous recognizes only path-prefixed specifiers', () => {
+  for (const specifier of ['./pkg', '../pkg', '/abs/pkg', '~/pkg', '.', '..', '.hidden/pkg']) {
+    expect([specifier, barePathIsUnambiguous(specifier)]).toEqual([specifier, true])
+  }
+  for (const specifier of ['C:/pkg', 'C:pkg', 'pkg-1.0.0.tgz', 'deps/pkg-1.0.0.tar.gz', 'is-positive', '^1.0.0', 'npm:is-positive@1', 'user/repo', 'gh:@scope/pkg', 'workspace:*']) {
+    expect([specifier, barePathIsUnambiguous(specifier)]).toEqual([specifier, false])
   }
 })

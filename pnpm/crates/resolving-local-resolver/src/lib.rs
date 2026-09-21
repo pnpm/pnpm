@@ -29,9 +29,9 @@ pub use local_resolver::{
     resolve_from_local_scheme, resolve_latest_from_local,
 };
 pub use parse_bare_specifier::{
-    PathProtocolNotSupportedError, WantedLocalDependency, is_local_filesystem_specifier,
-    is_tarball_filename, local_tarball_path,
+    PathProtocolNotSupportedError, WantedLocalDependency, local_tarball_path,
 };
+pub use pnpm_local_spec::{is_local_filesystem_specifier, is_tarball_filename};
 
 mod chain;
 mod local_resolver;

@@ -83,7 +83,7 @@ test('setup makes changes on POSIX', async () => {
   const output = await setup.handler({ pnpmHomeDir: '' })
   expect(output).toBe(`Created ~/.bashrc
 
-Next configuration changes were made:
+The following configuration changes were made:
 export PNPM_HOME=dir2
 
 To start using pnpm, run:
@@ -97,7 +97,7 @@ test('setup makes changes on Windows', async () => {
     newSettings: 'export PNPM_HOME=dir2',
   }))
   const output = await setup.handler({ pnpmHomeDir: '' })
-  expect(output).toBe(`Next configuration changes were made:
+  expect(output).toBe(`The following configuration changes were made:
 export PNPM_HOME=dir2
 
 Setup complete. Open a new terminal to start using pnpm.`)

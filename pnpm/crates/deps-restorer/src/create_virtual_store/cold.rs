@@ -1,7 +1,7 @@
 use super::{
     CreateVirtualStoreError, CreateVirtualStoreStoreContext, LinkPlan, RequiresBuildBySnapshot,
     WantedEntries,
-    cache_keys::package_content_changed,
+    cache_keys::SlotReuse,
     cas_paths_key, requires_build_from_cas_paths,
     slot_linking::{COLD_LINK_CHUNK, LinkSlotsParallel, link_cold_chunk},
 };
@@ -74,8 +74,7 @@ pub(super) fn swallow_optional_fetch_failure<Captured>(
 pub(super) struct ColdBatch<'a> {
     pub(super) cold: &'a [(&'a PackageKey, &'a SnapshotEntry)],
     pub(super) installer: InstallPackageBySnapshot<'a>,
-    pub(super) packages: &'a HashMap<PackageKey, PackageMetadata>,
-    pub(super) current_packages: Option<&'a HashMap<PackageKey, PackageMetadata>>,
+    pub(super) reuse: SlotReuse<'a>,
     /// Kept alive by the caller for the whole batch: every slot that
     /// needs a build marker hard-links this one file.
     pub(super) marker_source: Option<&'a tempfile::NamedTempFile>,
@@ -107,7 +106,7 @@ pub(super) async fn run_cold_batch<'a, Reporter: self::Reporter>(
     drain_cold_downloads::<Reporter, _>(
         &mut downloads,
         ColdDrain {
-            packages: batch.packages,
+            packages: batch.reuse.packages,
             marker_path: batch.marker_source.map(tempfile::NamedTempFile::path),
             removed_aliases_by_key: batch.removed_aliases_by_key,
             template: &cold_template,
@@ -128,7 +127,7 @@ pub(super) async fn download_one<'a, Reporter: self::Reporter>(
     snapshot: &'a SnapshotEntry,
 ) -> Result<(Option<PackageKey>, Option<ColdCapture<'a>>), CreateVirtualStoreError> {
     let metadata_key = snapshot_key.without_peer();
-    let metadata = batch.packages
+    let metadata = batch.reuse.packages
         .get(&metadata_key)
         .ok_or_else(|| CreateVirtualStoreError::MissingPackageMetadata {
             snapshot_key: snapshot_key.to_string(),
@@ -147,11 +146,7 @@ pub(super) async fn download_one<'a, Reporter: self::Reporter>(
             requires_build: requires_build_from_cas_paths(&cas_paths),
             cas_paths,
             source_is_mutable,
-            force_import: package_content_changed(
-                batch.current_packages,
-                batch.packages,
-                snapshot_key,
-            ),
+            force_import: batch.reuse.must_replace(snapshot_key),
         }),
     ))
 }

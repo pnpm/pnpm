@@ -20,6 +20,13 @@ test('returns an empty complete result for a readable package without bins', asy
   await expect(getInstalledBinNames(info)).resolves.toStrictEqual([])
 })
 
+test('resolves to an empty result when the whole node_modules directory is missing', async () => {
+  const info = await createGlobalPackageInfo({ missing: null })
+  await fs.rm(path.join(info.installDir, 'node_modules'), { recursive: true })
+
+  await expect(getInstalledBinNames(info)).resolves.toStrictEqual([])
+})
+
 test('rejects instead of treating one missing declared package as a complete empty result', async () => {
   const info = await createGlobalPackageInfo({ missing: null })
 

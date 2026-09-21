@@ -26,6 +26,7 @@ pub mod pnp;
 pub mod prune_direct_deps;
 pub mod prune_stale_modules;
 pub mod remove_quarantine;
+pub mod report_direct_dependency_changes;
 pub mod retry_config;
 pub mod safe_join_modules_dir;
 pub mod store_init;

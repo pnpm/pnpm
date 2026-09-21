@@ -43,6 +43,7 @@ impl Resolver for StubResolver {
                     latest: Some(version),
                     published_at: None,
                     manifest: Some(manifest),
+                    non_deprecated_alternative: None,
                 },
                 alias: Some(name),
             }))

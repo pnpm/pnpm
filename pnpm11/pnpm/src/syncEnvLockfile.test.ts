@@ -73,7 +73,7 @@ test('no-op when wantedPackageManager is not pnpm', async () => {
 
 test('no-op when shouldPersistLockfile is false (legacy packageManager < v12)', async () => {
   const dir = tempDir()
-  writeStaleEnvLockfile(dir, '9.0.0')
+  writeEnvLockfileWithPnpmEntry(dir, '9.0.0')
   await syncEnvLockfile(baseConfig, makeContext(dir, {
     wantedPackageManager: { name: 'pnpm', version: '11.0.0' },
   }))
@@ -91,7 +91,7 @@ test('no-op when lockfile is disabled (#14728)', async () => {
 
 test('no-op when running pnpm does not satisfy wanted range', async () => {
   const dir = tempDir()
-  writeStaleEnvLockfile(dir, '9.0.0')
+  writeEnvLockfileWithPnpmEntry(dir, '9.0.0')
   await syncEnvLockfile(baseConfig, makeContext(dir, {
     wantedPackageManager: { name: 'pnpm', version: '0.0.1', fromDevEngines: true },
   }))
@@ -128,7 +128,7 @@ test('writes packageManagerDependencies when env lockfile exists but lacks pnpm 
 
 test('no-op when lockfile already records a satisfying version', async () => {
   const dir = tempDir()
-  writeStaleEnvLockfile(dir, packageManager.version)
+  writeEnvLockfileWithPnpmEntry(dir, packageManager.version)
   await syncEnvLockfile(baseConfig, makeContext(dir, {
     wantedPackageManager: { name: 'pnpm', version: packageManager.version, fromDevEngines: true },
   }))
@@ -151,7 +151,7 @@ test('updates the lockfile when the recorded pnpm satisfies but a sibling entry 
 
 test('forwards frozen-lockfile to the resolver, which refuses to update the lockfile', async () => {
   const dir = tempDir()
-  writeStaleEnvLockfile(dir, '9.0.0')
+  writeEnvLockfileWithPnpmEntry(dir, '9.0.0')
   await syncEnvLockfile({ ...baseConfig, frozenLockfile: true }, makeContext(dir, {
     wantedPackageManager: { name: 'pnpm', version: packageManager.version, fromDevEngines: true },
   }))
@@ -162,7 +162,7 @@ test('forwards frozen-lockfile to the resolver, which refuses to update the lock
 
 test('updates the lockfile when locked version no longer satisfies wanted version', async () => {
   const dir = tempDir()
-  writeStaleEnvLockfile(dir, '9.0.0')
+  writeEnvLockfileWithPnpmEntry(dir, '9.0.0')
   await syncEnvLockfile(baseConfig, makeContext(dir, {
     wantedPackageManager: { name: 'pnpm', version: packageManager.version, fromDevEngines: true },
   }))
@@ -261,7 +261,7 @@ test('defaults package-manager registries to npmjs instead of project registries
   }))
 })
 
-function writeStaleEnvLockfile (dir: string, pnpmVersion: string): void {
+function writeEnvLockfileWithPnpmEntry (dir: string, pnpmVersion: string): void {
   // readEnvLockfile expects a multi-document YAML file beginning with `---\n`,
   // where the env lockfile is the first document.
   const envYaml = `lockfileVersion: '9.0'
@@ -272,8 +272,12 @@ importers:
       pnpm:
         specifier: ${pnpmVersion}
         version: ${pnpmVersion}
-packages: {}
-snapshots: {}
+packages:
+  pnpm@${pnpmVersion}:
+    resolution:
+      integrity: sha512-pnpm
+snapshots:
+  pnpm@${pnpmVersion}: {}
 `
   fs.writeFileSync(path.join(dir, 'pnpm-lock.yaml'), `---\n${envYaml}\n---\n`)
 }
