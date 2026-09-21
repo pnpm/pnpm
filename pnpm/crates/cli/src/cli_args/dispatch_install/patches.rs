@@ -11,7 +11,7 @@ pub(in super::super) fn patch<'a>(
 ) -> miette::Result<CommandFuture<'a>> {
     let command_state = ctx.prepared_state(false);
     let dir = ctx.locations.dir;
-    Ok(match ctx.reporter {
+    Ok(match ctx.reporter() {
         ReporterType::Default | ReporterType::AppendOnly => Box::pin(async move {
             args.run::<DefaultReporter>(dir, command_state.await?).await?;
             Ok(())
@@ -67,7 +67,7 @@ pub(in super::super) fn patch_commit<'a>(
             })
         };
     }
-    Ok(match ctx.reporter {
+    Ok(match ctx.reporter() {
         ReporterType::Default | ReporterType::AppendOnly => run_patch_commit!(DefaultReporter),
         ReporterType::Ndjson => run_patch_commit!(NdjsonReporter),
         ReporterType::Silent => run_patch_commit!(SilentReporter),
@@ -94,7 +94,7 @@ pub(in super::super) fn patch_remove<'a>(
             })
         };
     }
-    Ok(match ctx.reporter {
+    Ok(match ctx.reporter() {
         ReporterType::Default | ReporterType::AppendOnly => run_patch_remove!(DefaultReporter),
         ReporterType::Ndjson => run_patch_remove!(NdjsonReporter),
         ReporterType::Silent => run_patch_remove!(SilentReporter),

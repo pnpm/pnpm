@@ -30,7 +30,7 @@ pub(in super::super) fn install_test<'a>(
     let dir = ctx.locations.dir;
     let recursive = ctx.workspace.recursive;
     let config = ctx.loaders.config;
-    let reporter = ctx.reporter;
+    let reporter = ctx.reporter();
 
     Ok(Box::pin(async move {
         install_future.await?;
@@ -70,7 +70,7 @@ pub(in super::super) fn pipeline<'a>(
         Some(install_with_config(ctx, install_args, UpdateCheckPolicy::Skip)?)
     };
     let dir = ctx.locations.dir;
-    let reporter = ctx.reporter;
+    let reporter = ctx.reporter();
     let config = ctx.loaders.config;
     Ok(Box::pin(async move {
         let cfg = if let Some(install) = install_future { install.await? } else { config()? };

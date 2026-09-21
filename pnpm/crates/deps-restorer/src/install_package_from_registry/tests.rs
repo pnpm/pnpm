@@ -56,6 +56,7 @@ fn create_config(
         skip_manifest_obfuscation: false,
         sort: true,
         use_beta_cli: false,
+        loglevel: Default::default(),
         workspace_key_issues: Default::default(),
         npmrc_warnings: Vec::new(),
         versioning: Default::default(),

@@ -1,7 +1,7 @@
 use super::{
     AuditConfig, AuditLevel, BTreeMap, BTreeSet, CargoSettings, CatalogMode, ColorMode,
     ConfigDependency, Ecosystem, EnvVar, GlobalShims, HashMap, HoistingLimits, Host, IndexMap,
-    InitType, LinkWorkspacePackages, NodeLinker, NodePackageMapType, PackageImportMethod,
+    InitType, LinkWorkspacePackages, LogLevel, NodeLinker, NodePackageMapType, PackageImportMethod,
     PackageManagerBootstrap, PathBuf, Pipe, PmOnFail, ProjectConfig, PythonSettings,
     RegistryOptions, RemoteSideEffectsCacheSettings, ResolutionMode, RuntimeOnFail,
     SaveWorkspaceProtocol, ScriptsPrependNodePath, SmartDefault, StoreDir, Tool, ToolSettings,
@@ -86,6 +86,9 @@ pub struct Config {
 
     /// ANSI color policy for human-readable output.
     pub color: ColorMode,
+
+    /// What level of logs to print.
+    pub loglevel: Option<LogLevel>,
 
     /// Include a package's README in the generated manifest when packing.
     pub embed_readme: bool,

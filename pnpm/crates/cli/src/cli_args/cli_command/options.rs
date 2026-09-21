@@ -21,11 +21,20 @@ pub enum WorkspaceRootError {
 }
 
 impl CliArgs {
-    /// The reporter the command should drive: `--loglevel silent` forces
-    /// the silent reporter over any `--reporter` choice, mirroring the
-    /// reporter selection in pnpm 11's `main.ts`.
+    /// The reporter the command should drive: `--loglevel silent` or configured
+    /// `loglevel: silent` forces the silent reporter over any `--reporter` choice,
+    /// mirroring the reporter selection in pnpm 11's `main.ts`.
     pub(crate) fn effective_reporter(&self) -> ReporterType {
-        if self.output.presentation.loglevel == Some(LogLevelSetting::Silent) {
+        self.effective_reporter_with_config(None)
+    }
+
+    pub(crate) fn effective_reporter_with_config(
+        &self,
+        config_loglevel: Option<pnpm_config::LogLevel>,
+    ) -> ReporterType {
+        let loglevel =
+            self.output.presentation.loglevel.or_else(|| config_loglevel.map(Into::into));
+        if loglevel == Some(LogLevelSetting::Silent) {
             return ReporterType::Silent;
         }
         self.output.presentation.reporter

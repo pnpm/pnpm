@@ -104,7 +104,7 @@ pub(super) fn outdated<'a>(
         }));
     }
     let command_state = ctx.prepared_state(false);
-    let reporter = ctx.reporter;
+    let reporter = ctx.reporter();
     Ok(Box::pin(async move {
         let command_state = command_state.await?;
         let outcome = match reporter {
@@ -141,7 +141,7 @@ pub(super) fn audit<'a>(ctx: &RunCtx<'a>, args: AuditArgs) -> miette::Result<Com
             })
         };
     }
-    Ok(match ctx.reporter {
+    Ok(match ctx.reporter() {
         ReporterType::Default | ReporterType::AppendOnly => run_audit!(DefaultReporter),
         ReporterType::Ndjson => run_audit!(NdjsonReporter),
         ReporterType::Silent => run_audit!(SilentReporter),
@@ -152,7 +152,7 @@ pub(super) fn list<'a>(ctx: &RunCtx<'a>, args: ListArgs) -> miette::Result<Comma
     let config = (ctx.loaders.config)()?;
     let dir = ctx.locations.dir;
     let recursive = ctx.workspace.recursive;
-    let reporter = ctx.reporter;
+    let reporter = ctx.reporter();
     Ok(Box::pin(async move {
         apply_update_config(config, dir, reporter).await?;
         args.run(config, dir, recursive).await
@@ -171,7 +171,7 @@ pub(super) fn licenses<'a>(
     let config = (ctx.loaders.config)()?;
     let dir = ctx.locations.dir;
     let recursive = ctx.workspace.recursive;
-    let reporter = ctx.reporter;
+    let reporter = ctx.reporter();
     Ok(Box::pin(async move {
         apply_update_config(config, dir, reporter).await?;
         args.run(config, dir, recursive).await
@@ -192,7 +192,7 @@ pub(super) fn peers<'a>(ctx: &RunCtx<'a>, args: PeersArgs) -> miette::Result<Com
     let cfg = (ctx.loaders.config)()?;
     let recursive = ctx.workspace.recursive;
     let dir = ctx.locations.dir;
-    let reporter = ctx.reporter;
+    let reporter = ctx.reporter();
     Ok(Box::pin(async move {
         apply_update_config(cfg, dir, reporter).await?;
         if args.run(cfg, dir, recursive)? != PeersOutcome::NoIssues {
@@ -224,7 +224,7 @@ pub(super) fn version<'a>(
     let cfg: &Config = (ctx.loaders.config)()?;
     let dir = ctx.locations.dir;
     let recursive = ctx.workspace.recursive;
-    let reporter = ctx.reporter;
+    let reporter = ctx.reporter();
     Ok(Box::pin(async move {
         match reporter {
             ReporterType::Default | ReporterType::AppendOnly => {
@@ -245,7 +245,7 @@ pub(super) fn pack<'a>(ctx: &RunCtx<'a>, args: PackArgs) -> miette::Result<Comma
     let config = (ctx.loaders.config)()?;
     let dir = ctx.locations.dir;
     let recursive = ctx.workspace.recursive;
-    let reporter = ctx.reporter;
+    let reporter = ctx.reporter();
     async fn run<Reporter: pnpm_reporter::Reporter>(
         args: PackArgs,
         dir: &std::path::Path,
@@ -302,7 +302,7 @@ pub(super) fn publish<'a>(
     if args.flags.output.json {
         return Ok(Box::pin(run::<SilentReporter>(args, dir, config, recursive)));
     }
-    Ok(match ctx.reporter {
+    Ok(match ctx.reporter() {
         ReporterType::Default | ReporterType::AppendOnly => {
             Box::pin(run::<DefaultReporter>(args, dir, config, recursive))
         }
@@ -345,7 +345,7 @@ pub(super) fn stage<'a>(
         }
         Ok(())
     }
-    Ok(match ctx.reporter {
+    Ok(match ctx.reporter() {
         ReporterType::Default | ReporterType::AppendOnly => {
             Box::pin(print_output::<DefaultReporter>(args, dir, config, recursive))
         }

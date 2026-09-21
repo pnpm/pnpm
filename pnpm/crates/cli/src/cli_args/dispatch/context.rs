@@ -2,7 +2,12 @@ use super::configuration::{RunAnchors, apply_update_config};
 use crate::{State, cli_args::reporter::ReporterType};
 use miette::Context;
 use pnpm_config::Config;
-use std::{future::Future, path::Path, pin::Pin, sync::atomic::AtomicBool};
+use std::{
+    future::Future,
+    path::Path,
+    pin::Pin,
+    sync::atomic::{AtomicBool, AtomicU8, Ordering},
+};
 
 pub(crate) type CommandFuture<'a, Output = ()> =
     Pin<Box<dyn Future<Output = miette::Result<Output>> + Send + 'a>>;
@@ -17,7 +22,7 @@ pub(crate) type CommandFuture<'a, Output = ()> =
 /// `.npmrc` read, and so each call re-loads a fresh `&'static mut Config`.
 /// The closures are built in [`CliArgs::run`](crate::cli_args::cli_command::CliArgs::run).
 pub(crate) struct RunCtx<'a> {
-    pub(crate) reporter: ReporterType,
+    pub(crate) effective_reporter: &'a AtomicU8,
     /// Whether a `pm` prefix (`pnpm pm clean`) forced the built-in
     /// command, so a `package.json` script of the same name must not
     /// override it. See [`crate::pm_prefix`].
@@ -66,6 +71,10 @@ pub(crate) struct CommandLoaders<'a> {
 }
 
 impl<'a> RunCtx<'a> {
+    pub(crate) fn reporter(&self) -> ReporterType {
+        self.effective_reporter.load(Ordering::Relaxed).into()
+    }
+
     /// The command's [`Config`] with the `updateConfig` hooks applied, as a
     /// future a handler can move into the [`CommandFuture`] it dispatches.
     /// The hooks run once per call, so a handler that needs more than one
@@ -85,10 +94,11 @@ impl<'a> RunCtx<'a> {
     ) -> impl Future<Output = miette::Result<&'static Config>> + Send + 'a {
         let load_config = self.loaders.config;
         let dir = self.locations.dir;
-        let reporter = self.reporter;
+        let effective_reporter = self.effective_reporter;
         async move {
             let config = load_config()?;
             apply_cli_config(config);
+            let reporter = effective_reporter.load(Ordering::Relaxed).into();
             apply_update_config(config, dir, reporter).await?;
             Ok(&*config)
         }

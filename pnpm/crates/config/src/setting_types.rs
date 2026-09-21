@@ -14,6 +14,17 @@ pub enum ColorMode {
     Never,
 }
 
+/// Accepted values of pnpm's `loglevel` setting.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum LogLevel {
+    Silent,
+    Error,
+    Warn,
+    Info,
+    Debug,
+}
+
 impl<'de> Deserialize<'de> for ColorMode {
     fn deserialize<Deserializer>(deserializer: Deserializer) -> Result<Self, Deserializer::Error>
     where

@@ -55,7 +55,7 @@ pub(super) fn add<'a>(ctx: &RunCtx<'a>, mut args: AddArgs) -> miette::Result<Com
     let config_dependencies = args.parse_config_dependencies()?;
     let dir = ctx.locations.dir;
     let manifest_path = ctx.locations.manifest_path;
-    let reporter = ctx.reporter;
+    let reporter = ctx.reporter();
     let config = ctx.loaders.config;
     Ok(Box::pin(async move {
         let cfg = config()?;
@@ -127,8 +127,8 @@ fn add_global<'a>(ctx: &RunCtx<'a>, args: AddArgs) -> miette::Result<CommandFutu
     args.install.lockfile_dir.apply_to_global(config)?;
     args.apply_cli_config(config);
     let dir = ctx.locations.dir;
-    let update_check = update_notifier::spawn(config, reporter_emit(ctx.reporter));
-    let install: CommandFuture<'a> = match ctx.reporter {
+    let update_check = update_notifier::spawn(config, reporter_emit(ctx.reporter()));
+    let install: CommandFuture<'a> = match ctx.reporter() {
         ReporterType::Default | ReporterType::AppendOnly => {
             Box::pin(args.run_global::<DefaultReporter>(config, dir))
         }
@@ -191,7 +191,7 @@ pub(super) fn update<'a>(ctx: &RunCtx<'a>, args: UpdateArgs) -> miette::Result<C
         let config = (ctx.loaders.global_config)()?;
         args.install.lockfile_dir.apply_to_global(config)?;
         args.apply_cli_config(config);
-        return Ok(match ctx.reporter {
+        return Ok(match ctx.reporter() {
             ReporterType::Default | ReporterType::AppendOnly => {
                 Box::pin(args.run_global::<DefaultReporter>(config))
             }
@@ -201,7 +201,7 @@ pub(super) fn update<'a>(ctx: &RunCtx<'a>, args: UpdateArgs) -> miette::Result<C
     }
     let dir = ctx.locations.dir;
     let manifest_path = ctx.locations.manifest_path;
-    let reporter = ctx.reporter;
+    let reporter = ctx.reporter();
     let config = ctx.loaders.config;
     Ok(Box::pin(async move {
         let cfg = config()?;
@@ -236,7 +236,7 @@ pub(super) fn remove<'a>(ctx: &RunCtx<'a>, args: RemoveArgs) -> miette::Result<C
     }
     let dir = ctx.locations.dir;
     let manifest_path = ctx.locations.manifest_path;
-    let reporter = ctx.reporter;
+    let reporter = ctx.reporter();
     let config = ctx.loaders.config;
     Ok(Box::pin(async move {
         let cfg = config()?;
@@ -295,7 +295,7 @@ fn install_with_config<'a>(
 ) -> miette::Result<CommandFuture<'a, &'static Config>> {
     let dir = ctx.locations.dir;
     let manifest_path = ctx.locations.manifest_path;
-    let reporter = ctx.reporter;
+    let reporter = ctx.reporter();
     let config = ctx.loaders.config;
     Ok(Box::pin(async move {
         // Boxed for `clippy::large_stack_frames`: the three
@@ -366,7 +366,7 @@ pub(super) fn ci<'a>(ctx: &RunCtx<'a>, args: CiArgs) -> miette::Result<CommandFu
 
 pub(super) fn dlx<'a>(ctx: &RunCtx<'a>, args: DlxArgs) -> miette::Result<CommandFuture<'a>> {
     let dir = ctx.locations.dir;
-    Ok(match ctx.reporter {
+    Ok(match ctx.reporter() {
         ReporterType::Default | ReporterType::AppendOnly => {
             Box::pin(args.run::<DefaultReporter>(dir, (ctx.loaders.config)()?))
         }
@@ -377,7 +377,7 @@ pub(super) fn dlx<'a>(ctx: &RunCtx<'a>, args: DlxArgs) -> miette::Result<Command
 
 pub(super) fn create<'a>(ctx: &RunCtx<'a>, args: CreateArgs) -> miette::Result<CommandFuture<'a>> {
     let dir = ctx.locations.dir;
-    Ok(match ctx.reporter {
+    Ok(match ctx.reporter() {
         ReporterType::Default | ReporterType::AppendOnly => {
             Box::pin(args.run::<DefaultReporter>(dir, (ctx.loaders.config)()?))
         }
@@ -389,7 +389,7 @@ pub(super) fn create<'a>(ctx: &RunCtx<'a>, args: CreateArgs) -> miette::Result<C
 fn remove_global(ctx: &RunCtx<'_>, args: &RemoveArgs) -> miette::Result<()> {
     let config = (ctx.loaders.global_config)()?;
     args.lockfile_dir.apply_to_global(config)?;
-    match ctx.reporter {
+    match ctx.reporter() {
         ReporterType::Default | ReporterType::AppendOnly => {
             global::handle_global_remove::<DefaultReporter>(config, &args.package_names)?;
         }

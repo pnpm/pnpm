@@ -26,7 +26,7 @@ pub use crate::{
 pub use pnpm_matcher as matcher;
 pub use setting_types::{
     AuditConfig, AuditLevel, CatalogMode, ColorMode, HoistingLimits, InitType,
-    LinkWorkspacePackages, NodeLinker, NodePackageMapType, PackageImportMethod, PmOnFail,
+    LinkWorkspacePackages, LogLevel, NodeLinker, NodePackageMapType, PackageImportMethod, PmOnFail,
     ResolutionMode, RuntimeOnFail, SaveWorkspaceProtocol, ScriptsPrependNodePath, TrustPolicy,
     VerifyDepsBeforeRun, VirtualStoreType,
 };
