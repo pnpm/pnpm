@@ -55,6 +55,7 @@ export interface LifecycleOptions {
   nodeOptions?: string
   onSpawn?: (child: LifecycleChildProcess) => void
   production?: boolean
+  raiseOnInterrupt?: boolean
   runConcurrently?: boolean
   scriptShell?: string
   scriptsPrependNodePath?: boolean | 'warn-only'
@@ -430,7 +431,11 @@ function runSpawned (run: ScriptRun, spawned: SpawnedScript, cb: Callback): void
   let spawnObserverFailed = false
   let spawnObserverError: LifecycleError | undefined
   let deathSignal: NodeJS.Signals | null = null
-  const relay = relaySignals(proc, { ownProcessGroup, terminateOnExit: true })
+  const relay = relaySignals(proc, {
+    ownProcessGroup,
+    raiseOnInterrupt: opts.raiseOnInterrupt,
+    terminateOnExit: true,
+  })
 
   // A script killed by a signal makes pnpm raise that signal on itself, so
   // the shell reports an interrupted command rather than a plain failure.

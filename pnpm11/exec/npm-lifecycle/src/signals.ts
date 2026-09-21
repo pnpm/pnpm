@@ -10,6 +10,8 @@ export interface SignalTarget {
 export interface RelaySignalsOptions {
   /** The child leads a process group of its own, which is what pnpm signals. */
   ownProcessGroup: boolean
+  /** Raise pnpm's interrupt after every relay in the active group settles. */
+  raiseOnInterrupt?: boolean
   /**
    * Terminate a child still running when pnpm exits. A caller whose child
    * is terminated on exit by other means leaves this off, or the child gets
@@ -57,6 +59,18 @@ export function relaySignals (child: SignalTarget, opts: RelaySignalsOptions): S
   let relayed = false
   let settled = false
   let terminated = false
+  const prepareRaise = (signal: NodeJS.Signals): void => {
+    group.interrupted = true
+    if (group.signalToRaise == null || signal === 'SIGTERM') {
+      group.signalToRaise = signal
+    }
+    group.raised ??= group.settled.then(() => {
+      process.kill(process.pid, group.signalToRaise!)
+      // Signal delivery is asynchronous. Leave it a turn to end pnpm before
+      // a caller reports the child as an ordinary command failure.
+      return new Promise<void>((resolve) => setTimeout(resolve, 1000))
+    })
+  }
   const relay = (signal: NodeJS.Signals): void => {
     relayed = true
     if (opts.ownProcessGroup && child.pid != null) {
@@ -77,15 +91,21 @@ export function relaySignals (child: SignalTarget, opts: RelaySignalsOptions): S
   const onTerm = (): void => {
     interruptedBy ??= 'SIGTERM'
     group.interrupted = true
+    if (opts.raiseOnInterrupt) prepareRaise('SIGTERM')
+    terminate()
+  }
+  const onEscalate = (): void => {
+    if (opts.raiseOnInterrupt) prepareRaise('SIGTERM')
     terminate()
   }
   const onInterrupt = (): void => {
     interruptedBy ??= 'SIGINT'
     group.interrupted = true
+    if (opts.raiseOnInterrupt) prepareRaise('SIGINT')
     if (!hasControllingTerminal()) {
       relay('SIGINT')
     }
-    process.once('SIGINT', terminate)
+    process.once('SIGINT', onEscalate)
   }
   process.once('SIGTERM', onTerm)
   process.once('SIGINT', onInterrupt)
@@ -96,12 +116,7 @@ export function relaySignals (child: SignalTarget, opts: RelaySignalsOptions): S
     interruptedBy: () => interruptedBy,
     relayed: () => relayed,
     raise: async (signal) => {
-      group.raised ??= group.settled.then(() => {
-        process.kill(process.pid, signal)
-        // Signal delivery is asynchronous. Leave it a turn to end pnpm before
-        // a caller reports the child as an ordinary command failure.
-        return new Promise<void>((resolve) => setTimeout(resolve, 1000))
-      })
+      prepareRaise(signal)
       await group.raised
     },
     terminate,
@@ -114,7 +129,7 @@ export function relaySignals (child: SignalTarget, opts: RelaySignalsOptions): S
         // The group cannot be observed, so there is nothing to wait on.
       } finally {
         process.removeListener('SIGTERM', onTerm)
-        process.removeListener('SIGINT', terminate)
+        process.removeListener('SIGINT', onEscalate)
         process.removeListener('SIGINT', onInterrupt)
         process.removeListener('exit', terminate)
         if (!settled) {
@@ -123,7 +138,7 @@ export function relaySignals (child: SignalTarget, opts: RelaySignalsOptions): S
           if (group.active === 0) group.resolve()
         }
       }
-      if (group.interrupted) {
+      if (group.interrupted || group.raised != null) {
         await group.settled
         await group.raised
       }
@@ -134,6 +149,7 @@ export function relaySignals (child: SignalTarget, opts: RelaySignalsOptions): S
 interface RelayGroup {
   active: number
   interrupted: boolean
+  signalToRaise?: NodeJS.Signals
   settled: Promise<void>
   resolve: () => void
   raised?: Promise<void>

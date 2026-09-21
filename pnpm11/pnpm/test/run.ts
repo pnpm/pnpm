@@ -409,7 +409,7 @@ testOnPosix('run -r: Ctrl+C stops dispatch while interrupted scripts settle', ()
     {
       name: 'project-2',
       scripts: {
-        dev: 'node ../exit-by-signal.js',
+        dev: 'node ../exit-cleanly-too.js',
       },
     },
     {
@@ -425,13 +425,8 @@ fs.appendFileSync('../started.txt', 'x')
 if (fs.readFileSync('../started.txt', 'utf8').length === 2) console.log('started')
 setInterval(() => {}, 1000)
 `, 'utf8')
-  fs.writeFileSync('exit-by-signal.js', `const fs = require('node:fs')
-process.on('SIGINT', () => {
-  setTimeout(() => {
-    process.removeAllListeners('SIGINT')
-    process.kill(process.pid, 'SIGINT')
-  }, 500)
-})
+  fs.writeFileSync('exit-cleanly-too.js', `const fs = require('node:fs')
+process.on('SIGINT', () => process.exit(0))
 fs.appendFileSync('../started.txt', 'x')
 if (fs.readFileSync('../started.txt', 'utf8').length === 2) console.log('started')
 setInterval(() => {}, 1000)
