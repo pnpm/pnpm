@@ -696,7 +696,7 @@ fn shell_emulator_runs_an_external_command_from_a_long_package_root() {
         .join("node_modules")
         .join("@pnpm.e2e")
         .join("pre-and-postinstall-scripts-example");
-    while pkg_root.as_os_str().len() <= 260 {
+    while native_path_len(&pkg_root) <= 260 {
         pkg_root = pkg_root.join("p");
     }
     fs::create_dir_all(&pkg_root).expect("create long package root");
@@ -736,4 +736,16 @@ fn shell_emulator_runs_an_external_command_from_a_long_package_root() {
 
     assert!(run_postinstall_hooks::<SilentReporter>(&opts).expect("run postinstall"));
     assert_eq!(fs::read_to_string(pkg_root.join("built.txt")).expect("read artifact"), "ok");
+}
+
+fn native_path_len(path: &std::path::Path) -> usize {
+    #[cfg(windows)]
+    {
+        use std::os::windows::ffi::OsStrExt;
+        path.as_os_str().encode_wide().count()
+    }
+    #[cfg(not(windows))]
+    {
+        path.as_os_str().len()
+    }
 }
