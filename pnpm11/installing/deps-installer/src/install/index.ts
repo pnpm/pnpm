@@ -711,6 +711,9 @@ export async function mutateModules (
     }
     const packageExtensionsChecksum = hashObjectNullableWithPrefix(opts.packageExtensions)
     const pnpmfileChecksum = await opts.hooks.calculatePnpmfileChecksum?.()
+    const untrackedPnpmfileReadPackageHook = getUntrackedPnpmfileReadPackageHook(opts.hooks)
+    const untrackedReadPackageHookMayHaveChanged = untrackedPnpmfileReadPackageHook === true ||
+      ctx.wantedLockfile.untrackedPnpmfileReadPackageHook !== untrackedPnpmfileReadPackageHook
     const resolvedPatchedDeps = resolvePatchedDependencies(opts.patchedDependencies, opts.lockfileDir)
     const patchedDependencies = opts.ignorePackageManifest
       ? ctx.wantedLockfile.patchedDependencies
@@ -854,8 +857,7 @@ export async function mutateModules (
       // `pnpmfileChecksum` drift. A hook the checksum cannot vouch for — a
       // programmatic one, or one from the checksum-excluded global pnpmfile
       // — keeps forcing the resolver.
-      (!opts.hooks.readPackage?.length ||
-        (opts.hooks.calculatePnpmfileChecksum != null && !opts.hooks.hasUntrackedReadPackageHook)) &&
+      !untrackedReadPackageHookMayHaveChanged &&
       !opts.hooks.preResolution?.length &&
       !opts.hooks.afterAllResolved?.length &&
       opts.hooks.customResolvers == null &&
@@ -971,6 +973,7 @@ export async function mutateModules (
       ctx.wantedLockfile.packageExtensionsChecksum = packageExtensionsChecksum
       ctx.wantedLockfile.ignoredOptionalDependencies = opts.ignoredOptionalDependencies
       ctx.wantedLockfile.pnpmfileChecksum = pnpmfileChecksum
+      setUntrackedPnpmfileReadPackageHook(ctx.wantedLockfile, untrackedPnpmfileReadPackageHook)
       ctx.wantedLockfile.patchedDependencies = patchedDependencies
     } else if (!frozenLockfile) {
       ctx.wantedLockfile.settings = { ...wantedLockfileSettings }
@@ -982,6 +985,7 @@ export async function mutateModules (
       frozenLockfile,
       needsFullResolution,
       patchGroups,
+      untrackedReadPackageHookMayHaveChanged,
       upToDateLockfileMajorVersion,
     })
     if (frozenInstallResult !== null) {
@@ -1515,6 +1519,7 @@ export async function mutateModules (
     frozenLockfile,
     needsFullResolution,
     patchGroups,
+    untrackedReadPackageHookMayHaveChanged,
     upToDateLockfileMajorVersion,
   }: {
     /**
@@ -1528,6 +1533,7 @@ export async function mutateModules (
     frozenLockfile: boolean
     needsFullResolution: boolean
     patchGroups?: PatchGroupRecord
+    untrackedReadPackageHookMayHaveChanged: boolean
     upToDateLockfileMajorVersion: boolean
   }): Promise<InnerInstallResult | { needsFullResolution: boolean } | null> {
     const isFrozenInstallPossible =
@@ -1553,6 +1559,14 @@ export async function mutateModules (
         opts.ignorePackageManifest ||
         !needsFullResolution &&
         opts.preferFrozenLockfile &&
+        // A `readPackage` hook the pnpmfile checksum cannot vouch for — a
+        // programmatic one, or one from the checksum-excluded global
+        // pnpmfile — makes "up to date" unverifiable: an edit to it leaves
+        // no trace the lockfile comparison can see, so the lockfile must
+        // not be trusted blindly here. (The explicit `--frozen-lockfile`
+        // branch above keeps its contract: it never resolves.)
+        // https://github.com/pnpm/pnpm/issues/15136
+        !untrackedReadPackageHookMayHaveChanged &&
         (!opts.pruneLockfileImporters || Object.keys(ctx.wantedLockfile.importers).length === Object.keys(ctx.projects).length) &&
         !isEmptyLockfile(ctx.wantedLockfile) &&
         ctx.wantedLockfile.lockfileVersion === LOCKFILE_VERSION &&
@@ -2113,6 +2127,10 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
     stage: 'resolution_started',
   })
 
+  const untrackedPnpmfileReadPackageHook = getUntrackedPnpmfileReadPackageHook(opts.hooks)
+  const untrackedReadPackageHookMayHaveChanged = untrackedPnpmfileReadPackageHook === true ||
+    ctx.wantedLockfile.untrackedPnpmfileReadPackageHook !== untrackedPnpmfileReadPackageHook
+
   // Always seed preferred versions from the lockfile, even for update
   // mutations. Gating this on `update` (the previous behavior) nullified
   // the seed globally during `pnpm up -r <pkg>`, so unrelated packages
@@ -2138,7 +2156,9 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
     opts.force ||
     opts.needsFullResolution ||
     ctx.lockfileHadConflicts ||
-    opts.dedupePeerDependents
+    opts.dedupePeerDependents ||
+    untrackedReadPackageHookMayHaveChanged
+  setUntrackedPnpmfileReadPackageHook(ctx.wantedLockfile, untrackedPnpmfileReadPackageHook)
 
   // Ignore some fields when fixing lockfile, so these fields can be regenerated
   // and make sure it's up to date
@@ -3622,4 +3642,26 @@ function groupPatchedDependenciesWithPaths (
       return [key, { hash, patchFilePath }]
     })
   ))
+}
+
+function getUntrackedPnpmfileReadPackageHook (
+  hooks: StrictInstallOptions['hooks']
+): boolean | undefined {
+  if (hooks.untrackedPnpmfileReadPackageHook != null) {
+    return hooks.untrackedPnpmfileReadPackageHook
+  }
+  const readPackage = hooks.readPackage as ReadPackageHook[] | ReadPackageHook | undefined
+  const hasReadPackage = Array.isArray(readPackage) ? readPackage.length > 0 : readPackage != null
+  return hooks.calculatePnpmfileChecksum == null && hasReadPackage ? true : undefined
+}
+
+function setUntrackedPnpmfileReadPackageHook (
+  lockfile: LockfileObject,
+  value: boolean | undefined
+): void {
+  if (value == null) {
+    delete lockfile.untrackedPnpmfileReadPackageHook
+  } else {
+    lockfile.untrackedPnpmfileReadPackageHook = value
+  }
 }

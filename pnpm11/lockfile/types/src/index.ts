@@ -22,6 +22,7 @@ export interface LockfileBase {
   packageExtensionsChecksum?: string
   patchedDependencies?: Record<string, string>
   pnpmfileChecksum?: string
+  untrackedPnpmfileReadPackageHook?: boolean
   settings?: LockfileSettings
   time?: Record<string, string>
 }

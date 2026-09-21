@@ -92,6 +92,7 @@ fn single_importer_opts<'a>(
             patched_dependencies: None,
             package_extensions_checksum: None,
             pnpmfile_checksum: None,
+            untracked_pnpmfile_read_package_hook: None,
         },
         reuse: crate::LockfileImporterReuse {
             previous_importers: None,

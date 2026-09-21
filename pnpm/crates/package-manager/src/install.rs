@@ -169,6 +169,13 @@ pub struct LockfileVerificationGate(
     tokio::task::JoinHandle<Result<(), pnpm_lockfile_verification::VerifyError>>,
 );
 
+pub(crate) fn untracked_read_package_hook_may_have_changed(
+    recorded: Option<bool>,
+    current: Option<bool>,
+) -> bool {
+    current == Some(true) || recorded != current
+}
+
 impl LockfileVerificationGate {
     /// Start the fan-out in the background, or `None` when no verifier
     /// is active (`trustLockfile`).

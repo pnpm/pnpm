@@ -68,6 +68,7 @@ fn aliased_catalog_dependency_records_catalog_snapshot() {
             patched_dependencies: None,
             package_extensions_checksum: None,
             pnpmfile_checksum: None,
+            untracked_pnpmfile_read_package_hook: None,
         },
         reuse: crate::LockfileImporterReuse {
             previous_importers: None,

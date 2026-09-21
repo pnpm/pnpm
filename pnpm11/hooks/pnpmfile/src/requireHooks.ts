@@ -50,7 +50,7 @@ export interface CookedHooks {
    * `pnpmfileChecksum` comparisons, so nothing downstream may treat the
    * checksum as proof the hooks are unchanged.
    */
-  hasUntrackedReadPackageHook?: boolean
+  untrackedPnpmfileReadPackageHook?: boolean
 }
 
 export interface RequireHooksResult {
@@ -136,9 +136,11 @@ export async function requireHooks (
     updateConfig: [],
   }
 
-  cookedHooks.hasUntrackedReadPackageHook = entries.some(
-    (entry) => entry.hooks?.readPackage != null && !entry.includeInChecksum
-  )
+  if (entries.some((entry) => !entry.includeInChecksum)) {
+    cookedHooks.untrackedPnpmfileReadPackageHook = entries.some(
+      (entry) => entry.hooks?.readPackage != null && !entry.includeInChecksum
+    )
+  }
   // calculate combined checksum for all included files
   if (entries.some((entry) => entry.hooks != null)) {
     cookedHooks.calculatePnpmfileChecksum = async () => {

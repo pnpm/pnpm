@@ -549,6 +549,7 @@ fn multi_importer_pruner_marks_shared_dep_non_optional_when_any_importer_reaches
             patched_dependencies: None,
             package_extensions_checksum: None,
             pnpmfile_checksum: None,
+            untracked_pnpmfile_read_package_hook: None,
         },
         reuse: crate::LockfileImporterReuse {
             previous_importers: None,
@@ -639,6 +640,7 @@ fn workspace_sibling_link_renders_per_importer_with_link_ref() {
             patched_dependencies: None,
             package_extensions_checksum: None,
             pnpmfile_checksum: None,
+            untracked_pnpmfile_read_package_hook: None,
         },
         reuse: crate::LockfileImporterReuse {
             previous_importers: None,

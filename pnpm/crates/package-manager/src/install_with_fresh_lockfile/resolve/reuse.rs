@@ -168,10 +168,17 @@ impl ReuseSeedInputs<'_> {
     /// rewrites a dependency's own manifest, so a drifted one leaves
     /// every snapshot it touched describing a manifest that is no longer
     /// what the resolver would read, and the seed has to be withheld for
-    /// those subtrees to be resolved again.
+    /// those subtrees to be resolved again. A `readPackage` hook from a
+    /// checksum-excluded pnpmfile is drift the checksum comparison
+    /// cannot see, so the seed is withheld whenever such a hook is
+    /// present (<https://github.com/pnpm/pnpm/issues/15136>).
     fn package_settings_match(&self, lockfile: &Lockfile) -> bool {
         lockfile.package_extensions_checksum.as_deref() == self.lockfile.extensions_checksum
             && lockfile.pnpmfile_checksum.as_deref() == self.lockfile.pnpmfile_checksum
+            && !crate::install::untracked_read_package_hook_may_have_changed(
+                lockfile.untracked_pnpmfile_read_package_hook(),
+                self.lockfile.untracked_pnpmfile_read_package_hook,
+            )
             && super::super::ignored_optional_dependencies_match(
                 lockfile.ignored_optional_dependencies.as_deref(),
                 self.config.ignored_optional_dependencies.as_deref(),

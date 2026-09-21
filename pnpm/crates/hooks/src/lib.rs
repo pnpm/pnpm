@@ -159,6 +159,17 @@ pub trait PnpmfileHooks: Send + Sync {
         false
     }
 
+    /// Whether this pnpmfile exports a callable `readPackage` hook.
+    async fn has_read_package(&self) -> Result<bool, HookError> {
+        Ok(false)
+    }
+
+    /// The `readPackage` capability of a checksum-excluded hook source.
+    /// `None` means this hook set has no such source.
+    async fn untracked_read_package_hook(&self) -> Result<Option<bool>, HookError> {
+        Ok(None)
+    }
+
     /// Compute the `pnpmfileChecksum` recorded in `pnpm-lock.yaml`, or
     /// `None` when this hook set defines no `hooks` object.
     ///
@@ -330,6 +341,16 @@ pub async fn current_pnpmfile_checksum(
     hooks.calculate_pnpmfile_checksum().await
 }
 
+/// The `readPackage` capability of a checksum-excluded hook source.
+pub async fn untracked_read_package_hook(
+    hooks: Option<&Arc<dyn PnpmfileHooks>>,
+) -> Result<Option<bool>, HookError> {
+    match hooks {
+        Some(hooks) => hooks.untracked_read_package_hook().await,
+        None => Ok(None),
+    }
+}
+
 /// A no-op implementation of [`PnpmfileHooks`].
 pub struct NoopHooks;
 
@@ -408,6 +429,14 @@ impl PnpmfileHooks for ChecksumFreeHooks {
 
     async fn has_filter_log(&self) -> bool {
         self.0.has_filter_log().await
+    }
+
+    async fn has_read_package(&self) -> Result<bool, HookError> {
+        self.0.has_read_package().await
+    }
+
+    async fn untracked_read_package_hook(&self) -> Result<Option<bool>, HookError> {
+        self.0.untracked_read_package_hook().await
     }
 
     async fn calculate_pnpmfile_checksum(&self) -> Option<String> {

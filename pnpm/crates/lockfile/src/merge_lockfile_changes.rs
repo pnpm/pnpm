@@ -24,7 +24,14 @@ use std::{
 /// two disagree on how a dependency resolved.
 #[must_use]
 pub fn merge_lockfile_changes(ours: &Lockfile, theirs: &Lockfile) -> Lockfile {
-    Lockfile {
+    let untracked_hook = match (
+        ours.untracked_pnpmfile_read_package_hook(),
+        theirs.untracked_pnpmfile_read_package_hook(),
+    ) {
+        (ours, theirs) if ours == theirs => ours,
+        _ => Some(true),
+    };
+    let mut lockfile = Lockfile {
         lockfile_version: newer_version(ours.lockfile_version, theirs.lockfile_version),
         pnpmfile_checksum: ours.pnpmfile_checksum
             .clone()
@@ -43,7 +50,9 @@ pub fn merge_lockfile_changes(ours: &Lockfile, theirs: &Lockfile) -> Lockfile {
         patched_dependencies: None,
         time: None,
         extra: merge_extra(&ours.extra, &theirs.extra),
-    }
+    };
+    lockfile.set_untracked_pnpmfile_read_package_hook(untracked_hook);
+    lockfile
 }
 
 /// [`merge_lockfile_changes`] for the env document — the config and
