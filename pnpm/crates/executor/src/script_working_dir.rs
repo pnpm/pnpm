@@ -40,7 +40,6 @@ pub(crate) fn emulator_working_dir(pkg_root: &Path) -> Cow<'_, Path> {
     Cow::Borrowed(pkg_root)
 }
 
-/// Whether Windows declined the working directory it was handed.
 pub(crate) fn is_refused_directory(error: &io::Error) -> bool {
     const ERROR_DIRECTORY: i32 = 267;
     cfg!(windows) && error.raw_os_error() == Some(ERROR_DIRECTORY)
