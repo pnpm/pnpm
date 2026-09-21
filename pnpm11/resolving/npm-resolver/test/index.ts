@@ -3197,15 +3197,15 @@ test('a blocked exact version is reported under the requested package identity',
   expect(result?.id).toBe('is-positive@1.0.0')
 })
 
-test('prefixed packument keys retain their publication timestamp and obey normalized retry blocks', async () => {
+test.each(['v1.0.0', 'banana'])('raw packument key %s retains its timestamp and obeys normalized retry blocks', async (rawKey) => {
   const version = { ...isPositiveMetaFull.versions['1.0.0'], version: '1.0.0' }
   getMockAgent().get(registriesByScope.default.replace(/\/$/, ''))
     .intercept({ path: '/is-positive', method: 'GET' })
     .reply(200, {
       name: 'is-positive',
-      'dist-tags': { latest: 'v1.0.0' },
-      versions: { 'v1.0.0': version, '0.9.0': { ...version, version: '0.9.0' } },
-      time: { 'v1.0.0': '2024-01-01T00:00:00Z', '0.9.0': '2020-01-01T00:00:00Z' },
+      'dist-tags': { latest: rawKey },
+      versions: { [rawKey]: version, '0.9.0': { ...version, version: '0.9.0' } },
+      time: { [rawKey]: '2024-01-01T00:00:00Z', '0.9.0': '2020-01-01T00:00:00Z' },
     })
   const { resolveFromNpm } = createResolveFromNpm({
     storeDir: temporaryDirectory(), cacheDir: temporaryDirectory(), registriesByScope,

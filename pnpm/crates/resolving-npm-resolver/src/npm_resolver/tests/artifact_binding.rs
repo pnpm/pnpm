@@ -101,3 +101,33 @@ async fn shasum_only_metadata_resolves_to_a_sha1_integrity() {
         Some("sha1-4hvx0Yt84p0c1F9tjg6LzQpMqLo="),
     );
 }
+
+#[test]
+fn revision_projection_preserves_the_raw_publication_key() {
+    use crate::pick_package_from_meta::{
+        RegistryPackageSpec, RegistryPackageSpecType, RegistryRevisionSelector,
+    };
+
+    let registry = "https://registry.example/";
+    let body: serde_json::Value =
+        serde_json::from_str(&revision_history_package_body(registry)).unwrap();
+    let mut picked: pnpm_registry::PackageVersion =
+        serde_json::from_value(body["versions"]["1.0.0"].clone()).unwrap();
+    picked.packument_version = Some("v1.0.0".to_string());
+    let spec = RegistryPackageSpec {
+        name: "acme".to_string(),
+        fetch_spec: "1.0.0".to_string(),
+        spec_type: RegistryPackageSpecType::Version,
+        revision: Some(RegistryRevisionSelector::Valid(1)),
+        normalized_bare_specifier: None,
+    };
+    let selected =
+        super::super::package_revision::select_package_revision(&picked, &spec, registry).unwrap();
+    assert_eq!(selected.packument_version.as_deref(), Some("v1.0.0"));
+    assert!(
+        serde_json::to_value(selected.as_ref())
+            .unwrap()
+            .get("packumentVersion")
+            .is_none(),
+    );
+}

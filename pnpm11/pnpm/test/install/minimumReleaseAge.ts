@@ -639,6 +639,8 @@ test('frozen install preserves the tarball URL when the manifest name differs', 
   try {
     await execPnpm([`--config.registry=${registry}`, 'install', '--lockfile-only'])
     expect(fs.readFileSync('pnpm-lock.yaml', 'utf8')).toContain(tarballUrl)
+    const lockfile = readYamlFileSync<{ snapshots: Record<string, unknown> }>('pnpm-lock.yaml')
+    expect(Object.keys(lockfile.snapshots)).toStrictEqual(['requested@1.5.0'])
     expect(downloads).toBe(0)
     await execPnpm([`--config.registry=${registry}`, 'install', '--frozen-lockfile', '--ignore-scripts'])
     expect(downloads).toBe(1)

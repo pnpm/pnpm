@@ -110,7 +110,10 @@ pub(super) fn apply_revision_record<'a>(
         dist.insert("revision".to_string(), serde_json::Value::Number(requested.into()));
     }
     serde_json::from_value(selected)
-        .map(Cow::Owned)
+        .map(|mut selected: PackageVersion| {
+            selected.packument_version.clone_from(&picked.packument_version);
+            Cow::Owned(selected)
+        })
         .map_err(|error| malformed_revision_history(picked, error.to_string()))
 }
 

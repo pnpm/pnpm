@@ -145,8 +145,7 @@ pub(crate) fn filter_pkg_metadata_versions_with_dist_tag_bound(
     mut keep: impl FnMut(&str) -> bool,
     bound_dist_tags: bool,
 ) -> Package {
-    // Decide on version strings alone; slots move as raw fragments, so
-    // the filter never hydrates a manifest.
+    // Decide membership on version strings; slots move as raw fragments.
     let filtered_versions = meta.versions.filtered(|version| keep(version));
     let dist_tags = repopulate_dist_tags(meta, &filtered_versions, bound_dist_tags);
 
@@ -182,7 +181,14 @@ pub(super) fn repopulate_dist_tags(
             dist_tags_within_date.insert(tag.clone(), version.clone());
             continue;
         }
-        let Ok(original) = Version::parse(version) else { continue };
+        let Some(original) = Version::parse(version)
+            .ok()
+            .or_else(|| {
+                meta.versions.get(version).map(|manifest| manifest.version.clone())
+            })
+        else {
+            continue;
+        };
         let candidates = parsed_candidates.get_or_insert_with(|| {
             filtered_versions
                 .keys()

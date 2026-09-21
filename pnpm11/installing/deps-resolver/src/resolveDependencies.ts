@@ -2201,8 +2201,9 @@ async function resolveDependency (
     if (!pkg.name) { // TODO: don't fail on optional dependencies
       throw new PnpmError('MISSING_PACKAGE_NAME', `Can't install ${wantedDependency.bareSpecifier}: Missing package name`)
     }
-    let pkgIdWithPatchHash = (pkgResponse.body.id.startsWith(`${pkg.name}@`) ? pkgResponse.body.id : `${pkg.name}@${pkgResponse.body.id}`) as PkgIdWithPatchHash
-    const patch = getPatchInfo(ctx.patchedDependencies, pkg.name, pkg.version)
+    const pkgName = pkgResponse.body.requestedName ?? pkg.name
+    let pkgIdWithPatchHash = (pkgResponse.body.id.startsWith(`${pkgName}@`) ? pkgResponse.body.id : `${pkgName}@${pkgResponse.body.id}`) as PkgIdWithPatchHash
+    const patch = getPatchInfo(ctx.patchedDependencies, pkgName, pkg.version)
     if (patch) {
       pkgIdWithPatchHash = `${pkgIdWithPatchHash}(patch_hash=${patch.hash})` as PkgIdWithPatchHash
     }

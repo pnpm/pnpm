@@ -136,7 +136,7 @@ function filterPkgMetadataUncached (
       continue
     }
     // Repopulate the tag to the highest version that is still admitted
-    const originalSemVer = tryParseSemver(distTagVersion)
+    const originalSemVer = tryParseSemver(distTagVersion) ?? tryParseSemver(pkgDoc.versions[distTagVersion]?.version ?? '')
     if (!originalSemVer) continue
     const originalIsPrerelease = (originalSemVer.prerelease.length > 0)
     let bestVersion: string | undefined
@@ -185,5 +185,5 @@ function isBlocked (version: string, blockedVersions?: ReadonlySet<string>): boo
   if (!blockedVersions?.size) return false
   if (blockedVersions.has(version)) return true
   const parsed = semver.parse(version)
-  return parsed != null && blockedVersions.has(parsed.version + (parsed.build.length ? `+${parsed.build.join('.')}` : ''))
+  return parsed == null || blockedVersions.has(parsed.version + (parsed.build.length ? `+${parsed.build.join('.')}` : ''))
 }
