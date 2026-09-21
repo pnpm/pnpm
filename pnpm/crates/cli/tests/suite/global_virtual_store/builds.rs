@@ -1,13 +1,4 @@
 //! The global-virtual-store tests that exercise the build policy.
-//!
-//! The ones that actually spawn a lifecycle script are skipped on
-//! Windows, where pnpm cannot spawn one from a slot under the global
-//! virtual store: the install fails with `os error 267`, the OS
-//! rejecting the working directory it is handed. Tracked in
-//! <https://github.com/pnpm/pnpm/issues/15111>. They still compile
-//! there, so a Windows-only break in them shows up as one. The tests
-//! whose fixtures declare no scripts run everywhere, bar the one whose
-//! own attribute names a different Windows gap.
 
 use super::{
     AddMockedRegistry, CommandExtra, CommandTempCwd, StoreDir, StoreIndex, allow_builds_yaml,
@@ -187,7 +178,6 @@ fn gvs_relinks_when_allow_builds_changes() {
 /// TS: `GVS successful build creates package directory with build
 /// artifacts` (`globalVirtualStore.ts:250`).
 #[test]
-#[cfg_attr(target_os = "windows", ignore = "pnpm/pnpm#15111: a GVS slot cannot spawn a build")]
 fn gvs_successful_build_creates_package_directory_with_build_artifacts() {
     let CommandTempCwd { root, workspace, npmrc_info, .. } =
         CommandTempCwd::init().add_mocked_registry();
@@ -257,7 +247,6 @@ fn gvs_successful_build_creates_package_directory_with_build_artifacts() {
 /// hash-directory move is what makes approval safe: the unbuilt slot stays
 /// intact and the built one is a sibling.
 #[test]
-#[cfg_attr(target_os = "windows", ignore = "pnpm/pnpm#15111: a GVS slot cannot spawn a build")]
 fn gvs_approve_builds_scenario_moves_artifacts_to_a_new_hash_dir() {
     let CommandTempCwd { root, workspace, npmrc_info, .. } =
         CommandTempCwd::init().add_mocked_registry();
@@ -341,7 +330,6 @@ fn gvs_approve_builds_scenario_moves_artifacts_to_a_new_hash_dir() {
 /// hashes to it, so a half-built one must not survive a failed build — the
 /// next install would take the warm path into broken files.
 #[test]
-#[cfg_attr(target_os = "windows", ignore = "pnpm/pnpm#15111: a GVS slot cannot spawn a build")]
 fn gvs_build_failure_cleans_up_broken_package_directory() {
     let CommandTempCwd { root, workspace, npmrc_info, .. } =
         CommandTempCwd::init().add_mocked_registry();
@@ -379,7 +367,6 @@ fn gvs_build_failure_cleans_up_broken_package_directory() {
 /// fast path must not fire — the install re-fetches, re-imports and
 /// re-builds into a fresh slot.
 #[test]
-#[cfg_attr(target_os = "windows", ignore = "pnpm/pnpm#15111: a GVS slot cannot spawn a build")]
 fn gvs_rebuilds_successfully_after_simulated_build_failure_cleanup() {
     let CommandTempCwd { root, workspace, npmrc_info, .. } =
         CommandTempCwd::init().add_mocked_registry();
@@ -433,7 +420,6 @@ fn gvs_rebuilds_successfully_after_simulated_build_failure_cleanup() {
 /// TS: `GVS .pnpm-needs-build marker triggers re-import on next install`
 /// (`globalVirtualStore.ts:411`).
 #[test]
-#[cfg_attr(target_os = "windows", ignore = "pnpm/pnpm#15111: a GVS slot cannot spawn a build")]
 fn needs_build_marker_triggers_reimport_on_next_install() {
     for with_installability_constraint in [false, true] {
         let CommandTempCwd { root, workspace, npmrc_info, .. } =
@@ -533,7 +519,6 @@ fn needs_build_marker_triggers_reimport_on_next_install() {
 }
 
 #[test]
-#[cfg_attr(target_os = "windows", ignore = "pnpm/pnpm#15111: a GVS slot cannot spawn a build")]
 fn orphan_needs_build_marker_does_not_invalidate_repeat_install() {
     let CommandTempCwd { root, workspace, npmrc_info, .. } =
         CommandTempCwd::init().add_mocked_registry();
@@ -593,7 +578,6 @@ fn orphan_needs_build_marker_does_not_invalidate_repeat_install() {
 /// the same hash move, but driven by the real `approve-builds` command,
 /// which also has to persist the approval into `pnpm-workspace.yaml`.
 #[test]
-#[cfg_attr(target_os = "windows", ignore = "pnpm/pnpm#15111: a GVS slot cannot spawn a build")]
 fn approve_builds_updates_gvs_symlinks_and_runs_builds_at_the_new_hash_dir() {
     let CommandTempCwd { root, workspace, npmrc_info, .. } =
         CommandTempCwd::init().add_mocked_registry();
