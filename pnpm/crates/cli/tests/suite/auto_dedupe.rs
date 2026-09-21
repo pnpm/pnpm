@@ -156,38 +156,53 @@ fn auto_dedupe_preserves_incompatible_exact_versions_and_can_be_disabled() {
 
 #[test]
 fn partial_change_discovers_a_new_candidate_and_updates_existing_consumers() {
-    let CommandTempCwd { root, workspace, npmrc_info, .. } =
-        CommandTempCwd::init().add_mocked_registry();
-    write_settings(&workspace, "packages:\n  - low\n  - high\n").unwrap();
-    write_project(&workspace, "low", "100.0.0");
-    write_project(&workspace, "high", "100.0.0");
-    pnpm_at(&workspace)
-        .with_args(["install", "--lockfile-only"])
-        .assert()
-        .success();
-    write_project(&workspace, "low", "^100.0.0");
-    pnpm_at(&workspace)
-        .with_args(["install", "--lockfile-only"])
-        .assert()
-        .success();
-    assert_eq!(
-        importer_version(&read_lockfile(&workspace.join("pnpm-lock.yaml")), "low", DEP),
-        "100.0.0",
-    );
-    pnpm_at(&workspace.join("high"))
-        .with_args(["add", &format!("{DEP}@100.1.0"), "--auto-dedupe", "--lockfile-only"])
-        .assert()
-        .success();
-    let lockfile = read_lockfile(&workspace.join("pnpm-lock.yaml"));
-    assert_eq!(importer_version(&lockfile, "low", DEP), "100.1.0");
-    assert_eq!(importer_version(&lockfile, "high", DEP), "100.1.0");
-    assert!(
-        !lockfile.packages
-            .as_ref()
-            .unwrap()
-            .contains_key(&format!("{DEP}@100.0.0").parse().unwrap()),
-    );
-    drop((root, npmrc_info));
+    for lockfile_only in [true, false] {
+        let CommandTempCwd { root, workspace, npmrc_info, .. } =
+            CommandTempCwd::init().add_mocked_registry();
+        write_settings(&workspace, "packages:\n  - low\n  - high\n").unwrap();
+        write_project(&workspace, "low", "100.0.0");
+        write_project(&workspace, "high", "100.0.0");
+        pnpm_at(&workspace)
+            .with_args(["install", "--lockfile-only"])
+            .assert()
+            .success();
+        write_project(&workspace, "low", "^100.0.0");
+        pnpm_at(&workspace)
+            .with_args(["install", "--lockfile-only"])
+            .assert()
+            .success();
+        assert_eq!(
+            importer_version(&read_lockfile(&workspace.join("pnpm-lock.yaml")), "low", DEP),
+            "100.0.0",
+        );
+        let mut command = pnpm_at(&workspace.join("high"));
+        command.args(["add", &format!("{DEP}@100.1.0"), "--auto-dedupe"]);
+        if lockfile_only {
+            command.arg("--lockfile-only");
+        }
+        command.assert().success();
+        if !lockfile_only {
+            let parent =
+                fs::canonicalize(workspace.join("high/node_modules").join(PARENT)).unwrap();
+            let dependency = parent
+                .parent()
+                .unwrap()
+                .join("dep-of-pkg-with-1-dep/package.json");
+            let manifest: serde_json::Value =
+                serde_json::from_slice(&fs::read(dependency).unwrap()).unwrap();
+            assert_eq!(manifest["version"], "100.1.0");
+        }
+        let lockfile = read_lockfile(&workspace.join("pnpm-lock.yaml"));
+        assert_eq!(importer_version(&lockfile, "low", DEP), "100.1.0");
+        assert_eq!(importer_version(&lockfile, "high", DEP), "100.1.0");
+        assert!(
+            !lockfile.packages
+                .as_ref()
+                .unwrap()
+                .contains_key(&format!("{DEP}@100.0.0").parse().unwrap()),
+        );
+        drop((root, npmrc_info));
+    }
 }
 
 #[test]
@@ -265,5 +280,80 @@ fn auto_dedupe_rejects_delegated_resolution_before_contacting_the_server() {
         .failure();
     let stderr = String::from_utf8_lossy(&output.get_output().stderr);
     assert!(stderr.contains("ERR_PNPM_AUTO_DEDUPE_WITH_PNPR_SERVER"), "{stderr}");
+    drop((root, npmrc_info));
+}
+
+#[test]
+fn auto_dedupe_recreates_aliases_and_separate_major_versions_without_a_lockfile() {
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    write_settings(&workspace, "autoDedupe: true\n").unwrap();
+    fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({
+            "dependencies": {
+                "low": format!("npm:{DEP}@^100.0.0"),
+                "high": format!("npm:{DEP}@100.1.0"),
+                "next": format!("npm:{DEP}@101.0.0"),
+                PARENT: "100.0.0",
+            },
+        })
+        .to_string(),
+    )
+    .unwrap();
+    let path = workspace.join("pnpm-lock.yaml");
+    let mut original = None;
+    for _ in 0..2 {
+        pnpm_at(&workspace)
+            .with_args(["install", "--lockfile-only"])
+            .assert()
+            .success();
+        let lockfile = read_lockfile(&path);
+        assert!(importer_version(&lockfile, ".", "low").ends_with("100.1.0"));
+        assert!(importer_version(&lockfile, ".", "high").ends_with("100.1.0"));
+        assert!(importer_version(&lockfile, ".", "next").ends_with("101.0.0"));
+        assert!(
+            !lockfile.packages
+                .as_ref()
+                .unwrap()
+                .contains_key(&format!("{DEP}@100.0.0").parse().unwrap()),
+        );
+        let content = fs::read(&path).unwrap();
+        if let Some(original) = &original {
+            assert_eq!(&content, original);
+        }
+        original = Some(content);
+        fs::remove_file(&path).unwrap();
+    }
+    drop((root, npmrc_info));
+}
+
+#[test]
+fn auto_dedupe_discards_obsolete_versions_before_installing_their_peers() {
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    write_settings(&workspace, "packages:\n  - low\n  - high\n").unwrap();
+    write_project(&workspace, "low", "100.0.0");
+    write_project(&workspace, "high", "100.0.0");
+    pnpm_at(&workspace)
+        .with_args(["install", "--lockfile-only"])
+        .assert()
+        .success();
+    write_project(&workspace, "low", "^100.0.0");
+    write_settings(&workspace, format!(
+        "packages:\n  - low\n  - high\nautoDedupe: true\nautoInstallPeers: true\npackageExtensions:\n  '{DEP}@100.0.0':\n    peerDependencies:\n      nonexistent-obsolete-dedupe-peer: 1.0.0\n",
+    )).unwrap();
+    pnpm_at(&workspace.join("high"))
+        .with_args(["add", &format!("{DEP}@100.1.0"), "--lockfile-only"])
+        .assert()
+        .success();
+    let lockfile = read_lockfile(&workspace.join("pnpm-lock.yaml"));
+    assert_eq!(importer_version(&lockfile, "low", DEP), "100.1.0");
+    assert_eq!(importer_version(&lockfile, "high", DEP), "100.1.0");
+    assert!(
+        !fs::read_to_string(workspace.join("pnpm-lock.yaml"))
+            .unwrap()
+            .contains("nonexistent-obsolete-dedupe-peer"),
+    );
     drop((root, npmrc_info));
 }

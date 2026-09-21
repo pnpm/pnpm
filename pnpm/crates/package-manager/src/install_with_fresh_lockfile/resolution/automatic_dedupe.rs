@@ -35,34 +35,45 @@ pub(super) fn targets(
         .collect()
 }
 
-pub(super) fn prefer_new_candidates(
-    result: &ResolveWorkspaceResult,
+fn extend_preference_seeds(
+    versions: &PreferredVersions,
     preferred: &mut Arc<PreferredVersions>,
     by_importer: &mut BTreeMap<String, Arc<PreferredVersions>>,
     targets: &mut UpdateTargets,
 ) -> bool {
-    let mut versions = HashMap::<String, HashSet<String>>::new();
-    for node in result.peers.graph.values() {
-        let Some(identity) = node.resolve_result.package.name_ver.as_ref() else { continue };
-        versions
-            .entry(identity.name.to_string())
+    if versions.is_empty() {
+        return false;
+    }
+    let mut groups = HashMap::<_, Vec<&mut Arc<PreferredVersions>>>::new();
+    for seed in std::iter::once(preferred).chain(by_importer.values_mut()) {
+        groups
+            .entry(Arc::as_ptr(seed))
             .or_default()
-            .insert(identity.suffix.to_string());
+            .push(seed);
     }
     let mut changed = false;
-    for (name, versions) in versions
-        .into_iter()
-        .filter(|(_, versions)| versions.len() > 1)
-    {
-        let mut name_changed = false;
-        for seed in std::iter::once(&mut *preferred).chain(by_importer.values_mut()) {
-            for version in &versions {
-                name_changed |= prefer_candidate(seed, &name, version);
-            }
+    for seeds in groups.into_values() {
+        let mut updated = Arc::clone(seeds[0]);
+        changed |= prefer_versions(&mut updated, versions, targets);
+        for seed in seeds {
+            *seed = Arc::clone(&updated);
         }
-        if name_changed {
-            targets.insert(name, None);
-            changed = true;
+    }
+    changed
+}
+
+fn prefer_versions(
+    preferred: &mut Arc<PreferredVersions>,
+    versions: &PreferredVersions,
+    targets: &mut UpdateTargets,
+) -> bool {
+    let mut changed = false;
+    for (name, versions) in versions {
+        for version in versions.keys() {
+            if prefer_candidate(preferred, name, version) {
+                targets.insert(name.clone(), None);
+                changed = true;
+            }
         }
     }
     changed
@@ -105,7 +116,7 @@ impl<Reporter: pnpm_reporter::Reporter + 'static> super::ResolutionContext<'_, R
         );
         loop {
             let walk = self.workspace_walk(lockfile_reuse_seed.as_ref(), dedupe.clone());
-            let result = resolve::run_resolve_pass::<Reporter>(resolve::ResolvePassInputs {
+            let result = resolve::run_dependency_pass::<Reporter>(resolve::ResolvePassInputs {
                 resolver: &*self.setup.chain.resolver,
                 importer_manifests,
                 dependency_groups: self.install.resolved_groups(),
@@ -118,15 +129,21 @@ impl<Reporter: pnpm_reporter::Reporter + 'static> super::ResolutionContext<'_, R
             })
             .await?;
             if !self.install.drivers.config.auto_dedupe
-                || !prefer_new_candidates(
-                    &result,
+                || !extend_preference_seeds(
+                    &result.duplicate_versions(),
                     &mut preferred_versions_seed,
                     &mut preferred_versions_seeds_by_importer,
                     &mut dedupe,
                 )
             {
-                return Ok(result);
+                return result
+                    .resolve_peers(&*self.setup.chain.resolver)
+                    .await
+                    .map_err(resolve::resolve_error);
             }
         }
     }
 }
+
+#[cfg(test)]
+mod tests;

@@ -44,7 +44,7 @@ pub(crate) struct EarlyMaterializer<Reporter> {
     tasks: Mutex<JoinSet<()>>,
     /// Every slot a task was spawned for, so slots the final lockfile
     /// does not carry can be removed again.
-    slots: Mutex<Vec<(PackageKey, PathBuf)>>,
+    slots: Mutex<HashMap<PackageKey, PathBuf>>,
     _reporter: PhantomData<fn() -> Reporter>,
 }
 
@@ -77,7 +77,7 @@ impl<Reporter: pnpm_reporter::Reporter + 'static> EarlyMaterializer<Reporter> {
                 materialized: AtomicUsize::new(0),
             }),
             tasks: Mutex::new(JoinSet::new()),
-            slots: Mutex::new(Vec::new()),
+            slots: Mutex::new(HashMap::new()),
             _reporter: PhantomData,
         }
     }
@@ -126,7 +126,9 @@ impl<Reporter: pnpm_reporter::Reporter + 'static> EarlyMaterializer<Reporter> {
             package_dir,
             dependencies: required_dependencies(&package.children),
         };
-        lock(&self.slots).push((key, slot_dir));
+        if lock(&self.slots).insert(key, slot_dir).is_some() {
+            return;
+        }
         let shared = Arc::clone(&self.shared);
         lock(&self.tasks).spawn(async move { job.run::<Reporter>(&shared).await });
     }
@@ -288,3 +290,6 @@ async fn wait_for_cas_paths(
 fn lock<Inner>(mutex: &Mutex<Inner>) -> std::sync::MutexGuard<'_, Inner> {
     mutex.lock().unwrap_or_else(std::sync::PoisonError::into_inner)
 }
+
+#[cfg(test)]
+mod tests;

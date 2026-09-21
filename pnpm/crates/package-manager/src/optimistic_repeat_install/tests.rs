@@ -1,3 +1,5 @@
+mod auto_dedupe;
+
 mod integrity;
 
 mod builds;

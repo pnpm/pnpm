@@ -67,9 +67,9 @@ An unchanged materialized installation retains the repeat-install fast path.
 When resolution is needed, branches containing multiple versions of a package
 are reopened while unrelated subtrees remain reusable. Changes that invalidate
 lockfile reuse conservatively reconsider all locked package names.
-Newly discovered duplicate versions feed further resolution rounds using the
-same metadata cache within one installation. Lifecycle scripts run after the
-final graph is resolved.
+Newly discovered duplicate versions feed further dependency-tree rounds using
+the same metadata cache. Missing peers and peer contexts are resolved once,
+after version convergence. Lifecycle scripts run after the final graph is resolved.
 
 This setting currently requires local dependency resolution. A non-frozen
 install using `pnprServer` reports an error when `autoDedupe` is enabled.

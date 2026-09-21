@@ -93,9 +93,10 @@ pub use resolve_peers::{
     ResolvePeersResult, WorkspaceResolvePeersResult, resolve_peers, resolve_peers_workspace,
 };
 pub use resolve_workspace::{
-    ResolveWorkspaceResult, WorkspaceImporter, WorkspaceLockfileReuse,
-    WorkspacePeerResolutionOptions, WorkspaceResolveHooks, WorkspaceResolveOptions,
-    WorkspaceVersionResolution, resolve_workspace,
+    ResolveWorkspaceResult, ResolvedWorkspaceDependencies, WorkspaceImporter,
+    WorkspaceLockfileReuse, WorkspacePeerResolutionOptions, WorkspaceResolveHooks,
+    WorkspaceResolveOptions, WorkspaceVersionResolution, resolve_workspace,
+    resolve_workspace_dependencies,
 };
 pub use resolved_tree::{
     AncestorIds, ChildEdge, DependenciesTree, DependenciesTreeNode, DirectDep, PeerDep,
