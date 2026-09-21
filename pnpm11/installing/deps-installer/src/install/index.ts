@@ -1,6 +1,6 @@
 import path from 'node:path'
 
-import { getProjectNodePaths, linkBins, linkBinsOfPackages } from '@pnpm/bins.linker'
+import { getProjectNodePath, linkBins, linkBinsOfPackages } from '@pnpm/bins.linker'
 import { buildSelectedPkgs } from '@pnpm/building.after-install'
 import { buildModules, type DepsStateCache, linkBinsOfDependencies, linkBinsOfRuntimeDependencies } from '@pnpm/building.during-install'
 import { createAllowBuildFunction, isBuildExplicitlyDisallowed } from '@pnpm/building.policy'
@@ -2548,13 +2548,14 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
 
     if (!opts.virtualStoreOnly) await Promise.all(projects.map(async (project, index) => {
       let linkedPackages!: string[]
-      const extraNodePaths = await getProjectNodePaths(project, { extendNodePath: opts.extendNodePath, extraNodePaths: ctx.extraNodePaths })
+      const projectModulesDir = await getProjectNodePath(project, { extendNodePath: opts.extendNodePath })
       if (ctx.publicHoistPattern?.length && path.relative(project.rootDir, opts.lockfileDir) === '') {
         linkedPackages = await linkBins(project.modulesDir, project.binsDir, {
           allowExoticManifests: true,
           preferSymlinkedExecutables: opts.preferSymlinkedExecutables,
           projectManifest: project.manifest,
-          extraNodePaths,
+          extraNodePaths: ctx.extraNodePaths,
+          projectModulesDir,
           warn: binWarn.bind(null, project.rootDir),
         })
       } else {
@@ -2583,8 +2584,9 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
             .filter(({ manifest }) => manifest != null) as Array<{ location: string, manifest: DependencyManifest }>,
           project.binsDir,
           {
-            extraNodePaths,
+            extraNodePaths: ctx.extraNodePaths,
             preferSymlinkedExecutables: opts.preferSymlinkedExecutables,
+            projectModulesDir,
           }
         )
       }

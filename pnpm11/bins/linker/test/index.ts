@@ -103,6 +103,65 @@ test('linkBins() skips bins that already reference the correct target', async ()
   expect(fs.readFileSync(binLocation, 'utf8')).toBe(sentinel)
 })
 
+test('linkBins() puts projectModulesDir first on NODE_PATH, then the bin\'s own directories, then extraNodePaths', async () => {
+  const warn = jest.fn()
+  const modulesDir = path.join(f.prepare('simple-fixture'), 'node_modules')
+  const hoisted = path.join(modulesDir, '.pnpm', 'node_modules')
+
+  const binTarget = temporaryDirectory()
+  await linkBins(modulesDir, binTarget, { warn, extraNodePaths: [hoisted], projectModulesDir: path.join(modulesDir, '..', 'vendor') })
+  const entries = nodePathEntries(fs.readFileSync(path.join(binTarget, 'simple'), 'utf8'))
+  expect(entries).toHaveLength(4)
+  expect(entries[0]).toMatch(/\/vendor$/)
+  expect(entries[1]).toMatch(/\/node_modules\/simple\/node_modules$/)
+  expect(entries[3]).toMatch(/\/node_modules\/\.pnpm\/node_modules$/)
+
+  // An entry that appears more than once stays at its first position.
+  const dedupedTarget = temporaryDirectory()
+  const realModulesDir = fs.realpathSync(modulesDir)
+  await linkBins(modulesDir, dedupedTarget, { warn, extraNodePaths: [realModulesDir], projectModulesDir: realModulesDir })
+  const deduped = nodePathEntries(fs.readFileSync(path.join(dedupedTarget, 'simple'), 'utf8'))
+  expect(deduped).toHaveLength(2)
+  expect(deduped[0]).toBe(nodePathEntries(fs.readFileSync(path.join(binTarget, 'simple'), 'utf8'))[2])
+  expect(deduped[1]).toMatch(/\/node_modules\/simple\/node_modules$/)
+})
+
+test('linkBins() keeps or rewrites the NODE_PATH of an existing bin according to its options', async () => {
+  const binTarget = temporaryDirectory()
+  const warn = jest.fn()
+  const modulesDir = path.join(f.prepare('simple-fixture'), 'node_modules')
+  const binLocation = path.join(binTarget, 'simple')
+  const extraNodePaths = [path.join(modulesDir, '.pnpm', 'node_modules')]
+  const projectModulesDir = path.join(modulesDir, '..', 'vendor')
+  // The sentinel survives only when linkBins() leaves the bin in place.
+  const relink = async (opts: { extraNodePaths?: string[], projectModulesDir?: string }): Promise<{ kept: boolean, entries: string[] }> => {
+    fs.appendFileSync(binLocation, '# sentinel\n')
+    await linkBins(modulesDir, binTarget, { warn, ...opts })
+    const content = fs.readFileSync(binLocation, 'utf8')
+    return { kept: content.includes('# sentinel'), entries: nodePathEntries(content) }
+  }
+
+  await linkBins(modulesDir, binTarget, { warn, extraNodePaths })
+
+  const withProject = await relink({ extraNodePaths, projectModulesDir })
+  expect(withProject.kept).toBe(false)
+  expect(withProject.entries[0]).toMatch(/\/vendor$/)
+  expect(await relink({ extraNodePaths, projectModulesDir })).toMatchObject({ kept: true })
+  expect(await relink({ projectModulesDir })).toMatchObject({ kept: true })
+  expect(await relink({ extraNodePaths })).toMatchObject({ kept: true })
+  expect(await relink({})).toMatchObject({ kept: true, entries: withProject.entries })
+
+  expect(await relink({ extraNodePaths: [] })).toStrictEqual({ kept: false, entries: [] })
+
+  const projectWithoutExtras = await relink({ projectModulesDir })
+  expect(projectWithoutExtras.kept).toBe(false)
+  expect(projectWithoutExtras.entries[0]).toMatch(/\/vendor$/)
+})
+
+function nodePathEntries (shim: string): string[] {
+  return /^ {2}export NODE_PATH="([^"]*)"$/m.exec(shim)?.[1].split(':') ?? []
+}
+
 // A shim an older pnpm wrote still points at the right target, so the warm
 // install path had nothing to notice and left it in place. It resolved
 // readlink and its other helpers on the caller's PATH, which starts with the

@@ -115,11 +115,11 @@ test('bins in a custom modules directory load plugins installed in that director
   }
 
   await install(manifest, testDefaults({ modulesDir: 'vendor', hoistPattern: '*' }))
-  expect(await runTool('vendor')).toStrictEqual({ plugin: 'plugin loaded', isPositive: '1.0.0' })
+  expect(await runTool('vendor')).toStrictEqual({ plugin: 'plugin loaded', isPositive: '3.1.0', ownIsPositive: '1.0.0' })
 
   rimrafSync('vendor')
   await install(manifest, testDefaults({ frozenLockfile: true, modulesDir: 'vendor', hoistPattern: '*' }))
-  expect(await runTool('vendor')).toStrictEqual({ plugin: 'plugin loaded', isPositive: '1.0.0' })
+  expect(await runTool('vendor')).toStrictEqual({ plugin: 'plugin loaded', isPositive: '3.1.0', ownIsPositive: '1.0.0' })
 })
 
 test('bins in a custom modules directory are relinked when extendNodePath changes', async () => {
@@ -209,6 +209,7 @@ const requireFromProject = createRequire(path.join(process.cwd(), 'package.json'
 console.log(JSON.stringify({
   plugin: requireFromProject('plugin'),
   isPositive: requireFromProject('is-positive/package.json').version,
+  ownIsPositive: require('is-positive/package.json').version,
 }))
 `)
 }

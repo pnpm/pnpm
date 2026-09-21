@@ -9,4 +9,4 @@
 "pacquet": patch
 ---
 
-Command shims in a custom `modulesDir` now add that directory to `NODE_PATH`, so tools such as ESLint can load plugins installed there. The directory comes after the tool's own dependencies, and `extendNodePath: false` leaves it out [#3604](https://github.com/pnpm/pnpm/issues/3604).
+Tools launched from a custom `modulesDir` can load CommonJS plugins installed there, the same way they would from `node_modules`. `extendNodePath: false` disables this fallback [#3604](https://github.com/pnpm/pnpm/issues/3604).

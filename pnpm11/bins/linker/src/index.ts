@@ -2,7 +2,7 @@ import { existsSync, promises as fs } from 'node:fs'
 import { createRequire } from 'node:module'
 import path from 'node:path'
 
-import { cmdShim, getExeExtension, isShimNodePathEndingWith, isShimPointingAt } from '@pnpm/bins.cmd-shim'
+import { cmdShim, getExeExtension, isShimNodePath, isShimPointingAt } from '@pnpm/bins.cmd-shim'
 import { type Command, getBinsFromPackageManifest, pkgOwnsBin } from '@pnpm/bins.resolver'
 import { PnpmError } from '@pnpm/error'
 import { readModulesDir } from '@pnpm/fs.read-modules-dir'
@@ -22,7 +22,7 @@ import { symlinkDir } from 'symlink-dir'
 
 import { getBinNodePaths } from './getBinNodePaths.js'
 
-export { getProjectNodePaths } from './getProjectNodePaths.js'
+export { getProjectNodePath } from './getProjectNodePath.js'
 
 const binsConflictLogger = logger('bins-conflict')
 const IS_WINDOWS = isWindows()
@@ -276,7 +276,16 @@ function runtimeHasNodeDownloaded (runtime: EngineDependency | EngineDependency[
 }
 
 export interface LinkBinOptions {
+  /**
+   * `NODE_PATH` entries after the bin's own dependency directories. An empty
+   * list means none. When omitted, an existing shim keeps its `NODE_PATH`.
+   */
   extraNodePaths?: string[]
+  /**
+   * The first `NODE_PATH` entry: the modules directory of the project whose
+   * bins are linked, when Node cannot find it by walking up to `node_modules`.
+   */
+  projectModulesDir?: string
   preferSymlinkedExecutables?: boolean
 }
 
@@ -302,7 +311,10 @@ async function linkBin (cmd: CommandInfo, binsDir: string, opts?: LinkBinOptions
     } else if (stat.isFile() && stat.size < CMD_SHIM_MAX_SIZE) {
       const content = await fs.readFile(externalBinPath, 'utf8')
       isCorrectlyLinked = isShimPointingAt(content, cmd.path) && isShimHardened(content) &&
-        isShimNodePathEndingWith(content, opts?.extraNodePaths ?? [])
+        (
+          (opts?.extraNodePaths == null && opts?.projectModulesDir == null) ||
+          isShimNodePath(content, { first: opts.projectModulesDir, last: opts.extraNodePaths })
+        )
     }
   } catch {}
   if (isCorrectlyLinked) {
@@ -366,18 +378,12 @@ async function linkBin (cmd: CommandInfo, binsDir: string, opts?: LinkBinOptions
 
   try {
     let nodePath: string[] | undefined
-    if (opts?.extraNodePaths?.length) {
-      const binNodePaths = await getBinNodePaths(cmd.path)
-      if (binNodePaths.length === 0) {
-        nodePath = opts.extraNodePaths
-      } else {
-        nodePath = [...binNodePaths]
-        for (const p of opts.extraNodePaths) {
-          if (!binNodePaths.includes(p)) {
-            nodePath.push(p)
-          }
-        }
-      }
+    if (opts?.extraNodePaths?.length || opts?.projectModulesDir) {
+      nodePath = Array.from(new Set([
+        ...(opts.projectModulesDir ? [opts.projectModulesDir] : []),
+        ...await getBinNodePaths(cmd.path),
+        ...opts.extraNodePaths ?? [],
+      ]))
     }
     await cmdShim(cmd.path, externalBinPath, {
       createPwshFile: POWER_SHELL_IS_SUPPORTED && cmd.makePowerShellShim,

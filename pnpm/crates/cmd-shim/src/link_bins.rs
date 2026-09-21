@@ -294,10 +294,10 @@ pub struct LinkBinsOptions {
     pub relocatable_root: Option<PathBuf>,
     /// The name of the project modules directory when it is not
     /// `node_modules` and `extendNodePath` is on. Bins linked into the `.bin`
-    /// of a directory with this name also get that directory on `NODE_PATH`,
-    /// after `extra_node_paths`: Node only looks for packages in
-    /// `node_modules` directories, so a tool installed there could not
-    /// otherwise load the project's other packages, such as its plugins.
+    /// of a directory with this name get that directory first on `NODE_PATH`:
+    /// Node only looks for packages in `node_modules` directories, so a tool
+    /// installed there could not otherwise load the project's other packages,
+    /// such as its plugins, ahead of its own.
     pub project_modules_dir_name: Option<OsString>,
 }
 
@@ -430,7 +430,7 @@ where
             let node_path = if options.prefer_symlinked_executables && cfg!(unix) {
                 Vec::new()
             } else {
-                shim_node_path(pkg, &paths.extra_node_paths)
+                shim_node_path(pkg, paths.project_node_path.as_deref(), &paths.extra_node_paths)
             };
             let pkg_name = package_name(pkg);
             // The target's symlink-resolved path doubles as the memo key
@@ -490,10 +490,11 @@ pub fn choose_bins<'packages, Sys: FsWalkFiles>(
     chosen.into_values().collect()
 }
 
-/// The `NODE_PATH` entries for one package's shims: the target's own
-/// `node_modules` dirs first (pnpm's `getBinNodePaths`), then the
-/// caller's extras that aren't already present. An empty extras list
-/// means "no `NODE_PATH` in shims at all" (`extendNodePath: false`, a
+/// The `NODE_PATH` entries for one package's shims: the project modules
+/// dir when there is one, then the target's own `node_modules` dirs
+/// (pnpm's `getBinNodePaths`), then the caller's extras. An entry that
+/// appears again keeps its first position. With no project dir and no
+/// extras the shims get no `NODE_PATH` at all (`extendNodePath: false`, a
 /// non-isolated linker, or no hoist pattern), matching pnpm's bins
 /// linker.
 ///
@@ -502,20 +503,31 @@ pub fn choose_bins<'packages, Sys: FsWalkFiles>(
 /// caller-supplied [`PackageBinSource::resolved_location`] makes this
 /// syscall-free; without one the package's `location` is
 /// canonicalized once, covering all of its bins.
-fn shim_node_path(pkg: &PackageBinSource, extra_node_paths: &[String]) -> Vec<String> {
-    if extra_node_paths.is_empty() {
+fn shim_node_path(
+    pkg: &PackageBinSource,
+    project_node_path: Option<&str>,
+    extra_node_paths: &[String],
+) -> Vec<String> {
+    if project_node_path.is_none() && extra_node_paths.is_empty() {
         return Vec::new();
     }
-    let mut merged = if let Some(resolved) = &pkg.resolved_location {
+    let own = if let Some(resolved) = &pkg.resolved_location {
         bin_node_paths(resolved)
     } else {
         let dir =
             dunce::canonicalize(&pkg.location).unwrap_or_else(|_| pkg.location.clone());
         bin_node_paths(&dir)
     };
-    for extra in extra_node_paths {
-        if !merged.contains(extra) {
-            merged.push(extra.clone());
+    let mut merged: Vec<String> = project_node_path
+        .map(str::to_string)
+        .into_iter()
+        .collect();
+    for entry in own
+        .into_iter()
+        .chain(extra_node_paths.iter().cloned())
+    {
+        if !merged.contains(&entry) {
+            merged.push(entry);
         }
     }
     merged

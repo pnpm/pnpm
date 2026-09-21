@@ -157,14 +157,25 @@ export function isShimPointingAt (shimContent: string, src: string): boolean {
 }
 
 /**
- * Check whether a shell shim's `NODE_PATH` ends with exactly the given
- * entries, or is not set at all when there are none.
+ * Check whether a shell shim's `NODE_PATH` starts with `first` and ends with
+ * the `last` entries. An omitted `first` or `last` is not checked. When both
+ * are empty, the shim must not set `NODE_PATH` at all.
  */
-export function isShimNodePathEndingWith (shimContent: string, entries: string[]): boolean {
-  const shEntries = normalizePathEnvVar(entries).posix
-  if (!shEntries) return !shimContent.includes('export NODE_PATH=')
-  return shimContent.includes(`  export NODE_PATH="${shEntries}"\n`) || shimContent.includes(`:${shEntries}"\n`)
+export function isShimNodePath (shimContent: string, expected: { first?: string, last?: string[] }): boolean {
+  const first = expected.first == null ? '' : normalizePathEnvVar([expected.first]).posix
+  const last = normalizePathEnvVar(expected.last).posix
+  const start = shimContent.indexOf(SH_NODE_PATH_EXPORT)
+  if (start === -1) return first === '' && last === ''
+  const valueStart = start + SH_NODE_PATH_EXPORT.length
+  const value = shimContent.slice(valueStart, shimContent.indexOf('"', valueStart))
+  return (first !== '' || last !== '') &&
+    (first === '' || value === first || value.startsWith(`${first}:`)) &&
+    (last === '' || value === last || value.endsWith(`:${last}`))
 }
+
+// The branch that runs when the caller has no NODE_PATH of its own, so its
+// value is exactly the shim's entries.
+const SH_NODE_PATH_EXPORT = '  export NODE_PATH="'
 
 /**
  * Try to unlink, but ignore errors.

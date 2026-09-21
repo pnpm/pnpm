@@ -39,10 +39,12 @@ fn resolved_location_matches_canonicalize_fallback_for_node_path() {
     let real_slot_pkg_dir = dunce::canonicalize(&slot_pkg_dir).unwrap();
     let via_fallback = super::super::shim_node_path(
         &PackageBinSource::new(alias.clone(), Arc::clone(&manifest)),
+        None,
         &extras,
     );
     let via_resolved = super::super::shim_node_path(
         &PackageBinSource::new(alias, manifest).with_resolved_location(real_slot_pkg_dir.clone()),
+        None,
         &extras,
     );
     assert_eq!(via_fallback, via_resolved);
@@ -58,6 +60,50 @@ fn resolved_location_matches_canonicalize_fallback_for_node_path() {
                 .unwrap()
                 .to_string_lossy()
                 .into_owned(),
+        ],
+    );
+}
+
+/// A project modules dir comes ahead of the target's own `node_modules`
+/// dirs and the extras, and an entry listed again keeps its first position.
+#[test]
+fn a_project_node_path_comes_first_and_a_repeated_entry_keeps_its_first_position() {
+    let tmp = tempdir().unwrap();
+    let pkg_dir = tmp.path().join("node_modules/.pnpm/foo@1.0.0/node_modules/foo");
+    let slot_dir = pkg_dir
+        .parent()
+        .unwrap()
+        .to_string_lossy()
+        .into_owned();
+    let project = tmp
+        .path()
+        .join("vendor")
+        .to_string_lossy()
+        .into_owned();
+    let hoisted = tmp
+        .path()
+        .join("node_modules/.pnpm/node_modules")
+        .to_string_lossy()
+        .into_owned();
+    let manifest = Arc::new(json!({"name": "foo", "version": "1.0.0", "bin": "cli.js"}));
+
+    let node_path = super::super::shim_node_path(
+        &PackageBinSource::new(tmp.path().join("vendor/foo"), manifest)
+            .with_resolved_location(pkg_dir.clone()),
+        Some(&project),
+        &[slot_dir.clone(), hoisted.clone()],
+    );
+
+    assert_eq!(
+        node_path,
+        [
+            project,
+            pkg_dir
+                .join("node_modules")
+                .to_string_lossy()
+                .into_owned(),
+            slot_dir,
+            hoisted,
         ],
     );
 }

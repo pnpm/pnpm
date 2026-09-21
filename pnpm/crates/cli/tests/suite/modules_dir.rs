@@ -35,7 +35,10 @@ fn bins_in_a_custom_modules_dir_load_plugins_installed_in_it() {
         .with_arg("install")
         .assert()
         .success();
-    assert_eq!(tool_stdout(&workspace), r#"{"plugin":"plugin loaded","isPositive":"1.0.0"}"#);
+    assert_eq!(
+        tool_stdout(&workspace),
+        r#"{"plugin":"plugin loaded","isPositive":"3.1.0","ownIsPositive":"1.0.0"}"#
+    );
     for args in [["run", "lint"], ["exec", "tool"]] {
         let output = pacquet_in(&workspace)
             .with_args(args)
@@ -54,7 +57,10 @@ fn bins_in_a_custom_modules_dir_load_plugins_installed_in_it() {
         .with_args(["install", "--frozen-lockfile"])
         .assert()
         .success();
-    assert_eq!(tool_stdout(&workspace), r#"{"plugin":"plugin loaded","isPositive":"1.0.0"}"#);
+    assert_eq!(
+        tool_stdout(&workspace),
+        r#"{"plugin":"plugin loaded","isPositive":"3.1.0","ownIsPositive":"1.0.0"}"#
+    );
 
     drop((root, mock_instance));
 }
@@ -84,7 +90,10 @@ fn bins_in_a_custom_modules_dir_are_relinked_when_extend_node_path_changes() {
         .with_arg("install")
         .assert()
         .success();
-    assert_eq!(tool_stdout(&workspace), r#"{"plugin":"plugin loaded","isPositive":"1.0.0"}"#);
+    assert_eq!(
+        tool_stdout(&workspace),
+        r#"{"plugin":"plugin loaded","isPositive":"1.0.0","ownIsPositive":"1.0.0"}"#
+    );
 
     set_extend_node_path(&workspace, "true", "false");
     pacquet_in(&workspace)
@@ -129,7 +138,7 @@ fn bins_of_every_project_load_plugins_only_from_that_projects_modules_dir() {
     assert_plugin_not_found(&run_tool(&workspace.join("project-1")));
     assert_eq!(
         tool_stdout(&workspace.join("project-2")),
-        r#"{"plugin":"plugin loaded","isPositive":"1.0.0"}"#,
+        r#"{"plugin":"plugin loaded","isPositive":"1.0.0","ownIsPositive":"1.0.0"}"#,
     );
 
     drop((root, mock_instance));
@@ -156,6 +165,7 @@ fn write_tool(workspace: &Path) {
          console.log(JSON.stringify({\n  \
            plugin: requireFromProject('plugin'),\n  \
            isPositive: requireFromProject('is-positive/package.json').version,\n\
+           ownIsPositive: require('is-positive/package.json').version,\n\
          }))\n",
     )
     .expect("write tool/bin.js");

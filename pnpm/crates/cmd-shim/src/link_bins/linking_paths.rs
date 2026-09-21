@@ -9,6 +9,7 @@ use std::{
 pub(super) struct LinkingPaths<'a> {
     pub(super) bins_dir: Cow<'a, Path>,
     pub(super) relocatable_root: Option<PathBuf>,
+    pub(super) project_node_path: Option<String>,
     pub(super) extra_node_paths: Cow<'a, [String]>,
 }
 
@@ -20,13 +21,10 @@ impl<'a> LinkingPaths<'a> {
         let mut paths = Self {
             bins_dir: Cow::Borrowed(bins_dir),
             relocatable_root: None,
+            project_node_path: project_modules_dir(bins_dir, options)
+                .map(|dir| dir.to_string_lossy().into_owned()),
             extra_node_paths: Cow::Borrowed(&options.extra_node_paths),
         };
-        if let Some(modules_dir) = project_modules_dir(bins_dir, options) {
-            paths.extra_node_paths
-                .to_mut()
-                .push(modules_dir.to_string_lossy().into_owned());
-        }
         let Some(root) = options.relocatable_root
             .as_deref()
             .filter(|_| cfg!(unix))
@@ -39,7 +37,9 @@ impl<'a> LinkingPaths<'a> {
             return Ok(paths);
         }
         paths.bins_dir = Cow::Owned(physical_bins);
-        paths.extra_node_paths = paths.extra_node_paths
+        paths.project_node_path =
+            paths.project_node_path.map(|entry| resolve_extra(&entry, root, &physical_root));
+        paths.extra_node_paths = options.extra_node_paths
             .iter()
             .map(|entry| resolve_extra(entry, root, &physical_root))
             .collect::<Vec<_>>()
