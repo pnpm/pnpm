@@ -6,4 +6,4 @@
 "pnpm": patch
 ---
 
-`findWorkspaceDirSync`, `findPackagesSync`, and `findWorkspaceProjectsSync` are now exported for synchronous workspace operations.
+`findWorkspaceDirSync`, `findPackagesSync`, `findWorkspaceProjectsSync`, `readWorkspaceManifestSync`, `readProjectManifestOnlySync`, and `tryReadProjectManifestSync` are now exported for synchronous workspace operations.
