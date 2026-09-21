@@ -1,3 +1,34 @@
+pub const SUPPORTED_SHELLS: &[&str] = &["bash", "fish", "pwsh", "zsh"];
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CompletionShell {
+    Bash,
+    Fish,
+    Pwsh,
+    Zsh,
+}
+
+impl CompletionShell {
+    pub(super) fn from_name(name: &str) -> Option<Self> {
+        match name {
+            "bash" => Some(CompletionShell::Bash),
+            "fish" => Some(CompletionShell::Fish),
+            "pwsh" => Some(CompletionShell::Pwsh),
+            "zsh" => Some(CompletionShell::Zsh),
+            _ => None,
+        }
+    }
+
+    pub(super) fn script(self) -> &'static str {
+        match self {
+            CompletionShell::Bash => BASH_COMPLETION,
+            CompletionShell::Fish => FISH_COMPLETION,
+            CompletionShell::Pwsh => PWSH_COMPLETION,
+            CompletionShell::Zsh => ZSH_COMPLETION,
+        }
+    }
+}
+
 pub(super) const BASH_COMPLETION: &str = r#"###-begin-pnpm-completion-###
 _pnpm_completion() {
   local words cword completion

@@ -1,3 +1,5 @@
+pub use shells::{CompletionShell, SUPPORTED_SHELLS};
+
 use crate::{
     cli_args::{cli_command::options::find_workspace_root_dir, prefix::find_npm_local_prefix},
     flag_relocation::short_cluster_consumes_value,
@@ -11,8 +13,6 @@ use std::{
     path::{Path, PathBuf},
 };
 
-pub const SUPPORTED_SHELLS: &[&str] = &["bash", "fish", "pwsh", "zsh"];
-
 #[derive(Debug, Args)]
 pub struct CompletionArgs {
     pub shell: Option<String>,
@@ -25,35 +25,6 @@ pub struct CompletionArgs {
 pub struct CompletionServerArgs {
     #[clap(trailing_var_arg = true, allow_hyphen_values = true)]
     pub words: Vec<String>,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum CompletionShell {
-    Bash,
-    Fish,
-    Pwsh,
-    Zsh,
-}
-
-impl CompletionShell {
-    fn from_name(name: &str) -> Option<Self> {
-        match name {
-            "bash" => Some(CompletionShell::Bash),
-            "fish" => Some(CompletionShell::Fish),
-            "pwsh" => Some(CompletionShell::Pwsh),
-            "zsh" => Some(CompletionShell::Zsh),
-            _ => None,
-        }
-    }
-
-    fn script(self) -> &'static str {
-        match self {
-            CompletionShell::Bash => shells::BASH_COMPLETION,
-            CompletionShell::Fish => shells::FISH_COMPLETION,
-            CompletionShell::Pwsh => shells::PWSH_COMPLETION,
-            CompletionShell::Zsh => shells::ZSH_COMPLETION,
-        }
-    }
 }
 
 #[derive(Debug, Display, Error, Diagnostic, PartialEq, Eq)]
