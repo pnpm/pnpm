@@ -213,6 +213,12 @@ fn env_expanding_deserializer_rejects_boolean_for_string_only_enum() {
 }
 
 #[test]
+fn env_expanding_deserializer_preserves_quoted_string_types() {
+    serde_saphyr::from_str::<WorkspaceSettings>("linkWorkspacePackages: \"false\"\n")
+        .expect_err("a quoted false is not a boolean");
+}
+
+#[test]
 fn env_expanding_deserializer_redacts_invalid_expanded_value() {
     const SECRET: &str = "secret-that-must-not-appear";
     let _guard = EnvGuard::snapshot(["PNPM_TEST_14914_SECRET"]);

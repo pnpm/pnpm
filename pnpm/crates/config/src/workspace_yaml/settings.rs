@@ -65,9 +65,15 @@ where
     match value {
         serde_json::Value::String(s) => {
             let (expanded, _) = env_replace_lossy::<SystemEnv>(&s);
-            serde_saphyr::from_str::<Value>(&expanded)
-                .map(Some)
-                .map_err(|_| De::Error::custom("invalid environment-expanded value"))
+            if expanded == s {
+                serde_json::from_value::<Value>(serde_json::Value::String(s))
+                    .map(Some)
+                    .map_err(De::Error::custom)
+            } else {
+                serde_saphyr::from_str::<Value>(&expanded)
+                    .map(Some)
+                    .map_err(|_| De::Error::custom("invalid environment-expanded value"))
+            }
         }
         serde_json::Value::Bool(value) => deserialize_bool_value(value).map(Some),
         other => serde_json::from_value::<Value>(other).map(Some).map_err(De::Error::custom),
