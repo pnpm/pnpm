@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { test } from 'node:test'
-import { compare, renderComparison, scenarios } from './compare-integrated-benchmarks.mjs'
+import { compare, compareConfirmed, renderComparison, scenarios } from './compare-integrated-benchmarks.mjs'
 
 function command (name, times) {
   return { command: name, times, exit_codes: times.map(() => 0) }
@@ -76,6 +76,7 @@ test('all scenarios and both engines are checked, and missing reports fail', asy
       if (!scenario.includes('PEER_HEAVY') && !scenario.includes('LINKED_WORKSPACE')) {
         input.results.push(command('pnpr@HEAD', Array(10).fill(1.4)), command('pnpr@main', stable))
       }
+      input.confirmation = { results: input.results }
       await writeFile(join(directory, `BENCHMARK_REPORT_${scenario}.json`), JSON.stringify(input))
     }
     const result = await renderComparison(directory)
@@ -89,6 +90,7 @@ test('all scenarios and both engines are checked, and missing reports fail', asy
     assert.equal(run.stderr, '')
     for (const scenario of scenarios) {
       const input = { results: ['pacquet', 'pnpr'].flatMap(engine => [command(`${engine}@HEAD`, stable), command(`${engine}@main`, stable)]) }
+      input.confirmation = { results: input.results }
       await writeFile(join(directory, `BENCHMARK_REPORT_${scenario}.json`), JSON.stringify(input))
     }
     assert.equal(spawnSync(process.execPath, [fileURLToPath(cli), directory]).status, 0)
@@ -113,4 +115,15 @@ test('hyperfine command names identify targets when commands are shell scripts',
   const input = report(stable, stable)
   input.results = input.results.map(result => ({ ...result, command_name: result.command, command: '/tmp/run.sh' }))
   assert.equal(compare(input, 'pacquet').status, 'Within tolerance')
+})
+
+test('regressions must reproduce in the confirmation run', () => {
+  const input = report(Array(10).fill(1.3), stable)
+  assert.throws(() => compareConfirmed(input, 'pacquet'), /Missing confirmation/)
+  input.confirmation = report(stable, stable)
+  assert.equal(compareConfirmed(input, 'pacquet').status, 'Inconclusive (not reproduced)')
+  input.confirmation = report(Array(10).fill(1.3), stable)
+  assert.equal(compareConfirmed(input, 'pacquet').status, 'Regression')
+  input.confirmation = report([], stable)
+  assert.throws(() => compareConfirmed(input, 'pacquet'), /samples/)
 })

@@ -220,7 +220,14 @@ fails the check. Both pacquet and pnpr are checked, except in the two client-onl
 resolver scenarios.
 
 Slowdowns above the tolerance without this sample separation are reported as
-inconclusive and do not fail CI. This conservative noise guard is not a
+inconclusive and do not fail CI. Suspected regressions are automatically rerun
+once with target order reversed. Only a slowdown reproduced in both runs fails
+the check; both measurements remain in the artifact and report. This also
+guards against sustained runner drift during a single batch of samples.
+Confirmation command failures propagate, and a missing required confirmation
+report fails the comparison.
+
+This conservative noise guard is not a
 statistical confidence interval; sequential measurements remain vulnerable to
 runner drift. All timings remain available for performance review.
 
@@ -237,7 +244,7 @@ run these commands from the repository root:
 
 ```sh
 node .github/scripts/compare-integrated-benchmarks.mjs /path/to/artifact
-node --test .github/scripts/compare-integrated-benchmarks.test.mjs
+node --test .github/scripts/compare-integrated-benchmarks.test.mjs .github/scripts/run-integrated-benchmark.test.mjs
 ```
 
 Adding a scenario requires updating the comparison script's scenario list and
