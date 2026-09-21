@@ -129,6 +129,21 @@ test('install-test: install dependencies and runs tests', async () => {
   expect(scriptsRan.trim()).toBe('test')
 })
 
+test.each(['--no-bail', '--bail=false'])('install-test: %s continues after a workspace test fails', (bailOption) => {
+  preparePackages([
+    { name: 'project-1', scripts: { test: 'node test.cjs' } },
+    { name: 'project-2', scripts: { test: 'node test.cjs' } },
+  ])
+  writeYamlFileSync('pnpm-workspace.yaml', { packages: ['project-*'], workspaceConcurrency: 1 })
+  fs.writeFileSync('project-1/test.cjs', "require('fs').appendFileSync('../order.txt', 'first\\n'); process.exit(1)")
+  fs.writeFileSync('project-2/test.cjs', "require('fs').appendFileSync('../order.txt', 'second\\n')")
+
+  const result = execPnpmSync(['-r', bailOption, 'install-test'])
+
+  expect(result.status).toBe(1)
+  expect(fs.readFileSync('order.txt', 'utf8')).toBe('first\nsecond\n')
+})
+
 test('silent run only prints the output of the child process', async () => {
   prepare({
     scripts: {
