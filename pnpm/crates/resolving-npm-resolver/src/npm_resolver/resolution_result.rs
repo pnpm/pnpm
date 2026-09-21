@@ -66,7 +66,7 @@ pub(crate) fn build_resolve_result(
         &resolution,
         args.published_by,
         args.published_by_exclude,
-        args.blocked_versions.and_then(|blocked| blocked.get(pkg_name.as_str())).is_some_and(|versions| versions.contains(&version_str)),
+        args.is_blocked(&pkg_name, &version_str),
     );
     let package = resolved_package_info(&args, name_ver, &version_str, published_at, manifest);
     Ok(ResolveResult {
@@ -362,6 +362,12 @@ pub(super) fn picked_tarball_resolution(
 }
 
 impl BuildResolveResult<'_> {
+    fn is_blocked(&self, name: &PkgName, version: &str) -> bool {
+        self.blocked_versions
+            .and_then(|blocked| blocked.get(&name.to_string()))
+            .is_some_and(|versions| versions.contains(version))
+    }
+
     pub(super) fn manifest_for_revision(
         &self,
         picked: &PackageVersion,

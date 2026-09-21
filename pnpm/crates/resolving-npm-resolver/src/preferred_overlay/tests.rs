@@ -189,3 +189,20 @@ fn version_trusted_by_exact_version_stays_in_the_baseline() {
     );
     assert_eq!(preferred, Some("2.1.4".to_string()));
 }
+
+#[test]
+fn does_not_recommend_a_version_with_an_immature_dependency_tree() {
+    let mut opts = update_opts();
+    opts.policy.blocked_versions = Some(std::sync::Arc::new(HashMap::from([(
+        "foo".to_string(),
+        std::collections::HashSet::from(["2.1.4".to_string()]),
+    )])));
+    let preferred = held_back_preferred(
+        &opts,
+        &range_spec(),
+        Some(&range_selectors()),
+        &make_package(),
+        "2.1.3",
+    );
+    assert_eq!(preferred, None);
+}

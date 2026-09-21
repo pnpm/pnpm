@@ -90,12 +90,12 @@ pub(super) fn publish_date_policy_key(
     cutoff: chrono::DateTime<chrono::Utc>,
     trusted_versions: Option<&[String]>,
 ) -> String {
-    let mut key = format!("{}.{}", cutoff.timestamp(), cutoff.timestamp_subsec_nanos());
-    for trusted in trusted_versions.unwrap_or_default() {
-        key.push('\0');
-        key.push_str(trusted);
-    }
-    key
+    serde_json::json!([
+        cutoff.timestamp(),
+        cutoff.timestamp_subsec_nanos(),
+        trusted_versions.unwrap_or_default(),
+    ])
+    .to_string()
 }
 
 pub(super) fn filter_pkg_metadata_by_publish_date_uncached(
@@ -244,3 +244,6 @@ pub(super) fn best_tag_candidate<'a>(
     }
     best.map(|slot| slot.1)
 }
+
+#[cfg(test)]
+mod tests;

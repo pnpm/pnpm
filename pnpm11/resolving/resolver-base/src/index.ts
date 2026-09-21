@@ -274,16 +274,7 @@ export interface ResolutionPolicyViolation {
   parentIds?: PkgResolutionId[]
 }
 
-/**
- * Versions a resolution is forbidden to pick, keyed by package name.
- *
- * `minimumReleaseAge` narrows candidates one packument at a time, so an edge
- * that admits no mature version cannot be repaired where it is found — only
- * by choosing a different version of the package that declared it. The
- * install re-resolves with the offending parent recorded here, which turns
- * the dead end into one fewer candidate and lets the pick move down the
- * range.
- */
+/** Versions excluded by the retry, keyed by package name. Named-registry versions retain their `registryName:` prefix. */
 export type BlockedVersions = ReadonlyMap<string, ReadonlySet<string>>
 
 /** Concrete platform selector used when picking a variant from a VariationsResolution. */

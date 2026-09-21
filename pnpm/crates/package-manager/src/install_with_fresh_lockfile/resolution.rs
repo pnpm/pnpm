@@ -359,13 +359,15 @@ pub(super) async fn run_prepared_resolve<'m, Reporter: self::Reporter + 'static>
         stage: Stage::ResolutionStarted,
     }));
     let workspace_result = resolve::resolve_mature_dependency_tree::<Reporter, _, _>(
-        |blocked_versions| context.resolve_rounds(
-            &importer_manifests,
-            lockfile_reuse_seed.clone(),
-            Arc::clone(&preferred_versions_seed),
-            preferred_versions_seeds_by_importer.clone(),
-            blocked_versions,
-        ),
+        |blocked_versions| {
+            context.resolve_rounds(
+                &importer_manifests,
+                lockfile_reuse_seed.clone(),
+                Arc::clone(&preferred_versions_seed),
+                preferred_versions_seeds_by_importer.clone(),
+                blocked_versions,
+            )
+        },
         context.install.projects.lockfile_dir,
         context.setup.policy.published_by.is_some(),
     )

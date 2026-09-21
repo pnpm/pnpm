@@ -156,7 +156,12 @@ export function applyPublishedByPolicy (
       needsFullMetadata: false,
     }
   }
-  if (meta.time == null) return { meta, needsFullMetadata: true }
+  if (meta.time == null) {
+    return {
+      meta: blockedVersions?.size ? filterPkgMetadata(meta, { blockedVersions }) : meta,
+      needsFullMetadata: true,
+    }
+  }
   assertMetaHasTime(meta)
   const trustedVersions = Array.isArray(excludeResult) ? excludeResult : undefined
   return {

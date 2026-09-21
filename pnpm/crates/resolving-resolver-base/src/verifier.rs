@@ -4,7 +4,7 @@
 
 use std::{future::Future, pin::Pin};
 
-use pnpm_lockfile::{LockfileResolution, PkgName, PkgNameVer};
+use pnpm_lockfile::{LockfileResolution, PkgName};
 
 /// One verifier's decision about a single `(name, version, resolution)`
 /// entry. A discriminated union (`{ ok: true } | { ok: false, code,
@@ -64,7 +64,7 @@ pub struct ResolutionPolicyViolation {
     /// entries it has no path for. The install names the dependent with
     /// it, and the resolution retry uses the last entry to find the choice
     /// that has to be revisited.
-    pub parents: Vec<PkgNameVer>,
+    pub parents: Vec<pnpm_lockfile::PackageKey>,
 }
 
 /// `ctx` argument bundle for [`ResolutionVerifier::verify`].

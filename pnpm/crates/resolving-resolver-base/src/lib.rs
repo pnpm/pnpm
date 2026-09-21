@@ -24,15 +24,16 @@ pub use peer_range::{get_peer_version_range, is_acceptable_peer_spec, is_valid_p
 pub use pnpm_config::LinkWorkspacePackages;
 pub use publish_time::parse_packument_timestamp;
 pub use resolve::{
-    BlockedVersions, CurrentPkg, DIRECT_DEP_SELECTOR_WEIGHT, DependencyManifest, EXISTING_VERSION_SELECTOR_WEIGHT,
-    GuardExhaustionPolicy, LatestInfo, LatestQuery, NonDeprecatedAlternative, PackageVersionGuard,
-    PackageVersionGuardDecision, PackageVersionGuardError, PackageVersionGuardFuture,
-    PkgResolutionId, PreferredVersions, PreferredVersionsOverlay, ResolutionPolicyOptions,
-    ResolutionRefreshOptions, ResolveError, ResolveFuture, ResolveLatestFuture, ResolveOptions,
-    ResolveResult, ResolvedPackageInfo, Resolver, ResolverProjectOptions, ResolverSpecifierOptions,
-    SharedDependencyManifest, UpdateBehavior, VersionSelectionOptions, VersionSelectorEntry,
-    VersionSelectorType, VersionSelectorWithWeight, VersionSelectors, WantedDependency,
-    WorkspacePackage, WorkspacePackages, WorkspacePackagesByVersion, resolve_package_version,
+    BlockedVersions, CurrentPkg, DIRECT_DEP_SELECTOR_WEIGHT, DependencyManifest,
+    EXISTING_VERSION_SELECTOR_WEIGHT, GuardExhaustionPolicy, LatestInfo, LatestQuery,
+    NonDeprecatedAlternative, PackageVersionGuard, PackageVersionGuardDecision,
+    PackageVersionGuardError, PackageVersionGuardFuture, PkgResolutionId, PreferredVersions,
+    PreferredVersionsOverlay, ResolutionPolicyOptions, ResolutionRefreshOptions, ResolveError,
+    ResolveFuture, ResolveLatestFuture, ResolveOptions, ResolveResult, ResolvedPackageInfo,
+    Resolver, ResolverProjectOptions, ResolverSpecifierOptions, SharedDependencyManifest,
+    UpdateBehavior, VersionSelectionOptions, VersionSelectorEntry, VersionSelectorType,
+    VersionSelectorWithWeight, VersionSelectors, WantedDependency, WorkspacePackage,
+    WorkspacePackages, WorkspacePackagesByVersion, resolve_package_version,
 };
 pub use semver_range::{ANY_VERSION_RANGE, is_any_version_range, is_valid_semver_range};
 pub use verifier::{

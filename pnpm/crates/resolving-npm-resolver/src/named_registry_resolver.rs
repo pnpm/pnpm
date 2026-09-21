@@ -105,6 +105,8 @@ impl<Cache: PackageMetaCache + 'static> NamedRegistryResolver<Cache> {
             return Ok(None);
         };
 
+        let scoped_opts = scope_policy_blocks(opts, &spec.name, &registry_name);
+        let opts = &scoped_opts;
         let optional = wanted_dependency.optional.unwrap_or(false);
         let picked = match self.pick_from_registry(registry, &spec, opts, optional).await? {
             RegistryPick::Picked(picked) => picked,
@@ -206,8 +208,7 @@ impl<Cache: PackageMetaCache + 'static> NamedRegistryResolver<Cache> {
                 preferred_version_selectors: base_selectors,
                 pick_lowest_version: opts.version.pick_lowest_version,
                 include_latest_tag: opts.refresh.update == UpdateBehavior::Latest,
-                package_version_guard: opts.policy.package_version_guard.as_ref(),
-                policy_blocked_versions: opts.policy.blocked_versions.as_deref().and_then(|blocked| blocked.get(spec.name.as_str())),
+                guard: crate::npm_resolver::RegistryGuardOptions::new(opts, &spec.name),
                 policy: crate::PackagePickPolicy {
                     published_by: opts.policy.published_by,
                     published_by_exclude: opts.policy.published_by_exclude.as_ref(),
@@ -237,3 +238,27 @@ impl<Cache: PackageMetaCache + 'static> NamedRegistryResolver<Cache> {
 
 #[cfg(test)]
 mod tests;
+
+fn scope_policy_blocks<'options>(
+    opts: &'options ResolveOptions,
+    name: &str,
+    registry_name: &str,
+) -> std::borrow::Cow<'options, ResolveOptions> {
+    if opts.policy.blocked_versions.is_none() {
+        return std::borrow::Cow::Borrowed(opts);
+    }
+    let mut scoped = opts.clone();
+    scoped.policy.blocked_versions = opts.policy.blocked_versions
+        .as_ref()
+        .map(|blocked| {
+            let prefix = format!("{registry_name}:");
+            let versions = blocked
+                .get(name)
+                .into_iter()
+                .flatten()
+                .filter_map(|version| version.strip_prefix(&prefix).map(str::to_string))
+                .collect();
+            std::sync::Arc::new(HashMap::from([(name.to_string(), versions)]))
+        });
+    std::borrow::Cow::Owned(scoped)
+}

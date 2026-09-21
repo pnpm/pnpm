@@ -1,3 +1,4 @@
+import * as dp from '@pnpm/deps.path'
 import { globalInfo, globalWarn } from '@pnpm/logger'
 import { MINIMUM_RELEASE_AGE_VIOLATION_CODE } from '@pnpm/resolving.npm-resolver'
 import type { BlockedVersions, ResolutionPolicyViolation } from '@pnpm/resolving.resolver-base'
@@ -130,7 +131,7 @@ function blockDeadEndParents (
 
 /**
  * The package whose choice of version put this pick in the tree: the last
- * entry of the resolution path, which starts at the importer.
+ * entry of the package-only resolution path.
  */
 function blamedParent (
   violation: ResolutionPolicyViolation,
@@ -143,7 +144,9 @@ function blamedParent (
   const parentId = parentIds[parentIds.length - 1] as PkgResolutionId
   const parent = resolvedPkgsById[parentId]
   if (parent == null) return undefined
-  return { name: parent.name, version: parent.version }
+  const { registryName, version } = dp.parse(parent.id)
+  if (version == null) return undefined
+  return { name: parent.name, version: registryName ? `${registryName}:${version}` : version }
 }
 
 function reportHeldBackParents (

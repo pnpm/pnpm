@@ -920,7 +920,12 @@ async function resolveFromNamedRegistry (
   const registry = ctx.registriesByPrefix[spec.registryName]
   if (!registry) return null // defensive: should never trigger because parse checks the alias set
 
-  const picked = await pickFromSimpleRegistry(ctx, wantedDependency, opts, spec, registry)
+  const blocked = opts.blockedVersions?.get(spec.name)
+  const prefix = `${spec.registryName}:`
+  const blockedVersions = blocked && new Map([[spec.name, new Set(
+    [...blocked].filter(version => version.startsWith(prefix)).map(version => version.slice(prefix.length))
+  )]])
+  const picked = await pickFromSimpleRegistry(ctx, wantedDependency, { ...opts, blockedVersions }, spec, registry)
   return {
     ...picked,
     // Qualifying the id with the registry alias is what keeps the same

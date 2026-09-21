@@ -5,6 +5,7 @@ import semver from 'semver'
 
 import {
   pickLowestVersionByVersionRange,
+  pickPackageFromMeta,
   pickStableCachedRangeVersion,
   pickVersionByVersionRange,
 } from '../src/pickPackageFromMeta.js'
@@ -215,4 +216,16 @@ test('selector weights whose sum is unsafe disable cached range reuse', () => {
   })
 
   expect(result).toBeNull()
+})
+
+test('abbreviated metadata still excludes parents with immature dependency trees', () => {
+  const meta = metaWithoutLatest(['1.0.0', '2.0.0'])
+  meta.modified = '2020-01-01T00:00:00Z'
+  meta['dist-tags'].latest = '2.0.0'
+  const picked = pickPackageFromMeta(pickVersionByVersionRange, {
+    preferredVersionSelectors: undefined,
+    publishedBy: new Date('2021-01-01T00:00:00Z'),
+    blockedVersions: new Map([['pick-version', new Set(['2.0.0'])]]),
+  }, meta, { name: 'pick-version', fetchSpec: 'latest', type: 'tag' })
+  expect(picked?.version).toBe('1.0.0')
 })

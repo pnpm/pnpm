@@ -493,13 +493,25 @@ impl ChildEdge<'_> {
     }
 }
 
-fn parent_chain_from_ids(ctx: &TreeCtx, ancestor_ids: &[String]) -> Vec<pnpm_lockfile::PkgNameVer> {
+fn parent_chain_from_ids(ctx: &TreeCtx, ancestor_ids: &[String]) -> Vec<pnpm_lockfile::PackageKey> {
     let packages = lock_recoverable(&ctx.workspace.tree.packages);
     let mut parents = Vec::new();
     for id in ancestor_ids {
         let Some(package) = packages.get(id.as_str()) else { continue };
-        let Some(name_ver) = package.result.package.name_ver.as_ref() else { return Vec::new() };
-        parents.push(name_ver.clone());
+        if package.result.package.name_ver.is_none() {
+            return Vec::new();
+        }
+        let Ok(key) = package.result.id.as_str().parse::<pnpm_lockfile::PackageKey>() else {
+            return Vec::new();
+        };
+        if !matches!(
+            key.suffix.version(),
+            pnpm_lockfile::VersionPart::Semver(_)
+                | pnpm_lockfile::VersionPart::RegistryQualified { .. },
+        ) {
+            return Vec::new();
+        }
+        parents.push(key);
     }
     parents
 }

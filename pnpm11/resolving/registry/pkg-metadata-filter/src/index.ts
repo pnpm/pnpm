@@ -1,5 +1,5 @@
 import { globalWarn } from '@pnpm/logger'
-import type { PackageMetadata } from '@pnpm/resolving.registry.types'
+import type { PackageMetadata, PackageMetadataWithTime } from '@pnpm/resolving.registry.types'
 import semver from 'semver'
 
 /**
@@ -64,6 +64,15 @@ export function filterPkgMetadata (
     byPolicy.set(policyKey, filtered)
   }
   return filtered
+}
+
+/** Compatibility entry point for callers that only filter by publication date. */
+export function filterPkgMetadataByPublishDate (
+  pkgDoc: PackageMetadataWithTime,
+  publishedBy: Date,
+  trustedVersions?: string[]
+): PackageMetadataWithTime {
+  return filterPkgMetadata(pkgDoc, { publishedBy, trustedVersions }) as PackageMetadataWithTime
 }
 
 function toPolicyKey ({ publishedBy, trustedVersions, blockedVersions }: PkgMetadataFilter): string {

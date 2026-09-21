@@ -226,3 +226,57 @@ fn a_package_the_policy_does_not_name_is_never_exempt() {
     assert!(!pin_is_exempt(Some(&policy), "child", "1.0.0"));
     assert!(!pin_is_exempt(None, "child", "1.0.0"));
 }
+
+#[tokio::test]
+async fn latest_retains_the_first_candidate_when_all_exact_pins_are_immature() {
+    let dir = tempdir().unwrap();
+    let mut server = mockito::Server::new_async().await;
+    let parent = json!({
+        "name": "parent",
+        "dist-tags": { "latest": "2.0.0" },
+        "time": { "1.0.0": "2020-01-01T00:00:00Z", "2.0.0": "2020-01-01T00:00:00Z" },
+        "versions": {
+            "1.0.0": { "name": "parent", "version": "1.0.0", "dist": { "tarball": "https://registry/parent.tgz" }, "dependencies": { "child": "1.0.0" } },
+            "2.0.0": { "name": "parent", "version": "2.0.0", "dist": { "tarball": "https://registry/parent.tgz" }, "dependencies": { "child": "1.0.0" } }
+        }
+    });
+    let child = json!({
+        "name": "child",
+        "dist-tags": { "latest": "1.0.0" },
+        "time": { "1.0.0": "2099-01-01T00:00:00Z" },
+        "versions": { "1.0.0": { "name": "child", "version": "1.0.0", "dist": { "tarball": "https://registry/child.tgz" } } }
+    });
+    let _parent = server
+        .mock("GET", "/parent")
+        .with_status(200)
+        .with_body(parent.to_string())
+        .create_async()
+        .await;
+    let _child = server
+        .mock("GET", "/child")
+        .with_status(200)
+        .with_body(child.to_string())
+        .create_async()
+        .await;
+    let mut config = Config::new();
+    config.cache_dir = dir.path().join("cache");
+    config.registry = format!("{}/", server.url());
+    config.minimum_release_age = Some(1440);
+    let http_client = ThrottledClient::default();
+    let picker = LatestPicker::new(
+        &config,
+        &http_client,
+        PickPolicy::from_config(&config).unwrap(),
+        Arc::default(),
+        shared_packument_fetch_locker(),
+    );
+    assert_eq!(
+        picker
+            .resolve("parent", true)
+            .await
+            .unwrap()
+            .version
+            .to_string(),
+        "2.0.0",
+    );
+}

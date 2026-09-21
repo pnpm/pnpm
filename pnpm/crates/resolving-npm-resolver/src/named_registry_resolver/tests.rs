@@ -626,3 +626,40 @@ async fn resolves_registry_qualified_id() {
         Some("@acme/private@2.1.0"),
     );
 }
+
+#[tokio::test]
+async fn maturity_blocks_are_scoped_to_the_named_registry() {
+    let mut server = mockito::Server::new_async().await;
+    let _mock = server
+        .mock("GET", "/@acme%2Fprivate")
+        .with_status(200)
+        .with_body(ACME_PRIVATE_BODY)
+        .create_async()
+        .await;
+    for (blocked, expected) in [("gh:2.1.0", "2.0.0"), ("work:2.1.0", "2.1.0"), ("2.1.0", "2.1.0")]
+    {
+        let (resolver, _tempdir) =
+            build_resolver(HashMap::from([("gh".to_string(), format!("{}/", server.url()))]));
+        let opts = ResolveOptions {
+            policy: pnpm_resolving_resolver_base::ResolutionPolicyOptions {
+                blocked_versions: Some(Arc::new(HashMap::from([(
+                    "@acme/private".to_string(),
+                    HashSet::from([blocked.to_string()]),
+                )]))),
+                ..Default::default()
+            },
+            ..Default::default()
+        };
+        let wanted = WantedDependency {
+            alias: Some("@acme/private".to_string()),
+            bare_specifier: Some("gh:^2.0.0".to_string()),
+            ..Default::default()
+        };
+        let result = resolver
+            .resolve(&wanted, &opts)
+            .await
+            .unwrap()
+            .unwrap();
+        assert_eq!(result.id.as_str(), format!("@acme/private@gh:{expected}"));
+    }
+}

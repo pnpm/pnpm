@@ -244,6 +244,8 @@ pub type PackageVersionGuardFuture<'a> = Pin<
     >,
 >;
 
+/// Versions excluded by the retry, keyed by package name.
+/// Named-registry versions retain their `registryName:` prefix.
 pub type BlockedVersions = HashMap<String, HashSet<String>>;
 
 /// What the resolver does for a package whose every matching version the

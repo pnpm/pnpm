@@ -252,3 +252,50 @@ async fn package_version_guard_blocks_the_packument_key_not_the_parsed_version()
         "1.0.0",
     );
 }
+
+#[tokio::test]
+async fn lifting_maturity_blocks_keeps_guard_rejections() {
+    let mut server = mockito::Server::new_async().await;
+    let _mock = server
+        .mock("GET", "/acme")
+        .with_status(200)
+        .with_body(PACKAGE_BODY)
+        .create_async()
+        .await;
+    let (resolver, _tempdir) = build_resolver(&format!("{}/", server.url()));
+    let opts = ResolveOptions {
+        policy: pnpm_resolving_resolver_base::ResolutionPolicyOptions {
+            package_version_guard: Some(reject_versions(&["1.1.0"])),
+            blocked_versions: Some(std::sync::Arc::new(std::collections::HashMap::from([(
+                "acme".to_string(),
+                std::collections::HashSet::from(["1.0.0".to_string()]),
+            )]))),
+            ..Default::default()
+        },
+        ..Default::default()
+    };
+    let wanted = WantedDependency {
+        alias: Some("acme".to_string()),
+        bare_specifier: Some("^1.0.0".to_string()),
+        ..Default::default()
+    };
+    let result = resolver
+        .resolve(&wanted, &opts)
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(result.package.name_ver.unwrap().suffix.to_string(), "1.0.0");
+}
+
+#[test]
+fn a_mismatched_manifest_version_does_not_block_another_packument_entry() {
+    let meta: pnpm_registry::Package = serde_json::from_value(serde_json::json!({
+        "name": "acme", "dist-tags": { "latest": "2.0.0" },
+        "versions": {
+            "1.0.0": { "name": "acme", "version": "1.0.0", "dist": { "tarball": "https://registry/one.tgz" } },
+            "2.0.0": { "name": "acme", "version": "1.0.0", "dist": { "tarball": "https://registry/two.tgz" } }
+        }
+    })).unwrap();
+    let picked = meta.versions.get("2.0.0").unwrap();
+    assert_eq!(crate::blocked_packument_key(&meta, &picked, "1.0.0"), "2.0.0");
+}

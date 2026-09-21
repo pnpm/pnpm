@@ -115,14 +115,7 @@ pub(super) fn detect_min_release_age_violation(
 ) -> Option<ResolutionPolicyViolation> {
     let cutoff = published_by?;
     if blocked {
-        return Some(ResolutionPolicyViolation {
-            name: name.clone(),
-            version: version.to_string(),
-            resolution: resolution.clone(),
-            code: MINIMUM_RELEASE_AGE_VIOLATION_CODE,
-            reason: "has no dependency tree that satisfies the minimumReleaseAge cutoff".to_string(),
-            parents: Vec::new(),
-        });
+        return Some(blocked_violation(name, version, resolution));
     }
     let timestamp = published_at?;
     if let Some(policy) = published_by_exclude {
@@ -154,4 +147,19 @@ pub(super) fn detect_min_release_age_violation(
             cutoff = cutoff.to_rfc3339_opts(chrono::SecondsFormat::Millis, true),
         ),
     })
+}
+
+fn blocked_violation(
+    name: &PkgName,
+    version: &str,
+    resolution: &LockfileResolution,
+) -> ResolutionPolicyViolation {
+    ResolutionPolicyViolation {
+        name: name.clone(),
+        version: version.to_string(),
+        resolution: resolution.clone(),
+        code: MINIMUM_RELEASE_AGE_VIOLATION_CODE,
+        reason: "has no dependency tree that satisfies the minimumReleaseAge cutoff".to_string(),
+        parents: Vec::new(),
+    }
 }

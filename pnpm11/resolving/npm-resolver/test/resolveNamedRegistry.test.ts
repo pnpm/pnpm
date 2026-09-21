@@ -516,3 +516,21 @@ test('creating the resolver throws when a named registry alias is malformed', ()
     }),
   })).toThrow(expect.objectContaining({ code: 'ERR_PNPM_RESERVED_NAMED_REGISTRY_NAME' }))
 })
+
+test.each([
+  ['gh:2.1.0', '2.0.0'],
+  ['work:2.1.0', '2.1.0'],
+  ['2.1.0', '2.1.0'],
+])('maturity block %s is scoped to its named registry', async (blocked, expected) => {
+  interceptGhAcmePrivate()
+  const { resolveFromNamedRegistry } = createNpmResolver(fetch, () => undefined, {
+    storeDir: temporaryDirectory(),
+    cacheDir: temporaryDirectory(),
+    registriesByScope,
+  })
+  const result = await resolveFromNamedRegistry(
+    { alias: '@acme/private', bareSpecifier: 'gh:^2.0.0' },
+    { blockedVersions: new Map([['@acme/private', new Set([blocked])]]) }
+  )
+  expect(result?.id).toBe(`@acme/private@gh:${expected}`)
+})

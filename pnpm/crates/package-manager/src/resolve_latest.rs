@@ -25,7 +25,10 @@
 use crate::resolution_policy::{PickPolicy, pick_package_context};
 use derive_more::{Display, Error};
 use miette::Diagnostic;
-use pnpm_config::{Config, version_policy::{PackageVersionPolicy, PolicyMatch}};
+use pnpm_config::{
+    Config,
+    version_policy::{PackageVersionPolicy, PolicyMatch},
+};
 use pnpm_network::{ThrottledClient, redact_and_sanitize};
 use pnpm_registry::{PackageTag, PackageVersion};
 use pnpm_resolving_npm_resolver::{
@@ -147,6 +150,35 @@ impl<'a> LatestPicker<'a> {
         self.pick_latest(package_name, dry_run, &registry).await
     }
 
+    fn pick_options<'options>(
+        &'options self,
+        registry: &'options str,
+        dry_run: bool,
+        apply_cutoff: bool,
+    ) -> PickPackageOptions<'options> {
+        PickPackageOptions {
+            registry,
+            preferred_version_selectors: None,
+            pick_lowest_version: false,
+            include_latest_tag: false,
+            blocked_versions: None,
+            policy: pnpm_resolving_npm_resolver::PackagePickPolicy {
+                published_by: self.policy.published_by.filter(|_| apply_cutoff),
+                published_by_exclude: if apply_cutoff {
+                    self.policy.published_by_exclude.as_ref()
+                } else {
+                    None
+                },
+                trust_policy: Some(self.config.trust_policy),
+            },
+            request: pnpm_resolving_npm_resolver::MetadataPickRequest {
+                dry_run,
+                optional: false,
+                update_checksums: false,
+            },
+        }
+    }
+
     async fn pick_latest(
         &self,
         package_name: &str,
@@ -155,24 +187,7 @@ impl<'a> LatestPicker<'a> {
     ) -> Result<Arc<PackageVersion>, ResolveLatestError> {
         let spec = RegistryPackageSpec::latest_tag(package_name);
 
-        let opts = PickPackageOptions {
-            registry,
-            preferred_version_selectors: None,
-            pick_lowest_version: false,
-            // The spec already is the `latest` tag.
-            include_latest_tag: false,
-            blocked_versions: None,
-            policy: pnpm_resolving_npm_resolver::PackagePickPolicy {
-                published_by: self.policy.published_by,
-                published_by_exclude: self.policy.published_by_exclude.as_ref(),
-                trust_policy: Some(self.config.trust_policy),
-            },
-            request: pnpm_resolving_npm_resolver::MetadataPickRequest {
-                dry_run,
-                optional: false,
-                update_checksums: false,
-            },
-        };
+        let opts = self.pick_options(registry, dry_run, true);
         let ctx = pick_package_context(
             self.http_client,
             self.config,
@@ -188,8 +203,7 @@ impl<'a> LatestPicker<'a> {
                 blocked_versions: (!rejected.is_empty()).then_some(&rejected),
                 ..opts
             };
-            let pick = pick_package(&ctx, &spec, &opts)
-                .await
+            let pick = pick_package(&ctx, &spec, &opts).await
                 .map_err(|error| ResolveLatestError::Pick(Box::new(error)))?;
             let Some(candidate) = pick.picked_package else {
                 // The walk rejected everything the range admits. Hand back
@@ -197,7 +211,7 @@ impl<'a> LatestPicker<'a> {
                 // too young; claiming the package has no `latest` at all
                 // would describe a packument that does not exist. An empty
                 // first pick is the real "no latest version".
-                return newest_rejected.ok_or(ResolveLatestError::NoLatestVersion);
+                return newest_rejected.ok_or_else(|| no_latest_error(package_name, &pick.meta));
             };
             // Every candidate is judged, including the one the bound stops on:
             // short-circuiting on the count would hand back a candidate nobody
@@ -210,7 +224,7 @@ impl<'a> LatestPicker<'a> {
                 // Out of budget with nothing installable found. Hand back the
                 // newest candidate and let the install name the pin that is
                 // too young, which is a better answer than an error from here.
-                return Ok(candidate);
+                return Ok(newest_rejected.unwrap_or(candidate));
             }
             // Reject by the *packument key*, which the next pick filters on.
             // It usually equals the parsed manifest version, but a registry
@@ -250,21 +264,7 @@ impl<'a> LatestPicker<'a> {
             revision: None,
             normalized_bare_specifier: None,
         };
-        let opts = PickPackageOptions {
-            registry: &registry,
-            preferred_version_selectors: None,
-            // The named version is what the caller is judging, so it must
-            // come back whatever the cutoff says about it.
-            published_by: None,
-            published_by_exclude: None,
-            pick_lowest_version: false,
-            include_latest_tag: false,
-            dry_run,
-            optional: false,
-            update_checksums: false,
-            trust_policy: Some(self.config.trust_policy),
-            blocked_versions: None,
-        };
+        let opts = self.pick_options(&registry, dry_run, false);
         let ctx = pick_package_context(
             self.http_client,
             self.config,
@@ -272,8 +272,7 @@ impl<'a> LatestPicker<'a> {
             &self.meta_cache,
             &self.fetch_locker,
         );
-        let pick = pick_package(&ctx, &spec, &opts)
-            .await
+        let pick = pick_package(&ctx, &spec, &opts).await
             .map_err(|error| ResolveLatestError::Pick(Box::new(error)))?;
         let candidate = pick.picked_package.ok_or(ResolveLatestError::NoLatestVersion)?;
         self.pins_only_installable_versions(&candidate, dry_run).await
@@ -301,25 +300,7 @@ impl<'a> LatestPicker<'a> {
                 continue;
             }
             let registry = pick_registry_for_package(&self.registries, name, None);
-            let opts = PickPackageOptions {
-                registry: &registry,
-                preferred_version_selectors: None,
-                // The cutoff is passed so the packument arrives in its full
-                // form: the per-version `time` this reads only comes with
-                // it, and asking without a cutoff leaves an abbreviated
-                // document whose missing times read as "old enough".
-                // Narrowing the versions is harmless — `time` survives it,
-                // and the pick itself is discarded.
-                published_by: self.policy.published_by,
-                published_by_exclude: self.policy.published_by_exclude.as_ref(),
-                pick_lowest_version: false,
-                include_latest_tag: false,
-                dry_run,
-                optional: false,
-                update_checksums: false,
-                trust_policy: Some(self.config.trust_policy),
-                blocked_versions: None,
-            };
+            let opts = self.pick_options(&registry, dry_run, true);
             let ctx = pick_package_context(
                 self.http_client,
                 self.config,
@@ -359,7 +340,9 @@ impl<'a> LatestPicker<'a> {
 fn pin_is_exempt(policy: Option<&PackageVersionPolicy>, name: &str, pinned: &str) -> bool {
     match policy.map(|policy| policy.matches(name)) {
         Some(PolicyMatch::AnyVersion) => true,
-        Some(PolicyMatch::ExactVersions(versions)) => versions.iter().any(|exact| exact == pinned),
+        Some(PolicyMatch::ExactVersions(versions)) => versions
+            .iter()
+            .any(|exact| exact == pinned),
         _ => false,
     }
 }
@@ -375,15 +358,21 @@ fn pin_is_exempt(policy: Option<&PackageVersionPolicy>, name: &str, pinned: &str
 /// over.
 fn exact_pins(candidate: &PackageVersion) -> impl Iterator<Item = (&str, &str)> {
     let optional = candidate.optional_dependencies.iter().flatten();
-    let required = candidate.dependencies.iter().flatten().filter(|(name, _)| {
-        !candidate
-            .optional_dependencies
-            .as_ref()
-            .is_some_and(|optional| optional.contains_key(*name))
-    });
-    optional.chain(required).filter_map(|(name, spec)| {
-        node_semver::Version::parse(spec).is_ok().then_some((name.as_str(), spec.as_str()))
-    })
+    let required = candidate.dependencies
+        .iter()
+        .flatten()
+        .filter(|(name, _)| {
+            !candidate.optional_dependencies
+                .as_ref()
+                .is_some_and(|optional| optional.contains_key(*name))
+        });
+    optional
+        .chain(required)
+        .filter_map(|(name, spec)| {
+            node_semver::Version::parse(spec)
+                .is_ok()
+                .then_some((name.as_str(), spec.as_str()))
+        })
 }
 
 /// [`PackageVersionGuard`] form of the pin check.
@@ -438,6 +427,10 @@ impl std::fmt::Debug for MaturePinsGuard {
 }
 
 impl PackageVersionGuard for MaturePinsGuard {
+    fn exhaustion_policy(&self) -> pnpm_resolving_resolver_base::GuardExhaustionPolicy {
+        pnpm_resolving_resolver_base::GuardExhaustionPolicy::AcceptRejected
+    }
+
     fn check<'a>(&'a self, name: &'a str, version: &'a str) -> PackageVersionGuardFuture<'a> {
         Box::pin(async move {
             let picker = LatestPicker::new(
@@ -465,3 +458,14 @@ impl PackageVersionGuard for MaturePinsGuard {
 
 #[cfg(test)]
 mod tests;
+
+fn no_latest_error(name: &str, meta: &pnpm_registry::Package) -> ResolveLatestError {
+    let Some((version, error)) = meta.latest_decode_error() else {
+        return ResolveLatestError::NoLatestVersion;
+    };
+    ResolveLatestError::UndecodableLatestManifest {
+        name: name.to_string(),
+        version: redact_and_sanitize(version),
+        error: redact_and_sanitize(&error),
+    }
+}

@@ -51,7 +51,7 @@ pub(super) fn collect_candidates(
         // policy verifiers are active.
         if has_registry_shape_mismatch(key, &metadata.resolution) {
             shape_violations.push(ResolutionPolicyViolation {
-                    parents: Vec::new(),
+                parents: Vec::new(),
                 name: name.clone(),
                 version: version.clone(),
                 resolution: metadata.resolution.clone(),

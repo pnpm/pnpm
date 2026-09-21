@@ -1,13 +1,13 @@
 use std::collections::HashMap;
 
-use pnpm_lockfile::{LockfileResolution, PkgNameVer, RegistryResolution};
+use pnpm_lockfile::{LockfileResolution, PackageKey, RegistryResolution};
 use pnpm_resolving_npm_resolver::MINIMUM_RELEASE_AGE_VIOLATION_CODE;
 use pnpm_resolving_resolver_base::ResolutionPolicyViolation;
 use ssri::Integrity;
 
-use super::{BlockedVersions, block_dead_end_parents};
+use super::{BlockedVersions, block_dead_end_parents, held_back_lines};
 
-fn parent(name_ver: &str) -> PkgNameVer {
+fn parent(name_ver: &str) -> PackageKey {
     name_ver.parse().expect("valid name@version")
 }
 
@@ -69,4 +69,24 @@ fn ignores_violations_from_other_policies() {
 
     assert!(!block_dead_end_parents(&[other], &mut blocked));
     assert_eq!(blocked, HashMap::new());
+}
+
+#[test]
+fn parent_blocks_preserve_registry_identity() {
+    let mut blocked = BlockedVersions::new();
+    let violations = [violation("binding", "1.2.5", &["rolldown@work:1.2.5"])];
+    assert!(block_dead_end_parents(&violations, &mut blocked));
+    assert_eq!(blocked["rolldown"], std::collections::HashSet::from(["work:1.2.5".to_string()]));
+}
+
+#[test]
+fn held_back_reports_sort_package_names() {
+    let blocked = HashMap::from([
+        ("z-parent".to_string(), std::collections::HashSet::from(["2.0.0".to_string()])),
+        ("a-parent".to_string(), std::collections::HashSet::from(["2.0.0".to_string()])),
+    ]);
+    assert_eq!(
+        held_back_lines(&blocked, &std::collections::BTreeMap::new()),
+        ["  a-parent@2.0.0", "  z-parent@2.0.0"],
+    );
 }
