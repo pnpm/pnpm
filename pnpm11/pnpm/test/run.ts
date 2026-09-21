@@ -688,3 +688,28 @@ console.log(\`\${requireFromProject('./package.json').name}: \${plugin}\`)
   fs.writeFileSync('plugin/package.json', JSON.stringify({ name: 'plugin', version: '1.0.0' }))
   fs.writeFileSync('plugin/index.js', 'module.exports = \'plugin loaded\'\n')
 }
+
+
+testOnPosix('run and recursive run execute lifecycle hooks from the package-specific modules directory', () => {
+  preparePackages([
+    { location: '.', package: { name: 'root', version: '1.0.0' } },
+    { name: 'moved', version: '1.0.0', scripts: { greet: 'node -e ""' } },
+  ])
+  writeYamlFileSync('pnpm-workspace.yaml', {
+    packages: ['moved'],
+    modulesDir: 'vendor',
+    sharedWorkspaceLockfile: false,
+    packageConfigs: { moved: { modulesDir: 'custom' } },
+  })
+  fs.mkdirSync('moved/custom/.hooks', { recursive: true })
+  fs.writeFileSync('moved/custom/.hooks/greet', '#!/bin/sh\necho custom-hook\n', { mode: 0o755 })
+
+  for (const [args, cwd] of [
+    [['run'], path.resolve('moved')],
+    [['-r', 'run'], process.cwd()],
+  ] as const) {
+    const result = execPnpmSync([...args, '--config.verify-deps-before-run=false', 'greet'], { cwd })
+    expect(result.status).toBe(0)
+    expect(result.stdout.toString()).toContain('custom-hook')
+  }
+})

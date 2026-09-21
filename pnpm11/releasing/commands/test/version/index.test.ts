@@ -7,6 +7,8 @@ import { safeExeca as execa } from 'execa'
 
 import { version } from '../../src/index.js'
 
+const itOnPosix = process.platform === 'win32' ? it.skip : it
+
 describe('version command', () => {
   const { cliOptionsTypes, commandNames, handler, help } = version
   let tempDir: string
@@ -283,6 +285,24 @@ fs.appendFileSync(process.argv[2], process.argv[3] + ':' + manifest.version + '\
     } as any, ['patch']) // eslint-disable-line @typescript-eslint/no-explicit-any
 
     expect(fs.existsSync(path.join(tempDir, 'marker.txt'))).toBe(true)
+  })
+
+  itOnPosix('runs lifecycle hooks from a package-specific modules directory', async () => {
+    fs.mkdirSync(path.join(tempDir, 'custom/.hooks'), { recursive: true })
+    fs.writeFileSync(path.join(tempDir, 'custom/.hooks/version'), '#!/bin/sh\necho hook > marker.txt\n', { mode: 0o755 })
+    fs.writeFileSync(path.join(tempDir, 'package.json'), JSON.stringify({
+      name: 'test-pkg', version: '1.0.0', scripts: { version: 'node -e ""' },
+    }))
+
+    await handler({
+      dir: tempDir,
+      modulesDir: 'vendor',
+      packageConfigs: { 'test-pkg': { modulesDir: 'custom' } },
+      gitChecks: false,
+      gitTagVersion: false,
+    } as any, ['patch']) // eslint-disable-line @typescript-eslint/no-explicit-any
+
+    expect(fs.readFileSync(path.join(tempDir, 'marker.txt'), 'utf8')).toBe('hook\n')
   })
 
   describe('dry run', () => {

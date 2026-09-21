@@ -180,7 +180,7 @@ export async function handler (
   if (opts.recursive) {
     const pkgDirs = Object.keys(opts.selectedProjectsGraph ?? {})
     const bumpResults = await Promise.all(
-      pkgDirs.map(pkgDir => bumpPackageVersion(pkgDir, rawBump, explicitVersion, lifecycleOpts))
+      pkgDirs.map(pkgDir => bumpPackageVersion({ pkgDir, rawBump, explicitVersion, opts: lifecycleOpts }))
     )
     for (const change of bumpResults) {
       if (change) {
@@ -188,7 +188,7 @@ export async function handler (
       }
     }
   } else {
-    const change = await bumpPackageVersion(opts.dir, rawBump, explicitVersion, lifecycleOpts)
+    const change = await bumpPackageVersion({ pkgDir: opts.dir, rawBump, explicitVersion, opts: lifecycleOpts })
     if (change) {
       changes.push(change)
     }
@@ -333,12 +333,12 @@ async function versionFromGit (cwd: string, tagVersionPrefix = 'v'): Promise<str
 
 type VersionLifecycleOptions = VersionHandlerOptions & { modulesDirFor: ReturnType<typeof createProjectModulesDirResolver> }
 
-async function bumpPackageVersion (
-  pkgDir: string,
-  rawBump: string,
-  explicitVersion: string | null,
+async function bumpPackageVersion ({ pkgDir, rawBump, explicitVersion, opts }: {
+  pkgDir: string
+  rawBump: string
+  explicitVersion: string | null
   opts: VersionLifecycleOptions
-): Promise<VersionChange | null> {
+}): Promise<VersionChange | null> {
   const { manifest, writeProjectManifest, fileName } = await readProjectManifest(pkgDir)
 
   if (!manifest.name || !manifest.version) {
@@ -399,7 +399,7 @@ async function runVersionLifecycleHook (stage: 'preversion' | 'version' | 'postv
     extraEnv: { ...opts.extraEnv, ...await makeProjectNodePathOption({ modulesDir: path.dirname(wdBinDir), rootDir: change.path }, opts) },
     initCwd: opts.dir,
     pkgRoot: change.path,
-    rootModulesDir: path.join(change.path, opts.modulesDir ?? 'node_modules'),
+    rootModulesDir: path.dirname(wdBinDir),
     scriptShell: opts.scriptShell,
     scriptsPrependNodePath: opts.scriptsPrependNodePath,
     shellEmulator: opts.shellEmulator,

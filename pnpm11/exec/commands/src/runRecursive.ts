@@ -235,7 +235,7 @@ export async function runRecursive (
             pkgRoot: node.project,
             raiseOnInterrupt: true,
             userAgent: opts.userAgent,
-            rootModulesDir: await realpathMissing(path.join(node.project, 'node_modules')),
+            rootModulesDir: await realpathMissing(path.dirname(wdBinDir)),
             scriptsPrependNodePath: opts.scriptsPrependNodePath,
             scriptShell: opts.scriptShell,
             silent: opts.reporter === 'silent',

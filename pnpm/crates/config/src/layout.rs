@@ -255,7 +255,7 @@ impl Config {
             .join(modules_dir_name)
             .display()
             .to_string();
-        if std::env::join_paths([&project_node_path]).is_err() {
+        if project_node_path.contains(':') {
             return;
         }
         let rest = env

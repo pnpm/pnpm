@@ -221,7 +221,7 @@ export async function install (
   // When a pnpr server is configured, use server-side resolution
   // instead of the normal resolution flow.
   if (opts.pnprServer && canUsePnprForInstall(opts)) {
-    return installViaPnprServer(manifest, rootDir, opts)
+    return installViaPnprServer({ manifest, rootDir, opts })
   }
 
   const { updatedCatalogs, updatedProjects: projects, ignoredBuilds, newLockfile, resolutionPolicyViolations, dryRunResult } = await mutateModules(
@@ -3391,17 +3391,17 @@ async function mutateModulesViaPnpr (
   // installViaPnprServer runs the headless install for the first
   // project's root and the workspace path for the rest. Pass the
   // pre-processed manifests so resolution sees the post-mutation state.
-  const result = await installViaPnprServer(
-    pnprProjects[0].manifest,
-    pnprProjects[0].rootDir,
-    {
+  const result = await installViaPnprServer({
+    manifest: pnprProjects[0].manifest,
+    rootDir: pnprProjects[0].rootDir,
+    opts: {
       ...opts,
       updatePatches: projects.every(project =>
         project.mutation === 'install' && project.updatePatches === true
       ),
     },
-    pnprProjects.map((p) => ({ ...projectOptionsByDir.get(p.rootDir), rootDir: p.rootDir, manifest: p.manifest }))
-  )
+    allInstallProjects: pnprProjects.map((p) => ({ ...projectOptionsByDir.get(p.rootDir), rootDir: p.rootDir, manifest: p.manifest })),
+  })
 
   // For installSome projects, copy resolved specs from the lockfile importer
   // entries back into the client manifest so save-prefix/catalog/etc. take
@@ -3434,12 +3434,12 @@ async function mutateModulesViaPnpr (
  * then run a headless install that fetches tarballs from the registries
  * and links packages into node_modules — like a normal install.
  */
-async function installViaPnprServer (
-  manifest: ProjectManifest,
-  rootDir: ProjectRootDir,
-  opts: Opts,
+async function installViaPnprServer ({ manifest, rootDir, opts, allInstallProjects }: {
+  manifest: ProjectManifest
+  rootDir: ProjectRootDir
+  opts: Opts
   allInstallProjects?: Array<{ rootDir: ProjectRootDir, manifest: ProjectManifest, modulesDir?: string, binsDir?: string }>
-): Promise<InstallResult & { stats: InstallationResultStats, lockfile: LockfileObject }> {
+}): Promise<InstallResult & { stats: InstallationResultStats, lockfile: LockfileObject }> {
   // The pnpr server path re-resolves and persists new `index.db` entries plus a
   // freshly written lockfile, so it inherently writes the store. `frozenStore`
   // promises the store is complete and read-only, so the two are mutually
