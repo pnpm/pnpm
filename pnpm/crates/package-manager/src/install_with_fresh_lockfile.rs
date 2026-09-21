@@ -232,6 +232,8 @@ pub(crate) struct FreshPriorInstall<'a> {
     pub(crate) allow_builds_changed: bool,
     /// See [`pnpm_deps_restorer::PriorHoistedState::unbuilt_builds`].
     pub(crate) unbuilt_builds: &'a crate::UnbuiltBuilds,
+    /// See [`pnpm_deps_restorer::PriorLinkState::previously_skipped`].
+    pub(crate) previously_skipped: &'a pnpm_deps_restorer::SkippedSnapshots,
     /// See [`crate::PruneStaleModules::prune_orphans`].
     pub(crate) prune_orphans: bool,
     /// See [`pnpm_deps_restorer::PriorMaterialization::relink_every_slot_bin`].

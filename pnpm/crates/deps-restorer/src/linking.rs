@@ -430,12 +430,7 @@ fn link_hoisted_projects<Reporter: self::Reporter>(
                         layout: inputs.ctx.linker.layout,
                         cas_paths_by_pkg_id: inputs.packages.cas_paths_by_pkg_id.take(),
                     },
-                    prior: crate::PriorHoistedState {
-                        current_lockfile: inputs.graph.current_lockfile,
-                        current_hoisted_locations: inputs.prior.hoisted_locations,
-                        unbuilt_builds: inputs.prior.unbuilt_builds,
-                        build_present_packages: inputs.prior.build_present_packages,
-                    },
+                    prior: inputs.prior.hoisted_state(inputs.graph.current_lockfile),
                     projects: crate::HoistedProjects {
                         importers: &inputs.graph.lockfile.importers,
                         dependency_groups: inputs.projects.dependency_groups,

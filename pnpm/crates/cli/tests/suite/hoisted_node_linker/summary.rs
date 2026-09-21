@@ -6,11 +6,12 @@ use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
 use std::process::Command;
 
-/// The reporter's summary block, or `None` when the install printed none.
-fn summary(stdout: &str) -> Option<String> {
+/// The reporter's summary block under `header_line`, or `None` when the
+/// install printed none.
+fn summary_of(stdout: &str, header_line: &str) -> Option<String> {
     let mut lines = stdout
         .lines()
-        .skip_while(|line| *line != "dependencies:");
+        .skip_while(|line| *line != header_line);
     let header = lines.next()?;
     let entries = lines.take_while(|line| line.starts_with('+') || line.starts_with('-'));
     Some(
@@ -22,11 +23,19 @@ fn summary(stdout: &str) -> Option<String> {
 }
 
 fn install_summary(command: Command) -> Option<String> {
+    install_summary_of(command, "dependencies:")
+}
+
+fn install_summary_of(command: Command, header_line: &str) -> Option<String> {
+    summary_of(&install_output(command), header_line)
+}
+
+fn install_output(command: Command) -> String {
     let assert = command
         .with_arg("install")
         .assert()
         .success();
-    summary(&String::from_utf8_lossy(&assert.get_output().stdout))
+    String::from_utf8_lossy(&assert.get_output().stdout).into_owned()
 }
 
 /// pnpm/pnpm#15161. The hoisted linker creates no `node_modules/<alias>`
@@ -137,6 +146,63 @@ fn hoisted_install_does_not_report_an_optional_dependency_it_skipped() {
 
     assert_eq!(install_summary(pacquet), None);
     assert!(!workspace.join("node_modules/@pnpm.e2e/not-compatible-with-any-os").exists());
+
+    // The lockfile records what the last install resolved, so the entry is
+    // still there for the next install that has work to do. Only the skip
+    // that install recorded keeps it from reading as a package that has
+    // gone away, which would put a removal on every install from here on.
+    fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({
+            "dependencies": { "@pnpm.e2e/foo": "100.0.0" },
+            "optionalDependencies": { "@pnpm.e2e/not-compatible-with-any-os": "*" },
+        })
+        .to_string(),
+    )
+    .expect("write package.json");
+    let output = install_output(pacquet_at(&workspace));
+    assert_eq!(
+        summary_of(&output, "dependencies:").as_deref(),
+        Some("dependencies:\n+ @pnpm.e2e/foo 100.0.0"),
+    );
+    assert_eq!(summary_of(&output, "optionalDependencies:"), None);
+
+    drop((root, mock_instance));
+}
+
+#[test]
+fn hoisted_install_reports_an_optional_dependency_it_stops_supporting() {
+    const PKG: &str = "@pnpm.e2e/not-compatible-with-any-os";
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({ "optionalDependencies": { PKG: "*" } }).to_string(),
+    )
+    .expect("write package.json");
+
+    write_workspace_yaml(
+        &workspace,
+        "nodeLinker: hoisted\nsupportedArchitectures:\n  os:\n    - this-os-does-not-exist\n",
+    );
+    assert_eq!(
+        install_summary_of(pacquet, "optionalDependencies:").as_deref(),
+        Some(&*format!("optionalDependencies:\n+ {PKG} 1.0.0")),
+    );
+
+    write_workspace_yaml(&workspace, "nodeLinker: hoisted\n");
+    assert_eq!(
+        install_summary_of(pacquet_at(&workspace), "optionalDependencies:").as_deref(),
+        Some(&*format!("optionalDependencies:\n- {PKG} 1.0.0")),
+    );
+    let installed = workspace.join("node_modules").join(PKG);
+    assert!(!installed.exists(), "the unsupported package must be gone: {installed:?}");
 
     drop((root, mock_instance));
 }

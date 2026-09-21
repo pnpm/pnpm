@@ -489,6 +489,7 @@ export async function headlessInstall (opts: HeadlessOptions): Promise<Installat
         currentLockfile,
         wantedLockfile: filteredLockfile,
         projects: selectedProjects,
+        previouslySkipped: new Set(opts.modulesFile?.skipped as DepPath[] | undefined),
         skipped,
       })
     }

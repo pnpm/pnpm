@@ -17,6 +17,18 @@ pub(super) fn allow_builds_changed_since(
             || super::super::recorded_allow_builds_differ(modules, config)
     })
 }
+/// The snapshots the previous install's `.modules.yaml` recorded as
+/// skipped, an optional dependency this host cannot use among them. Empty
+/// on a first install. A lockfile entry says what an install resolved, not
+/// what it put on disk, so this is what separates the two for the previous
+/// install the way [`pnpm_deps_restorer::SkippedSnapshots`] does for this one.
+pub(super) fn previously_skipped(
+    modules_manifest: Option<&pnpm_modules_yaml::ModulesLayout>,
+) -> pnpm_deps_restorer::SkippedSnapshots {
+    modules_manifest.map_or_else(pnpm_deps_restorer::SkippedSnapshots::default, |modules| {
+        pnpm_deps_restorer::SkippedSnapshots::from_strings(&modules.skipped)
+    })
+}
 /// The `name@version` keys the previous install's `.modules.yaml` recorded
 /// as not built, its `ignoredBuilds` and `pendingBuilds`. Empty on a first
 /// install.

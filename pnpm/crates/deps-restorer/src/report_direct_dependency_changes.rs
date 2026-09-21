@@ -38,11 +38,22 @@ pub fn report_direct_dependency_changes<Reporter: self::Reporter>(
             inputs.prior.current_lockfile,
             wanted,
             inputs.projects.dependency_groups,
-            skipped,
+            SkipSets { previously: inputs.prior.previously_skipped, now: skipped },
             &importer_id,
             &project_dir.to_string_lossy(),
         );
     }
+}
+
+/// What each install left uninstalled. A lockfile entry says what that
+/// install resolved and not what it put on disk, so each side of the
+/// comparison is read against its own install's set: a dependency this
+/// install skips but the last one installed has been taken away, and one
+/// that both skip was never there.
+#[derive(Clone, Copy)]
+struct SkipSets<'a> {
+    previously: &'a SkippedSnapshots,
+    now: &'a SkippedSnapshots,
 }
 
 /// One importer's share of [`report_direct_dependency_changes`].
@@ -50,7 +61,7 @@ fn report_importer<Reporter: self::Reporter>(
     previous: Option<&Lockfile>,
     wanted: &Lockfile,
     dependency_groups: &[DependencyGroup],
-    skipped: &SkippedSnapshots,
+    skipped: SkipSets<'_>,
     importer_id: &str,
     prefix: &str,
 ) {
@@ -58,9 +69,10 @@ fn report_importer<Reporter: self::Reporter>(
     let before = direct_dependencies(
         previous.and_then(|lockfile| lockfile.importers.get(importer_id)),
         dependency_groups,
-        skipped,
+        skipped.previously,
     );
-    let after = direct_dependencies(wanted.importers.get(importer_id), dependency_groups, skipped);
+    let after =
+        direct_dependencies(wanted.importers.get(importer_id), dependency_groups, skipped.now);
     for &(name, group, spec) in &after {
         if let Some(&(_, was_group, was_spec)) = before
             .iter()
@@ -86,7 +98,7 @@ fn report_importer<Reporter: self::Reporter>(
 /// The importer's direct dependencies, first group wins on a name that
 /// appears in several. `link:` dependencies are left out: they are
 /// symlinked even under the hoisted linker, so they are already reported.
-/// So are the packages in `skipped`, which the install resolved but left
+/// So are the packages in `skipped`, which that install resolved but left
 /// uninstalled, an unsupported optional dependency among them.
 fn direct_dependencies<'a>(
     snapshot: Option<&'a ProjectSnapshot>,
