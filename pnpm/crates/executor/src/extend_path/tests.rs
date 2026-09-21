@@ -115,7 +115,7 @@ fn scoped_package_slot_bins_use_native_separators() {
         .join("@scope")
         .join("pkg");
     let extra: Vec<PathBuf> = vec![];
-    let path = extend_path(&wd, None, None, &extra, ScriptsPrependNodePath::Never, None);
+    let path = extend_path(&wd, None, None, None, &extra, ScriptsPrependNodePath::Never, None);
     let parts = segments(&path);
     let foreign = if std::path::MAIN_SEPARATOR == '/' { '\\' } else { '/' };
     assert!(

@@ -772,6 +772,7 @@ fn shell_emulator_runs_an_external_command_from_a_long_package_root() {
             prepend_node_path: ScriptsPrependNodePath::Never,
             shell: None,
             shell_emulator: true,
+            wd_bin_dir: None,
         },
         dep_path: "/emulated-long-path@1.0.0",
         pkg_root: &pkg_root,
