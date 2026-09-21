@@ -10,11 +10,13 @@ import detectIndent from 'detect-indent'
 import equal from 'fast-deep-equal'
 import isWindows from 'is-windows'
 import pLimit from 'p-limit'
-import { readYamlFile } from 'read-yaml-file'
+import { readYamlFile, readYamlFileSync } from 'read-yaml-file'
 
 import {
   readJson5File,
+  readJson5FileSync,
   readJsonFile,
+  readJsonFileSync,
 } from './readFile.js'
 
 export type WriteProjectManifest = (manifest: ProjectManifest, force?: boolean) => Promise<void>
@@ -193,9 +195,56 @@ export async function readExactProjectManifest (manifestPath: string): Promise<R
   throw new Error(`Not supported manifest name "${base}"`)
 }
 
+export function readExactProjectManifestSync (manifestPath: string): ReadExactProjectManifestResult {
+  const base = path.basename(manifestPath).toLowerCase()
+  switch (base) {
+    case 'package.json': {
+      const { data, text } = readJsonFileSync(manifestPath)
+      return {
+        manifest: convertManifestAfterRead(data),
+        writeProjectManifest: createManifestWriter({
+          ...detectFileFormatting(text),
+          initialManifest: data,
+          manifestPath,
+        }),
+      }
+    }
+    case 'package.json5': {
+      const { data, text } = readJson5FileSync(manifestPath)
+      return {
+        manifest: convertManifestAfterRead(data),
+        writeProjectManifest: createManifestWriter({
+          ...detectFileFormattingAndComments(text),
+          initialManifest: data,
+          manifestPath,
+        }),
+      }
+    }
+    case 'package.yaml': {
+      const manifest = readPackageYamlSync(manifestPath)
+      return {
+        manifest: convertManifestAfterRead(manifest),
+        writeProjectManifest: createManifestWriter({ initialManifest: manifest, manifestPath }),
+      }
+    }
+  }
+  throw new Error(`Not supported manifest name "${base}"`)
+}
+
 async function readPackageYaml (filePath: string): Promise<ProjectManifest> {
   try {
     return await readYamlFile<ProjectManifest>(filePath)
+  } catch (err: any) { // eslint-disable-line
+    if (err.name !== 'YAMLException') throw err
+    err.message = `${err.message as string}\nin ${filePath}`
+    err.code = 'ERR_PNPM_YAML_PARSE'
+    throw err
+  }
+}
+
+function readPackageYamlSync (filePath: string): ProjectManifest {
+  try {
+    return readYamlFileSync<ProjectManifest>(filePath)
   } catch (err: any) { // eslint-disable-line
     if (err.name !== 'YAMLException') throw err
     err.message = `${err.message as string}\nin ${filePath}`

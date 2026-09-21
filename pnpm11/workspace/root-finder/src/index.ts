@@ -5,7 +5,7 @@ import util from 'node:util'
 import { MANIFEST_BASE_NAMES } from '@pnpm/constants'
 import { PnpmError } from '@pnpm/error'
 import { isWorkspaceProjectDir } from '@pnpm/workspace.package-patterns'
-import { readWorkspaceManifest } from '@pnpm/workspace.workspace-manifest-reader'
+import { readWorkspaceManifest, readWorkspaceManifestSync } from '@pnpm/workspace.workspace-manifest-reader'
 import * as find from 'empathic/find'
 
 const MANIFEST_BASE_NAMES_SET = new Set<string>(MANIFEST_BASE_NAMES)
@@ -36,6 +36,21 @@ export async function findWorkspaceDir (cwd: string): Promise<string | undefined
   return await belongsToWorkspace(workspaceDir, realCwd) ? workspaceDir : undefined
 }
 
+export function findWorkspaceDirSync (cwd: string): string | undefined {
+  const workspaceManifestDirEnvVar = process.env[WORKSPACE_DIR_ENV_VAR] ?? process.env[WORKSPACE_DIR_ENV_VAR.toLowerCase()]
+  if (workspaceManifestDirEnvVar) {
+    return path.dirname(path.join(workspaceManifestDirEnvVar, WORKSPACE_MANIFEST_FILENAME))
+  }
+  const realCwd = getRealPathSync(cwd)
+  const workspaceManifestLocation = find.any([WORKSPACE_MANIFEST_FILENAME, ...INVALID_WORKSPACE_MANIFEST_FILENAME], { cwd: realCwd })
+  if (!workspaceManifestLocation) return undefined
+  if (path.basename(workspaceManifestLocation) !== WORKSPACE_MANIFEST_FILENAME) {
+    throw new PnpmError('BAD_WORKSPACE_MANIFEST_NAME', `The workspace manifest file should be named "pnpm-workspace.yaml". File found: ${workspaceManifestLocation}`)
+  }
+  const workspaceDir = path.dirname(workspaceManifestLocation)
+  return belongsToWorkspaceSync(workspaceDir, realCwd) ? workspaceDir : undefined
+}
+
 /**
  * A project that the workspace does not include stands on its own, so pnpm
  * runs it as a standalone project instead of acting on the whole workspace
@@ -48,6 +63,12 @@ export async function findWorkspaceDir (cwd: string): Promise<string | undefined
 async function belongsToWorkspace (workspaceDir: string, dir: string): Promise<boolean> {
   if (path.relative(workspaceDir, dir) === '' || !await hasProjectManifest(dir)) return true
   const workspaceManifest = await readWorkspaceManifest(workspaceDir)
+  return isWorkspaceProjectDir({ workspaceDir, dir, patterns: workspaceManifest?.packages ?? ['.'] })
+}
+
+function belongsToWorkspaceSync (workspaceDir: string, dir: string): boolean {
+  if (path.relative(workspaceDir, dir) === '' || !hasProjectManifestSync(dir)) return true
+  const workspaceManifest = readWorkspaceManifestSync(workspaceDir)
   return isWorkspaceProjectDir({ workspaceDir, dir, patterns: workspaceManifest?.packages ?? ['.'] })
 }
 
@@ -64,6 +85,17 @@ async function hasProjectManifest (dir: string): Promise<boolean> {
   return entries.some((entry) => MANIFEST_BASE_NAMES_SET.has(entry))
 }
 
+function hasProjectManifestSync (dir: string): boolean {
+  let entries: string[]
+  try {
+    entries = fs.readdirSync(dir)
+  } catch (err: unknown) {
+    if (util.types.isNativeError(err) && 'code' in err && (err.code === 'ENOENT' || err.code === 'ENOTDIR')) return false
+    throw err
+  }
+  return entries.some((entry) => MANIFEST_BASE_NAMES_SET.has(entry))
+}
+
 async function getRealPath (path: string): Promise<string> {
   return new Promise<string>((resolve) => {
     // We need to resolve the real native path for case-insensitive file systems.
@@ -74,4 +106,12 @@ async function getRealPath (path: string): Promise<string> {
       resolve(err !== null ? path : resolvedPath)
     })
   })
+}
+
+function getRealPathSync (path: string): string {
+  try {
+    return fs.realpathSync.native(path)
+  } catch {
+    return path
+  }
 }

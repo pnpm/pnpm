@@ -5,10 +5,21 @@ import path from 'node:path'
 import { expect, test } from '@jest/globals'
 import { fixtures } from '@pnpm/test-fixtures'
 import type { ProjectManifest } from '@pnpm/types'
-import { readExactProjectManifest, readProjectManifest, tryReadProjectManifest } from '@pnpm/workspace.project-manifest-reader'
+import { readExactProjectManifest, readExactProjectManifestSync, readProjectManifest, tryReadProjectManifest } from '@pnpm/workspace.project-manifest-reader'
 import { temporaryDirectory } from 'tempy'
 
 const f = fixtures(import.meta.dirname)
+
+test.each([
+  'package-json/package.json',
+  'package-json5/package.json5',
+  'package-yaml/package.yaml',
+])('readExactProjectManifestSync() reads %s', (manifestPath) => {
+  expect(readExactProjectManifestSync(f.find(manifestPath)).manifest).toStrictEqual({
+    name: 'foo',
+    version: '1.0.0',
+  })
+})
 
 test('readProjectManifest()', async () => {
   expect(
