@@ -2,9 +2,9 @@ use super::super::{
     Arc, Config, Host, InstallError, Lockfile, LogEvent, LogLevel, Path, PnpmLog, Reporter,
     ResolutionVerifier, Stage, StageLog, SummaryLog, SystemTime, build_workspace_state,
     frozen_tree_intact, gvs_build_marker_present, has_newly_allowed_ignored_builds,
-    map_frozen_lockfile_error, modules_consistent_with, moved_tree_is_reusable,
-    recorded_allow_builds_differ, unapproved_recorded_ignored_builds, update_workspace_state,
-    verify_lockfile_eagerly,
+    hoisted_workspace_packages_present, map_frozen_lockfile_error, modules_consistent_with,
+    moved_tree_is_reusable, recorded_allow_builds_differ, unapproved_recorded_ignored_builds,
+    update_workspace_state, verify_lockfile_eagerly,
 };
 use crate::optimistic_repeat_install::{filesystem_now_ms, materialized_shape_matches};
 
@@ -82,15 +82,32 @@ pub(super) fn frozen_tree_up_to_date<'a>(
     // never short-circuits here.
     let tree_intact = context.repeat.rebuild.is_none()
         && !modules_cache_prune_due(config, context.modules_manifest)
-        && frozen_tree_intact(
-            current,
-            modules,
-            config,
-            context.tree.workspace_root,
-            context.tree.node_linker,
-        )
+        && tree_contents_intact(context, current, modules)
         && bins_resolve_where_the_tree_is(context, current);
     tree_intact.then_some((wanted_lockfile, modules))
+}
+
+fn tree_contents_intact(
+    context: &FrozenTreeUpToDate<'_>,
+    current: &Lockfile,
+    modules: &pnpm_modules_yaml::ModulesLayout,
+) -> bool {
+    let config = context.tree.config;
+    let skipped = crate::SkippedSnapshots::from_strings(&modules.skipped);
+    frozen_tree_intact(
+        current,
+        modules,
+        config,
+        context.tree.workspace_root,
+        context.tree.node_linker,
+    ) && hoisted_workspace_packages_present(
+        current,
+        config,
+        context.tree.workspace_root,
+        context.tree.included,
+        context.recorded.projects,
+        &skipped,
+    )
 }
 
 fn bins_resolve_where_the_tree_is(context: &FrozenTreeUpToDate<'_>, current: &Lockfile) -> bool {

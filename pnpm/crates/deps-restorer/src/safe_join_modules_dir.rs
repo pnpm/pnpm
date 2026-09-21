@@ -39,5 +39,32 @@ pub fn safe_join_modules_dir(
     Ok(pnpm_fs::join_slash_separated_path(modules, alias))
 }
 
+pub fn safe_join_workspace_modules_dir(
+    modules: &Path,
+    alias: &str,
+) -> Result<PathBuf, InvalidDependencyAliasError> {
+    let first_component = alias
+        .split('/')
+        .next()
+        .unwrap_or_default();
+    if alias.is_empty()
+        || alias.starts_with('/')
+        || alias.contains('\\')
+        || alias.as_bytes().get(1) == Some(&b':')
+        || [".bin", ".pnpm", "node_modules"]
+            .iter()
+            .any(|reserved| first_component.eq_ignore_ascii_case(reserved))
+        || alias
+            .split('/')
+            .any(|component| component.is_empty() || component == "." || component == "..")
+    {
+        return Err(InvalidDependencyAliasError {
+            modules: modules.to_path_buf(),
+            alias: alias.to_owned(),
+        });
+    }
+    Ok(modules.join(alias))
+}
+
 #[cfg(test)]
 mod tests;

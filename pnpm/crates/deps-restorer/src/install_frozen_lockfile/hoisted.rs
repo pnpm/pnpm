@@ -1,8 +1,9 @@
 //! The hoisted node-linker: a flat `node_modules` instead of a virtual store.
 
 pub use hoist_plan::{
-    HoistPlan, collect_public_hoist_targets, compute_hoist_plan, find_own_runtime_node_major,
-    find_runtime_node_major, parse_major_from_version, workspace_packages_for_hoist,
+    HoistPlan, HoistedWorkspacePackages, collect_public_hoist_targets, compute_hoist_plan,
+    find_own_runtime_node_major, find_runtime_node_major, parse_major_from_version,
+    workspace_packages_for_hoist,
 };
 
 mod hoist_plan;

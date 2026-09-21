@@ -1,5 +1,6 @@
 import { promises as fs } from 'node:fs'
 import path from 'node:path'
+import util from 'node:util'
 
 import { linkBins, linkBinsOfPackages } from '@pnpm/bins.linker'
 import { buildModules, linkBinsOfRuntimeDependencies } from '@pnpm/building.during-install'
@@ -30,9 +31,9 @@ import {
   makeNodeRequireOption,
   runLifecycleHooksConcurrently,
 } from '@pnpm/exec.lifecycle'
-import { safeJoinModulesDir, symlinkDependency } from '@pnpm/fs.symlink-dependency'
+import { findCommonPathAncestor, safeJoinModulesDir, symlinkDependency, validateWorkspaceModulesDir } from '@pnpm/fs.symlink-dependency'
 import { linkDirectDeps, type LinkedDirectDep } from '@pnpm/installing.linking.direct-dep-linker'
-import { hoist, type HoistedWorkspaceProject } from '@pnpm/installing.linking.hoist'
+import { hoist, type HoistedWorkspaceProject, pruneStaleWorkspaceHoists } from '@pnpm/installing.linking.hoist'
 import { prune, removeObsoleteDependency } from '@pnpm/installing.linking.modules-cleaner'
 import type { HoistingLimits } from '@pnpm/installing.linking.real-hoist'
 import {
@@ -532,6 +533,21 @@ export async function headlessInstall (opts: HeadlessOptions): Promise<Installat
     })
 
     if (opts.ignorePackageManifest !== true && !skipPostImportLinking && (opts.hoistPattern != null || opts.publicHoistPattern != null)) {
+      const allImportersIncluded = equals([...importerIds].sort(), Object.keys(wantedLockfile.importers).sort())
+      const priorWorkspaceProjectIds = new Set((await Promise.all(
+        Object.keys(opts.hoistedDependencies)
+          .filter(key => allImportersIncluded || importerIds.includes(key as ProjectId))
+          .map(async (key) => {
+            if (currentLockfile?.packages?.[key as DepPath] != null || wantedLockfile.packages?.[key as DepPath] != null) return undefined
+            const projectId = key as ProjectId
+            if (currentLockfile?.importers[projectId] != null || wantedLockfile.importers[projectId] != null) return projectId
+            return await workspaceHoistPointsToProject(projectId, opts.hoistedDependencies[projectId], {
+              lockfileDir,
+              privateHoistedModulesDir: hoistedModulesDir,
+              publicHoistedModulesDir,
+            }) ? projectId : undefined
+          })
+      )).filter(projectId => projectId != null))
       // With the full graph the recomputed hoist map is complete, so it
       // replaces the recorded one and drops the entries this install made
       // ineligible. The incremental graph only knows the packages it
@@ -562,6 +578,13 @@ export async function headlessInstall (opts: HeadlessOptions): Promise<Installat
             return hoistedWorkspacePackages
           }, {} as Record<string, HoistedWorkspaceProject>)
           : undefined,
+        beforeWorkspaceLinks: async (nextWorkspaceHoists: HoistedDependencies) => pruneStaleWorkspaceHoists(
+          opts.hoistedDependencies,
+          nextWorkspaceHoists,
+          priorWorkspaceProjectIds,
+          hoistedModulesDir,
+          publicHoistedModulesDir
+        ),
         skipped: opts.skipped,
       }) ?? {}
       // The recomputed map only replaces the recorded one when the graph is
@@ -569,11 +592,14 @@ export async function headlessInstall (opts: HeadlessOptions): Promise<Installat
       // lockfile, so replacing there would forget the unselected importers'
       // entries. Everywhere else the recorded map fills in what the graph
       // does not know.
-      const hoistMapIsComplete = lockfileToDepGraphOpts.includeUnchangedDeps &&
-        equals([...importerIds].sort(), Object.keys(wantedLockfile.importers).sort())
+      const hoistMapIsComplete = lockfileToDepGraphOpts.includeUnchangedDeps && allImportersIncluded
+      const retainedHoistedDependencies = Object.fromEntries(
+        Object.entries(opts.hoistedDependencies)
+          .filter(([key]) => !priorWorkspaceProjectIds.has(key as ProjectId))
+      ) as HoistedDependencies
       newHoistedDependencies = hoistMapIsComplete
         ? hoisted
-        : { ...opts.hoistedDependencies, ...hoisted }
+        : { ...retainedHoistedDependencies, ...hoisted }
     } else {
       newHoistedDependencies = {}
     }
@@ -1064,6 +1090,27 @@ const limitModulesDirReads = pLimit(16)
  * recomputed. Compared against the full wanted lockfile, not the filtered
  * one, so a filtered install is not mistaken for a removal.
  */
+async function workspaceHoistPointsToProject (projectId: ProjectId, aliases: Record<string, 'private' | 'public'>, opts: {
+  lockfileDir: string
+  privateHoistedModulesDir: string
+  publicHoistedModulesDir: string
+}): Promise<boolean> {
+  const projectDir = path.resolve(opts.lockfileDir, projectId)
+  if (!projectDir.startsWith(path.resolve(opts.lockfileDir) + path.sep)) return false
+  return (await Promise.all(Object.entries(aliases).map(async ([alias, kind]) => {
+    const modulesDir = kind === 'public' ? opts.publicHoistedModulesDir : opts.privateHoistedModulesDir
+    const trustedRoot = findCommonPathAncestor(opts.publicHoistedModulesDir, modulesDir) ?? path.parse(path.resolve(modulesDir)).root
+    const destination = await validateWorkspaceModulesDir(modulesDir, alias, trustedRoot)
+    try {
+      const target = await fs.readlink(destination)
+      return path.resolve(path.dirname(destination), target) === projectDir
+    } catch (error: unknown) {
+      if (util.types.isNativeError(error) && 'code' in error && (error.code === 'ENOENT' || error.code === 'EINVAL')) return false
+      throw error
+    }
+  }))).some(Boolean)
+}
+
 function lockfileRemovesPackages (currentLockfile: LockfileObject | null, wantedLockfile: LockfileObject): boolean {
   if (currentLockfile?.packages == null) return false
   const wantedPackages = wantedLockfile.packages

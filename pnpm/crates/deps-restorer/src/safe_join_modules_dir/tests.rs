@@ -1,4 +1,4 @@
-use super::safe_join_modules_dir;
+use super::{safe_join_modules_dir, safe_join_workspace_modules_dir};
 use std::path::Path;
 
 #[test]
@@ -36,6 +36,39 @@ fn rejects_reserved_aliases() {
     for alias in [".bin", ".pnpm", "node_modules"] {
         let err = safe_join_modules_dir(modules, alias)
             .expect_err("reserved alias must be rejected before the join");
+        assert_eq!(err.alias, alias);
+    }
+}
+
+#[test]
+fn workspace_aliases_may_have_nested_paths() {
+    let modules = Path::new("/project/node_modules");
+    for alias in ["foo", "@scope/name", "packages/pkg-a", "nested/inner"] {
+        let joined = safe_join_workspace_modules_dir(modules, alias)
+            .expect("safe workspace alias should join cleanly");
+        assert_eq!(joined, modules.join(alias));
+    }
+}
+
+#[test]
+fn workspace_aliases_cannot_escape_the_modules_dir() {
+    let modules = Path::new("/project/node_modules");
+    for alias in [
+        "",
+        ".",
+        "..",
+        "../outside",
+        "packages/../outside",
+        "packages//outside",
+        "/absolute",
+        r"..\outside",
+        r"C:\outside",
+        ".pnpm/node_modules/foo",
+        ".bin/foo",
+        "node_modules/foo",
+    ] {
+        let err = safe_join_workspace_modules_dir(modules, alias)
+            .expect_err("unsafe workspace alias must be rejected before the join");
         assert_eq!(err.alias, alias);
     }
 }

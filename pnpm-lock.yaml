@@ -6659,6 +6659,9 @@ importers:
       '@pnpm/core-loggers':
         specifier: workspace:*
         version: link:../../../core/core-loggers
+      '@pnpm/fs.symlink-dependency':
+        specifier: workspace:*
+        version: link:../../../fs/symlink-dependency
       '@pnpm/text.ordinal-comparator':
         specifier: workspace:*
         version: link:../../../text/ordinal-comparator
