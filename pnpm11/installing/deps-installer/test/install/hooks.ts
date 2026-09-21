@@ -418,6 +418,24 @@ test('add keeps the hook-provided specifier when the hook rewrites only after de
   await install(updatedManifest, testDefaults({ frozenLockfile: true, hooks: { readPackage: [pinIsPositiveOnceDeclared] } }))
 })
 
+test('add without a version keeps the hook-provided specifier', async () => {
+  const project = prepareEmpty()
+
+  const { result: { updatedManifest }, warnings } = await captureWarnings(async () =>
+    addDependenciesToPackage(
+      { name: 'my-project', version: '0.0.0' },
+      ['is-positive'],
+      testDefaults({ hooks: { readPackage: [pinIsPositiveOnceDeclared] } })
+    )
+  )
+
+  expect(warnings).toContain('Ignoring "is-positive@latest": "is-positive" is controlled by a package extension, readPackage hook, or override, so its specifier "1.0.0" was used instead.')
+  expect(updatedManifest.dependencies).toStrictEqual({ 'is-positive': '1.0.0' })
+  expect(project.readLockfile().importers['.'].dependencies?.['is-positive']).toMatchObject({ specifier: '1.0.0' })
+
+  await install(updatedManifest, testDefaults({ frozenLockfile: true, hooks: { readPackage: [pinIsPositiveOnceDeclared] } }))
+})
+
 test('add skips a dependency a readPackage hook removes', async () => {
   const project = prepareEmpty()
 

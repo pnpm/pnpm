@@ -1377,6 +1377,10 @@ export async function mutateModules (
         peer: project.peer,
         targetDependenciesField: project.targetDependenciesField,
       } as InstallSomeDepsMutation)
+      // A selector without a version of its own is declared as `latest` or as the specifier the
+      // manifest already carries, so what the hooks did to it shows against that declaration
+      // rather than against the request.
+      const declaredDependencies = getAllDependenciesFromManifest(probed, { autoInstallPeers: opts.autoInstallPeers })
       /* eslint-disable no-await-in-loop */
       for (const hook of hooks) {
         probed = await hook(probed, project.rootDir)
@@ -1387,19 +1391,23 @@ export async function mutateModules (
       let removed: Set<string> | undefined
       for (const [alias, requested] of requestedByAlias) {
         const probedSpecifier = probedDependencies[alias]
+        if (probedSpecifier === declaredDependencies[alias]) continue
+        // An explicit version ignores overrides, so the request stands when the override alone
+        // explains what the probe found: the specifier it imposes, or the removal `-` asks for.
+        // A `readPackage` hook that contributed supersedes the request instead.
+        if (requested != null) {
+          const overrideImposed = dependencyOverrider?.(alias, requested, project.rootDir)
+          const overrideExplains = probedSpecifier == null
+            ? overrideImposed === '-'
+            : overrideImposed === probedSpecifier
+          if (overrideExplains) continue
+          if (overrideImposed == null && isOverriddenDependency?.(alias, requested) === true) continue
+        }
         if (probedSpecifier == null) {
           (removed ??= new Set()).add(alias)
           continue
         }
-        if (requested == null || probedSpecifier === requested) continue
-        // An explicit version ignores overrides. When the probed rewrite is
-        // exactly what the override imposes, the override is its sole cause
-        // and the requested specifier is kept. Otherwise a `readPackage` hook
-        // contributed to the rewrite, so the hook's specifier supersedes it.
-        const overrideImposed = dependencyOverrider?.(alias, requested, project.rootDir)
-        if (overrideImposed === probedSpecifier) continue
-        if (overrideImposed == null && isOverriddenDependency?.(alias, requested) === true) continue
-        ;(superseded ??= new Map()).set(alias, probedSpecifier)
+        (superseded ??= new Map()).set(alias, probedSpecifier)
       }
       return superseded == null && removed == null ? undefined : { superseded, removed }
     }
