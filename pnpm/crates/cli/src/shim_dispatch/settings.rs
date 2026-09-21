@@ -6,6 +6,7 @@ use super::{
     parse_node_specifier, resolve_configured_state_dir, trusted_runtime_config,
     wanted_package_manager,
 };
+use std::collections::HashSet;
 
 /// The `globalShims` setting at dispatch time, so config edits take
 /// effect immediately instead of waiting for the next global install to
@@ -145,13 +146,13 @@ pub(super) fn validate_candidate(
         Candidate::RuntimePin {
             project_dir,
             version_spec,
-            manifest_hash,
+            source_hash,
             ..
         } => (package == name).then(|| Candidate::RuntimePin {
             project_dir,
-            identity: create_hex_hash(&format!("runtime\0{name}\0{version_spec}\0{manifest_hash}")),
+            identity: create_hex_hash(&format!("runtime\0{name}\0{version_spec}\0{source_hash}")),
             version_spec,
-            manifest_hash,
+            source_hash,
         }),
         Candidate::PackageManagerPin {
             project_dir,
@@ -222,12 +223,17 @@ pub(super) fn is_automatic_runtime(name: &str, version_spec: &str) -> bool {
         && pnpm_detect_libc::detect() != Some(pnpm_detect_libc::Implementation::Musl)
 }
 
-/// The version a project's `package.json` pins for the runtime `name`,
-/// `devEngines.runtime` first, then `engines.runtime` — the same
-/// precedence as the pre-command runtime check. The pin counts whatever
-/// its `onFail` policy says: the dispatcher only chooses which version to
-/// run, it does not modify the project.
-pub(super) fn manifest_runtime_pin(dir: &Path, name: &str) -> Option<(String, String)> {
+/// The version one directory pins for the runtime `name`. The pnpm-native
+/// manifest fields take precedence over `.nvmrc` in the same directory.
+pub(super) fn runtime_pin(dir: &Path, name: &str) -> Option<(String, String)> {
+    manifest_runtime_pin(dir, name).or_else(|| nvmrc_runtime_pin(dir, name))
+}
+
+/// The runtime pin in `package.json`, with `devEngines.runtime` before
+/// `engines.runtime` — the same precedence as the pre-command runtime
+/// check. The pin counts whatever its `onFail` policy says: the dispatcher
+/// only chooses which version to run, it does not modify the project.
+fn manifest_runtime_pin(dir: &Path, name: &str) -> Option<(String, String)> {
     let bytes = std::fs::read(dir.join("package.json")).ok()?;
     let manifest_hash = create_hex_hash_bytes(&bytes);
     let manifest: Value = serde_json::from_slice(&bytes).ok()?;
@@ -239,6 +245,73 @@ pub(super) fn manifest_runtime_pin(dir: &Path, name: &str) -> Option<(String, St
         }
     }
     None
+}
+
+fn nvmrc_runtime_pin(dir: &Path, name: &str) -> Option<(String, String)> {
+    if name != "node" {
+        return None;
+    }
+    let bytes = std::fs::read(dir.join(".nvmrc")).ok()?;
+    let contents = std::str::from_utf8(&bytes).ok()?;
+    Some((parse_nvmrc(contents)?, create_hex_hash_bytes(&bytes)))
+}
+
+fn parse_nvmrc(contents: &str) -> Option<String> {
+    let mut version = None;
+    let mut keys = HashSet::new();
+    for line in contents.lines() {
+        match classify_nvmrc_line(line) {
+            NvmrcLine::Empty => {}
+            NvmrcLine::Setting(key) if key == "node" || !keys.insert(key) => return None,
+            NvmrcLine::Setting(_) => {}
+            // Runtime materialization builds a package selector from this
+            // value. It must remain one selector rather than extra packages.
+            NvmrcLine::Version(value)
+                if value.contains(',') || version.replace(value).is_some() =>
+            {
+                return None;
+            }
+            NvmrcLine::Version(_) => {}
+        }
+    }
+    version.map(normalize_nvm_version)
+}
+
+enum NvmrcLine<'a> {
+    Empty,
+    Setting(&'a str),
+    Version(&'a str),
+}
+
+fn classify_nvmrc_line(line: &str) -> NvmrcLine<'_> {
+    let line = line
+        .split_once('#')
+        .map_or(line, |(before_comment, _)| before_comment)
+        .trim();
+    if line.is_empty() {
+        return NvmrcLine::Empty;
+    }
+    if !line.starts_with('=')
+        && let Some((key, _)) = line.split_once('=')
+    {
+        return NvmrcLine::Setting(key.trim());
+    }
+    NvmrcLine::Version(line)
+}
+
+fn normalize_nvm_version(version: &str) -> String {
+    let version = version
+        .strip_prefix('v')
+        .filter(|rest| rest.starts_with(|character: char| character.is_ascii_digit()))
+        .unwrap_or(version);
+    match version {
+        "node" | "stable" => "latest".to_string(),
+        "lts/*" => "lts".to_string(),
+        _ => version
+            .strip_prefix("lts/")
+            .unwrap_or(version)
+            .to_string(),
+    }
 }
 
 /// The runtime entries one `engines`-style field declares. The field takes

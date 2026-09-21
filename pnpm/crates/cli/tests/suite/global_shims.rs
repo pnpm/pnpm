@@ -202,11 +202,11 @@ fn missing_global_target_reports_not_found() {
     assert_eq!(output.get_output().status.code(), Some(127));
 }
 
-/// A project that pins Node.js gets the pinned version fetched into the
-/// global virtual store instead of using the project `.bin` or global target.
+/// A project with `.nvmrc` gets its Node.js version fetched into the global
+/// virtual store instead of using the project `.bin` or global target.
 #[cfg(unix)]
 #[test]
-fn runtime_pin_downloads_node_on_demand() {
+fn nvmrc_runtime_pin_downloads_node_on_demand() {
     let root = tempfile::tempdir().unwrap();
     let mut server = mockito::Server::new();
     let version = "24.0.0-rc.4";
@@ -238,14 +238,7 @@ fn runtime_pin_downloads_node_on_demand() {
     )
     .unwrap();
     write_script(&project.join("node_modules/.bin/node"), "compromised-local-bin");
-    fs::write(
-        project.join("package.json"),
-        serde_json::json!({
-            "devEngines": { "runtime": { "name": "node", "version": version } },
-        })
-        .to_string(),
-    )
-    .unwrap();
+    fs::write(project.join(".nvmrc"), format!("v{version}\n")).unwrap();
     let global_target = root
         .path()
         .join("global")
