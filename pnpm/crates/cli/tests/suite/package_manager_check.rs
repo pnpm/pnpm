@@ -2,7 +2,7 @@
 
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
-use pnpm_lockfile::EnvLockfile;
+use pnpm_lockfile::{EnvLockfile, PackageKey};
 use pnpm_testing_utils::{
     bin::{AddMockedRegistry, CommandTempCwd},
     command_env::CommandTestExt,
@@ -231,8 +231,6 @@ fn a_command_outside_the_install_family_records_the_pinned_package_manager() {
     drop((root, npmrc_info));
 }
 
-/// `package.yaml` is a supported manifest, so a pin it declares has to reach
-/// the env lockfile the way a `package.json` pin does (pnpm/pnpm#15167).
 #[test]
 fn a_package_yaml_project_records_the_pinned_package_manager() {
     let CommandTempCwd {
@@ -254,15 +252,29 @@ fn a_package_yaml_project_records_the_pinned_package_manager() {
     let output = run(pacquet, root.path(), &["install", "--lockfile-only"]);
 
     assert_success(&output);
-    let lockfile =
-        fs::read_to_string(workspace.join("pnpm-lock.yaml")).expect("read the written lockfile");
-    assert_contains(&lockfile, "packageManagerDependencies:");
-    assert_contains(&lockfile, &format!("pnpm@{}", pnpm_config::PNPM_VERSION));
+    let env_lockfile = EnvLockfile::read(&workspace)
+        .expect("read the written env lockfile")
+        .expect("the env lockfile should have been written");
+    let recorded = env_lockfile.importers[EnvLockfile::ROOT_IMPORTER_KEY]
+        .package_manager_dependencies
+        .as_ref()
+        .expect("packageManagerDependencies should be recorded");
+    assert_eq!(recorded["pnpm"].version, pnpm_config::PNPM_VERSION);
+    let pinned: PackageKey = format!("pnpm@{}", recorded["pnpm"].version)
+        .parse()
+        .expect("parse the pinned pnpm package key");
+    assert!(
+        env_lockfile.packages
+            .get(&pinned)
+            .expect("the pinned pnpm package should be recorded")
+            .resolution
+            .checkable_integrity()
+            .is_some(),
+        "the env lockfile must pin the pnpm package by integrity",
+    );
     drop((root, npmrc_info));
 }
 
-/// A `package.yaml` with no package manager pin leaves the env lockfile empty,
-/// the same as a `package.json` without one.
 #[test]
 fn a_package_yaml_project_without_a_pin_writes_no_env_lockfile() {
     let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
