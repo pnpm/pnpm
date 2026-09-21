@@ -2,7 +2,7 @@ import { promises as fs } from 'node:fs'
 
 import { packageManager } from '@pnpm/cli.meta'
 import { registrySupportsTimeField } from '@pnpm/config.normalize-registries'
-import type { Config, ConfigContext } from '@pnpm/config.reader'
+import { type Config, type ConfigContext, parseCAFileContents } from '@pnpm/config.reader'
 import { type ClientOptions, createClient } from '@pnpm/installing.client'
 import type { ResolutionVerifier } from '@pnpm/resolving.resolver-base'
 import { type CafsLocker, createPackageStore, type StoreController } from '@pnpm/store.controller'
@@ -77,7 +77,7 @@ export async function createNewStoreController (
     await fs.mkdir(opts.storeDir, { recursive: true })
   }
   const storeIndex = opts.frozenStore ? new ReadOnlyStoreIndex(opts.storeDir) : new StoreIndex(opts.storeDir)
-  const ca = opts.ca ?? (opts.cafile ? await readCAFile(opts.cafile) : undefined)
+  const ca = await getCA(opts)
   const { resolve, fetchers, clearResolutionCache, resolutionVerifiers } = createClient({
     customResolvers: opts.hooks?.customResolvers,
     customFetchers: opts.hooks?.customFetchers,
@@ -242,16 +242,16 @@ export function needsFullMetadataForRegistry (
   }
 }
 
-async function readCAFile (cafile: string): Promise<string[] | undefined> {
+async function getCA (opts: Pick<CreateNewStoreControllerOptions, 'ca' | 'cafile'>): Promise<string | string[] | undefined> {
+  if (!opts.cafile) return opts.ca
   try {
-    const contents = await fs.readFile(cafile, 'utf8')
-    const delim = '-----END CERTIFICATE-----'
-    const cas = contents
-      .split(delim)
-      .filter(ca => ca.trim().length > 0)
-      .map(ca => `${ca.trimStart()}${delim}`)
-    return cas.length > 0 ? cas : undefined
+    const cafileCA = parseCAFileContents(await fs.readFile(opts.cafile, 'utf8'))
+    if (cafileCA.length === 0) return opts.ca
+    return [
+      ...(Array.isArray(opts.ca) ? opts.ca : opts.ca ? [opts.ca] : []),
+      ...cafileCA,
+    ]
   } catch {
-    return undefined
+    return opts.ca
   }
 }

@@ -65,6 +65,7 @@ export {
   getPackageManagerRegistries,
   type PackageManagerBootstrapConfig,
 } from './packageManagerRegistries.js'
+export { parseCAFileContents } from './parseCAFileContents.js'
 export type { Creds } from './parseCreds.js'
 export {
   createProjectConfigRecord,

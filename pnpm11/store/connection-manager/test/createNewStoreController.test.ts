@@ -4,6 +4,7 @@ import path from 'node:path'
 
 import { afterAll, expect, jest, test } from '@jest/globals'
 import type { ClientOptions } from '@pnpm/installing.client'
+import { closeAllStoreIndexes } from '@pnpm/store.index'
 
 const createClient = jest.fn<(opts: ClientOptions) => ReturnType<typeof import('@pnpm/installing.client').createClient>>()
 
@@ -32,7 +33,10 @@ const client = {
   resolutionVerifiers: [],
 } as unknown as ReturnType<typeof import('@pnpm/installing.client').createClient>
 
-afterAll(() => fs.rmSync(tmpDir, { recursive: true }))
+afterAll(() => {
+  closeAllStoreIndexes()
+  fs.rmSync(tmpDir, { recursive: true })
+})
 
 test('reads cafile and passes its certificates to the client', async () => {
   const cafile = path.join(tmpDir, 'custom-ca.pem')
@@ -54,16 +58,23 @@ test('reads cafile and passes its certificates to the client', async () => {
   }))
 })
 
-test('an explicit ca takes precedence over cafile', async () => {
+test('combines explicit ca with certificates from cafile', async () => {
   createClient.mockReturnValue(client)
+  const cafile = path.join(tmpDir, 'combined-ca.pem')
+  fs.writeFileSync(cafile, 'file ca\n-----END CERTIFICATE-----\n')
 
   await createNewStoreController({
     ...requiredOptions,
     cacheDir: path.join(tmpDir, 'explicit-cache'),
     storeDir: path.join(tmpDir, 'explicit-store'),
     ca: 'explicit ca',
-    cafile: '/path/that/must/not/be/read',
+    cafile,
   })
 
-  expect(createClient).toHaveBeenLastCalledWith(expect.objectContaining({ ca: 'explicit ca' }))
+  expect(createClient).toHaveBeenLastCalledWith(expect.objectContaining({
+    ca: [
+      'explicit ca',
+      'file ca\n-----END CERTIFICATE-----',
+    ],
+  }))
 })
