@@ -2,7 +2,7 @@ use super::{
     AtomicU8, Context, DeployError, DeployFiles, DirectoryFetcher, ImportIndexedDirOpts,
     IntoDiagnostic, Lockfile, PackageImportMethod, PackageManifest, Path, PathBuf, Reporter,
     WORKSPACE_MANIFEST_FILENAME, Write, apply_deploy_manifest_hook, fs, import_indexed_dir, io,
-    lexical_normalize, remove_dirent, warn, workspace_manifest_yaml,
+    lexical_normalize, remove_dirent, warn,
 };
 #[cfg(windows)]
 use std::os::windows::fs::MetadataExt;
@@ -340,12 +340,12 @@ pub(super) fn write_deploy_files(
         .into_diagnostic()
         .wrap_err("write deployed lockfile")?;
     if let Some(workspace_manifest) = &deploy_files.workspace_manifest {
-        write_atomic(
-            &deploy_dir.join(WORKSPACE_MANIFEST_FILENAME),
-            workspace_manifest_yaml(workspace_manifest).as_bytes(),
-        )
-        .into_diagnostic()
-        .wrap_err("write deployed workspace manifest")?;
+        let workspace_manifest = serde_saphyr::to_string(workspace_manifest)
+            .into_diagnostic()
+            .wrap_err("serialize deployed workspace manifest")?;
+        write_atomic(&deploy_dir.join(WORKSPACE_MANIFEST_FILENAME), workspace_manifest.as_bytes())
+            .into_diagnostic()
+            .wrap_err("write deployed workspace manifest")?;
     }
     write_atomic(&deploy_dir.join("package.json"), manifest.as_bytes())
         .into_diagnostic()

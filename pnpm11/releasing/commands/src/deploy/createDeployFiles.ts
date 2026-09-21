@@ -40,13 +40,13 @@ export interface CreateDeployFilesOptions {
 
 export interface DeployWorkspaceManifest {
   allowBuilds?: Record<string, boolean | string>
-  autoInstallPeers?: false
-  dedupePeers?: true
-  excludeLinksFromLockfile?: true
-  ignoredOptionalDependencies?: string[]
+  autoInstallPeers: boolean
+  dedupePeers: boolean
+  excludeLinksFromLockfile: boolean
+  ignoredOptionalDependencies: string[]
   injectWorkspacePackages: false
   patchedDependencies?: Record<string, string>
-  peersSuffixMaxLength?: number
+  peersSuffixMaxLength: number
   virtualStoreType: 'project'
 }
 
@@ -167,14 +167,12 @@ export function createDeployFiles ({
   bindSingletonPeers(targetSnapshot, deployPackageSnapshots, linkedWorkspaceProjects)
 
   const workspaceManifest: DeployWorkspaceManifest = {
-    autoInstallPeers: lockfile.settings?.autoInstallPeers === false ? false : undefined,
-    dedupePeers: lockfile.settings?.dedupePeers === true ? true : undefined,
-    excludeLinksFromLockfile: lockfile.settings?.excludeLinksFromLockfile === true ? true : undefined,
-    ignoredOptionalDependencies: lockfile.ignoredOptionalDependencies?.length
-      ? lockfile.ignoredOptionalDependencies
-      : undefined,
+    autoInstallPeers: lockfile.settings?.autoInstallPeers ?? true,
+    dedupePeers: lockfile.settings?.dedupePeers ?? false,
+    excludeLinksFromLockfile: lockfile.settings?.excludeLinksFromLockfile ?? false,
+    ignoredOptionalDependencies: lockfile.ignoredOptionalDependencies ?? [],
     injectWorkspacePackages: false,
-    peersSuffixMaxLength: lockfile.settings?.peersSuffixMaxLength,
+    peersSuffixMaxLength: lockfile.settings?.peersSuffixMaxLength ?? 1000,
     virtualStoreType: 'project',
   }
   const result: DeployFiles = {

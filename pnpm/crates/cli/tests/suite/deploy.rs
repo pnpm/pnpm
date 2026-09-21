@@ -126,7 +126,13 @@ fn deployed_project_passes_dependency_verification() {
     write_reachability_workspace(&workspace);
     let workspace_manifest_path = workspace.join("pnpm-workspace.yaml");
     let mut workspace_manifest = fs::read_to_string(&workspace_manifest_path).unwrap();
-    workspace_manifest.push_str("autoInstallPeers: false\n");
+    workspace_manifest.push_str(concat!(
+        "autoInstallPeers: false\n",
+        "dedupePeers: true\n",
+        "excludeLinksFromLockfile: true\n",
+        "ignoredOptionalDependencies:\n  - never-matches\n",
+        "peersSuffixMaxLength: 42\n",
+    ));
     fs::write(workspace_manifest_path, workspace_manifest).unwrap();
     let app_manifest_path = workspace.join("packages/app/package.json");
     let mut app_manifest: serde_json::Value =
@@ -144,17 +150,25 @@ fn deployed_project_passes_dependency_verification() {
         .assert()
         .success();
 
-    let workspace_yaml = fs::read_to_string(deploy_dir.join("pnpm-workspace.yaml")).unwrap();
-    for setting in [
-        "dedupeInjectedDeps: false",
-        "dedupePeerDependents: false",
-        "autoInstallPeers: false",
-        "injectWorkspacePackages: false",
-        r#"packages: ["."]"#,
-        r#"virtualStoreType: "project""#,
-    ] {
-        assert!(workspace_yaml.contains(setting), "missing {setting:?}:\n{workspace_yaml}");
-    }
+    let workspace_manifest: serde_json::Value = serde_saphyr::from_str(
+        &fs::read_to_string(deploy_dir.join("pnpm-workspace.yaml")).unwrap(),
+    )
+    .unwrap();
+    assert_eq!(
+        workspace_manifest,
+        serde_json::json!({
+            "autoInstallPeers": false,
+            "dedupeInjectedDeps": false,
+            "dedupePeerDependents": false,
+            "dedupePeers": true,
+            "excludeLinksFromLockfile": true,
+            "ignoredOptionalDependencies": ["never-matches"],
+            "injectWorkspacePackages": false,
+            "packages": ["."],
+            "peersSuffixMaxLength": 42,
+            "virtualStoreType": "project",
+        }),
+    );
     pacquet_cmd(&deploy_dir)
         .with_args(["--config.verify-deps-before-run=error", "run", "start"])
         .assert()
