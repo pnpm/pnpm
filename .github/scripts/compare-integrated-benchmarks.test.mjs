@@ -43,7 +43,8 @@ test('missing, duplicate, failed, undersampled and invalid data fail closed', ()
     report(stable.slice(0, 8), stable),
     report([...stable.slice(1), NaN], stable),
     report([...stable.slice(1), 0], stable),
-    { results: [{ ...valid.results[0], exit_codes: [1] }, valid.results[1]] },
+    { results: [{ ...valid.results[0], exit_codes: [0] }, valid.results[1]] },
+    { results: [{ ...valid.results[0], exit_codes: [1, ...Array(9).fill(0)] }, valid.results[1]] },
   ]
   for (const input of invalid) assert.throws(() => compare(input, 'pacquet'))
 })
