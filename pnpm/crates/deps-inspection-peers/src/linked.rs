@@ -2,7 +2,7 @@ use super::{
     BadPeerIssue, CatalogAnchor, CatalogResolutionError, CatalogResolutionResult, Catalogs,
     Lockfile, LockfileResolution, MissingPeerIssue, PackageManifest, ParentPkg, Path, PathBuf,
     PeerIssues, PkgName, ProjectSnapshot, ResolvedDependencySpec, WantedDependency,
-    get_peer_version_range, resolve_from_catalog, satisfies,
+    extract_peer_version, get_peer_version_range, resolve_from_catalog, satisfies,
 };
 
 pub(super) struct CanonicalPathWithin {
@@ -222,7 +222,7 @@ fn resolved_peer_version(
     spec: &ResolvedDependencySpec,
 ) -> Option<String> {
     if let Some(ver_peer) = spec.version.ver_peer() {
-        return Some(ver_peer.version().to_string());
+        return Some(extract_peer_version(ver_peer));
     }
     if let Some(link_target) = spec.version.as_link_target() {
         return Some(
