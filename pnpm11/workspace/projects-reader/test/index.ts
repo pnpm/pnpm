@@ -73,5 +73,12 @@ test('findWorkspaceProjectsSync() works synchronously', () => {
     sharedWorkspaceLockfile: true,
   })
   expect(pkgs).toHaveLength(3)
+  const barPath = path.join(fixturePath, 'packages/bar')
+  expect(
+    jest.mocked(logger.warn).mock.calls
+      .sort((a, b) => JSON.stringify(a).localeCompare(JSON.stringify(b)))
+  ).toStrictEqual([
+    [{ prefix: barPath, message: `The field "resolutions" was found in ${barPath}/package.json. This will not take effect. Configure dependency overrides in pnpm-workspace.yaml using the "overrides" field instead.` }],
+  ])
 })
 
