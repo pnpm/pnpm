@@ -1,7 +1,7 @@
 pub(super) use maintenance::{
     bin, bugs, cache, cat_file, cat_index, clean, config, config_get, config_set, docs, doctor,
     find_hash, ignored_builds, not_implemented, prefix, repo, root, self_update, setup, shim,
-    store, with,
+    store, tasks, with,
 };
 pub(super) use registry::{
     access, deprecate, dist_tag, login, logout, owner, ping, search, star, stars, team,
@@ -52,6 +52,7 @@ use super::{
     star::StarArgs,
     stars::StarsArgs,
     store::StoreCommand,
+    tasks::TasksArgs,
     team::TeamArgs,
     undeprecate::UndeprecateArgs,
     unpublish::UnpublishArgs,

@@ -8,9 +8,10 @@ use pnpm_testing_utils::bin::CommandTempCwd;
 use serde_json::json;
 use std::{
     fs,
-    io::{BufRead, BufReader, Read},
+    io::{self, BufRead, BufReader, Read},
     path::{Path, PathBuf},
     process::{Child, Command, Stdio},
+    sync::mpsc,
     thread,
     time::{Duration, Instant},
 };
@@ -21,6 +22,7 @@ const RELEASE_TIMEOUT: Duration = Duration::from_secs(30);
 const HOLD_SCRIPT: &str = r"
     const fs = require('fs');
     const path = require('path');
+    fs.writeSync(1, 'running\n');
     const dir = process.env.MARKER_DIR;
     const marker = path.join(dir, `running-${process.pid}`);
     fs.writeFileSync(marker, '');
@@ -28,6 +30,9 @@ const HOLD_SCRIPT: &str = r"
       name.startsWith('running-') && path.join(dir, name) !== marker
     );
     if (others.length > 0) fs.writeFileSync(path.join(dir, 'overlap'), others.join('\n'));
+    if (process.env.ORDER_LOG) {
+      fs.appendFileSync(process.env.ORDER_LOG, `${process.env.RUN_ID}\n`);
+    }
     const sleeper = new Int32Array(new SharedArrayBuffer(4));
     const deadline = Date.now() + Number(process.env.HOLD_MS);
     while (fs.existsSync(marker) && Date.now() < deadline) {
@@ -223,7 +228,9 @@ fn a_waiting_task_reports_who_holds_the_slots() {
             break;
         }
         rendered.push_str(&line);
-        if rendered.contains(r#"Waiting to run "hold": all 1 slots of concurrency group "test""#) {
+        if rendered.contains(
+            r#"Waiting to run "hold": no slot in the 1-slot concurrency group "test""#,
+        ) {
             break;
         }
     }
@@ -235,8 +242,152 @@ fn a_waiting_task_reports_who_holds_the_slots() {
     // The default reporter renders warnings on stdout.
     dbg!(&rendered);
     assert!(status.success());
-    assert!(rendered.contains(r#"Waiting to run "hold": all 1 slots of concurrency group "test""#));
+    assert!(rendered.contains(
+        r#"Waiting to run "hold": no slot in the 1-slot concurrency group "test""#
+    ));
+    assert!(rendered.contains("You are #1 of 1 in line"));
     assert!(rendered.contains(&format!("pid {} in ", holder.id())));
+
+    drop(root);
+}
+
+fn read_until_queued(stdout: &mut BufReader<impl Read>) -> Result<(), String> {
+    let mut rendered = String::new();
+    loop {
+        let mut line = String::new();
+        match stdout.read_line(&mut line) {
+            Ok(0) => return Err(rendered),
+            Ok(_) => {
+                rendered.push_str(&line);
+                if rendered.contains("Waiting to run") {
+                    return Ok(());
+                }
+            }
+            Err(error) => return Err(format!("{error}: {rendered}")),
+        }
+    }
+}
+
+fn wait_until_queued(child: &mut Child) {
+    let mut stdout = BufReader::new(child.stdout.take().expect("capture stdout"));
+    let (tx, rx) = mpsc::channel();
+    let reader = thread::spawn(move || {
+        let result = read_until_queued(&mut stdout);
+        let queued = result.is_ok();
+        let _ = tx.send(result);
+        if queued {
+            io::copy(&mut stdout, &mut io::sink()).expect("drain the waiting run stdout");
+        }
+    });
+    match rx.recv_timeout(Duration::from_secs(30)) {
+        Ok(Ok(())) => drop(reader),
+        Ok(Err(rendered)) => {
+            fail_queued_run(child, reader, &format!("the run never queued: {rendered}"));
+        }
+        Err(error) => {
+            fail_queued_run(
+                child,
+                reader,
+                &format!("timed out waiting for the queue notice ({error})"),
+            );
+        }
+    }
+}
+
+fn fail_queued_run(child: &mut Child, reader: thread::JoinHandle<()>, message: &str) -> ! {
+    let _ = child.kill();
+    let status = child.wait().expect("wait for the waiting run");
+    let _ = reader.join();
+    panic!("{message} status={status:?}");
+}
+
+fn queued_run(pacquet: &Command, script: &str, run_id: &str, order_log: &Path) -> Child {
+    pnpm_run(pacquet, script)
+        .env("RUN_ID", run_id)
+        .env("ORDER_LOG", order_log)
+        .env("HOLD_MS", "10")
+        .stdout(Stdio::piped())
+        .spawn()
+        .expect("spawn a queued run")
+}
+
+#[test]
+fn waiters_run_in_the_order_they_began_waiting() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    write_project(&workspace, Path::new(pacquet.get_program()), 1);
+    let order_log = workspace.join("order");
+
+    let mut holder = releasable_holder(&pacquet);
+    wait_for_holders(&workspace, 1);
+    let mut first = queued_run(&pacquet, "hold", "first", &order_log);
+    wait_until_queued(&mut first);
+    let mut second = queued_run(&pacquet, "hold", "second", &order_log);
+    wait_until_queued(&mut second);
+    release_holders(&workspace);
+    assert!(
+        first
+            .wait()
+            .expect("first waiter")
+            .success(),
+    );
+    assert!(
+        second
+            .wait()
+            .expect("second waiter")
+            .success(),
+    );
+    holder.wait().expect("holder");
+
+    let order = fs::read_to_string(&order_log).expect("read the run order");
+    dbg!(&order);
+    assert_eq!(order, "first\nsecond\n");
+
+    drop(root);
+}
+
+#[test]
+fn a_higher_priority_waiter_runs_before_earlier_arrivals() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    write_project(&workspace, Path::new(pacquet.get_program()), 1);
+    fs::write(
+        workspace.join("package.json"),
+        json!({
+            "name": "test",
+            "version": "0.0.0",
+            "scripts": { "hold": "node hold.js", "urgent": "node hold.js" },
+        })
+        .to_string(),
+    )
+    .expect("write package.json");
+    fs::write(
+        workspace.join("pnpm-workspace.yaml"),
+        "tasks:\n  hold:\n    concurrencyGroup: test\n  urgent:\n    concurrencyGroup: test\n    priority: 10\nconcurrencyGroups:\n  test: 1\n",
+    )
+    .expect("write pnpm-workspace.yaml");
+    let order_log = workspace.join("order");
+
+    let mut holder = releasable_holder(&pacquet);
+    wait_for_holders(&workspace, 1);
+    let mut low = queued_run(&pacquet, "hold", "low", &order_log);
+    wait_until_queued(&mut low);
+    let mut high = queued_run(&pacquet, "urgent", "high", &order_log);
+    wait_until_queued(&mut high);
+    release_holders(&workspace);
+    assert!(
+        low.wait()
+            .expect("low-priority waiter")
+            .success(),
+    );
+    assert!(
+        high.wait()
+            .expect("high-priority waiter")
+            .success(),
+    );
+    holder.wait().expect("holder");
+
+    let order = fs::read_to_string(&order_log).expect("read the run order");
+    dbg!(&order);
+    assert_eq!(order, "high\nlow\n");
 
     drop(root);
 }
@@ -254,6 +405,123 @@ fn a_nested_task_uses_the_slot_its_parent_holds() {
         .assert()
         .success();
 
+    drop(root);
+}
+
+fn stdout_has_elapsed(stdout: &str) -> bool {
+    stdout
+        .split_whitespace()
+        .any(|word| {
+            let Some(pos) = word.find(|character: char| !character.is_ascii_digit()) else {
+                return false;
+            };
+            let (digits, unit) = word.split_at(pos);
+            !digits.is_empty() && matches!(unit, "s" | "m" | "h")
+        })
+}
+
+fn tasks_status_cmd(pacquet: &Command) -> Command {
+    let workspace = pacquet.get_current_dir().expect("workspace dir");
+    let mut command = Command::new(pacquet.get_program());
+    command.current_dir(workspace);
+    for (name, value) in pacquet.get_envs() {
+        match value {
+            Some(value) => command.env(name, value),
+            None => command.env_remove(name),
+        };
+    }
+    command.env("PNPM_CONFIG_STATE_DIR", state_dir(workspace));
+    command.args(["tasks", "status"]);
+    command
+}
+
+#[test]
+fn tasks_status_prints_the_wait_list() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    write_project(&workspace, Path::new(pacquet.get_program()), 1);
+
+    let empty = tasks_status_cmd(&pacquet).output().expect("list idle groups");
+    let empty_out = String::from_utf8(empty.stdout).expect("stdout utf8");
+    dbg!(&empty_out);
+    assert!(empty.status.success());
+    assert_eq!(empty_out.trim(), "No concurrency groups are in use.");
+
+    let mut holder = releasable_holder(&pacquet);
+    wait_for_holders(&workspace, 1);
+    let mut waiter = queued_run(&pacquet, "hold", "waiter", &workspace.join("order"));
+    wait_until_queued(&mut waiter);
+
+    let listed = tasks_status_cmd(&pacquet).output().expect("list the wait line");
+    let stdout = String::from_utf8(listed.stdout).expect("stdout utf8");
+    dbg!(&stdout);
+    assert!(listed.status.success());
+    assert!(stdout.contains("test"), "{stdout}");
+    assert!(stdout.contains("running"), "{stdout}");
+    assert!(stdout.contains("waiting"), "{stdout}");
+    assert!(stdout.contains("hold"), "{stdout}");
+    assert!(stdout.contains("1. "), "{stdout}");
+    let elapsed_lines = stdout
+        .lines()
+        .filter(|line| stdout_has_elapsed(line))
+        .count();
+    assert!(elapsed_lines >= 2, "running and waiting both need elapsed time: {stdout}");
+
+    let idle = tasks_status_cmd(&pacquet)
+        .arg("missing")
+        .output()
+        .expect("list a missing group");
+    let idle_out = String::from_utf8(idle.stdout).expect("stdout utf8");
+    assert!(idle.status.success());
+    assert_eq!(idle_out.trim(), "missing: idle");
+
+    release_holders(&workspace);
+    assert!(waiter.wait().expect("waiter").success());
+    holder.wait().expect("holder");
+    drop(root);
+}
+
+#[test]
+#[cfg_attr(not(unix), ignore = "Windows paths cannot contain newlines")]
+fn workspace_path_cannot_inject_process_stamp_metadata() {
+    let CommandTempCwd { mut pacquet, root, workspace, .. } = CommandTempCwd::init();
+    let workspace = workspace.join("project\ncmd forged\nsince 1");
+    fs::create_dir(&workspace).expect("create workspace with newlines");
+    pacquet.current_dir(&workspace);
+    write_project(&workspace, Path::new(pacquet.get_program()), 1);
+    let mut holder = releasable_holder(&pacquet);
+    wait_for_holders(&workspace, 1);
+    let mut waiter = queued_run(&pacquet, "hold", "waiter", &workspace.join("order"));
+    wait_until_queued(&mut waiter);
+    let pool = state_dir(&workspace).join("run-slots/test");
+    let holder_stamp = fs::read_to_string(pool.join("0.holder")).expect("read holder stamp");
+    let waiter_stamp_path = fs::read_dir(pool.join("waiters"))
+        .expect("list waiters")
+        .map(|entry| entry.expect("waiter entry").path())
+        .find(|path| {
+            path.extension()
+                .is_some_and(|extension| extension == "stamp")
+        })
+        .expect("waiter stamp");
+    let waiter_stamp = fs::read_to_string(waiter_stamp_path).expect("read waiter stamp");
+    release_holders(&workspace);
+    assert!(waiter.wait().expect("waiter").success());
+    assert!(holder.wait().expect("holder").success());
+    for (stamp, expected_lines) in [(holder_stamp, 3), (waiter_stamp, 5)] {
+        eprintln!("STAMP: {stamp:?}");
+        assert_eq!(stamp.lines().count(), expected_lines);
+        assert_eq!(
+            stamp
+                .lines()
+                .filter(|line| *line == "cmd hold")
+                .count(),
+            1,
+        );
+        assert!(
+            !stamp
+                .lines()
+                .any(|line| line == "cmd forged" || line == "since 1"),
+        );
+    }
     drop(root);
 }
 
