@@ -170,6 +170,7 @@ fn dedupe_peers_round_trips_through_lockfile_settings() {
             previous_packages: None,
         },
         manifest_settings: crate::LockfileManifestSettings {
+            include_peer_dependencies: false,
             overrides: None,
             ignored_optional_dependencies: None,
             patched_dependencies: None,
@@ -212,6 +213,7 @@ fn dedupe_peers_round_trips_through_lockfile_settings() {
             previous_packages: None,
         },
         manifest_settings: crate::LockfileManifestSettings {
+            include_peer_dependencies: false,
             overrides: None,
             ignored_optional_dependencies: None,
             patched_dependencies: None,
@@ -306,6 +308,7 @@ fn patched_dependencies_flow_into_lockfile_and_empty_is_omitted() {
                 previous_packages: None,
             },
             manifest_settings: crate::LockfileManifestSettings {
+                include_peer_dependencies: false,
                 overrides: None,
                 ignored_optional_dependencies: None,
                 patched_dependencies: patched,
@@ -410,6 +413,7 @@ fn snapshot_link_uses_lockfile_root_while_importer_link_uses_project_root() {
             previous_packages: None,
         },
         manifest_settings: crate::LockfileManifestSettings {
+            include_peer_dependencies: false,
             overrides: None,
             ignored_optional_dependencies: None,
             patched_dependencies: None,
@@ -516,6 +520,7 @@ fn multi_importer_workspace_writes_per_project_lockfile_entries() {
             previous_packages: None,
         },
         manifest_settings: crate::LockfileManifestSettings {
+            include_peer_dependencies: false,
             overrides: None,
             ignored_optional_dependencies: None,
             patched_dependencies: None,

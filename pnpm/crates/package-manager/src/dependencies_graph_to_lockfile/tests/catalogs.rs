@@ -62,6 +62,7 @@ fn aliased_catalog_dependency_records_catalog_snapshot() {
             previous_packages: None,
         },
         manifest_settings: crate::LockfileManifestSettings {
+            include_peer_dependencies: false,
             overrides: None,
             ignored_optional_dependencies: None,
             patched_dependencies: None,

@@ -1,7 +1,7 @@
 import { expect, jest, test } from '@jest/globals'
 import { LOCKFILE_VERSION } from '@pnpm/constants'
 import type { ResolveLatestDispatcher } from '@pnpm/installing.client'
-import type { DepPath, PackageManifest, ProjectId } from '@pnpm/types'
+import type { DependenciesField, DepPath, PackageManifest, ProjectId } from '@pnpm/types'
 
 import { outdated } from '../lib/outdated.js'
 
@@ -111,7 +111,10 @@ test('outdated() includes peer-only dependencies when requested', async () => {
   }])
 })
 
-test('outdated() uses the peer range when an alias is also a development dependency', async () => {
+test.each<DependenciesField>([
+  'devDependencies',
+  'optionalDependencies',
+])('outdated() uses the peer range and the installed %s version for a shared alias', async (dependencyType) => {
   const resolveLatest = jest.fn<ResolveLatestDispatcher>(async ({ wantedDependency }) => {
     expect(wantedDependency).toStrictEqual({
       alias: 'is-positive',
@@ -125,7 +128,7 @@ test('outdated() uses the peer range when an alias is also a development depende
     }
   })
   const importer = {
-    dependencies: {
+    [dependencyType]: {
       'is-positive': '1.0.0',
     },
     specifiers: {
@@ -148,7 +151,7 @@ test('outdated() uses the peer range when an alias is also a development depende
     resolveLatest,
     lockfileDir: 'project',
     manifest: {
-      devDependencies: {
+      [dependencyType]: {
         'is-positive': '^3.0.0',
       },
       peerDependencies: {

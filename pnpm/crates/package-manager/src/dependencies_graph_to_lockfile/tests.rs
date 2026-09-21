@@ -86,6 +86,7 @@ fn single_importer_opts<'a>(
             previous_packages: None,
         },
         manifest_settings: crate::LockfileManifestSettings {
+            include_peer_dependencies: false,
             overrides,
             ignored_optional_dependencies,
             patched_dependencies: None,

@@ -17,7 +17,7 @@ import {
   type LockfileObject,
   type ProjectSnapshot,
 } from '@pnpm/lockfile.fs'
-import { getAllDependenciesFromManifest } from '@pnpm/pkg-manifest.utils'
+import { getAllDependenciesFromManifest, getDependencyTypeFromManifest } from '@pnpm/pkg-manifest.utils'
 import {
   DEPENDENCIES_FIELDS,
   type DependenciesField,
@@ -114,9 +114,6 @@ export async function outdated (
     dependencyTypes.map(async (depType) => {
       if (opts.include?.[depType] === false) return
 
-      const lockfileDepType: DependenciesField = depType === 'peerDependencies'
-        ? 'dependencies'
-        : depType
       const declaredDependencies = depType === 'peerDependencies'
         ? overriddenManifest.peerDependencies
         : opts.wantedLockfile!.importers[importerId][depType]
@@ -142,6 +139,12 @@ export async function outdated (
             ? declaredDependencies[alias]
             : allDeps[alias]
           if (!declaredSpecifier) return
+          const manifestDepType = depType === 'peerDependencies'
+            ? getDependencyTypeFromManifest(opts.manifest, alias)
+            : depType
+          const lockfileDepType: DependenciesField = manifestDepType === 'peerDependencies' || manifestDepType == null
+            ? 'dependencies'
+            : manifestDepType
           const wantedRef = opts.wantedLockfile!.importers[importerId][lockfileDepType]?.[alias] ?? declaredSpecifier
           if (isLocalRef(wantedRef)) return
           if (ignoreDependenciesMatcher?.(alias)) return

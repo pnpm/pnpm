@@ -120,6 +120,7 @@ pub(crate) struct FreshLockfileResolution<'a> {
     pub direct_by_importer:
         &'a BTreeMap<String, BTreeMap<String, pnpm_resolving_deps_resolver::DepPath>>,
     pub overrides: Option<IndexMap<String, String>>,
+    pub include_peer_dependencies: bool,
     /// Publish dates this run resolved for the direct dependencies,
     /// layered over the ones [`FreshLockfilePrior::lockfile`] recorded. Empty
     /// unless the install resolved `time-based`.
