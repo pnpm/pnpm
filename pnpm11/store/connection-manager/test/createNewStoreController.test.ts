@@ -58,23 +58,16 @@ test('reads cafile and passes its certificates to the client', async () => {
   }))
 })
 
-test('combines explicit ca with certificates from cafile', async () => {
+test('explicit ca takes precedence over cafile', async () => {
   createClient.mockReturnValue(client)
-  const cafile = path.join(tmpDir, 'combined-ca.pem')
-  fs.writeFileSync(cafile, 'file ca\n-----END CERTIFICATE-----\n')
 
   await createNewStoreController({
     ...requiredOptions,
     cacheDir: path.join(tmpDir, 'explicit-cache'),
     storeDir: path.join(tmpDir, 'explicit-store'),
     ca: 'explicit ca',
-    cafile,
+    cafile: '/path/that/must/not/be/read',
   })
 
-  expect(createClient).toHaveBeenLastCalledWith(expect.objectContaining({
-    ca: [
-      'explicit ca',
-      'file ca\n-----END CERTIFICATE-----',
-    ],
-  }))
+  expect(createClient).toHaveBeenLastCalledWith(expect.objectContaining({ ca: 'explicit ca' }))
 })

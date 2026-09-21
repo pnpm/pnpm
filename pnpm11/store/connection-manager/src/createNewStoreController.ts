@@ -243,15 +243,11 @@ export function needsFullMetadataForRegistry (
 }
 
 async function getCA (opts: Pick<CreateNewStoreControllerOptions, 'ca' | 'cafile'>): Promise<string | string[] | undefined> {
-  if (!opts.cafile) return opts.ca
+  if (opts.ca != null || !opts.cafile) return opts.ca
   try {
     const cafileCA = parseCAFileContents(await fs.readFile(opts.cafile, 'utf8'))
-    if (cafileCA.length === 0) return opts.ca
-    return [
-      ...(Array.isArray(opts.ca) ? opts.ca : opts.ca ? [opts.ca] : []),
-      ...cafileCA,
-    ]
+    return cafileCA.length > 0 ? cafileCA : undefined
   } catch {
-    return opts.ca
+    return undefined
   }
 }
