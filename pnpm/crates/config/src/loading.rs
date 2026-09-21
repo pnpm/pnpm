@@ -218,7 +218,7 @@ impl Config {
         let bootstrap = &mut self.package_manager_bootstrap;
         env_settings.apply_proxy_to(&mut bootstrap.proxy, &mut bootstrap.proxy_keys);
         let saved_workspace_dir = self.workspace_dir.clone();
-        env_settings.expand_global_dir_home_prefixes::<Sys>();
+        env_settings.expand_home_prefixes::<Sys>();
         env_settings.apply_to(self, start_dir);
         self.workspace_dir = saved_workspace_dir;
         self.apply_remote_side_effects_cache_env::<Sys>();

@@ -618,17 +618,20 @@ fn expanding_a_home_prefix_joins_the_way_pnpm_does() {
     let home = PathBuf::from("/home/example");
     for (configured, expected) in [
         ("~/bin", home.join("bin")),
+        (r"~\bin", home.join("bin")),
         ("~//bin", home.join("bin")),
         ("~/../bin", PathBuf::from("/home").join("bin")),
         ("~/nested/../bin", home.join("bin")),
     ] {
         let mut settings = WorkspaceSettings {
+            store_dir: Some(configured.to_string()),
             global_dir: Some(configured.to_string()),
             global_bin_dir: Some(configured.to_string()),
             ..WorkspaceSettings::default()
         };
-        settings.expand_global_dir_home_prefixes::<FakeHome>();
+        settings.expand_home_prefixes::<FakeHome>();
         let expected = Some(expected.as_path());
+        assert_eq!(settings.store_dir.as_deref().map(Path::new), expected, "storeDir {configured}");
         assert_eq!(
             settings.global_dir.as_deref().map(Path::new),
             expected,
@@ -654,11 +657,13 @@ fn a_tilde_without_a_separator_is_left_alone() {
     }
 
     let mut settings = WorkspaceSettings {
+        store_dir: Some("~backup/store".to_string()),
         global_dir: Some("~backup/global".to_string()),
         global_bin_dir: Some("bin/~/nested".to_string()),
         ..WorkspaceSettings::default()
     };
-    settings.expand_global_dir_home_prefixes::<FakeHome>();
+    settings.expand_home_prefixes::<FakeHome>();
+    assert_eq!(settings.store_dir.as_deref(), Some("~backup/store"));
     assert_eq!(settings.global_dir.as_deref(), Some("~backup/global"));
     assert_eq!(settings.global_bin_dir.as_deref(), Some("bin/~/nested"));
 }
