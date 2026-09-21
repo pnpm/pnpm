@@ -2,6 +2,7 @@ use super::{LinkBinsError, LinkBinsOptions};
 use pnpm_fs::{is_subdir, realpath_missing};
 use std::{
     borrow::Cow,
+    ffi::OsStr,
     path::{Path, PathBuf},
 };
 
@@ -21,6 +22,11 @@ impl<'a> LinkingPaths<'a> {
             relocatable_root: None,
             extra_node_paths: Cow::Borrowed(&options.extra_node_paths),
         };
+        if let Some(modules_dir) = project_modules_dir(bins_dir, options) {
+            paths.extra_node_paths
+                .to_mut()
+                .push(modules_dir.to_string_lossy().into_owned());
+        }
         let Some(root) = options.relocatable_root
             .as_deref()
             .filter(|_| cfg!(unix))
@@ -33,7 +39,7 @@ impl<'a> LinkingPaths<'a> {
             return Ok(paths);
         }
         paths.bins_dir = Cow::Owned(physical_bins);
-        paths.extra_node_paths = options.extra_node_paths
+        paths.extra_node_paths = paths.extra_node_paths
             .iter()
             .map(|entry| resolve_extra(entry, root, &physical_root))
             .collect::<Vec<_>>()
@@ -67,6 +73,13 @@ impl<'a> LinkingPaths<'a> {
         // whose path inside the project must remain relocatable.
         Ok(Cow::Owned(physical_parent.join(name)))
     }
+}
+
+fn project_modules_dir<'a>(bins_dir: &'a Path, options: &LinkBinsOptions) -> Option<&'a Path> {
+    let name = options.project_modules_dir_name.as_deref()?;
+    let modules_dir = bins_dir.parent()?;
+    (bins_dir.file_name() == Some(OsStr::new(".bin")) && modules_dir.file_name() == Some(name))
+        .then_some(modules_dir)
 }
 
 fn resolve(path: &Path) -> Result<PathBuf, LinkBinsError> {

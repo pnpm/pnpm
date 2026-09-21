@@ -2,7 +2,7 @@ import { existsSync, promises as fs } from 'node:fs'
 import { createRequire } from 'node:module'
 import path from 'node:path'
 
-import { cmdShim, getExeExtension, isShimPointingAt } from '@pnpm/bins.cmd-shim'
+import { cmdShim, getExeExtension, isShimNodePathEndingWith, isShimPointingAt } from '@pnpm/bins.cmd-shim'
 import { type Command, getBinsFromPackageManifest, pkgOwnsBin } from '@pnpm/bins.resolver'
 import { PnpmError } from '@pnpm/error'
 import { readModulesDir } from '@pnpm/fs.read-modules-dir'
@@ -21,6 +21,8 @@ import semver from 'semver'
 import { symlinkDir } from 'symlink-dir'
 
 import { getBinNodePaths } from './getBinNodePaths.js'
+
+export { getProjectNodePaths } from './getProjectNodePaths.js'
 
 const binsConflictLogger = logger('bins-conflict')
 const IS_WINDOWS = isWindows()
@@ -299,7 +301,8 @@ async function linkBin (cmd: CommandInfo, binsDir: string, opts?: LinkBinOptions
       isCorrectlyLinked = target === cmd.path || path.resolve(binsDir, target) === path.resolve(cmd.path)
     } else if (stat.isFile() && stat.size < CMD_SHIM_MAX_SIZE) {
       const content = await fs.readFile(externalBinPath, 'utf8')
-      isCorrectlyLinked = isShimPointingAt(content, cmd.path) && isShimHardened(content)
+      isCorrectlyLinked = isShimPointingAt(content, cmd.path) && isShimHardened(content) &&
+        isShimNodePathEndingWith(content, opts?.extraNodePaths ?? [])
     }
   } catch {}
   if (isCorrectlyLinked) {

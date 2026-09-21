@@ -1,6 +1,6 @@
 import path from 'node:path'
 
-import { linkBins } from '@pnpm/bins.linker'
+import { getProjectNodePaths, linkBins } from '@pnpm/bins.linker'
 import { fetchFromDir } from '@pnpm/fetching.directory-fetcher'
 import { logger } from '@pnpm/logger'
 import type { StoreController } from '@pnpm/store.controller-types'
@@ -16,6 +16,7 @@ export type RunLifecycleHooksConcurrentlyOptions = Omit<RunLifecycleHookOptions,
 > & {
   resolveSymlinksInInjectedDirs?: boolean
   storeController: StoreController
+  extendNodePath?: boolean
   extraNodePaths?: string[]
   preferSymlinkedExecutables?: boolean
 }
@@ -55,7 +56,7 @@ export async function runLifecycleHooksConcurrently (
       try {
         // We are linking the bin files, in case they were created by lifecycle scripts of other workspace packages.
         await linkBins(modulesDir, path.join(modulesDir, '.bin'), {
-          extraNodePaths: opts.extraNodePaths,
+          extraNodePaths: await getProjectNodePaths({ modulesDir, rootDir }, opts),
           allowExoticManifests: true,
           preferSymlinkedExecutables: opts.preferSymlinkedExecutables,
           projectManifest: manifest,

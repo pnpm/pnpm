@@ -157,6 +157,16 @@ export function isShimPointingAt (shimContent: string, src: string): boolean {
 }
 
 /**
+ * Check whether a shell shim's `NODE_PATH` ends with exactly the given
+ * entries, or is not set at all when there are none.
+ */
+export function isShimNodePathEndingWith (shimContent: string, entries: string[]): boolean {
+  const shEntries = normalizePathEnvVar(entries).posix
+  if (!shEntries) return !shimContent.includes('export NODE_PATH=')
+  return shimContent.includes(`  export NODE_PATH="${shEntries}"\n`) || shimContent.includes(`:${shEntries}"\n`)
+}
+
+/**
  * Try to unlink, but ignore errors.
  * Any problems will surface later.
  *

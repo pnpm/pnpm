@@ -2,7 +2,7 @@ import { promises as fs } from 'node:fs'
 import path from 'node:path'
 import util from 'node:util'
 
-import { linkBins, linkBinsOfPackages } from '@pnpm/bins.linker'
+import { getProjectNodePaths, linkBins, linkBinsOfPackages } from '@pnpm/bins.linker'
 import { buildModules, linkBinsOfRuntimeDependencies } from '@pnpm/building.during-install'
 import { createAllowBuildFunction, isBuildExplicitlyDisallowed } from '@pnpm/building.policy'
 import {
@@ -137,6 +137,7 @@ export interface HeadlessOptions extends RegistryContext {
   excludeLinksFromLockfile?: boolean
   extraBinPaths?: string[]
   extraEnv?: Record<string, string>
+  extendNodePath?: boolean
   extraNodePaths?: string[]
   preferSymlinkedExecutables?: boolean
   hoistingLimits?: HoistingLimits
@@ -272,6 +273,7 @@ export async function headlessInstall (opts: HeadlessOptions): Promise<Installat
   const scriptsOpts = {
     optional: false,
     extraBinPaths: opts.extraBinPaths,
+    extendNodePath: opts.extendNodePath,
     extraNodePaths: opts.extraNodePaths,
     preferSymlinkedExecutables: opts.preferSymlinkedExecutables,
     extraEnv: opts.extraEnv,
@@ -776,9 +778,10 @@ export async function headlessInstall (opts: HeadlessOptions): Promise<Installat
       /** Skip linking and due to no project manifest */
       if (!opts.ignorePackageManifest) {
         await Promise.all(selectedProjects.map(async (project) => {
+          const extraNodePaths = await getProjectNodePaths(project, opts)
           if (opts.nodeLinker === 'hoisted' || opts.publicHoistPattern?.length && path.relative(opts.lockfileDir, project.rootDir) === '') {
             await linkBinsOfImporter(project, {
-              extraNodePaths: opts.extraNodePaths,
+              extraNodePaths,
               preferSymlinkedExecutables: opts.preferSymlinkedExecutables,
             })
           } else {
@@ -808,7 +811,7 @@ export async function headlessInstall (opts: HeadlessOptions): Promise<Installat
                 .filter(({ manifest }) => manifest != null) as Array<{ location: string, manifest: DependencyManifest }>,
               project.binsDir,
               {
-                extraNodePaths: opts.extraNodePaths,
+                extraNodePaths,
                 preferSymlinkedExecutables: opts.preferSymlinkedExecutables,
               }
             )

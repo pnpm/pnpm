@@ -1,6 +1,6 @@
 import path from 'node:path'
 
-import { linkBins, linkBinsOfPackages } from '@pnpm/bins.linker'
+import { getProjectNodePaths, linkBins, linkBinsOfPackages } from '@pnpm/bins.linker'
 import { buildSelectedPkgs } from '@pnpm/building.after-install'
 import { buildModules, type DepsStateCache, linkBinsOfDependencies, linkBinsOfRuntimeDependencies } from '@pnpm/building.during-install'
 import { createAllowBuildFunction, isBuildExplicitlyDisallowed } from '@pnpm/building.policy'
@@ -684,6 +684,7 @@ export async function mutateModules (
   async function _install (): Promise<InnerInstallResult> {
     const scriptsOpts: RunLifecycleHooksConcurrentlyOptions = {
       extraBinPaths: opts.extraBinPaths,
+      extendNodePath: opts.extendNodePath,
       extraNodePaths: ctx.extraNodePaths,
       extraEnv: opts.extraEnv,
       preferSymlinkedExecutables: opts.preferSymlinkedExecutables,
@@ -2547,12 +2548,13 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
 
     if (!opts.virtualStoreOnly) await Promise.all(projects.map(async (project, index) => {
       let linkedPackages!: string[]
+      const extraNodePaths = await getProjectNodePaths(project, { extendNodePath: opts.extendNodePath, extraNodePaths: ctx.extraNodePaths })
       if (ctx.publicHoistPattern?.length && path.relative(project.rootDir, opts.lockfileDir) === '') {
         linkedPackages = await linkBins(project.modulesDir, project.binsDir, {
           allowExoticManifests: true,
           preferSymlinkedExecutables: opts.preferSymlinkedExecutables,
           projectManifest: project.manifest,
-          extraNodePaths: ctx.extraNodePaths,
+          extraNodePaths,
           warn: binWarn.bind(null, project.rootDir),
         })
       } else {
@@ -2581,7 +2583,7 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
             .filter(({ manifest }) => manifest != null) as Array<{ location: string, manifest: DependencyManifest }>,
           project.binsDir,
           {
-            extraNodePaths: ctx.extraNodePaths,
+            extraNodePaths,
             preferSymlinkedExecutables: opts.preferSymlinkedExecutables,
           }
         )

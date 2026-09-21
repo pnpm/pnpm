@@ -216,6 +216,7 @@ export async function buildProjects (
   const store = await createStoreController(opts)
   const scriptsOpts = {
     extraBinPaths: ctx.extraBinPaths,
+    extendNodePath: opts.extendNodePath,
     extraNodePaths: ctx.extraNodePaths,
     extraEnv: opts.extraEnv,
     preferSymlinkedExecutables: opts.preferSymlinkedExecutables,

@@ -584,3 +584,31 @@ test('run resolves a command from the modules directory a packageConfigs entry g
   expect(recursiveStdout).toContain('configured')
   expect(recursiveStdout).not.toContain('stale')
 })
+
+test('run and exec reach plugins installed in the configured modules directory', async () => {
+  prepare({
+    name: 'root',
+    version: '1.0.0',
+    scripts: { lint: 'tool' },
+    dependencies: { plugin: 'file:plugin', tool: 'file:tool' },
+  })
+  writeYamlFileSync('pnpm-workspace.yaml', { modulesDir: 'vendor' })
+  fs.mkdirSync('tool')
+  fs.writeFileSync('tool/package.json', JSON.stringify({ name: 'tool', version: '1.0.0', bin: 'bin.js' }))
+  // Loads plugins from the working directory, the way ESLint and similar tools do.
+  fs.writeFileSync('tool/bin.js', `#!/usr/bin/env node
+const { createRequire } = require('node:module')
+console.log(createRequire(require('node:path').join(process.cwd(), 'package.json'))('plugin'))
+`)
+  fs.mkdirSync('plugin')
+  fs.writeFileSync('plugin/package.json', JSON.stringify({ name: 'plugin', version: '1.0.0' }))
+  fs.writeFileSync('plugin/index.js', 'module.exports = \'plugin loaded\'\n')
+
+  await execPnpm(['install'])
+
+  for (const args of [['run', 'lint'], ['exec', 'tool']]) {
+    const result = execPnpmSync(args)
+    expect(result.status).toBe(0)
+    expect(result.stdout.toString()).toContain('plugin loaded')
+  }
+})

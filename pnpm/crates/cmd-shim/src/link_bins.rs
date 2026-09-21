@@ -21,6 +21,7 @@ use rayon::prelude::*;
 use serde_json::Value;
 use std::{
     collections::{HashMap, HashSet},
+    ffi::OsString,
     io,
     path::{Path, PathBuf},
     sync::{Arc, Mutex},
@@ -291,6 +292,13 @@ pub struct LinkBinsOptions {
     /// and the node runtime symlink. `None` writes absolute paths. Inert on
     /// Windows.
     pub relocatable_root: Option<PathBuf>,
+    /// The name of the project modules directory when it is not
+    /// `node_modules` and `extendNodePath` is on. Bins linked into the `.bin`
+    /// of a directory with this name also get that directory on `NODE_PATH`,
+    /// after `extra_node_paths`: Node only looks for packages in
+    /// `node_modules` directories, so a tool installed there could not
+    /// otherwise load the project's other packages, such as its plugins.
+    pub project_modules_dir_name: Option<OsString>,
 }
 
 /// Read `<location>/package.json` for each entry under `modules_dir` and link
