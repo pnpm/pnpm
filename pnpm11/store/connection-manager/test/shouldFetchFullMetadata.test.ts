@@ -146,6 +146,13 @@ test('CreateNewStoreControllerOptions supports cafile and normalizes it at runti
     cacheDir: path.join(tmpDir, 'cache'),
     storeDir: path.join(tmpDir, 'store'),
     cafile: caFilePath,
+    configByUri: {},
+    fetchRetries: 2,
+    fetchRetryFactor: 10,
+    fetchRetryMaxtimeout: 60000,
+    fetchRetryMintimeout: 10000,
+    offline: false,
+    verifyStoreIntegrity: true,
   })
 
   expect(result.ctrl).toBeDefined()
