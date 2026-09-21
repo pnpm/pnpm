@@ -106,10 +106,6 @@ interface PickerOptions extends PickPackageFromMetaOptions {
   ignoreMissingTimeField?: boolean
 }
 
-function hasBlockedVersions (opts: PickPackageFromMetaOptions, spec: RegistryPackageSpec): boolean {
-  return (opts.blockedVersions?.get(spec.name)?.size ?? 0) > 0
-}
-
 function canReuseStableCachedRange (
   spec: RegistryPackageSpec,
   opts: PickPackageOptions
@@ -962,4 +958,8 @@ function validatePackageName (pkgName: string) {
   if (pkgName.includes('/') && pkgName[0] !== '@') {
     throw new PnpmError('INVALID_PACKAGE_NAME', `Package name ${pkgName} is invalid, it should have a @scope`)
   }
+}
+
+function hasBlockedVersions (opts: PickPackageFromMetaOptions, spec: RegistryPackageSpec): boolean {
+  return (opts.blockedVersions?.get(spec.name)?.size ?? 0) > 0
 }
