@@ -335,3 +335,32 @@ test('exec resolves a command from the modules directory a packageConfigs entry 
   expect(recursiveStdout).toContain('configured')
   expect(recursiveStdout).not.toContain('stale')
 })
+
+test('exec and run find a command that add installed into the modules directory a packageConfigs entry gives the project', async () => {
+  preparePackages([
+    { location: '.', package: { name: 'root', version: '1.0.0' } },
+    { name: 'moved', version: '1.0.0', scripts: { hello: 'hello-world-js-bin' } },
+    { name: 'plain', version: '1.0.0', scripts: { hello: 'hello-world-js-bin' } },
+  ])
+  writeYamlFileSync('pnpm-workspace.yaml', {
+    packages: ['**', '!store/**'],
+    sharedWorkspaceLockfile: false,
+    packageConfigs: { moved: { modulesDir: 'custom' } },
+  })
+
+  for (const project of ['moved', 'plain']) {
+    const add = execPnpmSync(['add', '@pnpm.e2e/hello-world-js-bin@1.0.0'], { cwd: path.resolve(project) })
+    expect(add.status).toBe(0)
+  }
+
+  for (const project of ['moved', 'plain']) {
+    for (const args of [['exec', 'hello-world-js-bin'], ['run', 'hello']]) {
+      const result = execPnpmSync(args, { cwd: path.resolve(project) })
+      expect(result.status).toBe(0)
+      expect(result.stdout.toString()).toContain('Hello world!')
+    }
+  }
+  expect(fs.existsSync(path.resolve('moved/custom/.bin/hello-world-js-bin'))).toBe(true)
+  expect(fs.existsSync(path.resolve('moved/node_modules/.bin/hello-world-js-bin'))).toBe(false)
+  expect(fs.existsSync(path.resolve('plain/node_modules/.bin/hello-world-js-bin'))).toBe(true)
+})

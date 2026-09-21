@@ -3,6 +3,7 @@
 "@pnpm/exec.commands": patch
 "@pnpm/exec.lifecycle": patch
 "@pnpm/exec.npm-lifecycle": patch
+"@pnpm/installing.commands": patch
 "pnpm": patch
 ---
 
