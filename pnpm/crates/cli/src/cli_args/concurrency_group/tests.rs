@@ -546,3 +546,34 @@ fn inspecting_a_group_propagates_filesystem_errors() {
     dbg!(&missing);
     assert!(missing.is_idle());
 }
+
+#[test]
+fn wait_reporting_does_not_hold_the_queue_lock() {
+    let dir = tempfile::tempdir().expect("create temp dir");
+    let pool = SlotPool { dir: dir.path().to_path_buf(), limit: 1 };
+    let held = pool
+        .try_acquire()
+        .expect("acquire")
+        .expect("free slot");
+    let reported = std::cell::Cell::new(false);
+    let result = pool
+        .acquire(
+            "wait",
+            0,
+            |_| {
+                let seq = fs::OpenOptions::new()
+                    .read(true)
+                    .write(true)
+                    .open(dir.path().join("seq"))
+                    .expect("open queue lock");
+                seq.try_lock().expect("reporting must not retain the queue lock");
+                reported.set(true);
+            },
+            &|| reported.get(),
+        )
+        .expect("wait until reported");
+    dbg!(&result, reported.get());
+    assert!(reported.get());
+    assert!(result.is_none());
+    drop(held);
+}

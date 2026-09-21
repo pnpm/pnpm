@@ -109,8 +109,11 @@ impl SlotPool {
         if last_notice.is_some_and(|at| at.elapsed() < WAIT_NOTICE_EVERY) {
             return Ok(());
         }
-        let _seq = self.lock_seq()?;
-        on_wait(&self.snapshot(waiter.ticket)?);
+        let snapshot = {
+            let _seq = self.lock_seq()?;
+            self.snapshot(waiter.ticket)?
+        };
+        on_wait(&snapshot);
         *last_notice = Some(Instant::now());
         Ok(())
     }
