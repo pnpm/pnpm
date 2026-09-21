@@ -986,3 +986,66 @@ test('hoistWorkspacePackages should hoist all workspace projects', async () => {
   projects['root'].has('.pnpm/node_modules/package2')
   projects['root'].hasNot('.pnpm/node_modules/root')
 })
+
+test('hoistWorkspacePackages should hoist workspace projects when nothing is installed from a registry', async () => {
+  const workspaceRootManifest = {
+    name: 'root',
+    version: '1.0.0',
+  }
+  const appManifest = {
+    name: 'app',
+    version: '1.0.0',
+  }
+  const pluginManifest = {
+    name: 'eslint-plugin-local',
+    version: '1.0.0',
+  }
+
+  const projects = preparePackages([
+    {
+      location: '.',
+      package: workspaceRootManifest,
+    },
+    {
+      location: 'app',
+      package: appManifest,
+    },
+    {
+      location: 'eslint-plugin-local',
+      package: pluginManifest,
+    },
+  ])
+
+  const allProjects = [
+    {
+      buildIndex: 0,
+      manifest: workspaceRootManifest,
+      rootDir: process.cwd() as ProjectRootDir,
+    },
+    {
+      buildIndex: 0,
+      manifest: appManifest,
+      rootDir: path.resolve('app') as ProjectRootDir,
+    },
+    {
+      buildIndex: 0,
+      manifest: pluginManifest,
+      rootDir: path.resolve('eslint-plugin-local') as ProjectRootDir,
+    },
+  ]
+  const mutatedProjects: MutatedProject[] = allProjects.map(({ rootDir }) => ({
+    mutation: 'install',
+    rootDir,
+  }))
+
+  await mutateModules(mutatedProjects, testDefaults({
+    allProjects,
+    hoistPattern: '*',
+    hoistWorkspacePackages: true,
+    publicHoistPattern: ['*eslint*'],
+  }))
+
+  projects['root'].has('eslint-plugin-local')
+  projects['root'].has('.pnpm/node_modules/app')
+  projects['root'].hasNot('.pnpm/node_modules/root')
+})

@@ -1,4 +1,4 @@
-pub(crate) use integrity::frozen_tree_intact;
+pub(crate) use integrity::{frozen_tree_intact, hoisted_workspace_packages_present};
 
 pub(super) use build_markers::{gvs_build_marker_present, gvs_build_markers_may_require_recovery};
 pub(super) use merge_metadata::{

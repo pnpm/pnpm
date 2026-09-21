@@ -599,3 +599,130 @@ fn direct_dep_bin_wins_over_a_publicly_hoisted_workspace_package() {
 
     drop((root, mock_instance));
 }
+
+/// Adding a project to the workspace changes no snapshot, so the lockfile and
+/// the virtual store both stay as they were. The new project must be hoisted
+/// all the same, without a `node_modules` wipe.
+///
+/// Regression test for <https://github.com/pnpm/pnpm/issues/3642>.
+#[test]
+fn a_workspace_project_added_by_a_later_install_is_hoisted() {
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({ "name": "root", "private": true }).to_string(),
+    )
+    .expect("write root package.json");
+    write_workspace_yaml(
+        &workspace,
+        "packages:\n  - 'packages/*'\npublicHoistPattern:\n  - '*eslint*'\n",
+    );
+
+    let app_dir = workspace.join("packages/app");
+    fs::create_dir_all(&app_dir).expect("mkdir packages/app");
+    fs::write(
+        app_dir.join("package.json"),
+        serde_json::json!({
+            "name": "app",
+            "version": "1.0.0",
+            "private": true,
+            "dependencies": { "@pnpm.e2e/hello-world-js-bin-parent": "1.0.0" },
+        })
+        .to_string(),
+    )
+    .expect("write packages/app/package.json");
+
+    pacquet
+        .with_arg("install")
+        .assert()
+        .success();
+
+    let plugin_link = workspace.join("node_modules/eslint-plugin-local");
+    assert!(
+        fs::symlink_metadata(&plugin_link).is_err(),
+        "nothing should be hoisted at {plugin_link:?} before the project exists",
+    );
+
+    let plugin_dir = workspace.join("packages/eslint-plugin-local");
+    fs::create_dir_all(&plugin_dir).expect("mkdir packages/eslint-plugin-local");
+    fs::write(
+        plugin_dir.join("package.json"),
+        serde_json::json!({ "name": "eslint-plugin-local", "version": "1.0.0", "private": true })
+            .to_string(),
+    )
+    .expect("write packages/eslint-plugin-local/package.json");
+
+    pacquet_in(&workspace)
+        .with_arg("install")
+        .assert()
+        .success();
+
+    assert!(
+        is_symlink_or_junction(&plugin_link).unwrap(),
+        "the added workspace project must be publicly hoisted to {plugin_link:?}",
+    );
+
+    drop((root, mock_instance));
+}
+
+/// A workspace whose projects depend on nothing from a registry has no
+/// dependency graph to walk, but its own projects are still hoist candidates.
+///
+/// Regression test for <https://github.com/pnpm/pnpm/issues/3642>.
+#[test]
+fn workspace_projects_are_hoisted_without_any_registry_dependency() {
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({ "name": "root", "private": true }).to_string(),
+    )
+    .expect("write root package.json");
+    write_workspace_yaml(
+        &workspace,
+        "packages:\n  - 'packages/*'\npublicHoistPattern:\n  - '*eslint*'\n",
+    );
+
+    for (dir, name) in [("packages/app", "app"), ("packages/plugin", "eslint-plugin-local")] {
+        let project_dir = workspace.join(dir);
+        fs::create_dir_all(&project_dir).expect("mkdir project");
+        fs::write(
+            project_dir.join("package.json"),
+            serde_json::json!({ "name": name, "version": "1.0.0", "private": true }).to_string(),
+        )
+        .expect("write project package.json");
+    }
+
+    pacquet
+        .with_arg("install")
+        .assert()
+        .success();
+
+    let plugin_link = workspace.join("node_modules/eslint-plugin-local");
+    assert!(
+        is_symlink_or_junction(&plugin_link).unwrap(),
+        "the workspace project must be publicly hoisted to {plugin_link:?}",
+    );
+    let app_link = workspace.join("node_modules/.pnpm/node_modules/app");
+    assert!(
+        is_symlink_or_junction(&app_link).unwrap(),
+        "the workspace project must be privately hoisted to {app_link:?}",
+    );
+
+    drop((root, mock_instance));
+}

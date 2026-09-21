@@ -282,10 +282,11 @@ fn snapshot_children(snapshot: &SnapshotEntry) -> IndexMap<String, PackageKey> {
 /// Walk the dependency graph in pnpm's graph-walker order and decide
 /// which aliases should be hoisted.
 ///
-/// Returns `None` when the graph is empty.
+/// Returns `None` when there is nothing to consider: an empty graph and no
+/// workspace projects to hoist.
 #[must_use]
 pub fn get_hoisted_dependencies<'a>(input: &'a HoistInputs<'a>) -> Option<HoistResult> {
-    if input.graph.is_empty() {
+    if input.graph.is_empty() && input.hoisted_workspace_packages.is_none_or(IndexMap::is_empty) {
         return None;
     }
 

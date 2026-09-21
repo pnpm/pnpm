@@ -46,6 +46,75 @@ pub(crate) fn frozen_tree_intact(
     importer_symlinks_intact(wanted, modules, config, workspace_root, node_linker, &skipped)
 }
 
+/// Every workspace project the hoist patterns select must already be linked.
+///
+/// Nothing else here notices such a project: adding one to the workspace changes
+/// no snapshot, so the lockfile and the virtual store both stay as they were, and
+/// a project that nothing depends on never reaches the lockfile at all.
+///
+/// A name a direct dependency claims is not expected, because the hoist pass
+/// gives that alias to the dependency.
+pub(crate) fn hoisted_workspace_packages_present(
+    current: &Lockfile,
+    config: &Config,
+    workspace_root: &Path,
+    included: pnpm_modules_yaml::IncludedDependencies,
+    projects: &[(std::path::PathBuf, &pnpm_package_manifest::PackageManifest)],
+) -> bool {
+    if !config.hoist_workspace_packages {
+        return true;
+    }
+    let candidates = pnpm_deps_restorer::workspace_packages_for_hoist(workspace_root, projects);
+    if candidates.is_empty() {
+        return true;
+    }
+    let private = pnpm_matcher::create_matcher(
+        config.hoist_pattern
+            .as_deref()
+            .unwrap_or(&[]),
+    );
+    let public = pnpm_matcher::create_matcher(
+        config.public_hoist_pattern
+            .as_deref()
+            .unwrap_or(&[]),
+    );
+    if private.is_empty() && public.is_empty() {
+        return true;
+    }
+    let claimed_by_dependencies = aliases_claimed_by_dependencies(current, included);
+    let private_root = config.virtual_store_dir.join("node_modules");
+    candidates
+        .iter()
+        .all(|(name, _)| {
+            let root = if public.matches(name) {
+                config.modules_dir.as_path()
+            } else if private.matches(name) {
+                private_root.as_path()
+            } else {
+                return true;
+            };
+            claimed_by_dependencies.contains(&name.to_lowercase())
+                || root
+                    .join(name)
+                    .symlink_metadata()
+                    .is_ok()
+        })
+}
+
+/// The aliases the hoist pass gives to a direct dependency, so an equally named
+/// workspace project is not expected at a hoist target.
+fn aliases_claimed_by_dependencies(
+    current: &Lockfile,
+    included: pnpm_modules_yaml::IncludedDependencies,
+) -> std::collections::HashSet<String> {
+    let groups = pnpm_deps_restorer::selected_groups(included);
+    pnpm_deps_restorer::build_direct_deps_by_importer(&current.importers, groups)
+        .values()
+        .flat_map(indexmap::IndexMap::keys)
+        .map(|alias| alias.to_lowercase())
+        .collect()
+}
+
 /// Every required hoisted placement must survive, so a missing nested
 /// version cannot silently resolve to a different version at an ancestor.
 fn hoisted_packages_present(

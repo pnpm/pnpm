@@ -140,15 +140,17 @@ impl<'a> HoistSymlinkPlan<'a> {
     }
 
     /// A scoped alias (`@scope/name`) lands in `<root>/@scope`, which
-    /// doesn't exist yet on a fresh install. An unscoped one lands in
+    /// doesn't exist yet on a fresh install. An alias with no `/` lands in
     /// `<root>`, created unconditionally by
     /// [`HoistSymlinkPlan::create_parents`]. The parent is computed
     /// without materializing the full destination path, saving a
-    /// `PathBuf` allocation when the alias is not scoped.
+    /// `PathBuf` allocation in that common case.
+    ///
+    /// Every segment before the last one is taken, not just a leading
+    /// `@scope`: a workspace project is hoisted under the name its
+    /// `package.json` carries, which npm's rules do not vet.
     fn record_scope_dir(&mut self, alias: &str, target_dir_root: &std::path::Path) {
-        if alias.starts_with('@')
-            && let Some(slash) = alias.find('/')
-        {
+        if let Some(slash) = alias.rfind('/') {
             self.scope_dirs.insert(target_dir_root.join(&alias[..slash]));
         }
     }
