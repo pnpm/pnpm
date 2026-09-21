@@ -20,14 +20,17 @@ export const scenarios = [
 export function compare (report, engine) {
   const head = samples(report, `${engine}@HEAD`)
   const base = samples(report, `${engine}@main`)
-  const ratio = median(head) / median(base)
+  const headMedian = median(head)
+  const baseMedian = median(base)
+  const tolerance = Math.max(baseMedian * 0.05, 0.002)
+  const ratio = headMedian / baseMedian
   // Trim at most 10% of each tail. This is an empirical noise guard, not a
   // confidence interval: hyperfine measures commands sequentially.
   const headLow = head[Math.floor(head.length / 10)]
   const baseHigh = base[base.length - 1 - Math.floor(base.length / 10)]
-  const status = ratio <= 1.2 ? 'Within tolerance' : headLow > baseHigh * 1.2
+  const status = headMedian <= baseMedian + tolerance ? 'Within tolerance' : headLow > baseHigh + tolerance
     ? 'Regression' : 'Inconclusive (overlapping samples)'
-  return { head: median(head), base: median(base), ratio, status }
+  return { head: headMedian, base: baseMedian, ratio, tolerance, status }
 }
 
 function samples (report, name) {
@@ -52,12 +55,12 @@ export async function renderComparison (directory) {
   const lines = [
     '### Same-run regression check',
     '',
-    'HEAD and main are measured on the same runner. A regression requires a median slowdown above 20% and the fastest retained HEAD sample to be more than 20% slower than the slowest retained main sample, after trimming up to 10% from each tail. This conservative noise guard is not a statistical confidence interval.',
+    'HEAD and main are measured on the same runner. The tolerance is 5% of the main median or 2 ms, whichever is larger. A regression requires both the median slowdown and the gap between the fastest retained HEAD sample and slowest retained main sample to exceed this tolerance, after trimming up to 10% from each tail. This conservative noise guard is not a statistical confidence interval.',
     '',
     'Inconclusive rows do not fail the check. They remain visible for performance review. Bencher retains absolute minimum timings for historical tracking; historical alerts do not gate this PR. Sequential measurements can still be affected by runner drift.',
     '',
-    '| Scenario | Engine | main median | HEAD median | Change | Result |',
-    '| --- | --- | ---: | ---: | ---: | --- |',
+    '| Scenario | Engine | main median | HEAD median | Change | Tolerance | Result |',
+    '| --- | --- | ---: | ---: | ---: | ---: | --- |',
   ]
   let failed = false
   for (const scenario of scenarios) {
@@ -66,7 +69,7 @@ export async function renderComparison (directory) {
     for (const engine of engines) {
       const result = compare(report, engine)
       failed ||= result.status === 'Regression'
-      lines.push(`| ${scenario.toLowerCase().replaceAll('_', '-')} | ${engine} | ${(result.base * 1000).toFixed(2)} ms | ${(result.head * 1000).toFixed(2)} ms | ${((result.ratio - 1) * 100).toFixed(1)}% | ${result.status} |`)
+      lines.push(`| ${scenario.toLowerCase().replaceAll('_', '-')} | ${engine} | ${(result.base * 1000).toFixed(2)} ms | ${(result.head * 1000).toFixed(2)} ms | ${((result.ratio - 1) * 100).toFixed(1)}% | ${(result.tolerance * 1000).toFixed(2)} ms | ${result.status} |`)
     }
   }
   return { markdown: lines.join('\n') + '\n', failed }

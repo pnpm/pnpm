@@ -26,6 +26,25 @@ test('a consistent regression fails, an improvement passes', () => {
   assert.equal(compare(report(stable, stable.map(x => x * 1.3)), 'pacquet').status, 'Within tolerance')
 })
 
+test('multi-second scenarios catch consistent slowdowns below 20%', () => {
+  const result = compare(report(Array(10).fill(3.18), Array(10).fill(3)), 'pacquet')
+  assert.equal(result.status, 'Regression')
+  assert.equal(result.tolerance, 3 * 0.05)
+})
+
+test('short scenarios tolerate up to 2 ms but still catch larger slowdowns', () => {
+  const base = Array(10).fill(0.008)
+  assert.equal(compare(report(Array(10).fill(0.009), base), 'pacquet').status, 'Within tolerance')
+  assert.equal(compare(report(Array(10).fill(0.010), base), 'pacquet').status, 'Within tolerance')
+  const result = compare(report(Array(10).fill(0.011), base), 'pacquet')
+  assert.equal(result.status, 'Regression')
+  assert.equal(result.tolerance, 0.002)
+})
+
+test('exactly 5% is tolerated when the relative threshold is larger', () => {
+  assert.equal(compare(report(Array(10).fill(1.05), stable), 'pacquet').status, 'Within tolerance')
+})
+
 test('a noisy slowdown is explicitly inconclusive', () => {
   assert.equal(compare(report([1, 1, 1.3, 1.3, 1.3, 1.3, 1.4, 1.4, 2, 3], stable), 'pacquet').status, 'Inconclusive (overlapping samples)')
 })
