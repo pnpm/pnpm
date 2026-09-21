@@ -143,10 +143,6 @@ impl VersionArgs {
         }
     }
 
-    /// The effective git tag prefix: the explicit `--tag-version-prefix`
-    /// flag wins, then the `tagVersionPrefix` configuration (workspace
-    /// yaml, the global config, `PNPM_CONFIG_TAG_VERSION_PREFIX`), then
-    /// the `"v"` default.
     fn effective_tag_version_prefix(&self, config: &Config) -> String {
         self.git.tag_version_prefix
             .clone()
