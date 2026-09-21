@@ -126,6 +126,29 @@ test('update --peer updates peer dependency ranges', async () => {
   expect(manifest.dependencies).toBeUndefined()
 })
 
+test('update --peer does not reclassify an ordinary dependency as a peer', async () => {
+  prepare({
+    dependencies: {
+      '@pnpm.e2e/foo': '^1.0.0',
+    },
+  })
+
+  await addDistTag({ package: '@pnpm.e2e/foo', version: '100.1.0', distTag: 'latest' })
+
+  await update.handler({
+    ...DEFAULT_OPTS,
+    cliOptions: { peer: true },
+    dir: process.cwd(),
+    latest: true,
+  }, [])
+
+  const manifest = loadJsonFileSync<ProjectManifest>('package.json')
+  expect(manifest.dependencies).toStrictEqual({
+    '@pnpm.e2e/foo': '^100.1.0',
+  })
+  expect(manifest.peerDependencies).toBeUndefined()
+})
+
 test('update --peer updates a named peer without changing other peers', async () => {
   prepare({
     peerDependencies: {

@@ -80,7 +80,8 @@ export async function outdated (
     return opts.manifest
   }
 
-  const allDeps = getAllDependenciesFromManifest(await getOverriddenManifest(), {
+  const overriddenManifest = await getOverriddenManifest()
+  const allDeps = getAllDependenciesFromManifest(overriddenManifest, {
     autoInstallPeers: includePeerDependencies,
   })
   const importerId = getLockfileImporterId(opts.lockfileDir, opts.prefix)
@@ -117,7 +118,7 @@ export async function outdated (
         ? 'dependencies'
         : depType
       const declaredDependencies = depType === 'peerDependencies'
-        ? opts.manifest.peerDependencies
+        ? overriddenManifest.peerDependencies
         : opts.wantedLockfile!.importers[importerId][depType]
       if (declaredDependencies == null) return
 
@@ -137,8 +138,11 @@ export async function outdated (
             opts.manifest.peerDependencies?.[alias] != null &&
             opts.manifest[depType]?.[alias] == null
           ) return
-          if (!allDeps[alias]) return
-          const wantedRef = opts.wantedLockfile!.importers[importerId][lockfileDepType]?.[alias] ?? allDeps[alias]
+          const declaredSpecifier = depType === 'peerDependencies'
+            ? declaredDependencies[alias]
+            : allDeps[alias]
+          if (!declaredSpecifier) return
+          const wantedRef = opts.wantedLockfile!.importers[importerId][lockfileDepType]?.[alias] ?? declaredSpecifier
           if (isLocalRef(wantedRef)) return
           if (ignoreDependenciesMatcher?.(alias)) return
 
@@ -151,7 +155,7 @@ export async function outdated (
           // pull the name off the depPath so the report shows the real package.
           const packageName = (wantedRelative != null ? dp.parse(wantedRelative).name : undefined) ?? alias
 
-          const bareSpecifier = _replaceCatalogProtocolIfNecessary({ alias, bareSpecifier: allDeps[alias] })
+          const bareSpecifier = _replaceCatalogProtocolIfNecessary({ alias, bareSpecifier: declaredSpecifier })
 
           const info = await opts.resolveLatest(
             { wantedDependency: { alias, bareSpecifier }, compatible: opts.compatible },

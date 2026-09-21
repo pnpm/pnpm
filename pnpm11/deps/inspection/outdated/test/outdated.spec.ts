@@ -111,6 +111,66 @@ test('outdated() includes peer-only dependencies when requested', async () => {
   }])
 })
 
+test('outdated() uses the peer range when an alias is also a development dependency', async () => {
+  const resolveLatest = jest.fn<ResolveLatestDispatcher>(async ({ wantedDependency }) => {
+    expect(wantedDependency).toStrictEqual({
+      alias: 'is-positive',
+      bareSpecifier: '^1.0.0',
+    })
+    return {
+      latestManifest: {
+        name: 'is-positive',
+        version: '1.1.0',
+      },
+    }
+  })
+  const importer = {
+    dependencies: {
+      'is-positive': '1.0.0',
+    },
+    specifiers: {
+      'is-positive': '^1.0.0',
+    },
+  }
+
+  const outdatedPkgs = await outdated({
+    compatible: true,
+    currentLockfile: {
+      importers: { ['.' as ProjectId]: importer },
+      lockfileVersion: LOCKFILE_VERSION,
+    },
+    include: {
+      dependencies: false,
+      devDependencies: false,
+      optionalDependencies: false,
+      peerDependencies: true,
+    },
+    resolveLatest,
+    lockfileDir: 'project',
+    manifest: {
+      devDependencies: {
+        'is-positive': '^3.0.0',
+      },
+      peerDependencies: {
+        'is-positive': '^1.0.0',
+      },
+    },
+    prefix: 'project',
+    wantedLockfile: {
+      importers: { ['.' as ProjectId]: importer },
+      lockfileVersion: LOCKFILE_VERSION,
+    },
+  })
+
+  expect(outdatedPkgs).toHaveLength(1)
+  expect(outdatedPkgs[0]).toMatchObject({
+    alias: 'is-positive',
+    belongsTo: 'peerDependencies',
+    wanted: '1.0.0',
+  })
+  expect(resolveLatest).toHaveBeenCalledTimes(1)
+})
+
 test('outdated() skips dependencies resolved from local refs', async () => {
   const resolveLatest = jest.fn<ResolveLatestDispatcher>(async () => {
     throw new Error('local dependency should not resolve latest from the registry')

@@ -429,7 +429,9 @@ export async function installDeps (
       mutation: 'installSome' as const,
       peer: opts.savePeer,
       peerAliases: opts.peer === true
-        ? new Set(params.map((selector) => parseWantedDependency(selector).alias).filter((alias): alias is string => alias != null))
+        ? new Set(params
+          .map((selector) => parseWantedDependency(selector).alias)
+          .filter((alias): alias is string => alias != null && Object.hasOwn(manifest.peerDependencies ?? {}, alias)))
         : undefined,
       rangeSpecStyle: getRangeSpecStyle(opts),
       rootDir: opts.dir as ProjectRootDir,

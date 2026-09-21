@@ -270,3 +270,32 @@ test('peer updates refresh npm alias ranges from the resolved version', async ()
 
   expect(manifest.peerDependencies).toStrictEqual({ foo: 'npm:bar@^2.0.0' })
 })
+
+test.each([
+  ['npm:bar', 'npm:bar@^2.0.0'],
+  ['npm:@scope/bar', 'npm:@scope/bar@^2.0.0'],
+])('peer updates preserve a version-less npm alias (%s)', async (bareSpecifier, expected) => {
+  const manifest = await updateProjectManifestObject('/project', {
+    peerDependencies: { foo: bareSpecifier },
+  }, [{
+    alias: 'foo',
+    bareSpecifier,
+    resolvedVersion: '2.0.0',
+    peer: true,
+  }])
+
+  expect(manifest.peerDependencies).toStrictEqual({ foo: expected })
+})
+
+test('a bare npm registry range is not mistaken for an npm alias', async () => {
+  const manifest = await updateProjectManifestObject('/project', {
+    peerDependencies: { foo: 'npm:^1.0.0' },
+  }, [{
+    alias: 'foo',
+    bareSpecifier: 'npm:^1.0.0',
+    resolvedVersion: '2.0.0',
+    peer: true,
+  }])
+
+  expect(manifest.peerDependencies).toStrictEqual({ foo: '^2.0.0' })
+})
