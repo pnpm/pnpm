@@ -1066,6 +1066,17 @@ test('hoistWorkspacePackages should hoist workspace projects when nothing is ins
   projects['root'].hasNot('eslint-plugin-local')
   projects['root'].hasNot('.pnpm/node_modules/app')
   projects['root'].has('.pnpm/node_modules/renamed-app')
+
+  await mutateModules(mutatedProjects.slice(0, 1), testDefaults({
+    allProjects: allProjects.slice(0, 1),
+    hoistPattern: '*',
+    hoistWorkspacePackages: true,
+    pruneLockfileImporters: true,
+    publicHoistPattern: ['*eslint*'],
+  }))
+
+  projects['root'].hasNot('.pnpm/node_modules/renamed-app')
+  expect(projects['root'].readModulesManifest()?.hoistedDependencies).toStrictEqual({})
 })
 
 test('hoistWorkspacePackages rejects a workspace name that escapes the hoist root', async () => {

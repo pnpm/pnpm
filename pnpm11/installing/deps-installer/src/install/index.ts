@@ -2590,6 +2590,7 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
         if (
           result.currentLockfile.packages === undefined &&
           result.removedDepPaths.size === 0 &&
+          Object.keys(ctx.hoistedDependencies).length === 0 &&
           Object.keys(result.newHoistedDependencies).length === 0
         ) {
           return Promise.resolve()
