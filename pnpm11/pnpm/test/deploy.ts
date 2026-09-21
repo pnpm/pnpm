@@ -140,6 +140,7 @@ test('running a script in a deployed project does not trigger an install outside
   ])
 
   writeYamlFileSync('pnpm-workspace.yaml', {
+    autoInstallPeers: false,
     packages: ['packages/*'],
   })
 
@@ -150,6 +151,7 @@ test('running a script in a deployed project does not trigger an install outside
   await execPnpm(['--filter=app', 'deploy', deployDir])
 
   expect(readYamlFileSync(path.join(deployDir, 'pnpm-workspace.yaml'))).toStrictEqual({
+    autoInstallPeers: false,
     injectWorkspacePackages: false,
     virtualStoreType: 'project',
   })

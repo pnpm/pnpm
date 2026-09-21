@@ -124,6 +124,10 @@ fn deployed_project_passes_dependency_verification() {
     } = CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
     write_reachability_workspace(&workspace);
+    let workspace_manifest_path = workspace.join("pnpm-workspace.yaml");
+    let mut workspace_manifest = fs::read_to_string(&workspace_manifest_path).unwrap();
+    workspace_manifest.push_str("autoInstallPeers: false\n");
+    fs::write(workspace_manifest_path, workspace_manifest).unwrap();
     let app_manifest_path = workspace.join("packages/app/package.json");
     let mut app_manifest: serde_json::Value =
         serde_json::from_str(&fs::read_to_string(&app_manifest_path).unwrap()).unwrap();
@@ -144,6 +148,7 @@ fn deployed_project_passes_dependency_verification() {
     for setting in [
         "dedupeInjectedDeps: false",
         "dedupePeerDependents: false",
+        "autoInstallPeers: false",
         "injectWorkspacePackages: false",
         r#"packages: ["."]"#,
         r#"virtualStoreType: "project""#,

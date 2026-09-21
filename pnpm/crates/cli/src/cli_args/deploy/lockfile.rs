@@ -281,7 +281,7 @@ fn deploy_workspace_settings(
     deploy_dir: &Path,
     deploy_lockfile: &mut Lockfile,
 ) -> miette::Result<(Map<String, Value>, DeployWorkspaceConfig)> {
-    let mut workspace_manifest = deploy_workspace_manifest();
+    let mut workspace_manifest = deploy_workspace_manifest(config);
     let mut workspace_config =
         DeployWorkspaceConfig { patched_dependencies: None, allow_builds: HashMap::new() };
     if lockfile.patched_dependencies.is_some()

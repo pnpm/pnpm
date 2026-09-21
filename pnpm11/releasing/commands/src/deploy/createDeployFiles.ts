@@ -40,8 +40,13 @@ export interface CreateDeployFilesOptions {
 
 export interface DeployWorkspaceManifest {
   allowBuilds?: Record<string, boolean | string>
+  autoInstallPeers?: false
+  dedupePeers?: true
+  excludeLinksFromLockfile?: true
+  ignoredOptionalDependencies?: string[]
   injectWorkspacePackages: false
   patchedDependencies?: Record<string, string>
+  peersSuffixMaxLength?: number
   virtualStoreType: 'project'
 }
 
@@ -162,7 +167,14 @@ export function createDeployFiles ({
   bindSingletonPeers(targetSnapshot, deployPackageSnapshots, linkedWorkspaceProjects)
 
   const workspaceManifest: DeployWorkspaceManifest = {
+    autoInstallPeers: lockfile.settings?.autoInstallPeers === false ? false : undefined,
+    dedupePeers: lockfile.settings?.dedupePeers === true ? true : undefined,
+    excludeLinksFromLockfile: lockfile.settings?.excludeLinksFromLockfile === true ? true : undefined,
+    ignoredOptionalDependencies: lockfile.ignoredOptionalDependencies?.length
+      ? lockfile.ignoredOptionalDependencies
+      : undefined,
     injectWorkspacePackages: false,
+    peersSuffixMaxLength: lockfile.settings?.peersSuffixMaxLength,
     virtualStoreType: 'project',
   }
   const result: DeployFiles = {
