@@ -5,16 +5,15 @@ use super::super::{
 };
 
 /// Whether `allowBuilds` moved since the previous install in a way the
-/// hoisted linker must act on: a build it ignored is now allowed, or one
-/// it ran is no longer allowed. Read from the previous `.modules.yaml`;
-/// `false` on a first install.
+/// hoisted linker must act on: a build it ignored is now allowed, or the
+/// approval set it ran under has changed. Read from the previous
+/// `.modules.yaml`; `false` on a first install.
 pub(super) fn allow_builds_changed_since(
     modules_manifest: Option<&pnpm_modules_yaml::ModulesLayout>,
     config: &pnpm_config::Config,
 ) -> bool {
     modules_manifest.is_some_and(|modules| {
         super::super::has_newly_allowed_ignored_builds(modules, config)
-            || super::super::has_revoked_allowed_builds(modules, config)
             || super::super::recorded_allow_builds_differ(modules, config)
     })
 }
