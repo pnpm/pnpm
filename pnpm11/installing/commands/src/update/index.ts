@@ -460,7 +460,7 @@ async function update (
     dependencies: true,
     devDependencies: true,
     optionalDependencies: true,
-    peerDependencies: opts.cliOptions.peer === true,
+    ...(opts.cliOptions.peer === true ? { peerDependencies: true } : {}),
   }
   const depth = opts.depth ?? Infinity
   let updateMatching: UpdateMatchingFunction | undefined
@@ -528,6 +528,6 @@ function makeIncludeDependenciesFromCLI (opts: {
     dependencies: opts.production === true || (opts.dev !== true && opts.optional !== true),
     devDependencies: opts.dev === true || (opts.production !== true && opts.optional !== true),
     optionalDependencies: opts.optional === true || (opts.production !== true && opts.dev !== true),
-    peerDependencies: opts.peer === true,
+    ...(opts.peer === true ? { peerDependencies: true } : {}),
   }
 }

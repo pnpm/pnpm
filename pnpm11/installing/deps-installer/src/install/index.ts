@@ -171,6 +171,8 @@ export interface InstallSomeDepsMutation extends InstallMutationOptions {
   dependencySelectors: string[]
   mutation: 'installSome'
   peer?: boolean
+  peerAliases?: Set<string>
+  savePeer?: boolean
   pruneDirectDependencies?: boolean
   rangeSpecStyle?: RangeSpecStyle
   targetDependenciesField?: DependenciesField
@@ -1151,6 +1153,7 @@ export async function mutateModules (
     | 'allowNew'
     | 'dependencySelectors'
     | 'peer'
+    | 'peerAliases'
     | 'targetDependenciesField'
     | 'update'
     | 'updatePatches'
@@ -1164,13 +1167,14 @@ export async function mutateModules (
       const readonlyManifest = project.update === true && !project.updatePackageManifest
       const effectiveBareSpecifiers = getAllDependenciesFromManifest(project.manifest, {
         autoInstallPeers: opts.autoInstallPeers,
+        peerAliases: project.peerAliases,
       })
       const currentBareSpecifiers = opts.ignoreCurrentSpecifiers
         ? {}
         : effectiveBareSpecifiers
       const originalBareSpecifiers = project.originalManifest == null
         ? currentBareSpecifiers
-        : getAllDependenciesFromManifest(project.originalManifest, { autoInstallPeers: opts.autoInstallPeers })
+        : getAllDependenciesFromManifest(project.originalManifest, { autoInstallPeers: opts.autoInstallPeers, peerAliases: project.peerAliases })
       const readonlyAliases = getHookOwnedAliases(project)
       const hookGovernedAdds = project.update === true ? undefined : await getHookGovernedAdds(project)
       const hookSupersededSpecifiers = hookGovernedAdds?.superseded
@@ -1365,7 +1369,7 @@ export async function mutateModules (
      * `undefined` when every request survives the hooks.
      */
     async function getHookGovernedAdds (
-      project: Pick<InstallSomeProject, 'dependencySelectors' | 'manifest' | 'originalManifest' | 'peer' | 'rootDir' | 'targetDependenciesField'>
+      project: Pick<InstallSomeProject, 'dependencySelectors' | 'manifest' | 'originalManifest' | 'peer' | 'peerAliases' | 'rootDir' | 'targetDependenciesField'>
     ): Promise<{ superseded?: Map<string, string>, removed?: Set<string> } | undefined> {
       const hooks = opts.readPackageHook == null
         ? []
@@ -1383,17 +1387,17 @@ export async function mutateModules (
         peer: project.peer,
         targetDependenciesField: project.targetDependenciesField,
       } as InstallSomeDepsMutation)
-      const declaredDependencies = getAllDependenciesFromManifest(declared, { autoInstallPeers: opts.autoInstallPeers })
+      const declaredDependencies = getAllDependenciesFromManifest(declared, { autoInstallPeers: opts.autoInstallPeers, peerAliases: project.peerAliases })
       const overriddenDependencies = applyOverrides == null
         ? undefined
-        : getAllDependenciesFromManifest(await applyOverrides(clone(declared), project.rootDir), { autoInstallPeers: opts.autoInstallPeers })
+        : getAllDependenciesFromManifest(await applyOverrides(clone(declared), project.rootDir), { autoInstallPeers: opts.autoInstallPeers, peerAliases: project.peerAliases })
       let probed: ProjectManifest = declared
       /* eslint-disable no-await-in-loop */
       for (const hook of hooks) {
         probed = await hook(probed, project.rootDir)
       }
       /* eslint-enable no-await-in-loop */
-      const probedDependencies = getAllDependenciesFromManifest(probed, { autoInstallPeers: opts.autoInstallPeers })
+      const probedDependencies = getAllDependenciesFromManifest(probed, { autoInstallPeers: opts.autoInstallPeers, peerAliases: project.peerAliases })
       let superseded: Map<string, string> | undefined
       let removed: Set<string> | undefined
       for (const [alias, requested] of requestedByAlias) {
@@ -1915,6 +1919,7 @@ export async function addDependenciesToPackage (
     bin?: string
     allowNew?: boolean
     peer?: boolean
+    savePeer?: boolean
     rangeSpecStyle?: RangeSpecStyle
     targetDependenciesField?: DependenciesField
   } & InstallMutationOptions
@@ -1927,7 +1932,8 @@ export async function addDependenciesToPackage (
         dependencySelectors,
         mutation: 'installSome',
         peer: opts.peer,
-        rangeSpecStyle: opts.rangeSpecStyle,
+        savePeer: opts.savePeer,
+        rangeSpecStyle: opts.savePeer ? 'exact' : opts.rangeSpecStyle,
         rootDir,
         targetDependenciesField: opts.targetDependenciesField,
         update: opts.update,

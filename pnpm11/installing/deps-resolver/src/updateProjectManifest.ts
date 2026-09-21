@@ -34,7 +34,7 @@ export async function updateProjectManifest (
     }
     specsToUpsert.push({
       alias: rdd.alias,
-      peer: importer.peer,
+      peer: importer.peerAliases?.has(rdd.alias) ?? importer.peer,
       bareSpecifier: declaredSpecifier == null
         ? getBareSpecifierToSave(wantedDep, rdd, opts.preserveWorkspaceProtocol)
         : wantedDep.bareSpecifier,
@@ -57,7 +57,7 @@ export async function updateProjectManifest (
     ) {
       specsToUpsert.push({
         alias: pkgToInstall.alias,
-        peer: importer.peer,
+        peer: importer.peerAliases?.has(pkgToInstall.alias) ?? importer.peer,
         saveType: importer.targetDependenciesField,
       })
     }
