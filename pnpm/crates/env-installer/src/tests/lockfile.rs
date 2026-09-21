@@ -67,13 +67,8 @@ async fn force_resync_under_frozen_lockfile_resolves_without_writing() {
     assert_eq!(std::fs::read_to_string(&lockfile_path).unwrap(), before);
 }
 
-/// A pnpm below 11.20.0 pins `@pnpm/exe` beside `pnpm` for a v12 version.
-/// The entry pins the wanted version and cannot change which pnpm runs, so a
-/// frozen lockfile accepts the block a teammate's older pnpm left behind,
-/// and a writable install rewrites it to the packages this pnpm installs
-/// from.
 #[tokio::test]
-async fn frozen_lockfile_accepts_an_engine_package_it_does_not_install_from() {
+async fn an_engine_package_pnpm_does_not_install_from_is_left_alone() {
     let harness = harness();
     let root = TempDir::new().unwrap();
     let fixtures = || {
@@ -133,7 +128,8 @@ async fn frozen_lockfile_accepts_an_engine_package_it_does_not_install_from() {
         .keys()
         .map(String::as_str)
         .collect();
-    assert_eq!(recorded, ["pnpm"], "a writable install records what it installs from");
+    assert_eq!(recorded, ["@pnpm/exe", "pnpm"], "the block is kept as the older pnpm wrote it");
+    assert_eq!(std::fs::read_to_string(&lockfile_path).unwrap(), before);
 }
 
 /// The tolerance is for a package pinned at the wanted version. One pinning
