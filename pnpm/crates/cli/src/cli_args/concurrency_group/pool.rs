@@ -1,3 +1,4 @@
+use super::stamp::{elapsed_from_mtime, elapsed_since, parse_process_stamp, process_stamp};
 use std::{
     fs::{self, File, OpenOptions},
     io::{self, Read, Seek, SeekFrom, Write},
@@ -14,7 +15,6 @@ pub(super) struct SlotPool {
     pub(super) limit: u32,
 }
 
-/// Who is running and who is waiting, for the wait notice.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(super) struct WaitSnapshot {
     pub(super) position: usize,
@@ -23,18 +23,23 @@ pub(super) struct WaitSnapshot {
     pub(super) ahead: Vec<String>,
 }
 
-/// Who holds slots and who is waiting, for `pnpm concurrency`.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct GroupStatus {
-    pub holders: Vec<String>,
+    pub holders: Vec<HolderLine>,
     pub waiters: Vec<WaiterLine>,
 }
 
-/// One live waiter, in line order.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct HolderLine {
+    pub info: String,
+    pub elapsed: Option<Duration>,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct WaiterLine {
     pub priority: i32,
     pub info: String,
+    pub elapsed: Option<Duration>,
 }
 
 impl GroupStatus {
@@ -55,6 +60,7 @@ struct LiveWaiter {
     priority: i32,
     limit: u32,
     info: String,
+    elapsed: Option<Duration>,
 }
 
 impl SlotPool {
@@ -176,12 +182,16 @@ impl SlotPool {
             holders: self
                 .slot_indices()?
                 .into_iter()
-                .filter_map(|index| self.holder_if_busy(index))
+                .filter_map(|index| self.holder_line_if_busy(index))
                 .collect(),
             waiters: self
                 .live_waiters()?
                 .into_iter()
-                .map(|waiter| WaiterLine { priority: waiter.priority, info: waiter.info })
+                .map(|waiter| WaiterLine {
+                    priority: waiter.priority,
+                    info: waiter.info,
+                    elapsed: waiter.elapsed,
+                })
                 .collect(),
         })
     }
@@ -200,14 +210,25 @@ impl SlotPool {
     }
 
     fn holder_if_busy(&self, index: u32) -> Option<String> {
+        let line = self.holder_line_if_busy(index)?;
+        (!line.info.starts_with("slot ")).then_some(line.info)
+    }
+
+    fn holder_line_if_busy(&self, index: u32) -> Option<HolderLine> {
         let file = self.open_slot(index).ok()?;
         match file.try_lock() {
             Err(std::fs::TryLockError::WouldBlock) => {}
             Ok(()) | Err(std::fs::TryLockError::Error(_)) => return None,
         }
-        let holder = fs::read_to_string(self.holder_path(index)).ok()?;
-        let holder = holder.trim();
-        (!holder.is_empty()).then(|| holder.to_string())
+        let path = self.holder_path(index);
+        let text = fs::read_to_string(&path).unwrap_or_default();
+        let (since, info) = parse_process_stamp(&text);
+        let elapsed = since
+            .and_then(elapsed_since)
+            .or_else(|| elapsed_from_mtime(&path))
+            .or_else(|| elapsed_from_mtime(&self.dir.join(index.to_string())));
+        let info = if info.is_empty() { format!("slot {index}") } else { info };
+        Some(HolderLine { info, elapsed })
     }
 
     fn enqueue(&self, priority: i32) -> io::Result<Waiter> {
@@ -363,7 +384,8 @@ impl SlotPool {
     }
 
     fn read_live(&self, ticket: u64) -> LiveWaiter {
-        let text = fs::read_to_string(self.waiter_stamp_path(ticket)).unwrap_or_default();
+        let path = self.waiter_stamp_path(ticket);
+        let text = fs::read_to_string(&path).unwrap_or_default();
         let mut lines = text.lines();
         let priority = lines
             .next()
@@ -371,18 +393,21 @@ impl SlotPool {
             .and_then(|value| value.parse().ok())
             .unwrap_or(0);
         let second = lines.next().unwrap_or("");
-        let (limit, info) = match second.strip_prefix("limit ") {
-            Some(value) => (
-                value.parse().unwrap_or(u32::MAX),
-                lines
-                    .next()
-                    .unwrap_or("")
-                    .trim()
-                    .to_string(),
+        let (limit, rest) = match second.strip_prefix("limit ") {
+            Some(value) => {
+                (value.parse().unwrap_or(u32::MAX), lines.collect::<Vec<_>>().join("\n"))
+            }
+            None => (
+                u32::MAX,
+                std::iter::once(second)
+                    .chain(lines)
+                    .collect::<Vec<_>>()
+                    .join("\n"),
             ),
-            None => (u32::MAX, second.trim().to_string()),
         };
-        LiveWaiter { ticket, priority, limit, info }
+        let (since, info) = parse_process_stamp(&rest);
+        let elapsed = since.and_then(elapsed_since).or_else(|| elapsed_from_mtime(&path));
+        LiveWaiter { ticket, priority, limit, info, elapsed }
     }
 }
 
@@ -407,9 +432,4 @@ fn open_lock_file(path: &Path) -> io::Result<File> {
         .create(true)
         .truncate(false)
         .open(path)
-}
-
-fn process_stamp() -> String {
-    let cwd = std::env::current_dir().unwrap_or_default();
-    format!("pid {} in {}", std::process::id(), cwd.display())
 }

@@ -402,11 +402,52 @@ fn status_lists_holders_and_waiters_in_line_order() {
     let status = pool.status().expect("status");
     dbg!(&status);
     assert_eq!(status.holders.len(), 1);
-    assert!(status.holders[0].contains("pid "), "holder stamp: {}", status.holders[0]);
+    dbg!(&status.holders[0].info);
+    assert!(status.holders[0].info.contains("pid "));
+    assert!(status.holders[0].elapsed.is_some());
     assert_eq!(status.waiters.len(), 1);
     assert_eq!(status.waiters[0].priority, 3);
+    assert!(status.waiters[0].elapsed.is_some());
 
     drop(held);
     recv_got(&got);
     thread.join().expect("waiter");
+}
+
+#[test]
+fn status_lists_a_locked_slot_without_a_holder_stamp() {
+    let dir = tempfile::tempdir().expect("create temp dir");
+    let pool = SlotPool { dir: dir.path().to_path_buf(), limit: 1 };
+    let held = pool
+        .try_acquire()
+        .expect("try first")
+        .expect("the slot is free");
+    fs::remove_file(dir.path().join("0.holder")).expect("remove stamp");
+
+    let status = pool.status().expect("status");
+    dbg!(&status);
+    assert_eq!(status.holders.len(), 1);
+    assert_eq!(status.holders[0].info, "slot 0");
+    drop(held);
+}
+
+#[test]
+fn format_elapsed_prints_compact_units() {
+    use super::stamp::format_elapsed;
+    assert_eq!(format_elapsed(Duration::from_secs(0)), "0s");
+    assert_eq!(format_elapsed(Duration::from_secs(59)), "59s");
+    assert_eq!(format_elapsed(Duration::from_mins(1)), "1m");
+    assert_eq!(format_elapsed(Duration::from_mins(1) + Duration::from_secs(15)), "1m 15s");
+    assert_eq!(format_elapsed(Duration::from_hours(1)), "1h");
+    assert_eq!(format_elapsed(Duration::from_mins(61)), "1h 1m");
+}
+
+#[test]
+fn parse_process_stamp_reads_since_and_old_stamps() {
+    use super::stamp::parse_process_stamp;
+    assert_eq!(
+        parse_process_stamp("since 10\npid 1 in /tmp"),
+        (Some(10), "pid 1 in /tmp".to_string()),
+    );
+    assert_eq!(parse_process_stamp("pid 1 in /tmp"), (None, "pid 1 in /tmp".to_string()));
 }

@@ -400,6 +400,18 @@ fn a_nested_task_uses_the_slot_its_parent_holds() {
     drop(root);
 }
 
+fn stdout_has_elapsed(stdout: &str) -> bool {
+    stdout
+        .split_whitespace()
+        .any(|word| {
+            let Some(pos) = word.find(|character: char| !character.is_ascii_digit()) else {
+                return false;
+            };
+            let (digits, unit) = word.split_at(pos);
+            !digits.is_empty() && matches!(unit, "s" | "m" | "h")
+        })
+}
+
 fn concurrency_cmd(pacquet: &Command) -> Command {
     let workspace = pacquet.get_current_dir().expect("workspace dir");
     let mut command = Command::new(pacquet.get_program());
@@ -439,6 +451,7 @@ fn concurrency_prints_the_wait_list() {
     assert!(stdout.contains("running"), "{stdout}");
     assert!(stdout.contains("waiting"), "{stdout}");
     assert!(stdout.contains("1. "), "{stdout}");
+    assert!(stdout_has_elapsed(&stdout), "missing elapsed time: {stdout}");
 
     let idle = concurrency_cmd(&pacquet)
         .arg("missing")

@@ -21,6 +21,7 @@
 //! calls `pnpm run` from waiting on itself.
 
 pub(crate) mod pool;
+pub(crate) mod stamp;
 pub(crate) use pool::GroupStatus;
 
 use derive_more::{Display, Error};
@@ -28,12 +29,14 @@ use miette::Diagnostic;
 use pnpm_config::Config;
 use pnpm_reporter::{GlobalLog, LogEvent, LogLevel};
 use pool::{SlotPool, WaitSnapshot};
+use stamp::format_elapsed;
 use std::{
     collections::HashMap,
     fmt::Write,
     fs::File,
     io,
     path::{Path, PathBuf},
+    time::Duration,
 };
 
 /// Env var that carries the groups the parent invocations hold slots of,
@@ -214,28 +217,47 @@ pub(crate) fn render_group(name: &str, status: &GroupStatus) -> String {
         return format!("{name}: idle");
     }
     let mut out = name.to_string();
-    append_named_lines(&mut out, "running", &status.holders);
+    if !status.holders.is_empty() {
+        out.push_str("\n  running");
+        for holder in &status.holders {
+            append_status_line(&mut out, None, &holder.info, holder.elapsed, None);
+        }
+    }
     if !status.waiters.is_empty() {
         out.push_str("\n  waiting");
         for (index, waiter) in status.waiters.iter().enumerate() {
-            let _ = write!(out, "\n    {}. {}", index + 1, waiter.info);
-            if waiter.priority != 0 {
-                let _ = write!(out, "  priority {}", waiter.priority);
-            }
+            append_status_line(
+                &mut out,
+                Some(index + 1),
+                &waiter.info,
+                waiter.elapsed,
+                (waiter.priority != 0).then_some(waiter.priority),
+            );
         }
     }
     out
 }
 
-fn append_named_lines(out: &mut String, label: &str, lines: &[String]) {
-    if lines.is_empty() {
-        return;
+fn append_status_line(
+    out: &mut String,
+    position: Option<usize>,
+    info: &str,
+    elapsed: Option<Duration>,
+    priority: Option<i32>,
+) {
+    match position {
+        Some(position) => {
+            let _ = write!(out, "\n    {position}. {info}");
+        }
+        None => {
+            let _ = write!(out, "\n    {info}");
+        }
     }
-    out.push_str("\n  ");
-    out.push_str(label);
-    for line in lines {
-        out.push_str("\n    ");
-        out.push_str(line);
+    if let Some(elapsed) = elapsed {
+        let _ = write!(out, "  {}", format_elapsed(elapsed));
+    }
+    if let Some(priority) = priority {
+        let _ = write!(out, "  priority {priority}");
     }
 }
 
