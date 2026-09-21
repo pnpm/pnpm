@@ -26,7 +26,10 @@ function getPeerSpecifier (spec: string, resolvedVersion?: string, rangeSpecStyl
     const aliasAt = spec.lastIndexOf('@')
     if (aliasAt > 'npm:'.length) {
       const alias = spec.slice(0, aliasAt + 1)
-      return `${alias}${getPeerSpecifier(spec.slice(aliasAt + 1), resolvedVersion, rangeSpecStyle)}`
+      const inner = resolvedVersion == null
+        ? getPeerSpecifier(spec.slice(aliasAt + 1), undefined, rangeSpecStyle)
+        : createVersionSpecFromResolvedVersion(resolvedVersion, rangeSpecStyle) ?? '*'
+      return `${alias}${inner}`
     }
   }
   if (semver.valid(spec)) {
