@@ -1,4 +1,4 @@
-use pnpm_fs::is_symlink_or_junction;
+use pnpm_fs::{is_symlink_or_junction, symlink_metadata_with_retry};
 
 use super::{OsStr, Path, PathBuf, SystemTime, cache::is_expired, fs, io, remove_dirent};
 
@@ -53,7 +53,7 @@ fn is_stale(mtime: SystemTime, max_age_minutes: u64, now: SystemTime) -> bool {
 
 fn pkg_link(cache_path: &Path) -> io::Result<Option<fs::Metadata>> {
     let link = cache_path.join("pkg");
-    match fs::symlink_metadata(&link) {
+    match symlink_metadata_with_retry(&link) {
         Ok(metadata) if is_symlink_or_junction(&link)? => Ok(Some(metadata)),
         Ok(_) => Ok(None),
         Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(None),

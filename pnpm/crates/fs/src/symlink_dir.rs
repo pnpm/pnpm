@@ -99,7 +99,7 @@ pub fn is_symlink_or_junction(link: &Path) -> io::Result<bool> {
     {
         // Check the symlink case first so a true symlink never reaches
         // `junction::exists`.
-        if link.is_symlink() {
+        if crate::symlink_metadata_with_retry(link)?.file_type().is_symlink() {
             return Ok(true);
         }
         // `junction::exists` reports a path that is not a reparse point
@@ -107,7 +107,7 @@ pub fn is_symlink_or_junction(link: &Path) -> io::Result<bool> {
         // rather than `Ok(false)`; for this question that is a plain
         // "no".
         const ERROR_NOT_A_REPARSE_POINT: i32 = 4390;
-        match junction::exists(link) {
+        match crate::retry::retry_transient_file_locks(|| junction::exists(link)) {
             Ok(is_junction) => Ok(is_junction),
             Err(error) if error.raw_os_error() == Some(ERROR_NOT_A_REPARSE_POINT) => Ok(false),
             Err(error) => Err(error),

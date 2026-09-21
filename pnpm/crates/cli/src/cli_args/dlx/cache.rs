@@ -247,7 +247,7 @@ pub(super) fn get_valid_cache_dir(
     max_age_minutes: u64,
     now: SystemTime,
 ) -> Option<PathBuf> {
-    let meta = fs::symlink_metadata(cache_link).ok()?;
+    let meta = pnpm_fs::symlink_metadata_with_retry(cache_link).ok()?;
     if !pnpm_fs::is_symlink_or_junction(cache_link).ok()? {
         return None;
     }
