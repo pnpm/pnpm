@@ -1045,9 +1045,6 @@ mod root_preinstall {
         drop((root, mock_instance));
     }
 
-    /// Only the root's `preinstall` moves ahead of the install. A
-    /// member's runs where every other project stage does, after its
-    /// dependencies are linked.
     #[test]
     fn runs_once_for_the_workspace_root_ahead_of_the_install() {
         let CommandTempCwd {

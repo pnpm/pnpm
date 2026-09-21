@@ -82,7 +82,10 @@ export async function runLifecycleHooksConcurrently (
         }
         let isBuilt = false
         for (const stage of (importerStages ?? stages)) {
-          if (stage === 'preinstall' && rootDir === projectWithPreinstallRan) continue
+          if (stage === 'preinstall' && rootDir === projectWithPreinstallRan) {
+            if (manifest.scripts?.preinstall != null) isBuilt = true
+            continue
+          }
           if (await runLifecycleHook(stage, manifest, runLifecycleHookOpts)) { // eslint-disable-line no-await-in-loop
             isBuilt = true
           }
