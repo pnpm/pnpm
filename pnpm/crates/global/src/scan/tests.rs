@@ -164,9 +164,8 @@ fn installed_bin_names_preserves_permission_denied_manifest_reads() {
         }
     }
 
-    // The modules-dir probe must go through the capability too: the fixture
-    // has no `node_modules`, so a `std::fs` pre-check would report the tree
-    // missing and this fake's permission-denied read would never be hit.
+    // The fixture has no `node_modules`, so a `std::fs` pre-check would report
+    // the tree missing and never reach this fake's permission-denied read.
     impl FsReadDir for PermissionDeniedManifestRead {
         fn read_dir(_: &Path) -> io::Result<impl Iterator<Item = std::path::PathBuf>> {
             Ok(std::iter::empty())

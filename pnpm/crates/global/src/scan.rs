@@ -158,10 +158,9 @@ where
     Sys: FsReadFile + FsWalkFiles + FsReadDir,
 {
     let modules_dir = info.install_dir.join("node_modules");
-    // The existence probe goes through the capability, not `std::fs`, so a
-    // fake that models a readable tree still exercises the per-manifest
-    // reads below (and their error paths) in tests. Mapping the entries
-    // away ends the borrow of `modules_dir` before the error branches.
+    // Probing through the capability rather than `std::fs` keeps a fake that
+    // models a readable tree on the per-manifest paths below. Dropping the
+    // entries releases the borrow of `modules_dir` that the error arm moves.
     match Sys::read_dir(&modules_dir).map(|_| ()) {
         Ok(()) => {}
         Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(Vec::new()),

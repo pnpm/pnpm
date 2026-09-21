@@ -994,6 +994,9 @@ fn unchanged_global_update_still_approves_a_pending_build() {
     drop((root, npmrc_info));
 }
 
+/// The resolution is unchanged, so nothing but the vanished tree separates
+/// this group from a current one. The update reinstalls it from its surviving
+/// manifest instead of calling it up to date.
 #[cfg(unix)]
 #[test]
 fn global_update_restores_group_with_deleted_node_modules() {
@@ -1026,7 +1029,9 @@ fn global_update_restores_group_with_deleted_node_modules() {
     let install_after = pnpm_global::find_global_package(&global_dir, "@foo/touch-file-one-bin")
         .expect("scan global packages")
         .expect("find the touch-file group after update");
+    assert_ne!(install_after.install_dir, install_before.install_dir);
     assert!(install_after.install_dir.join("node_modules").is_dir());
+    assert!(pnpm_home.join("bin/touch-file-one-bin").exists());
 
     drop((root, npmrc_info));
 }

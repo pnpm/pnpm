@@ -21,14 +21,8 @@ test('returns an empty complete result for a readable package without bins', asy
 })
 
 test('resolves to an empty result when the whole node_modules directory is missing', async () => {
-  const root = await fs.mkdtemp(path.join(os.tmpdir(), 'pnpm-global-bin-enumeration-'))
-  await assertFixtureRootContained(root)
-  fixtureRoots.push(root)
-  const info: GlobalPackageInfo = {
-    dependencies: { missing: '1.0.0' },
-    hash: 'fixture-hash',
-    installDir: path.join(root, 'install'),
-  }
+  const info = await createGlobalPackageInfo({ missing: null })
+  await fs.rm(path.join(info.installDir, 'node_modules'), { recursive: true })
 
   await expect(getInstalledBinNames(info)).resolves.toStrictEqual([])
 })

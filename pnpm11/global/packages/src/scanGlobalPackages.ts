@@ -152,14 +152,18 @@ export function cleanOrphanedInstallDirs (globalDir: string): void {
   }
 }
 
+/**
+ * The bin names installed by a group (deduplicated).
+ *
+ * A group whose `node_modules` is wholly absent owns no bins. When
+ * `node_modules` exists, every declared dependency manifest must be readable
+ * and valid: returning a partial set would make destructive callers mistake
+ * unknown ownership for an unowned bin.
+ */
 export async function getInstalledBinNames (info: GlobalPackageInfo): Promise<string[]> {
   const bins = new Set<string>()
   const aliases = Object.keys(info.dependencies)
   const modulesDir = path.join(info.installDir, 'node_modules')
-  // A group whose node_modules is wholly absent is definitively not
-  // installed: it owns no bins. A present-but-incomplete tree still rejects
-  // below, so destructive callers never mistake unknown ownership for an
-  // unowned bin.
   try {
     await fs.promises.stat(modulesDir)
   } catch (err) {

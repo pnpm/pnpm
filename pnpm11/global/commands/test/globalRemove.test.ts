@@ -113,6 +113,16 @@ test('global remove recovers a group whose node_modules is wholly missing', asyn
   const globalDir = createTemporaryRoot('global-remove-missing-modules-')
   const globalBinDir = path.join(globalDir, 'bin')
   fs.mkdirSync(globalBinDir, { recursive: true })
+  const healthy = createGlobalGroup({
+    globalDir,
+    hash: 'healthy-hash',
+    alias: 'healthy',
+    dependencyManifest: {
+      name: 'healthy',
+      version: '1.0.0',
+      bin: { healthy: 'bin/healthy.js' },
+    },
+  })
   const target = createGlobalGroup({
     globalDir,
     hash: 'missing-modules-hash',
@@ -124,23 +134,30 @@ test('global remove recovers a group whose node_modules is wholly missing', asyn
     },
   })
   fs.rmSync(path.join(target.installDir, 'node_modules'), { recursive: true, force: true })
+  const healthySlot = path.join(globalBinDir, 'healthy')
   const straySlot = path.join(globalBinDir, 'target')
+  fs.writeFileSync(healthySlot, 'healthy shim\n')
   fs.writeFileSync(straySlot, 'stray shim\n')
 
-  await handleGlobalRemove({ globalPkgDir: globalDir, bin: globalBinDir }, ['target'])
+  try {
+    await handleGlobalRemove({ globalPkgDir: globalDir, bin: globalBinDir }, ['healthy', 'target'])
 
-  expect(removeBin).not.toHaveBeenCalled()
-  expect(fs.existsSync(target.hashLink)).toBe(false)
-  expect(fs.existsSync(target.installDir)).toBe(false)
-  expect(fs.readFileSync(straySlot, 'utf8')).toBe('stray shim\n')
+    expect(removeBin).toHaveBeenCalledTimes(1)
+    expect(removeBin).toHaveBeenCalledWith(healthySlot)
+    expect(fs.existsSync(healthy.hashLink)).toBe(false)
+    expect(fs.existsSync(healthy.installDir)).toBe(false)
+    expect(fs.existsSync(target.hashLink)).toBe(false)
+    expect(fs.existsSync(target.installDir)).toBe(false)
+    expect(fs.readFileSync(straySlot, 'utf8')).toBe('stray shim\n')
 
-  const repeatError = await captureError(() => handleGlobalRemove(
-    { globalPkgDir: globalDir, bin: globalBinDir },
-    ['target']
-  ))
-  expect(getErrorCode(repeatError)).toBe('ERR_PNPM_GLOBAL_PKG_NOT_FOUND')
-
-  fs.rmSync(globalDir, { recursive: true, force: true })
+    const repeatError = await captureError(() => handleGlobalRemove(
+      { globalPkgDir: globalDir, bin: globalBinDir },
+      ['target']
+    ))
+    expect(getErrorCode(repeatError)).toBe('ERR_PNPM_GLOBAL_PKG_NOT_FOUND')
+  } finally {
+    fs.rmSync(globalDir, { recursive: true, force: true })
+  }
 })
 
 test('global remove checks surviving ownership before deleting a target', async () => {

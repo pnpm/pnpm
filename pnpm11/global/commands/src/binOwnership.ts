@@ -9,10 +9,10 @@ import {
  * A complete ownership snapshot for the groups about to be replaced or
  * removed, together with the at-risk bins owned by groups that will survive.
  *
- * Every manifest read settles before the caller mutates global state. A group
- * whose node_modules is wholly absent owns no bins; any other incomplete
- * target still fails closed. Survivors only need inspecting when a target bin
- * will not be retained, because no other bin can be removed.
+ * Every manifest read settles before the caller mutates global state. That
+ * makes a target whose ownership cannot be read fail closed. Survivors only
+ * need inspecting when a target bin will not be retained, because no other
+ * bin can be removed.
  */
 export async function getGlobalBinOwnership (
   globalDir: string,

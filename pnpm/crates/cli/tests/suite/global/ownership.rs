@@ -388,37 +388,6 @@ fn global_remove_preflights_survivors_before_mutating_targets() {
 
 #[cfg(unix)]
 #[test]
-fn global_update_unsticks_a_group_whose_node_modules_was_deleted() {
-    use assert_cmd::assert::OutputAssertExt;
-
-    let CommandTempCwd { root, workspace, npmrc_info, .. } =
-        CommandTempCwd::init().add_mocked_registry();
-    let pnpm_home = root.path().join("pnpm-home");
-    let global_bin = pnpm_home.join("bin");
-    let global_pkg_dir = pnpm_home.join("global/v11");
-    prepare_global_home(&pnpm_home, &npmrc_info);
-    fs::create_dir_all(&global_pkg_dir).expect("create global packages directory");
-    assert_fixture_paths(
-        root.path(),
-        &[&pnpm_home, &global_bin, &global_pkg_dir, &npmrc_info.store_dir, &npmrc_info.cache_dir],
-    );
-
-    let target_install =
-        seed_global_group(&global_pkg_dir, "target-hash", &[("@pnpm.e2e/print-version", None)]);
-    fs::remove_dir_all(target_install.join("node_modules"))
-        .expect("delete the group's node_modules");
-
-    global_command(&workspace, &pnpm_home)
-        .with_args(["update", "-g", "--latest", "@pnpm.e2e/print-version"])
-        .assert()
-        .success();
-    assert!(global_bin.join("print-version").exists());
-
-    drop((root, npmrc_info));
-}
-
-#[cfg(unix)]
-#[test]
 fn global_remove_unsticks_a_group_whose_node_modules_was_deleted() {
     use assert_cmd::assert::OutputAssertExt;
 
