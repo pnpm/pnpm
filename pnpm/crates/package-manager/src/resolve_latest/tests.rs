@@ -165,6 +165,7 @@ fn passes_over_specifiers_that_name_no_registry_version() {
             "tag": "latest",
             "workspace": "workspace:*",
             "git": "github:owner/repo",
+            "external": "https://external.example/child/-/child-1.0.0.tgz",
         }),
         &json!({}),
     );
@@ -297,4 +298,45 @@ fn normalizes_exact_pins_and_parses_named_registries() {
             ("two".to_string(), "1.2.3".to_string()),
         ],
     );
+}
+
+#[tokio::test]
+async fn external_tarball_pins_do_not_query_registry_publication_times() {
+    let dir = tempdir().unwrap();
+    let mut registry = mockito::Server::new_async().await;
+    let child = registry
+        .mock("GET", "/child")
+        .with_status(200)
+        .with_body(
+            json!({
+                "name": "child", "dist-tags": { "latest": "1.0.0" },
+                "time": { "1.0.0": "2099-01-01T00:00:00Z" },
+                "versions": { "1.0.0": {
+                    "name": "child", "version": "1.0.0",
+                    "dist": { "tarball": "https://registry.example/child-1.0.0.tgz" },
+                } },
+            })
+            .to_string(),
+        )
+        .expect(0)
+        .create_async()
+        .await;
+    let mut config = Config::new();
+    config.cache_dir = dir.path().join("cache");
+    config.registry = format!("{}/", registry.url());
+    config.minimum_release_age = Some(1440);
+    let client = ThrottledClient::default();
+    let picker = LatestPicker::new(
+        &config,
+        &client,
+        PickPolicy::from_config(&config).unwrap(),
+        Arc::default(),
+        shared_packument_fetch_locker(),
+    );
+    let parent = candidate(
+        &json!({ "child": "https://external.example/child/-/child-1.0.0.tgz" }),
+        &json!({}),
+    );
+    assert!(picker.pins_only_installable_versions(&parent, true).await.unwrap());
+    child.assert_async().await;
 }

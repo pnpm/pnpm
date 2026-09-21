@@ -392,7 +392,9 @@ fn exact_pins<'a>(
                 Some(named) => (named.spec, Some(named.registry_name)),
                 None => (parse_bare_specifier(raw, Some(name), "latest", "")?, None),
             };
-            (spec.spec_type == RegistryPackageSpecType::Version).then_some((spec, registry))
+            (spec.spec_type == RegistryPackageSpecType::Version
+                && spec.normalized_bare_specifier.is_none())
+            .then_some((spec, registry))
         })
 }
 
