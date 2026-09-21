@@ -85,7 +85,7 @@ async fn guard_rejection(
     version: &str,
 ) -> Result<Option<String>, ResolveError> {
     let Some(guard) = opts.guard.hook else { return Ok(None) };
-    match guard.check(&opts.spec.name, version).await? {
+    match guard.check_in_registry(&opts.spec.name, version, opts.registry).await? {
         PackageVersionGuardDecision::Reject { reason } => Ok(Some(reason)),
         PackageVersionGuardDecision::Allow => Ok(None),
     }
@@ -94,7 +94,7 @@ async fn guard_rejection(
 /// Upper bound on guard rejections for one package before the resolver
 /// gives up. Far beyond any realistic run of consecutive blocked
 /// versions, so it only fires on a pathological/hostile packument.
-pub(super) const GUARD_REPICK_LIMIT: usize = 1000;
+pub const GUARD_REPICK_LIMIT: usize = 1000;
 
 pub(super) fn pick_options<'o>(
     opts: &'o PickFromRegistryOptions<'o>,

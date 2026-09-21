@@ -60,3 +60,19 @@ function tree (parentIds: string[]): ResolveDependencyTreeResult {
     resolvedPkgsById: Object.fromEntries(parentIds.map(id => [id, { id, name: id.split('@')[0], version: '2.0.0' }])),
   } as unknown as ResolveDependencyTreeResult
 }
+
+test('a mature retry keeps other policy violations for their own handlers', async () => {
+  const trust = {
+    code: 'TRUST_DOWNGRADE', name: 'other', version: '1.0.0', reason: 'trust downgrade',
+    resolution: { tarball: 'https://registry.example/other.tgz' },
+  }
+  const first = tree(['parent@2.0.0'])
+  first.resolutionPolicyViolations.push(trust)
+  const retry = tree([])
+  retry.resolutionPolicyViolations.push(trust)
+  resolveDependencyTree.mockResolvedValueOnce(first).mockResolvedValueOnce(retry)
+  const result = await resolveMatureDependencyTree(async () => [], { minimumReleaseAge: 1440 } as ResolveDependenciesOptions)
+  expect(result.tree).toBe(retry)
+  expect(result.tree.resolutionPolicyViolations).toEqual([trust])
+  expect(resolveDependencyTree).toHaveBeenCalledTimes(2)
+})

@@ -62,7 +62,9 @@ where
         >,
 {
     let first_pass = resolve(None).await?;
-    if !minimum_release_age_active || first_pass.merged_tree.policy_violations.is_empty() {
+    if !minimum_release_age_active
+        || !has_maturity_violations(&first_pass.merged_tree.policy_violations)
+    {
         return Ok(first_pass);
     }
 
@@ -74,7 +76,7 @@ where
             return Ok(first_pass);
         }
         let pass = resolve(Some(Arc::new(blocked_versions.clone()))).await?;
-        if pass.merged_tree.policy_violations.is_empty() {
+        if !has_maturity_violations(&pass.merged_tree.policy_violations) {
             report_held_back_parents::<Reporter>(&blocked_versions, &pass, lockfile_dir);
             return Ok(pass);
         }
@@ -117,7 +119,7 @@ fn block_dead_end_parents(
         grew |= blocked_versions
             .entry(parent.name.to_string())
             .or_default()
-            .insert(parent.suffix.to_string());
+            .insert(parent.suffix.version().to_string());
     }
     grew
 }
@@ -186,3 +188,9 @@ fn held_back_lines(
 
 #[cfg(test)]
 mod tests;
+
+fn has_maturity_violations(violations: &[ResolutionPolicyViolation]) -> bool {
+    violations
+        .iter()
+        .any(|violation| violation.code == MINIMUM_RELEASE_AGE_VIOLATION_CODE)
+}

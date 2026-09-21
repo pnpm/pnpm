@@ -229,3 +229,14 @@ test('abbreviated metadata still excludes parents with immature dependency trees
   }, meta, { name: 'pick-version', fetchSpec: 'latest', type: 'tag' })
   expect(picked?.version).toBe('1.0.0')
 })
+
+test('blocked versions use the requested name even when metadata names another package', () => {
+  const meta = metaWithoutLatest(['1.0.0', '2.0.0'])
+  meta.name = 'unexpected-name'
+  meta['dist-tags'].latest = '2.0.0'
+  const picked = pickPackageFromMeta(pickVersionByVersionRange, {
+    preferredVersionSelectors: undefined,
+    blockedVersions: new Map([['pick-version', new Set(['2.0.0'])]]),
+  }, meta, { name: 'pick-version', fetchSpec: 'latest', type: 'tag' })
+  expect(picked?.version).toBe('1.0.0')
+})

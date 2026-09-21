@@ -119,9 +119,10 @@ fn candidate(
 }
 
 fn pins(candidate: &PackageVersion) -> Vec<(String, String)> {
-    let mut pins: Vec<(String, String)> = exact_pins(candidate)
-        .map(|(name, version)| (name.to_string(), version.to_string()))
-        .collect();
+    let mut pins: Vec<(String, String)> =
+        exact_pins(candidate, &std::collections::HashSet::from(["gh".to_string()]))
+            .map(|(spec, _)| (spec.name, spec.fetch_spec))
+            .collect();
     pins.sort();
     pins
 }
@@ -278,5 +279,22 @@ async fn latest_retains_the_first_candidate_when_all_exact_pins_are_immature() {
             .version
             .to_string(),
         "2.0.0",
+    );
+}
+
+#[test]
+fn normalizes_exact_pins_and_parses_named_registries() {
+    let candidate = candidate(
+        &json!({ "one": "v1.2.3", "two": "V1.2.3", "alias": "gh:child@2.0.0" }),
+        &json!({ "optional": "gh:3.0.0" }),
+    );
+    assert_eq!(
+        pins(&candidate),
+        vec![
+            ("child".to_string(), "2.0.0".to_string()),
+            ("one".to_string(), "1.2.3".to_string()),
+            ("optional".to_string(), "3.0.0".to_string()),
+            ("two".to_string(), "1.2.3".to_string()),
+        ],
     );
 }

@@ -3171,3 +3171,27 @@ test('resolve from registry when workspace package version does not match the re
   expect(resolveResult!.resolvedVia).toBe('npm-registry')
   expect(resolveResult!.id).toBe('is-positive@3.1.0')
 })
+
+test('a blocked exact version is reported under the requested package identity', async () => {
+  getMockAgent().get(registriesByScope.default.replace(/\/$/, ''))
+    .intercept({ path: '/is-positive', method: 'GET' })
+    .reply(200, {
+      ...isPositiveMetaFull,
+      name: 'other',
+      versions: {
+        ...isPositiveMetaFull.versions,
+        '1.0.0': { ...isPositiveMetaFull.versions['1.0.0'], name: 'other' },
+      },
+    })
+  const { resolveFromNpm } = createResolveFromNpm({
+    storeDir: temporaryDirectory(),
+    cacheDir: temporaryDirectory(),
+    registriesByScope,
+  })
+  const result = await resolveFromNpm({ alias: 'is-positive', bareSpecifier: '1.0.0' }, {
+    publishedBy: new Date('2030-01-01T00:00:00Z'),
+    blockedVersions: new Map([['is-positive', new Set(['1.0.0'])]]),
+  })
+  expect(result?.policyViolation?.code).toBe('MINIMUM_RELEASE_AGE_VIOLATION')
+  expect(result?.manifest?.name).toBe('other')
+})

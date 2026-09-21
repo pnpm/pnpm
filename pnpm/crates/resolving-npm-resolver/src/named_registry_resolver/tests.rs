@@ -663,3 +663,14 @@ async fn maturity_blocks_are_scoped_to_the_named_registry() {
         assert_eq!(result.id.as_str(), format!("@acme/private@gh:{expected}"));
     }
 }
+
+#[test]
+fn unrelated_blocks_leave_the_named_registry_cache_eligible() {
+    let mut opts = ResolveOptions::default();
+    opts.policy.blocked_versions = Some(Arc::new(HashMap::from([(
+        "parent".to_string(),
+        HashSet::from(["work:1.0.0".to_string()]),
+    )])));
+    let scoped = super::scope_policy_blocks(&opts, "parent", "gh");
+    assert!(scoped.policy.blocked_versions.is_none());
+}

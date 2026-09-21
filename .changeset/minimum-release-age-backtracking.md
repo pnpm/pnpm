@@ -9,4 +9,4 @@
 "pacquet": patch
 ---
 
-`minimumReleaseAge` now backs off to an older compatible dependency when the newer version's dependencies are too young. Retry blocks respect named registries, and failures include the dependent chain that required the immature package [#11068](https://github.com/pnpm/pnpm/issues/11068).
+`minimumReleaseAge` now backs off to an older compatible dependency when the newer version's dependencies are too young. Retry blocks respect named registries. Failures include the dependent chain that required the immature package [#11068](https://github.com/pnpm/pnpm/issues/11068).

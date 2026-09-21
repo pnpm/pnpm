@@ -24,6 +24,7 @@
 
 use crate::resolution_policy::{PickPolicy, pick_package_context};
 use derive_more::{Display, Error};
+use futures_util::{StreamExt, stream};
 use miette::Diagnostic;
 use pnpm_config::{
     Config,
@@ -32,8 +33,9 @@ use pnpm_config::{
 use pnpm_network::{ThrottledClient, redact_and_sanitize};
 use pnpm_registry::{PackageTag, PackageVersion};
 use pnpm_resolving_npm_resolver::{
-    InMemoryPackageMetaCache, PackumentFetchLocker, PickPackageError, PickPackageOptions,
-    RegistryPackageSpec, RegistryPackageSpecType, blocked_packument_key, pick_package,
+    GUARD_REPICK_LIMIT, InMemoryPackageMetaCache, PackumentFetchLocker, PickPackageError,
+    PickPackageOptions, RegistryPackageSpec, RegistryPackageSpecType, blocked_packument_key,
+    parse_bare_specifier, parse_named_registry_specifier_to_registry_package_spec, pick_package,
     pick_registry_for_package,
 };
 use pnpm_resolving_resolver_base::{
@@ -41,7 +43,7 @@ use pnpm_resolving_resolver_base::{
     parse_packument_timestamp,
 };
 use std::{
-    collections::{HashMap, HashSet},
+    collections::{BTreeMap, HashMap, HashSet},
     sync::Arc,
 };
 
@@ -79,12 +81,6 @@ pub enum ResolveLatestError {
     UndecodableLatestManifest { name: String, version: String, error: String },
 }
 
-/// How far down the version list a candidate search walks before taking
-/// whatever it has. Each step costs one packument read per exact pin, and a
-/// package with a long run of releases that all pin something too young is
-/// better served by the install's own error than by an unbounded search.
-const MAX_REJECTED_CANDIDATES: usize = 8;
-
 /// Maturity-aware picker for `latest` dist-tags (see the module docs for
 /// why). One instance per command run: every [`Self::resolve`] call shares
 /// the policy's single `minimumReleaseAge` cutoff instant and registries map,
@@ -97,6 +93,8 @@ pub(crate) struct LatestPicker<'a> {
     meta_cache: Arc<InMemoryPackageMetaCache>,
     fetch_locker: PackumentFetchLocker,
     registries: HashMap<String, String>,
+    registry_names: HashSet<String>,
+    registries_by_prefix: BTreeMap<String, String>,
 }
 
 impl<'a> LatestPicker<'a> {
@@ -107,12 +105,18 @@ impl<'a> LatestPicker<'a> {
         meta_cache: Arc<InMemoryPackageMetaCache>,
         fetch_locker: PackumentFetchLocker,
     ) -> Self {
+        let registries_by_prefix = config.resolved_registry_lookups().registries_by_prefix;
         Self {
             config,
             http_client,
             policy,
             meta_cache,
             fetch_locker,
+            registry_names: registries_by_prefix
+                .keys()
+                .cloned()
+                .collect(),
+            registries_by_prefix,
             registries: config
                 .resolved_registries()
                 .into_iter()
@@ -220,7 +224,7 @@ impl<'a> LatestPicker<'a> {
             if self.pins_only_installable_versions(&candidate, dry_run).await? {
                 return Ok(candidate);
             }
-            if rejected.len() >= MAX_REJECTED_CANDIDATES {
+            if rejected.len() >= GUARD_REPICK_LIMIT {
                 // Out of budget with nothing installable found. Hand back the
                 // newest candidate and let the install name the pin that is
                 // too young, which is a better answer than an error from here.
@@ -243,7 +247,7 @@ impl<'a> LatestPicker<'a> {
     }
 
     /// [`Self::pins_only_installable_versions`] for a package named by
-    /// `name@version` rather than by an already-picked manifest.
+    /// `name@version` in the selected registry rather than by an already-picked manifest.
     ///
     /// Errors when that exact version cannot be read back from the registry;
     /// the caller decides what an unreadable candidate means.
@@ -251,12 +255,12 @@ impl<'a> LatestPicker<'a> {
         &self,
         name: &str,
         version: &str,
+        registry: &str,
         dry_run: bool,
     ) -> Result<bool, ResolveLatestError> {
         if self.policy.published_by.is_none() {
             return Ok(true);
         }
-        let registry = pick_registry_for_package(&self.registries, name, None);
         let spec = RegistryPackageSpec {
             name: name.to_string(),
             fetch_spec: version.to_string(),
@@ -264,7 +268,7 @@ impl<'a> LatestPicker<'a> {
             revision: None,
             normalized_bare_specifier: None,
         };
-        let opts = self.pick_options(&registry, dry_run, false);
+        let opts = self.pick_options(registry, dry_run, false);
         let ctx = pick_package_context(
             self.http_client,
             self.config,
@@ -294,41 +298,46 @@ impl<'a> LatestPicker<'a> {
         candidate: &PackageVersion,
         dry_run: bool,
     ) -> Result<bool, ResolveLatestError> {
-        let Some(cutoff) = self.policy.published_by else { return Ok(true) };
-        for (name, pinned) in exact_pins(candidate) {
-            if pin_is_exempt(self.policy.published_by_exclude.as_ref(), name, pinned) {
-                continue;
-            }
-            let registry = pick_registry_for_package(&self.registries, name, None);
-            let opts = self.pick_options(&registry, dry_run, true);
-            let ctx = pick_package_context(
-                self.http_client,
-                self.config,
-                &self.policy,
-                &self.meta_cache,
-                &self.fetch_locker,
-            );
-            let spec = RegistryPackageSpec {
-                name: name.to_string(),
-                fetch_spec: pinned.to_string(),
-                spec_type: RegistryPackageSpecType::Version,
-                revision: None,
-                normalized_bare_specifier: None,
-            };
-            let Ok(pick) = pick_package(&ctx, &spec, &opts).await else { continue };
-            let Some(time) = pick.meta.time.as_ref() else { continue };
-            let Some(published_at) = time
-                .get(pinned)
-                .and_then(serde_json::Value::as_str)
-                .and_then(parse_packument_timestamp)
-            else {
-                continue;
-            };
-            if published_at > cutoff {
+        if self.policy.published_by.is_none() {
+            return Ok(true);
+        }
+        let mut checks = stream::iter(exact_pins(candidate, &self.registry_names))
+            .map(|pin| self.pin_is_installable(pin, dry_run))
+            .buffer_unordered(self.config.network_concurrency.max(1));
+        while let Some(installable) = checks.next().await {
+            if !installable {
                 return Ok(false);
             }
         }
         Ok(true)
+    }
+
+    async fn pin_is_installable(
+        &self,
+        (spec, registry_name): (RegistryPackageSpec, Option<String>),
+        dry_run: bool,
+    ) -> bool {
+        let Some(cutoff) = self.policy.published_by else { return true };
+        if pin_is_exempt(self.policy.published_by_exclude.as_ref(), &spec.name, &spec.fetch_spec) {
+            return true;
+        }
+        let registry = registry_name.map_or_else(
+            || pick_registry_for_package(&self.registries, &spec.name, None),
+            |name| self.registries_by_prefix[&name].clone(),
+        );
+        let opts = self.pick_options(&registry, dry_run, true);
+        let ctx = pick_package_context(
+            self.http_client,
+            self.config,
+            &self.policy,
+            &self.meta_cache,
+            &self.fetch_locker,
+        );
+        let Ok(pick) = pick_package(&ctx, &spec, &opts).await else { return true };
+        pick.meta
+            .published_at(&spec.fetch_spec)
+            .and_then(parse_packument_timestamp)
+            .is_none_or(|published| published <= cutoff)
     }
 }
 
@@ -347,8 +356,8 @@ fn pin_is_exempt(policy: Option<&PackageVersionPolicy>, name: &str, pinned: &str
     }
 }
 
-/// The `name -> version` pairs a manifest pins to one exact version, across
-/// the dependency groups an install has to satisfy.
+/// Exact registry specifiers a manifest requires, normalized by the resolver's
+/// parser and paired with their named-registry routing when applicable.
 ///
 /// `optionalDependencies` is included because a lockfile records every
 /// platform's binary, so an immature one blocks the install on every
@@ -356,7 +365,10 @@ fn pin_is_exempt(policy: Option<&PackageVersionPolicy>, name: &str, pinned: &str
 /// its optional declaration, which is therefore the only one judged —
 /// otherwise a specifier the install never uses could pass the candidate
 /// over.
-fn exact_pins(candidate: &PackageVersion) -> impl Iterator<Item = (&str, &str)> {
+fn exact_pins<'a>(
+    candidate: &'a PackageVersion,
+    registry_names: &'a HashSet<String>,
+) -> impl Iterator<Item = (RegistryPackageSpec, Option<String>)> + 'a {
     let optional = candidate.optional_dependencies.iter().flatten();
     let required = candidate.dependencies
         .iter()
@@ -368,10 +380,19 @@ fn exact_pins(candidate: &PackageVersion) -> impl Iterator<Item = (&str, &str)> 
         });
     optional
         .chain(required)
-        .filter_map(|(name, spec)| {
-            node_semver::Version::parse(spec)
-                .is_ok()
-                .then_some((name.as_str(), spec.as_str()))
+        .filter_map(|(name, raw)| {
+            let (spec, registry) = match parse_named_registry_specifier_to_registry_package_spec(
+                raw,
+                registry_names,
+                Some(name),
+                "latest",
+            )
+            .ok()?
+            {
+                Some(named) => (named.spec, Some(named.registry_name)),
+                None => (parse_bare_specifier(raw, Some(name), "latest", "")?, None),
+            };
+            (spec.spec_type == RegistryPackageSpecType::Version).then_some((spec, registry))
         })
 }
 
@@ -433,6 +454,22 @@ impl PackageVersionGuard for MaturePinsGuard {
 
     fn check<'a>(&'a self, name: &'a str, version: &'a str) -> PackageVersionGuardFuture<'a> {
         Box::pin(async move {
+            let registries = self.config
+                .resolved_registries()
+                .into_iter()
+                .collect();
+            let registry = pick_registry_for_package(&registries, name, None);
+            self.check_in_registry(name, version, &registry).await
+        })
+    }
+
+    fn check_in_registry<'a>(
+        &'a self,
+        name: &'a str,
+        version: &'a str,
+        registry: &'a str,
+    ) -> PackageVersionGuardFuture<'a> {
+        Box::pin(async move {
             let picker = LatestPicker::new(
                 &self.config,
                 &self.http_client,
@@ -440,7 +477,7 @@ impl PackageVersionGuard for MaturePinsGuard {
                 Arc::clone(&self.meta_cache),
                 Arc::clone(&self.fetch_locker),
             );
-            Ok(match picker.pins_installable_for(name, version, self.dry_run).await {
+            Ok(match picker.pins_installable_for(name, version, registry, self.dry_run).await {
                 Ok(false) => PackageVersionGuardDecision::Reject {
                     reason: format!(
                         "{name}@{version} depends on a version that minimumReleaseAge does not \

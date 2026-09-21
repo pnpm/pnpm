@@ -416,9 +416,9 @@ function warnOnceOnHeldBackUpdate (
   // `needsFullMetadata` is not this caller's problem: the pick already
   // succeeded on this metadata, which for an abbreviated packument means
   // every version cleared the cutoff, so `meta` is the filtered view.
-  const blockedForPkg = opts.blockedVersions?.get(meta.name)
+  const blockedForPkg = opts.blockedVersions?.get(spec.name)
   const baselineMeta = (opts.publishedBy != null || blockedForPkg?.size)
-    ? applyPublishedByPolicy(meta, opts.publishedBy, opts.publishedByExclude, blockedForPkg).meta
+    ? applyPublishedByPolicy(meta, { publishedBy: opts.publishedBy, publishedByExclude: opts.publishedByExclude, blockedVersions: blockedForPkg }).meta
     : meta
   const preferred = pickVersionByVersionRange({
     meta: baselineMeta,
@@ -815,6 +815,7 @@ async function resolveNpm (
     normalizedBareSpecifier,
     policyViolation: detectMinReleaseAgeViolation({
       name: pickedPackage.name,
+      requestedName: spec.name,
       version: pickedPackage.version,
       publishedAt,
       resolution,
@@ -1004,6 +1005,7 @@ async function pickFromSimpleRegistry (
     publishedAt,
     policyViolation: detectMinReleaseAgeViolation({
       name: pickedPackage.name,
+      requestedName: spec.name,
       version: pickedPackage.version,
       publishedAt,
       resolution,
@@ -1325,6 +1327,7 @@ function isBlocked (
 
 function detectMinReleaseAgeViolation (args: {
   name: string
+  requestedName?: string
   version: string
   publishedAt: string | undefined
   resolution: Resolution
@@ -1333,7 +1336,7 @@ function detectMinReleaseAgeViolation (args: {
   blockedVersions?: BlockedVersions
 }): ResolutionPolicyViolation | undefined {
   if (!args.publishedBy) return undefined
-  if (isBlocked(args.blockedVersions, args.name, args.version)) {
+  if (isBlocked(args.blockedVersions, args.requestedName ?? args.name, args.version)) {
     return {
       name: args.name,
       version: args.version,

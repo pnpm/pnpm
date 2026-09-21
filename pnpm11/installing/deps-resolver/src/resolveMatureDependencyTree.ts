@@ -36,28 +36,10 @@ export interface MatureDependencyTreeResult<Importer> {
 }
 
 /**
- * Resolves the dependency tree, backing out of subtrees that no
- * `minimumReleaseAge` cutoff can satisfy.
- *
- * The cutoff narrows candidates one packument at a time, so an edge that
- * admits no mature version is a dead end the pick itself cannot escape: a
- * parent that pins its platform bindings to a version whose release was not
- * atomic, or whose newest release depends on a package published minutes ago,
- * has no mature answer to offer. The way out is to pick a different version of
- * whatever declared that edge, and the resolver only reconsiders that on a
- * fresh pass.
- *
- * So each pass blocks the immediate parent of every immature pick and resolves
- * again, walking the blame one level up per pass until a tree comes back
- * clean. Passes after the first fetch no registry metadata — the packuments
- * are memoized for the whole install — and only run while every immature pick
- * still has a parent whose choice could be revisited, so an install that
- * resolves cleanly, or one whose immature picks the manifests ask for by name,
- * pays nothing.
- *
- * When no pass comes back clean, the first pass's result is returned: an
- * unavoidable conflict has to report the versions the manifests actually
- * resolve to, not whatever the last attempt happened to reach.
+ * Returns a tree with no minimumReleaseAge violations when bounded parent-version
+ * retries find one. Other policy violations remain for their policy handlers.
+ * Returns the original tree when the age conflict cannot be resolved.
+ * toImporters must provide fresh inputs because resolution mutates specifiers.
  */
 export async function resolveMatureDependencyTree<Importer extends ImporterToResolveGeneric<unknown>> (
   toImporters: () => Promise<Importer[]>,
@@ -72,7 +54,7 @@ export async function resolveMatureDependencyTree<Importer extends ImporterToRes
   }
 
   const firstPass = await runPass()
-  if (!opts.minimumReleaseAge || firstPass.tree.resolutionPolicyViolations.length === 0) {
+  if (!opts.minimumReleaseAge || !hasMaturityViolations(firstPass.tree)) {
     return firstPass
   }
 
@@ -82,7 +64,7 @@ export async function resolveMatureDependencyTree<Importer extends ImporterToRes
     if (!blockDeadEndParents(lastPass.tree, blockedVersions)) return firstPass
     // eslint-disable-next-line no-await-in-loop
     lastPass = await runPass(blockedVersions)
-    if (lastPass.tree.resolutionPolicyViolations.length === 0) {
+    if (!hasMaturityViolations(lastPass.tree)) {
       reportHeldBackParents(blockedVersions, lastPass.tree.resolvedPkgsById)
       return lastPass
     }
@@ -180,4 +162,8 @@ function reportHeldBackParents (
     'minimumReleaseAge held back the following versions because a package they depend on ' +
     `is younger than the cutoff:\n${lines.join('\n')}`
   )
+}
+
+function hasMaturityViolations (tree: ResolveDependencyTreeResult): boolean {
+  return tree.resolutionPolicyViolations.some(violation => violation.code === MINIMUM_RELEASE_AGE_VIOLATION_CODE)
 }

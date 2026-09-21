@@ -250,15 +250,17 @@ fn scope_policy_blocks<'options>(
     let mut scoped = opts.clone();
     scoped.policy.blocked_versions = opts.policy.blocked_versions
         .as_ref()
-        .map(|blocked| {
+        .and_then(|blocked| {
             let prefix = format!("{registry_name}:");
             let versions = blocked
                 .get(name)
                 .into_iter()
                 .flatten()
                 .filter_map(|version| version.strip_prefix(&prefix).map(str::to_string))
-                .collect();
-            std::sync::Arc::new(HashMap::from([(name.to_string(), versions)]))
+                .collect::<std::collections::HashSet<_>>();
+            (!versions.is_empty()).then(|| {
+                std::sync::Arc::new(HashMap::from([(name.to_string(), versions)]))
+            })
         });
     std::borrow::Cow::Owned(scoped)
 }

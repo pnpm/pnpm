@@ -299,3 +299,35 @@ fn a_mismatched_manifest_version_does_not_block_another_packument_entry() {
     let picked = meta.versions.get("2.0.0").unwrap();
     assert_eq!(crate::blocked_packument_key(&meta, &picked, "1.0.0"), "2.0.0");
 }
+
+#[tokio::test]
+async fn blocked_policy_uses_requested_name_when_manifest_name_differs() {
+    let mut body: serde_json::Value = serde_json::from_str(PACKAGE_BODY).unwrap();
+    body["name"] = serde_json::json!("other");
+    body["versions"]["1.1.0"]["name"] = serde_json::json!("other");
+    let mut server = mockito::Server::new_async().await;
+    let _mock = server
+        .mock("GET", "/acme")
+        .with_status(200)
+        .with_body(body.to_string())
+        .create_async()
+        .await;
+    let (resolver, _tempdir) = build_resolver(&format!("{}/", server.url()));
+    let mut opts = ResolveOptions::default();
+    opts.policy.published_by = Some(chrono::Utc::now());
+    opts.policy.blocked_versions = Some(std::sync::Arc::new(std::collections::HashMap::from([(
+        "acme".to_string(),
+        std::collections::HashSet::from(["1.1.0".to_string()]),
+    )])));
+    let wanted = WantedDependency {
+        alias: Some("acme".to_string()),
+        bare_specifier: Some("1.1.0".to_string()),
+        ..WantedDependency::default()
+    };
+    let result = resolver
+        .resolve(&wanted, &opts)
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(result.policy_violation.unwrap().code, crate::MINIMUM_RELEASE_AGE_VIOLATION_CODE);
+}

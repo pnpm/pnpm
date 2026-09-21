@@ -42,9 +42,9 @@ export function pickPackageFromMeta (
   meta: PackageMeta,
   spec: RegistryPackageSpec
 ): PackageInRegistry | null {
-  const blockedForPkg = blockedVersions?.get(meta.name)
+  const blockedForPkg = blockedVersions?.get(spec.name)
   if (publishedBy || blockedForPkg?.size) {
-    const view = applyPublishedByPolicy(meta, publishedBy, publishedByExclude, blockedForPkg)
+    const view = applyPublishedByPolicy(meta, { publishedBy, publishedByExclude, blockedVersions: blockedForPkg })
     meta = view.meta
     if (view.needsFullMetadata && publishedBy) {
       const modifiedDate = parseModifiedDate(meta.modified)
@@ -131,20 +131,17 @@ export interface PublishedByView {
 }
 
 /**
- * Narrows `meta` to the versions the `publishedBy` cutoff admits, honoring
- * `publishedByExclude`: a package the policy excludes wholesale keeps its
- * unfiltered metadata, and versions the policy names explicitly stay in
- * regardless of their age.
- *
- * Every consumer of the cutoff goes through here so they agree on what the
- * policy admits — a baseline that filters differently from the pick would
- * misreport why a version was chosen.
+ * Applies the age cutoff unless the package or version is excluded.
+ * Explicitly blocked versions are always removed, including excluded packages.
+ * Requests full metadata when the cutoff needs timestamps absent from meta.
  */
 export function applyPublishedByPolicy (
   meta: PackageMeta,
-  publishedBy: Date | undefined,
-  publishedByExclude?: PackageVersionPolicy,
-  blockedVersions?: ReadonlySet<string>
+  { publishedBy, publishedByExclude, blockedVersions }: {
+    publishedBy?: Date
+    publishedByExclude?: PackageVersionPolicy
+    blockedVersions?: ReadonlySet<string>
+  }
 ): PublishedByView {
   const excludeResult = publishedByExclude?.(meta.name) ?? false
   // A blocked version is out even here: the exclusion says the cutoff does

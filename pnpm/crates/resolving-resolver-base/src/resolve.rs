@@ -267,10 +267,21 @@ pub enum GuardExhaustionPolicy {
 ///
 /// A guard is expected to be deterministic for the duration of one
 /// resolve call. Callers that consult external services should cache
-/// per `(name, version)` within that operation so repeated graph edges
+/// per `(registry, name, version)` within that operation so repeated graph edges
 /// don't multiply network traffic.
 pub trait PackageVersionGuard: Send + Sync + std::fmt::Debug {
     fn check<'a>(&'a self, name: &'a str, version: &'a str) -> PackageVersionGuardFuture<'a>;
+
+    /// Check a candidate from the selected registry. Guards that inspect registry
+    /// metadata must use this URL rather than reconstructing routing from the name.
+    fn check_in_registry<'a>(
+        &'a self,
+        name: &'a str,
+        version: &'a str,
+        _registry: &'a str,
+    ) -> PackageVersionGuardFuture<'a> {
+        self.check(name, version)
+    }
 
     /// What the resolver does for a request whose every matching version
     /// [`Self::check`] rejected.

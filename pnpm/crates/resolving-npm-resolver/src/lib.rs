@@ -40,7 +40,8 @@ pub use named_registry::{
 };
 pub use named_registry_resolver::NamedRegistryResolver;
 pub use npm_resolver::{
-    NpmResolver, RegistryMetadataClient, RegistryMetadataFormat, blocked_packument_key,
+    GUARD_REPICK_LIMIT, NpmResolver, RegistryMetadataClient, RegistryMetadataFormat,
+    blocked_packument_key,
 };
 pub use parse_bare_specifier::{
     JsrRegistryPackageSpec, NamedRegistryPackageSpec, ParseNamedRegistrySpecifierError,
