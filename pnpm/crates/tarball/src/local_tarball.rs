@@ -164,7 +164,7 @@ pub(crate) async fn read_cas_package_json(
 /// subdirectory has no `package.json`, matching the root path's
 /// best-effort contract — the caller degrades rather than failing the
 /// resolve.
-pub(crate) async fn read_subdir_manifest(
+pub async fn read_subdir_manifest(
     cas_paths: &HashMap<String, PathBuf>,
     subdir: &str,
 ) -> Result<Option<serde_json::Value>, TarballError> {

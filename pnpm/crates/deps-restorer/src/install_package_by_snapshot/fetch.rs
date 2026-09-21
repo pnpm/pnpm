@@ -62,16 +62,10 @@ pub(super) struct TarballFetch<'a, AllowBuild> {
 /// owned `HashMap` is cloned out of the shared `Arc` so the rest of the
 /// pass keeps its by-value contract.
 ///
-/// The caller passes a mem cache only for registry resolutions: those
-/// are the only ones the background prefetchers populate — the pnpr
-/// `TarballPrefetcher` and the resolve-time `PrefetchingResolver` both
-/// key by `name@version`, and a remote tarball resolves with no
-/// `name_ver`, so they skip it. Its only mem-cache entry comes from the
-/// resolver's download-to-resolve, and a hit on that entry returns the
-/// extraction without touching the store index. Taking the standalone
-/// path instead keeps this pass reconciling the row itself, so a later
-/// re-resolve finds the warm store whatever the resolver did or didn't
-/// write.
+/// Registry resolutions reuse background downloads. Commit-addressed git archives
+/// reuse the raw extraction from manifest recovery and still run prepare and
+/// packlist processing at installation. Other tarballs fetch standalone to
+/// reconcile their store index entries.
 pub(super) async fn download_tarball<Reporter: self::Reporter>(
     download: IngestTarballToStore<'_>,
     tarball_mem_cache: Option<&MemCache>,

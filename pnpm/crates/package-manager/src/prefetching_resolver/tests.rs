@@ -749,3 +749,5 @@ async fn a_manifest_read_reuses_the_prefetch_already_in_flight() {
     assert_eq!(dbg!(&manifest)["dependencies"]["ms"], json!("2.1.2"));
     get_mock.assert_async().await;
 }
+
+mod custom_archives;
