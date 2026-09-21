@@ -21,6 +21,7 @@ import { getAllDependenciesFromManifest, getDependencyTypeFromManifest } from '@
 import {
   DEPENDENCIES_FIELDS,
   type DependenciesField,
+  type DependenciesOrPeersField,
   type DepPath,
   type IncludedDependencies,
   type PackageManifest,
@@ -33,7 +34,7 @@ export * from './createManifestGetter.js'
 
 export interface OutdatedPackage {
   alias: string
-  belongsTo: DependenciesField
+  belongsTo: DependenciesOrPeersField
   current?: string // not defined means the package is not installed
   latestManifest?: PackageManifest
   packageName: string
@@ -106,7 +107,7 @@ export async function outdated (
     publishedByExclude: opts.publishedByExclude,
   }
 
-  const dependencyTypes: Array<DependenciesField | 'peerDependencies'> = includePeerDependencies
+  const dependencyTypes: DependenciesOrPeersField[] = includePeerDependencies
     ? [...DEPENDENCIES_FIELDS, 'peerDependencies']
     : DEPENDENCIES_FIELDS
 
@@ -179,7 +180,7 @@ export async function outdated (
             if (wanted !== current) {
               outdated.push({
                 alias,
-                belongsTo: depType as DependenciesField,
+                belongsTo: depType,
                 current,
                 latestManifest: undefined,
                 packageName,
@@ -192,7 +193,7 @@ export async function outdated (
           if (!current) {
             outdated.push({
               alias,
-              belongsTo: depType as DependenciesField,
+              belongsTo: depType,
               latestManifest,
               packageName,
               wanted,
@@ -203,7 +204,7 @@ export async function outdated (
           if (wanted !== current || isLowerVersion(wanted, latestManifest.version) || latestManifest.deprecated) {
             outdated.push({
               alias,
-              belongsTo: depType as DependenciesField,
+              belongsTo: depType,
               current,
               latestManifest,
               packageName,

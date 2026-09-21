@@ -20,7 +20,7 @@ import { PnpmError } from '@pnpm/error'
 import { scanGlobalPackages } from '@pnpm/global.packages'
 import { semverDiff } from '@pnpm/semver-diff'
 import { sanitizeInline } from '@pnpm/text.sanitize'
-import type { DependenciesField, PackageManifest, ProjectManifest, ProjectRootDir } from '@pnpm/types'
+import type { DependenciesOrPeersField, PackageManifest, ProjectManifest, ProjectRootDir } from '@pnpm/types'
 import { table } from '@zkochan/table'
 import chalk from 'chalk'
 import { pick, sortWith } from 'ramda'
@@ -348,7 +348,7 @@ export interface OutdatedPackageJSONOutput {
   latest?: string
   wanted: string
   isDeprecated: boolean
-  dependencyType: DependenciesField | 'githubAction'
+  dependencyType: DependenciesOrPeersField | 'githubAction'
   latestManifest?: PackageManifest
 }
 
@@ -408,6 +408,7 @@ export function renderPackageName ({ belongsTo, dependencyType, packageName }: O
   switch (belongsTo) {
     case 'devDependencies': return `${packageName} ${chalk.dim('(dev)')}`
     case 'optionalDependencies': return `${packageName} ${chalk.dim('(optional)')}`
+    case 'peerDependencies': return `${packageName} ${chalk.dim('(peer)')}`
     default: return packageName
   }
 }

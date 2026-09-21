@@ -6,7 +6,7 @@ import {
 } from '@pnpm/deps.inspection.outdated'
 import { PnpmError } from '@pnpm/error'
 import type {
-  DependenciesField,
+  DependenciesOrPeersField,
   IncludedDependencies,
   ProjectManifest,
   ProjectRootDir,
@@ -29,10 +29,11 @@ import {
 } from './outdated.js'
 import { DEFAULT_COMPARATORS, type OutdatedWithVersionDiff } from './utils.js'
 
-const DEP_PRIORITY: Record<DependenciesField, number> = {
+const DEP_PRIORITY: Record<DependenciesOrPeersField, number> = {
   dependencies: 1,
   devDependencies: 2,
   optionalDependencies: 0,
+  peerDependencies: 3,
 }
 
 const COMPARATORS = [
@@ -42,7 +43,7 @@ const COMPARATORS = [
 ]
 
 interface OutdatedInWorkspace extends OutdatedItem {
-  belongsTo: DependenciesField
+  belongsTo: DependenciesOrPeersField
   current?: string
   dependentPkgs: Array<{ location: string, manifest: ProjectManifest }>
   latest?: string
