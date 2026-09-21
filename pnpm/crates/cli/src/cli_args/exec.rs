@@ -281,11 +281,6 @@ fn project_extra_env(
     env
 }
 
-/// The `PATH` a command spawned by `pnpm exec` searches: the modules `.bin` of
-/// the run directory, then of the project when they differ, then the
-/// `extraBinPaths`. pnpm prepends the whole ancestor chain of
-/// `node_modules/.bin` directories, of which the project's is the one that
-/// holds the installed executables.
 fn command_search_path(
     dirs: ExecDirs<'_>,
     config: &Config,
