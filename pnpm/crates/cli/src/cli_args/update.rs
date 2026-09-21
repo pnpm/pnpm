@@ -37,6 +37,9 @@ pub struct UpdateDependencyOptions {
     /// Don't update packages in "optionalDependencies".
     #[clap(long, overrides_with = "optional")]
     no_optional: bool,
+    /// Also update packages in "peerDependencies".
+    #[clap(long)]
+    peer: bool,
 }
 
 impl UpdateDependencyOptions {
@@ -66,6 +69,7 @@ impl UpdateDependencyOptions {
             .chain(dependencies.then_some(DependencyGroup::Prod))
             .chain(dev_dependencies.then_some(DependencyGroup::Dev))
             .chain(optional_dependencies.then_some(DependencyGroup::Optional))
+            .chain(self.peer.then_some(DependencyGroup::Peer))
             .collect()
     }
 }
