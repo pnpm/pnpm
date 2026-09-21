@@ -14,6 +14,7 @@ use miette::Context;
 use pnpm_config::Config;
 use pnpm_reporter::Reporter;
 use std::path::Path;
+use std::time::SystemTime;
 
 #[derive(Debug, Subcommand)]
 pub enum StoreCommand {
@@ -51,6 +52,15 @@ impl StoreCommand {
             StoreCommand::Add(args) => add::run::<Reporter>(config, dir, &args.packages).await,
             StoreCommand::Prune => {
                 config.store_dir.prune().wrap_err("pruning store")?;
+                // v11 parity: `pnpm store prune` also sweeps the expired
+                // `pnpm dlx` prepare directories (see `cleanExpiredDlxCache`
+                // in pnpm11), which otherwise accumulate on disk forever.
+                super::dlx::cache::clean_expired_dlx_cache(
+                    &config.cache_dir,
+                    config.dlx_cache_max_age,
+                    SystemTime::now(),
+                )
+                .wrap_err("cleaning expired dlx cache")?;
                 Ok(())
             }
             StoreCommand::Path => {

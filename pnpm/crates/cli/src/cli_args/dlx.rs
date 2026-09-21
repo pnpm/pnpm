@@ -431,6 +431,6 @@ fn scopeless(pkg_name: &str) -> &str {
 #[cfg(test)]
 mod tests;
 
-mod cache;
+pub(crate) mod cache;
 
 mod provision;
