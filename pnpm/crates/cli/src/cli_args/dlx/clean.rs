@@ -52,8 +52,9 @@ fn is_stale(mtime: SystemTime, max_age_minutes: u64, now: SystemTime) -> bool {
 }
 
 fn pkg_link(cache_path: &Path) -> io::Result<Option<fs::Metadata>> {
-    match fs::symlink_metadata(cache_path.join("pkg")) {
-        Ok(metadata) if metadata.file_type().is_symlink() => Ok(Some(metadata)),
+    let link = cache_path.join("pkg");
+    match fs::symlink_metadata(&link) {
+        Ok(metadata) if is_symlink_or_junction(&link)? => Ok(Some(metadata)),
         Ok(_) => Ok(None),
         Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(None),
         Err(error) => Err(error),

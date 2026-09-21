@@ -240,7 +240,7 @@ fn sorted_once(values: &[String]) -> Vec<&str> {
     deduped
 }
 
-/// Return the cache target behind `cache_link` when it is a symlink whose
+/// Return the cache target behind `cache_link` when it is a symlink or junction whose
 /// own mtime is within `max_age_minutes` of `now`.
 pub(super) fn get_valid_cache_dir(
     cache_link: &Path,
@@ -248,7 +248,7 @@ pub(super) fn get_valid_cache_dir(
     now: SystemTime,
 ) -> Option<PathBuf> {
     let meta = fs::symlink_metadata(cache_link).ok()?;
-    if !meta.file_type().is_symlink() {
+    if !pnpm_fs::is_symlink_or_junction(cache_link).ok()? {
         return None;
     }
     // `dunce::canonicalize` (not `fs::canonicalize`) so the cache-hit path

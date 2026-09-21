@@ -664,15 +664,51 @@ fn clean_expired_dlx_cache_does_not_follow_a_junction_root() {
     let outside = tempdir().expect("outside temp dir");
     let outside_entry = outside.path().join("key").join("1-1");
     fs::create_dir_all(&outside_entry).expect("create the outside entry");
-    let output = std::process::Command::new("cmd")
-        .args(["/d", "/c", "mklink", "/J"])
-        .arg(dir.path().join("dlx"))
-        .arg(outside.path())
-        .output()
-        .expect("create a junction");
-    assert!(output.status.success(), "mklink failed: {output:?}");
+    create_junction(outside.path(), &dir.path().join("dlx"));
 
     clean_expired_dlx_cache(dir.path(), 0, SystemTime::now()).expect("clean the dlx cache");
 
     assert!(outside_entry.exists(), "a junction root must not lead cleanup outside the cache");
+}
+
+#[cfg(windows)]
+fn create_junction(target: &Path, link: &Path) {
+    let output = std::process::Command::new("cmd")
+        .args(["/d", "/c", "mklink", "/J"])
+        .arg(link)
+        .arg(target)
+        .output()
+        .expect("create a junction");
+    assert!(output.status.success(), "mklink failed: {output:?}");
+}
+
+#[cfg(windows)]
+#[test]
+fn clean_expired_dlx_cache_reclaims_orphans_beside_a_pkg_junction() {
+    let dir = tempdir().expect("temp dir");
+    let orphan = prepare_dir(dir.path(), "key", "1-1");
+    std::thread::sleep(Duration::from_secs(1));
+    let current = prepare_dir(dir.path(), "key", "2-2");
+    let link = entry_dir(dir.path(), "key").join("pkg");
+    create_junction(&current, &link);
+    let now = link_mtime(dir.path(), "key") + Duration::from_mins(7);
+
+    clean_expired_dlx_cache(dir.path(), 7, now).expect("clean the dlx cache");
+
+    assert!(current.exists(), "the current junction target must survive");
+    assert!(!orphan.exists(), "the expired orphan beside a junction must be reclaimed");
+}
+
+#[cfg(windows)]
+#[test]
+fn get_valid_cache_dir_accepts_a_junction() {
+    let dir = tempdir().expect("temp dir");
+    let current = prepare_dir(dir.path(), "key", "1-1");
+    let link = entry_dir(dir.path(), "key").join("pkg");
+    create_junction(&current, &link);
+
+    assert_eq!(
+        get_valid_cache_dir(&link, 7, SystemTime::now()),
+        Some(dunce::canonicalize(current).expect("canonical cache path")),
+    );
 }
