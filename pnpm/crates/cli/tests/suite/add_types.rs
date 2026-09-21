@@ -297,32 +297,62 @@ fn local_packages_do_not_trigger_a_registry_types_lookup() {
 
 #[test]
 fn inspects_the_requested_version_for_bundled_types() {
-    let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
-    let mut server = mockito::Server::new();
-    let _types = serve_package(&mut server, "@types/example", &json!({}));
-    let old_tarball = pnpm_testing_utils::fixtures::minimal_tarball("example", "1.0.0");
-    let old = json!({"name": "example", "version": "1.0.0", "dist": {
-        "tarball": format!("{}/example/-/old.tgz", server.url()),
-        "integrity": ssri::Integrity::from(old_tarball.as_slice()).to_string()
-    }});
-    let mut latest = old.clone();
-    latest["version"] = json!("2.0.0");
-    latest["types"] = json!("index.d.ts");
-    let package = server
-        .mock("GET", "/example")
-        .with_header("content-type", "application/json")
-        .with_body(
-            json!({"name": "example", "dist-tags": {"latest": "2.0.0"},
-            "versions": {"1.0.0": old, "2.0.0": latest}})
-            .to_string(),
-        )
-        .expect_at_least(1)
-        .create();
-    setup(&workspace, &server.url());
-    add(&workspace, &["example@1", "--save-types"]).assert().success();
-    assert_eq!(manifest(&workspace)["devDependencies"]["@types/example"], "^1.0.0");
-    package.assert();
-    drop(root);
+    for (latest_version, initial_selector, alias, specifier, expected_types, expected_version) in [
+        ("2.0.0", None, "example", "^1.0.0", "^1.0.0", "1.0.0"),
+        ("1.1.0", Some("example@1.0.0"), "example", "^1.0.0", "^1.0.0", "1.0.0"),
+        (
+            "1.1.0",
+            Some("renamed@npm:example@1.0.0"),
+            "renamed",
+            "npm:example@^1.0.0",
+            "npm:@types/example@^1.0.0",
+            "example@1.0.0",
+        ),
+    ] {
+        let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
+        let mut server = mockito::Server::new();
+        let _types = serve_package(&mut server, "@types/example", &json!({}));
+        let old_tarball = pnpm_testing_utils::fixtures::minimal_tarball("example", "1.0.0");
+        let old = json!({"name": "example", "version": "1.0.0", "dist": {
+            "tarball": format!("{}/example/-/old.tgz", server.url()),
+            "integrity": ssri::Integrity::from(old_tarball.as_slice()).to_string()
+        }});
+        let mut latest = old.clone();
+        latest["version"] = json!(latest_version);
+        latest["types"] = json!("index.d.ts");
+        let package = server
+            .mock("GET", "/example")
+            .with_header("content-type", "application/json")
+            .with_body(
+                json!({"name": "example", "dist-tags": {"latest": latest_version},
+            "versions": {"1.0.0": old, (latest_version): latest}})
+                .to_string(),
+            )
+            .expect_at_least(1)
+            .create();
+        setup(&workspace, &server.url());
+        if let Some(selector) = initial_selector {
+            add(&workspace, &[selector, "--save-exact"]).assert().success();
+            fs::write(
+                workspace.join("package.json"),
+                json!({"dependencies": {(alias): specifier}}).to_string(),
+            )
+            .unwrap();
+            add(&workspace, &[alias, "--save-types"]).assert().success();
+        } else {
+            add(&workspace, &["example@1", "--save-types"]).assert().success();
+        }
+        assert_eq!(
+            manifest(&workspace)["devDependencies"][format!("@types/{alias}")],
+            expected_types,
+        );
+        let lockfile =
+            serde_json::to_value(crate::_utils::read_lockfile(&workspace.join("pnpm-lock.yaml")))
+                .unwrap();
+        assert_eq!(lockfile["importers"]["."]["dependencies"][alias]["version"], expected_version);
+        package.assert();
+        drop(root);
+    }
 }
 
 #[test]

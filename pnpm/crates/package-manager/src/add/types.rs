@@ -4,6 +4,7 @@ use super::{
     specifier::declared_specifier,
 };
 use crate::resolution_policy::{PickPolicy, pick_package_context};
+use pnpm_lockfile_preferred_versions::get_preferred_versions_from_lockfile_and_manifests;
 use pnpm_package_manifest::PackageManifest;
 use pnpm_registry::PackageVersion;
 use pnpm_resolving_npm_resolver::{
@@ -27,7 +28,13 @@ pub(super) async fn resolve_types_selector(
     let Some(specifier) = catalog_specifier(package_name, specifier, inputs) else {
         return Ok(None);
     };
-    let Some(package) = pick_types_metadata(package_name, specifier, inputs).await? else {
+    let preferred_versions = get_preferred_versions_from_lockfile_and_manifests(
+        inputs.add.lockfile.document.and_then(|lockfile| lockfile.snapshots.as_ref()),
+        &[manifest],
+    );
+    let Some(package) =
+        pick_types_metadata(package_name, specifier, inputs, Some(&preferred_versions)).await?
+    else {
         return Ok(None);
     };
     if package.name.starts_with("@types/") || has_bundled_types(&package) {
@@ -46,7 +53,7 @@ async fn resolve_companion_selector(
         .get(catalog_name)
         .and_then(|entries| entries.get(types_alias));
     let specifier = catalog_entry.map_or("latest", String::as_str);
-    let types_package = match pick_types_metadata(types_name, specifier, inputs).await {
+    let types_package = match pick_types_metadata(types_name, specifier, inputs, None).await {
         Ok(package) => package,
         Err(AddError::ResolveSpec(error)) if is_not_found(&error) => return Ok(None),
         Err(error) => return Err(error),
@@ -100,6 +107,7 @@ async fn pick_types_metadata(
     name: &str,
     specifier: &str,
     inputs: &AddResolveInputs<'_, '_>,
+    preferred_versions: Option<&pnpm_resolving_resolver_base::PreferredVersions>,
 ) -> Result<Option<Arc<PackageVersion>>, AddError> {
     let registry = package_registry(inputs.add.config, name);
     let Some(spec) = parse_bare_specifier(specifier, Some(name), "latest", &registry)
@@ -118,7 +126,12 @@ async fn pick_types_metadata(
         &inputs.resolution.meta_cache,
         &inputs.resolution.fetch_locker,
     );
-    let options = explicit_registry_pick_options(inputs.add.config, &registry, &policy, None);
+    let options = explicit_registry_pick_options(
+        inputs.add.config,
+        &registry,
+        &policy,
+        preferred_versions.and_then(|preferred| preferred.get(&spec.name)),
+    );
     pick_package(&context, &spec, &options).await
         .map(|result| result.picked_package)
         .map_err(|error| AddError::ResolveSpec(Box::new(error)))
