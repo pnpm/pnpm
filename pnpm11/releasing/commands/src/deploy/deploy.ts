@@ -416,7 +416,6 @@ async function deployFromSharedLockfile (
       rootProjectManifestDir: deployDir,
       dir: deployDir,
       lockfileDir: deployDir,
-      // Install the generated one-project workspace the same way later commands discover it.
       workspaceDir: deployDir,
       virtualStoreDir: undefined,
       modulesDir: undefined,
