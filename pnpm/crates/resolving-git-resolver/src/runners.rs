@@ -167,7 +167,7 @@ fn ls_remote_command(bin: Option<&PathBuf>, repo: &str, ref_: Option<&str>) -> C
         Some(bin) => Command::new(bin),
         None => Command::new("git"),
     };
-    pnpm_git_utils::disable_git_prompts::<pnpm_git_utils::Host>(&mut cmd);
+    pnpm_git_utils::disable_git_prompts::<pnpm_git_utils::Host>(&mut cmd, None);
     cmd.arg("ls-remote").arg("--").arg(repo);
     if let Some(ref_) = ref_ {
         cmd.arg(ref_)

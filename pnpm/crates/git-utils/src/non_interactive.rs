@@ -7,19 +7,19 @@
 //! `GIT_TERMINAL_PROMPT=0` covers git's own prompts. ssh prompts on the
 //! terminal directly, so it is run with `BatchMode=yes`, unless the user
 //! selected the ssh command themselves through `GIT_SSH_COMMAND`,
-//! `GIT_SSH`, or the `core.sshCommand` git setting in effect in the current
-//! directory.
+//! `GIT_SSH`, or the `core.sshCommand` git setting in effect in the
+//! directory the invocation runs in.
 
-use std::{env, process::Command};
+use std::{env, path::Path, process::Command};
 
 use crate::RunCommand;
 
 /// Disable the terminal prompts of `cmd`, a git invocation that may reach a
-/// remote, and of the ssh it spawns.
-pub fn disable_git_prompts<Sys: RunCommand>(cmd: &mut Command) {
+/// remote and runs in `cwd`, and of the ssh it spawns.
+pub fn disable_git_prompts<Sys: RunCommand>(cmd: &mut Command, cwd: Option<&Path>) {
     let vars = non_interactive_git_env(
         |name| env::var_os(name).is_some(),
-        has_configured_ssh_command::<Sys>,
+        || has_configured_ssh_command::<Sys>(cwd),
     );
     for (name, value) in vars {
         cmd.env(name, value);
@@ -41,13 +41,13 @@ pub fn non_interactive_git_env(
     vars
 }
 
-/// Whether git configuration selects the ssh command through
-/// `core.sshCommand`. A missing git reads as not configured; the invocation
-/// that follows fails on the missing executable with its own error.
+/// Whether the git configuration in effect in `cwd` selects the ssh command
+/// through `core.sshCommand`. A missing git reads as not configured; the
+/// invocation that follows fails on the missing executable with its own
+/// error.
 #[must_use]
-pub fn has_configured_ssh_command<Sys: RunCommand>() -> bool {
-    Sys::run("git", &["config", "--get", "core.sshCommand"], None)
-        .is_ok_and(|output| output.success)
+pub fn has_configured_ssh_command<Sys: RunCommand>(cwd: Option<&Path>) -> bool {
+    Sys::run("git", &["config", "--get", "core.sshCommand"], cwd).is_ok_and(|output| output.success)
 }
 
 #[cfg(test)]

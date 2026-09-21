@@ -117,7 +117,7 @@ fn ls_remote_never_waits_on_a_terminal_or_ssh_prompt() {
         .collect();
     let expected: BTreeMap<String, String> = pnpm_git_utils::non_interactive_git_env(
         |name| std::env::var_os(name).is_some(),
-        pnpm_git_utils::has_configured_ssh_command::<pnpm_git_utils::Host>,
+        || pnpm_git_utils::has_configured_ssh_command::<pnpm_git_utils::Host>(None),
     )
     .into_iter()
     .map(|(name, value)| (name.to_owned(), value.to_owned()))

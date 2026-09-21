@@ -487,7 +487,7 @@ pub(crate) fn exec_git_with(
     }
     cmd.args(args);
     if reaches_remote(args) {
-        pnpm_git_utils::disable_git_prompts::<pnpm_git_utils::Host>(&mut cmd);
+        pnpm_git_utils::disable_git_prompts::<pnpm_git_utils::Host>(&mut cmd, cwd);
     }
     if args.first() == Some(&"clone") {
         let protocols = crate::protocols::read_allowed_git_protocols_with(

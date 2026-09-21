@@ -28,14 +28,15 @@ fn keeps_an_ssh_command_selected_through_git_configuration() {
     assert_eq!(non_interactive_git_env(|_| false, || true), [("GIT_TERMINAL_PROMPT", "0")]);
 }
 
-/// A provider whose `git config --get core.sshCommand` reports the setting.
+/// A provider whose `git config --get core.sshCommand` reports the setting
+/// for the repository at `/repo`.
 struct SshCommandConfigured;
 
 impl RunCommand for SshCommandConfigured {
     fn run(program: &str, args: &[&str], cwd: Option<&Path>) -> io::Result<CommandOutput> {
         assert_eq!(
             (program, args, cwd),
-            ("git", &["config", "--get", "core.sshCommand"][..], None),
+            ("git", &["config", "--get", "core.sshCommand"][..], Some(Path::new("/repo"))),
         );
         Ok(CommandOutput {
             success: true,
@@ -55,7 +56,6 @@ impl RunCommand for SshCommandUnset {
     }
 }
 
-/// A provider without a git executable.
 struct NoGit;
 
 impl RunCommand for NoGit {
@@ -66,7 +66,7 @@ impl RunCommand for NoGit {
 
 #[test]
 fn reads_the_ssh_command_setting_from_git_configuration() {
-    assert!(has_configured_ssh_command::<SshCommandConfigured>());
-    assert!(!has_configured_ssh_command::<SshCommandUnset>());
-    assert!(!has_configured_ssh_command::<NoGit>());
+    assert!(has_configured_ssh_command::<SshCommandConfigured>(Some(Path::new("/repo"))));
+    assert!(!has_configured_ssh_command::<SshCommandUnset>(None));
+    assert!(!has_configured_ssh_command::<NoGit>(None));
 }

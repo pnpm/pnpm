@@ -112,6 +112,17 @@ test('nonInteractiveGitEnv keeps an ssh command selected through git configurati
   })
 })
 
+test('nonInteractiveGitEnv reads the git configuration in effect in the given directory', async () => {
+  await withIsolatedGitConfig(async () => {
+    const repoWithSshCommand = temporaryDirectory()
+    await execa('git', ['init'], { cwd: repoWithSshCommand })
+    await execa('git', ['config', 'core.sshCommand', 'ssh -i ~/.ssh/deploy_key'], { cwd: repoWithSshCommand })
+
+    await expect(nonInteractiveGitEnv()).resolves.toMatchObject({ GIT_SSH_COMMAND: 'ssh -o BatchMode=yes' })
+    await expect(nonInteractiveGitEnv({ cwd: repoWithSshCommand })).resolves.not.toHaveProperty('GIT_SSH_COMMAND')
+  })
+})
+
 /**
  * Runs `fn` in a fresh directory where only the git configuration written by
  * the test is in effect, with the ssh selection variables unset.

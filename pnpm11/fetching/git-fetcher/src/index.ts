@@ -31,21 +31,23 @@ export function createGitFetcher (createOpts: CreateGitFetcherOptions): { git: G
       throw new PnpmError('INVALID_GIT_COMMIT', `Invalid git commit hash "${resolution.commit}" for repository "${resolution.repo}". Expected a 40-character hexadecimal SHA.`)
     }
     const tempLocation = await cafs.tempDir()
-    const env = await nonInteractiveGitEnv()
     try {
+      // Only the invocations that reach the remote get the prompt-free
+      // environment, read for the directory each of them runs in.
       if (allowedHosts.size > 0 && shouldUseShallow(resolution.repo, allowedHosts)) {
-        await execGit(['init'], { cwd: tempLocation, env })
-        await execGit(['remote', 'add', 'origin', resolution.repo], { cwd: tempLocation, env })
+        await execGit(['init'], { cwd: tempLocation })
+        await execGit(['remote', 'add', 'origin', resolution.repo], { cwd: tempLocation })
+        const env = await nonInteractiveGitEnv({ cwd: tempLocation })
         await execGit(['fetch', '--depth', '1', 'origin', resolution.commit], { cwd: tempLocation, env })
       } else {
-        await execGit(['clone', resolution.repo, tempLocation], { env })
+        await execGit(['clone', resolution.repo, tempLocation], { env: await nonInteractiveGitEnv() })
       }
     } catch (err: unknown) {
       assert(util.types.isNativeError(err))
       throw gitFetchError(err, resolution.repo, opts.pkg?.name)
     }
-    await execGit(['checkout', resolution.commit], { cwd: tempLocation, env })
-    const receivedCommit = await execGit(['rev-parse', 'HEAD'], { cwd: tempLocation, env })
+    await execGit(['checkout', resolution.commit], { cwd: tempLocation })
+    const receivedCommit = await execGit(['rev-parse', 'HEAD'], { cwd: tempLocation })
     if (receivedCommit.trim() !== resolution.commit) {
       throw new PnpmError('GIT_CHECKOUT_FAILED', `received commit ${receivedCommit.trim()} does not match expected value ${resolution.commit}`)
     }
@@ -196,7 +198,7 @@ function prefixGitArgs (): string[] {
   return process.platform === 'win32' ? ['-c', 'core.longpaths=true'] : []
 }
 
-async function execGit (args: string[], opts: { cwd?: string, env: NodeJS.ProcessEnv }): Promise<string> {
+async function execGit (args: string[], opts?: { cwd?: string, env?: NodeJS.ProcessEnv }): Promise<string> {
   const fullArgs = prefixGitArgs().concat(args || [])
   const { stdout } = await execa('git', fullArgs, opts)
   return stdout as string
