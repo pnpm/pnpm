@@ -26,8 +26,8 @@ fn specifier_of(group: Option<&ResolvedDependencyMap>, alias: &str) -> String {
 fn bumps(targets: &[(&str, DependencyGroup, &str)]) -> ManifestSpecBumps {
     let targets = targets
         .iter()
-        .map(|(alias, group, declared)| ((*alias).to_string(), (*group, (*declared).to_string())))
-        .collect::<HashMap<_, _>>();
+        .map(|(alias, group, declared)| ((*alias).to_string(), *group, (*declared).to_string()))
+        .collect();
     ManifestSpecBumps {
         targets: BTreeMap::from([(".".to_string(), targets)]),
         range_spec_style: RangeSpecStyle::Major,
@@ -237,7 +237,7 @@ importers:
     assert_eq!(specifier_of(importer.dev_dependencies.as_ref(), "node"), "runtime:^26.9.0");
     let applied = bumps.applied.into_inner().expect("never poisoned");
     let expected = (DependencyGroup::Dev, "runtime:^26.9.0".to_string());
-    assert_eq!(applied.manifests["."]["node"], expected);
+    assert!(applied.manifests["."].contains(&("node".to_string(), expected.0, expected.1)));
 }
 
 /// A package declared in more than one direct group has one entry per group,
@@ -269,7 +269,7 @@ importers:
     assert_eq!(specifier_of(importer.dependencies.as_ref(), "foo"), "^1.0.0");
     let applied = bumps.applied.into_inner().expect("never poisoned");
     let expected = (DependencyGroup::Dev, "^2.1.0".to_string());
-    assert_eq!(applied.manifests["."]["foo"], expected);
+    assert!(applied.manifests["."].contains(&("foo".to_string(), expected.0, expected.1)));
 }
 
 #[test]
@@ -293,7 +293,41 @@ importers:
     assert_eq!(specifier_of(importer.dependencies.as_ref(), "foo"), "^1.2.0");
     let applied = bumps.applied.into_inner().expect("never poisoned");
     let expected = (DependencyGroup::Peer, "^1.2.0".to_string());
-    assert_eq!(applied.manifests["."]["foo"], expected);
+    assert!(applied.manifests["."].contains(&("foo".to_string(), expected.0, expected.1)));
+}
+
+#[test]
+fn shared_alias_bumps_are_reported_for_both_manifest_groups() {
+    let mut lockfile = lockfile(
+        r"
+lockfileVersion: '9.0'
+importers:
+  .:
+    dependencies:
+      foo:
+        specifier: ^1.0.0
+        version: 1.2.0
+",
+    );
+
+    let bumps = bumps(&[
+        ("foo", DependencyGroup::Prod, "^1.0.0"),
+        ("foo", DependencyGroup::Peer, "~1.0.0"),
+    ]);
+    apply_manifest_spec_bumps(&mut lockfile, &bumps, None);
+
+    assert_eq!(specifier_of(lockfile.importers["."].dependencies.as_ref(), "foo"), "^1.2.0");
+    let applied = bumps.applied.into_inner().expect("never poisoned");
+    assert!(applied.manifests["."].contains(&(
+        "foo".to_string(),
+        DependencyGroup::Prod,
+        "^1.2.0".to_string(),
+    )));
+    assert!(applied.manifests["."].contains(&(
+        "foo".to_string(),
+        DependencyGroup::Peer,
+        "~1.2.0".to_string(),
+    )));
 }
 
 /// The declared text is what the resolver read. When the lockfile entry

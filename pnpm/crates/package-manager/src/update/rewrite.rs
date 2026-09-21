@@ -112,9 +112,7 @@ pub(super) fn requested_direct_rewrite(
 ) -> MatchedRewrite {
     let (name, group, previous) = declared;
     let Some(requested) = requested else {
-        plan.bump_targets
-            .entry(name.clone())
-            .or_insert_with(|| (group, previous.clone()));
+        plan.bump_targets.push((name.clone(), group, previous.clone()));
         return MatchedRewrite::Target(None);
     };
     MatchedRewrite::Target(Some(requested_version_rewrite(

@@ -14,7 +14,7 @@ use crate::{
 use pnpm_config::Config;
 use pnpm_package_manifest::{DependencyGroup, PackageManifest};
 use pnpm_reporter::{LogEvent, LogLevel, PackageManifestLog, PackageManifestMessage, Reporter};
-use std::{collections::BTreeMap, path::Path};
+use std::path::Path;
 
 pub(in super::super) fn finish_single_update<Reporter: self::Reporter>(
     update: UpdateOptions<'_>,
@@ -160,12 +160,12 @@ pub(in super::super) fn bumped_persist_indices<Reporter: self::Reporter>(
 /// only a manifest this is the first to touch needs it.
 pub(in super::super) fn apply_bumped_manifest_specs<Reporter: self::Reporter>(
     manifest: &mut PackageManifest,
-    bumped: &BTreeMap<String, (DependencyGroup, String)>,
+    bumped: &[(String, DependencyGroup, String)],
     announce_initial: bool,
 ) -> bool {
     let declared = bumped
         .iter()
-        .filter(|(alias, (group, _))| {
+        .filter(|(alias, group, _)| {
             manifest
                 .dependencies([*group])
                 .any(|(name, _)| name == alias.as_str())
@@ -177,7 +177,7 @@ pub(in super::super) fn apply_bumped_manifest_specs<Reporter: self::Reporter>(
     if announce_initial {
         emit_initial_package_manifest::<Reporter>(manifest);
     }
-    for (alias, (group, specifier)) in declared {
+    for (alias, group, specifier) in declared {
         // Written in place rather than through `add_dependency`, which
         // moves the alias into the target group by deleting it from the
         // others. An update moves a range, never a dependency.

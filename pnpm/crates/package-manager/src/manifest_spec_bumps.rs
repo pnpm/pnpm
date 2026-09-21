@@ -35,12 +35,13 @@ use std::{
 /// back here for the update to write into `package.json` — or into the
 /// catalog entry the dependency points at.
 pub struct ManifestSpecBumps {
-    /// Per importer id, the direct-dependency aliases whose range may move,
-    /// each mapped to the group its `package.json` declares it under and the
-    /// specifier declared there. The declaration is what tells a range the
-    /// update owns from one an override replaced before the resolver read it:
+    /// Per importer id, the direct-dependency declarations whose ranges may
+    /// move, each carrying its alias, manifest group, and declared specifier.
+    /// Keeping declarations rather than alias-keying this collection preserves
+    /// packages declared in more than one group. The declaration tells a range
+    /// the update owns from one an override replaced before the resolver read it:
     /// only a lockfile entry that still carries the declared text is bumped.
-    pub targets: BTreeMap<String, HashMap<String, (DependencyGroup, String)>>,
+    pub targets: BTreeMap<String, Vec<(String, DependencyGroup, String)>>,
     /// The range operator to write when the declaration pins none.
     pub range_spec_style: RangeSpecStyle,
     /// What the resolve settled on, for the declarations whose text changed.
@@ -50,11 +51,11 @@ pub struct ManifestSpecBumps {
 /// The ranges [`ManifestSpecBumps`] moved, split by where they are declared.
 #[derive(Debug, Default)]
 pub struct AppliedSpecBumps {
-    /// Importer id → alias → the group the range is declared under and the
-    /// new range. The group travels with the range so the manifest rewrites
+    /// Importer id → the alias, declaration group, and new range of every
+    /// changed declaration. The group travels with the range so the manifest rewrites
     /// the entry the lockfile rewrote, rather than re-deriving it from the
     /// alias and risking a different pick.
-    pub manifests: BTreeMap<String, BTreeMap<String, (DependencyGroup, String)>>,
+    pub manifests: BTreeMap<String, Vec<(String, DependencyGroup, String)>>,
     /// Catalog name → alias → new range, for a dependency declared through
     /// `catalog:`, where the entry owns the range.
     pub catalogs: BTreeMap<String, BTreeMap<String, String>>,
@@ -108,7 +109,16 @@ pub(crate) fn apply_manifest_spec_bumps(
     apply_catalog_bumps(lockfile, &catalogs);
 
     let mut applied = bumps.applied.lock().expect("the spec-bump sink is never poisoned");
-    applied.manifests = render_aliases(manifests, |(_, group, specifier)| (group, specifier));
+    applied.manifests = manifests
+        .into_iter()
+        .map(|(importer_id, bumps)| {
+            let bumps = bumps
+                .into_iter()
+                .map(|(alias, _, group, specifier)| (alias.to_string(), group, specifier))
+                .collect();
+            (importer_id, bumps)
+        })
+        .collect();
     applied.catalogs = render_aliases(catalogs, |specifier| specifier);
 }
 
@@ -125,7 +135,7 @@ fn collect_importer_bumps(
         let Some(importer) = lockfile.importers.get(importer_id) else { continue };
         let override_matcher =
             overridden.and_then(|overridden| overridden.matcher_for(importer_id));
-        for (alias, (manifest_group, manifest_specifier)) in targets {
+        for (alias, manifest_group, manifest_specifier) in targets {
             let target = SpecBumpTarget {
                 importer,
                 override_matcher: override_matcher.as_ref(),
@@ -160,7 +170,7 @@ fn record_spec_bump(
             manifests
                 .entry(importer_id.to_string())
                 .or_default()
-                .insert(alias, (lockfile_group, manifest_group, bumped));
+                .push((alias, lockfile_group, manifest_group, bumped));
         }
     }
 }
@@ -168,7 +178,7 @@ fn record_spec_bump(
 /// Per importer id, the bumped range of each declaration and the group it is
 /// declared under.
 type ImporterBumps =
-    BTreeMap<String, HashMap<PkgName, (DependencyGroupIndex, DependencyGroup, String)>>;
+    BTreeMap<String, Vec<(PkgName, DependencyGroupIndex, DependencyGroup, String)>>;
 
 /// One targeted declaration and what decides whether its range may move.
 struct SpecBumpTarget<'a> {
@@ -214,14 +224,21 @@ fn spec_bump(target: &SpecBumpTarget<'_>) -> SpecBump {
     else {
         return SpecBump::Skip;
     };
-    if declared.specifier != target.manifest_specifier {
+    if target.manifest_group != DependencyGroup::Peer
+        && declared.specifier != target.manifest_specifier
+    {
         return SpecBump::Skip;
     }
-    if let Some(catalog_name) = parse_catalog_protocol(&declared.specifier) {
+    let declared_specifier = if target.manifest_group == DependencyGroup::Peer {
+        target.manifest_specifier
+    } else {
+        &declared.specifier
+    };
+    if let Some(catalog_name) = parse_catalog_protocol(declared_specifier) {
         return SpecBump::Cataloged { catalog_name: catalog_name.to_string(), alias };
     }
     let Some(bumped) =
-        bumped_range(target.alias, &declared.specifier, &declared.version, target.range_spec_style)
+        bumped_range(target.alias, declared_specifier, &declared.version, target.range_spec_style)
     else {
         return SpecBump::Skip;
     };
@@ -265,7 +282,11 @@ fn apply_importer_bumps(lockfile: &mut Lockfile, manifests: &ImporterBumps) {
     for (importer_id, bumped) in manifests {
         let Some(importer) = lockfile.importers.get_mut(importer_id) else { continue };
         let mut groups = dependency_maps_mut(importer);
-        for (alias, (group, _, specifier)) in bumped {
+        let mut updated_aliases = HashSet::new();
+        for (alias, group, _, specifier) in bumped {
+            if !updated_aliases.insert(alias) {
+                continue;
+            }
             if let Some(declared) = groups[*group]
                 .as_mut()
                 .and_then(|map| map.get_mut(alias))
