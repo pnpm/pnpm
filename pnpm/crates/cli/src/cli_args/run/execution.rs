@@ -435,8 +435,16 @@ pub(in super::super) fn run_stage(
         return Ok(None);
     }
 
+    let project_name = ctx.manifest
+        .value()
+        .get("name")
+        .and_then(Value::as_str);
+    let modules_bin_dir = ctx.dir
+        .join(ctx.config.modules_dir_name_for(ctx.dir, project_name))
+        .join(".bin");
     let status = run_script(&RunScript {
         environment: super::script_environment(ctx.config, ctx.init_cwd, ctx.extra_env),
+        wd_bin_dir: Some(&modules_bin_dir),
         execution: pnpm_executor::ScriptExecutionOptions {
             extra_bin_paths: &pnpm_python_installer::execution_paths(ctx.config, ctx.dir),
             node_gyp_bin: None,

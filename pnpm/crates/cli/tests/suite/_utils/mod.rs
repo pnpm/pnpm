@@ -24,6 +24,17 @@ use std::{
 };
 use tempfile::TempDir;
 
+/// Write `body` to `path` and make it executable, for the `/bin/sh`
+/// shims that stand in for an installed package's `.bin` entry.
+#[cfg(unix)]
+pub fn write_executable(path: &Path, body: &str) {
+    use std::os::unix::fs::PermissionsExt;
+    fs::write(path, body).expect("write executable");
+    let mut perms = fs::metadata(path).expect("stat executable").permissions();
+    perms.set_mode(0o755);
+    fs::set_permissions(path, perms).expect("chmod executable");
+}
+
 /// Fresh `pnpm` invocation anchored in `workspace`, for tests that run
 /// the binary more than once (an `assert_cmd` command is consumed by
 /// its first `.assert()`).

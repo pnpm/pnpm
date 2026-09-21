@@ -25,6 +25,7 @@ import { omit } from 'ramda'
 import { realpathMissing } from 'realpath-missing'
 import semver from 'semver'
 
+import { binDirOf } from './binDir.js'
 import { checkGlobalBinDir } from './checkGlobalBinDir.js'
 import { getDefaultWorkspaceConcurrency, getWorkspaceConcurrency } from './concurrency.js'
 import type {
@@ -50,12 +51,14 @@ import {
   type CliOptions as SupportedArchitecturesCliOptions,
   overrideSupportedArchitecturesWithCLI,
 } from './overrideSupportedArchitecturesWithCLI.js'
+import { projectModulesDir } from './projectConfig.js'
 import { quoteAndJoin } from './quoteAndJoin.js'
 import { transformGlobalDirKeys, transformPathKeys } from './transformPath.js'
 import { types } from './types.js'
 import { isKnownSettingKey, quoteAndAnnotateUnknown } from './unknownSettings.js'
 export { types }
 
+export { binDirOf } from './binDir.js'
 export { getDefaultWorkspaceConcurrency, getWorkspaceConcurrency } from './concurrency.js'
 export { getGlobalConfigPath } from './dirs.js'
 export { getDefaultCreds, getNetworkConfigs, type NetworkConfigs } from './getNetworkConfigs.js'
@@ -67,6 +70,7 @@ export {
 } from './packageManagerRegistries.js'
 export { parseCAFileContents } from './parseCAFileContents.js'
 export type { Creds } from './parseCreds.js'
+export { projectModulesDir, type ProjectModulesDirOptions } from './projectConfig.js'
 export {
   createProjectConfigRecord,
   type CreateProjectConfigRecordOptions,
@@ -503,8 +507,6 @@ export async function getConfig (opts: {
     if (pnpmConfig.enableGlobalVirtualStore == null) {
       pnpmConfig.enableGlobalVirtualStore = true
     }
-  } else if (!pnpmConfig.bin) {
-    pnpmConfig.bin = path.join(pnpmConfig.dir, 'node_modules', '.bin')
   }
   pnpmConfig.packageManager = packageManager
 
@@ -827,8 +829,22 @@ export async function getConfig (opts: {
     pnpmConfig.lockfileDir = pnpmConfig.workspaceDir
   }
 
+  // Derived once `modulesDir` is known, which the workspace manifest supplies
+  // after the global branch above. Gated on the same `cliOptions['global']`
+  // that branch is, not on the merged `global` setting: only `--global` sets
+  // `bin` to the global directory, so a `global` that arrived from the
+  // environment still needs the local one.
+  if (!cliOptions['global'] && !pnpmConfig.bin) {
+    pnpmConfig.bin = binDirOf(pnpmConfig.dir, pnpmConfig.modulesDir)
+  }
   if (pnpmConfig.workspaceDir) {
-    pnpmConfig.extraBinPaths = [path.join(pnpmConfig.workspaceDir, 'node_modules', '.bin')]
+    // The workspace root is a project like any other, so its own
+    // `packageConfigs` entry moves the executables every member reaches
+    // through these paths. Its manifest was read above.
+    pnpmConfig.extraBinPaths = [binDirOf(
+      pnpmConfig.workspaceDir,
+      projectModulesDir(pnpmConfig, pnpmConfig.rootProjectManifest?.name)
+    )]
   } else {
     pnpmConfig.extraBinPaths = []
   }

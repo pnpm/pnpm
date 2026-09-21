@@ -35,3 +35,20 @@ testOnWindows('a drive-qualified path is split at its node_modules directories',
     'node_gyp',
   ])
 })
+
+test('wdBinDir replaces the working directory\'s own .bin, leaving the packages above it on node_modules', () => {
+  const root = path.resolve('project')
+  const wd = path.join(root, 'node_modules', 'dep')
+  const p = extendPath(wd, 'original', {
+    nodeGypBinDir: 'node_gyp',
+    wdBinDir: path.join(wd, 'vendor', '.bin'),
+    extraBinPaths: ['extra'],
+  })
+  expect(p.split(separator)).toStrictEqual([
+    path.join(wd, 'vendor', '.bin'),
+    path.join(root, 'node_modules', '.bin'),
+    'node_gyp',
+    'extra',
+    'original',
+  ])
+})

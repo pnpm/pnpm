@@ -6,6 +6,13 @@ import which from 'which'
 export interface ExtendPathOptions {
   /** The directory of the `node-gyp` wrappers, placed after every `node_modules/.bin`. */
   nodeGypBinDir: string
+  /**
+   * The `.bin` that holds `wd`'s own executables, used in place of
+   * `<wd>/node_modules/.bin` when `modulesDir` puts them elsewhere. Only the
+   * entry for `wd` itself changes; the packages above it keep their
+   * `node_modules/.bin`, which is where their own dependencies are installed.
+   */
+  wdBinDir?: string
   extraBinPaths?: string[]
   scriptsPrependNodePath?: boolean | 'warn-only'
   log?: {
@@ -14,9 +21,9 @@ export interface ExtendPathOptions {
 }
 
 /**
- * Builds the `PATH` of a script running in `wd`: the `node_modules/.bin` of
- * `wd` and of every package above it, the `node-gyp` wrappers, the extra bin
- * directories, and then `originalPath`.
+ * Builds the `PATH` of a script running in `wd`: the bin directory of `wd`
+ * and the `node_modules/.bin` of every package above it, the `node-gyp`
+ * wrappers, the extra bin directories, and then `originalPath`.
  */
 export function extendPath (wd: string, originalPath: string | undefined, opts: ExtendPathOptions): string {
   const pathArr = [...opts.extraBinPaths ?? []]
@@ -31,7 +38,7 @@ export function extendPath (wd: string, originalPath: string | undefined, opts: 
     pathArr.unshift(path.join(acc, 'node_modules', '.bin'))
     acc = path.join(acc, 'node_modules', pp)
   })
-  pathArr.unshift(path.join(acc, 'node_modules', '.bin'))
+  pathArr.unshift(opts.wdBinDir ?? path.join(acc, 'node_modules', '.bin'))
 
   if (shouldPrependCurrentNodeDirToPATH(opts)) {
     // prefer current node interpreter in child scripts

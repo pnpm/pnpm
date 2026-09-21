@@ -526,3 +526,26 @@ pub fn extra_bin_paths_lists_workspace_root_bin_only_inside_a_workspace() {
         ],
     );
 }
+
+/// A configured `modulesDir` moves the workspace root's executables, so the
+/// extra bin paths must follow it rather than stay on `node_modules/.bin`.
+#[test]
+pub fn extra_bin_paths_follow_a_configured_modules_dir() {
+    fake_env!(load_with_fake_env);
+    let project = tempdir().expect("project tempdir");
+    set_fake_env(&[]);
+
+    fs::write(project.path().join("pnpm-workspace.yaml"), "packages:\n  - .\nmodulesDir: vendor\n")
+        .expect("write pnpm-workspace.yaml");
+    let config = load_with_fake_env(project.path());
+    assert_eq!(config.modules_dir_name(), std::ffi::OsStr::new("vendor"));
+    assert_eq!(
+        config.extra_bin_paths,
+        vec![
+            project
+                .path()
+                .join("vendor")
+                .join(".bin")
+        ]
+    );
+}

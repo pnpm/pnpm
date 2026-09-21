@@ -1,17 +1,10 @@
+#[cfg(unix)]
+use crate::_utils::write_executable;
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
 use pnpm_testing_utils::bin::CommandTempCwd;
 use serde_json::json;
 use std::{fs, time::Duration};
-
-#[cfg(unix)]
-fn write_executable(path: &std::path::Path, body: &str) {
-    use std::os::unix::fs::PermissionsExt;
-    fs::write(path, body).expect("write executable");
-    let mut perms = fs::metadata(path).expect("stat executable").permissions();
-    perms.set_mode(0o755);
-    fs::set_permissions(path, perms).expect("chmod executable");
-}
 
 /// `pacquet run <script>` looks up the named entry under
 /// `scripts` in the workspace's `package.json` and spawns it via
@@ -835,3 +828,41 @@ mod shell_emulator {
 mod selection;
 
 mod environment;
+
+/// Regression test for
+/// [pnpm/pnpm#3604](https://github.com/pnpm/pnpm/issues/3604): an install
+/// links executables into the configured modules directory, so a script has
+/// to resolve them from there. A leftover `node_modules/.bin` from before the
+/// setting changed must not win.
+#[cfg(unix)]
+#[test]
+fn run_resolves_commands_from_the_configured_modules_dir() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    fs::write(workspace.join("pnpm-workspace.yaml"), "modulesDir: vendor\n")
+        .expect("write pnpm-workspace.yaml");
+    let manifest = json!({
+        "name": "test",
+        "version": "0.0.0",
+        "scripts": { "greet": "greet" },
+    })
+    .to_string();
+    fs::write(workspace.join("package.json"), manifest).expect("write package.json");
+
+    for (modules_dir, marker) in [("vendor", "configured"), ("node_modules", "stale")] {
+        let bin_dir = workspace.join(modules_dir).join(".bin");
+        fs::create_dir_all(&bin_dir).expect("create the bin dir");
+        write_executable(&bin_dir.join("greet"), &format!("#!/bin/sh\necho {marker}\n"));
+    }
+
+    let output = pacquet
+        .with_args(["run", "greet"])
+        .output()
+        .expect("run pacquet run greet");
+    dbg!(&output);
+    assert!(output.status.success(), "pacquet run greet should succeed");
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(stdout.contains("configured"), "the configured modules dir must win: {stdout}");
+    assert!(!stdout.contains("stale"), "node_modules/.bin must not win: {stdout}");
+
+    drop(root);
+}

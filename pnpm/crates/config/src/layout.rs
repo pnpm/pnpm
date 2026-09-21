@@ -187,6 +187,55 @@ impl Config {
         project_config.apply_to(self, project_dir);
     }
 
+    /// The basename of [`Config::modules_dir`], which is the directory name
+    /// an install gives every project's modules directory. It is
+    /// `node_modules` unless `modulesDir` is configured, and the joins that
+    /// build a project's modules or `.bin` path must use it rather than the
+    /// literal `node_modules`.
+    ///
+    /// Only the name carries over to a project other than the one the config
+    /// was loaded in, so a `modulesDir` holding a path separator resolves
+    /// correctly for the install but not for these joins. The same basename
+    /// assumption is already made by the install's own per-project joins.
+    pub fn modules_dir_name(&self) -> &std::ffi::OsStr {
+        self.modules_dir.file_name().unwrap_or_else(|| std::ffi::OsStr::new("node_modules"))
+    }
+
+    /// Whether a `packageConfigs` entry can still change a project's
+    /// layout. An entry reaches its project through the install that
+    /// project owns, so a workspace sharing one lockfile applies none of
+    /// them, and a command reading a project's directories back has to
+    /// draw the line in the same place.
+    #[must_use]
+    pub fn applies_package_configs(&self) -> bool {
+        self.package_configs.is_some() && !self.shares_one_lockfile()
+    }
+
+    /// [`Self::modules_dir_name`] for one project, which the
+    /// `packageConfigs` entry naming it may point elsewhere. The name
+    /// the install gave that project.
+    ///
+    /// `project_name` is what [`Self::anchor_dedicated_project`] takes,
+    /// and for the same reason: callers hold a manifest they already
+    /// read rather than reading one here.
+    #[must_use]
+    pub fn modules_dir_name_for(
+        &self,
+        project_dir: &Path,
+        project_name: Option<&str>,
+    ) -> std::borrow::Cow<'_, std::ffi::OsStr> {
+        self.applies_package_configs()
+            .then(|| {
+                self.package_configs
+                    .as_ref()?
+                    .get(project_name?)?
+                    .modules_dir_for(project_dir)
+            })
+            .flatten()
+            .and_then(|dir| Some(std::borrow::Cow::Owned(dir.file_name()?.to_os_string())))
+            .unwrap_or_else(|| std::borrow::Cow::Borrowed(self.modules_dir_name()))
+    }
+
     /// [`Config::extra_env`] with the `nodeOptions` setting applied as
     /// `NODE_OPTIONS`, preserving the ESM `NODE_PATH` loader flag the
     /// `extra_env` carries under a global virtual store.

@@ -40,9 +40,12 @@ fn bin_prints_the_local_node_modules_bin_dir() {
     drop(root);
 }
 
+/// Regression test for
+/// [pnpm/pnpm#3604](https://github.com/pnpm/pnpm/issues/3604): an install
+/// links the executables into the configured modules directory, so `bin` has
+/// to print that directory.
 #[test]
-fn bin_ignores_a_custom_modules_dir() {
-    // pnpm hardcodes the `.bin` leaf, so a custom modules-dir is ignored.
+fn bin_prints_a_custom_modules_dir() {
     let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
     fs::write(workspace.join("pnpm-workspace.yaml"), "modulesDir: custom_nm\n")
         .expect("write pnpm-workspace.yaml");
@@ -57,7 +60,7 @@ fn bin_ignores_a_custom_modules_dir() {
     let expected = format!(
         "{}\n",
         canonicalize(&workspace)
-            .join("node_modules")
+            .join("custom_nm")
             .join(".bin")
             .display(),
     );

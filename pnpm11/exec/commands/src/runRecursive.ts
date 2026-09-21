@@ -3,7 +3,7 @@ import path from 'node:path'
 import util from 'node:util'
 
 import { type RecursiveSummary, throwOnCommandFail } from '@pnpm/cli.utils'
-import { type Config, type ConfigContext, getWorkspaceConcurrency } from '@pnpm/config.reader'
+import { binDirOf, type Config, type ConfigContext, getWorkspaceConcurrency, projectModulesDir } from '@pnpm/config.reader'
 import { PnpmError } from '@pnpm/error'
 import {
   makeNodePackageMapOption,
@@ -226,6 +226,7 @@ export async function runRecursive (
         try {
           const lifecycleOpts: RunLifecycleHookOptions = {
             depPath: node.project,
+            wdBinDir: binDirOf(node.project, projectModulesDir(opts, pkg.package.manifest.name)),
             extraBinPaths: opts.extraBinPaths,
             extraEnv: opts.extraEnv,
             pkgRoot: node.project,

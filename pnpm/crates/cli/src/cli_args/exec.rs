@@ -190,11 +190,8 @@ fn command_in_dir(
     shell_mode: bool,
 ) -> Result<Command, ExecError> {
     let ExecDirs { run: dir, project } = dirs;
-    // Prepend `./node_modules/.bin` (resolved against the project
-    // directory) and then the `extraBinPaths`. pnpm prepends the whole
-    // ancestor chain of `node_modules/.bin` directories, of which the
-    // project's is the one that holds the installed executables.
-    let path = command_search_path(dirs, config)?;
+    let project_name = read_project_name(project);
+    let path = command_search_path(dirs, config, project_name.as_deref())?;
 
     let mut cmd = if shell_mode {
         // execa's `shell: true` joins the command and its arguments
@@ -231,7 +228,7 @@ fn command_in_dir(
     cmd.env("npm_config_user_agent", &config.user_agent);
     // Same recursion-guard stamp as the lifecycle env builder.
     cmd.env(pnpm_executor::VERIFY_DEPS_BEFORE_RUN_ENV, "false");
-    if let Some(name) = read_project_name(project) {
+    if let Some(name) = &project_name {
         cmd.env("PNPM_PACKAGE_NAME", name);
     }
     let mut node_options = configured_node_options(config);
@@ -269,15 +266,22 @@ fn configured_node_options(config: &Config) -> Option<String> {
 #[cfg(test)]
 mod tests;
 
+/// The `PATH` a command spawned by `pnpm exec` searches: the modules `.bin` of
+/// the run directory, then of the project when they differ, then the
+/// `extraBinPaths`. pnpm prepends the whole ancestor chain of
+/// `node_modules/.bin` directories, of which the project's is the one that
+/// holds the installed executables.
 fn command_search_path(
     dirs: ExecDirs<'_>,
     config: &Config,
+    project_name: Option<&str>,
 ) -> Result<std::ffi::OsString, ExecError> {
     let ExecDirs { run: dir, project } = dirs;
+    let modules_dir_name = config.modules_dir_name_for(project, project_name);
     let mut prepend = Vec::with_capacity(2 + config.extra_bin_paths.len());
-    prepend.push(dir.join("node_modules").join(".bin"));
+    prepend.push(dir.join(&modules_dir_name).join(".bin"));
     if project != dir {
-        prepend.push(project.join("node_modules").join(".bin"));
+        prepend.push(project.join(&modules_dir_name).join(".bin"));
     }
     prepend.extend(pnpm_python_installer::execution_paths(config, project).iter().cloned());
     prepend_dirs_to_path(&prepend).map_err(ExecError::from)

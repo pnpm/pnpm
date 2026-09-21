@@ -7,7 +7,7 @@ import { killProcessGroup, prepare, preparePackages } from '@pnpm/prepare'
 import isWindows from 'is-windows'
 import { writeYamlFileSync } from 'write-yaml-file'
 
-import { execPnpm, execPnpmSync, pnpmBinLocation, spawnPnpm } from './utils/index.js'
+import { execPnpm, execPnpmSync, pnpmBinLocation, spawnPnpm, writeFakeBin } from './utils/index.js'
 
 const RECORD_ARGS_FILE = 'require(\'fs\').writeFileSync(\'args.json\', JSON.stringify(require(\'./args.json\').concat([process.argv.slice(2)])), \'utf8\')'
 const testOnPosix = isWindows() ? test.skip : test
@@ -533,3 +533,54 @@ async function waitForFile (file: string, timeout: number): Promise<void> {
     await new Promise<void>((resolve) => setTimeout(resolve, 50)) // eslint-disable-line no-await-in-loop
   }
 }
+
+test('run resolves commands from the configured modules directory, not a stale node_modules/.bin', async () => {
+  prepare({
+    name: 'root',
+    version: '1.0.0',
+    scripts: { greet: 'greet' },
+  })
+  writeYamlFileSync('pnpm-workspace.yaml', { modulesDir: 'vendor' })
+  writeFakeBin(path.resolve('vendor/.bin'), 'greet', 'configured')
+  writeFakeBin(path.resolve('node_modules/.bin'), 'greet', 'stale')
+
+  const result = execPnpmSync(['run', '--config.verify-deps-before-run=false', 'greet'])
+
+  expect(result.status).toBe(0)
+  const stdout = result.stdout.toString()
+  expect(stdout).toContain('configured')
+  expect(stdout).not.toContain('stale')
+})
+
+test('run resolves a command from the modules directory a packageConfigs entry gives the project', async () => {
+  preparePackages([
+    { location: '.', package: { name: 'root', version: '1.0.0' } },
+    { name: 'moved', version: '1.0.0', scripts: { greet: 'greet' } },
+  ])
+  writeYamlFileSync('pnpm-workspace.yaml', {
+    packages: ['**', '!store/**'],
+    modulesDir: 'vendor',
+    sharedWorkspaceLockfile: false,
+    packageConfigs: { moved: { modulesDir: 'node_modules' } },
+  })
+  writeFakeBin(path.resolve('moved/node_modules/.bin'), 'greet', 'configured')
+  writeFakeBin(path.resolve('moved/vendor/.bin'), 'greet', 'stale')
+
+  const result = execPnpmSync(['run', '--config.verify-deps-before-run=false', 'greet'], {
+    cwd: path.resolve('moved'),
+  })
+
+  expect(result.status).toBe(0)
+  const stdout = result.stdout.toString()
+  expect(stdout).toContain('configured')
+  expect(stdout).not.toContain('stale')
+
+  // `pnpm -r run` reaches the script through runRecursive, which resolves the
+  // entry of every project it visits rather than of the one it started in.
+  const recursive = execPnpmSync(['-r', 'run', '--config.verify-deps-before-run=false', 'greet'])
+
+  expect(recursive.status).toBe(0)
+  const recursiveStdout = recursive.stdout.toString()
+  expect(recursiveStdout).toContain('configured')
+  expect(recursiveStdout).not.toContain('stale')
+})

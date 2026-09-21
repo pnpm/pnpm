@@ -32,12 +32,22 @@ impl Config {
             });
 
         // Inside a workspace, scripts and `pnpm exec` also get the
-        // workspace root's `node_modules/.bin` on PATH — pnpm's
-        // `extraBinPaths = [join(workspaceDir, 'node_modules', '.bin')]`.
+        // workspace root's modules `.bin` on PATH, pnpm's
+        // `extraBinPaths = [join(workspaceDir, modulesDir, '.bin')]`.
+        // The root is a project like any other, so a `packageConfigs`
+        // entry naming it moves those executables too.
         self.extra_bin_paths = self.workspace_dir
             .as_deref()
-            .map(|dir| vec![dir.join("node_modules").join(".bin")])
-            .unwrap_or_default();
+            .map_or_else(Vec::new, |dir| {
+                let root_name = self
+                    .applies_package_configs()
+                    .then(|| pnpm_workspace::read_project_name(dir))
+                    .flatten();
+                vec![
+                    dir.join(self.modules_dir_name_for(dir, root_name.as_deref()))
+                        .join(".bin"),
+                ]
+            });
 
         // With `preferSymlinkedExecutables`, `.bin` entries are plain
         // symlinks with no shim to carry a `NODE_PATH` block, so the

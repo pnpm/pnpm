@@ -73,6 +73,9 @@ pub struct RunScript<'a> {
     pub manifest: &'a Value,
     /// The project directory the script runs in.
     pub pkg_root: &'a Path,
+    /// The `.bin` holding `pkg_root`'s own executables, when `modulesDir`
+    /// puts them somewhere other than `<pkg_root>/node_modules/.bin`.
+    pub wd_bin_dir: Option<&'a Path>,
     /// When `true`, suppress the `$ <script>` echo to stderr.
     pub silent: bool,
     /// Where the script's output goes.
@@ -157,6 +160,7 @@ fn child_env(opts: &RunScript<'_>, command: &str) -> HashMap<String, String> {
     let original_path = path_value(&built.env).map(OsString::from);
     let path_env = extend_path(
         opts.pkg_root,
+        opts.wd_bin_dir,
         original_path.as_ref(),
         crate::bundled_node_gyp_bin(),
         opts.execution.extra_bin_paths,

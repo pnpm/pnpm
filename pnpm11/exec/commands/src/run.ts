@@ -7,7 +7,7 @@ import {
   readProjectManifestOnly,
   tryReadProjectManifest,
 } from '@pnpm/cli.utils'
-import { type Config, type ConfigContext, getWorkspaceConcurrency, types as allTypes } from '@pnpm/config.reader'
+import { binDirOf, type Config, type ConfigContext, getWorkspaceConcurrency, projectModulesDir, types as allTypes } from '@pnpm/config.reader'
 import type { CheckDepsStatusOptions } from '@pnpm/deps.status'
 import { PnpmError } from '@pnpm/error'
 import { keepEsmNodePathLoaderOption } from '@pnpm/exec.esm-node-path-loader'
@@ -305,6 +305,7 @@ so you may run "pnpm -w run ${scriptName}"`,
 
   const lifecycleOpts: RunLifecycleHookOptions = {
     depPath: dir,
+    wdBinDir: binDirOf(dir, projectModulesDir(opts, manifest.name)),
     extraBinPaths: opts.extraBinPaths,
     extraEnv: opts.extraEnv,
     pkgRoot: dir,

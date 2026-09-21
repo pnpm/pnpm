@@ -197,10 +197,6 @@ fn retain_known_projects(
         .collect()
 }
 
-pub(super) fn modules_dir_basename(config: &Config) -> &std::ffi::OsStr {
-    config.modules_dir.file_name().unwrap_or_else(|| std::ffi::OsStr::new("node_modules"))
-}
-
 /// [`Config::extra_env_with_node_options`] plus the `NODE_OPTIONS` entry for
 /// the selected project-level dependency loader. pnpm adds it only once it
 /// links and builds, which is why `pnpm:devPreinstall` — running before the
@@ -257,7 +253,7 @@ pub(super) fn run_dev_preinstall<Reporter: self::Reporter>(
     config: &Config,
     workspace_root: &Path,
 ) -> Result<(), InstallError> {
-    let root_modules_dir = workspace_root.join(modules_dir_basename(config));
+    let root_modules_dir = workspace_root.join(config.modules_dir_name());
     let extra_env = config.extra_env_with_node_options();
     let dep_path = workspace_root.to_string_lossy();
     run_dev_preinstall_hook::<Reporter>(&RunPostinstallHooks {
@@ -360,7 +356,7 @@ impl<'a> ProjectScriptRunner<'a> {
         ProjectScriptRunner {
             config,
             workspace_root,
-            modules_dir_basename: modules_dir_basename(config),
+            modules_dir_basename: config.modules_dir_name(),
             scripts_prepend_node_path: exec_scripts_prepend_node_path(config),
             extra_env: project_lifecycle_extra_env(config, node_linker, workspace_root),
             link_options: crate::shim_link_options(config, node_linker),

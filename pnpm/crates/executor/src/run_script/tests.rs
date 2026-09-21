@@ -59,6 +59,7 @@ fn manifest() -> serde_json::Value {
 fn run(pkg_root: &Path, stage: &str, script: &str, args: &[String]) -> ScriptExit {
     let extra_env = HashMap::new();
     run_script(&RunScript {
+        wd_bin_dir: None,
         environment: crate::ScriptEnvironment {
             init_cwd: pkg_root,
             node_execpath: None,
