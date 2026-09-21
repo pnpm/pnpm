@@ -3650,7 +3650,9 @@ function getUntrackedPnpmfileReadPackageHook (
   if (hooks.untrackedPnpmfileReadPackageHook != null) {
     return hooks.untrackedPnpmfileReadPackageHook
   }
-  return hooks.calculatePnpmfileChecksum == null && hooks.readPackage?.length ? true : undefined
+  const readPackage = hooks.readPackage as ReadPackageHook[] | ReadPackageHook | undefined
+  const hasReadPackage = Array.isArray(readPackage) ? readPackage.length > 0 : readPackage != null
+  return hooks.calculatePnpmfileChecksum == null && hasReadPackage ? true : undefined
 }
 
 function setUntrackedPnpmfileReadPackageHook (

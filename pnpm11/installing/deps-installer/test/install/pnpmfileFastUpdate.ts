@@ -89,7 +89,7 @@ test('a remove keeps the specifiers a project-rewriting pnpmfile recorded', asyn
   expect(Object.keys(lockfile.packages).some((depPath) => depPath.startsWith('@pnpm.e2e/pkg-with-1-dep@'))).toBe(false)
 })
 
-test('a programmatic hook without a pnpmfile checksum still resolves', async () => {
+test('a zero-argument programmatic hook without a pnpmfile checksum still resolves', async () => {
   prepareEmpty()
   const manifest: ProjectManifest = {
     dependencies: {
@@ -97,14 +97,14 @@ test('a programmatic hook without a pnpmfile checksum still resolves', async () 
       'is-positive': '1.0.0',
     },
   }
-  const readPackage = (pkg: PackageManifest) => pkg
+  const readPackage: (...args: [PackageManifest]) => PackageManifest = (...args) => args[0]
   await mutateModulesInSingleProject({
     manifest,
     mutation: 'install',
     rootDir: process.cwd() as ProjectRootDir,
-  }, testDefaults({ hooks: { readPackage: [readPackage] } }))
+  }, testDefaults({ hooks: { readPackage } }))
 
-  const options = testDefaults({ hooks: { readPackage: [readPackage] } })
+  const options = testDefaults({ hooks: { readPackage } })
   const requestedPackages = trackRequestedPackages(options.storeController)
   await mutateModulesInSingleProject({
     dependencyNames: ['is-positive'],
