@@ -374,13 +374,13 @@ fn skipped_runtimes_leave_no_dangling_importer_references() {
         !filtered.snapshots
             .as_ref()
             .unwrap()
-            .contains_key(&runtime_key)
+            .contains_key(&runtime_key),
     );
     assert!(
         !filtered.packages
             .as_ref()
             .unwrap()
-            .contains_key(&runtime_key)
+            .contains_key(&runtime_key),
     );
     let importer = &filtered.importers["."];
     for dependencies in [
