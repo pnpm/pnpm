@@ -191,7 +191,8 @@ fn nvmrc_aliases_are_runtime_selectors() {
 #[test]
 fn malformed_nvmrc_is_not_a_runtime_pin() {
     let root = tempfile::tempdir().unwrap();
-    for contents in ["", "20\n22\n", "cache=one\ncache=two\n20\n", "node=20\n", "20,evil-package\n"]
+    for contents in
+        ["", "20\n22\n", "cache=one\ncache=two\n20\n", "node=20\n", "20,evil-package\n", "lts/\n"]
     {
         fs::write(root.path().join(".nvmrc"), contents).unwrap();
         assert_eq!(runtime_pin(root.path(), "node"), None, "contents: {contents:?}");

@@ -274,7 +274,8 @@ fn parse_nvmrc(contents: &str) -> Option<String> {
             NvmrcLine::Version(_) => {}
         }
     }
-    version.map(normalize_nvm_version)
+    let version = version.map(normalize_nvm_version)?;
+    (!version.is_empty()).then_some(version)
 }
 
 enum NvmrcLine<'a> {
