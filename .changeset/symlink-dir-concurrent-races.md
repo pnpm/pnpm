@@ -1,5 +1,12 @@
 ---
+"@pnpm/bins.linker": patch
+"@pnpm/engine.pm.commands": patch
+"@pnpm/exec.commands": patch
 "@pnpm/fs.symlink-dependency": patch
+"@pnpm/global.commands": patch
+"@pnpm/installing.env-installer": patch
+"@pnpm/installing.linking.hoist": patch
+"@pnpm/store.controller": patch
 "pnpm": patch
 ---
 
