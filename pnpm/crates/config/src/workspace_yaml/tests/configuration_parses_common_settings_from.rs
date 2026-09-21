@@ -840,6 +840,44 @@ fn parses_task_concurrency_groups() {
     );
 }
 
+#[test]
+fn parses_task_priority() {
+    let dir = tempfile::tempdir().unwrap();
+    fs::write(
+        dir.path().join(WORKSPACE_MANIFEST_FILENAME),
+        "packages:\n  - packages/*\ntasks:\n  build:\n    concurrencyGroup: cargo\n    priority: 10\n  test:\n    concurrencyGroup: cargo\n    priority: -1\n",
+    )
+    .unwrap();
+
+    let settings = WorkspaceSettings::load_at(dir.path())
+        .expect("load pnpm-workspace.yaml")
+        .expect("pnpm-workspace.yaml is present");
+
+    let tasks = settings.tasks.as_ref().unwrap();
+    assert_eq!(tasks["build"].priority, Some(10));
+    assert_eq!(tasks["test"].priority, Some(-1));
+}
+
+#[test]
+fn rejects_a_non_integer_task_priority() {
+    for priority in ["1.5", "'2'", "2147483648"] {
+        let dir = tempfile::tempdir().unwrap();
+        fs::write(
+            dir.path().join(WORKSPACE_MANIFEST_FILENAME),
+            format!("packages:\n  - packages/*\ntasks:\n  build:\n    priority: {priority}\n"),
+        )
+        .unwrap();
+
+        let error = WorkspaceSettings::load_at(dir.path()).unwrap_err();
+        dbg!(priority, &error);
+        assert!(matches!(
+            error,
+            LoadWorkspaceYamlError::InvalidTaskPriority { ref task, .. }
+                if task == "build"
+        ));
+    }
+}
+
 /// A layer restating one group's limit leaves the other groups as the
 /// layers below set them.
 #[test]

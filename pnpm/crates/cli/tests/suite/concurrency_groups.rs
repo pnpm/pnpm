@@ -28,6 +28,9 @@ const HOLD_SCRIPT: &str = r"
       name.startsWith('running-') && path.join(dir, name) !== marker
     );
     if (others.length > 0) fs.writeFileSync(path.join(dir, 'overlap'), others.join('\n'));
+    if (process.env.ORDER_LOG) {
+      fs.appendFileSync(process.env.ORDER_LOG, `${process.env.RUN_ID}\n`);
+    }
     const sleeper = new Int32Array(new SharedArrayBuffer(4));
     const deadline = Date.now() + Number(process.env.HOLD_MS);
     while (fs.existsSync(marker) && Date.now() < deadline) {
@@ -236,7 +239,115 @@ fn a_waiting_task_reports_who_holds_the_slots() {
     dbg!(&rendered);
     assert!(status.success());
     assert!(rendered.contains(r#"Waiting to run "hold": all 1 slots of concurrency group "test""#));
+    assert!(rendered.contains("You are #1 of 1 in line"));
     assert!(rendered.contains(&format!("pid {} in ", holder.id())));
+
+    drop(root);
+}
+
+fn wait_until_queued(child: &mut Child) {
+    let mut stdout = BufReader::new(child.stdout.take().expect("capture stdout"));
+    let mut rendered = String::new();
+    loop {
+        let mut line = String::new();
+        assert!(
+            stdout.read_line(&mut line).expect("read the wait notice") != 0,
+            "the run never queued: {rendered}",
+        );
+        rendered.push_str(&line);
+        if rendered.contains("Waiting to run") {
+            return;
+        }
+    }
+}
+
+fn queued_run(pacquet: &Command, script: &str, run_id: &str, order_log: &Path) -> Child {
+    pnpm_run(pacquet, script)
+        .env("RUN_ID", run_id)
+        .env("ORDER_LOG", order_log)
+        .env("HOLD_MS", "10")
+        .stdout(Stdio::piped())
+        .spawn()
+        .expect("spawn a queued run")
+}
+
+#[test]
+fn waiters_run_in_the_order_they_began_waiting() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    write_project(&workspace, Path::new(pacquet.get_program()), 1);
+    let order_log = workspace.join("order");
+
+    let mut holder = releasable_holder(&pacquet);
+    wait_for_holders(&workspace, 1);
+    let mut first = queued_run(&pacquet, "hold", "first", &order_log);
+    wait_until_queued(&mut first);
+    let mut second = queued_run(&pacquet, "hold", "second", &order_log);
+    wait_until_queued(&mut second);
+    release_holders(&workspace);
+    assert!(
+        first
+            .wait()
+            .expect("first waiter")
+            .success(),
+    );
+    assert!(
+        second
+            .wait()
+            .expect("second waiter")
+            .success(),
+    );
+    holder.wait().expect("holder");
+
+    let order = fs::read_to_string(&order_log).expect("read the run order");
+    dbg!(&order);
+    assert_eq!(order, "first\nsecond\n");
+
+    drop(root);
+}
+
+#[test]
+fn a_higher_priority_waiter_runs_before_earlier_arrivals() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    write_project(&workspace, Path::new(pacquet.get_program()), 1);
+    fs::write(
+        workspace.join("package.json"),
+        json!({
+            "name": "test",
+            "version": "0.0.0",
+            "scripts": { "hold": "node hold.js", "urgent": "node hold.js" },
+        })
+        .to_string(),
+    )
+    .expect("write package.json");
+    fs::write(
+        workspace.join("pnpm-workspace.yaml"),
+        "tasks:\n  hold:\n    concurrencyGroup: test\n  urgent:\n    concurrencyGroup: test\n    priority: 10\nconcurrencyGroups:\n  test: 1\n",
+    )
+    .expect("write pnpm-workspace.yaml");
+    let order_log = workspace.join("order");
+
+    let mut holder = releasable_holder(&pacquet);
+    wait_for_holders(&workspace, 1);
+    let mut low = queued_run(&pacquet, "hold", "low", &order_log);
+    wait_until_queued(&mut low);
+    let mut high = queued_run(&pacquet, "urgent", "high", &order_log);
+    wait_until_queued(&mut high);
+    release_holders(&workspace);
+    assert!(
+        low.wait()
+            .expect("low-priority waiter")
+            .success(),
+    );
+    assert!(
+        high.wait()
+            .expect("high-priority waiter")
+            .success(),
+    );
+    holder.wait().expect("holder");
+
+    let order = fs::read_to_string(&order_log).expect("read the run order");
+    dbg!(&order);
+    assert_eq!(order, "high\nlow\n");
 
     drop(root);
 }

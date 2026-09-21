@@ -121,6 +121,9 @@ pub enum LoadWorkspaceYamlError {
         )
     )]
     InvalidTaskConcurrencyGroup { task: String, group: String },
+    #[display("The \"tasks['{task}'].priority\" setting should be an integer, but got {priority}")]
+    #[diagnostic(code(ERR_PNPM_INVALID_SETTING))]
+    InvalidTaskPriority { task: String, priority: String },
     #[display(
         "The \"tasks['{task}'].dependsOn\" setting contains an entry with no task name: {entry:?}"
     )]

@@ -162,7 +162,7 @@ pub(crate) struct UnrecognizedWorkspaceSettingsError {
 #[diagnostic(
     code(ERR_PNPM_UNRECOGNIZED_WORKSPACE_SETTINGS),
     help(
-        r#"The project pins pnpm to a version the running pnpm satisfies, so these settings cannot be meant for a different pnpm version. A task declares "concurrency", "concurrencyGroup", "dependsOn", "outputs", "inputs", "env", "cache", or "cargoTargetDir"."#
+        r#"The project pins pnpm to a version the running pnpm satisfies, so these settings cannot be meant for a different pnpm version. A task declares "concurrency", "concurrencyGroup", "priority", "dependsOn", "outputs", "inputs", "env", "cache", or "cargoTargetDir"."#
     )
 )]
 pub(crate) struct UnrecognizedTaskSettingsError {

@@ -11,6 +11,10 @@
 //! limit, so two workspaces on one pool with different limits reach into
 //! it as far as their own setting allows.
 //!
+//! Waiters take a ticket and start in ticket order. A higher `priority`
+//! on the task starts before waiters that arrived earlier. A waiter whose
+//! process has ended is skipped: its ticket file is no longer locked.
+//!
 //! A holder stamps the group into [`HELD_CONCURRENCY_GROUPS_ENV`] for the
 //! scripts it spawns. A nested `pnpm run` that finds a task's group there
 //! runs under the slot its parent holds, which is what keeps a script that
@@ -22,19 +26,17 @@ use pnpm_config::Config;
 use pnpm_reporter::{GlobalLog, LogEvent, LogLevel};
 use std::{
     collections::HashMap,
-    fs::{self, File, OpenOptions},
+    fs::File,
     io,
-    path::PathBuf,
-    time::{Duration, Instant},
+    path::{Path, PathBuf},
 };
+
+mod pool;
+use pool::{SlotPool, WaitSnapshot};
 
 /// Env var that carries the groups the parent invocations hold slots of,
 /// comma-separated.
 pub(crate) const HELD_CONCURRENCY_GROUPS_ENV: &str = "PNPM_HELD_CONCURRENCY_GROUPS";
-
-const FIRST_POLL: Duration = Duration::from_millis(100);
-const MAX_POLL: Duration = Duration::from_secs(1);
-const WAIT_NOTICE_EVERY: Duration = Duration::from_secs(30);
 
 #[derive(Debug, Display, Error, Diagnostic)]
 #[display("Failed to take a slot of concurrency group {group:?} in {}", pool.display())]
@@ -73,8 +75,8 @@ pub(crate) enum SlotOutcome {
 /// between attempts, so a run that bails does not wait out a holder in
 /// another process.
 ///
-/// `emit` receives a notice when the wait starts and every
-/// [`WAIT_NOTICE_EVERY`] after, naming who holds the slots.
+/// `emit` receives a notice when the wait starts and every 30s after,
+/// naming who holds the slots and this run's place in line.
 pub(crate) fn acquire_concurrency_group_slot(
     config: &Config,
     script: &str,
@@ -100,19 +102,15 @@ fn acquire_slot(
     if held_groups(inherited).any(|held| held == group) {
         return Ok(SlotOutcome::Ungated);
     }
+    let priority = task_priority(config, script);
     let pool = SlotPool { dir: config.state_dir.join("run-slots").join(group), limit };
-    let on_wait = || {
-        let holders = pool.holders();
+    let on_wait = |snapshot: &WaitSnapshot| {
         emit(&LogEvent::Global(GlobalLog {
             level: LogLevel::Warn,
-            message: format!(
-                r#"Waiting to run "{script}": all {limit} slots of concurrency group "{group}" are held ({}). Holders: {}"#,
-                pool.dir.display(),
-                if holders.is_empty() { "unknown".to_string() } else { holders.join("; ") },
-            ),
+            message: format_wait_notice(script, group, limit, &pool.dir, snapshot),
         }));
     };
-    pool.acquire(on_wait, cancelled)
+    pool.acquire(priority, on_wait, cancelled)
         .map(|file| match file {
             Some(file) => {
                 SlotOutcome::Held(ConcurrencyGroupSlot { group: group.to_string(), _file: file })
@@ -126,6 +124,31 @@ fn acquire_slot(
         })
 }
 
+fn format_wait_notice(
+    script: &str,
+    group: &str,
+    limit: u32,
+    pool: &Path,
+    snapshot: &WaitSnapshot,
+) -> String {
+    let holders = if snapshot.holders.is_empty() {
+        "unknown".to_string()
+    } else {
+        snapshot.holders.join("; ")
+    };
+    let mut message = format!(
+        r#"Waiting to run "{script}": all {limit} slots of concurrency group "{group}" are held ({}). You are #{} of {} in line. Holders: {holders}"#,
+        pool.display(),
+        snapshot.position,
+        snapshot.total,
+    );
+    if !snapshot.ahead.is_empty() {
+        message.push_str(". Ahead: ");
+        message.push_str(&snapshot.ahead.join("; "));
+    }
+    message
+}
+
 /// The group the task named `script` is in, with its limit, when both
 /// are configured and the limit is positive.
 fn limited_group<'a>(config: &'a Config, script: &str) -> Option<(&'a str, u32)> {
@@ -135,6 +158,13 @@ fn limited_group<'a>(config: &'a Config, script: &str) -> Option<(&'a str, u32)>
         .copied()
         .filter(|limit| *limit > 0)?;
     Some((group, limit))
+}
+
+fn task_priority(config: &Config, script: &str) -> i32 {
+    config.tasks
+        .get(script)
+        .and_then(|task| task.priority)
+        .unwrap_or(0)
 }
 
 /// `extra_env` with `group` added to the held groups the spawned script
@@ -166,94 +196,6 @@ fn held_groups(value: Option<&str>) -> impl Iterator<Item = &str> {
         .unwrap_or_default()
         .split(',')
         .filter(|group| !group.is_empty())
-}
-
-struct SlotPool {
-    dir: PathBuf,
-    limit: u32,
-}
-
-impl SlotPool {
-    /// `None` once `cancelled` says so, checked before every attempt.
-    fn acquire(
-        &self,
-        mut on_wait: impl FnMut(),
-        cancelled: &dyn Fn() -> bool,
-    ) -> io::Result<Option<File>> {
-        fs::create_dir_all(&self.dir)?;
-        let mut poll = FIRST_POLL;
-        let mut last_notice: Option<Instant> = None;
-        loop {
-            if cancelled() {
-                return Ok(None);
-            }
-            if let Some(file) = self.try_acquire()? {
-                return Ok(Some(file));
-            }
-            if last_notice.is_none_or(|at| at.elapsed() >= WAIT_NOTICE_EVERY) {
-                on_wait();
-                last_notice = Some(Instant::now());
-            }
-            std::thread::sleep(poll);
-            poll = (poll * 2).min(MAX_POLL);
-        }
-    }
-
-    fn try_acquire(&self) -> io::Result<Option<File>> {
-        for index in 0..self.limit {
-            let file = self.open_slot(index)?;
-            match file.try_lock() {
-                Ok(()) => {
-                    // Best effort: the stamp only feeds the waiting notice.
-                    let _ = self.write_holder(index);
-                    return Ok(Some(file));
-                }
-                Err(std::fs::TryLockError::WouldBlock) => continue,
-                Err(std::fs::TryLockError::Error(error)) => return Err(error),
-            }
-        }
-        Ok(None)
-    }
-
-    fn open_slot(&self, index: u32) -> io::Result<File> {
-        OpenOptions::new()
-            .read(true)
-            .write(true)
-            .create(true)
-            .truncate(false)
-            .open(self.dir.join(index.to_string()))
-    }
-
-    /// The holder stamp lives beside the slot rather than in it: a held
-    /// slot cannot be read on the platforms where the lock is mandatory.
-    fn holder_path(&self, index: u32) -> PathBuf {
-        self.dir.join(format!("{index}.holder"))
-    }
-
-    fn write_holder(&self, index: u32) -> io::Result<()> {
-        let cwd = std::env::current_dir().unwrap_or_default();
-        fs::write(
-            self.holder_path(index),
-            format!("pid {} in {}", std::process::id(), cwd.display()),
-        )
-    }
-
-    /// The stamps of the slots that are held right now. A slot whose lock
-    /// this probe can take is free, and its stale stamp is left out.
-    fn holders(&self) -> Vec<String> {
-        (0..self.limit)
-            .filter_map(|index| {
-                let file = self.open_slot(index).ok()?;
-                match file.try_lock() {
-                    Err(std::fs::TryLockError::WouldBlock) => {}
-                    Ok(()) | Err(std::fs::TryLockError::Error(_)) => return None,
-                }
-                let holder = fs::read_to_string(self.holder_path(index)).ok()?;
-                let holder = holder.trim();
-                (!holder.is_empty()).then(|| holder.to_string())
-            })
-            .collect()
-    }
 }
 
 #[cfg(test)]

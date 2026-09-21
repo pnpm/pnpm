@@ -31,21 +31,20 @@ impl WorkspaceSettings {
     }
 
     /// One task's settings: a non-positive concurrency, a group name that
-    /// cannot be a slot directory, or an empty `dependsOn` entry is a hard
-    /// error. A field this version does not read is not — see
-    /// [`Self::take_unknown_task_settings`].
+    /// cannot be a slot directory, a non-integer `priority`, or an empty
+    /// `dependsOn` entry is a hard error. A field this version does not
+    /// read is not — see [`Self::take_unknown_task_settings`].
     pub(super) fn validate_task(
         task: &str,
         settings: &TaskSettings,
     ) -> Result<(), LoadWorkspaceYamlError> {
-        let concurrency = settings.concurrency
-            .filter(|concurrency| *concurrency < 1)
-            .map(|concurrency| concurrency.to_string())
-            .or_else(|| settings.invalid_concurrency.as_ref().map(ToString::to_string));
-        if let Some(concurrency) = concurrency {
-            return Err(LoadWorkspaceYamlError::InvalidTaskConcurrency {
+        if let Some(error) = invalid_task_concurrency(task, settings) {
+            return Err(error);
+        }
+        if let Some(priority) = settings.invalid_priority.as_ref() {
+            return Err(LoadWorkspaceYamlError::InvalidTaskPriority {
                 task: task.to_string(),
-                concurrency,
+                priority: priority.to_string(),
             });
         }
         if let Some(group) = settings.concurrency_group
@@ -262,6 +261,14 @@ impl WorkspaceSettings {
                         || is_refused_by_a_project_manifest(key))
             })
     }
+}
+
+fn invalid_task_concurrency(task: &str, settings: &TaskSettings) -> Option<LoadWorkspaceYamlError> {
+    let concurrency = settings.concurrency
+        .filter(|concurrency| *concurrency < 1)
+        .map(|concurrency| concurrency.to_string())
+        .or_else(|| settings.invalid_concurrency.as_ref().map(ToString::to_string))?;
+    Some(LoadWorkspaceYamlError::InvalidTaskConcurrency { task: task.to_string(), concurrency })
 }
 
 /// A group name becomes the name of the group's slot directory under the
