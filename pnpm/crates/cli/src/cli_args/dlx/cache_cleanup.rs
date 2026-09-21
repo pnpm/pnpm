@@ -188,16 +188,24 @@ fn remove_orphan_child(child: &fs::DirEntry, live: &HashSet<PathBuf>) -> miette:
     if child.file_name().as_os_str() == "pkg" {
         return Ok(());
     }
-    let canonical = dunce::canonicalize(child.path()).unwrap_or_else(|_| child.path());
+    let child_path = child.path();
+    // A symlink must be judged (and deleted) as the link itself: canonicalizing
+    // it would resolve to the target and the removal below would delete a file
+    // or directory outside the cache instead of the orphaned link.
+    let file_type = child
+        .file_type()
+        .into_diagnostic()
+        .wrap_err(format!("inspecting dlx cache entry {}", child_path.display()))?;
+    if file_type.is_symlink() {
+        return remove_entry_if_exists(&child_path, false)
+            .into_diagnostic()
+            .wrap_err(format!("removing orphaned dlx cache entry {}", child_path.display()));
+    }
+    let canonical = dunce::canonicalize(&child_path).unwrap_or_else(|_| child_path.clone());
     if live.contains(&canonical) {
         return Ok(());
     }
-    let is_dir = child
-        .file_type()
-        .into_diagnostic()
-        .wrap_err(format!("inspecting dlx cache entry {}", canonical.display()))?
-        .is_dir();
-    remove_entry_if_exists(&canonical, is_dir)
+    remove_entry_if_exists(&canonical, file_type.is_dir())
         .into_diagnostic()
         .wrap_err(format!("removing orphaned dlx cache entry {}", canonical.display()))
 }

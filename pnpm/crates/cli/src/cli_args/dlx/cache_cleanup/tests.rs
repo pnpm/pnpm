@@ -29,7 +29,6 @@ fn removes_expired_entries_and_keeps_fresh_ones() {
     let key_a = key_dir_with_link(cache_dir.path(), "key-a");
     let key_b = key_dir_with_link(cache_dir.path(), "key-b");
 
-    // A `now` past the retention window expires the fresh links.
     let past_retention = SystemTime::now() + Duration::from_hours(48);
     clean_expired_dlx_cache(cache_dir.path(), 24 * 60, past_retention).unwrap();
 
@@ -79,7 +78,6 @@ fn removes_orphaned_prepare_dirs_but_keeps_the_link_target() {
     fs::create_dir_all(&orphan).unwrap();
     let target = key_dir.join("prepare-1");
 
-    // Far-future max age: nothing is expired, so only the orphan sweep runs.
     clean_expired_dlx_cache(cache_dir.path(), u64::MAX / 60, SystemTime::now()).unwrap();
 
     assert!(!orphan.exists(), "orphaned prepare dir should be removed");
@@ -129,7 +127,6 @@ fn keeps_link_target_when_parent_is_symlinked() {
     let orphan = key_dir.join("prepare-orphan");
     fs::create_dir_all(&orphan).unwrap();
 
-    // Far-future max age: nothing is expired, so only the orphan sweep runs.
     clean_expired_dlx_cache(&alias, u64::MAX / 60, SystemTime::now()).unwrap();
 
     assert!(!orphan.exists(), "orphaned prepare dir should be removed");
@@ -137,4 +134,25 @@ fn keeps_link_target_when_parent_is_symlinked() {
         target.exists(),
         "the link target must be kept when reached through a symlinked parent",
     );
+}
+
+/// An orphaned symlink child must be unlinked itself; the sweep must not
+/// follow it to a file outside the cache.
+#[cfg(unix)]
+#[test]
+fn removes_orphan_symlink_without_touching_external_target() {
+    use std::os::unix::fs::symlink;
+
+    let cache_dir = tempfile::tempdir().unwrap();
+    let key_dir = key_dir_with_link(cache_dir.path(), "key");
+    let external = tempfile::tempdir().unwrap();
+    let target = external.path().join("important.txt");
+    fs::write(&target, b"do not delete").unwrap();
+    let link = key_dir.join("prepare-stray-link");
+    symlink(&target, &link).unwrap();
+
+    clean_expired_dlx_cache(cache_dir.path(), u64::MAX / 60, SystemTime::now()).unwrap();
+
+    assert!(fs::symlink_metadata(&link).is_err(), "orphaned symlink should be unlinked");
+    assert!(target.exists(), "the file outside the cache must survive");
 }
