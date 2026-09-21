@@ -2026,6 +2026,55 @@ test('preferWorkspacePackages: use version from the workspace even if there is n
   expect(resolveResult!.latest).toBeUndefined()
 })
 
+test('prefers workspace package when version contains semver build metadata', async () => {
+  getMockAgent().get(registriesByScope.default.replace(/\/$/, ''))
+    .intercept({ path: '/is-positive', method: 'GET' })
+    .reply(200, {
+      ...isPositiveMeta,
+      'dist-tags': { latest: '1.3.0' },
+      versions: {
+        '1.3.0': {
+          name: 'is-positive',
+          version: '1.3.0',
+          dist: {
+            integrity: 'sha512-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==',
+            tarball: 'https://registry.npmjs.org/is-positive/-/is-positive-1.3.0.tgz',
+          },
+        },
+      },
+    })
+
+  const { resolveFromNpm } = createResolveFromNpm({
+    storeDir: temporaryDirectory(),
+    cacheDir: temporaryDirectory(),
+    registriesByScope,
+  })
+  const resolveResult = await resolveFromNpm({
+    alias: 'is-positive',
+    bareSpecifier: '^1.3.0',
+  }, {
+    projectDir: '/home/istvan/src',
+    workspacePackages: new Map([
+      ['is-positive', new Map([
+        ['1.3.0+423423', {
+          rootDir: '/home/istvan/src/is-positive' as ProjectRootDir,
+          manifest: {
+            name: 'is-positive',
+            version: '1.3.0+423423',
+          },
+        }],
+      ])],
+    ]),
+  })
+
+  expect(resolveResult).toStrictEqual(
+    expect.objectContaining({
+      resolvedVia: 'workspace',
+      id: 'link:is-positive',
+    })
+  )
+})
+
 test('preferWorkspacePackages: still consults the registry when several workspace copies share a name', async () => {
   getMockAgent().get(registriesByScope.default.replace(/\/$/, ''))
     .intercept({ path: '/is-positive', method: 'GET' })

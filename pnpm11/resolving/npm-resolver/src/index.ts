@@ -765,7 +765,7 @@ async function resolveNpm (
       }
     }
     const localVersion = pickMatchingLocalVersionOrNull(workspacePkgsMatchingName, spec)
-    if (localVersion && (semver.gt(localVersion, pickedPackage.version) || opts.preferWorkspacePackages)) {
+    if (localVersion && (semver.gte(localVersion, pickedPackage.version) || opts.preferWorkspacePackages)) {
       return {
         ...resolveFromLocalPackage(workspacePkgsMatchingName.get(localVersion)!, spec, {
           wantedDependency,

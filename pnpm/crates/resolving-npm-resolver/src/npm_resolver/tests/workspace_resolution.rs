@@ -214,6 +214,38 @@ async fn workspace_higher_version_shadows_registry_pick() {
 }
 
 #[tokio::test]
+async fn workspace_package_with_build_metadata_shadows_registry_pick() {
+    let mut server = mockito::Server::new_async().await;
+    let _mock = server
+        .mock("GET", "/acme")
+        .with_status(200)
+        .with_body(single_version_body(
+            "1.3.0",
+            "sha512-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==",
+        ))
+        .create_async()
+        .await;
+    let registry = format!("{}/", server.url());
+    let (resolver, _tempdir) = build_resolver(&registry);
+
+    let packages = build_workspace_packages("acme", &["1.3.0+423423"]);
+    let opts = workspace_resolve_options(packages);
+
+    let wanted = WantedDependency {
+        alias: Some("acme".to_string()),
+        bare_specifier: Some("^1.3.0".to_string()),
+        ..WantedDependency::default()
+    };
+    let result = resolver
+        .resolve(&wanted, &opts)
+        .await
+        .unwrap()
+        .expect("workspace shadow");
+    assert_eq!(result.resolved_via, "workspace");
+    assert_eq!(result.id.as_str(), "link:../acme");
+}
+
+#[tokio::test]
 async fn injected_workspace_match_emits_file_resolution() {
     let mut server = mockito::Server::new_async().await;
     let _mock = server
