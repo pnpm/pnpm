@@ -351,6 +351,8 @@ export interface NonDeprecatedAlternative {
 }
 
 export interface ResolveResult {
+  /** Registry package identity before reading the manifest or applying hooks. */
+  requestedName?: string
   id: PkgResolutionId
   latest?: string
   /**

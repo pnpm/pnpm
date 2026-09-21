@@ -102,7 +102,7 @@ function blamedParent (
   if (parent == null) return undefined
   const { registryName, version } = dp.parse(parent.id)
   if (version == null) return undefined
-  return { name: parent.name, version: registryName ? `${registryName}:${version}` : version }
+  return { name: parent.requestedName ?? parent.name, version: registryName ? `${registryName}:${version}` : version }
 }
 
 function reportHeldBackParents (
@@ -110,7 +110,9 @@ function reportHeldBackParents (
   resolvedPkgsById: ResolvedPkgsById
 ): void {
   const resolvedVersionsByName = new Map<string, Set<string>>()
-  for (const { name, version } of Object.values(resolvedPkgsById)) {
+  for (const pkg of Object.values(resolvedPkgsById)) {
+    const name = pkg.requestedName ?? pkg.name
+    const version = pkg.version
     let versions = resolvedVersionsByName.get(name)
     if (versions == null) {
       versions = new Set()

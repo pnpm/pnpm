@@ -29,6 +29,7 @@ async fn repeated_resolution_rounds_schedule_each_slot_once() {
             alias: None,
             policy_violation: None,
             package: ResolvedPackageInfo {
+                requested_name: None,
                 name_ver: Some("foo@1.0.0".parse().unwrap()),
                 latest: None,
                 published_at: None,

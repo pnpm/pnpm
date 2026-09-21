@@ -608,7 +608,7 @@ async function resolveNpm (
     !opts.updatePatches &&
     spec.revision == null &&
     (opts.publishedBy == null || opts.currentPkg.publishedAt != null) &&
-    !isBlocked(opts.blockedVersions, opts.currentPkg.name, opts.currentPkg.version)
+    !isBlocked(opts.blockedVersions, spec.name, opts.currentPkg.version)
   ) {
     const currentResolution = opts.currentPkg.resolution
     // Only use this optimization for tarball resolutions with integrity (npm packages)
@@ -627,6 +627,7 @@ async function resolveNpm (
           return {
             id,
             manifest,
+            requestedName: spec.name,
             resolution: currentResolution as TarballResolution,
             resolvedVia: 'npm-registry',
             publishedAt: opts.currentPkg.publishedAt,
@@ -637,6 +638,7 @@ async function resolveNpm (
             // to the install command.
             policyViolation: detectMinReleaseAgeViolation({
               name: manifest.name,
+              requestedName: spec.name,
               version: manifest.version,
               publishedAt: opts.currentPkg.publishedAt,
               resolution: currentResolution,
@@ -808,6 +810,7 @@ async function resolveNpm (
   return {
     id,
     latest,
+    requestedName: spec.name,
     manifest: selectedPackage,
     resolution,
     resolvedVia: 'npm-registry',
@@ -966,6 +969,7 @@ async function pickFromSimpleRegistry (
   id: PkgResolutionId
   latest?: string
   nonDeprecatedAlternative?: NonDeprecatedAlternative
+  requestedName: string
   manifest: DependencyManifest
   resolution: TarballResolution
   publishedAt?: string
@@ -1000,6 +1004,7 @@ async function pickFromSimpleRegistry (
     nonDeprecatedAlternative: pickedPackage.deprecated
       ? findNonDeprecatedAlternative(meta, spec, opts)
       : undefined,
+    requestedName: spec.name,
     manifest: selectedPackage,
     resolution,
     publishedAt,

@@ -9,11 +9,17 @@ struct Fixture {
     pin_prefix: &'static str,
     optional: bool,
     named_parent: bool,
+    mismatched_parent: bool,
 }
 
 #[test]
 fn install_add_and_latest_update_back_off_from_immature_exact_pins() {
     assert_backoff(&Fixture { latest_major: 2, ..Default::default() });
+}
+
+#[test]
+fn install_backs_off_under_the_requested_name_when_manifest_name_differs() {
+    assert_backoff(&Fixture { latest_major: 2, mismatched_parent: true, ..Default::default() });
 }
 
 #[test]
@@ -113,17 +119,22 @@ fn parent_packument(fixture: &Fixture) -> serde_json::Value {
     let mut time = serde_json::Map::new();
     for major in 1..=fixture.latest_major {
         let version = format!("{major}.0.0");
-        let child = if major == 1 { "1.0.0" } else { "2.0.0" };
-        let mut manifest = version_manifest("parent", &version);
-        let group = if fixture.optional { "optionalDependencies" } else { "dependencies" };
-        manifest[group] = json!({ "child": format!("{}{child}", fixture.pin_prefix) });
-        versions.insert(version.clone(), manifest);
+        versions.insert(version.clone(), parent_manifest(fixture, major));
         time.insert(version, json!("2020-01-01T00:00:00Z"));
     }
     json!({
         "name": "parent", "dist-tags": { "latest": format!("{}.0.0", fixture.latest_major) },
         "versions": versions, "time": time,
     })
+}
+
+fn parent_manifest(fixture: &Fixture, major: usize) -> serde_json::Value {
+    let child = if major == 1 { "1.0.0" } else { "2.0.0" };
+    let name = if fixture.mismatched_parent && major > 1 { "other" } else { "parent" };
+    let mut manifest = version_manifest(name, &format!("{major}.0.0"));
+    let group = if fixture.optional { "optionalDependencies" } else { "dependencies" };
+    manifest[group] = json!({ "child": format!("{}{child}", fixture.pin_prefix) });
+    manifest
 }
 
 fn child_packument() -> serde_json::Value {

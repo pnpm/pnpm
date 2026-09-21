@@ -92,6 +92,7 @@ fn resolved_package_info(
     manifest: Arc<serde_json::Value>,
 ) -> pnpm_resolving_resolver_base::ResolvedPackageInfo {
     pnpm_resolving_resolver_base::ResolvedPackageInfo {
+        requested_name: Some(args.specifier.spec.name.clone()),
         name_ver: Some(name_ver),
         latest: latest_allowed_by_policy(args.meta, args.published_by, args.published_by_exclude)
             .map(str::to_string),

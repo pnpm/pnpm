@@ -642,6 +642,7 @@ async fn install_returns_unsupported_resolution_when_name_ver_missing() {
         alias: Some("bar".to_string()),
         policy_violation: None,
         package: pnpm_resolving_resolver_base::ResolvedPackageInfo {
+            requested_name: None,
             name_ver: None,
             latest: None,
             published_at: None,
@@ -726,6 +727,7 @@ async fn install_rejects_traversal_manifest_name() {
         alias: Some("bar".to_string()),
         policy_violation: None,
         package: pnpm_resolving_resolver_base::ResolvedPackageInfo {
+            requested_name: None,
             name_ver: None,
             latest: None,
             published_at: None,

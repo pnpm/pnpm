@@ -300,6 +300,7 @@ export interface PeerDependency {
 export type PeerDependencies = Record<string, PeerDependency>
 
 export interface ResolvedPackage {
+  requestedName?: string
   id: PkgResolutionId
   isLeaf: boolean
   resolution: Resolution
@@ -2551,6 +2552,7 @@ function getResolvedPackage (
     hasBundledDependencies: !((options.pkg.bundledDependencies ?? options.pkg.bundleDependencies) == null),
     id: options.pkgResponse.body.id,
     name: options.pkg.name,
+    requestedName: options.pkgResponse.body.requestedName,
     optional: options.optional,
     optionalDependencies: new Set(Object.keys(options.pkg.optionalDependencies ?? {})),
     patch: options.patch,

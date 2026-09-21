@@ -152,6 +152,7 @@ impl Resolver for StubResolver {
                 alias: wanted_dependency.alias.clone(),
                 policy_violation: None,
                 package: crate::ResolvedPackageInfo {
+                    requested_name: None,
                     name_ver: Some(name_ver),
                     latest: None,
                     published_at: None,

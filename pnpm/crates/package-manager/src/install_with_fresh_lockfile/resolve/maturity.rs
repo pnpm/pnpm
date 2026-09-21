@@ -92,7 +92,11 @@ fn report_held_back_parents<Reporter: pnpm_reporter::Reporter>(
     for pkg in resolved.merged_tree.packages.values() {
         if let Some(name_ver) = pkg.result.package.name_ver.as_ref() {
             resolved_versions_by_name
-                .entry(name_ver.name.to_string())
+                .entry(
+                    pkg.result.package.requested_name
+                        .clone()
+                        .unwrap_or_else(|| name_ver.name.to_string()),
+                )
                 .or_default()
                 .insert(name_ver.suffix.to_string());
         }

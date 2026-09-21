@@ -83,6 +83,7 @@ pub(super) fn linked_package(name: &str, id: &str, directory: &str) -> ResolvedP
             alias: Some(name.to_string()),
             policy_violation: None,
             package: pnpm_resolving_resolver_base::ResolvedPackageInfo {
+                requested_name: None,
                 name_ver: None,
                 latest: None,
                 published_at: None,
@@ -115,6 +116,7 @@ pub(super) fn resolve_result(name: &str, version: &str) -> ResolveResult {
         alias: Some(name.to_string()),
         policy_violation: None,
         package: pnpm_resolving_resolver_base::ResolvedPackageInfo {
+            requested_name: None,
             name_ver: Some(name_ver),
             latest: Some(version.to_string()),
             published_at: None,

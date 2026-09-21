@@ -146,6 +146,7 @@ fn deprecated_pkg_name_ver_falls_back_to_the_manifest() {
         alias: Some("git-pkg".to_string()),
         policy_violation: None,
         package: pnpm_resolving_resolver_base::ResolvedPackageInfo {
+            requested_name: None,
             name_ver: None,
             latest: None,
             published_at: None,

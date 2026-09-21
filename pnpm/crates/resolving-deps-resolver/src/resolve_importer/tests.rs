@@ -189,6 +189,7 @@ fn fake_result(name: &str, version: &str, manifest: serde_json::Value) -> Resolv
         alias: Some(name.to_string()),
         policy_violation: None,
         package: pnpm_resolving_resolver_base::ResolvedPackageInfo {
+            requested_name: None,
             name_ver: Some(name_ver),
             latest: Some(version.to_string()),
             published_at: None,

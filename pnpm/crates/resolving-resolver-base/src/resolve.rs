@@ -505,6 +505,8 @@ pub struct ResolveResult {
 
 #[derive(Debug, Default, Clone, PartialEq)]
 pub struct ResolvedPackageInfo {
+    /// Registry package identity before reading the manifest or applying hooks.
+    pub requested_name: Option<String>,
     /// Structured `name@version` when the resolver knows both at
     /// resolve time. The npm-registry resolver always fills this;
     /// resolvers that learn the package name from the manifest only

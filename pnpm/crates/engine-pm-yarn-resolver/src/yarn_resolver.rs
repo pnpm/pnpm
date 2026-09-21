@@ -119,6 +119,7 @@ impl YarnResolver {
             alias: wanted_dependency.alias.clone(),
             policy_violation: None,
             package: pnpm_resolving_resolver_base::ResolvedPackageInfo {
+                requested_name: None,
                 name_ver: None,
                 latest: None,
                 published_at: None,

@@ -501,7 +501,7 @@ fn parent_chain_from_ids(ctx: &TreeCtx, ancestor_ids: &[String]) -> Vec<pnpm_loc
         if package.result.package.name_ver.is_none() {
             return Vec::new();
         }
-        let Ok(key) = package.result.id.as_str().parse::<pnpm_lockfile::PackageKey>() else {
+        let Ok(mut key) = package.result.id.as_str().parse::<pnpm_lockfile::PackageKey>() else {
             return Vec::new();
         };
         if !matches!(
@@ -510,6 +510,10 @@ fn parent_chain_from_ids(ctx: &TreeCtx, ancestor_ids: &[String]) -> Vec<pnpm_loc
                 | pnpm_lockfile::VersionPart::RegistryQualified { .. },
         ) {
             return Vec::new();
+        }
+        if let Some(name) = &package.result.package.requested_name {
+            let Ok(name) = name.parse() else { return Vec::new() };
+            key.name = name;
         }
         parents.push(key);
     }

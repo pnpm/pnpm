@@ -4,6 +4,7 @@
 "@pnpm/resolving.npm-resolver": minor
 "@pnpm/store.controller-types": minor
 "@pnpm/installing.deps-resolver": minor
+"@pnpm/installing.package-requester": patch
 "@pnpm/installing.commands": patch
 "pnpm": patch
 "pacquet": patch

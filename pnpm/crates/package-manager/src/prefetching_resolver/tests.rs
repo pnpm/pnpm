@@ -31,6 +31,7 @@ fn result_with_manifest(name: &str, manifest: serde_json::Value) -> ResolveResul
         alias: None,
         policy_violation: None,
         package: pnpm_resolving_resolver_base::ResolvedPackageInfo {
+            requested_name: None,
             name_ver: Some(id.parse().unwrap()),
             latest: None,
             published_at: None,
@@ -61,6 +62,7 @@ fn alias_tarball_result(alias: &str, manifest: serde_json::Value) -> ResolveResu
         alias: Some(alias.to_string()),
         policy_violation: None,
         package: pnpm_resolving_resolver_base::ResolvedPackageInfo {
+            requested_name: None,
             name_ver: None,
             latest: None,
             published_at: None,
@@ -85,6 +87,7 @@ fn anonymous_tarball_result(manifest: serde_json::Value) -> ResolveResult {
         alias: None,
         policy_violation: None,
         package: pnpm_resolving_resolver_base::ResolvedPackageInfo {
+            requested_name: None,
             name_ver: None,
             latest: None,
             published_at: None,

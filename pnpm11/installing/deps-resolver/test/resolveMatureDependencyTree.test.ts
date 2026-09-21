@@ -76,3 +76,15 @@ test('a mature retry keeps other policy violations for their own handlers', asyn
   expect(result.tree.resolutionPolicyViolations).toEqual([trust])
   expect(resolveDependencyTree).toHaveBeenCalledTimes(2)
 })
+
+
+test('retry blocks use the requested identity instead of a manifest name', async () => {
+  const first = tree(['other@2.0.0'])
+  Object.values(first.resolvedPkgsById)[0].requestedName = 'parent'
+  resolveDependencyTree.mockResolvedValueOnce(first).mockImplementationOnce(async (_, opts) => {
+    expect(opts.blockedVersions).toEqual(new Map([['parent', new Set(['2.0.0'])]]))
+    return tree([])
+  })
+  await resolveMatureDependencyTree(async () => [], { minimumReleaseAge: 1440 } as ResolveDependenciesOptions)
+  expect(resolveDependencyTree).toHaveBeenCalledTimes(2)
+})

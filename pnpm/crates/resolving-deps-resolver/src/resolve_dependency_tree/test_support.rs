@@ -12,6 +12,7 @@ pub(super) fn manifest_result(manifest: serde_json::Value) -> ResolveResult {
         alias: Some("parent".to_string()),
         policy_violation: None,
         package: pnpm_resolving_resolver_base::ResolvedPackageInfo {
+            requested_name: None,
             name_ver: None,
             latest: None,
             published_at: None,

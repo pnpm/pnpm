@@ -207,6 +207,7 @@ export interface PackageResponse {
    */
   resolutionNeedsFetch?: boolean
   body: {
+    requestedName?: string
     isLocal: boolean
     isInstallable?: boolean
     resolution: Resolution

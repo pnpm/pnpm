@@ -39,6 +39,7 @@ impl Resolver for StubResolver {
 
                 policy_violation: None,
                 package: pnpm_resolving_resolver_base::ResolvedPackageInfo {
+                    requested_name: None,
                     name_ver: Some(format!("{name}@{version}").parse().expect("name and version")),
                     latest: Some(version),
                     published_at: None,
