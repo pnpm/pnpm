@@ -58,11 +58,11 @@ test('a relay installed while an interrupt is pending is terminated without hand
 
     expect(relayed).toStrictEqual(['SIGTERM'])
     expect(process.listenerCount('SIGINT')).toBe(sigintListeners)
-    reservation.release()
+    const reservationSettle = reservation.settle()
     await Promise.resolve()
     expect(raised).toStrictEqual([])
     await late.settle()
-    await Promise.all([firstSettle, firstRaise])
+    await Promise.all([firstSettle, firstRaise, reservationSettle])
     expect(raised).toStrictEqual([[process.pid, 'SIGINT']])
   } finally {
     reservation.release()

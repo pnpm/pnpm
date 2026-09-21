@@ -386,7 +386,6 @@ interface SpawnedScript {
 
 function runEmulated (run: ScriptRun, cb: Callback): void {
   const { cmd, pkg, stage, wd, env, opts } = run
-  run.relayReservation?.release()
   const execOpts: Parameters<typeof execute>[2] = { cwd: npath.toPortablePath(wd), env }
   if (opts.stdio === 'pipe') {
     const stdout = new PassThrough()
@@ -401,7 +400,16 @@ function runEmulated (run: ScriptRun, cb: Callback): void {
     execOpts.stderr = stderr
   }
   const procError = createProcError(run, cb)
-  execute(cmd, [], execOpts)
+  const finish = async (err?: LifecycleError): Promise<void> => {
+    try {
+      await run.relayReservation?.settle()
+    } catch (settleError: unknown) {
+      procError(settleError as LifecycleError)
+      return
+    }
+    procError(err)
+  }
+  void execute(cmd, [], execOpts)
     .then((code) => {
       opts.log.silly('lifecycle', logId(pkg, stage), 'Returned: code:', code)
       let er: LifecycleError | undefined
@@ -409,9 +417,8 @@ function runEmulated (run: ScriptRun, cb: Callback): void {
         er = new Error(`Exit status ${code}`)
         er.errno = code
       }
-      procError(er)
-    })
-    .catch((err: LifecycleError) => procError(err))
+      return finish(er)
+    }, (err: LifecycleError) => finish(err))
 }
 
 /**

@@ -2,7 +2,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 
 import { afterEach, expect, jest, test } from '@jest/globals'
-import { lifecycle, type LifecycleChildProcess, type LifecycleLog, makeEnv } from '@pnpm/exec.npm-lifecycle'
+import { lifecycle, type LifecycleChildProcess, type LifecycleLog, makeEnv, relaySignals } from '@pnpm/exec.npm-lifecycle'
 import { temporaryDirectory } from 'tempy'
 
 const fixtures = path.join(import.meta.dirname, 'fixtures')
@@ -109,6 +109,39 @@ test('runs lifecycle scripts with the shell emulator', async () => {
   })
 
   expect(spawned).toBe(false)
+})
+
+test('the shell emulator settles before a recursive interrupt is raised', async () => {
+  const listenersBeforeRelay = new Set(process.listeners('SIGINT'))
+  const relay = relaySignals({ kill: () => true }, {
+    ownProcessGroup: false,
+    raiseOnInterrupt: true,
+    terminateOnExit: false,
+  })
+  const interrupt = process.listeners('SIGINT').find((listener) => !listenersBeforeRelay.has(listener))!
+  const raised: Array<[number, string | number | undefined]> = []
+  process.kill = ((pid, signal) => {
+    raised.push([pid, signal])
+    return true
+  }) as typeof process.kill
+  try {
+    const running = lifecycle({ scripts: { test: 'node -e "setTimeout(() => {}, 100)"' } }, 'test', countTo10, {
+      stdio: 'pipe',
+      log: makeLog(),
+      dir: countTo10,
+      raiseOnInterrupt: true,
+      shellEmulator: true,
+    })
+    interrupt('SIGINT')
+    const settling = relay.settle()
+    await new Promise<void>((resolve) => setTimeout(resolve, 20))
+    expect(raised).toStrictEqual([])
+
+    await Promise.all([running, settling])
+    expect(raised).toStrictEqual([[process.pid, 'SIGINT']])
+  } finally {
+    await relay.settle()
+  }
 })
 
 test('a script killed by a signal rejects', async () => {

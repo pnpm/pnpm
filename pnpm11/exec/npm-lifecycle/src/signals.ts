@@ -48,17 +48,26 @@ export interface SignalRelay {
 
 export interface SignalRelayReservation {
   release: () => void
+  settle: () => Promise<void>
 }
 
 /** Keep the active relay group open while a lifecycle prepares to spawn. */
 export function reserveSignalRelay (): SignalRelayReservation {
   const group = joinRelayGroup()
   let released = false
+  const release = (): void => {
+    if (released) return
+    released = true
+    settleRelayGroup(group)
+  }
   return {
-    release: () => {
-      if (released) return
-      released = true
-      settleRelayGroup(group)
+    release,
+    settle: async () => {
+      release()
+      if (group.interrupted || group.raised != null) {
+        await group.settled
+        await group.raised
+      }
     },
   }
 }
