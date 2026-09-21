@@ -5,8 +5,10 @@ import { logger } from '@pnpm/logger'
 import {
   findWorkspaceProjects,
   findWorkspaceProjectsNoCheck,
+  findWorkspaceProjectsNoCheckSync,
+  findWorkspaceProjectsSync,
 } from '@pnpm/workspace.projects-reader'
-import { readWorkspaceManifest } from '@pnpm/workspace.workspace-manifest-reader'
+import { readWorkspaceManifest, readWorkspaceManifestSync } from '@pnpm/workspace.workspace-manifest-reader'
 
 beforeEach(() => {
   jest.spyOn(logger, 'warn')
@@ -52,3 +54,24 @@ test('findWorkspaceProjects() outputs warnings for non-root workspace project', 
     [{ prefix: barPath, message: `The field "resolutions" was found in ${barPath}/package.json. This will not take effect. Configure dependency overrides in pnpm-workspace.yaml using the "overrides" field instead.` }],
   ])
 })
+
+test('findWorkspaceProjectsNoCheckSync() works synchronously', () => {
+  const fixturePath = path.join(import.meta.dirname, '__fixtures__/bad-engine')
+  const workspaceManifest = readWorkspaceManifestSync(fixturePath)
+  const pkgs = findWorkspaceProjectsNoCheckSync(fixturePath, {
+    patterns: workspaceManifest?.packages,
+  })
+  expect(pkgs).toHaveLength(1)
+  expect(pkgs[0].manifest.name).toBe('pkg')
+})
+
+test('findWorkspaceProjectsSync() works synchronously', () => {
+  const fixturePath = path.join(import.meta.dirname, '__fixtures__/warning-for-non-root-project')
+  const workspaceManifest = readWorkspaceManifestSync(fixturePath)
+  const pkgs = findWorkspaceProjectsSync(fixturePath, {
+    patterns: workspaceManifest?.packages,
+    sharedWorkspaceLockfile: true,
+  })
+  expect(pkgs).toHaveLength(3)
+})
+

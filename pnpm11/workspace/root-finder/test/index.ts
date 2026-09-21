@@ -3,7 +3,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 
 import { expect, test } from '@jest/globals'
-import { findWorkspaceDir } from '@pnpm/workspace.root-finder'
+import { findWorkspaceDir, findWorkspaceDirSync } from '@pnpm/workspace.root-finder'
 import { temporaryDirectory } from 'tempy'
 
 const NPM_CONFIG_WORKSPACE_DIR_ENV_VAR = 'NPM_CONFIG_WORKSPACE_DIR'
@@ -74,6 +74,21 @@ test('finds the workspace dir from the workspace root that no pattern lists', as
   const workspaceDir = prepareWorkspace(['packages/**'])
 
   expect(await findWorkspaceDir(workspaceDir)).toBe(workspaceDir)
+})
+
+test('findWorkspaceDirSync finds actual workspace dir', () => {
+  const workspaceDir = findWorkspaceDirSync(process.cwd())
+
+  expect(workspaceDir).toBe(path.resolve(import.meta.dirname, '..', '..', '..', '..'))
+})
+
+test('findWorkspaceDirSync behaves identically to findWorkspaceDir on prepared workspace', () => {
+  const workspaceDir = prepareWorkspace(['packages/**', '!examples/**'])
+
+  expect(findWorkspaceDirSync(path.join(workspaceDir, 'packages/pkg-1'))).toBe(workspaceDir)
+  expect(findWorkspaceDirSync(path.join(workspaceDir, 'packages/pkg-1/src'))).toBe(workspaceDir)
+  expect(findWorkspaceDirSync(path.join(workspaceDir, 'examples/example-1'))).toBeUndefined()
+  expect(findWorkspaceDirSync(path.join(workspaceDir, 'docs'))).toBeUndefined()
 })
 
 function prepareWorkspace (packages: string[]): string {

@@ -3,7 +3,7 @@ import util from 'node:util'
 
 import { type GLOBAL_CONFIG_YAML_FILENAME, WORKSPACE_MANIFEST_FILENAME } from '@pnpm/constants'
 import type { PnpmSettings } from '@pnpm/types'
-import { readYamlFile } from 'read-yaml-file'
+import { readYamlFile, readYamlFileSync } from 'read-yaml-file'
 
 import {
   assertValidWorkspaceManifestCatalog,
@@ -41,6 +41,12 @@ export async function readWorkspaceManifest (dir: string, cfgFileName: ConfigFil
   return manifest
 }
 
+export function readWorkspaceManifestSync (dir: string, cfgFileName: ConfigFileName = WORKSPACE_MANIFEST_FILENAME): WorkspaceManifest | undefined {
+  const manifest = readManifestRawSync(dir, cfgFileName)
+  validateWorkspaceManifest(manifest)
+  return manifest
+}
+
 async function readManifestRaw (dir: string, cfgFileName: ConfigFileName): Promise<unknown> {
   try {
     return await readYamlFile<WorkspaceManifest>(path.join(dir, cfgFileName))
@@ -51,6 +57,17 @@ async function readManifestRaw (dir: string, cfgFileName: ConfigFileName): Promi
     }
 
     // Any other error (missing perm, invalid yaml, etc.) fails the process
+    throw err
+  }
+}
+
+function readManifestRawSync (dir: string, cfgFileName: ConfigFileName): unknown {
+  try {
+    return readYamlFileSync<WorkspaceManifest>(path.join(dir, cfgFileName))
+  } catch (err: unknown) {
+    if (util.types.isNativeError(err) && 'code' in err && err.code === 'ENOENT') {
+      return undefined
+    }
     throw err
   }
 }
