@@ -357,3 +357,109 @@ fn custom_resolver_without_a_manifest_installs_the_package_with_its_dependencies
 
     drop((root, mock_instance)); // cleanup
 }
+
+#[test]
+fn custom_resolver_local_tarball_without_manifest_installs_dependencies() {
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    let manifest = serde_json::json!({
+        "name": "custom-local", "version": "1.0.0",
+        "dependencies": {"@pnpm.e2e/dep-of-pkg-with-1-dep": "100.1.0"},
+    });
+    let body = pnpm_testing_utils::fixtures::tarball_with_manifest(&manifest);
+    fs::create_dir_all(workspace.join("vendor")).unwrap();
+    fs::write(workspace.join("vendor/package.tgz"), &body).unwrap();
+    fs::write(workspace.join("package.json"), r#"{"dependencies":{"custom-local":"1.0.0"}}"#)
+        .unwrap();
+    let resolution = serde_json::json!({
+        "tarball": "file:./vendor/package.tgz",
+        "integrity": pnpm_testing_utils::fixtures::sha512_integrity(&body),
+    });
+    fs::write(
+        workspace.join(".pnpmfile.cjs"),
+        format!(
+            r"
+module.exports = {{ resolvers: [{{
+  canResolve: wanted => wanted.alias === 'custom-local',
+  resolve: () => ({{ id: 'custom-local@1.0.0', resolution: {resolution} }}),
+}}] }};
+",
+        ),
+    )
+    .unwrap();
+    pacquet
+        .with_arg("install")
+        .assert()
+        .success();
+    pacquet_at(&workspace).with_args(["exec", "node", "-e",
+        "console.log(require(require.resolve('@pnpm.e2e/dep-of-pkg-with-1-dep/package.json', { paths: [require.resolve('custom-local/package.json')] })).version)"])
+        .assert().success().stdout("100.1.0\n");
+    drop((root, mock_instance));
+}
+
+#[test]
+fn custom_resolver_git_subdirectory_installs_its_manifest_and_dependencies() {
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    let manifest = serde_json::json!({
+        "name": "custom-git", "version": "1.0.0",
+        "dependencies": {"@pnpm.e2e/dep-of-pkg-with-1-dep": "100.1.0"},
+    })
+    .to_string();
+    let body = pnpm_testing_utils::fixtures::tarball_entries(&[
+        ("repo/package.json", br#"{"name":"archive-root","version":"1.0.0"}"#),
+        ("repo/packages/foo/package.json", manifest.as_bytes()),
+    ]);
+    fs::write(workspace.join("repo.tgz"), &body).unwrap();
+    fs::write(workspace.join("package.json"), r#"{"dependencies":{"custom-git":"1.0.0"}}"#)
+        .unwrap();
+    let resolution = serde_json::json!({
+        "tarball": "https://codeload.github.com/example/repo/tar.gz/0123456789abcdef0123456789abcdef01234567",
+        "integrity": pnpm_testing_utils::fixtures::sha512_integrity(&body),
+        "path": "/packages/foo",
+        "gitHosted": true,
+    });
+    fs::write(
+        workspace.join(".pnpmfile.cjs"),
+        format!(
+            r"
+module.exports = {{
+  resolvers: [{{
+    canResolve: wanted => wanted.alias === 'custom-git',
+    resolve: () => ({{ id: 'custom-git@1.0.0', resolution: {resolution} }}),
+  }}],
+  fetchers: [{{
+    canFetch: (id, resolution) => resolution.gitHosted === true,
+    fetch: (cafs, resolution) => ({{ delegate: {{ ...resolution, tarball: 'file:./repo.tgz' }} }}),
+  }}],
+}};
+",
+        ),
+    )
+    .unwrap();
+    pacquet
+        .with_args(["install", "--ignore-scripts"])
+        .assert()
+        .success();
+    let installed: serde_json::Value = serde_json::from_slice(
+        &fs::read(workspace.join("node_modules/custom-git/package.json")).unwrap(),
+    )
+    .unwrap();
+    assert_eq!(installed["name"], "custom-git");
+    pacquet_at(&workspace).with_args(["exec", "node", "-e",
+        "console.log(require(require.resolve('@pnpm.e2e/dep-of-pkg-with-1-dep/package.json', { paths: [require.resolve('custom-git/package.json')] })).version)"])
+        .assert().success().stdout("100.1.0\n");
+    drop((root, mock_instance));
+}

@@ -8,7 +8,9 @@
 //! every edge that resolves to the same content shares it.
 
 use super::PrefetchingResolver;
-use pnpm_deps_restorer::{CustomFetcherSession, ResolvedTarballMetadata};
+use pnpm_deps_restorer::{
+    CustomFetcherSession, ResolvedTarballMetadata, local_file_tarball_install_url,
+};
 use pnpm_lockfile::{LockfileResolution, is_git_hosted_tarball_url};
 use pnpm_reporter::{Reporter, SilentReporter};
 use pnpm_resolving_resolver_base::{ResolveError, ResolveResult};
@@ -57,7 +59,9 @@ impl<Reporter: self::Reporter + 'static> PrefetchingResolver<Reporter> {
         tarball: &pnpm_lockfile::TarballResolution,
         lockfile_dir: &Path,
     ) -> Result<ResolvedTarballMetadata, ResolveError> {
-        let package_url = tarball.tarball.clone();
+        let package_url =
+            local_file_tarball_install_url(tarball.tarball.as_str().into(), lockfile_dir)
+                .into_owned();
         // Scope credentials are selected from `name@version` when the
         // resolver knows it; direct URL tarballs fall back to URL identity.
         let package_id = result.package.name_ver
@@ -102,6 +106,8 @@ impl<Reporter: self::Reporter + 'static> PrefetchingResolver<Reporter> {
     ) -> Result<String, ResolveError> {
         Ok(if self.ctx.policy.custom_session.is_some() {
             format!("custom\t{package_id}\t{}", serde_json::to_string(&result.resolution)?)
+        } else if tarball.path.is_some() {
+            format!("subdirectory\t{}", serde_json::to_string(tarball)?)
         } else {
             match tarball.integrity.as_ref() {
                 Some(integrity) => {
@@ -176,9 +182,7 @@ impl<Reporter: self::Reporter + 'static> PrefetchingResolver<Reporter> {
             },
             auth_headers: &self.ctx.fetching.auth_headers,
             retry_opts: self.ctx.fetching.retry_opts,
-            // git-hosted archives, the sole subdirectory-bearing shape,
-            // are filtered out above.
-            manifest_subdir: None,
+            manifest_subdir: tarball.path.as_deref(),
             revision_addressed,
         }
         .run::<SilentReporter>(Some(&self.ctx.mem_cache))
@@ -191,7 +195,9 @@ impl<Reporter: self::Reporter + 'static> PrefetchingResolver<Reporter> {
         // first point at which the hash that names it is known.
         self.claim_download(package_url, &resolved.integrity, revision_addressed);
         let mut resolution = tarball.clone();
-        resolution.integrity = Some(resolved.integrity);
+        if !is_git_hosted_tarball_url(package_url) {
+            resolution.integrity = Some(resolved.integrity);
+        }
         Ok::<_, ResolveError>(ResolvedTarballMetadata {
             resolution: LockfileResolution::Tarball(resolution),
             manifest: resolved.manifest.map(Arc::new),
@@ -208,12 +214,7 @@ struct MissingTarballMetadata {
 }
 
 impl MissingTarballMetadata {
-    /// `None` when the resolution needs nothing from the archive, and for
-    /// the shapes read here by neither hash nor manifest: a non-tarball
-    /// resolution, a `file:` archive, or a git-hosted one. Those belong to
-    /// the local and git resolvers, which settle both fields themselves;
-    /// a custom resolver that emits one of them and no manifest is
-    /// <https://github.com/pnpm/pnpm/issues/15016>.
+    /// Skip complete resolutions; commit-addressed archives need no new integrity.
     fn of(result: &ResolveResult) -> Option<(Self, &pnpm_lockfile::TarballResolution)> {
         let LockfileResolution::Tarball(tarball) = &result.resolution else {
             return None;
@@ -223,11 +224,11 @@ impl MissingTarballMetadata {
         // input, so trusting it would let a forged `git_hosted: true` on an arbitrary URL
         // skip the integrity computation. A real git-hosted archive (codeload/gitlab/
         // bitbucket) always has a matching URL.
-        if is_git_hosted_tarball_url(&tarball.tarball) || tarball.tarball.starts_with("file:") {
-            return None;
-        }
         let missing = MissingTarballMetadata {
-            integrity: tarball.integrity.is_none(),
+            integrity: tarball.integrity.is_none()
+                && !is_git_hosted_tarball_url(&tarball.tarball)
+                && (!tarball.tarball.starts_with("file:")
+                    || result.package.manifest.is_none()),
             manifest: result.package.manifest.is_none(),
         };
         (missing.integrity || missing.manifest).then_some((missing, tarball))

@@ -1,3 +1,5 @@
+mod metadata;
+
 use crate::{
     InstallPackageBySnapshotError, install_package_by_snapshot::local_file_tarball_install_url,
 };
@@ -43,53 +45,6 @@ impl CustomFetcherSession {
     #[must_use]
     pub fn new(fetchers: Vec<Arc<dyn CustomFetcher>>) -> Self {
         Self { picker: CustomFetcherPicker::new(fetchers), completed: Mutex::new(HashMap::new()) }
-    }
-
-    pub async fn resolve_tarball_metadata<Reporter: self::Reporter>(
-        &self,
-        download: IngestTarballToStore<'_>,
-        original: &LockfileResolution,
-        opts: Value,
-    ) -> Result<ResolvedTarballMetadata, InstallPackageBySnapshotError> {
-        let lockfile_dir = PathBuf::from(
-            opts.get("lockfileDir")
-                .and_then(Value::as_str)
-                .unwrap_or(download.requester),
-        );
-        let (resolution, tarball) = match self.fetch::<Reporter>(download.clone(), original, opts)
-            .await?
-        {
-            CustomFetchOutcome::Fetched { resolution, tarball } => (resolution, tarball),
-            CustomFetchOutcome::Declined(resolution) => {
-                let Some(tarball) =
-                    fetch_custom_tarball::<Reporter>(download.clone(), &resolution, &lockfile_dir)
-                        .await?
-                else {
-                    return Ok(ResolvedTarballMetadata { resolution, manifest: None });
-                };
-                (resolution, tarball)
-            }
-            CustomFetchOutcome::Delegate { resolution, delegate } => {
-                let Some(tarball) =
-                    fetch_custom_tarball::<Reporter>(download.clone(), &delegate, &lockfile_dir)
-                        .await?
-                else {
-                    return Ok(ResolvedTarballMetadata { resolution, manifest: None });
-                };
-                (resolution, tarball)
-            }
-        };
-        let resolution = decode_resolution(
-            serde_json::json!(resolution),
-            Some(&tarball.integrity),
-            download.package.id,
-        )?;
-        let manifest = tarball.manifest.clone().map(Arc::new);
-        self.completed
-            .lock()
-            .unwrap()
-            .insert((download.package.id.to_owned(), tarball.integrity.to_string()), tarball);
-        Ok(ResolvedTarballMetadata { resolution, manifest })
     }
 
     pub(crate) async fn fetch<Reporter: self::Reporter>(

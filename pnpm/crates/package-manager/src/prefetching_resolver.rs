@@ -193,6 +193,9 @@ impl<Reporter: self::Reporter + 'static> PrefetchingResolver<Reporter> {
     /// pass to abort before the rest of the tree walk completes,
     /// which is the opposite of what we want for a prefetch.
     fn maybe_kickoff_download(&self, result: &ResolveResult) {
+        if !is_remote_tarball(&result.resolution) {
+            return;
+        }
         // Only spawn for tarball-shaped resolutions with both URL and
         // integrity. Mirrors the gate in
         // `install_package_from_registry::extract_tarball`; other
