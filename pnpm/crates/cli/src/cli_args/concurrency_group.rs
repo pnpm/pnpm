@@ -11,9 +11,9 @@
 //! limit, so two workspaces on one pool with different limits reach into
 //! it as far as their own setting allows.
 //!
-//! Waiters take a ticket and start in ticket order. A higher `priority`
-//! on the task starts before waiters that arrived earlier. A waiter whose
-//! process has ended is skipped: its ticket file is no longer locked.
+//! Waiters line up on ticket files beside the slots. A waiter whose process
+//! has ended is skipped because that lock is gone, the same way a killed
+//! holder frees its slot.
 //!
 //! A holder stamps the group into [`HELD_CONCURRENCY_GROUPS_ENV`] for the
 //! scripts it spawns. A nested `pnpm run` that finds a task's group there

@@ -321,10 +321,69 @@ fn a_stale_waiter_file_is_skipped() {
     fs::create_dir_all(&waiters).expect("create waiters dir");
     fs::write(waiters.join("0"), "").expect("stale lock");
     fs::write(waiters.join("0.stamp"), "priority 0\npid 1 in /stale").expect("stale stamp");
+    fs::write(dir.path().join("seq"), "1").expect("advance ticket sequence");
 
     let slot = pool
         .acquire(0, |_| {}, &never)
         .expect("acquire")
         .expect("a slot");
+    assert!(!waiters.join("0").exists(), "the stale lock stayed");
+    assert!(!waiters.join("0.stamp").exists(), "the stale stamp stayed");
     drop(slot);
+}
+
+#[test]
+fn a_later_waiter_takes_a_slot_the_head_cannot_reach() {
+    let dir = tempfile::tempdir().expect("create temp dir");
+    let path = dir.path().to_path_buf();
+    let narrow = SlotPool { dir: path.clone(), limit: 1 };
+    let wide = SlotPool { dir: path, limit: 2 };
+    let held = wide
+        .try_acquire()
+        .expect("try first")
+        .expect("slot 0 is free");
+
+    let (narrow_waiting, narrow_got, narrow_thread) = spawn_waiter(narrow, 0);
+    let narrow_line = recv_wait(&narrow_waiting);
+    dbg!(&narrow_line);
+    assert_eq!(narrow_line.position, 1);
+
+    let (_wide_waiting, wide_got, wide_thread) = spawn_waiter(wide, 0);
+    let t_wide = recv_got(&wide_got);
+    wide_thread.join().expect("wider waiter");
+    assert!(
+        matches!(narrow_got.try_recv(), Err(mpsc::TryRecvError::Empty)),
+        "the narrower waiter took a slot it cannot reach",
+    );
+
+    drop(held);
+    let t_narrow = recv_got(&narrow_got);
+    narrow_thread.join().expect("narrower waiter");
+    dbg!(t_wide, t_narrow);
+    assert!(t_wide <= t_narrow, "the wider waiter started after the narrower head");
+}
+
+#[test]
+fn an_empty_seq_does_not_reuse_a_live_ticket() {
+    let dir = tempfile::tempdir().expect("create temp dir");
+    let pool = SlotPool { dir: dir.path().to_path_buf(), limit: 1 };
+    let held = pool
+        .try_acquire()
+        .expect("try first")
+        .expect("the slot is free");
+
+    let (first_waiting, first_got, first) = spawn_waiter(pool.clone(), 0);
+    let first_line = recv_wait(&first_waiting);
+    fs::write(dir.path().join("seq"), "").expect("empty the ticket counter");
+
+    let (second_waiting, second_got, second) = spawn_waiter(pool, 0);
+    let second_line = recv_wait(&second_waiting);
+    dbg!(&first_line, &second_line);
+    assert_eq!(second_line.position, 2, "the new waiter reused the live ticket");
+
+    drop(held);
+    recv_got(&first_got);
+    recv_got(&second_got);
+    first.join().expect("first waiter");
+    second.join().expect("second waiter");
 }

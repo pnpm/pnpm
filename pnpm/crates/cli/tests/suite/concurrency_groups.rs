@@ -11,6 +11,7 @@ use std::{
     io::{BufRead, BufReader, Read},
     path::{Path, PathBuf},
     process::{Child, Command, Stdio},
+    sync::mpsc,
     thread,
     time::{Duration, Instant},
 };
@@ -245,19 +246,39 @@ fn a_waiting_task_reports_who_holds_the_slots() {
     drop(root);
 }
 
-fn wait_until_queued(child: &mut Child) {
-    let mut stdout = BufReader::new(child.stdout.take().expect("capture stdout"));
+fn read_until_queued(mut stdout: BufReader<impl Read>) -> Result<(), String> {
     let mut rendered = String::new();
     loop {
         let mut line = String::new();
-        assert!(
-            stdout.read_line(&mut line).expect("read the wait notice") != 0,
-            "the run never queued: {rendered}",
-        );
-        rendered.push_str(&line);
-        if rendered.contains("Waiting to run") {
-            return;
+        match stdout.read_line(&mut line) {
+            Ok(0) => return Err(rendered),
+            Ok(_) => {
+                rendered.push_str(&line);
+                if rendered.contains("Waiting to run") {
+                    return Ok(());
+                }
+            }
+            Err(error) => return Err(format!("{error}: {rendered}")),
         }
+    }
+}
+
+fn wait_until_queued(child: &mut Child) {
+    let stdout = BufReader::new(child.stdout.take().expect("capture stdout"));
+    let (tx, rx) = mpsc::channel();
+    thread::spawn(move || {
+        let _ = tx.send(read_until_queued(stdout));
+    });
+    match rx.recv_timeout(Duration::from_secs(30)) {
+        Ok(Ok(())) => {}
+        Ok(Err(rendered)) => panic!(
+            "the run never queued: {rendered} status={:?}",
+            child.try_wait().expect("poll the waiting run"),
+        ),
+        Err(error) => panic!(
+            "timed out waiting for the queue notice ({error}), status={:?}",
+            child.try_wait().expect("poll the waiting run"),
+        ),
     }
 }
 

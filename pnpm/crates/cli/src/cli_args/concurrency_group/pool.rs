@@ -33,6 +33,7 @@ struct Waiter {
 struct LiveWaiter {
     ticket: u64,
     priority: i32,
+    limit: u32,
     info: String,
 }
 
@@ -61,14 +62,35 @@ impl SlotPool {
 
     fn try_take_turn(&self, waiter: &mut Waiter) -> io::Result<Option<File>> {
         let _seq = self.lock_seq()?;
-        if !self.is_head(waiter.ticket)? {
-            return Ok(None);
-        }
-        let Some(file) = self.try_acquire()? else {
+        let Some(file) = self.try_acquire_if_eligible(waiter.ticket)? else {
             return Ok(None);
         };
         waiter.leave_queue();
         Ok(Some(file))
+    }
+
+    /// Take a free slot that nobody ahead in line can use.
+    fn try_acquire_if_eligible(&self, ticket: u64) -> io::Result<Option<File>> {
+        let waiters = self.live_waiters()?;
+        let Some(position) = waiters
+            .iter()
+            .position(|waiter| waiter.ticket == ticket)
+        else {
+            return Ok(None);
+        };
+        let ahead = &waiters[..position];
+        for index in 0..self.limit {
+            if ahead
+                .iter()
+                .any(|waiter| waiter.limit > index)
+            {
+                continue;
+            }
+            if let Some(file) = self.try_lock_slot(index)? {
+                return Ok(Some(file));
+            }
+        }
+        Ok(None)
     }
 
     fn emit_wait_notice(
@@ -86,19 +108,26 @@ impl SlotPool {
         Ok(())
     }
 
+    #[cfg(test)]
     pub(super) fn try_acquire(&self) -> io::Result<Option<File>> {
         for index in 0..self.limit {
-            let file = self.open_slot(index)?;
-            match file.try_lock() {
-                Ok(()) => {
-                    let _ = self.write_holder(index);
-                    return Ok(Some(file));
-                }
-                Err(std::fs::TryLockError::WouldBlock) => continue,
-                Err(std::fs::TryLockError::Error(error)) => return Err(error),
+            if let Some(file) = self.try_lock_slot(index)? {
+                return Ok(Some(file));
             }
         }
         Ok(None)
+    }
+
+    fn try_lock_slot(&self, index: u32) -> io::Result<Option<File>> {
+        let file = self.open_slot(index)?;
+        match file.try_lock() {
+            Ok(()) => {
+                let _ = self.write_holder(index);
+                Ok(Some(file))
+            }
+            Err(std::fs::TryLockError::WouldBlock) => Ok(None),
+            Err(std::fs::TryLockError::Error(error)) => Err(error),
+        }
     }
 
     fn open_slot(&self, index: u32) -> io::Result<File> {
@@ -135,8 +164,44 @@ impl SlotPool {
     fn enqueue(&self, priority: i32) -> io::Result<Waiter> {
         fs::create_dir_all(self.waiters_dir())?;
         let mut seq = self.lock_seq()?;
-        let ticket = next_ticket(&mut seq)?;
-        self.create_waiter(ticket, priority)
+        loop {
+            let ticket = self.next_ticket(&mut seq)?;
+            if let Some(waiter) = self.create_waiter(ticket, priority)? {
+                return Ok(waiter);
+            }
+            if ticket == u64::MAX {
+                return Err(io::Error::new(
+                    io::ErrorKind::InvalidData,
+                    "concurrency-group waiter tickets exhausted",
+                ));
+            }
+        }
+    }
+
+    #[expect(
+        clippy::verbose_file_reads,
+        reason = "The counter is incremented on the already-locked seq handle."
+    )]
+    fn next_ticket(&self, seq: &mut File) -> io::Result<u64> {
+        seq.seek(SeekFrom::Start(0))?;
+        let mut buf = Vec::new();
+        seq.read_to_end(&mut buf)?;
+        let ticket = match std::str::from_utf8(&buf)
+            .ok()
+            .and_then(|text| text.trim().parse().ok())
+        {
+            Some(ticket) => ticket,
+            None => self
+                .waiter_tickets()?
+                .into_iter()
+                .max()
+                .map_or(0, |ticket| ticket.saturating_add(1)),
+        };
+        let stored = ticket.saturating_add(1).to_string();
+        seq.seek(SeekFrom::Start(0))?;
+        seq.write_all(stored.as_bytes())?;
+        seq.set_len(stored.len() as u64)?;
+        Ok(ticket)
     }
 
     fn lock_seq(&self) -> io::Result<File> {
@@ -158,20 +223,22 @@ impl SlotPool {
             .join(format!("{ticket}.stamp"))
     }
 
-    fn create_waiter(&self, ticket: u64, priority: i32) -> io::Result<Waiter> {
+    fn create_waiter(&self, ticket: u64, priority: i32) -> io::Result<Option<Waiter>> {
         let lock_path = self.waiter_lock_path(ticket);
         let file = open_lock_file(&lock_path)?;
-        file.lock()?;
+        match file.try_lock() {
+            Ok(()) => {}
+            // A live waiter already owns this ticket. Blocking here would
+            // keep the seq lock that waiter needs to take a slot.
+            Err(std::fs::TryLockError::WouldBlock) => return Ok(None),
+            Err(std::fs::TryLockError::Error(error)) => return Err(error),
+        }
         let stamp_path = self.waiter_stamp_path(ticket);
-        fs::write(&stamp_path, format!("priority {priority}\n{}", process_stamp()))?;
-        Ok(Waiter { file: Some(file), lock_path, stamp_path, ticket })
-    }
-
-    fn is_head(&self, ticket: u64) -> io::Result<bool> {
-        Ok(self
-            .live_waiters()?
-            .first()
-            .is_some_and(|head| head.ticket == ticket))
+        fs::write(
+            &stamp_path,
+            format!("priority {priority}\nlimit {}\n{}", self.limit, process_stamp()),
+        )?;
+        Ok(Some(Waiter { file: Some(file), lock_path, stamp_path, ticket }))
     }
 
     fn snapshot(&self, ticket: u64) -> io::Result<WaitSnapshot> {
@@ -254,12 +321,19 @@ impl SlotPool {
             .and_then(|line| line.strip_prefix("priority "))
             .and_then(|value| value.parse().ok())
             .unwrap_or(0);
-        let info = lines
-            .next()
-            .unwrap_or("")
-            .trim()
-            .to_string();
-        LiveWaiter { ticket, priority, info }
+        let second = lines.next().unwrap_or("");
+        let (limit, info) = match second.strip_prefix("limit ") {
+            Some(value) => (
+                value.parse().unwrap_or(u32::MAX),
+                lines
+                    .next()
+                    .unwrap_or("")
+                    .trim()
+                    .to_string(),
+            ),
+            None => (u32::MAX, second.trim().to_string()),
+        };
+        LiveWaiter { ticket, priority, limit, info }
     }
 }
 
@@ -284,25 +358,6 @@ fn open_lock_file(path: &Path) -> io::Result<File> {
         .create(true)
         .truncate(false)
         .open(path)
-}
-
-#[expect(
-    clippy::verbose_file_reads,
-    reason = "The counter is incremented on the already-locked seq handle."
-)]
-fn next_ticket(seq: &mut File) -> io::Result<u64> {
-    seq.seek(SeekFrom::Start(0))?;
-    let mut buf = Vec::new();
-    seq.read_to_end(&mut buf)?;
-    let ticket: u64 = std::str::from_utf8(&buf)
-        .ok()
-        .and_then(|text| text.trim().parse().ok())
-        .unwrap_or(0);
-    let stored = ticket.saturating_add(1).to_string();
-    seq.seek(SeekFrom::Start(0))?;
-    seq.set_len(0)?;
-    seq.write_all(stored.as_bytes())?;
-    Ok(ticket)
 }
 
 fn process_stamp() -> String {
