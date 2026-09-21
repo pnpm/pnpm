@@ -2,7 +2,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 
 import { expect, test } from '@jest/globals'
-import { safeJoinWorkspaceModulesDir, symlinkDependency, symlinkDependencySync, symlinkDirectRootDependency } from '@pnpm/fs.symlink-dependency'
+import { prepareWorkspaceModulesDir, safeJoinWorkspaceModulesDir, symlinkDependency, symlinkDependencySync, symlinkDirectRootDependency } from '@pnpm/fs.symlink-dependency'
 import { tempDir } from '@pnpm/prepare'
 
 const escapeAliases = [
@@ -63,7 +63,21 @@ test.each(['foo', '@scope/name', 'packages/pkg-a', 'nested/inner'])('safeJoinWor
   expect(safeJoinWorkspaceModulesDir(modulesDir, alias)).toBe(path.join(modulesDir, alias))
 })
 
-test.each(['', '.', '..', '../outside', 'packages/../outside', 'packages//outside', '/absolute', '..\\outside', 'C:\\outside'])('safeJoinWorkspaceModulesDir refuses alias %p', (alias) => {
+test.each(['', '.', '..', '../outside', 'packages/../outside', 'packages//outside', '/absolute', '..\\outside', 'C:\\outside', '.pnpm/foo', '.bin/foo', 'node_modules/foo'])('safeJoinWorkspaceModulesDir refuses alias %p', (alias) => {
   const modulesDir = path.join(tempDir(false), 'node_modules')
   expect(() => safeJoinWorkspaceModulesDir(modulesDir, alias)).toThrow(expect.objectContaining({ code: 'ERR_PNPM_INVALID_DEPENDENCY_NAME' }))
+})
+
+test('prepareWorkspaceModulesDir refuses a symlinked destination parent', async () => {
+  const tmp = tempDir(false)
+  const modulesDir = path.join(tmp, 'node_modules')
+  const outside = path.join(tmp, 'outside')
+  fs.mkdirSync(modulesDir)
+  fs.mkdirSync(outside)
+  await fs.promises.symlink(outside, path.join(modulesDir, 'nested'), process.platform === 'win32' ? 'junction' : 'dir')
+
+  await expect(prepareWorkspaceModulesDir(modulesDir, 'nested/inner')).rejects.toMatchObject({
+    code: 'ERR_PNPM_INVALID_DEPENDENCY_NAME',
+  })
+  expect(fs.existsSync(path.join(outside, 'inner'))).toBe(false)
 })

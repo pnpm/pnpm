@@ -578,6 +578,47 @@ fn symlink_rejects_traversal_workspace_alias() {
 }
 
 #[test]
+fn symlink_rejects_workspace_alias_with_symlinked_parent() {
+    use crate::VirtualStoreLayout;
+    use tempfile::tempdir;
+
+    let dir = tempdir().unwrap();
+    let virtual_store_dir = dir.path().join("node_modules/.pacquet");
+    let private_hoisted = virtual_store_dir.join("node_modules");
+    let public_hoisted = dir.path().join("node_modules");
+    let project_dir = dir.path().join("packages/project");
+    let outside = dir.path().join("outside");
+    std::fs::create_dir_all(&private_hoisted).unwrap();
+    std::fs::create_dir_all(&project_dir).unwrap();
+    std::fs::create_dir_all(&outside).unwrap();
+    pnpm_fs::symlink_dir(&outside, &private_hoisted.join("nested")).unwrap();
+
+    let layout = VirtualStoreLayout::legacy(
+        &virtual_store_dir,
+        pnpm_config::default_virtual_store_dir_max_length() as usize,
+    );
+    let workspace_aliases = vec![("nested/inner".to_string(), HoistKind::Private, project_dir)];
+    let result = super::symlink_hoisted_dependencies(
+        &HashMap::new(),
+        &workspace_aliases,
+        &HashMap::new(),
+        &layout,
+        &private_hoisted,
+        &public_hoisted,
+        &HashSet::new(),
+    );
+
+    assert!(
+        matches!(result, Err(crate::SymlinkPackageError::CreateParentDir { .. })),
+        "a symlinked workspace hoist parent must be rejected; got {result:?}",
+    );
+    assert!(
+        !outside.join("inner").exists(),
+        "no workspace hoist may be created through a symlinked parent",
+    );
+}
+
+#[test]
 fn private_hoist_with_bins_collected_for_bin_link() {
     let (snapshots, packages) = make_lockfile_data(&[
         ("a", "1.0.0", &[("with-bin", "with-bin", "1.0.0"), ("no-bin", "no-bin", "1.0.0")], false),

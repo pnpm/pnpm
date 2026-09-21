@@ -56,6 +56,9 @@ fn workspace_aliases_cannot_escape_the_modules_dir() {
         "/absolute",
         r"..\outside",
         r"C:\outside",
+        ".pnpm/node_modules/foo",
+        ".bin/foo",
+        "node_modules/foo",
     ] {
         let err = safe_join_workspace_modules_dir(modules, alias)
             .expect_err("unsafe workspace alias must be rejected before the join");

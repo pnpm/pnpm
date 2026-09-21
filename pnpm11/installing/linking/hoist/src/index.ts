@@ -5,7 +5,7 @@ import { linkBinsOfPkgsByAliases, type WarnFunction } from '@pnpm/bins.linker'
 import { createMatcher } from '@pnpm/config.matcher'
 import { WANTED_LOCKFILE } from '@pnpm/constants'
 import { linkLogger } from '@pnpm/core-loggers'
-import { safeJoinWorkspaceModulesDir } from '@pnpm/fs.symlink-dependency'
+import { prepareWorkspaceModulesDir, safeJoinWorkspaceModulesDir } from '@pnpm/fs.symlink-dependency'
 import { logger } from '@pnpm/logger'
 import { lexCompare } from '@pnpm/text.ordinal-comparator'
 import type { DependenciesField, DepPath, HoistedDependencies, ProjectId } from '@pnpm/types'
@@ -31,6 +31,7 @@ export interface DirectDependenciesByImporterId<T extends string> {
 const hoistLogger = logger('hoist')
 
 export interface HoistOpts<T extends string> extends GetHoistedDependenciesOpts<T> {
+  beforeWorkspaceLinks?: (hoistedDependencies: HoistedDependencies) => Promise<void>
   extraNodePath?: string[]
   preferSymlinkedExecutables?: boolean
   virtualStoreDir: string
@@ -96,6 +97,7 @@ export interface HoistedWorkspaceProject {
 }
 
 export interface HoistWorkspacePackagesOpts<T extends string> {
+  beforeWorkspaceLinks?: (hoistedDependencies: HoistedDependencies) => Promise<void>
   directDepsByImporterId: DirectDependenciesByImporterId<T>
   graph: DependenciesGraph<T>
   hoistedWorkspacePackages?: Record<ProjectId, HoistedWorkspaceProject>
@@ -120,7 +122,10 @@ export interface HoistWorkspacePackagesOpts<T extends string> {
  * link among them, claims nothing: the graph walk skips it too.
  */
 export async function hoistWorkspacePackages<T extends string> (opts: HoistWorkspacePackagesOpts<T>): Promise<HoistedDependencies> {
-  if (opts.hoistedWorkspacePackages == null) return {}
+  if (opts.hoistedWorkspacePackages == null) {
+    await opts.beforeWorkspaceLinks?.({})
+    return {}
+  }
   const getAliasHoistType = createGetAliasHoistType(opts.publicHoistPattern, opts.privateHoistPattern)
   const aliasesTakenByDependencies = new Set<string>()
   for (const directDeps of Object.values(opts.directDepsByImporterId)) {
@@ -133,7 +138,7 @@ export async function hoistWorkspacePackages<T extends string> (opts: HoistWorks
     virtualStoreDir: opts.virtualStoreDir,
     internalPnpmDir: path.dirname(opts.privateHoistedModulesDir),
   })
-  const placements: Array<[ProjectId, HoistedWorkspaceProject, 'private' | 'public', string]> = []
+  const placementCandidates: Array<[ProjectId, HoistedWorkspaceProject, 'private' | 'public', string]> = []
   for (const [projectId, project] of Object.entries(opts.hoistedWorkspacePackages) as Array<[ProjectId, HoistedWorkspaceProject]>) {
     const { name } = project
     const hoistType = getAliasHoistType(name)
@@ -142,13 +147,22 @@ export async function hoistWorkspacePackages<T extends string> (opts: HoistWorks
     const targetDir = hoistType === 'public'
       ? opts.publicHoistedModulesDir
       : opts.privateHoistedModulesDir
-    placements.push([projectId, project, hoistType, safeJoinWorkspaceModulesDir(targetDir, name)])
+    placementCandidates.push([projectId, project, hoistType, safeJoinWorkspaceModulesDir(targetDir, name)])
   }
-  await Promise.all(placements.map(async ([, { dir }, , destination]) => symlink(dir, destination)))
-  return Object.fromEntries(placements.map(([projectId, { name }, hoistType]) => [
+  const hoistedDependencies = Object.fromEntries(placementCandidates.map(([projectId, { name }, hoistType]) => [
     projectId,
     { [name]: hoistType },
   ])) as HoistedDependencies
+  await opts.beforeWorkspaceLinks?.(hoistedDependencies)
+  const placements = await Promise.all(placementCandidates.map(async ([projectId, project, hoistType]) => {
+    const targetDir = hoistType === 'public'
+      ? opts.publicHoistedModulesDir
+      : opts.privateHoistedModulesDir
+    const destination = await prepareWorkspaceModulesDir(targetDir, project.name)
+    return [projectId, project, hoistType, destination] as const
+  }))
+  await Promise.all(placements.map(async ([, { dir }, , destination]) => symlink(dir, destination)))
+  return hoistedDependencies
 }
 
 export function getHoistedDependencies<T extends string> (opts: GetHoistedDependenciesOpts<T>): HoistGraphResult<T> | null {

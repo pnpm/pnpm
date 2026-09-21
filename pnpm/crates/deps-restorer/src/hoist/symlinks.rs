@@ -180,8 +180,9 @@ impl HoistSymlinkPlan {
         };
         mkdir(dirs.private)?;
         mkdir(dirs.public)?;
-        for scope in &self.scope_dirs {
-            mkdir(scope)?;
+        for parent in &self.scope_dirs {
+            let root = if parent.starts_with(dirs.private) { dirs.private } else { dirs.public };
+            create_hoist_parent_dirs(root, parent)?;
         }
         Ok(())
     }
@@ -222,6 +223,49 @@ impl HoistSymlinkPlan {
         )
     }
 }
+
+fn create_hoist_parent_dirs(
+    root: &std::path::Path,
+    parent: &std::path::Path,
+) -> Result<(), crate::SymlinkPackageError> {
+    let relative = parent
+        .strip_prefix(root)
+        .expect("validated hoist destination parent stays beneath its root");
+    let mut current = root.to_path_buf();
+    for component in relative.components() {
+        current.push(component);
+        match std::fs::symlink_metadata(&current) {
+            Ok(metadata) => {
+                let is_link = pnpm_fs::is_symlink_or_junction(&current)
+                    .map_err(|error| crate::SymlinkPackageError::CreateParentDir {
+                        dir: current.clone(),
+                        error,
+                    })?;
+                if is_link || !metadata.is_dir() {
+                    return Err(crate::SymlinkPackageError::CreateParentDir {
+                        dir: current.clone(),
+                        error: std::io::Error::new(
+                            std::io::ErrorKind::InvalidInput,
+                            "workspace hoist parent is not a real directory",
+                        ),
+                    });
+                }
+            }
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+                std::fs::create_dir(&current)
+                    .map_err(|error| crate::SymlinkPackageError::CreateParentDir {
+                        dir: current.clone(),
+                        error,
+                    })?;
+            }
+            Err(error) => {
+                return Err(crate::SymlinkPackageError::CreateParentDir { dir: current, error });
+            }
+        }
+    }
+    Ok(())
+}
+
 /// Read the existing symlink at `dest` and decide whether it should
 /// be replaced. If it already points at `dep_dir`, leave it untouched.
 /// If it points inside `package_store_dir` or `internal_pnpm_dir`

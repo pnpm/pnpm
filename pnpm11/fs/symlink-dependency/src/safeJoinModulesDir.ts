@@ -1,4 +1,6 @@
+import fs from 'node:fs'
 import path from 'node:path'
+import util from 'node:util'
 
 import validateNpmPackageName from 'validate-npm-package-name'
 
@@ -31,11 +33,13 @@ export function safeJoinModulesDir (modulesDir: string, alias: string): string {
 
 export function safeJoinWorkspaceModulesDir (modulesDir: string, alias: string): string {
   const components = alias.split('/')
+  const firstComponent = components[0].toLowerCase()
   if (
     alias.length === 0 ||
     alias.startsWith('/') ||
     alias.includes('\\') ||
     alias[1] === ':' ||
+    ['.bin', '.pnpm', 'node_modules'].includes(firstComponent) ||
     components.some(component => component.length === 0 || component === '.' || component === '..')
   ) {
     throw invalidDependencyNameError(modulesDir, alias)
@@ -47,6 +51,44 @@ export function safeJoinWorkspaceModulesDir (modulesDir: string, alias: string):
     throw invalidDependencyNameError(modulesDir, alias, resolvedLink)
   }
   return link
+}
+
+export async function prepareWorkspaceModulesDir (modulesDir: string, alias: string): Promise<string> {
+  const destination = safeJoinWorkspaceModulesDir(modulesDir, alias)
+  await fs.promises.mkdir(modulesDir, { recursive: true })
+  const parentComponents = path.relative(modulesDir, path.dirname(destination)).split(path.sep).filter(Boolean)
+  await prepareWorkspaceParent({ alias, components: parentComponents, current: modulesDir, modulesDir })
+  return destination
+}
+
+async function prepareWorkspaceParent (opts: {
+  alias: string
+  components: string[]
+  current: string
+  modulesDir: string
+}): Promise<void> {
+  const [component, ...remainingComponents] = opts.components
+  if (component == null) return
+  const current = path.join(opts.current, component)
+  const stat = await lstatOrCreateDirectory(current)
+  if (stat.isSymbolicLink() || !stat.isDirectory()) {
+    throw invalidDependencyNameError(opts.modulesDir, opts.alias, current)
+  }
+  await prepareWorkspaceParent({ ...opts, components: remainingComponents, current })
+}
+
+async function lstatOrCreateDirectory (dir: string): Promise<fs.Stats> {
+  try {
+    return await fs.promises.lstat(dir)
+  } catch (error: unknown) {
+    if (!util.types.isNativeError(error) || !('code' in error) || error.code !== 'ENOENT') throw error
+  }
+  try {
+    await fs.promises.mkdir(dir)
+  } catch (error: unknown) {
+    if (!util.types.isNativeError(error) || !('code' in error) || error.code !== 'EEXIST') throw error
+  }
+  return fs.promises.lstat(dir)
 }
 
 function invalidDependencyNameError (modulesDir: string, alias: string, resolvedLink?: string): Error & { code: string } {

@@ -1090,3 +1090,66 @@ test('hoistWorkspacePackages rejects a workspace name that escapes the hoist roo
   }))).rejects.toMatchObject({ code: 'ERR_PNPM_INVALID_DEPENDENCY_NAME' })
   expect(fs.existsSync('node_modules/.pnpm/outside')).toBe(false)
 })
+
+test('hoistWorkspacePackages replaces a removed project with the new owner of its name', async () => {
+  const rootManifest = { name: 'root', version: '1.0.0' }
+  const removedManifest = { name: 'shared-name', version: '1.0.0' }
+  const replacementManifest: { name?: string, version: string } = { version: '1.0.0' }
+  const projects = preparePackages([
+    { location: '.', package: rootManifest },
+    { location: 'removed', package: removedManifest },
+    { location: 'replacement', package: replacementManifest },
+  ])
+  const allProjects = [
+    { buildIndex: 0, manifest: rootManifest, rootDir: process.cwd() as ProjectRootDir },
+    { buildIndex: 0, manifest: removedManifest, rootDir: path.resolve('removed') as ProjectRootDir },
+    { buildIndex: 0, manifest: replacementManifest, rootDir: path.resolve('replacement') as ProjectRootDir },
+  ]
+  const mutatedProjects: MutatedProject[] = allProjects.map(({ rootDir }) => ({ mutation: 'install', rootDir }))
+
+  await mutateModules(mutatedProjects, testDefaults({
+    allProjects,
+    hoistPattern: '*',
+    hoistWorkspacePackages: true,
+  }))
+  expect(await resolveLinkTarget(path.resolve('node_modules/.pnpm/node_modules/shared-name'))).toBe(path.resolve('removed'))
+
+  replacementManifest.name = 'shared-name'
+  const remainingProjects = [allProjects[0], allProjects[2]]
+  await mutateModules([mutatedProjects[0], mutatedProjects[2]], testDefaults({
+    allProjects: remainingProjects,
+    hoistPattern: '*',
+    hoistWorkspacePackages: true,
+    pruneLockfileImporters: true,
+  }))
+
+  projects['root'].has('.pnpm/node_modules/shared-name')
+  expect(await resolveLinkTarget(path.resolve('node_modules/.pnpm/node_modules/shared-name'))).toBe(path.resolve('replacement'))
+})
+
+test('hoistWorkspacePackages rejects a symlinked destination parent', async () => {
+  const rootManifest = { name: 'root', version: '1.0.0' }
+  const nestedManifest = { name: 'nested/inner', version: '1.0.0' }
+  preparePackages([
+    { location: '.', package: rootManifest },
+    { location: 'project', package: nestedManifest },
+  ])
+  const outside = path.resolve('outside')
+  fs.mkdirSync('node_modules')
+  fs.mkdirSync(outside)
+  await fs.promises.symlink(outside, path.resolve('node_modules/nested'), process.platform === 'win32' ? 'junction' : 'dir')
+  const allProjects = [
+    { buildIndex: 0, manifest: rootManifest, rootDir: process.cwd() as ProjectRootDir },
+    { buildIndex: 0, manifest: nestedManifest, rootDir: path.resolve('project') as ProjectRootDir },
+  ]
+
+  await expect(mutateModules(allProjects.map(({ rootDir }) => ({
+    mutation: 'install' as const,
+    rootDir,
+  })), testDefaults({
+    allProjects,
+    hoistWorkspacePackages: true,
+    publicHoistPattern: '*',
+  }))).rejects.toMatchObject({ code: 'ERR_PNPM_INVALID_DEPENDENCY_NAME' })
+  expect(fs.existsSync(path.join(outside, 'inner'))).toBe(false)
+})

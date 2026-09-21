@@ -43,10 +43,17 @@ pub fn safe_join_workspace_modules_dir(
     modules: &Path,
     alias: &str,
 ) -> Result<PathBuf, InvalidDependencyAliasError> {
+    let first_component = alias
+        .split('/')
+        .next()
+        .unwrap_or_default();
     if alias.is_empty()
         || alias.starts_with('/')
         || alias.contains('\\')
         || alias.as_bytes().get(1) == Some(&b':')
+        || [".bin", ".pnpm", "node_modules"]
+            .iter()
+            .any(|reserved| first_component.eq_ignore_ascii_case(reserved))
         || alias
             .split('/')
             .any(|component| component.is_empty() || component == "." || component == "..")

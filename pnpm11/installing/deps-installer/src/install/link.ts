@@ -230,6 +230,13 @@ export async function linkPackages (projects: ImporterToUpdate[], depGraph: Depe
   if (opts.virtualStoreOnly || (opts.hoistPattern == null && opts.publicHoistPattern == null)) {
     newHoistedDependencies = {}
   } else {
+    const priorWorkspaceProjectIds = new Set(
+      Object.keys(opts.hoistedDependencies)
+        .filter((key) => (
+          opts.currentLockfile.packages?.[key as DepPath] == null &&
+          (allImportersIncluded || projectIds.includes(key as ProjectId))
+        )) as ProjectId[]
+    )
     const hoistOpts = {
       graph: depGraph,
       directDepsByImporterId: {
@@ -254,14 +261,14 @@ export async function linkPackages (projects: ImporterToUpdate[], depGraph: Depe
           return hoistedWorkspacePackages
         }, {} as Record<string, HoistedWorkspaceProject>)
         : undefined,
+      beforeWorkspaceLinks: async (nextWorkspaceHoists: HoistedDependencies) => pruneStaleWorkspaceHoists(
+        opts.hoistedDependencies,
+        nextWorkspaceHoists,
+        priorWorkspaceProjectIds,
+        opts.hoistedModulesDir,
+        opts.rootModulesDir
+      ),
     }
-    const priorWorkspaceProjectIds = new Set(
-      Object.keys(opts.hoistedDependencies)
-        .filter((key) => (
-          opts.currentLockfile.packages?.[key as DepPath] == null &&
-          (allImportersIncluded || projectIds.includes(key as ProjectId))
-        )) as ProjectId[]
-    )
     const retainedHoistedDependencies = Object.fromEntries(
       Object.entries(opts.hoistedDependencies)
         .filter(([key]) => !priorWorkspaceProjectIds.has(key as ProjectId))
@@ -282,13 +289,6 @@ export async function linkPackages (projects: ImporterToUpdate[], depGraph: Depe
       // to hoist from in the first place.
       nextHoistedDependencies = await hoistWorkspacePackages(hoistOpts)
     }
-    await pruneStaleWorkspaceHoists(
-      opts.hoistedDependencies,
-      nextHoistedDependencies,
-      priorWorkspaceProjectIds,
-      opts.hoistedModulesDir,
-      opts.rootModulesDir
-    )
     newHoistedDependencies = {
       ...retainedHoistedDependencies,
       ...nextHoistedDependencies,
