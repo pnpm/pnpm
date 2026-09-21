@@ -76,21 +76,65 @@ test('isWorkingTreeClean', async () => {
   await expect(isWorkingTreeClean()).resolves.toBe(false)
 })
 
-test('nonInteractiveGitEnv disables git and ssh prompts', () => {
-  expect(nonInteractiveGitEnv({ PATH: '/bin' })).toStrictEqual({
-    PATH: '/bin',
-    GIT_TERMINAL_PROMPT: '0',
-    GIT_SSH_COMMAND: 'ssh -o BatchMode=yes',
+test('nonInteractiveGitEnv disables git and ssh prompts', async () => {
+  await withIsolatedGitConfig(async () => {
+    await expect(nonInteractiveGitEnv()).resolves.toMatchObject({
+      GIT_TERMINAL_PROMPT: '0',
+      GIT_SSH_COMMAND: 'ssh -o BatchMode=yes',
+    })
   })
 })
 
-test('nonInteractiveGitEnv keeps a user-configured ssh command', () => {
-  expect(nonInteractiveGitEnv({ GIT_SSH_COMMAND: 'ssh -i ~/.ssh/deploy_key' })).toStrictEqual({
-    GIT_SSH_COMMAND: 'ssh -i ~/.ssh/deploy_key',
-    GIT_TERMINAL_PROMPT: '0',
-  })
-  expect(nonInteractiveGitEnv({ GIT_SSH: 'plink' })).toStrictEqual({
-    GIT_SSH: 'plink',
-    GIT_TERMINAL_PROMPT: '0',
+test('nonInteractiveGitEnv keeps an ssh command selected through the environment', async () => {
+  await withIsolatedGitConfig(async () => {
+    process.env.GIT_SSH_COMMAND = 'ssh -i ~/.ssh/deploy_key'
+    await expect(nonInteractiveGitEnv()).resolves.toMatchObject({
+      GIT_SSH_COMMAND: 'ssh -i ~/.ssh/deploy_key',
+      GIT_TERMINAL_PROMPT: '0',
+    })
+
+    delete process.env.GIT_SSH_COMMAND
+    process.env.GIT_SSH = 'plink'
+    const gitEnv = await nonInteractiveGitEnv()
+    expect(gitEnv).toMatchObject({ GIT_SSH: 'plink', GIT_TERMINAL_PROMPT: '0' })
+    expect(gitEnv).not.toHaveProperty('GIT_SSH_COMMAND')
   })
 })
+
+test('nonInteractiveGitEnv keeps an ssh command selected through git configuration', async () => {
+  await withIsolatedGitConfig(async () => {
+    await execa('git', ['init'])
+    await execa('git', ['config', 'core.sshCommand', 'ssh -i ~/.ssh/deploy_key'])
+
+    const gitEnv = await nonInteractiveGitEnv()
+    expect(gitEnv).toMatchObject({ GIT_TERMINAL_PROMPT: '0' })
+    expect(gitEnv).not.toHaveProperty('GIT_SSH_COMMAND')
+  })
+})
+
+/**
+ * Runs `fn` in a fresh directory where only the git configuration written by
+ * the test is in effect, with the ssh selection variables unset.
+ */
+async function withIsolatedGitConfig (fn: () => Promise<void>): Promise<void> {
+  const tempDir = temporaryDirectory()
+  process.chdir(tempDir)
+  const names = ['GIT_SSH', 'GIT_SSH_COMMAND', 'GIT_CONFIG_GLOBAL', 'GIT_CONFIG_NOSYSTEM']
+  const original = Object.fromEntries(names.map((name) => [name, process.env[name]]))
+  delete process.env.GIT_SSH
+  delete process.env.GIT_SSH_COMMAND
+  process.env.GIT_CONFIG_GLOBAL = path.join(tempDir, 'empty-gitconfig')
+  process.env.GIT_CONFIG_NOSYSTEM = '1'
+  fs.writeFileSync(process.env.GIT_CONFIG_GLOBAL, '')
+  try {
+    await fn()
+  } finally {
+    for (const [name, value] of Object.entries(original)) {
+      if (value === undefined) {
+        delete process.env[name]
+      } else {
+        process.env[name] = value
+      }
+    }
+  }
+}

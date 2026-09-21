@@ -116,12 +116,31 @@ function readBranchFromHeadFile (cwd?: string): string | null | undefined {
  *
  * `GIT_TERMINAL_PROMPT=0` covers git's own prompts. ssh prompts on the
  * terminal directly, so it is run with `BatchMode=yes`, unless the user
- * configured the ssh command themselves through `GIT_SSH_COMMAND` or `GIT_SSH`.
+ * selected the ssh command themselves through `GIT_SSH_COMMAND`, `GIT_SSH`,
+ * or the `core.sshCommand` git setting in effect in the current directory.
+ *
+ * The process environment is snapshotted per call, so a change a long-lived
+ * host process makes to auth or proxy variables reaches the next invocation.
  */
-export function nonInteractiveGitEnv (env: NodeJS.ProcessEnv = process.env): NodeJS.ProcessEnv {
+export async function nonInteractiveGitEnv (): Promise<NodeJS.ProcessEnv> {
+  const env = process.env
   const gitEnv: NodeJS.ProcessEnv = { ...env, GIT_TERMINAL_PROMPT: '0' }
-  if (env.GIT_SSH_COMMAND === undefined && env.GIT_SSH === undefined) {
+  if (env.GIT_SSH_COMMAND === undefined && env.GIT_SSH === undefined && !(await hasConfiguredSshCommand())) {
     gitEnv.GIT_SSH_COMMAND = 'ssh -o BatchMode=yes'
   }
   return gitEnv
+}
+
+/**
+ * Whether git configuration selects the ssh command through `core.sshCommand`.
+ * A missing git reads as not configured; the invocation that follows fails on
+ * the missing executable with its own error.
+ */
+async function hasConfiguredSshCommand (): Promise<boolean> {
+  try {
+    await execa('git', ['config', '--get', 'core.sshCommand'])
+    return true
+  } catch {
+    return false
+  }
 }

@@ -8,13 +8,14 @@ import { StoreIndex } from '@pnpm/store.index'
 import { lexCompare } from '@pnpm/text.ordinal-comparator'
 import { temporaryDirectory } from 'tempy'
 
+const realExeca = (await import('execa')).safeExeca
 {
   const originalModule = await import('execa')
   jest.unstable_mockModule('execa', () => {
     return {
       __esModule: true,
       ...originalModule,
-      safeExeca: jest.fn(originalModule.safeExeca),
+      safeExeca: jest.fn(realExeca),
     }
   })
 }
@@ -44,7 +45,8 @@ function createStoreIndex (storeDir: string): StoreIndex {
 }
 
 beforeEach(() => {
-  jest.mocked(execa).mockClear()
+  jest.mocked(execa).mockReset()
+  jest.mocked(execa).mockImplementation(realExeca)
   jest.mocked(globalWarn).mockClear()
 })
 
@@ -205,7 +207,7 @@ test('still able to shallow fetch for allowed hosts', async () => {
     readManifest: true,
     filesIndexFile: path.join(storeDir, 'index.json'),
   })
-  const calls = jest.mocked(execa).mock.calls
+  const calls = gitCalls()
   const expectedCalls = [
     ['git', [...prefixGitArgs(), 'init']],
     ['git', [...prefixGitArgs(), 'remote', 'add', 'origin', resolution.repo]],
@@ -461,9 +463,7 @@ test('credentials in the repository URL are redacted from the failure', async ()
 test('git runs with terminal and ssh prompts disabled, so a passphrase prompt cannot block the fetch', async () => {
   const storeDir = temporaryDirectory()
   const fetch = createGitFetcher({ storeIndex: createStoreIndex(storeDir) }).git
-  jest.mocked(execa).mockImplementationOnce(() => {
-    throw Object.assign(new Error('git clone failed'), { stderr: 'git@github.com: Permission denied (publickey).' })
-  })
+  failGit(Object.assign(new Error('git clone failed'), { stderr: 'git@github.com: Permission denied (publickey).' }))
   await fetchFailure(withEnv({ GIT_SSH: undefined, GIT_SSH_COMMAND: undefined }, async () => fetch(
     createCafsStore(storeDir),
     {
@@ -491,9 +491,7 @@ test('git runs with terminal and ssh prompts disabled, so a passphrase prompt ca
 test('a missing git executable is reported as such, not as a fetch failure', async () => {
   const storeDir = temporaryDirectory()
   const fetch = createGitFetcher({ storeIndex: createStoreIndex(storeDir) }).git
-  jest.mocked(execa).mockImplementationOnce(() => {
-    throw Object.assign(new Error('spawn git ENOENT'), { code: 'ENOENT' })
-  })
+  failGit(Object.assign(new Error('spawn git ENOENT'), { code: 'ENOENT' }))
   const err = await fetchFailure(fetch(
     createCafsStore(storeDir),
     {
@@ -510,6 +508,26 @@ test('a missing git executable is reported as such, not as a fetch failure', asy
   expect(err.code).toBe('ERR_PNPM_GIT_FETCHER_GIT_NOT_FOUND')
   expect(err.hint).toBeUndefined()
 })
+
+/**
+ * The git invocations of the fetcher under test, without the `git config`
+ * lookup that decides whether ssh runs in batch mode.
+ */
+function gitCalls (): Array<[string, readonly string[] | undefined, unknown]> {
+  return jest.mocked(execa).mock.calls
+    .filter(([, args]) => args?.[0] !== 'config') as Array<[string, readonly string[] | undefined, unknown]>
+}
+
+/**
+ * Makes every git invocation of the fetcher fail with `err`. The `git config`
+ * lookup keeps answering that no ssh command is configured.
+ */
+function failGit (err: Error): void {
+  jest.mocked(execa).mockImplementation(((_file: string, args?: readonly string[]) => {
+    if (args?.[0] === 'config') return Promise.reject(new Error('core.sshCommand is not configured'))
+    throw err
+  }) as any) // eslint-disable-line @typescript-eslint/no-explicit-any
+}
 
 async function fetchFailure (fetching: Promise<unknown>): Promise<PnpmError> {
   return fetching.then(

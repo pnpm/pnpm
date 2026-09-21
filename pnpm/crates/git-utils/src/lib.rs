@@ -7,7 +7,9 @@
 //! Counterpart of pnpm's `@pnpm/network.git-utils`.
 
 pub use capabilities::{CommandOutput, Host, RunCommand};
-pub use non_interactive::{disable_git_prompts, non_interactive_git_env};
+pub use non_interactive::{
+    disable_git_prompts, has_configured_ssh_command, non_interactive_git_env,
+};
 
 mod capabilities;
 mod non_interactive;
