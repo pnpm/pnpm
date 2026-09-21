@@ -19,6 +19,9 @@
       "path": "../../core/logger"
     },
     {
+      "path": "../../text/sanitize"
+    },
+    {
       "path": "../../workspace/projects-reader"
     },
     {

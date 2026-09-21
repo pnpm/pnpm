@@ -332,13 +332,17 @@ fn completion_server_filters_command_prefixes() {
 
 #[test]
 fn completion_server_filters_option_prefixes() {
-    let output = pacquet()
-        .args(["completion-server", "--", "pnpm", "--rep"])
-        .output()
-        .expect("run pnpm completion-server");
-    let reply = stdout(output);
-
-    assert_eq!(reply.lines().collect::<Vec<_>>(), ["--reporter"]);
+    for words in
+        [vec!["pnpm", "--rep"], vec!["pnpm", "--filter", "--rep"], vec!["pnpm", "-F", "--rep"]]
+    {
+        let output = pacquet()
+            .args(["completion-server", "--"])
+            .args(&words)
+            .output()
+            .expect("run pnpm completion-server");
+        let reply = stdout(output);
+        assert_eq!(reply.lines().collect::<Vec<_>>(), ["--reporter"], "{words:?}");
+    }
 }
 
 #[test]
@@ -725,4 +729,146 @@ fn project_with_scripts(names: &[&str]) -> TempDir {
     )
     .unwrap();
     project
+}
+
+#[test]
+fn completion_server_completes_workspace_filter_values() {
+    let workspace = TempDir::new().unwrap();
+    std::fs::write(workspace.path().join("package.json"), r#"{"name":"root"}"#).unwrap();
+    std::fs::write(
+        workspace.path().join("pnpm-workspace.yaml"),
+        "packages:\n  - packages/*\n  - '!packages/excluded'\n",
+    )
+    .unwrap();
+    for (directory, manifest) in [
+        ("foo", r#"{"name":"pkg-foo"}"#),
+        ("bar", r#"{"name":"@scope/bar"}"#),
+        ("unnamed", "{}"),
+        ("excluded", r#"{"name":"excluded"}"#),
+    ] {
+        let directory = workspace
+            .path()
+            .join("packages")
+            .join(directory);
+        std::fs::create_dir_all(&directory).unwrap();
+        std::fs::write(directory.join("package.json"), manifest).unwrap();
+    }
+    for words in [
+        vec!["pnpm", "--filter", ""],
+        vec!["pnpm", "-F", ""],
+        vec!["pnpm", "run", "--filter", ""],
+        vec!["pnpm", "--filter", "pkg-foo", "-F", ""],
+    ] {
+        let output = pacquet()
+            .current_dir(workspace.path())
+            .args(["completion-server", "--"])
+            .args(&words)
+            .output()
+            .unwrap();
+        assert_eq!(stdout(output), "@scope/bar\npkg-foo\nroot\n", "{words:?}");
+    }
+    for (prefix, expected) in [("pkg", "pkg-foo\n"), ("@scope/", "@scope/bar\n"), ("missing", "")] {
+        let output = pacquet()
+            .current_dir(workspace.path().join("packages/foo"))
+            .args(["completion-server", "--", "pnpm", "-F", prefix])
+            .output()
+            .unwrap();
+        assert_eq!(stdout(output), expected, "{prefix}");
+    }
+    for directory_option in
+        [vec!["--dir", "packages/foo"], vec!["-Cpackages/foo"], vec!["--prefix=packages/foo"]]
+    {
+        let output = pacquet()
+            .current_dir(workspace.path())
+            .args(["completion-server", "--", "pnpm"])
+            .args(&directory_option)
+            .args(["--filter", "pkg"])
+            .output()
+            .unwrap();
+        assert_eq!(stdout(output), "pkg-foo\n", "{directory_option:?}");
+    }
+}
+
+#[test]
+fn completion_server_filter_values_without_workspace() {
+    for (manifest, expected) in
+        [(None, ""), (Some("{}"), ""), (Some(r#"{"name":"standalone"}"#), "standalone\n")]
+    {
+        let project = TempDir::new().unwrap();
+        if let Some(manifest) = manifest {
+            std::fs::write(project.path().join("package.json"), manifest).unwrap();
+        }
+        let output = pacquet()
+            .current_dir(project.path())
+            .args(["completion-server", "--", "pnpm", "--filter", ""])
+            .output()
+            .unwrap();
+        assert_eq!(stdout(output), expected);
+    }
+}
+
+#[test]
+fn completion_server_filter_respects_root_only_workspaces() {
+    for config in ["packages: []\n", "linkWorkspacePackages: true\n"] {
+        let workspace = TempDir::new().unwrap();
+        let child = workspace.path().join("child");
+        std::fs::create_dir(&child).unwrap();
+        std::fs::write(workspace.path().join("package.json"), r#"{"name":"root"}"#).unwrap();
+        std::fs::write(child.join("package.json"), r#"{"name":"child"}"#).unwrap();
+        std::fs::write(workspace.path().join("pnpm-workspace.yaml"), config).unwrap();
+        let output = pacquet()
+            .current_dir(workspace.path())
+            .args(["completion-server", "--", "pnpm", "--filter", ""])
+            .output()
+            .unwrap();
+        assert_eq!(stdout(output), "root\n", "{config}");
+    }
+}
+
+#[test]
+fn completion_server_omits_unsafe_package_and_script_names() {
+    let workspace = TempDir::new().unwrap();
+    let unsafe_names = [
+        "bad\nname",
+        "bad\rname",
+        "bad\tname",
+        "bad\u{1b}[31mname",
+        "bad\u{7f}name",
+        "bad\u{85}name",
+        "bad\u{202e}name",
+        "bad\u{2028}name",
+    ];
+    let scripts: serde_json::Map<_, _> = std::iter::once("safe")
+        .chain(unsafe_names)
+        .map(|name| (name.to_string(), serde_json::json!("echo unused")))
+        .collect();
+    std::fs::write(
+        workspace.path().join("package.json"),
+        serde_json::to_vec(&serde_json::json!({"name": "safe", "scripts": scripts})).unwrap(),
+    )
+    .unwrap();
+    std::fs::write(workspace.path().join("pnpm-workspace.yaml"), "packages:\n  - packages/*\n")
+        .unwrap();
+    for (index, name) in unsafe_names.iter().enumerate() {
+        let directory = workspace
+            .path()
+            .join(format!("packages/pkg-{index}"));
+        std::fs::create_dir_all(&directory).unwrap();
+        std::fs::write(
+            directory.join("package.json"),
+            serde_json::to_vec(&serde_json::json!({"name": name})).unwrap(),
+        )
+        .unwrap();
+    }
+    for shell in ["bash", "fish", "pwsh", "zsh"] {
+        for option in ["--filter", "-F", "run"] {
+            let output = pacquet()
+                .current_dir(workspace.path())
+                .env("SHELL", shell)
+                .args(["completion-server", "--", "pnpm", option, ""])
+                .output()
+                .unwrap();
+            assert_eq!(stdout(output), "safe\n", "{shell}: {option}");
+        }
+    }
 }

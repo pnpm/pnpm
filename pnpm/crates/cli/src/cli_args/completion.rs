@@ -1,10 +1,18 @@
-use crate::flag_relocation::short_cluster_consumes_value;
+pub use shells::{CompletionShell, SUPPORTED_SHELLS};
+
+use crate::{
+    cli_args::{cli_command::options::find_workspace_root_dir, prefix::find_npm_local_prefix},
+    flag_relocation::short_cluster_consumes_value,
+};
 use clap::{Arg, ArgAction, Args, Command, CommandFactory};
 use derive_more::{Display, Error};
 use miette::{Diagnostic, IntoDiagnostic};
-use std::{io::Write, path::Path};
-
-pub const SUPPORTED_SHELLS: &[&str] = &["bash", "fish", "pwsh", "zsh"];
+use pnpm_text_sanitize::sanitize_inline;
+use std::{
+    env,
+    io::Write,
+    path::{Path, PathBuf},
+};
 
 #[derive(Debug, Args)]
 pub struct CompletionArgs {
@@ -18,35 +26,6 @@ pub struct CompletionArgs {
 pub struct CompletionServerArgs {
     #[clap(trailing_var_arg = true, allow_hyphen_values = true)]
     pub words: Vec<String>,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum CompletionShell {
-    Bash,
-    Fish,
-    Pwsh,
-    Zsh,
-}
-
-impl CompletionShell {
-    fn from_name(name: &str) -> Option<Self> {
-        match name {
-            "bash" => Some(CompletionShell::Bash),
-            "fish" => Some(CompletionShell::Fish),
-            "pwsh" => Some(CompletionShell::Pwsh),
-            "zsh" => Some(CompletionShell::Zsh),
-            _ => None,
-        }
-    }
-
-    fn script(self) -> &'static str {
-        match self {
-            CompletionShell::Bash => shells::BASH_COMPLETION,
-            CompletionShell::Fish => shells::FISH_COMPLETION,
-            CompletionShell::Pwsh => shells::PWSH_COMPLETION,
-            CompletionShell::Zsh => shells::ZSH_COMPLETION,
-        }
-    }
 }
 
 #[derive(Debug, Display, Error, Diagnostic, PartialEq, Eq)]
@@ -96,6 +75,9 @@ impl CompletionServerArgs {
     pub fn run(&self) -> miette::Result<()> {
         let is_zsh = std::env::var_os("SHELL").is_some_and(|shell| shell == "zsh");
         for completion in complete_words(&self.words)? {
+            if sanitize_inline(&completion) != completion {
+                continue;
+            }
             let completion = if is_zsh {
                 completion.replace('\\', r"\\").replace(':', r"\:")
             } else {
@@ -138,6 +120,14 @@ pub fn complete_words(words: &[String]) -> miette::Result<Vec<String>> {
         return Ok(filter_by_prefix(visible_options(&context), current_word));
     }
 
+    if context.awaiting_option_value
+        && before_current
+            .last()
+            .is_some_and(|word| matches!(word.as_str(), "--filter" | "-F"))
+    {
+        return Ok(filter_by_prefix(packages::complete_packages(&context)?, current_word));
+    }
+
     Ok(filter_by_prefix(context.positional_candidates()?, current_word))
 }
 
@@ -152,6 +142,15 @@ struct CompletionContext<'a> {
 }
 
 impl<'a> CompletionContext<'a> {
+    fn resolve_project_directory(&self) -> miette::Result<PathBuf> {
+        let cwd = env::current_dir().into_diagnostic()?;
+        let directory = match self.directory {
+            Some(directory) => cwd.join(directory),
+            None => find_npm_local_prefix(&cwd)?,
+        };
+        Ok(if self.workspace_root { find_workspace_root_dir(&directory)? } else { directory })
+    }
+
     fn positional_candidates(&self) -> miette::Result<Vec<String>> {
         match self.command_name {
             Some("completion") => Ok(SUPPORTED_SHELLS
@@ -443,6 +442,7 @@ fn option_has_separate_value(option: &str) -> bool {
     !option.contains('=')
 }
 
+mod packages;
 mod scripts;
 mod shells;
 
