@@ -158,6 +158,7 @@ impl WorkspaceSettings {
         Sys: EnvVar + GetCurrentDir + GetHomeDir + LinkProbe,
     {
         match key {
+            "macosBackup" => config.macos_backup.clone_from(&defaults.macos_backup),
             "storeDir" => config.reset_store_dir_to_default::<Sys>(base_dir),
             "lockfileDir" => {
                 config.lockfile_dir = None;

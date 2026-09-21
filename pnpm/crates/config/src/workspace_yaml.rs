@@ -9,7 +9,7 @@ pub use sections::{
     SideEffectsCacheSettings, TaskSettings, Tool, ToolSettings, UpdateConfig, UpdateSettings,
     decided_allow_builds,
 };
-pub use settings::WorkspaceSettings;
+pub use settings::{MacosBackupSettings, WorkspaceSettings};
 
 use crate::{
     AuditConfig, AuditLevel, CatalogMode, Config, HoistingLimits, InitType, LinkWorkspacePackages,

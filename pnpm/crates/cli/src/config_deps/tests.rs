@@ -350,6 +350,26 @@ async fn update_config_hook_setting_script_shell_to_null_clears_value() {
     assert_eq!(config.script_shell, None);
 }
 
+#[tokio::test]
+async fn update_config_hook_cannot_read_or_change_macos_backup_policy() {
+    let root = tempfile::tempdir().expect("workspace tempdir");
+    fs::write(root.path().join("pnpm-workspace.yaml"), "\n").expect("write workspace settings");
+    fs::write(
+        root.path().join(".pnpmfile.cjs"),
+        "module.exports = { hooks: { updateConfig (config) { if ('macosBackup' in config) throw new Error('backup policy leaked'); config.macosBackup = { modulesDir: true, storeDir: true }; return config } } }",
+    )
+    .expect("write pnpmfile");
+    let mut config = Config::default().current::<Host>(root.path()).expect("load configuration");
+    config.macos_backup.modules_dir = false;
+    config.macos_backup.store_dir = false;
+
+    run_update_config_hooks::<SilentReporter>(&mut config, root.path()).await
+        .expect("run updateConfig hook");
+
+    assert!(!config.macos_backup.modules_dir);
+    assert!(!config.macos_backup.store_dir);
+}
+
 /// `Accept` header the resolver sends for full metadata
 /// (`ACCEPT_FULL_DOC`); only the full packument carries the per-version
 /// `time` map and trust evidence the no-downgrade check reads.

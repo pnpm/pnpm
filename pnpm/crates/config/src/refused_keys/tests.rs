@@ -7,6 +7,7 @@ fn a_key_the_global_config_file_takes_is_routed_there() {
         ("stateDir", "state-dir"),
         ("globalDir", "global-dir"),
         ("globalBinDir", "global-bin-dir"),
+        ("macosBackup", "macos-backup"),
         ("npmrcAuthFile", "npmrc-auth-file"),
     ] {
         assert_eq!(
@@ -75,6 +76,8 @@ fn refusal_is_spelling_insensitive() {
     assert!(is_refused_by_a_project_manifest("authConfig"));
     assert!(is_refused_by_a_project_manifest("auth-config"));
     assert!(is_refused_by_a_project_manifest("hooks"));
+    assert!(is_refused_by_a_project_manifest("macos-backup"));
+    assert!(is_refused_by_a_project_manifest("macosBackup"));
     assert!(!is_refused_by_a_project_manifest("storeDir"));
     assert!(!is_refused_by_a_project_manifest("node-linker"));
 }

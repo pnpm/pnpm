@@ -49,6 +49,11 @@ impl WorkspaceSettings {
 
         identically_named_settings!(apply);
 
+        if let Some(macos_backup) = self.macos_backup.take() {
+            overlay(&mut config.macos_backup.modules_dir, macos_backup.modules_dir);
+            overlay(&mut config.macos_backup.store_dir, macos_backup.store_dir);
+        }
+
         overlay_some(&mut config.pipeline_base, self.pipeline_base.take());
         if let Some(concurrency_groups) = self.concurrency_groups.take() {
             config.concurrency_groups.extend(concurrency_groups);

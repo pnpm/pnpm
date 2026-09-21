@@ -36,6 +36,17 @@ pub struct HoistPatterns {
     pub public_hoist_pattern: Option<Vec<String>>,
 }
 
+/// Machine-local macOS Time Machine policy. Both directories remain eligible
+/// for backup unless the user opts out in the global pnpm configuration or
+/// through `PNPM_CONFIG_*` environment variables.
+#[derive(Debug, Clone, SmartDefault)]
+pub struct MacosBackupConfig {
+    #[default = true]
+    pub modules_dir: bool,
+    #[default = true]
+    pub store_dir: bool,
+}
+
 /// Resolved runtime config built from defaults, the auth subset of
 /// `.npmrc`, and `pnpm-workspace.yaml` (see [`Config::current`]).
 ///
@@ -249,6 +260,11 @@ pub struct Config {
     /// processes.
     #[default(_code = "default_store_dir::<Host>()")]
     pub store_dir: StoreDir,
+
+    /// Whether macOS Time Machine may back up newly created pnpm directories.
+    /// Set `macosBackup.modulesDir` or `macosBackup.storeDir` to `false` in
+    /// the global pnpm configuration to exclude them with `tmutil`.
+    pub macos_backup: MacosBackupConfig,
 
     /// The machine-local directory in which pnpm persists state across
     /// invocations. A project's manifest cannot set this path.

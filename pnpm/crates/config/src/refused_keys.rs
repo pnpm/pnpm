@@ -21,6 +21,7 @@ const PROJECT_MANIFEST_SKIPPED_KEYS: &[&str] = &[
     "globalBinDir",
     "globalDir",
     "globalPkgDir",
+    "macosBackup",
     "npmrcAuthFile",
     "pnpmHomeDir",
     "stateDir",

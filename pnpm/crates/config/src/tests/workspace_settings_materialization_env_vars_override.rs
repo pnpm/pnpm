@@ -1,7 +1,7 @@
 use super::{
     Config, EnvVar, EnvVarOs, GetCurrentDir, GetHomeDir, Host, HostNoHome, LinkProbe, NodeLinker,
-    NodePackageMapType, OsString, Path, PathBuf, TrustPolicy, assert_eq, fs, io, safe_host_var,
-    tempdir, write_file,
+    NodePackageMapType, OsString, Path, PathBuf, TrustPolicy, WorkspaceSettings, assert_eq, fs, io,
+    safe_host_var, tempdir, write_file,
 };
 
 #[test]
@@ -19,6 +19,8 @@ pub fn materialization_env_vars_override_workspace_yaml() {
             match name {
                 "PNPM_CONFIG_VIRTUAL_STORE_ONLY" => Some("true".to_owned()),
                 "PNPM_CONFIG_ENABLE_MODULES_DIR" => Some("false".to_owned()),
+                "PNPM_CONFIG_MACOS_BACKUP_MODULES_DIR" => Some("false".to_owned()),
+                "PNPM_CONFIG_MACOS_BACKUP_STORE_DIR" => Some("false".to_owned()),
                 _ => safe_host_var(name),
             }
         }
@@ -39,8 +41,45 @@ pub fn materialization_env_vars_override_workspace_yaml() {
     let config = Config::new().current::<HostWithMaterializationEnv>(tmp.path()).expect("loads");
     assert!(config.virtual_store_only);
     assert!(!config.enable_modules_dir);
+    assert!(!config.macos_backup.modules_dir);
+    assert!(!config.macos_backup.store_dir);
     assert_eq!(config.hoist_pattern, Some(vec![]));
     assert_eq!(config.public_hoist_pattern, Some(vec![]));
+}
+
+#[test]
+pub fn time_machine_settings_cannot_be_set_by_a_project() {
+    let tmp = tempdir().unwrap();
+    fs::write(
+        tmp.path().join("pnpm-workspace.yaml"),
+        "macosBackup:\n  modulesDir: false\n  storeDir: false\n",
+    )
+    .expect("write to pnpm-workspace.yaml");
+
+    let config = Config::new().current::<HostNoHome>(tmp.path()).expect("loads");
+
+    assert!(config.macos_backup.modules_dir);
+    assert!(config.macos_backup.store_dir);
+    assert_eq!(config.workspace_key_issues.refused, ["macosBackup"]);
+}
+
+#[test]
+pub fn global_config_may_disable_time_machine_backups() {
+    let tmp = tempdir().unwrap();
+    fs::write(
+        tmp.path().join("config.yaml"),
+        "macosBackup:\n  modulesDir: false\n  storeDir: false\n",
+    )
+    .expect("write global config.yaml");
+    let settings = WorkspaceSettings::load_global(tmp.path())
+        .expect("loads global config")
+        .expect("global config exists");
+    let mut config = Config::default();
+
+    settings.apply_to(&mut config, tmp.path());
+
+    assert!(!config.macos_backup.modules_dir);
+    assert!(!config.macos_backup.store_dir);
 }
 
 #[test]

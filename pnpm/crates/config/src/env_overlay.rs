@@ -192,7 +192,21 @@ impl WorkspaceSettings {
         json_field!(settings, Sys, use_beta_cli, "USE_BETA_CLI");
     }
 
+    fn read_macos_backup_env<Sys: EnvVar>(&mut self) {
+        if let Some(value) =
+            read_env::<Sys>("MACOS_BACKUP_MODULES_DIR").and_then(|value| parse_json(&value))
+        {
+            self.macos_backup.get_or_insert_default().modules_dir = Some(value);
+        }
+        if let Some(value) =
+            read_env::<Sys>("MACOS_BACKUP_STORE_DIR").and_then(|value| parse_json(&value))
+        {
+            self.macos_backup.get_or_insert_default().store_dir = Some(value);
+        }
+    }
+
     fn read_layout_env<Sys: EnvVar>(&mut self) {
+        self.read_macos_backup_env::<Sys>();
         let settings = self;
         json_field!(settings, Sys, hoist, "HOIST");
         tri_array_field!(settings, Sys, hoist_pattern, "HOIST_PATTERN");

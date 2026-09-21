@@ -69,6 +69,7 @@ fn create_config(
         store_dir: StoreDir::new(store_dir),
         state_dir: store_dir.join("state"),
         modules_dir: modules_dir.to_path_buf(),
+        macos_backup: Default::default(),
         node_linker: Default::default(),
         node_experimental_package_map: false,
         node_package_map_type: Default::default(),

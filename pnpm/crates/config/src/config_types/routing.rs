@@ -79,7 +79,7 @@ const PNPM_CONFIG_FILE_KEYS: &[&str] = &[
 /// Structured YAML settings parsed from `pnpm-workspace.yaml` / global
 /// `config.yaml` that have no scalar CLI config type
 /// (`structuredConfigFileKeys` in `configFileKey.ts`).
-const STRUCTURED_CONFIG_FILE_KEYS: &[&str] = &["named-registries", "registries"];
+const STRUCTURED_CONFIG_FILE_KEYS: &[&str] = &["macos-backup", "named-registries", "registries"];
 
 /// Keys present in `pnpmTypes` but excluded from the global config file
 /// (`excludedPnpmKeys` in `configFileKey.ts`) — CLI flags and workspace-only

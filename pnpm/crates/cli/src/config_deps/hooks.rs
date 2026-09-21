@@ -200,6 +200,10 @@ fn seed_hook_input(
         serde_json::to_value(&config.extra_env).into_diagnostic()?,
     );
     object.append(&mut resolved_config_views(config, root_dir).into_diagnostic()?);
+    // Machine-local backup policy comes only from trusted global config or
+    // its environment overlay. Repository-controlled hooks may neither read
+    // nor rewrite it.
+    object.remove("macosBackup");
     // The pnpmfiles being run, which is what the setting resolves to and
     // what pnpm reports, rather than only a pinned `pnpmfile` value.
     object.insert("pnpmfile".to_string(), serde_json::to_value(pnpmfiles).into_diagnostic()?);
@@ -218,7 +222,10 @@ fn apply_hook_delta(
     current: &Value,
     base_dir: &Path,
 ) -> Result<()> {
-    let delta = config_delta(input, current);
+    let mut delta = config_delta(input, current);
+    if let Some(delta) = delta.as_object_mut() {
+        delta.remove("macosBackup");
+    }
     // `config_delta` only walks keys present in the hook output, so a
     // `scriptShell` the hook deleted (pnpm: `undefined`, no shell) leaves no
     // trace in the delta.
