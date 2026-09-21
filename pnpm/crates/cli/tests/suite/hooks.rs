@@ -580,6 +580,7 @@ fn update_config_applies_to_sbom() {
 #[test]
 fn update_config_applies_to_audit() {
     let output = run_after_install_with_marker_hook(&["audit"]);
+    assert!(!output.status.success(), "audit should fail without an audit endpoint");
     let stderr = String::from_utf8_lossy(&output.stderr);
     assert!(stderr.contains("ERR_PNPM_AUDIT_ENDPOINT_NOT_EXISTS"), "STDERR:\n{stderr}");
 }
@@ -595,6 +596,7 @@ fn update_config_applies_to_patch() {
 #[test]
 fn update_config_applies_to_runtime() {
     let output = run_after_install_with_marker_hook(&["runtime", "unknown"]);
+    assert!(!output.status.success(), "an unknown runtime subcommand should fail");
     let stderr = String::from_utf8_lossy(&output.stderr);
     assert!(stderr.contains("ERR_PNPM_RUNTIME_UNKNOWN_SUBCOMMAND"), "STDERR:\n{stderr}");
 }
