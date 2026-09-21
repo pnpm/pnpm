@@ -457,6 +457,7 @@ async function update (
     dependencies: true,
     devDependencies: true,
     optionalDependencies: true,
+    peerDependencies: opts.cliOptions.peer === true,
   }
   const depth = opts.depth ?? Infinity
   let updateMatching: UpdateMatchingFunction | undefined
@@ -472,6 +473,7 @@ async function update (
       ...opts,
       rebuildHandler,
       allowNew: false,
+      peer: opts.cliOptions.peer === true,
       depth,
       ignoreCurrentSpecifiers: false,
       include,

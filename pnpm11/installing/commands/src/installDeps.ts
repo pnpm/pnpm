@@ -152,6 +152,7 @@ export type InstallDepsOptions = Pick<Config,
   frozenLockfileIfExists?: boolean
   include?: IncludedDependencies
   includeDirect?: IncludedDependencies
+  peer?: boolean
   latest?: boolean
   /**
    * If specified, the installation will only be performed for comparison of the
@@ -191,6 +192,11 @@ export async function installDeps (
   opts: InstallDepsOptions,
   params: string[]
 ): Promise<DryRunInstallResult | undefined> {
+  // An explicit peer update must resolve and carry peer entries through the
+  // installSome path even when the project disables automatic peer installs.
+  if (opts.peer === true && opts.autoInstallPeers === false) {
+    opts = { ...opts, autoInstallPeers: true }
+  }
   if (!opts.update && !opts.dedupe && !opts.force && params.length === 0 && opts.optimisticRepeatInstall) {
     const { upToDate, wantedLockfileToRestore } = await checkDepsStatus({
       ...opts,
@@ -426,7 +432,7 @@ export async function installDeps (
       dependencySelectors: params,
       manifest,
       mutation: 'installSome' as const,
-      peer: opts.savePeer,
+      peer: opts.peer === true || opts.savePeer,
       rangeSpecStyle: getRangeSpecStyle(opts),
       rootDir: opts.dir as ProjectRootDir,
       targetDependenciesField: getSaveType(opts),

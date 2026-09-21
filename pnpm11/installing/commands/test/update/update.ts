@@ -109,7 +109,7 @@ test('update --peer updates peer dependency ranges', async () => {
     },
   })
 
-  await addDistTag({ package: '@pnpm.e2e/foo', version: '2.0.0', distTag: 'latest' })
+  await addDistTag({ package: '@pnpm.e2e/foo', version: '100.1.0', distTag: 'latest' })
 
   await execFileAsync(process.execPath, [
     pnpmBin,
@@ -121,9 +121,31 @@ test('update --peer updates peer dependency ranges', async () => {
 
   const manifest = loadJsonFileSync<ProjectManifest>('package.json')
   expect(manifest.peerDependencies).toStrictEqual({
-    '@pnpm.e2e/foo': '^2.0.0',
+    '@pnpm.e2e/foo': '^100.1.0',
   })
   expect(manifest.dependencies).toBeUndefined()
+})
+
+test('update --peer updates a named peer without changing other peers', async () => {
+  prepare({
+    peerDependencies: {
+      '@pnpm.e2e/foo': '^1.0.0',
+      '@pnpm.e2e/peer-a': '^1.0.0',
+    },
+  })
+  await addDistTag({ package: '@pnpm.e2e/foo', version: '100.1.0', distTag: 'latest' })
+  await addDistTag({ package: '@pnpm.e2e/peer-a', version: '2.0.0', distTag: 'latest' })
+
+  await update.handler({
+    ...DEFAULT_OPTS,
+    cliOptions: { peer: true },
+    dir: process.cwd(),
+  }, ['@pnpm.e2e/foo@100.1.0'])
+
+  expect(loadJsonFileSync<ProjectManifest>('package.json').peerDependencies).toStrictEqual({
+    '@pnpm.e2e/foo': '^100.1.0',
+    '@pnpm.e2e/peer-a': '^1.0.0',
+  })
 })
 
 test('update to latest should not touch the automatically installed peer dependencies', async () => {
