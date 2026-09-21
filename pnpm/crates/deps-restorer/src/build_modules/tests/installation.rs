@@ -1,7 +1,7 @@
 #[cfg(unix)]
 use super::{
     super::BuildModules, TEST_LOGGED_METHODS, create_failing_postinstall_fixture,
-    create_postinstall_modifies_source_fixture, create_postinstall_with_unreadable_fixture, key,
+    create_postinstall_modifies_source_fixture, create_postinstall_with_unreadable_fixture,
     root_importers,
 };
 use super::{
@@ -9,7 +9,7 @@ use super::{
         allow_build_policy::AllowBuildPolicy,
         slots::{is_contained_descendant, parse_name_version_from_key, virtual_store_dir_for_key},
     },
-    policy_from_specs,
+    key, policy_from_specs,
 };
 #[cfg(unix)]
 use crate::SkippedSnapshots;
