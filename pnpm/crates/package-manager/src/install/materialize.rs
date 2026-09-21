@@ -344,12 +344,16 @@ impl<'a> MaterializationWorkspace<'a> {
         lockfile: &Lockfile,
         node_linker: super::NodeLinker,
         included: IncludedDependencies,
+        ignore_manifest_check: bool,
     ) -> FrozenScope<'a> {
         let empty_skipped = crate::SkippedSnapshots::new();
+        let importer_ids = self.requested_importer_ids.or_else(|| {
+            (!ignore_manifest_check).then_some(self.real_importer_ids)
+        });
         let closure = crate::materialization_closure(
             lockfile,
             self.workspace_root,
-            &initial_materialization_ids(lockfile, self.requested_importer_ids, node_linker),
+            &initial_materialization_ids(lockfile, importer_ids, node_linker),
             included,
             &empty_skipped,
         );

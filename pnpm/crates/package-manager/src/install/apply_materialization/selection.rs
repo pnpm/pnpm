@@ -80,20 +80,21 @@ pub(super) fn materialized_current_lockfile(
     inputs: &SelectMaterializedStateInputs<'_>,
     wanted: &Lockfile,
 ) -> Lockfile {
-    if inputs.projects.requested_ids.is_some() && matches!(inputs.node_linker, NodeLinker::Hoisted)
+    if matches!(inputs.node_linker, NodeLinker::Hoisted)
+        || (inputs.projects.requested_ids.is_none() && inputs.projects.ignore_manifest_check)
     {
         crate::filter_lockfile_for_current(wanted, inputs.included, inputs.install_skipped)
-    } else if let Some(requested_importer_ids) = inputs.projects.requested_ids {
+    } else {
         crate::merge_filtered_current_lockfile(
-            (!inputs.is_inconsistent).then_some(inputs.lockfiles.current).flatten(),
+            (inputs.projects.requested_ids.is_some() && !inputs.is_inconsistent)
+                .then_some(inputs.lockfiles.current)
+                .flatten(),
             wanted,
-            requested_importer_ids,
+            inputs.projects.requested_ids.unwrap_or(inputs.projects.real_ids),
             inputs.included,
             inputs.install_skipped,
             inputs.workspace_root,
         )
-    } else {
-        crate::filter_lockfile_for_current(wanted, inputs.included, inputs.install_skipped)
     }
 }
 pub(super) struct LinkMaterializedProjectsInputs<'a> {

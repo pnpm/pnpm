@@ -151,15 +151,8 @@ pub(super) fn frozen_project_anchor_ids(
         None => real_importer_ids.clone(),
     }
 }
-/// The importers a frozen install materializes first. A hoisted linker shares
-/// one tree, so a selected install still has to materialize every importer.
-///
-/// A full install roots the walk at every importer, which is what makes the
-/// graph it materializes the same graph
-/// [`pnpm_deps_restorer::filter_lockfile_for_current`] records as the current
-/// lockfile. A lockfile snapshot no importer reaches is then absent from both,
-/// instead of being imported on every run and pruned again when the current
-/// lockfile is written.
+/// The importers a frozen install materializes first. Hoisted installs share
+/// one tree and manifest-independent installs use the entire lockfile.
 pub(super) fn initial_materialization_ids(
     lockfile: &Lockfile,
     requested_importer_ids: Option<&HashSet<String>>,
