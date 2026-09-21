@@ -186,6 +186,30 @@ export async function handler (
   }
   const store = await createStoreController(opts)
   if (opts.recursive && (opts.allProjects != null) && (opts.selectedProjectsGraph != null) && opts.workspaceDir) {
+    if (Object.keys(opts.selectedProjectsGraph).length === 0) return
+    const targetDependenciesField = getSaveType(opts)
+    const availableDependenciesSet = new Set<string>()
+    for (const project of opts.allProjects) {
+      if (opts.selectedProjectsGraph[project.rootDir as ProjectRootDir]) {
+        const deps = Object.keys(
+          targetDependenciesField === undefined
+            ? getAllDependenciesFromManifest(project.manifest, { autoInstallPeers: true })
+            : project.manifest[targetDependenciesField] ?? {}
+        )
+        for (const dep of deps) {
+          availableDependenciesSet.add(dep)
+        }
+      }
+    }
+    const availableDependencies = Array.from(availableDependenciesSet).sort()
+    const nonMatchedDependencies = without(availableDependencies, params)
+    if (nonMatchedDependencies.length !== 0) {
+      throw new RemoveMissingDepsError({
+        availableDependencies,
+        nonMatchedDependencies,
+        targetDependenciesField,
+      })
+    }
     await recursive(opts.allProjects, params, {
       ...opts,
       allProjectsGraph: opts.allProjectsGraph!,

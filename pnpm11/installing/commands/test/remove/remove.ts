@@ -2,6 +2,7 @@ import { expect, test } from '@jest/globals'
 import type { PnpmError } from '@pnpm/error'
 import { remove } from '@pnpm/installing.commands'
 import { prepare } from '@pnpm/prepare'
+import type { Project, ProjectRootDir, ProjectRootDirRealPath, ProjectsGraph } from '@pnpm/types'
 
 import { DEFAULT_OPTS } from '../utils/index.js'
 
@@ -176,4 +177,70 @@ test('cliOptionsTypes registers the supply-chain policy options', () => {
 
 test('cliOptionsTypes registers unsafe-perm', () => {
   expect(remove.cliOptionsTypes()).toHaveProperty('unsafe-perm')
+})
+
+test('recursive remove should fail if none of the workspace projects have the dependency', async () => {
+  prepare()
+  const workspaceDir = process.cwd()
+  const allProjects: Project[] = [
+    {
+      rootDir: `${workspaceDir}/project-1` as ProjectRootDir,
+      rootDirRealPath: `${workspaceDir}/project-1` as ProjectRootDirRealPath,
+      manifest: {
+        name: 'project-1',
+        dependencies: {
+          'dep-1': '1.0.0',
+        },
+      },
+      writeProjectManifest: async () => {},
+    },
+    {
+      rootDir: `${workspaceDir}/project-2` as ProjectRootDir,
+      rootDirRealPath: `${workspaceDir}/project-2` as ProjectRootDirRealPath,
+      manifest: {
+        name: 'project-2',
+        dependencies: {
+          'dep-2': '1.0.0',
+        },
+      },
+      writeProjectManifest: async () => {},
+    },
+  ]
+  const selectedProjectsGraph: ProjectsGraph = {
+    [`${workspaceDir}/project-1` as ProjectRootDir]: { dependencies: [], package: allProjects[0] },
+    [`${workspaceDir}/project-2` as ProjectRootDir]: { dependencies: [], package: allProjects[1] },
+  }
+
+  let err!: PnpmError
+  try {
+    await remove.handler({
+      ...DEFAULT_OPTS,
+      allProjects,
+      allProjectsGraph: selectedProjectsGraph,
+      dir: workspaceDir,
+      recursive: true,
+      selectedProjectsGraph,
+      workspaceDir,
+    }, ['non-existent-dep'])
+  } catch (_err: unknown) {
+    err = _err as PnpmError
+  }
+  expect(err).toBeTruthy()
+  expect(err.code).toBe('ERR_PNPM_CANNOT_REMOVE_MISSING_DEPS')
+  expect(err.message).toBe("Cannot remove 'non-existent-dep': no such dependency found")
+})
+
+test('recursive remove does nothing when the selected project graph is empty', async () => {
+  prepare()
+  const workspaceDir = process.cwd()
+
+  await expect(remove.handler({
+    ...DEFAULT_OPTS,
+    allProjects: [],
+    allProjectsGraph: {},
+    dir: workspaceDir,
+    recursive: true,
+    selectedProjectsGraph: {},
+    workspaceDir,
+  }, ['non-existent-dep'])).resolves.toBeUndefined()
 })
