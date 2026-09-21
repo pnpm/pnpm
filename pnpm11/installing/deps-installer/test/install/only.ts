@@ -171,7 +171,7 @@ test('a production install lets pacquet resolve it', async () => {
 
   // The group filter must not divert the install away from pacquet's own
   // resolution; see `pacquetResolvesInstall`.
-  const runPacquet = jest.fn<(opts?: { filterResolvedProgress?: boolean, resolve?: boolean }) => Promise<void>>()
+  const runPacquet = jest.fn<(opts?: { filterResolvedProgress?: boolean, resolve?: boolean, rootProjectPreinstallRan?: boolean }) => Promise<void>>()
     .mockImplementation(async () => {
       writeYamlFileSync(WANTED_LOCKFILE, {
         importers: {
@@ -210,5 +210,5 @@ test('a production install lets pacquet resolve it', async () => {
     },
   }))
 
-  expect(runPacquet).toHaveBeenCalledWith({ resolve: true })
+  expect(runPacquet).toHaveBeenCalledWith({ resolve: true, rootProjectPreinstallRan: true })
 })

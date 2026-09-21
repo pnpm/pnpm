@@ -309,7 +309,7 @@ test('pacquet materializes after pnpm resolves when policy violations must be su
   prepareEmpty()
 
   const opts = testDefaults({ minimumReleaseAge: allImmatureMinimumReleaseAge })
-  const runPacquet = jest.fn<(opts?: { filterResolvedProgress?: boolean, resolve?: boolean }) => Promise<void>>().mockResolvedValue(undefined)
+  const runPacquet = jest.fn<(opts?: { filterResolvedProgress?: boolean, resolve?: boolean, rootProjectPreinstallRan?: boolean }) => Promise<void>>().mockResolvedValue(undefined)
   const result = await install({
     dependencies: {
       'is-odd': '0.1',
@@ -323,7 +323,7 @@ test('pacquet materializes after pnpm resolves when policy violations must be su
     },
   })
 
-  expect(runPacquet).toHaveBeenCalledWith({ filterResolvedProgress: true })
+  expect(runPacquet).toHaveBeenCalledWith({ filterResolvedProgress: true, rootProjectPreinstallRan: true })
   expect(runPacquet).not.toHaveBeenCalledWith({ resolve: true })
   expect(result.resolutionPolicyViolations).toContainEqual(
     expect.objectContaining({

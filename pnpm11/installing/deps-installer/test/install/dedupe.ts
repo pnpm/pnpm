@@ -90,7 +90,7 @@ test('uses the lockfile written by pacquet for post-install checks', async () =>
   }))
 
   const depPath = '@pnpm.e2e/pre-and-postinstall-scripts-example@1.0.0'
-  const runPacquet = jest.fn<(opts?: { resolve?: boolean }) => Promise<void>>().mockImplementation(async () => {
+  const runPacquet = jest.fn<(opts?: { resolve?: boolean, rootProjectPreinstallRan?: boolean }) => Promise<void>>().mockImplementation(async () => {
     writeYamlFileSync(WANTED_LOCKFILE, {
       importers: {
         '.': {
@@ -128,7 +128,7 @@ test('uses the lockfile written by pacquet for post-install checks', async () =>
     },
   }))
 
-  expect(runPacquet).toHaveBeenCalledWith({ resolve: true })
+  expect(runPacquet).toHaveBeenCalledWith({ resolve: true, rootProjectPreinstallRan: true })
   expect(Array.from(ignoredBuilds ?? [])).toContain(depPath)
 })
 
