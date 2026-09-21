@@ -169,7 +169,21 @@ JSON.stringify(require('./args.json').concat([process.argv.slice(2)])), 'utf8')"
 /// `--filter` must not turn `pnpm test` into a recursive workspace run
 /// (`pnpm/pnpm#15217`).
 #[test]
-fn test_shortcut_forwards_filter_argument() {
+fn script_shortcuts_forward_global_options() {
+    for shortcut in ["test", "start", "stop"] {
+        for script_args in [
+            &["--filter=Foo"][..],
+            &["--filter", "Foo", "--reporter", "custom"],
+            &["-r", "--help"],
+            &["--", "--filter=Foo"],
+            &[],
+        ] {
+            assert_shortcut_arguments(shortcut, script_args);
+        }
+    }
+}
+
+fn assert_shortcut_arguments(shortcut: &str, script_args: &[&str]) {
     let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
     fs::write(
         workspace.join("recordArgs.js"),
@@ -181,21 +195,28 @@ fn test_shortcut_forwards_filter_argument() {
         json!({
             "name": "test",
             "version": "0.0.0",
-            "scripts": { "test": "node recordArgs.js" },
+            "scripts": {
+                "test": "node recordArgs.js",
+                "start": "node recordArgs.js",
+                "stop": "node recordArgs.js",
+            },
         })
         .to_string(),
     )
     .expect("write package.json");
 
     pacquet
-        .with_args(["test", "--filter=Foo"])
+        .with_arg("--dir")
+        .with_arg(&workspace)
+        .with_arg(shortcut)
+        .with_args(script_args)
         .assert()
         .success();
 
     let recorded: Vec<String> =
         serde_json::from_str(&fs::read_to_string(workspace.join("args.json")).expect("read args"))
             .expect("parse args");
-    assert_eq!(recorded, ["--filter=Foo"]);
+    assert_eq!(recorded, script_args, "{shortcut} {script_args:?}");
 
     drop(root);
 }
