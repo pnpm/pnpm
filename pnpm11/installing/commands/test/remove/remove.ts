@@ -230,3 +230,17 @@ test('recursive remove should fail if none of the workspace projects have the de
   expect(err.message).toBe("Cannot remove 'non-existent-dep': no such dependency found")
 })
 
+test('recursive remove does nothing when the selected project graph is empty', async () => {
+  prepare()
+  const workspaceDir = process.cwd()
+
+  await expect(remove.handler({
+    ...DEFAULT_OPTS,
+    allProjects: [],
+    allProjectsGraph: {},
+    dir: workspaceDir,
+    recursive: true,
+    selectedProjectsGraph: {},
+    workspaceDir,
+  }, ['non-existent-dep'])).resolves.toBeUndefined()
+})

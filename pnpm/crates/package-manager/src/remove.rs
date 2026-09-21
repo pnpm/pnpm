@@ -238,7 +238,16 @@ fn validate_selected_remove(
     let mut available_lookup = HashSet::new();
     let mut available_dependencies = Vec::new();
     for &index in selected_indices {
-        for dep in projects[index].manifest.available_dependency_names(save_type) {
+        let manifest = &projects[index].manifest;
+        let peer_dependencies = manifest
+            .dependencies([DependencyGroup::Peer])
+            .filter(|_| save_type.is_none())
+            .map(|(name, _)| name.to_string());
+        for dep in manifest
+            .available_dependency_names(save_type)
+            .into_iter()
+            .chain(peer_dependencies)
+        {
             if available_lookup.insert(dep.clone()) {
                 available_dependencies.push(dep);
             }

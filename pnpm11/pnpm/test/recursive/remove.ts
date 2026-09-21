@@ -2,6 +2,7 @@ import fs from 'node:fs'
 
 import { expect, test } from '@jest/globals'
 import { preparePackages } from '@pnpm/prepare'
+import type { DependenciesOrPeersField } from '@pnpm/types'
 import { writeYamlFileSync } from 'write-yaml-file'
 
 import { execPnpm } from '../utils/index.js'
@@ -38,10 +39,32 @@ test('recursive remove accepts dependencies spread across selected projects', as
   expect(fs.existsSync('pnpm-lock.yaml')).toBe(true)
 })
 
-function prepareRemovalWorkspace (): void {
+test('recursive remove accepts dependencies declared only as peers', async () => {
+  prepareRemovalWorkspace(['peerDependencies', 'peerDependencies'])
+
+  await execPnpm(['remove', '-r', '--lockfile-only', 'is-positive', 'is-negative'])
+
+  for (const name of ['project-1', 'project-2']) {
+    const manifest = JSON.parse(fs.readFileSync(`${name}/package.json`, 'utf8'))
+    expect(manifest.peerDependencies ?? {}).toEqual({})
+  }
+})
+
+test('recursive remove does nothing when no projects match the filter', async () => {
+  prepareRemovalWorkspace()
+  const files = ['project-1/package.json', 'project-2/package.json', 'pnpm-workspace.yaml']
+  const before = files.map(file => fs.readFileSync(file, 'utf8'))
+
+  await execPnpm(['remove', '-r', '--filter=absent-project', 'is-positive'])
+
+  expect(files.map(file => fs.readFileSync(file, 'utf8'))).toEqual(before)
+  expect(fs.existsSync('pnpm-lock.yaml')).toBe(false)
+})
+
+function prepareRemovalWorkspace (fields: DependenciesOrPeersField[] = ['dependencies', 'devDependencies']): void {
   preparePackages([
-    { name: 'project-1', version: '1.0.0', dependencies: { 'is-positive': '1.0.0' } },
-    { name: 'project-2', version: '1.0.0', devDependencies: { 'is-negative': '1.0.0' } },
+    { name: 'project-1', version: '1.0.0', [fields[0]]: { 'is-positive': '1.0.0' } },
+    { name: 'project-2', version: '1.0.0', [fields[1]]: { 'is-negative': '1.0.0' } },
   ])
   writeYamlFileSync('pnpm-workspace.yaml', { packages: ['project-*'] })
 }
