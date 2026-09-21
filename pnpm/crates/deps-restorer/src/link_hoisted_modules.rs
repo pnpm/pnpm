@@ -314,6 +314,8 @@ fn import_node<Reporter: self::Reporter>(
             dir: node.dir.clone(),
         });
     };
+    let selected = crate::select_package_files(cas_paths, opts.import.patterns);
+    let cas_paths = &*selected;
 
     if !opts.dir_clone_cache.is_some_and(|cache| {
         cache.try_import::<Reporter>(node, opts.import, cas_paths)

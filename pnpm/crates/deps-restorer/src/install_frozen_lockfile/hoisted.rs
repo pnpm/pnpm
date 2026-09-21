@@ -245,6 +245,7 @@ fn link_hoisted<Reporter: self::Reporter>(
     link_hoisted_modules::<Reporter>(&LinkHoistedModulesOpts {
         import: crate::PackageImportOptions {
             method: config.package_import_method,
+            patterns: &config.package_import_patterns,
             logged_methods: inputs.materialization.logged_methods,
             requester: inputs.materialization.requester,
         },

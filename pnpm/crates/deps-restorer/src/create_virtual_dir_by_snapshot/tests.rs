@@ -165,6 +165,7 @@ async fn run_emits_imported_event_after_import_indexed_dir() {
         },
         import: crate::PackageImportOptions {
             method: PackageImportMethod::Hardlink,
+            patterns: &[],
             logged_methods: &logged_methods,
             requester: "/proj",
         },
@@ -238,6 +239,7 @@ fn run_imports_needs_build_marker_with_a_fresh_package() {
         },
         import: crate::PackageImportOptions {
             method: PackageImportMethod::Copy,
+            patterns: &[],
             logged_methods: &logged_methods,
             requester: "/proj",
         },
@@ -292,6 +294,7 @@ fn force_import_replaces_an_existing_package_at_the_same_snapshot_key() {
         },
         import: crate::PackageImportOptions {
             method: PackageImportMethod::Copy,
+            patterns: &[],
             logged_methods: &AtomicU8::new(0),
             requester: "/proj",
         },
@@ -343,6 +346,7 @@ fn run_rejects_traversal_package_name() {
         },
         import: crate::PackageImportOptions {
             method: PackageImportMethod::Hardlink,
+            patterns: &[],
             logged_methods: &logged_methods,
             requester: "/proj",
         },
@@ -402,6 +406,7 @@ async fn run_removes_obsolete_child_links() {
         },
         import: crate::PackageImportOptions {
             method: PackageImportMethod::Hardlink,
+            patterns: &[],
             logged_methods: &logged_methods,
             requester: "/proj",
         },

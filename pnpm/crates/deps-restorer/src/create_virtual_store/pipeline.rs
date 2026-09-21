@@ -324,6 +324,7 @@ impl<'a> CreateVirtualStore<'a> {
             template: LinkSlotsParallel {
                 import: crate::PackageImportOptions {
                     method: config.package_import_method,
+                    patterns: &config.package_import_patterns,
                     logged_methods: self.ctx.logged_methods,
                     requester: self.ctx.requester,
                 },

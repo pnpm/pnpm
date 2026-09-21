@@ -160,11 +160,12 @@ pub(super) fn materialize_overlay_into_slot<Reporter: self::Reporter>(
     pkg_dir: &Path,
     overlay: &HashMap<String, PathBuf>,
 ) -> OverlayOutcome {
+    let overlay = crate::select_package_files(overlay, context.directories.import_patterns);
     match materialize_side_effects::<Reporter>(
         context.directories.logged_methods,
         context.directories.import_method,
         pkg_dir,
-        overlay,
+        &overlay,
     ) {
         Ok(()) => OverlayOutcome::Materialized,
         Err(error) if pkg_dir.join("package.json").exists() => OverlayOutcome::Rebuild(error),

@@ -65,6 +65,7 @@ fn rebuild_selection_runs_only_selected_scripts() {
             modules_dir: modules_dir.path(),
             lockfile_dir: lockfile_dir.path(),
             import_method: PackageImportMethod::Auto,
+            import_patterns: &[],
             logged_methods: &TEST_LOGGED_METHODS,
         },
         graph: crate::BuildGraphInputs {

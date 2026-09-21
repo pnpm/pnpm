@@ -13,6 +13,8 @@ use std::{
 #[derive(Debug, Clone, Copy)]
 pub struct PackageImportOptions<'a> {
     pub method: PackageImportMethod,
+    /// [`Config::package_import_patterns`]: which files of each package are imported.
+    pub patterns: &'a [String],
     /// Install-scoped dedupe state for `pnpm:package-import-method`.
     /// See the comment on `link_file::log_method_once` for why this
     /// is install-scoped rather than module-static.

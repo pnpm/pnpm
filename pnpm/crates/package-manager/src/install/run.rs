@@ -465,5 +465,8 @@ fn reject_conflicting_store_config(config: &Config) -> Result<(), InstallError> 
     {
         return Err(InstallError::ConfigConflictVirtualStoreOnlyWithNoModulesDir);
     }
+    if !config.package_import_patterns.is_empty() && config.enable_global_virtual_store {
+        return Err(InstallError::ConfigConflictPackageImportPatternsWithGlobalVirtualStore);
+    }
     Ok(())
 }

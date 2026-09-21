@@ -16,7 +16,7 @@ use pnpm_config::{Config, PackageImportMethod};
 use pnpm_deps_restorer::{
     ImportIndexedDirOpts, SkippedSnapshots, VirtualStoreLayout, create_symlink_layout,
     import_indexed_dir, install_package_from_registry::extract_tarball,
-    safe_join_modules_dir::safe_join_modules_dir,
+    safe_join_modules_dir::safe_join_modules_dir, select_package_files,
 };
 use pnpm_lockfile::{
     LockfileResolution, PackageKey, PkgName, SnapshotDepRef, is_git_hosted_tarball_url,
@@ -51,6 +51,7 @@ pub(crate) struct EarlyMaterializer<Reporter> {
 struct Shared {
     layout: VirtualStoreLayout,
     import_method: PackageImportMethod,
+    import_patterns: Vec<String>,
     symlink: bool,
     /// Install-scoped dedupe state for the `pnpm:package-import-method`
     /// log, merged into the install's own state at [`EarlyMaterializer::finish`].
@@ -69,6 +70,7 @@ impl<Reporter: pnpm_reporter::Reporter + 'static> EarlyMaterializer<Reporter> {
             shared: Arc::new(Shared {
                 layout: VirtualStoreLayout::legacy(config.virtual_store_dir.clone(), max_length),
                 import_method: config.package_import_method,
+                import_patterns: config.package_import_patterns.clone(),
                 symlink: config.symlink,
                 logged_methods: AtomicU8::new(0),
                 mem_cache,
@@ -231,7 +233,7 @@ impl SlotJob {
             &shared.logged_methods,
             shared.import_method,
             &self.package_dir,
-            cas_paths,
+            &select_package_files(cas_paths, &shared.import_patterns),
             ImportIndexedDirOpts::default(),
         )
         .map_err(|error| error.to_string())?;

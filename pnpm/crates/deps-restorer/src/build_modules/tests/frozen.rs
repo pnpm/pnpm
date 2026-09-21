@@ -153,6 +153,7 @@ async fn frozen_store_skips_side_effects_upload() {
             modules_dir: modules_dir.path(),
             lockfile_dir: lockfile_dir.path(),
             import_method: PackageImportMethod::Auto,
+            import_patterns: &[],
             logged_methods: &TEST_LOGGED_METHODS,
         },
         graph: crate::BuildGraphInputs {

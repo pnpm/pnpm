@@ -148,6 +148,10 @@ pub struct BuildLayout<'a> {
     /// build is skipped. See `build_one_snapshot`.
     pub import_method: PackageImportMethod,
 
+    /// [`pnpm_config::Config::package_import_patterns`], applied when a slot is re-imported
+    /// from the side-effects cache.
+    pub import_patterns: &'a [String],
+
     /// Install-scoped dedupe state for the `pnpm:package-import-method`
     /// log, shared with [`crate::CreateVirtualStore`] so the side-effects
     /// re-materialization doesn't re-announce a method the link phase

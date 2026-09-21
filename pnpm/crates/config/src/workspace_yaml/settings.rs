@@ -136,6 +136,7 @@ pub struct WorkspaceSettings {
     /// No repo-committed file may set it — see [`crate::refused_keys`].
     pub global_bin_dir: Option<String>,
     pub package_import_method: Option<PackageImportMethod>,
+    pub package_import_patterns: Option<Vec<String>>,
     pub modules_cache_max_age: Option<u64>,
     pub virtual_store_dir_max_length: Option<u64>,
     pub peers_suffix_max_length: Option<u64>,

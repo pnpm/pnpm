@@ -25,6 +25,7 @@ fn metadata() -> PackageMetadata {
 fn import(logged: &AtomicU8) -> crate::PackageImportOptions<'_> {
     crate::PackageImportOptions {
         method: PackageImportMethod::Clone,
+        patterns: &[],
         logged_methods: logged,
         requester: "test",
     }

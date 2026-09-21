@@ -94,6 +94,7 @@ mod override_version_references;
 mod pack;
 mod pack_recursive;
 mod package_configs;
+mod package_import_patterns;
 mod package_manager_check;
 mod package_yaml;
 mod patch;

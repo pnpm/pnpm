@@ -238,6 +238,7 @@ fn build_modules<'a>(
             modules_dir: &config.modules_dir,
             lockfile_dir: inputs.directories.workspace_root,
             import_method: config.package_import_method,
+            import_patterns: &config.package_import_patterns,
             logged_methods: inputs.directories.logged_methods,
         },
         graph: crate::BuildGraphInputs {

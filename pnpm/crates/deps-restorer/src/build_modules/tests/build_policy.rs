@@ -102,6 +102,7 @@ fn build_modules_collects_ignored_builds() {
             modules_dir: modules_dir.path(),
             lockfile_dir: lockfile_dir.path(),
             import_method: PackageImportMethod::Auto,
+            import_patterns: &[],
             logged_methods: &TEST_LOGGED_METHODS,
         },
         graph: crate::BuildGraphInputs {
@@ -176,6 +177,7 @@ fn mutated_slots_is_false_when_every_build_is_ignored() {
             modules_dir: modules_dir.path(),
             lockfile_dir: lockfile_dir.path(),
             import_method: PackageImportMethod::Auto,
+            import_patterns: &[],
             logged_methods: &TEST_LOGGED_METHODS,
         },
         graph: crate::BuildGraphInputs {
@@ -250,6 +252,7 @@ fn mutated_slots_is_true_when_a_script_runs() {
             modules_dir: modules_dir.path(),
             lockfile_dir: lockfile_dir.path(),
             import_method: PackageImportMethod::Auto,
+            import_patterns: &[],
             logged_methods: &TEST_LOGGED_METHODS,
         },
         graph: crate::BuildGraphInputs {
@@ -323,6 +326,7 @@ fn ignore_scripts_skips_build_without_collecting_ignored() {
             modules_dir: modules_dir.path(),
             lockfile_dir: lockfile_dir.path(),
             import_method: PackageImportMethod::Auto,
+            import_patterns: &[],
             logged_methods: &TEST_LOGGED_METHODS,
         },
         graph: crate::BuildGraphInputs {
@@ -392,6 +396,7 @@ fn cached_requires_build_false_skips_package_dir_probe() {
             modules_dir: modules_dir.path(),
             lockfile_dir: lockfile_dir.path(),
             import_method: PackageImportMethod::Auto,
+            import_patterns: &[],
             logged_methods: &TEST_LOGGED_METHODS,
         },
         graph: crate::BuildGraphInputs {
@@ -476,6 +481,7 @@ fn build_modules_collects_ignored_builds_under_concurrency() {
             modules_dir: modules_dir.path(),
             lockfile_dir: lockfile_dir.path(),
             import_method: PackageImportMethod::Auto,
+            import_patterns: &[],
             logged_methods: &TEST_LOGGED_METHODS,
         },
         graph: crate::BuildGraphInputs {
@@ -557,6 +563,7 @@ fn build_modules_excludes_explicit_deny_from_ignored() {
             modules_dir: modules_dir.path(),
             lockfile_dir: lockfile_dir.path(),
             import_method: PackageImportMethod::Auto,
+            import_patterns: &[],
             logged_methods: &TEST_LOGGED_METHODS,
         },
         graph: crate::BuildGraphInputs {
@@ -726,6 +733,7 @@ fn using_side_effects_cache_skips_rebuild() {
             modules_dir: modules_dir.path(),
             lockfile_dir: lockfile_dir.path(),
             import_method: PackageImportMethod::Auto,
+            import_patterns: &[],
             logged_methods: &TEST_LOGGED_METHODS,
         },
         graph: crate::BuildGraphInputs {
@@ -869,6 +877,7 @@ fn corrupt_side_effects_cache_falls_back_to_rebuild() {
             modules_dir: modules_dir.path(),
             lockfile_dir: lockfile_dir.path(),
             import_method: PackageImportMethod::Auto,
+            import_patterns: &[],
             logged_methods: &TEST_LOGGED_METHODS,
         },
         graph: crate::BuildGraphInputs {

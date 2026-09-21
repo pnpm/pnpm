@@ -384,6 +384,14 @@ pub struct Config {
     /// inside `node_modules`, then you need to change the node-linker setting, not this one).
     pub package_import_method: PackageImportMethod,
 
+    /// `packageImportPatterns`. When not empty, an install imports into `node_modules` only the
+    /// package files whose path inside the package matches one of these patterns, plus the
+    /// `package.json` at the root of each package: a package directory without one reads as an
+    /// interrupted import. The patterns are those of `publicHoistPattern`: `*` matches any
+    /// sequence of characters, `/` included, and a leading `!` excludes. Scripts and bins of a
+    /// package see only the files that were imported.
+    pub package_import_patterns: Vec<String>,
+
     /// The time in minutes after which orphan packages from the modules directory should be
     /// removed. pnpm keeps a cache of packages in the modules directory. This boosts installation
     /// speed when switching branches or downgrading dependencies.

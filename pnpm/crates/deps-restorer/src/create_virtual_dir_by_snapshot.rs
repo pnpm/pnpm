@@ -107,13 +107,14 @@ impl CreateVirtualDirBySnapshot<'_> {
 
         let slot = SlotPaths::create(self.layout, self.dependencies.package_key)?;
         let interrupted_build = slot.save_path.join(NEEDS_BUILD_MARKER).is_file();
+        let selected = crate::select_package_files(self.cas_paths, self.import.patterns);
         let marked_cas_paths = cas_paths_with_build_marker(
-            self.cas_paths,
+            &selected,
             &slot.save_path,
             self.source.build_marker,
             (interrupted_build, self.source.force),
         );
-        let cas_paths = marked_cas_paths.as_ref().unwrap_or(self.cas_paths);
+        let cas_paths = marked_cas_paths.as_ref().unwrap_or(&*selected);
 
         let import_package =
             || self.import_slot::<Reporter>(&slot.save_path, cas_paths, interrupted_build);

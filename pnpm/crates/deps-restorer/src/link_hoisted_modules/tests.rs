@@ -137,6 +137,7 @@ fn import_pass_creates_package_directory() {
     let opts = LinkHoistedModulesOpts {
         import: crate::PackageImportOptions {
             method: PackageImportMethod::Auto,
+            patterns: &[],
             logged_methods: &logged,
             requester: lockfile_dir.to_str().expect("requester"),
         },
@@ -189,6 +190,7 @@ fn orphan_directory_is_removed() {
     let opts = LinkHoistedModulesOpts {
         import: crate::PackageImportOptions {
             method: PackageImportMethod::Auto,
+            patterns: &[],
             logged_methods: &logged,
             requester: lockfile_dir.to_str().expect("requester"),
         },
@@ -255,6 +257,7 @@ fn nested_hierarchy_materializes_inner_node_modules() {
     let opts = LinkHoistedModulesOpts {
         import: crate::PackageImportOptions {
             method: PackageImportMethod::Auto,
+            patterns: &[],
             logged_methods: &logged,
             requester: lockfile_dir.to_str().expect("requester"),
         },
@@ -306,6 +309,7 @@ fn missing_cas_for_required_dep_errors() {
     let opts = LinkHoistedModulesOpts {
         import: crate::PackageImportOptions {
             method: PackageImportMethod::Auto,
+            patterns: &[],
             logged_methods: &logged,
             requester: lockfile_dir.to_str().expect("requester"),
         },
@@ -350,6 +354,7 @@ fn missing_cas_for_optional_dep_skips_silently() {
     let opts = LinkHoistedModulesOpts {
         import: crate::PackageImportOptions {
             method: PackageImportMethod::Auto,
+            patterns: &[],
             logged_methods: &logged,
             requester: lockfile_dir.to_str().expect("requester"),
         },
@@ -383,6 +388,7 @@ fn no_prev_graph_skips_orphan_pass() {
     let opts = LinkHoistedModulesOpts {
         import: crate::PackageImportOptions {
             method: PackageImportMethod::Auto,
+            patterns: &[],
             logged_methods: &logged,
             requester: lockfile_dir.to_str().expect("requester"),
         },
@@ -436,6 +442,7 @@ fn orphan_already_removed_is_tolerated() {
     let opts = LinkHoistedModulesOpts {
         import: crate::PackageImportOptions {
             method: PackageImportMethod::Auto,
+            patterns: &[],
             logged_methods: &logged,
             requester: lockfile_dir.to_str().expect("requester"),
         },
@@ -472,6 +479,7 @@ fn hierarchy_entry_missing_from_graph_errors() {
     let opts = LinkHoistedModulesOpts {
         import: crate::PackageImportOptions {
             method: PackageImportMethod::Auto,
+            patterns: &[],
             logged_methods: &logged,
             requester: lockfile_dir.to_str().expect("requester"),
         },
@@ -526,6 +534,7 @@ fn import_pass_emits_one_imported_event_per_node() {
     let opts = LinkHoistedModulesOpts {
         import: crate::PackageImportOptions {
             method: PackageImportMethod::Hardlink,
+            patterns: &[],
             logged_methods: &logged,
             requester: lockfile_dir.to_str().expect("requester"),
         },

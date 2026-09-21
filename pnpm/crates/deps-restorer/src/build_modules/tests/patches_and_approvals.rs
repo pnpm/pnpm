@@ -215,6 +215,7 @@ new file mode 100644
             modules_dir: modules_dir.path(),
             lockfile_dir: lockfile_dir.path(),
             import_method: PackageImportMethod::Auto,
+            import_patterns: &[],
             logged_methods: &TEST_LOGGED_METHODS,
         },
         graph: crate::BuildGraphInputs {
@@ -345,6 +346,7 @@ new file mode 100644
             modules_dir: modules_dir.path(),
             lockfile_dir: lockfile_dir.path(),
             import_method: PackageImportMethod::Auto,
+            import_patterns: &[],
             logged_methods: &TEST_LOGGED_METHODS,
         },
         graph: crate::BuildGraphInputs {
@@ -444,6 +446,7 @@ async fn missing_patch_file_path_errors_with_diagnostic() {
             modules_dir: modules_dir.path(),
             lockfile_dir: lockfile_dir.path(),
             import_method: PackageImportMethod::Auto,
+            import_patterns: &[],
             logged_methods: &TEST_LOGGED_METHODS,
         },
         graph: crate::BuildGraphInputs {

@@ -84,6 +84,7 @@ fn create_config(
         global_pkg_dir: None,
         global_bin: None,
         package_import_method: Default::default(),
+        package_import_patterns: Vec::new(),
         modules_cache_max_age: 0,
         virtual_store_dir_max_length: pnpm_config::default_virtual_store_dir_max_length(),
         peers_suffix_max_length: pnpm_config::default_peers_suffix_max_length(),

@@ -102,6 +102,7 @@ impl<'install> DirCloneCache<'install> {
         cfg!(target_os = "macos")
             && matches!(node_linker, NodeLinker::Isolated | NodeLinker::Hoisted)
             && !config.enable_global_virtual_store
+            && config.package_import_patterns.is_empty()
             && matches!(
                 config.package_import_method,
                 PackageImportMethod::Auto

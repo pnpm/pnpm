@@ -390,6 +390,15 @@ pub enum InstallError {
     )]
     #[diagnostic(code(ERR_PNPM_CONFIG_CONFLICT_VIRTUAL_STORE_ONLY_WITH_NO_MODULES_DIR))]
     ConfigConflictVirtualStoreOnlyWithNoModulesDir,
+
+    /// `packageImportPatterns` was set with the global virtual store on. Every project on the
+    /// machine shares a package directory there, so one imported with some of its files would
+    /// reach the projects that need all of them.
+    #[display(
+        "Cannot use packageImportPatterns together with the global virtual store: every project on the machine shares its package directories, and one imported with some of its files would reach projects that need all of them"
+    )]
+    #[diagnostic(code(ERR_PNPM_CONFIG_CONFLICT_PACKAGE_IMPORT_PATTERNS_WITH_GLOBAL_VIRTUAL_STORE))]
+    ConfigConflictPackageImportPatternsWithGlobalVirtualStore,
 }
 /// Hold back an [`InstallError::IgnoredBuilds`] verdict so the calling
 /// command can finish writing `package.json` and `pnpm-workspace.yaml`

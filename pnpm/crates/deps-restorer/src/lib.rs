@@ -29,6 +29,7 @@ pub mod remove_quarantine;
 pub mod report_direct_dependency_changes;
 pub mod retry_config;
 pub mod safe_join_modules_dir;
+pub mod select_package_files;
 pub mod store_init;
 pub mod symlink_direct_dependencies;
 pub mod symlink_package;
@@ -85,6 +86,7 @@ pub use pnpm_workspace_task_scheduler::{GraphSequencerResult, PathNode, graph_se
 pub use prune_direct_deps::*;
 pub use prune_stale_modules::*;
 pub use safe_join_modules_dir::*;
+pub use select_package_files::select_package_files;
 pub use symlink_direct_dependencies::*;
 pub use symlink_package::*;
 pub use validate_lockfile_paths::*;
