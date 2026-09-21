@@ -2,7 +2,6 @@ pub(super) use configuration::{apply_update_config, seed_config};
 
 use super::{
     cli_command::{CliArgs, CliCommand},
-    config_warnings::warn_shared_workspace_lockfile_outside_workspace,
     dispatch_install, dispatch_query, dispatch_script,
     install::resolve_bool_override,
     reporter::{
@@ -19,6 +18,7 @@ use crate::{
 use configuration::{
     OutputOverrides, ProjectSelectors, RunAnchors, RunSetup, apply_color_override,
     apply_location_overrides, apply_output_overrides, apply_project_selectors,
+    warn_config_overrides,
 };
 use miette::{Context, IntoDiagnostic};
 use pnpm_config::{ColorMode, Config, Host, default_pnpm_home_dir};
@@ -268,7 +268,7 @@ impl CliArgs {
         let emit = reporter_emit(self.effective_reporter());
         let finished = install_args.finished_via_up_to_date_fast_path(&dir, &config, emit);
         if finished {
-            warn_fast_path_config(config_overrides, &config);
+            warn_config_overrides(config_overrides, &config);
             emit_execution_time(emit, started_at);
         }
         finished
@@ -386,10 +386,7 @@ impl CliArgs {
     ) -> miette::Result<&'static mut Config> {
         config_overrides.apply(&mut cfg, anchor);
         if !is_global {
-            warn_shared_workspace_lockfile_outside_workspace(
-                config_overrides.shared_workspace_lockfile(),
-                cfg.workspace_dir.as_deref(),
-            );
+            warn_config_overrides(config_overrides, &cfg);
         }
         apply_color_override(
             &mut cfg,
@@ -479,13 +476,6 @@ impl CliArgs {
             },
         );
     }
-}
-
-fn warn_fast_path_config(config_overrides: &ConfigOverrides, config: &Config) {
-    warn_shared_workspace_lockfile_outside_workspace(
-        config_overrides.shared_workspace_lockfile(),
-        config.workspace_dir.as_deref(),
-    );
 }
 
 /// A JSON-mode command reports its own failure on stdout and exits, so the

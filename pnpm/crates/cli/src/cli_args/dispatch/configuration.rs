@@ -4,7 +4,10 @@ use super::{
     apply_store_dir_override, configure_color, default_pnpm_home_dir, now_millis, prepare_config,
     prints_json_errors,
 };
-use crate::config_overrides::apply_registry_override;
+use crate::{
+    cli_args::config_warnings::warn_shared_workspace_lockfile_outside_workspace,
+    config_overrides::{ConfigOverrides, apply_registry_override},
+};
 
 /// The directories a run is anchored at.
 pub(super) struct RunAnchors {
@@ -240,4 +243,11 @@ pub(in super::super) async fn apply_update_config(
         ReporterType::Silent => prepare_config::<SilentReporter>(config, dir).await?,
     };
     Ok(())
+}
+
+pub(super) fn warn_config_overrides(config_overrides: &ConfigOverrides, config: &Config) {
+    warn_shared_workspace_lockfile_outside_workspace(
+        config_overrides.shared_workspace_lockfile(),
+        config.workspace_dir.as_deref(),
+    );
 }
