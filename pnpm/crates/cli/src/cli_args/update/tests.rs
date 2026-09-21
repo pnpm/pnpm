@@ -27,6 +27,14 @@ fn peer_is_opt_in() {
 }
 
 #[test]
+fn interactive_peer_is_rejected() {
+    let error = update_args(&["--interactive", "--peer"])
+        .check_interactive_peer_options()
+        .expect_err("interactive peer updates are not supported");
+    assert!(error.to_string().contains("--peer cannot be combined with --interactive"));
+}
+
+#[test]
 fn no_flags_includes_all_groups() {
     let groups = options(false, false, false, false).include_direct();
     assert_eq!(

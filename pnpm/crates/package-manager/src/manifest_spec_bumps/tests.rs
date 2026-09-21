@@ -272,6 +272,30 @@ importers:
     assert_eq!(applied.manifests["."]["foo"], expected);
 }
 
+#[test]
+fn a_peer_bump_moves_the_materialized_lockfile_entry_and_reports_peer_group() {
+    let mut lockfile = lockfile(
+        r"
+lockfileVersion: '9.0'
+importers:
+  .:
+    dependencies:
+      foo:
+        specifier: ^1.0.0
+        version: 1.2.0
+",
+    );
+
+    let bumps = bumps(&[("foo", DependencyGroup::Peer, "^1.0.0")]);
+    apply_manifest_spec_bumps(&mut lockfile, &bumps, None);
+
+    let importer = &lockfile.importers["."];
+    assert_eq!(specifier_of(importer.dependencies.as_ref(), "foo"), "^1.2.0");
+    let applied = bumps.applied.into_inner().expect("never poisoned");
+    let expected = (DependencyGroup::Peer, "^1.2.0".to_string());
+    assert_eq!(applied.manifests["."]["foo"], expected);
+}
+
 /// The declared text is what the resolver read. When the lockfile entry
 /// carries something else — an override replaced the declaration before
 /// resolution — the entry is not the update's to move (pnpm/pnpm#12115).

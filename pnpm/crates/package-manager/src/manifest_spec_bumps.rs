@@ -108,8 +108,7 @@ pub(crate) fn apply_manifest_spec_bumps(
     apply_catalog_bumps(lockfile, &catalogs);
 
     let mut applied = bumps.applied.lock().expect("the spec-bump sink is never poisoned");
-    applied.manifests =
-        render_aliases(manifests, |(group, specifier)| (IMPORTER_GROUPS[group], specifier));
+    applied.manifests = render_aliases(manifests, |(_, group, specifier)| (group, specifier));
     applied.catalogs = render_aliases(catalogs, |specifier| specifier);
 }
 
@@ -152,18 +151,24 @@ fn record_spec_bump(
         SpecBump::Cataloged { catalog_name, alias } => {
             cataloged.insert((catalog_name, alias));
         }
-        SpecBump::Manifest { alias, group, bumped } => {
+        SpecBump::Manifest {
+            alias,
+            lockfile_group,
+            manifest_group,
+            bumped,
+        } => {
             manifests
                 .entry(importer_id.to_string())
                 .or_default()
-                .insert(alias, (group, bumped));
+                .insert(alias, (lockfile_group, manifest_group, bumped));
         }
     }
 }
 
 /// Per importer id, the bumped range of each declaration and the group it is
 /// declared under.
-type ImporterBumps = BTreeMap<String, HashMap<PkgName, (DependencyGroupIndex, String)>>;
+type ImporterBumps =
+    BTreeMap<String, HashMap<PkgName, (DependencyGroupIndex, DependencyGroup, String)>>;
 
 /// One targeted declaration and what decides whether its range may move.
 struct SpecBumpTarget<'a> {
@@ -180,13 +185,11 @@ enum SpecBump {
     /// The declaration keeps its text.
     Skip,
     /// The declaration is a `catalog:` reference, so the catalog entry moves.
-    Cataloged {
-        catalog_name: String,
-        alias: PkgName,
-    },
+    Cataloged { catalog_name: String, alias: PkgName },
     Manifest {
         alias: PkgName,
-        group: DependencyGroupIndex,
+        lockfile_group: DependencyGroupIndex,
+        manifest_group: DependencyGroup,
         bumped: String,
     },
 }
@@ -222,7 +225,12 @@ fn spec_bump(target: &SpecBumpTarget<'_>) -> SpecBump {
     else {
         return SpecBump::Skip;
     };
-    SpecBump::Manifest { alias, group, bumped }
+    SpecBump::Manifest {
+        alias,
+        lockfile_group: group,
+        manifest_group: target.manifest_group,
+        bumped,
+    }
 }
 
 fn collect_catalog_bumps(
@@ -257,7 +265,7 @@ fn apply_importer_bumps(lockfile: &mut Lockfile, manifests: &ImporterBumps) {
     for (importer_id, bumped) in manifests {
         let Some(importer) = lockfile.importers.get_mut(importer_id) else { continue };
         let mut groups = dependency_maps_mut(importer);
-        for (alias, (group, specifier)) in bumped {
+        for (alias, (group, _, specifier)) in bumped {
             if let Some(declared) = groups[*group]
                 .as_mut()
                 .and_then(|map| map.get_mut(alias))
@@ -409,9 +417,12 @@ fn declared_dependency<'a>(
     alias: &PkgName,
     group: DependencyGroup,
 ) -> Option<(DependencyGroupIndex, &'a ResolvedDependencySpec)> {
-    let index = IMPORTER_GROUPS
-        .iter()
-        .position(|candidate| *candidate == group)?;
+    let index = match group {
+        DependencyGroup::Peer => 0,
+        _ => IMPORTER_GROUPS
+            .iter()
+            .position(|candidate| *candidate == group)?,
+    };
     let maps =
         [&importer.dependencies, &importer.dev_dependencies, &importer.optional_dependencies];
     Some((index, maps[index].as_ref()?.get(alias)?))
