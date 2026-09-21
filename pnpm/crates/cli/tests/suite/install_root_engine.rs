@@ -1,7 +1,7 @@
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
 use pnpm_testing_utils::bin::CommandTempCwd;
-use std::{fs, process::Command};
+use std::{fs, path::Path, process::Command};
 
 #[test]
 fn engine_strict_rejects_an_incompatible_root_project() {
@@ -51,18 +51,8 @@ fn engine_strict_rejects_an_incompatible_root_project() {
 
 #[test]
 fn engine_strict_accepts_the_active_node_version() {
-    let node_output = Command::new("node")
-        .arg("--version")
-        .output()
-        .expect("run node --version");
-    assert!(node_output.status.success(), "node --version must succeed");
-    let node_version = String::from_utf8(node_output.stdout)
-        .expect("decode node --version")
-        .trim()
-        .trim_start_matches('v')
-        .to_string();
-
     let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    let node_version = node_version_at(&workspace);
     fs::write(
         workspace.join("package.json"),
         serde_json::json!({
@@ -145,18 +135,8 @@ fn update_config_can_disable_the_root_engine_check() {
 
 #[test]
 fn no_runtime_checks_the_active_node_instead_of_the_manifest_runtime() {
-    let node_output = Command::new("node")
-        .arg("--version")
-        .output()
-        .expect("run node --version");
-    assert!(node_output.status.success(), "node --version must succeed");
-    let node_version = String::from_utf8(node_output.stdout)
-        .expect("decode node --version")
-        .trim()
-        .trim_start_matches('v')
-        .to_string();
-
     let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    let node_version = node_version_at(Path::new("."));
     fs::write(
         workspace.join("package.json"),
         serde_json::json!({
@@ -179,6 +159,20 @@ fn no_runtime_checks_the_active_node_instead_of_the_manifest_runtime() {
         .success();
 
     drop(root);
+}
+
+fn node_version_at(dir: &Path) -> String {
+    let node_output = Command::new("node")
+        .arg("--version")
+        .current_dir(dir)
+        .output()
+        .expect("run node --version");
+    assert!(node_output.status.success(), "node --version must succeed");
+    String::from_utf8(node_output.stdout)
+        .expect("decode node --version")
+        .trim()
+        .trim_start_matches('v')
+        .to_string()
 }
 
 #[test]
