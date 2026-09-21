@@ -198,7 +198,7 @@ impl CliArgs {
     fn validate_no_bail_global_option(&self) -> Result<(), clap::Error> {
         if matches!(
             self.command,
-            CliCommand::Rebuild(_) | CliCommand::Rb(_) | CliCommand::InstallTest(_)
+            CliCommand::Rebuild(_) | CliCommand::Rb(_) | CliCommand::InstallTest(_),
         ) {
             return Ok(());
         }

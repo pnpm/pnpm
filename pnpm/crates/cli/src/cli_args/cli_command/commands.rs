@@ -28,7 +28,7 @@ pub enum CliCommand {
     /// Install packages
     #[clap(visible_alias = "i")]
     Install(InstallArgs),
-    /// Runs a `pnpm install` followed immediately by a `pnpm test`. It takes exactly the same arguments as `pnpm install`.
+    /// Runs a `pnpm install` followed immediately by a `pnpm test`. Accepts the same arguments as `pnpm install`, plus `--no-bail` to continue running workspace tests after a failure.
     #[clap(name = "install-test", visible_alias = "it")]
     InstallTest(InstallTestArgs),
     /// Update packages to their newest version based on the specified range
