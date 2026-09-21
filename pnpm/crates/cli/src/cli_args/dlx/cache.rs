@@ -257,13 +257,19 @@ pub(super) fn get_valid_cache_dir(
     // `node_modules/.bin` string into `PATH`.
     let target = dunce::canonicalize(cache_link).ok()?;
     let mtime = meta.modified().ok()?;
+    (!is_expired(mtime, max_age_minutes, now)).then_some(target)
+}
+
+/// Whether a link whose own mtime is `mtime` has outlived `max_age_minutes`.
+///
+/// The comparison is `mtime + max_age < now`, so an entry exactly at the
+/// configured age is still fresh. A negative elapsed time (clock skew, `now`
+/// before `mtime`) counts as fresh, matching pnpm's numeric comparison.
+pub(super) fn is_expired(mtime: SystemTime, max_age_minutes: u64, now: SystemTime) -> bool {
     let max_age = Duration::from_secs(max_age_minutes.saturating_mul(60));
-    // Valid while `mtime + max_age >= now`. A negative elapsed time
-    // (clock skew, `now` before `mtime`) is treated as still valid,
-    // matching pnpm's numeric comparison.
     match now.duration_since(mtime) {
-        Ok(age) => (age <= max_age).then_some(target),
-        Err(_) => Some(target),
+        Ok(age) => age > max_age,
+        Err(_) => false,
     }
 }
 

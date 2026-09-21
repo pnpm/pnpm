@@ -1,10 +1,15 @@
 use super::{DlxArgs, DlxError, get_bin_name, scopeless};
-use crate::cli_args::dlx::cache::{create_cache_key, get_prepare_dir, get_valid_cache_dir};
+use crate::cli_args::dlx::{
+    cache::{create_cache_key, get_prepare_dir, get_valid_cache_dir},
+    clean::clean_expired_dlx_cache,
+};
 use clap::Parser;
+use pnpm_fs::force_symlink_dir;
 use pnpm_package_is_installable::{ArchitectureAxes, SupportedArchitectures};
 use std::{
     collections::BTreeMap,
     fs,
+    path::{Path, PathBuf},
     time::{Duration, SystemTime},
 };
 use tempfile::tempdir;
@@ -234,6 +239,97 @@ fn get_valid_cache_dir_honors_max_age() {
 
     let past = mtime + Duration::from_mins(1441);
     assert!(get_valid_cache_dir(&link, 1440, past).is_none(), "an expired link must be rejected");
+}
+
+/// A `<cache_dir>/dlx/<key>` entry: a prepare directory with a `pkg` link
+/// pointing at it. Returns the prepare directory.
+fn cache_entry(cache_dir: &Path, key: &str, prepare: &str) -> PathBuf {
+    let entry_dir = cache_dir.join("dlx").join(key);
+    let prepare_dir = entry_dir.join(prepare);
+    fs::create_dir_all(&prepare_dir).expect("create the prepare dir");
+    force_symlink_dir(&prepare_dir, &entry_dir.join("pkg")).expect("point pkg at the prepare dir");
+    prepare_dir
+}
+
+/// The mtime `clean_expired_dlx_cache` compares a `pkg` link against.
+fn link_mtime(cache_dir: &Path, key: &str) -> SystemTime {
+    let link = cache_dir
+        .join("dlx")
+        .join(key)
+        .join("pkg");
+    let metadata = fs::symlink_metadata(link).expect("lstat the pkg link");
+    metadata.modified().expect("pkg link mtime")
+}
+
+#[test]
+fn clean_expired_dlx_cache_reclaims_an_entry_that_outlived_max_age() {
+    let dir = tempdir().expect("temp dir");
+    cache_entry(dir.path(), "key", "1-1");
+
+    let now = link_mtime(dir.path(), "key") + Duration::from_mins(8);
+    clean_expired_dlx_cache(dir.path(), 7, now).expect("clean the dlx cache");
+
+    assert!(!dir.path().join("dlx/key").exists(), "the expired entry must be removed");
+}
+
+#[test]
+fn clean_expired_dlx_cache_keeps_an_entry_inside_max_age() {
+    let dir = tempdir().expect("temp dir");
+    cache_entry(dir.path(), "key", "1-1");
+
+    let now = link_mtime(dir.path(), "key");
+    clean_expired_dlx_cache(dir.path(), 7, now).expect("clean the dlx cache");
+
+    assert!(dir.path().join("dlx/key").exists(), "an entry inside max age must survive");
+    assert!(dir.path().join("dlx/key/1-1").exists(), "the prepare dir it points at must survive");
+}
+
+#[test]
+fn clean_expired_dlx_cache_keeps_an_entry_exactly_at_max_age() {
+    let dir = tempdir().expect("temp dir");
+    cache_entry(dir.path(), "key", "1-1");
+
+    let now = link_mtime(dir.path(), "key") + Duration::from_mins(7);
+    clean_expired_dlx_cache(dir.path(), 7, now).expect("clean the dlx cache");
+
+    assert!(
+        dir.path().join("dlx/key").exists(),
+        "an entry exactly at dlxCacheMaxAge is still fresh",
+    );
+}
+
+#[test]
+fn clean_expired_dlx_cache_removes_every_entry_at_max_age_zero() {
+    let dir = tempdir().expect("temp dir");
+    cache_entry(dir.path(), "first", "1-1");
+    cache_entry(dir.path(), "second", "2-2");
+    let stray_file = dir.path().join("dlx/stray-file");
+    fs::write(&stray_file, "noise").expect("write a file among the entries");
+
+    clean_expired_dlx_cache(dir.path(), 0, SystemTime::now()).expect("clean the dlx cache");
+
+    assert!(!dir.path().join("dlx/first").exists(), "a zero max age expires every entry");
+    assert!(!dir.path().join("dlx/second").exists(), "a zero max age expires every entry");
+    assert!(stray_file.exists(), "a file directly under dlx is not a cache entry");
+}
+
+#[test]
+fn clean_expired_dlx_cache_removes_superseded_prepare_dirs() {
+    let dir = tempdir().expect("temp dir");
+    let current = cache_entry(dir.path(), "key", "3-3");
+    let superseded = dir.path().join("dlx/key/2-2");
+    fs::create_dir_all(&superseded).expect("create a superseded prepare dir");
+    let older = dir.path().join("dlx/key/1-1");
+    fs::create_dir_all(&older).expect("create a second superseded prepare dir");
+    let without_link = dir.path().join("dlx/no-link/1-1");
+    fs::create_dir_all(&without_link).expect("create an entry with no pkg link");
+
+    clean_expired_dlx_cache(dir.path(), 1440, SystemTime::now()).expect("clean the dlx cache");
+
+    assert!(current.exists(), "the prepare dir pkg points at must survive");
+    assert!(!superseded.exists(), "a prepare dir pkg no longer points at must go");
+    assert!(!older.exists(), "every superseded prepare dir must go");
+    assert!(!dir.path().join("dlx/no-link").exists(), "an entry with no pkg link must go");
 }
 
 #[expect(
