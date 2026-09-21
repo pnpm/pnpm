@@ -33,7 +33,7 @@ import {
   runLifecycleHooksConcurrently,
   type RunLifecycleHooksConcurrentlyOptions,
 } from '@pnpm/exec.lifecycle'
-import { createDependencyOverrider, createOverriddenDependencyMatcher, type OverriddenDependencyMatcher } from '@pnpm/hooks.read-package-hook'
+import { createDependencyOverrider, createOverriddenDependencyMatcher, createReadPackageHook, type OverriddenDependencyMatcher } from '@pnpm/hooks.read-package-hook'
 import { getContext, type PnpmContext } from '@pnpm/installing.context'
 import {
   type DependenciesGraph,
@@ -993,7 +993,11 @@ export async function mutateModules (
     const projectsToInstall = [] as ImporterToUpdate[]
     const installedProjectIds = new Set<string>(projects.map((project) => ctx.projects[project.rootDir].id))
     const overriddenDependencyMatcherFor = createOverriddenDependencyMatcher(opts.parsedOverrides, opts.lockfileDir)
-    const dependencyOverrider = createDependencyOverrider(opts.parsedOverrides, opts.lockfileDir)
+    const applyOverrides = createReadPackageHook({
+      ignoreCompatibilityDb: true,
+      lockfileDir: opts.lockfileDir,
+      overrides: opts.parsedOverrides,
+    })
 
     let preferredSpecs: Record<string, string> | null = null
 
@@ -1353,7 +1357,10 @@ export async function mutateModules (
      * them.
      *
      * The hooks run over the manifest on disk carrying the requested declarations, rather than
-     * over the manifest this run has already put through them.
+     * over the manifest this run has already put through them, and what they produced is judged
+     * against those declarations — which is what a selector naming no version of its own has in
+     * place of a request. A difference the overrides alone account for leaves the request
+     * standing, so the overrides are run a second time on their own to recognize it.
      *
      * `undefined` when every request survives the hooks.
      */
@@ -1364,7 +1371,6 @@ export async function mutateModules (
         ? []
         : Array.isArray(opts.readPackageHook) ? opts.readPackageHook : [opts.readPackageHook]
       if (hooks.length === 0) return undefined
-      const isOverriddenDependency = overriddenDependencyMatcherFor?.(project.manifest)
       const requestedByAlias = new Map<string, string | undefined>()
       for (const selector of project.dependencySelectors) {
         const { alias, bareSpecifier: requested } = parseWantedDependency(selector)
@@ -1372,15 +1378,16 @@ export async function mutateModules (
         requestedByAlias.set(alias, requested)
       }
       if (requestedByAlias.size === 0) return undefined
-      let probed: ProjectManifest = mergeInstallSelectors(clone(project.originalManifest ?? project.manifest), {
+      const declared: ProjectManifest = mergeInstallSelectors(clone(project.originalManifest ?? project.manifest), {
         dependencySelectors: project.dependencySelectors,
         peer: project.peer,
         targetDependenciesField: project.targetDependenciesField,
       } as InstallSomeDepsMutation)
-      // A selector without a version of its own is declared as `latest` or as the specifier the
-      // manifest already carries, so what the hooks did to it shows against that declaration
-      // rather than against the request.
-      const declaredDependencies = getAllDependenciesFromManifest(probed, { autoInstallPeers: opts.autoInstallPeers })
+      const declaredDependencies = getAllDependenciesFromManifest(declared, { autoInstallPeers: opts.autoInstallPeers })
+      const overriddenDependencies = applyOverrides == null
+        ? undefined
+        : getAllDependenciesFromManifest(await applyOverrides(clone(declared), project.rootDir), { autoInstallPeers: opts.autoInstallPeers })
+      let probed: ProjectManifest = declared
       /* eslint-disable no-await-in-loop */
       for (const hook of hooks) {
         probed = await hook(probed, project.rootDir)
@@ -1392,17 +1399,7 @@ export async function mutateModules (
       for (const [alias, requested] of requestedByAlias) {
         const probedSpecifier = probedDependencies[alias]
         if (probedSpecifier === declaredDependencies[alias]) continue
-        // An explicit version ignores overrides, so the request stands when the override alone
-        // explains what the probe found: the specifier it imposes, or the removal `-` asks for.
-        // A `readPackage` hook that contributed supersedes the request instead.
-        if (requested != null) {
-          const overrideImposed = dependencyOverrider?.(alias, requested, project.rootDir)
-          const overrideExplains = probedSpecifier == null
-            ? overrideImposed === '-'
-            : overrideImposed === probedSpecifier
-          if (overrideExplains) continue
-          if (overrideImposed == null && isOverriddenDependency?.(alias, requested) === true) continue
-        }
+        if (requested != null && overriddenDependencies != null && probedSpecifier === overriddenDependencies[alias]) continue
         if (probedSpecifier == null) {
           (removed ??= new Set()).add(alias)
           continue

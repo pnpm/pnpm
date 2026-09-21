@@ -306,6 +306,29 @@ test('add keeps the hook-provided specifier when an override does not explain th
   }))
 })
 
+test('add keeps the hook-provided specifier when a parent override does not explain the rewrite', async () => {
+  const project = prepareEmpty()
+
+  // A `parent>child` override is invisible to the per-edge overrider, so the probe has to see what
+  // the overrides alone produce to tell this apart from an override that explains the rewrite.
+  const overrides = { 'my-project>is-positive@^3': '2.0.0' }
+
+  const { updatedManifest } = await addDependenciesToPackage(
+    { name: 'my-project', version: '0.0.0' },
+    ['is-positive@3.1.0'],
+    testDefaults({ hooks: { readPackage: [pinIsPositiveOnceDeclared] }, overrides })
+  )
+
+  expect(updatedManifest.dependencies).toStrictEqual({ 'is-positive': '1.0.0' })
+  expect(project.readLockfile().importers['.'].dependencies?.['is-positive']).toMatchObject({ specifier: '1.0.0' })
+
+  await install(updatedManifest, testDefaults({
+    frozenLockfile: true,
+    hooks: { readPackage: [pinIsPositiveOnceDeclared] },
+    overrides,
+  }))
+})
+
 test('add keeps the requested specifier when no readPackage hook governs the dependency', async () => {
   prepareEmpty()
 
