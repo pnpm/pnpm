@@ -33,7 +33,7 @@ import {
   runLifecycleHooksConcurrently,
   type RunLifecycleHooksConcurrentlyOptions,
 } from '@pnpm/exec.lifecycle'
-import { createDependencyOverrider, createOverriddenDependencyMatcher, type OverriddenDependencyMatcher } from '@pnpm/hooks.read-package-hook'
+import { createDependencyOverrider, createOverriddenDependencyMatcher, createReadPackageHook, type OverriddenDependencyMatcher } from '@pnpm/hooks.read-package-hook'
 import { getContext, type PnpmContext } from '@pnpm/installing.context'
 import {
   type DependenciesGraph,
@@ -993,6 +993,11 @@ export async function mutateModules (
     const projectsToInstall = [] as ImporterToUpdate[]
     const installedProjectIds = new Set<string>(projects.map((project) => ctx.projects[project.rootDir].id))
     const overriddenDependencyMatcherFor = createOverriddenDependencyMatcher(opts.parsedOverrides, opts.lockfileDir)
+    const applyOverrides = createReadPackageHook({
+      ignoreCompatibilityDb: true,
+      lockfileDir: opts.lockfileDir,
+      overrides: opts.parsedOverrides,
+    })
 
     let preferredSpecs: Record<string, string> | null = null
 
@@ -1145,6 +1150,7 @@ export async function mutateModules (
     > & Pick<InstallSomeDepsMutation,
     | 'allowNew'
     | 'dependencySelectors'
+    | 'peer'
     | 'targetDependenciesField'
     | 'update'
     | 'updatePatches'
@@ -1166,10 +1172,15 @@ export async function mutateModules (
         ? currentBareSpecifiers
         : getAllDependenciesFromManifest(project.originalManifest, { autoInstallPeers: opts.autoInstallPeers })
       const readonlyAliases = getHookOwnedAliases(project)
-      const readonlySpecifiers = readonlyAliases == null
+      const hookGovernedAdds = project.update === true ? undefined : await getHookGovernedAdds(project)
+      const hookSupersededSpecifiers = hookGovernedAdds?.superseded
+      const hookGovernedAliases = readonlyAliases == null
+        ? hookSupersededSpecifiers == null ? undefined : new Set(hookSupersededSpecifiers.keys())
+        : new Set([...readonlyAliases, ...hookSupersededSpecifiers?.keys() ?? []])
+      const readonlySpecifiers = hookGovernedAliases == null
         ? undefined
         : Object.fromEntries(
-          Array.from(readonlyAliases, (alias) => [alias, effectiveBareSpecifiers[alias]])
+          Array.from(hookGovernedAliases, (alias) => [alias, hookSupersededSpecifiers?.get(alias) ?? effectiveBareSpecifiers[alias]])
         ) as Dependencies
       const optionalDependencies = project.targetDependenciesField ? {} : project.manifest.optionalDependencies ?? {}
       const devDependencies = project.targetDependenciesField ? {} : project.manifest.devDependencies ?? {}
@@ -1182,7 +1193,7 @@ export async function mutateModules (
         }
         preferredSpecs = getAllUniqueSpecs(manifests)
       }
-      const { wantedDependencies: wantedDeps, outsideKeptRange, supersededByKeptRange } = parseWantedDependencies(project.dependencySelectors, {
+      const { wantedDependencies: wantedDeps, outsideKeptRange, supersededByKeptRange, removedByHook } = parseWantedDependencies(project.dependencySelectors, {
         allowNew: project.allowNew !== false,
         currentBareSpecifiers,
         defaultTag: opts.tag,
@@ -1197,8 +1208,15 @@ export async function mutateModules (
         defaultCatalog: opts.catalogs?.default,
         readonlySpecifiers,
         readonlyManifest,
+        hookRemovedAliases: hookGovernedAdds?.removed,
       })
 
+      for (const alias of removedByHook) {
+        logger.warn({
+          message: `Skipping "${alias}": a package extension, readPackage hook, or override removes it from the manifest, so it cannot be declared.`,
+          prefix: project.rootDir,
+        })
+      }
       for (const { alias, requested, kept } of outsideKeptRange) {
         logger.warn({
           message: `Skipping "${alias}@${requested}": it doesn't satisfy "${kept}", which the manifest keeps when updating without saving.`,
@@ -1230,7 +1248,7 @@ export async function mutateModules (
           // Promotion moves the dependency onto the catalog entry's range, and the entry resolves
           // on its own from then on. A hook or an override supplies this specifier, so it is not
           // this run's to hand over.
-          if (readonlyAliases?.has(wantedDep.alias)) continue
+          if (hookGovernedAliases?.has(wantedDep.alias)) continue
           // A `runtime:` specifier (e.g. node from `devEngines.runtime` or
           // `pnpm runtime set`) round-trips to `devEngines.runtime` through the
           // manifest writer, which only recognizes the `runtime:` protocol.
@@ -1288,9 +1306,12 @@ export async function mutateModules (
           // resolver attaches a `catalogLookup` for it, and the entry that snapshot needs is not
           // this run's to write, so the next frozen install would reject the pair. `catalogMode:
           // manual` reaches here without passing the loop above, so the name is dropped here.
-          saveCatalogName: readonlyAliases?.has(wantedDep.alias) ? undefined : wantedDep.saveCatalogName,
-          saveSpec: !readonlyAliases?.has(wantedDep.alias),
-          updateToLatestAllowed: !readonlyAliases?.has(wantedDep.alias),
+          saveCatalogName: hookGovernedAliases?.has(wantedDep.alias) ? undefined : wantedDep.saveCatalogName,
+          // A superseded request is no longer the manifest's new specifier, so it loses the
+          // exemption `getDeclaredSpecifierOwnedByHook` grants an explicit one: a range or a
+          // `catalog:` reference the project already declares stays as it is.
+          saveSpec: hookSupersededSpecifiers?.has(wantedDep.alias) ? undefined : !readonlyAliases?.has(wantedDep.alias),
+          updateToLatestAllowed: !hookGovernedAliases?.has(wantedDep.alias),
           updateSpec: true,
         })),
       } as ImporterToUpdate)
@@ -1325,6 +1346,67 @@ export async function mutateModules (
         return effectiveDependencies[alias] !== originalSpecifier ||
           isOverriddenDependency?.(alias, originalSpecifier) === true
       }))
+    }
+
+    /**
+     * What the `readPackage` hooks do to the aliases an add names, once the requested declarations
+     * are in the manifest the next install reads. Saving a declaration the hooks rewrite or delete
+     * would leave the manifest and the lockfile disagreeing, which `--frozen-lockfile` then
+     * rejects (pnpm/pnpm#15156): the hook's specifier is saved in the first case, and the request
+     * is dropped in the second. Overrides are excluded: an explicit version intentionally ignores
+     * them.
+     *
+     * The hooks run over the manifest on disk carrying the requested declarations, rather than
+     * over the manifest this run has already put through them, and what they produced is judged
+     * against those declarations — which is what a selector naming no version of its own has in
+     * place of a request. A difference the overrides alone account for leaves the request
+     * standing.
+     *
+     * `undefined` when every request survives the hooks.
+     */
+    async function getHookGovernedAdds (
+      project: Pick<InstallSomeProject, 'dependencySelectors' | 'manifest' | 'originalManifest' | 'peer' | 'rootDir' | 'targetDependenciesField'>
+    ): Promise<{ superseded?: Map<string, string>, removed?: Set<string> } | undefined> {
+      const hooks = opts.readPackageHook == null
+        ? []
+        : Array.isArray(opts.readPackageHook) ? opts.readPackageHook : [opts.readPackageHook]
+      if (hooks.length === 0) return undefined
+      const requestedByAlias = new Map<string, string | undefined>()
+      for (const selector of project.dependencySelectors) {
+        const { alias, bareSpecifier: requested } = parseWantedDependency(selector)
+        if (alias == null) continue
+        requestedByAlias.set(alias, requested)
+      }
+      if (requestedByAlias.size === 0) return undefined
+      const declared: ProjectManifest = mergeInstallSelectors(clone(project.originalManifest ?? project.manifest), {
+        dependencySelectors: project.dependencySelectors,
+        peer: project.peer,
+        targetDependenciesField: project.targetDependenciesField,
+      } as InstallSomeDepsMutation)
+      const declaredDependencies = getAllDependenciesFromManifest(declared, { autoInstallPeers: opts.autoInstallPeers })
+      const overriddenDependencies = applyOverrides == null
+        ? undefined
+        : getAllDependenciesFromManifest(await applyOverrides(clone(declared), project.rootDir), { autoInstallPeers: opts.autoInstallPeers })
+      let probed: ProjectManifest = declared
+      /* eslint-disable no-await-in-loop */
+      for (const hook of hooks) {
+        probed = await hook(probed, project.rootDir)
+      }
+      /* eslint-enable no-await-in-loop */
+      const probedDependencies = getAllDependenciesFromManifest(probed, { autoInstallPeers: opts.autoInstallPeers })
+      let superseded: Map<string, string> | undefined
+      let removed: Set<string> | undefined
+      for (const [alias, requested] of requestedByAlias) {
+        const probedSpecifier = probedDependencies[alias]
+        if (probedSpecifier === declaredDependencies[alias]) continue
+        if (requested != null && overriddenDependencies != null && probedSpecifier === overriddenDependencies[alias]) continue
+        if (probedSpecifier == null) {
+          (removed ??= new Set()).add(alias)
+          continue
+        }
+        (superseded ??= new Map()).set(alias, probedSpecifier)
+      }
+      return superseded == null && removed == null ? undefined : { superseded, removed }
     }
 
     /**

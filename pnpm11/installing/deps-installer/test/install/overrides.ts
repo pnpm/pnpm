@@ -527,6 +527,17 @@ test('explicitly specifying a version at install will ignore overrides', async (
   expect(manifest.dependencies?.['@pnpm.e2e/bar']).toBe(EXACT_VERSION)
 })
 
+test('explicitly specifying a version at install will ignore an override that removes the dependency', async () => {
+  prepareEmpty()
+
+  const { updatedManifest: manifest } = await addDependenciesToPackage({},
+    ['@pnpm.e2e/bar@100.0.0'],
+    testDefaults({ overrides: { '@pnpm.e2e/bar': '-' } })
+  )
+
+  expect(manifest.dependencies?.['@pnpm.e2e/bar']).toBe('100.0.0')
+})
+
 test('overrides with local file, link and bare path specs', async () => {
   interface LocationAndManifest {
     location: string
