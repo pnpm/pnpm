@@ -82,14 +82,14 @@ impl HoistedModulesDirs<'_> {
 /// lookup itself does work (`HashMap` probe + `String` build), so building
 /// it once per node is worth the indirection.
 #[derive(Default)]
-pub(super) struct HoistSymlinkPlan<'a> {
-    work: Vec<(std::sync::Arc<PathBuf>, HoistKind, &'a String)>,
+pub(super) struct HoistSymlinkPlan {
+    work: Vec<(std::sync::Arc<PathBuf>, PathBuf)>,
     scope_dirs: std::collections::HashSet<PathBuf>,
 }
-impl<'a> HoistSymlinkPlan<'a> {
+impl HoistSymlinkPlan {
     fn add_slot_links(
         &mut self,
-        hoisted_by_node_id: &'a HashMap<PackageKey, HashMap<String, HoistKind>>,
+        hoisted_by_node_id: &HashMap<PackageKey, HashMap<String, HoistKind>>,
         graph: &HashMap<PackageKey, HoistGraphNode>,
         layout: &crate::VirtualStoreLayout,
         skipped: &std::collections::HashSet<PackageKey>,
@@ -117,8 +117,11 @@ impl<'a> HoistSymlinkPlan<'a> {
                 .map_err(crate::SymlinkPackageError::InvalidAlias)?,
             );
             for (alias, kind) in alias_map {
-                self.record_parent_dir(alias, dirs.root(*kind))?;
-                self.work.push((std::sync::Arc::clone(&dep_dir), *kind, alias));
+                let destination =
+                    crate::safe_join_modules_dir::safe_join_modules_dir(dirs.root(*kind), alias)
+                        .map_err(crate::SymlinkPackageError::InvalidAlias)?;
+                self.record_parent_dir(&destination, dirs.root(*kind));
+                self.work.push((std::sync::Arc::clone(&dep_dir), destination));
             }
         }
         Ok(())
@@ -130,12 +133,17 @@ impl<'a> HoistSymlinkPlan<'a> {
     /// `name`, so the scope-dir prep applies to these too.
     fn add_workspace_links(
         &mut self,
-        hoisted_workspace_aliases: &'a [(String, HoistKind, PathBuf)],
+        hoisted_workspace_aliases: &[(String, HoistKind, PathBuf)],
         dirs: &HoistedModulesDirs<'_>,
     ) -> Result<(), crate::SymlinkPackageError> {
         for (alias, kind, project_dir) in hoisted_workspace_aliases {
-            self.record_parent_dir(alias, dirs.root(*kind))?;
-            self.work.push((std::sync::Arc::new(project_dir.clone()), *kind, alias));
+            let destination = crate::safe_join_modules_dir::safe_join_workspace_modules_dir(
+                dirs.root(*kind),
+                alias,
+            )
+            .map_err(crate::SymlinkPackageError::InvalidAlias)?;
+            self.record_parent_dir(&destination, dirs.root(*kind));
+            self.work.push((std::sync::Arc::new(project_dir.clone()), destination));
         }
         Ok(())
     }
@@ -146,18 +154,14 @@ impl<'a> HoistSymlinkPlan<'a> {
     /// [`HoistSymlinkPlan::create_parents`].
     fn record_parent_dir(
         &mut self,
-        alias: &str,
+        destination: &std::path::Path,
         target_dir_root: &std::path::Path,
-    ) -> Result<(), crate::SymlinkPackageError> {
-        let destination =
-            crate::safe_join_modules_dir::safe_join_modules_dir(target_dir_root, alias)
-                .map_err(crate::SymlinkPackageError::InvalidAlias)?;
+    ) {
         if let Some(parent) = destination.parent()
             && parent != target_dir_root
         {
             self.scope_dirs.insert(parent.to_path_buf());
         }
-        Ok(())
     }
 
     /// Pre-create the destination parents serially — cheap, deduplicated,
@@ -195,14 +199,13 @@ impl<'a> HoistSymlinkPlan<'a> {
         use rayon::prelude::*;
 
         self.work.par_iter().try_for_each(
-            |(dep_dir, kind, alias)| -> Result<(), crate::SymlinkPackageError> {
-                let dest = dirs.root(*kind).join(alias);
-                match pnpm_fs::symlink_dir(dep_dir.as_path(), &dest) {
+            |(dep_dir, dest)| -> Result<(), crate::SymlinkPackageError> {
+                match pnpm_fs::symlink_dir(dep_dir.as_path(), dest) {
                     Ok(()) => Ok(()),
                     Err(ref error) if error.kind() == std::io::ErrorKind::AlreadyExists => {
                         update_stale_hoist_symlink(
                             dep_dir.as_path(),
-                            &dest,
+                            dest,
                             layout.package_store_dir(),
                             dirs.private.parent().expect(
                                 "private_hoisted_modules_dir (<vs>/node_modules) always has a parent",
@@ -211,7 +214,7 @@ impl<'a> HoistSymlinkPlan<'a> {
                     }
                     Err(error) => Err(crate::SymlinkPackageError::SymlinkDir {
                         symlink_target: dep_dir.as_path().to_path_buf(),
-                        symlink_path: dest,
+                        symlink_path: dest.clone(),
                         error,
                     }),
                 }

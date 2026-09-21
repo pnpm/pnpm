@@ -5,7 +5,7 @@ import { linkBinsOfPkgsByAliases, type WarnFunction } from '@pnpm/bins.linker'
 import { createMatcher } from '@pnpm/config.matcher'
 import { WANTED_LOCKFILE } from '@pnpm/constants'
 import { linkLogger } from '@pnpm/core-loggers'
-import { safeJoinModulesDir } from '@pnpm/fs.symlink-dependency'
+import { safeJoinWorkspaceModulesDir } from '@pnpm/fs.symlink-dependency'
 import { logger } from '@pnpm/logger'
 import { lexCompare } from '@pnpm/text.ordinal-comparator'
 import type { DependenciesField, DepPath, HoistedDependencies, ProjectId } from '@pnpm/types'
@@ -142,7 +142,7 @@ export async function hoistWorkspacePackages<T extends string> (opts: HoistWorks
     const targetDir = hoistType === 'public'
       ? opts.publicHoistedModulesDir
       : opts.privateHoistedModulesDir
-    placements.push([projectId, project, hoistType, safeJoinModulesDir(targetDir, name)])
+    placements.push([projectId, project, hoistType, safeJoinWorkspaceModulesDir(targetDir, name)])
   }
   await Promise.all(placements.map(async ([, { dir }, , destination]) => symlink(dir, destination)))
   return Object.fromEntries(placements.map(([projectId, { name }, hoistType]) => [

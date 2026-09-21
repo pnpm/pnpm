@@ -39,5 +39,25 @@ pub fn safe_join_modules_dir(
     Ok(modules.join(alias))
 }
 
+pub fn safe_join_workspace_modules_dir(
+    modules: &Path,
+    alias: &str,
+) -> Result<PathBuf, InvalidDependencyAliasError> {
+    if alias.is_empty()
+        || alias.starts_with('/')
+        || alias.contains('\\')
+        || alias.as_bytes().get(1) == Some(&b':')
+        || alias
+            .split('/')
+            .any(|component| component.is_empty() || component == "." || component == "..")
+    {
+        return Err(InvalidDependencyAliasError {
+            modules: modules.to_path_buf(),
+            alias: alias.to_owned(),
+        });
+    }
+    Ok(modules.join(alias))
+}
+
 #[cfg(test)]
 mod tests;

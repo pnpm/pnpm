@@ -88,7 +88,7 @@ pub(crate) fn hoisted_workspace_packages_present(
                 return true;
             };
             claimed_by_dependencies.contains(&name.to_lowercase())
-                || crate::safe_join_modules_dir::safe_join_modules_dir(root, name)
+                || crate::safe_join_modules_dir::safe_join_workspace_modules_dir(root, name)
                     .is_ok_and(|destination| workspace_link_points_to(&destination, project_dir))
         })
 }

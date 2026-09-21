@@ -2,7 +2,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 
 import { expect, test } from '@jest/globals'
-import { symlinkDependency, symlinkDependencySync, symlinkDirectRootDependency } from '@pnpm/fs.symlink-dependency'
+import { safeJoinWorkspaceModulesDir, symlinkDependency, symlinkDependencySync, symlinkDirectRootDependency } from '@pnpm/fs.symlink-dependency'
 import { tempDir } from '@pnpm/prepare'
 
 const escapeAliases = [
@@ -56,4 +56,14 @@ test.each(validAliases)('symlinkDependency accepts valid alias %p', async (alias
   fs.mkdirSync(dep)
   await expect(symlinkDependency(dep, destModulesDir, alias)).resolves.toBeDefined()
   expect(fs.existsSync(path.join(destModulesDir, alias))).toBe(true)
+})
+
+test.each(['foo', '@scope/name', 'packages/pkg-a', 'nested/inner'])('safeJoinWorkspaceModulesDir accepts alias %p', (alias) => {
+  const modulesDir = path.join(tempDir(false), 'node_modules')
+  expect(safeJoinWorkspaceModulesDir(modulesDir, alias)).toBe(path.join(modulesDir, alias))
+})
+
+test.each(['', '.', '..', '../outside', 'packages/../outside', 'packages//outside', '/absolute', '..\\outside', 'C:\\outside'])('safeJoinWorkspaceModulesDir refuses alias %p', (alias) => {
+  const modulesDir = path.join(tempDir(false), 'node_modules')
+  expect(() => safeJoinWorkspaceModulesDir(modulesDir, alias)).toThrow(expect.objectContaining({ code: 'ERR_PNPM_INVALID_DEPENDENCY_NAME' }))
 })

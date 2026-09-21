@@ -29,6 +29,26 @@ export function safeJoinModulesDir (modulesDir: string, alias: string): string {
   return link
 }
 
+export function safeJoinWorkspaceModulesDir (modulesDir: string, alias: string): string {
+  const components = alias.split('/')
+  if (
+    alias.length === 0 ||
+    alias.startsWith('/') ||
+    alias.includes('\\') ||
+    alias[1] === ':' ||
+    components.some(component => component.length === 0 || component === '.' || component === '..')
+  ) {
+    throw invalidDependencyNameError(modulesDir, alias)
+  }
+  const link = path.join(modulesDir, ...components)
+  const resolvedDir = path.resolve(modulesDir)
+  const resolvedLink = path.resolve(link)
+  if (resolvedLink === resolvedDir || !resolvedLink.startsWith(resolvedDir + path.sep)) {
+    throw invalidDependencyNameError(modulesDir, alias, resolvedLink)
+  }
+  return link
+}
+
 function invalidDependencyNameError (modulesDir: string, alias: string, resolvedLink?: string): Error & { code: string } {
   const detail = resolvedLink ? ` (it resolves to ${resolvedLink})` : ''
   const error = new Error(`Refusing to place a dependency under ${modulesDir} with the invalid alias ${JSON.stringify(alias)}${detail}`) as Error & { code: string }
