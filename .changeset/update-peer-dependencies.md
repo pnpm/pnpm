@@ -1,6 +1,8 @@
 ---
 "@pnpm/pkg-manifest.utils": patch
 "@pnpm/installing.commands": patch
+"@pnpm/installing.deps-installer": patch
+"@pnpm/installing.deps-resolver": patch
 "@pnpm/types": patch
 "pnpm": patch
 "pacquet": patch

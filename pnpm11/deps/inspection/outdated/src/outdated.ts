@@ -102,8 +102,12 @@ export async function outdated (
     publishedByExclude: opts.publishedByExclude,
   }
 
+  const dependencyTypes = opts.include?.peerDependencies
+    ? [...DEPENDENCIES_FIELDS, 'peerDependencies' as DependenciesField]
+    : DEPENDENCIES_FIELDS
+
   await Promise.all(
-    DEPENDENCIES_FIELDS.map(async (depType) => {
+    dependencyTypes.map(async (depType) => {
       if (
         opts.include?.[depType] === false ||
         (opts.wantedLockfile!.importers[importerId][depType] == null)

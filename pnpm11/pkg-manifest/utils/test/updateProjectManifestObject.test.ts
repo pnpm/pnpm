@@ -258,7 +258,7 @@ test('peer updates prefer peerDependencies when a normal dependency has the same
   expect(manifest.peerDependencies).toStrictEqual({ foo: '^2.0.0' })
 })
 
-test('peer updates preserve npm aliases', async () => {
+test('peer updates refresh npm alias ranges from the resolved version', async () => {
   const manifest = await updateProjectManifestObject('/project', {
     peerDependencies: { foo: 'npm:bar@^1.0.0' },
   }, [{
@@ -268,5 +268,5 @@ test('peer updates preserve npm aliases', async () => {
     peer: true,
   }])
 
-  expect(manifest.peerDependencies).toStrictEqual({ foo: 'npm:bar@*' })
+  expect(manifest.peerDependencies).toStrictEqual({ foo: 'npm:bar@^2.0.0' })
 })

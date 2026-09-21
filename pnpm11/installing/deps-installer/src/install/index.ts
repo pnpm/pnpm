@@ -1933,7 +1933,7 @@ export async function addDependenciesToPackage (
         mutation: 'installSome',
         peer: opts.peer,
         savePeer: opts.savePeer,
-        rangeSpecStyle: opts.savePeer ? 'exact' : opts.rangeSpecStyle,
+        rangeSpecStyle: opts.rangeSpecStyle,
         rootDir,
         targetDependenciesField: opts.targetDependenciesField,
         update: opts.update,

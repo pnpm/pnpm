@@ -431,7 +431,7 @@ export async function installDeps (
       peerAliases: opts.peer === true
         ? new Set(params.map((selector) => parseWantedDependency(selector).alias).filter((alias): alias is string => alias != null))
         : undefined,
-      rangeSpecStyle: opts.savePeer ? 'exact' : getRangeSpecStyle(opts),
+      rangeSpecStyle: getRangeSpecStyle(opts),
       rootDir: opts.dir as ProjectRootDir,
       targetDependenciesField: getSaveType(opts),
     }
