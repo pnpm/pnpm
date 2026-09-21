@@ -54,7 +54,6 @@ test('findWorkspaceProjects() outputs warnings for non-root workspace project', 
     [{ prefix: barPath, message: `The field "resolutions" was found in ${barPath}/package.json. This will not take effect. Configure dependency overrides in pnpm-workspace.yaml using the "overrides" field instead.` }],
   ])
 })
-
 test('findWorkspaceProjectsNoCheckSync() works synchronously', () => {
   const fixturePath = path.join(import.meta.dirname, '__fixtures__/bad-engine')
   const workspaceManifest = readWorkspaceManifestSync(fixturePath)
@@ -81,4 +80,3 @@ test('findWorkspaceProjectsSync() works synchronously', () => {
     [{ prefix: barPath, message: `The field "resolutions" was found in ${barPath}/package.json. This will not take effect. Configure dependency overrides in pnpm-workspace.yaml using the "overrides" field instead.` }],
   ])
 })
-

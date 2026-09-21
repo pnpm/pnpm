@@ -65,4 +65,3 @@ async function readFileWithoutBom (path: string): Promise<string> {
 function readFileWithoutBomSync (path: string): string {
   return stripBom(gfs.readFileSync(path, 'utf8'))
 }
-

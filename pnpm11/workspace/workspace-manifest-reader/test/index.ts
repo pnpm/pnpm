@@ -1,12 +1,18 @@
 import path from 'node:path'
 
 import { describe, expect, test } from '@jest/globals'
-import { readWorkspaceManifest } from '@pnpm/workspace.workspace-manifest-reader'
+import { readWorkspaceManifest, readWorkspaceManifestSync } from '@pnpm/workspace.workspace-manifest-reader'
 
 test('readWorkspaceManifest() works with a valid workspace file', async () => {
   const manifest = await readWorkspaceManifest(path.join(import.meta.dirname, '__fixtures__/ok'))
 
   expect(manifest).toEqual({
+    packages: ['packages/**', 'types'],
+  })
+})
+
+test('readWorkspaceManifestSync() works with a valid workspace file', () => {
+  expect(readWorkspaceManifestSync(path.join(import.meta.dirname, '__fixtures__/ok'))).toEqual({
     packages: ['packages/**', 'types'],
   })
 })
