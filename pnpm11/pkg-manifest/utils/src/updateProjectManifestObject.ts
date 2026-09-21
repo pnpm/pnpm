@@ -22,6 +22,16 @@ export interface PackageSpecObject {
 }
 
 function getPeerSpecifier (spec: string, resolvedVersion?: string, rangeSpecStyle?: RangeSpecStyle): string {
+  if (spec.startsWith('npm:')) {
+    const aliasAt = spec.lastIndexOf('@')
+    if (aliasAt > 'npm:'.length) {
+      const alias = spec.slice(0, aliasAt + 1)
+      return `${alias}${getPeerSpecifier(spec.slice(aliasAt + 1), resolvedVersion, rangeSpecStyle)}`
+    }
+  }
+  if (semver.valid(spec)) {
+    return versionWithRangeSpecStyle(spec, rangeSpecStyle ?? 'major')
+  }
   if (isValidPeerRange(spec)) return spec
 
   const rangeFromResolved = resolvedVersion ? createVersionSpecFromResolvedVersion(resolvedVersion, rangeSpecStyle) : null
@@ -80,7 +90,9 @@ export function applyPackageSpecs (
         }
       }
     } else if (packageSpec.bareSpecifier) {
-      const usedDepType = guessDependencyType(packageSpec.alias, packageManifest) ?? 'dependencies'
+      const usedDepType = packageSpec.peer === true
+        ? 'peerDependencies'
+        : guessDependencyType(packageSpec.alias, packageManifest) ?? 'dependencies'
       if (usedDepType === 'peerDependencies') {
         packageManifest.peerDependencies = packageManifest.peerDependencies ?? {}
         defineDepEntry(

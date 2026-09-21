@@ -244,3 +244,30 @@ test('peer dependencies respect pinned version "patch" and "none"', async () => 
     })
   }))
 })
+
+test('peer updates prefer peerDependencies when a normal dependency has the same alias', async () => {
+  const manifest = await updateProjectManifestObject('/project', {
+    dependencies: { foo: '^1.0.0' },
+    peerDependencies: { foo: '^1.0.0' },
+  }, [{
+    alias: 'foo',
+    bareSpecifier: '^2.0.0',
+    peer: true,
+  }])
+
+  expect(manifest.dependencies).toStrictEqual({ foo: '^1.0.0' })
+  expect(manifest.peerDependencies).toStrictEqual({ foo: '^2.0.0' })
+})
+
+test('peer updates preserve npm aliases', async () => {
+  const manifest = await updateProjectManifestObject('/project', {
+    peerDependencies: { foo: 'npm:bar@^1.0.0' },
+  }, [{
+    alias: 'foo',
+    bareSpecifier: 'npm:bar@*',
+    resolvedVersion: '2.0.0',
+    peer: true,
+  }])
+
+  expect(manifest.peerDependencies).toStrictEqual({ foo: 'npm:bar@*' })
+})
