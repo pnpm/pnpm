@@ -25,10 +25,12 @@ fn a_script_shortcut_opening_on_the_separator_keeps_it() {
 
 #[test]
 fn a_separator_after_the_first_argument_is_left_alone() {
-    // The positional has already taken a value, so clap keeps this one.
+    // The inserted separator protects the first script argument; the
+    // positional has already taken a value by the time the user's separator
+    // is reached, so clap keeps that one too.
     let argv = preserve(["pnpm", "stop", "x", "--", "y"]);
 
-    assert_eq!(argv, ["pnpm", "stop", "x", "--", "y"]);
+    assert_eq!(argv, ["pnpm", "stop", "--", "x", "--", "y"]);
 }
 
 #[test]
@@ -54,8 +56,8 @@ fn a_command_that_owns_its_arguments_is_left_alone() {
 }
 
 #[test]
-fn argv_without_a_separator_is_unchanged() {
+fn a_script_shortcut_without_a_separator_protects_its_arguments() {
     let argv = preserve(["pnpm", "stop", "--flag"]);
 
-    assert_eq!(argv, ["pnpm", "stop", "--flag"]);
+    assert_eq!(argv, ["pnpm", "stop", "--", "--flag"]);
 }
