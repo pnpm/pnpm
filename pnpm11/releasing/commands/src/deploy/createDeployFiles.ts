@@ -45,6 +45,7 @@ export interface DeployWorkspaceManifest {
   excludeLinksFromLockfile: boolean
   ignoredOptionalDependencies: string[]
   injectWorkspacePackages: false
+  packages: ['.']
   patchedDependencies?: Record<string, string>
   peersSuffixMaxLength: number
   virtualStoreType: 'project'
@@ -172,6 +173,7 @@ export function createDeployFiles ({
     excludeLinksFromLockfile: lockfile.settings?.excludeLinksFromLockfile ?? false,
     ignoredOptionalDependencies: lockfile.ignoredOptionalDependencies ?? [],
     injectWorkspacePackages: false,
+    packages: ['.'],
     peersSuffixMaxLength: lockfile.settings?.peersSuffixMaxLength ?? 1000,
     virtualStoreType: 'project',
   }

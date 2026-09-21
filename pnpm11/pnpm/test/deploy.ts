@@ -160,6 +160,7 @@ test('running a script in a deployed project does not trigger an install outside
     excludeLinksFromLockfile: true,
     ignoredOptionalDependencies: ['never-matches'],
     injectWorkspacePackages: false,
+    packages: ['.'],
     peersSuffixMaxLength: 42,
     virtualStoreType: 'project',
   })
