@@ -12,7 +12,7 @@ use super::{
     },
     reporter::{LogLevelSetting, ReporterType},
     store::StoreCommand,
-    tasks::TasksCommand,
+    tasks::{TasksArgs, TasksCommand},
     unlink::UnlinkArgs,
     version::VersionArgs,
 };
@@ -661,8 +661,10 @@ fn store_status_and_add_are_subcommands_of_store() {
 
 #[test]
 fn tasks_status_accepts_group_names() {
-    let CliCommand::Tasks(TasksCommand::Status(args)) =
-        command(&["pacquet", "tasks", "status", "cargo", "typescript"])
+    let CliCommand::Tasks(TasksArgs {
+        command: Some(TasksCommand::Status(args)),
+        ..
+    }) = command(&["pacquet", "tasks", "status", "cargo", "typescript"])
     else {
         panic!("expected tasks status");
     };
@@ -671,7 +673,10 @@ fn tasks_status_accepts_group_names() {
 
 #[test]
 fn tasks_status_accepts_no_group_names() {
-    let CliCommand::Tasks(TasksCommand::Status(args)) = command(&["pacquet", "tasks", "status"])
+    let CliCommand::Tasks(TasksArgs {
+        command: Some(TasksCommand::Status(args)),
+        ..
+    }) = command(&["pacquet", "tasks", "status"])
     else {
         panic!("expected tasks status");
     };
@@ -679,9 +684,17 @@ fn tasks_status_accepts_no_group_names() {
 }
 
 #[test]
-fn tasks_requires_a_subcommand() {
-    let error = CliArgs::try_parse_from(["pacquet", "tasks"]).unwrap_err();
-    assert_eq!(error.kind(), clap::error::ErrorKind::DisplayHelpOnMissingArgumentOrSubcommand);
+fn tasks_accepts_script_arguments_before_resolving_an_override() {
+    for args in [vec![], vec!["custom", "--flag"], vec!["--custom-flag"]] {
+        let argv: Vec<_> = ["pacquet", "tasks"]
+            .into_iter()
+            .chain(args.iter().copied())
+            .collect();
+        let CliCommand::Tasks(parsed) = command(&argv) else {
+            panic!("expected tasks");
+        };
+        assert_eq!(parsed.script_args(), args);
+    }
 }
 
 #[test]

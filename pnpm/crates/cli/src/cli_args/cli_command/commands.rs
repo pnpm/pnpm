@@ -9,7 +9,7 @@ use super::{
     PingArgs, PipelineArgs, PkgArgs, PrefixArgs, PruneArgs, PublishArgs, RebuildArgs, RemoveArgs,
     RepoArgs, RestartArgs, RootArgs, RunArgs, RuntimeArgs, SbomArgs, ScriptShortcutArgs,
     SearchArgs, SelfUpdateArgs, SetScriptArgs, SetupArgs, ShimArgs, StageArgs, StarArgs, StarsArgs,
-    StoreCommand, Subcommand, SummaryScope, TasksCommand, TeamArgs, UndeprecateArgs, UnlinkArgs,
+    StoreCommand, Subcommand, SummaryScope, TasksArgs, TeamArgs, UndeprecateArgs, UnlinkArgs,
     UnpublishArgs, UnstarArgs, UpdateArgs, VersionArgs, ViewArgs, WhyArgs, WithArgs,
 };
 
@@ -133,8 +133,8 @@ pub enum CliCommand {
     #[clap(visible_alias = "run-script")]
     Run(RunArgs),
     /// Inspect tasks in concurrency groups.
-    #[clap(subcommand)]
-    Tasks(TasksCommand),
+    /// A same-named script takes precedence. Use `pnpm pm tasks` to force the built-in.
+    Tasks(TasksArgs),
     /// Runs a named pipeline of workspace tasks the way a CI run would:
     /// a frozen install, affected-since-base selection, the task graph in
     /// dependency order without bailing, and cached task results restored
@@ -316,6 +316,7 @@ impl CliCommand {
                 | CliCommand::SetScript(_)
                 | CliCommand::Start(_)
                 | CliCommand::Stop(_)
+                | CliCommand::Tasks(_)
                 | CliCommand::Test(_),
         )
     }

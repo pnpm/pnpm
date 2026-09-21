@@ -4,7 +4,7 @@ use super::{
     ConfigArgs, ConfigGetAliasArgs, ConfigSetAliasArgs, ConfigSubcommand, DefaultReporter,
     DocsArgs, DoctorArgs, DoctorOutcome, FindHashArgs, IgnoredBuildsArgs, NdjsonReporter,
     NotImplementedError, PrefixArgs, RepoArgs, ReporterType, RootArgs, RunCtx, SelfUpdateArgs,
-    SetupArgs, ShimArgs, SilentReporter, StoreCommand, TasksCommand, WithArgs,
+    SetupArgs, ShimArgs, SilentReporter, StoreCommand, TasksArgs, WithArgs,
 };
 
 // `doctor` reports on the installation and its environment, so it needs config
@@ -70,9 +70,13 @@ pub(in super::super) fn prefix<'a>(
 
 pub(in super::super) fn tasks<'a>(
     ctx: &RunCtx<'a>,
-    command: TasksCommand,
+    args: TasksArgs,
 ) -> miette::Result<CommandFuture<'a>> {
-    command.run((ctx.loaders.config)()?)?;
+    let config = (ctx.loaders.config)()?;
+    if let Some(run_args) = script_override::resolve(ctx, config, "tasks", args.script_args())? {
+        return dispatch_script::run(ctx, run_args);
+    }
+    args.run(config)?;
     Ok(Box::pin(std::future::ready(Ok(()))))
 }
 

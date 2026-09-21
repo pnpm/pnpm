@@ -1,5 +1,5 @@
 use super::concurrency_group::{GroupStatus, inspect_group, render_group};
-use clap::{Args, Subcommand};
+use clap::{Args, Subcommand, error::ErrorKind as ClapErrorKind};
 use miette::{Context, IntoDiagnostic};
 use pnpm_config::Config;
 use std::{
@@ -14,10 +14,44 @@ pub enum TasksCommand {
     Status(TasksStatusArgs),
 }
 
-impl TasksCommand {
+#[derive(Debug, Args)]
+#[command(args_conflicts_with_subcommands = true, subcommand_precedence_over_arg = true)]
+pub struct TasksArgs {
+    #[command(subcommand)]
+    pub command: Option<TasksCommand>,
+
+    /// Arguments passed to an overriding tasks script.
+    #[arg(trailing_var_arg = true, allow_hyphen_values = true, hide = true)]
+    pub args: Vec<String>,
+}
+
+impl TasksArgs {
+    pub(crate) fn script_args(&self) -> Vec<String> {
+        match &self.command {
+            Some(TasksCommand::Status(args)) => std::iter::once("status".to_string())
+                .chain(args.groups.iter().cloned())
+                .collect(),
+            None => self.args.clone(),
+        }
+    }
+
     pub fn run(self, config: &Config) -> miette::Result<()> {
-        match self {
-            TasksCommand::Status(args) => args.run(config),
+        match self.command {
+            Some(TasksCommand::Status(args)) => args.run(config),
+            None => {
+                let (kind, message) = match self.args.first() {
+                    Some(name) => (
+                        ClapErrorKind::InvalidSubcommand,
+                        format!("unrecognized tasks subcommand {name:?}"),
+                    ),
+                    None => (
+                        ClapErrorKind::MissingSubcommand,
+                        "a tasks subcommand is required".to_string(),
+                    ),
+                };
+                Err(Self::augment_args(clap::Command::new("pnpm tasks")).error(kind, message))
+                    .into_diagnostic()
+            }
         }
     }
 }
@@ -25,6 +59,7 @@ impl TasksCommand {
 #[derive(Debug, Args)]
 pub struct TasksStatusArgs {
     /// Group names to show. With none, every group that has a holder or waiter.
+    #[arg(allow_hyphen_values = true)]
     pub groups: Vec<String>,
 }
 

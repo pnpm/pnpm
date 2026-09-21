@@ -74,7 +74,7 @@ use super::{
     star::StarArgs,
     stars::StarsArgs,
     store::StoreCommand,
-    tasks::TasksCommand,
+    tasks::TasksArgs,
     team::TeamArgs,
     undeprecate::UndeprecateArgs,
     unlink::UnlinkArgs,
