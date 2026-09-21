@@ -114,13 +114,12 @@ impl Remove<'_> {
             return Ok(());
         }
 
-        validate_selected_remove(remove.package_names).map_err(RemoveError::Validation)?;
-        prepare_selected_manifests::<Reporter>(
+        prepare_selected_removal::<Reporter>(
             selected.projects,
             &selected_indices,
             remove.package_names,
             remove.save_type,
-        );
+        )?;
         let workspace_root = removal_workspace_root(remove.config, manifest);
 
         let ignored_builds = remove_install(remove, owned, manifest)
@@ -129,18 +128,13 @@ impl Remove<'_> {
             .pipe(defer_ignored_builds)
             .map_err(RemoveError::Install)?;
 
-        persist_selected_manifests::<Reporter>(selected.projects, &selected_indices)?;
-
-        write_workspace_catalogs_selected(
+        finalize_selected_remove::<Reporter>(
+            selected.projects,
+            &selected_indices,
             remove.config,
             &workspace_root,
-            &Catalogs::new(),
-            selected.projects,
-        )
-        .map_err(RemoveError::WriteWorkspaceManifest)?;
-
-        post_install_prune(remove.config, Some(&workspace_root), manifest)
-            .map_err(RemoveError::WriteWorkspaceManifest)?;
+            manifest,
+        )?;
         if let Some(ignored_builds) = ignored_builds {
             return Err(RemoveError::Install(ignored_builds));
         }
@@ -232,10 +226,44 @@ fn remove_install<'i>(
     }
 }
 
-fn validate_selected_remove(package_names: &[String]) -> Result<(), RemoveValidationError> {
+fn validate_selected_remove(
+    projects: &[pnpm_workspace::Project],
+    selected_indices: &[usize],
+    package_names: &[String],
+    save_type: Option<DependencyGroup>,
+) -> Result<(), RemoveValidationError> {
     if package_names.is_empty() {
         return Err(RemoveValidationError::MustRemoveSomething);
     }
+    let mut available_lookup = HashSet::new();
+    let mut available_dependencies = Vec::new();
+    for &index in selected_indices {
+        for dep in projects[index].manifest.available_dependency_names(save_type) {
+            if available_lookup.insert(dep.clone()) {
+                available_dependencies.push(dep);
+            }
+        }
+    }
+    available_dependencies.sort();
+    let non_matched_dependencies: Vec<&String> = package_names
+        .iter()
+        .filter(|name| !available_lookup.contains(name.as_str()))
+        .collect();
+    if non_matched_dependencies.is_empty() {
+        return Ok(());
+    }
+    Err(cannot_remove_missing_deps(&available_dependencies, &non_matched_dependencies, save_type))
+}
+
+fn prepare_selected_removal<Reporter: self::Reporter>(
+    projects: &mut [pnpm_workspace::Project],
+    selected_indices: &[usize],
+    package_names: &[String],
+    save_type: Option<DependencyGroup>,
+) -> Result<(), RemoveError> {
+    validate_selected_remove(projects, selected_indices, package_names, save_type)
+        .map_err(RemoveError::Validation)?;
+    prepare_selected_manifests::<Reporter>(projects, selected_indices, package_names, save_type);
     Ok(())
 }
 
@@ -257,6 +285,21 @@ fn prepare_manifest<Reporter: self::Reporter>(
 ) {
     emit_initial_package_manifest::<Reporter>(manifest);
     manifest.remove_dependencies(package_names, save_type);
+}
+
+fn finalize_selected_remove<Reporter: self::Reporter>(
+    projects: &mut [pnpm_workspace::Project],
+    selected_indices: &[usize],
+    config: &'static Config,
+    workspace_root: &std::path::Path,
+    manifest: &PackageManifest,
+) -> Result<(), RemoveError> {
+    persist_selected_manifests::<Reporter>(projects, selected_indices)?;
+    write_workspace_catalogs_selected(config, workspace_root, &Catalogs::new(), projects)
+        .map_err(RemoveError::WriteWorkspaceManifest)?;
+    post_install_prune(config, Some(workspace_root), manifest)
+        .map_err(RemoveError::WriteWorkspaceManifest)?;
+    Ok(())
 }
 
 fn persist_selected_manifests<Reporter: self::Reporter>(
