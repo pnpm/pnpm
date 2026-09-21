@@ -42,18 +42,22 @@ impl CustomFetcherSession {
         };
         let metadata =
             resolve_archive_metadata((&resolution, source), &tarball, download.package.id).await?;
-        self.cache_resolved_tarball(download.package.id, source, tarball);
+        self.cache_resolved_tarball(download.package.id, (&resolution, source), tarball);
         Ok(metadata)
     }
 
     fn cache_resolved_tarball(
         &self,
         package_id: &str,
-        source: &LockfileResolution,
+        resolutions: (&LockfileResolution, &LockfileResolution),
         tarball: Arc<FetchedTarball>,
     ) {
-        // Git archives still need prepare and packlist processing at installation.
-        if matches!(source, LockfileResolution::Tarball(tarball) if tarball.is_git_hosted()) {
+        // A delegate can change the archive layout, which the recorded resolution cannot describe.
+        if resolutions.0 != resolutions.1
+            && [resolutions.0, resolutions.1].iter().any(|resolution| {
+                matches!(resolution, LockfileResolution::Tarball(tarball) if tarball.is_git_hosted())
+            })
+        {
             return;
         }
         self.completed
@@ -70,7 +74,9 @@ async fn resolve_archive_metadata(
 ) -> Result<ResolvedTarballMetadata, InstallPackageBySnapshotError> {
     let (resolution, source) = resolutions;
     let subdir = match source {
-        LockfileResolution::Tarball(resolution) => resolution.path.as_deref(),
+        LockfileResolution::Tarball(resolution) if resolution.is_git_hosted() => {
+            resolution.path.as_deref()
+        }
         _ => None,
     };
     let manifest = match subdir {

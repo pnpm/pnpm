@@ -405,6 +405,19 @@ module.exports = {{ resolvers: [{{
 
 #[test]
 fn custom_resolver_git_subdirectory_installs_its_manifest_and_dependencies() {
+    assert_git_subdirectory_install(
+        "return { delegate: { ...resolution, tarball: 'file:./repo.tgz' } };",
+    );
+}
+
+#[test]
+fn custom_resolver_git_subdirectory_installs_custom_fetched_files() {
+    assert_git_subdirectory_install(
+        "return fetchers.localTarball(cafs, { ...resolution, tarball: 'file:./repo.tgz' }, opts);",
+    );
+}
+
+fn assert_git_subdirectory_install(fetch_body: &str) {
     let CommandTempCwd {
         pacquet,
         root,
@@ -414,13 +427,15 @@ fn custom_resolver_git_subdirectory_installs_its_manifest_and_dependencies() {
     } = CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
     let manifest = serde_json::json!({
-        "name": "custom-git", "version": "1.0.0",
+        "name": "custom-git", "version": "1.0.0", "files": ["index.js"],
         "dependencies": {"@pnpm.e2e/dep-of-pkg-with-1-dep": "100.1.0"},
     })
     .to_string();
     let body = pnpm_testing_utils::fixtures::tarball_entries(&[
         ("repo/package.json", br#"{"name":"archive-root","version":"1.0.0"}"#),
         ("repo/packages/foo/package.json", manifest.as_bytes()),
+        ("repo/packages/foo/index.js", b"module.exports = 42;"),
+        ("repo/packages/foo/excluded.txt", b"must not be installed"),
     ]);
     fs::write(workspace.join("repo.tgz"), &body).unwrap();
     fs::write(workspace.join("package.json"), r#"{"dependencies":{"custom-git":"1.0.0"}}"#)
@@ -442,7 +457,7 @@ module.exports = {{
   }}],
   fetchers: [{{
     canFetch: (id, resolution) => resolution.gitHosted === true,
-    fetch: (cafs, resolution) => ({{ delegate: {{ ...resolution, tarball: 'file:./repo.tgz' }} }}),
+    async fetch(cafs, resolution, opts, fetchers) {{ {fetch_body} }},
   }}],
 }};
 ",
@@ -458,6 +473,8 @@ module.exports = {{
     )
     .unwrap();
     assert_eq!(installed["name"], "custom-git");
+    assert!(workspace.join("node_modules/custom-git/index.js").is_file());
+    assert!(!workspace.join("node_modules/custom-git/excluded.txt").exists());
     pacquet_at(&workspace).with_args(["exec", "node", "-e",
         "console.log(require(require.resolve('@pnpm.e2e/dep-of-pkg-with-1-dep/package.json', { paths: [require.resolve('custom-git/package.json')] })).version)"])
         .assert().success().stdout("100.1.0\n");

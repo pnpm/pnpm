@@ -15,7 +15,8 @@ async fn reads_a_relative_local_tarball_without_a_manifest() {
     let body = tarball_with_a_dependency("pinned");
     let integrity = ssri::Integrity::from(&body).to_string();
     std::fs::write(dir.path().join("package.tgz"), body).unwrap();
-    let result = manifestless_tarball_result("file:./package.tgz", &integrity);
+    let url = format!("file:.{}package.tgz", std::path::MAIN_SEPARATOR);
+    let result = manifestless_tarball_result(&url, &integrity);
     let resolver = resolver_with_prefetch(dir.path(), Box::new(FixedResolver { result }), true);
     let mut opts = ResolveOptions::default();
     opts.project.lockfile_dir = dir.path().to_owned();
@@ -26,7 +27,7 @@ async fn reads_a_relative_local_tarball_without_a_manifest() {
         .unwrap();
     assert_eq!(resolved.package.manifest.unwrap()["dependencies"]["ms"], json!("2.1.2"));
     let LockfileResolution::Tarball(tarball) = resolved.resolution else { panic!("tarball") };
-    assert_eq!(tarball.tarball, "file:./package.tgz");
+    assert_eq!(tarball.tarball, url);
     assert_eq!(resolver.spawned_downloads.len(), 1);
     assert_eq!(tarball.integrity.unwrap().to_string(), integrity);
 }
@@ -91,7 +92,9 @@ impl pnpm_hooks::CustomFetcher for LocalArchiveFetcher {
         _resolution: serde_json::Value,
         _opts: serde_json::Value,
     ) -> Result<serde_json::Value, pnpm_hooks::HookError> {
-        Ok(json!({"delegate": {"tarball": "file:./repo.tgz", "path": self.path}}))
+        Ok(
+            json!({"delegate": {"tarball": "file:./repo.tgz", "path": self.path, "gitHosted": self.path.is_some()}}),
+        )
     }
 }
 

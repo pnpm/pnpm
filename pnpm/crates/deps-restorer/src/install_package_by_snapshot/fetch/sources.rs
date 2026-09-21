@@ -44,11 +44,41 @@ impl InstallPackageBySnapshot<'_> {
             | CustomFetchOutcome::Delegate { delegate: resolution, .. } => {
                 CustomFetched { resolution: Some(resolution), cas_paths: None }
             }
-            CustomFetchOutcome::Fetched { tarball, .. } => {
-                CustomFetched { resolution: None, cas_paths: Some(tarball.files_map.clone()) }
+            CustomFetchOutcome::Fetched { resolution, tarball } => {
+                let cas_paths = self.prepare_custom_tarball::<Reporter>(
+                    SnapshotFetch { package_key, package_id, resolution: &resolution, download },
+                    tarball.files_map.clone(),
+                )
+                .await?;
+                CustomFetched { resolution: Some(resolution), cas_paths: Some(cas_paths) }
             }
         })
     }
+    async fn prepare_custom_tarball<Reporter: self::Reporter>(
+        &self,
+        fetch: SnapshotFetch<'_>,
+        cas_paths: HashMap<String, PathBuf>,
+    ) -> Result<HashMap<String, PathBuf>, InstallPackageBySnapshotError> {
+        let LockfileResolution::Tarball(tarball) = fetch.resolution else { return Ok(cas_paths) };
+        if !tarball.is_git_hosted() {
+            return Ok(cas_paths);
+        }
+        let allow_build = self.allow_build();
+        self.prepare_git_hosted::<Reporter>(
+            &TarballFetch {
+                download: fetch.download,
+                resolution: fetch.resolution,
+                package_key: fetch.package_key,
+                package_id: fetch.package_id,
+                allow_build: &allow_build,
+                scripts_prepend_node_path: exec_scripts_prepend_node_path(self.ctx.config),
+            },
+            tarball,
+            cas_paths,
+        )
+        .await
+    }
+
     pub(in super::super) async fn fetch_binary<Reporter: self::Reporter>(
         &self,
         binary: &BinaryResolution,
@@ -144,7 +174,13 @@ impl InstallPackageBySnapshot<'_> {
         let raw_cas_paths = download_tarball::<Reporter>(
             download,
             self.fetching.tarball_mem_cache
-                .filter(|_| matches!(fetch.resolution, LockfileResolution::Registry(_)))
+                .filter(|_| match fetch.resolution {
+                    LockfileResolution::Registry(_) => true,
+                    LockfileResolution::Tarball(tarball) => {
+                        pnpm_lockfile::is_git_hosted_tarball_url(&tarball.tarball)
+                    }
+                    _ => false,
+                })
                 .map(std::convert::AsRef::as_ref),
             revision_addressed,
         )

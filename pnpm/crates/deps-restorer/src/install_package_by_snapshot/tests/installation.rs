@@ -573,3 +573,42 @@ async fn an_unpinned_delegate_to_a_directory_keeps_its_resolution() {
     );
     drop(store_tmp);
 }
+
+#[tokio::test(flavor = "multi_thread")]
+async fn git_subdirectory_install_reuses_raw_archive_cache() {
+    use pnpm_tarball::{CacheValue, CachedTarball, MemCache, package_mem_cache_key};
+    use std::{collections::HashMap, sync::Arc};
+    let dir = tempfile::tempdir().unwrap();
+    let url =
+        "https://codeload.github.com/example/repo/tar.gz/0123456789abcdef0123456789abcdef01234567";
+    let manifest = dir.path().join("package.json");
+    std::fs::write(&manifest, r#"{"name":"foo","version":"1.0.0"}"#).unwrap();
+    let files = HashMap::from([("packages/foo/package.json".to_string(), manifest)]);
+    let cache = Arc::new(MemCache::default());
+    cache.insert(
+        package_mem_cache_key(url, None, false),
+        Arc::new(tokio::sync::RwLock::new(CacheValue::Available(CachedTarball::from_files(files)))),
+    );
+    let mut metadata = registry_metadata();
+    metadata.resolution = LockfileResolution::Tarball(TarballResolution {
+        tarball: url.to_string(),
+        integrity: None,
+        revision: None,
+        path: Some("/packages/foo".to_string()),
+        git_hosted: None,
+    });
+    let installed = run_snapshot_install_with_session(
+        leaked_offline_config("https://registry.npmjs.org/", &dir.path().join("store")),
+        &metadata,
+        &scripted_session(false, Ok(serde_json::json!({}))),
+        Some(&cache),
+        dir.path(),
+    )
+    .await
+    .unwrap();
+    assert_eq!(installed.cas_paths.len(), 1);
+    let manifest: serde_json::Value =
+        serde_json::from_slice(&std::fs::read(&installed.cas_paths["package.json"]).unwrap())
+            .unwrap();
+    assert_eq!(manifest["name"], "foo");
+}

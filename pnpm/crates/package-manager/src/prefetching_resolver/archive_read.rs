@@ -14,7 +14,7 @@ use pnpm_deps_restorer::{
 use pnpm_lockfile::{LockfileResolution, is_git_hosted_tarball_url};
 use pnpm_reporter::{Reporter, SilentReporter};
 use pnpm_resolving_resolver_base::{ResolveError, ResolveResult};
-use pnpm_tarball::FetchTarballForResolution;
+use pnpm_tarball::{FetchTarballForResolution, package_mem_cache_key};
 use std::{path::Path, sync::Arc};
 
 impl<Reporter: self::Reporter + 'static> PrefetchingResolver<Reporter> {
@@ -197,11 +197,31 @@ impl<Reporter: self::Reporter + 'static> PrefetchingResolver<Reporter> {
         let mut resolution = tarball.clone();
         if !is_git_hosted_tarball_url(package_url) {
             resolution.integrity = Some(resolved.integrity);
+        } else if tarball.integrity.is_none() {
+            self.share_commit_addressed_archive(
+                package_url,
+                &resolved.integrity,
+                revision_addressed,
+            );
         }
         Ok::<_, ResolveError>(ResolvedTarballMetadata {
             resolution: LockfileResolution::Tarball(resolution),
             manifest: resolved.manifest.map(Arc::new),
         })
+    }
+    fn share_commit_addressed_archive(
+        &self,
+        url: &str,
+        integrity: &ssri::Integrity,
+        revision_addressed: bool,
+    ) {
+        let archive = self.ctx.mem_cache
+            .get(&package_mem_cache_key(url, Some(integrity), revision_addressed))
+            .map(|entry| Arc::clone(entry.value()))
+            .expect("the resolve-time read publishes its raw extraction");
+        self.ctx.mem_cache
+            .entry(package_mem_cache_key(url, None, revision_addressed))
+            .or_insert(archive);
     }
 }
 
