@@ -40,7 +40,7 @@ pub(super) fn chmod_tolerating_removal(
 /// `node_modules` (bundled deps) followed by the slot's
 /// `node_modules` (sibling deps), so tools that resolve from CWD
 /// (`import-local` in jest, eslint, ...) find the correct versions.
-/// `dir` must already be symlink-free — [`shim_node_path`](super::shim_node_path) passes the
+/// `dir` must already be symlink-free — [`shim_node_path`](super::linking_paths::shim_node_path) passes the
 /// caller-resolved location or a canonicalized fallback.
 pub(super) fn bin_node_paths(dir: &Path) -> Vec<String> {
     let Some(node_modules_dir) = dir

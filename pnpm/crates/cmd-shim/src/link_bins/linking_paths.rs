@@ -1,4 +1,4 @@
-use super::{LinkBinsError, LinkBinsOptions};
+use super::{LinkBinsError, LinkBinsOptions, PackageBinSource, bin_node_paths};
 use pnpm_fs::{is_subdir, realpath_missing};
 use std::{
     borrow::Cow,
@@ -73,6 +73,49 @@ impl<'a> LinkingPaths<'a> {
         // whose path inside the project must remain relocatable.
         Ok(Cow::Owned(physical_parent.join(name)))
     }
+}
+
+/// The `NODE_PATH` entries for one package's shims: the project modules
+/// dir when there is one, then the target's own `node_modules` dirs
+/// (pnpm's `getBinNodePaths`), then the caller's extras. An entry that
+/// appears again keeps its first position. With no project dir and no
+/// extras the shims get no `NODE_PATH` at all (`extendNodePath: false`, a
+/// non-isolated linker, or no hoist pattern), matching pnpm's bins
+/// linker.
+///
+/// The result depends only on the package's symlink-resolved
+/// directory — every bin lives under the package root — so a
+/// caller-supplied [`PackageBinSource::resolved_location`] makes this
+/// syscall-free; without one the package's `location` is
+/// canonicalized once, covering all of its bins.
+pub(super) fn shim_node_path(
+    pkg: &PackageBinSource,
+    project_node_path: Option<&str>,
+    extra_node_paths: &[String],
+) -> Vec<String> {
+    if project_node_path.is_none() && extra_node_paths.is_empty() {
+        return Vec::new();
+    }
+    let own = if let Some(resolved) = &pkg.resolved_location {
+        bin_node_paths(resolved)
+    } else {
+        let dir =
+            dunce::canonicalize(&pkg.location).unwrap_or_else(|_| pkg.location.clone());
+        bin_node_paths(&dir)
+    };
+    let mut merged: Vec<String> = project_node_path
+        .map(str::to_string)
+        .into_iter()
+        .collect();
+    for entry in own
+        .into_iter()
+        .chain(extra_node_paths.iter().cloned())
+    {
+        if !merged.contains(&entry) {
+            merged.push(entry);
+        }
+    }
+    merged
 }
 
 fn project_modules_dir<'a>(bins_dir: &'a Path, options: &LinkBinsOptions) -> Option<&'a Path> {
