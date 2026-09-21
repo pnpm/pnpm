@@ -27,12 +27,13 @@ use derive_more::{Display, Error};
 use miette::Diagnostic;
 use pnpm_config::Config;
 use pnpm_reporter::{GlobalLog, LogEvent, LogLevel};
+use pnpm_text_sanitize::sanitize_inline;
 use pool::{SlotPool, WaitSnapshot};
 use stamp::format_elapsed;
 use std::{
     collections::HashMap,
     fmt::Write,
-    fs::File,
+    fs::{self, File},
     io,
     path::{Path, PathBuf},
     time::Duration,
@@ -162,20 +163,22 @@ fn format_wait_notice(
     pool: &Path,
     snapshot: &WaitSnapshot,
 ) -> String {
+    let script = sanitize_inline(script);
+    let group = sanitize_inline(group);
     let holders = if snapshot.holders.is_empty() {
         "unknown".to_string()
     } else {
-        snapshot.holders.join("; ")
+        sanitize_inline(&snapshot.holders.join("; ")).into_owned()
     };
     let mut message = format!(
-        r#"Waiting to run "{script}": all {limit} slots of concurrency group "{group}" are held ({}). You are #{} of {} in line. Holders: {holders}"#,
-        pool.display(),
+        r#"Waiting to run "{script}": no slot in the {limit}-slot concurrency group "{group}" is available to this run ({}). You are #{} of {} in line. Holders: {holders}"#,
+        sanitize_inline(&pool.to_string_lossy()),
         snapshot.position,
         snapshot.total,
     );
     if !snapshot.ahead.is_empty() {
         message.push_str(". Ahead: ");
-        message.push_str(&snapshot.ahead.join("; "));
+        message.push_str(&sanitize_inline(&snapshot.ahead.join("; ")));
     }
     message
 }
@@ -232,13 +235,19 @@ fn held_groups(value: Option<&str>) -> impl Iterator<Item = &str> {
 /// Live holders and waiters of one group directory. A missing directory
 /// is idle.
 pub(crate) fn inspect_group(dir: &Path) -> io::Result<GroupStatus> {
-    if !dir.is_dir() {
-        return Ok(GroupStatus { holders: Vec::new(), waiters: Vec::new() });
+    match fs::metadata(dir) {
+        Err(error) if error.kind() == io::ErrorKind::NotFound => {
+            return Ok(GroupStatus { holders: Vec::new(), waiters: Vec::new() });
+        }
+        other => {
+            other?;
+        }
     }
     SlotPool { dir: dir.to_path_buf(), limit: 0 }.status()
 }
 
 pub(crate) fn render_group(name: &str, status: &GroupStatus) -> String {
+    let name = sanitize_inline(name);
     if status.is_idle() {
         return format!("{name}: idle");
     }
@@ -280,7 +289,7 @@ fn append_status_line(
     elapsed: Option<Duration>,
     priority: Option<i32>,
 ) {
-    let headline = command.unwrap_or(info);
+    let headline = sanitize_inline(command.unwrap_or(info));
     match position {
         Some(position) => {
             let _ = write!(out, "\n    {position}. {headline}");
@@ -296,6 +305,7 @@ fn append_status_line(
         let _ = write!(out, "  priority {priority}");
     }
     if command.is_some() && !info.is_empty() {
+        let info = sanitize_inline(info);
         let _ = write!(out, "\n      {info}");
     }
 }

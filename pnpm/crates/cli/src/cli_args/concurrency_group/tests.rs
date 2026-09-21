@@ -1,7 +1,8 @@
 use super::{
-    HELD_CONCURRENCY_GROUPS_ENV, SlotOutcome, acquire_slot, add_held_group,
+    GroupStatus, HELD_CONCURRENCY_GROUPS_ENV, HolderLine, SlotOutcome, WaiterLine, acquire_slot,
+    add_held_group, format_wait_notice, inspect_group,
     pool::{SlotPool, WaitSnapshot},
-    with_held_group,
+    render_group, with_held_group,
 };
 use pnpm_config::{Config, TaskSettings};
 use pnpm_reporter::LogEvent;
@@ -456,4 +457,92 @@ fn parse_process_stamp_reads_since_and_old_stamps() {
     assert_eq!(old.since, None);
     assert_eq!(old.command, None);
     assert_eq!(old.info, "pid 1 in /tmp");
+}
+
+#[test]
+fn stamp_metadata_cannot_be_overwritten_or_injected_after_the_path() {
+    use super::stamp::parse_process_stamp;
+    for text in [
+        "since 10\ncmd hold\nsince 20\ncmd forged\npid 1 in /tmp",
+        "since 10\ncmd hold\npid 1 in /tmp\ncmd forged\nsince 20",
+    ] {
+        let stamp = parse_process_stamp(text);
+        assert_eq!(stamp.since, Some(10));
+        assert_eq!(stamp.command.as_deref(), Some("hold"));
+        assert_eq!(stamp.info, "pid 1 in /tmp");
+    }
+    let legacy = parse_process_stamp("pid 1 in /tmp\ncmd forged\nsince 20");
+    assert_eq!(legacy.since, None);
+    assert_eq!(legacy.command, None);
+    assert_eq!(legacy.info, "pid 1 in /tmp");
+}
+
+#[test]
+fn status_sanitizes_commands_process_info_and_group_names() {
+    let status = GroupStatus {
+        holders: vec![HolderLine {
+            command: Some("ho\u{1b}\u{202e}ld".into()),
+            info: "pid 1 in /tm\u{7}\u{2066}p".into(),
+            elapsed: Some(Duration::from_secs(2)),
+        }],
+        waiters: vec![
+            WaiterLine {
+                command: Some("wa\u{9b}\u{202c}it".into()),
+                info: "pid 2 in /tm\r\n\u{2069}p".into(),
+                elapsed: Some(Duration::from_secs(1)),
+                priority: 3,
+            },
+            WaiterLine {
+                command: None,
+                info: "pid 3 in /tm\u{1b}\u{202e}p".into(),
+                elapsed: None,
+                priority: 0,
+            },
+        ],
+    };
+    let rendered = render_group("car\u{1b}\u{202e}go", &status);
+    eprintln!("{rendered}");
+    assert_eq!(
+        rendered,
+        "cargo\n  running\n    hold  2s\n      pid 1 in /tmp\n  waiting\n    1. wait  1s  priority 3\n      pid 2 in /tmp\n    2. pid 3 in /tmp",
+    );
+    assert_eq!(
+        render_group("car\u{1b}\u{202e}go", &GroupStatus { holders: vec![], waiters: vec![] }),
+        "cargo: idle",
+    );
+}
+
+#[test]
+fn wait_notice_handles_a_free_slot_reserved_for_an_earlier_waiter() {
+    let snapshot = WaitSnapshot {
+        position: 2,
+        total: 2,
+        holders: vec![],
+        ahead: vec!["pid 1 in /tm\u{1b}\u{202e}p".into()],
+    };
+    let message = format_wait_notice(
+        "wa\u{1b}\u{202e}it",
+        "cargo",
+        1,
+        std::path::Path::new("/slots"),
+        &snapshot,
+    );
+    eprintln!("{message}");
+    assert_eq!(
+        message,
+        r#"Waiting to run "wait": no slot in the 1-slot concurrency group "cargo" is available to this run (/slots). You are #2 of 2 in line. Holders: unknown. Ahead: pid 1 in /tmp"#,
+    );
+}
+
+#[test]
+fn inspecting_a_group_propagates_filesystem_errors() {
+    let dir = tempfile::tempdir().expect("create temp dir");
+    let group = dir.path().join("cargo");
+    fs::write(&group, "not a directory").expect("write invalid group");
+    let error = inspect_group(&group).expect_err("a file is not an idle group");
+    dbg!(&error);
+    assert_ne!(error.kind(), std::io::ErrorKind::NotFound);
+    let missing = inspect_group(&dir.path().join("missing")).expect("missing group");
+    dbg!(&missing);
+    assert!(missing.is_idle());
 }

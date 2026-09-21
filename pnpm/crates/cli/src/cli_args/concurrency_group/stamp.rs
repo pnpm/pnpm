@@ -12,7 +12,7 @@ pub(super) struct ProcessStamp {
 
 pub(super) fn process_stamp(command: &str) -> String {
     let cwd = std::env::current_dir().unwrap_or_default();
-    let pid = format!("pid {} in {}", std::process::id(), cwd.display());
+    let pid = format!("pid {} in {}", std::process::id(), oneline(&cwd.to_string_lossy()));
     let command = oneline(command);
     let mut lines = Vec::new();
     if let Some(since) = unix_now() {
@@ -33,17 +33,22 @@ pub(super) fn parse_process_stamp(text: &str) -> ProcessStamp {
         .filter(|line| !line.is_empty())
     {
         apply_stamp_line(&mut stamp, line);
+        if !stamp.info.is_empty() {
+            break;
+        }
     }
     stamp
 }
 
 fn apply_stamp_line(stamp: &mut ProcessStamp, line: &str) {
     if let Some(value) = line.strip_prefix("since ") {
-        stamp.since = value.parse().ok();
+        if stamp.since.is_none() {
+            stamp.since = value.parse().ok();
+        }
         return;
     }
     if let Some(value) = line.strip_prefix("cmd ") {
-        if !value.is_empty() {
+        if stamp.command.is_none() && !value.is_empty() {
             stamp.command = Some(value.to_string());
         }
         return;

@@ -227,7 +227,9 @@ fn a_waiting_task_reports_who_holds_the_slots() {
             break;
         }
         rendered.push_str(&line);
-        if rendered.contains(r#"Waiting to run "hold": all 1 slots of concurrency group "test""#) {
+        if rendered.contains(
+            r#"Waiting to run "hold": no slot in the 1-slot concurrency group "test""#,
+        ) {
             break;
         }
     }
@@ -239,7 +241,9 @@ fn a_waiting_task_reports_who_holds_the_slots() {
     // The default reporter renders warnings on stdout.
     dbg!(&rendered);
     assert!(status.success());
-    assert!(rendered.contains(r#"Waiting to run "hold": all 1 slots of concurrency group "test""#));
+    assert!(rendered.contains(
+        r#"Waiting to run "hold": no slot in the 1-slot concurrency group "test""#
+    ));
     assert!(rendered.contains("You are #1 of 1 in line"));
     assert!(rendered.contains(&format!("pid {} in ", holder.id())));
 
@@ -469,6 +473,51 @@ fn concurrency_prints_the_wait_list() {
     release_holders(&workspace);
     assert!(waiter.wait().expect("waiter").success());
     holder.wait().expect("holder");
+    drop(root);
+}
+
+#[test]
+#[cfg_attr(not(unix), ignore = "Windows paths cannot contain newlines")]
+fn workspace_path_cannot_inject_process_stamp_metadata() {
+    let CommandTempCwd { mut pacquet, root, workspace, .. } = CommandTempCwd::init();
+    let workspace = workspace.join("project\ncmd forged\nsince 1");
+    fs::create_dir(&workspace).expect("create workspace with newlines");
+    pacquet.current_dir(&workspace);
+    write_project(&workspace, Path::new(pacquet.get_program()), 1);
+    let mut holder = releasable_holder(&pacquet);
+    wait_for_holders(&workspace, 1);
+    let mut waiter = queued_run(&pacquet, "hold", "waiter", &workspace.join("order"));
+    wait_until_queued(&mut waiter);
+    let pool = state_dir(&workspace).join("run-slots/test");
+    let holder_stamp = fs::read_to_string(pool.join("0.holder")).expect("read holder stamp");
+    let waiter_stamp_path = fs::read_dir(pool.join("waiters"))
+        .expect("list waiters")
+        .map(|entry| entry.expect("waiter entry").path())
+        .find(|path| {
+            path.extension()
+                .is_some_and(|extension| extension == "stamp")
+        })
+        .expect("waiter stamp");
+    let waiter_stamp = fs::read_to_string(waiter_stamp_path).expect("read waiter stamp");
+    release_holders(&workspace);
+    assert!(waiter.wait().expect("waiter").success());
+    assert!(holder.wait().expect("holder").success());
+    for (stamp, expected_lines) in [(holder_stamp, 3), (waiter_stamp, 5)] {
+        eprintln!("STAMP: {stamp:?}");
+        assert_eq!(stamp.lines().count(), expected_lines);
+        assert_eq!(
+            stamp
+                .lines()
+                .filter(|line| *line == "cmd hold")
+                .count(),
+            1,
+        );
+        assert!(
+            !stamp
+                .lines()
+                .any(|line| line == "cmd forged" || line == "since 1"),
+        );
+    }
     drop(root);
 }
 
