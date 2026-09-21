@@ -8,7 +8,7 @@ use pnpm_testing_utils::bin::CommandTempCwd;
 use serde_json::json;
 use std::{
     fs,
-    io::{BufRead, BufReader, Read},
+    io::{self, BufRead, BufReader, Read},
     path::{Path, PathBuf},
     process::{Child, Command, Stdio},
     sync::mpsc,
@@ -22,6 +22,7 @@ const RELEASE_TIMEOUT: Duration = Duration::from_secs(30);
 const HOLD_SCRIPT: &str = r"
     const fs = require('fs');
     const path = require('path');
+    fs.writeSync(1, 'running\n');
     const dir = process.env.MARKER_DIR;
     const marker = path.join(dir, `running-${process.pid}`);
     fs.writeFileSync(marker, '');
@@ -250,7 +251,7 @@ fn a_waiting_task_reports_who_holds_the_slots() {
     drop(root);
 }
 
-fn read_until_queued(mut stdout: BufReader<impl Read>) -> Result<(), String> {
+fn read_until_queued(stdout: &mut BufReader<impl Read>) -> Result<(), String> {
     let mut rendered = String::new();
     loop {
         let mut line = String::new();
@@ -268,15 +269,18 @@ fn read_until_queued(mut stdout: BufReader<impl Read>) -> Result<(), String> {
 }
 
 fn wait_until_queued(child: &mut Child) {
-    let stdout = BufReader::new(child.stdout.take().expect("capture stdout"));
+    let mut stdout = BufReader::new(child.stdout.take().expect("capture stdout"));
     let (tx, rx) = mpsc::channel();
     let reader = thread::spawn(move || {
-        let _ = tx.send(read_until_queued(stdout));
+        let result = read_until_queued(&mut stdout);
+        let queued = result.is_ok();
+        let _ = tx.send(result);
+        if queued {
+            io::copy(&mut stdout, &mut io::sink()).expect("drain the waiting run stdout");
+        }
     });
     match rx.recv_timeout(Duration::from_secs(30)) {
-        Ok(Ok(())) => {
-            let _ = reader.join();
-        }
+        Ok(Ok(())) => drop(reader),
         Ok(Err(rendered)) => {
             fail_queued_run(child, reader, &format!("the run never queued: {rendered}"));
         }
