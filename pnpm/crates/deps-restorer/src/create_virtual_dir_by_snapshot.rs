@@ -17,6 +17,7 @@ use pnpm_reporter::{
     Reporter,
 };
 use std::{
+    borrow::Cow,
     collections::HashMap,
     fs, io,
     path::{Path, PathBuf},
@@ -107,17 +108,10 @@ impl CreateVirtualDirBySnapshot<'_> {
 
         let slot = SlotPaths::create(self.layout, self.dependencies.package_key)?;
         let interrupted_build = slot.save_path.join(NEEDS_BUILD_MARKER).is_file();
-        let selected = crate::select_package_files(self.cas_paths, self.import.patterns);
-        let marked_cas_paths = cas_paths_with_build_marker(
-            &selected,
-            &slot.save_path,
-            self.source.build_marker,
-            (interrupted_build, self.source.force),
-        );
-        let cas_paths = marked_cas_paths.as_ref().unwrap_or(&*selected);
+        let cas_paths = self.files_to_import(&slot.save_path, interrupted_build);
 
         let import_package =
-            || self.import_slot::<Reporter>(&slot.save_path, cas_paths, interrupted_build);
+            || self.import_slot::<Reporter>(&slot.save_path, &cas_paths, interrupted_build);
         if self.dependencies.symlink {
             // `rayon::join` runs both closures in parallel on rayon's pool,
             // returning only once both finish. `import_indexed_dir` is itself
@@ -166,6 +160,25 @@ impl CreateVirtualDirBySnapshot<'_> {
         }));
 
         Ok(())
+    }
+
+    /// The files of the package to import: those `packageImportPatterns` selects, plus the
+    /// build marker when the slot still needs its build.
+    fn files_to_import(
+        &self,
+        save_path: &Path,
+        interrupted_build: bool,
+    ) -> Cow<'_, HashMap<String, PathBuf>> {
+        let selected = crate::select_package_files(self.cas_paths, self.import.patterns);
+        match cas_paths_with_build_marker(
+            &selected,
+            save_path,
+            self.source.build_marker,
+            (interrupted_build, self.source.force),
+        ) {
+            Some(marked) => Cow::Owned(marked),
+            None => selected,
+        }
     }
 
     fn import_slot<Reporter: self::Reporter>(
