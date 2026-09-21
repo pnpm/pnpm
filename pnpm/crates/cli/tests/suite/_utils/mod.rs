@@ -24,8 +24,6 @@ use std::{
 };
 use tempfile::TempDir;
 
-/// Write `body` to `path` and make it executable, for the `/bin/sh`
-/// shims that stand in for an installed package's `.bin` entry.
 #[cfg(unix)]
 pub fn write_executable(path: &Path, body: &str) {
     use std::os::unix::fs::PermissionsExt;
@@ -35,8 +33,6 @@ pub fn write_executable(path: &Path, body: &str) {
     fs::set_permissions(path, perms).expect("chmod executable");
 }
 
-/// Write a `.bin` entry that prints `marker`, in the form a command lookup
-/// finds on this platform.
 pub fn write_fake_bin(bin_dir: &Path, name: &str, marker: &str) {
     fs::create_dir_all(bin_dir).expect("create the bin dir");
     #[cfg(unix)]

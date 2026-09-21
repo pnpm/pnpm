@@ -575,8 +575,6 @@ test('run resolves a command from the modules directory a packageConfigs entry g
   expect(stdout).toContain('configured')
   expect(stdout).not.toContain('stale')
 
-  // `pnpm -r run` reaches the script through runRecursive, which resolves the
-  // entry of every project it visits rather than of the one it started in.
   const recursive = execPnpmSync(['-r', 'run', '--config.verify-deps-before-run=false', 'greet'])
 
   expect(recursive.status).toBe(0)

@@ -527,8 +527,6 @@ pub fn extra_bin_paths_lists_workspace_root_bin_only_inside_a_workspace() {
     );
 }
 
-/// A configured `modulesDir` moves the workspace root's executables, so the
-/// extra bin paths must follow it rather than stay on `node_modules/.bin`.
 #[test]
 pub fn extra_bin_paths_follow_a_configured_modules_dir() {
     fake_env!(load_with_fake_env);

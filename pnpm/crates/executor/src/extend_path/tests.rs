@@ -241,9 +241,6 @@ fn scripts_prepend_node_path_never_and_warn_only_do_not_prepend() {
     }
 }
 
-/// `wd_bin_dir` replaces only the wd's own entry. The ancestors are
-/// dependency slots, whose dependencies live under `node_modules` whatever
-/// `modulesDir` says.
 #[test]
 fn wd_bin_dir_replaces_only_the_wds_own_bin() {
     let root = std::path::absolute(Path::new("/proj")).expect("absolute project root");

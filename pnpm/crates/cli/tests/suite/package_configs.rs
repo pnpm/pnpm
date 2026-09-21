@@ -476,8 +476,6 @@ fn the_workspace_root_entry_moves_the_shared_executables() {
     assert!(!stdout.contains("stale"), "the workspace-wide dir must not win: {stdout}");
 }
 
-/// A recursive run resolves the entry of each project it visits, not of
-/// the one the command was started in.
 #[cfg(unix)]
 #[test]
 fn a_recursive_exec_uses_each_project_modules_dir() {

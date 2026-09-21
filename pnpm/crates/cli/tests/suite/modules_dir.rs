@@ -177,9 +177,7 @@ fn project_lifecycle_scripts_run_bins_from_its_custom_modules_dir() {
     drop((root, mock_instance));
 }
 
-/// A symlinked executable has no shim, so pnpm puts the project's modules
-/// directory on the `NODE_PATH` of the scripts and commands it spawns for that
-/// project. A direct call still needs the caller's `NODE_PATH`.
+/// A symlinked executable has no shim to carry `NODE_PATH`.
 #[cfg_attr(windows, ignore = "executables are symlinked only on Unix")]
 #[test]
 fn symlinked_bins_of_every_project_get_that_projects_modules_dir_on_node_path() {

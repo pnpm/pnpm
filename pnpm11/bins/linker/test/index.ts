@@ -116,7 +116,6 @@ test('linkBins() puts projectModulesDir first on NODE_PATH, then the bin\'s own 
   expect(entries[1]).toMatch(/\/node_modules\/simple\/node_modules$/)
   expect(entries[3]).toMatch(/\/node_modules\/\.pnpm\/node_modules$/)
 
-  // An entry that appears more than once stays at its first position.
   const dedupedTarget = temporaryDirectory()
   const realModulesDir = fs.realpathSync(modulesDir)
   await linkBins(modulesDir, dedupedTarget, { warn, extraNodePaths: [realModulesDir], projectModulesDir: realModulesDir })
@@ -125,7 +124,6 @@ test('linkBins() puts projectModulesDir first on NODE_PATH, then the bin\'s own 
   expect(deduped[0]).toBe(nodePathEntries(fs.readFileSync(path.join(binTarget, 'simple'), 'utf8'))[2])
   expect(deduped[1]).toMatch(/\/node_modules\/simple\/node_modules$/)
 
-  // The same options reuse the bin.
   fs.appendFileSync(path.join(dedupedTarget, 'simple'), '# sentinel\n')
   await linkBins(modulesDir, dedupedTarget, { warn, extraNodePaths: [realModulesDir], projectModulesDir: realModulesDir })
   expect(fs.readFileSync(path.join(dedupedTarget, 'simple'), 'utf8')).toContain('# sentinel')

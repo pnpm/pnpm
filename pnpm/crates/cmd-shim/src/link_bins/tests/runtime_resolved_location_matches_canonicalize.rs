@@ -64,8 +64,6 @@ fn resolved_location_matches_canonicalize_fallback_for_node_path() {
     );
 }
 
-/// A project modules dir comes ahead of the target's own `node_modules`
-/// dirs and the extras, and an entry listed again keeps its first position.
 #[test]
 fn a_project_node_path_comes_first_and_a_repeated_entry_keeps_its_first_position() {
     let tmp = tempdir().unwrap();
