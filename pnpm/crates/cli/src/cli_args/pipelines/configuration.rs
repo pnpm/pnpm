@@ -43,7 +43,7 @@ pub(crate) fn derive_config_root(
     warn_deprecated_override_version_references(cfg, reporter_emit(reporter));
     warn_unmatched_registry_options(cfg);
     warn_unapplied_package_configs(cfg);
-    warn_shared_workspace_lockfile_outside_workspace(None, cfg.workspace_dir.as_deref());
+    warn_shared_workspace_lockfile_outside_workspace(cfg);
     Ok(config_root)
 }
 

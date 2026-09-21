@@ -264,24 +264,18 @@ fn non_camel_case_workspace_keys_warning(keys: &[String]) -> String {
     )
 }
 
-/// Warn when `shared-workspace-lockfile` is configured outside a workspace.
-pub(crate) fn warn_shared_workspace_lockfile_outside_workspace(
-    shared_workspace_lockfile_cli: Option<bool>,
-    workspace_dir: Option<&std::path::Path>,
-) {
-    if let Some(message) = shared_workspace_lockfile_outside_workspace_warning(
-        shared_workspace_lockfile_cli,
-        workspace_dir,
-    ) {
+pub(crate) fn warn_shared_workspace_lockfile_outside_workspace(config: &Config) {
+    if let Some(message) = shared_workspace_lockfile_outside_workspace_warning(config) {
         emit_config_warning(&message);
     }
 }
 
 pub(super) fn shared_workspace_lockfile_outside_workspace_warning(
-    shared_workspace_lockfile_cli: Option<bool>,
-    workspace_dir: Option<&std::path::Path>,
+    config: &Config,
 ) -> Option<String> {
-    (shared_workspace_lockfile_cli.is_some() && workspace_dir.is_none()).then(|| {
+    (config.explicit_settings.contains_key("sharedWorkspaceLockfile")
+        && config.workspace_dir.is_none())
+    .then(|| {
         "The \"shared-workspace-lockfile\" option was ignored because no \"pnpm-workspace.yaml\" was found."
             .to_string()
     })
