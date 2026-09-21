@@ -59,12 +59,23 @@ fn deep_tree() -> Vec<DependentsTree> {
         "target",
         "1.0.0",
         vec![
-            package(
+            package_with_requires(
                 "mid-a",
                 "2.0.0",
-                vec![importer("root-project", "0.0.0", DepField::Dependencies)],
+                Some("^2.0.0"),
+                vec![importer_with_requires(
+                    "root-project",
+                    "0.0.0",
+                    DepField::Dependencies,
+                    Some("workspace:*"),
+                )],
             ),
-            importer("root-project", "0.0.0", DepField::DevDependencies),
+            importer_with_requires(
+                "root-project",
+                "0.0.0",
+                DepField::DevDependencies,
+                Some("1.0.0"),
+            ),
         ],
     )]
 }
@@ -457,8 +468,8 @@ fn depth_limits_parseable_output_depth() {
     eprintln!("output:\n{output}");
     // With depth 1, mid-a cannot recurse further — it becomes a leaf.
     assert_eq!(lines.len(), 2);
-    assert!(lines.contains(&"mid-a@2.0.0 > target@1.0.0"));
-    assert!(lines.contains(&"root-project@0.0.0 > target@1.0.0"));
+    assert!(lines.contains(&"mid-a@2.0.0 > target@1.0.0 (by ^2.0.0)"));
+    assert!(lines.contains(&"root-project@0.0.0 > target@1.0.0 (by 1.0.0)"));
 }
 
 // Port of upstream's 'renderDependentsParseable > no depth option renders full paths in parseable output' (deps/inspection/list/test/renderDependentsTree.test.ts).
@@ -470,8 +481,12 @@ fn no_depth_option_renders_full_paths_in_parseable_output() {
     eprintln!("output:\n{output}");
     // Without depth limit, mid-a is expanded to root-project.
     assert_eq!(lines.len(), 2);
-    assert!(lines.contains(&"root-project@0.0.0 > mid-a@2.0.0 > target@1.0.0"));
-    assert!(lines.contains(&"root-project@0.0.0 > target@1.0.0"));
+    assert!(
+        lines.contains(
+            &"root-project@0.0.0 > mid-a@2.0.0 (by workspace:*) > target@1.0.0 (by ^2.0.0)",
+        ),
+    );
+    assert!(lines.contains(&"root-project@0.0.0 > target@1.0.0 (by 1.0.0)"));
 }
 
 // Port of upstream's 'renderDependentsParseable > uses displayName in parseable output' (deps/inspection/list/test/renderDependentsTree.test.ts).
@@ -484,17 +499,26 @@ fn uses_display_name_in_parseable_output() {
             "1.0.0",
             vec![DependentNode {
                 display_name: Some("other-component".to_string()),
-                ..package(
+                ..package_with_requires(
                     "bar",
                     "2.0.0",
-                    vec![importer("my-project", "0.0.0", DepField::Dependencies)],
+                    Some("^2.0.0"),
+                    vec![importer_with_requires(
+                        "my-project",
+                        "0.0.0",
+                        DepField::Dependencies,
+                        Some("workspace:*"),
+                    )],
                 )
             }],
         )
     }];
 
     let output = render_dependents_parseable(&results, &opts(None));
-    assert_eq!(output, "my-project@0.0.0 > other-component@2.0.0 > my-component@1.0.0");
+    assert_eq!(
+        output,
+        "my-project@0.0.0 > other-component@2.0.0 (by workspace:*) > my-component@1.0.0 (by ^2.0.0)",
+    );
 }
 
 // Port of upstream's 'renderDependentsParseable > renders parseable output with searchMessage result' (deps/inspection/list/test/renderDependentsTree.test.ts).

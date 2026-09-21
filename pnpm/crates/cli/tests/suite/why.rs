@@ -569,11 +569,16 @@ fn why_displays_parseable_output() {
     let stdout = String::from_utf8_lossy(&output.stdout);
     let lines: Vec<&str> = stdout.lines().collect();
     assert!(
-        lines.contains(&format!("project@0.0.0 > {DEP}@100.0.0").as_str()),
+        lines.contains(&format!("project@0.0.0 > {DEP}@100.0.0 (by 100.0.0)").as_str()),
         "direct path is importer-first: {stdout}",
     );
     assert!(
-        lines.contains(&format!("project@0.0.0 > {PKG}@100.0.0 > {DEP}@100.0.0").as_str()),
+        lines.contains(
+            &format!(
+                "project@0.0.0 > {PKG}@100.0.0 (by 100.0.0) > {DEP}@100.0.0 (by ^100.0.0)",
+            )
+            .as_str(),
+        ),
         "transitive path is importer-first: {stdout}",
     );
 }
