@@ -1009,6 +1009,42 @@ mod root_preinstall {
         drop((root, mock_instance));
     }
 
+    /// A filtered install pushes the unselected workspace root in as a
+    /// full-install importer, so the root runs its own scripts, and its
+    /// `preinstall` still moves ahead of the install.
+    #[test]
+    fn runs_ahead_of_a_filtered_install_that_pushes_the_root_in() {
+        let CommandTempCwd {
+            pacquet,
+            root,
+            workspace,
+            npmrc_info,
+            ..
+        } = CommandTempCwd::init().add_mocked_registry();
+        let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+        let yaml_path = workspace.join("pnpm-workspace.yaml");
+        let yaml = fs::read_to_string(&yaml_path).expect("read pnpm-workspace.yaml");
+        fs::write(&yaml_path, format!("{}\npackages:\n  - 'packages/*'\n", yaml.trim_end()))
+            .expect("write pnpm-workspace.yaml");
+        fs::write(workspace.join("package.json"), project_manifest("root"))
+            .expect("write the root package.json");
+        let member_dir = workspace.join("packages").join("member");
+        fs::create_dir_all(&member_dir).expect("create the member dir");
+        fs::write(member_dir.join("package.json"), project_manifest("member"))
+            .expect("write the member package.json");
+
+        pacquet
+            .with_args(["--filter", "member", "install"])
+            .assert()
+            .success();
+
+        assert_eq!(stages(&workspace), ["preinstall false", "postinstall true"]);
+        assert_eq!(stages(&member_dir), ["preinstall true", "postinstall true"]);
+
+        drop((root, mock_instance));
+    }
+
     /// Only the root's `preinstall` moves ahead of the install. A
     /// member's runs where every other project stage does, after its
     /// dependencies are linked.
