@@ -1,3 +1,5 @@
+mod named_registry;
+
 use super::{
     InteractiveUpdateProject, PromptRow, UpdatePrompt, collect_choices, dependencies_prompt_message,
 };
