@@ -13,7 +13,6 @@ pub(in super::super) fn deploy<'a>(
 ) -> miette::Result<CommandFuture<'a>> {
     let dir = ctx.locations.dir;
     let reporter = ctx.reporter;
-    let shared_workspace_lockfile_cli = ctx.shared_workspace_lockfile_cli;
     let config = ctx.loaders.config;
     let cfg = config()?;
     // Ahead of the target validation, so a project with a `deploy` script
@@ -31,7 +30,7 @@ pub(in super::super) fn deploy<'a>(
         // deploy futures would otherwise each reserve their full size in
         // this frame.
         {
-            let config_root = derive_config_root(cfg, dir, reporter, shared_workspace_lockfile_cli)
+            let config_root = derive_config_root(cfg, dir, reporter)
                 .wrap_err("derive workspace root and package manager policy")?;
             let pipeline = DeployPipeline { args, cfg, config_root };
             match reporter {
@@ -58,11 +57,10 @@ pub(in super::super) fn dedupe<'a>(
     let manifest_path = ctx.locations.manifest_path;
     let reporter = ctx.reporter;
     let config = ctx.loaders.config;
-    let shared_workspace_lockfile_cli = ctx.shared_workspace_lockfile_cli;
     Ok(Box::pin(async move {
         let cfg = config()?;
         args.apply_cli_config(cfg);
-        let config_root = derive_config_root(cfg, dir, reporter, shared_workspace_lockfile_cli)
+        let config_root = derive_config_root(cfg, dir, reporter)
             .wrap_err("derive workspace root and package manager policy")?;
         let recursive_sort = cfg.sort;
         let dedupe = DedupePipeline {
@@ -96,10 +94,9 @@ pub(in super::super) fn prune<'a>(
     let manifest_path = ctx.locations.manifest_path;
     let reporter = ctx.reporter;
     let config = ctx.loaders.config;
-    let shared_workspace_lockfile_cli = ctx.shared_workspace_lockfile_cli;
     Ok(Box::pin(async move {
         let cfg = config()?;
-        let config_root = derive_config_root(cfg, dir, reporter, shared_workspace_lockfile_cli)
+        let config_root = derive_config_root(cfg, dir, reporter)
             .wrap_err("derive workspace root and package manager policy")?;
         let pipeline =
             PrunePipeline { args, cfg, config_root, manifest_path: manifest_path.to_path_buf() };
@@ -181,7 +178,6 @@ pub(in super::super) fn unlink<'a>(
     let manifest_path = ctx.locations.manifest_path;
     let reporter = ctx.reporter;
     let config = ctx.loaders.config;
-    let shared_workspace_lockfile_cli = ctx.shared_workspace_lockfile_cli;
     Ok(Box::pin(async move {
         let cfg = config()?;
         let recursive_sort = cfg.sort;
@@ -196,7 +192,7 @@ pub(in super::super) fn unlink<'a>(
         // selection and per-project lockfiles apply. The reinstall forces a
         // fresh resolution so the removed `link:` overrides re-resolve from
         // the registry.
-        let config_root = derive_config_root(cfg, dir, reporter, shared_workspace_lockfile_cli)
+        let config_root = derive_config_root(cfg, dir, reporter)
             .wrap_err("derive workspace root and package manager policy")?;
         let pipeline = InstallPipeline {
             args: InstallArgs::for_reresolving_install(),

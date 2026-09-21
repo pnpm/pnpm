@@ -2,6 +2,7 @@ pub(super) use configuration::{apply_update_config, seed_config};
 
 use super::{
     cli_command::{CliArgs, CliCommand},
+    config_warnings::warn_shared_workspace_lockfile_outside_workspace,
     dispatch_install, dispatch_query, dispatch_script,
     install::resolve_bool_override,
     reporter::{
@@ -62,7 +63,6 @@ pub(crate) struct RunCtx<'a> {
     pub(crate) builtin_replaced_by_script: &'a AtomicBool,
     pub(crate) locations: CommandLocations<'a>,
     pub(crate) workspace: WorkspaceInvocation<'a>,
-    pub(crate) shared_workspace_lockfile_cli: Option<bool>,
     pub(crate) loaders: CommandLoaders<'a>,
 }
 
@@ -219,6 +219,7 @@ impl CliArgs {
         let emit = reporter_emit(self.effective_reporter());
         let finished = install_args.finished_via_up_to_date_fast_path(&dir, &config, emit);
         if finished {
+            warn_fast_path_config(config_overrides, &config);
             emit_execution_time(emit, started_at);
         }
         finished
@@ -309,7 +310,6 @@ impl CliArgs {
             builtin_replaced_by_script: &builtin_replaced_by_script,
             locations: CommandLocations::from(anchors),
             workspace: WorkspaceInvocation::from(&self.workspace),
-            shared_workspace_lockfile_cli: config_overrides.shared_workspace_lockfile(),
             loaders: CommandLoaders {
                 config: &config,
                 global_config: &|| load_config(&anchors.global_config),
@@ -330,6 +330,12 @@ impl CliArgs {
         anchors: &RunAnchors,
     ) -> miette::Result<&'static mut Config> {
         config_overrides.apply(&mut cfg, anchor);
+        if anchor != anchors.global_config {
+            warn_shared_workspace_lockfile_outside_workspace(
+                config_overrides.shared_workspace_lockfile(),
+                cfg.workspace_dir.as_deref(),
+            );
+        }
         apply_color_override(
             &mut cfg,
             self.output.presentation.color,
@@ -418,6 +424,13 @@ impl CliArgs {
             },
         );
     }
+}
+
+fn warn_fast_path_config(config_overrides: &ConfigOverrides, config: &Config) {
+    warn_shared_workspace_lockfile_outside_workspace(
+        config_overrides.shared_workspace_lockfile(),
+        config.workspace_dir.as_deref(),
+    );
 }
 
 /// A JSON-mode command reports its own failure on stdout and exits, so the
