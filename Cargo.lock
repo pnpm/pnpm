@@ -5152,8 +5152,10 @@ version = "0.0.1"
 dependencies = [
  "deno_task_shell",
  "derive_more",
+ "dunce",
  "libc",
  "miette 7.6.0",
+ "pnpm-fs",
  "pnpm-package-manifest",
  "pnpm-reporter",
  "pretty_assertions",

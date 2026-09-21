@@ -58,3 +58,19 @@ fn same_path_root(a: &Path, b: &Path) -> bool {
         _ => false,
     }
 }
+
+/// [`push_slash_separated_path`] applied to a copy of `base`.
+#[must_use]
+pub fn join_slash_separated_path(base: &Path, rel: &str) -> PathBuf {
+    let mut path = base.to_path_buf();
+    push_slash_separated_path(&mut path, rel);
+    path
+}
+
+/// Extend `path` with `rel`, one component per `/`-separated segment.
+///
+/// [`PathBuf::push`] leaves forward slashes in a Windows path string when
+/// `rel` is a scoped package name. Splitting it yields native separators.
+pub fn push_slash_separated_path(path: &mut PathBuf, rel: &str) {
+    path.extend(rel.split('/'));
+}

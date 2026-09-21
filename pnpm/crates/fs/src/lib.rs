@@ -10,7 +10,7 @@ pub use ensure_file::*;
 pub use is_subdir::is_subdir;
 pub use lexical_normalize::{lexical_normalize, lexical_normalize_posix};
 pub use realpath_missing::realpath_missing;
-pub use relative_path::relative_path;
+pub use relative_path::{join_slash_separated_path, push_slash_separated_path, relative_path};
 pub use remove_dirent::remove_dirent;
 pub use rename_even_across_devices::rename_even_across_devices;
 pub use retry::{
