@@ -15,6 +15,8 @@ import semver from 'semver'
 
 import type { RegistryPackageSpec } from './parseBareSpecifier.js'
 
+const packumentVersions = new WeakMap<PackageInRegistry, string>()
+
 export interface PickVersionByVersionRangeOptions {
   meta: PackageMeta
   versionRange: string
@@ -98,8 +100,10 @@ export function pickPackageFromMeta (
     const selectedVersion = parsedVersion == null
       ? manifest.version
       : parsedVersion.version + (parsedVersion.build.length ? `+${parsedVersion.build.join('.')}` : '')
-    if (manifest.name !== name || manifest.version !== selectedVersion) {
-      return { ...manifest, name, version: selectedVersion }
+    if (manifest.name !== name || manifest.version !== selectedVersion || version !== selectedVersion) {
+      const picked = { ...manifest, name, version: selectedVersion }
+      packumentVersions.set(picked, version)
+      return picked
     }
     return manifest
   } catch (err: unknown) {
@@ -567,3 +571,8 @@ function parseSemverLoose (version: string): semver.SemVer | null {
 const SEMVER_CACHE_MAX_SIZE = 50_000
 const semverRangeCache = new Map<string, semver.Range | null>()
 const semverInstanceCache = new Map<string, semver.SemVer | null>()
+
+/** Raw metadata key used for timestamp lookups, independent of the manifest's version spelling. */
+export function getPackumentVersion (manifest: PackageInRegistry): string {
+  return packumentVersions.get(manifest) ?? manifest.version
+}

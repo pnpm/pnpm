@@ -219,6 +219,9 @@ pub fn blocked_packument_key(
     picked: &Arc<PackageVersion>,
     version_str: &str,
 ) -> String {
+    if let Some(key) = &picked.packument_version {
+        return key.clone();
+    }
     if meta.versions.get(version_str).is_some_and(|candidate| Arc::ptr_eq(&candidate, picked)) {
         return version_str.to_string();
     }

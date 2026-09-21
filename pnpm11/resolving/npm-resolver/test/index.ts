@@ -3196,3 +3196,27 @@ test('a blocked exact version is reported under the requested package identity',
   expect(result?.manifest?.name).toBe('other')
   expect(result?.id).toBe('is-positive@1.0.0')
 })
+
+test('prefixed packument keys retain their publication timestamp and obey normalized retry blocks', async () => {
+  const version = { ...isPositiveMetaFull.versions['1.0.0'], version: '1.0.0' }
+  getMockAgent().get(registriesByScope.default.replace(/\/$/, ''))
+    .intercept({ path: '/is-positive', method: 'GET' })
+    .reply(200, {
+      name: 'is-positive',
+      'dist-tags': { latest: 'v1.0.0' },
+      versions: { 'v1.0.0': version, '0.9.0': { ...version, version: '0.9.0' } },
+      time: { 'v1.0.0': '2024-01-01T00:00:00Z', '0.9.0': '2020-01-01T00:00:00Z' },
+    })
+  const { resolveFromNpm } = createResolveFromNpm({
+    storeDir: temporaryDirectory(), cacheDir: temporaryDirectory(), registriesByScope,
+  })
+  const result = await resolveFromNpm({ alias: 'is-positive' }, {
+    publishedBy: new Date('2019-01-01T00:00:00Z'),
+  })
+  expect(result?.publishedAt).toBe('2024-01-01T00:00:00Z')
+  expect(result?.policyViolation?.code).toBe('MINIMUM_RELEASE_AGE_VIOLATION')
+  const retry = await resolveFromNpm({ alias: 'is-positive' }, {
+    blockedVersions: new Map([['is-positive', new Set(['1.0.0'])]]),
+  })
+  expect(retry?.manifest?.version).toBe('0.9.0')
+})

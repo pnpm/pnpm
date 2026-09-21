@@ -106,7 +106,11 @@ pub(super) fn filter_blocked_versions(
     }
     Arc::new(filter_pkg_metadata_versions_with_dist_tag_bound(
         &meta,
-        |version| !blocked_versions.contains(version),
+        |version| {
+            !blocked_versions.contains(version)
+                && !node_semver::Version::parse(version)
+                    .is_ok_and(|parsed| blocked_versions.contains(&parsed.to_string()))
+        },
         true,
     ))
 }

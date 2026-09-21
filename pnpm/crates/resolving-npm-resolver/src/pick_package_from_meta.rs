@@ -241,6 +241,7 @@ fn pinned_manifest(
         return manifest;
     }
     let mut pinned = (*manifest).clone();
+    pinned.packument_version = Some(version.to_string());
     if !meta.name.is_empty() {
         pinned.name.clone_from(&meta.name);
     }

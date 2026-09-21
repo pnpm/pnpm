@@ -74,7 +74,7 @@ import {
   pickPackage,
   type PickPackageOptions,
 } from './pickPackage.js'
-import { applyPublishedByPolicy, findNonDeprecatedAlternative, knownImmature, pickPackageFromMeta, pickVersionByVersionRange } from './pickPackageFromMeta.js'
+import { applyPublishedByPolicy, findNonDeprecatedAlternative, getPackumentVersion, knownImmature, pickPackageFromMeta, pickVersionByVersionRange } from './pickPackageFromMeta.js'
 import { failIfTrustDowngraded } from './trustChecks.js'
 import { MINIMUM_RELEASE_AGE_VIOLATION_CODE } from './violationCodes.js'
 import { workspacePrefToNpm } from './workspacePrefToNpm.js'
@@ -806,7 +806,7 @@ async function resolveNpm (
       defaultRangeSpecStyle: opts.rangeSpecStyle,
     })
   }
-  const publishedAt = meta.time?.[pickedPackage.version]
+  const publishedAt = meta.time?.[getPackumentVersion(pickedPackage)]
   return {
     id,
     latest,
@@ -996,7 +996,7 @@ async function pickFromSimpleRegistry (
   warnOnceOnHeldBackUpdate(ctx, opts, spec, meta, pickedPackage.version)
   const selectedPackage = selectPackageRevision(pickedPackage, spec, registry)
   const resolution = createRegistryTarballResolution(selectedPackage.dist, registry)
-  const publishedAt = meta.time?.[pickedPackage.version]
+  const publishedAt = meta.time?.[getPackumentVersion(pickedPackage)]
   return {
     id: `${spec.name}@${pickedPackage.version}` as PkgResolutionId,
     latest: latestAllowedByPolicy(meta, opts),

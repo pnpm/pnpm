@@ -333,3 +333,63 @@ async fn blocked_policy_uses_requested_name_when_manifest_name_differs() {
     assert_eq!(result.id.as_str(), "acme@1.1.0");
     assert_eq!(result.policy_violation.unwrap().code, crate::MINIMUM_RELEASE_AGE_VIOLATION_CODE);
 }
+
+#[tokio::test]
+async fn prefixed_packument_keys_drive_guards_blocks_and_publication_checks() {
+    let mut body: serde_json::Value = serde_json::from_str(PACKAGE_BODY).unwrap();
+    let version = body["versions"]
+        .as_object_mut()
+        .unwrap()
+        .remove("1.1.0")
+        .unwrap();
+    body["versions"]["v1.1.0"] = version;
+    body["time"]["v1.1.0"] = body["time"]
+        .as_object_mut()
+        .unwrap()
+        .remove("1.1.0")
+        .unwrap();
+    body["dist-tags"]["latest"] = "v1.1.0".into();
+    let mut server = mockito::Server::new_async().await;
+    let _mock = server
+        .mock("GET", "/acme")
+        .with_status(200)
+        .with_body(body.to_string())
+        .create_async()
+        .await;
+    let (resolver, _tempdir) = build_resolver(&format!("{}/", server.url()));
+    let wanted = WantedDependency { alias: Some("acme".to_string()), ..Default::default() };
+    for policy in [
+        pnpm_resolving_resolver_base::ResolutionPolicyOptions {
+            package_version_guard: Some(reject_versions(&["1.1.0"])),
+            ..Default::default()
+        },
+        pnpm_resolving_resolver_base::ResolutionPolicyOptions {
+            blocked_versions: Some(std::sync::Arc::new(std::collections::HashMap::from([(
+                "acme".to_string(),
+                std::collections::HashSet::from(["1.1.0".to_string()]),
+            )]))),
+            ..Default::default()
+        },
+    ] {
+        let result = resolver
+            .resolve(&wanted, &ResolveOptions { policy, ..Default::default() })
+            .await
+            .unwrap()
+            .unwrap();
+        assert_eq!(result.package.name_ver.unwrap().suffix.to_string(), "1.0.0");
+    }
+    let opts = ResolveOptions {
+        policy: pnpm_resolving_resolver_base::ResolutionPolicyOptions {
+            published_by: Some("2023-01-01T00:00:00Z".parse().unwrap()),
+            ..Default::default()
+        },
+        ..Default::default()
+    };
+    let result = resolver
+        .resolve(&wanted, &opts)
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(result.package.published_at.as_deref(), Some("2024-12-10T08:30:00.000Z"));
+    assert!(result.policy_violation.is_some());
+}

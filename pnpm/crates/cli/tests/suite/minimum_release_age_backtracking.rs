@@ -219,6 +219,8 @@ fn frozen_install_preserves_tarball_url_when_manifest_name_differs() {
 
     let mut server = mockito::Server::new();
     let tarball_url = format!("{}/other/-/other-1.0.0.tgz", server.url());
+    let archive = minimal_tarball("other", "1.0.0");
+    let integrity = ssri::Integrity::from(archive.as_slice()).to_string();
     let _metadata = server
         .mock("GET", "/requested")
         .with_status(200)
@@ -227,7 +229,7 @@ fn frozen_install_preserves_tarball_url_when_manifest_name_differs() {
                 "name": "other",
                 "dist-tags": { "latest": "1.0.0" },
                 "versions": { "1.0.0": {
-                    "name": "other", "version": "1.0.0", "dist": { "tarball": tarball_url }
+                    "name": "other", "version": "1.0.0", "dist": { "tarball": tarball_url, "integrity": integrity }
                 }}
             })
             .to_string(),
@@ -236,7 +238,7 @@ fn frozen_install_preserves_tarball_url_when_manifest_name_differs() {
     let tarball = server
         .mock("GET", "/other/-/other-1.0.0.tgz")
         .with_status(200)
-        .with_body(minimal_tarball("other", "1.0.0"))
+        .with_body(archive)
         .expect(1)
         .create();
     let CommandTempCwd { root: _root, workspace, .. } = CommandTempCwd::init();
@@ -257,6 +259,7 @@ fn frozen_install_preserves_tarball_url_when_manifest_name_differs() {
             .success();
         let lockfile = fs::read_to_string(workspace.join("pnpm-lock.yaml")).unwrap();
         assert!(lockfile.contains(&tarball_url));
+        assert!(lockfile.contains(&integrity));
     }
     tarball.assert();
     let installed: serde_json::Value = serde_json::from_str(

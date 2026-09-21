@@ -56,7 +56,9 @@ pub(crate) fn build_resolve_result(
     let version_str = picked.version.to_string();
     let name_ver = PkgNameVer::new(pkg_name.clone(), picked.version.clone());
     let (resolution, revision) = picked_tarball_resolution(picked, args.registry.registry)?;
-    let published_at = args.meta.published_at(&version_str).map(str::to_string);
+    let published_at = args.meta
+        .published_at(picked.packument_version.as_deref().unwrap_or(&version_str))
+        .map(str::to_string);
     let manifest = args.manifest_for_revision(picked, &version_str, revision)?;
     let id = resolution_id(args.registry.registry_name, &args.specifier.spec.name, picked);
     let policy_violation = detect_min_release_age_violation(

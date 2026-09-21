@@ -22,6 +22,7 @@ fn make_package(name: &str, versions: &[&str], dist_tags: &[(&str, &str)]) -> Pa
                 (
                     (*version).to_string(),
                     PackageVersion {
+                        packument_version: None,
                         name: name.to_string(),
                         version: version.parse().expect("parse semver"),
                         dist: PackageDistribution::default(),

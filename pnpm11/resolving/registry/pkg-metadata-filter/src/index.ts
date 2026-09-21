@@ -102,7 +102,7 @@ function filterPkgMetadataUncached (
   const admittedVersions: PackageMetadata['versions'] = Object.create(null)
   for (const version in pkgDoc.versions) {
     if (!Object.hasOwn(pkgDoc.versions, version)) continue
-    if (blockedVersions?.has(version)) continue
+    if (isBlocked(version, blockedVersions)) continue
     if (publishedBy == null || trustedVersions?.includes(version)) {
       admittedVersions[version] = pkgDoc.versions[version]
       continue
@@ -179,4 +179,11 @@ function filterPkgMetadataUncached (
     versions: admittedVersions,
     'dist-tags': admittedDistTags,
   }
+}
+
+function isBlocked (version: string, blockedVersions?: ReadonlySet<string>): boolean {
+  if (!blockedVersions?.size) return false
+  if (blockedVersions.has(version)) return true
+  const parsed = semver.parse(version)
+  return parsed != null && blockedVersions.has(parsed.version + (parsed.build.length ? `+${parsed.build.join('.')}` : ''))
 }
