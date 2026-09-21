@@ -60,6 +60,7 @@ pub struct PackageManifest {
     /// Whether a save ends the file with a newline. New and in-memory
     /// manifests get one.
     insert_final_newline: bool,
+    crlf: bool,
     /// One indentation level. Empty for a single-line source document,
     /// which then round-trips back to its compact form.
     indent: String,
@@ -118,6 +119,7 @@ impl PackageManifest {
             path,
             value,
             insert_final_newline: true,
+            crlf: false,
             indent: DEFAULT_INDENT.to_string(),
             on_disk: None,
         }
@@ -165,7 +167,7 @@ impl PackageManifest {
         if self.on_disk.as_ref() == Some(&value) {
             return Ok(value);
         }
-        let contents = if self.is_yaml() {
+        let mut contents = if self.is_yaml() {
             self.serialize_yaml(&value)?
         } else {
             let mut contents = serialize_with_indent(&value, &self.indent)?;
@@ -174,6 +176,9 @@ impl PackageManifest {
             }
             contents
         };
+        if self.crlf {
+            contents = contents.replace("\r\n", "\n").replace('\n', "\r\n");
+        }
         Self::write_atomic(&self.path, &contents)?;
         self.on_disk = Some(value.clone());
         Ok(value)

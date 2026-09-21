@@ -178,10 +178,12 @@ impl PackageManifest {
         normalize_dependency_fields(&mut on_disk);
         convert_engines_runtime_to_dependencies(&mut value, "devEngines", "devDependencies");
         convert_engines_runtime_to_dependencies(&mut value, "engines", "dependencies");
+        let crlf = file_contents.contains("\r\n");
         Ok(PackageManifest {
             path,
             value,
             insert_final_newline: contents.ends_with('\n'),
+            crlf,
             indent: detect_indent(contents).to_string(),
             on_disk: Some(on_disk),
         })

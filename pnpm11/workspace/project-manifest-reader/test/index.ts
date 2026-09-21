@@ -539,3 +539,21 @@ metadata:
   expect(result).toContain('# binary value')
   expect((await readProjectManifest(dir)).manifest).toStrictEqual({ ...manifest, version: '1.0.0' })
 })
+
+test('preserve CRLF line endings in package.json and package.json5', async () => {
+  const dir = temporaryDirectory()
+  const jsonPath = path.join(dir, 'package.json')
+  await fs.promises.writeFile(jsonPath, '{\r\n\t"name": "foo",\r\n\t"version": "1.0.0"\r\n}\r\n')
+  const { manifest, writeProjectManifest } = await readProjectManifest(dir)
+  manifest.version = '2.0.0'
+  await writeProjectManifest(manifest)
+  expect(await fs.promises.readFile(jsonPath, 'utf8')).toBe('{\r\n\t"name": "foo",\r\n\t"version": "2.0.0"\r\n}\r\n')
+
+  const dir5 = temporaryDirectory()
+  const json5Path = path.join(dir5, 'package.json5')
+  await fs.promises.writeFile(json5Path, "{\r\n\tname: 'foo',\r\n\tversion: '1.0.0',\r\n}\r\n")
+  const reader5 = await readProjectManifest(dir5)
+  reader5.manifest.version = '2.0.0'
+  await reader5.writeProjectManifest(reader5.manifest)
+  expect(await fs.promises.readFile(json5Path, 'utf8')).toBe("{\r\n\tname: 'foo',\r\n\tversion: '2.0.0',\r\n}\r\n")
+})
