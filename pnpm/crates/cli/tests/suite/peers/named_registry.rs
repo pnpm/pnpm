@@ -57,7 +57,7 @@ snapshots:
     dependencies:
       '@work/adapter': work:5.1.7
   '@work/adapter@work:5.1.7': {{}}
-"
+",
         ),
     )
     .unwrap();
@@ -82,7 +82,7 @@ snapshots:
         fs::write(
             workspace.join("pnpm-workspace.yaml"),
             format!(
-                "{config}peerDependencyRules:\n  allowedVersions:\n    '@work/adapter': '5.x.x'\n"
+                "{config}peerDependencyRules:\n  allowedVersions:\n    '@work/adapter': '5.x.x'\n",
             ),
         )
         .unwrap();
