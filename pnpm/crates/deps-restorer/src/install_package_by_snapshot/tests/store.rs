@@ -18,7 +18,7 @@ use pretty_assertions::assert_eq;
 /// which makes any fall-through to the download path error out.
 #[tokio::test]
 async fn cold_batch_reuses_in_flight_prefetch_from_mem_cache() {
-    use pnpm_tarball::{CacheValue, MemCache, package_mem_cache_key};
+    use pnpm_tarball::{CacheValue, CachedTarball, MemCache, package_mem_cache_key};
     use std::{
         collections::HashMap,
         path::PathBuf,
@@ -42,7 +42,9 @@ async fn cold_batch_reuses_in_flight_prefetch_from_mem_cache() {
             Some(&DUMMY_SHA512.parse().expect("parse integrity")),
             false,
         ),
-        Arc::new(tokio::sync::RwLock::new(CacheValue::Available(Arc::new(seeded.clone())))),
+        Arc::new(tokio::sync::RwLock::new(CacheValue::Available(CachedTarball::from_files(
+            seeded.clone(),
+        )))),
     );
 
     let layout = crate::VirtualStoreLayout::legacy(store_tmp.path().join("vstore"), 120);
@@ -111,7 +113,7 @@ async fn cold_batch_reuses_in_flight_prefetch_from_mem_cache() {
 #[tokio::test]
 async fn without_mem_cache_skips_coordination_and_downloads() {
     use crate::InstallPackageBySnapshotError;
-    use pnpm_tarball::{CacheValue, MemCache, TarballError, package_mem_cache_key};
+    use pnpm_tarball::{CacheValue, CachedTarball, MemCache, TarballError, package_mem_cache_key};
     use std::{
         collections::HashMap,
         path::PathBuf,
@@ -133,7 +135,9 @@ async fn without_mem_cache_skips_coordination_and_downloads() {
             Some(&DUMMY_SHA512.parse().expect("parse integrity")),
             false,
         ),
-        Arc::new(tokio::sync::RwLock::new(CacheValue::Available(Arc::new(seeded)))),
+        Arc::new(tokio::sync::RwLock::new(CacheValue::Available(CachedTarball::from_files(
+            seeded,
+        )))),
     );
 
     let layout = crate::VirtualStoreLayout::legacy(store_tmp.path().join("vstore"), 120);

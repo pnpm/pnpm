@@ -28,8 +28,10 @@
 //! the hash the bytes yield, and the dependency walk reads the
 //! package's children out of the manifest inside. Such a read publishes
 //! its extraction too, so the install pass never downloads the archive a
-//! second time. A custom fetcher must decline an unpinned tarball before
-//! that read can download it.
+//! second time. When a prefetch for the same archive is already in
+//! flight, the read parks on that extraction and takes the bundled
+//! manifest from the settled cache slot. A custom fetcher must decline
+//! an unpinned tarball before that read can download it.
 
 use crate::install_package_from_registry::{
     extract_tarball, manifest_file_count, manifest_unpacked_size,

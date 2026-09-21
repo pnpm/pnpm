@@ -597,3 +597,5 @@ mod security;
 mod manifests;
 
 mod lockfile;
+
+mod fetch_for_resolution;

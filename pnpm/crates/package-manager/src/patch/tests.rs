@@ -538,7 +538,7 @@ impl PatchExtractFixture {
         use_git_hosted_url: bool,
         git_hosted_flag: bool,
     ) -> Self {
-        use pnpm_tarball::CacheValue;
+        use pnpm_tarball::{CacheValue, CachedTarball};
         use std::{collections::HashMap, path::PathBuf, sync::Arc};
 
         let tmp = tempfile::tempdir().expect("temp dir");
@@ -591,7 +591,9 @@ impl PatchExtractFixture {
                 Some(&"sha512-aGVsbG8=".parse().expect("parse integrity")),
                 false,
             ),
-            Arc::new(tokio::sync::RwLock::new(CacheValue::Available(Arc::new(seeded)))),
+            Arc::new(tokio::sync::RwLock::new(CacheValue::Available(CachedTarball::from_files(
+                seeded,
+            )))),
         );
 
         Self {
