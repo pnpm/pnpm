@@ -298,13 +298,6 @@ impl WorkspaceWalk {
     }
 }
 
-/// Walk every importer's dependencies through the resolver chain.
-///
-/// Each importer resolves with its own `project_dir` so `workspace:` /
-/// `link:` resolutions compute paths relative to the consuming project,
-/// while the resolver chain's shared packument, fetch-locker, and
-/// picked-manifest caches keep the metadata and version-pick work
-/// amortized across importers. Peer processing is deferred until version convergence settles.
 pub(super) async fn run_dependency_pass<Reporter: pnpm_reporter::Reporter>(
     inputs: ResolvePassInputs<'_>,
 ) -> Result<
