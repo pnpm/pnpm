@@ -347,3 +347,26 @@ test('collections that differ only by where a separator falls get their own slot
   expect(Object.keys(embedded.versions)).toStrictEqual([])
   expect(Object.keys(split.versions)).toStrictEqual(['1.0.0'])
 })
+
+
+test.each([true, false])('invalid and absent publication cutoffs do not share cached results (invalid first: %s)', (invalidFirst) => {
+  const name = 'invalid-cutoff'
+  const doc = {
+    name,
+    versions: {
+      '1.0.0': {
+        name,
+        version: '1.0.0',
+        dist: { tarball: `https://registry.npmjs.org/${name}/-/${name}-1.0.0.tgz`, shasum: '' },
+      },
+    },
+    'dist-tags': { latest: '1.0.0' },
+    time: { '1.0.0': '2020-01-01T00:00:00.000Z' },
+  }
+  const invalidPolicy = { publishedBy: new Date(NaN) }
+  const policies = invalidFirst ? [invalidPolicy, {}] : [{}, invalidPolicy]
+  for (const policy of policies) filterPkgMetadata(doc, policy)
+
+  expect(Object.keys(filterPkgMetadata(doc, invalidPolicy).versions)).toStrictEqual([])
+  expect(Object.keys(filterPkgMetadata(doc, {}).versions)).toStrictEqual(['1.0.0'])
+})

@@ -85,7 +85,7 @@ function toPolicyKey ({ publishedBy, trustedVersions, blockedVersions }: PkgMeta
   // Both collections are sorted first, so two spellings of one policy do
   // share an entry rather than evicting each other from a cache this small.
   return JSON.stringify([
-    publishedBy?.getTime() ?? null,
+    publishedBy == null ? null : [publishedBy.getTime()],
     trustedVersions == null ? null : [...trustedVersions].sort(),
     blockedVersions == null ? null : [...blockedVersions].sort(),
   ])
