@@ -1,4 +1,4 @@
-import { promises as fs, readdirSync, type Stats } from 'node:fs'
+import { lstatSync, promises as fs, readdirSync, type Stats } from 'node:fs'
 import path from 'node:path'
 import util from 'node:util'
 
@@ -74,6 +74,7 @@ async function getStats (path: string): Promise<Stats | 'ENOENT'> {
 
 function readOptDir (dirPath: string): string[] | null {
   try {
+    if (lstatSync(dirPath).isSymbolicLink()) return null
     const dirEntries: string[] = []
     for (const entry of readdirSync(dirPath, {
       encoding: 'utf-8',

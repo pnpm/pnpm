@@ -1,3 +1,5 @@
+pub(crate) use clean::clean_expired_dlx_cache;
+
 use crate::{
     State,
     cli_args::{
@@ -21,7 +23,7 @@ use pnpm_cmd_shim::{Host as CmdShimHost, get_bins_from_package_manifest};
 use pnpm_config::Config;
 use pnpm_config_parse_overrides::parse_overrides_iter;
 use pnpm_crypto_hash::create_short_hash;
-use pnpm_fs::force_symlink_dir;
+use pnpm_fs::{force_symlink_dir, remove_dirent};
 use pnpm_package_is_installable::SupportedArchitectures;
 use pnpm_package_manifest::{
     DependencyGroup, convert_engines_runtime_to_dependencies, is_runtime_alias,
@@ -35,7 +37,8 @@ use provision::{ProvisionedTool, provisioned_tool, run_package_manager, run_runt
 use serde_json::{Value, json};
 use std::{
     collections::{BTreeMap, HashMap},
-    fs,
+    ffi::OsStr,
+    fs, io,
     path::{Path, PathBuf},
     process::Command,
     time::{Duration, SystemTime, UNIX_EPOCH},
@@ -432,5 +435,6 @@ fn scopeless(pkg_name: &str) -> &str {
 mod tests;
 
 mod cache;
+mod clean;
 
 mod provision;

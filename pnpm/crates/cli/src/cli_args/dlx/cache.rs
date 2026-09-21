@@ -240,15 +240,15 @@ fn sorted_once(values: &[String]) -> Vec<&str> {
     deduped
 }
 
-/// Return the cache target behind `cache_link` when it is a symlink whose
+/// Return the cache target behind `cache_link` when it is a symlink or junction whose
 /// own mtime is within `max_age_minutes` of `now`.
 pub(super) fn get_valid_cache_dir(
     cache_link: &Path,
     max_age_minutes: u64,
     now: SystemTime,
 ) -> Option<PathBuf> {
-    let meta = fs::symlink_metadata(cache_link).ok()?;
-    if !meta.file_type().is_symlink() {
+    let meta = pnpm_fs::symlink_metadata_with_retry(cache_link).ok()?;
+    if !pnpm_fs::is_symlink_or_junction(cache_link).ok()? {
         return None;
     }
     // `dunce::canonicalize` (not `fs::canonicalize`) so the cache-hit path
@@ -257,13 +257,14 @@ pub(super) fn get_valid_cache_dir(
     // `node_modules/.bin` string into `PATH`.
     let target = dunce::canonicalize(cache_link).ok()?;
     let mtime = meta.modified().ok()?;
+    (!is_expired(mtime, max_age_minutes, now)).then_some(target)
+}
+
+pub(super) fn is_expired(mtime: SystemTime, max_age_minutes: u64, now: SystemTime) -> bool {
     let max_age = Duration::from_secs(max_age_minutes.saturating_mul(60));
-    // Valid while `mtime + max_age >= now`. A negative elapsed time
-    // (clock skew, `now` before `mtime`) is treated as still valid,
-    // matching pnpm's numeric comparison.
     match now.duration_since(mtime) {
-        Ok(age) => (age <= max_age).then_some(target),
-        Err(_) => Some(target),
+        Ok(age) => age > max_age,
+        Err(_) => false,
     }
 }
 

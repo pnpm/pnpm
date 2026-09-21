@@ -404,3 +404,37 @@ fn store_add_refuses_a_specifier_with_no_archive_to_fetch() {
     assert!(!output.status.success());
     assert!(stderr.contains("ERR_PNPM_STORE_ADD_UNSUPPORTED_SPEC"), "stderr={stderr}");
 }
+
+#[test]
+fn store_prune_honors_dlx_cache_max_age() {
+    for max_age in [0, 1440] {
+        let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+        let settings = format!(
+            "storeDir: ../pacquet-store\ncacheDir: ../pacquet-cache\ndlxCacheMaxAge: {max_age}\n",
+        );
+        fs::write(workspace.join("pnpm-workspace.yaml"), settings)
+            .expect("write the workspace settings");
+        fs::create_dir_all(root.path().join("pacquet-store")).expect("create the store directory");
+
+        let dlx_cache_dir = root.path().join("pacquet-cache/dlx");
+        for (key, prepare) in [("first-key", "1-1"), ("second-key", "2-2")] {
+            let prepare_dir = dlx_cache_dir.join(key).join(prepare);
+            fs::create_dir_all(&prepare_dir).expect("create the prepare dir");
+            pnpm_fs::force_symlink_dir(&prepare_dir, &dlx_cache_dir.join(key).join("pkg"))
+                .expect("point pkg at the prepare dir");
+        }
+
+        pacquet
+            .with_args(["store", "prune"])
+            .assert()
+            .success();
+
+        for key in ["first-key", "second-key"] {
+            assert_eq!(
+                dlx_cache_dir.join(key).exists(),
+                max_age > 0,
+                "store prune must honor dlxCacheMaxAge={max_age}",
+            );
+        }
+    }
+}

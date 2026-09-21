@@ -221,3 +221,19 @@ test('cleanExpiredDlxCache ignores files in the dlx cache directory', async () =
   // The file should still be there (ignored)
   expect(fsOriginal.existsSync(path.join(dlxDir, 'some-random-file'))).toBeTruthy()
 })
+
+test.each([0, 7])('cleanExpiredDlxCache leaves a linked dlx root untouched with max age %s', async dlxCacheMaxAge => {
+  prepareEmpty()
+
+  const cacheDir = path.resolve('cache')
+  const outsideDir = path.resolve('outside')
+  const now = new Date()
+  createSampleDlxCacheItem(outsideDir, 'foo', now, 20)
+  fsOriginal.mkdirSync(cacheDir)
+  fsOriginal.symlinkSync(path.join(outsideDir, 'dlx'), path.join(cacheDir, 'dlx'), 'junction')
+
+  await cleanExpiredDlxCache({ cacheDir, dlxCacheMaxAge, now })
+
+  expect(fsOriginal.readdirSync(path.join(outsideDir, 'dlx', createCacheKey('foo')))).toHaveLength(2)
+  expect(fs.promises.rm).not.toHaveBeenCalled()
+})
