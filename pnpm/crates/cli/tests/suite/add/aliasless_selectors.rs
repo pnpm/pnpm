@@ -1,7 +1,8 @@
 use super::{Path, prod_spec, write_json};
-use crate::_utils::append_workspace_yaml_key;
+use crate::_utils::{append_workspace_yaml_key, pacquet_in, read_lockfile};
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
+use pnpm_lockfile::PkgName;
 use pnpm_testing_utils::{
     bin::{AddMockedRegistry, CommandTempCwd},
     fixtures::tarball_with_manifest,
@@ -136,6 +137,79 @@ fn a_remote_tarball_url_is_saved_verbatim() {
         workspace.join("node_modules/is-positive/package.json").exists(),
         "the remote tarball package must be installed",
     );
+
+    drop((root, mock_instance));
+}
+
+#[test]
+fn adding_a_new_unnamed_tarball_url_replaces_the_existing_dependency() {
+    assert_unnamed_tarball_replacement("3.1.0");
+}
+
+#[test]
+fn adding_a_new_unnamed_tarball_url_replaces_the_existing_dependency_at_the_same_version() {
+    assert_unnamed_tarball_replacement("1.0.0");
+}
+
+fn assert_unnamed_tarball_replacement(new_version: &str) {
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    let registry = mock_instance.url().replace("127.0.0.1", "localhost");
+    let old_tarball = format!("{registry}is-positive/-/is-positive-1.0.0.tgz");
+    let new_tarball = format!("{registry}is-positive/-/is-positive-{new_version}.tgz?revision=2");
+    let installed_version = || {
+        let manifest: serde_json::Value = serde_json::from_str(
+            &fs::read_to_string(workspace.join("node_modules/is-positive/package.json"))
+                .expect("read installed package.json"),
+        )
+        .expect("parse installed package.json");
+        manifest["version"]
+            .as_str()
+            .unwrap()
+            .to_string()
+    };
+
+    pacquet_in(&workspace)
+        .with_args(["add", &old_tarball])
+        .assert()
+        .success();
+    assert_eq!(installed_version(), "1.0.0");
+    let old_package_dir = fs::canonicalize(workspace.join("node_modules/is-positive"))
+        .expect("resolve installed package directory");
+    pacquet_in(&workspace)
+        .with_args(["add", &new_tarball])
+        .assert()
+        .success();
+
+    assert_eq!(prod_spec(&workspace, "is-positive"), new_tarball);
+    assert_eq!(installed_version(), new_version);
+    let new_package_dir = fs::canonicalize(workspace.join("node_modules/is-positive"))
+        .expect("resolve updated package directory");
+    dbg!(&old_package_dir, &new_package_dir);
+    assert_ne!(new_package_dir, old_package_dir);
+    let lockfile_path = workspace.join("pnpm-lock.yaml");
+    let lockfile = read_lockfile(&lockfile_path);
+    dbg!(&lockfile);
+    let dependency = &lockfile.importers["."].dependencies.as_ref().unwrap()
+        [&"is-positive".parse::<PkgName>().unwrap()];
+    assert_eq!(dependency.specifier, new_tarball);
+    assert_eq!(dependency.version.to_string(), new_tarball);
+    let package_keys: Vec<_> = lockfile.packages
+        .as_ref()
+        .unwrap()
+        .keys()
+        .map(ToString::to_string)
+        .collect();
+    assert_eq!(dbg!(package_keys), [format!("is-positive@{new_tarball}")]);
+
+    fs::remove_dir_all(workspace.join("node_modules")).expect("remove node_modules");
+    pacquet_in(&workspace)
+        .with_args(["install", "--frozen-lockfile"])
+        .assert()
+        .success();
+    assert_eq!(installed_version(), new_version);
+    assert_eq!(dbg!(read_lockfile(&lockfile_path)), lockfile);
 
     drop((root, mock_instance));
 }
