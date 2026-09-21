@@ -21,6 +21,7 @@ type CreateResolverOptions = Pick<Config,
 
 export type CreateNewStoreControllerOptions = CreateResolverOptions & Pick<Config,
 | 'ca'
+| 'cafile'
 | 'cert'
 | 'engineStrict'
 | 'force'

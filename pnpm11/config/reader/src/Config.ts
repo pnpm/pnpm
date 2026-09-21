@@ -195,6 +195,7 @@ export interface Config extends OptionsFromRootManifest {
   cert?: string | string[]
   key?: string
   ca?: string | string[]
+  cafile?: string
   strictSsl?: boolean
 
   userAgent?: string

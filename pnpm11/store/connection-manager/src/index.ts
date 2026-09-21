@@ -5,7 +5,7 @@ import { getStorePath } from '@pnpm/store.path'
 
 import { createNewStoreController, type CreateNewStoreControllerOptions, type FullMetadataPolicyOptions, shouldFetchFullMetadata } from './createNewStoreController.js'
 
-export { createNewStoreController, type FullMetadataPolicyOptions, shouldFetchFullMetadata }
+export { createNewStoreController, type CreateNewStoreControllerOptions, type FullMetadataPolicyOptions, shouldFetchFullMetadata }
 
 export type CreateStoreControllerOptions = Omit<CreateNewStoreControllerOptions, 'storeDir'> & Pick<Config,
 | 'storeDir'

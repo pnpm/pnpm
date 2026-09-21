@@ -131,3 +131,13 @@ test('nothing is filtered when no registry can need full metadata', () => {
   expect(shouldFilterMetadata({ resolutionMode: 'highest' })).toBe(false)
   expect(shouldFilterMetadata({ resolutionMode: 'time-based', fetchFullMetadata: false })).toBe(false)
 })
+
+test('CreateNewStoreControllerOptions is exported and supports cafile', () => {
+  const options: import('../src/index.js').CreateNewStoreControllerOptions = {
+    cacheDir: '/tmp/cache',
+    storeDir: '/tmp/store',
+    cafile: '/path/to/cafile.pem',
+  }
+  expect(options.cafile).toBe('/path/to/cafile.pem')
+})
+
