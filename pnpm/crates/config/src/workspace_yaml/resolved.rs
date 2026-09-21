@@ -166,6 +166,7 @@ impl WorkspaceSettings {
             versioning: Some(config.versioning.clone()),
             save_catalog_name: config.save_catalog_name.clone(),
             save_prefix: config.save_prefix.clone(),
+            tag_version_prefix: Some(config.tag_version_prefix.clone()),
             pipeline_base: config.pipeline_base.clone(),
             concurrency_groups: Some(config.concurrency_groups.clone()),
 

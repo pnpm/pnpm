@@ -70,20 +70,11 @@ pub struct VersionGitArgs {
     /// Sign the generated git tag with GPG.
     #[clap(long = "sign-git-tag")]
     pub sign_git_tag: bool,
-    /// Sets the tag prefix. When absent, falls back to the resolved
-    /// `tagVersionPrefix` configuration (global `config.yaml`,
-    /// `pnpm-workspace.yaml`, `PNPM_CONFIG_TAG_VERSION_PREFIX`; default
-    /// `"v"`). Set to empty string to remove the prefix.
+    /// Sets the tag prefix. Defaults to the `tagVersionPrefix` setting,
+    /// or "v" when the setting is unset. Set to empty string to remove the
+    /// prefix.
     #[clap(long = "tag-version-prefix")]
     pub tag_version_prefix: Option<String>,
-}
-
-impl VersionGitArgs {
-    /// The tag prefix this run uses: the CLI flag when passed (even as an
-    /// empty string), otherwise the resolved `Config::tag_version_prefix`.
-    fn effective_tag_version_prefix<'a>(&'a self, config: &'a Config) -> &'a str {
-        self.tag_version_prefix.as_deref().unwrap_or(&config.tag_version_prefix)
-    }
 }
 
 /// Errors of `pnpm version`. Codes and messages match the TypeScript CLI.
@@ -152,6 +143,10 @@ impl VersionArgs {
         }
     }
 
+    fn effective_tag_version_prefix<'a>(&'a self, config: &'a Config) -> &'a str {
+        self.git.tag_version_prefix.as_deref().unwrap_or(&config.tag_version_prefix)
+    }
+
     /// Apply an npm-style bump — `pnpm version <major|minor|…|x.y.z>` — to
     /// the package at `dir`, or to every selected workspace package when
     /// `recursive`. Mirrors the TypeScript handler: git-tree check, per-
@@ -165,7 +160,7 @@ impl VersionArgs {
     ) -> miette::Result<()> {
         let raw = self.params[0].as_str();
         let git_cwd = config.workspace_dir.clone().unwrap_or_else(|| dir.to_path_buf());
-        let tag_version_prefix = self.git.effective_tag_version_prefix(config);
+        let tag_version_prefix = self.effective_tag_version_prefix(config);
         let bump = if raw == "from-git" {
             Bump::Explicit(version_from_git(&git_cwd, tag_version_prefix)?)
         } else {

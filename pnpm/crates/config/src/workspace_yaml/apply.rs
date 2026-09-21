@@ -115,6 +115,7 @@ impl WorkspaceSettings {
         overlay_some(&mut config.init_license, self.init_license.take());
         overlay_some(&mut config.init_version, self.init_version.take());
         overlay_some(&mut config.save_prefix, self.save_prefix.take());
+        overlay(&mut config.tag_version_prefix, self.tag_version_prefix.take());
 
         overlay(&mut config.hoist_pattern, self.hoist_pattern.take());
         overlay(&mut config.public_hoist_pattern, self.public_hoist_pattern.take());
