@@ -41,11 +41,15 @@ pub enum LifecycleScriptError {
     #[diagnostic(code(ERR_PNPM_EXECUTOR_LIFECYCLE_SCRIPT_FAILED))]
     ScriptFailed { dep_path: String, stage: String, script: String, status: ScriptExit },
 
-    #[display("Failed to spawn lifecycle script for {dep_path} {stage}: {source}")]
+    #[display("Failed to spawn lifecycle script for {dep_path} {stage} in {wd}: {source}")]
     #[diagnostic(code(ERR_PNPM_EXECUTOR_SPAWN_LIFECYCLE))]
     Spawn {
         dep_path: String,
         stage: String,
+        /// The directory the script runs in. The OS rejects the spawn
+        /// when it cannot be used as a working directory, so naming it
+        /// is what makes such a failure diagnosable.
+        wd: String,
         #[error(source)]
         source: std::io::Error,
     },
@@ -360,6 +364,7 @@ fn prepare_lifecycle_path(
             .map_err(|error| LifecycleScriptError::Spawn {
                 dep_path: opts.dep_path.to_string(),
                 stage: stage.to_string(),
+                wd: opts.pkg_root.to_string_lossy().into_owned(),
                 source: error,
             })?;
     }
@@ -411,6 +416,7 @@ fn run_in_shell<Reporter: self::Reporter>(
         .map_err(|error| LifecycleScriptError::Spawn {
             dep_path: opts.dep_path.to_string(),
             stage: stage.to_string(),
+            wd: wd.to_string(),
             source: error,
         })?;
 
