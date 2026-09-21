@@ -63,15 +63,14 @@ impl WorkspaceSettings {
         }
     }
 
-    /// Rewrite a leading `~/` in `globalDir` / `globalBinDir` into the home
-    /// directory, as pnpm's `transformGlobalDirKeys` does. A shell expands
-    /// the tilde before `pnpm config set` sees it, but a hand-written
-    /// `config.yaml` carries it verbatim.
+    /// Rewrite a leading `~/` in `storeDir`, `globalDir`, and `globalBinDir`
+    /// into the home directory. A shell expands the tilde before pnpm sees it,
+    /// but a configuration file carries it verbatim.
     ///
     /// Call this before [`Self::apply_to`], which would otherwise take the
     /// tilde for an ordinary relative path segment.
-    pub(crate) fn expand_global_dir_home_prefixes<Sys: GetHomeDir>(&mut self) {
-        for dir in [&mut self.global_dir, &mut self.global_bin_dir] {
+    pub(crate) fn expand_home_prefixes<Sys: GetHomeDir>(&mut self) {
+        for dir in [&mut self.store_dir, &mut self.global_dir, &mut self.global_bin_dir] {
             let Some(relative) = dir
                 .as_deref()
                 .and_then(|dir| {

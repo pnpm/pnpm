@@ -70,7 +70,7 @@ pub fn have_default_values() {
 }
 
 #[test]
-pub fn global_dirs_expand_a_leading_tilde() {
+pub fn global_config_paths_expand_a_leading_tilde() {
     let home = tempdir().expect("home tempdir");
     static HOME_PATH: std::sync::OnceLock<PathBuf> = std::sync::OnceLock::new();
     HOME_PATH
@@ -78,8 +78,11 @@ pub fn global_dirs_expand_a_leading_tilde() {
         .expect("set once");
     let config_dir = home.path().join("xdg").join("pnpm");
     fs::create_dir_all(&config_dir).expect("create config dir");
-    fs::write(config_dir.join("config.yaml"), "globalDir: ~/global\nglobalBinDir: ~/bin\n")
-        .expect("write global config.yaml");
+    fs::write(
+        config_dir.join("config.yaml"),
+        "globalDir: ~/global\nglobalBinDir: ~/bin\nstoreDir: ~/store\n",
+    )
+    .expect("write global config.yaml");
 
     struct HostWithHome;
     impl EnvVar for HostWithHome {
@@ -123,6 +126,7 @@ pub fn global_dirs_expand_a_leading_tilde() {
         ),
     );
     assert_eq!(config.global_bin, Some(home.path().join("bin")));
+    assert_eq!(config.store_dir.root(), home.path().join("store").join("v11"));
 }
 
 #[test]
