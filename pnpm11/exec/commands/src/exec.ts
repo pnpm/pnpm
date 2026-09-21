@@ -8,7 +8,7 @@ import { lifecycleLogger, type LifecycleMessage } from '@pnpm/core-loggers'
 import type { CheckDepsStatusOptions } from '@pnpm/deps.status'
 import { PnpmError } from '@pnpm/error'
 import { keepEsmNodePathLoaderOption } from '@pnpm/exec.esm-node-path-loader'
-import { makeNodePackageMapOption, makeNodeRequireOption } from '@pnpm/exec.lifecycle'
+import { makeNodePackageMapOption, makeNodeRequireOption, makeProjectNodePathOption } from '@pnpm/exec.lifecycle'
 import { logger } from '@pnpm/logger'
 import { prependDirsToPath } from '@pnpm/shell.path'
 import type { Project, ProjectRootDir, ProjectRootDirRealPath } from '@pnpm/types'
@@ -137,6 +137,7 @@ export type ExecOpts = Required<Pick<ConfigContext, 'selectedProjectsGraph'>> & 
 } & Pick<Config,
 | 'bin'
 | 'dir'
+| 'extendNodePath'
 | 'extraBinPaths'
 | 'extraEnv'
 | 'lockfileDir'
@@ -144,6 +145,7 @@ export type ExecOpts = Required<Pick<ConfigContext, 'selectedProjectsGraph'>> & 
 | 'nodeOptions'
 | 'nodeExperimentalPackageMap'
 | 'pnpmHomeDir'
+| 'preferSymlinkedExecutables'
 | 'recursive'
 | 'reporter'
 | 'reporterHidePrefix'
@@ -323,7 +325,13 @@ export async function handler (
       try {
         const pnpPath = workspacePnpPath ?? existsPnp(projectDir)
         const packageMapPath = workspacePackageMapPath || (opts.nodeExperimentalPackageMap && existsPackageMap(projectDir))
-        const extraEnv = { ...baseExtraEnv }
+        const extraEnv = {
+          ...baseExtraEnv,
+          ...await makeProjectNodePathOption(
+            { modulesDir: path.dirname(binDirOf(projectDir, modulesDir)), rootDir: projectDir },
+            { ...opts, extraEnv: baseExtraEnv }
+          ),
+        }
         if (pnpPath) {
           Object.assign(extraEnv, makeNodeRequireOption(pnpPath, extraEnv))
         }

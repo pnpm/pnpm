@@ -1,5 +1,6 @@
 #[cfg(unix)]
 use crate::_utils::write_executable;
+use crate::_utils::write_fake_bin;
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
 use pnpm_testing_utils::bin::CommandTempCwd;
@@ -834,7 +835,6 @@ mod environment;
 /// links executables into the configured modules directory, so a script has
 /// to resolve them from there. A leftover `node_modules/.bin` from before the
 /// setting changed must not win.
-#[cfg(unix)]
 #[test]
 fn run_resolves_commands_from_the_configured_modules_dir() {
     let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
@@ -849,9 +849,7 @@ fn run_resolves_commands_from_the_configured_modules_dir() {
     fs::write(workspace.join("package.json"), manifest).expect("write package.json");
 
     for (modules_dir, marker) in [("vendor", "configured"), ("node_modules", "stale")] {
-        let bin_dir = workspace.join(modules_dir).join(".bin");
-        fs::create_dir_all(&bin_dir).expect("create the bin dir");
-        write_executable(&bin_dir.join("greet"), &format!("#!/bin/sh\necho {marker}\n"));
+        write_fake_bin(&workspace.join(modules_dir).join(".bin"), "greet", marker);
     }
 
     let output = pacquet

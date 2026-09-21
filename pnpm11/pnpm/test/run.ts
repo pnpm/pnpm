@@ -595,7 +595,6 @@ test('run and exec reach plugins installed in the configured modules directory',
   writeYamlFileSync('pnpm-workspace.yaml', { modulesDir: 'vendor' })
   fs.mkdirSync('tool')
   fs.writeFileSync('tool/package.json', JSON.stringify({ name: 'tool', version: '1.0.0', bin: 'bin.js' }))
-  // Loads plugins from the working directory, the way ESLint and similar tools do.
   fs.writeFileSync('tool/bin.js', `#!/usr/bin/env node
 const { createRequire } = require('node:module')
 console.log(createRequire(require('node:path').join(process.cwd(), 'package.json'))('plugin'))
@@ -612,3 +611,80 @@ console.log(createRequire(require('node:path').join(process.cwd(), 'package.json
     expect(result.stdout.toString()).toContain('plugin loaded')
   }
 })
+
+testOnPosix('run and exec put each project\'s custom modules directory on the NODE_PATH of its symlinked executables', async () => {
+  await expectSymlinkedBinsToLoadPluginsPerProject({}, 'vendor')
+})
+
+testOnPosix('run and exec put the modules directory a packageConfigs entry gives the project on the NODE_PATH of its symlinked executables', async () => {
+  await expectSymlinkedBinsToLoadPluginsPerProject({
+    sharedWorkspaceLockfile: false,
+    packageConfigs: { 'project-2': { modulesDir: 'custom' } },
+  }, 'custom')
+})
+
+async function expectSymlinkedBinsToLoadPluginsPerProject (settings: Record<string, unknown>, project2ModulesDir: string): Promise<void> {
+  const scripts = { lint: 'tool', postinstall: 'tool > tool-output.txt' }
+  preparePackages([
+    { location: '.', package: { name: 'root', version: '1.0.0' } },
+    { name: 'project-1', version: '1.0.0', scripts, dependencies: { tool: 'file:../tool' } },
+    { name: 'project-2', version: '1.0.0', scripts, dependencies: { plugin: 'file:../plugin', tool: 'file:../tool' } },
+  ])
+  // The private hoist would expose project-2's plugin to project-1.
+  writeYamlFileSync('pnpm-workspace.yaml', { packages: ['project-*'], modulesDir: 'vendor', preferSymlinkedExecutables: true, hoistPattern: [], ...settings })
+  writePluginTool()
+
+  await execPnpm(['install'])
+  expect(fs.lstatSync(path.join('project-2', project2ModulesDir, '.bin/tool')).isSymbolicLink()).toBe(true)
+  expect(fs.readFileSync('project-1/tool-output.txt', 'utf8').trim()).toBe('project-1: missing')
+  expect(fs.readFileSync('project-2/tool-output.txt', 'utf8').trim()).toBe('project-2: plugin loaded')
+
+  for (const args of [['-r', 'run', 'lint'], ['-r', 'exec', 'tool']]) {
+    const stdout = execPnpmSync(args).stdout.toString()
+    expect(stdout).toContain('project-1: missing')
+    expect(stdout).toContain('project-2: plugin loaded')
+  }
+  for (const args of [['run', 'lint'], ['exec', 'tool']]) {
+    expect(execPnpmSync(args, { cwd: path.resolve('project-2') }).stdout.toString()).toContain('project-2: plugin loaded')
+  }
+}
+
+testOnPosix('run puts the custom modules directory on the NODE_PATH of the symlinked executables the hoisted linker creates', async () => {
+  prepare({ name: 'root', version: '1.0.0', scripts: { lint: 'tool' }, dependencies: { plugin: 'file:plugin', tool: 'file:tool' } })
+  writeYamlFileSync('pnpm-workspace.yaml', { modulesDir: 'vendor', nodeLinker: 'hoisted' })
+  writePluginTool()
+
+  await execPnpm(['install'])
+  expect(fs.lstatSync('vendor/.bin/tool').isSymbolicLink()).toBe(true)
+
+  expect(execPnpmSync(['run', 'lint']).stdout.toString()).toContain('root: plugin loaded')
+})
+
+testOnPosix('run does not put the custom modules directory on NODE_PATH when extendNodePath is false', async () => {
+  prepare({ name: 'root', version: '1.0.0', scripts: { lint: 'tool' }, dependencies: { plugin: 'file:plugin', tool: 'file:tool' } })
+  writeYamlFileSync('pnpm-workspace.yaml', { modulesDir: 'vendor', preferSymlinkedExecutables: true, extendNodePath: false })
+  writePluginTool()
+
+  await execPnpm(['install'])
+
+  expect(execPnpmSync(['run', 'lint']).stdout.toString()).toContain('root: missing')
+})
+
+function writePluginTool (): void {
+  fs.mkdirSync('tool')
+  fs.writeFileSync('tool/package.json', JSON.stringify({ name: 'tool', version: '1.0.0', bin: 'bin.js' }))
+  fs.writeFileSync('tool/bin.js', `#!/usr/bin/env node
+const path = require('node:path')
+const requireFromProject = require('node:module').createRequire(path.join(process.cwd(), 'package.json'))
+let plugin
+try {
+  plugin = requireFromProject('plugin')
+} catch {
+  plugin = 'missing'
+}
+console.log(\`\${requireFromProject('./package.json').name}: \${plugin}\`)
+`)
+  fs.mkdirSync('plugin')
+  fs.writeFileSync('plugin/package.json', JSON.stringify({ name: 'plugin', version: '1.0.0' }))
+  fs.writeFileSync('plugin/index.js', 'module.exports = \'plugin loaded\'\n')
+}

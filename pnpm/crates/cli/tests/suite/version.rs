@@ -1,3 +1,4 @@
+use crate::_utils::write_fake_bin;
 use command_extra::CommandExtra;
 use pnpm_lockfile::EnvLockfile;
 use pnpm_testing_utils::bin::{AddMockedRegistry, CommandTempCwd};
@@ -602,6 +603,27 @@ fn lifecycle_scripts_run_in_order_around_the_bump() {
     assert!(output.status.success(), "{}", stderr_of(&output));
     let log = fs::read_to_string(workspace.join("lifecycle.log")).expect("lifecycle log");
     assert_eq!(log, "preversion:1.0.0\nversion:1.0.1\npostversion:1.0.1\n");
+    drop(root);
+}
+
+/// Every script gets the workspace root's `.bin` through `extraBinPaths`, so
+/// only a non-root project shows which `.bin` its own scripts get.
+#[test]
+fn lifecycle_scripts_run_commands_from_the_configured_modules_dir() {
+    let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
+    fs::write(workspace.join("pnpm-workspace.yaml"), "packages: ['pkg']\nmodulesDir: vendor\n")
+        .expect("write pnpm-workspace.yaml");
+    write_manifest(&workspace, r#"{"name":"root"}"#);
+    let pkg = workspace.join("pkg");
+    fs::create_dir_all(&pkg).expect("create pkg");
+    write_manifest(&pkg, r#"{"name":"pkg","version":"1.0.0","scripts":{"version":"greet"}}"#);
+    write_fake_bin(&pkg.join("vendor/.bin"), "greet", "configured");
+
+    let output = pacquet_version(&pkg, &["patch", "--no-git-checks"]);
+
+    assert!(output.status.success(), "{}", stderr_of(&output));
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(stdout.contains("configured"), "{stdout}");
     drop(root);
 }
 

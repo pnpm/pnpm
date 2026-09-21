@@ -236,6 +236,40 @@ impl Config {
             .unwrap_or_else(|| std::borrow::Cow::Borrowed(self.modules_dir_name()))
     }
 
+    /// Put `<project_dir>/<modules_dir_name>` first on the `NODE_PATH` of
+    /// `env`, the environment of that project's scripts and commands, when
+    /// it is a custom modules directory and the project's executables are
+    /// symlinks, which have no shim to carry the entry. The rest of
+    /// `NODE_PATH` is the one `env` sets, or else the inherited one.
+    pub fn prepend_project_node_path<Sys: EnvVar>(
+        &self,
+        env: &mut HashMap<String, String>,
+        project_dir: &Path,
+        modules_dir_name: &std::ffi::OsStr,
+    ) {
+        let symlinked = cfg!(unix) && self.prefer_symlinked_executables == Some(true);
+        if !symlinked || !self.extend_node_path || modules_dir_name == "node_modules" {
+            return;
+        }
+        let project_node_path = project_dir
+            .join(modules_dir_name)
+            .display()
+            .to_string();
+        let rest = env
+            .get("NODE_PATH")
+            .cloned()
+            .or_else(|| Sys::var("NODE_PATH"))
+            .unwrap_or_default();
+        let node_path = std::iter::once(project_node_path.as_str())
+            .chain(
+                rest.split(':')
+                    .filter(|entry| !entry.is_empty() && *entry != project_node_path),
+            )
+            .collect::<Vec<_>>()
+            .join(":");
+        env.insert("NODE_PATH".to_string(), node_path);
+    }
+
     /// [`Config::extra_env`] with the `nodeOptions` setting applied as
     /// `NODE_OPTIONS`, preserving the ESM `NODE_PATH` loader flag the
     /// `extra_env` carries under a global virtual store.

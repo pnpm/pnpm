@@ -144,8 +144,215 @@ fn bins_of_every_project_load_plugins_only_from_that_projects_modules_dir() {
     drop((root, mock_instance));
 }
 
-/// Loads plugins from the working directory, the way `ESLint` and similar
-/// tools do.
+#[test]
+fn project_lifecycle_scripts_run_bins_from_its_custom_modules_dir() {
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    append_workspace_yaml_key(&workspace, "modulesDir", "vendor");
+    // Every script gets the root project's `.bin` through `extraBinPaths`,
+    // so only a non-root project shows which `.bin` its own scripts get.
+    append_workspace_yaml_key(&workspace, "packages", "['project']");
+    write_tool(&workspace);
+    write_plugin(&workspace);
+    write_manifest(&workspace, &serde_json::json!({ "name": "root" }));
+    write_manifest(
+        &workspace.join("project"),
+        &serde_json::json!({
+            "name": "project",
+            "scripts": { "postinstall": "tool > tool-output.json" },
+            "dependencies": { "plugin": "file:../plugin", "tool": "file:../tool" },
+        }),
+    );
+
+    pacquet_in(&workspace)
+        .with_arg("install")
+        .assert()
+        .success();
+
+    let output = fs::read_to_string(workspace.join("project/tool-output.json"))
+        .expect("read tool-output.json");
+    assert!(output.contains(r#""plugin":"plugin loaded""#), "{output}");
+
+    drop((root, mock_instance));
+}
+
+/// A symlinked executable has no shim, so pnpm puts the project's modules
+/// directory on the `NODE_PATH` of the scripts and commands it spawns for that
+/// project. A direct call still needs the caller's `NODE_PATH`.
+#[cfg_attr(windows, ignore = "executables are symlinked only on Unix")]
+#[test]
+fn symlinked_bins_of_every_project_get_that_projects_modules_dir_on_node_path() {
+    assert_symlinked_bins_load_plugins_per_project(&[], "vendor");
+}
+
+#[cfg_attr(windows, ignore = "executables are symlinked only on Unix")]
+#[test]
+fn symlinked_bins_get_the_modules_dir_a_package_configs_entry_gives_the_project() {
+    assert_symlinked_bins_load_plugins_per_project(
+        &[
+            ("sharedWorkspaceLockfile", "false"),
+            ("packageConfigs", "{ project-2: { modulesDir: custom } }"),
+        ],
+        "custom",
+    );
+}
+
+fn assert_symlinked_bins_load_plugins_per_project(
+    settings: &[(&str, &str)],
+    project_2_modules_dir: &str,
+) {
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    append_workspace_yaml_key(&workspace, "modulesDir", "vendor");
+    append_workspace_yaml_key(&workspace, "packages", "['project-1', 'project-2']");
+    append_workspace_yaml_key(&workspace, "preferSymlinkedExecutables", "true");
+    // The private hoist would expose project-2's plugin to project-1.
+    append_workspace_yaml_key(&workspace, "hoistPattern", "[]");
+    for (key, value) in settings {
+        append_workspace_yaml_key(&workspace, key, value);
+    }
+    write_probe_tool(&workspace);
+    write_plugin(&workspace);
+    write_manifest(&workspace, &serde_json::json!({ "name": "root" }));
+    for (project, dependencies) in [
+        ("project-1", serde_json::json!({ "tool": "file:../tool" })),
+        ("project-2", serde_json::json!({ "plugin": "file:../plugin", "tool": "file:../tool" })),
+    ] {
+        write_manifest(
+            &workspace.join(project),
+            &serde_json::json!({
+                "name": project,
+                "scripts": { "lint": "tool", "postinstall": "tool > tool-output.txt" },
+                "dependencies": dependencies,
+            }),
+        );
+    }
+
+    pacquet_in(&workspace)
+        .with_arg("install")
+        .assert()
+        .success();
+    let bin = workspace
+        .join("project-2")
+        .join(project_2_modules_dir)
+        .join(".bin/tool");
+    assert!(fs::symlink_metadata(&bin).expect("stat the bin").is_symlink());
+    for (project, expected) in
+        [("project-1", "project-1: missing"), ("project-2", "project-2: plugin loaded")]
+    {
+        let output = fs::read_to_string(workspace.join(project).join("tool-output.txt"))
+            .expect("read tool-output.txt");
+        assert_eq!(output.trim_end(), expected);
+    }
+    for args in [["-r", "run", "lint"], ["-r", "exec", "tool"]] {
+        let stdout = probe_stdout(&workspace, &args);
+        assert!(stdout.contains("project-1: missing"), "{args:?}: {stdout}");
+        assert!(stdout.contains("project-2: plugin loaded"), "{args:?}: {stdout}");
+    }
+    for args in [&["run", "lint"][..], &["exec", "tool"]] {
+        let stdout = probe_stdout(&workspace.join("project-2"), args);
+        assert!(stdout.contains("project-2: plugin loaded"), "{args:?}: {stdout}");
+    }
+    let direct = Command::new(&bin)
+        .current_dir(workspace.join("project-2"))
+        .env_remove("NODE_PATH")
+        .output()
+        .expect("run the bin");
+    assert_eq!(String::from_utf8_lossy(&direct.stdout).trim_end(), "project-2: missing");
+
+    drop((root, mock_instance));
+}
+
+#[cfg_attr(windows, ignore = "executables are symlinked only on Unix")]
+#[test]
+fn symlinked_bins_of_the_hoisted_linker_load_plugins_from_the_custom_modules_dir() {
+    let [lint, node_path] = run_probe_in_single_project(
+        &[("nodeLinker", "hoisted")],
+        [&["run", "lint"], &["exec", "node", "-p", "process.env.NODE_PATH"]],
+    );
+    assert!(lint.contains("root: plugin loaded"), "{lint}");
+    let first = node_path
+        .trim_end()
+        .split(':')
+        .next()
+        .unwrap_or_default();
+    assert!(Path::new(first).ends_with("vendor"), "{node_path}");
+}
+
+#[cfg_attr(windows, ignore = "executables are symlinked only on Unix")]
+#[test]
+fn symlinked_bins_get_no_custom_modules_dir_on_node_path_when_extend_node_path_is_false() {
+    let [lint] = run_probe_in_single_project(
+        &[("preferSymlinkedExecutables", "true"), ("extendNodePath", "false")],
+        [&["run", "lint"]],
+    );
+    assert!(lint.contains("root: missing"), "{lint}");
+}
+
+fn run_probe_in_single_project<const COMMANDS: usize>(
+    settings: &[(&str, &str)],
+    commands: [&[&str]; COMMANDS],
+) -> [String; COMMANDS] {
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    append_workspace_yaml_key(&workspace, "modulesDir", "vendor");
+    for (key, value) in settings {
+        append_workspace_yaml_key(&workspace, key, value);
+    }
+    write_probe_tool(&workspace);
+    write_plugin(&workspace);
+    write_manifest(
+        &workspace,
+        &serde_json::json!({
+            "name": "root",
+            "scripts": { "lint": "tool" },
+            "dependencies": { "plugin": "file:plugin", "tool": "file:tool" },
+        }),
+    );
+
+    pacquet_in(&workspace)
+        .with_arg("install")
+        .assert()
+        .success();
+    assert!(
+        fs::symlink_metadata(workspace.join("vendor/.bin/tool"))
+            .expect("stat the bin")
+            .is_symlink(),
+    );
+    let stdouts = commands.map(|args| probe_stdout(&workspace, args));
+    drop((root, mock_instance));
+    stdouts
+}
+
+fn probe_stdout(dir: &Path, args: &[&str]) -> String {
+    let output = pacquet_in(dir)
+        .with_args(args)
+        .output()
+        .expect("run pnpm");
+    assert!(output.status.success(), "{args:?}: {}", String::from_utf8_lossy(&output.stderr));
+    String::from_utf8_lossy(&output.stdout).into_owned()
+}
+
+fn write_probe_tool(workspace: &Path) {
+    write_manifest(
+        &workspace.join("tool"),
+        &serde_json::json!({ "name": "tool", "version": "1.0.0", "bin": "bin.js" }),
+    );
+    fs::write(
+        workspace.join("tool/bin.js"),
+        "#!/usr/bin/env node\n\
+         const path = require('node:path')\n\
+         const requireFromProject = require('node:module').createRequire(path.join(process.cwd(), 'package.json'))\n\
+         let plugin\n\
+         try { plugin = requireFromProject('plugin') } catch { plugin = 'missing' }\n\
+         console.log(`${requireFromProject('./package.json').name}: ${plugin}`)\n",
+    )
+    .expect("write tool/bin.js");
+}
+
 fn write_tool(workspace: &Path) {
     write_manifest(
         &workspace.join("tool"),

@@ -14,6 +14,7 @@ import { keepEsmNodePathLoaderOption } from '@pnpm/exec.esm-node-path-loader'
 import {
   makeNodePackageMapOption,
   makeNodeRequireOption,
+  makeProjectNodePathOption,
   runLifecycleHook,
   type RunLifecycleHookOptions,
 } from '@pnpm/exec.lifecycle'
@@ -183,11 +184,13 @@ export type RunOpts =
   | 'dir'
   | 'enablePrePostScripts'
   | 'engineStrict'
+  | 'extendNodePath'
   | 'extraBinPaths'
   | 'extraEnv'
   | 'nodeOptions'
   | 'nodeExperimentalPackageMap'
   | 'pnpmHomeDir'
+  | 'preferSymlinkedExecutables'
   | 'reporter'
   | 'scriptShell'
   | 'scriptsPrependNodePath'
@@ -303,11 +306,12 @@ so you may run "pnpm -w run ${scriptName}"`,
   }
   const concurrency = getWorkspaceConcurrency(opts.workspaceConcurrency)
 
+  const wdBinDir = binDirOf(dir, projectModulesDir(opts, manifest.name))
   const lifecycleOpts: RunLifecycleHookOptions = {
     depPath: dir,
-    wdBinDir: binDirOf(dir, projectModulesDir(opts, manifest.name)),
+    wdBinDir,
     extraBinPaths: opts.extraBinPaths,
-    extraEnv: opts.extraEnv,
+    extraEnv: { ...opts.extraEnv, ...await makeProjectNodePathOption({ modulesDir: path.dirname(wdBinDir), rootDir: dir }, opts) },
     pkgRoot: dir,
     rootModulesDir: await realpathMissing(path.join(dir, 'node_modules')),
     scriptsPrependNodePath: opts.scriptsPrependNodePath,

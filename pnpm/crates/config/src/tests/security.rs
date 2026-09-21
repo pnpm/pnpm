@@ -1,4 +1,7 @@
-use super::{Config, HostNoHome, assert_eq, fs, load_with_project_and_user, tempdir, write_file};
+use super::{
+    Config, EnvVar, HostNoHome, assert_eq, fs, load_with_project_and_user, tempdir, write_file,
+};
+use std::{collections::HashMap, ffi::OsStr, path::Path};
 
 /// A `\n`-escaped inline PEM — the only way to fit a certificate on one
 /// INI line — expands to real newlines whichever spelling declared it,
@@ -64,4 +67,36 @@ pub fn prefer_symlinked_executables_respects_an_explicit_virtual_store_dir() {
                 .to_string()
         ),
     );
+}
+
+struct InheritedNodePath;
+impl EnvVar for InheritedNodePath {
+    fn var(name: &str) -> Option<String> {
+        (name == "NODE_PATH").then(|| "/inherited".to_string())
+    }
+}
+
+#[test]
+#[cfg_attr(target_os = "windows", ignore = "preferSymlinkedExecutables is inert on Windows")]
+pub fn prepend_project_node_path_puts_a_custom_modules_dir_first_once() {
+    let mut config = Config::new();
+    config.prefer_symlinked_executables = Some(true);
+    let project = Path::new("/project");
+    let vendor = OsStr::new("vendor");
+
+    let mut env = HashMap::from([(
+        "NODE_PATH".to_string(),
+        "/store/links/node_modules:/project/vendor".to_string(),
+    )]);
+    config.prepend_project_node_path::<InheritedNodePath>(&mut env, project, vendor);
+    assert_eq!(env["NODE_PATH"], "/project/vendor:/store/links/node_modules");
+
+    let mut env = HashMap::new();
+    config.prepend_project_node_path::<InheritedNodePath>(&mut env, project, vendor);
+    assert_eq!(env["NODE_PATH"], "/project/vendor:/inherited");
+
+    config.extend_node_path = false;
+    let mut env = HashMap::new();
+    config.prepend_project_node_path::<InheritedNodePath>(&mut env, project, vendor);
+    assert!(env.is_empty());
 }

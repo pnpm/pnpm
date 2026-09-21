@@ -16,6 +16,7 @@ use pnpm_package_manager::{
 };
 use pnpm_workspace::read_project_name;
 use std::{
+    collections::HashMap,
     path::Path,
     process::{Command, ExitStatus, Stdio},
 };
@@ -223,7 +224,7 @@ fn command_in_dir(
     // below (PATH, user-agent, NODE_OPTIONS) win on conflict — matching
     // TS `makeEnv`, which spreads `...extraEnv` into the base. Empty
     // unless an install-family command populated it.
-    cmd.envs(&config.extra_env);
+    cmd.envs(project_extra_env(config, project, project_name.as_deref()));
     set_command_path(&mut cmd, &path);
     cmd.env("npm_config_user_agent", &config.user_agent);
     // Same recursion-guard stamp as the lifecycle env builder.
@@ -265,6 +266,20 @@ fn configured_node_options(config: &Config) -> Option<String> {
 
 #[cfg(test)]
 mod tests;
+
+fn project_extra_env(
+    config: &Config,
+    project: &Path,
+    project_name: Option<&str>,
+) -> HashMap<String, String> {
+    let mut env = config.extra_env.clone();
+    config.prepend_project_node_path::<pnpm_config::Host>(
+        &mut env,
+        project,
+        &config.modules_dir_name_for(project, project_name),
+    );
+    env
+}
 
 /// The `PATH` a command spawned by `pnpm exec` searches: the modules `.bin` of
 /// the run directory, then of the project when they differ, then the

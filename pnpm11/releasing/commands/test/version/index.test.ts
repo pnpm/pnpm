@@ -263,6 +263,28 @@ fs.appendFileSync(process.argv[2], process.argv[3] + ':' + manifest.version + '\
     )
   })
 
+  it('should run version lifecycle scripts with the commands of a custom modules directory', async () => {
+    const binDir = path.join(tempDir, 'vendor', '.bin')
+    fs.mkdirSync(binDir, { recursive: true })
+    fs.writeFileSync(path.join(binDir, 'mark.cmd'), '@echo marked> marker.txt\r\n')
+    fs.writeFileSync(path.join(binDir, 'mark'), '#!/bin/sh\necho marked > marker.txt\n', { mode: 0o755 })
+    fs.writeFileSync(path.join(tempDir, 'package.json'), JSON.stringify({
+      name: 'test-pkg',
+      version: '1.0.0',
+      scripts: { version: 'mark' },
+    }))
+
+    await handler({
+      dir: tempDir,
+      workspaceDir: tempDir,
+      modulesDir: 'vendor',
+      gitChecks: false,
+      gitTagVersion: false,
+    } as any, ['patch']) // eslint-disable-line @typescript-eslint/no-explicit-any
+
+    expect(fs.existsSync(path.join(tempDir, 'marker.txt'))).toBe(true)
+  })
+
   describe('dry run', () => {
     it('should report the bump without writing the manifest', async () => {
       const manifestPath = path.join(tempDir, 'package.json')

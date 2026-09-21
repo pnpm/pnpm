@@ -13,10 +13,14 @@ export async function getProjectNodePath (
   project: { modulesDir: string, rootDir: string },
   opts: { extendNodePath?: boolean }
 ): Promise<string | undefined> {
-  if (opts.extendNodePath === false || project.modulesDir === await realpathOrSelf(path.join(project.rootDir, 'node_modules'))) {
+  if (opts.extendNodePath === false || await isSameDir(project.modulesDir, path.join(project.rootDir, 'node_modules'))) {
     return undefined
   }
   return project.modulesDir
+}
+
+async function isSameDir (a: string, b: string): Promise<boolean> {
+  return a === b || await realpathOrSelf(a) === await realpathOrSelf(b)
 }
 
 async function realpathOrSelf (dir: string): Promise<string> {

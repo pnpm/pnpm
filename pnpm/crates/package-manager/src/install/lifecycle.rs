@@ -304,8 +304,15 @@ impl ProjectScriptRunner<'_> {
         manifest: &PackageManifest,
     ) -> Result<(), InstallError> {
         let root_modules_dir = project_dir.join(self.modules_dir_basename);
+        let bin_dir = root_modules_dir.join(".bin");
         link_project_bins(&root_modules_dir, &direct_dep_names(manifest), &self.link_options)
             .map_err(InstallError::ProjectBinLink)?;
+        let mut extra_env = self.extra_env.clone();
+        self.config.prepend_project_node_path::<pnpm_config::Host>(
+            &mut extra_env,
+            project_dir,
+            self.modules_dir_basename,
+        );
         let dep_path = project_dir.to_string_lossy();
         run_project_lifecycle_scripts::<Reporter>(&RunPostinstallHooks {
             environment: pnpm_executor::ScriptEnvironment {
@@ -314,7 +321,7 @@ impl ProjectScriptRunner<'_> {
                 npm_execpath: None,
                 node_gyp_path: None,
                 user_agent: Some(&self.config.user_agent),
-                extra_env: &self.extra_env,
+                extra_env: &extra_env,
             },
             execution: pnpm_executor::ScriptExecutionOptions {
                 extra_bin_paths: &self.config.extra_bin_paths,
@@ -322,7 +329,7 @@ impl ProjectScriptRunner<'_> {
                 prepend_node_path: self.scripts_prepend_node_path,
                 shell: self.config.script_shell.as_deref().map(Path::new),
                 shell_emulator: self.config.shell_emulator,
-                wd_bin_dir: None,
+                wd_bin_dir: Some(&bin_dir),
             },
             dep_path: &dep_path,
             pkg_root: project_dir,

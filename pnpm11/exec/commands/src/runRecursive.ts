@@ -8,6 +8,7 @@ import { PnpmError } from '@pnpm/error'
 import {
   makeNodePackageMapOption,
   makeNodeRequireOption,
+  makeProjectNodePathOption,
   type RunLifecycleHookOptions,
 } from '@pnpm/exec.lifecycle'
 import { groupStart } from '@pnpm/log.group'
@@ -54,7 +55,7 @@ export type RecursiveRunOpts = Pick<Config,
 | 'nodeOptions'
 | 'modulesDir'
 > & Pick<ConfigContext, 'rootProjectManifest' | 'allProjectsGraph' | 'prodAllProjectsGraph' | 'prodOnlySelectedProjectDirs'> & Required<Pick<ConfigContext, 'allProjects' | 'selectedProjectsGraph'> & Pick<Config, 'workspaceDir' | 'dir'>> &
-Partial<Pick<Config, 'extraBinPaths' | 'extraEnv' | 'bail' | 'dryRun' | 'ignoreWorkspaceCycles' | 'reporter' | 'reverse' | 'sort' | 'tasks' | 'workspaceConcurrency'>> &
+Partial<Pick<Config, 'extendNodePath' | 'extraBinPaths' | 'extraEnv' | 'preferSymlinkedExecutables' | 'bail' | 'dryRun' | 'ignoreWorkspaceCycles' | 'reporter' | 'reverse' | 'sort' | 'tasks' | 'workspaceConcurrency'>> &
 {
   ifPresent?: boolean
   json?: boolean
@@ -224,11 +225,12 @@ export async function runRecursive (
           hasCommand++
         }
         try {
+          const wdBinDir = binDirOf(node.project, projectModulesDir(opts, pkg.package.manifest.name))
           const lifecycleOpts: RunLifecycleHookOptions = {
             depPath: node.project,
-            wdBinDir: binDirOf(node.project, projectModulesDir(opts, pkg.package.manifest.name)),
+            wdBinDir,
             extraBinPaths: opts.extraBinPaths,
-            extraEnv: opts.extraEnv,
+            extraEnv: { ...opts.extraEnv, ...await makeProjectNodePathOption({ modulesDir: path.dirname(wdBinDir), rootDir: node.project }, opts) },
             pkgRoot: node.project,
             raiseOnInterrupt: true,
             userAgent: opts.userAgent,

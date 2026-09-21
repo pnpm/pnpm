@@ -11,9 +11,12 @@ import { prepareEmpty, preparePackages } from '@pnpm/prepare'
 import type { ProjectRootDir } from '@pnpm/types'
 import { rimrafSync } from '@zkochan/rimraf'
 import { safeExeca as execa } from 'execa'
+import isWindows from 'is-windows'
 import { writeJsonFileSync } from 'write-json-file'
 
 import { testDefaults } from '../utils/index.js'
+
+const testOnPosix = isWindows() ? test.skip : test
 
 test('installing to a custom modules directory', async () => {
   const project = prepareEmpty()
@@ -145,6 +148,40 @@ test('bins in a custom modules directory are relinked when extendNodePath change
   await expect(runTool('vendor')).rejects.toThrow("Cannot find module 'plugin'")
 })
 
+test('project lifecycle scripts run bins from a custom modules directory', async () => {
+  prepareEmpty()
+  writeTool()
+  writePlugin()
+
+  await install({
+    scripts: { postinstall: 'tool > tool-output.json' },
+    dependencies: {
+      plugin: 'file:plugin',
+      tool: 'file:tool',
+    },
+  }, testDefaults({ modulesDir: 'vendor' }))
+
+  expect(JSON.parse(fs.readFileSync('tool-output.json', 'utf8'))).toMatchObject({ plugin: 'plugin loaded' })
+})
+
+testOnPosix('project lifecycle scripts give symlinked bins the custom modules directory on NODE_PATH', async () => {
+  prepareEmpty()
+  writeTool()
+  writePlugin()
+
+  await install({
+    scripts: { postinstall: 'tool > tool-output.json' },
+    dependencies: {
+      'is-positive': '1.0.0',
+      plugin: 'file:plugin',
+      tool: 'file:tool',
+    },
+  }, testDefaults({ modulesDir: 'vendor', preferSymlinkedExecutables: true }))
+
+  expect(fs.lstatSync('vendor/.bin/tool').isSymbolicLink()).toBe(true)
+  expect(JSON.parse(fs.readFileSync('tool-output.json', 'utf8'))).toMatchObject({ plugin: 'plugin loaded' })
+})
+
 test('bins of every project load plugins only from that project\'s modules directory', async () => {
   preparePackages([
     {
@@ -192,7 +229,6 @@ test('bins of every project load plugins only from that project\'s modules direc
   expect(await runTool('modules_2', 'project-2')).toMatchObject({ plugin: 'plugin loaded' })
 })
 
-// Loads plugins from the working directory, the way ESLint and similar tools do.
 function writeTool (): void {
   writeJsonFileSync('tool/package.json', {
     name: 'tool',

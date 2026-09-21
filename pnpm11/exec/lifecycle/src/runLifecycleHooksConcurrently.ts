@@ -7,6 +7,7 @@ import type { StoreController } from '@pnpm/store.controller-types'
 import type { ProjectManifest, ProjectRootDir } from '@pnpm/types'
 import { scheduleGraph, type TaskCompletion } from '@pnpm/workspace.task-scheduler'
 
+import { makeProjectNodePathOption } from './makeProjectNodePathOption.js'
 import { runLifecycleHook, type RunLifecycleHookOptions } from './runLifecycleHook.js'
 
 export type RunLifecycleHooksConcurrentlyOptions = Omit<RunLifecycleHookOptions,
@@ -54,8 +55,9 @@ export async function runLifecycleHooksConcurrently (
     runNode: async (rootDir): Promise<TaskCompletion> => {
       const { manifest, modulesDir, stages: importerStages, targetDirs } = importersByRootDir.get(rootDir)!
       try {
+        const binsDir = path.join(modulesDir, '.bin')
         // We are linking the bin files, in case they were created by lifecycle scripts of other workspace packages.
-        await linkBins(modulesDir, path.join(modulesDir, '.bin'), {
+        await linkBins(modulesDir, binsDir, {
           extraNodePaths: opts.extraNodePaths,
           projectModulesDir: await getProjectNodePath({ modulesDir, rootDir }, opts),
           allowExoticManifests: true,
@@ -68,8 +70,10 @@ export async function runLifecycleHooksConcurrently (
         const runLifecycleHookOpts: RunLifecycleHookOptions = {
           ...opts,
           depPath: rootDir,
+          extraEnv: { ...opts.extraEnv, ...await makeProjectNodePathOption({ modulesDir, rootDir }, opts) },
           pkgRoot: rootDir,
           rootModulesDir: modulesDir,
+          wdBinDir: binsDir,
         }
         let isBuilt = false
         for (const stage of (importerStages ?? stages)) {

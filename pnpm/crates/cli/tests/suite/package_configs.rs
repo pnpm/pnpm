@@ -370,8 +370,6 @@ fn dedicated_lockfiles_report_no_ignored_settings() {
     assert!(!stderr.contains("packageConfigs"), "{stderr}");
 }
 
-/// What `pnpm bin` reports for `project`, as the canonical path the CLI
-/// prints.
 fn bin_dir(fixture: &WorkspaceFixture, project: &Path) -> PathBuf {
     let output = fixture.command_at(project, ["bin"]);
     assert_success(&output);
@@ -388,8 +386,6 @@ fn canonical_bin_dir(project: &Path, modules_dir: &str) -> PathBuf {
 const MOVED_MODULES: &str =
     "modulesDir: vendor\npackageConfigs:\n  moved:\n    modulesDir: node_modules\n";
 
-/// A project whose only script runs `greet`, which the tests below supply
-/// as a shim in one modules directory or another.
 #[cfg(unix)]
 fn greeter(fixture: &WorkspaceFixture, dir: &str, name: &str) -> PathBuf {
     let project = fixture.workspace.join("packages").join(dir);

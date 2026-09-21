@@ -35,6 +35,17 @@ pub fn write_executable(path: &Path, body: &str) {
     fs::set_permissions(path, perms).expect("chmod executable");
 }
 
+/// Write a `.bin` entry that prints `marker`, in the form a command lookup
+/// finds on this platform.
+pub fn write_fake_bin(bin_dir: &Path, name: &str, marker: &str) {
+    fs::create_dir_all(bin_dir).expect("create the bin dir");
+    #[cfg(unix)]
+    write_executable(&bin_dir.join(name), &format!("#!/bin/sh\necho {marker}\n"));
+    #[cfg(windows)]
+    fs::write(bin_dir.join(format!("{name}.cmd")), format!("@echo {marker}\r\n"))
+        .expect("write the command shim");
+}
+
 /// Fresh `pnpm` invocation anchored in `workspace`, for tests that run
 /// the binary more than once (an `assert_cmd` command is consumed by
 /// its first `.assert()`).

@@ -401,9 +401,10 @@ fn run_version_lifecycle_hook<Reporter: pnpm_reporter::Reporter>(
     };
 
     let root_modules_dir = change.path.join(&config.modules_dir);
+    let (bin_dir, extra_env) = project_scripts_bin_dir_and_env(change, config);
     let script_shell = config.script_shell.as_ref().map(PathBuf::from);
     let run_opts = RunPostinstallHooks {
-        environment: super::run::script_environment(config, init_cwd, &config.extra_env),
+        environment: super::run::script_environment(config, init_cwd, &extra_env),
         execution: pnpm_executor::ScriptExecutionOptions {
             extra_bin_paths: &config.extra_bin_paths,
             node_gyp_bin: pnpm_executor::bundled_node_gyp_bin(),
@@ -412,7 +413,7 @@ fn run_version_lifecycle_hook<Reporter: pnpm_reporter::Reporter>(
             ),
             shell: script_shell.as_deref(),
             shell_emulator: config.shell_emulator,
-            wd_bin_dir: None,
+            wd_bin_dir: Some(&bin_dir),
         },
         dep_path: &change.name,
         pkg_root: &change.path,
@@ -425,6 +426,20 @@ fn run_version_lifecycle_hook<Reporter: pnpm_reporter::Reporter>(
     let parent_env: HashMap<String, String> = std::env::vars().collect();
     run_lifecycle_hook::<Reporter>(stage, &script, &run_opts, manifest.value(), &parent_env)
         .map_err(miette::Report::new)
+}
+
+fn project_scripts_bin_dir_and_env(
+    change: &VersionChange,
+    config: &Config,
+) -> (PathBuf, HashMap<String, String>) {
+    let modules_dir_name = config.modules_dir_name_for(&change.path, Some(&change.name));
+    let mut extra_env = config.extra_env.clone();
+    config.prepend_project_node_path::<pnpm_config::Host>(
+        &mut extra_env,
+        &change.path,
+        &modules_dir_name,
+    );
+    (change.path.join(modules_dir_name).join(".bin"), extra_env)
 }
 
 /// One package's version bump: what it was, what it became, and where its
