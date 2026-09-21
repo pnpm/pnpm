@@ -17,6 +17,16 @@ test('readWorkspaceManifestSync() works with a valid workspace file', () => {
   })
 })
 
+test.each([
+  ['string', 'Expected object but found - string'],
+  ['array', 'Expected object but found - array'],
+  ['packages-string', 'packages field is not an array'],
+  ['packages-contains-empty', 'Missing or empty package'],
+  ['packages-contains-number', 'Invalid package type - number'],
+])('readWorkspaceManifestSync() rejects invalid manifest fixture %s', (fixture, message) => {
+  expect(() => readWorkspaceManifestSync(path.join(import.meta.dirname, '__fixtures__', fixture))).toThrow(message)
+})
+
 test('readWorkspaceManifest() throws on string content', async () => {
   await expect(
     readWorkspaceManifest(path.join(import.meta.dirname, '__fixtures__/string'))
