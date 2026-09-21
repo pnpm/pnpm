@@ -4,9 +4,10 @@ use super::{
     Config, DEV_PREINSTALL_ALREADY_RAN_ENV, DependencyGroup, ExecScriptsPrependNodePath, HashMap,
     HashSet, InstallError, Lockfile, NodeLinker, PackageManifest, Path, PathBuf, Reporter,
     RunPostinstallHooks, link_project_bins, project_requires_lifecycle_scripts,
-    run_dev_preinstall_hook, run_project_lifecycle_scripts,
+    run_project_lifecycle_scripts, run_project_lifecycle_scripts_after_preinstall,
 };
 use indexmap::IndexMap;
+use pnpm_executor::LifecycleScriptError;
 use pnpm_workspace_task_scheduler::{ScheduleGraphOptions, TaskCompletion, schedule_graph};
 use std::sync::Mutex;
 
@@ -243,15 +244,20 @@ pub(super) fn dev_preinstall_already_ran() -> bool {
     std::env::var(DEV_PREINSTALL_ALREADY_RAN_ENV).is_ok_and(|value| value == "true")
 }
 
-/// Run the root project's `pnpm:devPreinstall` script, if it defines one.
+/// Run one of the root project's pre-resolution hooks — `run` is
+/// [`pnpm_executor::run_dev_preinstall_hook`] or
+/// [`pnpm_executor::run_root_preinstall_hook`].
 ///
-/// The hook exists so a workspace can prepare state that resolution or
-/// linking depends on — next.js creates the placeholder `next` bin its
-/// other packages link against — so it runs from the lockfile directory
-/// before either, and only for the root project.
-pub(super) fn run_dev_preinstall<Reporter: self::Reporter>(
+/// `pnpm:devPreinstall` exists so a workspace can prepare state that
+/// resolution or linking depends on — next.js creates the placeholder
+/// `next` bin its other packages link against — and `preinstall` so a
+/// guard can refuse the install before it changes anything, so both run
+/// from the lockfile directory before either, and only for the root
+/// project.
+pub(super) fn run_root_hook(
     config: &Config,
     workspace_root: &Path,
+    run: fn(&RunPostinstallHooks<'_>) -> Result<bool, LifecycleScriptError>,
 ) -> Result<(), InstallError> {
     let root_modules_dir = workspace_root.join(config.modules_dir_name());
     let bin_dir = root_modules_dir.join(".bin");
@@ -262,7 +268,7 @@ pub(super) fn run_dev_preinstall<Reporter: self::Reporter>(
         config.modules_dir_name(),
     );
     let dep_path = workspace_root.to_string_lossy();
-    run_dev_preinstall_hook::<Reporter>(&RunPostinstallHooks {
+    run(&RunPostinstallHooks {
         environment: pnpm_executor::ScriptEnvironment {
             init_cwd: workspace_root,
             node_execpath: None,
@@ -297,6 +303,11 @@ pub(super) fn run_dev_preinstall<Reporter: self::Reporter>(
 struct ProjectScriptRunner<'a> {
     config: &'a Config,
     workspace_root: &'a Path,
+    normalized_workspace_root: PathBuf,
+    /// The root project's `preinstall` ran before the install began (see
+    /// [`run_root_hook`]), so its run here starts at `install`. A rebuild
+    /// materializes nothing, so it reruns every stage.
+    root_preinstall_ran: bool,
     modules_dir_basename: &'a std::ffi::OsStr,
     scripts_prepend_node_path: ExecScriptsPrependNodePath,
     extra_env: HashMap<String, String>,
@@ -320,7 +331,14 @@ impl ProjectScriptRunner<'_> {
             self.modules_dir_basename,
         );
         let dep_path = project_dir.to_string_lossy();
-        run_project_lifecycle_scripts::<Reporter>(&RunPostinstallHooks {
+        let run_stages = if self.root_preinstall_ran
+            && pnpm_fs::lexical_normalize(project_dir) == self.normalized_workspace_root
+        {
+            run_project_lifecycle_scripts_after_preinstall::<Reporter>
+        } else {
+            run_project_lifecycle_scripts::<Reporter>
+        };
+        run_stages(&RunPostinstallHooks {
             environment: pnpm_executor::ScriptEnvironment {
                 init_cwd: self.workspace_root,
                 node_execpath: None,
@@ -367,10 +385,17 @@ fn direct_dep_names(manifest: &PackageManifest) -> Vec<String> {
 }
 
 impl<'a> ProjectScriptRunner<'a> {
-    fn new(config: &'a Config, node_linker: NodeLinker, workspace_root: &'a Path) -> Self {
+    fn new(
+        config: &'a Config,
+        node_linker: NodeLinker,
+        workspace_root: &'a Path,
+        root_preinstall_ran: bool,
+    ) -> Self {
         ProjectScriptRunner {
             config,
             workspace_root,
+            normalized_workspace_root: pnpm_fs::lexical_normalize(workspace_root),
+            root_preinstall_ran,
             modules_dir_basename: config.modules_dir_name(),
             scripts_prepend_node_path: exec_scripts_prepend_node_path(config),
             extra_env: project_lifecycle_extra_env(config, node_linker, workspace_root),
@@ -386,8 +411,9 @@ pub(super) fn run_projects_lifecycle_scripts<Reporter: self::Reporter>(
     config: &Config,
     node_linker: NodeLinker,
     workspace_root: &Path,
+    root_preinstall_ran: bool,
 ) -> Result<(), InstallError> {
-    let runner = ProjectScriptRunner::new(config, node_linker, workspace_root);
+    let runner = ProjectScriptRunner::new(config, node_linker, workspace_root, root_preinstall_ran);
     let first_error: Mutex<Option<InstallError>> = Mutex::new(None);
     let on_node_skipped: fn(&PathBuf) = |_| {};
     let run_node = |project_dir: PathBuf| {

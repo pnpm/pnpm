@@ -8,7 +8,7 @@ use super::{
     },
     InstallOwned, InstallView, RunMode, Verification,
     lockfile_load::Loaded,
-    manifests::{DevPreinstallScope, run_dev_preinstall_hook},
+    manifests::{RootHooksScope, run_root_hooks},
     reject_frozen_with_update_checksums,
     wanted::Lockfiles,
     workspace::{InstallScope, InstallWorkspace},
@@ -48,7 +48,7 @@ pub(super) async fn dispatch<'install, Reporter: self::Reporter + 'static>(
     options: &mut InstallRunOptions<'install, '_>,
 ) -> Result<Option<Dispatched<'install>>, InstallError> {
     let Settled { install, mode, lockfiles, .. } = settled;
-    announce_import::<Reporter>(settled, options.rebuild.as_ref())?;
+    announce_import::<Reporter>(settled, options)?;
     // Dispatch priority, following the CLI + `preferFrozenLockfile`
     // semantics:
     //
@@ -183,7 +183,7 @@ pub(super) async fn prepare_dispatched_modules<'install, Reporter: self::Reporte
 }
 pub(super) fn announce_import<Reporter: self::Reporter>(
     settled: Settled<'_, '_>,
-    rebuild: Option<&crate::RebuildOptions>,
+    options: &InstallRunOptions<'_, '_>,
 ) -> Result<(), InstallError> {
     let Settled {
         install,
@@ -203,29 +203,35 @@ pub(super) fn announce_import<Reporter: self::Reporter>(
             .to_string_lossy()
             .into_owned(),
     }));
-    // `pnpm:devPreinstall` runs ahead of everything the install does
-    // with the lockfile — including the frozen path's freshness
-    // check — because what it prepares is an input to resolution and
-    // linking. What skips it:
+    // `pnpm:devPreinstall` and the root's `preinstall` run ahead of
+    // everything the install does with the lockfile — including the
+    // frozen path's freshness check — because what the first prepares
+    // is an input to resolution and linking, and the second may refuse
+    // the install before it changes anything. What skips them:
     //
-    // - `resolve_only`, which materializes nothing for the hook to
-    //   prepare. pnpm reaches the same outcome by having
+    // - `resolve_only`, which materializes nothing for the hooks to
+    //   prepare or guard. pnpm reaches the same outcome by having
     //   `--lockfile-only` (and `--dry-run`, which sets it) imply
     //   `ignoreScripts`.
     // - A rebuild, which resolves and links nothing.
     // - `ignore_manifest_check`, which covers `pacquet fetch` (pnpm's
     //   `ignorePackageManifest`, installing from the lockfile alone)
     //   and the TypeScript CLI delegating a frozen materialization,
-    //   which already ran the hook before handing the install over.
+    //   which already ran the hooks before handing the install over.
     // - [`DEV_PREINSTALL_ALREADY_RAN_ENV`], the delegating CLI's
     //   marker for the one path that carries no flag of its own.
-    run_dev_preinstall_hook::<Reporter>(&DevPreinstallScope {
+    run_root_hooks::<Reporter>(&RootHooksScope {
         config: install.context.config,
         workspace_root: &workspace.dirs.workspace_root,
         project_manifests,
         resolve_only: mode.resolve_only,
         ignore_manifest_check: install.lockfile_policy.ignore_manifest_check,
-        rebuild,
+        scripts: crate::install::state_options::ProjectScriptSelection {
+            mutation: install.execution.mutation,
+            manifest_dir: workspace.dirs.manifest_dir,
+            workspace: options.selection.as_ref(),
+            rebuild: options.rebuild.as_ref(),
+        },
     })?;
     Reporter::emit(&LogEvent::Stage(StageLog {
         level: LogLevel::Debug,

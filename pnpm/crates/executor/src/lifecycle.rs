@@ -117,11 +117,11 @@ pub const PROJECT_LIFECYCLE_STAGES: [&str; 6] =
 pub const DEV_PREINSTALL_STAGE: &str = "pnpm:devPreinstall";
 
 /// Set by the TypeScript CLI when it delegates a *resolving* install to
-/// pacquet, to say it already ran the root project's
-/// [`DEV_PREINSTALL_STAGE`] script itself. That path passes no flags of
-/// its own — a frozen delegation is distinguishable by its
-/// `--ignore-manifest-check` — so without this marker the hook would run
-/// once on each side of the handover.
+/// pacquet, to say it already ran the root project's pre-resolution
+/// hooks — its [`DEV_PREINSTALL_STAGE`] script and its `preinstall` —
+/// itself. That path passes no flags of its own — a frozen delegation is
+/// distinguishable by its `--ignore-manifest-check` — so without this
+/// marker the hooks would run once on each side of the handover.
 ///
 /// A private handshake between the two stacks for the lifetime of one
 /// delegated install, which is why it sits outside the user-facing
@@ -156,6 +156,30 @@ pub fn run_project_lifecycle_scripts<Reporter: self::Reporter>(
     opts: &RunPostinstallHooks<'_>,
 ) -> Result<bool, LifecycleScriptError> {
     run_lifecycle_stages::<Reporter>(opts, &PROJECT_LIFECYCLE_STAGES)
+}
+
+/// [`run_project_lifecycle_scripts`] without its `preinstall` stage, for
+/// the root project, whose `preinstall` [`run_root_preinstall_hook`] ran
+/// before the install began.
+///
+/// Returns `true` if any script was present and executed.
+pub fn run_project_lifecycle_scripts_after_preinstall<Reporter: self::Reporter>(
+    opts: &RunPostinstallHooks<'_>,
+) -> Result<bool, LifecycleScriptError> {
+    run_lifecycle_stages::<Reporter>(opts, &PROJECT_LIFECYCLE_STAGES[1..])
+}
+
+/// Run the root project's `preinstall` script, if it has one.
+///
+/// Like [`run_dev_preinstall_hook`] it runs before resolution, so a guard
+/// such as `npx only-allow yarn` can refuse the install before any
+/// dependency reaches `node_modules`.
+///
+/// Returns `true` when the script was present and executed.
+pub fn run_root_preinstall_hook<Reporter: self::Reporter>(
+    opts: &RunPostinstallHooks<'_>,
+) -> Result<bool, LifecycleScriptError> {
+    run_lifecycle_stages::<Reporter>(opts, &PROJECT_LIFECYCLE_STAGES[..1])
 }
 
 /// Run the root project's [`DEV_PREINSTALL_STAGE`] script, if it has one.

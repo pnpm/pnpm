@@ -700,22 +700,27 @@ export async function mutateModules (
       unsafePerm: opts.unsafePerm || false,
     }
 
+    const rootHookOpts = {
+      ...scriptsOpts,
+      depPath: opts.lockfileDir,
+      pkgRoot: opts.lockfileDir,
+      rootModulesDir: ctx.rootModulesDir,
+      wdBinDir: path.join(ctx.rootModulesDir, '.bin'),
+      extraEnv: {
+        ...scriptsOpts.extraEnv,
+        ...await makeProjectNodePathOption({ modulesDir: ctx.rootModulesDir, rootDir: opts.lockfileDir }, opts),
+      },
+    }
     if (!opts.ignoreScripts && !opts.ignorePackageManifest && rootProjectManifest?.scripts?.[DEV_PREINSTALL]) {
-      await runLifecycleHook(
-        DEV_PREINSTALL,
-        rootProjectManifest,
-        {
-          ...scriptsOpts,
-          depPath: opts.lockfileDir,
-          pkgRoot: opts.lockfileDir,
-          rootModulesDir: ctx.rootModulesDir,
-          wdBinDir: path.join(ctx.rootModulesDir, '.bin'),
-          extraEnv: {
-            ...scriptsOpts.extraEnv,
-            ...await makeProjectNodePathOption({ modulesDir: ctx.rootModulesDir, rootDir: opts.lockfileDir }, opts),
-          },
-        }
-      )
+      await runLifecycleHook(DEV_PREINSTALL, rootProjectManifest, rootHookOpts)
+    }
+    // The root project's `preinstall` runs before any dependency is resolved
+    // or linked, so a guard such as `npx only-allow yarn` can still stop the
+    // install. Its remaining stages run after linking, like every project's.
+    const rootProjectPreinstallRan = !opts.ignoreScripts && !opts.ignorePackageManifest && !opts.virtualStoreOnly &&
+      projects.some((project) => project.rootDir === opts.lockfileDir && project.mutation === 'install')
+    if (rootProjectPreinstallRan && rootProjectManifest?.scripts?.preinstall) {
+      await runLifecycleHook('preinstall', rootProjectManifest, rootHookOpts)
     }
     const packageExtensionsChecksum = hashObjectNullableWithPrefix(opts.packageExtensions)
     const pnpmfileChecksum = await opts.hooks.calculatePnpmfileChecksum?.()
@@ -994,6 +999,7 @@ export async function mutateModules (
       needsFullResolution,
       patchGroups,
       untrackedReadPackageHookMayHaveChanged,
+      rootProjectPreinstallRan,
       upToDateLockfileMajorVersion,
     })
     if (frozenInstallResult !== null) {
@@ -1478,6 +1484,7 @@ export async function mutateModules (
       makePartialCurrentLockfile,
       needsFullResolution,
       pruneVirtualStore,
+      rootProjectPreinstallRan,
       scriptsOpts,
       updateLockfileMinorVersion: true,
       patchedDependencies: patchGroups,
@@ -1528,6 +1535,7 @@ export async function mutateModules (
     needsFullResolution,
     patchGroups,
     untrackedReadPackageHookMayHaveChanged,
+    rootProjectPreinstallRan,
     upToDateLockfileMajorVersion,
   }: {
     /**
@@ -1542,6 +1550,7 @@ export async function mutateModules (
     needsFullResolution: boolean
     patchGroups?: PatchGroupRecord
     untrackedReadPackageHookMayHaveChanged: boolean
+    rootProjectPreinstallRan: boolean
     upToDateLockfileMajorVersion: boolean
   }): Promise<InnerInstallResult | { needsFullResolution: boolean } | null> {
     const isFrozenInstallPossible =
@@ -1700,6 +1709,7 @@ Note that in CI environments, this setting is enabled by default.`,
         projectDirsRunningScripts: projects
           .filter((project) => project.mutation !== 'uninstallSome')
           .map((project) => project.rootDir),
+        rootProjectPreinstallRan,
         allProjects: ctx.projects,
         prunedAt: ctx.modulesFile?.prunedAt,
         pruneVirtualStore,
@@ -2068,6 +2078,8 @@ type InstallFunction = (
     updateLockfileMinorVersion: boolean
     preferredVersions?: PreferredVersions
     pruneVirtualStore: boolean
+    /** The root project's `preinstall` already ran, ahead of resolution. */
+    rootProjectPreinstallRan: boolean
     scriptsOpts: RunLifecycleHooksConcurrentlyOptions
     currentLockfileIsUpToDate: boolean
     hoistWorkspacePackages?: boolean
@@ -2685,6 +2697,7 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
         importers: projectsToBeBuilt,
         opts: opts.scriptsOpts,
         projectDependencies: opts.projectDependencies,
+        projectWithPreinstallRan: opts.rootProjectPreinstallRan ? opts.lockfileDir : undefined,
         stages: ['preinstall', 'install', 'postinstall', 'preprepare', 'prepare', 'postprepare'],
       })
     }

@@ -82,6 +82,7 @@ pub(super) fn run_materialized_project_scripts<Reporter: self::Reporter>(
                 inputs.config,
                 inputs.node_linker,
                 inputs.workspace_root,
+                inputs.request.rebuild.is_none(),
             )?;
         }
         if let Some(rebuild) = inputs.request.rebuild {

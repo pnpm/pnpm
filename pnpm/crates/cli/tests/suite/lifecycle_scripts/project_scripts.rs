@@ -627,9 +627,10 @@ mod dev_preinstall {
     }
 
     /// The TypeScript CLI sets this when it delegates a resolving
-    /// install, having already run the hook itself. That handover
-    /// carries no flag of its own, so without the marker the script
-    /// would run once on each side of it.
+    /// install, having already run the root's pre-resolution hooks —
+    /// this one and `preinstall` — itself. That handover carries no
+    /// flag of its own, so without the marker the scripts would run
+    /// once on each side of it.
     #[test]
     fn is_skipped_when_the_delegating_cli_already_ran_it() {
         let CommandTempCwd {
@@ -652,7 +653,11 @@ mod dev_preinstall {
 
         let order = fs::read_to_string(workspace.join("order.txt")).expect("read order.txt");
         let stages: Vec<&str> = order.lines().collect();
-        assert_eq!(stages, &EXPECTED_ORDER[1..], "only pnpm:devPreinstall should be skipped");
+        assert_eq!(
+            stages,
+            &EXPECTED_ORDER[2..],
+            "only pnpm:devPreinstall and the root's preinstall should be skipped",
+        );
 
         drop((root, mock_instance));
     }
@@ -826,6 +831,159 @@ mod dev_preinstall {
             !member_dir.join("order.txt").exists(),
             "a member's pnpm:devPreinstall must not run",
         );
+
+        drop((root, mock_instance));
+    }
+}
+
+/// The root project's `preinstall` runs before any dependency is
+/// resolved or linked, so a guard such as `npx only-allow yarn` can
+/// still stop the install. Its other stages keep running after linking.
+/// <https://github.com/pnpm/pnpm/issues/3760>
+mod root_preinstall {
+    use assert_cmd::prelude::*;
+    use command_extra::CommandExtra;
+    use pnpm_testing_utils::bin::{AddMockedRegistry, CommandTempCwd};
+    use std::{fs, path::Path, process::Command};
+
+    /// Published at 100.0.0, 100.1.0, and 101.0.0.
+    const DEP: &str = "@pnpm.e2e/dep-of-pkg-with-1-dep";
+
+    /// A `node -e` lifecycle script that appends `<stage> <bool>\n` to
+    /// `order.txt` in the project root, the bool saying whether the
+    /// project's dependency is linked at that moment.
+    fn report_dep_presence_script(stage: &str) -> String {
+        format!(
+            r#"node -e "require('fs').appendFileSync('order.txt','{stage} '+require('fs').existsSync('node_modules/{DEP}')+'\n')""#,
+        )
+    }
+
+    fn project_manifest(name: &str) -> String {
+        serde_json::json!({
+            "name": name,
+            "version": "1.0.0",
+            "dependencies": { DEP: "^100.0.0" },
+            "scripts": {
+                "preinstall": report_dep_presence_script("preinstall"),
+                "postinstall": report_dep_presence_script("postinstall"),
+            },
+        })
+        .to_string()
+    }
+
+    fn stages(project_dir: &Path) -> Vec<String> {
+        fs::read_to_string(project_dir.join("order.txt"))
+            .expect("read order.txt")
+            .lines()
+            .map(String::from)
+            .collect()
+    }
+
+    #[test]
+    fn runs_before_dependencies_are_installed() {
+        let CommandTempCwd {
+            pacquet,
+            root,
+            workspace,
+            npmrc_info,
+            ..
+        } = CommandTempCwd::init().add_mocked_registry();
+        let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+        fs::write(workspace.join("package.json"), project_manifest("project"))
+            .expect("write package.json");
+
+        pacquet
+            .with_arg("install")
+            .assert()
+            .success();
+        assert_eq!(stages(&workspace), ["preinstall false", "postinstall true"]);
+
+        fs::remove_file(workspace.join("order.txt")).expect("clear order.txt between installs");
+        fs::remove_dir_all(workspace.join("node_modules")).expect("remove node_modules");
+        Command::cargo_bin("pnpm")
+            .expect("find the pnpm binary")
+            .with_current_dir(&workspace)
+            .with_args(["install", "--frozen-lockfile"])
+            .assert()
+            .success();
+        assert_eq!(stages(&workspace), ["preinstall false", "postinstall true"]);
+
+        drop((root, mock_instance));
+    }
+
+    #[test]
+    fn a_failure_aborts_the_install_before_any_dependency_is_installed() {
+        let CommandTempCwd {
+            pacquet,
+            root,
+            workspace,
+            npmrc_info,
+            ..
+        } = CommandTempCwd::init().add_mocked_registry();
+        let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+        let manifest = serde_json::json!({
+            "name": "project",
+            "version": "1.0.0",
+            "dependencies": { DEP: "^100.0.0" },
+            "scripts": { "preinstall": "exit 1" },
+        });
+        fs::write(workspace.join("package.json"), manifest.to_string())
+            .expect("write package.json");
+
+        pacquet
+            .with_arg("install")
+            .assert()
+            .failure();
+
+        assert!(
+            !workspace
+                .join("node_modules")
+                .join(DEP)
+                .exists(),
+            "no dependency may be linked when the root's preinstall fails",
+        );
+        assert!(
+            !workspace.join("pnpm-lock.yaml").exists(),
+            "no lockfile may be written when the root's preinstall fails",
+        );
+
+        drop((root, mock_instance));
+    }
+
+    /// Only the root's `preinstall` moves ahead of the install. A
+    /// member's runs where every other project stage does, after its
+    /// dependencies are linked.
+    #[test]
+    fn runs_once_for_the_workspace_root_ahead_of_the_install() {
+        let CommandTempCwd {
+            pacquet,
+            root,
+            workspace,
+            npmrc_info,
+            ..
+        } = CommandTempCwd::init().add_mocked_registry();
+        let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+        let yaml_path = workspace.join("pnpm-workspace.yaml");
+        let yaml = fs::read_to_string(&yaml_path).expect("read pnpm-workspace.yaml");
+        fs::write(&yaml_path, format!("{}\npackages:\n  - 'packages/*'\n", yaml.trim_end()))
+            .expect("write pnpm-workspace.yaml");
+        fs::write(workspace.join("package.json"), project_manifest("root"))
+            .expect("write the root package.json");
+        let member_dir = workspace.join("packages").join("member");
+        fs::create_dir_all(&member_dir).expect("create the member dir");
+        fs::write(member_dir.join("package.json"), project_manifest("member"))
+            .expect("write the member package.json");
+
+        pacquet
+            .with_arg("install")
+            .assert()
+            .success();
+
+        assert_eq!(stages(&workspace), ["preinstall false", "postinstall true"]);
+        assert_eq!(stages(&member_dir), ["preinstall true", "postinstall true"]);
 
         drop((root, mock_instance));
     }
