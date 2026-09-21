@@ -4,8 +4,8 @@ pub use interrupt::exit_like;
 pub use job_control::{JobGuard, arm_process_tree_cleanup};
 pub use lifecycle::{
     DEV_PREINSTALL_ALREADY_RAN_ENV, DEV_PREINSTALL_STAGE, LifecycleScriptError,
-    PROJECT_LIFECYCLE_STAGES, RunPostinstallHooks, StreamedScript, push_script_arg,
-    run_dev_preinstall_hook, run_lifecycle_hook, run_postinstall_hooks,
+    PROJECT_LIFECYCLE_STAGES, ROOT_PREINSTALL_ALREADY_RAN_ENV, RunPostinstallHooks, StreamedScript,
+    push_script_arg, run_dev_preinstall_hook, run_lifecycle_hook, run_postinstall_hooks,
     run_project_lifecycle_scripts, run_project_lifecycle_scripts_after_preinstall,
     run_root_preinstall_hook,
 };

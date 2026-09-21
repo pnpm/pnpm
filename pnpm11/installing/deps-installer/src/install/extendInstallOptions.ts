@@ -258,7 +258,7 @@ export interface StrictInstallOptions extends RegistryContext {
    */
   runPacquet?: {
     supportsResolution: boolean
-    run: (opts?: { filterResolvedProgress?: boolean, resolve?: boolean }) => Promise<void>
+    run: (opts?: { filterResolvedProgress?: boolean, resolve?: boolean, rootProjectPreinstallRan?: boolean }) => Promise<void>
   }
   /**
    * If true, `mutateModules` does not emit the per-install `summary` log

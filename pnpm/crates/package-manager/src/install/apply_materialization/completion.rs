@@ -64,6 +64,7 @@ pub(super) struct MaterializedProjectScriptsInputs<'a, 'selection> {
     pub(super) project_manifests: &'a [(PathBuf, &'a PackageManifest)],
     pub(super) materialized_project_manifests: &'a [(PathBuf, &'a PackageManifest)],
     pub(super) materialized_current_lockfile: Option<&'a Lockfile>,
+    pub(super) root_preinstall_ran: bool,
 }
 pub(super) fn run_materialized_project_scripts<Reporter: self::Reporter>(
     inputs: MaterializedProjectScriptsInputs<'_, '_>,
@@ -82,7 +83,7 @@ pub(super) fn run_materialized_project_scripts<Reporter: self::Reporter>(
                 inputs.config,
                 inputs.node_linker,
                 inputs.workspace_root,
-                inputs.request.rebuild.is_none(),
+                inputs.root_preinstall_ran,
             )?;
         }
         if let Some(rebuild) = inputs.request.rebuild {

@@ -717,7 +717,9 @@ export async function mutateModules (
     // The root project's `preinstall` runs before any dependency is resolved
     // or linked, so a guard such as `npx only-allow yarn` can still stop the
     // install. Its remaining stages run after linking, like every project's.
+    // A check-only install materializes nothing, so it runs no project script.
     const rootProjectPreinstallRan = !opts.ignoreScripts && !opts.ignorePackageManifest && !opts.virtualStoreOnly &&
+      !isCheckOnlyInstall(opts) &&
       projects.some((project) => project.rootDir === opts.lockfileDir && project.mutation === 'install')
     if (rootProjectPreinstallRan && rootProjectManifest?.scripts?.preinstall) {
       await runLifecycleHook('preinstall', rootProjectManifest, rootHookOpts)
@@ -1676,7 +1678,7 @@ Note that in CI environments, this setting is enabled by default.`,
     }
     if (opts.runPacquet != null && opts.useLockfile && !opts.useGitBranchLockfile && !opts.mergeGitBranchLockfiles && !isCheckOnlyInstall(opts) && opts.enableModulesDir) {
       try {
-        await opts.runPacquet.run()
+        await opts.runPacquet.run({ rootProjectPreinstallRan })
       } catch (err) {
         // Same reasoning as the verifyLockfileResolutions catch above: this
         // is the user-facing failure path, so detach the reporter listener
@@ -2854,7 +2856,8 @@ function pacquetResolveResult (projects: ImporterToUpdate[], ctx: PnpmContext): 
 async function materializeOrDelegate (
   opts: {
     mergeGitBranchLockfiles?: boolean
-    runPacquet?: { run: (opts?: { filterResolvedProgress?: boolean }) => Promise<void> }
+    rootProjectPreinstallRan?: boolean
+    runPacquet?: { run: (opts?: { filterResolvedProgress?: boolean, rootProjectPreinstallRan?: boolean }) => Promise<void> }
     saveLockfile?: boolean
     useGitBranchLockfile?: boolean
     useLockfile?: boolean
@@ -2873,7 +2876,7 @@ async function materializeOrDelegate (
     // lockfileOnly resolve pass that emitted one
     // `pnpm:progress status:resolved` per package, so pacquet's
     // duplicate `resolved` events would double the reporter's count.
-    await opts.runPacquet.run({ filterResolvedProgress: true })
+    await opts.runPacquet.run({ filterResolvedProgress: true, rootProjectPreinstallRan: opts.rootProjectPreinstallRan })
     return {}
   }
   return runHeadlessInstall()
@@ -3008,7 +3011,7 @@ const installInContext: InstallFunction = async (projects, ctx, opts) => {
         const envLockfile = await readEnvLockfile(ctx.lockfileDir)
         let pacquetError: unknown
         try {
-          await opts.runPacquet.run({ resolve: true })
+          await opts.runPacquet.run({ resolve: true, rootProjectPreinstallRan: opts.rootProjectPreinstallRan })
         } catch (err: unknown) {
           pacquetError = err
           throw err
@@ -3045,7 +3048,7 @@ const installInContext: InstallFunction = async (projects, ctx, opts) => {
       // pass emitted a `pnpm:progress status:resolved` per package; ask
       // pacquet to drop its own duplicates.
       const result = await _installInContext(projects, ctx, { ...opts, lockfileOnly: true })
-      await opts.runPacquet.run({ filterResolvedProgress: true })
+      await opts.runPacquet.run({ filterResolvedProgress: true, rootProjectPreinstallRan: opts.rootProjectPreinstallRan })
       return result
     }
     return await _installInContext(projects, ctx, opts)

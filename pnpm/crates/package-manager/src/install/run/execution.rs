@@ -208,12 +208,14 @@ impl<'a> RunExecution<'a> {
 
     fn take_project_scripts(
         &mut self,
+        root_preinstall_ran: bool,
     ) -> crate::install::state_options::PendingProjectScripts<'a, 'a> {
         crate::install::state_options::PendingProjectScripts {
             mutation: self.install.execution.mutation,
             manifest_dir: self.workspace.dirs.manifest_dir,
             selection: self.options.selection.take(),
             rebuild: self.options.rebuild.take(),
+            root_preinstall_ran,
         }
     }
 
@@ -264,7 +266,7 @@ impl<'a> RunExecution<'a> {
                 loaded: lockfiles.wanted.get(),
                 frozen: dispatched.take_frozen_path,
             },
-            scripts: self.take_project_scripts(),
+            scripts: self.take_project_scripts(dispatched.root_preinstall_ran),
             write: lockfiles.write_policy(self.options.save_lockfile),
             materialized,
         }

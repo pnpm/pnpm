@@ -2,9 +2,10 @@ use pnpm_deps_restorer::build_modules::exec_scripts_prepend_node_path;
 
 use super::{
     Config, DEV_PREINSTALL_ALREADY_RAN_ENV, DependencyGroup, ExecScriptsPrependNodePath, HashMap,
-    HashSet, InstallError, Lockfile, NodeLinker, PackageManifest, Path, PathBuf, Reporter,
-    RunPostinstallHooks, link_project_bins, project_requires_lifecycle_scripts,
-    run_project_lifecycle_scripts, run_project_lifecycle_scripts_after_preinstall,
+    HashSet, InstallError, Lockfile, NodeLinker, PackageManifest, Path, PathBuf,
+    ROOT_PREINSTALL_ALREADY_RAN_ENV, Reporter, RunPostinstallHooks, link_project_bins,
+    project_requires_lifecycle_scripts, run_project_lifecycle_scripts,
+    run_project_lifecycle_scripts_after_preinstall,
 };
 use indexmap::IndexMap;
 use pnpm_executor::LifecycleScriptError;
@@ -244,6 +245,12 @@ pub(super) fn dev_preinstall_already_ran() -> bool {
     std::env::var(DEV_PREINSTALL_ALREADY_RAN_ENV).is_ok_and(|value| value == "true")
 }
 
+/// Whether the delegating CLI claims to have run the root's `preinstall`
+/// already, under the same rules as [`dev_preinstall_already_ran`].
+pub(super) fn root_preinstall_already_ran() -> bool {
+    std::env::var(ROOT_PREINSTALL_ALREADY_RAN_ENV).is_ok_and(|value| value == "true")
+}
+
 /// Run one of the root project's pre-resolution hooks — `run` is
 /// [`pnpm_executor::run_dev_preinstall_hook`] or
 /// [`pnpm_executor::run_root_preinstall_hook`].
@@ -304,9 +311,9 @@ struct ProjectScriptRunner<'a> {
     config: &'a Config,
     workspace_root: &'a Path,
     normalized_workspace_root: PathBuf,
-    /// The root project's `preinstall` ran before the install began (see
-    /// [`run_root_hook`]), so its run here starts at `install`. A rebuild
-    /// materializes nothing, so it reruns every stage.
+    /// The root project's `preinstall` ran before the install began, here
+    /// (see [`run_root_hook`]) or in the CLI that delegated the install,
+    /// so its run here starts at `install`.
     root_preinstall_ran: bool,
     modules_dir_basename: &'a std::ffi::OsStr,
     scripts_prepend_node_path: ExecScriptsPrependNodePath,

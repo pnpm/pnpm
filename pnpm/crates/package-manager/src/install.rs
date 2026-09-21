@@ -45,7 +45,7 @@ use pnpm_catalogs_config::get_catalogs_from_workspace_manifest;
 use pnpm_catalogs_types::Catalogs;
 use pnpm_config::{Config, NodeLinker, PNPM_VERSION};
 use pnpm_executor::{
-    DEV_PREINSTALL_ALREADY_RAN_ENV, RunPostinstallHooks,
+    DEV_PREINSTALL_ALREADY_RAN_ENV, ROOT_PREINSTALL_ALREADY_RAN_ENV, RunPostinstallHooks,
     ScriptsPrependNodePath as ExecScriptsPrependNodePath, run_project_lifecycle_scripts,
     run_project_lifecycle_scripts_after_preinstall,
 };
@@ -100,7 +100,7 @@ mod workspace_state;
 use apply_materialization::{ApplyMaterializationInputs, apply_materialization_result};
 use lifecycle::{
     dev_preinstall_already_ran, load_workspace_projects, project_lifecycle_graph,
-    run_projects_lifecycle_scripts, run_root_hook,
+    root_preinstall_already_ran, run_projects_lifecycle_scripts, run_root_hook,
 };
 use lockfile_freshness::{
     FastUpdateLockfileOptions, check_lockfile_freshness, try_fast_update_lockfile,

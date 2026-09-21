@@ -37,6 +37,8 @@ pub(super) struct SettledProjects<'r, 'a> {
 /// Which path the install takes, and the modules state it starts from.
 pub(super) struct Dispatched<'install> {
     pub(super) take_frozen_path: bool,
+    /// See [`run_root_hooks`].
+    pub(super) root_preinstall_ran: bool,
     pub(super) modules: PreparedModulesState<'install>,
 }
 /// Announce the install, run `pnpm:devPreinstall`, and decide between the
@@ -48,7 +50,7 @@ pub(super) async fn dispatch<'install, Reporter: self::Reporter + 'static>(
     options: &mut InstallRunOptions<'install, '_>,
 ) -> Result<Option<Dispatched<'install>>, InstallError> {
     let Settled { install, mode, lockfiles, .. } = settled;
-    announce_import::<Reporter>(settled, options)?;
+    let root_preinstall_ran = announce_import::<Reporter>(settled, options)?;
     // Dispatch priority, following the CLI + `preferFrozenLockfile`
     // semantics:
     //
@@ -104,7 +106,27 @@ pub(super) async fn dispatch<'install, Reporter: self::Reporter + 'static>(
         return Ok(None);
     }
 
-    prepare_dispatched_modules::<Reporter>(settled, options, take_frozen_path).await
+    prepare_dispatched_modules::<Reporter>(
+        settled,
+        options,
+        Decided { take_frozen_path, root_preinstall_ran },
+    )
+    .await
+}
+/// What [`dispatch`] settled before it prepares the modules state.
+#[derive(Clone, Copy)]
+pub(super) struct Decided {
+    pub(super) take_frozen_path: bool,
+    pub(super) root_preinstall_ran: bool,
+}
+impl Decided {
+    fn with_modules(self, modules: PreparedModulesState<'_>) -> Dispatched<'_> {
+        let Decided {
+            take_frozen_path,
+            root_preinstall_ran,
+        } = self;
+        Dispatched { take_frozen_path, root_preinstall_ran, modules }
+    }
 }
 pub(super) async fn finish_dispatched_lockfile<Reporter: self::Reporter + 'static>(
     settled: Settled<'_, '_>,
@@ -139,7 +161,7 @@ pub(super) async fn finish_dispatched_lockfile<Reporter: self::Reporter + 'stati
 pub(super) async fn prepare_dispatched_modules<'install, Reporter: self::Reporter + 'static>(
     settled: Settled<'_, '_>,
     options: &mut InstallRunOptions<'install, '_>,
-    take_frozen_path: bool,
+    decided: Decided,
 ) -> Result<Option<Dispatched<'install>>, InstallError> {
     let Settled {
         install,
@@ -165,7 +187,7 @@ pub(super) async fn prepare_dispatched_modules<'install, Reporter: self::Reporte
             workspace_packages: workspace.workspace_packages.as_ref(),
         },
         repeat: crate::install::state_options::RepeatInstallPolicy {
-            frozen: take_frozen_path,
+            frozen: decided.take_frozen_path,
             filtered: scope.importers.filtered_install,
             disable_optimistic_check: install.lockfile_policy.disable_optimistic_repeat,
             supported_architectures: owned.projects.supported_architectures.as_ref(),
@@ -179,12 +201,13 @@ pub(super) async fn prepare_dispatched_modules<'install, Reporter: self::Reporte
         installs_only: install.execution.installs_only,
     })
     .await?
-    .map(|modules| Dispatched { take_frozen_path, modules }))
+    .map(|modules| decided.with_modules(modules)))
 }
+/// Returns what [`run_root_hooks`] does.
 pub(super) fn announce_import<Reporter: self::Reporter>(
     settled: Settled<'_, '_>,
     options: &InstallRunOptions<'_, '_>,
-) -> Result<(), InstallError> {
+) -> Result<bool, InstallError> {
     let Settled {
         install,
         mode,
@@ -207,20 +230,26 @@ pub(super) fn announce_import<Reporter: self::Reporter>(
     // everything the install does with the lockfile — including the
     // frozen path's freshness check — because what the first prepares
     // is an input to resolution and linking, and the second may refuse
-    // the install before it changes anything. What skips them:
+    // the install before it changes anything. What skips both:
     //
     // - `resolve_only`, which materializes nothing for the hooks to
     //   prepare or guard. pnpm reaches the same outcome by having
     //   `--lockfile-only` (and `--dry-run`, which sets it) imply
     //   `ignoreScripts`.
     // - A rebuild, which resolves and links nothing.
+    //
+    // What skips `pnpm:devPreinstall` alone:
+    //
     // - `ignore_manifest_check`, which covers `pacquet fetch` (pnpm's
     //   `ignorePackageManifest`, installing from the lockfile alone)
     //   and the TypeScript CLI delegating a frozen materialization,
-    //   which already ran the hooks before handing the install over.
+    //   which already ran the hook before handing the install over.
     // - [`DEV_PREINSTALL_ALREADY_RAN_ENV`], the delegating CLI's
     //   marker for the one path that carries no flag of its own.
-    run_root_hooks::<Reporter>(&RootHooksScope {
+    //
+    // The root's `preinstall` has its own marker instead; see
+    // `run_root_hooks`.
+    let root_preinstall_ran = run_root_hooks::<Reporter>(&RootHooksScope {
         config: install.context.config,
         workspace_root: &workspace.dirs.workspace_root,
         project_manifests,
@@ -239,7 +268,7 @@ pub(super) fn announce_import<Reporter: self::Reporter>(
         stage: Stage::ImportingStarted,
     }));
     tracing::info!(target: "pacquet::install", "Start all");
-    Ok(())
+    Ok(root_preinstall_ran)
 }
 /// What the frozen-vs-fresh dispatch decides on.
 pub(super) struct FrozenDispatch<'a> {

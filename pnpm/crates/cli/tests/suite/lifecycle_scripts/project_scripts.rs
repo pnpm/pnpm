@@ -627,10 +627,10 @@ mod dev_preinstall {
     }
 
     /// The TypeScript CLI sets this when it delegates a resolving
-    /// install, having already run the root's pre-resolution hooks —
-    /// this one and `preinstall` — itself. That handover carries no
-    /// flag of its own, so without the marker the scripts would run
-    /// once on each side of it.
+    /// install, having already run the hook itself. That handover
+    /// carries no flag of its own, so without the marker the script
+    /// would run once on each side of it. The root's `preinstall` has
+    /// a marker of its own, so this one leaves it alone.
     #[test]
     fn is_skipped_when_the_delegating_cli_already_ran_it() {
         let CommandTempCwd {
@@ -653,11 +653,7 @@ mod dev_preinstall {
 
         let order = fs::read_to_string(workspace.join("order.txt")).expect("read order.txt");
         let stages: Vec<&str> = order.lines().collect();
-        assert_eq!(
-            stages,
-            &EXPECTED_ORDER[2..],
-            "only pnpm:devPreinstall and the root's preinstall should be skipped",
-        );
+        assert_eq!(stages, &EXPECTED_ORDER[1..], "only pnpm:devPreinstall should be skipped");
 
         drop((root, mock_instance));
     }
@@ -948,6 +944,67 @@ mod root_preinstall {
             !workspace.join("pnpm-lock.yaml").exists(),
             "no lockfile may be written when the root's preinstall fails",
         );
+
+        drop((root, mock_instance));
+    }
+
+    /// The TypeScript CLI sets this when it delegates an install after
+    /// running the root's `preinstall` itself, so pacquet runs neither
+    /// its early copy nor the stage after linking.
+    #[test]
+    fn is_skipped_when_the_delegating_cli_already_ran_it() {
+        let CommandTempCwd {
+            pacquet,
+            root,
+            workspace,
+            npmrc_info,
+            ..
+        } = CommandTempCwd::init().add_mocked_registry();
+        let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+        fs::write(workspace.join("package.json"), project_manifest("project"))
+            .expect("write package.json");
+
+        pacquet
+            .with_env("PNPM_INTERNAL_ROOT_PREINSTALL_ALREADY_RAN", "true")
+            .with_arg("install")
+            .assert()
+            .success();
+        assert_eq!(stages(&workspace), ["postinstall true"]);
+
+        drop((root, mock_instance));
+    }
+
+    /// A frozen delegation carries `--ignore-manifest-check` and, when
+    /// the delegating CLI ran no root script, no marker. The hook is
+    /// then pacquet's to run, ahead of linking.
+    #[test]
+    fn runs_on_a_frozen_delegation_without_the_marker() {
+        let CommandTempCwd {
+            pacquet,
+            root,
+            workspace,
+            npmrc_info,
+            ..
+        } = CommandTempCwd::init().add_mocked_registry();
+        let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+        fs::write(workspace.join("package.json"), project_manifest("project"))
+            .expect("write package.json");
+
+        pacquet
+            .with_args(["install", "--lockfile-only"])
+            .assert()
+            .success();
+        assert!(!workspace.join("order.txt").exists(), "--lockfile-only runs no script");
+
+        Command::cargo_bin("pnpm")
+            .expect("find the pnpm binary")
+            .with_current_dir(&workspace)
+            .with_args(["install", "--frozen-lockfile", "--ignore-manifest-check"])
+            .assert()
+            .success();
+        assert_eq!(stages(&workspace), ["preinstall false", "postinstall true"]);
 
         drop((root, mock_instance));
     }

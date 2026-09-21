@@ -172,6 +172,7 @@ fn run_apply_scripts<Reporter: self::Reporter>(
         project_manifests: inputs.projects.importers.manifests,
         materialized_project_manifests: &state.project_manifests,
         materialized_current_lockfile: state.current_lockfile.as_ref(),
+        root_preinstall_ran: inputs.scripts.root_preinstall_ran,
     })?;
 
     Ok(())

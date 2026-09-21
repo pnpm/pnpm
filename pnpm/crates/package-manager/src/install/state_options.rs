@@ -36,6 +36,9 @@ pub(crate) struct PendingProjectScripts<'a, 'selection> {
     pub(crate) manifest_dir: &'a Path,
     pub(crate) selection: Option<WorkspaceInstallSelection<'selection>>,
     pub(crate) rebuild: Option<RebuildOptions>,
+    /// The root project's `preinstall` already ran ahead of resolution,
+    /// so its run after linking starts at `install`.
+    pub(crate) root_preinstall_ran: bool,
 }
 
 pub(crate) struct ApplyCompletionContext {
