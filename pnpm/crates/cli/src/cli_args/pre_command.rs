@@ -18,7 +18,7 @@ use super::{
     lockfile_dir::LockfileDirArg,
     package_manager::{
         PACKAGE_MANAGER_SWITCH_ENV_VARS, PackageManagerToSync, WantedPackageManager,
-        package_manager_to_sync, read_manifest_json, should_persist_package_manager_lockfile,
+        package_manager_to_sync, read_root_manifest, should_persist_package_manager_lockfile,
         version_satisfies, wanted_package_manager,
     },
     reporter::reporter_emit,
@@ -136,7 +136,7 @@ fn pre_command_plan_from_input(
         manifest: config.workspace_dir.clone().unwrap_or_else(|| dir.clone()),
         env: config.root_project_manifest_dir(&dir).to_path_buf(),
     };
-    let manifest = read_manifest_json(&roots.manifest.join("package.json"))?;
+    let manifest = read_root_manifest(&roots.manifest)?;
 
     let wanted_pm = manifest.as_ref().and_then(wanted_package_manager);
     let running_matches_pin = pin_matches_running(wanted_pm.as_ref());

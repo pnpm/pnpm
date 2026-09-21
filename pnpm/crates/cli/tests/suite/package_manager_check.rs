@@ -231,6 +231,51 @@ fn a_command_outside_the_install_family_records_the_pinned_package_manager() {
     drop((root, npmrc_info));
 }
 
+/// `package.yaml` is a supported manifest, so a pin it declares has to reach
+/// the env lockfile the way a `package.json` pin does (pnpm/pnpm#15167).
+#[test]
+fn a_package_yaml_project_records_the_pinned_package_manager() {
+    let CommandTempCwd {
+        mut pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry_with_pnpm_version(pnpm_config::PNPM_VERSION);
+    write_yaml_manifest(
+        &workspace,
+        &format!(
+            "name: package-yaml-pin\nversion: 1.0.0\ndevEngines:\n  packageManager:\n    name: pnpm\n    version: {}\n    onFail: download\n",
+            pnpm_config::PNPM_VERSION,
+        ),
+    );
+    pacquet.env("PNPM_CONFIG_REGISTRY", npmrc_info.mock_instance.url());
+
+    let output = run(pacquet, root.path(), &["install", "--lockfile-only"]);
+
+    assert_success(&output);
+    let lockfile =
+        fs::read_to_string(workspace.join("pnpm-lock.yaml")).expect("read the written lockfile");
+    assert_contains(&lockfile, "packageManagerDependencies:");
+    assert_contains(&lockfile, &format!("pnpm@{}", pnpm_config::PNPM_VERSION));
+    drop((root, npmrc_info));
+}
+
+/// A `package.yaml` with no package manager pin leaves the env lockfile empty,
+/// the same as a `package.json` without one.
+#[test]
+fn a_package_yaml_project_without_a_pin_writes_no_env_lockfile() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    write_yaml_manifest(&workspace, "name: package-yaml-no-pin\nversion: 1.0.0\n");
+
+    let output = run(pacquet, root.path(), &["install", "--lockfile-only"]);
+
+    assert_success(&output);
+    let lockfile =
+        fs::read_to_string(workspace.join("pnpm-lock.yaml")).expect("read the written lockfile");
+    assert!(!lockfile.contains("packageManagerDependencies:"), "{lockfile}");
+}
+
 /// Adding a pnpm pin to a project whose dependencies are already installed
 /// must still record it. The up-to-date fast path returns before the install
 /// pipeline that writes the entry, so a plain install kept reporting success
@@ -583,6 +628,10 @@ fn run(command: Command, root: &Path, args: &[&str]) -> Output {
 
 fn write_manifest(workspace: &Path, manifest: &serde_json::Value) {
     fs::write(workspace.join("package.json"), manifest.to_string()).expect("write package.json");
+}
+
+fn write_yaml_manifest(workspace: &Path, manifest: &str) {
+    fs::write(workspace.join("package.yaml"), manifest).expect("write package.yaml");
 }
 
 fn write_dev_engines_package_manager(
