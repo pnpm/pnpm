@@ -236,17 +236,32 @@ pub(super) fn run_root_hooks<Reporter: self::Reporter>(
     Ok(())
 }
 /// Whether the root project is among the projects whose own lifecycle
-/// scripts this run fires, taking every project as materialized: the set
-/// the run does materialize is a subset, so a root left out of it fires
-/// nothing after linking either.
+/// scripts this run fires: the projects the selection installs, or every
+/// project when there is none, stand in for the set the run materializes.
 fn root_runs_own_scripts(scope: &RootHooksScope<'_>, normalized_root: &Path) -> bool {
+    let materialized_project_manifests = match scope.scripts.workspace {
+        Some(selection) => {
+            let install_dirs = selection.install_dirs
+                .iter()
+                .map(|dir| pnpm_fs::lexical_normalize(dir))
+                .collect::<HashSet<_>>();
+            scope.project_manifests
+                .iter()
+                .filter(|(project_dir, _)| {
+                    install_dirs.contains(&pnpm_fs::lexical_normalize(project_dir))
+                })
+                .cloned()
+                .collect::<Vec<_>>()
+        }
+        None => scope.project_manifests.to_vec(),
+    };
     projects_running_own_scripts(&ProjectScriptsInputs {
         mutation: scope.scripts.mutation,
         workspace_root: scope.workspace_root,
         active_project_dir: scope.scripts.manifest_dir,
         selected_dirs: scope.scripts.workspace.map(|selection| selection.selected_dirs),
         project_manifests: scope.project_manifests,
-        materialized_project_manifests: scope.project_manifests,
+        materialized_project_manifests: &materialized_project_manifests,
     })
     .iter()
     .any(|(project_dir, _)| pnpm_fs::lexical_normalize(project_dir) == normalized_root)
