@@ -266,20 +266,31 @@ fn read_until_queued(mut stdout: BufReader<impl Read>) -> Result<(), String> {
 fn wait_until_queued(child: &mut Child) {
     let stdout = BufReader::new(child.stdout.take().expect("capture stdout"));
     let (tx, rx) = mpsc::channel();
-    thread::spawn(move || {
+    let reader = thread::spawn(move || {
         let _ = tx.send(read_until_queued(stdout));
     });
     match rx.recv_timeout(Duration::from_secs(30)) {
-        Ok(Ok(())) => {}
-        Ok(Err(rendered)) => panic!(
-            "the run never queued: {rendered} status={:?}",
-            child.try_wait().expect("poll the waiting run"),
-        ),
-        Err(error) => panic!(
-            "timed out waiting for the queue notice ({error}), status={:?}",
-            child.try_wait().expect("poll the waiting run"),
-        ),
+        Ok(Ok(())) => {
+            let _ = reader.join();
+        }
+        Ok(Err(rendered)) => {
+            fail_queued_run(child, reader, &format!("the run never queued: {rendered}"));
+        }
+        Err(error) => {
+            fail_queued_run(
+                child,
+                reader,
+                &format!("timed out waiting for the queue notice ({error})"),
+            );
+        }
     }
+}
+
+fn fail_queued_run(child: &mut Child, reader: thread::JoinHandle<()>, message: &str) -> ! {
+    let _ = child.kill();
+    let status = child.wait().expect("wait for the waiting run");
+    let _ = reader.join();
+    panic!("{message} status={status:?}");
 }
 
 fn queued_run(pacquet: &Command, script: &str, run_id: &str, order_log: &Path) -> Child {
