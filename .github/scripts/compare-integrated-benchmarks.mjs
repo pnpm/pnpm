@@ -33,6 +33,17 @@ export function compare (report, engine) {
   return { head: headMedian, base: baseMedian, ratio, tolerance, status }
 }
 
+export function compareConfirmed (report, engine) {
+  const initial = compare(report, engine)
+  if (initial.status !== 'Regression') return initial
+  if (!report.confirmation) throw new Error(`Missing confirmation run for ${engine}`)
+  const confirmation = compare(report.confirmation, engine)
+  return {
+    ...initial,
+    status: confirmation.status === 'Regression' ? 'Regression' : 'Inconclusive (not reproduced)',
+  }
+}
+
 function samples (report, name) {
   const matches = report.results.filter(result => (result.command_name ?? result.command) === name)
   if (matches.length !== 1) throw new Error(`Expected one result for ${name}`)
@@ -55,7 +66,7 @@ export async function renderComparison (directory) {
   const lines = [
     '### Same-run regression check',
     '',
-    'HEAD and main are measured on the same runner. The tolerance is 5% of the main median or 2 ms, whichever is larger. A regression requires both the median slowdown and the gap between the fastest retained HEAD sample and slowest retained main sample to exceed this tolerance, after trimming up to 10% from each tail. This conservative noise guard is not a statistical confidence interval.',
+    'HEAD and main are measured on the same runner. The tolerance is 5% of the main median or 2 ms, whichever is larger. A regression requires both the median slowdown and the gap between the fastest retained HEAD sample and slowest retained main sample to exceed this tolerance, after trimming up to 10% from each tail. Suspected regressions are rerun once with target order reversed and only fail if reproduced. This conservative noise guard is not a statistical confidence interval.',
     '',
     'Inconclusive rows do not fail the check. They remain visible for performance review. Bencher retains absolute minimum timings for historical tracking; historical alerts do not gate this PR. Sequential measurements can still be affected by runner drift.',
     '',
@@ -67,7 +78,7 @@ export async function renderComparison (directory) {
     const report = JSON.parse(await readFile(join(directory, `BENCHMARK_REPORT_${scenario}.json`), 'utf8'))
     const engines = scenario.includes('PEER_HEAVY') || scenario.includes('LINKED_WORKSPACE') ? ['pacquet'] : ['pacquet', 'pnpr']
     for (const engine of engines) {
-      const result = compare(report, engine)
+      const result = compareConfirmed(report, engine)
       failed ||= result.status === 'Regression'
       lines.push(`| ${scenario.toLowerCase().replaceAll('_', '-')} | ${engine} | ${(result.base * 1000).toFixed(2)} ms | ${(result.head * 1000).toFixed(2)} ms | ${((result.ratio - 1) * 100).toFixed(1)}% | ${(result.tolerance * 1000).toFixed(2)} ms | ${result.status} |`)
     }
