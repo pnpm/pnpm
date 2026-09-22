@@ -447,14 +447,11 @@ fn separate_lockfiles_filtered_recursive_run_checks_selected_project() {
     write_named_manifest(&project_a, "project-a", &marker_a);
     write_named_manifest(&project_b, "project-b", &marker_b);
 
-    // Filtered install for project-a only. project-a gets node_modules and its state file;
-    // workspace root and project-b have no state file.
     pacquet_in(&workspace)
         .with_args(["--filter", "project-a", "install"])
         .assert()
         .success();
 
-    // Filtered run from root targeting project-a must verify project-a and succeed.
     pacquet_in(&workspace)
         .with_args(["--filter", "project-a", "run", "hello"])
         .assert()
@@ -462,20 +459,40 @@ fn separate_lockfiles_filtered_recursive_run_checks_selected_project() {
     assert!(marker_a.exists(), "project-a script must run");
     fs::remove_file(&marker_a).expect("clean marker-a");
 
-    // Filtered script shortcut from root targeting project-a must also verify project-a and succeed.
     pacquet_in(&workspace)
         .with_args(["--filter", "project-a", "hello"])
         .assert()
         .success();
     assert!(marker_a.exists(), "project-a shortcut script must run");
 
-    // Filtered exec targeting project-a must also verify project-a and succeed.
     pacquet_in(&workspace)
         .with_args(["--filter", "project-a", "exec", "node", "-e", "0"])
         .assert()
         .success();
 
-    // Running targeting project-b (which was never installed) must fail the verify check.
+    let project_c = workspace.join("packages/project-c");
+    fs::create_dir_all(&project_c).expect("create project-c");
+    fs::write(
+        project_c.join("package.json"),
+        json!({ "name": "project-c", "version": "1.0.0" }).to_string(),
+    )
+    .expect("write project-c package.json");
+
+    pacquet_in(&workspace)
+        .with_args([
+            "--filter",
+            "project-a",
+            "--filter",
+            "project-c",
+            "run",
+            "--if-present",
+            "hello",
+        ])
+        .assert()
+        .success();
+    assert!(marker_a.exists(), "project-a script must run with uninstalled project-c skipped");
+    fs::remove_file(&marker_a).expect("clean marker-a");
+
     let output = pacquet_in(&workspace)
         .with_args(["--filter", "project-b", "run", "hello"])
         .output()
@@ -487,7 +504,6 @@ fn separate_lockfiles_filtered_recursive_run_checks_selected_project() {
         "expected the verify-deps error for uninstalled project:\n{stderr}",
     );
 
-    // If project-a's dependencies become out of sync, filtered run must fail.
     write_named_manifest_with_dependency_groups(
         &project_a,
         "project-a",
@@ -506,7 +522,6 @@ fn separate_lockfiles_filtered_recursive_run_checks_selected_project() {
         "expected verify-deps error for out-of-sync project:\n{stderr}",
     );
 
-    // Install project-b and restore project-a to in-sync.
     write_named_manifest(&project_a, "project-a", &marker_a);
     pacquet_in(&workspace)
         .with_args(["--filter", "project-a", "install"])
@@ -516,9 +531,8 @@ fn separate_lockfiles_filtered_recursive_run_checks_selected_project() {
         .with_args(["--filter", "project-b", "install"])
         .assert()
         .success();
-    fs::remove_file(&marker_a).expect("clean marker-a");
+    let _ = fs::remove_file(&marker_a);
 
-    // Recursive run across all workspace projects succeeds without a root state file.
     pacquet_in(&workspace)
         .with_args(["--recursive", "run", "hello"])
         .assert()

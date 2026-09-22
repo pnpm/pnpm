@@ -12,6 +12,7 @@ use pnpm_config::{Config, VerifyDepsBeforeRun};
 use pnpm_default_reporter::colors::Colors;
 use pnpm_package_manager::{RunDepsStatus, check_deps_status_before_run_at};
 use std::{
+    collections::HashSet,
     io::IsTerminal,
     path::Path,
     process::{Command, exit},
@@ -91,10 +92,18 @@ pub(crate) fn verify_deps_before_recursive_run<ProjectPath: AsRef<Path>>(
     if !config.verify_deps_before_run.is_enabled() {
         return Ok(());
     }
+    let mut seen = HashSet::new();
+    let project_dirs: Vec<ProjectPath> = selected_project_dirs
+        .into_iter()
+        .filter(|dir| seen.insert(dir.as_ref().to_path_buf()))
+        .collect();
+    if project_dirs.is_empty() {
+        return Ok(());
+    }
     if config.shares_one_lockfile() {
         verify_deps_before_run(workspace_root, config, reporter)
     } else {
-        for project_dir in selected_project_dirs {
+        for project_dir in project_dirs {
             verify_deps_before_run(project_dir.as_ref(), config, reporter)?;
         }
         Ok(())

@@ -139,15 +139,12 @@ pub fn run_recursive(
         return Ok(());
     }
 
-    if !args.dry_run {
-        verify_deps_before_recursive_run(workspace_root, graph.keys(), config, reporter)?;
-    }
-
     let run = RecursiveRun {
         args,
         config,
         dir,
         graph,
+        reporter,
         selection: &selection,
         workspace_root,
         script: RecursiveScript {
@@ -180,6 +177,7 @@ struct RecursiveRun<'a, 'project> {
     config: &'a Config,
     dir: &'a Path,
     graph: &'a ProjectGraph<GraphPkg<'project>>,
+    reporter: ReporterType,
     selection: &'a crate::cli_args::recursive::RecursiveSelection<'project>,
     workspace_root: &'a Path,
     script: RecursiveScript<'a>,
@@ -213,6 +211,16 @@ impl RecursiveRun<'_, '_> {
         let Some(prepared) = self.prepare()? else {
             return Ok(());
         };
+        let projects_to_verify = prepared.task_graph
+            .values()
+            .filter(|node| !node.scripts.is_empty())
+            .map(|node| node.project.as_path());
+        verify_deps_before_recursive_run(
+            self.workspace_root,
+            projects_to_verify,
+            self.config,
+            self.reporter,
+        )?;
         let results = self.execute(&prepared)?;
         report_run_outcome(
             &RunReporting {

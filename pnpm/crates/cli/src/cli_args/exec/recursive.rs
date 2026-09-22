@@ -106,17 +106,7 @@ pub async fn exec_recursive(
         return Ok(());
     }
 
-    verify_deps_before_recursive_run(workspace_root, selection.selected.keys(), config, reporter)?;
-
-    execute_selection(
-        args,
-        config,
-        dir,
-        reporter_emit(reporter),
-        &command,
-        workspace_root,
-        &selection,
-    )
+    execute_selection(args, config, dir, &command, workspace_root, &selection, reporter)
 }
 
 /// What identifies an exec run in the task-run state: its command line and
@@ -251,15 +241,13 @@ fn exec_process_tracker(bail: bool, runs_concurrently: bool) -> Option<ProcessTr
     Some(if runs_concurrently { ProcessTracker::default() } else { ProcessTracker::foreground() })
 }
 
-fn execute_selection(
+fn prepare_exec_tasks(
     args: &ExecArgs,
     config: &Config,
-    dir: &Path,
-    emit: fn(&LogEvent),
-    command: &[String],
     workspace_root: &Path,
     selection: &crate::cli_args::recursive::RecursiveSelection<'_>,
-) -> miette::Result<()> {
+    emit: fn(&LogEvent),
+) -> miette::Result<(TaskGraph, Vec<TaskKey>, crate::cli_args::task_run_state::TaskRunState)> {
     let full_task_graph =
         build_exec_task_graph(args, &selection.selected, selection, &args.command[0]);
     let state_inputs = ExecStateInputs::new(args, config);
@@ -287,9 +275,30 @@ fn execute_selection(
             emit,
         },
     )?;
-
     let task_run_state =
         task_run_state_context.start(&initially_completed(&full_task_graph, &task_graph))?;
+    Ok((task_graph, sequenced_tasks, task_run_state))
+}
+
+fn execute_selection(
+    args: &ExecArgs,
+    config: &Config,
+    dir: &Path,
+    command: &[String],
+    workspace_root: &Path,
+    selection: &crate::cli_args::recursive::RecursiveSelection<'_>,
+    reporter: ReporterType,
+) -> miette::Result<()> {
+    let emit = reporter_emit(reporter);
+    let (task_graph, sequenced_tasks, task_run_state) =
+        prepare_exec_tasks(args, config, workspace_root, selection, emit)?;
+
+    let projects_to_verify: Vec<&Path> = task_graph
+        .values()
+        .map(|node| node.project.as_path())
+        .collect();
+    verify_deps_before_recursive_run(workspace_root, projects_to_verify, config, reporter)?;
+
     let run = ExecRun {
         args,
         config,
