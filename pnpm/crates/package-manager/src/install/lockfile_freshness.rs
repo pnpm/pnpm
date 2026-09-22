@@ -97,15 +97,7 @@ async fn workspace_manifests_satisfy(
     let project_manifests =
         build_project_manifests_list(check.manifest, workspace_projects.as_deref());
     let workspace_packages = workspace_packages_for_freshness(check, workspace_projects.as_deref());
-    let manifest_freshness_inputs: Vec<(String, &PackageManifest)> = project_manifests
-        .iter()
-        .map(|(project_dir, project_manifest)| {
-            (
-                pnpm_workspace::importer_id_from_root_dir(lockfile_root, project_dir),
-                *project_manifest,
-            )
-        })
-        .collect();
+    let manifest_freshness_inputs = manifest_freshness_inputs(lockfile_root, &project_manifests);
     check_lockfile_freshness(
         check.lockfile,
         &LockfileFreshnessInputs {
@@ -125,6 +117,23 @@ async fn workspace_manifests_satisfy(
     )
     .await
     .is_ok()
+}
+
+/// Importer IDs paired with their manifests, the form
+/// [`check_lockfile_freshness`] matches lockfile importers against.
+fn manifest_freshness_inputs<'manifest>(
+    lockfile_root: &Path,
+    project_manifests: &[(PathBuf, &'manifest PackageManifest)],
+) -> Vec<(String, &'manifest PackageManifest)> {
+    project_manifests
+        .iter()
+        .map(|(project_dir, project_manifest)| {
+            (
+                pnpm_workspace::importer_id_from_root_dir(lockfile_root, project_dir),
+                *project_manifest,
+            )
+        })
+        .collect()
 }
 
 fn workspace_packages_for_freshness(

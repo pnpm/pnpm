@@ -170,22 +170,6 @@ pub fn find_workspace_projects_no_check(
     read_projects(group_manifests_by_root(manifest_paths, workspace_root))
 }
 
-/// Resolve pnpm-managed directories against the workspace root into
-/// absolute, lexically-normalized paths. Lexical rather than
-/// canonicalized: discovery compares these against walked paths
-/// textually, and both sides are built from the same `workspace_root`,
-/// so a symlinked root cannot desynchronize the comparison the way it
-/// could a canonicalized one.
-fn resolve_ignored_directories(
-    workspace_root: &Path,
-    ignored_directories: &[PathBuf],
-) -> Vec<PathBuf> {
-    ignored_directories
-        .iter()
-        .map(|dir| pnpm_fs::lexical_normalize(&workspace_root.join(dir)))
-        .collect()
-}
-
 /// wax's `not` takes a single pattern; combine the ignores with
 /// `wax::any` so the walk filters them all in one pass.
 fn dot_pruning_ignore_template() -> Result<wax::Any<'static>, FindWorkspaceProjectsError> {
@@ -504,31 +488,6 @@ fn manifest_walk_ignores<'a>(
     wax::any(patterns)
 }
 
-/// Ignore globs that prune pnpm-managed directories from the walk,
-/// expressed relative to `walk_root` — the path form wax `not` filters
-/// match candidates against. A managed directory outside `walk_root`
-/// can never match a walked entry, so it contributes no glob; the
-/// per-entry check in [`collect_walk_manifests`] still covers it.
-fn managed_directory_ignores(walk_root: &Path, ignored_directories: &[PathBuf]) -> Vec<String> {
-    ignored_directories
-        .iter()
-        .filter_map(|dir| pathdiff::diff_paths(dir, walk_root))
-        .filter(|relative| !relative.as_os_str().is_empty() && !relative.starts_with(".."))
-        .map(|relative| {
-            // Escape glob meta-characters: a managed directory is an
-            // opaque path (e.g. a `storeDir` containing `[` or `*`),
-            // never a pattern.
-            let mut glob = relative
-                .components()
-                .map(|component| wax::escape(&component.as_os_str().to_string_lossy()).into_owned())
-                .collect::<Vec<_>>()
-                .join("/");
-            glob.push_str("/**");
-            glob
-        })
-        .collect()
-}
-
 /// Read `root_dir`'s project from the first readable candidate.
 /// `Ok(None)` when every candidate is gone or names no importer
 /// manifest — the root then simply isn't a project.
@@ -580,6 +539,7 @@ mod tests;
 mod walk;
 use walk::{
     SpecializedPattern, collect_literal_manifests_in, collect_manifests_in_children,
-    collect_walk_manifests, is_literal_pattern, normalize_manifest_patterns,
-    positional_dot_ignores, specialized_pattern, split_parent_prefix,
+    collect_walk_manifests, is_literal_pattern, managed_directory_ignores,
+    normalize_manifest_patterns, positional_dot_ignores, resolve_ignored_directories,
+    specialized_pattern, split_parent_prefix,
 };

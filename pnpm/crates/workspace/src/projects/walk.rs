@@ -192,6 +192,50 @@ pub(super) fn is_under_ignored_directory(path: &Path, ignored_directories: &[Pat
         .any(|dir| path.starts_with(dir))
 }
 
+/// Resolve pnpm-managed directories against the workspace root into
+/// absolute, lexically-normalized paths. Lexical rather than
+/// canonicalized: discovery compares these against walked paths
+/// textually, and both sides are built from the same `workspace_root`,
+/// so a symlinked root cannot desynchronize the comparison the way it
+/// could a canonicalized one.
+pub(super) fn resolve_ignored_directories(
+    workspace_root: &Path,
+    ignored_directories: &[PathBuf],
+) -> Vec<PathBuf> {
+    ignored_directories
+        .iter()
+        .map(|dir| pnpm_fs::lexical_normalize(&workspace_root.join(dir)))
+        .collect()
+}
+
+/// Ignore globs that prune pnpm-managed directories from the walk,
+/// expressed relative to `walk_root` — the path form wax `not` filters
+/// match candidates against. A managed directory outside `walk_root`
+/// can never match a walked entry, so it contributes no glob; the
+/// per-entry check in [`collect_walk_manifests`] still covers it.
+pub(super) fn managed_directory_ignores(
+    walk_root: &Path,
+    ignored_directories: &[PathBuf],
+) -> Vec<String> {
+    ignored_directories
+        .iter()
+        .filter_map(|dir| pathdiff::diff_paths(dir, walk_root))
+        .filter(|relative| !relative.as_os_str().is_empty() && !relative.starts_with(".."))
+        .map(|relative| {
+            // Escape glob meta-characters: a managed directory is an
+            // opaque path (e.g. a `storeDir` containing `[` or `*`),
+            // never a pattern.
+            let mut glob = relative
+                .components()
+                .map(|component| wax::escape(&component.as_os_str().to_string_lossy()).into_owned())
+                .collect::<Vec<_>>()
+                .join("/");
+            glob.push_str("/**");
+            glob
+        })
+        .collect()
+}
+
 /// [`IGNORE_PATTERNS`](super::IGNORE_PATTERNS) by hand: `**/node_modules/**` and
 /// `**/bower_components/**` hold exactly when some non-final component
 /// bears one of those names, and a manifest candidate's final component
