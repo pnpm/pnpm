@@ -9,7 +9,7 @@ import {
   execPnpmSync,
 } from '../utils/index.js'
 
-test('frozen install rejects a changed local tarball from a warm store', async () => {
+test.each(['changed', 'deleted', 'directory', 'excluded', 'direct', 'fetch'])('frozen install verifies a %s local tarball from a warm store', async (mutation) => {
   prepareEmpty()
   const packageDir = path.resolve('local-tarball')
   const tarball = path.resolve('local-tarball.tgz')
@@ -20,22 +20,45 @@ test('frozen install rejects a changed local tarball from a warm store', async (
   }))
   fs.writeFileSync(path.join(packageDir, 'index.js'), "module.exports = 'first'\n")
   packLocalTarball(packageDir, tarball)
+  const parentDir = path.resolve('parent')
+  fs.mkdirSync(parentDir)
+  fs.writeFileSync(path.join(parentDir, 'package.json'), JSON.stringify({
+    name: 'parent',
+    version: '1.0.0',
+    dependencies: { 'local-tarball': `file:${tarball}` },
+  }))
+  execPnpmSync(['pack', '--pack-destination', '..'], { cwd: parentDir, expectSuccess: true })
   fs.writeFileSync('package.json', JSON.stringify({
     name: 'project',
     version: '1.0.0',
-    dependencies: {
-      'local-tarball': 'file:./local-tarball.tgz',
-    },
+    [mutation === 'excluded' ? 'devDependencies' : 'dependencies']: mutation === 'direct'
+      ? { 'local-tarball': 'file:./local-tarball.tgz' }
+      : { parent: 'file:./parent-1.0.0.tgz' },
   }))
 
   await execPnpm(['install'])
 
-  fs.writeFileSync(path.join(packageDir, 'index.js'), "module.exports = 'second'\n")
-  packLocalTarball(packageDir, tarball)
+  if (['changed', 'direct', 'fetch'].includes(mutation)) {
+    fs.writeFileSync(path.join(packageDir, 'index.js'), "module.exports = 'second'\n")
+    packLocalTarball(packageDir, tarball)
+  } else {
+    fs.rmSync(tarball)
+    if (mutation === 'directory') fs.mkdirSync(tarball)
+  }
 
-  const { status, stderr } = execPnpmSync(['install', '--frozen-lockfile'])
+  if (mutation === 'fetch') {
+    fs.writeFileSync('package.json', JSON.stringify({ name: 'project', version: '1.0.0' }))
+    fs.writeFileSync('pnpm-lock.yaml', fs.readFileSync('pnpm-lock.yaml', 'utf8').replace('\n  .:', '\n  packages/app:'))
+  }
+  const { status, stdout, stderr } = execPnpmSync(mutation === 'fetch'
+    ? ['fetch']
+    : ['install', '--frozen-lockfile', ...(mutation === 'excluded' ? ['--prod'] : [])], { env: { CI: 'true' } })
+  if (mutation === 'excluded') {
+    expect(status).toBe(0)
+    return
+  }
   expect(status).not.toBe(0)
-  expect(stderr.toString()).toContain('ERR_PNPM_TARBALL_INTEGRITY')
+  expect(stdout.toString() + stderr.toString()).toContain(['changed', 'direct', 'fetch'].includes(mutation) ? 'ERR_PNPM_TARBALL_INTEGRITY' : tarball)
 })
 
 function packLocalTarball (packageDir: string, tarball: string): void {

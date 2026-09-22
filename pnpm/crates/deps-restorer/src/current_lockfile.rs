@@ -15,7 +15,7 @@
 //! actually run.
 
 mod reachability;
-use reachability::collect_reachable;
+pub use reachability::{ReachableLockfileGraph, collect_reachable};
 
 use std::{
     collections::{HashMap, HashSet},

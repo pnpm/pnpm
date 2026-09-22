@@ -251,10 +251,8 @@ pub(crate) fn check_optimistic_repeat_install_ignoring(
     // When only the lockfile changed, every project is validated rather
     // than just the modified ones.
     let projects_to_check = drift.projects_to_check(modified);
-    let filesystem_now = check
-        .is_workspace_install
-        .then(|| filesystem_now_ms(check.workspace_root))
-        .flatten();
+    let filesystem_now =
+        check.is_workspace_install.then(|| filesystem_now_ms(check.workspace_root)).flatten();
     match modified_manifests_match_lockfile(
         check,
         &state,
@@ -418,7 +416,13 @@ fn settings_block_fast_path(
         config,
         project_manifests,
         catalogs,
-        layout: crate::RepeatInstallLayout { node_linker, included, supported_architectures, .. },
+        layout:
+            crate::RepeatInstallLayout {
+                node_linker,
+                included,
+                supported_architectures,
+                ..
+            },
         ..
     } = check;
     if !settings_match(
@@ -460,7 +464,12 @@ fn lockfile_inputs_block_fast_path(
     state: &WorkspaceState,
     moved: bool,
 ) -> Option<&'static str> {
-    let &OptimisticRepeatInstallCheck { workspace_root, config, is_workspace_install, .. } = check;
+    let &OptimisticRepeatInstallCheck {
+        workspace_root,
+        config,
+        is_workspace_install,
+        ..
+    } = check;
     // Single-project installs require a lockfile to even attempt the
     // fast path. The single-project branch raises
     // `RUN_CHECK_DEPS_LOCKFILE_NOT_FOUND` when the wanted-lockfile
@@ -482,16 +491,12 @@ fn lockfile_inputs_block_fast_path(
     // materialized, and pnpm refuses the substitution for the same
     // reason.
     if config.use_git_branch_lockfile
-        && !workspace_root
-            .join(config.wanted_lockfile_name())
-            .exists()
+        && !workspace_root.join(config.wanted_lockfile_name()).exists()
     {
         return Some("the branch lockfile is missing");
     }
     if !is_workspace_install
-        && !workspace_root
-            .join(config.wanted_lockfile_name())
-            .exists()
+        && !workspace_root.join(config.wanted_lockfile_name()).exists()
         && !current_lockfile_file_has_content(&config.virtual_store_dir)
     {
         return Some("wanted lockfile missing");
@@ -548,15 +553,17 @@ fn patches_modified_since(workspace_root: &Path, config: &Config, cutoff_ms: i64
     let Some(patches) = config.patched_dependencies.as_ref() else {
         return false;
     };
-    patches.values().any(|rel_or_abs| {
-        let candidate = Path::new(rel_or_abs);
-        let path = if candidate.is_absolute() {
-            candidate.to_path_buf()
-        } else {
-            workspace_root.join(candidate)
-        };
-        file_mtime(&path).is_some_and(|mtime| modified_at_or_after(mtime, cutoff_ms))
-    })
+    patches
+        .values()
+        .any(|rel_or_abs| {
+            let candidate = Path::new(rel_or_abs);
+            let path = if candidate.is_absolute() {
+                candidate.to_path_buf()
+            } else {
+                workspace_root.join(candidate)
+            };
+            file_mtime(&path).is_some_and(|mtime| modified_at_or_after(mtime, cutoff_ms))
+        })
 }
 
 /// The pnpmfile list recorded in the workspace state and compared by
@@ -601,13 +608,15 @@ fn pnpmfiles_drift(
     if current != previous {
         return Some("The list of pnpmfiles changed.".to_string());
     }
-    current.iter().find_map(|path| {
-        let Some(mtime) = file_mtime(Path::new(path)) else {
-            return Some(format!(r#"pnpmfile at "{path}" was removed"#));
-        };
-        modified_at_or_after(mtime, cutoff_ms)
-            .then(|| format!(r#"pnpmfile at "{path}" was modified"#))
-    })
+    current
+        .iter()
+        .find_map(|path| {
+            let Some(mtime) = file_mtime(Path::new(path)) else {
+                return Some(format!(r#"pnpmfile at "{path}" was removed"#));
+            };
+            modified_at_or_after(mtime, cutoff_ms)
+                .then(|| format!(r#"pnpmfile at "{path}" was modified"#))
+        })
 }
 
 #[cfg(test)]

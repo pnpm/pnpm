@@ -48,6 +48,7 @@ import {
 } from '@pnpm/installing.deps-resolver'
 import { extendProjectsWithTargetDirs, headlessInstall, type InstallationResultStats } from '@pnpm/installing.deps-restorer'
 import { type Modules, readModulesManifest, writeModulesManifest } from '@pnpm/installing.modules-yaml'
+import { filterLockfileByImportersAndEngine } from '@pnpm/lockfile.filtering'
 import {
   type CatalogSnapshots,
   cleanGitBranchLockfiles,
@@ -74,7 +75,7 @@ import {
   resolvePatchedDependencies,
 } from '@pnpm/lockfile.settings-checker'
 import { PACKAGE_MAP_FILENAME, removePackageMap, writePackageMap, writePnpFile } from '@pnpm/lockfile.to-pnp'
-import { allProjectsAreUpToDate, catalogResolutionIsStale, catalogResolutionsAreUpToDate, findLocalTarballIntegrityMismatch, satisfiesPackageManifest } from '@pnpm/lockfile.verification'
+import { allProjectsAreUpToDate, catalogResolutionIsStale, catalogResolutionsAreUpToDate, findPackageTarballIntegrityMismatch, satisfiesPackageManifest } from '@pnpm/lockfile.verification'
 import { logger, streamParser } from '@pnpm/logger'
 import { groupPatchedDependencies, type PatchGroupRecord } from '@pnpm/patching.config'
 import { createVersionSpecFromResolvedVersion, getAllDependenciesFromManifest, getAllUniqueSpecs, getSpecFromPackageManifest, guessDependencyType } from '@pnpm/pkg-manifest.utils'
@@ -1641,22 +1642,35 @@ Note that in CI environments, this setting is enabled by default.`,
 
   Failure reason:
   ${detailedReason ?? ''}`,
-          })
+            })
         }
       }
     }
     if (frozenLockfile) {
       const fileIntegrityCache = new Map<string, Promise<string>>()
-      for (const { id } of Object.values(ctx.projects)) {
-        const importer = ctx.wantedLockfile.importers[id]
-        if (importer == null) continue
-        const mismatch = await findLocalTarballIntegrityMismatch({
+      const importerIds = opts.ignorePackageManifest === true || opts.nodeLinker === 'hoisted'
+        ? Object.keys(ctx.wantedLockfile.importers) as ProjectId[]
+        : projects.map(({ rootDir }) => ctx.projects[rootDir].id)
+      const { lockfile } = filterLockfileByImportersAndEngine(ctx.wantedLockfile, importerIds, {
+        include: opts.include,
+        currentEngine: {
+          nodeVersion: opts.nodeVersion,
+          pnpmVersion: opts.packageManager.name === 'pnpm' ? opts.packageManager.version : '',
+        },
+        engineStrict: opts.engineStrict,
+        failOnMissingDependencies: false,
+        includeIncompatiblePackages: true,
+        lockfileDir: opts.lockfileDir,
+        skipped: new Set(),
+        skipRuntimes: opts.skipRuntimes,
+        supportedArchitectures: opts.supportedArchitectures,
+      })
+      await Promise.all(Object.values(lockfile.packages ?? {}).map(async (snapshot) => {
+        const mismatch = await findPackageTarballIntegrityMismatch({
           fileIntegrityCache,
-          includedDependencies: opts.include,
-          lockfilePackages: ctx.wantedLockfile.packages,
           lockfileDir: opts.lockfileDir,
-        }, { snapshot: importer })
-        if (mismatch == null) continue
+        }, snapshot)
+        if (mismatch == null) return
         throw new TarballIntegrityError({
           algorithm: mismatch.expected.split('-', 1)[0] ?? 'sha512',
           expected: mismatch.expected,
@@ -1664,7 +1678,7 @@ Note that in CI environments, this setting is enabled by default.`,
           sri: mismatch.expected,
           url: mismatch.path,
         })
-      }
+      }))
     }
     if (opts.lockfileOnly) {
       // The lockfile will only be changed if the workspace will have new projects with no dependencies.
