@@ -186,11 +186,7 @@ fn skip_non_existing_optional_dependency() {
     drop((root, npmrc_info)); // cleanup
 }
 
-/// An optional dependency the install could not resolve is left out of
-/// the lockfile. A frozen install of that lockfile, explicit or the CI
-/// default, must skip it again and report it, instead of rejecting the
-/// lockfile as outdated
-/// ([pnpm/pnpm#3960](https://github.com/pnpm/pnpm/issues/3960)).
+/// Regression test for [pnpm/pnpm#3960](https://github.com/pnpm/pnpm/issues/3960).
 #[test]
 fn frozen_install_skips_the_optional_dependency_the_lockfile_left_out() {
     let CommandTempCwd {

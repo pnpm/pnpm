@@ -1628,7 +1628,8 @@ Note that in CI environments, this setting is enabled by default.`,
     }
     // Optional dependencies the install that wrote the lockfile could not
     // resolve. A frozen install skips them again and reports each one the way
-    // the resolver does; a delegated install leaves the report to pacquet.
+    // the resolver does. The report stays here on a delegated install too:
+    // pacquet runs with `--ignore-manifest-check` and reports nothing.
     const skippedOptionalDependencies: Array<{ prefix: string, skipped: Record<string, string> }> = []
     if (!opts.ignorePackageManifest) {
       // `--frozen-lockfile` (the CI default) means "fail if pnpm-lock.yaml is
@@ -1699,6 +1700,16 @@ Note that in CI environments, this setting is enabled by default.`,
     } else {
       logger.info({ message: 'Lockfile is up to date, resolution step is skipped', prefix: opts.lockfileDir })
     }
+    for (const { prefix, skipped } of skippedOptionalDependencies) {
+      for (const [name, bareSpecifier] of Object.entries(skipped)) {
+        skippedOptionalDependencyLogger.debug({
+          package: { name, version: bareSpecifier, bareSpecifier },
+          parents: [],
+          prefix,
+          reason: 'resolution_failure',
+        })
+      }
+    }
     if (opts.runPacquet != null && opts.useLockfile && !opts.useGitBranchLockfile && !opts.mergeGitBranchLockfiles && !isCheckOnlyInstall(opts) && opts.enableModulesDir) {
       try {
         await opts.runPacquet.run({ rootProjectPreinstallRan })
@@ -1718,16 +1729,6 @@ Note that in CI environments, this setting is enabled by default.`,
           }
         }),
         ignoredBuilds: undefined,
-      }
-    }
-    for (const { prefix, skipped } of skippedOptionalDependencies) {
-      for (const [name, bareSpecifier] of Object.entries(skipped)) {
-        skippedOptionalDependencyLogger.debug({
-          package: { name, version: bareSpecifier, bareSpecifier },
-          parents: [],
-          prefix,
-          reason: 'resolution_failure',
-        })
       }
     }
     try {

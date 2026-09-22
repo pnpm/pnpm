@@ -433,6 +433,43 @@ test('frozen-lockfile: an optional dependency that could not be resolved is skip
   expect(fs.readFileSync(WANTED_LOCKFILE, 'utf8')).toBe(lockfileBefore)
 })
 
+test('frozen-lockfile: an optional dependency that could not be resolved is reported when the install is delegated to pacquet', async () => {
+  prepareEmpty()
+  const manifest = {
+    dependencies: {
+      'is-positive': '1.0.0',
+    },
+    optionalDependencies: {
+      '@pnpm.e2e/i-do-not-exist': '1000',
+    },
+  }
+  await install(manifest, testDefaults())
+
+  const reporter = jest.fn()
+  const runPacquet = jest.fn<() => Promise<void>>().mockResolvedValue(undefined)
+  await install(manifest, testDefaults({
+    frozenLockfile: true,
+    reporter,
+    runPacquet: {
+      supportsResolution: true,
+      run: runPacquet,
+    },
+  }))
+
+  expect(runPacquet).toHaveBeenCalled()
+  expect(reporter).toHaveBeenCalledWith(expect.objectContaining({
+    name: 'pnpm:skipped-optional-dependency',
+    package: {
+      bareSpecifier: '1000',
+      name: '@pnpm.e2e/i-do-not-exist',
+      version: '1000',
+    },
+    parents: [],
+    prefix: process.cwd(),
+    reason: 'resolution_failure',
+  }))
+})
+
 test('frozen-lockfile: installation fails if the value of auto-install-peers changes', async () => {
   prepareEmpty()
   const manifest = {

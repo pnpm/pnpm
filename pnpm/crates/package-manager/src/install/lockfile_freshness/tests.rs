@@ -76,10 +76,7 @@ importers:
     );
 }
 
-/// An `optionalDependencies` entry the lockfile has no importer entry for
-/// was skipped by the install that wrote it. Only the frozen path may treat
-/// it as satisfied, and it must not excuse a missing regular dependency
-/// ([pnpm/pnpm#3960](https://github.com/pnpm/pnpm/issues/3960)).
+/// Regression test for [pnpm/pnpm#3960](https://github.com/pnpm/pnpm/issues/3960).
 #[test]
 fn unresolved_optional_dependency_is_satisfied_only_when_allowed() {
     let root = tempdir().expect("create fixture directory");
