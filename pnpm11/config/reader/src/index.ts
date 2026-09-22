@@ -1291,8 +1291,6 @@ function getNodeVersionFromEnginesRuntime (manifest: ProjectManifest): string | 
     const version = nodeRuntime.version.trim()
     if (!semver.validRange(version)) continue
     if (nodeRuntime.onFail !== 'download') {
-      // A range stands for the Node.js already on the system, so only an exact
-      // version names the runtime pnpm would provision.
       return semver.valid(version) ?? undefined
     }
     const minVersion = semver.minVersion(version)
