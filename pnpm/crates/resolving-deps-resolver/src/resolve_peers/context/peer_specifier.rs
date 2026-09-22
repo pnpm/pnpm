@@ -107,24 +107,21 @@ pub(in super::super) fn remap_link_node_id(
     Some(NodeId::leaf(&format!("link:{rel}")))
 }
 
-/// Pull `(name, version)` out of a `ResolveResult` the peer-resolution
-/// stage can hash and compare on.
-///
-/// The npm-registry resolver always fills [`pnpm_resolving_resolver_base::ResolvedPackageInfo::name_ver`],
-/// so the fast path lifts it straight out. The git / tarball / local
-/// resolvers leave it `None` (their canonical name lives in the
-/// fetched manifest, which the resolver doesn't read at resolve
-/// time); for those, fall back to `(alias, id-as-string)`. The peer
-/// graph machinery only ever looks the name up in
-/// [`crate::ResolvedTree::all_peer_dep_names`] — a set built by parsing the
-/// peer dependencies of npm-shaped packages — so the fallback's
-/// "name" will simply miss every lookup, naturally short-circuiting
-/// peer propagation for non-npm packages without panicking on
-/// `name_ver = None`.
+/// The package name and version used for peer compatibility checks.
+/// Uses the fetched manifest version when the resolver omits
+/// [`pnpm_resolving_resolver_base::ResolvedPackageInfo::name_ver`].
 pub(in super::super) fn pkg_name_version(result: &ResolveResult) -> (String, String) {
     let version = result.package.name_ver
         .as_ref()
-        .map_or_else(|| result.id.as_str().to_string(), |name_ver| name_ver.suffix.to_string());
+        .map(|name_ver| name_ver.suffix.to_string())
+        .or_else(|| {
+            result.package.manifest
+                .as_ref()?
+                .get("version")?
+                .as_str()
+                .map(str::to_owned)
+        })
+        .unwrap_or_else(|| result.id.as_str().to_string());
     (pkg_name(result), version)
 }
 
@@ -150,7 +147,10 @@ pub(in super::super) fn pkg_name(result: &ResolveResult) -> String {
 /// Separate from [`pkg_name_version`] on purpose: that version also feeds
 /// semver comparisons, which a qualified string would break.
 pub(in super::super) fn peer_id_pair(result: &ResolveResult) -> PeerId {
-    let (name, version) = pkg_name_version(result);
+    let name = pkg_name(result);
+    let version = result.package.name_ver
+        .as_ref()
+        .map_or_else(|| result.id.as_str().to_string(), |name_ver| name_ver.suffix.to_string());
     let Some(registry_name) = named_registry_of(result) else {
         return PeerId::Pair { name, version };
     };

@@ -16,6 +16,8 @@ use pnpm_testing_utils::{
 };
 use std::{fs, path::Path, process::Command};
 
+mod peers;
+
 fn write_tarball(workspace: &Path, file_name: &str, manifest: &serde_json::Value) {
     fs::write(workspace.join(file_name), tarball_with_manifest(manifest)).expect("write tarball");
 }

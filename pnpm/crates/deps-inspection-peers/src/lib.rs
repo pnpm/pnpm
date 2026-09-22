@@ -387,7 +387,12 @@ fn check_snapshot_peers(inputs: SnapshotPeers<'_>) {
             continue;
         };
 
-        let Some(found_version) = resolved_snapshot_version(dep_ref, inputs.lockfile_dir) else {
+        let Some(found_version) = resolved_snapshot_version(
+            dep_ref,
+            &peer_pkg_name,
+            inputs.packages,
+            inputs.lockfile_dir,
+        ) else {
             continue;
         };
         record_bad_peer(issues, peer_name, inputs.parents, optional, &peer_range, found_version);
@@ -408,11 +413,15 @@ fn snapshot_dependency<'a>(
         })
 }
 
-/// The version a snapshot dependency reference resolves to. A reference that
-/// is neither a registry version nor a link has no version to check against.
-fn resolved_snapshot_version(dep_ref: &SnapshotDepRef, lockfile_dir: &Path) -> Option<String> {
-    if let Some(ver_peer) = dep_ref.ver_peer() {
-        return Some(extract_peer_version(ver_peer));
+/// Resolve a snapshot peer's package version, preferring package metadata.
+fn resolved_snapshot_version(
+    dep_ref: &SnapshotDepRef,
+    peer_name: &PkgName,
+    packages: &HashMap<PkgNameVerPeer, PackageMetadata>,
+    lockfile_dir: &Path,
+) -> Option<String> {
+    if let Some(key) = dep_ref.resolve(peer_name) {
+        return Some(get_pkg_version(&key, packages));
     }
     let link_target = dep_ref.as_link_target()?;
     Some(
