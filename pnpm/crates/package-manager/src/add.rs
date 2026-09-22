@@ -347,6 +347,7 @@ fn begin<Reporter: self::Reporter>(add: AddOptions<'_>, owned: &AddOwned) {
 /// first use, so a pass that resolves no `latest` tag never builds one),
 /// the packument cache and the fetch locker.
 struct AddResolution<'a> {
+    started_at: chrono::DateTime<chrono::Utc>,
     latest_picker: tokio::sync::OnceCell<LatestPicker<'a>>,
     meta_cache: std::sync::Arc<InMemoryPackageMetaCache>,
     fetch_locker: PackumentFetchLocker,
@@ -355,6 +356,7 @@ struct AddResolution<'a> {
 impl AddResolution<'_> {
     fn new() -> Self {
         Self {
+            started_at: chrono::Utc::now(),
             latest_picker: tokio::sync::OnceCell::new(),
             meta_cache: std::sync::Arc::new(InMemoryPackageMetaCache::default()),
             fetch_locker: shared_packument_fetch_locker(),

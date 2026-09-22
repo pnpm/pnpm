@@ -483,3 +483,55 @@ fn an_alias_needs_its_own_types_import_name() {
     assert_eq!(result["devDependencies"]["@types/renamed"], "npm:@types/example@^1.0.0");
     drop(root);
 }
+
+#[test]
+fn jsr_sources_and_direct_jsr_registry_packages_use_their_own_metadata_policy() {
+    for (selector, direct) in [("@jsr/scope__example", true), ("jsr:@scope/example", false)] {
+        let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
+        let mut server = mockito::Server::new();
+        let (_, full) =
+            package_metadata(&server, "@jsr/scope__example", &json!({"types": "index.d.ts"}));
+        let (_, abbreviated) = package_metadata(&server, "@jsr/scope__example", &json!({}));
+        let mut requests = Vec::new();
+        for (accept, body, count) in [
+            ("application/json; q=1.0, */*", full, usize::from(direct)),
+            (
+                "application/vnd.npm.install-v1+json; q=1.0, application/json; q=0.8, */*",
+                abbreviated,
+                2 - usize::from(direct),
+            ),
+        ] {
+            requests.push(
+                server
+                    .mock(
+                        "GET",
+                        mockito::Matcher::Regex("(?i)^/@jsr%2fscope__example$".to_string()),
+                    )
+                    .match_header("accept", accept)
+                    .with_header("content-type", "application/json")
+                    .with_body(body.to_string())
+                    .expect(count)
+                    .create(),
+            );
+        }
+        requests.push(
+            server
+                .mock("GET", mockito::Matcher::Regex("(?i)^/@types".to_string()))
+                .with_status(404)
+                .expect(0)
+                .create(),
+        );
+        setup(&workspace, &server.url());
+        fs::write(
+            workspace.join(".npmrc"),
+            format!("registry={0}/\n@jsr:registry={0}/\n", server.url()),
+        )
+        .unwrap();
+        add(&workspace, &[selector, "--save-types"]).assert().success();
+        assert_eq!(manifest(&workspace)["devDependencies"], Value::Null);
+        for request in requests {
+            request.assert();
+        }
+        drop(root);
+    }
+}

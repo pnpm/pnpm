@@ -49,3 +49,31 @@ async fn type_discovery_shares_metadata_without_fetching_unused_formats() {
         request.assert_async().await;
     }
 }
+
+#[test]
+fn runtime_and_companion_policies_share_the_add_release_age_cutoff() {
+    let mut config = Config::new();
+    config.minimum_release_age = Some(60);
+    let config = config.leak();
+    let http_client = ThrottledClient::default();
+    let names = [];
+    let (mut add, owned) = test_add(config, &http_client, &names, None);
+    add.save_types = true;
+    let started_at = chrono::DateTime::parse_from_rfc3339("2026-01-01T12:00:00Z").unwrap().to_utc();
+    let resolution = crate::add::AddResolution { started_at, ..crate::add::AddResolution::new() };
+    let inputs = crate::add::AddResolveInputs {
+        add,
+        owned: &owned,
+        git_source_cache: &std::sync::Arc::default(),
+        resolution: &resolution,
+        preferred_versions: &std::sync::OnceLock::new(),
+        catalogs: &pnpm_catalogs_types::Catalogs::new(),
+        prefix: "",
+        workspace_packages: None,
+    };
+    let runtime = crate::add::registry::add_pick_policy(&inputs, "foo").unwrap();
+    let companion = crate::add::registry::add_pick_policy(&inputs, "@types/foo").unwrap();
+    let expected = Some(started_at - chrono::Duration::minutes(60));
+    assert_eq!(runtime.published_by, expected);
+    assert_eq!(companion.published_by, expected);
+}

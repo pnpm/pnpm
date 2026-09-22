@@ -30,7 +30,7 @@ pub(super) async fn pick_latest_range(
     let latest = inputs.resolution.latest_picker
         .get_or_try_init(|| {
             std::future::ready(
-                PickPolicy::from_config(config)
+                PickPolicy::from_config_at(config, inputs.resolution.started_at)
                     .map(|policy| {
                         LatestPicker::new(
                             config,
@@ -79,7 +79,7 @@ pub(super) async fn resolve_explicit_registry_spec(
         return Ok(None);
     };
 
-    let policy = add_pick_policy(add, &spec_parsed.name)?;
+    let policy = add_pick_policy(inputs, &spec_parsed.name)?;
     let preferred_versions = inputs.preferred_versions(manifest);
     let ctx = pick_package_context(
         add.http_client,
@@ -111,11 +111,12 @@ pub(super) async fn resolve_explicit_registry_spec(
     )))
 }
 pub(super) fn add_pick_policy(
-    add: AddOptions<'_>,
+    inputs: &AddResolveInputs<'_, '_>,
     package_name: &str,
 ) -> Result<PickPolicy, AddError> {
-    let mut policy =
-        PickPolicy::from_config(add.config).map_err(AddError::MinimumReleaseAgeExclude)?;
+    let add = inputs.add;
+    let mut policy = PickPolicy::from_config_at(add.config, inputs.resolution.started_at)
+        .map_err(AddError::MinimumReleaseAgeExclude)?;
     if needs_types_metadata(add, package_name) {
         // Bundled type declarations are absent from abbreviated and filtered metadata.
         policy.force_unfiltered_full_metadata();
@@ -124,7 +125,7 @@ pub(super) fn add_pick_policy(
 }
 
 fn needs_types_metadata(add: AddOptions<'_>, package_name: &str) -> bool {
-    add.save_types && !package_name.starts_with("@types/") && !package_name.starts_with("@jsr/")
+    add.save_types && !package_name.starts_with("@types/")
 }
 
 /// Registry-host tarball URLs must remain verbatim even though the npm parser accepts them.

@@ -122,7 +122,7 @@ async fn pick_types_metadata(
         return Ok(None);
     };
     let registry = package_registry(inputs.add.config, &spec.name);
-    let policy = add_pick_policy(inputs.add, &spec.name)?;
+    let policy = add_pick_policy(inputs, &spec.name)?;
     let context = pick_package_context(
         inputs.add.http_client,
         inputs.add.config,

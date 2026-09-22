@@ -415,6 +415,8 @@ pub(super) async fn resolve_jsr_save_specifier(
     manifest: &PackageManifest,
     inputs: &AddResolveInputs<'_, '_>,
 ) -> Result<Option<String>, AddError> {
+    let inputs =
+        AddResolveInputs { add: super::AddOptions { save_types: false, ..inputs.add }, ..*inputs };
     let version_selector = spec.version_selector.as_deref().unwrap_or("latest");
     let range = resolve_explicit_registry_spec(
         &spec.npm_pkg_name,
@@ -424,7 +426,7 @@ pub(super) async fn resolve_jsr_save_specifier(
         // find a manifest entry by.
         None,
         manifest,
-        inputs,
+        &inputs,
     )
     .await?;
     Ok(range.map(|range| format!("jsr:{range}")))
