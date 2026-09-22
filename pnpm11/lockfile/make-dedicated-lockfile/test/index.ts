@@ -82,7 +82,7 @@ async function installWorkspace (workspaceDir: string): Promise<void> {
 // Copies the project and its linked dependency out of the workspace, the way a
 // Docker build would, and runs a frozen install from the dedicated lockfile.
 async function installDedicatedCopy (workspaceDir: string): Promise<string[]> {
-  const copyDir = path.join(workspaceDir, 'copy')
+  const copyDir = `${workspaceDir}-copy`
   const skipModules = (src: string) => !src.includes('node_modules')
   for (const project of ['app', 'shared']) {
     fs.cpSync(path.join(workspaceDir, 'packages', project), path.join(copyDir, project), { recursive: true, filter: skipModules })
