@@ -264,6 +264,11 @@ pub struct Config {
     #[default(_code = "default_store_dir::<Host>()")]
     pub store_dir: StoreDir,
 
+    /// Skip the filesystem probe when loading configuration for checks that
+    /// do not use the package store. Store consumers must load configuration
+    /// with this disabled to select a store on the project's volume.
+    pub skip_store_dir_resolution: bool,
+
     /// Whether macOS Time Machine may back up newly created pnpm directories.
     /// Set `macosBackup.excludeModulesDir` or `macosBackup.excludeStoreDir` to `true` in
     /// the global pnpm configuration to exclude them with `tmutil`.

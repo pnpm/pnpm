@@ -68,6 +68,7 @@ fn create_config(
         prefer_symlinked_executables: None,
         shamefully_hoist: false,
         store_dir: StoreDir::new(store_dir),
+        skip_store_dir_resolution: false,
         state_dir: store_dir.join("state"),
         modules_dir: modules_dir.to_path_buf(),
         macos_backup: Default::default(),

@@ -468,3 +468,45 @@ pub fn the_branch_pattern_leaves_an_unmatched_branch_alone() {
     let config = Config::new().current::<HostOnDevelop>(repo.path()).expect("yaml is valid");
     assert!(!config.merge_git_branch_lockfiles);
 }
+
+#[test]
+pub fn skip_store_dir_resolution_avoids_link_probe() {
+    let home = tempdir().expect("home tempdir");
+    static HOME_PATH: std::sync::OnceLock<PathBuf> = std::sync::OnceLock::new();
+    HOME_PATH
+        .set(home.path().to_path_buf())
+        .expect("set once");
+
+    struct PanickingLinkProbeHost;
+    impl EnvVar for PanickingLinkProbeHost {
+        fn var(name: &str) -> Option<String> {
+            safe_host_var(name)
+        }
+    }
+    impl EnvVarOs for PanickingLinkProbeHost {
+        fn var_os(_: &str) -> Option<OsString> {
+            None
+        }
+    }
+    impl GetHomeDir for PanickingLinkProbeHost {
+        fn home_dir() -> Option<PathBuf> {
+            HOME_PATH.get().cloned()
+        }
+    }
+    impl LinkProbe for PanickingLinkProbeHost {
+        fn can_link_between_dirs(_: &Path, _: &Path) -> bool {
+            panic!(
+                "can_link_between_dirs should not be called when skip_store_dir_resolution is true",
+            );
+        }
+    }
+    host_current_dir!(PanickingLinkProbeHost);
+
+    let project = tempdir().expect("project tempdir");
+    let mut config = Config::new();
+    config.skip_store_dir_resolution = true;
+    let loaded = config
+        .current::<PanickingLinkProbeHost>(project.path())
+        .expect("config loads without probing store dir");
+    assert!(loaded.skip_store_dir_resolution);
+}

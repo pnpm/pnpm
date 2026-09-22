@@ -125,12 +125,8 @@ fn pre_command_plan_from_input(
     if input.switch.command.as_deref().is_some_and(should_skip_command_name) {
         return Ok(None);
     }
-    let dir = dunce::canonicalize(&input.switch.paths.dir)
-        .into_diagnostic()
-        .wrap_err_with(|| {
-            format!("canonicalizing the `--dir` argument: {}", input.switch.paths.dir.display())
-        })?;
-    let config = load_pre_command_config(&input.switch, config_overrides, &dir)?;
+    let dir = canonicalize_dir(&input.switch.paths.dir)?;
+    let config = load_pre_command_config(&input.switch, config_overrides, &dir, false)?;
 
     let roots = PinRoots {
         manifest: config.workspace_dir.clone().unwrap_or_else(|| dir.clone()),
@@ -140,32 +136,69 @@ fn pre_command_plan_from_input(
 
     let wanted_pm = manifest.as_ref().and_then(wanted_package_manager);
     let running_matches_pin = pin_matches_running(wanted_pm.as_ref());
-    let package_manager_to_sync = match resolve_input_pin(
-        input,
-        &config,
-        &roots,
-        process_state,
-        manifest.as_ref(),
-        wanted_pm,
-    )? {
-        PinOutcome::Switch(target) => {
-            return Ok(Some(PreCommandPlan::Switch(SwitchPlan { config, target })));
-        }
-        PinOutcome::Sync(sync) => sync,
-    };
+    let outcome =
+        resolve_input_pin(input, &config, &roots, process_state, manifest.as_ref(), wanted_pm)?;
+    let (config, package_manager_to_sync) =
+        match plan_pin_action(outcome, &input.switch, config_overrides, &dir, config)? {
+            PreCommandAction::Switch(plan) => return Ok(Some(PreCommandPlan::Switch(plan))),
+            PreCommandAction::Continue { config, package_manager_to_sync } => {
+                (config, package_manager_to_sync)
+            }
+        };
 
     report_config_warnings(input, &config, running_matches_pin)?;
+    check_manifest_runtimes(input, &config, manifest)?;
+    Ok(package_manager_to_sync.map(|package_manager| {
+        env_lockfile_sync_plan(input, config, roots.env, package_manager)
+    }))
+}
 
+fn canonicalize_dir(path: &Path) -> miette::Result<PathBuf> {
+    dunce::canonicalize(path)
+        .into_diagnostic()
+        .wrap_err_with(|| format!("canonicalizing the `--dir` argument: {}", path.display()))
+}
+
+enum PreCommandAction {
+    Switch(SwitchPlan),
+    Continue { config: Config, package_manager_to_sync: Option<PackageManagerToSync> },
+}
+
+fn plan_pin_action(
+    outcome: PinOutcome,
+    switch: &SwitchInput,
+    config_overrides: &ConfigOverrides,
+    dir: &Path,
+    config: Config,
+) -> miette::Result<PreCommandAction> {
+    match outcome {
+        PinOutcome::Switch(target) => {
+            let config = load_pre_command_config(switch, config_overrides, dir, true)?;
+            Ok(PreCommandAction::Switch(SwitchPlan { config, target }))
+        }
+        PinOutcome::Sync(Some(sync)) => {
+            let config = load_pre_command_config(switch, config_overrides, dir, true)?;
+            Ok(PreCommandAction::Continue { config, package_manager_to_sync: Some(sync) })
+        }
+        PinOutcome::Sync(None) => {
+            Ok(PreCommandAction::Continue { config, package_manager_to_sync: None })
+        }
+    }
+}
+
+fn check_manifest_runtimes(
+    input: &PreCommandInput,
+    config: &Config,
+    manifest: Option<Value>,
+) -> miette::Result<()> {
     if input.check_runtimes
         && !input.skip_pm_handling
         && !input.global
         && let Some(manifest) = manifest
     {
-        check_runtimes(manifest, &config, input.emit)?;
+        check_runtimes(manifest, config, input.emit)?;
     }
-    Ok(package_manager_to_sync.map(|package_manager| {
-        env_lockfile_sync_plan(input, config, roots.env, package_manager)
-    }))
+    Ok(())
 }
 
 /// Whether the manifest's pin names the pnpm that is running.
@@ -201,8 +234,11 @@ fn load_pre_command_config(
     switch: &SwitchInput,
     config_overrides: &ConfigOverrides,
     dir: &Path,
+    resolve_store: bool,
 ) -> miette::Result<Config> {
-    let mut config = seed_config(switch.paths.npmrc_auth_file.as_deref(), switch.ignore_workspace)
+    let mut config = seed_config(switch.paths.npmrc_auth_file.as_deref(), switch.ignore_workspace);
+    config.skip_store_dir_resolution = !resolve_store;
+    let mut config = config
         .current::<Host>(dir)
         .map_err(miette::Report::new)
         .wrap_err("load configuration")?;
