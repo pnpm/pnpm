@@ -101,12 +101,13 @@ async function updateGlobalPackageGroup (
   commands: CommandHandlerMap
 ): Promise<boolean> {
   const installDir = createInstallDir(globalDir)
-  const downgradeCheck = await pinsForDowngrades(opts, installDir, pkg)
+  const groupOpts = withSharedApprovals(opts)
+  const downgradeCheck = await pinsForDowngrades(groupOpts, installDir, pkg)
   const depSpecs = depSpecsForUpdate(pkg.dependencies, opts.latest, downgradeCheck.pins)
   const comparison = downgradeCheck.candidate != null && downgradeCheck.pins.size === 0
     ? downgradeCheck.candidate
     : await installGroup(
-      { ...opts, lockfileOnly: true, groupDependencies: pkg.dependencies },
+      { ...groupOpts, lockfileOnly: true, groupDependencies: pkg.dependencies },
       installDir,
       depSpecs
     )
@@ -127,7 +128,7 @@ async function updateGlobalPackageGroup (
     return false
   }
 
-  const { ignoredBuilds } = await installGroup(opts, installDir, depSpecs)
+  const { ignoredBuilds } = await installGroup(groupOpts, installDir, depSpecs)
 
   await promptApproveGlobalBuilds({
     globalPkgDir: globalDir,
@@ -182,6 +183,28 @@ async function updateGlobalPackageGroup (
   })
   await opts.updateResolutionPolicyManifest?.(comparison.resolutionPolicyViolations, globalDir)
   return true
+}
+
+/**
+ * An update resolves each global group once to decide whether anything changed
+ * and again to materialize it, and both passes report the same immature picks.
+ * Sharing the approval between them keeps the prompt to one per version.
+ */
+function withSharedApprovals (opts: GlobalUpdateOptions): GlobalUpdateOptions {
+  const handleResolutionPolicyViolations = opts.handleResolutionPolicyViolations
+  if (handleResolutionPolicyViolations == null) return opts
+  const approved = new Set<string>()
+  return {
+    ...opts,
+    handleResolutionPolicyViolations: async (violations: readonly ResolutionPolicyViolation[]): Promise<void> => {
+      const pending = violations.filter(({ name, version }) => !approved.has(`${name}@${version}`))
+      if (pending.length === 0) return
+      await handleResolutionPolicyViolations(pending)
+      for (const { name, version } of pending) {
+        approved.add(`${name}@${version}`)
+      }
+    },
+  }
 }
 
 type InstallGroupOptions = GlobalUpdateOptions & {

@@ -711,3 +711,88 @@ test('global update without --latest resolves once before materialization', asyn
     ['foo@^1.0.0']
   )
 })
+
+test('global update approves an immature version once across its resolution passes', async () => {
+  createInstallDir.mockReturnValue('/global/v11/install-1')
+  getHashLink.mockReturnValue('/global/v11/hash-foo')
+  scanGlobalPackages.mockReturnValue([
+    { dependencies: { foo: '^1.0.0' }, hash: 'hash-foo', installDir: '/global/v11/old-foo' },
+  ])
+  const violation = { name: 'foo', version: '2.0.0', code: 'MINIMUM_RELEASE_AGE_VIOLATION', reason: 'published too recently' }
+  installGlobalPackages.mockImplementation(async (...args: unknown[]) => {
+    const installOpts = args[0] as { handleResolutionPolicyViolations?: (violations: unknown[]) => Promise<void> }
+    await installOpts.handleResolutionPolicyViolations?.([violation])
+    return { ignoredBuilds: undefined, resolutionPolicyViolations: [violation], resolvedVersions: { foo: '2.0.0' } }
+  })
+  const handleResolutionPolicyViolations = jest.fn<(violations: unknown[]) => Promise<void>>().mockResolvedValue(undefined)
+
+  await handleGlobalUpdate({
+    bin: '/global/bin',
+    globalPkgDir: '/global/v11',
+    handleResolutionPolicyViolations,
+  } as any, [], {}) // eslint-disable-line @typescript-eslint/no-explicit-any
+
+  expect(installGlobalPackages).toHaveBeenCalledTimes(2)
+  expect(handleResolutionPolicyViolations).toHaveBeenCalledTimes(1)
+  expect(handleResolutionPolicyViolations).toHaveBeenCalledWith([violation])
+  expect(activateGlobalInstall).toHaveBeenCalledTimes(1)
+})
+
+test('global update approves a version only a later resolution pass reports', async () => {
+  createInstallDir.mockReturnValue('/global/v11/install-1')
+  getHashLink.mockReturnValue('/global/v11/hash-foo')
+  scanGlobalPackages.mockReturnValue([
+    { dependencies: { foo: '^1.0.0' }, hash: 'hash-foo', installDir: '/global/v11/old-foo' },
+  ])
+  const first = { name: 'foo', version: '2.0.0', code: 'MINIMUM_RELEASE_AGE_VIOLATION', reason: 'published too recently' }
+  const later = { name: 'bar', version: '3.0.0', code: 'MINIMUM_RELEASE_AGE_VIOLATION', reason: 'published too recently' }
+  let pass = 0
+  installGlobalPackages.mockImplementation(async (...args: unknown[]) => {
+    const installOpts = args[0] as { handleResolutionPolicyViolations?: (violations: unknown[]) => Promise<void> }
+    const violations = pass++ === 0 ? [first] : [first, later]
+    await installOpts.handleResolutionPolicyViolations?.(violations)
+    return { ignoredBuilds: undefined, resolutionPolicyViolations: violations, resolvedVersions: { foo: '2.0.0' } }
+  })
+  const handleResolutionPolicyViolations = jest.fn<(violations: unknown[]) => Promise<void>>().mockResolvedValue(undefined)
+
+  await handleGlobalUpdate({
+    bin: '/global/bin',
+    globalPkgDir: '/global/v11',
+    handleResolutionPolicyViolations,
+  } as any, [], {}) // eslint-disable-line @typescript-eslint/no-explicit-any
+
+  expect(handleResolutionPolicyViolations).toHaveBeenCalledTimes(2)
+  expect(handleResolutionPolicyViolations).toHaveBeenNthCalledWith(1, [first])
+  expect(handleResolutionPolicyViolations).toHaveBeenNthCalledWith(2, [later])
+})
+
+test('global update aborts without installing when the immature version is not approved', async () => {
+  createInstallDir.mockReturnValue('/global/v11/install-1')
+  getHashLink.mockReturnValue('/global/v11/hash-foo')
+  scanGlobalPackages.mockReturnValue([
+    { dependencies: { foo: '^1.0.0' }, hash: 'hash-foo', installDir: '/global/v11/old-foo' },
+  ])
+  const violation = { name: 'foo', version: '2.0.0', code: 'MINIMUM_RELEASE_AGE_VIOLATION', reason: 'published too recently' }
+  installGlobalPackages.mockImplementation(async (...args: unknown[]) => {
+    const installOpts = args[0] as { handleResolutionPolicyViolations?: (violations: unknown[]) => Promise<void> }
+    await installOpts.handleResolutionPolicyViolations?.([violation])
+    return { ignoredBuilds: undefined, resolutionPolicyViolations: [violation], resolvedVersions: { foo: '2.0.0' } }
+  })
+  const handleResolutionPolicyViolations = jest.fn<(violations: unknown[]) => Promise<void>>()
+    .mockRejectedValue(new Error('Aborted: the immature versions were not approved.'))
+
+  await expect(handleGlobalUpdate({
+    bin: '/global/bin',
+    globalPkgDir: '/global/v11',
+    handleResolutionPolicyViolations,
+  } as any, [], {})) // eslint-disable-line @typescript-eslint/no-explicit-any
+    .rejects.toThrow('Aborted: the immature versions were not approved.')
+
+  expect(handleResolutionPolicyViolations).toHaveBeenCalledTimes(1)
+  expect(installGlobalPackages).toHaveBeenCalledTimes(1)
+  expect(installGlobalPackages).toHaveBeenCalledWith(
+    expect.objectContaining({ lockfileOnly: true }),
+    ['foo@^1.0.0']
+  )
+  expect(activateGlobalInstall).not.toHaveBeenCalled()
+})
