@@ -115,7 +115,7 @@ impl InstallArgs {
         {
             return false;
         }
-        if config.cargo.enabled || config.python.enabled {
+        if config.cargo.enabled || config.python.enabled || config.catalog_prune {
             return false;
         }
         // The merge flags reach `config` only in the dispatch, after this

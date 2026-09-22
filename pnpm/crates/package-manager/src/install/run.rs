@@ -168,13 +168,13 @@ where
             pnpm_reporter::emit_global_warning::<Reporter>,
         );
         owned.http_client_arc.set_warning_handler(pnpm_reporter::emit_global_warning::<Reporter>);
+        let mode = RunMode::settle(install, &owned, &options)?;
         if install.should_prune_catalogs(&options) {
             install.prune_workspace_catalogs(
                 &options,
                 owned.projects.workspace_projects_override.as_deref(),
             )?;
         }
-        let mode = RunMode::settle(install, &owned, &options)?;
         let mut workspace = InstallWorkspace::discover::<Reporter>(install, &mut owned, &options)?;
         let loaded_workspace_projects = workspace.loaded_workspace_projects.take();
         Box::pin(
