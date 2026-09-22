@@ -25,10 +25,12 @@ fn write_manifest(workspace: &Path, marker: &Path) {
     );
 }
 
+#[cfg(unix)]
 fn write_named_manifest(workspace: &Path, name: &str, marker: &Path) {
     write_named_manifest_with_dependency_groups(workspace, name, marker, json!({}));
 }
 
+#[cfg(unix)]
 fn write_manifest_with_dependency_groups(
     workspace: &Path,
     marker: &Path,
