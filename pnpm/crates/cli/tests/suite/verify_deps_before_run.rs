@@ -17,18 +17,38 @@ use serde_json::json;
 use std::{fs, path::Path};
 
 fn write_manifest(workspace: &Path, marker: &Path) {
-    write_manifest_with_dependency_groups(workspace, marker, json!({}));
+    write_named_manifest_with_dependency_groups(
+        workspace,
+        "verify-deps-project",
+        marker,
+        json!({}),
+    );
 }
 
-/// The fixture manifest — a `hello` script that touches `marker` —
-/// extended with the dependency groups the caller needs.
+#[cfg(unix)]
+fn write_named_manifest(workspace: &Path, name: &str, marker: &Path) {
+    write_named_manifest_with_dependency_groups(workspace, name, marker, json!({}));
+}
+
+#[cfg(unix)]
 fn write_manifest_with_dependency_groups(
     workspace: &Path,
     marker: &Path,
     groups: serde_json::Value,
 ) {
+    write_named_manifest_with_dependency_groups(workspace, "verify-deps-project", marker, groups);
+}
+
+/// The fixture manifest — a `hello` script that touches `marker` —
+/// extended with the dependency groups the caller needs.
+fn write_named_manifest_with_dependency_groups(
+    workspace: &Path,
+    name: &str,
+    marker: &Path,
+    groups: serde_json::Value,
+) {
     let serde_json::Value::Object(mut manifest) = json!({
-        "name": "verify-deps-project",
+        "name": name,
         "version": "0.0.0",
         "scripts": {
             "hello": format!(r#"touch "{}""#, marker.display()),
@@ -400,6 +420,125 @@ fn separate_lockfiles_allow_a_nested_project_without_a_root_manifest() {
         .assert()
         .success();
     assert!(marker.exists(), "the nested workspace script must run");
+
+    drop(root);
+}
+
+/// With `sharedWorkspaceLockfile: false`, a filtered install writes the state
+/// for the selected project, but not for the workspace root. A recursive or
+/// filtered run from the root must check the selected project's state rather
+/// than expecting a root workspace state file (pnpm/pnpm#15272).
+#[cfg(unix)]
+#[test]
+fn separate_lockfiles_filtered_recursive_run_checks_selected_project() {
+    let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
+    fs::write(
+        workspace.join("pnpm-workspace.yaml"),
+        "verifyDepsBeforeRun: error\nsharedWorkspaceLockfile: false\npackages:\n  - packages/*\n",
+    )
+    .expect("write pnpm-workspace.yaml");
+
+    let project_a = workspace.join("packages/project-a");
+    let project_b = workspace.join("packages/project-b");
+    fs::create_dir_all(&project_a).expect("create project-a");
+    fs::create_dir_all(&project_b).expect("create project-b");
+    let marker_a = project_a.join("marker-a.txt");
+    let marker_b = project_b.join("marker-b.txt");
+    write_named_manifest(&project_a, "project-a", &marker_a);
+    write_named_manifest(&project_b, "project-b", &marker_b);
+
+    pacquet_in(&workspace)
+        .with_args(["--filter", "project-a", "install"])
+        .assert()
+        .success();
+
+    pacquet_in(&workspace)
+        .with_args(["--filter", "project-a", "run", "hello"])
+        .assert()
+        .success();
+    assert!(marker_a.exists(), "project-a script must run");
+    fs::remove_file(&marker_a).expect("clean marker-a");
+
+    pacquet_in(&workspace)
+        .with_args(["--filter", "project-a", "hello"])
+        .assert()
+        .success();
+    assert!(marker_a.exists(), "project-a shortcut script must run");
+
+    pacquet_in(&workspace)
+        .with_args(["--filter", "project-a", "exec", "node", "-e", "0"])
+        .assert()
+        .success();
+
+    let project_c = workspace.join("packages/project-c");
+    fs::create_dir_all(&project_c).expect("create project-c");
+    fs::write(
+        project_c.join("package.json"),
+        json!({ "name": "project-c", "version": "1.0.0" }).to_string(),
+    )
+    .expect("write project-c package.json");
+
+    pacquet_in(&workspace)
+        .with_args([
+            "--filter",
+            "project-a",
+            "--filter",
+            "project-c",
+            "run",
+            "--if-present",
+            "hello",
+        ])
+        .assert()
+        .success();
+    assert!(marker_a.exists(), "project-a script must run with uninstalled project-c skipped");
+    fs::remove_file(&marker_a).expect("clean marker-a");
+
+    let output = pacquet_in(&workspace)
+        .with_args(["--filter", "project-b", "run", "hello"])
+        .output()
+        .expect("spawn pacquet run");
+    assert!(!output.status.success(), "uninstalled project-b must fail");
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        stderr.contains("ERR_PNPM_VERIFY_DEPS_BEFORE_RUN"),
+        "expected the verify-deps error for uninstalled project:\n{stderr}",
+    );
+
+    write_named_manifest_with_dependency_groups(
+        &project_a,
+        "project-a",
+        &marker_a,
+        json!({ "dependencies": { "@pnpm.e2e/foo": "100.0.0" } }),
+    );
+    bump_mtime(&project_a.join("package.json"));
+    let output = pacquet_in(&workspace)
+        .with_args(["--filter", "project-a", "run", "hello"])
+        .output()
+        .expect("spawn pacquet run");
+    assert!(!output.status.success(), "out-of-sync project-a must fail");
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        stderr.contains("ERR_PNPM_VERIFY_DEPS_BEFORE_RUN"),
+        "expected verify-deps error for out-of-sync project:\n{stderr}",
+    );
+
+    write_named_manifest(&project_a, "project-a", &marker_a);
+    pacquet_in(&workspace)
+        .with_args(["--filter", "project-a", "install"])
+        .assert()
+        .success();
+    pacquet_in(&workspace)
+        .with_args(["--filter", "project-b", "install"])
+        .assert()
+        .success();
+    let _ = fs::remove_file(&marker_a);
+
+    pacquet_in(&workspace)
+        .with_args(["--recursive", "run", "hello"])
+        .assert()
+        .success();
+    assert!(marker_a.exists(), "project-a script must run under recursive");
+    assert!(marker_b.exists(), "project-b script must run under recursive");
 
     drop(root);
 }

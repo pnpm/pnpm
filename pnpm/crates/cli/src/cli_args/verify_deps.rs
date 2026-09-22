@@ -12,6 +12,7 @@ use pnpm_config::{Config, VerifyDepsBeforeRun};
 use pnpm_default_reporter::colors::Colors;
 use pnpm_package_manager::{RunDepsStatus, check_deps_status_before_run_at};
 use std::{
+    collections::HashSet,
     io::IsTerminal,
     path::Path,
     process::{Command, exit},
@@ -70,6 +71,42 @@ pub(crate) fn verify_deps_before_run(
         // `true` runs the check without acting on the verdict; `false`
         // returned before the check.
         VerifyDepsBeforeRun::True | VerifyDepsBeforeRun::False => Ok(()),
+    }
+}
+
+/// Run the verify-deps-before-run check before a recursive run or exec.
+///
+/// When a single shared lockfile covers the entire workspace, verifying the
+/// workspace root checks the shared lockfile and shared workspace state once.
+///
+/// Under dedicated per-project lockfiles (`sharedWorkspaceLockfile: false`),
+/// each project owns its own lockfile and workspace state file, and the
+/// workspace root may not participate in the install. In that case, each
+/// selected project directory is verified independently.
+pub(crate) fn verify_deps_before_recursive_run<ProjectPath: AsRef<Path>>(
+    workspace_root: &Path,
+    selected_project_dirs: impl IntoIterator<Item = ProjectPath>,
+    config: &Config,
+    reporter: ReporterType,
+) -> miette::Result<()> {
+    if !config.verify_deps_before_run.is_enabled() {
+        return Ok(());
+    }
+    let mut seen = HashSet::new();
+    let project_dirs: Vec<ProjectPath> = selected_project_dirs
+        .into_iter()
+        .filter(|dir| seen.insert(dir.as_ref().to_path_buf()))
+        .collect();
+    if project_dirs.is_empty() {
+        return Ok(());
+    }
+    if config.shares_one_lockfile() {
+        verify_deps_before_run(workspace_root, config, reporter)
+    } else {
+        for project_dir in project_dirs {
+            verify_deps_before_run(project_dir.as_ref(), config, reporter)?;
+        }
+        Ok(())
     }
 }
 
