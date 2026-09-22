@@ -582,4 +582,16 @@ test('pnpm outdated should fail when a specified package is not in dependencies'
     dir: process.cwd(),
   }, ['!not-a-dep', 'is-*'])
   expect(compoundResult.exitCode).toBe(1)
+
+  const excludedOnlyResult = await outdated.handler({
+    ...OUTDATED_OPTIONS,
+    dir: process.cwd(),
+  }, ['!is-*', '!@pnpm.e2e/*'])
+  expect(excludedOnlyResult.exitCode).toBe(0)
+
+  const cancelledResult = await outdated.handler({
+    ...OUTDATED_OPTIONS,
+    dir: process.cwd(),
+  }, ['is-positive', '!is-positive'])
+  expect(cancelledResult.exitCode).toBe(0)
 })

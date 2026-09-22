@@ -612,6 +612,16 @@ fn outdated_fails_when_package_not_in_dependencies() {
         .expect("run pacquet outdated with compound pattern");
     assert_eq!(compound.status.code(), Some(1));
 
+    let excluded_only = pacquet(&workspace, ["outdated", &format!("!{DEP}"), &format!("!{FOO}")])
+        .output()
+        .expect("run pacquet outdated with only excluded pattern");
+    assert_eq!(excluded_only.status.code(), Some(0));
+
+    let cancelled = pacquet(&workspace, ["outdated", DEP, &format!("!{DEP}")])
+        .output()
+        .expect("run pacquet outdated with cancelled pattern");
+    assert_eq!(cancelled.status.code(), Some(0));
+
     fs::remove_file(workspace.join("pnpm-lock.yaml")).expect("remove lockfile");
     let no_lockfile = pacquet(&workspace, ["outdated", "not-a-dep"])
         .output()
@@ -690,6 +700,17 @@ fn outdated_recursive_validates_workspace_dependencies() {
         .output()
         .expect("run recursive outdated with compound pattern");
     assert_eq!(compound.status.code(), Some(1));
+
+    let excluded_only =
+        pacquet(&workspace, ["outdated", "-r", &format!("!{DEP}"), &format!("!{FOO}")])
+            .output()
+            .expect("run recursive outdated with only excluded patterns");
+    assert_eq!(excluded_only.status.code(), Some(0));
+
+    let cancelled = pacquet(&workspace, ["outdated", "-r", DEP, &format!("!{DEP}")])
+        .output()
+        .expect("run recursive outdated with cancelled pattern");
+    assert_eq!(cancelled.status.code(), Some(0));
 
     drop((root, anchor));
 }

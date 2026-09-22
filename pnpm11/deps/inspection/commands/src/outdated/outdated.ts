@@ -282,7 +282,8 @@ export function hasUnmatchedPackageParams (
   packageParams: string[],
   include: IncludedDependencies
 ): boolean {
-  if (packageParams.length === 0) return false
+  const positiveParams = packageParams.filter((param) => !param.startsWith('!'))
+  if (positiveParams.length === 0) return false
   const availableDeps = new Set<string>()
   for (const { manifest } of pkgs) {
     if (include.dependencies && manifest.dependencies) {
@@ -296,14 +297,10 @@ export function hasUnmatchedPackageParams (
     }
   }
   const deps = Array.from(availableDeps)
-  const combinedMatcher = createMatcher(packageParams)
-  if (!deps.some((dep) => combinedMatcher(dep))) return true
-  return packageParams
-    .filter((param) => !param.startsWith('!'))
-    .some((param) => {
-      const matcher = createMatcher([param])
-      return !deps.some((dep) => matcher(dep))
-    })
+  return positiveParams.some((param) => {
+    const matcher = createMatcher([param])
+    return !deps.some((dep) => matcher(dep))
+  })
 }
 
 export type OutdatedItem = OutdatedPackage & { dependencyType?: 'githubAction' }

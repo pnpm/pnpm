@@ -65,7 +65,11 @@ pub(super) fn validate_package_patterns<'a>(
     include: &[DependencyGroup],
     recursive: bool,
 ) -> miette::Result<()> {
-    if package_patterns.is_empty() {
+    let positive_patterns: Vec<&String> = package_patterns
+        .iter()
+        .filter(|pattern| !pattern.starts_with('!'))
+        .collect();
+    if positive_patterns.is_empty() {
         return Ok(());
     }
     let deps: Vec<&str> = manifests
@@ -73,19 +77,14 @@ pub(super) fn validate_package_patterns<'a>(
         .flat_map(|manifest| manifest.dependencies(include.iter().copied()))
         .map(|(name, _)| name)
         .collect();
-    let combined = create_matcher(package_patterns);
-    let unmatched = !deps
+    let unmatched = positive_patterns
         .iter()
-        .any(|dep| combined.matches(dep))
-        || package_patterns
-            .iter()
-            .filter(|pattern| !pattern.starts_with('!'))
-            .any(|pattern| {
-                let matcher = create_matcher(std::slice::from_ref(pattern));
-                !deps
-                    .iter()
-                    .any(|dep| matcher.matches(dep))
-            });
+        .any(|pattern| {
+            let matcher = create_matcher(std::slice::from_ref(*pattern));
+            !deps
+                .iter()
+                .any(|dep| matcher.matches(dep))
+        });
     if unmatched {
         let message = if recursive {
             "None of the specified packages were found in the dependencies of any of the projects."

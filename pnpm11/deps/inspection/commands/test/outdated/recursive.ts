@@ -478,4 +478,22 @@ test('pnpm recursive outdated should fail when a specified package is not in wor
   }, ['not-a-dep'])
   expect(emptySelectionResult.exitCode).toBe(0)
   expect(emptySelectionResult.output).toBe('')
+
+  const excludedOnlyResult = await outdated.handler({
+    ...DEFAULT_OUTDATED_OPTS,
+    allProjects,
+    dir: process.cwd(),
+    recursive: true,
+    selectedProjectsGraph,
+  }, ['!is-positive', '!is-negative'])
+  expect(excludedOnlyResult.exitCode).toBe(0)
+
+  const cancelledResult = await outdated.handler({
+    ...DEFAULT_OUTDATED_OPTS,
+    allProjects,
+    dir: process.cwd(),
+    recursive: true,
+    selectedProjectsGraph,
+  }, ['is-positive', '!is-positive', 'is-negative', '!is-negative'])
+  expect(cancelledResult.exitCode).toBe(0)
 })
