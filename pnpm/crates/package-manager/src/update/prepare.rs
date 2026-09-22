@@ -255,6 +255,14 @@ fn overridden_direct(
     let lockfile_root = crate::install::lockfile_root_dir(update.config, project_dir)
         .map_err(UpdateError::FindWorkspaceDir)?;
     let overrider = VersionsOverrider::new(&parsed, &lockfile_root);
+    Ok(collect_overridden_direct(manifest, direct, &overrider))
+}
+
+fn collect_overridden_direct(
+    manifest: &PackageManifest,
+    direct: &[(String, DependencyGroup, String)],
+    overrider: &VersionsOverrider,
+) -> Vec<OverriddenDirect> {
     let matcher = overrider.dependency_matcher(manifest.value());
     let matched = direct
         .iter()
@@ -262,11 +270,11 @@ fn overridden_direct(
         .map(|(name, group, _)| (name.clone(), *group))
         .collect::<Vec<_>>();
     if matched.is_empty() {
-        return Ok(Vec::new());
+        return Vec::new();
     }
     let mut effective = manifest.clone();
-    overrider.apply(&mut effective, Some(project_dir));
-    Ok(matched
+    overrider.apply(&mut effective, Some(super::manifest_dir(manifest)));
+    matched
         .into_iter()
         .map(|(name, group)| OverriddenDirect {
             effective_specifier: effective
@@ -275,7 +283,7 @@ fn overridden_direct(
             name,
             group,
         })
-        .collect())
+        .collect()
 }
 /// The direct dependencies of the groups the update covers, as
 /// `(name, group, specifier)`.

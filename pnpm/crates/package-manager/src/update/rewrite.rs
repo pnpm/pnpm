@@ -145,7 +145,7 @@ fn override_owned_rewrite<Reporter: self::Reporter>(
             Reporter::emit(&LogEvent::Pnpm(PnpmLog {
                 level: LogLevel::Warn,
                 message: format!(
-                    r#"Skipping "{name}@{requested}": an override removes it from the manifest."#
+                    r#"Skipping "{name}@{requested}": an override removes it from the manifest."#,
                 ),
                 prefix: package_manifest_prefix(rewrite_ctx.manifest),
             }));
@@ -155,7 +155,7 @@ fn override_owned_rewrite<Reporter: self::Reporter>(
     if let Some(requested) = requested
         && matches!(
             judge_against_kept_range(requested, effective_specifier),
-            KeptRangeVerdict::Excluded
+            KeptRangeVerdict::Excluded,
         )
     {
         return kept_range_rewrite::<Reporter>(rewrite_ctx, name, requested, effective_specifier);
@@ -164,7 +164,7 @@ fn override_owned_rewrite<Reporter: self::Reporter>(
         Reporter::emit(&LogEvent::Pnpm(PnpmLog {
             level: LogLevel::Warn,
             message: format!(
-                r#"Ignoring "{name}@{requested}": "{name}" is controlled by an override, so its specifier "{effective_specifier}" was used instead."#
+                r#"Ignoring "{name}@{requested}": "{name}" is controlled by an override, so its specifier "{effective_specifier}" was used instead."#,
             ),
             prefix: package_manifest_prefix(rewrite_ctx.manifest),
         }));
