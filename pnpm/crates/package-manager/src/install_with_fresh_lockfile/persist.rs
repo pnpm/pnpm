@@ -40,9 +40,9 @@ pub(super) fn fix_lockfile_copy(
             lockfile
         })
 }
-/// The built wanted lockfile whenever lockfiles are enabled, whether or
-/// not this run wrote it, and whether a verification may be recorded
-/// against the file on disk, which only a written one allows.
+/// The resolved lockfile for materialization and virtual-store state,
+/// whether or not written to `pnpm-lock.yaml`, and whether a verification
+/// may be recorded against the on-disk wanted lockfile.
 pub(super) struct PersistedLockfile {
     pub(super) lockfile: Option<Lockfile>,
     pub(super) can_record_lockfile_verification: bool,
