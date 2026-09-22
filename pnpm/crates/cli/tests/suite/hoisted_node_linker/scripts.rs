@@ -327,7 +327,7 @@ fn linking_bins_of_local_projects() {
 }
 
 /// The hoisted linker turns `preferSymlinkedExecutables` on by
-/// default, so on Unix `.bin` entries are symlinks to the bin file
+/// default, so on Unix `.bin` entries are symlinks to executable bin files
 /// instead of shell shims — pnpm's `nodeLinker: hoisted` behavior. An
 /// explicit `preferSymlinkedExecutables: false` restores the shims.
 #[test]
@@ -348,8 +348,14 @@ fn hoisted_linker_symlinks_bins_by_default() {
         let mut provider_manifest = read_manifest(&provider);
         provider_manifest["bin"] = serde_json::json!({ "project-2": "index.js" });
         write_manifest_value(&provider, &provider_manifest);
+        #[cfg(windows)]
         fs::write(provider.join("index.js"), "#!/usr/bin/env node\nconsole.log('hello')\n")
             .expect("write project bin");
+        #[cfg(unix)]
+        crate::_utils::write_executable(
+            &provider.join("index.js"),
+            "#!/usr/bin/env node\nconsole.log('hello')\n",
+        );
 
         fixture.run(["install"]);
 

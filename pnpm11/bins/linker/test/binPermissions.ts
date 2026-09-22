@@ -82,5 +82,7 @@ testOnPosix.each(['cli.js', 'node_modules'])('linking a bin symlink preserves th
   await linkBins(modules, binDir, { warn: () => {} })
 
   expect(fs.statSync(source).mode & 0o777).toBe(0o644)
-  expect(fs.existsSync(path.join(binDir, 'tool'))).toBe(true)
+  const result = spawnSync(path.join(binDir, 'tool'), { encoding: 'utf8' })
+  expect(result.status).toBe(0)
+  expect(result.stdout.trim()).toBe('ok')
 })
