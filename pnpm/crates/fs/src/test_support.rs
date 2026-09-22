@@ -1,5 +1,4 @@
-//! Coordination for tests that exercise the real Windows retries in
-//! [`crate::retry`].
+//! Coordination for tests that exercise real Windows filesystem retries.
 
 use std::{
     collections::{HashMap, hash_map::Entry},
