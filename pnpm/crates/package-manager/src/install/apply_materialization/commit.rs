@@ -1,8 +1,8 @@
 use super::super::{
     Config, Host, InstallError, InstallWithFreshLockfileError, Lockfile, Modules, NodeLinker,
-    PackageManifest, Path, PathBuf, SystemTime, build_modules_manifest, current_contains_dep_path,
-    merge_filtered_modules_metadata, merge_pending_builds, project_requires_lifecycle_scripts,
-    write_modules_manifest,
+    PROJECT_LIFECYCLE_STAGES, PackageManifest, Path, PathBuf, SystemTime, build_modules_manifest,
+    current_contains_dep_path, merge_filtered_modules_metadata, merge_pending_builds,
+    project_requires_lifecycle_scripts, write_modules_manifest,
 };
 
 pub(super) struct CommitModulesStateInputs<'a> {
@@ -152,7 +152,7 @@ pub(super) fn deferred_projects(
         materialized_project_manifests
             .iter()
             .filter(|(project_dir, manifest)| {
-                project_requires_lifecycle_scripts(project_dir, manifest)
+                project_requires_lifecycle_scripts(project_dir, manifest, &PROJECT_LIFECYCLE_STAGES)
             })
             .map(|(project_dir, _)| {
                 pnpm_workspace::importer_id_from_root_dir(workspace_root, project_dir)

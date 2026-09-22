@@ -9,7 +9,7 @@ use super::{
     InstallOwned, InstallView, RunMode, Verification,
     lockfile_load::Loaded,
     manifests::{RootHooksScope, run_root_hooks},
-    reject_frozen_with_update_checksums,
+    reject_frozen_with_update_checksums, run_pre_uninstall_hooks,
     wanted::Lockfiles,
     workspace::{InstallScope, InstallWorkspace},
 };
@@ -53,6 +53,7 @@ pub(super) async fn dispatch<'install, Reporter: self::Reporter + 'static>(
 ) -> Result<Option<Dispatched<'install>>, InstallError> {
     let Settled { install, mode, lockfiles, .. } = settled;
     let root_preinstall_ran = announce_import::<Reporter>(settled, options)?;
+    run_pre_uninstall_hooks::<Reporter>(settled, options.selection.as_ref())?;
     // Dispatch priority, following the CLI + `preferFrozenLockfile`
     // semantics:
     //

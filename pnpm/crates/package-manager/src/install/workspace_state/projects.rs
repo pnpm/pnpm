@@ -116,6 +116,8 @@ pub(in super::super) struct ProjectScriptsInputs<'a, 'manifest> {
     pub(in super::super) active_project_dir: &'a Path,
     /// The `--filter` / `-r` selection, when the run was narrowed to one.
     pub(in super::super) selected_dirs: Option<&'a HashSet<PathBuf>>,
+    /// See [`crate::WorkspaceInstallSelection::edited_dirs`].
+    pub(in super::super) edited_dirs: Option<&'a HashSet<PathBuf>>,
     /// Every project of the workspace.
     pub(in super::super) project_manifests: &'a [(PathBuf, &'manifest PackageManifest)],
     /// The subset this run materialized. A project outside it has no
@@ -130,20 +132,24 @@ pub(in super::super) fn projects_running_own_scripts<'manifest>(
     inputs: &ProjectScriptsInputs<'_, 'manifest>,
 ) -> Vec<(PathBuf, &'manifest PackageManifest)> {
     let full_install = match inputs.mutation {
-        ProjectMutation::NoInstall | ProjectMutation::UninstallSome => return Vec::new(),
+        ProjectMutation::NoInstall => return Vec::new(),
         ProjectMutation::InstallWorkspace => {
             return inputs.materialized_project_manifests.to_vec();
         }
         ProjectMutation::InstallSelected => true,
-        ProjectMutation::InstallSome => false,
+        ProjectMutation::InstallSome | ProjectMutation::UninstallSome => false,
     };
-    let mutated_dirs = match inputs.selected_dirs {
-        Some(selected_dirs) => selected_dirs
+    let mutated_dirs =
+        mutated_project_dirs(inputs.active_project_dir, inputs.selected_dirs, inputs.edited_dirs);
+    if inputs.mutation == ProjectMutation::UninstallSome {
+        return inputs.materialized_project_manifests
             .iter()
-            .map(|dir| pnpm_fs::lexical_normalize(dir))
-            .collect(),
-        None => HashSet::from([pnpm_fs::lexical_normalize(inputs.active_project_dir)]),
-    };
+            .filter(|(project_dir, _)| {
+                mutated_dirs.contains(&pnpm_fs::lexical_normalize(project_dir))
+            })
+            .cloned()
+            .collect();
+    }
     // pnpm's recursive dispatch pushes the workspace root into the
     // mutated importers as a plain `mutation: 'install'` whenever the
     // selection leaves it out, so the root installs in full — and runs
@@ -173,6 +179,21 @@ pub(in super::super) fn projects_running_own_scripts<'manifest>(
         })
         .cloned()
         .collect()
+}
+/// The projects whose manifests the command edits.
+pub(in super::super) fn mutated_project_dirs(
+    active_project_dir: &Path,
+    selected_dirs: Option<&HashSet<PathBuf>>,
+    edited_dirs: Option<&HashSet<PathBuf>>,
+) -> HashSet<PathBuf> {
+    match selected_dirs {
+        Some(selected_dirs) => edited_dirs
+            .unwrap_or(selected_dirs)
+            .iter()
+            .map(|dir| pnpm_fs::lexical_normalize(dir))
+            .collect(),
+        None => HashSet::from([pnpm_fs::lexical_normalize(active_project_dir)]),
+    }
 }
 pub(in super::super) fn selected_manifest_freshness_inputs<'a>(
     workspace_root: &Path,

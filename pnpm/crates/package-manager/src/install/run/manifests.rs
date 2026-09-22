@@ -3,7 +3,7 @@ use super::super::{
     dev_preinstall_already_ran, projects_running_own_scripts, root_preinstall_already_ran,
     run_root_hook, selected_manifest_freshness_inputs,
 };
-use crate::install::state_options::ProjectScriptSelection;
+use crate::{ProjectMutation, install::state_options::ProjectScriptSelection};
 use pnpm_config::Config;
 use pnpm_executor::DEV_PREINSTALL_STAGE;
 
@@ -238,7 +238,7 @@ pub(super) fn run_root_hooks<Reporter: self::Reporter>(
     if root_preinstall_already_ran() {
         return Ok(true);
     }
-    if scope.config.virtual_store_only || !root_runs_own_scripts(scope, &normalized_root) {
+    if !root_runs_preinstall(scope, &normalized_root) {
         return Ok(false);
     }
     if root_defines("preinstall") {
@@ -249,6 +249,14 @@ pub(super) fn run_root_hooks<Reporter: self::Reporter>(
         )?;
     }
     Ok(true)
+}
+/// Whether the root project's `preinstall` is this run's to fire: a
+/// removal runs the uninstall stages only, and `virtual_store_only` links
+/// no project.
+fn root_runs_preinstall(scope: &RootHooksScope<'_>, normalized_root: &Path) -> bool {
+    !scope.config.virtual_store_only
+        && scope.scripts.mutation != ProjectMutation::UninstallSome
+        && root_runs_own_scripts(scope, normalized_root)
 }
 /// Whether the root project is among the projects whose own lifecycle
 /// scripts this run fires: the projects the selection installs, or every
@@ -275,6 +283,7 @@ fn root_runs_own_scripts(scope: &RootHooksScope<'_>, normalized_root: &Path) -> 
         workspace_root: scope.workspace_root,
         active_project_dir: scope.scripts.manifest_dir,
         selected_dirs: scope.scripts.workspace.map(|selection| selection.selected_dirs),
+        edited_dirs: scope.scripts.workspace.and_then(|selection| selection.edited_dirs),
         project_manifests: scope.project_manifests,
         materialized_project_manifests: &materialized_project_manifests,
     })

@@ -374,6 +374,7 @@ impl SelectedProjects<'_> {
             project_dependencies: self.project_dependencies,
             ordered_dirs: self.ordered_dirs,
             selected_dirs: self.selected_dirs,
+            edited_dirs: None,
             install_dirs: self.install_dirs,
             active_manifest_is_standin: self.active_manifest_is_standin,
             workspace_cycles: crate::PrecomputedWorkspaceCycles::Unknown,

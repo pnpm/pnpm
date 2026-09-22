@@ -22,6 +22,12 @@ export type RunLifecycleHooksConcurrentlyOptions = Omit<RunLifecycleHookOptions,
   preferSymlinkedExecutables?: boolean
 }
 
+/** The project stages `pnpm remove` runs before it unlinks anything. */
+export const PRE_UNINSTALL_STAGES = ['preuninstall', 'uninstall']
+
+/** The project stage `pnpm remove` runs after unlinking. */
+export const POST_UNINSTALL_STAGES = ['postuninstall']
+
 export interface Importer {
   buildIndex: number
   manifest: ProjectManifest
@@ -39,13 +45,18 @@ export async function runLifecycleHooksConcurrently (
     projectDependencies?: Map<ProjectRootDir, ProjectRootDir[]>
     stages: string[]
     /**
+     * Whether to skip linking bins into node_modules/.bin ahead of running scripts.
+     * Used by pre-uninstall hooks so node_modules is not modified before unlinking.
+     */
+    skipBinLinking?: boolean
+    /**
      * The project whose `preinstall` already ran before the install began,
      * so its run here starts at the stage after it.
      */
     projectWithPreinstallRan?: string
   }
 ): Promise<void> {
-  const { childConcurrency, importers, opts, projectDependencies, projectWithPreinstallRan, stages } = params
+  const { childConcurrency, importers, opts, projectDependencies, projectWithPreinstallRan, skipBinLinking, stages } = params
   const importersByRootDir = new Map(importers.map((importer) => [importer.rootDir, importer]))
   const dependencies = projectDependencies == null
     ? dependenciesFromBuildIndexes(importers)
@@ -61,17 +72,19 @@ export async function runLifecycleHooksConcurrently (
       const { manifest, modulesDir, stages: importerStages, targetDirs } = importersByRootDir.get(rootDir)!
       try {
         const binsDir = path.join(modulesDir, '.bin')
-        // We are linking the bin files, in case they were created by lifecycle scripts of other workspace packages.
-        await linkBins(modulesDir, binsDir, {
-          extraNodePaths: opts.extraNodePaths,
-          projectModulesDir: await getProjectNodePath({ modulesDir, rootDir }, opts),
-          allowExoticManifests: true,
-          preferSymlinkedExecutables: opts.preferSymlinkedExecutables,
-          projectManifest: manifest,
-          warn: (message: string) => {
-            logger.warn({ message, prefix: rootDir })
-          },
-        })
+        if (!skipBinLinking) {
+          // We are linking the bin files, in case they were created by lifecycle scripts of other workspace packages.
+          await linkBins(modulesDir, binsDir, {
+            extraNodePaths: opts.extraNodePaths,
+            projectModulesDir: await getProjectNodePath({ modulesDir, rootDir }, opts),
+            allowExoticManifests: true,
+            preferSymlinkedExecutables: opts.preferSymlinkedExecutables,
+            projectManifest: manifest,
+            warn: (message: string) => {
+              logger.warn({ message, prefix: rootDir })
+            },
+          })
+        }
         const runLifecycleHookOpts: RunLifecycleHookOptions = {
           ...opts,
           depPath: rootDir,

@@ -29,6 +29,7 @@ import { PnpmError } from '@pnpm/error'
 import {
   makeNodePackageMapOption,
   makeNodeRequireOption,
+  POST_UNINSTALL_STAGES,
   runLifecycleHooksConcurrently,
 } from '@pnpm/exec.lifecycle'
 import { findCommonPathAncestor, safeJoinModulesDir, symlinkDependency, validateWorkspaceModulesDir } from '@pnpm/fs.symlink-dependency'
@@ -153,9 +154,9 @@ export interface HeadlessOptions extends RegistryContext {
   include: IncludedDependencies
   selectedProjectDirs: string[]
   /**
-   * The selected projects whose own lifecycle scripts may run. Defaults to
+   * The selected projects whose own install stages may run. Defaults to
    * every selected project; an `uninstallSome` mutation materializes for its
-   * project without running its scripts, matching the resolution path.
+   * project without running them, matching the resolution path.
    */
   projectDirsRunningScripts?: string[]
   /**
@@ -163,6 +164,8 @@ export interface HeadlessOptions extends RegistryContext {
    * lifecycle scripts here start at `install`.
    */
   rootProjectPreinstallRan?: boolean
+  /** The selected projects that run `postuninstall` in place of the install stages. */
+  projectDirsRunningUninstallScripts?: string[]
   allProjects: Record<string, Project>
   prunedAt?: string
   hoistedDependencies: HoistedDependencies
@@ -274,6 +277,8 @@ export async function headlessInstall (opts: HeadlessOptions): Promise<Installat
   const projectsRunningScripts = opts.projectDirsRunningScripts == null
     ? selectedProjects
     : Object.values(pick(opts.projectDirsRunningScripts, opts.allProjects))
+  const projectDirsRunningScripts = new Set(projectsRunningScripts.map(({ rootDir }) => rootDir))
+  const projectDirsRunningUninstallScripts = new Set(opts.projectDirsRunningUninstallScripts)
 
   const scriptsOpts = {
     optional: false,
@@ -893,7 +898,11 @@ export async function headlessInstall (opts: HeadlessOptions): Promise<Installat
     await opts.verifyLockfile?.()
     await runLifecycleHooksConcurrently({
       childConcurrency: opts.childConcurrency ?? 5,
-      importers: projectsToBeBuilt.filter((project) => projectsRunningScripts.some(({ rootDir }) => rootDir === project.rootDir)),
+      importers: projectsToBeBuilt.flatMap((project) => {
+        if (projectDirsRunningScripts.has(project.rootDir)) return [project]
+        if (projectDirsRunningUninstallScripts.has(project.rootDir)) return [{ ...project, stages: POST_UNINSTALL_STAGES }]
+        return []
+      }),
       opts: scriptsOpts,
       projectDependencies: opts.projectDependencies,
       projectWithPreinstallRan: opts.rootProjectPreinstallRan ? opts.lockfileDir : undefined,

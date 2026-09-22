@@ -383,6 +383,7 @@ pub(crate) fn workspace_install_selection(
         project_dependencies: &selection.project_dependencies,
         ordered_dirs: &selection.ordered_dirs,
         selected_dirs: selection.selected_dirs.as_ref(),
+        edited_dirs: None,
         install_dirs: selection.install_dirs.as_ref(),
         active_manifest_is_standin: selection.active_manifest_is_standin,
         workspace_cycles: selection.workspace_cycles

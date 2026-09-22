@@ -1,8 +1,8 @@
 use super::super::{
     BTreeSet, Catalogs, Config, GlobalLog, HashSet, Host, InstallError, Lockfile, LogEvent,
     LogLevel, NodeLinker, PackageManifest, Path, PathBuf, ProjectScriptsInputs, Reporter,
-    SummaryLog, drain_settled_projects, project_lifecycle_graph, projects_running_own_scripts,
-    run_projects_lifecycle_scripts,
+    SummaryLog, drain_settled_projects, project_lifecycle_graph, project_script_stages,
+    projects_running_own_scripts, run_projects_lifecycle_scripts,
 };
 use crate::peer_dependency_issues::report_peer_dependency_issues;
 use pnpm_store_dir::VerifiedFileIntegrity;
@@ -84,6 +84,7 @@ pub(super) fn run_materialized_project_scripts<Reporter: self::Reporter>(
                 inputs.node_linker,
                 inputs.workspace_root,
                 inputs.root_preinstall_ran,
+                project_script_stages(inputs.request.mutation),
             )?;
         }
         if let Some(rebuild) = inputs.request.rebuild {
@@ -115,6 +116,7 @@ pub(super) fn materialized_script_projects<'a>(
             workspace_root: inputs.workspace_root,
             active_project_dir: inputs.request.manifest_dir,
             selected_dirs: inputs.request.workspace.map(|selection| selection.selected_dirs),
+            edited_dirs: inputs.request.workspace.and_then(|selection| selection.edited_dirs),
             project_manifests: inputs.project_manifests,
             materialized_project_manifests: inputs.materialized_project_manifests,
         })

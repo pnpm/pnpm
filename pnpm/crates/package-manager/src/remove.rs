@@ -17,7 +17,7 @@ use pnpm_network::ThrottledClient;
 use pnpm_package_manifest::{DependencyGroup, PackageManifest, PackageManifestError};
 use pnpm_reporter::{LogEvent, LogLevel, PackageManifestLog, PackageManifestMessage, Reporter};
 use pnpm_tarball::MemCache;
-use std::{collections::HashSet, fmt::Write as _, sync::Arc};
+use std::{collections::HashSet, fmt::Write as _, path::PathBuf, sync::Arc};
 
 #[must_use]
 pub struct Remove<'a> {
@@ -114,7 +114,7 @@ impl Remove<'_> {
             return Ok(());
         }
 
-        prepare_selected_removal::<Reporter>(
+        let edited_dirs = prepare_selected_removal::<Reporter>(
             selected.projects,
             &selected_indices,
             remove.package_names,
@@ -123,7 +123,10 @@ impl Remove<'_> {
         let workspace_root = removal_workspace_root(remove.config, manifest);
 
         let ignored_builds = remove_install(remove, owned, manifest)
-            .run_selected::<Reporter>(selected.selection())
+            .run_selected::<Reporter>(crate::WorkspaceInstallSelection {
+                edited_dirs: Some(&edited_dirs),
+                ..selected.selection()
+            })
             .await
             .pipe(defer_ignored_builds)
             .map_err(RemoveError::Install)?;
@@ -181,9 +184,8 @@ pub struct RemoveResources {
 /// declines, the freshness check fails and the install
 /// re-resolves as it always did.
 /// `pacquet remove` is a partial install (an
-/// `uninstallSome` mutation), so the root project's own
-/// lifecycle scripts must not run — they fire only on a full
-/// install.
+/// `uninstallSome` mutation), so the root project's install
+/// stages must not run; it runs the uninstall stages instead.
 /// Removing a dependency must not bump the survivors: keep
 /// every remaining lockfile pin in the preferred-versions
 /// seed, same as `install` / `add`.
@@ -264,16 +266,45 @@ fn validate_selected_remove(
     Err(cannot_remove_missing_deps(&available_dependencies, &non_matched_dependencies, save_type))
 }
 
+fn edited_project_dirs(
+    projects: &[pnpm_workspace::Project],
+    selected_indices: &[usize],
+    package_names: &[String],
+    save_type: Option<DependencyGroup>,
+) -> HashSet<PathBuf> {
+    selected_indices
+        .iter()
+        .map(|&index| &projects[index])
+        .filter(|project| {
+            let manifest = &project.manifest;
+            let peer_dependencies = manifest
+                .dependencies([DependencyGroup::Peer])
+                .map(|(name, _)| name.to_string());
+            let listed: HashSet<String> = manifest
+                .available_dependency_names(save_type)
+                .into_iter()
+                .chain(peer_dependencies)
+                .collect();
+            package_names
+                .iter()
+                .any(|name| listed.contains(name))
+        })
+        .map(|project| project.root_dir.clone())
+        .collect()
+}
+
+/// Returns the projects that listed a removed package, read before the edit.
 fn prepare_selected_removal<Reporter: self::Reporter>(
     projects: &mut [pnpm_workspace::Project],
     selected_indices: &[usize],
     package_names: &[String],
     save_type: Option<DependencyGroup>,
-) -> Result<(), RemoveError> {
+) -> Result<HashSet<PathBuf>, RemoveError> {
     validate_selected_remove(projects, selected_indices, package_names, save_type)
         .map_err(RemoveError::Validation)?;
+    let edited_dirs = edited_project_dirs(projects, selected_indices, package_names, save_type);
     prepare_selected_manifests::<Reporter>(projects, selected_indices, package_names, save_type);
-    Ok(())
+    Ok(edited_dirs)
 }
 
 fn prepare_selected_manifests<Reporter: self::Reporter>(

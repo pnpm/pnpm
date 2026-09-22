@@ -488,17 +488,19 @@ where
     write_modules_manifest::<Sys>(modules_dir, modules).map_err(InstallError::WriteModules)
 }
 
-/// Includes the executor's implicit `node-gyp rebuild` fallback when a
-/// project has `binding.gyp` but no explicit preinstall or install script.
+/// Whether the project defines any of `stages`, counting the executor's
+/// implicit `node-gyp rebuild` fallback for `install`.
 pub(super) fn project_requires_lifecycle_scripts(
     project_dir: &Path,
     manifest: &PackageManifest,
+    stages: &[&str],
 ) -> bool {
-    let has_lifecycle_script = pnpm_executor::PROJECT_LIFECYCLE_STAGES
+    let has_lifecycle_script = stages
         .iter()
         .any(|stage| matches!(manifest.script(stage, true), Ok(Some(_))));
     has_lifecycle_script
-        || (matches!(manifest.script("preinstall", true), Ok(None))
+        || (stages.contains(&"install")
+            && matches!(manifest.script("preinstall", true), Ok(None))
             && matches!(manifest.script("install", true), Ok(None))
             && project_dir.join("binding.gyp").exists())
 }

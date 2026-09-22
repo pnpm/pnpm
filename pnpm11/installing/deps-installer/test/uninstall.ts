@@ -348,3 +348,216 @@ test('uninstall remove modules that is not in package.json', async () => {
 
   project.hasNot('foo')
 })
+
+function recordUninstallStage (stage: string): string {
+  return `node -e "const fs=require('fs');fs.appendFileSync('order.txt','${stage} dep='+fs.existsSync('node_modules/is-negative')+'\\n')"`
+}
+
+const UNINSTALL_SCRIPTS = {
+  postinstall: 'node -e "require(\'fs\').appendFileSync(\'order.txt\',\'postinstall\\n\')"',
+  preuninstall: recordUninstallStage('preuninstall'),
+  uninstall: recordUninstallStage('uninstall'),
+  postuninstall: recordUninstallStage('postuninstall'),
+}
+
+function recordedStages (): string[] {
+  return fs.readFileSync('order.txt', 'utf8').trim().split('\n')
+}
+
+test.each([
+  ['the fast lockfile update', {}],
+  ['resolution', { preferFrozenLockfile: false }],
+])('uninstall runs the project\'s preuninstall and uninstall before unlinking and postuninstall after, on %s', async (_, uninstallOpts) => {
+  const project = prepareEmpty()
+  const { updatedManifest: manifest } = await addDependenciesToPackage({ scripts: UNINSTALL_SCRIPTS }, ['is-negative@2.1.0'], testDefaults({ save: true }))
+  expect(fs.existsSync('order.txt')).toBeFalsy()
+
+  await mutateModulesInSingleProject({
+    dependencyNames: ['is-negative'],
+    manifest,
+    mutation: 'uninstallSome',
+    rootDir: process.cwd() as ProjectRootDir,
+  }, testDefaults({ save: true, ...uninstallOpts }))
+
+  expect(recordedStages()).toStrictEqual(['preuninstall dep=true', 'uninstall dep=true', 'postuninstall dep=false'])
+  project.hasNot('is-negative')
+})
+
+test('a failing uninstall script aborts the removal before anything is unlinked', async () => {
+  const project = prepareEmpty()
+  const scripts = { ...UNINSTALL_SCRIPTS, uninstall: 'node -e "process.exit(1)"' }
+  const { updatedManifest: manifest } = await addDependenciesToPackage({ scripts }, ['is-negative@2.1.0'], testDefaults({ save: true }))
+  const lockfileBefore = project.readLockfile()
+
+  await expect(mutateModulesInSingleProject({
+    dependencyNames: ['is-negative'],
+    manifest,
+    mutation: 'uninstallSome',
+    rootDir: process.cwd() as ProjectRootDir,
+  }, testDefaults({ save: true }))).rejects.toThrow(/uninstall/)
+
+  expect(recordedStages()).toStrictEqual(['preuninstall dep=true'])
+  project.has('is-negative')
+  expect(project.readLockfile()).toStrictEqual(lockfileBefore)
+})
+
+test('a failing uninstall script aborts without modifying node_modules bin directory', async () => {
+  const project = prepareEmpty()
+  const scripts = { ...UNINSTALL_SCRIPTS, uninstall: 'node -e "process.exit(1)"' }
+  const { updatedManifest: manifest } = await addDependenciesToPackage(
+    { bin: { 'test-bin': './bin.js' }, scripts },
+    ['is-negative@2.1.0'],
+    testDefaults({ save: true })
+  )
+  fs.rmSync(path.resolve('node_modules/.bin'), { force: true, recursive: true })
+  const lockfileBefore = project.readLockfile()
+
+  await expect(mutateModulesInSingleProject({
+    dependencyNames: ['is-negative'],
+    manifest,
+    mutation: 'uninstallSome',
+    rootDir: process.cwd() as ProjectRootDir,
+  }, testDefaults({ save: true }))).rejects.toThrow(/uninstall/)
+
+  expect(recordedStages()).toStrictEqual(['preuninstall dep=true'])
+  expect(fs.existsSync(path.resolve('node_modules/.bin'))).toBeFalsy()
+  project.has('is-negative')
+  expect(project.readLockfile()).toStrictEqual(lockfileBefore)
+})
+
+test('uninstall does not run the project\'s uninstall scripts when scripts are ignored', async () => {
+  const project = prepareEmpty()
+  const { updatedManifest: manifest } = await addDependenciesToPackage({ scripts: UNINSTALL_SCRIPTS }, ['is-negative@2.1.0'], testDefaults({ save: true }))
+
+  await mutateModulesInSingleProject({
+    dependencyNames: ['is-negative'],
+    manifest,
+    mutation: 'uninstallSome',
+    rootDir: process.cwd() as ProjectRootDir,
+  }, testDefaults({ save: true, ignoreScripts: true }))
+
+  expect(fs.existsSync('order.txt')).toBeFalsy()
+  project.hasNot('is-negative')
+})
+
+test('uninstall does not run the project\'s uninstall scripts with lockfileOnly', async () => {
+  const project = prepareEmpty()
+  const { updatedManifest: manifest } = await addDependenciesToPackage({ scripts: UNINSTALL_SCRIPTS }, ['is-negative@2.1.0'], testDefaults({ save: true }))
+
+  await mutateModulesInSingleProject({
+    dependencyNames: ['is-negative'],
+    manifest,
+    mutation: 'uninstallSome',
+    rootDir: process.cwd() as ProjectRootDir,
+  }, testDefaults({ save: true, lockfileOnly: true }))
+
+  expect(fs.existsSync('order.txt')).toBeFalsy()
+  project.has('is-negative')
+})
+
+test('a recursive uninstall runs the uninstall scripts only in the projects that listed the dependency', async () => {
+  const pkgs: PackageManifest[] = [
+    { name: 'project-1', version: '1.0.0', dependencies: { 'is-negative': '2.1.0' }, scripts: UNINSTALL_SCRIPTS },
+    { name: 'project-2', version: '1.0.0', dependencies: { 'is-positive': '1.0.0' }, scripts: UNINSTALL_SCRIPTS },
+  ]
+  const projects = preparePackages(pkgs)
+  const allProjects = pkgs.map((manifest) => ({
+    buildIndex: 0,
+    manifest,
+    rootDir: path.resolve(manifest.name!) as ProjectRootDir,
+  }))
+  await mutateModules(allProjects.map(({ rootDir }) => ({ mutation: 'install' as const, rootDir })), testDefaults({ allProjects }))
+  for (const { rootDir } of allProjects) fs.rmSync(path.join(rootDir, 'order.txt'))
+
+  await mutateModules(allProjects.map(({ rootDir }) => ({ dependencyNames: ['is-negative'], mutation: 'uninstallSome' as const, rootDir })), testDefaults({ allProjects }))
+
+  expect(fs.readFileSync('project-1/order.txt', 'utf8').trim().split('\n')).toStrictEqual(['preuninstall dep=true', 'uninstall dep=true', 'postuninstall dep=false'])
+  expect(fs.existsSync('project-2/order.txt')).toBeFalsy()
+  projects['project-1'].hasNot('is-negative')
+  projects['project-2'].has('is-positive')
+})
+
+test('uninstalling a dependency listed only in peerDependencies runs the uninstall scripts', async () => {
+  prepareEmpty()
+  const manifest = { peerDependencies: { 'is-negative': '*' }, scripts: UNINSTALL_SCRIPTS }
+  await mutateModulesInSingleProject({ manifest, mutation: 'install', rootDir: process.cwd() as ProjectRootDir }, testDefaults())
+  fs.rmSync('order.txt')
+
+  const { updatedProject } = await mutateModulesInSingleProject({
+    dependencyNames: ['is-negative'],
+    manifest,
+    mutation: 'uninstallSome',
+    rootDir: process.cwd() as ProjectRootDir,
+  }, testDefaults({ save: true }))
+
+  expect(recordedStages().map((line) => line.split(' ')[0])).toStrictEqual(['preuninstall', 'uninstall', 'postuninstall'])
+  expect(updatedProject.manifest.peerDependencies).toStrictEqual({})
+})
+
+test('recursive save-dev removal runs uninstall scripts when it also removes a peer entry', async () => {
+  const pkgs: PackageManifest[] = [
+    { name: 'project-1', version: '1.0.0', devDependencies: { 'is-negative': '2.1.0' }, scripts: UNINSTALL_SCRIPTS },
+    { name: 'project-2', version: '1.0.0', peerDependencies: { 'is-negative': '*' }, scripts: UNINSTALL_SCRIPTS },
+  ]
+  preparePackages(pkgs)
+  const allProjects = pkgs.map((manifest) => ({
+    buildIndex: 0,
+    manifest,
+    rootDir: path.resolve(manifest.name!) as ProjectRootDir,
+  }))
+  await mutateModules(allProjects.map(({ rootDir }) => ({ mutation: 'install' as const, rootDir })), testDefaults({ allProjects }))
+  for (const { rootDir } of allProjects) fs.rmSync(path.join(rootDir, 'order.txt'))
+
+  const { updatedProjects } = await mutateModules(allProjects.map(({ rootDir }) => ({
+    dependencyNames: ['is-negative'],
+    mutation: 'uninstallSome' as const,
+    targetDependenciesField: 'devDependencies' as const,
+    rootDir,
+  })), testDefaults({ allProjects }))
+
+  expect(updatedProjects[1].manifest.peerDependencies).toStrictEqual({})
+  for (const { rootDir } of allProjects) {
+    expect(fs.readFileSync(path.join(rootDir, 'order.txt'), 'utf8').trim().split('\n').map((line) => line.split(' ')[0]))
+      .toStrictEqual(['preuninstall', 'uninstall', 'postuninstall'])
+  }
+})
+
+test('uninstall does not run the project\'s uninstall scripts with virtualStoreOnly', async () => {
+  const project = prepareEmpty()
+  const { updatedManifest: manifest } = await addDependenciesToPackage({ scripts: UNINSTALL_SCRIPTS }, ['is-negative@2.1.0'], testDefaults({ save: true }))
+
+  await mutateModulesInSingleProject({
+    dependencyNames: ['is-negative'],
+    manifest,
+    mutation: 'uninstallSome',
+    rootDir: process.cwd() as ProjectRootDir,
+  }, testDefaults({ save: true, virtualStoreOnly: true }))
+
+  expect(fs.existsSync('order.txt')).toBeFalsy()
+  project.hasNot('is-negative')
+})
+
+test('uninstall with runPacquet does not delegate materialization to pacquet and runs postuninstall', async () => {
+  prepareEmpty()
+  const { updatedManifest: manifest } = await addDependenciesToPackage({ scripts: UNINSTALL_SCRIPTS }, ['is-negative@2.1.0'], testDefaults({ save: true }))
+  expect(fs.existsSync('order.txt')).toBeFalsy()
+
+  const runPacquet = jest.fn<() => Promise<void>>().mockResolvedValue(undefined)
+
+  await mutateModulesInSingleProject({
+    dependencyNames: ['is-negative'],
+    manifest,
+    mutation: 'uninstallSome',
+    rootDir: process.cwd() as ProjectRootDir,
+  }, testDefaults({
+    save: true,
+    runPacquet: {
+      supportsResolution: true,
+      run: runPacquet,
+    },
+  }))
+
+  expect(runPacquet).not.toHaveBeenCalled()
+  expect(recordedStages().map((line) => line.split(' ')[0])).toStrictEqual(['preuninstall', 'uninstall', 'postuninstall'])
+})
+
