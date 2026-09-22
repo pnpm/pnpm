@@ -252,3 +252,33 @@ async fn latest_is_raw_registry_tag_when_published_by_exclude_trusts_that_versio
     );
     assert_eq!(result.package.latest.as_deref(), Some("1.1.0"));
 }
+
+#[tokio::test]
+async fn foreign_manifest_name_cannot_exempt_a_requested_package() {
+    let mut body: serde_json::Value = serde_json::from_str(PACKAGE_BODY).unwrap();
+    body["versions"]["1.1.0"]["name"] = serde_json::json!("other");
+    let mut server = mockito::Server::new_async().await;
+    let _mock = server
+        .mock("GET", "/acme")
+        .with_status(200)
+        .with_body(body.to_string())
+        .create_async()
+        .await;
+    let (resolver, _tempdir) = build_resolver(&format!("{}/", server.url()));
+    let mut opts = ResolveOptions::default();
+    opts.policy.published_by = Some(chrono::Utc.with_ymd_and_hms(2024, 6, 1, 0, 0, 0).unwrap());
+    opts.policy.published_by_exclude = Some(create_package_version_policy(["other"]).unwrap());
+    let wanted = WantedDependency {
+        alias: Some("acme".to_string()),
+        bare_specifier: Some("1.1.0".to_string()),
+        ..WantedDependency::default()
+    };
+    let result = resolver
+        .resolve(&wanted, &opts)
+        .await
+        .unwrap()
+        .unwrap();
+    let violation = result.policy_violation.expect("foreign name is not an exclusion");
+    assert_eq!(violation.name.to_string(), "acme");
+    assert_eq!(violation.code, MINIMUM_RELEASE_AGE_VIOLATION_CODE);
+}

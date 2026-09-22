@@ -1341,9 +1341,10 @@ function detectMinReleaseAgeViolation (args: {
   blockedVersions?: BlockedVersions
 }): ResolutionPolicyViolation | undefined {
   if (!args.publishedBy) return undefined
-  if (isBlocked(args.blockedVersions, args.requestedName ?? args.name, args.version)) {
+  const name = args.requestedName ?? args.name
+  if (isBlocked(args.blockedVersions, name, args.version)) {
     return {
-      name: args.requestedName ?? args.name,
+      name,
       version: args.version,
       resolution: args.resolution,
       code: MINIMUM_RELEASE_AGE_VIOLATION_CODE,
@@ -1351,13 +1352,13 @@ function detectMinReleaseAgeViolation (args: {
     }
   }
   if (!args.publishedAt) return undefined
-  const excludeResult = args.publishedByExclude?.(args.name)
+  const excludeResult = args.publishedByExclude?.(name)
   if (excludeResult === true) return undefined
   if (Array.isArray(excludeResult) && excludeResult.includes(args.version)) return undefined
   const ts = new Date(args.publishedAt).getTime()
   if (Number.isNaN(ts) || ts <= args.publishedBy.getTime()) return undefined
   return {
-    name: args.name,
+    name,
     version: args.version,
     resolution: args.resolution,
     code: MINIMUM_RELEASE_AGE_VIOLATION_CODE,

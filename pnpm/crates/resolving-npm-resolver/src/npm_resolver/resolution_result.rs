@@ -144,15 +144,9 @@ pub(super) fn resolution_id(
     }
 }
 
-/// Dedupe `serde_json::to_value(picked)` across picks of the same
-/// `(registry, pkg_name, version)` triple — see [`PickedManifestCache`](crate::pick_package::PickedManifestCache)
-/// for the rationale. The cache is shared across the npm / JSR /
-/// named-registry resolvers, so the key has to scope by `registry` too;
-/// two registries may serve different artifacts under the same
-/// `name@version`, and collapsing them would hand the second registry's
-/// resolver the first registry's manifest — wrong dependency graph,
-/// wrong peers, wrong lockfile metadata. Matches `meta_cache`'s
-/// `{registry}\x00{name}` scoping shape.
+/// Serialize each distinct selected manifest once per install. The key scopes
+/// registry, requested name, raw packument key, version, and revision so picks
+/// with different artifacts or dependency metadata cannot share a cached value.
 pub(super) fn cached_manifest(
     cache: &crate::PickedManifestCache,
     key: String,
@@ -379,12 +373,14 @@ impl BuildResolveResult<'_> {
     ) -> Result<Arc<serde_json::Value>, ResolveError> {
         cached_manifest(
             self.picked_manifest_cache,
-            format!(
-                "{}\x00{}@{version_str}+r{}",
+            serde_json::to_string(&(
                 self.registry.registry,
-                self.specifier.spec.name,
+                &self.specifier.spec.name,
+                picked.packument_version.as_deref().unwrap_or(version_str),
+                version_str,
                 revision.map_or(0, TarballRevision::get),
-            ),
+            ))
+            .map_err(|error| Box::new(error) as ResolveError)?,
             picked,
         )
     }

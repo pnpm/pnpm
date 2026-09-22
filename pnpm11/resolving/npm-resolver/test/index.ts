@@ -3198,6 +3198,33 @@ test('a blocked exact version is reported under the requested package identity',
   expect(result?.id).toBe('is-positive@1.0.0')
 })
 
+test('a foreign manifest name cannot exempt a requested package from the age policy', async () => {
+  getMockAgent().get(registriesByScope.default.replace(/\/$/, ''))
+    .intercept({ path: '/is-positive', method: 'GET' })
+    .reply(200, {
+      ...isPositiveMetaFull,
+      versions: {
+        ...isPositiveMetaFull.versions,
+        '1.0.0': { ...isPositiveMetaFull.versions['1.0.0'], name: 'other' },
+      },
+      time: { ...isPositiveMetaFull.time, '1.0.0': '2099-01-01T00:00:00Z' },
+    })
+  const { resolveFromNpm } = createResolveFromNpm({
+    storeDir: temporaryDirectory(),
+    cacheDir: temporaryDirectory(),
+    registriesByScope,
+  })
+  const result = await resolveFromNpm({ alias: 'is-positive', bareSpecifier: '1.0.0' }, {
+    publishedBy: new Date('2030-01-01T00:00:00Z'),
+    publishedByExclude: (name) => name === 'other',
+  })
+  expect(result?.policyViolation).toMatchObject({
+    code: 'MINIMUM_RELEASE_AGE_VIOLATION',
+    name: 'is-positive',
+    version: '1.0.0',
+  })
+})
+
 test.each(['v1.0.0', 'banana'])('raw packument key %s retains its timestamp and obeys normalized retry blocks', async (rawKey) => {
   const version = { ...isPositiveMetaFull.versions['1.0.0'], version: '1.0.0' }
   getMockAgent().get(registriesByScope.default.replace(/\/$/, ''))
