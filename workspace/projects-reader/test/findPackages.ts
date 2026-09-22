@@ -107,3 +107,24 @@ test('package.json takes precedence over package.json5 in the same directory', a
   // @ts-expect-error `_source` is a fixture-only field
   expect(pkg!.manifest._source).toBe('json')
 })
+
+test('honors preferredManifestFormat when several formats coexist', async () => {
+  const root = path.join(fixtures, 'conflicting-manifests')
+  const pkgs = await findPackages(root, { preferredManifestFormat: 'json5' })
+
+  const pkg = pkgs.find(({ manifest }) => manifest.name === 'pkg-with-both')
+  expect(pkg).toBeDefined()
+  // @ts-expect-error `_source` is a fixture-only field
+  expect(pkg!.manifest._source).toBe('json5')
+})
+
+test('preferredManifestFormat falls back when only one format is present', async () => {
+  const root = path.join(fixtures, 'conflicting-manifests')
+  const pkgs = await findPackages(root, { preferredManifestFormat: 'json5' })
+
+  expect(pkgs).toHaveLength(2)
+  const pkg = pkgs.find(({ manifest }) => manifest.name === 'pkg-with-only-json')
+  expect(pkg).toBeDefined()
+  // @ts-expect-error `_source` is a fixture-only field
+  expect(pkg!.manifest._source).toBe('json')
+})

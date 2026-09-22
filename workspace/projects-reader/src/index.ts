@@ -1,6 +1,6 @@
 import { packageIsInstallable } from '@pnpm/cli.utils'
 import { logger } from '@pnpm/logger'
-import type { Project, ProjectManifest, SupportedArchitectures } from '@pnpm/types'
+import type { ManifestFormat, Project, ProjectManifest, SupportedArchitectures } from '@pnpm/types'
 import { lexCompare } from '@pnpm/util.lex-comparator'
 
 import { findPackages } from './findPackages.js'
@@ -23,6 +23,7 @@ export interface FindWorkspaceProjectsOpts {
   nodeVersion?: string
   sharedWorkspaceLockfile?: boolean
   supportedArchitectures?: SupportedArchitectures
+  preferredManifestFormat?: ManifestFormat
 }
 
 export async function findWorkspaceProjects (
@@ -48,7 +49,7 @@ export async function findWorkspaceProjects (
   return projects
 }
 
-export async function findWorkspaceProjectsNoCheck (workspaceRoot: string, opts?: { patterns?: string[] }): Promise<Project[]> {
+export async function findWorkspaceProjectsNoCheck (workspaceRoot: string, opts?: { patterns?: string[], preferredManifestFormat?: ManifestFormat }): Promise<Project[]> {
   const projects = await findPackages(workspaceRoot, {
     ignore: [
       '**/node_modules/**',
@@ -56,6 +57,7 @@ export async function findWorkspaceProjectsNoCheck (workspaceRoot: string, opts?
     ],
     includeRoot: true,
     patterns: opts?.patterns,
+    preferredManifestFormat: opts?.preferredManifestFormat,
   })
   projects.sort((project1: { rootDir: string }, project2: { rootDir: string }) => lexCompare(project1.rootDir, project2.rootDir))
   return projects

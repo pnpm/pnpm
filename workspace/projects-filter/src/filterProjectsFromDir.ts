@@ -18,6 +18,7 @@ export async function filterProjectsBySelectorObjectsFromDir (
   const allProjects = await findWorkspaceProjects(workspaceDir, {
     patterns: workspaceManifest?.packages,
     engineStrict: opts?.engineStrict,
+    preferredManifestFormat: workspaceManifest?.preferredManifestFormat,
     supportedArchitectures: opts?.supportedArchitectures ?? {
       os: ['current'],
       cpu: ['current'],

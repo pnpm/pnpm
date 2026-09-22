@@ -339,6 +339,7 @@ async function _checkDepsStatus (opts: CheckDepsStatusOptions, workspaceState: W
     if (workspaceManifest ?? workspaceDir) {
       const allProjects = await findWorkspaceProjects(rootProjectManifestDir, {
         patterns: workspaceManifest?.packages,
+        preferredManifestFormat: workspaceManifest?.preferredManifestFormat,
         sharedWorkspaceLockfile,
       })
       return checkDepsStatus({
