@@ -485,7 +485,7 @@ function readAndFilterNpmrc (
         warnIgnoredAuthValueEnv(filePath, key, warnings)
         continue
       }
-      value = substituteEnv(rawValue, env, { warnings, key: rawKey })
+      value = substituteEnv(rawValue, env, { warnings, key })
     }
 
     // Only keep auth/registry related keys

@@ -153,11 +153,8 @@ impl NpmrcAuth {
             return None;
         }
         let (value, value_unresolved) = env_replace_lossy::<Sys>(raw_value);
-        let context = if is_auth_value_key(raw_key) {
-            let field = raw_key
-                .rsplit(':')
-                .next()
-                .unwrap_or(raw_key);
+        let context = if is_auth_value_key(&key) {
+            let field = key.rsplit(':').next().unwrap_or(&key);
             format!(" in .npmrc key {field:?}")
         } else {
             String::new()

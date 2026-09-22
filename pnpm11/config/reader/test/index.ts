@@ -4613,6 +4613,24 @@ test.each([
   expect(config.authConfig['//registry.example/:_authToken']).toBe(expected)
 })
 
+test.each([undefined, '', 'dummy-token'])('expanded .npmrc auth key warning for %p', async (token) => {
+  prepare()
+  fs.writeFileSync('auth.npmrc', '${AUTH_KEY}=${AUTH_TOKEN}', 'utf8')
+  const { warnings } = await getConfig({
+    cliOptions: {},
+    env: {
+      ...process.env,
+      AUTH_KEY: '//registry.example/:_authToken',
+      AUTH_TOKEN: token,
+      PNPM_CONFIG_NPMRC_AUTH_FILE: path.resolve('auth.npmrc'),
+    },
+    packageManager: { name: 'pnpm', version: '1.0.0' },
+  })
+  expect(warnings).toEqual(token
+    ? []
+    : ['Failed to replace env in config: ${AUTH_TOKEN} in .npmrc key "_authToken"'])
+})
+
 test('return a warning if a package.json has workspaces field but there is no pnpm-workspaces.yaml file', async () => {
   const prefix = f.find('pkg-using-workspaces')
   const { warnings } = await getConfig({
