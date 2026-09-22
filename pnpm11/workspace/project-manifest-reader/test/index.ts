@@ -617,3 +617,22 @@ test('preserve CRLF line endings in package.json and package.json5', async () =>
   await reader5.writeProjectManifest(reader5.manifest)
   expect(await fs.promises.readFile(json5Path, 'utf8')).toBe("{\r\n\tname: 'foo',\r\n\tversion: '2.0.0',\r\n}\r\n")
 })
+
+test('readProjectManifest() succeeds with malformed dependency fields and allows writing corrected manifest', async () => {
+  const dir = temporaryDirectory()
+  const jsonPath = path.join(dir, 'package.json')
+  await fs.promises.writeFile(jsonPath, JSON.stringify({
+    name: 'test-package',
+    dependencies: 'invalid',
+  }, null, 2) + '\n')
+
+  const { manifest, writeProjectManifest } = await readProjectManifest(dir)
+  const m = manifest as Record<string, unknown>
+  delete m.dependencies
+
+  await writeProjectManifest(m as ProjectManifest)
+  expect(JSON.parse(await fs.promises.readFile(jsonPath, 'utf8'))).toStrictEqual({
+    name: 'test-package',
+  })
+})
+

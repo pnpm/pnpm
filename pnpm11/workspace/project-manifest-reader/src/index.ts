@@ -284,7 +284,7 @@ function createManifestWriter (
   }
 ): WriteProjectManifest {
   let emptyDependencyFields = opts.emptyDependencyFields ?? findEmptyDependencyFields(opts.initialManifest)
-  let initialManifest = convertManifestBeforeWrite(normalize(opts.initialManifest, emptyDependencyFields))
+  let initialManifest = normalize(opts.initialManifest, emptyDependencyFields)
   return async (updatedManifest: ProjectManifest, force?: boolean) => {
     updatedManifest = convertManifestBeforeWrite(normalize(updatedManifest, emptyDependencyFields))
     if (force === true || !equal(initialManifest, updatedManifest)) {
@@ -303,12 +303,20 @@ function createManifestWriter (
 }
 
 function convertManifestAfterRead (manifest: ProjectManifest): ProjectManifest {
-  convertEnginesRuntimeToDependencies(manifest, 'devEngines', 'devDependencies')
-  convertEnginesRuntimeToDependencies(manifest, 'engines', 'dependencies')
-  return manifest
+  const cloned = cloneManifestForRuntimeConversion(manifest)
+  convertEnginesRuntimeToDependencies(cloned, 'devEngines', 'devDependencies')
+  convertEnginesRuntimeToDependencies(cloned, 'engines', 'dependencies')
+  return cloned
 }
 
 function convertManifestBeforeWrite (manifest: ProjectManifest): ProjectManifest {
+  const cloned = cloneManifestForRuntimeConversion(manifest)
+  convertDependenciesToEnginesRuntime(cloned, 'devDependencies', 'devEngines')
+  convertDependenciesToEnginesRuntime(cloned, 'dependencies', 'engines')
+  return cloned
+}
+
+function cloneManifestForRuntimeConversion (manifest: ProjectManifest): ProjectManifest {
   const cloned: ProjectManifest = { ...manifest }
   if (manifest.dependencies != null && typeof manifest.dependencies === 'object' && !Array.isArray(manifest.dependencies)) {
     cloned.dependencies = { ...manifest.dependencies }
@@ -322,8 +330,6 @@ function convertManifestBeforeWrite (manifest: ProjectManifest): ProjectManifest
   if (manifest.devEngines != null && typeof manifest.devEngines === 'object' && !Array.isArray(manifest.devEngines)) {
     cloned.devEngines = { ...manifest.devEngines }
   }
-  convertDependenciesToEnginesRuntime(cloned, 'devDependencies', 'devEngines')
-  convertDependenciesToEnginesRuntime(cloned, 'dependencies', 'engines')
   return cloned
 }
 
