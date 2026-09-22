@@ -83,6 +83,7 @@ fn resolution_observer_emits_resolved_progress() {
         requester: "/project".to_string(),
         store_index: None,
         reusable_skipped_package_ids: HashSet::new(),
+        report_store_hits: true,
         reporter: PhantomData,
     };
     pnpm_package_manager::ResolutionObserver::on_resolved(&observer, resolved_dep_hint());
@@ -128,6 +129,7 @@ fn resolution_observer_reports_packages_found_in_store() {
         requester: "/project".to_string(),
         store_index: StoreIndex::shared_readonly_in(&store_dir),
         reusable_skipped_package_ids: HashSet::new(),
+        report_store_hits: true,
         reporter: PhantomData,
     };
 
@@ -166,6 +168,7 @@ fn resolution_observer_reports_skipped_packages_as_reused() {
         requester: "/project".to_string(),
         store_index: None,
         reusable_skipped_package_ids: HashSet::from(["dep@2.0.0".to_string()]),
+        report_store_hits: true,
         reporter: PhantomData,
     };
     pnpm_package_manager::ResolutionObserver::on_resolved(&observer, resolved_dep_hint());
@@ -179,6 +182,53 @@ fn resolution_observer_reports_skipped_packages_as_reused() {
                 LogEvent::Progress(found_in_store),
             ] if matches!(&resolved.message, ProgressMessage::Resolved { .. })
                 && matches!(&found_in_store.message, ProgressMessage::FoundInStore { .. })
+        ),
+        "unexpected events: {captured:?}",
+    );
+}
+
+#[test]
+fn resolution_observer_suppresses_store_hits_for_full_runs() {
+    static EVENTS: Mutex<Vec<LogEvent>> = Mutex::new(Vec::new());
+    EVENTS.lock().unwrap().clear();
+
+    struct RecordingReporter;
+    impl Reporter for RecordingReporter {
+        fn emit(event: &LogEvent) {
+            EVENTS
+                .lock()
+                .unwrap()
+                .push(event.clone());
+        }
+    }
+
+    let root = TempDir::new().unwrap();
+    let store_dir = StoreDir::new(root.path());
+    std::fs::create_dir_all(store_dir.root()).unwrap();
+    StoreIndex::open_in(&store_dir)
+        .unwrap()
+        .set(&store_index_key("sha512-test", "dep@2.0.0"), &PackageFilesIndex::default())
+        .unwrap();
+    // A full dedupe run reports store reuse from the fetch and
+    // materialization phases; the observer must not emit the same
+    // `found_in_store` again or every reused package counts twice
+    // (pnpm/pnpm#15303).
+    let observer = DedupeResolutionReporter::<RecordingReporter> {
+        requester: "/project".to_string(),
+        store_index: StoreIndex::shared_readonly_in(&store_dir),
+        reusable_skipped_package_ids: HashSet::new(),
+        report_store_hits: false,
+        reporter: PhantomData,
+    };
+
+    pnpm_package_manager::ResolutionObserver::on_resolved(&observer, resolved_dep_hint());
+
+    let captured = EVENTS.lock().unwrap();
+    assert!(
+        matches!(
+            captured.as_slice(),
+            [LogEvent::Progress(resolved)]
+                if matches!(&resolved.message, ProgressMessage::Resolved { .. })
         ),
         "unexpected events: {captured:?}",
     );
