@@ -53,8 +53,6 @@ export async function resolveMatureDependencyTree<Importer extends ImporterToRes
       return lastPass
     }
   }
-  // Fell out of the loop with ancestors still left to try, so the report
-  // below is the first pass's, not a proof that no installable tree exists.
   globalWarn(
     `Stopped after ${MAX_RESOLUTION_PASSES} resolution attempts while backing off from versions whose ` +
     'dependencies do not satisfy minimumReleaseAge. The versions reported are the ones the first attempt ' +

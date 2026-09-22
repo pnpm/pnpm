@@ -36,7 +36,7 @@ fn backoff_blocks_packument_keys_that_differ_from_manifest_versions() {
 
 #[test]
 fn raw_parent_keys_reach_maturity_preflight() {
-    for raw_parent_key in ["v2.0.0", "banana"] {
+    for raw_parent_key in ["v2.0.0", "banana", "bad\u{1b}[31m"] {
         assert_backoff(&Fixture {
             latest_major: 2,
             raw_parent_key: Some(raw_parent_key),
@@ -136,10 +136,19 @@ fn run_command(fixture: &Fixture, command: &str, default_url: &str, named_url: &
         }
         _ => {}
     }
+    if fixture.raw_parent_key.is_some() {
+        pacquet.env("TRACE", "pnpm_resolving_npm_resolver=debug");
+    }
     let result = pacquet
         .args(["--lockfile-only", "--ignore-scripts"])
         .assert()
         .success();
+    if fixture.raw_parent_key.is_some() && command == "update" {
+        assert!(
+            String::from_utf8_lossy(&result.get_output().stdout)
+                .contains("parent@2.0.0 depends on a version"),
+        );
+    }
     if fixture.named_parent && command == "install" {
         assert!(
             String::from_utf8_lossy(&result.get_output().stdout)

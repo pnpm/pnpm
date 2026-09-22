@@ -50,8 +50,6 @@ where
         }
         last_pass = Some(pass);
     }
-    // Fell out of the loop with ancestors still left to try, so the report
-    // below is the first pass's, not a proof that no installable tree exists.
     Reporter::emit(&LogEvent::Pnpm(PnpmLog {
         level: LogLevel::Warn,
         prefix: lockfile_dir.display().to_string(),

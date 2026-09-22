@@ -465,20 +465,31 @@ impl PackageVersionGuard for MaturePinsGuard {
         })
     }
 
-    fn check_candidate<'a>(
-        &'a self,
-        candidate: PackageVersionGuardCandidate<'a>,
-    ) -> PackageVersionGuardFuture<'a> {
-        self.check_in_registry(candidate.name, candidate.packument_key, candidate.registry)
-    }
-
     fn check_in_registry<'a>(
         &'a self,
         name: &'a str,
         version: &'a str,
         registry: &'a str,
     ) -> PackageVersionGuardFuture<'a> {
+        self.check_candidate(PackageVersionGuardCandidate {
+            name,
+            version,
+            registry,
+            packument_key: version,
+        })
+    }
+
+    fn check_candidate<'a>(
+        &'a self,
+        candidate: PackageVersionGuardCandidate<'a>,
+    ) -> PackageVersionGuardFuture<'a> {
         Box::pin(async move {
+            let PackageVersionGuardCandidate {
+                name,
+                version,
+                registry,
+                packument_key,
+            } = candidate;
             let picker = LatestPicker::new(
                 &self.config,
                 &self.http_client,
@@ -486,18 +497,21 @@ impl PackageVersionGuard for MaturePinsGuard {
                 Arc::clone(&self.meta_cache),
                 Arc::clone(&self.fetch_locker),
             );
-            Ok(match picker.pins_installable_for(name, version, registry, self.dry_run).await {
-                Ok(false) => PackageVersionGuardDecision::Reject {
-                    reason: format!(
-                        "{name}@{version} depends on a version that minimumReleaseAge does not \
+            Ok(
+                match picker.pins_installable_for(name, packument_key, registry, self.dry_run).await
+                {
+                    Ok(false) => PackageVersionGuardDecision::Reject {
+                        reason: format!(
+                            "{name}@{version} depends on a version that minimumReleaseAge does not \
                          admit yet, and pins it exactly",
-                    ),
+                        ),
+                    },
+                    // A candidate whose own metadata cannot be read is left to
+                    // the install, which resolves it next and reports the real
+                    // failure. See `pins_only_installable_versions`.
+                    Ok(true) | Err(_) => PackageVersionGuardDecision::Allow,
                 },
-                // A candidate whose own metadata cannot be read is left to
-                // the install, which resolves it next and reports the real
-                // failure. See `pins_only_installable_versions`.
-                Ok(true) | Err(_) => PackageVersionGuardDecision::Allow,
-            })
+            )
         })
     }
 }
