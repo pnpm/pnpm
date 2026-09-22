@@ -11,6 +11,9 @@ const rootDir = process.cwd()
 const pnpmCommand = resolveCommand('pn')
 const WINDOWS_SHELL_COMMAND_LENGTH_LIMIT = 7000
 const DEFAULT_COMMAND_LENGTH_LIMIT = 100000
+// Nothing in CI reads the coverage that the shared Jest config collects, and
+// collecting it made package test runs up to 20% slower.
+const JEST_CI_ARGS = ['--coverage=false']
 const { chunk, chunks, dryRun, script, summary } = parseArgs(process.argv.slice(2))
 
 if (!dryRun) {
@@ -100,7 +103,6 @@ function readRegistryMockPort (scripts) {
   return undefined
 }
 
-
 function groupJestTasksByPackage (tasks) {
   const selectedPackages = new Map()
   for (const task of tasks) {
@@ -149,7 +151,7 @@ async function runJestPackage (pkg, selectedPackage) {
       if (batches.length > 1) {
         console.log(`Running batch ${index + 1}/${batches.length} (${files.length} Jest file(s)) in ${relDir}`)
       }
-      await runPnpm(['--dir', pkg.path, 'exec', 'jest', '--runTestsByPath', ...files], { env })
+      await runPnpm(['--dir', pkg.path, 'exec', 'jest', ...JEST_CI_ARGS, '--runTestsByPath', ...files], { env })
     }
   } catch (err) {
     status = 'failure'
@@ -294,7 +296,7 @@ function getExplicitJestFiles (scripts) {
 
 function splitJestFilesByCommandLength (pkg, files) {
   const limit = process.platform === 'win32' ? WINDOWS_SHELL_COMMAND_LENGTH_LIMIT : DEFAULT_COMMAND_LENGTH_LIMIT
-  const baseArgs = [pnpmCommand, '--dir', pkg.path, 'exec', 'jest', '--runTestsByPath']
+  const baseArgs = [pnpmCommand, '--dir', pkg.path, 'exec', 'jest', ...JEST_CI_ARGS, '--runTestsByPath']
   const chunks = []
   let currentChunk = []
   let currentLength = estimateCommandLength(baseArgs)
