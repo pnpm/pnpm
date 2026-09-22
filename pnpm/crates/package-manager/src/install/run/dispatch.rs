@@ -13,7 +13,6 @@ use super::{
     wanted::Lockfiles,
     workspace::{InstallScope, InstallWorkspace},
 };
-use crate::optimistic_repeat_install::{FrozenLocalTarballCheck, verify_frozen_local_tarballs};
 use pnpm_config::Config;
 use pnpm_reporter::{SkippedOptionalDependencyLog, SkippedOptionalPackage, SkippedOptionalReason};
 
@@ -52,13 +51,7 @@ pub(super) async fn dispatch<'install, Reporter: self::Reporter + 'static>(
     settled: Settled<'_, '_>,
     options: &mut InstallRunOptions<'install, '_>,
 ) -> Result<Option<Dispatched<'install>>, InstallError> {
-    let Settled {
-        install,
-        mode,
-        lockfiles,
-        projects: SettledProjects { workspace, scope, .. },
-        ..
-    } = settled;
+    let Settled { install, mode, lockfiles, .. } = settled;
     let root_preinstall_ran = announce_import::<Reporter>(settled, options)?;
     run_pre_uninstall_hooks::<Reporter>(settled, options.selection.as_ref())?;
     // Dispatch priority, following the CLI + `preferFrozenLockfile`
@@ -108,26 +101,7 @@ pub(super) async fn dispatch<'install, Reporter: self::Reporter + 'static>(
     .await?;
 
     if take_frozen_path && install.lockfile_policy.frozen {
-        let lockfile =
-            lockfiles.wanted.get().expect("frozen dispatch verified lockfile is present");
-        let importer_ids = super::super::materialize::initial_materialization_ids(
-            lockfile,
-            scope.importers.requested_importer_ids
-                .as_ref()
-                .or_else(|| {
-                    (!install.lockfile_policy.ignore_manifest_check).then_some(
-                        &scope.importers.real_importer_ids,
-                    )
-                }),
-            install.execution.node_linker,
-        );
-        verify_frozen_local_tarballs(&FrozenLocalTarballCheck {
-            workspace_root: &workspace.dirs.workspace_root,
-            importer_ids: &importer_ids,
-            included: mode.included,
-            lockfile,
-        })
-        .map_err(InstallError::LocalTarballIntegrity)?;
+        super::frozen_local_tarballs::verify_frozen_tarballs::<Reporter>(settled).await?;
     }
 
     if take_frozen_path && mode.lockfile_only {

@@ -9,7 +9,7 @@ import {
   execPnpmSync,
 } from '../utils/index.js'
 
-test.each(['changed', 'deleted', 'directory', 'excluded', 'direct', 'fetch'])('frozen install verifies a %s local tarball from a warm store', async (mutation) => {
+test.each(['changed', 'deleted', 'directory', 'excluded', 'direct', 'fetch', 'unsupported-optional'])('frozen install verifies a %s local tarball from a warm store', async (mutation) => {
   prepareEmpty()
   const packageDir = path.resolve('local-tarball')
   const tarball = path.resolve('local-tarball.tgz')
@@ -17,6 +17,7 @@ test.each(['changed', 'deleted', 'directory', 'excluded', 'direct', 'fetch'])('f
   fs.writeFileSync(path.join(packageDir, 'package.json'), JSON.stringify({
     name: 'local-tarball',
     version: '1.0.0',
+    ...(mutation === 'unsupported-optional' ? { os: ['nonexistent-os'] } : {}),
   }))
   fs.writeFileSync(path.join(packageDir, 'index.js'), "module.exports = 'first'\n")
   packLocalTarball(packageDir, tarball)
@@ -31,7 +32,7 @@ test.each(['changed', 'deleted', 'directory', 'excluded', 'direct', 'fetch'])('f
   fs.writeFileSync('package.json', JSON.stringify({
     name: 'project',
     version: '1.0.0',
-    [mutation === 'excluded' ? 'devDependencies' : 'dependencies']: mutation === 'direct'
+    [mutation === 'excluded' ? 'devDependencies' : mutation === 'unsupported-optional' ? 'optionalDependencies' : 'dependencies']: mutation === 'direct' || mutation === 'unsupported-optional'
       ? { 'local-tarball': 'file:./local-tarball.tgz' }
       : { parent: 'file:./parent-1.0.0.tgz' },
   }))
@@ -53,12 +54,17 @@ test.each(['changed', 'deleted', 'directory', 'excluded', 'direct', 'fetch'])('f
   const { status, stdout, stderr } = execPnpmSync(mutation === 'fetch'
     ? ['fetch']
     : ['install', '--frozen-lockfile', ...(mutation === 'excluded' ? ['--prod'] : [])], { env: { CI: 'true' } })
-  if (mutation === 'excluded') {
+  if (['excluded', 'unsupported-optional'].includes(mutation)) {
     expect(status).toBe(0)
     return
   }
   expect(status).not.toBe(0)
-  expect(stdout.toString() + stderr.toString()).toContain(['changed', 'direct', 'fetch'].includes(mutation) ? 'ERR_PNPM_TARBALL_INTEGRITY' : tarball)
+  const output = stdout.toString() + stderr.toString()
+  const expectedCode = ['changed', 'direct', 'fetch'].includes(mutation)
+    ? 'ERR_PNPM_TARBALL_INTEGRITY'
+    : 'ERR_PNPM_TARBALL_READ_LOCAL_TARBALL'
+  expect(output).toContain(expectedCode)
+  expect(output).toContain(tarball)
 })
 
 function packLocalTarball (packageDir: string, tarball: string): void {

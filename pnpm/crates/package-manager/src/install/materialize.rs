@@ -1,6 +1,7 @@
+pub(super) use scope::initial_materialization_ids;
+
 mod frozen;
 mod scope;
-pub(super) use scope::initial_materialization_ids;
 use scope::{
     allow_builds_changed_since, anchored_project_manifests, announce_headless_install,
     frozen_project_anchor_ids, importer_manifests_by_id, lockfile_specifier_manifests_by_id,

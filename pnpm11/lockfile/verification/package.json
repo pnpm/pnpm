@@ -37,6 +37,7 @@
     "@pnpm/config.matcher": "workspace:*",
     "@pnpm/crypto.hash": "workspace:*",
     "@pnpm/deps.path": "workspace:*",
+    "@pnpm/error": "workspace:*",
     "@pnpm/installing.context": "workspace:*",
     "@pnpm/lockfile.types": "workspace:*",
     "@pnpm/lockfile.utils": "workspace:*",

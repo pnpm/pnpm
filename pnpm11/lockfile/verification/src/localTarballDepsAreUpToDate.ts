@@ -3,6 +3,7 @@ import util from 'node:util'
 
 import { getTarballIntegrity } from '@pnpm/crypto.hash'
 import * as dp from '@pnpm/deps.path'
+import { PnpmError } from '@pnpm/error'
 import type {
   PackageSnapshot,
   PackageSnapshots,
@@ -44,8 +45,12 @@ function readLocalTarballIntegrity (fileIntegrityCache: Map<string, Promise<stri
   let integrity = fileIntegrityCache.get(filePath)
   if (integrity == null) {
     integrity = getTarballIntegrity(filePath).catch((error: unknown) => {
-      if (util.types.isNativeError(error)) error.message = `Cannot read local tarball "${filePath}": ${error.message}`
-      throw error
+      const message = util.types.isNativeError(error) ? error.message : String(error)
+      throw new PnpmError(
+        'TARBALL_READ_LOCAL_TARBALL',
+        `Cannot read local tarball "${filePath}": ${message}`,
+        { cause: error }
+      )
     })
     fileIntegrityCache.set(filePath, integrity)
   }

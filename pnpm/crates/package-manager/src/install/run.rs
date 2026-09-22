@@ -19,6 +19,7 @@ use workspace::{InstallScope, InstallWorkspace, workspace_projects};
 mod execution;
 mod mode;
 use mode::{RunMode, WorkspaceManifestRollbackGuard};
+mod frozen_local_tarballs;
 mod time_machine_capture;
 mod uninstall_hooks;
 use uninstall_hooks::run_pre_uninstall_hooks;

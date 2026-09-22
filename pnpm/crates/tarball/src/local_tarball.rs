@@ -11,7 +11,7 @@ use super::{
 };
 use crate::extraction_task::spawn_extraction;
 use pnpm_package_manifest::parse_manifest_bytes;
-use ssri::Integrity;
+use ssri::{Integrity, IntegrityChecker};
 use tar::Archive;
 
 pub(crate) async fn open_local_tarball(
@@ -352,4 +352,35 @@ fn finish_bundled_manifest(
             source,
         })?;
     Ok((normalize_bundled_manifest(&parsed), true))
+}
+
+/// Verifies a local tarball on disk matches the expected integrity.
+pub fn verify_local_file_integrity(path: &Path, integrity: &Integrity) -> Result<(), TarballError> {
+    let mut file = std::fs::File::open(path)
+        .map_err(|source| TarballError::ReadLocalTarball { path: path.to_path_buf(), source })?;
+    let metadata = file
+        .metadata()
+        .map_err(|source| TarballError::ReadLocalTarball { path: path.to_path_buf(), source })?;
+    reject_non_file_local_tarball(path, &metadata)?;
+    let mut checker = IntegrityChecker::new(integrity.clone());
+    let mut buffer = vec![0_u8; 64 * 1024].into_boxed_slice();
+    loop {
+        match file.read(&mut buffer) {
+            Ok(0) => {
+                return checker
+                    .result()
+                    .map(|_| ())
+                    .map_err(|error| {
+                        TarballError::Checksum(crate::VerifyChecksumError {
+                            url: format!("file:{}", path.display()),
+                            error,
+                        })
+                    });
+            }
+            Ok(read) => checker.input(&buffer[..read]),
+            Err(source) => {
+                return Err(TarballError::ReadLocalTarball { path: path.to_path_buf(), source });
+            }
+        }
+    }
 }

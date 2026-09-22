@@ -7429,6 +7429,9 @@ importers:
       '@pnpm/deps.path':
         specifier: workspace:*
         version: link:../../deps/path
+      '@pnpm/error':
+        specifier: workspace:*
+        version: link:../../core/error
       '@pnpm/installing.context':
         specifier: workspace:*
         version: link:../../installing/context

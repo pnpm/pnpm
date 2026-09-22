@@ -725,13 +725,16 @@ export async function mutateModules (
     install: Promise<InnerInstallResult>,
     verification: Promise<void> | undefined
   ): Promise<InnerInstallResult> {
-    if (verification == null) return install
-    // Handle the install's eventual rejection up front so a fail-fast
-    // verification throw below doesn't leave the still-running install
-    // unhandled.
-    install.catch(() => {})
+    if (verification != null) {
+      // Handle the install's eventual rejection up front so a fail-fast
+      // verification throw below doesn't leave the still-running install
+      // unhandled.
+      install.catch(() => {})
+    }
     try {
-      await verification
+      if (verification != null) {
+        await verification
+      }
       return await install
     } catch (err) {
       detachReporter()
@@ -1731,6 +1734,7 @@ Note that in CI environments, this setting is enabled by default.`,
       const importerIds = opts.ignorePackageManifest === true || opts.nodeLinker === 'hoisted'
         ? Object.keys(ctx.wantedLockfile.importers) as ProjectId[]
         : projects.map(({ rootDir }) => ctx.projects[rootDir].id)
+      const skipped = new Set<string>()
       const { lockfile } = filterLockfileByImportersAndEngine(ctx.wantedLockfile, importerIds, {
         include: opts.include,
         currentEngine: {
@@ -1739,13 +1743,14 @@ Note that in CI environments, this setting is enabled by default.`,
         },
         engineStrict: opts.engineStrict,
         failOnMissingDependencies: false,
-        includeIncompatiblePackages: true,
+        includeIncompatiblePackages: opts.force === true,
         lockfileDir: opts.lockfileDir,
-        skipped: new Set(),
+        skipped,
         skipRuntimes: opts.skipRuntimes,
         supportedArchitectures: opts.supportedArchitectures,
       })
-      await Promise.all(Object.values(lockfile.packages ?? {}).map(async (snapshot) => {
+      await Promise.all(Object.entries(lockfile.packages ?? {}).map(async ([depPath, snapshot]) => {
+        if (skipped.has(depPath)) return
         const mismatch = await findPackageTarballIntegrityMismatch({
           fileIntegrityCache,
           lockfileDir: opts.lockfileDir,

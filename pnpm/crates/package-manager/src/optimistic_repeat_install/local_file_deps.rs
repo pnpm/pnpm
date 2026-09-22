@@ -7,15 +7,9 @@ use super::{
 };
 use pnpm_lockfile::{LockfileResolution, PkgName};
 use pnpm_resolving_local_resolver::local_tarball_path;
-use pnpm_tarball::{TarballError, VerifyChecksumError};
 use pnpm_workspace::importer_id_from_root_dir;
 use ssri::{Integrity, IntegrityChecker};
-use std::{
-    borrow::Cow,
-    collections::HashSet,
-    fs,
-    io::{self, Read},
-};
+use std::{borrow::Cow, collections::HashSet, fs, io::Read};
 
 struct LocalTarballDependency {
     project_dir: PathBuf,
@@ -30,6 +24,7 @@ pub(crate) struct FrozenLocalTarballCheck<'a> {
     pub(crate) importer_ids: &'a HashSet<String>,
     pub(crate) included: IncludedDependencies,
     pub(crate) lockfile: &'a Lockfile,
+    pub(crate) skipped: &'a pnpm_deps_restorer::SkippedSnapshots,
 }
 
 impl FrozenLocalTarballCheck<'_> {
@@ -39,7 +34,7 @@ impl FrozenLocalTarballCheck<'_> {
             self.workspace_root,
             self.importer_ids,
             self.included,
-            |_| false,
+            |key| self.skipped.contains(key),
         )
         .snapshot_keys
     }
@@ -52,7 +47,7 @@ impl FrozenLocalTarballCheck<'_> {
 /// normally verifies its bytes.
 pub(crate) fn verify_frozen_local_tarballs(
     check: &FrozenLocalTarballCheck<'_>,
-) -> Result<(), TarballError> {
+) -> Result<(), pnpm_tarball::TarballError> {
     let mut verified = HashSet::new();
     for key in check.package_keys() {
         let Some(metadata) = check.lockfile.packages
@@ -76,7 +71,7 @@ pub(crate) fn verify_frozen_local_tarballs(
             continue;
         };
         if verified.insert((recorded_path.clone(), integrity.to_string())) {
-            verify_file_integrity(&recorded_path, integrity)?;
+            pnpm_tarball::verify_local_file_integrity(&recorded_path, integrity)?;
         }
     }
     Ok(())
@@ -89,13 +84,7 @@ pub(crate) fn verify_frozen_local_tarballs(
 pub(crate) fn has_local_file_dep_requiring_install(
     check: &OptimisticRepeatInstallCheck<'_>,
 ) -> Result<bool, &'static str> {
-    let scan = LocalTarballScanInputs {
-        catalogs: check.catalogs,
-        workspace_dir: check.config.workspace_dir.as_deref(),
-        project_manifests: check.project_manifests,
-        included: check.layout.included,
-    };
-    let tarballs = match scan_local_tarball_deps(&scan) {
+    let tarballs = match scan_local_tarball_deps(check) {
         LocalTarballScan::RequiresInstall => return Ok(true),
         LocalTarballScan::Candidates(tarballs) => tarballs,
     };
@@ -132,18 +121,15 @@ enum LocalTarballScan {
     Candidates(Vec<LocalTarballDependency>),
 }
 
-struct LocalTarballScanInputs<'a> {
-    catalogs: &'a Catalogs,
-    workspace_dir: Option<&'a Path>,
-    project_manifests: &'a [(PathBuf, &'a pnpm_package_manifest::PackageManifest)],
-    included: IncludedDependencies,
-}
-
-fn scan_local_tarball_deps(check: &LocalTarballScanInputs<'_>) -> LocalTarballScan {
+fn scan_local_tarball_deps(check: &OptimisticRepeatInstallCheck<'_>) -> LocalTarballScan {
     let fields: [(&str, DependencyGroup, bool); 3] = [
-        ("dependencies", DependencyGroup::Prod, check.included.dependencies),
-        ("devDependencies", DependencyGroup::Dev, check.included.dev_dependencies),
-        ("optionalDependencies", DependencyGroup::Optional, check.included.optional_dependencies),
+        ("dependencies", DependencyGroup::Prod, check.layout.included.dependencies),
+        ("devDependencies", DependencyGroup::Dev, check.layout.included.dev_dependencies),
+        (
+            "optionalDependencies",
+            DependencyGroup::Optional,
+            check.layout.included.optional_dependencies,
+        ),
     ];
     let mut tarballs = Vec::new();
     for (project_dir, manifest) in check.project_manifests {
@@ -153,7 +139,7 @@ fn scan_local_tarball_deps(check: &LocalTarballScanInputs<'_>) -> LocalTarballSc
             }
             let scan = FieldTarballScan {
                 catalogs: check.catalogs,
-                workspace_dir: check.workspace_dir,
+                workspace_dir: check.config.workspace_dir.as_deref(),
                 project_dir,
                 field,
                 group,
@@ -336,43 +322,18 @@ fn recorded_tarball<'l>(
 }
 
 fn file_matches_integrity(path: &Path, integrity: &Integrity) -> bool {
-    verify_file_integrity(path, integrity).is_ok()
-}
-
-fn verify_file_integrity(path: &Path, integrity: &Integrity) -> Result<(), TarballError> {
-    let mut file = fs::File::open(path)
-        .map_err(|source| TarballError::ReadLocalTarball { path: path.to_path_buf(), source })?;
-    let metadata = file
-        .metadata()
-        .map_err(|source| TarballError::ReadLocalTarball { path: path.to_path_buf(), source })?;
+    let Ok(mut file) = fs::File::open(path) else { return false };
+    let Ok(metadata) = file.metadata() else { return false };
     if !metadata.is_file() {
-        return Err(TarballError::ReadLocalTarball {
-            path: path.to_path_buf(),
-            source: io::Error::new(
-                io::ErrorKind::InvalidInput,
-                "local tarball path is not a regular file",
-            ),
-        });
+        return false;
     }
     let mut checker = IntegrityChecker::new(integrity.clone());
     let mut buffer = vec![0_u8; 64 * 1024].into_boxed_slice();
     loop {
         match file.read(&mut buffer) {
-            Ok(0) => {
-                return checker
-                    .result()
-                    .map(|_| ())
-                    .map_err(|error| {
-                        TarballError::Checksum(VerifyChecksumError {
-                            url: format!("file:{}", path.display()),
-                            error,
-                        })
-                    });
-            }
+            Ok(0) => return checker.result().is_ok(),
             Ok(read) => checker.input(&buffer[..read]),
-            Err(source) => {
-                return Err(TarballError::ReadLocalTarball { path: path.to_path_buf(), source });
-            }
+            Err(_) => return false,
         }
     }
 }
