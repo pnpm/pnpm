@@ -144,3 +144,34 @@ fn an_empty_override_map_needs_no_root_manifest() {
 
     assert!(empty.is_empty());
 }
+
+#[test]
+fn a_reference_resolves_from_a_json5_root_manifest() {
+    let root = tempdir().expect("create a temporary workspace root");
+    fs::write(
+        root.path().join("package.json5"),
+        "// root\n{ name: 'root', dependencies: { 'is-odd': '^3.0.1', }, }\n",
+    )
+    .expect("write the root package.json5");
+    let mut overrides = overrides_map(&[("is-odd", "$is-odd")]);
+
+    resolve_version_references(&mut overrides, root.path()).expect("resolve the reference");
+
+    dbg!(&overrides);
+    assert_eq!(overrides, overrides_map(&[("is-odd", "^3.0.1")]));
+}
+
+#[test]
+fn a_reference_prefers_json_over_a_coexisting_json5_manifest() {
+    let root = root_with_manifest(&serde_json::json!({
+        "dependencies": { "is-odd": "3.0.1" },
+    }));
+    fs::write(root.path().join("package.json5"), "{ dependencies: { 'is-odd': '^2.0.0' } }")
+        .expect("write the alternate root manifest");
+    let mut overrides = overrides_map(&[("is-odd", "$is-odd")]);
+
+    resolve_version_references(&mut overrides, root.path()).expect("resolve the reference");
+
+    dbg!(&overrides);
+    assert_eq!(overrides, overrides_map(&[("is-odd", "3.0.1")]));
+}

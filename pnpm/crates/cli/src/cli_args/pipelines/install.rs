@@ -238,7 +238,7 @@ pub(super) async fn run_dedicated_lockfile_workspace_install<Reporter: self::Rep
     let mut names = project_names(cfg, &projects);
     let normalized_root = pnpm_fs::lexical_normalize(workspace_root);
     let mut project_dirs: Vec<PathBuf> = Vec::with_capacity(projects.len() + 1);
-    if workspace_root.join("package.json").is_file()
+    if pnpm_package_manifest::project_manifest_path(workspace_root).is_file()
         && !projects
             .iter()
             .any(|project| pnpm_fs::lexical_normalize(&project.root_dir) == normalized_root)

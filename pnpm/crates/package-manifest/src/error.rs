@@ -19,6 +19,15 @@ pub enum PackageManifestError {
 
     #[from(ignore)]
     #[display("Failed to parse {}: {source}", path.display())]
+    #[diagnostic(code(ERR_PNPM_JSON5_PARSE))]
+    ParseJson5 {
+        path: PathBuf,
+        #[error(source)]
+        source: json5::Error,
+    },
+
+    #[from(ignore)]
+    #[display("Failed to parse {}: {source}", path.display())]
     #[diagnostic(code(ERR_PNPM_YAML_PARSE))]
     ParseYaml {
         path: PathBuf,

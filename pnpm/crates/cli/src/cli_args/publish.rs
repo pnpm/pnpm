@@ -255,9 +255,9 @@ impl PublishArgs {
         config: &Config,
         before_packing_hooks: &[Arc<dyn PnpmfileHooks>],
     ) -> miette::Result<PackedDirectory> {
-        let manifest = pnpm_package_manifest::safe_read_package_json_from_dir(project_dir)
+        let manifest = pnpm_package_manifest::safe_read_project_manifest_from_dir(project_dir)
             .into_diagnostic()
-            .wrap_err("read package.json")?
+            .wrap_err("read project manifest")?
             .ok_or_else(|| {
                 let dir = project_dir.display();
                 miette::miette!(

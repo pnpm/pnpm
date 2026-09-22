@@ -2,10 +2,11 @@
 
 use derive_more::{Display, Error};
 use miette::Diagnostic;
+pub use pnpm_package_manifest::project_manifest_path;
 use pnpm_package_manifest::{PackageManifest, PackageManifestError};
 use std::path::{Path, PathBuf};
 
-pub(crate) const PROJECT_MANIFEST_BASENAMES: &[&str] = &["package.json", "package.yaml"];
+pub(crate) use pnpm_package_manifest::PROJECT_MANIFEST_BASENAMES;
 
 /// Error type of [`read_exact_project_manifest`].
 #[derive(Debug, Display, Error, Diagnostic)]
@@ -24,7 +25,7 @@ pub enum ReadProjectManifestError {
 #[derive(Debug, Display, Error, Diagnostic)]
 #[non_exhaustive]
 pub enum ReadProjectManifestOnlyError {
-    #[display("No package.json or package.yaml was found in {:?}", project_dir.display())]
+    #[display("No package.json, package.json5, or package.yaml was found in {:?}", project_dir.display())]
     #[diagnostic(code(ERR_PNPM_NO_IMPORTER_MANIFEST_FOUND))]
     NoImporterManifestFound { project_dir: PathBuf },
 
@@ -47,16 +48,6 @@ pub fn try_read_project_manifest(
         }
     }
     Ok(None)
-}
-
-/// Locate the existing manifest, preferring JSON, or the path for a new JSON manifest.
-#[must_use]
-pub fn project_manifest_path(project_dir: &Path) -> PathBuf {
-    PROJECT_MANIFEST_BASENAMES
-        .iter()
-        .map(|basename| project_dir.join(basename))
-        .find(|path| path.is_file())
-        .unwrap_or_else(|| project_dir.join(PROJECT_MANIFEST_BASENAMES[0]))
 }
 
 /// Strict version: error when no manifest is found.
@@ -104,8 +95,10 @@ pub fn read_exact_project_manifest(
         .map(|name| name.to_string_lossy().to_ascii_lowercase())
         .unwrap_or_default();
     match basename.as_str() {
-        "package.json" | "package.yaml" => PackageManifest::from_path(manifest_path.to_path_buf())
-            .map_err(ReadProjectManifestError::Read),
+        "package.json" | "package.json5" | "package.yaml" => {
+            PackageManifest::from_path(manifest_path.to_path_buf())
+                .map_err(ReadProjectManifestError::Read)
+        }
         _ => Err(ReadProjectManifestError::UnsupportedName { basename }),
     }
 }
