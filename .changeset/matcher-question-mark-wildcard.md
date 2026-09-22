@@ -4,4 +4,4 @@
 "pacquet": patch
 ---
 
-Filter patterns now support the `?` single-character wildcard [#15129](https://github.com/pnpm/pnpm/issues/15129).
+Filter patterns now support the `?` single-character wildcard [#2817](https://github.com/pnpm/pnpm/issues/2817).

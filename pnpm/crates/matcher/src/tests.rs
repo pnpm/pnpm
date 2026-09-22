@@ -131,6 +131,14 @@ fn question_matches_single_character() {
     assert!(!matcher.matches("ab"));
     assert!(!matcher.matches("axxb"));
 
+    let matcher = create_matcher(&pats(["*a?b"]));
+    assert!(matcher.matches("xxacb"));
+    assert!(!matcher.matches("xxab"));
+
+    let matcher = create_matcher(&pats(["*a?b*c?d*"]));
+    assert!(matcher.matches("xaybczzcXd"));
+    assert!(!matcher.matches("xaybczzcd"));
+
     let matcher = create_matcher(&pats(["?eb*"]));
     assert!(matcher.matches("web"));
     assert!(matcher.matches("website"));

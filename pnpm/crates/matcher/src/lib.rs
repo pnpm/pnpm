@@ -1,13 +1,13 @@
 //! Literal-star matching and ordered include/ignore pattern lists.
 //!
-//! The pattern syntax is intentionally tiny: `*` is the only wildcard
-//! (matching any sequence of characters, including empty), every other
-//! character is matched literally. Pattern lists also interpret a leading
-//! `!` as an ignore rule; [`WildcardMatcher`] treats it literally.
+//! The pattern syntax is intentionally tiny: `*` matches any sequence of
+//! characters (including empty) and `?` matches exactly one character;
+//! every other character is matched literally. Pattern lists also interpret
+//! a leading `!` as an ignore rule; [`WildcardMatcher`] treats it literally.
 //!
 //! The glob matcher is hand-rolled rather than backed by a regex engine:
-//! the only wildcard is `*`, so a literal "starts with", "ends with", and
-//! "contains in order" walk is enough.
+//! segments between `*` wildcards are matched with a literal walk, and `?`
+//! positions are checked via a character-by-character scan.
 
 use std::sync::Arc;
 
@@ -198,9 +198,9 @@ fn compile_many(patterns: &[String]) -> MatcherImpl {
     }
 }
 
-/// A compiled glob pattern. The only wildcard is `*` (matches any
-/// sequence including empty); every other character is literal. The
-/// match is anchored — pattern must consume the whole input.
+/// A compiled glob pattern. `*` matches any sequence of characters (including
+/// empty) and `?` matches exactly one character; every other character is
+/// literal. The match is anchored — the pattern must consume the whole input.
 
 #[derive(Clone)]
 pub struct WildcardMatcher {
