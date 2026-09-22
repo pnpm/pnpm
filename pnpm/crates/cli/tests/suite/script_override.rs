@@ -274,9 +274,6 @@ mod scripts {
         drop(root);
     }
 
-    /// `ci` ignores user `clean` scripts, so `--ignore-scripts` properly skips
-    /// all lifecycle scripts without triggering an overridable clean script or
-    /// its pre-run install ([pnpm/pnpm#15276](https://github.com/pnpm/pnpm/issues/15276)).
     #[test]
     fn ci_with_ignore_scripts_skips_lifecycle_scripts_when_clean_script_is_present() {
         let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
