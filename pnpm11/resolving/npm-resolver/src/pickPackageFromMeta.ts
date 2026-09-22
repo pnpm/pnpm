@@ -474,15 +474,6 @@ export function findNonDeprecatedAlternative (
   }
 }
 
-/**
- * A deprecated pick falls back to the newest non-deprecated version among
- * `candidates`, when one exists. Scoping the retry to the candidates keeps a
- * preference group that holds one explicitly pinned version from being
- * overridden.
- *
- * `*` admits a prerelease `latest` that `semver.satisfies` rejects, so for
- * that range the candidates are ranked directly instead of re-running it.
- */
 function nonDeprecatedPick (
   meta: PackageMeta,
   candidates: string[],

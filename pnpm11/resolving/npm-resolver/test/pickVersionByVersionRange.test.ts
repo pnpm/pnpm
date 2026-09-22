@@ -61,6 +61,23 @@ function metaWithoutLatest (versions: string[]): PackageMeta {
   return meta
 }
 
+function metaWithDeprecation (versions: Record<string, boolean>, latest?: string): PackageMeta {
+  const meta: PackageMeta = {
+    name: 'pick-version',
+    'dist-tags': latest == null ? {} : { latest },
+    versions: {},
+  }
+  for (const [version, deprecated] of Object.entries(versions)) {
+    meta.versions[version] = {
+      name: 'pick-version',
+      version,
+      ...(deprecated ? { deprecated: 'do not use' } : {}),
+      dist: { tarball: `https://registry.npmjs.org/pick-version/-/pick-version-${version}.tgz`, shasum: '' },
+    }
+  }
+  return meta
+}
+
 test.each(RANGES)('the highest satisfying version of %s matches semver.maxSatisfying', (versionRange) => {
   const meta = metaWithoutLatest(VERSIONS)
   expect(pickVersionByVersionRange({ meta, versionRange })).toBe(semver.maxSatisfying(VERSIONS, versionRange, true))
@@ -215,4 +232,35 @@ test('selector weights whose sum is unsafe disable cached range reuse', () => {
   })
 
   expect(result).toBeNull()
+})
+
+test('a deprecated prerelease latest under * falls back to a non-deprecated prerelease', () => {
+  const meta = metaWithDeprecation({ '2.0.0-beta.1': true, '2.0.0-beta.2': false }, '2.0.0-beta.1')
+  expect(pickVersionByVersionRange({ meta, versionRange: '*' })).toBe('2.0.0-beta.2')
+})
+
+test('a deprecated preferred-selector winner falls back inside its group', () => {
+  const meta = metaWithDeprecation({ '2.0.0': true, '2.0.0-beta.1': false }, '2.0.0')
+  const result = pickVersionByVersionRange({
+    meta,
+    preferredVersionSelectors: {
+      '^2.0.0-beta.0': { selectorType: 'range', weight: EXISTING_VERSION_SELECTOR_WEIGHT },
+    },
+    versionRange: '^2.0.0-beta.0',
+  })
+
+  expect(result).toBe('2.0.0-beta.1')
+})
+
+test('a preferred group holding one pinned version keeps it even when deprecated', () => {
+  const meta = metaWithDeprecation({ '1.0.0': true, '2.0.0': false }, '1.0.0')
+  const result = pickVersionByVersionRange({
+    meta,
+    preferredVersionSelectors: {
+      '1.0.0': { selectorType: 'version', weight: EXISTING_VERSION_SELECTOR_WEIGHT },
+    },
+    versionRange: '^1.0.0',
+  })
+
+  expect(result).toBe('1.0.0')
 })

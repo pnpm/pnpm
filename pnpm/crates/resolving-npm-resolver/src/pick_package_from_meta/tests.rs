@@ -197,9 +197,6 @@ fn version_range_deprecated_latest_tag_falls_back_to_non_deprecated() {
     assert_eq!(pick_version_by_version_range(&opts).as_deref(), Some("1.1.0"));
 }
 
-/// `*` admits a prerelease `latest` that the range itself rejects, so the
-/// deprecation retry has to rank those candidates instead of re-running
-/// the range.
 #[test]
 fn version_range_deprecated_prerelease_latest_falls_back_to_non_deprecated_prerelease() {
     let pkg = make_package(
@@ -216,9 +213,6 @@ fn version_range_deprecated_prerelease_latest_falls_back_to_non_deprecated_prere
     assert_eq!(pick_version_by_version_range(&opts).as_deref(), Some("2.0.0-beta.2"));
 }
 
-/// A project manifest's own specifier is seeded as a preferred `Range`
-/// selector, so a plain install takes the preferred-versions branch even
-/// with no lockfile. That branch has to run the fallback too.
 #[test]
 fn version_range_deprecated_range_selector_falls_back_to_non_deprecated() {
     let pkg = make_package(
@@ -267,8 +261,6 @@ fn version_range_all_deprecated_with_range_selector_returns_deprecated_max() {
     assert_eq!(pick_version_by_version_range(&opts).as_deref(), Some("1.1.0"));
 }
 
-/// A lockfile records the version a previous install settled on, so the
-/// fallback must not override that pin.
 #[test]
 fn version_range_deprecated_version_pin_is_kept() {
     let pkg = make_package(
@@ -671,9 +663,6 @@ fn pick_from_meta_published_by_filters_immature_versions() {
     assert_eq!(picked.map(|version| version.version.to_string()).as_deref(), Some("1.1.0"));
 }
 
-/// `minimumReleaseAge` narrows the candidates before the pick, so a
-/// deprecated version that has matured beats a newer non-deprecated one
-/// that the cutoff excludes.
 #[test]
 fn pick_from_meta_published_by_beats_deprecation_skip() {
     let mut pkg = make_package(
