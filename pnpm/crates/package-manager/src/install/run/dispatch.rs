@@ -37,7 +37,8 @@ pub(super) struct SettledProjects<'r, 'a> {
 /// Which path the install takes, and the modules state it starts from.
 pub(super) struct Dispatched<'install> {
     pub(super) take_frozen_path: bool,
-    /// See [`run_root_hooks`].
+    /// Whether the root's `preinstall` is taken care of, so its run after
+    /// linking starts at `install`.
     pub(super) root_preinstall_ran: bool,
     pub(super) modules: PreparedModulesState<'install>,
 }
@@ -203,7 +204,6 @@ pub(super) async fn prepare_dispatched_modules<'install, Reporter: self::Reporte
     .await?
     .map(|modules| decided.with_modules(modules)))
 }
-/// Returns what [`run_root_hooks`] does.
 pub(super) fn announce_import<Reporter: self::Reporter>(
     settled: Settled<'_, '_>,
     options: &InstallRunOptions<'_, '_>,
@@ -226,29 +226,22 @@ pub(super) fn announce_import<Reporter: self::Reporter>(
             .to_string_lossy()
             .into_owned(),
     }));
-    // `pnpm:devPreinstall` and the root's `preinstall` run ahead of
-    // everything the install does with the lockfile — including the
-    // frozen path's freshness check — because what the first prepares
-    // is an input to resolution and linking, and the second may refuse
-    // the install before it changes anything. What skips both:
+    // `pnpm:devPreinstall` runs ahead of everything the install does
+    // with the lockfile — including the frozen path's freshness
+    // check — because what it prepares is an input to resolution and
+    // linking. What skips it:
     //
-    // - `resolve_only`, which materializes nothing for the hooks to
-    //   prepare or guard. pnpm reaches the same outcome by having
+    // - `resolve_only`, which materializes nothing for the hook to
+    //   prepare. pnpm reaches the same outcome by having
     //   `--lockfile-only` (and `--dry-run`, which sets it) imply
     //   `ignoreScripts`.
     // - A rebuild, which resolves and links nothing.
-    //
-    // What skips `pnpm:devPreinstall` alone:
-    //
     // - `ignore_manifest_check`, which covers `pacquet fetch` (pnpm's
     //   `ignorePackageManifest`, installing from the lockfile alone)
     //   and the TypeScript CLI delegating a frozen materialization,
     //   which already ran the hook before handing the install over.
     // - [`DEV_PREINSTALL_ALREADY_RAN_ENV`], the delegating CLI's
     //   marker for the one path that carries no flag of its own.
-    //
-    // The root's `preinstall` has its own marker instead; see
-    // `run_root_hooks`.
     let root_preinstall_ran = run_root_hooks::<Reporter>(&RootHooksScope {
         config: install.context.config,
         workspace_root: &workspace.dirs.workspace_root,
