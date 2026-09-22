@@ -77,7 +77,7 @@ import {
   resolvePatchedDependencies,
 } from '@pnpm/lockfile.settings-checker'
 import { PACKAGE_MAP_FILENAME, removePackageMap, writePackageMap, writePnpFile } from '@pnpm/lockfile.to-pnp'
-import { allProjectsAreUpToDate, catalogResolutionIsStale, catalogResolutionsAreUpToDate, satisfiesPackageManifest, unresolvedOptionalDependencies } from '@pnpm/lockfile.verification'
+import { allProjectsAreUpToDate, catalogResolutionIsStale, catalogResolutionsAreUpToDate, localTarballDepsAreUpToDate, satisfiesPackageManifest, unresolvedOptionalDependencies } from '@pnpm/lockfile.verification'
 import { logger, streamParser } from '@pnpm/logger'
 import { groupPatchedDependencies, type PatchGroupRecord } from '@pnpm/patching.config'
 import { createVersionSpecFromResolvedVersion, getAllDependenciesFromManifest, getAllUniqueSpecs, getSpecFromPackageManifest, guessDependencyType } from '@pnpm/pkg-manifest.utils'
@@ -1678,10 +1678,20 @@ Note that in CI environments, this setting is enabled by default.`,
         ignoredOptionalDependencies: opts.ignoredOptionalDependencies,
         allowUnresolvedOptionalDependencies: frozenLockfile,
       })
+      const fileIntegrityCache = new Map<string, Promise<string>>()
       for (const { id, manifest, rootDir } of Object.values(ctx.projects)) {
         const importer = ctx.wantedLockfile.importers[id]
         const { satisfies, detailedReason } = _satisfiesPackageManifest(importer, manifest)
-        if (satisfies && frozenLockfile && importer != null) {
+        let localTarballsAreUpToDate = true
+        if (importer != null) {
+          // eslint-disable-next-line no-await-in-loop
+          localTarballsAreUpToDate = await localTarballDepsAreUpToDate({
+            fileIntegrityCache,
+            lockfilePackages: ctx.wantedLockfile.packages,
+            lockfileDir: opts.lockfileDir,
+          }, { snapshot: importer })
+        }
+        if (satisfies && localTarballsAreUpToDate && frozenLockfile && importer != null) {
           const skipped = unresolvedOptionalDependencies({
             excludeLinksFromLockfile: opts.excludeLinksFromLockfile,
             ignoredOptionalDependencies: opts.ignoredOptionalDependencies,
@@ -1693,7 +1703,7 @@ Note that in CI environments, this setting is enabled by default.`,
             })
           }
         }
-        if (!satisfies || (importer != null && !catalogResolutionsAreUpToDate(importer, ctx.wantedLockfile.catalogs))) {
+        if (!satisfies || !localTarballsAreUpToDate || (importer != null && !catalogResolutionsAreUpToDate(importer, ctx.wantedLockfile.catalogs))) {
           if (!ctx.existsWantedLockfile) {
             throw new PnpmError('NO_LOCKFILE',
               `Cannot install with "frozen-lockfile" because ${WANTED_LOCKFILE} is absent`, {
@@ -1707,7 +1717,7 @@ Note that in CI environments, this setting is enabled by default.`,
               hint: `Note that in CI environments this setting is true by default. If you still need to run install in such cases, use "pnpm install --no-frozen-lockfile"
 
   Failure reason:
-  ${detailedReason ?? ''}`,
+  ${detailedReason ?? (!localTarballsAreUpToDate ? 'local tarball integrity mismatch' : '')}`,
             })
         }
       }

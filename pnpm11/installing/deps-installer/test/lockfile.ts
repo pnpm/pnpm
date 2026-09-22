@@ -1729,3 +1729,25 @@ testOnNonWindows(`install refuses to write a changed lockfile through a symlinke
 
   expect(fs.readFileSync(stagedLockfile, 'utf8')).toBe(targetBefore)
 })
+
+test('frozen install fails when local tarball integrity changes', async () => {
+  prepareEmpty()
+  const localTarball = path.resolve('pkg.tgz')
+  fs.copyFileSync(f.find('is-positive-3.1.0.tgz'), localTarball)
+
+  const manifest = {
+    dependencies: {
+      'is-positive': 'file:./pkg.tgz',
+    },
+  }
+  await install(manifest, testDefaults())
+
+  fs.copyFileSync(f.find('tar-pkg-with-peers-1.0.0.tgz'), localTarball)
+
+  await expect(
+    install(manifest, testDefaults({ frozenLockfile: true }))
+  ).rejects.toMatchObject({
+    code: 'ERR_PNPM_OUTDATED_LOCKFILE',
+  })
+})
+
