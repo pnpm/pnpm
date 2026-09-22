@@ -12,6 +12,35 @@ const originalRm = fs.promises.rm
 const originalMkdir = fs.promises.mkdir
 const originalLink = fs.promises.link
 
+test('waits for child removal before recursively removing its parent', async () => {
+  const targetDir = path.resolve('target')
+  const child = path.join(targetDir, 'removed', 'child')
+  const parent = path.join(targetDir, 'removed')
+  const completed: string[] = []
+  let removingChild = false
+  fs.promises.rm = jest.fn<typeof fs.promises.rm>(async targetPath => {
+    const target = String(targetPath)
+    if (target === parent && removingChild) {
+      throw Object.assign(new Error('overlapping recursive removal'), { code: 'EPERM' })
+    }
+    removingChild = target === child
+    await Promise.resolve()
+    completed.push(target)
+    removingChild = false
+  })
+
+  await applyPatch({
+    added: [],
+    modified: [],
+    removed: [
+      { path: path.join('removed', 'child'), oldValue: DIR },
+      { path: 'removed', oldValue: DIR },
+    ],
+  }, path.resolve('source'), targetDir)
+
+  expect(completed).toStrictEqual([child, parent])
+})
+
 function mockFsPromises (): Record<'rm' | 'mkdir' | 'link', jest.Mock> {
   const rm = jest.fn(fs.promises.rm) as jest.Mock
   const mkdir = jest.fn(fs.promises.mkdir) as jest.Mock

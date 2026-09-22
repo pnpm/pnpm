@@ -147,9 +147,9 @@ export async function applyPatch (optimizedDirPatch: DirDiff, sourceDir: string,
   // files a sibling had already linked. A path the target holds as a file and
   // the source as a directory lands in `modified` rather than `added`, so both
   // arrays feed the directory pass.
-  await Promise.all(optimizedDirPatch.removed.map(async item => {
-    await removeRecursive(path.join(targetDir, item.path))
-  }))
+  for (const item of optimizedDirPatch.removed) {
+    await removeRecursive(path.join(targetDir, item.path)) // eslint-disable-line no-await-in-loop
+  }
 
   for (const item of newDirs) {
     await applyChange(item) // eslint-disable-line no-await-in-loop
