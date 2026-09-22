@@ -1,3 +1,4 @@
+import fs from 'node:fs'
 import path from 'node:path'
 import util from 'node:util'
 
@@ -44,7 +45,8 @@ export async function findPackageTarballIntegrityMismatch (
 function readLocalTarballIntegrity (fileIntegrityCache: Map<string, Promise<string>>, filePath: string): Promise<string> {
   let integrity = fileIntegrityCache.get(filePath)
   if (integrity == null) {
-    integrity = getTarballIntegrity(filePath).catch((error: unknown) => {
+    integrity = getLocalTarballIntegrity(filePath).catch((error: unknown) => {
+      fileIntegrityCache.delete(filePath)
       const message = util.types.isNativeError(error) ? error.message : String(error)
       throw new PnpmError(
         'TARBALL_READ_LOCAL_TARBALL',
@@ -55,6 +57,14 @@ function readLocalTarballIntegrity (fileIntegrityCache: Map<string, Promise<stri
     fileIntegrityCache.set(filePath, integrity)
   }
   return integrity
+}
+
+async function getLocalTarballIntegrity (filePath: string): Promise<string> {
+  const stats = await fs.promises.stat(filePath)
+  if (!stats.isFile()) {
+    throw new Error('expected a file')
+  }
+  return getTarballIntegrity(filePath)
 }
 
 /** Checks direct local tarball contents. The caller checks manifest freshness. */

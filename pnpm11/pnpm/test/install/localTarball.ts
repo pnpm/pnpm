@@ -1,3 +1,4 @@
+import { execFileSync } from 'node:child_process'
 import fs from 'node:fs'
 import path from 'node:path'
 
@@ -9,7 +10,8 @@ import {
   execPnpmSync,
 } from '../utils/index.js'
 
-test.each(['changed', 'deleted', 'directory', 'excluded', 'direct', 'fetch', 'unsupported-optional', 'lockfile-only', 'forced-unsupported-optional'])('frozen install verifies a %s local tarball from a warm store', async (mutation) => {
+test.each(['changed', 'deleted', 'directory', 'excluded', 'direct', 'fetch', 'unsupported-optional', 'lockfile-only', 'forced-unsupported-optional', 'fifo'])('frozen install verifies a %s local tarball from a warm store', async (mutation) => {
+  if (mutation === 'fifo' && process.platform === 'win32') return
   prepareEmpty()
   const packageDir = path.resolve('local-tarball')
   const tarball = path.resolve('local-tarball.tgz')
@@ -45,7 +47,11 @@ test.each(['changed', 'deleted', 'directory', 'excluded', 'direct', 'fetch', 'un
     packLocalTarball(packageDir, tarball)
   } else {
     fs.rmSync(tarball)
-    if (mutation === 'directory') fs.mkdirSync(tarball)
+    if (mutation === 'directory') {
+      fs.mkdirSync(tarball)
+    } else if (mutation === 'fifo') {
+      execFileSync('mkfifo', [tarball])
+    }
   }
 
   if (mutation === 'fetch') {

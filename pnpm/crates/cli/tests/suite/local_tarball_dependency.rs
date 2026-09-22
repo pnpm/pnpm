@@ -228,6 +228,12 @@ fn fetch_rejects_changed_tarballs_from_lockfile_only_workspace_importers() {
     check_frozen_transitive_tarball("fetch");
 }
 
+#[test]
+#[cfg(unix)]
+fn frozen_install_rejects_fifo_tarballs_without_hanging() {
+    check_frozen_transitive_tarball("fifo");
+}
+
 fn setup_transitive_workspace(workspace: &Path, tarball: &Path, mutation: &str) {
     fs::write(
         tarball,
@@ -289,6 +295,15 @@ fn apply_mutation(workspace: &Path, tarball: &Path, mutation: &str) {
             fs::write(&lockfile_path, lockfile.replace("\n  .:", "\n  packages/app:"))
                 .expect("retain only a lockfile workspace importer");
         }
+        #[cfg(unix)]
+        "fifo" => {
+            fs::remove_file(tarball).expect("remove tarball");
+            let status = std::process::Command::new("mkfifo")
+                .arg(tarball)
+                .status()
+                .expect("run mkfifo");
+            assert!(status.success(), "mkfifo failed");
+        }
         _ => {}
     }
 }
@@ -308,7 +323,7 @@ fn assert_mutation_output(output: &std::process::Output, mutation: &str) {
         _ => "ERR_PNPM_TARBALL_READ_LOCAL_TARBALL",
     };
     assert!(stderr.contains(expected_error), "expected {expected_error}, got:\n{stderr}");
-    if matches!(mutation, "deleted" | "directory") {
+    if matches!(mutation, "deleted" | "directory" | "fifo") {
         assert!(
             stderr
                 .split_whitespace()

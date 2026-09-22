@@ -356,6 +356,9 @@ fn finish_bundled_manifest(
 
 /// Verifies a local tarball on disk matches the expected integrity.
 pub fn verify_local_file_integrity(path: &Path, integrity: &Integrity) -> Result<(), TarballError> {
+    let metadata = std::fs::metadata(path)
+        .map_err(|source| TarballError::ReadLocalTarball { path: path.to_path_buf(), source })?;
+    reject_non_file_local_tarball(path, &metadata)?;
     let mut file = std::fs::File::open(path)
         .map_err(|source| TarballError::ReadLocalTarball { path: path.to_path_buf(), source })?;
     let metadata = file
