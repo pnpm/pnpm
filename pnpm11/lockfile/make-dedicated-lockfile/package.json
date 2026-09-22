@@ -43,14 +43,12 @@
     "@pnpm/types": "workspace:*",
     "@pnpm/workspace.project-manifest-reader": "workspace:*",
     "@pnpm/workspace.root-finder": "workspace:*",
-    "ramda": "catalog:",
     "rename-overwrite": "catalog:"
   },
   "devDependencies": {
     "@jest/globals": "catalog:",
     "@pnpm/lockfile.make-dedicated-lockfile": "workspace:*",
     "@pnpm/test-fixtures": "workspace:*",
-    "@types/ramda": "catalog:",
     "execa": "catalog:"
   },
   "engines": {
