@@ -1,6 +1,6 @@
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
-use pnpm_testing_utils::bin::CommandTempCwd;
+use pnpm_testing_utils::{bin::CommandTempCwd, command_env::CommandTestExt};
 use std::{fs, path::Path, process::Command};
 
 #[test]
@@ -175,6 +175,7 @@ fn no_runtime_checks_the_active_node_instead_of_the_manifest_runtime() {
 
 fn node_version_at(dir: &Path) -> String {
     let node_output = Command::new("node")
+        .without_ambient_pnpm_config()
         .arg("--version")
         .current_dir(dir)
         .output()
