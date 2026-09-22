@@ -37,6 +37,28 @@ fn dlx_sets_package_manager_environment() {
     drop(root);
 }
 
+#[test]
+fn dlx_clears_inherited_node_environment_without_node_on_path() {
+    let CommandTempCwd { mut pacquet, root, workspace, .. } = CommandTempCwd::init();
+    let node = which::which("node").expect("find node");
+    let empty_path = workspace.join("empty-path");
+    std::fs::create_dir(&empty_path).expect("create empty PATH directory");
+    let fixture = workspace.join("fixture");
+    std::fs::create_dir(&fixture).expect("create package fixture");
+    std::fs::write(fixture.join("package.json"), r#"{"name":"env-fixture","version":"1.0.0"}"#)
+        .expect("write package manifest");
+    let output = pacquet
+        .env("PATH", &empty_path)
+        .env("NODE", "/stale/node")
+        .env("npm_node_execpath", "/stale/node")
+        .arg("dlx").arg(format!("--package=file:{}", fixture.display())).arg(node)
+        .args(["-e", "console.log(JSON.stringify({ NODE: process.env.NODE, npm_node_execpath: process.env.npm_node_execpath }))"])
+        .assert().success().get_output().stdout.clone();
+    let env: serde_json::Value = serde_json::from_slice(&output).expect("parse child environment");
+    assert_eq!(env, serde_json::json!({}));
+    drop(root);
+}
+
 /// `pacquet dlx` with no command is an error, mirroring pnpm's dlx, which
 /// prints help and exits non-zero when given neither a command nor a
 /// `--package`.

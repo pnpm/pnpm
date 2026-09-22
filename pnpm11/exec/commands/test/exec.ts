@@ -56,6 +56,25 @@ test('exec should set the NODE_OPTIONS env var', async () => {
   }))
 })
 
+test('exec should use the explicit NODE environment override', async () => {
+  prepareEmpty()
+  const nodePath = path.resolve('custom-node')
+
+  await exec.handler({
+    ...DEFAULT_OPTS,
+    dir: process.cwd(),
+    selectedProjectsGraph: {},
+    extraEnv: { NODE: nodePath },
+  }, ['eslint'])
+
+  expect(execa).toHaveBeenCalledWith('eslint', [], expect.objectContaining({
+    env: expect.objectContaining({
+      NODE: nodePath,
+      npm_node_execpath: nodePath,
+    }),
+  }))
+})
+
 test('exec should merge node options with PnP require option', async () => {
   prepareEmpty()
   const pnpPath = path.join(process.cwd(), '.pnp.cjs')

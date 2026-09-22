@@ -3,7 +3,7 @@ pub(crate) use clean::clean_expired_dlx_cache;
 use crate::{
     State,
     cli_args::{
-        add::add_package, catalogs::configured_catalogs,
+        add::add_package, catalogs::configured_catalogs, exec::set_package_manager_env,
         supported_architectures::SupportedArchitecturesArgs,
     },
     engine_pm::{channel::PackageManager, provision::provision},
@@ -362,7 +362,7 @@ fn run_bin(
     // works if that changes.
     cmd.envs(spawn.extra_env);
     set_command_path(&mut cmd, &path);
-    cmd.envs(pnpm_executor::package_manager_env(spawn.cwd, None, None, path.to_str()));
+    set_package_manager_env(&mut cmd, spawn.cwd, spawn.extra_env, &path);
     cmd.env("npm_config_user_agent", spawn.user_agent);
 
     let status = pnpm_executor::spawn_child(&mut cmd, None)

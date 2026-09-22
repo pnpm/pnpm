@@ -25,10 +25,13 @@ export function makeEnv (
     }
   }
   const pathEnv = prependDirsToPath(opts.prependPaths)
-  return {
+  const env = {
     ...process.env,
     ...opts.extraEnv,
-    ...makePackageManagerEnv(process.env),
+  }
+  return {
+    ...env,
+    ...makePackageManagerEnv(env),
     npm_config_user_agent: opts.userAgent ?? 'pnpm',
     [pathEnv.name]: pathEnv.value,
   }

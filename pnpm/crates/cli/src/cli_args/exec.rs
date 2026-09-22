@@ -17,6 +17,7 @@ use pnpm_package_manager::{
 use pnpm_workspace::read_project_name;
 use std::{
     collections::HashMap,
+    ffi::OsStr,
     path::Path,
     process::{Command, ExitStatus, Stdio},
 };
@@ -226,7 +227,7 @@ fn command_in_dir(
     cmd.envs(project_extra_env(config, project, project_name.as_deref()));
     set_command_path(&mut cmd, &path);
     let init_cwd = std::env::current_dir().unwrap_or_else(|_| dir.to_path_buf());
-    cmd.envs(pnpm_executor::package_manager_env(&init_cwd, None, None, path.to_str()));
+    set_package_manager_env(&mut cmd, &init_cwd, &config.extra_env, &path);
     cmd.env("npm_config_user_agent", &config.user_agent);
     // Same recursion-guard stamp as the lifecycle env builder.
     cmd.env(pnpm_executor::VERIFY_DEPS_BEFORE_RUN_ENV, "false");
@@ -248,6 +249,21 @@ fn command_in_dir(
     }
 
     Ok(cmd)
+}
+
+pub(super) fn set_package_manager_env(
+    cmd: &mut Command,
+    init_cwd: &Path,
+    extra_env: &HashMap<String, String>,
+    path: &OsStr,
+) {
+    cmd.env_remove("NODE").env_remove("npm_node_execpath");
+    cmd.envs(pnpm_executor::package_manager_env(
+        init_cwd,
+        extra_env.get("NODE").map(Path::new),
+        None,
+        path.to_str(),
+    ));
 }
 
 /// The `stage` pnpm stamps on the lifecycle events of an exec'd command.

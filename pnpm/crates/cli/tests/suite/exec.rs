@@ -182,6 +182,44 @@ fn exec_sets_package_manager_environment() {
     }
 }
 
+#[test]
+fn exec_clears_inherited_node_environment_without_node_on_path() {
+    let CommandTempCwd { mut pacquet, root, workspace, .. } = CommandTempCwd::init();
+    let node = which::which("node").expect("find node");
+    let empty_path = workspace.join("empty-path");
+    fs::create_dir(&empty_path).expect("create empty PATH directory");
+    let output = pacquet
+        .env("PATH", &empty_path)
+        .env("NODE", "/stale/node")
+        .env("npm_node_execpath", "/stale/node")
+        .arg("exec").arg(node)
+        .args(["-e", "console.log(JSON.stringify({ NODE: process.env.NODE, npm_node_execpath: process.env.npm_node_execpath }))"])
+        .assert().success().get_output().stdout.clone();
+    let env: serde_json::Value = serde_json::from_slice(&output).expect("parse child environment");
+    assert_eq!(env, serde_json::json!({}));
+    drop(root);
+}
+
+#[test]
+fn exec_preserves_configured_node_environment() {
+    let CommandTempCwd { mut pacquet, root, workspace, .. } = CommandTempCwd::init();
+    fs::write(workspace.join("package.json"), "{}").expect("write manifest");
+    fs::write(workspace.join(".pnpmfile.cjs"),
+        "module.exports = { hooks: { updateConfig(config) { config.extraEnv = { ...config.extraEnv, NODE: '/configured/node' }; return config } } }")
+        .expect("write pnpmfile");
+    let output = pacquet
+        .args(["exec", "node", "-e", "console.log(JSON.stringify({ NODE: process.env.NODE, npm_node_execpath: process.env.npm_node_execpath }))"])
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+    let env: serde_json::Value = serde_json::from_slice(&output).expect("parse child environment");
+    assert_eq!(env["NODE"], "/configured/node");
+    assert_eq!(env["npm_node_execpath"], "/configured/node");
+    drop(root);
+}
+
 /// `pacquet exec <command>` resolves the command against the project's
 /// `node_modules/.bin` directory and runs it. Mirrors pnpm's exec, which
 /// prepends `./node_modules/.bin` to PATH before spawning.
