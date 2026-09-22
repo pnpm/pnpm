@@ -157,6 +157,26 @@ test("pnpr forwards every workspace project's name and version", async () => {
   }
 })
 
+test('pnpr runs the root pnpm:devPreinstall before requesting the resolution', async () => {
+  const workspaceRoot = prepareEmpty().dir()
+  const rootDir = workspaceRoot as ProjectRootDir
+  const marker = path.join(workspaceRoot, 'dev-preinstall-ran')
+  const manifest: ProjectManifest = {
+    name: 'app',
+    version: '1.0.0',
+    scripts: { 'pnpm:devPreinstall': `node -e "require('fs').writeFileSync('${marker.replace(/\\/g, '/')}', '')"` },
+  }
+  let markerExistedAtResolution: boolean | undefined
+  resolveViaPnprServer.mockImplementationOnce(async (options) => {
+    markerExistedAtResolution = fs.existsSync(marker)
+    return resolveViaPnprServer.getMockImplementation()!(options)
+  })
+
+  await install(manifest, createOptions(workspaceRoot, rootDir))
+
+  expect(markerExistedAtResolution).toBe(true)
+})
+
 test('pnpr returns the resolution policy violations the install command reacts to', async () => {
   const workspaceRoot = prepareEmpty().dir()
   const rootDir = workspaceRoot as ProjectRootDir

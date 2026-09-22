@@ -3534,27 +3534,29 @@ async function installViaPnprServer ({ manifest, rootDir, opts, allInstallProjec
       resolvedPatchedDependencies
     )
 
-    // The root project's `preinstall` runs before the resolution is requested
-    // and before the lockfile is written, as on the local resolution path.
-    if (rootProjectPreinstallRan) {
-      const rootProjectManifest = (allInstallProjects ?? [{ rootDir, manifest }])
-        .find((project) => project.rootDir === lockfileDir)?.manifest ??
-        await safeReadProjectManifestOnly(lockfileDir)
-      if (rootProjectManifest?.scripts?.preinstall) {
-        await runLifecycleHook('preinstall', rootProjectManifest, {
-          depPath: lockfileDir,
-          extraBinPaths: opts.extraBinPaths,
-          extraEnv: opts.extraEnv,
-          pkgRoot: lockfileDir,
-          rootModulesDir: path.join(lockfileDir, opts.modulesDir ?? 'node_modules'),
-          scriptShell: opts.scriptShell,
-          scriptsPrependNodePath: opts.scriptsPrependNodePath,
-          shellEmulator: opts.shellEmulator,
-          stdio: opts.ownLifecycleHooksStdio,
-          unsafePerm: opts.unsafePerm || false,
-          userAgent: opts.userAgent,
-        })
-      }
+    // The root project's hooks run before the resolution is requested and
+    // before the lockfile is written, as on the local resolution path.
+    const rootProjectManifest = (allInstallProjects ?? [{ rootDir, manifest }])
+      .find((project) => project.rootDir === lockfileDir)?.manifest ??
+      await safeReadProjectManifestOnly(lockfileDir)
+    const rootHookOpts = {
+      depPath: lockfileDir,
+      extraBinPaths: opts.extraBinPaths,
+      extraEnv: opts.extraEnv,
+      pkgRoot: lockfileDir,
+      rootModulesDir: path.join(lockfileDir, opts.modulesDir ?? 'node_modules'),
+      scriptShell: opts.scriptShell,
+      scriptsPrependNodePath: opts.scriptsPrependNodePath,
+      shellEmulator: opts.shellEmulator,
+      stdio: opts.ownLifecycleHooksStdio,
+      unsafePerm: opts.unsafePerm || false,
+      userAgent: opts.userAgent,
+    }
+    if (!opts.ignoreScripts && !opts.ignorePackageManifest && rootProjectManifest?.scripts?.[DEV_PREINSTALL]) {
+      await runLifecycleHook(DEV_PREINSTALL, rootProjectManifest, rootHookOpts)
+    }
+    if (rootProjectPreinstallRan && rootProjectManifest?.scripts?.preinstall) {
+      await runLifecycleHook('preinstall', rootProjectManifest, rootHookOpts)
     }
 
     logger.info({ message: 'Resolving dependencies via the pnpr server', prefix: rootDir })
