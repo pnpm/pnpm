@@ -20,7 +20,7 @@ import { PnpmError } from '@pnpm/error'
 import { scanGlobalPackages } from '@pnpm/global.packages'
 import { semverDiff } from '@pnpm/semver-diff'
 import { sanitizeInline } from '@pnpm/text.sanitize'
-import type { DependenciesOrPeersField, PackageManifest, ProjectManifest, ProjectRootDir } from '@pnpm/types'
+import type { DependenciesOrPeersField, IncludedDependencies, PackageManifest, ProjectManifest, ProjectRootDir } from '@pnpm/types'
 import { table } from '@zkochan/table'
 import chalk from 'chalk'
 import { pick, sortWith } from 'ramda'
@@ -217,6 +217,10 @@ export async function handler (
     ]
   }
   const packageParams = params.filter((param) => !isGitHubActionSelector(param))
+  if (hasUnmatchedPackageParams(packages, packageParams, include)) {
+    throw new PnpmError('NO_PACKAGE_IN_DEPENDENCIES',
+      'None of the specified packages were found in the dependencies.')
+  }
   const [outdatedPerProject, outdatedActions] = await Promise.all([
     params.length === 0 || packageParams.length > 0
       ? outdatedDepsOfProjects(packages, packageParams, {
@@ -271,6 +275,33 @@ export async function handler (
     output,
     exitCode: outdatedPackages.length === 0 ? 0 : 1,
   }
+}
+
+export function hasUnmatchedPackageParams (
+  pkgs: Array<{ manifest: ProjectManifest }>,
+  packageParams: string[],
+  include: IncludedDependencies
+): boolean {
+  if (packageParams.length === 0) return false
+  const availableDeps = new Set<string>()
+  for (const { manifest } of pkgs) {
+    if (include.dependencies && manifest.dependencies) {
+      for (const dep of Object.keys(manifest.dependencies)) availableDeps.add(dep)
+    }
+    if (include.devDependencies && manifest.devDependencies) {
+      for (const dep of Object.keys(manifest.devDependencies)) availableDeps.add(dep)
+    }
+    if (include.optionalDependencies && manifest.optionalDependencies) {
+      for (const dep of Object.keys(manifest.optionalDependencies)) availableDeps.add(dep)
+    }
+  }
+  const deps = Array.from(availableDeps)
+  const combinedMatcher = createMatcher(packageParams)
+  if (!deps.some((dep) => combinedMatcher(dep))) return true
+  return packageParams.some((param) => {
+    const matcher = createMatcher([param])
+    return !deps.some((dep) => matcher(dep))
+  })
 }
 
 export type OutdatedItem = OutdatedPackage & { dependencyType?: 'githubAction' }

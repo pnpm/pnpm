@@ -187,12 +187,13 @@ impl OutdatedArgs {
         let importer_id = state.active_importer_id();
         let lockfile = loaded_lockfile(&state)?;
         let package_patterns = self.package_patterns();
+        let filters = OutdatedFilters::new(&self, config, &package_patterns);
+        validate_package_patterns([manifest], &package_patterns, &filters.include, false)?;
         let check_packages = self.checks_packages(manifest, &package_patterns);
         if check_packages && lockfile.is_none() {
             return Err(no_lockfile_error(project_dir(manifest)));
         }
 
-        let filters = OutdatedFilters::new(&self, config, &package_patterns);
         let query = filters.query(self.target_version());
         let mut outdated = if check_packages {
             collect_outdated_for_importer(
@@ -314,7 +315,16 @@ impl OutdatedArgs {
             project_dir(&state.manifest),
             AutoExcludeRoot::Disabled,
         )?;
-        let filters = OutdatedFilters::new(&self, config, &self.packages);
+        let package_patterns = self.package_patterns();
+        let filters = OutdatedFilters::new(&self, config, &package_patterns);
+        if !selection.selected.is_empty() {
+            validate_package_patterns(
+                selection.selected.values().map(|node| &node.package.project.manifest),
+                &package_patterns,
+                &filters.include,
+                true,
+            )?;
+        }
         let query = filters.query(self.target_version());
 
         // Every project reads the one shared lockfile, or its own.
@@ -379,15 +389,27 @@ impl OutdatedArgs {
                 )
             })?;
         let config = isolated_global_config(config);
-        let filters = OutdatedFilters::new(&self, config, &self.packages);
+        let package_patterns = self.package_patterns();
+        let filters = OutdatedFilters::new(&self, config, &package_patterns);
         let query = filters.query(self.target_version());
 
         let mut outdated = Vec::new();
         let global_packages = pnpm_global::scan_global_packages(&global_pkg_dir)
             .map_err(|err| miette::miette!("failed to scan global packages: {err}"))?;
-        for pkg in global_packages {
-            let state = State::init(pkg.install_dir.join("package.json"), config, false)
-                .map_err(|err| miette::Report::new(err).wrap_err("initialize global state"))?;
+        let states = global_packages
+            .into_iter()
+            .map(|pkg| {
+                State::init(pkg.install_dir.join("package.json"), config, false)
+                    .map_err(|err| miette::Report::new(err).wrap_err("initialize global state"))
+            })
+            .collect::<miette::Result<Vec<_>>>()?;
+        validate_package_patterns(
+            states.iter().map(|state| &state.manifest),
+            &package_patterns,
+            &filters.include,
+            false,
+        )?;
+        for state in states {
             outdated.extend(
                 collect_outdated(
                     &state.manifest,
@@ -449,6 +471,43 @@ impl OutdatedFilters {
             full_metadata: self.full_metadata,
         }
     }
+}
+
+fn validate_package_patterns<'a>(
+    manifests: impl IntoIterator<Item = &'a PackageManifest>,
+    package_patterns: &[String],
+    include: &[DependencyGroup],
+    recursive: bool,
+) -> miette::Result<()> {
+    if package_patterns.is_empty() {
+        return Ok(());
+    }
+    let deps: Vec<&str> = manifests
+        .into_iter()
+        .flat_map(|manifest| manifest.dependencies(include.iter().copied()))
+        .map(|(name, _)| name)
+        .collect();
+    let combined = create_matcher(package_patterns);
+    let unmatched = !deps
+        .iter()
+        .any(|dep| combined.matches(dep))
+        || package_patterns
+            .iter()
+            .any(|pattern| {
+                let matcher = create_matcher(std::slice::from_ref(pattern));
+                !deps
+                    .iter()
+                    .any(|dep| matcher.matches(dep))
+            });
+    if unmatched {
+        let message = if recursive {
+            "None of the specified packages were found in the dependencies of any of the projects."
+        } else {
+            "None of the specified packages were found in the dependencies."
+        };
+        return Err(miette::miette!(code = "ERR_PNPM_NO_PACKAGE_IN_DEPENDENCIES", "{message}"));
+    }
+    Ok(())
 }
 
 #[cfg(test)]

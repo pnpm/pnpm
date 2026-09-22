@@ -17,6 +17,7 @@ import { isEmpty, sortWith } from 'ramda'
 
 import {
   getCellWidth,
+  hasUnmatchedPackageParams,
   type OutdatedCommandOptions,
   type OutdatedItem,
   type OutdatedPackageJSONOutput,
@@ -58,6 +59,10 @@ export async function outdatedRecursive (
 ): Promise<{ output: string, exitCode: number }> {
   const outdatedMap = {} as Record<string, OutdatedInWorkspace>
   const packageParams = params.filter((param) => !isGitHubActionSelector(param))
+  if (pkgs.length > 0 && hasUnmatchedPackageParams(pkgs, packageParams, opts.include)) {
+    throw new PnpmError('NO_PACKAGE_IN_DEPENDENCIES',
+      'None of the specified packages were found in the dependencies of any of the projects.')
+  }
   const outdatedPackagesByProject = params.length === 0 || packageParams.length > 0
     ? await outdatedDepsOfProjects(pkgs, packageParams, {
       ...opts,
