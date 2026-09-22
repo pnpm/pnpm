@@ -222,8 +222,6 @@ async fn proxied_requests_share_proxy_origin_socket_limit() {
 
     let held = client.acquire_for_url("https://registry.example.com/a").await;
 
-    // A second request to a different target host routes to the same proxy,
-    // so under maxSockets=1 it must wait for `held` to drop.
     let blocked = tokio::time::timeout(
         Duration::from_millis(150),
         client.acquire_for_url("https://other.example.com/b"),
@@ -234,7 +232,6 @@ async fn proxied_requests_share_proxy_origin_socket_limit() {
         "proxied requests to different hosts should share the proxy socket cap",
     );
 
-    // A target on no_proxy bypasses the proxy and connects to its own origin directly.
     tokio::time::timeout(
         Duration::from_millis(150),
         client.acquire_for_url("https://bypass.example.com/c"),
@@ -271,7 +268,6 @@ async fn default_proxy_socket_limit_caps_at_fifty() {
         guards.push(client.acquire_for_url(&format!("https://registry.example.com/{i}")).await);
     }
 
-    // The 51st request through the proxy should block on the default 50-socket cap.
     let blocked = tokio::time::timeout(
         Duration::from_millis(150),
         client.acquire_for_url("https://registry.example.com/extra"),
@@ -279,7 +275,6 @@ async fn default_proxy_socket_limit_caps_at_fifty() {
     .await;
     assert!(blocked.is_err(), "51st proxied request should block on the 50-socket proxy cap");
 
-    // A no_proxy target is direct and uncapped, so it acquires immediately.
     tokio::time::timeout(
         Duration::from_millis(150),
         client.acquire_for_url("https://bypass.example.com/direct"),
@@ -287,7 +282,6 @@ async fn default_proxy_socket_limit_caps_at_fifty() {
     .await
     .expect("bypassed request should not block on the proxy socket limit");
 
-    // Releasing one proxy slot unblocks the waiting request.
     guards.pop();
     tokio::time::timeout(
         Duration::from_millis(150),
@@ -295,6 +289,34 @@ async fn default_proxy_socket_limit_caps_at_fifty() {
     )
     .await
     .expect("releasing one guard should free a proxy slot");
+}
+
+#[tokio::test]
+async fn zero_max_sockets_leaves_proxied_origins_uncapped() {
+    let proxy = ProxyConfig {
+        https_proxy: Some("http://proxy.example.com:8080".into()),
+        http_proxy: None,
+        no_proxy: None,
+    };
+    let client = ThrottledClient::for_installs(
+        &proxy,
+        &TlsConfig::default(),
+        &PerRegistryTls::default(),
+        &NetworkSettings { network_concurrency: 64, ..NetworkSettings::default() },
+    )
+    .unwrap()
+    .with_max_sockets_per_host(Some(0));
+
+    let mut guards = Vec::new();
+    for i in 0..51 {
+        let guard = tokio::time::timeout(
+            Duration::from_millis(150),
+            client.acquire_for_url(&format!("https://registry.example.com/{i}")),
+        )
+        .await
+        .expect("max_sockets=0 should leave proxied connections uncapped");
+        guards.push(guard);
+    }
 }
 
 #[tokio::test]

@@ -207,6 +207,13 @@ impl ClientPair {
 /// the default), direct origins remain uncapped (bounded only by the
 /// global concurrency semaphore), while proxied requests share a cap of
 /// [`DEFAULT_MAX_SOCKETS`] on the proxy origin to avoid exhausting
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum HostSocketCap {
+    Default,
+    Disabled,
+    Explicit(NonZeroUsize),
+}
+
 /// proxy connection backlogs or tripping proxy rate limits.
 ///
 /// Each distinct origin gets its own [`Semaphore`], minted on first
@@ -215,23 +222,29 @@ impl ClientPair {
 /// origin does not hold a global concurrency slot.
 #[derive(Debug)]
 struct HostSocketLimit {
-    explicit_max: Option<NonZeroUsize>,
+    cap: HostSocketCap,
     per_origin: Mutex<HashMap<String, Arc<Semaphore>>>,
 }
 
 impl HostSocketLimit {
-    fn new(explicit_max: Option<NonZeroUsize>) -> Self {
-        Self { explicit_max, per_origin: Mutex::new(HashMap::new()) }
+    fn new(setting: Option<usize>) -> Self {
+        let cap = match setting {
+            None => HostSocketCap::Default,
+            Some(0) => HostSocketCap::Disabled,
+            Some(n) => HostSocketCap::Explicit(
+                NonZeroUsize::new(n).expect("non-zero value expected for n > 0"),
+            ),
+        };
+        Self { cap, per_origin: Mutex::new(HashMap::new()) }
     }
 
     /// Acquire an owned permit for `origin`, or `None` when uncapped.
     async fn acquire(&self, origin: &str, is_proxied: bool) -> Option<OwnedSemaphorePermit> {
-        let limit_num = if let Some(max) = self.explicit_max {
-            max.get()
-        } else if is_proxied {
-            DEFAULT_MAX_SOCKETS
-        } else {
-            return None;
+        let limit_num = match self.cap {
+            HostSocketCap::Disabled => return None,
+            HostSocketCap::Explicit(max) => max.get(),
+            HostSocketCap::Default if is_proxied => DEFAULT_MAX_SOCKETS,
+            HostSocketCap::Default => return None,
         };
         let semaphore = {
             let mut map = self.per_origin.lock().expect("host-socket-limit mutex poisoned");
@@ -444,13 +457,15 @@ impl ThrottledClient {
     }
 
     /// Install a per-origin socket cap (the `maxSockets` setting) on this
-    /// client. `None` or `Some(0)` leaves the client uncapped — the per-origin
-    /// socket count then stays bounded only by the global concurrency
-    /// semaphore. Chained onto [`Self::for_installs`] at the install call
-    /// sites; the client's other constructors leave it uncapped.
+    /// client. Absent configuration (`None`) leaves direct origins uncapped
+    /// while capping proxied origins at [`DEFAULT_MAX_SOCKETS`]. An explicit
+    /// `Some(0)` leaves all origins uncapped. `Some(n)` applies `n` as the
+    /// socket limit across all origins. Chained onto [`Self::for_installs`]
+    /// at the install call sites; the client's other constructors leave it
+    /// uncapped.
     #[must_use]
     pub fn with_max_sockets_per_host(mut self, max_sockets: Option<usize>) -> Self {
-        self.host_socket_limit.explicit_max = max_sockets.and_then(NonZeroUsize::new);
+        self.host_socket_limit = HostSocketLimit::new(max_sockets);
         self
     }
 

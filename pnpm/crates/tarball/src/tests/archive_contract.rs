@@ -452,13 +452,11 @@ async fn request_archive_quick_retries_transient_connection_reset() {
     let address = listener.local_addr().unwrap();
 
     let server_task = tokio::spawn(async move {
-        // First connection: accept and immediately close without sending a response (simulating peer reset/unexpected EOF).
         if let Ok((mut socket, _)) = listener.accept().await {
             let mut buf = [0u8; 1024];
             let _ = socket.read(&mut buf).await;
             drop(socket);
         }
-        // Second connection: accept and return 200 OK.
         if let Ok((mut socket, _)) = listener.accept().await {
             let mut buf = [0u8; 1024];
             let _ = socket.read(&mut buf).await;
