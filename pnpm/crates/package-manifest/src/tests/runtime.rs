@@ -246,3 +246,27 @@ fn from_path_does_not_create_empty_dependency_field_when_runtime_engine_is_prese
     let saved = read_to_string(&path).unwrap();
     assert!(!saved.contains(r#""dependencies""#));
 }
+
+#[test]
+fn save_preserves_runtime_when_explicit_user_dep_is_present() {
+    let dir = tempdir().unwrap();
+    let path = dir.path().join("package.json");
+    let original = r#"{
+  "name": "fixture",
+  "dependencies": {
+    "node": "18.0.0"
+  },
+  "engines": {
+    "runtime": {
+      "name": "node",
+      "version": "24.6.0",
+      "onFail": "download"
+    }
+  }
+}
+"#;
+    std::fs::write(&path, original).unwrap();
+    let mut manifest = PackageManifest::from_path(path.clone()).unwrap();
+    manifest.save().unwrap();
+    assert_eq!(read_to_string(&path).unwrap(), original);
+}

@@ -370,7 +370,7 @@ function convertDependenciesToEnginesRuntime (
         ]
       }
       delete dependencies[runtimeName]
-    } else {
+    } else if (dep === undefined) {
       removeManagedRuntimeEntry(manifest[enginesFieldName], runtimeName)
     }
   }

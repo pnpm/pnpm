@@ -636,3 +636,27 @@ test('readProjectManifest() succeeds with malformed dependency fields and allows
   })
 })
 
+test('writeProjectManifest() preserves engines.runtime when explicit non-runtime dependency is present', async () => {
+  const dir = temporaryDirectory()
+  const jsonPath = path.join(dir, 'package.json')
+  const original = JSON.stringify({
+    name: 'fixture',
+    dependencies: {
+      node: '18.0.0',
+    },
+    engines: {
+      runtime: {
+        name: 'node',
+        version: '24.6.0',
+        onFail: 'download',
+      },
+    },
+  }, null, 2) + '\n'
+  await fs.promises.writeFile(jsonPath, original)
+
+  const { manifest, writeProjectManifest } = await readProjectManifest(dir)
+  await writeProjectManifest(manifest)
+  expect(await fs.promises.readFile(jsonPath, 'utf8')).toBe(original)
+})
+
+
