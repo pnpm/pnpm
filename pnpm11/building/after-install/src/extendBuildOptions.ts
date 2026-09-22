@@ -12,6 +12,7 @@ export type StrictBuildOptions = {
   cacheDir: string
   childConcurrency: number
   excludeLinksFromLockfile: boolean
+  extendNodePath?: boolean
   extraBinPaths: string[]
   extraEnv: Record<string, string>
   lockfileDir: string

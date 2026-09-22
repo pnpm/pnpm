@@ -1,6 +1,6 @@
 import path from 'node:path'
 
-import { linkBins, linkBinsOfPackages } from '@pnpm/bins.linker'
+import { getProjectNodePath, linkBins, linkBinsOfPackages } from '@pnpm/bins.linker'
 import { buildSelectedPkgs } from '@pnpm/building.after-install'
 import { buildModules, type DepsStateCache, linkBinsOfDependencies, linkBinsOfRuntimeDependencies } from '@pnpm/building.during-install'
 import { createAllowBuildFunction, isBuildExplicitlyDisallowed } from '@pnpm/building.policy'
@@ -29,6 +29,7 @@ import { PnpmError } from '@pnpm/error'
 import {
   makeNodePackageMapOption,
   makeNodeRequireOption,
+  makeProjectNodePathOption,
   runLifecycleHook,
   runLifecycleHooksConcurrently,
   type RunLifecycleHooksConcurrentlyOptions,
@@ -104,6 +105,7 @@ import { verifiedFileIntegritySince, verifiedFileIntegritySnapshot } from '@pnpm
 import { safeReadProjectManifestOnly } from '@pnpm/workspace.project-manifest-reader'
 import { isSubdir } from 'is-subdir'
 import pLimit from 'p-limit'
+import { pathAbsolute } from 'path-absolute'
 import { clone, isEmpty, map as mapValues, pipeWith, props } from 'ramda'
 import semver from 'semver'
 
@@ -219,7 +221,7 @@ export async function install (
   // When a pnpr server is configured, use server-side resolution
   // instead of the normal resolution flow.
   if (opts.pnprServer && canUsePnprForInstall(opts)) {
-    return installViaPnprServer(manifest, rootDir, opts)
+    return installViaPnprServer({ manifest, rootDir, opts })
   }
 
   const { updatedCatalogs, updatedProjects: projects, ignoredBuilds, newLockfile, resolutionPolicyViolations, dryRunResult } = await mutateModules(
@@ -684,6 +686,7 @@ export async function mutateModules (
   async function _install (): Promise<InnerInstallResult> {
     const scriptsOpts: RunLifecycleHooksConcurrentlyOptions = {
       extraBinPaths: opts.extraBinPaths,
+      extendNodePath: opts.extendNodePath,
       extraNodePaths: ctx.extraNodePaths,
       extraEnv: opts.extraEnv,
       preferSymlinkedExecutables: opts.preferSymlinkedExecutables,
@@ -706,6 +709,11 @@ export async function mutateModules (
           depPath: opts.lockfileDir,
           pkgRoot: opts.lockfileDir,
           rootModulesDir: ctx.rootModulesDir,
+          wdBinDir: path.join(ctx.rootModulesDir, '.bin'),
+          extraEnv: {
+            ...scriptsOpts.extraEnv,
+            ...await makeProjectNodePathOption({ modulesDir: ctx.rootModulesDir, rootDir: opts.lockfileDir }, opts),
+          },
         }
       )
     }
@@ -2547,12 +2555,14 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
 
     if (!opts.virtualStoreOnly) await Promise.all(projects.map(async (project, index) => {
       let linkedPackages!: string[]
+      const projectModulesDir = await getProjectNodePath(project, { extendNodePath: opts.extendNodePath })
       if (ctx.publicHoistPattern?.length && path.relative(project.rootDir, opts.lockfileDir) === '') {
         linkedPackages = await linkBins(project.modulesDir, project.binsDir, {
           allowExoticManifests: true,
           preferSymlinkedExecutables: opts.preferSymlinkedExecutables,
           projectManifest: project.manifest,
           extraNodePaths: ctx.extraNodePaths,
+          projectModulesDir,
           warn: binWarn.bind(null, project.rootDir),
         })
       } else {
@@ -2583,6 +2593,7 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
           {
             extraNodePaths: ctx.extraNodePaths,
             preferSymlinkedExecutables: opts.preferSymlinkedExecutables,
+            projectModulesDir,
           }
         )
       }
@@ -3375,20 +3386,22 @@ async function mutateModulesViaPnpr (
   const pnprProjects = await preparePnprProjects(projects, opts)
   if (!pnprProjects) return null
 
+  const projectOptionsByDir = new Map(opts.allProjects?.map(project => [project.rootDir, project]))
+
   // installViaPnprServer runs the headless install for the first
   // project's root and the workspace path for the rest. Pass the
   // pre-processed manifests so resolution sees the post-mutation state.
-  const result = await installViaPnprServer(
-    pnprProjects[0].manifest,
-    pnprProjects[0].rootDir,
-    {
+  const result = await installViaPnprServer({
+    manifest: pnprProjects[0].manifest,
+    rootDir: pnprProjects[0].rootDir,
+    opts: {
       ...opts,
       updatePatches: projects.every(project =>
         project.mutation === 'install' && project.updatePatches === true
       ),
     },
-    pnprProjects.map((p) => ({ rootDir: p.rootDir, manifest: p.manifest }))
-  )
+    allInstallProjects: pnprProjects.map((p) => ({ ...projectOptionsByDir.get(p.rootDir), rootDir: p.rootDir, manifest: p.manifest })),
+  })
 
   // For installSome projects, copy resolved specs from the lockfile importer
   // entries back into the client manifest so save-prefix/catalog/etc. take
@@ -3421,12 +3434,12 @@ async function mutateModulesViaPnpr (
  * then run a headless install that fetches tarballs from the registries
  * and links packages into node_modules — like a normal install.
  */
-async function installViaPnprServer (
-  manifest: ProjectManifest,
-  rootDir: ProjectRootDir,
-  opts: Opts,
-  allInstallProjects?: Array<{ rootDir: ProjectRootDir, manifest: ProjectManifest }>
-): Promise<InstallResult & { stats: InstallationResultStats, lockfile: LockfileObject }> {
+async function installViaPnprServer ({ manifest, rootDir, opts, allInstallProjects }: {
+  manifest: ProjectManifest
+  rootDir: ProjectRootDir
+  opts: Opts
+  allInstallProjects?: Array<{ rootDir: ProjectRootDir, manifest: ProjectManifest, modulesDir?: string, binsDir?: string }>
+}): Promise<InstallResult & { stats: InstallationResultStats, lockfile: LockfileObject }> {
   // The pnpr server path re-resolves and persists new `index.db` entries plus a
   // freshly written lockfile, so it inherently writes the store. `frozenStore`
   // promises the store is complete and read-only, so the two are mutually
@@ -3574,20 +3587,17 @@ async function installViaPnprServer (
       },
       selectedProjectDirs: (allInstallProjects ?? [{ rootDir }]).map(p => p.rootDir),
       allProjects: Object.fromEntries(
-        (allInstallProjects ?? [{ rootDir, manifest }]).map((p, i) => [
-          p.rootDir,
-          {
-            binsDir: path.join(p.rootDir, 'node_modules', '.bin'),
+        (allInstallProjects ?? [{ rootDir, manifest, binsDir: opts.binsDir }]).map((p, i) => {
+          const modulesDir = pathAbsolute(p.modulesDir ?? opts.modulesDir ?? 'node_modules', p.rootDir)
+          return [p.rootDir, {
+            binsDir: p.binsDir ?? path.join(modulesDir, '.bin'),
             buildIndex: i,
-            // POSIX-normalize so the importer id matches the lockfile keys the
-            // pnpr server emits — on Windows a nested member's `path.relative`
-            // would otherwise be `packages\foo`, missing `packages/foo`.
             id: getLockfileImporterId(lockfileDir, p.rootDir),
             manifest: p.manifest,
-            modulesDir: path.join(p.rootDir, 'node_modules'),
+            modulesDir,
             rootDir: p.rootDir,
-          },
-        ])
+          }]
+        })
       ),
       hoistedDependencies: {},
       pendingBuilds: [] as string[],

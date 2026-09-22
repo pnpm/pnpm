@@ -7,6 +7,7 @@ import { PnpmError } from '@pnpm/error'
 import {
   makeNodePackageMapOption,
   makeNodeRequireOption,
+  makeProjectNodePathOption,
   runLifecycleHook,
   runLifecycleHooksConcurrently,
   runPostinstallHooks,
@@ -22,6 +23,21 @@ const skipOnWindows = isWindows() ? test.skip : test
 
 const f = fixtures(path.join(import.meta.dirname, 'fixtures'))
 const rootModulesDir = path.join(import.meta.dirname, '..', 'node_modules')
+
+skipOnWindows('makeProjectNodePathOption() puts the custom modules directory of a project with symlinked executables first on NODE_PATH', async () => {
+  const project = { modulesDir: '/project/vendor', rootDir: '/project' }
+  const opts = { preferSymlinkedExecutables: true, extraEnv: { NODE_PATH: '/project/vendor/.pnpm/node_modules' } }
+
+  expect(await makeProjectNodePathOption(project, opts)).toStrictEqual({
+    NODE_PATH: `/project/vendor${path.delimiter}/project/vendor/.pnpm/node_modules`,
+  })
+  expect(await makeProjectNodePathOption(project, { ...opts, extraEnv: { NODE_PATH: `/store/links/node_modules${path.delimiter}/project/vendor` } })).toStrictEqual({
+    NODE_PATH: `/project/vendor${path.delimiter}/store/links/node_modules`,
+  })
+  expect(await makeProjectNodePathOption(project, { ...opts, extendNodePath: false })).toStrictEqual({})
+  expect(await makeProjectNodePathOption(project, { ...opts, preferSymlinkedExecutables: false })).toStrictEqual({})
+  expect(await makeProjectNodePathOption({ ...project, modulesDir: '/project/node_modules' }, opts)).toStrictEqual({})
+})
 
 test('makeNodeRequireOption() preserves existing NODE_OPTIONS', () => {
   expect(makeNodeRequireOption('/project/.pnp.cjs', {

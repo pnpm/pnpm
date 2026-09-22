@@ -1,17 +1,11 @@
+#[cfg(unix)]
+use crate::_utils::write_executable;
+use crate::_utils::write_fake_bin;
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
 use pnpm_testing_utils::bin::CommandTempCwd;
 use serde_json::json;
 use std::{fs, time::Duration};
-
-#[cfg(unix)]
-fn write_executable(path: &std::path::Path, body: &str) {
-    use std::os::unix::fs::PermissionsExt;
-    fs::write(path, body).expect("write executable");
-    let mut perms = fs::metadata(path).expect("stat executable").permissions();
-    perms.set_mode(0o755);
-    fs::set_permissions(path, perms).expect("chmod executable");
-}
 
 /// `pacquet run <script>` looks up the named entry under
 /// `scripts` in the workspace's `package.json` and spawns it via
@@ -835,3 +829,33 @@ mod shell_emulator {
 mod selection;
 
 mod environment;
+
+#[test]
+fn run_resolves_commands_from_the_configured_modules_dir() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    fs::write(workspace.join("pnpm-workspace.yaml"), "modulesDir: vendor\n")
+        .expect("write pnpm-workspace.yaml");
+    let manifest = json!({
+        "name": "test",
+        "version": "0.0.0",
+        "scripts": { "greet": "greet" },
+    })
+    .to_string();
+    fs::write(workspace.join("package.json"), manifest).expect("write package.json");
+
+    for (modules_dir, marker) in [("vendor", "configured"), ("node_modules", "stale")] {
+        write_fake_bin(&workspace.join(modules_dir).join(".bin"), "greet", marker);
+    }
+
+    let output = pacquet
+        .with_args(["run", "greet"])
+        .output()
+        .expect("run pacquet run greet");
+    dbg!(&output);
+    assert!(output.status.success(), "pacquet run greet should succeed");
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(stdout.contains("configured"), "the configured modules dir must win: {stdout}");
+    assert!(!stdout.contains("stale"), "node_modules/.bin must not win: {stdout}");
+
+    drop(root);
+}

@@ -39,10 +39,12 @@ fn resolved_location_matches_canonicalize_fallback_for_node_path() {
     let real_slot_pkg_dir = dunce::canonicalize(&slot_pkg_dir).unwrap();
     let via_fallback = super::super::shim_node_path(
         &PackageBinSource::new(alias.clone(), Arc::clone(&manifest)),
+        None,
         &extras,
     );
     let via_resolved = super::super::shim_node_path(
         &PackageBinSource::new(alias, manifest).with_resolved_location(real_slot_pkg_dir.clone()),
+        None,
         &extras,
     );
     assert_eq!(via_fallback, via_resolved);
@@ -58,6 +60,56 @@ fn resolved_location_matches_canonicalize_fallback_for_node_path() {
                 .unwrap()
                 .to_string_lossy()
                 .into_owned(),
+        ],
+    );
+}
+
+#[test]
+fn a_project_node_path_comes_first_and_a_repeated_entry_keeps_its_first_position() {
+    let tmp = tempdir().unwrap();
+    let pkg_dir = tmp
+        .path()
+        .join("node_modules")
+        .join(".pnpm")
+        .join("foo@1.0.0")
+        .join("node_modules")
+        .join("foo");
+    let slot_dir = pkg_dir
+        .parent()
+        .unwrap()
+        .to_string_lossy()
+        .into_owned();
+    let project = tmp
+        .path()
+        .join("vendor")
+        .to_string_lossy()
+        .into_owned();
+    let hoisted = tmp
+        .path()
+        .join("node_modules")
+        .join(".pnpm")
+        .join("node_modules")
+        .to_string_lossy()
+        .into_owned();
+    let manifest = Arc::new(json!({"name": "foo", "version": "1.0.0", "bin": "cli.js"}));
+
+    let node_path = super::super::shim_node_path(
+        &PackageBinSource::new(tmp.path().join("vendor").join("foo"), manifest)
+            .with_resolved_location(pkg_dir.clone()),
+        Some(&project),
+        &[slot_dir.clone(), hoisted.clone()],
+    );
+
+    assert_eq!(
+        node_path,
+        [
+            project,
+            pkg_dir
+                .join("node_modules")
+                .to_string_lossy()
+                .into_owned(),
+            slot_dir,
+            hoisted,
         ],
     );
 }
@@ -282,4 +334,17 @@ fn shared_shim_target_cache_probes_a_resolved_target_once() {
         assert!(modules.join(".bin/foo").exists());
     }
     assert_eq!(READ_HEAD_CALLS.load(Ordering::Relaxed), 1, "one probe for the shared target");
+}
+
+#[test]
+fn project_node_path_omits_paths_containing_the_path_list_delimiter() {
+    let tmp = tempdir().unwrap();
+    let delimiter = if cfg!(windows) { ';' } else { ':' };
+    let project = tmp
+        .path()
+        .join(format!("vendor{delimiter}other"));
+    let manifest = Arc::new(json!({"name": "foo", "version": "1.0.0", "bin": "cli.js"}));
+    let pkg = PackageBinSource::new(tmp.path().join("foo"), manifest);
+    let node_path = super::super::shim_node_path(&pkg, Some(&project.to_string_lossy()), &[]);
+    assert_eq!(node_path, Vec::<String>::new());
 }

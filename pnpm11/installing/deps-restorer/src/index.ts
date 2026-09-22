@@ -2,7 +2,7 @@ import { promises as fs } from 'node:fs'
 import path from 'node:path'
 import util from 'node:util'
 
-import { linkBins, linkBinsOfPackages } from '@pnpm/bins.linker'
+import { getProjectNodePath, type LinkBinOptions, linkBins, linkBinsOfPackages } from '@pnpm/bins.linker'
 import { buildModules, linkBinsOfRuntimeDependencies } from '@pnpm/building.during-install'
 import { createAllowBuildFunction, isBuildExplicitlyDisallowed } from '@pnpm/building.policy'
 import {
@@ -137,6 +137,7 @@ export interface HeadlessOptions extends RegistryContext {
   excludeLinksFromLockfile?: boolean
   extraBinPaths?: string[]
   extraEnv?: Record<string, string>
+  extendNodePath?: boolean
   extraNodePaths?: string[]
   preferSymlinkedExecutables?: boolean
   hoistingLimits?: HoistingLimits
@@ -272,6 +273,7 @@ export async function headlessInstall (opts: HeadlessOptions): Promise<Installat
   const scriptsOpts = {
     optional: false,
     extraBinPaths: opts.extraBinPaths,
+    extendNodePath: opts.extendNodePath,
     extraNodePaths: opts.extraNodePaths,
     preferSymlinkedExecutables: opts.preferSymlinkedExecutables,
     extraEnv: opts.extraEnv,
@@ -776,10 +778,12 @@ export async function headlessInstall (opts: HeadlessOptions): Promise<Installat
       /** Skip linking and due to no project manifest */
       if (!opts.ignorePackageManifest) {
         await Promise.all(selectedProjects.map(async (project) => {
+          const projectModulesDir = await getProjectNodePath(project, opts)
           if (opts.nodeLinker === 'hoisted' || opts.publicHoistPattern?.length && path.relative(opts.lockfileDir, project.rootDir) === '') {
             await linkBinsOfImporter(project, {
               extraNodePaths: opts.extraNodePaths,
               preferSymlinkedExecutables: opts.preferSymlinkedExecutables,
+              projectModulesDir,
             })
           } else {
             let directPkgDirs: string[]
@@ -810,6 +814,7 @@ export async function headlessInstall (opts: HeadlessOptions): Promise<Installat
               {
                 extraNodePaths: opts.extraNodePaths,
                 preferSymlinkedExecutables: opts.preferSymlinkedExecutables,
+                projectModulesDir,
               }
             )
           }
@@ -966,15 +971,14 @@ async function linkBinsOfImporter (
     modulesDir: string
     rootDir: ProjectRootDir
   },
-  { extraNodePaths, preferSymlinkedExecutables }: { extraNodePaths?: string[], preferSymlinkedExecutables?: boolean } = {}
+  linkBinOptions: LinkBinOptions = {}
 ): Promise<string[]> {
   const warn = (message: string) => {
     logger.info({ message, prefix: rootDir })
   }
   return linkBins(modulesDir, binsDir, {
-    extraNodePaths,
+    ...linkBinOptions,
     allowExoticManifests: true,
-    preferSymlinkedExecutables,
     projectManifest: manifest,
     warn,
   })

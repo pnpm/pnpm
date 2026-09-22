@@ -157,6 +157,7 @@ fn child_env(opts: &RunScript<'_>, command: &str) -> HashMap<String, String> {
     let original_path = path_value(&built.env).map(OsString::from);
     let path_env = extend_path(
         opts.pkg_root,
+        opts.execution.wd_bin_dir,
         original_path.as_ref(),
         crate::bundled_node_gyp_bin(),
         opts.execution.extra_bin_paths,

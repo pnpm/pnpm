@@ -27,9 +27,12 @@ pub enum ScriptsPrependNodePath {
 /// Build the `PATH` env value for a lifecycle script spawn.
 ///
 /// Order, highest-priority first:
-/// 1. The wd's own `<wd>/node_modules/.bin`,
+/// 1. The wd's own bin directory: `wd_bin_dir` when the caller knows
+///    where `modulesDir` put it, and `<wd>/node_modules/.bin` otherwise,
 /// 2. Each ancestor `node_modules/.bin` walking back up through the
-///    `node_modules/` segments of `wd`,
+///    `node_modules/` segments of `wd`. These are dependency slots, whose
+///    own dependencies are installed under `node_modules` whatever
+///    `modulesDir` says, so `wd_bin_dir` does not apply to them,
 /// 3. The bundled `node-gyp-bin` directory (when supplied),
 /// 4. `extra_bin_paths` (caller-supplied),
 /// 5. `dirname(node_execpath)` when `scripts_prepend_node_path` is
@@ -38,6 +41,7 @@ pub enum ScriptsPrependNodePath {
 #[must_use]
 pub fn extend_path(
     wd: &Path,
+    wd_bin_dir: Option<&Path>,
     original_path: Option<&OsString>,
     node_gyp_bin: Option<&Path>,
     extra_bin_paths: &[PathBuf],
@@ -46,10 +50,15 @@ pub fn extend_path(
 ) -> OsString {
     let mut path_arr: Vec<PathBuf> = Vec::new();
 
-    // 1+2. Walk the wd's node_modules ancestors, deepest first.
-    for bin in ancestor_node_modules_bins(wd) {
-        path_arr.push(bin);
+    // 1+2. Walk the wd's node_modules ancestors, deepest first. The first
+    // entry is the wd's own, which `wd_bin_dir` overrides.
+    let mut ancestors = ancestor_node_modules_bins(wd);
+    if let Some(bin) = wd_bin_dir
+        && let Some(own) = ancestors.first_mut()
+    {
+        *own = bin.to_path_buf();
     }
+    path_arr.extend(ancestors);
 
     // 3. Bundled node-gyp-bin.
     if let Some(p) = node_gyp_bin {

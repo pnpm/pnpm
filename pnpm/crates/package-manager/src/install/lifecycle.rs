@@ -197,10 +197,6 @@ fn retain_known_projects(
         .collect()
 }
 
-pub(super) fn modules_dir_basename(config: &Config) -> &std::ffi::OsStr {
-    config.modules_dir.file_name().unwrap_or_else(|| std::ffi::OsStr::new("node_modules"))
-}
-
 /// [`Config::extra_env_with_node_options`] plus the `NODE_OPTIONS` entry for
 /// the selected project-level dependency loader. pnpm adds it only once it
 /// links and builds, which is why `pnpm:devPreinstall` — running before the
@@ -257,8 +253,14 @@ pub(super) fn run_dev_preinstall<Reporter: self::Reporter>(
     config: &Config,
     workspace_root: &Path,
 ) -> Result<(), InstallError> {
-    let root_modules_dir = workspace_root.join(modules_dir_basename(config));
-    let extra_env = config.extra_env_with_node_options();
+    let root_modules_dir = workspace_root.join(config.modules_dir_name());
+    let bin_dir = root_modules_dir.join(".bin");
+    let mut extra_env = config.extra_env_with_node_options();
+    config.prepend_project_node_path::<pnpm_config::Host>(
+        &mut extra_env,
+        workspace_root,
+        config.modules_dir_name(),
+    );
     let dep_path = workspace_root.to_string_lossy();
     run_dev_preinstall_hook::<Reporter>(&RunPostinstallHooks {
         environment: pnpm_executor::ScriptEnvironment {
@@ -275,6 +277,7 @@ pub(super) fn run_dev_preinstall<Reporter: self::Reporter>(
             prepend_node_path: exec_scripts_prepend_node_path(config),
             shell: config.script_shell.as_deref().map(Path::new),
             shell_emulator: config.shell_emulator,
+            wd_bin_dir: Some(&bin_dir),
         },
         dep_path: &dep_path,
         pkg_root: workspace_root,
@@ -307,8 +310,15 @@ impl ProjectScriptRunner<'_> {
         manifest: &PackageManifest,
     ) -> Result<(), InstallError> {
         let root_modules_dir = project_dir.join(self.modules_dir_basename);
+        let bin_dir = root_modules_dir.join(".bin");
         link_project_bins(&root_modules_dir, &direct_dep_names(manifest), &self.link_options)
             .map_err(InstallError::ProjectBinLink)?;
+        let mut extra_env = self.extra_env.clone();
+        self.config.prepend_project_node_path::<pnpm_config::Host>(
+            &mut extra_env,
+            project_dir,
+            self.modules_dir_basename,
+        );
         let dep_path = project_dir.to_string_lossy();
         run_project_lifecycle_scripts::<Reporter>(&RunPostinstallHooks {
             environment: pnpm_executor::ScriptEnvironment {
@@ -317,7 +327,7 @@ impl ProjectScriptRunner<'_> {
                 npm_execpath: None,
                 node_gyp_path: None,
                 user_agent: Some(&self.config.user_agent),
-                extra_env: &self.extra_env,
+                extra_env: &extra_env,
             },
             execution: pnpm_executor::ScriptExecutionOptions {
                 extra_bin_paths: &self.config.extra_bin_paths,
@@ -325,6 +335,7 @@ impl ProjectScriptRunner<'_> {
                 prepend_node_path: self.scripts_prepend_node_path,
                 shell: self.config.script_shell.as_deref().map(Path::new),
                 shell_emulator: self.config.shell_emulator,
+                wd_bin_dir: Some(&bin_dir),
             },
             dep_path: &dep_path,
             pkg_root: project_dir,
@@ -360,7 +371,7 @@ impl<'a> ProjectScriptRunner<'a> {
         ProjectScriptRunner {
             config,
             workspace_root,
-            modules_dir_basename: modules_dir_basename(config),
+            modules_dir_basename: config.modules_dir_name(),
             scripts_prepend_node_path: exec_scripts_prepend_node_path(config),
             extra_env: project_lifecycle_extra_env(config, node_linker, workspace_root),
             link_options: crate::shim_link_options(config, node_linker),

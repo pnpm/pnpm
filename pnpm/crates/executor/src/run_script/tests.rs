@@ -73,6 +73,7 @@ fn run(pkg_root: &Path, stage: &str, script: &str, args: &[String]) -> ScriptExi
             prepend_node_path: ScriptsPrependNodePath::Never,
             shell: None,
             shell_emulator: false,
+            wd_bin_dir: None,
         },
         invocation: crate::ScriptInvocation { stage, script, args },
         manifest: &manifest(),

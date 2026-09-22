@@ -10,6 +10,7 @@ import {
 } from '@pnpm/cli.utils'
 import { createMatcherWithIndex } from '@pnpm/config.matcher'
 import {
+  binDirOf,
   type Config,
   type ConfigContext,
   createProjectConfigRecord,
@@ -507,7 +508,7 @@ export async function recursive (
             ...installOpts,
             ...localConfig,
             ...opts.allProjectsGraph[rootDir]?.package,
-            bin: path.join(rootDir, 'node_modules', '.bin'),
+            bin: binDirOf(rootDir, localConfig.modulesDir ?? opts.modulesDir),
             dir: rootDir,
             hooks,
             ignoreScripts: true,

@@ -48,6 +48,10 @@ pub struct ScriptExecutionOptions<'a> {
     /// pnpm call site which does not thread the setting — publishing,
     /// packing, patching, git package preparation — pass `false`.
     pub shell_emulator: bool,
+    /// The `.bin` holding the script directory's own executables, when
+    /// `modulesDir` puts them somewhere other than
+    /// `<dir>/node_modules/.bin`. `None` keeps `<dir>/node_modules/.bin`.
+    pub wd_bin_dir: Option<&'a Path>,
 }
 
 pub struct ScriptInvocation<'a> {

@@ -24,6 +24,11 @@ export interface RunLifecycleHookOptions {
   pkgRoot: string
   raiseOnInterrupt?: boolean
   rootModulesDir: string
+  /**
+   * The `.bin` holding `pkgRoot`'s own executables, when `modulesDir` puts
+   * them somewhere other than `<pkgRoot>/node_modules/.bin`.
+   */
+  wdBinDir?: string
   scriptShell?: string
   silent?: boolean
   scriptsPrependNodePath?: boolean | 'warn-only'
@@ -117,6 +122,7 @@ Please unset the scriptShell option, or configure it to a .exe instead.
     : undefined
   await lifecycle(m, stage, opts.pkgRoot, {
     dir: opts.rootModulesDir,
+    wdBinDir: opts.wdBinDir,
     extraBinPaths: opts.extraBinPaths,
     extraEnv: {
       ...opts.extraEnv,

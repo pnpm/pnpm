@@ -1,5 +1,6 @@
 import { safeReadPackageJsonFromDir } from '@pnpm/pkg-manifest.reader'
 
+import { makeProjectNodePathOption } from './makeProjectNodePathOption.js'
 import { runLifecycleHook, type RunLifecycleHookOptions } from './runLifecycleHook.js'
 import { runLifecycleHooksConcurrently, type RunLifecycleHooksConcurrentlyOptions } from './runLifecycleHooksConcurrently.js'
 import { killTrackedProcessTrees, type TrackableChildProcess, trackChildProcess } from './trackChildProcess.js'
@@ -38,6 +39,7 @@ function removeNodePackageMapOption (nodeOptions: string): string {
 
 export {
   killTrackedProcessTrees,
+  makeProjectNodePathOption,
   runLifecycleHook,
   type RunLifecycleHookOptions,
   runLifecycleHooksConcurrently,

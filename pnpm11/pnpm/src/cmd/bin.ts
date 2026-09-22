@@ -1,5 +1,6 @@
 import { docsUrl } from '@pnpm/cli.utils'
-import { types as allTypes } from '@pnpm/config.reader'
+import { binDirOf, type Config, type ConfigContext, createProjectModulesDirResolver, types as allTypes } from '@pnpm/config.reader'
+import { safeReadProjectManifestOnly } from '@pnpm/workspace.project-manifest-reader'
 import { pick } from 'ramda'
 import { renderHelp } from 'render-help'
 
@@ -35,9 +36,19 @@ export function help (): string {
 }
 
 export async function handler (
-  opts: {
+  opts: Pick<Config, 'packageConfigs' | 'lockfileDir' | 'modulesDir'> & Pick<ConfigContext, 'cliOptions'> & {
     bin: string
+    dir: string
   }
 ): Promise<string> {
-  return opts.bin
+  // `--global` already resolved the global directory, and only a workspace
+  // whose projects keep their own lockfiles can have given this one a modules
+  // directory of its own. An ordinary `pnpm bin` therefore reads no manifest,
+  // and a project without one still answers.
+  if (opts.cliOptions['global'] || opts.lockfileDir != null || opts.packageConfigs == null) {
+    return opts.bin
+  }
+  const modulesDirFor = createProjectModulesDirResolver(opts)
+  const manifest = await safeReadProjectManifestOnly(opts.dir)
+  return binDirOf(opts.dir, modulesDirFor(manifest?.name))
 }

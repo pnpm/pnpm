@@ -301,6 +301,8 @@ pub(in super::super) fn run_stages(
     main_body: &str,
     args: &[String],
 ) -> miette::Result<ScriptExit> {
+    let project_env = project_extra_env(ctx);
+    let ctx = &RunContext { extra_env: &project_env, ..*ctx };
     // Held across every stage, so a `pre` script cannot hand the slot
     // to another process between it and the main script.
     let cancelled = || ctx.process_tracker.is_some_and(ProcessTracker::is_cancelled);
@@ -313,6 +315,24 @@ pub(in super::super) fn run_stages(
     };
     let held_env = with_held_group(ctx.extra_env, slot.group());
     run_script_stages(&RunContext { extra_env: &held_env, ..*ctx }, name, main_body, args)
+}
+
+fn project_extra_env(ctx: &RunContext<'_>) -> HashMap<String, String> {
+    let mut env = ctx.extra_env.clone();
+    ctx.config.prepend_project_node_path::<pnpm_config::Host>(
+        &mut env,
+        ctx.dir,
+        &project_modules_dir_name(ctx),
+    );
+    env
+}
+
+fn project_modules_dir_name<'a>(ctx: &RunContext<'a>) -> std::borrow::Cow<'a, std::ffi::OsStr> {
+    let project_name = ctx.manifest
+        .value()
+        .get("name")
+        .and_then(Value::as_str);
+    ctx.config.modules_dir_name_for(ctx.dir, project_name)
 }
 
 fn run_script_stages(
@@ -425,16 +445,16 @@ pub(in super::super) fn run_stage(
     // are appended *before* this check, so a stage invoked with args
     // (which lengthen the command past the literal) is never skipped;
     // pre/post stages always pass `args = &[]`.
-    if args.is_empty() && script == "npx only-allow pnpm" {
-        return Ok(None);
-    }
     // An empty script body is a no-op: any stage whose (post-arg) command
     // is falsy is skipped, and pre/post are gated on the body being
     // truthy, so an empty `pre<name>`/`post<name>` never runs.
-    if script.is_empty() {
+    if (args.is_empty() && script == "npx only-allow pnpm") || script.is_empty() {
         return Ok(None);
     }
 
+    let modules_bin_dir = ctx.dir
+        .join(project_modules_dir_name(ctx))
+        .join(".bin");
     let status = run_script(&RunScript {
         environment: super::script_environment(ctx.config, ctx.init_cwd, ctx.extra_env),
         execution: pnpm_executor::ScriptExecutionOptions {
@@ -443,6 +463,7 @@ pub(in super::super) fn run_stage(
             prepend_node_path: exec_scripts_prepend_node_path(ctx.config.scripts_prepend_node_path),
             shell: ctx.config.script_shell.as_deref().map(Path::new),
             shell_emulator: ctx.config.shell_emulator,
+            wd_bin_dir: Some(&modules_bin_dir),
         },
         invocation: pnpm_executor::ScriptInvocation { stage, script, args },
         manifest: ctx.manifest.value(),

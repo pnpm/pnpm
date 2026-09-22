@@ -3,11 +3,11 @@ import fs from 'node:fs'
 import path from 'node:path'
 
 import { expect, test } from '@jest/globals'
-import { killProcessGroup, prepare, preparePackages } from '@pnpm/prepare'
+import { killProcessGroup, prepare, preparePackages, tempDir } from '@pnpm/prepare'
 import isWindows from 'is-windows'
 import { writeYamlFileSync } from 'write-yaml-file'
 
-import { createEnv, execPnpm, execPnpmSync, pnpmBinLocation, spawnPnpm } from './utils/index.js'
+import { createEnv, execPnpm, execPnpmSync, pnpmBinLocation, spawnPnpm, writeFakeBin } from './utils/index.js'
 
 test("exec should respect the caller's current working directory", async () => {
   prepare({
@@ -260,3 +260,107 @@ async function waitForFile (file: string, timeout: number): Promise<void> {
     await new Promise<void>((resolve) => setTimeout(resolve, 50)) // eslint-disable-line no-await-in-loop
   }
 }
+
+test('exec finds a workspace root command in the configured modules directory', async () => {
+  preparePackages([{ location: '.', package: { name: 'root', version: '1.0.0' } }, { name: 'foo', version: '1.0.0' }])
+  writeYamlFileSync('pnpm-workspace.yaml', { packages: ['**', '!store/**'], modulesDir: 'vendor' })
+  writeFakeBin(path.resolve('vendor/.bin'), 'greet', 'configured')
+
+  const result = execPnpmSync(['exec', 'greet'], { cwd: path.resolve('foo') })
+
+  expect(result.status).toBe(0)
+  expect(result.stdout.toString()).toContain('configured')
+})
+
+test('exec runs a project command from the configured modules directory, not a stale node_modules/.bin', async () => {
+  prepare({ name: 'root', version: '1.0.0' })
+  writeYamlFileSync('pnpm-workspace.yaml', { modulesDir: 'vendor' })
+  writeFakeBin(path.resolve('vendor/.bin'), 'greet', 'configured')
+  writeFakeBin(path.resolve('node_modules/.bin'), 'greet', 'stale')
+
+  const result = execPnpmSync(['exec', 'greet'])
+
+  expect(result.status).toBe(0)
+  const stdout = result.stdout.toString()
+  expect(stdout).toContain('configured')
+  expect(stdout).not.toContain('stale')
+})
+
+// A colon cannot appear in a Windows path, and it is not the PATH delimiter there.
+const testOnPosixExec = process.platform === 'win32' ? test.skip : test
+
+testOnPosixExec('exec adds an absolute modulesDir relative to the project, so a project path holding the PATH delimiter still runs', async () => {
+  tempDir()
+  const projectDir = path.resolve('a:b', 'proj')
+  fs.mkdirSync(projectDir, { recursive: true })
+  fs.writeFileSync(path.join(projectDir, 'package.json'), JSON.stringify({ name: 'p', version: '1.0.0' }), 'utf8')
+  const modulesDir = path.join(projectDir, 'vendor')
+  writeFakeBin(path.join(modulesDir, '.bin'), 'greet', 'configured')
+
+  const result = execPnpmSync(['exec', 'greet'], {
+    cwd: projectDir,
+    env: { PNPM_CONFIG_MODULES_DIR: modulesDir },
+  })
+
+  expect(result.stderr.toString()).not.toContain('ERR_PNPM_BAD_PATH_DIR')
+  expect(result.status).toBe(0)
+  expect(result.stdout.toString()).toContain('configured')
+})
+
+test('exec resolves a command from the modules directory a packageConfigs entry gives the project', async () => {
+  preparePackages([
+    { location: '.', package: { name: 'root', version: '1.0.0' } },
+    { name: 'moved', version: '1.0.0' },
+  ])
+  writeYamlFileSync('pnpm-workspace.yaml', {
+    packages: ['**', '!store/**'],
+    modulesDir: 'vendor',
+    sharedWorkspaceLockfile: false,
+    packageConfigs: { moved: { modulesDir: 'node_modules' } },
+  })
+  writeFakeBin(path.resolve('moved/node_modules/.bin'), 'greet', 'configured')
+  writeFakeBin(path.resolve('moved/vendor/.bin'), 'greet', 'stale')
+
+  const result = execPnpmSync(['exec', 'greet'], { cwd: path.resolve('moved') })
+
+  expect(result.status).toBe(0)
+  const stdout = result.stdout.toString()
+  expect(stdout).toContain('configured')
+  expect(stdout).not.toContain('stale')
+
+  const recursive = execPnpmSync(['-r', 'exec', 'greet'])
+
+  expect(recursive.status).toBe(0)
+  const recursiveStdout = recursive.stdout.toString()
+  expect(recursiveStdout).toContain('configured')
+  expect(recursiveStdout).not.toContain('stale')
+})
+
+test('exec and run find a command that add installed into the modules directory a packageConfigs entry gives the project', async () => {
+  preparePackages([
+    { location: '.', package: { name: 'root', version: '1.0.0' } },
+    { name: 'moved', version: '1.0.0', scripts: { hello: 'hello-world-js-bin' } },
+    { name: 'plain', version: '1.0.0', scripts: { hello: 'hello-world-js-bin' } },
+  ])
+  writeYamlFileSync('pnpm-workspace.yaml', {
+    packages: ['**', '!store/**'],
+    sharedWorkspaceLockfile: false,
+    packageConfigs: { moved: { modulesDir: 'custom' } },
+  })
+
+  for (const project of ['moved', 'plain']) {
+    const add = execPnpmSync(['add', '@pnpm.e2e/hello-world-js-bin@1.0.0'], { cwd: path.resolve(project) })
+    expect(add.status).toBe(0)
+  }
+
+  for (const project of ['moved', 'plain']) {
+    for (const args of [['exec', 'hello-world-js-bin'], ['run', 'hello']]) {
+      const result = execPnpmSync(args, { cwd: path.resolve(project) })
+      expect(result.status).toBe(0)
+      expect(result.stdout.toString()).toContain('Hello world!')
+    }
+  }
+  expect(fs.existsSync(path.resolve('moved/custom/.bin/hello-world-js-bin'))).toBe(true)
+  expect(fs.existsSync(path.resolve('moved/node_modules/.bin/hello-world-js-bin'))).toBe(false)
+  expect(fs.existsSync(path.resolve('plain/node_modules/.bin/hello-world-js-bin'))).toBe(true)
+})

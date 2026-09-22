@@ -44,6 +44,8 @@ export interface LifecyclePackage {
 export interface LifecycleOptions {
   /** The `node_modules` directory whose `.hooks/<stage>` hook runs after the script. */
   dir: string
+  /** The `.bin` holding `wd`'s own executables, in place of `<wd>/node_modules/.bin`. */
+  wdBinDir?: string
   extraBinPaths?: string[]
   extraEnv?: Record<string, string>
   failOk?: boolean

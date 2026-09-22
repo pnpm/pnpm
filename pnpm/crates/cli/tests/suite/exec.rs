@@ -1,3 +1,5 @@
+#[cfg(unix)]
+use crate::_utils::write_executable;
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
 use pnpm_testing_utils::bin::CommandTempCwd;
@@ -7,15 +9,6 @@ use std::{
     thread,
     time::{Duration, Instant},
 };
-
-#[cfg(unix)]
-fn write_executable(path: &std::path::Path, body: &str) {
-    use std::os::unix::fs::PermissionsExt;
-    fs::write(path, body).expect("write executable");
-    let mut perms = fs::metadata(path).expect("stat executable").permissions();
-    perms.set_mode(0o755);
-    fs::set_permissions(path, perms).expect("chmod executable");
-}
 
 fn make_detached_node_script(marker_path: &Path, parent_exit_code: i32) -> String {
     let marker_json = serde_json::to_string(&marker_path.to_string_lossy()).expect("quote marker");
@@ -494,6 +487,76 @@ fn exec_stamps_pnpm_package_name_from_manifest() {
 
     let written = fs::read_to_string(&marker).expect("read marker");
     assert_eq!(written, "@scope/mypkg");
+
+    drop(root);
+}
+
+/// Regression test for
+/// [pnpm/pnpm#3604](https://github.com/pnpm/pnpm/issues/3604): the extra bin
+/// paths carry the workspace root's executables to every member, and a
+/// configured `modulesDir` moves them off `node_modules/.bin`.
+#[cfg(unix)]
+#[test]
+fn exec_resolves_a_workspace_root_command_from_the_configured_modules_dir() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    fs::write(
+        workspace.join("pnpm-workspace.yaml"),
+        "packages:\n  - \"packages/*\"\nmodulesDir: vendor\n",
+    )
+    .expect("write pnpm-workspace.yaml");
+    fs::write(workspace.join("package.json"), r#"{ "name": "wsroot", "version": "1.0.0" }"#)
+        .expect("write workspace-root package.json");
+    let member = workspace.join("packages/foo");
+    fs::create_dir_all(&member).expect("create the member dir");
+    fs::write(member.join("package.json"), r#"{ "name": "foo", "version": "1.0.0" }"#)
+        .expect("write member package.json");
+
+    let bin_dir = workspace.join("vendor").join(".bin");
+    fs::create_dir_all(&bin_dir).expect("create the workspace-root bin dir");
+    write_executable(&bin_dir.join("greet"), "#!/bin/sh\necho configured\n");
+
+    let output = pacquet
+        .with_current_dir(&member)
+        .with_args(["exec", "greet"])
+        .output()
+        .expect("run pacquet exec greet in the member");
+    dbg!(&output);
+    assert!(output.status.success(), "pacquet exec greet should succeed in the member");
+    assert!(
+        String::from_utf8_lossy(&output.stdout).contains("configured"),
+        "the workspace root's configured bin dir must be on PATH",
+    );
+
+    drop(root);
+}
+
+/// The entry `pnpm exec` prepends for the project itself, which the
+/// workspace-root case above reaches through `extraBinPaths` instead. A
+/// leftover `node_modules/.bin` must not win.
+#[cfg(unix)]
+#[test]
+fn exec_runs_a_project_command_from_the_configured_modules_dir() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    fs::write(workspace.join("pnpm-workspace.yaml"), "modulesDir: vendor\n")
+        .expect("write pnpm-workspace.yaml");
+    fs::write(workspace.join("package.json"), r#"{ "name": "root-pkg", "version": "1.0.0" }"#)
+        .expect("write package.json");
+
+    for (modules_dir, marker) in [("vendor", "configured"), ("node_modules", "stale")] {
+        let bin_dir = workspace.join(modules_dir).join(".bin");
+        fs::create_dir_all(&bin_dir).expect("create the bin dir");
+        write_executable(&bin_dir.join("greet"), &format!("#!/bin/sh\necho {marker}\n"));
+    }
+
+    let output = pacquet
+        .with_args(["exec", "greet"])
+        .output()
+        .expect("run pacquet exec greet");
+    dbg!(&output);
+    assert!(output.status.success(), "pacquet exec greet should succeed");
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(stdout.contains("configured"), "the configured modules dir must win: {stdout}");
+    assert!(!stdout.contains("stale"), "node_modules/.bin must not win: {stdout}");
 
     drop(root);
 }

@@ -21,6 +21,7 @@ use rayon::prelude::*;
 use serde_json::Value;
 use std::{
     collections::{HashMap, HashSet},
+    ffi::OsString,
     io,
     path::{Path, PathBuf},
     sync::{Arc, Mutex},
@@ -291,6 +292,13 @@ pub struct LinkBinsOptions {
     /// and the node runtime symlink. `None` writes absolute paths. Inert on
     /// Windows.
     pub relocatable_root: Option<PathBuf>,
+    /// The name of the project modules directory when it is not
+    /// `node_modules` and `extendNodePath` is on. Bins linked into the `.bin`
+    /// of a directory with this name get that directory first on `NODE_PATH`:
+    /// Node only looks for packages in `node_modules` directories, so a tool
+    /// installed there could not otherwise load the project's other packages,
+    /// such as its plugins, ahead of its own.
+    pub project_modules_dir_name: Option<OsString>,
 }
 
 /// Read `<location>/package.json` for each entry under `modules_dir` and link
@@ -422,7 +430,7 @@ where
             let node_path = if options.prefer_symlinked_executables && cfg!(unix) {
                 Vec::new()
             } else {
-                shim_node_path(pkg, &paths.extra_node_paths)
+                shim_node_path(pkg, paths.project_node_path.as_deref(), &paths.extra_node_paths)
             };
             let pkg_name = package_name(pkg);
             // The target's symlink-resolved path doubles as the memo key
@@ -480,37 +488,6 @@ pub fn choose_bins<'packages, Sys: FsWalkFiles>(
         chosen.remove(excluded);
     }
     chosen.into_values().collect()
-}
-
-/// The `NODE_PATH` entries for one package's shims: the target's own
-/// `node_modules` dirs first (pnpm's `getBinNodePaths`), then the
-/// caller's extras that aren't already present. An empty extras list
-/// means "no `NODE_PATH` in shims at all" (`extendNodePath: false`, a
-/// non-isolated linker, or no hoist pattern), matching pnpm's bins
-/// linker.
-///
-/// The result depends only on the package's symlink-resolved
-/// directory — every bin lives under the package root — so a
-/// caller-supplied [`PackageBinSource::resolved_location`] makes this
-/// syscall-free; without one the package's `location` is
-/// canonicalized once, covering all of its bins.
-fn shim_node_path(pkg: &PackageBinSource, extra_node_paths: &[String]) -> Vec<String> {
-    if extra_node_paths.is_empty() {
-        return Vec::new();
-    }
-    let mut merged = if let Some(resolved) = &pkg.resolved_location {
-        bin_node_paths(resolved)
-    } else {
-        let dir =
-            dunce::canonicalize(&pkg.location).unwrap_or_else(|_| pkg.location.clone());
-        bin_node_paths(&dir)
-    };
-    for extra in extra_node_paths {
-        if !merged.contains(extra) {
-            merged.push(extra.clone());
-        }
-    }
-    merged
 }
 
 /// Whether the bins of `pkg_name` get a PowerShell shim next to the `.cmd`
@@ -576,5 +553,6 @@ use executable::{
 mod discovery;
 
 mod linking_paths;
+use linking_paths::shim_node_path;
 
 mod relocatable;

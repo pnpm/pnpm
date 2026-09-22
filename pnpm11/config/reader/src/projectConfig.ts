@@ -9,6 +9,17 @@ export function createProjectConfigRecord (opts: CreateProjectConfigRecordOption
   return createProjectConfigRecordFromConfigSet(opts.packageConfigs)
 }
 
+export type ProjectModulesDirOptions = Pick<Config, 'packageConfigs' | 'lockfileDir' | 'modulesDir'>
+
+/**
+ * Resolve per-project modules directories after validating packageConfigs once.
+ * Shared-lockfile workspaces ignore packageConfigs, as their install does.
+ */
+export function createProjectModulesDirResolver (opts: ProjectModulesDirOptions): (projectName: string | undefined) => string | undefined {
+  const projectConfigs = opts.lockfileDir == null ? createProjectConfigRecord(opts) : undefined
+  return (projectName) => (projectName == null ? undefined : projectConfigs?.[projectName]?.modulesDir) ?? opts.modulesDir
+}
+
 export class ProjectConfigIsNotAnObjectError extends PnpmError {
   readonly actualRawConfig: unknown
   constructor (actualRawConfig: unknown) {

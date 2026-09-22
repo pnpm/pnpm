@@ -1403,6 +1403,99 @@ describe("a project's pnpm-workspace.yaml cannot redirect where pnpm reads and w
     expect(config.modulesDir).toBe('custom_modules')
     expect(config.storeDir).toBe('/tmp/project-store')
   })
+
+  test('the executables directory and the extra bin paths follow modulesDir', async () => {
+    prepareEmpty()
+
+    writeYamlFileSync('pnpm-workspace.yaml', {
+      ...machineLocations,
+      modulesDir: 'vendor',
+    })
+
+    const { config } = await getConfig({
+      cliOptions: {},
+      packageManager: { name: 'pnpm', version: '1.0.0' },
+      workspaceDir: process.cwd(),
+    })
+
+    expect(config.bin).toBe(path.resolve('vendor/.bin'))
+    expect(config.extraBinPaths).toStrictEqual([path.resolve('vendor/.bin')])
+  })
+
+  test('a global that did not come from the command line keeps the local executables directory', async () => {
+    prepareEmpty()
+
+    writeYamlFileSync('pnpm-workspace.yaml', {
+      ...machineLocations,
+      modulesDir: 'vendor',
+    })
+
+    const { config } = await getConfig({
+      cliOptions: {},
+      env: { ...env, PNPM_CONFIG_GLOBAL: 'true' },
+      packageManager: { name: 'pnpm', version: '1.0.0' },
+      workspaceDir: process.cwd(),
+    })
+
+    expect(config.global).toBe(true)
+    expect(config.bin).toBe(path.resolve('vendor/.bin'))
+  })
+
+  test("a packageConfigs entry moves the workspace root's extra bin paths", async () => {
+    prepareEmpty()
+    fs.writeFileSync('package.json', JSON.stringify({ name: 'root', version: '1.0.0' }), 'utf8')
+
+    writeYamlFileSync('pnpm-workspace.yaml', {
+      ...machineLocations,
+      modulesDir: 'vendor',
+      sharedWorkspaceLockfile: false,
+      packageConfigs: { root: { modulesDir: 'node_modules' } },
+    })
+
+    const { config } = await getConfig({
+      cliOptions: {},
+      packageManager: { name: 'pnpm', version: '1.0.0' },
+      workspaceDir: process.cwd(),
+    })
+
+    expect(config.extraBinPaths).toStrictEqual([path.resolve('node_modules/.bin')])
+  })
+
+  test('a shared lockfile leaves the extra bin paths on the workspace modulesDir', async () => {
+    prepareEmpty()
+    fs.writeFileSync('package.json', JSON.stringify({ name: 'root', version: '1.0.0' }), 'utf8')
+
+    writeYamlFileSync('pnpm-workspace.yaml', {
+      ...machineLocations,
+      modulesDir: 'vendor',
+      packageConfigs: { root: { modulesDir: 'node_modules' } },
+    })
+
+    const { config } = await getConfig({
+      cliOptions: {},
+      packageManager: { name: 'pnpm', version: '1.0.0' },
+      workspaceDir: process.cwd(),
+    })
+
+    expect(config.extraBinPaths).toStrictEqual([path.resolve('vendor/.bin')])
+  })
+
+  test('--global points the executables directory at the global one', async () => {
+    prepareEmpty()
+
+    writeYamlFileSync('pnpm-workspace.yaml', {
+      ...machineLocations,
+      modulesDir: 'vendor',
+    })
+
+    const { config } = await getConfig({
+      cliOptions: { global: true },
+      env,
+      packageManager: { name: 'pnpm', version: '1.0.0' },
+    })
+
+    expect(config.bin).toBe(path.join(config.pnpmHomeDir, 'bin'))
+  })
 })
 
 test('camelCase settings from pnpm-workspace.yaml are read into typed Config properties', async () => {

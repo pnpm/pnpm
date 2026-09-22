@@ -1,12 +1,13 @@
 import path from 'node:path'
 
-import { linkBins } from '@pnpm/bins.linker'
+import { getProjectNodePath, linkBins } from '@pnpm/bins.linker'
 import { fetchFromDir } from '@pnpm/fetching.directory-fetcher'
 import { logger } from '@pnpm/logger'
 import type { StoreController } from '@pnpm/store.controller-types'
 import type { ProjectManifest, ProjectRootDir } from '@pnpm/types'
 import { scheduleGraph, type TaskCompletion } from '@pnpm/workspace.task-scheduler'
 
+import { makeProjectNodePathOption } from './makeProjectNodePathOption.js'
 import { runLifecycleHook, type RunLifecycleHookOptions } from './runLifecycleHook.js'
 
 export type RunLifecycleHooksConcurrentlyOptions = Omit<RunLifecycleHookOptions,
@@ -16,6 +17,7 @@ export type RunLifecycleHooksConcurrentlyOptions = Omit<RunLifecycleHookOptions,
 > & {
   resolveSymlinksInInjectedDirs?: boolean
   storeController: StoreController
+  extendNodePath?: boolean
   extraNodePaths?: string[]
   preferSymlinkedExecutables?: boolean
 }
@@ -53,9 +55,11 @@ export async function runLifecycleHooksConcurrently (
     runNode: async (rootDir): Promise<TaskCompletion> => {
       const { manifest, modulesDir, stages: importerStages, targetDirs } = importersByRootDir.get(rootDir)!
       try {
+        const binsDir = path.join(modulesDir, '.bin')
         // We are linking the bin files, in case they were created by lifecycle scripts of other workspace packages.
-        await linkBins(modulesDir, path.join(modulesDir, '.bin'), {
+        await linkBins(modulesDir, binsDir, {
           extraNodePaths: opts.extraNodePaths,
+          projectModulesDir: await getProjectNodePath({ modulesDir, rootDir }, opts),
           allowExoticManifests: true,
           preferSymlinkedExecutables: opts.preferSymlinkedExecutables,
           projectManifest: manifest,
@@ -66,8 +70,10 @@ export async function runLifecycleHooksConcurrently (
         const runLifecycleHookOpts: RunLifecycleHookOptions = {
           ...opts,
           depPath: rootDir,
+          extraEnv: { ...opts.extraEnv, ...await makeProjectNodePathOption({ modulesDir, rootDir }, opts) },
           pkgRoot: rootDir,
           rootModulesDir: modulesDir,
+          wdBinDir: binsDir,
         }
         let isBuilt = false
         for (const stage of (importerStages ?? stages)) {

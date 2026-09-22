@@ -27,7 +27,14 @@ impl BinArgs {
                 .map_err(miette::Report::new)?;
             bin
         } else {
-            dir.join("node_modules").join(".bin")
+            // Gated so an ordinary `pnpm bin` reads no manifest, and so a
+            // project without one still answers.
+            let project_name = config
+                .applies_package_configs()
+                .then(|| pnpm_workspace::read_project_name(dir))
+                .flatten();
+            dir.join(config.modules_dir_name_for(dir, project_name.as_deref()))
+                .join(".bin")
         };
         println!("{}", bin.display());
         Ok(())

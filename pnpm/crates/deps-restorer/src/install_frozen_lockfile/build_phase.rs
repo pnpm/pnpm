@@ -160,8 +160,7 @@ pub fn run_build_phase<Reporter: self::Reporter>(
     // (pnpm/pacquet#342). Resolves direct-over-hoisted precedence and
     // shims lifecycle-script-created bins that didn't exist at extract
     // time. Idempotent for unchanged shims. Runs after `buildModules`.
-    let modules_dir_basename: &OsStr =
-        config.modules_dir.file_name().unwrap_or_else(|| OsStr::new("node_modules"));
+    let modules_dir_basename = config.modules_dir_name();
     for (importer_id, importer_snapshot) in inputs.graph.importers {
         link_importer_top_level_bins(
             inputs,

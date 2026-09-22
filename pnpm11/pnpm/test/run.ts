@@ -7,7 +7,7 @@ import { killProcessGroup, prepare, preparePackages } from '@pnpm/prepare'
 import isWindows from 'is-windows'
 import { writeYamlFileSync } from 'write-yaml-file'
 
-import { execPnpm, execPnpmSync, pnpmBinLocation, spawnPnpm } from './utils/index.js'
+import { execPnpm, execPnpmSync, pnpmBinLocation, spawnPnpm, writeFakeBin } from './utils/index.js'
 
 const RECORD_ARGS_FILE = 'require(\'fs\').writeFileSync(\'args.json\', JSON.stringify(require(\'./args.json\').concat([process.argv.slice(2)])), \'utf8\')'
 const testOnPosix = isWindows() ? test.skip : test
@@ -533,3 +533,183 @@ async function waitForFile (file: string, timeout: number): Promise<void> {
     await new Promise<void>((resolve) => setTimeout(resolve, 50)) // eslint-disable-line no-await-in-loop
   }
 }
+
+test('run resolves commands from the configured modules directory, not a stale node_modules/.bin', async () => {
+  prepare({
+    name: 'root',
+    version: '1.0.0',
+    scripts: { greet: 'greet' },
+  })
+  writeYamlFileSync('pnpm-workspace.yaml', { modulesDir: 'vendor' })
+  writeFakeBin(path.resolve('vendor/.bin'), 'greet', 'configured')
+  writeFakeBin(path.resolve('node_modules/.bin'), 'greet', 'stale')
+
+  const result = execPnpmSync(['run', '--config.verify-deps-before-run=false', 'greet'])
+
+  expect(result.status).toBe(0)
+  const stdout = result.stdout.toString()
+  expect(stdout).toContain('configured')
+  expect(stdout).not.toContain('stale')
+})
+
+test('run resolves a command from the modules directory a packageConfigs entry gives the project', async () => {
+  preparePackages([
+    { location: '.', package: { name: 'root', version: '1.0.0' } },
+    { name: 'moved', version: '1.0.0', scripts: { greet: 'greet' } },
+  ])
+  writeYamlFileSync('pnpm-workspace.yaml', {
+    packages: ['**', '!store/**'],
+    modulesDir: 'vendor',
+    sharedWorkspaceLockfile: false,
+    packageConfigs: { moved: { modulesDir: 'node_modules' } },
+  })
+  writeFakeBin(path.resolve('moved/node_modules/.bin'), 'greet', 'configured')
+  writeFakeBin(path.resolve('moved/vendor/.bin'), 'greet', 'stale')
+
+  const result = execPnpmSync(['run', '--config.verify-deps-before-run=false', 'greet'], {
+    cwd: path.resolve('moved'),
+  })
+
+  expect(result.status).toBe(0)
+  const stdout = result.stdout.toString()
+  expect(stdout).toContain('configured')
+  expect(stdout).not.toContain('stale')
+
+  const recursive = execPnpmSync(['-r', 'run', '--config.verify-deps-before-run=false', 'greet'])
+
+  expect(recursive.status).toBe(0)
+  const recursiveStdout = recursive.stdout.toString()
+  expect(recursiveStdout).toContain('configured')
+  expect(recursiveStdout).not.toContain('stale')
+})
+
+test('run and exec reach plugins installed in the configured modules directory', async () => {
+  prepare({
+    name: 'root',
+    version: '1.0.0',
+    scripts: { lint: 'tool' },
+    dependencies: { plugin: 'file:plugin', tool: 'file:tool' },
+  })
+  writeYamlFileSync('pnpm-workspace.yaml', { modulesDir: 'vendor' })
+  fs.mkdirSync('tool')
+  fs.writeFileSync('tool/package.json', JSON.stringify({ name: 'tool', version: '1.0.0', bin: 'bin.js' }))
+  fs.writeFileSync('tool/bin.js', `#!/usr/bin/env node
+const { createRequire } = require('node:module')
+console.log(createRequire(require('node:path').join(process.cwd(), 'package.json'))('plugin'))
+`)
+  fs.mkdirSync('plugin')
+  fs.writeFileSync('plugin/package.json', JSON.stringify({ name: 'plugin', version: '1.0.0' }))
+  fs.writeFileSync('plugin/index.js', 'module.exports = \'plugin loaded\'\n')
+
+  await execPnpm(['install'])
+
+  for (const args of [['run', 'lint'], ['exec', 'tool']]) {
+    const result = execPnpmSync(args)
+    expect(result.status).toBe(0)
+    expect(result.stdout.toString()).toContain('plugin loaded')
+  }
+})
+
+testOnPosix('run and exec put each project\'s custom modules directory on the NODE_PATH of its symlinked executables', async () => {
+  await expectSymlinkedBinsToLoadPluginsPerProject({}, 'vendor')
+})
+
+testOnPosix('run and exec put the modules directory a packageConfigs entry gives the project on the NODE_PATH of its symlinked executables', async () => {
+  await expectSymlinkedBinsToLoadPluginsPerProject({
+    sharedWorkspaceLockfile: false,
+    packageConfigs: { 'project-2': { modulesDir: 'custom' } },
+  }, 'custom')
+})
+
+async function expectSymlinkedBinsToLoadPluginsPerProject (settings: Record<string, unknown>, project2ModulesDir: string): Promise<void> {
+  const scripts = { lint: 'tool', postinstall: 'tool > tool-output.txt', version: 'tool > version-output.txt' }
+  preparePackages([
+    { location: '.', package: { name: 'root', version: '1.0.0' } },
+    { name: 'project-1', version: '1.0.0', scripts, dependencies: { tool: 'file:../tool' } },
+    { name: 'project-2', version: '1.0.0', scripts, dependencies: { plugin: 'file:../plugin', tool: 'file:../tool' } },
+  ])
+  // The private hoist would expose project-2's plugin to project-1.
+  writeYamlFileSync('pnpm-workspace.yaml', { packages: ['project-*'], modulesDir: 'vendor', preferSymlinkedExecutables: true, hoistPattern: [], ...settings })
+  writePluginTool()
+
+  await execPnpm(['install'])
+  expect(fs.lstatSync(path.join('project-2', project2ModulesDir, '.bin/tool')).isSymbolicLink()).toBe(true)
+  expect(fs.readFileSync('project-1/tool-output.txt', 'utf8').trim()).toBe('project-1: missing')
+  expect(fs.readFileSync('project-2/tool-output.txt', 'utf8').trim()).toBe('project-2: plugin loaded')
+
+  for (const args of [['-r', 'run', 'lint'], ['-r', 'exec', 'tool']]) {
+    const stdout = execPnpmSync(args).stdout.toString()
+    expect(stdout).toContain('project-1: missing')
+    expect(stdout).toContain('project-2: plugin loaded')
+  }
+  for (const args of [['run', 'lint'], ['exec', 'tool']]) {
+    expect(execPnpmSync(args, { cwd: path.resolve('project-2') }).stdout.toString()).toContain('project-2: plugin loaded')
+  }
+  expect(execPnpmSync(['version', 'patch', '--no-git-checks'], { cwd: path.resolve('project-2') }).status).toBe(0)
+  expect(fs.readFileSync('project-2/version-output.txt', 'utf8').trim()).toBe('project-2: plugin loaded')
+}
+
+testOnPosix('run puts the custom modules directory on the NODE_PATH of the symlinked executables the hoisted linker creates', async () => {
+  prepare({ name: 'root', version: '1.0.0', scripts: { lint: 'tool' }, dependencies: { plugin: 'file:plugin', tool: 'file:tool' } })
+  writeYamlFileSync('pnpm-workspace.yaml', { modulesDir: 'vendor', nodeLinker: 'hoisted' })
+  writePluginTool()
+
+  await execPnpm(['install'])
+  expect(fs.lstatSync('vendor/.bin/tool').isSymbolicLink()).toBe(true)
+
+  expect(execPnpmSync(['run', 'lint']).stdout.toString()).toContain('root: plugin loaded')
+})
+
+testOnPosix('run does not put the custom modules directory on NODE_PATH when extendNodePath is false', async () => {
+  prepare({ name: 'root', version: '1.0.0', scripts: { lint: 'tool' }, dependencies: { plugin: 'file:plugin', tool: 'file:tool' } })
+  writeYamlFileSync('pnpm-workspace.yaml', { modulesDir: 'vendor', preferSymlinkedExecutables: true, extendNodePath: false })
+  writePluginTool()
+
+  await execPnpm(['install'])
+
+  expect(execPnpmSync(['run', 'lint']).stdout.toString()).toContain('root: missing')
+})
+
+function writePluginTool (): void {
+  fs.mkdirSync('tool')
+  fs.writeFileSync('tool/package.json', JSON.stringify({ name: 'tool', version: '1.0.0', bin: 'bin.js' }))
+  fs.writeFileSync('tool/bin.js', `#!/usr/bin/env node
+const path = require('node:path')
+const requireFromProject = require('node:module').createRequire(path.join(process.cwd(), 'package.json'))
+let plugin
+try {
+  plugin = requireFromProject('plugin')
+} catch {
+  plugin = 'missing'
+}
+console.log(\`\${requireFromProject('./package.json').name}: \${plugin}\`)
+`)
+  fs.mkdirSync('plugin')
+  fs.writeFileSync('plugin/package.json', JSON.stringify({ name: 'plugin', version: '1.0.0' }))
+  fs.writeFileSync('plugin/index.js', 'module.exports = \'plugin loaded\'\n')
+}
+
+
+testOnPosix('run and recursive run execute lifecycle hooks from the package-specific modules directory', () => {
+  preparePackages([
+    { location: '.', package: { name: 'root', version: '1.0.0' } },
+    { name: 'moved', version: '1.0.0', scripts: { greet: 'node -e ""' } },
+  ])
+  writeYamlFileSync('pnpm-workspace.yaml', {
+    packages: ['moved'],
+    modulesDir: 'vendor',
+    sharedWorkspaceLockfile: false,
+    packageConfigs: { moved: { modulesDir: 'custom' } },
+  })
+  fs.mkdirSync('moved/custom/.hooks', { recursive: true })
+  fs.writeFileSync('moved/custom/.hooks/greet', '#!/bin/sh\necho custom-hook\n', { mode: 0o755 })
+
+  for (const [args, cwd] of [
+    [['run'], path.resolve('moved')],
+    [['-r', 'run'], process.cwd()],
+  ] as const) {
+    const result = execPnpmSync([...args, '--config.verify-deps-before-run=false', 'greet'], { cwd })
+    expect(result.status).toBe(0)
+    expect(result.stdout.toString()).toContain('custom-hook')
+  }
+})
