@@ -258,6 +258,34 @@ fn should_add_to_package_json() {
     drop((root, anchor)); // cleanup
 }
 
+/// An empty `peerDependencies` the user wrote survives an add
+/// (pnpm/pnpm#5096).
+#[test]
+fn add_keeps_an_empty_peer_dependencies_field() {
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    std::fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({ "name": "fixture", "peerDependencies": {} }).to_string(),
+    )
+    .expect("write package.json");
+    pacquet
+        .with_args(["add", "@pnpm.e2e/hello-world-js-bin"])
+        .assert()
+        .success();
+    let manifest: serde_json::Value =
+        serde_json::from_str(&std::fs::read_to_string(workspace.join("package.json")).unwrap())
+            .unwrap();
+    assert_eq!(manifest.get("peerDependencies"), Some(&serde_json::json!({})));
+    assert!(manifest["dependencies"].get("@pnpm.e2e/hello-world-js-bin").is_some());
+    drop((root, npmrc_info));
+}
+
 /// A one-member workspace whose `fixtures/` packages let a `-w` add use
 /// `file:` specs instead of reaching the registry. Returns the member's
 /// directory.

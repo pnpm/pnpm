@@ -135,6 +135,18 @@ test('install --save-exact', async () => {
   expect(pkg.devDependencies).toStrictEqual({ 'is-positive': '3.1.0' })
 })
 
+test('install keeps an empty peerDependencies field in package.json', async () => {
+  prepareEmpty()
+  fs.writeFileSync('package.json', JSON.stringify({ name: 'project', version: '0.0.0', peerDependencies: {} }), 'utf8')
+
+  await execPnpm(['install', 'is-positive@3.1.0', '--save-exact'])
+
+  const pkg = JSON.parse(fs.readFileSync('package.json', 'utf8'))
+
+  expect(pkg.peerDependencies).toStrictEqual({})
+  expect(pkg.dependencies).toStrictEqual({ 'is-positive': '3.1.0' })
+})
+
 test('install to a project that uses package.yaml', async () => {
   const project = prepareEmpty()
 

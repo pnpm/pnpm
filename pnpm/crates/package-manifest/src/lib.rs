@@ -69,6 +69,9 @@ pub struct PackageManifest {
     /// change the file. `None` when there is no file baseline (in-memory
     /// manifests), so the first save always writes.
     on_disk: Option<Value>,
+    /// The dependency fields the file declares as empty objects, kept on
+    /// save so a write only drops a field pnpm itself emptied.
+    empty_dependency_fields: Vec<&'static str>,
 }
 
 impl InitAuthor<'_> {
@@ -122,6 +125,7 @@ impl PackageManifest {
             crlf: false,
             indent: DEFAULT_INDENT.to_string(),
             on_disk: None,
+            empty_dependency_fields: Vec::new(),
         }
     }
 
@@ -152,7 +156,7 @@ impl PackageManifest {
         let mut value = self.value.clone();
         convert_dependencies_to_engines_runtime(&mut value, "devDependencies", "devEngines")?;
         convert_dependencies_to_engines_runtime(&mut value, "dependencies", "engines")?;
-        normalize_dependency_fields(&mut value);
+        normalize_dependency_fields(&mut value, &self.empty_dependency_fields);
         Ok(value)
     }
 
@@ -180,6 +184,7 @@ impl PackageManifest {
             contents = contents.replace("\r\n", "\n").replace('\n', "\r\n");
         }
         Self::write_atomic(&self.path, &contents)?;
+        self.empty_dependency_fields = empty_dependency_fields(&value);
         self.on_disk = Some(value.clone());
         Ok(value)
     }
@@ -521,4 +526,4 @@ mod runtime;
 mod initialization;
 
 mod serialization;
-use serialization::{normalize_dependency_fields, serialize_with_indent};
+use serialization::{empty_dependency_fields, normalize_dependency_fields, serialize_with_indent};

@@ -667,14 +667,15 @@ fn remove_dependencies_with_save_type_keeps_other_dependency_fields() {
 }
 
 /// A write sorts each dependency field by name and drops a dependency
-/// field that ended up empty, like pnpm's on-write manifest normalization.
+/// field the edit emptied, like pnpm's on-write manifest normalization.
+/// Moving `aardvark` to `dependencies` leaves `devDependencies` empty.
 #[test]
 fn save_sorts_dependency_fields_and_drops_empty_ones() {
     let dir = tempdir().unwrap();
     let path = dir.path().join("package.json");
     std::fs::write(
         &path,
-        "{\n  \"name\": \"foo\",\n  \"dependencies\": {\n    \"zebra\": \"1.0.0\"\n  },\n  \"devDependencies\": {}\n}\n",
+        "{\n  \"name\": \"foo\",\n  \"dependencies\": {\n    \"zebra\": \"1.0.0\"\n  },\n  \"devDependencies\": {\n    \"aardvark\": \"1.0.0\"\n  }\n}\n",
     )
     .unwrap();
     let mut manifest = PackageManifest::from_path(path.clone()).unwrap();
@@ -687,4 +688,73 @@ fn save_sorts_dependency_fields_and_drops_empty_ones() {
     let zebra = saved.find("zebra").unwrap();
     assert!(aardvark < zebra);
     assert!(!saved.contains("devDependencies"));
+}
+
+/// A dependency field the file already declared as empty is the user's,
+/// not pnpm's, so a save leaves it in place (pnpm/pnpm#5096).
+#[test]
+fn save_keeps_a_dependency_field_that_was_already_empty_on_read() {
+    let dir = tempdir().unwrap();
+    let path = dir.path().join("package.json");
+    std::fs::write(
+        &path,
+        r#"{
+  "name": "foo",
+  "peerDependencies": {}
+}
+"#,
+    )
+    .unwrap();
+    let mut manifest = PackageManifest::from_path(path.clone()).unwrap();
+    manifest.add_dependency("bar", "1.0.0", DependencyGroup::Prod).unwrap();
+    manifest.save().unwrap();
+
+    assert_eq!(
+        read_to_string(&path).unwrap(),
+        r#"{
+  "name": "foo",
+  "peerDependencies": {},
+  "dependencies": {
+    "bar": "1.0.0"
+  }
+}
+"#,
+    );
+}
+
+/// Removing the last entry of a dependency field drops the field, while a
+/// field that was already empty on read stays.
+#[test]
+fn save_drops_a_dependency_field_the_removal_emptied() {
+    let dir = tempdir().unwrap();
+    let path = dir.path().join("package.json");
+    std::fs::write(
+        &path,
+        r#"{
+  "name": "foo",
+  "dependencies": {
+    "bar": "1.0.0"
+  },
+  "peerDependencies": {}
+}
+"#,
+    )
+    .unwrap();
+    let mut manifest = PackageManifest::from_path(path.clone()).unwrap();
+    manifest.remove_dependencies(&["bar".to_string()], None);
+    manifest.save().unwrap();
+
+    assert_eq!(
+        read_to_string(&path).unwrap(),
+        r#"{
+  "name": "foo",
+  "peerDependencies": {}
+}
+"#,
+    );
+
+    // The field pnpm dropped is not preserved by a later save either.
+    manifest.add_dependency("baz", "1.0.0", DependencyGroup::Dev).unwrap();
+    manifest.save().unwrap();
+    assert!(!read_to_string(&path).unwrap().contains(r#""dependencies""#));
 }

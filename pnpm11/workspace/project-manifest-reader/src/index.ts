@@ -267,9 +267,10 @@ function createManifestWriter (
     manifestPath: string
   }
 ): WriteProjectManifest {
-  let initialManifest = normalize(opts.initialManifest)
+  let emptyDependencyFields = findEmptyDependencyFields(opts.initialManifest)
+  let initialManifest = normalize(opts.initialManifest, emptyDependencyFields)
   return async (updatedManifest: ProjectManifest, force?: boolean) => {
-    updatedManifest = convertManifestBeforeWrite(normalize(updatedManifest))
+    updatedManifest = convertManifestBeforeWrite(normalize(updatedManifest, emptyDependencyFields))
     if (force === true || !equal(initialManifest, updatedManifest)) {
       await writeProjectManifest(opts.manifestPath, updatedManifest, {
         comments: opts.comments,
@@ -277,7 +278,8 @@ function createManifestWriter (
         indent: opts.indent,
         insertFinalNewline: opts.insertFinalNewline,
       })
-      initialManifest = normalize(updatedManifest)
+      emptyDependencyFields = findEmptyDependencyFields(updatedManifest)
+      initialManifest = normalize(updatedManifest, emptyDependencyFields)
       return Promise.resolve(undefined)
     }
     return Promise.resolve(undefined)
@@ -382,7 +384,28 @@ const dependencyKeys = new Set([
   'peerDependencies',
 ])
 
-function normalize (manifest: ProjectManifest): ProjectManifest {
+/**
+ * The dependency fields the manifest declares as empty objects. A write
+ * keeps these in place; it only drops a field that pnpm itself emptied.
+ */
+function findEmptyDependencyFields (manifest: ProjectManifest): Set<string> {
+  const fields = new Set<string>()
+  for (const key of dependencyKeys) {
+    if (isEmptyDependencyObject(manifest[key as keyof ProjectManifest])) {
+      fields.add(key)
+    }
+  }
+  return fields
+}
+
+function isEmptyDependencyObject (value: unknown): boolean {
+  return typeof value === 'object' &&
+    value !== null &&
+    !Array.isArray(value) &&
+    Object.keys(value).length === 0
+}
+
+function normalize (manifest: ProjectManifest, keepEmptyDependencyFields: ReadonlySet<string>): ProjectManifest {
   const result: Record<string, unknown> = {}
   for (const key in manifest) {
     if (Object.hasOwn(manifest, key)) {
@@ -404,6 +427,8 @@ function normalize (manifest: ProjectManifest): ProjectManifest {
             sortedValue[k] = value[k]
           }
           result[key] = sortedValue
+        } else if (keepEmptyDependencyFields.has(key)) {
+          result[key] = {}
         }
       }
     }

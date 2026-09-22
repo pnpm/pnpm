@@ -412,12 +412,37 @@ test('do not save manifest if it had no changes', async () => {
 
   await writeProjectManifest({
     dependencies: { bar: '*', foo: '*' },
+    devDependencies: {},
     peerDependencies: {},
   })
 
   const stat2 = fs.statSync('package.json5')
 
   expect(stat1.ino).toBe(stat2.ino)
+})
+
+test('writeProjectManifest() keeps a dependency field that was already empty on read', async () => {
+  process.chdir(temporaryDirectory())
+
+  fs.writeFileSync('package.json', '{\n  "name": "foo",\n  "peerDependencies": {}\n}\n', 'utf8')
+
+  const { manifest, writeProjectManifest } = await readProjectManifest(process.cwd())
+
+  await writeProjectManifest({ ...manifest, dependencies: { bar: '1.0.0' } })
+
+  expect(fs.readFileSync('package.json', 'utf8')).toBe('{\n  "name": "foo",\n  "peerDependencies": {},\n  "dependencies": {\n    "bar": "1.0.0"\n  }\n}\n')
+})
+
+test('writeProjectManifest() drops a dependency field the write emptied', async () => {
+  process.chdir(temporaryDirectory())
+
+  fs.writeFileSync('package.json', '{\n  "name": "foo",\n  "dependencies": {\n    "bar": "1.0.0"\n  },\n  "peerDependencies": {}\n}\n', 'utf8')
+
+  const { manifest, writeProjectManifest } = await readProjectManifest(process.cwd())
+
+  await writeProjectManifest({ ...manifest, dependencies: {} })
+
+  expect(fs.readFileSync('package.json', 'utf8')).toBe('{\n  "name": "foo",\n  "peerDependencies": {}\n}\n')
 })
 
 test('fail on invalid JSON', async () => {
