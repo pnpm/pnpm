@@ -7,7 +7,6 @@ fn a_key_the_global_config_file_takes_is_routed_there() {
         ("stateDir", "state-dir"),
         ("globalDir", "global-dir"),
         ("globalBinDir", "global-bin-dir"),
-        ("macosBackup", "macos-backup"),
         ("npmrcAuthFile", "npmrc-auth-file"),
     ] {
         assert_eq!(
@@ -15,6 +14,14 @@ fn a_key_the_global_config_file_takes_is_routed_there() {
             format!("Set it for the machine instead: pnpm config set --global {kebab_key}"),
         );
     }
+}
+
+#[test]
+fn the_structured_macos_backup_key_is_routed_to_its_global_fields() {
+    assert_eq!(
+        where_refused_key_belongs("macosBackup"),
+        "Set macosBackup.modulesDir or macosBackup.storeDir in the global config.yaml instead",
+    );
 }
 
 /// These are derived from a key the global config file does take, and naming

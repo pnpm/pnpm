@@ -98,6 +98,10 @@ pub fn where_refused_key_belongs(camel_key: &str) -> String {
     if camel_key == "dir" {
         return "Pass --dir on the command line instead".to_string();
     }
+    if camel_key == "macosBackup" {
+        return "Set macosBackup.modulesDir or macosBackup.storeDir in the global config.yaml instead"
+            .to_string();
+    }
     let kebab_key =
         global_equivalent_key(camel_key).map_or_else(|| to_kebab_case(camel_key), str::to_string);
     if is_config_file_key(&kebab_key) {

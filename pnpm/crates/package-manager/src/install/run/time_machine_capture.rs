@@ -7,17 +7,19 @@ pub(super) fn capture_time_machine_exclusions(
     exclusions: &mut super::super::TimeMachineExclusions,
 ) {
     let config = execution.install.context.config;
-    if config.macos_backup.modules_dir && config.macos_backup.store_dir {
+    if execution.install.execution.lockfile_only
+        || execution.install.execution.dry_run
+        || (config.macos_backup.modules_dir && config.macos_backup.store_dir)
+    {
         return;
     }
     let project_dirs = if config.macos_backup.modules_dir {
         Vec::new()
-    } else if let Some(selection) = execution.options.selection.as_ref() {
-        selection.install_dirs
-            .iter()
-            .cloned()
-            .collect()
     } else {
+        // A filtered non-hoisted install can follow `link:` dependencies
+        // into unselected workspace importers. Capture every possible
+        // importer before the install; `apply` keeps only directories the
+        // install actually created.
         scope.project_manifests
             .iter()
             .map(|(dir, _)| dir.clone())

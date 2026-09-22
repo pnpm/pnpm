@@ -16,7 +16,7 @@ use std::{
 #[cfg(any(target_os = "macos", all(test, unix)))]
 use std::{
     io::Read,
-    process::Stdio,
+    process::{Child, Stdio},
     thread::{self, JoinHandle},
     time::Instant,
 };
@@ -121,10 +121,14 @@ fn run_tmutil(paths: &[PathBuf], timeout: Duration) -> io::Result<Option<Output>
 
 #[cfg(any(target_os = "macos", all(test, unix)))]
 fn run_command(mut command: Command, timeout: Duration) -> io::Result<Option<Output>> {
-    let mut child = command
+    let child = command
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .spawn()?;
+    // Keep the guard armed until a completed `try_wait` has reaped the
+    // process. Any early return or panic kills and reaps it instead.
+    let mut guard = ChildGuard(Some(child));
+    let child = guard.0.as_mut().expect("child just spawned");
     let stdout = drain_pipe(child.stdout.take().expect("piped stdout"));
     let stderr = drain_pipe(child.stderr.take().expect("piped stderr"));
     let started = Instant::now();
@@ -133,15 +137,34 @@ fn run_command(mut command: Command, timeout: Duration) -> io::Result<Option<Out
             break status;
         }
         if started.elapsed() >= timeout {
-            child.kill()?;
-            child.wait()?;
-            join_pipe(stdout)?;
-            join_pipe(stderr)?;
+            // Returning with the guard armed kills and reaps the child.
+            // Closing its pipes also lets the detached readers finish.
             return Ok(None);
         }
         thread::sleep(TMUTIL_POLL_INTERVAL);
     };
+    guard.disarm();
     Ok(Some(Output { status, stdout: join_pipe(stdout)?, stderr: join_pipe(stderr)? }))
+}
+
+#[cfg(any(target_os = "macos", all(test, unix)))]
+struct ChildGuard(Option<Child>);
+
+#[cfg(any(target_os = "macos", all(test, unix)))]
+impl ChildGuard {
+    fn disarm(&mut self) {
+        self.0 = None;
+    }
+}
+
+#[cfg(any(target_os = "macos", all(test, unix)))]
+impl Drop for ChildGuard {
+    fn drop(&mut self) {
+        if let Some(mut child) = self.0.take() {
+            let _ = child.kill();
+            let _ = child.wait();
+        }
+    }
 }
 
 #[cfg(any(target_os = "macos", all(test, unix)))]
