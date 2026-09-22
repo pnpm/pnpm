@@ -3193,6 +3193,7 @@ test('a blocked exact version is reported under the requested package identity',
     blockedVersions: new Map([['is-positive', new Set(['1.0.0'])]]),
   })
   expect(result?.policyViolation?.code).toBe('MINIMUM_RELEASE_AGE_VIOLATION')
+  expect(result?.policyViolation?.name).toBe('is-positive')
   expect(result?.manifest?.name).toBe('other')
   expect(result?.id).toBe('is-positive@1.0.0')
 })

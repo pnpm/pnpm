@@ -1343,7 +1343,7 @@ function detectMinReleaseAgeViolation (args: {
   if (!args.publishedBy) return undefined
   if (isBlocked(args.blockedVersions, args.requestedName ?? args.name, args.version)) {
     return {
-      name: args.name,
+      name: args.requestedName ?? args.name,
       version: args.version,
       resolution: args.resolution,
       code: MINIMUM_RELEASE_AGE_VIOLATION_CODE,

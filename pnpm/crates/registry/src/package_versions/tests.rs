@@ -244,3 +244,58 @@ fn resolve_version_probes_without_hydrating() {
         "1.0.0",
     );
 }
+
+#[test]
+fn file_backed_version_probes_cache_successes_and_failures_across_filtered_clones() {
+    use std::io::{Seek, Write};
+
+    use super::{MirrorFile, PackageVersions};
+
+    let mut file = tempfile::tempfile().unwrap();
+    let valid = r#"{"version":"1.0.0"}"#;
+    let invalid = r#"{"version":"x.y.z"}"#;
+    write!(file, "{valid}{invalid}").unwrap();
+    let mirror = MirrorFile::try_hold(file.try_clone().unwrap(), usize::MAX).unwrap();
+    let versions = PackageVersions::from_file_spans(
+        &mirror,
+        [
+            ("banana".to_owned(), 0, u32::try_from(valid.len()).unwrap()),
+            (
+                "invalid".to_owned(),
+                u64::try_from(valid.len()).unwrap(),
+                u32::try_from(invalid.len()).unwrap(),
+            ),
+        ],
+    );
+    assert_eq!(
+        versions
+            .resolve_version("banana")
+            .unwrap()
+            .to_string(),
+        "1.0.0",
+    );
+    assert!(versions.resolve_version("invalid").is_none());
+    file.rewind().unwrap();
+    write!(file, "{0}{0}", r#"{"version":"2.0.0"}"#).unwrap();
+
+    for cached in [versions.clone(), versions.filtered(|_| true), versions] {
+        assert_eq!(
+            cached
+                .resolve_version("banana")
+                .unwrap()
+                .to_string(),
+            "1.0.0",
+        );
+        assert!(cached.resolve_version("invalid").is_none());
+        for key in ["banana", "invalid"] {
+            assert!(
+                cached
+                    .slot(key)
+                    .unwrap()
+                    .parsed
+                    .get()
+                    .is_none(),
+            );
+        }
+    }
+}

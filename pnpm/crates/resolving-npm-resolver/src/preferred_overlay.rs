@@ -1,6 +1,9 @@
-use crate::pick_package_from_meta::{
-    PickVersionByVersionRangeOptions, RegistryPackageSpec, RegistryPackageSpecType,
-    apply_published_by_policy, filter_pkg_metadata_versions, pick_version_by_version_range,
+use crate::{
+    pick_package::is_version_blocked,
+    pick_package_from_meta::{
+        PickVersionByVersionRangeOptions, RegistryPackageSpec, RegistryPackageSpecType,
+        apply_published_by_policy, filter_pkg_metadata_versions, pick_version_by_version_range,
+    },
 };
 use pnpm_registry::Package;
 use pnpm_resolving_resolver_base::{
@@ -130,7 +133,9 @@ fn held_back_preferred(
         .and_then(|blocked| blocked.get(&spec.name))
         .filter(|versions| !versions.is_empty())
         .map(|versions| {
-            filter_pkg_metadata_versions(baseline_meta, |version| !versions.contains(version))
+            filter_pkg_metadata_versions(baseline_meta, |version| {
+                !is_version_blocked(baseline_meta, version, versions)
+            })
         });
     let baseline_meta = blocked_view.as_ref().unwrap_or(baseline_meta);
     let preferred = pick_version_by_version_range(&PickVersionByVersionRangeOptions {

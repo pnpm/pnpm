@@ -106,14 +106,16 @@ pub(super) fn filter_blocked_versions(
     }
     Arc::new(filter_pkg_metadata_versions_with_dist_tag_bound(
         &meta,
-        |version| {
-            !blocked_versions.contains(version)
-                && meta.versions
-                    .resolve_version(version)
-                    .is_some_and(|parsed| !blocked_versions.contains(&parsed.to_string()))
-        },
+        |version| !is_version_blocked(&meta, version, blocked_versions),
         true,
     ))
+}
+
+pub(crate) fn is_version_blocked(meta: &Package, version: &str, blocked: &HashSet<String>) -> bool {
+    blocked.contains(version)
+        || meta.versions
+            .resolve_version(version)
+            .is_none_or(|parsed| blocked.contains(&parsed.to_string()))
 }
 
 /// Picker used at terminal return sites where there's no further

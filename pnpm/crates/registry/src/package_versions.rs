@@ -53,6 +53,7 @@ struct VersionSlot {
     /// Hydration cache. `Some(None)` records a fragment that failed
     /// to decode so the parse error is paid (and warned about) once.
     parsed: OnceLock<Option<Arc<PackageVersion>>>,
+    probed_version: OnceLock<Option<Arc<node_semver::Version>>>,
 }
 
 /// A mirror file held open for on-demand fragment reads, counted
@@ -185,6 +186,7 @@ impl Clone for VersionSlot {
     fn clone(&self) -> Self {
         VersionSlot {
             source: self.source.clone(),
+            probed_version: self.probed_version.clone(),
             parsed: match self.parsed.get() {
                 Some(value) => OnceLock::from(value.clone()),
                 None => OnceLock::new(),
@@ -197,6 +199,7 @@ impl VersionSlot {
     fn from_parsed(manifest: PackageVersion) -> Self {
         VersionSlot {
             source: FragmentSource::None,
+            probed_version: OnceLock::new(),
             parsed: OnceLock::from(Some(Arc::new(manifest))),
         }
     }
@@ -242,8 +245,15 @@ impl PackageVersions {
         if let Some(Some(parsed)) = slot.parsed.get() {
             return Some(parsed.version.clone());
         }
-        let json = slot.source.json()?;
-        serde_json::from_str::<VersionProbe>(&json).ok().map(|probe| probe.version)
+        slot.probed_version
+            .get_or_init(|| {
+                let json = slot.source.json()?;
+                serde_json::from_str::<VersionProbe>(&json)
+                    .ok()
+                    .map(|probe| Arc::new(probe.version))
+            })
+            .as_deref()
+            .cloned()
     }
 
     /// Whether the packument lists `version`. Never hydrates.
@@ -377,6 +387,7 @@ impl PackageVersions {
                                 len,
                             },
                             parsed: OnceLock::new(),
+                            probed_version: OnceLock::new(),
                         },
                     )
                 })
@@ -402,6 +413,7 @@ impl PackageVersions {
                         VersionSlot {
                             source: FragmentSource::Raw(Arc::from(raw)),
                             parsed: OnceLock::new(),
+                            probed_version: OnceLock::new(),
                         },
                     )
                 })
@@ -472,6 +484,7 @@ impl<'de> Deserialize<'de> for PackageVersions {
                         VersionSlot {
                             source: FragmentSource::Raw(Arc::from(raw)),
                             parsed: OnceLock::new(),
+                            probed_version: OnceLock::new(),
                         },
                     )
                 })

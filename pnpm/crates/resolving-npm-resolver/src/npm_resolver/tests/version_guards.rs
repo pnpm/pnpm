@@ -331,7 +331,9 @@ async fn blocked_policy_uses_requested_name_when_manifest_name_differs() {
         .unwrap()
         .unwrap();
     assert_eq!(result.id.as_str(), "acme@1.1.0");
-    assert_eq!(result.policy_violation.unwrap().code, crate::MINIMUM_RELEASE_AGE_VIOLATION_CODE);
+    let violation = result.policy_violation.unwrap();
+    assert_eq!(violation.name.to_string(), "acme");
+    assert_eq!(violation.code, crate::MINIMUM_RELEASE_AGE_VIOLATION_CODE);
 }
 
 #[tokio::test]
