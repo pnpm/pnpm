@@ -5,6 +5,8 @@ import { mkdir, readdir, stat, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import { performance } from 'node:perf_hooks'
 
+import { readTestDurations, selectChunk, taskWeight } from './ts-test-chunks.mjs'
+
 const rootDir = process.cwd()
 const pnpmCommand = resolveCommand('pn')
 const WINDOWS_SHELL_COMMAND_LENGTH_LIMIT = 7000
@@ -17,6 +19,7 @@ if (!dryRun) {
 }
 
 const packages = await listSelectedPackages(script)
+const durations = readTestDurations()
 const tasks = await listTestTasks(packages)
 const selectedTasks = selectChunk(tasks, { chunk, chunks })
 const selectedPackages = groupJestTasksByPackage(selectedTasks)
@@ -56,25 +59,28 @@ async function listTestTasks (packages) {
   const tasks = []
   for (const pkg of packages) {
     if (!usesJest(pkg.manifest.scripts)) {
-      tasks.push({
+      const task = {
         id: normalizePath(path.relative(rootDir, pkg.path)),
         kind: 'script',
         packagePath: pkg.path,
-        weight: 1,
-      })
+      }
+      task.weight = taskWeight(task, durations)
+      tasks.push(task)
       continue
     }
 
     const testFiles = await findJestTestFiles(pkg.path)
     tasks.push(...await Promise.all(testFiles.map(async (file) => {
       const fileStat = await stat(file)
-      return {
+      const task = {
         file,
         id: normalizePath(path.relative(rootDir, file)),
         kind: 'jest',
         packagePath: pkg.path,
-        weight: Math.max(1, fileStat.size),
+        size: fileStat.size,
       }
+      task.weight = taskWeight(task, durations)
+      return task
     })))
   }
   return tasks
@@ -94,17 +100,6 @@ function readRegistryMockPort (scripts) {
   return undefined
 }
 
-function selectChunk (tasks, opts) {
-  const groups = Array.from({ length: opts.chunks }, () => ({ tasks: [], weight: 0 }))
-  for (const task of [...tasks].sort(compareTasksByWeight)) {
-    const group = groups.reduce((best, candidate) => (
-      candidate.weight < best.weight ? candidate : best
-    ))
-    group.tasks.push(task)
-    group.weight += task.weight
-  }
-  return groups[opts.chunk - 1].tasks.sort((a, b) => a.id.localeCompare(b.id))
-}
 
 function groupJestTasksByPackage (tasks) {
   const selectedPackages = new Map()
@@ -251,9 +246,6 @@ function readFileSyncUtf8 (file) {
   return readFileSync(file, 'utf8')
 }
 
-function compareTasksByWeight (a, b) {
-  return b.weight - a.weight || a.id.localeCompare(b.id)
-}
 
 function withJestNodeOptions (current = '') {
   const options = current.split(/\s+/).filter(Boolean)

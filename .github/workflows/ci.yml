@@ -103,7 +103,7 @@ jobs:
       run: |
         .github/scripts/npm-package-publication-state.test.sh
         .github/scripts/npm-staged-publication.test.sh
-        node --test .github/scripts/ts-test-scope.test.mjs
+        node --test .github/scripts/ts-test-scope.test.mjs .github/scripts/ts-test-chunks.test.mjs
     - name: Compile and lint TypeScript
       run: pn pipeline ts-check --include-workspace-root --full --no-cache
     - name: Package compiled artifacts
