@@ -213,7 +213,7 @@ pub(super) fn link_symlinked_executable<Sys>(
     shim_path: &Path,
 ) -> Result<bool, LinkBinsError>
 where
-    Sys: FsReadToString + FsEnsureExecutableBits,
+    Sys: FsReadToString,
 {
     use std::os::unix::fs::symlink;
     // pnpm's warm-install short-circuit also accepts an existing shim
@@ -225,7 +225,6 @@ where
         Sys::read_to_string(shim_path),
         Ok(existing) if is_shim_pointing_at(&existing, shim_path, target_path),
     ) {
-        ensure_target_executable::<Sys>(target_path)?;
         return Ok(true);
     }
     let link_target = shim_path
@@ -241,22 +240,16 @@ where
             dst: shim_path.to_path_buf(),
             error,
         })?;
-    match Sys::ensure_executable_bits(target_path) {
-        Ok(()) => {}
-        Err(error) if error.kind() == io::ErrorKind::NotFound => {
-            // pnpm's `Failed to create bin at ...` globalWarn: the
-            // symlink dangles until a later step materializes the
-            // target, which is worth telling the user about but not
-            // worth failing the install over.
-            let shim_path = shim_path.display();
-            let target_path = target_path.display();
-            tracing::warn!(
-                "Failed to create bin at {shim_path}. The target {target_path} does not exist",
-            );
-        }
-        Err(error) => {
-            return Err(LinkBinsError::Chmod { path: target_path.to_path_buf(), error });
-        }
+    if !target_path.exists() {
+        // pnpm's `Failed to create bin at ...` globalWarn: the
+        // symlink dangles until a later step materializes the
+        // target, which is worth telling the user about but not
+        // worth failing the install over.
+        let shim_path = shim_path.display();
+        let target_path = target_path.display();
+        tracing::warn!(
+            "Failed to create bin at {shim_path}. The target {target_path} does not exist",
+        );
     }
     Ok(true)
 }
