@@ -26,10 +26,14 @@ use super::{
     InstallRunOptions, IsTerminal, Lockfile, Path, PathBuf, Reporter, UpdateSeedPolicy,
     build_resolution_verifiers, lockfile_root_dir,
 };
+use pnpm_catalogs_types::Catalogs;
 use pnpm_config::Config;
 use pnpm_store_dir::VerifiedFileIntegrity;
 
-use crate::{PolicyExcludes, ProjectMutation, catalog_cleanup::post_install_prune};
+use crate::{
+    PolicyExcludes, ProjectMutation,
+    catalog_cleanup::{post_install_prune, write_workspace_catalogs},
+};
 
 impl<'a, DependencyGroupList> Install<'a, DependencyGroupList>
 where
@@ -37,10 +41,11 @@ where
 {
     /// Runs the install, then the passes over what it wrote: deleting the
     /// per-branch lockfiles it has just folded into the wanted lockfile,
-    /// and pruning the `pnpm-workspace.yaml` exclude entries that lockfile
-    /// no longer resolves.
+    /// pruning the `pnpm-workspace.yaml` exclude entries that lockfile
+    /// no longer resolves, and — under `catalogPrune` — dropping the
+    /// catalog entries no workspace project references anymore.
     ///
-    /// Both live out here because every success path of
+    /// All three live out here because every success path of
     /// [`Self::run_inner_impl`] — including the short-circuits that do
     /// nothing but rewrite the lockfile — has to run them.
     pub(super) async fn run_inner<Reporter: self::Reporter + 'static>(
@@ -75,10 +80,12 @@ where
             })
             .transpose()?;
         let prune_excludes = self.prunes_workspace_excludes(&options);
+        let prune_catalogs = self.prunes_workspace_catalogs(&options);
         let result = Box::pin(self.run_inner_and_cleanup::<Reporter>(
             options,
             branch_lockfiles_to_clean,
             prune_excludes,
+            prune_catalogs,
             &mut time_machine_exclusions,
         ))
         .await;
@@ -92,6 +99,7 @@ where
         options: InstallRunOptions<'a, '_>,
         branch_lockfiles_to_clean: Option<PathBuf>,
         prune_excludes: bool,
+        prune_catalogs: bool,
         time_machine_exclusions: &mut super::TimeMachineExclusions,
     ) -> Result<(), InstallError> {
         let (config, manifest) = (self.context.config, self.context.manifest);
@@ -101,11 +109,20 @@ where
             Lockfile::clean_git_branch_lockfiles(&lockfile_dir)
                 .map_err(InstallError::CleanGitBranchLockfiles)?;
         }
-        if prune_excludes
-            && let InstallRunOutcome::LockfileSettled { workspace_manifest_dir } = outcome
-        {
-            post_install_prune(config, Some(&workspace_manifest_dir), manifest)
+        if let InstallRunOutcome::LockfileSettled { workspace_manifest_dir } = &outcome {
+            if prune_catalogs {
+                write_workspace_catalogs(
+                    config,
+                    Some(workspace_manifest_dir),
+                    &Catalogs::new(),
+                    manifest,
+                )
                 .map_err(InstallError::WriteWorkspaceManifest)?;
+            }
+            if prune_excludes {
+                post_install_prune(config, Some(workspace_manifest_dir), manifest)
+                    .map_err(InstallError::WriteWorkspaceManifest)?;
+            }
         }
         Ok(())
     }
@@ -127,6 +144,26 @@ where
             && !self.execution.dry_run
             && (self.context.config.minimum_release_age_exclude_prune
                 || self.context.config.trust_policy_exclude_prune)
+    }
+
+    /// Whether this run owes the catalog-cleanup pass over
+    /// `pnpm-workspace.yaml`: under `catalogPrune`, drop the catalog
+    /// entries no workspace project references anymore. `add`, `update`
+    /// and `remove` run it themselves once their manifest edits are
+    /// persisted; the whole-workspace commands (`install`, `dedupe`,
+    /// `prune`) have only this run to do it. This restores the pnpm 11
+    /// behavior (`recursive.ts` ran `updateWorkspaceManifest` on the
+    /// workspace install path, gated on `save !== false` and not a dry
+    /// run); the pass was lost when the install moved to the Rust
+    /// pipeline. Unlike the exclude pass above it needs no lockfile —
+    /// the reference scan runs over the project manifests — so it is
+    /// not gated on one.
+    fn prunes_workspace_catalogs(&self, options: &InstallRunOptions<'_, '_>) -> bool {
+        self.context.config.catalog_prune
+            && matches!(self.execution.mutation, ProjectMutation::InstallWorkspace)
+            && options.save_lockfile
+            && !options.lockfile_check
+            && !self.execution.dry_run
     }
 
     /// Separate what every phase reads from what one of them consumes.

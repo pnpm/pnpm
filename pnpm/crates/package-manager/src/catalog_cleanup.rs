@@ -1,5 +1,6 @@
 //! Shared workspace-manifest persistence for the manifest-mutating
-//! commands (`add`, `update`, `remove`): merge freshly resolved catalog
+//! commands (`add`, `update`, `remove`) and the whole-workspace installs
+//! (`install`, `dedupe`, `prune`): merge freshly resolved catalog
 //! entries and, under `catalogPrune`, drop the entries no
 //! workspace project references anymore. One write covers both, the
 //! same single read-modify-write upstream's `updateWorkspaceManifest`

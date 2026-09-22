@@ -876,3 +876,30 @@ fn strict_add_without_a_version_reuses_a_matching_catalog_range() {
 
     drop((root, anchor));
 }
+
+/// With `catalogPrune: true`, a plain `pnpm install` drops the catalog
+/// entries no importer references while keeping the referenced ones.
+/// Regression test for pnpm/pnpm#15273.
+#[test]
+fn install_prunes_unused_catalog_entries() {
+    let (root, workspace, anchor) = setup();
+    write_manifest(&workspace, &format!(r#"{{ "{FOO}": "catalog:" }}"#));
+    append_workspace_yaml(
+        &workspace,
+        &format!("catalogPrune: true\ncatalog:\n  '{FOO}': 1.0.0\n  '@pnpm.e2e/bar': 100.0.0\n"),
+    );
+
+    run_ok(&workspace, &["install"]);
+
+    let workspace_yaml = read(&workspace, "pnpm-workspace.yaml");
+    assert!(
+        workspace_yaml.contains(&format!("'{FOO}': 1.0.0")),
+        "the referenced catalog entry must survive:\n{workspace_yaml}",
+    );
+    assert!(
+        !workspace_yaml.contains("@pnpm.e2e/bar"),
+        "the unreferenced catalog entry must be removed:\n{workspace_yaml}",
+    );
+
+    drop((root, anchor));
+}
