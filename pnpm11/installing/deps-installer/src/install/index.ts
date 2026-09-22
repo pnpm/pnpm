@@ -1712,7 +1712,15 @@ Note that in CI environments, this setting is enabled by default.`,
     } else {
       logger.info({ message: 'Lockfile is up to date, resolution step is skipped', prefix: opts.lockfileDir })
     }
-    if (opts.runPacquet != null && opts.useLockfile && !opts.useGitBranchLockfile && !opts.mergeGitBranchLockfiles && !isCheckOnlyInstall(opts) && opts.enableModulesDir) {
+    if (
+      opts.runPacquet != null &&
+      opts.useLockfile &&
+      !opts.useGitBranchLockfile &&
+      !opts.mergeGitBranchLockfiles &&
+      !isCheckOnlyInstall(opts) &&
+      opts.enableModulesDir &&
+      !hasUninstallMutations(projects)
+    ) {
       try {
         await opts.runPacquet.run({ rootProjectPreinstallRan })
       } catch (err) {
@@ -2854,6 +2862,10 @@ function allMutationsAreInstalls (projects: MutatedProject[]): boolean {
   return projects.every((project) => project.mutation === 'install' && !project.update && !project.updateMatching)
 }
 
+function hasUninstallMutations (projects: MutatedProject[]): boolean {
+  return projects.some((project) => project.mutation === 'uninstallSome')
+}
+
 /**
  * Whether pacquet resolves this install itself instead of materializing a
  * lockfile pnpm resolved. The caller adds the guards every delegation shares
@@ -2925,14 +2937,16 @@ async function materializeOrDelegate (
     useGitBranchLockfile?: boolean
     useLockfile?: boolean
   },
-  runHeadlessInstall: () => Promise<{ stats: InstallationResultStats, ignoredBuilds: IgnoredBuilds | undefined }>
+  runHeadlessInstall: () => Promise<{ stats: InstallationResultStats, ignoredBuilds: IgnoredBuilds | undefined }>,
+  projects?: MutatedProject[]
 ): Promise<{ stats?: InstallationResultStats, ignoredBuilds?: IgnoredBuilds }> {
   if (
     opts.runPacquet != null &&
     opts.useLockfile !== false &&
     opts.saveLockfile !== false &&
     opts.useGitBranchLockfile !== true &&
-    opts.mergeGitBranchLockfiles !== true
+    opts.mergeGitBranchLockfiles !== true &&
+    (projects == null || !hasUninstallMutations(projects))
   ) {
     // Reached only from the resolve-then-materialize call sites
     // (workspace-partial, hoisted-linker, pnpr server install). Each ran a
@@ -3003,7 +3017,7 @@ const installInContext: InstallFunction = async (projects, ctx, opts) => {
           wantedLockfile: result.newLockfile,
           useLockfile: opts.useLockfile && ctx.wantedLockfileIsModified,
           hoistWorkspacePackages: opts.hoistWorkspacePackages,
-        }))
+        }), newProjects)
         return {
           ...result,
           stats,
@@ -3046,7 +3060,7 @@ const installInContext: InstallFunction = async (projects, ctx, opts) => {
         wantedLockfile: result.newLockfile,
         useLockfile: opts.useLockfile && ctx.wantedLockfileIsModified,
         hoistWorkspacePackages: opts.hoistWorkspacePackages,
-      }))
+      }), projects)
       return {
         ...result,
         stats,
@@ -3056,7 +3070,17 @@ const installInContext: InstallFunction = async (projects, ctx, opts) => {
     // Isolated `nodeLinker` (the default) with a non-frozen install.
     // The frozen branch is handled earlier in `tryFrozenInstall`; the
     // branch above runs a resolve-then-materialize sequence.
-    if (opts.runPacquet != null && opts.useLockfile && opts.saveLockfile && !opts.useGitBranchLockfile && !opts.mergeGitBranchLockfiles && !opts.lockfileOnly && !isCheckOnlyInstall(opts) && opts.enableModulesDir) {
+    if (
+      opts.runPacquet != null &&
+      opts.useLockfile &&
+      opts.saveLockfile &&
+      !opts.useGitBranchLockfile &&
+      !opts.mergeGitBranchLockfiles &&
+      !opts.lockfileOnly &&
+      !isCheckOnlyInstall(opts) &&
+      opts.enableModulesDir &&
+      !hasUninstallMutations(projects)
+    ) {
       // pacquet >= 0.11.7 resolves itself: hand it the whole install
       // (resolve + fetch + import + link + build, writing the lockfile)
       // in a single non-frozen pass. Only for plain installs — `add` /

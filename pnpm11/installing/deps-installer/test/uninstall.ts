@@ -513,3 +513,27 @@ test('uninstall does not run the project\'s uninstall scripts with virtualStoreO
   project.hasNot('is-negative')
 })
 
+test('uninstall with runPacquet does not delegate materialization to pacquet and runs postuninstall', async () => {
+  prepareEmpty()
+  const { updatedManifest: manifest } = await addDependenciesToPackage({ scripts: UNINSTALL_SCRIPTS }, ['is-negative@2.1.0'], testDefaults({ save: true }))
+  expect(fs.existsSync('order.txt')).toBeFalsy()
+
+  const runPacquet = jest.fn<() => Promise<void>>().mockResolvedValue(undefined)
+
+  await mutateModulesInSingleProject({
+    dependencyNames: ['is-negative'],
+    manifest,
+    mutation: 'uninstallSome',
+    rootDir: process.cwd() as ProjectRootDir,
+  }, testDefaults({
+    save: true,
+    runPacquet: {
+      supportsResolution: true,
+      run: runPacquet,
+    },
+  }))
+
+  expect(runPacquet).not.toHaveBeenCalled()
+  expect(recordedStages().map((line) => line.split(' ')[0])).toStrictEqual(['preuninstall', 'uninstall', 'postuninstall'])
+})
+

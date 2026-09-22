@@ -834,6 +834,10 @@ mod dev_preinstall {
     }
 }
 
+/// The root project's `preinstall` runs before any dependency is
+/// resolved or linked, so a guard such as `npx only-allow yarn` can
+/// still stop the install. Its other stages keep running after linking.
+/// <https://github.com/pnpm/pnpm/issues/3760>
 mod root_preinstall {
     use assert_cmd::prelude::*;
     use command_extra::CommandExtra;
