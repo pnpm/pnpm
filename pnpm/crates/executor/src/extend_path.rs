@@ -87,9 +87,9 @@ pub fn extend_path(
     if let Some(orig) = original_path {
         let added: HashSet<OsString> = path_arr
             .iter()
-            .map(|p| p.as_os_str().to_os_string())
+            .map(|entry| entry.as_os_str().to_os_string())
             .collect();
-        path_arr.extend(env::split_paths(orig).filter(|p| !added.contains(p.as_os_str())));
+        path_arr.extend(env::split_paths(orig).filter(|entry| !added.contains(entry.as_os_str())));
     }
 
     join_paths_lossy(&path_arr)
