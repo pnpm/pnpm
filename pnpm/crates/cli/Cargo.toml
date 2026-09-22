@@ -113,6 +113,7 @@ reqwest = { workspace = true }
 rmp-serde = { workspace = true }
 same-file = { workspace = true }
 serde = { workspace = true }
+serde-saphyr = { workspace = true }
 serde_json = { workspace = true }
 semver = { workspace = true }
 shell-words = { workspace = true }
@@ -155,7 +156,6 @@ flate2 = { workspace = true }
 insta = { workspace = true }
 mockito = { workspace = true }
 pretty_assertions = { workspace = true }
-serde-saphyr = { workspace = true }
 sha2 = { workspace = true }
 ssri = { workspace = true }
 tar = { workspace = true }

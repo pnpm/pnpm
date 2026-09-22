@@ -398,11 +398,9 @@ async function deployFromSharedLockfile (
     ),
     writeWantedLockfile(deployDir, deployFiles.lockfile),
   ]
-  if (deployFiles.workspaceManifest) {
-    filesToWrite.push(
-      writeYamlFile(path.join(deployDir, WORKSPACE_MANIFEST_FILENAME), deployFiles.workspaceManifest)
-    )
-  }
+  filesToWrite.push(
+    writeYamlFile(path.join(deployDir, WORKSPACE_MANIFEST_FILENAME), deployFiles.workspaceManifest)
+  )
   await Promise.all(filesToWrite)
 
   try {
@@ -418,15 +416,16 @@ async function deployFromSharedLockfile (
       rootProjectManifestDir: deployDir,
       dir: deployDir,
       lockfileDir: deployDir,
-      workspaceDir: undefined,
+      workspaceDir: deployDir,
       virtualStoreDir: undefined,
       modulesDir: undefined,
       confirmModulesPurge: false,
       frozenLockfile: true,
-      injectWorkspacePackages: undefined, // the effects of injecting workspace packages should already be part of the package snapshots
+      injectWorkspacePackages: false, // the effects of injecting workspace packages should already be part of the package snapshots
       overrides: undefined, // the effects of the overrides should already be part of the package snapshots
       packageExtensions: undefined, // the effects of the package extensions should already be part of the package snapshots
       configDependencies: undefined, // configDependencies (e.g. pacquet) are not installed into the deploy dir, so the install engine they designate isn't on disk to invoke
+      workspacePackagePatterns: ['.'],
       hooks: {
         ...opts.hooks,
         readPackage: [

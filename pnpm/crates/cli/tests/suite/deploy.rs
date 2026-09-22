@@ -114,6 +114,70 @@ fn deploy_from_shared_lockfile_installs_selected_project() {
 }
 
 #[test]
+fn deployed_project_passes_dependency_verification() {
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    write_reachability_workspace(&workspace);
+    let workspace_manifest_path = workspace.join("pnpm-workspace.yaml");
+    let mut workspace_manifest = fs::read_to_string(&workspace_manifest_path).unwrap();
+    workspace_manifest.push_str(concat!(
+        "autoInstallPeers: false\n",
+        "dedupePeers: true\n",
+        "excludeLinksFromLockfile: true\n",
+        "ignoredOptionalDependencies:\n  - never-matches\n",
+        "peersSuffixMaxLength: 42\n",
+    ));
+    fs::write(workspace_manifest_path, workspace_manifest).unwrap();
+    let app_manifest_path = workspace.join("packages/app/package.json");
+    let mut app_manifest: serde_json::Value =
+        serde_json::from_str(&fs::read_to_string(&app_manifest_path).unwrap()).unwrap();
+    app_manifest["scripts"] = serde_json::json!({ "start": "node index.js" });
+    fs::write(app_manifest_path, app_manifest.to_string()).unwrap();
+    let deploy_dir = dunce::canonicalize(root.path()).unwrap().join("deployment");
+
+    pacquet
+        .with_arg("install")
+        .assert()
+        .success();
+    pacquet_cmd(&workspace)
+        .with_args(["--filter", "app", "deploy", "--prod", deploy_dir.to_str().unwrap()])
+        .assert()
+        .success();
+
+    let workspace_manifest: serde_json::Value = serde_saphyr::from_str(
+        &fs::read_to_string(deploy_dir.join("pnpm-workspace.yaml")).unwrap(),
+    )
+    .unwrap();
+    assert_eq!(
+        workspace_manifest,
+        serde_json::json!({
+            "autoInstallPeers": false,
+            "dedupeInjectedDeps": false,
+            "dedupePeerDependents": false,
+            "dedupePeers": true,
+            "excludeLinksFromLockfile": true,
+            "ignoredOptionalDependencies": ["never-matches"],
+            "injectWorkspacePackages": false,
+            "packages": ["."],
+            "peersSuffixMaxLength": 42,
+            "virtualStoreType": "project",
+        }),
+    );
+    pacquet_cmd(&deploy_dir)
+        .with_args(["--config.verify-deps-before-run=error", "run", "start"])
+        .assert()
+        .success();
+
+    drop((root, mock_instance));
+}
+
+#[test]
 fn deploy_links_workspace_dependency_bins() {
     let CommandTempCwd {
         pacquet,

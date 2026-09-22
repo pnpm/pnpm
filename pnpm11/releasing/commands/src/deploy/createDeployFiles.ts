@@ -40,13 +40,21 @@ export interface CreateDeployFilesOptions {
 
 export interface DeployWorkspaceManifest {
   allowBuilds?: Record<string, boolean | string>
+  autoInstallPeers: boolean
+  dedupePeers: boolean
+  excludeLinksFromLockfile: boolean
+  ignoredOptionalDependencies: string[]
+  injectWorkspacePackages: false
+  packages: ['.']
   patchedDependencies?: Record<string, string>
+  peersSuffixMaxLength: number
+  virtualStoreType: 'project'
 }
 
 export interface DeployFiles {
   lockfile: LockfileObject
   manifest: ProjectManifest
-  workspaceManifest?: DeployWorkspaceManifest
+  workspaceManifest: DeployWorkspaceManifest
 }
 
 export function createDeployFiles ({
@@ -159,6 +167,16 @@ export function createDeployFiles ({
   )
   bindSingletonPeers(targetSnapshot, deployPackageSnapshots, linkedWorkspaceProjects)
 
+  const workspaceManifest: DeployWorkspaceManifest = {
+    autoInstallPeers: lockfile.settings?.autoInstallPeers ?? true,
+    dedupePeers: lockfile.settings?.dedupePeers ?? false,
+    excludeLinksFromLockfile: lockfile.settings?.excludeLinksFromLockfile ?? false,
+    ignoredOptionalDependencies: lockfile.ignoredOptionalDependencies ?? [],
+    injectWorkspacePackages: false,
+    packages: ['.'],
+    peersSuffixMaxLength: lockfile.settings?.peersSuffixMaxLength ?? 1000,
+    virtualStoreType: 'project',
+  }
   const result: DeployFiles = {
     lockfile: {
       ...lockfile,
@@ -183,6 +201,7 @@ export function createDeployFiles ({
       devDependencies: pick(Object.keys(targetSnapshot.devDependencies ?? {}), targetSnapshot.specifiers),
       optionalDependencies: pick(Object.keys(targetSnapshot.optionalDependencies ?? {}), targetSnapshot.specifiers),
     }, selectedProjectManifest, targetSnapshot),
+    workspaceManifest,
   }
 
   if (lockfile.patchedDependencies && patchedDependencies) {
@@ -193,17 +212,11 @@ export function createDeployFiles ({
       const relativePath = normalizePath(path.relative(deployDir, absolutePath))
       deployManifestPatchedDeps[name] = relativePath
     }
-    result.workspaceManifest = {
-      ...result.workspaceManifest,
-      patchedDependencies: deployManifestPatchedDeps,
-    }
+    workspaceManifest.patchedDependencies = deployManifestPatchedDeps
   }
 
   if (allowBuilds) {
-    result.workspaceManifest = {
-      ...result.workspaceManifest,
-      allowBuilds,
-    }
+    workspaceManifest.allowBuilds = allowBuilds
   }
 
   return result
