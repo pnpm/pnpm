@@ -62,8 +62,8 @@ use render::{
 };
 use std::{borrow::Cow, collections::HashMap, io::Write, path::PathBuf, sync::Arc};
 use workspace::{
-    DependentProject, OutdatedInWorkspace, ProjectOutdatedInputs, isolated_global_config,
-    loaded_lockfile, no_lockfile_error, project_dir, recursive_project_inputs, workspace_outdated,
+    DependentProject, OutdatedInWorkspace, global_states, isolated_global_config, loaded_lockfile,
+    no_lockfile_error, project_dir, recursive_workspace_outdated, validate_package_patterns,
 };
 
 /// Output format for `pacquet outdated`.
@@ -183,30 +183,27 @@ impl OutdatedArgs {
 
         let config = state.config;
         let manifest = &state.manifest;
-        let root = config.workspace_dir.as_deref().unwrap_or_else(|| project_dir(manifest));
-        let importer_id = state.active_importer_id();
-        let lockfile = loaded_lockfile(&state)?;
         let package_patterns = self.package_patterns();
-        let check_packages = self.checks_packages(manifest, &package_patterns);
-        if check_packages && lockfile.is_none() {
+        let filters =
+            OutdatedFilters::validated(&self, config, &package_patterns, [manifest], false)?;
+        let lockfile = loaded_lockfile(&state)?;
+        if self.checks_packages(manifest, &package_patterns) && lockfile.is_none() {
             return Err(no_lockfile_error(project_dir(manifest)));
         }
-
-        let filters = OutdatedFilters::new(&self, config, &package_patterns);
-        let query = filters.query(self.target_version());
-        let mut outdated = if check_packages {
+        let mut outdated = if self.checks_packages(manifest, &package_patterns) {
             collect_outdated_for_importer(
                 manifest,
                 lockfile,
-                &importer_id,
+                &state.active_importer_id(),
                 config,
                 &state.http_client,
-                &query,
+                &filters.query(self.target_version()),
             )
             .await?
         } else {
             Vec::new()
         };
+        let root = config.workspace_dir.as_deref().unwrap_or_else(|| project_dir(manifest));
         outdated.extend(
             self.outdated_actions::<Reporter>(
                 config,
@@ -314,26 +311,16 @@ impl OutdatedArgs {
             project_dir(&state.manifest),
             AutoExcludeRoot::Disabled,
         )?;
-        let filters = OutdatedFilters::new(&self, config, &self.packages);
-        let query = filters.query(self.target_version());
-
-        // Every project reads the one shared lockfile, or its own.
-        let shared_lockfile =
-            if config.shares_one_lockfile() { loaded_lockfile(&state)? } else { None };
-        let project_inputs = recursive_project_inputs(config, &selection)?;
-        let run = OutdatedRun::new(config, Arc::clone(&state.http_client), &query)?;
-        let mut outdated = workspace_outdated(
-            &ProjectOutdatedInputs {
-                config,
-                lockfile_root: state.lockfile_dir(),
-                shared_lockfile,
-                query: &query,
-                run: &run,
-            },
-            &project_inputs,
-        )
-        .await?;
-
+        let filters = OutdatedFilters::validated(
+            &self,
+            config,
+            &self.package_patterns(),
+            selection.selected.values().map(|node| &node.package.project.manifest),
+            true,
+        )?;
+        let mut outdated =
+            recursive_workspace_outdated(&state, &selection, &filters.query(self.target_version()))
+                .await?;
         outdated.extend(
             self.workspace_outdated_actions::<Reporter>(config, &workspace_root, &filters.include)
                 .await?,
@@ -379,15 +366,18 @@ impl OutdatedArgs {
                 )
             })?;
         let config = isolated_global_config(config);
-        let filters = OutdatedFilters::new(&self, config, &self.packages);
+        let package_patterns = self.package_patterns();
+        let states = global_states(&global_pkg_dir, config)?;
+        let filters = OutdatedFilters::validated(
+            &self,
+            config,
+            &package_patterns,
+            states.iter().map(|state| &state.manifest),
+            false,
+        )?;
         let query = filters.query(self.target_version());
-
         let mut outdated = Vec::new();
-        let global_packages = pnpm_global::scan_global_packages(&global_pkg_dir)
-            .map_err(|err| miette::miette!("failed to scan global packages: {err}"))?;
-        for pkg in global_packages {
-            let state = State::init(pkg.install_dir.join("package.json"), config, false)
-                .map_err(|err| miette::Report::new(err).wrap_err("initialize global state"))?;
+        for state in states {
             outdated.extend(
                 collect_outdated(
                     &state.manifest,
@@ -430,13 +420,24 @@ struct OutdatedFilters {
 }
 
 impl OutdatedFilters {
-    fn new(args: &OutdatedArgs, config: &Config, package_patterns: &[String]) -> Self {
-        Self {
-            include: args.dependency_options.include(config.optional),
+    fn validated<'a>(
+        args: &OutdatedArgs,
+        config: &Config,
+        package_patterns: &[String],
+        manifests: impl IntoIterator<Item = &'a PackageManifest>,
+        recursive: bool,
+    ) -> miette::Result<Self> {
+        let include = args.dependency_options.include(config.optional);
+        let mut manifests = manifests.into_iter().peekable();
+        if !recursive || manifests.peek().is_some() {
+            validate_package_patterns(manifests, package_patterns, &include, recursive)?;
+        }
+        Ok(Self {
+            include,
             match_names: (!package_patterns.is_empty()).then(|| create_matcher(package_patterns)),
             ignore_names: ignored_dependencies_matcher(config),
             full_metadata: args.output.long,
-        }
+        })
     }
 
     fn query(&self, target_version: TargetVersion) -> OutdatedQuery<'_> {
@@ -450,7 +451,6 @@ impl OutdatedFilters {
         }
     }
 }
-
 #[cfg(test)]
 mod tests;
 

@@ -383,3 +383,117 @@ test('pnpm recursive outdated in workspace with shared lockfile', async () => {
 `)
   }
 })
+
+test('pnpm recursive outdated should fail when a specified package is not in workspace dependencies', async () => {
+  preparePackages([
+    {
+      name: 'project-1',
+      version: '1.0.0',
+      dependencies: {
+        'is-positive': '1.0.0',
+      },
+    },
+    {
+      name: 'project-2',
+      version: '1.0.0',
+      devDependencies: {
+        'is-negative': '1.0.0',
+      },
+    },
+  ])
+
+  const { allProjects, selectedProjectsGraph } = await filterProjectsBySelectorObjectsFromDir(process.cwd(), [])
+  await install.handler({
+    ...DEFAULT_OPTS,
+    allProjects,
+    dir: process.cwd(),
+    recursive: true,
+    selectedProjectsGraph,
+    workspaceDir: process.cwd(),
+  })
+
+  const spreadResult = await outdated.handler({
+    ...DEFAULT_OUTDATED_OPTS,
+    allProjects,
+    dir: process.cwd(),
+    recursive: true,
+    selectedProjectsGraph,
+  }, ['is-positive', 'is-negative'])
+  expect(spreadResult.exitCode).toBe(1)
+
+  await expect(
+    outdated.handler({
+      ...DEFAULT_OUTDATED_OPTS,
+      allProjects,
+      dir: process.cwd(),
+      recursive: true,
+      selectedProjectsGraph,
+    }, ['not-a-dep'])
+  ).rejects.toMatchObject({
+    code: 'ERR_PNPM_NO_PACKAGE_IN_DEPENDENCIES',
+    message: 'None of the specified packages were found in the dependencies of any of the projects.',
+  })
+
+  await expect(
+    outdated.handler({
+      ...DEFAULT_OUTDATED_OPTS,
+      allProjects,
+      dir: process.cwd(),
+      recursive: true,
+      selectedProjectsGraph,
+    }, ['is-positive', 'not-a-dep'])
+  ).rejects.toMatchObject({
+    code: 'ERR_PNPM_NO_PACKAGE_IN_DEPENDENCIES',
+    message: 'None of the specified packages were found in the dependencies of any of the projects.',
+  })
+
+  await expect(
+    outdated.handler({
+      ...DEFAULT_OUTDATED_OPTS,
+      allProjects,
+      dev: false,
+      dir: process.cwd(),
+      recursive: true,
+      selectedProjectsGraph,
+    }, ['is-negative'])
+  ).rejects.toMatchObject({
+    code: 'ERR_PNPM_NO_PACKAGE_IN_DEPENDENCIES',
+  })
+
+  const compoundResult = await outdated.handler({
+    ...DEFAULT_OUTDATED_OPTS,
+    allProjects,
+    dir: process.cwd(),
+    recursive: true,
+    selectedProjectsGraph,
+  }, ['!not-a-dep', 'is-positive'])
+  expect(compoundResult.exitCode).toBe(1)
+
+  const emptySelectionResult = await outdated.handler({
+    ...DEFAULT_OUTDATED_OPTS,
+    allProjects,
+    dir: process.cwd(),
+    recursive: true,
+    selectedProjectsGraph: {},
+  }, ['not-a-dep'])
+  expect(emptySelectionResult.exitCode).toBe(0)
+  expect(emptySelectionResult.output).toBe('')
+
+  const excludedOnlyResult = await outdated.handler({
+    ...DEFAULT_OUTDATED_OPTS,
+    allProjects,
+    dir: process.cwd(),
+    recursive: true,
+    selectedProjectsGraph,
+  }, ['!is-positive', '!is-negative'])
+  expect(excludedOnlyResult.exitCode).toBe(0)
+
+  const cancelledResult = await outdated.handler({
+    ...DEFAULT_OUTDATED_OPTS,
+    allProjects,
+    dir: process.cwd(),
+    recursive: true,
+    selectedProjectsGraph,
+  }, ['is-positive', '!is-positive', 'is-negative', '!is-negative'])
+  expect(cancelledResult.exitCode).toBe(0)
+})
