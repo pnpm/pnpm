@@ -116,6 +116,53 @@ test('fetch includes committed Git submodules', async () => {
   expect(filesMap.has('native/answer.js')).toBeTruthy()
 })
 
+test('fetch includes nested committed Git submodules', async () => {
+  const root = temporaryDirectory()
+  const innerDir = path.join(root, 'inner')
+  const middleDir = path.join(root, 'middle')
+  const packageDir = path.join(root, 'package')
+  await Promise.all([innerDir, middleDir, packageDir].map(async (directory) => {
+    fs.mkdirSync(directory)
+    await execa('git', ['init', '-q', '-b', 'main'], { cwd: directory })
+    await execa('git', ['config', 'user.email', 'test@example.invalid'], { cwd: directory })
+    await execa('git', ['config', 'user.name', 'Test'], { cwd: directory })
+  }))
+  fs.writeFileSync(path.join(innerDir, 'inner.js'), 'module.exports = "nested"\n')
+  await commitAll(innerDir, 'add inner module')
+
+  fs.writeFileSync(path.join(middleDir, 'middle.js'), 'module.exports = "middle"\n')
+  await commitAll(middleDir, 'initialize middle')
+  await execa('git', [
+    '-c', 'protocol.file.allow=always',
+    'submodule', 'add', '--', pathToFileURL(innerDir).href, 'inner',
+  ], { cwd: middleDir })
+  await commitAll(middleDir, 'add inner submodule')
+
+  fs.writeFileSync(path.join(packageDir, 'package.json'), '{"name":"with-nested-submodule","version":"1.0.0"}')
+  await commitAll(packageDir, 'initialize package')
+  await execa('git', [
+    '-c', 'protocol.file.allow=always',
+    'submodule', 'add', '--', pathToFileURL(middleDir).href, 'middle',
+  ], { cwd: packageDir })
+  await commitAll(packageDir, 'add middle submodule')
+  const { stdout: commit } = await execa('git', ['rev-parse', 'HEAD'], { cwd: packageDir })
+  const storeDir = temporaryDirectory()
+  const fetch = createGitFetcher({ storeIndex: createStoreIndex(storeDir) }).git
+
+  const { filesMap } = await withEnv({
+    GIT_CONFIG_COUNT: '1',
+    GIT_CONFIG_KEY_0: 'protocol.file.allow',
+    GIT_CONFIG_VALUE_0: 'always',
+  }, async () => fetch(
+    createCafsStore(storeDir),
+    { commit: String(commit).trim(), repo: pathToFileURL(packageDir).href, type: 'git' },
+    { filesIndexFile: path.join(storeDir, 'index.json') }
+  ))
+
+  expect(filesMap.has('middle/middle.js')).toBeTruthy()
+  expect(filesMap.has('middle/inner/inner.js')).toBeTruthy()
+})
+
 test('fetch a package from Git sub folder', async () => {
   const storeDir = temporaryDirectory()
   const fetch = createGitFetcher({ storeIndex: createStoreIndex(storeDir) }).git

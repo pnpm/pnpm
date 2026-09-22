@@ -187,6 +187,50 @@ fn install_from_a_git_repo_with_submodules() {
 }
 
 #[test]
+fn install_from_a_git_repo_with_nested_submodules() {
+    let CommandTempCwd {
+        mut pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    let inner = GitRepoFixture::init(root.path(), "inner");
+    inner.write_file("inner.js", "module.exports = 'inner'\n");
+    let _inner_commit = inner.commit("init inner");
+
+    let middle = GitRepoFixture::init(root.path(), "middle");
+    middle.write_file("middle.js", "module.exports = 'middle'\n");
+    let _middle_init = middle.commit("init middle");
+    add_submodule(&root.path().join("middle-src"), &inner.file_url(), "inner");
+    let _middle_commit = middle.commit("add inner submodule");
+
+    let (repository, _initial_commit) = simple_repo(root.path(), "with-nested-submodule", "1.0.0");
+    add_submodule(&root.path().join("with-nested-submodule-src"), &middle.file_url(), "middle");
+    let commit = repository.commit("add middle submodule");
+    write_dependencies(&workspace, &[("with-nested-submodule", &repository.git_url_at(&commit))]);
+
+    pacquet.env("GIT_CONFIG_COUNT", "1");
+    pacquet.env("GIT_CONFIG_KEY_0", "protocol.file.allow");
+    pacquet.env("GIT_CONFIG_VALUE_0", "always");
+    pacquet
+        .with_args(["install"])
+        .assert()
+        .success();
+
+    assert_eq!(
+        fs::read_to_string(workspace.join(
+            "node_modules/with-nested-submodule/middle/inner/inner.js"
+        ))
+        .unwrap()
+        .trim(),
+        "module.exports = 'inner'",
+    );
+
+    drop((root, npmrc_info));
+}
+
+#[test]
 fn lockfile_only_from_a_git_repo_with_submodules_does_not_fetch_submodules() {
     let CommandTempCwd {
         pacquet,
