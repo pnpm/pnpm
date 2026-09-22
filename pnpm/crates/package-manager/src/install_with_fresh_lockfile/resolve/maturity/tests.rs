@@ -21,6 +21,7 @@ fn violation(name: &str, version: &str, parents: &[&str]) -> ResolutionPolicyVio
         }),
         code: MINIMUM_RELEASE_AGE_VIOLATION_CODE,
         reason: format!("{name}@{version} is too new"),
+        parents_truncated: false,
         retry_parent: parents.last().map(|value| parent(value)),
         parents: parents
             .iter()
@@ -44,14 +45,18 @@ fn blames_the_immediate_parent_of_each_immature_pick() {
 }
 
 #[test]
-fn refuses_to_retry_when_a_violation_has_no_parent_to_blame() {
-    let mut blocked = BlockedVersions::new();
-    // The importer named this package itself. No ancestor's choice can widen
-    // a range the manifest fixes, so another pass would re-reach this failure.
-    let violations =
-        [violation("binding", "1.2.5", &["rolldown@1.2.5"]), violation("is-odd", "0.1.2", &[])];
-
-    assert!(!block_dead_end_parents(&violations, &mut blocked));
+fn a_violation_without_a_retry_parent_does_not_hide_other_retry_choices() {
+    for first_is_retryable in [false, true] {
+        let mut blocked = BlockedVersions::new();
+        let mut exotic = violation("binding", "1.2.5", &["wrapper@1.0.0"]);
+        exotic.retry_parent = None;
+        let mut violations = [exotic, violation("other", "1.0.0", &["parent@2.0.0"])];
+        if first_is_retryable {
+            violations.reverse();
+        }
+        assert!(block_dead_end_parents(&violations, &mut blocked));
+        assert_eq!(blocked["parent"], std::collections::HashSet::from(["2.0.0".to_string()]));
+    }
 }
 
 #[test]

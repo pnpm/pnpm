@@ -262,6 +262,15 @@ pub enum GuardExhaustionPolicy {
     AcceptRejected,
 }
 
+/// Selected registry entry exposed to guards that inspect its metadata.
+#[derive(Debug, Clone, Copy)]
+pub struct PackageVersionGuardCandidate<'a> {
+    pub name: &'a str,
+    pub version: &'a str,
+    pub registry: &'a str,
+    pub packument_key: &'a str,
+}
+
 /// Optional resolver-time policy that can reject a concrete
 /// `name@version` candidate before it is committed to the lockfile.
 ///
@@ -281,6 +290,15 @@ pub trait PackageVersionGuard: Send + Sync + std::fmt::Debug {
         _registry: &'a str,
     ) -> PackageVersionGuardFuture<'a> {
         self.check(name, version)
+    }
+
+    /// Metadata-aware guards can use the raw entry key; ordinary guards receive
+    /// the semantic version through `check_in_registry`.
+    fn check_candidate<'a>(
+        &'a self,
+        candidate: PackageVersionGuardCandidate<'a>,
+    ) -> PackageVersionGuardFuture<'a> {
+        self.check_in_registry(candidate.name, candidate.version, candidate.registry)
     }
 
     /// What the resolver does for a request whose every matching version

@@ -87,6 +87,7 @@ fn create_registry_shape_violation(
 ) -> ResolutionPolicyViolation {
     ResolutionPolicyViolation {
         parents: Vec::new(),
+        parents_truncated: false,
         retry_parent: None,
         name,
         version,
@@ -201,6 +202,7 @@ async fn evaluate_candidate(
             ResolutionVerification::Err { code, reason } => {
                 return Ok(Some(ResolutionPolicyViolation {
                     parents: Vec::new(),
+                    parents_truncated: false,
                     retry_parent: None,
                     name: candidate.name,
                     version: candidate.version,

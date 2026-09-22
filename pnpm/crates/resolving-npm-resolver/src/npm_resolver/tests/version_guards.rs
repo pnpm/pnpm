@@ -352,6 +352,7 @@ async fn raw_packument_keys_drive_guards_blocks_and_publication_checks() {
             .remove("1.1.0")
             .unwrap();
         body["dist-tags"]["latest"] = raw_key.into();
+        body["versions"][raw_key]["deprecated"] = serde_json::json!("obsolete");
         body["versions"]["1.0.0"]["deprecated"] = serde_json::json!("obsolete");
         let mut server = mockito::Server::new_async().await;
         let _mock = server
@@ -405,6 +406,10 @@ async fn raw_packument_keys_drive_guards_blocks_and_publication_checks() {
             .unwrap();
         assert_eq!(allowed.package.name_ver.unwrap().suffix.to_string(), "1.1.0");
         assert_eq!(allowed.package.latest.as_deref(), Some(raw_key));
+        assert_eq!(
+            allowed.package.non_deprecated_alternative.as_ref().unwrap().version,
+            "1.0.0-canary.1",
+        );
         let opts = ResolveOptions {
             policy: pnpm_resolving_resolver_base::ResolutionPolicyOptions {
                 published_by: Some("2023-01-01T00:00:00Z".parse().unwrap()),

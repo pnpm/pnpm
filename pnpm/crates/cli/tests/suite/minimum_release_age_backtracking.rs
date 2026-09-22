@@ -11,6 +11,7 @@ struct Fixture {
     named_parent: bool,
     mismatched_parent: bool,
     mismatched_version: bool,
+    raw_parent_key: Option<&'static str>,
 }
 
 #[test]
@@ -31,6 +32,17 @@ fn backoff_blocks_packument_keys_that_differ_from_manifest_versions() {
         mismatched_version: true,
         ..Default::default()
     });
+}
+
+#[test]
+fn raw_parent_keys_reach_maturity_preflight() {
+    for raw_parent_key in ["v2.0.0", "banana"] {
+        assert_backoff(&Fixture {
+            latest_major: 2,
+            raw_parent_key: Some(raw_parent_key),
+            ..Default::default()
+        });
+    }
 }
 
 #[test]
@@ -166,6 +178,11 @@ fn parent_packument(fixture: &Fixture) -> serde_json::Value {
 }
 
 fn parent_version_key(fixture: &Fixture, major: usize) -> String {
+    if major > 1
+        && let Some(raw_key) = fixture.raw_parent_key
+    {
+        return raw_key.to_string();
+    }
     let suffix = if fixture.mismatched_version && major > 1 { "+build" } else { "" };
     format!("{major}.0.0{suffix}")
 }

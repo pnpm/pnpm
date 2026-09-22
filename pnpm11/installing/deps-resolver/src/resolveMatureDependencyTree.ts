@@ -2,7 +2,6 @@ import * as dp from '@pnpm/deps.path'
 import { globalInfo, globalWarn } from '@pnpm/logger'
 import { MINIMUM_RELEASE_AGE_VIOLATION_CODE } from '@pnpm/resolving.npm-resolver'
 import type { BlockedVersions, ResolutionPolicyViolation } from '@pnpm/resolving.resolver-base'
-import type { PkgResolutionId } from '@pnpm/types'
 
 import type { ResolvedPkgsById } from './resolveDependencies.js'
 import {
@@ -72,7 +71,7 @@ function blockDeadEndParents (
   for (const violation of tree.resolutionPolicyViolations) {
     if (violation.code !== MINIMUM_RELEASE_AGE_VIOLATION_CODE) continue
     const parent = blamedParent(violation, tree.resolvedPkgsById)
-    if (parent == null) return false
+    if (parent == null) continue
     let blockedForPkg = blockedVersions.get(parent.name)
     if (blockedForPkg == null) {
       blockedForPkg = new Set()
@@ -93,11 +92,8 @@ function blamedParent (
   violation: ResolutionPolicyViolation,
   resolvedPkgsById: ResolvedPkgsById
 ): { name: string, version: string } | undefined {
-  const parentIds = violation.parentIds
-  // Empty means the importer asked for this package itself, and no
-  // ancestor's choice can widen a range the manifest fixes.
-  if (parentIds == null || parentIds.length === 0) return undefined
-  const parentId = parentIds[parentIds.length - 1] as PkgResolutionId
+  const parentId = violation.retryParentId
+  if (parentId == null) return undefined
   const parent = resolvedPkgsById[parentId]
   if (parent == null) return undefined
   const { registryName, version } = dp.parse(parent.id)

@@ -148,6 +148,7 @@ pub(super) fn detect_min_release_age_violation(
     }
     Some(ResolutionPolicyViolation {
         parents: Vec::new(),
+        parents_truncated: false,
         retry_parent: None,
         name: name.clone(),
         version: version.to_string(),
@@ -172,6 +173,7 @@ fn blocked_violation(
         code: MINIMUM_RELEASE_AGE_VIOLATION_CODE,
         reason: "has no dependency tree that satisfies the minimumReleaseAge cutoff".to_string(),
         parents: Vec::new(),
+        parents_truncated: false,
         retry_parent: None,
     }
 }

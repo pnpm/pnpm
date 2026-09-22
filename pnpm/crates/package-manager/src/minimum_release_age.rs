@@ -255,7 +255,8 @@ fn format_dependent_chain(violation: &ResolutionPolicyViolation) -> String {
         return String::new();
     }
     format!(
-        " (required by {})",
+        " (required by {}{})",
+        if violation.parents_truncated { "... > " } else { "" },
         violation.parents
             .iter()
             .map(|parent| pnpm_network::redact_and_sanitize(&parent.to_string()))

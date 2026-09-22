@@ -39,8 +39,8 @@ use pnpm_resolving_npm_resolver::{
     pick_registry_for_package,
 };
 use pnpm_resolving_resolver_base::{
-    PackageVersionGuard, PackageVersionGuardDecision, PackageVersionGuardFuture,
-    parse_packument_timestamp,
+    PackageVersionGuard, PackageVersionGuardCandidate, PackageVersionGuardDecision,
+    PackageVersionGuardFuture, parse_packument_timestamp,
 };
 use std::{
     collections::{BTreeMap, HashMap, HashSet},
@@ -463,6 +463,13 @@ impl PackageVersionGuard for MaturePinsGuard {
             let registry = pick_registry_for_package(&registries, name, None);
             self.check_in_registry(name, version, &registry).await
         })
+    }
+
+    fn check_candidate<'a>(
+        &'a self,
+        candidate: PackageVersionGuardCandidate<'a>,
+    ) -> PackageVersionGuardFuture<'a> {
+        self.check_in_registry(candidate.name, candidate.packument_key, candidate.registry)
     }
 
     fn check_in_registry<'a>(

@@ -13,6 +13,8 @@ use super::{
     wanted_lockfile_contains_satisfying_entry,
 };
 
+const MAX_POLICY_PARENT_LABELS: usize = 32;
+
 #[async_recursion]
 pub(in super::super) async fn resolve_node_seed<'e, Chain>(
     ctx: &TreeCtx,
@@ -76,7 +78,10 @@ where
     };
 
     if let Some(mut violation) = result.policy_violation.clone() {
-        (violation.parents, violation.retry_parent) = parent_chain_from_ids(ctx, edge.ancestor_ids);
+        violation.parents_truncated = edge.ancestor_ids.len() > MAX_POLICY_PARENT_LABELS;
+        let start = edge.ancestor_ids.len().saturating_sub(MAX_POLICY_PARENT_LABELS);
+        (violation.parents, violation.retry_parent) =
+            parent_chain_from_ids(ctx, &edge.ancestor_ids[start..]);
         lock_recoverable(&ctx.workspace.policy.policy_violations).push(violation);
     }
 

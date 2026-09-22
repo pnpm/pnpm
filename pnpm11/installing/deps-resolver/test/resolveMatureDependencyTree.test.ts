@@ -55,7 +55,7 @@ test('failed retries return the original violations', async () => {
 function tree (parentIds: string[]): ResolveDependencyTreeResult {
   return {
     resolutionPolicyViolations: parentIds.map(id => ({
-      code: 'MINIMUM_RELEASE_AGE_VIOLATION', name: 'child', version: '1.0.0', reason: 'too new', parentIds: [id],
+      code: 'MINIMUM_RELEASE_AGE_VIOLATION', name: 'child', version: '1.0.0', reason: 'too new', retryParentId: id,
     })),
     resolvedPkgsById: Object.fromEntries(parentIds.map(id => [id, { id, name: id.split('@')[0], version: '2.0.0' }])),
   } as unknown as ResolveDependencyTreeResult
@@ -96,4 +96,16 @@ test('held-back reporting preserves the replacement registry', async () => {
   resolveDependencyTree.mockResolvedValueOnce(tree(['parent@work:2.0.0'])).mockResolvedValueOnce(replacement)
   await resolveMatureDependencyTree(async () => [], { minimumReleaseAge: 1440 } as ResolveDependenciesOptions)
   expect(globalInfo).toHaveBeenCalledWith(expect.stringContaining('parent@work:2.0.0 (resolved to work:1.0.0 instead)'))
+})
+
+test.each([false, true])('an exotic violation does not hide a retryable sibling (first: %s)', async (firstIsRetryable) => {
+  const ids = ['wrapper@file:../wrapper', 'parent@2.0.0']
+  if (firstIsRetryable) ids.reverse()
+  resolveDependencyTree.mockResolvedValueOnce(tree(ids)).mockImplementationOnce(async (_, opts) => {
+    expect(opts.blockedVersions).toEqual(new Map([['parent', new Set(['2.0.0'])]]))
+    return tree([])
+  })
+  const result = await resolveMatureDependencyTree(async () => [], { minimumReleaseAge: 1440 } as ResolveDependenciesOptions)
+  expect(result.tree.resolutionPolicyViolations).toEqual([])
+  expect(resolveDependencyTree).toHaveBeenCalledTimes(2)
 })

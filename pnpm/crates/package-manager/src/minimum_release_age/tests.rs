@@ -25,6 +25,7 @@ fn violation(name: &str, version: &str, code: &'static str) -> ResolutionPolicyV
         code,
         reason: format!("{name}@{version} is too new"),
         parents: Vec::new(),
+        parents_truncated: false,
         retry_parent: None,
     }
 }
@@ -452,4 +453,12 @@ fn dependent_chain_strips_control_characters_from_package_labels() {
     let mut violation = violation("child", "1.0.0", "MINIMUM_RELEASE_AGE_VIOLATION");
     violation.parents = vec!["parent\u{1b}\n@2.0.0".parse().unwrap()];
     assert_eq!(super::format_dependent_chain(&violation), " (required by parent@2.0.0)");
+}
+
+#[test]
+fn dependent_chain_marks_omitted_ancestors() {
+    let mut violation = violation("child", "1.0.0", "MINIMUM_RELEASE_AGE_VIOLATION");
+    violation.parents = vec!["parent@2.0.0".parse().unwrap()];
+    violation.parents_truncated = true;
+    assert_eq!(super::format_dependent_chain(&violation), " (required by ... > parent@2.0.0)");
 }

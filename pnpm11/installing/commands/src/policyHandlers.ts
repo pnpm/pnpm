@@ -26,8 +26,9 @@ export interface PolicyViolation {
   code: string
   reason: string
   /** Retry identifiers, never display labels: URL-based IDs may contain secrets. */
-  parentIds?: string[]
+  retryParentId?: string
   parents?: Array<{ name: string, version: string }>
+  parentsTruncated?: boolean
 }
 
 /**
@@ -295,6 +296,7 @@ function formatDependentChain (violation: PolicyViolation): string {
   const dependents = (violation.parents ?? []).map(({ name, version }) =>
     `${formatPackageLabel(name)}@${formatPackageLabel(version)}`
   )
+  if (violation.parentsTruncated) dependents.unshift('...')
   return dependents.length === 0 ? '' : ` (required by ${dependents.join(' > ')})`
 }
 

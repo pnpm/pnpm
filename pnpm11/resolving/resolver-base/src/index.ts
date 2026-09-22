@@ -259,20 +259,11 @@ export interface ResolutionPolicyViolation {
   resolution: Resolution
   code: string
   reason: string
-  /**
-   * The chain of dependents that reached this pick, the importer's own
-   * direct dependency first and the immediate parent last. The importer
-   * itself is not in it: its id names a project rather than a package, and
-   * no version pick applies to it. Empty therefore means the importer asked
-   * for this package itself, and nothing above it can resolve differently.
-   * Absent when the violation was raised outside a dependency walk — the
-   * lockfile verifier checks entries it has no path for.
-   *
-   * Retry bookkeeping only; diagnostics use the separate parents labels.
-   */
-  parentIds?: PkgResolutionId[]
-  /** Display labels, separate from resolution IDs that may contain URL secrets. */
+  /** Immediate parent's resolution ID, used only for retries; it may contain URL secrets. */
+  retryParentId?: PkgResolutionId
+  /** The nearest 32 dependent labels, ordered from ancestor to immediate parent. */
   parents?: Array<{ name: string, version: string }>
+  parentsTruncated?: boolean
 }
 
 /** Versions excluded by the retry, keyed by package name. Named-registry versions retain their `registryName:` prefix. */

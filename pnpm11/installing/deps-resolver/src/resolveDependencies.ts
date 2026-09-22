@@ -72,10 +72,11 @@ const omitDepsFields = omit(['dependencies', 'optionalDependencies', 'peerDepend
 
 export function getPkgsInfoFromIds (
   ids: PkgResolutionId[],
-  resolvedPkgsById: ResolvedPkgsById
+  resolvedPkgsById: ResolvedPkgsById,
+  limit = Infinity
 ): Array<{ id: PkgResolutionId, name: string, version: string }> {
   return ids
-    .slice(1)
+    .slice(Math.max(1, ids.length - limit))
     .map((id) => {
       const { name, version } = resolvedPkgsById[id]
       return { id, name, version }
@@ -2114,11 +2115,7 @@ async function resolveDependency (
       // The first ID names the importer, whose choice cannot be retried.
       ctx.resolutionPolicyViolations.push({
         ...pkgResponse.body.policyViolation,
-        parentIds: options.parentIds.slice(1),
-        parents: getPkgsInfoFromIds(options.parentIds, ctx.resolvedPkgsById).map(({ id, name, version }) => {
-          const parsed = dp.parse(id)
-          return { name, version: parsed.registryName && parsed.version ? `${parsed.registryName}:${parsed.version}` : version }
-        }),
+        ...getPolicyViolationContext(options.parentIds, ctx.resolvedPkgsById),
       })
     }
 
@@ -2687,4 +2684,19 @@ const NON_EXOTIC_RESOLVED_VIA = new Set([
 
 function isExoticDep (resolvedVia: string): boolean {
   return !NON_EXOTIC_RESOLVED_VIA.has(resolvedVia)
+}
+
+export function getPolicyViolationContext (
+  parentIds: PkgResolutionId[],
+  resolvedPkgsById: ResolvedPkgsById
+): Pick<ResolutionPolicyViolation, 'retryParentId' | 'parents' | 'parentsTruncated'> {
+  const maxParentLabels = 32
+  return {
+    retryParentId: parentIds.length > 1 ? parentIds.at(-1) : undefined,
+    parentsTruncated: parentIds.length > maxParentLabels + 1,
+    parents: getPkgsInfoFromIds(parentIds, resolvedPkgsById, maxParentLabels).map(({ id, name, version }) => {
+      const parsed = dp.parse(id)
+      return { name, version: parsed.registryName && parsed.version ? `${parsed.registryName}:${parsed.version}` : version }
+    }),
+  }
 }

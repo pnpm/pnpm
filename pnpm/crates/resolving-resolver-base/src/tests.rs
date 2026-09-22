@@ -49,6 +49,7 @@ fn resolution_policy_violation_carries_pkg_name_and_resolution() {
         code: "MINIMUM_RELEASE_AGE_VIOLATION",
         reason: "was published yesterday".to_string(),
         parents: Vec::new(),
+        parents_truncated: false,
         retry_parent: None,
     };
     assert_eq!(violation.name.to_string(), "lodash");

@@ -82,10 +82,17 @@ impl BlockedCandidates {
 
 async fn guard_rejection(
     opts: &PickFromRegistryOptions<'_>,
-    version: &str,
+    version: &PackageVersion,
+    semantic_version: &str,
 ) -> Result<Option<String>, ResolveError> {
     let Some(guard) = opts.guard.hook else { return Ok(None) };
-    match guard.check_in_registry(&opts.spec.name, version, opts.registry).await? {
+    let candidate = pnpm_resolving_resolver_base::PackageVersionGuardCandidate {
+        name: &opts.spec.name,
+        version: semantic_version,
+        registry: opts.registry,
+        packument_key: version.packument_version.as_deref().unwrap_or(semantic_version),
+    };
+    match guard.check_candidate(candidate).await? {
         PackageVersionGuardDecision::Reject { reason } => Ok(Some(reason)),
         PackageVersionGuardDecision::Allow => Ok(None),
     }
@@ -136,7 +143,7 @@ pub(crate) async fn pick_from_registry_with_guard<Cache: PackageMetaCache>(
             return no_candidate(&opts, first_rejected, last_rejection, pick_result.meta);
         };
         let version_str = version.version.to_string();
-        let Some(reason) = guard_rejection(&opts, &version_str).await? else {
+        let Some(reason) = guard_rejection(&opts, &version, &version_str).await? else {
             let meta = crate::pick_package::filter_blocked_versions(
                 &pick_result.meta,
                 Some(&blocked.guard_versions),

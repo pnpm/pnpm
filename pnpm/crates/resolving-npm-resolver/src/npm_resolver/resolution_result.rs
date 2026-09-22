@@ -108,7 +108,7 @@ fn resolved_package_info(
         manifest: Some(manifest),
         non_deprecated_alternative: find_non_deprecated_alternative(
             args.meta,
-            version_str,
+            args.picked.packument_version.as_deref().unwrap_or(version_str),
             args.specifier.spec,
             args.published_by,
             args.published_by_exclude,

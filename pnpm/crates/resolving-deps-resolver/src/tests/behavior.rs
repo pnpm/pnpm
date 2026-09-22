@@ -335,6 +335,7 @@ async fn registry_parent_below_an_exotic_ancestor_remains_retryable() {
             code: "MINIMUM_RELEASE_AGE_VIOLATION",
             reason: "too young".to_string(),
             parents: Vec::new(),
+            parents_truncated: false,
             retry_parent: None,
         });
         let resolver = StubResolver {
@@ -363,5 +364,44 @@ async fn registry_parent_below_an_exotic_ancestor_remains_retryable() {
             assert_eq!(labels, ["wrapper@1.0.0"]);
             assert!(violation.retry_parent.is_none());
         }
+    }
+}
+
+#[tokio::test]
+async fn policy_violations_bound_diagnostic_ancestry_and_keep_the_retry_parent() {
+    let mut table = HashMap::default();
+    for index in 0..100 {
+        let name = format!("parent-{index}");
+        let mut manifest = serde_json::json!({ "name": name, "version": "1.0.0" });
+        if index < 99 {
+            manifest["dependencies"] =
+                serde_json::json!({ format!("parent-{}", index + 1): "1.0.0" });
+        }
+        let mut result = fake_result(&name, "1.0.0", manifest);
+        result.policy_violation = Some(pnpm_resolving_resolver_base::ResolutionPolicyViolation {
+            name: name.parse().unwrap(),
+            version: "1.0.0".to_string(),
+            resolution: result.resolution.clone(),
+            code: "MINIMUM_RELEASE_AGE_VIOLATION",
+            reason: "too young".to_string(),
+            parents: Vec::new(),
+            parents_truncated: false,
+            retry_parent: None,
+        });
+        table.insert((name, "1.0.0".to_string()), result);
+    }
+    let resolver = StubResolver { table, calls: Mutex::new(Vec::new()) };
+    let tree = resolve_settlement_tree(&resolver, serde_json::json!({ "parent-0": "1.0.0" })).await;
+    assert_eq!(tree.policy_violations.len(), 100);
+    for violation in &tree.policy_violations {
+        let depth: usize = violation.name
+            .to_string()
+            .strip_prefix("parent-")
+            .unwrap()
+            .parse()
+            .unwrap();
+        assert_eq!(violation.parents.len(), depth.min(32));
+        assert_eq!(violation.parents_truncated, depth > 32);
+        assert_eq!(violation.retry_parent, violation.parents.last().cloned());
     }
 }
