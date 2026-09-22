@@ -334,9 +334,6 @@ pub(super) async fn decide_frozen_path<Reporter: self::Reporter>(
     }
     auto_frozen_path(dispatch, lockfile).await
 }
-/// Report each direct optional dependency the frozen install skips again
-/// the way the resolver reports one it cannot resolve, so the default
-/// reporter prints the same notice on both paths.
 fn report_unresolved_optional_dependencies<Reporter: self::Reporter>(
     skipped: &[UnresolvedOptionalDependency],
 ) {
