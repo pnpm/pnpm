@@ -35,7 +35,15 @@ pub(super) fn capture_time_machine_exclusions(
         // directories the install actually created.
         project_dirs_to_capture(
             scope,
-            execution.options.selection.as_ref().map(|selection| selection.install_dirs),
+            if execution.options.manifests.hooked_paths.is_empty() {
+                execution.options.selection.as_ref().map(|selection| selection.install_dirs)
+            } else {
+                // A readPackage hook can add workspace edges after this
+                // pre-install snapshot. Capture every workspace root so a
+                // hook-created link cannot leave its new modules directory
+                // backed up.
+                None
+            },
             config.link_workspace_packages != LinkWorkspacePackages::Off,
         )
     } else {
