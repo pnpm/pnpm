@@ -466,7 +466,7 @@ function readAndFilterNpmrc (
       warnIgnoredAuthValueEnv(filePath, rawKey, warnings)
       continue
     }
-    const key = substituteEnv(rawKey, env, warnings)
+    const key = substituteEnv(rawKey, env, { warnings, key: rawKey })
     if (!expandRequestDestinationEnv && hasEnvPlaceholder(rawKey) && isRequestDestinationKey(key)) {
       warnIgnoredRequestDestinationEnv(filePath, rawKey, warnings)
       continue
@@ -485,7 +485,7 @@ function readAndFilterNpmrc (
         warnIgnoredAuthValueEnv(filePath, key, warnings)
         continue
       }
-      value = substituteEnv(rawValue, env, warnings)
+      value = substituteEnv(rawValue, env, { warnings, key })
     }
 
     // Only keep auth/registry related keys
@@ -605,12 +605,28 @@ function rescopeUnscopedCreds (
 // an auth value would be sent verbatim as a bearer token. Resolvable
 // placeholders and `${VAR-default}` / `${VAR:-default}` fallbacks elsewhere
 // in the same string still expand normally.
-function substituteEnv (value: string, env: Record<string, string | undefined>, warnings: string[]): string {
+function substituteEnv (value: string, env: Record<string, string | undefined>, opts: { warnings: string[], key: string }): string {
+  const { warnings, key } = opts
+  const authKey = AUTH_VALUE_KEYS.find(name => key === name || key.endsWith(`:${name}`))
+  const context = authKey ? ` in .npmrc key "${authKey}"` : ''
   const { value: substituted, unresolved } = envReplaceLossy(value, env)
   for (const placeholder of unresolved) {
-    warnings.push(`Failed to replace env in config: ${placeholder}`)
+    warnings.push(`Failed to replace env in config: ${placeholder}${context}`)
+  }
+  for (const placeholder of findEmptyEnvPlaceholders(value, env)) {
+    warnings.push(`Failed to replace env in config: ${placeholder}${context}`)
   }
   return substituted
+}
+
+function findEmptyEnvPlaceholders (value: string, env: Record<string, string | undefined>): string[] {
+  const placeholders: string[] = []
+  for (const match of value.matchAll(/(?<!\\)(\\*)\$\{([^${}]+)\}/g)) {
+    const [, escapes, name] = match
+    if ((escapes.length % 2) !== 0 || name.includes(':-') || name.includes('-')) continue
+    if (env[name] === '') placeholders.push(`\${${name}}`)
+  }
+  return placeholders
 }
 
 function normalizePath (p: string | undefined): string | undefined {

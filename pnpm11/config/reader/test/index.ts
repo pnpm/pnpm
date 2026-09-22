@@ -4646,6 +4646,49 @@ test('return a warning when the .npmrc has an env variable that does not exist',
   expect(warnings).toEqual(expect.arrayContaining(expected))
 })
 
+test.each([
+  [undefined, '${EMPTY_TOKEN}', '', true],
+  ['', '${EMPTY_TOKEN}', '', true],
+  ['set-token', '${EMPTY_TOKEN}', 'set-token', false],
+  ['', '\\${EMPTY_TOKEN}', '${EMPTY_TOKEN}', false],
+  ['', '\\\\\\\\${EMPTY_TOKEN}', '\\', true],
+  ['', '${EMPTY_TOKEN:-fallback}', 'fallback', false],
+  ['', '${EMPTY_TOKEN-fallback}', '', false],
+])('trusted .npmrc auth variable %p in %p', async (token, value, expected, warns) => {
+  prepare()
+
+  fs.writeFileSync('auth.npmrc', `//registry.example/:_authToken=${value}\n`, 'utf8')
+  const { config, warnings } = await getConfig({
+    cliOptions: {},
+    env: { ...process.env, EMPTY_TOKEN: token, PNPM_CONFIG_NPMRC_AUTH_FILE: path.resolve('auth.npmrc') },
+    packageManager: { name: 'pnpm', version: '1.0.0' },
+  })
+
+  const envWarnings = warnings.filter(warning => warning.startsWith('Failed to replace env in config:'))
+  expect(envWarnings).toEqual(warns
+    ? ['Failed to replace env in config: ${EMPTY_TOKEN} in .npmrc key "_authToken"']
+    : [])
+  expect(config.authConfig['//registry.example/:_authToken']).toBe(expected)
+})
+
+test.each([undefined, '', 'dummy-token'])('expanded .npmrc auth key warning for %p', async (token) => {
+  prepare()
+  fs.writeFileSync('auth.npmrc', '${AUTH_KEY}=${AUTH_TOKEN}', 'utf8')
+  const { warnings } = await getConfig({
+    cliOptions: {},
+    env: {
+      ...process.env,
+      AUTH_KEY: '//registry.example/:_authToken',
+      AUTH_TOKEN: token,
+      PNPM_CONFIG_NPMRC_AUTH_FILE: path.resolve('auth.npmrc'),
+    },
+    packageManager: { name: 'pnpm', version: '1.0.0' },
+  })
+  expect(warnings).toEqual(token
+    ? []
+    : ['Failed to replace env in config: ${AUTH_TOKEN} in .npmrc key "_authToken"'])
+})
+
 test('return a warning if a package.json has workspaces field but there is no pnpm-workspaces.yaml file', async () => {
   const prefix = f.find('pkg-using-workspaces')
   const { warnings } = await getConfig({

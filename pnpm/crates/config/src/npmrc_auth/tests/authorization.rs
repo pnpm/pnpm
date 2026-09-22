@@ -763,16 +763,48 @@ fn from_ini_expands_auth_env_placeholder_without_warning() {
     let auth =
         NpmrcAuth::from_ini::<Env>("//registry.npmjs.org/:_authToken=${MY_TOKEN}\n", Path::new(""));
 
-    assert!(
-        !auth.warnings
-            .iter()
-            .any(|w| w.contains("Ignored project-level auth setting")),
-        "unexpected auth warning: {:?}",
-        auth.warnings,
-    );
+    assert!(auth.warnings.is_empty(), "unexpected auth warning: {:?}", auth.warnings);
     assert_eq!(
         default_auth_token(&auth, "//registry.npmjs.org/"),
         Some(Some("secret")),
         "token must be expanded when the file is trusted via PNPM_CONFIG_NPMRC_AUTH_FILE",
     );
+}
+
+#[test]
+fn from_ini_warns_on_empty_auth_env_placeholder() {
+    static_env!(Env, &[("MY_TOKEN", "")]);
+
+    let auth =
+        NpmrcAuth::from_ini::<Env>("//registry.npmjs.org/:_authToken=${MY_TOKEN}\n", Path::new(""));
+
+    assert_eq!(
+        auth.warnings,
+        vec![r#"Failed to replace env in config: ${MY_TOKEN} in .npmrc key "_authToken""#],
+    );
+    assert_eq!(default_auth_token(&auth, "//registry.npmjs.org/"), Some(Some("")));
+}
+
+#[test]
+fn from_ini_warns_with_expanded_auth_key() {
+    static_env!(
+        Env,
+        &[
+            ("AUTH_KEY", "//registry.example/:_authToken"),
+            ("EMPTY_TOKEN", ""),
+            ("SET_TOKEN", "dummy-token"),
+        ]
+    );
+    for variable in ["MISSING_TOKEN", "EMPTY_TOKEN", "SET_TOKEN"] {
+        let auth =
+            NpmrcAuth::from_ini::<Env>(&format!("${{AUTH_KEY}}=${{{variable}}}\n"), Path::new(""));
+        let expected = if variable == "SET_TOKEN" {
+            vec![]
+        } else {
+            vec![format!(
+                r#"Failed to replace env in config: ${{{variable}}} in .npmrc key "_authToken""#,
+            )]
+        };
+        assert_eq!(auth.warnings, expected);
+    }
 }

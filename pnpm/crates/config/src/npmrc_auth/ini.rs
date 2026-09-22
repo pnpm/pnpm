@@ -153,8 +153,14 @@ impl NpmrcAuth {
             return None;
         }
         let (value, value_unresolved) = env_replace_lossy::<Sys>(raw_value);
+        let context = if is_auth_value_key(&key) {
+            let field = key.rsplit(':').next().unwrap_or(&key);
+            format!(" in .npmrc key {field:?}")
+        } else {
+            String::new()
+        };
         for placeholder in key_unresolved.into_iter().chain(value_unresolved) {
-            self.warnings.push(format!("Failed to replace env in config: {placeholder}"));
+            self.warnings.push(format!("Failed to replace env in config: {placeholder}{context}"));
         }
         Some((key, value))
     }
