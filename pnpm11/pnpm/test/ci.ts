@@ -92,7 +92,10 @@ test('pnpm ci fails when package.json conflicts with lockfile', () => {
   expect(result.status).not.toBe(0)
 })
 
-test('pnpm ci --ignore-scripts does not run lifecycle scripts when clean script is present', () => {
+test.each([
+  '--ignore-scripts',
+  '--config.ignore-scripts=true',
+])('pnpm ci %s does not run lifecycle scripts when clean script is present', (flag) => {
   prepare({
     name: 'test-ci-ignore-scripts',
     version: '1.0.0',
@@ -104,7 +107,7 @@ test('pnpm ci --ignore-scripts does not run lifecycle scripts when clean script 
 
   execPnpmSync(['install', '--lockfile-only'])
 
-  const result = execPnpmSync(['ci', '--ignore-scripts'])
+  const result = execPnpmSync(['ci', flag])
   expect(result.status).toBe(0)
 })
 
