@@ -195,7 +195,12 @@ pub fn is_filespec(spec: &str) -> bool {
 #[must_use]
 pub fn is_tarball_filename(bare: &str) -> bool {
     let lower = bare.to_ascii_lowercase();
-    lower.ends_with(".tgz") || lower.ends_with(".tar.gz") || lower.ends_with(".tar")
+    lower.ends_with(".tgz")
+        || lower.ends_with(".tar.gz")
+        || lower.ends_with(".tar")
+        || lower.ends_with(".tar.bz2")
+        || lower.ends_with(".tbz2")
+        || lower.ends_with(".tbz")
 }
 
 /// Render a path that carries no protocol, keeping it unambiguously

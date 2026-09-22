@@ -132,7 +132,7 @@ function pruneTimeInLockfile (time: Record<string, string>, importers: Record<st
 // Mirrors `isFilename` in `resolving/local-resolver/src/parseBareSpecifier.ts`
 // so the directory-vs-tarball boundary applied at lockfile load time
 // matches the resolver's at resolve time.
-const LOCAL_TARBALL_RE = /\.(?:tgz|tar\.gz|tar)$/i
+const LOCAL_TARBALL_RE = /\.(?:tgz|tar\.gz|tar|tar\.bz2|tbz2|tbz)$/i
 
 export function convertToLockfileObject (lockfile: LockfileFile): LockfileObject {
   const { importers, ...rest } = lockfile

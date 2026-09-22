@@ -131,12 +131,17 @@ fn declines_a_bare_specifier_another_resolver_claims() {
     for specifier in [
         "repo.tgz",
         "repo.tar.gz",
+        "repo.tar.bz2",
+        "repo.tbz2",
+        "repo.tbz",
         "user/repo.tgz",
         "user/repo.tar.gz",
+        "user/repo.tar.bz2",
         "user/repo",
         "c:pkg@1",
         "C:tools",
         "c:/abs/x.tgz",
+        "c:/abs/x.tar.bz2",
     ] {
         assert_eq!(render_filesystem(specifier, Some("packages/foo")), None, "{specifier}");
     }
@@ -238,4 +243,16 @@ fn normalizes_a_specifier_as_documented() {
     assert_eq!(normalize_specifier("file:/./deps/x"), "./deps/x", "step 4: dot stays relative");
     assert_eq!(normalize_specifier("file:/~/deps/x"), "~/deps/x", "step 4: tilde stays relative");
     assert_eq!(normalize_specifier("^1.2.3"), "^1.2.3", "no protocol: step 1 alone");
+}
+
+#[test]
+fn recognizes_bzip2_tarball_extensions() {
+    use super::is_tarball_filename;
+
+    for name in ["pkg.tgz", "pkg.tar.gz", "pkg.tar", "pkg.tar.bz2", "pkg.tbz2", "pkg.tbz"] {
+        assert!(is_tarball_filename(name), "expected {name} to be recognized as tarball");
+    }
+    for name in ["pkg.zip", "pkg.json", "pkg.js", "pkg"] {
+        assert!(!is_tarball_filename(name), "expected {name} not to be recognized as tarball");
+    }
 }

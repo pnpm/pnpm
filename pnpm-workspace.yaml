@@ -308,6 +308,7 @@ catalog:
   # Keep bole 5 until the published @pnpm/logger ships with bole 6.
   bole: ^5.0.29
   boxen: npm:@zkochan/boxen@5.1.2
+  bz2: 1.0.1
   c8: ^12.0.0
   camelcase: ^9.0.0
   camelcase-keys: ^10.0.3

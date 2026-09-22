@@ -31,6 +31,18 @@ describe('cafs', () => {
     expect(pkgFile!.digest).toBe('f310afae50bb5b74e5c17c5eb6fe426538b9deccd88664fbb66a5717fb6d36d86d4d1f530bb63b58914f9894e81da490e2e39bb99c8e01174e258358b9349b5c')
   })
 
+  it('unpack bzip2 tarball', () => {
+    const dest = temporaryDirectory()
+    const cafs = createCafs(dest)
+    const { filesIndex, manifest } = cafs.addFilesFromTarball(
+      fs.readFileSync(path.join(import.meta.dirname, 'fixtures/package.tar.bz2')),
+      true
+    )
+    expect(Array.from(filesIndex.keys()).sort()).toStrictEqual(['index.js', 'package.json'])
+    expect(manifest?.name).toBe('test-bzip2-pkg')
+    expect(manifest?.version).toBe('1.2.3')
+  })
+
   it('addFilesFromTarball honors a per-call ignore predicate', () => {
     const dest = temporaryDirectory()
     const cafs = createCafs(dest)

@@ -832,7 +832,7 @@ function findLocalFileOverride (overrides: Record<string, string> | undefined, c
 }
 
 const LOCAL_PATH_PREFIX = /^(?:[./\\]|~[/\\]|[a-z]:)/i
-const LOCAL_TARBALL_EXTENSION = /\.(?:tgz|tar\.gz|tar)$/i
+const LOCAL_TARBALL_EXTENSION = /\.(?:tgz|tar\.gz|tar|tar\.bz2|tbz2|tbz)$/i
 
 /**
  * Whether the specifier resolves to a local directory or tarball whose
