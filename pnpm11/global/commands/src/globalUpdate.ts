@@ -185,11 +185,6 @@ async function updateGlobalPackageGroup (
   return true
 }
 
-/**
- * An update resolves each global group once to decide whether anything changed
- * and again to materialize it, and both passes report the same immature picks.
- * Sharing the approval between them keeps the prompt to one per version.
- */
 function withSharedApprovals (opts: GlobalUpdateOptions): GlobalUpdateOptions {
   const handleResolutionPolicyViolations = opts.handleResolutionPolicyViolations
   if (handleResolutionPolicyViolations == null) return opts
