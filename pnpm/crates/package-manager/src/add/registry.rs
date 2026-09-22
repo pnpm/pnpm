@@ -18,7 +18,7 @@ pub(super) async fn pick_latest_range(
     manifest: &PackageManifest,
     inputs: &AddResolveInputs<'_, '_>,
 ) -> Result<String, AddError> {
-    if inputs.add.save_types {
+    if needs_types_metadata(inputs.add, package_name) {
         return resolve_explicit_registry_spec(package_name, "latest", None, manifest, inputs)
             .await?
             .ok_or_else(|| AddError::ResolveLatest {
@@ -79,7 +79,7 @@ pub(super) async fn resolve_explicit_registry_spec(
         return Ok(None);
     };
 
-    let policy = add_pick_policy(add)?;
+    let policy = add_pick_policy(add, &spec_parsed.name)?;
     let preferred_versions = inputs.preferred_versions(manifest);
     let ctx = pick_package_context(
         add.http_client,
@@ -110,14 +110,21 @@ pub(super) async fn resolve_explicit_registry_spec(
         add.range_spec_style,
     )))
 }
-pub(super) fn add_pick_policy(add: AddOptions<'_>) -> Result<PickPolicy, AddError> {
+pub(super) fn add_pick_policy(
+    add: AddOptions<'_>,
+    package_name: &str,
+) -> Result<PickPolicy, AddError> {
     let mut policy =
         PickPolicy::from_config(add.config).map_err(AddError::MinimumReleaseAgeExclude)?;
-    if add.save_types {
+    if needs_types_metadata(add, package_name) {
         // Bundled type declarations are absent from abbreviated and filtered metadata.
         policy.force_unfiltered_full_metadata();
     }
     Ok(policy)
+}
+
+fn needs_types_metadata(add: AddOptions<'_>, package_name: &str) -> bool {
+    add.save_types && !package_name.starts_with("@types/") && !package_name.starts_with("@jsr/")
 }
 
 /// Registry-host tarball URLs must remain verbatim even though the npm parser accepts them.

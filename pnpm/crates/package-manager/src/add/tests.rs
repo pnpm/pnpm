@@ -4,6 +4,8 @@ mod catalogs;
 
 mod resolution;
 
+mod types;
+
 mod reporting;
 
 mod installation;

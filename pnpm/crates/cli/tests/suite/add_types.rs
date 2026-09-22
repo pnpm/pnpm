@@ -423,7 +423,7 @@ fn cross_registry_types_require_an_explicit_types_registry() {
 }
 
 #[test]
-fn bulk_add_reuses_full_metadata_for_runtime_and_companion_resolution() {
+fn bulk_add_fetches_only_required_metadata_formats() {
     let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
     let mut server = mockito::Server::new();
     let mut full_metadata = Vec::new();
@@ -431,13 +431,14 @@ fn bulk_add_reuses_full_metadata_for_runtime_and_companion_resolution() {
     for name in ["first", "second", "@types/first", "@types/second"] {
         let (_, packument) = package_metadata(&server, name, &json!({}));
         let encoded = name.replace('/', "%2f");
+        let types_package = name.starts_with("@types/");
         full_metadata.push(
             server
                 .mock("GET", mockito::Matcher::Regex(format!("(?i)^/{encoded}$")))
                 .match_header("accept", "application/json; q=1.0, */*")
                 .with_header("content-type", "application/json")
                 .with_body(packument.to_string())
-                .expect(1)
+                .expect(usize::from(!types_package))
                 .create(),
         );
         abbreviated_metadata.push(
@@ -449,7 +450,7 @@ fn bulk_add_reuses_full_metadata_for_runtime_and_companion_resolution() {
                 )
                 .with_header("content-type", "application/json")
                 .with_body(packument.to_string())
-                .expect_at_least(0)
+                .expect(1 + usize::from(types_package))
                 .create(),
         );
     }
@@ -458,10 +459,10 @@ fn bulk_add_reuses_full_metadata_for_runtime_and_companion_resolution() {
     let result = manifest(&workspace);
     assert_eq!(result["devDependencies"]["@types/first"], "^1.0.0");
     assert_eq!(result["devDependencies"]["@types/second"], "^1.0.0");
-    for mock in full_metadata {
+    for mock in full_metadata.into_iter().chain(abbreviated_metadata) {
         mock.assert();
     }
-    drop((root, abbreviated_metadata));
+    drop(root);
 }
 
 #[test]
