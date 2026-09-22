@@ -181,7 +181,7 @@ fn node_version_at(dir: &Path) -> String {
     let node_output = Command::new("node")
         .without_ambient_pnpm_config()
         .with_env("PNPM_CONFIG_GLOBAL_SHIMS", r#"{"node":false}"#)
-         .env("PNPM_SHIM_BYPASS", "1")
+        .env("PNPM_SHIM_BYPASS", "1")
         .arg("--version")
         .current_dir(dir)
         .output()
