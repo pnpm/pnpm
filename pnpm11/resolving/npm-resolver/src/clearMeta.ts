@@ -1,7 +1,7 @@
 import type { PackageInRegistry, PackageMeta } from '@pnpm/resolving.registry.types'
 
 // The list taken from https://github.com/npm/registry/blob/master/docs/responses/package-metadata.md#abbreviated-version-object
-// with the addition of 'libc'
+// with the addition of 'libc' and 'license'
 const ABBREVIATED_VERSION_FIELDS = [
   'name',
   'version',
