@@ -763,13 +763,7 @@ fn from_ini_expands_auth_env_placeholder_without_warning() {
     let auth =
         NpmrcAuth::from_ini::<Env>("//registry.npmjs.org/:_authToken=${MY_TOKEN}\n", Path::new(""));
 
-    assert!(
-        !auth.warnings
-            .iter()
-            .any(|w| w.contains("Ignored project-level auth setting")),
-        "unexpected auth warning: {:?}",
-        auth.warnings,
-    );
+    assert!(auth.warnings.is_empty(), "unexpected auth warning: {:?}", auth.warnings);
     assert_eq!(
         default_auth_token(&auth, "//registry.npmjs.org/"),
         Some(Some("secret")),
@@ -784,10 +778,9 @@ fn from_ini_warns_on_empty_auth_env_placeholder() {
     let auth =
         NpmrcAuth::from_ini::<Env>("//registry.npmjs.org/:_authToken=${MY_TOKEN}\n", Path::new(""));
 
-    assert!(
-        auth.warnings
-            .iter()
-            .any(|warning| { warning.contains("Failed to replace env in config: ${MY_TOKEN}") }),
+    assert_eq!(
+        auth.warnings,
+        vec![r#"Failed to replace env in config: ${MY_TOKEN} in .npmrc key "_authToken""#],
     );
     assert_eq!(default_auth_token(&auth, "//registry.npmjs.org/"), Some(Some("")));
 }

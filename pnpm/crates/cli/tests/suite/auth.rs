@@ -426,3 +426,40 @@ snapshots:
     metadata.assert();
     tarballs.assert();
 }
+
+#[test]
+fn trusted_auth_env_warning_reaches_stderr() {
+    let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
+    let mut registry = mockito::Server::new();
+    let registry_url = registry.url();
+    let authority = registry_url.strip_prefix("http://").unwrap();
+    write_project_config(root.path(), &workspace, &registry_url, "");
+    fs::write(workspace.join("package.json"), r#"{"dependencies":{"@private/foo":"1.0.0"}}"#)
+        .unwrap();
+    fs::write(workspace.join(".npmrc"), format!("@private:registry={registry_url}/\n")).unwrap();
+    let auth_file = root.path().join("auth.npmrc");
+    fs::write(&auth_file, format!("//{authority}/:_authToken=${{PNPM_TEST_AUTH_TOKEN}}\n"))
+        .unwrap();
+    let unauthorized = registry
+        .mock("GET", "/@private%2Ffoo")
+        .with_status(401)
+        .expect(3)
+        .create();
+    for token in [None, Some(""), Some("dummy-token")] {
+        let mut command = install_command(&workspace, root.path())
+            .with_env("PNPM_CONFIG_NPMRC_AUTH_FILE", &auth_file)
+            .with_args(["install", "--ignore-scripts", "--reporter=append-only"]);
+        command.env_remove("PNPM_TEST_AUTH_TOKEN");
+        if let Some(token) = token {
+            command.env("PNPM_TEST_AUTH_TOKEN", token);
+        }
+        let output = command.output().unwrap();
+        assert!(!output.status.success());
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        let warning = r#"Failed to replace env in config: ${PNPM_TEST_AUTH_TOKEN} in .npmrc key "_authToken""#;
+        assert_eq!(stderr.contains(warning), token.is_none_or(str::is_empty), "{stderr}");
+        assert!(!stderr.contains("dummy-token"));
+        assert!(!String::from_utf8_lossy(&output.stdout).contains(warning));
+    }
+    unauthorized.assert();
+}
