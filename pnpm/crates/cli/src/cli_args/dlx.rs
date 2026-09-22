@@ -362,6 +362,7 @@ fn run_bin(
     // works if that changes.
     cmd.envs(spawn.extra_env);
     set_command_path(&mut cmd, &path);
+    cmd.envs(pnpm_executor::package_manager_env(spawn.cwd, None, None, path.to_str()));
     cmd.env("npm_config_user_agent", spawn.user_agent);
 
     let status = pnpm_executor::spawn_child(&mut cmd, None)

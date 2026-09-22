@@ -310,14 +310,12 @@ fn stamp_executables(
     pkg_root: &Path,
 ) {
     let parent_path = path_value(env);
-    let node_execpath = opts.node_execpath
-        .map(Path::to_path_buf)
-        .or_else(|| find_node_in_path(parent_path.as_deref()));
-    if let Some(node) = node_execpath {
-        let node_str = node.to_string_lossy().into_owned();
-        env.insert("npm_node_execpath".into(), node_str.clone());
-        env.insert("NODE".into(), node_str);
-    }
+    env.extend(package_manager_env(
+        opts.init_cwd,
+        opts.node_execpath,
+        opts.npm_execpath,
+        parent_path.as_deref(),
+    ));
 
     env.insert(
         "npm_package_json".into(),
@@ -327,15 +325,34 @@ fn stamp_executables(
             .into_owned(),
     );
 
-    let npm_execpath = opts.npm_execpath
+    if let Some(path) = opts.node_gyp_path {
+        env.insert("npm_config_node_gyp".into(), path.to_string_lossy().into_owned());
+    }
+}
+
+/// Environment identifying the invoking package manager and working directory.
+#[must_use]
+pub fn package_manager_env(
+    init_cwd: &Path,
+    node_execpath: Option<&Path>,
+    npm_execpath: Option<&Path>,
+    path: Option<&str>,
+) -> HashMap<String, String> {
+    let mut env = HashMap::new();
+    env.insert("INIT_CWD".into(), init_cwd.to_string_lossy().into_owned());
+    let node_execpath = node_execpath.map(Path::to_path_buf).or_else(|| find_node_in_path(path));
+    if let Some(node) = node_execpath {
+        let node_str = node.to_string_lossy().into_owned();
+        env.insert("npm_node_execpath".into(), node_str.clone());
+        env.insert("NODE".into(), node_str);
+    }
+    let npm_execpath = npm_execpath
         .map(Path::to_path_buf)
         .or_else(|| env::current_exe().ok());
     if let Some(path) = npm_execpath {
         env.insert("npm_execpath".into(), path.to_string_lossy().into_owned());
     }
-    if let Some(path) = opts.node_gyp_path {
-        env.insert("npm_config_node_gyp".into(), path.to_string_lossy().into_owned());
-    }
+    env
 }
 
 /// Whether one manifest field reaches the environment. The top level keeps

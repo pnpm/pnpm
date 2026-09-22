@@ -11,9 +11,11 @@ import { execute } from '@yarnpkg/shell'
 import uidNumber from 'uid-number'
 
 import { extendPath } from './extendPath.js'
+import { makePackageManagerEnv } from './makePackageManagerEnv.js'
 import { relaySignals, reserveSignalRelay, type SignalRelayReservation, spawnsInOwnProcessGroup } from './signals.js'
 import { type LifecycleChildProcess, spawn } from './spawn.js'
 
+export { makePackageManagerEnv } from './makePackageManagerEnv.js'
 export type { RelaySignalsOptions, SignalRelay, SignalTarget } from './signals.js'
 export { hasControllingTerminal, relaySignals, reserveSignalRelay, spawnsInOwnProcessGroup, waitForProcessGroup } from './signals.js'
 export type { LifecycleChildProcess } from './spawn.js'
@@ -156,17 +158,8 @@ export function lifecycle (pkg: LifecyclePackage, stage: string, wd: string, opt
 
         const env = makeEnv(pkg, opts)
         env.npm_lifecycle_event = stage
-        env.npm_node_execpath = env.NODE = env.NODE || process.execPath
+        Object.assign(env, makePackageManagerEnv(env))
         env.npm_package_json = path.join(wd, 'package.json')
-        if ((process as { pkg?: unknown }).pkg != null) {
-          // If the pnpm CLI was bundled by vercel/pkg then we cannot use the js path for npm_execpath
-          // because in that case the js is in a virtual filesystem inside the executor.
-          // Instead, we use the path to the exe file.
-          env.npm_execpath = process.execPath
-        } else {
-          env.npm_execpath = process.argv[1] || process.cwd()
-        }
-        env.INIT_CWD = process.cwd()
         if (!env.npm_config_node_gyp && DEFAULT_NODE_GYP_PATH) {
           env.npm_config_node_gyp = DEFAULT_NODE_GYP_PATH
         }

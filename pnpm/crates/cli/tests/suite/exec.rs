@@ -145,6 +145,43 @@ fn wait_for_file(path: &Path) -> bool {
     path.exists()
 }
 
+#[test]
+fn exec_sets_package_manager_environment() {
+    for inherited in [None, Some("/parent/package-manager")] {
+        let CommandTempCwd { mut pacquet, root, workspace, .. } = CommandTempCwd::init();
+        let expected_execpath =
+            fs::canonicalize(pacquet.get_program()).expect("resolve pnpm binary");
+        let expected_cwd = fs::canonicalize(&workspace).expect("resolve working directory");
+        for name in ["npm_execpath", "npm_node_execpath", "NODE", "INIT_CWD"] {
+            match inherited {
+                Some(value) => {
+                    pacquet.env(name, value);
+                }
+                None => {
+                    pacquet.env_remove(name);
+                }
+            }
+        }
+        let output = pacquet
+            .args(["exec", "node", "-e", "console.log(JSON.stringify(Object.fromEntries(['npm_execpath', 'npm_node_execpath', 'NODE', 'INIT_CWD'].map(key => [key, process.env[key]]))))"])
+            .assert()
+            .success()
+            .get_output()
+            .stdout
+            .clone();
+        let env: serde_json::Value =
+            serde_json::from_slice(&output).expect("parse child environment");
+        let execpath = env["npm_execpath"].as_str().expect("package manager executable path");
+        assert_eq!(fs::canonicalize(execpath).expect("resolve child execpath"), expected_execpath);
+        let init_cwd = env["INIT_CWD"].as_str().expect("initial working directory");
+        assert_eq!(fs::canonicalize(init_cwd).expect("resolve child cwd"), expected_cwd);
+        assert_eq!(env["npm_node_execpath"], env["NODE"]);
+        let node_path = env["npm_node_execpath"].as_str().expect("node executable path");
+        assert!(Path::new(node_path).is_absolute(), "node executable path: {node_path}");
+        drop(root);
+    }
+}
+
 /// `pacquet exec <command>` resolves the command against the project's
 /// `node_modules/.bin` directory and runs it. Mirrors pnpm's exec, which
 /// prepends `./node_modules/.bin` to PATH before spawning.

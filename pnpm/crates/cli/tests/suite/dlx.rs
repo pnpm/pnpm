@@ -3,6 +3,40 @@ use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
 use pnpm_testing_utils::bin::CommandTempCwd;
 
+#[test]
+fn dlx_sets_package_manager_environment() {
+    let CommandTempCwd { mut pacquet, root, workspace, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let expected_execpath =
+        std::fs::canonicalize(pacquet.get_program()).expect("resolve pnpm binary");
+    let expected_cwd = std::fs::canonicalize(&workspace).expect("resolve working directory");
+    for name in ["npm_execpath", "npm_node_execpath", "NODE", "INIT_CWD"] {
+        pacquet.env_remove(name);
+    }
+    let output = pacquet
+        .args([
+            "dlx",
+            "--package=@foo/touch-file-one-bin",
+            "node",
+            "-e",
+            "console.log(JSON.stringify(Object.fromEntries(['npm_execpath', 'npm_node_execpath', 'NODE', 'INIT_CWD'].map(key => [key, process.env[key]]))))",
+        ])
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+    let env: serde_json::Value = serde_json::from_slice(&output).expect("parse child environment");
+    let execpath = env["npm_execpath"].as_str().expect("package manager executable path");
+    assert_eq!(std::fs::canonicalize(execpath).expect("resolve child execpath"), expected_execpath);
+    let init_cwd = env["INIT_CWD"].as_str().expect("initial working directory");
+    assert_eq!(std::fs::canonicalize(init_cwd).expect("resolve child cwd"), expected_cwd);
+    assert_eq!(env["npm_node_execpath"], env["NODE"]);
+    let node_path = env["npm_node_execpath"].as_str().expect("node executable path");
+    assert!(std::path::Path::new(node_path).is_absolute(), "node executable path: {node_path}");
+    drop(root);
+}
+
 /// `pacquet dlx` with no command is an error, mirroring pnpm's dlx, which
 /// prints help and exits non-zero when given neither a command nor a
 /// `--package`.

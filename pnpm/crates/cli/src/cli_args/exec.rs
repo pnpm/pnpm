@@ -225,6 +225,8 @@ fn command_in_dir(
     // unless an install-family command populated it.
     cmd.envs(project_extra_env(config, project, project_name.as_deref()));
     set_command_path(&mut cmd, &path);
+    let init_cwd = std::env::current_dir().unwrap_or_else(|_| dir.to_path_buf());
+    cmd.envs(pnpm_executor::package_manager_env(&init_cwd, None, None, path.to_str()));
     cmd.env("npm_config_user_agent", &config.user_agent);
     // Same recursion-guard stamp as the lifecycle env builder.
     cmd.env(pnpm_executor::VERIFY_DEPS_BEFORE_RUN_ENV, "false");

@@ -33,6 +33,10 @@ test('dlx should work with scoped packages', async () => {
   expect(execa).toHaveBeenCalledWith('touch-file-one-bin', [], expect.objectContaining({
     env: expect.objectContaining({
       npm_config_user_agent: userAgent,
+      npm_execpath: process.argv[1],
+      INIT_CWD: process.cwd(),
+      npm_node_execpath: process.env.NODE || process.execPath,
+      NODE: process.env.NODE || process.execPath,
     }),
   }))
 })
