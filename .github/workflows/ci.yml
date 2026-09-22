@@ -140,7 +140,7 @@ jobs:
     name: TS CI / Build pnpr
     uses: $/.github/workflows/build-pnpr.yml
     with:
-      os: blacksmith-8vcpu-windows-2025
+      os: blacksmith-16vcpu-windows-2025
 
   test:
     name: TS CI / Test / ubuntu
