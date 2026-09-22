@@ -53,12 +53,12 @@ fn sbom_excludes_peer_dependencies_declared_in_json5_importers() {
     assert!(
         components
             .iter()
-            .any(|component| component["name"] == "is-positive")
+            .any(|component| component["name"] == "is-positive"),
     );
     assert!(
         !components
             .iter()
-            .any(|component| component["name"] == "is-odd")
+            .any(|component| component["name"] == "is-odd"),
     );
 }
 

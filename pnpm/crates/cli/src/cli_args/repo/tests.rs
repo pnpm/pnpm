@@ -18,7 +18,7 @@ fn current_project_repo_uses_manifest_precedence() {
         .unwrap();
     assert_eq!(
         get_repo_url_from_current_project(dir.path()).unwrap(),
-        "https://example.test/json5"
+        "https://example.test/json5",
     );
     std::fs::write(
         dir.path().join("package.json"),

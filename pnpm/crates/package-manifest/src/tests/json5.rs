@@ -7,7 +7,7 @@ use tempfile::tempdir;
 #[test]
 fn project_manifests_reject_non_object_roots() {
     for filename in ["package.json", "package.json5", "package.yaml"] {
-        for source in ["[]", "42", "true", "\"fixture\""] {
+        for source in ["[]", "42", "true", r#""fixture""#] {
             let dir = tempdir().unwrap();
             let path = dir.path().join(filename);
             fs::write(&path, source).unwrap();
@@ -18,7 +18,7 @@ fn project_manifests_reject_non_object_roots() {
             assert!(
                 error
                     .to_string()
-                    .contains(&path.display().to_string())
+                    .contains(&path.display().to_string()),
             );
             assert_eq!(fs::read_to_string(path).unwrap(), source);
         }

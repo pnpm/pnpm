@@ -15,7 +15,7 @@ fn current_project_bugs_uses_manifest_precedence() {
     fs::write(dir.path().join("package.json5"), "{bugs: 'https://example.test/json5'}").unwrap();
     assert_eq!(
         get_bugs_url_from_current_project(dir.path()).unwrap(),
-        "https://example.test/json5"
+        "https://example.test/json5",
     );
     fs::write(dir.path().join("package.json"), r#"{"bugs":"https://example.test/json"}"#).unwrap();
     assert_eq!(get_bugs_url_from_current_project(dir.path()).unwrap(), "https://example.test/json");
