@@ -70,15 +70,11 @@ fn with_global_env(command: Command, workspace: &Path, pnpm_home: &Path) -> Comm
         .without_ambient_pnpm_config()
 }
 
-/// Build a fresh `pacquet` command in `workspace`.
 #[cfg(unix)]
 fn global_command(workspace: &Path, pnpm_home: &Path) -> Command {
     with_global_env(Command::cargo_bin("pnpm").expect("find the pnpm binary"), workspace, pnpm_home)
 }
 
-/// Run a `-g` command through the pseudo-terminal fixture that answers the
-/// strict `minimumReleaseAge` approval prompt, with the same environment
-/// [`global_command`] uses and `answer` as the reply.
 #[cfg(unix)]
 fn run_global_prompt(
     workspace: &Path,
