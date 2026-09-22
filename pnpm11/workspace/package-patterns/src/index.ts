@@ -45,7 +45,7 @@ export function isWorkspaceProjectDir ({ workspaceDir, dir, patterns }: IsWorksp
   const manifestPath = `${relativeDir}/package.json`
   const { included, excluded } = splitPatterns(patterns ?? ['.', '**'])
   return micromatch.isMatch(manifestPath, normalizePatterns(included)) &&
-    !micromatch.isMatch(manifestPath, normalizePatterns(excluded))
+    !micromatch.isMatch(manifestPath, normalizePatterns(excluded), { dot: true })
 }
 
 function splitPatterns (patterns: readonly string[]): { included: string[], excluded: string[] } {
