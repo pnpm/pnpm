@@ -889,8 +889,13 @@ fn dedupe_check_detects_config_dependency_changes_when_root_is_unselected() {
 /// hits (pnpm/pnpm#15303).
 #[test]
 fn dedupe_warm_full_run_counts_each_reused_package_once() {
-    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
-        CommandTempCwd::init().add_mocked_registry();
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
 
     let manifest_path = workspace.join("package.json");
     fs::write(
@@ -905,7 +910,10 @@ fn dedupe_warm_full_run_counts_each_reused_package_once() {
     .expect("write package.json");
     // Warm the store, mirroring the issue's `pnpm install --frozen-lockfile`
     // setup step.
-    pacquet.with_arg("install").assert().success();
+    pacquet
+        .with_arg("install")
+        .assert()
+        .success();
 
     let output = Command::cargo_bin("pnpm")
         .expect("find the pnpm binary")
@@ -925,7 +933,10 @@ fn dedupe_warm_full_run_counts_each_reused_package_once() {
             .iter()
             .filter(|record| record["name"] == "pnpm:progress" && record["status"] == status)
             .map(|record| {
-                record["packageId"].as_str().expect("packageId is a string").to_string()
+                record["packageId"]
+                    .as_str()
+                    .expect("packageId is a string")
+                    .to_string()
             })
             .collect::<Vec<_>>()
     };
