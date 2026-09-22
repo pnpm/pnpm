@@ -340,3 +340,62 @@ fn skip_closure_ignores_transient_roots() {
     );
     assert!(!skipped.contains(&key("child", "1.0.0")));
 }
+
+#[test]
+fn skipped_runtimes_leave_no_dangling_importer_references() {
+    let runtime_key = key("node", "runtime:24.0.0");
+    let deps = importer_map(&[("node", "runtime:24.0.0"), ("keep", "1.0.0")]);
+    let lockfile = Lockfile {
+        importers: HashMap::from([(
+            ".".to_string(),
+            ProjectSnapshot {
+                dependencies: Some(deps.clone()),
+                dev_dependencies: Some(deps.clone()),
+                optional_dependencies: Some(deps),
+                ..Default::default()
+            },
+        )]),
+        snapshots: Some(HashMap::from([
+            (runtime_key.clone(), SnapshotEntry::default()),
+            (key("keep", "1.0.0"), SnapshotEntry::default()),
+        ])),
+        packages: Some(HashMap::from([
+            (runtime_key.clone(), package_metadata("node")),
+            (key("keep", "1.0.0"), package_metadata("keep")),
+        ])),
+        ..empty_lockfile()
+    };
+    let mut skipped = SkippedSnapshots::new();
+    skipped.add_optional_excluded(runtime_key.clone());
+
+    let filtered = super::super::filter_lockfile_for_current(&lockfile, include_all(), &skipped);
+
+    assert!(
+        !filtered.snapshots
+            .as_ref()
+            .unwrap()
+            .contains_key(&runtime_key),
+    );
+    assert!(
+        !filtered.packages
+            .as_ref()
+            .unwrap()
+            .contains_key(&runtime_key),
+    );
+    let importer = &filtered.importers["."];
+    for dependencies in [
+        importer.dependencies.as_ref(),
+        importer.dev_dependencies.as_ref(),
+        importer.optional_dependencies.as_ref(),
+    ] {
+        assert_eq!(dependencies.unwrap(), &importer_map(&[("keep", "1.0.0")]));
+    }
+    assert_eq!(
+        super::super::filter_lockfile_for_current(
+            &lockfile,
+            include_all(),
+            &SkippedSnapshots::new()
+        ),
+        lockfile,
+    );
+}

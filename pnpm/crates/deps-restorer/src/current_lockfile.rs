@@ -24,7 +24,7 @@ use std::{
 
 use derive_more::{Display, Error};
 use miette::Diagnostic;
-use pnpm_lockfile::{Lockfile, PackageKey, ProjectSnapshot, ResolvedDependencyMap};
+use pnpm_lockfile::{Lockfile, PackageKey, Prefix, ProjectSnapshot, ResolvedDependencyMap};
 use pnpm_modules_yaml::IncludedDependencies;
 
 use crate::SkippedSnapshots;
@@ -371,7 +371,7 @@ fn lockfile_with_graph(
 /// applying the install-time `include` set and skip set.
 ///
 /// Importers lose dep maps whose `include` flag is false; importer
-/// `optionalDependencies` lose entries whose resolved snapshot got
+/// optional and runtime dependencies lose entries whose resolved snapshot got
 /// skipped; the snapshot map is pruned to the transitive closure
 /// reachable from the surviving importer roots. Only the transient
 /// skips prune: installability-skipped entries survive in both maps,
@@ -402,42 +402,44 @@ pub fn filter_lockfile_for_current(
     .lockfile
 }
 
-/// Per-importer filter: drop dep maps whose `include` flag is
-/// false; further trim `optional_dependencies` to entries whose
-/// resolved snapshot survived the reachability walk.
-///
-/// Two steps: first clear the excluded dep sections, then
-/// post-filter `optionalDependencies` against the surviving
-/// packages set.
+/// Drop excluded dependency groups and unreachable optional or runtime entries.
 fn filter_importer(
     importer: &ProjectSnapshot,
     included: IncludedDependencies,
     reachable: &HashSet<PackageKey>,
 ) -> ProjectSnapshot {
     let mut out = importer.clone();
-    if !included.dependencies {
-        out.dependencies = None;
-    }
-    if !included.dev_dependencies {
-        out.dev_dependencies = None;
-    }
-    if !included.optional_dependencies {
-        out.optional_dependencies = None;
-    } else if let Some(opt) = out.optional_dependencies.as_mut() {
-        retain_reachable(opt, reachable);
+    for (dependencies, include, retain_non_runtime) in [
+        (&mut out.dependencies, included.dependencies, true),
+        (&mut out.dev_dependencies, included.dev_dependencies, true),
+        (&mut out.optional_dependencies, included.optional_dependencies, false),
+    ] {
+        if !include {
+            *dependencies = None;
+        } else if let Some(dependencies) = dependencies {
+            retain_reachable(dependencies, reachable, retain_non_runtime);
+        }
     }
     out
 }
 
-/// Drop importer-level optional-dep entries whose resolved
-/// snapshot key isn't in `reachable`. `link:` entries (workspace
-/// siblings) survive — they don't live in the snapshot graph.
-fn retain_reachable(map: &mut ResolvedDependencyMap, reachable: &HashSet<PackageKey>) {
+/// Required non-runtime entries survive even when their snapshots are missing,
+/// so downstream validation can report a broken lockfile. Workspace links have
+/// no snapshot and always survive.
+fn retain_reachable(
+    map: &mut ResolvedDependencyMap,
+    reachable: &HashSet<PackageKey>,
+    retain_non_runtime: bool,
+) {
     map.retain(|name, spec| {
-        let Some(key) = spec.version.resolved_key(name) else {
-            // Workspace `link:<path>` — no snapshot to check.
+        if retain_non_runtime
+            && spec.version
+                .ver_peer()
+                .is_none_or(|version| version.prefix() != Prefix::Runtime)
+        {
             return true;
-        };
+        }
+        let Some(key) = spec.version.resolved_key(name) else { return true };
         reachable.contains(&key)
     });
 }
