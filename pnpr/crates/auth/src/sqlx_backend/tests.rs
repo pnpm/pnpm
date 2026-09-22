@@ -1,5 +1,5 @@
 use super::{
-    super::{MAX_USERNAME_CHARS, TokenBackend, TokenRecord, UpsertOutcome, UserBackend},
+    super::{MAX_USERNAME_CHARS, TokenRecord, UpsertOutcome},
     AuthSqlBackend, InsertUser, SqlAuth, StoredUser,
 };
 use pnpr_config::MaxUsers;
