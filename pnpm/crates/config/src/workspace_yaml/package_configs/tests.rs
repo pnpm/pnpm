@@ -219,5 +219,5 @@ fn drops_the_overrides_comment_key() {
         ..ProjectConfig::default()
     };
     let config = config_with(&workspace.path().join("apps/a"), project_config);
-    assert_eq!(config.overrides, Some(IndexMap::from([("ms".to_string(), "2.0.0".to_string())])),);
+    assert_eq!(config.overrides, Some(IndexMap::from([("ms".to_string(), "2.0.0".to_string())])));
 }
