@@ -156,13 +156,12 @@ fn sync_workspace_injected_deps(
         bin_names(manifest, &pkg_root_dir)
     });
     // The install hoists bins into the virtual store's own `.bin` as well.
-    let hoisted_bin_dir = hoisted_bin_path(workspace_dir, modules.as_ref());
     sync_bin_links(&SyncBinLinks {
         pkg_root_dir: &pkg_root_dir,
         resolved_targets: &resolved_targets,
         workspace_dir,
         previous_bin_names: &previous_bin_names,
-        hoisted_bin_dir: hoisted_bin_dir.as_deref(),
+        hoisted_bin_dir: hoisted_bin_path(workspace_dir, modules.as_ref()).as_deref(),
         ignored_directories: &opts.ignored_directories,
     })
 }

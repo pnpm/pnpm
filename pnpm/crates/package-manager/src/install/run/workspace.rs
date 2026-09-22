@@ -152,13 +152,12 @@ impl<'a> InstallWorkspace<'a> {
         let workspace_projects_are_overridden = owned.projects
             .workspace_projects_override
             .is_some();
-        let ignored_directories = install.context.config.managed_directories();
         let loaded_workspace_projects = discovered_workspace_projects(
             options.selection.is_some(),
             owned.projects.workspace_projects_override.take(),
             dirs.workspace_dir.as_deref().unwrap_or(&dirs.workspace_root),
             workspace_manifest.as_ref(),
-            &ignored_directories,
+            &install.context.config.managed_directories(),
         )?;
         report_discovered_scope::<Reporter>(
             install,
