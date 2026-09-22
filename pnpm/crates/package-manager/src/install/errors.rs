@@ -99,11 +99,14 @@ pub enum InstallError {
     /// on, an install whose resolution left unmet peers behind fails
     /// once the artifacts are written, the same way `IgnoredBuilds`
     /// does — the tree is installed, and the run reports the verdict on
-    /// it. The listing and its hints have already gone out through the
-    /// reporter by the time this is returned.
+    /// it. `rendered` carries the block deferred to the CLI; `None` means
+    /// the selected reporter has already handled it.
     #[display("Unmet peer dependencies")]
     #[diagnostic(code(ERR_PNPM_PEER_DEP_ISSUES))]
-    PeerDependencyIssues,
+    PeerDependencyIssues {
+        #[error(not(source))]
+        rendered: Option<String>,
+    },
 
     /// A custom resolver hook failed (loading the pnpmfile's resolvers
     /// or running `shouldRefreshResolution`) while deciding whether the

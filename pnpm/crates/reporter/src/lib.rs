@@ -641,6 +641,14 @@ pub enum LogLevel {
 /// satisfy them automatically.
 pub trait Reporter: Send + Sync + 'static {
     fn emit(event: &LogEvent);
+
+    /// Report a preformatted fatal error, or return it for the CLI to write
+    /// to stderr after the command unwinds.
+    #[must_use]
+    fn report_fatal_error(message: String) -> Option<String> {
+        Self::emit(&LogEvent::Global(GlobalLog { level: LogLevel::Error, message }));
+        None
+    }
 }
 
 /// Adapt a [`Reporter`] into the warning callback used by the network client.

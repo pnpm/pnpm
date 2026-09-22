@@ -102,6 +102,7 @@ mod package_configs;
 mod package_manager_check;
 mod package_yaml;
 mod patch;
+mod peer_error_output;
 mod peers;
 mod ping;
 mod pipeline_cache;
