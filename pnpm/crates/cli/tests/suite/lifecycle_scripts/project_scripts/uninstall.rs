@@ -99,8 +99,14 @@ fn failing_uninstall_stage_aborts_the_removal() {
     } = CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
     let mut manifest = project_with_uninstall_scripts();
+    manifest["bin"] = serde_json::json!({ "test-bin": "./bin.js" });
     manifest["scripts"]["uninstall"] = r#"node -e "process.exit(1)""#.into();
+    fs::write(workspace.join("bin.js"), "console.log('bin');").expect("write bin.js");
     install_project(&workspace, &manifest);
+    let bin_dir = workspace.join("node_modules").join(".bin");
+    if bin_dir.exists() {
+        fs::remove_dir_all(&bin_dir).expect("remove node_modules/.bin");
+    }
     let lockfile_before =
         fs::read_to_string(workspace.join("pnpm-lock.yaml")).expect("read pnpm-lock.yaml");
 
@@ -110,6 +116,7 @@ fn failing_uninstall_stage_aborts_the_removal() {
         .failure();
 
     assert_eq!(recorded_stages(&workspace), ["preuninstall dep=true"]);
+    assert!(!bin_dir.exists());
     assert!(manifest_lists_dep(&workspace));
     assert_eq!(
         fs::read_to_string(workspace.join("pnpm-lock.yaml")).expect("read pnpm-lock.yaml"),
