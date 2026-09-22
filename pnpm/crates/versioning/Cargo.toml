@@ -13,6 +13,7 @@ repository.workspace = true
 [dependencies]
 pnpm-matcher = { workspace = true }
 pnpm-package-manifest = { workspace = true }
+pnpm-workspace = { workspace = true }
 
 derive_more = { workspace = true }
 getrandom = { workspace = true }

@@ -557,3 +557,44 @@ fn apply_updates_the_selected_json5_manifest_without_creating_json() {
     assert!(!root_dir.join("package.json").exists());
     assert_eq!(fs::read_to_string(root_dir.join("package.yaml")).expect("read YAML"), yaml);
 }
+
+#[test]
+fn apply_bumps_package_yaml_manifest() {
+    let dir = tempfile::tempdir().expect("create temp workspace");
+    let root_dir = dir.path().join("lib");
+    fs::create_dir_all(&root_dir).expect("create package dir");
+    fs::write(root_dir.join("package.yaml"), "name: lib\nversion: 1.0.0\n")
+        .expect("write package.yaml");
+    let projects = vec![WorkspaceProject {
+        root_dir: root_dir.clone(),
+        name: Some("lib".to_string()),
+        version: Some("1.0.0".to_string()),
+        prod_dependencies: Vec::new(),
+    }];
+    let releases = IndexMap::from([("lib".to_string(), IntentBumpType::Minor)]);
+    write_change_intent(dir.path(), &releases, "Added a feature.").expect("intent writes");
+    let intents = read_change_intents(dir.path()).expect("intents read");
+    let ledger = read_ledger(dir.path()).expect("ledger reads");
+    let plan = assemble_release_plan(
+        &projects,
+        dir.path(),
+        &intents,
+        &ledger,
+        Some(&repository()),
+        &AssembleReleasePlanOptions::default(),
+    )
+    .expect("plan assembles");
+    apply_release_plan(
+        &plan,
+        dir.path(),
+        &projects,
+        &intents,
+        Some(&repository()),
+        &HashSet::new(),
+    )
+    .expect("plan applies");
+
+    let yaml_content =
+        fs::read_to_string(root_dir.join("package.yaml")).expect("read package.yaml");
+    assert!(yaml_content.contains("version: 1.1.0"), "unexpected yaml: {yaml_content}");
+}

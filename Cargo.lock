@@ -6303,6 +6303,7 @@ dependencies = [
  "pathdiff",
  "pnpm-matcher",
  "pnpm-package-manifest",
+ "pnpm-workspace",
  "pretty_assertions",
  "serde",
  "serde-saphyr",
