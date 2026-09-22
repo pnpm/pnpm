@@ -1,6 +1,14 @@
 use super::{InstallScope, RunExecution};
 #[cfg(target_os = "macos")]
-use pnpm_package_manifest::DependencyGroup;
+use indexmap::IndexMap;
+#[cfg(target_os = "macos")]
+use pnpm_config::LinkWorkspacePackages;
+#[cfg(target_os = "macos")]
+use pnpm_package_manifest::{DependencyGroup, PackageManifest};
+#[cfg(target_os = "macos")]
+use pnpm_workspace_projects_graph::{
+    BaseProject, CreateProjectsGraphOptions, GraphProject, ProjectGraph, create_projects_graph,
+};
 #[cfg(target_os = "macos")]
 use std::{
     collections::HashSet,
@@ -23,13 +31,14 @@ pub(super) fn capture_time_machine_exclusions(
     let project_dirs = if config.macos_backup.modules_dir {
         Vec::new()
     } else {
-        // A filtered non-hoisted install can follow `link:` dependencies
-        // into unselected workspace importers. Capture the selected importers
-        // and that transitive closure before the install; `apply` keeps only
+        // A filtered non-hoisted install can follow dependency edges into
+        // unselected workspace importers. Capture the selected importers and
+        // that transitive closure before the install; `apply` keeps only
         // directories the install actually created.
         project_dirs_to_capture(
             scope,
             execution.options.selection.as_ref().map(|selection| selection.install_dirs),
+            config.link_workspace_packages != LinkWorkspacePackages::Off,
         )
     };
     *exclusions = super::super::TimeMachineExclusions::capture(
@@ -44,6 +53,7 @@ pub(super) fn capture_time_machine_exclusions(
 fn project_dirs_to_capture(
     scope: &InstallScope<'_>,
     selected_dirs: Option<&HashSet<PathBuf>>,
+    link_workspace_packages: bool,
 ) -> Vec<PathBuf> {
     let Some(selected_dirs) = selected_dirs else {
         return scope.project_manifests
@@ -51,6 +61,7 @@ fn project_dirs_to_capture(
             .map(|(dir, _)| dir.clone())
             .collect();
     };
+    let graph = capture_projects_graph(scope, link_workspace_packages);
     let mut project_dirs = selected_dirs
         .iter()
         .cloned()
@@ -62,7 +73,7 @@ fn project_dirs_to_capture(
     let mut index = 0;
     while index < project_dirs.len() {
         let project_dir = project_dirs[index].clone();
-        for target in linked_workspace_dirs(scope, &project_dir) {
+        for target in linked_workspace_dirs(&graph, &project_dir) {
             if seen.insert(target.clone()) {
                 project_dirs.push(target);
             }
@@ -73,24 +84,80 @@ fn project_dirs_to_capture(
 }
 
 #[cfg(target_os = "macos")]
-fn linked_workspace_dirs(scope: &InstallScope<'_>, project_dir: &Path) -> Vec<PathBuf> {
+fn linked_workspace_dirs(
+    graph: &ProjectGraph<CaptureProject<'_>>,
+    project_dir: &Path,
+) -> Vec<PathBuf> {
     let normalized_project_dir = pnpm_fs::lexical_normalize(project_dir);
-    let Some((_, manifest)) = scope.project_manifests
+    graph
         .iter()
-        .find(|(dir, _)| pnpm_fs::lexical_normalize(dir) == normalized_project_dir)
-    else {
-        return Vec::new();
-    };
-    manifest
-        .dependencies([DependencyGroup::Prod, DependencyGroup::Dev, DependencyGroup::Optional])
-        .filter_map(|(_, spec)| spec.strip_prefix("link:"))
-        .map(|target| pnpm_fs::lexical_normalize(&project_dir.join(target)))
-        .filter(|target| {
-            scope.project_manifests
-                .iter()
-                .any(|(dir, _)| pnpm_fs::lexical_normalize(dir) == *target)
+        .find_map(|(dir, node)| {
+            (pnpm_fs::lexical_normalize(dir) == normalized_project_dir).then(|| {
+                node.dependencies.clone()
+            })
         })
-        .collect()
+        .unwrap_or_default()
+}
+
+#[cfg(target_os = "macos")]
+fn capture_projects_graph<'a>(
+    scope: &'a InstallScope<'a>,
+    link_workspace_packages: bool,
+) -> ProjectGraph<CaptureProject<'a>> {
+    create_projects_graph(
+        scope.project_manifests
+            .iter()
+            .map(|(dir, manifest)| CaptureProject { dir, manifest })
+            .collect(),
+        &CreateProjectsGraphOptions {
+            link_workspace_packages: Some(link_workspace_packages),
+            ..CreateProjectsGraphOptions::default()
+        },
+    )
+    .graph
+}
+
+#[cfg(target_os = "macos")]
+#[derive(Clone, Copy)]
+struct CaptureProject<'a> {
+    dir: &'a Path,
+    manifest: &'a PackageManifest,
+}
+
+#[cfg(target_os = "macos")]
+impl BaseProject for CaptureProject<'_> {
+    fn root_dir(&self) -> &Path {
+        self.dir
+    }
+
+    fn manifest_name(&self) -> Option<&str> {
+        self.manifest
+            .value()
+            .get("name")
+            .and_then(|name| name.as_str())
+    }
+}
+
+#[cfg(target_os = "macos")]
+impl GraphProject for CaptureProject<'_> {
+    fn manifest_version(&self) -> Option<&str> {
+        self.manifest
+            .value()
+            .get("version")
+            .and_then(|version| version.as_str())
+    }
+
+    fn merged_dependencies(&self, _: bool) -> Vec<(String, String)> {
+        let mut dependencies = IndexMap::new();
+        for (name, spec) in self.manifest.dependencies([
+            DependencyGroup::Dev,
+            DependencyGroup::Optional,
+            DependencyGroup::Prod,
+        ]) {
+            dependencies.insert(name.to_string(), spec.to_string());
+        }
+        dependencies.into_iter().collect()
+    }
 }
 
 #[cfg(not(target_os = "macos"))]
