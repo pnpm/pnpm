@@ -86,3 +86,24 @@ test('json and yaml manifests are also found', async () => {
   expect(pkgs[2].rootDir).toBeDefined()
   expect(pkgs[2].manifest.name).toBe('foo')
 })
+
+test('returns one project per directory when several manifest formats coexist', async () => {
+  const root = path.join(fixtures, 'conflicting-manifests')
+  const pkgs = await findPackages(root)
+
+  expect(pkgs).toHaveLength(2)
+  expect(pkgs.map(({ rootDir }) => rootDir).sort(compare)).toStrictEqual([
+    path.join(root, 'pkg-with-both'),
+    path.join(root, 'pkg-with-only-json'),
+  ])
+})
+
+test('package.json takes precedence over package.json5 in the same directory', async () => {
+  const root = path.join(fixtures, 'conflicting-manifests')
+  const pkgs = await findPackages(root)
+
+  const pkg = pkgs.find(({ manifest }) => manifest.name === 'pkg-with-both')
+  expect(pkg).toBeDefined()
+  // @ts-expect-error `_source` is a fixture-only field
+  expect(pkg!.manifest._source).toBe('json')
+})
