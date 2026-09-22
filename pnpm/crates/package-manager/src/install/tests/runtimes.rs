@@ -501,6 +501,54 @@ async fn included_drift_keeps_user_node_modules_entry_while_layout_drift_wipes_i
     .await;
     assert!(!vendored.exists(), "layout drift must still recreate node_modules from scratch");
 }
+
+#[tokio::test]
+async fn included_drift_without_lockfile_prunes_excluded_dev_deps() {
+    let mock_instance = TestRegistry::start();
+    let dirs = InstallDirs::new();
+
+    fs::create_dir_all(&dirs.project_root).unwrap();
+    let manifest_path = dirs.project_root.join("package.json");
+    let mut manifest = PackageManifest::create_if_needed(manifest_path).unwrap();
+    manifest.add_dependency("@pnpm.e2e/console-log", "1.0.0", DependencyGroup::Prod).unwrap();
+    manifest.add_dependency("@pnpm.e2e/hello-world-js-bin", "1.0.0", DependencyGroup::Dev).unwrap();
+    manifest.save().unwrap();
+
+    let full = || vec![DependencyGroup::Prod, DependencyGroup::Dev, DependencyGroup::Optional];
+    let prod_only = || vec![DependencyGroup::Prod];
+
+    run_purge_regression_install(
+        &dirs.store_dir,
+        &dirs.modules_dir,
+        &dirs.virtual_store_dir,
+        mock_instance.url(),
+        &manifest,
+        full(),
+        DEFAULT_VIRTUAL_STORE_DIR_MAX_LENGTH,
+    )
+    .await;
+
+    let prod_link = dirs.modules_dir.join("@pnpm.e2e/console-log");
+    let dev_link = dirs.modules_dir.join("@pnpm.e2e/hello-world-js-bin");
+    let dev_shim = dirs.modules_dir.join(".bin/hello-world-js-bin");
+    assert!(dev_link.symlink_metadata().is_ok());
+    assert!(dev_shim.exists());
+
+    run_purge_regression_install(
+        &dirs.store_dir,
+        &dirs.modules_dir,
+        &dirs.virtual_store_dir,
+        mock_instance.url(),
+        &manifest,
+        prod_only(),
+        DEFAULT_VIRTUAL_STORE_DIR_MAX_LENGTH,
+    )
+    .await;
+
+    assert!(dev_link.symlink_metadata().is_err());
+    assert!(!dev_shim.exists());
+    assert!(prod_link.symlink_metadata().is_ok());
+}
 #[tokio::test]
 async fn test_install_purges_node_modules_on_layout_mismatch() {
     let dir = tempdir().unwrap();

@@ -123,9 +123,13 @@ fn prune_project_manifest_link_deps(
         return Ok(());
     };
     for (alias, spec) in manifest.dependencies(old_groups.iter().copied()) {
-        if new_names.contains(alias)
-            || importer_snapshot.is_some_and(|snapshot| snapshot_has_alias(snapshot, alias))
-            || manifest_link_target(project_dir, options.workspace_packages, alias, spec).is_none()
+        if new_names.contains(alias) {
+            continue;
+        }
+        if let Some(snapshot) = importer_snapshot
+            && (snapshot_has_alias(snapshot, alias)
+                || manifest_link_target(project_dir, options.workspace_packages, alias, spec)
+                    .is_none())
         {
             continue;
         }

@@ -95,3 +95,29 @@ test('prune removes dev dependencies in production', async () => {
   project.storeHas('fnumber', '0.1.0')
   project.has('fnumber')
 })
+
+test('prune removes dev dependencies in production when useLockfile: false', async () => {
+  const project = prepareEmpty()
+
+  let { updatedManifest: manifest } = await addDependenciesToPackage({}, ['is-positive@2.0.0'], testDefaults({ targetDependenciesField: 'devDependencies', useLockfile: false }))
+  manifest = (await addDependenciesToPackage(manifest, ['is-negative@2.1.0'], testDefaults({ targetDependenciesField: 'dependencies', useLockfile: false }))).updatedManifest
+  manifest = (await addDependenciesToPackage(manifest, ['fnumber@0.1.0'], testDefaults({ targetDependenciesField: 'optionalDependencies', useLockfile: false }))).updatedManifest
+  await install(manifest, testDefaults({
+    include: {
+      dependencies: true,
+      devDependencies: false,
+      optionalDependencies: true,
+    },
+    pruneStore: true,
+    useLockfile: false,
+  }))
+
+  project.storeHasNot('is-positive', '2.0.0')
+  project.hasNot('is-positive')
+
+  project.storeHas('is-negative', '2.1.0')
+  project.has('is-negative')
+
+  project.storeHas('fnumber', '0.1.0')
+  project.has('fnumber')
+})
