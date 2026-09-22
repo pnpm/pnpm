@@ -1653,13 +1653,16 @@ Note that in CI environments, this setting is enabled by default.`,
         const importer = ctx.wantedLockfile.importers[id]
         const { satisfies, detailedReason } = _satisfiesPackageManifest(importer, manifest)
         if (satisfies && frozenLockfile && importer != null) {
-          skippedOptionalDependencies.push({
-            prefix: rootDir,
-            skipped: unresolvedOptionalDependencies({
-              excludeLinksFromLockfile: opts.excludeLinksFromLockfile,
-              ignoredOptionalDependencies: opts.ignoredOptionalDependencies,
-            }, importer, manifest),
-          })
+          const skipped = unresolvedOptionalDependencies({
+            excludeLinksFromLockfile: opts.excludeLinksFromLockfile,
+            ignoredOptionalDependencies: opts.ignoredOptionalDependencies,
+          }, importer, manifest)
+          if (Object.keys(skipped).length > 0) {
+            skippedOptionalDependencies.push({
+              prefix: rootDir,
+              skipped,
+            })
+          }
         }
         if (!satisfies || (importer != null && !catalogResolutionsAreUpToDate(importer, ctx.wantedLockfile.catalogs))) {
           if (!ctx.existsWantedLockfile) {
@@ -1698,8 +1701,7 @@ Note that in CI environments, this setting is enabled by default.`,
         ignoredBuilds: undefined,
       }
     }
-    if (isEmptyLockfile(ctx.wantedLockfile) &&
-      !skippedOptionalDependencies.some(({ skipped }) => Object.keys(skipped).length > 0)) {
+    if (isEmptyLockfile(ctx.wantedLockfile) && skippedOptionalDependencies.length === 0) {
       if (Object.values(ctx.projects).some((project) => pkgHasDependencies(project.manifest))) {
         throw new Error(`Headless installation requires a ${WANTED_LOCKFILE} file`)
       }
