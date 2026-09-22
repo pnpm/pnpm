@@ -194,13 +194,17 @@ export function pickVersionByVersionRange ({ meta, versionRange, preferredVersio
     }
   }
 
-  const versions = Object.keys(meta.versions)
   if (latest && (versionRange === '*' || semverSatisfiesLoose(latest, versionRange))) {
     // Not using semver.satisfies in case of * because it does not select beta versions.
     // E.g.: 1.0.0-beta.1. See issue: https://github.com/pnpm/pnpm/issues/865
+    if (!meta.versions[latest]?.deprecated) {
+      return latest
+    }
+    const versions = Object.keys(meta.versions)
     return nonDeprecatedPick(meta, versions, latest, versionRange) ?? latest
   }
 
+  const versions = Object.keys(meta.versions)
   const maxVersion = maxSatisfyingLoose(versions, versionRange)
   if (maxVersion) {
     return nonDeprecatedPick(meta, versions, maxVersion, versionRange) ?? maxVersion
@@ -482,7 +486,7 @@ function nonDeprecatedPick (
 ): string | null {
   if (!meta.versions[picked]?.deprecated || candidates.length <= 1) return null
   const nonDeprecatedVersions = candidates.filter((version) => !meta.versions[version]?.deprecated)
-  return versionRange === '*'
+  return versionRange === '*' && !semverSatisfiesLoose(picked, versionRange)
     ? maxVersionLoose(nonDeprecatedVersions)
     : maxSatisfyingLoose(nonDeprecatedVersions, versionRange)
 }

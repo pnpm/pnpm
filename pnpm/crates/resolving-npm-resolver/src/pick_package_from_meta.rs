@@ -336,22 +336,25 @@ pub fn pick_version_by_version_range(
         return Some(pick);
     }
 
-    let all_versions: Vec<&str> = opts.meta.versions
-        .keys()
-        .map(String::as_str)
-        .collect();
-
-    // `*` is special-cased because `semver.satisfies` rejects prereleases
-    // for `*`: a package whose only version is `1.0.0-beta.1` would
-    // otherwise return nothing for `*`. See pnpm/pnpm#865.
     if let Some(latest) = latest
         && (opts.version_range == "*" || semver_satisfies_loose(latest, opts.version_range))
     {
+        if !opts.meta.versions.is_deprecated(latest) {
+            return Some(latest.to_string());
+        }
+        let all_versions: Vec<&str> = opts.meta.versions
+            .keys()
+            .map(String::as_str)
+            .collect();
         return Some(
             non_deprecated_pick(opts, &all_versions, latest).unwrap_or_else(|| latest.to_string()),
         );
     }
 
+    let all_versions: Vec<&str> = opts.meta.versions
+        .keys()
+        .map(String::as_str)
+        .collect();
     let max_pick = max_satisfying(&all_versions, opts.version_range)?;
     non_deprecated_pick(opts, &all_versions, &max_pick).or(Some(max_pick))
 }
@@ -402,8 +405,9 @@ fn non_deprecated_pick<Raw: AsRef<str>>(
         .filter(|version| !opts.meta.versions.is_deprecated(version))
         .collect();
     // The `*` pick admits a prerelease `latest` that the range itself
-    // rejects, so the retry ranks those candidates directly.
-    if opts.version_range == "*" {
+    // rejects, so the retry ranks those candidates directly only when the
+    // picked version was an admitted prerelease.
+    if opts.version_range == "*" && !semver_satisfies_loose(picked, opts.version_range) {
         return max_version(&non_deprecated);
     }
     max_satisfying(&non_deprecated, opts.version_range)
