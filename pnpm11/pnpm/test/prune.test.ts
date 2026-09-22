@@ -1,5 +1,5 @@
 import { test } from '@jest/globals'
-import { preparePackages } from '@pnpm/prepare'
+import { prepare, preparePackages } from '@pnpm/prepare'
 import { writeYamlFileSync } from 'write-yaml-file'
 
 import { execPnpm } from './utils/index.js'
@@ -59,4 +59,26 @@ test('prune --prod in a workspace root keeps the links to workspace packages tha
   projects.app.has('is-positive')
   projects.app.hasNot('@scope/tool')
   projects.app.hasNot('is-negative')
+})
+
+test('prune --prod removes devDependencies when lockfile is disabled', async () => {
+  const project = prepare({
+    dependencies: {
+      'is-positive': '1.0.0',
+    },
+    devDependencies: {
+      'is-negative': '1.0.0',
+    },
+  })
+
+  writeYamlFileSync('pnpm-workspace.yaml', { lockfile: false })
+
+  await execPnpm(['install'])
+  project.has('is-positive')
+  project.has('is-negative')
+
+  await execPnpm(['prune', '--prod', '--config.confirmModulesPurge=false'])
+
+  project.has('is-positive')
+  project.hasNot('is-negative')
 })

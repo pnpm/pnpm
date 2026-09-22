@@ -10,13 +10,8 @@ const FILTERED: &str = "@pnpm.e2e/hello-world-js-bin";
 
 #[test]
 fn prune_writes_lockfile() {
-    let CommandTempCwd {
-        pacquet,
-        root,
-        workspace,
-        npmrc_info,
-        ..
-    } = CommandTempCwd::init().add_mocked_registry();
+    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
 
     let manifest_path = workspace.join("package.json");
@@ -49,13 +44,8 @@ fn prune_writes_lockfile() {
 
 #[test]
 fn prune_from_workspace_member_writes_the_workspace_lockfile() {
-    let CommandTempCwd {
-        pacquet,
-        root,
-        workspace,
-        npmrc_info,
-        ..
-    } = CommandTempCwd::init().add_mocked_registry();
+    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
     fs::write(workspace.join("package.json"), r#"{ "name": "workspace-root" }"#)
         .expect("write root package.json");
@@ -75,7 +65,11 @@ fn prune_from_workspace_member_writes_the_workspace_lockfile() {
         .assert()
         .success();
 
-    assert!(workspace.join("pnpm-lock.yaml").is_file());
+    assert!(
+        workspace
+            .join("pnpm-lock.yaml")
+            .is_file()
+    );
     assert!(!member.join("pnpm-lock.yaml").exists());
 
     drop((root, mock_instance));
@@ -92,13 +86,8 @@ fn assert_prune_filter_reaches_node_modules_only(
     filtered_group: &str,
     unlinked: &str,
 ) {
-    let CommandTempCwd {
-        pacquet,
-        root,
-        workspace,
-        npmrc_info,
-        ..
-    } = CommandTempCwd::init().add_mocked_registry();
+    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
 
     fs::write(
@@ -137,6 +126,52 @@ fn assert_prune_filter_reaches_node_modules_only(
 #[test]
 fn prune_with_prod_only_unlinks_dev_deps() {
     assert_prune_filter_reaches_node_modules_only("--prod", "devDependencies", FILTERED);
+}
+
+#[test]
+fn prune_with_prod_only_and_no_lockfile_unlinks_dev_deps() {
+    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({
+            "dependencies": { PROD: "100.0.0" },
+            "devDependencies": { FILTERED: "1.0.0" },
+        })
+        .to_string(),
+    )
+    .expect("write package.json");
+    fs::write(workspace.join(".npmrc"), "lockfile=false\n").expect("write .npmrc");
+
+    pacquet
+        .with_arg("install")
+        .assert()
+        .success();
+    assert!(
+        !workspace
+            .join("pnpm-lock.yaml")
+            .exists(),
+        "install must not write a lockfile"
+    );
+    assert!(has_link(&workspace, PROD));
+    assert!(has_link(&workspace, FILTERED));
+
+    pacquet
+        .with_args(["prune", "--prod"])
+        .assert()
+        .success();
+    assert!(has_link(&workspace, PROD));
+    assert!(!has_link(&workspace, FILTERED));
+    assert!(
+        !workspace
+            .join("pnpm-lock.yaml")
+            .exists(),
+        "prune must not write a lockfile"
+    );
+
+    drop((root, mock_instance));
 }
 
 #[test]
