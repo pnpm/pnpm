@@ -62,12 +62,17 @@ test('getConfig()', async () => {
   expect(config.nodeVersion).toBeUndefined()
 })
 
+const runningNodeMajor = Number(process.versions.node.split('.')[0])
+
 test.each([
   { field: 'devEngines' as const, version: '22.20.0', onFail: 'download' as const, expected: '22.20.0' },
   { field: 'devEngines' as const, version: '22.20.0', onFail: 'error' as const, expected: '22.20.0' },
   { field: 'devEngines' as const, version: '^22.0.0', onFail: 'download' as const, expected: '22.0.0' },
   { field: 'engines' as const, version: '22.20.0', onFail: 'download' as const, expected: '22.20.0' },
-])('when $field is $version and onFail is $onFail, nodeVersion is set to $expected', async ({ field, version, onFail, expected }) => {
+  { field: 'devEngines' as const, version: `>=${runningNodeMajor - 1}.0.0`, onFail: 'error' as const, expected: undefined },
+  { field: 'devEngines' as const, version: `^${runningNodeMajor + 1}.0.0`, onFail: 'error' as const, expected: undefined },
+  { field: 'engines' as const, version: '>=22.12.0', onFail: 'warn' as const, expected: undefined },
+])('when $field is $version and onFail is $onFail, nodeVersion is $expected', async ({ field, version, onFail, expected }) => {
   prepare({
     [field]: {
       runtime: {
