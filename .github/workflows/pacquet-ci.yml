@@ -210,8 +210,10 @@ jobs:
       # rust-cache saves no dependency artifacts for this workspace: the
       # pnpm-managed crates source lives inside it, so every crate counts as a
       # workspace member and gets pruned. sccache keys each compiler call by
-      # its inputs instead.
+      # its inputs instead. On Windows a warm sccache build was no faster than
+      # a plain one and a cold one was slower, so it stays off there.
       - name: Restore sccache
+        if: runner.os != 'Windows'
         uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ${{ runner.temp }}/sccache
@@ -223,6 +225,7 @@ jobs:
         continue-on-error: true
 
       - name: Use sccache
+        if: runner.os != 'Windows'
         shell: bash
         run: |
           {
@@ -273,12 +276,12 @@ jobs:
             -- pnpm pipeline pnpr-test --include-workspace-root --full --no-cache
 
       - name: Stop sccache
-        if: ${{ !cancelled() }}
+        if: ${{ !cancelled() && runner.os != 'Windows' }}
         shell: bash
         run: sccache --stop-server || true
 
       - name: Save sccache
-        if: ${{ !cancelled() && github.event_name != 'merge_group' }}
+        if: ${{ !cancelled() && github.event_name != 'merge_group' && runner.os != 'Windows' }}
         uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ${{ runner.temp }}/sccache
