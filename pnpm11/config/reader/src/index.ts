@@ -541,9 +541,6 @@ export async function getConfig (opts: {
         pnpmConfig.wantedPackageManager = wantedPmResult.pm
       }
       warnings.push(...wantedPmResult.warnings)
-      if (pnpmConfig.nodeVersion == null) {
-        pnpmConfig.nodeVersion = getNodeVersionFromEnginesRuntime(pnpmConfig.enginePinManifest)
-      }
     }
 
     if (pnpmConfig.workspaceDir != null) {
@@ -988,8 +985,17 @@ export async function getConfig (opts: {
     }
   }
 
-  if (pnpmConfig.runtimeOnFail && pnpmConfig.rootProjectManifest) {
-    applyRuntimeOnFailOverride(pnpmConfig.rootProjectManifest, pnpmConfig.runtimeOnFail)
+  if (pnpmConfig.runtimeOnFail) {
+    if (pnpmConfig.rootProjectManifest) {
+      applyRuntimeOnFailOverride(pnpmConfig.rootProjectManifest, pnpmConfig.runtimeOnFail)
+    }
+    if (pnpmConfig.enginePinManifest && pnpmConfig.enginePinManifest !== pnpmConfig.rootProjectManifest) {
+      applyRuntimeOnFailOverride(pnpmConfig.enginePinManifest, pnpmConfig.runtimeOnFail)
+    }
+  }
+
+  if (pnpmConfig.nodeVersion == null && pnpmConfig.enginePinManifest != null) {
+    pnpmConfig.nodeVersion = getNodeVersionFromEnginesRuntime(pnpmConfig.enginePinManifest)
   }
 
   applyRemoteSideEffectsCacheEnv(pnpmConfig, env)
@@ -1287,9 +1293,13 @@ function getNodeVersionFromEnginesRuntime (manifest: ProjectManifest): string | 
     if (enginesRuntime == null) continue
     const runtimes: EngineDependency[] = Array.isArray(enginesRuntime) ? enginesRuntime : [enginesRuntime]
     const nodeRuntime = runtimes.find((r) => r.name === 'node')
-    if (nodeRuntime?.version == null) continue
-    if (!semver.validRange(nodeRuntime.version)) continue
-    const minVersion = semver.minVersion(nodeRuntime.version)
+    if (typeof nodeRuntime?.version !== 'string') continue
+    const version = nodeRuntime.version.trim()
+    if (!semver.validRange(version)) continue
+    if (nodeRuntime.onFail !== 'download') {
+      return semver.valid(version) ?? undefined
+    }
+    const minVersion = semver.minVersion(version)
     if (minVersion != null) {
       return minVersion.version
     }

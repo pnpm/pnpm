@@ -62,12 +62,19 @@ test('getConfig()', async () => {
   expect(config.nodeVersion).toBeUndefined()
 })
 
+const runningNodeMajor = Number(process.versions.node.split('.')[0])
+
 test.each([
   { field: 'devEngines' as const, version: '22.20.0', onFail: 'download' as const, expected: '22.20.0' },
   { field: 'devEngines' as const, version: '22.20.0', onFail: 'error' as const, expected: '22.20.0' },
   { field: 'devEngines' as const, version: '^22.0.0', onFail: 'download' as const, expected: '22.0.0' },
   { field: 'engines' as const, version: '22.20.0', onFail: 'download' as const, expected: '22.20.0' },
-])('when $field is $version and onFail is $onFail, nodeVersion is set to $expected', async ({ field, version, onFail, expected }) => {
+  { field: 'devEngines' as const, version: `>=${runningNodeMajor - 1}.0.0`, onFail: 'error' as const, expected: undefined },
+  { field: 'devEngines' as const, version: `^${runningNodeMajor + 1}.0.0`, onFail: 'error' as const, expected: undefined },
+  { field: 'engines' as const, version: '>=22.12.0', onFail: 'warn' as const, expected: undefined },
+  { field: 'devEngines' as const, version: 22 as unknown as string, onFail: 'download' as const, expected: undefined },
+  { field: 'devEngines' as const, version: { major: 22 } as unknown as string, onFail: 'download' as const, expected: undefined },
+])('when $field is $version and onFail is $onFail, nodeVersion is $expected', async ({ field, version, onFail, expected }) => {
   prepare({
     [field]: {
       runtime: {
@@ -350,6 +357,57 @@ test('runtimeOnFail=ignore overrides an existing onFail=download and removes nod
     onFail: 'ignore',
   })
   expect(context.rootProjectManifest?.devDependencies?.node).toBeUndefined()
+})
+
+test('runtimeOnFail=download overrides devEngines.runtime range and sets nodeVersion to range minimum', async () => {
+  prepare({
+    devEngines: {
+      runtime: {
+        name: 'node',
+        version: '>=22.12.0',
+        onFail: 'warn',
+      },
+    },
+  })
+
+  const { config, context } = await getConfig({
+    cliOptions: {
+      'runtime-on-fail': 'download',
+    },
+    packageManager: {
+      name: 'pnpm',
+      version: '1.0.0',
+    },
+  })
+
+  expect(config.runtimeOnFail).toBe('download')
+  expect(config.nodeVersion).toBe('22.12.0')
+  expect(context.rootProjectManifest?.devDependencies?.node).toBe('runtime:>=22.12.0')
+})
+
+test('runtimeOnFail=ignore from pnpm-workspace.yaml overrides onFail=download and leaves nodeVersion undefined for a range', async () => {
+  prepare({
+    devEngines: {
+      runtime: {
+        name: 'node',
+        version: '>=22.12.0',
+        onFail: 'download',
+      },
+    },
+  })
+  fs.writeFileSync('pnpm-workspace.yaml', 'runtimeOnFail: ignore\n', 'utf8')
+
+  const { config } = await getConfig({
+    cliOptions: {},
+    workspaceDir: process.cwd(),
+    packageManager: {
+      name: 'pnpm',
+      version: '1.0.0',
+    },
+  })
+
+  expect(config.runtimeOnFail).toBe('ignore')
+  expect(config.nodeVersion).toBeUndefined()
 })
 
 test('devEngines.packageManager without onFail resolves to the documented pmOnFail default "download" (#11676)', async () => {

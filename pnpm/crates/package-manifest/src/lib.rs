@@ -15,7 +15,7 @@ use std::{
     path::{Path, PathBuf},
 };
 
-use node_semver::Range;
+use node_semver::{Range, Version};
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value, json};
 use strum::IntoStaticStr;

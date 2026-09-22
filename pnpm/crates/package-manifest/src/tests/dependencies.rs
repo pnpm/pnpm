@@ -247,17 +247,17 @@ fn runtime_on_fail_ignore_preserves_explicit_runtime_dependencies() {
 }
 
 #[test]
-fn node_version_uses_devengines_then_engines_and_returns_the_range_minimum() {
+fn node_version_uses_devengines_then_engines() {
     assert_eq!(
         node_version_from_engines_runtime(&json!({
             "devEngines": {
-                "runtime": { "name": "node", "version": "^22.0.0" },
+                "runtime": { "name": "node", "version": "22.21.0" },
             },
             "engines": {
                 "runtime": { "name": "node", "version": "20.0.0" },
             },
         })),
-        Some("22.0.0".to_string()),
+        Some("22.21.0".to_string()),
     );
     assert_eq!(
         node_version_from_engines_runtime(&json!({
@@ -273,6 +273,10 @@ fn node_version_uses_devengines_then_engines_and_returns_the_range_minimum() {
         })),
         Some("22.20.0".to_string()),
     );
+}
+
+#[test]
+fn node_version_keeps_an_exact_pin() {
     assert_eq!(
         node_version_from_engines_runtime(&json!({
             "engines": {
@@ -280,6 +284,65 @@ fn node_version_uses_devengines_then_engines_and_returns_the_range_minimum() {
             },
         })),
         Some("24.6.0".to_string()),
+    );
+    assert_eq!(
+        node_version_from_engines_runtime(&json!({
+            "devEngines": {
+                "runtime": { "name": "node", "version": "22.20.0" },
+            },
+        })),
+        Some("22.20.0".to_string()),
+    );
+}
+
+#[test]
+fn node_version_keeps_the_lower_bound_of_a_range_pnpm_downloads() {
+    assert_eq!(
+        node_version_from_engines_runtime(&json!({
+            "devEngines": {
+                "runtime": { "name": "node", "version": ">=22.12.0", "onFail": "download" },
+            },
+        })),
+        Some("22.12.0".to_string()),
+    );
+}
+
+#[test]
+fn node_version_does_not_treat_a_range_as_the_running_runtime() {
+    assert_eq!(
+        node_version_from_engines_runtime(&json!({
+            "devEngines": {
+                "runtime": { "name": "node", "version": ">=22.12.0", "onFail": "error" },
+            },
+        })),
+        None,
+    );
+    assert_eq!(
+        node_version_from_engines_runtime(&json!({
+            "devEngines": {
+                "runtime": { "name": "node", "version": "^26.0.0", "onFail": "error" },
+            },
+        })),
+        None,
+    );
+    assert_eq!(
+        node_version_from_engines_runtime(&json!({
+            "engines": {
+                "runtime": { "name": "node", "version": ">=22.12.0", "onFail": "warn" },
+            },
+        })),
+        None,
+    );
+    assert_eq!(
+        node_version_from_engines_runtime(&json!({
+            "devEngines": {
+                "runtime": { "name": "node", "version": ">=22.12.0", "onFail": "error" },
+            },
+            "engines": {
+                "runtime": { "name": "node", "version": "20.0.0" },
+            },
+        })),
+        None,
     );
 }
 
