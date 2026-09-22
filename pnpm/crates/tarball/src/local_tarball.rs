@@ -21,10 +21,19 @@ pub(crate) async fn open_local_tarball(
     options.read(true);
     #[cfg(unix)]
     options.custom_flags(libc::O_NONBLOCK);
-    let file = options
-        .open(path)
-        .await
-        .map_err(|source| TarballError::ReadLocalTarball { path: path.to_path_buf(), source })?;
+    let file = match options.open(path).await {
+        Ok(file) => file,
+        Err(source) => {
+            if path.is_dir() {
+                return Err(read_local_tarball_error(
+                    path,
+                    io::ErrorKind::InvalidInput,
+                    "local tarball path is not a regular file",
+                ));
+            }
+            return Err(TarballError::ReadLocalTarball { path: path.to_path_buf(), source });
+        }
+    };
     let metadata = file
         .metadata()
         .await
@@ -359,6 +368,11 @@ fn finish_bundled_manifest(
 
 /// Verifies a local tarball on disk matches the expected integrity.
 pub fn verify_local_file_integrity(path: &Path, integrity: &Integrity) -> Result<(), TarballError> {
+    let mut file = open_local_file_sync(path)?;
+    stream_check_integrity(path, &mut file, integrity)
+}
+
+fn open_local_file_sync(path: &Path) -> Result<std::fs::File, TarballError> {
     let mut options = std::fs::OpenOptions::new();
     options.read(true);
     #[cfg(unix)]
@@ -366,13 +380,31 @@ pub fn verify_local_file_integrity(path: &Path, integrity: &Integrity) -> Result
         use std::os::unix::fs::OpenOptionsExt as _;
         options.custom_flags(libc::O_NONBLOCK);
     }
-    let mut file = options
-        .open(path)
-        .map_err(|source| TarballError::ReadLocalTarball { path: path.to_path_buf(), source })?;
+    let file = match options.open(path) {
+        Ok(file) => file,
+        Err(source) => {
+            if path.is_dir() {
+                return Err(read_local_tarball_error(
+                    path,
+                    io::ErrorKind::InvalidInput,
+                    "local tarball path is not a regular file",
+                ));
+            }
+            return Err(TarballError::ReadLocalTarball { path: path.to_path_buf(), source });
+        }
+    };
     let metadata = file
         .metadata()
         .map_err(|source| TarballError::ReadLocalTarball { path: path.to_path_buf(), source })?;
     reject_non_file_local_tarball(path, &metadata)?;
+    Ok(file)
+}
+
+fn stream_check_integrity(
+    path: &Path,
+    file: &mut std::fs::File,
+    integrity: &Integrity,
+) -> Result<(), TarballError> {
     let mut checker = IntegrityChecker::new(integrity.clone());
     let mut buffer = vec![0_u8; 64 * 1024].into_boxed_slice();
     loop {
