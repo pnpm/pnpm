@@ -141,74 +141,46 @@ jobs:
       os: blacksmith-8vcpu-windows-2025
 
   test:
-    name: TS CI / Test / ${{ matrix.platform_label }}
+    name: TS CI / Test / ubuntu
     needs: [compile-and-lint, build-pnpr-linux]
     strategy:
       fail-fast: false
       matrix:
+        node: ['22.13.0', '24.0.0', '26.10.0']
+        test_chunk: ['1', '2', '3']
         include:
           - node: '22.13.0'
             node_major: '22'
-            platform: blacksmith-8vcpu-ubuntu-2404
-            platform_label: ubuntu
-            test_chunk: '1'
-            test_chunk_total: '1'
           - node: '24.0.0'
             node_major: '24'
-            platform: blacksmith-8vcpu-ubuntu-2404
-            platform_label: ubuntu
-            test_chunk: '1'
-            test_chunk_total: '1'
             garnet: true
           - node: '26.10.0'
             node_major: '26'
-            platform: blacksmith-8vcpu-ubuntu-2404
-            platform_label: ubuntu
-            test_chunk: '1'
-            test_chunk_total: '1'
     uses: $/.github/workflows/test.yml
     with:
       node: ${{ matrix.node }}
       node_major: ${{ matrix.node_major }}
-      platform: ${{ matrix.platform }}
+      platform: blacksmith-8vcpu-ubuntu-2404
       test_chunk: ${{ matrix.test_chunk }}
-      test_chunk_total: ${{ matrix.test_chunk_total }}
+      test_chunk_total: '3'
       garnet: ${{ matrix.garnet == true }}
     secrets:
       GARNET_API_TOKEN: ${{ secrets.GARNET_API_TOKEN }}
 
   test-windows:
-    name: TS CI / Test / ${{ matrix.platform_label }}
+    name: TS CI / Test / windows ${{ matrix.test_chunk }}/5
     needs: [compile-and-lint, build-pnpr-windows]
     strategy:
       fail-fast: false
       matrix:
-        include:
-          - node: '22.13.0'
-            node_major: '22'
-            platform: blacksmith-8vcpu-windows-2025
-            platform_label: windows 1/3
-            test_chunk: '1'
-            test_chunk_total: '3'
-          - node: '22.13.0'
-            node_major: '22'
-            platform: blacksmith-8vcpu-windows-2025
-            platform_label: windows 2/3
-            test_chunk: '2'
-            test_chunk_total: '3'
-          - node: '22.13.0'
-            node_major: '22'
-            platform: blacksmith-8vcpu-windows-2025
-            platform_label: windows 3/3
-            test_chunk: '3'
-            test_chunk_total: '3'
+        test_chunk: ['1', '2', '3', '4', '5']
     uses: $/.github/workflows/test.yml
     with:
-      node: ${{ matrix.node }}
-      node_major: ${{ matrix.node_major }}
-      platform: ${{ matrix.platform }}
+      node: '22.13.0'
+      node_major: '22'
+      platform: blacksmith-8vcpu-windows-2025
       test_chunk: ${{ matrix.test_chunk }}
-      test_chunk_total: ${{ matrix.test_chunk_total }}
+      test_chunk_total: '5'
 
   # Single aggregate gate — the only TS CI context branch protection needs
   # to require. Listing the individual jobs as required checks does not
