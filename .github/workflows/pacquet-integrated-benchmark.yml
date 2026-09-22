@@ -152,11 +152,6 @@ jobs:
         timeout-minutes: 50
         shell: bash
         run: |
-          # TEMPORARY, revert before merge: measure thin LTO on HEAD against the
-          # release-profile main build.
-          if [ "$REVISION" = HEAD ]; then
-            export CARGO_PROFILE_RELEASE_LTO=thin CARGO_PROFILE_RELEASE_CODEGEN_UNITS=16
-          fi
           client=$(cargo metadata --no-deps --format-version=1 | jq -er '
             [.packages[].targets[] | select(.kind | index("bin")) | .name
               | select(. == "pnpm" or . == "pacquet")]
