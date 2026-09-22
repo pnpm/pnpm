@@ -1,10 +1,9 @@
-use super::{AddError, AddOptions, AddResolution, AddResolveInputs};
+use super::{AddError, AddOptions, AddResolveInputs};
 use crate::{
     resolution_policy::{PickPolicy, pick_package_context},
     resolve_latest::LatestPicker,
 };
 use pnpm_config::Config;
-use pnpm_lockfile_preferred_versions::get_preferred_versions_from_lockfile_and_manifests;
 use pnpm_package_manifest::PackageManifest;
 use pnpm_registry::RangeSpecStyle;
 use pnpm_resolving_npm_resolver::{
@@ -16,13 +15,22 @@ use pnpm_resolving_npm_resolver::{
 /// under the configured range style.
 pub(super) async fn pick_latest_range(
     package_name: &str,
+    manifest: &PackageManifest,
     inputs: &AddResolveInputs<'_, '_>,
 ) -> Result<String, AddError> {
+    if needs_types_metadata(inputs.add, package_name) {
+        return resolve_explicit_registry_spec(package_name, "latest", None, manifest, inputs)
+            .await?
+            .ok_or_else(|| AddError::ResolveLatest {
+                name: package_name.to_string(),
+                error: crate::resolve_latest::ResolveLatestError::NoLatestVersion,
+            });
+    }
     let config = inputs.add.config;
     let latest = inputs.resolution.latest_picker
         .get_or_try_init(|| {
             std::future::ready(
-                PickPolicy::from_config(config)
+                PickPolicy::from_config_at(config, inputs.resolution.started_at)
                     .map(|policy| {
                         LatestPicker::new(
                             config,
@@ -58,29 +66,21 @@ pub(super) async fn resolve_explicit_registry_spec(
     package_name: &str,
     spec: &str,
     prev_specifier: Option<&str>,
-    add: AddOptions<'_>,
     manifest: &PackageManifest,
-    resolution: &AddResolution<'_>,
+    inputs: &AddResolveInputs<'_, '_>,
 ) -> Result<Option<String>, AddError> {
     if spec.starts_with("npm:") {
         return Ok(None);
     }
+    let add = inputs.add;
+    let resolution = inputs.resolution;
     let registry = package_registry(add.config, package_name);
     let Some(spec_parsed) = parse_explicit_registry_spec(package_name, spec, &registry) else {
         return Ok(None);
     };
 
-    let policy = PickPolicy::from_config(add.config).map_err(AddError::MinimumReleaseAgeExclude)?;
-    // Bias the pick toward versions already present in the workspace, so a
-    // dedup pick matches what the install locks (e.g. a sibling already on
-    // `1.2.0` keeps `pnpm add foo@^1` on `1.2.0`). Seeded from the wanted
-    // lockfile + this manifest; sibling manifests aren't reachable here, so
-    // an unlocked sibling declaration may still differ — never an
-    // inconsistency, since the install resolves the rewritten range.
-    let preferred_versions = get_preferred_versions_from_lockfile_and_manifests(
-        add.lockfile.document.and_then(|lockfile| lockfile.snapshots.as_ref()),
-        &[manifest],
-    );
+    let policy = add_pick_policy(inputs, &spec_parsed.name)?;
+    let preferred_versions = inputs.preferred_versions(manifest);
     let ctx = pick_package_context(
         add.http_client,
         add.config,
@@ -110,6 +110,24 @@ pub(super) async fn resolve_explicit_registry_spec(
         add.range_spec_style,
     )))
 }
+pub(super) fn add_pick_policy(
+    inputs: &AddResolveInputs<'_, '_>,
+    package_name: &str,
+) -> Result<PickPolicy, AddError> {
+    let add = inputs.add;
+    let mut policy = PickPolicy::from_config_at(add.config, inputs.resolution.started_at)
+        .map_err(AddError::MinimumReleaseAgeExclude)?;
+    if needs_types_metadata(add, package_name) {
+        // Bundled type declarations are absent from abbreviated and filtered metadata.
+        policy.force_unfiltered_full_metadata();
+    }
+    Ok(policy)
+}
+
+fn needs_types_metadata(add: AddOptions<'_>, package_name: &str) -> bool {
+    add.save_types && !package_name.starts_with("@types/")
+}
+
 /// Registry-host tarball URLs must remain verbatim even though the npm parser accepts them.
 pub(super) fn parse_explicit_registry_spec(
     package_name: &str,

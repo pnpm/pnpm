@@ -1614,6 +1614,9 @@ pub struct Config {
     /// `savePeer` setting, equivalent to passing `--save-peer`.
     pub save_peer: bool,
 
+    /// Add available `DefinitelyTyped` packages to `devDependencies` when adding packages.
+    pub save_types: bool,
+
     /// Whether the configured registry returns the per-version `time`
     /// field in its *abbreviated* metadata. When `false` (the default),
     /// [`ResolutionMode::TimeBased`] resolution (and the

@@ -253,7 +253,7 @@ macro_rules! identically_named_settings {
             test_pattern, changed_files_ignore_pattern, legacy_dir_filtering,
             sync_injected_deps_after_scripts,
             resolution_mode, catalog_mode, catalog_prune,
-            minimum_release_age_exclude_prune, save_peer, save_exact,
+            minimum_release_age_exclude_prune, save_peer, save_exact, save_types,
             registry_supports_time_field,
             allowed_deprecated_versions, update_config, peer_dependency_rules,
             enable_pre_post_scripts, dlx_cache_max_age,

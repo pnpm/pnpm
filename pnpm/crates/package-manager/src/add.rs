@@ -8,6 +8,8 @@ use specifier::{normalized_save_specifier, resolve_added_dependency, workspace_p
 
 mod registry;
 
+mod types;
+
 mod aliasless;
 
 mod manifest;
@@ -304,6 +306,8 @@ pub struct AddOptions<'a> {
     /// `pnpm-lock.yaml`, but skip materializing `node_modules`. Forwarded
     /// to the follow-up `Install` run. See [`crate::InstallExecution::lockfile_only`].
     pub lockfile_only: bool,
+    /// Discover companion declaration packages for an explicit add command.
+    pub save_types: bool,
 }
 
 /// The add's owned inputs, consumed by the install it runs.
@@ -343,6 +347,7 @@ fn begin<Reporter: self::Reporter>(add: AddOptions<'_>, owned: &AddOwned) {
 /// first use, so a pass that resolves no `latest` tag never builds one),
 /// the packument cache and the fetch locker.
 struct AddResolution<'a> {
+    started_at: chrono::DateTime<chrono::Utc>,
     latest_picker: tokio::sync::OnceCell<LatestPicker<'a>>,
     meta_cache: std::sync::Arc<InMemoryPackageMetaCache>,
     fetch_locker: PackumentFetchLocker,
@@ -351,6 +356,7 @@ struct AddResolution<'a> {
 impl AddResolution<'_> {
     fn new() -> Self {
         Self {
+            started_at: chrono::Utc::now(),
             latest_picker: tokio::sync::OnceCell::new(),
             meta_cache: std::sync::Arc::new(InMemoryPackageMetaCache::default()),
             fetch_locker: shared_packument_fetch_locker(),
@@ -361,15 +367,31 @@ impl AddResolution<'_> {
 /// What every selector of an add resolves against.
 struct AddResolveInputs<'a, 'r> {
     add: AddOptions<'a>,
-    http_client_arc: &'r std::sync::Arc<ThrottledClient>,
+    owned: &'r AddOwned,
     /// One checkout per repository and commit for every alias-less git
     /// selector this command resolves.
     git_source_cache: &'r std::sync::Arc<pnpm_git_fetcher::GitSourceCache>,
     resolution: &'r AddResolution<'a>,
-    save_catalog_name: Option<&'r str>,
+    preferred_versions: &'r std::sync::OnceLock<pnpm_resolving_resolver_base::PreferredVersions>,
     catalogs: &'r Catalogs,
     prefix: &'r str,
     workspace_packages: Option<&'r WorkspacePackages>,
+}
+
+impl AddResolveInputs<'_, '_> {
+    fn preferred_versions(
+        &self,
+        manifest: &PackageManifest,
+    ) -> &pnpm_resolving_resolver_base::PreferredVersions {
+        self.preferred_versions.get_or_init(|| {
+            pnpm_lockfile_preferred_versions::get_preferred_versions_from_lockfile_and_manifests(
+                self.add.lockfile.document.and_then(|lockfile| {
+                    lockfile.snapshots.as_ref()
+                }),
+                &[manifest],
+            )
+        })
+    }
 }
 
 #[cfg(test)]

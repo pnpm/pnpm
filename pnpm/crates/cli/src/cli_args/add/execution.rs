@@ -16,6 +16,7 @@ use crate::state::command_lockfile;
 pub(crate) struct AddGroups<DependencyGroupList> {
     pub(crate) save_target: Option<DependencyGroupList>,
     pub(crate) included: Option<Vec<DependencyGroup>>,
+    pub(crate) save_types: bool,
 }
 
 /// Add a single package to `state`'s manifest and install it.
@@ -45,7 +46,7 @@ where
         save_catalog_name,
         lockfile_only,
         supported_architectures,
-        AddGroups { save_target: Some(dependency_groups), included: None },
+        AddGroups { save_target: Some(dependency_groups), included: None, save_types: false },
     ))
     .await
 }
@@ -162,6 +163,7 @@ where
             range_spec_style,
             resolved_packages,
             lockfile_only,
+            save_types: groups.save_types,
         },
         resources: pnpm_package_manager::AddResources {
             tarball_mem_cache: std::sync::Arc::clone(tarball_mem_cache),
@@ -258,6 +260,7 @@ impl AddArgs {
         let dependency_options =
             self.dependency_options.clone().with_save_peer_setting(state.config.save_peer);
         let included_groups = self.included_groups(state.config);
+        let save_types = state.config.save_types;
 
         // The install saves the manifest, so the declarations recorded
         // above reach disk with the dependencies or not at all.
@@ -271,6 +274,7 @@ impl AddArgs {
             AddGroups {
                 save_target: dependency_options.save_target(),
                 included: Some(included_groups),
+                save_types,
             },
         )
         .await?;
@@ -305,6 +309,7 @@ impl AddArgs {
                 range_spec_style: self.range_spec_style(state.config),
                 resolved_packages: &state.resolved_packages,
                 lockfile_only: self.install.lockfile_only,
+                save_types: state.config.save_types,
             },
             resources: pnpm_package_manager::AddResources {
                 tarball_mem_cache: std::sync::Arc::clone(&state.tarball_mem_cache),

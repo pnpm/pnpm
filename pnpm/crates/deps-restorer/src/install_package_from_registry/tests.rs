@@ -228,6 +228,7 @@ fn create_config(
         save_prefix: None,
         save_exact: false,
         save_peer: false,
+        save_types: false,
         registry_supports_time_field: false,
         allowed_deprecated_versions: Default::default(),
         update_config: Default::default(),

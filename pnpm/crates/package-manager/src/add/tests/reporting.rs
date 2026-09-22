@@ -94,6 +94,7 @@ async fn add_routes_scoped_packages_to_configured_scoped_registry() {
             package_names: &package_names,
             range_spec_style: RangeSpecStyle::Patch,
             lockfile_only: true,
+            save_types: false,
         },
         resources: crate::AddResources {
             tarball_mem_cache: Arc::default(),
@@ -238,6 +239,7 @@ async fn add_resolves_package_selectors_concurrently() {
             package_names: &package_names,
             range_spec_style: RangeSpecStyle::Patch,
             lockfile_only: true,
+            save_types: false,
         },
         resources: crate::AddResources {
             tarball_mem_cache: Arc::default(),
@@ -351,6 +353,7 @@ async fn add_reports_catalog_warnings_in_selector_order() {
             package_names: &package_names,
             range_spec_style: RangeSpecStyle::Patch,
             lockfile_only: true,
+            save_types: false,
         },
         resources: crate::AddResources {
             tarball_mem_cache: Arc::default(),
@@ -451,6 +454,7 @@ async fn add_reports_resolution_errors_in_selector_order() {
             package_names: &package_names,
             range_spec_style: RangeSpecStyle::Patch,
             lockfile_only: true,
+            save_types: false,
         },
         resources: crate::AddResources {
             tarball_mem_cache: Arc::default(),
