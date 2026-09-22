@@ -304,6 +304,7 @@ pub(super) const ABBREVIATED_VERSION_FIELDS: &[&str] = &[
     "libc",
     "peerDependenciesMeta",
     "hasInstallScript",
+    "license",
 ];
 
 /// Strip a parsed packument down to the abbreviated install-v1 form.
