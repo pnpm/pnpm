@@ -160,6 +160,13 @@ pub enum ConfigError {
     )]
     SetUnsupportedYamlConfigKey { key: String },
 
+    #[display("Cannot set structured config key {key:?} to a non-object value")]
+    #[diagnostic(
+        code(ERR_PNPM_CONFIG_SET_STRUCTURED_VALUE),
+        help("Use --json with an object value")
+    )]
+    SetStructuredValue { key: String },
+
     #[display("Invalid property path: {_0}")]
     #[diagnostic(code(ERR_PNPM_CONFIG_INVALID_PROPERTY_PATH))]
     InvalidPropertyPath(#[error(not(source))] property_path::ParsePropertyPathError),
@@ -289,6 +296,9 @@ fn config_set(
             }
             key = validate_workspace_key(&key)?;
             let cast = cast_field(value, &naming_cases::to_kebab_case(&key));
+            if key == "macosBackup" && !cast.is_null() && !cast.is_object() {
+                return Err(ConfigError::SetStructuredValue { key }.into());
+            }
             update_manifest_field(&config_path, &key, &cast).map_err(miette::Report::new)?;
         }
         _ => {

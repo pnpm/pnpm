@@ -1,5 +1,4 @@
 use super::{InstallScope, project_dirs_to_capture};
-use crate::install::run::workspace::ImporterSelection;
 use pnpm_package_manifest::PackageManifest;
 use serde_json::json;
 use std::{collections::HashSet, path::PathBuf};
@@ -19,13 +18,16 @@ fn captures_unselected_workspace_projects_reached_by_link_dependencies() {
             (selected_dir.clone(), &selected_manifest),
             (linked_dir.clone(), &linked_manifest),
         ],
-        importers: ImporterSelection {
-            real_importer_ids: HashSet::from(["packages/selected".to_string()]),
+        importers: crate::install::run::workspace::ImporterSelection {
+            real_importer_ids: HashSet::new(),
             filtered_install: true,
-            requested_importer_ids: Some(HashSet::from(["packages/selected".to_string()])),
+            requested_importer_ids: None,
         },
         prune_stale_importers: false,
     };
 
-    assert_eq!(project_dirs_to_capture(&scope), vec![selected_dir, linked_dir]);
+    assert_eq!(
+        project_dirs_to_capture(&scope, Some(&HashSet::from([selected_dir.clone()]))),
+        vec![selected_dir, linked_dir],
+    );
 }
