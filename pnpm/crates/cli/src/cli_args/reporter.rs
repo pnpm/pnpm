@@ -25,10 +25,11 @@ pub enum ReporterType {
 impl From<u8> for ReporterType {
     fn from(value: u8) -> Self {
         match value {
+            0 => ReporterType::Default,
             1 => ReporterType::AppendOnly,
             2 => ReporterType::Ndjson,
             3 => ReporterType::Silent,
-            _ => ReporterType::Default,
+            _ => unreachable!("invalid reporter discriminant: {value}"),
         }
     }
 }

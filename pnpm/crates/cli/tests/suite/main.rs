@@ -85,6 +85,7 @@ mod lockfile_only;
 mod lockfile_resolution_reuse;
 mod lockfile_verification;
 mod login;
+mod loglevel;
 mod logout;
 mod minimum_release_age;
 mod modules_dir;

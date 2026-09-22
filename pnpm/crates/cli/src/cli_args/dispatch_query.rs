@@ -7,6 +7,7 @@ pub(super) use registry::{
     access, deprecate, dist_tag, login, logout, owner, ping, search, star, stars, team,
     undeprecate, unpublish, unstar, view, whoami,
 };
+use std::sync::atomic::Ordering;
 
 use super::{
     access::AccessArgs,
@@ -104,9 +105,10 @@ pub(super) fn outdated<'a>(
         }));
     }
     let command_state = ctx.prepared_state(false);
-    let reporter = ctx.reporter();
+    let effective_reporter = ctx.effective_reporter;
     Ok(Box::pin(async move {
         let command_state = command_state.await?;
+        let reporter = effective_reporter.load(Ordering::Relaxed).into();
         let outcome = match reporter {
             ReporterType::Default | ReporterType::AppendOnly => {
                 args.run::<DefaultReporter>(command_state).await?
@@ -128,9 +130,9 @@ pub(super) fn outdated<'a>(
 pub(super) fn audit<'a>(ctx: &RunCtx<'a>, args: AuditArgs) -> miette::Result<CommandFuture<'a>> {
     let command_state = ctx.prepared_state(true);
     macro_rules! run_audit {
-        ($reporter:ty) => {
+        ($reporter:ty, $command_state:ident) => {
             Box::pin(async move {
-                if args.run::<$reporter>(command_state.await?).await? == AuditOutcome::Vulnerable {
+                if args.run::<$reporter>($command_state).await? == AuditOutcome::Vulnerable {
                     #[expect(
                         clippy::exit,
                         reason = "`audit` exits non-zero when vulnerabilities are found, mirroring pnpm"
@@ -141,11 +143,17 @@ pub(super) fn audit<'a>(ctx: &RunCtx<'a>, args: AuditArgs) -> miette::Result<Com
             })
         };
     }
-    Ok(match ctx.reporter() {
-        ReporterType::Default | ReporterType::AppendOnly => run_audit!(DefaultReporter),
-        ReporterType::Ndjson => run_audit!(NdjsonReporter),
-        ReporterType::Silent => run_audit!(SilentReporter),
-    })
+    let effective_reporter = ctx.effective_reporter;
+    Ok(Box::pin(async move {
+        let command_state = command_state.await?;
+        match effective_reporter.load(Ordering::Relaxed).into() {
+            ReporterType::Default | ReporterType::AppendOnly => {
+                run_audit!(DefaultReporter, command_state).await
+            }
+            ReporterType::Ndjson => run_audit!(NdjsonReporter, command_state).await,
+            ReporterType::Silent => run_audit!(SilentReporter, command_state).await,
+        }
+    }))
 }
 
 pub(super) fn list<'a>(ctx: &RunCtx<'a>, args: ListArgs) -> miette::Result<CommandFuture<'a>> {

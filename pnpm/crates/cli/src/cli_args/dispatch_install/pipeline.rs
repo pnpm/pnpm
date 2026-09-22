@@ -3,6 +3,7 @@ use super::{
     ReporterType, RunCtx, UpdateCheckPolicy, WatchInvocation, install_with_config,
     install_with_update_check, reporter_emit, run_pipeline, run_watch,
 };
+use std::sync::atomic::Ordering;
 
 pub(in super::super) fn install_test<'a>(
     ctx: &RunCtx<'a>,
@@ -30,12 +31,13 @@ pub(in super::super) fn install_test<'a>(
     let dir = ctx.locations.dir;
     let recursive = ctx.workspace.recursive;
     let config = ctx.loaders.config;
-    let reporter = ctx.reporter();
+    let effective_reporter = ctx.effective_reporter;
 
     Ok(Box::pin(async move {
         install_future.await?;
 
         let cfg = config()?;
+        let reporter = effective_reporter.load(Ordering::Relaxed).into();
         run_args.workspace.no_bail = !cfg.bail;
         run_args.workspace.sort = cfg.sort;
         run_args.workspace.reverse = cfg.reverse;
@@ -70,10 +72,11 @@ pub(in super::super) fn pipeline<'a>(
         Some(install_with_config(ctx, install_args, UpdateCheckPolicy::Skip)?)
     };
     let dir = ctx.locations.dir;
-    let reporter = ctx.reporter();
+    let effective_reporter = ctx.effective_reporter;
     let config = ctx.loaders.config;
     Ok(Box::pin(async move {
         let cfg = if let Some(install) = install_future { install.await? } else { config()? };
+        let reporter = effective_reporter.load(Ordering::Relaxed).into();
         let outcome = run_pipeline(&invocation, cfg, dir, reporter)?;
         // The run is recorded before the failure exit is raised, so a red
         // run reaches the server too.
