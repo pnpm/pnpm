@@ -47,6 +47,17 @@ test('matcher()', () => {
     expect(match('eslint-plugin-foo')).toBe(false)
     expect(match('eslint-plugin-bar')).toBe(true)
   }
+  {
+    const match = createMatcher(['?eb*'])
+    expect(match('web')).toBe(true)
+    expect(match('website')).toBe(true)
+    expect(match('eb')).toBe(false)
+  }
+  {
+    const match = createMatcher(['@local/?'])
+    expect(match('@local/a')).toBe(true)
+    expect(match('@local/ab')).toBe(false)
+  }
 })
 
 test('createMatcherWithIndex()', () => {

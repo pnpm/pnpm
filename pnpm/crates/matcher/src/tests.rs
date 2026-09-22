@@ -113,18 +113,32 @@ fn empty_pattern_list_never_matches() {
 }
 
 #[test]
-fn regex_special_chars_are_literal() {
+fn regex_special_chars_are_literal_except_star_and_question() {
     let matcher = create_matcher(&pats(["a.b"]));
     assert!(matcher.matches("a.b"));
-    assert!(!matcher.matches("axb"));
-
-    let matcher = create_matcher(&pats(["a?b"]));
-    assert!(matcher.matches("a?b"));
     assert!(!matcher.matches("axb"));
 
     let matcher = create_matcher(&pats(["(foo)"]));
     assert!(matcher.matches("(foo)"));
     assert!(!matcher.matches("foo"));
+}
+
+#[test]
+fn question_matches_single_character() {
+    let matcher = create_matcher(&pats(["a?b"]));
+    assert!(matcher.matches("axb"));
+    assert!(matcher.matches("acb"));
+    assert!(!matcher.matches("ab"));
+    assert!(!matcher.matches("axxb"));
+
+    let matcher = create_matcher(&pats(["?eb*"]));
+    assert!(matcher.matches("web"));
+    assert!(matcher.matches("website"));
+    assert!(!matcher.matches("eb"));
+
+    let matcher = create_matcher(&pats(["@local/?"]));
+    assert!(matcher.matches("@local/a"));
+    assert!(!matcher.matches("@local/ab"));
 }
 
 #[test]
@@ -166,8 +180,9 @@ fn wildcard_matcher_preserves_literal_star_semantics() {
         ("*ab*bc", "abbc", true),
         ("!foo", "bar", false),
         ("!foo", "!foo", true),
-        ("a?b", "acb", false),
+        ("a?b", "acb", true),
         ("a?b", "a?b", true),
+        ("a?b", "ab", false),
         ("[ab]", "a", false),
         ("[ab]", "[ab]", true),
         ("a*b", "a/path/b", true),
