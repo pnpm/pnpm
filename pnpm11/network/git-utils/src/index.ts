@@ -124,7 +124,9 @@ function readBranchFromHeadFile (cwd?: string): string | null | undefined {
  * host process makes to auth or proxy variables reaches the next invocation.
  */
 export async function nonInteractiveGitEnv (opts: GitCwdOptions = {}): Promise<NodeJS.ProcessEnv> {
-  const gitEnv: NodeJS.ProcessEnv = { ...process.env, GIT_TERMINAL_PROMPT: '0' }
+  const gitEnv = safeGitEnv()
+  gitEnv.GIT_TERMINAL_PROMPT = '0'
+  gitEnv.GIT_ASKPASS = ''
   if (gitEnv.GIT_SSH_COMMAND === undefined && gitEnv.GIT_SSH === undefined && !(await hasConfiguredSshCommand(opts))) {
     gitEnv.GIT_SSH_COMMAND = 'ssh -o BatchMode=yes'
   }
@@ -138,10 +140,11 @@ export async function nonInteractiveGitEnv (opts: GitCwdOptions = {}): Promise<N
  */
 export async function nonInteractiveGitSubmoduleEnv (opts: GitCwdOptions = {}): Promise<NodeJS.ProcessEnv> {
   const gitEnv = await nonInteractiveGitEnv(opts)
+  const inheritedProtocols = gitEnv.GIT_ALLOW_PROTOCOL
   const protocolPolicies = await readGitProtocolPolicies(opts)
   gitEnv.GIT_ALLOW_PROTOCOL = supportedGitProtocols
     .filter((protocol) => isGitProtocolEnabled(protocol, protocolPolicies))
-    .filter((protocol) => gitEnv.GIT_ALLOW_PROTOCOL == null || gitEnv.GIT_ALLOW_PROTOCOL.split(':').includes(protocol))
+    .filter((protocol) => inheritedProtocols == null || inheritedProtocols.split(':').includes(protocol))
     .join(':')
   return gitEnv
 }
@@ -150,7 +153,7 @@ const supportedGitProtocols = ['file', 'git', 'http', 'https', 'ssh']
 
 async function readGitProtocolPolicies (opts: GitCwdOptions): Promise<Record<string, string>> {
   try {
-    const { stdout } = await execa('git', ['config', '--null', '--get-regexp', '^protocol\\.'], { cwd: opts.cwd })
+    const { stdout } = await execa('git', ['config', '--null', '--get-regexp', '^protocol\\.'], { cwd: opts.cwd, env: safeGitEnv() })
     return Object.fromEntries(
       String(stdout)
         .split('\0')
@@ -183,9 +186,17 @@ function isGitProtocolEnabled (protocol: string, policies: Record<string, string
  */
 async function hasConfiguredSshCommand (opts: GitCwdOptions): Promise<boolean> {
   try {
-    await execa('git', ['config', '--get', 'core.sshCommand'], { cwd: opts.cwd })
+    await execa('git', ['config', '--get', 'core.sshCommand'], { cwd: opts.cwd, env: safeGitEnv() })
     return true
   } catch {
     return false
   }
+}
+
+function safeGitEnv (): NodeJS.ProcessEnv {
+  const gitEnv = { ...process.env }
+  for (const name of ['GIT_DIR', 'GIT_WORK_TREE', 'GIT_INDEX_FILE', 'GIT_OBJECT_DIRECTORY', 'GIT_ALTERNATE_OBJECT_DIRECTORIES']) {
+    delete gitEnv[name]
+  }
+  return gitEnv
 }

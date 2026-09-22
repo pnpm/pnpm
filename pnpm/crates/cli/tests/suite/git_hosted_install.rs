@@ -128,7 +128,7 @@ fn git_resolution<'a>(lockfile: &'a Lockfile, name: &str) -> &'a pnpm_lockfile::
 /// (`LockfileResolution::Git`) without needing an SSH agent.
 #[test]
 fn install_from_a_git_repo() {
-    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
+    let CommandTempCwd { mut pacquet, root, workspace, npmrc_info, .. } =
         CommandTempCwd::init().add_mocked_registry();
     let (repo, commit) = simple_repo(root.path(), "is-negative", "1.0.0");
     write_dependencies(&workspace, &[("is-negative", &repo.git_url_at(&commit))]);
@@ -168,10 +168,10 @@ fn install_from_a_git_repo_with_submodules() {
     let commit = repository.commit("add submodule");
     write_dependencies(&workspace, &[("with-submodule", &repository.git_url_at(&commit))]);
 
+    pacquet.env("GIT_CONFIG_COUNT", "1");
+    pacquet.env("GIT_CONFIG_KEY_0", "protocol.file.allow");
+    pacquet.env("GIT_CONFIG_VALUE_0", "always");
     pacquet
-        .env("GIT_CONFIG_COUNT", "1")
-        .env("GIT_CONFIG_KEY_0", "protocol.file.allow")
-        .env("GIT_CONFIG_VALUE_0", "always")
         .with_args(["install"])
         .assert()
         .success();

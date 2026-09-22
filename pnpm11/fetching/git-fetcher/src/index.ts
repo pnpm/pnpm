@@ -41,20 +41,20 @@ export function createGitFetcher (createOpts: CreateGitFetcherOptions): { git: G
       } else {
         await execGit(['clone', resolution.repo, tempLocation], { env: await nonInteractiveGitEnv() })
       }
+      await execGit(['checkout', resolution.commit], { cwd: tempLocation })
+      const receivedCommit = await execGit(['rev-parse', 'HEAD'], { cwd: tempLocation })
+      if (receivedCommit.trim() !== resolution.commit) {
+        throw new PnpmError('GIT_CHECKOUT_FAILED', `received commit ${receivedCommit.trim()} does not match expected value ${resolution.commit}`)
+      }
+      if (await hasGitSubmodules(tempLocation)) {
+        await execGit(['submodule', 'update', '--init', '--recursive', '--checkout'], {
+          cwd: tempLocation,
+          env: await nonInteractiveGitSubmoduleEnv({ cwd: tempLocation }),
+        })
+      }
     } catch (err: unknown) {
       assert(util.types.isNativeError(err))
       throw gitFetchError(err, resolution.repo, opts.pkg?.name)
-    }
-    await execGit(['checkout', resolution.commit], { cwd: tempLocation })
-    const receivedCommit = await execGit(['rev-parse', 'HEAD'], { cwd: tempLocation })
-    if (receivedCommit.trim() !== resolution.commit) {
-      throw new PnpmError('GIT_CHECKOUT_FAILED', `received commit ${receivedCommit.trim()} does not match expected value ${resolution.commit}`)
-    }
-    if (await hasGitSubmodules(tempLocation)) {
-      await execGit(['submodule', 'update', '--init', '--recursive', '--checkout'], {
-        cwd: tempLocation,
-        env: await nonInteractiveGitSubmoduleEnv({ cwd: tempLocation }),
-      })
     }
     let pkgDir: string
     let requiresPrepare: boolean

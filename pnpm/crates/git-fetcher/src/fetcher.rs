@@ -489,6 +489,15 @@ pub(crate) fn exec_git_with(
 ) -> Result<String, GitFetcherError> {
     let prefix = prefix_git_args();
     let mut cmd = Command::new(bin);
+    for name in [
+        "GIT_DIR",
+        "GIT_WORK_TREE",
+        "GIT_INDEX_FILE",
+        "GIT_OBJECT_DIRECTORY",
+        "GIT_ALTERNATE_OBJECT_DIRECTORIES",
+    ] {
+        cmd.env_remove(name);
+    }
     for arg in prefix {
         cmd.arg(arg);
     }

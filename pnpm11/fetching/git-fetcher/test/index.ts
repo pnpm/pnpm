@@ -107,7 +107,7 @@ test('fetch includes committed Git submodules', async () => {
     GIT_CONFIG_COUNT: '1',
     GIT_CONFIG_KEY_0: 'protocol.file.allow',
     GIT_CONFIG_VALUE_0: 'always',
-  }, async () => await fetch(
+  }, async () => fetch(
     createCafsStore(storeDir),
     { commit: String(commit).trim(), repo: pathToFileURL(packageDir).href, type: 'git' },
     { filesIndexFile: path.join(storeDir, 'index.json') }
