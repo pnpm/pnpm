@@ -30,20 +30,12 @@ pub(super) fn capture_time_machine_exclusions(
     }
     let project_dirs = if config.macos_backup.exclude_modules_dir {
         // A filtered non-hoisted install can follow dependency edges into
-        // unselected workspace importers. Capture the selected importers and
-        // that transitive closure before the install; `apply` keeps only
-        // directories the install actually created.
+        // unselected workspace importers, including edges introduced by
+        // package hooks. Capture every workspace root before the install;
+        // `apply` keeps only directories the install actually created.
         project_dirs_to_capture(
             scope,
-            if execution.options.manifests.hooked_paths.is_empty() {
-                execution.options.selection.as_ref().map(|selection| selection.install_dirs)
-            } else {
-                // A readPackage hook can add workspace edges after this
-                // pre-install snapshot. Capture every workspace root so a
-                // hook-created link cannot leave its new modules directory
-                // backed up.
-                None
-            },
+            None,
             config.link_workspace_packages != LinkWorkspacePackages::Off,
         )
     } else {
