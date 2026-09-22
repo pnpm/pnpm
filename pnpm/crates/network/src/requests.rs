@@ -125,8 +125,8 @@ impl ThrottledClient {
         // concurrency permit: a request queued behind a saturated origin must
         // not hold a global slot while it waits, or a burst to one origin would
         // hoard every global permit and starve requests to other origins.
-        let host_permit = match &self.host_socket_limit {
-            Some(limit) => limit.acquire(url).await,
+        let host_permit = match self.proxy_routing.effective_socket_origin(url) {
+            Some((origin, is_proxied)) => self.host_socket_limit.acquire(&origin, is_proxied).await,
             None => None,
         };
         let permit = self.semaphore.acquire(priority).await;

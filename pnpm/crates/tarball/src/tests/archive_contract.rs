@@ -443,3 +443,43 @@ async fn zip_download_limits_cover_content_lengths_and_chunked_bodies() {
         request.assert_async().await;
     }
 }
+
+#[tokio::test]
+async fn request_archive_quick_retries_transient_connection_reset() {
+    use tokio::io::{AsyncReadExt, AsyncWriteExt};
+
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let address = listener.local_addr().unwrap();
+
+    let server_task = tokio::spawn(async move {
+        if let Ok((mut socket, _)) = listener.accept().await {
+            let mut buf = [0u8; 1024];
+            let _ = socket.read(&mut buf).await;
+            drop(socket);
+        }
+        if let Ok((mut socket, _)) = listener.accept().await {
+            let mut buf = [0u8; 1024];
+            let _ = socket.read(&mut buf).await;
+            let response = "HTTP/1.1 200 OK\r\nContent-Length: 4\r\nConnection: close\r\n\r\ndone";
+            let _ = socket.write_all(response.as_bytes()).await;
+        }
+    });
+
+    let client = ThrottledClient::default();
+    let url = format!("http://{address}/pkg.tgz");
+    let result = crate::archive_request::request_archive::<SilentReporter>(
+        &client,
+        &url,
+        "test-pkg",
+        &AuthHeaders::default(),
+        0,
+        0,
+        false,
+    )
+    .await;
+
+    let (_guard, response) = result.expect("quick retry must recover from initial connection drop");
+    assert_eq!(response.status(), 200);
+    assert_eq!(response.text().await.unwrap(), "done");
+    server_task.await.unwrap();
+}
