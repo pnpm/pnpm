@@ -553,10 +553,7 @@ fn update_tag_selector_resolves_the_named_tag() {
     drop((root, anchor));
 }
 
-/// A tag selector names a specifier of its own, so a declared range whose
-/// shape no save prefix describes is replaced by the default prefix even
-/// when the tag's version stays inside it, the same as a version selector
-/// (pnpm/pnpm#6714).
+/// Regression test for <https://github.com/pnpm/pnpm/issues/6714>.
 #[test]
 fn update_tag_selector_replaces_a_range_whose_shape_no_save_prefix_describes() {
     let (root, workspace, anchor) = setup_with_own_registry();
