@@ -426,7 +426,7 @@ async fn selected_update_no_save_skips_a_selector_outside_the_kept_range() {
 
     let packages = ["foo@2.0.0".to_string()];
     let (update, owned) = test_update(config, &packages, false, false);
-    let prepared = prepare_selected_manifests::<SilentReporter>(
+    let mut prepared = prepare_selected_manifests::<SilentReporter>(
         &mut projects,
         &indices,
         dir.path(),
@@ -442,6 +442,37 @@ async fn selected_update_no_save_skips_a_selector_outside_the_kept_range() {
     assert_eq!(dependency_specifier(&projects[0].manifest), "^1.0.0");
     assert!(prepared.persist_indices.is_empty());
     assert!(prepared.catalogs_override.is_none());
+    assert!(prepared.take_seed(update).preferred_versions_override.is_empty());
+}
+
+#[tokio::test]
+async fn selected_update_no_save_keeps_an_override_owned_specifier() {
+    let dir = tempdir().expect("create tempdir");
+    std::fs::write(dir.path().join("pnpm-workspace.yaml"), "packages:\n  - '*'\n")
+        .expect("write workspace manifest");
+    let mut projects = vec![project_with_foo(dir.path(), "a")];
+    let selected_indices = [0];
+    let mut config = Config::new();
+    config.overrides =
+        Some(std::iter::once(("foo@^1.0.0".to_string(), "^2.0.0".to_string())).collect());
+    let packages = ["foo@2.0.1".to_string()];
+    let (update, owned) = test_update(config, &packages, false, false);
+    let mut prepared = prepare_selected_manifests::<SilentReporter>(
+        &mut projects,
+        &selected_indices,
+        dir.path(),
+        update,
+        &owned,
+    )
+    .await
+    .expect("prepare selected manifests");
+
+    // The requested version fits the override, but rewriting the original
+    // declaration would make the scoped override stop matching on the next install.
+    assert_eq!(dependency_specifier(&projects[0].manifest), "^1.0.0");
+    assert_eq!(saved_dependency_specifier(&projects[0].manifest), "^1.0.0");
+    let seed = prepared.take_seed(update);
+    assert!(seed.preferred_versions_override.is_empty());
 }
 
 #[tokio::test]

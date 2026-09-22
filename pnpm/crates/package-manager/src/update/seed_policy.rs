@@ -31,11 +31,18 @@ pub(super) struct UpdateScope<'a> {
     /// The direct dependencies as the manifest declared them before the
     /// update rewrote anything: `(name, group, specifier)`.
     pub(super) direct: &'a [(String, DependencyGroup, String)],
+    pub(super) overridden_direct: &'a [OverriddenDirect],
     pub(super) lockfile: Option<&'a Lockfile>,
     pub(super) config: &'a Config,
     pub(super) version: super::UpdateVersionOptions,
     pub(super) depth: usize,
     pub(super) updates_all_groups: bool,
+}
+
+pub(super) struct OverriddenDirect {
+    pub(super) name: String,
+    pub(super) group: DependencyGroup,
+    pub(super) effective_specifier: Option<String>,
 }
 /// What the branches accumulate on the way to a seed policy.
 #[derive(Default)]
