@@ -1,12 +1,12 @@
 //! Read a project's package manifest.
 
+pub(crate) use pnpm_package_manifest::PROJECT_MANIFEST_BASENAMES;
+pub use pnpm_package_manifest::project_manifest_path;
+
 use derive_more::{Display, Error};
 use miette::Diagnostic;
-pub use pnpm_package_manifest::project_manifest_path;
 use pnpm_package_manifest::{PackageManifest, PackageManifestError};
 use std::path::{Path, PathBuf};
-
-pub(crate) use pnpm_package_manifest::PROJECT_MANIFEST_BASENAMES;
 
 /// Error type of [`read_exact_project_manifest`].
 #[derive(Debug, Display, Error, Diagnostic)]

@@ -60,7 +60,7 @@ fn add_update_remove_preserve_json5_comments() {
         .success();
     assert_eq!(
         PackageManifest::from_path(path.clone()).unwrap().value()["dependencies"],
-        json!({"@pnpm.e2e/foo": "1.0.0"})
+        json!({"@pnpm.e2e/foo": "1.0.0"}),
     );
     command(&pacquet)
         .args(["update", "@pnpm.e2e/foo@2.0.0", "--lockfile-only"])
@@ -68,7 +68,7 @@ fn add_update_remove_preserve_json5_comments() {
         .success();
     assert_eq!(
         PackageManifest::from_path(path.clone()).unwrap().value()["dependencies"],
-        json!({"@pnpm.e2e/foo": "2.0.0"})
+        json!({"@pnpm.e2e/foo": "2.0.0"}),
     );
     command(&pacquet)
         .args(["remove", "@pnpm.e2e/foo", "--lockfile-only"])
@@ -79,7 +79,7 @@ fn add_update_remove_preserve_json5_comments() {
             .unwrap()
             .value()
             .get("dependencies"),
-        None
+        None,
     );
     let text = fs::read_to_string(path).unwrap();
     assert!(text.contains("// project"), "{text}");
@@ -133,24 +133,28 @@ fn install_runs_json5_project_hooks() {
 }
 
 #[test]
-fn pack_accepts_json5_project_manifest() {
-    for (extra, ignored) in [("", false), ("", true), (", files: ['dist']", false)] {
-        assert_packed_json5_manifest(extra, ignored);
+fn pack_normalizes_alternative_project_manifests() {
+    for basename in ["package.json5", "package.yaml"] {
+        for (extra, ignored) in [("", false), ("", true), (", \"files\": [\"dist\"]", false)] {
+            assert_packed_manifest(basename, extra, ignored);
+        }
     }
 }
 
-fn assert_packed_json5_manifest(extra: &str, ignored: bool) {
+fn assert_packed_manifest(basename: &str, extra: &str, ignored: bool) {
     let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
     fs::write(
-        workspace.join("package.json5"),
-        format!("{{name: 'json5-fixture', version: '1.0.0'{extra}}}"),
+        workspace.join(basename),
+        format!("{{\"name\": \"json5-fixture\", \"version\": \"1.0.0\"{extra}}}"),
     )
     .unwrap();
-    fs::write(workspace.join("package.yaml"), "name: wrong\nversion: 9.0.0\n").unwrap();
+    if basename == "package.json5" {
+        fs::write(workspace.join("package.yaml"), "name: wrong\nversion: 9.0.0\n").unwrap();
+    }
     fs::create_dir(workspace.join("dist")).unwrap();
     fs::write(workspace.join("dist/index.js"), "module.exports = 1").unwrap();
     if ignored {
-        fs::write(workspace.join(".npmignore"), "package.json5\n").unwrap();
+        fs::write(workspace.join(".npmignore"), "package.json5\npackage.yaml\n").unwrap();
     }
     command(&pacquet)
         .args(["pack", "--ignore-scripts"])

@@ -81,6 +81,42 @@ test('pack a package with scoped name', async () => {
   expect(fs.existsSync('pnpm-test-scope-0.0.0.tgz')).toBeTruthy()
 })
 
+test.each([
+  ['JSON5', 'none'],
+  ['JSON5', 'ignore'],
+  ['JSON5', 'files'],
+  ['YAML', 'none'],
+  ['YAML', 'ignore'],
+  ['YAML', 'files'],
+] as const)('pack: normalizes one %s manifest with %s filtering', async (manifestFormat, filtering) => {
+  prepare({
+    name: 'alternative-manifest',
+    version: '1.0.0',
+    ...(filtering === 'files' ? { files: ['dist'] } : {}),
+  }, { manifestFormat })
+  fs.mkdirSync('dist')
+  fs.writeFileSync('dist/index.js', 'module.exports = 1')
+  if (manifestFormat === 'JSON5') {
+    fs.writeFileSync('package.yaml', 'name: wrong\nversion: 9.0.0\n')
+  }
+  if (filtering === 'ignore') {
+    fs.writeFileSync('.npmignore', 'package.json5\npackage.yaml\n')
+  }
+  await pack.handler({ ...DEFAULT_OPTS, argv: { original: [] }, dir: process.cwd(), extraBinPaths: [] })
+  const entries: string[] = []
+  await tar.t({ file: 'alternative-manifest-1.0.0.tgz', onReadEntry: entry => {
+    entries.push(entry.path)
+  } })
+  expect(entries.filter(entry => entry === 'package/package.json')).toHaveLength(1)
+  expect(entries).not.toContain('package/package.json5')
+  expect(entries).not.toContain('package/package.yaml')
+  fs.mkdirSync('unpacked')
+  await tar.x({ file: 'alternative-manifest-1.0.0.tgz', cwd: 'unpacked' })
+  expect(JSON.parse(fs.readFileSync('unpacked/package/package.json', 'utf8'))).toMatchObject({
+    name: 'alternative-manifest', version: '1.0.0',
+  })
+})
+
 test('pack: with dry-run', async () => {
   prepare({
     name: 'test-publish-package.json',
