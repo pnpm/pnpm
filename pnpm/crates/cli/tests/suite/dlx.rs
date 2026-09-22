@@ -59,6 +59,42 @@ fn dlx_clears_inherited_node_environment_without_node_on_path() {
     drop(root);
 }
 
+#[test]
+fn dlx_does_not_resolve_node_from_dlx_bin() {
+    let CommandTempCwd { mut pacquet, root, workspace, .. } = CommandTempCwd::init();
+    let expected_node = which::which("node").expect("find real node");
+    let fixture = workspace.join("node-bin-pkg");
+    let fixture_bin = fixture.join("bin");
+    std::fs::create_dir_all(&fixture_bin).expect("create package bin dir");
+    std::fs::write(
+        fixture.join("package.json"),
+        r#"{"name":"fake-node-pkg","version":"1.0.0","bin":{"node":"bin/fake.js"}}"#,
+    )
+    .expect("write manifest");
+    std::fs::write(fixture_bin.join("fake.js"), "console.log('fake')").expect("write bin");
+    let output = pacquet
+        .args([
+            "dlx",
+            &format!("--package=file:{}", fixture.display()),
+            expected_node.to_str().unwrap(),
+            "-e",
+            "console.log(JSON.stringify({ NODE: process.env.NODE, npm_node_execpath: process.env.npm_node_execpath }))",
+        ])
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+    let env: serde_json::Value = serde_json::from_slice(&output).expect("parse child environment");
+    assert_eq!(env["NODE"], env["npm_node_execpath"]);
+    let node_path = env["NODE"].as_str().expect("node executable path");
+    assert_eq!(
+        std::fs::canonicalize(node_path).unwrap(),
+        std::fs::canonicalize(&expected_node).unwrap(),
+    );
+    drop(root);
+}
+
 /// `pacquet dlx` with no command is an error, mirroring pnpm's dlx, which
 /// prints help and exits non-zero when given neither a command nor a
 /// `--package`.

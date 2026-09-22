@@ -274,6 +274,45 @@ fn exec_preserves_configured_node_environment() {
     }
 }
 
+#[test]
+fn exec_does_not_resolve_node_from_project_bin() {
+    let CommandTempCwd { mut pacquet, root, workspace, .. } = CommandTempCwd::init();
+    fs::write(workspace.join("package.json"), "{}").expect("write manifest");
+    let bin_dir = workspace.join("node_modules").join(".bin");
+    fs::create_dir_all(&bin_dir).expect("create .bin directory");
+    let fake_node = bin_dir.join(if cfg!(windows) { "node.cmd" } else { "node" });
+    fs::write(
+        &fake_node,
+        if cfg!(windows) { "@echo off\r\necho fake" } else { "#!/bin/sh\necho fake\n" },
+    )
+    .expect("write fake node");
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        fs::set_permissions(&fake_node, fs::Permissions::from_mode(0o755))
+            .expect("chmod fake node");
+    }
+    let expected_node = which::which("node").expect("find real node");
+    let output = pacquet
+        .args([
+            "exec",
+            expected_node.to_str().unwrap(),
+            "-e",
+            "console.log(JSON.stringify({ NODE: process.env.NODE, npm_node_execpath: process.env.npm_node_execpath }))",
+        ])
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+    let env: serde_json::Value = serde_json::from_slice(&output).expect("parse child environment");
+    assert_eq!(env["NODE"], env["npm_node_execpath"]);
+    let node_path = env["NODE"].as_str().expect("node executable path");
+    assert_eq!(fs::canonicalize(node_path).unwrap(), fs::canonicalize(&expected_node).unwrap());
+    assert_ne!(fs::canonicalize(node_path).unwrap(), fs::canonicalize(&fake_node).unwrap());
+    drop(root);
+}
+
 /// `pacquet exec <command>` resolves the command against the project's
 /// `node_modules/.bin` directory and runs it. Mirrors pnpm's exec, which
 /// prepends `./node_modules/.bin` to PATH before spawning.
