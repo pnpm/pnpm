@@ -19,6 +19,7 @@ const f = fixtures(import.meta.dirname)
 const hasOutdatedDepsFixture = f.find('has-outdated-deps')
 
 test('commands that were previously passed through to npm now fail', () => {
+  prepareEmpty()
   const result = execPnpmSync(['xmas'])
 
   expect(result.status).not.toBe(0)
