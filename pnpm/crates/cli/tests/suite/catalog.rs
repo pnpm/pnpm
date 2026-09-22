@@ -495,6 +495,77 @@ fn removes_unused_entries_from_the_workspace_catalog() {
     drop((root, anchor));
 }
 
+/// Regression test for [pnpm/pnpm#15273](https://github.com/pnpm/pnpm/issues/15273):
+/// With `catalogPrune: true`, `pnpm install` drops the catalog entries no importer
+/// references while keeping the referenced ones, and repeat installs succeed.
+#[test]
+fn install_removes_unused_entries_from_the_workspace_catalog() {
+    let (root, workspace, anchor) = setup();
+    write_manifest(
+        &workspace,
+        &format!(r#"{{ "{FOO}": "catalog:", "@pnpm.e2e/peer-a": "catalog:named" }}"#),
+    );
+    append_workspace_yaml(
+        &workspace,
+        &format!(
+            "catalogPrune: true\n\
+             catalog:\n  \
+               '{FOO}': 1.0.0\n  \
+               '@pnpm.e2e/bar': 100.0.0\n\
+             catalogs:\n  \
+               named:\n    \
+                 '@pnpm.e2e/peer-a': 1.0.0\n    \
+                 '@pnpm.e2e/baz': 100.0.0\n",
+        ),
+    );
+
+    run_ok(&workspace, &["install"]);
+
+    let workspace_yaml = read(&workspace, "pnpm-workspace.yaml");
+    assert!(
+        workspace_yaml.contains(&format!("'{FOO}': 1.0.0")),
+        "the referenced default catalog entry must survive:\n{workspace_yaml}",
+    );
+    assert!(
+        workspace_yaml.contains("'@pnpm.e2e/peer-a': 1.0.0"),
+        "the referenced named catalog entry must survive:\n{workspace_yaml}",
+    );
+    assert!(
+        !workspace_yaml.contains("@pnpm.e2e/bar"),
+        "the unreferenced default catalog entry must be removed:\n{workspace_yaml}",
+    );
+    assert!(
+        !workspace_yaml.contains("@pnpm.e2e/baz"),
+        "the unreferenced named catalog entry must be removed:\n{workspace_yaml}",
+    );
+
+    // Repeat install succeeds and takes the up-to-date fast path.
+    run_ok(&workspace, &["install"]);
+
+    drop((root, anchor));
+}
+
+/// With `--dry-run`, `pnpm install` does not prune unused catalog entries.
+#[test]
+fn install_dry_run_does_not_prune_workspace_catalogs() {
+    let (root, workspace, anchor) = setup();
+    write_manifest(&workspace, &format!(r#"{{ "{FOO}": "catalog:" }}"#));
+    append_workspace_yaml(
+        &workspace,
+        &format!("catalogPrune: true\ncatalog:\n  '{FOO}': 1.0.0\n  '@pnpm.e2e/bar': 100.0.0\n"),
+    );
+
+    run_ok(&workspace, &["install", "--dry-run"]);
+
+    let workspace_yaml = read(&workspace, "pnpm-workspace.yaml");
+    assert!(
+        workspace_yaml.contains("@pnpm.e2e/bar"),
+        "dry-run must not modify pnpm-workspace.yaml:\n{workspace_yaml}",
+    );
+
+    drop((root, anchor));
+}
+
 /// With `minimumReleaseAgeExcludePrune: true`, a
 /// manifest-persisting command (`pnpm add` here) prunes the
 /// `minimumReleaseAgeExclude` entries the freshly resolved lockfile no

@@ -72,7 +72,6 @@ use pnpm_tarball::MemCache;
 use pnpm_workspace_state::{ProjectEntry, WorkspaceState, update_workspace_state};
 use std::{
     collections::{BTreeMap, BTreeSet, HashMap, HashSet},
-    io::IsTerminal,
     path::{Path, PathBuf},
     sync::{Arc, atomic::AtomicU8},
     time::SystemTime,
