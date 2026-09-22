@@ -56,12 +56,12 @@ pub enum PackageManifestError {
         source: io::Error,
     },
 
-    #[display("package.json file already exists")]
+    #[display("{filename} file already exists")]
     #[diagnostic(
         code(ERR_PNPM_PACKAGE_JSON_EXISTS),
-        help("Your current working directory already has a package.json file.")
+        help("Your current working directory already has a {filename} file.")
     )]
-    AlreadyExist,
+    AlreadyExist { filename: String },
 
     #[from(ignore)] // TODO: remove this after derive(From) has been removed
     #[display("invalid attribute: {_0}")]

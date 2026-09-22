@@ -23,6 +23,17 @@ test('throws an error if a package.json exists in the current directory', async 
   ).rejects.toThrow('package.json already exists')
 })
 
+test('throws an error if a package.yaml exists in the current directory', async () => {
+  prepareEmpty()
+  fs.writeFileSync(path.resolve('package.yaml'), 'name: foo\nversion: 1.0.0\n')
+
+  await expect(
+    init.handler({ cliOptions: {} })
+  ).rejects.toThrow('package.yaml already exists')
+
+  expect(fs.existsSync(path.resolve('package.json'))).toBe(false)
+})
+
 test('init a new package.json with author and license settings', async () => {
   prepareEmpty()
   await init.handler({

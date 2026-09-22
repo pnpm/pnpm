@@ -20,8 +20,15 @@ pub(super) fn init<'a>(ctx: &RunCtx<'a>, args: &InitArgs) -> miette::Result<Comm
     let es_module = args.effective_init_type(config) == InitType::Module;
     let manifest_path = pnpm_workspace::project_manifest_path(ctx.locations.cli_dir);
     if manifest_path.exists() {
-        return Err(pnpm_package_manifest::PackageManifestError::AlreadyExist)
-            .wrap_err("initialize package.json");
+        let filename = manifest_path
+            .file_name()
+            .and_then(|s| s.to_str())
+            .unwrap_or("package.json")
+            .to_string();
+        return Err(pnpm_package_manifest::PackageManifestError::AlreadyExist {
+            filename: filename.clone(),
+        })
+        .wrap_err_with(|| format!("initialize {filename}"));
     }
     let pin_config: Option<&Config> = if args.pins_pnpm(config, ctx.locations.cli_dir) {
         Some((ctx.loaders.config_self_update)()?)

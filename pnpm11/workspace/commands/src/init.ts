@@ -84,9 +84,10 @@ export async function handler (opts: InitOptions, params?: string[]): Promise<st
   // is set to the first parent directory that has a package.json file
   // But --dir option from cliOptions should be respected.
   const initDir = opts.cliOptions.dir ?? process.cwd()
-  const manifestPath = path.join(initDir, 'package.json')
-  if (fs.existsSync(manifestPath)) {
-    throw new PnpmError('PACKAGE_JSON_EXISTS', 'package.json already exists')
+  const MANIFEST_NAMES = ['package.json', 'package.json5', 'package.yaml']
+  const existingManifest = MANIFEST_NAMES.find(name => fs.existsSync(path.join(initDir, name)))
+  if (existingManifest) {
+    throw new PnpmError('PACKAGE_JSON_EXISTS', `${existingManifest} already exists`)
   }
   const isWorkspaceSubpackage = opts.workspaceDir != null &&
     path.resolve(opts.workspaceDir) !== path.resolve(initDir)
@@ -140,12 +141,11 @@ export async function handler (opts: InitOptions, params?: string[]): Promise<st
     'packageManager',
   ].map((key, index) => [key, index]))
   const sortedPackageJson = sortKeysByPriority({ priority }, packageJson)
-  // Checked again right before the write, not only on entry: the pin lookup
-  // above waits on a registry, and a manifest that appeared during that wait
-  // must not be overwritten.
-  if (fs.existsSync(manifestPath)) {
-    throw new PnpmError('PACKAGE_JSON_EXISTS', 'package.json already exists')
+  const existingManifestBeforeWrite = MANIFEST_NAMES.find(name => fs.existsSync(path.join(initDir, name)))
+  if (existingManifestBeforeWrite) {
+    throw new PnpmError('PACKAGE_JSON_EXISTS', `${existingManifestBeforeWrite} already exists`)
   }
+  const manifestPath = path.join(initDir, 'package.json')
   await writeProjectManifest(manifestPath, sortedPackageJson, {
     indent: 2,
   })
