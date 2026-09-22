@@ -86,3 +86,32 @@ test('a devEngines.runtime is never promoted into a catalog under catalogMode=st
     },
   })
 })
+
+test('devEngines.runtime range without download does not replace running Node.js version for optional dependencies', async () => {
+  const runningNodeMajor = Number(process.versions.node.split('.')[0])
+  const project = prepare({
+    optionalDependencies: {
+      dependency: 'file:dependency',
+    },
+    devEngines: {
+      runtime: {
+        name: 'node',
+        version: `>=${runningNodeMajor - 1}.0.0`,
+        onFail: 'error',
+      },
+    },
+  })
+  fs.mkdirSync('dependency')
+  fs.writeFileSync('dependency/package.json', JSON.stringify({
+    name: 'dependency',
+    version: '1.0.0',
+    engines: {
+      node: `>=${runningNodeMajor}.0.0`,
+    },
+  }))
+
+  await execPnpm(['install'])
+
+  project.has('dependency')
+})
+

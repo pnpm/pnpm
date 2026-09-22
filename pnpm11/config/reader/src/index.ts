@@ -541,9 +541,6 @@ export async function getConfig (opts: {
         pnpmConfig.wantedPackageManager = wantedPmResult.pm
       }
       warnings.push(...wantedPmResult.warnings)
-      if (pnpmConfig.nodeVersion == null) {
-        pnpmConfig.nodeVersion = getNodeVersionFromEnginesRuntime(pnpmConfig.enginePinManifest)
-      }
     }
 
     if (pnpmConfig.workspaceDir != null) {
@@ -988,8 +985,17 @@ export async function getConfig (opts: {
     }
   }
 
-  if (pnpmConfig.runtimeOnFail && pnpmConfig.rootProjectManifest) {
-    applyRuntimeOnFailOverride(pnpmConfig.rootProjectManifest, pnpmConfig.runtimeOnFail)
+  if (pnpmConfig.runtimeOnFail) {
+    if (pnpmConfig.rootProjectManifest) {
+      applyRuntimeOnFailOverride(pnpmConfig.rootProjectManifest, pnpmConfig.runtimeOnFail)
+    }
+    if (pnpmConfig.enginePinManifest && pnpmConfig.enginePinManifest !== pnpmConfig.rootProjectManifest) {
+      applyRuntimeOnFailOverride(pnpmConfig.enginePinManifest, pnpmConfig.runtimeOnFail)
+    }
+  }
+
+  if (pnpmConfig.nodeVersion == null && pnpmConfig.enginePinManifest != null) {
+    pnpmConfig.nodeVersion = getNodeVersionFromEnginesRuntime(pnpmConfig.enginePinManifest)
   }
 
   applyRemoteSideEffectsCacheEnv(pnpmConfig, env)
