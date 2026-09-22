@@ -110,6 +110,24 @@ file while workspace packages warn.
 - [ ] Docs: the setting needs an entry on the pnpm-workspace.yaml settings
       page in the docs repo.
 
+## Verified locally
+
+Tests run under Node 23 via fnm: the repo's jest transform uses
+`stripTypeScriptTypes` with `mode: 'transform'`, which the system Node 26 no
+longer supports. CI uses Node 24.
+
+- `@pnpm/workspace.projects-reader` — 11/11 on the fix branch, 13/13 on the
+  feature branch. Compile and lint clean on both.
+- `@pnpm/workspace.project-manifest-reader` — 23/23. Compile and lint clean.
+- `tsgo --build` clean across `core/types`, `config/reader`,
+  `workspace/project-manifest-reader`, `workspace/projects-reader`,
+  `workspace/projects-filter`, `deps/status`.
+- The duplicate-project bug was reproduced against the pre-fix implementation:
+  the `conflicting-manifests` fixture yielded 3 projects, two sharing a
+  `rootDir` (one from `package.json`, one from `package.json5`).
+- Fixed a `no-await-in-loop` lint error the feature commit introduced in
+  `tryReadProjectManifest`. It would have failed CI.
+
 ## Verified during review, no action needed
 
 - The `config/reader` reorder is behavior-preserving. Nothing between the two
