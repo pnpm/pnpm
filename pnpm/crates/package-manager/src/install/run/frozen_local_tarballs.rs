@@ -83,7 +83,7 @@ pub(super) async fn verify_frozen_tarballs(settled: Settled<'_, '_>) -> Result<(
     );
     let skipped = compute_frozen_skip_set(&settled, lockfile, &importer_ids).await?;
 
-    crate::optimistic_repeat_install::verify_frozen_local_tarballs(
+    let targets = crate::optimistic_repeat_install::frozen_local_tarballs_to_verify(
         &crate::optimistic_repeat_install::FrozenLocalTarballCheck {
             workspace_root: &settled.projects.workspace.dirs.workspace_root,
             importer_ids: &importer_ids,
@@ -91,6 +91,21 @@ pub(super) async fn verify_frozen_tarballs(settled: Settled<'_, '_>) -> Result<(
             lockfile,
             skipped: &skipped,
         },
-    )
-    .map_err(InstallError::LocalTarballIntegrity)
+    );
+
+    if !targets.is_empty() {
+        tokio::task::spawn_blocking(move || {
+            use rayon::prelude::*;
+            targets
+                .into_par_iter()
+                .try_for_each(|(path, integrity)| {
+                    pnpm_tarball::verify_local_file_integrity(&path, &integrity)
+                })
+        })
+        .await
+        .expect("verify frozen local tarballs task panicked")
+        .map_err(InstallError::LocalTarballIntegrity)?;
+    }
+
+    Ok(())
 }

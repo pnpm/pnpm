@@ -67,8 +67,8 @@ pub(crate) use conflict_markers::{
 pub(crate) use current_lockfile::materialized_shape_matches;
 pub use deps_status::{RunDepsStatus, check_deps_status_before_run};
 pub(crate) use local_file_deps::{
-    FrozenLocalTarballCheck, has_local_file_dep_requiring_install, has_local_file_override,
-    has_local_file_package_extension, verify_frozen_local_tarballs,
+    FrozenLocalTarballCheck, frozen_local_tarballs_to_verify, has_local_file_dep_requiring_install,
+    has_local_file_override, has_local_file_package_extension,
 };
 pub(crate) use manifest_agreement::{
     ManifestStat, modified_manifests_match_lockfile, stat_manifests, unstatted_manifests,

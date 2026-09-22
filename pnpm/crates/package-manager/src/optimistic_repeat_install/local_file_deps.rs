@@ -8,8 +8,8 @@ use super::{
 use pnpm_lockfile::{LockfileResolution, PkgName};
 use pnpm_resolving_local_resolver::local_tarball_path;
 use pnpm_workspace::importer_id_from_root_dir;
-use ssri::{Integrity, IntegrityChecker};
-use std::{borrow::Cow, collections::HashSet, fs, io::Read};
+use ssri::Integrity;
+use std::{borrow::Cow, collections::HashSet};
 
 struct LocalTarballDependency {
     project_dir: PathBuf,
@@ -40,15 +40,13 @@ impl FrozenLocalTarballCheck<'_> {
     }
 }
 
-/// Verifies local tarballs that an explicit frozen install materializes.
-///
-/// The store is indexed by the integrity recorded in the lockfile. Without
-/// this check, a warm entry lets a changed archive bypass the fetcher that
-/// normally verifies its bytes.
-pub(crate) fn verify_frozen_local_tarballs(
+/// Collects the list of local tarballs that an explicit frozen install
+/// materializes and must verify.
+pub(crate) fn frozen_local_tarballs_to_verify(
     check: &FrozenLocalTarballCheck<'_>,
-) -> Result<(), pnpm_tarball::TarballError> {
+) -> Vec<(PathBuf, ssri::Integrity)> {
     let mut verified = HashSet::new();
+    let mut targets = Vec::new();
     for key in check.package_keys() {
         let Some(metadata) = check.lockfile.packages
             .as_ref()
@@ -71,10 +69,10 @@ pub(crate) fn verify_frozen_local_tarballs(
             continue;
         };
         if verified.insert((recorded_path.clone(), integrity.to_string())) {
-            pnpm_tarball::verify_local_file_integrity(&recorded_path, integrity)?;
+            targets.push((recorded_path, integrity.clone()));
         }
     }
-    Ok(())
+    targets
 }
 
 /// Whether any project declares a mutable local directory dependency or a
@@ -322,20 +320,7 @@ fn recorded_tarball<'l>(
 }
 
 fn file_matches_integrity(path: &Path, integrity: &Integrity) -> bool {
-    let Ok(mut file) = fs::File::open(path) else { return false };
-    let Ok(metadata) = file.metadata() else { return false };
-    if !metadata.is_file() {
-        return false;
-    }
-    let mut checker = IntegrityChecker::new(integrity.clone());
-    let mut buffer = vec![0_u8; 64 * 1024].into_boxed_slice();
-    loop {
-        match file.read(&mut buffer) {
-            Ok(0) => return checker.result().is_ok(),
-            Ok(read) => checker.input(&buffer[..read]),
-            Err(_) => return false,
-        }
-    }
+    pnpm_tarball::verify_local_file_integrity(path, integrity).is_ok()
 }
 
 /// Whether a `catalog:` spec dereferences (through the workspace

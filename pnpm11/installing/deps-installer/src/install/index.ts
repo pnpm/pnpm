@@ -1756,8 +1756,9 @@ Note that in CI environments, this setting is enabled by default.`,
           lockfileDir: opts.lockfileDir,
         }, snapshot, depPath)
         if (mismatch == null) return
+        const algorithm = mismatch.expected.includes('-') ? mismatch.expected.split('-', 1)[0] : 'sha512'
         throw new TarballIntegrityError({
-          algorithm: mismatch.expected.split('-', 1)[0] ?? 'sha512',
+          algorithm,
           expected: mismatch.expected,
           found: mismatch.found,
           sri: mismatch.expected,

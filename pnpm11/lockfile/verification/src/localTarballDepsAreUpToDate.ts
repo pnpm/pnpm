@@ -1,4 +1,5 @@
 import path from 'node:path'
+import { fileURLToPath } from 'node:url'
 import util from 'node:util'
 
 import { getTarballIntegrity } from '@pnpm/crypto.hash'
@@ -30,15 +31,57 @@ export interface LocalTarballIntegrityMismatch {
   readonly path: string
 }
 
+function isUncLikeFilePayload (pathPart: string): boolean {
+  return pathPart.startsWith('\\\\') ||
+    pathPart.startsWith('////') ||
+    (pathPart.startsWith('//') && !pathPart.startsWith('///'))
+}
+
+/**
+ * Resolves a `file:` local tarball specifier to an absolute file path.
+ * Rejects UNC, network paths, and malformed inputs.
+ */
+export function resolveLocalTarballPath (lockfileDir: string, tarball: string): string | undefined {
+  if (!tarball.startsWith('file:')) return undefined
+  const pathPart = tarball.slice('file:'.length)
+  if (isUncLikeFilePayload(pathPart) || pathPart.includes('\0')) {
+    return undefined
+  }
+  if (pathPart.startsWith('/') && tarball.startsWith('file:///')) {
+    try {
+      const url = new URL(tarball)
+      if (url.protocol !== 'file:' || url.host) {
+        return undefined
+      }
+      return fileURLToPath(url)
+    } catch {
+      return undefined
+    }
+  }
+  if (path.isAbsolute(pathPart)) {
+    return path.normalize(pathPart)
+  }
+  return path.resolve(lockfileDir, pathPart)
+}
+
 export async function findPackageTarballIntegrityMismatch (
   ctx: Pick<LocalTarballDepsUpToDateContext, 'fileIntegrityCache' | 'lockfileDir'>,
-  snapshot: PackageSnapshot,
+  snapshot?: PackageSnapshot,
   depPath?: string
 ): Promise<LocalTarballIntegrityMismatch | null> {
-  const resolution = snapshot.resolution as TarballResolution
-  const tarball = resolution.tarball ?? (depPath != null ? dp.parse(depPath).nonSemverVersion : undefined)
-  if (!tarball?.startsWith('file:') || typeof resolution.integrity !== 'string') return null
-  const filePath = path.resolve(ctx.lockfileDir, tarball.slice('file:'.length))
+  const resolution = snapshot?.resolution as TarballResolution | undefined
+  if (resolution == null || typeof resolution !== 'object') return null
+  let tarball = typeof resolution.tarball === 'string' ? resolution.tarball : undefined
+  if (tarball == null && typeof depPath === 'string') {
+    try {
+      tarball = dp.parse(depPath).nonSemverVersion
+    } catch {
+      return null
+    }
+  }
+  if (typeof tarball !== 'string' || typeof resolution.integrity !== 'string' || !resolution.integrity.trim()) return null
+  const filePath = resolveLocalTarballPath(ctx.lockfileDir, tarball)
+  if (filePath == null) return null
   const found = await readLocalTarballIntegrity(ctx.fileIntegrityCache, filePath)
   return found === resolution.integrity ? null : { expected: resolution.integrity, found, path: filePath }
 }
@@ -113,8 +156,10 @@ export async function localTarballDepsAreUpToDate (
       return false
     }
 
-    const fileRelativePath = tarballRefWithoutPeersSuffix.slice('file:'.length)
-    const filePath = path.join(lockfileDir, fileRelativePath)
+    const filePath = resolveLocalTarballPath(lockfileDir, tarballRefWithoutPeersSuffix)
+    if (filePath == null) {
+      return false
+    }
 
     let fileIntegrity: string
     try {
@@ -126,7 +171,11 @@ export async function localTarballDepsAreUpToDate (
       return false
     }
 
-    const expected = (packageSnapshot.resolution as TarballResolution).integrity
+    const packageSnapshotResolution = packageSnapshot.resolution as TarballResolution | undefined
+    const expected = packageSnapshotResolution?.integrity
+    if (typeof expected !== 'string' || !expected.trim()) {
+      return false
+    }
     return expected === fileIntegrity
   }))
   return results.every(Boolean)

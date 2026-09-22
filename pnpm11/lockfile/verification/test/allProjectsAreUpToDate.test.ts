@@ -6,8 +6,8 @@ import { pipeline } from 'node:stream/promises'
 import { beforeEach, describe, expect, test } from '@jest/globals'
 import { LOCKFILE_VERSION } from '@pnpm/constants'
 import { getTarballIntegrity } from '@pnpm/crypto.hash'
-import type { LockfileObject, PackageSnapshot } from '@pnpm/lockfile.types'
-import { allProjectsAreUpToDate, findPackageTarballIntegrityMismatch } from '@pnpm/lockfile.verification'
+import type { LockfileObject, PackageSnapshot, TarballResolution } from '@pnpm/lockfile.types'
+import { allProjectsAreUpToDate, findPackageTarballIntegrityMismatch, resolveLocalTarballPath } from '@pnpm/lockfile.verification'
 import { prepareEmpty } from '@pnpm/prepare'
 import type { WorkspacePackages } from '@pnpm/resolving.resolver-base'
 import type { DependencyManifest, DepPath, ProjectId, ProjectRootDir } from '@pnpm/types'
@@ -599,11 +599,12 @@ describe('local tgz file dependency', () => {
     await pipeline(pack, createWriteStream('./local-tarball.tar'))
 
     const lockfileDir = process.cwd()
+    const expected = (wantedLockfile.packages!['local-tarball@file:local-tarball.tar' as DepPath]!.resolution as TarballResolution).integrity
     await expect(findPackageTarballIntegrityMismatch({
       fileIntegrityCache: new Map(),
       lockfileDir,
     }, wantedLockfile.packages!['local-tarball@file:local-tarball.tar' as DepPath]!)).resolves.toMatchObject({
-      expected: 'sha512-nQP7gWOhNQ/5HoM/rJmzOgzZt6Wg6k56CyvO/0sMmiS3UkLSmzY5mW8mMrnbspgqpmOW8q/FHyb0YIr4n2A8VQ==',
+      expected,
       path: path.join(lockfileDir, 'local-tarball.tar'),
     })
   })
@@ -652,6 +653,28 @@ describe('local tgz file dependency', () => {
       expected: 'sha512-expected',
       path: path.join(lockfileDir, 'local-tarball.tar'),
     })
+  })
+
+  test('resolveLocalTarballPath(): rejects UNC and invalid paths, resolves relative paths', () => {
+    const lockfileDir = '/workspace/root'
+    expect(resolveLocalTarballPath(lockfileDir, 'file://server/share/pkg.tgz')).toBeUndefined()
+    expect(resolveLocalTarballPath(lockfileDir, 'file:\\\\server\\share\\pkg.tgz')).toBeUndefined()
+    expect(resolveLocalTarballPath(lockfileDir, 'file:////server/share/pkg.tgz')).toBeUndefined()
+    expect(resolveLocalTarballPath(lockfileDir, 'file:pkg\0.tgz')).toBeUndefined()
+    expect(resolveLocalTarballPath(lockfileDir, 'not-a-file-protocol')).toBeUndefined()
+    expect(resolveLocalTarballPath(lockfileDir, 'file:./vendor/tar.tgz')).toBe(path.resolve(lockfileDir, './vendor/tar.tgz'))
+    expect(resolveLocalTarballPath(lockfileDir, 'file:vendor/tar.tgz')).toBe(path.resolve(lockfileDir, 'vendor/tar.tgz'))
+  })
+
+  test('findPackageTarballIntegrityMismatch(): returns null on malformed lockfile entries', async () => {
+    const lockfileDir = process.cwd()
+    const ctx = { fileIntegrityCache: new Map<string, Promise<string>>(), lockfileDir }
+    expect(await findPackageTarballIntegrityMismatch(ctx, undefined)).toBeNull()
+    expect(await findPackageTarballIntegrityMismatch(ctx, {} as PackageSnapshot)).toBeNull()
+    expect(await findPackageTarballIntegrityMismatch(ctx, { resolution: {} } as PackageSnapshot)).toBeNull()
+    expect(await findPackageTarballIntegrityMismatch(ctx, { resolution: { integrity: '' } } as PackageSnapshot)).toBeNull()
+    expect(await findPackageTarballIntegrityMismatch(ctx, { resolution: { integrity: 'sha512-abc', tarball: 'file://unc/share.tgz' } } as PackageSnapshot)).toBeNull()
+    expect(await findPackageTarballIntegrityMismatch(ctx, { resolution: { integrity: 'sha512-abc' } } as PackageSnapshot, 'invalid-dep-path-no-at')).toBeNull()
   })
 })
 
