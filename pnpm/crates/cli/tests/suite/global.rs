@@ -2,6 +2,8 @@
 //! `update -g`, `list -g`). The happy paths need the mocked registry and
 //! create real symlinks / bin shims, so they are Unix-gated.
 
+#[cfg(unix)]
+use crate::_utils::{append_workspace_yaml_key, set_minimum_release_age, without_colors};
 use assert_cmd::cargo::CommandCargoExt;
 use command_extra::CommandExtra;
 #[cfg(unix)]
@@ -36,11 +38,11 @@ fn prepare_global_home(pnpm_home: &Path, npmrc_info: &AddMockedRegistry) {
     .expect("seed the pnpm-home workspace yaml");
 }
 
-/// Build a fresh `pacquet` command in `workspace` with `PNPM_HOME` set and
-/// the global bin directory prepended to `PATH` (so `checkGlobalBinDir`
-/// passes for the mutating commands).
+/// Anchor `command` at `workspace` with `PNPM_HOME` set and the global bin
+/// directory prepended to `PATH` (so `checkGlobalBinDir` passes for the
+/// mutating commands).
 #[cfg(unix)]
-fn global_command(workspace: &Path, pnpm_home: &Path) -> Command {
+fn with_global_env(command: Command, workspace: &Path, pnpm_home: &Path) -> Command {
     // macOS temp paths use `/var` as an alias for `/private/var`, while
     // scanning a hash symlink canonicalizes its install directory. Give the
     // command the canonical fixture home so containment checks compare paths
@@ -58,8 +60,7 @@ fn global_command(workspace: &Path, pnpm_home: &Path) -> Command {
     let global_bin = pnpm_home.join("bin");
     let existing_path = std::env::var("PATH").unwrap_or_default();
     let path = format!("{}:{existing_path}", global_bin.display());
-    Command::cargo_bin("pnpm")
-        .expect("find the pnpm binary")
+    command
         .with_current_dir(workspace)
         .with_env("PNPM_HOME", &pnpm_home)
         .with_env("PATH", path)
@@ -67,6 +68,30 @@ fn global_command(workspace: &Path, pnpm_home: &Path) -> Command {
         .with_env("XDG_CONFIG_HOME", pnpm_home.join("config-home"))
         .with_env("XDG_CACHE_HOME", pnpm_home.join("cache-home"))
         .without_ambient_pnpm_config()
+}
+
+#[cfg(unix)]
+fn global_command(workspace: &Path, pnpm_home: &Path) -> Command {
+    with_global_env(Command::cargo_bin("pnpm").expect("find the pnpm binary"), workspace, pnpm_home)
+}
+
+#[cfg(unix)]
+fn run_global_prompt(
+    workspace: &Path,
+    pnpm_home: &Path,
+    args: &[&str],
+    answer: &str,
+) -> std::process::Output {
+    without_colors(with_global_env(Command::new("python3"), workspace, pnpm_home))
+        .env("CI", "false")
+        .env_remove("GITHUB_ACTION")
+        .env("PNPM_TEST_MINIMUM_RELEASE_AGE_ANSWER", answer)
+        .arg("-c")
+        .arg(include_str!("../fixtures/minimum_release_age_prompt.py"))
+        .arg(env!("CARGO_BIN_EXE_pnpm"))
+        .args(args)
+        .output()
+        .expect("run the interactive global command in a pseudo-terminal")
 }
 
 #[cfg(unix)]
@@ -1067,6 +1092,126 @@ fn global_update_renders_both_changed_groups_with_one_completion_summary() {
     assert!(stdout.contains("@pnpm.e2e/multi-version-a"), "{stdout}");
     assert!(stdout.contains("@pnpm.e2e/multi-version-b"), "{stdout}");
     assert_eq!(stdout.matches("Done in ").count(), 1, "{stdout}");
+
+    drop((root, npmrc_info));
+}
+
+#[cfg(unix)]
+fn prepare_immature_global_update(workspace: &Path, pnpm_home: &Path) {
+    use assert_cmd::assert::OutputAssertExt;
+
+    global_command(workspace, pnpm_home)
+        .with_args(["add", "-g", "@pnpm.e2e/multi-version-a@1.0.0"])
+        .assert()
+        .success();
+    let global_dir = pnpm_home.join("global").join("v11");
+    let group = pnpm_global::find_global_package(&global_dir, "@pnpm.e2e/multi-version-a")
+        .expect("scan global packages")
+        .expect("find multi-version-a group");
+    let manifest_path = group.install_dir.join("package.json");
+    let manifest = fs::read_to_string(&manifest_path).expect("read the group manifest");
+    let manifest = if manifest.contains(r#""^1.0.0""#) {
+        manifest.replace(r#""^1.0.0""#, r#""^2.1.0""#)
+    } else {
+        manifest.replacen(r#""1.0.0""#, r#""^2.1.0""#, 1)
+    };
+    fs::write(&manifest_path, manifest).expect("write the group manifest");
+    // A cutoff further back than every mock release makes 2.1.0 immature.
+    for dir in [pnpm_home, workspace] {
+        set_minimum_release_age(dir, 60 * 24 * 365 * 100);
+        append_workspace_yaml_key(dir, "minimumReleaseAgeStrict", true);
+    }
+}
+
+#[cfg(unix)]
+#[test]
+fn global_update_approves_an_immature_version_once_across_its_resolution_passes() {
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry_with_own_storage();
+    let pnpm_home = root.path().join("pnpm-home");
+    prepare_global_home(&pnpm_home, &npmrc_info);
+    prepare_immature_global_update(&workspace, &pnpm_home);
+
+    let output =
+        run_global_prompt(&workspace, &pnpm_home, &["update", "-g", "--reporter=append-only"], "y");
+    let stdout = String::from_utf8(output.stdout).expect("terminal output is UTF-8");
+    eprintln!("{stdout}");
+    assert!(output.status.success(), "{stdout}");
+    assert_eq!(
+        stdout.matches("the minimumReleaseAge constraint:").count(),
+        1,
+        "the update must ask once, not once per resolution pass",
+    );
+
+    let listed = global_command(&workspace, &pnpm_home)
+        .with_args(["list", "-g"])
+        .output()
+        .expect("run list -g");
+    let listed = String::from_utf8_lossy(&listed.stdout);
+    assert!(
+        listed.contains("@pnpm.e2e/multi-version-a@2.1.0"),
+        "the approved version must be installed: {listed}",
+    );
+
+    drop((root, npmrc_info));
+}
+
+#[cfg(unix)]
+#[test]
+fn global_update_aborts_when_the_immature_version_is_not_approved() {
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry_with_own_storage();
+    let pnpm_home = root.path().join("pnpm-home");
+    prepare_global_home(&pnpm_home, &npmrc_info);
+    prepare_immature_global_update(&workspace, &pnpm_home);
+
+    let output =
+        run_global_prompt(&workspace, &pnpm_home, &["update", "-g", "--reporter=append-only"], "n");
+    let stdout = String::from_utf8(output.stdout).expect("terminal output is UTF-8");
+    eprintln!("{stdout}");
+    assert_eq!(output.status.code(), Some(1), "{stdout}");
+    assert!(stdout.contains("ERR_PNPM_MINIMUM_RELEASE_AGE_DENIED"), "{stdout}");
+
+    let listed = global_command(&workspace, &pnpm_home)
+        .with_args(["list", "-g"])
+        .output()
+        .expect("run list -g");
+    let listed = String::from_utf8_lossy(&listed.stdout);
+    assert!(
+        listed.contains("@pnpm.e2e/multi-version-a@1.0.0"),
+        "a denied update must not materialize the immature version: {listed}",
+    );
+
+    drop((root, npmrc_info));
+}
+
+#[cfg(unix)]
+#[test]
+fn global_update_requires_approval_for_the_immature_version() {
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry_with_own_storage();
+    let pnpm_home = root.path().join("pnpm-home");
+    prepare_global_home(&pnpm_home, &npmrc_info);
+    prepare_immature_global_update(&workspace, &pnpm_home);
+
+    let output = global_command(&workspace, &pnpm_home)
+        .with_args(["update", "-g", "--reporter=append-only"])
+        .output()
+        .expect("run global update");
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert_eq!(output.status.code(), Some(1), "{stdout}\n{stderr}");
+    assert!(stderr.contains("ERR_PNPM_NO_MATURE_MATCHING_VERSION"), "{stdout}\n{stderr}");
+
+    let listed = global_command(&workspace, &pnpm_home)
+        .with_args(["list", "-g"])
+        .output()
+        .expect("run list -g");
+    let listed = String::from_utf8_lossy(&listed.stdout);
+    assert!(
+        listed.contains("@pnpm.e2e/multi-version-a@1.0.0"),
+        "an unapproved update must not materialize the immature version: {listed}",
+    );
 
     drop((root, npmrc_info));
 }
