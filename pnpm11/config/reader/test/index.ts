@@ -4592,7 +4592,7 @@ test('return a warning when a trusted .npmrc auth variable is empty', async () =
   prepare()
 
   fs.writeFileSync('.npmrc', '//registry.example/:_authToken=${EMPTY_TOKEN}', 'utf8')
-  const { warnings } = await getConfig({
+  const { config, warnings } = await getConfig({
     cliOptions: {},
     env: { ...process.env, EMPTY_TOKEN: '', PNPM_CONFIG_NPMRC_AUTH_FILE: path.resolve('.npmrc') },
     packageManager: {
@@ -4604,6 +4604,7 @@ test('return a warning when a trusted .npmrc auth variable is empty', async () =
   expect(warnings).toEqual(expect.arrayContaining([
     expect.stringContaining('Failed to replace env in config: ${EMPTY_TOKEN}'),
   ]))
+  expect(config.authConfig['//registry.example/:_authToken']).toBe('')
 
   const resolved = await getConfig({
     cliOptions: {},
