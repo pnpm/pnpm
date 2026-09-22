@@ -46,8 +46,7 @@ async fn fetcher_packs_subfolder_when_path_set() {
     .await
     .unwrap();
 
-    let keys: Vec<&str> = received
-        .cas_paths
+    let keys: Vec<&str> = received.cas_paths
         .keys()
         .map(String::as_str)
         .collect();
@@ -137,14 +136,6 @@ async fn fetcher_skips_build_when_ignore_scripts() {
         received.built,
         "should_be_built must still report `true` when the manifest declares prepare scripts, even if ignore_scripts blocked them",
     );
-    assert!(
-        received
-            .cas_paths
-            .contains_key("package.json")
-    );
-    assert!(
-        received
-            .cas_paths
-            .contains_key("index.js")
-    );
+    assert!(received.cas_paths.contains_key("package.json"));
+    assert!(received.cas_paths.contains_key("index.js"));
 }

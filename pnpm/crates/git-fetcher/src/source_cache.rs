@@ -10,7 +10,37 @@ use std::{
 };
 use tempfile::TempDir;
 
-type SourceResult = Result<Arc<TempDir>, Arc<GitFetcherError>>;
+#[derive(Debug)]
+pub(crate) struct CachedSource {
+    checkout: TempDir,
+    submodules: OnceLock<Result<(), Arc<GitFetcherError>>>,
+}
+
+impl CachedSource {
+    pub(crate) fn path(&self) -> &Path {
+        self.checkout.path()
+    }
+
+    pub(crate) fn ensure_submodules(
+        &self,
+        git_bin: Option<&Path>,
+    ) -> Result<(), Arc<GitFetcherError>> {
+        self.submodules
+            .get_or_init(|| {
+                if has_submodules(self.path()).map_err(Arc::new)? {
+                    checkout_submodules_with(
+                        git_bin.unwrap_or_else(|| Path::new("git")),
+                        self.path(),
+                    )
+                    .map_err(Arc::new)?;
+                }
+                Ok(())
+            })
+            .clone()
+    }
+}
+
+type SourceResult = Result<Arc<CachedSource>, Arc<GitFetcherError>>;
 type SourceCell = Arc<OnceLock<SourceResult>>;
 
 /// Shares verified Git checkouts for one installation. Two requests share a
@@ -35,10 +65,7 @@ struct SourceKey {
 impl GitSourceCache {
     pub(crate) fn get(&self, source: &GitSource<'_>) -> SourceResult {
         let cell = {
-            let mut sources = self
-                .sources
-                .lock()
-                .expect("git source cache lock poisoned");
+            let mut sources = self.sources.lock().expect("git source cache lock poisoned");
             Arc::clone(
                 sources
                     .entry(SourceKey::new(source))
@@ -46,9 +73,7 @@ impl GitSourceCache {
             )
         };
         cell.get_or_init(|| {
-            let checkout = tempfile::tempdir()
-                .map_err(GitFetcherError::Io)
-                .map_err(Arc::new)?;
+            let checkout = tempfile::tempdir().map_err(GitFetcherError::Io).map_err(Arc::new)?;
             checkout_commit(&CheckoutOptions {
                 repo: source.repo,
                 commit: source.commit,
@@ -57,18 +82,17 @@ impl GitSourceCache {
                 dest: checkout.path(),
             })
             .map_err(Arc::new)?;
-            if has_submodules(checkout.path()).map_err(Arc::new)? {
-                checkout_submodules_with(
-                    source
-                        .git_bin
-                        .unwrap_or_else(|| Path::new("git")),
-                    checkout.path(),
-                )
-                .map_err(Arc::new)?;
-            }
-            Ok(Arc::new(checkout))
+            Ok(Arc::new(CachedSource { checkout, submodules: OnceLock::new() }))
         })
         .clone()
+    }
+}
+
+fn has_submodules(checkout: &Path) -> Result<bool, GitFetcherError> {
+    match fs::metadata(checkout.join(".gitmodules")) {
+        Ok(metadata) => Ok(metadata.is_file()),
+        Err(err) if err.kind() == std::io::ErrorKind::NotFound => Ok(false),
+        Err(err) => Err(GitFetcherError::Io(err)),
     }
 }
 
@@ -80,14 +104,6 @@ impl SourceKey {
             shallow: should_use_shallow(source.repo, source.shallow_hosts),
             git_bin: source.git_bin.map(Path::to_path_buf),
         }
-    }
-}
-
-fn has_submodules(checkout: &Path) -> Result<bool, GitFetcherError> {
-    match fs::metadata(checkout.join(".gitmodules")) {
-        Ok(metadata) => Ok(metadata.is_file()),
-        Err(err) if err.kind() == std::io::ErrorKind::NotFound => Ok(false),
-        Err(err) => Err(GitFetcherError::Io(err)),
     }
 }
 

@@ -122,7 +122,7 @@ test('fetch a package from Git sub folder', async () => {
   const { filesMap } = await fetch(
     createCafsStore(storeDir),
     {
-      commit: '2b42a57a945f19f8ffab8ecbd2021fdc2c58ee22',
+      commit: 'e2ad6effb15541c76f39884e5231464ff383853b',
       repo: 'https://github.com/RexSkz/test-git-subfolder-fetch.git',
       path: '/packages/simple-react-app',
       type: 'git',
@@ -143,7 +143,7 @@ test('prevent directory traversal attack when using Git sub folder', async () =>
     fetch(
       createCafsStore(storeDir),
       {
-        commit: '2b42a57a945f19f8ffab8ecbd2021fdc2c58ee22',
+        commit: 'e2ad6effb15541c76f39884e5231464ff383853b',
         repo,
         path: pkgDir,
         type: 'git',
@@ -164,7 +164,7 @@ test('prevent directory traversal attack when using Git sub folder #2', async ()
     fetch(
       createCafsStore(storeDir),
       {
-        commit: '2b42a57a945f19f8ffab8ecbd2021fdc2c58ee22',
+        commit: 'e2ad6effb15541c76f39884e5231464ff383853b',
         repo,
         path: pkgDir,
         type: 'git',

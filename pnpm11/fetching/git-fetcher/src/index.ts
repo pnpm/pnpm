@@ -9,7 +9,7 @@ import { preparePackage } from '@pnpm/exec.prepare-package'
 import type { GitFetcher } from '@pnpm/fetching.fetcher-base'
 import { packlist } from '@pnpm/fs.packlist'
 import { globalWarn } from '@pnpm/logger'
-import { nonInteractiveGitEnv, nonInteractiveGitSubmoduleEnv } from '@pnpm/network.git-utils'
+import { nonInteractiveGitEnv, nonInteractiveGitSubmoduleEnv, safeGitEnv } from '@pnpm/network.git-utils'
 import { createGitHostedPkgId } from '@pnpm/resolving.git-resolver'
 import { gitHostedStoreIndexKey, type StoreIndex } from '@pnpm/store.index'
 import { addFilesFromDir } from '@pnpm/worker'
@@ -205,7 +205,8 @@ function prefixGitArgs (): string[] {
 
 async function execGit (args: string[], opts?: { cwd?: string, env?: NodeJS.ProcessEnv }): Promise<string> {
   const fullArgs = prefixGitArgs().concat(args || [])
-  const { stdout } = await execa('git', fullArgs, opts)
+  const env = safeGitEnv(opts?.env)
+  const { stdout } = await execa('git', fullArgs, { ...opts, env })
   return stdout as string
 }
 

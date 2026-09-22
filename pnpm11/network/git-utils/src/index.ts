@@ -126,7 +126,6 @@ function readBranchFromHeadFile (cwd?: string): string | null | undefined {
 export async function nonInteractiveGitEnv (opts: GitCwdOptions = {}): Promise<NodeJS.ProcessEnv> {
   const gitEnv = safeGitEnv()
   gitEnv.GIT_TERMINAL_PROMPT = '0'
-  gitEnv.GIT_ASKPASS = ''
   if (gitEnv.GIT_SSH_COMMAND === undefined && gitEnv.GIT_SSH === undefined && !(await hasConfiguredSshCommand(opts))) {
     gitEnv.GIT_SSH_COMMAND = 'ssh -o BatchMode=yes'
   }
@@ -193,8 +192,8 @@ async function hasConfiguredSshCommand (opts: GitCwdOptions): Promise<boolean> {
   }
 }
 
-function safeGitEnv (): NodeJS.ProcessEnv {
-  const gitEnv = { ...process.env }
+export function safeGitEnv (baseEnv: NodeJS.ProcessEnv = process.env): NodeJS.ProcessEnv {
+  const gitEnv = { ...baseEnv }
   for (const name of ['GIT_DIR', 'GIT_WORK_TREE', 'GIT_INDEX_FILE', 'GIT_OBJECT_DIRECTORY', 'GIT_ALTERNATE_OBJECT_DIRECTORIES']) {
     delete gitEnv[name]
   }

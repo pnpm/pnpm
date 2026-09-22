@@ -13,8 +13,13 @@ use assert_cmd::assert::OutputAssertExt;
 /// packs it, and the lifecycle runs again for the installed package.
 #[test]
 fn run_prepare_script_for_git_hosted_dependencies() {
-    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
-        CommandTempCwd::init().add_mocked_registry();
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
     let repo = GitRepoFixture::init(root.path(), "test-git-fetch");
     repo.write_file(
         "append.js",
@@ -64,8 +69,13 @@ fn run_prepare_script_for_git_hosted_dependencies() {
 
 #[test]
 fn prepared_git_package_in_shared_store_still_requires_project_approval() {
-    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
-        CommandTempCwd::init().add_mocked_registry();
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
     let repo = GitRepoFixture::init(root.path(), "shared-prepare");
     repo.write_file(
         "package.json",
@@ -80,11 +90,7 @@ fn prepared_git_package_in_shared_store_still_requires_project_approval() {
         .with_arg("install")
         .assert()
         .success();
-    assert!(
-        workspace
-            .join("node_modules/shared-prepare/prepare.txt")
-            .exists()
-    );
+    assert!(workspace.join("node_modules/shared-prepare/prepare.txt").exists());
 
     let workspace_b = root.path().join("workspace-b");
     fs::create_dir(&workspace_b).expect("create second workspace");
@@ -111,11 +117,7 @@ fn prepared_git_package_in_shared_store_still_requires_project_approval() {
         String::from_utf8_lossy(&output.stderr).contains("ERR_PNPM_GIT_DEP_PREPARE_NOT_ALLOWED"),
         "stderr did not report the build-policy failure",
     );
-    assert!(
-        !workspace_b
-            .join("node_modules/shared-prepare/prepare.txt")
-            .exists()
-    );
+    assert!(!workspace_b.join("node_modules/shared-prepare/prepare.txt").exists());
 
     let store_dir = pnpm_store_dir::StoreDir::from(npmrc_info.store_dir.clone());
     let store_index_key = pnpm_store_dir::git_hosted_store_index_key(&spec, true);
@@ -126,9 +128,7 @@ fn prepared_git_package_in_shared_store_still_requires_project_approval() {
         .expect("prepared git package is indexed");
     assert_eq!(legacy_index.requires_prepare, Some(true));
     legacy_index.requires_prepare = None;
-    store_index
-        .set(&store_index_key, &legacy_index)
-        .expect("write legacy store index row");
+    store_index.set(&store_index_key, &legacy_index).expect("write legacy store index row");
 
     let workspace_c = root.path().join("workspace-c");
     fs::create_dir(&workspace_c).expect("create third workspace");
@@ -148,23 +148,22 @@ fn prepared_git_package_in_shared_store_still_requires_project_approval() {
         String::from_utf8_lossy(&output.stderr).contains("ERR_PNPM_GIT_DEP_PREPARE_NOT_ALLOWED"),
         "stderr did not report the build-policy failure",
     );
-    assert!(
-        !workspace_c
-            .join("node_modules/shared-prepare/prepare.txt")
-            .exists()
-    );
+    assert!(!workspace_c.join("node_modules/shared-prepare/prepare.txt").exists());
 
     drop((root, npmrc_info));
 }
 
 #[test]
 fn type_git_dependency_reuses_side_effects_on_warm_install() {
-    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
-        CommandTempCwd::init().add_mocked_registry();
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
     let repo = GitRepoFixture::init(root.path(), "git-side-effects");
-    let lifecycle_log = root
-        .path()
-        .join("git-side-effects-builds.log");
+    let lifecycle_log = root.path().join("git-side-effects-builds.log");
     let script = format!(
         r"require('fs').appendFileSync({}, 'built\n')",
         serde_json::to_string(&lifecycle_log).expect("serialize lifecycle log path"),
@@ -224,8 +223,13 @@ fn git_dependency_is_built_on_hoisted_reinstall() {
 /// `package.json` too, so the alias never enters the build policy.
 #[test]
 fn an_aliased_git_dependency_is_gated_on_its_manifest_name() {
-    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
-        CommandTempCwd::init().add_mocked_registry();
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
     let repo = GitRepoFixture::init(root.path(), "hi");
     repo.write_file(
         "package.json",
@@ -244,9 +248,7 @@ fn an_aliased_git_dependency_is_gated_on_its_manifest_name() {
     let lockfile = read_lockfile(&workspace.join("pnpm-lock.yaml"));
     assert_eq!(importer_version(&lockfile, ".", "say-hi"), format!("hi@{spec}"));
     assert!(
-        workspace
-            .join("node_modules/say-hi/prepare.txt")
-            .exists(),
+        workspace.join("node_modules/say-hi/prepare.txt").exists(),
         "the manifest-name allowBuilds entry must let `prepare` run under the alias",
     );
 
@@ -329,8 +331,13 @@ fn a_git_dependency_is_prepared_with_the_package_manager_it_pins() {
 /// half-built package in the store and succeed.
 #[test]
 fn git_hosted_repository_is_not_added_to_the_store_if_it_fails_to_be_built() {
-    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
-        CommandTempCwd::init().add_mocked_registry();
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
     let repo = GitRepoFixture::init(root.path(), "prepare-script-fails");
     repo.write_file(
         "package.json",
@@ -356,8 +363,13 @@ fn git_hosted_repository_is_not_added_to_the_store_if_it_fails_to_be_built() {
 }
 
 fn assert_git_dependency_is_built_on_reinstall(node_linker: Option<&str>) {
-    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
-        CommandTempCwd::init().add_mocked_registry();
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
     let repo = GitRepoFixture::init(root.path(), "prepare-script-works");
     repo.write_file(
         "package.json",
@@ -412,8 +424,13 @@ fn assert_git_dependency_is_built_on_reinstall(node_linker: Option<&str>) {
 
 #[test]
 fn explicitly_denied_git_preparation_keeps_source_and_separates_cached_builds() {
-    let CommandTempCwd { pacquet: _, root, workspace, npmrc_info, .. } =
-        CommandTempCwd::init().add_mocked_registry();
+    let CommandTempCwd {
+        pacquet: _,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
     let repo = GitRepoFixture::init(root.path(), "denied-prepare");
     repo.write_file("index.js", "module.exports = 42");
     repo.write_file("package.json", &json!({
@@ -445,18 +462,8 @@ fn explicitly_denied_git_preparation_keeps_source_and_separates_cached_builds() 
             fs::read_to_string(modules.join("denied-prepare/index.js")).unwrap(),
             "module.exports = 42",
         );
-        assert_eq!(
-            modules
-                .join("denied-prepare/prepare.txt")
-                .exists(),
-            allowed
-        );
-        assert_eq!(
-            modules
-                .join("denied-prepare/postinstall.txt")
-                .exists(),
-            allowed
-        );
+        assert_eq!(modules.join("denied-prepare/prepare.txt").exists(), allowed);
+        assert_eq!(modules.join("denied-prepare/postinstall.txt").exists(), allowed);
     }
     drop((root, npmrc_info));
 }
