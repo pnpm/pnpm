@@ -7,9 +7,14 @@ use super::{
 };
 use pnpm_lockfile::{LockfileResolution, PkgName};
 use pnpm_resolving_local_resolver::local_tarball_path;
+use pnpm_tarball::{TarballError, VerifyChecksumError};
 use pnpm_workspace::importer_id_from_root_dir;
 use ssri::{Integrity, IntegrityChecker};
-use std::{borrow::Cow, fs, io::Read};
+use std::{
+    borrow::Cow,
+    fs,
+    io::{self, Read},
+};
 
 struct LocalTarballDependency {
     project_dir: PathBuf,
@@ -19,6 +24,64 @@ struct LocalTarballDependency {
     must_be_local: bool,
 }
 
+/// The active projects whose local tarballs an explicit frozen install has to
+/// verify before it may reuse a store entry.
+pub(crate) struct FrozenLocalTarballCheck<'a> {
+    pub(crate) workspace_root: &'a Path,
+    pub(crate) config: &'a Config,
+    pub(crate) catalogs: &'a Catalogs,
+    pub(crate) project_manifests: &'a [(PathBuf, &'a pnpm_package_manifest::PackageManifest)],
+    pub(crate) included: IncludedDependencies,
+    pub(crate) lockfile: &'a Lockfile,
+}
+
+/// Verifies local tarballs that an explicit frozen install materializes.
+///
+/// The store is indexed by the integrity recorded in the lockfile. Without
+/// this check, a warm entry lets a changed archive bypass the fetcher that
+/// normally verifies its bytes.
+pub(crate) fn verify_frozen_local_tarballs(
+    check: &FrozenLocalTarballCheck<'_>,
+) -> Result<(), TarballError> {
+    let scan = LocalTarballScanInputs {
+        catalogs: check.catalogs,
+        workspace_dir: check.config.workspace_dir.as_deref(),
+        project_manifests: check.project_manifests,
+        included: check.included,
+    };
+    let LocalTarballScan::Candidates(tarballs) = scan_local_tarball_deps(&scan) else {
+        return Ok(());
+    };
+    for dependency in tarballs {
+        let importer_id = importer_id_from_root_dir(check.workspace_root, &dependency.project_dir);
+        let RecordedTarball::Tarball(resolution) =
+            recorded_tarball(check.lockfile, &importer_id, &dependency)
+        else {
+            continue;
+        };
+        let Some(recorded_path) = local_tarball_path(&resolution.tarball, check.workspace_root)
+        else {
+            continue;
+        };
+        if dependency
+            .path
+            .as_ref()
+            .is_some_and(|path| path != &recorded_path)
+        {
+            continue;
+        }
+        let Some(integrity) = resolution
+            .integrity
+            .as_ref()
+            .filter(|value| !value.hashes.is_empty())
+        else {
+            continue;
+        };
+        verify_file_integrity(&recorded_path, integrity)?;
+    }
+    Ok(())
+}
+
 /// Whether any project declares a mutable local directory dependency or a
 /// local tarball whose current bytes do not match the integrity recorded by
 /// the previous install. Groups excluded from the current install are skipped.
@@ -26,7 +89,13 @@ struct LocalTarballDependency {
 pub(crate) fn has_local_file_dep_requiring_install(
     check: &OptimisticRepeatInstallCheck<'_>,
 ) -> Result<bool, &'static str> {
-    let tarballs = match scan_local_tarball_deps(check) {
+    let scan = LocalTarballScanInputs {
+        catalogs: check.catalogs,
+        workspace_dir: check.config.workspace_dir.as_deref(),
+        project_manifests: check.project_manifests,
+        included: check.layout.included,
+    };
+    let tarballs = match scan_local_tarball_deps(&scan) {
         LocalTarballScan::RequiresInstall => return Ok(true),
         LocalTarballScan::Candidates(tarballs) => tarballs,
     };
@@ -35,7 +104,8 @@ pub(crate) fn has_local_file_dep_requiring_install(
     }
 
     let current_lockfile;
-    let lockfile = if let Some(lockfile) = check.lockfile
+    let lockfile = if let Some(lockfile) = check
+        .lockfile
         .get()
         .map_err(|_| "the wanted lockfile cannot be loaded to verify local tarballs")?
     {
@@ -48,11 +118,9 @@ pub(crate) fn has_local_file_dep_requiring_install(
         lockfile
     };
 
-    Ok(tarballs
-        .iter()
-        .any(|dependency| {
-            local_tarball_requires_install(check.workspace_root, lockfile, dependency)
-        }))
+    Ok(tarballs.iter().any(|dependency| {
+        local_tarball_requires_install(check.workspace_root, lockfile, dependency)
+    }))
 }
 
 /// What the manifests' `file:` dependencies amount to.
@@ -63,15 +131,18 @@ enum LocalTarballScan {
     Candidates(Vec<LocalTarballDependency>),
 }
 
-fn scan_local_tarball_deps(check: &OptimisticRepeatInstallCheck<'_>) -> LocalTarballScan {
+struct LocalTarballScanInputs<'a> {
+    catalogs: &'a Catalogs,
+    workspace_dir: Option<&'a Path>,
+    project_manifests: &'a [(PathBuf, &'a pnpm_package_manifest::PackageManifest)],
+    included: IncludedDependencies,
+}
+
+fn scan_local_tarball_deps(check: &LocalTarballScanInputs<'_>) -> LocalTarballScan {
     let fields: [(&str, DependencyGroup, bool); 3] = [
-        ("dependencies", DependencyGroup::Prod, check.layout.included.dependencies),
-        ("devDependencies", DependencyGroup::Dev, check.layout.included.dev_dependencies),
-        (
-            "optionalDependencies",
-            DependencyGroup::Optional,
-            check.layout.included.optional_dependencies,
-        ),
+        ("dependencies", DependencyGroup::Prod, check.included.dependencies),
+        ("devDependencies", DependencyGroup::Dev, check.included.dev_dependencies),
+        ("optionalDependencies", DependencyGroup::Optional, check.included.optional_dependencies),
     ];
     let mut tarballs = Vec::new();
     for (project_dir, manifest) in check.project_manifests {
@@ -81,7 +152,7 @@ fn scan_local_tarball_deps(check: &OptimisticRepeatInstallCheck<'_>) -> LocalTar
             }
             let scan = FieldTarballScan {
                 catalogs: check.catalogs,
-                workspace_dir: check.config.workspace_dir.as_deref(),
+                workspace_dir: check.workspace_dir,
                 project_dir,
                 field,
                 group,
@@ -208,13 +279,15 @@ fn local_tarball_requires_install(
     let Some(recorded_path) = local_tarball_path(&resolution.tarball, workspace_root) else {
         return true;
     };
-    if dependency.path
+    if dependency
+        .path
         .as_ref()
         .is_some_and(|path| path != &recorded_path)
     {
         return true;
     }
-    let Some(integrity) = resolution.integrity
+    let Some(integrity) = resolution
+        .integrity
         .as_ref()
         .filter(|value| !value.hashes.is_empty())
     else {
@@ -247,11 +320,15 @@ fn recorded_tarball<'l>(
     else {
         return RecordedTarball::Missing;
     };
-    let Some(package_key) = resolved.version.resolved_key(&alias).map(|key| key.without_peer())
+    let Some(package_key) = resolved
+        .version
+        .resolved_key(&alias)
+        .map(|key| key.without_peer())
     else {
         return RecordedTarball::NotATarball;
     };
-    let Some(metadata) = lockfile.packages
+    let Some(metadata) = lockfile
+        .packages
         .as_ref()
         .and_then(|packages| packages.get(&package_key))
     else {
@@ -264,18 +341,43 @@ fn recorded_tarball<'l>(
 }
 
 fn file_matches_integrity(path: &Path, integrity: &Integrity) -> bool {
-    let Ok(mut file) = fs::File::open(path) else { return false };
-    let Ok(metadata) = file.metadata() else { return false };
+    verify_file_integrity(path, integrity).is_ok()
+}
+
+fn verify_file_integrity(path: &Path, integrity: &Integrity) -> Result<(), TarballError> {
+    let mut file = fs::File::open(path)
+        .map_err(|source| TarballError::ReadLocalTarball { path: path.to_path_buf(), source })?;
+    let metadata = file
+        .metadata()
+        .map_err(|source| TarballError::ReadLocalTarball { path: path.to_path_buf(), source })?;
     if !metadata.is_file() {
-        return false;
+        return Err(TarballError::ReadLocalTarball {
+            path: path.to_path_buf(),
+            source: io::Error::new(
+                io::ErrorKind::InvalidInput,
+                "local tarball path is not a regular file",
+            ),
+        });
     }
     let mut checker = IntegrityChecker::new(integrity.clone());
     let mut buffer = vec![0_u8; 64 * 1024].into_boxed_slice();
     loop {
         match file.read(&mut buffer) {
-            Ok(0) => return checker.result().is_ok(),
+            Ok(0) => {
+                return checker
+                    .result()
+                    .map(|_| ())
+                    .map_err(|error| {
+                        TarballError::Checksum(VerifyChecksumError {
+                            url: format!("file:{}", path.display()),
+                            error,
+                        })
+                    });
+            }
             Ok(read) => checker.input(&buffer[..read]),
-            Err(_) => return false,
+            Err(source) => {
+                return Err(TarballError::ReadLocalTarball { path: path.to_path_buf(), source });
+            }
         }
     }
 }
@@ -314,9 +416,9 @@ pub(crate) fn has_local_file_override(
     catalogs: &Catalogs,
 ) -> Result<bool, &'static str> {
     match crate::install::parse_config_overrides(config, catalogs) {
-        Ok(Some(overrides)) => {
-            Ok(overrides.iter().any(|entry| is_local_file_spec(&entry.new_bare_specifier)))
-        }
+        Ok(Some(overrides)) => Ok(overrides
+            .iter()
+            .any(|entry| is_local_file_spec(&entry.new_bare_specifier))),
         Ok(None) => Ok(false),
         Err(_) => Err("pnpm.overrides cannot be parsed"),
     }
@@ -339,23 +441,21 @@ pub(crate) fn has_local_file_package_extension(
     let Some(extensions) = config.package_extensions.as_ref() else {
         return false;
     };
-    extensions
-        .values()
-        .any(|extension| {
-            let optional = included.optional_dependencies
-                .then_some(extension.optional_dependencies.as_ref())
-                .flatten();
-            [extension.dependencies.as_ref(), optional]
-                .into_iter()
-                .flatten()
-                .any(|deps| {
-                    deps.iter()
-                        .any(|(alias, spec)| {
-                            is_local_file_spec(spec)
-                                || catalog_resolves_to_local_file(catalogs, alias, spec)
-                        })
+    extensions.values().any(|extension| {
+        let optional = included
+            .optional_dependencies
+            .then_some(extension.optional_dependencies.as_ref())
+            .flatten();
+        [extension.dependencies.as_ref(), optional]
+            .into_iter()
+            .flatten()
+            .any(|deps| {
+                deps.iter().any(|(alias, spec)| {
+                    is_local_file_spec(spec)
+                        || catalog_resolves_to_local_file(catalogs, alias, spec)
                 })
-        })
+            })
+    })
 }
 
 /// Whether the specifier resolves to a local directory or tarball whose

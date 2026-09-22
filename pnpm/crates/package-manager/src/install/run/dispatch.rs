@@ -13,6 +13,7 @@ use super::{
     wanted::Lockfiles,
     workspace::{InstallScope, InstallWorkspace},
 };
+use crate::optimistic_repeat_install::{FrozenLocalTarballCheck, verify_frozen_local_tarballs};
 use pnpm_config::Config;
 
 /// Everything the run has settled before it dispatches.
@@ -47,7 +48,13 @@ pub(super) async fn dispatch<'install, Reporter: self::Reporter + 'static>(
     settled: Settled<'_, '_>,
     options: &mut InstallRunOptions<'install, '_>,
 ) -> Result<Option<Dispatched<'install>>, InstallError> {
-    let Settled { install, mode, lockfiles, .. } = settled;
+    let Settled {
+        install,
+        mode,
+        lockfiles,
+        projects: SettledProjects { workspace, project_manifests, .. },
+        ..
+    } = settled;
     announce_import::<Reporter>(settled, options.rebuild.as_ref())?;
     // Dispatch priority, following the CLI + `preferFrozenLockfile`
     // semantics:
@@ -90,15 +97,35 @@ pub(super) async fn dispatch<'install, Reporter: self::Reporter + 'static>(
         update_checksums: install.lockfile_policy.update_checksums,
         prefer_frozen_lockfile: mode.prefer_frozen_lockfile,
         lockfile: lockfiles.wanted.get(),
-        lockfile_synthesized_from_current: lockfiles.wanted.synthesized_from_current(),
+        lockfile_synthesized_from_current: lockfiles
+            .wanted
+            .synthesized_from_current(),
         freshness: settled.freshness_inputs(),
     })
     .await?;
 
+    if take_frozen_path && install.lockfile_policy.frozen {
+        let lockfile = lockfiles
+            .wanted
+            .get()
+            .expect("frozen dispatch verified lockfile is present");
+        verify_frozen_local_tarballs(&FrozenLocalTarballCheck {
+            workspace_root: &workspace.dirs.workspace_root,
+            config: install.context.config,
+            catalogs: &workspace.catalogs,
+            project_manifests,
+            included: mode.included,
+            lockfile,
+        })
+        .map_err(InstallError::LocalTarballIntegrity)?;
+    }
+
     if take_frozen_path && mode.lockfile_only {
         finish_dispatched_lockfile::<Reporter>(
             settled,
-            options.lockfile_verification_override.take(),
+            options
+                .lockfile_verification_override
+                .take(),
         )
         .await?;
         return Ok(None);
@@ -117,7 +144,10 @@ pub(super) async fn finish_dispatched_lockfile<Reporter: self::Reporter + 'stati
         projects: SettledProjects { workspace, .. },
         ..
     } = settled;
-    let lockfile = lockfiles.wanted.get().expect("frozen dispatch verified lockfile is present");
+    let lockfile = lockfiles
+        .wanted
+        .get()
+        .expect("frozen dispatch verified lockfile is present");
     finish_frozen_lockfile_only::<Reporter>(
         lockfile,
         install.context.config,
@@ -125,7 +155,9 @@ pub(super) async fn finish_dispatched_lockfile<Reporter: self::Reporter + 'stati
             workspace_root: &workspace.dirs.workspace_root,
             prefix: &workspace.prefix,
             resolution_verifiers: &verification.resolution_verifiers,
-            derived_lockfile_path: verification.derived_lockfile_path.as_deref(),
+            derived_lockfile_path: verification
+                .derived_lockfile_path
+                .as_deref(),
             lockfile_verification_override,
         },
     )
@@ -156,7 +188,10 @@ pub(super) async fn prepare_dispatched_modules<'install, Reporter: self::Reporte
         lockfiles: crate::install::state_options::PreparedLockfiles {
             wanted: lockfiles.wanted.get(),
             current: loaded.current.as_ref(),
-            importer_ids: scope.importers.requested_importer_ids.as_ref(),
+            importer_ids: scope
+                .importers
+                .requested_importer_ids
+                .as_ref(),
         },
         projects: crate::install::state_options::InstallProjectMetadata {
             catalogs: &workspace.catalogs,
@@ -167,8 +202,13 @@ pub(super) async fn prepare_dispatched_modules<'install, Reporter: self::Reporte
         repeat: crate::install::state_options::RepeatInstallPolicy {
             frozen: take_frozen_path,
             filtered: scope.importers.filtered_install,
-            disable_optimistic_check: install.lockfile_policy.disable_optimistic_repeat,
-            supported_architectures: owned.projects.supported_architectures.as_ref(),
+            disable_optimistic_check: install
+                .lockfile_policy
+                .disable_optimistic_repeat,
+            supported_architectures: owned
+                .projects
+                .supported_architectures
+                .as_ref(),
             rebuild: options.rebuild.as_ref(),
             effective_node_version: mode.effective_node_version.as_deref(),
         },
@@ -197,8 +237,15 @@ pub(super) fn announce_import<Reporter: self::Reporter>(
     Reporter::emit(&LogEvent::Context(ContextLog {
         level: LogLevel::Debug,
         current_lockfile_exists: loaded.current.is_some(),
-        store_dir: install.context.config.store_dir.display().to_string(),
-        virtual_store_dir: install.context.config
+        store_dir: install
+            .context
+            .config
+            .store_dir
+            .display()
+            .to_string(),
+        virtual_store_dir: install
+            .context
+            .config
             .effective_virtual_store_dir()
             .to_string_lossy()
             .into_owned(),
@@ -224,7 +271,9 @@ pub(super) fn announce_import<Reporter: self::Reporter>(
         workspace_root: &workspace.dirs.workspace_root,
         project_manifests,
         resolve_only: mode.resolve_only,
-        ignore_manifest_check: install.lockfile_policy.ignore_manifest_check,
+        ignore_manifest_check: install
+            .lockfile_policy
+            .ignore_manifest_check,
         rebuild,
     })?;
     Reporter::emit(&LogEvent::Stage(StageLog {
@@ -281,7 +330,9 @@ pub(super) async fn decide_frozen_path(
             },
             ..dispatch.freshness
         };
-        check_lockfile_freshness(lockfile, &freshness).await.map_err(InstallError::from)?;
+        check_lockfile_freshness(lockfile, &freshness)
+            .await
+            .map_err(InstallError::from)?;
         return Ok(true);
     }
     // The wanted lockfile was only usable because its Git conflict markers
@@ -319,7 +370,11 @@ pub(super) async fn auto_frozen_path(
         Ok(()) => {
             // An unchecksummed `readPackage` hook can change dependency
             // manifests without changing the regular freshness inputs.
-            if !dispatch.freshness.config.ignore_pnpmfile {
+            if !dispatch
+                .freshness
+                .config
+                .ignore_pnpmfile
+            {
                 let current =
                     pnpm_hooks::untracked_read_package_hook(dispatch.freshness.pnpmfile_hook)
                         .await
@@ -332,10 +387,16 @@ pub(super) async fn auto_frozen_path(
                 }
             }
             Ok(dispatch.lockfile_synthesized_from_current
-                || dispatch.freshness.config.ignore_pnpmfile
+                || dispatch
+                    .freshness
+                    .config
+                    .ignore_pnpmfile
                 || !crate::check_custom_resolver_force_resolve::force_resolve_from_pnpmfile(
                     lockfile,
-                    dispatch.freshness.pnpmfile_hook.map(std::convert::AsRef::as_ref),
+                    dispatch
+                        .freshness
+                        .pnpmfile_hook
+                        .map(std::convert::AsRef::as_ref),
                 )
                 .await
                 .map_err(InstallError::CustomResolverForceResolve)?)
@@ -370,7 +431,9 @@ pub(super) async fn finish_frozen_lockfile_only<Reporter: self::Reporter + 'stat
     finish: LockfileOnlyFrozen<'_, '_>,
 ) -> Result<(), InstallError> {
     if let Some(lockfile_verification_override) = finish.lockfile_verification_override {
-        lockfile_verification_override.await.map_err(map_frozen_lockfile_error)?;
+        lockfile_verification_override
+            .await
+            .map_err(map_frozen_lockfile_error)?;
     } else {
         verify_lockfile_eagerly::<Reporter>(
             lockfile,
@@ -382,7 +445,11 @@ pub(super) async fn finish_frozen_lockfile_only<Reporter: self::Reporter + 'stat
     }
     if config.lockfile {
         lockfile
-            .save_to_path(&finish.workspace_root.join(config.wanted_lockfile_name()))
+            .save_to_path(
+                &finish
+                    .workspace_root
+                    .join(config.wanted_lockfile_name()),
+            )
             .map_err(InstallError::SaveWantedLockfile)?;
     }
     Reporter::emit(&LogEvent::Stage(StageLog {
@@ -401,7 +468,9 @@ impl Verification {
         crate::install::state_options::LockfileVerificationInputs {
             verifiers: &self.resolution_verifiers,
             path: self.derived_lockfile_path.as_deref(),
-            override_check: options.lockfile_verification_override.take(),
+            override_check: options
+                .lockfile_verification_override
+                .take(),
         }
     }
 }
@@ -410,7 +479,11 @@ impl<'r> Settled<'r, '_> {
     fn modules_tree(self) -> crate::install::state_options::ModulesTreeContext<'r> {
         crate::install::state_options::ModulesTreeContext {
             config: self.install.context.config,
-            workspace_root: &self.projects.workspace.dirs.workspace_root,
+            workspace_root: &self
+                .projects
+                .workspace
+                .dirs
+                .workspace_root,
             node_linker: self.install.execution.node_linker,
             included: self.mode.included,
         }
@@ -432,7 +505,9 @@ impl<'r> Settled<'r, '_> {
             catalogs: &workspace.catalogs,
             pnpmfile_hook: loaded.pnpmfile_hook.as_ref(),
             scope: FreshnessScope {
-                ignore_manifest_check: install.lockfile_policy.ignore_manifest_check,
+                ignore_manifest_check: install
+                    .lockfile_policy
+                    .ignore_manifest_check,
                 prune_stale_importers: scope.prune_stale_importers,
                 allow_missing_dependency_free_importers: true,
             },
