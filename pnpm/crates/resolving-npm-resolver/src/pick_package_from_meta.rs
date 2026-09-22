@@ -31,7 +31,7 @@ pub(crate) use release_age::{PublishedByView, apply_published_by_policy};
 
 pub use release_age::{filter_pkg_metadata_by_publish_date, filter_pkg_metadata_versions};
 
-use semver_range::{max_satisfying, min_satisfying, semver_satisfies_loose};
+use semver_range::{max_satisfying, max_version, min_satisfying, semver_satisfies_loose};
 
 mod preferred_versions;
 use preferred_versions::prioritize_preferred_versions;
@@ -331,14 +331,15 @@ pub fn pick_version_by_version_range(
     opts: &PickVersionByVersionRangeOptions<'_>,
 ) -> Option<String> {
     let latest = opts.meta.dist_tag("latest");
-    let all_versions: Vec<&str> = opts.meta.versions
-        .keys()
-        .map(String::as_str)
-        .collect();
 
     if let Some(pick) = preferred_max_pick(opts, latest) {
         return Some(pick);
     }
+
+    let all_versions: Vec<&str> = opts.meta.versions
+        .keys()
+        .map(String::as_str)
+        .collect();
 
     // `*` is special-cased because `semver.satisfies` rejects prereleases
     // for `*`: a package whose only version is `1.0.0-beta.1` would
@@ -400,6 +401,11 @@ fn non_deprecated_pick<Raw: AsRef<str>>(
         .map(AsRef::as_ref)
         .filter(|version| !opts.meta.versions.is_deprecated(version))
         .collect();
+    // The `*` pick admits a prerelease `latest` that the range itself
+    // rejects, so the retry ranks those candidates directly.
+    if opts.version_range == "*" {
+        return max_version(&non_deprecated);
+    }
     max_satisfying(&non_deprecated, opts.version_range)
 }
 

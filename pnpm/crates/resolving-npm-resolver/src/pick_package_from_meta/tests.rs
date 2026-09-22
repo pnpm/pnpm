@@ -197,6 +197,25 @@ fn version_range_deprecated_latest_tag_falls_back_to_non_deprecated() {
     assert_eq!(pick_version_by_version_range(&opts).as_deref(), Some("1.1.0"));
 }
 
+/// `*` admits a prerelease `latest` that the range itself rejects, so the
+/// deprecation retry has to rank those candidates instead of re-running
+/// the range.
+#[test]
+fn version_range_deprecated_prerelease_latest_falls_back_to_non_deprecated_prerelease() {
+    let pkg = make_package(
+        "acme",
+        &[("2.0.0-beta.1", Some("use 2.0.0-beta.2")), ("2.0.0-beta.2", None)],
+        &[("latest", "2.0.0-beta.1")],
+    );
+    let opts = PickVersionByVersionRangeOptions {
+        meta: &pkg,
+        version_range: "*",
+        preferred_version_selectors: None,
+        published_by: None,
+    };
+    assert_eq!(pick_version_by_version_range(&opts).as_deref(), Some("2.0.0-beta.2"));
+}
+
 /// A project manifest's own specifier is seeded as a preferred `Range`
 /// selector, so a plain install takes the preferred-versions branch even
 /// with no lockfile. That branch has to run the fallback too.
