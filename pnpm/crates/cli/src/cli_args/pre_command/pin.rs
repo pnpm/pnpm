@@ -2,7 +2,7 @@ use super::{
     Config, LogEvent, PNPM_VERSION, PackageManager, PackageManagerToSync, PinRoots, PmOnFail,
     PreCommandError, PreCommandInput, ReadEnvLockfile, SwitchInput, SwitchProcessState,
     SwitchSource, SwitchTarget, Value, WantedPackageManager, env_lockfile_sync, global_warn,
-    locked_package_manager_version, locked_switch_source, read_env_lockfile, read_manifest_json,
+    locked_package_manager_version, locked_switch_source, read_env_lockfile, read_root_manifest,
     sanitize_inline, should_persist_package_manager_lockfile, switch_env_root, switch_or_sync,
     version_satisfies, wanted_package_manager,
 };
@@ -147,7 +147,7 @@ pub(super) fn switch_target(
     roots: &PinRoots,
     frozen_lockfile: bool,
 ) -> miette::Result<Option<SwitchTarget>> {
-    let Some(manifest) = read_manifest_json(&roots.manifest.join("package.json"))? else {
+    let Some(manifest) = read_root_manifest(&roots.manifest)? else {
         return Ok(None);
     };
     let Some(mut pm) = wanted_package_manager(&manifest) else {

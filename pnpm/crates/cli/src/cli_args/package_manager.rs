@@ -87,6 +87,19 @@ pub(crate) fn read_manifest_json(path: &Path) -> miette::Result<Option<Value>> {
     parse_manifest(&content).into_diagnostic().map(Some)
 }
 
+/// The root project's manifest, whichever supported basename it uses, as a
+/// JSON value. A missing manifest is `None`; a malformed one is an error, so
+/// the caller can report it.
+///
+/// [`pnpm_workspace::try_read_project_manifest`] decides between
+/// `package.json` and `package.yaml`, the same way the install pipeline does,
+/// so a pin recorded from the pre-command checks is the one the install reads.
+pub(crate) fn read_root_manifest(root_dir: &Path) -> miette::Result<Option<Value>> {
+    pnpm_workspace::try_read_project_manifest(root_dir)
+        .map(|manifest| manifest.map(|(_, manifest)| manifest.value().clone()))
+        .map_err(miette::Report::new)
+}
+
 pub(crate) fn wanted_package_manager(manifest: &Value) -> Option<WantedPackageManager> {
     if let Some(mut pm) = parse_dev_engines_package_manager(manifest) {
         if pm.version
