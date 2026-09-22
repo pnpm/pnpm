@@ -61,6 +61,25 @@ fn version_flags_do_not_modify_the_project_directory() {
 }
 
 #[test]
+#[cfg(windows)]
+fn version_flags_do_not_modify_the_project_directory() {
+    for args in [vec!["--version"], vec!["-v"], vec!["--store-dir=", "--version"]] {
+        let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+        let output = test_command(pacquet, root.path())
+            .args(&args)
+            .output()
+            .expect("run version flag");
+        assert!(output.status.success(), "{args:?}: {output:?}");
+        assert_eq!(
+            String::from_utf8_lossy(&output.stdout),
+            format!("{}\n", pnpm_config::PNPM_VERSION),
+        );
+        assert!(!root.path().join("pnpm-home").exists());
+        assert_eq!(fs::read_dir(&workspace).unwrap().count(), 0);
+    }
+}
+
+#[test]
 fn version_flag_accepts_shamefully_hoist() {
     let CommandTempCwd { pacquet, root, .. } = CommandTempCwd::init();
 
