@@ -469,7 +469,10 @@ describe('verifyInstalledPackageSignatures', () => {
       // A control character inside the password must not split the
       // authority and leak either half of the credentials.
       { name: 'other-pkg', registry: 'https://user:p\rass@registry.example.test/', version: '1.0.0', integrity: INTEGRITY },
-    ], [toRegistryKey(key)], () => undefined, { fallbackRegistry: 'https://user:pass@second-registry.example.test/' })
+    ], [toRegistryKey(key)], () => undefined, {
+      fallbackRegistry: 'https://user:pass@second-registry.example.test/',
+      retry: { minTimeout: 1, maxTimeout: 1 },
+    })
 
     expect(result.verified).toBe(false)
     expect(result.failures[0].registry).toBe(REGISTRY)
