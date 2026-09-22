@@ -4593,13 +4593,13 @@ test.each([
   ['', '${EMPTY_TOKEN}', '', true],
   ['set-token', '${EMPTY_TOKEN}', 'set-token', false],
   ['', '\\${EMPTY_TOKEN}', '${EMPTY_TOKEN}', false],
-  ['', '\\\\${EMPTY_TOKEN}', '\\', true],
+  ['', '\\\\\\\\${EMPTY_TOKEN}', '\\', true],
   ['', '${EMPTY_TOKEN:-fallback}', 'fallback', false],
   ['', '${EMPTY_TOKEN-fallback}', '', false],
 ])('trusted .npmrc auth variable %p in %p', async (token, value, expected, warns) => {
   prepare()
 
-  fs.writeFileSync('auth.npmrc', `//registry.example/:_authToken=${JSON.stringify(value)}`, 'utf8')
+  fs.writeFileSync('auth.npmrc', `//registry.example/:_authToken=${value}\n`, 'utf8')
   const { config, warnings } = await getConfig({
     cliOptions: {},
     env: { ...process.env, EMPTY_TOKEN: token, PNPM_CONFIG_NPMRC_AUTH_FILE: path.resolve('auth.npmrc') },
