@@ -3249,8 +3249,12 @@ function canUsePnprForMutations (
 ): boolean {
   if (projects.length === 0) return false
   if (!opts.ignoreScripts && projects.some((project) => project.mutation === 'uninstallSome')) {
-    const scriptsByRootDir = new Map(opts.allProjects?.map((project) => [project.rootDir, project.manifest.scripts]))
-    if (projects.some((project) => project.mutation === 'uninstallSome' && definesUninstallStage(scriptsByRootDir.get(project.rootDir)))) {
+    const manifestsByRootDir = new Map(opts.allProjects?.map((project) => [project.rootDir, project.manifest]))
+    if (projects.some((project) => {
+      if (project.mutation !== 'uninstallSome') return false
+      const manifest = manifestsByRootDir.get(project.rootDir)
+      return removesAnyDependency(project, manifest) && definesUninstallStage(manifest?.scripts)
+    })) {
       return false
     }
   }
