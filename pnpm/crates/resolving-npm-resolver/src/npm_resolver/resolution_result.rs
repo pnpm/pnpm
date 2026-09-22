@@ -96,8 +96,14 @@ fn resolved_package_info(
     pnpm_resolving_resolver_base::ResolvedPackageInfo {
         requested_name: Some(args.specifier.spec.name.clone()),
         name_ver: Some(name_ver),
-        latest: latest_allowed_by_policy(args.meta, args.published_by, args.published_by_exclude)
-            .map(str::to_string),
+        latest: latest_allowed_by_policy(
+            args.meta,
+            &args.specifier.spec.name,
+            args.published_by,
+            args.published_by_exclude,
+            args.blocked_versions.and_then(|blocked| blocked.get(&args.specifier.spec.name)),
+        )
+        .map(str::to_string),
         published_at,
         manifest: Some(manifest),
         non_deprecated_alternative: find_non_deprecated_alternative(
@@ -106,6 +112,7 @@ fn resolved_package_info(
             args.specifier.spec,
             args.published_by,
             args.published_by_exclude,
+            args.blocked_versions.and_then(|blocked| blocked.get(&args.specifier.spec.name)),
         ),
     }
 }
@@ -267,6 +274,7 @@ fn find_non_deprecated_alternative(
     spec: &RegistryPackageSpec,
     published_by: Option<DateTime<Utc>>,
     published_by_exclude: Option<&PackageVersionPolicy>,
+    blocked: Option<&std::collections::HashSet<String>>,
 ) -> Option<NonDeprecatedAlternative> {
     if !meta.versions.is_deprecated(picked_version) {
         return None;
@@ -275,7 +283,12 @@ fn find_non_deprecated_alternative(
         .keys()
         .filter(|version| !meta.versions.is_deprecated(version))
         .filter(|version| {
-            installable_under_policy(meta, version, published_by, published_by_exclude)
+            blocked.is_none_or(|blocked| {
+                !crate::pick_package::is_version_blocked(meta, version, blocked)
+            })
+        })
+        .filter(|version| {
+            installable_under_policy(meta, &spec.name, version, published_by, published_by_exclude)
         })
         .filter_map(|version| Version::parse(version).ok())
         .max()?;

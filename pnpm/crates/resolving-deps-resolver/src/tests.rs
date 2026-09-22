@@ -217,7 +217,7 @@ fn dependency_result(name: &str, dependencies: &serde_json::Value) -> (String, V
 }
 
 async fn resolve_settlement_tree(
-    resolver: &OverlayPickResolver,
+    resolver: &impl Resolver,
     root_deps: serde_json::Value,
 ) -> crate::ResolvedTree {
     let (_tmp, manifest) = fake_manifest(root_deps);

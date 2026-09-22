@@ -76,7 +76,7 @@ where
     };
 
     if let Some(mut violation) = result.policy_violation.clone() {
-        violation.parents = parent_chain_from_ids(ctx, edge.ancestor_ids);
+        (violation.parents, violation.retry_parent) = parent_chain_from_ids(ctx, edge.ancestor_ids);
         lock_recoverable(&ctx.workspace.policy.policy_violations).push(violation);
     }
 
@@ -493,29 +493,46 @@ impl ChildEdge<'_> {
     }
 }
 
-fn parent_chain_from_ids(ctx: &TreeCtx, ancestor_ids: &[String]) -> Vec<pnpm_lockfile::PackageKey> {
+fn parent_chain_from_ids(
+    ctx: &TreeCtx,
+    ancestor_ids: &[String],
+) -> (Vec<pnpm_lockfile::PackageKey>, Option<pnpm_lockfile::PackageKey>) {
     let packages = lock_recoverable(&ctx.workspace.tree.packages);
     let mut parents = Vec::new();
+    let mut retry_parent = None;
     for id in ancestor_ids {
+        retry_parent = None;
         let Some(package) = packages.get(id.as_str()) else { continue };
-        if package.result.package.name_ver.is_none() {
-            return Vec::new();
+        retry_parent = registry_parent(&package.result);
+        let label = retry_parent
+            .clone()
+            .or_else(|| {
+                let manifest = package.result.package.manifest.as_ref()?;
+                let name = manifest.get("name")?.as_str()?;
+                let version = manifest.get("version")?.as_str()?;
+                format!("{name}@{version}").parse().ok()
+            });
+        if let Some(label) = label {
+            parents.push(label);
         }
-        let Ok(mut key) = package.result.id.as_str().parse::<pnpm_lockfile::PackageKey>() else {
-            return Vec::new();
-        };
-        if !matches!(
-            key.suffix.version(),
-            pnpm_lockfile::VersionPart::Semver(_)
-                | pnpm_lockfile::VersionPart::RegistryQualified { .. },
-        ) {
-            return Vec::new();
-        }
-        if let Some(name) = &package.result.package.requested_name {
-            let Ok(name) = name.parse() else { return Vec::new() };
-            key.name = name;
-        }
-        parents.push(key);
     }
-    parents
+    (parents, retry_parent)
+}
+
+fn registry_parent(
+    result: &pnpm_resolving_resolver_base::ResolveResult,
+) -> Option<pnpm_lockfile::PackageKey> {
+    result.package.name_ver.as_ref()?;
+    let mut key: pnpm_lockfile::PackageKey = result.id.as_str().parse().ok()?;
+    if !matches!(
+        key.suffix.version(),
+        pnpm_lockfile::VersionPart::Semver(_)
+            | pnpm_lockfile::VersionPart::RegistryQualified { .. },
+    ) {
+        return None;
+    }
+    if let Some(name) = &result.package.requested_name {
+        key.name = name.parse().ok()?;
+    }
+    Some(key)
 }

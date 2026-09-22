@@ -72,11 +72,12 @@ pub(super) fn pick_from_meta_fast(
     meta: Arc<Package>,
     blocked_versions: Option<&HashSet<String>>,
 ) -> Result<(Arc<Package>, Option<Arc<PackageVersion>>), PickPackageFromMetaError> {
-    let meta = filter_blocked_versions(meta, blocked_versions);
-    if meta.versions.is_empty() && blocked_versions.is_some_and(|blocked| !blocked.is_empty()) {
+    let filtered = filter_blocked_versions(&meta, blocked_versions);
+    let view = filtered.as_ref().unwrap_or(&meta);
+    if view.versions.is_empty() && blocked_versions.is_some_and(|blocked| !blocked.is_empty()) {
         return Ok((meta, None));
     }
-    let picked = pick_matching_version_fast(picker_opts, spec, &meta)?;
+    let picked = pick_matching_version_fast(picker_opts, spec, view)?;
     Ok((meta, picked))
 }
 
@@ -86,32 +87,31 @@ pub(super) fn pick_from_meta(
     meta: Arc<Package>,
     blocked_versions: Option<&HashSet<String>>,
 ) -> Result<(Arc<Package>, Option<Arc<PackageVersion>>), PickPackageFromMetaError> {
-    let meta = filter_blocked_versions(meta, blocked_versions);
-    if meta.versions.is_empty() && blocked_versions.is_some_and(|blocked| !blocked.is_empty()) {
+    let filtered = filter_blocked_versions(&meta, blocked_versions);
+    let view = filtered.as_ref().unwrap_or(&meta);
+    if view.versions.is_empty() && blocked_versions.is_some_and(|blocked| !blocked.is_empty()) {
         return Ok((meta, None));
     }
-    let picked = pick_matching_version_final(picker_opts, spec, &meta)?;
+    let picked = pick_matching_version_final(picker_opts, spec, view)?;
     Ok((meta, picked))
 }
 
-pub(super) fn filter_blocked_versions(
-    meta: Arc<Package>,
+pub(crate) fn filter_blocked_versions(
+    meta: &Package,
     blocked_versions: Option<&HashSet<String>>,
-) -> Arc<Package> {
-    let Some(blocked_versions) = blocked_versions else {
-        return meta;
-    };
-    if blocked_versions.is_empty() {
-        return meta;
-    }
-    Arc::new(filter_pkg_metadata_versions_with_dist_tag_bound(
-        &meta,
-        |version| !is_version_blocked(&meta, version, blocked_versions),
+) -> Option<Package> {
+    let blocked_versions = blocked_versions.filter(|blocked| !blocked.is_empty())?;
+    Some(filter_pkg_metadata_versions_with_dist_tag_bound(
+        meta,
+        |version| !is_version_blocked(meta, version, blocked_versions),
         true,
     ))
 }
 
 pub(crate) fn is_version_blocked(meta: &Package, version: &str, blocked: &HashSet<String>) -> bool {
+    if blocked.is_empty() {
+        return false;
+    }
     blocked.contains(version)
         || meta.versions
             .resolve_version(version)

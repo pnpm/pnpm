@@ -299,3 +299,69 @@ async fn read_package_hook_receives_the_directory_of_directory_resolutions() {
         ],
     );
 }
+
+#[tokio::test]
+async fn registry_parent_below_an_exotic_ancestor_remains_retryable() {
+    for registry_parent in [false, true] {
+        let next = if registry_parent { "parent" } else { "child" };
+        let mut wrapper = fake_result(
+            "wrapper",
+            "1.0.0",
+            serde_json::json!({
+                "name": "wrapper", "version": "1.0.0", "dependencies": { next: "1.0.0" }
+            }),
+        );
+        wrapper.id = "https://example.test/wrapper.tgz".into();
+        wrapper.resolved_via = "url".to_string();
+        wrapper.package.name_ver = None;
+        let parent = fake_result(
+            "parent",
+            "1.0.0",
+            serde_json::json!({
+                "name": "parent", "version": "1.0.0", "dependencies": { "child": "1.0.0" }
+            }),
+        );
+        let mut child = fake_result(
+            "child",
+            "1.0.0",
+            serde_json::json!({
+                "name": "child", "version": "1.0.0"
+            }),
+        );
+        child.policy_violation = Some(pnpm_resolving_resolver_base::ResolutionPolicyViolation {
+            name: "child".parse().unwrap(),
+            version: "1.0.0".to_string(),
+            resolution: child.resolution.clone(),
+            code: "MINIMUM_RELEASE_AGE_VIOLATION",
+            reason: "too young".to_string(),
+            parents: Vec::new(),
+            retry_parent: None,
+        });
+        let resolver = StubResolver {
+            table: HashMap::from_iter([
+                (("wrapper".to_string(), "1.0.0".to_string()), wrapper),
+                (("parent".to_string(), "1.0.0".to_string()), parent),
+                (("child".to_string(), "1.0.0".to_string()), child),
+            ]),
+            calls: Mutex::new(Vec::new()),
+        };
+        let tree =
+            resolve_settlement_tree(&resolver, serde_json::json!({ "wrapper": "1.0.0" })).await;
+        assert_eq!(tree.policy_violations.len(), 1);
+        let violation = &tree.policy_violations[0];
+        let labels: Vec<_> = violation.parents
+            .iter()
+            .map(ToString::to_string)
+            .collect();
+        if registry_parent {
+            assert_eq!(labels, ["wrapper@1.0.0", "parent@1.0.0"]);
+            assert_eq!(
+                violation.retry_parent.as_ref().map(ToString::to_string),
+                Some("parent@1.0.0".to_string()),
+            );
+        } else {
+            assert_eq!(labels, ["wrapper@1.0.0"]);
+            assert!(violation.retry_parent.is_none());
+        }
+    }
+}

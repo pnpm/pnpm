@@ -31,10 +31,11 @@ pub(crate) struct PublishedByView {
 #[must_use]
 pub(crate) fn apply_published_by_policy(
     meta: &Package,
+    requested_name: &str,
     cutoff: chrono::DateTime<chrono::Utc>,
     exclude: Option<&PackageVersionPolicy>,
 ) -> PublishedByView {
-    let exclude_result = exclude.map_or(PolicyMatch::No, |policy| policy.matches(&meta.name));
+    let exclude_result = exclude.map_or(PolicyMatch::No, |policy| policy.matches(requested_name));
     if matches!(exclude_result, PolicyMatch::AnyVersion) {
         return PublishedByView { filtered: None, needs_full_metadata: false };
     }

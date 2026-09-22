@@ -21,6 +21,7 @@ fn violation(name: &str, version: &str, parents: &[&str]) -> ResolutionPolicyVio
         }),
         code: MINIMUM_RELEASE_AGE_VIOLATION_CODE,
         reason: format!("{name}@{version} is too new"),
+        retry_parent: parents.last().map(|value| parent(value)),
         parents: parents
             .iter()
             .copied()
@@ -131,4 +132,13 @@ async fn backtracking_preserves_other_policy_violations() {
     assert_eq!(calls, 2);
     assert_eq!(result.merged_tree.policy_violations.len(), 1);
     assert_eq!(result.merged_tree.policy_violations[0].code, "TRUST_DOWNGRADE");
+}
+
+#[test]
+fn a_non_registry_immediate_parent_is_not_retried_from_its_diagnostic_label() {
+    let mut issue = violation("child", "1.0.0", &["wrapper@1.0.0"]);
+    issue.retry_parent = None;
+    let mut blocked = BlockedVersions::new();
+    assert!(!block_dead_end_parents(&[issue], &mut blocked));
+    assert!(blocked.is_empty());
 }

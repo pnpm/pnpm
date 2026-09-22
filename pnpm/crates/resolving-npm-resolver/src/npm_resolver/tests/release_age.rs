@@ -256,6 +256,8 @@ async fn latest_is_raw_registry_tag_when_published_by_exclude_trusts_that_versio
 #[tokio::test]
 async fn foreign_manifest_name_cannot_exempt_a_requested_package() {
     let mut body: serde_json::Value = serde_json::from_str(PACKAGE_BODY).unwrap();
+    body["name"] = serde_json::json!("other");
+    body["versions"]["1.0.0"]["name"] = serde_json::json!("other");
     body["versions"]["1.1.0"]["name"] = serde_json::json!("other");
     let mut server = mockito::Server::new_async().await;
     let _mock = server
@@ -268,17 +270,25 @@ async fn foreign_manifest_name_cannot_exempt_a_requested_package() {
     let mut opts = ResolveOptions::default();
     opts.policy.published_by = Some(chrono::Utc.with_ymd_and_hms(2024, 6, 1, 0, 0, 0).unwrap());
     opts.policy.published_by_exclude = Some(create_package_version_policy(["other"]).unwrap());
-    let wanted = WantedDependency {
-        alias: Some("acme".to_string()),
-        bare_specifier: Some("1.1.0".to_string()),
-        ..WantedDependency::default()
-    };
-    let result = resolver
-        .resolve(&wanted, &opts)
-        .await
-        .unwrap()
-        .unwrap();
-    let violation = result.policy_violation.expect("foreign name is not an exclusion");
-    assert_eq!(violation.name.to_string(), "acme");
-    assert_eq!(violation.code, MINIMUM_RELEASE_AGE_VIOLATION_CODE);
+    for specifier in ["1.1.0", "*"] {
+        let wanted = WantedDependency {
+            alias: Some("acme".to_string()),
+            bare_specifier: Some(specifier.to_string()),
+            ..WantedDependency::default()
+        };
+        let result = resolver
+            .resolve(&wanted, &opts)
+            .await
+            .unwrap()
+            .unwrap();
+        assert!(result.package.latest.is_none());
+        if specifier == "*" {
+            assert_eq!(result.package.name_ver.unwrap().suffix.to_string(), "1.0.0");
+            assert!(result.policy_violation.is_none());
+        } else {
+            let violation = result.policy_violation.expect("foreign name is not an exclusion");
+            assert_eq!(violation.name.to_string(), "acme");
+            assert_eq!(violation.code, MINIMUM_RELEASE_AGE_VIOLATION_CODE);
+        }
+    }
 }

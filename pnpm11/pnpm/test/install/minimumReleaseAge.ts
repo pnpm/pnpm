@@ -584,13 +584,14 @@ describe('minimumReleaseAge resolution fallback', () => {
     expect(manifest.dependencies.rolldown).toBe('1.2.4')
   })
 
-  test.each(['rolldown', 'mismatched-rolldown'])('reports the requested dependent %s when no earlier version can be reached', async (name) => {
+  test.each([['rolldown', '1.2.5'], ['mismatched-rolldown', '1.2.5'], ['rolldown', 'work:1.2.5']])('reports the requested dependent %s@%s when no earlier version can be reached', async (name, specifier) => {
     prepare({
-      dependencies: { [name]: '1.2.5' },
+      dependencies: { [name]: specifier },
     })
     writeYamlFileSync('pnpm-workspace.yaml', {
       minimumReleaseAge: 1440,
       minimumReleaseAgeStrict: true,
+      registries: { [registry.slice('--config.registry='.length)]: { prefix: 'work' } },
     })
 
     const output = await execPnpm(
@@ -600,7 +601,7 @@ describe('minimumReleaseAge resolution fallback', () => {
 
     expect(output).toContain('ERR_PNPM_NO_MATURE_MATCHING_VERSION')
     expect(output).toContain('@rolldown/binding-darwin-x64@1.2.5')
-    expect(output).toContain(`(required by ${name}@1.2.5)`)
+    expect(output).toContain(`(required by ${name}@${specifier})`)
   })
 })
 

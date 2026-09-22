@@ -62,9 +62,11 @@ pub struct ResolutionPolicyViolation {
     /// the importer asked for the package itself, and when the violation
     /// was raised outside a dependency walk — the lockfile verifier checks
     /// entries it has no path for. The install names the dependent with
-    /// it, and the resolution retry uses the last entry to find the choice
-    /// that has to be revisited.
+    /// it; these diagnostic labels do not imply registry addressability.
     pub parents: Vec<pnpm_lockfile::PackageKey>,
+    /// The immediate parent's registry coordinate, when its version can be
+    /// retried. Non-registry parents have diagnostic labels but no retry key.
+    pub retry_parent: Option<pnpm_lockfile::PackageKey>,
 }
 
 /// `ctx` argument bundle for [`ResolutionVerifier::verify`].

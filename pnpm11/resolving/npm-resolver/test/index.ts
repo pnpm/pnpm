@@ -3198,31 +3198,39 @@ test('a blocked exact version is reported under the requested package identity',
   expect(result?.id).toBe('is-positive@1.0.0')
 })
 
-test('a foreign manifest name cannot exempt a requested package from the age policy', async () => {
+test.each(['1.0.0', '*'])('foreign metadata names cannot exempt a requested package (%s)', async (bareSpecifier) => {
   getMockAgent().get(registriesByScope.default.replace(/\/$/, ''))
     .intercept({ path: '/is-positive', method: 'GET' })
     .reply(200, {
       ...isPositiveMetaFull,
+      name: 'other',
+      'dist-tags': { latest: '1.0.0' },
       versions: {
-        ...isPositiveMetaFull.versions,
+        '0.9.0': { ...isPositiveMetaFull.versions['1.0.0'], name: 'other', version: '0.9.0' },
         '1.0.0': { ...isPositiveMetaFull.versions['1.0.0'], name: 'other' },
       },
-      time: { ...isPositiveMetaFull.time, '1.0.0': '2099-01-01T00:00:00Z' },
+      time: { '0.9.0': '2020-01-01T00:00:00Z', '1.0.0': '2099-01-01T00:00:00Z' },
     })
   const { resolveFromNpm } = createResolveFromNpm({
     storeDir: temporaryDirectory(),
     cacheDir: temporaryDirectory(),
     registriesByScope,
   })
-  const result = await resolveFromNpm({ alias: 'is-positive', bareSpecifier: '1.0.0' }, {
+  const result = await resolveFromNpm({ alias: 'is-positive', bareSpecifier }, {
     publishedBy: new Date('2030-01-01T00:00:00Z'),
     publishedByExclude: (name) => name === 'other',
   })
-  expect(result?.policyViolation).toMatchObject({
-    code: 'MINIMUM_RELEASE_AGE_VIOLATION',
-    name: 'is-positive',
-    version: '1.0.0',
-  })
+  expect(result?.latest).toBeUndefined()
+  if (bareSpecifier === '*') {
+    expect(result?.manifest?.version).toBe('0.9.0')
+    expect(result?.policyViolation).toBeUndefined()
+  } else {
+    expect(result?.policyViolation).toMatchObject({
+      code: 'MINIMUM_RELEASE_AGE_VIOLATION',
+      name: 'is-positive',
+      version: '1.0.0',
+    })
+  }
 })
 
 test.each(['v1.0.0', 'banana'])('raw packument key %s retains its timestamp and obeys normalized retry blocks', async (rawKey) => {
@@ -3247,8 +3255,10 @@ test.each(['v1.0.0', 'banana'])('raw packument key %s retains its timestamp and 
     blockedVersions: new Map([['is-positive', new Set(['1.0.0'])]]),
   })
   expect(retry?.manifest?.version).toBe('0.9.0')
+  expect(retry?.latest).toBeUndefined()
   const allowed = await resolveFromNpm({ alias: 'is-positive' }, {
     blockedVersions: new Map([['is-positive', new Set(['2.0.0'])]]),
   })
   expect(allowed?.manifest?.version).toBe('1.0.0')
+  expect(allowed?.latest).toBe(rawKey)
 })

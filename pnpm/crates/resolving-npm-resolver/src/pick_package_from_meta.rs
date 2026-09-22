@@ -184,7 +184,7 @@ where
     let view: PublishedByView;
     let meta_ref: &Package = match opts.published_by {
         Some(cutoff) => {
-            view = apply_published_by_policy(meta, cutoff, opts.published_by_exclude);
+            view = apply_published_by_policy(meta, &spec.name, cutoff, opts.published_by_exclude);
             mature_view(&view, meta, cutoff)?
         }
         None => meta,

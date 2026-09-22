@@ -2115,7 +2115,10 @@ async function resolveDependency (
       ctx.resolutionPolicyViolations.push({
         ...pkgResponse.body.policyViolation,
         parentIds: options.parentIds.slice(1),
-        parents: getPkgsInfoFromIds(options.parentIds, ctx.resolvedPkgsById).map(({ name, version }) => ({ name, version })),
+        parents: getPkgsInfoFromIds(options.parentIds, ctx.resolvedPkgsById).map(({ id, name, version }) => {
+          const parsed = dp.parse(id)
+          return { name, version: parsed.registryName && parsed.version ? `${parsed.registryName}:${parsed.version}` : version }
+        }),
       })
     }
 

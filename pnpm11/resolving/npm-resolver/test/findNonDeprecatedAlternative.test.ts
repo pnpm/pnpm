@@ -101,3 +101,13 @@ test('skips keys that are not versions', () => {
   const meta = metaWith({ '1.0.0': false, 'not-a-version': false })
   expect(findNonDeprecatedAlternative(meta, range('*'), {})?.version).toBe('1.0.0')
 })
+
+test.each(['2.0.0', 'v2.0.0'])('does not recommend a retry-blocked alternative under key %s', (rawKey) => {
+  const meta = metaWith({ '1.0.0': true, '1.4.0': false, [rawKey]: false })
+  expect(findNonDeprecatedAlternative(meta, range('*'), {
+    blockedVersions: new Map([['foo', new Set(['2.0.0'])]]),
+  })?.version).toBe('1.4.0')
+  expect(findNonDeprecatedAlternative(meta, range('*'), {
+    blockedVersions: new Map([['foo', new Set(['3.0.0'])]]),
+  })?.version).toBe('2.0.0')
+})

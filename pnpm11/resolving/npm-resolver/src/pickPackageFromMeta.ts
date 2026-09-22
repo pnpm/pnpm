@@ -1,7 +1,7 @@
 import util from 'node:util'
 
 import { PnpmError } from '@pnpm/error'
-import { filterPkgMetadata } from '@pnpm/resolving.registry.pkg-metadata-filter'
+import { filterPkgMetadata, isVersionBlocked } from '@pnpm/resolving.registry.pkg-metadata-filter'
 import type { PackageInRegistry, PackageMeta, PackageMetaWithTime } from '@pnpm/resolving.registry.types'
 import type { NonDeprecatedAlternative } from '@pnpm/resolving.resolver-base'
 import {
@@ -46,7 +46,7 @@ export function pickPackageFromMeta (
 ): PackageInRegistry | null {
   const blockedForPkg = blockedVersions?.get(spec.name)
   if (publishedBy || blockedForPkg?.size) {
-    const view = applyPublishedByPolicy(meta, { publishedBy, publishedByExclude, blockedVersions: blockedForPkg })
+    const view = applyPublishedByPolicy(meta, { requestedName: spec.name, publishedBy, publishedByExclude, blockedVersions: blockedForPkg })
     meta = view.meta
     if (view.needsFullMetadata && publishedBy) {
       const modifiedDate = parseModifiedDate(meta.modified)
@@ -142,13 +142,14 @@ export interface PublishedByView {
  */
 export function applyPublishedByPolicy (
   meta: PackageMeta,
-  { publishedBy, publishedByExclude, blockedVersions }: {
+  { requestedName, publishedBy, publishedByExclude, blockedVersions }: {
+    requestedName?: string
     publishedBy?: Date
     publishedByExclude?: PackageVersionPolicy
     blockedVersions?: ReadonlySet<string>
   }
 ): PublishedByView {
-  const excludeResult = publishedByExclude?.(meta.name) ?? false
+  const excludeResult = publishedByExclude?.(requestedName ?? meta.name) ?? false
   // A blocked version is out even here: the exclusion says the cutoff does
   // not apply to this package, not that a version whose own dependency tree
   // cannot satisfy the cutoff is installable.
@@ -417,6 +418,8 @@ function semverSatisfiesLoose (version: string, range: string): boolean {
  * already holds, so it costs no extra request.
  */
 export interface PublishPolicyOptions {
+  blockedVersions?: BlockedVersions
+  requestedName?: string
   publishedBy?: Date
   publishedByExclude?: PackageVersionPolicy
 }
@@ -427,7 +430,7 @@ function policyTrusts (
   version: string,
   opts: PublishPolicyOptions
 ): boolean {
-  const excludeResult = opts.publishedByExclude?.(meta.name)
+  const excludeResult = opts.publishedByExclude?.(opts.requestedName ?? meta.name)
   if (excludeResult === true) return true
   return Array.isArray(excludeResult) && excludeResult.includes(version)
 }
@@ -487,10 +490,13 @@ export function findNonDeprecatedAlternative (
   spec: RegistryPackageSpec,
   opts: PublishPolicyOptions
 ): NonDeprecatedAlternative | undefined {
+  const policyOptions = { ...opts, requestedName: spec.name }
+  const blocked = opts.blockedVersions?.get(spec.name)
   let newest: semver.SemVer | undefined
   for (const [version, versionMeta] of Object.entries(meta.versions)) {
     if (versionMeta.deprecated) continue
-    if (!installableUnderPolicy(meta, version, opts)) continue
+    if (blocked?.size && isVersionBlocked(version, blocked, meta.versions)) continue
+    if (!installableUnderPolicy(meta, version, policyOptions)) continue
     const parsed = semver.parse(version, true)
     if (parsed != null && (newest == null || parsed.compare(newest) > 0)) {
       newest = parsed

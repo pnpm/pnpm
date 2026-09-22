@@ -74,7 +74,7 @@ fn block_dead_end_parents(
         if violation.code != MINIMUM_RELEASE_AGE_VIOLATION_CODE {
             continue;
         }
-        let Some(parent) = violation.parents.last() else { return false };
+        let Some(parent) = violation.retry_parent.as_ref() else { return false };
         grew |= blocked_versions
             .entry(parent.name.to_string())
             .or_default()

@@ -137,10 +137,13 @@ pub(crate) async fn pick_from_registry_with_guard<Cache: PackageMetaCache>(
         };
         let version_str = version.version.to_string();
         let Some(reason) = guard_rejection(&opts, &version_str).await? else {
-            return Ok(RegistryPick::Picked(PickedFromRegistry {
-                meta: pick_result.meta,
-                version,
-            }));
+            let meta = crate::pick_package::filter_blocked_versions(
+                &pick_result.meta,
+                Some(&blocked.guard_versions),
+            )
+            .map(Arc::new)
+            .unwrap_or(pick_result.meta);
+            return Ok(RegistryPick::Picked(PickedFromRegistry { meta, version }));
         };
         log_guard_rejection(&opts.spec.name, &version_str, &reason);
         // Block by the *packument key*, which the next pick filters on. It

@@ -50,15 +50,11 @@ pub(super) fn collect_candidates(
         // holds. The check is offline, so it applies even when no
         // policy verifiers are active.
         if has_registry_shape_mismatch(key, &metadata.resolution) {
-            shape_violations.push(ResolutionPolicyViolation {
-                parents: Vec::new(),
-                name: name.clone(),
-                version: version.clone(),
-                resolution: metadata.resolution.clone(),
-                code: RESOLUTION_SHAPE_MISMATCH_VIOLATION_CODE,
-                reason: "a registry-style dependency path is backed by a non-registry resolution"
-                    .to_string(),
-            });
+            shape_violations.push(create_registry_shape_violation(
+                name.clone(),
+                version.clone(),
+                metadata.resolution.clone(),
+            ));
         }
         // Every `LockfileResolution` variant derives `Serialize`, and
         // the wire shape never contains non-string keys or non-finite
@@ -82,6 +78,23 @@ pub(super) fn collect_candidates(
             });
     }
     (deduped.into_values().collect(), shape_violations)
+}
+
+fn create_registry_shape_violation(
+    name: PkgName,
+    version: String,
+    resolution: LockfileResolution,
+) -> ResolutionPolicyViolation {
+    ResolutionPolicyViolation {
+        parents: Vec::new(),
+        retry_parent: None,
+        name,
+        version,
+        resolution,
+        code: RESOLUTION_SHAPE_MISMATCH_VIOLATION_CODE,
+        reason: "a registry-style dependency path is backed by a non-registry resolution"
+            .to_string(),
+    }
 }
 
 /// A registry-style key must have a registry-shaped resolution because
@@ -188,6 +201,7 @@ async fn evaluate_candidate(
             ResolutionVerification::Err { code, reason } => {
                 return Ok(Some(ResolutionPolicyViolation {
                     parents: Vec::new(),
+                    retry_parent: None,
                     name: candidate.name,
                     version: candidate.version,
                     resolution: candidate.resolution,

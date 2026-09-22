@@ -10,6 +10,7 @@ import type {
 } from '@pnpm/fetching.types'
 import { globalWarn } from '@pnpm/logger'
 import { calcVersionRange, inferRangeSpecStyle, rangeSpecGranularity, versionWithRangeSpecStyle } from '@pnpm/pkg-manifest.utils'
+import { isVersionBlocked } from '@pnpm/resolving.registry.pkg-metadata-filter'
 import type { PackageInRegistry, PackageMeta, PackageRevision } from '@pnpm/resolving.registry.types'
 import type {
   BlockedVersions,
@@ -418,7 +419,7 @@ function warnOnceOnHeldBackUpdate (
   // every version cleared the cutoff, so `meta` is the filtered view.
   const blockedForPkg = opts.blockedVersions?.get(spec.name)
   const baselineMeta = (opts.publishedBy != null || blockedForPkg?.size)
-    ? applyPublishedByPolicy(meta, { publishedBy: opts.publishedBy, publishedByExclude: opts.publishedByExclude, blockedVersions: blockedForPkg }).meta
+    ? applyPublishedByPolicy(meta, { requestedName: spec.name, publishedBy: opts.publishedBy, publishedByExclude: opts.publishedByExclude, blockedVersions: blockedForPkg }).meta
     : meta
   const preferred = pickVersionByVersionRange({
     meta: baselineMeta,
@@ -758,7 +759,7 @@ async function resolveNpm (
     })
   }
 
-  const latest = latestAllowedByPolicy(meta, opts)
+  const latest = latestAllowedByPolicy(meta, opts, spec.name)
   const workspacePkgsMatchingName = spec.revision == null ? workspacePackages?.get(pickedPackage.name) : undefined
   if (workspacePkgsMatchingName && opts.projectDir) {
     const matchedPkg = workspacePkgsMatchingName.get(pickedPackage.version)
@@ -999,7 +1000,7 @@ async function pickFromSimpleRegistry (
   const publishedAt = meta.time?.[getPackumentVersion(pickedPackage)]
   return {
     id: `${spec.name}@${pickedPackage.version}` as PkgResolutionId,
-    latest: latestAllowedByPolicy(meta, opts),
+    latest: latestAllowedByPolicy(meta, opts, spec.name),
     // Only worked out for a deprecated pick, so the scan stays on the rare path.
     nonDeprecatedAlternative: pickedPackage.deprecated
       ? findNonDeprecatedAlternative(meta, spec, opts)
@@ -1279,7 +1280,7 @@ function defaultTagForAlias (alias: string, defaultTag: string): RegistryPackage
 }
 
 /**
- * The raw `dist-tags.latest` when the active `minimumReleaseAge` policy would
+ * The raw `dist-tags.latest` when the age cutoff and retry blocks would
  * allow installing it, `undefined` otherwise. The install summary's
  * "(X is available)" hint must only ever name the actual latest tag, so an
  * immature latest suppresses the hint instead of being rewritten to an older
@@ -1293,11 +1294,15 @@ function latestAllowedByPolicy (
   opts: {
     publishedBy?: Date
     publishedByExclude?: PackageVersionPolicy
-  }
+    blockedVersions?: BlockedVersions
+  },
+  requestedName: string
 ): string | undefined {
   const latest = meta['dist-tags'].latest
   if (!latest) return undefined
-  return knownImmature(meta, latest, opts) ? undefined : latest
+  const blocked = opts.blockedVersions?.get(requestedName)
+  if (blocked?.size && isVersionBlocked(latest, blocked, meta.versions)) return undefined
+  return knownImmature(meta, latest, { ...opts, requestedName }) ? undefined : latest
 }
 
 /**

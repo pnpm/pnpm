@@ -51,7 +51,7 @@ pub use options::{
 };
 
 pub(crate) use mirror_persistence::{SkippedTimeCheck, warn_missing_time_once};
-pub(crate) use version_pick::is_version_blocked;
+pub(crate) use version_pick::{filter_blocked_versions, is_version_blocked};
 
 pub use metadata_cache::{
     CachedPackument, InMemoryPackageMetaCache, PackageMetaCache, PackumentFetchLocker,

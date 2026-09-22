@@ -122,8 +122,12 @@ fn held_back_preferred(
     // the filtered view.
     let baseline_meta: &Package = match opts.policy.published_by {
         Some(cutoff) => {
-            view =
-                apply_published_by_policy(meta, cutoff, opts.policy.published_by_exclude.as_ref());
+            view = apply_published_by_policy(
+                meta,
+                &spec.name,
+                cutoff,
+                opts.policy.published_by_exclude.as_ref(),
+            );
             view.filtered.as_deref().unwrap_or(meta)
         }
         None => meta,
