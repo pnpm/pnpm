@@ -3,12 +3,24 @@ use super::{
     PathBuf, Serialize, Value, Write, convert_engines_runtime_to_dependencies, fs, io,
 };
 
+const DEPENDENCY_FIELDS: [&str; 4] =
+    ["dependencies", "devDependencies", "optionalDependencies", "peerDependencies"];
+
+/// The dependency fields `manifest` declares as empty objects. A save keeps
+/// these in place and only drops a field pnpm itself emptied.
+pub(super) fn empty_dependency_fields(manifest: &Value) -> Vec<&'static str> {
+    DEPENDENCY_FIELDS
+        .into_iter()
+        .filter(|field| matches!(manifest.get(field), Some(Value::Object(deps)) if deps.is_empty()))
+        .collect()
+}
+
 /// pnpm's on-write manifest normalization: within each dependency field,
 /// sort the entries by name, and drop the field entirely when it holds no
-/// entries.
-pub(super) fn normalize_dependency_fields(manifest: &mut Value) {
+/// entries, unless `keep_empty` lists it.
+pub(super) fn normalize_dependency_fields(manifest: &mut Value, keep_empty: &[&str]) {
     let Some(manifest) = manifest.as_object_mut() else { return };
-    for field in ["dependencies", "devDependencies", "optionalDependencies", "peerDependencies"] {
+    for field in DEPENDENCY_FIELDS {
         let is_empty_object = match manifest.get_mut(field) {
             Some(Value::Object(deps)) => {
                 deps.sort_keys();
@@ -16,7 +28,7 @@ pub(super) fn normalize_dependency_fields(manifest: &mut Value) {
             }
             _ => continue,
         };
-        if is_empty_object {
+        if is_empty_object && !keep_empty.contains(&field) {
             manifest.remove(field);
         }
     }
@@ -174,8 +186,9 @@ impl PackageManifest {
                 path.display(),
             )));
         }
+        let empty_dependency_fields = empty_dependency_fields(&value);
         let mut on_disk = value.clone();
-        normalize_dependency_fields(&mut on_disk);
+        normalize_dependency_fields(&mut on_disk, &empty_dependency_fields);
         convert_engines_runtime_to_dependencies(&mut value, "devEngines", "devDependencies");
         convert_engines_runtime_to_dependencies(&mut value, "engines", "dependencies");
         let crlf = file_contents.contains("\r\n");
@@ -186,6 +199,7 @@ impl PackageManifest {
             crlf,
             indent: detect_indent(contents).to_string(),
             on_disk: Some(on_disk),
+            empty_dependency_fields,
         })
     }
 

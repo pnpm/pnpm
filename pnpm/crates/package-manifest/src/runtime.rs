@@ -254,7 +254,12 @@ pub fn convert_dependencies_to_engines_runtime(
             if let Some(deps) = manifest.get_mut(deps_field).and_then(Value::as_object_mut) {
                 deps.remove(runtime_name);
             }
-        } else {
+        } else if manifest
+            .get(deps_field)
+            .and_then(Value::as_object)
+            .and_then(|deps| deps.get(runtime_name))
+            .is_none()
+        {
             remove_managed_runtime_entry(manifest, engines_field, runtime_name);
         }
     }
