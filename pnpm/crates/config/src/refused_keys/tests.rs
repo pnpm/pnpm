@@ -16,6 +16,14 @@ fn a_key_the_global_config_file_takes_is_routed_there() {
     }
 }
 
+#[test]
+fn the_structured_macos_backup_key_is_routed_to_its_global_fields() {
+    assert_eq!(
+        where_refused_key_belongs("macosBackup"),
+        "Set macosBackup.excludeModulesDir or macosBackup.excludeStoreDir in the global config.yaml instead",
+    );
+}
+
 /// These are derived from a key the global config file does take, and naming
 /// their own spelling would send the user to a command that does nothing.
 #[test]
@@ -75,6 +83,8 @@ fn refusal_is_spelling_insensitive() {
     assert!(is_refused_by_a_project_manifest("authConfig"));
     assert!(is_refused_by_a_project_manifest("auth-config"));
     assert!(is_refused_by_a_project_manifest("hooks"));
+    assert!(is_refused_by_a_project_manifest("macos-backup"));
+    assert!(is_refused_by_a_project_manifest("macosBackup"));
     assert!(!is_refused_by_a_project_manifest("storeDir"));
     assert!(!is_refused_by_a_project_manifest("node-linker"));
 }

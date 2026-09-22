@@ -162,6 +162,54 @@ fn set_registries_and_named_registries_global_writes_config_yaml() {
 }
 
 #[test]
+fn set_macos_backup_requires_a_json_object() {
+    let tmp = TempDir::new().unwrap();
+    let config_dir = tmp.path().join("global-config");
+    let config = config_with_dir(&config_dir);
+
+    let err = config_set(
+        &config,
+        tmp.path(),
+        flags(true, None, false),
+        "macos-backup",
+        Some("false".into()),
+    )
+    .unwrap_err();
+    assert_eq!(err.code().unwrap().to_string(), "ERR_PNPM_CONFIG_SET_STRUCTURED_VALUE");
+    assert!(!config_dir.join("config.yaml").exists());
+
+    for value in [
+        r#"{"excludeModulesDir":"invalid"}"#,
+        r#"{"excludeStoreDir":"invalid"}"#,
+        r#"{"excludeStoreDirectory":false}"#,
+    ] {
+        let err = config_set(
+            &config,
+            tmp.path(),
+            flags(true, None, true),
+            "macos-backup",
+            Some(value.into()),
+        )
+        .unwrap_err();
+        assert_eq!(err.code().unwrap().to_string(), "ERR_PNPM_CONFIG_SET_STRUCTURED_VALUE");
+        assert!(!config_dir.join("config.yaml").exists());
+    }
+
+    config_set(
+        &config,
+        tmp.path(),
+        flags(true, None, true),
+        "macos-backup",
+        Some(r#"{"excludeModulesDir":false,"excludeStoreDir":true}"#.into()),
+    )
+    .unwrap();
+    assert_eq!(
+        read_yaml(&config_dir.join("config.yaml")).unwrap(),
+        json!({ "macosBackup": { "excludeModulesDir": false, "excludeStoreDir": true } }),
+    );
+}
+
+#[test]
 fn set_camel_key_location_global() {
     let tmp = TempDir::new().unwrap();
     let config_dir = tmp.path().join("global-config");

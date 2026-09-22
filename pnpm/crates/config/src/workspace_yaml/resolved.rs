@@ -1,6 +1,6 @@
 use super::{
-    AllowBuild, Config, PackageConfigsSetting, PnpmfileSetting, WorkspaceSettings, as_set,
-    global_shims_setting, opt_path, path, side_effects_cache_setting,
+    AllowBuild, Config, MacosBackupSettings, PackageConfigsSetting, PnpmfileSetting,
+    WorkspaceSettings, as_set, global_shims_setting, opt_path, path, side_effects_cache_setting,
 };
 
 impl WorkspaceSettings {
@@ -97,6 +97,11 @@ impl WorkspaceSettings {
             optimistic_repeat_install: as_set(config, "optimisticRepeatInstall"),
             minimum_release_age: as_set(config, "minimumReleaseAge"),
             prefer_symlinked_executables: as_set(config, "preferSymlinkedExecutables"),
+
+            macos_backup: Some(MacosBackupSettings {
+                exclude_modules_dir: Some(config.macos_backup.exclude_modules_dir),
+                exclude_store_dir: Some(config.macos_backup.exclude_store_dir),
+            }),
 
             global_shims: Some(global_shims_setting(config)),
 

@@ -80,6 +80,15 @@ where
     }
 }
 
+/// The `macosBackup` section accepted only from trusted machine-level
+/// configuration and `PNPM_CONFIG_*` environment variables.
+#[derive(Debug, Default, PartialEq, serde::Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", default)]
+pub struct MacosBackupSettings {
+    pub exclude_modules_dir: Option<bool>,
+    pub exclude_store_dir: Option<bool>,
+}
+
 /// Settings readable from `pnpm-workspace.yaml`.
 ///
 /// pnpm 10+ moved the bulk of its configuration (`storeDir`, `registry`,
@@ -147,6 +156,9 @@ pub struct WorkspaceSettings {
     pub public_hoist_pattern: Option<Option<Vec<String>>>,
     pub shamefully_hoist: Option<bool>,
     pub store_dir: Option<String>,
+    /// Machine preferences accepted from global `config.yaml` and the
+    /// environment. A repository cannot change the user's backup policy.
+    pub macos_backup: Option<MacosBackupSettings>,
     pub state_dir: Option<String>,
     pub modules_dir: Option<String>,
     #[serde(default, deserialize_with = "deserialize_option_with_env_expand")]

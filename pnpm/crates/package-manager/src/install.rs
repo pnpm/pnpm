@@ -84,6 +84,7 @@ mod lockfile_freshness;
 mod materialize;
 mod modules_state;
 mod prepare_modules_state;
+mod time_machine;
 /// The dependency groups the install includes, as `.modules.yaml` records
 /// them and the dependency-graph walker observes them.
 pub(super) fn included_dependencies(dependency_groups: &[DependencyGroup]) -> IncludedDependencies {
@@ -117,6 +118,7 @@ use prepare_modules_state::{
     PrepareModulesStateInputs, PreparedModulesState, prepare_modules_state,
     prior_hoisted_dependencies, prior_hoisted_locations,
 };
+use time_machine::TimeMachineExclusions;
 use workspace_state::{
     ProjectScriptsInputs, build_project_manifests_list, build_root_importer_project_manifests_list,
     build_selected_project_manifests_list, lockfile_root_for, projects_running_own_scripts,

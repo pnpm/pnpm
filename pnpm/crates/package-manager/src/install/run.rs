@@ -17,6 +17,7 @@ mod workspace;
 use workspace::{InstallScope, InstallWorkspace, workspace_projects};
 
 mod execution;
+mod time_machine_capture;
 
 use super::{
     Arc, DependencyGroup, InMemoryPackageMetaCache, IncludedDependencies, Install, InstallError,
@@ -44,12 +45,13 @@ where
         self,
         options: InstallRunOptions<'a, '_>,
     ) -> Result<(), InstallError> {
-        let _store_lock = if self.context.config.frozen_store {
+        let store_lock = if self.context.config.frozen_store {
             self.context.config.store_dir.lock_for_frozen_use()
         } else {
             self.context.config.store_dir.lock_for_use()
         }
         .map_err(InstallError::StoreLock)?;
+        let mut time_machine_exclusions = super::TimeMachineExclusions::empty();
         // The branch lockfiles become disposable only once the merge has
         // been written for good. An install that neither reads nor saves a
         // lockfile never merged them, and one that only reports what it
@@ -71,8 +73,28 @@ where
             })
             .transpose()?;
         let prune_excludes = self.prunes_workspace_excludes(&options);
+        let result = Box::pin(self.run_inner_and_cleanup::<Reporter>(
+            options,
+            branch_lockfiles_to_clean,
+            prune_excludes,
+            &mut time_machine_exclusions,
+        ))
+        .await;
+        drop(store_lock);
+        time_machine_exclusions.apply::<Reporter>().await;
+        result
+    }
+
+    async fn run_inner_and_cleanup<Reporter: self::Reporter + 'static>(
+        self,
+        options: InstallRunOptions<'a, '_>,
+        branch_lockfiles_to_clean: Option<PathBuf>,
+        prune_excludes: bool,
+        time_machine_exclusions: &mut super::TimeMachineExclusions,
+    ) -> Result<(), InstallError> {
         let (config, manifest) = (self.context.config, self.context.manifest);
-        let outcome = Box::pin(self.run_inner_impl::<Reporter>(options)).await?;
+        let outcome =
+            Box::pin(self.run_inner_impl::<Reporter>(options, time_machine_exclusions)).await?;
         if let Some(lockfile_dir) = branch_lockfiles_to_clean {
             Lockfile::clean_git_branch_lockfiles(&lockfile_dir)
                 .map_err(InstallError::CleanGitBranchLockfiles)?;
@@ -131,6 +153,7 @@ where
     async fn run_inner_impl<Reporter: self::Reporter + 'static>(
         self,
         options: InstallRunOptions<'a, '_>,
+        time_machine_exclusions: &mut super::TimeMachineExclusions,
     ) -> Result<InstallRunOutcome, InstallError> {
         let (install, mut owned) = self.split();
         install.context.http_client.set_warning_handler(
@@ -149,7 +172,7 @@ where
                 options,
                 loaded_workspace_projects: loaded_workspace_projects.as_deref(),
             }
-            .run::<Reporter>(),
+            .run::<Reporter>(time_machine_exclusions),
         )
         .await
     }

@@ -21,6 +21,7 @@ const PROJECT_MANIFEST_SKIPPED_KEYS: &[&str] = &[
     "globalBinDir",
     "globalDir",
     "globalPkgDir",
+    "macosBackup",
     "npmrcAuthFile",
     "pnpmHomeDir",
     "stateDir",
@@ -96,6 +97,10 @@ fn global_equivalent_key(camel_key: &str) -> Option<&'static str> {
 pub fn where_refused_key_belongs(camel_key: &str) -> String {
     if camel_key == "dir" {
         return "Pass --dir on the command line instead".to_string();
+    }
+    if camel_key == "macosBackup" {
+        return "Set macosBackup.excludeModulesDir or macosBackup.excludeStoreDir in the global config.yaml instead"
+            .to_string();
     }
     let kebab_key =
         global_equivalent_key(camel_key).map_or_else(|| to_kebab_case(camel_key), str::to_string);

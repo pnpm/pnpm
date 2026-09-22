@@ -99,6 +99,7 @@ impl Config {
         settings.scope = None;
         settings.global_dir = None;
         settings.global_bin_dir = None;
+        settings.macos_backup = None;
         // A mirror decides where the binary pnpm runs an ecosystem with is
         // downloaded from, and a release's checksums come from the mirror
         // that serves its files, so verifying the download says only that

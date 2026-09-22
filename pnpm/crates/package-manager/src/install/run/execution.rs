@@ -6,7 +6,9 @@ use super::{
         prior_hoisted_locations,
     },
     Dispatched, InstallRunOutcome, InstallScope, Loaded, Lockfiles, RunExecution, Settled,
-    Verification, dispatch, load_lockfiles, settle_wanted_lockfile, workspace_projects,
+    Verification, dispatch, load_lockfiles, settle_wanted_lockfile,
+    time_machine_capture::capture_time_machine_exclusions,
+    workspace_projects,
 };
 
 impl<'a> RunExecution<'a> {
@@ -22,8 +24,10 @@ impl<'a> RunExecution<'a> {
 
     pub(super) async fn run<Reporter: self::Reporter + 'static>(
         mut self,
+        time_machine_exclusions: &mut super::super::TimeMachineExclusions,
     ) -> Result<InstallRunOutcome, InstallError> {
         let scope = self.select_scope();
+        capture_time_machine_exclusions(&self, &scope, time_machine_exclusions);
         if scope.is_already_up_to_date::<Reporter>(
             self.install,
             &self.owned,
