@@ -266,11 +266,6 @@ pub(super) fn global_group_config(
     Ok(cfg)
 }
 
-/// Add the group's own `minimumReleaseAgeExclude` to `cfg`. `update -g`
-/// resolves a group more than once before it materializes, and that manifest
-/// is where a strict `minimumReleaseAge` approval is recorded, so every pass
-/// after the approving one reads the approval back from here instead of
-/// asking for the same `name@version` again.
 fn merge_persisted_minimum_release_age_excludes(
     cfg: &mut Config,
     install_dir: &Path,
