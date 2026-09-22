@@ -194,7 +194,7 @@ async function hasConfiguredSshCommand (opts: GitCwdOptions): Promise<boolean> {
 
 export function safeGitEnv (baseEnv: NodeJS.ProcessEnv = process.env): NodeJS.ProcessEnv {
   const gitEnv = { ...baseEnv }
-  for (const name of ['GIT_DIR', 'GIT_WORK_TREE', 'GIT_INDEX_FILE', 'GIT_OBJECT_DIRECTORY', 'GIT_ALTERNATE_OBJECT_DIRECTORIES']) {
+  for (const name of ['GIT_DIR', 'GIT_WORK_TREE', 'GIT_COMMON_DIR', 'GIT_INDEX_FILE', 'GIT_OBJECT_DIRECTORY', 'GIT_ALTERNATE_OBJECT_DIRECTORIES']) {
     delete gitEnv[name]
   }
   return gitEnv

@@ -2,7 +2,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 
 import { expect, test } from '@jest/globals'
-import { getCurrentBranch, isGitRepo, isHeadDetached, isWorkingTreeClean, nonInteractiveGitEnv, nonInteractiveGitSubmoduleEnv } from '@pnpm/network.git-utils'
+import { getCurrentBranch, isGitRepo, isHeadDetached, isWorkingTreeClean, nonInteractiveGitEnv, nonInteractiveGitSubmoduleEnv, safeGitEnv } from '@pnpm/network.git-utils'
 import { safeExeca as execa } from 'execa'
 import { temporaryDirectory } from 'tempy'
 
@@ -141,6 +141,19 @@ test('nonInteractiveGitSubmoduleEnv honors configured protocol permissions', asy
       GIT_ALLOW_PROTOCOL: 'file:git:http:ssh',
     })
   })
+})
+
+test('safeGitEnv removes repository location and index overrides', () => {
+  const env = safeGitEnv({
+    GIT_DIR: '/tmp/git-dir',
+    GIT_WORK_TREE: '/tmp/work-tree',
+    GIT_COMMON_DIR: '/tmp/common-dir',
+    GIT_INDEX_FILE: '/tmp/index',
+    GIT_OBJECT_DIRECTORY: '/tmp/objects',
+    GIT_ALTERNATE_OBJECT_DIRECTORIES: '/tmp/alt-objects',
+    KEEP_ME: 'true',
+  })
+  expect(env).toEqual({ KEEP_ME: 'true' })
 })
 
 /**

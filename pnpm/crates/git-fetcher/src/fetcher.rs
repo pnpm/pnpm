@@ -492,6 +492,7 @@ fn prepare_git_cmd(
     for name in [
         "GIT_DIR",
         "GIT_WORK_TREE",
+        "GIT_COMMON_DIR",
         "GIT_INDEX_FILE",
         "GIT_OBJECT_DIRECTORY",
         "GIT_ALTERNATE_OBJECT_DIRECTORIES",
