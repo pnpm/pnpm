@@ -384,9 +384,10 @@ async function linkBin (cmd: CommandInfo, binsDir: string, opts?: LinkBinOptions
   try {
     let nodePath: string[] | undefined
     if (opts?.extraNodePaths?.length || opts?.projectModulesDir) {
+      const modulesDirName = opts.projectModulesDir ? path.basename(opts.projectModulesDir) : 'node_modules'
       nodePath = Array.from(new Set([
         ...(opts.projectModulesDir ? [opts.projectModulesDir] : []),
-        ...await getBinNodePaths(cmd.path),
+        ...await getBinNodePaths(cmd.path, modulesDirName),
         ...opts.extraNodePaths ?? [],
       ]))
     }

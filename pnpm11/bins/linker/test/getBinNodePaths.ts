@@ -127,3 +127,19 @@ test('binary at root of package (no subdirectory)', async () => {
     path.join(tmp, '.pnpm', 'pkg@1.0.0', 'node_modules'),
   ])
 })
+
+test('returns custom modules-dir and package modules-dir when modulesDirName is customized', async () => {
+  const tmp = await tmpdir()
+  // Simulate: .pnpm/pkg@1.0.0/vendor/pkg/bin/cli.js
+  const binPath = path.join(tmp, '.pnpm', 'pkg@1.0.0', 'vendor', 'pkg', 'bin', 'cli.js')
+  fs.mkdirSync(path.dirname(binPath), { recursive: true })
+  fs.writeFileSync(binPath, '')
+
+  const result = await getBinNodePaths(binPath, 'vendor')
+
+  expect(result).toEqual([
+    path.join(tmp, '.pnpm', 'pkg@1.0.0', 'vendor', 'pkg', 'vendor'),
+    path.join(tmp, '.pnpm', 'pkg@1.0.0', 'vendor'),
+  ])
+})
+

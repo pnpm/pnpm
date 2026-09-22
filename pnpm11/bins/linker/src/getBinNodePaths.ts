@@ -11,7 +11,7 @@ import path from 'node:path'
  * (used by jest, eslint, etc.) which resolve from CWD can find the correct
  * dependency versions.
  */
-export async function getBinNodePaths (target: string): Promise<string[]> {
+export async function getBinNodePaths (target: string, modulesDirName: string = 'node_modules'): Promise<string[]> {
   const targetDir = path.dirname(target)
   let dir: string
   try {
@@ -22,17 +22,19 @@ export async function getBinNodePaths (target: string): Promise<string[]> {
     }
     dir = targetDir
   }
-  // Walk up from the resolved directory to find the first non-nested node_modules
+  // Walk up from the resolved directory to find the first non-nested node_modules or modules-dir
   let currentDir = dir
   while (true) {
-    if (path.basename(currentDir) === 'node_modules') {
-      // Skip nested node_modules (e.g., node_modules/node_modules)
-      if (path.basename(path.dirname(currentDir)) !== 'node_modules') {
+    const currentBase = path.basename(currentDir)
+    if (currentBase === modulesDirName || currentBase === 'node_modules') {
+      // Skip nested modules directories (e.g., node_modules/node_modules)
+      const parentBase = path.basename(path.dirname(currentDir))
+      if (parentBase !== modulesDirName && parentBase !== 'node_modules') {
         const nodeModulesDir = currentDir
         const result: string[] = []
 
         // Determine the package directory from the relative path between
-        // node_modules and the resolved binary directory
+        // the modules directory and the resolved binary directory
         const rel = path.relative(nodeModulesDir, dir)
         if (rel) {
           const relSegments = rel.split(path.sep)
@@ -40,7 +42,7 @@ export async function getBinNodePaths (target: string): Promise<string[]> {
           const pkgDir = relSegments[0].startsWith('@')
             ? path.join(nodeModulesDir, relSegments[0], relSegments[1])
             : path.join(nodeModulesDir, relSegments[0])
-          result.push(path.join(pkgDir, 'node_modules'))
+          result.push(path.join(pkgDir, currentBase))
         }
 
         result.push(nodeModulesDir)
