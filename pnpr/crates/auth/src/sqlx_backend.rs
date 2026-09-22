@@ -16,6 +16,7 @@ use super::{
 use async_trait::async_trait;
 use pnpr_config::MaxUsers;
 use pnpr_error::{RegistryError, Result};
+use std::future::Future;
 use std::{
     sync::atomic::{AtomicU64, Ordering},
     time::Duration,
@@ -85,22 +86,39 @@ impl<Db> SqlAuth<Db> {
     }
 }
 
-#[async_trait]
+/// Every future is declared `Send` because [`SqlAuth`] is reached through
+/// `Arc<dyn UserBackend>` and `Arc<dyn TokenBackend>`, whose boxed futures
+/// must be `Send`; a bare `async fn` here would leave the returned future's
+/// auto traits unnamed and those casts would not compile.
 trait AuthSqlBackend: Send + Sync {
-    async fn stored_user(&self, username: &str) -> Result<Option<StoredUser>>;
-    async fn user_count(&self) -> Result<u64>;
-    async fn reconcile_user_counter_overcount(&self) -> Result<bool>;
-    async fn insert_user(
+    fn stored_user(
+        &self,
+        username: &str,
+    ) -> impl Future<Output = Result<Option<StoredUser>>> + Send;
+    fn user_count(&self) -> impl Future<Output = Result<u64>> + Send;
+    fn reconcile_user_counter_overcount(&self) -> impl Future<Output = Result<bool>> + Send;
+    fn insert_user(
         &self,
         username: &str,
         bcrypt_hash: &str,
         max_users: MaxUsers,
-    ) -> Result<InsertUser>;
-    async fn insert_token(&self, token_hash: &str, record: &TokenRecord) -> Result<()>;
-    async fn lookup_token(&self, token_hash: &str) -> Result<Option<String>>;
-    async fn find_token(&self, token_hash: &str) -> Result<Option<TokenRecord>>;
-    async fn list_tokens(&self, username: &str) -> Result<Vec<(String, TokenRecord)>>;
-    async fn delete_token(&self, token_hash: &str) -> Result<()>;
+    ) -> impl Future<Output = Result<InsertUser>> + Send;
+    fn insert_token(
+        &self,
+        token_hash: &str,
+        record: &TokenRecord,
+    ) -> impl Future<Output = Result<()>> + Send;
+    fn lookup_token(&self, token_hash: &str)
+    -> impl Future<Output = Result<Option<String>>> + Send;
+    fn find_token(
+        &self,
+        token_hash: &str,
+    ) -> impl Future<Output = Result<Option<TokenRecord>>> + Send;
+    fn list_tokens(
+        &self,
+        username: &str,
+    ) -> impl Future<Output = Result<Vec<(String, TokenRecord)>>> + Send;
+    fn delete_token(&self, token_hash: &str) -> impl Future<Output = Result<()>> + Send;
 }
 
 #[derive(Clone)]
