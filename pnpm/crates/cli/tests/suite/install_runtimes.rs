@@ -485,6 +485,66 @@ fn explicit_node_version_takes_priority_over_the_manifest_runtime() {
 }
 
 #[test]
+fn devengines_runtime_range_does_not_replace_the_running_node_version() {
+    let node_major = running_node_major();
+    let root = tempfile::tempdir().unwrap();
+    let workspace = prepare_workspace(&root, "");
+    let dependency = workspace.join("dependency");
+    fs::create_dir(&dependency).unwrap();
+    fs::write(
+        dependency.join("package.json"),
+        json!({
+            "name": "dependency",
+            "version": "1.0.0",
+            "engines": { "node": format!(">={node_major}.0.0") },
+        })
+        .to_string(),
+    )
+    .unwrap();
+    fs::write(
+        workspace.join("package.json"),
+        json!({
+            "optionalDependencies": { "dependency": "file:dependency" },
+            "devEngines": {
+                "runtime": {
+                    "name": "node",
+                    "version": format!(">={}.0.0", node_major.saturating_sub(1)),
+                    "onFail": "error",
+                },
+            },
+        })
+        .to_string(),
+    )
+    .unwrap();
+
+    command(&workspace)
+        .with_arg("install")
+        .assert()
+        .success();
+    assert!(
+        workspace.join("node_modules/dependency/package.json").exists(),
+        "an optional dependency the running Node.js supports must be installed",
+    );
+}
+
+fn running_node_major() -> u64 {
+    let output = Command::new("node")
+        .arg("--version")
+        .output()
+        .expect("run node --version");
+    assert!(output.status.success(), "node --version must succeed");
+    String::from_utf8(output.stdout)
+        .expect("decode node --version")
+        .trim()
+        .trim_start_matches('v')
+        .split('.')
+        .next()
+        .expect("node --version reports a major")
+        .parse()
+        .expect("node major parses")
+}
+
+#[test]
 fn node_version_from_the_environment_takes_priority_over_the_manifest_runtime() {
     let root = tempfile::tempdir().unwrap();
     let workspace = prepare_workspace(&root, "engineStrict: true\n");
