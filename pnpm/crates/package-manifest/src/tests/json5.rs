@@ -5,6 +5,27 @@ use std::fs;
 use tempfile::tempdir;
 
 #[test]
+fn project_manifests_reject_non_object_roots() {
+    for filename in ["package.json", "package.json5", "package.yaml"] {
+        for source in ["[]", "42", "true", "\"fixture\""] {
+            let dir = tempdir().unwrap();
+            let path = dir.path().join(filename);
+            fs::write(&path, source).unwrap();
+            let error =
+                PackageManifest::from_path(path.clone()).err().expect("reject non-object root");
+            eprintln!("ERROR: {error}");
+            assert!(error.to_string().contains("the manifest root must be an object"));
+            assert!(
+                error
+                    .to_string()
+                    .contains(&path.display().to_string())
+            );
+            assert_eq!(fs::read_to_string(path).unwrap(), source);
+        }
+    }
+}
+
+#[test]
 fn json5_reads_bom_comments_and_json5_syntax() {
     let dir = tempdir().unwrap();
     let path = dir.path().join("package.json5");

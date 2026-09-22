@@ -128,8 +128,8 @@ pub(super) fn parse_project_manifest(
                 source,
             })?
     } else {
-        return parse_manifest(contents)
-            .map_err(|source| PackageManifestError::Parse { path: path.to_path_buf(), source });
+        parse_manifest(contents)
+            .map_err(|source| PackageManifestError::Parse { path: path.to_path_buf(), source })?
     };
     if is_yaml_path(path) && value.is_null() {
         return Ok(serde_json::json!({}));
