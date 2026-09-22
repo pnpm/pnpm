@@ -391,6 +391,25 @@ fn preferred_max_pick(
 /// among `candidates`, when the packument carries another one at all.
 /// Scoping the retry to the candidates keeps a preference group that is
 /// one explicitly pinned version from being overridden.
+fn same_release_line(version: &str, target: &node_semver::Version) -> bool {
+    node_semver::Version::parse(version)
+        .is_ok_and(|parsed| {
+            parsed.major == target.major
+                && parsed.minor == target.minor
+                && parsed.patch == target.patch
+        })
+}
+
+fn same_release_non_deprecated_pick(non_deprecated: &[&str], picked: &str) -> Option<String> {
+    let picked_semver = node_semver::Version::parse(picked).ok()?;
+    let same_release_prereleases: Vec<&str> = non_deprecated
+        .iter()
+        .copied()
+        .filter(|version| same_release_line(version, &picked_semver))
+        .collect();
+    max_version(&same_release_prereleases)
+}
+
 fn non_deprecated_pick<Raw: AsRef<str>>(
     opts: &PickVersionByVersionRangeOptions<'_>,
     candidates: &[Raw],
@@ -404,11 +423,11 @@ fn non_deprecated_pick<Raw: AsRef<str>>(
         .map(AsRef::as_ref)
         .filter(|version| !opts.meta.versions.is_deprecated(version))
         .collect();
-    // The `*` pick admits a prerelease `latest` that the range itself
-    // rejects, so the retry ranks those candidates directly only when the
-    // picked version was an admitted prerelease.
-    if opts.version_range == "*" && !semver_satisfies_loose(picked, opts.version_range) {
-        return max_version(&non_deprecated);
+    if opts.version_range == "*"
+        && !semver_satisfies_loose(picked, opts.version_range)
+        && let Some(same_release) = same_release_non_deprecated_pick(&non_deprecated, picked)
+    {
+        return Some(same_release);
     }
     max_satisfying(&non_deprecated, opts.version_range)
 }

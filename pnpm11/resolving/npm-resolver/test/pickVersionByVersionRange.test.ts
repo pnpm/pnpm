@@ -239,6 +239,19 @@ test('a deprecated prerelease latest under * falls back to a non-deprecated prer
   expect(pickVersionByVersionRange({ meta, versionRange: '*' })).toBe('2.0.0-beta.2')
 })
 
+test('a deprecated prerelease latest under * does not fall back to a different prerelease line', () => {
+  const meta = metaWithDeprecation({ '2.0.0-beta.1': true, '3.0.0-alpha.1': false }, '2.0.0-beta.1')
+  expect(pickVersionByVersionRange({ meta, versionRange: '*' })).toBe('2.0.0-beta.1')
+})
+
+test('a deprecated prerelease latest under * prefers a non-deprecated prerelease from the same release over a lower stable version', () => {
+  const meta = metaWithDeprecation(
+    { '1.0.0': false, '2.0.0-beta.1': true, '2.0.0-beta.2': false },
+    '2.0.0-beta.1'
+  )
+  expect(pickVersionByVersionRange({ meta, versionRange: '*' })).toBe('2.0.0-beta.2')
+})
+
 test('a deprecated stable latest under * does not fall back to a prerelease', () => {
   const meta = metaWithDeprecation({ '0.9.0': false, '1.0.0': true, '2.0.0-beta.1': false }, '1.0.0')
   expect(pickVersionByVersionRange({ meta, versionRange: '*' })).toBe('0.9.0')

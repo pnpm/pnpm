@@ -486,9 +486,22 @@ function nonDeprecatedPick (
 ): string | null {
   if (!meta.versions[picked]?.deprecated || candidates.length <= 1) return null
   const nonDeprecatedVersions = candidates.filter((version) => !meta.versions[version]?.deprecated)
-  return versionRange === '*' && !semverSatisfiesLoose(picked, versionRange)
-    ? maxVersionLoose(nonDeprecatedVersions)
-    : maxSatisfyingLoose(nonDeprecatedVersions, versionRange)
+  if (versionRange === '*' && !semverSatisfiesLoose(picked, versionRange)) {
+    const pickedParsed = parseSemverLoose(picked)
+    if (pickedParsed != null) {
+      const sameReleasePrereleases = nonDeprecatedVersions.filter((version) => {
+        const parsed = parseSemverLoose(version)
+        return parsed != null &&
+          parsed.major === pickedParsed.major &&
+          parsed.minor === pickedParsed.minor &&
+          parsed.patch === pickedParsed.patch
+      })
+      const sameRelease = maxVersionLoose(sameReleasePrereleases)
+      if (sameRelease != null) return sameRelease
+    }
+  }
+
+  return maxSatisfyingLoose(nonDeprecatedVersions, versionRange)
 }
 
 /** The newest version by semver order, without a range check. */

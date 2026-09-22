@@ -230,6 +230,38 @@ fn version_range_deprecated_stable_latest_does_not_fall_back_to_prerelease_under
 }
 
 #[test]
+fn version_range_deprecated_prerelease_latest_does_not_fall_back_to_unrelated_prerelease() {
+    let pkg = make_package(
+        "acme",
+        &[("2.0.0-beta.1", Some("deprecated")), ("3.0.0-alpha.1", None)],
+        &[("latest", "2.0.0-beta.1")],
+    );
+    let opts = PickVersionByVersionRangeOptions {
+        meta: &pkg,
+        version_range: "*",
+        preferred_version_selectors: None,
+        published_by: None,
+    };
+    assert_eq!(pick_version_by_version_range(&opts).as_deref(), Some("2.0.0-beta.1"));
+}
+
+#[test]
+fn version_range_deprecated_prerelease_latest_prefers_same_release_prerelease_over_stable() {
+    let pkg = make_package(
+        "acme",
+        &[("1.0.0", None), ("2.0.0-beta.1", Some("deprecated")), ("2.0.0-beta.2", None)],
+        &[("latest", "2.0.0-beta.1")],
+    );
+    let opts = PickVersionByVersionRangeOptions {
+        meta: &pkg,
+        version_range: "*",
+        preferred_version_selectors: None,
+        published_by: None,
+    };
+    assert_eq!(pick_version_by_version_range(&opts).as_deref(), Some("2.0.0-beta.2"));
+}
+
+#[test]
 fn version_range_deprecated_range_selector_falls_back_to_non_deprecated() {
     let pkg = make_package(
         "acme",
