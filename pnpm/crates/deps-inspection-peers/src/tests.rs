@@ -6,6 +6,50 @@ use super::{
 use pnpm_config::PeerDependencyRules;
 use std::collections::BTreeMap;
 
+#[test]
+fn tarball_peer_versions_use_metadata_through_aliases_and_peer_suffixes() {
+    for (reference, key) in [
+        ("file:provider.tgz", "provider@file:provider.tgz"),
+        ("actual@file:provider.tgz(other@1.0.0)", "actual@file:provider.tgz"),
+    ] {
+        for version in ["1.0.0", "2.0.0"] {
+            let lockfile = serde_json::from_value(serde_json::json!({
+                "lockfileVersion": "9.0",
+                "importers": { ".": { "dependencies": {
+                    "consumer": { "specifier": "1.0.0", "version": "1.0.0" },
+                } } },
+                "packages": {
+                    "consumer@1.0.0": {
+                        "resolution": { "integrity": "sha512-consumer" },
+                        "peerDependencies": { "provider": "^1.0.0" },
+                    },
+                    key: { "resolution": { "tarball": "file:provider.tgz" }, "version": version },
+                },
+                "snapshots": { "consumer@1.0.0": { "dependencies": { "provider": reference } } },
+            }))
+            .expect("parse lockfile");
+            let report = super::peer_issues_for_lockfile(
+                &lockfile,
+                std::path::Path::new("."),
+                &[".".to_string()],
+                &PeerDependencyRules::default(),
+                None,
+            )
+            .expect("inspect peers");
+            if version == "1.0.0" {
+                assert!(
+                    report.is_none(),
+                    "unexpected peer report: {:?}",
+                    report.as_ref().map(super::PeerIssuesReport::issues),
+                );
+            } else {
+                let report = report.expect("incompatible peer must be reported");
+                assert_eq!(report.issues()["."].bad["provider"][0].found_version, version);
+            }
+        }
+    }
+}
+
 fn have_common_version(version_ranges: &[String]) -> bool {
     intersect_multiple_ranges(version_ranges).is_some()
 }
@@ -603,7 +647,12 @@ fn snapshot_peer_versions_use_named_registry_semver() {
     ] {
         let dep_ref = reference.parse().unwrap();
         assert_eq!(
-            super::resolved_snapshot_version(&dep_ref, std::path::Path::new(".")),
+            super::resolved_snapshot_version(
+                &dep_ref,
+                &"peer".parse().unwrap(),
+                &std::collections::HashMap::new(),
+                std::path::Path::new("."),
+            ),
             Some(expected.to_string()),
             "{reference}",
         );

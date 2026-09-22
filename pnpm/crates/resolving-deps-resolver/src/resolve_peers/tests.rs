@@ -10,6 +10,8 @@ mod peer_dependencies_own_peer_is_resolved;
 
 mod behavior;
 
+mod tarball_peers;
+
 use super::{
     ImporterPeerInput, ResolvePeersOptions, ResolvePeersResult,
     context::peer_id_pair,

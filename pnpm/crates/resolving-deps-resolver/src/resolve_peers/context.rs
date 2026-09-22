@@ -235,20 +235,21 @@ impl Walker<'_> {
         if current.version != new.version || current.alias != new.alias {
             return false;
         }
-        let Some(current_name) = self.parent_ref_package_name(current) else {
-            return true;
+        let (Some(current_node_id), Some(new_node_id)) =
+            (current.node_id.as_ref(), new.node_id.as_ref())
+        else {
+            return current.node_id == new.node_id;
         };
-        let Some(new_name) = self.parent_ref_package_name(new) else {
+        if current_node_id == new_node_id {
             return true;
+        }
+        let (Some(current_node), Some(new_node)) = (
+            self.tree.dependencies_tree.get(current_node_id),
+            self.tree.dependencies_tree.get(new_node_id),
+        ) else {
+            return false;
         };
-        current_name == new_name
-    }
-
-    fn parent_ref_package_name(&self, parent_ref: &ParentRef) -> Option<String> {
-        let node_id = parent_ref.node_id.as_ref()?;
-        let tree_node = self.tree.dependencies_tree.get(node_id)?;
-        let pkg = self.tree.packages.get(&tree_node.resolved_package_id)?;
-        Some(pkg_name_version(&pkg.result).0)
+        current_node.resolved_package_id == new_node.resolved_package_id
     }
 
     pub(super) fn inherited_parent_pkg_breaks_peer_diamond(
